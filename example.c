@@ -1,0 +1,301 @@
+/*
+ * 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
+ * All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/socket.h>
+
+#include <ctype.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <openssl/hmac.h>
+#include <openssl/evp.h>
+
+#include "packet.h"
+#include "interface.h"
+
+struct el_crypto_engine
+{
+	char			name[EL_MAX_NAME_LEN];
+	
+	EVP_MD_CTX 		mdctx;
+	const EVP_MD		*evp_md;
+
+	int			(* hash)(struct el_crypto_engine *e,
+			void *src, unsigned int size,
+			void *dst, unsigned int *rsize);
+};
+
+static int el_digest_init(struct el_crypto_engine *e)
+{
+	EVP_DigestInit_ex(&e->mdctx, e->evp_md, NULL);
+	return 0;
+}
+
+static int el_digest_update(struct el_crypto_engine *e, void *buf, unsigned int size)
+{
+	EVP_DigestUpdate(&e->mdctx, buf, size);
+	return 0;
+}
+
+static int el_digest_final(struct el_crypto_engine *e, void *result, unsigned int *rsize)
+{
+	EVP_DigestFinal_ex(&e->mdctx, result, rsize);
+	EVP_MD_CTX_cleanup(&e->mdctx);
+	return 0;
+}
+
+static int el_digest(struct el_crypto_engine *e, void *data, unsigned int size,
+		void *result, unsigned int *rsize)
+{
+	int err;
+
+	err = el_digest_init(e);
+	if (err) {
+		ulog_err("Failed to initialize digest @%s", e->name);
+		return err;
+	}
+
+	err = el_digest_update(e, data, size);
+	if (err) {
+		ulog_err("Failed to update digest @%s", e->name);
+		return err;
+	}
+	
+	err = el_digest_final(e, result, rsize);
+	if (err) {
+		ulog_err("Failed to finalize digest @%s", e->name);
+		return err;
+	}
+
+	return 0;
+}
+
+static int el_hash(void *priv, void *src, __u64 size, void *dst, unsigned int *rsize, unsigned int flags __unused)
+{
+	struct el_crypto_engine *e = priv;
+	if (!e) {
+		ulog("Crypto engine was not initialized. Put 'hash' string first in the config.\n");
+		return -EINVAL;
+	}
+
+	return e->hash(e, src, size, dst, rsize);
+}
+
+static int el_crypto_engine_init(struct el_crypto_engine *e, char *hash)
+{
+ 	OpenSSL_add_all_digests();
+
+	e->evp_md = EVP_get_digestbyname(hash);
+	if (!e->evp_md) {
+		ulog_err("Failed to find algorithm '%s' implementation.\n", hash);
+		return -ENOENT;
+	}
+
+	EVP_MD_CTX_init(&e->mdctx);
+	e->hash = el_digest;
+
+	ulog("Successfully initialized '%s' hash.\n", hash);
+
+	return 0;
+}
+
+static int dnet_parse_addr(char *addr, struct dnet_config *cfg)
+{
+	char *fam, *port;
+
+	fam = strrchr(addr, EL_CONF_ADDR_DELIM);
+	if (!fam)
+		goto err_out_print_wrong_param;
+	*fam++ = 0;
+	if (!fam)
+		goto err_out_print_wrong_param;
+
+	cfg->family = atoi(fam);
+
+	port = strrchr(addr, EL_CONF_ADDR_DELIM);
+	if (!port)
+		goto err_out_print_wrong_param;
+	*port++ = 0;
+	if (!port)
+		goto err_out_print_wrong_param;
+
+	memset(cfg->addr, 0, sizeof(cfg->addr));
+	memset(cfg->port, 0, sizeof(cfg->port));
+
+	snprintf(cfg->addr, sizeof(cfg->addr), "%s", addr);
+	snprintf(cfg->port, sizeof(cfg->port), "%s", port);
+
+	return 0;
+
+err_out_print_wrong_param:
+	ulog("Wrong address parameter, should be 'addr%cport%cfamily'.\n",
+				EL_CONF_ADDR_DELIM, EL_CONF_ADDR_DELIM);
+	return -EINVAL;
+}
+
+static int el_parse_numeric_id(char *value, unsigned char *id)
+{
+	unsigned char ch[2];
+	unsigned int i, len = strlen(value);
+
+	memset(id, 0, EL_ID_SIZE);
+
+	if (len/2 > EL_ID_SIZE)
+		len = EL_ID_SIZE * 2;
+
+	for (i=0; i<len / 2; i++) {
+		ch[0] = value[2*i + 0];
+		ch[1] = value[2*i + 1];
+
+		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
+	}
+
+	if (len & 1) {
+		ch[0] = value[2*i + 0];
+		ch[1] = '0';
+
+		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
+	}
+
+	ulog("Node id: %s\n", el_dump_id(id));
+	return 0;
+}
+
+static void dnet_usage(char *p)
+{
+	fprintf(stderr, "Usage: %s\n"
+			" -a addr:port:family  - creates a node with given network address\n"
+			" -r addr:port:family  - adds a route to the given node\n"
+			" -j <join>            - join the network\n"
+			"                        become a fair node which may store data from the other nodes\n"
+			" -d root              - root directory to load/store the objects\n"
+			" -W file              - write given file to the network storage\n"
+			" -R file              - read given file from the network into the local storage\n"
+			" -H hash              - OpenSSL hash to use as a transformation function\n"
+			" -i id                - node's ID\n"
+			" ...                  - parameters can be repeated multiple times\n"
+			"                        each time they correspond to the last added node\n", p);
+}
+
+int main(int argc, char *argv[])
+{
+	int ch, err;
+	struct dnet_node *n = NULL;
+	struct dnet_config cfg;
+	struct el_crypto_engine *e;
+
+	memset(&cfg, 0, sizeof(struct dnet_config));
+
+	cfg.sock_type = SOCK_STREAM;
+	cfg.proto = IPPROTO_TCP;
+
+	while ((ch = getopt(argc, argv, "i:H:W:R:a:r:jd:h")) != -1) {
+		switch (ch) {
+			case 'i':
+				err = el_parse_numeric_id(optarg, cfg.id);
+				if (err)
+					return err;
+				break;
+			case 'a':
+				err = dnet_parse_addr(optarg, &cfg);
+				if (err)
+					return err;
+
+				n = dnet_node_create(&cfg);
+				if (!n)
+					return -1;
+				break;
+			case 'r':
+				if (!n)
+					return -EINVAL;
+				err = dnet_parse_addr(optarg, &cfg);
+				if (err)
+					return err;
+
+				err = dnet_add_state(n, &cfg);
+				if (err)
+					return err;
+				break;
+			case 'j':
+				if (!n)
+					return -EINVAL;
+
+				err = dnet_join(n);
+				if (err)
+					return err;
+				break;
+			case 'd':
+				if (!n)
+					return -EINVAL;
+				err = dnet_setup_root(n, optarg);
+				if (err)
+					return err;
+				break;
+			case 'W':
+				if (!n)
+					return -EINVAL;
+				err = dnet_write_file(n, optarg);
+				if (err)
+					return err;
+				break;
+			case 'R':
+				if (!n)
+					return -EINVAL;
+				err = dnet_read_file(n, optarg, 0, 0);
+				if (err)
+					return err;
+				break;
+			case 'H':
+				if (!n)
+					return -EINVAL;
+
+				e = malloc(sizeof(struct el_crypto_engine));
+				if (!e)
+					return -ENOMEM;
+				memset(e, 0, sizeof(struct el_crypto_engine));
+
+				err = el_crypto_engine_init(e, optarg);
+				if (err)
+					return err;
+
+				err = dnet_add_transform(n, e, optarg, el_hash);
+				if (err)
+					return err;
+				break;
+			case 'h':
+			default:
+				dnet_usage(argv[0]);
+				return -1;
+		}
+	}
+
+	if (!n) {
+		dnet_usage(argv[0]);
+		return -1;
+	}
+
+	while (1)
+		sleep(1);
+	ulog("Exiting.\n");
+
+	return 0;
+}
+
