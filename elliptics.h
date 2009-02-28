@@ -250,8 +250,10 @@ struct dnet_transform
 
 	void			*priv;
 
-	int 			(* transform)(void *priv, void *src, __u64 size,
+	int			(* init)(void *priv);
+	int 			(* update)(void *priv, void *src, __u64 size,
 					void *dst, unsigned int *dsize, unsigned int flags);
+	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };
 
 #endif /* __ELLIPTICS_H */

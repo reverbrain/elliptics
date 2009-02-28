@@ -19,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/mman.h>
 
 #include <ctype.h>
 #include <fcntl.h>
@@ -40,13 +41,75 @@ static int dnet_transform(struct dnet_node *n, void *src, __u64 size, void *dst,
 	list_for_each_entry(t, &n->tlist, tentry) {
 		if (pos++ == *ppos) {
 			*ppos = pos;
-			err = t->transform(t->priv, src, size, dst, dsize, 0);
+			err = t->init(t->priv);
+			if (err)
+				continue;
+
+			err = t->update(t->priv, src, size, dst, dsize, 0);
+			if (err)
+				continue;
+			
+			err = t->final(t->priv, dst, dsize, 0);
 			if (!err)
 				break;
 		}
 	}
 	pthread_mutex_unlock(&n->tlock);
 
+	return err;
+}
+
+static int dnet_transform_file(struct dnet_node *n, char *file, loff_t offset, size_t size,
+		void *dst, unsigned int *dsize, int *ppos)
+{
+	int err = -ENOENT;
+	int fd;
+	void *data;
+
+	fd = open(file, O_RDONLY | O_LARGEFILE);
+	if (fd < 0) {
+		err = -errno;
+		ulog_err("%s: failed to open file '%s' for the transformation",
+				el_dump_id(n->id), file);
+		goto err_out_exit;
+	}
+
+	if (!size) {
+		struct stat st;
+
+		err = fstat(fd, &st);
+		if (err < 0) {
+			err = -errno;
+			ulog_err("%s: failed to stat file '%s' for the transformation",
+					el_dump_id(n->id), file);
+			goto err_out_close;
+		}
+
+		size = st.st_size;
+	}
+
+	data = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, offset);
+	if (data == MAP_FAILED) {
+		err = -errno;
+		ulog_err("%s: failed to map file '%s' for the transformation",
+				el_dump_id(n->id), file);
+		goto err_out_close;
+	}
+
+	err = dnet_transform(n, data, size, dst, dsize, ppos);
+	if (err)
+		goto err_out_unmap;
+
+	munmap(data, size);
+	close(fd);
+
+	return 0;
+
+err_out_unmap:
+	munmap(data, size);
+err_out_close:
+	close(fd);
+err_out_exit:
 	return err;
 }
 
@@ -719,6 +782,7 @@ int dnet_write_file(struct dnet_node *n, char *file)
 	int fd, err, pos = 0, len = strlen(file);
 	struct dnet_trans *t;
 	struct el_io_attr io;
+	unsigned char file_id[EL_ID_SIZE];
 	struct stat stat;
 	off_t size;
 	struct dnet_net_state *st;
@@ -743,18 +807,24 @@ int dnet_write_file(struct dnet_node *n, char *file)
 	while (1) {
 		unsigned int rsize = EL_ID_SIZE;
 
-		err = dnet_transform(n, file, len, io.id, &rsize, &pos);
+		err = dnet_transform(n, file, len, file_id, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				break;
 			continue;
 		}
+		pos--;
+
+		rsize = EL_ID_SIZE;
+		err = dnet_transform_file(n, file, 0, 0, io.id, &rsize, &pos);
+		if (err)
+			continue;
 
 		io.size = size;
 		io.offset = 0;
 		io.flags = DNET_IO_FLAGS_UPDATE;
 
-		t = dnet_io_trans_create(n, io.id, DNET_CMD_WRITE, &io, dnet_write_complete, strdup(file));
+		t = dnet_io_trans_create(n, file_id, DNET_CMD_WRITE, &io, dnet_write_complete, strdup(file));
 		if (!t) {
 			ulog("%s: failed to create transaction.\n", el_dump_id(io.id));
 			continue;
@@ -1015,13 +1085,15 @@ err_out_exit:
 }
 
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
-	int (* transform)(void *priv, void *src, __u64 size,
-		void *dst, unsigned int *dsize, unsigned int flags))
+	int (* init)(void *priv),
+	int (* update)(void *priv, void *src, __u64 size,
+		void *dst, unsigned int *dsize, unsigned int flags),
+	int (* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags))
 {
 	struct dnet_transform *t;
 	int err = 0;
 
-	if (!n) {
+	if (!n || !init || !update || !final || !name) {
 		err = -EINVAL;
 		goto err_out_exit;
 	}
@@ -1043,7 +1115,9 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	memset(t, 0, sizeof(struct dnet_transform));
 
 	snprintf(t->name, sizeof(t->name), "%s", name);
-	t->transform = transform;
+	t->init = init;
+	t->update = update;
+	t->final = final;
 	t->priv = priv;
 
 	list_add_tail(&t->tentry, &n->tlist);

@@ -63,7 +63,10 @@ struct dnet_config
 };
 
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
-	int (* transform)(void *priv, void *src, __u64 size, void *dst, unsigned int *dsize, unsigned int flags));
+	int (* init)(void *priv),
+	int (* update)(void *priv, void *src, __u64 size,
+		void *dst, unsigned int *dsize, unsigned int flags),
+	int (* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags));
 int dnet_remove_transform(struct dnet_node *n, char *name);
 
 struct dnet_node *dnet_node_create(struct dnet_config *);

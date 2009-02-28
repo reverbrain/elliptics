@@ -37,66 +37,30 @@ struct el_crypto_engine
 	
 	EVP_MD_CTX 		mdctx;
 	const EVP_MD		*evp_md;
-
-	int			(* hash)(struct el_crypto_engine *e,
-			void *src, unsigned int size,
-			void *dst, unsigned int *rsize);
 };
 
-static int el_digest_init(struct el_crypto_engine *e)
+static int el_digest_init(void *priv)
 {
+	struct el_crypto_engine *e = priv;
 	EVP_DigestInit_ex(&e->mdctx, e->evp_md, NULL);
 	return 0;
 }
 
-static int el_digest_update(struct el_crypto_engine *e, void *buf, unsigned int size)
+static int el_digest_update(void *priv, void *src, __u64 size,
+		void *dst __unused, unsigned int *dsize __unused,
+		unsigned int flags __unused)
 {
-	EVP_DigestUpdate(&e->mdctx, buf, size);
+	struct el_crypto_engine *e = priv;
+	EVP_DigestUpdate(&e->mdctx, src, size);
 	return 0;
 }
 
-static int el_digest_final(struct el_crypto_engine *e, void *result, unsigned int *rsize)
+static int el_digest_final(void *priv, void *result, unsigned int *rsize, unsigned int flags __unused)
 {
+	struct el_crypto_engine *e = priv;
 	EVP_DigestFinal_ex(&e->mdctx, result, rsize);
 	EVP_MD_CTX_cleanup(&e->mdctx);
 	return 0;
-}
-
-static int el_digest(struct el_crypto_engine *e, void *data, unsigned int size,
-		void *result, unsigned int *rsize)
-{
-	int err;
-
-	err = el_digest_init(e);
-	if (err) {
-		ulog_err("Failed to initialize digest @%s", e->name);
-		return err;
-	}
-
-	err = el_digest_update(e, data, size);
-	if (err) {
-		ulog_err("Failed to update digest @%s", e->name);
-		return err;
-	}
-	
-	err = el_digest_final(e, result, rsize);
-	if (err) {
-		ulog_err("Failed to finalize digest @%s", e->name);
-		return err;
-	}
-
-	return 0;
-}
-
-static int el_hash(void *priv, void *src, __u64 size, void *dst, unsigned int *rsize, unsigned int flags __unused)
-{
-	struct el_crypto_engine *e = priv;
-	if (!e) {
-		ulog("Crypto engine was not initialized. Put 'hash' string first in the config.\n");
-		return -EINVAL;
-	}
-
-	return e->hash(e, src, size, dst, rsize);
 }
 
 static int el_crypto_engine_init(struct el_crypto_engine *e, char *hash)
@@ -110,7 +74,6 @@ static int el_crypto_engine_init(struct el_crypto_engine *e, char *hash)
 	}
 
 	EVP_MD_CTX_init(&e->mdctx);
-	e->hash = el_digest;
 
 	ulog("Successfully initialized '%s' hash.\n", hash);
 
@@ -276,7 +239,10 @@ int main(int argc, char *argv[])
 				if (err)
 					return err;
 
-				err = dnet_add_transform(n, e, optarg, el_hash);
+				err = dnet_add_transform(n, e, optarg,
+						el_digest_init,
+						el_digest_update,
+						el_digest_final);
 				if (err)
 					return err;
 				break;
