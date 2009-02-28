@@ -80,6 +80,11 @@ static int el_crypto_engine_init(struct el_crypto_engine *e, char *hash)
 	return 0;
 }
 
+#define EL_CONF_COMMENT		'#'
+#define EL_CONF_DELIM		'='
+#define EL_CONF_ADDR_DELIM	':'
+#define EL_CONF_TIME_DELIM	'.'
+
 static int dnet_parse_addr(char *addr, struct dnet_config *cfg)
 {
 	char *fam, *port;

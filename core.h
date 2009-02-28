@@ -23,20 +23,12 @@
 #define EL_ID_SIZE		20		/* Has to match selected hash type */
 #define EL_MAX_NAME_LEN		64
 
-#define EL_CONF_MAX_STR		512
-#define EL_PRIV_SIZE		40960
-
 /*
  * Each read transaction reply is being split into
  * chunks of this bytes max, thus reading transaction
  * callback will be invoked multiple times.
  */
 #define MAX_READ_TRANS_SIZE	(1024*1024*10)
-
-#define EL_CONF_COMMENT		'#'
-#define EL_CONF_DELIM		'='
-#define EL_CONF_ADDR_DELIM	':'
-#define EL_CONF_TIME_DELIM	'.'
 
 #define DNET_TIMEOUT		5000
 
