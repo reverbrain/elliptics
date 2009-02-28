@@ -372,6 +372,8 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct el_cmd *cmd,
 	struct el_attr *a;
 	struct el_io_attr *rio;
 	size_t size;
+	loff_t offset;
+	__u64 total_size;
 
 	if (attr->size != sizeof(struct el_io_attr)) {
 		ulog("%s: wrong read attribute, size does not match "
@@ -413,37 +415,51 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct el_cmd *cmd,
 		ulog("%s: failed to allocate reply attributes.\n", el_dump_id(io->id));
 		goto err_out_close_dd;
 	}
-	ulog("%s: offset: %llu, size: %zu, c: %p.\n", el_dump_id(io->id), (unsigned long long)io->offset, size, c);
 
-	a = (struct el_attr *)(c + 1);
-	rio = (struct el_io_attr *)(a + 1);
+	total_size = size;
+	offset = io->offset;
 
-	memcpy(c->id, io->id, EL_ID_SIZE);
-	c->flags = DNET_FLAGS_MORE;
-	c->status = 0;
-	c->size = sizeof(struct el_attr) + sizeof(struct el_io_attr) + size;
-	c->trans = cmd->trans | DNET_TRANS_REPLY;
+	while (total_size) {
+		size = total_size;
+		if (size > MAX_READ_TRANS_SIZE)
+			size = MAX_READ_TRANS_SIZE;
 
-	a->cmd = DNET_CMD_READ;
-	a->size = sizeof(struct el_io_attr) + size;
-	a->flags = 0;
+		ulog("%s: offset: %llu, size: %zu, c: %p.\n", el_dump_id(io->id),
+				(unsigned long long)io->offset, size, c);
 
-	memcpy(rio, io, sizeof(struct el_io_attr));
-	rio->size = size;
-	rio->flags = 0;
+		a = (struct el_attr *)(c + 1);
+		rio = (struct el_io_attr *)(a + 1);
 
-	el_convert_cmd(c);
-	el_convert_attr(a);
-	el_convert_io_attr(rio);
+		memcpy(c->id, io->id, EL_ID_SIZE);
+		c->flags = DNET_FLAGS_MORE;
+		c->status = 0;
+		c->size = sizeof(struct el_attr) + sizeof(struct el_io_attr) + size;
+		c->trans = cmd->trans | DNET_TRANS_REPLY;
 
-	err = dnet_sendfile_data(st, file, dd, io->offset, size,
-		c, sizeof(struct el_cmd) + sizeof(struct el_attr) + sizeof(struct el_io_attr));
-	if (err) {
-		ulog("%s: failed to send read reply.\n", el_dump_id(io->id));
-		goto err_out_free;
+		a->cmd = DNET_CMD_READ;
+		a->size = sizeof(struct el_io_attr) + size;
+		a->flags = 0;
+
+		memcpy(rio->id, io->id, EL_ID_SIZE);
+		rio->size = size;
+		rio->offset = offset;
+		rio->flags = 0;
+
+		el_convert_cmd(c);
+		el_convert_attr(a);
+		el_convert_io_attr(rio);
+
+		err = dnet_sendfile_data(st, file, dd, offset, size,
+			c, sizeof(struct el_cmd) + sizeof(struct el_attr) + sizeof(struct el_io_attr));
+		if (err) {
+			ulog("%s: failed to send read reply.\n", el_dump_id(io->id));
+			goto err_out_free;
+		}
+
+		offset += size;
+		total_size -= size;
 	}
 
-	ulog("%s: freeing %p\n", el_dump_id(cmd->id), c);
 	free(c);
 	close(dd);
 
