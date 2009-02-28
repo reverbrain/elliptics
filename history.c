@@ -444,6 +444,7 @@ int dnet_recv_list(struct dnet_node *n)
 
 	t->st = st = dnet_state_get_first(n, n->st);
 	if (!st) {
+		err = -ENOENT;
 		ulog("%s: can not get output state.\n", el_dump_id(n->id));
 		goto err_out_destroy;
 	}
