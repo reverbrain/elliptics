@@ -3,7 +3,7 @@ TARGET = libelliptics.so example
 OBJS = log.o dnet.o rbtree.o node.o net.o trans.o history.o
 
 CC = gcc
-CFLAGS = -W -Wall -g
+CFLAGS = -W -Wall -fPIC -g
 LDFLAGS = -lcrypt -lssl -lpthread -L. -lelliptics
 
 all: $(TARGET)
