@@ -109,7 +109,7 @@ struct dnet_config
 	int			sock_type, proto, family;
 
 	/*
-	 * Socket address/port.
+	 * Socket address/port suitable for the getaddrinfo().
 	 */
 	char			addr[DNET_MAX_ADDRLEN];
 	char			port[DNET_MAX_PORTLEN];
