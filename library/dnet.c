@@ -13,6 +13,8 @@
  * GNU General Public License for more details.
  */
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -25,8 +27,9 @@
 #include <unistd.h>
 
 #include "elliptics.h"
-#include "packet.h"
-#include "interface.h"
+
+#include "dnet/packet.h"
+#include "dnet/interface.h"
 
 static int dnet_transform(struct dnet_node *n, void *src, __u64 size, void *dst, unsigned int *dsize, int *ppos)
 {

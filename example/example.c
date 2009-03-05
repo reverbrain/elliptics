@@ -13,6 +13,8 @@
  * GNU General Public License for more details.
  */
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -28,8 +30,8 @@
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
 
-#include "packet.h"
-#include "interface.h"
+#include "dnet/packet.h"
+#include "dnet/interface.h"
 
 struct dnet_crypto_engine
 {

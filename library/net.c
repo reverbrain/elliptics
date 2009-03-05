@@ -13,6 +13,8 @@
  * GNU General Public License for more details.
  */
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -25,8 +27,8 @@
 #include <fcntl.h>
 
 #include "elliptics.h"
-#include "packet.h"
-#include "interface.h"
+#include "dnet/packet.h"
+#include "dnet/interface.h"
 
 int dnet_socket_create_addr(int sock_type, int proto,
 		struct sockaddr *sa, unsigned int salen, int listening)

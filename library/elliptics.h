@@ -27,9 +27,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "rbtree.h"
 #include "list.h"
-#include "packet.h"
+#include "rbtree.h"
+#include "dnet/packet.h"
 
 #ifdef __cplusplus
 extern "C" {

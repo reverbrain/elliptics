@@ -16,12 +16,12 @@
 #ifndef __DNET_INTERFACE_H
 #define __DNET_INTERFACE_H
 
-struct dnet_net_state;
-struct dnet_node;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+struct dnet_net_state;
+struct dnet_node;
 
 /*
  * Callback data structures.
@@ -141,4 +141,4 @@ static inline char *dnet_dump_id(unsigned char *id)
 }
 #endif
 
-#endif /* __INTERFACE_H */
+#endif /* __DNET_INTERFACE_H */

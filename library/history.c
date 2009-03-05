@@ -13,6 +13,8 @@
  * GNU General Public License for more details.
  */
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -26,7 +28,7 @@
 #include <unistd.h>
 
 #include "elliptics.h"
-#include "interface.h"
+#include "dnet/interface.h"
 
 static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req, unsigned char *id)
 {

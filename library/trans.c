@@ -13,6 +13,8 @@
  * GNU General Public License for more details.
  */
 
+#include "config.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -22,8 +24,8 @@
 #include <unistd.h>
 
 #include "elliptics.h"
-#include "packet.h"
-#include "interface.h"
+#include "dnet/packet.h"
+#include "dnet/interface.h"
 
 static inline int dnet_trans_cmp(__u64 old, __u64 new)
 {

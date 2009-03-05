@@ -17,8 +17,8 @@ AC_SYS_LARGEFILE
 AX_CHECK_OPENSSL
 AX_PREFIX_CONFIG_H(config/acsetup.h)
 
-for i in -W -Wall -Wextra -fexceptions -frtti -ftemplate-depth-128; do
-	AX_CHECK_COMPILER_FLAGS([$i], [CXXFLAGS="$CXXFLAGS $i"], [])
+for i in -W -Wall -Wextra; do
+	AX_CHECK_COMPILER_FLAGS([$i], [CFLAGS="$CFLAGS $i"], [])
 done
 
 AC_CONFIG_FILES([Makefile include/Makefile include/dnet/Makefile

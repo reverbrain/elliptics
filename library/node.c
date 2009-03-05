@@ -13,13 +13,15 @@
  * GNU General Public License for more details.
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
 
 #include "elliptics.h"
-#include "interface.h"
+#include "dnet/interface.h"
 
 static struct dnet_node *dnet_node_alloc(int sock_type, int proto)
 {

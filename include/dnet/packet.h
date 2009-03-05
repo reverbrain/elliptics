@@ -19,7 +19,7 @@
 #include <asm/byteorder.h>
 #include <arpa/inet.h>
 
-#include "core.h"
+#include <dnet/core.h>
 
 #ifdef __cplusplus
 extern "C" {

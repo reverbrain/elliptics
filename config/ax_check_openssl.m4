@@ -23,11 +23,12 @@ AC_DEFUN([AX_CHECK_OPENSSL],
 			OPENSSL_LDFLAGS="-L$ac_ssl_include_dir/lib"
 		else
 			AC_LANG_SAVE
-			AC_LANG[C]
+			AC_LANG([C])
 			ac_ssl_path=""
 			for dir in /usr /usr/local /opt/ssl; do
 				AC_CHECK_HEADER([$dir/include/openssl/ssl.h], [ac_ssl_path=$dir], [])
 				if test "f$ac_ssl_path" != "f"; then
+					ac_ssl_found="yes"
 					OPENSSL_CFLAGS="-I$ac_ssl_path/include"
 					OPENSSL_LDFLAGS="-L$ac_ssl_path/lib"
 					break;
