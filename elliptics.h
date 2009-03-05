@@ -35,7 +35,7 @@
 extern "C" {
 #endif
 
-static inline int el_id_cmp(unsigned char *id1, unsigned char *id2)
+static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
 {
 	unsigned int i = 0;
 #if 0
@@ -65,16 +65,6 @@ extern int ulog_init(char *log);
 
 #define ulog_err(f, a...) ulog(f ": %s [%d].\n", ##a, strerror(errno), errno)
 
-static inline char *el_dump_id(unsigned char *id)
-{
-	unsigned int i;
-	static char __el_dump_str[2 * EL_ID_SIZE + 1];
-
-	for (i=0; i<EL_ID_SIZE; ++i)
-		sprintf(&__el_dump_str[2*i], "%02x", id[i]);
-	return __el_dump_str;
-}
-
 #define NIP6(addr) \
 	ntohs((addr).s6_addr16[0]), \
 	ntohs((addr).s6_addr16[1]), \
@@ -86,7 +76,7 @@ static inline char *el_dump_id(unsigned char *id)
 	ntohs((addr).s6_addr16[7])
 #define NIP6_FMT "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x"
 
-static inline char *el_server_convert_addr(struct sockaddr *sa, unsigned int len)
+static inline char *dnet_server_convert_addr(struct sockaddr *sa, unsigned int len)
 {
 	static char inet_addr[128];
 
@@ -101,7 +91,7 @@ static inline char *el_server_convert_addr(struct sockaddr *sa, unsigned int len
 	return inet_addr;
 }
 
-static inline int el_server_convert_port(struct sockaddr *sa, unsigned int len)
+static inline int dnet_server_convert_port(struct sockaddr *sa, unsigned int len)
 {
 	if (len == sizeof(struct sockaddr_in)) {
 		struct sockaddr_in *in = (struct sockaddr_in *)sa;
@@ -186,13 +176,13 @@ static inline char *dnet_dump_node(struct dnet_node *n)
 	static char buf[128];
 
 	snprintf(buf, sizeof(buf), "%s:%d",
-		el_server_convert_addr(&n->addr, n->addr_len),
-		el_server_convert_port(&n->addr, n->addr_len));
+		dnet_server_convert_addr(&n->addr, n->addr_len),
+		dnet_server_convert_port(&n->addr, n->addr_len));
 
 	return buf;
 }
 
-int dnet_process_cmd(struct dnet_net_state *st, struct el_cmd *cmd, void *data);
+int dnet_process_cmd(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
 
 int dnet_send(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
@@ -211,11 +201,14 @@ struct dnet_trans
 	struct rb_node			trans_entry;
 	struct dnet_net_state		*st;
 	__u64				trans, recv_trans;
-	struct el_cmd			cmd;
+	struct dnet_cmd			cmd;
 	void				*data;
 
 	void				*priv;
-	int				(* complete)(struct dnet_trans *t, struct dnet_net_state *st);
+	int				(* complete)(struct dnet_net_state *st,
+						     struct dnet_cmd *cmd,
+						     struct dnet_attr *attr,
+						     void *priv);
 };
 
 struct dnet_trans *dnet_trans_create(struct dnet_net_state *st);
@@ -228,7 +221,7 @@ void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
 int dnet_trans_insert(struct dnet_trans *t);
 struct dnet_trans *dnet_trans_search(struct rb_root *root, __u64 trans);
 
-int dnet_cmd_list(struct dnet_net_state *st, struct el_cmd *cmd);
+int dnet_cmd_list(struct dnet_net_state *st, struct dnet_cmd *cmd);
 int dnet_recv_list(struct dnet_node *n);
 
 struct dnet_io_completion
@@ -238,7 +231,8 @@ struct dnet_io_completion
 	size_t			size;
 };
 
-int dnet_read_complete(struct dnet_trans *t, struct dnet_net_state *st __unused);
+int dnet_read_complete(struct dnet_net_state *st __unused, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *priv);
 
 struct dnet_transform
 {

@@ -31,7 +31,7 @@
 #include "packet.h"
 #include "interface.h"
 
-struct el_crypto_engine
+struct dnet_crypto_engine
 {
 	char			name[EL_MAX_NAME_LEN];
 	
@@ -39,43 +39,43 @@ struct el_crypto_engine
 	const EVP_MD		*evp_md;
 };
 
-static int el_digest_init(void *priv)
+static int dnet_digest_init(void *priv)
 {
-	struct el_crypto_engine *e = priv;
+	struct dnet_crypto_engine *e = priv;
 	EVP_DigestInit_ex(&e->mdctx, e->evp_md, NULL);
 	return 0;
 }
 
-static int el_digest_update(void *priv, void *src, __u64 size,
+static int dnet_digest_update(void *priv, void *src, __u64 size,
 		void *dst __unused, unsigned int *dsize __unused,
 		unsigned int flags __unused)
 {
-	struct el_crypto_engine *e = priv;
+	struct dnet_crypto_engine *e = priv;
 	EVP_DigestUpdate(&e->mdctx, src, size);
 	return 0;
 }
 
-static int el_digest_final(void *priv, void *result, unsigned int *rsize, unsigned int flags __unused)
+static int dnet_digest_final(void *priv, void *result, unsigned int *rsize, unsigned int flags __unused)
 {
-	struct el_crypto_engine *e = priv;
+	struct dnet_crypto_engine *e = priv;
 	EVP_DigestFinal_ex(&e->mdctx, result, rsize);
 	EVP_MD_CTX_cleanup(&e->mdctx);
 	return 0;
 }
 
-static int el_crypto_engine_init(struct el_crypto_engine *e, char *hash)
+static int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 {
  	OpenSSL_add_all_digests();
 
 	e->evp_md = EVP_get_digestbyname(hash);
 	if (!e->evp_md) {
-		ulog_err("Failed to find algorithm '%s' implementation.\n", hash);
+		fprintf(stderr, "Failed to find algorithm '%s' implementation.\n", hash);
 		return -ENOENT;
 	}
 
 	EVP_MD_CTX_init(&e->mdctx);
 
-	ulog("Successfully initialized '%s' hash.\n", hash);
+	printf("Successfully initialized '%s' hash.\n", hash);
 
 	return 0;
 }
@@ -114,12 +114,12 @@ static int dnet_parse_addr(char *addr, struct dnet_config *cfg)
 	return 0;
 
 err_out_print_wrong_param:
-	ulog("Wrong address parameter, should be 'addr%cport%cfamily'.\n",
+	fprintf(stderr, "Wrong address parameter, should be 'addr%cport%cfamily'.\n",
 				EL_CONF_ADDR_DELIM, EL_CONF_ADDR_DELIM);
 	return -EINVAL;
 }
 
-static int el_parse_numeric_id(char *value, unsigned char *id)
+static int dnet_parse_numeric_id(char *value, unsigned char *id)
 {
 	unsigned char ch[2];
 	unsigned int i, len = strlen(value);
@@ -143,7 +143,7 @@ static int el_parse_numeric_id(char *value, unsigned char *id)
 		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
 	}
 
-	ulog("Node id: %s\n", el_dump_id(id));
+	printf("Node id: %s\n", dnet_dump_id(id));
 	return 0;
 }
 
@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
 	int ch, err;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg;
-	struct el_crypto_engine *e;
+	struct dnet_crypto_engine *e;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -178,7 +178,7 @@ int main(int argc, char *argv[])
 	while ((ch = getopt(argc, argv, "i:H:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
 			case 'i':
-				err = el_parse_numeric_id(optarg, cfg.id);
+				err = dnet_parse_numeric_id(optarg, cfg.id);
 				if (err)
 					return err;
 				break;
@@ -235,19 +235,19 @@ int main(int argc, char *argv[])
 				if (!n)
 					return -EINVAL;
 
-				e = malloc(sizeof(struct el_crypto_engine));
+				e = malloc(sizeof(struct dnet_crypto_engine));
 				if (!e)
 					return -ENOMEM;
-				memset(e, 0, sizeof(struct el_crypto_engine));
+				memset(e, 0, sizeof(struct dnet_crypto_engine));
 
-				err = el_crypto_engine_init(e, optarg);
+				err = dnet_crypto_engine_init(e, optarg);
 				if (err)
 					return err;
 
 				err = dnet_add_transform(n, e, optarg,
-						el_digest_init,
-						el_digest_update,
-						el_digest_final);
+						dnet_digest_init,
+						dnet_digest_update,
+						dnet_digest_final);
 				if (err)
 					return err;
 				break;
@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
 
 	while (1)
 		sleep(1);
-	ulog("Exiting.\n");
+	printf("Exiting.\n");
 
 	return 0;
 }

@@ -63,7 +63,7 @@ enum dnet_commands {
 /* Transaction is about to be destroyed */
 #define DNET_FLAGS_DESTROY		(1<<2)
 
-struct el_cmd
+struct dnet_cmd
 {
 	unsigned char			id[EL_ID_SIZE];
 	unsigned int			flags;
@@ -73,7 +73,7 @@ struct el_cmd
 	unsigned char			data[0];
 } __attribute__ ((packed));
 
-static inline void el_convert_cmd(struct el_cmd *cmd)
+static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 {
 	cmd->flags = __cpu_to_be32(cmd->flags);
 	cmd->status = __cpu_to_be32(cmd->status);
@@ -81,7 +81,7 @@ static inline void el_convert_cmd(struct el_cmd *cmd)
 	cmd->trans = __cpu_to_be64(cmd->trans);
 }
 
-struct el_attr
+struct dnet_attr
 {
 	__u64				size;
 	unsigned int			cmd;
@@ -89,7 +89,7 @@ struct el_attr
 	unsigned int			unused[2];
 };
 
-static inline void el_convert_attr(struct el_attr *a)
+static inline void dnet_convert_attr(struct dnet_attr *a)
 {
 	a->size = __cpu_to_be64(a->size);
 	a->cmd = __cpu_to_be32(a->cmd);
@@ -98,25 +98,25 @@ static inline void el_convert_attr(struct el_attr *a)
 
 #define EL_ADDR_SIZE			128
 
-struct el_addr
+struct dnet_addr
 {
 	unsigned char			addr[EL_ADDR_SIZE];
 	unsigned int			addr_size;
 };
 
-struct el_list
+struct dnet_list
 {
 	unsigned char			id[EL_ID_SIZE];
 	unsigned int			size;
 	unsigned char			data[0];
 };
 
-static inline void el_convert_list(struct el_list *l)
+static inline void dnet_convert_list(struct dnet_list *l)
 {
 	l->size = __cpu_to_be32(l->size);
 }
 
-struct el_addr_attr
+struct dnet_addr_attr
 {
 	__u32				sock_type;
 	__u32				proto;
@@ -124,25 +124,25 @@ struct el_addr_attr
 	struct sockaddr			addr;
 };
 
-static inline void el_convert_addr_attr(struct el_addr_attr *a)
+static inline void dnet_convert_addr_attr(struct dnet_addr_attr *a)
 {
 	a->addr_len = htonl(a->addr_len);
 	a->proto = htonl(a->proto);
 	a->sock_type = htonl(a->sock_type);
 }
 
-struct el_addr_cmd
+struct dnet_addr_cmd
 {
-	struct el_cmd			cmd;
-	struct el_attr			a;
-	struct el_addr_attr		addr;
+	struct dnet_cmd			cmd;
+	struct dnet_attr			a;
+	struct dnet_addr_attr		addr;
 };
 
-static inline void el_convert_addr_cmd(struct el_addr_cmd *l)
+static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 {
-	el_convert_cmd(&l->cmd);
-	el_convert_attr(&l->a);
-	el_convert_addr_attr(&l->addr);
+	dnet_convert_cmd(&l->cmd);
+	dnet_convert_attr(&l->a);
+	dnet_convert_addr_attr(&l->addr);
 }
 
 /*
@@ -153,7 +153,7 @@ static inline void el_convert_addr_cmd(struct el_addr_cmd *l)
 /* Append given data at the end of the object */
 #define DNET_IO_FLAGS_APPEND	(1<<1)
 
-struct el_io_attr
+struct dnet_io_attr
 {
 	unsigned char			id[EL_ID_SIZE];
 	unsigned int			flags;
@@ -161,7 +161,7 @@ struct el_io_attr
 	__u64				size;
 };
 
-static inline void el_convert_io_attr(struct el_io_attr *a)
+static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 {
 	a->flags = __cpu_to_be32(a->flags);
 	a->offset = __cpu_to_be64(a->offset);

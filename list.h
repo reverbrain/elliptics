@@ -159,10 +159,10 @@ static inline void list_replace_init(struct list_head *old,
 
 
 /**
- * list_del_init - deletes entry from list and reinitialize it.
+ * list_ddnet_init - deletes entry from list and reinitialize it.
  * @entry: the element to delete from the list.
  */
-static inline void list_del_init(struct list_head *entry)
+static inline void list_ddnet_init(struct list_head *entry)
 {
 	__list_del(entry->prev, entry->next);
 	INIT_LIST_HEAD(entry);
@@ -221,7 +221,7 @@ static inline int list_empty(const struct list_head *head)
  *
  * NOTE: using list_empty_careful() without synchronization
  * can only be safe if the only activity that can happen
- * to the list entry is list_del_init(). Eg. it cannot be used
+ * to the list entry is list_ddnet_init(). Eg. it cannot be used
  * if another CPU could re-list_add() it.
  */
 static inline int list_empty_careful(const struct list_head *head)

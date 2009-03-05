@@ -16,22 +16,20 @@
 #ifndef __DNET_INTERFACE_H
 #define __DNET_INTERFACE_H
 
-#include "elliptics.h"
+struct dnet_net_state;
+struct dnet_node;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /*
- * This set of helpers is called in the completion callbacks to
- * get the appropriate pointers.
+ * Callback data structures.
  *
- * Callback transaction structure.
+ * [dnet_cmd]
+ * [dnet_attr] [attributes]
  *
- * [el_cmd]
- * [el_attr] [attributes]
- *
- * [el_cmd] header when present shows number of attached bytes.
+ * [dnet_cmd] header when present shows number of attached bytes.
  * It should be equal to the al_attr structure at least in the
  * correct message, otherwise it should be discarded.
  * One can also check cmd->flags if it has DNET_FLAGS_MORE or
@@ -39,53 +37,25 @@ extern "C" {
  * will be invoked again in the future and transaction is not
  * yet completed. The latter means that transaction is about
  * to be destroyed.
- *
- * If command size makes sense, its data can be obtained using
- * dnet_trans_data() helper. Returned pointer (if not NULL) should
- * be dereferenced into el_attr structure and its size has to be
- * checked. All data is always packed as set of nested attributes.
- *
- * Private data stored during transaction setup can be obtained
- * using dnet_trans_private() helper.
  */
-static inline struct el_cmd *dnet_trans_cmd(struct dnet_trans *t)
-{
-	if (t)
-		return &t->cmd;
-	return NULL;
-}
-
-static inline void *dnet_trans_private(struct dnet_trans *t)
-{
-	if (t)
-		return t->priv;
-	return NULL;
-}
-
-static inline void *dnet_trans_data(struct dnet_trans *t)
-{
-	if (t)
-		return t->data;
-	return NULL;
-}
 
 /*
  * IO helpers.
  *
  * dnet_node is a node pointer returned by calling dnet_node_create()
- * el_io_attr contains IO details (size, offset and the checksum)
+ * dnet_io_attr contains IO details (size, offset and the checksum)
  * completion callback (if present) will be invoked when IO transaction is finished
  * private data will be stored in the appropriate transaction and can be obtained
  * when transaction completion callback is invoked. It will be automatically
  * freed when transaction is completed.
  */
-int dnet_read_object(struct dnet_node *n, struct el_io_attr *io,
-	int (* complete)(struct dnet_trans *t, struct dnet_net_state *st), void *priv);
+int dnet_read_object(struct dnet_node *n, struct dnet_io_attr *io,
+	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *), void *priv);
 int dnet_read_file(struct dnet_node *n, char *file, __u64 offset, __u64 size);
 
-int dnet_write_object(struct dnet_node *n, unsigned char *id, struct el_io_attr *io,
-		int (* complete)(struct dnet_trans *t, struct dnet_net_state *st), void *priv,
-		void *data);
+int dnet_write_object(struct dnet_node *n, unsigned char *id, struct dnet_io_attr *io,
+	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
+	void *priv, void *data);
 int dnet_update_file(struct dnet_node *n, char *file, off_t offset, void *data, unsigned int size, int append);
 int dnet_write_file(struct dnet_node *n, char *file);
 
@@ -157,8 +127,18 @@ int dnet_join(struct dnet_node *n);
  */
 int dnet_setup_root(struct dnet_node *n, char *root);
 
+static inline char *dnet_dump_id(unsigned char *id)
+{
+	unsigned int i;
+	static char __dnet_dump_str[2 * EL_ID_SIZE + 1];
+
+	for (i=0; i<EL_ID_SIZE; ++i)
+		sprintf(&__dnet_dump_str[2*i], "%02x", id[i]);
+	return __dnet_dump_str;
+}
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __DNET_INTERFACE_H */
+#endif /* __INTERFACE_H */
