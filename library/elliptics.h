@@ -163,7 +163,7 @@ struct dnet_node
 
 	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
-	__u64			trans;
+	uint64_t			trans;
 
 	struct dnet_net_state	*st;
 
@@ -200,7 +200,7 @@ struct dnet_trans
 {
 	struct rb_node			trans_entry;
 	struct dnet_net_state		*st;
-	__u64				trans, recv_trans;
+	uint64_t				trans, recv_trans;
 	struct dnet_cmd			cmd;
 	void				*data;
 
@@ -219,7 +219,7 @@ int dnet_trans_process(struct dnet_net_state *st);
 void dnet_trans_remove(struct dnet_trans *t);
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
 int dnet_trans_insert(struct dnet_trans *t);
-struct dnet_trans *dnet_trans_search(struct rb_root *root, __u64 trans);
+struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
 
 int dnet_cmd_list(struct dnet_net_state *st, struct dnet_cmd *cmd);
 int dnet_recv_list(struct dnet_node *n);
@@ -243,7 +243,7 @@ struct dnet_transform
 	void			*priv;
 
 	int			(* init)(void *priv);
-	int 			(* update)(void *priv, void *src, __u64 size,
+	int 			(* update)(void *priv, void *src, uint64_t size,
 					void *dst, unsigned int *dsize, unsigned int flags);
 	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };

@@ -16,6 +16,8 @@
 #ifndef __DNET_CORE_H
 #define __DNET_CORE_H
 
+#include "dnet/typedefs.h"
+
 #define EL_HISTORY_SUFFIX	".history"
 
 #define __unused		__attribute__ ((unused))

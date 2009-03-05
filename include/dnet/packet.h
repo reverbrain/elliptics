@@ -16,6 +16,8 @@
 #ifndef __DNET_PACKET_H
 #define __DNET_PACKET_H
 
+#include "dnet/typedefs.h"
+
 #include <asm/byteorder.h>
 #include <arpa/inet.h>
 
@@ -68,8 +70,8 @@ struct dnet_cmd
 	unsigned char			id[EL_ID_SIZE];
 	unsigned int			flags;
 	int				status;
-	__u64				trans;
-	__u64				size;
+	uint64_t				trans;
+	uint64_t				size;
 	unsigned char			data[0];
 } __attribute__ ((packed));
 
@@ -83,7 +85,7 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 
 struct dnet_attr
 {
-	__u64				size;
+	uint64_t				size;
 	unsigned int			cmd;
 	unsigned int			flags;
 	unsigned int			unused[2];
@@ -118,9 +120,9 @@ static inline void dnet_convert_list(struct dnet_list *l)
 
 struct dnet_addr_attr
 {
-	__u32				sock_type;
-	__u32				proto;
-	__u32				addr_len;
+	uint32_t				sock_type;
+	uint32_t				proto;
+	uint32_t				addr_len;
 	struct sockaddr			addr;
 };
 
@@ -157,8 +159,8 @@ struct dnet_io_attr
 {
 	unsigned char			id[EL_ID_SIZE];
 	unsigned int			flags;
-	__u64				offset;
-	__u64				size;
+	uint64_t				offset;
+	uint64_t				size;
 };
 
 static inline void dnet_convert_io_attr(struct dnet_io_attr *a)

@@ -48,7 +48,7 @@ static int dnet_digest_init(void *priv)
 	return 0;
 }
 
-static int dnet_digest_update(void *priv, void *src, __u64 size,
+static int dnet_digest_update(void *priv, void *src, uint64_t size,
 		void *dst __unused, unsigned int *dsize __unused,
 		unsigned int flags __unused)
 {

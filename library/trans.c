@@ -27,7 +27,7 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
-static inline int dnet_trans_cmp(__u64 old, __u64 new)
+static inline int dnet_trans_cmp(uint64_t old, uint64_t new)
 {
 	if (old > new)
 		return 1;
@@ -36,7 +36,7 @@ static inline int dnet_trans_cmp(__u64 old, __u64 new)
 	return 0;
 }
 
-struct dnet_trans *dnet_trans_search(struct rb_root *root, __u64 trans)
+struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans)
 {
 	struct rb_node *n = root->rb_node;
 	struct dnet_trans *t = NULL;
@@ -173,7 +173,7 @@ int dnet_trans_process(struct dnet_net_state *st)
 			cmd.flags, cmd.status);
 
 	if (cmd.trans & DNET_TRANS_REPLY) {
-		__u64 tid = cmd.trans & ~DNET_TRANS_REPLY;
+		uint64_t tid = cmd.trans & ~DNET_TRANS_REPLY;
 
 		pthread_mutex_lock(&n->trans_lock);
 		t = dnet_trans_search(&n->trans_root, tid);

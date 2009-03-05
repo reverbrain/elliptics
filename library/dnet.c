@@ -31,7 +31,7 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
-static int dnet_transform(struct dnet_node *n, void *src, __u64 size, void *dst, unsigned int *dsize, int *ppos)
+static int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, unsigned int *dsize, int *ppos)
 {
 	int pos = 0;
 	int err = 1;
@@ -373,7 +373,7 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_io_attr *rio;
 	size_t size;
 	loff_t offset;
-	__u64 total_size;
+	uint64_t total_size;
 
 	if (attr->size != sizeof(struct dnet_io_attr)) {
 		ulog("%s: wrong read attribute, size does not match "
@@ -736,7 +736,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, unsigned cha
 	struct dnet_attr *a;
 	struct dnet_io_attr *io;
 	struct dnet_cmd *cmd;
-	__u64 size = ioattr->size;
+	uint64_t size = ioattr->size;
 
 	t = malloc(sizeof(struct dnet_trans) +
 			sizeof(struct dnet_attr) +
@@ -1057,7 +1057,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_read_file(struct dnet_node *n, char *file, __u64 offset, __u64 size)
+int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size)
 {
 	struct dnet_io_attr io;
 	int err, len = strlen(file), pos = 0;
@@ -1105,7 +1105,7 @@ err_out_exit:
 
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	int (* init)(void *priv),
-	int (* update)(void *priv, void *src, __u64 size,
+	int (* update)(void *priv, void *src, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags),
 	int (* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags))
 {

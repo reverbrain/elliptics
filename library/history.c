@@ -360,7 +360,7 @@ err_out_exit:
 static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *a, void *priv __unused)
 {
-	__u64 size = cmd->size;
+	uint64_t size = cmd->size;
 	int err = cmd->status;
 
 	if (size < sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr))
