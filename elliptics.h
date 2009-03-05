@@ -13,14 +13,8 @@
  * GNU General Public License for more details.
  */
 
-#ifndef __ELLIPTICS_H
-#define __ELLIPTICS_H
-
-#define __USE_FILE_OFFSET64
-#ifndef __USE_LARGEFILE64
-#define __USE_LARGEFILE64	1
-#endif
-#define _FILE_OFFSET_BITS	64
+#ifndef __DNET_ELLIPTICS_H
+#define __DNET_ELLIPTICS_H
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
@@ -36,6 +30,10 @@
 #include "rbtree.h"
 #include "list.h"
 #include "packet.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static inline int el_id_cmp(unsigned char *id1, unsigned char *id2)
 {
@@ -256,4 +254,8 @@ struct dnet_transform
 	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };
 
-#endif /* __ELLIPTICS_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __DNET_ELLIPTICS_H */

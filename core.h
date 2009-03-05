@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  */
 
-#ifndef __CORE_H
-#define __CORE_H
+#ifndef __DNET_CORE_H
+#define __DNET_CORE_H
 
 #define EL_HISTORY_SUFFIX	".history"
 
@@ -32,4 +32,4 @@
 
 #define DNET_TIMEOUT		5000
 
-#endif /* __CORE_H */
+#endif /* __DNET_CORE_H */

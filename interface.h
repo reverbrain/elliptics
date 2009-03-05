@@ -13,10 +13,14 @@
  * GNU General Public License for more details.
  */
 
-#ifndef __INTERFACE_H
-#define __INTERFACE_H
+#ifndef __DNET_INTERFACE_H
+#define __DNET_INTERFACE_H
 
 #include "elliptics.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /*
  * This set of helpers is called in the completion callbacks to
@@ -153,4 +157,8 @@ int dnet_join(struct dnet_node *n);
  */
 int dnet_setup_root(struct dnet_node *n, char *root);
 
-#endif /* __INTERFACE_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __DNET_INTERFACE_H */

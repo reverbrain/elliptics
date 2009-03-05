@@ -1,8 +1,3 @@
-#define _ATFILE_SOURCE
-#define _GNU_SOURCE
-#define __USE_FILE_OFFSET64
-#define __USE_LARGEFILE64
-
 #include <sys/types.h>
 #include <sys/stat.h>
 

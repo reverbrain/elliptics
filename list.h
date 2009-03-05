@@ -1,5 +1,9 @@
-#ifndef _LINUX_LIST_H
-#define _LINUX_LIST_H
+#ifndef _DNET_LIST_H
+#define _DNET_LIST_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static inline void prefetch(const void *x __attribute__ ((unused))) {;}
 #define LIST_POISON1  ((void *) 0x00100100)
@@ -578,4 +582,8 @@ static inline void hlist_add_after(struct hlist_node *n,
 		({ tpos = hlist_entry(pos, typeof(*tpos), member); 1;}); \
 	     pos = n)
 
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* _DNET_LIST_H */

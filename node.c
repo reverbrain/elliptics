@@ -13,9 +13,6 @@
  * GNU General Public License for more details.
  */
 
-#define _XOPEN_SOURCE		1024
-#define _GNU_SOURCE
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

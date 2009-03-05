@@ -13,13 +13,17 @@
  * GNU General Public License for more details.
  */
 
-#ifndef __PACKET_H
-#define __PACKET_H
+#ifndef __DNET_PACKET_H
+#define __DNET_PACKET_H
 
 #include <asm/byteorder.h>
 #include <arpa/inet.h>
 
 #include "core.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 enum dnet_commands {
 	DNET_CMD_LOOKUP = 1,			/* Lookup address by ID */
@@ -164,4 +168,8 @@ static inline void el_convert_io_attr(struct el_io_attr *a)
 	a->size = __cpu_to_be64(a->size);
 }
 
-#endif /* __PACKET_H */
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __DNET_PACKET_H */
