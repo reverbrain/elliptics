@@ -1,0 +1,27 @@
+AC_INIT([dnet], [0.0.3], [zbr@ioremap.net])
+AM_INIT_AUTOMAKE(1.9)
+
+AC_GNU_SOURCE
+AC_CONFIG_HEADERS(config/config.h)
+
+AC_PROG_CC
+AC_PROG_CPP
+AC_PROG_LIBTOOL
+
+AC_LANG([C])
+AM_MAINTAINER_MODE
+
+ACX_PTHREAD
+AC_SYS_LARGEFILE
+
+AX_CHECK_OPENSSL
+AX_PREFIX_CONFIG_H(config/acsetup.h)
+
+for i in -W -Wall -Wextra -fexceptions -frtti -ftemplate-depth-128; do
+	AX_CHECK_COMPILER_FLAGS([$i], [CXXFLAGS="$CXXFLAGS $i"], [])
+done
+
+AC_CONFIG_FILES([Makefile include/Makefile include/dnet/Makefile
+	library/Makefile example/Makefile])
+
+AC_OUTPUT
