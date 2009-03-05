@@ -18,6 +18,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/syscall.h>
 
 #include <ctype.h>
 #include <fcntl.h>
@@ -26,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
@@ -80,6 +83,72 @@ static int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 	printf("Successfully initialized '%s' hash.\n", hash);
 
 	return 0;
+}
+
+static void dnet_example_log_append(void *priv, const char *f, ...)
+{
+	va_list ap;
+	FILE *stream = priv;
+
+	if (!stream)
+		stream = stdout;
+
+	va_start(ap, f);
+	vfprintf(stream, f, ap);
+	va_end(ap);
+
+	fflush(stream);
+}
+
+static void dnet_example_log(void *priv, const char *f, ...)
+{
+	char str[64];
+	struct tm tm;
+	struct timeval tv;
+	va_list ap;
+	FILE *stream = priv;
+
+	if (!stream)
+		stream = stdout;
+
+	gettimeofday(&tv, NULL);
+	localtime_r((time_t *)&tv.tv_sec, &tm);
+	strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+	fprintf(stream, "%s.%06lu %6ld ", str, tv.tv_usec, syscall(__NR_gettid));
+
+	va_start(ap, f);
+	vfprintf(stream, f, ap);
+	va_end(ap);
+
+	fflush(stream);
+}
+
+static int dnet_example_log_init(struct dnet_node *n, char *log)
+{
+	FILE *f;
+	int err;
+
+	f = fopen(log, "a");
+	if (!f) {
+		err = -errno;
+		fprintf(stderr, "Failed to open log file %s: %s.\n", log, strerror(errno));
+		goto err_out_exit;
+	}
+
+	err = dnet_log_init(n, f, dnet_example_log, dnet_example_log_append);
+	if (err) {
+		fprintf(stderr, "Failed to initialize dnet logger to use file %s.\n", log);
+		goto err_out_close;
+	}
+
+	printf("Logging uses '%s' file now.\n", log);
+	return 0;
+
+err_out_close:
+	fclose(f);
+err_out_exit:
+	return err;
 }
 
 #define EL_CONF_COMMENT		'#'
@@ -161,6 +230,7 @@ static void dnet_usage(char *p)
 			" -R file              - read given file from the network into the local storage\n"
 			" -H hash              - OpenSSL hash to use as a transformation function\n"
 			" -i id                - node's ID\n"
+			" -l log               - log file. Default: stdout\n"
 			" ...                  - parameters can be repeated multiple times\n"
 			"                        each time they correspond to the last added node\n", p);
 }
@@ -177,8 +247,15 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 
-	while ((ch = getopt(argc, argv, "i:H:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "l:i:H:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 'l':
+				if (n) {
+					err = dnet_example_log_init(n, optarg);
+					if (err)
+						return err;
+				}
+				break;
 			case 'i':
 				err = dnet_parse_numeric_id(optarg, cfg.id);
 				if (err)

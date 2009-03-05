@@ -34,57 +34,16 @@
 
 #include "elliptics.h"
 
-static FILE *dnet_log_stream;
-
-void uloga(const char *f, ...)
+int dnet_log_init(struct dnet_node *n, void *priv,
+		void (* log)(void *priv, const char *f, ...),
+		void (* log_append)(void *priv, const char *f, ...))
 {
-	va_list ap;
+	if (!n)
+		return -EINVAL;
 
-	if (!dnet_log_stream)
-		dnet_log_stream = stdout;
+	n->log_priv = priv;
+	n->log = log;
+	n->log_append = log_append;
 
-	va_start(ap, f);
-	vfprintf(dnet_log_stream, f, ap);
-	va_end(ap);
-
-	fflush(dnet_log_stream);
-}
-
-void ulog(const char *f, ...)
-{
-	char str[64];
-	struct tm tm;
-	struct timeval tv;
-	va_list ap;
-
-	if (!dnet_log_stream)
-		dnet_log_stream = stdout;
-
-	gettimeofday(&tv, NULL);
-	localtime_r((time_t *)&tv.tv_sec, &tm);
-	strftime(str, sizeof(str), "%F %R:%S", &tm);
-
-	fprintf(dnet_log_stream, "%s.%06lu %6ld ", str, tv.tv_usec, syscall(__NR_gettid));
-
-	va_start(ap, f);
-	vfprintf(dnet_log_stream, f, ap);
-	va_end(ap);
-
-	fflush(dnet_log_stream);
-}
-
-int ulog_init(char *log)
-{
-	FILE *f;
-
-	f = fopen(log, "a");
-	if (!f) {
-		ulog_err("Failed to open log file %s", log);
-		return -errno;
-	}
-
-	dnet_log_stream = f;
-
-	ulog("Logging has been started.\n");
 	return 0;
 }

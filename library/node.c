@@ -41,19 +41,19 @@ static struct dnet_node *dnet_node_alloc(int sock_type, int proto)
 
 	err = pthread_mutex_init(&n->state_lock, NULL);
 	if (err) {
-		ulog_err("Failed to initialize state lock: err: %d", err);
+		dnet_log_err(n, "Failed to initialize state lock: err: %d", err);
 		goto err_out_free;
 	}
 	
 	err = pthread_mutex_init(&n->trans_lock, NULL);
 	if (err) {
-		ulog_err("Failed to initialize transaction lock: err: %d", err);
+		dnet_log_err(n, "Failed to initialize transaction lock: err: %d", err);
 		goto err_out_destroy_state;
 	}
 	
 	err = pthread_mutex_init(&n->tlock, NULL);
 	if (err) {
-		ulog_err("Failed to initialize transformation lock: err: %d", err);
+		dnet_log_err(n, "Failed to initialize transformation lock: err: %d", err);
 		goto err_out_destroy_trans;
 	}
 
@@ -94,11 +94,11 @@ int dnet_state_insert(struct dnet_net_state *new)
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		err = dnet_id_cmp(st->id, new->id);
 
-		ulog("st: %s, ", dnet_dump_id(st->id));
-		uloga("new: %s, cmp: %d.\n", dnet_dump_id(new->id), err);
+		dnet_log(n, "st: %s, ", dnet_dump_id(st->id));
+		dnet_log_append(n, "new: %s, cmp: %d.\n", dnet_dump_id(new->id), err);
 
 		if (!err) {
-			ulog("%s: state exists: old: %s:%d, new: %s:%d.\n", dnet_dump_id(new->id),
+			dnet_log(n, "%s: state exists: old: %s:%d, new: %s:%d.\n", dnet_dump_id(new->id),
 				dnet_server_convert_addr(&st->addr, st->addr_len),
 				dnet_server_convert_port(&st->addr, st->addr_len),
 				dnet_server_convert_addr(&new->addr, new->addr_len),
@@ -107,25 +107,25 @@ int dnet_state_insert(struct dnet_net_state *new)
 		}
 
 		if (err < 0) {
-			ulog("adding before %s.\n", dnet_dump_id(st->id));
+			dnet_log(n, "adding before %s.\n", dnet_dump_id(st->id));
 			list_add_tail(&new->state_entry, &st->state_entry);
 			break;
 		}
 	}
 
 	if (err > 0) {
-		ulog("adding to the end.\n");
+		dnet_log(n, "adding to the end.\n");
 		list_add_tail(&new->state_entry, &n->state_list);
 	}
 
 	if (err) {
-		ulog("%s: node list dump:\n", dnet_dump_id(new->id));
+		dnet_log(n, "%s: node list dump:\n", dnet_dump_id(new->id));
 		list_for_each_entry(st, &n->state_list, state_entry) {
-			ulog("      id: %s [%02x], addr: %s:%d.\n", dnet_dump_id(st->id), st->id[0],
+			dnet_log(n, "      id: %s [%02x], addr: %s:%d.\n", dnet_dump_id(st->id), st->id[0],
 				dnet_server_convert_addr(&st->addr, st->addr_len),
 				dnet_server_convert_port(&st->addr, st->addr_len));
 		}
-		uloga("\n");
+		dnet_log_append(n, "\n");
 	}
 
 	pthread_mutex_unlock(&n->state_lock);
@@ -205,11 +205,11 @@ static void *dnet_server_func(void *data)
 	while (!n->need_exit) {
 		cs = accept(n->listen_socket, &addr, &socklen);
 		if (cs <= 0) {
-			ulog_err("%s: failed to accept new client", dnet_dump_id(n->id));
+			dnet_log_err(n, "%s: failed to accept new client", dnet_dump_id(n->id));
 			continue;
 		}
 
-		ulog("%s: accepted client %s:%d.\n", dnet_dump_id(n->id),
+		dnet_log(n, "%s: accepted client %s:%d.\n", dnet_dump_id(n->id),
 				dnet_server_convert_addr(&addr, socklen),
 				dnet_server_convert_port(&addr, socklen));
 
@@ -218,7 +218,7 @@ static void *dnet_server_func(void *data)
 		st = dnet_state_create(n, NULL, &addr, socklen, cs, dnet_state_process);
 		if (!st) {
 			close(cs);
-			ulog("%s: disconnected client %s:%d.\n", dnet_dump_id(n->id),
+			dnet_log(n, "%s: disconnected client %s:%d.\n", dnet_dump_id(n->id),
 					dnet_server_convert_addr(&addr, socklen),
 					dnet_server_convert_port(&addr, socklen));
 		}
@@ -240,7 +240,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->proto = cfg->proto;
 	n->sock_type = cfg->sock_type;
 
-	err = dnet_socket_create(cfg, &n->addr, &n->addr_len, 1);
+	err = dnet_socket_create(n, cfg, &n->addr, &n->addr_len, 1);
 	if (err < 0)
 		goto err_out_free;
 
@@ -251,7 +251,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->st)
 		goto err_out_sock_close;
 
-	ulog("%s: new node has been created at %s.\n", dnet_dump_id(n->id), dnet_dump_node(n));
+	dnet_log(n, "%s: new node has been created at %s.\n", dnet_dump_id(n->id), dnet_dump_node(n));
 	return n;
 
 err_out_sock_close:
@@ -266,7 +266,7 @@ void dnet_node_destroy(struct dnet_node *n)
 {
 	struct dnet_net_state *st, *tmp;
 
-	ulog("%s: destroying node at %s.\n", dnet_dump_id(n->id), dnet_dump_node(n));
+	dnet_log(n, "%s: destroying node at %s.\n", dnet_dump_id(n->id), dnet_dump_node(n));
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry_safe(st, tmp, &n->state_list, state_entry) {

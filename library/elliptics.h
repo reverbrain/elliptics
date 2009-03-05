@@ -59,11 +59,9 @@ static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
 	return 0;
 }
 
-extern void uloga(const char *f, ...) __attribute__ ((format (printf, 1, 2)));
-extern void ulog(const char *f, ...) __attribute__ ((format (printf, 1, 2)));
-extern int ulog_init(char *log);
-
-#define ulog_err(f, a...) ulog(f ": %s [%d].\n", ##a, strerror(errno), errno)
+#define dnet_log(n, f, a...) do { if (n && n->log) n->log(n->log_priv, f, ##a); } while (0)
+#define dnet_log_append(n, f, a...) do { if (n && n->log_append) n->log_append(n->log_priv, f, ##a); } while (0)
+#define dnet_log_err(n, f, a...) dnet_log(n, f ": %s [%d].\n", ##a, strerror(errno), errno)
 
 #define NIP6(addr) \
 	ntohs((addr).s6_addr16[0]), \
@@ -169,6 +167,10 @@ struct dnet_node
 
 	int			rootfd;
 	char			*root;
+
+	void			*log_priv;
+	void			(*log)(void *priv, const char *f, ...);
+	void			(*log_append)(void *priv, const char *f, ...);
 };
 
 static inline char *dnet_dump_node(struct dnet_node *n)
@@ -192,8 +194,9 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 		void *header, unsigned int hsize);
 
 struct dnet_config;
-int dnet_socket_create(struct dnet_config *cfg, struct sockaddr *sa, int *addr_len, int listening);
-int dnet_socket_create_addr(int sock_type, int proto,
+int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
+		struct sockaddr *sa, int *addr_len, int listening);
+int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 		struct sockaddr *sa, unsigned int salen, int listening);
 
 struct dnet_trans

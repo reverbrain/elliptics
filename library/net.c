@@ -30,14 +30,14 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
-int dnet_socket_create_addr(int sock_type, int proto,
+int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 		struct sockaddr *sa, unsigned int salen, int listening)
 {
 	int s, err = -1;
 
 	s = socket(sa->sa_family, sock_type, proto);
 	if (s < 0) {
-		ulog_err("Failed to create socket for %s:%d: "
+		dnet_log_err(n, "Failed to create socket for %s:%d: "
 				"family: %d, sock_type: %d, proto: %d",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen),
@@ -51,7 +51,7 @@ int dnet_socket_create_addr(int sock_type, int proto,
 
 		err = bind(s, sa, salen);
 		if (err) {
-			ulog_err("Failed to bind to %s:%d",
+			dnet_log_err(n, "Failed to bind to %s:%d",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
 			goto err_out_exit;
@@ -59,25 +59,25 @@ int dnet_socket_create_addr(int sock_type, int proto,
 
 		err = listen(s, 1024);
 		if (err) {
-			ulog_err("Failed to listen at %s:%d",
+			dnet_log_err(n, "Failed to listen at %s:%d",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
 			goto err_out_exit;
 		}
 
-		ulog("Server is now listening at %s:%d.\n",
+		dnet_log(n, "Server is now listening at %s:%d.\n",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
 	} else {
 		err = connect(s, sa, salen);
 		if (err) {
-			ulog_err("Failed to connect to %s:%d",
+			dnet_log_err(n, "Failed to connect to %s:%d",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
 			goto err_out_exit;
 		}
 
-		ulog("Connected to %s:%d.\n",
+		dnet_log(n, "Connected to %s:%d.\n",
 			dnet_server_convert_addr(sa, salen),
 			dnet_server_convert_port(sa, salen));
 
@@ -90,7 +90,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_socket_create(struct dnet_config *cfg, struct sockaddr *sa, int *addr_len, int listening)
+int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg, struct sockaddr *sa, int *addr_len, int listening)
 {
 	int s, err = -EINVAL;
 	struct addrinfo *ai, hint;
@@ -104,12 +104,12 @@ int dnet_socket_create(struct dnet_config *cfg, struct sockaddr *sa, int *addr_l
 
 	err = getaddrinfo(cfg->addr, cfg->port, &hint, &ai);
 	if (err) {
-		ulog("Failed to get address info for %s:%s, family: %d, err: %d.\n",
+		dnet_log(n, "Failed to get address info for %s:%s, family: %d, err: %d.\n",
 				cfg->addr, cfg->port, cfg->family, err);
-		goto err_out_close;
+		goto err_out_exit;
 	}
 
-	s = dnet_socket_create_addr(cfg->sock_type, cfg->proto,
+	s = dnet_socket_create_addr(n, cfg->sock_type, cfg->proto,
 			ai->ai_addr, ai->ai_addrlen, listening);
 	if (s < 0) {
 		err = -1;
@@ -125,8 +125,7 @@ int dnet_socket_create(struct dnet_config *cfg, struct sockaddr *sa, int *addr_l
 
 err_out_free:
 	freeaddrinfo(ai);
-err_out_close:
-	close(s);
+err_out_exit:
 	return err;
 }
 
@@ -140,23 +139,11 @@ static int dnet_wait_fd(int s, unsigned int events, long timeout)
 	pfd.events = events;
 
 	err = poll(&pfd, 1, timeout);
-	if (err < 0) {
-		ulog_err("Failed to poll s: %d, events: %x, timeout: %ld",
-				s, events, timeout);
+	if (err < 0)
 		return err;
-	}
 
-	if (err == 0) {
-#if 0
-		ulog("Timeout polling: s: %d, events: %x, timeout: %lu.\n",
-				s, events, timeout);
-#endif
+	if (err == 0)
 		return -EAGAIN;
-	}
-#if 0
-	ulog("s: %d, timeout: %ld, events: %x, revents: %x.\n",
-			s, timeout, events, pfd.revents);
-#endif
 
 	if (pfd.revents & events)
 		return 0;
@@ -171,7 +158,7 @@ static int dnet_net_reconnect(struct dnet_net_state *st)
 	if (st->empty)
 		return -EINVAL;
 
-	err = dnet_socket_create_addr(st->n->sock_type, st->n->proto,
+	err = dnet_socket_create_addr(st->n, st->n->sock_type, st->n->proto,
 			&st->addr, st->addr_len, 0);
 	if (err < 0)
 		return err;
@@ -187,6 +174,7 @@ int dnet_send(struct dnet_net_state *st, void *data, unsigned int size)
 	int err = 0;
 	unsigned int orig_size = size;
 	void *orig_data = data;
+	struct dnet_node *n = st->n;
 
 again:
 	while (size) {
@@ -200,19 +188,19 @@ again:
 			continue;
 
 		if (err < 0) {
-			ulog("Failed to wait for descriptor: err: %d, socket: %d.\n", err, st->s);
+			dnet_log(n, "Failed to wait for descriptor: err: %d, socket: %d.\n", err, st->s);
 			break;
 		}
 
 		err = send(st->s, data, size, 0);
 		if (err < 0) {
 			err = -errno;
-			ulog_err("Failed to send packet: size: %u, socket: %d", size, st->s);
+			dnet_log_err(n, "Failed to send packet: size: %u, socket: %d", size, st->s);
 			break;
 		}
 
 		if (err == 0) {
-			ulog("Peer has dropped the connection: socket: %d.\n", st->s);
+			dnet_log(n, "Peer has dropped the connection: socket: %d.\n", st->s);
 			err = -ECONNRESET;
 			break;
 		}
@@ -256,12 +244,12 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 
 		err = recv(st->s, data, size, 0);
 		if (err < 0) {
-			ulog_err("Failed to recv packet: size: %u", size);
+			dnet_log_err(st->n, "Failed to recv packet: size: %u", size);
 			return err;
 		}
 
 		if (err == 0) {
-			ulog("Peer has disconnected.\n");
+			dnet_log(st->n, "Peer has disconnected.\n");
 			return -ECONNRESET;
 		}
 
@@ -281,7 +269,7 @@ void *dnet_state_process(void *data)
 	while (!n->need_exit) {
 		err = dnet_trans_process(st);
 		if ((err < 0) && (err != -EAGAIN)) {
-			ulog("%s: state processing error: %d.\n", dnet_dump_id(st->id), err);
+			dnet_log(n, "%s: state processing error: %d.\n", dnet_dump_id(st->id), err);
 
 			if (st->empty)
 				break;
@@ -294,7 +282,7 @@ void *dnet_state_process(void *data)
 		}
 	}
 
-	ulog("%s: stopped client %s:%d processing, refcnt: %d.\n", dnet_dump_id(st->id),
+	dnet_log(n, "%s: stopped client %s:%d processing, refcnt: %d.\n", dnet_dump_id(st->id),
 		dnet_server_convert_addr(&st->addr, st->addr_len),
 		dnet_server_convert_port(&st->addr, st->addr_len),
 		st->refcnt);
@@ -311,7 +299,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 	struct dnet_net_state *st;
 
 	if (addr_len > (signed)sizeof(struct sockaddr)) {
-		ulog("%s: wrong socket address size: %d, must be less or equal to %u.\n",
+		dnet_log(n, "%s: wrong socket address size: %d, must be less or equal to %u.\n",
 				(id)?dnet_dump_id(id):dnet_dump_id(n->id), addr_len, sizeof(struct sockaddr));
 		goto err_out_exit;
 	}
@@ -332,7 +320,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	err = pthread_mutex_init(&st->lock, NULL);
 	if (err) {
-		ulog_err("%s: failed to initialize state lock: err: %d", dnet_dump_id(st->id), err);
+		dnet_log_err(n, "%s: failed to initialize state lock: err: %d", dnet_dump_id(st->id), err);
 		goto err_out_state_free;
 	}
 
@@ -350,7 +338,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	err = pthread_create(&st->tid, NULL, process, st);
 	if (err) {
-		ulog_err("%s: failed to create network state processing thread: err: %d", dnet_dump_id(st->id), err);
+		dnet_log_err(n, "%s: failed to create network state processing thread: err: %d", dnet_dump_id(st->id), err);
 		goto err_out_state_remove;
 	}
 
@@ -390,7 +378,7 @@ void dnet_state_put(struct dnet_net_state *st)
 
 	pthread_mutex_destroy(&st->lock);
 
-	ulog("%s: freeing state %s:%d.\n", dnet_dump_id(st->id),
+	dnet_log(st->n, "%s: freeing state %s:%d.\n", dnet_dump_id(st->id),
 		dnet_server_convert_addr(&st->addr, st->addr_len),
 		dnet_server_convert_port(&st->addr, st->addr_len));
 
@@ -410,7 +398,7 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 
 	err = sendfile(st->s, fd, &offset, size);
 	if (err <= 0) {
-		ulog_err("%s: failed to send file data", dnet_dump_id(st->id));
+		dnet_log_err(st->n, "%s: failed to send file data", dnet_dump_id(st->id));
 		goto err_out_unlock;
 	}
 
@@ -422,7 +410,7 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 
 		memset(buf, 0, sizeof(buf));
 
-		ulog("%s: truncated file: '%s', orig: %zu, zeroes: %zu bytes.\n",
+		dnet_log(st->n, "%s: truncated file: '%s', orig: %zu, zeroes: %zu bytes.\n",
 				dnet_dump_id(st->id), file, size + err, size);
 
 		while (size) {

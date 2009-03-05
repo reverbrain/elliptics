@@ -137,6 +137,13 @@ static inline char *dnet_dump_id(unsigned char *id)
 	return __dnet_dump_str;
 }
 
+/*
+ * Initialize private logging system.
+ */
+int dnet_log_init(struct dnet_node *n, void *priv,
+		void (* log)(void *priv, const char *f, ...),
+		void (* log_append)(void *priv, const char *f, ...));
+
 #ifdef __cplusplus
 }
 #endif
