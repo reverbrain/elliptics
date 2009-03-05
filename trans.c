@@ -23,6 +23,7 @@
 
 #include "elliptics.h"
 #include "packet.h"
+#include "interface.h"
 
 static inline int dnet_trans_cmp(__u64 old, __u64 new)
 {
@@ -199,7 +200,7 @@ int dnet_trans_process(struct dnet_net_state *st)
 			t->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
 
 			if (t->complete) {
-				err = t->complete(t, t->st);
+				err = t->complete(t->st, &t->cmd, t->data, t->priv);
 			} else {
 				err = dnet_trans_forward(t, t->st);
 			}

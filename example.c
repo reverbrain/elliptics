@@ -69,13 +69,13 @@ static int el_crypto_engine_init(struct el_crypto_engine *e, char *hash)
 
 	e->evp_md = EVP_get_digestbyname(hash);
 	if (!e->evp_md) {
-		ulog_err("Failed to find algorithm '%s' implementation.\n", hash);
+		fprintf(stderr, "Failed to find algorithm '%s' implementation.\n", hash);
 		return -ENOENT;
 	}
 
 	EVP_MD_CTX_init(&e->mdctx);
 
-	ulog("Successfully initialized '%s' hash.\n", hash);
+	printf("Successfully initialized '%s' hash.\n", hash);
 
 	return 0;
 }
@@ -114,7 +114,7 @@ static int dnet_parse_addr(char *addr, struct dnet_config *cfg)
 	return 0;
 
 err_out_print_wrong_param:
-	ulog("Wrong address parameter, should be 'addr%cport%cfamily'.\n",
+	fprintf(stderr, "Wrong address parameter, should be 'addr%cport%cfamily'.\n",
 				EL_CONF_ADDR_DELIM, EL_CONF_ADDR_DELIM);
 	return -EINVAL;
 }
@@ -143,7 +143,7 @@ static int el_parse_numeric_id(char *value, unsigned char *id)
 		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
 	}
 
-	ulog("Node id: %s\n", el_dump_id(id));
+	printf("Node id: %s\n", el_dump_id(id));
 	return 0;
 }
 
@@ -265,7 +265,7 @@ int main(int argc, char *argv[])
 
 	while (1)
 		sleep(1);
-	ulog("Exiting.\n");
+	printf("Exiting.\n");
 
 	return 0;
 }

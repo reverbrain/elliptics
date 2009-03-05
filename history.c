@@ -240,13 +240,13 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_read_complete_history(struct dnet_trans *t, struct dnet_net_state *st)
+static int dnet_read_complete_history(struct dnet_net_state *st, struct el_cmd *cmd,
+		struct el_attr *a, void *priv)
 {
 	int err;
-	struct el_cmd *cmd = &t->cmd;
 	char tmp[2*EL_ID_SIZE + sizeof(EL_HISTORY_SUFFIX) + 5 + 4];
 	char file[2*EL_ID_SIZE + sizeof(EL_HISTORY_SUFFIX) + 5 + 4];
-	struct dnet_io_completion *c = t->priv;
+	struct dnet_io_completion *c = priv;
 
 	ulog("%s: file: '%s'.\n", el_dump_id(cmd->id), c->file);
 
@@ -256,7 +256,7 @@ static int dnet_read_complete_history(struct dnet_trans *t, struct dnet_net_stat
 	if (cmd->flags & DNET_FLAGS_DESTROY) {
 	}
 
-	err = dnet_read_complete(t, st);
+	err = dnet_read_complete(st, cmd, a, priv);
 	if (err)
 		return err;
 
@@ -357,18 +357,17 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_recv_list_complete(struct dnet_trans *t, struct dnet_net_state *st)
+static int dnet_recv_list_complete(struct dnet_net_state *st, struct el_cmd *cmd,
+		struct el_attr *a, void *priv __unused)
 {
-	struct el_cmd *cmd = &t->cmd;
 	__u64 size = cmd->size;
-	void *data = t->data;
 	int err = cmd->status;
 
 	if (size < sizeof(struct el_attr) + sizeof(struct el_io_attr))
 		goto out;
 
 	while (size) {
-		struct el_attr *a = data;
+		void *data = a;
 		struct el_io_attr *io;
 
 		el_convert_attr(a);
@@ -403,6 +402,8 @@ static int dnet_recv_list_complete(struct dnet_trans *t, struct dnet_net_state *
 
 		data += sizeof(struct el_attr) + sizeof(struct el_io_attr) + io->size;
 		size -= sizeof(struct el_attr) + sizeof(struct el_io_attr) + io->size;
+
+		a = data;
 	}
 
 out:

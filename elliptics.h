@@ -67,16 +67,6 @@ extern int ulog_init(char *log);
 
 #define ulog_err(f, a...) ulog(f ": %s [%d].\n", ##a, strerror(errno), errno)
 
-static inline char *el_dump_id(unsigned char *id)
-{
-	unsigned int i;
-	static char __el_dump_str[2 * EL_ID_SIZE + 1];
-
-	for (i=0; i<EL_ID_SIZE; ++i)
-		sprintf(&__el_dump_str[2*i], "%02x", id[i]);
-	return __el_dump_str;
-}
-
 #define NIP6(addr) \
 	ntohs((addr).s6_addr16[0]), \
 	ntohs((addr).s6_addr16[1]), \
@@ -217,7 +207,10 @@ struct dnet_trans
 	void				*data;
 
 	void				*priv;
-	int				(* complete)(struct dnet_trans *t, struct dnet_net_state *st);
+	int				(* complete)(struct dnet_net_state *st,
+						     struct el_cmd *cmd,
+						     struct el_attr *attr,
+						     void *priv);
 };
 
 struct dnet_trans *dnet_trans_create(struct dnet_net_state *st);
@@ -240,7 +233,8 @@ struct dnet_io_completion
 	size_t			size;
 };
 
-int dnet_read_complete(struct dnet_trans *t, struct dnet_net_state *st __unused);
+int dnet_read_complete(struct dnet_net_state *st __unused, struct el_cmd *cmd,
+		struct el_attr *attr, void *priv);
 
 struct dnet_transform
 {

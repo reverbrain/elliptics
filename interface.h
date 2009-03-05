@@ -16,13 +16,11 @@
 #ifndef __INTERFACE_H
 #define __INTERFACE_H
 
-#include "elliptics.h"
+struct dnet_net_state;
+struct dnet_node;
 
 /*
- * This set of helpers is called in the completion callbacks to
- * get the appropriate pointers.
- *
- * Callback transaction structure.
+ * Callback data structures.
  *
  * [el_cmd]
  * [el_attr] [attributes]
@@ -35,35 +33,7 @@
  * will be invoked again in the future and transaction is not
  * yet completed. The latter means that transaction is about
  * to be destroyed.
- *
- * If command size makes sense, its data can be obtained using
- * dnet_trans_data() helper. Returned pointer (if not NULL) should
- * be dereferenced into el_attr structure and its size has to be
- * checked. All data is always packed as set of nested attributes.
- *
- * Private data stored during transaction setup can be obtained
- * using dnet_trans_private() helper.
  */
-static inline struct el_cmd *dnet_trans_cmd(struct dnet_trans *t)
-{
-	if (t)
-		return &t->cmd;
-	return NULL;
-}
-
-static inline void *dnet_trans_private(struct dnet_trans *t)
-{
-	if (t)
-		return t->priv;
-	return NULL;
-}
-
-static inline void *dnet_trans_data(struct dnet_trans *t)
-{
-	if (t)
-		return t->data;
-	return NULL;
-}
 
 /*
  * IO helpers.
@@ -76,12 +46,12 @@ static inline void *dnet_trans_data(struct dnet_trans *t)
  * freed when transaction is completed.
  */
 int dnet_read_object(struct dnet_node *n, struct el_io_attr *io,
-	int (* complete)(struct dnet_trans *t, struct dnet_net_state *st), void *priv);
+	int (* complete)(struct dnet_net_state *, struct el_cmd *, struct el_attr *, void *), void *priv);
 int dnet_read_file(struct dnet_node *n, char *file, __u64 offset, __u64 size);
 
 int dnet_write_object(struct dnet_node *n, unsigned char *id, struct el_io_attr *io,
-		int (* complete)(struct dnet_trans *t, struct dnet_net_state *st), void *priv,
-		void *data);
+	int (* complete)(struct dnet_net_state *, struct el_cmd *, struct el_attr *, void *),
+	void *priv, void *data);
 int dnet_update_file(struct dnet_node *n, char *file, off_t offset, void *data, unsigned int size, int append);
 int dnet_write_file(struct dnet_node *n, char *file);
 
@@ -152,5 +122,15 @@ int dnet_join(struct dnet_node *n);
  * Sets the root directory to store data objects.
  */
 int dnet_setup_root(struct dnet_node *n, char *root);
+
+static inline char *el_dump_id(unsigned char *id)
+{
+	unsigned int i;
+	static char __el_dump_str[2 * EL_ID_SIZE + 1];
+
+	for (i=0; i<EL_ID_SIZE; ++i)
+		sprintf(&__el_dump_str[2*i], "%02x", id[i]);
+	return __el_dump_str;
+}
 
 #endif /* __INTERFACE_H */

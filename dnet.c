@@ -715,20 +715,20 @@ int dnet_setup_root(struct dnet_node *n, char *root)
 	return 0;
 }
 
-static int dnet_write_complete(struct dnet_trans *t, struct dnet_net_state *st __unused)
+static int dnet_write_complete(struct dnet_net_state *st __unused, struct el_cmd *cmd,
+		struct el_attr *attr __unused, void *priv)
 {
-	struct el_cmd *cmd = &t->cmd;
-	char *file = t->priv;
+	char *file = priv;
 
-	ulog("%s: completed: file: '%s', trans: %llu, status: %d.\n",
-		el_dump_id(cmd->id), file, t->trans, cmd->status);
+	ulog("%s: completed: file: '%s', status: %d.\n",
+		el_dump_id(cmd->id), file, cmd->status);
 
 	return cmd->status;
 }
 
 static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, unsigned char *id,
 		int attr_cmd, struct el_io_attr *ioattr,
-		int (* complete)(struct dnet_trans *t, struct dnet_net_state *st),
+		int (* complete)(struct dnet_net_state *, struct el_cmd *, struct el_attr *, void *),
 		void *priv)
 {
 	struct dnet_trans *t;
@@ -746,7 +746,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, unsigned cha
 		err = -ENOMEM;
 
 		if (complete)
-			complete(NULL, priv);
+			complete(NULL, NULL, NULL, priv);
 		free(priv);
 		goto err_out_exit;
 	}
@@ -868,8 +868,8 @@ err_out_exit:
 }
 
 int dnet_write_object(struct dnet_node *n, unsigned char *id, struct el_io_attr *io,
-		int (* complete)(struct dnet_trans *t, struct dnet_net_state *st), void *priv,
-		void *data)
+	int (* complete)(struct dnet_net_state *, struct el_cmd *, struct el_attr *, void *),
+	void *priv, void *data)
 {
 	struct dnet_trans *t;
 	struct dnet_net_state *st;
@@ -954,16 +954,14 @@ int dnet_update_file(struct dnet_node *n, char *file, off_t offset, void *data, 
 	return error;
 }
 
-int dnet_read_complete(struct dnet_trans *t, struct dnet_net_state *st)
+int dnet_read_complete(struct dnet_net_state *st, struct el_cmd *cmd, struct el_attr *a, void *priv)
 {
-	struct el_cmd *cmd = dnet_trans_cmd(t);
 	int fd, err;
-	struct dnet_io_completion *c = dnet_trans_private(t);
-	struct el_attr *a;
+	struct dnet_io_completion *c = priv;
 	struct el_io_attr *io;
 	void *data;
 
-	if (!t || !cmd)
+	if (!cmd)
 		return -ENOMEM;
 
 	if (cmd->status != 0 || cmd->size == 0)
@@ -980,7 +978,12 @@ int dnet_read_complete(struct dnet_trans *t, struct dnet_net_state *st)
 		goto err_out_exit;
 	}
 
-	a = dnet_trans_data(t);
+	if (!a) {
+		ulog("%s: no attributes but command size is not null.\n", el_dump_id(cmd->id));
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
 	io = (struct el_io_attr *)(a + 1);
 	data = io + 1;
 
@@ -1019,7 +1022,7 @@ err_out_exit:
 }
 
 int dnet_read_object(struct dnet_node *n, struct el_io_attr *io,
-	int (* complete)(struct dnet_trans *t, struct dnet_net_state *st), void *priv)
+	int (* complete)(struct dnet_net_state *, struct el_cmd *, struct el_attr *, void *), void *priv)
 {
 	struct dnet_trans *t;
 	struct dnet_net_state *st;
