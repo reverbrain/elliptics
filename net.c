@@ -40,8 +40,8 @@ int dnet_socket_create_addr(int sock_type, int proto,
 	if (s < 0) {
 		ulog_err("Failed to create socket for %s:%d: "
 				"family: %d, sock_type: %d, proto: %d",
-				el_server_convert_addr(sa, salen),
-				el_server_convert_port(sa, salen),
+				dnet_server_convert_addr(sa, salen),
+				dnet_server_convert_port(sa, salen),
 				sa->sa_family, sock_type, proto);
 		goto err_out_exit;
 	}
@@ -53,34 +53,34 @@ int dnet_socket_create_addr(int sock_type, int proto,
 		err = bind(s, sa, salen);
 		if (err) {
 			ulog_err("Failed to bind to %s:%d",
-				el_server_convert_addr(sa, salen),
-				el_server_convert_port(sa, salen));
+				dnet_server_convert_addr(sa, salen),
+				dnet_server_convert_port(sa, salen));
 			goto err_out_exit;
 		}
 
 		err = listen(s, 1024);
 		if (err) {
 			ulog_err("Failed to listen at %s:%d",
-				el_server_convert_addr(sa, salen),
-				el_server_convert_port(sa, salen));
+				dnet_server_convert_addr(sa, salen),
+				dnet_server_convert_port(sa, salen));
 			goto err_out_exit;
 		}
 
 		ulog("Server is now listening at %s:%d.\n",
-				el_server_convert_addr(sa, salen),
-				el_server_convert_port(sa, salen));
+				dnet_server_convert_addr(sa, salen),
+				dnet_server_convert_port(sa, salen));
 	} else {
 		err = connect(s, sa, salen);
 		if (err) {
 			ulog_err("Failed to connect to %s:%d",
-				el_server_convert_addr(sa, salen),
-				el_server_convert_port(sa, salen));
+				dnet_server_convert_addr(sa, salen),
+				dnet_server_convert_port(sa, salen));
 			goto err_out_exit;
 		}
 
 		ulog("Connected to %s:%d.\n",
-			el_server_convert_addr(sa, salen),
-			el_server_convert_port(sa, salen));
+			dnet_server_convert_addr(sa, salen),
+			dnet_server_convert_port(sa, salen));
 
 		fcntl(s, F_SETFL, O_NONBLOCK);
 	}
@@ -282,7 +282,7 @@ void *dnet_state_process(void *data)
 	while (!n->need_exit) {
 		err = dnet_trans_process(st);
 		if ((err < 0) && (err != -EAGAIN)) {
-			ulog("%s: state processing error: %d.\n", el_dump_id(st->id), err);
+			ulog("%s: state processing error: %d.\n", dnet_dump_id(st->id), err);
 
 			if (st->empty)
 				break;
@@ -295,9 +295,9 @@ void *dnet_state_process(void *data)
 		}
 	}
 
-	ulog("%s: stopped client %s:%d processing, refcnt: %d.\n", el_dump_id(st->id),
-		el_server_convert_addr(&st->addr, st->addr_len),
-		el_server_convert_port(&st->addr, st->addr_len),
+	ulog("%s: stopped client %s:%d processing, refcnt: %d.\n", dnet_dump_id(st->id),
+		dnet_server_convert_addr(&st->addr, st->addr_len),
+		dnet_server_convert_port(&st->addr, st->addr_len),
 		st->refcnt);
 
 	dnet_state_put(st);
@@ -313,7 +313,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	if (addr_len > (signed)sizeof(struct sockaddr)) {
 		ulog("%s: wrong socket address size: %d, must be less or equal to %u.\n",
-				(id)?el_dump_id(id):el_dump_id(n->id), addr_len, sizeof(struct sockaddr));
+				(id)?dnet_dump_id(id):dnet_dump_id(n->id), addr_len, sizeof(struct sockaddr));
 		goto err_out_exit;
 	}
 
@@ -333,7 +333,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	err = pthread_mutex_init(&st->lock, NULL);
 	if (err) {
-		ulog_err("%s: failed to initialize state lock: err: %d", el_dump_id(st->id), err);
+		ulog_err("%s: failed to initialize state lock: err: %d", dnet_dump_id(st->id), err);
 		goto err_out_state_free;
 	}
 
@@ -351,7 +351,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	err = pthread_create(&st->tid, NULL, process, st);
 	if (err) {
-		ulog_err("%s: failed to create network state processing thread: err: %d", el_dump_id(st->id), err);
+		ulog_err("%s: failed to create network state processing thread: err: %d", dnet_dump_id(st->id), err);
 		goto err_out_state_remove;
 	}
 
@@ -391,9 +391,9 @@ void dnet_state_put(struct dnet_net_state *st)
 
 	pthread_mutex_destroy(&st->lock);
 
-	ulog("%s: freeing state %s:%d.\n", el_dump_id(st->id),
-		el_server_convert_addr(&st->addr, st->addr_len),
-		el_server_convert_port(&st->addr, st->addr_len));
+	ulog("%s: freeing state %s:%d.\n", dnet_dump_id(st->id),
+		dnet_server_convert_addr(&st->addr, st->addr_len),
+		dnet_server_convert_port(&st->addr, st->addr_len));
 
 	free(st);
 }
@@ -411,7 +411,7 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 
 	err = sendfile(st->s, fd, &offset, size);
 	if (err <= 0) {
-		ulog_err("%s: failed to send file data", el_dump_id(st->id));
+		ulog_err("%s: failed to send file data", dnet_dump_id(st->id));
 		goto err_out_unlock;
 	}
 
@@ -424,7 +424,7 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 		memset(buf, 0, sizeof(buf));
 
 		ulog("%s: truncated file: '%s', orig: %zu, zeroes: %zu bytes.\n",
-				el_dump_id(st->id), file, size + err, size);
+				dnet_dump_id(st->id), file, size + err, size);
 
 		while (size) {
 			sz = size;

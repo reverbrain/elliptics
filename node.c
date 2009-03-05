@@ -93,22 +93,22 @@ int dnet_state_insert(struct dnet_net_state *new)
 	pthread_mutex_lock(&n->state_lock);
 
 	list_for_each_entry(st, &n->state_list, state_entry) {
-		err = el_id_cmp(st->id, new->id);
+		err = dnet_id_cmp(st->id, new->id);
 
-		ulog("st: %s, ", el_dump_id(st->id));
-		uloga("new: %s, cmp: %d.\n", el_dump_id(new->id), err);
+		ulog("st: %s, ", dnet_dump_id(st->id));
+		uloga("new: %s, cmp: %d.\n", dnet_dump_id(new->id), err);
 
 		if (!err) {
-			ulog("%s: state exists: old: %s:%d, new: %s:%d.\n", el_dump_id(new->id),
-				el_server_convert_addr(&st->addr, st->addr_len),
-				el_server_convert_port(&st->addr, st->addr_len),
-				el_server_convert_addr(&new->addr, new->addr_len),
-				el_server_convert_port(&new->addr, new->addr_len));
+			ulog("%s: state exists: old: %s:%d, new: %s:%d.\n", dnet_dump_id(new->id),
+				dnet_server_convert_addr(&st->addr, st->addr_len),
+				dnet_server_convert_port(&st->addr, st->addr_len),
+				dnet_server_convert_addr(&new->addr, new->addr_len),
+				dnet_server_convert_port(&new->addr, new->addr_len));
 			break;
 		}
 
 		if (err < 0) {
-			ulog("adding before %s.\n", el_dump_id(st->id));
+			ulog("adding before %s.\n", dnet_dump_id(st->id));
 			list_add_tail(&new->state_entry, &st->state_entry);
 			break;
 		}
@@ -120,11 +120,11 @@ int dnet_state_insert(struct dnet_net_state *new)
 	}
 
 	if (err) {
-		ulog("%s: node list dump:\n", el_dump_id(new->id));
+		ulog("%s: node list dump:\n", dnet_dump_id(new->id));
 		list_for_each_entry(st, &n->state_list, state_entry) {
-			ulog("      id: %s [%02x], addr: %s:%d.\n", el_dump_id(st->id), st->id[0],
-				el_server_convert_addr(&st->addr, st->addr_len),
-				el_server_convert_port(&st->addr, st->addr_len));
+			ulog("      id: %s [%02x], addr: %s:%d.\n", dnet_dump_id(st->id), st->id[0],
+				dnet_server_convert_addr(&st->addr, st->addr_len),
+				dnet_server_convert_port(&st->addr, st->addr_len));
 		}
 		uloga("\n");
 	}
@@ -156,7 +156,7 @@ struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id,
 		if (st == self)
 			continue;
 
-		err = el_id_cmp(st->id, id);
+		err = dnet_id_cmp(st->id, id);
 
 		if (err <= 0) {
 			dnet_state_get(st);
@@ -206,22 +206,22 @@ static void *dnet_server_func(void *data)
 	while (!n->need_exit) {
 		cs = accept(n->listen_socket, &addr, &socklen);
 		if (cs <= 0) {
-			ulog_err("%s: failed to accept new client", el_dump_id(n->id));
+			ulog_err("%s: failed to accept new client", dnet_dump_id(n->id));
 			continue;
 		}
 
-		ulog("%s: accepted client %s:%d.\n", el_dump_id(n->id),
-				el_server_convert_addr(&addr, socklen),
-				el_server_convert_port(&addr, socklen));
+		ulog("%s: accepted client %s:%d.\n", dnet_dump_id(n->id),
+				dnet_server_convert_addr(&addr, socklen),
+				dnet_server_convert_port(&addr, socklen));
 
 		fcntl(cs, F_SETFL, O_NONBLOCK);
 
 		st = dnet_state_create(n, NULL, &addr, socklen, cs, dnet_state_process);
 		if (!st) {
 			close(cs);
-			ulog("%s: disconnected client %s:%d.\n", el_dump_id(n->id),
-					el_server_convert_addr(&addr, socklen),
-					el_server_convert_port(&addr, socklen));
+			ulog("%s: disconnected client %s:%d.\n", dnet_dump_id(n->id),
+					dnet_server_convert_addr(&addr, socklen),
+					dnet_server_convert_port(&addr, socklen));
 		}
 	}
 
@@ -252,7 +252,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->st)
 		goto err_out_sock_close;
 
-	ulog("%s: new node has been created at %s.\n", el_dump_id(n->id), dnet_dump_node(n));
+	ulog("%s: new node has been created at %s.\n", dnet_dump_id(n->id), dnet_dump_node(n));
 	return n;
 
 err_out_sock_close:
@@ -267,7 +267,7 @@ void dnet_node_destroy(struct dnet_node *n)
 {
 	struct dnet_net_state *st, *tmp;
 
-	ulog("%s: destroying node at %s.\n", el_dump_id(n->id), dnet_dump_node(n));
+	ulog("%s: destroying node at %s.\n", dnet_dump_id(n->id), dnet_dump_node(n));
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry_safe(st, tmp, &n->state_list, state_entry) {

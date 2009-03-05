@@ -30,49 +30,49 @@
 #include "elliptics.h"
 #include "interface.h"
 
-static int dnet_send_list_entry(struct dnet_net_state *st, struct el_cmd *req, unsigned char *id)
+static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req, unsigned char *id)
 {
 	int fd, err;
 	char file[EL_ID_SIZE*2 + sizeof(EL_HISTORY_SUFFIX) + 5];
-	struct el_cmd *cmd;
-	struct el_attr *a;
-	struct el_io_attr *io;
+	struct dnet_cmd *cmd;
+	struct dnet_attr *a;
+	struct dnet_io_attr *io;
 	struct stat stat;
 
-	snprintf(file, sizeof(file), "%02x/%s%s", id[0], el_dump_id(id), EL_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%02x/%s%s", id[0], dnet_dump_id(id), EL_HISTORY_SUFFIX);
 
 	fd = openat(st->n->rootfd, file, O_RDONLY);
 	if (fd <= 0) {
 		err = -errno;
-		ulog_err("%s: failed to open history file '%s'", el_dump_id(id), file);
+		ulog_err("%s: failed to open history file '%s'", dnet_dump_id(id), file);
 		goto err_out_exit;
 	}
 
 	err = fstat(fd, &stat);
 	if (err) {
 		err = -errno;
-		ulog_err("%s: failed to stat history file '%s'", el_dump_id(id), file);
+		ulog_err("%s: failed to stat history file '%s'", dnet_dump_id(id), file);
 		goto err_out_close;
 	}
 
-	cmd = malloc(sizeof(struct el_cmd) + sizeof(struct el_attr) + sizeof(struct el_io_attr));
+	cmd = malloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 	if (!cmd) {
-		ulog("%s: failed to allocate list reply.\n", el_dump_id(id));
+		ulog("%s: failed to allocate list reply.\n", dnet_dump_id(id));
 		err = -ENOMEM;
 		goto err_out_close;
 	}
 
-	a = (struct el_attr *)(cmd + 1);
-	io = (struct el_io_attr *)(a + 1);
+	a = (struct dnet_attr *)(cmd + 1);
+	io = (struct dnet_io_attr *)(a + 1);
 
 	memcpy(cmd->id, req->id, EL_ID_SIZE);
-	cmd->size = sizeof(struct el_attr) + sizeof(struct el_io_attr) + stat.st_size;
+	cmd->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + stat.st_size;
 	cmd->trans = req->trans | DNET_TRANS_REPLY;
 	cmd->status = 0;
 	cmd->flags = DNET_FLAGS_MORE;
 
 	a->flags = 0;
-	a->size = sizeof(struct el_io_attr) + stat.st_size;
+	a->size = sizeof(struct dnet_io_attr) + stat.st_size;
 	a->cmd = DNET_CMD_LIST;
 
 	memcpy(io->id, id, EL_ID_SIZE);
@@ -80,12 +80,12 @@ static int dnet_send_list_entry(struct dnet_net_state *st, struct el_cmd *req, u
 	io->offset = 0;
 	io->flags = 0;
 
-	el_convert_cmd(cmd);
-	el_convert_attr(a);
-	el_convert_io_attr(io);
+	dnet_convert_cmd(cmd);
+	dnet_convert_attr(a);
+	dnet_convert_io_attr(io);
 
 	err = dnet_sendfile_data(st, file, fd, 0, stat.st_size,
-			cmd, sizeof(struct el_cmd) + sizeof(struct el_attr) + sizeof(struct el_io_attr));
+			cmd, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 	if (err)
 		goto err_out_free;
 
@@ -114,7 +114,7 @@ static void dnet_convert_name_to_id(char *name, unsigned char *id)
 	}
 }
 
-static int dnet_listdir(struct dnet_net_state *st, struct el_cmd *cmd,
+static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		char *sub, unsigned char *first_id)
 {
 	int fd, err = 0;
@@ -153,14 +153,14 @@ static int dnet_listdir(struct dnet_net_state *st, struct el_cmd *cmd,
 		dnet_convert_name_to_id(d->d_name, id);
 
 		if (first_id) {
-			err = el_id_cmp(first_id, id);
+			err = dnet_id_cmp(first_id, id);
 			if (err > 0)
 				continue;
 		}
 
 		err = dnet_send_list_entry(st, cmd, id);
 
-		ulog("%s -> %s.\n", d->d_name, el_dump_id(id));
+		ulog("%s -> %s.\n", d->d_name, dnet_dump_id(id));
 	}
 
 	close(fd);
@@ -168,7 +168,7 @@ static int dnet_listdir(struct dnet_net_state *st, struct el_cmd *cmd,
 	return 0;
 }
 
-int dnet_cmd_list(struct dnet_net_state *st, struct el_cmd *cmd)
+int dnet_cmd_list(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
 	char sub[3];
 	unsigned char start;
@@ -193,46 +193,46 @@ int dnet_cmd_list(struct dnet_net_state *st, struct el_cmd *cmd)
 	return 0;
 }
 
-static int dnet_process_existing_history(struct dnet_net_state *st __unused, struct el_io_attr *io, int fd)
+static int dnet_process_existing_history(struct dnet_net_state *st __unused, struct dnet_io_attr *io, int fd)
 {
 	int err;
 	struct stat stat;
-	struct el_io_attr last_io;
+	struct dnet_io_attr last_io;
 	off_t off;
 
 	err = fstat(fd, &stat);
 	if (err < 0) {
 		err = -errno;
-		ulog_err("%s: failed to stat the history file", el_dump_id(io->id));
+		ulog_err("%s: failed to stat the history file", dnet_dump_id(io->id));
 		goto err_out_exit;
 	}
 
-	if (!stat.st_size || (stat.st_size % sizeof(struct el_io_attr))) {
+	if (!stat.st_size || (stat.st_size % sizeof(struct dnet_io_attr))) {
 		uloga("%s: corrupted history file: size %lu not multiple of %u.\n",
-				el_dump_id(io->id), stat.st_size, sizeof(struct el_io_attr));
+				dnet_dump_id(io->id), stat.st_size, sizeof(struct dnet_io_attr));
 		err = -EINVAL;
 		goto err_out_exit;
 	}
 
-	off = lseek(fd, -sizeof(struct el_io_attr), SEEK_END);
+	off = lseek(fd, -sizeof(struct dnet_io_attr), SEEK_END);
 	if (off < 0) {
 		err = -errno;
-		ulog_err("%s: corrupted history file: can not seek to the end", el_dump_id(io->id));
+		ulog_err("%s: corrupted history file: can not seek to the end", dnet_dump_id(io->id));
 		goto err_out_exit;
 	}
 
-	err = read(fd, &last_io, sizeof(struct el_io_attr));
+	err = read(fd, &last_io, sizeof(struct dnet_io_attr));
 	if (err <= 0) {
 		err = -errno;
-		ulog_err("%s: corrupted history file: can not read the last transaction history entry", el_dump_id(io->id));
+		ulog_err("%s: corrupted history file: can not read the last transaction history entry", dnet_dump_id(io->id));
 		goto err_out_exit;
 	}
 
 	err = memcmp(io->id, last_io.id, EL_ID_SIZE);
 
 	ulog("%s: the last local update: offset: %llu, size: %llu, id: ",
-			el_dump_id(io->id), last_io.offset, last_io.size);
-	uloga("%s, same: %d.\n", el_dump_id(last_io.id), !err);
+			dnet_dump_id(io->id), last_io.offset, last_io.size);
+	uloga("%s, same: %d.\n", dnet_dump_id(last_io.id), !err);
 
 	return err;
 
@@ -240,15 +240,15 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_read_complete_history(struct dnet_net_state *st, struct el_cmd *cmd,
-		struct el_attr *a, void *priv)
+static int dnet_read_complete_history(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *a, void *priv)
 {
 	int err;
 	char tmp[2*EL_ID_SIZE + sizeof(EL_HISTORY_SUFFIX) + 5 + 4];
 	char file[2*EL_ID_SIZE + sizeof(EL_HISTORY_SUFFIX) + 5 + 4];
 	struct dnet_io_completion *c = priv;
 
-	ulog("%s: file: '%s'.\n", el_dump_id(cmd->id), c->file);
+	ulog("%s: file: '%s'.\n", dnet_dump_id(cmd->id), c->file);
 
 	if (cmd->status != 0 || cmd->size == 0)
 		goto out;
@@ -266,7 +266,7 @@ static int dnet_read_complete_history(struct dnet_net_state *st, struct el_cmd *
 	err = renameat(st->n->rootfd, tmp, st->n->rootfd, file);
 	if (err) {
 		err = -errno;
-		ulog_err("%s: failed to rename '%s' -> '%s'", el_dump_id(cmd->id), tmp, file);
+		ulog_err("%s: failed to rename '%s' -> '%s'", dnet_dump_id(cmd->id), tmp, file);
 		return err;
 	}
 
@@ -274,15 +274,15 @@ out:
 	return 0;
 }
 
-static int dnet_process_history(struct dnet_net_state *st, struct el_io_attr *io)
+static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *io)
 {
 	char file[2*EL_ID_SIZE + sizeof(EL_HISTORY_SUFFIX) + 5 + 4];
 	int fd, err;
 	struct dnet_io_completion *cmp;
 	char dir[3];
-	struct el_io_attr req;
+	struct dnet_io_attr req;
 
-	snprintf(file, sizeof(file), "%02x/%s%s", io->id[0], el_dump_id(io->id), EL_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%02x/%s%s", io->id[0], dnet_dump_id(io->id), EL_HISTORY_SUFFIX);
 
 	fd = openat(st->n->rootfd, file, O_RDONLY);
 	if (fd >= 0) {
@@ -295,7 +295,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct el_io_attr *io
 	}
 	if (errno != ENOENT) {
 		err = -errno;
-		ulog_err("%s: failed to open history file '%s'", el_dump_id(io->id), file);
+		ulog_err("%s: failed to open history file '%s'", dnet_dump_id(io->id), file);
 		goto err_out_exit;
 	}
 
@@ -305,24 +305,24 @@ static int dnet_process_history(struct dnet_net_state *st, struct el_io_attr *io
 		if (errno != EEXIST) {
 			err = -errno;
 			ulog_err("%s: failed to create dir '%s' in the root '%s'",
-					el_dump_id(io->id), dir, st->n->root);
+					dnet_dump_id(io->id), dir, st->n->root);
 			goto err_out_exit;
 		}
 	}
 
-	snprintf(file, sizeof(file), "%02x/%s%s.tmp", io->id[0], el_dump_id(io->id), EL_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%02x/%s%s.tmp", io->id[0], dnet_dump_id(io->id), EL_HISTORY_SUFFIX);
 
 	fd = openat(st->n->rootfd, file, O_RDWR | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
 	if (fd < 0) {
 		err = -errno;
-		ulog_err("%s: failed to create history file '%s'", el_dump_id(io->id), file);
+		ulog_err("%s: failed to create history file '%s'", dnet_dump_id(io->id), file);
 		goto err_out_exit;
 	}
 
 	err = write(fd, io+1, io->size);
 	if (err <= 0) {
 		err = -errno;
-		ulog_err("%s: failed to write history file '%s'", el_dump_id(io->id), file);
+		ulog_err("%s: failed to write history file '%s'", dnet_dump_id(io->id), file);
 		goto err_out_close;
 	}
 
@@ -331,7 +331,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct el_io_attr *io
 	cmp = malloc(sizeof(struct dnet_io_completion) + sizeof(file) + strlen(st->n->root));
 	if (!cmp) {
 		err = -ENOMEM;
-		ulog("%s: failed to allocate read completion structure.\n", el_dump_id(io->id));
+		ulog("%s: failed to allocate read completion structure.\n", dnet_dump_id(io->id));
 		goto err_out_exit;
 	}
 
@@ -343,7 +343,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct el_io_attr *io
 	cmp->size = 0;
 	cmp->file = (char *)(cmp + 1);
 
-	snprintf(cmp->file, sizeof(file), "%02x/%s", io->id[0], el_dump_id(io->id));
+	snprintf(cmp->file, sizeof(file), "%02x/%s", io->id[0], dnet_dump_id(io->id));
 
 	err = dnet_read_object(st->n, &req, dnet_read_complete_history, cmp);
 	if (err)
@@ -357,36 +357,36 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_recv_list_complete(struct dnet_net_state *st, struct el_cmd *cmd,
-		struct el_attr *a, void *priv __unused)
+static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *a, void *priv __unused)
 {
 	__u64 size = cmd->size;
 	int err = cmd->status;
 
-	if (size < sizeof(struct el_attr) + sizeof(struct el_io_attr))
+	if (size < sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr))
 		goto out;
 
 	while (size) {
 		void *data = a;
-		struct el_io_attr *io;
+		struct dnet_io_attr *io;
 
-		el_convert_attr(a);
+		dnet_convert_attr(a);
 
-		if (a->size < sizeof(struct el_io_attr)) {
+		if (a->size < sizeof(struct dnet_io_attr)) {
 			ulog("%s: wrong list reply attribute size: %llu, mut be greater or equal than %u.\n",
-					el_dump_id(cmd->id), (unsigned long long)a->size, sizeof(struct el_io_attr));
+					dnet_dump_id(cmd->id), (unsigned long long)a->size, sizeof(struct dnet_io_attr));
 			err = -EPROTO;
 			goto out;
 		}
 
-		io = (struct el_io_attr *)(a + 1);
+		io = (struct dnet_io_attr *)(a + 1);
 
-		el_convert_io_attr(io);
+		dnet_convert_io_attr(io);
 
-		if (size < sizeof(struct el_attr) + sizeof(struct el_io_attr) + io->size) {
+		if (size < sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + io->size) {
 			ulog("%s: wrong list reply IO attribute size: %llu, mut be less or equal than %llu.\n",
-					el_dump_id(cmd->id), (unsigned long long)io->size,
-					(unsigned long long)size - sizeof(struct el_attr) - sizeof(struct el_io_attr));
+					dnet_dump_id(cmd->id), (unsigned long long)io->size,
+					(unsigned long long)size - sizeof(struct dnet_attr) - sizeof(struct dnet_io_attr));
 			err = -EPROTO;
 			goto out;
 		}
@@ -397,30 +397,30 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct el_cmd *cmd
 
 		err = dnet_process_history(st, io);
 
-		ulog("%s: list entry offset: %llu, size: %llu, err: %d.\n", el_dump_id(io->id),
+		ulog("%s: list entry offset: %llu, size: %llu, err: %d.\n", dnet_dump_id(io->id),
 				(unsigned long long)io->offset, (unsigned long long)io->size, err);
 
-		data += sizeof(struct el_attr) + sizeof(struct el_io_attr) + io->size;
-		size -= sizeof(struct el_attr) + sizeof(struct el_io_attr) + io->size;
+		data += sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + io->size;
+		size -= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + io->size;
 
 		a = data;
 	}
 
 out:
 	ulog("%s: listing completed with status: %d, size: %llu, err: %d.\n",
-			el_dump_id(cmd->id), cmd->status, cmd->size, err);
+			dnet_dump_id(cmd->id), cmd->status, cmd->size, err);
 	return err;
 }
 
 int dnet_recv_list(struct dnet_node *n)
 {
 	struct dnet_trans *t;
-	struct el_cmd *cmd;
-	struct el_attr *a;
+	struct dnet_cmd *cmd;
+	struct dnet_attr *a;
 	struct dnet_net_state *st;
 	int err;
 
-	t = malloc(sizeof(struct dnet_trans) + sizeof(struct el_cmd) + sizeof(struct el_attr));
+	t = malloc(sizeof(struct dnet_trans) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
 	if (!t) {
 		err = -ENOMEM;
 		goto err_out_exit;
@@ -430,14 +430,14 @@ int dnet_recv_list(struct dnet_node *n)
 
 	t->complete = dnet_recv_list_complete;
 
-	cmd = (struct el_cmd *)(t + 1);
-	a = (struct el_attr *)(cmd + 1);
+	cmd = (struct dnet_cmd *)(t + 1);
+	a = (struct dnet_attr *)(cmd + 1);
 
 	memcpy(cmd->id, n->id, EL_ID_SIZE);
 	cmd->flags = DNET_FLAGS_NEED_ACK;
 	cmd->status = 0;
 	cmd->trans = 0;
-	cmd->size = sizeof(struct el_attr);
+	cmd->size = sizeof(struct dnet_attr);
 
 	a->cmd = DNET_CMD_LIST;
 	a->size = 0;
@@ -446,7 +446,7 @@ int dnet_recv_list(struct dnet_node *n)
 	t->st = st = dnet_state_get_first(n, n->st);
 	if (!st) {
 		err = -ENOENT;
-		ulog("%s: can not get output state.\n", el_dump_id(n->id));
+		ulog("%s: can not get output state.\n", dnet_dump_id(n->id));
 		goto err_out_destroy;
 	}
 
@@ -456,11 +456,11 @@ int dnet_recv_list(struct dnet_node *n)
 
 	cmd->trans = t->trans;
 
-	el_convert_cmd(cmd);
-	el_convert_attr(a);
+	dnet_convert_cmd(cmd);
+	dnet_convert_attr(a);
 
 	pthread_mutex_lock(&st->lock);
-	err = dnet_send(st, cmd, sizeof(struct el_cmd) + sizeof(struct el_attr));
+	err = dnet_send(st, cmd, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
 	if (err)
 		goto err_out_unlock;
 	pthread_mutex_unlock(&st->lock);
