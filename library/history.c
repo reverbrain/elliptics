@@ -208,8 +208,8 @@ static int dnet_process_existing_history(struct dnet_net_state *st __unused, str
 	}
 
 	if (!stat.st_size || (stat.st_size % sizeof(struct dnet_io_attr))) {
-		uloga("%s: corrupted history file: size %lu not multiple of %u.\n",
-				dnet_dump_id(io->id), stat.st_size, sizeof(struct dnet_io_attr));
+		uloga("%s: corrupted history file: size %llu not multiple of %u.\n",
+				dnet_dump_id(io->id), (unsigned long long)stat.st_size, sizeof(struct dnet_io_attr));
 		err = -EINVAL;
 		goto err_out_exit;
 	}

@@ -475,7 +475,7 @@ err_out_exit:
 
 int dnet_process_cmd(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
-	int err;
+	int err = 0;
 	unsigned long long size = cmd->size;
 
 	while (size) {
@@ -855,7 +855,7 @@ int dnet_write_file(struct dnet_node *n, char *file)
 			error = 0;
 	}
 
-	ulog("%s: file: '%s', size: %lu.\n", dnet_dump_id(io.id), file, stat.st_size);
+	ulog("%s: file: '%s', size: %llu.\n", dnet_dump_id(io.id), file, (unsigned long long)stat.st_size);
 
 	close(fd);
 
@@ -877,6 +877,7 @@ int dnet_write_object(struct dnet_node *n, unsigned char *id, struct dnet_io_att
 
 	t = dnet_io_trans_create(n, id, DNET_CMD_WRITE, io, complete, priv);
 	if (!t) {
+		err = -ENOMEM;
 		ulog("%s: failed to create transaction.\n", dnet_dump_id(id));
 		goto err_out_exit;
 	}
@@ -1031,6 +1032,7 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_attr *io,
 	t = dnet_io_trans_create(n, io->id, DNET_CMD_READ, io, complete, priv);
 	if (!t) {
 		ulog("%s: failed to create transaction.\n", dnet_dump_id(io->id));
+		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
