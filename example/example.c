@@ -85,7 +85,6 @@ static int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 	return 0;
 }
 
-<<<<<<< HEAD:example/example.c
 static void dnet_example_log_append(void *priv, const char *f, ...)
 {
 	va_list ap;
