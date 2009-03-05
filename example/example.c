@@ -35,7 +35,7 @@
 
 struct dnet_crypto_engine
 {
-	char			name[EL_MAX_NAME_LEN];
+	char			name[DNET_MAX_NAME_LEN];
 	
 	EVP_MD_CTX 		mdctx;
 	const EVP_MD		*evp_md;
@@ -82,16 +82,16 @@ static int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 	return 0;
 }
 
-#define EL_CONF_COMMENT		'#'
+#define DNET_CONF_COMMENT		'#'
 #define EL_CONF_DELIM		'='
-#define EL_CONF_ADDR_DELIM	':'
-#define EL_CONF_TIME_DELIM	'.'
+#define DNET_CONF_ADDR_DELIM	':'
+#define DNET_CONF_TIME_DELIM	'.'
 
 static int dnet_parse_addr(char *addr, struct dnet_config *cfg)
 {
 	char *fam, *port;
 
-	fam = strrchr(addr, EL_CONF_ADDR_DELIM);
+	fam = strrchr(addr, DNET_CONF_ADDR_DELIM);
 	if (!fam)
 		goto err_out_print_wrong_param;
 	*fam++ = 0;
@@ -100,7 +100,7 @@ static int dnet_parse_addr(char *addr, struct dnet_config *cfg)
 
 	cfg->family = atoi(fam);
 
-	port = strrchr(addr, EL_CONF_ADDR_DELIM);
+	port = strrchr(addr, DNET_CONF_ADDR_DELIM);
 	if (!port)
 		goto err_out_print_wrong_param;
 	*port++ = 0;
@@ -117,7 +117,7 @@ static int dnet_parse_addr(char *addr, struct dnet_config *cfg)
 
 err_out_print_wrong_param:
 	fprintf(stderr, "Wrong address parameter, should be 'addr%cport%cfamily'.\n",
-				EL_CONF_ADDR_DELIM, EL_CONF_ADDR_DELIM);
+				DNET_CONF_ADDR_DELIM, DNET_CONF_ADDR_DELIM);
 	return -EINVAL;
 }
 
@@ -126,10 +126,10 @@ static int dnet_parse_numeric_id(char *value, unsigned char *id)
 	unsigned char ch[2];
 	unsigned int i, len = strlen(value);
 
-	memset(id, 0, EL_ID_SIZE);
+	memset(id, 0, DNET_ID_SIZE);
 
-	if (len/2 > EL_ID_SIZE)
-		len = EL_ID_SIZE * 2;
+	if (len/2 > DNET_ID_SIZE)
+		len = DNET_ID_SIZE * 2;
 
 	for (i=0; i<len / 2; i++) {
 		ch[0] = value[2*i + 0];

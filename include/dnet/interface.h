@@ -16,7 +16,7 @@
 #ifndef __DNET_INTERFACE_H
 #define __DNET_INTERFACE_H
 
-#include "dnet/typedefs.h"
+#include <dnet/typedefs.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -72,7 +72,7 @@ struct dnet_config
 	/*
 	 * Unique network-wide ID.
 	 */
-	unsigned char		id[EL_ID_SIZE];
+	unsigned char		id[DNET_ID_SIZE];
 
 	/*
 	 * Socket type (SOCK_STREAM, SOCK_DGRAM and so on),
@@ -132,9 +132,9 @@ int dnet_setup_root(struct dnet_node *n, char *root);
 static inline char *dnet_dump_id(unsigned char *id)
 {
 	unsigned int i;
-	static char __dnet_dump_str[2 * EL_ID_SIZE + 1];
+	static char __dnet_dump_str[2 * DNET_ID_SIZE + 1];
 
-	for (i=0; i<EL_ID_SIZE; ++i)
+	for (i=0; i<DNET_ID_SIZE; ++i)
 		sprintf(&__dnet_dump_str[2*i], "%02x", id[i]);
 	return __dnet_dump_str;
 }

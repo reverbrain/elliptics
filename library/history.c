@@ -33,13 +33,13 @@
 static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req, unsigned char *id)
 {
 	int fd, err;
-	char file[EL_ID_SIZE*2 + sizeof(EL_HISTORY_SUFFIX) + 5];
+	char file[DNET_ID_SIZE*2 + sizeof(DNET_HISTORY_SUFFIX) + 5];
 	struct dnet_cmd *cmd;
 	struct dnet_attr *a;
 	struct dnet_io_attr *io;
 	struct stat stat;
 
-	snprintf(file, sizeof(file), "%02x/%s%s", id[0], dnet_dump_id(id), EL_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%02x/%s%s", id[0], dnet_dump_id(id), DNET_HISTORY_SUFFIX);
 
 	fd = openat(st->n->rootfd, file, O_RDONLY);
 	if (fd <= 0) {
@@ -65,7 +65,7 @@ static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req,
 	a = (struct dnet_attr *)(cmd + 1);
 	io = (struct dnet_io_attr *)(a + 1);
 
-	memcpy(cmd->id, req->id, EL_ID_SIZE);
+	memcpy(cmd->id, req->id, DNET_ID_SIZE);
 	cmd->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + stat.st_size;
 	cmd->trans = req->trans | DNET_TRANS_REPLY;
 	cmd->status = 0;
@@ -75,7 +75,7 @@ static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req,
 	a->size = sizeof(struct dnet_io_attr) + stat.st_size;
 	a->cmd = DNET_CMD_LIST;
 
-	memcpy(io->id, id, EL_ID_SIZE);
+	memcpy(io->id, id, DNET_ID_SIZE);
 	io->size = stat.st_size;
 	io->offset = 0;
 	io->flags = 0;
@@ -107,7 +107,7 @@ static void dnet_convert_name_to_id(char *name, unsigned char *id)
 	char sub[3];
 
 	sub[2] = '\0';
-	for (i=0; i<EL_ID_SIZE; i++) {
+	for (i=0; i<DNET_ID_SIZE; i++) {
 		sub[0] = name[2*i];
 		sub[1] = name[2*i + 1];
 		id[i] = strtol(sub, NULL, 16);
@@ -120,7 +120,7 @@ static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	int fd, err = 0;
 	DIR *dir;
 	struct dirent64 *d;
-	unsigned char id[EL_ID_SIZE];
+	unsigned char id[DNET_ID_SIZE];
 	unsigned int len;
 
 	fd = openat(st->n->rootfd, sub, O_RDONLY);
@@ -144,10 +144,10 @@ static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 		len = strlen(d->d_name);
 
-		if (len != strlen(EL_HISTORY_SUFFIX) + EL_ID_SIZE*2)
+		if (len != strlen(DNET_HISTORY_SUFFIX) + DNET_ID_SIZE*2)
 			continue;
 
-		if (strcmp(&d->d_name[EL_ID_SIZE*2], EL_HISTORY_SUFFIX))
+		if (strcmp(&d->d_name[DNET_ID_SIZE*2], DNET_HISTORY_SUFFIX))
 			continue;
 
 		dnet_convert_name_to_id(d->d_name, id);
@@ -228,7 +228,7 @@ static int dnet_process_existing_history(struct dnet_net_state *st __unused, str
 		goto err_out_exit;
 	}
 
-	err = memcmp(io->id, last_io.id, EL_ID_SIZE);
+	err = memcmp(io->id, last_io.id, DNET_ID_SIZE);
 
 	ulog("%s: the last local update: offset: %llu, size: %llu, id: ",
 			dnet_dump_id(io->id), last_io.offset, last_io.size);
@@ -244,8 +244,8 @@ static int dnet_read_complete_history(struct dnet_net_state *st, struct dnet_cmd
 		struct dnet_attr *a, void *priv)
 {
 	int err;
-	char tmp[2*EL_ID_SIZE + sizeof(EL_HISTORY_SUFFIX) + 5 + 4];
-	char file[2*EL_ID_SIZE + sizeof(EL_HISTORY_SUFFIX) + 5 + 4];
+	char tmp[2*DNET_ID_SIZE + sizeof(DNET_HISTORY_SUFFIX) + 5 + 4];
+	char file[2*DNET_ID_SIZE + sizeof(DNET_HISTORY_SUFFIX) + 5 + 4];
 	struct dnet_io_completion *c = priv;
 
 	ulog("%s: file: '%s'.\n", dnet_dump_id(cmd->id), c->file);
@@ -260,8 +260,8 @@ static int dnet_read_complete_history(struct dnet_net_state *st, struct dnet_cmd
 	if (err)
 		return err;
 
-	snprintf(tmp, sizeof(tmp), "%s%s.tmp", c->file, EL_HISTORY_SUFFIX);
-	snprintf(file, sizeof(file), "%s%s", c->file, EL_HISTORY_SUFFIX);
+	snprintf(tmp, sizeof(tmp), "%s%s.tmp", c->file, DNET_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%s%s", c->file, DNET_HISTORY_SUFFIX);
 
 	err = renameat(st->n->rootfd, tmp, st->n->rootfd, file);
 	if (err) {
@@ -276,13 +276,13 @@ out:
 
 static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *io)
 {
-	char file[2*EL_ID_SIZE + sizeof(EL_HISTORY_SUFFIX) + 5 + 4];
+	char file[2*DNET_ID_SIZE + sizeof(DNET_HISTORY_SUFFIX) + 5 + 4];
 	int fd, err;
 	struct dnet_io_completion *cmp;
 	char dir[3];
 	struct dnet_io_attr req;
 
-	snprintf(file, sizeof(file), "%02x/%s%s", io->id[0], dnet_dump_id(io->id), EL_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%02x/%s%s", io->id[0], dnet_dump_id(io->id), DNET_HISTORY_SUFFIX);
 
 	fd = openat(st->n->rootfd, file, O_RDONLY);
 	if (fd >= 0) {
@@ -310,7 +310,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 		}
 	}
 
-	snprintf(file, sizeof(file), "%02x/%s%s.tmp", io->id[0], dnet_dump_id(io->id), EL_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%02x/%s%s.tmp", io->id[0], dnet_dump_id(io->id), DNET_HISTORY_SUFFIX);
 
 	fd = openat(st->n->rootfd, file, O_RDWR | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
 	if (fd < 0) {
@@ -335,7 +335,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 		goto err_out_exit;
 	}
 
-	memcpy(req.id, io->id, EL_ID_SIZE);
+	memcpy(req.id, io->id, DNET_ID_SIZE);
 	req.size = 0;
 	req.offset = 0;
 
@@ -433,7 +433,7 @@ int dnet_recv_list(struct dnet_node *n)
 	cmd = (struct dnet_cmd *)(t + 1);
 	a = (struct dnet_attr *)(cmd + 1);
 
-	memcpy(cmd->id, n->id, EL_ID_SIZE);
+	memcpy(cmd->id, n->id, DNET_ID_SIZE);
 	cmd->flags = DNET_FLAGS_NEED_ACK;
 	cmd->status = 0;
 	cmd->trans = 0;

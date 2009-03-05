@@ -16,21 +16,14 @@
 #ifndef __DNET_CORE_H
 #define __DNET_CORE_H
 
-#include "dnet/typedefs.h"
+#include <dnet/typedefs.h>
 
-#define EL_HISTORY_SUFFIX	".history"
+#define DNET_HISTORY_SUFFIX	".history"
 
 #define __unused		__attribute__ ((unused))
 
-#define EL_ID_SIZE		20		/* Has to match selected hash type */
-#define EL_MAX_NAME_LEN		64
-
-/*
- * Each read transaction reply is being split into
- * chunks of this bytes max, thus reading transaction
- * callback will be invoked multiple times.
- */
-#define MAX_READ_TRANS_SIZE	(1024*1024*10)
+#define DNET_ID_SIZE		20		/* Has to match selected hash type */
+#define DNET_MAX_NAME_LEN		64
 
 #define DNET_TIMEOUT		5000
 

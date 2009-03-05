@@ -16,11 +16,9 @@
 #ifndef __DNET_PACKET_H
 #define __DNET_PACKET_H
 
-#include "dnet/typedefs.h"
-
+#include <dnet/typedefs.h>
 #include <asm/byteorder.h>
 #include <arpa/inet.h>
-
 #include <dnet/core.h>
 
 #ifdef __cplusplus
@@ -67,7 +65,7 @@ enum dnet_commands {
 
 struct dnet_cmd
 {
-	unsigned char			id[EL_ID_SIZE];
+	unsigned char			id[DNET_ID_SIZE];
 	unsigned int			flags;
 	int				status;
 	uint64_t				trans;
@@ -98,17 +96,17 @@ static inline void dnet_convert_attr(struct dnet_attr *a)
 	a->flags = __cpu_to_be32(a->flags);
 }
 
-#define EL_ADDR_SIZE			128
+#define DNET_ADDR_SIZE			128
 
 struct dnet_addr
 {
-	unsigned char			addr[EL_ADDR_SIZE];
+	unsigned char			addr[DNET_ADDR_SIZE];
 	unsigned int			addr_size;
 };
 
 struct dnet_list
 {
-	unsigned char			id[EL_ID_SIZE];
+	unsigned char			id[DNET_ID_SIZE];
 	unsigned int			size;
 	unsigned char			data[0];
 };
@@ -157,7 +155,7 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 
 struct dnet_io_attr
 {
-	unsigned char			id[EL_ID_SIZE];
+	unsigned char			id[DNET_ID_SIZE];
 	unsigned int			flags;
 	uint64_t				offset;
 	uint64_t				size;

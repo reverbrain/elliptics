@@ -42,14 +42,14 @@ static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
 	const unsigned long *l1 = (unsigned long *)id1;
 	const unsigned long *l2 = (unsigned long *)id2;
 
-	for (i=0; i<EL_ID_SIZE/sizeof(unsigned long); ++i) {
+	for (i=0; i<DNET_ID_SIZE/sizeof(unsigned long); ++i) {
 		if (l1[i] > l2[i])
 			return -1;
 		if (l1[i] < l2[i])
 			return 1;
 	}
 #endif
-	for (i*=sizeof(unsigned long); i<EL_ID_SIZE; ++i) {
+	for (i*=sizeof(unsigned long); i<DNET_ID_SIZE; ++i) {
 		if (id1[i] > id2[i])
 			return -1;
 		if (id1[i] < id2[i])
@@ -117,7 +117,7 @@ struct dnet_net_state
 	pthread_t		tid;
 
 	int			empty;
-	unsigned char		id[EL_ID_SIZE];
+	unsigned char		id[DNET_ID_SIZE];
 
 	struct sockaddr		addr;
 	int			addr_len;
@@ -144,7 +144,7 @@ int dnet_state_move(struct dnet_net_state *st);
 
 struct dnet_node
 {
-	unsigned char		id[EL_ID_SIZE];
+	unsigned char		id[DNET_ID_SIZE];
 
 	pthread_mutex_t		tlock;
 	struct list_head	tlist;
@@ -238,7 +238,7 @@ struct dnet_transform
 {
 	struct list_head	tentry;
 
-	char			name[EL_MAX_NAME_LEN];
+	char			name[DNET_MAX_NAME_LEN];
 
 	void			*priv;
 

@@ -342,7 +342,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		list_add_tail(&st->state_entry, &n->empty_state_list);
 		pthread_mutex_unlock(&n->state_lock);
 	} else {
-		memcpy(st->id, id, EL_ID_SIZE);
+		memcpy(st->id, id, DNET_ID_SIZE);
 		err = dnet_state_insert(st);
 		if (err)
 			goto err_out_lock_destroy;
