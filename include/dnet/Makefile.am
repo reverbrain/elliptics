@@ -1,1 +1,3 @@
-pkginclude_HEADERS = core.h interface.h packet.h
+pkginclude_HEADERS = typedefs.h core.h interface.h packet.h
+
+BUILT_SOURCES = typedefs.h

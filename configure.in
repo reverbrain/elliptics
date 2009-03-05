@@ -16,6 +16,7 @@ AC_SYS_LARGEFILE
 
 AX_CHECK_OPENSSL
 AX_PREFIX_CONFIG_H(config/acsetup.h)
+AX_CREATE_STDINT_H(include/dnet/typedefs.h)
 
 for i in -W -Wall -Wextra; do
 	AX_CHECK_COMPILER_FLAGS([$i], [CFLAGS="$CFLAGS $i"], [])

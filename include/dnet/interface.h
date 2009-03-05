@@ -16,6 +16,8 @@
 #ifndef __DNET_INTERFACE_H
 #define __DNET_INTERFACE_H
 
+#include <dnet/typedefs.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -51,7 +53,7 @@ struct dnet_node;
  */
 int dnet_read_object(struct dnet_node *n, struct dnet_io_attr *io,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *), void *priv);
-int dnet_read_file(struct dnet_node *n, char *file, __u64 offset, __u64 size);
+int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size);
 
 int dnet_write_object(struct dnet_node *n, unsigned char *id, struct dnet_io_attr *io,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
@@ -70,7 +72,7 @@ struct dnet_config
 	/*
 	 * Unique network-wide ID.
 	 */
-	unsigned char		id[EL_ID_SIZE];
+	unsigned char		id[DNET_ID_SIZE];
 
 	/*
 	 * Socket type (SOCK_STREAM, SOCK_DGRAM and so on),
@@ -97,7 +99,7 @@ struct dnet_config
  */
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	int (* init)(void *priv),
-	int (* update)(void *priv, void *src, __u64 size,
+	int (* update)(void *priv, void *src, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags),
 	int (* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags));
 int dnet_remove_transform(struct dnet_node *n, char *name);
@@ -130,9 +132,9 @@ int dnet_setup_root(struct dnet_node *n, char *root);
 static inline char *dnet_dump_id(unsigned char *id)
 {
 	unsigned int i;
-	static char __dnet_dump_str[2 * EL_ID_SIZE + 1];
+	static char __dnet_dump_str[2 * DNET_ID_SIZE + 1];
 
-	for (i=0; i<EL_ID_SIZE; ++i)
+	for (i=0; i<DNET_ID_SIZE; ++i)
 		sprintf(&__dnet_dump_str[2*i], "%02x", id[i]);
 	return __dnet_dump_str;
 }

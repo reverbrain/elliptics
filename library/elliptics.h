@@ -42,14 +42,14 @@ static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
 	const unsigned long *l1 = (unsigned long *)id1;
 	const unsigned long *l2 = (unsigned long *)id2;
 
-	for (i=0; i<EL_ID_SIZE/sizeof(unsigned long); ++i) {
+	for (i=0; i<DNET_ID_SIZE/sizeof(unsigned long); ++i) {
 		if (l1[i] > l2[i])
 			return -1;
 		if (l1[i] < l2[i])
 			return 1;
 	}
 #endif
-	for (i*=sizeof(unsigned long); i<EL_ID_SIZE; ++i) {
+	for (i*=sizeof(unsigned long); i<DNET_ID_SIZE; ++i) {
 		if (id1[i] > id2[i])
 			return -1;
 		if (id1[i] < id2[i])
@@ -115,7 +115,7 @@ struct dnet_net_state
 	pthread_t		tid;
 
 	int			empty;
-	unsigned char		id[EL_ID_SIZE];
+	unsigned char		id[DNET_ID_SIZE];
 
 	struct sockaddr		addr;
 	int			addr_len;
@@ -142,7 +142,7 @@ int dnet_state_move(struct dnet_net_state *st);
 
 struct dnet_node
 {
-	unsigned char		id[EL_ID_SIZE];
+	unsigned char		id[DNET_ID_SIZE];
 
 	pthread_mutex_t		tlock;
 	struct list_head	tlist;
@@ -161,7 +161,7 @@ struct dnet_node
 
 	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
-	__u64			trans;
+	uint64_t			trans;
 
 	struct dnet_net_state	*st;
 
@@ -203,7 +203,7 @@ struct dnet_trans
 {
 	struct rb_node			trans_entry;
 	struct dnet_net_state		*st;
-	__u64				trans, recv_trans;
+	uint64_t				trans, recv_trans;
 	struct dnet_cmd			cmd;
 	void				*data;
 
@@ -222,7 +222,7 @@ int dnet_trans_process(struct dnet_net_state *st);
 void dnet_trans_remove(struct dnet_trans *t);
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
 int dnet_trans_insert(struct dnet_trans *t);
-struct dnet_trans *dnet_trans_search(struct rb_root *root, __u64 trans);
+struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
 
 int dnet_cmd_list(struct dnet_net_state *st, struct dnet_cmd *cmd);
 int dnet_recv_list(struct dnet_node *n);
@@ -241,12 +241,12 @@ struct dnet_transform
 {
 	struct list_head	tentry;
 
-	char			name[EL_MAX_NAME_LEN];
+	char			name[DNET_MAX_NAME_LEN];
 
 	void			*priv;
 
 	int			(* init)(void *priv);
-	int 			(* update)(void *priv, void *src, __u64 size,
+	int 			(* update)(void *priv, void *src, uint64_t size,
 					void *dst, unsigned int *dsize, unsigned int flags);
 	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };

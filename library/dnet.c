@@ -26,12 +26,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "trans.h"
 #include "elliptics.h"
 
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
-static int dnet_transform(struct dnet_node *n, void *src, __u64 size, void *dst, unsigned int *dsize, int *ppos)
+static int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, unsigned int *dsize, int *ppos)
 {
 	int pos = 0;
 	int err = 1;
@@ -127,7 +128,7 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 	if (!st)
 		st = dnet_state_get(orig);
 
-	memcpy(&l.cmd.id, st->id, EL_ID_SIZE);
+	memcpy(&l.cmd.id, st->id, DNET_ID_SIZE);
 	l.cmd.size = sizeof(struct dnet_addr_cmd) - sizeof(struct dnet_cmd);
 	l.cmd.trans |= DNET_TRANS_REPLY;
 
@@ -159,7 +160,7 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 
 	memset(&a, 0, sizeof(struct dnet_addr_cmd));
 
-	memcpy(&a.cmd.id, n->id, EL_ID_SIZE);
+	memcpy(&a.cmd.id, n->id, DNET_ID_SIZE);
 	a.cmd.trans = cmd->trans | DNET_TRANS_REPLY;
 	a.cmd.size = sizeof(struct dnet_addr_cmd) - sizeof(struct dnet_cmd);
 
@@ -203,10 +204,10 @@ static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cm
 	}
 
 #if 0
-	memcpy(id, st->id, EL_ID_SIZE);
+	memcpy(id, st->id, DNET_ID_SIZE);
 
 	pthread_mutex_lock(&st->lock);
-	memcpy(st->id, cmd->id, EL_ID_SIZE);
+	memcpy(st->id, cmd->id, DNET_ID_SIZE);
 	pthread_mutex_unlock(&st->lock);
 
 	err =  dnet_state_move(st);
@@ -229,10 +230,10 @@ err_out_exit:
 
 static int dnet_update_history(struct dnet_node *n, int md, unsigned char *id, struct dnet_io_attr *io, int tmp)
 {
-	char history[EL_ID_SIZE*2+1 + sizeof(EL_HISTORY_SUFFIX) + 5];
+	char history[DNET_ID_SIZE*2+1 + sizeof(DNET_HISTORY_SUFFIX) + 5];
 	int fd, err;
 
-	snprintf(history, sizeof(history), "%s%s%s", dnet_dump_id(id), EL_HISTORY_SUFFIX, (tmp)?".tmp":"");
+	snprintf(history, sizeof(history), "%s%s%s", dnet_dump_id(id), DNET_HISTORY_SUFFIX, (tmp)?".tmp":"");
 
 	fd = openat(md, history, O_RDWR | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
 	if (fd < 0) {
@@ -265,7 +266,7 @@ static int dnet_cmd_write(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	char dir[3];
 	struct dnet_io_attr *io = data;
 	int oflags = O_RDWR | O_CREAT | O_LARGEFILE;
-	char file[EL_ID_SIZE * 2 + 1];
+	char file[DNET_ID_SIZE * 2 + 1];
 	
 	if (attr->size <= sizeof(struct dnet_io_attr)) {
 		dnet_log(n, "%s: wrong write attribute, size does not match "
@@ -366,14 +367,14 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
 {
 	struct dnet_node *n = st->n;
 	struct dnet_io_attr *io = data;
-	char file[EL_ID_SIZE * 2 + 1 + 4];
+	char file[DNET_ID_SIZE * 2 + 1 + 4];
 	int dd, err;
 	struct dnet_cmd *c;
 	struct dnet_attr *a;
 	struct dnet_io_attr *rio;
 	size_t size;
 	loff_t offset;
-	__u64 total_size;
+	uint64_t total_size;
 
 	if (attr->size != sizeof(struct dnet_io_attr)) {
 		dnet_log(n, "%s: wrong read attribute, size does not match "
@@ -421,8 +422,8 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	while (total_size) {
 		size = total_size;
-		if (size > MAX_READ_TRANS_SIZE)
-			size = MAX_READ_TRANS_SIZE;
+		if (size > DNET_MAX_READ_TRANS_SIZE)
+			size = DNET_MAX_READ_TRANS_SIZE;
 
 		dnet_log(n, "%s: offset: %llu, size: %zu, c: %p.\n", dnet_dump_id(io->id),
 				(unsigned long long)io->offset, size, c);
@@ -430,7 +431,7 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		a = (struct dnet_attr *)(c + 1);
 		rio = (struct dnet_io_attr *)(a + 1);
 
-		memcpy(c->id, io->id, EL_ID_SIZE);
+		memcpy(c->id, io->id, DNET_ID_SIZE);
 		c->flags = DNET_FLAGS_MORE;
 		c->status = 0;
 		c->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
@@ -440,7 +441,7 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		a->size = sizeof(struct dnet_io_attr) + size;
 		a->flags = 0;
 
-		memcpy(rio->id, io->id, EL_ID_SIZE);
+		memcpy(rio->id, io->id, DNET_ID_SIZE);
 		rio->size = size;
 		rio->offset = offset;
 		rio->flags = 0;
@@ -550,7 +551,7 @@ int dnet_process_cmd(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data
 	if (cmd->flags & DNET_FLAGS_NEED_ACK) {
 		struct dnet_cmd ack;
 
-		memcpy(ack.id, cmd->id, EL_ID_SIZE);
+		memcpy(ack.id, cmd->id, DNET_ID_SIZE);
 		ack.trans = cmd->trans | DNET_TRANS_REPLY;
 		ack.size = 0;
 		ack.flags = cmd->flags;
@@ -660,7 +661,7 @@ int dnet_join(struct dnet_node *n)
 
 	memset(&a, 0, sizeof(struct dnet_addr_cmd));
 
-	memcpy(a.cmd.id, n->id, EL_ID_SIZE);
+	memcpy(a.cmd.id, n->id, DNET_ID_SIZE);
 	a.cmd.size = sizeof(struct dnet_addr_cmd) - sizeof(struct dnet_cmd);
 
 	a.a.cmd = DNET_CMD_JOIN;
@@ -737,7 +738,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, unsigned cha
 	struct dnet_attr *a;
 	struct dnet_io_attr *io;
 	struct dnet_cmd *cmd;
-	__u64 size = ioattr->size;
+	uint64_t size = ioattr->size;
 
 	t = malloc(sizeof(struct dnet_trans) +
 			sizeof(struct dnet_attr) +
@@ -760,7 +761,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, unsigned cha
 	a = (struct dnet_attr *)(cmd + 1);
 	io = (struct dnet_io_attr *)(a + 1);
 
-	memcpy(cmd->id, id, EL_ID_SIZE);
+	memcpy(cmd->id, id, DNET_ID_SIZE);
 	cmd->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
 	cmd->flags = DNET_FLAGS_NEED_ACK;
 	cmd->status = 0;
@@ -799,7 +800,7 @@ int dnet_write_file(struct dnet_node *n, char *file)
 	int fd, err, pos = 0, len = strlen(file);
 	struct dnet_trans *t;
 	struct dnet_io_attr io;
-	unsigned char file_id[EL_ID_SIZE];
+	unsigned char file_id[DNET_ID_SIZE];
 	struct stat stat;
 	off_t size;
 	struct dnet_net_state *st;
@@ -822,7 +823,7 @@ int dnet_write_file(struct dnet_node *n, char *file)
 	size = stat.st_size;
 
 	while (1) {
-		unsigned int rsize = EL_ID_SIZE;
+		unsigned int rsize = DNET_ID_SIZE;
 
 		err = dnet_transform(n, file, len, file_id, &rsize, &pos);
 		if (err) {
@@ -832,7 +833,7 @@ int dnet_write_file(struct dnet_node *n, char *file)
 		}
 		pos--;
 
-		rsize = EL_ID_SIZE;
+		rsize = DNET_ID_SIZE;
 		err = dnet_transform_file(n, file, 0, 0, io.id, &rsize, &pos);
 		if (err)
 			continue;
@@ -912,14 +913,14 @@ err_out_exit:
 
 int dnet_update_file(struct dnet_node *n, char *file, off_t offset, void *data, unsigned int size, int append)
 {
-	unsigned char id[EL_ID_SIZE];
+	unsigned char id[DNET_ID_SIZE];
 	struct dnet_io_attr io;
 	int err, pos = 0;
 	int len = strlen(file);
 	int error = -ENOENT;
 
 	while (1) {
-		unsigned int rsize = EL_ID_SIZE;
+		unsigned int rsize = DNET_ID_SIZE;
 		err = dnet_transform(n, file, len, id, &rsize, &pos);
 		if (err) {
 			if (err > 0)
@@ -1061,7 +1062,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_read_file(struct dnet_node *n, char *file, __u64 offset, __u64 size)
+int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size)
 {
 	struct dnet_io_attr io;
 	int err, len = strlen(file), pos = 0;
@@ -1072,7 +1073,7 @@ int dnet_read_file(struct dnet_node *n, char *file, __u64 offset, __u64 size)
 	io.flags = 0;
 
 	while (1) {
-		unsigned int rsize = EL_ID_SIZE;
+		unsigned int rsize = DNET_ID_SIZE;
 
 		err = dnet_transform(n, file, len, io.id, &rsize, &pos);
 		if (err) {
@@ -1109,7 +1110,7 @@ err_out_exit:
 
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	int (* init)(void *priv),
-	int (* update)(void *priv, void *src, __u64 size,
+	int (* update)(void *priv, void *src, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags),
 	int (* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags))
 {
@@ -1123,7 +1124,7 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 
 	pthread_mutex_lock(&n->tlock);
 	list_for_each_entry(t, &n->tlist, tentry) {
-		if (!strncmp(name, t->name, EL_MAX_NAME_LEN)) {
+		if (!strncmp(name, t->name, DNET_MAX_NAME_LEN)) {
 			err = -EEXIST;
 			goto err_out_unlock;
 		}
@@ -1165,7 +1166,7 @@ int dnet_remove_transform(struct dnet_node *n, char *name)
 
 	pthread_mutex_lock(&n->tlock);
 	list_for_each_entry_safe(t, tmp, &n->tlist, tentry) {
-		if (!strncmp(name, t->name, EL_MAX_NAME_LEN)) {
+		if (!strncmp(name, t->name, DNET_MAX_NAME_LEN)) {
 			err = 0;
 			break;
 		}

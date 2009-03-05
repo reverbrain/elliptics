@@ -236,7 +236,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n)
 		goto err_out_exit;
 
-	memcpy(n->id, cfg->id, EL_ID_SIZE);
+	memcpy(n->id, cfg->id, DNET_ID_SIZE);
 	n->proto = cfg->proto;
 	n->sock_type = cfg->sock_type;
 
