@@ -413,6 +413,7 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	c = malloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 	if (!c) {
+		err = -ENOMEM;
 		dnet_log(n, "%s: failed to allocate reply attributes.\n", dnet_dump_id(io->id));
 		goto err_out_close_dd;
 	}
