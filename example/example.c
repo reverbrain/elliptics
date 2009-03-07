@@ -72,6 +72,7 @@ static int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 {
  	OpenSSL_add_all_digests();
 
+	snprintf(e->name, sizeof(e->name), "%s", hash);
 	e->evp_md = EVP_get_digestbyname(hash);
 	if (!e->evp_md) {
 		fprintf(stderr, "Failed to find algorithm '%s' implementation.\n", hash);
@@ -126,14 +127,16 @@ static void dnet_example_log(void *priv, const char *f, ...)
 
 static int dnet_example_log_init(struct dnet_node *n, char *log)
 {
-	FILE *f;
+	FILE *f = NULL;
 	int err;
 
-	f = fopen(log, "a");
-	if (!f) {
-		err = -errno;
-		fprintf(stderr, "Failed to open log file %s: %s.\n", log, strerror(errno));
-		goto err_out_exit;
+	if (log) {
+		f = fopen(log, "a");
+		if (!f) {
+			err = -errno;
+			fprintf(stderr, "Failed to open log file %s: %s.\n", log, strerror(errno));
+			goto err_out_exit;
+		}
 	}
 
 	err = dnet_log_init(n, f, dnet_example_log, dnet_example_log_append);
@@ -237,24 +240,24 @@ static void dnet_usage(char *p)
 
 int main(int argc, char *argv[])
 {
-	int ch, err;
+	int trans_max = 5, trans_num = 0;
+	int ch, err, join = 0, i, have_remote = 0;
 	struct dnet_node *n = NULL;
-	struct dnet_config cfg;
-	struct dnet_crypto_engine *e;
+	struct dnet_config cfg, rem;
+	struct dnet_crypto_engine *e, *trans[trans_max];
+	char *log = NULL, *root = NULL, *readf = NULL, *writef = NULL;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 
+	memcpy(&rem, &cfg, sizeof(struct dnet_config));
+
 	while ((ch = getopt(argc, argv, "l:i:H:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
 			case 'l':
-				if (n) {
-					err = dnet_example_log_init(n, optarg);
-					if (err)
-						return err;
-				}
+				log = optarg;
 				break;
 			case 'i':
 				err = dnet_parse_numeric_id(optarg, cfg.id);
@@ -265,54 +268,31 @@ int main(int argc, char *argv[])
 				err = dnet_parse_addr(optarg, &cfg);
 				if (err)
 					return err;
-
-				n = dnet_node_create(&cfg);
-				if (!n)
-					return -1;
 				break;
 			case 'r':
-				if (!n)
-					return -EINVAL;
-				err = dnet_parse_addr(optarg, &cfg);
+				err = dnet_parse_addr(optarg, &rem);
 				if (err)
 					return err;
-
-				err = dnet_add_state(n, &cfg);
-				if (err)
-					return err;
+				have_remote = 1;
 				break;
 			case 'j':
-				if (!n)
-					return -EINVAL;
-
-				err = dnet_join(n);
-				if (err)
-					return err;
+				join = 1;
 				break;
 			case 'd':
-				if (!n)
-					return -EINVAL;
-				err = dnet_setup_root(n, optarg);
-				if (err)
-					return err;
+				root = optarg;
 				break;
 			case 'W':
-				if (!n)
-					return -EINVAL;
-				err = dnet_write_file(n, optarg);
-				if (err)
-					return err;
+				writef = optarg;
 				break;
 			case 'R':
-				if (!n)
-					return -EINVAL;
-				err = dnet_read_file(n, optarg, 0, 0);
-				if (err)
-					return err;
+				readf = optarg;
 				break;
 			case 'H':
-				if (!n)
-					return -EINVAL;
+				if (trans_num == trans_max - 1) {
+					fprintf(stderr, "Only %d transformation functions allowed in this example.\n",
+							trans_max);
+					break;
+				}
 
 				e = malloc(sizeof(struct dnet_crypto_engine));
 				if (!e)
@@ -322,13 +302,7 @@ int main(int argc, char *argv[])
 				err = dnet_crypto_engine_init(e, optarg);
 				if (err)
 					return err;
-
-				err = dnet_add_transform(n, e, optarg,
-						dnet_digest_init,
-						dnet_digest_update,
-						dnet_digest_final);
-				if (err)
-					return err;
+				trans[trans_num++] = e;
 				break;
 			case 'h':
 			default:
@@ -337,9 +311,54 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (!n) {
-		dnet_usage(argv[0]);
+	if (!log)
+		fprintf(stderr, "No log file found, logging will be disabled.\n");
+
+	n = dnet_node_create(&cfg);
+	if (!n)
 		return -1;
+
+	err = dnet_example_log_init(n, log);
+	if (err)
+		return err;
+
+	for (i=0; i<trans_num; ++i) {
+		err = dnet_add_transform(n, trans[i], trans[i]->name,
+				dnet_digest_init,
+				dnet_digest_update,
+				dnet_digest_final);
+		if (err)
+			return err;
+	}
+
+	if (have_remote) {
+		err = dnet_add_state(n, &rem);
+		if (err)
+			return err;
+	}
+
+	if (root) {
+		err = dnet_setup_root(n, root);
+		if (err)
+			return err;
+	}
+
+	if (join) {
+		err = dnet_join(n);
+		if (err)
+			return err;
+	}
+
+	if (writef) {
+		err = dnet_write_file(n, writef);
+		if (err)
+			return err;
+	}
+	
+	if (readf) {
+		err = dnet_read_file(n, readf, 0, 0);
+		if (err)
+			return err;
 	}
 
 	while (1)
