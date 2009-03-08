@@ -396,13 +396,37 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 	if (err)
 		goto err_out_unlock;
 
-	err = sendfile(st->s, fd, &offset, size);
-	if (err <= 0) {
-		dnet_log_err(st->n, "%s: failed to send file data", dnet_dump_id(st->id));
-		goto err_out_unlock;
-	}
+	while (size) {
+		err = dnet_wait_fd(st->s, POLLOUT, st->timeout);
+		if (st->n->need_exit) {
+			err = -EIO;
+			break;
+		}
 
-	size -= err;
+		if (err == -EAGAIN)
+			continue;
+
+		if (err < 0) {
+			dnet_log(st->n, "Failed to wait for descriptor: err: %d, socket: %d.\n", err, st->s);
+			break;
+		}
+
+		err = sendfile(st->s, fd, &offset, size);
+		if (err < 0) {
+			dnet_log_err(st->n, "%s: failed to send file data, err: %d", dnet_dump_id(st->id), err);
+			goto err_out_unlock;
+		}
+
+		if (err == 0) {
+			dnet_log(st->n, "%s: looks like truncated file, size: %zu.\n", dnet_dump_id(st->id), size, err);
+			break;
+		}
+
+		dnet_log(st->n, "%s: size: %zu, rest: %zu, offset: %llu, err: %zu.\n",
+				dnet_dump_id(st->id), size, size-err, offset, err);
+
+		size -= err;
+	}
 
 	if (size) {
 		char buf[4096];
