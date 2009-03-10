@@ -199,7 +199,7 @@ static int dnet_process_existing_history(struct dnet_net_state *st, struct dnet_
 	int err;
 	struct stat stat;
 	struct dnet_node *n = st->n;
-	struct dnet_io_attr last_io;
+	struct dnet_io_attr last_io, *last_recv_io;
 	off_t off;
 
 	err = fstat(fd, &stat);
@@ -216,7 +216,7 @@ static int dnet_process_existing_history(struct dnet_net_state *st, struct dnet_
 		goto err_out_exit;
 	}
 
-	off = lseek(fd, -sizeof(struct dnet_io_attr), SEEK_END);
+	off = lseek(fd, stat.st_size - sizeof(struct dnet_io_attr), SEEK_SET);
 	if (off < 0) {
 		err = -errno;
 		dnet_log_err(n, "%s: corrupted history file: can not seek to the end", dnet_dump_id(io->id));
@@ -230,13 +230,18 @@ static int dnet_process_existing_history(struct dnet_net_state *st, struct dnet_
 		goto err_out_exit;
 	}
 
-	err = memcmp(io->id, last_io.id, DNET_ID_SIZE);
+	last_recv_io = ((void *)(io + 1)) + io->size - sizeof(struct dnet_io_attr);
 
-	dnet_log(n, "%s: the last local update: offset: %llu, size: %llu, id: ",
-			dnet_dump_id(io->id), last_io.offset, last_io.size);
-	dnet_log_append(n, "%s, same: %d.\n", dnet_dump_id(last_io.id), !err);
+	err = memcmp(last_recv_io->id, last_io.id, DNET_ID_SIZE);
 
-	return err;
+	dnet_log(n, "%s: the last local/remote update: offset: %llu/%llu, size: %llu/%llu.\n",
+			dnet_dump_id(io->id),
+			last_io.offset, last_recv_io->offset,
+			last_io.size, last_recv_io->size);
+	dnet_log_append(n, "       %s/", dnet_dump_id(last_io.id));
+	dnet_log_append(n, "%s, same: %d.\n", dnet_dump_id(last_recv_io->id), !err);
+
+	return err ? -EINVAL : 0;
 
 err_out_exit:
 	return err;
@@ -245,22 +250,26 @@ err_out_exit:
 static int dnet_read_complete_history(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *a, void *priv)
 {
-	int err;
+	int err = 0;
 	char tmp[2*DNET_ID_SIZE + sizeof(DNET_HISTORY_SUFFIX) + 5 + 4];
 	char file[2*DNET_ID_SIZE + sizeof(DNET_HISTORY_SUFFIX) + 5 + 4];
 	struct dnet_io_completion *c = priv;
+	struct dnet_node *n = st->n;
 
-	dnet_log(st->n, "%s: file: '%s'.\n", dnet_dump_id(cmd->id), c->file);
+	//dnet_log(n, "%s: file: '%s'.\n", dnet_dump_id(cmd->id), c->file);
 
-	if (cmd->status != 0 || cmd->size == 0)
+	if (cmd->status != 0 || cmd->size == 0) {
+		dnet_log(n, "%s: COMPLETED file: '%s'.\n", dnet_dump_id(cmd->id), c->file);
+		dnet_wakeup(n, do { n->synced_files--; n->total_synced_files++; } while (0));
 		goto out;
+	}
 
 	if (cmd->flags & DNET_FLAGS_DESTROY) {
 	}
 
 	err = dnet_read_complete(st, cmd, a, priv);
 	if (err)
-		return err;
+		goto out;
 
 	snprintf(tmp, sizeof(tmp), "%s%s.tmp", c->file, DNET_HISTORY_SUFFIX);
 	snprintf(file, sizeof(file), "%s%s", c->file, DNET_HISTORY_SUFFIX);
@@ -268,12 +277,12 @@ static int dnet_read_complete_history(struct dnet_net_state *st, struct dnet_cmd
 	err = renameat(st->n->rootfd, tmp, st->n->rootfd, file);
 	if (err) {
 		err = -errno;
-		dnet_log_err(st->n, "%s: failed to rename '%s' -> '%s'", dnet_dump_id(cmd->id), tmp, file);
-		return err;
+		dnet_log_err(n, "%s: failed to rename '%s' -> '%s'", dnet_dump_id(cmd->id), tmp, file);
+		goto out;
 	}
 
 out:
-	return 0;
+	return err;
 }
 
 static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *io)
@@ -287,6 +296,8 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 
 	snprintf(file, sizeof(file), "%02x/%s%s", io->id[0], dnet_dump_id(io->id), DNET_HISTORY_SUFFIX);
 
+	dnet_wakeup(n, n->synced_files++);
+
 	fd = openat(st->n->rootfd, file, O_RDONLY);
 	if (fd >= 0) {
 		err = dnet_process_existing_history(st, io, fd);
@@ -294,6 +305,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 			goto err_out_close;
 
 		close(fd);
+		dnet_wakeup(n, n->synced_files--);
 		goto out;
 	}
 	if (errno != ENOENT) {
@@ -357,6 +369,7 @@ out:
 err_out_close:
 	close(fd);
 err_out_exit:
+	dnet_wakeup(n, n->synced_files--);
 	return err;
 }
 
@@ -367,8 +380,10 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	uint64_t size = cmd->size;
 	int err = cmd->status;
 
-	if (size < sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr))
+	if (size < sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
+		dnet_wakeup(n, n->synced_files--);
 		goto out;
+	}
 
 	while (size) {
 		void *data = a;
@@ -400,6 +415,8 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		 */
 
 		err = dnet_process_history(st, io);
+		if (err < 0)
+			n->error = err;
 
 		dnet_log(n, "%s: list entry offset: %llu, size: %llu, err: %d.\n", dnet_dump_id(io->id),
 				(unsigned long long)io->offset, (unsigned long long)io->size, err);
@@ -411,8 +428,8 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	}
 
 out:
-	dnet_log(n, "%s: listing completed with status: %d, size: %llu, err: %d.\n",
-			dnet_dump_id(cmd->id), cmd->status, cmd->size, err);
+	dnet_log(n, "%s: listing completed with status: %d, size: %llu, err: %d, files_synced: %llu.\n",
+			dnet_dump_id(cmd->id), cmd->status, cmd->size, err, n->synced_files);
 	return err;
 }
 
@@ -423,6 +440,15 @@ int dnet_recv_list(struct dnet_node *n)
 	struct dnet_attr *a;
 	struct dnet_net_state *st;
 	int err;
+
+	/*
+	 * Will be decreased in the completion callback.
+	 * If there will be some files to sync, counter will
+	 * be first increased prior to completion callback
+	 * finish and the decreased back in the read object
+	 * completion.
+	 */
+	n->synced_files = 1;
 
 	t = malloc(sizeof(struct dnet_trans) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
 	if (!t) {
@@ -468,6 +494,23 @@ int dnet_recv_list(struct dnet_node *n)
 	if (err)
 		goto err_out_unlock;
 	pthread_mutex_unlock(&st->lock);
+
+	err = dnet_wait_event(n, n->synced_files == 0, &n->wait_ts);
+	if (err) {
+		dnet_log(n, "%s: failed to wait for the content sync, err: %d, n_err: %d.\n",
+				dnet_dump_id(n->id), err, n->error);
+		goto err_out_exit;
+	}
+
+	if (n->error) {
+		err = n->error;
+
+		dnet_log(n, "%s: failed to sync the content, err: %d.\n",
+				dnet_dump_id(n->id), err);
+		goto err_out_exit;
+	}
+
+	dnet_log(n, "%s: successfully synced %llu files.\n", dnet_dump_id(n->id), n->total_synced_files);
 
 	return 0;
 

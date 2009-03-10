@@ -239,6 +239,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	memcpy(n->id, cfg->id, DNET_ID_SIZE);
 	n->proto = cfg->proto;
 	n->sock_type = cfg->sock_type;
+	n->wait_ts.tv_sec = cfg->wait_timeout;
 
 	err = dnet_socket_create(n, cfg, &n->addr, &n->addr_len, 1);
 	if (err < 0)

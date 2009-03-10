@@ -234,6 +234,7 @@ static void dnet_usage(char *p)
 			" -H hash              - OpenSSL hash to use as a transformation function\n"
 			" -i id                - node's ID\n"
 			" -l log               - log file. Default: stdout\n"
+			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" ...                  - parameters can be repeated multiple times\n"
 			"                        each time they correspond to the last added node\n", p);
 }
@@ -251,11 +252,15 @@ int main(int argc, char *argv[])
 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
+	cfg.wait_timeout = 60*60;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "l:i:H:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "w:l:i:H:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 'w':
+				cfg.wait_timeout = atoi(optarg);
+				break;
 			case 'l':
 				log = optarg;
 				break;

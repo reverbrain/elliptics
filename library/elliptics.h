@@ -18,12 +18,15 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+#include <sys/time.h>
+#include <sys/socket.h>
+
 #include <errno.h>
 #include <netdb.h>
 #include <string.h>
 #include <pthread.h>
+#include <time.h>
 
-#include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -140,6 +143,11 @@ struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id,
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_net_state *self);
 int dnet_state_move(struct dnet_net_state *st);
 
+/*
+ * Joining network synced its content.
+ */
+#define DNET_FLAGS_SYNCED			(1<<0)
+
 struct dnet_node
 {
 	unsigned char		id[DNET_ID_SIZE];
@@ -161,9 +169,11 @@ struct dnet_node
 
 	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
-	uint64_t			trans;
+	uint64_t		trans;
 
 	struct dnet_net_state	*st;
+
+	int			error;
 
 	int			rootfd;
 	char			*root;
@@ -171,6 +181,17 @@ struct dnet_node
 	void			*log_priv;
 	void			(*log)(void *priv, const char *f, ...);
 	void			(*log_append)(void *priv, const char *f, ...);
+
+	/*
+	 * Wait for condition mechanics.
+	 */
+	pthread_cond_t		wait;
+	pthread_mutex_t		wait_lock;
+	struct timespec		wait_ts;
+
+	uint64_t		synced_files, total_synced_files;
+
+	unsigned long		flags;
 };
 
 static inline char *dnet_dump_node(struct dnet_node *n)
@@ -250,6 +271,28 @@ struct dnet_transform
 					void *dst, unsigned int *dsize, unsigned int flags);
 	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };
+
+#define dnet_wait_event(n, condition, wts)						\
+({											\
+	int err = 0;									\
+	struct timespec ts;								\
+	gettimeofday((struct timeval *)&ts, NULL);					\
+	ts.tv_nsec += (wts)->tv_nsec;							\
+	ts.tv_sec += (wts)->tv_sec;							\
+	pthread_mutex_lock(&(n)->wait_lock);						\
+	while (!(condition) && !err)							\
+		err = pthread_cond_timedwait(&(n)->wait, &(n)->wait_lock, &ts);		\
+	pthread_mutex_unlock(&n->wait_lock);						\
+	-err;										\
+})
+
+#define dnet_wakeup(n, task)								\
+({											\
+	pthread_mutex_lock(&(n)->wait_lock);						\
+	task;										\
+	pthread_cond_broadcast(&(n)->wait);						\
+	pthread_mutex_unlock(&(n)->wait_lock);						\
+})
 
 #ifdef __cplusplus
 }

@@ -89,6 +89,12 @@ struct dnet_config
 	 */
 	char			addr[DNET_MAX_ADDRLEN];
 	char			port[DNET_MAX_PORTLEN];
+
+	/*
+	 * Wait timeout in seconds used for example to wait
+	 * for remote content sync.
+	 */
+	unsigned int		wait_timeout;
 };
 
 /*
