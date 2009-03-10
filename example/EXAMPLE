@@ -16,23 +16,14 @@ writes with an additional copy.
 
 0. Compiling the sources.
 
+$ ./configure
 $ make
-gcc -W -Wall -g   -c -o log.o log.c
-gcc -W -Wall -g   -c -o dnet.o dnet.c
-gcc -W -Wall -g   -c -o rbtree.o rbtree.c
-gcc -W -Wall -g   -c -o node.o node.c
-gcc -W -Wall -g   -c -o net.o net.c
-gcc -W -Wall -g   -c -o trans.o trans.c
-gcc -W -Wall -g   -c -o history.o history.c
-gcc -fPIC -shared -rdynamic -Wl,-soname,libelliptics.so log.o dnet.o rbtree.o
-node.o net.o trans.o history.o -o libelliptics.so
-gcc -W -Wall -g   -c -o example.o example.c
-gcc -lcrypt -lssl -lpthread -L. -lelliptics example.o libelliptics.so -o example
+$ make install
 
 1. Creating the first node with zero ID (default), listening on the
 127.0.0.1:1025 IPv4 address and having /tmp/root0 root directory.
 
-$ LD_PRELOAD=./libelliptics.so ./example -a 127.0.0.1:1025:2 -d /tmp/root0
+$ example -a 127.0.0.1:1025:2 -d /tmp/root0
 
 Where -a switch provides local listening address in the addr:port:family format
 (family 2 means IPv4, 10 - IPv6), -d is used to specify root directory to store
@@ -45,8 +36,7 @@ ID 1234567890abcde0000000000000000000000000, listen on the 127.0.0.0:1234 IPv4
 address and having /tmp/root1 root directory. It will join via the first node
 with the 127.0.0.1:1025 IPv4 address.
 
-$ LD_PRELOAD=./libelliptics.so ./example -i 1234567890abcde0000 -a 127.0.0.1:1234:2 \
- -r 127.0.0.1:1025:2 -d /tmp/root1 -j
+$ example -i 1234567890abcde0000 -a 127.0.0.1:1234:2 -r 127.0.0.1:1025:2 -d /tmp/root1 -j
 
 Additional options include -r switch, which is used to specify the node used to
 join the network through or send commands to, and -j is used to specify that we
@@ -75,8 +65,7 @@ address. Address to send command to can be any known server address, requests wi
 be properly forwarded between the nodes, if you connected to the node which does
 not contain or will not store your data.
 
-$ LD_PRELOAD=./libelliptics.so ./example -i 22222222 -a 127.0.0.1:1111:2 \
- -r 127.0.0.1:1025:2 -H sha1 -H md5 -W /tmp/some_file
+$ example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -H sha1 -H md5 -W /tmp/some_file
 
 -H switch is used to specify multiple transformation functions, which will be
 used to create ID of the file and its content. Having multiple transformation
@@ -91,8 +80,7 @@ above example ID ranges).
 functions as in writing, so if one of them failed, we could switch to the second
 and receive the object from a potentially different node.
 
-$ LD_PRELOAD=./libelliptics.so ./example -i 22222222 -a 127.0.0.1:1111:2 \
- -r 127.0.0.1:1025:2 -H sha1 -H md5 -R /tmp/some_file
+$ example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -H sha1 -H md5 -R /tmp/some_file
 
 -R option specifies a local file we want to read from the network. Its name
 will be transformed via provided function(s), object will be fetched from the
