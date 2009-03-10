@@ -39,7 +39,7 @@
 struct dnet_crypto_engine
 {
 	char			name[DNET_MAX_NAME_LEN];
-	
+
 	EVP_MD_CTX 		mdctx;
 	const EVP_MD		*evp_md;
 };
@@ -154,7 +154,7 @@ err_out_exit:
 	return err;
 }
 
-#define DNET_CONF_COMMENT		'#'
+#define DNET_CONF_COMMENT	'#'
 #define DNET_CONF_DELIM		'='
 #define DNET_CONF_ADDR_DELIM	':'
 #define DNET_CONF_TIME_DELIM	'.'
@@ -354,7 +354,7 @@ int main(int argc, char *argv[])
 		if (err)
 			return err;
 	}
-	
+
 	if (readf) {
 		err = dnet_read_file(n, readf, 0, 0);
 		if (err)
