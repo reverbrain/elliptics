@@ -63,7 +63,11 @@ static int dnet_digest_update(void *priv, void *src, uint64_t size,
 static int dnet_digest_final(void *priv, void *result, unsigned int *rsize, unsigned int flags __unused)
 {
 	struct dnet_crypto_engine *e = priv;
+	unsigned int rs = *rsize;
 	EVP_DigestFinal_ex(&e->mdctx, result, rsize);
+
+	if (*rsize < rs)
+		memset(result + *rsize, 0, rs - *rsize);
 	EVP_MD_CTX_cleanup(&e->mdctx);
 	return 0;
 }
@@ -355,7 +359,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		err = dnet_write_file(n, writef);
+		err = dnet_write_file(n, writef, 0, 0, 0);
 		if (err)
 			return err;
 	}
@@ -366,9 +370,12 @@ int main(int argc, char *argv[])
 			return err;
 	}
 
-	while (1)
-		sleep(1);
-	printf("Exiting.\n");
+	if (root) {
+		while(1)
+			sleep(1);
+	}
+
+	printf("Successfulyl executed given command.\n");
 
 	return 0;
 }

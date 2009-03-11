@@ -260,7 +260,7 @@ static int dnet_read_complete_history(struct dnet_net_state *st, struct dnet_cmd
 
 	if (cmd->status != 0 || cmd->size == 0) {
 		dnet_log(n, "%s: COMPLETED file: '%s'.\n", dnet_dump_id(cmd->id), c->file);
-		dnet_wakeup(n, do { n->synced_files--; n->total_synced_files++; } while (0));
+		dnet_wakeup(n->wait, do { n->wait->cond--; n->total_synced_files++; } while (0));
 		goto out;
 	}
 
@@ -293,10 +293,11 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 	struct dnet_io_completion *cmp;
 	char dir[3];
 	struct dnet_io_attr req;
+	struct dnet_wait *w = n->wait;
 
 	snprintf(file, sizeof(file), "%02x/%s%s", io->id[0], dnet_dump_id(io->id), DNET_HISTORY_SUFFIX);
 
-	dnet_wakeup(n, n->synced_files++);
+	dnet_wakeup(w, w->cond++);
 
 	fd = openat(st->n->rootfd, file, O_RDONLY);
 	if (fd >= 0) {
@@ -305,7 +306,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 			goto err_out_close;
 
 		close(fd);
-		dnet_wakeup(n, n->synced_files--);
+		dnet_wakeup(w, w->cond--);
 		goto out;
 	}
 	if (errno != ENOENT) {
@@ -357,6 +358,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 	cmp->offset = 0;
 	cmp->size = 0;
 	cmp->file = (char *)(cmp + 1);
+	cmp->wait = NULL;
 
 	snprintf(cmp->file, sizeof(file), "%02x/%s", io->id[0], dnet_dump_id(io->id));
 
@@ -369,7 +371,7 @@ out:
 err_out_close:
 	close(fd);
 err_out_exit:
-	dnet_wakeup(n, n->synced_files--);
+	dnet_wakeup(w, w->cond--);
 	return err;
 }
 
@@ -381,7 +383,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	int err = cmd->status;
 
 	if (size < sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
-		dnet_wakeup(n, n->synced_files--);
+		dnet_wakeup(n->wait, n->wait->cond--);
 		goto out;
 	}
 
@@ -429,7 +431,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 out:
 	dnet_log(n, "%s: listing completed with status: %d, size: %llu, err: %d, files_synced: %llu.\n",
-			dnet_dump_id(cmd->id), cmd->status, cmd->size, err, n->synced_files);
+			dnet_dump_id(cmd->id), cmd->status, cmd->size, err, n->total_synced_files);
 	return err;
 }
 
@@ -440,6 +442,9 @@ int dnet_recv_list(struct dnet_node *n)
 	struct dnet_attr *a;
 	struct dnet_net_state *st;
 	int err;
+	struct dnet_wait *w = n->wait;
+
+	n->total_synced_files = 0;
 
 	/*
 	 * Will be decreased in the completion callback.
@@ -448,12 +453,12 @@ int dnet_recv_list(struct dnet_node *n)
 	 * finish and the decreased back in the read object
 	 * completion.
 	 */
-	n->synced_files = 1;
+	w->cond = 1;
 
 	t = malloc(sizeof(struct dnet_trans) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
 	if (!t) {
 		err = -ENOMEM;
-		goto err_out_exit;
+		goto err_out_put;
 	}
 
 	memset(t, 0, sizeof(struct dnet_trans));
@@ -495,7 +500,7 @@ int dnet_recv_list(struct dnet_node *n)
 		goto err_out_unlock;
 	pthread_mutex_unlock(&st->lock);
 
-	err = dnet_wait_event(n, n->synced_files == 0, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == 0, &n->wait_ts);
 	if (err) {
 		dnet_log(n, "%s: failed to wait for the content sync, err: %d, n_err: %d.\n",
 				dnet_dump_id(n->id), err, n->error);
@@ -518,6 +523,8 @@ err_out_unlock:
 	pthread_mutex_unlock(&st->lock);
 err_out_destroy:
 	dnet_trans_destroy(t);
+err_out_put:
+	dnet_wait_put(w);
 err_out_exit:
 	return err;
 }

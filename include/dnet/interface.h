@@ -58,8 +58,7 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
 int dnet_write_object(struct dnet_node *n, unsigned char *id, struct dnet_io_attr *io,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 	void *priv, void *data);
-int dnet_update_file(struct dnet_node *n, char *file, off_t offset, void *data, unsigned int size, int append);
-int dnet_write_file(struct dnet_node *n, char *file);
+int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, int append);
 
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8

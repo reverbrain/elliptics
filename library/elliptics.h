@@ -143,10 +143,62 @@ struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id,
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_net_state *self);
 int dnet_state_move(struct dnet_net_state *st);
 
-/*
- * Joining network synced its content.
- */
-#define DNET_FLAGS_SYNCED			(1<<0)
+struct dnet_wait
+{
+	pthread_cond_t		wait;
+	pthread_mutex_t		wait_lock;
+	int			cond;
+	int			status;
+
+	int			refcnt;
+};
+
+#define dnet_wait_event(w, condition, wts)						\
+({											\
+	int err = 0;									\
+	struct timespec ts;								\
+	gettimeofday((struct timeval *)&ts, NULL);					\
+	ts.tv_nsec += (wts)->tv_nsec;							\
+	ts.tv_sec += (wts)->tv_sec;							\
+	pthread_mutex_lock(&(w)->wait_lock);						\
+	while (!(condition) && !err)							\
+		err = pthread_cond_timedwait(&(w)->wait, &(w)->wait_lock, &ts);		\
+	pthread_mutex_unlock(&(w)->wait_lock);						\
+	-err;										\
+})
+
+#define dnet_wakeup(w, task)								\
+({											\
+	pthread_mutex_lock(&(w)->wait_lock);						\
+	task;										\
+	pthread_cond_broadcast(&(w)->wait);						\
+	pthread_mutex_unlock(&(w)->wait_lock);						\
+})
+
+struct dnet_wait *dnet_wait_alloc(int cond);
+void dnet_wait_destroy(struct dnet_wait *w);
+
+static inline struct dnet_wait *dnet_wait_get(struct dnet_wait *w)
+{
+	pthread_mutex_lock(&w->wait_lock);
+	w->refcnt++;
+	pthread_mutex_unlock(&w->wait_lock);
+
+	return w;
+}
+
+static inline void dnet_wait_put(struct dnet_wait *w)
+{
+	int freeing = 0;
+
+	pthread_mutex_lock(&w->wait_lock);
+	w->refcnt--;
+	freeing = !!w->refcnt;
+	pthread_mutex_unlock(&w->wait_lock);
+
+	if (freeing)
+		dnet_wait_destroy(w);
+}
 
 struct dnet_node
 {
@@ -182,16 +234,10 @@ struct dnet_node
 	void			(*log)(void *priv, const char *f, ...);
 	void			(*log_append)(void *priv, const char *f, ...);
 
-	/*
-	 * Wait for condition mechanics.
-	 */
-	pthread_cond_t		wait;
-	pthread_mutex_t		wait_lock;
+	struct dnet_wait	*wait;
 	struct timespec		wait_ts;
 
-	uint64_t		synced_files, total_synced_files;
-
-	unsigned long		flags;
+	uint64_t		total_synced_files;
 };
 
 static inline char *dnet_dump_node(struct dnet_node *n)
@@ -224,7 +270,7 @@ struct dnet_trans
 {
 	struct rb_node			trans_entry;
 	struct dnet_net_state		*st;
-	uint64_t				trans, recv_trans;
+	uint64_t			trans, recv_trans;
 	struct dnet_cmd			cmd;
 	void				*data;
 
@@ -250,6 +296,7 @@ int dnet_recv_list(struct dnet_node *n);
 
 struct dnet_io_completion
 {
+	struct dnet_wait	*wait;
 	char			*file;
 	off_t			offset;
 	size_t			size;
@@ -271,28 +318,6 @@ struct dnet_transform
 					void *dst, unsigned int *dsize, unsigned int flags);
 	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };
-
-#define dnet_wait_event(n, condition, wts)						\
-({											\
-	int err = 0;									\
-	struct timespec ts;								\
-	gettimeofday((struct timeval *)&ts, NULL);					\
-	ts.tv_nsec += (wts)->tv_nsec;							\
-	ts.tv_sec += (wts)->tv_sec;							\
-	pthread_mutex_lock(&(n)->wait_lock);						\
-	while (!(condition) && !err)							\
-		err = pthread_cond_timedwait(&(n)->wait, &(n)->wait_lock, &ts);		\
-	pthread_mutex_unlock(&n->wait_lock);						\
-	-err;										\
-})
-
-#define dnet_wakeup(n, task)								\
-({											\
-	pthread_mutex_lock(&(n)->wait_lock);						\
-	task;										\
-	pthread_cond_broadcast(&(n)->wait);						\
-	pthread_mutex_unlock(&(n)->wait_lock);						\
-})
 
 #ifdef __cplusplus
 }

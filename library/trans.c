@@ -252,8 +252,10 @@ int dnet_trans_process(struct dnet_net_state *st)
 
 		if (!t->st || t->st == st || t->st == n->st) {
 			err = dnet_process_cmd(st, &t->cmd, t->data);
-			if (err)
+			if (err) {
+				err = 0;
 				goto err_out_destroy;
+			}
 
 			dnet_trans_destroy(t);
 			t = NULL;
@@ -322,6 +324,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		dnet_state_put(t->st);
 		free(t->data);
 		free(t->priv);
+
 		free(t);
 	}
 }

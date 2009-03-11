@@ -57,12 +57,20 @@ static struct dnet_node *dnet_node_alloc(int sock_type, int proto)
 		goto err_out_destroy_trans;
 	}
 
+	n->wait = dnet_wait_alloc(0);
+	if (!n->wait) {
+		dnet_log(n, "Failed to allocate wait structure.\n");
+		goto err_out_destroy_tlock;
+	}
+
 	INIT_LIST_HEAD(&n->tlist);
 	INIT_LIST_HEAD(&n->state_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
 
 	return n;
 
+err_out_destroy_tlock:
+	pthread_mutex_destroy(&n->tlock);
 err_out_destroy_trans:
 	pthread_mutex_destroy(&n->trans_lock);
 err_out_destroy_state:
@@ -282,6 +290,9 @@ void dnet_node_destroy(struct dnet_node *n)
 	
 	pthread_mutex_destroy(&n->state_lock);
 	pthread_mutex_destroy(&n->trans_lock);
+	pthread_mutex_destroy(&n->tlock);
+
+	dnet_wait_put(n->wait);
 
 	free(n->root);
 	free(n);
