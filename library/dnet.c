@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 
 #include <ctype.h>
 #include <fcntl.h>
@@ -475,6 +476,49 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *data)
+{
+	char *command = data;
+	struct dnet_node *n = st->n;
+	pid_t pid;
+	int err;
+
+	if (!attr->size)
+		return 0;
+
+	dnet_log(n, "%s: command: '%s'.\n", dnet_dump_id(cmd->id), command);
+
+	pid = fork();
+	if (pid < 0) {
+		err = -errno;
+		dnet_log_err(n, "%s: failed to fork a child process", dnet_dump_id(cmd->id));
+		goto out_exit;
+	}
+
+	if (pid == 0) {
+		err = system(command);
+		exit(err);
+	} else {
+		int status;
+
+		err = waitpid(pid, &status, 0);
+		if (err < 0) {
+			err = -errno;
+			dnet_log_err(n, "%s: failed to wait for child (%d) process", dnet_dump_id(cmd->id), pid);
+			goto out_exit;
+		}
+
+		if (WIFEXITED(status))
+			err = WEXITSTATUS(status);
+		else if (WIFSIGNALED(status))
+			err = -EPIPE;
+	}
+
+out_exit:
+	return err;
+}
+
 int dnet_process_cmd(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	int err = 0;
@@ -526,6 +570,9 @@ int dnet_process_cmd(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data
 				break;
 			case DNET_CMD_LIST:
 				err = dnet_cmd_list(st, cmd);
+				break;
+			case DNET_CMD_EXEC:
+				err = dnet_cmd_exec(st, cmd, a, data);
 				break;
 			default:
 				err = -EPROTO;
@@ -916,6 +963,7 @@ int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, 
 	dnet_log(n, "%s: file: '%s', size: %llu.\n", dnet_dump_id(io.id), file, (unsigned long long)stat.st_size);
 
 	close(fd);
+	dnet_wait_put(w);
 
 	return error;
 
@@ -1263,4 +1311,133 @@ void dnet_wait_destroy(struct dnet_wait *w)
 		pthread_mutex_destroy(&w->wait_lock);
 		pthread_cond_destroy(&w->wait);
 	}
+}
+
+struct dnet_send_cmd_completion
+{
+	struct dnet_wait		*wait;
+	char				*command;
+};
+
+static void __dnet_send_cmd_complete(struct dnet_wait *w, int status)
+{
+	w->status = status;
+	w->cond = 1;
+}
+
+static int dnet_send_cmd_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
+			struct dnet_attr *attr __unused, void *priv)
+{
+	struct dnet_send_cmd_completion *c = priv;
+	struct dnet_wait *w = c->wait;
+
+	dnet_log(st->n, "%s: completed command '%s', err: %d.\n",
+			dnet_dump_id(cmd->id), c->command, cmd->status);
+
+	if (cmd->size == 0 || !cmd->status) {
+		dnet_wakeup(w, __dnet_send_cmd_complete(w, cmd->status));
+		dnet_wait_put(w);
+	}
+
+	return cmd->status;
+}
+
+int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command)
+{
+	struct dnet_trans *t;
+	struct dnet_net_state *st;
+	int err, len = strlen(command) + 1;
+	struct dnet_attr *a;
+	struct dnet_cmd *cmd;
+	struct dnet_send_cmd_completion *c;
+	struct dnet_wait *w;
+
+	c = malloc(sizeof(struct dnet_send_cmd_completion) + len);
+	if (!c) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	memset(c, 0, sizeof(struct dnet_send_cmd_completion));
+
+	w = dnet_wait_alloc(0);
+	if (!w) {
+		err = -ENOMEM;
+		goto err_out_free;
+	}
+
+	c->wait = dnet_wait_get(w);
+	c->command = (char *)(c + 1);
+	sprintf(c->command, "%s", command);
+
+	t = malloc(sizeof(struct dnet_trans) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + len);
+	if (!t) {
+		err = -ENOMEM;
+		goto err_out_put;
+	}
+
+	t->data = NULL;
+	t->st = NULL;
+	t->complete = dnet_send_cmd_complete;
+	t->priv = c;
+
+	cmd = (struct dnet_cmd *)(t + 1);
+	a = (struct dnet_attr *)(cmd + 1);
+
+	memcpy(cmd->id, id, DNET_ID_SIZE);
+	cmd->size = sizeof(struct dnet_attr) + len;
+	cmd->flags = DNET_FLAGS_NEED_ACK;
+	cmd->status = 0;
+
+	a->cmd = DNET_CMD_EXEC;
+	a->size = len;
+	a->flags = 0;
+
+	sprintf((char *)(a+1), "%s", command);
+	
+	st = t->st = dnet_state_get_first(n, n->st);
+	if (!t->st) {
+		err = -ENOENT;
+		dnet_log(n, "%s: failed to find a state.\n", dnet_dump_id(cmd->id));
+		goto err_out_destroy;
+	}
+
+	err = dnet_trans_insert(t);
+	if (err)
+		goto err_out_destroy;
+
+	cmd->trans = t->trans;
+
+	dnet_convert_cmd(cmd);
+	dnet_convert_attr(a);
+
+	pthread_mutex_lock(&st->lock);
+	err = dnet_send(st, t+1, sizeof(struct dnet_attr) + sizeof(struct dnet_cmd) + len);
+	if (err)
+		goto err_out_unlock;
+	pthread_mutex_unlock(&st->lock);
+
+	err = dnet_wait_event(w, w->cond == 1, &n->wait_ts);
+	if (err || w->status) {
+		if (!err)
+			err = w->status;
+
+		dnet_log(n, "%s: failed to execute command '%s', err: %d.\n", dnet_dump_id(id), command, err);
+		goto err_out_put;
+	}
+
+	dnet_wait_put(w);
+	
+	dnet_log(n, "%s: successfully executed command '%s'.\n", dnet_dump_id(id), command);
+	return 0;
+
+err_out_unlock:
+	pthread_mutex_unlock(&st->lock);
+err_out_destroy:
+	dnet_trans_destroy(t);
+err_out_put:
+	dnet_wait_put(w);
+err_out_free:
+	free(c);
+err_out_exit:
+	return err;
 }

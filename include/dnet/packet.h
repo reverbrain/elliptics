@@ -38,6 +38,7 @@ enum dnet_commands {
 						 * parameters.
 						 */
 	DNET_CMD_LIST,				/* List all objects for given node ID */
+	DNET_CMD_EXEC,				/* Execute given command on the remote node */
 };
 
 /*
