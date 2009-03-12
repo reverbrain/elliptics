@@ -69,17 +69,36 @@ struct dnet_cmd
 	unsigned char			id[DNET_ID_SIZE];
 	unsigned int			flags;
 	int				status;
-	uint64_t				trans;
-	uint64_t				size;
+	uint64_t			trans;
+	uint64_t			size;
 	unsigned char			data[0];
 } __attribute__ ((packed));
 
+#ifdef DNET_BIG_ENDIAN
+#define dnet_bswap32(x) \
+     ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >>  8) |		      \
+      (((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24))
+
+#define dnet_bswap64(x) \
+     ((((x) & 0xff00000000000000ull) >> 56)				      \
+      | (((x) & 0x00ff000000000000ull) >> 40)				      \
+      | (((x) & 0x0000ff0000000000ull) >> 24)				      \
+      | (((x) & 0x000000ff00000000ull) >> 8)				      \
+      | (((x) & 0x00000000ff000000ull) << 8)				      \
+      | (((x) & 0x0000000000ff0000ull) << 24)				      \
+      | (((x) & 0x000000000000ff00ull) << 40)				      \
+      | (((x) & 0x00000000000000ffull) << 56))
+#else
+#define dnet_bswap32(x) (x)
+#define dnet_bswap64(x) (x)
+#endif
+
 static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 {
-	cmd->flags = __cpu_to_be32(cmd->flags);
-	cmd->status = __cpu_to_be32(cmd->status);
-	cmd->size = __cpu_to_be64(cmd->size);
-	cmd->trans = __cpu_to_be64(cmd->trans);
+	cmd->flags = dnet_bswap32(cmd->flags);
+	cmd->status = dnet_bswap32(cmd->status);
+	cmd->size = dnet_bswap64(cmd->size);
+	cmd->trans = dnet_bswap64(cmd->trans);
 }
 
 struct dnet_attr
@@ -92,9 +111,9 @@ struct dnet_attr
 
 static inline void dnet_convert_attr(struct dnet_attr *a)
 {
-	a->size = __cpu_to_be64(a->size);
-	a->cmd = __cpu_to_be32(a->cmd);
-	a->flags = __cpu_to_be32(a->flags);
+	a->size = dnet_bswap64(a->size);
+	a->cmd = dnet_bswap32(a->cmd);
+	a->flags = dnet_bswap32(a->flags);
 }
 
 #define DNET_ADDR_SIZE			128
@@ -114,14 +133,14 @@ struct dnet_list
 
 static inline void dnet_convert_list(struct dnet_list *l)
 {
-	l->size = __cpu_to_be32(l->size);
+	l->size = dnet_bswap32(l->size);
 }
 
 struct dnet_addr_attr
 {
-	uint32_t				sock_type;
-	uint32_t				proto;
-	uint32_t				addr_len;
+	uint32_t			sock_type;
+	uint32_t			proto;
+	uint32_t			addr_len;
 	struct sockaddr			addr;
 };
 
@@ -135,7 +154,7 @@ static inline void dnet_convert_addr_attr(struct dnet_addr_attr *a)
 struct dnet_addr_cmd
 {
 	struct dnet_cmd			cmd;
-	struct dnet_attr			a;
+	struct dnet_attr		a;
 	struct dnet_addr_attr		addr;
 };
 
@@ -164,9 +183,9 @@ struct dnet_io_attr
 
 static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 {
-	a->flags = __cpu_to_be32(a->flags);
-	a->offset = __cpu_to_be64(a->offset);
-	a->size = __cpu_to_be64(a->size);
+	a->flags = dnet_bswap32(a->flags);
+	a->offset = dnet_bswap64(a->offset);
+	a->size = dnet_bswap64(a->size);
 }
 
 #ifdef __cplusplus
