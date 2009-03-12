@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
 			sleep(1);
 	}
 
-	printf("Successfulyl executed given command.\n");
+	printf("Successfully executed given command.\n");
 
 	return 0;
 }
