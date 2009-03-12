@@ -151,6 +151,8 @@ int dnet_log_init(struct dnet_node *n, void *priv,
 		void (* log)(void *priv, const char *f, ...),
 		void (* log_append)(void *priv, const char *f, ...));
 
+int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command);
+
 #ifdef __cplusplus
 }
 #endif
