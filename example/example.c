@@ -36,6 +36,8 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
+#define __unused	__attribute__ ((unused))
+
 struct dnet_crypto_engine
 {
 	char			name[DNET_MAX_NAME_LEN];

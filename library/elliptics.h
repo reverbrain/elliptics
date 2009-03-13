@@ -16,8 +16,6 @@
 #ifndef __DNET_ELLIPTICS_H
 #define __DNET_ELLIPTICS_H
 
-#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
-
 #include <sys/time.h>
 #include <sys/socket.h>
 
@@ -37,6 +35,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#define __unused	__attribute__ ((unused))
 
 static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
 {

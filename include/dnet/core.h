@@ -20,8 +20,6 @@
 
 #define DNET_HISTORY_SUFFIX	".history"
 
-#define __unused		__attribute__ ((unused))
-
 #define DNET_ID_SIZE		20		/* Has to match selected hash type */
 #define DNET_MAX_NAME_LEN		64
 
