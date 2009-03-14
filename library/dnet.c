@@ -203,15 +203,6 @@ static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cm
 		goto err_out_close;
 	}
 
-#if 0
-	memcpy(id, st->id, DNET_ID_SIZE);
-
-	pthread_mutex_lock(&st->lock);
-	memcpy(st->id, cmd->id, DNET_ID_SIZE);
-	pthread_mutex_unlock(&st->lock);
-
-	err =  dnet_state_move(st);
-#endif
 	dnet_log(n, "%s: state %s.\n", dnet_dump_id(cmd->id),
 		dnet_server_convert_dnet_addr(&a->addr));
 

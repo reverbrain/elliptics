@@ -332,7 +332,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		goto err_out_state_free;
 	}
 
-	if (empty || !id) {
+	st->empty = empty;
+	if (!id) {
 		st->empty = 1;
 		pthread_mutex_lock(&n->state_lock);
 		list_add_tail(&st->state_entry, &n->empty_state_list);
