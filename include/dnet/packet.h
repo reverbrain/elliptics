@@ -17,7 +17,6 @@
 #define __DNET_PACKET_H
 
 #include <dnet/typedefs.h>
-#include <asm/byteorder.h>
 #include <arpa/inet.h>
 #include <dnet/core.h>
 
