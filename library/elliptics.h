@@ -158,9 +158,10 @@ struct dnet_wait
 ({											\
 	int err = 0;									\
 	struct timespec ts;								\
-	gettimeofday((struct timeval *)&ts, NULL);					\
-	ts.tv_nsec += (wts)->tv_nsec;							\
-	ts.tv_sec += (wts)->tv_sec;							\
+ 	struct timeval tv;								\
+	gettimeofday(&tv, NULL);							\
+	ts.tv_nsec = tv.tv_usec * 1000 + (wts)->tv_nsec;				\
+	ts.tv_sec += tv.tv_sec + (wts)->tv_sec;						\
 	pthread_mutex_lock(&(w)->wait_lock);						\
 	while (!(condition) && !err)							\
 		err = pthread_cond_timedwait(&(w)->wait, &(w)->wait_lock, &ts);		\
