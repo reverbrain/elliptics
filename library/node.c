@@ -221,7 +221,7 @@ static void *dnet_server_func(void *data)
 
 		fcntl(cs, F_SETFL, O_NONBLOCK);
 
-		st = dnet_state_create(n, NULL, &addr, cs, dnet_state_process);
+		st = dnet_state_create(n, NULL, &addr, cs, dnet_state_process, 1);
 		if (!st) {
 			close(cs);
 			dnet_log(n, "%s: disconnected client %s.\n", dnet_dump_id(n->id),
@@ -252,7 +252,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	n->listen_socket = err;
 
-	n->st = dnet_state_create(n, n->id, &n->addr, n->listen_socket, dnet_server_func);
+	n->st = dnet_state_create(n, n->id, &n->addr, n->listen_socket, dnet_server_func, 0);
 	if (!n->st)
 		goto err_out_sock_close;
 

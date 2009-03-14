@@ -307,7 +307,8 @@ void *dnet_state_process(void *data)
 }
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
-		struct dnet_addr *addr, int s, void *(* process)(void *))
+		struct dnet_addr *addr, int s, void *(* process)(void *),
+		int empty)
 {
 	int err = -ENOMEM;
 	struct dnet_net_state *st;
@@ -331,7 +332,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		goto err_out_state_free;
 	}
 
-	if (!id) {
+	if (empty || !id) {
 		st->empty = 1;
 		pthread_mutex_lock(&n->state_lock);
 		list_add_tail(&st->state_entry, &n->empty_state_list);

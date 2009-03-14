@@ -148,7 +148,7 @@ struct dnet_net_state
 };
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
-		struct dnet_addr *addr, int s, void *(* process)(void *));
+		struct dnet_addr *addr, int s, void *(* process)(void *), int empty);
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 {

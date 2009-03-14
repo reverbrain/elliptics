@@ -197,7 +197,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cm
 		goto err_out_exit;
 	}
 
-	st = dnet_state_create(n, cmd->id, &a->addr, s, dnet_state_process);
+	st = dnet_state_create(n, cmd->id, &a->addr, s, dnet_state_process, 1);
 	if (!st) {
 		err = -EINVAL;
 		goto err_out_close;
@@ -671,7 +671,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 	dnet_log_append(n, "%s -> %s.\n", dnet_dump_id(acmd.cmd.id),
 		dnet_server_convert_dnet_addr(&acmd.addr.addr));
 
-	st = dnet_state_create(n, acmd.cmd.id, &acmd.addr.addr, s, dnet_state_process);
+	st = dnet_state_create(n, acmd.cmd.id, &acmd.addr.addr, s, dnet_state_process, 0);
 	if (!st)
 		goto err_out_sock_close;
 
