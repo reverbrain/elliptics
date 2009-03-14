@@ -640,7 +640,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 
 	st->s = s;
 	st->n = n;
-	st->timeout = DNET_TIMEOUT;
+	st->timeout = n->wait_ts.tv_sec * 1000;
 
 	err = dnet_send(st, buf, sizeof(buf));
 	if (err) {

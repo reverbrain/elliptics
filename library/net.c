@@ -319,7 +319,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	memset(st, 0, sizeof(struct dnet_net_state));
 
-	st->timeout = DNET_TIMEOUT;
+	st->timeout = n->wait_ts.tv_sec * 1000;
 	st->s = s;
 	st->n = n;
 	st->refcnt = 1;
