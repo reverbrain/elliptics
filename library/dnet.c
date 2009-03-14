@@ -61,7 +61,7 @@ static int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *d
 	return err;
 }
 
-static int dnet_transform_file(struct dnet_node *n, char *file, loff_t offset, size_t size,
+static int dnet_transform_file(struct dnet_node *n, char *file, off_t offset, size_t size,
 		void *dst, unsigned int *dsize, int *ppos)
 {
 	int err = -ENOENT;
@@ -373,7 +373,7 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_attr *a;
 	struct dnet_io_attr *rio;
 	size_t size;
-	loff_t offset;
+	off_t offset;
 	uint64_t total_size;
 
 	if (attr->size != sizeof(struct dnet_io_attr)) {
