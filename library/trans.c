@@ -78,10 +78,9 @@ static int dnet_trans_insert_raw(struct rb_root *root, struct dnet_trans *a)
 	}
 
 	if (a->st && a->st->n)
-		dnet_log(a->st->n, "%s: added transaction: %llu -> %s:%d.\n",
+		dnet_log(a->st->n, "%s: added transaction: %llu -> %s.\n",
 			dnet_dump_id(a->cmd.id), a->trans,
-			dnet_server_convert_addr(&a->st->addr, a->st->addr_len),
-			dnet_server_convert_port(&a->st->addr, a->st->addr_len));
+			dnet_server_convert_dnet_addr(&a->st->addr));
 
 	rb_link_node(&a->trans_entry, parent, n);
 	rb_insert_color(&a->trans_entry, root);
@@ -141,8 +140,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 
 	dnet_log(n, "%s: ", dnet_dump_id(t->cmd.id));
 	dnet_log_append(n, "forwarded to %s (%s:%d), trans: %llu, err: %d.\n", dnet_dump_id(st->id),
-		dnet_server_convert_addr(&st->addr, st->addr_len),
-		dnet_server_convert_port(&st->addr, st->addr_len),
+		dnet_server_convert_dnet_addr(&st->addr),
 		(unsigned long long)t->trans, err);
 
 	return err;

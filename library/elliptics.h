@@ -63,20 +63,28 @@ static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
 	return 0;
 }
 
-#define dnet_log(n, f, a...) do { if (n && n->log) n->log(n->log_priv, f, ##a); } while (0)
+#define dnet_log(n, f, a...) do { if (n && n->log) n->log(n->log_priv, f, ##a); else fprintf(stderr, f, ##a); } while (0)
 #define dnet_log_append(n, f, a...) do { if (n && n->log_append) n->log_append(n->log_priv, f, ##a); } while (0)
 #define dnet_log_err(n, f, a...) dnet_log(n, f ": %s [%d].\n", ##a, strerror(errno), errno)
 
 #define NIP6(addr) \
-	ntohs((addr).s6_addr16[0]), \
-	ntohs((addr).s6_addr16[1]), \
-	ntohs((addr).s6_addr16[2]), \
-	ntohs((addr).s6_addr16[3]), \
-	ntohs((addr).s6_addr16[4]), \
-	ntohs((addr).s6_addr16[5]), \
-	ntohs((addr).s6_addr16[6]), \
-	ntohs((addr).s6_addr16[7])
-#define NIP6_FMT "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x"
+	(addr).s6_addr[0], \
+	(addr).s6_addr[1], \
+	(addr).s6_addr[2], \
+	(addr).s6_addr[3], \
+	(addr).s6_addr[4], \
+	(addr).s6_addr[5], \
+	(addr).s6_addr[6], \
+	(addr).s6_addr[7], \
+	(addr).s6_addr[8], \
+	(addr).s6_addr[9], \
+	(addr).s6_addr[10], \
+	(addr).s6_addr[11], \
+	(addr).s6_addr[12], \
+	(addr).s6_addr[13], \
+	(addr).s6_addr[14], \
+	(addr).s6_addr[15]
+#define NIP6_FMT "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"
 
 static inline char *dnet_server_convert_addr(struct sockaddr *sa, unsigned int len)
 {
@@ -105,6 +113,21 @@ static inline int dnet_server_convert_port(struct sockaddr *sa, unsigned int len
 	return 0;
 }
 
+static inline char *dnet_server_convert_dnet_addr(struct dnet_addr *sa)
+{
+	static char inet_addr[128];
+
+	memset(&inet_addr, 0, sizeof(inet_addr));
+	if (sa->addr_len == sizeof(struct sockaddr_in)) {
+		struct sockaddr_in *in = (struct sockaddr_in *)sa;
+		sprintf(inet_addr, "%s:%d", inet_ntoa(in->sin_addr), ntohs(in->sin_port));
+	} else if (sa->addr_len == sizeof(struct sockaddr_in6)) {
+		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa;
+		sprintf(inet_addr, NIP6_FMT":%d", NIP6(in->sin6_addr), ntohs(in->sin6_port));
+	}
+	return inet_addr;
+}
+
 struct dnet_net_state
 {
 	struct list_head	state_entry;
@@ -121,12 +144,11 @@ struct dnet_net_state
 	int			empty;
 	unsigned char		id[DNET_ID_SIZE];
 
-	struct sockaddr		addr;
-	int			addr_len;
+	struct dnet_addr	addr;
 };
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
-		struct sockaddr *addr, int addr_len, int s, void *(* process)(void *));
+		struct dnet_addr *addr, int s, void *(* process)(void *));
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 {
@@ -161,7 +183,7 @@ struct dnet_wait
  	struct timeval tv;								\
 	gettimeofday(&tv, NULL);							\
 	ts.tv_nsec = tv.tv_usec * 1000 + (wts)->tv_nsec;				\
-	ts.tv_sec += tv.tv_sec + (wts)->tv_sec;						\
+	ts.tv_sec = tv.tv_sec + (wts)->tv_sec;						\
 	pthread_mutex_lock(&(w)->wait_lock);						\
 	while (!(condition) && !err)							\
 		err = pthread_cond_timedwait(&(w)->wait, &(w)->wait_lock, &ts);		\
@@ -214,8 +236,8 @@ struct dnet_node
 
 	int			listen_socket;
 
-	struct sockaddr		addr;
-	int			addr_len, sock_type, proto;
+	struct dnet_addr	addr;
+	int			sock_type, proto;
 
 	pthread_mutex_t		state_lock;
 	struct list_head	state_list;
@@ -246,10 +268,7 @@ static inline char *dnet_dump_node(struct dnet_node *n)
 {
 	static char buf[128];
 
-	snprintf(buf, sizeof(buf), "%s:%d",
-		dnet_server_convert_addr(&n->addr, n->addr_len),
-		dnet_server_convert_port(&n->addr, n->addr_len));
-
+	snprintf(buf, sizeof(buf), "%s", dnet_server_convert_dnet_addr(&n->addr));
 	return buf;
 }
 
@@ -264,7 +283,7 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 
 struct dnet_config;
 int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
-		struct sockaddr *sa, int *addr_len, int listening);
+		struct sockaddr *sa, unsigned int *addr_len, int listening);
 int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 		struct sockaddr *sa, unsigned int salen, int listening);
 

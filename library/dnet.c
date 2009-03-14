@@ -133,8 +133,7 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 	l.cmd.size = sizeof(struct dnet_addr_cmd) - sizeof(struct dnet_cmd);
 	l.cmd.trans |= DNET_TRANS_REPLY;
 
-	memcpy(&l.addr.addr, &st->addr, st->addr_len);
-	l.addr.addr_len = st->addr_len;
+	memcpy(&l.addr.addr, &st->addr, sizeof(struct dnet_addr));
 	l.addr.proto = n->proto;
 	l.addr.sock_type = n->sock_type;
 
@@ -168,8 +167,7 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 	a.a.cmd = DNET_CMD_REVERSE_LOOKUP;
 	a.a.size = sizeof(struct dnet_addr_cmd) - sizeof(struct dnet_cmd) - sizeof(struct dnet_attr);
 
-	memcpy(&a.addr.addr, &n->addr, n->addr_len);
-	a.addr.addr_len = n->addr_len;
+	memcpy(&a.addr.addr, &n->addr, sizeof(struct dnet_addr));
 	a.addr.proto = n->proto;
 	a.addr.sock_type = n->sock_type;
 
@@ -192,13 +190,14 @@ static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cm
 
 	dnet_convert_addr_attr(a);
 
-	s = dnet_socket_create_addr(n, a->sock_type, a->proto, &a->addr, a->addr_len, 0);
+	s = dnet_socket_create_addr(n, a->sock_type, a->proto,
+			(struct sockaddr *)&a->addr, a->addr.addr_len, 0);
 	if (s < 0) {
 		err = s;
 		goto err_out_exit;
 	}
 
-	st = dnet_state_create(n, cmd->id, &a->addr, a->addr_len, s, dnet_state_process);
+	st = dnet_state_create(n, cmd->id, &a->addr, s, dnet_state_process);
 	if (!st) {
 		err = -EINVAL;
 		goto err_out_close;
@@ -213,18 +212,16 @@ static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cm
 
 	err =  dnet_state_move(st);
 #endif
-	dnet_log(n, "%s: state %s:%d.\n", dnet_dump_id(cmd->id),
-		dnet_server_convert_addr(&a->addr, a->addr_len),
-		dnet_server_convert_port(&a->addr, a->addr_len));
+	dnet_log(n, "%s: state %s.\n", dnet_dump_id(cmd->id),
+		dnet_server_convert_dnet_addr(&a->addr));
 
 	return 0;
 
 err_out_close:
 	close(s);
 err_out_exit:
-	dnet_log(n, "%s: state %s:%d -> ", dnet_dump_id(cmd->id),
-		dnet_server_convert_addr(&a->addr, a->addr_len),
-		dnet_server_convert_port(&a->addr, a->addr_len));
+	dnet_log(n, "%s: state %s -> ", dnet_dump_id(cmd->id),
+		dnet_server_convert_dnet_addr(&a->addr));
 	if (st)
 		dnet_log_append(n, "%s, .\n", dnet_dump_id(st->id));
 	dnet_log_append(n, "err: %d.\n", err);
@@ -620,15 +617,15 @@ int dnet_process_cmd(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data
 int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 {
 	int s, err;
-	struct sockaddr sa;
-	int addr_len = sizeof(struct sockaddr);
 	struct dnet_net_state *st, dummy;
 	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)];
+	struct dnet_addr addr;
 	struct dnet_addr_cmd acmd;
 	struct dnet_cmd *cmd;
 	struct dnet_attr *a;
 
-	s = dnet_socket_create(n, cfg, &sa, &addr_len, 0);
+	addr.addr_len = sizeof(addr.addr);
+	s = dnet_socket_create(n, cfg, (struct sockaddr *)&addr.addr, &addr.addr_len, 0);
 	if (s < 0) {
 		err = s;
 		goto err_out_exit;
@@ -654,30 +651,27 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 
 	err = dnet_send(st, buf, sizeof(buf));
 	if (err) {
-		dnet_log_err(n, "%s: failed to send reverse lookup message to %s:%d, err: %d",
+		dnet_log(n, "%s: failed to send reverse lookup message to %s, err: %d.\n",
 				dnet_dump_id(n->id),
-				dnet_server_convert_addr(&sa, addr_len),
-				dnet_server_convert_port(&sa, addr_len), err);
+				dnet_server_convert_dnet_addr(&addr), err);
 		goto err_out_sock_close;
 	}
 
 	err = dnet_recv(st, &acmd, sizeof(acmd));
 	if (err < 0) {
-		dnet_log_err(n, "%s: failed to receive reverse lookup response from %s:%d, err: %d",
+		dnet_log(n, "%s: failed to receive reverse lookup response from %s, err: %d.\n",
 				dnet_dump_id(n->id),
-				dnet_server_convert_addr(&sa, addr_len),
-				dnet_server_convert_port(&sa, addr_len), err);
+				dnet_server_convert_dnet_addr(&addr), err);
 		goto err_out_sock_close;
 	}
 
 	dnet_convert_addr_cmd(&acmd);
 
 	dnet_log(n, "%s: reverse lookup: ", dnet_dump_id(n->id));
-	dnet_log_append(n, "%s -> %s:%d.\n", dnet_dump_id(acmd.cmd.id),
-		dnet_server_convert_addr(&acmd.addr.addr, acmd.addr.addr_len),
-		dnet_server_convert_port(&acmd.addr.addr, acmd.addr.addr_len));
+	dnet_log_append(n, "%s -> %s.\n", dnet_dump_id(acmd.cmd.id),
+		dnet_server_convert_dnet_addr(&acmd.addr.addr));
 
-	st = dnet_state_create(n, acmd.cmd.id, &acmd.addr.addr, acmd.addr.addr_len, s, dnet_state_process);
+	st = dnet_state_create(n, acmd.cmd.id, &acmd.addr.addr, s, dnet_state_process);
 	if (!st)
 		goto err_out_sock_close;
 
@@ -717,8 +711,7 @@ int dnet_join(struct dnet_node *n)
 	a.a.cmd = DNET_CMD_JOIN;
 	a.a.size = sizeof(struct dnet_addr_cmd) - sizeof(struct dnet_cmd) - sizeof(struct dnet_attr);
 
-	memcpy(&a.addr.addr, &n->addr, n->addr_len);
-	a.addr.addr_len = n->addr_len;
+	memcpy(&a.addr.addr, &n->addr, sizeof(struct dnet_addr));
 	a.addr.sock_type = n->sock_type;
 	a.addr.proto = n->proto;
 
@@ -733,8 +726,7 @@ int dnet_join(struct dnet_node *n)
 		if (err) {
 			dnet_log(n, "%s: failed to update state", dnet_dump_id(n->id));
 			dnet_log_append(n, " %s -> %s:%d.\n", dnet_dump_id(st->id),
-				dnet_server_convert_addr(&st->addr, st->addr_len),
-				dnet_server_convert_port(&st->addr, st->addr_len));
+				dnet_server_convert_dnet_addr(&st->addr));
 			break;
 		}
 	}

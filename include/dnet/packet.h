@@ -65,12 +65,12 @@ enum dnet_commands {
 
 struct dnet_cmd
 {
-	unsigned char			id[DNET_ID_SIZE];
-	unsigned int			flags;
-	int				status;
-	uint64_t			trans;
-	uint64_t			size;
-	unsigned char			data[0];
+	uint8_t			id[DNET_ID_SIZE];
+	uint32_t		flags;
+	int			status;
+	uint64_t		trans;
+	uint64_t		size;
+	uint8_t			data[0];
 } __attribute__ ((packed));
 
 #ifdef DNET_BIG_ENDIAN
@@ -103,9 +103,9 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 struct dnet_attr
 {
 	uint64_t				size;
-	unsigned int			cmd;
-	unsigned int			flags;
-	unsigned int			unused[2];
+	uint32_t			cmd;
+	uint32_t			flags;
+	uint32_t			unused[2];
 };
 
 static inline void dnet_convert_attr(struct dnet_attr *a)
@@ -115,19 +115,19 @@ static inline void dnet_convert_attr(struct dnet_attr *a)
 	a->flags = dnet_bswap32(a->flags);
 }
 
-#define DNET_ADDR_SIZE			128
+#define DNET_ADDR_SIZE		28
 
 struct dnet_addr
 {
-	unsigned char			addr[DNET_ADDR_SIZE];
-	unsigned int			addr_size;
+	uint8_t			addr[DNET_ADDR_SIZE];
+	uint32_t		addr_len;
 };
 
 struct dnet_list
 {
-	unsigned char			id[DNET_ID_SIZE];
-	unsigned int			size;
-	unsigned char			data[0];
+	uint8_t			id[DNET_ID_SIZE];
+	uint32_t		size;
+	uint8_t			data[0];
 };
 
 static inline void dnet_convert_list(struct dnet_list *l)
@@ -139,15 +139,14 @@ struct dnet_addr_attr
 {
 	uint32_t			sock_type;
 	uint32_t			proto;
-	uint32_t			addr_len;
-	struct sockaddr			addr;
+	struct dnet_addr		addr;
 };
 
 static inline void dnet_convert_addr_attr(struct dnet_addr_attr *a)
 {
-	a->addr_len = htonl(a->addr_len);
-	a->proto = htonl(a->proto);
-	a->sock_type = htonl(a->sock_type);
+	a->addr.addr_len = dnet_bswap32(a->addr.addr_len);
+	a->proto = dnet_bswap32(a->proto);
+	a->sock_type = dnet_bswap32(a->sock_type);
 }
 
 struct dnet_addr_cmd
@@ -174,10 +173,10 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 
 struct dnet_io_attr
 {
-	unsigned char			id[DNET_ID_SIZE];
-	unsigned int			flags;
-	uint64_t				offset;
-	uint64_t				size;
+	uint8_t			id[DNET_ID_SIZE];
+	uint32_t		flags;
+	uint64_t		offset;
+	uint64_t		size;
 };
 
 static inline void dnet_convert_io_attr(struct dnet_io_attr *a)

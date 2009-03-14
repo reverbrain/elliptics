@@ -90,7 +90,8 @@ err_out_exit:
 	return err;
 }
 
-int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg, struct sockaddr *sa, int *addr_len, int listening)
+int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
+		struct sockaddr *sa, unsigned int *addr_len, int listening)
 {
 	int s, err = -EINVAL;
 	struct addrinfo *ai, hint;
@@ -116,13 +117,22 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg, struct sock
 		goto err_out_free;
 	}
 
-	memcpy(sa, ai->ai_addr, ai->ai_addrlen);
-	*addr_len = ai->ai_addrlen;
+	if (*addr_len >= ai->ai_addrlen)
+		*addr_len = ai->ai_addrlen;
+	else {
+		dnet_log(n, "Failed to copy address: size %u is too small (must be more than %u).\n",
+				*addr_len, ai->ai_addrlen);
+		err = -ENOBUFS;
+		goto err_out_close;
+	}
+	memcpy(sa, ai->ai_addr, *addr_len);
 
 	freeaddrinfo(ai);
 
 	return s;
 
+err_out_close:
+	close(s);
 err_out_free:
 	freeaddrinfo(ai);
 err_out_exit:
@@ -140,15 +150,21 @@ static int dnet_wait_fd(int s, unsigned int events, long timeout)
 
 	err = poll(&pfd, 1, timeout);
 	if (err < 0)
-		return err;
+		goto out_exit;
 
-	if (err == 0)
-		return -EAGAIN;
+	if (err == 0) {
+		err = -EAGAIN;
+		goto out_exit;
+	}
 
-	if (pfd.revents & events)
-		return 0;
+	if (pfd.revents & events) {
+		err = 0;
+		goto out_exit;
+	}
 
-	return -EINVAL;
+	err = -EINVAL;
+out_exit:
+	return err;
 }
 
 static int dnet_net_reconnect(struct dnet_net_state *st)
@@ -159,7 +175,7 @@ static int dnet_net_reconnect(struct dnet_net_state *st)
 		return -EINVAL;
 
 	err = dnet_socket_create_addr(st->n, st->n->sock_type, st->n->proto,
-			&st->addr, st->addr_len, 0);
+			(struct sockaddr *)&st->addr, st->addr.addr_len, 0);
 	if (err < 0)
 		return err;
 	
@@ -282,10 +298,8 @@ void *dnet_state_process(void *data)
 		}
 	}
 
-	dnet_log(n, "%s: stopped client %s:%d processing, refcnt: %d.\n", dnet_dump_id(st->id),
-		dnet_server_convert_addr(&st->addr, st->addr_len),
-		dnet_server_convert_port(&st->addr, st->addr_len),
-		st->refcnt);
+	dnet_log(n, "%s: stopped client %s processing, refcnt: %d.\n", dnet_dump_id(st->id),
+		dnet_server_convert_dnet_addr(&st->addr), st->refcnt);
 
 	dnet_state_put(st);
 
@@ -293,16 +307,10 @@ void *dnet_state_process(void *data)
 }
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
-		struct sockaddr *addr, int addr_len, int s, void *(* process)(void *))
+		struct dnet_addr *addr, int s, void *(* process)(void *))
 {
 	int err = -ENOMEM;
 	struct dnet_net_state *st;
-
-	if (addr_len > (signed)sizeof(struct sockaddr)) {
-		dnet_log(n, "%s: wrong socket address size: %d, must be less or equal to %u.\n",
-				(id)?dnet_dump_id(id):dnet_dump_id(n->id), addr_len, sizeof(struct sockaddr));
-		goto err_out_exit;
-	}
 
 	st = malloc(sizeof(struct dnet_net_state));
 	if (!st)
@@ -315,8 +323,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 	st->n = n;
 	st->refcnt = 1;
 
-	memcpy(&st->addr, addr, addr_len);
-	st->addr_len = addr_len;
+	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
 
 	err = pthread_mutex_init(&st->lock, NULL);
 	if (err) {
@@ -378,9 +385,8 @@ void dnet_state_put(struct dnet_net_state *st)
 
 	pthread_mutex_destroy(&st->lock);
 
-	dnet_log(st->n, "%s: freeing state %s:%d.\n", dnet_dump_id(st->id),
-		dnet_server_convert_addr(&st->addr, st->addr_len),
-		dnet_server_convert_port(&st->addr, st->addr_len));
+	dnet_log(st->n, "%s: freeing state %s.\n", dnet_dump_id(st->id),
+		dnet_server_convert_dnet_addr(&st->addr));
 
 	free(st);
 }
@@ -418,7 +424,7 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 		}
 
 		if (err == 0) {
-			dnet_log(st->n, "%s: looks like truncated file, size: %zu.\n", dnet_dump_id(st->id), size, err);
+			dnet_log(st->n, "%s: looks like truncated file, size: %zu.\n", dnet_dump_id(st->id), size);
 			break;
 		}
 

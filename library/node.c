@@ -39,6 +39,8 @@ static struct dnet_node *dnet_node_alloc(int sock_type, int proto)
 	n->trans = 0;
 	n->trans_root = RB_ROOT;
 
+	n->addr.addr_len = sizeof(n->addr.addr);
+
 	err = pthread_mutex_init(&n->state_lock, NULL);
 	if (err) {
 		dnet_log_err(n, "Failed to initialize state lock: err: %d", err);
@@ -106,11 +108,9 @@ int dnet_state_insert(struct dnet_net_state *new)
 		dnet_log_append(n, "new: %s, cmp: %d.\n", dnet_dump_id(new->id), err);
 
 		if (!err) {
-			dnet_log(n, "%s: state exists: old: %s:%d, new: %s:%d.\n", dnet_dump_id(new->id),
-				dnet_server_convert_addr(&st->addr, st->addr_len),
-				dnet_server_convert_port(&st->addr, st->addr_len),
-				dnet_server_convert_addr(&new->addr, new->addr_len),
-				dnet_server_convert_port(&new->addr, new->addr_len));
+			dnet_log(n, "%s: state exists: old: %s, ", dnet_dump_id(new->id),
+				dnet_server_convert_dnet_addr(&st->addr));
+			dnet_log_append(n, "new: %s.\n", dnet_server_convert_dnet_addr(&new->addr));
 			break;
 		}
 
@@ -129,9 +129,8 @@ int dnet_state_insert(struct dnet_net_state *new)
 	if (err) {
 		dnet_log(n, "%s: node list dump:\n", dnet_dump_id(new->id));
 		list_for_each_entry(st, &n->state_list, state_entry) {
-			dnet_log(n, "      id: %s [%02x], addr: %s:%d.\n", dnet_dump_id(st->id), st->id[0],
-				dnet_server_convert_addr(&st->addr, st->addr_len),
-				dnet_server_convert_port(&st->addr, st->addr_len));
+			dnet_log(n, "      id: %s [%02x], addr: %s.\n", dnet_dump_id(st->id), st->id[0],
+				dnet_server_convert_dnet_addr(&st->addr));
 		}
 		dnet_log_append(n, "\n");
 	}
@@ -207,28 +206,26 @@ static void *dnet_server_func(void *data)
 	struct dnet_net_state *st;
 	struct dnet_node *n = main_st->n;
 	int cs;
-	struct sockaddr addr;
-	socklen_t socklen = sizeof(addr);
+	struct dnet_addr addr;
 
 	while (!n->need_exit) {
-		cs = accept(n->listen_socket, &addr, &socklen);
+		addr.addr_len = sizeof(addr.addr);
+		cs = accept(n->listen_socket, (struct sockaddr *)&addr.addr, &addr.addr_len);
 		if (cs <= 0) {
 			dnet_log_err(n, "%s: failed to accept new client", dnet_dump_id(n->id));
 			continue;
 		}
 
-		dnet_log(n, "%s: accepted client %s:%d.\n", dnet_dump_id(n->id),
-				dnet_server_convert_addr(&addr, socklen),
-				dnet_server_convert_port(&addr, socklen));
+		dnet_log(n, "%s: accepted client %s.\n", dnet_dump_id(n->id),
+				dnet_server_convert_dnet_addr(&addr));
 
 		fcntl(cs, F_SETFL, O_NONBLOCK);
 
-		st = dnet_state_create(n, NULL, &addr, socklen, cs, dnet_state_process);
+		st = dnet_state_create(n, NULL, &addr, cs, dnet_state_process);
 		if (!st) {
 			close(cs);
-			dnet_log(n, "%s: disconnected client %s:%d.\n", dnet_dump_id(n->id),
-					dnet_server_convert_addr(&addr, socklen),
-					dnet_server_convert_port(&addr, socklen));
+			dnet_log(n, "%s: disconnected client %s.\n", dnet_dump_id(n->id),
+				dnet_server_convert_dnet_addr(&addr));
 		}
 	}
 
@@ -249,14 +246,13 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->sock_type = cfg->sock_type;
 	n->wait_ts.tv_sec = cfg->wait_timeout;
 
-	err = dnet_socket_create(n, cfg, &n->addr, &n->addr_len, 1);
+	err = dnet_socket_create(n, cfg, (struct sockaddr *)&n->addr.addr, &n->addr.addr_len, 1);
 	if (err < 0)
 		goto err_out_free;
 
 	n->listen_socket = err;
 
-	n->st = dnet_state_create(n, n->id, &n->addr, n->addr_len,
-			n->listen_socket, dnet_server_func);
+	n->st = dnet_state_create(n, n->id, &n->addr, n->listen_socket, dnet_server_func);
 	if (!n->st)
 		goto err_out_sock_close;
 
