@@ -240,6 +240,7 @@ static int dnet_update_history(struct dnet_node *n, int md, unsigned char *id, s
 		goto err_out_close;
 	}
 
+	fsync(fd);
 	close(fd);
 	return 0;
 
@@ -340,6 +341,7 @@ static int dnet_cmd_write(struct dnet_net_state *st, struct dnet_cmd *cmd,
 			dnet_dump_id(cmd->id), n->root, dir, file,
 			io->offset, io->size);
 
+	fsync(dd);
 	close(dd);
 	close(md);
 
@@ -1057,6 +1059,7 @@ int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct d
 		goto err_out_close;
 	}
 
+	fsync(fd);
 	close(fd);
 	dnet_log(n, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d.\n",
 			dnet_dump_id(cmd->id), c->file, (unsigned long long)io->offset,
@@ -1065,7 +1068,6 @@ int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct d
 	return cmd->status;
 
 err_out_close:
-	close(fd);
 	dnet_log(n, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d, err: %d.\n",
 			dnet_dump_id(cmd->id), c->file, (unsigned long long)io->offset,
 			(unsigned long long)io->size, cmd->status, err);

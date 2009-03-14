@@ -342,6 +342,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 		goto err_out_close;
 	}
 
+	fsync(fd);
 	close(fd);
 
 	cmp = malloc(sizeof(struct dnet_io_completion) + sizeof(file) + strlen(st->n->root));
