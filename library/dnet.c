@@ -186,7 +186,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cm
 		struct dnet_attr *attr __unused, void *data)
 {
 	int err, s;
-	struct dnet_net_state *st;
+	struct dnet_net_state *st = NULL;
 	struct dnet_node *n = orig->n;
 	struct dnet_addr_attr *a = data;
 
@@ -225,7 +225,9 @@ err_out_exit:
 	dnet_log(n, "%s: state %s:%d -> ", dnet_dump_id(cmd->id),
 		dnet_server_convert_addr(&a->addr, a->addr_len),
 		dnet_server_convert_port(&a->addr, a->addr_len));
-	dnet_log_append(n, "%s, err: %d.\n", dnet_dump_id(st->id), err);
+	if (st)
+		dnet_log_append(n, "%s, .\n", dnet_dump_id(st->id));
+	dnet_log_append(n, "err: %d.\n", err);
 	return err;
 }
 
