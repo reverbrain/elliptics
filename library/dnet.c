@@ -1454,7 +1454,7 @@ err_out_exit:
 
 int dnet_give_up_control(struct dnet_node *n)
 {
-	while (1) {
+	while (!n->need_exit) {
 		if (n->join_state == DNET_REJOIN) {
 			dnet_rejoin(n, 0);
 			n->join_state = DNET_JOINED;
