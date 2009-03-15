@@ -97,8 +97,6 @@ int dnet_state_insert(struct dnet_net_state *new)
 	struct dnet_net_state *st;
 	int err = 1;
 
-	new->empty = 0;
-
 	pthread_mutex_lock(&n->state_lock);
 
 	list_for_each_entry(st, &n->state_list, state_entry) {
@@ -143,12 +141,6 @@ int dnet_state_insert(struct dnet_net_state *new)
 		err = 0;
 
 	return err;
-}
-
-int dnet_state_move(struct dnet_net_state *st)
-{
-	dnet_state_remove(st);
-	return dnet_state_insert(st);
 }
 
 struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self)
