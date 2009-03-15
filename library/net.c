@@ -347,7 +347,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	err = pthread_create(&st->tid, NULL, process, st);
 	if (err) {
-		dnet_log_err(n, "%s: failed to create network state processing thread: err: %d", dnet_dump_id(st->id), err);
+		dnet_log_err(n, "%s: failed to create network state processing thread: err: %d",
+				dnet_dump_id(st->id), err);
 		goto err_out_state_remove;
 	}
 
