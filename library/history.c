@@ -30,7 +30,7 @@
 #include "elliptics.h"
 #include "dnet/interface.h"
 
-static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req, unsigned char *id)
+static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req, unsigned char *id, size_t size)
 {
 	int fd, err;
 	struct dnet_node *n = st->n;
@@ -38,7 +38,6 @@ static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req,
 	struct dnet_cmd *cmd;
 	struct dnet_attr *a;
 	struct dnet_io_attr *io;
-	struct stat stat;
 
 	snprintf(file, sizeof(file), "%02x/%s%s", id[0], dnet_dump_id(id), DNET_HISTORY_SUFFIX);
 
@@ -47,13 +46,6 @@ static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req,
 		err = -errno;
 		dnet_log_err(n, "%s: failed to open history file '%s'", dnet_dump_id(id), file);
 		goto err_out_exit;
-	}
-
-	err = fstat(fd, &stat);
-	if (err) {
-		err = -errno;
-		dnet_log_err(n, "%s: failed to stat history file '%s'", dnet_dump_id(id), file);
-		goto err_out_close;
 	}
 
 	cmd = malloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
@@ -67,17 +59,17 @@ static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req,
 	io = (struct dnet_io_attr *)(a + 1);
 
 	memcpy(cmd->id, req->id, DNET_ID_SIZE);
-	cmd->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + stat.st_size;
+	cmd->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
 	cmd->trans = req->trans | DNET_TRANS_REPLY;
 	cmd->status = 0;
 	cmd->flags = DNET_FLAGS_MORE;
 
 	a->flags = 0;
-	a->size = sizeof(struct dnet_io_attr) + stat.st_size;
+	a->size = sizeof(struct dnet_io_attr) + size;
 	a->cmd = DNET_CMD_LIST;
 
 	memcpy(io->id, id, DNET_ID_SIZE);
-	io->size = stat.st_size;
+	io->size = size;
 	io->offset = 0;
 	io->flags = 0;
 
@@ -85,8 +77,10 @@ static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req,
 	dnet_convert_attr(a);
 	dnet_convert_io_attr(io);
 
-	err = dnet_sendfile_data(st, file, fd, 0, stat.st_size,
-			cmd, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
+	err = dnet_sendfile_data(st, file, fd, 0, size,	cmd,
+			sizeof(struct dnet_cmd) +
+			sizeof(struct dnet_attr) +
+			sizeof(struct dnet_io_attr));
 	if (err)
 		goto err_out_free;
 
@@ -115,16 +109,35 @@ static void dnet_convert_name_to_id(char *name, unsigned char *id)
 	}
 }
 
+static int dnet_is_regular(struct dnet_node *n, int fd, char *path, size_t *size)
+{
+	struct stat st;
+	int err;
+
+	err = fstatat(fd, path, &st, 0);
+	if (err) {
+		err = -errno;
+		dnet_log_err(n, "Failed to stat '%s' object", path);
+		return err;
+	}
+
+	*size = st.st_size;
+
+	return S_ISREG(st.st_mode);
+}
+
 static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		char *sub, unsigned char *first_id)
 {
+	struct dnet_node *n = st->n;
 	int fd, err = 0;
 	DIR *dir;
 	struct dirent64 *d;
 	unsigned char id[DNET_ID_SIZE];
 	unsigned int len;
+	size_t size = 0; /* Shut up the compiler */
 
-	fd = openat(st->n->rootfd, sub, O_RDONLY);
+	fd = openat(n->rootfd, sub, O_RDONLY);
 	if (fd == -1) {
 		err = -errno;
 		//dnet_log_err(n, "Failed to open '%s/%s'", st->n->root, sub);
@@ -140,7 +153,7 @@ static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		if (d->d_name[0] == '.' && d->d_name[1] == '.' && d->d_name[2] == '\0')
 			continue;
 
-		if (d->d_type != DT_REG)
+		if (dnet_is_regular(n, fd, d->d_name, &size) <= 0)
 			continue;
 
 		len = strlen(d->d_name);
@@ -159,9 +172,9 @@ static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 				continue;
 		}
 
-		err = dnet_send_list_entry(st, cmd, id);
+		err = dnet_send_list_entry(st, cmd, id, size);
 
-		dnet_log(st->n, "%s -> %s.\n", d->d_name, dnet_dump_id(id));
+		dnet_log(n, "%s -> %s.\n", d->d_name, dnet_dump_id(id));
 	}
 
 	close(fd);
