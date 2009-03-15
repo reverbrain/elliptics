@@ -227,6 +227,32 @@ static int dnet_parse_numeric_id(char *value, unsigned char *id)
 	return 0;
 }
 
+static int dnet_background(void)
+{
+	pid_t pid;
+
+	pid = fork();
+	if (pid == -1) {
+		fprintf(stderr, "Failed to fork to background: %s.\n", strerror(errno));
+		return -1;
+	}
+
+	if (pid != 0) {
+		printf("Daemon pid: %d.\n", pid);
+		exit(0);
+	}
+
+	if (setsid()) {
+		fprintf(stderr, "Failed to create a new session: %s.\n", strerror(errno));
+		return -1;
+	}
+
+	close(1);
+	close(2);
+
+	return 0;
+}
+
 static void dnet_usage(char *p)
 {
 	fprintf(stderr, "Usage: %s\n"
@@ -244,13 +270,15 @@ static void dnet_usage(char *p)
 			" -l log               - log file. Default: stdout\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" ...                  - parameters can be repeated multiple times\n"
-			"                        each time they correspond to the last added node\n", p);
+			"                        each time they correspond to the last added node\n"
+			" -D <daemon>          - go background\n"
+			, p);
 }
 
 int main(int argc, char *argv[])
 {
 	int trans_max = 5, trans_num = 0;
-	int ch, err, join = 0, i, have_remote = 0;
+	int ch, err, join = 0, i, have_remote = 0, daemon = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem;
 	struct dnet_crypto_engine *e, *trans[trans_max];
@@ -265,8 +293,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "c:I:w:l:i:H:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "Dc:I:w:l:i:H:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 'D':
+				daemon = 1;
+				break;
 			case 'w':
 				cfg.wait_timeout = atoi(optarg);
 				break;
@@ -335,6 +366,9 @@ int main(int argc, char *argv[])
 
 	if (!log)
 		fprintf(stderr, "No log file found, logging will be disabled.\n");
+
+	if (daemon)
+		dnet_background();
 
 	n = dnet_node_create(&cfg);
 	if (!n)
