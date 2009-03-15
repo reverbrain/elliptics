@@ -141,14 +141,14 @@ struct dnet_net_state
 
 	pthread_t		tid;
 
-	int			empty;
+	int			join_state;
 	unsigned char		id[DNET_ID_SIZE];
 
 	struct dnet_addr	addr;
 };
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
-		struct dnet_addr *addr, int s, void *(* process)(void *), int empty);
+		struct dnet_addr *addr, int s, void *(* process)(void *));
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 {
@@ -262,6 +262,8 @@ struct dnet_node
 	struct timespec		wait_ts;
 
 	uint64_t		total_synced_files;
+
+	int			join_state;
 };
 
 static inline char *dnet_dump_node(struct dnet_node *n)
@@ -286,6 +288,13 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 		struct sockaddr *sa, unsigned int *addr_len, int listening);
 int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 		struct sockaddr *sa, unsigned int salen, int listening);
+
+enum dnet_join_state {
+	DNET_CLIENT,		/* Node did not not join the network */
+	DNET_JOINED,		/* Node joined the network */
+	DNET_REJOIN,		/* Some of the states reconnected and node needs to rejoin */
+};
+int dnet_rejoin(struct dnet_node *n, int all);
 
 struct dnet_trans
 {

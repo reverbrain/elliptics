@@ -197,7 +197,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cm
 		goto err_out_exit;
 	}
 
-	st = dnet_state_create(n, cmd->id, &a->addr, s, dnet_state_process, 1);
+	st = dnet_state_create(n, cmd->id, &a->addr, s, dnet_state_process);
 	if (!st) {
 		err = -EINVAL;
 		goto err_out_close;
@@ -664,7 +664,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 	dnet_log_append(n, "%s -> %s.\n", dnet_dump_id(acmd.cmd.id),
 		dnet_server_convert_dnet_addr(&acmd.addr.addr));
 
-	st = dnet_state_create(n, acmd.cmd.id, &acmd.addr.addr, s, dnet_state_process, 0);
+	st = dnet_state_create(n, acmd.cmd.id, &acmd.addr.addr, s, dnet_state_process);
 	if (!st)
 		goto err_out_sock_close;
 
@@ -676,7 +676,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_join(struct dnet_node *n)
+int dnet_rejoin(struct dnet_node *n, int all)
 {
 	struct dnet_addr_cmd a;
 	int err = 0;
@@ -715,17 +715,37 @@ int dnet_join(struct dnet_node *n)
 		if (st == n->st)
 			continue;
 
+		if (!all && st->join_state != DNET_REJOIN)
+			continue;
+
+		pthread_mutex_lock(&st->lock);
 		err = dnet_send(st, &a, sizeof(struct dnet_addr_cmd));
 		if (err) {
 			dnet_log(n, "%s: failed to update state", dnet_dump_id(n->id));
 			dnet_log_append(n, " %s -> %s:%d.\n", dnet_dump_id(st->id),
 				dnet_server_convert_dnet_addr(&st->addr));
+			pthread_mutex_unlock(&st->lock);
 			break;
 		}
+
+		st->join_state = DNET_JOINED;
+		pthread_mutex_unlock(&st->lock);
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
 	return err;
+}
+
+int dnet_join(struct dnet_node *n)
+{
+	int err;
+
+	err = dnet_rejoin(n, 1);
+	if (err)
+		return err;
+
+	n->join_state = DNET_JOINED;
+	return 0;
 }
 
 int dnet_setup_root(struct dnet_node *n, char *root)
@@ -1430,4 +1450,17 @@ err_out_free:
 	free(c);
 err_out_exit:
 	return err;
+}
+
+int dnet_give_up_control(struct dnet_node *n)
+{
+	while (1) {
+		if (n->join_state == DNET_REJOIN) {
+			dnet_rejoin(n, 0);
+			n->join_state = DNET_JOINED;
+		}
+		sleep(1);
+	}
+
+	return 0;
 }

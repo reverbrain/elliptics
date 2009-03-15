@@ -390,8 +390,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (root) {
-		while(1)
-			sleep(1);
+		dnet_give_up_control(n);
 	}
 
 	printf("Successfully executed given command.\n");

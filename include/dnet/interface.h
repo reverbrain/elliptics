@@ -153,6 +153,8 @@ int dnet_log_init(struct dnet_node *n, void *priv,
 
 int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command);
 
+int dnet_give_up_control(struct dnet_node *n);
+
 #ifdef __cplusplus
 }
 #endif

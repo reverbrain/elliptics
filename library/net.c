@@ -171,16 +171,20 @@ static int dnet_net_reconnect(struct dnet_net_state *st)
 {
 	int err;
 
-	if (st->empty)
+	if (st->join_state == DNET_CLIENT)
 		return -EINVAL;
 
 	err = dnet_socket_create_addr(st->n, st->n->sock_type, st->n->proto,
 			(struct sockaddr *)&st->addr, st->addr.addr_len, 0);
 	if (err < 0)
 		return err;
-	
-	close(st->s);
+
+	if (st->s > 0)
+		close(st->s);
 	st->s = err;
+
+	st->join_state = DNET_REJOIN;
+	st->n->join_state = DNET_REJOIN;
 
 	return 0;
 }
@@ -229,10 +233,6 @@ again:
 
 	if (!err)
 		return 0;
-
-	err = dnet_net_reconnect(st);
-	if (err)
-		return err;
 
 	size = orig_size;
 	data = orig_data;
@@ -287,7 +287,7 @@ void *dnet_state_process(void *data)
 		if ((err < 0) && (err != -EAGAIN)) {
 			dnet_log(n, "%s: state processing error: %d.\n", dnet_dump_id(st->id), err);
 
-			if (st->empty)
+			if (st->join_state == DNET_CLIENT)
 				break;
 
 			pthread_mutex_lock(&st->lock);
@@ -307,8 +307,7 @@ void *dnet_state_process(void *data)
 }
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
-		struct dnet_addr *addr, int s, void *(* process)(void *),
-		int empty)
+		struct dnet_addr *addr, int s, void *(* process)(void *))
 {
 	int err = -ENOMEM;
 	struct dnet_net_state *st;
@@ -332,9 +331,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		goto err_out_state_free;
 	}
 
-	st->empty = empty;
+	st->join_state = DNET_CLIENT;
 	if (!id) {
-		st->empty = 1;
 		pthread_mutex_lock(&n->state_lock);
 		list_add_tail(&st->state_entry, &n->empty_state_list);
 		pthread_mutex_unlock(&n->state_lock);
