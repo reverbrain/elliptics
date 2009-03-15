@@ -366,7 +366,7 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
 {
 	struct dnet_node *n = st->n;
 	struct dnet_io_attr *io = data;
-	char file[DNET_ID_SIZE * 2 + 1 + 4];
+	char file[DNET_ID_SIZE * 2 + 1 + 4 + sizeof(DNET_HISTORY_SUFFIX)];
 	int dd, err;
 	struct dnet_cmd *c;
 	struct dnet_attr *a;
@@ -386,7 +386,10 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	dnet_convert_io_attr(io);
 
-	snprintf(file, sizeof(file), "%02x/%s", io->id[0], dnet_dump_id(io->id));
+	if (attr->flags)
+		snprintf(file, sizeof(file), "%02x/%s%s", io->id[0], dnet_dump_id(io->id), DNET_HISTORY_SUFFIX);
+	else
+		snprintf(file, sizeof(file), "%02x/%s", io->id[0], dnet_dump_id(io->id));
 
 	dd = openat(n->rootfd, file, O_RDONLY, 0644);
 	if (dd < 0) {
@@ -445,7 +448,7 @@ static int dnet_cmd_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 		a->cmd = DNET_CMD_READ;
 		a->size = sizeof(struct dnet_io_attr) + size;
-		a->flags = 0;
+		a->flags = attr->flags;
 
 		memcpy(rio->id, io->id, DNET_ID_SIZE);
 		rio->size = size;
@@ -811,7 +814,7 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 }
 
 static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, unsigned char *id,
-		int attr_cmd, struct dnet_io_attr *ioattr,
+		unsigned int attr_cmd, unsigned int attr_flags, struct dnet_io_attr *ioattr,
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 		void *priv)
 {
@@ -846,7 +849,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, unsigned cha
 
 	a->cmd = attr_cmd;
 	a->size = sizeof(struct dnet_io_attr) + size;
-	a->flags = 0;
+	a->flags = attr_flags;
 
 	memcpy(io, ioattr, sizeof(struct dnet_io_attr));
 
@@ -879,7 +882,7 @@ err_out_exit:
 	return NULL;
 }
 
-int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, int append)
+int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, int append, unsigned int aflags)
 {
 	int fd, err, pos = 0, len = strlen(file);
 	struct dnet_trans *t;
@@ -957,7 +960,7 @@ int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, 
 		w->cond++;
 		pthread_mutex_unlock(&w->wait_lock);
 
-		t = dnet_io_trans_create(n, file_id, DNET_CMD_WRITE, &io, dnet_write_complete, c);
+		t = dnet_io_trans_create(n, file_id, DNET_CMD_WRITE, aflags, &io, dnet_write_complete, c);
 		if (!t) {
 			dnet_log(n, "%s: failed to create transaction.\n", dnet_dump_id(io.id));
 			continue;
@@ -1000,13 +1003,13 @@ err_out_exit:
 
 int dnet_write_object(struct dnet_node *n, unsigned char *id, struct dnet_io_attr *io,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-	void *priv, void *data)
+	void *priv, void *data, unsigned int aflags)
 {
 	struct dnet_trans *t;
 	struct dnet_net_state *st;
 	int err;
 
-	t = dnet_io_trans_create(n, id, DNET_CMD_WRITE, io, complete, priv);
+	t = dnet_io_trans_create(n, id, DNET_CMD_WRITE, aflags, io, complete, priv);
 	if (!t) {
 		err = -ENOMEM;
 		dnet_log(n, "%s: failed to create transaction.\n", dnet_dump_id(id));
@@ -1116,13 +1119,14 @@ err_out_exit:
 }
 
 int dnet_read_object(struct dnet_node *n, struct dnet_io_attr *io,
-	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *), void *priv)
+	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
+	void *priv, unsigned int aflags)
 {
 	struct dnet_trans *t;
 	struct dnet_net_state *st;
 	int err;
 
-	t = dnet_io_trans_create(n, io->id, DNET_CMD_READ, io, complete, priv);
+	t = dnet_io_trans_create(n, io->id, DNET_CMD_READ, aflags, io, complete, priv);
 	if (!t) {
 		dnet_log(n, "%s: failed to create transaction.\n", dnet_dump_id(io->id));
 		err = -ENOMEM;
@@ -1152,7 +1156,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size)
+int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size, unsigned int aflags)
 {
 	struct dnet_io_attr io;
 	int err, len = strlen(file), pos = 0, wait_init = ~0, error = 0;
@@ -1180,7 +1184,7 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
 			continue;
 		}
 
-		c = malloc(sizeof(struct dnet_io_completion) + len + 1);
+		c = malloc(sizeof(struct dnet_io_completion) + len + 1 + sizeof(DNET_HISTORY_SUFFIX));
 		if (!c) {
 			dnet_log(n, "%s: failed to allocate IO completion structure for '%s' file reading.\n",
 					dnet_dump_id(io.id), file);
@@ -1192,10 +1196,14 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
 		c->offset = offset;
 		c->size = size;
 		c->file = (char *)(c + 1);
-		sprintf(c->file, "%s", file);
+
+		if (aflags)
+			sprintf(c->file, "%s%s", file, DNET_HISTORY_SUFFIX);
+		else
+			sprintf(c->file, "%s", file);
 
 		w->cond = wait_init;
-		err = dnet_read_object(n, &io, dnet_read_complete, c);
+		err = dnet_read_object(n, &io, dnet_read_complete, c, aflags);
 		if (err)
 			continue;
 

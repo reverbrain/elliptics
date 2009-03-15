@@ -376,7 +376,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 
 	snprintf(cmp->file, sizeof(file), "%02x/%s", io->id[0], dnet_dump_id(io->id));
 
-	err = dnet_read_object(st->n, &req, dnet_read_complete_history, cmp);
+	err = dnet_read_object(st->n, &req, dnet_read_complete_history, cmp, 0);
 	if (err)
 		goto err_out_exit;
 out:

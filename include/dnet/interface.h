@@ -52,13 +52,14 @@ struct dnet_node;
  * freed when transaction is completed.
  */
 int dnet_read_object(struct dnet_node *n, struct dnet_io_attr *io,
-	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *), void *priv);
-int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size);
+	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
+	void *priv, unsigned int aflags);
+int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size, unsigned int aflags);
 
 int dnet_write_object(struct dnet_node *n, unsigned char *id, struct dnet_io_attr *io,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-	void *priv, void *data);
-int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, int append);
+	void *priv, void *data, unsigned int aflags);
+int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, int append, unsigned int aflags);
 
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8

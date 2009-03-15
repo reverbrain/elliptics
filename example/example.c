@@ -263,7 +263,8 @@ static void dnet_usage(char *p)
 			" -d root              - root directory to load/store the objects\n"
 			" -W file              - write given file to the network storage\n"
 			" -R file              - read given file from the network into the local storage\n"
-			" -H hash              - OpenSSL hash to use as a transformation function\n"
+			" -H file              - read a history for given file into the local storage\n"
+			" -T hash              - OpenSSL hash to use as a transformation function\n"
 			" -i id                - node's ID (zero by default)\n"
 			" -I id                - transaction id\n"
 			" -c cmd               - execute given command on the remote node\n"
@@ -284,6 +285,7 @@ int main(int argc, char *argv[])
 	struct dnet_config cfg, rem;
 	struct dnet_crypto_engine *e, *trans[trans_max];
 	char *log = NULL, *root = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
+	char *historyf = NULL;
 	unsigned char trans_id[DNET_ID_SIZE];
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -294,8 +296,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "L:Dc:I:w:l:i:H:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "H:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 'H':
+				historyf = optarg;
+				break;
 			case 'L':
 				lookup = optarg;
 				break;
@@ -344,7 +349,7 @@ int main(int argc, char *argv[])
 			case 'R':
 				readf = optarg;
 				break;
-			case 'H':
+			case 'T':
 				if (trans_num == trans_max - 1) {
 					fprintf(stderr, "Only %d transformation functions allowed in this example.\n",
 							trans_max);
@@ -410,13 +415,19 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		err = dnet_write_file(n, writef, 0, 0, 0);
+		err = dnet_write_file(n, writef, 0, 0, 0, 0);
 		if (err)
 			return err;
 	}
 
 	if (readf) {
-		err = dnet_read_file(n, readf, 0, 0);
+		err = dnet_read_file(n, readf, 0, 0, 0);
+		if (err)
+			return err;
+	}
+	
+	if (historyf) {
+		err = dnet_read_file(n, historyf, 0, 0, 1);
 		if (err)
 			return err;
 	}
