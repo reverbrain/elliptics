@@ -239,7 +239,10 @@ static int dnet_update_history(struct dnet_node *n, int md, unsigned char *id, s
 		goto err_out_exit;
 	}
 
+	dnet_convert_io_attr(io);
 	err = write(fd, io, sizeof(struct dnet_io_attr));
+	dnet_convert_io_attr(io);
+
 	if (err <= 0) {
 		err = -errno;
 		dnet_log_err(n, "%s: failed to update history file '%s'", dnet_dump_id(id), history);
