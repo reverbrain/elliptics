@@ -256,7 +256,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->st)
 		goto err_out_sock_close;
 
-	dnet_log(n, "%s: new node has been created at %s.\n", dnet_dump_id(n->id), dnet_dump_node(n));
+	dnet_log(n, "%s: new node has been created at %s, id_size: %u.\n",
+			dnet_dump_id(n->id), dnet_dump_node(n), DNET_ID_SIZE);
 	return n;
 
 err_out_sock_close:

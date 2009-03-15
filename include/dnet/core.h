@@ -16,11 +16,17 @@
 #ifndef __DNET_CORE_H
 #define __DNET_CORE_H
 
+#include "config.h"
+
 #include <dnet/typedefs.h>
 
 #define DNET_HISTORY_SUFFIX	".history"
 
-#define DNET_ID_SIZE		20		/* Has to match selected hash type */
+#ifdef CONFIG_ID_SIZE
+#define DNET_ID_SIZE		CONFIG_ID_SIZE
+#else
+#define DNET_ID_SIZE		20
+#endif
 #define DNET_MAX_NAME_LEN	64
 
 #endif /* __DNET_CORE_H */
