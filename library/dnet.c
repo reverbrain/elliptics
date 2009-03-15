@@ -289,7 +289,7 @@ static int dnet_cmd_write(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	snprintf(dir, sizeof(dir), "%02x", cmd->id[0]);
 
-	err = mkdirat(n->rootfd, dir, 0755);
+	err = dnet_mkdirat(n, dir, 0755);
 	if (err < 0) {
 		if (errno != EEXIST) {
 			err = -errno;
@@ -748,6 +748,8 @@ int dnet_setup_root(struct dnet_node *n, char *root)
 		n->rootfd = 0;
 		return err;
 	}
+
+	n->root_len = strlen(n->root);
 
 	return 0;
 }

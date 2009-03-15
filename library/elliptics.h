@@ -251,7 +251,7 @@ struct dnet_node
 
 	int			error;
 
-	int			rootfd;
+	int			rootfd, root_len;
 	char			*root;
 
 	void			*log_priv;
@@ -339,6 +339,12 @@ struct dnet_transform
 					void *dst, unsigned int *dsize, unsigned int flags);
 	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };
+
+/*
+ * Compat emulation for the systems, which do not have some *at() syscalls.
+ */
+int dnet_mkdirat(struct dnet_node *n, char *path, mode_t mode);
+int dnet_renameat(struct dnet_node *n, char *opath, char *npath);
 
 #ifdef __cplusplus
 }

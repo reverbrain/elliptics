@@ -274,7 +274,7 @@ static int dnet_read_complete_history(struct dnet_net_state *st, struct dnet_cmd
 	snprintf(tmp, sizeof(tmp), "%s%s.tmp", c->file, DNET_HISTORY_SUFFIX);
 	snprintf(file, sizeof(file), "%s%s", c->file, DNET_HISTORY_SUFFIX);
 
-	err = renameat(st->n->rootfd, tmp, st->n->rootfd, file);
+	err = dnet_renameat(st->n, tmp, file);
 	if (err) {
 		err = -errno;
 		dnet_log_err(n, "%s: failed to rename '%s' -> '%s'", dnet_dump_id(cmd->id), tmp, file);
@@ -316,7 +316,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 	}
 
 	sprintf(dir, "%02x", io->id[0]);
-	err = mkdirat(st->n->rootfd, dir, 0755);
+	err = dnet_mkdirat(st->n, dir, 0755);
 	if (err < 0) {
 		if (errno != EEXIST) {
 			err = -errno;
