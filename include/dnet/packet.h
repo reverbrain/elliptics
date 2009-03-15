@@ -73,7 +73,7 @@ struct dnet_cmd
 	uint8_t			data[0];
 } __attribute__ ((packed));
 
-#ifdef DNET_BIG_ENDIAN
+#ifdef WORDS_BIGENDIAN
 #define dnet_bswap32(x) \
      ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >>  8) |		      \
       (((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24))

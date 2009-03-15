@@ -22,6 +22,8 @@ for i in -W -Wall -Wextra; do
 	AX_CHECK_COMPILER_FLAGS([$i], [CFLAGS="$CFLAGS $i"], [])
 done
 
+AC_C_BIGENDIAN_CROSS
+
 AC_CONFIG_FILES([Makefile include/Makefile include/dnet/Makefile
 	library/Makefile example/Makefile])
 
