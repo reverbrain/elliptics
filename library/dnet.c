@@ -497,7 +497,7 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		err = waitpid(pid, &status, 0);
 		if (err < 0) {
 			err = -errno;
-			dnet_log_err(n, "%s: failed to wait for child (%d) process", dnet_dump_id(cmd->id), pid);
+			dnet_log_err(n, "%s: failed to wait for child (%d) process", dnet_dump_id(cmd->id), (int)pid);
 			goto out_exit;
 		}
 
@@ -1125,6 +1125,7 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
 
 	w = dnet_wait_alloc(wait_init);
 	if (!w) {
+		err = -ENOMEM;
 		dnet_log(n, "Failed to allocate read waiting.\n");
 		goto err_out_exit;
 	}
