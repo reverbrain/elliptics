@@ -106,7 +106,7 @@ struct dnet_attr
 	uint32_t		cmd;
 	uint32_t		flags;
 	uint32_t		unused[2];
-};
+} __attribute__ ((packed));
 
 static inline void dnet_convert_attr(struct dnet_attr *a)
 {
@@ -121,14 +121,14 @@ struct dnet_addr
 {
 	uint8_t			addr[DNET_ADDR_SIZE];
 	uint32_t		addr_len;
-};
+} __attribute__ ((packed));
 
 struct dnet_list
 {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		size;
 	uint8_t			data[0];
-};
+} __attribute__ ((packed));
 
 static inline void dnet_convert_list(struct dnet_list *l)
 {
@@ -140,7 +140,7 @@ struct dnet_addr_attr
 	uint32_t		sock_type;
 	uint32_t		proto;
 	struct dnet_addr	addr;
-};
+} __attribute__ ((packed));
 
 static inline void dnet_convert_addr_attr(struct dnet_addr_attr *a)
 {
@@ -154,7 +154,7 @@ struct dnet_addr_cmd
 	struct dnet_cmd		cmd;
 	struct dnet_attr	a;
 	struct dnet_addr_attr	addr;
-};
+} __attribute__ ((packed));
 
 static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 {
@@ -177,7 +177,7 @@ struct dnet_io_attr
 	uint32_t		flags;
 	uint64_t		offset;
 	uint64_t		size;
-};
+} __attribute__ ((packed));
 
 static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 {
