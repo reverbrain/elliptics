@@ -151,9 +151,26 @@ int dnet_log_init(struct dnet_node *n, void *priv,
 		void (* log)(void *priv, const char *f, ...),
 		void (* log_append)(void *priv, const char *f, ...));
 
+/*
+ * Send a shell command to the remote node for execution.
+ */
 int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command);
 
+/*
+ * Must be called by the main thread to give up control
+ * to the elliptics machinery sometime after node has joined the network.
+ *
+ * This will pick up disconnected states and rejoin them.
+ */
 int dnet_give_up_control(struct dnet_node *n);
+
+/*
+ * Lookup a node which hosts given ID.
+ */
+int dnet_lookup_object(struct dnet_node *n, unsigned char *id,
+	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
+	void *priv);
+int dnet_lookup(struct dnet_node *n, char *file);
 
 #ifdef __cplusplus
 }

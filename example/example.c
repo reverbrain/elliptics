@@ -265,8 +265,9 @@ static void dnet_usage(char *p)
 			" -R file              - read given file from the network into the local storage\n"
 			" -H hash              - OpenSSL hash to use as a transformation function\n"
 			" -i id                - node's ID (zero by default)\n"
-			" -I id                - exec command transaction id\n"
+			" -I id                - transaction id\n"
 			" -c cmd               - execute given command on the remote node\n"
+			" -L file              - lookup a storage which hosts given file\n"
 			" -l log               - log file. Default: stdout\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" ...                  - parameters can be repeated multiple times\n"
@@ -282,7 +283,7 @@ int main(int argc, char *argv[])
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem;
 	struct dnet_crypto_engine *e, *trans[trans_max];
-	char *log = NULL, *root = NULL, *readf = NULL, *writef = NULL, *cmd = NULL;
+	char *log = NULL, *root = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
 	unsigned char trans_id[DNET_ID_SIZE];
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -293,8 +294,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "Dc:I:w:l:i:H:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "L:Dc:I:w:l:i:H:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 'L':
+				lookup = optarg;
+				break;
 			case 'D':
 				daemon = 1;
 				break;
@@ -419,6 +423,12 @@ int main(int argc, char *argv[])
 
 	if (cmd) {
 		err = dnet_send_cmd(n, trans_id, cmd);
+		if (err)
+			return err;
+	}
+
+	if (lookup) {
+		err = dnet_lookup(n, lookup);
 		if (err)
 			return err;
 	}
