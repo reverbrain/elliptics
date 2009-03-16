@@ -17,6 +17,7 @@
 #define __DNET_INTERFACE_H
 
 #include <dnet/typedefs.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
