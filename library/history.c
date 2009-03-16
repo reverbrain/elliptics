@@ -41,7 +41,7 @@ static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req,
 
 	snprintf(file, sizeof(file), "%02x/%s%s", id[0], dnet_dump_id(id), DNET_HISTORY_SUFFIX);
 
-	fd = openat(st->n->rootfd, file, O_RDONLY);
+	fd = open(file, O_RDONLY);
 	if (fd <= 0) {
 		err = -errno;
 		dnet_log_err(n, "%s: failed to open history file '%s'", dnet_dump_id(id), file);
@@ -109,12 +109,12 @@ static void dnet_convert_name_to_id(char *name, unsigned char *id)
 	}
 }
 
-static int dnet_is_regular(struct dnet_node *n, int fd, char *path, size_t *size)
+static int dnet_is_regular(struct dnet_node *n, char *path, size_t *size)
 {
 	struct stat st;
 	int err;
 
-	err = fstatat(fd, path, &st, 0);
+	err = stat(path, &st);
 	if (err) {
 		err = -errno;
 		dnet_log_err(n, "Failed to stat '%s' object", path);
@@ -130,30 +130,29 @@ static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		char *sub, unsigned char *first_id)
 {
 	struct dnet_node *n = st->n;
-	int fd, err = 0;
+	int err = 0;
 	DIR *dir;
-	struct dirent64 *d;
+	struct dirent *d;
 	unsigned char id[DNET_ID_SIZE];
 	unsigned int len;
 	size_t size = 0; /* Shut up the compiler */
 
-	fd = openat(n->rootfd, sub, O_RDONLY);
-	if (fd == -1) {
+	dir = opendir(sub);
+	if (!dir) {
 		err = -errno;
 		//dnet_log_err(n, "Failed to open '%s/%s'", st->n->root, sub);
 		return err;
 	}
 
-	dir = fdopendir(fd);
 	err = 0;
 
-	while ((d = readdir64(dir)) != NULL) {
+	while ((d = readdir(dir)) != NULL) {
 		if (d->d_name[0] == '.' && d->d_name[1] == '\0')
 			continue;
 		if (d->d_name[0] == '.' && d->d_name[1] == '.' && d->d_name[2] == '\0')
 			continue;
 
-		if (dnet_is_regular(n, fd, d->d_name, &size) <= 0)
+		if (dnet_is_regular(n, d->d_name, &size) <= 0)
 			continue;
 
 		len = strlen(d->d_name);
@@ -177,7 +176,7 @@ static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		dnet_log(n, "%s -> %s.\n", d->d_name, dnet_dump_id(id));
 	}
 
-	close(fd);
+	closedir(dir);
 
 	return 0;
 }
@@ -249,8 +248,8 @@ static int dnet_process_existing_history(struct dnet_net_state *st, struct dnet_
 
 	dnet_log(n, "%s: the last local/remote update: offset: %llu/%llu, size: %llu/%llu.\n",
 			dnet_dump_id(io->id),
-			last_io.offset, last_recv_io->offset,
-			last_io.size, last_recv_io->size);
+			(unsigned long long)last_io.offset, (unsigned long long)last_recv_io->offset,
+			(unsigned long long)last_io.size, (unsigned long long)last_recv_io->size);
 	dnet_log_append(n, "       %s/", dnet_dump_id(last_io.id));
 	dnet_log_append(n, "%s, same: %d.\n", dnet_dump_id(last_recv_io->id), !err);
 
@@ -287,7 +286,7 @@ static int dnet_read_complete_history(struct dnet_net_state *st, struct dnet_cmd
 	snprintf(tmp, sizeof(tmp), "%s%s.tmp", c->file, DNET_HISTORY_SUFFIX);
 	snprintf(file, sizeof(file), "%s%s", c->file, DNET_HISTORY_SUFFIX);
 
-	err = dnet_renameat(st->n, tmp, file);
+	err = rename(tmp, file);
 	if (err) {
 		err = -errno;
 		dnet_log_err(n, "%s: failed to rename '%s' -> '%s'", dnet_dump_id(cmd->id), tmp, file);
@@ -312,7 +311,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 
 	dnet_wakeup(w, w->cond++);
 
-	fd = openat(st->n->rootfd, file, O_RDONLY);
+	fd = open(file, O_RDONLY);
 	if (fd >= 0) {
 		err = dnet_process_existing_history(st, io, fd);
 		if (err)
@@ -329,7 +328,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 	}
 
 	sprintf(dir, "%02x", io->id[0]);
-	err = dnet_mkdirat(st->n, dir, 0755);
+	err = mkdir(dir, 0755);
 	if (err < 0) {
 		if (errno != EEXIST) {
 			err = -errno;
@@ -341,7 +340,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 
 	snprintf(file, sizeof(file), "%02x/%s%s.tmp", io->id[0], dnet_dump_id(io->id), DNET_HISTORY_SUFFIX);
 
-	fd = openat(st->n->rootfd, file, O_RDWR | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
+	fd = open(file, O_RDWR | O_CREAT | O_TRUNC | O_LARGEFILE, 0644);
 	if (fd < 0) {
 		err = -errno;
 		dnet_log_err(n, "%s: failed to create history file '%s'", dnet_dump_id(io->id), file);
@@ -408,7 +407,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		dnet_convert_attr(a);
 
 		if (a->size < sizeof(struct dnet_io_attr)) {
-			dnet_log(n, "%s: wrong list reply attribute size: %llu, mut be greater or equal than %u.\n",
+			dnet_log(n, "%s: wrong list reply attribute size: %llu, mut be greater or equal than %zu.\n",
 					dnet_dump_id(cmd->id), (unsigned long long)a->size, sizeof(struct dnet_io_attr));
 			err = -EPROTO;
 			goto out;
@@ -445,7 +444,8 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 out:
 	dnet_log(n, "%s: listing completed with status: %d, size: %llu, err: %d, files_synced: %llu.\n",
-			dnet_dump_id(cmd->id), cmd->status, cmd->size, err, n->total_synced_files);
+			dnet_dump_id(cmd->id), cmd->status, (unsigned long long)cmd->size,
+			err, (unsigned long long)n->total_synced_files);
 	return err;
 }
 
@@ -529,7 +529,8 @@ int dnet_recv_list(struct dnet_node *n)
 		goto err_out_exit;
 	}
 
-	dnet_log(n, "%s: successfully synced %llu files.\n", dnet_dump_id(n->id), n->total_synced_files);
+	dnet_log(n, "%s: successfully synced %llu files.\n", dnet_dump_id(n->id),
+			(unsigned long long)n->total_synced_files);
 
 	return 0;
 

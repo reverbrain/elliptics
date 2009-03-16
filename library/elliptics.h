@@ -37,7 +37,9 @@ extern "C" {
 #endif
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#ifndef __unused
 #define __unused	__attribute__ ((unused))
+#endif
 
 static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
 {
@@ -282,6 +284,7 @@ int dnet_wait(struct dnet_net_state *st);
 int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 		int fd, off_t offset, size_t size,
 		void *header, unsigned int hsize);
+int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size);
 
 struct dnet_config;
 int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
@@ -349,11 +352,9 @@ struct dnet_transform
 	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };
 
-/*
- * Compat emulation for the systems, which do not have some *at() syscalls.
- */
-int dnet_mkdirat(struct dnet_node *n, char *path, mode_t mode);
-int dnet_renameat(struct dnet_node *n, char *opath, char *npath);
+#ifndef HAVE_LARGEFILE_SUPPORT
+#define O_LARGEFILE		0
+#endif
 
 #ifdef __cplusplus
 }

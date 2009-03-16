@@ -23,8 +23,9 @@ for i in -W -Wall -Wextra; do
 done
 
 AC_C_BIGENDIAN_CROSS
-AG_CHECK_AT_SYSCALLS
+AC_CHECK_LARGEFILE
 AC_ID_SIZE
+AC_CHECK_SENDFILE
 
 AC_CONFIG_FILES([Makefile include/Makefile include/dnet/Makefile
 	library/Makefile example/Makefile])

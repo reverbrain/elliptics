@@ -21,7 +21,6 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 
-#include <alloca.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,43 +28,18 @@
 
 #include "elliptics.h"
 
-#ifdef HAVE_AT_SYSCALLS
-int dnet_mkdirat(struct dnet_node *n, char *path, mode_t mode)
+#ifdef HAVE_SENDFILE4_SUPPORT
+#include <sys/sendfile.h>
+int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
 {
-	return mkdirat(n->rootfd, path, mode);
+	return sendfile(st->s, fd, offset, size);
 }
-
-int dnet_renameat(struct dnet_node *n, char *opath, char *npath)
+#elif HAVE_SENDFILE7_SUPPORT
+#include <sys/uio.h>
+int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
 {
-	return renameat(n->rootfd, opath, n->rootfd, npath);
+	return sendfile(fd, st->s, *offset, size, NULL, NULL, 0);
 }
 #else
-int dnet_mkdirat(struct dnet_node *n, char *path, mode_t mode)
-{
-	int len = strlen(path) + n->root_len + 2; // '/' and null-byte
-	char *npath = alloca(len);
-
-	if (!npath)
-		return -ENOMEM;
-
-	snprintf(npath, len, "%s/%s", n->root, path);
-	return mkdir(npath, mode);
-}
-
-int dnet_renameat(struct dnet_node *n, char *opath, char *npath)
-{
-	int olen = strlen(opath) + n->root_len + 2;
-	int nlen = strlen(npath) + n->root_len + 2;
-	char *op, *np, *path;
-
-	path = alloca(olen + nlen);
-	if (!path)
-		return -ENOMEM;
-
-	op = path;
-	np = op + snprintf(op, olen, "%s/%s", n->root, opath);
-	snprintf(np, nlen, "%s/%s", n->root, npath);
-
-	return rename(op, np);
-}
+#error "Your platform does not support sendfile. Sorry."
 #endif

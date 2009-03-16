@@ -18,7 +18,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
-#include <sys/sendfile.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -196,7 +195,6 @@ int dnet_send(struct dnet_net_state *st, void *data, unsigned int size)
 	void *orig_data = data;
 	struct dnet_node *n = st->n;
 
-again:
 	while (size) {
 		err = dnet_wait_fd(st->s, POLLOUT, st->timeout);
 		if (st->n->need_exit) {
@@ -231,13 +229,7 @@ again:
 		err = 0;
 	}
 
-	if (!err)
-		return 0;
-
-	size = orig_size;
-	data = orig_data;
-
-	goto again;
+	return err;
 }
 
 int dnet_wait(struct dnet_net_state *st)
@@ -414,13 +406,13 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 			continue;
 
 		if (err < 0) {
-			dnet_log(st->n, "Failed to wait for descriptor: err: %d, socket: %d.\n", err, st->s);
+			dnet_log(st->n, "Failed to wait for descriptor: err: %zd, socket: %d.\n", err, st->s);
 			break;
 		}
 
-		err = sendfile(st->s, fd, &offset, size);
+		err = dnet_sendfile(st, fd, &offset, size);
 		if (err < 0) {
-			dnet_log_err(st->n, "%s: failed to send file data, err: %d", dnet_dump_id(st->id), err);
+			dnet_log_err(st->n, "%s: failed to send file data, err: %zd", dnet_dump_id(st->id), err);
 			goto err_out_unlock;
 		}
 
@@ -429,8 +421,8 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 			break;
 		}
 
-		dnet_log(st->n, "%s: size: %zu, rest: %zu, offset: %llu, err: %zu.\n",
-				dnet_dump_id(st->id), size, size-err, offset, err);
+		dnet_log(st->n, "%s: size: %zu, rest: %zu, offset: %llu, err: %zd.\n",
+				dnet_dump_id(st->id), size, size-err, (unsigned long long)offset, err);
 
 		size -= err;
 	}

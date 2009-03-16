@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (!st.st_size || (st.st_size % sizeof(struct dnet_io_attr))) {
-		fprintf(stderr, "Corrupted history file '%s', its size %llu has to be modulo of %u.\n",
+		fprintf(stderr, "Corrupted history file '%s', its size %llu has to be modulo of %zu.\n",
 				file, (unsigned long long)st.st_size, sizeof(struct dnet_io_attr));
 		err = -EINVAL;
 		goto err_out_close;
@@ -130,7 +130,8 @@ int main(int argc, char *argv[])
 		dnet_convert_io_attr(&io);
 
 		printf("%s: flags: %08x, offset: %8llu, size: %8llu: %c\n",
-			dnet_dump_id(io.id), io.flags, io.offset, io.size,
+			dnet_dump_id(io.id), io.flags,
+			(unsigned long long)io.offset, (unsigned long long)io.size,
 			hparser_region_match(&io, offset, size) ? '+' : '-');
 	}
 

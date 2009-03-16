@@ -30,13 +30,17 @@
 #include <string.h>
 #include <time.h>
 
+#include <netinet/in.h>
+
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
 
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
+#ifndef __unused
 #define __unused	__attribute__ ((unused))
+#endif
 
 struct dnet_crypto_engine
 {
@@ -122,7 +126,7 @@ static void dnet_example_log(void *priv, const char *f, ...)
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	fprintf(stream, "%s.%06lu %6ld ", str, tv.tv_usec, syscall(__NR_gettid));
+	fprintf(stream, "%s.%06lu ", str, tv.tv_usec);
 
 	va_start(ap, f);
 	vfprintf(stream, f, ap);
