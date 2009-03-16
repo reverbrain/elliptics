@@ -32,13 +32,29 @@
 #include <sys/sendfile.h>
 int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
 {
-	return sendfile(st->s, fd, offset, size);
+	int err;
+	
+	err = sendfile(st->s, fd, offset, size);
+	if (err < 0)
+		return -errno;
+
+	return err;
 }
 #elif HAVE_SENDFILE7_SUPPORT
 #include <sys/uio.h>
 int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
 {
-	return sendfile(fd, st->s, *offset, size, NULL, NULL, 0);
+	int err;
+	err = sendfile(fd, st->s, *offset, size, NULL, &size, 0);
+	if (err && errno != EAGAIN)
+		return -errno;
+
+	if (size) {
+		*offset += size;
+		return size;
+	}
+
+	return -EAGAIN;
 }
 #else
 #error "Your platform does not support sendfile. Sorry."
