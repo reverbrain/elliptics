@@ -50,7 +50,7 @@ static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req,
 
 	cmd = malloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 	if (!cmd) {
-		dnet_log(n, "%s: failed to allocate list reply.\n", dnet_dump_id(id));
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate list reply.\n", dnet_dump_id(id));
 		err = -ENOMEM;
 		goto err_out_close;
 	}
@@ -173,7 +173,7 @@ static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 		err = dnet_send_list_entry(st, cmd, id, size);
 
-		dnet_log(n, "%s -> %s.\n", d->d_name, dnet_dump_id(id));
+		dnet_log(n, DNET_LOG_INFO, "%s -> %s.\n", d->d_name, dnet_dump_id(id));
 	}
 
 	closedir(dir);
@@ -222,7 +222,7 @@ static int dnet_process_existing_history(struct dnet_net_state *st, struct dnet_
 	}
 
 	if (!stat.st_size || (stat.st_size % sizeof(struct dnet_io_attr))) {
-		dnet_log_append(n, "%s: corrupted history file: size %llu not multiple of %u.\n",
+		dnet_log_append(n, DNET_LOG_ERROR, "%s: corrupted history file: size %llu not multiple of %u.\n",
 				dnet_dump_id(io->id), (unsigned long long)stat.st_size, sizeof(struct dnet_io_attr));
 		err = -EINVAL;
 		goto err_out_exit;
@@ -246,12 +246,12 @@ static int dnet_process_existing_history(struct dnet_net_state *st, struct dnet_
 
 	err = memcmp(last_recv_io->id, last_io.id, DNET_ID_SIZE);
 
-	dnet_log(n, "%s: the last local/remote update: offset: %llu/%llu, size: %llu/%llu.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: the last local/remote update: offset: %llu/%llu, size: %llu/%llu.\n",
 			dnet_dump_id(io->id),
 			(unsigned long long)last_io.offset, (unsigned long long)last_recv_io->offset,
 			(unsigned long long)last_io.size, (unsigned long long)last_recv_io->size);
-	dnet_log_append(n, "       %s/", dnet_dump_id(last_io.id));
-	dnet_log_append(n, "%s, same: %d.\n", dnet_dump_id(last_recv_io->id), !err);
+	dnet_log_append(n, DNET_LOG_INFO, "       %s/", dnet_dump_id(last_io.id));
+	dnet_log_append(n, DNET_LOG_INFO, "%s, same: %d.\n", dnet_dump_id(last_recv_io->id), !err);
 
 	return err ? -EINVAL : 0;
 
@@ -268,10 +268,10 @@ static int dnet_read_complete_history(struct dnet_net_state *st, struct dnet_cmd
 	struct dnet_io_completion *c = priv;
 	struct dnet_node *n = st->n;
 
-	//dnet_log(n, "%s: file: '%s'.\n", dnet_dump_id(cmd->id), c->file);
+	//dnet_log(n, DNET_LOG_NOTICE, "%s: file: '%s'.\n", dnet_dump_id(cmd->id), c->file);
 
 	if (cmd->status != 0 || cmd->size == 0) {
-		dnet_log(n, "%s: COMPLETED file: '%s'.\n", dnet_dump_id(cmd->id), c->file);
+		dnet_log(n, DNET_LOG_INFO, "%s: COMPLETED file: '%s'.\n", dnet_dump_id(cmd->id), c->file);
 		dnet_wakeup(n->wait, do { n->wait->cond--; n->total_synced_files++; } while (0));
 		goto out;
 	}
@@ -360,7 +360,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 	cmp = malloc(sizeof(struct dnet_io_completion) + sizeof(file) + strlen(st->n->root));
 	if (!cmp) {
 		err = -ENOMEM;
-		dnet_log(n, "%s: failed to allocate read completion structure.\n", dnet_dump_id(io->id));
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate read completion structure.\n", dnet_dump_id(io->id));
 		goto err_out_exit;
 	}
 
@@ -407,7 +407,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		dnet_convert_attr(a);
 
 		if (a->size < sizeof(struct dnet_io_attr)) {
-			dnet_log(n, "%s: wrong list reply attribute size: %llu, mut be greater or equal than %zu.\n",
+			dnet_log(n, DNET_LOG_ERROR, "%s: wrong list reply attribute size: %llu, mut be greater or equal than %zu.\n",
 					dnet_dump_id(cmd->id), (unsigned long long)a->size, sizeof(struct dnet_io_attr));
 			err = -EPROTO;
 			goto out;
@@ -418,7 +418,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		dnet_convert_io_attr(io);
 
 		if (size < sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + io->size) {
-			dnet_log(n, "%s: wrong list reply IO attribute size: %llu, mut be less or equal than %llu.\n",
+			dnet_log(n, DNET_LOG_ERROR, "%s: wrong list reply IO attribute size: %llu, mut be less or equal than %llu.\n",
 					dnet_dump_id(cmd->id), (unsigned long long)io->size,
 					(unsigned long long)size - sizeof(struct dnet_attr) - sizeof(struct dnet_io_attr));
 			err = -EPROTO;
@@ -433,7 +433,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		if (err < 0)
 			n->error = err;
 
-		dnet_log(n, "%s: list entry offset: %llu, size: %llu, err: %d.\n", dnet_dump_id(io->id),
+		dnet_log(n, DNET_LOG_NOTICE, "%s: list entry offset: %llu, size: %llu, err: %d.\n", dnet_dump_id(io->id),
 				(unsigned long long)io->offset, (unsigned long long)io->size, err);
 
 		data += sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + io->size;
@@ -443,7 +443,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	}
 
 out:
-	dnet_log(n, "%s: listing completed with status: %d, size: %llu, err: %d, files_synced: %llu.\n",
+	dnet_log(n, DNET_LOG_NOTICE, "%s: listing completed with status: %d, size: %llu, err: %d, files_synced: %llu.\n",
 			dnet_dump_id(cmd->id), cmd->status, (unsigned long long)cmd->size,
 			err, (unsigned long long)n->total_synced_files);
 	return err;
@@ -495,7 +495,7 @@ int dnet_recv_list(struct dnet_node *n)
 	t->st = st = dnet_state_get_first(n, n->st);
 	if (!st) {
 		err = -ENOENT;
-		dnet_log(n, "%s: can not get output state.\n", dnet_dump_id(n->id));
+		dnet_log(n, DNET_LOG_ERROR, "%s: can not get output state.\n", dnet_dump_id(n->id));
 		goto err_out_destroy;
 	}
 
@@ -516,7 +516,7 @@ int dnet_recv_list(struct dnet_node *n)
 
 	err = dnet_wait_event(w, w->cond == 0, &n->wait_ts);
 	if (err) {
-		dnet_log(n, "%s: failed to wait for the content sync, err: %d, n_err: %d.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for the content sync, err: %d, n_err: %d.\n",
 				dnet_dump_id(n->id), err, n->error);
 		goto err_out_exit;
 	}
@@ -524,12 +524,12 @@ int dnet_recv_list(struct dnet_node *n)
 	if (n->error) {
 		err = n->error;
 
-		dnet_log(n, "%s: failed to sync the content, err: %d.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to sync the content, err: %d.\n",
 				dnet_dump_id(n->id), err);
 		goto err_out_exit;
 	}
 
-	dnet_log(n, "%s: successfully synced %llu files.\n", dnet_dump_id(n->id),
+	dnet_log(n, DNET_LOG_INFO, "%s: successfully synced %llu files.\n", dnet_dump_id(n->id),
 			(unsigned long long)n->total_synced_files);
 
 	return 0;

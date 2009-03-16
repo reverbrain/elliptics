@@ -65,9 +65,18 @@ static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
 	return 0;
 }
 
-#define dnet_log(n, f, a...) do { if (n && n->log) n->log(n->log_priv, f, ##a); else fprintf(stderr, f, ##a); } while (0)
-#define dnet_log_append(n, f, a...) do { if (n && n->log_append) n->log_append(n->log_priv, f, ##a); } while (0)
-#define dnet_log_err(n, f, a...) dnet_log(n, f ": %s [%d].\n", ##a, strerror(errno), errno)
+struct dnet_node;
+
+/*
+ * Initialize private logging system.
+ */
+int dnet_log_init(struct dnet_node *n, void *priv, uint32_t mask,
+		void (* log)(void *priv, uint32_t mask, const char *f, ...),
+		void (* log_append)(void *priv, uint32_t mask, const char *f, ...));
+
+#define dnet_log(n, mask, f, a...) do { if (n && n->log && (n->log_mask & mask)) n->log(n->log_priv, mask, f, ##a); } while (0)
+#define dnet_log_append(n, mask, f, a...) do { if (n && n->log_append && (n->log_mask & mask)) n->log_append(n->log_priv, mask, f, ##a); } while (0)
+#define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
 
 #define NIP6(addr) \
 	(addr).s6_addr[0], \
@@ -256,9 +265,10 @@ struct dnet_node
 	int			rootfd, root_len;
 	char			*root;
 
+	uint32_t		log_mask;
 	void			*log_priv;
-	void			(*log)(void *priv, const char *f, ...);
-	void			(*log_append)(void *priv, const char *f, ...);
+	void			(*log)(void *priv, uint32_t mask, const char *f, ...);
+	void			(*log_append)(void *priv, uint32_t mask, const char *f, ...);
 
 	struct dnet_wait	*wait;
 	struct timespec		wait_ts;

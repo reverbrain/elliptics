@@ -23,7 +23,7 @@
 #include "elliptics.h"
 #include "dnet/interface.h"
 
-static struct dnet_node *dnet_node_alloc(int sock_type, int proto)
+static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 {
 	struct dnet_node *n;
 	int err;
@@ -34,12 +34,12 @@ static struct dnet_node *dnet_node_alloc(int sock_type, int proto)
 
 	memset(n, 0, sizeof(struct dnet_node));
 
-	n->sock_type = sock_type;
-	n->proto = proto;
 	n->trans = 0;
 	n->trans_root = RB_ROOT;
 
-	n->addr.addr_len = sizeof(n->addr.addr);
+	err = dnet_log_init(n, cfg->log_private, cfg->log_mask, cfg->log, cfg->log_append);
+	if (err)
+		goto err_out_free;
 
 	err = pthread_mutex_init(&n->state_lock, NULL);
 	if (err) {
@@ -61,7 +61,7 @@ static struct dnet_node *dnet_node_alloc(int sock_type, int proto)
 
 	n->wait = dnet_wait_alloc(0);
 	if (!n->wait) {
-		dnet_log(n, "Failed to allocate wait structure.\n");
+		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate wait structure.\n");
 		goto err_out_destroy_tlock;
 	}
 
@@ -102,35 +102,35 @@ int dnet_state_insert(struct dnet_net_state *new)
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		err = dnet_id_cmp(st->id, new->id);
 
-		dnet_log(n, "st: %s, ", dnet_dump_id(st->id));
-		dnet_log_append(n, "new: %s, cmp: %d.\n", dnet_dump_id(new->id), err);
+		dnet_log(n, DNET_LOG_NOTICE, "st: %s, ", dnet_dump_id(st->id));
+		dnet_log_append(n, DNET_LOG_NOTICE, "new: %s, cmp: %d.\n", dnet_dump_id(new->id), err);
 
 		if (!err) {
-			dnet_log(n, "%s: state exists: old: %s, ", dnet_dump_id(new->id),
+			dnet_log(n, DNET_LOG_NOTICE, "%s: state exists: old: %s, ", dnet_dump_id(new->id),
 				dnet_server_convert_dnet_addr(&st->addr));
-			dnet_log_append(n, "new: %s.\n", dnet_server_convert_dnet_addr(&new->addr));
+			dnet_log_append(n, DNET_LOG_NOTICE, "new: %s.\n", dnet_server_convert_dnet_addr(&new->addr));
 			break;
 		}
 
 		if (err < 0) {
-			dnet_log(n, "adding before %s.\n", dnet_dump_id(st->id));
+			dnet_log(n, DNET_LOG_NOTICE, "adding before %s.\n", dnet_dump_id(st->id));
 			list_add_tail(&new->state_entry, &st->state_entry);
 			break;
 		}
 	}
 
 	if (err > 0) {
-		dnet_log(n, "adding to the end.\n");
+		dnet_log(n, DNET_LOG_NOTICE, "adding to the end.\n");
 		list_add_tail(&new->state_entry, &n->state_list);
 	}
 
 	if (err) {
-		dnet_log(n, "%s: node list dump:\n", dnet_dump_id(new->id));
+		dnet_log(n, DNET_LOG_NOTICE, "%s: node list dump:\n", dnet_dump_id(new->id));
 		list_for_each_entry(st, &n->state_list, state_entry) {
-			dnet_log(n, "      id: %s [%02x], addr: %s.\n", dnet_dump_id(st->id), st->id[0],
+			dnet_log(n, DNET_LOG_NOTICE, "      id: %s [%02x], addr: %s.\n", dnet_dump_id(st->id), st->id[0],
 				dnet_server_convert_dnet_addr(&st->addr));
 		}
-		dnet_log_append(n, "\n");
+		dnet_log_append(n, DNET_LOG_NOTICE, "\n");
 	}
 
 	pthread_mutex_unlock(&n->state_lock);
@@ -208,7 +208,7 @@ static void *dnet_server_func(void *data)
 			continue;
 		}
 
-		dnet_log(n, "%s: accepted client %s.\n", dnet_dump_id(n->id),
+		dnet_log(n, DNET_LOG_INFO, "%s: accepted client %s.\n", dnet_dump_id(n->id),
 				dnet_server_convert_dnet_addr(&addr));
 
 		fcntl(cs, F_SETFL, O_NONBLOCK);
@@ -216,7 +216,7 @@ static void *dnet_server_func(void *data)
 		st = dnet_state_create(n, NULL, &addr, cs, dnet_state_process);
 		if (!st) {
 			close(cs);
-			dnet_log(n, "%s: disconnected client %s.\n", dnet_dump_id(n->id),
+			dnet_log(n, DNET_LOG_INFO, "%s: disconnected client %s.\n", dnet_dump_id(n->id),
 				dnet_server_convert_dnet_addr(&addr));
 		}
 	}
@@ -229,7 +229,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	struct dnet_node *n;
 	int err = -ENOMEM;
 
-	n = dnet_node_alloc(cfg->sock_type, cfg->proto);
+	n = dnet_node_alloc(cfg);
 	if (!n)
 		goto err_out_exit;
 
@@ -237,6 +237,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->proto = cfg->proto;
 	n->sock_type = cfg->sock_type;
 	n->wait_ts.tv_sec = cfg->wait_timeout;
+
+	n->addr.addr_len = sizeof(n->addr.addr);
 
 	err = dnet_socket_create(n, cfg, (struct sockaddr *)&n->addr.addr, &n->addr.addr_len, 1);
 	if (err < 0)
@@ -248,7 +250,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->st)
 		goto err_out_sock_close;
 
-	dnet_log(n, "%s: new node has been created at %s, id_size: %u.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: new node has been created at %s, id_size: %u.\n",
 			dnet_dump_id(n->id), dnet_dump_node(n), DNET_ID_SIZE);
 	return n;
 
@@ -264,7 +266,7 @@ void dnet_node_destroy(struct dnet_node *n)
 {
 	struct dnet_net_state *st, *tmp;
 
-	dnet_log(n, "%s: destroying node at %s.\n", dnet_dump_id(n->id), dnet_dump_node(n));
+	dnet_log(n, DNET_LOG_INFO, "%s: destroying node at %s.\n", dnet_dump_id(n->id), dnet_dump_node(n));
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry_safe(st, tmp, &n->state_list, state_entry) {

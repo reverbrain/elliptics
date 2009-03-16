@@ -62,6 +62,11 @@ int dnet_write_object(struct dnet_node *n, unsigned char *id, struct dnet_io_att
 	void *priv, void *data, unsigned int aflags);
 int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, int append, unsigned int aflags);
 
+#define DNET_LOG_NOTICE			(1<<0)
+#define DNET_LOG_INFO			(1<<1)
+#define DNET_LOG_TRANS			(1<<2)
+#define DNET_LOG_ERROR			(1<<3)
+
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
 
@@ -96,6 +101,11 @@ struct dnet_config
 	 * for remote content sync.
 	 */
 	unsigned int		wait_timeout;
+
+	uint32_t		log_mask;
+	void			*log_private;
+	void 			(* log)(void *priv, uint32_t mask, const char *f, ...);
+	void 			(* log_append)(void *priv, uint32_t mask, const char *f, ...);
 };
 
 /*
@@ -145,13 +155,6 @@ static inline char *dnet_dump_id(unsigned char *id)
 		sprintf(&__dnet_dump_str[2*i], "%02x", id[i]);
 	return __dnet_dump_str;
 }
-
-/*
- * Initialize private logging system.
- */
-int dnet_log_init(struct dnet_node *n, void *priv,
-		void (* log)(void *priv, const char *f, ...),
-		void (* log_append)(void *priv, const char *f, ...));
 
 /*
  * Send a shell command to the remote node for execution.

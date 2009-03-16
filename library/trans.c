@@ -78,7 +78,7 @@ static int dnet_trans_insert_raw(struct rb_root *root, struct dnet_trans *a)
 	}
 
 	if (a->st && a->st->n)
-		dnet_log(a->st->n, "%s: added transaction: %llu -> %s.\n",
+		dnet_log(a->st->n, DNET_LOG_NOTICE, "%s: added transaction: %llu -> %s.\n",
 			dnet_dump_id(a->cmd.id), (unsigned long long)a->trans,
 			dnet_server_convert_dnet_addr(&a->st->addr));
 
@@ -104,7 +104,7 @@ void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t)
 {
 	if (!t->trans_entry.rb_parent_color) {
 		if (t->st && t->st->n)
-			dnet_log(t->st->n, "%s: trying to remove standalone transaction %llu.\n",
+			dnet_log(t->st->n, DNET_LOG_ERROR, "%s: trying to remove standalone transaction %llu.\n",
 				dnet_dump_id(t->cmd.id), (unsigned long long)t->trans);
 		return;
 	}
@@ -138,8 +138,8 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 		err = dnet_send(st, t->data, size);
 	pthread_mutex_unlock(&st->lock);
 
-	dnet_log(n, "%s: ", dnet_dump_id(t->cmd.id));
-	dnet_log_append(n, "forwarded to %s (%s:%d), trans: %llu, err: %d.\n", dnet_dump_id(st->id),
+	dnet_log(n, DNET_LOG_INFO, "%s: ", dnet_dump_id(t->cmd.id));
+	dnet_log_append(n, DNET_LOG_INFO, "forwarded to %s (%s:%d), trans: %llu, err: %d.\n", dnet_dump_id(st->id),
 		dnet_server_convert_dnet_addr(&st->addr),
 		(unsigned long long)t->trans, err);
 
@@ -167,7 +167,7 @@ int dnet_trans_process(struct dnet_net_state *st)
 
 	dnet_convert_cmd(&cmd);
 
-	dnet_log(n, "%s: size: %llu, trans: %llu, reply: %d, flags: 0x%x, status: %d.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: size: %llu, trans: %llu, reply: %d, flags: 0x%x, status: %d.\n",
 			dnet_dump_id(cmd.id), (unsigned long long)cmd.size,
 			(unsigned long long)(cmd.trans & ~DNET_TRANS_REPLY),
 			!!(cmd.trans & DNET_TRANS_REPLY),
@@ -213,7 +213,7 @@ int dnet_trans_process(struct dnet_net_state *st)
 			goto out;
 		}
 
-		dnet_log(n, "%s: could not find transaction for the reply %llu, dropping.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: could not find transaction for the reply %llu, dropping.\n",
 				dnet_dump_id(cmd.id), (unsigned long long)tid);
 		need_drop = 1;
 	}
@@ -279,31 +279,31 @@ int dnet_trans_process(struct dnet_net_state *st)
 	}
 
 out:
-	dnet_log(n, "%s: completed size: %llu, trans: %llu, reply: %d",
+	dnet_log(n, DNET_LOG_INFO, "%s: completed size: %llu, trans: %llu, reply: %d",
 			dnet_dump_id(cmd.id), (unsigned long long)cmd.size,
 			(unsigned long long)(cmd.trans & ~DNET_TRANS_REPLY),
 			!!(cmd.trans & DNET_TRANS_REPLY));
 	if (!need_drop && !t)
-		dnet_log_append(n, " (local)");
-	dnet_log_append(n, "\n");
+		dnet_log_append(n, DNET_LOG_INFO, " (local)");
+	dnet_log_append(n, DNET_LOG_INFO, "\n");
 
 	return 0;
 
 err_out_unlock:
 	pthread_mutex_unlock(&st->lock);
 err_out_destroy:
-	dnet_log(n, "%s: failed cmd: size: %llu, trans: %llu, reply: %d, err: %d",
+	dnet_log(n, DNET_LOG_ERROR, "%s: failed cmd: size: %llu, trans: %llu, reply: %d, err: %d",
 			dnet_dump_id(cmd.id), (unsigned long long)cmd.size,
 			(unsigned long long)(cmd.trans & ~DNET_TRANS_REPLY),
 			!!(cmd.trans & DNET_TRANS_REPLY), err);
-	dnet_log_append(n, ", st: %s", dnet_dump_id(st->id));
+	dnet_log_append(n, DNET_LOG_ERROR, ", st: %s", dnet_dump_id(st->id));
 	if (t && t->st) {
 		if (st == t->st)
-			dnet_log_append(n, " (local)");
+			dnet_log_append(n, DNET_LOG_ERROR, " (local)");
 		else
-			dnet_log_append(n, ", trans_st: %s", dnet_dump_id(t->st->id));
+			dnet_log_append(n, DNET_LOG_ERROR, ", trans_st: %s", dnet_dump_id(t->st->id));
 	}
-	dnet_log_append(n, "\n");
+	dnet_log_append(n, DNET_LOG_ERROR, "\n");
 	dnet_trans_destroy(t);
 	return err;
 }
@@ -311,6 +311,9 @@ err_out_destroy:
 void dnet_trans_destroy(struct dnet_trans *t)
 {
 	if (t) {
+		if (t->st && t->st->n)
+			dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: destruction trans: %llu.\n",
+				dnet_dump_id(t->cmd.id), (unsigned long long)(t->trans & ~DNET_TRANS_REPLY));
 		if (t->trans_entry.rb_parent_color && t->st && t->st->n)
 			dnet_trans_remove(t);
 #if 0

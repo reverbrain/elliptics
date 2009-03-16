@@ -64,7 +64,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 			goto err_out_exit;
 		}
 
-		dnet_log(n, "Server is now listening at %s:%d.\n",
+		dnet_log(n, DNET_LOG_INFO, "Server is now listening at %s:%d.\n",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
 	} else {
@@ -76,7 +76,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 			goto err_out_exit;
 		}
 
-		dnet_log(n, "Connected to %s:%d.\n",
+		dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d.\n",
 			dnet_server_convert_addr(sa, salen),
 			dnet_server_convert_port(sa, salen));
 
@@ -104,7 +104,7 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 
 	err = getaddrinfo(cfg->addr, cfg->port, &hint, &ai);
 	if (err) {
-		dnet_log(n, "Failed to get address info for %s:%s, family: %d, err: %d.\n",
+		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%s, family: %d, err: %d.\n",
 				cfg->addr, cfg->port, cfg->family, err);
 		goto err_out_exit;
 	}
@@ -119,7 +119,7 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 	if (*addr_len >= ai->ai_addrlen)
 		*addr_len = ai->ai_addrlen;
 	else {
-		dnet_log(n, "Failed to copy address: size %u is too small (must be more than %u).\n",
+		dnet_log(n, DNET_LOG_ERROR, "Failed to copy address: size %u is too small (must be more than %u).\n",
 				*addr_len, ai->ai_addrlen);
 		err = -ENOBUFS;
 		goto err_out_close;
@@ -191,8 +191,6 @@ static int dnet_net_reconnect(struct dnet_net_state *st)
 int dnet_send(struct dnet_net_state *st, void *data, unsigned int size)
 {
 	int err = 0;
-	unsigned int orig_size = size;
-	void *orig_data = data;
 	struct dnet_node *n = st->n;
 
 	while (size) {
@@ -206,7 +204,7 @@ int dnet_send(struct dnet_net_state *st, void *data, unsigned int size)
 			continue;
 
 		if (err < 0) {
-			dnet_log(n, "Failed to wait for descriptor: err: %d, socket: %d.\n", err, st->s);
+			dnet_log(n, DNET_LOG_ERROR, "Failed to wait for descriptor: err: %d, socket: %d.\n", err, st->s);
 			break;
 		}
 
@@ -218,7 +216,7 @@ int dnet_send(struct dnet_net_state *st, void *data, unsigned int size)
 		}
 
 		if (err == 0) {
-			dnet_log(n, "Peer has dropped the connection: socket: %d.\n", st->s);
+			dnet_log(n, DNET_LOG_ERROR, "Peer has dropped the connection: socket: %d.\n", st->s);
 			err = -ECONNRESET;
 			break;
 		}
@@ -257,7 +255,7 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 		}
 
 		if (err == 0) {
-			dnet_log(st->n, "Peer has disconnected.\n");
+			dnet_log(st->n, DNET_LOG_NOTICE, "Peer has disconnected.\n");
 			return -ECONNRESET;
 		}
 
@@ -277,7 +275,7 @@ void *dnet_state_process(void *data)
 	while (!n->need_exit) {
 		err = dnet_trans_process(st);
 		if ((err < 0) && (err != -EAGAIN)) {
-			dnet_log(n, "%s: state processing error: %d.\n", dnet_dump_id(st->id), err);
+			dnet_log(n, DNET_LOG_ERROR, "%s: state processing error: %d.\n", dnet_dump_id(st->id), err);
 
 			if (st->join_state == DNET_CLIENT)
 				break;
@@ -290,7 +288,7 @@ void *dnet_state_process(void *data)
 		}
 	}
 
-	dnet_log(n, "%s: stopped client %s processing, refcnt: %d.\n", dnet_dump_id(st->id),
+	dnet_log(n, DNET_LOG_INFO, "%s: stopped client %s processing, refcnt: %d.\n", dnet_dump_id(st->id),
 		dnet_server_convert_dnet_addr(&st->addr), st->refcnt);
 
 	dnet_state_put(st);
@@ -378,7 +376,7 @@ void dnet_state_put(struct dnet_net_state *st)
 
 	pthread_mutex_destroy(&st->lock);
 
-	dnet_log(st->n, "%s: freeing state %s.\n", dnet_dump_id(st->id),
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: freeing state %s.\n", dnet_dump_id(st->id),
 		dnet_server_convert_dnet_addr(&st->addr));
 
 	free(st);
@@ -406,22 +404,26 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 			continue;
 
 		if (err < 0) {
-			dnet_log(st->n, "Failed to wait for descriptor: err: %zd, socket: %d.\n", err, st->s);
+			dnet_log(st->n, DNET_LOG_ERROR, "Failed to wait for descriptor: err: %zd, socket: %d.\n", err, st->s);
 			break;
 		}
 
 		err = dnet_sendfile(st, fd, &offset, size);
+		dnet_log(st->n, DNET_LOG_INFO, "%s: offset: %llu, size: %zu, err: %zd.\n",
+				dnet_dump_id(st->id), (unsigned long long)offset, size, err);
 		if (err < 0) {
+			if (err == -EAGAIN)
+				continue;
 			dnet_log_err(st->n, "%s: failed to send file data, err: %zd", dnet_dump_id(st->id), err);
 			goto err_out_unlock;
 		}
 
 		if (err == 0) {
-			dnet_log(st->n, "%s: looks like truncated file, size: %zu.\n", dnet_dump_id(st->id), size);
+			dnet_log(st->n, DNET_LOG_INFO, "%s: looks like truncated file, size: %zu.\n", dnet_dump_id(st->id), size);
 			break;
 		}
 
-		dnet_log(st->n, "%s: size: %zu, rest: %zu, offset: %llu, err: %zd.\n",
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: size: %zu, rest: %zu, offset: %llu, err: %zd.\n",
 				dnet_dump_id(st->id), size, size-err, (unsigned long long)offset, err);
 
 		size -= err;
@@ -433,7 +435,7 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 
 		memset(buf, 0, sizeof(buf));
 
-		dnet_log(st->n, "%s: truncated file: '%s', orig: %zu, zeroes: %zu bytes.\n",
+		dnet_log(st->n, DNET_LOG_INFO, "%s: truncated file: '%s', orig: %zu, zeroes: %zu bytes.\n",
 				dnet_dump_id(st->id), file, size + err, size);
 
 		while (size) {

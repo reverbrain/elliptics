@@ -34,13 +34,14 @@
 
 #include "elliptics.h"
 
-int dnet_log_init(struct dnet_node *n, void *priv,
-		void (* log)(void *priv, const char *f, ...),
-		void (* log_append)(void *priv, const char *f, ...))
+int dnet_log_init(struct dnet_node *n, void *priv, uint32_t mask,
+		void (* log)(void *priv, uint32_t mask, const char *f, ...),
+		void (* log_append)(void *priv, uint32_t mask, const char *f, ...))
 {
 	if (!n)
 		return -EINVAL;
 
+	n->log_mask = mask;
 	n->log_priv = priv;
 	n->log = log;
 	n->log_append = log_append;

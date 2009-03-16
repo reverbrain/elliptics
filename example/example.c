@@ -96,7 +96,7 @@ static int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 	return 0;
 }
 
-static void dnet_example_log_append(void *priv, const char *f, ...)
+static void dnet_example_log_append(void *priv, uint32_t mask __unused, const char *f, ...)
 {
 	va_list ap;
 	FILE *stream = priv;
@@ -111,7 +111,7 @@ static void dnet_example_log_append(void *priv, const char *f, ...)
 	fflush(stream);
 }
 
-static void dnet_example_log(void *priv, const char *f, ...)
+static void dnet_example_log(void *priv, uint32_t mask __unused, const char *f, ...)
 {
 	char str[64];
 	struct tm tm;
@@ -133,35 +133,6 @@ static void dnet_example_log(void *priv, const char *f, ...)
 	va_end(ap);
 
 	fflush(stream);
-}
-
-static int dnet_example_log_init(struct dnet_node *n, char *log)
-{
-	FILE *f = NULL;
-	int err;
-
-	if (log) {
-		f = fopen(log, "a");
-		if (!f) {
-			err = -errno;
-			fprintf(stderr, "Failed to open log file %s: %s.\n", log, strerror(errno));
-			goto err_out_exit;
-		}
-	}
-
-	err = dnet_log_init(n, f, dnet_example_log, dnet_example_log_append);
-	if (err) {
-		fprintf(stderr, "Failed to initialize dnet logger to use file %s.\n", log);
-		goto err_out_close;
-	}
-
-	printf("Logging uses '%s' file now.\n", log);
-	return 0;
-
-err_out_close:
-	fclose(f);
-err_out_exit:
-	return err;
 }
 
 #define DNET_CONF_COMMENT	'#'
@@ -288,9 +259,10 @@ int main(int argc, char *argv[])
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem;
 	struct dnet_crypto_engine *e, *trans[trans_max];
-	char *log = NULL, *root = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
+	char *logfile = NULL, *root = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
 	char *historyf = NULL;
 	unsigned char trans_id[DNET_ID_SIZE];
+	FILE *log = NULL;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -315,7 +287,7 @@ int main(int argc, char *argv[])
 				cfg.wait_timeout = atoi(optarg);
 				break;
 			case 'l':
-				log = optarg;
+				logfile = optarg;
 				break;
 			case 'c':
 				cmd = optarg;
@@ -377,8 +349,23 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (!log)
+	if (!logfile)
 		fprintf(stderr, "No log file found, logging will be disabled.\n");
+
+	if (logfile) {
+		log = fopen(logfile, "a");
+		if (!log) {
+			err = -errno;
+			fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
+			return err;
+		}
+
+		//cfg.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
+		cfg.log_mask = ~0;
+		cfg.log_private = log;
+		cfg.log = dnet_example_log;
+		cfg.log_append = dnet_example_log_append;
+	}
 
 	if (daemon)
 		dnet_background();
@@ -386,10 +373,6 @@ int main(int argc, char *argv[])
 	n = dnet_node_create(&cfg);
 	if (!n)
 		return -1;
-
-	err = dnet_example_log_init(n, log);
-	if (err)
-		return err;
 
 	for (i=0; i<trans_num; ++i) {
 		err = dnet_add_transform(n, trans[i], trans[i]->name,
