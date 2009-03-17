@@ -164,7 +164,7 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 }
 
 /*
- * IO is a data updatae and thus history for the corresponding
+ * IO is a data update only so only history for the corresponding
  * object has to be updated.
  */
 #define DNET_IO_FLAGS_UPDATE	(1<<0)

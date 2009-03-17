@@ -60,7 +60,7 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
 int dnet_write_object(struct dnet_node *n, unsigned char *id, struct dnet_io_attr *io,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 	void *priv, void *data, unsigned int aflags);
-int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, int append, unsigned int aflags);
+int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, unsigned int io_flags, unsigned int aflags);
 
 #define DNET_LOG_NOTICE			(1<<0)
 #define DNET_LOG_INFO			(1<<1)

@@ -291,7 +291,7 @@ int dnet_process_cmd(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data
 int dnet_send(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_wait(struct dnet_net_state *st);
-int dnet_sendfile_data(struct dnet_net_state *st, char *file,
+int dnet_sendfile_data(struct dnet_net_state *st,
 		int fd, off_t offset, size_t size,
 		void *header, unsigned int hsize);
 int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size);

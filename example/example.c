@@ -237,6 +237,7 @@ static void dnet_usage(char *p)
 			"                        become a fair node which may store data from the other nodes\n"
 			" -d root              - root directory to load/store the objects\n"
 			" -W file              - write given file to the network storage\n"
+			" -s                   - spread writes over the network, do not update the object itself\n"
 			" -R file              - read given file from the network into the local storage\n"
 			" -H file              - read a history for given file into the local storage\n"
 			" -T hash              - OpenSSL hash to use as a transformation function\n"
@@ -255,7 +256,7 @@ static void dnet_usage(char *p)
 int main(int argc, char *argv[])
 {
 	int trans_max = 5, trans_num = 0;
-	int ch, err, join = 0, i, have_remote = 0, daemon = 0;
+	int ch, err, join = 0, i, have_remote = 0, daemon = 0, spread = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem;
 	struct dnet_crypto_engine *e, *trans[trans_max];
@@ -272,8 +273,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "H:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "sH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 's':
+				spread = 1;
+				break;
 			case 'H':
 				historyf = optarg;
 				break;
@@ -402,7 +406,11 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		err = dnet_write_file(n, writef, 0, 0, 0, 0);
+		unsigned int ioflags = 0;
+
+		if (spread)
+			ioflags = DNET_IO_FLAGS_UPDATE;
+		err = dnet_write_file(n, writef, 0, 0, ioflags, 0);
 		if (err)
 			return err;
 	}

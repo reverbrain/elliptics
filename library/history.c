@@ -77,7 +77,7 @@ static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req,
 	dnet_convert_attr(a);
 	dnet_convert_io_attr(io);
 
-	err = dnet_sendfile_data(st, file, fd, 0, size,	cmd,
+	err = dnet_sendfile_data(st, fd, 0, size, cmd,
 			sizeof(struct dnet_cmd) +
 			sizeof(struct dnet_attr) +
 			sizeof(struct dnet_io_attr));

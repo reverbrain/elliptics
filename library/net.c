@@ -382,7 +382,7 @@ void dnet_state_put(struct dnet_net_state *st)
 	free(st);
 }
 
-int dnet_sendfile_data(struct dnet_net_state *st, char *file,
+int dnet_sendfile_data(struct dnet_net_state *st,
 		int fd, off_t offset, size_t size,
 		void *header, unsigned int hsize)
 {
@@ -435,8 +435,8 @@ int dnet_sendfile_data(struct dnet_net_state *st, char *file,
 
 		memset(buf, 0, sizeof(buf));
 
-		dnet_log(st->n, DNET_LOG_INFO, "%s: truncated file: '%s', orig: %zu, zeroes: %zu bytes.\n",
-				dnet_dump_id(st->id), file, size + err, size);
+		dnet_log(st->n, DNET_LOG_INFO, "%s: truncated file, orig: %zu, zeroes: %zu bytes.\n",
+				dnet_dump_id(st->id), size + err, size);
 
 		while (size) {
 			sz = size;

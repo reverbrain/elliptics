@@ -324,7 +324,6 @@ void dnet_trans_destroy(struct dnet_trans *t)
 #endif
 		dnet_state_put(t->st);
 		free(t->data);
-		free(t->priv);
 
 		free(t);
 	}
