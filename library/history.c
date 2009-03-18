@@ -34,17 +34,17 @@ static int dnet_send_list_entry(struct dnet_net_state *st, struct dnet_cmd *req,
 {
 	int fd, err;
 	struct dnet_node *n = st->n;
-	char file[DNET_ID_SIZE*2 + sizeof(DNET_HISTORY_SUFFIX) + 5];
+	char file[DNET_ID_SIZE*2 + sizeof(DNET_HISTORY_SUFFIX) + 1];
 	struct dnet_cmd *cmd;
 	struct dnet_attr *a;
 	struct dnet_io_attr *io;
 
-	snprintf(file, sizeof(file), "%02x/%s%s", id[0], dnet_dump_id(id), DNET_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%s%s", dnet_dump_id(id), DNET_HISTORY_SUFFIX);
 
 	fd = open(file, O_RDONLY);
 	if (fd <= 0) {
 		err = -errno;
-		dnet_log_err(n, "%s: failed to open history file '%s'", dnet_dump_id(id), file);
+		dnet_log_err(n, "%s: failed to open history entry file '%s'", dnet_dump_id(id), file);
 		goto err_out_exit;
 	}
 
@@ -144,7 +144,12 @@ static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		return err;
 	}
 
-	err = 0;
+	err = chdir(sub);
+	if (err) {
+		err = -errno;
+		dnet_log_err(n, "Failed to change directory to '%s/%s'", st->n->root, sub);
+		goto out_close;
+	}
 
 	while ((d = readdir(dir)) != NULL) {
 		if (d->d_name[0] == '.' && d->d_name[1] == '\0')
@@ -167,7 +172,7 @@ static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 		if (first_id) {
 			err = dnet_id_cmp(first_id, id);
-			if (err > 0)
+			if (err >= 0)
 				continue;
 		}
 
@@ -176,9 +181,16 @@ static int dnet_listdir(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		dnet_log(n, DNET_LOG_INFO, "%s -> %s.\n", d->d_name, dnet_dump_id(id));
 	}
 
+	err = chdir("..");
+	if (err) {
+		err = -errno;
+		dnet_log_err(n, "Failed to return back to '%s'", st->n->root);
+	}
+
+out_close:
 	closedir(dir);
 
-	return 0;
+	return err;
 }
 
 int dnet_cmd_list(struct dnet_net_state *st, struct dnet_cmd *cmd)
@@ -304,8 +316,8 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 	int fd, err;
 	struct dnet_io_completion *cmp;
 	char dir[3];
-	struct dnet_io_attr req;
 	struct dnet_wait *w = n->wait;
+	struct dnet_io_control ctl;
 
 	snprintf(file, sizeof(file), "%02x/%s%s", io->id[0], dnet_dump_id(io->id), DNET_HISTORY_SUFFIX);
 
@@ -364,9 +376,18 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 		goto err_out_exit;
 	}
 
-	memcpy(req.id, io->id, DNET_ID_SIZE);
-	req.size = 0;
-	req.offset = 0;
+	memcpy(ctl.id, io->id, DNET_ID_SIZE);
+	
+	memcpy(ctl.io.id, io->id, DNET_ID_SIZE);
+	ctl.io.size = 0;
+	ctl.io.offset = 0;
+
+	ctl.complete = dnet_read_complete_history;
+	ctl.priv = cmp;
+
+	ctl.aflags = 0;
+	ctl.fd = -1;
+	ctl.cmd = DNET_CMD_READ;
 
 	cmp->offset = 0;
 	cmp->size = 0;
@@ -375,7 +396,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 
 	snprintf(cmp->file, sizeof(file), "%02x/%s", io->id[0], dnet_dump_id(io->id));
 
-	err = dnet_read_object(st->n, &req, dnet_read_complete_history, cmp, 0);
+	err = dnet_read_object(st->n, &ctl);
 	if (err)
 		goto err_out_exit;
 out:
@@ -492,7 +513,7 @@ int dnet_recv_list(struct dnet_node *n)
 	a->size = 0;
 	a->flags = 0;
 
-	t->st = st = dnet_state_get_first(n, n->st);
+	t->st = st = dnet_state_get_first(n, cmd->id, n->st);
 	if (!st) {
 		err = -ENOENT;
 		dnet_log(n, DNET_LOG_ERROR, "%s: can not get output state.\n", dnet_dump_id(n->id));

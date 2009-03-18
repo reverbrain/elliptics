@@ -146,7 +146,7 @@ struct dnet_net_state
 	struct dnet_node	*n;
 	long			timeout;
 
-	pthread_mutex_t		lock;
+	pthread_mutex_t		lock, recv_lock, refcnt_lock;
 	int			refcnt;
 	int			s;
 
@@ -163,9 +163,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 {
-	pthread_mutex_lock(&st->lock);
+	pthread_mutex_lock(&st->refcnt_lock);
 	st->refcnt++;
-	pthread_mutex_unlock(&st->lock);
+	pthread_mutex_unlock(&st->refcnt_lock);
 	return st;
 }
 void dnet_state_put(struct dnet_net_state *st);
@@ -174,7 +174,7 @@ void *dnet_state_process(void *data);
 int dnet_state_insert(struct dnet_net_state *new);
 void dnet_state_remove(struct dnet_net_state *st);
 struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
-struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_net_state *self);
+struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 int dnet_state_move(struct dnet_net_state *st);
 
 struct dnet_wait

@@ -53,7 +53,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 			dnet_log_err(n, "Failed to bind to %s:%d",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
-			goto err_out_exit;
+			goto err_out_close;
 		}
 
 		err = listen(s, 1024);
@@ -61,7 +61,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 			dnet_log_err(n, "Failed to listen at %s:%d",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
-			goto err_out_exit;
+			goto err_out_close;
 		}
 
 		dnet_log(n, DNET_LOG_INFO, "Server is now listening at %s:%d.\n",
@@ -73,7 +73,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 			dnet_log_err(n, "Failed to connect to %s:%d",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
-			goto err_out_exit;
+			goto err_out_close;
 		}
 
 		dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d.\n",
@@ -85,6 +85,8 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 
 	return s;
 
+err_out_close:
+	close(s);
 err_out_exit:
 	return err;
 }
@@ -148,8 +150,10 @@ static int dnet_wait_fd(int s, unsigned int events, long timeout)
 	pfd.events = events;
 
 	err = poll(&pfd, 1, timeout);
-	if (err < 0)
+	if (err < 0) {
+		err = -errno;
 		goto out_exit;
+	}
 
 	if (err == 0) {
 		err = -EAGAIN;
@@ -200,7 +204,7 @@ int dnet_send(struct dnet_net_state *st, void *data, unsigned int size)
 			break;
 		}
 
-		if (err == -EAGAIN)
+		if (err == -EAGAIN || err == -EINTR)
 			continue;
 
 		if (err < 0) {
@@ -320,6 +324,18 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		dnet_log_err(n, "%s: failed to initialize state lock: err: %d", dnet_dump_id(st->id), err);
 		goto err_out_state_free;
 	}
+	
+	err = pthread_mutex_init(&st->refcnt_lock, NULL);
+	if (err) {
+		dnet_log_err(n, "%s: failed to initialize state receiving lock: err: %d", dnet_dump_id(st->id), err);
+		goto err_out_lock_destroy;
+	}
+	
+	err = pthread_mutex_init(&st->recv_lock, NULL);
+	if (err) {
+		dnet_log_err(n, "%s: failed to initialize state receiving lock: err: %d", dnet_dump_id(st->id), err);
+		goto err_out_refcnt_lock_destroy;
+	}
 
 	st->join_state = DNET_CLIENT;
 	if (!id) {
@@ -330,7 +346,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		memcpy(st->id, id, DNET_ID_SIZE);
 		err = dnet_state_insert(st);
 		if (err)
-			goto err_out_lock_destroy;
+			goto err_out_recv_lock_destroy;
 	}
 
 	err = pthread_create(&st->tid, NULL, process, st);
@@ -344,6 +360,10 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 err_out_state_remove:
 	dnet_state_remove(st);
+err_out_recv_lock_destroy:
+	pthread_mutex_destroy(&st->recv_lock);
+err_out_refcnt_lock_destroy:
+	pthread_mutex_destroy(&st->refcnt_lock);
 err_out_lock_destroy:
 	pthread_mutex_destroy(&st->lock);
 err_out_state_free:
@@ -359,12 +379,12 @@ void dnet_state_put(struct dnet_net_state *st)
 	if (!st)
 		return;
 
-	pthread_mutex_lock(&st->lock);
+	pthread_mutex_lock(&st->refcnt_lock);
 	st->refcnt--;
 
 	if (st->refcnt == 0)
 		destroy = 1;
-	pthread_mutex_unlock(&st->lock);
+	pthread_mutex_unlock(&st->refcnt_lock);
 
 	if (!destroy)
 		return;
@@ -375,6 +395,8 @@ void dnet_state_put(struct dnet_net_state *st)
 		close(st->s);
 
 	pthread_mutex_destroy(&st->lock);
+	pthread_mutex_destroy(&st->recv_lock);
+	pthread_mutex_destroy(&st->refcnt_lock);
 
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: freeing state %s.\n", dnet_dump_id(st->id),
 		dnet_server_convert_dnet_addr(&st->addr));
@@ -400,7 +422,7 @@ int dnet_sendfile_data(struct dnet_net_state *st,
 			break;
 		}
 
-		if (err == -EAGAIN)
+		if (err == -EAGAIN || err == -EINTR)
 			continue;
 
 		if (err < 0) {
@@ -409,8 +431,6 @@ int dnet_sendfile_data(struct dnet_net_state *st,
 		}
 
 		err = dnet_sendfile(st, fd, &offset, size);
-		dnet_log(st->n, DNET_LOG_INFO, "%s: offset: %llu, size: %zu, err: %zd.\n",
-				dnet_dump_id(st->id), (unsigned long long)offset, size, err);
 		if (err < 0) {
 			if (err == -EAGAIN)
 				continue;

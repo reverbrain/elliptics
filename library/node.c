@@ -106,21 +106,21 @@ int dnet_state_insert(struct dnet_net_state *new)
 		dnet_log_append(n, DNET_LOG_NOTICE, "new: %s, cmp: %d.\n", dnet_dump_id(new->id), err);
 
 		if (!err) {
-			dnet_log(n, DNET_LOG_NOTICE, "%s: state exists: old: %s, ", dnet_dump_id(new->id),
+			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: old: %s, ", dnet_dump_id(new->id),
 				dnet_server_convert_dnet_addr(&st->addr));
-			dnet_log_append(n, DNET_LOG_NOTICE, "new: %s.\n", dnet_server_convert_dnet_addr(&new->addr));
+			dnet_log_append(n, DNET_LOG_ERROR, "new: %s.\n", dnet_server_convert_dnet_addr(&new->addr));
 			break;
 		}
 
 		if (err < 0) {
-			dnet_log(n, DNET_LOG_NOTICE, "adding before %s.\n", dnet_dump_id(st->id));
+			dnet_log(n, DNET_LOG_NOTICE, "adding %s before %s.\n", dnet_server_convert_dnet_addr(&new->addr), dnet_dump_id(st->id));
 			list_add_tail(&new->state_entry, &st->state_entry);
 			break;
 		}
 	}
 
 	if (err > 0) {
-		dnet_log(n, DNET_LOG_NOTICE, "adding to the end.\n");
+		dnet_log(n, DNET_LOG_NOTICE, "adding %s to the end.\n", dnet_server_convert_dnet_addr(&new->addr));
 		list_add_tail(&new->state_entry, &n->state_list);
 	}
 
@@ -143,12 +143,10 @@ int dnet_state_insert(struct dnet_net_state *new)
 	return err;
 }
 
-struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self)
+static struct dnet_net_state *__dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self)
 {
 	struct dnet_net_state *st = NULL;
 	int err = 1;
-
-	pthread_mutex_lock(&n->state_lock);
 
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		if (st == self)
@@ -156,33 +154,49 @@ struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id,
 
 		err = dnet_id_cmp(st->id, id);
 
+		//dnet_log(n, DNET_LOG_INFO, "id: %02x, state: %02x, err: %d.\n", id[0], st->id[0], err);
+
 		if (err <= 0) {
 			dnet_state_get(st);
 			break;
 		}
 	}
 
-	if (err > 0)
+	if (err >= 0)
 		st = NULL;
 
+	return st;
+}
+
+struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self)
+{
+	struct dnet_net_state *st;
+
+	pthread_mutex_lock(&n->state_lock);
+	st = __dnet_state_search(n, id, self);
 	pthread_mutex_unlock(&n->state_lock);
 
 	return st;
 }
 
-struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_net_state *self)
+struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self)
 {
 	struct dnet_net_state *st = NULL;
-	int err = -ENOENT;
+	int err = 0;
 
 	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(st, &n->state_list, state_entry) {
-		if (st == self)
-			continue;
+	st = __dnet_state_search(n, id, self);
 
-		dnet_state_get(st);
-		err = 0;
-		break;
+	if (!st) {
+		err = -ENOENT;
+		list_for_each_entry(st, &n->state_list, state_entry) {
+			if (st == self)
+				continue;
+
+			dnet_state_get(st);
+			err = 0;
+			break;
+		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
@@ -246,7 +260,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	n->listen_socket = err;
 
-	n->st = dnet_state_create(n, n->id, &n->addr, n->listen_socket, dnet_server_func);
+	n->st = dnet_state_create(n, (cfg->join)?n->id:NULL, &n->addr, n->listen_socket, dnet_server_func);
 	if (!n->st)
 		goto err_out_sock_close;
 

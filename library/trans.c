@@ -139,7 +139,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 	pthread_mutex_unlock(&st->lock);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: ", dnet_dump_id(t->cmd.id));
-	dnet_log_append(n, DNET_LOG_INFO, "forwarded to %s (%s:%d), trans: %llu, err: %d.\n", dnet_dump_id(st->id),
+	dnet_log_append(n, DNET_LOG_INFO, "forwarded to %s (%s), trans: %llu, err: %d.\n", dnet_dump_id(st->id),
 		dnet_server_convert_dnet_addr(&st->addr),
 		(unsigned long long)t->trans, err);
 
@@ -157,7 +157,7 @@ int dnet_trans_process(struct dnet_net_state *st)
 	if (err)
 		return err;
 
-	pthread_mutex_lock(&st->lock);
+	pthread_mutex_lock(&st->recv_lock);
 
 	err = dnet_recv(st, &cmd, sizeof(struct dnet_cmd));
 	if (err < 0) {
@@ -167,7 +167,7 @@ int dnet_trans_process(struct dnet_net_state *st)
 
 	dnet_convert_cmd(&cmd);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: size: %llu, trans: %llu, reply: %d, flags: 0x%x, status: %d.\n",
+	dnet_log(n, DNET_LOG_TRANS, "%s: size: %llu, trans: %llu, reply: %d, flags: 0x%x, status: %d.\n",
 			dnet_dump_id(cmd.id), (unsigned long long)cmd.size,
 			(unsigned long long)(cmd.trans & ~DNET_TRANS_REPLY),
 			!!(cmd.trans & DNET_TRANS_REPLY),
@@ -197,7 +197,7 @@ int dnet_trans_process(struct dnet_net_state *st)
 				if (err < 0)
 					goto err_out_unlock;
 			}
-			pthread_mutex_unlock(&st->lock);
+			pthread_mutex_unlock(&st->recv_lock);
 
 			memcpy(&t->cmd, &cmd, sizeof(struct dnet_cmd));
 			t->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
@@ -238,7 +238,7 @@ int dnet_trans_process(struct dnet_net_state *st)
 			goto err_out_unlock;
 	}
 
-	pthread_mutex_unlock(&st->lock);
+	pthread_mutex_unlock(&st->recv_lock);
 
 	if (need_drop) {
 		dnet_trans_destroy(t);
@@ -279,18 +279,18 @@ int dnet_trans_process(struct dnet_net_state *st)
 	}
 
 out:
-	dnet_log(n, DNET_LOG_INFO, "%s: completed size: %llu, trans: %llu, reply: %d",
+	dnet_log(n, DNET_LOG_TRANS, "%s: completed size: %llu, trans: %llu, reply: %d",
 			dnet_dump_id(cmd.id), (unsigned long long)cmd.size,
 			(unsigned long long)(cmd.trans & ~DNET_TRANS_REPLY),
 			!!(cmd.trans & DNET_TRANS_REPLY));
 	if (!need_drop && !t)
-		dnet_log_append(n, DNET_LOG_INFO, " (local)");
-	dnet_log_append(n, DNET_LOG_INFO, "\n");
+		dnet_log_append(n, DNET_LOG_TRANS, " (local)");
+	dnet_log_append(n, DNET_LOG_TRANS, "\n");
 
 	return 0;
 
 err_out_unlock:
-	pthread_mutex_unlock(&st->lock);
+	pthread_mutex_unlock(&st->recv_lock);
 err_out_destroy:
 	dnet_log(n, DNET_LOG_ERROR, "%s: failed cmd: size: %llu, trans: %llu, reply: %d, err: %d",
 			dnet_dump_id(cmd.id), (unsigned long long)cmd.size,

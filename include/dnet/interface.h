@@ -52,14 +52,25 @@ struct dnet_node;
  * when transaction completion callback is invoked. It will be automatically
  * freed when transaction is completed.
  */
-int dnet_read_object(struct dnet_node *n, struct dnet_io_attr *io,
-	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-	void *priv, unsigned int aflags);
+
+struct dnet_io_control
+{
+	unsigned char			id[DNET_ID_SIZE];
+	struct dnet_io_attr		io;
+	int 				(* complete)(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv);
+	void				*priv;
+
+	void				*data;
+
+	unsigned int			aflags;
+	int				fd;
+	unsigned int			cmd;
+};
+
+int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
 int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size, unsigned int aflags);
 
-int dnet_write_object(struct dnet_node *n, unsigned char *id, struct dnet_io_attr *io,
-	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-	void *priv, void *data, unsigned int aflags);
+int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote, unsigned int len);
 int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, unsigned int io_flags, unsigned int aflags);
 
 #define DNET_LOG_NOTICE			(1<<0)
@@ -101,6 +112,8 @@ struct dnet_config
 	 * for remote content sync.
 	 */
 	unsigned int		wait_timeout;
+
+	int			join;
 
 	uint32_t		log_mask;
 	void			*log_private;
@@ -176,6 +189,8 @@ int dnet_lookup_object(struct dnet_node *n, unsigned char *id,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 	void *priv);
 int dnet_lookup(struct dnet_node *n, char *file);
+int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *priv);
 
 #ifdef __cplusplus
 }
