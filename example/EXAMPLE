@@ -23,13 +23,15 @@ $ make install
 1. Creating the first node with zero ID (default), listening on the
 127.0.0.1:1025 IPv4 address and having /tmp/root0 root directory.
 
-$ example -a 127.0.0.1:1025:2 -d /tmp/root0
+$ example -a 127.0.0.1:1025:2 -d /tmp/root0 -j
 
 Where -a switch provides local listening address in the addr:port:family format
 (family 2 means IPv4, 10 - IPv6), -d is used to specify root directory to store
 objects. Example application uses TCP, but one can also use any other network
 protocol which is exported via sockets, it is specified in the configuration
 request and is returned in lookup replies.
+-j switch is used to specify that we want this node to join the network, so
+that it can also store data from other clients.
 
 2. Adding second node into the storage. It will have hex
 ID 1234567890abcde0000000000000000000000000, listen on the 127.0.0.0:1234 IPv4
@@ -38,13 +40,10 @@ with the 127.0.0.1:1025 IPv4 address.
 
 $ example -i 1234567890abcde0000 -a 127.0.0.1:1234:2 -r 127.0.0.1:1025:2 -d /tmp/root1 -j
 
-Additional options include -r switch, which is used to specify the node used to
-join the network through or send commands to, and -j is used to specify that we
-want this node to join the network, so that it can also store data from other
-clients. -i switch specifies node's ID. Order of the options matters, for example
-if ID is specified after the join option, system will try to join the network with
-the default zero ID (and will fail, since we already have such a node created
-previously).
+-r switch is used to specify the node used to join the network through
+or send commands to. -i switch specifies node's ID.
+
+Order of the options does not matter.
 
 Each node will store a data with IDs which are less or equal to its own ID, so
 the second node in the example will store objects whose IDs match
