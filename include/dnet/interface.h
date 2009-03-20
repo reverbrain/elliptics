@@ -67,10 +67,39 @@ struct dnet_io_control
 	unsigned int			cmd;
 };
 
+/*
+ * Reads an object identified by the provided ID from the appropriate node.
+ * In case of error completion callback may be invoked with all parameters
+ * set to null, private pointer will be setto what was provided by the user as private data).
+ *
+ * Returns negative error value in case of error.
+ */
 int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
+
+/*
+ * Reads given file from the storage. If there are multiple transformation functions,
+ * they will be tried one after another.
+ *
+ * Returns negative error value in case of error.
+ */
 int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size, unsigned int aflags);
 
+/*
+ * dnet_write_object() returns number of nodes transaction was sent to.
+ * Usually it should be equal to 2 multipled by number of transformation functions,
+ * since system sends transaction itself and history update.
+ *
+ * ->complete() will also be called for each transformation function twice,
+ *  if there was an error all parameters maybe NULL (private pointer will be set
+ *  to what was provided by the user as private data).
+ */
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote, unsigned int len);
+
+/*
+ * Sends given file to the remote nodes and waits until all of them ack the write.
+ *
+ * Returns negative error value in case of error.
+ */
 int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, unsigned int io_flags, unsigned int aflags);
 
 #define DNET_LOG_NOTICE			(1<<0)
@@ -113,6 +142,11 @@ struct dnet_config
 	 */
 	unsigned int		wait_timeout;
 
+	/*
+	 * Specifies wether given node will join the network,
+	 * or it is a client node and its ID should not be checked
+	 * against collision with others.
+	 */
 	int			join;
 
 	uint32_t		log_mask;
