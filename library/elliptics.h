@@ -254,6 +254,7 @@ struct dnet_node
 	struct list_head	state_list;
 	struct list_head	empty_state_list;
 
+	int			trans_num;
 	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
 	uint64_t		trans;

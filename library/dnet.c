@@ -897,7 +897,7 @@ err_out_exit:
 
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote, unsigned int len)
 {
-	int pos = 0, err, error = 0;
+	int pos = 0, err;
 	unsigned int io_flags = ctl->io.flags;
 
 	while (1) {
@@ -907,17 +907,15 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 		if (err) {
 			if (err > 0)
 				break;
-			continue;
+			goto err_out_complete;
 		}
 
 		ctl->io.flags = io_flags & ~DNET_IO_FLAGS_UPDATE;
 		memcpy(ctl->io.id, ctl->id, DNET_ID_SIZE);
 
 		err = dnet_trans_create_send(n, ctl);
-		if (err) {
-			error = err;
-			continue;
-		}
+		if (err)
+			goto err_out_continue;
 
 		pos--;
 		rsize = DNET_ID_SIZE;
@@ -925,25 +923,29 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 		if (err) {
 			if (err > 0)
 				break;
-			continue;
+			goto err_out_complete;
 		}
 
 		ctl->io.flags = io_flags;
 		err = dnet_trans_create_send(n, ctl);
-		if (err) {
-			error = err;
-			continue;
-		}
+		if (err)
+			goto err_out_continue;
 
-		error = 0;
+		continue;
+
+err_out_complete:
+		if (ctl->complete)
+			ctl->complete(NULL, NULL, NULL, ctl->priv);
+err_out_continue:
+		continue;
 	}
 
-	return error;
+	return pos*2;
 }
 
 int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, unsigned int io_flags, unsigned int aflags)
 {
-	int fd, err;
+	int fd, err, i, tnum;
 	struct stat stat;
 	int error = -ENOENT;
 	struct dnet_wait *w;
@@ -981,11 +983,13 @@ int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, 
 		goto err_out_close;
 	}
 
-	dnet_wait_get(w);
-	dnet_wait_get(w);
+	tnum = n->trans_num*2;
+
+	for (i=0; i<tnum; ++i)
+		dnet_wait_get(w);
 
 	pthread_mutex_lock(&w->wait_lock);
-	w->cond += 2;
+	w->cond += tnum;
 	pthread_mutex_unlock(&w->wait_lock);
 
 	ctl.fd = fd;
@@ -1001,12 +1005,12 @@ int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, 
 	ctl.io.offset = offset;
 
 	err = dnet_write_object(n, &ctl, file, strlen(file));
-	if (err)
+	if (err <= 0)
 		goto err_out_unmap;
 
 	munmap(ctl.data, size);
 
-	dnet_wakeup(w, w->cond--);
+	dnet_wakeup(w, w->cond -= tnum - err + 1);
 
 	err = dnet_wait_event(w, w->cond == 0, &n->wait_ts);
 	if (err || w->status) {
@@ -1252,6 +1256,7 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	t->priv = priv;
 
 	list_add_tail(&t->tentry, &n->tlist);
+	n->trans_num++;
 
 	pthread_mutex_unlock(&n->tlock);
 
@@ -1280,6 +1285,7 @@ int dnet_remove_transform(struct dnet_node *n, char *name)
 	}
 
 	if (!err) {
+		n->trans_num--;
 		list_del(&t->tentry);
 		free(t);
 	}
