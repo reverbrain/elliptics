@@ -200,7 +200,7 @@ int dnet_cmd_list(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	int err;
 
 	sprintf(sub, "%02x", cmd->id[0]);
-	
+
 	err = dnet_listdir(st, cmd, sub, cmd->id);
 	if (err && (err != -ENOENT))
 		goto out_exit;
@@ -391,7 +391,7 @@ static int dnet_process_history(struct dnet_net_state *st, struct dnet_io_attr *
 	}
 
 	memcpy(ctl.id, io->id, DNET_ID_SIZE);
-	
+
 	memcpy(ctl.io.id, io->id, DNET_ID_SIZE);
 	ctl.io.size = 0;
 	ctl.io.offset = 0;

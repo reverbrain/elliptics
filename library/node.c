@@ -46,13 +46,13 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		dnet_log_err(n, "Failed to initialize state lock: err: %d", err);
 		goto err_out_free;
 	}
-	
+
 	err = pthread_mutex_init(&n->trans_lock, NULL);
 	if (err) {
 		dnet_log_err(n, "Failed to initialize transaction lock: err: %d", err);
 		goto err_out_destroy_state;
 	}
-	
+
 	err = pthread_mutex_init(&n->tlock, NULL);
 	if (err) {
 		dnet_log_err(n, "Failed to initialize transformation lock: err: %d", err);
@@ -292,7 +292,7 @@ void dnet_node_destroy(struct dnet_node *n)
 	pthread_mutex_unlock(&n->state_lock);
 
 	close(n->listen_socket);
-	
+
 	pthread_mutex_destroy(&n->state_lock);
 	pthread_mutex_destroy(&n->trans_lock);
 	pthread_mutex_destroy(&n->tlock);

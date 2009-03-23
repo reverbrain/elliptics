@@ -324,13 +324,13 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		dnet_log_err(n, "%s: failed to initialize state lock: err: %d", dnet_dump_id(st->id), err);
 		goto err_out_state_free;
 	}
-	
+
 	err = pthread_mutex_init(&st->refcnt_lock, NULL);
 	if (err) {
 		dnet_log_err(n, "%s: failed to initialize state receiving lock: err: %d", dnet_dump_id(st->id), err);
 		goto err_out_lock_destroy;
 	}
-	
+
 	err = pthread_mutex_init(&st->recv_lock, NULL);
 	if (err) {
 		dnet_log_err(n, "%s: failed to initialize state receiving lock: err: %d", dnet_dump_id(st->id), err);

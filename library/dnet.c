@@ -50,7 +50,7 @@ static int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *d
 			err = t->update(t->priv, src, size, dst, dsize, 0);
 			if (err)
 				continue;
-			
+
 			err = t->final(t->priv, dst, dsize, 0);
 			if (!err)
 				break;
@@ -487,7 +487,7 @@ int dnet_process_cmd(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data
 
 		data += sizeof(struct dnet_attr);
 		size -= sizeof(struct dnet_attr);
-		
+
 		if (size < a->size) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: 2 wrong cmd: size: %llu/%llu, attr_size: %llu.\n",
 				dnet_dump_id(st->id), (unsigned long long)cmd->size, size, sz);
@@ -880,7 +880,7 @@ static int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *c
 	err = dnet_send(st, t+1, sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + sizeof(struct dnet_cmd));
 	if (err)
 		goto err_out_unlock;
-	
+
 	err = dnet_send(st, ctl->data, size);
 	if (err)
 		goto err_out_unlock;
@@ -1401,7 +1401,7 @@ int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command)
 	a->flags = 0;
 
 	sprintf((char *)(a+1), "%s", command);
-	
+
 	st = t->st = dnet_state_get_first(n, cmd->id, n->st);
 	if (!t->st) {
 		err = -ENOENT;
@@ -1434,7 +1434,7 @@ int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command)
 	}
 
 	dnet_wait_put(w);
-	
+
 	dnet_log(n, DNET_LOG_INFO, "%s: successfully executed command '%s'.\n", dnet_dump_id(id), command);
 	return 0;
 
