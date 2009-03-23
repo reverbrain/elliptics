@@ -336,7 +336,7 @@ int dnet_trans_insert(struct dnet_trans *t);
 struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
 
 int dnet_cmd_list(struct dnet_net_state *st, struct dnet_cmd *cmd);
-int dnet_recv_list(struct dnet_node *n);
+int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st);
 
 struct dnet_io_completion
 {

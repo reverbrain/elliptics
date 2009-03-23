@@ -651,7 +651,7 @@ int dnet_rejoin(struct dnet_node *n, int all)
 	/*
 	 * Need to sync local content.
 	 */
-	err = dnet_recv_list(n);
+	err = dnet_recv_list(n, NULL);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: content sync failed, error: %d.\n", dnet_dump_id(n->id), err);
 		if (err == -ENOENT)

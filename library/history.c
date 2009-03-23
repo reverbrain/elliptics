@@ -203,7 +203,7 @@ int dnet_cmd_list(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	
 	err = dnet_listdir(st, cmd, sub, cmd->id);
 	if (err && (err != -ENOENT))
-		return err;
+		goto out_exit;
 
 	if (cmd->id[0] != 0) {
 		for (start = cmd->id[0]-1; start != 0; --start) {
@@ -211,11 +211,25 @@ int dnet_cmd_list(struct dnet_net_state *st, struct dnet_cmd *cmd)
 
 			err = dnet_listdir(st, cmd, sub, NULL);
 			if (err && (err != -ENOENT))
-				return err;
+				goto out_exit;
 		}
+		err = 0;
 	}
 
-	return 0;
+out_exit:
+	/*
+	 * This should be only invoked for the accepted connections which can
+	 * only be in DNET_CLIENT state. When connection drops, accepted state
+	 * is destroyed.
+	 *
+	 * All states used by client to connect to remote servers are in
+	 * DNET_JOINED state, so there will be no list command recursion.
+	 */
+	if (!err && (st->join_state != DNET_JOINED)) {
+		err = dnet_recv_list(st->n, st);
+	}
+
+	return err;
 }
 
 static int dnet_process_existing_history(struct dnet_net_state *st, struct dnet_io_attr *io, int fd)
@@ -470,25 +484,13 @@ out:
 	return err;
 }
 
-int dnet_recv_list(struct dnet_node *n)
+int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st)
 {
 	struct dnet_trans *t;
 	struct dnet_cmd *cmd;
 	struct dnet_attr *a;
-	struct dnet_net_state *st;
-	int err;
+	int err, need_wait = !st;
 	struct dnet_wait *w = n->wait;
-
-	n->total_synced_files = 0;
-
-	/*
-	 * Will be decreased in the completion callback.
-	 * If there will be some files to sync, counter will
-	 * be first increased prior to completion callback
-	 * finish and the decreased back in the read object
-	 * completion.
-	 */
-	w->cond = 1;
 
 	t = malloc(sizeof(struct dnet_trans) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
 	if (!t) {
@@ -513,12 +515,17 @@ int dnet_recv_list(struct dnet_node *n)
 	a->size = 0;
 	a->flags = 0;
 
-	t->st = st = dnet_state_get_first(n, cmd->id, n->st);
 	if (!st) {
-		err = -ENOENT;
-		dnet_log(n, DNET_LOG_ERROR, "%s: can not get output state.\n", dnet_dump_id(n->id));
-		goto err_out_destroy;
-	}
+		st = dnet_state_get_first(n, cmd->id, n->st);
+		if (!st) {
+			err = -ENOENT;
+			dnet_log(n, DNET_LOG_ERROR, "%s: can not get output state.\n", dnet_dump_id(n->id));
+			goto err_out_destroy;
+		}
+	} else
+		st = dnet_state_get(st);
+
+	t->st = st;
 
 	err = dnet_trans_insert(t);
 	if (err)
@@ -529,17 +536,31 @@ int dnet_recv_list(struct dnet_node *n)
 	dnet_convert_cmd(cmd);
 	dnet_convert_attr(a);
 
+	if (need_wait) {
+		/*
+		 * Will be decreased in the completion callback.
+		 * If there will be some files to sync, counter will
+		 * be first increased prior to completion callback
+		 * finish and the decreased back in the read object
+		 * completion.
+		 */
+		w->cond = 1;
+		n->total_synced_files = 0;
+	}
+
 	pthread_mutex_lock(&st->lock);
 	err = dnet_send(st, cmd, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
 	if (err)
 		goto err_out_unlock;
 	pthread_mutex_unlock(&st->lock);
 
-	err = dnet_wait_event(w, w->cond == 0, &n->wait_ts);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for the content sync, err: %d, n_err: %d.\n",
-				dnet_dump_id(n->id), err, n->error);
-		goto err_out_exit;
+	if (need_wait) {
+		err = dnet_wait_event(w, w->cond == 0, &n->wait_ts);
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for the content sync, err: %d, n_err: %d.\n",
+					dnet_dump_id(n->id), err, n->error);
+			goto err_out_exit;
+		}
 	}
 
 	if (n->error) {
