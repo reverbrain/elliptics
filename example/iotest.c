@@ -213,7 +213,7 @@ static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *
 	return 0;
 }
 
-static int iotest_write(struct dnet_node *n,void *data, size_t size, unsigned long long max, char *obj, int len)
+static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned long long max, char *obj, int len, int num)
 {
 	struct dnet_io_control ctl;
 	unsigned int *ptr = data;
@@ -233,14 +233,6 @@ static int iotest_write(struct dnet_node *n,void *data, size_t size, unsigned lo
 	first = 0;
 	last = size / sizeof(int) - 1;
 
-#if 1
-	memset(ctl.io.id, 0x1, DNET_ID_SIZE);
-	err = dnet_lookup_object(n, ctl.io.id, dnet_lookup_complete, NULL);
-	if (err) {
-		fprintf(stderr, "Failed to lookup a node for %s object.\n", dnet_dump_id(ctl.io.id));
-		return -1;
-	}
-#endif
 	while (max) {
 		if (size > max)
 			size = max;
@@ -252,6 +244,14 @@ static int iotest_write(struct dnet_node *n,void *data, size_t size, unsigned lo
 		if (err)
 			return err;
 
+		if (num) {
+			err = dnet_lookup_object(n, ctl.io.id, dnet_lookup_complete, NULL);
+			if (err)
+				fprintf(stderr, "Failed to lookup a node for %s object.\n", dnet_dump_id(ctl.io.id));
+			else
+				num--;
+		}
+
 		max -= size;
 		ctl.io.offset += size;
 	}
@@ -259,7 +259,7 @@ static int iotest_write(struct dnet_node *n,void *data, size_t size, unsigned lo
 	return 0;
 }
 
-static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned long long max, char *obj, int len __unused)
+static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned long long max, char *obj, int len __unused, int lookup_num)
 {
 	struct dnet_io_control ctl;
 	int err, fd;
@@ -305,19 +305,18 @@ static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned lon
 
 	num = st.st_size / sizeof(struct dnet_io_attr) - 1;
 
-	ctl.io = ios[(int)((double)(rand()) * (num - 1) / (double) RAND_MAX)];
-	dnet_convert_io_attr(&ctl.io);
-#if 1
-	err = dnet_lookup_object(n, ctl.io.id, dnet_lookup_complete, NULL);
-	if (err) {
-		fprintf(stderr, "Failed to lookup a node for %s object.\n", dnet_dump_id(ctl.io.id));
-		goto err_out_unmap;
-	}
-#endif
 	while (max) {
 		ctl.io = ios[(int)((double)(rand()) * num / (double) RAND_MAX)];
 
 		dnet_convert_io_attr(&ctl.io);
+
+		if (lookup_num) {
+			err = dnet_lookup_object(n, ctl.io.id, dnet_lookup_complete, NULL);
+			if (err)
+				fprintf(stderr, "Failed to lookup a node for %s object.\n", dnet_dump_id(ctl.io.id));
+			else
+				lookup_num--;
+		}
 
 		memcpy(ctl.id, ctl.io.id, DNET_ID_SIZE);
 		ctl.io.flags = 0;
@@ -342,8 +341,6 @@ static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned lon
 
 	return 0;
 
-err_out_unmap:
-	munmap(ios, st.st_size);
 err_out_close:
 	close(fd);
 err_out_exit:
@@ -393,6 +390,7 @@ static void dnet_usage(char *p)
 			" -S size              - amount of bytes transferred in the test\n"
 			" -t seconds           - speed check interval\n"
 			" -I id                - node ID\n"
+			" -n num               - number of the server lookup requests sent during the test\n"
 			, p);
 }
 
@@ -409,7 +407,7 @@ int main(int argc, char *argv[])
 	unsigned long long max = 100ULL * 1024 * 1024 * 1024;
 	void *data;
 	struct itimerval timer;
-	int seconds = 1;
+	int seconds = 1, num = 0;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -422,6 +420,9 @@ int main(int argc, char *argv[])
 
 	while ((ch = getopt(argc, argv, "I:t:S:s:m:i:a:r:RT:l:w:h")) != -1) {
 		switch (ch) {
+			case 'n':
+				num = atoi(optarg);
+				break;
 			case 'I':
 				err = dnet_parse_numeric_id(optarg, cfg.id);
 				if (err)
@@ -551,9 +552,9 @@ int main(int argc, char *argv[])
 	srand(time(NULL));
 
 	if (write)
-		err = iotest_write(n, data, size, max, obj, strlen(obj));
+		err = iotest_write(n, data, size, max, obj, strlen(obj), num);
 	else
-		err = iotest_read(n, data, size, max, obj, strlen(obj));
+		err = iotest_read(n, data, size, max, obj, strlen(obj), num);
 
 	printf("%s: size: %zu, max: %llu, obj: '%s', err: %d.\n", (write)?"Write":"Read", size, max, obj, err);
 
