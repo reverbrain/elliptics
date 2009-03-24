@@ -2,7 +2,7 @@ noinst_PROGRAMS = example hparser iotest
 
 CC = @PTHREAD_CC@
 
-example_SOURCES = example.c
+example_SOURCES = example.c file_backend.c
 example_LDADD = ../library/libdnet.la
 
 hparser_SOURCES = hparser.c

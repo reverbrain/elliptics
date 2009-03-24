@@ -42,6 +42,9 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
+extern int file_backend_command_handler(void *state, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *data);
+
 struct dnet_crypto_engine
 {
 	char			name[DNET_MAX_NAME_LEN];
@@ -275,6 +278,7 @@ int main(int argc, char *argv[])
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
 	cfg.log_mask = ~0;
+	cfg.command_handler = file_backend_command_handler;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 

@@ -410,7 +410,6 @@ int dnet_sendfile_data(struct dnet_net_state *st,
 {
 	ssize_t err;
 
-	pthread_mutex_lock(&st->lock);
 	err = dnet_send(st, header, hsize);
 	if (err)
 		goto err_out_unlock;
@@ -426,7 +425,8 @@ int dnet_sendfile_data(struct dnet_net_state *st,
 			continue;
 
 		if (err < 0) {
-			dnet_log(st->n, DNET_LOG_ERROR, "Failed to wait for descriptor: err: %zd, socket: %d.\n", err, st->s);
+			dnet_log(st->n, DNET_LOG_ERROR, "Failed to wait for descriptor: "
+					"err: %zd, socket: %d.\n", err, st->s);
 			break;
 		}
 
@@ -434,12 +434,14 @@ int dnet_sendfile_data(struct dnet_net_state *st,
 		if (err < 0) {
 			if (err == -EAGAIN)
 				continue;
-			dnet_log_err(st->n, "%s: failed to send file data, err: %zd", dnet_dump_id(st->id), err);
+			dnet_log_err(st->n, "%s: failed to send file data, err: %zd",
+					dnet_dump_id(st->id), err);
 			goto err_out_unlock;
 		}
 
 		if (err == 0) {
-			dnet_log(st->n, DNET_LOG_INFO, "%s: looks like truncated file, size: %zu.\n", dnet_dump_id(st->id), size);
+			dnet_log(st->n, DNET_LOG_INFO, "%s: looks like truncated file, "
+					"size: %zu.\n", dnet_dump_id(st->id), size);
 			break;
 		}
 
@@ -470,12 +472,10 @@ int dnet_sendfile_data(struct dnet_net_state *st,
 			size -= sz;
 		}
 	}
-	pthread_mutex_unlock(&st->lock);
 
 	return 0;
 
 err_out_unlock:
-	pthread_mutex_unlock(&st->lock);
 	return err;
 }
 

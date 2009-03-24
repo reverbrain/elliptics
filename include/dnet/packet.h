@@ -100,6 +100,12 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 	cmd->trans = dnet_bswap64(cmd->trans);
 }
 
+/*
+ * When present in @flags field forces backend to perform IO against
+ * history log and not object itself.
+ */
+#define DNET_ATTR_HISTORY		(1<<0)
+
 struct dnet_attr
 {
 	uint64_t		size;

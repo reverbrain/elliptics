@@ -243,14 +243,25 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	struct dnet_node *n;
 	int err = -ENOMEM;
 
-	n = dnet_node_alloc(cfg);
-	if (!n)
+	if (cfg->join && !cfg->command_handler) {
+		err = -EINVAL;
+		if (cfg->log)
+			cfg->log(cfg->log_private, DNET_LOG_ERROR, "%s: joining node has to register comamnd handler.\n",
+					dnet_dump_id(cfg->id));
 		goto err_out_exit;
+	}
+
+	n = dnet_node_alloc(cfg);
+	if (!n) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
 
 	memcpy(n->id, cfg->id, DNET_ID_SIZE);
 	n->proto = cfg->proto;
 	n->sock_type = cfg->sock_type;
 	n->wait_ts.tv_sec = cfg->wait_timeout;
+	n->command_handler = cfg->command_handler;
 
 	n->addr.addr_len = sizeof(n->addr.addr);
 

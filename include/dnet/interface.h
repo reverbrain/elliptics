@@ -153,6 +153,12 @@ struct dnet_config
 	void			*log_private;
 	void 			(* log)(void *priv, uint32_t mask, const char *f, ...);
 	void 			(* log_append)(void *priv, uint32_t mask, const char *f, ...);
+
+	/*
+	 * Network command handler.
+	 * Returns negative error value or zero in case of success.
+	 */
+	int			(* command_handler)(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 };
 
 /*
@@ -225,6 +231,33 @@ int dnet_lookup_object(struct dnet_node *n, unsigned char *id,
 int dnet_lookup(struct dnet_node *n, char *file);
 int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv);
+
+static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
+{
+	unsigned int i = 0;
+#if 0
+	const unsigned long *l1 = (unsigned long *)id1;
+	const unsigned long *l2 = (unsigned long *)id2;
+
+	for (i=0; i<DNET_ID_SIZE/sizeof(unsigned long); ++i) {
+		if (l1[i] > l2[i])
+			return -1;
+		if (l1[i] < l2[i])
+			return 1;
+	}
+#endif
+	for (i*=sizeof(unsigned long); i<DNET_ID_SIZE; ++i) {
+		if (id1[i] > id2[i])
+			return -1;
+		if (id1[i] < id2[i])
+			return 1;
+	}
+
+	return 0;
+}
+
+int dnet_data_ready(struct dnet_net_state *st, struct dnet_cmd *cmd,
+	struct dnet_attr *attr, void *data, size_t size, off_t offset, int fd);
 
 #ifdef __cplusplus
 }

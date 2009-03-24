@@ -41,30 +41,6 @@ extern "C" {
 #define __unused	__attribute__ ((unused))
 #endif
 
-static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
-{
-	unsigned int i = 0;
-#if 0
-	const unsigned long *l1 = (unsigned long *)id1;
-	const unsigned long *l2 = (unsigned long *)id2;
-
-	for (i=0; i<DNET_ID_SIZE/sizeof(unsigned long); ++i) {
-		if (l1[i] > l2[i])
-			return -1;
-		if (l1[i] < l2[i])
-			return 1;
-	}
-#endif
-	for (i*=sizeof(unsigned long); i<DNET_ID_SIZE; ++i) {
-		if (id1[i] > id2[i])
-			return -1;
-		if (id1[i] < id2[i])
-			return 1;
-	}
-
-	return 0;
-}
-
 struct dnet_node;
 
 /*
@@ -277,6 +253,8 @@ struct dnet_node
 	uint64_t		total_synced_files;
 
 	int			join_state;
+	
+	int			(* command_handler)(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 };
 
 static inline char *dnet_dump_node(struct dnet_node *n)
