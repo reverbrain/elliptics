@@ -36,4 +36,8 @@
  */
 #define DNET_MAX_READ_TRANS_SIZE	(1024*1024*10)
 
+#ifndef HAVE_LARGEFILE_SUPPORT
+#define O_LARGEFILE		0
+#endif
+
 #endif /* __DNET_CORE_H */

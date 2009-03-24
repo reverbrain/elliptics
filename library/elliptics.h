@@ -341,10 +341,6 @@ struct dnet_transform
 	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };
 
-#ifndef HAVE_LARGEFILE_SUPPORT
-#define O_LARGEFILE		0
-#endif
-
 #ifdef __cplusplus
 }
 #endif

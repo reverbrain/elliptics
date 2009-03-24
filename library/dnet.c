@@ -27,7 +27,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "trans.h"
 #include "elliptics.h"
 
 #include "dnet/packet.h"
