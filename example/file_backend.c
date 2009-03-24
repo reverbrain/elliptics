@@ -165,7 +165,7 @@ out_close:
 	return err;
 }
 
-static int dnet_cmd_list(void *state, struct dnet_cmd *cmd, struct dnet_attr *a, void *data)
+static int dnet_cmd_list(void *state, struct dnet_cmd *cmd, struct dnet_attr *a __attribute__ ((unused)), void *data)
 {
 	char sub[3];
 	unsigned char start;
@@ -466,7 +466,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_exec(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
+static int dnet_cmd_exec(void *state __attribute__ ((unused)), struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
 	char *command = data;
 	pid_t pid;
