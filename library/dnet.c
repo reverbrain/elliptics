@@ -636,7 +636,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 			goto err_out_complete;
 		}
 
-		ctl->io.flags = io_flags & ~DNET_IO_FLAGS_UPDATE;
+		ctl->io.flags = io_flags | DNET_IO_FLAGS_OBJECT;
 		memcpy(ctl->io.id, ctl->id, DNET_ID_SIZE);
 
 		err = dnet_trans_create_send(n, ctl);

@@ -100,12 +100,6 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 	cmd->trans = dnet_bswap64(cmd->trans);
 }
 
-/*
- * When present in @flags field forces backend to perform IO against
- * history log and not object itself.
- */
-#define DNET_ATTR_HISTORY		(1<<0)
-
 struct dnet_attr
 {
 	uint64_t		size;
@@ -169,13 +163,18 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 	dnet_convert_addr_attr(&l->addr);
 }
 
-/*
- * IO is a data update only so only history for the corresponding
- * object has to be updated.
- */
-#define DNET_IO_FLAGS_UPDATE	(1<<0)
+/* Update history if set. Is not checked when history file is updated directly */
+#define DNET_IO_FLAGS_HISTORY_UPDATE	(1<<0)
+
 /* Append given data at the end of the object */
-#define DNET_IO_FLAGS_APPEND	(1<<1)
+#define DNET_IO_FLAGS_APPEND		(1<<1)
+
+/* History IO request. */
+#define DNET_IO_FLAGS_HISTORY		(1<<2)
+
+/* Update object itself when set */
+#define DNET_IO_FLAGS_OBJECT		(1<<3)
+
 
 struct dnet_io_attr
 {

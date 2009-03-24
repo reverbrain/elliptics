@@ -416,10 +416,10 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		unsigned int ioflags = 0;
+		unsigned int ioflags = DNET_IO_FLAGS_OBJECT | DNET_IO_FLAGS_HISTORY_UPDATE;
 
 		if (spread)
-			ioflags = DNET_IO_FLAGS_UPDATE;
+			ioflags &= ~DNET_IO_FLAGS_OBJECT;
 		err = dnet_write_file(n, writef, 0, 0, ioflags, 0);
 		if (err)
 			return err;

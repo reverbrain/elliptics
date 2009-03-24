@@ -68,21 +68,18 @@ static int dnet_compare_history(struct dnet_node *n, struct dnet_cmd *cmd, struc
 		goto out;
 	}
 
-	dnet_log(n, DNET_LOG_ERROR, "%s: last transaction matched: ",
-		dnet_dump_id(lio->id));
-	dnet_log_append(n, DNET_LOG_ERROR, "remote: %s, size: %llu, offset: %llu.\n",
+	dnet_log(n, DNET_LOG_ERROR, "%s: last transaction matched: size: %llu, offset: %llu.\n",
 			dnet_dump_id(rio->id), rio->size, rio->offset);
 out:
 	return err;
 }
 
 static int dnet_read_object_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *priv)
+		struct dnet_attr *attr, void *priv __unused)
 {
 	int err;
 	struct dnet_node *n = NULL;
-	struct dnet_cmd *c = priv;
-	struct dnet_attr *a = NULL;
+	struct dnet_io_attr *io;
 
 	if (!st || !cmd || cmd->status || !cmd->size) {
 		err = -EINVAL;
@@ -112,9 +109,18 @@ static int dnet_read_object_complete(struct dnet_net_state *st, struct dnet_cmd 
 		goto err_out_exit;
 	}
 
-	*a = *attr;
-	a->cmd = DNET_CMD_WRITE;
-	err = n->command_handler(st, cmd, a, attr+1);
+	io = (struct dnet_io_attr *)(attr + 1);
+
+	dnet_convert_io_attr(io);
+	/*
+	 * Do not update history for this write since we fetched object and its transaction
+	 * history from the network and it is not a real IO started by the client.
+	 */
+	io->flags = DNET_IO_FLAGS_OBJECT;
+	dnet_convert_io_attr(io);
+
+	attr->cmd = DNET_CMD_WRITE;
+	err = n->command_handler(st, cmd, attr, io);
 	dnet_log(st->n, DNET_LOG_INFO, "%s: stored object locally, err: %d.\n",
 			dnet_dump_id(cmd->id), err);
 	if (err)
@@ -123,13 +129,10 @@ static int dnet_read_object_complete(struct dnet_net_state *st, struct dnet_cmd 
 	return 0;
 
 out:
-	if (!err && a && n) {
-		a->cmd = DNET_CMD_WRITE;
-		err = n->command_handler(st, c, a, a+1);
+	if (st) {
+		dnet_wakeup(st->n->wait, do { st->n->wait->cond--; st->n->total_synced_files++; } while (0));
+		dnet_wait_put(st->n->wait);
 	}
-	dnet_wakeup(n->wait, n->wait->cond--);
-	dnet_wait_put(n->wait);
-	free(priv);
 
 err_out_exit:
 	if (st && err)
@@ -174,7 +177,7 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 		goto err_out_exit;
 	}
 
-	c = malloc(cmd->size);
+	c = malloc(cmd->size + sizeof(struct dnet_cmd));
 	if (!c) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate %llu bytes "
 				"for history request.\n",
@@ -189,30 +192,45 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 	*c = *cmd;
 	*a = *attr;
 
-	a->flags = DNET_ATTR_HISTORY;
 	a->cmd = DNET_CMD_READ;
 
-	io->size = attr->size - sizeof(struct dnet_attr);
+	io->size = attr->size - sizeof(struct dnet_io_attr);
 	io->offset = 0;
-	io->flags = 0;
+	io->flags = DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_OBJECT;
 	memcpy(io->id, cmd->id, DNET_ID_SIZE);
+	
+	dnet_log(n, DNET_LOG_INFO, "%s: reading local history: io_size: %llu.\n",
+					dnet_dump_id(cmd->id), io->size);
 
 	dnet_convert_io_attr(io);
 
 	err = n->command_handler(st, c, a, io);
-	dnet_log(n, DNET_LOG_INFO, "Read local history %s, err: %d.\n",
-					dnet_dump_id(cmd->id), err);
+	dnet_log(n, DNET_LOG_INFO, "%s: read local history: io_size: %llu, err: %d.\n",
+					dnet_dump_id(cmd->id), io->size, err);
 	if (err) {
 		struct dnet_io_control ctl;
+		
+		if (attr->size > sizeof(struct dnet_io_attr)) {
+			attr->cmd = DNET_CMD_WRITE;
+
+			err = n->command_handler(st, cmd, attr, attr+1);
+			dnet_log(st->n, DNET_LOG_INFO, "%s: stored history locally, err: %d, asize: %llu.\n",
+				dnet_dump_id(cmd->id), err, attr->size);
+			if (err)
+				goto err_out_free;
+		}
 
 		memset(&ctl, 0, sizeof(struct dnet_io_control));
 
 		memcpy(ctl.id, cmd->id, DNET_ID_SIZE);
+		memcpy(ctl.io.id, cmd->id, DNET_ID_SIZE);
 
-		ctl.io = *io;
-		ctl.priv = c;
+		ctl.io.size = 0;
+		ctl.io.offset = 0;
+		ctl.io.flags = 0;
+
+		ctl.priv = NULL;
 		ctl.complete = dnet_read_object_complete;
-		ctl.fd = -1;
 		ctl.cmd = DNET_CMD_READ;
 		
 		dnet_wakeup(n->wait, n->wait->cond++);
@@ -226,6 +244,7 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 		if (err)
 			goto err_out_free;
 	}
+	free(c);
 
 	return 0;
 
@@ -281,7 +300,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
 	ctl.complete = dnet_complete_history_read;
-	ctl.aflags = DNET_ATTR_HISTORY;
+	ctl.io.flags = DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_OBJECT;
 	ctl.priv = priv;
 	ctl.cmd = DNET_CMD_READ;
 
