@@ -46,7 +46,7 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
 {
 	int err;
 
-	err = sendfile(fd, st->s, *offset, size, NULL, &size, 0);
+	err = sendfile(fd, st->s, *offset, size, NULL, (off_t *)&size, 0);
 	if (err && errno != EAGAIN)
 		return -errno;
 
