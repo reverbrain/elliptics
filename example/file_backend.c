@@ -33,6 +33,64 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
+struct file_backend_root
+{
+	char			*root;
+	int			root_len;
+	int			rootfd;
+};
+
+void *file_backend_setup_root(char *root)
+{
+	int err;
+	struct file_backend_root *r;
+
+	r = malloc(sizeof(struct file_backend_root));
+	if (!r)
+		goto err_out_exit;
+
+	if (r->root) {
+		free(r->root);
+		close(r->rootfd);
+	}
+
+	r->root = strdup(root);
+	if (!r->root) {
+		err = -ENOMEM;
+		fprintf(stderr, "Failed to duplicate root string '%s'.\n", root);
+		goto err_out_exit;
+	}
+
+	r->rootfd = open(r->root, O_RDONLY);
+	if (r->rootfd < 0) {
+		err = -errno;
+		fprintf(stderr, "Failed to open root '%s': %s.\n", root, strerror(errno));
+		goto err_out_free;
+	}
+
+	r->root_len = strlen(r->root);
+
+	err = fchdir(r->rootfd);
+	if (err) {
+		err = -errno;
+		fprintf(stderr, "Failed to change current dir to root '%s' directory: %s.\n",
+				root, strerror(errno));
+		goto err_out_close;
+	}
+
+	return r;
+
+err_out_close:
+	close(r->rootfd);
+	r->rootfd = -1;
+err_out_free:
+	free(r->root);
+	r->root = NULL;
+err_out_exit:
+	return NULL;
+}
+
+
 static void dnet_convert_name_to_id(char *name, unsigned char *id)
 {
 	int i;
@@ -511,8 +569,8 @@ out_exit:
 	return err;
 }
 
-int file_backend_command_handler(void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+int file_backend_command_handler(void *state, void *private __attribute__ ((unused)),
+		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
 	int err;
 

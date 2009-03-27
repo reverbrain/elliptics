@@ -120,7 +120,7 @@ static int dnet_read_object_complete(struct dnet_net_state *st, struct dnet_cmd 
 	dnet_convert_io_attr(io);
 
 	attr->cmd = DNET_CMD_WRITE;
-	err = n->command_handler(st, cmd, attr, io);
+	err = n->command_handler(st, n->command_private, cmd, attr, io);
 	dnet_log(st->n, DNET_LOG_INFO, "%s: stored object locally, err: %d.\n",
 			dnet_dump_id(cmd->id), err);
 	if (err)
@@ -204,7 +204,7 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 
 	dnet_convert_io_attr(io);
 
-	err = n->command_handler(st, c, a, io);
+	err = n->command_handler(st, n->command_private, c, a, io);
 	dnet_log(n, DNET_LOG_INFO, "%s: read local history: io_size: %llu, err: %d.\n",
 					dnet_dump_id(cmd->id), io->size, err);
 	if (err) {
@@ -213,7 +213,7 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 		if (attr->size > sizeof(struct dnet_io_attr)) {
 			attr->cmd = DNET_CMD_WRITE;
 
-			err = n->command_handler(st, cmd, attr, attr+1);
+			err = n->command_handler(st, n->command_private, cmd, attr, attr+1);
 			dnet_log(st->n, DNET_LOG_INFO, "%s: stored history locally, err: %d, asize: %llu.\n",
 				dnet_dump_id(cmd->id), err, attr->size);
 			if (err)

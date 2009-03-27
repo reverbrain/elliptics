@@ -158,7 +158,9 @@ struct dnet_config
 	 * Network command handler.
 	 * Returns negative error value or zero in case of success.
 	 */
-	int			(* command_handler)(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
+	int			(* command_handler)(void *state, void *private,
+			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
+	void			*command_private;
 };
 
 /*
@@ -193,11 +195,6 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg);
  * used to store data sent from the network.
  */
 int dnet_join(struct dnet_node *n);
-
-/*
- * Sets the root directory to store data objects.
- */
-int dnet_setup_root(struct dnet_node *n, char *root);
 
 static inline char *dnet_dump_id(unsigned char *id)
 {

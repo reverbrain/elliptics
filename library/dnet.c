@@ -222,7 +222,7 @@ int dnet_process_cmd(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data
 				if (!n->command_handler)
 					err = -EPROTO;
 				else {
-					err = n->command_handler(st, cmd, a, data);
+					err = n->command_handler(st, n->command_private, cmd, a, data);
 					if (a->cmd == DNET_CMD_LIST && !err &&
 							(st->join_state != DNET_JOINED)) {
 						/*
@@ -362,9 +362,9 @@ int dnet_rejoin(struct dnet_node *n, int all)
 	int err = 0;
 	struct dnet_net_state *st;
 
-	if (!n->root) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: can not join without root directory "
-				"to store data.\n", dnet_dump_id(n->id));
+	if (!n->command_handler) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: can not join without command handler.\n",
+				dnet_dump_id(n->id));
 		return -EINVAL;
 	}
 
@@ -433,50 +433,6 @@ int dnet_join(struct dnet_node *n)
 
 	n->join_state = DNET_JOINED;
 	return 0;
-}
-
-int dnet_setup_root(struct dnet_node *n, char *root)
-{
-	int err;
-
-	if (n->root) {
-		free(n->root);
-		close(n->rootfd);
-	}
-
-	n->root = strdup(root);
-	if (!n->root) {
-		err = -ENOMEM;
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to duplicate root string '%s'.\n", dnet_dump_id(n->id), root);
-		goto err_out_exit;
-	}
-
-	n->rootfd = open(n->root, O_RDONLY);
-	if (n->rootfd < 0) {
-		err = -errno;
-		dnet_log_err(n, "%s: failed to open root '%s' for writing", dnet_dump_id(n->id), root);
-		goto err_out_free;
-	}
-
-	n->root_len = strlen(n->root);
-
-	err = fchdir(n->rootfd);
-	if (err) {
-		err = -errno;
-		dnet_log_err(n, "%s: failed to change current dir to root '%s' directory", dnet_dump_id(n->id), root);
-		goto err_out_close;
-	}
-
-	return 0;
-
-err_out_close:
-	close(n->rootfd);
-	n->rootfd = 0;
-err_out_free:
-	free(n->root);
-	n->root = NULL;
-err_out_exit:
-	return err;
 }
 
 static void dnet_io_complete(struct dnet_wait *w, int status)

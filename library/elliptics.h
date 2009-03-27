@@ -239,9 +239,6 @@ struct dnet_node
 
 	int			error;
 
-	int			rootfd, root_len;
-	char			*root;
-
 	uint32_t		log_mask;
 	void			*log_priv;
 	void			(*log)(void *priv, uint32_t mask, const char *f, ...);
@@ -254,7 +251,9 @@ struct dnet_node
 
 	int			join_state;
 	
-	int			(* command_handler)(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
+	int			(* command_handler)(void *state, void *private,
+			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
+	void			*command_private;
 };
 
 static inline char *dnet_dump_node(struct dnet_node *n)

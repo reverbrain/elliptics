@@ -42,8 +42,9 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
-extern int file_backend_command_handler(void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data);
+extern int file_backend_command_handler(void *state, void *priv,
+		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
+extern void *file_backend_setup_root(char *root);
 
 struct dnet_crypto_engine
 {
@@ -267,8 +268,8 @@ int main(int argc, char *argv[])
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem;
 	struct dnet_crypto_engine *e, *trans[trans_max];
-	char *logfile = NULL, *root = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
-	char *historyf = NULL;
+	char *logfile = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
+	char *historyf = NULL, *root = NULL;
 	unsigned char trans_id[DNET_ID_SIZE];
 	FILE *log = NULL;
 
@@ -278,7 +279,6 @@ int main(int argc, char *argv[])
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
 	cfg.log_mask = ~0;
-	cfg.command_handler = file_backend_command_handler;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
@@ -381,6 +381,13 @@ int main(int argc, char *argv[])
 		cfg.log_append = dnet_example_log_append;
 	}
 
+	if (root) {
+		cfg.command_private = file_backend_setup_root(root);
+		if (!cfg.command_private)
+			return -EINVAL;
+		cfg.command_handler = file_backend_command_handler;
+	}
+
 	if (daemon)
 		dnet_background();
 
@@ -399,12 +406,6 @@ int main(int argc, char *argv[])
 
 	if (have_remote) {
 		err = dnet_add_state(n, &rem);
-		if (err)
-			return err;
-	}
-
-	if (root) {
-		err = dnet_setup_root(n, root);
 		if (err)
 			return err;
 	}
@@ -449,7 +450,7 @@ int main(int argc, char *argv[])
 			return err;
 	}
 
-	if (root) {
+	if (cfg.join) {
 		dnet_give_up_control(n);
 	}
 
