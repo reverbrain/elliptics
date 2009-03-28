@@ -98,27 +98,11 @@ static int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 	return 0;
 }
 
-static void dnet_example_log_append(void *priv, uint32_t mask __unused, const char *f, ...)
-{
-	va_list ap;
-	FILE *stream = priv;
-
-	if (!stream)
-		stream = stdout;
-
-	va_start(ap, f);
-	vfprintf(stream, f, ap);
-	va_end(ap);
-
-	fflush(stream);
-}
-
-static void dnet_example_log(void *priv, uint32_t mask __unused, const char *f, ...)
+static void iotest_log(void *priv, uint32_t mask __unused, const char *msg)
 {
 	char str[64];
 	struct tm tm;
 	struct timeval tv;
-	va_list ap;
 	FILE *stream = priv;
 
 	if (!stream)
@@ -128,13 +112,7 @@ static void dnet_example_log(void *priv, uint32_t mask __unused, const char *f, 
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	fprintf(stream, "%s.%06lu ", str, tv.tv_usec);
-
-	va_start(ap, f);
-	vfprintf(stream, f, ap);
-	va_end(ap);
-
-	fflush(stream);
+	fprintf(stream, "%s.%06lu %s", str, tv.tv_usec, msg);
 }
 
 #define DNET_CONF_COMMENT	'#'
@@ -515,8 +493,7 @@ int main(int argc, char *argv[])
 		}
 
 		cfg.log_private = log;
-		cfg.log = dnet_example_log;
-		cfg.log_append = dnet_example_log_append;
+		cfg.log = iotest_log;
 	}
 
 	n = dnet_node_create(&cfg);

@@ -151,8 +151,7 @@ struct dnet_config
 
 	uint32_t		log_mask;
 	void			*log_private;
-	void 			(* log)(void *priv, uint32_t mask, const char *f, ...);
-	void 			(* log_append)(void *priv, uint32_t mask, const char *f, ...);
+	void 			(* log)(void *priv, uint32_t mask, const char *msg);
 
 	/*
 	 * Network command handler.

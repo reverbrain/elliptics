@@ -138,10 +138,10 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 		err = dnet_send(st, t->data, size);
 	pthread_mutex_unlock(&st->lock);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: ", dnet_dump_id(t->cmd.id));
-	dnet_log_append(n, DNET_LOG_INFO, "forwarded to %s (%s), trans: %llu, err: %d.\n", dnet_dump_id(st->id),
-		dnet_server_convert_dnet_addr(&st->addr),
-		(unsigned long long)t->trans, err);
+	dnet_log(n, DNET_LOG_INFO, "%s: forwarded to %s, trans: %llu, err: %d.\n",
+			dnet_dump_id(t->cmd.id),
+			dnet_server_convert_dnet_addr(&st->addr),
+			(unsigned long long)t->trans, err);
 
 	return err;
 }
@@ -279,31 +279,20 @@ int dnet_trans_process(struct dnet_net_state *st)
 	}
 
 out:
-	dnet_log(n, DNET_LOG_TRANS, "%s: completed size: %llu, trans: %llu, reply: %d",
+	dnet_log(n, DNET_LOG_TRANS, "%s: completed size: %llu, trans: %llu, reply: %d.\n",
 			dnet_dump_id(cmd.id), (unsigned long long)cmd.size,
 			(unsigned long long)(cmd.trans & ~DNET_TRANS_REPLY),
 			!!(cmd.trans & DNET_TRANS_REPLY));
-	if (!need_drop && !t)
-		dnet_log_append(n, DNET_LOG_TRANS, " (local)");
-	dnet_log_append(n, DNET_LOG_TRANS, "\n");
 
 	return 0;
 
 err_out_unlock:
 	pthread_mutex_unlock(&st->recv_lock);
 err_out_destroy:
-	dnet_log(n, DNET_LOG_ERROR, "%s: failed cmd: size: %llu, trans: %llu, reply: %d, err: %d",
+	dnet_log(n, DNET_LOG_ERROR, "%s: failed cmd: size: %llu, trans: %llu, reply: %d, err: %d.\n",
 			dnet_dump_id(cmd.id), (unsigned long long)cmd.size,
 			(unsigned long long)(cmd.trans & ~DNET_TRANS_REPLY),
 			!!(cmd.trans & DNET_TRANS_REPLY), err);
-	dnet_log_append(n, DNET_LOG_ERROR, ", st: %s", dnet_dump_id(st->id));
-	if (t && t->st) {
-		if (st == t->st)
-			dnet_log_append(n, DNET_LOG_ERROR, " (local)");
-		else
-			dnet_log_append(n, DNET_LOG_ERROR, ", trans_st: %s", dnet_dump_id(t->st->id));
-	}
-	dnet_log_append(n, DNET_LOG_ERROR, "\n");
 	dnet_trans_destroy(t);
 	return err;
 }

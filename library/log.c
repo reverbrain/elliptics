@@ -35,16 +35,30 @@
 #include "elliptics.h"
 
 int dnet_log_init(struct dnet_node *n, void *priv, uint32_t mask,
-		void (* log)(void *priv, uint32_t mask, const char *f, ...),
-		void (* log_append)(void *priv, uint32_t mask, const char *f, ...))
+		void (* log)(void *priv, uint32_t mask, const char *msg))
 {
 	if (!n)
 		return -EINVAL;
 
 	n->log_mask = mask;
-	n->log_priv = priv;
+	n->log_private = priv;
 	n->log = log;
-	n->log_append = log_append;
 
 	return 0;
+}
+
+void dnet_log(struct dnet_node *n, uint32_t mask, const char *format, ...)
+{
+	va_list args;
+	char buf[1024];
+	int buflen = sizeof(buf);
+
+	if (!n->log || !(n->log_mask & mask))
+		return;
+
+	va_start(args, format);
+	vsnprintf(buf, buflen, format, args);
+	buf[buflen-1] = '\0';
+	n->log(n->log_private, mask, buf);
+	va_end(args);
 }

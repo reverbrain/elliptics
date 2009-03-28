@@ -61,9 +61,8 @@ static int dnet_compare_history(struct dnet_node *n, struct dnet_cmd *cmd, struc
 
 	err = memcmp(rio->id, lio->id, DNET_ID_SIZE);
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: last transaction mismatch: ",
-			dnet_dump_id(lio->id));
-		dnet_log_append(n, DNET_LOG_ERROR, "remote: %s.\n", dnet_dump_id(rio->id));
+		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: local : %s", dnet_dump_id(lio->id));
+		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: remote: %s", dnet_dump_id(rio->id));
 		err = -EINVAL;
 		goto out;
 	}

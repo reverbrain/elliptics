@@ -47,11 +47,15 @@ struct dnet_node;
  * Initialize private logging system.
  */
 int dnet_log_init(struct dnet_node *n, void *priv, uint32_t mask,
-		void (* log)(void *priv, uint32_t mask, const char *f, ...),
-		void (* log_append)(void *priv, uint32_t mask, const char *f, ...));
+		void (* log)(void *priv, uint32_t mask, const char *msg));
 
-#define dnet_log(n, mask, f, a...) do { if (n && n->log && (n->log_mask & mask)) n->log(n->log_priv, mask, f, ##a); } while (0)
-#define dnet_log_append(n, mask, f, a...) do { if (n && n->log_append && (n->log_mask & mask)) n->log_append(n->log_priv, mask, f, ##a); } while (0)
+#ifdef __GNUC__
+#define DNET_LOG_CHECK  __attribute__ ((format(printf, 3, 4)))
+#else
+#define DNET_LOG_CHECK
+#endif
+
+void dnet_log(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
 #define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
 
 #define NIP6(addr) \
@@ -240,9 +244,8 @@ struct dnet_node
 	int			error;
 
 	uint32_t		log_mask;
-	void			*log_priv;
-	void			(*log)(void *priv, uint32_t mask, const char *f, ...);
-	void			(*log_append)(void *priv, uint32_t mask, const char *f, ...);
+	void			*log_private;
+	void			(*log)(void *priv, uint32_t mask, const char *msg);
 
 	struct dnet_wait	*wait;
 	struct timespec		wait_ts;

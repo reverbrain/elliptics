@@ -37,7 +37,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	n->trans = 0;
 	n->trans_root = RB_ROOT;
 
-	err = dnet_log_init(n, cfg->log_private, cfg->log_mask, cfg->log, cfg->log_append);
+	err = dnet_log_init(n, cfg->log_private, cfg->log_mask, cfg->log);
 	if (err)
 		goto err_out_free;
 
@@ -102,35 +102,36 @@ int dnet_state_insert(struct dnet_net_state *new)
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		err = dnet_id_cmp(st->id, new->id);
 
-		dnet_log(n, DNET_LOG_NOTICE, "st: %s, ", dnet_dump_id(st->id));
-		dnet_log_append(n, DNET_LOG_NOTICE, "new: %s, cmp: %d.\n", dnet_dump_id(new->id), err);
-
 		if (!err) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: old: %s, ", dnet_dump_id(new->id),
+			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: old: %s, ", dnet_dump_id(st->id),
 				dnet_server_convert_dnet_addr(&st->addr));
-			dnet_log_append(n, DNET_LOG_ERROR, "new: %s.\n", dnet_server_convert_dnet_addr(&new->addr));
+			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: new: %s, ", dnet_dump_id(new->id),
+				dnet_server_convert_dnet_addr(&new->addr));
 			break;
 		}
 
 		if (err < 0) {
-			dnet_log(n, DNET_LOG_NOTICE, "adding %s before %s.\n", dnet_server_convert_dnet_addr(&new->addr), dnet_dump_id(st->id));
+			dnet_log(n, DNET_LOG_NOTICE, "adding %s before %s.\n",
+					dnet_server_convert_dnet_addr(&new->addr),
+					dnet_dump_id(st->id));
 			list_add_tail(&new->state_entry, &st->state_entry);
 			break;
 		}
 	}
 
 	if (err > 0) {
-		dnet_log(n, DNET_LOG_NOTICE, "adding %s to the end.\n", dnet_server_convert_dnet_addr(&new->addr));
+		dnet_log(n, DNET_LOG_NOTICE, "adding %s to the end.\n",
+				dnet_server_convert_dnet_addr(&new->addr));
 		list_add_tail(&new->state_entry, &n->state_list);
 	}
 
 	if (err) {
 		dnet_log(n, DNET_LOG_NOTICE, "%s: node list dump:\n", dnet_dump_id(new->id));
 		list_for_each_entry(st, &n->state_list, state_entry) {
-			dnet_log(n, DNET_LOG_NOTICE, "      id: %s [%02x], addr: %s.\n", dnet_dump_id(st->id), st->id[0],
+			dnet_log(n, DNET_LOG_NOTICE, "      id: %s [%02x], addr: %s.\n",
+				dnet_dump_id(st->id), st->id[0],
 				dnet_server_convert_dnet_addr(&st->addr));
 		}
-		dnet_log_append(n, DNET_LOG_NOTICE, "\n");
 	}
 
 	pthread_mutex_unlock(&n->state_lock);
@@ -246,9 +247,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (cfg->join && !cfg->command_handler) {
 		err = -EINVAL;
 		if (cfg->log)
-			cfg->log(cfg->log_private, DNET_LOG_ERROR, "%s: joining node has to register "
-					"a comamnd handler.\n",
-					dnet_dump_id(cfg->id));
+			cfg->log(cfg->log_private, DNET_LOG_ERROR, "Joining node has to register "
+					"a comamnd handler.\n");
 		goto err_out_exit;
 	}
 

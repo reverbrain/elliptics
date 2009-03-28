@@ -162,11 +162,8 @@ static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cm
 err_out_close:
 	close(s);
 err_out_exit:
-	dnet_log(n, DNET_LOG_ERROR, "%s: state %s -> ", dnet_dump_id(cmd->id),
-		dnet_server_convert_dnet_addr(&a->addr));
-	if (st)
-		dnet_log_append(n, DNET_LOG_ERROR, "%s, .\n", dnet_dump_id(st->id));
-	dnet_log_append(n, DNET_LOG_ERROR, "err: %d.\n", err);
+	dnet_log(n, DNET_LOG_ERROR, "%s: failed to join to state %s.\n", dnet_dump_id(cmd->id),
+		(st) ? dnet_server_convert_dnet_addr(&st->addr) : "undefined");
 	return err;
 }
 
@@ -338,8 +335,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 
 	dnet_convert_addr_cmd(&acmd);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: reverse lookup: ", dnet_dump_id(n->id));
-	dnet_log_append(n, DNET_LOG_NOTICE, "%s -> %s.\n", dnet_dump_id(acmd.cmd.id),
+	dnet_log(n, DNET_LOG_NOTICE, "%s reverse lookup -> %s.\n", dnet_dump_id(acmd.cmd.id),
 		dnet_server_convert_dnet_addr(&acmd.addr.addr));
 
 	st = dnet_state_create(n, acmd.cmd.id, &acmd.addr.addr, s, dnet_state_process);
@@ -406,11 +402,8 @@ int dnet_rejoin(struct dnet_node *n, int all)
 		pthread_mutex_lock(&st->lock);
 		err = dnet_send(st, &a, sizeof(struct dnet_addr_cmd));
 		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to update state",
-					dnet_dump_id(n->id));
-			dnet_log_append(n, DNET_LOG_ERROR, " %s -> %s:%d.\n",
-					dnet_dump_id(st->id),
-				dnet_server_convert_dnet_addr(&st->addr));
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to rejoin to state %s.\n",
+				dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr));
 			pthread_mutex_unlock(&st->lock);
 			break;
 		}
@@ -545,13 +538,14 @@ static int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *c
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to create transaction.\n", dnet_dump_id(ctl->id));
 		goto err_out_exit;
 	}
-
-	dnet_log(n, DNET_LOG_INFO, "cmd: %u, size: %llu, offset: %llu, ",
-			ctl->cmd, (unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset);
-	dnet_log_append(n, DNET_LOG_INFO, "%s <-> ", dnet_dump_id(ctl->id));
-	dnet_log_append(n, DNET_LOG_INFO, "%s.\n", dnet_dump_id(t->st->id));
-
 	st = t->st;
+
+	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %u, size: %llu, offset: %llu -> %s.\n",
+			dnet_dump_id(ctl->id),
+			(unsigned long long)t->trans, ctl->cmd,
+			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
+			dnet_server_convert_dnet_addr(&st->addr));
+
 	pthread_mutex_lock(&st->lock);
 	if (ctl->fd >= 0) {
 		err = dnet_sendfile_data(t->st, ctl->fd, ctl->io.offset, size,
@@ -1194,8 +1188,8 @@ int dnet_lookup_object(struct dnet_node *n, unsigned char *id,
 
 	st = t->st;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: lookup to: ", dnet_dump_id(id));
-	dnet_log_append(n, DNET_LOG_NOTICE, "%s.\n", dnet_dump_id(st->id));
+	dnet_log(n, DNET_LOG_NOTICE, "%s: lookup to %s.\n", dnet_dump_id(id),
+		dnet_server_convert_dnet_addr(&st->addr));
 
 	pthread_mutex_lock(&st->lock);
 	err = dnet_send(st, t+1, sizeof(struct dnet_attr) + sizeof(struct dnet_cmd));

@@ -134,7 +134,7 @@ static int dnet_send_list(void *state, struct dnet_cmd *cmd, void *data, unsigne
 	a.flags = 0;
 	a.cmd = DNET_CMD_LIST;
 
-	fprintf(stdout, "%s: sending %u list entries.\n", dnet_dump_id(cmd->id), size / DNET_ID_SIZE);
+	printf("%s: sending %u list entries.\n", dnet_dump_id(cmd->id), size / DNET_ID_SIZE);
 
 	return dnet_data_ready(state, &c, &a, data, size, 0, -1);
 }
@@ -462,9 +462,9 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 			if (size > DNET_MAX_READ_TRANS_SIZE)
 				size = DNET_MAX_READ_TRANS_SIZE;
 
-			printf("%s: read reply offset: %llu, size: %zu, c: %p.\n",
+			printf("%s: read reply offset: %llu, size: %zu.\n",
 					dnet_dump_id(io->id),
-					(unsigned long long)offset, size, c);
+					(unsigned long long)offset, size);
 
 			if (total_size <= DNET_MAX_READ_TRANS_SIZE) {
 				if (cmd->flags & DNET_FLAGS_NEED_ACK)
