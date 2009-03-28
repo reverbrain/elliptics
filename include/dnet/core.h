@@ -40,4 +40,10 @@
 #define O_LARGEFILE		0
 #endif
 
+#ifdef __GNUC__
+#define DNET_LOG_CHECK  __attribute__ ((format(printf, 3, 4)))
+#else
+#define DNET_LOG_CHECK
+#endif
+
 #endif /* __DNET_CORE_H */

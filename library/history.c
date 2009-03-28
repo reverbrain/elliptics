@@ -152,7 +152,7 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 		err = -EINVAL;
 		if (cmd) {
 			err = cmd->status;
-			dnet_log(st->n, DNET_LOG_INFO, "Received remote history %s, err: %d.\n",
+			dnet_log(st->n, DNET_LOG_INFO, "%s: received remote history: status: %d.\n",
 					dnet_dump_id(cmd->id), err);
 		}
 		goto out;
@@ -309,7 +309,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		memcpy(ctl.id, data, DNET_ID_SIZE);
 		memcpy(ctl.io.id, data, DNET_ID_SIZE);
 
-		dnet_log(n, DNET_LOG_NOTICE, "History: %s.\n", dnet_dump_id(ctl.id));
+		dnet_log(n, DNET_LOG_NOTICE, "%s: requesting history.\n", dnet_dump_id(ctl.id));
 
 		dnet_wait_get(n->wait);
 		dnet_read_object(n, &ctl);

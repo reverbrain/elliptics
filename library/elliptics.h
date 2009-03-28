@@ -49,15 +49,6 @@ struct dnet_node;
 int dnet_log_init(struct dnet_node *n, void *priv, uint32_t mask,
 		void (* log)(void *priv, uint32_t mask, const char *msg));
 
-#ifdef __GNUC__
-#define DNET_LOG_CHECK  __attribute__ ((format(printf, 3, 4)))
-#else
-#define DNET_LOG_CHECK
-#endif
-
-void dnet_log(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
-#define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
-
 #define NIP6(addr) \
 	(addr).s6_addr[0], \
 	(addr).s6_addr[1], \

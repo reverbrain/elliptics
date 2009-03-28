@@ -162,6 +162,10 @@ struct dnet_config
 	void			*command_private;
 };
 
+void dnet_command_handler_log(void *state, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
+void dnet_log(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
+#define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
+
 /*
  * Transformation functions are used to create ID from the provided data content.
  * One can add/remove them in a run-time. init/update/final sequence is used

@@ -104,7 +104,7 @@ static void dnet_convert_name_to_id(char *name, unsigned char *id)
 	}
 }
 
-static int dnet_is_regular(char *path)
+static int dnet_is_regular(void *state, char *path)
 {
 	struct stat st;
 	int err;
@@ -112,7 +112,9 @@ static int dnet_is_regular(char *path)
 	err = stat(path, &st);
 	if (err) {
 		err = -errno;
-		fprintf(stderr, "Failed to stat '%s' object: %s.\n", path, strerror(errno));
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"Failed to stat '%s' object: %s.\n",
+				path, strerror(errno));
 		return err;
 	}
 
@@ -134,7 +136,9 @@ static int dnet_send_list(void *state, struct dnet_cmd *cmd, void *data, unsigne
 	a.flags = 0;
 	a.cmd = DNET_CMD_LIST;
 
-	printf("%s: sending %u list entries.\n", dnet_dump_id(cmd->id), size / DNET_ID_SIZE);
+	dnet_command_handler_log(state, DNET_LOG_NOTICE,
+		"%s: sending %u list entries.\n",
+		dnet_dump_id(cmd->id), size / DNET_ID_SIZE);
 
 	return dnet_data_ready(state, &c, &a, data, size, 0, -1);
 }
@@ -160,7 +164,9 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 	err = chdir(sub);
 	if (err) {
 		err = -errno;
-		fprintf(stderr, "Failed to change directory to '%s': %s.\n", sub, strerror(errno));
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"Failed to change directory to '%s': %s.\n",
+			sub, strerror(errno));
 		goto out_close;
 	}
 
@@ -170,7 +176,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 		if (d->d_name[0] == '.' && d->d_name[1] == '.' && d->d_name[2] == '\0')
 			continue;
 
-		if (dnet_is_regular(d->d_name) <= 0)
+		if (dnet_is_regular(state, d->d_name) <= 0)
 			continue;
 
 		len = strlen(d->d_name);
@@ -202,7 +208,8 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 			data = odata;
 		}
 
-		printf("%s -> %s.\n", d->d_name, dnet_dump_id(id));
+		dnet_command_handler_log(state, DNET_LOG_NOTICE,
+			"%s -> %s.\n", d->d_name, dnet_dump_id(id));
 	}
 
 	if (osize != size) {
@@ -214,7 +221,8 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 	err = chdir("..");
 	if (err) {
 		err = -errno;
-		fprintf(stderr, "Failed to chdir to the parent: %s.\n", strerror(errno));
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"Failed to chdir to the parent: %s.\n", strerror(errno));
 	}
 
 out_close:
@@ -223,7 +231,8 @@ out_close:
 	return err;
 }
 
-static int dnet_cmd_list(void *state, struct dnet_cmd *cmd, struct dnet_attr *a __attribute__ ((unused)), void *data)
+static int dnet_cmd_list(void *state, struct dnet_cmd *cmd,
+		struct dnet_attr *a __attribute__ ((unused)), void *data)
 {
 	char sub[3];
 	unsigned char start;
@@ -257,17 +266,20 @@ out_exit:
 	return err;
 }
 
-static int dnet_update_history(unsigned char *id, struct dnet_io_attr *io, int tmp)
+static int dnet_update_history(void *state, unsigned char *id, struct dnet_io_attr *io, int tmp)
 {
 	char history[DNET_ID_SIZE*2+1 + sizeof(DNET_HISTORY_SUFFIX) + 5 + 3]; /* ff/$IDDNET_HISTORY_SUFFIX.tmp*/
 	int fd, err;
 
-	snprintf(history, sizeof(history), "%02x/%s%s%s", id[0], dnet_dump_id(id), DNET_HISTORY_SUFFIX, (tmp)?".tmp":"");
+	snprintf(history, sizeof(history), "%02x/%s%s%s", id[0], dnet_dump_id(id),
+			DNET_HISTORY_SUFFIX, (tmp)?".tmp":"");
 
 	fd = open(history, O_RDWR | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
 	if (fd < 0) {
 		err = -errno;
-		fprintf(stderr, "%s: failed to open history file '%s': %s.\n", dnet_dump_id(id), history, strerror(errno));
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to open history file '%s': %s.\n",
+				dnet_dump_id(id), history, strerror(errno));
 		goto err_out_exit;
 	}
 
@@ -277,7 +289,9 @@ static int dnet_update_history(unsigned char *id, struct dnet_io_attr *io, int t
 
 	if (err <= 0) {
 		err = -errno;
-		fprintf(stderr, "%s: failed to update history file '%s': %s.\n", dnet_dump_id(id), history, strerror(errno));
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to update history file '%s': %s.\n",
+			dnet_dump_id(id), history, strerror(errno));
 		goto err_out_close;
 	}
 
@@ -291,7 +305,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_write(struct dnet_cmd *cmd,	struct dnet_attr *attr, void *data)
+static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
 	int err;
 	char dir[3];
@@ -301,7 +315,8 @@ static int dnet_cmd_write(struct dnet_cmd *cmd,	struct dnet_attr *attr, void *da
 	char file[DNET_ID_SIZE * 2 + 1 + 3 + sizeof(DNET_HISTORY_SUFFIX)];
 
 	if (attr->size <= sizeof(struct dnet_io_attr)) {
-		fprintf(stderr, "%s: wrong write attribute, size does not match "
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: wrong write attribute, size does not match "
 				"IO attribute size: size: %llu, must be more than %zu.\n",
 				dnet_dump_id(cmd->id), (unsigned long long)attr->size,
 				sizeof(struct dnet_io_attr));
@@ -319,7 +334,8 @@ static int dnet_cmd_write(struct dnet_cmd *cmd,	struct dnet_attr *attr, void *da
 	if (err < 0) {
 		if (errno != EEXIST) {
 			err = -errno;
-			fprintf(stderr, "%s: faliled to create dir '%s': %s.\n",
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: faliled to create dir '%s': %s.\n",
 					dnet_dump_id(cmd->id), dir, strerror(errno));
 			goto err_out_exit;
 		}
@@ -335,7 +351,8 @@ static int dnet_cmd_write(struct dnet_cmd *cmd,	struct dnet_attr *attr, void *da
 
 		if ((io->size != attr->size - sizeof(struct dnet_io_attr)) ||
 				(io->size > cmd->size)){
-			fprintf(stderr, "%s: wrong io size: %llu, must be equal to %llu.\n",
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: wrong io size: %llu, must be equal to %llu.\n",
 					dnet_dump_id(cmd->id), (unsigned long long)io->size,
 					(unsigned long long)attr->size - sizeof(struct dnet_io_attr));
 			err = -EINVAL;
@@ -348,7 +365,8 @@ static int dnet_cmd_write(struct dnet_cmd *cmd,	struct dnet_attr *attr, void *da
 		fd = open(file, oflags, 0644);
 		if (fd < 0) {
 			err = -errno;
-			fprintf(stderr, "%s: failed to open data file '%s': %s.\n",
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to open data file '%s': %s.\n",
 					dnet_dump_id(cmd->id), file, strerror(errno));
 			goto err_out_exit;
 		}
@@ -356,7 +374,8 @@ static int dnet_cmd_write(struct dnet_cmd *cmd,	struct dnet_attr *attr, void *da
 		err = pwrite(fd, data, io->size, io->offset);
 		if (err <= 0) {
 			err = -errno;
-			fprintf(stderr, "%s: failed to write into '%s': %s.\n",
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to write into '%s': %s.\n",
 				dnet_dump_id(cmd->id), file, strerror(errno));
 			close(fd);
 			goto err_out_exit;
@@ -367,15 +386,17 @@ static int dnet_cmd_write(struct dnet_cmd *cmd,	struct dnet_attr *attr, void *da
 	}
 
 	if ((io->flags & DNET_IO_FLAGS_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
-		err = dnet_update_history(cmd->id, io, 0);
+		err = dnet_update_history(state, cmd->id, io, 0);
 		if (err) {
-			fprintf(stderr, "%s: failed to update history for '%s': %s.\n",
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to update history for '%s': %s.\n",
 				dnet_dump_id(cmd->id), file, strerror(errno));
 			goto err_out_exit;
 		}
 	}
 
-	printf("%s: IO file: '%s', offset: %llu, size: %llu.\n",
+	dnet_command_handler_log(state, DNET_LOG_NOTICE,
+		"%s: IO file: '%s', offset: %llu, size: %llu.\n",
 			dnet_dump_id(cmd->id), file,
 			(unsigned long long)io->offset, (unsigned long long)io->size);
 
@@ -399,7 +420,8 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 	size_t total_size;
 
 	if (attr->size < sizeof(struct dnet_io_attr)) {
-		fprintf(stderr, "%s: wrong read attribute, size does not match "
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: wrong read attribute, size does not match "
 				"IO attribute size: size: %llu, must be: %zu.\n",
 				dnet_dump_id(cmd->id), (unsigned long long)attr->size,
 				sizeof(struct dnet_io_attr));
@@ -418,7 +440,8 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 	fd = open(file, O_RDONLY, 0644);
 	if (fd < 0) {
 		err = -errno;
-		fprintf(stderr, "%s: failed to open data file '%s': %s.\n",
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to open data file '%s': %s.\n",
 				dnet_dump_id(io->id), file, strerror(errno));
 		goto err_out_exit;
 	}
@@ -430,7 +453,8 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 		err = fstat(fd, &st);
 		if (err) {
 			err = -errno;
-			fprintf(stderr, "%s: failed to stat file '%s': %s.\n",
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to stat file '%s': %s.\n",
 					dnet_dump_id(io->id), file, strerror(errno));
 			goto err_out_close_fd;
 		}
@@ -443,7 +467,8 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 				sizeof(struct dnet_io_attr));
 		if (!c) {
 			err = -ENOMEM;
-			fprintf(stderr, "%s: failed to allocate reply attributes.\n",
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to allocate reply attributes.\n",
 					dnet_dump_id(io->id));
 			goto err_out_close_fd;
 		}
@@ -462,7 +487,8 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 			if (size > DNET_MAX_READ_TRANS_SIZE)
 				size = DNET_MAX_READ_TRANS_SIZE;
 
-			printf("%s: read reply offset: %llu, size: %zu.\n",
+			dnet_command_handler_log(state, DNET_LOG_NOTICE,
+				"%s: read reply offset: %llu, size: %zu.\n",
 					dnet_dump_id(io->id),
 					(unsigned long long)offset, size);
 
@@ -490,7 +516,8 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 				rio, sizeof(struct dnet_io_attr),
 				offset, fd);
 			if (err) {
-				fprintf(stderr, "%s: failed to send read reply.\n",
+				dnet_command_handler_log(state, DNET_LOG_ERROR,
+					"%s: failed to send read reply.\n",
 						dnet_dump_id(io->id));
 				goto err_out_free;
 			}
@@ -507,7 +534,8 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 		err = pread(fd, data, size, io->offset);
 		if (err <= 0) {
 			err = -errno;
-			fprintf(stderr, "%s: failed to read object data: %s.\n",
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to read object data: %s.\n",
 					dnet_dump_id(cmd->id), strerror(errno));
 			goto err_out_close_fd;
 		}
@@ -527,7 +555,8 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_exec(void *state __attribute__ ((unused)), struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
+static int dnet_cmd_exec(void *state, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *data)
 {
 	char *command = data;
 	pid_t pid;
@@ -536,12 +565,14 @@ static int dnet_cmd_exec(void *state __attribute__ ((unused)), struct dnet_cmd *
 	if (!attr->size)
 		return 0;
 
-	printf("%s: command: '%s'.\n", dnet_dump_id(cmd->id), command);
+	dnet_command_handler_log(state, DNET_LOG_NOTICE,
+		"%s: command: '%s'.\n", dnet_dump_id(cmd->id), command);
 
 	pid = fork();
 	if (pid < 0) {
 		err = -errno;
-		fprintf(stderr, "%s: failed to fork a child process", dnet_dump_id(cmd->id));
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to fork a child process", dnet_dump_id(cmd->id));
 		goto out_exit;
 	}
 
@@ -554,7 +585,8 @@ static int dnet_cmd_exec(void *state __attribute__ ((unused)), struct dnet_cmd *
 		err = waitpid(pid, &status, 0);
 		if (err < 0) {
 			err = -errno;
-			fprintf(stderr, "%s: failed to wait for child (%d) process: %s.\n",
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to wait for child (%d) process: %s.\n",
 					dnet_dump_id(cmd->id), (int)pid, strerror(errno));
 			goto out_exit;
 		}
@@ -576,7 +608,7 @@ int file_backend_command_handler(void *state, void *priv __attribute__ ((unused)
 
 	switch (attr->cmd) {
 		case DNET_CMD_WRITE:
-			err = dnet_cmd_write(cmd, attr, data);
+			err = dnet_cmd_write(state, cmd, attr, data);
 			break;
 		case DNET_CMD_READ:
 			err = dnet_cmd_read(state, cmd, attr, data);

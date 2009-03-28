@@ -100,7 +100,7 @@ static int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 	return 0;
 }
 
-static void dnet_example_log(void *priv, uint32_t mask __unused, const char *msg)
+static void dnet_example_log(void *priv, uint32_t mask, const char *msg)
 {
 	char str[64];
 	struct tm tm;
@@ -114,7 +114,7 @@ static void dnet_example_log(void *priv, uint32_t mask __unused, const char *msg
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	fprintf(stream, "%s.%06lu %s", str, tv.tv_usec, msg);
+	fprintf(stream, "%s.%06lu %1x %s", str, tv.tv_usec, mask, msg);
 }
 
 #define DNET_CONF_COMMENT	'#'
