@@ -251,7 +251,7 @@ struct dnet_node
 
 	int			join_state;
 	
-	int			(* command_handler)(void *state, void *private,
+	int			(* command_handler)(void *state, void *priv,
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
 };

@@ -569,7 +569,7 @@ out_exit:
 	return err;
 }
 
-int file_backend_command_handler(void *state, void *private __attribute__ ((unused)),
+int file_backend_command_handler(void *state, void *priv __attribute__ ((unused)),
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
 	int err;
