@@ -25,12 +25,12 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <unistd.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <netinet/in.h>
 
@@ -156,26 +156,9 @@ err_out_print_wrong_param:
 
 static unsigned long long iotest_bytes;
 static unsigned long long iotest_completed_error, iotest_completed;
-struct timeval iotest_start;
 
-static void iotest_alarm(int num __unused)
-{
-	double speed;
-	struct timeval t;
-	long usec;
-
-	gettimeofday(&t, NULL);
-
-	usec = t.tv_usec - iotest_start.tv_usec;
-	usec += 1000000 * (t.tv_sec - iotest_start.tv_sec);
-
-	speed = (double)iotest_bytes/ (double)usec * 1000000 / (1024 * 1024);
-
-	printf("bytes: %llu, chunks: %llu, errors: %llu, speed: %.3f MB/s\n",
-			iotest_bytes, iotest_completed, iotest_completed_error, speed);
-}
-
-static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *cmd, struct dnet_attr *attr __unused, void *priv)
+static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *cmd,
+		struct dnet_attr *attr __unused, void *priv)
 {
 	if (!cmd || !cmd->size || cmd->status) {
 		if (!cmd || cmd->status)
@@ -191,7 +174,8 @@ static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *
 	return 0;
 }
 
-static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned long long max, char *obj, int len, int num)
+static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned long long max,
+		char *obj, int len, int num)
 {
 	struct dnet_io_control ctl;
 	unsigned int *ptr = data;
@@ -218,8 +202,9 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 		ptr[first] = ptr[last] = rand();
 
 		ctl.priv = (void *)(unsigned long)size;
+
 		err = dnet_write_object(n, &ctl, obj, len);
-		if (err)
+		if (err < 0)
 			return err;
 
 		if (num) {
@@ -237,7 +222,8 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 	return 0;
 }
 
-static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned long long max, char *obj, int len __unused, int lookup_num)
+static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned long long max,
+		char *obj, int len __unused, int lookup_num)
 {
 	struct dnet_io_control ctl;
 	int err, fd;
@@ -291,7 +277,8 @@ static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned lon
 		if (lookup_num) {
 			err = dnet_lookup_object(n, ctl.io.id, dnet_lookup_complete, NULL);
 			if (err)
-				fprintf(stderr, "Failed to lookup a node for %s object.\n", dnet_dump_id(ctl.io.id));
+				fprintf(stderr, "Failed to lookup a node for %s object.\n",
+						dnet_dump_id(ctl.io.id));
 			else
 				lookup_num--;
 		}
@@ -353,6 +340,32 @@ static int dnet_parse_numeric_id(char *value, unsigned char *id)
 	return 0;
 }
 
+static void *iotest_perf(void *log_private)
+{
+	struct timeval iotest_start;
+	double iotest_speed;
+	struct timeval t;
+	long usec;
+
+	gettimeofday(&iotest_start, NULL);
+
+	while (1) {
+		sleep(1);
+
+		gettimeofday(&t, NULL);
+
+		usec = t.tv_usec - iotest_start.tv_usec;
+		usec += 1000000 * (t.tv_sec - iotest_start.tv_sec);
+
+		if (usec == 0)
+			usec = 1;
+		iotest_speed = (double)iotest_bytes / (double)usec * 1000000 / (1024 * 1024);
+
+		fprintf(log_private, "bytes: %llu, chunks: %llu, errors: %llu, speed: %.3f MB/s\n",
+				iotest_bytes, iotest_completed, iotest_completed_error, iotest_speed);
+	}
+}
+
 static void dnet_usage(char *p)
 {
 	fprintf(stderr, "Usage: %s\n"
@@ -384,8 +397,8 @@ int main(int argc, char *argv[])
 	size_t size = 1024*1024;
 	unsigned long long max = 100ULL * 1024 * 1024 * 1024;
 	void *data;
-	struct itimerval timer;
 	int seconds = 1, num = 0;
+	pthread_t tid;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -396,7 +409,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "I:t:S:s:m:i:a:r:RT:l:w:h")) != -1) {
+	while ((ch = getopt(argc, argv, "n:I:t:S:s:m:i:a:r:RT:l:w:h")) != -1) {
 		switch (ch) {
 			case 'n':
 				num = atoi(optarg);
@@ -483,6 +496,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Failed to allocate %zu bytes for the data chunk.\n", size);
 		return -1;
 	}
+	memset(data, 0xcc, size);
 
 	if (logfile) {
 		log = fopen(logfile, "a");
@@ -508,24 +522,16 @@ int main(int argc, char *argv[])
 		if (err)
 			return err;
 	}
-
 	err = dnet_add_state(n, &rem);
 	if (err)
 		return err;
 
-	signal(SIGALRM, iotest_alarm);
-
-	gettimeofday(&iotest_start, NULL);
-
-	timer.it_interval.tv_sec = seconds;
-	timer.it_interval.tv_usec = 0;
-	timer.it_value.tv_sec = seconds;
-	timer.it_value.tv_usec = 0;
-
-	err = setitimer(ITIMER_REAL, &timer, NULL);
-	if (err)
+	err = pthread_create(&tid, NULL, iotest_perf, cfg.log_private);
+	if (err) {
+		fprintf(stderr, "Failed to spawn performance checking thread, err: %d.\n", err);
 		return err;
-	
+	}
+
 	srand(time(NULL));
 
 	if (write)

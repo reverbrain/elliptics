@@ -124,177 +124,16 @@ void dnet_trans_remove(struct dnet_trans *t)
 	pthread_mutex_unlock(&n->trans_lock);
 }
 
-static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
+struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, size_t size)
 {
-	int err;
-	unsigned int size = t->cmd.size;
-	struct dnet_node *n = st->n;
+	struct dnet_trans *t;
 
-	dnet_convert_cmd(&t->cmd);
+	t = malloc(sizeof(struct dnet_trans) + size);
+	if (!t)
+		return NULL;
+	memset(t, 0, sizeof(struct dnet_trans) + size);
 
-	pthread_mutex_lock(&st->lock);
-	err = dnet_send(st, &t->cmd, sizeof(struct dnet_cmd));
-	if (!err)
-		err = dnet_send(st, t->data, size);
-	pthread_mutex_unlock(&st->lock);
-
-	dnet_log(n, DNET_LOG_INFO, "%s: forwarded to %s, trans: %llu, err: %d.\n",
-			dnet_dump_id(t->cmd.id),
-			dnet_server_convert_dnet_addr(&st->addr),
-			(unsigned long long)t->trans, err);
-
-	return err;
-}
-
-int dnet_trans_process(struct dnet_net_state *st)
-{
-	struct dnet_node *n = st->n;
-	struct dnet_trans *t = NULL;
-	struct dnet_cmd cmd;
-	int err, need_drop = 0;
-
-	err = dnet_wait(st);
-	if (err)
-		return err;
-
-	pthread_mutex_lock(&st->recv_lock);
-
-	err = dnet_recv(st, &cmd, sizeof(struct dnet_cmd));
-	if (err < 0) {
-		memset(&cmd, 0, sizeof(struct dnet_cmd));
-		goto err_out_unlock;
-	}
-
-	dnet_convert_cmd(&cmd);
-
-	dnet_log(n, DNET_LOG_TRANS, "%s: size: %llu, trans: %llu, reply: %d, flags: 0x%x, status: %d.\n",
-			dnet_dump_id(cmd.id), (unsigned long long)cmd.size,
-			(unsigned long long)(cmd.trans & ~DNET_TRANS_REPLY),
-			!!(cmd.trans & DNET_TRANS_REPLY),
-			cmd.flags, cmd.status);
-
-	if (cmd.trans & DNET_TRANS_REPLY) {
-		uint64_t tid = cmd.trans & ~DNET_TRANS_REPLY;
-
-		pthread_mutex_lock(&n->trans_lock);
-		t = dnet_trans_search(&n->trans_root, tid);
-		if (t && !(cmd.flags & DNET_FLAGS_MORE))
-			dnet_trans_remove_nolock(&n->trans_root, t);
-		pthread_mutex_unlock(&n->trans_lock);
-
-		if (t) {
-			int err;
-
-			if (cmd.size) {
-				free(t->data);
-				t->data = malloc(cmd.size);
-				if (!t->data) {
-					err = -ENOMEM;
-					goto err_out_unlock;
-				}
-
-				err = dnet_recv(st, t->data, cmd.size);
-				if (err < 0)
-					goto err_out_unlock;
-			}
-			pthread_mutex_unlock(&st->recv_lock);
-
-			memcpy(&t->cmd, &cmd, sizeof(struct dnet_cmd));
-			t->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
-
-			if (t->complete) {
-				err = t->complete(t->st, &t->cmd, t->data, t->priv);
-			} else {
-				err = dnet_trans_forward(t, t->st);
-			}
-
-			if (!(cmd.flags & DNET_FLAGS_MORE))
-				dnet_trans_destroy(t);
-			goto out;
-		}
-
-		dnet_log(n, DNET_LOG_ERROR, "%s: could not find transaction for the reply %llu, dropping.\n",
-				dnet_dump_id(cmd.id), (unsigned long long)tid);
-		need_drop = 1;
-	}
-
-	t = malloc(sizeof(struct dnet_trans));
-	if (!t) {
-		err = -ENOMEM;
-		goto err_out_unlock;
-	}
-
-	memset(t, 0, sizeof(struct dnet_trans));
-
-	if (cmd.size) {
-		t->data = malloc(cmd.size);
-		if (!t->data) {
-			err = -ENOMEM;
-			goto err_out_unlock;
-		}
-
-		err = dnet_recv(st, t->data, cmd.size);
-		if (err < 0)
-			goto err_out_unlock;
-	}
-
-	pthread_mutex_unlock(&st->recv_lock);
-
-	if (need_drop) {
-		dnet_trans_destroy(t);
-		t = NULL;
-	} else {
-		t->st = dnet_state_search(n, cmd.id, NULL);
-
-		memcpy(&t->cmd, &cmd, sizeof(struct dnet_cmd));
-
-		if (!t->st || t->st == st || t->st == n->st) {
-			err = dnet_process_cmd(st, &t->cmd, t->data);
-			if (err) {
-				err = 0;
-				goto err_out_destroy;
-			}
-
-			dnet_trans_destroy(t);
-			t = NULL;
-		} else {
-			struct dnet_net_state *tmp = t->st;
-
-			t->st = dnet_state_get(st);
-
-			err = dnet_trans_insert(t);
-			if (err) {
-				dnet_state_put(tmp);
-				goto err_out_destroy;
-			}
-
-			t->recv_trans = t->cmd.trans;
-			t->cmd.trans = t->trans;
-			err = dnet_trans_forward(t, tmp);
-			dnet_state_put(tmp);
-
-			if (err)
-				goto err_out_destroy;
-		}
-	}
-
-out:
-	dnet_log(n, DNET_LOG_TRANS, "%s: completed size: %llu, trans: %llu, reply: %d.\n",
-			dnet_dump_id(cmd.id), (unsigned long long)cmd.size,
-			(unsigned long long)(cmd.trans & ~DNET_TRANS_REPLY),
-			!!(cmd.trans & DNET_TRANS_REPLY));
-
-	return 0;
-
-err_out_unlock:
-	pthread_mutex_unlock(&st->recv_lock);
-err_out_destroy:
-	dnet_log(n, DNET_LOG_ERROR, "%s: failed cmd: size: %llu, trans: %llu, reply: %d, err: %d.\n",
-			dnet_dump_id(cmd.id), (unsigned long long)cmd.size,
-			(unsigned long long)(cmd.trans & ~DNET_TRANS_REPLY),
-			!!(cmd.trans & DNET_TRANS_REPLY), err);
-	dnet_trans_destroy(t);
-	return err;
+	return t;
 }
 
 void dnet_trans_destroy(struct dnet_trans *t)
@@ -302,7 +141,8 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	if (t) {
 		if (t->st && t->st->n)
 			dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: destruction trans: %llu.\n",
-				dnet_dump_id(t->cmd.id), (unsigned long long)(t->trans & ~DNET_TRANS_REPLY));
+				dnet_dump_id(t->cmd.id),
+				(unsigned long long)(t->trans & ~DNET_TRANS_REPLY));
 		if (t->trans_entry.rb_parent_color && t->st && t->st->n)
 			dnet_trans_remove(t);
 #if 0

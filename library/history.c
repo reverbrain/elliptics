@@ -327,7 +327,8 @@ out:
 	}
 err_out_exit:
 	if (cmd && n)
-		dnet_log(n, DNET_LOG_NOTICE, "%s: listing completed with status: %d, size: %llu, err: %d, files_synced: %llu.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: listing completed with status: %d, "
+				"size: %llu, err: %d, files_synced: %llu.\n",
 			dnet_dump_id(cmd->id), cmd->status, (unsigned long long)cmd->size,
 			err, (unsigned long long)n->total_synced_files);
 	if (st && err)
@@ -343,7 +344,8 @@ int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st)
 	int err, need_wait = !st;
 	struct dnet_wait *w = n->wait;
 
-	t = malloc(sizeof(struct dnet_trans) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
+	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd) +
+			sizeof(struct dnet_attr));
 	if (!t) {
 		err = -ENOMEM;
 		goto err_out_put;
@@ -399,11 +401,17 @@ int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st)
 		n->total_synced_files = 0;
 	}
 
-	pthread_mutex_lock(&st->lock);
-	err = dnet_send(st, cmd, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
+	t->r.header = cmd;
+	t->r.hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr);
+	t->r.fd = -1;
+	t->r.offset = 0;
+	t->r.size = 0;
+
+	dnet_req_set_flags(&t->r, ~0, DNET_REQ_NO_DESTRUCT);
+
+	err = dnet_data_ready(st, &t->r);
 	if (err)
-		goto err_out_unlock;
-	pthread_mutex_unlock(&st->lock);
+		goto err_out_destroy;
 
 	if (need_wait) {
 		err = dnet_wait_event(w, w->cond == 0, &n->wait_ts);
@@ -427,8 +435,6 @@ int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st)
 
 	return 0;
 
-err_out_unlock:
-	pthread_mutex_unlock(&st->lock);
 err_out_destroy:
 	dnet_trans_destroy(t);
 err_out_put:

@@ -46,4 +46,6 @@
 #define DNET_LOG_CHECK
 #endif
 
+#define DNET_IO_THREAD_NUM_DEFAULT	2
+
 #endif /* __DNET_CORE_H */

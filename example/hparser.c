@@ -33,6 +33,8 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
+#include <pthread.h>
+
 static int hparser_region_match(struct dnet_io_attr *io,
 		unsigned long long offset, unsigned long long size)
 {

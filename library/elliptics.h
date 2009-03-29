@@ -28,9 +28,17 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#ifndef HAVE_UCHAR
+typedef unsigned char u_char;
+typedef unsigned short u_short;
+#endif
+
+#include <event.h>
+
 #include "list.h"
 #include "rbtree.h"
 #include "dnet/packet.h"
+#include "dnet/interface.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -110,6 +118,17 @@ static inline char *dnet_server_convert_dnet_addr(struct dnet_addr *sa)
 	return inet_addr;
 }
 
+/*
+ * Currently executed network state machine:
+ * receives and sends command and data.
+ */
+
+/* Reading a command */
+#define DNET_IO_CMD		(1<<0)
+
+/* Attached data should be discarded */
+#define DNET_IO_DROP		(1<<1)
+
 struct dnet_net_state
 {
 	struct list_head	state_entry;
@@ -117,20 +136,32 @@ struct dnet_net_state
 	struct dnet_node	*n;
 	long			timeout;
 
-	pthread_mutex_t		lock, recv_lock, refcnt_lock;
+	pthread_mutex_t		refcnt_lock;
 	int			refcnt;
 	int			s;
-
-	pthread_t		tid;
 
 	int			join_state;
 	unsigned char		id[DNET_ID_SIZE];
 
 	struct dnet_addr	addr;
+
+	struct event		rcv_ev;
+	struct dnet_cmd		rcv_cmd;
+	off_t			rcv_offset;
+	size_t			rcv_size;
+	unsigned int		rcv_flags;
+	void			*rcv_data;
+	struct dnet_trans	*rcv_trans;
+	
+	struct event		snd_ev;
+	struct list_head	snd_list;
+	pthread_mutex_t		snd_lock;
+	off_t			snd_offset;
+	size_t			snd_size;
 };
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
-		struct dnet_addr *addr, int s, void *(* process)(void *));
+		struct dnet_addr *addr, int s);
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 {
@@ -206,6 +237,19 @@ static inline void dnet_wait_put(struct dnet_wait *w)
 		dnet_wait_destroy(w);
 }
 
+struct dnet_io_thread
+{
+	struct list_head	thread_entry;
+
+	int			need_exit;
+
+	pthread_t		tid;
+
+	struct dnet_node	*node;
+
+	struct event_base	*base;
+};
+
 struct dnet_node
 {
 	unsigned char		id[DNET_ID_SIZE];
@@ -248,6 +292,10 @@ struct dnet_node
 	int			(* command_handler)(void *state, void *priv,
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
+
+	struct list_head	io_thread_list;
+	pthread_mutex_t		io_thread_lock;
+	int			io_thread_num, io_thread_pos;
 };
 
 static inline char *dnet_dump_node(struct dnet_node *n)
@@ -258,7 +306,8 @@ static inline char *dnet_dump_node(struct dnet_node *n)
 	return buf;
 }
 
-int dnet_process_cmd(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
+struct dnet_trans;
+int dnet_process_cmd(struct dnet_trans *t);
 
 int dnet_send(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
@@ -281,6 +330,23 @@ enum dnet_join_state {
 };
 int dnet_rejoin(struct dnet_node *n, int all);
 
+struct dnet_data_req
+{
+	struct list_head	req_entry;
+
+	void			*header;
+	size_t			hsize;
+
+	void			*data;
+	size_t			dsize;
+
+	unsigned int		flags;
+
+	int			fd;
+	off_t			offset;
+	size_t			size;
+};
+
 struct dnet_trans
 {
 	struct rb_node			trans_entry;
@@ -289,6 +355,8 @@ struct dnet_trans
 	struct dnet_cmd			cmd;
 	void				*data;
 
+	struct dnet_data_req		r;
+
 	void				*priv;
 	int				(* complete)(struct dnet_net_state *st,
 						     struct dnet_cmd *cmd,
@@ -296,17 +364,14 @@ struct dnet_trans
 						     void *priv);
 };
 
-struct dnet_trans *dnet_trans_create(struct dnet_net_state *st);
 void dnet_trans_destroy(struct dnet_trans *t);
-
-int dnet_trans_process(struct dnet_net_state *st);
+struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, size_t size);
 
 void dnet_trans_remove(struct dnet_trans *t);
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
 int dnet_trans_insert(struct dnet_trans *t);
 struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
 
-int dnet_cmd_list(struct dnet_net_state *st, struct dnet_cmd *cmd);
 int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st);
 
 struct dnet_io_completion

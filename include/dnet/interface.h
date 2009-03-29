@@ -57,7 +57,8 @@ struct dnet_io_control
 {
 	unsigned char			id[DNET_ID_SIZE];
 	struct dnet_io_attr		io;
-	int 				(* complete)(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv);
+	int 				(* complete)(struct dnet_net_state *st, struct dnet_cmd *cmd,
+							struct dnet_attr *attr, void *priv);
 	void				*priv;
 
 	void				*data;
@@ -160,11 +161,18 @@ struct dnet_config
 	int			(* command_handler)(void *state, void *priv,
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
+
+	/* Number of IO threads created for each node,
+	 * if zero default number will be allocated
+	 * (DNET_IO_THREAD_NUM_DEFAULT)
+	 */
+	int			io_thread_num;
 };
 
 void dnet_command_handler_log(void *state, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
 void dnet_log(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
-#define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
+#define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, "%s: " f ": %s [%d].\n", \
+		dnet_dump_id(n->id), ##a, strerror(errno), errno)
 
 /*
  * Transformation functions are used to create ID from the provided data content.
@@ -256,8 +264,25 @@ static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
 	return 0;
 }
 
-int dnet_data_ready(struct dnet_net_state *st, struct dnet_cmd *cmd,
-	struct dnet_attr *attr, void *data, size_t size, off_t offset, int fd);
+#define DNET_REQ_FREE_HEADER		(1<<0)
+#define DNET_REQ_FREE_DATA		(1<<1)
+#define DNET_REQ_CLOSE_FD		(1<<2)
+#define DNET_REQ_NO_DESTRUCT		(1<<3)
+
+struct dnet_data_req;
+
+void *dnet_req_header(struct dnet_data_req *r);
+void *dnet_req_data(struct dnet_data_req *r);
+
+void dnet_req_set_header(struct dnet_data_req *r, void *header, size_t hsize, int free);
+void dnet_req_set_data(struct dnet_data_req *r, void *data, size_t size, int free);
+void dnet_req_set_fd(struct dnet_data_req *r, int fd, off_t offset, size_t size, int close);
+void dnet_req_set_flags(struct dnet_data_req *r, unsigned int mask, unsigned int flags);
+
+struct dnet_data_req *dnet_req_alloc(size_t hsize);
+void dnet_req_destroy(struct dnet_data_req *r);
+
+int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r);
 
 #ifdef __cplusplus
 }

@@ -121,44 +121,67 @@ static int dnet_is_regular(void *state, char *path)
 	return S_ISREG(st.st_mode);
 }
 
-static int dnet_send_list(void *state, struct dnet_cmd *cmd, void *data, unsigned int size)
+static int dnet_send_list(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size)
 {
-	struct dnet_cmd c;
-	struct dnet_attr a;
+	struct dnet_cmd *c;
+	struct dnet_attr *a;
+	struct dnet_data_req *r;
+	void *data;
 
-	c = *cmd;
-	c.trans |= DNET_TRANS_REPLY;
-	c.flags |= DNET_FLAGS_MORE;
-	c.status = 0;
-	c.size = sizeof(struct dnet_attr) + size;
+	r = dnet_req_alloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
+	if (!r)
+		return -ENOMEM;
 
-	a.size = size;
-	a.flags = 0;
-	a.cmd = DNET_CMD_LIST;
+	c = dnet_req_header(r);
+	a = (struct dnet_attr *)(c + 1);
+	data = a + 1;
+
+	*c = *cmd;
+	c->trans |= DNET_TRANS_REPLY;
+	c->flags |= DNET_FLAGS_MORE;
+	c->status = 0;
+	c->size = sizeof(struct dnet_attr) + size;
+
+	a->size = size;
+	a->flags = 0;
+	a->cmd = DNET_CMD_LIST;
+
+	memcpy(data, odata, size);
+
+	dnet_convert_cmd(c);
+	dnet_convert_attr(a);
 
 	dnet_command_handler_log(state, DNET_LOG_NOTICE,
 		"%s: sending %u list entries.\n",
 		dnet_dump_id(cmd->id), size / DNET_ID_SIZE);
 
-	return dnet_data_ready(state, &c, &a, data, size, 0, -1);
+	return dnet_data_ready(state, r);
 }
 
 static int dnet_listdir(void *state, struct dnet_cmd *cmd,
-		char *sub, unsigned char *first_id,
-		void *data, unsigned int size)
+		char *sub, unsigned char *first_id)
 {
 	int err = 0;
 	DIR *dir;
 	struct dirent *d;
 	unsigned char id[DNET_ID_SIZE];
 	unsigned int len;
-	unsigned int osize = size;
-	void *odata = data;
+	unsigned long long osize = 1024 * 1024, size;
+	void *odata, *data;
+
+	odata = malloc(osize);
+	if (!odata) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	data = odata;
+	size = osize;
 
 	dir = opendir(sub);
 	if (!dir) {
 		err = -errno;
-		return err;
+		goto err_out_free;
 	}
 
 	err = chdir(sub);
@@ -167,7 +190,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
 			"Failed to change directory to '%s': %s.\n",
 			sub, strerror(errno));
-		goto out_close;
+		goto err_out_close;
 	}
 
 	while ((d = readdir(dir)) != NULL) {
@@ -202,7 +225,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 		} else {
 			err = dnet_send_list(state, cmd, odata, osize - size);
 			if (err)
-				goto out_close;
+				goto err_out_close;
 
 			size = osize;
 			data = odata;
@@ -215,7 +238,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 	if (osize != size) {
 		err = dnet_send_list(state, cmd, odata, osize - size);
 		if (err)
-			goto out_close;
+			goto err_out_close;
 	}
 
 	err = chdir("..");
@@ -223,29 +246,33 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 		err = -errno;
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
 			"Failed to chdir to the parent: %s.\n", strerror(errno));
+		goto err_out_close;
 	}
 
-out_close:
 	closedir(dir);
+	free(odata);
 
+	return 0;
+
+err_out_close:
+	closedir(dir);
+err_out_free:
+	free(odata);
+err_out_exit:
 	return err;
 }
 
 static int dnet_cmd_list(void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *a __attribute__ ((unused)), void *data)
+		struct dnet_attr *a __attribute__ ((unused)),
+		void *data __attribute__ ((unused)))
 {
 	char sub[3];
 	unsigned char start;
 	int err;
-	unsigned long long size = 1024 * 1024;
-
-	data = malloc(size);
-	if (!data)
-		return -ENOMEM;
 
 	sprintf(sub, "%02x", cmd->id[0]);
 
-	err = dnet_listdir(state, cmd, sub, cmd->id, data, size);
+	err = dnet_listdir(state, cmd, sub, cmd->id);
 	if (err && (err != -ENOENT))
 		goto out_exit;
 
@@ -254,7 +281,7 @@ static int dnet_cmd_list(void *state, struct dnet_cmd *cmd,
 		for (start = cmd->id[0]-1; start != 0; --start) {
 			sprintf(sub, "%02x", start);
 
-			err = dnet_listdir(state, cmd, sub, NULL, data, size);
+			err = dnet_listdir(state, cmd, sub, NULL);
 			if (err && (err != -ENOENT))
 				goto out_exit;
 		}
@@ -262,7 +289,6 @@ static int dnet_cmd_list(void *state, struct dnet_cmd *cmd,
 	}
 
 out_exit:
-	free(data);
 	return err;
 }
 
@@ -313,6 +339,8 @@ static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *a
 	int oflags = O_RDWR | O_CREAT | O_LARGEFILE;
 	/* null byte + '%02x/' directory prefix and optional history suffix */
 	char file[DNET_ID_SIZE * 2 + 1 + 3 + sizeof(DNET_HISTORY_SUFFIX)];
+
+	return 0;
 
 	if (attr->size <= sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -409,13 +437,10 @@ err_out_exit:
 static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
 	struct dnet_io_attr *io = data;
-	int fd, err;
+	int fd, err, deref = 0;
 	size_t size;
 	/* null byte + '%02x/' directory prefix + history suffix */
 	char file[DNET_ID_SIZE * 2 + 1 + 3 + sizeof(DNET_HISTORY_SUFFIX)];
-	struct dnet_cmd *c;
-	struct dnet_attr *a;
-	struct dnet_io_attr *rio;
 	off_t offset;
 	size_t total_size;
 
@@ -463,30 +488,38 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 	}
 	
 	if (attr->size == sizeof(struct dnet_io_attr)) {
-		c = malloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) +
-				sizeof(struct dnet_io_attr));
-		if (!c) {
-			err = -ENOMEM;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to allocate reply attributes.\n",
-					dnet_dump_id(io->id));
-			goto err_out_close_fd;
-		}
-
-		a = (struct dnet_attr *)(c + 1);
-		rio = (struct dnet_io_attr *)(a + 1);
+		struct dnet_data_req *r;
+		struct dnet_cmd *c;
+		struct dnet_attr *a;
+		struct dnet_io_attr *rio;
 
 		total_size = size;
 		offset = io->offset;
-
-		memcpy(c->id, io->id, DNET_ID_SIZE);
-		memcpy(rio->id, io->id, DNET_ID_SIZE);
 
 		while (total_size) {
 			size = total_size;
 			if (size > DNET_MAX_READ_TRANS_SIZE)
 				size = DNET_MAX_READ_TRANS_SIZE;
 
+			r = dnet_req_alloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) +
+					sizeof(struct dnet_io_attr));
+			if (!r) {
+				err = -ENOMEM;
+				dnet_command_handler_log(state, DNET_LOG_ERROR,
+					"%s: failed to allocate reply attributes.\n",
+						dnet_dump_id(io->id));
+				goto err_out_close_fd;
+			}
+
+			dnet_req_set_fd(r, fd, offset, size, 1);
+
+			c = dnet_req_header(r);
+			a = (struct dnet_attr *)(c + 1);
+			rio = (struct dnet_io_attr *)(a + 1);
+
+			memcpy(c->id, io->id, DNET_ID_SIZE);
+			memcpy(rio->id, io->id, DNET_ID_SIZE);
+		
 			dnet_command_handler_log(state, DNET_LOG_NOTICE,
 				"%s: read reply offset: %llu, size: %zu.\n",
 					dnet_dump_id(io->id),
@@ -510,23 +543,18 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 			rio->offset = offset;
 			rio->flags = io->flags;
 
+			dnet_convert_cmd(c);
+			dnet_convert_attr(a);
 			dnet_convert_io_attr(rio);
 
-			err = dnet_data_ready(state, c, a,
-				rio, sizeof(struct dnet_io_attr),
-				offset, fd);
-			if (err) {
-				dnet_command_handler_log(state, DNET_LOG_ERROR,
-					"%s: failed to send read reply.\n",
-						dnet_dump_id(io->id));
-				goto err_out_free;
-			}
+			err = dnet_data_ready(state, r);
+			if (err)
+				goto err_out_close_fd;
 
 			offset += size;
 			total_size -= size;
+			deref = 1;
 		}
-
-		free(c);
 	} else {
 		size = attr->size - sizeof(struct dnet_io_attr);
 		data += sizeof(struct dnet_io_attr);
@@ -543,12 +571,11 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 		io->size = err;
 		attr->size = sizeof(struct dnet_io_attr) + err;
 	}
-	close(fd);
+	if (!deref)
+		close(fd);
 
 	return 0;
 
-err_out_free:
-	free(c);
 err_out_close_fd:
 	close(fd);
 err_out_exit:
