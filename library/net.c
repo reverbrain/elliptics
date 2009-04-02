@@ -655,7 +655,7 @@ static void dnet_process_socket(int s __unused, short event, void *arg)
 {
 	struct dnet_net_state *st = arg;
 	short mask = EV_READ;
-	int err, can_write = 0, can_read = 0;
+	int err, can_write, can_read;
 
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing event: %p, mask: %x.\n",
 			dnet_dump_id(st->id), &st->event, event);
@@ -709,10 +709,14 @@ int dnet_event_schedule(struct dnet_net_state *st, short mask)
 {
 	void *base = st->event.ev_base;
 	int err;
+	struct timeval tv;
+
+	tv.tv_sec = st->n->wait_ts.tv_sec;
+	tv.tv_usec = st->n->wait_ts.tv_nsec * 1000;
 
 	event_set(&st->event, st->s, mask, dnet_process_socket, st);
 	event_base_set(base, &st->event);
-	err = event_add(&st->event, NULL);
+	err = event_add(&st->event, &tv);
 
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: queued event: %p, mask: %x, err: %d.\n",
 			dnet_dump_id(st->id), &st->event, mask, err);
@@ -787,14 +791,13 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 
 	st->n = n;
 
-	if (st->s == n->listen_socket)
+	if (st->s == n->listen_socket) {
 		event_set(&st->event, st->s, EV_READ | EV_PERSIST, dnet_accept_client, st);
-	else
-		event_set(&st->event, st->s, EV_WRITE | EV_READ, dnet_process_socket, st);
-
-	event_base_set(th->base, &st->event);
-
-	event_add(&st->event, NULL);
+		event_base_set(th->base, &st->event);
+		event_add(&st->event, NULL);
+	} else {
+		dnet_event_schedule(st, EV_WRITE | EV_READ);
+	}
 
 	return 0;
 
