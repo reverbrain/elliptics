@@ -66,7 +66,7 @@ static int dnet_send_address(struct dnet_net_state *st, unsigned char *id,
 	struct dnet_data_req *r;
 	struct dnet_addr_cmd *c;
 
-	r = dnet_req_alloc(sizeof(struct dnet_addr_cmd));
+	r = dnet_req_alloc(st, sizeof(struct dnet_addr_cmd));
 	if (!r)
 		return -ENOMEM;
 
@@ -109,7 +109,7 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 {
 	struct dnet_node *n = st->n;
 
-	return dnet_send_address(st, st->id, DNET_CMD_REVERSE_LOOKUP,
+	return dnet_send_address(st, n->id, DNET_CMD_REVERSE_LOOKUP,
 			&n->addr, n->sock_type, n->proto);
 }
 
@@ -157,6 +157,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 	int err = 0;
 	unsigned long long size = cmd->size;
 	struct dnet_node *n = st->n;
+	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 
 	while (size) {
 		struct dnet_attr *a = data;
@@ -190,7 +191,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: trans: %llu, size_left: %llu, "
 				"starting cmd: %u, asize: %llu.\n",
-			dnet_dump_id(cmd->id), (unsigned long long)cmd->trans,
+			dnet_dump_id(cmd->id), tid,
 			size, a->cmd, (unsigned long long)a->size);
 
 		switch (a->cmd) {
@@ -227,7 +228,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 
 		dnet_log(n, DNET_LOG_INFO, "%s: trans: %llu, size_left: %llu, "
 				"completed cmd: %u, asize: %llu, err: %d.\n",
-			dnet_dump_id(cmd->id), (unsigned long long)cmd->trans, size,
+			dnet_dump_id(cmd->id), tid, size,
 			a->cmd, (unsigned long long)a->size, err);
 
 		if (err)
@@ -249,7 +250,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 		struct dnet_data_req *r;
 		struct dnet_cmd *ack;
 
-		r = dnet_req_alloc(sizeof(struct dnet_cmd));
+		r = dnet_req_alloc(st, sizeof(struct dnet_cmd));
 		if (!r)
 			return -ENOMEM;
 
@@ -261,7 +262,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 		ack->status = err;
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: ack trans: %llu, flags: %x, status: %d.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)cmd->trans,
+				dnet_dump_id(cmd->id), tid,
 				ack->flags, err);
 
 		dnet_convert_cmd(ack);
@@ -1291,14 +1292,19 @@ err_out_exit:
 
 int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
 {
-	int err;
+	int add = 0, err = 0;
 
 	pthread_mutex_lock(&st->snd_lock);
-	list_add_tail(&r->req_entry, &st->snd_list);
-	err = event_add(&st->snd_ev, NULL);
+	add = list_empty(&st->snd_list);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: queued send work: %p, hsize: %zu, dsize: %zu, fsize: %zu.\n",
-			dnet_dump_id(st->id), r, r->hsize, r->dsize, r->size);
+	list_add_tail(&r->req_entry, &st->snd_list);
+	if (add) {
+		err = dnet_event_schedule(st, EV_READ | EV_WRITE);
+		if (err)
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: failed to queue request event: %p, "
+					"hsize: %zu, dsize: %zu, fsize: %zu, err: %d.\n",
+				dnet_dump_id(st->id), &st->event, r->hsize, r->dsize, r->size, err);
+	}
 	pthread_mutex_unlock(&st->snd_lock);
 
 	return err;
@@ -1314,7 +1320,7 @@ void *dnet_req_data(struct dnet_data_req *r)
 	return r->data;
 }
 
-struct dnet_data_req *dnet_req_alloc(size_t hsize)
+struct dnet_data_req *dnet_req_alloc(struct dnet_net_state *st, size_t hsize)
 {
 	struct dnet_data_req *r;
 
@@ -1330,6 +1336,11 @@ struct dnet_data_req *dnet_req_alloc(size_t hsize)
 	r->offset = 0;
 	r->data = NULL;
 	r->dsize = 0;
+
+	if (st) {
+		r->st = dnet_state_get(st);
+		st->req_pending++;
+	}
 
 	return r;
 }
@@ -1373,6 +1384,11 @@ void dnet_req_destroy(struct dnet_data_req *r)
 		free(r->data);
 	if (r->flags & DNET_REQ_FREE_HEADER)
 		free(r->header);
+
+	if (r->st) {
+		r->st->req_pending--;
+		dnet_state_put(r->st);
+	}
 
 	if (!(r->flags & DNET_REQ_NO_DESTRUCT))
 		free(r);

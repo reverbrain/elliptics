@@ -167,6 +167,12 @@ struct dnet_config
 	 * (DNET_IO_THREAD_NUM_DEFAULT)
 	 */
 	int			io_thread_num;
+
+	/*
+	 * Maximum number of transactions from the same client processed in parallel.
+	 * If not set default number is used 
+	 */
+	uint64_t		max_pending;	
 };
 
 void dnet_command_handler_log(void *state, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
@@ -279,7 +285,7 @@ void dnet_req_set_data(struct dnet_data_req *r, void *data, size_t size, int fre
 void dnet_req_set_fd(struct dnet_data_req *r, int fd, off_t offset, size_t size, int close);
 void dnet_req_set_flags(struct dnet_data_req *r, unsigned int mask, unsigned int flags);
 
-struct dnet_data_req *dnet_req_alloc(size_t hsize);
+struct dnet_data_req *dnet_req_alloc(struct dnet_net_state *st, size_t hsize);
 void dnet_req_destroy(struct dnet_data_req *r);
 
 int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r);

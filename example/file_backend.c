@@ -128,7 +128,7 @@ static int dnet_send_list(void *state, struct dnet_cmd *cmd, void *odata, unsign
 	struct dnet_data_req *r;
 	void *data;
 
-	r = dnet_req_alloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
+	r = dnet_req_alloc(state, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
 	if (!r)
 		return -ENOMEM;
 
@@ -500,8 +500,8 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 			if (size > DNET_MAX_READ_TRANS_SIZE)
 				size = DNET_MAX_READ_TRANS_SIZE;
 
-			r = dnet_req_alloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) +
-					sizeof(struct dnet_io_attr));
+			r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
+					sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 			if (!r) {
 				err = -ENOMEM;
 				dnet_command_handler_log(state, DNET_LOG_ERROR,

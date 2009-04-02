@@ -113,9 +113,9 @@ int dnet_state_insert(struct dnet_net_state *new)
 		err = dnet_id_cmp(st->id, new->id);
 
 		if (!err) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: old: %s, ", dnet_dump_id(st->id),
+			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: old: %s.\n", dnet_dump_id(st->id),
 				dnet_server_convert_dnet_addr(&st->addr));
-			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: new: %s, ", dnet_dump_id(new->id),
+			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: new: %s.\n", dnet_dump_id(new->id),
 				dnet_server_convert_dnet_addr(&new->addr));
 			break;
 		}
@@ -136,9 +136,9 @@ int dnet_state_insert(struct dnet_net_state *new)
 	}
 
 	if (err) {
-		dnet_log(n, DNET_LOG_NOTICE, "%s: node list dump:\n", dnet_dump_id(new->id));
+		dnet_log(n, DNET_LOG_INFO, "%s: node list dump:\n", dnet_dump_id(new->id));
 		list_for_each_entry(st, &n->state_list, state_entry) {
-			dnet_log(n, DNET_LOG_NOTICE, "      id: %s [%02x], addr: %s.\n",
+			dnet_log(n, DNET_LOG_INFO, "      id: %s [%02x], addr: %s.\n",
 				dnet_dump_id(st->id), st->id[0],
 				dnet_server_convert_dnet_addr(&st->addr));
 		}
@@ -217,47 +217,14 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *
 	return st;
 }
 
-static void *dnet_server_func(void *data)
+static void dnet_dummy_pipe_read(int s __unused, short event __unused, void *arg)
 {
-	struct dnet_node *n = data;
-	struct dnet_net_state *st;
-	int cs, err;
-	struct dnet_addr addr;
-	sigset_t sig;
+	struct dnet_io_thread *t = arg;
+	struct dnet_node *n = t->node;
 
-	sigemptyset(&sig);
-	sigaddset(&sig, SIGPIPE);
-	pthread_sigmask(SIG_BLOCK, &sig, NULL);
-
-	dnet_log(n, DNET_LOG_NOTICE, "%s: listening at %s.\n", dnet_dump_id(n->id),
-				dnet_server_convert_dnet_addr(&n->addr));
-	while (!n->need_exit) {
-		addr.addr_len = sizeof(addr.addr);
-		cs = accept(n->listen_socket, (struct sockaddr *)&addr.addr, &addr.addr_len);
-		if (cs <= 0) {
-			err = -errno;
-			dnet_log_err(n, "%s: failed to accept new client", dnet_dump_id(n->id));
-			goto err_out_continue;
-		}
-
-		dnet_log(n, DNET_LOG_INFO, "%s: accepted client %s.\n", dnet_dump_id(n->id),
-				dnet_server_convert_dnet_addr(&addr));
-
-		fcntl(cs, F_SETFL, O_NONBLOCK);
-		
-		st = dnet_state_create(n, NULL, &addr, cs);
-		if (!st)
-			goto err_out_close;
-
-		continue;
-
-err_out_close:
-		close(cs);
-err_out_continue:
-		continue;
-	}
-
-	return NULL;
+	dnet_log(n, DNET_LOG_ERROR, "%s: this should never be called. Exiting.\n",
+			dnet_dump_id(n->id));
+	exit(-1);
 }
 
 static void *dnet_io_thread_process(void *data)
@@ -275,28 +242,25 @@ static void *dnet_io_thread_process(void *data)
 	tv.tv_sec = t->node->wait_ts.tv_sec;
 	tv.tv_usec = t->node->wait_ts.tv_nsec / 1000;
 
-	t->base = event_init();
-	if (!t->base) {
-		err = -errno;
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to initialize event base.\n",
-				dnet_dump_id(n->id));
-		if (!err)
-			err = -EINVAL;
-		goto err_out_exit;
-	}
+	event_set(&t->ev, t->pipe[0], EV_READ, dnet_dummy_pipe_read, t);
+	event_base_set(t->base, &t->ev);
+	event_add(&t->ev, NULL);
 
 	while (!t->need_exit) {
 		//err = event_base_loopexit(t->base, &tv);
 		err = event_base_dispatch(t->base);
 		if (err) {
-			dnet_log(t->node, DNET_LOG_NOTICE, "%s: thread %lu fails to process events: %d.\n",
+			dnet_log(n, DNET_LOG_NOTICE, "%s: thread %lu fails to process events: %d.\n",
 					dnet_dump_id(t->node->id), t->tid, err);
 			sleep(1);
 		}
 	}
 
+	event_del(&t->ev);
+	close(t->pipe[0]);
+	close(t->pipe[1]);
 	event_base_free(t->base);
-err_out_exit:
+
 	t->need_exit = err;
 	return &t->need_exit;
 }
@@ -306,6 +270,7 @@ static void dnet_stop_io_threads(struct dnet_node *n)
 	struct dnet_io_thread *t, *tmp;
 
 	list_for_each_entry_safe(t, tmp, &n->io_thread_list, thread_entry) {
+		t->need_exit = 1;
 		pthread_join(t->tid, NULL);
 
 		list_del(&t->thread_entry);
@@ -329,12 +294,29 @@ static int dnet_start_io_threads(struct dnet_node *n)
 
 		t->node = n;
 
+		err = pipe(t->pipe);
+		if (err) {
+			err = -errno;
+			dnet_log_err(n, "failed to create a dummy IO pipe");
+			goto err_out_free;
+		}
+
+		t->base = event_init();
+		if (!t->base) {
+			err = -errno;
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to initialize event base.\n",
+					dnet_dump_id(n->id));
+			if (!err)
+				err = -EINVAL;
+			goto err_out_close;
+		}
+
 		err = pthread_create(&t->tid, NULL, dnet_io_thread_process, t);
 		if (err) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: failed to create IO thread: err: %d.\n",
 					dnet_dump_id(n->id), err);
 			err = -err;
-			goto err_out_free;
+			goto err_out_free_base;
 		}
 
 		pthread_mutex_lock(&n->io_thread_lock);
@@ -344,6 +326,11 @@ static int dnet_start_io_threads(struct dnet_node *n)
 
 	return 0;
 
+err_out_free_base:
+	event_base_free(t->base);
+err_out_close:
+	close(t->pipe[0]);
+	close(t->pipe[1]);
 err_out_free:
 	free(t);
 err_out_free_all:
@@ -388,6 +375,14 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		dnet_log(n, DNET_LOG_ERROR, "%s: no IO thread number provided, using default %d.\n",
 				dnet_dump_id(n->id), n->io_thread_num);
 	}
+	
+	n->max_pending = cfg->max_pending;
+	if (!n->max_pending) {
+		n->max_pending = DNET_IO_MAX_PENDING;
+		dnet_log(n, DNET_LOG_ERROR, "%s: no maximum number of transaction from the same client "
+				"processed in parallel, using default %llu.\n",
+				dnet_dump_id(n->id), (unsigned long long)n->max_pending);
+	}
 
 	n->addr.addr_len = sizeof(n->addr.addr);
 
@@ -401,24 +396,14 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_sock_close;
 
-	err = pthread_create(&n->tid, NULL, dnet_server_func, n);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to start accepting thread: err: %d.\n",
-				dnet_dump_id(n->id), err);
-		goto err_out_stop_io_threads;
-	}
-
 	n->st = dnet_state_create(n, (cfg->join)?n->id:NULL, &n->addr, n->listen_socket);
 	if (!n->st)
-		goto err_out_stop_accepting_thread;
+		goto err_out_stop_io_threads;
 
 	dnet_log(n, DNET_LOG_INFO, "%s: new node has been created at %s, id_size: %u.\n",
 			dnet_dump_id(n->id), dnet_dump_node(n), DNET_ID_SIZE);
 	return n;
 
-err_out_stop_accepting_thread:
-	n->need_exit = 1;
-	pthread_join(n->tid, NULL);
 err_out_stop_io_threads:
 	dnet_stop_io_threads(n);
 err_out_sock_close:
@@ -443,7 +428,6 @@ void dnet_node_destroy(struct dnet_node *n)
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	pthread_join(n->tid, NULL);
 	dnet_stop_io_threads(n);
 
 	close(n->listen_socket);

@@ -46,6 +46,15 @@
 #define DNET_LOG_CHECK
 #endif
 
+/*
+ * Size of the IO thread pool.
+ * Single thread can handle multiple clients.
+ */
 #define DNET_IO_THREAD_NUM_DEFAULT	2
+
+/*
+ * Maximum number of transactions from the same client processed in parallel.
+ */
+#define DNET_IO_MAX_PENDING		256
 
 #endif /* __DNET_CORE_H */

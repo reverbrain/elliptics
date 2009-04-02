@@ -408,71 +408,17 @@ err_out_exit:
 	return err;
 }
 
-static void dnet_process_recv(int s, short event __unused, void *arg)
+static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *st)
 {
-	struct dnet_net_state *st = arg;
-	struct dnet_node *n = st->n;
-	void *data;
-	size_t size;
-	struct dnet_trans *t;
 	int err;
+	struct dnet_node *n = st->n;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: cmd: %d, size: %zu.\n",
-			dnet_dump_id(st->id), !!(st->rcv_flags & DNET_IO_CMD),
-			st->rcv_size);
-
-	while (1) {
-		/*
-		 * Reading command first.
-		 */
-		if (st->rcv_flags & DNET_IO_CMD)
-			data = &st->rcv_cmd;
-		else
-			data = st->rcv_data;
-		data += st->rcv_offset;
-		size = st->rcv_size - st->rcv_offset;
-
-		if (size) {
-			err = recv(s, data, size, 0);
-			if (err < 0) {
-				if (errno != EAGAIN && errno != EINTR) {
-					err = -errno;
-					dnet_log_err(n, "failed to receive a command header");
-					goto err_out_exit;
-				}
-
-				break;
-			}
-
-			if (err == 0) {
-				dnet_log(n, DNET_LOG_ERROR, "Peer %s has disconnected.\n",
-					dnet_server_convert_dnet_addr(&st->addr));
-				err = -ECONNRESET;
-				goto err_out_exit;
-			}
-
-			st->rcv_offset += err;
-		}
-
-		dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: offset: %zu, size: %zu, flags: %x.\n",
-				dnet_dump_id(st->id), (size_t)st->rcv_offset, st->rcv_size, st->rcv_flags);
-
-		if (st->rcv_offset != st->rcv_size)
-			continue;
-
-		if (st->rcv_flags & DNET_IO_CMD) {
-			dnet_convert_cmd(&st->rcv_cmd);
-			dnet_log(n, DNET_LOG_NOTICE, "%s: size: %llu, trans: %llu.\n",
-					dnet_dump_id(st->rcv_cmd.id), st->rcv_cmd.size, st->rcv_cmd.trans);
-			err = dnet_schedule_data(st);
+	if (!(st->rcv_flags & DNET_IO_DROP)) {
+		if (st->rcv_cmd.trans & DNET_TRANS_REPLY) {
+			err = dnet_trans_exec(t);
 			if (err)
-				goto err_out_exit;
-			continue;
-		}
-
-		t = st->rcv_trans;
-
-		if (!(st->rcv_flags & DNET_IO_DROP)) {
+				goto err_out_destroy;
+		} else {
 			t->st = dnet_state_search(n, st->rcv_cmd.id, NULL);
 
 			if (!t->st || t->st == st || t->st == n->st) {
@@ -501,24 +447,104 @@ static void dnet_process_recv(int s, short event __unused, void *arg)
 					goto err_out_destroy;
 			}
 		}
-		
-		if (st->rcv_flags & DNET_IO_DROP)
-			dnet_trans_destroy(t);
-
-		dnet_schedule_command(st);
 	}
+	
+	if (st->rcv_flags & DNET_IO_DROP)
+		dnet_trans_destroy(t);
 
-	event_add(&st->rcv_ev, NULL);
-	return;
+	return 0;
 
 err_out_destroy:
 	dnet_trans_destroy(t);
-err_out_exit:
-	event_del(&st->rcv_ev);
-	dnet_state_put(st);
+	return err;
 }
 
-static int dnet_process_send_single(int s, struct dnet_net_state *st)
+static int dnet_process_recv_single(struct dnet_net_state *st)
+{
+	struct dnet_node *n = st->n;
+	void *data;
+	size_t size;
+	struct dnet_trans *t;
+	int err;
+
+	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: cmd: %d, size: %zu, offset: %zu.\n",
+		dnet_dump_id(st->id), !!(st->rcv_flags & DNET_IO_CMD),
+		st->rcv_size, (size_t)st->rcv_offset);
+
+again:
+	/*
+	 * Reading command first.
+	 */
+	if (st->rcv_flags & DNET_IO_CMD)
+		data = &st->rcv_cmd;
+	else
+		data = st->rcv_data;
+	data += st->rcv_offset;
+	size = st->rcv_size - st->rcv_offset;
+
+	if (size) {
+		err = recv(st->s, data, size, 0);
+		if (err < 0) {
+			err = -EAGAIN;
+			if (errno != EAGAIN && errno != EINTR) {
+				err = -errno;
+				dnet_log_err(n, "failed to receive data");
+				goto out;
+			}
+
+			dnet_log(n, DNET_LOG_NOTICE, "%s: no data.\n", dnet_dump_id(st->id));
+			goto out;
+		}
+
+		if (err == 0) {
+			dnet_log(n, DNET_LOG_ERROR, "Peer %s has disconnected.\n",
+				dnet_server_convert_dnet_addr(&st->addr));
+			err = -ECONNRESET;
+			goto out;
+		}
+
+		st->rcv_offset += err;
+	}
+
+	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: offset: %zu, size: %zu, flags: %x.\n",
+			dnet_dump_id(st->id), (size_t)st->rcv_offset, st->rcv_size, st->rcv_flags);
+
+	if (st->rcv_offset != st->rcv_size)
+		goto again;
+
+	if (st->rcv_flags & DNET_IO_CMD) {
+		unsigned long long tid;
+		struct dnet_cmd *c = &st->rcv_cmd;
+
+		dnet_convert_cmd(&st->rcv_cmd);
+
+		tid = c->trans & ~DNET_TRANS_REPLY;
+
+		dnet_log(n, DNET_LOG_INFO, "%s: size: %llu, flags: %u, trans: %llu, reply: %d.\n",
+				dnet_dump_id(c->id), c->size, c->flags, tid, !!(c->trans & DNET_TRANS_REPLY));
+		err = dnet_schedule_data(st);
+		if (err)
+			goto out;
+
+		/*
+		 * We read the command header, now get the data.
+		 */
+		goto again;
+	}
+
+	t = st->rcv_trans;
+
+	err = dnet_process_recv_trans(t, st);
+	if (err)
+		goto out;
+
+	dnet_schedule_command(st);
+
+out:
+	return err;
+}
+
+static int dnet_process_send_single(struct dnet_net_state *st)
 {
 	struct dnet_node *n = st->n;
 	struct dnet_data_req *r = NULL;
@@ -527,8 +553,11 @@ static int dnet_process_send_single(int s, struct dnet_net_state *st)
 	if (!list_empty(&st->snd_list))
 		r = list_first_entry(&st->snd_list, struct dnet_data_req, req_entry);
 
-	if (!r)
-		return -ENOENT;
+	if (!r) {
+		err = -ENOENT;
+		dnet_log(n, DNET_LOG_NOTICE, "%s: empty send queue.\n", dnet_dump_id(st->id));
+		goto out;
+	}
 #if 1
 	dnet_log(n, DNET_LOG_NOTICE, "%s: req: %p, hsize: %zu, dsize: %zu, fsize: %zu.\n",
 			dnet_dump_id(st->id), r, r->hsize, r->dsize, r->size);
@@ -570,7 +599,7 @@ static int dnet_process_send_single(int s, struct dnet_net_state *st)
 		}
 
 		if (data) {
-			err = send(s, data, *size, 0);
+			err = send(st->s, data, *size, 0);
 		} else if (r->fd >= 0) {
 			err = dnet_sendfile(st, r->fd, &r->offset, *size);
 		}
@@ -580,7 +609,7 @@ static int dnet_process_send_single(int s, struct dnet_net_state *st)
 			if (errno != EAGAIN && errno != EINTR) {
 				err = -errno;
 				dnet_log_err(n, "failed to send %zu bytes", *size);
-				goto err_out_destroy;
+				goto out;
 			}
 
 			dnet_log(n, DNET_LOG_NOTICE, "%s: again.\n", dnet_dump_id(st->id));
@@ -591,7 +620,7 @@ static int dnet_process_send_single(int s, struct dnet_net_state *st)
 			err = -ECONNRESET;
 			dnet_log(n, DNET_LOG_ERROR, "%s: node dropped connection.\n",
 					dnet_dump_id(st->id));
-			goto err_out_destroy;
+			goto out;
 		}
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: sent: %zu/%zu.\n", dnet_dump_id(st->id), err, *size);
@@ -612,38 +641,122 @@ static int dnet_process_send_single(int s, struct dnet_net_state *st)
 	list_del(&r->req_entry);
 	pthread_mutex_unlock(&st->snd_lock);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: freeing send request: %p: "
+	dnet_log(n, DNET_LOG_NOTICE, "%s: freeing send request: %p: "
 			"flags: %x, hsize: %zu, dsize: %zu, fsize: %zu.\n",
 			dnet_dump_id(st->id), r, r->flags, r->hsize, r->dsize, r->size);
 
 	dnet_req_destroy(r);
 
 out:
-	event_add(&st->snd_ev, NULL);
-	return err;
-
-err_out_destroy:
-	event_del(&st->snd_ev);
-	/* Need to drain request queue and free the state */
 	return err;
 }
 
-static void dnet_process_send(int s, short event __unused, void *arg)
+static void dnet_process_socket(int s __unused, short event, void *arg)
 {
 	struct dnet_net_state *st = arg;
+	short mask = EV_READ;
+	int err, can_write = 0, can_read = 0;
+
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing event: %p, mask: %x.\n",
+			dnet_dump_id(st->id), &st->event, event);
+
+	do {
+		can_write = can_read = 0;
+		if (event & EV_WRITE) {
+			err = dnet_process_send_single(st);
+			switch (err) {
+				case -ENOENT:
+					break;
+				case -EAGAIN:
+					break;
+				case 0:
+					if (!list_empty(&st->snd_list))
+						can_write = 1;
+					break;
+				default:
+					goto err_out_destroy;
+			}
+		}
+
+		if ((event & EV_READ) && (st->req_pending < st->n->max_pending)) {
+			err = dnet_process_recv_single(st);
+			switch (err) {
+				case -EAGAIN:
+					break;
+				case 0:
+					if (list_empty(&st->snd_list))
+						can_read = 1;
+					break;
+				default:
+					goto err_out_destroy;
+			}
+		}
+	} while (can_write || can_read);
+
+	if (!list_empty(&st->snd_list))
+		mask |= EV_WRITE;
+	dnet_event_schedule(st, mask);
+
+	return;
+
+err_out_destroy:
+	event_del(&st->event);
+
+	dnet_state_put(st);
+}
+
+int dnet_event_schedule(struct dnet_net_state *st, short mask)
+{
+	void *base = st->event.ev_base;
 	int err;
 
-	while (1) {
-		err = dnet_process_send_single(s, st);
-		if (err)
-			break;
+	event_set(&st->event, st->s, mask, dnet_process_socket, st);
+	event_base_set(base, &st->event);
+	err = event_add(&st->event, NULL);
+
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: queued event: %p, mask: %x, err: %d.\n",
+			dnet_dump_id(st->id), &st->event, mask, err);
+
+	return err;
+}
+
+static void dnet_accept_client(int s, short event __unused, void *arg)
+{
+	struct dnet_net_state *orig = arg;
+	struct dnet_node *n = orig->n;
+	struct dnet_net_state *st;
+	struct dnet_addr addr;
+	int cs, err;
+
+	addr.addr_len = sizeof(addr.addr);
+	cs = accept(s, (struct sockaddr *)&addr.addr, &addr.addr_len);
+	if (cs <= 0) {
+		err = -errno;
+		dnet_log_err(n, "failed to accept new client");
+		goto err_out_exit;
 	}
+
+	fcntl(cs, F_SETFL, O_NONBLOCK);
+	
+	st = dnet_state_create(n, NULL, &addr, cs);
+	if (!st)
+		goto err_out_close;
+
+	dnet_log(n, DNET_LOG_INFO, "%s: accepted client %s.\n", dnet_dump_id(n->id),
+			dnet_server_convert_dnet_addr(&addr));
+
+	return;
+
+err_out_close:
+	close(cs);
+err_out_exit:
+	return;
 }
 
 static int dnet_schedule_state(struct dnet_net_state *st)
 {
 	struct dnet_node *n = st->n;
-	struct dnet_io_thread *t, *snd = NULL, *rcv = NULL;
+	struct dnet_io_thread *t, *th = NULL;
 	int pos = 0, err;
 
 	pthread_mutex_lock(&n->io_thread_lock);
@@ -651,12 +764,8 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 		if (pos == n->io_thread_pos) {
 			n->io_thread_pos++;
 			n->io_thread_pos %= n->io_thread_num;
-			if (!snd)
-				snd = t;
-			else {
-				rcv = t;
-				break;
-			}
+			th = t;
+			break;
 		}
 
 		pos++;
@@ -664,15 +773,12 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 	}
 	pthread_mutex_unlock(&n->io_thread_lock);
 
-	if (!snd || !rcv) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: can not find IO threads.\n",
+	if (!th) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: can not find IO thread.\n",
 				dnet_dump_id(n->id));
 		err = -ENOENT;
 		goto err_out_exit;
 	}
-
-	dnet_log(n, DNET_LOG_INFO, "%s: snd: %lu, rcv: %lu.\n",
-			dnet_dump_id(st->id), snd->tid, rcv->tid);
 
 	/*
 	 * Starting from reading a command.
@@ -681,14 +787,15 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 
 	st->n = n;
 
-	event_set(&st->rcv_ev, st->s, EV_READ, dnet_process_recv, st);
-	event_set(&st->snd_ev, st->s, EV_WRITE, dnet_process_send, st);
+	if (st->s == n->listen_socket)
+		event_set(&st->event, st->s, EV_READ | EV_PERSIST, dnet_accept_client, st);
+	else
+		event_set(&st->event, st->s, EV_WRITE | EV_READ, dnet_process_socket, st);
 
-	event_base_set(rcv->base, &st->rcv_ev);
-	event_base_set(snd->base, &st->snd_ev);
+	event_base_set(th->base, &st->event);
 
-	event_add(&st->rcv_ev, NULL);
-	//event_add(&st->snd_ev, NULL);
+	event_add(&st->event, NULL);
+
 	return 0;
 
 err_out_exit:
@@ -785,8 +892,7 @@ void dnet_state_put(struct dnet_net_state *st)
 	pthread_mutex_destroy(&st->snd_lock);
 	pthread_mutex_destroy(&st->refcnt_lock);
 
-	event_del(&st->snd_ev);
-	event_del(&st->rcv_ev);
+	event_del(&st->event);
 
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: freeing state %s.\n", dnet_dump_id(st->id),
 		dnet_server_convert_dnet_addr(&st->addr));

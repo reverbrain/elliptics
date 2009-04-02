@@ -145,7 +145,8 @@ struct dnet_net_state
 
 	struct dnet_addr	addr;
 
-	struct event		rcv_ev;
+	struct event		event;
+
 	struct dnet_cmd		rcv_cmd;
 	off_t			rcv_offset;
 	size_t			rcv_size;
@@ -153,11 +154,12 @@ struct dnet_net_state
 	void			*rcv_data;
 	struct dnet_trans	*rcv_trans;
 	
-	struct event		snd_ev;
 	struct list_head	snd_list;
 	pthread_mutex_t		snd_lock;
 	off_t			snd_offset;
 	size_t			snd_size;
+
+	uint64_t		req_pending;
 };
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
@@ -241,6 +243,9 @@ struct dnet_io_thread
 {
 	struct list_head	thread_entry;
 
+	int			pipe[2];
+	struct event		ev;
+
 	int			need_exit;
 
 	pthread_t		tid;
@@ -258,7 +263,6 @@ struct dnet_node
 	struct list_head	tlist;
 
 	int			need_exit;
-	pthread_t		tid;
 
 	int			listen_socket;
 
@@ -296,6 +300,8 @@ struct dnet_node
 	struct list_head	io_thread_list;
 	pthread_mutex_t		io_thread_lock;
 	int			io_thread_num, io_thread_pos;
+
+	uint64_t		max_pending;
 };
 
 static inline char *dnet_dump_node(struct dnet_node *n)
@@ -333,6 +339,8 @@ int dnet_rejoin(struct dnet_node *n, int all);
 struct dnet_data_req
 {
 	struct list_head	req_entry;
+
+	struct dnet_net_state	*st;
 
 	void			*header;
 	size_t			hsize;
@@ -398,6 +406,8 @@ struct dnet_transform
 					void *dst, unsigned int *dsize, unsigned int flags);
 	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };
+
+int dnet_event_schedule(struct dnet_net_state *st, short event);
 
 #ifdef __cplusplus
 }
