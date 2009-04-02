@@ -293,7 +293,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 
 	dnet_req_set_header(&t->r, &t->cmd, sizeof(struct dnet_cmd), 0);
 	dnet_req_set_data(&t->r, t->data, size, 0);
-	dnet_req_set_fd(&t->r, -1, 0, 0, 0);
+	dnet_req_set_flags(&t->r, ~0, DNET_REQ_NO_DESTRUCT);
 
 	err = dnet_data_ready(st, &t->r);
 
