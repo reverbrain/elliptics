@@ -138,7 +138,7 @@ static int dnet_send_list(void *state, struct dnet_cmd *cmd, void *odata, unsign
 
 	*c = *cmd;
 	c->trans |= DNET_TRANS_REPLY;
-	c->flags |= DNET_FLAGS_MORE;
+	c->flags = DNET_FLAGS_MORE;
 	c->status = 0;
 	c->size = sizeof(struct dnet_attr) + size;
 
@@ -230,9 +230,10 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 			size = osize;
 			data = odata;
 		}
-
+#if 0
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
 			"%s -> %s.\n", d->d_name, dnet_dump_id(id));
+#endif
 	}
 
 	if (osize != size) {
@@ -339,8 +340,6 @@ static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *a
 	int oflags = O_RDWR | O_CREAT | O_LARGEFILE;
 	/* null byte + '%02x/' directory prefix and optional history suffix */
 	char file[DNET_ID_SIZE * 2 + 1 + 3 + sizeof(DNET_HISTORY_SUFFIX)];
-
-	return 0;
 
 	if (attr->size <= sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
