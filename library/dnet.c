@@ -373,10 +373,14 @@ int dnet_rejoin(struct dnet_node *n, int all)
 		if (st == n->st)
 			continue;
 
+		dnet_log(n, DNET_LOG_NOTICE, "%s: sending join: all: %d, state: %x.\n",
+				dnet_dump_id(st->id), all, st->join_state);
+
 		if (!all && st->join_state != DNET_REJOIN)
 			continue;
 
-		err = dnet_send_address(st, n->id, DNET_CMD_JOIN, &n->addr, n->sock_type, n->proto);
+		err = dnet_send_address(st, n->id, DNET_CMD_JOIN, &n->addr,
+				n->sock_type, n->proto);
 		if (err) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: failed to rejoin to state %s.\n",
 				dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr));
@@ -1307,10 +1311,15 @@ int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
 	 */
 	err = write(st->th->pipe[1], &data, sizeof(unsigned long));
 	if (err < 0) {
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: request event: %p, hsize: %zu, dsize: %zu, fsize: %zu, err: %d.\n",
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: request event: %p, "
+				"hsize: %zu, dsize: %zu, fsize: %zu, err: %d.\n",
 			dnet_dump_id(st->id), &st->event, r->hsize, r->dsize, r->size, err);
 		return err;
 	}
+	
+	dnet_log(st->n, DNET_LOG_ERROR, "%s: queued request event: %p, "
+				"hsize: %zu, dsize: %zu, fsize: %zu.\n",
+			dnet_dump_id(st->id), &st->event, r->hsize, r->dsize, r->size);
 
 	return 0;
 }
