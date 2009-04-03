@@ -1317,7 +1317,7 @@ int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
 		return err;
 	}
 	
-	dnet_log(st->n, DNET_LOG_ERROR, "%s: queued request event: %p, "
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: queued request event: %p, "
 				"hsize: %zu, dsize: %zu, fsize: %zu.\n",
 			dnet_dump_id(st->id), &st->event, r->hsize, r->dsize, r->size);
 
