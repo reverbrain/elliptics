@@ -796,6 +796,8 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 		event_base_set(th->base, &st->event);
 		event_add(&st->event, NULL);
 	} else {
+		event_set(&st->event, st->s, EV_WRITE | EV_READ, dnet_process_socket, st);
+		event_base_set(th->base, &st->event);
 		dnet_event_schedule(st, EV_WRITE | EV_READ);
 	}
 
