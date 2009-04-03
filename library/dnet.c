@@ -1310,16 +1310,8 @@ int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
 	 * So we have this hack to signal given IO thread which event it should check.
 	 */
 	err = write(st->th->pipe[1], &data, sizeof(unsigned long));
-	if (err < 0) {
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: request event: %p, "
-				"hsize: %zu, dsize: %zu, fsize: %zu, err: %d.\n",
-			dnet_dump_id(st->id), &st->event, r->hsize, r->dsize, r->size, err);
+	if (err < 0)
 		return err;
-	}
-	
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: queued request event: %p, "
-				"hsize: %zu, dsize: %zu, fsize: %zu.\n",
-			dnet_dump_id(st->id), &st->event, r->hsize, r->dsize, r->size);
 
 	return 0;
 }
