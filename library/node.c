@@ -222,12 +222,15 @@ static void dnet_dummy_pipe_read(int s, short event, void *arg)
 	struct dnet_io_thread *t = arg;
 	struct dnet_node *n = t->node;
 
+	dnet_log(n, DNET_LOG_NOTICE, "%s: thread control pipe event: %x.\n",
+			dnet_dump_id(n->id), event);
+
 	if (event & EV_READ) {
 		unsigned long data;
 		struct dnet_net_state *st;
 		int err;
 
-		err = read(t->pipe[0], &data, sizeof(unsigned long));
+		err = read(s, &data, sizeof(unsigned long));
 		if (err < 0) {
 			err = -errno;
 			if (err != -EAGAIN && err != -EINTR) {
@@ -248,6 +251,7 @@ static void dnet_dummy_pipe_read(int s, short event, void *arg)
 	}
 
 out:
+	event_add(&t->ev, NULL);
 	return;
 }
 
@@ -274,7 +278,8 @@ static void *dnet_io_thread_process(void *data)
 		//err = event_base_loopexit(t->base, &tv);
 		err = event_base_dispatch(t->base);
 		if (err) {
-			dnet_log(n, DNET_LOG_NOTICE, "%s: thread %lu fails to process events: %d.\n",
+			dnet_log(n, DNET_LOG_NOTICE, "%s: thread %lu fails to "
+					"process events: %d.\n",
 					dnet_dump_id(t->node->id), t->tid, err);
 			sleep(1);
 		}
@@ -307,7 +312,8 @@ static int dnet_start_io_threads(struct dnet_node *n)
 	int i, err;
 	struct dnet_io_thread *t;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: starting %d IO threads.\n", dnet_dump_id(n->id), n->io_thread_num);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: starting %d IO threads.\n",
+			dnet_dump_id(n->id), n->io_thread_num);
 	for (i=0; i<n->io_thread_num; ++i) {
 		t = malloc(sizeof(struct dnet_io_thread));
 		if (!t) {
