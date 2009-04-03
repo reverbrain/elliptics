@@ -1292,22 +1292,27 @@ err_out_exit:
 
 int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
 {
-	int add = 0, err = 0;
+	int err;
+	unsigned long data = (unsigned long)st;
 
 	pthread_mutex_lock(&st->snd_lock);
-	add = list_empty(&st->snd_list);
-
 	list_add_tail(&r->req_entry, &st->snd_list);
-	if (add) {
-		err = dnet_event_schedule(st, EV_READ | EV_WRITE);
-		if (err)
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: failed to queue request event: %p, "
-					"hsize: %zu, dsize: %zu, fsize: %zu, err: %d.\n",
-				dnet_dump_id(st->id), &st->event, r->hsize, r->dsize, r->size, err);
-	}
 	pthread_mutex_unlock(&st->snd_lock);
 
-	return err;
+	/*
+	 * I hate libevent.
+	 * It is not designed for multi-threaded usage.
+	 * But anything which was made by a man, can be broken by another.
+	 * So we have this hack to signal given IO thread which event it should check.
+	 */
+	err = write(st->th->pipe[1], &data, sizeof(unsigned long));
+	if (err < 0) {
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: request event: %p, hsize: %zu, dsize: %zu, fsize: %zu, err: %d.\n",
+			dnet_dump_id(st->id), &st->event, r->hsize, r->dsize, r->size, err);
+		return err;
+	}
+
+	return 0;
 }
 
 void *dnet_req_header(struct dnet_data_req *r)

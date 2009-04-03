@@ -695,11 +695,14 @@ static void dnet_process_socket(int s __unused, short event, void *arg)
 
 	if (!list_empty(&st->snd_list))
 		mask |= EV_WRITE;
+
 	dnet_event_schedule(st, mask);
 
 	return;
 
 err_out_destroy:
+	dnet_log(st->n, DNET_LOG_ERROR, "%s: removing event %p, err: %d.\n",
+			dnet_dump_id(st->id), &st->event, err);
 	event_del(&st->event);
 
 	dnet_state_put(st);
@@ -708,18 +711,21 @@ err_out_destroy:
 int dnet_event_schedule(struct dnet_net_state *st, short mask)
 {
 	void *base = st->event.ev_base;
-	int err;
 	struct timeval tv;
+	int err;
 
 	tv.tv_sec = st->n->wait_ts.tv_sec;
 	tv.tv_usec = st->n->wait_ts.tv_nsec * 1000;
+
+	event_del(&st->event);
 
 	event_set(&st->event, st->s, mask, dnet_process_socket, st);
 	event_base_set(base, &st->event);
 	err = event_add(&st->event, &tv);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: queued event: %p, mask: %x, err: %d.\n",
-			dnet_dump_id(st->id), &st->event, mask, err);
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: queued event: %p, mask: %x, err: %d, empty: %d.\n",
+			dnet_dump_id(st->id), &st->event, mask, err,
+			list_empty(&st->snd_list));
 
 	return err;
 }
@@ -790,15 +796,16 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 	dnet_schedule_command(st);
 
 	st->n = n;
+	st->th = th;
 
 	if (st->s == n->listen_socket) {
 		event_set(&st->event, st->s, EV_READ | EV_PERSIST, dnet_accept_client, st);
 		event_base_set(th->base, &st->event);
 		event_add(&st->event, NULL);
 	} else {
-		event_set(&st->event, st->s, EV_WRITE | EV_READ, dnet_process_socket, st);
+		event_set(&st->event, st->s, EV_READ, dnet_process_socket, st);
 		event_base_set(th->base, &st->event);
-		dnet_event_schedule(st, EV_WRITE | EV_READ);
+		dnet_event_schedule(st, EV_READ);
 	}
 
 	return 0;

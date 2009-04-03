@@ -217,14 +217,38 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *
 	return st;
 }
 
-static void dnet_dummy_pipe_read(int s __unused, short event __unused, void *arg)
+static void dnet_dummy_pipe_read(int s, short event, void *arg)
 {
 	struct dnet_io_thread *t = arg;
 	struct dnet_node *n = t->node;
 
-	dnet_log(n, DNET_LOG_ERROR, "%s: this should never be called. Exiting.\n",
-			dnet_dump_id(n->id));
-	exit(-1);
+	if (event & EV_READ) {
+		unsigned long data;
+		struct dnet_net_state *st;
+		int err;
+
+		err = read(t->pipe[0], &data, sizeof(unsigned long));
+		if (err < 0) {
+			err = -errno;
+			if (err != -EAGAIN && err != -EINTR) {
+				dnet_log_err(n, "failed to read from pipe");
+				goto out;
+			}
+
+			goto out;
+		}
+
+		/*
+		 * Size we read has to be smaller than atomic pipe IO size.
+		 */
+
+		st = (struct dnet_net_state *)data;
+
+		dnet_event_schedule(st, EV_READ | EV_WRITE);
+	}
+
+out:
+	return;
 }
 
 static void *dnet_io_thread_process(void *data)

@@ -160,10 +160,14 @@ struct dnet_net_state
 	size_t			snd_size;
 
 	uint64_t		req_pending;
+
+	struct dnet_io_thread	*th;
 };
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		struct dnet_addr *addr, int s);
+
+int dnet_event_schedule(struct dnet_net_state *st, short mask);
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 {
@@ -406,8 +410,6 @@ struct dnet_transform
 					void *dst, unsigned int *dsize, unsigned int flags);
 	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };
-
-int dnet_event_schedule(struct dnet_net_state *st, short event);
 
 #ifdef __cplusplus
 }
