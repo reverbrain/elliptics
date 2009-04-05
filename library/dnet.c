@@ -149,6 +149,86 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *req)
+{
+	struct dnet_node *n = orig->n;
+	struct dnet_net_state *st;
+	int def_num = 1024, space = 0, err;
+	struct dnet_route_attr *a;
+	struct dnet_cmd *cmd;
+	struct dnet_attr *attr;
+	struct dnet_data_req *r = NULL;
+
+	pthread_mutex_lock(&n->state_lock);
+	list_for_each_entry(st, &n->state_list, state_entry) {
+		if (!space) {
+			unsigned int sz;
+
+			if (r) {
+				dnet_convert_cmd(cmd);
+				dnet_convert_attr(attr);
+
+				err = dnet_data_ready(orig, r);
+				if (err)
+					goto err_out_unlock;
+			}
+
+			space = def_num;
+			sz = space * sizeof(struct dnet_route_attr);
+			sz += sizeof(struct dnet_attr) + sizeof(struct dnet_cmd);
+
+			r = dnet_req_alloc(orig, sz);
+			if (!r) {
+				err = -ENOMEM;
+				goto err_out_unlock;
+			}
+
+			cmd = dnet_req_header(r);
+			attr = (struct dnet_attr *)(cmd + 1);
+			a = (struct dnet_route_attr *)(attr + 1);
+
+			memcpy(cmd->id, req->id, DNET_ID_SIZE);
+			cmd->size = sizeof(struct dnet_attr);
+			cmd->trans = req->trans | DNET_TRANS_REPLY;
+			cmd->flags |= DNET_FLAGS_MORE;
+
+			attr->size = 0;
+			attr->cmd = DNET_CMD_ROUTE_LIST;
+
+			r->hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr);
+		}
+
+		memcpy(a->id, st->id, DNET_ID_SIZE);
+		memcpy(&a->addr.addr, &st->addr, sizeof(struct dnet_addr));
+		a->addr.sock_type = n->sock_type;
+		a->addr.proto = n->proto;
+
+		cmd->size += sizeof(struct dnet_route_attr);
+		attr->size += sizeof(struct dnet_route_attr);
+		r->hsize += sizeof(struct dnet_route_attr);
+
+		dnet_log(n, DNET_LOG_INFO, "%s: route to %s\n", dnet_dump_id(a->id),
+				dnet_server_convert_dnet_addr(&a->addr.addr));
+
+		dnet_convert_addr_attr(&a->addr);
+		a++;
+		space--;
+	}
+
+	if (r) {
+		err = dnet_data_ready(orig, r);
+		if (err)
+			goto err_out_unlock;
+	}
+	pthread_mutex_unlock(&n->state_lock);
+
+	return 0;
+
+err_out_unlock:
+	pthread_mutex_unlock(&n->state_lock);
+	return err;
+}
+
 int dnet_process_cmd(struct dnet_trans *t)
 {
 	struct dnet_net_state *st = t->st;
@@ -203,6 +283,9 @@ int dnet_process_cmd(struct dnet_trans *t)
 				break;
 			case DNET_CMD_JOIN:
 				err = dnet_cmd_join_client(st, cmd, a, data);
+				break;
+			case DNET_CMD_ROUTE_LIST:
+				err = dnet_cmd_route_list(st, cmd);
 				break;
 			default:
 				if (!n->command_handler)
@@ -345,6 +428,108 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *priv __unused)
+{
+	struct dnet_route_attr *a;
+	struct dnet_node *n;
+	int err, num, i;
+
+	if (!st || !cmd || !attr) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	if (!cmd->size || cmd->status) {
+		err = cmd->status;
+		goto err_out_exit;
+	}
+
+	n = st->n;
+
+	if (attr->size % sizeof(struct dnet_route_attr)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: wrong attribute size in route list reply %llu, must be modulo of %zu.\n",
+				dnet_dump_id(cmd->id), (unsigned long long)attr->size, sizeof(struct dnet_route_attr));
+		err = -EPROTO;
+		goto err_out_exit;
+	}
+
+	a = (struct dnet_route_attr *)(attr + 1);
+
+	num = attr->size / sizeof(struct dnet_route_attr);
+	dnet_log(n, DNET_LOG_INFO, "%s: route list: %d entries.\n", dnet_dump_id(cmd->id), num);
+	for (i=0; i<num; ++i) {
+		dnet_convert_addr_attr(&a->addr);
+		dnet_log(n, DNET_LOG_INFO, "    %s - %s\n", dnet_dump_id(a->id),
+				dnet_server_convert_dnet_addr(&a->addr.addr));
+		a++;
+	}
+
+	return 0;
+
+err_out_exit:
+	return err;
+}
+
+
+static int dnet_recv_route_list(struct dnet_net_state *st)
+{
+	struct dnet_node *n = st->n;
+	struct dnet_trans *t;
+	struct dnet_cmd *cmd;
+	struct dnet_attr *a;
+	int err;
+
+	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
+	if (!t) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	t->complete = dnet_recv_route_list_complete;
+	
+	cmd = (struct dnet_cmd *)(t + 1);
+	a = (struct dnet_attr *)(cmd + 1);
+
+	memcpy(cmd->id, st->id, DNET_ID_SIZE);
+	cmd->size = sizeof(struct dnet_attr);
+	cmd->flags = DNET_FLAGS_NEED_ACK;
+	cmd->status = 0;
+
+	a->cmd = DNET_CMD_ROUTE_LIST;
+	a->size = 0;
+	a->flags = 0;
+
+	t->st = dnet_state_get(st);
+
+	err = dnet_trans_insert(t);
+	if (err)
+		goto err_out_destroy;
+
+	cmd->trans = t->trans;
+	dnet_convert_cmd(cmd);
+	dnet_convert_attr(a);
+
+	dnet_log(n, DNET_LOG_NOTICE, "%s: list route request to %s.\n", dnet_dump_id(st->id),
+		dnet_server_convert_dnet_addr(&st->addr));
+
+	dnet_req_set_header(&t->r, t+1, sizeof(struct dnet_attr) +
+			sizeof(struct dnet_cmd), 0);
+	dnet_req_set_flags(&t->r, ~0, DNET_REQ_NO_DESTRUCT);
+
+	err = dnet_data_ready(st, &t->r);
+	if (err)
+		goto err_out_destroy;
+
+	return 0;
+
+err_out_destroy:
+	dnet_trans_destroy(t);
+err_out_exit:
+	return err;
+}
+
+
 int dnet_rejoin(struct dnet_node *n, int all)
 {
 	int err = 0;
@@ -388,6 +573,12 @@ int dnet_rejoin(struct dnet_node *n, int all)
 		}
 
 		st->join_state = DNET_JOINED;
+		err = dnet_recv_route_list(st);
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to send route list request to %s.\n",
+				dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr));
+			break;
+		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
 

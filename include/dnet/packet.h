@@ -38,6 +38,7 @@ enum dnet_commands {
 						 */
 	DNET_CMD_LIST,				/* List all objects for given node ID */
 	DNET_CMD_EXEC,				/* Execute given command on the remote node */
+	DNET_CMD_ROUTE_LIST,			/* Receive route table from given node */
 };
 
 /*
@@ -148,6 +149,12 @@ static inline void dnet_convert_addr_attr(struct dnet_addr_attr *a)
 	a->proto = dnet_bswap32(a->proto);
 	a->sock_type = dnet_bswap32(a->sock_type);
 }
+
+struct dnet_route_attr
+{
+	unsigned char		id[DNET_ID_SIZE];
+	struct dnet_addr_attr	addr;
+} __attribute__ ((packed));
 
 struct dnet_addr_cmd
 {
