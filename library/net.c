@@ -520,7 +520,7 @@ again:
 
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
-		dnet_log(n, DNET_LOG_INFO, "%s: size: %llu, flags: %u, trans: %llu, reply: %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: size: %llu, flags: %u, trans: %llu, reply: %d.\n",
 				dnet_dump_id(c->id), c->size, c->flags, tid, !!(c->trans & DNET_TRANS_REPLY));
 		err = dnet_schedule_data(st);
 		if (err)

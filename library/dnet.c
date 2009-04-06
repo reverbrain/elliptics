@@ -239,6 +239,9 @@ int dnet_process_cmd(struct dnet_trans *t)
 	struct dnet_node *n = st->n;
 	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 
+	dnet_log(n, DNET_LOG_INFO, "%s: processing local cmd: size: %llu, trans: %llu, flags: %x.\n",
+			dnet_dump_id(cmd->id), size, tid, cmd->flags);
+
 	while (size) {
 		struct dnet_attr *a = data;
 		unsigned long long sz;
@@ -269,7 +272,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 			break;
 		}
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: trans: %llu, size_left: %llu, "
+		dnet_log(n, DNET_LOG_INFO, "%s: trans: %llu, size_left: %llu, "
 				"starting cmd: %u, asize: %llu.\n",
 			dnet_dump_id(cmd->id), tid,
 			size, a->cmd, (unsigned long long)a->size);
@@ -528,7 +531,6 @@ err_out_destroy:
 err_out_exit:
 	return err;
 }
-
 
 int dnet_rejoin(struct dnet_node *n, int all)
 {
