@@ -829,7 +829,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 	st->timeout = n->wait_ts.tv_sec * 1000;
 	st->s = s;
 	st->n = n;
-	st->refcnt = 2; /* It is accessed from sending and receiving threads */
+	st->refcnt = 1;
 
 	INIT_LIST_HEAD(&st->snd_list);
 
