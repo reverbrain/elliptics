@@ -40,8 +40,6 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
-#include "../library/elliptics.h"
-
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
