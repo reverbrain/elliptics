@@ -198,6 +198,12 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *req
 			r->hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr);
 		}
 
+		if (!memcmp(st->id, orig->id, DNET_ID_SIZE))
+			continue;
+
+		if (!memcmp(st->id, n->id, DNET_ID_SIZE))
+			continue;
+
 		memcpy(a->id, st->id, DNET_ID_SIZE);
 		memcpy(&a->addr.addr, &st->addr, sizeof(struct dnet_addr));
 		a->addr.sock_type = n->sock_type;
