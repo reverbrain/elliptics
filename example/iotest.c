@@ -40,9 +40,22 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
+#include "../library/elliptics.h"
+
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
+
+struct iotest_state
+{
+	struct iotest_state		*next;
+	struct dnet_config		cfg;
+	unsigned long long		bytes, completed, errors;
+	unsigned long long		send_syscalls, recv_syscalls;
+};
+
+static struct iotest_state iotest_root;
+static unsigned long long iotest_bytes;
 
 struct dnet_crypto_engine
 {
@@ -72,6 +85,7 @@ static int dnet_digest_final(void *priv, void *result, unsigned int *rsize, unsi
 {
 	struct dnet_crypto_engine *e = priv;
 	unsigned int rs = *rsize;
+
 	EVP_DigestFinal_ex(&e->mdctx, result, rsize);
 
 	if (*rsize < rs)
@@ -154,20 +168,40 @@ err_out_print_wrong_param:
 	return -EINVAL;
 }
 
-static unsigned long long iotest_bytes;
-static unsigned long long iotest_completed_error, iotest_completed;
-
 static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *cmd,
 		struct dnet_attr *attr __unused, void *priv)
 {
 	if (!cmd || !cmd->size || cmd->status) {
+		struct iotest_state *is = iotest_root.next;
+#if 1
+		while (is) {
+			int err = dnet_id_cmp(cmd->id, is->cfg.id);
+
+			if (err >= 0)
+				break;
+
+			is = is->next;
+		}
+
+		if (!is)
+			is = iotest_root.next;
+#endif
 		if (!cmd || cmd->status)
-			iotest_completed_error++;
+			is->errors++;
 
 		if (!cmd->size) {
 			unsigned long bytes = (unsigned long)priv;
-			iotest_completed++;
+#if 1
+			is->completed++;
+			is->bytes += bytes;
 			iotest_bytes += bytes;
+#else
+			is->send_syscalls = st->send_syscalls;
+			is->recv_syscalls = st->recv_syscalls;
+			is->completed = st->requests_sent;
+			is->bytes = st->bytes_sent;
+			iotest_bytes = st->bytes_sent;
+#endif
 		}
 	}
 
@@ -343,26 +377,42 @@ static int dnet_parse_numeric_id(char *value, unsigned char *id)
 static void *iotest_perf(void *log_private)
 {
 	struct timeval iotest_start;
-	double iotest_speed;
+	long double speed;
 	struct timeval t;
 	long usec;
+	unsigned long long chunks_per_second, sends_per_second, recvs_per_second;
+	struct iotest_state *st;
+	char msg[512];
 
 	gettimeofday(&iotest_start, NULL);
 
 	while (1) {
 		sleep(1);
 
-		gettimeofday(&t, NULL);
+		st = iotest_root.next;
 
-		usec = t.tv_usec - iotest_start.tv_usec;
-		usec += 1000000 * (t.tv_sec - iotest_start.tv_sec);
+		while (st) {
+			gettimeofday(&t, NULL);
 
-		if (usec == 0)
-			usec = 1;
-		iotest_speed = (double)iotest_bytes / (double)usec * 1000000 / (1024 * 1024);
+			usec = t.tv_usec - iotest_start.tv_usec;
+			usec += 1000000 * (t.tv_sec - iotest_start.tv_sec);
 
-		fprintf(log_private, "bytes: %llu, chunks: %llu, errors: %llu, speed: %.3f MB/s\n",
-				iotest_bytes, iotest_completed, iotest_completed_error, iotest_speed);
+			if (usec == 0)
+				usec = 1;
+			speed = (double)st->bytes / (double)usec * 1000000 / (1024 * 1024);
+			chunks_per_second = (long double)st->completed / (long double)usec * 1000000;
+			sends_per_second = (long double)st->send_syscalls / (long double)usec * 1000000;
+			recvs_per_second = (long double)st->recv_syscalls / (long double)usec * 1000000;
+
+			snprintf(msg, sizeof(msg), "%s:%s: bytes: %10llu | %8.3Lf MB/s, "
+					"chunks: %8llu | %7llu per sec, errors: %llu, send: %llu, recv: %llu\n",
+					st->cfg.addr, st->cfg.port,
+					st->bytes, speed, st->completed, chunks_per_second, st->errors,
+					sends_per_second, recvs_per_second);
+			iotest_log(log_private, DNET_LOG_NOTICE, msg);
+
+			st = st->next;
+		}
 	}
 }
 
@@ -388,9 +438,10 @@ static void dnet_usage(char *p)
 int main(int argc, char *argv[])
 {
 	int trans_max = 5, trans_num = 0;
-	int ch, err, i, have_remote = 0, write = 1;
+	int ch, err, i, write = 1;
 	struct dnet_node *n = NULL;
-	struct dnet_config cfg, rem;
+	struct dnet_config cfg;
+	struct iotest_state *st, *prev;
 	struct dnet_crypto_engine *e, *trans[trans_max];
 	char *logfile = NULL, *obj = NULL;
 	FILE *log = NULL;
@@ -406,8 +457,8 @@ int main(int argc, char *argv[])
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
 	cfg.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
-
-	memcpy(&rem, &cfg, sizeof(struct dnet_config));
+	cfg.io_thread_num = 10;
+	cfg.max_pending = 1024;
 
 	while ((ch = getopt(argc, argv, "n:I:t:S:s:m:i:a:r:RT:l:w:h")) != -1) {
 		switch (ch) {
@@ -446,10 +497,18 @@ int main(int argc, char *argv[])
 					return err;
 				break;
 			case 'r':
-				err = dnet_parse_addr(optarg, &rem);
+				st = malloc(sizeof(struct iotest_state));
+				if (!st)
+					return -ENOMEM;
+				memset(st, 0, sizeof(struct iotest_state));
+
+				memcpy(&st->cfg, &cfg, sizeof(struct dnet_config));
+				err = dnet_parse_addr(optarg, &st->cfg);
 				if (err)
 					return err;
-				have_remote = 1;
+
+				st->next = iotest_root.next;
+				iotest_root.next = st;
 				break;
 			case 'R':
 				write = 0;
@@ -481,7 +540,7 @@ int main(int argc, char *argv[])
 	if (!logfile)
 		fprintf(stderr, "No log file found, logging will be disabled.\n");
 
-	if (!have_remote) {
+	if (!iotest_root.next) {
 		fprintf(stderr, "No remote nodes to connect. Exiting.\n");
 		return -1;
 	}
@@ -522,9 +581,40 @@ int main(int argc, char *argv[])
 		if (err)
 			return err;
 	}
-	err = dnet_add_state(n, &rem);
-	if (err)
-		return err;
+	prev = &iotest_root;
+	st = prev->next;
+	while (st) {
+		struct iotest_state *iter, *next = st->next, *pr;
+		err = dnet_add_state(n, &st->cfg);
+		if (err)
+			return err;
+
+		pr = &iotest_root;
+		iter = pr->next;
+		while (iter != st) {
+			err = dnet_id_cmp(iter->cfg.id, st->cfg.id);
+
+			if (err < 0) {
+				prev->next = st->next;
+				pr->next = st;
+				st->next = iter;
+				break;
+			}
+
+			pr = iter;
+			iter = iter->next;
+		}
+
+
+		prev = st;
+		st = next;
+	}
+	
+	st = iotest_root.next;
+	while (st) {
+		printf("%s:%s  %s\n", st->cfg.addr, st->cfg.port, dnet_dump_id(st->cfg.id));
+		st = st->next;
+	}
 
 	err = pthread_create(&tid, NULL, iotest_perf, cfg.log_private);
 	if (err) {
