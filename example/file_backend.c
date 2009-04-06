@@ -230,10 +230,9 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 			size = osize;
 			data = odata;
 		}
-#if 0
+
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
 			"%s -> %s.\n", d->d_name, dnet_dump_id(id));
-#endif
 	}
 
 	if (osize != size) {
@@ -263,14 +262,19 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_list(void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *a __attribute__ ((unused)),
-		void *data __attribute__ ((unused)))
+static int dnet_cmd_list(void *state, struct dnet_cmd *cmd)
 {
 	char sub[3];
-	unsigned char start;
+	unsigned char start, last;
 	int err;
+	unsigned char id[DNET_ID_SIZE];
 
+	err = dnet_state_get_range(state, cmd->id, id);
+	if (err)
+		return err;
+
+	last = id[0] - 1;
+	
 	sprintf(sub, "%02x", cmd->id[0]);
 
 	err = dnet_listdir(state, cmd, sub, cmd->id);
@@ -278,16 +282,14 @@ static int dnet_cmd_list(void *state, struct dnet_cmd *cmd,
 		goto out_exit;
 
 	err = 0;
-	if (cmd->id[0] != 0) {
-		for (start = cmd->id[0]-1; start != 0; --start) {
-			sprintf(sub, "%02x", start);
+	for (start = cmd->id[0]-1; start != last; --start) {
+		sprintf(sub, "%02x", start);
 
-			err = dnet_listdir(state, cmd, sub, NULL);
-			if (err && (err != -ENOENT))
-				goto out_exit;
-		}
-		err = 0;
+		err = dnet_listdir(state, cmd, sub, NULL);
+		if (err && (err != -ENOENT))
+			goto out_exit;
 	}
+	err = 0;
 
 out_exit:
 	return err;
@@ -640,7 +642,7 @@ int file_backend_command_handler(void *state, void *priv __attribute__ ((unused)
 			err = dnet_cmd_read(state, cmd, attr, data);
 			break;
 		case DNET_CMD_LIST:
-			err = dnet_cmd_list(state, cmd, attr, data);
+			err = dnet_cmd_list(state, cmd);
 			break;
 		case DNET_CMD_EXEC:
 			err = dnet_cmd_exec(state, cmd, attr, data);

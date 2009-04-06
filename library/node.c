@@ -217,6 +217,39 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *
 	return st;
 }
 
+int dnet_state_get_range(void *state, unsigned char *req, unsigned char *id)
+{
+	struct dnet_net_state *st = state, *prev = NULL;
+	struct dnet_node *n = st->n;
+	int err = -ENOENT;
+	char prev_id[64];
+
+	pthread_mutex_lock(&n->state_lock);
+	st = __dnet_state_search(n, req, st);
+	if (st) {
+		prev = list_entry(st->state_entry.prev, struct dnet_net_state, state_entry);
+		if (&prev->state_entry == &n->state_list)
+			prev = NULL;
+	}
+
+	if (!prev && !list_empty(&n->state_list)) {
+		prev = list_first_entry(&n->state_list, struct dnet_net_state, state_entry);
+		dnet_log(n, DNET_LOG_INFO, "%s: getting first.\n", dnet_dump_id(prev->id));
+	}
+
+	if (prev) {
+		dnet_log(n, DNET_LOG_INFO, "%s - %s\n", dnet_dump_id(prev->id), dnet_server_convert_dnet_addr(&prev->addr));
+		snprintf(prev_id, sizeof(prev_id), "%s", dnet_dump_id(prev->id));
+		dnet_log(n, DNET_LOG_INFO, "%s: range to %s\n", dnet_dump_id(req), prev_id);
+
+		memcpy(id, prev->id, DNET_ID_SIZE);
+		err = 0;
+	}
+	pthread_mutex_unlock(&n->state_lock);
+
+	return err;
+}
+
 static void dnet_dummy_pipe_read(int s, short event, void *arg)
 {
 	struct dnet_io_thread *t = arg;

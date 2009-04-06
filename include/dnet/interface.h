@@ -270,6 +270,8 @@ static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
 	return 0;
 }
 
+int dnet_state_get_range(void *state, unsigned char *req, unsigned char *id);
+
 #define DNET_REQ_FREE_HEADER		(1<<0)
 #define DNET_REQ_FREE_DATA		(1<<1)
 #define DNET_REQ_CLOSE_FD		(1<<2)
