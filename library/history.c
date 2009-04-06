@@ -68,7 +68,7 @@ static int dnet_compare_history(struct dnet_node *n, struct dnet_cmd *cmd, struc
 	}
 
 	dnet_log(n, DNET_LOG_ERROR, "%s: last transaction matched: size: %llu, offset: %llu.\n",
-			dnet_dump_id(rio->id), rio->size, rio->offset);
+			dnet_dump_id(rio->id), (unsigned long long)rio->size, (unsigned long long)rio->offset);
 out:
 	return err;
 }
@@ -199,13 +199,13 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 	memcpy(io->id, cmd->id, DNET_ID_SIZE);
 	
 	dnet_log(n, DNET_LOG_INFO, "%s: reading local history: io_size: %llu.\n",
-					dnet_dump_id(cmd->id), io->size);
+					dnet_dump_id(cmd->id), (unsigned long long)io->size);
 
 	dnet_convert_io_attr(io);
 
 	err = n->command_handler(st, n->command_private, c, a, io);
 	dnet_log(n, DNET_LOG_INFO, "%s: read local history: io_size: %llu, err: %d.\n",
-					dnet_dump_id(cmd->id), io->size, err);
+					dnet_dump_id(cmd->id), (unsigned long long)io->size, err);
 	if (err) {
 		struct dnet_io_control ctl;
 		
@@ -214,7 +214,7 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 
 			err = n->command_handler(st, n->command_private, cmd, attr, attr+1);
 			dnet_log(st->n, DNET_LOG_INFO, "%s: stored history locally, err: %d, asize: %llu.\n",
-				dnet_dump_id(cmd->id), err, attr->size);
+				dnet_dump_id(cmd->id), err, (unsigned long long)attr->size);
 			if (err)
 				goto err_out_free;
 		}
@@ -283,7 +283,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	if (size < sizeof(struct dnet_attr)) {
 		err = -EPROTO;
 		dnet_log(n, DNET_LOG_ERROR, "%s: wrong command size %llu, must be more than %zu.\n",
-				dnet_dump_id(cmd->id), cmd->size, sizeof(struct dnet_attr));
+				dnet_dump_id(cmd->id), (unsigned long long)cmd->size, sizeof(struct dnet_attr));
 		goto err_out_exit;
 	}
 
@@ -291,7 +291,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	
 	if (size % DNET_ID_SIZE) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: wrong command size %llu, must be multiple of DNET_ID_SIZE (%u).\n",
-				dnet_dump_id(cmd->id), cmd->size, DNET_ID_SIZE);
+				dnet_dump_id(cmd->id), (unsigned long long)cmd->size, DNET_ID_SIZE);
 		err = -EPROTO;
 		goto err_out_exit;
 	}

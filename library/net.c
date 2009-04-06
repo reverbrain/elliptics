@@ -521,7 +521,10 @@ again:
 	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: offset: %zu, size: %zu, flags: %x.\n",
 			dnet_dump_id(st->id), (size_t)st->rcv_offset, st->rcv_size, st->rcv_flags);
 
-	if (st->rcv_offset != st->rcv_size)
+	/*
+	 * Looks weird, but that's a reality - offset and size are very different types on some platforms.
+	 */
+	if ((ssize_t)st->rcv_offset != (ssize_t)st->rcv_size)
 		goto again;
 
 	if (st->rcv_flags & DNET_IO_CMD) {
@@ -533,7 +536,8 @@ again:
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: size: %llu, flags: %u, trans: %llu, reply: %d.\n",
-				dnet_dump_id(c->id), c->size, c->flags, tid, !!(c->trans & DNET_TRANS_REPLY));
+				dnet_dump_id(c->id), (unsigned long long)c->size, c->flags,
+				tid, !!(c->trans & DNET_TRANS_REPLY));
 		err = dnet_schedule_data(st);
 		if (err)
 			goto out;
@@ -635,7 +639,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			goto out;
 		}
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: sent: %zu/%zu.\n", dnet_dump_id(st->id), err, *size);
+		dnet_log(n, DNET_LOG_NOTICE, "%s: sent: %d/%zu.\n", dnet_dump_id(st->id), err, *size);
 
 		*size -= err;
 		if (data)

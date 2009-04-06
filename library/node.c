@@ -315,7 +315,8 @@ static void *dnet_io_thread_process(void *data)
 		if (err) {
 			dnet_log(n, DNET_LOG_NOTICE, "%s: thread %lu fails to "
 					"process events: %d.\n",
-					dnet_dump_id(t->node->id), t->tid, err);
+					dnet_dump_id(t->node->id),
+					(unsigned long)t->tid, err);
 			sleep(1);
 		}
 	}

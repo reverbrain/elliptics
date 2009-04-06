@@ -154,10 +154,16 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *req
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
 	int def_num = 1024, space = 0, err;
-	struct dnet_route_attr *a;
-	struct dnet_cmd *cmd;
-	struct dnet_attr *attr;
 	struct dnet_data_req *r = NULL;
+	/*
+	 * Shut up a compiler. Neither of below variables
+	 * can be used uninitialized, since they are defined
+	 * in the blocks which depend on above variables
+	 * @r and @space to be non-null.
+	 */
+	struct dnet_route_attr *a = NULL;
+	struct dnet_cmd *cmd = NULL;
+	struct dnet_attr *attr = NULL;
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(st, &n->state_list, state_entry) {
@@ -256,7 +262,8 @@ int dnet_process_cmd(struct dnet_trans *t)
 		sz = a->size;
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: start: size: %llu/%llu, asize: %llu\n",
-				dnet_dump_id(cmd->id), size, cmd->size, a->size);
+				dnet_dump_id(cmd->id), size, (unsigned long long)cmd->size,
+				(unsigned long long)a->size);
 
 		if (size < sizeof(struct dnet_attr)) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: 1 wrong cmd: size: %llu/%llu, "
