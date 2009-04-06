@@ -265,6 +265,7 @@ struct dnet_node
 
 	pthread_mutex_t		tlock;
 	struct list_head	tlist;
+	int			transform_num;
 
 	int			need_exit;
 
@@ -277,7 +278,6 @@ struct dnet_node
 	struct list_head	state_list;
 	struct list_head	empty_state_list;
 
-	int			trans_num;
 	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
 	uint64_t		trans;
@@ -357,6 +357,8 @@ struct dnet_data_req
 	int			fd;
 	off_t			offset;
 	size_t			size;
+
+	void			(* complete)(struct dnet_data_req *r);
 };
 
 struct dnet_trans

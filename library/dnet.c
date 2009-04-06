@@ -873,7 +873,7 @@ int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size,
 		goto err_out_close;
 	}
 
-	tnum = n->trans_num*2;
+	tnum = n->transform_num*2;
 
 	for (i=0; i<tnum; ++i)
 		dnet_wait_get(w);
@@ -1147,7 +1147,7 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	t->priv = priv;
 
 	list_add_tail(&t->tentry, &n->tlist);
-	n->trans_num++;
+	n->transform_num++;
 
 	pthread_mutex_unlock(&n->tlock);
 
@@ -1176,7 +1176,7 @@ int dnet_remove_transform(struct dnet_node *n, char *name)
 	}
 
 	if (!err) {
-		n->trans_num--;
+		n->transform_num--;
 		list_del(&t->tentry);
 		free(t);
 	}
@@ -1522,22 +1522,30 @@ err_out_exit:
 
 int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
 {
-	int err;
+	int err = 0, add;
 	unsigned long data = (unsigned long)st;
 
 	pthread_mutex_lock(&st->snd_lock);
+	add = list_empty(&st->snd_list);
 	list_add_tail(&r->req_entry, &st->snd_list);
-	pthread_mutex_unlock(&st->snd_lock);
 
-	/*
-	 * I hate libevent.
-	 * It is not designed for multi-threaded usage.
-	 * But anything which was made by a man, can be broken by another.
-	 * So we have this hack to signal given IO thread which event it should check.
-	 */
-	err = write(st->th->pipe[1], &data, sizeof(unsigned long));
-	if (err < 0)
-		return err;
+	if (add) {
+
+		/*
+		 * I hate libevent.
+		 * It is not designed for multi-threaded usage.
+		 * But anything which was made by a man, can be broken by another.
+		 * So we have this hack to signal given IO thread which event it should check.
+		 */
+		dnet_state_get(st);
+		err = write(st->th->pipe[1], &data, sizeof(unsigned long));
+		if (err <= 0) {
+			err = -errno;
+			dnet_state_put(st);
+		} else
+			err = 0;
+	}
+	pthread_mutex_unlock(&st->snd_lock);
 
 	return 0;
 }
@@ -1622,6 +1630,10 @@ void dnet_req_destroy(struct dnet_data_req *r)
 		dnet_state_put(r->st);
 	}
 
-	if (!(r->flags & DNET_REQ_NO_DESTRUCT))
+	if (!(r->flags & DNET_REQ_NO_DESTRUCT)) {
 		free(r);
+		return;
+	}
+	if (r->complete)
+		r->complete(r);
 }

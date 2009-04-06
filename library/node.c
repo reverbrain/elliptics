@@ -98,6 +98,7 @@ void dnet_state_remove(struct dnet_net_state *st)
 
 	pthread_mutex_lock(&n->state_lock);
 	list_del(&st->state_entry);
+	INIT_LIST_HEAD(&st->state_entry);
 	pthread_mutex_unlock(&n->state_lock);
 }
 
@@ -281,6 +282,7 @@ static void dnet_dummy_pipe_read(int s, short event, void *arg)
 		st = (struct dnet_net_state *)data;
 
 		dnet_event_schedule(st, EV_READ | EV_WRITE);
+		dnet_state_put(st);
 	}
 
 out:

@@ -295,14 +295,22 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 	dnet_req_set_data(&t->r, t->data, size, 0);
 	dnet_req_set_flags(&t->r, ~0, DNET_REQ_NO_DESTRUCT);
 
-	err = dnet_data_ready(st, &t->r);
-
-	dnet_log(n, DNET_LOG_INFO, "%s: forwarded to %s, trans: %llu, err: %d.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: forwarding to %s, trans: %llu.\n",
 			dnet_dump_id(t->cmd.id),
 			dnet_server_convert_dnet_addr(&st->addr),
-			(unsigned long long)t->trans, err);
+			(unsigned long long)t->trans);
+
+	err = dnet_data_ready(st, &t->r);
 
 	return err;
+}
+
+static void dnet_req_trans_destroy(struct dnet_data_req *r)
+{
+	struct dnet_trans *t = container_of(r, struct dnet_trans, r);
+
+	if (!(t->cmd.flags & DNET_FLAGS_MORE))
+		dnet_trans_destroy(t);
 }
 
 static int dnet_trans_exec(struct dnet_trans *t)
@@ -312,7 +320,10 @@ static int dnet_trans_exec(struct dnet_trans *t)
 	if (t->complete) {
 		err = t->complete(t->st, &t->cmd, t->data, t->priv);
 	} else {
+		t->r.complete = dnet_req_trans_destroy;
 		err = dnet_trans_forward(t, t->st);
+		if (!err)
+			return 0;
 	}
 
 	if (!(t->cmd.flags & DNET_FLAGS_MORE))
@@ -343,8 +354,9 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 
 		pthread_mutex_lock(&n->trans_lock);
 		t = dnet_trans_search(&n->trans_root, tid);
-		if (t && !(st->rcv_cmd.flags & DNET_FLAGS_MORE))
+		if (t && !(st->rcv_cmd.flags & DNET_FLAGS_MORE)) {
 			dnet_trans_remove_nolock(&n->trans_root, t);
+		}
 		pthread_mutex_unlock(&n->trans_lock);
 
 		if (t) {
@@ -701,10 +713,34 @@ static void dnet_process_socket(int s __unused, short event, void *arg)
 	return;
 
 err_out_destroy:
-	dnet_log(st->n, DNET_LOG_ERROR, "%s: removing event %p, err: %d.\n",
-			dnet_dump_id(st->id), &st->event, err);
 	event_del(&st->event);
 
+	dnet_state_get(st);
+	if (!list_empty(&st->state_entry)) {
+		dnet_state_remove(st);
+		dnet_state_put(st);
+	}
+	while (!list_empty(&st->snd_list)) {
+		struct dnet_data_req *r = NULL;
+
+		pthread_mutex_lock(&st->snd_lock);
+		if (!list_empty(&st->snd_list)) {
+			r = list_first_entry(&st->snd_list, struct dnet_data_req, req_entry);
+			list_del(&r->req_entry);
+		}
+		pthread_mutex_unlock(&st->snd_lock);
+
+		if (!r)
+			break;
+
+		/*
+		 * Note, that this can kill the last reference to the state,
+		 * so we increase state's reference counter above and drop it
+		 * below, so that structure members access (like st->snd_list)
+		 * would not fault.
+		 */
+		dnet_req_destroy(r);
+	}
 	dnet_state_put(st);
 }
 
@@ -885,7 +921,7 @@ void dnet_state_put(struct dnet_net_state *st)
 
 	if (!st)
 		return;
-
+	
 	pthread_mutex_lock(&st->refcnt_lock);
 	st->refcnt--;
 
@@ -898,15 +934,15 @@ void dnet_state_put(struct dnet_net_state *st)
 
 	dnet_state_remove(st);
 
+	event_del(&st->event);
+
 	if (st->s)
 		close(st->s);
 
 	pthread_mutex_destroy(&st->snd_lock);
 	pthread_mutex_destroy(&st->refcnt_lock);
 
-	event_del(&st->event);
-
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: freeing state %s.\n", dnet_dump_id(st->id),
+	dnet_log(st->n, DNET_LOG_ERROR, "%s: freeing state %s.\n", dnet_dump_id(st->id),
 		dnet_server_convert_dnet_addr(&st->addr));
 
 	free(st);
