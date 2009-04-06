@@ -437,10 +437,39 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_add_received_state(struct dnet_node *n, unsigned char *id, struct dnet_addr_attr *a)
+{
+	int s, err;
+	struct dnet_net_state *nst;
+
+	s = dnet_socket_create_addr(n, a->sock_type, a->proto,
+			(struct sockaddr *)&a->addr.addr, a->addr.addr_len, 0);
+	if (s < 0) {
+		err = s;
+		goto err_out_exit;
+	}
+
+	nst = dnet_state_create(n, id, &a->addr, s);
+	if (!nst) {
+		err = -EINVAL;
+		goto err_out_close;
+	}
+
+	dnet_log(n, DNET_LOG_NOTICE, "%s: added state %s.\n", dnet_dump_id(id),
+		dnet_server_convert_dnet_addr(&a->addr));
+
+	return 0;
+
+err_out_close:
+	close(s);
+err_out_exit:
+	return err;
+}
+
 static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv __unused)
 {
-	struct dnet_route_attr *a;
+	struct dnet_route_attr *attrs, *a;
 	struct dnet_node *n;
 	int err, num, i;
 
@@ -463,15 +492,28 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 		goto err_out_exit;
 	}
 
-	a = (struct dnet_route_attr *)(attr + 1);
+	attrs = (struct dnet_route_attr *)(attr + 1);
 
 	num = attr->size / sizeof(struct dnet_route_attr);
 	dnet_log(n, DNET_LOG_INFO, "%s: route list: %d entries.\n", dnet_dump_id(cmd->id), num);
-	for (i=0; i<num; ++i) {
+	i = 0;
+	while (1) {
+		if (num < 10 || !i)
+			i++;
+		else
+			i <<= 1;
+
+		if (i >= num)
+			break;
+
+		a = &attrs[i];
+
 		dnet_convert_addr_attr(&a->addr);
-		dnet_log(n, DNET_LOG_INFO, "    %s - %s\n", dnet_dump_id(a->id),
-				dnet_server_convert_dnet_addr(&a->addr.addr));
-		a++;
+
+		err = dnet_add_received_state(n, a->id, &a->addr);
+		
+		dnet_log(n, DNET_LOG_INFO, " %2d   %s - %s, added error: %d.\n", i, dnet_dump_id(a->id),
+				dnet_server_convert_dnet_addr(&a->addr.addr), err);
 	}
 
 	return 0;
@@ -1387,9 +1429,8 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 {
 	struct dnet_wait *w = priv;
 	struct dnet_node *n = NULL;
-	struct dnet_net_state *nst;
 	struct dnet_addr_attr *a;
-	int err, s;
+	int err;
 
 	if (!cmd || !st) {
 		err = -EINVAL;
@@ -1416,26 +1457,12 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	dnet_log(n, DNET_LOG_INFO, "%s: lookup returned address %s.\n",
 			dnet_dump_id(cmd->id), dnet_server_convert_dnet_addr(&a->addr));
 
-	s = dnet_socket_create_addr(n, a->sock_type, a->proto,
-			(struct sockaddr *)&a->addr.addr, a->addr.addr_len, 0);
-	if (s < 0) {
-		err = s;
+	err = dnet_add_received_state(n, cmd->id, a);
+	if (err)
 		goto err_out_exit;
-	}
-
-	nst = dnet_state_create(n, cmd->id, &a->addr, s);
-	if (!nst) {
-		err = -EINVAL;
-		goto err_out_sock_close;
-	}
-
-	dnet_log(n, DNET_LOG_NOTICE, "%s: lookup complete: added state %s.\n", dnet_dump_id(cmd->id),
-		dnet_server_convert_dnet_addr(&a->addr));
 
 	return 0;
 
-err_out_sock_close:
-	close(s);
 err_out_exit:
 	if (n)
 		dnet_log(n, DNET_LOG_ERROR, "%s: status: %d.\n", dnet_dump_id(cmd->id), cmd->status);
