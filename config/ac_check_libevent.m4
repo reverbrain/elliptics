@@ -1,4 +1,20 @@
 AC_DEFUN([AC_CHECK_LIBEVENT],[
+
+EVENT_LIBS="-levent"
+AC_ARG_WITH([libevent-path],
+	AC_HELP_STRING([--with-libevent-path=@<:@ARG@:>@],
+		[Build with the different path to libevent (ARG=string)]),
+	[
+		EVENT_LIBS="-L$withval/lib -levent"
+		EVENT_CFLAGS="-I$withval/include"
+	]
+)
+
+saved_CFLAGS="$CFLAGS"
+saved_LIBS="$LIBS"
+LIBS="$EVENT_LIBS $LIBS"
+CFLAGS="$EVENT_CFLAGS $CFLAGS"
+
 AC_MSG_CHECKING([whether u_char is defined])
 AC_TRY_LINK([	#include <unistd.h>
 		#include <stdint.h>],
@@ -11,10 +27,6 @@ AC_TRY_LINK([	#include <unistd.h>
 
 AC_MSG_RESULT([$ac_uchar_defined])
 AC_MSG_CHECKING([whether libevent is installed])
-
-saved_CFLAGS="$CFLAGS"
-saved_LIBS="$LIBS"
-LIBS="-levent $LIBS"
 
 if test x$ac_uchar_defined = xyes; then
 	CFLAGS="-DHAVE_UCHAR $CFLAGS"
@@ -29,8 +41,8 @@ AC_TRY_LINK([	#include <unistd.h>
 	[event_init(); event_dispatch();],
 	[
 		AC_MSG_RESULT([yes])
-		EVENT_LIBS="-levent"
 		AC_SUBST(EVENT_LIBS)
+		AC_SUBST(EVENT_CFLAGS)
 	
 	],
 	[
