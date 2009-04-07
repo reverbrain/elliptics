@@ -281,7 +281,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	err = cmd->status;
 
 	if (size < sizeof(struct dnet_attr)) {
-		err = -EPROTO;
+		err = -EINVAL;
 		dnet_log(n, DNET_LOG_ERROR, "%s: wrong command size %llu, must be more than %zu.\n",
 				dnet_dump_id(cmd->id), (unsigned long long)cmd->size, sizeof(struct dnet_attr));
 		goto err_out_exit;
@@ -292,7 +292,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	if (size % DNET_ID_SIZE) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: wrong command size %llu, must be multiple of DNET_ID_SIZE (%u).\n",
 				dnet_dump_id(cmd->id), (unsigned long long)cmd->size, DNET_ID_SIZE);
-		err = -EPROTO;
+		err = -EINVAL;
 		goto err_out_exit;
 	}
 

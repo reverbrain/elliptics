@@ -270,7 +270,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 					"attr_size: %llu.\n",
 					dnet_dump_id(st->id), (unsigned long long)cmd->size,
 					size, sz);
-			err = -EPROTO;
+			err = -EINVAL;
 			break;
 		}
 
@@ -281,7 +281,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 			dnet_log(n, DNET_LOG_ERROR, "%s: 2 wrong cmd: size: %llu/%llu, "
 					"attr_size: %llu.\n",
 				dnet_dump_id(st->id), (unsigned long long)cmd->size, size, sz);
-			err = -EPROTO;
+			err = -EINVAL;
 			break;
 		}
 
@@ -305,7 +305,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 				break;
 			default:
 				if (!n->command_handler)
-					err = -EPROTO;
+					err = -EINVAL;
 				else {
 					err = n->command_handler(st, n->command_private, cmd, a, data);
 					if (a->cmd == DNET_CMD_LIST && !err &&
@@ -337,7 +337,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 			dnet_log(n, DNET_LOG_ERROR, "%s: 3 wrong cmd: size: %llu/%llu, "
 					"attr_size: %llu.\n",
 				dnet_dump_id(st->id), (unsigned long long)cmd->size, size, sz);
-			err = -EPROTO;
+			err = -EINVAL;
 			break;
 		}
 
@@ -495,7 +495,7 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 	if (attr->size % sizeof(struct dnet_route_attr)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: wrong attribute size in route list reply %llu, must be modulo of %zu.\n",
 				dnet_dump_id(cmd->id), (unsigned long long)attr->size, sizeof(struct dnet_route_attr));
-		err = -EPROTO;
+		err = -EINVAL;
 		goto err_out_exit;
 	}
 
@@ -1453,7 +1453,7 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	if (attr->size != sizeof(struct dnet_addr_attr)) {
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: wrong dnet_addr attribute size %llu, must be %zu.\n",
 				dnet_dump_id(cmd->id), (unsigned long long)attr->size, sizeof(struct dnet_addr_attr));
-		err = -EPROTO;
+		err = -EINVAL;
 		goto err_out_exit;
 	}
 

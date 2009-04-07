@@ -648,7 +648,7 @@ int file_backend_command_handler(void *state, void *priv __attribute__ ((unused)
 			err = dnet_cmd_exec(state, cmd, attr, data);
 			break;
 		default:
-			err = -EPROTO;
+			err = -EINVAL;
 			break;
 	}
 
