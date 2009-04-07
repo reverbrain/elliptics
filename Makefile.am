@@ -1,8 +1,6 @@
 SUBDIRS = include library
 
-if HAVE_OPENSSL
 SUBDIRS += example
-endif
 
 ACLOCAL_AMFLAGS = -I config
 AUTOMAKE_OPTIONS = 1.9 foreign

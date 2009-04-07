@@ -32,11 +32,10 @@
 
 #include <netinet/in.h>
 
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
-
 #include "dnet/packet.h"
 #include "dnet/interface.h"
+
+#include "hash.h"
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
@@ -45,60 +44,6 @@
 extern int file_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 extern void *file_backend_setup_root(char *root);
-
-struct dnet_crypto_engine
-{
-	char			name[DNET_MAX_NAME_LEN];
-
-	EVP_MD_CTX 		mdctx;
-	const EVP_MD		*evp_md;
-};
-
-static int dnet_digest_init(void *priv)
-{
-	struct dnet_crypto_engine *e = priv;
-	EVP_DigestInit_ex(&e->mdctx, e->evp_md, NULL);
-	return 0;
-}
-
-static int dnet_digest_update(void *priv, void *src, uint64_t size,
-		void *dst __unused, unsigned int *dsize __unused,
-		unsigned int flags __unused)
-{
-	struct dnet_crypto_engine *e = priv;
-	EVP_DigestUpdate(&e->mdctx, src, size);
-	return 0;
-}
-
-static int dnet_digest_final(void *priv, void *result, unsigned int *rsize, unsigned int flags __unused)
-{
-	struct dnet_crypto_engine *e = priv;
-	unsigned int rs = *rsize;
-	EVP_DigestFinal_ex(&e->mdctx, result, rsize);
-
-	if (*rsize < rs)
-		memset(result + *rsize, 0, rs - *rsize);
-	EVP_MD_CTX_cleanup(&e->mdctx);
-	return 0;
-}
-
-static int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
-{
- 	OpenSSL_add_all_digests();
-
-	snprintf(e->name, sizeof(e->name), "%s", hash);
-	e->evp_md = EVP_get_digestbyname(hash);
-	if (!e->evp_md) {
-		fprintf(stderr, "Failed to find algorithm '%s' implementation.\n", hash);
-		return -ENOENT;
-	}
-
-	EVP_MD_CTX_init(&e->mdctx);
-
-	printf("Successfully initialized '%s' hash.\n", hash);
-
-	return 0;
-}
 
 static void dnet_example_log(void *priv, uint32_t mask, const char *msg)
 {
@@ -374,9 +319,7 @@ int main(int argc, char *argv[])
 
 	for (i=0; i<trans_num; ++i) {
 		err = dnet_add_transform(n, trans[i], trans[i]->name,
-				dnet_digest_init,
-				dnet_digest_update,
-				dnet_digest_final);
+			trans[i]->init,	trans[i]->update, trans[i]->final);
 		if (err)
 			return err;
 	}
