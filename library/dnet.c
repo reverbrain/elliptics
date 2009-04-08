@@ -1527,34 +1527,48 @@ err_out_exit:
 	return err;
 }
 
+int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd)
+{
+	struct dnet_thread_signal ts;
+	int err;
+
+	ts.cmd = cmd;
+	ts.state = st;
+
+	/*
+	 * I hate libevent.
+	 * It is not designed for multi-threaded usage.
+	 * But anything which was made by a man, can be broken by another.
+	 * So we have this hack to signal given IO thread which event it should check.
+	 */
+	dnet_state_get(st);
+
+	err = write(st->th->pipe[1], &ts, sizeof(struct dnet_thread_signal));
+	if (err <= 0) {
+		err = -errno;
+		dnet_state_put(st);
+		return err;
+	}
+
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: signaled thread %lu, cmd %u.\n",
+			dnet_dump_id(st->id), (unsigned long)st->th->tid, cmd);
+
+	return 0;
+}
+
 int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
 {
 	int err = 0, add;
-	unsigned long data = (unsigned long)st;
 
 	pthread_mutex_lock(&st->snd_lock);
 	add = list_empty(&st->snd_list);
 	list_add_tail(&r->req_entry, &st->snd_list);
 
-	if (add) {
-
-		/*
-		 * I hate libevent.
-		 * It is not designed for multi-threaded usage.
-		 * But anything which was made by a man, can be broken by another.
-		 * So we have this hack to signal given IO thread which event it should check.
-		 */
-		dnet_state_get(st);
-		err = write(st->th->pipe[1], &data, sizeof(unsigned long));
-		if (err <= 0) {
-			err = -errno;
-			dnet_state_put(st);
-		} else
-			err = 0;
-	}
+	if (add)
+		err = dnet_signal_thread(st, DNET_THREAD_DATA_READY);
 	pthread_mutex_unlock(&st->snd_lock);
 
-	return 0;
+	return err;
 }
 
 void *dnet_req_header(struct dnet_data_req *r)

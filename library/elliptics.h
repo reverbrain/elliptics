@@ -413,6 +413,20 @@ struct dnet_transform
 	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
 };
 
+enum dnet_thread_cmd {
+	DNET_THREAD_SCHEDULE = 1,		/* Schedule new state event on given thread */
+	DNET_THREAD_DATA_READY,			/* Given state has new data, reschedule write event */
+};
+
+struct dnet_thread_signal
+{
+	unsigned int		cmd;
+	struct dnet_net_state	*state;
+};
+
+int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd);
+int dnet_schedule_socket(struct dnet_net_state *st);
+
 #ifdef __cplusplus
 }
 #endif

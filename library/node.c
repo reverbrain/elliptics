@@ -255,62 +255,64 @@ static void dnet_dummy_pipe_read(int s, short event, void *arg)
 {
 	struct dnet_io_thread *t = arg;
 	struct dnet_node *n = t->node;
+	struct dnet_thread_signal ts;
+	int err;
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: thread control pipe event: %x.\n",
 			dnet_dump_id(n->id), event);
 
-	if (event & EV_READ) {
-		unsigned long data;
-		struct dnet_net_state *st;
-		int err;
+	if (!(event & EV_READ))
+		return;
 
-		err = read(s, &data, sizeof(unsigned long));
+	while (1) {
+		err = read(s, &ts, sizeof(struct dnet_thread_signal));
 		if (err < 0) {
 			err = -errno;
 			if (err != -EAGAIN && err != -EINTR) {
 				dnet_log_err(n, "failed to read from pipe");
-				goto out;
+				break;
 			}
 
-			goto out;
+			break;
 		}
+
+		dnet_log(n, DNET_LOG_NOTICE, "thread: %lu, err: %d, cmd: %u, state: %s.\n",
+				(unsigned long)t->tid, err, ts.cmd, dnet_dump_id(ts.state->id));
 
 		/*
 		 * Size we read has to be smaller than atomic pipe IO size.
 		 */
 
-		st = (struct dnet_net_state *)data;
+		switch (ts.cmd) {
+			case DNET_THREAD_DATA_READY:
+				dnet_event_schedule(ts.state, EV_READ | EV_WRITE);
+				break;
+			case DNET_THREAD_SCHEDULE:
+				dnet_schedule_socket(ts.state);
+				break;
+			default:
+				break;
+		}
 
-		dnet_event_schedule(st, EV_READ | EV_WRITE);
-		dnet_state_put(st);
+		dnet_state_put(ts.state);
 	}
 
-out:
-	event_add(&t->ev, NULL);
 	return;
 }
+
 
 static void *dnet_io_thread_process(void *data)
 {
 	struct dnet_io_thread *t = data;
 	struct dnet_node *n = t->node;
 	int err = 0;
-	struct timeval tv;
 	sigset_t sig;
 
 	sigemptyset(&sig);
 	sigaddset(&sig, SIGPIPE);
 	pthread_sigmask(SIG_BLOCK, &sig, NULL);
 
-	tv.tv_sec = t->node->wait_ts.tv_sec;
-	tv.tv_usec = t->node->wait_ts.tv_nsec / 1000;
-
-	event_set(&t->ev, t->pipe[0], EV_READ, dnet_dummy_pipe_read, t);
-	event_base_set(t->base, &t->ev);
-	event_add(&t->ev, NULL);
-
 	while (!t->need_exit) {
-		//err = event_base_loopexit(t->base, &tv);
 		err = event_base_dispatch(t->base);
 		if (err) {
 			dnet_log(n, DNET_LOG_NOTICE, "%s: thread %lu fails to "
@@ -367,6 +369,8 @@ static int dnet_start_io_threads(struct dnet_node *n)
 			goto err_out_free;
 		}
 
+		fcntl(t->pipe[0], F_SETFL, O_NONBLOCK);
+
 		t->base = event_init();
 		if (!t->base) {
 			err = -errno;
@@ -376,6 +380,10 @@ static int dnet_start_io_threads(struct dnet_node *n)
 				err = -EINVAL;
 			goto err_out_close;
 		}
+
+		event_set(&t->ev, t->pipe[0], EV_READ | EV_PERSIST, dnet_dummy_pipe_read, t);
+		event_base_set(t->base, &t->ev);
+		event_add(&t->ev, NULL);
 
 		err = pthread_create(&t->tid, NULL, dnet_io_thread_process, t);
 		if (err) {

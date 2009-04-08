@@ -79,9 +79,8 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 		dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d.\n",
 			dnet_server_convert_addr(sa, salen),
 			dnet_server_convert_port(sa, salen));
-
-		fcntl(s, F_SETFL, O_NONBLOCK);
 	}
+	fcntl(s, F_SETFL, O_NONBLOCK);
 
 	return s;
 
@@ -778,6 +777,8 @@ static void dnet_accept_client(int s, short event __unused, void *arg)
 	struct dnet_addr addr;
 	int cs, err;
 
+	dnet_log(n, DNET_LOG_NOTICE, "%s: accepting client on event %x.\n", dnet_dump_id(orig->id), event);
+
 	addr.addr_len = sizeof(addr.addr);
 	cs = accept(s, (struct sockaddr *)&addr.addr, &addr.addr_len);
 	if (cs <= 0) {
@@ -801,6 +802,24 @@ err_out_close:
 	close(cs);
 err_out_exit:
 	return;
+}
+
+int dnet_schedule_socket(struct dnet_net_state *st)
+{
+	int err;
+	struct dnet_node *n = st->n;
+
+	if (st->s == n->listen_socket) {
+		event_set(&st->event, st->s, EV_READ | EV_PERSIST, dnet_accept_client, st);
+		event_base_set(st->th->base, &st->event);
+		err = event_add(&st->event, NULL);
+	} else {
+		event_set(&st->event, st->s, EV_READ, dnet_process_socket, st);
+		event_base_set(st->th->base, &st->event);
+		err = dnet_event_schedule(st, EV_READ);
+	}
+
+	return err;
 }
 
 static int dnet_schedule_state(struct dnet_net_state *st)
@@ -838,15 +857,9 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 	st->n = n;
 	st->th = th;
 
-	if (st->s == n->listen_socket) {
-		event_set(&st->event, st->s, EV_READ | EV_PERSIST, dnet_accept_client, st);
-		event_base_set(th->base, &st->event);
-		event_add(&st->event, NULL);
-	} else {
-		event_set(&st->event, st->s, EV_READ, dnet_process_socket, st);
-		event_base_set(th->base, &st->event);
-		dnet_event_schedule(st, EV_READ);
-	}
+	err = dnet_signal_thread(st, DNET_THREAD_SCHEDULE);
+	if (err)
+		goto err_out_exit;
 
 	return 0;
 
