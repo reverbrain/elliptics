@@ -217,12 +217,8 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 			if (err >= 0)
 				continue;
 		}
-
-		if (size >= DNET_ID_SIZE) {
-			memcpy(data, id, DNET_ID_SIZE);
-			data += DNET_ID_SIZE;
-			size -= DNET_ID_SIZE;
-		} else {
+		
+		if (size < DNET_ID_SIZE) {
 			err = dnet_send_list(state, cmd, odata, osize - size);
 			if (err)
 				goto err_out_close;
@@ -230,6 +226,10 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 			size = osize;
 			data = odata;
 		}
+
+		memcpy(data, id, DNET_ID_SIZE);
+		data += DNET_ID_SIZE;
+		size -= DNET_ID_SIZE;
 
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
 			"%s -> %s.\n", d->d_name, dnet_dump_id(id));
@@ -487,7 +487,7 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 
 		size = st.st_size;
 	}
-	
+
 	if (attr->size == sizeof(struct dnet_io_attr)) {
 		struct dnet_data_req *r;
 		struct dnet_cmd *c;
