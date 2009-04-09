@@ -182,6 +182,8 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 /* Update object itself when set */
 #define DNET_IO_FLAGS_OBJECT		(1<<3)
 
+/* Only perform transaction storing, no history for the main object will be updated */
+#define DNET_IO_FLAGS_TRANS_ONLY	(1<<4)
 
 struct dnet_io_attr
 {

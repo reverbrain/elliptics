@@ -813,6 +813,9 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 		if (err)
 			goto err_out_continue;
 
+		if (ctl->io.flags & DNET_IO_FLAGS_TRANS_ONLY)
+			continue;
+
 		pos--;
 
 		rsize = DNET_ID_SIZE;
