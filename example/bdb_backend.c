@@ -68,13 +68,14 @@ static int bdb_get_record_size(void *state, struct bdb_entry *e, unsigned char *
 	key.data = id;
 	key.size = DNET_ID_SIZE;
 
-	err = e->cursor->c_get(e->cursor, &key, &data, DB_SET_RANGE);
+	err = e->cursor->c_get(e->cursor, &key, &data, DB_SET);
 	if (err) {
-		e->db->err(e->db, err, "%s: failed to get record size, err: %d",
-				dnet_dump_id(id), err);
 		if (err == DB_NOTFOUND) {
 			err = 0;
 			*size = 0;
+		} else {
+			e->db->err(e->db, err, "%s: failed to get record size, err: %d",
+				dnet_dump_id(id), err);
 		}
 		goto err_out_exit;
 	}
