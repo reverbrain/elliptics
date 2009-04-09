@@ -97,7 +97,7 @@ int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *eng, char *hash)
 	eng->update = dnet_openssl_digest_update;
 	eng->final = dnet_openssl_digest_final;
 
-	eng->engine = eng;
+	eng->engine = e;
 
 	printf("Successfully initialized '%s' hash.\n", hash);
 

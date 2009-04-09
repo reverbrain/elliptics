@@ -814,6 +814,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 			goto err_out_continue;
 
 		pos--;
+
 		rsize = DNET_ID_SIZE;
 		err = dnet_transform(n, remote, len, ctl->id, &rsize, &pos);
 		if (err) {
@@ -900,6 +901,9 @@ int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size,
 	ctl.io.flags = io_flags;
 	ctl.io.size = size;
 	ctl.io.offset = offset;
+
+	dnet_log(n, DNET_LOG_NOTICE, "%s: size: %llu, offset: %llu.\n",
+			file, ctl.io.size, ctl.io.offset);
 
 	err = dnet_write_object(n, &ctl, file, strlen(file));
 	if (err <= 0)

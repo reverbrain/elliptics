@@ -36,14 +36,11 @@
 #include "dnet/interface.h"
 
 #include "hash.h"
+#include "backends.h"
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
-
-extern int file_backend_command_handler(void *state, void *priv,
-		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
-extern void *file_backend_setup_root(char *root);
 
 static void dnet_example_log(void *priv, uint32_t mask, const char *msg)
 {
@@ -165,6 +162,7 @@ static void dnet_usage(char *p)
 			" -r addr:port:family  - adds a route to the given node\n"
 			" -j <join>            - join the network\n"
 			"                        become a fair node which may store data from the other nodes\n"
+			" -b <BDB>             - use BerkeleyDB (if present) IO storage backend\n"
 			" -d root              - root directory to load/store the objects\n"
 			" -W file              - write given file to the network storage\n"
 			" -s                   - spread writes over the network, do not update the object itself\n"
@@ -187,7 +185,7 @@ static void dnet_usage(char *p)
 int main(int argc, char *argv[])
 {
 	int trans_max = 5, trans_num = 0;
-	int ch, err, i, have_remote = 0, daemon = 0, spread = 0;
+	int ch, err, i, have_remote = 0, daemon = 0, spread = 0, bdb = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem;
 	struct dnet_crypto_engine *e, *trans[trans_max];
@@ -205,8 +203,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "m:sH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "bm:sH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 'b':
+				bdb = 1;
+				break;
 			case 'm':
 				cfg.log_mask = strtoul(optarg, NULL, 0);
 				break;
@@ -304,10 +305,17 @@ int main(int argc, char *argv[])
 	}
 
 	if (root) {
-		cfg.command_private = file_backend_setup_root(root);
-		if (!cfg.command_private)
-			return -EINVAL;
-		cfg.command_handler = file_backend_command_handler;
+		if (bdb) {
+			cfg.command_private = bdb_backend_init(root, "data.db", "history.db");
+			if (!cfg.command_private)
+				return -EINVAL;
+			cfg.command_handler = bdb_backend_command_handler;
+		} else {
+			cfg.command_private = file_backend_setup_root(root);
+			if (!cfg.command_private)
+				return -EINVAL;
+			cfg.command_handler = file_backend_command_handler;
+		}
 	}
 
 	if (daemon)
