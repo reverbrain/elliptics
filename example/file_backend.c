@@ -324,7 +324,7 @@ static int dnet_update_history(void *state, unsigned char *id, struct dnet_io_at
 		goto err_out_close;
 	}
 
-	fsync(fd);
+	//fsync(fd);
 	close(fd);
 	return 0;
 
@@ -410,7 +410,7 @@ static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *a
 			goto err_out_exit;
 		}
 
-		fsync(fd);
+		//fsync(fd);
 		close(fd);
 	}
 
