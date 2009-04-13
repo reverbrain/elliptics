@@ -53,6 +53,7 @@ struct iotest_state
 
 static struct iotest_state iotest_root;
 static unsigned long long iotest_bytes;
+static int iotest_lookup_num, iotest_lookup_found;
 
 static void iotest_log(void *priv, uint32_t mask __unused, const char *msg)
 {
@@ -69,6 +70,7 @@ static void iotest_log(void *priv, uint32_t mask __unused, const char *msg)
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
 	fprintf(stream, "%s.%06lu %s", str, tv.tv_usec, msg);
+	fflush(stream);
 }
 
 #define DNET_CONF_COMMENT	'#'
@@ -150,12 +152,24 @@ static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *
 	return 0;
 }
 
+static int iotest_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *priv)
+{
+	int err;
+
+	err = dnet_lookup_complete(st, cmd, attr, priv);
+	if (cmd && !cmd->status && !err && cmd->size)
+		iotest_lookup_found++;
+
+	return 0;
+}
+
 static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned long long max,
-		char *obj, int len, int num)
+		char *obj, int len)
 {
 	struct dnet_io_control ctl;
 	unsigned int *ptr = data;
-	int first, last, err;
+	int first, last, err, num = 0;
 
 	ctl.aflags = 0;
 	ctl.complete = iotest_complete;
@@ -183,12 +197,13 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 		if (err < 0)
 			return err;
 
-		if (num) {
-			err = dnet_lookup_object(n, ctl.io.id, dnet_lookup_complete, NULL);
-			if (err)
-				fprintf(stderr, "Failed to lookup a node for %s object.\n", dnet_dump_id(ctl.io.id));
-			else
-				num--;
+		if (iotest_lookup_found < iotest_lookup_num) {
+			if (++num == 1000) {
+				err = dnet_lookup_object(n, ctl.io.id, iotest_lookup_complete, NULL);
+				if (err)
+					fprintf(stderr, "Failed to lookup a node for %s object.\n", dnet_dump_id(ctl.io.id));
+				num = 0;
+			}
 		}
 
 		max -= size;
@@ -199,7 +214,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 }
 
 static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned long long max,
-		char *obj, int len __unused, int lookup_num)
+		char *obj, int len __unused)
 {
 	struct dnet_io_control ctl;
 	int err, fd;
@@ -250,13 +265,11 @@ static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned lon
 
 		dnet_convert_io_attr(&ctl.io);
 
-		if (lookup_num) {
-			err = dnet_lookup_object(n, ctl.io.id, dnet_lookup_complete, NULL);
+		if (iotest_lookup_num) {
+			err = dnet_lookup_object(n, ctl.io.id, iotest_lookup_complete, NULL);
 			if (err)
 				fprintf(stderr, "Failed to lookup a node for %s object.\n",
 						dnet_dump_id(ctl.io.id));
-			else
-				lookup_num--;
 		}
 
 		memcpy(ctl.id, ctl.io.id, DNET_ID_SIZE);
@@ -374,6 +387,7 @@ static void dnet_usage(char *p)
 			" -t seconds           - speed check interval\n"
 			" -I id                - node ID\n"
 			" -n num               - number of the server lookup requests sent during the test\n"
+			" -N num               - number of IO threads\n"
 			, p);
 }
 
@@ -390,7 +404,7 @@ int main(int argc, char *argv[])
 	size_t size = 1024*1024;
 	unsigned long long max = 100ULL * 1024 * 1024 * 1024;
 	void *data;
-	int seconds = 1, num = 0;
+	int seconds = 1;
 	pthread_t tid;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -399,13 +413,16 @@ int main(int argc, char *argv[])
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
 	cfg.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
-	cfg.io_thread_num = 10;
-	cfg.max_pending = 1024;
+	cfg.io_thread_num = 2;
+	cfg.max_pending = 256;
 
-	while ((ch = getopt(argc, argv, "n:I:t:S:s:m:i:a:r:RT:l:w:h")) != -1) {
+	while ((ch = getopt(argc, argv, "N:n:I:t:S:s:m:i:a:r:RT:l:w:h")) != -1) {
 		switch (ch) {
+			case 'N':
+				cfg.io_thread_num = atoi(optarg);
+				break;
 			case 'n':
-				num = atoi(optarg);
+				iotest_lookup_num = atoi(optarg);
 				break;
 			case 'I':
 				err = dnet_parse_numeric_id(optarg, cfg.id);
@@ -565,9 +582,9 @@ int main(int argc, char *argv[])
 	srand(time(NULL));
 
 	if (write)
-		err = iotest_write(n, data, size, max, obj, strlen(obj), num);
+		err = iotest_write(n, data, size, max, obj, strlen(obj));
 	else
-		err = iotest_read(n, data, size, max, obj, strlen(obj), num);
+		err = iotest_read(n, data, size, max, obj, strlen(obj));
 
 	printf("%s: size: %zu, max: %llu, obj: '%s', err: %d.\n", (write)?"Write":"Read", size, max, obj, err);
 
