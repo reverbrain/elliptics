@@ -474,13 +474,6 @@ void *bdb_backend_init(char *env_dir, char *dbfile, char *histfile)
 		goto err_out_free;
 	}
 
-	err = env->open(env, env_dir, DB_CREATE | DB_INIT_MPOOL |
-			DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_THREAD, 0);
-	if (err) {
-		fprintf(stderr, "Failed to open '%s' environment instance, err: %d.\n", env_dir, err);
-		goto err_out_destroy_env;
-	}
-
 	/*
 	 * We can not use in-memory logging since we do not know the maximum size of the transaction.
 	 */
@@ -501,9 +494,15 @@ void *bdb_backend_init(char *env_dir, char *dbfile, char *histfile)
 	err = env->set_lg_bsize(env, 5 * DNET_MAX_READ_TRANS_SIZE);
 	if (err != 0) {
 		fprintf(stderr, "Error setting log buffer size: %s\n", db_strerror(err));
-		goto err_out_close_env;
+		goto err_out_destroy_env;
 	}
 
+	err = env->open(env, env_dir, DB_CREATE | DB_INIT_MPOOL |
+			DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_THREAD, 0);
+	if (err) {
+		fprintf(stderr, "Failed to open '%s' environment instance, err: %d.\n", env_dir, err);
+		goto err_out_destroy_env;
+	}
 
 	be->data = bdb_backend_open(env, dbfile);
 	if (!be->data)
