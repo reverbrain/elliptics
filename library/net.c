@@ -33,8 +33,10 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
 		struct sockaddr *sa, unsigned int salen, int listening)
 {
 	int s, err = -1;
+	unsigned short int family = AF_INET;
 
-	s = socket(sa->sa_family, sock_type, proto);
+	sa->sa_family = family;
+	s = socket(family, sock_type, proto);
 	if (s < 0) {
 		dnet_log_err(n, "Failed to create socket for %s:%d: "
 				"family: %d, sock_type: %d, proto: %d",
@@ -325,10 +327,13 @@ static int dnet_trans_exec(struct dnet_trans *t)
 			return 0;
 	}
 
+	if (err)
+		return err;
+
 	if (!(t->cmd.flags & DNET_FLAGS_MORE))
 		dnet_trans_destroy(t);
 
-	return err;
+	return 0;
 }
 
 /*
@@ -367,7 +372,7 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 			if (!size) {
 				err = dnet_trans_exec(t);
 				if (err)
-					goto err_out_exit;
+					goto err_out_destroy;
 
 				return dnet_schedule_command(st);
 			}
@@ -415,6 +420,8 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 	st->rcv_data = t->data;
 	return 0;
 
+err_out_destroy:
+	dnet_trans_destroy(t);
 err_out_exit:
 	return err;
 }
@@ -432,7 +439,8 @@ static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *
 		} else {
 			t->st = dnet_state_search(n, st->rcv_cmd.id, NULL);
 
-			if (!t->st || t->st == st || t->st == n->st) {
+			if (!t->st || t->st == st || t->st == n->st ||
+					(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {
 				dnet_state_put(t->st);
 				t->st = dnet_state_get(st);
 
@@ -467,6 +475,7 @@ static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *
 
 err_out_destroy:
 	dnet_trans_destroy(t);
+err_out_exit:
 	return err;
 }
 
@@ -674,6 +683,9 @@ static void dnet_process_socket(int s __unused, short event, void *arg)
 
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing event: %p, mask: %x.\n",
 			dnet_dump_id(st->id), &st->event, event);
+
+	if (list_empty(&st->state_entry))
+		goto err_out_destroy;
 
 	do {
 		can_write = can_read = 0;
@@ -887,7 +899,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 	INIT_LIST_HEAD(&st->snd_list);
 
 	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
-	
+
 	err = pthread_mutex_init(&st->snd_lock, NULL);
 	if (err) {
 		dnet_log_err(n, "%s: failed to initialize sending queu: err: %d",
