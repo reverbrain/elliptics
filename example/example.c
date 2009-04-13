@@ -57,6 +57,7 @@ static void dnet_example_log(void *priv, uint32_t mask, const char *msg)
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
 	fprintf(stream, "%s.%06lu %1x %s", str, tv.tv_usec, mask, msg);
+	fflush(stream);
 }
 
 #define DNET_CONF_COMMENT	'#'
@@ -179,6 +180,7 @@ static void dnet_usage(char *p)
 			"                        each time they correspond to the last added node\n"
 			" -D <daemon>          - go background\n"
 			" -m mask              - log events mask\n"
+			" -N num               - number of IO threads\n"
 			, p);
 }
 
@@ -203,8 +205,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "bm:sH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "N:bm:sH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 'N':
+				cfg.io_thread_num = atoi(optarg);
+				break;
 			case 'b':
 				bdb = 1;
 				break;
