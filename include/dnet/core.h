@@ -36,6 +36,13 @@
  */
 #define DNET_MAX_READ_TRANS_SIZE	(1024*1024*10)
 
+/*
+ * When IO request is less than this constant,
+ * system copies data into contiguous block with headers
+ * and sends it using single syscall.
+ */
+#define DNET_COPY_IO_SIZE	512
+
 #ifndef HAVE_LARGEFILE_SUPPORT
 #define O_LARGEFILE		0
 #endif
