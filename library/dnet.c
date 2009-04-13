@@ -720,7 +720,6 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 		tsize += size;
 
 	t = dnet_trans_alloc(n, tsize);
-
 	if (!t) {
 		err = -ENOMEM;
 		goto err_out_complete_destroy;
@@ -788,12 +787,6 @@ static int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *c
 	struct dnet_net_state *st;
 	int err;
 	uint64_t size = (ctl->cmd == DNET_CMD_READ) ? 0 : ctl->io.size;
-	uint64_t tsize = sizeof(struct dnet_attr) +
-			sizeof(struct dnet_io_attr) +
-			sizeof(struct dnet_cmd);
-
-	if (ctl->fd < 0 && size)
-		tsize += size;
 
 	t = dnet_io_trans_create(n, ctl);
 	if (!t) {
