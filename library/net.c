@@ -171,6 +171,7 @@ out_exit:
 	return err;
 }
 
+#if 0
 static int dnet_net_reconnect(struct dnet_net_state *st)
 {
 	int err;
@@ -192,6 +193,7 @@ static int dnet_net_reconnect(struct dnet_net_state *st)
 
 	return 0;
 }
+#endif
 
 int dnet_send(struct dnet_net_state *st, void *data, unsigned int size)
 {
@@ -475,7 +477,6 @@ static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *
 
 err_out_destroy:
 	dnet_trans_destroy(t);
-err_out_exit:
 	return err;
 }
 

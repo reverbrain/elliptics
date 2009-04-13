@@ -88,7 +88,7 @@ static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint6
 	c->addr.proto = proto;
 
 	dnet_log(st->n, DNET_LOG_INFO, "%s: sending address command: trans: %llu, reply: %d, cmd: %u.\n",
-			dnet_dump_id(id), trans, reply, cmd);
+			dnet_dump_id(id), (unsigned long long)trans, reply, cmd);
 
 	dnet_convert_addr_cmd(c);
 
@@ -933,9 +933,6 @@ int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size,
 	ctl.io.flags = io_flags;
 	ctl.io.size = size;
 	ctl.io.offset = offset;
-
-	dnet_log(n, DNET_LOG_NOTICE, "%s: size: %llu, offset: %llu.\n",
-			file, ctl.io.size, ctl.io.offset);
 
 	err = dnet_write_object(n, &ctl, file, strlen(file));
 	if (err <= 0)
