@@ -56,11 +56,15 @@ struct bdb_backend
 	struct bdb_entry	*data, *hist;
 };
 
-static int bdb_get_record_size(void *state, struct bdb_entry *e, DBC *cursor,
-		unsigned char *id, unsigned int *size)
+static int bdb_get_record_size(void *state, struct bdb_entry *e, DB_TXN *txn,
+		unsigned char *id, unsigned int *size, int rmw)
 {
 	DBT key, data;
 	int err;
+	uint32_t flags = 0;
+
+	if (rmw)
+		flags = DB_RMW;
 
 	memset(&key, 0, sizeof(DBT));
 	memset(&data, 0, sizeof(DBT));
@@ -68,7 +72,7 @@ static int bdb_get_record_size(void *state, struct bdb_entry *e, DBC *cursor,
 	key.data = id;
 	key.size = DNET_ID_SIZE;
 
-	err = cursor->c_get(cursor, &key, &data, DB_SET);
+	err = e->db->get(e->db, txn, &key, &data, flags);
 	if (err) {
 		if (err == DB_NOTFOUND) {
 			err = 0;
@@ -100,7 +104,6 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 	struct dnet_io_attr *io = buf;
 	unsigned int size, total_size, offset;
 	DB_TXN *txn;
-	DBC *cursor;
 
 	if (attr->size < sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -120,25 +123,18 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 		e = be->hist;
 
 	txn = NULL;
-	err = be->env->txn_begin(be->env, NULL, &txn, 0);
+	err = be->env->txn_begin(be->env, NULL, &txn, DB_READ_UNCOMMITTED);
 	if (err) {
 		e->db->err(e->db, err, "%s: failed to start a read transaction, err: %d",
 				dnet_dump_id(cmd->id), err);
 		goto err_out_exit;
 	}
 
-	err = e->db->cursor(e->db, txn, &cursor, 0);
-	if (err) {
-		e->db->err(e->db, err, "%s: failed to open read cursor, err: %d",
-				dnet_dump_id(cmd->id), err);
-		goto err_out_close_txn;
-	}
-
 	size = io->size;
 	if ((io->size == 0) && (attr->size == sizeof(struct dnet_io_attr))) {
-		err = bdb_get_record_size(state, e, cursor, io->id, &size);
+		err = bdb_get_record_size(state, e, txn, io->id, &size, 0);
 		if (err)
-			goto err_out_close_cursor;
+			goto err_out_close_txn;
 	}
 
 	total_size = size;
@@ -166,12 +162,12 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 			data.doff = offset;
 			data.dlen = size;
 
-			err = cursor->c_get(cursor, &key, &data, DB_SET);
+			err = e->db->get(e->db, txn, &key, &data, 0);
 			if (err) {
 				e->db->err(e->db, err, "%s: allocated read failed offset: %u, "
 						"size: %u, err: %d",
 						dnet_dump_id(io->id), offset, size, err);
-				goto err_out_close_cursor;
+				goto err_out_close_txn;
 			}
 
 			r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
@@ -181,7 +177,7 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 				dnet_command_handler_log(state, DNET_LOG_ERROR,
 					"%s: failed to allocate reply attributes.\n",
 					dnet_dump_id(io->id));
-				goto err_out_close_cursor;
+				goto err_out_close_txn;
 			}
 
 			dnet_req_set_data(r, data.data, size, 1);
@@ -221,7 +217,7 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 
 			err = dnet_data_ready(state, r);
 			if (err)
-				goto err_out_close_cursor;
+				goto err_out_close_txn;
 
 			offset += size;
 			total_size -= size;
@@ -242,23 +238,16 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 		data.doff = io->offset;
 		data.dlen = size;
 
-		err = cursor->c_get(cursor, &key, &data, DB_SET);
+		err = e->db->get(e->db, txn, &key, &data, 0);
 		if (err) {
 			e->db->err(e->db, err, "%s: umem read failed offset: %u, "
 					"size: %llu, err: %d",
 					dnet_dump_id(io->id), offset, size, err);
-			goto err_out_close_cursor;
+			goto err_out_close_txn;
 		}
 
 		io->size = size;
 		attr->size = sizeof(struct dnet_io_attr) + err;
-	}
-
-	err = cursor->c_close(cursor);
-	if (err) {
-		e->db->err(e->db, err, "%s: failed to close a read cursor: %d",
-				dnet_dump_id(cmd->id), err);
-		goto err_out_close_txn;
 	}
 
 	err = txn->commit(txn, 0);
@@ -270,8 +259,6 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 
 	return 0;
 
-err_out_close_cursor:
-	cursor->c_close(cursor);
 err_out_close_txn:
 	txn->abort(txn);
 err_out_exit:
@@ -286,7 +273,6 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 	struct bdb_entry *e = be->data;
 	struct dnet_io_attr *io = buf;
 	DB_TXN *txn;
-	DBC *cursor;
 
 	if (attr->size <= sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -313,13 +299,6 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 		goto err_out_exit;
 	}
 
-	err = e->db->cursor(e->db, txn, &cursor, 0);
-	if (err) {
-		e->db->err(e->db, err, "%s: failed to open a write cursor, err: %d",
-				dnet_dump_id(cmd->id), err);
-		goto err_out_close_txn;
-	}
-
 	if (io->flags & DNET_IO_FLAGS_OBJECT) {
 		if ((io->size != attr->size - sizeof(struct dnet_io_attr)) ||
 				(io->size > cmd->size)){
@@ -329,7 +308,7 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 					(unsigned long long)attr->size -
 						sizeof(struct dnet_io_attr));
 			err = -EINVAL;
-			goto err_out_close_cursor;
+			goto err_out_close_txn;
 		}
 
 		memset(&key, 0, sizeof(DBT));
@@ -345,13 +324,13 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 		data.doff = io->offset;
 		data.dlen = io->size;
 
-		err = cursor->c_put(cursor, &key, &data, DB_KEYFIRST);
+		err = e->db->put(e->db, txn, &key, &data, 0);
 		if (err) {
 			e->db->err(e->db, err, "%s: object put failed: offset: %llu, "
 					"size: %llu, err: %d",
 					dnet_dump_id(cmd->id), (unsigned long long)io->offset,
 					(unsigned long long)io->size, err);
-			goto err_out_close_cursor;
+			goto err_out_close_txn;
 		}
 
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
@@ -366,9 +345,9 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 
 		e = be->hist;
 
-		err = bdb_get_record_size(state, e, cursor, cmd->id, &size);
+		err = bdb_get_record_size(state, e, txn, cmd->id, &size, 1);
 		if (err)
-			goto err_out_close_cursor;
+			goto err_out_close_txn;
 
 		memset(&key, 0, sizeof(DBT));
 		memset(&data, 0, sizeof(DBT));
@@ -390,7 +369,7 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 
 		dnet_convert_io_attr(io);
 
-		err = cursor->c_put(cursor, &key, &data, DB_KEYFIRST);
+		err = e->db->put(e->db, txn, &key, &data, 0);
 
 		dnet_convert_io_attr(io);
 
@@ -399,20 +378,13 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 					"size: %llu, err: %d",
 					dnet_dump_id(io->id), (unsigned long long)io->offset,
 					(unsigned long long)io->size, err);
-			goto err_out_close_cursor;
+			goto err_out_close_txn;
 		}
 		
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
 			"%s: history updated: size: %llu, offset: %llu.\n",
 				dnet_dump_id(io->id), (unsigned long long)io->size,
 				(unsigned long long)io->offset);
-	}
-
-	err = cursor->c_close(cursor);
-	if (err) {
-		e->db->err(e->db, err, "%s: failed to close cursor: %d",
-				dnet_dump_id(cmd->id), err);
-		goto err_out_close_txn;
 	}
 
 	err = txn->commit(txn, 0);
@@ -424,8 +396,6 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 
 	return 0;
 
-err_out_close_cursor:
-	cursor->c_close(cursor);
 err_out_close_txn:
 	txn->abort(txn);
 err_out_exit:
@@ -451,7 +421,8 @@ static struct bdb_entry *bdb_backend_open(DB_ENV *env, char *dbfile)
 	db->set_errcall(db, bdb_backend_error_handler);
 	db->set_errpfx(db, "bdb_backend");
 
-	err = db->open(db, NULL, dbfile, NULL, DB_HASH, DB_CREATE | DB_AUTO_COMMIT, 0);
+	err = db->open(db, NULL, dbfile, NULL, DB_BTREE, DB_CREATE | DB_AUTO_COMMIT |
+			DB_THREAD | DB_READ_UNCOMMITTED, 0);
 	if (err) {
 		db->err(db, err, "Failed to open '%s' database, err: %d", dbfile, err);
 		goto err_out_free;
@@ -504,7 +475,7 @@ void *bdb_backend_init(char *env_dir, char *dbfile, char *histfile)
 	}
 
 	err = env->open(env, env_dir, DB_CREATE | DB_INIT_MPOOL |
-			DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG, 0);
+			DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_THREAD, 0);
 	if (err) {
 		fprintf(stderr, "Failed to open '%s' environment instance, err: %d.\n", env_dir, err);
 		goto err_out_destroy_env;
@@ -627,14 +598,14 @@ static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd)
 	stop = cmd->id[0];
 
 	txn = NULL;
-	err = be->env->txn_begin(be->env, NULL, &txn, 0);
+	err = be->env->txn_begin(be->env, NULL, &txn, DB_READ_UNCOMMITTED);
 	if (err) {
 		e->db->err(e->db, err, "%s: failed to start a list transaction, err: %d",
 				dnet_dump_id(cmd->id), err);
 		goto err_out_free;
 	}
 
-	err = e->db->cursor(e->db, txn, &cursor, 0);
+	err = e->db->cursor(e->db, txn, &cursor, DB_READ_UNCOMMITTED);
 	if (err) {
 		e->db->err(e->db, err, "%s: failed to open list cursor, err: %d",
 				dnet_dump_id(cmd->id), err);
