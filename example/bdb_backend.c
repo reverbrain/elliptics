@@ -370,7 +370,7 @@ static struct bdb_entry *bdb_backend_open(DB_ENV *env, char *dbfile)
 	db->set_errcall(db, bdb_backend_error_handler);
 	db->set_errpfx(db, "bdb_backend");
 
-	err = db->open(db, NULL, dbfile, NULL, DB_BTREE, DB_CREATE, 0);
+	err = db->open(db, NULL, dbfile, NULL, DB_HASH, DB_CREATE, 0);
 	if (err) {
 		db->err(db, err, "Failed to open '%s' database, err: %d", dbfile, err);
 		goto err_out_free;
