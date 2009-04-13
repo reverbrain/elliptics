@@ -114,10 +114,12 @@ int dnet_state_insert(struct dnet_net_state *new)
 		err = dnet_id_cmp(st->id, new->id);
 
 		if (!err) {
+#if 0
 			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: old: %s.\n", dnet_dump_id(st->id),
 				dnet_server_convert_dnet_addr(&st->addr));
 			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: new: %s.\n", dnet_dump_id(new->id),
 				dnet_server_convert_dnet_addr(&new->addr));
+#endif
 			break;
 		}
 
