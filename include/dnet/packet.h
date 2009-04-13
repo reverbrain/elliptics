@@ -64,6 +64,9 @@ enum dnet_commands {
 /* Transaction is about to be destroyed */
 #define DNET_FLAGS_DESTROY		(1<<2)
 
+/* Do not forward requst to antoher node even if given ID does not belong to our range */
+#define DNET_FLAGS_DIRECT		(1<<3)
+
 struct dnet_cmd
 {
 	uint8_t			id[DNET_ID_SIZE];
