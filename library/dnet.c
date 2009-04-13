@@ -786,7 +786,6 @@ static int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *c
 	struct dnet_trans *t;
 	struct dnet_net_state *st;
 	int err;
-	uint64_t size = (ctl->cmd == DNET_CMD_READ) ? 0 : ctl->io.size;
 
 	t = dnet_io_trans_create(n, ctl);
 	if (!t) {
