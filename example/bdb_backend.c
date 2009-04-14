@@ -72,14 +72,18 @@ static int bdb_get_record_size(void *state, struct bdb_entry *e, DB_TXN *txn,
 	key.data = id;
 	key.size = DNET_ID_SIZE;
 
+	data.size = 0;
+	data.flags = DB_DBT_USERMEM;
+
 	err = e->db->get(e->db, txn, &key, &data, flags);
 	if (err) {
 		if (err == DB_NOTFOUND) {
 			err = 0;
 			*size = 0;
 		} else {
-			e->db->err(e->db, err, "%s: failed to get record size, err: %d",
-				dnet_dump_id(id), err);
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+					"%s: failed to get record size, err: %d: %s.\n",
+				dnet_dump_id(id), err, db_strerror(err));
 		}
 		goto err_out_exit;
 	}
@@ -125,8 +129,9 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 	txn = NULL;
 	err = be->env->txn_begin(be->env, NULL, &txn, DB_READ_UNCOMMITTED);
 	if (err) {
-		e->db->err(e->db, err, "%s: failed to start a read transaction, err: %d",
-				dnet_dump_id(cmd->id), err);
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to start a read transaction, err: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
@@ -164,9 +169,10 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 
 			err = e->db->get(e->db, txn, &key, &data, 0);
 			if (err) {
-				e->db->err(e->db, err, "%s: allocated read failed offset: %u, "
-						"size: %u, err: %d",
-						dnet_dump_id(io->id), offset, size, err);
+				dnet_command_handler_log(state, DNET_LOG_ERROR,
+					"%s: allocated read failed offset: %u, "
+					"size: %u, err: %d: %s.\n", dnet_dump_id(io->id),
+					offset, size, err, db_strerror(err));
 				goto err_out_close_txn;
 			}
 
@@ -240,9 +246,11 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 
 		err = e->db->get(e->db, txn, &key, &data, 0);
 		if (err) {
-			e->db->err(e->db, err, "%s: umem read failed offset: %u, "
-					"size: %llu, err: %d",
-					dnet_dump_id(io->id), offset, size, err);
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: umem read failed offset: %u, "
+					"size: %llu, err: %d: %s.\n",
+					dnet_dump_id(io->id), offset, size,
+					err, db_strerror(err));
 			goto err_out_close_txn;
 		}
 
@@ -252,8 +260,9 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 
 	err = txn->commit(txn, 0);
 	if (err) {
-		e->db->err(e->db, err, "%s: failed to commit a read transaction: %d",
-				dnet_dump_id(cmd->id), err);
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to commit a read transaction: err: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
@@ -294,8 +303,9 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 	txn = NULL;
 	err = be->env->txn_begin(be->env, NULL, &txn, 0);
 	if (err) {
-		e->db->err(e->db, err, "%s: failed to start a write transaction, err: %d",
-				dnet_dump_id(cmd->id), err);
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to start a write transaction, err: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
@@ -326,10 +336,11 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 
 		err = e->db->put(e->db, txn, &key, &data, 0);
 		if (err) {
-			e->db->err(e->db, err, "%s: object put failed: offset: %llu, "
-					"size: %llu, err: %d",
-					dnet_dump_id(cmd->id), (unsigned long long)io->offset,
-					(unsigned long long)io->size, err);
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: object put failed: offset: %llu, "
+				"size: %llu, err: %d: %s.\n",
+				dnet_dump_id(cmd->id), (unsigned long long)io->offset,
+				(unsigned long long)io->size, err, db_strerror(err));
 			goto err_out_close_txn;
 		}
 
@@ -339,7 +350,7 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 				(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
 				(unsigned long long)io->size, (unsigned long long)io->offset);
 	}
-	
+
 	if ((io->flags & DNET_IO_FLAGS_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
 		unsigned int size;
 
@@ -374,13 +385,14 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 		dnet_convert_io_attr(io);
 
 		if (err) {
-			e->db->err(e->db, err, "%s: history update failed offset: %llu, "
-					"size: %llu, err: %d",
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: history update failed offset: %llu, "
+				"size: %llu, err: %d: %s.\n",
 					dnet_dump_id(io->id), (unsigned long long)io->offset,
-					(unsigned long long)io->size, err);
+					(unsigned long long)io->size, err, db_strerror(err));
 			goto err_out_close_txn;
 		}
-		
+
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
 			"%s: history updated: size: %llu, offset: %llu.\n",
 				dnet_dump_id(io->id), (unsigned long long)io->size,
@@ -389,8 +401,9 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 
 	err = txn->commit(txn, 0);
 	if (err) {
-		e->db->err(e->db, err, "%s: failed to commit a transaction: %d",
-				dnet_dump_id(cmd->id), err);
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to commit a write transaction: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
@@ -599,15 +612,17 @@ static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd)
 	txn = NULL;
 	err = be->env->txn_begin(be->env, NULL, &txn, DB_READ_UNCOMMITTED);
 	if (err) {
-		e->db->err(e->db, err, "%s: failed to start a list transaction, err: %d",
-				dnet_dump_id(cmd->id), err);
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to start a list transaction, err: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
 		goto err_out_free;
 	}
 
 	err = e->db->cursor(e->db, txn, &cursor, DB_READ_UNCOMMITTED);
 	if (err) {
-		e->db->err(e->db, err, "%s: failed to open list cursor, err: %d",
-				dnet_dump_id(cmd->id), err);
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to open list cursor, err: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
 		goto err_out_close_txn;
 	}
 
@@ -656,15 +671,17 @@ static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd)
 
 	err = cursor->c_close(cursor);
 	if (err) {
-		e->db->err(e->db, err, "%s: failed to close list cursor: %d",
-				dnet_dump_id(cmd->id), err);
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to close list cursor: err: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
 		goto err_out_close_txn;
 	}
 
 	err = txn->commit(txn, 0);
 	if (err) {
-		e->db->err(e->db, err, "%s: failed to commit a list transaction: %d",
-				dnet_dump_id(cmd->id), err);
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to commit a list transaction: err: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
 		goto err_out_free;
 	}
 
@@ -682,7 +699,8 @@ err_out_exit:
 	return err;
 }
 
-int bdb_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
+int bdb_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *data)
 {
 	int err;
 	struct bdb_backend *e = priv;
