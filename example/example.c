@@ -181,6 +181,7 @@ static void dnet_usage(char *p)
 			" -D <daemon>          - go background\n"
 			" -m mask              - log events mask\n"
 			" -N num               - number of IO threads\n"
+			" -P num               - maximum number of pending write transactions opened by single thread\n"
 			, p);
 }
 
@@ -205,8 +206,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "N:bm:sH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "P:N:bm:sH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 'P':
+				cfg.max_pending = atoi(optarg);
+				break;
 			case 'N':
 				cfg.io_thread_num = atoi(optarg);
 				break;
