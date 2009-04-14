@@ -262,7 +262,8 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 		}
 
 		if (err == 0) {
-			dnet_log(st->n, DNET_LOG_NOTICE, "Peer has disconnected.\n");
+			dnet_log(st->n, DNET_LOG_ERROR, "Peer %s has disconnected.\n",
+					dnet_server_convert_dnet_addr(&st->addr));
 			return -ECONNRESET;
 		}
 
