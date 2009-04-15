@@ -56,67 +56,11 @@ struct dnet_node;
  */
 int dnet_log_init(struct dnet_node *n, void *priv, uint32_t mask,
 		void (* log)(void *priv, uint32_t mask, const char *msg));
+void dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...);
 
-#define NIP6(addr) \
-	(addr).s6_addr[0], \
-	(addr).s6_addr[1], \
-	(addr).s6_addr[2], \
-	(addr).s6_addr[3], \
-	(addr).s6_addr[4], \
-	(addr).s6_addr[5], \
-	(addr).s6_addr[6], \
-	(addr).s6_addr[7], \
-	(addr).s6_addr[8], \
-	(addr).s6_addr[9], \
-	(addr).s6_addr[10], \
-	(addr).s6_addr[11], \
-	(addr).s6_addr[12], \
-	(addr).s6_addr[13], \
-	(addr).s6_addr[14], \
-	(addr).s6_addr[15]
-#define NIP6_FMT "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"
-
-static inline char *dnet_server_convert_addr(struct sockaddr *sa, unsigned int len)
-{
-	static char inet_addr[128];
-
-	memset(&inet_addr, 0, sizeof(inet_addr));
-	if (len == sizeof(struct sockaddr_in)) {
-		struct sockaddr_in *in = (struct sockaddr_in *)sa;
-		sprintf(inet_addr, "%s", inet_ntoa(in->sin_addr));
-	} else if (len == sizeof(struct sockaddr_in6)) {
-		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa;
-		sprintf(inet_addr, NIP6_FMT, NIP6(in->sin6_addr));
-	}
-	return inet_addr;
-}
-
-static inline int dnet_server_convert_port(struct sockaddr *sa, unsigned int len)
-{
-	if (len == sizeof(struct sockaddr_in)) {
-		struct sockaddr_in *in = (struct sockaddr_in *)sa;
-		return ntohs(in->sin_port);
-	} else if (len == sizeof(struct sockaddr_in6)) {
-		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa;
-		return ntohs(in->sin6_port);
-	}
-	return 0;
-}
-
-static inline char *dnet_server_convert_dnet_addr(struct dnet_addr *sa)
-{
-	static char inet_addr[128];
-
-	memset(&inet_addr, 0, sizeof(inet_addr));
-	if (sa->addr_len == sizeof(struct sockaddr_in)) {
-		struct sockaddr_in *in = (struct sockaddr_in *)sa;
-		sprintf(inet_addr, "%s:%d", inet_ntoa(in->sin_addr), ntohs(in->sin_port));
-	} else if (sa->addr_len == sizeof(struct sockaddr_in6)) {
-		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa;
-		sprintf(inet_addr, NIP6_FMT":%d", NIP6(in->sin6_addr), ntohs(in->sin6_port));
-	}
-	return inet_addr;
-}
+#define dnet_log(n, mask, format, a...) do { if (n->log_mask & mask) dnet_log_raw(n, mask, format, ##a); } while (0)
+#define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, "%s: " f ": %s [%d].\n", \
+		dnet_dump_id(n->id), ##a, strerror(errno), errno)
 
 /*
  * Currently executed network state machine:
@@ -136,7 +80,7 @@ struct dnet_net_state
 	struct dnet_node	*n;
 	long			timeout;
 
-	pthread_mutex_t		refcnt_lock;
+	pthread_spinlock_t		refcnt_lock;
 	int			refcnt;
 	int			s;
 
@@ -155,7 +99,7 @@ struct dnet_net_state
 	struct dnet_trans	*rcv_trans;
 	
 	struct list_head	snd_list;
-	pthread_mutex_t		snd_lock;
+	pthread_spinlock_t		snd_lock;
 	off_t			snd_offset;
 	size_t			snd_size;
 
@@ -169,21 +113,22 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 int dnet_event_schedule(struct dnet_net_state *st, short mask);
 
-static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
-{
-	pthread_mutex_lock(&st->refcnt_lock);
-	st->refcnt++;
-	pthread_mutex_unlock(&st->refcnt_lock);
-	return st;
-}
-void dnet_state_put(struct dnet_net_state *st);
 void *dnet_state_process(void *data);
 
 int dnet_state_insert(struct dnet_net_state *new);
 void dnet_state_remove(struct dnet_net_state *st);
 struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
-int dnet_state_move(struct dnet_net_state *st);
+
+static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
+{
+	pthread_spin_lock(&st->refcnt_lock);
+	st->refcnt++;
+	pthread_spin_unlock(&st->refcnt_lock);
+
+	return st;
+}
+void dnet_state_put(struct dnet_net_state *st);
 
 struct dnet_wait
 {
@@ -263,8 +208,8 @@ struct dnet_node
 {
 	unsigned char		id[DNET_ID_SIZE];
 
-	pthread_mutex_t		tlock;
-	struct list_head	tlist;
+	pthread_spinlock_t	transform_lock;
+	struct list_head	transform_list;
 	int			transform_num;
 
 	int			need_exit;
@@ -274,11 +219,11 @@ struct dnet_node
 	struct dnet_addr	addr;
 	int			sock_type, proto;
 
-	pthread_mutex_t		state_lock;
+	pthread_spinlock_t	state_lock;
 	struct list_head	state_list;
 	struct list_head	empty_state_list;
 
-	pthread_mutex_t		trans_lock;
+	pthread_spinlock_t	trans_lock;
 	struct rb_root		trans_root;
 	uint64_t		trans;
 
@@ -302,7 +247,7 @@ struct dnet_node
 	void			*command_private;
 
 	struct list_head	io_thread_list;
-	pthread_mutex_t		io_thread_lock;
+	pthread_spinlock_t	io_thread_lock;
 	int			io_thread_num, io_thread_pos;
 
 	uint64_t		max_pending;
@@ -426,6 +371,8 @@ struct dnet_thread_signal
 
 int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd);
 int dnet_schedule_socket(struct dnet_net_state *st);
+
+void dnet_req_trans_destroy(struct dnet_data_req *r);
 
 #ifdef __cplusplus
 }

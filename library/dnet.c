@@ -38,8 +38,8 @@ static int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *d
 	int err = 1;
 	struct dnet_transform *t;
 
-	pthread_mutex_lock(&n->tlock);
-	list_for_each_entry(t, &n->tlist, tentry) {
+	pthread_spin_lock(&n->transform_lock);
+	list_for_each_entry(t, &n->transform_list, tentry) {
 		if (pos++ == *ppos) {
 			*ppos = pos;
 			err = t->init(t->priv);
@@ -55,7 +55,7 @@ static int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *d
 				break;
 		}
 	}
-	pthread_mutex_unlock(&n->tlock);
+	pthread_spin_unlock(&n->transform_lock);
 
 	return err;
 }
@@ -172,7 +172,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *req
 	struct dnet_cmd *cmd = NULL;
 	struct dnet_attr *attr = NULL;
 
-	pthread_mutex_lock(&n->state_lock);
+	pthread_spin_lock(&n->state_lock);
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		if (!space) {
 			unsigned int sz;
@@ -239,12 +239,12 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *req
 		if (err)
 			goto err_out_unlock;
 	}
-	pthread_mutex_unlock(&n->state_lock);
+	pthread_spin_unlock(&n->state_lock);
 
 	return 0;
 
 err_out_unlock:
-	pthread_mutex_unlock(&n->state_lock);
+	pthread_spin_unlock(&n->state_lock);
 	return err;
 }
 
@@ -353,14 +353,14 @@ int dnet_process_cmd(struct dnet_trans *t)
 	}
 
 	if (cmd->flags & DNET_FLAGS_NEED_ACK) {
-		struct dnet_data_req *r;
 		struct dnet_cmd *ack;
 
-		r = dnet_req_alloc(st, sizeof(struct dnet_cmd));
-		if (!r)
-			return -ENOMEM;
+		t->r.complete = dnet_req_trans_destroy;
 
-		ack = dnet_req_header(r);
+		dnet_req_set_header(&t->r, cmd, sizeof(struct dnet_cmd), 0);
+		dnet_req_set_flags(&t->r, ~0, DNET_REQ_NO_DESTRUCT);
+		ack = dnet_req_header(&t->r);
+
 		memcpy(ack->id, cmd->id, DNET_ID_SIZE);
 		ack->trans = cmd->trans | DNET_TRANS_REPLY;
 		ack->size = 0;
@@ -372,8 +372,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 				ack->flags, err);
 
 		dnet_convert_cmd(ack);
-
-		dnet_data_ready(st, r);
+		dnet_data_ready(st, &t->r);
 	}
 
 	return err;
@@ -627,7 +626,7 @@ int dnet_rejoin(struct dnet_node *n, int all)
 		return err;
 	}
 
-	pthread_mutex_lock(&n->state_lock);
+	pthread_spin_lock(&n->state_lock);
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		if (st == n->st)
 			continue;
@@ -655,7 +654,7 @@ int dnet_rejoin(struct dnet_node *n, int all)
 
 		st->join_state = DNET_JOINED;
 	}
-	pthread_mutex_unlock(&n->state_lock);
+	pthread_spin_unlock(&n->state_lock);
 
 	return err;
 }
@@ -875,7 +874,7 @@ err_out_continue:
 int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size,
 		unsigned int io_flags, unsigned int aflags)
 {
-	int fd, err, i, tnum;
+	int fd, err, i, tnum = n->transform_num*2;
 	struct stat stat;
 	int error = -ENOENT;
 	struct dnet_wait *w;
@@ -913,14 +912,10 @@ int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size,
 		goto err_out_close;
 	}
 
-	tnum = n->transform_num*2;
-
 	for (i=0; i<tnum; ++i)
 		dnet_wait_get(w);
 
-	pthread_mutex_lock(&w->wait_lock);
 	w->cond += tnum;
-	pthread_mutex_unlock(&w->wait_lock);
 
 	ctl.fd = fd;
 
@@ -1164,8 +1159,8 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 		goto err_out_exit;
 	}
 
-	pthread_mutex_lock(&n->tlock);
-	list_for_each_entry(t, &n->tlist, tentry) {
+	pthread_spin_lock(&n->transform_lock);
+	list_for_each_entry(t, &n->transform_list, tentry) {
 		if (!strncmp(name, t->name, DNET_MAX_NAME_LEN)) {
 			err = -EEXIST;
 			goto err_out_unlock;
@@ -1186,15 +1181,15 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	t->final = final;
 	t->priv = priv;
 
-	list_add_tail(&t->tentry, &n->tlist);
+	list_add_tail(&t->tentry, &n->transform_list);
 	n->transform_num++;
 
-	pthread_mutex_unlock(&n->tlock);
+	pthread_spin_unlock(&n->transform_lock);
 
 	return 0;
 
 err_out_unlock:
-	pthread_mutex_unlock(&n->tlock);
+	pthread_spin_unlock(&n->transform_lock);
 err_out_exit:
 	return err;
 }
@@ -1207,8 +1202,8 @@ int dnet_remove_transform(struct dnet_node *n, char *name)
 	if (!n)
 		return -EINVAL;
 
-	pthread_mutex_lock(&n->tlock);
-	list_for_each_entry_safe(t, tmp, &n->tlist, tentry) {
+	pthread_spin_lock(&n->transform_lock);
+	list_for_each_entry_safe(t, tmp, &n->transform_list, tentry) {
 		if (!strncmp(name, t->name, DNET_MAX_NAME_LEN)) {
 			err = 0;
 			break;
@@ -1220,7 +1215,7 @@ int dnet_remove_transform(struct dnet_node *n, char *name)
 		list_del(&t->tentry);
 		free(t);
 	}
-	pthread_mutex_unlock(&n->tlock);
+	pthread_spin_unlock(&n->transform_lock);
 
 	return err;
 }
@@ -1593,13 +1588,13 @@ int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
 {
 	int err = 0, add;
 
-	pthread_mutex_lock(&st->snd_lock);
+	pthread_spin_lock(&st->snd_lock);
 	add = list_empty(&st->snd_list);
 	list_add_tail(&r->req_entry, &st->snd_list);
 
 	if (add)
 		err = dnet_signal_thread(st, DNET_THREAD_DATA_READY);
-	pthread_mutex_unlock(&st->snd_lock);
+	pthread_spin_unlock(&st->snd_lock);
 
 	return err;
 }
@@ -1690,4 +1685,9 @@ void dnet_req_destroy(struct dnet_data_req *r)
 	}
 	if (r->complete)
 		r->complete(r);
+}
+
+struct dnet_addr *dnet_state_addr(struct dnet_net_state *st)
+{
+	return &st->addr;
 }

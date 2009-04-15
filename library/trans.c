@@ -92,10 +92,10 @@ int dnet_trans_insert(struct dnet_trans *t)
 	struct dnet_node *n = t->st->n;
 	int err;
 
-	pthread_mutex_lock(&n->trans_lock);
+	pthread_spin_lock(&n->trans_lock);
 	t->trans = (n->trans++) & ~DNET_TRANS_REPLY;
 	err = dnet_trans_insert_raw(&n->trans_root, t);
-	pthread_mutex_unlock(&n->trans_lock);
+	pthread_spin_unlock(&n->trans_lock);
 
 	return err;
 }
@@ -119,9 +119,9 @@ void dnet_trans_remove(struct dnet_trans *t)
 {
 	struct dnet_node *n = t->st->n;
 
-	pthread_mutex_lock(&n->trans_lock);
+	pthread_spin_lock(&n->trans_lock);
 	dnet_trans_remove_nolock(&n->trans_root, t);
-	pthread_mutex_unlock(&n->trans_lock);
+	pthread_spin_unlock(&n->trans_lock);
 }
 
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, size_t size)

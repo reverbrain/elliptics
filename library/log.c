@@ -47,7 +47,7 @@ int dnet_log_init(struct dnet_node *n, void *priv, uint32_t mask,
 	return 0;
 }
 
-void dnet_log(struct dnet_node *n, uint32_t mask, const char *format, ...)
+void dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...)
 {
 	va_list args;
 	char buf[1024];
@@ -63,7 +63,7 @@ void dnet_log(struct dnet_node *n, uint32_t mask, const char *format, ...)
 	va_end(args);
 }
 
-void dnet_command_handler_log(void *state, uint32_t mask, const char *format, ...)
+void dnet_command_handler_log_raw(void *state, uint32_t mask, const char *format, ...)
 {
 	struct dnet_net_state *st = state;
 	struct dnet_node *n = st->n;
@@ -82,4 +82,9 @@ void dnet_command_handler_log(void *state, uint32_t mask, const char *format, ..
 	buf[buflen-1] = '\0';
 	n->log(n->log_private, mask, buf);
 	va_end(args);
+}
+
+int dnet_check_log_mask_state(struct dnet_net_state *st, uint32_t mask)
+{
+	return st->n->log_mask & mask;
 }

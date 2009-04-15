@@ -309,7 +309,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 	return err;
 }
 
-static void dnet_req_trans_destroy(struct dnet_data_req *r)
+void dnet_req_trans_destroy(struct dnet_data_req *r)
 {
 	struct dnet_trans *t = container_of(r, struct dnet_trans, r);
 
@@ -359,12 +359,12 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 	if (st->rcv_cmd.trans & DNET_TRANS_REPLY) {
 		uint64_t tid = st->rcv_cmd.trans & ~DNET_TRANS_REPLY;
 
-		pthread_mutex_lock(&n->trans_lock);
+		pthread_spin_lock(&n->trans_lock);
 		t = dnet_trans_search(&n->trans_root, tid);
 		if (t && !(st->rcv_cmd.flags & DNET_FLAGS_MORE)) {
 			dnet_trans_remove_nolock(&n->trans_root, t);
 		}
-		pthread_mutex_unlock(&n->trans_lock);
+		pthread_spin_unlock(&n->trans_lock);
 
 		if (t) {
 			uint64_t cmd_size = t->cmd.size;
@@ -448,7 +448,6 @@ static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *
 				t->st = dnet_state_get(st);
 
 				dnet_process_cmd(t);
-				st->rcv_flags |= DNET_IO_DROP;
 			} else {
 				struct dnet_net_state *tmp = t->st;
 
@@ -663,9 +662,9 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 		err = 0;
 	}
 
-	pthread_mutex_lock(&st->snd_lock);
+	pthread_spin_lock(&st->snd_lock);
 	list_del(&r->req_entry);
-	pthread_mutex_unlock(&st->snd_lock);
+	pthread_spin_unlock(&st->snd_lock);
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: freeing send request: %p: "
 			"flags: %x, hsize: %zu, dsize: %zu, fsize: %zu.\n",
@@ -740,12 +739,12 @@ err_out_destroy:
 	while (!list_empty(&st->snd_list)) {
 		struct dnet_data_req *r = NULL;
 
-		pthread_mutex_lock(&st->snd_lock);
+		pthread_spin_lock(&st->snd_lock);
 		if (!list_empty(&st->snd_list)) {
 			r = list_first_entry(&st->snd_list, struct dnet_data_req, req_entry);
 			list_del(&r->req_entry);
 		}
-		pthread_mutex_unlock(&st->snd_lock);
+		pthread_spin_unlock(&st->snd_lock);
 
 		if (!r)
 			break;
@@ -774,7 +773,8 @@ int dnet_event_schedule(struct dnet_net_state *st, short mask)
 
 	event_set(&st->event, st->s, mask, dnet_process_socket, st);
 	event_base_set(base, &st->event);
-	err = event_add(&st->event, &tv);
+	//err = event_add(&st->event, &tv);
+	err = event_add(&st->event, NULL);
 
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: queued event: %p, mask: %x, err: %d, empty: %d.\n",
 			dnet_dump_id(st->id), &st->event, mask, err,
@@ -842,7 +842,7 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 	struct dnet_io_thread *t, *th = NULL;
 	int pos = 0, err;
 
-	pthread_mutex_lock(&n->io_thread_lock);
+	pthread_spin_lock(&n->io_thread_lock);
 	list_for_each_entry(t, &n->io_thread_list, thread_entry) {
 		if (pos == n->io_thread_pos) {
 			n->io_thread_pos++;
@@ -854,7 +854,7 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 		pos++;
 		pos %= n->io_thread_num;
 	}
-	pthread_mutex_unlock(&n->io_thread_lock);
+	pthread_spin_unlock(&n->io_thread_lock);
 
 	if (!th) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: can not find IO thread.\n",
@@ -902,14 +902,14 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
 
-	err = pthread_mutex_init(&st->snd_lock, NULL);
+	err = pthread_spin_init(&st->snd_lock, 0);
 	if (err) {
 		dnet_log_err(n, "%s: failed to initialize sending queu: err: %d",
 				dnet_dump_id(st->id), err);
 		goto err_out_state_free;
 	}
 
-	err = pthread_mutex_init(&st->refcnt_lock, NULL);
+	err = pthread_spin_init(&st->refcnt_lock, 0);
 	if (err) {
 		dnet_log_err(n, "%s: failed to initialize state refcnt lock: err: %d",
 				dnet_dump_id(st->id), err);
@@ -918,9 +918,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	st->join_state = DNET_CLIENT;
 	if (!id) {
-		pthread_mutex_lock(&n->state_lock);
+		pthread_spin_lock(&n->state_lock);
 		list_add_tail(&st->state_entry, &n->empty_state_list);
-		pthread_mutex_unlock(&n->state_lock);
+		pthread_spin_unlock(&n->state_lock);
 	} else {
 		memcpy(st->id, id, DNET_ID_SIZE);
 		err = dnet_state_insert(st);
@@ -937,46 +937,13 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 err_out_state_remove:
 	dnet_state_remove(st);
 err_out_refcnt_lock_destroy:
-	pthread_mutex_destroy(&st->refcnt_lock);
+	pthread_spin_destroy(&st->refcnt_lock);
 err_out_snd_lock_destroy:
-	pthread_mutex_destroy(&st->snd_lock);
+	pthread_spin_destroy(&st->snd_lock);
 err_out_state_free:
 	free(st);
 err_out_exit:
 	return NULL;
-}
-
-void dnet_state_put(struct dnet_net_state *st)
-{
-	int destroy = 0;
-
-	if (!st)
-		return;
-	
-	pthread_mutex_lock(&st->refcnt_lock);
-	st->refcnt--;
-
-	if (st->refcnt == 0)
-		destroy = 1;
-	pthread_mutex_unlock(&st->refcnt_lock);
-
-	if (!destroy)
-		return;
-
-	dnet_state_remove(st);
-
-	event_del(&st->event);
-
-	if (st->s)
-		close(st->s);
-
-	pthread_mutex_destroy(&st->snd_lock);
-	pthread_mutex_destroy(&st->refcnt_lock);
-
-	dnet_log(st->n, DNET_LOG_ERROR, "%s: freeing state %s.\n", dnet_dump_id(st->id),
-		dnet_server_convert_dnet_addr(&st->addr));
-
-	free(st);
 }
 
 int dnet_sendfile_data(struct dnet_net_state *st,
@@ -1052,5 +1019,38 @@ int dnet_sendfile_data(struct dnet_net_state *st,
 
 err_out_unlock:
 	return err;
+}
+
+void dnet_state_put(struct dnet_net_state *st)
+{
+	int destroy = 0;
+
+	if (!st)
+		return;
+	
+	pthread_spin_lock(&st->refcnt_lock);
+	st->refcnt--;
+
+	if (st->refcnt == 0)
+		destroy = 1;
+	pthread_spin_unlock(&st->refcnt_lock);
+
+	if (!destroy)
+		return;
+
+	dnet_state_remove(st);
+
+	event_del(&st->event);
+
+	if (st->s)
+		close(st->s);
+
+	pthread_spin_destroy(&st->snd_lock);
+	pthread_spin_destroy(&st->refcnt_lock);
+
+	dnet_log(st->n, DNET_LOG_ERROR, "%s: freeing state %s.\n", dnet_dump_id(st->id),
+		dnet_server_convert_dnet_addr(&st->addr));
+
+	free(st);
 }
 

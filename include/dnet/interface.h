@@ -175,10 +175,81 @@ struct dnet_config
 	uint64_t		max_pending;	
 };
 
-void dnet_command_handler_log(void *state, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
-void dnet_log(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
-#define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, "%s: " f ": %s [%d].\n", \
-		dnet_dump_id(n->id), ##a, strerror(errno), errno)
+void dnet_command_handler_log_raw(void *state, uint32_t mask, const char *format, ...);
+int dnet_check_log_mask_state(struct dnet_net_state *st, uint32_t mask);
+
+#define dnet_command_handler_log(state, mask, format, a...)				\
+	do {									\
+		if (dnet_check_log_mask_state(state, mask))			\
+			dnet_command_handler_log_raw(state, mask, format, ##a); \
+	} while (0)
+
+#define NIP6(addr) \
+	(addr).s6_addr[0], \
+	(addr).s6_addr[1], \
+	(addr).s6_addr[2], \
+	(addr).s6_addr[3], \
+	(addr).s6_addr[4], \
+	(addr).s6_addr[5], \
+	(addr).s6_addr[6], \
+	(addr).s6_addr[7], \
+	(addr).s6_addr[8], \
+	(addr).s6_addr[9], \
+	(addr).s6_addr[10], \
+	(addr).s6_addr[11], \
+	(addr).s6_addr[12], \
+	(addr).s6_addr[13], \
+	(addr).s6_addr[14], \
+	(addr).s6_addr[15]
+#define NIP6_FMT "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"
+
+static inline char *dnet_server_convert_addr(struct sockaddr *sa, unsigned int len)
+{
+	static char inet_addr[128];
+
+	memset(&inet_addr, 0, sizeof(inet_addr));
+	if (len == sizeof(struct sockaddr_in)) {
+		struct sockaddr_in *in = (struct sockaddr_in *)sa;
+		sprintf(inet_addr, "%s", inet_ntoa(in->sin_addr));
+	} else if (len == sizeof(struct sockaddr_in6)) {
+		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa;
+		sprintf(inet_addr, NIP6_FMT, NIP6(in->sin6_addr));
+	}
+	return inet_addr;
+}
+
+static inline int dnet_server_convert_port(struct sockaddr *sa, unsigned int len)
+{
+	if (len == sizeof(struct sockaddr_in)) {
+		struct sockaddr_in *in = (struct sockaddr_in *)sa;
+		return ntohs(in->sin_port);
+	} else if (len == sizeof(struct sockaddr_in6)) {
+		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa;
+		return ntohs(in->sin6_port);
+	}
+	return 0;
+}
+
+static inline char *dnet_server_convert_dnet_addr(struct dnet_addr *sa)
+{
+	static char inet_addr[128];
+
+	memset(&inet_addr, 0, sizeof(inet_addr));
+	if (sa->addr_len == sizeof(struct sockaddr_in)) {
+		struct sockaddr_in *in = (struct sockaddr_in *)sa;
+		sprintf(inet_addr, "%s:%d", inet_ntoa(in->sin_addr), ntohs(in->sin_port));
+	} else if (sa->addr_len == sizeof(struct sockaddr_in6)) {
+		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa;
+		sprintf(inet_addr, NIP6_FMT":%d", NIP6(in->sin6_addr), ntohs(in->sin6_port));
+	}
+	return inet_addr;
+}
+
+struct dnet_addr *dnet_state_addr(struct dnet_net_state *st);
+static inline char *dnet_state_dump_addr(struct dnet_net_state *st)
+{
+	return dnet_server_convert_dnet_addr(dnet_state_addr(st));
+}
 
 /*
  * Transformation functions are used to create ID from the provided data content.
