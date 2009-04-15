@@ -49,11 +49,18 @@ struct iotest_state
 	struct dnet_config		cfg;
 	unsigned long long		bytes, completed, errors;
 	unsigned long long		send_syscalls, recv_syscalls;
+
+	struct dnet_addr		addr;
+	int				error;
 };
 
 static struct iotest_state iotest_root;
-static unsigned long long iotest_bytes;
-static int iotest_lookup_num, iotest_lookup_found;
+static unsigned long long iotest_bytes, iotest_completed, iotest_started;
+static int iotest_lookup_num, iotest_lookup_found, iotest_lookup_pending;
+static unsigned long iotest_max_pending = 100000;
+
+static int iotest_sleep;
+static int iotest_pipe[2];
 
 static void iotest_log(void *priv, uint32_t mask __unused, const char *msg)
 {
@@ -117,7 +124,7 @@ static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *
 {
 	if (!cmd || !cmd->size || cmd->status) {
 		struct iotest_state *is = iotest_root.next;
-#if 1
+
 		while (is) {
 			int err = dnet_id_cmp(cmd->id, is->cfg.id);
 
@@ -129,23 +136,27 @@ static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *
 
 		if (!is)
 			is = iotest_root.next;
-#endif
-		if (!cmd || cmd->status)
+
+		if (!cmd || cmd->status) {
 			is->errors++;
+			is->error = cmd->status;
+			memcpy(&is->addr, dnet_state_addr(st), sizeof(struct dnet_addr));
+		}
 
 		if (!cmd->size) {
 			unsigned long bytes = (unsigned long)priv;
-#if 1
+
 			is->completed++;
 			is->bytes += bytes;
 			iotest_bytes += bytes;
-#else
-			is->send_syscalls = st->send_syscalls;
-			is->recv_syscalls = st->recv_syscalls;
-			is->completed = st->requests_sent;
-			is->bytes = st->bytes_sent;
-			iotest_bytes = st->bytes_sent;
-#endif
+			iotest_completed++;
+
+			if (iotest_sleep && iotest_started - iotest_completed < iotest_max_pending/2) {
+				unsigned char b;
+				int err;
+
+				err = write(iotest_pipe[1], &b, 1);
+			}
 		}
 	}
 
@@ -161,7 +172,21 @@ static int iotest_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cm
 	if (cmd && !cmd->status && !err && cmd->size)
 		iotest_lookup_found++;
 
+	iotest_lookup_pending--;
+
 	return 0;
+}
+
+static void iotest_wait(void)
+{
+	if (iotest_started - iotest_completed > iotest_max_pending) {
+		unsigned char b;
+		int err;
+
+		iotest_sleep = 1;
+		err = read(iotest_pipe[0], &b, 1);
+		iotest_sleep = 0;
+	}
 }
 
 static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned long long max,
@@ -169,7 +194,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 {
 	struct dnet_io_control ctl;
 	unsigned int *ptr = data;
-	int first, last, err, num = 0;
+	int first, last, err;
 
 	ctl.aflags = 0;
 	ctl.complete = iotest_complete;
@@ -197,14 +222,18 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 		if (err < 0)
 			return err;
 
-		if (iotest_lookup_found < iotest_lookup_num) {
-			if (++num == 1000) {
-				err = dnet_lookup_object(n, ctl.io.id, iotest_lookup_complete, NULL);
-				if (err)
-					fprintf(stderr, "Failed to lookup a node for %s object.\n", dnet_dump_id(ctl.io.id));
-				num = 0;
-			}
+		iotest_started++;
+
+		if (iotest_lookup_found < iotest_lookup_num &&
+				iotest_lookup_pending < iotest_lookup_num) {
+			err = dnet_lookup_object(n, ctl.io.id, iotest_lookup_complete, NULL);
+			if (err)
+				fprintf(stderr, "Failed to lookup a node for %s object.\n",
+						dnet_dump_id(ctl.io.id));
+			iotest_lookup_pending++;
 		}
+
+		iotest_wait();
 
 		max -= size;
 		//ctl.io.offset += size;
@@ -287,6 +316,8 @@ static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned lon
 		if (err)
 			return err;
 
+		iotest_wait();
+
 		max -= size;
 	}
 
@@ -331,15 +362,16 @@ static int dnet_parse_numeric_id(char *value, unsigned char *id)
 
 static void *iotest_perf(void *log_private)
 {
-	struct timeval iotest_start;
 	long double speed;
-	struct timeval t;
+	struct timeval t, p;
 	long usec;
-	unsigned long long chunks_per_second, sends_per_second, recvs_per_second;
+	unsigned long long chunks_per_second, prev_completed, prev_bytes;
 	struct iotest_state *st;
 	char msg[512];
-
-	gettimeofday(&iotest_start, NULL);
+	
+	gettimeofday(&p, NULL);
+	prev_completed = 0;
+	prev_bytes = 0;
 
 	while (1) {
 		sleep(1);
@@ -349,23 +381,24 @@ static void *iotest_perf(void *log_private)
 		while (st) {
 			gettimeofday(&t, NULL);
 
-			usec = t.tv_usec - iotest_start.tv_usec;
-			usec += 1000000 * (t.tv_sec - iotest_start.tv_sec);
+			usec = t.tv_usec - p.tv_usec;
+			usec += 1000000 * (t.tv_sec - p.tv_sec);
 
 			if (usec == 0)
 				usec = 1;
-			speed = (double)st->bytes / (double)usec * 1000000 / (1024 * 1024);
-			chunks_per_second = (long double)st->completed / (long double)usec * 1000000;
-			sends_per_second = (long double)st->send_syscalls / (long double)usec * 1000000;
-			recvs_per_second = (long double)st->recv_syscalls / (long double)usec * 1000000;
+			speed = (double)(st->bytes - prev_bytes) / (double)usec * 1000000 / (1024 * 1024);
+			chunks_per_second = (long double)(st->completed - prev_completed) / (long double)usec * 1000000;
 
 			snprintf(msg, sizeof(msg), "%s:%s: bytes: %10llu | %8.3Lf MB/s, "
-					"chunks: %8llu | %7llu per sec, errors: %llu, send: %llu, recv: %llu\n",
+					"chunks: %8llu | %7llu per sec, errors: %llu, err: %d, addr: %s.\n",
 					st->cfg.addr, st->cfg.port,
 					st->bytes, speed, st->completed, chunks_per_second, st->errors,
-					sends_per_second, recvs_per_second);
+					st->error, dnet_server_convert_dnet_addr(&st->addr));
 			iotest_log(log_private, DNET_LOG_NOTICE, msg);
 
+			p = t;
+			prev_completed = st->completed;
+			prev_bytes = st->bytes;
 			st = st->next;
 		}
 	}
@@ -571,6 +604,13 @@ int main(int argc, char *argv[])
 	while (st) {
 		printf("%s:%s  %s\n", st->cfg.addr, st->cfg.port, dnet_dump_id(st->cfg.id));
 		st = st->next;
+	}
+
+	err = pipe(iotest_pipe);
+	if (err) {
+		err = -errno;
+		fprintf(stderr, "Failed to create a control pipe: %d.\n", err);
+		return err;
 	}
 
 	err = pthread_create(&tid, NULL, iotest_perf, cfg.log_private);
