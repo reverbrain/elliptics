@@ -18,6 +18,7 @@
 
 #include <dnet/typedefs.h>
 #include <stdio.h>
+#include <netinet/in.h>
 
 #ifdef __cplusplus
 extern "C" {
