@@ -62,6 +62,7 @@ static int bdb_get_record_size(void *state, struct bdb_entry *e, DB_TXN *txn,
 	DBT key, data;
 	int err;
 	uint32_t flags = 0;
+	DBC *cursor;
 
 	if (rmw)
 		flags = DB_RMW;
@@ -72,10 +73,15 @@ static int bdb_get_record_size(void *state, struct bdb_entry *e, DB_TXN *txn,
 	key.data = id;
 	key.size = DNET_ID_SIZE;
 
-	data.size = 0;
-	data.flags = DB_DBT_USERMEM;
+	err = e->db->cursor(e->db, txn, &cursor, DB_READ_UNCOMMITTED);
+	if (err) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to open list cursor, err: %d: %s.\n",
+				dnet_dump_id(id), err, db_strerror(err));
+		goto err_out_exit;
+	}
 
-	err = e->db->get(e->db, txn, &key, &data, flags);
+	err = cursor->c_get(cursor, &key, &data, DB_SET | DB_RMW);
 	if (err) {
 		if (err == DB_NOTFOUND) {
 			err = 0;
@@ -85,16 +91,26 @@ static int bdb_get_record_size(void *state, struct bdb_entry *e, DB_TXN *txn,
 					"%s: failed to get record size, err: %d: %s.\n",
 				dnet_dump_id(id), err, db_strerror(err));
 		}
-		goto err_out_exit;
+		goto err_out_close_cursor;
 	}
-	
+
 	dnet_command_handler_log(state, DNET_LOG_NOTICE, "%s: data size: %u, dlen: %u.\n",
 				dnet_dump_id(id), data.size, data.dlen);
 
 	*size = data.size;
 
+	err = cursor->c_close(cursor);
+	if (err) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to close list cursor: err: %d: %s.\n",
+				dnet_dump_id(id), err, db_strerror(err));
+		goto err_out_exit;
+	}
+
 	return 0;
 
+err_out_close_cursor:
+	cursor->c_close(cursor);
 err_out_exit:
 	return err;
 }
@@ -126,6 +142,7 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 	if (io->flags & DNET_IO_FLAGS_HISTORY)
 		e = be->hist;
 
+retry:
 	txn = NULL;
 	err = be->env->txn_begin(be->env, NULL, &txn, DB_READ_UNCOMMITTED);
 	if (err) {
@@ -138,8 +155,11 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 	size = io->size;
 	if ((io->size == 0) && (attr->size == sizeof(struct dnet_io_attr))) {
 		err = bdb_get_record_size(state, e, txn, io->id, &size, 0);
-		if (err)
+		if (err) {
+			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+				goto err_out_txn_abort_continue;
 			goto err_out_close_txn;
+		}
 	}
 
 	total_size = size;
@@ -173,6 +193,8 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 					"%s: allocated read failed offset: %u, "
 					"size: %u, err: %d: %s.\n", dnet_dump_id(io->id),
 					offset, size, err, db_strerror(err));
+				if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+					goto err_out_txn_abort_continue;
 				goto err_out_close_txn;
 			}
 
@@ -248,9 +270,11 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 		if (err) {
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
 				"%s: umem read failed offset: %u, "
-					"size: %llu, err: %d: %s.\n",
+					"size: %u, err: %d: %s.\n",
 					dnet_dump_id(io->id), offset, size,
 					err, db_strerror(err));
+			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+				goto err_out_txn_abort_continue;
 			goto err_out_close_txn;
 		}
 
@@ -267,6 +291,10 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 	}
 
 	return 0;
+
+err_out_txn_abort_continue:
+	txn->abort(txn);
+	goto retry;
 
 err_out_close_txn:
 	txn->abort(txn);
@@ -300,6 +328,7 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 	if (io->flags & DNET_IO_FLAGS_HISTORY)
 		e = be->hist;
 
+retry:
 	txn = NULL;
 	err = be->env->txn_begin(be->env, NULL, &txn, 0);
 	if (err) {
@@ -341,6 +370,9 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 				"size: %llu, err: %d: %s.\n",
 				dnet_dump_id(cmd->id), (unsigned long long)io->offset,
 				(unsigned long long)io->size, err, db_strerror(err));
+			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+				goto err_out_txn_abort_continue;
+
 			goto err_out_close_txn;
 		}
 
@@ -357,8 +389,11 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 		e = be->hist;
 
 		err = bdb_get_record_size(state, e, txn, cmd->id, &size, 1);
-		if (err)
+		if (err) {
+			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+				goto err_out_txn_abort_continue;
 			goto err_out_close_txn;
+		}
 
 		memset(&key, 0, sizeof(DBT));
 		memset(&data, 0, sizeof(DBT));
@@ -390,6 +425,8 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 				"size: %llu, err: %d: %s.\n",
 					dnet_dump_id(io->id), (unsigned long long)io->offset,
 					(unsigned long long)io->size, err, db_strerror(err));
+			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+				goto err_out_txn_abort_continue;
 			goto err_out_close_txn;
 		}
 
@@ -404,140 +441,22 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
 			"%s: failed to commit a write transaction: %d: %s.\n",
 				dnet_dump_id(cmd->id), err, db_strerror(err));
+		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+			goto err_out_txn_abort_continue;
+
 		goto err_out_exit;
 	}
 
 	return 0;
 
+err_out_txn_abort_continue:
+	txn->abort(txn);
+	goto retry;
+
 err_out_close_txn:
 	txn->abort(txn);
 err_out_exit:
 	return err;
-}
-
-static struct bdb_entry *bdb_backend_open(DB_ENV *env, char *dbfile)
-{
-	int err;
-	struct bdb_entry *e;
-	DB *db;
-
-	e = malloc(sizeof(struct bdb_entry));
-	if (!e)
-		goto err_out_exit;
-
-	err = db_create(&db, env, 0);
-	if (err) {
-		fprintf(stderr, "Failed to create new database instance, err: %d.\n", err);
-		goto err_out_free;
-	}
-
-	db->set_errcall(db, bdb_backend_error_handler);
-	db->set_errpfx(db, "bdb_backend");
-
-	err = db->open(db, NULL, dbfile, NULL, DB_BTREE, DB_CREATE | DB_AUTO_COMMIT |
-			DB_THREAD | DB_READ_UNCOMMITTED, 0);
-	if (err) {
-		db->err(db, err, "Failed to open '%s' database, err: %d", dbfile, err);
-		goto err_out_free;
-	}
-
-	e->db = db;
-
-	return e;
-
-err_out_free:
-	free(e);
-err_out_exit:
-	return NULL;
-}
-
-static void bdb_backend_close(struct bdb_entry *e)
-{
-	e->db->close(e->db, 0);
-	free(e);
-}
-
-void bdb_backend_exit(void *data)
-{
-	struct bdb_backend *be = data;
-
-	bdb_backend_close(be->data);
-	bdb_backend_close(be->hist);
-
-	be->env->close(be->env, 0);
-	free(be);
-}
-
-void *bdb_backend_init(char *env_dir, char *dbfile, char *histfile)
-{
-	int err;
-	DB_ENV *env;
-	struct bdb_backend *be;
-
-	be = malloc(sizeof(struct bdb_backend));
-	if (!be) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-	memset(be, 0, sizeof(struct bdb_backend));
-
-	err = db_env_create(&env, 0);
-	if (err) {
-		fprintf(stderr, "Failed to create new environment instance, err: %d.\n", err);
-		goto err_out_free;
-	}
-
-	/*
-	 * We can not use in-memory logging since we do not know the maximum size of the transaction.
-	 */
-#if 0
-	/* 
-	 * We want logging to be done in memory for performance.
-	 * In the perfect world this could be configured though.
-	 */
-	env->log_set_config(env, DB_LOG_IN_MEMORY, 1);
-#endif
-	/*
-	 * We do not need durable transaction, so we do not
-	 * want disk IO at transaction commit.
-	 * It shuold have no effect because of the in-memory logging though.
-	 */
-	env->set_flags(env, DB_TXN_NOSYNC, 1);
-
-	err = env->set_lg_bsize(env, 5 * DNET_MAX_READ_TRANS_SIZE);
-	if (err != 0) {
-		fprintf(stderr, "Error setting log buffer size: %s\n", db_strerror(err));
-		goto err_out_destroy_env;
-	}
-
-	err = env->open(env, env_dir, DB_CREATE | DB_INIT_MPOOL |
-			DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_THREAD, 0);
-	if (err) {
-		fprintf(stderr, "Failed to open '%s' environment instance, err: %d.\n", env_dir, err);
-		goto err_out_destroy_env;
-	}
-
-	be->data = bdb_backend_open(env, dbfile);
-	if (!be->data)
-		goto err_out_close_env;
-
-	be->hist = bdb_backend_open(env, histfile);
-	if (!be->hist)
-		goto err_out_close_db;
-
-	be->env = env;
-
-	return be;
-
-err_out_close_db:
-	be->data->db->close(be->data->db, 0);
-err_out_close_env:
-	env->close(env, 0);
-err_out_destroy_env:
-err_out_free:
-	free(be);
-err_out_exit:
-	return NULL;
 }
 
 static int dnet_send_list(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size)
@@ -697,6 +616,152 @@ err_out_free:
 	free(odata);
 err_out_exit:
 	return err;
+}
+
+static struct bdb_entry *bdb_backend_open(DB_ENV *env, char *dbfile)
+{
+	int err;
+	struct bdb_entry *e;
+	DB *db;
+
+	e = malloc(sizeof(struct bdb_entry));
+	if (!e)
+		goto err_out_exit;
+
+	err = db_create(&db, env, 0);
+	if (err) {
+		fprintf(stderr, "Failed to create new database instance, err: %d.\n", err);
+		goto err_out_free;
+	}
+
+	db->set_errcall(db, bdb_backend_error_handler);
+	db->set_errpfx(db, "bdb_backend");
+
+	err = db->open(db, NULL, dbfile, NULL, DB_BTREE, DB_CREATE | DB_AUTO_COMMIT |
+			DB_THREAD | DB_READ_UNCOMMITTED, 0);
+	if (err) {
+		db->err(db, err, "Failed to open '%s' database, err: %d", dbfile, err);
+		goto err_out_free;
+	}
+
+	e->db = db;
+
+	return e;
+
+err_out_free:
+	free(e);
+err_out_exit:
+	return NULL;
+}
+
+static void bdb_backend_close(struct bdb_entry *e)
+{
+	e->db->close(e->db, 0);
+	free(e);
+}
+
+void bdb_backend_exit(void *data)
+{
+	struct bdb_backend *be = data;
+
+	bdb_backend_close(be->data);
+	bdb_backend_close(be->hist);
+
+	be->env->close(be->env, 0);
+	free(be);
+}
+
+void *bdb_backend_init(char *env_dir, char *dbfile, char *histfile)
+{
+	int err;
+	DB_ENV *env;
+	struct bdb_backend *be;
+
+	be = malloc(sizeof(struct bdb_backend));
+	if (!be) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	memset(be, 0, sizeof(struct bdb_backend));
+
+	err = db_env_create(&env, 0);
+	if (err) {
+		fprintf(stderr, "Failed to create new environment instance, err: %d.\n", err);
+		goto err_out_free;
+	}
+
+	/*
+	 * We can not use in-memory logging since we do not know the maximum size of the transaction.
+	 */
+#if 0
+	/* 
+	 * We want logging to be done in memory for performance.
+	 * In the perfect world this could be configured though.
+	 */
+	env->log_set_config(env, DB_LOG_IN_MEMORY, 1);
+#endif
+	/*
+	 * We do not need durable transaction, so we do not
+	 * want disk IO at transaction commit.
+	 * It shuold have no effect because of the in-memory logging though.
+	 */
+	env->set_flags(env, DB_TXN_NOSYNC, 1);
+
+	err = env->set_lg_bsize(env, 5 * DNET_MAX_READ_TRANS_SIZE);
+	if (err != 0) {
+		fprintf(stderr, "Failed to set log buffer size: %s\n", db_strerror(err));
+		goto err_out_destroy_env;
+	}
+
+	err = env->set_lk_detect(env, DB_LOCK_MINWRITE);
+	if (err) {
+		fprintf(stderr, "Failed to set minimum write deadlock break method: %s.\n",
+				db_strerror(err));
+		goto err_out_destroy_env;
+	}
+
+	/*
+	 * Set lock timeout in microseconds.
+	 * It should fire on deadlocks observed with DB_RMW flag,
+	 * but also will signal about too long transactions.
+	 *
+	 * After it fires (put()/get() returns DB_LOCK_DEADLOCK or DB_LOCK_NOTGRANTED),
+	 * transaction is being destroyed and command restarted.
+	 */
+	err = env->set_timeout(env, 100000, DB_SET_TXN_TIMEOUT);
+	if (err) {
+		fprintf(stderr, "Failed to set transaction lock timeout: %s.\n", db_strerror(err));
+		goto err_out_destroy_env;
+	}
+
+	err = env->open(env, env_dir, DB_CREATE | DB_INIT_MPOOL |
+			DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_THREAD, 0);
+	if (err) {
+		fprintf(stderr, "Failed to open '%s' environment instance, err: %d.\n", env_dir, err);
+		goto err_out_destroy_env;
+	}
+
+	be->data = bdb_backend_open(env, dbfile);
+	if (!be->data)
+		goto err_out_close_env;
+
+	be->hist = bdb_backend_open(env, histfile);
+	if (!be->hist)
+		goto err_out_close_db;
+
+	be->env = env;
+
+	return be;
+
+err_out_close_db:
+	be->data->db->close(be->data->db, 0);
+err_out_close_env:
+	env->close(env, 0);
+err_out_destroy_env:
+err_out_free:
+	free(be);
+err_out_exit:
+	return NULL;
 }
 
 int bdb_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd,
