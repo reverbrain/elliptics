@@ -528,6 +528,10 @@ static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd)
 
 	stop = cmd->id[0];
 
+	err = dnet_id_cmp(cmd->id, id);
+	if (err <= 0)
+		end = 1;
+
 	txn = NULL;
 	err = be->env->txn_begin(be->env, NULL, &txn, DB_READ_UNCOMMITTED);
 	if (err) {
