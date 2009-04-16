@@ -871,10 +871,6 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 	st->n = n;
 	st->th = th;
 
-	err = dnet_signal_thread(st, DNET_THREAD_SCHEDULE);
-	if (err)
-		goto err_out_exit;
-
 	return 0;
 
 err_out_exit:
@@ -916,6 +912,10 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		goto err_out_snd_lock_destroy;
 	}
 
+	err = dnet_schedule_state(st);
+	if (err)
+		goto err_out_refcnt_lock_destroy;
+
 	st->join_state = DNET_CLIENT;
 	if (!id) {
 		pthread_spin_lock(&n->state_lock);
@@ -928,7 +928,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 			goto err_out_refcnt_lock_destroy;
 	}
 
-	err = dnet_schedule_state(st);
+	err = dnet_signal_thread(st, DNET_THREAD_SCHEDULE);
 	if (err)
 		goto err_out_state_remove;
 
