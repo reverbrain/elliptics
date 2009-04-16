@@ -34,11 +34,11 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
-#ifdef HAVE_BDB_SUPPORT
-#include <db.h>
-
 #include "dnet/packet.h"
 #include "dnet/interface.h"
+
+#ifdef HAVE_BDB_SUPPORT
+#include <db.h>
 
 static void bdb_backend_error_handler(const DB_ENV *env __unused, const char *prefix, const char *msg)
 {

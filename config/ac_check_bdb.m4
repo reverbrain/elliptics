@@ -20,12 +20,14 @@ AC_TRY_LINK([#include <db.h>],
 	[DB *db; db_create(&db, NULL, 0);],
 	[
 		AC_DEFINE(HAVE_BDB_SUPPORT, 1, [Define this if BerkeleyDB is installed])
-		AC_SUBST(BDB_LIBS)
-		AC_SUBST(BDB_CFLAGS)
 		AC_MSG_RESULT([yes])
 	], [
+		BDB_LIBS=""
+		BDB_CFLAGS=""
 		AC_MSG_RESULT([no])
 	])
 
+AC_SUBST(BDB_LIBS)
+AC_SUBST(BDB_CFLAGS)
 LIBS="$saved_LIBS"
 ])
