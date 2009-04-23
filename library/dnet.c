@@ -361,7 +361,8 @@ int dnet_process_cmd(struct dnet_trans *t)
 				err = dnet_cmd_route_list(st, cmd);
 				break;
 			case DNET_CMD_WRITE:
-				err = dnet_local_transform(st, cmd, a, data);
+				if (!(cmd->flags & DNET_FLAGS_NO_LOCAL_TRANSFORM))
+					err = dnet_local_transform(st, cmd, a, data);
 			default:
 				if (!n->command_handler)
 					err = -EINVAL;
