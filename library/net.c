@@ -918,9 +918,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	st->join_state = DNET_CLIENT;
 	if (!id) {
-		pthread_spin_lock(&n->state_lock);
+		pthread_rwlock_wrlock(&n->state_lock);
 		list_add_tail(&st->state_entry, &n->empty_state_list);
-		pthread_spin_unlock(&n->state_lock);
+		pthread_rwlock_unlock(&n->state_lock);
 	} else {
 		memcpy(st->id, id, DNET_ID_SIZE);
 		err = dnet_state_insert(st);

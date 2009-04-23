@@ -39,7 +39,7 @@ static int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *d
 	int err = 1;
 	struct dnet_transform *t;
 
-	pthread_spin_lock(&n->transform_lock);
+	pthread_rwlock_rdlock(&n->transform_lock);
 	list_for_each_entry(t, &n->transform_list, tentry) {
 		if (pos++ == *ppos) {
 			*ppos = pos;
@@ -56,7 +56,7 @@ static int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *d
 				break;
 		}
 	}
-	pthread_spin_unlock(&n->transform_lock);
+	pthread_rwlock_unlock(&n->transform_lock);
 
 	return err;
 }
@@ -173,7 +173,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *req
 	struct dnet_cmd *cmd = NULL;
 	struct dnet_attr *attr = NULL;
 
-	pthread_spin_lock(&n->state_lock);
+	pthread_rwlock_rdlock(&n->state_lock);
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		if (!space) {
 			unsigned int sz;
@@ -240,12 +240,12 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *req
 		if (err)
 			goto err_out_unlock;
 	}
-	pthread_spin_unlock(&n->state_lock);
+	pthread_rwlock_unlock(&n->state_lock);
 
 	return 0;
 
 err_out_unlock:
-	pthread_spin_unlock(&n->state_lock);
+	pthread_rwlock_unlock(&n->state_lock);
 	return err;
 }
 
@@ -679,7 +679,7 @@ int dnet_rejoin(struct dnet_node *n, int all)
 		return err;
 	}
 
-	pthread_spin_lock(&n->state_lock);
+	pthread_rwlock_rdlock(&n->state_lock);
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		if (st == n->st)
 			continue;
@@ -707,7 +707,7 @@ int dnet_rejoin(struct dnet_node *n, int all)
 
 		st->join_state = DNET_JOINED;
 	}
-	pthread_spin_unlock(&n->state_lock);
+	pthread_rwlock_unlock(&n->state_lock);
 
 	return err;
 }
@@ -1246,7 +1246,7 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 		goto err_out_exit;
 	}
 
-	pthread_spin_lock(&n->transform_lock);
+	pthread_rwlock_wrlock(&n->transform_lock);
 	list_for_each_entry(t, &n->transform_list, tentry) {
 		if (!strncmp(name, t->name, DNET_MAX_NAME_LEN)) {
 			err = -EEXIST;
@@ -1271,12 +1271,12 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	list_add_tail(&t->tentry, &n->transform_list);
 	n->transform_num++;
 
-	pthread_spin_unlock(&n->transform_lock);
+	pthread_rwlock_unlock(&n->transform_lock);
 
 	return 0;
 
 err_out_unlock:
-	pthread_spin_unlock(&n->transform_lock);
+	pthread_rwlock_unlock(&n->transform_lock);
 err_out_exit:
 	return err;
 }
@@ -1289,7 +1289,7 @@ int dnet_remove_transform(struct dnet_node *n, char *name)
 	if (!n)
 		return -EINVAL;
 
-	pthread_spin_lock(&n->transform_lock);
+	pthread_rwlock_wrlock(&n->transform_lock);
 	list_for_each_entry_safe(t, tmp, &n->transform_list, tentry) {
 		if (!strncmp(name, t->name, DNET_MAX_NAME_LEN)) {
 			err = 0;
@@ -1302,7 +1302,7 @@ int dnet_remove_transform(struct dnet_node *n, char *name)
 		list_del(&t->tentry);
 		free(t);
 	}
-	pthread_spin_unlock(&n->transform_lock);
+	pthread_rwlock_unlock(&n->transform_lock);
 
 	return err;
 }

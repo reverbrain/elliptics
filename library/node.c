@@ -42,7 +42,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	if (err)
 		goto err_out_free;
 
-	err = pthread_spin_init(&n->state_lock, 0);
+	err = pthread_rwlock_init(&n->state_lock, NULL);
 	if (err) {
 		dnet_log_err(n, "Failed to initialize state lock: err: %d", err);
 		goto err_out_free;
@@ -54,7 +54,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		goto err_out_destroy_state;
 	}
 
-	err = pthread_spin_init(&n->transform_lock, 0);
+	err = pthread_rwlock_init(&n->transform_lock, NULL);
 	if (err) {
 		dnet_log_err(n, "Failed to initialize transformation lock: err: %d", err);
 		goto err_out_destroy_trans;
@@ -82,11 +82,11 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 err_out_destroy_io_thread_lock:
 	pthread_spin_destroy(&n->io_thread_lock);
 err_out_destroy_transform_lock:
-	pthread_spin_destroy(&n->transform_lock);
+	pthread_rwlock_destroy(&n->transform_lock);
 err_out_destroy_trans:
 	pthread_spin_destroy(&n->trans_lock);
 err_out_destroy_state:
-	pthread_spin_destroy(&n->state_lock);
+	pthread_rwlock_destroy(&n->state_lock);
 err_out_free:
 	free(n);
 	return NULL;
@@ -96,10 +96,10 @@ void dnet_state_remove(struct dnet_net_state *st)
 {
 	struct dnet_node *n = st->n;
 
-	pthread_spin_lock(&n->state_lock);
+	pthread_rwlock_wrlock(&n->state_lock);
 	list_del(&st->state_entry);
 	INIT_LIST_HEAD(&st->state_entry);
-	pthread_spin_unlock(&n->state_lock);
+	pthread_rwlock_unlock(&n->state_lock);
 }
 
 int dnet_state_insert(struct dnet_net_state *new)
@@ -108,7 +108,7 @@ int dnet_state_insert(struct dnet_net_state *new)
 	struct dnet_net_state *st;
 	int err = 1;
 
-	pthread_spin_lock(&n->state_lock);
+	pthread_rwlock_wrlock(&n->state_lock);
 
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		err = dnet_id_cmp(st->id, new->id);
@@ -147,7 +147,7 @@ int dnet_state_insert(struct dnet_net_state *new)
 		}
 	}
 
-	pthread_spin_unlock(&n->state_lock);
+	pthread_rwlock_unlock(&n->state_lock);
 
 	if (!err)
 		err = -EEXIST;
@@ -186,9 +186,9 @@ struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id,
 {
 	struct dnet_net_state *st;
 
-	pthread_spin_lock(&n->state_lock);
+	pthread_rwlock_rdlock(&n->state_lock);
 	st = __dnet_state_search(n, id, self);
-	pthread_spin_unlock(&n->state_lock);
+	pthread_rwlock_unlock(&n->state_lock);
 
 	return st;
 }
@@ -198,7 +198,7 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *
 	struct dnet_net_state *st = NULL;
 	int err = 0;
 
-	pthread_spin_lock(&n->state_lock);
+	pthread_rwlock_rdlock(&n->state_lock);
 	st = __dnet_state_search(n, id, self);
 
 	if (!st) {
@@ -212,7 +212,7 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *
 			break;
 		}
 	}
-	pthread_spin_unlock(&n->state_lock);
+	pthread_rwlock_unlock(&n->state_lock);
 
 	if (err)
 		return NULL;
@@ -227,7 +227,7 @@ int dnet_state_get_range(void *state, unsigned char *req, unsigned char *id)
 	int err = -ENOENT;
 	char prev_id[64];
 
-	pthread_spin_lock(&n->state_lock);
+	pthread_rwlock_rdlock(&n->state_lock);
 	st = __dnet_state_search(n, req, st);
 	if (st) {
 		prev = list_entry(st->state_entry.prev, struct dnet_net_state, state_entry);
@@ -248,7 +248,7 @@ int dnet_state_get_range(void *state, unsigned char *req, unsigned char *id)
 		memcpy(id, prev->id, DNET_ID_SIZE);
 		err = 0;
 	}
-	pthread_spin_unlock(&n->state_lock);
+	pthread_rwlock_unlock(&n->state_lock);
 
 	return err;
 }
@@ -497,21 +497,21 @@ void dnet_node_destroy(struct dnet_node *n)
 	dnet_log(n, DNET_LOG_INFO, "%s: destroying node at %s.\n",
 			dnet_dump_id(n->id), dnet_dump_node(n));
 
-	pthread_spin_lock(&n->state_lock);
+	pthread_rwlock_wrlock(&n->state_lock);
 	list_for_each_entry_safe(st, tmp, &n->state_list, state_entry) {
 		list_del(&st->state_entry);
 
 		dnet_state_put(st);
 	}
-	pthread_spin_unlock(&n->state_lock);
+	pthread_rwlock_unlock(&n->state_lock);
 
 	dnet_stop_io_threads(n);
 
 	close(n->listen_socket);
 
-	pthread_spin_destroy(&n->state_lock);
+	pthread_rwlock_destroy(&n->state_lock);
 	pthread_spin_destroy(&n->trans_lock);
-	pthread_spin_destroy(&n->transform_lock);
+	pthread_rwlock_destroy(&n->transform_lock);
 
 	dnet_wait_put(n->wait);
 

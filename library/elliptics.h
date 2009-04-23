@@ -208,7 +208,7 @@ struct dnet_node
 {
 	unsigned char		id[DNET_ID_SIZE];
 
-	pthread_spinlock_t	transform_lock;
+	pthread_rwlock_t	transform_lock;
 	struct list_head	transform_list;
 	int			transform_num;
 
@@ -219,7 +219,7 @@ struct dnet_node
 	struct dnet_addr	addr;
 	int			sock_type, proto;
 
-	pthread_spinlock_t	state_lock;
+	pthread_rwlock_t	state_lock;
 	struct list_head	state_list;
 	struct list_head	empty_state_list;
 
