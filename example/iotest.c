@@ -196,6 +196,8 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 	unsigned int *ptr = data;
 	int first, last, err;
 
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
+
 	ctl.aflags = 0;
 	ctl.complete = iotest_complete;
 
@@ -203,6 +205,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 	ctl.io.size = size;
 	ctl.io.flags = DNET_IO_FLAGS_HISTORY_UPDATE | DNET_IO_FLAGS_OBJECT | DNET_IO_FLAGS_TRANS_ONLY;
 	ctl.cmd = DNET_CMD_WRITE;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
 
 	ctl.data = data;
 	ctl.fd = -1;
@@ -252,6 +255,8 @@ static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned lon
 	struct stat st;
 	size_t  num;
 
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
+
 	err = dnet_read_file(n, obj, 0, 0, 1);
 	if (err)
 		return err;
@@ -283,6 +288,7 @@ static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned lon
 	ctl.complete = iotest_complete;
 
 	ctl.cmd = DNET_CMD_READ;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
 
 	ctl.data = data;
 	ctl.fd = -1;
