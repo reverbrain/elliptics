@@ -361,8 +361,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 				err = dnet_cmd_route_list(st, cmd);
 				break;
 			case DNET_CMD_WRITE:
-				if (!(cmd->flags & DNET_FLAGS_NO_LOCAL_TRANSFORM))
-					err = dnet_local_transform(st, cmd, a, data);
+				err = dnet_local_transform(st, cmd, a, data);
 			default:
 				if (!n->command_handler)
 					err = -EINVAL;
@@ -840,9 +839,16 @@ static int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *c
 	int err;
 
 	if (ctl->cflags & DNET_FLAGS_NO_LOCAL_TRANSFORM) {
+		int local;
+
 		st = dnet_state_get_first(n, ctl->addr, NULL);
 
-		if (st == n->st)
+		local = (!st || st == n->st);
+
+		dnet_log(n, DNET_LOG_INFO, "%s: server-side replica -> %s.\n",
+				dnet_dump_id(ctl->addr),
+				(!local) ? dnet_server_convert_dnet_addr(&st->addr) : "local");
+		if (local)
 			return 0;
 	}
 
