@@ -39,7 +39,7 @@ struct dnet_openssl_crypto_engine
 	const EVP_MD		*evp_md;
 };
 
-static int dnet_openssl_digest_init(void *priv)
+static int dnet_openssl_digest_init(void *priv, struct dnet_node *n __attribute__ ((unused)))
 {
 	struct dnet_crypto_engine *eng = priv;
 	struct dnet_openssl_crypto_engine *e = eng->engine;
@@ -59,8 +59,8 @@ static int dnet_openssl_digest_update(void *priv, void *src, uint64_t size,
 	return 0;
 }
 
-static int dnet_openssl_digest_final(void *priv, void *result, unsigned int *rsize,
-		unsigned int flags __unused)
+static int dnet_openssl_digest_final(void *priv, void *result, void *addr,
+		unsigned int *rsize, unsigned int flags __unused)
 {
 	struct dnet_crypto_engine *eng = priv;
 	struct dnet_openssl_crypto_engine *e = eng->engine;
@@ -70,6 +70,8 @@ static int dnet_openssl_digest_final(void *priv, void *result, unsigned int *rsi
 
 	if (*rsize < rs)
 		memset(result + *rsize, 0, rs - *rsize);
+
+	memcpy(addr, result, *rsize);
 	EVP_MD_CTX_cleanup(&e->mdctx);
 	return 0;
 }
@@ -115,7 +117,7 @@ struct dnet_jhash_engine
 	uint32_t		initval;
 };
 
-static int dnet_jhash_init(void *priv)
+static int dnet_jhash_init(void *priv, struct dnet_node *n __attribute__ ((unused)))
 {
 	struct dnet_crypto_engine *eng = priv;
 	struct dnet_jhash_engine *e = eng->engine;
@@ -146,8 +148,8 @@ static int dnet_jhash_update(void *priv, void *src, uint64_t size,
 	return 0;
 }
 
-static int dnet_jhash_final(void *priv, void *result, unsigned int *rsize,
-		unsigned int flags __unused)
+static int dnet_jhash_final(void *priv, void *result, void *addr,
+		unsigned int *rsize, unsigned int flags __unused)
 {
 	struct dnet_crypto_engine *eng = priv;
 	struct dnet_jhash_engine *e = eng->engine;
@@ -159,6 +161,7 @@ static int dnet_jhash_final(void *priv, void *result, unsigned int *rsize,
 		sz = sizeof(e->initval);
 
 	memcpy(result, &e->initval, sz);
+	memcpy(addr, result, *rsize);
 	return 0;
 }
 

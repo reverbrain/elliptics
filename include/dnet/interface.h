@@ -56,7 +56,9 @@ struct dnet_node;
 
 struct dnet_io_control
 {
-	unsigned char			id[DNET_ID_SIZE];
+	/* Used as cmd->id address */
+	unsigned char			addr[DNET_ID_SIZE];
+
 	struct dnet_io_attr		io;
 	int 				(* complete)(struct dnet_net_state *st, struct dnet_cmd *cmd,
 							struct dnet_attr *attr, void *priv);
@@ -66,7 +68,9 @@ struct dnet_io_control
 
 	unsigned int			aflags;
 	int				fd;
+
 	unsigned int			cmd;
+	unsigned int			cflags;
 };
 
 /*
@@ -259,10 +263,11 @@ static inline char *dnet_state_dump_addr(struct dnet_net_state *st)
  * between init and final ones.
  */
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
-	int (* init)(void *priv),
+	int (* init)(void *priv, struct dnet_node *n),
 	int (* update)(void *priv, void *src, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags),
-	int (* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags));
+	int (* final)(void *priv, void *dst, void *addr,
+		unsigned int *dsize, unsigned int flags));
 int dnet_remove_transform(struct dnet_node *n, char *name);
 
 /*

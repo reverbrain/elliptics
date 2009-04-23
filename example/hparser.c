@@ -33,13 +33,13 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
-static int hparser_region_match(struct dnet_io_attr *io,
+static int hparser_region_match(struct dnet_history_entry *e,
 		unsigned long long offset, unsigned long long size)
 {
-	if ((io->offset > offset) && (io->offset < offset + size))
+	if ((e->offset > offset) && (e->offset < offset + size))
 		return 1;
 
-	if ((io->offset < offset) && (io->offset + io->size > offset))
+	if ((e->offset < offset) && (e->offset + e->size > offset))
 		return 1;
 
 	return 0;
@@ -57,13 +57,14 @@ static void hparser_usage(const char *p)
 
 int main(int argc, char *argv[])
 {
-	struct dnet_io_attr *ios;
+	struct dnet_history_entry *entries;
 	ssize_t i, num;
 	int err, fd, ch;
 	char *file = NULL;
 	void *data;
 	struct stat st;
 	unsigned long long offset, size;
+	unsigned int isize = sizeof(struct dnet_history_entry);
 
 	size = offset = 0;
 
@@ -104,9 +105,9 @@ int main(int argc, char *argv[])
 		goto err_out_close;
 	}
 
-	if (!st.st_size || (st.st_size % sizeof(struct dnet_io_attr))) {
+	if (!st.st_size || (st.st_size % isize)) {
 		fprintf(stderr, "Corrupted history file '%s', its size %llu has to be modulo of %zu.\n",
-				file, (unsigned long long)st.st_size, sizeof(struct dnet_io_attr));
+				file, (unsigned long long)st.st_size, isize);
 		err = -EINVAL;
 		goto err_out_close;
 	}
@@ -119,20 +120,20 @@ int main(int argc, char *argv[])
 		goto err_out_close;
 	}
 
-	ios = data;
-	num = st.st_size / sizeof(struct dnet_io_attr);
+	entries = data;
+	num = st.st_size / isize;
 
 	printf("%s: objects: %zd, range: %llu-%llu, counting from the most recent.\n",
 			file, num, offset, offset+size);
 	for (i=num-1; i>=0; --i) {
-		struct dnet_io_attr io = ios[i];
+		struct dnet_history_entry e = entries[i];
 
-		dnet_convert_io_attr(&io);
+		dnet_convert_history_entry(&e);
 
 		printf("%s: flags: %08x, offset: %8llu, size: %8llu: %c\n",
-			dnet_dump_id(io.id), io.flags,
-			(unsigned long long)io.offset, (unsigned long long)io.size,
-			hparser_region_match(&io, offset, size) ? '+' : '-');
+			dnet_dump_id(e.id), e.flags,
+			(unsigned long long)e.offset, (unsigned long long)e.size,
+			hparser_region_match(&e, offset, size) ? '+' : '-');
 	}
 
 	munmap(data, st.st_size);

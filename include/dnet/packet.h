@@ -67,6 +67,9 @@ enum dnet_commands {
 /* Do not forward requst to antoher node even if given ID does not belong to our range */
 #define DNET_FLAGS_DIRECT		(1<<3)
 
+/* Do not perform local transformation of the received transaction */
+#define DNET_FLAGS_NO_LOCAL_TRANSFORM	(1<<4)
+
 struct dnet_cmd
 {
 	uint8_t			id[DNET_ID_SIZE];
@@ -190,6 +193,7 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 
 struct dnet_io_attr
 {
+	uint8_t			origin[DNET_ID_SIZE];
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		flags;
 	uint64_t		offset;
@@ -197,6 +201,21 @@ struct dnet_io_attr
 } __attribute__ ((packed));
 
 static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
+{
+	a->flags = dnet_bswap32(a->flags);
+	a->offset = dnet_bswap64(a->offset);
+	a->size = dnet_bswap64(a->size);
+}
+
+struct dnet_history_entry
+{
+	uint8_t			id[DNET_ID_SIZE];
+	uint32_t		flags;
+	uint64_t		offset;
+	uint64_t		size;
+} __attribute__ ((packed));
+
+static inline void dnet_convert_history_entry(struct dnet_history_entry *a)
 {
 	a->flags = dnet_bswap32(a->flags);
 	a->offset = dnet_bswap64(a->offset);

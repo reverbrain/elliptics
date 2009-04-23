@@ -59,8 +59,7 @@ static int dnet_compare_history(struct dnet_node *n, struct dnet_cmd *cmd, struc
 		goto out;
 	}
 
-	err = memcmp(rio->id, lio->id, DNET_ID_SIZE);
-	if (err) {
+	if (!memcmp(rio->origin, lio->origin, DNET_ID_SIZE) && !memcmp(rio->id, lio->id, DNET_ID_SIZE)) {
 		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: local : %s", dnet_dump_id(lio->id));
 		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: remote: %s", dnet_dump_id(rio->id));
 		err = -EINVAL;
@@ -196,7 +195,7 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 	io->size = attr->size - sizeof(struct dnet_io_attr);
 	io->offset = 0;
 	io->flags = DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_OBJECT;
-	memcpy(io->id, cmd->id, DNET_ID_SIZE);
+	memcpy(io->origin, cmd->id, DNET_ID_SIZE);
 	
 	dnet_log(n, DNET_LOG_INFO, "%s: reading local history: io_size: %llu.\n",
 					dnet_dump_id(cmd->id), (unsigned long long)io->size);
@@ -221,8 +220,8 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 
 		memset(&ctl, 0, sizeof(struct dnet_io_control));
 
-		memcpy(ctl.id, cmd->id, DNET_ID_SIZE);
-		memcpy(ctl.io.id, cmd->id, DNET_ID_SIZE);
+		memcpy(ctl.addr, cmd->id, DNET_ID_SIZE);
+		memcpy(ctl.io.origin, cmd->id, DNET_ID_SIZE);
 
 		ctl.io.size = 0;
 		ctl.io.offset = 0;
@@ -306,10 +305,10 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	n->wait->cond += size / DNET_ID_SIZE;
 
 	for (i=0; i<size / DNET_ID_SIZE; ++i) {
-		memcpy(ctl.id, data, DNET_ID_SIZE);
-		memcpy(ctl.io.id, data, DNET_ID_SIZE);
+		memcpy(ctl.addr, data, DNET_ID_SIZE);
+		memcpy(ctl.io.origin, data, DNET_ID_SIZE);
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: requesting history.\n", dnet_dump_id(ctl.id));
+		dnet_log(n, DNET_LOG_NOTICE, "%s: requesting history.\n", dnet_dump_id(ctl.addr));
 
 		dnet_wait_get(n->wait);
 		dnet_read_object(n, &ctl);

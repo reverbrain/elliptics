@@ -22,15 +22,18 @@ extern "C" {
 
 #include "dnet/core.h"
 
+struct dnet_node;
+
 struct dnet_crypto_engine
 {
 	char			name[DNET_MAX_NAME_LEN];
 
 	void			*engine;
-	int			(* init)(void *priv);
+	int			(* init)(void *priv, struct dnet_node *n);
 	int			(* update)(void *priv, void *src, uint64_t size,
 					void *dst, unsigned int *dsize, unsigned int flags);
-	int			( *final)(void *priv, void *result, unsigned int *rsize, unsigned int flags);
+	int			( *final)(void *priv, void *result, void *addr,
+					unsigned int *rsize, unsigned int flags);
 };
 
 int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash);

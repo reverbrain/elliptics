@@ -352,10 +352,11 @@ struct dnet_transform
 
 	void			*priv;
 
-	int			(* init)(void *priv);
+	int			(* init)(void *priv, struct dnet_node *n);
 	int 			(* update)(void *priv, void *src, uint64_t size,
 					void *dst, unsigned int *dsize, unsigned int flags);
-	int 			(* final)(void *priv, void *dst, unsigned int *dsize, unsigned int flags);
+	int 			(* final)(void *priv, void *dst, void *addr,
+					unsigned int *dsize, unsigned int flags);
 };
 
 enum dnet_thread_cmd {

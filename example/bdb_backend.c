@@ -154,7 +154,7 @@ retry:
 
 	size = io->size;
 	if ((io->size == 0) && (attr->size == sizeof(struct dnet_io_attr))) {
-		err = bdb_get_record_size(state, e, txn, io->id, &size, 0);
+		err = bdb_get_record_size(state, e, txn, io->origin, &size, 0);
 		if (err) {
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
@@ -179,7 +179,7 @@ retry:
 			memset(&key, 0, sizeof(DBT));
 			memset(&data, 0, sizeof(DBT));
 
-			key.data = io->id;
+			key.data = io->origin;
 			key.size = DNET_ID_SIZE;
 
 			data.size = size;
@@ -191,7 +191,7 @@ retry:
 			if (err) {
 				dnet_command_handler_log(state, DNET_LOG_ERROR,
 					"%s: allocated read failed offset: %u, "
-					"size: %u, err: %d: %s.\n", dnet_dump_id(io->id),
+					"size: %u, err: %d: %s.\n", dnet_dump_id(io->origin),
 					offset, size, err, db_strerror(err));
 				if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 					goto err_out_txn_abort_continue;
@@ -204,7 +204,7 @@ retry:
 				err = -ENOMEM;
 				dnet_command_handler_log(state, DNET_LOG_ERROR,
 					"%s: failed to allocate reply attributes.\n",
-					dnet_dump_id(io->id));
+					dnet_dump_id(io->origin));
 				goto err_out_close_txn;
 			}
 
@@ -214,12 +214,12 @@ retry:
 			a = (struct dnet_attr *)(c + 1);
 			rio = (struct dnet_io_attr *)(a + 1);
 
-			memcpy(c->id, io->id, DNET_ID_SIZE);
-			memcpy(rio->id, io->id, DNET_ID_SIZE);
+			memcpy(c->id, io->origin, DNET_ID_SIZE);
+			memcpy(rio->origin, io->origin, DNET_ID_SIZE);
 		
 			dnet_command_handler_log(state, DNET_LOG_NOTICE,
 				"%s: read reply offset: %u, size: %u.\n",
-				dnet_dump_id(io->id), offset, size);
+				dnet_dump_id(io->origin), offset, size);
 
 			if (total_size <= DNET_MAX_READ_TRANS_SIZE) {
 				if (cmd->flags & DNET_FLAGS_NEED_ACK)
@@ -256,7 +256,7 @@ retry:
 		memset(&key, 0, sizeof(DBT));
 		memset(&data, 0, sizeof(DBT));
 
-		key.data = io->id;
+		key.data = io->origin;
 		key.size = DNET_ID_SIZE;
 
 		data.data = buf;
@@ -271,7 +271,7 @@ retry:
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
 				"%s: umem read failed offset: %u, "
 					"size: %u, err: %d: %s.\n",
-					dnet_dump_id(io->id), offset, size,
+					dnet_dump_id(io->origin), offset, size,
 					err, db_strerror(err));
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
@@ -353,7 +353,7 @@ retry:
 		memset(&key, 0, sizeof(DBT));
 		memset(&data, 0, sizeof(DBT));
 
-		key.data = cmd->id;
+		key.data = io->origin;
 		key.size = DNET_ID_SIZE;
 
 		data.data = buf;
@@ -368,7 +368,7 @@ retry:
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
 				"%s: object put failed: offset: %llu, "
 				"size: %llu, err: %d: %s.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)io->offset,
+				dnet_dump_id(io->origin), (unsigned long long)io->offset,
 				(unsigned long long)io->size, err, db_strerror(err));
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
@@ -378,7 +378,7 @@ retry:
 
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
 			"%s: stored %s object: size: %llu, offset: %llu.\n",
-				dnet_dump_id(cmd->id),
+				dnet_dump_id(io->origin),
 				(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
 				(unsigned long long)io->size, (unsigned long long)io->offset);
 	}
@@ -388,7 +388,7 @@ retry:
 
 		e = be->hist;
 
-		err = bdb_get_record_size(state, e, txn, cmd->id, &size, 1);
+		err = bdb_get_record_size(state, e, txn, io->origin, &size, 1);
 		if (err) {
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
@@ -398,7 +398,7 @@ retry:
 		memset(&key, 0, sizeof(DBT));
 		memset(&data, 0, sizeof(DBT));
 
-		key.data = cmd->id;
+		key.data = io->origin;
 		key.size = DNET_ID_SIZE;
 
 		data.data = io;
@@ -410,7 +410,7 @@ retry:
 
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
 			"%s: updating history: size: %llu, offset: %llu.\n",
-				dnet_dump_id(io->id), (unsigned long long)io->size,
+				dnet_dump_id(io->origin), (unsigned long long)io->size,
 				(unsigned long long)io->offset);
 
 		dnet_convert_io_attr(io);
@@ -423,7 +423,7 @@ retry:
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
 				"%s: history update failed offset: %llu, "
 				"size: %llu, err: %d: %s.\n",
-					dnet_dump_id(io->id), (unsigned long long)io->offset,
+					dnet_dump_id(io->origin), (unsigned long long)io->offset,
 					(unsigned long long)io->size, err, db_strerror(err));
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
@@ -432,7 +432,7 @@ retry:
 
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
 			"%s: history updated: size: %llu, offset: %llu.\n",
-				dnet_dump_id(io->id), (unsigned long long)io->size,
+				dnet_dump_id(io->origin), (unsigned long long)io->size,
 				(unsigned long long)io->offset);
 	}
 

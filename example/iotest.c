@@ -301,7 +301,7 @@ static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned lon
 						dnet_dump_id(ctl.io.id));
 		}
 
-		memcpy(ctl.id, ctl.io.id, DNET_ID_SIZE);
+		memcpy(ctl.addr, ctl.io.id, DNET_ID_SIZE);
 		ctl.io.flags = 0;
 
 		if (size > max)
