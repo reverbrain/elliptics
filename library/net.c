@@ -440,7 +440,7 @@ static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *
 			if (err)
 				goto err_out_destroy;
 		} else {
-			t->st = dnet_state_search(n, st->rcv_cmd.id, NULL);
+			t->st = dnet_state_get_first(n, st->rcv_cmd.id, NULL);
 
 			if (!t->st || t->st == st || t->st == n->st ||
 					(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {
