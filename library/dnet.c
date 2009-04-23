@@ -849,6 +849,7 @@ static int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *c
 		dnet_log(n, DNET_LOG_INFO, "%s: server-side replica -> %s.\n",
 				dnet_dump_id(ctl->addr),
 				(!local) ? dnet_server_convert_dnet_addr(&st->addr) : "local");
+		dnet_state_put(st);
 		if (local)
 			return 0;
 	}
