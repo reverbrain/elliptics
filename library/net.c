@@ -842,7 +842,7 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 	struct dnet_io_thread *t, *th = NULL;
 	int pos = 0, err;
 
-	pthread_spin_lock(&n->io_thread_lock);
+	pthread_rwlock_rdlock(&n->io_thread_lock);
 	list_for_each_entry(t, &n->io_thread_list, thread_entry) {
 		if (pos == n->io_thread_pos) {
 			n->io_thread_pos++;
@@ -854,7 +854,7 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 		pos++;
 		pos %= n->io_thread_num;
 	}
-	pthread_spin_unlock(&n->io_thread_lock);
+	pthread_rwlock_unlock(&n->io_thread_lock);
 
 	if (!th) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: can not find IO thread.\n",

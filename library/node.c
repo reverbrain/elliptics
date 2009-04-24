@@ -60,7 +60,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		goto err_out_destroy_trans;
 	}
 	
-	err = pthread_spin_init(&n->io_thread_lock, 0);
+	err = pthread_rwlock_init(&n->io_thread_lock, NULL);
 	if (err) {
 		dnet_log_err(n, "Failed to initialize IO thread lock: err: %d", err);
 		goto err_out_destroy_transform_lock;
@@ -80,7 +80,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	return n;
 
 err_out_destroy_io_thread_lock:
-	pthread_spin_destroy(&n->io_thread_lock);
+	pthread_rwlock_destroy(&n->io_thread_lock);
 err_out_destroy_transform_lock:
 	pthread_rwlock_destroy(&n->transform_lock);
 err_out_destroy_trans:
@@ -395,9 +395,9 @@ static int dnet_start_io_threads(struct dnet_node *n)
 			goto err_out_free_base;
 		}
 
-		pthread_spin_lock(&n->io_thread_lock);
+		pthread_rwlock_wrlock(&n->io_thread_lock);
 		list_add_tail(&t->thread_entry, &n->io_thread_list);
-		pthread_spin_unlock(&n->io_thread_lock);
+		pthread_rwlock_unlock(&n->io_thread_lock);
 	}
 
 	return 0;
