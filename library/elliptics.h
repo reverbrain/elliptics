@@ -80,7 +80,7 @@ struct dnet_net_state
 	struct dnet_node	*n;
 	long			timeout;
 
-	pthread_spinlock_t		refcnt_lock;
+	pthread_spinlock_t	refcnt_lock;
 	int			refcnt;
 	int			s;
 
@@ -99,7 +99,7 @@ struct dnet_net_state
 	struct dnet_trans	*rcv_trans;
 	
 	struct list_head	snd_list;
-	pthread_spinlock_t		snd_lock;
+	pthread_spinlock_t	snd_lock;
 	off_t			snd_offset;
 	size_t			snd_size;
 

@@ -302,7 +302,6 @@ static void dnet_dummy_pipe_read(int s, short event, void *arg)
 	return;
 }
 
-
 static void *dnet_io_thread_process(void *data)
 {
 	struct dnet_io_thread *t = data;
