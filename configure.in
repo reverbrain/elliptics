@@ -28,6 +28,7 @@ AC_ID_SIZE
 AC_CHECK_SENDFILE
 AC_CHECK_LIBEVENT
 AC_CHECK_BDB
+AC_CHECK_ATOMIC
 
 AC_CONFIG_FILES([Makefile include/Makefile include/dnet/Makefile
 	library/Makefile example/Makefile])

@@ -892,7 +892,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 	st->timeout = n->wait_ts.tv_sec * 1000;
 	st->s = s;
 	st->n = n;
-	st->refcnt = 1;
+
+	atomic_set(&st->refcnt, 1);
 
 	INIT_LIST_HEAD(&st->snd_list);
 
@@ -905,16 +906,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		goto err_out_state_free;
 	}
 
-	err = pthread_spin_init(&st->refcnt_lock, 0);
-	if (err) {
-		dnet_log_err(n, "%s: failed to initialize state refcnt lock: err: %d",
-				dnet_dump_id(st->id), err);
-		goto err_out_snd_lock_destroy;
-	}
-
 	err = dnet_schedule_state(st);
 	if (err)
-		goto err_out_refcnt_lock_destroy;
+		goto err_out_snd_lock_destroy;
 
 	st->join_state = DNET_CLIENT;
 	if (!id) {
@@ -925,7 +919,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		memcpy(st->id, id, DNET_ID_SIZE);
 		err = dnet_state_insert(st);
 		if (err)
-			goto err_out_refcnt_lock_destroy;
+			goto err_out_snd_lock_destroy;
 	}
 
 	err = dnet_signal_thread(st, DNET_THREAD_SCHEDULE);
@@ -936,8 +930,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 err_out_state_remove:
 	dnet_state_remove(st);
-err_out_refcnt_lock_destroy:
-	pthread_spin_destroy(&st->refcnt_lock);
 err_out_snd_lock_destroy:
 	pthread_spin_destroy(&st->snd_lock);
 err_out_state_free:
@@ -1023,19 +1015,10 @@ err_out_unlock:
 
 void dnet_state_put(struct dnet_net_state *st)
 {
-	int destroy = 0;
-
 	if (!st)
 		return;
-	
-	pthread_spin_lock(&st->refcnt_lock);
-	st->refcnt--;
 
-	if (st->refcnt == 0)
-		destroy = 1;
-	pthread_spin_unlock(&st->refcnt_lock);
-
-	if (!destroy)
+	if (!atomic_dec_and_test(&st->refcnt))
 		return;
 
 	dnet_state_remove(st);
@@ -1046,7 +1029,6 @@ void dnet_state_put(struct dnet_net_state *st)
 		close(st->s);
 
 	pthread_spin_destroy(&st->snd_lock);
-	pthread_spin_destroy(&st->refcnt_lock);
 
 	dnet_log(st->n, DNET_LOG_ERROR, "%s: freeing state %s.\n", dnet_dump_id(st->id),
 		dnet_server_convert_dnet_addr(&st->addr));

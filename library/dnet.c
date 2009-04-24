@@ -1409,7 +1409,7 @@ struct dnet_wait *dnet_wait_alloc(int cond)
 		goto err_out_destroy;
 
 	w->cond = cond;
-	w->refcnt = 1;
+	atomic_set(&w->refcnt, 1);
 
 	return w;
 
@@ -1421,10 +1421,8 @@ err_out_exit:
 
 void dnet_wait_destroy(struct dnet_wait *w)
 {
-	if (w->refcnt == 0) {
-		pthread_mutex_destroy(&w->wait_lock);
-		pthread_cond_destroy(&w->wait);
-	}
+	pthread_mutex_destroy(&w->wait_lock);
+	pthread_cond_destroy(&w->wait);
 }
 
 static void __dnet_send_cmd_complete(struct dnet_wait *w, int status)

@@ -37,6 +37,8 @@ typedef unsigned short u_short;
 
 #include "list.h"
 #include "rbtree.h"
+#include "atomic.h"
+
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
@@ -80,8 +82,7 @@ struct dnet_net_state
 	struct dnet_node	*n;
 	long			timeout;
 
-	pthread_spinlock_t	refcnt_lock;
-	int			refcnt;
+	atomic_t		refcnt;
 	int			s;
 
 	int			join_state;
@@ -122,10 +123,7 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 {
-	pthread_spin_lock(&st->refcnt_lock);
-	st->refcnt++;
-	pthread_spin_unlock(&st->refcnt_lock);
-
+	atomic_inc(&st->refcnt);
 	return st;
 }
 void dnet_state_put(struct dnet_net_state *st);
@@ -137,7 +135,7 @@ struct dnet_wait
 	int			cond;
 	int			status;
 
-	int			refcnt;
+	atomic_t		refcnt;
 };
 
 #define dnet_wait_event(w, condition, wts)						\
@@ -168,23 +166,13 @@ void dnet_wait_destroy(struct dnet_wait *w);
 
 static inline struct dnet_wait *dnet_wait_get(struct dnet_wait *w)
 {
-	pthread_mutex_lock(&w->wait_lock);
-	w->refcnt++;
-	pthread_mutex_unlock(&w->wait_lock);
-
+	atomic_inc(&w->refcnt);
 	return w;
 }
 
 static inline void dnet_wait_put(struct dnet_wait *w)
 {
-	int freeing = 0;
-
-	pthread_mutex_lock(&w->wait_lock);
-	w->refcnt--;
-	freeing = !!w->refcnt;
-	pthread_mutex_unlock(&w->wait_lock);
-
-	if (freeing)
+	if (atomic_dec_and_test(&w->refcnt))
 		dnet_wait_destroy(w);
 }
 
