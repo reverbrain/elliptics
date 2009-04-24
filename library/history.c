@@ -350,8 +350,6 @@ int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st)
 		goto err_out_put;
 	}
 
-	memset(t, 0, sizeof(struct dnet_trans));
-
 	t->complete = dnet_recv_list_complete;
 
 	cmd = (struct dnet_cmd *)(t + 1);
