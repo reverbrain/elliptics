@@ -249,12 +249,21 @@ err_out_unlock:
 	return err;
 }
 
+static int dnet_local_transform_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
+					struct dnet_attr *attr __unused, void *priv)
+{
+	if (!st || !cmd || !(cmd->flags & DNET_FLAGS_MORE))
+		free(priv);
+	return 0;
+}
+
 static int dnet_local_transform(struct dnet_net_state *orig, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+		struct dnet_attr *attr, void *odata)
 {
 	struct dnet_node *n = orig->n;
 	struct dnet_io_control ctl;
 	int err;
+	void *data;
 
 	if (attr->size <= sizeof(struct dnet_io_attr)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: wrong write attribute, size does not match "
@@ -266,8 +275,8 @@ static int dnet_local_transform(struct dnet_net_state *orig, struct dnet_cmd *cm
 	}
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
-	memcpy(&ctl.io, data, sizeof(struct dnet_io_attr));
-	data += sizeof(struct dnet_io_attr);
+	memcpy(&ctl.io, odata, sizeof(struct dnet_io_attr));
+	odata += sizeof(struct dnet_io_attr);
 
 	dnet_convert_io_attr(&ctl.io);
 
@@ -280,12 +289,22 @@ static int dnet_local_transform(struct dnet_net_state *orig, struct dnet_cmd *cm
 		goto err_out_exit;
 	}
 
+	data = malloc(ctl.io.size);
+	if (!data) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to clone data (%llu bytes) for replication.\n",
+				dnet_dump_id(cmd->id), ctl.io.size);
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memcpy(data, odata, ctl.io.size);
+
 	ctl.aflags = attr->flags;
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NO_LOCAL_TRANSFORM;
 
-	ctl.complete = NULL;
-	ctl.priv = NULL;
+	ctl.complete = dnet_local_transform_complete;
+	ctl.priv = data;
 
 	ctl.data = data;
 	ctl.fd = -1;
@@ -297,6 +316,7 @@ static int dnet_local_transform(struct dnet_net_state *orig, struct dnet_cmd *cm
 err_out_exit:
 	return err;
 }
+
 
 int dnet_process_cmd(struct dnet_trans *t)
 {
