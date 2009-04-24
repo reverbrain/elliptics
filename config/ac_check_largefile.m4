@@ -1,12 +1,10 @@
 AC_DEFUN([AC_CHECK_LARGEFILE],[
 AC_MSG_CHECKING([whether O_LARGEFILE is supported])
-AC_CACHE_VAL([ac_largefile_supported],[
-	AC_TRY_LINK([#include <fcntl.h>
-		#include <sys/stat.h>],
-		[int fd = open(".", O_RDONLY | O_LARGEFILE);],
-		[ac_largefile_supported=yes],
-		[ac_largefile_supported=no])
-])
+AC_TRY_LINK([#include <fcntl.h>
+	#include <sys/stat.h>],
+	[int fd = open(".", O_RDONLY | O_LARGEFILE);],
+	[ac_largefile_supported=yes],
+	[ac_largefile_supported=no])
 
 AC_MSG_RESULT([$ac_largefile_supported])
 
