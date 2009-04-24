@@ -369,6 +369,19 @@ void dnet_req_destroy(struct dnet_data_req *r);
 
 int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r);
 
+struct dnet_transform_complete
+{
+	void				*priv;
+	void				(* callback)(struct dnet_transform_complete *t,
+							char *name);
+};
+
+/*
+ * Receive list of server-side transformation functions.
+ */
+int dnet_recv_transform_list(struct dnet_node *n, unsigned char *id,
+		struct dnet_transform_complete *t);
+
 #ifdef __cplusplus
 }
 #endif

@@ -39,6 +39,7 @@ enum dnet_commands {
 	DNET_CMD_LIST,				/* List all objects for given node ID */
 	DNET_CMD_EXEC,				/* Execute given command on the remote node */
 	DNET_CMD_ROUTE_LIST,			/* Receive route table from given node */
+	DNET_CMD_TRANSFORM_LIST,		/* Receive list of transformation functions */
 };
 
 /*

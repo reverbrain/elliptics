@@ -249,6 +249,63 @@ err_out_unlock:
 	return err;
 }
 
+static int dnet_cmd_transform_list(struct dnet_net_state *orig, struct dnet_cmd *req)
+{
+	struct dnet_node *n = orig->n;
+	struct dnet_cmd *cmd;
+	struct dnet_attr *attr;
+	struct dnet_transform *t;
+	struct dnet_data_req *r;
+	int num = n->transform_num;
+	char *data;
+	int sz;
+
+	if (!num)
+		return 0;
+
+	sz = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + num * DNET_MAX_NAME_LEN;
+
+	r = dnet_req_alloc(orig, sz);
+	if (!r)
+		return -ENOMEM;
+
+	cmd = dnet_req_header(r);
+	attr = (struct dnet_attr *)(cmd + 1);
+	data = (char *)(attr + 1);
+
+	memcpy(cmd->id, req->id, DNET_ID_SIZE);
+	cmd->size = sizeof(struct dnet_attr);
+	cmd->trans = req->trans | DNET_TRANS_REPLY;
+	if (req->flags & DNET_FLAGS_NEED_ACK)
+		cmd->flags = DNET_FLAGS_MORE;
+
+	attr->size = 0;
+	attr->cmd = DNET_CMD_TRANSFORM_LIST;
+
+	pthread_rwlock_rdlock(&n->transform_lock);
+	list_for_each_entry(t, &n->transform_list, tentry) {
+		if (num > 0) {
+			snprintf(data, DNET_MAX_NAME_LEN - 1, "%s", t->name);
+
+			data += DNET_MAX_NAME_LEN;
+			cmd->size += DNET_MAX_NAME_LEN;
+			attr->size += DNET_MAX_NAME_LEN;
+			num--;
+		}
+	}
+	pthread_rwlock_unlock(&n->transform_lock);
+
+	if (!attr->size) {
+		dnet_req_destroy(r);
+		return 0;
+	}
+
+	dnet_convert_cmd(cmd);
+	dnet_convert_attr(attr);
+
+	return dnet_data_ready(orig, r);
+}
+
 static int dnet_local_transform_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 					struct dnet_attr *attr __unused, void *priv)
 {
@@ -379,6 +436,9 @@ int dnet_process_cmd(struct dnet_trans *t)
 				break;
 			case DNET_CMD_ROUTE_LIST:
 				err = dnet_cmd_route_list(st, cmd);
+				break;
+			case DNET_CMD_TRANSFORM_LIST:
+				err = dnet_cmd_transform_list(st, cmd);
 				break;
 			case DNET_CMD_WRITE:
 				if (!(cmd->flags & DNET_FLAGS_NO_LOCAL_TRANSFORM))
@@ -1504,6 +1564,8 @@ int dnet_lookup_object(struct dnet_node *n, unsigned char *id,
 	struct dnet_net_state *st;
 	int err;
 
+	dnet_recv_transform_list(n, id, NULL);
+
 	t = dnet_trans_alloc(n, sizeof(struct dnet_attr) +
 			sizeof(struct dnet_cmd));
 	if (!t) {
@@ -1797,4 +1859,100 @@ void dnet_req_destroy(struct dnet_data_req *r)
 struct dnet_addr *dnet_state_addr(struct dnet_net_state *st)
 {
 	return &st->addr;
+}
+
+static int dnet_recv_transform_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
+					struct dnet_attr *attr, void *priv)
+{
+	char *data;
+	unsigned int i;
+	struct dnet_transform_complete *tc = priv;
+
+	if (!st || !cmd || !attr)
+		return 0;
+
+	if (!cmd->size || !(cmd->flags & DNET_FLAGS_MORE)) {
+		free(priv);
+		return 0;
+	}
+
+	if (attr->size % DNET_MAX_NAME_LEN)
+		return 0;
+
+	data = (char *)(attr + 1);
+	for (i=0; i<attr->size / DNET_MAX_NAME_LEN; ++i) {
+		dnet_log(st->n, DNET_LOG_INFO, "%s: server-side transform function: %s\n",
+				dnet_dump_id(cmd->id), data);
+
+		if (tc && tc->callback)
+			tc->callback(tc, data);
+		data += DNET_MAX_NAME_LEN;
+	}
+
+	return 0;
+}
+
+int dnet_recv_transform_list(struct dnet_node *n, unsigned char *id,
+		struct dnet_transform_complete *tc)
+{
+	struct dnet_net_state *st;
+	struct dnet_cmd *cmd;
+	struct dnet_attr *a;
+	struct dnet_trans *t;
+	int err;
+
+	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
+	if (!t) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	t->complete = dnet_recv_transform_complete;
+	t->priv = tc;
+
+	cmd = (struct dnet_cmd *)(t + 1);
+	a = (struct dnet_attr *)(cmd + 1);
+
+	memcpy(cmd->id, id, DNET_ID_SIZE);
+	cmd->flags = DNET_FLAGS_NEED_ACK;
+	cmd->size = sizeof(struct dnet_attr);
+
+	a->cmd = DNET_CMD_TRANSFORM_LIST;
+
+	st = dnet_state_get_first(n, cmd->id, n->st);
+	if (!st) {
+		err = -ENOENT;
+		dnet_log(n, DNET_LOG_ERROR, "%s: can not get output state.\n", dnet_dump_id(n->id));
+		goto err_out_destroy;
+	}
+
+	t->st = st;
+
+	err = dnet_trans_insert(t);
+	if (err)
+		goto err_out_destroy;
+
+	cmd->trans = t->trans;
+
+	dnet_convert_cmd(cmd);
+	dnet_convert_attr(a);
+
+	t->r.header = cmd;
+	t->r.hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr);
+	t->r.fd = -1;
+	t->r.offset = 0;
+	t->r.size = 0;
+
+	dnet_req_set_flags(&t->r, ~0, DNET_REQ_NO_DESTRUCT);
+
+	err = dnet_data_ready(st, &t->r);
+	if (err)
+		goto err_out_destroy;
+
+	return 0;
+
+err_out_destroy:
+	dnet_trans_destroy(t);
+err_out_exit:
+	return err;
 }
