@@ -52,16 +52,18 @@ static inline int atomic_dec(atomic_t *a)
 
 #else
 
+#include "lock.h"
+
 typedef struct {
 	volatile int		val;
-	pthread_spinlock_t	lock;
-};
+	struct dnet_lock	lock;
+} atomic_t;
 
 static inline int atomic_init(atomic_t *a, int val)
 {
 	int err;
 
-	err = pthread_spin_init(&a->lock, 0);
+	err = dnet_lock_init(&a->lock);
 	if (err)
 		return -err;
 
@@ -78,20 +80,20 @@ static inline int atomic_inc(atomic_t *a)
 {
 	int res;
 
-	pthread_spin_lock(&a->lock);
+	dnet_lock_lock(&a->lock);
 	res = ++a->val;
-	pthread_spin_unlock(&a->lock);
+	dnet_lock_unlock(&a->lock);
 
 	return res;
 }
 
-static inline atomic_t atomic_dec(atomic_t *a)
+static inline int atomic_dec(atomic_t *a)
 {
 	int res;
 
-	pthread_spin_lock(&a->lock);
+	dnet_lock_lock(&a->lock);
 	res = --a->val;
-	pthread_spin_unlock(&a->lock);
+	dnet_lock_unlock(&a->lock);
 
 	return res;
 }
