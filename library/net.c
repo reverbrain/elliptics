@@ -100,7 +100,6 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 
 	memset(&hint, 0, sizeof(struct addrinfo));
 
-	hint.ai_flags = AI_NUMERICSERV;
 	hint.ai_family = cfg->family;
 	hint.ai_socktype = cfg->sock_type;
 	hint.ai_protocol = cfg->proto;
