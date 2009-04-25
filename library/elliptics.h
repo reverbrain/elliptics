@@ -121,13 +121,18 @@ int dnet_state_insert(struct dnet_net_state *new);
 void dnet_state_remove(struct dnet_net_state *st);
 struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
+void dnet_state_destroy(struct dnet_net_state *st);
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 {
 	atomic_inc(&st->refcnt);
 	return st;
 }
-void dnet_state_put(struct dnet_net_state *st);
+static inline void dnet_state_put(struct dnet_net_state *st)
+{
+	if (st && atomic_dec_and_test(&st->refcnt))
+		dnet_state_destroy(st);
+}
 
 struct dnet_wait
 {

@@ -1012,14 +1012,8 @@ err_out_unlock:
 	return err;
 }
 
-void dnet_state_put(struct dnet_net_state *st)
+void dnet_state_destroy(struct dnet_net_state *st)
 {
-	if (!st)
-		return;
-
-	if (!atomic_dec_and_test(&st->refcnt))
-		return;
-
 	dnet_state_remove(st);
 
 	event_del(&st->event);
