@@ -322,6 +322,9 @@ static int dnet_local_transform(struct dnet_net_state *orig, struct dnet_cmd *cm
 	int err;
 	void *data;
 
+	if (!n->transform_num)
+		return 0;
+
 	if (attr->size <= sizeof(struct dnet_io_attr)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: wrong write attribute, size does not match "
 				"IO attribute size: size: %llu, must be more than %zu.\n",
