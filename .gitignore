@@ -35,3 +35,6 @@ missing
 *.loT
 *.a
 *.la
+*~
+*.tar.gz
+.*
