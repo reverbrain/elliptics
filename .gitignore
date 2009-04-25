@@ -19,6 +19,7 @@ example/Makefile.in
 example/.libs
 example/hparser
 example/iotest
+example/example
 include/Makefile
 include/Makefile.in
 include/dnet/Makefile
@@ -38,3 +39,4 @@ missing
 *~
 *.tar.gz
 .*
+tags
