@@ -892,7 +892,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 	st->s = s;
 	st->n = n;
 
-	atomic_set(&st->refcnt, 1);
+	atomic_init(&st->refcnt, 1);
 
 	INIT_LIST_HEAD(&st->snd_list);
 

@@ -24,6 +24,8 @@ extern "C" {
 
 #ifdef HAVE_LIBATOMIC_SUPPORT
 #include <atomic/atomic.h>
+
+#define atomic_init(a, v) atomic_set(a, v)
 #elif defined HAVE_SYNC_ATOMIC_SUPPORT
 typedef struct {
 	volatile int		val;
@@ -33,6 +35,8 @@ static inline void atomic_set(atomic_t *a, int val)
 {
 	a->val = val;
 }
+
+#define atomic_init(a, v) atomic_set(a, v)
 
 static inline int atomic_inc(atomic_t *a)
 {
@@ -52,6 +56,18 @@ typedef struct {
 	volatile int		val;
 	pthread_spinlock_t	lock;
 };
+
+static inline int atomic_init(atomic_t *a, int val)
+{
+	int err;
+
+	err = pthread_spin_init(&a->lock, 0);
+	if (err)
+		return -err;
+
+	a->val = val;
+	return 0;
+}
 
 static inline void atomic_set(atomic_t *a, int val)
 {

@@ -1412,7 +1412,7 @@ struct dnet_wait *dnet_wait_alloc(int cond)
 		goto err_out_destroy;
 
 	w->cond = cond;
-	atomic_set(&w->refcnt, 1);
+	atomic_init(&w->refcnt, 1);
 
 	return w;
 
