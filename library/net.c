@@ -359,12 +359,12 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 	if (st->rcv_cmd.trans & DNET_TRANS_REPLY) {
 		uint64_t tid = st->rcv_cmd.trans & ~DNET_TRANS_REPLY;
 
-		pthread_spin_lock(&n->trans_lock);
+		dnet_lock_lock(&n->trans_lock);
 		t = dnet_trans_search(&n->trans_root, tid);
 		if (t && !(st->rcv_cmd.flags & DNET_FLAGS_MORE)) {
 			dnet_trans_remove_nolock(&n->trans_root, t);
 		}
-		pthread_spin_unlock(&n->trans_lock);
+		dnet_lock_unlock(&n->trans_lock);
 
 		if (t) {
 			uint64_t cmd_size = t->cmd.size;
@@ -662,9 +662,9 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 		err = 0;
 	}
 
-	pthread_spin_lock(&st->snd_lock);
+	dnet_lock_lock(&st->snd_lock);
 	list_del(&r->req_entry);
-	pthread_spin_unlock(&st->snd_lock);
+	dnet_lock_unlock(&st->snd_lock);
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: freeing send request: %p: "
 			"flags: %x, hsize: %zu, dsize: %zu, fsize: %zu.\n",
@@ -739,12 +739,12 @@ err_out_destroy:
 	while (!list_empty(&st->snd_list)) {
 		struct dnet_data_req *r = NULL;
 
-		pthread_spin_lock(&st->snd_lock);
+		dnet_lock_lock(&st->snd_lock);
 		if (!list_empty(&st->snd_list)) {
 			r = list_first_entry(&st->snd_list, struct dnet_data_req, req_entry);
 			list_del(&r->req_entry);
 		}
-		pthread_spin_unlock(&st->snd_lock);
+		dnet_lock_unlock(&st->snd_lock);
 
 		if (!r)
 			break;
@@ -899,7 +899,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
 
-	err = pthread_spin_init(&st->snd_lock, 0);
+	err = dnet_lock_init(&st->snd_lock);
 	if (err) {
 		dnet_log_err(n, "%s: failed to initialize sending queu: err: %d",
 				dnet_dump_id(st->id), err);
@@ -931,7 +931,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 err_out_state_remove:
 	dnet_state_remove(st);
 err_out_snd_lock_destroy:
-	pthread_spin_destroy(&st->snd_lock);
+	dnet_lock_destroy(&st->snd_lock);
 err_out_state_free:
 	free(st);
 err_out_exit:
@@ -1028,7 +1028,7 @@ void dnet_state_put(struct dnet_net_state *st)
 	if (st->s)
 		close(st->s);
 
-	pthread_spin_destroy(&st->snd_lock);
+	dnet_lock_destroy(&st->snd_lock);
 
 	dnet_log(st->n, DNET_LOG_ERROR, "%s: freeing state %s.\n", dnet_dump_id(st->id),
 		dnet_server_convert_dnet_addr(&st->addr));

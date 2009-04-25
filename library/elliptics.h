@@ -38,6 +38,7 @@ typedef unsigned short u_short;
 #include "list.h"
 #include "rbtree.h"
 #include "atomic.h"
+#include "lock.h"
 
 #include "dnet/packet.h"
 #include "dnet/interface.h"
@@ -100,7 +101,7 @@ struct dnet_net_state
 	struct dnet_trans	*rcv_trans;
 	
 	struct list_head	snd_list;
-	pthread_spinlock_t	snd_lock;
+	struct dnet_lock	snd_lock;
 	off_t			snd_offset;
 	size_t			snd_size;
 
@@ -211,7 +212,7 @@ struct dnet_node
 	struct list_head	state_list;
 	struct list_head	empty_state_list;
 
-	pthread_spinlock_t	trans_lock;
+	struct dnet_lock	trans_lock;
 	struct rb_root		trans_root;
 	uint64_t		trans;
 

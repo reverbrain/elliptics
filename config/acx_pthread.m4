@@ -221,6 +221,16 @@ if test "x$acx_pthread_ok" = xyes; then
         save_CFLAGS="$CFLAGS"
         CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
 
+	# Check whether spinlocks are supported
+	AC_MSG_CHECKING([whether pthread spinlocks are supported])
+	AC_TRY_LINK([#include <pthread.h>],
+		[pthread_spinlock_t lock; pthread_spin_init(&lock, 0);],
+		[
+			AC_DEFINE(HAVE_PTHREAD_SPINLOCK, 1,
+				[Define if pthread spinlocks are supported])
+			AC_MSG_RESULT(yes)
+		], [AC_MSG_RESULT(no)])
+
         # Detect AIX lossage: JOINABLE attribute is called UNDETACHED.
 	AC_MSG_CHECKING([for joinable pthread attribute])
 	attr_name=unknown

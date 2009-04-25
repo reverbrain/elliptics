@@ -1758,13 +1758,13 @@ int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
 {
 	int err = 0, add;
 
-	pthread_spin_lock(&st->snd_lock);
+	dnet_lock_lock(&st->snd_lock);
 	add = list_empty(&st->snd_list);
 	list_add_tail(&r->req_entry, &st->snd_list);
 
 	if (add)
 		err = dnet_signal_thread(st, DNET_THREAD_DATA_READY);
-	pthread_spin_unlock(&st->snd_lock);
+	dnet_lock_unlock(&st->snd_lock);
 
 	return err;
 }

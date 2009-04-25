@@ -48,7 +48,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		goto err_out_free;
 	}
 
-	err = pthread_spin_init(&n->trans_lock, 0);
+	err = dnet_lock_init(&n->trans_lock);
 	if (err) {
 		dnet_log_err(n, "Failed to initialize transaction lock: err: %d", err);
 		goto err_out_destroy_state;
@@ -84,7 +84,7 @@ err_out_destroy_io_thread_lock:
 err_out_destroy_transform_lock:
 	pthread_rwlock_destroy(&n->transform_lock);
 err_out_destroy_trans:
-	pthread_spin_destroy(&n->trans_lock);
+	dnet_lock_destroy(&n->trans_lock);
 err_out_destroy_state:
 	pthread_rwlock_destroy(&n->state_lock);
 err_out_free:
@@ -509,7 +509,7 @@ void dnet_node_destroy(struct dnet_node *n)
 	close(n->listen_socket);
 
 	pthread_rwlock_destroy(&n->state_lock);
-	pthread_spin_destroy(&n->trans_lock);
+	dnet_lock_destroy(&n->trans_lock);
 	pthread_rwlock_destroy(&n->transform_lock);
 
 	dnet_wait_put(n->wait);
