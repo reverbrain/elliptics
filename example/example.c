@@ -165,6 +165,7 @@ static void dnet_usage(char *p)
 			" -j <join>            - join the network\n"
 			"                        become a fair node which may store data from the other nodes\n"
 			" -b <BDB>             - use BerkeleyDB (if present) IO storage backend\n"
+			" -t <TokyoCabinet>    - use TokyoCabinet (if present) IO storage backend\n"
 			" -d root              - root directory to load/store the objects\n"
 			" -W file              - write given file to the network storage\n"
 			" -s                   - spread writes over the network, do not update the object itself\n"
@@ -190,6 +191,7 @@ int main(int argc, char *argv[])
 {
 	int trans_max = 5, trans_num = 0;
 	int ch, err, i, have_remote = 0, daemon = 0, spread = 0, bdb = 0;
+	int tc = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem;
 	struct dnet_crypto_engine *e, *trans[trans_max];
@@ -207,7 +209,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "P:N:bm:sH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "P:N:bmt:sH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
 			case 'P':
 				cfg.max_pending = atoi(optarg);
@@ -217,6 +219,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'b':
 				bdb = 1;
+				break;
+			case 't':
+				tc = 1;
 				break;
 			case 'm':
 				cfg.log_mask = strtoul(optarg, NULL, 0);
@@ -320,6 +325,11 @@ int main(int argc, char *argv[])
 			if (!cfg.command_private)
 				return -EINVAL;
 			cfg.command_handler = bdb_backend_command_handler;
+		} else if (tc) {
+			cfg.command_private = tc_backend_init(root, "data.tch", "history.tch");
+			if (!cfg.command_private)
+				return -EINVAL;
+			cfg.command_handler = tc_backend_command_handler;
 		} else {
 			cfg.command_private = file_backend_setup_root(root);
 			if (!cfg.command_private)
@@ -369,7 +379,7 @@ int main(int argc, char *argv[])
 		if (err)
 			return err;
 	}
-	
+
 	if (historyf) {
 		err = dnet_read_file(n, historyf, 0, 0, 1);
 		if (err)

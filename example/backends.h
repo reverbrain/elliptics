@@ -30,6 +30,15 @@ void bdb_backend_exit(void *data);
 
 void *bdb_backend_init(char *env_dir, char *dbfile, char *histfile);
 
+int tc_backend_command_handler(void *state, void *priv,
+		struct dnet_cmd *cmd, struct dnet_attr *attr,
+		void *data);
+
+void tc_backend_exit(void *data);
+
+void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histfile);
+
+
 int file_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 void *file_backend_setup_root(char *root);
