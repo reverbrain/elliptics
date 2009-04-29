@@ -290,7 +290,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg);
  */
 int dnet_join(struct dnet_node *n);
 
-static inline char *dnet_dump_id(unsigned char *id)
+static inline char *dnet_dump_id(const unsigned char *id)
 {
 	unsigned int i;
 	static char __dnet_dump_str[2 * DNET_ID_SIZE + 1];
@@ -323,7 +323,7 @@ int dnet_lookup(struct dnet_node *n, char *file);
 int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv);
 
-static inline int dnet_id_cmp(unsigned char *id1, unsigned char *id2)
+static inline int dnet_id_cmp(const unsigned char *id1, const unsigned char *id2)
 {
 	unsigned int i = 0;
 #if 0
@@ -358,11 +358,14 @@ struct dnet_data_req;
 
 void *dnet_req_header(struct dnet_data_req *r);
 void *dnet_req_data(struct dnet_data_req *r);
+void *dnet_req_private(struct dnet_data_req *r);
 
 void dnet_req_set_header(struct dnet_data_req *r, void *header, size_t hsize, int free);
-void dnet_req_set_data(struct dnet_data_req *r, void *data, size_t size, int free);
+void dnet_req_set_data(struct dnet_data_req *r, void *data, size_t size, off_t offset, int free);
 void dnet_req_set_fd(struct dnet_data_req *r, int fd, off_t offset, size_t size, int close);
 void dnet_req_set_flags(struct dnet_data_req *r, unsigned int mask, unsigned int flags);
+void dnet_req_set_complete(struct dnet_data_req *r,
+		void (* complete)(struct dnet_data_req *r), void *priv);
 
 struct dnet_data_req *dnet_req_alloc(struct dnet_net_state *st, size_t hsize);
 void dnet_req_destroy(struct dnet_data_req *r);

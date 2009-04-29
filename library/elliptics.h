@@ -290,6 +290,7 @@ struct dnet_data_req
 
 	void			*data;
 	size_t			dsize;
+	off_t			doff;
 
 	unsigned int		flags;
 
@@ -297,6 +298,7 @@ struct dnet_data_req
 	off_t			offset;
 	size_t			size;
 
+	void			*priv;
 	void			(* complete)(struct dnet_data_req *r);
 };
 
