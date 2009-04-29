@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
@@ -47,33 +48,50 @@ struct tc_backend
 	TCADB	*data, *hist;
 };
 
-static int tc_get_record_size(void *state, TCADB *e,
-		unsigned char *id, unsigned int *size)
+struct tc_get_completion
 {
-	const void *kbuf = id;
-	int ksiz = strlen(kbuf);
-	int vsiz = tcadbvsiz(e, kbuf, ksiz);
-	if (vsiz == -1) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to get TCADB value size.\n",
-				dnet_dump_id(id));
-		goto rs_exit;
+	pthread_mutex_t		lock;
+	int			refcnt;
+	void			*ptr;
+};
+
+static int __tc_get_complete(struct tc_get_completion *c)
+{
+	int destroy = 0;
+
+	pthread_mutex_lock(&c->lock);
+	c->refcnt--;
+	if (!c->refcnt)
+		destroy = 1;
+	pthread_mutex_unlock(&c->lock);
+
+	if (destroy) {
+		pthread_mutex_destroy(&c->lock);
+		free(c->ptr);
+		free(c);
 	}
 
-	dnet_command_handler_log(state, DNET_LOG_NOTICE, "%s: value size: %u.\n",
-				dnet_dump_id(id), vsiz);
+	return destroy;
+}
 
-	*size = vsiz;
+static void tc_get_complete(struct dnet_data_req *r)
+{
+	struct tc_get_completion *c = dnet_req_private(r);
 
-rs_exit:
-	return vsiz;
+	__tc_get_complete(c);
+	free(r);
 }
 
 static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *buf)
 {
 	TCADB *e = be->data;
+	int err;
 	struct dnet_io_attr *io = buf;
+	int size, total_size, offset;
+	struct tc_get_completion *complete;
+	void *ptr;
+	struct dnet_data_req *r;
 
 	if (attr->size < sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -81,7 +99,8 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 				"IO attribute size: size: %llu, must be: %zu.\n",
 				dnet_dump_id(cmd->id), (unsigned long long)attr->size,
 				sizeof(struct dnet_io_attr));
-		return -EINVAL;
+		err = -EINVAL;
+		goto err_out_exit;
 	}
 
 	buf += sizeof(struct dnet_io_attr);
@@ -91,18 +110,427 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	if (io->flags & DNET_IO_FLAGS_HISTORY)
 		e = be->hist;
 
-	return -ENOTSUP;
+	offset = io->offset;
+
+	complete = malloc(sizeof(struct tc_get_completion));
+	if (!complete) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	err = pthread_mutex_init(&complete->lock, NULL);
+	if (err) {
+		err = -err;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to initialize completion mutex: %d.\n",
+			dnet_dump_id(io->origin), err);
+		goto err_out_put;
+	}
+
+	complete->refcnt = 1;
+	complete->ptr = NULL;
+
+	ptr = tcadbget(e, io->origin, DNET_ID_SIZE, &total_size);
+	if (!ptr) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to read object.\n", dnet_dump_id(io->origin));
+		err = -ENOENT;
+		goto err_out_put;
+	}
+
+	complete->ptr = ptr;
+
+	/*
+	 * Yeah-yeah-yeah, TokyoCabinet is 31-bits only.
+	 */
+	if (total_size < (int)io->offset) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: object is too small: offset: %d, size: %d.\n",
+			dnet_dump_id(io->origin), offset, total_size);
+		err = -E2BIG;
+		goto err_out_put;
+	}
+
+	if (total_size < (int)(io->offset + io->size)) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: object is too small: truncating output: offset: %u, size: %u, requested_size: %llu.\n",
+			dnet_dump_id(io->origin), offset, total_size, (unsigned long long)io->size);
+	}
+
+	if (io->size)
+		total_size = io->size;
+
+	if (attr->size == sizeof(struct dnet_io_attr)) {
+		struct dnet_cmd *c;
+		struct dnet_attr *a;
+		struct dnet_io_attr *rio;
+
+		while (total_size) {
+			size = total_size;
+			if (size > DNET_MAX_READ_TRANS_SIZE)
+				size = DNET_MAX_READ_TRANS_SIZE;
+
+			r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
+					sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
+			if (!r) {
+				err = -ENOMEM;
+				dnet_command_handler_log(state, DNET_LOG_ERROR,
+					"%s: failed to allocate reply attributes.\n",
+					dnet_dump_id(io->origin));
+				goto err_out_put;
+			}
+
+			dnet_req_set_data(r, ptr, size, offset, 0);
+			dnet_req_set_complete(r, tc_get_complete, complete);
+
+			c = dnet_req_header(r);
+			a = (struct dnet_attr *)(c + 1);
+			rio = (struct dnet_io_attr *)(a + 1);
+
+			memcpy(c->id, io->origin, DNET_ID_SIZE);
+			memcpy(rio->origin, io->origin, DNET_ID_SIZE);
+
+			dnet_command_handler_log(state, DNET_LOG_NOTICE,
+				"%s: read reply offset: %u, size: %u.\n",
+				dnet_dump_id(io->origin), offset, size);
+
+			if (total_size <= DNET_MAX_READ_TRANS_SIZE) {
+				if (cmd->flags & DNET_FLAGS_NEED_ACK)
+					c->flags = DNET_FLAGS_MORE;
+			} else
+				c->flags = DNET_FLAGS_MORE;
+
+			c->status = 0;
+			c->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
+			c->trans = cmd->trans | DNET_TRANS_REPLY;
+
+			a->cmd = DNET_CMD_READ;
+			a->size = sizeof(struct dnet_io_attr) + size;
+			a->flags = attr->flags;
+
+			rio->size = size;
+			rio->offset = offset;
+			rio->flags = io->flags;
+
+			dnet_convert_cmd(c);
+			dnet_convert_attr(a);
+			dnet_convert_io_attr(rio);
+
+			pthread_mutex_lock(&complete->lock);
+			complete->refcnt++;
+			pthread_mutex_unlock(&complete->lock);
+
+			err = dnet_data_ready(state, r);
+			if (err)
+				goto err_out_free_req;
+
+			offset += size;
+			total_size -= size;
+		}
+	} else {
+		size = attr->size - sizeof(struct dnet_io_attr);
+
+		if (size < total_size)
+			size = total_size;
+		memcpy(buf, ptr + io->offset, size);
+
+		io->size = size;
+		attr->size = sizeof(struct dnet_io_attr) + err;
+	}
+
+	__tc_get_complete(complete);
+
+	return 0;
+
+err_out_free_req:
+	dnet_req_destroy(r);
+err_out_put:
+	__tc_get_complete(complete);
+err_out_exit:
+	return err;
 }
 
 static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *buf)
 {
-	return -ENOTSUP;
+	int err;
+	TCADB *e = be->data;
+	struct dnet_io_attr *io = buf;
+	bool res;
+	void *d = NULL;
+
+	if (attr->size <= sizeof(struct dnet_io_attr)) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: wrong write attribute, size does not match "
+				"IO attribute size: size: %llu, must be more than %zu.\n",
+				dnet_dump_id(cmd->id), (unsigned long long)attr->size,
+				sizeof(struct dnet_io_attr));
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	dnet_convert_io_attr(io);
+
+	buf += sizeof(struct dnet_io_attr);
+
+	if (io->flags & DNET_IO_FLAGS_HISTORY)
+		e = be->hist;
+
+	res = tcadbtranbegin(e);
+	if (!res) {
+		err = -EBUSY;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to start transaction.\n", dnet_dump_id(io->origin));
+		goto err_out_exit;
+	}
+
+	if (io->flags & DNET_IO_FLAGS_OBJECT) {
+		int stored_size;
+
+		if ((io->size != attr->size - sizeof(struct dnet_io_attr)) ||
+				(io->size > cmd->size)){
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: wrong io size: %llu, must be equal to %llu.\n",
+					dnet_dump_id(cmd->id), (unsigned long long)io->size,
+					(unsigned long long)attr->size -
+						sizeof(struct dnet_io_attr));
+			err = -EINVAL;
+			goto err_out_close_txn;
+		}
+
+		stored_size = tcadbvsiz(e, io->origin, DNET_ID_SIZE);
+
+		if ((int)io->offset == stored_size) {
+			res = tcadbputcat(e, io->origin, DNET_ID_SIZE, buf, io->size);
+			if (!res) {
+				dnet_command_handler_log(state, DNET_LOG_ERROR,
+					"%s: concat object put failed: offset: %llu, size: %llu.\n",
+					dnet_dump_id(io->origin), (unsigned long long)io->offset,
+					(unsigned long long)io->size);
+				err = -EINVAL;
+				goto err_out_close_txn;
+			}
+		} else if (!io->offset) {
+			res = tcadbput(e, io->origin, DNET_ID_SIZE, buf, io->size);
+			if (!res) {
+				dnet_command_handler_log(state, DNET_LOG_ERROR,
+					"%s: direct object put failed: offset: %llu, size: %llu.\n",
+					dnet_dump_id(io->origin), (unsigned long long)io->offset,
+					(unsigned long long)io->size);
+				err = -EINVAL;
+				goto err_out_close_txn;
+			}
+		} else {
+			d = tcadbget(e, io->origin, DNET_ID_SIZE, &stored_size);
+			if (!d || stored_size < (int)(io->size + io->offset)) {
+				dnet_command_handler_log(state, DNET_LOG_ERROR,
+					"%s: failed to read block for offset: offset: %llu, size: %llu.\n",
+					dnet_dump_id(io->origin), (unsigned long long)io->offset,
+					(unsigned long long)io->size);
+				free(d);
+				err = -ENOENT;
+				goto err_out_close_txn;
+			}
+
+			if (stored_size >= (int)(io->offset + io->size)) {
+				memcpy(d + io->offset, buf, io->size);
+
+				res = tcadbput(e, io->origin, DNET_ID_SIZE, d, stored_size);
+				if (!res) {
+					dnet_command_handler_log(state, DNET_LOG_ERROR,
+						"%s: updated object put failed: offset: %llu, size: %llu.\n",
+						dnet_dump_id(io->origin), (unsigned long long)io->offset,
+						(unsigned long long)io->size);
+					err = -EINVAL;
+					goto err_out_free_read_data;
+				}
+			} else {
+				void *n;
+
+				n = malloc(io->offset + io->size);
+				if (!n) {
+					dnet_command_handler_log(state, DNET_LOG_ERROR,
+						"%s: failed to allocate block for offset: offset: %llu, size: %llu.\n",
+						dnet_dump_id(io->origin), (unsigned long long)io->offset,
+						(unsigned long long)io->size);
+					err = -ENOMEM;
+					goto err_out_free_read_data;
+				}
+
+				memcpy(n, d, stored_size);
+				memcpy(n + io->offset, buf, io->size);
+
+				res = tcadbput(e, io->origin, DNET_ID_SIZE, n, io->size + io->offset);
+				if (!res) {
+					dnet_command_handler_log(state, DNET_LOG_ERROR,
+						"%s: updated object put failed: offset: %llu, size: %llu.\n",
+						dnet_dump_id(io->origin), (unsigned long long)io->offset,
+						(unsigned long long)io->size);
+					err = -EINVAL;
+					free(n);
+					goto err_out_free_read_data;
+				}
+			}
+
+			free(d);
+			d = NULL;
+		}
+
+		dnet_command_handler_log(state, DNET_LOG_NOTICE,
+			"%s: stored %s object: size: %llu, offset: %llu.\n",
+				dnet_dump_id(io->origin),
+				(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
+				(unsigned long long)io->size, (unsigned long long)io->offset);
+	}
+
+	res = tcadbtrancommit(e);
+	if (!res) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to commit a write transaction.\n", dnet_dump_id(io->origin));
+
+		goto err_out_exit;
+	}
+
+	dnet_command_handler_log(state, DNET_LOG_NOTICE,
+		"%s: write transaction committed.\n", dnet_dump_id(io->origin));
+
+	if ((io->flags & DNET_IO_FLAGS_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
+		e = be->hist;
+
+		dnet_command_handler_log(state, DNET_LOG_NOTICE,
+			"%s: updating history: size: %llu, offset: %llu.\n",
+				dnet_dump_id(io->origin), (unsigned long long)io->size,
+				(unsigned long long)io->offset);
+
+		dnet_convert_io_attr(io);
+		res = tcadbputcat(e, io->origin, DNET_ID_SIZE, io, sizeof(struct dnet_io_attr));
+		dnet_convert_io_attr(io);
+
+		if (!res) {
+			err = -EINVAL;
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: history update failed offset: %llu, size: %llu.\n",
+					dnet_dump_id(io->origin), (unsigned long long)io->offset,
+					(unsigned long long)io->size);
+			goto err_out_exit;
+		}
+
+		dnet_command_handler_log(state, DNET_LOG_NOTICE,
+			"%s: history updated: size: %llu, offset: %llu.\n",
+				dnet_dump_id(io->origin), (unsigned long long)io->size,
+				(unsigned long long)io->offset);
+	}
+
+	return 0;
+
+err_out_free_read_data:
+	free(d);
+err_out_close_txn:
+	tcadbtranabort(e);
+err_out_exit:
+	return err;
 }
+
+static int dnet_send_list(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size)
+{
+	struct dnet_cmd *c;
+	struct dnet_attr *a;
+	struct dnet_data_req *r;
+	void *data;
+
+	r = dnet_req_alloc(state, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
+	if (!r)
+		return -ENOMEM;
+
+	c = dnet_req_header(r);
+	a = (struct dnet_attr *)(c + 1);
+	data = a + 1;
+
+	*c = *cmd;
+	c->trans |= DNET_TRANS_REPLY;
+	c->flags = DNET_FLAGS_MORE;
+	c->status = 0;
+	c->size = sizeof(struct dnet_attr) + size;
+
+	a->size = size;
+	a->flags = 0;
+	a->cmd = DNET_CMD_LIST;
+
+	memcpy(data, odata, size);
+
+	dnet_convert_cmd(c);
+	dnet_convert_attr(a);
+
+	dnet_command_handler_log(state, DNET_LOG_INFO,
+		"%s: sending %u list entries.\n",
+		dnet_dump_id(cmd->id), size / DNET_ID_SIZE);
+
+	return dnet_data_ready(state, r);
+}
+
 
 static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd)
 {
-	return -ENOTSUP;
+	int err, num, size, i;
+	TCADB *e = be->hist;
+	unsigned char id[DNET_ID_SIZE], start, last;
+	TCLIST *l;
+	int inum = 10240, ipos = 0;
+	unsigned char ids[inum][DNET_ID_SIZE];
+
+	err = dnet_state_get_range(state, cmd->id, id);
+	if (err)
+		goto err_out_exit;
+
+	last = id[0] - 1;
+
+	for (start = cmd->id[0]; start != last; --start) {
+		l = tcadbfwmkeys(e, &start, 1, -1);
+		if (!l)
+			continue;
+
+		num = tclistnum(l);
+		if (!num)
+			goto out_clean;
+
+		for (i=0; i<num; ++i) {
+			const unsigned char *idx = tclistval(l, i, &size);
+
+			if (!idx)
+				break;
+
+			if (start == cmd->id[0] && dnet_id_cmp(cmd->id, idx) >= 0)
+				continue;
+
+			if (ipos == inum) {
+				err = dnet_send_list(state, cmd, ids, ipos * DNET_ID_SIZE);
+				if (err)
+					goto out_clean;
+
+				ipos = 0;
+			}
+
+			dnet_command_handler_log(state, DNET_LOG_INFO, "%s\n", dnet_dump_id(idx));
+			memcpy(ids[ipos], idx, DNET_ID_SIZE);
+			ipos++;
+		}
+
+out_clean:
+		tclistdel(l);
+		if (err)
+			goto err_out_exit;
+	}
+
+	if (ipos) {
+		err = dnet_send_list(state, cmd, ids, ipos * DNET_ID_SIZE);
+		if (err)
+			goto err_out_exit;
+	}
+
+	return 0;
+
+err_out_exit:
+	return err;
 }
 
 int tc_backend_command_handler(void *state, void *priv,
@@ -133,62 +561,80 @@ int tc_backend_command_handler(void *state, void *priv,
 void tc_backend_exit(void *data)
 {
 	struct tc_backend *be = data;
-	/* close dbs and delete objects if existing */
-	if(be) {
-		if(be->data) {
-			if(!tcadbclose(be->data))
-				fprintf(stderr,"tc_backend_exit: tcadbclose(be->data) failed\n");
-			tcadbdel(be->data);
-		}
-		if(be->hist) {
-			if(!tcadbclose(be->hist))
-				fprintf(stderr,"tc_backend_exit: tcadbclose(be->hist) failed\n");
-			tcadbdel(be->hist);
-		}
 
-		free(be);
-	}
+	/* close dbs and delete objects if existing */
+	if (!tcadbclose(be->data))
+		fprintf(stderr, "tc_backend_exit: tcadbclose(be->data) failed\n");
+
+	tcadbdel(be->data);
+
+	if (!tcadbclose(be->hist))
+		fprintf(stderr, "tc_backend_exit: tcadbclose(be->hist) failed\n");
+
+	tcadbdel(be->hist);
+
+	free(be);
 }
 
-static bool tc_backend_open(TCADB *adb, const char *env_dir, const char *file)
+static int tc_backend_open(TCADB *adb, const char *env_dir, const char *file)
 {
-	char *path = NULL;
-	bool res = false;
+	int err;
+	char *path;
+	size_t len;
 
-	/* if env_dir passed open db in there */
-	if(env_dir) {
-		/* create path string from env_dir and file */
-		size_t len = strlen(env_dir) + strlen(file) + 1;
-		path = (char*)malloc(len);
-		if(!path) {
-			fprintf(stderr, "tc_backend_open: malloc path failed\n");
-			free(path);
-			return false;
+	if (!env_dir) {
+		if (!tcadbopen(adb, file)) {
+			err = -EINVAL;
+			goto err_out_print;
 		}
-		if (env_dir[strlen(env_dir) - 1] == '/')
-			snprintf(path, len, "%s%s", env_dir, file);
-		else
-			snprintf(path, len, "%s/%s", env_dir, file);
 
-		/* try to open database in env_dir */
-		res = tcadbopen(adb, path);
-
-		free(path);
-	} else {
-		/* try to open database */
-		res = tcadbopen(adb, file);
+		return 0;
 	}
 
-	return res;
+	/* if env_dir passed open db there
+	 * 
+	 * Create path string from env_dir and file
+	 * Added place for '/' and null byte at the end.
+	 */
+	len = strlen(env_dir) + strlen(file) + 2;
+
+	path = malloc(len);
+	if (!path) {
+		err = -ENOMEM;
+		fprintf(stderr, "%s: malloc path failed\n", __func__);
+		goto err_out_exit;
+	}
+
+	snprintf(path, len, "%s/%s", env_dir, file);
+
+	/* try to open database in env_dir */
+	if (!tcadbopen(adb, path)) {
+		err = -EINVAL;
+		goto err_out_free;
+	}
+
+	free(path);
+
+	return 0;
+
+err_out_free:
+	free(path);
+err_out_print:
+	fprintf(stderr, "Failed to open database at dir: '%s', file: '%s'.\n", env_dir, file);
+err_out_exit:
+	return err;
 }
 
 void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histfile)
 {
 	/* initialize tc_backend struct */
-	struct tc_backend *be = malloc(sizeof(struct tc_backend));
-	if(!be) {
+	struct tc_backend *be;
+	int err;
+	
+	be = malloc(sizeof(struct tc_backend));
+	if (!be) {
 		fprintf(stderr, "malloc(tc_backend) failed\n");
-		goto err_init_be_null;
+		goto err_out_exit;
 	}
 	memset(be, 0, sizeof(struct tc_backend));
 
@@ -196,37 +642,39 @@ void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histf
 	be->data = tcadbnew();
 	if(!be->data) {
 		fprintf(stderr, "tcadbnew(be->data) failed\n");
-		goto err_init_free_be;
+		goto err_out_free_be;
 	}
 	/* create hist TCADB object */
 	be->hist = tcadbnew();
 	if(!be->hist) {
 		fprintf(stderr, "tcadbnew(be->hist) failed\n");
-		goto err_init_del_data;
+		goto err_out_del_data;
 	}
 
 	/* open data database */
-	if (!tc_backend_open(be->data, env_dir, dbfile)) {
+	err = tc_backend_open(be->data, env_dir, dbfile);
+	if (err) {
 		fprintf(stderr, "tcadbopen(be->data,%s) failed\n", dbfile);
-		goto err_init_del_hist;
+		goto err_out_del_hist;
 	}
 	/* open hist database */
-	if (!tc_backend_open(be->hist, env_dir, histfile)) {
+	err = tc_backend_open(be->hist, env_dir, histfile);
+	if (err) {
 		fprintf(stderr, "tcadbopen(be->hist,%s) failed\n", histfile);
-		goto err_init_close_data;
+		goto err_out_close_data;
 	}
 
 	return be;
 
-err_init_close_data:
+err_out_close_data:
 	tcadbclose(be->data);
-err_init_del_hist:
+err_out_del_hist:
 	tcadbdel(be->hist);
-err_init_del_data:
+err_out_del_data:
 	tcadbdel(be->data);
-err_init_free_be:
+err_out_free_be:
 	free(be);
-err_init_be_null:
+err_out_exit:
 	return NULL;
 }
 #else
