@@ -698,15 +698,21 @@ void *bdb_backend_init(char *env_dir, char *dbfile, char *histfile)
 	 * We can not use in-memory logging since we do not know the maximum size of the transaction.
 	 */
 #if 0
+#ifdef DB_LOG_IN_MEMORY
+#define __DB_LOG_IN_MEMORY	DB_LOG_IN_MEMORY
+#else
+#define __DB_LOG_IN_MEMORY	DB_LOG_INMEMORY
+#endif
+
 #if DB_VERSION_MINOR >= 7
 	/* 
 	 * We want logging to be done in memory for performance.
 	 * In the perfect world this could be configured though.
 	 */
-	env->log_set_config(env, DB_LOG_INMEMORY, 1);
+	env->log_set_config(env, __DB_LOG_IN_MEMORY, 1);
 #else
 #endif
-	env->set_flags(env, DB_LOG_INMEMORY, 1);
+	env->set_flags(env, __DB_LOG_IN_MEMORY, 1);
 #endif
 	/*
 	 * We do not need durable transaction, so we do not
