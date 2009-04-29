@@ -59,9 +59,9 @@ static int dnet_compare_history(struct dnet_node *n, struct dnet_cmd *cmd, struc
 		goto out;
 	}
 
-	if (!memcmp(rio->origin, lio->origin, DNET_ID_SIZE) && !memcmp(rio->id, lio->id, DNET_ID_SIZE)) {
-		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: local : %s", dnet_dump_id(lio->id));
-		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: remote: %s", dnet_dump_id(rio->id));
+	if (memcmp(rio->origin, lio->origin, DNET_ID_SIZE) || memcmp(rio->id, lio->id, DNET_ID_SIZE)) {
+		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: local : %s.\n", dnet_dump_id(lio->id));
+		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: remote: %s.\n", dnet_dump_id(rio->id));
 		err = -EINVAL;
 		goto out;
 	}
@@ -133,8 +133,11 @@ out:
 	}
 
 err_out_exit:
-	if (st && err)
+	if (st && err) {
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: read object completion error: %d.\n",
+				dnet_dump_id(st->id), err);
 		st->n->error = err;
+	}
 	return err;
 }
 
@@ -255,8 +258,11 @@ out:
 err_out_free:
 	free(c);
 err_out_exit:
-	if (st && err)
+	if (st && err) {
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: read history completion error: %d.\n",
+				dnet_dump_id(st->id), err);
 		st->n->error = err;
+	}
 	return err;
 }
 
@@ -330,8 +336,11 @@ err_out_exit:
 				"size: %llu, err: %d, files_synced: %llu.\n",
 			dnet_dump_id(cmd->id), cmd->status, (unsigned long long)cmd->size,
 			err, (unsigned long long)n->total_synced_files);
-	if (st && err)
+	if (st && err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: listing completion error: %d.\n",
+				dnet_dump_id(st->id), err);
 		st->n->error = err;
+	}
 	return err;
 }
 
