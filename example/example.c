@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "P:N:bmt:sH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "P:N:bm:tsH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
 			case 'P':
 				cfg.max_pending = atoi(optarg);
