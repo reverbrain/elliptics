@@ -295,7 +295,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 	dnet_convert_cmd(&t->cmd);
 
 	dnet_req_set_header(&t->r, &t->cmd, sizeof(struct dnet_cmd), 0);
-	dnet_req_set_data(&t->r, t->data, size, 0);
+	dnet_req_set_data(&t->r, t->data, size, 0, 0);
 	dnet_req_set_flags(&t->r, ~0, DNET_REQ_NO_DESTRUCT);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: forwarding to %s, trans: %llu.\n",
@@ -608,7 +608,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			data = r->header;
 		} else if (r->dsize) {
 			size = &r->dsize;
-			data = r->data;
+			data = r->data + r->doff;
 		} else if (r->fd >= 0) {
 			size = &r->size;
 			data = NULL;

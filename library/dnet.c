@@ -874,7 +874,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 		void *data = io + 1;
 		memcpy(data, ctl->data, size);
 	} else if (ctl->fd < 0 && size && ctl->data) {
-		dnet_req_set_data(&t->r, ctl->data, size, 0);
+		dnet_req_set_data(&t->r, ctl->data, size, 0, 0);
 	}
 
 	memcpy(cmd->id, ctl->addr, DNET_ID_SIZE);
@@ -1779,6 +1779,11 @@ void *dnet_req_data(struct dnet_data_req *r)
 	return r->data;
 }
 
+void *dnet_req_private(struct dnet_data_req *r)
+{
+	return r->priv;
+}
+
 struct dnet_data_req *dnet_req_alloc(struct dnet_net_state *st, size_t hsize)
 {
 	struct dnet_data_req *r;
@@ -1804,6 +1809,13 @@ struct dnet_data_req *dnet_req_alloc(struct dnet_net_state *st, size_t hsize)
 	return r;
 }
 
+void dnet_req_set_complete(struct dnet_data_req *r,
+		void (* complete)(struct dnet_data_req *r), void *priv)
+{
+	r->priv = priv;
+	r->complete = complete;
+}
+
 void dnet_req_set_header(struct dnet_data_req *r, void *header, size_t hsize, int free)
 {
 	if (free)
@@ -1812,12 +1824,13 @@ void dnet_req_set_header(struct dnet_data_req *r, void *header, size_t hsize, in
 	r->hsize = hsize;
 }
 
-void dnet_req_set_data(struct dnet_data_req *r, void *data, size_t size, int free)
+void dnet_req_set_data(struct dnet_data_req *r, void *data, size_t size, off_t offset, int free)
 {
 	if (free)
 		r->flags |= DNET_REQ_FREE_DATA;
 	r->data = data;
 	r->dsize = size;
+	r->doff = offset;
 }
 
 void dnet_req_set_fd(struct dnet_data_req *r, int fd, off_t offset, size_t size, int close)
@@ -1849,7 +1862,7 @@ void dnet_req_destroy(struct dnet_data_req *r)
 		dnet_state_put(r->st);
 	}
 
-	if (!(r->flags & DNET_REQ_NO_DESTRUCT)) {
+	if (!(r->flags & DNET_REQ_NO_DESTRUCT) && !r->complete) {
 		free(r);
 		return;
 	}

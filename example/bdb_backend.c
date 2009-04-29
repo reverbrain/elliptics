@@ -208,7 +208,7 @@ retry:
 				goto err_out_close_txn;
 			}
 
-			dnet_req_set_data(r, data.data, size, 1);
+			dnet_req_set_data(r, data.data, size, 0, 1);
 
 			c = dnet_req_header(r);
 			a = (struct dnet_attr *)(c + 1);
