@@ -82,6 +82,9 @@ struct dnet_cmd
 } __attribute__ ((packed));
 
 #ifdef WORDS_BIGENDIAN
+
+#define dnet_bswap16(x)		((((x) >> 8) & 0xff) | (((x) & 0xff) << 8))
+
 #define dnet_bswap32(x) \
      ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >>  8) |		      \
       (((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24))
@@ -96,6 +99,7 @@ struct dnet_cmd
       | (((x) & 0x000000000000ff00ull) << 40)				      \
       | (((x) & 0x00000000000000ffull) << 56))
 #else
+#define dnet_bswap16(x) (x)
 #define dnet_bswap32(x) (x)
 #define dnet_bswap64(x) (x)
 #endif
@@ -145,7 +149,8 @@ static inline void dnet_convert_list(struct dnet_list *l)
 
 struct dnet_addr_attr
 {
-	uint32_t		sock_type;
+	uint16_t		sock_type;
+	uint16_t		family;
 	uint32_t		proto;
 	struct dnet_addr	addr;
 } __attribute__ ((packed));
@@ -154,7 +159,8 @@ static inline void dnet_convert_addr_attr(struct dnet_addr_attr *a)
 {
 	a->addr.addr_len = dnet_bswap32(a->addr.addr_len);
 	a->proto = dnet_bswap32(a->proto);
-	a->sock_type = dnet_bswap32(a->sock_type);
+	a->sock_type = dnet_bswap16(a->sock_type);
+	a->family = dnet_bswap16(a->family);
 }
 
 struct dnet_route_attr

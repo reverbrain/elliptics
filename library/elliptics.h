@@ -211,7 +211,7 @@ struct dnet_node
 	int			listen_socket;
 
 	struct dnet_addr	addr;
-	int			sock_type, proto;
+	int			sock_type, proto, family;
 
 	pthread_rwlock_t	state_lock;
 	struct list_head	state_list;
@@ -269,7 +269,7 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
 struct dnet_config;
 int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 		struct sockaddr *sa, unsigned int *addr_len, int listening);
-int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
+int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int family,
 		struct sockaddr *sa, unsigned int salen, int listening);
 
 enum dnet_join_state {

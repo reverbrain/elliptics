@@ -440,6 +440,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	memcpy(n->id, cfg->id, DNET_ID_SIZE);
 	n->proto = cfg->proto;
 	n->sock_type = cfg->sock_type;
+	n->family = cfg->family;
 	n->wait_ts.tv_sec = cfg->wait_timeout;
 	n->command_handler = cfg->command_handler;
 	n->command_private = cfg->command_private;

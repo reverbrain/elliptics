@@ -62,8 +62,7 @@ static int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *d
 }
 
 static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint64_t trans,
-		unsigned int cmd, struct dnet_addr *addr, int sock_type, int proto,
-		int reply)
+		unsigned int cmd, struct dnet_addr *addr, int reply)
 {
 	struct dnet_data_req *r;
 	struct dnet_addr_cmd *c;
@@ -85,8 +84,9 @@ static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint6
 		sizeof(struct dnet_cmd) - sizeof(struct dnet_attr);
 
 	memcpy(&c->addr.addr, addr, sizeof(struct dnet_addr));
-	c->addr.sock_type = sock_type;
-	c->addr.proto = proto;
+	c->addr.family = st->n->family;
+	c->addr.sock_type = st->n->sock_type;
+	c->addr.proto = st->n->proto;
 
 	dnet_log(st->n, DNET_LOG_INFO, "%s: sending address command: trans: %llu, reply: %d, cmd: %u.\n",
 			dnet_dump_id(id), (unsigned long long)trans, reply, cmd);
@@ -107,7 +107,7 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 	if (!st)
 		st = dnet_state_get(orig->n->st);
 
-	err = dnet_send_address(orig, st->id, cmd->trans, DNET_CMD_LOOKUP, &st->addr, n->sock_type, n->proto, 1);
+	err = dnet_send_address(orig, st->id, cmd->trans, DNET_CMD_LOOKUP, &st->addr, 1);
 	dnet_state_put(st);
 	return err;
 }
@@ -118,7 +118,7 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 	struct dnet_node *n = st->n;
 
 	return dnet_send_address(st, n->id, cmd->trans, DNET_CMD_REVERSE_LOOKUP,
-			&n->addr, n->sock_type, n->proto, 1);
+			&n->addr, 1);
 }
 
 static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cmd,
@@ -131,7 +131,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cm
 
 	dnet_convert_addr_attr(a);
 
-	s = dnet_socket_create_addr(n, a->sock_type, a->proto,
+	s = dnet_socket_create_addr(n, a->sock_type, a->proto, a->family,
 			(struct sockaddr *)&a->addr, a->addr.addr_len, 0);
 	if (s < 0) {
 		err = s;
@@ -220,6 +220,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *req
 
 		memcpy(a->id, st->id, DNET_ID_SIZE);
 		memcpy(&a->addr.addr, &st->addr, sizeof(struct dnet_addr));
+		a->addr.family = n->family;
 		a->addr.sock_type = n->sock_type;
 		a->addr.proto = n->proto;
 
@@ -601,7 +602,7 @@ static int dnet_add_received_state(struct dnet_node *n, unsigned char *id, struc
 			goto err_out_exit;
 	}
 
-	s = dnet_socket_create_addr(n, a->sock_type, a->proto,
+	s = dnet_socket_create_addr(n, a->sock_type, a->proto, a->family,
 			(struct sockaddr *)&a->addr.addr, a->addr.addr_len, 0);
 	if (s < 0) {
 		err = s;
@@ -780,8 +781,7 @@ int dnet_rejoin(struct dnet_node *n, int all)
 			break;
 		}
 
-		err = dnet_send_address(st, n->id, 0, DNET_CMD_JOIN, &n->addr,
-				n->sock_type, n->proto, 0);
+		err = dnet_send_address(st, n->id, 0, DNET_CMD_JOIN, &n->addr, 0);
 		if (err) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: failed to rejoin to state %s.\n",
 				dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr));

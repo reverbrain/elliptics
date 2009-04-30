@@ -29,11 +29,10 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
-int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto,
+int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int family,
 		struct sockaddr *sa, unsigned int salen, int listening)
 {
 	int s, err = -1;
-	unsigned short int family = AF_INET;
 
 	sa->sa_family = family;
 	s = socket(family, sock_type, proto);
@@ -111,7 +110,7 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 		goto err_out_exit;
 	}
 
-	s = dnet_socket_create_addr(n, cfg->sock_type, cfg->proto,
+	s = dnet_socket_create_addr(n, cfg->sock_type, cfg->proto, cfg->family,
 			ai->ai_addr, ai->ai_addrlen, listening);
 	if (s < 0) {
 		err = -1;
@@ -178,7 +177,7 @@ static int dnet_net_reconnect(struct dnet_net_state *st)
 	if (st->join_state == DNET_CLIENT)
 		return -EINVAL;
 
-	err = dnet_socket_create_addr(st->n, st->n->sock_type, st->n->proto,
+	err = dnet_socket_create_addr(st->n, st->n->sock_type, st->n->proto, st->n->family,
 			(struct sockaddr *)&st->addr, st->addr.addr_len, 0);
 	if (err < 0)
 		return err;
