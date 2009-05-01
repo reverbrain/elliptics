@@ -56,7 +56,7 @@ struct bdb_backend
 	struct bdb_entry	*data, *hist;
 };
 
-static int bdb_get_record_size(void *state, struct bdb_entry *e, DB_TXN *txn,
+static int bdb_get_record_size(void *state, struct bdb_entry *ent, DB_TXN *txn,
 		unsigned char *id, unsigned int *size, int rmw)
 {
 	DBT key, data;
@@ -73,7 +73,7 @@ static int bdb_get_record_size(void *state, struct bdb_entry *e, DB_TXN *txn,
 	key.data = id;
 	key.size = DNET_ID_SIZE;
 
-	err = e->db->cursor(e->db, txn, &cursor, DB_READ_UNCOMMITTED);
+	err = ent->db->cursor(ent->db, txn, &cursor, DB_READ_UNCOMMITTED);
 	if (err) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
 			"%s: failed to open list cursor, err: %d: %s.\n",
@@ -302,16 +302,41 @@ err_out_exit:
 	return err;
 }
 
+static int bdb_put_data_raw(struct bdb_entry *ent, DB_TXN *txn,
+		void *kdata, unsigned int ksize,
+		void *vdata, unsigned int offset, unsigned int size,
+		int partial)
+{
+	DBT key, data;
+
+	memset(&key, 0, sizeof(DBT));
+	memset(&data, 0, sizeof(DBT));
+
+	key.data = kdata;
+	key.size = ksize;
+
+	data.doff = offset;
+	data.ulen = data.size = data.dlen = size;
+	data.flags = DB_DBT_USERMEM;
+	data.data = vdata;
+
+	if (partial)
+		data.flags |= DB_DBT_PARTIAL;
+	
+	return ent->db->put(ent->db, txn, &key, &data, 0);
+}
+
 static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *buf)
 {
-	int err;
+	int err, part = 0;
 	DBT key, data;
-	struct bdb_entry *e = be->data;
+	struct bdb_entry *ent = be->data;
 	struct dnet_io_attr *io = buf;
+	struct dnet_history_entry e;
 	DB_TXN *txn;
 
-	if (attr->size <= sizeof(struct dnet_io_attr)) {
+	if (attr->size < sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
 			"%s: wrong write attribute, size does not match "
 				"IO attribute size: size: %llu, must be more than %zu.\n",
@@ -326,7 +351,7 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 	buf += sizeof(struct dnet_io_attr);
 
 	if (io->flags & DNET_IO_FLAGS_HISTORY)
-		e = be->hist;
+		ent = be->hist;
 
 retry:
 	txn = NULL;
@@ -338,87 +363,108 @@ retry:
 		goto err_out_exit;
 	}
 
-	if (io->flags & DNET_IO_FLAGS_OBJECT) {
-		if ((io->size != attr->size - sizeof(struct dnet_io_attr)) ||
-				(io->size > cmd->size)){
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: wrong io size: %llu, must be equal to %llu.\n",
-					dnet_dump_id(cmd->id), (unsigned long long)io->size,
-					(unsigned long long)attr->size -
-						sizeof(struct dnet_io_attr));
-			err = -EINVAL;
-			goto err_out_close_txn;
-		}
+	if (io->flags & DNET_IO_FLAGS_APPEND) {
+		unsigned int offset = 0;
 
-		memset(&key, 0, sizeof(DBT));
-		memset(&data, 0, sizeof(DBT));
-
-		key.data = io->origin;
-		key.size = DNET_ID_SIZE;
-
-		data.data = buf;
-		data.size = io->size;
-		data.ulen = io->size;
-		data.flags = DB_DBT_PARTIAL | DB_DBT_USERMEM;
-		data.doff = io->offset;
-		data.dlen = io->size;
-
-		err = e->db->put(e->db, txn, &key, &data, 0);
+		err = bdb_get_record_size(state, ent, txn, io->origin, &offset, 1);
 		if (err) {
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: object put failed: offset: %llu, "
-				"size: %llu, err: %d: %s.\n",
-				dnet_dump_id(io->origin), (unsigned long long)io->offset,
-				(unsigned long long)io->size, err, db_strerror(err));
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
-
 			goto err_out_close_txn;
 		}
 
-		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: stored %s object: size: %llu, offset: %llu.\n",
-				dnet_dump_id(io->origin),
-				(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
-				(unsigned long long)io->size, (unsigned long long)io->offset);
+		if (offset)
+			part = 1;
 	}
 
-	if ((io->flags & DNET_IO_FLAGS_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
+	if (io->flags & DNET_IO_FLAGS_HISTORY) {
+		ent = be->hist;
+
+		if (io->size == sizeof(struct dnet_history_entry)) {
+			struct dnet_history_entry *r = buf;
+
+			memset(&key, 0, sizeof(DBT));
+			memset(&data, 0, sizeof(DBT));
+
+			key.data = io->origin;
+			key.size = DNET_ID_SIZE;
+			
+			data.size = sizeof(struct dnet_history_entry);
+			data.flags = DB_DBT_PARTIAL | DB_DBT_USERMEM;
+			data.data = &e;
+
+			err = ent->db->get(ent->db, txn, &key, &data, DB_RMW);
+			if (err) {
+				if (err != DB_NOTFOUND) {
+					if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+						goto err_out_txn_abort_continue;
+
+					dnet_command_handler_log(state, DNET_LOG_ERROR,
+							"%s: failed to get history metadata, err: %d: %s.\n",
+						dnet_dump_id(io->origin), err, db_strerror(err));
+					goto err_out_close_txn;
+				}
+
+				err = bdb_put_data_raw(ent, txn, io->origin, DNET_ID_SIZE,
+					r, 0, sizeof(struct dnet_history_entry), 1);
+			} else {
+				dnet_convert_history_entry(&e);
+				dnet_convert_history_entry(r);
+
+				if (e.size < r->size + r->offset) {
+					e.size = r->size + r->offset;
+					dnet_convert_history_entry(&e);
+					err = bdb_put_data_raw(ent, txn, io->origin, DNET_ID_SIZE,
+						&e, 0, sizeof(struct dnet_history_entry), 1);
+				}
+				dnet_convert_history_entry(r);
+			}
+			if (err) {
+				if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+					goto err_out_txn_abort_continue;
+				goto err_out_close_txn;
+			}
+		}
+	}
+
+	err = bdb_put_data_raw(ent, txn, io->origin, DNET_ID_SIZE,
+			buf, 0, io->size, part);
+	if (err) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: object put failed: offset: %llu, "
+			"size: %llu, err: %d: %s.\n",
+			dnet_dump_id(io->origin), (unsigned long long)io->offset,
+			(unsigned long long)io->size, err, db_strerror(err));
+		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+			goto err_out_txn_abort_continue;
+
+		goto err_out_close_txn;
+	}
+
+	dnet_command_handler_log(state, DNET_LOG_NOTICE,
+		"%s: stored %s object: size: %llu, offset: %llu.\n",
+			dnet_dump_id(io->origin),
+			(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
+			(unsigned long long)io->size, (unsigned long long)io->offset);
+
+	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
 		unsigned int size;
 
-		e = be->hist;
-
-		err = bdb_get_record_size(state, e, txn, io->origin, &size, 1);
+		err = bdb_get_record_size(state, ent, txn, io->origin, &size, 1);
 		if (err) {
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
 			goto err_out_close_txn;
 		}
 
-		memset(&key, 0, sizeof(DBT));
-		memset(&data, 0, sizeof(DBT));
+		memcpy(e.id, io->id, DNET_ID_SIZE);
+		e.size = io->size;
+		e.offset = io->offset;
+		e.flags = 0;
 
-		key.data = io->origin;
-		key.size = DNET_ID_SIZE;
-
-		data.data = io;
-		data.doff = size;
-		data.ulen = sizeof(struct dnet_io_attr);
-		data.dlen = sizeof(struct dnet_io_attr);
-		data.size = sizeof(struct dnet_io_attr);
-		data.flags = DB_DBT_PARTIAL | DB_DBT_USERMEM;
-
-		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: updating history: size: %llu, offset: %llu.\n",
-				dnet_dump_id(io->origin), (unsigned long long)io->size,
-				(unsigned long long)io->offset);
-
-		dnet_convert_io_attr(io);
-
-		err = e->db->put(e->db, txn, &key, &data, 0);
-
-		dnet_convert_io_attr(io);
-
+		dnet_convert_history_entry(&e);
+		err = bdb_put_data_raw(ent, txn, io->origin, DNET_ID_SIZE,
+				&e, size, sizeof(struct dnet_history_entry), 1);
 		if (err) {
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
 				"%s: history update failed offset: %llu, "

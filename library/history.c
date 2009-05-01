@@ -114,7 +114,7 @@ static int dnet_read_object_complete(struct dnet_net_state *st, struct dnet_cmd 
 	 * Do not update history for this write since we fetched object and its transaction
 	 * history from the network and it is not a real IO started by the client.
 	 */
-	io->flags = DNET_IO_FLAGS_OBJECT;
+	io->flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
 	dnet_convert_io_attr(io);
 
 	attr->cmd = DNET_CMD_WRITE;
@@ -197,7 +197,7 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 
 	io->size = attr->size - sizeof(struct dnet_io_attr);
 	io->offset = 0;
-	io->flags = DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_OBJECT;
+	io->flags = DNET_IO_FLAGS_HISTORY;
 	memcpy(io->origin, cmd->id, DNET_ID_SIZE);
 	
 	dnet_log(n, DNET_LOG_INFO, "%s: reading local history: io_size: %llu.\n",
@@ -233,7 +233,7 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 		ctl.priv = NULL;
 		ctl.complete = dnet_read_object_complete;
 		ctl.cmd = DNET_CMD_READ;
-		
+
 		dnet_wakeup(n->wait, n->wait->cond++);
 		dnet_wait_get(n->wait);
 
@@ -304,7 +304,7 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
 	ctl.complete = dnet_complete_history_read;
-	ctl.io.flags = DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_OBJECT;
+	ctl.io.flags = DNET_IO_FLAGS_HISTORY;
 	ctl.priv = priv;
 	ctl.cmd = DNET_CMD_READ;
 

@@ -183,20 +183,14 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 	dnet_convert_addr_attr(&l->addr);
 }
 
-/* Update history if set. Is not checked when history file is updated directly */
-#define DNET_IO_FLAGS_HISTORY_UPDATE	(1<<0)
+/* Do not update history for given transaction */
+#define DNET_IO_FLAGS_NO_HISTORY_UPDATE	(1<<0)
 
 /* Append given data at the end of the object */
 #define DNET_IO_FLAGS_APPEND		(1<<1)
 
 /* History IO request. */
 #define DNET_IO_FLAGS_HISTORY		(1<<2)
-
-/* Update object itself when set */
-#define DNET_IO_FLAGS_OBJECT		(1<<3)
-
-/* Only perform transaction storing, no history for the main object will be updated */
-#define DNET_IO_FLAGS_TRANS_ONLY	(1<<4)
 
 struct dnet_io_attr
 {

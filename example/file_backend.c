@@ -299,7 +299,7 @@ static int dnet_update_history(void *state, struct dnet_io_attr *io, int tmp)
 {
 	char history[DNET_ID_SIZE*2+1 + sizeof(DNET_HISTORY_SUFFIX) + 5 + 3]; /* ff/$IDDNET_HISTORY_SUFFIX.tmp*/
 	int fd, err;
-	void *data = io;
+	struct dnet_history_entry e;
 
 	snprintf(history, sizeof(history), "%02x/%s%s%s", io->origin[0], dnet_dump_id(io->origin),
 			DNET_HISTORY_SUFFIX, (tmp)?".tmp":"");
@@ -313,10 +313,14 @@ static int dnet_update_history(void *state, struct dnet_io_attr *io, int tmp)
 		goto err_out_exit;
 	}
 
-	dnet_convert_io_attr(io);
-	err = write(fd, data + DNET_ID_SIZE, sizeof(struct dnet_io_attr) - DNET_ID_SIZE);
-	dnet_convert_io_attr(io);
+	memcpy(e.id, io->id, DNET_ID_SIZE);
+	e.size = io->size;
+	e.offset = io->offset;
+	e.flags = 0;
 
+	dnet_convert_history_entry(&e);
+
+	err = write(fd, &e, sizeof(struct dnet_history_entry));
 	if (err <= 0) {
 		err = -errno;
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -337,14 +341,14 @@ err_out_exit:
 
 static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
-	int err;
+	int err, fd;
 	char dir[3];
 	struct dnet_io_attr *io = data;
 	int oflags = O_RDWR | O_CREAT | O_LARGEFILE;
 	/* null byte + '%02x/' directory prefix and optional history suffix */
 	char file[DNET_ID_SIZE * 2 + 1 + 3 + sizeof(DNET_HISTORY_SUFFIX)];
 
-	if (attr->size <= sizeof(struct dnet_io_attr)) {
+	if (attr->size < sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
 			"%s: wrong write attribute, size does not match "
 				"IO attribute size: size: %llu, must be more than %zu.\n",
@@ -354,9 +358,9 @@ static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *a
 		goto err_out_exit;
 	}
 
-	data += sizeof(struct dnet_io_attr);
-
 	dnet_convert_io_attr(io);
+
+	data += sizeof(struct dnet_io_attr);
 
 	snprintf(dir, sizeof(dir), "%02x", io->origin[0]);
 
@@ -376,46 +380,80 @@ static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *a
 	else
 		snprintf(file, sizeof(file), "%02x/%s", io->origin[0], dnet_dump_id(io->origin));
 
-	if (io->flags & DNET_IO_FLAGS_OBJECT) {
-		int fd;
+	if (io->flags & DNET_IO_FLAGS_APPEND)
+		oflags |= O_APPEND;
 
-		if ((io->size != attr->size - sizeof(struct dnet_io_attr)) ||
-				(io->size > cmd->size)){
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: wrong io size: %llu, must be equal to %llu.\n",
-					dnet_dump_id(cmd->id), (unsigned long long)io->size,
-					(unsigned long long)attr->size - sizeof(struct dnet_io_attr));
-			err = -EINVAL;
-			goto err_out_exit;
-		}
+	fd = open(file, oflags, 0644);
+	if (fd < 0) {
+		err = -errno;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to open data file '%s': %s.\n",
+				dnet_dump_id(cmd->id), file, strerror(errno));
+		goto err_out_exit;
+	}
 
-		if (io->flags & DNET_IO_FLAGS_APPEND)
-			oflags |= O_APPEND;
+	if ((io->flags & DNET_IO_FLAGS_HISTORY) && (io->size == sizeof(struct dnet_history_entry))) {
+		struct dnet_history_entry e;
+		struct dnet_history_entry *r = data;
+		int sfd;
 
-		fd = open(file, oflags, 0644);
-		if (fd < 0) {
+		sfd = open(file, oflags & ~O_APPEND, 0644);
+		if (sfd < 0) {
 			err = -errno;
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to open data file '%s': %s.\n",
-					dnet_dump_id(cmd->id), file, strerror(errno));
-			goto err_out_exit;
+				"%s: failed to reopen history file '%s': %s.\n",
+					dnet_dump_id(io->origin), file, strerror(errno));
+			goto err_out_close;
+		}
+		err = pread(sfd, &e, sizeof(struct dnet_history_entry), 0);
+		if (err < 0) {
+			err = -errno;
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to read history file '%s': %s.\n",
+					dnet_dump_id(io->origin), file, strerror(errno));
+			close(sfd);
+			goto err_out_close;
 		}
 
-		err = pwrite(fd, data, io->size, io->offset);
+		if (err == 0) {
+			memcpy(e.id, r->id, DNET_ID_SIZE);
+			e.size = r->offset + r->size;
+			e.offset = 0;
+			e.flags = 0;
+		} else {
+			dnet_convert_history_entry(&e);
+			dnet_convert_history_entry(r);
+			if (e.size < r->offset + r->size)
+				e.size = r->offset + r->size;
+			dnet_convert_history_entry(r);
+		}
+
+		dnet_convert_history_entry(&e);
+		err = pwrite(sfd, &e, sizeof(struct dnet_history_entry), 0);
 		if (err <= 0) {
 			err = -errno;
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to write into '%s': %s.\n",
-				dnet_dump_id(cmd->id), file, strerror(errno));
-			close(fd);
-			goto err_out_exit;
+				"%s: failed to update metadata in history file '%s': %s.\n",
+				dnet_dump_id(io->origin), file, strerror(errno));
+			close(sfd);
+			goto err_out_close;
 		}
-
-		//fsync(fd);
-		close(fd);
+		close(sfd);
 	}
 
-	if ((io->flags & DNET_IO_FLAGS_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
+	err = write(fd, data, io->size);
+	if (err <= 0) {
+		err = -errno;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to write into '%s': %s.\n",
+			dnet_dump_id(cmd->id), file, strerror(errno));
+		goto err_out_close;
+	}
+
+	//fsync(fd);
+	close(fd);
+
+	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
 		err = dnet_update_history(state, io, 0);
 		if (err) {
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -432,6 +470,8 @@ static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *a
 
 	return 0;
 
+err_out_close:
+	close(fd);
 err_out_exit:
 	return err;
 }

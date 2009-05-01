@@ -203,7 +203,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 
 	ctl.io.offset = 0;
 	ctl.io.size = size;
-	ctl.io.flags = DNET_IO_FLAGS_HISTORY_UPDATE | DNET_IO_FLAGS_OBJECT | DNET_IO_FLAGS_TRANS_ONLY;
+	ctl.io.flags = 0;
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 
@@ -221,7 +221,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 
 		ctl.priv = (void *)(unsigned long)size;
 
-		err = dnet_write_object(n, &ctl, obj, len);
+		err = dnet_write_object(n, &ctl, obj, len, 0);
 		if (err < 0)
 			return err;
 
@@ -239,7 +239,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 		iotest_wait();
 
 		max -= size;
-		//ctl.io.offset += size;
+		ctl.io.offset += size;
 	}
 
 	return 0;

@@ -88,7 +88,7 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
  *
  * Returns negative error value in case of error.
  */
-int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size, unsigned int aflags);
+int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size, int hist);
 
 /*
  * dnet_write_object() returns number of nodes transaction was sent to.
@@ -98,15 +98,18 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
  * ->complete() will also be called for each transformation function twice,
  *  if there was an error all parameters maybe NULL (private pointer will be set
  *  to what was provided by the user as private data).
+ *
+ *  if @hupdate is 0 no history update for the @remote object will be done,
+ *  otherwise another transaction will be sent to update the history.
  */
-int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote, unsigned int len);
+int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote, unsigned int len, int hupdate);
 
 /*
  * Sends given file to the remote nodes and waits until all of them ack the write.
  *
  * Returns negative error value in case of error.
  */
-int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, unsigned int io_flags, unsigned int aflags);
+int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, unsigned int aflags);
 
 #define DNET_LOG_NOTICE			(1<<0)
 #define DNET_LOG_INFO			(1<<1)

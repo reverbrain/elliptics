@@ -85,7 +85,7 @@ static void tc_get_complete(struct dnet_data_req *r)
 static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *buf)
 {
-	TCADB *e = be->data;
+	TCADB *db = be->data;
 	int err;
 	struct dnet_io_attr *io = buf;
 	int size, total_size, offset;
@@ -108,7 +108,7 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	dnet_convert_io_attr(io);
 
 	if (io->flags & DNET_IO_FLAGS_HISTORY)
-		e = be->hist;
+		db = be->hist;
 
 	offset = io->offset;
 
@@ -130,7 +130,7 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	complete->refcnt = 1;
 	complete->ptr = NULL;
 
-	ptr = tcadbget(e, io->origin, DNET_ID_SIZE, &total_size);
+	ptr = tcadbget(db, io->origin, DNET_ID_SIZE, &total_size);
 	if (!ptr) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
 			"%s: failed to read object.\n", dnet_dump_id(io->origin));
@@ -251,15 +251,15 @@ err_out_exit:
 }
 
 static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *buf)
+		struct dnet_attr *attr, void *data)
 {
 	int err;
-	TCADB *e = be->data;
-	struct dnet_io_attr *io = buf;
+	TCADB *db = be->data;
+	struct dnet_io_attr *io = data;
+	struct dnet_history_entry *e, n, *r;
 	bool res;
-	void *d = NULL;
 
-	if (attr->size <= sizeof(struct dnet_io_attr)) {
+	if (attr->size < sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
 			"%s: wrong write attribute, size does not match "
 				"IO attribute size: size: %llu, must be more than %zu.\n",
@@ -271,141 +271,96 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 	dnet_convert_io_attr(io);
 
-	buf += sizeof(struct dnet_io_attr);
+	data += sizeof(struct dnet_io_attr);
+	
+	if (io->flags & DNET_IO_FLAGS_HISTORY) {
+		db = be->hist;
 
-	if (io->flags & DNET_IO_FLAGS_HISTORY)
-		e = be->hist;
+		if (io->size == sizeof(struct dnet_history_entry)) {
+			int esize;
 
-	res = tcadbtranbegin(e);
-	if (!res) {
-		err = -EBUSY;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to start transaction.\n", dnet_dump_id(io->origin));
-		goto err_out_exit;
-	}
+			r = data;
 
-	if (io->flags & DNET_IO_FLAGS_OBJECT) {
-		int stored_size;
-
-		if ((io->size != attr->size - sizeof(struct dnet_io_attr)) ||
-				(io->size > cmd->size)){
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: wrong io size: %llu, must be equal to %llu.\n",
-					dnet_dump_id(cmd->id), (unsigned long long)io->size,
-					(unsigned long long)attr->size -
-						sizeof(struct dnet_io_attr));
-			err = -EINVAL;
-			goto err_out_close_txn;
-		}
-
-		stored_size = tcadbvsiz(e, io->origin, DNET_ID_SIZE);
-
-		if ((int)io->offset == stored_size) {
-			res = tcadbputcat(e, io->origin, DNET_ID_SIZE, buf, io->size);
+			res = tcadbtranbegin(db);
 			if (!res) {
-				dnet_command_handler_log(state, DNET_LOG_ERROR,
-					"%s: concat object put failed: offset: %llu, size: %llu.\n",
-					dnet_dump_id(io->origin), (unsigned long long)io->offset,
-					(unsigned long long)io->size);
 				err = -EINVAL;
-				goto err_out_close_txn;
-			}
-		} else if (!io->offset) {
-			res = tcadbput(e, io->origin, DNET_ID_SIZE, buf, io->size);
-			if (!res) {
 				dnet_command_handler_log(state, DNET_LOG_ERROR,
-					"%s: direct object put failed: offset: %llu, size: %llu.\n",
-					dnet_dump_id(io->origin), (unsigned long long)io->offset,
-					(unsigned long long)io->size);
-				err = -EINVAL;
-				goto err_out_close_txn;
-			}
-		} else {
-			d = tcadbget(e, io->origin, DNET_ID_SIZE, &stored_size);
-			if (!d || stored_size < (int)(io->size + io->offset)) {
-				dnet_command_handler_log(state, DNET_LOG_ERROR,
-					"%s: failed to read block for offset: offset: %llu, size: %llu.\n",
-					dnet_dump_id(io->origin), (unsigned long long)io->offset,
-					(unsigned long long)io->size);
-				free(d);
-				err = -ENOENT;
-				goto err_out_close_txn;
+					"%s: failed to start history transactio.\n",
+						dnet_dump_id(io->origin));
+				goto err_out_exit;
 			}
 
-			if (stored_size >= (int)(io->offset + io->size)) {
-				memcpy(d + io->offset, buf, io->size);
-
-				res = tcadbput(e, io->origin, DNET_ID_SIZE, d, stored_size);
-				if (!res) {
-					dnet_command_handler_log(state, DNET_LOG_ERROR,
-						"%s: updated object put failed: offset: %llu, size: %llu.\n",
-						dnet_dump_id(io->origin), (unsigned long long)io->offset,
-						(unsigned long long)io->size);
-					err = -EINVAL;
-					goto err_out_free_read_data;
-				}
+			e = tcadbget(db, io->origin, DNET_ID_SIZE, &esize);
+			if (!e) {
+				res = tcadbput(db, io->origin, DNET_ID_SIZE, r, sizeof(struct dnet_history_entry));
 			} else {
-				void *n;
-
-				n = malloc(io->offset + io->size);
-				if (!n) {
-					dnet_command_handler_log(state, DNET_LOG_ERROR,
-						"%s: failed to allocate block for offset: offset: %llu, size: %llu.\n",
-						dnet_dump_id(io->origin), (unsigned long long)io->offset,
-						(unsigned long long)io->size);
-					err = -ENOMEM;
-					goto err_out_free_read_data;
+				dnet_convert_history_entry(e);
+				dnet_convert_history_entry(r);
+				
+				if (e->size < r->offset + r->size) {
+					e->size = r->offset + r->size;
+					dnet_convert_history_entry(e);
+					res = tcadbput(db, io->origin, DNET_ID_SIZE, e, esize);
 				}
 
-				memcpy(n, d, stored_size);
-				memcpy(n + io->offset, buf, io->size);
-
-				res = tcadbput(e, io->origin, DNET_ID_SIZE, n, io->size + io->offset);
-				if (!res) {
-					dnet_command_handler_log(state, DNET_LOG_ERROR,
-						"%s: updated object put failed: offset: %llu, size: %llu.\n",
-						dnet_dump_id(io->origin), (unsigned long long)io->offset,
-						(unsigned long long)io->size);
-					err = -EINVAL;
-					free(n);
-					goto err_out_free_read_data;
-				}
+				dnet_convert_history_entry(r);
 			}
 
-			free(d);
-			d = NULL;
+			if (esize)
+				free(e);
+			
+			if (!res) {
+				err = -EINVAL;
+				dnet_command_handler_log(state, DNET_LOG_ERROR,
+					"%s: history metadata update failed.\n",
+						dnet_dump_id(io->origin));
+				goto err_out_abort_transaction;
+			}
 		}
-
-		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: stored %s object: size: %llu, offset: %llu.\n",
-				dnet_dump_id(io->origin),
-				(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
-				(unsigned long long)io->size, (unsigned long long)io->offset);
 	}
 
-	res = tcadbtrancommit(e);
+	if (io->flags & DNET_IO_FLAGS_APPEND) {
+		res = tcadbputcat(db, io->origin, DNET_ID_SIZE, data, io->size);
+	} else {
+		res = tcadbput(db, io->origin, DNET_ID_SIZE, data, io->size);
+	}
 	if (!res) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to commit a write transaction.\n", dnet_dump_id(io->origin));
-
+			"%s: direct object put failed: offset: %llu, size: %llu.\n",
+			dnet_dump_id(io->origin), (unsigned long long)io->offset,
+			(unsigned long long)io->size);
+		err = -EINVAL;
 		goto err_out_exit;
+	}
+
+	if (io->flags & DNET_IO_FLAGS_HISTORY) {
+		res = tcadbtrancommit(be->hist);
+		if (!res) {
+			err = -EINVAL;
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: history transaction commit failed..\n",
+					dnet_dump_id(io->origin));
+			goto err_out_abort_transaction;
+		}
 	}
 
 	dnet_command_handler_log(state, DNET_LOG_NOTICE,
-		"%s: write transaction committed.\n", dnet_dump_id(io->origin));
+		"%s: stored %s object: size: %llu, offset: %llu.\n",
+			dnet_dump_id(io->origin),
+			(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
+			(unsigned long long)io->size, (unsigned long long)io->offset);
 
-	if ((io->flags & DNET_IO_FLAGS_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
-		e = be->hist;
+	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
+		e = &n;
 
-		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: updating history: size: %llu, offset: %llu.\n",
-				dnet_dump_id(io->origin), (unsigned long long)io->size,
-				(unsigned long long)io->offset);
+		memcpy(e->id, io->id, DNET_ID_SIZE);
+		e->size = io->size;
+		e->offset = io->offset;
+		e->flags = 0;
 
-		dnet_convert_io_attr(io);
-		res = tcadbputcat(e, io->origin, DNET_ID_SIZE, io, sizeof(struct dnet_io_attr));
-		dnet_convert_io_attr(io);
+		dnet_convert_history_entry(e);
 
+		res = tcadbputcat(db, io->origin, DNET_ID_SIZE, e, sizeof(struct dnet_history_entry));
 		if (!res) {
 			err = -EINVAL;
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -423,10 +378,8 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 	return 0;
 
-err_out_free_read_data:
-	free(d);
-err_out_close_txn:
-	tcadbtranabort(e);
+err_out_abort_transaction:
+	tcadbtranabort(be->hist);
 err_out_exit:
 	return err;
 }
