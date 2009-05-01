@@ -385,6 +385,11 @@ struct dnet_transform_complete
 int dnet_recv_transform_list(struct dnet_node *n, unsigned char *id,
 		struct dnet_transform_complete *t);
 
+/*
+ * Send given number of bytes as reply to the listing command.
+ */
+int dnet_send_list(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size);
+
 #ifdef __cplusplus
 }
 #endif

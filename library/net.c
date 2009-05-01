@@ -1029,3 +1029,39 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	free(st);
 }
 
+int dnet_send_list(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size)
+{
+	struct dnet_cmd *c;
+	struct dnet_attr *a;
+	struct dnet_data_req *r;
+	void *data;
+
+	r = dnet_req_alloc(state, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
+	if (!r)
+		return -ENOMEM;
+
+	c = dnet_req_header(r);
+	a = (struct dnet_attr *)(c + 1);
+	data = a + 1;
+
+	*c = *cmd;
+	c->trans |= DNET_TRANS_REPLY;
+	c->flags = DNET_FLAGS_MORE;
+	c->status = 0;
+	c->size = sizeof(struct dnet_attr) + size;
+
+	a->size = size;
+	a->flags = 0;
+	a->cmd = DNET_CMD_LIST;
+
+	memcpy(data, odata, size);
+
+	dnet_convert_cmd(c);
+	dnet_convert_attr(a);
+
+	dnet_command_handler_log(state, DNET_LOG_NOTICE,
+		"%s: sending %u list entries.\n",
+		dnet_dump_id(cmd->id), size / DNET_ID_SIZE);
+
+	return dnet_data_ready(state, r);
+}
