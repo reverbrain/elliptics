@@ -38,6 +38,11 @@ static inline void atomic_set(atomic_t *a, int val)
 
 #define atomic_init(a, v) atomic_set(a, v)
 
+static inline int atomic_read(atomic_t *a)
+{
+	return a->val;
+}
+
 static inline int atomic_inc(atomic_t *a)
 {
 	return __sync_add_and_fetch(&a->val, 1);
@@ -74,6 +79,11 @@ static inline int atomic_init(atomic_t *a, int val)
 static inline void atomic_set(atomic_t *a, int val)
 {
 	a->val = val;
+}
+
+static inline int atomic_read(atomic_t *a)
+{
+	return a->val;
 }
 
 static inline int atomic_inc(atomic_t *a)
