@@ -33,6 +33,8 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
+#include "backends.h"
+
 struct file_backend_root
 {
 	char			*root;
@@ -448,6 +450,7 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 	char file[DNET_ID_SIZE * 2 + 1 + 3 + sizeof(DNET_HISTORY_SUFFIX)];
 	off_t offset;
 	size_t total_size;
+	struct stat st;
 
 	if (attr->size < sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -477,29 +480,24 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 	}
 
 	size = io->size;
-	if ((io->size == 0) && (attr->size == sizeof(struct dnet_io_attr))) {
-		struct stat st;
 
-		err = fstat(fd, &st);
-		if (err) {
-			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to stat file '%s': %s.\n",
-					dnet_dump_id(io->origin), file, strerror(errno));
-			goto err_out_close_fd;
-		}
-
-		size = st.st_size;
+	err = fstat(fd, &st);
+	if (err) {
+		err = -errno;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to stat file '%s': %s.\n",
+				dnet_dump_id(io->origin), file, strerror(errno));
+		goto err_out_close_fd;
 	}
+
+	size = total_size = dnet_backend_check_get_size(io, st.st_size);
+	offset = io->offset;
 
 	if (attr->size == sizeof(struct dnet_io_attr)) {
 		struct dnet_data_req *r;
 		struct dnet_cmd *c;
 		struct dnet_attr *a;
 		struct dnet_io_attr *rio;
-
-		total_size = size;
-		offset = io->offset;
 
 		while (total_size) {
 			size = total_size;

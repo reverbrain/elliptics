@@ -626,6 +626,8 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 		} else if (r->fd >= 0) {
 			err = dnet_sendfile(st, r->fd, &r->offset, *size);
 		}
+		
+		dnet_log(n, DNET_LOG_NOTICE, "%s: sent: data: %p, %d/%zu.\n", dnet_dump_id(st->id), data, err, *size);
 
 		if (err < 0) {
 			err = -EAGAIN;

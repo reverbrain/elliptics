@@ -22,6 +22,25 @@ extern "C" {
 
 #include "dnet/packet.h"
 
+static inline uint64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint64_t record_size)
+{
+	uint64_t size = io->size;
+
+	if (!size || size + io->offset > record_size) {
+		if (!size)
+			size = record_size;
+
+		if (size + io->offset > record_size) {
+			if (io->offset > record_size)
+				size = 0;
+			else
+				size = record_size - io->offset;
+		}
+	}
+
+	return size;
+}
+
 int bdb_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr,
 		void *data);

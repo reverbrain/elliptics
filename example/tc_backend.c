@@ -39,6 +39,8 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
+#include "backends.h"
+
 #ifdef HAVE_TOKYOCABINET_SUPPORT
 
 #include <tcadb.h>
@@ -137,28 +139,10 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		err = -ENOENT;
 		goto err_out_put;
 	}
-
 	complete->ptr = ptr;
 
-	/*
-	 * Yeah-yeah-yeah, TokyoCabinet is 31-bits only.
-	 */
-	if (total_size < (int)io->offset) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: object is too small: offset: %d, size: %d.\n",
-			dnet_dump_id(io->origin), offset, total_size);
-		err = -E2BIG;
-		goto err_out_put;
-	}
-
-	if (total_size < (int)(io->offset + io->size)) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: object is too small: truncating output: offset: %u, size: %u, requested_size: %llu.\n",
-			dnet_dump_id(io->origin), offset, total_size, (unsigned long long)io->size);
-	}
-
-	if (io->size)
-		total_size = io->size;
+	size = total_size = dnet_backend_check_get_size(io, total_size);
+	offset = io->offset;
 
 	if (attr->size == sizeof(struct dnet_io_attr)) {
 		struct dnet_cmd *c;

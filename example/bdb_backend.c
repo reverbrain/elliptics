@@ -37,6 +37,8 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
+#include "backends.h"
+
 #ifdef HAVE_BDB_SUPPORT
 #include <db.h>
 
@@ -152,17 +154,14 @@ retry:
 		goto err_out_exit;
 	}
 
-	size = io->size;
-	if ((io->size == 0) && (attr->size == sizeof(struct dnet_io_attr))) {
-		err = bdb_get_record_size(state, e, txn, io->origin, &size, 0);
-		if (err) {
-			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
-				goto err_out_txn_abort_continue;
-			goto err_out_close_txn;
-		}
+	err = bdb_get_record_size(state, e, txn, io->origin, &total_size, 0);
+	if (err) {
+		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+			goto err_out_txn_abort_continue;
+		goto err_out_close_txn;
 	}
 
-	total_size = size;
+	total_size = size = dnet_backend_check_get_size(io, total_size);
 	offset = io->offset;
 
 	if (attr->size == sizeof(struct dnet_io_attr)) {

@@ -217,11 +217,12 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 		if (size > max)
 			size = max;
 
-		ptr[first] = ptr[last] = rand();
+		//ptr[first] = ptr[last] = rand();
+		ptr[first] = ptr[last] = ctl.io.offset;
 
 		ctl.priv = (void *)(unsigned long)size;
 
-		err = dnet_write_object(n, &ctl, obj, len, 0);
+		err = dnet_write_object(n, &ctl, obj, len, 1);
 		if (err < 0)
 			return err;
 

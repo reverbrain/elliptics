@@ -1198,7 +1198,7 @@ int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct d
 		goto err_out_exit;
 	}
 
-	err = pwrite(fd, data, io->size, io->offset);
+	err = pwrite(fd, data, io->size, c->offset);
 	if (err <= 0) {
 		err = -errno;
 		dnet_log_err(n, "%s: failed to write data into completion file '%s'", dnet_dump_id(cmd->id), c->file);
@@ -1243,8 +1243,10 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl)
 	return 0;
 }
 
-static int dnet_read_file_id(struct dnet_node *n, char *file, int len, struct dnet_io_attr *io,
-		struct dnet_wait *w, int hist)
+static int dnet_read_file_id(struct dnet_node *n, char *file, int len,
+		off_t write_offset,
+		struct dnet_io_attr *io,
+		struct dnet_wait *w, int hist, int wait)
 {
 	struct dnet_io_control ctl;
 	struct dnet_io_completion *c;
@@ -1272,7 +1274,7 @@ static int dnet_read_file_id(struct dnet_node *n, char *file, int len, struct dn
 	memset(c, 0, sizeof(struct dnet_io_completion) + len + 1 + sizeof(DNET_HISTORY_SUFFIX));
 
 	c->wait = dnet_wait_get(w);
-	c->offset = io->offset;
+	c->offset = write_offset;
 	c->size = io->size;
 	c->file = (char *)(c + 1);
 
@@ -1288,13 +1290,15 @@ static int dnet_read_file_id(struct dnet_node *n, char *file, int len, struct dn
 	if (err)
 		goto err_out_exit;
 
-	err = dnet_wait_event(w, w->cond != wait_init, &n->wait_ts);
-	if (err || (w->cond != 0 && w->cond != wait_init)) {
-		if (!err)
-			err = w->cond;
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for '%s' read completion, err: %d.\n",
-				dnet_dump_id(ctl.addr), file, err);
-		goto err_out_exit;
+	if (wait) {
+		err = dnet_wait_event(w, w->cond != wait_init, &n->wait_ts);
+		if (err || (w->cond != 0 && w->cond != wait_init)) {
+			if (!err)
+				err = w->cond;
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for '%s' read completion, err: %d.\n",
+					dnet_dump_id(ctl.addr), file, err);
+			goto err_out_exit;
+		}
 	}
 
 	return 0;
@@ -1318,13 +1322,20 @@ static int dnet_trans_map_callback(void *priv, uint64_t offset, uint64_t size,
 {
 	struct dnet_map_private *p = priv;
 	struct dnet_io_attr io;
+	int err;
 
 	memcpy(io.origin, e->id, DNET_ID_SIZE);
-	io.offset = offset;
+	io.offset = offset - e->offset;
 	io.size = size;
 	io.flags = 0;
 
-	return dnet_read_file_id(p->node, p->file, p->len, &io, p->wait, 0);
+	err = dnet_read_file_id(p->node, p->file, p->len, offset, &io, p->wait, 0, 0);
+
+	dnet_log(p->node, DNET_LOG_INFO, "%s: reading chunk of file: '%s', offset: %llu, size: %llu, err: %d.\n",
+			dnet_dump_id(e->id), p->file, (unsigned long long)io.offset,
+			(unsigned long long)io.size, err);
+
+	return err;
 }
 
 struct dnet_map_entry
@@ -1449,10 +1460,6 @@ again:
 	if (cmp)
 		return -ENOENT;
 
-	err = r->callback(r->priv, m->offset, m->size, a);
-	if (err)
-		return err;
-
 	/*
 	 *                         a->offset+a->size   m->offset+m->size
 	 * |------------------|==========|--------------------|
@@ -1465,6 +1472,10 @@ again:
 	 */
 	if (m->offset < a->offset && m->offset + m->size > a->offset + a->size) {
 		uint64_t right_size = m->offset + m->size - (a->offset + a->size);
+
+		err = r->callback(r->priv, a->offset, a->size, a);
+		if (err)
+			return err;
 
 		m->size = a->offset - m->offset;
 
@@ -1488,6 +1499,10 @@ again:
 	 *
 	 */
 	if (m->offset < a->offset) {
+		err = r->callback(r->priv, a->offset, m->offset + m->size - a->offset, a);
+		if (err)
+			return err;
+
 		m->size = a->offset - m->offset;
 		r->size -= m->offset + m->size - a->offset;
 		goto again;
@@ -1506,6 +1521,10 @@ again:
 	 */
 
 	if (m->offset + m->size > a->offset + a->size) {
+		err = r->callback(r->priv, m->offset, a->offset + a->size - m->offset, a);
+		if (err)
+			return err;
+
 		m->offset = a->offset + a->size;
 		r->size -= a->offset + a->size - m->offset;
 		goto again;
@@ -1523,6 +1542,10 @@ again:
 	 */
 
 	if (m->offset + m->size <= a->offset + a->size) {
+		err = r->callback(r->priv, m->offset, m->size, a);
+		if (err)
+			return err;
+
 		rb_erase(&m->map_entry, root);
 		r->size -= m->size;
 		free(m);
@@ -1622,7 +1645,7 @@ static int dnet_trans_map(struct dnet_node *n, char *main_file, uint64_t offset,
 		if (err) {
 			if (err < 0 && err != -ENOENT)
 				goto err_out_free;
-			break;
+			continue;
 		}
 
 		if (!r.size)
@@ -1659,8 +1682,8 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
 		goto err_out_exit;
 	}
 
-	io.size = size;
-	io.offset = offset;
+	io.size = 0;
+	io.offset = 0;
 	io.flags = 0;
 	io.flags = DNET_IO_FLAGS_HISTORY;
 
@@ -1676,7 +1699,7 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
 			continue;
 		}
 
-		err = dnet_read_file_id(n, file, len, &io, w, 1);
+		err = dnet_read_file_id(n, file, len, 0, &io, w, 1, 1);
 		if (err) {
 			error = err;
 			continue;
@@ -1702,6 +1725,19 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
 		err = dnet_trans_map(n, file, offset, size, dnet_trans_map_callback, &p);
 		if (err)
 			goto err_out_put;
+
+		/*
+		 * Waiting for all readers to complete the transactions.
+		 */
+		err = dnet_wait_event(w, atomic_read(&w->refcnt) == 1, &n->wait_ts);
+		if (err || (w->cond < 0 && w->cond != ~0)) {
+			if (w->cond < 0 && w->cond != ~0)
+				err = w->cond;
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to read file '%s', offset: %llu, size: %llu, err: %d.\n",
+					dnet_dump_id(n->id), file, (unsigned long long)offset,
+					(unsigned long long)size, err);
+			goto err_out_put;
+		}
 	}
 
 	dnet_wait_put(w);
