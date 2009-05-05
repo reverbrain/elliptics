@@ -50,48 +50,13 @@ struct tc_backend
 	TCADB	*data, *hist;
 };
 
-struct tc_get_completion
-{
-	pthread_mutex_t		lock;
-	int			refcnt;
-	void			*ptr;
-};
-
-static int __tc_get_complete(struct tc_get_completion *c)
-{
-	int destroy = 0;
-
-	pthread_mutex_lock(&c->lock);
-	c->refcnt--;
-	if (!c->refcnt)
-		destroy = 1;
-	pthread_mutex_unlock(&c->lock);
-
-	if (destroy) {
-		pthread_mutex_destroy(&c->lock);
-		free(c->ptr);
-		free(c);
-	}
-
-	return destroy;
-}
-
-static void tc_get_complete(struct dnet_data_req *r)
-{
-	struct tc_get_completion *c = dnet_req_private(r);
-
-	__tc_get_complete(c);
-	free(r);
-}
-
 static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *buf)
 {
 	TCADB *db = be->data;
 	int err;
 	struct dnet_io_attr *io = buf;
-	int size, total_size, offset;
-	struct tc_get_completion *complete;
+	int size;
 	void *ptr;
 	struct dnet_data_req *r;
 
@@ -112,124 +77,87 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	if (io->flags & DNET_IO_FLAGS_HISTORY)
 		db = be->hist;
 
-	offset = io->offset;
-
-	complete = malloc(sizeof(struct tc_get_completion));
-	if (!complete) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	err = pthread_mutex_init(&complete->lock, NULL);
-	if (err) {
-		err = -err;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to initialize completion mutex: %d.\n",
-			dnet_dump_id(io->origin), err);
-		goto err_out_put;
-	}
-
-	complete->refcnt = 1;
-	complete->ptr = NULL;
-
-	ptr = tcadbget(db, io->origin, DNET_ID_SIZE, &total_size);
+	ptr = tcadbget(db, io->origin, DNET_ID_SIZE, &size);
 	if (!ptr) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
 			"%s: failed to read object.\n", dnet_dump_id(io->origin));
 		err = -ENOENT;
-		goto err_out_put;
+		goto err_out_exit;
 	}
-	complete->ptr = ptr;
 
-	size = total_size = dnet_backend_check_get_size(io, total_size);
-	offset = io->offset;
+	size = dnet_backend_check_get_size(io, size);
+	if (!size) {
+		err = 0;
+		goto err_out_free;
+	}
 
 	if (attr->size == sizeof(struct dnet_io_attr)) {
 		struct dnet_cmd *c;
 		struct dnet_attr *a;
 		struct dnet_io_attr *rio;
 
-		while (total_size) {
-			size = total_size;
-			if (size > DNET_MAX_READ_TRANS_SIZE)
-				size = DNET_MAX_READ_TRANS_SIZE;
-
-			r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
-					sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
-			if (!r) {
-				err = -ENOMEM;
-				dnet_command_handler_log(state, DNET_LOG_ERROR,
-					"%s: failed to allocate reply attributes.\n",
-					dnet_dump_id(io->origin));
-				goto err_out_put;
-			}
-
-			dnet_req_set_data(r, ptr, size, offset, 0);
-			dnet_req_set_complete(r, tc_get_complete, complete);
-
-			c = dnet_req_header(r);
-			a = (struct dnet_attr *)(c + 1);
-			rio = (struct dnet_io_attr *)(a + 1);
-
-			memcpy(c->id, io->origin, DNET_ID_SIZE);
-			memcpy(rio->origin, io->origin, DNET_ID_SIZE);
-
-			dnet_command_handler_log(state, DNET_LOG_NOTICE,
-				"%s: read reply offset: %u, size: %u.\n",
-				dnet_dump_id(io->origin), offset, size);
-
-			if (total_size <= DNET_MAX_READ_TRANS_SIZE) {
-				if (cmd->flags & DNET_FLAGS_NEED_ACK)
-					c->flags = DNET_FLAGS_MORE;
-			} else
-				c->flags = DNET_FLAGS_MORE;
-
-			c->status = 0;
-			c->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
-			c->trans = cmd->trans | DNET_TRANS_REPLY;
-
-			a->cmd = DNET_CMD_READ;
-			a->size = sizeof(struct dnet_io_attr) + size;
-			a->flags = attr->flags;
-
-			rio->size = size;
-			rio->offset = offset;
-			rio->flags = io->flags;
-
-			dnet_convert_cmd(c);
-			dnet_convert_attr(a);
-			dnet_convert_io_attr(rio);
-
-			pthread_mutex_lock(&complete->lock);
-			complete->refcnt++;
-			pthread_mutex_unlock(&complete->lock);
-
-			err = dnet_data_ready(state, r);
-			if (err)
-				goto err_out_free_req;
-
-			offset += size;
-			total_size -= size;
+		r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
+				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
+		if (!r) {
+			err = -ENOMEM;
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to allocate reply attributes.\n",
+				dnet_dump_id(io->origin));
+			goto err_out_free;
 		}
-	} else {
-		size = attr->size - sizeof(struct dnet_io_attr);
 
-		if (size < total_size)
-			size = total_size;
+		dnet_req_set_data(r, ptr, size, io->offset, 1);
+
+		c = dnet_req_header(r);
+		a = (struct dnet_attr *)(c + 1);
+		rio = (struct dnet_io_attr *)(a + 1);
+
+		memcpy(c->id, io->origin, DNET_ID_SIZE);
+		memcpy(rio->origin, io->origin, DNET_ID_SIZE);
+
+		dnet_command_handler_log(state, DNET_LOG_NOTICE,
+			"%s: read reply offset: %u, size: %u.\n",
+			dnet_dump_id(io->origin), io->offset, size);
+
+		if (cmd->flags & DNET_FLAGS_NEED_ACK)
+			c->flags = DNET_FLAGS_MORE;
+
+		c->status = 0;
+		c->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
+		c->trans = cmd->trans | DNET_TRANS_REPLY;
+
+		a->cmd = DNET_CMD_READ;
+		a->size = sizeof(struct dnet_io_attr) + size;
+		a->flags = attr->flags;
+
+		rio->size = size;
+		rio->offset = io->offset;
+		rio->flags = io->flags;
+
+		dnet_convert_cmd(c);
+		dnet_convert_attr(a);
+		dnet_convert_io_attr(rio);
+
+		err = dnet_data_ready(state, r);
+		if (err)
+			goto err_out_free_req;
+	} else {
+		if ((unsigned)size > attr->size - sizeof(struct dnet_io_attr))
+			size = attr->size - sizeof(struct dnet_io_attr);
 		memcpy(buf, ptr + io->offset, size);
 
 		io->size = size;
-		attr->size = sizeof(struct dnet_io_attr) + err;
+		attr->size = sizeof(struct dnet_io_attr) + io->size;
 	}
-
-	__tc_get_complete(complete);
 
 	return 0;
 
 err_out_free_req:
 	dnet_req_destroy(r);
-err_out_put:
-	__tc_get_complete(complete);
+	return err;
+
+err_out_free:
+	free(ptr);
 err_out_exit:
 	return err;
 }

@@ -34,7 +34,7 @@
  * chunks of this bytes max, thus reading transaction
  * callback will be invoked multiple times.
  */
-#define DNET_MAX_READ_TRANS_SIZE	(1024*1024*10)
+#define DNET_MAX_TRANS_SIZE	(1024*1024*10)
 
 /*
  * When IO request is less than this constant,

@@ -26,12 +26,15 @@ static inline uint64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint
 {
 	uint64_t size = io->size;
 
-	if (!size || size + io->offset > record_size) {
+	if (record_size <= io->offset)
+		return 0;
+
+	if (!size || size + io->offset >= record_size) {
 		if (!size)
 			size = record_size;
 
-		if (size + io->offset > record_size) {
-			if (io->offset > record_size)
+		if (size + io->offset >= record_size) {
+			if (io->offset >= record_size)
 				size = 0;
 			else
 				size = record_size - io->offset;

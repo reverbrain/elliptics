@@ -371,7 +371,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (readf) {
-		err = dnet_read_file(n, readf, 123, 1024, 0);
+		err = dnet_read_file(n, readf, 0, 0, 0);
 		if (err)
 			return err;
 	}

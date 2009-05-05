@@ -124,7 +124,7 @@ static int bdb_get_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 	DBT key, data;
 	struct bdb_entry *e = be->data;
 	struct dnet_io_attr *io = buf;
-	unsigned int size, total_size, offset;
+	unsigned int size;
 	DB_TXN *txn;
 
 	if (attr->size < sizeof(struct dnet_io_attr)) {
@@ -154,15 +154,18 @@ retry:
 		goto err_out_exit;
 	}
 
-	err = bdb_get_record_size(state, e, txn, io->origin, &total_size, 0);
+	err = bdb_get_record_size(state, e, txn, io->origin, &size, 0);
 	if (err) {
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
 		goto err_out_close_txn;
 	}
 
-	total_size = size = dnet_backend_check_get_size(io, total_size);
-	offset = io->offset;
+	size = dnet_backend_check_get_size(io, size);
+	if (!size) {
+		err = 0;
+		goto err_out_close_txn;
+	}
 
 	if (attr->size == sizeof(struct dnet_io_attr)) {
 		struct dnet_data_req *r;
@@ -170,87 +173,76 @@ retry:
 		struct dnet_attr *a;
 		struct dnet_io_attr *rio;
 
-		while (total_size) {
-			size = total_size;
-			if (size > DNET_MAX_READ_TRANS_SIZE)
-				size = DNET_MAX_READ_TRANS_SIZE;
+		memset(&key, 0, sizeof(DBT));
+		memset(&data, 0, sizeof(DBT));
 
-			memset(&key, 0, sizeof(DBT));
-			memset(&data, 0, sizeof(DBT));
+		key.data = io->origin;
+		key.size = DNET_ID_SIZE;
 
-			key.data = io->origin;
-			key.size = DNET_ID_SIZE;
+		data.size = size;
+		data.flags = DB_DBT_PARTIAL | DB_DBT_MALLOC;
+		data.doff = io->offset;
+		data.dlen = size;
 
-			data.size = size;
-			data.flags = DB_DBT_PARTIAL | DB_DBT_MALLOC;
-			data.doff = offset;
-			data.dlen = size;
-
-			err = e->db->get(e->db, txn, &key, &data, 0);
-			if (err) {
-				dnet_command_handler_log(state, DNET_LOG_ERROR,
-					"%s: allocated read failed offset: %u, "
-					"size: %u, err: %d: %s.\n", dnet_dump_id(io->origin),
-					offset, size, err, db_strerror(err));
-				if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
-					goto err_out_txn_abort_continue;
-				goto err_out_close_txn;
-			}
-
-			r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
-					sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
-			if (!r) {
-				err = -ENOMEM;
-				dnet_command_handler_log(state, DNET_LOG_ERROR,
-					"%s: failed to allocate reply attributes.\n",
-					dnet_dump_id(io->origin));
-				goto err_out_close_txn;
-			}
-
-			dnet_req_set_data(r, data.data, size, 0, 1);
-
-			c = dnet_req_header(r);
-			a = (struct dnet_attr *)(c + 1);
-			rio = (struct dnet_io_attr *)(a + 1);
-
-			memcpy(c->id, io->origin, DNET_ID_SIZE);
-			memcpy(rio->origin, io->origin, DNET_ID_SIZE);
-		
-			dnet_command_handler_log(state, DNET_LOG_NOTICE,
-				"%s: read reply offset: %u, size: %u.\n",
-				dnet_dump_id(io->origin), offset, size);
-
-			if (total_size <= DNET_MAX_READ_TRANS_SIZE) {
-				if (cmd->flags & DNET_FLAGS_NEED_ACK)
-					c->flags = DNET_FLAGS_MORE;
-			} else
-				c->flags = DNET_FLAGS_MORE;
-
-			c->status = 0;
-			c->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
-			c->trans = cmd->trans | DNET_TRANS_REPLY;
-
-			a->cmd = DNET_CMD_READ;
-			a->size = sizeof(struct dnet_io_attr) + size;
-			a->flags = attr->flags;
-
-			rio->size = size;
-			rio->offset = offset;
-			rio->flags = io->flags;
-
-			dnet_convert_cmd(c);
-			dnet_convert_attr(a);
-			dnet_convert_io_attr(rio);
-
-			err = dnet_data_ready(state, r);
-			if (err)
-				goto err_out_close_txn;
-
-			offset += size;
-			total_size -= size;
+		err = e->db->get(e->db, txn, &key, &data, 0);
+		if (err) {
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: allocated read failed offset: %u, "
+				"size: %u, err: %d: %s.\n", dnet_dump_id(io->origin),
+				io->offset, size, err, db_strerror(err));
+			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+				goto err_out_txn_abort_continue;
+			goto err_out_close_txn;
 		}
+
+		r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
+				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
+		if (!r) {
+			err = -ENOMEM;
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to allocate reply attributes.\n",
+				dnet_dump_id(io->origin));
+			goto err_out_close_txn;
+		}
+
+		dnet_req_set_data(r, data.data, size, 0, 1);
+
+		c = dnet_req_header(r);
+		a = (struct dnet_attr *)(c + 1);
+		rio = (struct dnet_io_attr *)(a + 1);
+
+		memcpy(c->id, io->origin, DNET_ID_SIZE);
+		memcpy(rio->origin, io->origin, DNET_ID_SIZE);
+	
+		dnet_command_handler_log(state, DNET_LOG_NOTICE,
+			"%s: read reply offset: %u, size: %u.\n",
+			dnet_dump_id(io->origin), io->offset, size);
+
+		if (cmd->flags & DNET_FLAGS_NEED_ACK)
+			c->flags = DNET_FLAGS_MORE;
+
+		c->status = 0;
+		c->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
+		c->trans = cmd->trans | DNET_TRANS_REPLY;
+
+		a->cmd = DNET_CMD_READ;
+		a->size = sizeof(struct dnet_io_attr) + size;
+		a->flags = attr->flags;
+
+		rio->size = size;
+		rio->offset = io->offset;
+		rio->flags = io->flags;
+
+		dnet_convert_cmd(c);
+		dnet_convert_attr(a);
+		dnet_convert_io_attr(rio);
+
+		err = dnet_data_ready(state, r);
+		if (err)
+			goto err_out_close_txn;
 	} else {
-		size = attr->size - sizeof(struct dnet_io_attr);
+		if (size > attr->size - sizeof(struct dnet_io_attr))
+			size = attr->size - sizeof(struct dnet_io_attr);
 
 		memset(&key, 0, sizeof(DBT));
 		memset(&data, 0, sizeof(DBT));
@@ -270,7 +262,7 @@ retry:
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
 				"%s: umem read failed offset: %u, "
 					"size: %u, err: %d: %s.\n",
-					dnet_dump_id(io->origin), offset, size,
+					dnet_dump_id(io->origin), io->offset, size,
 					err, db_strerror(err));
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
@@ -278,7 +270,7 @@ retry:
 		}
 
 		io->size = size;
-		attr->size = sizeof(struct dnet_io_attr) + err;
+		attr->size = sizeof(struct dnet_io_attr) + io->size;
 	}
 
 	err = txn->commit(txn, 0);
@@ -729,7 +721,7 @@ void *bdb_backend_init(char *env_dir, char *dbfile, char *histfile)
 	 */
 	env->set_flags(env, DB_TXN_NOSYNC, 1);
 
-	err = env->set_lg_bsize(env, 5 * DNET_MAX_READ_TRANS_SIZE);
+	err = env->set_lg_bsize(env, 5 * DNET_MAX_TRANS_SIZE);
 	if (err != 0) {
 		fprintf(stderr, "Failed to set log buffer size: %s\n", db_strerror(err));
 		goto err_out_destroy_env;

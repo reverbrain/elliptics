@@ -963,94 +963,123 @@ err_out_exit:
 	return err;
 }
 
-int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote, unsigned int len, int hupdate)
+static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ctl,
+		void *remote, unsigned int len, int hupdate, int *pos)
 {
-	int pos = 0, err;
-	int error = 0;
+	unsigned int rsize;
+	int err;
 	unsigned char addr[DNET_ID_SIZE];
-	struct dnet_history_entry *e;
 	struct dnet_io_control hctl;
+	struct dnet_history_entry e;
 
-	e = malloc(sizeof(struct dnet_history_entry));
-	if (!e)
-		return -ENOMEM;
+	rsize = DNET_ID_SIZE;
+	err = dnet_transform(n, ctl->data, ctl->io.size, ctl->io.origin, ctl->addr, &rsize, pos);
+	if (err) {
+		if (err > 0)
+			return err;
+		goto err_out_complete;
+	}
 
-	while (1) {
-		unsigned int rsize = DNET_ID_SIZE;
-
-		err = dnet_transform(n, ctl->data, ctl->io.size, ctl->io.origin, ctl->addr, &rsize, &pos);
+	if (remote && len) {
+		*pos = *pos - 1;
+		rsize = DNET_ID_SIZE;
+		err = dnet_transform(n, remote, len, ctl->io.id, addr, &rsize, pos);
 		if (err) {
 			if (err > 0)
-				break;
-			error = err;
+				return err;
 			goto err_out_complete;
 		}
+	} else {
+		memcpy(ctl->io.id, ctl->io.origin, DNET_ID_SIZE);
+	}
 
-		if (remote && len) {
-			pos--;
-			rsize = DNET_ID_SIZE;
-			err = dnet_transform(n, remote, len, ctl->io.id, addr, &rsize, &pos);
+	err = dnet_trans_create_send(n, ctl);
+	if (err)
+		goto err_out_exit;
+
+	if (!hupdate || !remote || !len)
+		return 0;
+
+	memcpy(hctl.addr, addr, DNET_ID_SIZE);
+	memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
+	memcpy(hctl.io.id, addr, DNET_ID_SIZE);
+
+	memcpy(e.id, ctl->io.origin, DNET_ID_SIZE);
+	e.offset = ctl->io.offset;
+	e.size = ctl->io.size;
+	e.flags = 0;
+
+	dnet_convert_history_entry(&e);
+
+	hctl.priv = ctl->priv;
+	hctl.complete = ctl->complete;
+	hctl.cmd = DNET_CMD_WRITE;
+	hctl.aflags = 0;
+	hctl.cflags = DNET_FLAGS_NEED_ACK;
+	hctl.fd = -1;
+
+	hctl.data = &e;
+
+	hctl.io.size = sizeof(struct dnet_history_entry);
+	hctl.io.offset = 0;
+	hctl.io.flags |= DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
+
+	err = dnet_trans_create_send(n, &hctl);
+	if (err)
+		goto err_out_exit;
+
+	return 0;
+
+err_out_complete:
+	if (ctl->complete)
+		ctl->complete(NULL, NULL, NULL, ctl->priv);
+err_out_exit:
+	return err;
+}
+
+int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote, unsigned int len, int hupdate)
+{
+	int pos = 0, err = 0;
+	int error = 0;
+	void *data = ctl->data;
+	uint64_t total_size = ctl->io.size;
+
+	while (1) {
+		uint64_t sz, size = total_size;
+
+		ctl->data = data;
+		while (size) {
+			sz = size;
+			if (!ctl->aflags && sz > DNET_MAX_TRANS_SIZE)
+				sz = DNET_MAX_TRANS_SIZE;
+
+			ctl->io.size = sz;
+			err = dnet_write_object_raw(n, ctl, remote, len, hupdate, &pos);
 			if (err) {
 				if (err > 0)
 					break;
-				goto err_out_complete;
+				error = err;
+				break;
 			}
-		} else {
-			memcpy(ctl->io.id, ctl->io.origin, DNET_ID_SIZE);
+
+			ctl->data += sz;
+			size -= sz;
+
+			error = 0;
+			if (size)
+				pos--;
 		}
 
-		err = dnet_trans_create_send(n, ctl);
-		if (err)
-			goto err_out_continue;
-
-		if (!hupdate || !remote || !len)
-			continue;
-
-		memcpy(hctl.addr, addr, DNET_ID_SIZE);
-		memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
-		memcpy(hctl.io.id, addr, DNET_ID_SIZE);
-
-		memcpy(e->id, ctl->io.origin, DNET_ID_SIZE);
-		e->offset = ctl->io.offset;
-		e->size = ctl->io.size;
-		e->flags = 0;
-
-		dnet_convert_history_entry(e);
-
-		hctl.priv = ctl->priv;
-		hctl.complete = ctl->complete;
-		hctl.cmd = DNET_CMD_WRITE;
-		hctl.aflags = 0;
-		hctl.cflags = DNET_FLAGS_NEED_ACK;
-		hctl.fd = -1;
-
-		hctl.data = e;
-
-		hctl.io.size = sizeof(struct dnet_history_entry);
-		hctl.io.offset = 0;
-		hctl.io.flags |= DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
-
-		err = dnet_trans_create_send(n, &hctl);
-		if (err)
-			goto err_out_continue;
-
-		error = 0;
-		continue;
-
-err_out_complete:
-		if (ctl->complete)
-			ctl->complete(NULL, NULL, NULL, ctl->priv);
-err_out_continue:
-		error = err;
-		continue;
+		if (err > 0)
+			break;
 	}
 
-	free(e);
-
-	if (error)
+	if (error < 0)
 		return error;
 
-	return pos*2;
+	if (hupdate)
+		pos *= 2;
+	return pos;
 }
 
 int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, unsigned int aflags)

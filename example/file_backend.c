@@ -448,8 +448,6 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 	size_t size;
 	/* null byte + '%02x/' directory prefix + history suffix */
 	char file[DNET_ID_SIZE * 2 + 1 + 3 + sizeof(DNET_HISTORY_SUFFIX)];
-	off_t offset;
-	size_t total_size;
 	struct stat st;
 
 	if (attr->size < sizeof(struct dnet_io_attr)) {
@@ -461,6 +459,8 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 		err = -EINVAL;
 		goto err_out_exit;
 	}
+
+	data += sizeof(struct dnet_io_attr);
 
 	dnet_convert_io_attr(io);
 
@@ -490,8 +490,11 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 		goto err_out_close_fd;
 	}
 
-	size = total_size = dnet_backend_check_get_size(io, st.st_size);
-	offset = io->offset;
+	size = dnet_backend_check_get_size(io, st.st_size);
+	if (!size) {
+		err = 0;
+		goto err_out_close_fd;
+	}
 
 	if (attr->size == sizeof(struct dnet_io_attr)) {
 		struct dnet_data_req *r;
@@ -499,68 +502,57 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 		struct dnet_attr *a;
 		struct dnet_io_attr *rio;
 
-		while (total_size) {
-			size = total_size;
-			if (size > DNET_MAX_READ_TRANS_SIZE)
-				size = DNET_MAX_READ_TRANS_SIZE;
-
-			r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
-					sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
-			if (!r) {
-				err = -ENOMEM;
-				dnet_command_handler_log(state, DNET_LOG_ERROR,
-					"%s: failed to allocate reply attributes.\n",
-						dnet_dump_id(io->origin));
-				goto err_out_close_fd;
-			}
-
-			dnet_req_set_fd(r, fd, offset, size, 1);
-
-			c = dnet_req_header(r);
-			a = (struct dnet_attr *)(c + 1);
-			rio = (struct dnet_io_attr *)(a + 1);
-
-			memcpy(c->id, io->origin, DNET_ID_SIZE);
-			memcpy(rio->origin, io->origin, DNET_ID_SIZE);
-		
-			dnet_command_handler_log(state, DNET_LOG_NOTICE,
-				"%s: read reply offset: %llu, size: %zu.\n",
-					dnet_dump_id(io->origin),
-					(unsigned long long)offset, size);
-
-			if (total_size <= DNET_MAX_READ_TRANS_SIZE) {
-				if (cmd->flags & DNET_FLAGS_NEED_ACK)
-					c->flags = DNET_FLAGS_MORE;
-			} else
-				c->flags = DNET_FLAGS_MORE;
-
-			c->status = 0;
-			c->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
-			c->trans = cmd->trans | DNET_TRANS_REPLY;
-
-			a->cmd = DNET_CMD_READ;
-			a->size = sizeof(struct dnet_io_attr) + size;
-			a->flags = attr->flags;
-
-			rio->size = size;
-			rio->offset = offset;
-			rio->flags = io->flags;
-
-			dnet_convert_cmd(c);
-			dnet_convert_attr(a);
-			dnet_convert_io_attr(rio);
-
-			err = dnet_data_ready(state, r);
-			if (err)
-				goto err_out_close_fd;
-
-			offset += size;
-			total_size -= size;
-			deref = 1;
+		r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
+				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
+		if (!r) {
+			err = -ENOMEM;
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to allocate reply attributes.\n",
+					dnet_dump_id(io->origin));
+			goto err_out_close_fd;
 		}
+
+		dnet_req_set_fd(r, fd, io->offset, size, 1);
+
+		c = dnet_req_header(r);
+		a = (struct dnet_attr *)(c + 1);
+		rio = (struct dnet_io_attr *)(a + 1);
+
+		memcpy(c->id, io->origin, DNET_ID_SIZE);
+		memcpy(rio->origin, io->origin, DNET_ID_SIZE);
+	
+		dnet_command_handler_log(state, DNET_LOG_NOTICE,
+			"%s: read reply offset: %llu, size: %zu.\n",
+				dnet_dump_id(io->origin),
+				(unsigned long long)io->offset, size);
+
+		if (cmd->flags & DNET_FLAGS_NEED_ACK)
+			c->flags = DNET_FLAGS_MORE;
+
+		c->status = 0;
+		c->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
+		c->trans = cmd->trans | DNET_TRANS_REPLY;
+
+		a->cmd = DNET_CMD_READ;
+		a->size = sizeof(struct dnet_io_attr) + size;
+		a->flags = attr->flags;
+
+		rio->size = size;
+		rio->offset = io->offset;
+		rio->flags = io->flags;
+
+		dnet_convert_cmd(c);
+		dnet_convert_attr(a);
+		dnet_convert_io_attr(rio);
+
+		err = dnet_data_ready(state, r);
+		if (err)
+			goto err_out_close_fd;
+
+		deref = 1;
 	} else {
-		size = attr->size - sizeof(struct dnet_io_attr);
-		data += sizeof(struct dnet_io_attr);
+		if (size > attr->size - sizeof(struct dnet_io_attr))
+			size = attr->size - sizeof(struct dnet_io_attr);
 
 		err = pread(fd, data, size, io->offset);
 		if (err <= 0) {
@@ -572,7 +564,7 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 		}
 
 		io->size = err;
-		attr->size = sizeof(struct dnet_io_attr) + err;
+		attr->size = sizeof(struct dnet_io_attr) + io->size;
 	}
 	if (!deref)
 		close(fd);
