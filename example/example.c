@@ -176,7 +176,7 @@ static void dnet_usage(char *p)
 			" -I id                - transaction id\n"
 			" -c cmd               - execute given command on the remote node\n"
 			" -L file              - lookup a storage which hosts given file\n"
-			" -l log               - log file. Default: stdout\n"
+			" -l log               - log file. Default: disabled\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" ...                  - parameters can be repeated multiple times\n"
 			"                        each time they correspond to the last added node\n"
