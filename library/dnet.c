@@ -849,6 +849,29 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	if (ctl->cmd == DNET_CMD_READ)
 		size = 0;
 
+	if (ctl->asize && ctl->adata) {
+		if (ctl->asize < sizeof(struct dnet_attr)) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: additional attribute size (%u) has to be "
+					"larger or equal than %zu bytes (struct dnet_attr).\n",
+					dnet_dump_id(ctl->addr), ctl->asize, sizeof(struct dnet_attr));
+			err = -EINVAL;
+			goto err_out_exit;
+		}
+
+		a = ctl->adata;
+
+		if (a->size != ctl->asize - sizeof(struct dnet_attr)) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: additional attribute size (%u) does not match "
+					"structure's attribute size %llu.\n",
+					dnet_dump_id(ctl->addr), ctl->asize - sizeof(struct dnet_attr),
+					a->size);
+			err = -EINVAL;
+			goto err_out_exit;
+		}
+
+		tsize += ctl->asize;
+	}
+
 	if (ctl->fd < 0 && size < DNET_COPY_IO_SIZE)
 		tsize += size;
 
@@ -862,6 +885,14 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 
 	cmd = (struct dnet_cmd *)(t + 1);
 	a = (struct dnet_attr *)(cmd + 1);
+
+	if (ctl->asize && ctl->adata) {
+		memcpy(a, ctl->adata, ctl->asize);
+
+		dnet_convert_attr(a);
+		a = (struct dnet_attr *)(((void *)a) + ctl->asize);
+	}
+
 	io = (struct dnet_io_attr *)(a + 1);
 
 	dnet_req_set_header(&t->r, t+1, tsize, 0);
@@ -878,7 +909,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	}
 
 	memcpy(cmd->id, ctl->addr, DNET_ID_SIZE);
-	cmd->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
+	cmd->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size + ctl->asize;
 	cmd->flags = ctl->cflags;
 	cmd->status = 0;
 
@@ -1020,6 +1051,8 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	hctl.aflags = 0;
 	hctl.cflags = DNET_FLAGS_NEED_ACK;
 	hctl.fd = -1;
+	hctl.adata = NULL;
+	hctl.asize = 0;
 
 	hctl.data = &e;
 

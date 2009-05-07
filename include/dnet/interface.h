@@ -90,6 +90,17 @@ struct dnet_io_control
 	void				*data;
 
 	/*
+	 * Additional attribute data, which will be copied at the beginning
+	 * of the command (it will be the first attribute).
+	 * Its size has to match attribute srtucture's size, which will be
+	 * dereferenced to be checked.
+	 *
+	 * Thus attribute structure must be present in CPU endian.
+	 */
+	void				*adata;
+	unsigned int			asize;
+
+	/*
 	 * Attribute flag. If present, write transaction will not be split
 	 * into multiple parts, when its size exceeds DNET_MAX_TRANS_SIZE bytes.
 	 */
