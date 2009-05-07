@@ -125,9 +125,13 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
  * Reads given file from the storage. If there are multiple transformation functions,
  * they will be tried one after another.
  *
+ * If @id is set, it is used as a main object ID, otherwise @file transformation
+ * is used as object ID.
+ *
  * Returns negative error value in case of error.
  */
-int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size, int hist);
+int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id,
+		uint64_t offset, uint64_t size, int hist);
 
 /*
  * dnet_write_object() returns number of nodes transaction was sent to.
@@ -141,17 +145,23 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
  *
  *  if @hupdate is 0, no history update for the @remote object will be done,
  *  otherwise another transaction will be sent to update the history.
+ *
+ *  If @id is set, it is used as master object ID.
+ *  Otherwise if @remote is specified, its transformation is used as master object,
+ *  whose history is updated (if @hupdate is set).
+ *  Otherwise transaction is used as self-contained,
+ *  and its own history will be updated.
  */
-int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
-		void *remote, unsigned int len, int hupdate);
+int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote,
+		unsigned char *id, int hupdate);
 
 /*
  * Sends given file to the remote nodes and waits until all of them ack the write.
  *
  * Returns negative error value in case of error.
  */
-int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size,
-		unsigned int aflags);
+int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id,
+		off_t offset, size_t size, unsigned int aflags);
 
 /*
  * Log flags.

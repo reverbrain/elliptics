@@ -964,7 +964,7 @@ err_out_exit:
 }
 
 static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ctl,
-		void *remote, unsigned int len, int hupdate, int *pos)
+		void *remote, unsigned int len, unsigned char *id, int hupdate, int *pos)
 {
 	unsigned int rsize;
 	int err;
@@ -980,7 +980,10 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 		goto err_out_complete;
 	}
 
-	if (remote && len) {
+	if (id) {
+		memcpy(ctl->io.id, id, DNET_ID_SIZE);
+		memcpy(addr, id, DNET_ID_SIZE);
+	} else if (remote && len) {
 		*pos = *pos - 1;
 		rsize = DNET_ID_SIZE;
 		err = dnet_transform(n, remote, len, ctl->io.id, addr, &rsize, pos);
@@ -997,7 +1000,7 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	if (err)
 		goto err_out_exit;
 
-	if (!hupdate || !remote || !len)
+	if (!hupdate || !remote || !len || !id)
 		return 0;
 
 	memcpy(hctl.addr, addr, DNET_ID_SIZE);
@@ -1037,12 +1040,17 @@ err_out_exit:
 	return err;
 }
 
-int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote, unsigned int len, int hupdate)
+int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote,
+		unsigned char *id, int hupdate)
 {
+	unsigned int len = 0;
 	int pos = 0, err = 0;
 	int error = 0;
 	void *data = ctl->data;
 	uint64_t total_size = ctl->io.size;
+
+	if (remote)
+		len = strlen(remote);
 
 	while (1) {
 		uint64_t sz, size = total_size;
@@ -1054,7 +1062,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 				sz = DNET_MAX_TRANS_SIZE;
 
 			ctl->io.size = sz;
-			err = dnet_write_object_raw(n, ctl, remote, len, hupdate, &pos);
+			err = dnet_write_object_raw(n, ctl, remote, len, id, hupdate, &pos);
 			if (err) {
 				if (err > 0)
 					break;
@@ -1082,7 +1090,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 	return pos;
 }
 
-int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, unsigned int aflags)
+int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, off_t offset, size_t size, unsigned int aflags)
 {
 	int fd, err, i, tnum = n->transform_num*2;
 	struct stat stat;
@@ -1142,7 +1150,7 @@ int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, 
 	ctl.io.size = size;
 	ctl.io.offset = offset;
 
-	err = dnet_write_object(n, &ctl, file, strlen(file), 1);
+	err = dnet_write_object(n, &ctl, file, id, 1);
 	if (err <= 0)
 		goto err_out_unmap;
 
@@ -1698,7 +1706,7 @@ err_out_exit:
 
 }
 
-int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t size, int hist)
+int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t offset, uint64_t size, int hist)
 {
 	int err, len = strlen(file), pos = 0, error = 0;
 	struct dnet_wait *w;
@@ -1716,31 +1724,40 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
 	io.flags = 0;
 	io.flags = DNET_IO_FLAGS_HISTORY;
 
-	while (1) {
-		unsigned int rsize = DNET_ID_SIZE;
-
-		err = dnet_transform(n, file, len, io.origin, io.id, &rsize, &pos);
-		if (err) {
-			if (err > 0)
-				break;
-			if (!error)
-				error = err;
-			continue;
-		}
+	if (id) {
+		memcpy(io.origin, id, DNET_ID_SIZE);
+		memcpy(io.id, id, DNET_ID_SIZE);
 
 		err = dnet_read_file_id(n, file, len, 0, &io, w, 1, 1);
-		if (err) {
-			error = err;
-			continue;
+		if (err)
+			goto err_out_put;
+	} else {
+		while (1) {
+			unsigned int rsize = DNET_ID_SIZE;
+
+			err = dnet_transform(n, file, len, io.origin, io.id, &rsize, &pos);
+			if (err) {
+				if (err > 0)
+					break;
+				if (!error)
+					error = err;
+				continue;
+			}
+
+			err = dnet_read_file_id(n, file, len, 0, &io, w, 1, 1);
+			if (err) {
+				error = err;
+				continue;
+			}
+
+			error = 0;
+			break;
 		}
 
-		error = 0;
-		break;
-	}
-
-	if (error) {
-		err = error;
-		goto err_out_put;
+		if (error) {
+			err = error;
+			goto err_out_put;
+		}
 	}
 
 	if (!hist) {

@@ -190,7 +190,7 @@ static void iotest_wait(void)
 }
 
 static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned long long max,
-		char *obj, int len)
+		char *obj)
 {
 	struct dnet_io_control ctl;
 	unsigned int *ptr = data;
@@ -222,7 +222,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 
 		ctl.priv = (void *)(unsigned long)size;
 
-		err = dnet_write_object(n, &ctl, obj, len, 1);
+		err = dnet_write_object(n, &ctl, obj, NULL, 1);
 		if (err < 0)
 			return err;
 
@@ -247,7 +247,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 }
 
 static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned long long max,
-		char *obj, int len __unused)
+		char *obj)
 {
 	struct dnet_io_control ctl;
 	int err, fd;
@@ -258,7 +258,7 @@ static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned lon
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
-	err = dnet_read_file(n, obj, 0, 0, 1);
+	err = dnet_read_file(n, obj, NULL, 0, 0, 1);
 	if (err)
 		return err;
 
@@ -629,9 +629,9 @@ int main(int argc, char *argv[])
 	srand(time(NULL));
 
 	if (write)
-		err = iotest_write(n, data, size, max, obj, strlen(obj));
+		err = iotest_write(n, data, size, max, obj);
 	else
-		err = iotest_read(n, data, size, max, obj, strlen(obj));
+		err = iotest_read(n, data, size, max, obj);
 
 	printf("%s: size: %zu, max: %llu, obj: '%s', err: %d.\n", (write)?"Write":"Read", size, max, obj, err);
 

@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
 	struct dnet_crypto_engine *e, *trans[trans_max];
 	char *logfile = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
 	char *historyf = NULL, *root = NULL;
-	unsigned char trans_id[DNET_ID_SIZE];
+	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	FILE *log = NULL;
 	uint64_t offset, size;
 
@@ -262,6 +262,7 @@ int main(int argc, char *argv[])
 				err = dnet_parse_numeric_id(optarg, trans_id);
 				if (err)
 					return err;
+				id = trans_id;
 				break;
 			case 'i':
 				err = dnet_parse_numeric_id(optarg, cfg.id);
@@ -376,19 +377,19 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		err = dnet_write_file(n, writef, offset, size, 0);
+		err = dnet_write_file(n, writef, id, offset, size, 0);
 		if (err)
 			return err;
 	}
 
 	if (readf) {
-		err = dnet_read_file(n, readf, offset, size, 0);
+		err = dnet_read_file(n, readf, id, offset, size, 0);
 		if (err)
 			return err;
 	}
 
 	if (historyf) {
-		err = dnet_read_file(n, historyf, offset, size, 1);
+		err = dnet_read_file(n, historyf, id, offset, size, 1);
 		if (err)
 			return err;
 	}
