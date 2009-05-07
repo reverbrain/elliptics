@@ -16,8 +16,11 @@ AC_DEFUN([AX_CHECK_OPENSSL],
 	if test "f$ac_have_ssl" = "fyes"; then
 		ac_ssl_found="no"
 		if test "f$ac_ssl_include_dir" != "f"; then
+			ac_stored_cflags="$CFLAGS"
+			CFLAGS="$ac_stoged_cflags -I$ac_ssl_include_dir/include"
 			AC_CHECK_HEADER([$ac_ssl_include_dir/include/openssl/ssl.h], [], 
 				AC_MSG_ERROR([openssl not found in $ac_ssl_include_dir]))
+			CFLAGS="$ac_stored_cflags"
 			ac_ssl_found="yes"
 			OPENSSL_CFLAGS="-I$ac_ssl_include_dir/include"
 			OPENSSL_LDFLAGS="-L$ac_ssl_include_dir/lib"
@@ -25,8 +28,12 @@ AC_DEFUN([AX_CHECK_OPENSSL],
 			AC_LANG_SAVE
 			AC_LANG([C])
 			ac_ssl_path=""
-			for dir in /usr /usr/local /opt/ssl; do
+
+			for dir in /usr /usr/local /usr/local/ssl /opt/ssl; do
+				ac_stored_cflags="$CFLAGS"
+				CFLAGS="$ac_stoged_cflags -I$dir/include"
 				AC_CHECK_HEADER([$dir/include/openssl/ssl.h], [ac_ssl_path=$dir], [])
+				CFLAGS="$ac_stored_cflags"
 				if test "f$ac_ssl_path" != "f"; then
 					ac_ssl_found="yes"
 					OPENSSL_CFLAGS="-I$ac_ssl_path/include"
@@ -34,6 +41,7 @@ AC_DEFUN([AX_CHECK_OPENSSL],
 					break;
 				fi
 			done
+
 			AC_LANG_RESTORE
 		fi
 		if test "f$ac_ssl_found" = "fyes"; then
