@@ -337,9 +337,6 @@ struct dnet_io_completion
 	uint64_t		size;
 };
 
-int dnet_read_complete(struct dnet_net_state *st __unused, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *priv);
-
 struct dnet_transform
 {
 	struct list_head	tentry;

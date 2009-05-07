@@ -1184,7 +1184,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, void *priv)
+static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, void *priv)
 {
 	int fd, err, freeing = 0;
 	struct dnet_node *n = st->n;
@@ -1257,8 +1257,12 @@ err_out_close:
 err_out_exit:
 	if (freeing) {
 		if (c->wait) {
+			int destroy = atomic_dec_and_test(&w->refcnt);
+
 			dnet_wakeup(c->wait, c->wait->cond = err);
-			dnet_wait_put(c->wait);
+
+			if (destroy)
+				dnet_wait_destroy(w);
 		}
 
 		free(c);
