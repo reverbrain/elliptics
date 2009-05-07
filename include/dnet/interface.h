@@ -477,10 +477,10 @@ void dnet_req_set_flags(struct dnet_data_req *r, unsigned int mask, unsigned int
  * since otherwise it will not be freed by the system.
  */
 void dnet_req_set_complete(struct dnet_data_req *r,
-		void (* complete)(struct dnet_data_req *r), void *priv);
+		void (* complete)(struct dnet_data_req *r, int err), void *priv);
 
 struct dnet_data_req *dnet_req_alloc(struct dnet_net_state *st, uint64_t hsize);
-void dnet_req_destroy(struct dnet_data_req *r);
+void dnet_req_destroy(struct dnet_data_req *r, int err);
 
 int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r);
 

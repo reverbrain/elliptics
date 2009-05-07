@@ -307,7 +307,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 	return err;
 }
 
-void dnet_req_trans_destroy(struct dnet_data_req *r)
+void dnet_req_trans_destroy(struct dnet_data_req *r, int err __unused)
 {
 	struct dnet_trans *t = container_of(r, struct dnet_trans, r);
 
@@ -322,7 +322,7 @@ static int dnet_trans_exec(struct dnet_trans *t)
 	if (t->complete) {
 		err = t->complete(t->st, &t->cmd, t->data, t->priv);
 	} else {
-		t->r.complete = dnet_req_trans_destroy;
+		dnet_req_set_complete(&t->r, dnet_req_trans_destroy, NULL);
 		err = dnet_trans_forward(t, t->st);
 		if (!err)
 			return 0;
@@ -427,6 +427,8 @@ err_out_exit:
 	return err;
 }
 
+static void dnet_req_trans_retry(struct dnet_data_req *r, int error);
+
 static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *st)
 {
 	struct dnet_node *n = st->n;
@@ -451,7 +453,7 @@ static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state 
 	if (err)
 		goto err_out_put;
 
-	//dnet_req_set_complete(&t->r, dnet_req_trans_retry, NULL);
+	dnet_req_set_complete(&t->r, dnet_req_trans_retry, NULL);
 
 	t->recv_trans = t->cmd.trans;
 	t->cmd.trans = t->trans;
@@ -486,20 +488,22 @@ static int dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *s
 	return err;
 }
 
-#if 0
-static void dnet_req_trans_retry(struct dnet_data_req *r)
+static void dnet_req_trans_retry(struct dnet_data_req *r, int error)
 {
 	struct dnet_trans *t = container_of(r, struct dnet_trans, r);
-	struct dnet_net_state *st = t->st;
-	int err;
+	if (error) {
+		struct dnet_net_state *st = t->st;
+		int err;
 
-	err = dnet_process_trans_new(t, st);
-	if (err)
-		dnet_trans_destroy(t);
+		err = dnet_process_trans_new(t, st);
+		dnet_state_put(st);
 
-	dnet_state_put(st);
+		if (!err)
+			return;
+	}
+
+	dnet_trans_destroy(t);
 }
-#endif
 
 static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *st)
 {
@@ -716,7 +720,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			"flags: %x, hsize: %zu, dsize: %zu, fsize: %zu.\n",
 			dnet_dump_id(st->id), r, r->flags, r->hsize, r->dsize, r->size);
 
-	dnet_req_destroy(r);
+	dnet_req_destroy(r, 0);
 
 out:
 	return err;
@@ -726,7 +730,7 @@ static void dnet_process_socket(int s __unused, short event, void *arg)
 {
 	struct dnet_net_state *st = arg;
 	short mask = EV_READ;
-	int err, can_write, can_read;
+	int err = -EINVAL, can_write, can_read;
 
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing event: %p, mask: %x.\n",
 			dnet_dump_id(st->id), &st->event, event);
@@ -801,7 +805,7 @@ err_out_destroy:
 		 * below, so that structure members access (like st->snd_list)
 		 * would not fault.
 		 */
-		dnet_req_destroy(r);
+		dnet_req_destroy(r, err);
 	}
 	dnet_state_put(st);
 }

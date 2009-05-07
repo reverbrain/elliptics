@@ -299,7 +299,7 @@ struct dnet_data_req
 	uint64_t		size;
 
 	void			*priv;
-	void			(* complete)(struct dnet_data_req *r);
+	void			(* complete)(struct dnet_data_req *r, int err);
 };
 
 struct dnet_trans
@@ -366,7 +366,7 @@ struct dnet_thread_signal
 int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd);
 int dnet_schedule_socket(struct dnet_net_state *st);
 
-void dnet_req_trans_destroy(struct dnet_data_req *r);
+void dnet_req_trans_destroy(struct dnet_data_req *r, int err);
 
 #ifdef __cplusplus
 }
