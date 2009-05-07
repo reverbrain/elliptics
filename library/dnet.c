@@ -1257,12 +1257,12 @@ err_out_close:
 err_out_exit:
 	if (freeing) {
 		if (c->wait) {
-			int destroy = atomic_dec_and_test(&w->refcnt);
+			int destroy = atomic_dec_and_test(&c->wait->refcnt);
 
 			dnet_wakeup(c->wait, c->wait->cond = err);
 
 			if (destroy)
-				dnet_wait_destroy(w);
+				dnet_wait_destroy(c->wait);
 		}
 
 		free(c);
