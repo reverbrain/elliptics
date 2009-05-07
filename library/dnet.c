@@ -849,7 +849,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	if (ctl->cmd == DNET_CMD_READ)
 		size = 0;
 
-	if (ctl->asize) {
+	if (ctl->asize && ctl->adata) {
 		if (ctl->asize < sizeof(struct dnet_attr)) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: additional attribute size (%u) has to be "
 					"larger or equal than %zu bytes (struct dnet_attr).\n",
@@ -886,7 +886,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	cmd = (struct dnet_cmd *)(t + 1);
 	a = (struct dnet_attr *)(cmd + 1);
 
-	if (ctl->asize) {
+	if (ctl->asize && ctl->adata) {
 		memcpy(a, ctl->adata, ctl->asize);
 
 		dnet_convert_attr(a);
