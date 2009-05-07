@@ -56,27 +56,66 @@ struct dnet_node;
 
 struct dnet_io_control
 {
-	/* Used as cmd->id address */
+	/* Used as cmd->id - 'address' of the remote node */
 	unsigned char			addr[DNET_ID_SIZE];
 
+	/*
+	 * IO control structure - it is copied into resulted transaction as is.
+	 * During write origin will be replaced with data transformation, and
+	 * id will be replaced with the object name transformation.
+	 */
 	struct dnet_io_attr		io;
-	int 				(* complete)(struct dnet_net_state *st, struct dnet_cmd *cmd,
-							struct dnet_attr *attr, void *priv);
+
+	/*
+	 * If present, will be invoked when transaction is completed.
+	 * Can be invoked multiple times, the last one will be when
+	 * cmd->flags does not have DNET_FLAGS_MORE flag.
+	 *
+	 * All parameters are releated to the received transaction reply.
+	 */
+	int 				(* complete)(struct dnet_net_state *st,
+							struct dnet_cmd *cmd,
+							struct dnet_attr *attr,
+							void *priv);
+
+	/*
+	 * Transaction completion private data. Will be accessible in the
+	 * above completion callback.
+	 */
 	void				*priv;
 
+	/*
+	 * Data to be sent.
+	 */
 	void				*data;
 
+	/*
+	 * Attribute flag. If present, write transaction will not be split
+	 * into multiple parts, when its size exceeds DNET_MAX_TRANS_SIZE bytes.
+	 */
 	unsigned int			aflags;
+
+	/*
+	 * File descriptor to read data from (for the write transaction).
+	 */
 	int				fd;
 
+	/*
+	 * IO command.
+	 */
 	unsigned int			cmd;
+
+	/*
+	 * Command flags (DNET_FLAGS_*)
+	 */
 	unsigned int			cflags;
 };
 
 /*
  * Reads an object identified by the provided ID from the appropriate node.
  * In case of error completion callback may be invoked with all parameters
- * set to null, private pointer will be setto what was provided by the user as private data).
+ * set to null, private pointer will be setto what was provided by the user
+ * as private data).
  *
  * Returns negative error value in case of error.
  */
@@ -95,22 +134,28 @@ int dnet_read_file(struct dnet_node *n, char *file, uint64_t offset, uint64_t si
  * Usually it should be equal to 2 multipled by number of transformation functions,
  * since system sends transaction itself and history update.
  *
- * ->complete() will also be called for each transformation function twice,
+ * ->complete() will also be called for each transformation function twice:
+ *  for tranasction completion and history update (if specified),
  *  if there was an error all parameters maybe NULL (private pointer will be set
  *  to what was provided by the user as private data).
  *
- *  if @hupdate is 0 no history update for the @remote object will be done,
+ *  if @hupdate is 0, no history update for the @remote object will be done,
  *  otherwise another transaction will be sent to update the history.
  */
-int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote, unsigned int len, int hupdate);
+int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
+		void *remote, unsigned int len, int hupdate);
 
 /*
  * Sends given file to the remote nodes and waits until all of them ack the write.
  *
  * Returns negative error value in case of error.
  */
-int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size, unsigned int aflags);
+int dnet_write_file(struct dnet_node *n, char *file, off_t offset, size_t size,
+		unsigned int aflags);
 
+/*
+ * Log flags.
+ */
 #define DNET_LOG_NOTICE			(1<<0)
 #define DNET_LOG_INFO			(1<<1)
 #define DNET_LOG_TRANS			(1<<2)
@@ -158,6 +203,12 @@ struct dnet_config
 	 */
 	int			join;
 
+	/*
+	 * Logging parameters.
+	 * Mask specifies set of the events we are interested in to log.
+	 * Private data is used in the log function to get access to whatever
+	 * user pointed to.
+	 */
 	uint32_t		log_mask;
 	void			*log_private;
 	void 			(* log)(void *priv, uint32_t mask, const char *msg);
@@ -165,6 +216,8 @@ struct dnet_config
 	/*
 	 * Network command handler.
 	 * Returns negative error value or zero in case of success.
+	 *
+	 * Private data is accessible from the handler as parameter.
 	 */
 	int			(* command_handler)(void *state, void *priv,
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
@@ -183,6 +236,9 @@ struct dnet_config
 	uint64_t		max_pending;	
 };
 
+/*
+ * Logging helpers.
+ */
 void dnet_command_handler_log_raw(void *state, uint32_t mask, const char *format, ...);
 int dnet_check_log_mask_state(struct dnet_net_state *st, uint32_t mask);
 
@@ -211,6 +267,9 @@ int dnet_check_log_mask_state(struct dnet_net_state *st, uint32_t mask);
 	(addr).s6_addr[15]
 #define NIP6_FMT "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x"
 
+/*
+ * Logging helpers used for the fine-printed address representation.
+ */
 static inline char *dnet_server_convert_addr(struct sockaddr *sa, unsigned int len)
 {
 	static char inet_addr[128];
@@ -245,10 +304,12 @@ static inline char *dnet_server_convert_dnet_addr(struct dnet_addr *sa)
 	memset(&inet_addr, 0, sizeof(inet_addr));
 	if (sa->addr_len == sizeof(struct sockaddr_in)) {
 		struct sockaddr_in *in = (struct sockaddr_in *)sa;
-		sprintf(inet_addr, "%s:%d", inet_ntoa(in->sin_addr), ntohs(in->sin_port));
+		sprintf(inet_addr, "%s:%d", inet_ntoa(in->sin_addr),
+				ntohs(in->sin_port));
 	} else if (sa->addr_len == sizeof(struct sockaddr_in6)) {
 		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa;
-		sprintf(inet_addr, NIP6_FMT":%d", NIP6(in->sin6_addr), ntohs(in->sin6_port));
+		sprintf(inet_addr, NIP6_FMT":%d", NIP6(in->sin6_addr),
+				ntohs(in->sin6_port));
 	}
 	return inet_addr;
 }
@@ -264,6 +325,11 @@ static inline char *dnet_state_dump_addr(struct dnet_net_state *st)
  * One can add/remove them in a run-time. init/update/final sequence is used
  * each time for every transformed block, update can be invoked multiple times
  * between init and final ones.
+ *
+ * Final transformation function has to specify not only transformation result,
+ * but also a *dsize bytes of destination address for this data, which will be
+ * used as transaction address. This allows to put different IDs to the nodes,
+ * which are not supposed to store them.
  */
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	int (* init)(void *priv, struct dnet_node *n),
@@ -293,6 +359,9 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg);
  */
 int dnet_join(struct dnet_node *n);
 
+/*
+ * Logging helper used to print ID (DNET_ID_SIZE bytes) as a hex string.
+ */
 static inline char *dnet_dump_id(const unsigned char *id)
 {
 	unsigned int i;
@@ -318,28 +387,32 @@ int dnet_give_up_control(struct dnet_node *n);
 
 /*
  * Lookup a node which hosts given ID.
+ *
+ * dnet_lookup_object() will invoke given callback when lookup reply is received.
+ * dnet_lookup() will add received address into local route table.
+ * dnet_lookup_complete() is a completion function which adds received address
+ * 	into local route table.
+ *
+ * Effectively dnet_lookup() is a dnet_lookup_object() with dnet_lookup_complete()
+ * 	completion function.
  */
 int dnet_lookup_object(struct dnet_node *n, unsigned char *id,
-	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-	void *priv);
+	int (* complete)(struct dnet_net_state *, struct dnet_cmd *,
+		struct dnet_attr *, void *), void *priv);
 int dnet_lookup(struct dnet_node *n, char *file);
 int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv);
 
+/*
+ * Compare two IDs.
+ * Returns -1 when id1 > id2
+ *          1 when id1 < id2
+ *          0 when id1 = id2
+ */
 static inline int dnet_id_cmp(const unsigned char *id1, const unsigned char *id2)
 {
 	unsigned int i = 0;
-#if 0
-	const unsigned long *l1 = (unsigned long *)id1;
-	const unsigned long *l2 = (unsigned long *)id2;
 
-	for (i=0; i<DNET_ID_SIZE/sizeof(unsigned long); ++i) {
-		if (l1[i] > l2[i])
-			return -1;
-		if (l1[i] < l2[i])
-			return 1;
-	}
-#endif
 	for (i*=sizeof(unsigned long); i<DNET_ID_SIZE; ++i) {
 		if (id1[i] > id2[i])
 			return -1;
@@ -350,8 +423,16 @@ static inline int dnet_id_cmp(const unsigned char *id1, const unsigned char *id2
 	return 0;
 }
 
+/*
+ * Get range of the IDs given node maintains.
+ * It will be less or equal than @req and more than returned @id
+ */
 int dnet_state_get_range(void *state, unsigned char *req, unsigned char *id);
 
+/*
+ * Data request machinery.
+ * For more details see doc/io_storage_backend.txt
+ */
 #define DNET_REQ_FREE_HEADER		(1<<0)
 #define DNET_REQ_FREE_DATA		(1<<1)
 #define DNET_REQ_CLOSE_FD		(1<<2)
@@ -375,6 +456,9 @@ void dnet_req_destroy(struct dnet_data_req *r);
 
 int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r);
 
+/*
+ * Server-side transformation reading completion structure.
+ */
 struct dnet_transform_complete
 {
 	void				*priv;
