@@ -427,47 +427,96 @@ err_out_exit:
 	return err;
 }
 
+static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *st)
+{
+	struct dnet_node *n = st->n;
+	int err = 0;
+	struct dnet_net_state *tmp;
+
+	t->st = dnet_state_get_first(n, t->cmd.id, NULL);
+
+	if (!t->st || t->st == st || t->st == n->st ||
+			(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {
+		dnet_state_put(t->st);
+		t->st = dnet_state_get(st);
+
+		dnet_process_cmd(t);
+		return 0;
+	}
+
+	tmp = t->st;
+	t->st = dnet_state_get(st);
+
+	err = dnet_trans_insert(t);
+	if (err)
+		goto err_out_put;
+
+	//dnet_req_set_complete(&t->r, dnet_req_trans_retry, NULL);
+
+	t->recv_trans = t->cmd.trans;
+	t->cmd.trans = t->trans;
+
+	err = dnet_trans_forward(t, tmp);
+	if (err)
+		goto err_out_put;
+
+	dnet_state_put(tmp);
+	return 0;
+
+err_out_put:
+	dnet_state_put(tmp);
+	dnet_log(n, DNET_LOG_ERROR, "%s: failed to process new transaction %llu: %d.\n",
+			dnet_dump_id(t->cmd.id), (unsigned long long)t->cmd.trans, err);
+	return err;
+}
+
+static int dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *st)
+{
+	int count = 10;
+	int err;
+
+	do {
+		err = __dnet_process_trans_new(t, st);
+		if (!err)
+			break;
+
+		--count;
+	} while (count);
+
+	return err;
+}
+
+#if 0
+static void dnet_req_trans_retry(struct dnet_data_req *r)
+{
+	struct dnet_trans *t = container_of(r, struct dnet_trans, r);
+	struct dnet_net_state *st = t->st;
+	int err;
+
+	err = dnet_process_trans_new(t, st);
+	if (err)
+		dnet_trans_destroy(t);
+
+	dnet_state_put(st);
+}
+#endif
+
 static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *st)
 {
 	int err;
-	struct dnet_node *n = st->n;
 
 	if (!(st->rcv_flags & DNET_IO_DROP)) {
-		if (st->rcv_cmd.trans & DNET_TRANS_REPLY) {
+		if (t->cmd.trans & DNET_TRANS_REPLY) {
 			err = dnet_trans_exec(t);
 			if (err)
 				goto err_out_destroy;
 		} else {
-			t->st = dnet_state_get_first(n, st->rcv_cmd.id, NULL);
-
-			if (!t->st || t->st == st || t->st == n->st ||
-					(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {
-				dnet_state_put(t->st);
-				t->st = dnet_state_get(st);
-
-				dnet_process_cmd(t);
-			} else {
-				struct dnet_net_state *tmp = t->st;
-
-				t->st = dnet_state_get(st);
-
-				err = dnet_trans_insert(t);
-				if (err) {
-					dnet_state_put(tmp);
-					goto err_out_destroy;
-				}
-
-				t->recv_trans = t->cmd.trans;
-				t->cmd.trans = t->trans;
-				err = dnet_trans_forward(t, tmp);
-				dnet_state_put(tmp);
-
-				if (err)
-					goto err_out_destroy;
-			}
+			err = dnet_process_trans_new(t, st);
+			if (err)
+				goto err_out_destroy;
 		}
 	}
-	
+
 	if (st->rcv_flags & DNET_IO_DROP)
 		dnet_trans_destroy(t);
 
