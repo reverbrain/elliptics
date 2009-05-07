@@ -482,13 +482,13 @@ static int dnet_process_recv_single(struct dnet_net_state *st)
 {
 	struct dnet_node *n = st->n;
 	void *data;
-	size_t size;
+	uint64_t size;
 	struct dnet_trans *t;
 	int err;
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: cmd: %d, size: %zu, offset: %zu.\n",
 		dnet_dump_id(st->id), !!(st->rcv_flags & DNET_IO_CMD),
-		st->rcv_size, (size_t)st->rcv_offset);
+		st->rcv_size, (uint64_t)st->rcv_offset);
 
 again:
 	/*
@@ -526,12 +526,9 @@ again:
 	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: offset: %zu, size: %zu, flags: %x.\n",
-			dnet_dump_id(st->id), (size_t)st->rcv_offset, st->rcv_size, st->rcv_flags);
+			dnet_dump_id(st->id), (uint64_t)st->rcv_offset, st->rcv_size, st->rcv_flags);
 
-	/*
-	 * Looks weird, but that's a reality - offset and size are very different types on some platforms.
-	 */
-	if ((ssize_t)st->rcv_offset != (ssize_t)st->rcv_size)
+	if (st->rcv_offset != st->rcv_size)
 		goto again;
 
 	if (st->rcv_flags & DNET_IO_CMD) {
@@ -598,7 +595,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 	}
 
 	while (st->snd_size) {
-		size_t *size = NULL;
+		uint64_t *size = NULL;
 		void *data = NULL;
 		err = -EINVAL;
 
@@ -939,10 +936,10 @@ err_out_exit:
 }
 
 int dnet_sendfile_data(struct dnet_net_state *st,
-		int fd, off_t offset, size_t size,
+		int fd, uint64_t offset, uint64_t size,
 		void *header, unsigned int hsize)
 {
-	ssize_t err;
+	int err;
 
 	err = dnet_send(st, header, hsize);
 	if (err)

@@ -1090,7 +1090,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 	return pos;
 }
 
-int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, off_t offset, size_t size, unsigned int aflags)
+int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t offset, uint64_t size, unsigned int aflags)
 {
 	int fd, err, i, tnum = n->transform_num*2;
 	struct stat stat;
@@ -1281,7 +1281,7 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl)
 }
 
 static int dnet_read_file_id(struct dnet_node *n, char *file, int len,
-		off_t write_offset,
+		uint64_t write_offset,
 		struct dnet_io_attr *io,
 		struct dnet_wait *w, int hist, int wait)
 {
@@ -2266,7 +2266,7 @@ void *dnet_req_private(struct dnet_data_req *r)
 	return r->priv;
 }
 
-struct dnet_data_req *dnet_req_alloc(struct dnet_net_state *st, size_t hsize)
+struct dnet_data_req *dnet_req_alloc(struct dnet_net_state *st, uint64_t hsize)
 {
 	struct dnet_data_req *r;
 
@@ -2298,7 +2298,7 @@ void dnet_req_set_complete(struct dnet_data_req *r,
 	r->complete = complete;
 }
 
-void dnet_req_set_header(struct dnet_data_req *r, void *header, size_t hsize, int free)
+void dnet_req_set_header(struct dnet_data_req *r, void *header, uint64_t hsize, int free)
 {
 	if (free)
 		r->flags |= DNET_REQ_FREE_HEADER;
@@ -2306,7 +2306,7 @@ void dnet_req_set_header(struct dnet_data_req *r, void *header, size_t hsize, in
 	r->hsize = hsize;
 }
 
-void dnet_req_set_data(struct dnet_data_req *r, void *data, size_t size, off_t offset, int free)
+void dnet_req_set_data(struct dnet_data_req *r, void *data, uint64_t size, uint64_t offset, int free)
 {
 	if (free)
 		r->flags |= DNET_REQ_FREE_DATA;
@@ -2315,7 +2315,7 @@ void dnet_req_set_data(struct dnet_data_req *r, void *data, size_t size, off_t o
 	r->doff = offset;
 }
 
-void dnet_req_set_fd(struct dnet_data_req *r, int fd, off_t offset, size_t size, int close)
+void dnet_req_set_fd(struct dnet_data_req *r, int fd, uint64_t offset, uint64_t size, int close)
 {
 	if (close)
 		r->flags |= DNET_REQ_CLOSE_FD;

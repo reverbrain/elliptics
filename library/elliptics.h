@@ -94,16 +94,16 @@ struct dnet_net_state
 	struct event		event;
 
 	struct dnet_cmd		rcv_cmd;
-	off_t			rcv_offset;
-	size_t			rcv_size;
+	uint64_t		rcv_offset;
+	uint64_t		rcv_size;
 	unsigned int		rcv_flags;
 	void			*rcv_data;
 	struct dnet_trans	*rcv_trans;
 	
 	struct list_head	snd_list;
 	struct dnet_lock	snd_lock;
-	off_t			snd_offset;
-	size_t			snd_size;
+	uint64_t		snd_offset;
+	uint64_t		snd_size;
 
 	uint64_t		req_pending;
 
@@ -262,9 +262,9 @@ int dnet_send(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_wait(struct dnet_net_state *st);
 int dnet_sendfile_data(struct dnet_net_state *st,
-		int fd, off_t offset, size_t size,
+		int fd, uint64_t offset, uint64_t size,
 		void *header, unsigned int hsize);
-int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size);
+int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size);
 
 struct dnet_config;
 int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
@@ -286,17 +286,17 @@ struct dnet_data_req
 	struct dnet_net_state	*st;
 
 	void			*header;
-	size_t			hsize;
+	uint64_t		hsize;
 
 	void			*data;
-	size_t			dsize;
-	off_t			doff;
+	uint64_t		dsize;
+	uint64_t		doff;
 
 	unsigned int		flags;
 
 	int			fd;
-	off_t			offset;
-	size_t			size;
+	uint64_t		offset;
+	uint64_t		size;
 
 	void			*priv;
 	void			(* complete)(struct dnet_data_req *r);
@@ -320,7 +320,7 @@ struct dnet_trans
 };
 
 void dnet_trans_destroy(struct dnet_trans *t);
-struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, size_t size);
+struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size);
 
 void dnet_trans_remove(struct dnet_trans *t);
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
@@ -333,8 +333,8 @@ struct dnet_io_completion
 {
 	struct dnet_wait	*wait;
 	char			*file;
-	off_t			offset;
-	size_t			size;
+	uint64_t		offset;
+	uint64_t		size;
 };
 
 int dnet_read_complete(struct dnet_net_state *st __unused, struct dnet_cmd *cmd,

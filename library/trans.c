@@ -124,7 +124,7 @@ void dnet_trans_remove(struct dnet_trans *t)
 	dnet_lock_unlock(&n->trans_lock);
 }
 
-struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, size_t size)
+struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
 {
 	struct dnet_trans *t;
 

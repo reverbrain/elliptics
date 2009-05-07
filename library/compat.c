@@ -30,11 +30,11 @@
 
 #ifdef HAVE_SENDFILE4_SUPPORT
 #include <sys/sendfile.h>
-int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
+int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size)
 {
 	int err;
 
-	err = sendfile(st->s, fd, offset, size);
+	err = sendfile(st->s, fd, (off_t *)offset, size);
 	if (err < 0)
 		return -errno;
 
@@ -42,11 +42,11 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
 }
 #elif HAVE_SENDFILE7_SUPPORT
 #include <sys/uio.h>
-int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
+int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size)
 {
 	int err;
 
-	err = sendfile(fd, st->s, *offset, size, NULL, (off_t *)&size, 0);
+	err = sendfile(fd, st->s, *offset, size, NULL, &size, 0);
 	if (err && errno != EAGAIN)
 		return -errno;
 
@@ -59,11 +59,11 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
 }
 #elif HAVE_SENDFILE6_SUPPORT
 #include <sys/uio.h>
-int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
+int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size)
 {
 	int err;
 
-	err = sendfile(fd, st->s, *offset, (off_t *)&size, NULL, 0);
+	err = sendfile(fd, st->s, *offset, &size, NULL, 0);
 	if (err && errno != EAGAIN)
 		return -errno;
 
@@ -75,11 +75,11 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
 	return -EAGAIN;
 }
 #else
-int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
+int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size)
 {
 	char buf[4096];
-	ssize_t err;
-	size_t total = 0;
+	suint64_t err;
+	uint64_t total = 0;
 
 	err = lseek(fd, *offset, SEEK_SET);
 	if (err < 0) {
@@ -90,7 +90,7 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, off_t *offset, size_t size)
 	}
 
 	while (size) {
-		size_t sz = size;
+		uint64_t sz = size;
 
 		if (sz > sizeof(buf))
 			sz = sizeof(buf);
