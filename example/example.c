@@ -184,6 +184,8 @@ static void dnet_usage(char *p)
 			" -m mask              - log events mask\n"
 			" -N num               - number of IO threads\n"
 			" -P num               - maximum number of pending write transactions opened by single thread\n"
+			" -O offset            - read/write offset in the file\n"
+			" -S size              - read/write transaction size\n"
 			, p);
 }
 
@@ -199,6 +201,7 @@ int main(int argc, char *argv[])
 	char *historyf = NULL, *root = NULL;
 	unsigned char trans_id[DNET_ID_SIZE];
 	FILE *log = NULL;
+	uint64_t offset, size;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -207,10 +210,18 @@ int main(int argc, char *argv[])
 	cfg.wait_timeout = 60*60;
 	cfg.log_mask = ~0;
 
+	size = offset = 0;
+
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "P:N:bm:tsH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "O:S:P:N:bm:tsH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 'O':
+				offset = strtoull(optarg, NULL, 0);
+				break;
+			case 'S':
+				size = strtoull(optarg, NULL, 0);
+				break;
 			case 'P':
 				cfg.max_pending = atoi(optarg);
 				break;
@@ -365,19 +376,19 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		err = dnet_write_file(n, writef, 0, 0, 0);
+		err = dnet_write_file(n, writef, offset, size, 0);
 		if (err)
 			return err;
 	}
 
 	if (readf) {
-		err = dnet_read_file(n, readf, 0, 0, 0);
+		err = dnet_read_file(n, readf, offset, size, 0);
 		if (err)
 			return err;
 	}
 
 	if (historyf) {
-		err = dnet_read_file(n, historyf, 0, 0, 1);
+		err = dnet_read_file(n, historyf, offset, size, 1);
 		if (err)
 			return err;
 	}
