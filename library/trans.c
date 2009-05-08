@@ -140,10 +140,10 @@ void dnet_trans_destroy(struct dnet_trans *t)
 {
 	if (t) {
 		if (t->st && t->st->n)
-			dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d.\n",
+			dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, r: %p.\n",
 				dnet_dump_id(t->cmd.id),
 				(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
-				!!(t->trans & ~DNET_TRANS_REPLY));
+				!!(t->trans & ~DNET_TRANS_REPLY), &t->r);
 		if (t->trans_entry.rb_parent_color && t->st && t->st->n)
 			dnet_trans_remove(t);
 #if 0
