@@ -153,7 +153,7 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	return 0;
 
 err_out_free_req:
-	dnet_req_destroy(r);
+	dnet_req_destroy(r, err);
 	return err;
 
 err_out_free:
