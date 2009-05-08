@@ -315,7 +315,7 @@ int main(int argc, char *argv[])
 				return -1;
 		}
 	}
-
+	
 	if (!logfile)
 		fprintf(stderr, "No log file found, logging will be disabled.\n");
 
@@ -377,12 +377,24 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
+		if(!id) {
+			err = dnet_parse_numeric_id(writef, trans_id);
+			if (err)
+				return err;
+			id = trans_id;
+		}
 		err = dnet_write_file(n, writef, id, offset, size, 0);
 		if (err)
 			return err;
 	}
 
 	if (readf) {
+		if(!id) {
+			err = dnet_parse_numeric_id(readf, trans_id);
+			if (err)
+				return err;
+			id = trans_id;
+		}
 		err = dnet_read_file(n, readf, id, offset, size, 0);
 		if (err)
 			return err;

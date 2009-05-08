@@ -39,6 +39,7 @@ fi
 SERVER1_PID=$!
 
 #write test data
+echo "writing data..."
 echo -n > $TEMP_DIR/client_log
 ../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I 12345 -l $TEMP_DIR/client_log > /dev/null
 TMP=$?
@@ -51,6 +52,7 @@ if [ "f$TMP" != "f0" ]; then
 fi
 
 #read test data
+echo "reading data..."
 echo -n > $TEMP_DIR/client_log
 ../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -R $TEMP_DIR/res_1 -I 12345 -l $TEMP_DIR/client_log > /dev/null
 TMP=$?
