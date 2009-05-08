@@ -1131,7 +1131,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	struct dnet_io_control ctl;
 	long page_size = sysconf(_SC_PAGE_SIZE);
 	void *data;
-	uint64_t sz = 0, off = 0;
+	uint64_t off = 0;
 
 	w = dnet_wait_alloc(1);
 	if (!w) {
@@ -1167,12 +1167,10 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
-	if (size)
-		sz = ALIGN(size, page_size);
 	if (offset)
-		off = ALIGN(offset, page_size) - page_size;
+		off = ALIGN(offset, page_size);
 
-	data = mmap(NULL, sz, PROT_READ, MAP_SHARED, fd, off);
+	data = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, off);
 	if (data == MAP_FAILED) {
 		err = -errno;
 		dnet_log_err(n, "Failed to map to be written file '%s'", file);
@@ -1203,7 +1201,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	if (err <= 0)
 		goto err_out_unmap;
 
-	munmap(data, sz);
+	munmap(data, size);
 
 	dnet_wakeup(w, w->cond -= tnum - err + 1);
 
@@ -1224,7 +1222,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	return 0;
 
 err_out_unmap:
-	munmap(data, sz);
+	munmap(data, size);
 err_out_close:
 	close(fd);
 err_out_put:
