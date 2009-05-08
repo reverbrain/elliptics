@@ -319,6 +319,10 @@ static int dnet_trans_exec(struct dnet_trans *t)
 {
 	int err;
 
+	dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: executing transaction %llu, reply: %d, complete: %p, r: %p.\n",
+			dnet_dump_id(t->cmd.id), t->cmd.trans & ~DNET_TRANS_REPLY,
+			!!(t->cmd.trans & DNET_TRANS_REPLY), t->complete, &t->r);
+
 	if (t->complete) {
 		err = t->complete(t->st, &t->cmd, t->data, t->priv);
 	} else {
@@ -335,6 +339,31 @@ static int dnet_trans_exec(struct dnet_trans *t)
 		dnet_trans_destroy(t);
 
 	return 0;
+}
+
+static struct dnet_trans *dnet_trans_new(struct dnet_net_state *st, uint64_t size)
+{
+	struct dnet_trans *t;
+
+	t = dnet_trans_alloc(st->n, 0);
+	if (!t)
+		goto err_out_exit;
+
+	if (size) {
+		t->data = malloc(size);
+		if (!t->data)
+			goto err_out_free;
+	}
+
+	memcpy(&t->cmd, &st->rcv_cmd, sizeof(struct dnet_cmd));
+	t->trans = t->cmd.trans;
+
+	return t;
+
+err_out_free:
+	free(t);
+err_out_exit:
+	return NULL;
 }
 
 /*
@@ -367,23 +396,41 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 		if (t) {
 			uint64_t cmd_size = t->cmd.size;
 
-			memcpy(&t->cmd, &st->rcv_cmd, sizeof(struct dnet_cmd));
-			t->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
+			if (st->rcv_cmd.flags & DNET_FLAGS_MORE) {
+				struct dnet_trans *nt;
 
-			if (!size) {
-				err = dnet_trans_exec(t);
-				if (err)
-					goto err_out_destroy;
-
-				return dnet_schedule_command(st);
-			}
-
-			if (size > cmd_size) {
-				free(t->data);
-				t->data = malloc(size);
-				if (!t->data) {
+				nt = dnet_trans_new(st, size);
+				if (!t) {
 					err = -ENOMEM;
 					goto err_out_exit;
+				}
+				nt->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
+				nt->trans = t->trans;
+				nt->recv_trans = t->recv_trans;
+				nt->priv = t->priv;
+				nt->complete = t->complete;
+				nt->st = dnet_state_get(t->st);
+
+				t = nt;
+			} else {
+				memcpy(&t->cmd, &st->rcv_cmd, sizeof(struct dnet_cmd));
+				t->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
+
+				if (!size) {
+					err = dnet_trans_exec(t);
+					if (err)
+						goto err_out_destroy;
+
+					return dnet_schedule_command(st);
+				}
+
+				if (size > cmd_size) {
+					free(t->data);
+					t->data = malloc(size);
+					if (!t->data) {
+						err = -ENOMEM;
+						goto err_out_exit;
+					}
 				}
 			}
 		} else {
@@ -395,23 +442,12 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 	}
 
 	if (!t) {
-		t = dnet_trans_alloc(n, 0);
+		t = dnet_trans_new(st, size);
 		if (!t) {
 			err = -ENOMEM;
 			goto err_out_exit;
 		}
-		memset(t, 0, sizeof(struct dnet_trans));
 
-		if (size) {
-			t->data = malloc(size);
-			if (!t->data) {
-				err = -ENOMEM;
-				goto err_out_exit;
-			}
-		}
-
-		memcpy(&t->cmd, &st->rcv_cmd, sizeof(struct dnet_cmd));
-		t->trans = t->cmd.trans;
 	}
 
 	st->rcv_trans = t;
@@ -453,7 +489,7 @@ static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state 
 	if (err)
 		goto err_out_put;
 
-	dnet_req_set_complete(&t->r, dnet_req_trans_retry, NULL);
+	//dnet_req_set_complete(&t->r, dnet_req_trans_retry, NULL);
 
 	t->recv_trans = t->cmd.trans;
 	t->cmd.trans = t->trans;
@@ -498,11 +534,9 @@ static void dnet_req_trans_retry(struct dnet_data_req *r, int error)
 		err = dnet_process_trans_new(t, st);
 		dnet_state_put(st);
 
-		if (!err)
-			return;
+		if (err)
+			dnet_trans_destroy(t);
 	}
-
-	dnet_trans_destroy(t);
 }
 
 static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *st)
