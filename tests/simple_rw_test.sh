@@ -3,6 +3,7 @@
 #options
 TEMP_DIR=temp
 GENERATING_TIME=1 #working time for cat /dev/urandom > some_test_file
+LOGMASK=0xff
 
 
 echo "Simple read/write test"
@@ -32,10 +33,12 @@ kill $!
 # ***************************************
 # * 1 server - 1 client                 *
 # ***************************************
+echo "===== 1 server - 1 client ====="
 
 #start first server
 echo "starting first server..."
-../example/example -i 123456789 -a 127.0.0.1:1025:2 -d $TEMP_DIR/server1 -j -l $TEMP_DIR/server1_log & 
+echo -n > $TEMP_DIR/server1_log
+../example/example -i 123456789 -a 127.0.0.1:1025:2 -d $TEMP_DIR/server1 -j -l $TEMP_DIR/server1_log -m $LOGMASK & 
 sleep 1 
 if [ "f$(ps -p $! --no-headers -o comm)" = "f" ]; then
 	echo "ERROR"
@@ -49,7 +52,7 @@ SERVER1_PID=$!
 #write test data
 echo "writing data..."
 echo -n > $TEMP_DIR/client_log
-../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I 12345 -l $TEMP_DIR/client_log > /dev/null
+../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I 12345 -l $TEMP_DIR/client_log -m $LOGMASK > /dev/null
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -62,7 +65,7 @@ fi
 #read test data
 echo "reading data..."
 echo -n > $TEMP_DIR/client_log
-../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -R $TEMP_DIR/res_1 -I 12345 -l $TEMP_DIR/client_log > /dev/null
+../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -R $TEMP_DIR/res_1 -I 12345 -l $TEMP_DIR/client_log -m $LOGMASK > /dev/null
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -83,18 +86,87 @@ fi
 rm $TEMP_DIR/res_1 
 
 # ***************************************
+# * 1 server - 1 client                 *
+# *  send file in 2 transactions        *
+# ***************************************
+echo "===== 2 server - 1 client ====="
+echo "=====  send request to old first  server"
+
+#calculating size of each transaction
+TOTAL_SIZE=$(stat --printf="%s" $TEMP_DIR/tmp_1)
+FIRST_TRANS_SIZE=$(($TOTAL_SIZE/2))
+SECOND_TRANS_SIZE=$(($FIRST_TRANS_SIZE+($TOTAL_SIZE%2)))
+echo "TOTAL_SIZE=$TOTAL_SIZE FIRST_TRANS_SIZE=$FIRST_TRANS_SIZE SECOND_TRANS_SIZE=$SECOND_TRANS_SIZE"
+
+#write first part of test data
+echo "writing first part of data..."
+echo -n > $TEMP_DIR/client_log
+../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+		-W $TEMP_DIR/tmp_1 -I 54321 -l $TEMP_DIR/client_log -m $LOGMASK -O 0 -S $FIRST_TRANS_SIZE > /dev/null
+TMP=$?
+if [ "f$TMP" != "f0" ]; then
+	echo "ERROR $TMP"
+	echo -e "LOG: \n\n"
+	cat $TEMP_DIR/client_log
+	clean_up
+	exit 1	
+fi
+
+#write second part of test data
+echo "writing second part of data..."
+echo -n > $TEMP_DIR/client_log
+../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+		-W $TEMP_DIR/tmp_1 -I 54321 -l $TEMP_DIR/client_log -m $LOGMASK -O $FIRST_TRANS_SIZE -S $SECOND_TRANS_SIZE > /dev/null
+TMP=$?
+if [ "f$TMP" != "f0" ]; then
+	echo "ERROR $TMP"
+	echo -e "LOG: \n\n"
+	cat $TEMP_DIR/client_log
+	clean_up
+	exit 1	
+fi
+
+#read test data
+echo "reading data..."
+echo -n > $TEMP_DIR/client_log
+../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+		-R $TEMP_DIR/res_1 -I 54321 -l $TEMP_DIR/client_log -m $LOGMASK > /dev/null
+TMP=$?
+if [ "f$TMP" != "f0" ]; then
+	echo "ERROR $TMP"
+	echo -e "LOG: \n\n"
+	cat $TEMP_DIR/client_log
+	clean_up
+	exit 1	
+fi
+
+#compare test data and reading results
+if [ -n "$(diff $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
+	echo -e "ERROR\nfiles differ!"	
+	clean_up
+	exit 1
+else 
+	echo "files is equal" 
+fi
+rm $TEMP_DIR/res_1 
+
+
+# ***************************************
 # * 2 server - 1 client                 *
 # *  send request to new second server  *
 # ***************************************
+echo "===== 2 server - 1 client ====="
+echo "=====  send request to new second server"
 
 #start second server
 echo "starting second server..."
-../example/example -i 987654321 -a 127.0.0.1:1030:2 -r 127.0.0.1:1025:2 -d $TEMP_DIR/server2 -j -l $TEMP_DIR/server2_log & 
+echo -n > $TEMP_DIR/server2_log
+../example/example -i 987654321 -a 127.0.0.1:1030:2 -r 127.0.0.1:1025:2 -d $TEMP_DIR/server2 -j -l $TEMP_DIR/server2_log -m $LOGMASK & 
 sleep 1 
 if [ "f$(ps -p $! --no-headers -o comm)" = "f" ]; then
 	echo "ERROR"
 	echo -e "LOG: \n\n"
-	cat  $TEMP_DIR/server1_log
+	cat $TEMP_DIR/server1_log
 	clean_up
 	exit 1
 fi
@@ -103,7 +175,40 @@ SERVER2_PID=$!
 #read test data
 echo "reading data..."
 echo -n > $TEMP_DIR/client_log
-../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash -R $TEMP_DIR/res_1 -I 12345 -l $TEMP_DIR/client_log > /dev/null
+../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
+	       -R $TEMP_DIR/res_1 -I 12345 -l $TEMP_DIR/client_log -m $LOGMASK > /dev/null
+TMP=$?
+if [ "f$TMP" != "f0" ]; then
+	echo "ERROR $TMP"
+	echo -e "LOG: \n\n"
+	cat $TEMP_DIR/client_log
+	clean_up
+	exit 1	
+fi
+
+#compare test data and reading results
+if [ -n "$(diff $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
+	echo -e "ERROR\nfiles differ!"	
+	clean_up
+	exit 1
+else 
+	echo "files is equal" 
+fi
+rm $TEMP_DIR/res_1 
+
+
+# ***************************************
+# * 2 server - 1 client                 *
+# *  send request to old first  server  *
+# ***************************************
+echo "===== 2 server - 1 client ====="
+echo "=====  send request to old first  server"
+
+#read test data
+echo "reading data..."
+echo -n > $TEMP_DIR/client_log
+../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+		-R $TEMP_DIR/res_1 -I 12345 -l $TEMP_DIR/client_log -m $LOGMASK > /dev/null
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
