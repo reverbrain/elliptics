@@ -1127,7 +1127,6 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 {
 	int fd, err, i, tnum = n->transform_num*2;
 	struct stat stat;
-	int error = -ENOENT;
 	struct dnet_wait *w;
 	struct dnet_io_control ctl;
 
@@ -1205,7 +1204,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	close(fd);
 	dnet_wait_put(w);
 
-	return error;
+	return 0;
 
 err_out_unmap:
 	munmap(ctl.data, size);
