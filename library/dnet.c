@@ -297,7 +297,7 @@ static int dnet_cmd_transform_list(struct dnet_net_state *orig, struct dnet_cmd 
 	pthread_rwlock_unlock(&n->transform_lock);
 
 	if (!attr->size) {
-		dnet_req_destroy(r);
+		dnet_req_destroy(r, 0);
 		return 0;
 	}
 
@@ -490,7 +490,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 	if (cmd->flags & DNET_FLAGS_NEED_ACK) {
 		struct dnet_cmd *ack;
 
-		t->r.complete = dnet_req_trans_destroy;
+		dnet_req_set_complete(&t->r, dnet_req_trans_destroy, NULL);
 
 		dnet_req_set_header(&t->r, cmd, sizeof(struct dnet_cmd), 0);
 		dnet_req_set_flags(&t->r, ~0, DNET_REQ_NO_DESTRUCT);
@@ -1127,7 +1127,6 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 {
 	int fd, err, i, tnum = n->transform_num*2;
 	struct stat stat;
-	int error = -ENOENT;
 	struct dnet_wait *w;
 	struct dnet_io_control ctl;
 
@@ -1205,7 +1204,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	close(fd);
 	dnet_wait_put(w);
 
-	return error;
+	return 0;
 
 err_out_unmap:
 	munmap(ctl.data, size);
@@ -2329,7 +2328,7 @@ struct dnet_data_req *dnet_req_alloc(struct dnet_net_state *st, uint64_t hsize)
 }
 
 void dnet_req_set_complete(struct dnet_data_req *r,
-		void (* complete)(struct dnet_data_req *r), void *priv)
+		void (* complete)(struct dnet_data_req *r, int err), void *priv)
 {
 	r->priv = priv;
 	r->complete = complete;
@@ -2367,7 +2366,7 @@ void dnet_req_set_flags(struct dnet_data_req *r, unsigned int mask, unsigned int
 	r->flags &= mask;
 }
 
-void dnet_req_destroy(struct dnet_data_req *r)
+void dnet_req_destroy(struct dnet_data_req *r, int err)
 {
 	if (r->flags & DNET_REQ_CLOSE_FD)
 		close(r->fd);
@@ -2386,7 +2385,7 @@ void dnet_req_destroy(struct dnet_data_req *r)
 		return;
 	}
 	if (r->complete)
-		r->complete(r);
+		r->complete(r, err);
 }
 
 struct dnet_addr *dnet_state_addr(struct dnet_net_state *st)

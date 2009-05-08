@@ -469,11 +469,18 @@ void dnet_req_set_header(struct dnet_data_req *r, void *header, uint64_t hsize, 
 void dnet_req_set_data(struct dnet_data_req *r, void *data, uint64_t size, uint64_t offset, int free);
 void dnet_req_set_fd(struct dnet_data_req *r, int fd, uint64_t offset, uint64_t size, int close);
 void dnet_req_set_flags(struct dnet_data_req *r, unsigned int mask, unsigned int flags);
+
+/*
+ * Completion callback will be invoked when data request is about to be freed,
+ * i.e. none holds any reference on it.
+ * Completion callback should free data request (if needed) using plain free(3),
+ * since otherwise it will not be freed by the system.
+ */
 void dnet_req_set_complete(struct dnet_data_req *r,
-		void (* complete)(struct dnet_data_req *r), void *priv);
+		void (* complete)(struct dnet_data_req *r, int err), void *priv);
 
 struct dnet_data_req *dnet_req_alloc(struct dnet_net_state *st, uint64_t hsize);
-void dnet_req_destroy(struct dnet_data_req *r);
+void dnet_req_destroy(struct dnet_data_req *r, int err);
 
 int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r);
 
