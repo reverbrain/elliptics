@@ -127,7 +127,6 @@ static int dnet_parse_numeric_id(char *value, unsigned char *id)
 		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
 	}
 
-	printf("Node id: %s\n", dnet_dump_id(id));
 	return 0;
 }
 
@@ -146,10 +145,7 @@ static int dnet_background(void)
 		exit(0);
 	}
 
-	if (setsid()) {
-		fprintf(stderr, "Failed to create a new session: %s.\n", strerror(errno));
-		return -1;
-	}
+	setsid();
 
 	close(1);
 	close(2);
