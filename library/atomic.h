@@ -43,6 +43,16 @@ static inline int atomic_read(atomic_t *a)
 	return a->val;
 }
 
+static inline void atomic_add(atomic_t *a, int v)
+{
+	__sync_add_and_fetch(&a->val, v);
+}
+
+static inline void atomic_sub(atomic_t *a, int v)
+{
+	__sync_sub_and_fetch(&a->val, v);
+}
+
 static inline int atomic_inc(atomic_t *a)
 {
 	return __sync_add_and_fetch(&a->val, 1);
@@ -84,6 +94,20 @@ static inline void atomic_set(atomic_t *a, int val)
 static inline int atomic_read(atomic_t *a)
 {
 	return a->val;
+}
+
+static inline void atomic_add(atomic_t *a, int v)
+{
+	dnet_lock_lock(&a->lock);
+	a->val += v;
+	dnet_lock_unlock(&a->lock);
+}
+
+static inline void atomic_sub(atomic_t *a, int v)
+{
+	dnet_lock_lock(&a->lock);
+	a->val -= v;
+	dnet_lock_unlock(&a->lock);
 }
 
 static inline int atomic_inc(atomic_t *a)

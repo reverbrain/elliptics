@@ -23,6 +23,7 @@
 
 #include <ctype.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -370,7 +371,7 @@ static int dnet_local_transform(struct dnet_net_state *orig, struct dnet_cmd *cm
 	ctl.data = data;
 	ctl.fd = -1;
 
-	return dnet_write_object(n, &ctl, NULL, 0, 0);
+	return dnet_write_object(n, &ctl, NULL, 0, 0, &err);
 
 err_out_exit:
 	return err;
@@ -809,7 +810,7 @@ static void dnet_io_complete(struct dnet_wait *w, int status)
 {
 	if (status)
 		w->status = status;
-	w->cond--;
+	w->cond++;
 }
 
 static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
@@ -822,8 +823,9 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 		if (cmd && st) {
 			err = cmd->status;
-			dnet_log(st->n, DNET_LOG_INFO, "%s: object write completed: status: %d.\n",
-				dnet_dump_id(cmd->id), cmd->status);
+			dnet_log(st->n, DNET_LOG_INFO, "%s: object write completed: trans: %llu, status: %d.\n",
+				dnet_dump_id(cmd->id), (unsigned long long)(cmd->trans & ~DNET_TRANS_REPLY),
+				cmd->status);
 		}
 
 		dnet_wakeup(w, dnet_io_complete(w, err));
@@ -831,7 +833,7 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	} else
 		err = cmd->status;
 
-	return err;
+	return 0;
 }
 
 static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_io_control *ctl)
@@ -1077,10 +1079,10 @@ err_out_exit:
 }
 
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote,
-		unsigned char *id, int hupdate)
+		unsigned char *id, int hupdate, int *trans_nump)
 {
 	unsigned int len = 0;
-	int pos = 0, err = 0;
+	int pos = 0, err = 0, num = 0;
 	int error = 0;
 	void *data = ctl->data;
 	uint64_t total_size = ctl->io.size;
@@ -1107,28 +1109,33 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 			}
 
 			ctl->data += sz;
+			ctl->io.offset += sz;
 			size -= sz;
 
 			error = 0;
 			if (size)
 				pos--;
+
+			num++;
+			if (hupdate)
+				num++;
 		}
 
 		if (err > 0)
 			break;
 	}
 
+	*trans_nump = num;
+
 	if (error < 0)
 		return error;
 
-	if (hupdate)
-		pos *= 2;
-	return pos;
+	return num;
 }
 
 int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t offset, uint64_t size, unsigned int aflags)
 {
-	int fd, err, i, tnum = n->transform_num*2;
+	int fd, err, trans_num, error;
 	struct stat stat;
 	struct dnet_wait *w;
 	struct dnet_io_control ctl;
@@ -1136,7 +1143,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	void *data;
 	uint64_t off = 0;
 
-	w = dnet_wait_alloc(1);
+	w = dnet_wait_alloc(0);
 	if (!w) {
 		err = -ENOMEM;
 		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting structure.\n");
@@ -1170,8 +1177,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
-	if (offset)
-		off = ALIGN(offset, page_size) - page_size;
+	off = offset & ~(page_size - 1);
 
 	data = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, off);
 	if (data == MAP_FAILED) {
@@ -1180,13 +1186,9 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 		goto err_out_close;
 	}
 
+	atomic_set(&w->refcnt, INT_MAX);
+
 	ctl.data = data + offset - off;
-
-	for (i=0; i<tnum; ++i)
-		dnet_wait_get(w);
-
-	w->cond += tnum;
-
 	ctl.fd = fd;
 
 	ctl.complete = dnet_write_complete;
@@ -1200,32 +1202,36 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	ctl.io.size = size;
 	ctl.io.offset = offset;
 
-	err = dnet_write_object(n, &ctl, file, id, 1);
-	if (err <= 0)
-		goto err_out_unmap;
+	error = dnet_write_object(n, &ctl, file, id, 1, &trans_num);
+
+	dnet_log(n, DNET_LOG_INFO, "%s: transactions sent: %d, error: %d.\n", dnet_dump_id(ctl.addr), trans_num, err);
+
+	/*
+	 * 1 - the first reference counter we grabbed at allocation time
+	 */
+	atomic_sub(&w->refcnt, INT_MAX - trans_num - 1);
 
 	munmap(data, size);
 
-	dnet_wakeup(w, w->cond -= tnum - err + 1);
-
-	err = dnet_wait_event(w, w->cond == 0, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
 	if (err || w->status) {
 		if (!err)
 			err = w->status;
-
-		dnet_log(n, DNET_LOG_ERROR, "Failed to write file '%s' into the storage, err: %d.\n", file, err);
-		goto err_out_close;
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Successfully wrote file: '%s' into the storage, size: %zu.\n", file, size);
+	if (!err && error)
+		err = error;
+
+	if (err)
+		dnet_log(n, DNET_LOG_ERROR, "Failed to write file '%s' into the storage, err: %d.\n", file, err);
+	else
+		dnet_log(n, DNET_LOG_INFO, "Successfully wrote file: '%s' into the storage, size: %zu.\n", file, size);
 
 	close(fd);
 	dnet_wait_put(w);
 
-	return 0;
+	return err;
 
-err_out_unmap:
-	munmap(data, size);
 err_out_close:
 	close(fd);
 err_out_put:

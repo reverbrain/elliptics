@@ -356,7 +356,7 @@ static struct dnet_trans *dnet_trans_new(struct dnet_net_state *st, uint64_t siz
 	}
 
 	memcpy(&t->cmd, &st->rcv_cmd, sizeof(struct dnet_cmd));
-	t->trans = t->cmd.trans;
+	t->trans = t->recv_trans = t->cmd.trans;
 
 	return t;
 
@@ -400,11 +400,12 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 				struct dnet_trans *nt;
 
 				nt = dnet_trans_new(st, size);
-				if (!t) {
+				if (!nt) {
 					err = -ENOMEM;
 					goto err_out_exit;
 				}
-				nt->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
+
+				t->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
 				nt->trans = t->trans;
 				nt->recv_trans = t->recv_trans;
 				nt->priv = t->priv;
@@ -447,7 +448,6 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 			err = -ENOMEM;
 			goto err_out_exit;
 		}
-
 	}
 
 	st->rcv_trans = t;
@@ -613,7 +613,8 @@ again:
 	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: offset: %zu, size: %zu, flags: %x.\n",
-			dnet_dump_id(st->id), (uint64_t)st->rcv_offset, st->rcv_size, st->rcv_flags);
+			dnet_dump_id(st->id), (uint64_t)st->rcv_offset, st->rcv_size,
+			st->rcv_flags);
 
 	if (st->rcv_offset != st->rcv_size)
 		goto again;
@@ -626,8 +627,10 @@ again:
 
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: size: %llu, flags: %u, trans: %llu, reply: %d.\n",
-				dnet_dump_id(c->id), (unsigned long long)c->size, c->flags,
+		dnet_log(n, DNET_LOG_NOTICE, "%s: trans: %llu, reply: %d, size: %llu, "
+				"flags: %u, trans: %llu, reply: %d.\n",
+				dnet_dump_id(c->id), tid, tid != c->trans,
+				(unsigned long long)c->size, c->flags,
 				tid, !!(c->trans & DNET_TRANS_REPLY));
 		err = dnet_schedule_data(st);
 		if (err)

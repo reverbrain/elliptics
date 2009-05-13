@@ -145,9 +145,10 @@ int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id,
 		uint64_t offset, uint64_t size, int hist);
 
 /*
- * dnet_write_object() returns number of nodes transaction was sent to.
+ * dnet_write_object() returns number of nodes data was sent to.
  * Usually it should be equal to 2 multipled by number of transformation functions,
- * since system sends transaction itself and history update.
+ * since system sends transaction itself and history update or negative error number.
+ *  @trans_num will contain number of nodes data was sent to.
  *
  * ->complete() will also be called for each transformation function twice:
  *  for tranasction completion and history update (if specified),
@@ -164,7 +165,7 @@ int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id,
  *  and its own history will be updated.
  */
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote,
-		unsigned char *id, int hupdate);
+		unsigned char *id, int hupdate, int *trans_num);
 
 /*
  * Sends given file to the remote nodes and waits until all of them ack the write.

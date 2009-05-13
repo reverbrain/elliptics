@@ -93,7 +93,7 @@ int dnet_trans_insert(struct dnet_trans *t)
 	int err;
 
 	dnet_lock_lock(&n->trans_lock);
-	t->trans = (n->trans++) & ~DNET_TRANS_REPLY;
+	t->recv_trans = t->trans = (n->trans++) & ~DNET_TRANS_REPLY;
 	err = dnet_trans_insert_raw(&n->trans_root, t);
 	dnet_lock_unlock(&n->trans_lock);
 
