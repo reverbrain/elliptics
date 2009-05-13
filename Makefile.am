@@ -1,6 +1,4 @@
-SUBDIRS = include library tests
-
-SUBDIRS += example
+SUBDIRS = include library tests doc example
 
 ACLOCAL_AMFLAGS = -I config
 AUTOMAKE_OPTIONS = 1.9 foreign

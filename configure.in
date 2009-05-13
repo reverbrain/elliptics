@@ -32,6 +32,7 @@ AC_CHECK_ATOMIC
 AC_CHECK_TOKYOCABINET
 
 AC_CONFIG_FILES([Makefile include/Makefile include/dnet/Makefile
-	library/Makefile example/Makefile tests/Makefile])
+		 library/Makefile example/Makefile tests/Makefile
+		 doc/Makefile])
 
 AC_OUTPUT
