@@ -24,7 +24,6 @@ function clean_up() {
 	if [ "$SERVER2_PID" ]; then
 		kill $SERVER2_PID
 	fi
-	rm -rf $TEMP_DIR
 }
 
 #generating random file 
@@ -81,7 +80,8 @@ if [ "f$TMP" != "f0" ]; then
 fi
 
 #compare test data and reading results
-if [ -n "$(cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
+cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
+if [ "f$?" != "f0" ]; then 
 	echo -e "ERROR\nfiles differ!"	
 	clean_up
 	exit 1
@@ -146,7 +146,8 @@ if [ "f$TMP" != "f0" ]; then
 fi
 
 #compare test data and reading results
-if [ -n "$(cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
+cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
+if [ "f$?" != "f0" ]; then 
 	echo -e "ERROR\nfiles differ!"	
 	clean_up
 	exit 1
@@ -193,7 +194,8 @@ if [ "f$TMP" != "f0" ]; then
 fi
 
 #compare test data and reading results
-if [ -n "$(cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
+cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
+if [ "f$?" != "f0" ]; then 
 	echo -e "ERROR\nfiles differ!"	
 	clean_up
 	exit 1
@@ -225,7 +227,8 @@ if [ "f$TMP" != "f0" ]; then
 fi
 
 #compare test data and reading results
-if [ -n "$(cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
+cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
+if [ "f$?" != "f0" ]; then 
 	echo -e "ERROR\nfiles differ!"	
 	clean_up
 	exit 1
@@ -245,8 +248,8 @@ echo "=====  kill first server and"
 echo "=====  send request to second server"
 echo "=====  (join test)"
 
-kill $SERVER_ID_1
-SERVER_ID_1=
+kill $SERVER1_PID
+SERVER1_PID=
 
 #read test data
 echo "reading data..."
@@ -263,7 +266,8 @@ if [ "f$TMP" != "f0" ]; then
 fi
 
 #compare test data and reading results
-if [ -n "$(cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
+cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
+if [ "f$?" != "f0" ]; then 
 	echo -e "ERROR\nfiles differ!\Join isn't correct!"	
 	clean_up
 	exit 1
@@ -275,6 +279,7 @@ rm $TEMP_DIR/res_1
 
 #cleanup 
 clean_up
+rm -rf $TEMP_DIR
 
 echo -e "\n\nSUCCESSFUL!"
 exit 0
