@@ -7,7 +7,7 @@ LOGMASK=0xff
 SERVER_ID_1=00
 SERVER_ID_2=ff
 FILE_ID_1=99
-SERVER_FLAGS=
+SERVER_FLAGS=$1
 
 echo "Read/write test"
 
@@ -15,6 +15,9 @@ echo "Read/write test"
 mkdir -p $TEMP_DIR
 mkdir -p $TEMP_DIR/server1
 mkdir -p $TEMP_DIR/server2
+
+RUN_STACK=$TEMP_DIR/run_stack
+echo -n > $RUN_STACK
 
 #cleaning resources on a fail or on the end
 function clean_up() {
@@ -55,7 +58,7 @@ SERVER1_PID=$!
 echo "writing data..."
 echo -n > $TEMP_DIR/client_log
 ../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
-	       	-l $TEMP_DIR/client_log -m $LOGMASK > /dev/null
+	       	-l $TEMP_DIR/client_log -m $LOGMASK >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -67,9 +70,8 @@ fi
 
 #read test data
 echo "reading data..."
-echo -n > $TEMP_DIR/client_log
 ../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -R $TEMP_DIR/res_1 -I $FILE_ID_1 \
-	       	-l $TEMP_DIR/client_log -m $LOGMASK > /dev/null
+	       	-l $TEMP_DIR/client_log -m $LOGMASK >> RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -105,9 +107,8 @@ echo "TOTAL_SIZE=$TOTAL_SIZE FIRST_TRANS_SIZE=$FIRST_TRANS_SIZE SECOND_TRANS_SIZ
 
 #write first part of test data
 echo "writing first part of data..."
-echo -n > $TEMP_DIR/client_log
 ../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
-		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O 0 -S $FIRST_TRANS_SIZE > /dev/null
+		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O 0 -S $FIRST_TRANS_SIZE >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -119,9 +120,8 @@ fi
 
 #write second part of test data
 echo "writing second part of data..."
-echo -n > $TEMP_DIR/client_log
 ../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
-		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O $FIRST_TRANS_SIZE -S $SECOND_TRANS_SIZE > /dev/null
+		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O $FIRST_TRANS_SIZE -S $SECOND_TRANS_SIZE >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -133,9 +133,8 @@ fi
 
 #read test data
 echo "reading data..."
-echo -n > $TEMP_DIR/client_log
 ../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
-		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK > /dev/null
+		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -181,9 +180,8 @@ SERVER2_PID=$!
 
 #read test data
 echo "reading data..."
-echo -n > $TEMP_DIR/client_log
 ../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
-	       -R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK > /dev/null
+	       -R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -214,9 +212,8 @@ echo "=====  send request to old first  server"
 
 #read test data
 echo "reading data..."
-echo -n > $TEMP_DIR/client_log
 ../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
-		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK > /dev/null
+		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -253,9 +250,8 @@ SERVER1_PID=
 
 #read test data
 echo "reading data..."
-echo -n > $TEMP_DIR/client_log
 ../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
-		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK > /dev/null
+		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
