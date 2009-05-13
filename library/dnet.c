@@ -1031,7 +1031,10 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	if (err)
 		goto err_out_exit;
 
-	if (!hupdate || !remote || !len || !id)
+	if (!hupdate)
+		return 0;
+
+	if (!id && (!remote || !len))
 		return 0;
 
 	memcpy(hctl.addr, addr, DNET_ID_SIZE);
