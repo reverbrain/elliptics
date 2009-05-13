@@ -1450,8 +1450,6 @@ struct dnet_map_root
 static int dnet_trans_map_cmp(uint64_t old_offset, uint64_t old_size,
 		uint64_t offset, uint64_t size)
 {
-	printf("%s: old: %llu %llu, new: %llu %llu.\n",
-			__func__, old_offset, old_size, offset, size);
 	if (offset + size <= old_offset)
 		return -1;
 
