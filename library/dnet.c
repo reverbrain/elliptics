@@ -1031,7 +1031,10 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	if (err)
 		goto err_out_exit;
 
-	if (!hupdate || !remote || !len || !id)
+	if (!hupdate)
+		return 0;
+
+	if (!id && (!remote || !len))
 		return 0;
 
 	memcpy(hctl.addr, addr, DNET_ID_SIZE);
@@ -1168,7 +1171,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
 	if (offset)
-		off = ALIGN(offset, page_size);
+		off = ALIGN(offset, page_size) - page_size;
 
 	data = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, off);
 	if (data == MAP_FAILED) {
@@ -1447,8 +1450,6 @@ struct dnet_map_root
 static int dnet_trans_map_cmp(uint64_t old_offset, uint64_t old_size,
 		uint64_t offset, uint64_t size)
 {
-	printf("%s: old: %llu %llu, new: %llu %llu.\n",
-			__func__, old_offset, old_size, offset, size);
 	if (offset + size <= old_offset)
 		return -1;
 
