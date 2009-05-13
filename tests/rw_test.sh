@@ -2,7 +2,7 @@
 
 #options
 TEMP_DIR=temp
-GENERATING_TIME=1 #working time for cat /dev/urandom > some_test_file
+GENERATING_TIME=5 #working time for cat /dev/urandom > some_test_file
 LOGMASK=0xff
 
 
@@ -76,7 +76,7 @@ if [ "f$TMP" != "f0" ]; then
 fi
 
 #compare test data and reading results
-if [ -n "$(diff $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
+if [ -n "$(cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
 	echo -e "ERROR\nfiles differ!"	
 	clean_up
 	exit 1
@@ -141,7 +141,7 @@ if [ "f$TMP" != "f0" ]; then
 fi
 
 #compare test data and reading results
-if [ -n "$(diff $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
+if [ -n "$(cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
 	echo -e "ERROR\nfiles differ!"	
 	clean_up
 	exit 1
@@ -187,7 +187,7 @@ if [ "f$TMP" != "f0" ]; then
 fi
 
 #compare test data and reading results
-if [ -n "$(diff $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
+if [ -n "$(cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
 	echo -e "ERROR\nfiles differ!"	
 	clean_up
 	exit 1
@@ -219,7 +219,7 @@ if [ "f$TMP" != "f0" ]; then
 fi
 
 #compare test data and reading results
-if [ -n "$(diff $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
+if [ -n "$(cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1)" ]; then 
 	echo -e "ERROR\nfiles differ!"	
 	clean_up
 	exit 1
@@ -232,4 +232,6 @@ rm $TEMP_DIR/res_1
 
 #cleanup 
 clean_up
+
+echo -e "\n\nSUCCESSFUL!"
 exit 0
