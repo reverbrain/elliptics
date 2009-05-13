@@ -1,4 +1,4 @@
-SUBDIRS = include library
+SUBDIRS = include library tests
 
 SUBDIRS += example
 
