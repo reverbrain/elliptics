@@ -1171,7 +1171,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
 	if (offset)
-		off = ALIGN(offset, page_size);
+		off = ALIGN(offset, page_size) - page_size;
 
 	data = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, off);
 	if (data == MAP_FAILED) {
