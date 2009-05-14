@@ -13,9 +13,10 @@ if test $ac_stat_support = no; then
 AC_TRY_RUN([#include <stdio.h>
 		#include <sys/types.h>
 		#include <sys/sysctl.h>
+		#include <sys/resource.h>
 		int main ()
 		{
-			double la[3];
+			struct loadavg la;
 			size_t sz = sizeof(la);
 			return sysctlbyname("vm.loadavg", &la, &sz, NULL, 0);
 		}
