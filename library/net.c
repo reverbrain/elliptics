@@ -325,20 +325,14 @@ static int dnet_trans_exec(struct dnet_trans *t)
 
 	if (t->complete) {
 		err = t->complete(t->st, &t->cmd, t->data, t->priv);
+		if (!err && !(t->cmd.flags & DNET_FLAGS_MORE))
+			dnet_trans_destroy(t);
 	} else {
 		dnet_req_set_complete(&t->r, dnet_req_trans_destroy, NULL);
 		err = dnet_trans_forward(t, t->st);
-		if (!err)
-			return 0;
 	}
 
-	if (err)
-		return err;
-
-	if (!(t->cmd.flags & DNET_FLAGS_MORE))
-		dnet_trans_destroy(t);
-
-	return 0;
+	return err;
 }
 
 static struct dnet_trans *dnet_trans_new(struct dnet_net_state *st, uint64_t size)
@@ -356,7 +350,7 @@ static struct dnet_trans *dnet_trans_new(struct dnet_net_state *st, uint64_t siz
 	}
 
 	memcpy(&t->cmd, &st->rcv_cmd, sizeof(struct dnet_cmd));
-	t->trans = t->cmd.trans;
+	t->trans = t->recv_trans = t->cmd.trans;
 
 	return t;
 
@@ -400,11 +394,12 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 				struct dnet_trans *nt;
 
 				nt = dnet_trans_new(st, size);
-				if (!t) {
+				if (!nt) {
 					err = -ENOMEM;
 					goto err_out_exit;
 				}
-				nt->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
+
+				t->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
 				nt->trans = t->trans;
 				nt->recv_trans = t->recv_trans;
 				nt->priv = t->priv;
@@ -447,7 +442,6 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 			err = -ENOMEM;
 			goto err_out_exit;
 		}
-
 	}
 
 	st->rcv_trans = t;
@@ -489,7 +483,7 @@ static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state 
 	if (err)
 		goto err_out_put;
 
-	//dnet_req_set_complete(&t->r, dnet_req_trans_retry, NULL);
+	dnet_req_set_complete(&t->r, dnet_req_trans_retry, NULL);
 
 	t->recv_trans = t->cmd.trans;
 	t->cmd.trans = t->trans;
@@ -510,7 +504,6 @@ err_out_put:
 
 static int dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *st)
 {
-	int count = 10;
 	int err;
 
 	do {
@@ -518,24 +511,25 @@ static int dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *s
 		if (!err)
 			break;
 
-		--count;
-	} while (count);
+	} while (st && st->n && !list_empty(&st->n->state_list));
 
 	return err;
 }
 
-static void dnet_req_trans_retry(struct dnet_data_req *r, int error)
+static void dnet_req_trans_retry(struct dnet_data_req *r, int err)
 {
 	struct dnet_trans *t = container_of(r, struct dnet_trans, r);
-	if (error) {
+
+	if (err) {
 		struct dnet_net_state *st = t->st;
-		int err;
 
 		err = dnet_process_trans_new(t, st);
 		dnet_state_put(st);
 
 		if (err)
 			dnet_trans_destroy(t);
+	} else {
+		dnet_req_set_complete(&t->r, NULL, NULL);
 	}
 }
 
@@ -613,7 +607,8 @@ again:
 	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: offset: %zu, size: %zu, flags: %x.\n",
-			dnet_dump_id(st->id), (uint64_t)st->rcv_offset, st->rcv_size, st->rcv_flags);
+			dnet_dump_id(st->id), (uint64_t)st->rcv_offset, st->rcv_size,
+			st->rcv_flags);
 
 	if (st->rcv_offset != st->rcv_size)
 		goto again;
@@ -626,8 +621,10 @@ again:
 
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: size: %llu, flags: %u, trans: %llu, reply: %d.\n",
-				dnet_dump_id(c->id), (unsigned long long)c->size, c->flags,
+		dnet_log(n, DNET_LOG_NOTICE, "%s: trans: %llu, reply: %d, size: %llu, "
+				"flags: %u, trans: %llu, reply: %d.\n",
+				dnet_dump_id(c->id), tid, tid != c->trans,
+				(unsigned long long)c->size, c->flags,
 				tid, !!(c->trans & DNET_TRANS_REPLY));
 		err = dnet_schedule_data(st);
 		if (err)
@@ -750,9 +747,10 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 	list_del(&r->req_entry);
 	dnet_lock_unlock(&st->snd_lock);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: freeing send request: %p: "
-			"flags: %x, hsize: %zu, dsize: %zu, fsize: %zu.\n",
-			dnet_dump_id(st->id), r, r->flags, r->hsize, r->dsize, r->size);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: destroying send request: %p: "
+			"flags: %x, hsize: %zu, dsize: %zu, fsize: %zu, complete: %p.\n",
+			dnet_dump_id(st->id), r, r->flags, r->hsize, r->dsize, r->size,
+			r->complete);
 
 	dnet_req_destroy(r, 0);
 
