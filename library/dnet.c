@@ -1130,7 +1130,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 	if (error < 0)
 		return error;
 
-	return num;
+	return 0;
 }
 
 int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t offset, uint64_t size, unsigned int aflags)

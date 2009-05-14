@@ -145,24 +145,26 @@ int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id,
 		uint64_t offset, uint64_t size, int hist);
 
 /*
- * dnet_write_object() returns number of nodes data was sent to.
- * Usually it should be equal to 2 multipled by number of transformation functions,
- * since system sends transaction itself and history update or negative error number.
- *  @trans_num will contain number of nodes data was sent to.
+ * dnet_write_object() returns 0 on success or negative error otherwise.
+ * @trans_num will contain number of nodes data was sent to prior return.
  *
- * ->complete() will also be called for each transformation function twice:
+ * ->complete() may be called for each transformation function twice:
  *  for tranasction completion and history update (if specified),
  *  if there was an error all parameters maybe NULL (private pointer will be set
  *  to what was provided by the user as private data).
  *
- *  if @hupdate is 0, no history update for the @remote object will be done,
+ *  Transaction will be freed when @flags field in
+ *  the command structure (if non null)
+ *  does not have DNET_FLAGS_MORE bit set.
+ *
+ *  if @hupdate is 0, no history update for the @remote or @id object will be done,
  *  otherwise another transaction will be sent to update the history.
  *
  *  If @id is set, it is used as master object ID.
  *  Otherwise if @remote is specified, its transformation is used as master object,
  *  whose history is updated (if @hupdate is set).
- *  Otherwise transaction is used as self-contained,
- *  and its own history will be updated.
+ *  Otherwise transaction is considered as self-contained,
+ *  and only its own history will be updated.
  */
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote,
 		unsigned char *id, int hupdate, int *trans_num);
