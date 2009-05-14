@@ -2578,13 +2578,19 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		la[1] = (float)st->la[1] / 100.0;
 		la[2] = (float)st->la[2] / 100.0;
 
-		dnet_log(state->n, DNET_LOG_INFO, "%s: la: %.2f %.2f %.2f.\n",
-				dnet_dump_id(cmd->id), la[0], la[1], la[2]);
-		dnet_log(state->n, DNET_LOG_INFO, "%s: mem: total: %llu kB, free: %llu kB, cache: %llu kB.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)st->vm_total,
-				(unsigned long long)st->vm_free, (unsigned long long)st->vm_cached);
-		dnet_log(state->n, DNET_LOG_INFO, "%s: fs: total: %llu mB, avail: %llu mB, files: %llu, fsid: %llx.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
+		dnet_log(state->n, DNET_LOG_INFO, "%s: %s: la: %.2f %.2f %.2f.\n",
+				dnet_dump_id(cmd->id), dnet_state_dump_addr(state),
+				la[0], la[1], la[2]);
+		dnet_log(state->n, DNET_LOG_INFO, "%s: %s: mem: "
+				"total: %llu kB, free: %llu kB, cache: %llu kB.\n",
+				dnet_dump_id(cmd->id), dnet_state_dump_addr(state),
+				(unsigned long long)st->vm_total,
+				(unsigned long long)st->vm_free,
+				(unsigned long long)st->vm_cached);
+		dnet_log(state->n, DNET_LOG_INFO, "%s: %s: fs: "
+				"total: %llu mB, avail: %llu mB, files: %llu, fsid: %llx.\n",
+				dnet_dump_id(cmd->id), dnet_state_dump_addr(state),
+				(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
 				(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),
 				(unsigned long long)st->files, (unsigned long long)st->fsid);
 		err = 0;
