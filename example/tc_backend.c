@@ -330,7 +330,7 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd)
 				continue;
 
 			if (ipos == inum) {
-				err = dnet_send_list(state, cmd, ids, ipos * DNET_ID_SIZE);
+				err = dnet_send_reply(state, cmd, ids, ipos * DNET_ID_SIZE, 1);
 				if (err)
 					goto out_clean;
 
@@ -349,7 +349,7 @@ out_clean:
 	}
 
 	if (ipos) {
-		err = dnet_send_list(state, cmd, ids, ipos * DNET_ID_SIZE);
+		err = dnet_send_reply(state, cmd, ids, ipos * DNET_ID_SIZE, 0);
 		if (err)
 			goto err_out_exit;
 	}

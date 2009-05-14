@@ -504,9 +504,11 @@ int dnet_recv_transform_list(struct dnet_node *n, unsigned char *id,
 		struct dnet_transform_complete *t);
 
 /*
- * Send given number of bytes as reply to the listing command.
+ * Send given number of bytes as reply command.
+ * It will fill transaction, command and ID from the original command and copy given data.
+ * It will set DNET_FLAGS_MORE if original command requested acknowledge or @more is set.
  */
-int dnet_send_list(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size);
+int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more);
 
 #ifdef __cplusplus
 }

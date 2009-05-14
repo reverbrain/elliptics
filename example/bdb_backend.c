@@ -562,7 +562,7 @@ static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd)
 				break;
 
 			if (size < DNET_ID_SIZE) {
-				err = dnet_send_list(state, cmd, odata, osize - size);
+				err = dnet_send_reply(state, cmd, odata, osize - size, 1);
 				if (err)
 					goto err_out_close_cursor;
 
@@ -587,7 +587,7 @@ static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd)
 	}
 
 	if (osize != size) {
-		err = dnet_send_list(state, cmd, odata, osize - size);
+		err = dnet_send_reply(state, cmd, odata, osize - size, 0);
 		if (err)
 			goto err_out_close_cursor;
 	}
