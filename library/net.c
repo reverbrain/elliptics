@@ -325,20 +325,14 @@ static int dnet_trans_exec(struct dnet_trans *t)
 
 	if (t->complete) {
 		err = t->complete(t->st, &t->cmd, t->data, t->priv);
+		if (!err && !(t->cmd.flags & DNET_FLAGS_MORE))
+			dnet_trans_destroy(t);
 	} else {
 		dnet_req_set_complete(&t->r, dnet_req_trans_destroy, NULL);
 		err = dnet_trans_forward(t, t->st);
-		if (!err)
-			return 0;
 	}
 
-	if (err)
-		return err;
-
-	if (!(t->cmd.flags & DNET_FLAGS_MORE))
-		dnet_trans_destroy(t);
-
-	return 0;
+	return err;
 }
 
 static struct dnet_trans *dnet_trans_new(struct dnet_net_state *st, uint64_t size)
@@ -489,7 +483,7 @@ static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state 
 	if (err)
 		goto err_out_put;
 
-	//dnet_req_set_complete(&t->r, dnet_req_trans_retry, NULL);
+	dnet_req_set_complete(&t->r, dnet_req_trans_retry, NULL);
 
 	t->recv_trans = t->cmd.trans;
 	t->cmd.trans = t->trans;
@@ -510,7 +504,6 @@ err_out_put:
 
 static int dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *st)
 {
-	int count = 10;
 	int err;
 
 	do {
@@ -518,24 +511,25 @@ static int dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *s
 		if (!err)
 			break;
 
-		--count;
-	} while (count);
+	} while (st && st->n && !list_empty(&st->n->state_list));
 
 	return err;
 }
 
-static void dnet_req_trans_retry(struct dnet_data_req *r, int error)
+static void dnet_req_trans_retry(struct dnet_data_req *r, int err)
 {
 	struct dnet_trans *t = container_of(r, struct dnet_trans, r);
-	if (error) {
+
+	if (err) {
 		struct dnet_net_state *st = t->st;
-		int err;
 
 		err = dnet_process_trans_new(t, st);
 		dnet_state_put(st);
 
 		if (err)
 			dnet_trans_destroy(t);
+	} else {
+		dnet_req_set_complete(&t->r, NULL, NULL);
 	}
 }
 
@@ -753,9 +747,10 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 	list_del(&r->req_entry);
 	dnet_lock_unlock(&st->snd_lock);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: freeing send request: %p: "
-			"flags: %x, hsize: %zu, dsize: %zu, fsize: %zu.\n",
-			dnet_dump_id(st->id), r, r->flags, r->hsize, r->dsize, r->size);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: destroying send request: %p: "
+			"flags: %x, hsize: %zu, dsize: %zu, fsize: %zu, complete: %p.\n",
+			dnet_dump_id(st->id), r, r->flags, r->hsize, r->dsize, r->size,
+			r->complete);
 
 	dnet_req_destroy(r, 0);
 
