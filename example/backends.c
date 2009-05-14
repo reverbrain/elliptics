@@ -96,12 +96,13 @@ err_out_exit:
 }
 #elif defined HAVE_SYSCTL_STAT
 #include <sys/sysctl.h>
+#include <sys/resource.h>
 
 static int backend_vm_stat(void *state, struct dnet_stat *st)
 {
 	int err;
-	double la[3];
-	long page_size;
+	struct loadavg la;
+	long page_size = 0;
 	size_t sz = sizeof(la);
 
 	err = sysctlbyname("vm.loadavg", &la, &sz, NULL, 0);
@@ -112,9 +113,9 @@ static int backend_vm_stat(void *state, struct dnet_stat *st)
 		return err;
 	}
 
-	st->la[0] = la[0] * 100;
-	st->la[1] = la[1] * 100;
-	st->la[2] = la[2] * 100;
+	st->la[0] = (double)la.ldavg[0] / la.fscale * 100;
+	st->la[1] = (double)la.ldavg[1] / la.fscale * 100;
+	st->la[2] = (double)la.ldavg[2] / la.fscale * 100;
 
 	sz = sizeof(uint64_t);
 	sysctlbyname("vm.stats.vm.v_active_count", &st->vm_active, &sz, NULL, 0);
@@ -198,6 +199,8 @@ int backend_stat(void *state, char *path, struct dnet_cmd *cmd)
 
 	if (!path)
 		path = ".";
+
+	memset(&st, 0, sizeof(struct dnet_stat));
 
 	err = backend_stat_low_level(state, path, &st);
 	if (err)
