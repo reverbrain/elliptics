@@ -54,6 +54,7 @@ struct bdb_entry
 
 struct bdb_backend
 {
+	char			*env_dir;
 	DB_ENV			*env;
 	struct bdb_entry	*data, *hist;
 };
@@ -672,6 +673,8 @@ void bdb_backend_exit(void *data)
 	bdb_backend_close(be->hist);
 
 	be->env->close(be->env, 0);
+
+	free(be->env_dir);
 	free(be);
 }
 
@@ -688,10 +691,18 @@ void *bdb_backend_init(char *env_dir, char *dbfile, char *histfile)
 	}
 	memset(be, 0, sizeof(struct bdb_backend));
 
+	if (env_dir) {
+		be->env_dir = strdup(env_dir);
+		if (!be->env_dir) {
+			fprintf(stderr, "Failed to duplicate environment dir\n");
+			goto err_out_free;
+		}
+	}
+
 	err = db_env_create(&env, 0);
 	if (err) {
 		fprintf(stderr, "Failed to create new environment instance, err: %d.\n", err);
-		goto err_out_free;
+		goto err_out_free_env;
 	}
 
 	/*
@@ -772,6 +783,8 @@ err_out_close_db:
 err_out_close_env:
 	env->close(env, 0);
 err_out_destroy_env:
+err_out_free_env:
+	free(be->env_dir);
 err_out_free:
 	free(be);
 err_out_exit:
@@ -793,6 +806,9 @@ int bdb_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd,
 			break;
 		case DNET_CMD_LIST:
 			err = bdb_list(state, e, cmd);
+			break;
+		case DNET_CMD_STAT:
+			err = backend_stat(state, e->env_dir, cmd);
 			break;
 		default:
 			err = -EINVAL;

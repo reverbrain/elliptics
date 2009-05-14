@@ -164,7 +164,7 @@ static void dnet_usage(char *p)
 			" -t <TokyoCabinet>    - use TokyoCabinet (if present) IO storage backend\n"
 			" -d root              - root directory to load/store the objects\n"
 			" -W file              - write given file to the network storage\n"
-			" -s                   - spread writes over the network, do not update the object itself\n"
+			" -s                   - request stats from all connected nodes\n"
 			" -R file              - read given file from the network into the local storage\n"
 			" -H file              - read a history for given file into the local storage\n"
 			" -T hash              - OpenSSL hash to use as a transformation function\n"
@@ -188,7 +188,7 @@ static void dnet_usage(char *p)
 int main(int argc, char *argv[])
 {
 	int trans_max = 5, trans_num = 0;
-	int ch, err, i, have_remote = 0, daemon = 0, spread = 0, bdb = 0;
+	int ch, err, i, have_remote = 0, daemon = 0, bdb = 0, stat = 0;
 	int tc = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem;
@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
 				cfg.log_mask = strtoul(optarg, NULL, 0);
 				break;
 			case 's':
-				spread = 1;
+				stat = 1;
 				break;
 			case 'H':
 				historyf = optarg;
@@ -343,6 +343,7 @@ int main(int argc, char *argv[])
 			if (!cfg.command_private)
 				return -EINVAL;
 			cfg.command_handler = file_backend_command_handler;
+			cfg.command_private = root;
 		}
 	}
 
@@ -398,6 +399,12 @@ int main(int argc, char *argv[])
 
 	if (lookup) {
 		err = dnet_lookup(n, lookup);
+		if (err)
+			return err;
+	}
+
+	if (stat) {
+		err = dnet_request_stat(n, NULL, NULL, NULL);
 		if (err)
 			return err;
 	}
