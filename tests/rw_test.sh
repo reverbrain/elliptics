@@ -16,7 +16,7 @@ mkdir -p $TEMP_DIR
 mkdir -p $TEMP_DIR/server1
 mkdir -p $TEMP_DIR/server2
 
-RUN_STACK=$TEMP_DIR/run_stack
+RUN_STACK="$TEMP_DIR/run_stack"
 echo -n > $RUN_STACK
 
 #cleaning resources on a fail or on the end
@@ -43,7 +43,9 @@ echo "===== 1 server - 1 client ====="
 #start first server
 echo "starting first server..."
 echo -n > $TEMP_DIR/server1_log
-../example/example -i $SERVER_ID_1 -a 127.0.0.1:1025:2 -d $TEMP_DIR/server1 -j -l $TEMP_DIR/server1_log -m $LOGMASK $SERVER_FLAGS & 
+CMD="../example/example -i $SERVER_ID_1 -a 127.0.0.1:1025:2 -d $TEMP_DIR/server1 -j -l $TEMP_DIR/server1_log -m $LOGMASK $SERVER_FLAGS"
+echo "$CMD" >> $RUN_STACK
+$CMD &
 sleep 1 
 if [ "f$(ps -p $! --no-headers -o comm)" = "f" ]; then
 	echo "ERROR"
@@ -57,8 +59,10 @@ SERVER1_PID=$!
 #write test data
 echo "writing data..."
 echo -n > $TEMP_DIR/client_log
-../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
-	       	-l $TEMP_DIR/client_log -m $LOGMASK >> $RUN_STACK
+CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
+	       	-l $TEMP_DIR/client_log -m $LOGMASK"
+echo "$CMD" >> $RUN_STACK
+$CMD >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -70,8 +74,10 @@ fi
 
 #read test data
 echo "reading data..."
-../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -R $TEMP_DIR/res_1 -I $FILE_ID_1 \
-	       	-l $TEMP_DIR/client_log -m $LOGMASK >> RUN_STACK
+CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -R $TEMP_DIR/res_1 -I $FILE_ID_1 \
+	       	-l $TEMP_DIR/client_log -m $LOGMASK"
+echo "$CMD" >> $RUN_STACK
+$CMD >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -107,8 +113,10 @@ echo "TOTAL_SIZE=$TOTAL_SIZE FIRST_TRANS_SIZE=$FIRST_TRANS_SIZE SECOND_TRANS_SIZ
 
 #write first part of test data
 echo "writing first part of data..."
-../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
-		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O 0 -S $FIRST_TRANS_SIZE >> $RUN_STACK
+CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O 0 -S $FIRST_TRANS_SIZE"
+echo "$CMD" >> $RUN_STACK
+$CMD >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -120,8 +128,10 @@ fi
 
 #write second part of test data
 echo "writing second part of data..."
-../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
-		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O $FIRST_TRANS_SIZE -S $SECOND_TRANS_SIZE >> $RUN_STACK
+CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O $FIRST_TRANS_SIZE -S $SECOND_TRANS_SIZE"
+echo "$CMD" >> $RUN_STACK
+$CMD >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -133,8 +143,10 @@ fi
 
 #read test data
 echo "reading data..."
-../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
-		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK >> $RUN_STACK
+CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
+echo "$CMD" >> $RUN_STACK
+$CMD >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -166,8 +178,10 @@ echo "=====  send request to new second server"
 #start second server
 echo "starting second server..."
 echo -n > $TEMP_DIR/server2_log
-../example/example -i $SERVER_ID_2 -a 127.0.0.1:1030:2 -r 127.0.0.1:1025:2 -d $TEMP_DIR/server2 -j \
-		-l $TEMP_DIR/server2_log -m $LOGMASK $SERVER_FLAGS & 
+CMD="../example/example -i $SERVER_ID_2 -a 127.0.0.1:1030:2 -r 127.0.0.1:1025:2 -d $TEMP_DIR/server2 -j \
+		-l $TEMP_DIR/server2_log -m $LOGMASK $SERVER_FLAGS"
+echo "$CMD" >> $RUN_STACK
+$CMD & 
 sleep 1 
 if [ "f$(ps -p $! --no-headers -o comm)" = "f" ]; then
 	echo "ERROR"
@@ -180,8 +194,10 @@ SERVER2_PID=$!
 
 #read test data
 echo "reading data..."
-../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
-	       -R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK >> $RUN_STACK
+CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
+	       -R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
+echo "$CMD" >> $RUN_STACK
+$CMD >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -212,8 +228,10 @@ echo "=====  send request to old first  server"
 
 #read test data
 echo "reading data..."
-../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
-		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK >> $RUN_STACK
+CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
+echo "$CMD" >> $RUN_STACK
+$CMD >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
@@ -250,8 +268,10 @@ SERVER1_PID=
 
 #read test data
 echo "reading data..."
-../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
-		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK >> $RUN_STACK
+CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
+		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
+echo "$CMD" >> $RUN_STACK
+$CMD >> $RUN_STACK
 TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
