@@ -2574,6 +2574,8 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 	if (attr->size == sizeof(struct dnet_stat)) {
 		st = (struct dnet_stat *)(attr + 1);
 
+		dnet_convert_stat(st);
+
 		la[0] = (float)st->la[0] / 100.0;
 		la[1] = (float)st->la[1] / 100.0;
 		la[2] = (float)st->la[2] / 100.0;
