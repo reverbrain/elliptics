@@ -66,8 +66,9 @@ static int dnet_compare_history(struct dnet_node *n, struct dnet_cmd *cmd, struc
 		goto out;
 	}
 
-	dnet_log(n, DNET_LOG_ERROR, "%s: last transaction matched: size: %llu, offset: %llu.\n",
-			dnet_dump_id(rio->id), (unsigned long long)rio->size, (unsigned long long)rio->offset);
+	dnet_log(n, DNET_LOG_ERROR, "%s: last transaction matched: size: %llu, offset: %llu, transactions: %llu.\n",
+			dnet_dump_id(rio->id), (unsigned long long)rio->size, (unsigned long long)rio->offset,
+			num + 1);
 out:
 	return err;
 }
