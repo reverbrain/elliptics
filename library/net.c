@@ -317,15 +317,15 @@ void dnet_req_trans_destroy(struct dnet_data_req *r, int err __unused)
 
 static int dnet_trans_exec(struct dnet_trans *t)
 {
-	int err;
+	int err = 0;
 
 	dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: executing transaction %llu, reply: %d, complete: %p, r: %p.\n",
 			dnet_dump_id(t->cmd.id), t->cmd.trans & ~DNET_TRANS_REPLY,
 			!!(t->cmd.trans & DNET_TRANS_REPLY), t->complete, &t->r);
 
 	if (t->complete) {
-		err = t->complete(t->st, &t->cmd, t->data, t->priv);
-		if (!err && !(t->cmd.flags & DNET_FLAGS_MORE))
+		t->complete(t->st, &t->cmd, t->data, t->priv);
+		if (!(t->cmd.flags & DNET_FLAGS_MORE))
 			dnet_trans_destroy(t);
 	} else {
 		dnet_req_set_complete(&t->r, dnet_req_trans_destroy, NULL);

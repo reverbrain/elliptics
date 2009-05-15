@@ -138,7 +138,7 @@ err_out_exit:
 				dnet_dump_id(st->id), err);
 		st->n->error = err;
 	}
-	return err;
+	return 0;
 }
 
 static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
@@ -264,7 +264,7 @@ err_out_exit:
 				dnet_dump_id(st->id), err);
 		st->n->error = err;
 	}
-	return err;
+	return 0;
 }
 
 static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
