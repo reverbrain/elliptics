@@ -1112,7 +1112,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	free(st);
 }
 
-int dnet_send_list(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size)
+int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more)
 {
 	struct dnet_cmd *c;
 	struct dnet_attr *a;
@@ -1129,8 +1129,8 @@ int dnet_send_list(void *state, struct dnet_cmd *cmd, void *odata, unsigned int 
 
 	*c = *cmd;
 	c->trans |= DNET_TRANS_REPLY;
-	c->flags = DNET_FLAGS_MORE;
-	c->status = 0;
+	if ((cmd->flags & DNET_FLAGS_NEED_ACK) || more)
+		c->flags = DNET_FLAGS_MORE;
 	c->size = sizeof(struct dnet_attr) + size;
 
 	a->size = size;

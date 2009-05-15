@@ -47,6 +47,7 @@
 
 struct tc_backend
 {
+	char	*env_dir;
 	TCADB	*data, *hist;
 };
 
@@ -330,7 +331,7 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd)
 				continue;
 
 			if (ipos == inum) {
-				err = dnet_send_list(state, cmd, ids, ipos * DNET_ID_SIZE);
+				err = dnet_send_reply(state, cmd, ids, ipos * DNET_ID_SIZE, 1);
 				if (err)
 					goto out_clean;
 
@@ -349,7 +350,7 @@ out_clean:
 	}
 
 	if (ipos) {
-		err = dnet_send_list(state, cmd, ids, ipos * DNET_ID_SIZE);
+		err = dnet_send_reply(state, cmd, ids, ipos * DNET_ID_SIZE, 0);
 		if (err)
 			goto err_out_exit;
 	}
@@ -377,6 +378,9 @@ int tc_backend_command_handler(void *state, void *priv,
 		case DNET_CMD_LIST:
 			err = tc_list(state, e, cmd);
 			break;
+		case DNET_CMD_STAT:
+			err = backend_stat(state, e->env_dir, cmd);
+			break;
 		default:
 			err = -EINVAL;
 			break;
@@ -400,6 +404,7 @@ void tc_backend_exit(void *data)
 
 	tcadbdel(be->hist);
 
+	free(be->env_dir);
 	free(be);
 }
 
@@ -465,11 +470,19 @@ void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histf
 	}
 	memset(be, 0, sizeof(struct tc_backend));
 
+	if (env_dir) {
+		be->env_dir = strdup(env_dir);
+		if (!be->env_dir) {
+			fprintf(stderr, "Failed to duplicate environment dir\n");
+			goto err_out_free_be;
+		}
+	}
+
 	/* create data TCADB object */
 	be->data = tcadbnew();
 	if(!be->data) {
 		fprintf(stderr, "tcadbnew(be->data) failed\n");
-		goto err_out_free_be;
+		goto err_out_free_env_dir;
 	}
 	/* create hist TCADB object */
 	be->hist = tcadbnew();
@@ -499,6 +512,8 @@ err_out_del_hist:
 	tcadbdel(be->hist);
 err_out_del_data:
 	tcadbdel(be->data);
+err_out_free_env_dir:
+	free(be->env_dir);
 err_out_free_be:
 	free(be);
 err_out_exit:

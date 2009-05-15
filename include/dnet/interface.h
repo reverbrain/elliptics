@@ -504,9 +504,31 @@ int dnet_recv_transform_list(struct dnet_node *n, unsigned char *id,
 		struct dnet_transform_complete *t);
 
 /*
- * Send given number of bytes as reply to the listing command.
+ * Send given number of bytes as reply command.
+ * It will fill transaction, command and ID from the original command and copy given data.
+ * It will set DNET_FLAGS_MORE if original command requested acknowledge or @more is set.
  */
-int dnet_send_list(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size);
+int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more);
+
+/*
+ * Request statistics from the node corresponding to given ID.
+ * If @id is NULL statistics will be requested from all connected nodes.
+ *
+ * Function will sleep and print into DNET_LOG_INFO log level short
+ * statistics if no @complete function is provided, otherwise it returns
+ * after queueing all transactions and appropriate callback will be
+ * invoked asynchronously.
+ * 
+ * Function returns number of nodes statistics request was sent to
+ * or negative error code. In case of error callback completion can
+ * still be called.
+ */
+int dnet_request_stat(struct dnet_node *n, unsigned char *id,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			struct dnet_attr *attr,
+			void *priv),
+	void *priv);
 
 #ifdef __cplusplus
 }

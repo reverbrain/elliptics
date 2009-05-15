@@ -9,4 +9,5 @@ EXTRA_DIST = autogen.sh AUTHORS README .gitignore \
 	config/ax_prefix_config_h.m4 config/ac_c_bigendian_cross.m4 \
 	config/ac_check_largefile.m4 config/ac_id_size.m4 \
 	config/ac_check_sendfile.m4 config/ac_check_libevent.m4 \
-	config/ac_check_atomic.m4 config/ac_check_tokyocabinet.m4
+	config/ac_check_atomic.m4 config/ac_check_tokyocabinet.m4 \
+	config/ac_check_stats.m4

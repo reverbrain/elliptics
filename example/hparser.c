@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (!st.st_size || (st.st_size % isize)) {
-		fprintf(stderr, "Corrupted history file '%s', its size %llu has to be modulo of %zu.\n",
+		fprintf(stderr, "Corrupted history file '%s', its size %llu has to be modulo of %u.\n",
 				file, (unsigned long long)st.st_size, isize);
 		err = -EINVAL;
 		goto err_out_close;

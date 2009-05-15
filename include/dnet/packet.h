@@ -40,6 +40,7 @@ enum dnet_commands {
 	DNET_CMD_EXEC,				/* Execute given command on the remote node */
 	DNET_CMD_ROUTE_LIST,			/* Receive route table from given node */
 	DNET_CMD_TRANSFORM_LIST,		/* Receive list of transformation functions */
+	DNET_CMD_STAT,				/* Gather remote VM, LA and FS statistics */
 };
 
 /*
@@ -221,6 +222,62 @@ static inline void dnet_convert_history_entry(struct dnet_history_entry *a)
 	a->flags = dnet_bswap32(a->flags);
 	a->offset = dnet_bswap64(a->offset);
 	a->size = dnet_bswap64(a->size);
+}
+
+struct dnet_stat
+{
+	/* Load average from the target system multiplied by 100 */
+	uint16_t		la[3];
+
+	uint16_t		namemax;	/* maximum filename length */
+
+	uint64_t		bsize;		/* Block size */
+	uint64_t		frsize;		/* Fragment size */
+	uint64_t		blocks;		/* Filesystem size in frsize units */
+	uint64_t		bfree;		/* # free blocks */
+	uint64_t		bavail;		/* # free blocks for non-root */
+	uint64_t		files;		/* # inodes */
+	uint64_t		ffree;		/* # free inodes */
+	uint64_t		favail;		/* # free inodes for non-root */
+	uint64_t		fsid;		/* file system ID */
+	uint64_t		flag;		/* mount flags */
+
+	/*
+	 * VM counters in KB (1024) units.
+	 * On FreeBSD vm_buffers is used for wire counter.
+	 */
+	uint64_t		vm_active;
+	uint64_t		vm_inactive;
+	uint64_t		vm_total;
+	uint64_t		vm_free;
+	uint64_t		vm_cached;
+	uint64_t		vm_buffers;
+};
+
+static inline void dnet_convert_stat(struct dnet_stat *st)
+{
+	int i;
+
+	for (i=0; i<3; ++i)
+		st->la[i] = dnet_bswap16(st->la[i]);
+
+	st->bsize = dnet_bswap64(st->bsize);
+	st->frsize = dnet_bswap64(st->frsize);
+	st->blocks = dnet_bswap64(st->blocks);
+	st->bfree = dnet_bswap64(st->bfree);
+	st->bavail = dnet_bswap64(st->bavail);
+	st->files = dnet_bswap64(st->files);
+	st->ffree = dnet_bswap64(st->ffree);
+	st->favail = dnet_bswap64(st->favail);
+	st->fsid = dnet_bswap64(st->fsid);
+	st->namemax = dnet_bswap16(st->namemax);
+
+	st->vm_active = dnet_bswap64(st->vm_active);
+	st->vm_inactive = dnet_bswap64(st->vm_inactive);
+	st->vm_total = dnet_bswap64(st->vm_total);
+	st->vm_free = dnet_bswap64(st->vm_free);
+	st->vm_buffers = dnet_bswap64(st->vm_buffers);
+	st->vm_cached = dnet_bswap64(st->vm_cached);
 }
 
 #ifdef __cplusplus

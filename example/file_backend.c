@@ -184,7 +184,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 		}
 		
 		if (size < DNET_ID_SIZE) {
-			err = dnet_send_list(state, cmd, odata, osize - size);
+			err = dnet_send_reply(state, cmd, odata, osize - size, 1);
 			if (err)
 				goto err_out_close;
 
@@ -201,7 +201,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 	}
 
 	if (osize != size) {
-		err = dnet_send_list(state, cmd, odata, osize - size);
+		err = dnet_send_reply(state, cmd, odata, osize - size, 0);
 		if (err)
 			goto err_out_close;
 	}
@@ -577,53 +577,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_exec(void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
-{
-	char *command = data;
-	pid_t pid;
-	int err;
-
-	if (!attr->size)
-		return 0;
-
-	dnet_command_handler_log(state, DNET_LOG_NOTICE,
-		"%s: command: '%s'.\n", dnet_dump_id(cmd->id), command);
-
-	pid = fork();
-	if (pid < 0) {
-		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to fork a child process", dnet_dump_id(cmd->id));
-		goto out_exit;
-	}
-
-	if (pid == 0) {
-		err = system(command);
-		exit(err);
-	} else {
-		int status;
-
-		err = waitpid(pid, &status, 0);
-		if (err < 0) {
-			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to wait for child (%d) process: %s.\n",
-					dnet_dump_id(cmd->id), (int)pid, strerror(errno));
-			goto out_exit;
-		}
-
-		if (WIFEXITED(status))
-			err = WEXITSTATUS(status);
-		else if (WIFSIGNALED(status))
-			err = -EPIPE;
-	}
-
-out_exit:
-	return err;
-}
-
-int file_backend_command_handler(void *state, void *priv __attribute__ ((unused)),
+int file_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
 	int err;
@@ -638,8 +592,8 @@ int file_backend_command_handler(void *state, void *priv __attribute__ ((unused)
 		case DNET_CMD_LIST:
 			err = dnet_cmd_list(state, cmd);
 			break;
-		case DNET_CMD_EXEC:
-			err = dnet_cmd_exec(state, cmd, attr, data);
+		case DNET_CMD_STAT:
+			err = backend_stat(state, priv, cmd);
 			break;
 		default:
 			err = -EINVAL;
