@@ -46,7 +46,7 @@ echo -n > $TEMP_DIR/server1_log
 CMD="../example/example -i $SERVER_ID_1 -a 127.0.0.1:1025:2 -d $TEMP_DIR/server1 -j -l $TEMP_DIR/server1_log -m $LOGMASK $SERVER_FLAGS"
 echo "$CMD" >> $RUN_STACK
 $CMD &
-sleep 1 
+sleep 5
 if [ "f$(ps -p $! --no-headers -o comm)" = "f" ]; then
 	echo "ERROR"
 	echo -e "LOG: \n\n"
@@ -177,7 +177,7 @@ CMD="../example/example -i $SERVER_ID_2 -a 127.0.0.1:1030:2 -r 127.0.0.1:1025:2 
 		-l $TEMP_DIR/server2_log -m $LOGMASK $SERVER_FLAGS"
 echo "$CMD" >> $RUN_STACK
 $CMD & 
-sleep 1 
+sleep 5
 if [ "f$(ps -p $! --no-headers -o comm)" = "f" ]; then
 	echo "ERROR"
 	echo -e "LOG: \n\n"
