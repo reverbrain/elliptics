@@ -2695,7 +2695,8 @@ int dnet_request_stat(struct dnet_node *n, unsigned char *id,
 		priv = w;
 	}
 	if (id) {
-		dnet_wait_get(w);
+		if (w)
+			dnet_wait_get(w);
 		err = dnet_request_stat_single(n, id, complete, priv);
 		num = 1;
 	} else {
@@ -2703,7 +2704,8 @@ int dnet_request_stat(struct dnet_node *n, unsigned char *id,
 
 		pthread_rwlock_rdlock(&n->state_lock);
 		list_for_each_entry(st, &n->state_list, state_entry) {
-			dnet_wait_get(w);
+			if (w)
+				dnet_wait_get(w);
 			dnet_request_stat_single(n, st->id, complete, priv);
 			num++;
 		}
