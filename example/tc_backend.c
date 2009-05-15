@@ -201,7 +201,21 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 			e = tcadbget(db, io->origin, DNET_ID_SIZE, &esize);
 			if (!e) {
-				res = tcadbput(db, io->origin, DNET_ID_SIZE, r, sizeof(struct dnet_history_entry));
+				dnet_convert_history_entry(r);
+
+				memcpy(n.id, r->id, DNET_ID_SIZE);
+				n.flags = r->flags;
+				n.size = r->size + r->offset;
+				n.offset = 0;
+
+				dnet_convert_history_entry(r);
+
+				dnet_command_handler_log(state, DNET_LOG_NOTICE,
+					"%s: creating history metadata, size: %llu.\n",
+					dnet_dump_id(io->origin), (unsigned long long)n.size);
+
+				dnet_convert_history_entry(&n);
+				res = tcadbput(db, io->origin, DNET_ID_SIZE, &n, sizeof(struct dnet_history_entry));
 			} else {
 				dnet_convert_history_entry(e);
 				dnet_convert_history_entry(r);
