@@ -567,9 +567,9 @@ static int dnet_process_recv_single(struct dnet_net_state *st)
 	struct dnet_trans *t;
 	int err;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: cmd: %d, size: %zu, offset: %zu.\n",
+	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: cmd: %d, size: %llu, offset: %llu.\n",
 		dnet_dump_id(st->id), !!(st->rcv_flags & DNET_IO_CMD),
-		st->rcv_size, (uint64_t)st->rcv_offset);
+		(unsigned long long)st->rcv_size, (unsigned long long)st->rcv_offset);
 
 again:
 	/*
@@ -606,8 +606,9 @@ again:
 		st->rcv_offset += err;
 	}
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: offset: %zu, size: %zu, flags: %x.\n",
-			dnet_dump_id(st->id), (uint64_t)st->rcv_offset, st->rcv_size,
+	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: offset: %llu, size: %llu, flags: %x.\n",
+			dnet_dump_id(st->id),
+			(unsigned long long)st->rcv_offset, (unsigned long long)st->rcv_size,
 			st->rcv_flags);
 
 	if (st->rcv_offset != st->rcv_size)
@@ -928,13 +929,15 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 	list_for_each_entry(t, &n->io_thread_list, thread_entry) {
 		if (pos == n->io_thread_pos) {
 			n->io_thread_pos++;
-			n->io_thread_pos %= n->io_thread_num;
+			if (n->io_thread_pos == n->io_thread_num)
+				n->io_thread_pos = 0;
 			th = t;
 			break;
 		}
 
 		pos++;
-		pos %= n->io_thread_num;
+		if (pos == n->io_thread_num)
+			pos = 0;
 	}
 	pthread_rwlock_unlock(&n->io_thread_lock);
 
@@ -950,7 +953,6 @@ static int dnet_schedule_state(struct dnet_net_state *st)
 	 */
 	dnet_schedule_command(st);
 
-	st->n = n;
 	st->th = th;
 
 	return 0;
