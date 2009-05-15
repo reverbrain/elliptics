@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
 
 	while (1) {
 		if (!id_idx) {
-			err = dnet_request_stat(n, NULL, NULL, NULL);
+			err = dnet_request_stat(n, NULL, stat_complete, stat);
 			if (err < 0)
 				return err;
 		}
