@@ -1347,7 +1347,7 @@ static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, s
 	fsync(fd);
 	close(fd);
 	dnet_log(n, DNET_LOG_INFO, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d.\n",
-			dnet_dump_id(cmd->id), c->file, (unsigned long long)io->offset,
+			dnet_dump_id(cmd->id), c->file, (unsigned long long)c->offset,
 			(unsigned long long)io->size, cmd->status);
 
 	return cmd->status;
