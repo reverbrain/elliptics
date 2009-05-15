@@ -447,6 +447,16 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->command_handler = cfg->command_handler;
 	n->command_private = cfg->command_private;
 	n->io_thread_num = cfg->io_thread_num;
+	n->notify_hash_size = cfg->hash_size;
+
+	if (!n->notify_hash_size) {
+		n->notify_hash_size = DNET_DEFAULT_NOTIFY_HASH_SIZE;
+		dnet_log(n, DNET_LOG_ERROR, "%s: no hash size provided, using default %d.\n",
+				dnet_dump_id(n->id), n->notify_hash_size);
+	}
+	err = dnet_notify_init(n);
+	if (err)
+		goto err_out_free;
 
 	if (!n->io_thread_num) {
 		n->io_thread_num = DNET_IO_THREAD_NUM_DEFAULT;
@@ -466,7 +476,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	err = dnet_socket_create(n, cfg, (struct sockaddr *)&n->addr.addr, &n->addr.addr_len, 1);
 	if (err < 0)
-		goto err_out_free;
+		goto err_out_notify_exit;
 
 	n->listen_socket = err;
 
@@ -486,6 +496,8 @@ err_out_stop_io_threads:
 	dnet_stop_io_threads(n);
 err_out_sock_close:
 	close(n->listen_socket);
+err_out_notify_exit:
+	dnet_notify_exit(n);
 err_out_free:
 	free(n);
 err_out_exit:

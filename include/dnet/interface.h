@@ -253,6 +253,9 @@ struct dnet_config
 	 */
 	int			io_thread_num;
 
+	/* Notify hash table size */
+	unsigned int		hash_size;
+
 	/*
 	 * Maximum number of transactions from the same client processed in parallel.
 	 * If not set default number is used 
@@ -529,6 +532,49 @@ int dnet_request_stat(struct dnet_node *n, unsigned char *id,
 			struct dnet_attr *attr,
 			void *priv),
 	void *priv);
+
+/*
+ * Request notifications when given ID is modified.
+ * Notifications are sent after update was stored in the IO backend.
+ * @id and @complete are not allowed to be NULL.
+ *
+ * @complete will be invoked each time object with given @id is modified.
+ */
+int dnet_request_notification(struct dnet_node *n, unsigned char *id,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			struct dnet_attr *attr,
+			void *priv),
+	void *priv);
+
+/*
+ * Drop notifications for given ID.
+ */
+int dnet_drop_notification(struct dnet_node *n, unsigned char *id);
+
+/*
+ * Low-level transaction allocation and sending function.
+ */
+struct dnet_trans_control
+{
+	unsigned char		id[DNET_ID_SIZE];
+
+	unsigned int		cmd;
+	unsigned int		cflags;
+	unsigned int		aflags;
+
+	unsigned int		size;
+	void			*data;
+
+	int			(* complete)(struct dnet_net_state *state,
+					struct dnet_cmd *cmd,
+					struct dnet_attr *attr,
+					void *priv);
+	void			*priv;
+};
+
+int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl);
+
 
 #ifdef __cplusplus
 }

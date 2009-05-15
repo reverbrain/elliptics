@@ -489,6 +489,23 @@ int dnet_process_cmd(struct dnet_trans *t)
 			case DNET_CMD_EXEC:
 				err = dnet_cmd_exec(st, cmd, a, data);
 				break;
+			case DNET_CMD_NOTIFY:
+				if (!a->flags) {
+					err = dnet_notify_add(st, cmd);
+					/*
+					 * We drop need ack flag, since notification
+					 * transaction is a long-standing one, since
+					 * every notification will be sent as transaction
+					 * completion.
+					 *
+					 * Transaction acknowledge will be sent when
+					 * notification is removed.
+					 */
+					if (!err)
+						cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+				} else
+					err = dnet_notify_remove(st, cmd);
+				break;
 			case DNET_CMD_WRITE:
 				if (!(cmd->flags & DNET_FLAGS_NO_LOCAL_TRANSFORM))
 					err = dnet_local_transform(st, cmd, a, data);
@@ -511,6 +528,8 @@ int dnet_process_cmd(struct dnet_trans *t)
 						//err = dnet_recv_list(n, st);
 					}
 				}
+				if (a->cmd == DNET_CMD_WRITE && !err)
+					dnet_update_notify(st, cmd, a, data);
 				break;
 		}
 
@@ -2614,64 +2633,17 @@ static int dnet_request_stat_single(struct dnet_node *n,
 			void *priv),
 	void *priv)
 {
-	struct dnet_cmd *cmd;
-	struct dnet_attr *a;
-	struct dnet_trans *t;
-	int err;
+	struct dnet_trans_control ctl;
 
-	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
-	if (!t) {
-		err = -ENOMEM;
-		if (complete)
-			complete(NULL, NULL, NULL, priv);
-		goto err_out_exit;
-	}
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
-	t->complete = complete;
-	t->priv = priv;
+	memcpy(ctl.id, id, DNET_ID_SIZE);
+	ctl.cmd = DNET_CMD_STAT;
+	ctl.complete = complete;
+	ctl.priv = priv;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
 
-	cmd = (struct dnet_cmd *)(t + 1);
-	a = (struct dnet_attr *)(cmd + 1);
-
-	memcpy(cmd->id, id, DNET_ID_SIZE);
-	cmd->flags = DNET_FLAGS_NEED_ACK;
-	cmd->size = sizeof(struct dnet_attr);
-
-	a->cmd = DNET_CMD_STAT;
-
-	t->st = dnet_state_get_first(n, id, n->st);
-	if (!t->st) {
-		err = -ENOENT;
-		goto err_out_destroy;
-	}
-
-	err = dnet_trans_insert(t);
-	if (err)
-		goto err_out_destroy;
-
-	cmd->trans = t->trans;
-
-	dnet_convert_cmd(cmd);
-	dnet_convert_attr(a);
-
-	t->r.header = cmd;
-	t->r.hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr);
-	t->r.fd = -1;
-	t->r.offset = 0;
-	t->r.size = 0;
-
-	dnet_req_set_flags(&t->r, ~0, DNET_REQ_NO_DESTRUCT);
-
-	err = dnet_data_ready(t->st, &t->r);
-	if (err)
-		goto err_out_destroy;
-
-	return 0;
-
-err_out_destroy:
-	dnet_trans_destroy(t);
-err_out_exit:
-	return err;
+	return dnet_trans_alloc_send(n, &ctl);
 }
 
 int dnet_request_stat(struct dnet_node *n, unsigned char *id,

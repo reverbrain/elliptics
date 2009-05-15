@@ -202,6 +202,21 @@ struct dnet_io_thread
 	struct event_base	*base;
 };
 
+struct dnet_notify_bucket
+{
+	struct list_head		notify_list;
+	pthread_rwlock_t		notify_lock;
+};
+
+int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *data);
+
+int dnet_notify_add(struct dnet_net_state *st, struct dnet_cmd *cmd);
+int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd);
+
+int dnet_notify_init(struct dnet_node *n);
+void dnet_notify_exit(struct dnet_node *n);
+
 struct dnet_node
 {
 	unsigned char		id[DNET_ID_SIZE];
@@ -249,6 +264,9 @@ struct dnet_node
 	int			io_thread_num, io_thread_pos;
 
 	uint64_t		max_pending;
+
+	unsigned int		notify_hash_size;
+	struct dnet_notify_bucket	*notify_hash;
 };
 
 static inline char *dnet_dump_node(struct dnet_node *n)

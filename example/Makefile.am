@@ -1,4 +1,4 @@
-bin_PROGRAMS = example hparser iotest stat
+bin_PROGRAMS = example hparser iotest stat notify
 noinst_LIBRARIES = libhash.a libcommon.a libbackend.a
 noinst_HEADERS = hash.h backends.h common.h
 
@@ -19,6 +19,9 @@ iotest_LDADD = ../library/libdnet.la libhash.a libcommon.a
 
 stat_SOURCES = stat.c
 stat_LDADD = ../library/libdnet.la libcommon.a
+
+notify_SOURCES = notify.c
+notify_LDADD = ../library/libdnet.la libcommon.a
 
 AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @OPENSSL_CFLAGS@ @BDB_CFLAGS@ \
 	@TOKYOCABINET_CFLAGS@
