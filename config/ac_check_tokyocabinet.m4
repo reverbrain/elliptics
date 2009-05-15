@@ -1,6 +1,7 @@
 AC_DEFUN([AC_CHECK_TOKYOCABINET],[
 AC_MSG_CHECKING([whether TokyoCabinet development version is installed])
 TOKYOCABINET_LIBS="-ltokyocabinet"
+ac_have_tokyocabinet="no"
 
 AC_ARG_WITH([tokyocabinet-path],
 	AC_HELP_STRING([--with-tokyocabinet-path=@<:@ARG@:>@],
@@ -20,6 +21,7 @@ AC_TRY_LINK([#include <tcadb.h>],
 	[TCADB *adb = tcadbnew(); tcadbdel(adb);],
 	[
 		AC_DEFINE(HAVE_TOKYOCABINET_SUPPORT, 1, [Define this if TokyoCabinet is installed])
+		ac_have_tokyocabinet="yes"
 		AC_MSG_RESULT([yes])
 	], [
 		TOKYOCABINET_LIBS=""
@@ -30,4 +32,5 @@ AC_TRY_LINK([#include <tcadb.h>],
 AC_SUBST(TOKYOCABINET_LIBS)
 AC_SUBST(TOKYOCABINET_CFLAGS)
 LIBS="$saved_LIBS"
+AM_CONDITIONAL(HAVE_TOKYOCABINET, [test "f$ac_have_tokyocabinet" = "fyes"])
 ])
