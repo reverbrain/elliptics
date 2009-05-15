@@ -276,7 +276,7 @@ retry:
 			goto err_out_close_txn;
 		}
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: umem read offset: %llu, size: %u, err: %d: %s.\n",
+			"%s: umem read offset: %llu, size: %u.\n",
 			dnet_dump_id(io->origin), (unsigned long long)io->offset, size);
 
 		io->size = size;
