@@ -38,6 +38,7 @@
 #include "dnet/interface.h"
 
 #include "hash.h"
+#include "common.h"
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
@@ -61,63 +62,6 @@ static unsigned long iotest_max_pending = 100000;
 
 static int iotest_sleep;
 static int iotest_pipe[2];
-
-static void iotest_log(void *priv, uint32_t mask __unused, const char *msg)
-{
-	char str[64];
-	struct tm tm;
-	struct timeval tv;
-	FILE *stream = priv;
-
-	if (!stream)
-		stream = stdout;
-
-	gettimeofday(&tv, NULL);
-	localtime_r((time_t *)&tv.tv_sec, &tm);
-	strftime(str, sizeof(str), "%F %R:%S", &tm);
-
-	fprintf(stream, "%s.%06lu %s", str, tv.tv_usec, msg);
-	fflush(stream);
-}
-
-#define DNET_CONF_COMMENT	'#'
-#define DNET_CONF_DELIM		'='
-#define DNET_CONF_ADDR_DELIM	':'
-#define DNET_CONF_TIME_DELIM	'.'
-
-static int dnet_parse_addr(char *addr, struct dnet_config *cfg)
-{
-	char *fam, *port;
-
-	fam = strrchr(addr, DNET_CONF_ADDR_DELIM);
-	if (!fam)
-		goto err_out_print_wrong_param;
-	*fam++ = 0;
-	if (!fam)
-		goto err_out_print_wrong_param;
-
-	cfg->family = atoi(fam);
-
-	port = strrchr(addr, DNET_CONF_ADDR_DELIM);
-	if (!port)
-		goto err_out_print_wrong_param;
-	*port++ = 0;
-	if (!port)
-		goto err_out_print_wrong_param;
-
-	memset(cfg->addr, 0, sizeof(cfg->addr));
-	memset(cfg->port, 0, sizeof(cfg->port));
-
-	snprintf(cfg->addr, sizeof(cfg->addr), "%s", addr);
-	snprintf(cfg->port, sizeof(cfg->port), "%s", port);
-
-	return 0;
-
-err_out_print_wrong_param:
-	fprintf(stderr, "Wrong address parameter, should be 'addr%cport%cfamily'.\n",
-				DNET_CONF_ADDR_DELIM, DNET_CONF_ADDR_DELIM);
-	return -EINVAL;
-}
 
 static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *cmd,
 		struct dnet_attr *attr __unused, void *priv)
@@ -339,34 +283,6 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_parse_numeric_id(char *value, unsigned char *id)
-{
-	unsigned char ch[2];
-	unsigned int i, len = strlen(value);
-
-	memset(id, 0, DNET_ID_SIZE);
-
-	if (len/2 > DNET_ID_SIZE)
-		len = DNET_ID_SIZE * 2;
-
-	for (i=0; i<len / 2; i++) {
-		ch[0] = value[2*i + 0];
-		ch[1] = value[2*i + 1];
-
-		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
-	}
-
-	if (len & 1) {
-		ch[0] = value[2*i + 0];
-		ch[1] = '0';
-
-		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
-	}
-
-	printf("Node id: %s\n", dnet_dump_id(id));
-	return 0;
-}
-
 static void *iotest_perf(void *log_private)
 {
 	long double speed;
@@ -401,7 +317,7 @@ static void *iotest_perf(void *log_private)
 					st->cfg.addr, st->cfg.port,
 					st->bytes, speed, st->completed, chunks_per_second, st->errors,
 					st->error, dnet_server_convert_dnet_addr(&st->addr));
-			iotest_log(log_private, DNET_LOG_NOTICE, msg);
+			dnet_common_log(log_private, DNET_LOG_NOTICE, msg);
 
 			p = t;
 			prev_completed = st->completed;
@@ -565,7 +481,7 @@ int main(int argc, char *argv[])
 		}
 
 		cfg.log_private = log;
-		cfg.log = iotest_log;
+		cfg.log = dnet_common_log;
 	}
 
 	n = dnet_node_create(&cfg);

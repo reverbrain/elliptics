@@ -37,98 +37,11 @@
 
 #include "hash.h"
 #include "backends.h"
+#include "common.h"
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
-
-static void dnet_example_log(void *priv, uint32_t mask, const char *msg)
-{
-	char str[64];
-	struct tm tm;
-	struct timeval tv;
-	FILE *stream = priv;
-
-	if (!stream)
-		stream = stdout;
-
-	gettimeofday(&tv, NULL);
-	localtime_r((time_t *)&tv.tv_sec, &tm);
-	strftime(str, sizeof(str), "%F %R:%S", &tm);
-
-	fprintf(stream, "%s.%06lu %1x %s", str,
-		(unsigned long)tv.tv_usec, mask, msg);
-	fflush(stream);
-}
-
-#define DNET_CONF_COMMENT	'#'
-#define DNET_CONF_DELIM		'='
-#define DNET_CONF_ADDR_DELIM	':'
-#define DNET_CONF_TIME_DELIM	'.'
-
-static int dnet_parse_addr(char *addr, struct dnet_config *cfg)
-{
-	char *fam, *port;
-
-	fam = strrchr(addr, DNET_CONF_ADDR_DELIM);
-	if (!fam)
-		goto err_out_print_wrong_param;
-	*fam++ = 0;
-	if (!fam)
-		goto err_out_print_wrong_param;
-
-	cfg->family = atoi(fam);
-
-	port = strrchr(addr, DNET_CONF_ADDR_DELIM);
-	if (!port)
-		goto err_out_print_wrong_param;
-	*port++ = 0;
-	if (!port)
-		goto err_out_print_wrong_param;
-
-	memset(cfg->addr, 0, sizeof(cfg->addr));
-	memset(cfg->port, 0, sizeof(cfg->port));
-
-	snprintf(cfg->addr, sizeof(cfg->addr), "%s", addr);
-	snprintf(cfg->port, sizeof(cfg->port), "%s", port);
-
-	return 0;
-
-err_out_print_wrong_param:
-	fprintf(stderr, "Wrong address parameter, should be 'addr%cport%cfamily'.\n",
-				DNET_CONF_ADDR_DELIM, DNET_CONF_ADDR_DELIM);
-	return -EINVAL;
-}
-
-static int dnet_parse_numeric_id(char *value, unsigned char *id)
-{
-	unsigned char ch[5];
-	unsigned int i, len = strlen(value);
-
-	memset(id, 0, DNET_ID_SIZE);
-
-	if (len/2 > DNET_ID_SIZE)
-		len = DNET_ID_SIZE * 2;
-
-	ch[0] = '0';
-	ch[1] = 'x';
-	ch[4] = '\0';
-	for (i=0; i<len / 2; i++) {
-		ch[2] = value[2*i + 0];
-		ch[3] = value[2*i + 1];
-
-		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
-	}
-
-	if (len & 1) {
-		ch[0] = value[2*i + 0];
-		ch[1] = '0';
-
-		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
-	}
-
-	return 0;
-}
 
 static int dnet_background(void)
 {
@@ -324,7 +237,7 @@ int main(int argc, char *argv[])
 		}
 
 		cfg.log_private = log;
-		cfg.log = dnet_example_log;
+		cfg.log = dnet_common_log;
 	}
 
 	if (root) {
