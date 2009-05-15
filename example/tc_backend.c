@@ -87,6 +87,11 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	}
 
 	size = dnet_backend_check_get_size(io, size);
+	
+	dnet_command_handler_log(state, DNET_LOG_INFO,
+			"%s: read object: io_offset: %llu, io_size: %llu, io_flags: %x, size: %d.\n",
+			dnet_dump_id(io->origin), io->offset, io->size, io->flags, size);
+
 	if (!size) {
 		err = 0;
 		goto err_out_free;
@@ -117,8 +122,8 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		memcpy(rio->origin, io->origin, DNET_ID_SIZE);
 
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: read reply offset: %u, size: %u.\n",
-			dnet_dump_id(io->origin), io->offset, size);
+			"%s: read reply offset: %llu, size: %d.\n",
+			dnet_dump_id(io->origin), (unsigned long long)io->offset, size);
 
 		if (cmd->flags & DNET_FLAGS_NEED_ACK)
 			c->flags = DNET_FLAGS_MORE;
@@ -170,7 +175,7 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	TCADB *db = be->data;
 	struct dnet_io_attr *io = data;
 	struct dnet_history_entry *e, n, *r;
-	bool res;
+	bool res = true;
 
 	if (attr->size < sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -194,15 +199,6 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 			r = data;
 
-			res = tcadbtranbegin(db);
-			if (!res) {
-				err = -EINVAL;
-				dnet_command_handler_log(state, DNET_LOG_ERROR,
-					"%s: failed to start history transactio.\n",
-						dnet_dump_id(io->origin));
-				goto err_out_exit;
-			}
-
 			e = tcadbget(db, io->origin, DNET_ID_SIZE, &esize);
 			if (!e) {
 				res = tcadbput(db, io->origin, DNET_ID_SIZE, r, sizeof(struct dnet_history_entry));
@@ -221,13 +217,13 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 			if (esize)
 				free(e);
-			
+
 			if (!res) {
 				err = -EINVAL;
 				dnet_command_handler_log(state, DNET_LOG_ERROR,
 					"%s: history metadata update failed.\n",
 						dnet_dump_id(io->origin));
-				goto err_out_abort_transaction;
+				goto err_out_exit;
 			}
 		}
 	}
@@ -246,17 +242,6 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		goto err_out_exit;
 	}
 
-	if (io->flags & DNET_IO_FLAGS_HISTORY) {
-		res = tcadbtrancommit(be->hist);
-		if (!res) {
-			err = -EINVAL;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: history transaction commit failed..\n",
-					dnet_dump_id(io->origin));
-			goto err_out_abort_transaction;
-		}
-	}
-
 	dnet_command_handler_log(state, DNET_LOG_NOTICE,
 		"%s: stored %s object: size: %llu, offset: %llu.\n",
 			dnet_dump_id(io->origin),
@@ -264,6 +249,7 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			(unsigned long long)io->size, (unsigned long long)io->offset);
 
 	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
+		db = be->hist;
 		e = &n;
 
 		memcpy(e->id, io->id, DNET_ID_SIZE);
@@ -291,8 +277,6 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 	return 0;
 
-err_out_abort_transaction:
-	tcadbtranabort(be->hist);
 err_out_exit:
 	return err;
 }
@@ -303,7 +287,7 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd)
 	TCADB *e = be->hist;
 	unsigned char id[DNET_ID_SIZE], start, last;
 	TCLIST *l;
-	int inum = 10240, ipos = 0;
+	int inum = 10240, ipos = 0, wrap = 0;
 	unsigned char ids[inum][DNET_ID_SIZE];
 
 	err = dnet_state_get_range(state, cmd->id, id);
@@ -312,7 +296,12 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd)
 
 	last = id[0] - 1;
 
-	for (start = cmd->id[0]; start != last; --start) {
+	if (cmd->id[0] == last)
+		wrap = 1;
+
+	for (start = cmd->id[0]; start != last || wrap; --start) {
+		wrap = 0;
+
 		l = tcadbfwmkeys(e, &start, 1, -1);
 		if (!l)
 			continue;
@@ -320,6 +309,8 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd)
 		num = tclistnum(l);
 		if (!num)
 			goto out_clean;
+
+		dnet_command_handler_log(state, DNET_LOG_INFO, "%02x: %d object(s).\n", start, num);
 
 		for (i=0; i<num; ++i) {
 			const unsigned char *idx = tclistval(l, i, &size);
