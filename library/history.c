@@ -33,41 +33,45 @@
 static int dnet_compare_history(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *la, struct dnet_attr *ra)
 {
 	struct dnet_io_attr *rio, *lio;
+	struct dnet_history_entry *rh, *lh;
 	unsigned long long num;
 	int err = 0;
 
-	if (!ra->size || ra->size != la->size) {
+	if (!ra->size || ra->size != la->size || ra->size < sizeof(struct dnet_io_attr) + sizeof(struct dnet_history_entry)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: attribute size mismatch: remote: %llu, local: %llu.\n",
 				dnet_dump_id(cmd->id), (unsigned long long)ra->size, (unsigned long long)la->size);
 		err = -EINVAL;
 		goto out;
 	}
 
-	num = ra->size / sizeof(struct dnet_io_attr) - 1;
+	rio = (struct dnet_io_attr *)(ra + 1);
+	lio = (struct dnet_io_attr *)(la + 1);
 
-	rio = &((struct dnet_io_attr *)(ra + 1))[num];
-	lio = &((struct dnet_io_attr *)(la + 1))[num];
-	
 	dnet_convert_io_attr(rio);
 	dnet_convert_io_attr(lio);
 
-	if (rio->size != lio->size || rio->offset != lio->offset) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: last IO attribute mismatch: remote/local: offset: %llu/%llu, size: %llu/%llu.\n",
+	if (!rio->size || rio->size != lio->size || rio->offset != lio->offset || rio->size % sizeof(struct dnet_history_entry)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: IO attribute mismatch: remote/local: offset: %llu/%llu, size: %llu/%llu.\n",
 				dnet_dump_id(cmd->id), (unsigned long long)rio->offset, (unsigned long long)lio->offset,
 				(unsigned long long)rio->size, (unsigned long long)lio->size);
 		err = -EINVAL;
 		goto out;
 	}
 
-	if (memcmp(rio->origin, lio->origin, DNET_ID_SIZE) || memcmp(rio->id, lio->id, DNET_ID_SIZE)) {
-		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: local : %s.\n", dnet_dump_id(lio->id));
-		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: remote: %s.\n", dnet_dump_id(rio->id));
+	num = rio->size / sizeof(struct dnet_history_entry) - 1;
+
+	rh = &((struct dnet_history_entry *)(rio + 1))[num];
+	lh = &((struct dnet_history_entry *)(lio + 1))[num];
+
+	if (memcmp(rh->id, lh->id, DNET_ID_SIZE)) {
+		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: local : %s.\n", dnet_dump_id(lh->id));
+		dnet_log(n, DNET_LOG_ERROR, "Last transaction mismatch: remote: %s.\n", dnet_dump_id(rh->id));
 		err = -EINVAL;
 		goto out;
 	}
 
 	dnet_log(n, DNET_LOG_ERROR, "%s: last transaction matched: size: %llu, offset: %llu, transactions: %llu.\n",
-			dnet_dump_id(rio->id), (unsigned long long)rio->size, (unsigned long long)rio->offset,
+			dnet_dump_id(rh->id), (unsigned long long)rh->size, (unsigned long long)rh->offset,
 			num + 1);
 out:
 	return err;
