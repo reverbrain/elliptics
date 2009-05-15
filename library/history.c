@@ -233,6 +233,7 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 		ctl.priv = NULL;
 		ctl.complete = dnet_read_object_complete;
 		ctl.cmd = DNET_CMD_READ;
+		ctl.cflags = DNET_FLAGS_NEED_ACK;
 
 		dnet_wakeup(n->wait, n->wait->cond++);
 		dnet_wait_get(n->wait);
@@ -307,9 +308,11 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	ctl.io.flags = DNET_IO_FLAGS_HISTORY;
 	ctl.priv = priv;
 	ctl.cmd = DNET_CMD_READ;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
 
 	n->wait->cond += size / DNET_ID_SIZE;
 
+	dnet_log(n, DNET_LOG_INFO, "%s: received %llu history IDs.\n", dnet_dump_id(ctl.addr), size / DNET_ID_SIZE);
 	for (i=0; i<size / DNET_ID_SIZE; ++i) {
 		memcpy(ctl.addr, data, DNET_ID_SIZE);
 		memcpy(ctl.io.origin, data, DNET_ID_SIZE);
