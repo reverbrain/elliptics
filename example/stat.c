@@ -200,11 +200,6 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (!id_idx) {
-		fprintf(stderr, "Nothing to stat: no ID specified.\n");
-		return -ENOENT;
-	}
-
 	if (!have_remote) {
 		fprintf(stderr, "No remote node specified to route requests.\n");
 		return -ENOENT;
@@ -241,6 +236,12 @@ int main(int argc, char *argv[])
 		return err;
 
 	while (1) {
+		if (!id_idx) {
+			err = dnet_request_stat(n, NULL, NULL, NULL);
+			if (err < 0)
+				return err;
+		}
+
 		for (i=0; i<id_idx; ++i) {
 			err = dnet_request_stat(n, id[i], stat_complete, stat);
 			if (err < 0)
