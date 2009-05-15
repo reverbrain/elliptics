@@ -50,7 +50,6 @@ sleep 1
 if [ "f$(ps -p $! --no-headers -o comm)" = "f" ]; then
 	echo "ERROR"
 	echo -e "LOG: \n\n"
-	cat  $TEMP_DIR/server1_log
 	clean_up
 	exit 1
 fi
@@ -67,7 +66,6 @@ TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
 	echo -e "LOG: \n\n"
-	cat  $TEMP_DIR/client_log
 	clean_up
 	exit 1	
 fi
@@ -82,7 +80,6 @@ TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
 	echo -e "LOG: \n\n"
-	cat  $TEMP_DIR/client_log
 	clean_up
 	exit 1	
 fi
@@ -96,7 +93,7 @@ if [ "f$?" != "f0" ]; then
 else 
 	echo "files is equal" 
 fi
-rm $TEMP_DIR/res_1 
+rm $TEMP_DIR/res_1*
 
 # ***************************************
 # * 1 server - 1 client                 *
@@ -136,7 +133,6 @@ TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
 	echo -e "LOG: \n\n"
-	cat $TEMP_DIR/client_log
 	clean_up
 	exit 1	
 fi
@@ -151,7 +147,6 @@ TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
 	echo -e "LOG: \n\n"
-	cat $TEMP_DIR/client_log
 	clean_up
 	exit 1	
 fi
@@ -165,7 +160,7 @@ if [ "f$?" != "f0" ]; then
 else 
 	echo "files is equal" 
 fi
-rm $TEMP_DIR/res_1 
+rm $TEMP_DIR/res_1*
 
 
 # ***************************************
@@ -186,7 +181,6 @@ sleep 1
 if [ "f$(ps -p $! --no-headers -o comm)" = "f" ]; then
 	echo "ERROR"
 	echo -e "LOG: \n\n"
-	cat $TEMP_DIR/server1_log
 	clean_up
 	exit 1
 fi
@@ -202,7 +196,6 @@ TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
 	echo -e "LOG: \n\n"
-	cat $TEMP_DIR/client_log
 	clean_up
 	exit 1	
 fi
@@ -216,7 +209,7 @@ if [ "f$?" != "f0" ]; then
 else 
 	echo "files is equal" 
 fi
-rm $TEMP_DIR/res_1 
+rm $TEMP_DIR/res_1*
 
 
 # ***************************************
@@ -236,7 +229,6 @@ TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
 	echo -e "LOG: \n\n"
-	cat  $TEMP_DIR/client_log
 	clean_up
 	exit 1	
 fi
@@ -250,7 +242,7 @@ if [ "f$?" != "f0" ]; then
 else 
 	echo "files is equal" 
 fi
-rm $TEMP_DIR/res_1 
+rm $TEMP_DIR/res_1*
 
 # ***************************************
 # * 1 server - 1 client                 *
@@ -276,7 +268,6 @@ TMP=$?
 if [ "f$TMP" != "f0" ]; then
 	echo "ERROR $TMP"
 	echo -e "LOG: \n\n"
-	cat  $TEMP_DIR/client_log
 	clean_up
 	exit 1	
 fi
@@ -290,7 +281,7 @@ if [ "f$?" != "f0" ]; then
 else 
 	echo -e "files is equal\nJoin is correct" 
 fi
-rm $TEMP_DIR/res_1 
+rm $TEMP_DIR/res_1*
 
 
 #cleanup 
