@@ -1,6 +1,7 @@
 AC_DEFUN([AC_CHECK_BDB],[
 AC_MSG_CHECKING([whether BerkeleyDB development version is installed])
 BDB_LIBS="-ldb"
+ac_have_bdb="no"
 
 AC_ARG_WITH([libdb-path],
 	AC_HELP_STRING([--with-libdb-path=@<:@ARG@:>@],
@@ -20,6 +21,7 @@ AC_TRY_LINK([#include <db.h>],
 	[DB *db; db_create(&db, NULL, 0);],
 	[
 		AC_DEFINE(HAVE_BDB_SUPPORT, 1, [Define this if BerkeleyDB is installed])
+		ac_have_bdb="yes"
 		AC_MSG_RESULT([yes])
 	], [
 		BDB_LIBS=""
@@ -30,4 +32,6 @@ AC_TRY_LINK([#include <db.h>],
 AC_SUBST(BDB_LIBS)
 AC_SUBST(BDB_CFLAGS)
 LIBS="$saved_LIBS"
+
+AM_CONDITIONAL(HAVE_BDB, [test "f$ac_have_bdb" = "fyes"])
 ])
