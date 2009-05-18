@@ -91,7 +91,7 @@ if [ "f$?" != "f0" ]; then
 	clean_up
 	exit 1
 else 
-	echo "files is equal" 
+	echo "files are equal" 
 fi
 rm $TEMP_DIR/res_1*
 
@@ -158,7 +158,7 @@ if [ "f$?" != "f0" ]; then
 	clean_up
 	exit 1
 else 
-	echo "files is equal" 
+	echo "files are equal" 
 fi
 rm $TEMP_DIR/res_1*
 
@@ -207,7 +207,7 @@ if [ "f$?" != "f0" ]; then
 	clean_up
 	exit 1
 else 
-	echo "files is equal" 
+	echo "files are equal" 
 fi
 rm $TEMP_DIR/res_1*
 
@@ -240,7 +240,7 @@ if [ "f$?" != "f0" ]; then
 	clean_up
 	exit 1
 else 
-	echo "files is equal" 
+	echo "files are equal" 
 fi
 rm $TEMP_DIR/res_1*
 
@@ -279,7 +279,7 @@ if [ "f$?" != "f0" ]; then
 	clean_up
 	exit 1
 else 
-	echo -e "files is equal\nJoin is correct" 
+	echo -e "files are equal\nJoin is correct" 
 fi
 rm $TEMP_DIR/res_1*
 
