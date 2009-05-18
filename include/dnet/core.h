@@ -64,4 +64,9 @@
  */
 #define DNET_IO_MAX_PENDING		256
 
+/*
+ * Default notify hash table size.
+ */
+#define DNET_DEFAULT_NOTIFY_HASH_SIZE	256
+
 #endif /* __DNET_CORE_H */

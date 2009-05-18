@@ -41,6 +41,7 @@ enum dnet_commands {
 	DNET_CMD_ROUTE_LIST,			/* Receive route table from given node */
 	DNET_CMD_TRANSFORM_LIST,		/* Receive list of transformation functions */
 	DNET_CMD_STAT,				/* Gather remote VM, LA and FS statistics */
+	DNET_CMD_NOTIFY,			/* Notify when object in question was modified */
 };
 
 /*
@@ -278,6 +279,18 @@ static inline void dnet_convert_stat(struct dnet_stat *st)
 	st->vm_free = dnet_bswap64(st->vm_free);
 	st->vm_buffers = dnet_bswap64(st->vm_buffers);
 	st->vm_cached = dnet_bswap64(st->vm_cached);
+}
+
+struct dnet_io_notification
+{
+	struct dnet_addr_attr		addr;
+	struct dnet_io_attr		io;
+};
+
+static inline void dnet_convert_io_notification(struct dnet_io_notification *n)
+{
+	dnet_convert_addr_attr(&n->addr);
+	dnet_convert_io_attr(&n->io);
 }
 
 #ifdef __cplusplus
