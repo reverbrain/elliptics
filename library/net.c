@@ -169,12 +169,12 @@ out_exit:
 	return err;
 }
 
-#if 0
 static int dnet_net_reconnect(struct dnet_net_state *st)
 {
 	int err;
 
-	if (st->join_state == DNET_CLIENT)
+	if (st->join_state == DNET_CLIENT ||
+		st->join_state == DNET_CLIENT_JOINED)
 		return -EINVAL;
 
 	err = dnet_socket_create_addr(st->n, st->n->sock_type, st->n->proto, st->n->family,
@@ -191,7 +191,6 @@ static int dnet_net_reconnect(struct dnet_net_state *st)
 
 	return 0;
 }
-#endif
 
 int dnet_send(struct dnet_net_state *st, void *data, unsigned int size)
 {
@@ -464,6 +463,8 @@ err_out_exit:
 static int dnet_sync_failed_range(struct dnet_net_state *st)
 {
 	struct dnet_net_state *next = NULL;
+
+	dnet_net_reconnect(st);
 
 	if (!list_empty(&st->state_entry))
 		return -EINVAL;
