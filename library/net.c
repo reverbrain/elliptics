@@ -291,6 +291,10 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 	unsigned int size = t->cmd.size;
 	struct dnet_node *n = st->n;
 
+	err = dnet_wait_fd(st->s, POLLOUT, 0);
+	if (err == -EINVAL)
+		return err;
+
 	dnet_convert_cmd(&t->cmd);
 
 	dnet_req_set_header(&t->r, &t->cmd, sizeof(struct dnet_cmd), 0);
@@ -457,6 +461,36 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_sync_failed_range(struct dnet_net_state *st)
+{
+	struct dnet_net_state *next = NULL;
+
+	if (!list_empty(&st->state_entry))
+		return -EINVAL;
+
+	dnet_state_remove(st);
+
+	if (st->join_state == DNET_CLIENT)
+		return 0;
+
+	next = dnet_state_get_first(st->n, st->id, NULL);
+	if (next) {
+		if (!dnet_id_cmp(next->id, st->n->id)) {
+			struct dnet_net_state *next_next;
+			next_next = dnet_state_get_next(next);
+
+			if (next_next) {
+				dnet_request_sync(next_next, st->id);
+				dnet_state_put(next_next);
+			}
+		}
+
+		dnet_state_put(next);
+	}
+
+	return 0;
+}
+
 static void dnet_req_trans_retry(struct dnet_data_req *r, int error);
 
 static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *st)
@@ -500,6 +534,7 @@ static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state 
 	return 0;
 
 err_out_put:
+	dnet_sync_failed_range(tmp);
 	dnet_state_put(tmp);
 	dnet_log(n, DNET_LOG_ERROR, "%s: failed to process new transaction %llu: %d.\n",
 			dnet_dump_id(t->cmd.id), (unsigned long long)t->cmd.trans, err);
@@ -827,25 +862,7 @@ err_out_destroy:
 
 	dnet_state_get(st);
 	if (!list_empty(&st->state_entry)) {
-#if 1
-		struct dnet_net_state *next = NULL;
-
-		if (st->join_state != DNET_CLIENT) {
-			next = dnet_state_get_next(st);
-			if (!dnet_id_cmp(next->id, st->n->id)) {
-				struct dnet_net_state *next_next;
-				next_next = dnet_state_get_next(next);
-
-				if (next_next) {
-					dnet_request_sync(next_next, st->id);
-					dnet_state_put(next_next);
-				}
-
-				dnet_state_put(next);
-			}
-		}
-#endif
-		dnet_state_remove(st);
+		dnet_sync_failed_range(st);
 		dnet_state_put(st);
 	}
 	while (!list_empty(&st->snd_list)) {

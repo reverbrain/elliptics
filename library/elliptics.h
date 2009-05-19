@@ -126,6 +126,7 @@ void dnet_state_remove(struct dnet_net_state *st);
 struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 struct dnet_net_state *dnet_state_get_next(struct dnet_net_state *st);
+int dnet_state_move(struct dnet_net_state *st);
 void dnet_state_destroy(struct dnet_net_state *st);
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
@@ -298,6 +299,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 
 enum dnet_join_state {
 	DNET_CLIENT,		/* Node did not not join the network */
+	DNET_CLIENT_JOINED,	/* Node directly connected to the server and joined the network */
 	DNET_SERVER,		/* Node was added into route table */
 	DNET_JOINED,		/* Node joined the network */
 	DNET_REJOIN,		/* Some of the states reconnected and node needs to rejoin */

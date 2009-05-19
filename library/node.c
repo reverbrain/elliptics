@@ -102,13 +102,11 @@ void dnet_state_remove(struct dnet_net_state *st)
 	pthread_rwlock_unlock(&n->state_lock);
 }
 
-int dnet_state_insert(struct dnet_net_state *new)
+static int dnet_state_insert_raw(struct dnet_net_state *new)
 {
 	struct dnet_node *n = new->n;
 	struct dnet_net_state *st;
 	int err = 1;
-
-	pthread_rwlock_wrlock(&n->state_lock);
 
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		err = dnet_id_cmp(st->id, new->id);
@@ -147,12 +145,22 @@ int dnet_state_insert(struct dnet_net_state *new)
 		}
 	}
 
-	pthread_rwlock_unlock(&n->state_lock);
-
 	if (!err)
 		err = -EEXIST;
 	else
 		err = 0;
+
+	return err;
+}
+
+int dnet_state_insert(struct dnet_net_state *st)
+{
+	int err;
+	struct dnet_node *n = st->n;
+
+	pthread_rwlock_wrlock(&n->state_lock);
+	err = dnet_state_insert_raw(st);
+	pthread_rwlock_unlock(&n->state_lock);
 
 	return err;
 }
@@ -276,6 +284,20 @@ struct dnet_net_state *dnet_state_get_next(struct dnet_net_state *st)
 	pthread_rwlock_unlock(&n->state_lock);
 
 	return next;
+}
+
+int dnet_state_move(struct dnet_net_state *st)
+{
+	struct dnet_node *n = st->n;
+	int err;
+
+	pthread_rwlock_wrlock(&n->state_lock);
+	list_del(&st->state_entry);
+
+	err = dnet_state_insert_raw(st);
+	pthread_rwlock_unlock(&n->state_lock);
+
+	return err;
 }
 
 static void dnet_dummy_pipe_read(int s, short event, void *arg)
