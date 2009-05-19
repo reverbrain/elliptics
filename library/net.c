@@ -169,12 +169,12 @@ out_exit:
 	return err;
 }
 
-#if 0
 static int dnet_net_reconnect(struct dnet_net_state *st)
 {
 	int err;
 
-	if (st->join_state == DNET_CLIENT)
+	if (st->join_state == DNET_CLIENT ||
+		st->join_state == DNET_CLIENT_JOINED)
 		return -EINVAL;
 
 	err = dnet_socket_create_addr(st->n, st->n->sock_type, st->n->proto, st->n->family,
@@ -191,7 +191,6 @@ static int dnet_net_reconnect(struct dnet_net_state *st)
 
 	return 0;
 }
-#endif
 
 int dnet_send(struct dnet_net_state *st, void *data, unsigned int size)
 {
@@ -290,6 +289,10 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 	int err;
 	unsigned int size = t->cmd.size;
 	struct dnet_node *n = st->n;
+
+	err = dnet_wait_fd(st->s, POLLOUT, 0);
+	if (err == -EINVAL)
+		return err;
 
 	dnet_convert_cmd(&t->cmd);
 
@@ -399,7 +402,7 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 					goto err_out_exit;
 				}
 
-				t->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
+				nt->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
 				nt->trans = t->trans;
 				nt->recv_trans = t->recv_trans;
 				nt->priv = t->priv;
@@ -457,6 +460,38 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_sync_failed_range(struct dnet_net_state *st)
+{
+	struct dnet_net_state *next = NULL;
+
+	dnet_net_reconnect(st);
+
+	if (!list_empty(&st->state_entry))
+		return -EINVAL;
+
+	dnet_state_remove(st);
+
+	if (st->join_state == DNET_CLIENT)
+		return 0;
+
+	next = dnet_state_get_first(st->n, st->id, NULL);
+	if (next) {
+		if (!dnet_id_cmp(next->id, st->n->id)) {
+			struct dnet_net_state *next_next;
+			next_next = dnet_state_get_next(next);
+
+			if (next_next) {
+				dnet_request_sync(next_next, st->id);
+				dnet_state_put(next_next);
+			}
+		}
+
+		dnet_state_put(next);
+	}
+
+	return 0;
+}
+
 static void dnet_req_trans_retry(struct dnet_data_req *r, int error);
 
 static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *st)
@@ -466,6 +501,10 @@ static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state 
 	struct dnet_net_state *tmp;
 
 	t->st = dnet_state_get_first(n, t->cmd.id, NULL);
+
+	dnet_log(n, DNET_LOG_INFO, "%s: st: %p, t_st: %p, n_st: %p, direct: %d, flags: %x/%x.\n",
+			dnet_dump_id(st->rcv_cmd.id), st, t->st, n->st, (st->rcv_cmd.flags & DNET_FLAGS_DIRECT),
+			st->rcv_cmd.flags, t->cmd.flags);
 
 	if (!t->st || t->st == st || t->st == n->st ||
 			(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {
@@ -496,6 +535,7 @@ static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state 
 	return 0;
 
 err_out_put:
+	dnet_sync_failed_range(tmp);
 	dnet_state_put(tmp);
 	dnet_log(n, DNET_LOG_ERROR, "%s: failed to process new transaction %llu: %d.\n",
 			dnet_dump_id(t->cmd.id), (unsigned long long)t->cmd.trans, err);
@@ -664,8 +704,9 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 		goto out;
 	}
 #if 1
-	dnet_log(n, DNET_LOG_NOTICE, "%s: req: %p, hsize: %zu, dsize: %zu, fsize: %zu.\n",
-			dnet_dump_id(st->id), r, r->hsize, r->dsize, r->size);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: req: %p, hsize: %llu, dsize: %llu, fsize: %llu.\n",
+			dnet_dump_id(st->id), r, (unsigned long long)r->hsize,
+			(unsigned long long)r->dsize, (unsigned long long)r->size);
 #endif
 	if (!st->snd_size) {
 		st->snd_offset = 0;
@@ -699,8 +740,9 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			data += st->snd_offset;
 
 		if (!size) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: snd_size: %zu, fd: %d.\n",
-					dnet_dump_id(st->id), st->snd_size, r->fd);
+			dnet_log(n, DNET_LOG_ERROR, "%s: snd_size: %llu, fd: %d.\n",
+					dnet_dump_id(st->id),
+					(unsigned long long)st->snd_size, r->fd);
 		}
 
 		if (data) {
@@ -709,13 +751,16 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			err = dnet_sendfile(st, r->fd, &r->offset, *size);
 		}
 		
-		dnet_log(n, DNET_LOG_NOTICE, "%s: sent: data: %p, %d/%zu.\n", dnet_dump_id(st->id), data, err, *size);
+		dnet_log(n, DNET_LOG_NOTICE, "%s: sent: data: %p, %d/%llu.\n",
+				dnet_dump_id(st->id), data, err,
+				(unsigned long long)*size);
 
 		if (err < 0) {
 			err = -EAGAIN;
 			if (errno != EAGAIN && errno != EINTR) {
 				err = -errno;
-				dnet_log_err(n, "failed to send %zu bytes", *size);
+				dnet_log_err(n, "failed to send %llu bytes",
+						(unsigned long long)*size);
 				goto out;
 			}
 
@@ -730,7 +775,9 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			goto out;
 		}
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: sent: %d/%zu.\n", dnet_dump_id(st->id), err, *size);
+		dnet_log(n, DNET_LOG_NOTICE, "%s: sent: %d/%llu.\n",
+				dnet_dump_id(st->id), err,
+				(unsigned long long)*size);
 
 		*size -= err;
 		if (data)
@@ -749,9 +796,9 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 	dnet_lock_unlock(&st->snd_lock);
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: destroying send request: %p: "
-			"flags: %x, hsize: %zu, dsize: %zu, fsize: %zu, complete: %p.\n",
-			dnet_dump_id(st->id), r, r->flags, r->hsize, r->dsize, r->size,
-			r->complete);
+			"flags: %x, hsize: %llu, dsize: %llu, fsize: %llu, complete: %p.\n",
+			dnet_dump_id(st->id), r, r->flags, (unsigned long long)r->hsize,
+			(unsigned long long)r->dsize, (unsigned long long)r->size, r->complete);
 
 	dnet_req_destroy(r, 0);
 
@@ -816,7 +863,7 @@ err_out_destroy:
 
 	dnet_state_get(st);
 	if (!list_empty(&st->state_entry)) {
-		dnet_state_remove(st);
+		dnet_sync_failed_range(st);
 		dnet_state_put(st);
 	}
 	while (!list_empty(&st->snd_list)) {
@@ -994,12 +1041,13 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 	if (err)
 		goto err_out_snd_lock_destroy;
 
-	st->join_state = DNET_CLIENT;
 	if (!id) {
+		st->join_state = DNET_CLIENT;
 		pthread_rwlock_wrlock(&n->state_lock);
 		list_add_tail(&st->state_entry, &n->empty_state_list);
 		pthread_rwlock_unlock(&n->state_lock);
 	} else {
+		st->join_state = DNET_SERVER;
 		memcpy(st->id, id, DNET_ID_SIZE);
 		err = dnet_state_insert(st);
 		if (err)
@@ -1044,7 +1092,7 @@ int dnet_sendfile_data(struct dnet_net_state *st,
 
 		if (err < 0) {
 			dnet_log(st->n, DNET_LOG_ERROR, "Failed to wait for descriptor: "
-					"err: %zd, socket: %d.\n", err, st->s);
+					"err: %d, socket: %d.\n", err, st->s);
 			break;
 		}
 
@@ -1052,19 +1100,21 @@ int dnet_sendfile_data(struct dnet_net_state *st,
 		if (err < 0) {
 			if (err == -EAGAIN)
 				continue;
-			dnet_log_err(st->n, "%s: failed to send file data, err: %zd",
+			dnet_log_err(st->n, "%s: failed to send file data, err: %d",
 					dnet_dump_id(st->id), err);
 			goto err_out_unlock;
 		}
 
 		if (err == 0) {
 			dnet_log(st->n, DNET_LOG_INFO, "%s: looks like truncated file, "
-					"size: %zu.\n", dnet_dump_id(st->id), size);
+					"size: %llu.\n", dnet_dump_id(st->id),
+					(unsigned long long)size);
 			break;
 		}
 
-		dnet_log(st->n, DNET_LOG_NOTICE, "%s: size: %zu, rest: %zu, offset: %llu, err: %zd.\n",
-				dnet_dump_id(st->id), size, size-err, (unsigned long long)offset, err);
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: size: %llu, rest: %llu, offset: %llu, err: %d.\n",
+				dnet_dump_id(st->id), (unsigned long long)size,
+				(unsigned long long)size-err, (unsigned long long)offset, err);
 
 		size -= err;
 	}
@@ -1075,8 +1125,9 @@ int dnet_sendfile_data(struct dnet_net_state *st,
 
 		memset(buf, 0, sizeof(buf));
 
-		dnet_log(st->n, DNET_LOG_INFO, "%s: truncated file, orig: %zu, zeroes: %zu bytes.\n",
-				dnet_dump_id(st->id), size + err, size);
+		dnet_log(st->n, DNET_LOG_INFO, "%s: truncated file, orig: %llu, zeroes: %llu bytes.\n",
+				dnet_dump_id(st->id), (unsigned long long)size + err,
+				(unsigned long long)size);
 
 		while (size) {
 			sz = size;
@@ -1114,14 +1165,16 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	free(st);
 }
 
-int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more)
+int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
+		void *odata, unsigned int size, int more)
 {
 	struct dnet_cmd *c;
 	struct dnet_attr *a;
 	struct dnet_data_req *r;
 	void *data;
 
-	r = dnet_req_alloc(state, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
+	r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
+			sizeof(struct dnet_attr) + size);
 	if (!r)
 		return -ENOMEM;
 
@@ -1130,14 +1183,22 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int
 	data = a + 1;
 
 	*c = *cmd;
-	c->trans |= DNET_TRANS_REPLY;
+
 	if ((cmd->flags & DNET_FLAGS_NEED_ACK) || more)
 		c->flags = DNET_FLAGS_MORE;
+
 	c->size = sizeof(struct dnet_attr) + size;
 
 	a->size = size;
 	a->flags = 0;
-	a->cmd = DNET_CMD_LIST;
+	a->cmd = attr->cmd;
+
+	if (!attr->flags)
+		c->trans |= DNET_TRANS_REPLY;
+	else {
+		a->cmd = DNET_CMD_SYNC;
+		c->flags |= DNET_FLAGS_DIRECT;
+	}
 
 	memcpy(data, odata, size);
 

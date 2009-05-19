@@ -102,13 +102,11 @@ void dnet_state_remove(struct dnet_net_state *st)
 	pthread_rwlock_unlock(&n->state_lock);
 }
 
-int dnet_state_insert(struct dnet_net_state *new)
+static int dnet_state_insert_raw(struct dnet_net_state *new)
 {
 	struct dnet_node *n = new->n;
 	struct dnet_net_state *st;
 	int err = 1;
-
-	pthread_rwlock_wrlock(&n->state_lock);
 
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		err = dnet_id_cmp(st->id, new->id);
@@ -147,12 +145,22 @@ int dnet_state_insert(struct dnet_net_state *new)
 		}
 	}
 
-	pthread_rwlock_unlock(&n->state_lock);
-
 	if (!err)
 		err = -EEXIST;
 	else
 		err = 0;
+
+	return err;
+}
+
+int dnet_state_insert(struct dnet_net_state *st)
+{
+	int err;
+	struct dnet_node *n = st->n;
+
+	pthread_rwlock_wrlock(&n->state_lock);
+	err = dnet_state_insert_raw(st);
+	pthread_rwlock_unlock(&n->state_lock);
 
 	return err;
 }
@@ -236,18 +244,57 @@ int dnet_state_get_range(void *state, unsigned char *req, unsigned char *id)
 	}
 
 	if (!prev && !list_empty(&n->state_list)) {
-		prev = list_first_entry(&n->state_list, struct dnet_net_state, state_entry);
-		dnet_log(n, DNET_LOG_INFO, "%s: getting first.\n", dnet_dump_id(prev->id));
+		prev = list_entry(n->state_list.prev, struct dnet_net_state, state_entry);
+		dnet_log(n, DNET_LOG_INFO, "%s: last.\n", dnet_dump_id(prev->id));
 	}
 
 	if (prev) {
-		dnet_log(n, DNET_LOG_INFO, "%s - %s\n", dnet_dump_id(prev->id), dnet_server_convert_dnet_addr(&prev->addr));
+		dnet_log(n, DNET_LOG_INFO, "%s - %s\n", dnet_dump_id(prev->id),
+				dnet_server_convert_dnet_addr(&prev->addr));
 		snprintf(prev_id, sizeof(prev_id), "%s", dnet_dump_id(prev->id));
 		dnet_log(n, DNET_LOG_INFO, "%s: range to %s\n", dnet_dump_id(req), prev_id);
 
 		memcpy(id, prev->id, DNET_ID_SIZE);
 		err = 0;
 	}
+	pthread_rwlock_unlock(&n->state_lock);
+
+	return err;
+}
+
+struct dnet_net_state *dnet_state_get_next(struct dnet_net_state *st)
+{
+	struct dnet_net_state *next;
+	struct dnet_node *n = st->n;
+
+	pthread_rwlock_rdlock(&n->state_lock);
+	next = list_entry(st->state_entry.next, struct dnet_net_state, state_entry);
+	if (&next->state_entry == &n->state_list)
+		next = NULL;
+
+	if (!next && !list_empty(&n->state_list)) {
+		next = list_entry(n->state_list.next, struct dnet_net_state, state_entry);
+		dnet_log(n, DNET_LOG_INFO, "%s: getting first.\n", dnet_dump_id(next->id));
+	}
+
+	if (next) {
+		dnet_log(n, DNET_LOG_INFO, "Sync to %s.\n", dnet_dump_id(next->id));
+		dnet_state_get(next);
+	}
+	pthread_rwlock_unlock(&n->state_lock);
+
+	return next;
+}
+
+int dnet_state_move(struct dnet_net_state *st)
+{
+	struct dnet_node *n = st->n;
+	int err;
+
+	pthread_rwlock_wrlock(&n->state_lock);
+	list_del(&st->state_entry);
+
+	err = dnet_state_insert_raw(st);
 	pthread_rwlock_unlock(&n->state_lock);
 
 	return err;

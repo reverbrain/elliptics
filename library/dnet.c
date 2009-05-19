@@ -63,7 +63,7 @@ static int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *d
 }
 
 static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint64_t trans,
-		unsigned int cmd, struct dnet_addr *addr, int reply)
+		unsigned int cmd, struct dnet_addr *addr, int reply, int direct)
 {
 	struct dnet_data_req *r;
 	struct dnet_addr_cmd *c;
@@ -79,6 +79,9 @@ static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint6
 	c->cmd.trans = trans;
 	if (reply)
 		c->cmd.trans |= DNET_TRANS_REPLY;
+
+	if (direct)
+		c->cmd.flags |= DNET_FLAGS_DIRECT;
 
 	c->a.cmd = cmd;
 	c->a.size = sizeof(struct dnet_addr_cmd) -
@@ -108,7 +111,7 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 	if (!st)
 		st = dnet_state_get(orig->n->st);
 
-	err = dnet_send_address(orig, st->id, cmd->trans, DNET_CMD_LOOKUP, &st->addr, 1);
+	err = dnet_send_address(orig, st->id, cmd->trans, DNET_CMD_LOOKUP, &st->addr, 1, 0);
 	dnet_state_put(st);
 	return err;
 }
@@ -119,30 +122,45 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 	struct dnet_node *n = st->n;
 
 	return dnet_send_address(st, n->id, cmd->trans, DNET_CMD_REVERSE_LOOKUP,
-			&n->addr, 1);
+			&n->addr, 1, 0);
 }
 
 static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 		struct dnet_attr *attr __unused, void *data)
 {
-	int err, s;
-	struct dnet_net_state *st = NULL;
 	struct dnet_node *n = orig->n;
 	struct dnet_addr_attr *a = data;
+	int err;
 
-	dnet_convert_addr_attr(a);
+	if (!(cmd->flags & DNET_FLAGS_DIRECT)) {
+		int s;
+		struct dnet_net_state *st = NULL;
 
-	s = dnet_socket_create_addr(n, a->sock_type, a->proto, a->family,
-			(struct sockaddr *)&a->addr, a->addr.addr_len, 0);
-	if (s < 0) {
-		err = s;
-		goto err_out_exit;
-	}
+		dnet_convert_addr_attr(a);
 
-	st = dnet_state_create(n, cmd->id, &a->addr, s);
-	if (!st) {
-		err = -EINVAL;
-		goto err_out_close;
+		s = dnet_socket_create_addr(n, a->sock_type, a->proto, a->family,
+				(struct sockaddr *)&a->addr, a->addr.addr_len, 0);
+		if (s < 0) {
+			err = s;
+			goto err_out_exit;
+		}
+
+		st = dnet_state_create(n, cmd->id, &a->addr, s);
+		if (!st) {
+			err = -EINVAL;
+			close(s);
+			goto err_out_exit;
+		}
+	} else {
+		dnet_convert_addr_attr(a);
+
+		orig->join_state = DNET_CLIENT_JOINED;
+		memcpy(&orig->addr, &a->addr, sizeof(struct dnet_addr));
+		memcpy(orig->id, cmd->id, DNET_ID_SIZE);
+
+		err = dnet_state_move(orig);
+		if (err)
+			goto err_out_exit;
 	}
 
 	dnet_log(n, DNET_LOG_INFO, "%s: state %s.\n", dnet_dump_id(cmd->id),
@@ -150,11 +168,9 @@ static int dnet_cmd_join_client(struct dnet_net_state *orig, struct dnet_cmd *cm
 
 	return 0;
 
-err_out_close:
-	close(s);
 err_out_exit:
-	dnet_log(n, DNET_LOG_ERROR, "%s: failed to join to state %s.\n", dnet_dump_id(cmd->id),
-		(st) ? dnet_server_convert_dnet_addr(&st->addr) : "undefined");
+	dnet_log(n, DNET_LOG_ERROR, "%s: failed to join to state %s.\n",
+		dnet_dump_id(cmd->id), dnet_server_convert_dnet_addr(&orig->addr));
 	return err;
 }
 
@@ -162,62 +178,38 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *req
 {
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
-	int def_num = 1024, space = 0, err;
-	struct dnet_data_req *r = NULL;
-	/*
-	 * Shut up a compiler. Neither of below variables
-	 * can be used uninitialized, since they are defined
-	 * in the blocks which depend on above variables
-	 * @r and @space to be non-null.
-	 */
-	struct dnet_route_attr *a = NULL;
-	struct dnet_cmd *cmd = NULL;
-	struct dnet_attr *attr = NULL;
+	int def_num = 1024, err, idx = 0;
+	struct dnet_attr ca;
+	struct dnet_route_attr attr[def_num], *a;
+
+	ca.cmd = DNET_CMD_ROUTE_LIST;
+	ca.size = 0;
+	ca.flags = 0;
+
+	dnet_log(n, DNET_LOG_INFO, "%s: route request from %s.\n",
+			dnet_dump_id(orig->id), dnet_state_dump_addr(orig));
 
 	pthread_rwlock_rdlock(&n->state_lock);
 	list_for_each_entry(st, &n->state_list, state_entry) {
-		if (!space) {
-			unsigned int sz;
+		err = -1;
 
-			if (r) {
-				dnet_convert_cmd(cmd);
-				dnet_convert_attr(attr);
-
-				err = dnet_data_ready(orig, r);
-				if (err)
-					goto err_out_unlock;
-			}
-
-			space = def_num;
-			sz = space * sizeof(struct dnet_route_attr);
-			sz += sizeof(struct dnet_attr) + sizeof(struct dnet_cmd);
-
-			r = dnet_req_alloc(orig, sz);
-			if (!r) {
-				err = -ENOMEM;
-				goto err_out_unlock;
-			}
-
-			cmd = dnet_req_header(r);
-			attr = (struct dnet_attr *)(cmd + 1);
-			a = (struct dnet_route_attr *)(attr + 1);
-
-			memcpy(cmd->id, req->id, DNET_ID_SIZE);
-			cmd->size = sizeof(struct dnet_attr);
-			cmd->trans = req->trans | DNET_TRANS_REPLY;
-			cmd->flags |= DNET_FLAGS_MORE;
-
-			attr->size = 0;
-			attr->cmd = DNET_CMD_ROUTE_LIST;
-
-			r->hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr);
-		}
-
-		if (!memcmp(st->id, orig->id, DNET_ID_SIZE))
-			continue;
+		if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
+			goto out_continue;
 
 		if (!memcmp(st->id, n->id, DNET_ID_SIZE))
-			continue;
+			goto out_continue;
+
+		err = 0;
+		if (idx == def_num) {
+			err = dnet_send_reply(orig, req, &ca, attr,
+				idx * sizeof(struct dnet_route_attr), 1);
+			if (err)
+				goto err_out_unlock;
+
+			idx = 0;
+		}
+
+		a = &attr[idx];
 
 		memcpy(a->id, st->id, DNET_ID_SIZE);
 		memcpy(&a->addr.addr, &st->addr, sizeof(struct dnet_addr));
@@ -225,20 +217,18 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *req
 		a->addr.sock_type = n->sock_type;
 		a->addr.proto = n->proto;
 
-		cmd->size += sizeof(struct dnet_route_attr);
-		attr->size += sizeof(struct dnet_route_attr);
-		r->hsize += sizeof(struct dnet_route_attr);
-
-		dnet_log(n, DNET_LOG_INFO, "%s: route to %s\n", dnet_dump_id(a->id),
-				dnet_server_convert_dnet_addr(&a->addr.addr));
-
 		dnet_convert_addr_attr(&a->addr);
-		a++;
-		space--;
+		idx++;
+
+out_continue:
+		dnet_log(n, DNET_LOG_INFO, "%s: route to %s [%c].\n",
+			dnet_dump_id(st->id), dnet_state_dump_addr(st),
+			(err) ? '-' : '+');
 	}
 
-	if (r) {
-		err = dnet_data_ready(orig, r);
+	if (idx) {
+		err = dnet_send_reply(orig, req, &ca, attr,
+			idx * sizeof(struct dnet_route_attr), 1);
 		if (err)
 			goto err_out_unlock;
 	}
@@ -345,7 +335,7 @@ static int dnet_local_transform(struct dnet_net_state *orig, struct dnet_cmd *cm
 	if (attr->size != sizeof(struct dnet_io_attr) + ctl.io.size) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: IO attribute size (%llu) plus header (%zu)"
 				" does not match write size (must be %llu).\n",
-				dnet_dump_id(cmd->id), (unsigned long)ctl.io.size,
+				dnet_dump_id(cmd->id), (unsigned long long)ctl.io.size,
 				sizeof(struct dnet_io_attr), (unsigned long long)attr->size);
 		err = -EINVAL;
 		goto err_out_exit;
@@ -419,6 +409,25 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 out_exit:
 	return err;
+}
+
+static int dnet_data_sync(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *data)
+{
+	struct dnet_node *n = st->n;
+	uint64_t num;
+
+	if (!attr->size || (attr->size % DNET_ID_SIZE)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: attribute size %llu "
+				"is not multiple of DNET_ID_SIZE(%zu).\n",
+				dnet_dump_id(cmd->id),
+				(unsigned long long)attr->size, DNET_ID_SIZE);
+		return -EINVAL;
+	}
+
+	num = attr->size / DNET_ID_SIZE;
+
+	return dnet_fetch_objects(st, data, num, NULL);
 }
 
 int dnet_process_cmd(struct dnet_trans *t)
@@ -504,7 +513,10 @@ int dnet_process_cmd(struct dnet_trans *t)
 					if (!err)
 						cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 				} else
-					err = dnet_notify_remove(st, cmd);
+					err = dnet_notify_remove(st, cmd, a);
+				break;
+			case DNET_CMD_SYNC:
+				err = dnet_data_sync(st, cmd, a, data);
 				break;
 			case DNET_CMD_WRITE:
 				if (!(cmd->flags & DNET_FLAGS_NO_LOCAL_TRANSFORM))
@@ -679,10 +691,21 @@ static int dnet_add_received_state(struct dnet_node *n, unsigned char *id, struc
 		goto err_out_close;
 	}
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: added state %s.\n", dnet_dump_id(id),
-		dnet_server_convert_dnet_addr(&a->addr));
+	err = dnet_send_address(nst, n->id, 0, DNET_CMD_JOIN, &n->addr, 0, 1);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to join to state %s.\n",
+			dnet_dump_id(nst->id), dnet_state_dump_addr(nst));
+		goto err_out_put;
+	}
+
+	dnet_log(n, DNET_LOG_INFO, "%s: added state %s.\n", dnet_dump_id(id),
+		dnet_state_dump_addr(nst));
 
 	return 0;
+
+err_out_put:
+	dnet_state_put(nst);
+	return err;
 
 err_out_close:
 	close(s);
@@ -721,23 +744,21 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 	num = attr->size / sizeof(struct dnet_route_attr);
 	dnet_log(n, DNET_LOG_INFO, "%s: route list: %d entries.\n", dnet_dump_id(cmd->id), num);
 	i = 0;
-	while (1) {
-		if (num < 10 || !i)
-			i++;
-		else
-			i <<= 1;
-
-		if (i >= num)
-			break;
-
+	while (i < num) {
 		a = &attrs[i];
 
 		dnet_convert_addr_attr(&a->addr);
 
 		err = dnet_add_received_state(n, a->id, &a->addr);
 		
-		dnet_log(n, DNET_LOG_INFO, " %2d   %s - %s, added error: %d.\n", i, dnet_dump_id(a->id),
+		dnet_log(n, DNET_LOG_INFO, " %2d/%d   %s - %s, added error: %d.\n",
+				i, num, dnet_dump_id(a->id),
 				dnet_server_convert_dnet_addr(&a->addr.addr), err);
+
+		if (num < 10 || !i)
+			i++;
+		else
+			i <<= 1;
 	}
 
 	return 0;
@@ -822,9 +843,10 @@ int dnet_rejoin(struct dnet_node *n, int all)
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: content sync failed, error: %d.\n",
 				dnet_dump_id(n->id), err);
-		if (err == -ENOENT)
-			err = 0;
-		return err;
+		if (err != -ENOENT)
+			return err;
+
+		err = 0;
 	}
 
 	pthread_rwlock_rdlock(&n->state_lock);
@@ -838,16 +860,16 @@ int dnet_rejoin(struct dnet_node *n, int all)
 		if (!all && st->join_state != DNET_REJOIN)
 			continue;
 
-		err = dnet_recv_route_list(st);
+		err = dnet_send_address(st, n->id, 0, DNET_CMD_JOIN, &n->addr, 0, 1);
 		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to send route list request to %s.\n",
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to rejoin to state %s.\n",
 				dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr));
 			break;
 		}
 
-		err = dnet_send_address(st, n->id, 0, DNET_CMD_JOIN, &n->addr, 0);
+		err = dnet_recv_route_list(st);
 		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to rejoin to state %s.\n",
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to send route list request to %s.\n",
 				dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr));
 			break;
 		}
@@ -1290,7 +1312,8 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	if (err)
 		dnet_log(n, DNET_LOG_ERROR, "Failed to write file '%s' into the storage, err: %d.\n", file, err);
 	else
-		dnet_log(n, DNET_LOG_INFO, "Successfully wrote file: '%s' into the storage, size: %zu.\n", file, size);
+		dnet_log(n, DNET_LOG_INFO, "Successfully wrote file: '%s' into the storage, size: %llu.\n",
+				file, (unsigned long long)size);
 
 	close(fd);
 	dnet_wait_put(w);
@@ -1779,7 +1802,7 @@ static int dnet_trans_map(struct dnet_node *n, char *main_file, uint64_t offset,
 	}
 	r.size = size;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: objects: %zd, range: %llu-%llu, "
+	dnet_log(n, DNET_LOG_INFO, "%s: objects: %ld, range: %llu-%llu, "
 			"counting from the most recent.\n",
 			file, num, offset, offset+r.size);
 
@@ -2699,4 +2722,35 @@ err_out_put:
 	dnet_wait_put(w);
 err_out_exit:
 	return err;
+}
+
+int dnet_request_sync(struct dnet_net_state *st, unsigned char *id)
+{
+	struct dnet_node *n = st->n;
+	char buf[sizeof(struct dnet_attr) + sizeof(struct dnet_cmd)];
+	struct dnet_attr *attr;
+	struct dnet_cmd *cmd;
+	char prev_id[DNET_ID_SIZE * 2 + 1];
+	char cur_id[DNET_ID_SIZE * 2 + 1];
+
+	cmd = (struct dnet_cmd *)buf;
+	attr = (struct dnet_attr *)(cmd + 1);
+
+	memcpy(cmd->id, id, DNET_ID_SIZE);
+	cmd->size = sizeof(struct dnet_attr);
+	cmd->flags = 0;
+	cmd->trans = 0;
+	cmd->status = 0;
+
+	attr->size = 0;
+	attr->flags = 1;
+	attr->cmd = DNET_CMD_LIST;
+
+	snprintf(prev_id, sizeof(prev_id), "%s", dnet_dump_id(st->id));
+	snprintf(cur_id, sizeof(cur_id), "%s", dnet_dump_id(id));
+
+	dnet_log(n, DNET_LOG_INFO, "Syncing %s - %s range to %s.\n",
+			prev_id, cur_id, dnet_state_dump_addr(st));
+
+	return n->command_handler(st, n->command_private, cmd, attr, NULL);
 }

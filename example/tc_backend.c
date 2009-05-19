@@ -295,7 +295,8 @@ err_out_exit:
 	return err;
 }
 
-static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd)
+static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
+		struct dnet_attr *attr)
 {
 	int err, num, size, i;
 	TCADB *e = be->hist;
@@ -336,7 +337,7 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd)
 				continue;
 
 			if (ipos == inum) {
-				err = dnet_send_reply(state, cmd, ids, ipos * DNET_ID_SIZE, 1);
+				err = dnet_send_reply(state, cmd, attr, ids, ipos * DNET_ID_SIZE, 1);
 				if (err)
 					goto out_clean;
 
@@ -355,7 +356,7 @@ out_clean:
 	}
 
 	if (ipos) {
-		err = dnet_send_reply(state, cmd, ids, ipos * DNET_ID_SIZE, 0);
+		err = dnet_send_reply(state, cmd, attr, ids, ipos * DNET_ID_SIZE, 0);
 		if (err)
 			goto err_out_exit;
 	}
@@ -380,11 +381,12 @@ int tc_backend_command_handler(void *state, void *priv,
 		case DNET_CMD_READ:
 			err = tc_get_data(state, e, cmd, attr, data);
 			break;
+		case DNET_CMD_SYNC:
 		case DNET_CMD_LIST:
-			err = tc_list(state, e, cmd);
+			err = tc_list(state, e, cmd, attr);
 			break;
 		case DNET_CMD_STAT:
-			err = backend_stat(state, e->env_dir, cmd);
+			err = backend_stat(state, e->env_dir, cmd, attr);
 			break;
 		default:
 			err = -EINVAL;

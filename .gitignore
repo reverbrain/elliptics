@@ -25,6 +25,8 @@ example/.libs
 example/hparser
 example/iotest
 example/example
+example/notify
+example/stat
 include/Makefile
 include/Makefile.in
 include/dnet/Makefile
@@ -44,4 +46,7 @@ missing
 *~
 *.tar.gz
 .*
+*.exp
+*.sh
+root/
 tags

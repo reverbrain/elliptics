@@ -531,7 +531,8 @@ err_out_exit:
 	return err;
 }
 
-static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd)
+static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd,
+		struct dnet_attr *attr)
 {
 	int err, end = 0;
 	struct bdb_entry *e = be->hist;
@@ -597,7 +598,8 @@ static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd)
 				break;
 
 			if (size < DNET_ID_SIZE) {
-				err = dnet_send_reply(state, cmd, odata, osize - size, 1);
+				err = dnet_send_reply(state, cmd, attr,
+						odata, osize - size, 1);
 				if (err)
 					goto err_out_close_cursor;
 
@@ -622,7 +624,7 @@ static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd)
 	}
 
 	if (osize != size) {
-		err = dnet_send_reply(state, cmd, odata, osize - size, 0);
+		err = dnet_send_reply(state, cmd, attr, odata, osize - size, 0);
 		if (err)
 			goto err_out_close_cursor;
 	}
@@ -838,11 +840,12 @@ int bdb_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd,
 		case DNET_CMD_READ:
 			err = bdb_get_data(state, e, cmd, attr, data);
 			break;
+		case DNET_CMD_SYNC:
 		case DNET_CMD_LIST:
-			err = bdb_list(state, e, cmd);
+			err = bdb_list(state, e, cmd, attr);
 			break;
 		case DNET_CMD_STAT:
-			err = backend_stat(state, e->env_dir, cmd);
+			err = backend_stat(state, e->env_dir, cmd, attr);
 			break;
 		default:
 			err = -EINVAL;

@@ -510,8 +510,12 @@ int dnet_recv_transform_list(struct dnet_node *n, unsigned char *id,
  * Send given number of bytes as reply command.
  * It will fill transaction, command and ID from the original command and copy given data.
  * It will set DNET_FLAGS_MORE if original command requested acknowledge or @more is set.
+ *
+ * If attr->cmd is DNET_CMD_SYNC then plain data will be sent back, otherwise transaction
+ * reply will be generated. So effectively difference is in DNET_TRANS_REPLY bit presence.
  */
-int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more);
+int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
+		void *odata, unsigned int size, int more);
 
 /*
  * Request statistics from the node corresponding to given ID.
