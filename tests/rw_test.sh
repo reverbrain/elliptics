@@ -29,6 +29,29 @@ function clean_up() {
 	fi
 }
 
+function do_cmd() {
+	echo $@ >> $RUN_STACK
+	$@ >> $RUN_STACK
+	TMP=$?
+	if [ "f$TMP" != "f0" ]; then
+		echo "ERROR $TMP"
+		echo -e "LOG: \n\n"
+		clean_up
+		exit 1	
+	fi
+}
+
+#compare test data and reading results
+function cmp_files() {
+	#compare test data and reading results
+	cmp $1 $2
+	if [ "f$?" != "f0" ]; then 
+		echo -e "ERROR\nfiles differ!"	
+		clean_up
+		exit 1
+	fi
+}
+
 #generating random file 
 echo "Generating test file..."
 cat /dev/urandom > $TEMP_DIR/tmp_1 &
@@ -60,39 +83,16 @@ echo "writing data..."
 echo -n > $TEMP_DIR/client_log
 CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
 	       	-l $TEMP_DIR/client_log -m $LOGMASK"
-echo "$CMD" >> $RUN_STACK
-$CMD >> $RUN_STACK
-TMP=$?
-if [ "f$TMP" != "f0" ]; then
-	echo "ERROR $TMP"
-	echo -e "LOG: \n\n"
-	clean_up
-	exit 1	
-fi
+do_cmd $CMD
 
 #read test data
 echo "reading data..."
 CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -R $TEMP_DIR/res_1 -I $FILE_ID_1 \
 	       	-l $TEMP_DIR/client_log -m $LOGMASK"
-echo "$CMD" >> $RUN_STACK
-$CMD >> $RUN_STACK
-TMP=$?
-if [ "f$TMP" != "f0" ]; then
-	echo "ERROR $TMP"
-	echo -e "LOG: \n\n"
-	clean_up
-	exit 1	
-fi
+do_cmd $CMD 
 
 #compare test data and reading results
-cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
-if [ "f$?" != "f0" ]; then 
-	echo -e "ERROR\nfiles differ!"	
-	clean_up
-	exit 1
-else 
-	echo "files is equal" 
-fi
+cmp_files $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
 rm $TEMP_DIR/res_1*
 
 # ***************************************
@@ -100,7 +100,7 @@ rm $TEMP_DIR/res_1*
 # *  send file in 2 transactions        *
 # ***************************************
 echo "===== 2 server - 1 client ====="
-echo "=====  send request to old first  server"
+echo "=====  send request to old first server"
 
 #calculating size of each transaction
 TOTAL_SIZE=$(stat --printf="%s" $TEMP_DIR/tmp_1)
@@ -112,54 +112,22 @@ echo "TOTAL_SIZE=$TOTAL_SIZE FIRST_TRANS_SIZE=$FIRST_TRANS_SIZE SECOND_TRANS_SIZ
 echo "writing first part of data..."
 CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
 		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O 0 -S $FIRST_TRANS_SIZE"
-echo "$CMD" >> $RUN_STACK
-$CMD >> $RUN_STACK
-TMP=$?
-if [ "f$TMP" != "f0" ]; then
-	echo "ERROR $TMP"
-	echo -e "LOG: \n\n"
-	cat $TEMP_DIR/client_log
-	clean_up
-	exit 1	
-fi
+do_cmd $CMD
 
 #write second part of test data
 echo "writing second part of data..."
 CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
 		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O $FIRST_TRANS_SIZE -S $SECOND_TRANS_SIZE"
-echo "$CMD" >> $RUN_STACK
-$CMD >> $RUN_STACK
-TMP=$?
-if [ "f$TMP" != "f0" ]; then
-	echo "ERROR $TMP"
-	echo -e "LOG: \n\n"
-	clean_up
-	exit 1	
-fi
+do_cmd $CMD
 
 #read test data
 echo "reading data..."
 CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
 		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
-echo "$CMD" >> $RUN_STACK
-$CMD >> $RUN_STACK
-TMP=$?
-if [ "f$TMP" != "f0" ]; then
-	echo "ERROR $TMP"
-	echo -e "LOG: \n\n"
-	clean_up
-	exit 1	
-fi
+do_cmd $CMD
 
 #compare test data and reading results
-cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
-if [ "f$?" != "f0" ]; then 
-	echo -e "ERROR\nfiles differ!"	
-	clean_up
-	exit 1
-else 
-	echo "files is equal" 
-fi
+cmp_files $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
 rm $TEMP_DIR/res_1*
 
 
@@ -190,25 +158,10 @@ SERVER2_PID=$!
 echo "reading data..."
 CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
 	       -R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
-echo "$CMD" >> $RUN_STACK
-$CMD >> $RUN_STACK
-TMP=$?
-if [ "f$TMP" != "f0" ]; then
-	echo "ERROR $TMP"
-	echo -e "LOG: \n\n"
-	clean_up
-	exit 1	
-fi
+do_cmd $CMD
 
 #compare test data and reading results
-cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
-if [ "f$?" != "f0" ]; then 
-	echo -e "ERROR\nfiles differ!"	
-	clean_up
-	exit 1
-else 
-	echo "files is equal" 
-fi
+cmp_files $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
 rm $TEMP_DIR/res_1*
 
 
@@ -223,25 +176,10 @@ echo "=====  send request to old first  server"
 echo "reading data..."
 CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
 		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
-echo "$CMD" >> $RUN_STACK
-$CMD >> $RUN_STACK
-TMP=$?
-if [ "f$TMP" != "f0" ]; then
-	echo "ERROR $TMP"
-	echo -e "LOG: \n\n"
-	clean_up
-	exit 1	
-fi
+do_cmd $CMD
 
 #compare test data and reading results
-cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
-if [ "f$?" != "f0" ]; then 
-	echo -e "ERROR\nfiles differ!"	
-	clean_up
-	exit 1
-else 
-	echo "files is equal" 
-fi
+cmp_files $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
 rm $TEMP_DIR/res_1*
 
 # ***************************************
@@ -262,25 +200,10 @@ SERVER1_PID=
 echo "reading data..."
 CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
 		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
-echo "$CMD" >> $RUN_STACK
-$CMD >> $RUN_STACK
-TMP=$?
-if [ "f$TMP" != "f0" ]; then
-	echo "ERROR $TMP"
-	echo -e "LOG: \n\n"
-	clean_up
-	exit 1	
-fi
+do_cmd $CMD
 
 #compare test data and reading results
-cmp $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
-if [ "f$?" != "f0" ]; then 
-	echo -e "ERROR\nfiles differ!\Join isn't correct!"	
-	clean_up
-	exit 1
-else 
-	echo -e "files is equal\nJoin is correct" 
-fi
+cmp_files $TEMP_DIR/tmp_1 $TEMP_DIR/res_1
 rm $TEMP_DIR/res_1*
 
 
