@@ -63,7 +63,7 @@ struct dnet_node;
  */
 int dnet_log_init(struct dnet_node *n, void *priv, uint32_t mask,
 		void (* log)(void *priv, uint32_t mask, const char *msg));
-void dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...);
+void dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
 
 #define dnet_log(n, mask, format, a...) do { if (n->log_mask & mask) dnet_log_raw(n, mask, format, ##a); } while (0)
 #define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, "%s: " f ": %s [%d].\n", \
@@ -125,6 +125,7 @@ int dnet_state_insert(struct dnet_net_state *new);
 void dnet_state_remove(struct dnet_net_state *st);
 struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
+struct dnet_net_state *dnet_state_get_next(struct dnet_net_state *st);
 void dnet_state_destroy(struct dnet_net_state *st);
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
@@ -212,7 +213,8 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *data);
 
 int dnet_notify_add(struct dnet_net_state *st, struct dnet_cmd *cmd);
-int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd);
+int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *a);
 
 int dnet_notify_init(struct dnet_node *n);
 void dnet_notify_exit(struct dnet_node *n);
@@ -296,6 +298,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 
 enum dnet_join_state {
 	DNET_CLIENT,		/* Node did not not join the network */
+	DNET_SERVER,		/* Node was added into route table */
 	DNET_JOINED,		/* Node joined the network */
 	DNET_REJOIN,		/* Some of the states reconnected and node needs to rejoin */
 };
@@ -389,6 +392,9 @@ int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd);
 int dnet_schedule_socket(struct dnet_net_state *st);
 
 void dnet_req_trans_destroy(struct dnet_data_req *r, int err);
+
+int dnet_fetch_objects(struct dnet_net_state *st, void *data, uint64_t num, struct dnet_wait *w);
+int dnet_request_sync(struct dnet_net_state *st, unsigned char *id);
 
 #ifdef __cplusplus
 }

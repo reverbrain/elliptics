@@ -345,7 +345,7 @@ static int dnet_local_transform(struct dnet_net_state *orig, struct dnet_cmd *cm
 	if (attr->size != sizeof(struct dnet_io_attr) + ctl.io.size) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: IO attribute size (%llu) plus header (%zu)"
 				" does not match write size (must be %llu).\n",
-				dnet_dump_id(cmd->id), (unsigned long)ctl.io.size,
+				dnet_dump_id(cmd->id), (unsigned long long)ctl.io.size,
 				sizeof(struct dnet_io_attr), (unsigned long long)attr->size);
 		err = -EINVAL;
 		goto err_out_exit;
@@ -419,6 +419,25 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 out_exit:
 	return err;
+}
+
+static int dnet_data_sync(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *data)
+{
+	struct dnet_node *n = st->n;
+	uint64_t num;
+
+	if (!attr->size || (attr->size % DNET_ID_SIZE)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: attribute size %llu "
+				"is not multiple of DNET_ID_SIZE(%zu).\n",
+				dnet_dump_id(cmd->id),
+				(unsigned long long)attr->size, DNET_ID_SIZE);
+		return -EINVAL;
+	}
+
+	num = attr->size / DNET_ID_SIZE;
+
+	return dnet_fetch_objects(st, data, num, NULL);
 }
 
 int dnet_process_cmd(struct dnet_trans *t)
@@ -504,7 +523,10 @@ int dnet_process_cmd(struct dnet_trans *t)
 					if (!err)
 						cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 				} else
-					err = dnet_notify_remove(st, cmd);
+					err = dnet_notify_remove(st, cmd, a);
+				break;
+			case DNET_CMD_SYNC:
+				err = dnet_data_sync(st, cmd, a, data);
 				break;
 			case DNET_CMD_WRITE:
 				if (!(cmd->flags & DNET_FLAGS_NO_LOCAL_TRANSFORM))
@@ -1290,7 +1312,8 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	if (err)
 		dnet_log(n, DNET_LOG_ERROR, "Failed to write file '%s' into the storage, err: %d.\n", file, err);
 	else
-		dnet_log(n, DNET_LOG_INFO, "Successfully wrote file: '%s' into the storage, size: %zu.\n", file, size);
+		dnet_log(n, DNET_LOG_INFO, "Successfully wrote file: '%s' into the storage, size: %llu.\n",
+				file, (unsigned long long)size);
 
 	close(fd);
 	dnet_wait_put(w);
@@ -1779,7 +1802,7 @@ static int dnet_trans_map(struct dnet_node *n, char *main_file, uint64_t offset,
 	}
 	r.size = size;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: objects: %zd, range: %llu-%llu, "
+	dnet_log(n, DNET_LOG_INFO, "%s: objects: %ld, range: %llu-%llu, "
 			"counting from the most recent.\n",
 			file, num, offset, offset+r.size);
 
@@ -2699,4 +2722,35 @@ err_out_put:
 	dnet_wait_put(w);
 err_out_exit:
 	return err;
+}
+
+int dnet_request_sync(struct dnet_net_state *st, unsigned char *id)
+{
+	struct dnet_node *n = st->n;
+	char buf[sizeof(struct dnet_attr) + sizeof(struct dnet_cmd)];
+	struct dnet_attr *attr;
+	struct dnet_cmd *cmd;
+	char prev_id[DNET_ID_SIZE * 2 + 1];
+	char cur_id[DNET_ID_SIZE * 2 + 1];
+
+	cmd = (struct dnet_cmd *)buf;
+	attr = (struct dnet_attr *)(cmd + 1);
+
+	memcpy(cmd->id, id, DNET_ID_SIZE);
+	cmd->size = sizeof(struct dnet_attr);
+	cmd->flags = 0;
+	cmd->trans = 0;
+	cmd->status = 0;
+
+	attr->size = 0;
+	attr->flags = 1;
+	attr->cmd = DNET_CMD_LIST;
+
+	snprintf(prev_id, sizeof(prev_id), "%s", dnet_dump_id(st->id));
+	snprintf(cur_id, sizeof(cur_id), "%s", dnet_dump_id(id));
+
+	dnet_log(n, DNET_LOG_INFO, "Syncing %s - %s range to %s.\n",
+			prev_id, cur_id, dnet_state_dump_addr(st));
+
+	return n->command_handler(st, n->command_private, cmd, attr, NULL);
 }

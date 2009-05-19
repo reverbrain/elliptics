@@ -65,7 +65,7 @@ int file_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 void *file_backend_setup_root(char *root);
 
-int backend_stat(void *state, char *path, struct dnet_cmd *cmd);
+int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr *attr);
 
 #ifdef __cplusplus
 }

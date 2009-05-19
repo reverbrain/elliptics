@@ -124,7 +124,8 @@ static int dnet_is_regular(void *state, char *path)
 }
 
 static int dnet_listdir(void *state, struct dnet_cmd *cmd,
-		char *sub, unsigned char *first_id)
+		struct dnet_attr *attr,	char *sub,
+		unsigned char *first_id)
 {
 	int err = 0;
 	DIR *dir;
@@ -184,7 +185,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 		}
 		
 		if (size < DNET_ID_SIZE) {
-			err = dnet_send_reply(state, cmd, odata, osize - size, 1);
+			err = dnet_send_reply(state, cmd, attr, odata, osize - size, 1);
 			if (err)
 				goto err_out_close;
 
@@ -196,12 +197,12 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 		data += DNET_ID_SIZE;
 		size -= DNET_ID_SIZE;
 
-		dnet_command_handler_log(state, DNET_LOG_NOTICE,
+		dnet_command_handler_log(state, DNET_LOG_INFO,
 			"%s -> %s.\n", d->d_name, dnet_dump_id(id));
 	}
 
 	if (osize != size) {
-		err = dnet_send_reply(state, cmd, odata, osize - size, 0);
+		err = dnet_send_reply(state, cmd, attr, odata, osize - size, 0);
 		if (err)
 			goto err_out_close;
 	}
@@ -227,7 +228,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_list(void *state, struct dnet_cmd *cmd)
+static int dnet_cmd_list(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	char sub[3];
 	unsigned char start, last;
@@ -242,7 +243,7 @@ static int dnet_cmd_list(void *state, struct dnet_cmd *cmd)
 	
 	sprintf(sub, "%02x", cmd->id[0]);
 
-	err = dnet_listdir(state, cmd, sub, cmd->id);
+	err = dnet_listdir(state, cmd, attr, sub, cmd->id);
 	if (err && (err != -ENOENT))
 		goto out_exit;
 
@@ -250,7 +251,7 @@ static int dnet_cmd_list(void *state, struct dnet_cmd *cmd)
 	for (start = cmd->id[0]-1; start != last; --start) {
 		sprintf(sub, "%02x", start);
 
-		err = dnet_listdir(state, cmd, sub, NULL);
+		err = dnet_listdir(state, cmd, attr, sub, NULL);
 		if (err && (err != -ENOENT))
 			goto out_exit;
 	}
@@ -589,11 +590,12 @@ int file_backend_command_handler(void *state, void *priv,
 		case DNET_CMD_READ:
 			err = dnet_cmd_read(state, cmd, attr, data);
 			break;
+		case DNET_CMD_SYNC:
 		case DNET_CMD_LIST:
-			err = dnet_cmd_list(state, cmd);
+			err = dnet_cmd_list(state, cmd, attr);
 			break;
 		case DNET_CMD_STAT:
-			err = backend_stat(state, priv, cmd);
+			err = backend_stat(state, priv, cmd, attr);
 			break;
 		default:
 			err = -EINVAL;

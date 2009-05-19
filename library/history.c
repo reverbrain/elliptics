@@ -78,11 +78,12 @@ out:
 }
 
 static int dnet_read_object_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *priv __unused)
+		struct dnet_attr *attr, void *priv)
 {
 	int err;
 	struct dnet_node *n = NULL;
 	struct dnet_io_attr *io;
+	struct dnet_wait *w = priv;
 
 	if (!st || !cmd || cmd->status || !cmd->size) {
 		err = -EINVAL;
@@ -132,9 +133,9 @@ static int dnet_read_object_complete(struct dnet_net_state *st, struct dnet_cmd 
 	return 0;
 
 out:
-	if (st) {
-		dnet_wakeup(st->n->wait, do { st->n->wait->cond--; st->n->total_synced_files++; } while (0));
-		dnet_wait_put(st->n->wait);
+	if (st && w) {
+		dnet_wakeup(w, do { w->cond--; st->n->total_synced_files++; } while (0));
+		dnet_wait_put(w);
 	}
 
 err_out_exit:
@@ -147,19 +148,21 @@ err_out_exit:
 }
 
 static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *priv __unused)
+		struct dnet_attr *attr, void *priv)
 {
 	int err;
 	struct dnet_node *n = NULL;
 	struct dnet_cmd *c = NULL;
 	struct dnet_attr *a;
 	struct dnet_io_attr *io;
+	struct dnet_wait *w = priv;
 
 	if (!st || !cmd || cmd->status || !cmd->size) {
 		err = -EINVAL;
 		if (cmd) {
 			err = cmd->status;
-			dnet_log(st->n, DNET_LOG_INFO, "%s: received remote history: status: %d.\n",
+			dnet_log(st->n, DNET_LOG_INFO, "%s: received remote history: "
+					"status: %d.\n",
 					dnet_dump_id(cmd->id), err);
 		}
 		goto out;
@@ -177,8 +180,10 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 	}
 
 	if (cmd->size != attr->size + sizeof(struct dnet_attr)) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: wrong sizes: cmd_size: %llu, attr_size: %llu.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)cmd->size, (unsigned long long)attr->size);
+		dnet_log(n, DNET_LOG_ERROR, "%s: wrong sizes: cmd_size: %llu, "
+				"attr_size: %llu.\n",
+				dnet_dump_id(cmd->id), (unsigned long long)cmd->size,
+				(unsigned long long)attr->size);
 		err = -EINVAL;
 		goto err_out_exit;
 	}
@@ -212,7 +217,8 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 
 	err = n->command_handler(st, n->command_private, c, a, io);
 	dnet_log(n, DNET_LOG_INFO, "%s: read local history: io_size: %llu, err: %d.\n",
-					dnet_dump_id(cmd->id), (unsigned long long)io->size, err);
+					dnet_dump_id(cmd->id),
+					(unsigned long long)io->size, err);
 	if (err) {
 		struct dnet_io_control ctl;
 		
@@ -220,7 +226,8 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 			attr->cmd = DNET_CMD_WRITE;
 
 			err = n->command_handler(st, n->command_private, cmd, attr, attr+1);
-			dnet_log(st->n, DNET_LOG_INFO, "%s: stored history locally, err: %d, asize: %llu.\n",
+			dnet_log(st->n, DNET_LOG_INFO, "%s: stored history locally, "
+					"err: %d, asize: %llu.\n",
 				dnet_dump_id(cmd->id), err, (unsigned long long)attr->size);
 			if (err)
 				goto err_out_free;
@@ -235,13 +242,15 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 		ctl.io.offset = 0;
 		ctl.io.flags = 0;
 
-		ctl.priv = NULL;
+		ctl.priv = w;
 		ctl.complete = dnet_read_object_complete;
 		ctl.cmd = DNET_CMD_READ;
 		ctl.cflags = DNET_FLAGS_NEED_ACK;
 
-		dnet_wakeup(n->wait, n->wait->cond++);
-		dnet_wait_get(n->wait);
+		if (w) {
+			dnet_wakeup(w, w->cond++);
+			dnet_wait_get(w);
+		}
 
 		err = dnet_read_object(n, &ctl);
 		if (err)
@@ -256,10 +265,9 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 	return 0;
 
 out:
-	if (st) {
-		n = st->n;
-		dnet_wakeup(n->wait, n->wait->cond--);
-		dnet_wait_put(n->wait);
+	if (w) {
+		dnet_wakeup(w, w->cond--);
+		dnet_wait_put(w);
 	}
 err_out_free:
 	free(c);
@@ -272,12 +280,45 @@ err_out_exit:
 	return 0;
 }
 
+int dnet_fetch_objects(struct dnet_net_state *st, void *data, uint64_t num,
+		struct dnet_wait *w)
+{
+	struct dnet_node *n = st->n;
+	struct dnet_io_control ctl;
+	uint64_t i;
+
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
+
+	ctl.complete = dnet_complete_history_read;
+	ctl.io.flags = DNET_IO_FLAGS_HISTORY;
+	ctl.priv = w;
+	ctl.cmd = DNET_CMD_READ;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+
+	dnet_log(n, DNET_LOG_INFO, "%s: received %llu history IDs.\n",
+			dnet_dump_id(ctl.addr), (unsigned long long)num);
+	for (i=0; i<num; ++i) {
+		memcpy(ctl.addr, data, DNET_ID_SIZE);
+		memcpy(ctl.io.origin, data, DNET_ID_SIZE);
+
+		dnet_log(n, DNET_LOG_NOTICE, "%s: requesting history.\n",
+				dnet_dump_id(ctl.addr));
+
+		if (w)
+			dnet_wait_get(w);
+		dnet_read_object(n, &ctl);
+
+		data += DNET_ID_SIZE;
+	}
+
+	return 0;
+}
+
 static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *priv)
+		struct dnet_attr *attr, void *priv __unused)
 {
 	struct dnet_node *n = NULL;
-	uint64_t size, i;
-	struct dnet_io_control ctl;
+	uint64_t size, num;
 	int err = 0;
 	void *data = attr + 1;
 
@@ -293,42 +334,28 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 	if (size < sizeof(struct dnet_attr)) {
 		err = -EINVAL;
-		dnet_log(n, DNET_LOG_ERROR, "%s: wrong command size %llu, must be more than %zu.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)cmd->size, sizeof(struct dnet_attr));
+		dnet_log(n, DNET_LOG_ERROR, "%s: wrong command size %llu, "
+				"must be more than %zu.\n",
+				dnet_dump_id(cmd->id), (unsigned long long)cmd->size,
+				sizeof(struct dnet_attr));
 		goto err_out_exit;
 	}
 
 	size -= sizeof(struct dnet_attr);
 	
-	if (size % DNET_ID_SIZE) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: wrong command size %llu, must be multiple of DNET_ID_SIZE (%u).\n",
-				dnet_dump_id(cmd->id), (unsigned long long)cmd->size, DNET_ID_SIZE);
+	if (!size || size % DNET_ID_SIZE) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: wrong command size %llu, "
+				"must be multiple of DNET_ID_SIZE (%u).\n",
+				dnet_dump_id(cmd->id), (unsigned long long)cmd->size,
+				DNET_ID_SIZE);
 		err = -EINVAL;
 		goto err_out_exit;
 	}
 
-	memset(&ctl, 0, sizeof(struct dnet_io_control));
+	num = size / DNET_ID_SIZE;
 
-	ctl.complete = dnet_complete_history_read;
-	ctl.io.flags = DNET_IO_FLAGS_HISTORY;
-	ctl.priv = priv;
-	ctl.cmd = DNET_CMD_READ;
-	ctl.cflags = DNET_FLAGS_NEED_ACK;
-
-	n->wait->cond += size / DNET_ID_SIZE;
-
-	dnet_log(n, DNET_LOG_INFO, "%s: received %llu history IDs.\n", dnet_dump_id(ctl.addr), size / DNET_ID_SIZE);
-	for (i=0; i<size / DNET_ID_SIZE; ++i) {
-		memcpy(ctl.addr, data, DNET_ID_SIZE);
-		memcpy(ctl.io.origin, data, DNET_ID_SIZE);
-
-		dnet_log(n, DNET_LOG_NOTICE, "%s: requesting history.\n", dnet_dump_id(ctl.addr));
-
-		dnet_wait_get(n->wait);
-		dnet_read_object(n, &ctl);
-
-		data += DNET_ID_SIZE;
-	}
+	n->wait->cond += num;
+	dnet_fetch_objects(st, data, num, n->wait);
 
 	return 0;
 
