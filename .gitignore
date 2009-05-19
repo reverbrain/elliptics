@@ -47,5 +47,6 @@ missing
 *.tar.gz
 .*
 *.exp
+*.sh
 root/
 tags
