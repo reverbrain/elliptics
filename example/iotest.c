@@ -147,7 +147,8 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 
 	ctl.io.offset = 0;
 	ctl.io.size = size;
-	ctl.io.flags = 0;
+	if (!obj)
+		ctl.io.flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 
@@ -166,7 +167,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 
 		ctl.priv = (void *)(unsigned long)size;
 
-		err = dnet_write_object(n, &ctl, obj, NULL, 1, &trans_num);
+		err = dnet_write_object(n, &ctl, obj, NULL, !!obj, &trans_num);
 		if (err < 0)
 			return err;
 
@@ -460,7 +461,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	if (!obj) {
+	if (!obj && !write) {
 		fprintf(stderr, "No object name to use as ID.\n");
 		return -1;
 	}
