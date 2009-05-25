@@ -257,6 +257,11 @@ int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 
 		if (!num)
 			return 0;
+		if (num < 0) {
+			fprintf(stderr, "Negative number (%d) is not allowed to the 'previous' transformation.\n",
+					num);
+			return -EINVAL;
+		}
 
 		return dnet_prev_engine_init(e, num);
 	}
