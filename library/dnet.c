@@ -1118,17 +1118,22 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	if (id) {
 		memcpy(ctl->io.id, id, DNET_ID_SIZE);
 		memcpy(addr, id, DNET_ID_SIZE);
-	} else if (remote && len) {
-		*pos = *pos - 1;
-		rsize = DNET_ID_SIZE;
-		err = dnet_transform(n, remote, len, ctl->io.id, addr, &rsize, pos);
-		if (err) {
-			if (err > 0)
-				return err;
-			goto err_out_complete;
-		}
 	} else {
+		/*
+		 * Copy origin ID in case transformation function wants to work with it.
+		 */
 		memcpy(ctl->io.id, ctl->io.origin, DNET_ID_SIZE);
+
+		if (remote && len) {
+			*pos = *pos - 1;
+			rsize = DNET_ID_SIZE;
+			err = dnet_transform(n, remote, len, ctl->io.id, addr, &rsize, pos);
+			if (err) {
+				if (err > 0)
+					return err;
+				goto err_out_complete;
+			}
+		}
 	}
 
 	err = dnet_trans_create_send(n, ctl);

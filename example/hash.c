@@ -24,6 +24,9 @@
 
 #include "hash.h"
 
+#include <dnet/packet.h>
+#include <dnet/interface.h>
+
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
@@ -182,9 +185,81 @@ static int dnet_jhash_crypto_engine_init(struct dnet_crypto_engine *eng)
 	return 0;
 }
 
+struct dnet_prev_engine
+{
+	int			num;
+	struct dnet_node	*node;
+};
+
+static int dnet_prev_init(void *priv, struct dnet_node *n)
+{
+	struct dnet_crypto_engine *eng = priv;
+	struct dnet_prev_engine *e = eng->engine;
+
+	e->node = n;
+
+	return 0;
+}
+
+static int dnet_prev_update(void *priv __unused,
+		void *src __unused, uint64_t size __unused,
+		void *dst __unused, unsigned int *dsize __unused,
+		unsigned int flags __unused)
+{
+	return 0;
+}
+
+static int dnet_prev_final(void *priv, void *result, void *addr,
+		unsigned int *rsize, unsigned int flags __unused)
+{
+	struct dnet_crypto_engine *eng = priv;
+	struct dnet_prev_engine *e = eng->engine;
+	unsigned int sz = *rsize;
+
+	if (sz != DNET_ID_SIZE)
+		return -EINVAL;
+
+	return dnet_state_get_prev_id(e->node, result, addr, e->num);
+}
+
+static int dnet_prev_engine_init(struct dnet_crypto_engine *eng, int num)
+{
+	struct dnet_prev_engine *e;
+
+	e = malloc(sizeof(struct dnet_prev_engine));
+	if (!e)
+		return -ENOMEM;
+	memset(e, 0, sizeof(struct dnet_prev_engine));
+
+	e->num = num;
+	eng->engine = e;
+	eng->init = dnet_prev_init;
+	eng->update = dnet_prev_update;
+	eng->final = dnet_prev_final;
+
+	return 0;
+}
+
 int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 {
 	snprintf(e->name, sizeof(e->name), "%s", hash);
+
+	if (!strncmp(hash, "prev", 4)) {
+		int num;
+
+		if (strlen(hash) <= 4) {
+			fprintf(stderr, "Failed to register 'previos' transformation -"
+					" you have to provide a number of entries, like 'prev3'.\n");
+			return -EINVAL;
+		}
+
+		num = atoi(&hash[4]);
+
+		if (!num)
+			return 0;
+
+		return dnet_prev_engine_init(e, num);
+	}
 
 	if (!strcmp(hash, "jhash"))
 		return dnet_jhash_crypto_engine_init(e);

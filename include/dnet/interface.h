@@ -577,7 +577,16 @@ struct dnet_trans_control
 	void			*priv;
 };
 
+/*
+ * Allocate and send transaction according to above control structure.
+ */
 int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl);
+
+/*
+ * Copy ID of the state @num entries back from the one responsible for @id ID.
+ * Returns negative error value if operation failed or zero in success case.
+ */
+int dnet_state_get_prev_id(struct dnet_node *n, unsigned char *id, unsigned char *res, int num);
 
 
 #ifdef __cplusplus

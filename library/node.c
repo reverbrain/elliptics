@@ -320,6 +320,31 @@ struct dnet_net_state *dnet_state_get_prev(struct dnet_net_state *st)
 	return prev;
 }
 
+int dnet_state_get_prev_id(struct dnet_node *n, unsigned char *id, unsigned char *res, int num)
+{
+	struct dnet_net_state *prev, *old_prev;
+
+	prev = dnet_state_get_first(n, id, NULL);
+	if (!prev)
+		return -ENOENT;
+
+	while (num) {
+		old_prev = prev;
+		prev = dnet_state_get_prev(old_prev);
+		dnet_state_put(old_prev);
+
+		if (!prev)
+			return -ENOENT;
+
+		num--;
+	}
+
+	memcpy(res, prev->id, DNET_ID_SIZE);
+	dnet_state_put(prev);
+
+	return 0;
+}
+
 int dnet_state_move(struct dnet_net_state *st)
 {
 	struct dnet_node *n = st->n;
