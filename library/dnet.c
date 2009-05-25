@@ -2195,11 +2195,11 @@ int dnet_give_up_control(struct dnet_node *n)
 {
 	struct dnet_addr_storage *ast, *tmp;
 	struct dnet_net_state *st;
-	int s, rejoin;
+	int s, rejoin, timeout = 1, max_timeout = 30;
 
 	while (!n->need_exit) {
 		if (list_empty(&n->reconnect_list))
-			sleep(1);
+			sleep(timeout);
 
 		rejoin = 0;
 		pthread_mutex_lock(&n->reconnect_lock);
@@ -2223,10 +2223,16 @@ int dnet_give_up_control(struct dnet_node *n)
 		}
 		pthread_mutex_unlock(&n->reconnect_lock);
 
-		if (rejoin)
-			dnet_rejoin(n, 0);
+		timeout *= 2;
+		if (timeout > max_timeout)
+			timeout = max_timeout;
 
-		sleep(1);
+		if (rejoin) {
+			timeout = 1;
+			dnet_rejoin(n, 0);
+		}
+
+		sleep(timeout);
 	}
 
 	return 0;
