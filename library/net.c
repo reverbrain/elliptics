@@ -485,6 +485,9 @@ static int dnet_sync_failed_range(struct dnet_net_state *st)
 
 	dnet_state_remove(st);
 
+	if (st->join_state == DNET_CLIENT)
+		return 0;
+
 	cap = dnet_state_search(n, st->id, NULL);
 	if (cap == n->st) {
 		struct dnet_net_state *old_prev = cap, *prev;
@@ -505,7 +508,7 @@ static int dnet_sync_failed_range(struct dnet_net_state *st)
 	} else
 		dnet_state_put(cap);
 
-	if (st->join_state == DNET_CLIENT || st->join_state == DNET_CLIENT_JOINED)
+	if (st->join_state == DNET_CLIENT_JOINED)
 		return 0;
 
 	return dnet_add_reconnect_addr(n, &st->addr);
