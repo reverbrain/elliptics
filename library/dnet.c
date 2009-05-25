@@ -344,7 +344,7 @@ static int dnet_local_transform(struct dnet_net_state *orig, struct dnet_cmd *cm
 	data = malloc(ctl.io.size);
 	if (!data) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to clone data (%llu bytes) for replication.\n",
-				dnet_dump_id(cmd->id), ctl.io.size);
+				dnet_dump_id(cmd->id), (unsigned long long)ctl.io.size);
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
@@ -419,7 +419,7 @@ static int dnet_data_sync(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	if (!attr->size || (attr->size % DNET_ID_SIZE)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: attribute size %llu "
-				"is not multiple of DNET_ID_SIZE(%zu).\n",
+				"is not multiple of DNET_ID_SIZE(%u).\n",
 				dnet_dump_id(cmd->id),
 				(unsigned long long)attr->size, DNET_ID_SIZE);
 		return -EINVAL;
@@ -591,22 +591,14 @@ int dnet_process_cmd(struct dnet_trans *t)
 	return err;
 }
 
-int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
+static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct dnet_addr *addr, int s)
 {
-	int s, err;
 	struct dnet_net_state *st, dummy;
 	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)];
-	struct dnet_addr addr;
 	struct dnet_addr_cmd acmd;
 	struct dnet_cmd *cmd;
 	struct dnet_attr *a;
-
-	addr.addr_len = sizeof(addr.addr);
-	s = dnet_socket_create(n, cfg, (struct sockaddr *)&addr.addr, &addr.addr_len, 0);
-	if (s < 0) {
-		err = s;
-		goto err_out_exit;
-	}
+	int err;
 
 	memset(buf, 0, sizeof(buf));
 
@@ -632,8 +624,8 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send reverse "
 				"lookup message to %s, err: %d.\n",
 				dnet_dump_id(n->id),
-				dnet_server_convert_dnet_addr(&addr), err);
-		goto err_out_sock_close;
+				dnet_server_convert_dnet_addr(addr), err);
+		goto err_out_exit;
 	}
 
 	err = dnet_recv(st, &acmd, sizeof(acmd));
@@ -641,8 +633,8 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to receive reverse "
 				"lookup response from %s, err: %d.\n",
 				dnet_dump_id(n->id),
-				dnet_server_convert_dnet_addr(&addr), err);
-		goto err_out_sock_close;
+				dnet_server_convert_dnet_addr(addr), err);
+		goto err_out_exit;
 	}
 
 	dnet_convert_addr_cmd(&acmd);
@@ -653,6 +645,29 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 	st = dnet_state_create(n, acmd.cmd.id, &acmd.addr.addr, s);
 	if (!st) {
 		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	return st;
+
+err_out_exit:
+	return NULL;
+}
+
+int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
+{
+	int s, err;
+	struct dnet_addr addr;
+	struct dnet_net_state *st;
+
+	addr.addr_len = sizeof(addr.addr);
+	s = dnet_socket_create(n, cfg, (struct sockaddr *)&addr.addr, &addr.addr_len, 0);
+	if (s < 0)
+		return s;
+
+	st = dnet_add_state_socket(n, &addr, s);
+	if (!st) {
+		err = -EINVAL;
 		goto err_out_sock_close;
 	}
 
@@ -660,7 +675,6 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 
 err_out_sock_close:
 	close(s);
-err_out_exit:
 	return err;
 }
 
@@ -950,10 +964,11 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 		a = ctl->adata;
 
 		if (a->size != ctl->asize - sizeof(struct dnet_attr)) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: additional attribute size (%u) does not match "
+			dnet_log(n, DNET_LOG_ERROR, "%s: additional attribute size (%llu) does not match "
 					"structure's attribute size %llu.\n",
-					dnet_dump_id(ctl->addr), ctl->asize - sizeof(struct dnet_attr),
-					a->size);
+					dnet_dump_id(ctl->addr),
+					(unsigned long long)ctl->asize - sizeof(struct dnet_attr),
+					(unsigned long long)a->size);
 			err = -EINVAL;
 			goto err_out_exit;
 		}
@@ -1774,7 +1789,7 @@ static int dnet_trans_map(struct dnet_node *n, char *main_file, uint64_t offset,
 
 	if (!st.st_size || (st.st_size % isize)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: Corrupted history file '%s', "
-				"its size %llu has to be modulo of %zu.\n",
+				"its size %llu has to be modulo of %u.\n",
 				dnet_dump_id(n->id), file,
 				(unsigned long long)st.st_size, isize);
 		err = -EINVAL;
@@ -1804,7 +1819,8 @@ static int dnet_trans_map(struct dnet_node *n, char *main_file, uint64_t offset,
 
 	dnet_log(n, DNET_LOG_INFO, "%s: objects: %ld, range: %llu-%llu, "
 			"counting from the most recent.\n",
-			file, num, offset, offset+r.size);
+			file, num, (unsigned long long)offset,
+			(unsigned long long)offset+r.size);
 
 	err = dnet_trans_map_add_range(&r, offset, size);
 	if (err) {
@@ -2172,11 +2188,39 @@ err_out_exit:
 
 int dnet_give_up_control(struct dnet_node *n)
 {
+	struct dnet_addr_storage *ast, *tmp;
+	struct dnet_net_state *st;
+	int s, rejoin;
+
 	while (!n->need_exit) {
-		if (n->join_state == DNET_REJOIN) {
-			dnet_rejoin(n, 0);
-			n->join_state = DNET_JOINED;
+		if (list_empty(&n->reconnect_list))
+			sleep(1);
+
+		rejoin = 0;
+		pthread_mutex_lock(&n->reconnect_lock);
+		list_for_each_entry_safe(ast, tmp, &n->reconnect_list, reconnect_entry) {
+			s = dnet_socket_create_addr(n, n->sock_type, n->proto, n->family,
+					(struct sockaddr *)ast->addr.addr, ast->addr.addr_len, 0);
+			if (s < 0)
+				continue;
+
+			st = dnet_add_state_socket(n, &ast->addr, s);
+			if (!st) {
+				close(s);
+				continue;
+			}
+
+			st->join_state = DNET_REJOIN;
+			rejoin = 1;
+
+			list_del(&ast->reconnect_entry);
+			free(ast);
 		}
+		pthread_mutex_unlock(&n->reconnect_lock);
+
+		if (rejoin)
+			dnet_rejoin(n, 0);
+
 		sleep(1);
 	}
 

@@ -72,13 +72,23 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		goto err_out_destroy_io_thread_lock;
 	}
 
+	err = pthread_mutex_init(&n->reconnect_lock, NULL);
+	if (err) {
+		err = -err;
+		dnet_log_err(n, "Failed to initialize reconnection lock: err: %d", err);
+		goto err_out_destroy_wait;
+	}
+
 	INIT_LIST_HEAD(&n->transform_list);
 	INIT_LIST_HEAD(&n->state_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
 	INIT_LIST_HEAD(&n->io_thread_list);
+	INIT_LIST_HEAD(&n->reconnect_list);
 
 	return n;
 
+err_out_destroy_wait:
+	dnet_wait_put(n->wait);
 err_out_destroy_io_thread_lock:
 	pthread_rwlock_destroy(&n->io_thread_lock);
 err_out_destroy_transform_lock:
@@ -284,6 +294,30 @@ struct dnet_net_state *dnet_state_get_next(struct dnet_net_state *st)
 	pthread_rwlock_unlock(&n->state_lock);
 
 	return next;
+}
+
+struct dnet_net_state *dnet_state_get_prev(struct dnet_net_state *st)
+{
+	struct dnet_net_state *prev;
+	struct dnet_node *n = st->n;
+
+	pthread_rwlock_rdlock(&n->state_lock);
+	prev = list_entry(st->state_entry.prev, struct dnet_net_state, state_entry);
+	if (&prev->state_entry == &n->state_list)
+		prev = NULL;
+
+	if (!prev && !list_empty(&n->state_list)) {
+		prev = list_entry(n->state_list.prev, struct dnet_net_state, state_entry);
+		dnet_log(n, DNET_LOG_INFO, "%s: getting first.\n", dnet_dump_id(prev->id));
+	}
+
+	if (prev) {
+		dnet_log(n, DNET_LOG_INFO, "Sync to %s.\n", dnet_dump_id(prev->id));
+		dnet_state_get(prev);
+	}
+	pthread_rwlock_unlock(&n->state_lock);
+
+	return prev;
 }
 
 int dnet_state_move(struct dnet_net_state *st)
@@ -554,6 +588,7 @@ err_out_exit:
 void dnet_node_destroy(struct dnet_node *n)
 {
 	struct dnet_net_state *st, *tmp;
+	struct dnet_addr_storage *it, *atmp;
 
 	dnet_log(n, DNET_LOG_INFO, "%s: destroying node at %s.\n",
 			dnet_dump_id(n->id), dnet_dump_node(n));
@@ -573,6 +608,12 @@ void dnet_node_destroy(struct dnet_node *n)
 	pthread_rwlock_destroy(&n->state_lock);
 	dnet_lock_destroy(&n->trans_lock);
 	pthread_rwlock_destroy(&n->transform_lock);
+
+	list_for_each_entry_safe(it, atmp, &n->reconnect_list, reconnect_entry) {
+		list_del(&it->reconnect_entry);
+		free(it);
+	}
+	pthread_mutex_destroy(&n->reconnect_lock);
 
 	dnet_wait_put(n->wait);
 

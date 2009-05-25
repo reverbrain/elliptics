@@ -125,7 +125,10 @@ int dnet_state_insert(struct dnet_net_state *new);
 void dnet_state_remove(struct dnet_net_state *st);
 struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
+
 struct dnet_net_state *dnet_state_get_next(struct dnet_net_state *st);
+struct dnet_net_state *dnet_state_get_prev(struct dnet_net_state *st);
+
 int dnet_state_move(struct dnet_net_state *st);
 void dnet_state_destroy(struct dnet_net_state *st);
 
@@ -270,6 +273,9 @@ struct dnet_node
 
 	unsigned int		notify_hash_size;
 	struct dnet_notify_bucket	*notify_hash;
+
+	pthread_mutex_t		reconnect_lock;
+	struct list_head	reconnect_list;
 };
 
 static inline char *dnet_dump_node(struct dnet_node *n)
@@ -298,7 +304,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 		struct sockaddr *sa, unsigned int salen, int listening);
 
 enum dnet_join_state {
-	DNET_CLIENT,		/* Node did not not join the network */
+	DNET_CLIENT = 1,	/* Node did not not join the network */
 	DNET_CLIENT_JOINED,	/* Node directly connected to the server and joined the network */
 	DNET_SERVER,		/* Node was added into route table */
 	DNET_JOINED,		/* Node joined the network */
@@ -397,6 +403,12 @@ void dnet_req_trans_destroy(struct dnet_data_req *r, int err);
 
 int dnet_fetch_objects(struct dnet_net_state *st, void *data, uint64_t num, struct dnet_wait *w);
 int dnet_request_sync(struct dnet_net_state *st, unsigned char *id);
+
+struct dnet_addr_storage
+{
+	struct list_head		reconnect_entry;
+	struct dnet_addr		addr;
+};
 
 #ifdef __cplusplus
 }

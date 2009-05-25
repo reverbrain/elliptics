@@ -315,12 +315,13 @@ int dnet_fetch_objects(struct dnet_net_state *st, void *data, uint64_t num,
 }
 
 static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *priv __unused)
+		struct dnet_attr *attr, void *priv)
 {
 	struct dnet_node *n = NULL;
 	uint64_t size, num;
 	int err = 0;
 	void *data = attr + 1;
+	struct dnet_wait *w = priv;
 
 	if (!st || !cmd || !attr || cmd->status || !cmd->size) {
 		if (cmd)
@@ -360,10 +361,9 @@ static int dnet_recv_list_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	return 0;
 
 out:
-	if (st) {
-		n = st->n;
-		dnet_wakeup(n->wait, n->wait->cond--);
-		dnet_wait_put(n->wait);
+	if (w) {
+		dnet_wakeup(w, w->cond--);
+		dnet_wait_put(w);
 	}
 err_out_exit:
 	if (cmd && n)
@@ -395,6 +395,8 @@ int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st)
 	}
 
 	t->complete = dnet_recv_list_complete;
+	if (need_wait)
+		t->priv = dnet_wait_get(w);
 
 	cmd = (struct dnet_cmd *)(t + 1);
 	a = (struct dnet_attr *)(cmd + 1);
