@@ -70,7 +70,7 @@ function start_server() {
 	local CMD=$(eval 'echo $'$2)
 	echo $CMD >> $RUN_STACK
 	$CMD &
-	sleep 1
+	sleep 5
 	if [ "f$(ps -p $! --no-headers -o comm)" = "f" ]; then
 		echo "ERROR"
 		echo -e "Command line: \n\n$CMD" 
