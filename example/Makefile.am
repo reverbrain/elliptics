@@ -1,4 +1,4 @@
-bin_PROGRAMS = example hparser iotest stat notify
+bin_PROGRAMS = example hparser iotest dnet_stat notify
 noinst_LIBRARIES = libhash.a libcommon.a libbackend.a
 noinst_HEADERS = hash.h backends.h common.h
 
@@ -17,8 +17,8 @@ hparser_LDADD = ../library/libdnet.la
 iotest_SOURCES = iotest.c
 iotest_LDADD = ../library/libdnet.la libhash.a libcommon.a
 
-stat_SOURCES = stat.c
-stat_LDADD = ../library/libdnet.la libcommon.a
+dnet_stat_SOURCES = stat.c
+dnet_stat_LDADD = ../library/libdnet.la libcommon.a
 
 notify_SOURCES = notify.c
 notify_LDADD = ../library/libdnet.la libcommon.a
