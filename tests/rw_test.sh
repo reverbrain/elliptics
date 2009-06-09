@@ -8,6 +8,8 @@ SERVER_ID_1=00
 SERVER_ID_2=ff
 FILE_ID_1=99
 SERVER_FLAGS=$1
+SERVER=../example/dnet_ioserv
+CLIENT=../example/dnet_ioserv
 
 echo "Read/write test"
 
@@ -86,8 +88,8 @@ cat /dev/urandom > $TEMP_DIR/tmp_1 &
 sleep $GENERATING_TIME
 kill $!
 
-SERVER1_CMD="../example/example -i $SERVER_ID_1 -a 127.0.0.1:1025:2 -d $TEMP_DIR/server1 -j -l $TEMP_DIR/server1_log -m $LOGMASK $SERVER_FLAGS"
-SERVER2_CMD="../example/example -i $SERVER_ID_2 -a 127.0.0.1:1030:2 -r 127.0.0.1:1025:2 -d $TEMP_DIR/server2 -j \
+SERVER1_CMD="$SERVER -i $SERVER_ID_1 -a 127.0.0.1:1025:2 -d $TEMP_DIR/server1 -j -l $TEMP_DIR/server1_log -m $LOGMASK $SERVER_FLAGS"
+SERVER2_CMD="$SERVER -i $SERVER_ID_2 -a 127.0.0.1:1030:2 -r 127.0.0.1:1025:2 -d $TEMP_DIR/server2 -j \
 		-l $TEMP_DIR/server2_log -m $LOGMASK $SERVER_FLAGS"
 
 # ***************************************
@@ -102,12 +104,12 @@ start_server SERVER1_PID SERVER1_CMD
 
 #write test data
 echo -n > $TEMP_DIR/client_log
-CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
+CMD="$CLIENT -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
 	       	-l $TEMP_DIR/client_log -m $LOGMASK"
 do_cmd $CMD
 
 #read test data
-CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -R $TEMP_DIR/res_1 -I $FILE_ID_1 \
+CMD="$CLIENT -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -R $TEMP_DIR/res_1 -I $FILE_ID_1 \
 	       	-l $TEMP_DIR/client_log -m $LOGMASK"
 do_cmd $CMD 
 
@@ -138,17 +140,17 @@ echo "TOTAL_SIZE=$TOTAL_SIZE FIRST_TRANS_SIZE=$FIRST_TRANS_SIZE SECOND_TRANS_SIZ
 
 #write first part of test data
 echo -n > $TEMP_DIR/client_log
-CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+CMD="$CLIENT -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
 		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O 0 -S $FIRST_TRANS_SIZE"
 do_cmd $CMD
 
 #write second part of test data
-CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+CMD="$CLIENT -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
 		-W $TEMP_DIR/tmp_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK -O $FIRST_TRANS_SIZE -S $SECOND_TRANS_SIZE"
 do_cmd $CMD
 
 #read test data
-CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+CMD="$CLIENT -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
 		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
 do_cmd $CMD
 
@@ -177,13 +179,13 @@ start_server SERVER2_PID SERVER2_CMD
 
 #write test data
 echo -n > $TEMP_DIR/client_log
-CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
+CMD="$CLIENT -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
 	       	-l $TEMP_DIR/client_log -m $LOGMASK"
 do_cmd $CMD
 
 #read test data
 echo -n > $TEMP_DIR/client_log
-CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
+CMD="$CLIENT -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash \
 		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
 do_cmd $CMD
 
@@ -211,13 +213,13 @@ start_server SERVER2_PID SERVER2_CMD
 
 #write test data
 echo -n > $TEMP_DIR/client_log
-CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
+CMD="$CLIENT -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
 	       	-l $TEMP_DIR/client_log -m $LOGMASK"
 do_cmd $CMD
 
 #read test data
 echo -n > $TEMP_DIR/client_log
-CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
+CMD="$CLIENT -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
 	       -R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
 do_cmd $CMD
 
@@ -245,7 +247,7 @@ start_server SERVER1_PID SERVER1_CMD
 
 #write test data
 echo -n > $TEMP_DIR/client_log
-CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
+CMD="$CLIENT -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1025:2 -T jhash -W $TEMP_DIR/tmp_1 -I $FILE_ID_1 \
 	       	-l $TEMP_DIR/client_log -m $LOGMASK"
 do_cmd $CMD
 
@@ -257,7 +259,7 @@ kill $SERVER1_PID
 SERVER1_PID=
 
 #read test data
-CMD="../example/example -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
+CMD="$CLIENT -i 22222222 -a 127.0.0.1:1111:2 -r 127.0.0.1:1030:2 -T jhash \
 		-R $TEMP_DIR/res_1 -I $FILE_ID_1 -l $TEMP_DIR/client_log -m $LOGMASK"
 do_cmd $CMD
 
