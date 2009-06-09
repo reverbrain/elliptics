@@ -1,7 +1,7 @@
-This directory contains example application suitable for IO storage usage or as
+This directory contains example applications suitable for IO storage usage or as
 a guide for own storage system development based on the elliptics network project.
 
-example.c
+ioserv.c
 Feature-rich IO server and client capable of storing data (i.e. being part of the
 network) and being a simple reading/writing client. It works with local files
 as basic objects to be stored/loaded to/from the network. Application supports
@@ -19,3 +19,16 @@ of the single object over the network with ability to store/load parts of the ob
 in parallel. Used for IO stress testing of the elliptics network by creating huge
 object equally spread over the cloud and performing parallel random reading of the
 transactions.
+
+stat.c
+Statistics gathering utility. Can show load average, disk and memory statistics.
+
+notify.c
+Notification subsystem client. Can show update transactions for given objects.
+
+file_backend.c bdb_backend.c tc_backend.c
+IO storage backends.
+
+hash.c
+Hash transformation functions (including sync-to-neighbour 'prevN' function).
+
