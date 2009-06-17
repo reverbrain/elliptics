@@ -279,12 +279,7 @@ static int dnet_update_history(void *state, struct dnet_io_attr *io, int tmp)
 		goto err_out_exit;
 	}
 
-	memcpy(e.id, io->id, DNET_ID_SIZE);
-	e.size = io->size;
-	e.offset = io->offset;
-	e.flags = 0;
-
-	dnet_convert_history_entry(&e);
+	dnet_setup_history_entry(&e, io->id, io->size, io->offset, 0);
 
 	err = write(fd, &e, sizeof(struct dnet_history_entry));
 	if (err <= 0) {
@@ -382,19 +377,16 @@ static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *a
 		}
 
 		if (err == 0) {
-			memcpy(e.id, r->id, DNET_ID_SIZE);
-			e.size = r->offset + r->size;
-			e.offset = 0;
-			e.flags = 0;
+			dnet_setup_history_entry(&e, r->id, r->size + r->offset, 0, 0);
 		} else {
 			dnet_convert_history_entry(&e);
 			dnet_convert_history_entry(r);
 			if (e.size < r->offset + r->size)
 				e.size = r->offset + r->size;
 			dnet_convert_history_entry(r);
+			dnet_convert_history_entry(&e);
 		}
 
-		dnet_convert_history_entry(&e);
 		err = pwrite(sfd, &e, sizeof(struct dnet_history_entry), 0);
 		if (err <= 0) {
 			err = -errno;

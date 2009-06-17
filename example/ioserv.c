@@ -95,6 +95,7 @@ static void dnet_usage(char *p)
 			" -P num               - maximum number of pending write transactions opened by single thread\n"
 			" -O offset            - read/write offset in the file\n"
 			" -S size              - read/write transaction size\n"
+			" -M strategy          - transaction log merge strategy\n"
 			, p);
 }
 
@@ -118,13 +119,17 @@ int main(int argc, char *argv[])
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
 	cfg.log_mask = ~0;
+	cfg.merge_strategy = DNET_MERGE_PREFER_NETWORK;
 
 	size = offset = 0;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "O:S:P:N:bm:tsH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "M:O:S:P:N:bm:tsH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 'M':
+				cfg.merge_strategy = atoi(optarg);
+				break;
 			case 'O':
 				offset = strtoull(optarg, NULL, 0);
 				break;

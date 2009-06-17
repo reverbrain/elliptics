@@ -65,6 +65,8 @@ int main(int argc, char *argv[])
 	struct stat st;
 	unsigned long long offset, size;
 	unsigned int isize = sizeof(struct dnet_history_entry);
+	char str[64];
+	struct tm tm;
 
 	size = offset = 0;
 
@@ -123,14 +125,18 @@ int main(int argc, char *argv[])
 	entries = data;
 	num = st.st_size / isize;
 
-	printf("%s: objects: %zd, range: %llu-%llu, counting from the most recent.\n",
+	printf("%s: objects: %zd, range: %llu-%llu, counting from the most recent (nanoseconds resolution).\n",
 			file, num, offset, offset+size);
 	for (i=num-1; i>=0; --i) {
 		struct dnet_history_entry e = entries[i];
 
 		dnet_convert_history_entry(&e);
 
-		printf("%s: flags: %08x, offset: %8llu, size: %8llu: %c\n",
+		localtime_r((time_t *)&e.tsec, &tm);
+		strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+		printf("%s.%06llu: %s: flags: %08x, offset: %8llu, size: %8llu: %c\n",
+			str, (unsigned long long)e.tnsec,
 			dnet_dump_id(e.id), e.flags,
 			(unsigned long long)e.offset, (unsigned long long)e.size,
 			hparser_region_match(&e, offset, size) ? '+' : '-');

@@ -1051,7 +1051,7 @@ err_out_exit:
 	return NULL;
 }
 
-static int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *ctl)
+int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *ctl)
 {
 	struct dnet_trans *t;
 	struct dnet_net_state *st;
@@ -1150,12 +1150,7 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
 	memcpy(hctl.io.id, addr, DNET_ID_SIZE);
 
-	memcpy(e.id, ctl->io.origin, DNET_ID_SIZE);
-	e.offset = ctl->io.offset;
-	e.size = ctl->io.size;
-	e.flags = 0;
-
-	dnet_convert_history_entry(&e);
+	dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, 0);
 
 	hctl.priv = ctl->priv;
 	hctl.complete = ctl->complete;
@@ -1170,7 +1165,7 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 
 	hctl.io.size = sizeof(struct dnet_history_entry);
 	hctl.io.offset = 0;
-	hctl.io.flags |= DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
+	hctl.io.flags = DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
 
 	err = dnet_trans_create_send(n, &hctl);
 	if (err)
@@ -1264,29 +1259,26 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 		goto err_out_put;
 	}
 
-	if (!size) {
-		err = fstat(fd, &stat);
-		if (err) {
-			err = -errno;
-			dnet_log_err(n, "Failed to stat to be written file '%s'", file);
-			goto err_out_close;
-		}
-
-		size = stat.st_size;
-
-		if (offset >= size) {
-			err = 0;
-			goto err_out_close;
-		}
-
-		size -= offset;
+	err = fstat(fd, &stat);
+	if (err) {
+		err = -errno;
+		dnet_log_err(n, "Failed to stat to be written file '%s'", file);
+		goto err_out_close;
 	}
+
+	if (offset >= (uint64_t)stat.st_size) {
+		err = 0;
+		goto err_out_close;
+	}
+
+	if (size + offset >= (uint64_t)stat.st_size)
+		size = stat.st_size - offset;
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
 	off = offset & ~(page_size - 1);
 
-	data = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, off);
+	data = mmap(NULL, ALIGN(size + offset - off, page_size), PROT_READ, MAP_SHARED, fd, off);
 	if (data == MAP_FAILED) {
 		err = -errno;
 		dnet_log_err(n, "Failed to map to be written file '%s'", file);
@@ -1297,6 +1289,9 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 
 	ctl.data = data + offset - off;
 	ctl.fd = fd;
+
+	dnet_log(n, DNET_LOG_NOTICE, "data: %p, ctl.data: %p, offset: %llu/%llu, size: %llu/%llu\n",
+			data, ctl.data, offset, off, size, ALIGN(size, page_size));
 
 	ctl.complete = dnet_write_complete;
 	ctl.priv = w;
@@ -1311,14 +1306,15 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 
 	error = dnet_write_object(n, &ctl, file, id, 1, &trans_num);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: transactions sent: %d, error: %d.\n", dnet_dump_id(ctl.addr), trans_num, err);
+	dnet_log(n, DNET_LOG_INFO, "%s: transactions sent: %d, error: %d.\n",
+			dnet_dump_id(ctl.addr), trans_num, error);
 
 	/*
 	 * 1 - the first reference counter we grabbed at allocation time
 	 */
 	atomic_sub(&w->refcnt, INT_MAX - trans_num - 1);
 
-	munmap(data, size);
+	munmap(data, ALIGN(size, page_size));
 
 	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
 	if (err || w->status) {

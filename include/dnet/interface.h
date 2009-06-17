@@ -215,6 +215,11 @@ struct dnet_config
 	char			port[DNET_MAX_PORTLEN];
 
 	/*
+	 * Transaction logs merge strategy.
+	 */
+	int			merge_strategy;
+
+	/*
 	 * Wait timeout in seconds used for example to wait
 	 * for remote content sync.
 	 */
@@ -588,6 +593,28 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl);
  */
 int dnet_state_get_prev_id(struct dnet_node *n, unsigned char *id, unsigned char *res, int num);
 
+/*
+ * Elliptics network merge strategies.
+ */
+enum {
+	DNET_MERGE_PREFER_NETWORK = 0,	/* Discard local changes and
+					 * prefer version which exists in the network.
+					 */
+	DNET_MERGE_PREFER_LOCAL,	/* Send local transaction history into the network
+					 * pretending it to be valid one.
+					 * All changes in the history log, which is stored
+					 * in the network will be discarded.
+					 */
+	DNET_MERGE_REMOTE_PLUS_LOCAL_UPDATES,
+					/* Apply all local changes made after the common ancestor
+					 * commit after full remote log.
+					 */
+	DNET_MERGE_LOCAL_PLUS_REMOTE_UPDATES,
+					/* Apply all remote changes made after the common ancestor
+					 * commit after full local log.
+					 */
+	__DNET_MERGE_MAX,
+};
 
 #ifdef __cplusplus
 }

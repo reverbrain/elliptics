@@ -16,8 +16,10 @@
 #ifndef __DNET_PACKET_H
 #define __DNET_PACKET_H
 
-#include <dnet/typedefs.h>
+#include <sys/time.h>
 #include <arpa/inet.h>
+
+#include <dnet/typedefs.h>
 #include <dnet/core.h>
 
 #ifdef __cplusplus
@@ -215,6 +217,7 @@ struct dnet_history_entry
 {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		flags;
+	uint64_t		tsec, tnsec;
 	uint64_t		offset;
 	uint64_t		size;
 } __attribute__ ((packed));
@@ -224,6 +227,27 @@ static inline void dnet_convert_history_entry(struct dnet_history_entry *a)
 	a->flags = dnet_bswap32(a->flags);
 	a->offset = dnet_bswap64(a->offset);
 	a->size = dnet_bswap64(a->size);
+	a->tsec = dnet_bswap64(a->tsec);
+	a->tnsec = dnet_bswap64(a->tnsec);
+}
+
+static inline void dnet_setup_history_entry(struct dnet_history_entry *e,
+		unsigned char *id, uint64_t size, uint64_t offset, uint32_t flags)
+{
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+
+	e->tsec = tv.tv_sec;
+	e->tnsec = tv.tv_usec * 1000;
+
+	memcpy(e->id, id, DNET_ID_SIZE);
+
+	e->size = size;
+	e->offset = offset;
+	e->flags = flags;
+
+	dnet_convert_history_entry(e);
 }
 
 struct dnet_stat

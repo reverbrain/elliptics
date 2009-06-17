@@ -483,12 +483,8 @@ retry:
 			goto err_out_close_txn;
 		}
 
-		memcpy(e.id, io->id, DNET_ID_SIZE);
-		e.size = io->size;
-		e.offset = io->offset;
-		e.flags = 0;
+		dnet_setup_history_entry(&e, io->id, io->size, io->offset, 0);
 
-		dnet_convert_history_entry(&e);
 		err = bdb_put_data_raw(ent, txn, io->origin, DNET_ID_SIZE,
 				&e, size, sizeof(struct dnet_history_entry), 1);
 		if (err) {

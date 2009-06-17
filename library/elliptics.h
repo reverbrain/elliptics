@@ -250,6 +250,8 @@ struct dnet_node
 
 	int			error;
 
+	int			merge_strategy;
+
 	uint32_t		log_mask;
 	void			*log_private;
 	void			(*log)(void *priv, uint32_t mask, const char *msg);
@@ -359,6 +361,8 @@ void dnet_trans_remove(struct dnet_trans *t);
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
 int dnet_trans_insert(struct dnet_trans *t);
 struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
+
+int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *ctl);
 
 int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st);
 

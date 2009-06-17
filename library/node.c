@@ -554,12 +554,20 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->command_private = cfg->command_private;
 	n->io_thread_num = cfg->io_thread_num;
 	n->notify_hash_size = cfg->hash_size;
+	n->merge_strategy = cfg->merge_strategy;
+
+	if (!n->merge_strategy || n->merge_strategy >= __DNET_MERGE_MAX) {
+		n->merge_strategy = DNET_MERGE_PREFER_NETWORK;
+		dnet_log(n, DNET_LOG_ERROR, "%s: prefer network transaction log merge strategy.\n",
+				dnet_dump_id(n->id));
+	}
 
 	if (!n->notify_hash_size) {
 		n->notify_hash_size = DNET_DEFAULT_NOTIFY_HASH_SIZE;
 		dnet_log(n, DNET_LOG_ERROR, "%s: no hash size provided, using default %d.\n",
 				dnet_dump_id(n->id), n->notify_hash_size);
 	}
+
 	err = dnet_notify_init(n);
 	if (err)
 		goto err_out_free;
