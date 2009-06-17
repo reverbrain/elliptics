@@ -83,8 +83,6 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 	}
 	fcntl(s, F_SETFL, O_NONBLOCK);
 
-		dnet_log(n, DNET_LOG_INFO, "socket: %d.\n", s);
-
 	return s;
 
 err_out_close:
