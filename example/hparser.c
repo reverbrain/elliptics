@@ -135,7 +135,7 @@ int main(int argc, char *argv[])
 		localtime_r((time_t *)&e.tsec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		printf("%s.%06llu: %s: flags: %08x, offset: %8llu, size: %8llu: %c\n",
+		printf("%s.%09llu: %s: flags: %08x, offset: %8llu, size: %8llu: %c\n",
 			str, (unsigned long long)e.tnsec,
 			dnet_dump_id(e.id), e.flags,
 			(unsigned long long)e.offset, (unsigned long long)e.size,
