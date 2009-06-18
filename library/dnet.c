@@ -1528,8 +1528,9 @@ static int dnet_trans_map_callback(void *priv, uint64_t offset, uint64_t size,
 
 	err = dnet_read_file_id(p->node, p->file, p->len, offset, &io, p->wait, 0, 0);
 
-	dnet_log(p->node, DNET_LOG_INFO, "%s: reading chunk of file: '%s', offset: %llu, size: %llu, err: %d.\n",
+	dnet_log(p->node, DNET_LOG_INFO, "%s: reading chunk into file '%s', offset: %llu/%llu, size: %llu, err: %d.\n",
 			dnet_dump_id(e->id), p->file, (unsigned long long)io.offset,
+			(unsigned long long)offset,
 			(unsigned long long)io.size, err);
 
 	return err;
