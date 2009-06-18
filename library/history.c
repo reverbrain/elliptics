@@ -551,7 +551,8 @@ int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st)
 		st = dnet_state_get_first(n, cmd->id, n->st);
 		if (!st) {
 			err = -ENOENT;
-			dnet_log(n, DNET_LOG_ERROR, "%s: can not get output state.\n", dnet_dump_id(n->id));
+			dnet_log(n, DNET_LOG_ERROR, "%s: can not get output state.\n",
+					dnet_dump_id(n->id));
 			goto err_out_destroy;
 		}
 	} else
@@ -609,8 +610,8 @@ int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st)
 		goto err_out_exit;
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "%s: successfully synced %llu files.\n", dnet_dump_id(n->id),
-			(unsigned long long)n->total_synced_files);
+	dnet_log(n, DNET_LOG_INFO, "%s: successfully synced %llu files.\n",
+		dnet_dump_id(n->id), (unsigned long long)n->total_synced_files);
 
 	return 0;
 

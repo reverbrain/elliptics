@@ -366,7 +366,7 @@ static void dnet_dummy_pipe_read(int s, short event, void *arg)
 	struct dnet_thread_signal ts;
 	int err;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: thread control pipe event: %x.\n",
+	dnet_log(n, DNET_LOG_DSA, "%s: thread control pipe event: %x.\n",
 			dnet_dump_id(n->id), event);
 
 	if (!(event & EV_READ))
@@ -384,7 +384,7 @@ static void dnet_dummy_pipe_read(int s, short event, void *arg)
 			break;
 		}
 
-		dnet_log(n, DNET_LOG_NOTICE, "thread: %lu, err: %d, cmd: %u, state: %s.\n",
+		dnet_log(n, DNET_LOG_DSA, "thread: %lu, err: %d, cmd: %u, state: %s.\n",
 				(unsigned long)t->tid, err, ts.cmd, dnet_dump_id(ts.state->id));
 
 		/*

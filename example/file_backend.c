@@ -42,6 +42,20 @@ struct file_backend_root
 	int			rootfd;
 };
 
+static inline void file_backend_setup_file(char *file, unsigned int size,
+		struct dnet_io_attr *io)
+{
+
+	if (io->flags & DNET_IO_FLAGS_HISTORY)
+		snprintf(file, size, "%02x/%s%s", io->origin[0],
+				dnet_dump_id_len(io->origin, DNET_ID_SIZE),
+				DNET_HISTORY_SUFFIX);
+	else
+		snprintf(file, size, "%02x/%s", io->origin[0],
+				dnet_dump_id_len(io->origin, DNET_ID_SIZE));
+
+}
+
 void *file_backend_setup_root(char *root)
 {
 	int err;
@@ -267,7 +281,8 @@ static int dnet_update_history(void *state, struct dnet_io_attr *io, int tmp)
 	int fd, err;
 	struct dnet_history_entry e;
 
-	snprintf(history, sizeof(history), "%02x/%s%s%s", io->origin[0], dnet_dump_id(io->origin),
+	snprintf(history, sizeof(history), "%02x/%s%s%s", io->origin[0],
+			dnet_dump_id_len(io->origin, DNET_ID_SIZE),
 			DNET_HISTORY_SUFFIX, (tmp)?".tmp":"");
 
 	fd = open(history, O_RDWR | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
@@ -336,10 +351,7 @@ static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *a
 		}
 	}
 
-	if (io->flags & DNET_IO_FLAGS_HISTORY)
-		snprintf(file, sizeof(file), "%02x/%s%s", io->origin[0], dnet_dump_id(io->origin), DNET_HISTORY_SUFFIX);
-	else
-		snprintf(file, sizeof(file), "%02x/%s", io->origin[0], dnet_dump_id(io->origin));
+	file_backend_setup_file(file, sizeof(file), io);
 
 	if (io->flags & DNET_IO_FLAGS_APPEND)
 		oflags |= O_APPEND;
@@ -353,7 +365,8 @@ static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *a
 		goto err_out_exit;
 	}
 
-	if ((io->flags & DNET_IO_FLAGS_HISTORY) && (io->size == sizeof(struct dnet_history_entry))) {
+	if ((io->flags & DNET_IO_FLAGS_HISTORY) &&
+			(io->size == sizeof(struct dnet_history_entry))) {
 		struct dnet_history_entry e;
 		struct dnet_history_entry *r = data;
 		int sfd;
@@ -411,7 +424,8 @@ static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *a
 	//fsync(fd);
 	close(fd);
 
-	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
+	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) &&
+			!(io->flags & DNET_IO_FLAGS_HISTORY)) {
 		err = dnet_update_history(state, io, 0);
 		if (err) {
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -457,11 +471,7 @@ static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *at
 
 	dnet_convert_io_attr(io);
 
-	if (io->flags & DNET_IO_FLAGS_HISTORY)
-		snprintf(file, sizeof(file), "%02x/%s%s", io->origin[0], dnet_dump_id(io->origin),
-				DNET_HISTORY_SUFFIX);
-	else
-		snprintf(file, sizeof(file), "%02x/%s", io->origin[0], dnet_dump_id(io->origin));
+	file_backend_setup_file(file, sizeof(file), io);
 
 	fd = open(file, O_RDONLY, 0644);
 	if (fd < 0) {

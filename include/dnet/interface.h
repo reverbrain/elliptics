@@ -184,6 +184,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id,
 #define DNET_LOG_INFO			(1<<1)
 #define DNET_LOG_TRANS			(1<<2)
 #define DNET_LOG_ERROR			(1<<3)
+#define DNET_LOG_DSA			(1<<4)
 
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
@@ -394,15 +395,22 @@ int dnet_join(struct dnet_node *n);
 /*
  * Logging helper used to print ID (DNET_ID_SIZE bytes) as a hex string.
  */
-static inline char *dnet_dump_id(const unsigned char *id)
+static inline char *dnet_dump_id_len(const unsigned char *id, unsigned int len)
 {
 	unsigned int i;
-	const dump_num = 4;
-	static char __dnet_dump_str[2 * dump_num + 1];
+	static char __dnet_dump_str[2 * DNET_ID_SIZE + 1];
 
-	for (i=0; i<dump_num; ++i)
+	if (len > DNET_ID_SIZE)
+		len = DNET_ID_SIZE;
+
+	for (i=0; i<len; ++i)
 		sprintf(&__dnet_dump_str[2*i], "%02x", id[i]);
 	return __dnet_dump_str;
+}
+
+static inline char *dnet_dump_id(const unsigned char *id)
+{
+	return dnet_dump_id_len(id, 4);
 }
 
 /*

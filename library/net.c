@@ -522,8 +522,10 @@ static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state 
 
 	t->st = dnet_state_get_first(n, t->cmd.id, NULL);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: st: %p, t_st: %p, n_st: %p, direct: %d, flags: %x/%x.\n",
-			dnet_dump_id(st->rcv_cmd.id), st, t->st, n->st, (st->rcv_cmd.flags & DNET_FLAGS_DIRECT),
+	dnet_log(n, DNET_LOG_INFO, "%s: processing new transaction: st: %p, t_st: %p, n_st: %p, "
+			"direct: %d, flags: %x/%x.\n",
+			dnet_dump_id(st->rcv_cmd.id), st, t->st, n->st,
+			(st->rcv_cmd.flags & DNET_FLAGS_DIRECT),
 			st->rcv_cmd.flags, t->cmd.flags);
 
 	if (!t->st || t->st == st || t->st == n->st ||
@@ -627,7 +629,7 @@ static int dnet_process_recv_single(struct dnet_net_state *st)
 	struct dnet_trans *t;
 	int err;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: cmd: %d, size: %llu, offset: %llu.\n",
+	dnet_log(n, DNET_LOG_DSA, "%s: receiving: cmd: %d, size: %llu, offset: %llu.\n",
 		dnet_dump_id(st->id), !!(st->rcv_flags & DNET_IO_CMD),
 		(unsigned long long)st->rcv_size, (unsigned long long)st->rcv_offset);
 
@@ -652,7 +654,7 @@ again:
 				goto out;
 			}
 
-			dnet_log(n, DNET_LOG_NOTICE, "%s: no data.\n", dnet_dump_id(st->id));
+			dnet_log(n, DNET_LOG_DSA, "%s: no data.\n", dnet_dump_id(st->id));
 			goto out;
 		}
 
@@ -666,7 +668,7 @@ again:
 		st->rcv_offset += err;
 	}
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: receiving: offset: %llu, size: %llu, flags: %x.\n",
+	dnet_log(n, DNET_LOG_DSA, "%s: receiving: offset: %llu, size: %llu, flags: %x.\n",
 			dnet_dump_id(st->id),
 			(unsigned long long)st->rcv_offset, (unsigned long long)st->rcv_size,
 			st->rcv_flags);
@@ -682,11 +684,10 @@ again:
 
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: trans: %llu, reply: %d, size: %llu, "
-				"flags: %u, trans: %llu, reply: %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: received trans: %llu, reply: %d, size: %llu, "
+				"flags: %u.\n",
 				dnet_dump_id(c->id), tid, tid != c->trans,
-				(unsigned long long)c->size, c->flags,
-				tid, !!(c->trans & DNET_TRANS_REPLY));
+				(unsigned long long)c->size, c->flags);
 		err = dnet_schedule_data(st);
 		if (err)
 			goto out;
@@ -720,14 +721,14 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 
 	if (!r) {
 		err = -ENOENT;
-		dnet_log(n, DNET_LOG_NOTICE, "%s: empty send queue.\n", dnet_dump_id(st->id));
+		dnet_log(n, DNET_LOG_DSA, "%s: empty send queue.\n", dnet_dump_id(st->id));
 		goto out;
 	}
-#if 1
-	dnet_log(n, DNET_LOG_NOTICE, "%s: req: %p, hsize: %llu, dsize: %llu, fsize: %llu.\n",
+
+	dnet_log(n, DNET_LOG_DSA, "%s: req: %p, hsize: %llu, dsize: %llu, fsize: %llu.\n",
 			dnet_dump_id(st->id), r, (unsigned long long)r->hsize,
 			(unsigned long long)r->dsize, (unsigned long long)r->size);
-#endif
+
 	if (!st->snd_size) {
 		st->snd_offset = 0;
 		st->snd_size = 0;
@@ -771,7 +772,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			err = dnet_sendfile(st, r->fd, &r->offset, *size);
 		}
 		
-		dnet_log(n, DNET_LOG_NOTICE, "%s: sent: data: %p, %d/%llu.\n",
+		dnet_log(n, DNET_LOG_DSA, "%s: sent: data: %p, %d/%llu.\n",
 				dnet_dump_id(st->id), data, err,
 				(unsigned long long)*size);
 
@@ -784,7 +785,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 				goto out;
 			}
 
-			dnet_log(n, DNET_LOG_NOTICE, "%s: again.\n", dnet_dump_id(st->id));
+			dnet_log(n, DNET_LOG_DSA, "%s: again.\n", dnet_dump_id(st->id));
 			goto out;
 		}
 
@@ -795,7 +796,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			goto out;
 		}
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: sent: %d/%llu.\n",
+		dnet_log(n, DNET_LOG_DSA, "%s: sent: %d/%llu.\n",
 				dnet_dump_id(st->id), err,
 				(unsigned long long)*size);
 
@@ -815,7 +816,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 	list_del(&r->req_entry);
 	dnet_lock_unlock(&st->snd_lock);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: destroying send request: %p: "
+	dnet_log(n, DNET_LOG_DSA, "%s: destroying send request: %p: "
 			"flags: %x, hsize: %llu, dsize: %llu, fsize: %llu, complete: %p.\n",
 			dnet_dump_id(st->id), r, r->flags, (unsigned long long)r->hsize,
 			(unsigned long long)r->dsize, (unsigned long long)r->size, r->complete);
@@ -832,7 +833,7 @@ static void dnet_process_socket(int s __unused, short event, void *arg)
 	short mask = EV_READ;
 	int err = -EINVAL, can_write, can_read;
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing event: %p, mask: %x.\n",
+	dnet_log(st->n, DNET_LOG_DSA, "%s: processing event: %p, mask: %x.\n",
 			dnet_dump_id(st->id), &st->event, event);
 
 	if (list_empty(&st->state_entry))
@@ -926,7 +927,7 @@ int dnet_event_schedule(struct dnet_net_state *st, short mask)
 	//err = event_add(&st->event, &tv);
 	err = event_add(&st->event, NULL);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: queued event: %p, mask: %x, err: %d, empty: %d.\n",
+	dnet_log(st->n, DNET_LOG_DSA, "%s: queued event: %p, mask: %x, err: %d, empty: %d.\n",
 			dnet_dump_id(st->id), &st->event, mask, err,
 			list_empty(&st->snd_list));
 
@@ -941,7 +942,7 @@ static void dnet_accept_client(int s, short event __unused, void *arg)
 	struct dnet_addr addr;
 	int cs, err;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: accepting client on event %x.\n", dnet_dump_id(orig->id), event);
+	dnet_log(n, DNET_LOG_DSA, "%s: accepting client on event %x.\n", dnet_dump_id(orig->id), event);
 
 	addr.addr_len = sizeof(addr.addr);
 	cs = accept(s, (struct sockaddr *)&addr.addr, &addr.addr_len);
