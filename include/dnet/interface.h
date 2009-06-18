@@ -397,9 +397,10 @@ int dnet_join(struct dnet_node *n);
 static inline char *dnet_dump_id(const unsigned char *id)
 {
 	unsigned int i;
-	static char __dnet_dump_str[2 * DNET_ID_SIZE + 1];
+	const dump_num = 4;
+	static char __dnet_dump_str[2 * dump_num + 1];
 
-	for (i=0; i<DNET_ID_SIZE; ++i)
+	for (i=0; i<dump_num; ++i)
 		sprintf(&__dnet_dump_str[2*i], "%02x", id[i]);
 	return __dnet_dump_str;
 }
