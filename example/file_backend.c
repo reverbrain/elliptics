@@ -180,7 +180,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 
 		if (first_id) {
 			err = dnet_id_cmp(first_id, id);
-			if (err >= 0)
+			if (err > 0)
 				continue;
 		}
 		

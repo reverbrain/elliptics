@@ -328,7 +328,7 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			if (!idx)
 				break;
 
-			if (start == cmd->id[0] && dnet_id_cmp(cmd->id, idx) >= 0)
+			if (start == cmd->id[0] && dnet_id_cmp(cmd->id, idx) > 0)
 				continue;
 
 			if (ipos == inum) {

@@ -590,7 +590,7 @@ static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd,
 
 			k = key.data;
 
-			if (end && k[0] >= stop)
+			if (end && k[0] > stop)
 				break;
 
 			if (size < DNET_ID_SIZE) {
