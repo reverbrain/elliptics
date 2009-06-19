@@ -622,6 +622,7 @@ enum {
 					/* Apply all remote changes made after the common ancestor
 					 * commit after full local log.
 					 */
+	DNET_MERGE_FAIL,		/* Fail if transaction logs do not match */
 	__DNET_MERGE_MAX,
 };
 

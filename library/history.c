@@ -237,6 +237,15 @@ static int dnet_compare_history(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	rem_hist = (struct dnet_history_entry *)(rio + 1);
 	local_hist = (struct dnet_history_entry *)(lio + 1);
 
+	if (n->merge_strategy == DNET_MERGE_FAIL) {
+		if (rnum != lnum || memcmp(rem_hist, local_hist, rio->size)) {
+			dnet_log(n, DNET_LOG_INFO, "%s: histories do not match and "
+					"fail strategy was selected.\n", dnet_dump_id(cmd->id));
+			err = -EINVAL;
+			goto err_out_exit;
+		}
+	}
+
 	common_num = 0;
 	last_i = last_j = 1;
 	for (j=1; j<lnum; ++j) {
