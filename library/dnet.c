@@ -1267,7 +1267,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 		goto err_out_close;
 	}
 
-	if (size + offset >= (uint64_t)stat.st_size)
+	if (!size || size + offset >= (uint64_t)stat.st_size)
 		size = stat.st_size - offset;
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
@@ -1277,7 +1277,10 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	data = mmap(NULL, ALIGN(size + offset - off, page_size), PROT_READ, MAP_SHARED, fd, off);
 	if (data == MAP_FAILED) {
 		err = -errno;
-		dnet_log_err(n, "Failed to map to be written file '%s'", file);
+		dnet_log_err(n, "Failed to map to be written file '%s', "
+				"size: %llu, use: %llu, offset: %llu, use: %llu",
+				file, size, ALIGN(size + offset - off, page_size),
+				offset, off);
 		goto err_out_close;
 	}
 
