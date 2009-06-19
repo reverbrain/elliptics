@@ -22,11 +22,12 @@ example/.deps
 example/Makefile
 example/Makefile.in
 example/.libs
-example/hparser
-example/iotest
-example/example
-example/notify
-example/stat
+example/dnet_hparser
+example/dnet_iotest
+example/dnet_ioserv
+example/dnet_notify
+example/dnet_stat
+example/start.sh
 include/Makefile
 include/Makefile.in
 include/dnet/Makefile
@@ -47,6 +48,5 @@ missing
 *.tar.gz
 .*
 *.exp
-*.sh
 root/
 tags
