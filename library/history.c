@@ -30,9 +30,32 @@
 #include "elliptics.h"
 #include "dnet/interface.h"
 
-static int dnet_history_send(struct dnet_net_state *st, struct dnet_io_attr *io)
+static int dnet_history_send_complete(struct dnet_net_state *st,
+		struct dnet_cmd *cmd, struct dnet_attr *attr __unused,
+		void *priv)
+{
+	if (!st || !cmd)
+		goto out_complete;
+
+	if (!(cmd->flags & DNET_FLAGS_MORE))
+		goto out_complete;
+
+	return 0;
+
+out_complete:
+	if (st && cmd) {
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: merged history has been "
+				"stored on remote node, status: %d.\n",
+				dnet_dump_id(cmd->id), cmd->status);
+	}
+	free(priv);
+	return 0;
+}
+
+static int dnet_history_send(struct dnet_net_state *st, struct dnet_io_attr *io, void *priv)
 {
 	struct dnet_io_control ctl;
+	int err;
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -42,9 +65,18 @@ static int dnet_history_send(struct dnet_net_state *st, struct dnet_io_attr *io)
 	memcpy(ctl.addr, io->id, DNET_ID_SIZE);
 	memcpy(&ctl.io, io, sizeof(struct dnet_io_attr));
 
+	ctl.data = io + 1;
+	ctl.fd = -1;
+
+	ctl.priv = priv;
+	ctl.complete = dnet_history_send_complete;
+
 	ctl.io.flags = DNET_IO_FLAGS_HISTORY;
 
-	return dnet_trans_create_send(st->n, &ctl);
+	err = dnet_trans_create_send(st->n, &ctl);
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: merged history has been sent, err: %d.\n",
+			dnet_dump_id(ctl.io.id), err);
+	return err;
 }
 
 static int dnet_read_object_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
@@ -165,8 +197,8 @@ static int dnet_compare_history(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_node *n = st->n;
 	struct dnet_io_attr *rio, *lio, *io;
 	struct dnet_history_entry *rh, *lh, *rem_hist, *local_hist, *mhist;
-	long long rnum, lnum, i, j, last_j = -1, last_i, size, num, append_num;
-	int err = 0;
+	long long rnum, lnum, i, j, last_j, last_i, common_num, size, num, append_num;
+	int err = 0, start;
 
 	if (!ra->size || ra->size < sizeof(struct dnet_io_attr) + sizeof(struct dnet_history_entry)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: attribute size mismatch: remote: %llu, local: %llu.\n",
@@ -205,35 +237,56 @@ static int dnet_compare_history(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	rem_hist = (struct dnet_history_entry *)(rio + 1);
 	local_hist = (struct dnet_history_entry *)(lio + 1);
 
-	for (j=0; j<lnum; ++j) {
-		for (i=0; i<rnum; ++i) {
-			if (j == lnum)
+	common_num = 0;
+	last_i = last_j = 1;
+	for (j=1; j<lnum; ++j) {
+		start = 1;
+		for (i=1; i<rnum; ++i) {
+			if (i + j - 1 == lnum)
 				break;
 
 			rh = &rem_hist[i];
-			lh = &local_hist[j+i];
+			lh = &local_hist[j+i-1];
+
+			dnet_log(n, DNET_LOG_NOTICE, "%lld/%lld h: local: %s, size: %llu, offset: %llu, ts: %llx.%llx\n",
+					i, j, dnet_dump_id(lh->id), lh->size, lh->offset, lh->tsec, lh->tnsec);
+			dnet_log(n, DNET_LOG_NOTICE, "%lld/%lld h: remot: %s, size: %llu, offset: %llu, ts: %llx.%llx\n",
+					i, j, dnet_dump_id(rh->id), rh->size, rh->offset, rh->tsec, rh->tnsec);
 
 			if (memcmp(rh, lh, sizeof(struct dnet_history_entry)))
 				break;
 
-			last_j = j;
+			if (start) {
+				common_num = 0;
+				start = 0;
+			}
+
+			common_num++;
+			last_j = j + common_num;
 			last_i = i;
 		}
 	}
 
+	/*
+	 * '1' below drops the first history entry which is an object metadata
+	 * and does not correspond to any real transaction stored there.
+	 *
+	 * Most important it contains size of the whole object.
+	 */
 	if (n->merge_strategy == DNET_MERGE_REMOTE_PLUS_LOCAL_UPDATES) {
-		append_num = lnum - 1 - last_j;
+		append_num = lnum - 1 - common_num;
 		num = rnum;
 	} else {
-		append_num = rnum - 1 - last_i;
+		append_num = rnum - 1 - common_num;
 		num = lnum;
 	}
 
 	size = (num + append_num) * sizeof(struct dnet_history_entry);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: history size: %lld, entries: first: %lld, "
-			"appended: %lld, strategy: %d.\n",
-			dnet_dump_id(cmd->id), size, num, append_num, n->merge_strategy);
+	dnet_log(n, DNET_LOG_INFO, "%s: lnum: %lld, rnum: %lld, common_num: %lld, history size: %lld, "
+			"entries: first: %lld, appended: %lld, strategy: %d.\n",
+			dnet_dump_id(cmd->id), lnum, rnum, common_num, size, num,
+			append_num, n->merge_strategy);
 
 	size += sizeof(struct dnet_io_attr);
 
@@ -250,7 +303,30 @@ static int dnet_compare_history(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		memcpy(&mhist[rnum], &local_hist[last_j], append_num * sizeof(struct dnet_history_entry));
 	} else {
 		memcpy(mhist, local_hist, num * sizeof(struct dnet_history_entry));
-		memcpy(&mhist[lnum], &rem_hist[last_i], append_num * sizeof(struct dnet_history_entry));
+		/*
+		 * Last 'i' was set to the latest matching entry, so we should copy them
+		 * _after_ the last one.
+		 *
+		 * 'j' is set to point to the entry _after_ the last matching one, so
+		 * we do not add '1' above.
+		 */
+		memcpy(&mhist[lnum], &rem_hist[last_i + 1], append_num * sizeof(struct dnet_history_entry));
+	}
+
+	if (local_hist[0].size != rem_hist[0].size) {
+		uint64_t merged_size;
+
+		dnet_convert_history_entry(&rem_hist[0]);
+		dnet_convert_history_entry(&local_hist[0]);
+
+		merged_size = local_hist[0].size;
+		if (merged_size < rem_hist[0].size)
+			merged_size = rem_hist[0].size;
+		
+		dnet_convert_history_entry(&mhist[0]);
+		mhist[0].size = merged_size;
+
+		dnet_convert_history_entry(&mhist[0]);
 	}
 
 	memcpy(io->id, cmd->id, DNET_ID_SIZE);
@@ -258,19 +334,12 @@ static int dnet_compare_history(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	io->flags = DNET_IO_FLAGS_HISTORY;
 	io->offset = 0;
-	io->size = size;
+	io->size = size - sizeof(struct dnet_io_attr);
 
 	la->size = io->size + sizeof(struct dnet_io_attr);
 	cmd->size = la->size + sizeof(struct dnet_attr);
 
 	dnet_convert_io_attr(io);
-
-	err = dnet_history_send(st, io);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send merged history into network, err: %d.\n",
-				dnet_dump_id(cmd->id), err);
-		goto err_out_free;
-	}
 
 	err = dnet_history_save(st, cmd, la, io, NULL);
 	if (err) {
@@ -279,7 +348,16 @@ static int dnet_compare_history(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_free;
 	}
 
-	free(io);
+	err = dnet_history_send(st, io, io);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send merged history into network, err: %d.\n",
+				dnet_dump_id(cmd->id), err);
+		/*
+		 * Data will freed in the completion callback.
+		 */
+		goto err_out_exit;
+	}
+
 	return 0;
 
 err_out_free:
@@ -373,7 +451,9 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 	local_io->size = attr->size - sizeof(struct dnet_io_attr);
 	local_io->offset = 0;
 	local_io->flags = DNET_IO_FLAGS_HISTORY;
+
 	memcpy(local_io->origin, cmd->id, DNET_ID_SIZE);
+	memcpy(local_io->id, cmd->id, DNET_ID_SIZE);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: reading local history: io_size: %llu.\n",
 			dnet_dump_id(cmd->id), (unsigned long long)local_io->size);
@@ -387,9 +467,15 @@ static int dnet_complete_history_read(struct dnet_net_state *st, struct dnet_cmd
 	if (err) {
 		err = dnet_history_save(st, cmd, attr, io, w);
 	} else {
-		if (n->merge_strategy == DNET_MERGE_PREFER_LOCAL)
-			err = dnet_history_send(st, local_io);
-		else
+		if (n->merge_strategy == DNET_MERGE_PREFER_LOCAL) {
+			err = dnet_history_send(st, local_io, local_cmd);
+			if (err)
+				goto err_out_exit;
+			/*
+			 * Allocated data will be freed in completion callback.
+			 */
+			return 0;
+		} else
 			err = dnet_compare_history(st, cmd, local_attr, attr);
 	}
 
