@@ -1,6 +1,6 @@
-check_SCRIPTS = rw_test.sh bdb_test.sh tokyo_cabinet_test.sh
+check_SCRIPTS = rw_test.sh bdb_test.sh tokyo_cabinet_test.sh merge.sh
 
-TESTS = rw_test.sh
+TESTS = rw_test.sh merge.sh
 
 if HAVE_BDB
 TESTS += bdb_test.sh 
