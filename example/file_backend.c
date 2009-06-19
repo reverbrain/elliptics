@@ -355,6 +355,8 @@ static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *a
 
 	if (io->flags & DNET_IO_FLAGS_APPEND)
 		oflags |= O_APPEND;
+	else
+		oflags |= O_TRUNC;
 
 	fd = open(file, oflags, 0644);
 	if (fd < 0) {
