@@ -488,9 +488,10 @@ static int dnet_sync_failed_range(struct dnet_net_state *st)
 
 	cap = dnet_state_search(n, st->id, NULL);
 	if (cap == n->st) {
-		struct dnet_net_state *old_prev = cap, *prev;
+		struct dnet_net_state *old_prev, *prev;
 		int i;
 
+		prev = old_prev = cap;
 		for (i=0; i<1; ++i) {
 			prev = dnet_state_get_prev(old_prev);
 
@@ -503,6 +504,7 @@ static int dnet_sync_failed_range(struct dnet_net_state *st)
 
 			old_prev = prev;
 		}
+		dnet_state_put(prev);
 	} else
 		dnet_state_put(cap);
 
