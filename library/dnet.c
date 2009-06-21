@@ -838,7 +838,7 @@ err_out_exit:
 int dnet_rejoin(struct dnet_node *n, int all)
 {
 	int err = 0;
-	struct dnet_net_state *st;
+	struct dnet_net_state *st, *prev;
 
 	if (!n->command_handler) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: can not join without command handler.\n",
@@ -887,6 +887,13 @@ int dnet_rejoin(struct dnet_node *n, int all)
 		st->join_state = DNET_JOINED;
 	}
 	pthread_rwlock_unlock(&n->state_lock);
+
+	prev = dnet_state_get_prev(n->st);
+	if (prev) {
+		if (prev != n->st)
+			dnet_request_sync(prev, n->id);
+		dnet_state_put(prev);
+	}
 
 	return err;
 }
