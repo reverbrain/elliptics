@@ -29,9 +29,9 @@ function die()
 function prepare_root()
 {
 	trap kill_servers EXIT
-	#tmpdir=`mktemp -d /tmp/elliptics-XXXXXX`
-	tmpdir=/tmp/elliptics-test
-	mkdir -p $tmpdir
+	tmpdir=`mktemp -d /tmp/elliptics-XXXXXX`
+	#tmpdir=/tmp/elliptics-test
+	#mkdir -p $tmpdir
 
 	rm -rf $tmpdir/*
 
