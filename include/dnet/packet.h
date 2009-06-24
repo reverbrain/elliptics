@@ -218,6 +218,7 @@ struct dnet_history_entry
 {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		flags;
+	uint64_t		reserved;
 	uint64_t		tsec, tnsec;
 	uint64_t		offset;
 	uint64_t		size;
