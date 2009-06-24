@@ -67,6 +67,8 @@ void *file_backend_setup_root(char *root);
 
 int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr *attr);
 
+int backend_del(void *state, struct dnet_io_attr *io, struct dnet_history_entry *e, unsigned int num);
+
 #ifdef __cplusplus
 }
 #endif

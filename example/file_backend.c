@@ -590,7 +590,7 @@ static int file_del(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, v
 	int fd;
 	struct stat st;
 	char file[DNET_ID_SIZE * 2 + 3 + sizeof(DNET_HISTORY_SUFFIX)];
-	unsigned long long i, num;
+	unsigned long long num;
 
 	if (!attr || !data)
 		goto err_out_exit;
@@ -642,27 +642,9 @@ static int file_del(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, v
 
 	num = st.st_size / sizeof(struct dnet_history_entry);
 
-	for (i=1; i<num; ++i) {
-		if (!memcmp(io->origin, e[i].id, DNET_ID_SIZE))
-			break;
-	}
-
-	if (i == num) {
-		if (memcmp(io->origin, e[0].id, DNET_ID_SIZE)) {
-			err = -ENOENT;
-
-			dnet_command_handler_log(state, DNET_LOG_INFO,
-				"%s: requested transaction was not found in '%s'.\n",
-				dnet_dump_id(io->origin), file);
-			goto err_out_unmap;
-		}
-	}
-
-	dnet_command_handler_log(state, DNET_LOG_INFO, "%s: removing transaction from '%s' %llu/%llu.\n",
-			dnet_dump_id(io->id), file, i, num);
-
-	if (i < num - 1)
-		memmove(&e[i], &e[i+1], (num - i - 1) * sizeof(struct dnet_history_entry));
+	err = backend_del(state, io, e, num);
+	if (err)
+		goto err_out_unmap;
 
 	err = ftruncate(fd, st.st_size - sizeof(struct dnet_history_entry));
 	if (err) {

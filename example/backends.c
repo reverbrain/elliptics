@@ -208,3 +208,33 @@ int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr
 
 	return dnet_send_reply(state, cmd, attr, &st, sizeof(struct dnet_stat), 0);
 }
+
+int backend_del(void *state, struct dnet_io_attr *io, struct dnet_history_entry *e, unsigned int num)
+{
+	unsigned int i;
+
+	for (i=1; i<num; ++i) {
+		if (!memcmp(io->origin, e[i].id, DNET_ID_SIZE))
+			break;
+	}
+
+	if (i == num) {
+		if (memcmp(io->origin, e[0].id, DNET_ID_SIZE)) {
+
+			dnet_command_handler_log(state, DNET_LOG_INFO,
+				"%s: requested transaction was not found.\n",
+				dnet_dump_id(io->origin));
+			return -ENOENT;
+		}
+	}
+
+	dnet_command_handler_log(state, DNET_LOG_INFO,
+			"%s: removing transaction from position %u/%u.\n",
+			dnet_dump_id(io->id), i, num);
+
+	if (i < num - 1)
+		memmove(&e[i], &e[i+1], (num - i - 1) * sizeof(struct dnet_history_entry));
+
+	return 0;
+}
+
