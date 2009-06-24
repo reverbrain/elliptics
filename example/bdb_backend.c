@@ -198,7 +198,7 @@ retry:
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
 				"%s: allocated read failed offset: %u, "
 				"size: %u, err: %d: %s.\n", dnet_dump_id(io->origin),
-				io->offset, size, err, db_strerror(err));
+				(unsigned int)io->offset, size, err, db_strerror(err));
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
 			goto err_out_close_txn;
