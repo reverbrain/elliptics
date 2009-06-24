@@ -661,6 +661,7 @@ static int bdb_del(void *state, struct bdb_backend *be, struct dnet_cmd *cmd, st
 	DBT key, data;
 	struct bdb_entry *ent = be->hist;
 	struct dnet_io_attr *io;
+	void *e = NULL;
 	DB_TXN *txn;
 	unsigned int num;
 
@@ -702,36 +703,61 @@ retry:
 		goto err_out_close_txn;
 	}
 
+	e = data.data;
+
 	if (data.size % sizeof(struct dnet_history_entry)) {
 		err = -EINVAL;
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
 			"%s: corrupted history of to be deleted object.\n",
 			dnet_dump_id(cmd->id));
-		goto err_out_close_txn;
+		goto err_out_free;
 	}
 
 	num = data.size / sizeof(struct dnet_history_entry);
+	data.size -= sizeof(struct dnet_history_entry);
 
 	err = backend_del(state, io, data.data, num);
 	if (err)
-		goto err_out_close_txn;
+		goto err_out_free;
 
-	err = bdb_put_data_raw(ent, txn, io->id, DNET_ID_SIZE,
-			data.data, 0, data.size - sizeof(struct dnet_history_entry), 0);
-	if (err) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: object put updated history object after "
-			"transaction removal, err: %d: %s.\n",
-			dnet_dump_id(cmd->id), err, db_strerror(err));
-		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
-			goto err_out_txn_abort_continue;
+	if (data.size) {
+		err = bdb_put_data_raw(ent, txn, io->id, DNET_ID_SIZE,
+				data.data, 0, data.size, 0);
+		if (err) {
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: object put updated history object after "
+				"transaction removal, err: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
+			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+				goto err_out_txn_abort_continue;
 
-		goto err_out_close_txn;
+			goto err_out_free;
+		}
+	} else {
+		err = ent->db->del(ent->db, txn, &key, 0);
+		if (err) {
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: history object removal failed, err: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
+			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+				goto err_out_txn_abort_continue;
+		}
+
+		err = ent->db->del(be->data->db, txn, &key, 0);
+		if (err) {
+			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+				goto err_out_txn_abort_continue;
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: object removal failed, err: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
+		}
 	}
 
 	dnet_command_handler_log(state, DNET_LOG_NOTICE,
 		"%s: updated history of to be removed object.\n",
 		dnet_dump_id(cmd->id));
+
+	free(e);
 
 	err = txn->commit(txn, 0);
 	if (err) {
@@ -748,8 +774,11 @@ retry:
 
 err_out_txn_abort_continue:
 	txn->abort(txn);
+	free(e);
 	goto retry;
 
+err_out_free:
+	free(e);
 err_out_close_txn:
 	txn->abort(txn);
 err_out_exit:
