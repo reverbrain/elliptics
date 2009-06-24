@@ -272,7 +272,7 @@ struct dnet_config
 /*
  * Logging helpers.
  */
-void dnet_command_handler_log_raw(void *state, uint32_t mask, const char *format, ...);
+void dnet_command_handler_log_raw(void *state, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
 int dnet_check_log_mask_state(struct dnet_net_state *st, uint32_t mask);
 
 #define dnet_command_handler_log(state, mask, format, a...)				\
@@ -625,6 +625,24 @@ enum {
 	DNET_MERGE_FAIL,		/* Fail if transaction logs do not match */
 	__DNET_MERGE_MAX,
 };
+
+/*
+ * Remove tranasction with @id from the object identified by @origin.
+ * If callback is provided, it will be invoked on completion, otherwise
+ * function will block until server returns an acknowledge.
+ */
+int dnet_remove_object(struct dnet_node *n,
+	unsigned char *origin, unsigned char *id,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			struct dnet_attr *attr,
+			void *priv),
+	void *priv);
+
+/*
+ * Remove given file (identified by name or ID) from the storage.
+ */
+int dnet_remove_file(struct dnet_node *n, char *file, unsigned char *file_id);
 
 #ifdef __cplusplus
 }

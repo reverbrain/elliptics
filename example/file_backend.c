@@ -242,7 +242,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_list(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
+static int file_list(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	char sub[3];
 	unsigned char start, last;
@@ -315,7 +315,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
+static int file_write(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
 	int err, fd;
 	char dir[3];
@@ -450,7 +450,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
+static int file_read(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
 	struct dnet_io_attr *io = data;
 	int fd, err, deref = 0;
@@ -582,6 +582,120 @@ err_out_exit:
 	return err;
 }
 
+static int file_del(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
+{
+	int err = -EINVAL;
+	struct dnet_io_attr *io;
+	struct dnet_history_entry *e;
+	int fd;
+	struct stat st;
+	char file[DNET_ID_SIZE * 2 + 3 + sizeof(DNET_HISTORY_SUFFIX)];
+	unsigned long long i, num;
+
+	if (!attr || !data)
+		goto err_out_exit;
+
+	if (attr->size != sizeof(struct dnet_io_attr))
+		goto err_out_exit;
+
+	io = data;
+	dnet_convert_io_attr(io);
+
+	snprintf(file, sizeof(file), "%02x/%s%s", io->id[0],
+			dnet_dump_id_len(io->id, DNET_ID_SIZE),
+			DNET_HISTORY_SUFFIX);
+
+	fd = open(file, O_RDWR);
+	if (fd < 0) {
+		err = -errno;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to open to be deleted object '%s': %s.\n",
+				dnet_dump_id(cmd->id), file, strerror(errno));
+		goto err_out_exit;
+	}
+
+	err = fstat(fd, &st);
+	if (err) {
+		err = -errno;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to stat to be deleted object '%s': %s.\n",
+				dnet_dump_id(cmd->id), file, strerror(errno));
+		goto err_out_close;
+	}
+
+	if (st.st_size % sizeof(struct dnet_history_entry)) {
+		err = -EINVAL;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: corrupted history object '%s'.\n",
+				dnet_dump_id(cmd->id), file);
+		goto err_out_close;
+	}
+
+	e = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (e == MAP_FAILED) {
+		err = -errno;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to mmap to be deleted history object '%s': %s.\n",
+				dnet_dump_id(cmd->id), file, strerror(errno));
+		goto err_out_close;
+	}
+
+	num = st.st_size / sizeof(struct dnet_history_entry);
+
+	for (i=1; i<num; ++i) {
+		if (!memcmp(io->origin, e[i].id, DNET_ID_SIZE))
+			break;
+	}
+
+	if (i == num) {
+		if (memcmp(io->origin, e[0].id, DNET_ID_SIZE)) {
+			err = -ENOENT;
+
+			dnet_command_handler_log(state, DNET_LOG_INFO,
+				"%s: requested transaction was not found in '%s'.\n",
+				dnet_dump_id(io->origin), file);
+			goto err_out_unmap;
+		}
+	}
+
+	dnet_command_handler_log(state, DNET_LOG_INFO, "%s: removing transaction from '%s' %llu/%llu.\n",
+			dnet_dump_id(io->id), file, i, num);
+
+	if (i < num - 1)
+		memmove(&e[i], &e[i+1], (num - i - 1) * sizeof(struct dnet_history_entry));
+
+	err = ftruncate(fd, st.st_size - sizeof(struct dnet_history_entry));
+	if (err) {
+		err = -errno;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to truncate to be deleted history object '%s': %s.\n",
+				dnet_dump_id(cmd->id), file, strerror(errno));
+		goto err_out_unmap;
+	}
+
+	if (st.st_size == sizeof(struct dnet_history_entry)) {
+		dnet_command_handler_log(state, DNET_LOG_INFO, "%s: unlinking history object '%s'.\n",
+				dnet_dump_id(cmd->id), file);
+		remove(file);
+
+		snprintf(file, sizeof(file), "%02x/%s", io->id[0],
+				dnet_dump_id_len(io->id, DNET_ID_SIZE));
+		remove(file);
+	}
+
+	munmap(e, st.st_size);
+	close(fd);
+
+	return 0;
+
+err_out_unmap:
+	munmap(e, st.st_size);
+err_out_close:
+	close(fd);
+err_out_exit:
+	return err;
+}
+
 int file_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
@@ -589,17 +703,20 @@ int file_backend_command_handler(void *state, void *priv,
 
 	switch (attr->cmd) {
 		case DNET_CMD_WRITE:
-			err = dnet_cmd_write(state, cmd, attr, data);
+			err = file_write(state, cmd, attr, data);
 			break;
 		case DNET_CMD_READ:
-			err = dnet_cmd_read(state, cmd, attr, data);
+			err = file_read(state, cmd, attr, data);
 			break;
 		case DNET_CMD_SYNC:
 		case DNET_CMD_LIST:
-			err = dnet_cmd_list(state, cmd, attr);
+			err = file_list(state, cmd, attr);
 			break;
 		case DNET_CMD_STAT:
 			err = backend_stat(state, priv, cmd, attr);
+			break;
+		case DNET_CMD_DEL:
+			err = file_del(state, cmd, attr, data);
 			break;
 		default:
 			err = -EINVAL;

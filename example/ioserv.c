@@ -96,6 +96,7 @@ static void dnet_usage(char *p)
 			" -O offset            - read/write offset in the file\n"
 			" -S size              - read/write transaction size\n"
 			" -M strategy          - transaction log merge strategy\n"
+			" -u file              - unlink file\n"
 			, p);
 }
 
@@ -108,7 +109,7 @@ int main(int argc, char *argv[])
 	struct dnet_config cfg, rem;
 	struct dnet_crypto_engine *e, *trans[trans_max];
 	char *logfile = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
-	char *historyf = NULL, *root = NULL;
+	char *historyf = NULL, *root = NULL, *removef = NULL;
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	FILE *log = NULL;
 	uint64_t offset, size;
@@ -125,8 +126,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "M:O:S:P:N:bm:tsH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "u:M:O:S:P:N:bm:tsH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
+			case 'u':
+				removef = optarg;
+				break;
 			case 'M':
 				cfg.merge_strategy = atoi(optarg);
 				break;
@@ -317,6 +321,12 @@ int main(int argc, char *argv[])
 
 	if (historyf) {
 		err = dnet_read_file(n, historyf, id, offset, size, 1);
+		if (err)
+			return err;
+	}
+	
+	if (removef) {
+		err = dnet_remove_file(n, removef, id);
 		if (err)
 			return err;
 	}
