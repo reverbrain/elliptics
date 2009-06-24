@@ -266,7 +266,7 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		db = be->hist;
 		e = &n;
 
-		dnet_setup_history_entry(&e, io->id, io->size, io->offset, 0);
+		dnet_setup_history_entry(e, io->id, io->size, io->offset, 0);
 
 		res = tcadbputcat(db, io->origin, DNET_ID_SIZE, e, sizeof(struct dnet_history_entry));
 		if (!res) {
@@ -362,6 +362,72 @@ err_out_exit:
 	return err;
 }
 
+static int tc_del(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *buf)
+{
+	TCADB *db = be->hist;
+	int err = -EINVAL;
+	struct dnet_io_attr *io;
+	struct dnet_history_entry *e;
+	int num, size;
+	bool res;
+
+	if (!attr || !buf)
+		goto err_out_exit;
+
+	if (attr->size != sizeof(struct dnet_io_attr))
+		goto err_out_exit;
+
+	io = buf;
+	dnet_convert_io_attr(io);
+
+	e = tcadbget(db, io->id, DNET_ID_SIZE, &size);
+	if (!e) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to read history of to be deleted object.\n",
+			dnet_dump_id(io->origin));
+		err = -ENOENT;
+		goto err_out_exit;
+	}
+
+	if (size % sizeof(struct dnet_history_entry)) {
+		err = -EINVAL;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: corrupted history of to be deleted object.\n",
+				dnet_dump_id(cmd->id));
+		goto err_out_free;
+	}
+
+	num = size / sizeof(struct dnet_history_entry);
+	size -= sizeof(struct dnet_history_entry);
+
+	err = backend_del(state, io, e, num);
+	if (err)
+		goto err_out_free;
+
+	res = tcadbput(db, io->id, DNET_ID_SIZE, e, size);
+	if (!res) {
+		err = -EINVAL;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: history update of to be deleted object failed.\n",
+				dnet_dump_id(io->origin));
+		goto err_out_free;
+	}
+
+	if (!size) {
+		tcadbout(db, io->id, DNET_ID_SIZE);
+		tcadbout(be->data, io->id, DNET_ID_SIZE);
+	}
+
+	free(e);
+	return 0;
+
+err_out_free:
+	free(e);
+err_out_exit:
+	return err;
+}
+
 int tc_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr,
 		void *data)
@@ -382,6 +448,9 @@ int tc_backend_command_handler(void *state, void *priv,
 			break;
 		case DNET_CMD_STAT:
 			err = backend_stat(state, e->env_dir, cmd, attr);
+			break;
+		case DNET_CMD_DEL:
+			err = tc_del(state, e, cmd, attr, data);
 			break;
 		default:
 			err = -EINVAL;
