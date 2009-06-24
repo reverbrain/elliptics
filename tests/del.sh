@@ -40,7 +40,7 @@ echo -en "Checking deletion ($tmpdir): "
 
 dd if=/dev/urandom of=$test_file bs=$size count=$cnt > /dev/null 2>&1
 
-start_server $base_serv 0 $server_opt
+start_server $base_serv 0 "$server_opt"
 
 write_and_remove_file $base_serv $test_file $test_file_id $total_size
 $ioserv -a localhost:0:2 -r $base_serv -l $tmpdir/log-client-read -m $log_mask -T sha1 -R $test_file -I $test_file_id > /dev/null 2>&1
