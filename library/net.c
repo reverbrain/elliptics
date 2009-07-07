@@ -305,8 +305,7 @@ static int dnet_trans_exec(struct dnet_trans *t)
 
 	if (t->complete) {
 		t->complete(t->st, &t->cmd, t->data, t->priv);
-		if (!(t->cmd.flags & DNET_FLAGS_MORE))
-			dnet_trans_destroy(t);
+		t->st->rcv_flags |= DNET_IO_DROP;
 	} else {
 		dnet_req_set_complete(&t->r, dnet_req_trans_destroy, NULL);
 		err = dnet_trans_forward(t, t->st);
