@@ -65,11 +65,6 @@ void *file_backend_setup_root(char *root)
 	if (!r)
 		goto err_out_exit;
 
-	if (r->root) {
-		free(r->root);
-		close(r->rootfd);
-	}
-
 	r->root = strdup(root);
 	if (!r->root) {
 		err = -ENOMEM;
