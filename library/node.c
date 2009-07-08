@@ -437,7 +437,7 @@ static void *dnet_io_thread_process(void *data)
 
 	t->need_exit = err;
 	dnet_log(n, DNET_LOG_ERROR, "%s: thread %lu exiting with status %d.\n",
-		dnet_dump_id(t->node->id), (unsigned long)t->tid, err);
+		dnet_dump_id(n->id), (unsigned long)t->tid, err);
 	return &t->need_exit;
 }
 
