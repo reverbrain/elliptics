@@ -295,6 +295,13 @@ void dnet_req_trans_destroy(struct dnet_data_req *r, int err __unused)
 		dnet_trans_destroy(t);
 }
 
+static void dnet_req_trans_destroy_forward(struct dnet_data_req *r, int err __unused)
+{
+	struct dnet_trans *t = container_of(r, struct dnet_trans, r);
+
+	dnet_trans_destroy(t);
+}
+
 static int dnet_trans_exec(struct dnet_trans *t)
 {
 	int err = 0;
@@ -305,9 +312,10 @@ static int dnet_trans_exec(struct dnet_trans *t)
 
 	if (t->complete) {
 		t->complete(t->st, &t->cmd, t->data, t->priv);
-		t->st->rcv_flags |= DNET_IO_DROP;
+		if (t->complete != dnet_req_trans_destroy_forward)
+			t->st->rcv_flags |= DNET_IO_DROP;
 	} else {
-		dnet_req_set_complete(&t->r, dnet_req_trans_destroy, NULL);
+		dnet_req_set_complete(&t->r, dnet_req_trans_destroy_forward, NULL);
 		err = dnet_trans_forward(t, t->st);
 	}
 
