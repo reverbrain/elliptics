@@ -312,7 +312,7 @@ static int dnet_trans_exec(struct dnet_trans *t)
 
 	if (t->complete) {
 		t->complete(t->st, &t->cmd, t->data, t->priv);
-		if (t->complete != dnet_req_trans_destroy_forward)
+		if (t->complete != (void *)dnet_req_trans_destroy_forward)
 			t->st->rcv_flags |= DNET_IO_DROP;
 	} else {
 		dnet_req_set_complete(&t->r, dnet_req_trans_destroy_forward, NULL);
@@ -344,6 +344,8 @@ static struct dnet_trans *dnet_trans_new(struct dnet_net_state *st, uint64_t siz
 err_out_free:
 	free(t);
 err_out_exit:
+	dnet_log(st->n, DNET_LOG_ERROR, "%s: failed to create new transaction, size: %llu.\n",
+			dnet_dump_id(st->id), (unsigned long long)size);
 	return NULL;
 }
 
@@ -441,6 +443,9 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 err_out_destroy:
 	dnet_trans_destroy(t);
 err_out_exit:
+	dnet_log(st->n, DNET_LOG_ERROR, "%s: schedule data size: %llu, error: %d.\n",
+			dnet_dump_id(st->rcv_cmd.id),
+			(unsigned long long)st->rcv_cmd.size, err);
 	return err;
 }
 
@@ -626,6 +631,9 @@ static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *
 	return 0;
 
 err_out_destroy:
+	dnet_log(st->n, DNET_LOG_ERROR, "%s: process recv trans %llu, reply: %d, error: %d.\n",
+			dnet_dump_id(t->cmd.id), (t->cmd.trans & ~DNET_TRANS_REPLY),
+			!!(t->cmd.trans & DNET_TRANS_REPLY), err);
 	dnet_trans_destroy(t);
 	return err;
 }
