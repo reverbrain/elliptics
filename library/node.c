@@ -626,13 +626,12 @@ void dnet_node_destroy(struct dnet_node *n)
 	dnet_log(n, DNET_LOG_INFO, "%s: destroying node at %s.\n",
 			dnet_dump_id(n->id), dnet_dump_node(n));
 
-	pthread_rwlock_wrlock(&n->state_lock);
 	list_for_each_entry_safe(st, tmp, &n->state_list, state_entry) {
 		list_del(&st->state_entry);
+		INIT_LIST_HEAD(&st->state_entry);
 
 		dnet_state_put(st);
 	}
-	pthread_rwlock_unlock(&n->state_lock);
 
 	dnet_stop_io_threads(n);
 
