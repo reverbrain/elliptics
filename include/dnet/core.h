@@ -69,4 +69,9 @@
  */
 #define DNET_DEFAULT_NOTIFY_HASH_SIZE	256
 
+/*
+ * Default resend timeout in seconds.
+ */
+#define DNET_DEFAULT_RESEND_TIMEOUT_SEC	60
+
 #endif /* __DNET_CORE_H */

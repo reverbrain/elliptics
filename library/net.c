@@ -292,14 +292,14 @@ void dnet_req_trans_destroy(struct dnet_data_req *r, int err __unused)
 	struct dnet_trans *t = container_of(r, struct dnet_trans, r);
 
 	if (!(t->cmd.flags & DNET_FLAGS_MORE))
-		dnet_trans_destroy(t);
+		dnet_trans_put(t);
 }
 
 static void dnet_req_trans_destroy_forward(struct dnet_data_req *r, int err __unused)
 {
 	struct dnet_trans *t = container_of(r, struct dnet_trans, r);
 
-	dnet_trans_destroy(t);
+	dnet_trans_put(t);
 }
 
 static int dnet_trans_exec(struct dnet_trans *t)
@@ -385,7 +385,7 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 				nt = dnet_trans_new(st, size);
 				if (!nt) {
 					err = -ENOMEM;
-					goto err_out_exit;
+					goto err_out_put;
 				}
 
 				nt->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
@@ -395,15 +395,25 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 				nt->complete = t->complete;
 				nt->st = dnet_state_get(t->st);
 
+				dnet_trans_put(t);
 				t = nt;
 			} else {
 				memcpy(&t->cmd, &st->rcv_cmd, sizeof(struct dnet_cmd));
 				t->cmd.trans = t->recv_trans | DNET_TRANS_REPLY;
 
+				/*
+				 * This transaction can not be found in the node's tree anymore,
+				 * so it can not be accessed through cleanup thread.
+				 * Since we grabbed a reference to this transaction during search,
+				 * it is safe to drop it here so that subsequent put will destroy
+				 * this transaction.
+				 */
+				dnet_trans_put(t);
+
 				if (!size) {
 					err = dnet_trans_exec(t);
 					if (err)
-						goto err_out_destroy;
+						goto err_out_put;
 
 					return dnet_schedule_command(st);
 				}
@@ -413,7 +423,7 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 					t->data = malloc(size);
 					if (!t->data) {
 						err = -ENOMEM;
-						goto err_out_exit;
+						goto err_out_put;
 					}
 				}
 			}
@@ -440,8 +450,8 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 	st->rcv_data = t->data;
 	return 0;
 
-err_out_destroy:
-	dnet_trans_destroy(t);
+err_out_put:
+	dnet_trans_put(t);
 err_out_exit:
 	dnet_log(st->n, DNET_LOG_ERROR, "%s: schedule data size: %llu, error: %d.\n",
 			dnet_dump_id(st->rcv_cmd.id),
@@ -603,7 +613,7 @@ static void dnet_req_trans_retry(struct dnet_data_req *r, int err)
 		dnet_state_put(st);
 
 		if (err)
-			dnet_trans_destroy(t);
+			dnet_trans_put(t);
 	} else {
 		dnet_req_set_complete(&t->r, NULL, NULL);
 	}
@@ -626,7 +636,7 @@ static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *
 	}
 
 	if (st->rcv_flags & DNET_IO_DROP)
-		dnet_trans_destroy(t);
+		dnet_trans_put(t);
 
 	return 0;
 
@@ -634,7 +644,7 @@ err_out_destroy:
 	dnet_log(st->n, DNET_LOG_ERROR, "%s: process recv trans %llu, reply: %d, error: %d.\n",
 			dnet_dump_id(t->cmd.id), (t->cmd.trans & ~DNET_TRANS_REPLY),
 			!!(t->cmd.trans & DNET_TRANS_REPLY), err);
-	dnet_trans_destroy(t);
+	dnet_trans_put(t);
 	return err;
 }
 
@@ -750,27 +760,36 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 		st->snd_offset = 0;
 		st->snd_size = 0;
 
-		if (r->header)
+		st->hsize = st->dsize = st->fsize = st->foffset = 0;
+
+		if (r->header) {
 			st->snd_size += r->hsize;
-		if (r->data)
+			st->hsize = r->hsize;
+		}
+		if (r->data) {
 			st->snd_size += r->dsize;
-		if (r->fd >= 0)
+			st->dsize = r->dsize;
+		}
+		if (r->fd >= 0) {
 			st->snd_size += r->size;
+			st->fsize = r->size;
+			st->foffset = r->offset;
+		}
 	}
 
 	while (st->snd_size) {
-		uint64_t *size = NULL;
+		unsigned long long *size = NULL;
 		void *data = NULL;
 		err = -EINVAL;
 
-		if (r->hsize) {
-			size = &r->hsize;
+		if (st->hsize) {
+			size = &st->hsize;
 			data = r->header;
-		} else if (r->dsize) {
-			size = &r->dsize;
+		} else if (st->dsize) {
+			size = &st->dsize;
 			data = r->data + r->doff;
-		} else if (r->fd >= 0) {
-			size = &r->size;
+		} else if (st->fsize) {
+			size = &st->fsize;
 			data = NULL;
 		}
 
@@ -780,25 +799,23 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 		if (!size) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: snd_size: %llu, fd: %d.\n",
 					dnet_dump_id(st->id),
-					(unsigned long long)st->snd_size, r->fd);
+					st->snd_size, r->fd);
 		}
 
 		if (data) {
 			err = send(st->s, data, *size, 0);
 		} else if (r->fd >= 0) {
-			err = dnet_sendfile(st, r->fd, &r->offset, *size);
+			err = dnet_sendfile(st, r->fd, &st->foffset, *size);
 		}
 		
 		dnet_log(n, DNET_LOG_DSA, "%s: sent: data: %p, %d/%llu.\n",
-				dnet_dump_id(st->id), data, err,
-				(unsigned long long)*size);
+				dnet_dump_id(st->id), data, err, *size);
 
 		if (err < 0) {
 			err = -EAGAIN;
 			if (errno != EAGAIN && errno != EINTR) {
 				err = -errno;
-				dnet_log_err(n, "failed to send %llu bytes",
-						(unsigned long long)*size);
+				dnet_log_err(n, "failed to send %llu bytes", *size);
 				goto out;
 			}
 
@@ -814,8 +831,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 		}
 
 		dnet_log(n, DNET_LOG_DSA, "%s: sent: %d/%llu.\n",
-				dnet_dump_id(st->id), err,
-				(unsigned long long)*size);
+				dnet_dump_id(st->id), err, *size);
 
 		*size -= err;
 		if (data)
@@ -830,13 +846,15 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 	}
 
 	dnet_lock_lock(&st->snd_lock);
-	list_del(&r->req_entry);
+	list_del_init(&r->req_entry);
 	dnet_lock_unlock(&st->snd_lock);
 
 	dnet_log(n, DNET_LOG_DSA, "%s: destroying send request: %p: "
-			"flags: %x, hsize: %llu, dsize: %llu, fsize: %llu, complete: %p.\n",
-			dnet_dump_id(st->id), r, r->flags, (unsigned long long)r->hsize,
-			(unsigned long long)r->dsize, (unsigned long long)r->size, r->complete);
+			"flags: %x, hsize: %llu/%llu, dsize: %llu/%llu, fsize: %llu/%llu, complete: %p.\n",
+			dnet_dump_id(st->id), r, r->flags,
+			st->hsize, (unsigned long long)r->hsize,
+			st->dsize, (unsigned long long)r->dsize,
+			st->fsize, (unsigned long long)r->size, r->complete);
 
 	dnet_req_destroy(r, 0);
 
@@ -910,7 +928,7 @@ err_out_destroy:
 		dnet_lock_lock(&st->snd_lock);
 		if (!list_empty(&st->snd_list)) {
 			r = list_first_entry(&st->snd_list, struct dnet_data_req, req_entry);
-			list_del(&r->req_entry);
+			list_del_init(&r->req_entry);
 		}
 		dnet_lock_unlock(&st->snd_lock);
 

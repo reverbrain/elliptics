@@ -51,7 +51,7 @@ struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans)
 		else if (cmp > 0)
 			n = n->rb_right;
 		else
-			return t;
+			return dnet_trans_get(t);
 	}
 
 	return NULL;
@@ -124,14 +124,23 @@ void dnet_trans_remove(struct dnet_trans *t)
 	dnet_lock_unlock(&n->trans_lock);
 }
 
-struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
+struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size)
 {
 	struct dnet_trans *t;
+	struct timeval tv;
 
 	t = malloc(sizeof(struct dnet_trans) + size);
 	if (!t)
 		return NULL;
 	memset(t, 0, sizeof(struct dnet_trans) + size);
+
+	gettimeofday(&tv, NULL);
+
+	atomic_set(&t->refcnt, 1);
+
+	t->resend_count = n->resend_count;
+	t->fire_time.tv_sec = tv.tv_sec + n->resend_timeout.tv_sec;
+	t->fire_time.tv_nsec = tv.tv_usec * 1000 + n->resend_timeout.tv_nsec;
 
 	return t;
 }
@@ -144,14 +153,10 @@ void dnet_trans_destroy(struct dnet_trans *t)
 				dnet_dump_id(t->cmd.id),
 				(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
 				!!(t->trans & ~DNET_TRANS_REPLY), &t->r);
+
 		if (t->trans_entry.rb_parent_color && t->st && t->st->n)
 			dnet_trans_remove(t);
-#if 0
-		if (t->complete) {
-			t->cmd.flags |= DNET_FLAGS_DESTROY;
-			t->complete(t, NULL);
-		}
-#endif
+
 		dnet_state_put(t->st);
 		free(t->data);
 
@@ -183,6 +188,8 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
 	memcpy(cmd->id, ctl->id, DNET_ID_SIZE);
 	cmd->flags = ctl->cflags;
 	cmd->size = sizeof(struct dnet_attr) + ctl->size;
+
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
 	a->cmd = ctl->cmd;
 	a->size = ctl->size;
@@ -218,7 +225,130 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
 	return 0;
 
 err_out_destroy:
-	dnet_trans_destroy(t);
+	dnet_trans_put(t);
 err_out_exit:
 	return err;
+}
+
+static int dnet_trans_resend(struct dnet_trans *t)
+{
+	struct dnet_net_state *st = t->st;
+	struct dnet_node *n = t->st->n;
+	int empty = 1;
+
+	dnet_lock_lock(&st->snd_lock);
+	if (!list_empty(&t->r.req_entry))
+		empty = 0;
+	dnet_lock_unlock(&st->snd_lock);
+
+	if (!empty)
+		return 0;
+
+	st = dnet_state_get_first(n, t->cmd.id, n->st);
+	if (!st) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to find a state.\n",
+				dnet_dump_id(t->cmd.id));
+		return -ENODEV;
+	}
+
+	dnet_state_put(t->st);
+	t->st = st;
+
+	dnet_log(n, DNET_LOG_INFO, "%s: resending transaction %llu -> %s.\n",
+			dnet_dump_id(t->cmd.id), t->trans, dnet_state_dump_addr(st));
+
+	dnet_data_ready(t->st, &t->r);
+	return 1;
+}
+
+void dnet_check_tree(struct dnet_node *n)
+{
+	struct dnet_trans *t;
+	struct timespec ts;
+	struct timeval tv;
+	struct rb_node *node, *next;
+	int resent = 0, total = 0;
+
+	dnet_try_reconnect(n);
+
+	gettimeofday(&tv, NULL);
+
+	ts.tv_sec = tv.tv_sec;
+	ts.tv_nsec = tv.tv_usec * 1000;
+
+	dnet_lock_lock(&n->trans_lock);
+	node = rb_first(&n->trans_root);
+
+	while (node) {
+		next = rb_next(node);
+
+		t = rb_entry(node, struct dnet_trans, trans_entry);
+
+		if (dnet_time_after(&ts, &t->fire_time)) {
+			int err = -ETIMEDOUT;
+
+			if (--t->resend_count > 0) {
+				err = dnet_trans_resend(t);
+				if (!err)
+					t->resend_count++;
+
+				if (err > 0) {
+					t->fire_time.tv_sec = ts.tv_sec + n->resend_timeout.tv_sec;
+					t->fire_time.tv_nsec = ts.tv_nsec + n->resend_timeout.tv_nsec;
+				}
+
+				resent++;
+			}
+
+			if (err < 0) {
+				dnet_trans_remove_nolock(&n->trans_root, t);
+				dnet_trans_put(t);
+			}
+		}
+
+		total++;
+		node = next;
+	}
+	dnet_lock_unlock(&n->trans_lock);
+
+	dnet_log(n, DNET_LOG_NOTICE, "%s: resent/checked %d transactions, total: %d.\n",
+			dnet_dump_id(n->id), resent, total);
+}
+
+static void *dnet_check_tree_from_thread(void *data)
+{
+	struct dnet_node *n = data;
+	unsigned long timeout = n->resend_timeout.tv_sec;
+
+	if (!timeout)
+		timeout = 1;
+
+	dnet_log(n, DNET_LOG_INFO, "%s: started resending thread. Timeout: %lu seconds.\n",
+			dnet_dump_id(n->id), timeout);
+
+	while (!n->need_exit) {
+		dnet_check_tree(n);
+		sleep(timeout);
+	}
+
+	return NULL;
+}
+
+int dnet_resend_thread_start(struct dnet_node *n)
+{
+	int err;
+
+	err = pthread_create(&n->resend_tid, NULL, dnet_check_tree_from_thread, n);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to start tree checking thread: err: %d.\n",
+				dnet_dump_id(n->id), err);
+		return -err;
+	}
+
+	return 0;
+}
+
+void dnet_resend_thread_stop(struct dnet_node *n)
+{
+	pthread_join(n->resend_tid, NULL);
 }

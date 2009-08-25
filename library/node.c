@@ -85,6 +85,8 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	INIT_LIST_HEAD(&n->io_thread_list);
 	INIT_LIST_HEAD(&n->reconnect_list);
 
+	INIT_LIST_HEAD(&n->check_entry);
+
 	return n;
 
 err_out_destroy_wait:
@@ -555,6 +557,21 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->io_thread_num = cfg->io_thread_num;
 	n->notify_hash_size = cfg->hash_size;
 	n->merge_strategy = cfg->merge_strategy;
+	n->resend_count = cfg->resend_count;
+	n->resend_timeout = cfg->resend_timeout;
+
+	/*
+	 * Only allow resends for client nodes,
+	 * joined nodes only forward that data or store it locally.
+	 */
+	if (cfg->join)
+		n->resend_count = 0;
+
+	if (!n->resend_timeout.tv_sec && !n->resend_timeout.tv_nsec) {
+		n->resend_timeout.tv_sec = DNET_DEFAULT_RESEND_TIMEOUT_SEC;
+		dnet_log(n, DNET_LOG_ERROR, "%s: using default resend timeout (%ld seconds).\n",
+				dnet_dump_id(n->id), n->resend_timeout.tv_sec);
+	}
 
 	if (!n->merge_strategy || n->merge_strategy >= __DNET_MERGE_MAX) {
 		n->merge_strategy = DNET_MERGE_PREFER_NETWORK;
@@ -602,10 +619,16 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->st)
 		goto err_out_stop_io_threads;
 
+	err = dnet_resend_thread_start(n);
+	if (err)
+		goto err_out_state_destroy;
+
 	dnet_log(n, DNET_LOG_INFO, "%s: new node has been created at %s, id_size: %u.\n",
 			dnet_dump_id(n->id), dnet_dump_node(n), DNET_ID_SIZE);
 	return n;
 
+err_out_state_destroy:
+	dnet_state_put(n->st);
 err_out_stop_io_threads:
 	dnet_stop_io_threads(n);
 err_out_sock_close:
@@ -625,6 +648,8 @@ void dnet_node_destroy(struct dnet_node *n)
 
 	dnet_log(n, DNET_LOG_INFO, "%s: destroying node at %s.\n",
 			dnet_dump_id(n->id), dnet_dump_node(n));
+
+	dnet_resend_thread_stop(n);
 
 	list_for_each_entry_safe(st, tmp, &n->state_list, state_entry) {
 		list_del(&st->state_entry);

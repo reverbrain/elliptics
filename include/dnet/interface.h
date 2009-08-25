@@ -267,6 +267,13 @@ struct dnet_config
 	 * If not set default number is used 
 	 */
 	uint64_t		max_pending;	
+
+	/*
+	 * Number of resends client transaction will be tried to be delivered.
+	 * Delay between resends corresponds to @resend_timeout.
+	 */
+	int			resend_count;
+	struct timespec		resend_timeout;
 };
 
 /*
@@ -417,14 +424,6 @@ static inline char *dnet_dump_id(const unsigned char *id)
  * Send a shell command to the remote node for execution.
  */
 int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command);
-
-/*
- * Must be called by the main thread to give up control
- * to the elliptics machinery sometime after node has joined the network.
- *
- * This will pick up disconnected states and rejoin them.
- */
-int dnet_give_up_control(struct dnet_node *n);
 
 /*
  * Lookup a node which hosts given ID.
@@ -643,6 +642,13 @@ int dnet_remove_object(struct dnet_node *n,
  * Remove given file (identified by name or ID) from the storage.
  */
 int dnet_remove_file(struct dnet_node *n, char *file, unsigned char *file_id);
+
+/*
+ * dnet_check_tree() performs whole transaction tree scan which will resend
+ * or destroy stall transactions depending on their send time and resend counter.
+ * This can be rather long operation which will not allow new transactions to be added.
+ */
+void dnet_check_tree(struct dnet_node *n);
 
 #ifdef __cplusplus
 }

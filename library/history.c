@@ -638,6 +638,8 @@ int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st)
 	cmd->trans = 0;
 	cmd->size = sizeof(struct dnet_attr);
 
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
+
 	a->cmd = DNET_CMD_LIST;
 	a->size = 0;
 	a->flags = 0;
@@ -711,7 +713,7 @@ int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st)
 	return 0;
 
 err_out_destroy:
-	dnet_trans_destroy(t);
+	dnet_trans_put(t);
 err_out_put:
 	dnet_wait_put(w);
 err_out_exit:

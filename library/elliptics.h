@@ -106,8 +106,9 @@ struct dnet_net_state
 	
 	struct list_head	snd_list;
 	struct dnet_lock	snd_lock;
-	uint64_t		snd_offset;
-	uint64_t		snd_size;
+	unsigned long long	snd_offset;
+	unsigned long long	snd_size;
+	unsigned long long	dsize, fsize, hsize, foffset;
 
 	uint64_t		req_pending;
 
@@ -225,6 +226,8 @@ void dnet_notify_exit(struct dnet_node *n);
 
 struct dnet_node
 {
+	struct list_head	check_entry;
+
 	unsigned char		id[DNET_ID_SIZE];
 
 	pthread_rwlock_t	transform_lock;
@@ -262,7 +265,11 @@ struct dnet_node
 	uint64_t		total_synced_files;
 
 	int			join_state;
-	
+
+	int			resend_count;
+	struct timespec		resend_timeout;
+	pthread_t		resend_tid;
+
 	int			(* command_handler)(void *state, void *priv,
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
@@ -347,6 +354,10 @@ struct dnet_trans
 
 	struct dnet_data_req		r;
 
+	atomic_t			refcnt;
+	int				resend_count;
+	struct timespec			fire_time;
+
 	void				*priv;
 	int				(* complete)(struct dnet_net_state *st,
 						     struct dnet_cmd *cmd,
@@ -356,6 +367,18 @@ struct dnet_trans
 
 void dnet_trans_destroy(struct dnet_trans *t);
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size);
+
+static inline struct dnet_trans *dnet_trans_get(struct dnet_trans *t)
+{
+	atomic_inc(&t->refcnt);
+	return t;
+}
+
+static inline void dnet_trans_put(struct dnet_trans *t)
+{
+	if (atomic_dec_and_test(&t->refcnt))
+		dnet_trans_destroy(t);
+}
 
 void dnet_trans_remove(struct dnet_trans *t);
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
@@ -413,6 +436,25 @@ struct dnet_addr_storage
 	struct list_head		reconnect_entry;
 	struct dnet_addr		addr;
 };
+
+/*
+ * Returns true if t1 is before than t2.
+ */
+static inline int dnet_time_before(struct timespec *t1, struct timespec *t2)
+{
+	if ((long)(t1->tv_sec - t2->tv_sec) < 0)
+		return 1;
+	
+	if ((long)(t2->tv_sec - t1->tv_sec) < 0)
+		return 0;
+
+	return !!((long)(t1->tv_nsec - t2->tv_nsec));
+}
+#define dnet_time_after(t2, t1) 	dnet_time_before(t1, t2)
+
+int dnet_resend_thread_start(struct dnet_node *n);
+void dnet_resend_thread_stop(struct dnet_node *n);
+int dnet_try_reconnect(struct dnet_node *n);
 
 #ifdef __cplusplus
 }

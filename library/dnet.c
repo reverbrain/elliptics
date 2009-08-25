@@ -802,6 +802,8 @@ static int dnet_recv_route_list(struct dnet_net_state *st)
 	cmd->flags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT;
 	cmd->status = 0;
 
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
+
 	a->cmd = DNET_CMD_ROUTE_LIST;
 	a->size = 0;
 	a->flags = 0;
@@ -830,7 +832,7 @@ static int dnet_recv_route_list(struct dnet_net_state *st)
 	return 0;
 
 err_out_destroy:
-	dnet_trans_destroy(t);
+	dnet_trans_put(t);
 err_out_exit:
 	return err;
 }
@@ -1026,6 +1028,8 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 
 	memcpy(io, &ctl->io, sizeof(struct dnet_io_attr));
 
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
+
 	t->st = dnet_state_get_first(n, cmd->id, n->st);
 	if (!t->st) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to find a state.\n", dnet_dump_id(cmd->id));
@@ -1049,7 +1053,7 @@ err_out_complete_destroy:
 	goto err_out_exit;
 
 err_out_destroy:
-	dnet_trans_destroy(t);
+	dnet_trans_put(t);
 err_out_exit:
 	return NULL;
 }
@@ -1096,7 +1100,7 @@ int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *ctl)
 	return 0;
 
 err_out_destroy:
-	dnet_trans_destroy(t);
+	dnet_trans_put(t);
 err_out_exit:
 	return err;
 }
@@ -2141,6 +2145,8 @@ int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command)
 	cmd->flags = DNET_FLAGS_NEED_ACK;
 	cmd->status = 0;
 
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
+
 	a->cmd = DNET_CMD_EXEC;
 	a->size = len;
 	a->flags = 0;
@@ -2187,56 +2193,46 @@ int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command)
 	return 0;
 
 err_out_destroy:
-	dnet_trans_destroy(t);
+	dnet_trans_put(t);
 err_out_put:
 	dnet_wait_put(w);
 err_out_exit:
 	return err;
 }
 
-int dnet_give_up_control(struct dnet_node *n)
+int dnet_try_reconnect(struct dnet_node *n)
 {
 	struct dnet_addr_storage *ast, *tmp;
 	struct dnet_net_state *st;
-	int s, rejoin, timeout = 1, max_timeout = 30;
+	int s, rejoin;
 
-	while (!n->need_exit) {
-		if (list_empty(&n->reconnect_list))
-			sleep(timeout);
+	if (list_empty(&n->reconnect_list))
+		return 0;
 
-		rejoin = 0;
-		pthread_mutex_lock(&n->reconnect_lock);
-		list_for_each_entry_safe(ast, tmp, &n->reconnect_list, reconnect_entry) {
-			s = dnet_socket_create_addr(n, n->sock_type, n->proto, n->family,
-					(struct sockaddr *)ast->addr.addr, ast->addr.addr_len, 0);
-			if (s < 0)
-				continue;
+	rejoin = 0;
+	pthread_mutex_lock(&n->reconnect_lock);
+	list_for_each_entry_safe(ast, tmp, &n->reconnect_list, reconnect_entry) {
+		s = dnet_socket_create_addr(n, n->sock_type, n->proto, n->family,
+				(struct sockaddr *)ast->addr.addr, ast->addr.addr_len, 0);
+		if (s < 0)
+			continue;
 
-			st = dnet_add_state_socket(n, &ast->addr, s);
-			if (!st) {
-				close(s);
-				continue;
-			}
-
-			st->join_state = DNET_REJOIN;
-			rejoin = 1;
-
-			list_del(&ast->reconnect_entry);
-			free(ast);
-		}
-		pthread_mutex_unlock(&n->reconnect_lock);
-
-		timeout *= 2;
-		if (timeout > max_timeout)
-			timeout = max_timeout;
-
-		if (rejoin) {
-			timeout = 1;
-			dnet_rejoin(n, 0);
+		st = dnet_add_state_socket(n, &ast->addr, s);
+		if (!st) {
+			close(s);
+			continue;
 		}
 
-		sleep(timeout);
+		st->join_state = DNET_REJOIN;
+		rejoin = 1;
+
+		list_del(&ast->reconnect_entry);
+		free(ast);
 	}
+	pthread_mutex_unlock(&n->reconnect_lock);
+
+	if (rejoin)
+		dnet_rejoin(n, 0);
 
 	return 0;
 }
@@ -2269,6 +2265,8 @@ int dnet_lookup_object(struct dnet_node *n, unsigned char *id,
 	cmd->size = sizeof(struct dnet_attr);
 	//cmd->flags = DNET_FLAGS_DIRECT;
 	cmd->status = 0;
+
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
 	a->cmd = DNET_CMD_LOOKUP;
 	a->size = 0;
@@ -2310,7 +2308,7 @@ err_out_complete_destroy:
 	goto err_out_exit;
 
 err_out_destroy:
-	dnet_trans_destroy(t);
+	dnet_trans_put(t);
 err_out_exit:
 	return err;
 }
@@ -2620,6 +2618,8 @@ int dnet_recv_transform_list(struct dnet_node *n, unsigned char *id,
 	cmd->flags = DNET_FLAGS_NEED_ACK;
 	cmd->size = sizeof(struct dnet_attr);
 
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
+
 	a->cmd = DNET_CMD_TRANSFORM_LIST;
 
 	st = dnet_state_get_first(n, cmd->id, n->st);
@@ -2655,7 +2655,7 @@ int dnet_recv_transform_list(struct dnet_node *n, unsigned char *id,
 	return 0;
 
 err_out_destroy:
-	dnet_trans_destroy(t);
+	dnet_trans_put(t);
 err_out_exit:
 	return err;
 }

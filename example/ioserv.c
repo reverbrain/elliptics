@@ -121,6 +121,7 @@ int main(int argc, char *argv[])
 	cfg.wait_timeout = 60*60;
 	cfg.log_mask = ~0;
 	cfg.merge_strategy = DNET_MERGE_PREFER_NETWORK;
+	cfg.resend_count = 3;
 
 	size = offset = 0;
 
@@ -338,7 +339,9 @@ int main(int argc, char *argv[])
 	}
 
 	if (cfg.join) {
-		dnet_give_up_control(n);
+		/* Zzzz... */
+		while (1)
+			sleep(1);
 	}
 
 	printf("Successfully executed given command.\n");
