@@ -109,8 +109,7 @@ void dnet_state_remove(struct dnet_net_state *st)
 	struct dnet_node *n = st->n;
 
 	pthread_rwlock_wrlock(&n->state_lock);
-	list_del(&st->state_entry);
-	INIT_LIST_HEAD(&st->state_entry);
+	list_del_init(&st->state_entry);
 	pthread_rwlock_unlock(&n->state_lock);
 }
 
@@ -387,7 +386,7 @@ static void dnet_dummy_pipe_read(int s, short event, void *arg)
 		}
 
 		dnet_log(n, DNET_LOG_DSA, "thread: %lu, err: %d, cmd: %u, state: %s.\n",
-				(unsigned long)t->tid, err, ts.cmd, dnet_dump_id(ts.state->id));
+				(unsigned long)t->tid, err, ts.cmd, ts.state?dnet_dump_id(ts.state->id):"raw");
 
 		/*
 		 * Size we read has to be smaller than atomic pipe IO size.
@@ -399,6 +398,9 @@ static void dnet_dummy_pipe_read(int s, short event, void *arg)
 				break;
 			case DNET_THREAD_SCHEDULE:
 				dnet_schedule_socket(ts.state);
+				break;
+			case DNET_THREAD_EXIT:
+				event_base_loopexit(t->base, 0);
 				break;
 			default:
 				break;
@@ -449,6 +451,8 @@ static void dnet_stop_io_threads(struct dnet_node *n)
 
 	list_for_each_entry_safe(t, tmp, &n->io_thread_list, thread_entry) {
 		t->need_exit = 1;
+		
+		dnet_signal_thread_raw(t, NULL, DNET_THREAD_EXIT);
 		pthread_join(t->tid, NULL);
 
 		list_del(&t->thread_entry);
@@ -649,18 +653,23 @@ void dnet_node_destroy(struct dnet_node *n)
 	dnet_log(n, DNET_LOG_INFO, "%s: destroying node at %s.\n",
 			dnet_dump_id(n->id), dnet_dump_node(n));
 
+	n->need_exit = 1;
 	dnet_resend_thread_stop(n);
 
-	list_for_each_entry_safe(st, tmp, &n->state_list, state_entry) {
-		list_del(&st->state_entry);
-		INIT_LIST_HEAD(&st->state_entry);
+	list_for_each_entry_safe(st, tmp, &n->empty_state_list, state_entry) {
+		dnet_state_put(n->st);
+	}
 
+	dnet_check_tree(n, 1);
+	list_for_each_entry_safe(st, tmp, &n->state_list, state_entry) {
+		list_del_init(&st->state_entry);
+
+		dnet_log(n, DNET_LOG_NOTICE, "%s: addr: %s, refcnt: %d.\n",
+				dnet_dump_id(st->id), dnet_state_dump_addr(st), atomic_read(&st->refcnt));
 		dnet_state_put(st);
 	}
 
 	dnet_stop_io_threads(n);
-
-	close(n->listen_socket);
 
 	pthread_rwlock_destroy(&n->state_lock);
 	dnet_lock_destroy(&n->trans_lock);

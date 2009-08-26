@@ -643,13 +643,6 @@ int dnet_remove_object(struct dnet_node *n,
  */
 int dnet_remove_file(struct dnet_node *n, char *file, unsigned char *file_id);
 
-/*
- * dnet_check_tree() performs whole transaction tree scan which will resend
- * or destroy stall transactions depending on their send time and resend counter.
- * This can be rather long operation which will not allow new transactions to be added.
- */
-void dnet_check_tree(struct dnet_node *n);
-
 #ifdef __cplusplus
 }
 #endif

@@ -2412,13 +2412,30 @@ err_out_exit:
 	return err;
 }
 
-int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd)
+int dnet_signal_thread_raw(struct dnet_io_thread *t, struct dnet_net_state *st, unsigned int cmd)
 {
 	struct dnet_thread_signal ts;
 	int err;
 
 	ts.cmd = cmd;
 	ts.state = st;
+
+	err = write(t->pipe[1], &ts, sizeof(struct dnet_thread_signal));
+	if (err <= 0) {
+		err = -errno;
+		return err;
+	}
+
+	if (st)
+		dnet_log(st->n, DNET_LOG_DSA, "%s: signaled thread %lu, cmd %u.\n",
+			dnet_dump_id(st->id), (unsigned long)t->tid, cmd);
+
+	return 0;
+}
+
+int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd)
+{
+	int err;
 
 	/*
 	 * I hate libevent.
@@ -2428,17 +2445,11 @@ int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd)
 	 */
 	dnet_state_get(st);
 
-	err = write(st->th->pipe[1], &ts, sizeof(struct dnet_thread_signal));
-	if (err <= 0) {
-		err = -errno;
+	err = dnet_signal_thread_raw(st->th, st, cmd);
+	if (err)
 		dnet_state_put(st);
-		return err;
-	}
 
-	dnet_log(st->n, DNET_LOG_DSA, "%s: signaled thread %lu, cmd %u.\n",
-			dnet_dump_id(st->id), (unsigned long)st->th->tid, cmd);
-
-	return 0;
+	return err;
 }
 
 int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)

@@ -344,6 +344,8 @@ int main(int argc, char *argv[])
 			sleep(1);
 	}
 
+	dnet_node_destroy(n);
+
 	printf("Successfully executed given command.\n");
 
 	return 0;

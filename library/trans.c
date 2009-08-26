@@ -261,7 +261,7 @@ static int dnet_trans_resend(struct dnet_trans *t)
 	return 1;
 }
 
-void dnet_check_tree(struct dnet_node *n)
+void dnet_check_tree(struct dnet_node *n, int kill)
 {
 	struct dnet_trans *t;
 	struct timespec ts;
@@ -280,12 +280,15 @@ void dnet_check_tree(struct dnet_node *n)
 	node = rb_first(&n->trans_root);
 
 	while (node) {
-		next = rb_next(node);
+		int err = 0;
 
+		next = rb_next(node);
 		t = rb_entry(node, struct dnet_trans, trans_entry);
 
+		if (kill)
+			err = -EIO;
 		if (dnet_time_after(&ts, &t->fire_time)) {
-			int err = -ETIMEDOUT;
+			err = -ETIMEDOUT;
 
 			if (--t->resend_count > 0) {
 				err = dnet_trans_resend(t);
@@ -299,11 +302,10 @@ void dnet_check_tree(struct dnet_node *n)
 
 				resent++;
 			}
-
-			if (err < 0) {
-				dnet_trans_remove_nolock(&n->trans_root, t);
-				dnet_trans_put(t);
-			}
+		}
+		if (err < 0) {
+			dnet_trans_remove_nolock(&n->trans_root, t);
+			dnet_trans_put(t);
 		}
 
 		total++;
@@ -318,7 +320,7 @@ void dnet_check_tree(struct dnet_node *n)
 static void *dnet_check_tree_from_thread(void *data)
 {
 	struct dnet_node *n = data;
-	unsigned long timeout = n->resend_timeout.tv_sec;
+	unsigned long i, timeout = n->resend_timeout.tv_sec;
 
 	if (!timeout)
 		timeout = 1;
@@ -327,8 +329,13 @@ static void *dnet_check_tree_from_thread(void *data)
 			dnet_dump_id(n->id), timeout);
 
 	while (!n->need_exit) {
-		dnet_check_tree(n);
-		sleep(timeout);
+		dnet_check_tree(n, 0);
+
+		for (i=0; i<timeout; ++i) {
+			if (n->need_exit)
+				break;
+			sleep(1);
+		}
 	}
 
 	return NULL;
@@ -351,4 +358,5 @@ int dnet_resend_thread_start(struct dnet_node *n)
 void dnet_resend_thread_stop(struct dnet_node *n)
 {
 	pthread_join(n->resend_tid, NULL);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: resend thread stopped.\n", dnet_dump_id(n->id));
 }

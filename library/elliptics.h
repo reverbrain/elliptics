@@ -415,6 +415,7 @@ struct dnet_transform
 enum dnet_thread_cmd {
 	DNET_THREAD_SCHEDULE = 1,		/* Schedule new state event on given thread */
 	DNET_THREAD_DATA_READY,			/* Given state has new data, reschedule write event */
+	DNET_THREAD_EXIT,			/* Exit event processing */
 };
 
 struct dnet_thread_signal
@@ -424,6 +425,7 @@ struct dnet_thread_signal
 };
 
 int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd);
+int dnet_signal_thread_raw(struct dnet_io_thread *t, struct dnet_net_state *st, unsigned int cmd);
 int dnet_schedule_socket(struct dnet_net_state *st);
 
 void dnet_req_trans_destroy(struct dnet_data_req *r, int err);
@@ -455,6 +457,7 @@ static inline int dnet_time_before(struct timespec *t1, struct timespec *t2)
 int dnet_resend_thread_start(struct dnet_node *n);
 void dnet_resend_thread_stop(struct dnet_node *n);
 int dnet_try_reconnect(struct dnet_node *n);
+void dnet_check_tree(struct dnet_node *n, int kill);
 
 #ifdef __cplusplus
 }

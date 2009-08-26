@@ -415,6 +415,7 @@ static int dnet_schedule_data(struct dnet_net_state *st)
 					if (err)
 						goto err_out_put;
 
+					dnet_trans_put(t);
 					return dnet_schedule_command(st);
 				}
 
