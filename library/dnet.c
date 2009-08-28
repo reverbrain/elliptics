@@ -573,7 +573,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 		memcpy(ack->id, cmd->id, DNET_ID_SIZE);
 		ack->trans = cmd->trans | DNET_TRANS_REPLY;
 		ack->size = 0;
-		ack->flags = cmd->flags & ~DNET_FLAGS_NEED_ACK;
+		ack->flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
 		ack->status = err;
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: ack trans: %llu, flags: %x, status: %d.\n",
