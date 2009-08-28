@@ -1,0 +1,5 @@
+log_mask=15
+
+ioserv=../example/dnet_ioserv
+server_opt="-D $1"
+daemon_start_string="$ioserv"
