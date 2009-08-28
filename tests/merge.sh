@@ -1,13 +1,8 @@
 #!/bin/bash
 
-ioserv=../example/dnet_ioserv
-log_mask=15
+. options
+
 server_num=2
-
-server_opt="-D"
-daemon_start_string="$ioserv"
-tmpdir="/tmp/elliptics-tmp"
-
 base_serv=localhost:1025:2
 joining_serv=localhost:1030:2
 test_file_id=ff
@@ -17,10 +12,10 @@ size=4096
 
 . functions
 
-trap kill_servers EXIT
-
 tmpdir=`prepare_root`
-log=$tmpdir/log
+log_file=$tmpdir/log
+
+trap kill_servers EXIT
 
 echo -en "Checking merge strategy ($tmpdir): "
 for ((merge=0; merge<4; ++merge)); do
@@ -42,7 +37,7 @@ for ((merge=0; merge<4; ++merge)); do
 	kill_servers
 done
 
-echo "done"
+print_passed
 #read_and_check_data 0 $total_size 0 "$base_serv" $test_file_id
 
 kill_servers

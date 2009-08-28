@@ -1,6 +1,6 @@
 function log()
 {
-	echo "$@" >> $log
+	echo "$@" >> $log_file
 }
 
 function die()
@@ -31,7 +31,7 @@ function prepare_root()
 
 function start_node()
 {
-	start_log=`$daemon_start_string $1`
+	start_log=`$daemon_start_string $@`
 	status=$?
 
 	if test $status != 0; then
@@ -139,7 +139,7 @@ function setup_base_server_data()
 	local cnt=$4
 	local test_file_id=$5
 
-	dd if=/dev/urandom of=$test_file bs=$size count=$cnt >> $log 2>&1
+	dd if=/dev/urandom of=$test_file bs=$size count=$cnt >> $log_file 2>&1
 
 	start_server $base_serv 0 "$server_opt"
 	for ((j=0; j<$cnt; ++j)); do
@@ -196,7 +196,7 @@ function prepare_servers()
 
 	kill_server $joining_serv
 
-	dd if=/dev/urandom of=$test_file.tmp bs=$size count=1 >> $log 2>&1
+	dd if=/dev/urandom of=$test_file.tmp bs=$size count=1 >> $log_file 2>&1
 	local offset=1024
 	write_data 0 `expr $size \- $offset` $offset $base_serv $test_file.tmp $test_file_id
 
@@ -206,4 +206,25 @@ function prepare_servers()
 	kill_server $joining_serv
 }
 
+function generate_random_file() {	
+	log "Generating random file...";
+	(
+	 cat /dev/urandom > $1 &
+	 sleep $generating_time
+	 kill  $!
+	) 2> /dev/null
+}
 
+#compare test data with reading results
+function cmp_files() {
+	#compare test data and reading results
+	cmp $1 $2
+	if [ "f$?" != "f0" ]; then 
+		die "Files differ!"
+	fi
+}
+
+function print_passed() {
+	echo -e '\E[32m  PASSED'
+	tput sgr0
+}

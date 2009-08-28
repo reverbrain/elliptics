@@ -1,13 +1,8 @@
 #!/bin/bash
 
-ioserv=../example/dnet_ioserv
-log_mask=15
+. options
+
 server_num=1
-
-server_opt="-D"
-daemon_start_string="$ioserv"
-tmpdir="/tmp/elliptics-tmp"
-
 base_serv=localhost:1025:2
 test_file_id=ff
 
@@ -20,7 +15,7 @@ total_size=`expr $cnt \* $size`
 trap kill_servers EXIT
 
 tmpdir=`prepare_root`
-log=$tmpdir/log
+log_file=$tmpdir/log
 test_file=$tmpdir/test_file
 
 function write_and_remove_file()
@@ -47,7 +42,7 @@ $ioserv -a localhost:0:2 -r $base_serv -l $tmpdir/log-client-read -m $log_mask -
 status=$?
 
 if test `expr 256 \- $status` = 2; then
-	echo "done"
+	print_passed
 else
 	echo "failed (read error: $status, must be 2 or 254)"
 	die "Remove operation failed" -1
