@@ -573,7 +573,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 		memcpy(ack->id, cmd->id, DNET_ID_SIZE);
 		ack->trans = cmd->trans | DNET_TRANS_REPLY;
 		ack->size = 0;
-		ack->flags = cmd->flags & ~DNET_FLAGS_NEED_ACK;
+		ack->flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
 		ack->status = err;
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: ack trans: %llu, flags: %x, status: %d.\n",
@@ -2983,13 +2983,16 @@ static int dnet_remove_file_raw(struct dnet_node *n, char *base, unsigned char *
 		dnet_remove_object_raw(n, id, e[i].id, dnet_remove_complete, w);
 	}
 
+	dnet_wait_get(w);
 	dnet_remove_object_raw(n, e[0].id, id, dnet_remove_complete, w);
+	dnet_wait_get(w);
 	dnet_remove_object_raw(n, e[0].id, id, dnet_remove_complete, w);
 
-	err = dnet_wait_event(w, w->cond == (int)num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == (int)(num+1), &n->wait_ts);
 	if (err)
 		goto err_out_put;
 
+	dnet_wait_put(w);
 	munmap(e, st.st_size);
 	close(fd);
 
