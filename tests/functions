@@ -225,6 +225,5 @@ function cmp_files() {
 }
 
 function print_passed() {
-	echo -e '\E[32m  PASSED'
-	tput sgr0
+	echo -e '\E[32m  PASSED\E[39;49;00m'
 }
