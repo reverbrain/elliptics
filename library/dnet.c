@@ -2983,13 +2983,16 @@ static int dnet_remove_file_raw(struct dnet_node *n, char *base, unsigned char *
 		dnet_remove_object_raw(n, id, e[i].id, dnet_remove_complete, w);
 	}
 
+	dnet_wait_get(w);
 	dnet_remove_object_raw(n, e[0].id, id, dnet_remove_complete, w);
+	dnet_wait_get(w);
 	dnet_remove_object_raw(n, e[0].id, id, dnet_remove_complete, w);
 
-	err = dnet_wait_event(w, w->cond == (int)num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == (int)(num+1), &n->wait_ts);
 	if (err)
 		goto err_out_put;
 
+	dnet_wait_put(w);
 	munmap(e, st.st_size);
 	close(fd);
 
