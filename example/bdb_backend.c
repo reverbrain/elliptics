@@ -657,7 +657,7 @@ err_out_exit:
 
 static int bdb_del(void *state, struct bdb_backend *be, struct dnet_cmd *cmd, struct dnet_attr *attr, void *buf)
 {
-	int err;
+	int err = -EINVAL;
 	DBT key, data;
 	struct bdb_entry *ent = be->hist;
 	struct dnet_io_attr *io;
