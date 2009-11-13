@@ -643,6 +643,16 @@ int dnet_remove_object(struct dnet_node *n,
  */
 int dnet_remove_file(struct dnet_node *n, char *file, unsigned char *file_id);
 
+/*
+ * Transformation helper, which uses *ppos as an index for transformation function.
+ * @src and @size correspond to to be transformed source data.
+ * @dst and @dsize specify destination buffer.
+ * Transformation function can fill @addr, which will be copied into command as destination ID,
+ * its size is @DNET_ID_SIZE max.
+ */
+int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, void *addr,
+		unsigned int *dsize, int *ppos);
+
 #ifdef __cplusplus
 }
 #endif
