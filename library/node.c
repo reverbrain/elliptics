@@ -642,6 +642,8 @@ err_out_notify_exit:
 err_out_free:
 	free(n);
 err_out_exit:
+	if (cfg->log)
+		cfg->log(cfg->log_private, DNET_LOG_ERROR, "Error during node creation.\n");
 	return NULL;
 }
 
