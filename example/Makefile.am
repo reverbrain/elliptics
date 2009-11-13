@@ -1,6 +1,7 @@
 bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_iotest dnet_stat dnet_notify
 noinst_LIBRARIES = libhash.a libcommon.a libbackend.a
 noinst_HEADERS = hash.h backends.h common.h
+SUBDIRS = .
 
 CC = @PTHREAD_CC@
 
@@ -22,6 +23,10 @@ dnet_stat_LDADD = ../library/libdnet.la libcommon.a
 
 dnet_notify_SOURCES = notify.c
 dnet_notify_LDADD = ../library/libdnet.la libcommon.a
+
+if HAVE_FASTCGI
+SUBDIRS += fcgi
+endif
 
 AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @OPENSSL_CFLAGS@ @BDB_CFLAGS@ \
 	@TOKYOCABINET_CFLAGS@

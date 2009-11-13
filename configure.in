@@ -31,9 +31,10 @@ AC_CHECK_BDB
 AC_CHECK_ATOMIC
 AC_CHECK_TOKYOCABINET
 AC_CHECK_STAT
+AC_CHECK_LIBFCGI
 
 AC_CONFIG_FILES([Makefile include/Makefile include/dnet/Makefile
 		 library/Makefile example/Makefile tests/Makefile
-		 doc/Makefile])
+		 doc/Makefile example/fcgi/Makefile])
 
 AC_OUTPUT
