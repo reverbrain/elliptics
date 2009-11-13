@@ -63,7 +63,7 @@ int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, voi
 }
 
 static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint64_t trans,
-		unsigned int cmd, struct dnet_addr *addr, int reply, int direct)
+		unsigned int cmd, unsigned int aflags, struct dnet_addr *addr, int reply, int direct)
 {
 	struct dnet_data_req *r;
 	struct dnet_addr_cmd *c;
@@ -86,6 +86,7 @@ static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint6
 	c->a.cmd = cmd;
 	c->a.size = sizeof(struct dnet_addr_cmd) -
 		sizeof(struct dnet_cmd) - sizeof(struct dnet_attr);
+	c->a.flags = aflags;
 
 	memcpy(&c->addr.addr, addr, sizeof(struct dnet_addr));
 	c->addr.family = st->n->family;
@@ -100,18 +101,81 @@ static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint6
 	return dnet_data_ready(st, r);
 }
 
+static int dnet_stat_local(struct dnet_net_state *st, unsigned char *id)
+{
+	struct dnet_node *n = st->n;
+	int size, cmd_size;
+	struct dnet_cmd *cmd;
+	struct dnet_attr *attr;
+	struct dnet_io_attr *io;
+	int err;
+
+	size = 1;
+	cmd_size = size + sizeof(struct dnet_cmd) +
+		sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr);
+
+	cmd = malloc(cmd_size);
+	if (!cmd) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate %d bytes for local stat.\n",
+				dnet_dump_id(id), cmd_size);
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memset(cmd, 0, cmd_size);
+
+	attr = (struct dnet_attr *)(cmd + 1);
+	io = (struct dnet_io_attr *)(attr + 1);
+
+	memcpy(cmd->id, id, DNET_ID_SIZE);
+	cmd->size = cmd_size - sizeof(struct dnet_cmd);
+	
+	attr->size = cmd->size - sizeof(struct dnet_attr);
+	attr->cmd = DNET_CMD_READ;
+
+	io->size = attr->size - sizeof(struct dnet_io_attr);
+	io->offset = 0;
+	io->flags = 0;
+
+	memcpy(io->origin, id, DNET_ID_SIZE);
+	memcpy(io->id, id, DNET_ID_SIZE);
+
+	dnet_log(n, DNET_LOG_INFO, "%s: local stat: reading %llu byte(s).\n",
+			dnet_dump_id(cmd->id), (unsigned long long)io->size);
+
+	dnet_convert_io_attr(io);
+
+	err = n->command_handler(st, n->command_private, cmd, attr, io);
+	dnet_log(n, DNET_LOG_INFO, "%s: local stat: io_size: %llu, err: %d.\n",
+					dnet_dump_id(cmd->id),
+					(unsigned long long)io->size, err);
+
+	free(cmd);
+
+err_out_exit:
+	return err;
+}
+
 static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *data __unused)
+		struct dnet_attr *attr, void *data __unused)
 {
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
 	int err;
+	unsigned int aflags = 0;
 
 	st = dnet_state_search(n, cmd->id, NULL);
-	if (!st)
+	if (!st) {
 		st = dnet_state_get(orig->n->st);
 
-	err = dnet_send_address(orig, st->id, cmd->trans, DNET_CMD_LOOKUP, &st->addr, 1, 0);
+		if (attr->flags) {
+			err = dnet_stat_local(orig, cmd->id);
+			if (!err)
+				aflags = 1;
+		}
+	}
+
+	err = dnet_send_address(orig, (attr->flags) ? cmd->id : st->id, cmd->trans, DNET_CMD_LOOKUP, aflags, &st->addr, 1, 0);
 	dnet_state_put(st);
 	return err;
 }
@@ -121,7 +185,7 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 {
 	struct dnet_node *n = st->n;
 
-	return dnet_send_address(st, n->id, cmd->trans, DNET_CMD_REVERSE_LOOKUP,
+	return dnet_send_address(st, n->id, cmd->trans, DNET_CMD_REVERSE_LOOKUP, 0,
 			&n->addr, 1, 0);
 }
 
@@ -701,7 +765,7 @@ static int dnet_add_received_state(struct dnet_node *n, unsigned char *id, struc
 		goto err_out_close;
 	}
 
-	err = dnet_send_address(nst, n->id, 0, DNET_CMD_JOIN, &n->addr, 0, 1);
+	err = dnet_send_address(nst, n->id, 0, DNET_CMD_JOIN, 0, &n->addr, 0, 1);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to join to state %s.\n",
 			dnet_dump_id(nst->id), dnet_state_dump_addr(nst));
@@ -872,7 +936,7 @@ int dnet_rejoin(struct dnet_node *n, int all)
 		if (!all && st->join_state != DNET_REJOIN)
 			continue;
 
-		err = dnet_send_address(st, n->id, 0, DNET_CMD_JOIN, &n->addr, 0, 1);
+		err = dnet_send_address(st, n->id, 0, DNET_CMD_JOIN, 0, &n->addr, 0, 1);
 		if (err) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: failed to rejoin to state %s.\n",
 				dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr));
@@ -2237,7 +2301,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 	return 0;
 }
 
-int dnet_lookup_object(struct dnet_node *n, unsigned char *id,
+int dnet_lookup_object(struct dnet_node *n, unsigned char *id, unsigned int aflags,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 	void *priv)
 {
@@ -2270,7 +2334,7 @@ int dnet_lookup_object(struct dnet_node *n, unsigned char *id,
 
 	a->cmd = DNET_CMD_LOOKUP;
 	a->size = 0;
-	a->flags = 0;
+	a->flags = aflags;
 
 	t->st = dnet_state_get_first(n, cmd->id, n->st);
 	if (!t->st) {
@@ -2387,7 +2451,7 @@ int dnet_lookup(struct dnet_node *n, char *file)
 			continue;
 		}
 
-		err = dnet_lookup_object(n, origin, dnet_lookup_complete, dnet_wait_get(w));
+		err = dnet_lookup_object(n, origin, 0, dnet_lookup_complete, dnet_wait_get(w));
 		if (err) {
 			error = err;
 			continue;

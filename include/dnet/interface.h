@@ -19,6 +19,7 @@
 #include <dnet/typedefs.h>
 #include <stdio.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -360,6 +361,11 @@ static inline char *dnet_state_dump_addr(struct dnet_net_state *st)
 	return dnet_server_convert_dnet_addr(dnet_state_addr(st));
 }
 
+static inline char *dnet_state_dump_addr_only(struct dnet_addr *a)
+{
+	return dnet_server_convert_addr((struct sockaddr *)a->addr, a->addr_len);
+}
+
 /*
  * Transformation functions are used to create ID from the provided data content.
  * One can add/remove them in a run-time. init/update/final sequence is used
@@ -436,7 +442,7 @@ int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command);
  * Effectively dnet_lookup() is a dnet_lookup_object() with dnet_lookup_complete()
  * 	completion function.
  */
-int dnet_lookup_object(struct dnet_node *n, unsigned char *id,
+int dnet_lookup_object(struct dnet_node *n, unsigned char *id, unsigned int aflags,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *,
 		struct dnet_attr *, void *), void *priv);
 int dnet_lookup(struct dnet_node *n, char *file);

@@ -257,11 +257,17 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 		err = -EAGAIN;
 		if (attr->flags) {
-			FCGI_printf("%s http://%s%s/%02c/%s",
-					dnet_fcgi_status_pattern,
-					dnet_server_convert_dnet_addr(&a->addr),
+			FCGI_printf("%s\r\n", dnet_fcgi_status_pattern);
+			FCGI_printf("Location: http://%s%s/%02x/%s\r\n",
+					dnet_state_dump_addr_only(&a->addr),
 					dnet_fcgi_root_pattern,
-					cmd->id[0], dnet_dump_id(cmd->id));
+					cmd->id[0], dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
+
+			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%02x/%s\n",
+					dnet_fcgi_status_pattern,
+					dnet_state_dump_addr_only(&a->addr),
+					dnet_fcgi_root_pattern,
+					cmd->id[0], dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
 			err = 0;
 		}
 
@@ -293,7 +299,7 @@ static int dnet_fcgi_lookup(struct dnet_node *n, char *obj, int len)
 
 		dnet_fcgi_request_completed = dnet_fcgi_request_init_value;
 
-		err = dnet_lookup_object(n, origin, dnet_fcgi_lookup_complete, NULL);
+		err = dnet_lookup_object(n, origin, 1, dnet_fcgi_lookup_complete, NULL);
 		if (err) {
 			error = err;
 			continue;
@@ -319,7 +325,6 @@ int main()
 	char *id_pattern, *id_delimiter;
 	int length, id_pattern_length, err;
 	char *id, *end;
-	char obj[256];
 	struct dnet_config cfg;
 	struct dnet_node *n;
 
@@ -408,19 +413,11 @@ int main()
 
 		length = end - id;
 
-		if (length > (signed)sizeof(obj) - 1) {
-			fprintf(dnet_fcgi_log, "%s: length is too long: %s [%d]\n", addr, id, length);
-			reason = "object length is too long";
-			goto err_continue;
-		}
+		fprintf(dnet_fcgi_log, "%s: id: '%s' [%d]\n", addr, id, length);
 
-		snprintf(obj, length, "%s", id);
-
-		fprintf(dnet_fcgi_log, "%s: id: %s [%d]\n", addr, obj, length);
-
-		err = dnet_fcgi_lookup(n, obj, length);
+		err = dnet_fcgi_lookup(n, id, length);
 		if (err) {
-			fprintf(dnet_fcgi_log, "%s: Failed to lookup object '%s': %d.\n", addr, obj, err);
+			fprintf(dnet_fcgi_log, "%s: Failed to lookup object '%s': %d.\n", addr, id, err);
 			reason = "failed to lookup object";
 			goto err_continue;
 		}

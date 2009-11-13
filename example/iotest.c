@@ -175,7 +175,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 
 		if (iotest_lookup_found < iotest_lookup_num &&
 				iotest_lookup_pending < iotest_lookup_num) {
-			err = dnet_lookup_object(n, ctl.io.id, iotest_lookup_complete, NULL);
+			err = dnet_lookup_object(n, ctl.io.id, 0, iotest_lookup_complete, NULL);
 			if (err)
 				fprintf(stderr, "Failed to lookup a node for %s object.\n",
 						dnet_dump_id(ctl.io.id));
@@ -247,7 +247,7 @@ static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned lon
 		dnet_convert_io_attr(&ctl.io);
 
 		if (iotest_lookup_num) {
-			err = dnet_lookup_object(n, ctl.io.id, iotest_lookup_complete, NULL);
+			err = dnet_lookup_object(n, ctl.io.id, 0, iotest_lookup_complete, NULL);
 			if (err)
 				fprintf(stderr, "Failed to lookup a node for %s object.\n",
 						dnet_dump_id(ctl.io.id));
