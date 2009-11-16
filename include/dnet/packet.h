@@ -118,6 +118,12 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 	cmd->trans = dnet_bswap64(cmd->trans);
 }
 
+/* Do not split data into multiple transactions */
+#define DNET_ATTR_NO_TRANSACTION_SPLIT		(1<<0)
+
+/* Do not work with history/transaction machinery, write data as is into object */
+#define DNET_ATTR_DIRECT_TRANSACTION		(1<<1)
+
 struct dnet_attr
 {
 	uint64_t		size;

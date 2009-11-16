@@ -1178,12 +1178,17 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	struct dnet_io_control hctl;
 	struct dnet_history_entry e;
 
-	rsize = DNET_ID_SIZE;
-	err = dnet_transform(n, ctl->data, ctl->io.size, ctl->io.origin, ctl->addr, &rsize, pos);
-	if (err) {
-		if (err > 0)
-			return err;
-		goto err_out_complete;
+	if (!(ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)) {
+		rsize = DNET_ID_SIZE;
+		err = dnet_transform(n, ctl->data, ctl->io.size, ctl->io.origin, ctl->addr, &rsize, pos);
+		if (err) {
+			if (err > 0)
+				return err;
+			goto err_out_complete;
+		}
+
+		if (!id && remote && len)
+			*pos = *pos - 1;
 	}
 
 	if (id) {
@@ -1196,7 +1201,6 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 		memcpy(ctl->io.id, ctl->io.origin, DNET_ID_SIZE);
 
 		if (remote && len) {
-			*pos = *pos - 1;
 			rsize = DNET_ID_SIZE;
 			err = dnet_transform(n, remote, len, ctl->io.id, addr, &rsize, pos);
 			if (err) {
@@ -1206,6 +1210,9 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 			}
 		}
 	}
+
+	if (ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)
+		memcpy(ctl->io.origin, ctl->io.id, DNET_ID_SIZE);
 
 	err = dnet_trans_create_send(n, ctl);
 	if (err)
@@ -1258,18 +1265,21 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 	int pos = 0, err = 0, num = 0;
 	int error = 0;
 	void *data = ctl->data;
-	uint64_t total_size = ctl->io.size;
+	struct dnet_io_attr tmp = ctl->io;
 
 	if (remote)
 		len = strlen(remote);
 
 	while (1) {
-		uint64_t sz, size = total_size;
+		uint64_t sz, size = tmp.size;
 
 		ctl->data = data;
+
+		ctl->io = tmp;
 		while (size) {
 			sz = size;
-			if (!ctl->aflags && sz > DNET_MAX_TRANS_SIZE)
+			if (!(ctl->aflags & DNET_ATTR_NO_TRANSACTION_SPLIT) &&
+					sz > DNET_MAX_TRANS_SIZE)
 				sz = DNET_MAX_TRANS_SIZE;
 
 			ctl->io.size = sz;
@@ -1294,7 +1304,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *re
 				num++;
 		}
 
-		if (err > 0)
+		if (err > 0 || pos == 0)
 			break;
 	}
 
