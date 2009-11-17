@@ -112,13 +112,13 @@ static int dnet_fcgi_add_remote_addr(struct dnet_node *n, struct dnet_config *ma
 		err = dnet_parse_addr(addr, &cfg);
 		if (err) {
 			fprintf(dnet_fcgi_log, "Failed to parse addr '%s': %d.\n", addr, err);
-			continue;
+			goto next;
 		}
 
 		err = dnet_add_state(n, &cfg);
 		if (err) {
 			fprintf(dnet_fcgi_log, "Failed to add addr '%s': %d.\n", addr, err);
-			continue;
+			goto next;
 		}
 
 		added++;
@@ -126,6 +126,7 @@ static int dnet_fcgi_add_remote_addr(struct dnet_node *n, struct dnet_config *ma
 		if (!p)
 			break;
 
+next:
 		addr = p;
 
 		while (addr && *addr && isspace(*addr))
