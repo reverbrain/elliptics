@@ -1211,8 +1211,10 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 		}
 	}
 
-	if (ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)
+	if (ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION) {
 		memcpy(ctl->io.origin, ctl->io.id, DNET_ID_SIZE);
+		memcpy(ctl->addr, ctl->io.id, DNET_ID_SIZE);
+	}
 
 	err = dnet_trans_create_send(n, ctl);
 	if (err)
