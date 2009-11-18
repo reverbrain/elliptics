@@ -1,0 +1,13 @@
+Source: elliptics
+Section: net
+Priority: optional
+Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
+Build-Depends: debhelper (>= 7), autotools-dev, libssl-dev, libevent-dev, libfcgi-dev
+Standards-Version: 3.8.0
+Homepage: http://www.ioremap.net/projects/elliptics
+
+Package: elliptics
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Distributed hash table storage
+ Elliptics network is a fault tolerant distributed hash table object storage.
