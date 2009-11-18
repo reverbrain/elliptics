@@ -22,7 +22,7 @@ endif
 
 
 
-config.status: configure
+config.status:
 	dh_testdir
 	# Add here commands to configure the package.
 ifneq "$(wildcard /usr/share/misc/config.sub)" ""
