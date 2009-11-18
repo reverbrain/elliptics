@@ -33,6 +33,7 @@ static pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
 static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344;
 static char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
 static unsigned long dnet_fcgi_max_request_size;
+static int dnet_fcgi_base_port;
 
 static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 {
@@ -259,10 +260,13 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 		err = -EAGAIN;
 		if (attr->flags) {
+			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
+
 			FCGI_printf("%s\r\n", dnet_fcgi_status_pattern);
-			FCGI_printf("Location: http://%s%s/%02x/%s\r\n",
+			FCGI_printf("Location: http://%s%s/%d/%02x/%s\r\n",
 					dnet_state_dump_addr_only(&a->addr),
 					dnet_fcgi_root_pattern,
+					port - dnet_fcgi_base_port,
 					cmd->id[0], dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
 
 			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%02x/%s\n",
@@ -480,7 +484,6 @@ int main()
 	if (!dnet_fcgi_max_request_size)
 		dnet_fcgi_max_request_size = DNET_FCGI_MAX_REQUEST_SIZE;
 
-
 	p = getenv("FCGI_DNET_LOG");
 	if (!p)
 		p = FCGI_DNET_LOG;
@@ -491,6 +494,14 @@ int main()
 		fprintf(stderr, "Failed to open '%s' log file.\n", p);
 		goto err_out_exit;
 	}
+
+	p = getenv("FCGI_DNET_BASE_PORT");
+	if (!p) {
+		err = -ENOENT;
+		fprintf(dnet_fcgi_log, "No FCGI_DNET_BASE_PORT provided, I will not be able to determine proper directory to fetch objects.\n");
+		goto err_out_close;
+	}
+	dnet_fcgi_base_port = atoi(p);
 
 	err = dnet_fcgi_fill_config(&cfg);
 	if (err) {
