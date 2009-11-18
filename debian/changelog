@@ -1,3 +1,12 @@
+elliptics (2.6.2) unstable; urgency=low
+
+  * Added FastCGI daemon
+  * Extended lookup to check whether requested object is stored locally
+  * Added lighttpd fastcgi config
+  * Bug fixes
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 18 Nov 2009 19:47:25 +0300
+
 elliptics (2.6.1-1) unstable; urgency=low
 
   * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
