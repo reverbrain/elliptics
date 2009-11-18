@@ -93,8 +93,8 @@ static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint6
 	c->addr.sock_type = st->n->sock_type;
 	c->addr.proto = st->n->proto;
 
-	dnet_log(st->n, DNET_LOG_INFO, "%s: sending address command: trans: %llu, reply: %d, cmd: %u.\n",
-			dnet_dump_id(id), (unsigned long long)trans, reply, cmd);
+	dnet_log(st->n, DNET_LOG_INFO, "%s: sending address command: trans: %llu, reply: %d, cmd: %u, aflags: %x.\n",
+			dnet_dump_id(id), (unsigned long long)trans, reply, cmd, aflags);
 
 	dnet_convert_addr_cmd(c);
 
@@ -165,14 +165,15 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 	unsigned int aflags = 0;
 
 	st = dnet_state_search(n, cmd->id, NULL);
-	if (!st) {
+	if (!st)
 		st = dnet_state_get(orig->n->st);
 
-		if (attr->flags) {
-			err = dnet_stat_local(orig, cmd->id);
-			if (!err)
-				aflags = 1;
-		}
+	if (attr->flags) {
+		err = dnet_stat_local(orig, cmd->id);
+		dnet_log(n, DNET_LOG_NOTICE, "%s: object is stored locally: %d.\n",
+				dnet_dump_id(cmd->id), !err);
+		if (!err)
+			aflags = 1;
 	}
 
 	err = dnet_send_address(orig, (attr->flags) ? cmd->id : st->id, cmd->trans, DNET_CMD_LOOKUP, aflags, &st->addr, 1, 0);
@@ -535,9 +536,9 @@ int dnet_process_cmd(struct dnet_trans *t)
 		}
 
 		dnet_log(n, DNET_LOG_INFO, "%s: trans: %llu, transaction_size_left: %llu, "
-				"starting cmd: %u, attribute_size: %llu.\n",
+				"starting cmd: %u, attribute_size: %llu, attribute_flags: %x.\n",
 			dnet_dump_id(cmd->id), tid,
-			size, a->cmd, (unsigned long long)a->size);
+			size, a->cmd, (unsigned long long)a->size, a->flags);
 
 		switch (a->cmd) {
 			case DNET_CMD_LOOKUP:
@@ -2365,8 +2366,8 @@ int dnet_lookup_object(struct dnet_node *n, unsigned char *id, unsigned int afla
 
 	st = t->st;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: lookup to %s.\n", dnet_dump_id(id),
-		dnet_server_convert_dnet_addr(&st->addr));
+	dnet_log(n, DNET_LOG_NOTICE, "%s: %s lookup to %s.\n", dnet_dump_id(id),
+		(a->flags) ? "stat" : "plain", dnet_server_convert_dnet_addr(&st->addr));
 
 	dnet_req_set_header(&t->r, t+1, sizeof(struct dnet_attr) +
 			sizeof(struct dnet_cmd), 0);
