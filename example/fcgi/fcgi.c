@@ -260,20 +260,31 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 		err = -EAGAIN;
 		if (attr->flags) {
+			char id[DNET_ID_SIZE*2+1];
 			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
+
+			snprintf(id, sizeof(id), "%s", dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
 
 			FCGI_printf("%s\r\n", dnet_fcgi_status_pattern);
 			FCGI_printf("Location: http://%s%s/%d/%02x/%s\r\n",
 					dnet_state_dump_addr_only(&a->addr),
 					dnet_fcgi_root_pattern,
 					port - dnet_fcgi_base_port,
-					cmd->id[0], dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
+					cmd->id[0], id);
+
+			FCGI_printf("Content-type: application/xml\r\n");
+			FCGI_printf("\r\n\r\n");
+			FCGI_printf("<data id=\"%s\" url=\"http://%s%s/%d/%02x/%s\"/>", id,
+					dnet_state_dump_addr_only(&a->addr),
+					dnet_fcgi_root_pattern,
+					port - dnet_fcgi_base_port,
+					cmd->id[0], id);
 
 			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%02x/%s\n",
 					dnet_fcgi_status_pattern,
 					dnet_state_dump_addr_only(&a->addr),
 					dnet_fcgi_root_pattern,
-					cmd->id[0], dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
+					cmd->id[0], id);
 			err = 0;
 		}
 
@@ -541,6 +552,7 @@ int main()
 
 		method = getenv("REQUEST_METHOD");
 
+		err = -EINVAL;
 		p = getenv("QUERY_STRING");
 		if (!p) {
 			reason = "no query string";
@@ -579,13 +591,11 @@ int main()
 		} else {
 			err = dnet_fcgi_lookup(n, id, length);
 			if (err) {
+				err = -errno;
 				fprintf(dnet_fcgi_log, "%s: Failed to lookup object '%s': %d.\n", addr, id, err);
 				reason = "failed to lookup object";
 				goto err_continue;
 			}
-
-			FCGI_printf("Content-type: text/html\r\n");
-			FCGI_printf("\r\n\r\n");
 			fflush(dnet_fcgi_log);
 		}
 
@@ -595,7 +605,7 @@ int main()
 err_continue:
 		FCGI_printf("Status: 417 Expectation Failed: %s\r\n\r\n", reason);
 		FCGI_Finish();
-		fprintf(dnet_fcgi_log, "%s: bad request: %s\n", addr, reason);
+		fprintf(dnet_fcgi_log, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(err), err);
 		fflush(dnet_fcgi_log);
 	}
 
