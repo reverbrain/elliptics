@@ -475,7 +475,7 @@ int main()
 {
 	char *p, *addr, *reason, *method;
 	char *id_pattern, *id_delimiter;
-	int length, id_pattern_length, err;
+	int length, id_pattern_length, err, post_allowed;
 	char *id, *end;
 	struct dnet_config cfg;
 	struct dnet_node *n;
@@ -532,7 +532,12 @@ int main()
 	if (err)
 		goto err_out_free;
 
-	fprintf(dnet_fcgi_log, "Started on %s!\n", getenv("SERVER_ADDR"));
+	post_allowed = 0;
+	p = getenv("FCGI_DNET_POST_ALLOWED");
+	if (p)
+		post_allowed = atoi(p);
+
+	fprintf(dnet_fcgi_log, "Started on %s, POST is %s.\n", getenv("SERVER_ADDR"), (post_allowed) ? "allowed" : "not allowed");
 	fflush(dnet_fcgi_log);
 
 	id_pattern = getenv("FCGI_DNET_ID_PATTERN");
@@ -582,6 +587,13 @@ int main()
 		fprintf(dnet_fcgi_log, "%s: id: '%s' [%d]\n", addr, id, length);
 
 		if (!strncmp(method, "POST", 4)) {
+			if (!post_allowed) {
+				err = -EACCES;
+				fprintf(dnet_fcgi_log, "%s: POST is not allowed for object '%s'.\n", addr, id);
+				reason = "POST is not allowed";
+				goto err_continue;
+			}
+
 			err = dnet_fcgi_handle_post(n, addr, id, length);
 			if (err) {
 				fprintf(dnet_fcgi_log, "%s: Failed to handle POST for object '%s': %d.\n", addr, id, err);
