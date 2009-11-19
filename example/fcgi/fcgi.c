@@ -27,13 +27,17 @@
 #define FCGI_DNET_ROOT_PATTERN		""
 #define DNET_FCGI_MAX_REQUEST_SIZE	(100*1024*1024)
 
-static FILE *dnet_fcgi_log;
-static pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
-static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344;
-static char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
-static unsigned long dnet_fcgi_max_request_size;
-static int dnet_fcgi_base_port;
+/*
+ * This is a really lazy way to do per-thread variables.
+ * There is a fair number of other ways around, but it works too.
+ */
+static __thread FILE *dnet_fcgi_log;
+static __thread pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
+static __thread pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
+static __thread int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344;
+static __thread char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
+static __thread unsigned long dnet_fcgi_max_request_size;
+static __thread int dnet_fcgi_base_port;
 
 static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 {
@@ -274,11 +278,12 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 			FCGI_printf("Content-type: application/xml\r\n");
 			FCGI_printf("\r\n\r\n");
-			FCGI_printf("<data id=\"%s\" url=\"http://%s%s/%d/%02x/%s\"/>", id,
+			FCGI_printf("<data id=\"%s\" url=\"http://%s%s/%d/%02x/%s\" timestamp=\"%llu\"/>", id,
 					dnet_state_dump_addr_only(&a->addr),
 					dnet_fcgi_root_pattern,
 					port - dnet_fcgi_base_port,
-					cmd->id[0], id);
+					cmd->id[0], id,
+					time(NULL));
 
 			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%02x/%s\n",
 					dnet_fcgi_status_pattern,
