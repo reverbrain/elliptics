@@ -313,7 +313,7 @@ int dnet_check_log_mask_state(struct dnet_net_state *st, uint32_t mask);
  */
 static inline char *dnet_server_convert_addr(struct sockaddr *sa, unsigned int len)
 {
-	static char inet_addr[128];
+	static __thread char inet_addr[128];
 
 	memset(&inet_addr, 0, sizeof(inet_addr));
 	if (len == sizeof(struct sockaddr_in)) {
@@ -340,7 +340,7 @@ static inline int dnet_server_convert_port(struct sockaddr *sa, unsigned int len
 
 static inline char *dnet_server_convert_dnet_addr(struct dnet_addr *sa)
 {
-	static char inet_addr[128];
+	static __thread char inet_addr[128];
 
 	memset(&inet_addr, 0, sizeof(inet_addr));
 	if (sa->addr_len == sizeof(struct sockaddr_in)) {
@@ -411,7 +411,7 @@ int dnet_join(struct dnet_node *n);
 static inline char *dnet_dump_id_len(const unsigned char *id, unsigned int len)
 {
 	unsigned int i;
-	static char __dnet_dump_str[2 * DNET_ID_SIZE + 1];
+	static __thread char __dnet_dump_str[2 * DNET_ID_SIZE + 1];
 
 	if (len > DNET_ID_SIZE)
 		len = DNET_ID_SIZE;
