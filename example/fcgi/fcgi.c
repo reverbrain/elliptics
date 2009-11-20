@@ -27,10 +27,6 @@
 #define FCGI_DNET_ROOT_PATTERN		""
 #define DNET_FCGI_MAX_REQUEST_SIZE	(100*1024*1024)
 
-/*
- * This is a really lazy way to do per-thread variables.
- * There is a fair number of other ways around, but it works too.
- */
 static FILE *dnet_fcgi_log;
 static pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -38,6 +34,7 @@ static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344;
 static char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
 static unsigned long dnet_fcgi_max_request_size;
 static int dnet_fcgi_base_port;
+static unsigned char dnet_fcgi_id[DNET_ID_SIZE];
 
 static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 {
@@ -267,14 +264,14 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			char id[DNET_ID_SIZE*2+1];
 			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
 
-			snprintf(id, sizeof(id), "%s", dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
+			snprintf(id, sizeof(id), "%s", dnet_dump_id_len(dnet_fcgi_id, DNET_ID_SIZE));
 
 			FCGI_printf("%s\r\n", dnet_fcgi_status_pattern);
 			FCGI_printf("Location: http://%s%s/%d/%02x/%s\r\n",
 					dnet_state_dump_addr_only(&a->addr),
 					dnet_fcgi_root_pattern,
 					port - dnet_fcgi_base_port,
-					cmd->id[0], id);
+					dnet_fcgi_id[0], id);
 
 			FCGI_printf("Content-type: application/xml\r\n");
 			FCGI_printf("\r\n\r\n");
@@ -282,14 +279,14 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					dnet_state_dump_addr_only(&a->addr),
 					dnet_fcgi_root_pattern,
 					port - dnet_fcgi_base_port,
-					cmd->id[0], id,
+					dnet_fcgi_id[0], id,
 					time(NULL));
 
 			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%02x/%s\n",
 					dnet_fcgi_status_pattern,
 					dnet_state_dump_addr_only(&a->addr),
 					dnet_fcgi_root_pattern,
-					cmd->id[0], id);
+					dnet_fcgi_id[0], id);
 			err = 0;
 		}
 
@@ -310,14 +307,14 @@ err_out_exit:
 
 static int dnet_fcgi_lookup(struct dnet_node *n, char *obj, int len)
 {
-	unsigned char origin[DNET_ID_SIZE], addr[DNET_ID_SIZE];
+	unsigned char addr[DNET_ID_SIZE];
 	int err, error = -ENOENT;
 	int pos = 0;
 
 	while (1) {
 		unsigned int rsize = DNET_ID_SIZE;
 
-		err = dnet_transform(n, obj, len, origin, addr, &rsize, &pos);
+		err = dnet_transform(n, obj, len, dnet_fcgi_id, addr, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				break;
@@ -326,7 +323,7 @@ static int dnet_fcgi_lookup(struct dnet_node *n, char *obj, int len)
 
 		dnet_fcgi_request_completed = dnet_fcgi_request_init_value;
 
-		err = dnet_lookup_object(n, origin, 1, dnet_fcgi_lookup_complete, NULL);
+		err = dnet_lookup_object(n, dnet_fcgi_id, 1, dnet_fcgi_lookup_complete, NULL);
 		if (err) {
 			error = err;
 			continue;
