@@ -31,13 +31,13 @@
  * This is a really lazy way to do per-thread variables.
  * There is a fair number of other ways around, but it works too.
  */
-static __thread FILE *dnet_fcgi_log;
-static __thread pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
-static __thread pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
-static __thread int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344;
-static __thread char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
-static __thread unsigned long dnet_fcgi_max_request_size;
-static __thread int dnet_fcgi_base_port;
+static FILE *dnet_fcgi_log;
+static pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
+static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344;
+static char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
+static unsigned long dnet_fcgi_max_request_size;
+static int dnet_fcgi_base_port;
 
 static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 {
