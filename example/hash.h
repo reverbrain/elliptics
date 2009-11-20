@@ -37,6 +37,7 @@ struct dnet_crypto_engine
 };
 
 int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash);
+void dnet_crypto_engine_exit(struct dnet_crypto_engine *e);
 
 #ifdef __cplusplus
 }

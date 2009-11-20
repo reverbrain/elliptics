@@ -271,3 +271,8 @@ int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 
 	return dnet_openssl_crypto_engine_init(e, hash);
 }
+
+void dnet_crypto_engine_exit(struct dnet_crypto_engine *e)
+{
+	free(e->engine);
+}
