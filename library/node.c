@@ -351,8 +351,11 @@ int dnet_state_move(struct dnet_net_state *st)
 	struct dnet_node *n = st->n;
 	int err;
 
+	dnet_log(n, DNET_LOG_INFO, "%s: moving state %s.\n", dnet_dump_id(st->id),
+		dnet_server_convert_dnet_addr(&st->addr));
+
 	pthread_rwlock_wrlock(&n->state_lock);
-	list_del(&st->state_entry);
+	list_del_init(&st->state_entry);
 
 	err = dnet_state_insert_raw(st);
 	pthread_rwlock_unlock(&n->state_lock);
