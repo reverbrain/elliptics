@@ -176,7 +176,7 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 			aflags = 1;
 	}
 
-	err = dnet_send_address(orig, (attr->flags) ? cmd->id : st->id, cmd->trans, DNET_CMD_LOOKUP, aflags, &st->addr, 1, 0);
+	err = dnet_send_address(orig, st->id, cmd->trans, DNET_CMD_LOOKUP, aflags, &st->addr, 1, 0);
 	dnet_state_put(st);
 	return err;
 }
