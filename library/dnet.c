@@ -2327,7 +2327,8 @@ int dnet_lookup_object(struct dnet_node *n, unsigned char *id, unsigned int afla
 	struct dnet_net_state *st;
 	int err;
 
-	dnet_recv_transform_list(n, id, NULL);
+	if (!aflags)
+		dnet_recv_transform_list(n, id, NULL);
 
 	t = dnet_trans_alloc(n, sizeof(struct dnet_attr) +
 			sizeof(struct dnet_cmd));
