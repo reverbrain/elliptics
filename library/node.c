@@ -654,6 +654,7 @@ void dnet_node_destroy(struct dnet_node *n)
 {
 	struct dnet_net_state *st, *tmp;
 	struct dnet_addr_storage *it, *atmp;
+	struct dnet_transform *t, *tf;
 
 	dnet_log(n, DNET_LOG_INFO, "%s: destroying node at %s.\n",
 			dnet_dump_id(n->id), dnet_dump_node(n));
@@ -675,6 +676,12 @@ void dnet_node_destroy(struct dnet_node *n)
 	}
 
 	dnet_stop_io_threads(n);
+
+	list_for_each_entry_safe(t, tf, &n->transform_list, tentry) {
+		n->transform_num--;
+		list_del(&t->tentry);
+		free(t);
+	}
 
 	pthread_rwlock_destroy(&n->state_lock);
 	dnet_lock_destroy(&n->trans_lock);
