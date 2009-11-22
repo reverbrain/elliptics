@@ -67,14 +67,20 @@ static int dnet_openssl_digest_final(void *priv, void *result, void *addr,
 {
 	struct dnet_crypto_engine *eng = priv;
 	struct dnet_openssl_crypto_engine *e = eng->engine;
+	unsigned char md_value[EVP_MAX_MD_SIZE];
 	unsigned int rs = *rsize;
 
-	EVP_DigestFinal_ex(&e->mdctx, result, rsize);
+	EVP_DigestFinal_ex(&e->mdctx, md_value, rsize);
 
-	if (*rsize < rs)
+	if (*rsize < rs) {
+		memcpy(result, md_value, *rsize);
 		memset(result + *rsize, 0, rs - *rsize);
+	} else {
+		memcpy(result, md_value, rs);
+		*rsize = rs;
+	}
 
-	memcpy(addr, result, *rsize);
+	memcpy(addr, result, rs);
 	EVP_MD_CTX_cleanup(&e->mdctx);
 	return 0;
 }
