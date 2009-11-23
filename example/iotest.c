@@ -139,6 +139,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 	struct dnet_io_control ctl;
 	unsigned int *ptr = data;
 	int first, last, err, trans_num;
+	unsigned int len = strlen(obj);
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -167,7 +168,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 
 		ctl.priv = (void *)(unsigned long)size;
 
-		err = dnet_write_object(n, &ctl, obj, NULL, !!obj, &trans_num);
+		err = dnet_write_object(n, &ctl, obj, len, NULL, !!obj, &trans_num);
 		if (err < 0)
 			return err;
 
