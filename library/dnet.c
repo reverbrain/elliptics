@@ -426,7 +426,7 @@ static int dnet_local_transform(struct dnet_net_state *orig, struct dnet_cmd *cm
 	ctl.data = data;
 	ctl.fd = -1;
 
-	return dnet_write_object(n, &ctl, NULL, 0, 0, &err);
+	return dnet_write_object(n, &ctl, NULL, 0, 0, 0, &err);
 
 err_out_exit:
 	return err;
@@ -1264,17 +1264,14 @@ err_out_exit:
 	return err;
 }
 
-int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote,
+int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
+		void *remote, unsigned int len,
 		unsigned char *id, int hupdate, int *trans_nump)
 {
-	unsigned int len = 0;
 	int pos = 0, err = 0, num = 0;
 	int error = 0;
 	void *data = ctl->data;
 	struct dnet_io_attr tmp = ctl->io;
-
-	if (remote)
-		len = strlen(remote);
 
 	while (1) {
 		uint64_t sz, size = tmp.size;
@@ -1394,7 +1391,7 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	ctl.io.size = size;
 	ctl.io.offset = offset;
 
-	error = dnet_write_object(n, &ctl, file, id, 1, &trans_num);
+	error = dnet_write_object(n, &ctl, file, strlen(file), id, 1, &trans_num);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: transactions sent: %d, error: %d.\n",
 			dnet_dump_id(ctl.addr), trans_num, error);

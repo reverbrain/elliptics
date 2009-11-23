@@ -167,7 +167,8 @@ int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id,
  *  Otherwise transaction is considered as self-contained,
  *  and only its own history will be updated.
  */
-int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl, void *remote,
+int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
+		void *remote, unsigned int len,
 		unsigned char *id, int hupdate, int *trans_num);
 
 /*
