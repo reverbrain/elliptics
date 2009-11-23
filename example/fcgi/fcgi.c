@@ -1,5 +1,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+
+#include <netdb.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -66,6 +69,8 @@ static struct dnet_crypto_engine dnet_fcgi_sign_hash;
 static char *dnet_fcgi_cookie_header, *dnet_fcgi_cookie_delimiter, *dnet_fcgi_cookie_ending;
 static long dnet_fcgi_expiration_interval;
 static int dnet_urandom_fd;
+
+static int dnet_fcgi_dns_lookup;
 
 static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 {
@@ -380,21 +385,31 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 		err = -EAGAIN;
 		if (attr->flags) {
+			char addr[256];
 			char id[DNET_ID_SIZE*2+1];
 			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
 			long timestamp = time(NULL);
 
 			snprintf(id, sizeof(id), "%s", dnet_dump_id_len(dnet_fcgi_id, DNET_ID_SIZE));
 
+			if (dnet_fcgi_dns_lookup) {
+				err = getnameinfo((struct sockaddr *)a->addr.addr, a->addr.addr_len,
+						addr, sizeof(addr), NULL, 0, 0);
+				if (err)
+					snprintf(addr, sizeof(addr), "%s", dnet_state_dump_addr_only(&a->addr));
+			} else {
+				snprintf(addr, sizeof(addr), "%s", dnet_state_dump_addr_only(&a->addr));
+			}
+
 			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%d/%02x/%s\n",
 					dnet_fcgi_status_pattern,
-					dnet_state_dump_addr_only(&a->addr),
+					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
 					dnet_fcgi_id[0], id);
 
 			FCGI_printf("%s\r\n", dnet_fcgi_status_pattern);
 			FCGI_printf("Location: http://%s%s/%d/%02x/%s\r\n",
-					dnet_state_dump_addr_only(&a->addr),
+					addr,
 					dnet_fcgi_root_pattern,
 					port - dnet_fcgi_base_port,
 					dnet_fcgi_id[0], id);
@@ -409,7 +424,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			FCGI_printf("\r\n\r\n");
 
 			FCGI_printf("<download-info><host>%s</host><path>%s/%d/%02x/%s</path><ts>%lx</ts>",
-					dnet_state_dump_addr_only(&a->addr),
+					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port, dnet_fcgi_id[0], id,
 					timestamp);
 			if (dnet_fcgi_sign_key)
@@ -903,6 +918,10 @@ int main()
 	err = dnet_fcgi_add_transform(n);
 	if (err)
 		goto err_out_free;
+
+	p = getenv("DNET_FCGI_DNS_LOOKUP");
+	if (p)
+		dnet_fcgi_dns_lookup = atoi(p);
 
 	post_allowed = 0;
 	p = getenv("DNET_FCGI_POST_ALLOWED");
