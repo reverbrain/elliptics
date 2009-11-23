@@ -590,6 +590,18 @@ static int file_del(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr, v
 	if (!attr || !data)
 		goto err_out_exit;
 
+	if (attr->flags & DNET_ATTR_DIRECT_TRANSACTION) {
+		snprintf(file, sizeof(file), "%02x/%s", cmd->id[0],
+			dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
+		remove(file);
+
+		snprintf(file, sizeof(file), "%02x/%s%s", cmd->id[0],
+			dnet_dump_id_len(cmd->id, DNET_ID_SIZE),
+			DNET_HISTORY_SUFFIX);
+		remove(file);
+		return 0;
+	}
+
 	if (attr->size != sizeof(struct dnet_io_attr))
 		goto err_out_exit;
 

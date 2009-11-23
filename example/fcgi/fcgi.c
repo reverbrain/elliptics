@@ -72,6 +72,8 @@ static int dnet_urandom_fd;
 
 static int dnet_fcgi_dns_lookup;
 
+static char *dnet_fcgi_unlink_pattern;
+
 static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 {
 	char *p;
@@ -449,6 +451,55 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_fcgi_unlink_complete(struct dnet_net_state *st __unused,
+		struct dnet_cmd *cmd __unused, struct dnet_attr *a __unused,
+		void *priv __unused)
+{
+	dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
+	return 0;
+}
+
+static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len)
+{
+	unsigned char addr[DNET_ID_SIZE];
+	int err, error = -ENOENT;
+	int pos = 0, num = 0;
+	struct dnet_trans_control ctl;
+
+	fprintf(dnet_fcgi_log, "Unlinking object '%s'.\n", obj);
+
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+
+	ctl.complete = dnet_fcgi_unlink_complete;
+	ctl.cmd = DNET_CMD_DEL;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.aflags = DNET_ATTR_DIRECT_TRANSACTION;
+
+	dnet_fcgi_request_completed = 0;
+	while (1) {
+		unsigned int rsize = DNET_ID_SIZE;
+
+		err = dnet_transform(n, obj, len, dnet_fcgi_id, addr, &rsize, &pos);
+		if (err) {
+			if (err > 0)
+				break;
+			continue;
+		}
+
+		memcpy(ctl.id, dnet_fcgi_id, DNET_ID_SIZE);
+
+		err = dnet_trans_alloc_send(n, &ctl);
+		num++;
+		if (err)
+			error = err;
+		else
+			error = 0;
+	}
+
+	dnet_fcgi_wait(dnet_fcgi_request_completed == num);
+	return error;
+}
+
 static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct dnet_io_control *ctl)
 {
 	unsigned char addr[DNET_ID_SIZE];
@@ -524,7 +575,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, void *data, uint64_t size)
+static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned int len, void *data, uint64_t size)
 {
 	struct dnet_io_control ctl;
 	int trans_num = 0;
@@ -547,7 +598,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, void *da
 	ctl.io.offset = 0;
 
 	dnet_fcgi_request_completed = 0;
-	err = dnet_write_object(n, &ctl, obj, NULL, 0, &trans_num);
+	err = dnet_write_object(n, &ctl, obj, len, NULL, 0, &trans_num);
 	if (err < 0) {
 		fprintf(dnet_fcgi_log, "%s: failed to upload '%s' object: %d.\n", addr, obj, err);
 		goto err_out_exit;
@@ -562,7 +613,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int length __unused)
+static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int length)
 {
 	void *data;
 	unsigned long data_size, size;
@@ -614,7 +665,7 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 		size -= err * size;
 	}
 
-	err = dnet_fcgi_upload(n, addr, id, data, data_size);
+	err = dnet_fcgi_upload(n, addr, id, length, data, data_size);
 	if (err)
 		goto err_out_free;
 
@@ -768,14 +819,20 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_fcgi_handle_get(struct dnet_node *n, char *addr, char *id, int length)
+static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, char *id, int length)
 {
 	int err;
+	char *p;
 	struct dnet_io_control ctl, *c = NULL;
 
+	if (dnet_fcgi_unlink_pattern) {
+		p = strstr(query, dnet_fcgi_unlink_pattern);
+		if (p) {
+			return dnet_fcgi_unlink(n, id, length);
+		}
+	}
+
 	if (dnet_fcgi_direct_download) {
-		char *query = getenv("QUERY_STRING");
-		char *p;
 		int i;
 
 		p = strstr(query, dnet_fcgi_direct_download);
@@ -808,7 +865,6 @@ lookup:
 		fprintf(dnet_fcgi_log, "%s: Failed to lookup object '%s': %d.\n", addr, id, err);
 		goto err_out_exit;
 	}
-	fflush(dnet_fcgi_log);
 
 	return 0;
 
@@ -818,7 +874,7 @@ err_out_exit:
 
 int main()
 {
-	char *p, *addr, *reason, *method;
+	char *p, *addr, *reason, *method, *query;
 	char *id_pattern, *id_delimiter, *direct_patterns = NULL;
 	int length, id_pattern_length, err, post_allowed;
 	char *id, *end;
@@ -858,6 +914,8 @@ int main()
 		goto err_out_close;
 	}
 	dnet_fcgi_base_port = atoi(p);
+
+	dnet_fcgi_unlink_pattern = getenv("DNET_FCGI_UNLINK_PATTERN_URI");
 
 	dnet_fcgi_direct_download = getenv("DNET_FCGI_DIRECT_PATTERN_URI");
 	if (dnet_fcgi_direct_download) {
@@ -949,7 +1007,7 @@ int main()
 		method = getenv("REQUEST_METHOD");
 
 		err = -EINVAL;
-		p = getenv("QUERY_STRING");
+		query = p = getenv("QUERY_STRING");
 		if (!p) {
 			reason = "no query string";
 			goto err_continue;
@@ -992,7 +1050,7 @@ int main()
 				goto err_continue;
 			}
 		} else {
-			err = dnet_fcgi_handle_get(n, addr, id, length);
+			err = dnet_fcgi_handle_get(n, query, addr, id, length);
 			if (err) {
 				fprintf(dnet_fcgi_log, "%s: Failed to handle GET for object '%s': %d.\n", addr, id, -err);
 				reason = "failed to handle GET";
@@ -1000,13 +1058,14 @@ int main()
 			}
 		}
 
+		fflush(dnet_fcgi_log);
 		FCGI_Finish();
 		continue;
 
 err_continue:
 		FCGI_printf("Status: 417 Expectation Failed: %s\r\n\r\n", reason);
 		FCGI_Finish();
-		fprintf(dnet_fcgi_log, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(err), err);
+		fprintf(dnet_fcgi_log, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(-err), err);
 		fflush(dnet_fcgi_log);
 	}
 

@@ -375,6 +375,12 @@ static int tc_del(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	if (!attr || !buf)
 		goto err_out_exit;
 
+	if (attr->flags & DNET_ATTR_DIRECT_TRANSACTION) {
+		tcadbout(be->hist, cmd->id, DNET_ID_SIZE);
+		tcadbout(be->data, cmd->id, DNET_ID_SIZE);
+		return 0;
+	}
+
 	if (attr->size != sizeof(struct dnet_io_attr))
 		goto err_out_exit;
 

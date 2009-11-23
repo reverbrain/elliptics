@@ -655,6 +655,67 @@ err_out_exit:
 	return err;
 }
 
+static int bdb_del_direct(void *state, struct bdb_backend *be, struct dnet_cmd *cmd)
+{
+	int err;
+	DBT key, data;
+	DB_TXN *txn;
+
+retry:
+	txn = NULL;
+	err = be->env->txn_begin(be->env, NULL, &txn, 0);
+	if (err) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed to start a deletion transaction, err: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
+		goto err_out_exit;
+	}
+
+	memset(&key, 0, sizeof(DBT));
+	memset(&data, 0, sizeof(DBT));
+
+	key.data = cmd->id;
+	key.size = DNET_ID_SIZE;
+
+	err = be->hist->db->del(be->hist->db, txn, &key, 0);
+	if (err) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: history object removal failed, err: %d: %s.\n",
+			dnet_dump_id(cmd->id), err, db_strerror(err));
+		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+			goto err_out_txn_abort_continue;
+	}
+
+	err = be->data->db->del(be->data->db, txn, &key, 0);
+	if (err) {
+		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+			goto err_out_txn_abort_continue;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: object removal failed, err: %d: %s.\n",
+			dnet_dump_id(cmd->id), err, db_strerror(err));
+	}
+
+	err = txn->commit(txn, 0);
+	if (err) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to commit a deletion transaction: %d: %s.\n",
+				dnet_dump_id(cmd->id), err, db_strerror(err));
+		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+			goto err_out_txn_abort_continue;
+
+		goto err_out_exit;
+	}
+
+	return 0;
+
+err_out_txn_abort_continue:
+	txn->abort(txn);
+	goto retry;
+
+err_out_exit:
+	return err;
+}
+
 static int bdb_del(void *state, struct bdb_backend *be, struct dnet_cmd *cmd, struct dnet_attr *attr, void *buf)
 {
 	int err = -EINVAL;
@@ -667,6 +728,9 @@ static int bdb_del(void *state, struct bdb_backend *be, struct dnet_cmd *cmd, st
 
 	if (!attr || !buf)
 		goto err_out_exit;
+
+	if (attr->flags & DNET_ATTR_DIRECT_TRANSACTION)
+		return bdb_del_direct(state, be, cmd);
 
 	if (attr->size != sizeof(struct dnet_io_attr))
 		goto err_out_exit;
