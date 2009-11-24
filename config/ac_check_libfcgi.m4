@@ -26,7 +26,7 @@ AC_TRY_LINK([#include <fcgi_stdio.h>],
 		AM_CONDITIONAL(HAVE_FASTCGI, true)
 	],
 	[
-		AC_MSG_ERROR([no])
+		AC_MSG_RESULT([no])
 		AM_CONDITIONAL(HAVE_FASTCGI, false)
 	])
 
