@@ -920,10 +920,8 @@ err_out_destroy:
 	event_del(&st->event);
 
 	dnet_state_get(st);
-	if (!list_empty(&st->state_entry)) {
+	if (!list_empty(&st->state_entry))
 		dnet_sync_failed_range(st);
-		dnet_state_put(st);
-	}
 	while (!list_empty(&st->snd_list)) {
 		struct dnet_data_req *r = NULL;
 
