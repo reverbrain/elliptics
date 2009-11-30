@@ -961,8 +961,8 @@ int dnet_event_schedule(struct dnet_net_state *st, short mask)
 
 	event_set(&st->event, st->s, mask, dnet_process_socket, st);
 	event_base_set(base, &st->event);
-	//err = event_add(&st->event, &tv);
-	err = event_add(&st->event, NULL);
+	err = event_add(&st->event, &tv);
+	//err = event_add(&st->event, NULL);
 
 	dnet_log(st->n, DNET_LOG_DSA, "%s: queued event: %p, mask: %x, err: %d, empty: %d.\n",
 			dnet_dump_id(st->id), &st->event, mask, err,
