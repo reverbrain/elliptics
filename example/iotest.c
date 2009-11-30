@@ -139,7 +139,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 	struct dnet_io_control ctl;
 	unsigned int *ptr = data;
 	int first, last, err, trans_num;
-	unsigned int len = strlen(obj);
+	unsigned int len = obj ? strlen(obj) : 0;
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -335,12 +335,12 @@ static void dnet_usage(char *p)
 			" -a addr:port:family  - creates a node with given network address\n"
 			" -r addr:port:family  - adds a route to the given node\n"
 			" -i object            - object name used to be transformed into ID\n"
-			" -R                   - read write data from the network storage\n"
+			" -R                   - read data from the network storage\n"
 			" -T hash              - OpenSSL hash to use as a transformation function\n"
 			" -l log               - log file. Default: stdout\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync\n"
 			" -m mask              - log events mask\n"
-			" -s size              - chunk size used to wait for completion before starting the next one\n"
+			" -s size              - chunk size\n"
 			" -S size              - amount of bytes transferred in the test\n"
 			" -t seconds           - speed check interval\n"
 			" -I id                - node ID\n"
