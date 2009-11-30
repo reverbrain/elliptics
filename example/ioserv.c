@@ -60,6 +60,7 @@ static int dnet_background(void)
 
 	setsid();
 
+	close(0);
 	close(1);
 	close(2);
 
