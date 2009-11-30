@@ -422,7 +422,7 @@ struct dnet_thread_signal
 {
 	unsigned int		cmd;
 	struct dnet_net_state	*state;
-};
+} __attribute__ ((packed));
 
 int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd);
 int dnet_signal_thread_raw(struct dnet_io_thread *t, struct dnet_net_state *st, unsigned int cmd);
