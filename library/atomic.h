@@ -45,12 +45,12 @@ static inline int atomic_read(atomic_t *a)
 
 static inline void atomic_add(atomic_t *a, int v)
 {
-	__sync_add_and_fetch(&a->val, v);
+	(void)__sync_add_and_fetch(&a->val, v);
 }
 
 static inline void atomic_sub(atomic_t *a, int v)
 {
-	__sync_sub_and_fetch(&a->val, v);
+	(void)__sync_sub_and_fetch(&a->val, v);
 }
 
 static inline int atomic_inc(atomic_t *a)
