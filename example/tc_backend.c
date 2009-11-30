@@ -87,7 +87,7 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	}
 
 	size = dnet_backend_check_get_size(io, size);
-	
+
 	dnet_command_handler_log(state, DNET_LOG_INFO,
 			"%s: read object: io_offset: %llu, io_size: %llu, io_flags: %x, size: %d.\n",
 			dnet_dump_id(io->origin), io->offset, io->size, io->flags, size);
@@ -190,7 +190,7 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	dnet_convert_io_attr(io);
 
 	data += sizeof(struct dnet_io_attr);
-	
+
 	if (io->flags & DNET_IO_FLAGS_HISTORY) {
 		db = be->hist;
 
@@ -219,7 +219,7 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			} else {
 				dnet_convert_history_entry(e);
 				dnet_convert_history_entry(r);
-				
+
 				if (e->size < r->offset + r->size) {
 					e->size = r->offset + r->size;
 					dnet_convert_history_entry(e);
@@ -501,7 +501,7 @@ static int tc_backend_open(TCADB *adb, const char *env_dir, const char *file)
 	}
 
 	/* if env_dir passed open db there
-	 * 
+	 *
 	 * Create path string from env_dir and file
 	 * Added place for '/' and null byte at the end.
 	 */
@@ -539,7 +539,7 @@ void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histf
 	/* initialize tc_backend struct */
 	struct tc_backend *be;
 	int err;
-	
+
 	be = malloc(sizeof(struct tc_backend));
 	if (!be) {
 		fprintf(stderr, "malloc(tc_backend) failed\n");
