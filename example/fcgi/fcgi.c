@@ -12,15 +12,13 @@
 #include <pthread.h>
 #include <fcntl.h>
 
+#include <fcgiapp.h>
 
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
 #include "hash.h"
 #include "common.h"
-
-#define NO_FCGI_DEFINES
-#include <fcgi_stdio.h>
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
@@ -67,12 +65,18 @@ static char *dnet_fcgi_sign_key;
 static struct dnet_crypto_engine dnet_fcgi_sign_hash;
 
 static char *dnet_fcgi_cookie_header, *dnet_fcgi_cookie_delimiter, *dnet_fcgi_cookie_ending;
+static char *dnet_fcgi_cookie_addon;
 static long dnet_fcgi_expiration_interval;
 static int dnet_urandom_fd;
 
 static int dnet_fcgi_dns_lookup;
 
 static char *dnet_fcgi_unlink_pattern;
+
+static FCGX_Request dnet_fcgi_request;
+
+#define LISTENSOCK_FILENO	0
+#define LISTENSOCK_FLAGS	0
 
 static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 {
@@ -262,7 +266,7 @@ err_out_exit:
 #define dnet_fcgi_wait(condition)						\
 ({										\
 	pthread_mutex_lock(&dnet_fcgi_wait_lock);				\
-	while (!(condition))							\
+	while (!(condition)) 							\
 		pthread_cond_wait(&dnet_fcgi_cond, &dnet_fcgi_wait_lock);	\
 	pthread_mutex_unlock(&dnet_fcgi_wait_lock);				\
 })
@@ -288,7 +292,7 @@ static void dnet_fcgi_data_to_hex(char *dst, unsigned int dlen, unsigned char *s
 
 static int dnet_fcgi_generate_sign(long timestamp)
 {
-	char *cookie = getenv(dnet_fcgi_cookie_header);
+	char *cookie = FCGX_GetParam(dnet_fcgi_cookie_header, dnet_fcgi_request.envp);
 	struct dnet_crypto_engine *e = &dnet_fcgi_sign_hash;
 	int err, len;
 	char cookie_res[128];
@@ -308,14 +312,13 @@ static int dnet_fcgi_generate_sign(long timestamp)
 				len = sizeof(cookie_res) - 1;
 
 			snprintf(cookie_res, len, "%s", val);
-			fprintf(dnet_fcgi_log, "Using presented cookie: '%s'.\n", cookie_res);
 			cookie = cookie_res;
 		}
 	}
 
 	if (!cookie) {
 		unsigned long long tmp;
-		char *addr = getenv("REMOTE_ADDR");
+		char *addr = FCGX_GetParam("REMOTE_ADDR", dnet_fcgi_request.envp);
 
 		err = read(dnet_urandom_fd, &tmp, sizeof(tmp));
 		if (err < 0) {
@@ -334,7 +337,7 @@ static int dnet_fcgi_generate_sign(long timestamp)
 
 		dnet_fcgi_data_to_hex(cookie_res, sizeof(cookie_res), (unsigned char *)dnet_fcgi_sign_data, rsize);
 
-		FCGI_printf("Set-Cookie: %s%s", dnet_fcgi_cookie_delimiter, cookie_res);
+		FCGX_FPrintF(dnet_fcgi_request.out, "Set-Cookie: %s%s", dnet_fcgi_cookie_delimiter, cookie_res);
 		if (dnet_fcgi_expiration_interval) {
 			char str[128];
 			struct tm tm;
@@ -342,10 +345,9 @@ static int dnet_fcgi_generate_sign(long timestamp)
 
 			localtime_r(&t, &tm);
 			strftime(str, sizeof(str), "%a, %d-%b-%Y %T %Z", &tm);
-			FCGI_printf("%s expires=%s", dnet_fcgi_cookie_ending, str);
+			FCGX_FPrintF(dnet_fcgi_request.out, "%s expires=%s%s", dnet_fcgi_cookie_ending, str, dnet_fcgi_cookie_addon);
 		}
-		FCGI_printf("\r\n");
-		fprintf(dnet_fcgi_log, "Using 1: %s\n", cookie_res);
+		FCGX_FPrintF(dnet_fcgi_request.out, "\r\n");
 	}
 
 	err = 0;
@@ -379,12 +381,12 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			goto err_out_exit;
 
 		a = (struct dnet_addr_attr *)(attr + 1);
-
+#if 0
 		fprintf(dnet_fcgi_log, "%s: addr: %s, is object presented there: %d.\n",
 				dnet_dump_id(cmd->id),
 				dnet_server_convert_dnet_addr(&a->addr),
 				attr->flags);
-
+#endif
 		err = -EAGAIN;
 		if (attr->flags) {
 			char addr[256];
@@ -402,15 +404,15 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			} else {
 				snprintf(addr, sizeof(addr), "%s", dnet_state_dump_addr_only(&a->addr));
 			}
-
+#if 0
 			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%d/%02x/%s\n",
 					dnet_fcgi_status_pattern,
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
 					dnet_fcgi_id[0], id);
-
-			FCGI_printf("%s\r\n", dnet_fcgi_status_pattern);
-			FCGI_printf("Location: http://%s%s/%d/%02x/%s\r\n",
+#endif
+			FCGX_FPrintF(dnet_fcgi_request.out, "%s\r\n", dnet_fcgi_status_pattern);
+			FCGX_FPrintF(dnet_fcgi_request.out, "Location: http://%s%s/%d/%02x/%s\r\n",
 					addr,
 					dnet_fcgi_root_pattern,
 					port - dnet_fcgi_base_port,
@@ -422,16 +424,16 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					goto err_out_exit;
 			}
 
-			FCGI_printf("Content-type: application/xml\r\n");
-			FCGI_printf("\r\n\r\n");
+			FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: application/xml\r\n");
+			FCGX_FPrintF(dnet_fcgi_request.out, "\r\n\r\n");
 
-			FCGI_printf("<download-info><host>%s</host><path>%s/%d/%02x/%s</path><ts>%lx</ts>",
+			FCGX_FPrintF(dnet_fcgi_request.out, "<?xml version=\"1.0\" encoding=\"utf-8\"?><download-info><host>%s</host><path>%s/%d/%02x/%s</path><ts>%lx</ts>",
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port, dnet_fcgi_id[0], id,
 					timestamp);
 			if (dnet_fcgi_sign_key)
-				FCGI_printf("<s>%s</s>", dnet_fcgi_sign_tmp);
-			FCGI_printf("</download-info>\r\n");
+				FCGX_FPrintF(dnet_fcgi_request.out, "<s>%s</s>", dnet_fcgi_sign_tmp);
+			FCGX_FPrintF(dnet_fcgi_request.out, "</download-info>\r\n");
 
 			err = 0;
 		}
@@ -447,15 +449,17 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 	return err;
 
 err_out_exit:
-	dnet_fcgi_wakeup(err);
+	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
+		dnet_fcgi_wakeup(err);
 	return err;
 }
 
 static int dnet_fcgi_unlink_complete(struct dnet_net_state *st __unused,
-		struct dnet_cmd *cmd __unused, struct dnet_attr *a __unused,
+		struct dnet_cmd *cmd, struct dnet_attr *a __unused,
 		void *priv __unused)
 {
-	dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
+	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
 	return 0;
 }
 
@@ -598,7 +602,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 	ctl.io.offset = 0;
 
 	dnet_fcgi_request_completed = 0;
-	err = dnet_write_object(n, &ctl, obj, len, NULL, 0, &trans_num);
+	err = dnet_write_object(n, &ctl, obj, len, NULL, 1, &trans_num);
 	if (err < 0) {
 		fprintf(dnet_fcgi_log, "%s: failed to upload '%s' object: %d.\n", addr, obj, err);
 		goto err_out_exit;
@@ -620,7 +624,7 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 	char *p;
 	long err;
 
-	p = getenv("CONTENT_LENGTH");
+	p = FCGX_GetParam("CONTENT_LENGTH", dnet_fcgi_request.envp);
 	if (!p) {
 		fprintf(dnet_fcgi_log, "%s: no content length.\n", addr);
 		goto err_out_exit;
@@ -642,16 +646,10 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 	p = data;
 
 	while (size) {
-		err = FCGI_fread(p, size, 1, FCGI_stdin);
+		err = FCGX_GetStr(p, size, dnet_fcgi_request.in);
 		if (err < 0 && errno != EAGAIN) {
 			fprintf(dnet_fcgi_log, "%s: failed to read %lu bytes, total of %lu: %s [%d].\n",
 					addr, size, data_size, strerror(errno), errno);
-			goto err_out_free;
-		}
-
-		if (FCGI_feof(FCGI_stdin)) {
-			fprintf(dnet_fcgi_log, "%s: end of stdin, %lu/%lu, aborting.\n",
-					addr, size, data_size);
 			goto err_out_free;
 		}
 
@@ -661,8 +659,8 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 			goto err_out_free;
 		}
 
-		p += err * size;
-		size -= err * size;
+		p += err;
+		size -= err;
 	}
 
 	err = dnet_fcgi_upload(n, addr, id, length, data, data_size);
@@ -726,6 +724,10 @@ static int dnet_fcgi_setup_sign_hash(void)
 	if (!dnet_fcgi_cookie_header)
 		dnet_fcgi_cookie_header = DNET_FCGI_COOKIE_HEADER;
 
+	dnet_fcgi_cookie_addon = getenv("DNET_FCGI_COOKIE_ADDON");
+	if (!dnet_fcgi_cookie_addon)
+		dnet_fcgi_cookie_addon = "";
+
 	dnet_fcgi_cookie_delimiter = getenv("DNET_FCGI_COOKIE_DELIMITER");
 	if (!dnet_fcgi_cookie_delimiter)
 		dnet_fcgi_cookie_delimiter = DNET_FCGI_COOKIE_DELIMITER;
@@ -784,13 +786,11 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 	dnet_convert_io_attr(io);
 
-	fprintf(dnet_fcgi_log, "%s: read completion: IO size: %llu.\n", dnet_dump_id(cmd->id), io->size);
-	
-	FCGI_printf("\r\n\r\n");
+	FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: octet/stream\r\n\r\n");
 
 	size = io->size;
 	while (size) {
-		err = FCGI_fwrite(data, size, 1, FCGI_stdout);
+		err = FCGX_PutStr(data, size, dnet_fcgi_request.out);
 		if (err < 0 && errno != EAGAIN) {
 			err = -errno;
 			fprintf(dnet_fcgi_log, "%s: failed to write %llu bytes, "
@@ -799,23 +799,16 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 					strerror(errno), errno);
 			goto err_out_exit;
 		}
-		
-		if (FCGI_feof(FCGI_stdout)) {
-			fprintf(dnet_fcgi_log, "%s: end of stdout, %llu/%llu, aborting.\n",
-					dnet_dump_id(dnet_fcgi_id), size, (unsigned long long)io->size);
-			goto err_out_exit;
-		}
 
-		data += err * size;
-		size -= err * size;
+		data += err;
+		size -= err;
 	}
 
-	dnet_fcgi_wakeup(0);
-
-	return 0;
+	err = 0;
 
 err_out_exit:
-	dnet_fcgi_wakeup(err);
+	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
+		dnet_fcgi_wakeup(err);
 	return err;
 }
 
@@ -840,14 +833,12 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, ch
 			goto lookup;
 
 		for (i=0; i<dnet_fcgi_direct_patterns_num; ++i) {
-			p = strstr(id, dnet_fcgi_direct_patterns[i]);
+			p = strstr(query, dnet_fcgi_direct_patterns[i]);
 			if (p)
 				break;
 		}
 
 		if (i != dnet_fcgi_direct_patterns_num) {
-			fprintf(dnet_fcgi_log, "%s: direct download.\n", addr);
-
 			memset(&ctl, 0, sizeof(struct dnet_io_control));
 
 			ctl.fd = -1;
@@ -880,6 +871,7 @@ int main()
 	char *id, *end;
 	struct dnet_config cfg;
 	struct dnet_node *n;
+	char tmp[128];
 
 	dnet_fcgi_status_pattern = getenv("DNET_FCGI_SUCCESS_STATUS_PATTERN");
 	if (!dnet_fcgi_status_pattern)
@@ -899,6 +891,9 @@ int main()
 	p = getenv("DNET_FCGI_LOG");
 	if (!p)
 		p = DNET_FCGI_LOG;
+
+	snprintf(tmp, sizeof(tmp), "%s.%d", p, getpid());
+	p = tmp;
 
 	dnet_fcgi_log = fopen(p, "a");
 	if (!dnet_fcgi_log) {
@@ -999,21 +994,38 @@ int main()
 
 	id_pattern_length = strlen(id_pattern);
 
-	while (FCGI_Accept() >= 0) {
-		addr = getenv("REMOTE_ADDR");
+	err = FCGX_Init();
+	if (err) {
+		fprintf(dnet_fcgi_log, "FCGX initaliation failed: %d.\n", err);
+		goto err_out_free;
+	}
+
+	err = FCGX_InitRequest(&dnet_fcgi_request, LISTENSOCK_FILENO, LISTENSOCK_FLAGS);
+	if (err) {
+		fprintf(dnet_fcgi_log, "FCGX request initaliation failed: %d.\n", err);
+		goto err_out_fcgi_exit;
+	}
+
+	while (1) {
+		err = FCGX_Accept_r(&dnet_fcgi_request);
+		if (err || !dnet_fcgi_request.in || !dnet_fcgi_request.out || !dnet_fcgi_request.err || !dnet_fcgi_request.envp) {
+			fprintf(dnet_fcgi_log, "Failed to accept client: no IO streams: in: %p, out: %p, err: %p, env: %p, err: %d.\n",
+					dnet_fcgi_request.in, dnet_fcgi_request.out, dnet_fcgi_request.err, dnet_fcgi_request.envp, err);
+			continue;
+		}
+
+		addr = FCGX_GetParam("REMOTE_ADDR", dnet_fcgi_request.envp);
 		if (!addr)
 			continue;
 
-		method = getenv("REQUEST_METHOD");
+		method = FCGX_GetParam("REQUEST_METHOD", dnet_fcgi_request.envp);
 
 		err = -EINVAL;
-		query = p = getenv("QUERY_STRING");
+		query = p = FCGX_GetParam("QUERY_STRING", dnet_fcgi_request.envp);
 		if (!p) {
 			reason = "no query string";
 			goto err_continue;
 		}
-
-		fprintf(dnet_fcgi_log, "Connect from: %s, method: %s, query: %s.\n", addr, method, p);
 
 		id = strstr(p, id_pattern);
 		if (!id) {
@@ -1033,8 +1045,6 @@ int main()
 
 		length = end - id;
 
-		fprintf(dnet_fcgi_log, "%s: id: '%s' [%d]\n", addr, id, length);
-
 		if (!strncmp(method, "POST", 4)) {
 			if (!post_allowed) {
 				err = -EACCES;
@@ -1052,21 +1062,21 @@ int main()
 		} else {
 			err = dnet_fcgi_handle_get(n, query, addr, id, length);
 			if (err) {
-				fprintf(dnet_fcgi_log, "%s: Failed to handle GET for object '%s': %d.\n", addr, id, -err);
+				fprintf(dnet_fcgi_log, "%s: Failed to handle GET for object '%s': %d.\n", addr, id, err);
 				reason = "failed to handle GET";
 				goto err_continue;
 			}
 		}
 
-		fflush(dnet_fcgi_log);
-		FCGI_Finish();
+cont:
+		FCGX_Finish_r(&dnet_fcgi_request);
 		continue;
 
 err_continue:
-		FCGI_printf("Status: 417 Expectation Failed: %s\r\n\r\n", reason);
-		FCGI_Finish();
+		FCGX_FPrintF(dnet_fcgi_request.out, "Status: 400\r\n\r\n: %s: %d\r\n", reason, err);
 		fprintf(dnet_fcgi_log, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(-err), err);
 		fflush(dnet_fcgi_log);
+		goto cont;
 	}
 
 	dnet_node_destroy(n);
@@ -1080,6 +1090,8 @@ err_continue:
 
 	return 0;
 
+err_out_fcgi_exit:
+	FCGX_ShutdownPending();
 err_out_free:
 	dnet_node_destroy(n);
 err_out_sign_destroy:
