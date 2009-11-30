@@ -2499,10 +2499,13 @@ int dnet_signal_thread_raw(struct dnet_io_thread *t, struct dnet_net_state *st, 
 	ts.state = st;
 
 	err = write(t->pipe[1], &ts, sizeof(struct dnet_thread_signal));
-	if (err <= 0) {
+	if (err < 0) {
 		err = -errno;
 		return err;
 	}
+
+	if (err == 0)
+		return -EAGAIN;
 
 	if (st)
 		dnet_log(st->n, DNET_LOG_DSA, "%s: signaled thread %lu, cmd %u.\n",
@@ -2526,6 +2529,9 @@ int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd)
 	err = dnet_signal_thread_raw(st->th, st, cmd);
 	if (err)
 		dnet_state_put(st);
+
+	if (err == -EAGAIN || err == -EINTR)
+		err = 0;
 
 	return err;
 }
