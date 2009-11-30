@@ -18,7 +18,7 @@ AX_CHECK_OPENSSL
 AX_PREFIX_CONFIG_H(config/acsetup.h)
 AX_CREATE_STDINT_H(include/dnet/typedefs.h)
 
-for i in -W -Wall -Wextra; do
+for i in -W -Wall -Wextra -fstack-protector-all; do
 	AX_CHECK_COMPILER_FLAGS([$i], [CFLAGS="$CFLAGS $i"], [])
 done
 
