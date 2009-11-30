@@ -81,7 +81,7 @@ static int dnet_openssl_digest_final(void *priv, void *result, void *addr,
 	}
 
 	memcpy(addr, result, rs);
-	EVP_MD_CTX_cleanup(&e->mdctx);
+	//EVP_MD_CTX_cleanup(&e->mdctx);
 	return 0;
 }
 
