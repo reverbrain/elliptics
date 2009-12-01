@@ -282,9 +282,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *st)
 			dnet_server_convert_dnet_addr(&st->addr),
 			(unsigned long long)t->trans);
 
-	err = dnet_data_ready(st, &t->r);
-
-	return err;
+	return dnet_data_ready(st, &t->r);
 }
 
 void dnet_req_trans_destroy(struct dnet_data_req *r, int err __unused)
@@ -538,9 +536,7 @@ static int dnet_sync_failed_range(struct dnet_net_state *st)
 	return dnet_add_reconnect_addr(n, &st->addr);
 }
 
-static void dnet_req_trans_retry(struct dnet_data_req *r, int error);
-
-static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *st)
+static int dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *st)
 {
 	struct dnet_node *n = st->n;
 	int err = 0;
@@ -570,8 +566,6 @@ static int __dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state 
 	if (err)
 		goto err_out_put;
 
-	dnet_req_set_complete(&t->r, dnet_req_trans_retry, NULL);
-
 	t->recv_trans = t->cmd.trans;
 	t->cmd.trans = t->trans;
 
@@ -588,37 +582,6 @@ err_out_put:
 	dnet_log(n, DNET_LOG_ERROR, "%s: failed to process new transaction %llu: %d.\n",
 			dnet_dump_id(t->cmd.id), (unsigned long long)t->cmd.trans, err);
 	return err;
-}
-
-static int dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *st)
-{
-	int err;
-
-	do {
-		err = __dnet_process_trans_new(t, st);
-		if (!err)
-			break;
-
-	} while (st && st->n && !list_empty(&st->n->state_list));
-
-	return err;
-}
-
-static void dnet_req_trans_retry(struct dnet_data_req *r, int err)
-{
-	struct dnet_trans *t = container_of(r, struct dnet_trans, r);
-
-	if (err) {
-		struct dnet_net_state *st = t->st;
-
-		err = dnet_process_trans_new(t, st);
-		dnet_state_put(st);
-
-		if (err)
-			dnet_trans_put(t);
-	} else {
-		dnet_req_set_complete(&t->r, NULL, NULL);
-	}
 }
 
 static int dnet_process_recv_trans(struct dnet_trans *t, struct dnet_net_state *st)
