@@ -1278,7 +1278,10 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 
 		ctl->data = data;
 
-		ctl->io = tmp;
+		ctl->io.size = tmp.size;
+		ctl->io.offset = tmp.offset;
+		ctl->io.flags = tmp.flags;
+
 		while (size) {
 			sz = size;
 			if (!(ctl->aflags & DNET_ATTR_NO_TRANSACTION_SPLIT) &&
@@ -2547,6 +2550,9 @@ int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
 	if (add)
 		err = dnet_signal_thread(st, DNET_THREAD_DATA_READY);
 	dnet_lock_unlock(&st->snd_lock);
+
+	if (err)
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: data ready failed: %d.\n", dnet_dump_id(st->id), err);
 
 	return err;
 }
