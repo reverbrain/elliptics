@@ -388,6 +388,11 @@ static void dnet_dummy_pipe_read(int s, short event, void *arg)
 			break;
 		}
 
+		if (err != sizeof(struct dnet_thread_signal)) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: short pipe read.\n", dnet_dump_id(t->node->id));
+			break;
+		}
+
 		dnet_log(n, DNET_LOG_DSA, "thread: %lu, err: %d, cmd: %u, state: %s.\n",
 				(unsigned long)t->tid, err, ts.cmd, ts.state?dnet_dump_id(ts.state->id):"raw");
 
@@ -486,9 +491,10 @@ static int dnet_start_io_threads(struct dnet_node *n)
 			dnet_log_err(n, "failed to create a dummy IO pipe");
 			goto err_out_free;
 		}
-
+#if 1
 		fcntl(t->pipe[0], F_SETFL, O_NONBLOCK);
-
+		fcntl(t->pipe[1], F_SETFL, O_NONBLOCK);
+#endif
 		t->base = event_init();
 		if (!t->base) {
 			err = -errno;
