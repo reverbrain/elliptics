@@ -25,6 +25,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <poll.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,20 +88,24 @@ static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *
 			memcpy(&is->addr, dnet_state_addr(st), sizeof(struct dnet_addr));
 		}
 
-		if (!cmd->size) {
+		if (cmd && !(cmd->flags & DNET_FLAGS_MORE)) {
 			unsigned long bytes = (unsigned long)priv;
 
 			is->completed++;
 			is->bytes += bytes;
 			iotest_bytes += bytes;
-			iotest_completed++;
+		}
+	}
 
-			if (iotest_sleep && iotest_started - iotest_completed < iotest_max_pending/2) {
-				unsigned char b;
-				int err;
+	if (cmd && !(cmd->flags & DNET_FLAGS_MORE)) {
+		iotest_completed++;
 
-				err = write(iotest_pipe[1], &b, 1);
-			}
+		if (iotest_sleep && (iotest_started - iotest_completed < iotest_max_pending/2)) {
+			unsigned int b;
+			int err;
+
+			err = write(iotest_pipe[1], &b, 4);
+			iotest_sleep = 0;
 		}
 	}
 
@@ -113,8 +118,10 @@ static int iotest_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cm
 	int err;
 
 	err = dnet_lookup_complete(st, cmd, attr, priv);
-	if (cmd && !cmd->status && !err && cmd->size)
+	if (cmd && !cmd->status && !err && cmd->size) {
+		printf("%s: lookup completed: err: %d.\n", dnet_dump_id(cmd->id), err);
 		iotest_lookup_found++;
+	}
 
 	iotest_lookup_pending--;
 
@@ -124,12 +131,19 @@ static int iotest_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cm
 static void iotest_wait(void)
 {
 	if (iotest_started - iotest_completed > iotest_max_pending) {
-		unsigned char b;
+		unsigned int b;
 		int err;
+		struct pollfd pfd;
+
+		pfd.fd = iotest_pipe[0];
+		pfd.events = POLLIN;
+		pfd.revents = 0;
 
 		iotest_sleep = 1;
-		err = read(iotest_pipe[0], &b, 1);
-		iotest_sleep = 0;
+		err = poll(&pfd, 1, 1000);
+
+		if (err > 0 && (pfd.revents & POLLIN))
+			while (read(iotest_pipe[0], &b, 4) > 0);
 	}
 }
 
@@ -164,15 +178,16 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 			size = max;
 
 		//ptr[first] = ptr[last] = rand();
-		ptr[first] = ptr[last] = ctl.io.offset;
+		ptr[first] = ptr[last] = iotest_started;
 
+		ctl.data = data;
 		ctl.priv = (void *)(unsigned long)size;
 
 		err = dnet_write_object(n, &ctl, obj, len, NULL, !!obj, &trans_num);
 		if (err < 0)
 			return err;
 
-		iotest_started++;
+		iotest_started += trans_num;
 
 		if (iotest_lookup_found < iotest_lookup_num &&
 				iotest_lookup_pending < iotest_lookup_num) {
@@ -293,7 +308,7 @@ static void *iotest_perf(void *log_private)
 	unsigned long long chunks_per_second, prev_completed, prev_bytes;
 	struct iotest_state *st;
 	char msg[512];
-	
+
 	gettimeofday(&p, NULL);
 	prev_completed = 0;
 	prev_bytes = 0;
@@ -524,7 +539,7 @@ int main(int argc, char *argv[])
 		prev = st;
 		st = next;
 	}
-	
+
 	st = iotest_root.next;
 	while (st) {
 		printf("%s:%s  %s\n", st->cfg.addr, st->cfg.port, dnet_dump_id(st->cfg.id));
@@ -537,6 +552,9 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Failed to create a control pipe: %d.\n", err);
 		return err;
 	}
+
+	fcntl(iotest_pipe[0], F_SETFL, O_NONBLOCK);
+	fcntl(iotest_pipe[1], F_SETFL, O_NONBLOCK);
 
 	err = pthread_create(&tid, NULL, iotest_perf, cfg.log_private);
 	if (err) {
