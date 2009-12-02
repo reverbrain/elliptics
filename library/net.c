@@ -770,7 +770,11 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 		if (data) {
 			err = send(st->s, data, *size, 0);
 		} else if (r->fd >= 0) {
-			err = dnet_sendfile(st, r->fd, &st->foffset, *size);
+			/*
+			 * A little bit dirty, but we want to shut up 64bit compilers, which
+			 * will not believe that long long is actually unt64_t there.
+			 */
+			err = dnet_sendfile(st, r->fd, (uint64_t *)(void *)&st->foffset, *size);
 		}
 		
 		dnet_log(n, DNET_LOG_DSA, "%s: sent: data: %p, %d/%llu.\n",

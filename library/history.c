@@ -258,9 +258,13 @@ static int dnet_compare_history(struct dnet_net_state *st, struct dnet_cmd *cmd,
 			lh = &local_hist[j+i-1];
 
 			dnet_log(n, DNET_LOG_NOTICE, "%lld/%lld h: local: %s, size: %llu, offset: %llu, ts: %llx.%llx\n",
-					i, j, dnet_dump_id(lh->id), lh->size, lh->offset, lh->tsec, lh->tnsec);
+					i, j, dnet_dump_id(lh->id),
+					(unsigned long long)lh->size, (unsigned long long)lh->offset,
+					(unsigned long long)lh->tsec, (unsigned long long)lh->tnsec);
 			dnet_log(n, DNET_LOG_NOTICE, "%lld/%lld h: remot: %s, size: %llu, offset: %llu, ts: %llx.%llx\n",
-					i, j, dnet_dump_id(rh->id), rh->size, rh->offset, rh->tsec, rh->tnsec);
+					i, j, dnet_dump_id(rh->id),
+					(unsigned long long)rh->size, (unsigned long long)rh->offset,
+					(unsigned long long)rh->tsec, (unsigned long long)rh->tnsec);
 
 			if (memcmp(rh, lh, sizeof(struct dnet_history_entry)))
 				break;

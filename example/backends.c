@@ -78,13 +78,13 @@ static int backend_vm_stat(void *state, struct dnet_stat *st)
 		goto err_out_exit;
 	}
 
-	err = fscanf(f, "MemTotal:%lld kB\n", (unsigned long long *)&st->vm_total);
-	err = fscanf(f, "MemFree:%lld kB\n", (unsigned long long *)&st->vm_free);
-	err = fscanf(f, "Buffers:%lld kB\n", (unsigned long long *)&st->vm_buffers);
-	err = fscanf(f, "Cached:%lld kB\n", (unsigned long long *)&st->vm_cached);
-	err = fscanf(f, "SwapCached:%lld kB\n", (unsigned long long *)&stub);
-	err = fscanf(f, "Active:%lld kB\n", (unsigned long long *)&st->vm_active);
-	err = fscanf(f, "Inactive:%lld kB\n", (unsigned long long *)&st->vm_inactive);
+	err = fscanf(f, "MemTotal:%llu kB\n", (unsigned long long *)&st->vm_total);
+	err = fscanf(f, "MemFree:%llu kB\n", (unsigned long long *)&st->vm_free);
+	err = fscanf(f, "Buffers:%llu kB\n", (unsigned long long *)&st->vm_buffers);
+	err = fscanf(f, "Cached:%llu kB\n", (unsigned long long *)&st->vm_cached);
+	err = fscanf(f, "SwapCached:%llu kB\n", (unsigned long long *)&stub);
+	err = fscanf(f, "Active:%llu kB\n", (unsigned long long *)&st->vm_active);
+	err = fscanf(f, "Inactive:%llu kB\n", (unsigned long long *)&st->vm_inactive);
 
 	fclose(f);
 	return 0;
@@ -185,7 +185,8 @@ static int backend_stat_low_level(void *state, const char *path, struct dnet_sta
 	la[2] = (float)st->la[2] / 100.0;
 
 	dnet_command_handler_log(state, DNET_LOG_INFO, "Stat: la: %f %f %f, mem: total: %llu, free: %llu, cache: %llu.\n",
-				la[0], la[1], la[2], st->vm_total, st->vm_free, st->vm_cached);
+		la[0], la[1], la[2],
+		(unsigned long long)st->vm_total, (unsigned long long)st->vm_free, (unsigned long long)st->vm_cached);
 
 	dnet_convert_stat(st);
 

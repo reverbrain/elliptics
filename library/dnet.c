@@ -1370,8 +1370,9 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 		err = -errno;
 		dnet_log_err(n, "Failed to map to be written file '%s', "
 				"size: %llu, use: %llu, offset: %llu, use: %llu",
-				file, size, ALIGN(size + offset - off, page_size),
-				offset, off);
+				file, (unsigned long long)size,
+				(unsigned long long)ALIGN(size + offset - off, page_size),
+				(unsigned long long)offset, (unsigned long long)off);
 		goto err_out_close;
 	}
 
@@ -1381,7 +1382,8 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t
 	ctl.fd = fd;
 
 	dnet_log(n, DNET_LOG_NOTICE, "data: %p, ctl.data: %p, offset: %llu/%llu, size: %llu/%llu\n",
-			data, ctl.data, offset, off, size, ALIGN(size, page_size));
+			data, ctl.data, (unsigned long long)offset, (unsigned long long)off,
+			(unsigned long long)size, (unsigned long long)ALIGN(size, page_size));
 
 	ctl.complete = dnet_write_complete;
 	ctl.priv = w;
