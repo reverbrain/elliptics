@@ -73,6 +73,10 @@ static int dnet_fcgi_dns_lookup;
 
 static char *dnet_fcgi_unlink_pattern;
 
+#define DNET_FCGI_STAT_LOG		1
+static int dnet_fcgi_stat_good, dnet_fcgi_stat_bad, dnet_fcgi_stat_bad_limit = -1;
+static char *dnet_fcgi_stat_pattern, *dnet_fcgi_stat_log_pattern;
+
 static FCGX_Request dnet_fcgi_request;
 
 #define LISTENSOCK_FILENO	0
@@ -424,8 +428,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					goto err_out_exit;
 			}
 
-			FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: application/xml\r\n");
-			FCGX_FPrintF(dnet_fcgi_request.out, "\r\n\r\n");
+			FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: application/xml\r\n\r\n");
 
 			FCGX_FPrintF(dnet_fcgi_request.out, "<?xml version=\"1.0\" encoding=\"utf-8\"?><download-info><host>%s</host><path>%s/%d/%02x/%s</path><ts>%lx</ts>",
 					addr,
@@ -812,6 +815,114 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_fcgi_stat_complete(struct dnet_net_state *state,
+	struct dnet_cmd *cmd, struct dnet_attr *attr __unused, void *priv __unused)
+{
+	if (!state || !cmd || cmd->status) {
+		if (cmd)
+			fprintf(dnet_fcgi_log, "state: %p, cmd: %p, err: %d.\n", state, cmd, cmd->status);
+		dnet_fcgi_stat_bad++;
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
+		return 0;
+	}
+
+	if (!(cmd->flags & DNET_FLAGS_MORE)) {
+		dnet_fcgi_stat_good++;
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
+		return 0;
+	}
+
+	return 0;
+}
+
+static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
+	struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
+{
+	if (state && cmd && attr && attr->size == sizeof(struct dnet_stat)) {
+		float la[3];
+		struct dnet_stat *st;
+
+		st = (struct dnet_stat *)(attr + 1);
+
+		dnet_convert_stat(st);
+
+		la[0] = (float)st->la[0] / 100.0;
+		la[1] = (float)st->la[1] / 100.0;
+		la[2] = (float)st->la[2] / 100.0;
+
+		FCGX_FPrintF(dnet_fcgi_request.out, "<stat addr=\"%s\" id=\"%s\"><la>%.2f %.2f %.2f</la>",
+				dnet_state_dump_addr(state),
+				dnet_dump_id_len(cmd->id, DNET_ID_SIZE),
+				la[0], la[1], la[2]);
+		FCGX_FPrintF(dnet_fcgi_request.out, "<memtotal>%lu KB</memtotal><memfree>%lu KB</memfree><memcached>%lu KB</memcached>",
+				(unsigned long)st->vm_total,
+				(unsigned long)st->vm_free,
+				(unsigned long)st->vm_cached);
+		FCGX_FPrintF(dnet_fcgi_request.out, "<storage_size>%lu MB</storage_size><available_size>%lu MB</available_size><files>%lu</files><fsid>0x%lx</fsid></stat>",
+				(unsigned long)(st->frsize * st->blocks / 1024 / 1024),
+				(unsigned long)(st->bavail * st->bsize / 1024 / 1024),
+				(unsigned long)st->files, (unsigned long)st->fsid);
+	}
+
+	return dnet_fcgi_stat_complete(state, cmd, attr, priv);
+}
+
+static int dnet_fcgi_request_stat(struct dnet_node *n,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			struct dnet_attr *attr,
+			void *priv))
+{
+	int err;
+
+	dnet_fcgi_stat_good = dnet_fcgi_stat_bad = 0;
+	dnet_fcgi_request_completed = 0;
+
+	err = dnet_request_stat(n, NULL, complete, NULL);
+	if (err < 0) {
+		fprintf(dnet_fcgi_log, "Failed to request stat: %d.\n", err);
+		goto err_out_exit;
+	}
+
+	dnet_fcgi_wait(err == dnet_fcgi_request_completed);
+	err = 0;
+err_out_exit:
+	return err;
+}
+
+static int dnet_fcgi_stat_log(struct dnet_node *n)
+{
+	int err;
+
+	FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: application/xml\r\n");
+	FCGX_FPrintF(dnet_fcgi_request.out, "%s\r\n\r\n", dnet_fcgi_status_pattern);
+	FCGX_FPrintF(dnet_fcgi_request.out, "<?xml version=\"1.0\" encoding=\"utf-8\"?><data>");
+
+	err = dnet_fcgi_request_stat(n, dnet_fcgi_stat_complete_log);
+
+	FCGX_FPrintF(dnet_fcgi_request.out, "</data>");
+
+	return err;
+}
+
+static int dnet_fcgi_stat(struct dnet_node *n)
+{
+	int err = dnet_fcgi_request_stat(n, dnet_fcgi_stat_complete);
+
+	if (	err ||
+		((dnet_fcgi_stat_bad_limit == -1) && (dnet_fcgi_stat_bad > dnet_fcgi_stat_good)) ||
+		((dnet_fcgi_stat_bad_limit >= 0) && (dnet_fcgi_stat_bad > dnet_fcgi_stat_bad_limit)) ||
+		((dnet_fcgi_stat_bad_limit >= 0) && (dnet_fcgi_stat_good < dnet_fcgi_stat_bad_limit)))
+			err = -1;
+
+	if (err)
+		FCGX_FPrintF(dnet_fcgi_request.out, "\r\nStatus: 400\r\n\r\n");
+	else
+		FCGX_FPrintF(dnet_fcgi_request.out, "\r\n%s\r\n\r\n", dnet_fcgi_status_pattern);
+
+	return err;
+}
+
 static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, char *id, int length)
 {
 	int err;
@@ -911,6 +1022,13 @@ int main()
 	dnet_fcgi_base_port = atoi(p);
 
 	dnet_fcgi_unlink_pattern = getenv("DNET_FCGI_UNLINK_PATTERN_URI");
+	dnet_fcgi_stat_pattern = getenv("DNET_FCGI_STAT_PATTERN_URI");
+	p = getenv("DNET_FCGI_STAT_BAD_LIMIT");
+	if (p)
+		dnet_fcgi_stat_bad_limit = atoi(p);
+	dnet_fcgi_stat_log_pattern = getenv("DNET_FCGI_STAT_LOG_PATTERN_URI");
+
+	fprintf(dnet_fcgi_log, "stat pattern: %s\n", dnet_fcgi_stat_pattern);
 
 	dnet_fcgi_direct_download = getenv("DNET_FCGI_DIRECT_PATTERN_URI");
 	if (dnet_fcgi_direct_download) {
@@ -1027,6 +1145,24 @@ int main()
 			goto err_continue;
 		}
 
+		if (dnet_fcgi_stat_log_pattern) {
+
+			p = strstr(query, dnet_fcgi_stat_log_pattern);
+			if (p) {
+				dnet_fcgi_stat_log(n);
+				goto cont;
+			}
+		}
+
+		if (dnet_fcgi_stat_pattern) {
+			p = strstr(query, dnet_fcgi_stat_pattern);
+			if (p) {
+				dnet_fcgi_stat(n);
+				goto cont;
+			}
+		}
+
+		p = query;
 		id = strstr(p, id_pattern);
 		if (!id) {
 			reason = "malformed request, no id part";
@@ -1044,6 +1180,8 @@ int main()
 			end = p + strlen(p);
 
 		length = end - id;
+
+		fprintf(dnet_fcgi_log, "id: '%s', length: %d.\n", id, length);
 
 		if (!strncmp(method, "POST", 4)) {
 			if (!post_allowed) {
