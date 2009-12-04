@@ -90,7 +90,8 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 	dnet_command_handler_log(state, DNET_LOG_INFO,
 			"%s: read object: io_offset: %llu, io_size: %llu, io_flags: %x, size: %d.\n",
-			dnet_dump_id(io->origin), io->offset, io->size, io->flags, size);
+			dnet_dump_id(io->origin), (unsigned long long)io->offset,
+			(unsigned long long)io->size, io->flags, size);
 
 	if (!size) {
 		err = 0;
