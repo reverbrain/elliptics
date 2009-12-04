@@ -18,7 +18,7 @@ LIBS="$TOKYOCABINET_LIBS $LIBS"
 CFLAGS="$TOKYOCABINET_CFLAGS $CFLAGS"
 
 AC_TRY_LINK([#include <tcadb.h>],
-	[TCADB *adb = tcadbnew(); tcadbdel(adb);],
+	[TCADB *adb = tcadbnew(); tcadbtranbegin(adb); tcadbdel(adb);],
 	[
 		AC_DEFINE(HAVE_TOKYOCABINET_SUPPORT, 1, [Define this if TokyoCabinet is installed])
 		ac_have_tokyocabinet="yes"
