@@ -36,6 +36,27 @@
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
 
+static void dnet_transform_final(struct dnet_crypto_engine *eng, void *addr,
+		void *dst, void *src, unsigned int *rsize, unsigned int rs)
+{
+	if (*rsize < rs) {
+		memcpy(dst, src, *rsize);
+		memset(dst + *rsize, 0, rs - *rsize);
+	} else {
+		memcpy(dst, src, rs);
+		*rsize = rs;
+	}
+
+	memcpy(addr, dst, rs);
+
+	if (eng->num >= 0) {
+		unsigned char *ptr = addr;
+		*ptr = eng->num;
+		ptr = dst;
+		*ptr = eng->num;
+	}
+}
+
 struct dnet_openssl_crypto_engine
 {
 	EVP_MD_CTX 		mdctx;
@@ -71,16 +92,8 @@ static int dnet_openssl_digest_final(void *priv, void *result, void *addr,
 	unsigned int rs = *rsize;
 
 	EVP_DigestFinal_ex(&e->mdctx, md_value, rsize);
+	dnet_transform_final(eng, addr, result, md_value, rsize, rs);
 
-	if (*rsize < rs) {
-		memcpy(result, md_value, *rsize);
-		memset(result + *rsize, 0, rs - *rsize);
-	} else {
-		memcpy(result, md_value, rs);
-		*rsize = rs;
-	}
-
-	memcpy(addr, result, rs);
 	return 0;
 }
 
@@ -93,7 +106,7 @@ static void dnet_openssl_crypto_engine_exit(struct dnet_crypto_engine *eng)
 	eng->engine = NULL;
 }
 
-static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *eng, char *hash)
+static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *eng, char *hash, int num)
 {
 	struct dnet_openssl_crypto_engine *e;
 
@@ -112,10 +125,10 @@ static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *eng, char 
 
 	EVP_MD_CTX_init(&e->mdctx);
 
+	eng->num = num;
 	eng->init = dnet_openssl_digest_init;
 	eng->update = dnet_openssl_digest_update;
 	eng->final = dnet_openssl_digest_final;
-
 	eng->exit = dnet_openssl_crypto_engine_exit;
 	eng->engine = e;
 
@@ -178,15 +191,11 @@ static int dnet_jhash_final(void *priv, void *result, void *addr,
 {
 	struct dnet_crypto_engine *eng = priv;
 	struct dnet_jhash_engine *e = eng->engine;
-	unsigned int sz = *rsize;
+	unsigned int rs = *rsize;
 
-	memset(result, 0, sz);
+	*rsize = sizeof(e->initval);
+	dnet_transform_final(eng, addr, result, &e->initval, rsize, rs);
 
-	if (sz > sizeof(e->initval))
-		sz = sizeof(e->initval);
-
-	memcpy(result, &e->initval, sz);
-	memcpy(addr, result, *rsize);
 	return 0;
 }
 
@@ -198,7 +207,7 @@ static void dnet_jhash_crypto_engine_exit(struct dnet_crypto_engine *eng)
 	eng->engine = NULL;
 }
 
-static int dnet_jhash_crypto_engine_init(struct dnet_crypto_engine *eng)
+static int dnet_jhash_crypto_engine_init(struct dnet_crypto_engine *eng, int num)
 {
 	struct dnet_jhash_engine *e;
 
@@ -207,10 +216,10 @@ static int dnet_jhash_crypto_engine_init(struct dnet_crypto_engine *eng)
 		return -ENOMEM;
 	memset(e, 0, sizeof(struct dnet_jhash_engine));
 
+	eng->num = num;
 	eng->init = dnet_jhash_init;
 	eng->update = dnet_jhash_update;
 	eng->final = dnet_jhash_final;
-
 	eng->exit = dnet_jhash_crypto_engine_exit;
 	eng->engine = e;
 	return 0;
@@ -218,7 +227,6 @@ static int dnet_jhash_crypto_engine_init(struct dnet_crypto_engine *eng)
 
 struct dnet_prev_engine
 {
-	int			num;
 	struct dnet_node	*node;
 };
 
@@ -250,7 +258,7 @@ static int dnet_prev_final(void *priv, void *result, void *addr,
 	if (sz != DNET_ID_SIZE)
 		return -EINVAL;
 
-	return dnet_state_get_prev_id(e->node, result, addr, e->num);
+	return dnet_state_get_prev_id(e->node, result, addr, eng->num);
 }
 
 static void dnet_prev_engine_exit(struct dnet_crypto_engine *eng)
@@ -270,7 +278,7 @@ static int dnet_prev_engine_init(struct dnet_crypto_engine *eng, int num)
 		return -ENOMEM;
 	memset(e, 0, sizeof(struct dnet_prev_engine));
 
-	e->num = num;
+	eng->num = num;
 	eng->engine = e;
 	eng->init = dnet_prev_init;
 	eng->update = dnet_prev_update;
@@ -283,11 +291,12 @@ static int dnet_prev_engine_init(struct dnet_crypto_engine *eng, int num)
 
 int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 {
+	char *str = NULL;
+	int num, err;
+
 	snprintf(e->name, sizeof(e->name), "%s", hash);
 
 	if (!strncmp(hash, "prev", 4)) {
-		int num;
-
 		if (strlen(hash) <= 4) {
 			fprintf(stderr, "Failed to register 'previos' transformation -"
 					" you have to provide a number of entries, like 'prev3'.\n");
@@ -296,21 +305,36 @@ int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 
 		num = atoi(&hash[4]);
 
-		if (!num)
-			return 0;
-		if (num < 0) {
-			fprintf(stderr, "Negative number (%d) is not allowed to the 'previous' transformation.\n",
-					num);
+		if (num <= 0) {
+			fprintf(stderr, "Non-positive number (%s/%d) is not allowed to the 'previous' transformation.\n",
+					hash, num);
 			return -EINVAL;
 		}
 
 		return dnet_prev_engine_init(e, num);
 	}
 
-	if (!strcmp(hash, "jhash"))
-		return dnet_jhash_crypto_engine_init(e);
+	err = sscanf(hash, "dc%d_%as", &num, &str);
+	if (err == 2)
+		hash = str;
+	else
+		num = -1;
 
-	return dnet_openssl_crypto_engine_init(e, hash);
+	if (!strcmp(hash, "jhash")) {
+		err = dnet_jhash_crypto_engine_init(e, num);
+		if (err)
+			goto out;
+	}
+
+	err = dnet_openssl_crypto_engine_init(e, hash, num);
+	if (err)
+		goto out;
+
+	err = 0;
+
+out:
+	free(str);
+	return err;
 }
 
 void dnet_crypto_engine_exit(struct dnet_crypto_engine *e)
