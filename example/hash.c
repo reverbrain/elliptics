@@ -81,11 +81,19 @@ static int dnet_openssl_digest_final(void *priv, void *result, void *addr,
 	}
 
 	memcpy(addr, result, rs);
-	//EVP_MD_CTX_cleanup(&e->mdctx);
 	return 0;
 }
 
-int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *eng, char *hash)
+static void dnet_openssl_crypto_engine_exit(struct dnet_crypto_engine *eng)
+{
+	struct dnet_openssl_crypto_engine *e = eng->engine;
+
+	EVP_MD_CTX_init(&e->mdctx);
+	free(e);
+	eng->engine = NULL;
+}
+
+static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *eng, char *hash)
 {
 	struct dnet_openssl_crypto_engine *e;
 
@@ -108,17 +116,25 @@ int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *eng, char *hash)
 	eng->update = dnet_openssl_digest_update;
 	eng->final = dnet_openssl_digest_final;
 
+	eng->exit = dnet_openssl_crypto_engine_exit;
 	eng->engine = e;
 
 	printf("Successfully initialized '%s' hash.\n", hash);
 
 	return 0;
 }
+
 #else
-int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *e __unused, char *hash __unused)
+
+static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *e __unused, char *hash __unused)
 {
 	return -ENOTSUP;
 }
+
+static void dnet_openssl_crypto_engine_exit(struct dnet_crypto_engine *eng __unused)
+{
+}
+
 #endif
 
 struct dnet_jhash_engine
@@ -126,7 +142,7 @@ struct dnet_jhash_engine
 	uint32_t		initval;
 };
 
-static int dnet_jhash_init(void *priv, struct dnet_node *n __attribute__ ((unused)))
+static int dnet_jhash_init(void *priv, struct dnet_node *n __unused)
 {
 	struct dnet_crypto_engine *eng = priv;
 	struct dnet_jhash_engine *e = eng->engine;
@@ -174,6 +190,14 @@ static int dnet_jhash_final(void *priv, void *result, void *addr,
 	return 0;
 }
 
+static void dnet_jhash_crypto_engine_exit(struct dnet_crypto_engine *eng)
+{
+	struct dnet_jhash_engine *e = eng->engine;
+
+	free(e);
+	eng->engine = NULL;
+}
+
 static int dnet_jhash_crypto_engine_init(struct dnet_crypto_engine *eng)
 {
 	struct dnet_jhash_engine *e;
@@ -187,6 +211,7 @@ static int dnet_jhash_crypto_engine_init(struct dnet_crypto_engine *eng)
 	eng->update = dnet_jhash_update;
 	eng->final = dnet_jhash_final;
 
+	eng->exit = dnet_jhash_crypto_engine_exit;
 	eng->engine = e;
 	return 0;
 }
@@ -228,6 +253,14 @@ static int dnet_prev_final(void *priv, void *result, void *addr,
 	return dnet_state_get_prev_id(e->node, result, addr, e->num);
 }
 
+static void dnet_prev_engine_exit(struct dnet_crypto_engine *eng)
+{
+	struct dnet_prev_engine *e = eng->engine;
+
+	free(e);
+	eng->engine = NULL;
+}
+
 static int dnet_prev_engine_init(struct dnet_crypto_engine *eng, int num)
 {
 	struct dnet_prev_engine *e;
@@ -242,6 +275,8 @@ static int dnet_prev_engine_init(struct dnet_crypto_engine *eng, int num)
 	eng->init = dnet_prev_init;
 	eng->update = dnet_prev_update;
 	eng->final = dnet_prev_final;
+
+	eng->exit = dnet_prev_engine_exit;
 
 	return 0;
 }

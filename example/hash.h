@@ -34,6 +34,8 @@ struct dnet_crypto_engine
 					void *dst, unsigned int *dsize, unsigned int flags);
 	int			( *final)(void *priv, void *result, void *addr,
 					unsigned int *rsize, unsigned int flags);
+
+	void			(* exit)(struct dnet_crypto_engine *);
 };
 
 int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash);
