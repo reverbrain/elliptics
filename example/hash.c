@@ -50,7 +50,7 @@ static void dnet_transform_final(struct dnet_crypto_engine *eng, void *addr,
 	memcpy(addr, dst, rs);
 
 	if (eng->num >= 0) {
-		unsigned char *ptr = addr;
+		unsigned int *ptr = addr;
 		*ptr = eng->num;
 		ptr = dst;
 		*ptr = eng->num;
