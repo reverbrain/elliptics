@@ -964,8 +964,10 @@ static int dnet_fcgi_external_raw(struct dnet_node *n, char *query, char *addr, 
 		if (p)
 			*p++ = '\0';
 
-		snprintf(trans, sizeof(trans), "dc%d_%s", region, hash);
-		err = dnet_move_transform(n, trans, tail);
+		err = snprintf(trans, sizeof(trans), "dc%d_", region);
+		if (!strncmp(trans, hash, err)) {
+			err = dnet_move_transform(n, hash, tail);
+		}
 
 		hash = p;
 		while (hash && *hash && isspace(*hash))
