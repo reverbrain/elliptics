@@ -2052,6 +2052,26 @@ err_out_exit:
 	return err;
 }
 
+int dnet_move_transform(struct dnet_node *n, char *name, int tail)
+{
+	int err = -ENOENT;
+	struct dnet_transform *t, *tmp;
+
+	pthread_rwlock_wrlock(&n->transform_lock);
+	list_for_each_entry_safe(t, tmp, &n->transform_list, tentry) {
+		if (!strncmp(name, t->name, DNET_MAX_NAME_LEN)) {
+			err = 0;
+			if (tail)
+				list_move_tail(&t->tentry, &n->transform_list);
+			else
+				list_move(&t->tentry, &n->transform_list);
+			break;
+		}
+	}
+	pthread_rwlock_unlock(&n->transform_lock);
+	return err;
+}
+
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	int (* init)(void *priv, struct dnet_node *n),
 	int (* update)(void *priv, void *src, uint64_t size,

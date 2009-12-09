@@ -385,6 +385,7 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	int (* final)(void *priv, void *dst, void *addr,
 		unsigned int *dsize, unsigned int flags));
 int dnet_remove_transform(struct dnet_node *n, char *name);
+int dnet_move_transform(struct dnet_node *n, char *name, int tail);
 
 /*
  * Node creation/destruction callbacks. Node is a building block of the storage
