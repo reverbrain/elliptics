@@ -2,6 +2,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 
+#include <dlfcn.h>
 #include <netdb.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,6 +77,15 @@ static char *dnet_fcgi_unlink_pattern;
 #define DNET_FCGI_STAT_LOG		1
 static int dnet_fcgi_stat_good, dnet_fcgi_stat_bad, dnet_fcgi_stat_bad_limit = -1;
 static char *dnet_fcgi_stat_pattern, *dnet_fcgi_stat_log_pattern;
+
+#define DNET_FCGI_EXTERNAL_CALLBACK_START	"dnet_fcgi_external_callback_start"
+#define DNET_FCGI_EXTERNAL_CALLBACK_STOP	"dnet_fcgi_external_callback_stop"
+#define DNET_FCGI_EXTERNAL_INIT			"dnet_fcgi_external_init"
+#define DNET_FCGI_EXTERNAL_EXIT			"dnet_fcgi_external_exit"
+
+static int (* dnet_fcgi_external_callback_start)(char *query, char *addr, char *id, int length);
+static int (* dnet_fcgi_external_callback_stop)(char *query, char *addr, char *id, int length);
+static void (* dnet_fcgi_external_exit)(void);
 
 static FCGX_Request dnet_fcgi_request;
 
@@ -923,6 +933,71 @@ static int dnet_fcgi_stat(struct dnet_node *n)
 	return err;
 }
 
+static int dnet_fcgi_external_raw(struct dnet_node *n, char *query, char *addr, char *id, int length, int tail)
+{
+	int err, region;
+	char trans[32], *hash, *h, *p;
+
+	err = dnet_fcgi_external_callback_start(query, addr, id, length);
+	if (err < 0)
+		return err;
+
+	region = err;
+
+	hash = getenv("DNET_FCGI_HASH");
+	if (!hash) {
+		fprintf(dnet_fcgi_log, "No hashes specified, aborting.\n");
+		err = -ENODEV;
+		goto err_out_exit;
+	}
+
+	h = strdup(hash);
+	if (!h) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	hash = h;
+
+	while (hash) {
+		p = strchr(hash, ' ');
+		if (p)
+			*p++ = '\0';
+
+		snprintf(trans, sizeof(trans), "dc%d_%s", region, hash);
+		err = dnet_move_transform(n, trans, tail);
+
+		hash = p;
+		while (hash && *hash && isspace(*hash))
+			hash++;
+	}
+	free(h);
+
+	return 0;
+
+err_out_exit:
+	return err;
+}
+
+static int dnet_fcgi_external_start(struct dnet_node *n, char *query, char *addr, char *id, int length)
+{
+	return dnet_fcgi_external_raw(n, query, addr, id, length, 0);
+}
+
+static int dnet_fcgi_external_stop(struct dnet_node *n, char *query, char *addr, char *id, int length)
+{
+	int err;
+
+	if (!id || !length)
+		return 0;
+
+	err = dnet_fcgi_external_raw(n, query, addr, id, length, 1);
+	if (err)
+		return err;
+
+	return dnet_fcgi_external_callback_start(query, addr, id, length);
+}
+
 static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, char *id, int length)
 {
 	int err;
@@ -965,11 +1040,74 @@ lookup:
 	err = dnet_fcgi_process_io(n, id, length, c);
 	if (err) {
 		fprintf(dnet_fcgi_log, "%s: Failed to lookup object '%s': %d.\n", addr, id, err);
+		goto out_exit;
+	}
+
+out_exit:
+	return err;
+}
+
+static int dnet_fcgi_setup_external_callbacks(char *name)
+{
+	int err = -EINVAL;
+	void *lib;
+	int (* init)(char *data);
+	char *data;
+
+	lib = dlopen(name, RTLD_NOW);
+	if (!lib) {
+		fprintf(dnet_fcgi_log, "Failed to load external library '%s': %s.\n",
+				name, dlerror());
 		goto err_out_exit;
 	}
 
+	dnet_fcgi_external_callback_start = dlsym(lib, DNET_FCGI_EXTERNAL_CALLBACK_START);
+	if (!dnet_fcgi_external_callback_start) {
+		fprintf(dnet_fcgi_log, "Failed to get '%s' symbol from external library '%s'.\n",
+				DNET_FCGI_EXTERNAL_CALLBACK_START, name);
+		goto err_out_close;
+	}
+
+	dnet_fcgi_external_callback_stop = dlsym(lib, DNET_FCGI_EXTERNAL_CALLBACK_STOP);
+	if (!dnet_fcgi_external_callback_stop) {
+		fprintf(dnet_fcgi_log, "Failed to get '%s' symbol from external library '%s'.\n",
+				DNET_FCGI_EXTERNAL_CALLBACK_STOP, name);
+		goto err_out_null;
+	}
+
+	init = dlsym(lib, DNET_FCGI_EXTERNAL_INIT);
+	if (!init) {
+		fprintf(dnet_fcgi_log, "Failed to get '%s' symbol from external library '%s'.\n",
+				DNET_FCGI_EXTERNAL_INIT, name);
+		goto err_out_null;
+	}
+
+	dnet_fcgi_external_exit = dlsym(lib, DNET_FCGI_EXTERNAL_EXIT);
+	if (!dnet_fcgi_external_exit) {
+		fprintf(dnet_fcgi_log, "Failed to get '%s' symbol from external library '%s'.\n",
+				DNET_FCGI_EXTERNAL_EXIT, name);
+		goto err_out_null;
+	}
+
+	data = getenv("DNET_FCGI_EXTERNAL_DATA");
+	err = init(data);
+	if (err) {
+		fprintf(dnet_fcgi_log, "Failed to initialize external library '%s' using data '%s'.\n",
+				name, data);
+		goto err_out_null;
+	}
+
+	fprintf(dnet_fcgi_log, "Successfully initialized external library '%s' using data '%s'.\n",
+				name, data);
+
 	return 0;
 
+err_out_null:
+	dnet_fcgi_external_exit = NULL;
+	dnet_fcgi_external_callback_start = NULL;
+	dnet_fcgi_external_callback_stop = NULL;
+err_out_close:
+	dlclose(lib);
 err_out_exit:
 	return err;
 }
@@ -1094,6 +1232,10 @@ int main()
 	if (p)
 		dnet_fcgi_dns_lookup = atoi(p);
 
+	p = getenv("DNET_FCGI_EXTERNAL_LIB");
+	if (p)
+		dnet_fcgi_setup_external_callbacks(p);
+
 	post_allowed = 0;
 	p = getenv("DNET_FCGI_POST_ALLOWED");
 	if (p)
@@ -1137,6 +1279,8 @@ int main()
 			continue;
 
 		method = FCGX_GetParam("REQUEST_METHOD", dnet_fcgi_request.envp);
+		id = NULL;
+		length = 0;
 
 		err = -EINVAL;
 		query = p = FCGX_GetParam("QUERY_STRING", dnet_fcgi_request.envp);
@@ -1183,6 +1327,9 @@ int main()
 
 		fprintf(dnet_fcgi_log, "id: '%s', length: %d.\n", id, length);
 
+		if (dnet_fcgi_external_callback_start)
+			dnet_fcgi_external_start(n, query, addr, id, length);
+
 		if (!strncmp(method, "POST", 4)) {
 			if (!post_allowed) {
 				err = -EACCES;
@@ -1207,6 +1354,9 @@ int main()
 		}
 
 cont:
+		if (dnet_fcgi_external_callback_stop)
+			dnet_fcgi_external_stop(n, query, addr, id, length);
+
 		FCGX_Finish_r(&dnet_fcgi_request);
 		continue;
 
@@ -1222,6 +1372,9 @@ err_continue:
 
 	free(direct_patterns);
 	free(dnet_fcgi_direct_patterns);
+
+	if (dnet_fcgi_external_exit)
+		dnet_fcgi_external_exit();
 
 	fflush(dnet_fcgi_log);
 	fclose(dnet_fcgi_log);
