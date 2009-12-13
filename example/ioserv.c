@@ -290,8 +290,6 @@ int main(int argc, char *argv[])
 
 	if (have_remote) {
 		err = dnet_add_state(n, &rem);
-		if (err)
-			return err;
 	}
 
 	if (cfg.join) {
