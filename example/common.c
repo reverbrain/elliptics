@@ -95,8 +95,8 @@ int dnet_parse_numeric_id(char *value, unsigned char *id)
 	}
 
 	if (len & 1) {
-		ch[0] = value[2*i + 0];
-		ch[1] = '0';
+		ch[2] = value[2*i + 0];
+		ch[3] = '0';
 
 		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
 	}
