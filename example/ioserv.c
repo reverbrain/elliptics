@@ -76,6 +76,7 @@ static void dnet_usage(char *p)
 			"                        become a fair node which may store data from the other nodes\n"
 			" -b <BDB>             - use BerkeleyDB (if present) IO storage backend\n"
 			" -t <TokyoCabinet>    - use TokyoCabinet (if present) IO storage backend\n"
+			" -f num_bits          - use file backend with provided number of bits to generate subdir (8 by default)\n"
 			" -d root              - root directory to load/store the objects\n"
 			" -W file              - write given file to the network storage\n"
 			" -s                   - request stats from all connected nodes\n"
@@ -103,7 +104,7 @@ static void dnet_usage(char *p)
 
 int main(int argc, char *argv[])
 {
-	int trans_max = 5, trans_num = 0;
+	int trans_max = 5, trans_num = 0, num_bits = 8;
 	int ch, err, i, have_remote = 0, daemon = 0, bdb = 0, stat = 0;
 	int tc = 0;
 	struct dnet_node *n = NULL;
@@ -153,6 +154,9 @@ int main(int argc, char *argv[])
 				break;
 			case 't':
 				tc = 1;
+				break;
+			case 'f':
+				num_bits = atoi(optarg);
 				break;
 			case 'm':
 				cfg.log_mask = strtoul(optarg, NULL, 0);
@@ -263,11 +267,10 @@ int main(int argc, char *argv[])
 				return -EINVAL;
 			cfg.command_handler = tc_backend_command_handler;
 		} else {
-			cfg.command_private = file_backend_setup_root(root);
+			cfg.command_private = file_backend_setup_root(root, 0, num_bits);
 			if (!cfg.command_private)
 				return -EINVAL;
 			cfg.command_handler = file_backend_command_handler;
-			cfg.command_private = root;
 		}
 	}
 
