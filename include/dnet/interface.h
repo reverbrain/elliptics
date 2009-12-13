@@ -283,6 +283,7 @@ struct dnet_config
  */
 void dnet_command_handler_log_raw(void *state, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
 int dnet_check_log_mask_state(struct dnet_net_state *st, uint32_t mask);
+void dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
 
 #define dnet_command_handler_log(state, mask, format, a...)				\
 	do {									\

@@ -121,4 +121,3 @@ void dnet_common_log(void *priv, uint32_t mask, const char *msg)
 	fprintf(stream, "%s.%06lu %1x: %s", str, tv.tv_usec, mask, msg);
 	fflush(stream);
 }
-

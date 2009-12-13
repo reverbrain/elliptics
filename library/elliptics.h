@@ -63,7 +63,6 @@ struct dnet_node;
  */
 int dnet_log_init(struct dnet_node *n, void *priv, uint32_t mask,
 		void (* log)(void *priv, uint32_t mask, const char *msg));
-void dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
 
 #define dnet_log(n, mask, format, a...) do { if (n->log_mask & mask) dnet_log_raw(n, mask, format, ##a); } while (0)
 #define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, "%s: " f ": %s [%d].\n", \
