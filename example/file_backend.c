@@ -95,8 +95,8 @@ void *file_backend_setup_root(char *root, int sync, unsigned int bits)
 	r->root_len = strlen(r->root);
 	r->sync = sync;
 	r->bit_mask = ~0;
-	r->bit_mask <<= 31 - bits;
-	r->bit_mask >>= 31 - bits;
+	r->bit_mask <<= sizeof(r->bit_mask) * 8 - bits;
+	r->bit_mask >>= sizeof(r->bit_mask) * 8 - bits;
 
 	err = fchdir(r->rootfd);
 	if (err) {
