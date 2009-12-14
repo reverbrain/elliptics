@@ -1,3 +1,9 @@
+elliptics (2.6.2-4-1) unstable; urgency=low
+
+  * Extended file IO backend - put :f into getopt.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 14 Dec 2009 20:41:00 +0300
+
 elliptics (2.6.2-4) unstable; urgency=low
 
   * Extended file IO backend.
