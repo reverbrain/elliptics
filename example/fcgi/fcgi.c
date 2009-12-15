@@ -67,6 +67,7 @@ static struct dnet_crypto_engine dnet_fcgi_sign_hash;
 
 static char *dnet_fcgi_cookie_header, *dnet_fcgi_cookie_delimiter, *dnet_fcgi_cookie_ending;
 static char *dnet_fcgi_cookie_addon;
+static char *dnet_fcgi_cookie_key;
 static long dnet_fcgi_expiration_interval;
 static int dnet_urandom_fd;
 
@@ -331,19 +332,18 @@ static int dnet_fcgi_generate_sign(long timestamp)
 	}
 
 	if (!cookie) {
-		unsigned long long tmp;
-		char *addr = FCGX_GetParam("REMOTE_ADDR", dnet_fcgi_request.envp);
+		uint32_t tmp;
 
 		err = read(dnet_urandom_fd, &tmp, sizeof(tmp));
 		if (err < 0) {
 			err = -errno;
-			fprintf(dnet_fcgi_log, "%s: failed to read random data: %s [%d].\n",
-					addr, strerror(errno), errno);
+			fprintf(dnet_fcgi_log, "Failed to read random data: %s [%d].\n",
+					strerror(errno), errno);
 			goto err_out_exit;
 		}
 
 		cookie = dnet_fcgi_sign_tmp;
-		len = snprintf(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), "%s-%lx-%llx", addr, timestamp, tmp);
+		len = snprintf(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), "%s%x%lx.", dnet_fcgi_cookie_key, tmp, timestamp);
 
 		e->init(e, NULL);
 		e->update(e, dnet_fcgi_sign_tmp, len, dnet_fcgi_sign_data, &rsize, 0);
@@ -351,7 +351,7 @@ static int dnet_fcgi_generate_sign(long timestamp)
 
 		dnet_fcgi_data_to_hex(cookie_res, sizeof(cookie_res), (unsigned char *)dnet_fcgi_sign_data, rsize);
 
-		FCGX_FPrintF(dnet_fcgi_request.out, "Set-Cookie: %s%s", dnet_fcgi_cookie_delimiter, cookie_res);
+		FCGX_FPrintF(dnet_fcgi_request.out, "Set-Cookie: %s%x.%lx.%s", dnet_fcgi_cookie_delimiter, tmp, timestamp, cookie_res);
 		if (dnet_fcgi_expiration_interval) {
 			char str[128];
 			struct tm tm;
@@ -736,6 +736,10 @@ static int dnet_fcgi_setup_sign_hash(void)
 	dnet_fcgi_cookie_header = getenv("DNET_FCGI_COOKIE_HEADER");
 	if (!dnet_fcgi_cookie_header)
 		dnet_fcgi_cookie_header = DNET_FCGI_COOKIE_HEADER;
+
+	dnet_fcgi_cookie_key = getenv("DNET_FCGI_COOKIE_KEY");
+	if (!dnet_fcgi_cookie_key)
+		dnet_fcgi_cookie_key = "";
 
 	dnet_fcgi_cookie_addon = getenv("DNET_FCGI_COOKIE_ADDON");
 	if (!dnet_fcgi_cookie_addon)
@@ -1292,7 +1296,6 @@ int main()
 		}
 
 		if (dnet_fcgi_stat_log_pattern) {
-
 			p = strstr(query, dnet_fcgi_stat_log_pattern);
 			if (p) {
 				dnet_fcgi_stat_log(n);
