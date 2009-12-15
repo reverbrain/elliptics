@@ -725,7 +725,7 @@ int file_backend_command_handler(void *state, void *priv,
 			err = file_list(r, state, cmd, attr);
 			break;
 		case DNET_CMD_STAT:
-			err = backend_stat(state, priv, cmd, attr);
+			err = backend_stat(state, r->root, cmd, attr);
 			break;
 		case DNET_CMD_DEL:
 			err = file_del(r, state, cmd, attr, data);
