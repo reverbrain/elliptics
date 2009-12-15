@@ -20,6 +20,7 @@
 
 #include "hash.h"
 #include "common.h"
+#include "backends.h"
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
@@ -38,6 +39,7 @@
 #define DNET_FCGI_COOKIE_DELIMITER	"obscure_cookie="
 #define DNET_FCGI_COOKIE_ENDING		";"
 #define DNET_FCGI_TOKEN_STRING		" "
+#define DNET_FCGI_STORAGE_BIT_MASK	0xff
 
 static FILE *dnet_fcgi_log;
 static pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
@@ -46,6 +48,7 @@ static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344;
 static char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
 static unsigned long dnet_fcgi_max_request_size;
 static int dnet_fcgi_base_port;
+static unsigned int dnet_fcgi_bit_mask;
 static unsigned char dnet_fcgi_id[DNET_ID_SIZE];
 
 static char *dnet_fcgi_direct_download;
@@ -426,11 +429,11 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					dnet_fcgi_id[0], id);
 #endif
 			FCGX_FPrintF(dnet_fcgi_request.out, "%s\r\n", dnet_fcgi_status_pattern);
-			FCGX_FPrintF(dnet_fcgi_request.out, "Location: http://%s%s/%d/%02x/%s\r\n",
+			FCGX_FPrintF(dnet_fcgi_request.out, "Location: http://%s%s/%d/%x/%s\r\n",
 					addr,
 					dnet_fcgi_root_pattern,
 					port - dnet_fcgi_base_port,
-					dnet_fcgi_id[0], id);
+					file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask), id);
 
 			if (dnet_fcgi_sign_key) {
 				err = dnet_fcgi_generate_sign(timestamp);
@@ -1246,6 +1249,16 @@ int main()
 	p = getenv("DNET_FCGI_POST_ALLOWED");
 	if (p)
 		post_allowed = atoi(p);
+
+	p = getenv("DNET_FCGI_STORAGE_BITS");
+	if (p) {
+		unsigned int bits = atoi(p);
+
+		dnet_fcgi_bit_mask = ~0;
+		dnet_fcgi_bit_mask <<= sizeof(dnet_fcgi_bit_mask) * 8 - bits;
+		dnet_fcgi_bit_mask >>= sizeof(dnet_fcgi_bit_mask) * 8 - bits;
+	} else
+		dnet_fcgi_bit_mask = DNET_FCGI_STORAGE_BIT_MASK;
 
 	fprintf(dnet_fcgi_log, "Started on %s, POST is %s.\n", getenv("SERVER_ADDR"), (post_allowed) ? "allowed" : "not allowed");
 	fflush(dnet_fcgi_log);
