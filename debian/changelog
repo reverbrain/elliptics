@@ -1,3 +1,10 @@
+elliptics (2.6.2-5) unstable; urgency=low
+
+  * Changed cookie generation algorithm, fixed direct URI generatation
+    for IO storage backend.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Dec 2009 17:12:01 +0300
+
 elliptics (2.6.2-4-1) unstable; urgency=low
 
   * Extended file IO backend - put :f into getopt.
