@@ -1,0 +1,39 @@
+dnet_fcgi is a FastCGI (http://www.fastcgi.com/) daemon which allows to download/upload/remove objects
+in the ellipitcs network storage over HTTP protocol.
+
+All supported configuration options are described in example configuration file for lighttpd-spawned
+fastcgi daemon in this directory. Here I will briefly describe supported features.
+
+1. Download.
+All objects are stored as plain data without attached transaction history, so they can be read/written
+using external tools.
+
+There are two download modes - direct URI and proxying. The former can be used when storage nodes are
+configured with file IO backend, so that object files could be accessed by external web server running
+on the node. Fair number of configuration parameters must match fastcgi daemon and storage backend,
+namely number of bits to use to generate subdir part, elliptics node's port, base port and its root
+directory names. Second download mode is proxying data through fastcgi application to the client. It
+is a rather straightforward method, but the whole process is used by single client, so it may be a
+limiting factor in some setups, so it is preferable to use this mode for small files.
+
+Redirect download introduces security cookie and secret, which can be checked on the storage nodes.
+Cookie and secret are generated on top of text data, where all numbers (like timestamp or random data)
+are presented as strings in hex without leading 0x part.
+
+Cookie has following format: random.timestamp.hash(secret+random+timestamp)
+where $random is 4 random bytes, $timestamp is UNIX time in seconds and '+' is a concatenation operation.
+Secret and hash are specified in config, all numerical values are transformed into hex strings.
+
+Auth XML will also contain another secret data, which has following format:
+hash(secret+timestamp+cookie), where this secret is another string in configuration file.
+
+2. Upload.
+Files are uploaded without transactions, i.e. its name will match transformation made by preconfigured
+functions over data provided as name in URI. Number of copies will match number of used transformation
+functions.
+
+3. Removal.
+Objects can be removed from the storage via GET method with preconfigured string in URI. Objects to remove
+are determined according to transformation functions and name transferred in URI.
+
+All operation can be turned off if there are no appropriate config options.
