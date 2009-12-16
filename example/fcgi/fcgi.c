@@ -422,11 +422,11 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 				snprintf(addr, sizeof(addr), "%s", dnet_state_dump_addr_only(&a->addr));
 			}
 #if 0
-			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%d/%02x/%s\n",
+			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%d/%x/%s\n",
 					dnet_fcgi_status_pattern,
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
-					dnet_fcgi_id[0], id);
+					file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask), id);
 #endif
 			FCGX_FPrintF(dnet_fcgi_request.out, "%s\r\n", dnet_fcgi_status_pattern);
 			FCGX_FPrintF(dnet_fcgi_request.out, "Location: http://%s%s/%d/%x/%s\r\n",
@@ -443,9 +443,11 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 			FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: application/xml\r\n\r\n");
 
-			FCGX_FPrintF(dnet_fcgi_request.out, "<?xml version=\"1.0\" encoding=\"utf-8\"?><download-info><host>%s</host><path>%s/%d/%02x/%s</path><ts>%lx</ts>",
+			FCGX_FPrintF(dnet_fcgi_request.out, "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+					"<download-info><host>%s</host><path>%s/%d/%x/%s</path><ts>%lx</ts>",
 					addr,
-					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port, dnet_fcgi_id[0], id,
+					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
+					file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask), id,
 					timestamp);
 			if (dnet_fcgi_sign_key)
 				FCGX_FPrintF(dnet_fcgi_request.out, "<s>%s</s>", dnet_fcgi_sign_tmp);
