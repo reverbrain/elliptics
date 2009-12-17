@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 	int ch, err, i, have_remote = 0, daemon = 0, bdb = 0, stat = 0;
 	int tc = 0;
 	struct dnet_node *n = NULL;
-	struct dnet_config cfg, rem;
+	struct dnet_config cfg, rem, *remotes = NULL;
 	struct dnet_crypto_engine *e, *trans[trans_max];
 	char *logfile = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
 	char *historyf = NULL, *root = NULL, *removef = NULL;
@@ -202,7 +202,11 @@ int main(int argc, char *argv[])
 				err = dnet_parse_addr(optarg, &rem);
 				if (err)
 					return err;
-				have_remote = 1;
+				have_remote++;
+				remotes = realloc(remotes, sizeof(rem) * have_remote);
+				if (!remotes)
+					return -ENOMEM;
+				memcpy(&remotes[have_remote - 1], &rem, sizeof(rem));
 				break;
 			case 'j':
 				cfg.join = 1;
@@ -289,7 +293,8 @@ int main(int argc, char *argv[])
 	}
 
 	if (have_remote) {
-		err = dnet_add_state(n, &rem);
+		for (i=0; i<have_remote; ++i)
+			err = dnet_add_state(n, &remotes[i]);
 	}
 
 	if (cfg.join) {
