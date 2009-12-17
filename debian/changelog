@@ -1,3 +1,21 @@
+elliptics (2.6.3) unstable; urgency=low
+
+  * 2.6.3 release
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 17 Dec 2009 21:56:35 +0300
+
+elliptics (2.6.2-7) unstable; urgency=low
+
+  * New elliptics network release: 2.6.3
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 17 Dec 2009 21:55:52 +0300
+
+elliptics (2.6.2-6) unstable; urgency=low
+
+  * "Added fastcgi README into distribution"
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 17 Dec 2009 21:55:11 +0300
+
 elliptics (2.6.2-5) unstable; urgency=low
 
   * Changed cookie generation algorithm, fixed direct URI generatation
