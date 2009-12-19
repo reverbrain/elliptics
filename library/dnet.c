@@ -2081,6 +2081,8 @@ void dnet_cleanup_transform(struct dnet_node *n)
 		n->transform_num--;
 		list_del(&t->tentry);
 
+		dnet_log(n, DNET_LOG_NOTICE, "%s: cleanup '%s' transformation.\n",
+				dnet_dump_id(n->id), t->name);
 		if (t->cleanup)
 			t->cleanup(t->priv);
 		free(t);
