@@ -1182,7 +1182,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 
 	dnet_lock_destroy(&st->snd_lock);
 
-	dnet_log(st->n, DNET_LOG_ERROR, "%s: freeing state %s, socket: %d.\n", dnet_dump_id(st->id),
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: freeing state %s, socket: %d.\n", dnet_dump_id(st->id),
 		dnet_server_convert_dnet_addr(&st->addr), st->s);
 
 	free(st);

@@ -448,7 +448,7 @@ static void *dnet_io_thread_process(void *data)
 	event_base_free(t->base);
 
 	t->need_exit = err;
-	dnet_log(n, DNET_LOG_ERROR, "%s: thread %lu exiting with status %d.\n",
+	dnet_log(n, DNET_LOG_NOTICE, "%s: thread %lu exiting with status %d.\n",
 		dnet_dump_id(n->id), (unsigned long)t->tid, err);
 	return &t->need_exit;
 }
@@ -582,19 +582,19 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	if (!n->resend_timeout.tv_sec && !n->resend_timeout.tv_nsec) {
 		n->resend_timeout.tv_sec = DNET_DEFAULT_RESEND_TIMEOUT_SEC;
-		dnet_log(n, DNET_LOG_ERROR, "%s: using default resend timeout (%ld seconds).\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: using default resend timeout (%ld seconds).\n",
 				dnet_dump_id(n->id), n->resend_timeout.tv_sec);
 	}
 
 	if (!n->merge_strategy || n->merge_strategy >= __DNET_MERGE_MAX) {
 		n->merge_strategy = DNET_MERGE_PREFER_NETWORK;
-		dnet_log(n, DNET_LOG_ERROR, "%s: prefer network transaction log merge strategy.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: prefer network transaction log merge strategy.\n",
 				dnet_dump_id(n->id));
 	}
 
 	if (!n->notify_hash_size) {
 		n->notify_hash_size = DNET_DEFAULT_NOTIFY_HASH_SIZE;
-		dnet_log(n, DNET_LOG_ERROR, "%s: no hash size provided, using default %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: no hash size provided, using default %d.\n",
 				dnet_dump_id(n->id), n->notify_hash_size);
 	}
 
@@ -604,14 +604,14 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	if (!n->io_thread_num) {
 		n->io_thread_num = DNET_IO_THREAD_NUM_DEFAULT;
-		dnet_log(n, DNET_LOG_ERROR, "%s: no IO thread number provided, using default %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: no IO thread number provided, using default %d.\n",
 				dnet_dump_id(n->id), n->io_thread_num);
 	}
 	
 	n->max_pending = cfg->max_pending;
 	if (!n->max_pending) {
 		n->max_pending = DNET_IO_MAX_PENDING;
-		dnet_log(n, DNET_LOG_ERROR, "%s: no maximum number of transaction from the same client "
+		dnet_log(n, DNET_LOG_NOTICE, "%s: no maximum number of transaction from the same client "
 				"processed in parallel, using default %llu.\n",
 				dnet_dump_id(n->id), (unsigned long long)n->max_pending);
 	}
