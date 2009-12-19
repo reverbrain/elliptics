@@ -66,7 +66,7 @@ static char dnet_fcgi_sign_tmp[4096];
  * Freaking secure long lived key...
  */
 static char *dnet_fcgi_sign_key;
-static struct dnet_crypto_engine dnet_fcgi_sign_hash;
+static struct dnet_crypto_engine *dnet_fcgi_sign_hash;
 
 static char *dnet_fcgi_cookie_header, *dnet_fcgi_cookie_delimiter, *dnet_fcgi_cookie_ending;
 static char *dnet_fcgi_cookie_addon;
@@ -250,7 +250,7 @@ static int dnet_fcgi_add_transform(struct dnet_node *n)
 			goto err_out_exit;
 		}
 
-		err = dnet_add_transform(n, e, e->name,	e->init, e->update, e->final);
+		err = dnet_add_transform(n, e, e->name,	e->init, e->update, e->final, e->cleanup);
 		if (err) {
 			fprintf(dnet_fcgi_log, "Failed to add hash '%s': %d.\n", hash, err);
 			goto err_out_exit;
@@ -311,7 +311,7 @@ static void dnet_fcgi_data_to_hex(char *dst, unsigned int dlen, unsigned char *s
 static int dnet_fcgi_generate_sign(long timestamp)
 {
 	char *cookie = FCGX_GetParam(dnet_fcgi_cookie_header, dnet_fcgi_request.envp);
-	struct dnet_crypto_engine *e = &dnet_fcgi_sign_hash;
+	struct dnet_crypto_engine *e = dnet_fcgi_sign_hash;
 	int err, len;
 	char cookie_res[128];
 	unsigned int rsize = sizeof(dnet_fcgi_sign_data);
@@ -701,7 +701,6 @@ static void dnet_fcgi_destroy_sign_hash(void)
 		return;
 
 	close(dnet_urandom_fd);
-	dnet_crypto_engine_exit(&dnet_fcgi_sign_hash);
 }
 
 static int dnet_fcgi_setup_sign_hash(void)
@@ -720,10 +719,14 @@ static int dnet_fcgi_setup_sign_hash(void)
 	if (!p)
 		p = DNET_FCGI_SIGN_HASH;
 
-	err = dnet_crypto_engine_init(&dnet_fcgi_sign_hash, p);
+	dnet_fcgi_sign_hash = malloc(sizeof(struct dnet_crypto_engine));
+	if (!dnet_fcgi_sign_hash)
+		goto err_out_exit;
+
+	err = dnet_crypto_engine_init(dnet_fcgi_sign_hash, p);
 	if (err) {
 		fprintf(dnet_fcgi_log, "Failed to initialize hash '%s': %d.\n", p, err);
-		goto err_out_exit;
+		goto err_out_free;
 	}
 
 	p = getenv("DNET_FCGI_RANDOM_FILE");
@@ -765,7 +768,10 @@ static int dnet_fcgi_setup_sign_hash(void)
 	return 0;
 
 err_out_destroy:
-	dnet_crypto_engine_exit(&dnet_fcgi_sign_hash);
+	dnet_fcgi_sign_hash->cleanup(dnet_fcgi_sign_hash);
+	dnet_fcgi_sign_hash = NULL;
+err_out_free:
+	free(dnet_fcgi_sign_hash);
 err_out_exit:
 	dnet_fcgi_sign_key = NULL;
 	return err;

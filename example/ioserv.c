@@ -287,7 +287,7 @@ int main(int argc, char *argv[])
 
 	for (i=0; i<trans_num; ++i) {
 		err = dnet_add_transform(n, trans[i], trans[i]->name,
-			trans[i]->init,	trans[i]->update, trans[i]->final);
+			trans[i]->init,	trans[i]->update, trans[i]->final, trans[i]->cleanup);
 		if (err)
 			return err;
 	}
@@ -352,10 +352,6 @@ int main(int argc, char *argv[])
 	}
 
 	dnet_node_destroy(n);
-	for (i=0; i<trans_num; ++i) {
-		dnet_crypto_engine_exit(trans[i]);
-		free(trans[i]);
-	}
 
 	printf("Successfully executed given command.\n");
 

@@ -2072,12 +2072,29 @@ int dnet_move_transform(struct dnet_node *n, char *name, int tail)
 	return err;
 }
 
+void dnet_cleanup_transform(struct dnet_node *n)
+{
+	struct dnet_transform *t, *tf;
+
+	pthread_rwlock_wrlock(&n->transform_lock);
+	list_for_each_entry_safe(t, tf, &n->transform_list, tentry) {
+		n->transform_num--;
+		list_del(&t->tentry);
+
+		if (t->cleanup)
+			t->cleanup(t->priv);
+		free(t);
+	}
+	pthread_rwlock_unlock(&n->transform_lock);
+}
+
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	int (* init)(void *priv, struct dnet_node *n),
 	int (* update)(void *priv, void *src, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags),
 	int (* final)(void *priv, void *dst, void *addr,
-		unsigned int *dsize, unsigned int flags))
+		unsigned int *dsize, unsigned int flags),
+	void (* cleanup)(void *priv))
 {
 	struct dnet_transform *t;
 	int err = 0;
@@ -2108,6 +2125,7 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	t->update = update;
 	t->final = final;
 	t->priv = priv;
+	t->cleanup = cleanup;
 
 	list_add_tail(&t->tentry, &n->transform_list);
 	n->transform_num++;
@@ -2119,6 +2137,8 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 err_out_unlock:
 	pthread_rwlock_unlock(&n->transform_lock);
 err_out_exit:
+	if (cleanup)
+		cleanup(priv);
 	return err;
 }
 

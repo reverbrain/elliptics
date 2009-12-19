@@ -403,6 +403,8 @@ struct dnet_transform
 					void *dst, unsigned int *dsize, unsigned int flags);
 	int 			(* final)(void *priv, void *dst, void *addr,
 					unsigned int *dsize, unsigned int flags);
+
+	void			(* cleanup)(void *priv);
 };
 
 enum dnet_thread_cmd {

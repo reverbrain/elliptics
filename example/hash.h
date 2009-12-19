@@ -37,11 +37,10 @@ struct dnet_crypto_engine
 	int			( *final)(void *priv, void *result, void *addr,
 					unsigned int *rsize, unsigned int flags);
 
-	void			(* exit)(struct dnet_crypto_engine *);
+	void			(* cleanup)(void *priv);
 };
 
 int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash);
-void dnet_crypto_engine_exit(struct dnet_crypto_engine *e);
 
 #ifdef __cplusplus
 }

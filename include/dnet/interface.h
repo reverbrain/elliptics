@@ -385,15 +385,23 @@ static inline char *dnet_state_dump_addr_only(struct dnet_addr *a)
  * but also a *dsize bytes of destination address for this data, which will be
  * used as transaction address. This allows to put different IDs to the nodes,
  * which are not supposed to store them.
+ *
+ * @cleanup will be called wien transformation object is about to be destroyed.
  */
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	int (* init)(void *priv, struct dnet_node *n),
 	int (* update)(void *priv, void *src, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags),
 	int (* final)(void *priv, void *dst, void *addr,
-		unsigned int *dsize, unsigned int flags));
+		unsigned int *dsize, unsigned int flags),
+	void (* cleanup)(void *priv));
 int dnet_remove_transform(struct dnet_node *n, char *name);
 int dnet_move_transform(struct dnet_node *n, char *name, int tail);
+
+/*
+ * Cleanup all transformation functions.
+ */
+void dnet_cleanup_transform(struct dnet_node *n);
 
 /*
  * Node creation/destruction callbacks. Node is a building block of the storage
