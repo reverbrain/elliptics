@@ -1411,7 +1411,8 @@ cont:
 		continue;
 
 err_continue:
-		FCGX_FPrintF(dnet_fcgi_request.out, "Status: 400\r\n\r\n: %s: %d\r\n", reason, err);
+		FCGX_FPrintF(dnet_fcgi_request.out, "Content-Type: text/html\r\n");
+		FCGX_FPrintF(dnet_fcgi_request.out, "Status: 403 %s: %s [%d]\r\n", reason, strerror(-err), err);
 		fprintf(dnet_fcgi_log, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(-err), err);
 		fflush(dnet_fcgi_log);
 		goto cont;
