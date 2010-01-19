@@ -69,6 +69,7 @@ static char *dnet_fcgi_sign_key;
 static struct dnet_crypto_engine *dnet_fcgi_sign_hash;
 
 static char *dnet_fcgi_cookie_header, *dnet_fcgi_cookie_delimiter, *dnet_fcgi_cookie_ending;
+static int dnet_fcgi_cookie_delimiter_len;
 static char *dnet_fcgi_cookie_addon;
 static char *dnet_fcgi_cookie_key;
 static long dnet_fcgi_expiration_interval;
@@ -320,9 +321,13 @@ static int dnet_fcgi_generate_sign(long timestamp)
 		char *val, *end;
 
 		val = strstr(cookie, dnet_fcgi_cookie_delimiter);
-		cookie = NULL;
 
-		if (val) {
+		if (!val || ((signed)strlen(cookie) <= dnet_fcgi_cookie_delimiter_len)) {
+			fprintf(dnet_fcgi_log, "wrong cookie '%s', generating new one.\n", cookie);
+			cookie = NULL;
+		} else {
+			val += dnet_fcgi_cookie_delimiter_len;
+
 			end = strstr(val, dnet_fcgi_cookie_ending);
 
 			len = end - val;
@@ -346,15 +351,20 @@ static int dnet_fcgi_generate_sign(long timestamp)
 		}
 
 		cookie = dnet_fcgi_sign_tmp;
-		len = snprintf(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), "%s%x%lx.", dnet_fcgi_cookie_key, tmp, timestamp);
+		len = snprintf(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), "%s%x%lx", dnet_fcgi_cookie_key, tmp, timestamp);
 
 		e->init(e, NULL);
 		e->update(e, dnet_fcgi_sign_tmp, len, dnet_fcgi_sign_data, &rsize, 0);
 		e->final(e, dnet_fcgi_sign_data, dnet_fcgi_sign_data, &rsize, 0);
 
 		dnet_fcgi_data_to_hex(cookie_res, sizeof(cookie_res), (unsigned char *)dnet_fcgi_sign_data, rsize);
+		snprintf(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), "%x.%lx.%s", tmp, timestamp, cookie_res);
 
-		FCGX_FPrintF(dnet_fcgi_request.out, "Set-Cookie: %s%x.%lx.%s", dnet_fcgi_cookie_delimiter, tmp, timestamp, cookie_res);
+		fprintf(dnet_fcgi_log, "Cookie generation: '%s' [%d bytes] -> '%s' : '%s%s'\n",
+				dnet_fcgi_sign_tmp, len, cookie_res,
+				dnet_fcgi_cookie_delimiter, dnet_fcgi_sign_tmp);
+
+		FCGX_FPrintF(dnet_fcgi_request.out, "Set-Cookie: %s%s", dnet_fcgi_cookie_delimiter, dnet_fcgi_sign_tmp);
 		if (dnet_fcgi_expiration_interval) {
 			char str[128];
 			struct tm tm;
@@ -365,6 +375,8 @@ static int dnet_fcgi_generate_sign(long timestamp)
 			FCGX_FPrintF(dnet_fcgi_request.out, "%s expires=%s%s", dnet_fcgi_cookie_ending, str, dnet_fcgi_cookie_addon);
 		}
 		FCGX_FPrintF(dnet_fcgi_request.out, "\r\n");
+
+		snprintf(cookie_res, sizeof(cookie_res), "%s", dnet_fcgi_sign_tmp);
 	}
 
 	err = 0;
@@ -374,8 +386,11 @@ static int dnet_fcgi_generate_sign(long timestamp)
 	e->init(e, NULL);
 	e->update(e, dnet_fcgi_sign_tmp, len, dnet_fcgi_sign_data, &rsize, 0);
 	e->final(e, dnet_fcgi_sign_data, dnet_fcgi_sign_data, &rsize, 0);
-	
+
 	dnet_fcgi_data_to_hex(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), (unsigned char *)dnet_fcgi_sign_data, rsize);
+
+	fprintf(dnet_fcgi_log, "Sign generation: '%s%lx%s' [%d bytes] -> '%s'\n",
+			dnet_fcgi_sign_key, timestamp, cookie_res, len, dnet_fcgi_sign_tmp);
 
 err_out_exit:
 	return err;
@@ -706,7 +721,7 @@ static void dnet_fcgi_destroy_sign_hash(void)
 static int dnet_fcgi_setup_sign_hash(void)
 {
 	char *p;
-	int err;
+	int err = -ENOMEM;
 
 	dnet_fcgi_sign_key = getenv("DNET_FCGI_SIGN_KEY");
 	if (!dnet_fcgi_sign_key) {
@@ -756,6 +771,7 @@ static int dnet_fcgi_setup_sign_hash(void)
 	dnet_fcgi_cookie_delimiter = getenv("DNET_FCGI_COOKIE_DELIMITER");
 	if (!dnet_fcgi_cookie_delimiter)
 		dnet_fcgi_cookie_delimiter = DNET_FCGI_COOKIE_DELIMITER;
+	dnet_fcgi_cookie_delimiter_len = strlen(dnet_fcgi_cookie_delimiter);
 
 	dnet_fcgi_cookie_ending = getenv("DNET_FCGI_COOKIE_ENDING");
 	if (!dnet_fcgi_cookie_ending)
