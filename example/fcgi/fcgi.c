@@ -1066,6 +1066,14 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, ch
 			ctl.cflags = DNET_FLAGS_NEED_ACK;
 
 			c = &ctl;
+		} else {
+			/*
+			 * Do not try non-direct download if
+			 * unsupported type was requested.
+			 */
+
+			err = -EINVAL;
+			goto out_exit;
 		}
 	}
 
