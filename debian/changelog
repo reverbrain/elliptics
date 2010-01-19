@@ -1,3 +1,27 @@
+elliptics (2.6.3-4) unstable; urgency=low
+
+  * Fixed cookie/sign generation algo according to documentation.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 19 Jan 2010 20:22:27 +0300
+
+elliptics (2.6.3-3) unstable; urgency=low
+
+  * Shut down some noisy information prints
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 20 Dec 2009 00:47:00 +0300
+
+elliptics (2.6.3-2) unstable; urgency=low
+
+  * Added cleanup debug message into dnet_cleanup_transform()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 19 Dec 2009 22:19:53 +0300
+
+elliptics (2.6.3-1) unstable; urgency=low
+
+  * Added transformation cleanup into node destruction path.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 19 Dec 2009 22:07:30 +0300
+
 elliptics (2.6.3) unstable; urgency=low
 
   * 2.6.3 release
