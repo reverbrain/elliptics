@@ -441,7 +441,7 @@ static inline char *dnet_dump_id_len(const unsigned char *id, unsigned int len)
 
 static inline char *dnet_dump_id(const unsigned char *id)
 {
-	return dnet_dump_id_len(id, 4);
+	return dnet_dump_id_len(id, 6);
 }
 
 /*
