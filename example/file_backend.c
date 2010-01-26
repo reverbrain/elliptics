@@ -41,7 +41,7 @@ struct file_backend_root
 	int			root_len;
 	int			rootfd;
 	int			sync;
-	unsigned int 		bit_mask;
+	uint64_t 		bit_mask;
 };
 
 static inline void file_backend_setup_file(struct file_backend_root *r, char *file,
@@ -49,11 +49,13 @@ static inline void file_backend_setup_file(struct file_backend_root *r, char *fi
 {
 
 	if (io->flags & DNET_IO_FLAGS_HISTORY)
-		snprintf(file, size, "%x/%s%s", file_backend_get_dir(io->origin, r->bit_mask),
+		snprintf(file, size, "%llx/%s%s",
+				(unsigned long long)file_backend_get_dir(io->origin, r->bit_mask),
 				dnet_dump_id_len(io->origin, DNET_ID_SIZE),
 				DNET_HISTORY_SUFFIX);
 	else
-		snprintf(file, size, "%x/%s", file_backend_get_dir(io->origin, r->bit_mask),
+		snprintf(file, size, "%llx/%s",
+				(unsigned long long)file_backend_get_dir(io->origin, r->bit_mask),
 				dnet_dump_id_len(io->origin, DNET_ID_SIZE));
 
 }
@@ -83,7 +85,7 @@ void *file_backend_setup_root(char *root, int sync, unsigned int bits)
 
 	r->root_len = strlen(r->root);
 	r->sync = sync;
-	r->bit_mask = ~0;
+	r->bit_mask = ~0ULL;
 	r->bit_mask <<= sizeof(r->bit_mask) * 8 - bits;
 	r->bit_mask >>= sizeof(r->bit_mask) * 8 - bits;
 
@@ -120,7 +122,7 @@ static void dnet_convert_name_to_id(char *name, unsigned char *id)
 	}
 }
 
-static int dnet_is_regular(void *state, char *path)
+static int dnet_stat_object(void *state, char *path)
 {
 	struct stat st;
 	int err;
@@ -134,7 +136,25 @@ static int dnet_is_regular(void *state, char *path)
 		return err;
 	}
 
-	return S_ISREG(st.st_mode);
+	return st.st_mode;
+}
+
+static int dnet_is_regular(void *state, char *path)
+{
+	int err = dnet_stat_object(state, path);
+	if (err < 0)
+		return err;
+
+	return S_ISREG(err);
+}
+
+static int dnet_is_dir(void *state, char *path)
+{
+	int err = dnet_stat_object(state, path);
+	if (err < 0)
+		return err;
+
+	return S_ISDIR(err);
 }
 
 static int dnet_listdir(void *state, struct dnet_cmd *cmd,
@@ -242,11 +262,11 @@ err_out_exit:
 	return err;
 }
 
-static int file_list(struct file_backend_root *r, void *state,
+static int file_list1(struct file_backend_root *r, void *state,
 		struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
-	char sub[8];
-	unsigned char start, last;
+	char sub[16];
+	uint64_t start, last;
 	int err;
 	unsigned char id[DNET_ID_SIZE];
 
@@ -256,7 +276,7 @@ static int file_list(struct file_backend_root *r, void *state,
 
 	last = file_backend_get_dir(id, r->bit_mask) - 1;
 	
-	sprintf(sub, "%x", file_backend_get_dir(cmd->id, r->bit_mask));
+	sprintf(sub, "%llx", (unsigned long long)file_backend_get_dir(cmd->id, r->bit_mask));
 
 	err = dnet_listdir(state, cmd, attr, sub, cmd->id);
 	if (err && (err != -ENOENT))
@@ -264,7 +284,7 @@ static int file_list(struct file_backend_root *r, void *state,
 
 	err = 0;
 	for (start = file_backend_get_dir(cmd->id, r->bit_mask) - 1; start != last; --start) {
-		sprintf(sub, "%x", start);
+		sprintf(sub, "%llx", (unsigned long long)start);
 
 		err = dnet_listdir(state, cmd, attr, sub, NULL);
 		if (err && (err != -ENOENT))
@@ -276,15 +296,80 @@ out_exit:
 	return err;
 }
 
+static int file_list(struct file_backend_root *r, void *state,
+		struct dnet_cmd *cmd, struct dnet_attr *attr)
+{
+	int err;
+	DIR *dir;
+	struct dirent *d;
+	long long current, start, last;
+	char sub[32];
+	unsigned char id[DNET_ID_SIZE];
+
+	err = dnet_state_get_range(state, cmd->id, id);
+	if (err)
+		goto err_out_exit;
+
+	dir = opendir(".");
+	if (!dir) {
+		err = -errno;
+		goto err_out_exit;
+	}
+	
+	last = file_backend_get_dir(id, r->bit_mask) - 1;
+	start = file_backend_get_dir(cmd->id, r->bit_mask) - 1;
+
+	while ((d = readdir(dir)) != NULL) {
+		if (d->d_name[0] == '.' && d->d_name[1] == '\0')
+			continue;
+		if (d->d_name[0] == '.' && d->d_name[1] == '.' && d->d_name[2] == '\0')
+			continue;
+
+		if (dnet_is_dir(state, d->d_name) <= 0)
+			continue;
+
+		snprintf(sub, sizeof(sub), "0x%s", d->d_name);
+		current = (signed long long)strtoull(sub, NULL, 16);
+
+		err = 0;
+
+		if ((start >= last) && (current >= last) && (current <= start))
+			err = dnet_listdir(state, cmd, attr, sub, NULL);
+
+		if (start < last) {
+			if ((current >= 0) && (current <= start))
+				err = dnet_listdir(state, cmd, attr, sub, NULL);
+
+			if (current < 0) {
+				current += ~0ULL;
+				if (current >= last)
+					err = dnet_listdir(state, cmd, attr, sub, NULL);
+			}
+
+		}
+
+		if (err && (err != -ENOENT))
+			goto err_out_close;
+	}
+
+	closedir(dir);
+
+err_out_close:
+	closedir(dir);
+err_out_exit:
+	return err;
+}
+
 static int dnet_update_history(struct file_backend_root *r, void *state,
 		struct dnet_io_attr *io, int tmp)
 {
 	/* ff/$IDDNET_HISTORY_SUFFIX.tmp*/
-	char history[DNET_ID_SIZE*2+1 + sizeof(DNET_HISTORY_SUFFIX) + 8 + 1 + 5];
+	char history[DNET_ID_SIZE*2+1 + sizeof(DNET_HISTORY_SUFFIX) + 8 + 9 + 5];
 	int fd, err;
 	struct dnet_history_entry e;
 
-	snprintf(history, sizeof(history), "%x/%s%s%s", file_backend_get_dir(io->origin, r->bit_mask),
+	snprintf(history, sizeof(history), "%llx/%s%s%s",
+			(unsigned long long)file_backend_get_dir(io->origin, r->bit_mask),
 			dnet_dump_id_len(io->origin, DNET_ID_SIZE),
 			DNET_HISTORY_SUFFIX, (tmp)?".tmp":"");
 
@@ -323,12 +408,12 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 		struct dnet_attr *attr, void *data)
 {
 	int err, fd;
-	char dir[8];
+	char dir[16];
 	struct dnet_io_attr *io = data;
 	int oflags = O_RDWR | O_CREAT | O_LARGEFILE;
 	/* null byte + maximum directory length (32 bits in hex) +
 	 * '/' directory prefix and optional history suffix */
-	char file[DNET_ID_SIZE * 2 + 1 + 8 + 1 + sizeof(DNET_HISTORY_SUFFIX)];
+	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
 
 	if (attr->size < sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -344,7 +429,7 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 
 	data += sizeof(struct dnet_io_attr);
 
-	snprintf(dir, sizeof(dir), "%x", file_backend_get_dir(io->origin, r->bit_mask));
+	snprintf(dir, sizeof(dir), "%llx", (unsigned long long)file_backend_get_dir(io->origin, r->bit_mask));
 
 	err = mkdir(dir, 0755);
 	if (err < 0) {
@@ -463,7 +548,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	struct dnet_io_attr *io = data;
 	int fd, err, deref = 0;
 	size_t size;
-	char file[DNET_ID_SIZE * 2 + 1 + 8 + 1 + sizeof(DNET_HISTORY_SUFFIX)];
+	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
 	struct stat st;
 
 	if (attr->size < sizeof(struct dnet_io_attr)) {
@@ -604,11 +689,13 @@ static int file_del(struct file_backend_root *r, void *state, struct dnet_cmd *c
 		goto err_out_exit;
 
 	if (attr->flags & DNET_ATTR_DIRECT_TRANSACTION) {
-		snprintf(file, sizeof(file), "%x/%s", file_backend_get_dir(cmd->id, r->bit_mask),
+		snprintf(file, sizeof(file), "%llx/%s",
+			(unsigned long long)file_backend_get_dir(cmd->id, r->bit_mask),
 			dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
 		remove(file);
 
-		snprintf(file, sizeof(file), "%x/%s%s", file_backend_get_dir(cmd->id, r->bit_mask),
+		snprintf(file, sizeof(file), "%llx/%s%s",
+			(unsigned long long)file_backend_get_dir(cmd->id, r->bit_mask),
 			dnet_dump_id_len(cmd->id, DNET_ID_SIZE), DNET_HISTORY_SUFFIX);
 		remove(file);
 		return 0;
@@ -620,7 +707,8 @@ static int file_del(struct file_backend_root *r, void *state, struct dnet_cmd *c
 	io = data;
 	dnet_convert_io_attr(io);
 
-	snprintf(file, sizeof(file), "%x/%s%s", file_backend_get_dir(io->id, r->bit_mask),
+	snprintf(file, sizeof(file), "%llx/%s%s",
+			(unsigned long long)file_backend_get_dir(io->id, r->bit_mask),
 			dnet_dump_id_len(io->id, DNET_ID_SIZE), DNET_HISTORY_SUFFIX);
 
 	fd = open(file, O_RDWR);
@@ -678,7 +766,8 @@ static int file_del(struct file_backend_root *r, void *state, struct dnet_cmd *c
 				dnet_dump_id(cmd->id), file);
 		remove(file);
 
-		snprintf(file, sizeof(file), "%x/%s", file_backend_get_dir(io->id, r->bit_mask),
+		snprintf(file, sizeof(file), "%llx/%s",
+				(unsigned long long)file_backend_get_dir(io->id, r->bit_mask),
 				dnet_dump_id_len(io->id, DNET_ID_SIZE));
 		remove(file);
 	}

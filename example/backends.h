@@ -69,11 +69,11 @@ int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr
 
 int backend_del(void *state, struct dnet_io_attr *io, struct dnet_history_entry *e, unsigned int num);
 
-static inline uint32_t file_backend_get_dir(unsigned char *id, unsigned int bit_mask)
+static inline uint64_t file_backend_get_dir(unsigned char *id, uint64_t bit_mask)
 {
-	unsigned int res, *ptr;
+	uint64_t res, *ptr;
 
-	ptr = (unsigned int *)id;
+	ptr = (uint64_t *)id;
 	res = *ptr;
 
 	return res & bit_mask;
