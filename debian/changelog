@@ -1,3 +1,15 @@
+elliptics (2.6.3-11) unstable; urgency=low
+
+  * Use 64bit mask in fcgi proxy.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 27 Jan 2010 02:26:56 +0300
+
+elliptics (2.6.3-10) unstable; urgency=low
+
+  * Debian changelog update
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 26 Jan 2010 22:56:20 +0300
+
 elliptics (2.6.3-9) unstable; urgency=low
 
   * Print 6 bytes of ID by default.
