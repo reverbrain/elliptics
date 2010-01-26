@@ -48,7 +48,7 @@ static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344;
 static char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
 static unsigned long dnet_fcgi_max_request_size;
 static int dnet_fcgi_base_port;
-static unsigned int dnet_fcgi_bit_mask;
+static uint64_t dnet_fcgi_bit_mask;
 static unsigned char dnet_fcgi_id[DNET_ID_SIZE];
 
 static char *dnet_fcgi_direct_download;
@@ -437,18 +437,19 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 				snprintf(addr, sizeof(addr), "%s", dnet_state_dump_addr_only(&a->addr));
 			}
 #if 0
-			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%d/%x/%s\n",
+			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%d/%llx/%s\n",
 					dnet_fcgi_status_pattern,
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
-					file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask), id);
+					(unsigned long long)file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask), id);
 #endif
 			FCGX_FPrintF(dnet_fcgi_request.out, "%s\r\n", dnet_fcgi_status_pattern);
-			FCGX_FPrintF(dnet_fcgi_request.out, "Location: http://%s%s/%d/%x/%s\r\n",
+			FCGX_FPrintF(dnet_fcgi_request.out, "Location: http://%s%s/%d/%llx/%s\r\n",
 					addr,
 					dnet_fcgi_root_pattern,
 					port - dnet_fcgi_base_port,
-					file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask), id);
+					(unsigned long long)file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask),
+					id);
 
 			if (dnet_fcgi_sign_key) {
 				err = dnet_fcgi_generate_sign(timestamp);
@@ -459,10 +460,11 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: application/xml\r\n\r\n");
 
 			FCGX_FPrintF(dnet_fcgi_request.out, "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-					"<download-info><host>%s</host><path>%s/%d/%x/%s</path><ts>%lx</ts>",
+					"<download-info><host>%s</host><path>%s/%d/%llx/%s</path><ts>%lx</ts>",
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
-					file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask), id,
+					(unsigned long long)file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask),
+					id,
 					timestamp);
 			if (dnet_fcgi_sign_key)
 				FCGX_FPrintF(dnet_fcgi_request.out, "<s>%s</s>", dnet_fcgi_sign_tmp);
