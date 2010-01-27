@@ -353,6 +353,7 @@ static int file_list(struct file_backend_root *r, void *state,
 	}
 
 	closedir(dir);
+	return 0;
 
 err_out_close:
 	closedir(dir);
