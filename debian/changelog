@@ -1,3 +1,15 @@
+elliptics (2.6.3-13) unstable; urgency=low
+
+  * Return before entering error path on success.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 27 Jan 2010 18:59:26 +0300
+
+elliptics (2.6.3-12) unstable; urgency=low
+
+  * Debian changelog update
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 27 Jan 2010 02:27:11 +0300
+
 elliptics (2.6.3-11) unstable; urgency=low
 
   * Use 64bit mask in fcgi proxy.
