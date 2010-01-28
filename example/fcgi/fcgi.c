@@ -425,8 +425,10 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			char id[DNET_ID_SIZE*2+1];
 			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
 			long timestamp = time(NULL);
+			char hex_dir[128];
 
 			snprintf(id, sizeof(id), "%s", dnet_dump_id_len(dnet_fcgi_id, DNET_ID_SIZE));
+			snprintf(hex_dir, sizeof(hex_dir), "%llx", (unsigned long long)file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask));
 
 			if (dnet_fcgi_dns_lookup) {
 				err = getnameinfo((struct sockaddr *)a->addr.addr, a->addr.addr_len,
@@ -436,19 +438,19 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			} else {
 				snprintf(addr, sizeof(addr), "%s", dnet_state_dump_addr_only(&a->addr));
 			}
-#if 0
-			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%d/%llx/%s\n",
+#if 1
+			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%d/%s/%s...\n",
 					dnet_fcgi_status_pattern,
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
-					(unsigned long long)file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask), id);
+					hex_dir, id);
 #endif
 			FCGX_FPrintF(dnet_fcgi_request.out, "%s\r\n", dnet_fcgi_status_pattern);
-			FCGX_FPrintF(dnet_fcgi_request.out, "Location: http://%s%s/%d/%llx/%s\r\n",
+			FCGX_FPrintF(dnet_fcgi_request.out, "Location: http://%s%s/%d/%s/%s\r\n",
 					addr,
 					dnet_fcgi_root_pattern,
 					port - dnet_fcgi_base_port,
-					(unsigned long long)file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask),
+					hex_dir,
 					id);
 
 			if (dnet_fcgi_sign_key) {
@@ -460,10 +462,10 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: application/xml\r\n\r\n");
 
 			FCGX_FPrintF(dnet_fcgi_request.out, "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-					"<download-info><host>%s</host><path>%s/%d/%llx/%s</path><ts>%lx</ts>",
+					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>",
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
-					(unsigned long long)file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask),
+					hex_dir,
 					id,
 					timestamp);
 			if (dnet_fcgi_sign_key)
@@ -1414,7 +1416,7 @@ cont:
 
 err_continue:
 		FCGX_FPrintF(dnet_fcgi_request.out, "Content-Type: text/html\r\n");
-		FCGX_FPrintF(dnet_fcgi_request.out, "Status: 403 %s: %s [%d]\r\n", reason, strerror(-err), err);
+		FCGX_FPrintF(dnet_fcgi_request.out, "Status: 403 %s: %s [%d]\r\n\r\n", reason, strerror(-err), err);
 		fprintf(dnet_fcgi_log, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(-err), err);
 		fflush(dnet_fcgi_log);
 		goto cont;
