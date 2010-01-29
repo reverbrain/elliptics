@@ -31,11 +31,6 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
-#ifdef HAVE_OPENSSL
-
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
-
 static void dnet_transform_final(struct dnet_crypto_engine *eng, void *addr,
 		void *dst, void *src, unsigned int *rsize, unsigned int rs)
 {
@@ -56,6 +51,11 @@ static void dnet_transform_final(struct dnet_crypto_engine *eng, void *addr,
 		*ptr = eng->num;
 	}
 }
+
+#ifdef HAVE_OPENSSL
+
+#include <openssl/hmac.h>
+#include <openssl/evp.h>
 
 struct dnet_openssl_crypto_engine
 {
@@ -140,7 +140,7 @@ static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *eng, char 
 
 #else
 
-static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *e __unused, char *hash __unused)
+static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *e __unused, char *hash __unused, int num __unused)
 {
 	return -ENOTSUP;
 }
