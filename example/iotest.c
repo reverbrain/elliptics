@@ -342,6 +342,8 @@ static void *iotest_perf(void *log_private)
 			st = st->next;
 		}
 	}
+
+	return NULL;
 }
 
 static void dnet_usage(char *p)
