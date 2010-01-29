@@ -18,8 +18,12 @@
 
 #include <dnet/typedefs.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -353,11 +357,11 @@ static inline char *dnet_server_convert_dnet_addr(struct dnet_addr *sa)
 
 	memset(&inet_addr, 0, sizeof(inet_addr));
 	if (sa->addr_len == sizeof(struct sockaddr_in)) {
-		struct sockaddr_in *in = (struct sockaddr_in *)sa;
+		struct sockaddr_in *in = (struct sockaddr_in *)sa->addr;
 		sprintf(inet_addr, "%s:%d", inet_ntoa(in->sin_addr),
 				ntohs(in->sin_port));
 	} else if (sa->addr_len == sizeof(struct sockaddr_in6)) {
-		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa;
+		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa->addr;
 		sprintf(inet_addr, NIP6_FMT":%d", NIP6(in->sin6_addr),
 				ntohs(in->sin6_port));
 	}
