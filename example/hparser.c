@@ -129,10 +129,12 @@ int main(int argc, char *argv[])
 			file, num, offset, offset+size);
 	for (i=num-1; i>=0; --i) {
 		struct dnet_history_entry e = entries[i];
+		time_t t;
 
 		dnet_convert_history_entry(&e);
 
-		localtime_r((time_t *)&e.tsec, &tm);
+		t = e.tsec;
+		localtime_r(&t, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
 		printf("%s.%09llu: %s: flags: %08x, offset: %8llu, size: %8llu: %c\n",

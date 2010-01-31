@@ -43,7 +43,7 @@ static int backend_vm_stat(void *state, struct dnet_stat *st)
 	int err;
 	FILE *f;
 	float la[3];
-	long stub;
+	unsigned long long stub;
 
 	f = fopen("/proc/loadavg", "r");
 	if (!f) {
