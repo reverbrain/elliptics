@@ -41,6 +41,8 @@
 #define DNET_CHECK_NEWLINE_TOKEN_STRING		"\r\n"
 #define DNET_CHECK_INNER_TOKEN_STRING		","
 
+static char dnet_check_tmp_dir[128] = "/tmp";
+
 struct dnet_check_worker
 {
 	struct dnet_node			*n;
@@ -192,7 +194,73 @@ out_exit:
 	return err;
 }
 
-static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, int len, int hash_num, unsigned int type)
+static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
+		struct dnet_check_request *requests, int num, int update_existing)
+{
+	struct dnet_node *n = worker->n;
+	struct dnet_check_request *existing = NULL, *req;
+	char file[128];
+	int i, err, to_upload = 0, error = 0;
+
+	for (i=0; i<num; ++i) {
+		req = &requests[i];
+
+		if (!req->reply)
+			to_upload++;
+		else
+			existing = req;
+	}
+
+	if (!existing && !update_existing) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "'%s': there are no object copies in the storage.\n", obj);
+		err = -ENOENT;
+		goto err_out_exit;
+	}
+
+	if (!to_upload && !update_existing) {
+		dnet_log_raw(n, DNET_LOG_INFO, "'%s': all %d copies are in the storage.\n", obj, num);
+		err = 0;
+		goto err_out_exit;
+	}
+
+	if (update_existing)
+		snprintf(file, sizeof(file), "%s", obj);
+	else {
+		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len(existing->id, DNET_ID_SIZE));
+
+		err = dnet_read_file(n, file, existing->id, 0, 0, existing->type);
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to download a copy: %d.\n", obj, err);
+			goto err_out_exit;
+		}
+	}
+
+	for (i=0; i<num; ++i) {
+		req = &requests[i];
+
+		if (req->reply && !update_existing)
+			continue;
+
+		err = dnet_write_file(n, file, req->id, 0, 0, existing->type);
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to upload a '%s' copy: %d.\n",
+					obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), err);
+			error = err;
+			continue;
+		}
+	}
+	
+	if (!update_existing)
+		unlink(file);
+
+	return error;
+
+err_out_exit:
+	return err;
+}
+
+static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, int len,
+		int hash_num, unsigned int type, int update_existing)
 {
 	struct dnet_node *n = w->n;
 	int pos = 0;
@@ -232,10 +300,13 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 		dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', id: %s: type: %d, present: %d.\n",
 				obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), req->type, req->reply);
 	}
-	dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', present: %d, missing: %d.\n", obj, w->object_present, w->object_missing);
+	dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', present: %d, missing: %d.\n",
+			obj, w->object_present, w->object_missing);
+
+	err = dnet_update_copies(w, obj, requests, hash_num, update_existing);
 
 	free(requests);
-	return 0;
+	return err;
 }
 
 static void *dnet_check_process(void *data)
@@ -244,7 +315,7 @@ static void *dnet_check_process(void *data)
 	char buf[4096], *tmp, *saveptr, *token, *hash, *obj;
 	char current_hash[128];
 	int size = sizeof(buf);
-	int err, type, hash_num = 0;
+	int err, type, hash_num = 0, update_existing = 0;
 
 	while (1) {
 		pthread_mutex_lock(&dnet_check_file_lock);
@@ -257,6 +328,12 @@ static void *dnet_check_process(void *data)
 		if (!token)
 			continue;
 		type = strtoul(token, NULL, 0);
+		
+		tmp = NULL;
+		token = strtok_r(tmp, DNET_CHECK_TOKEN_STRING, &saveptr);
+		if (!token)
+			continue;
+		update_existing = strtoul(token, NULL, 0);
 
 		tmp = NULL;
 		token = strtok_r(tmp, DNET_CHECK_TOKEN_STRING, &saveptr);
@@ -289,10 +366,7 @@ static void *dnet_check_process(void *data)
 			hash_num = err;
 		}
 
-		err = dnet_check_number_of_copies(w, obj, strlen(obj), hash_num, type);
-
-		printf("%d: type: %d, hashes: %s, obj: %s, hashes: %d, present: %d, missing: %d\n",
-				w->id, type, hash, obj, hash_num, w->object_present, w->object_missing);
+		err = dnet_check_number_of_copies(w, obj, strlen(obj), hash_num, type, update_existing);
 	}
 
 	return NULL;
@@ -306,6 +380,7 @@ static void dnet_check_log_help(char *p)
 			"  -l log                  - output log file.\n"
 			"  -f file                 - input file with log information about objects to be checked.\n"
 			"  -r addr:port:family     - remote node to connect to.\n"
+			"  -t dir                  - directory to store temporal object.\n"
 			"  -h                      - this help.\n", p);
 }
 
@@ -329,8 +404,11 @@ int main(int argc, char *argv[])
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
-	while ((ch = getopt(argc, argv, "n:m:l:f:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "t:n:m:l:f:r:h")) != -1) {
 		switch (ch) {
+			case 't':
+				snprintf(dnet_check_tmp_dir, sizeof(dnet_check_tmp_dir), "%s", optarg);
+				break;
 			case 'n':
 				worker_num = atoi(optarg);
 				break;
