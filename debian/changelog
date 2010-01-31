@@ -1,3 +1,23 @@
+elliptics (2.6.3-16) unstable; urgency=low
+
+  * Return NULL from watchdog thread to shut up compiler
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 30 Jan 2010 01:46:27 +0300
+
+elliptics (2.6.3-15) unstable; urgency=low
+
+  * Added second line break on error path and worked around libfcgi bug,
+    when it does not understand %ll. printf format and resets the
+    stream.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 28 Jan 2010 16:56:21 +0300
+
+elliptics (2.6.3-14) unstable; urgency=low
+
+  * Debian changelog update
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 27 Jan 2010 18:59:40 +0300
+
 elliptics (2.6.3-13) unstable; urgency=low
 
   * Return before entering error path on success.

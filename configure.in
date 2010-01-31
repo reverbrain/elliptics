@@ -35,6 +35,7 @@ AC_CHECK_LIBFCGI
 
 AC_CONFIG_FILES([Makefile include/Makefile include/dnet/Makefile
 		 library/Makefile example/Makefile tests/Makefile
-		 doc/Makefile example/fcgi/Makefile debian/Makefile])
+		 doc/Makefile example/fcgi/Makefile debian/Makefile
+		 example/check/Makefile])
 
 AC_OUTPUT

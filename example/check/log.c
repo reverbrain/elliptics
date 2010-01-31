@@ -1,0 +1,436 @@
+/*
+ * 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
+ * All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+#include "config.h"
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/socket.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
+
+#include <errno.h>
+#include <ctype.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "dnet/packet.h"
+#include "dnet/interface.h"
+
+#include "common.h"
+#include "hash.h"
+
+#define DNET_CHECK_TOKEN_STRING			" 	"
+#define DNET_CHECK_NEWLINE_TOKEN_STRING		"\r\n"
+#define DNET_CHECK_INNER_TOKEN_STRING		","
+
+struct dnet_check_worker
+{
+	struct dnet_node			*n;
+
+	int					id;
+	pthread_t				tid;
+
+	int					wait_num;
+	int					object_present, object_missing;
+
+	pthread_cond_t				wait_cond;
+	pthread_mutex_t				wait_lock;
+};
+
+struct dnet_check_request
+{
+	unsigned char			id[DNET_ID_SIZE];
+	unsigned char 			addr[DNET_ID_SIZE];
+	unsigned int			type;
+	unsigned int			reply;
+
+	struct dnet_check_worker	*w;
+};
+
+static FILE *dnet_check_file;
+static pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
+
+#define dnet_check_wait(worker,condition)					\
+({										\
+	pthread_mutex_lock(&(worker)->wait_lock);				\
+	while (!(condition)) 							\
+		pthread_cond_wait(&(worker)->wait_cond, &(worker->wait_lock));	\
+	pthread_mutex_unlock(&(worker)->wait_lock);				\
+})
+
+static void dnet_check_wakeup(struct dnet_check_worker *w, int present)
+{
+	pthread_mutex_lock(&w->wait_lock);
+	if (present)
+		w->object_present++;
+	else
+		w->object_missing++;
+	pthread_cond_broadcast(&w->wait_cond);
+	pthread_mutex_unlock(&w->wait_lock);
+}
+
+static int dnet_check_log_init(struct dnet_node *n, struct dnet_config *cfg, char *log)
+{
+	int err;
+	FILE *old = cfg->log_private;
+
+	if (log) {
+		cfg->log_private = fopen(log, "a");
+		if (!cfg->log_private) {
+			err = -errno;
+			fprintf(stderr, "Failed to open log file %s: %s.\n", log, strerror(errno));
+			return err;
+		}
+	}
+
+	if (n)
+		dnet_log_init(n, cfg->log_private, cfg->log_mask, dnet_common_log);
+
+	if (log && old)
+		fclose(old);
+
+	return 0;
+}
+
+static int dnet_check_add_hash(struct dnet_node *n, char *hash)
+{
+	struct dnet_crypto_engine *e;
+	int err = -ENOMEM;
+
+	e = malloc(sizeof(struct dnet_crypto_engine));
+	if (!e)
+		goto err_out_exit;
+	memset(e, 0, sizeof(struct dnet_crypto_engine));
+
+	err = dnet_crypto_engine_init(e, hash);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to initialize crypto engine '%s': %d.\n",
+				hash, err);
+		goto err_out_free;
+	}
+
+	err = dnet_add_transform(n, e, e->name, e->init, e->update, e->final, e->cleanup);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add transformation engine '%s': %d.\n",
+				hash, err);
+		goto err_out_exit;
+	}
+
+	return 0;
+
+err_out_free:
+	free(e);
+err_out_exit:
+	return err;
+}
+
+static int dnet_check_process_hash_string(struct dnet_node *n, char *hash)
+{
+	char local_hash[128];
+	char *token, *saveptr;
+	int err, added = 0;
+
+	snprintf(local_hash, sizeof(local_hash), "%s", hash);
+
+	hash = local_hash;
+
+	while (1) {
+		token = strtok_r(hash, DNET_CHECK_INNER_TOKEN_STRING, &saveptr);
+		if (!token)
+			break;
+
+		err = dnet_check_add_hash(n, token);
+		if (err)
+			return err;
+
+		hash = NULL;
+		added++;
+	}
+
+	return added;
+}
+
+static int dnet_check_lookup_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
+{
+	struct dnet_check_request *req = priv;
+	struct dnet_check_worker *w = req->w;
+	int err = -1;
+
+	if (!w)
+		goto out_exit;
+
+	if (!state || !cmd || cmd->status)
+		goto out_exit;
+
+	if (!(cmd->flags & DNET_FLAGS_MORE) && attr) {
+		req->reply = attr->flags;
+		//dnet_log_raw(w->n, DNET_LOG_INFO, "%s: present: %d.\n", dnet_dump_id(cmd->id), !!attr->flags);
+		dnet_check_wakeup(w, attr->flags);
+	}
+
+	err = 0;
+
+out_exit:
+	return err;
+}
+
+static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, int len, int hash_num, unsigned int type)
+{
+	struct dnet_node *n = w->n;
+	int pos = 0;
+	int err, i;
+	struct dnet_check_request *requests, *req;
+
+	req = requests = malloc(hash_num * sizeof(struct dnet_check_request));
+	if (!requests)
+		return -ENOMEM;
+	memset(requests, 0, hash_num * sizeof(struct dnet_check_request));
+
+	w->wait_num = w->object_present = w->object_missing = 0;
+
+	while (1) {
+		unsigned int rsize = DNET_ID_SIZE;
+
+		req = &requests[pos];
+		req->w = w;
+		req->type = type;
+
+		err = dnet_transform(n, obj, len, req->id, req->addr, &rsize, &pos);
+		if (err) {
+			if (err > 0)
+				break;
+			continue;
+		}
+
+		w->wait_num++;
+
+		err = dnet_lookup_object(n, req->id, req->type, dnet_check_lookup_complete, req);
+	}
+
+	dnet_check_wait(w, w->wait_num == w->object_present + w->object_missing);
+
+	for (i=0; i<hash_num; ++i) {
+		req = &requests[i];
+		dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', id: %s: type: %d, present: %d.\n",
+				obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), req->type, req->reply);
+	}
+	dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', present: %d, missing: %d.\n", obj, w->object_present, w->object_missing);
+
+	free(requests);
+	return 0;
+}
+
+static void *dnet_check_process(void *data)
+{
+	struct dnet_check_worker *w = data;
+	char buf[4096], *tmp, *saveptr, *token, *hash, *obj;
+	char current_hash[128];
+	int size = sizeof(buf);
+	int err, type, hash_num = 0;
+
+	while (1) {
+		pthread_mutex_lock(&dnet_check_file_lock);
+		tmp = fgets(buf, size, dnet_check_file);
+		pthread_mutex_unlock(&dnet_check_file_lock);
+		if (!tmp)
+			break;
+
+		token = strtok_r(tmp, DNET_CHECK_TOKEN_STRING, &saveptr);
+		if (!token)
+			continue;
+		type = strtoul(token, NULL, 0);
+
+		tmp = NULL;
+		token = strtok_r(tmp, DNET_CHECK_TOKEN_STRING, &saveptr);
+		if (!token)
+			continue;
+		hash = token;
+
+		tmp = NULL;
+		token = strtok_r(tmp, DNET_CHECK_TOKEN_STRING, &saveptr);
+		if (!token)
+			continue;
+		obj = token;
+
+		/*
+		 * Cut off remaining newlines
+		 */
+		saveptr = NULL;
+		token = strtok_r(token, DNET_CHECK_NEWLINE_TOKEN_STRING, &saveptr);
+
+		if (strcmp(current_hash, hash)) {
+			dnet_cleanup_transform(w->n);
+
+			err = dnet_check_process_hash_string(w->n, hash);
+			if (err < 0) {
+				current_hash[0] = '\0';
+				err = 0;
+			} else
+				snprintf(current_hash, sizeof(current_hash), "%s", hash);
+
+			hash_num = err;
+		}
+
+		err = dnet_check_number_of_copies(w, obj, strlen(obj), hash_num, type);
+
+		printf("%d: type: %d, hashes: %s, obj: %s, hashes: %d, present: %d, missing: %d\n",
+				w->id, type, hash, obj, hash_num, w->object_present, w->object_missing);
+	}
+
+	return NULL;
+}
+
+static void dnet_check_log_help(char *p)
+{
+	fprintf(stderr, "Usage: %s <options>\n"
+			"  -n num                  - number of worker threads.\n"
+			"  -m num                  - log mask.\n"
+			"  -l log                  - output log file.\n"
+			"  -f file                 - input file with log information about objects to be checked.\n"
+			"  -r addr:port:family     - remote node to connect to.\n"
+			"  -h                      - this help.\n", p);
+}
+
+int main(int argc, char *argv[])
+{
+	int ch, err, i, j, worker_num = 1;
+	struct dnet_check_worker *w, *workers;
+	struct dnet_config cfg, *remotes = NULL;
+	char *file = NULL, *log = "/dev/stderr";
+	char log_file[256];
+	char local_addr[] = "0.0.0.0:0:2";
+	int added_remotes = 0;
+
+	memset(&cfg, 0, sizeof(struct dnet_config));
+
+	cfg.sock_type = SOCK_STREAM;
+	cfg.proto = IPPROTO_TCP;
+	cfg.wait_timeout = 60;
+	cfg.log_mask = DNET_LOG_ERROR;
+	cfg.log = dnet_common_log;
+	cfg.io_thread_num = 2;
+	cfg.max_pending = 256;
+
+	while ((ch = getopt(argc, argv, "n:m:l:f:r:h")) != -1) {
+		switch (ch) {
+			case 'n':
+				worker_num = atoi(optarg);
+				break;
+			case 'm':
+				cfg.log_mask = strtol(optarg, NULL, 0);
+				break;
+			case 'l':
+				log = optarg;
+				break;
+			case 'f':
+				file = optarg;
+				break;
+			case 'r':
+				err = dnet_parse_addr(optarg, &cfg);
+				if (err)
+					break;
+				added_remotes++;
+				remotes = realloc(remotes, added_remotes * sizeof(struct dnet_config));
+				if (!remotes)
+					return -ENOMEM;
+				memcpy(&remotes[added_remotes - 1], &cfg, sizeof(struct dnet_config));
+
+				break;
+			case 'h':
+			default:
+				dnet_check_log_help(argv[0]);
+				return -1;
+		}
+	}
+
+	dnet_parse_addr(local_addr, &cfg);
+
+#if 0
+	if (!added_remotes) {
+		err = -EINVAL;
+		fprintf(stderr, "No remote nodes added, exiting.\n");
+		goto err_out_destroy;
+	}
+#endif
+
+	if (!file) {
+		fprintf(stderr, "No input file, exiting.\n");
+		return -EINVAL;
+	}
+
+	dnet_check_file = fopen(file, "r");
+	if (!dnet_check_file) {
+		err = -errno;
+		fprintf(stderr, "Failed to open file '%s': %s.\n", file, strerror(errno));
+		return err;
+	}
+
+	workers = malloc(sizeof(struct dnet_check_worker) * worker_num);
+	if (!workers) {
+		return -ENOMEM;
+	}
+	memset(workers, 0, sizeof(struct dnet_check_worker) * worker_num);
+
+	for (i=0; i<worker_num; ++i) {
+		int added = 0;
+
+		w = &workers[i];
+
+		w->id = i;
+
+		pthread_cond_init(&w->wait_cond, NULL);
+		pthread_mutex_init(&w->wait_lock, NULL);
+
+		snprintf(log_file, sizeof(log_file), "%s.%d", log, w->id);
+		cfg.log_private = NULL;
+		dnet_check_log_init(NULL, &cfg, log_file);
+
+		w->n = dnet_node_create(&cfg);
+		if (!w->n)
+			return -1;
+
+		for (j=0; j<added_remotes; ++j) {
+			err = dnet_add_state(w->n, &remotes[j]);
+			if (!err)
+				added++;
+		}
+
+		if (!added) {
+			dnet_log_raw(w->n, DNET_LOG_ERROR, "No remote nodes added, exiting.\n");
+			return -1;
+		}
+
+		err = pthread_create(&w->tid, NULL, dnet_check_process, w);
+		if (err) {
+			dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to start new processing thread: %d.\n", err);
+			return -err;
+		}
+	}
+
+	for (i=0; i<worker_num; ++i) {
+		w = &workers[i];
+
+		pthread_join(w->tid, NULL);
+		dnet_node_destroy(w->n);
+	}
+
+	return 0;
+}
