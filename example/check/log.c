@@ -598,6 +598,8 @@ out_join:
 			dnet_node_destroy(w->n);
 	}
 	free(workers);
+	if (cfg.log_private)
+		fclose(cfg.log_private);
 
 out_ext_cleanup:
 	if (dnet_check_ext_library) {
