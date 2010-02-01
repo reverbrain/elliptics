@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <dlfcn.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -66,6 +67,17 @@ struct dnet_check_request
 
 	struct dnet_check_worker	*w;
 };
+
+#define DNET_CHECK_EXT_INIT	"dnet_check_ext_init"
+#define DNET_CHECK_EXT_EXIT	"dnet_check_ext_exit"
+#define DNET_CHECK_EXT_MERGE	"dnet_check_ext_merge"
+
+static void *(* dnet_check_ext_init)(char *data);
+static void (* dnet_check_ext_exit)(void *priv);
+static int (* dnet_check_ext_merge)(void *priv, char *path, int update_existing,
+		struct dnet_check_request *req, int num);
+static void *dnet_check_ext_private;
+static void *dnet_check_ext_library;
 
 static FILE *dnet_check_file;
 static pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -235,21 +247,25 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 		}
 	}
 
-	for (i=0; i<num; ++i) {
-		req = &requests[i];
+	if (dnet_check_ext_merge) {
+		error = dnet_check_ext_merge(dnet_check_ext_private, file, update_existing, requests, num);
+	} else {
+		for (i=0; i<num; ++i) {
+			req = &requests[i];
 
-		if (req->reply && !update_existing)
-			continue;
+			if (req->reply && !update_existing)
+				continue;
 
-		err = dnet_write_file(n, file, req->id, 0, 0, existing->type);
-		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to upload a '%s' copy: %d.\n",
-					obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), err);
-			error = err;
-			continue;
+			err = dnet_write_file(n, file, req->id, 0, 0, existing->type);
+			if (err) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to upload a '%s' copy: %d.\n",
+						obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), err);
+				error = err;
+				continue;
+			}
 		}
 	}
-	
+
 	if (!update_existing)
 		unlink(file);
 
@@ -372,6 +388,55 @@ static void *dnet_check_process(void *data)
 	return NULL;
 }
 
+static int dnet_check_setup_ext(char *library, char *library_data)
+{
+	void *lib, *tmp;
+	int err = -EINVAL, i;
+	struct tmp_check {
+		char *symbol;
+		void *ptr;
+	} checks[] = {
+		{DNET_CHECK_EXT_INIT, &dnet_check_ext_init},
+		{DNET_CHECK_EXT_EXIT, &dnet_check_ext_exit},
+		{DNET_CHECK_EXT_MERGE, &dnet_check_ext_merge},
+	};
+
+	lib = dlopen(library, RTLD_NOW);
+	if (!lib) {
+		fprintf(stderr, "Failed to dlopen external library '%s': %s.\n",
+				library, dlerror());
+		goto err_out_exit;
+	}
+
+	for (i=0; i<(signed)ARRAY_SIZE(checks); ++i) {
+		tmp = dlsym(lib, checks[i].symbol);
+		if (!tmp) {
+			fprintf(stderr, "Failed to get '%s' symbol from '%s'.\n",
+					checks[i].symbol, library);
+			goto err_out_close;
+		}
+
+		memcpy(checks[i].ptr, tmp, sizeof(void *));
+	}
+
+	tmp = dnet_check_ext_init(library_data);
+	if (!tmp) {
+		fprintf(stderr, "Failed to initialize external library '%s' using '%s'.\n",
+				library, library_data);
+		goto err_out_close;
+	}
+
+	dnet_check_ext_private = tmp;
+	dnet_check_ext_library = lib;
+
+	return 0;
+
+err_out_close:
+	dlclose(lib);
+err_out_exit:
+	return err;
+}
+
 static void dnet_check_log_help(char *p)
 {
 	fprintf(stderr, "Usage: %s <options>\n"
@@ -381,15 +446,18 @@ static void dnet_check_log_help(char *p)
 			"  -f file                 - input file with log information about objects to be checked.\n"
 			"  -r addr:port:family     - remote node to connect to.\n"
 			"  -t dir                  - directory to store temporal object.\n"
+			"  -e library              - external library which should export merge callbacks.\n"
+			"  -E string               - some obscure string used by external library's intialization code.\n"
 			"  -h                      - this help.\n", p);
 }
 
 int main(int argc, char *argv[])
 {
-	int ch, err, i, j, worker_num = 1;
+	int ch, err = 0, i, j, worker_num = 1;
 	struct dnet_check_worker *w, *workers;
 	struct dnet_config cfg, *remotes = NULL;
 	char *file = NULL, *log = "/dev/stderr";
+	char *library = NULL, *library_data = NULL;
 	char log_file[256];
 	char local_addr[] = "0.0.0.0:0:2";
 	int added_remotes = 0;
@@ -404,8 +472,14 @@ int main(int argc, char *argv[])
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
-	while ((ch = getopt(argc, argv, "t:n:m:l:f:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "e:E:t:n:m:l:f:r:h")) != -1) {
 		switch (ch) {
+			case 'e':
+				library = optarg;
+				break;
+			case 'E':
+				library_data = optarg;
+				break;
 			case 't':
 				snprintf(dnet_check_tmp_dir, sizeof(dnet_check_tmp_dir), "%s", optarg);
 				break;
@@ -441,29 +515,35 @@ int main(int argc, char *argv[])
 
 	dnet_parse_addr(local_addr, &cfg);
 
-#if 0
 	if (!added_remotes) {
 		err = -EINVAL;
 		fprintf(stderr, "No remote nodes added, exiting.\n");
-		goto err_out_destroy;
+		goto out_exit;
 	}
-#endif
 
 	if (!file) {
+		err = -EINVAL;
 		fprintf(stderr, "No input file, exiting.\n");
-		return -EINVAL;
+		goto out_exit;
 	}
 
 	dnet_check_file = fopen(file, "r");
 	if (!dnet_check_file) {
 		err = -errno;
 		fprintf(stderr, "Failed to open file '%s': %s.\n", file, strerror(errno));
-		return err;
+		goto out_exit;
+	}
+
+	if (library) {
+		err = dnet_check_setup_ext(library, library_data);
+		if (err)
+			goto out_close_check_file;
 	}
 
 	workers = malloc(sizeof(struct dnet_check_worker) * worker_num);
 	if (!workers) {
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto out_ext_cleanup;
 	}
 	memset(workers, 0, sizeof(struct dnet_check_worker) * worker_num);
 
@@ -482,8 +562,10 @@ int main(int argc, char *argv[])
 		dnet_check_log_init(NULL, &cfg, log_file);
 
 		w->n = dnet_node_create(&cfg);
-		if (!w->n)
-			return -1;
+		if (!w->n) {
+			err = -ENOMEM;
+			goto out_join;
+		}
 
 		for (j=0; j<added_remotes; ++j) {
 			err = dnet_add_state(w->n, &remotes[j]);
@@ -493,22 +575,37 @@ int main(int argc, char *argv[])
 
 		if (!added) {
 			dnet_log_raw(w->n, DNET_LOG_ERROR, "No remote nodes added, exiting.\n");
-			return -1;
+			err = -ENOENT;
+			goto out_join;
 		}
 
 		err = pthread_create(&w->tid, NULL, dnet_check_process, w);
 		if (err) {
+			err = -err;
 			dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to start new processing thread: %d.\n", err);
-			return -err;
+			goto out_join;
 		}
 	}
 
+out_join:
 	for (i=0; i<worker_num; ++i) {
 		w = &workers[i];
 
-		pthread_join(w->tid, NULL);
-		dnet_node_destroy(w->n);
+		if (w->tid)
+			pthread_join(w->tid, NULL);
+
+		if (w->n)
+			dnet_node_destroy(w->n);
 	}
 
-	return 0;
+out_ext_cleanup:
+	if (dnet_check_ext_library) {
+		dnet_check_ext_exit(dnet_check_ext_private);
+		dlclose(dnet_check_ext_library);
+	}
+out_close_check_file:
+	fclose(dnet_check_file);
+out_exit:
+	free(remotes);
+	return err;
 }
