@@ -74,4 +74,6 @@
  */
 #define DNET_DEFAULT_RESEND_TIMEOUT_SEC	60
 
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
 #endif /* __DNET_CORE_H */
