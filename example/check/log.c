@@ -240,7 +240,7 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 	else {
 		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len(existing->id, DNET_ID_SIZE));
 
-		err = dnet_read_file(n, file, existing->id, 0, 0, existing->type);
+		err = dnet_read_file(n, file, existing->id, 0, 0, 0);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to download a copy: %d.\n", obj, err);
 			goto err_out_exit;
@@ -306,7 +306,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 
 		w->wait_num++;
 
-		err = dnet_lookup_object(n, req->id, req->type, dnet_check_lookup_complete, req);
+		err = dnet_lookup_object(n, req->id, 1, dnet_check_lookup_complete, req);
 	}
 
 	dnet_check_wait(w, w->wait_num == w->object_present + w->object_missing);
