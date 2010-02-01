@@ -604,6 +604,7 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
 		fprintf(dnet_fcgi_log, "%s: upload completed: %d.\n",
 				dnet_dump_id(cmd->id), dnet_fcgi_request_completed);
+		FCGX_FPrintF(dnet_fcgi_request.out, "<id>%s</id>", dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
 	}
 
 	if (cmd->status) {
@@ -638,6 +639,10 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 	ctl.io.size = size;
 	ctl.io.offset = 0;
 
+	FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: application/xml\r\n\r\n");
+	FCGX_FPrintF(dnet_fcgi_request.out, "<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+	FCGX_FPrintF(dnet_fcgi_request.out, "<post object=\"%s\">", obj);
+
 	dnet_fcgi_request_completed = 0;
 	err = dnet_write_object(n, &ctl, obj, len, NULL, 1, &trans_num);
 	if (err < 0) {
@@ -649,6 +654,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 
 	fprintf(dnet_fcgi_log, "%s: waiting for upload completion: %d/%d.\n", addr, dnet_fcgi_request_completed, trans_num);
 	dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num);
+	FCGX_FPrintF(dnet_fcgi_request.out, "</post>\r\n");
 
 err_out_exit:
 	return err;
