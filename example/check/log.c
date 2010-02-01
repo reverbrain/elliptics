@@ -597,6 +597,7 @@ out_join:
 		if (w->n)
 			dnet_node_destroy(w->n);
 	}
+	free(workers);
 
 out_ext_cleanup:
 	if (dnet_check_ext_library) {
