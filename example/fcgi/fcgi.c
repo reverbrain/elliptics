@@ -124,10 +124,11 @@ static int dnet_fcgi_output(const char *format, ...)
 			break;
 		}
 
-		ptr += err;
-		size -= err;
-
-		err = 0;
+		if (err > 0) {
+			ptr += err;
+			size -= err;
+			err = 0;
+		}
 	}
 	pthread_mutex_unlock(&dnet_fcgi_output_lock);
 	va_end(args);
