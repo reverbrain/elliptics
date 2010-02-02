@@ -74,8 +74,8 @@ struct dnet_check_request
 
 static void *(* dnet_check_ext_init)(char *data);
 static void (* dnet_check_ext_exit)(void *priv);
-static int (* dnet_check_ext_merge)(void *priv, char *path, int update_existing,
-		struct dnet_check_request *req, int num);
+static int (* dnet_check_ext_merge)(void *priv, char *path, int start, int end,
+		struct dnet_check_request *req, int num, int update_existing);
 static void *dnet_check_ext_private;
 static void *dnet_check_ext_library;
 
@@ -185,7 +185,8 @@ static int dnet_check_process_hash_string(struct dnet_node *n, char *hash)
 }
 
 static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
-		struct dnet_check_request *requests, int num, int update_existing)
+		int start, int end, struct dnet_check_request *requests, int num,
+		int update_existing)
 {
 	struct dnet_node *n = worker->n;
 	struct dnet_check_request *existing = NULL, *req;
@@ -213,10 +214,11 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 		goto err_out_exit;
 	}
 
-	if (update_existing)
+	if (update_existing) {
 		snprintf(file, sizeof(file), "%s", obj);
-	else {
-		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len(existing->id, DNET_ID_SIZE));
+	} else {
+		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir,
+				dnet_dump_id_len(existing->id, DNET_ID_SIZE));
 
 		err = dnet_read_file(n, file, existing->id, 0, 0, 0);
 		if (err) {
@@ -226,7 +228,8 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 	}
 
 	if (dnet_check_ext_merge) {
-		error = dnet_check_ext_merge(dnet_check_ext_private, file, update_existing, requests, num);
+		error = dnet_check_ext_merge(dnet_check_ext_private, file, start, end,
+				requests, num, update_existing);
 	} else {
 		for (i=0; i<num; ++i) {
 			req = &requests[i];
@@ -253,7 +256,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, int len,
+static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, int start, int end,
 		int hash_num, unsigned int type, int update_existing)
 {
 	struct dnet_node *n = w->n;
@@ -267,8 +270,6 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 		return -ENOMEM;
 	memset(requests, 0, hash_num * sizeof(struct dnet_check_request));
 
-	w->wait_num = w->object_present = w->object_missing = 0;
-
 	while (1) {
 		unsigned int rsize = DNET_ID_SIZE;
 
@@ -276,7 +277,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 		req->w = w;
 		req->type = type;
 
-		err = dnet_transform(n, obj, len, req->id, req->addr, &rsize, &pos);
+		err = dnet_transform(n, &obj[start], end - start, req->id, req->addr, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				break;
@@ -297,14 +298,54 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 
 	for (i=0; i<hash_num; ++i) {
 		req = &requests[i];
-		dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', id: %s: type: %d, history present: %d.\n",
-				obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), req->type, req->present);
+		dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s' %d/%d, id: %s: type: %d, "
+				"history present: %d, update existing: %d.\n",
+				obj, start, end, dnet_dump_id_len(req->id, DNET_ID_SIZE),
+				req->type, req->present, update_existing);
 	}
 
-	err = dnet_update_copies(w, obj, requests, hash_num, update_existing);
+	err = dnet_update_copies(w, obj, start, end, requests, hash_num, update_existing);
+	
+	for (i=0; i<hash_num; ++i) {
+		req = &requests[i];
+
+		snprintf(file, sizeof(file), "%s/%s.history",
+				dnet_check_tmp_dir, dnet_dump_id_len(req->id, DNET_ID_SIZE));
+		unlink(file);
+	}
 
 	free(requests);
 	return err;
+}
+
+static int dnet_check_split_range(char *str, int **ptrs, int num)
+{
+	char *token, *saveptr, *tmp;
+	char *buf = strdup(str);
+	int i;
+
+	if (!buf)
+		return -ENOMEM;
+
+	tmp = buf;
+	for (i=0; i<num; ++i) {
+		token = strtok_r(tmp, DNET_CHECK_INNER_TOKEN_STRING, &saveptr);
+		if (!token)
+			break;
+
+		*ptrs[i] = (int)strtol(token, NULL, 0);
+		tmp = NULL;
+	}
+
+	if (i != num) {
+		for (; i<num; ++i)
+			*ptrs[i] = 0;
+		return -EINVAL;
+	}
+
+	free(buf);
+
+	return 0;
 }
 
 static void *dnet_check_process(void *data)
@@ -313,7 +354,9 @@ static void *dnet_check_process(void *data)
 	char buf[4096], *tmp, *saveptr, *token, *hash, *obj;
 	char current_hash[128];
 	int size = sizeof(buf);
-	int err, type, hash_num = 0, update_existing = 0;
+	int err, type, hash_num = 0, obj_len;
+	int start, end, update_existing;
+	int *ptrs[] = {&start, &end, &update_existing};
 
 	while (1) {
 		pthread_mutex_lock(&dnet_check_file_lock);
@@ -326,12 +369,14 @@ static void *dnet_check_process(void *data)
 		if (!token)
 			continue;
 		type = strtoul(token, NULL, 0);
-		
+
 		tmp = NULL;
 		token = strtok_r(tmp, DNET_CHECK_TOKEN_STRING, &saveptr);
 		if (!token)
 			continue;
-		update_existing = strtoul(token, NULL, 0);
+		err = dnet_check_split_range(token, ptrs, ARRAY_SIZE(ptrs));
+		if (err)
+			continue;
 
 		tmp = NULL;
 		token = strtok_r(tmp, DNET_CHECK_TOKEN_STRING, &saveptr);
@@ -364,7 +409,19 @@ static void *dnet_check_process(void *data)
 			hash_num = err;
 		}
 
-		err = dnet_check_number_of_copies(w, obj, strlen(obj), hash_num, type, update_existing);
+		obj_len = strlen(obj);
+
+		if (!end)
+			end = obj_len;
+
+		if (end - start > obj_len) {
+			dnet_log_raw(w->n, DNET_LOG_ERROR, "obj: '%s', obj_len: %d, start: %d, end: %d: "
+					"requested start/end pair is outside of the object.\n",
+					obj, obj_len, start, end);
+			continue;
+		}
+
+		err = dnet_check_number_of_copies(w, obj, start, end, hash_num, type, update_existing);
 	}
 
 	return NULL;
@@ -549,6 +606,7 @@ int main(int argc, char *argv[])
 			goto out_join;
 		}
 
+		added = 0;
 		for (j=0; j<added_remotes; ++j) {
 			err = dnet_add_state(w->n, &remotes[j]);
 			if (!err)
