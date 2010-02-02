@@ -97,6 +97,44 @@ static FCGX_Request dnet_fcgi_request;
 #define LISTENSOCK_FILENO	0
 #define LISTENSOCK_FLAGS	0
 
+/*
+ * Workaround for libfcgi 64bit issues, namely we will format
+ * output here, since FCGX_FPrintF() resets the stream when sees
+ * 64bit %llx or (seems so) %lx.
+ */
+static char dnet_fcgi_tmp_buf[40960];
+static pthread_mutex_t dnet_fcgi_output_lock = PTHREAD_MUTEX_INITIALIZER;
+static int dnet_fcgi_output(const char *format, ...) __attribute__ ((format(printf, 1, 2)));
+
+static int dnet_fcgi_output(const char *format, ...)
+{
+	va_list args;
+	int size, err;
+	char *ptr = dnet_fcgi_tmp_buf;
+
+	va_start(args, format);
+	size = vsnprintf(dnet_fcgi_tmp_buf, sizeof(dnet_fcgi_tmp_buf), format, args);
+	pthread_mutex_lock(&dnet_fcgi_output_lock);
+	while (size) {
+		err = FCGX_PutStr(ptr, size, dnet_fcgi_request.out);
+		if (err < 0 && errno != EAGAIN) {
+			err = -errno;
+			fprintf(dnet_fcgi_log, "Failed to output %d bytes: %s [%d].\n",
+					size, strerror(errno), errno);
+			break;
+		}
+
+		ptr += err;
+		size -= err;
+
+		err = 0;
+	}
+	pthread_mutex_unlock(&dnet_fcgi_output_lock);
+	va_end(args);
+
+	return err;
+}
+
 static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 {
 	char *p;
@@ -364,7 +402,8 @@ static int dnet_fcgi_generate_sign(long timestamp)
 				dnet_fcgi_sign_tmp, len, cookie_res,
 				dnet_fcgi_cookie_delimiter, dnet_fcgi_sign_tmp);
 
-		FCGX_FPrintF(dnet_fcgi_request.out, "Set-Cookie: %s%s", dnet_fcgi_cookie_delimiter, dnet_fcgi_sign_tmp);
+		dnet_fcgi_output("Set-Cookie: %s%s",
+				dnet_fcgi_cookie_delimiter, dnet_fcgi_sign_tmp);
 		if (dnet_fcgi_expiration_interval) {
 			char str[128];
 			struct tm tm;
@@ -372,9 +411,10 @@ static int dnet_fcgi_generate_sign(long timestamp)
 
 			localtime_r(&t, &tm);
 			strftime(str, sizeof(str), "%a, %d-%b-%Y %T %Z", &tm);
-			FCGX_FPrintF(dnet_fcgi_request.out, "%s expires=%s%s", dnet_fcgi_cookie_ending, str, dnet_fcgi_cookie_addon);
+			dnet_fcgi_output("%s expires=%s%s",
+					dnet_fcgi_cookie_ending, str, dnet_fcgi_cookie_addon);
 		}
-		FCGX_FPrintF(dnet_fcgi_request.out, "\r\n");
+		dnet_fcgi_output("\r\n");
 
 		snprintf(cookie_res, sizeof(cookie_res), "%s", dnet_fcgi_sign_tmp);
 	}
@@ -445,8 +485,8 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
 					hex_dir, id);
 #endif
-			FCGX_FPrintF(dnet_fcgi_request.out, "%s\r\n", dnet_fcgi_status_pattern);
-			FCGX_FPrintF(dnet_fcgi_request.out, "Location: http://%s%s/%d/%s/%s\r\n",
+			dnet_fcgi_output("%s\r\n", dnet_fcgi_status_pattern);
+			dnet_fcgi_output("Location: http://%s%s/%d/%s/%s\r\n",
 					addr,
 					dnet_fcgi_root_pattern,
 					port - dnet_fcgi_base_port,
@@ -459,18 +499,21 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					goto err_out_exit;
 			}
 
-			FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: application/xml\r\n\r\n");
+			dnet_fcgi_output("Content-type: application/xml\r\n\r\n");
 
-			FCGX_FPrintF(dnet_fcgi_request.out, "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+			snprintf(dnet_fcgi_tmp_buf, sizeof(dnet_fcgi_tmp_buf),
+					"<?xml version=\"1.0\" encoding=\"utf-8\"?>"
 					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>",
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
 					hex_dir,
 					id,
 					timestamp);
+			dnet_fcgi_output("%s", dnet_fcgi_tmp_buf);
+
 			if (dnet_fcgi_sign_key)
-				FCGX_FPrintF(dnet_fcgi_request.out, "<s>%s</s>", dnet_fcgi_sign_tmp);
-			FCGX_FPrintF(dnet_fcgi_request.out, "</download-info>\r\n");
+				dnet_fcgi_output("<s>%s</s>", dnet_fcgi_sign_tmp);
+			dnet_fcgi_output("</download-info>\r\n");
 
 			err = 0;
 		}
@@ -604,7 +647,7 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
 		fprintf(dnet_fcgi_log, "%s: upload completed: %d.\n",
 				dnet_dump_id(cmd->id), dnet_fcgi_request_completed);
-		FCGX_FPrintF(dnet_fcgi_request.out, "<id>%s</id>", dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
+		dnet_fcgi_output("<id>%s</id>", dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
 	}
 
 	if (cmd->status) {
@@ -639,9 +682,9 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 	ctl.io.size = size;
 	ctl.io.offset = 0;
 
-	FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: application/xml\r\n\r\n");
-	FCGX_FPrintF(dnet_fcgi_request.out, "<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-	FCGX_FPrintF(dnet_fcgi_request.out, "<post object=\"%s\">", obj);
+	dnet_fcgi_output("Content-type: application/xml\r\n\r\n");
+	dnet_fcgi_output("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+	dnet_fcgi_output("<post object=\"%s\">", obj);
 
 	dnet_fcgi_request_completed = 0;
 	err = dnet_write_object(n, &ctl, obj, len, NULL, 1, &trans_num);
@@ -652,9 +695,10 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 
 	err = 0;
 
-	fprintf(dnet_fcgi_log, "%s: waiting for upload completion: %d/%d.\n", addr, dnet_fcgi_request_completed, trans_num);
+	fprintf(dnet_fcgi_log, "%s: waiting for upload completion: %d/%d.\n",
+			addr, dnet_fcgi_request_completed, trans_num);
 	dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num);
-	FCGX_FPrintF(dnet_fcgi_request.out, "</post>\r\n");
+	dnet_fcgi_output("</post>\r\n");
 
 err_out_exit:
 	return err;
@@ -840,7 +884,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 	dnet_convert_io_attr(io);
 
-	FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: octet/stream\r\n\r\n");
+	dnet_fcgi_output("Content-type: octet/stream\r\n\r\n");
 
 	size = io->size;
 	while (size) {
@@ -854,8 +898,10 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 			goto err_out_exit;
 		}
 
-		data += err;
-		size -= err;
+		if (err > 0) {
+			data += err;
+			size -= err;
+		}
 	}
 
 	err = 0;
@@ -901,18 +947,19 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 		la[1] = (float)st->la[1] / 100.0;
 		la[2] = (float)st->la[2] / 100.0;
 
-		FCGX_FPrintF(dnet_fcgi_request.out, "<stat addr=\"%s\" id=\"%s\"><la>%.2f %.2f %.2f</la>",
+		dnet_fcgi_output("<stat addr=\"%s\" id=\"%s\"><la>%.2f %.2f %.2f</la>"
+				"<memtotal>%llu KB</memtotal><memfree>%llu KB</memfree><memcached>%llu KB</memcached>"
+				"<storage_size>%llu MB</storage_size><available_size>%llu MB</available_size>"
+					"<files>%llu</files><fsid>0x%llx</fsid></stat>",
 				dnet_state_dump_addr(state),
 				dnet_dump_id_len(cmd->id, DNET_ID_SIZE),
-				la[0], la[1], la[2]);
-		FCGX_FPrintF(dnet_fcgi_request.out, "<memtotal>%lu KB</memtotal><memfree>%lu KB</memfree><memcached>%lu KB</memcached>",
-				(unsigned long)st->vm_total,
-				(unsigned long)st->vm_free,
-				(unsigned long)st->vm_cached);
-		FCGX_FPrintF(dnet_fcgi_request.out, "<storage_size>%lu MB</storage_size><available_size>%lu MB</available_size><files>%lu</files><fsid>0x%lx</fsid></stat>",
-				(unsigned long)(st->frsize * st->blocks / 1024 / 1024),
-				(unsigned long)(st->bavail * st->bsize / 1024 / 1024),
-				(unsigned long)st->files, (unsigned long)st->fsid);
+				la[0], la[1], la[2],
+				(unsigned long long)st->vm_total,
+				(unsigned long long)st->vm_free,
+				(unsigned long long)st->vm_cached,
+				(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
+				(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),
+				(unsigned long long)st->files, (unsigned long long)st->fsid);
 	}
 
 	return dnet_fcgi_stat_complete(state, cmd, attr, priv);
@@ -945,13 +992,13 @@ static int dnet_fcgi_stat_log(struct dnet_node *n)
 {
 	int err;
 
-	FCGX_FPrintF(dnet_fcgi_request.out, "Content-type: application/xml\r\n");
-	FCGX_FPrintF(dnet_fcgi_request.out, "%s\r\n\r\n", dnet_fcgi_status_pattern);
-	FCGX_FPrintF(dnet_fcgi_request.out, "<?xml version=\"1.0\" encoding=\"utf-8\"?><data>");
+	dnet_fcgi_output("Content-type: application/xml\r\n");
+	dnet_fcgi_output("%s\r\n\r\n", dnet_fcgi_status_pattern);
+	dnet_fcgi_output("<?xml version=\"1.0\" encoding=\"utf-8\"?><data>");
 
 	err = dnet_fcgi_request_stat(n, dnet_fcgi_stat_complete_log);
 
-	FCGX_FPrintF(dnet_fcgi_request.out, "</data>");
+	dnet_fcgi_output("</data>");
 
 	return err;
 }
@@ -967,9 +1014,9 @@ static int dnet_fcgi_stat(struct dnet_node *n)
 			err = -1;
 
 	if (err)
-		FCGX_FPrintF(dnet_fcgi_request.out, "\r\nStatus: 400\r\n\r\n");
+		dnet_fcgi_output("\r\nStatus: 400\r\n\r\n");
 	else
-		FCGX_FPrintF(dnet_fcgi_request.out, "\r\n%s\r\n\r\n", dnet_fcgi_status_pattern);
+		dnet_fcgi_output("\r\n%s\r\n\r\n", dnet_fcgi_status_pattern);
 
 	return err;
 }
@@ -1421,8 +1468,8 @@ cont:
 		continue;
 
 err_continue:
-		FCGX_FPrintF(dnet_fcgi_request.out, "Content-Type: text/html\r\n");
-		FCGX_FPrintF(dnet_fcgi_request.out, "Status: 403 %s: %s [%d]\r\n\r\n", reason, strerror(-err), err);
+		dnet_fcgi_output("Content-Type: text/html\r\n"
+				"Status: 403 %s: %s [%d]\r\n\r\n", reason, strerror(-err), err);
 		fprintf(dnet_fcgi_log, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(-err), err);
 		fflush(dnet_fcgi_log);
 		goto cont;
