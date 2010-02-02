@@ -63,7 +63,7 @@ struct dnet_check_request
 	unsigned char			id[DNET_ID_SIZE];
 	unsigned char 			addr[DNET_ID_SIZE];
 	unsigned int			type;
-	unsigned int			reply;
+	unsigned int			present;
 
 	struct dnet_check_worker	*w;
 };
@@ -82,6 +82,7 @@ static void *dnet_check_ext_library;
 static FILE *dnet_check_file;
 static pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
 
+#if 0
 #define dnet_check_wait(worker,condition)					\
 ({										\
 	pthread_mutex_lock(&(worker)->wait_lock);				\
@@ -100,6 +101,7 @@ static void dnet_check_wakeup(struct dnet_check_worker *w, int present)
 	pthread_cond_broadcast(&w->wait_cond);
 	pthread_mutex_unlock(&w->wait_lock);
 }
+#endif
 
 static int dnet_check_log_init(struct dnet_node *n, struct dnet_config *cfg, char *log)
 {
@@ -182,30 +184,6 @@ static int dnet_check_process_hash_string(struct dnet_node *n, char *hash)
 	return added;
 }
 
-static int dnet_check_lookup_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
-{
-	struct dnet_check_request *req = priv;
-	struct dnet_check_worker *w = req->w;
-	int err = -1;
-
-	if (!w)
-		goto out_exit;
-
-	if (!state || !cmd || cmd->status)
-		goto out_exit;
-
-	if (!(cmd->flags & DNET_FLAGS_MORE) && attr) {
-		req->reply = attr->flags;
-		//dnet_log_raw(w->n, DNET_LOG_INFO, "%s: present: %d.\n", dnet_dump_id(cmd->id), !!attr->flags);
-		dnet_check_wakeup(w, attr->flags);
-	}
-
-	err = 0;
-
-out_exit:
-	return err;
-}
-
 static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 		struct dnet_check_request *requests, int num, int update_existing)
 {
@@ -217,7 +195,7 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 	for (i=0; i<num; ++i) {
 		req = &requests[i];
 
-		if (!req->reply)
+		if (!req->present)
 			to_upload++;
 		else
 			existing = req;
@@ -253,7 +231,7 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 		for (i=0; i<num; ++i) {
 			req = &requests[i];
 
-			if (req->reply && !update_existing)
+			if (req->present && !update_existing)
 				continue;
 
 			err = dnet_write_file(n, file, req->id, 0, 0, existing->type);
@@ -282,6 +260,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 	int pos = 0;
 	int err, i;
 	struct dnet_check_request *requests, *req;
+	char file[128];
 
 	req = requests = malloc(hash_num * sizeof(struct dnet_check_request));
 	if (!requests)
@@ -304,20 +283,23 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 			continue;
 		}
 
-		w->wait_num++;
+		snprintf(file, sizeof(file), "%s/%s",
+				dnet_check_tmp_dir, dnet_dump_id_len(req->id, DNET_ID_SIZE));
+		err = dnet_read_file(n, file, req->id, 0, 1, 1);
+		if (err < 0) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read history file: %d.\n",
+					dnet_dump_id(req->id), err);
+			continue;
+		}
 
-		err = dnet_lookup_object(n, req->id, 1, dnet_check_lookup_complete, req);
+		req->present = 1;
 	}
-
-	dnet_check_wait(w, w->wait_num == w->object_present + w->object_missing);
 
 	for (i=0; i<hash_num; ++i) {
 		req = &requests[i];
-		dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', id: %s: type: %d, present: %d.\n",
-				obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), req->type, req->reply);
+		dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', id: %s: type: %d, history present: %d.\n",
+				obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), req->type, req->present);
 	}
-	dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', present: %d, missing: %d.\n",
-			obj, w->object_present, w->object_missing);
 
 	err = dnet_update_copies(w, obj, requests, hash_num, update_existing);
 
