@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -39,6 +41,7 @@
 #define DNET_FCGI_COOKIE_DELIMITER	"obscure_cookie="
 #define DNET_FCGI_COOKIE_ENDING		";"
 #define DNET_FCGI_TOKEN_STRING		" "
+#define DNET_FCGI_TOKEN_DELIM		','
 #define DNET_FCGI_STORAGE_BIT_MASK	0xff
 
 static FILE *dnet_fcgi_log;
@@ -96,6 +99,13 @@ static FCGX_Request dnet_fcgi_request;
 
 #define LISTENSOCK_FILENO	0
 #define LISTENSOCK_FLAGS	0
+
+struct dnet_fcgi_content_type {
+	char	ext[16];
+	char	type[32];
+};
+static int dnet_fcgi_ctypes_num;
+static struct dnet_fcgi_content_type *dnet_fcgi_ctypes;
 
 /*
  * Workaround for libfcgi 64bit issues, namely we will format
@@ -454,13 +464,13 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			goto err_out_exit;
 
 		a = (struct dnet_addr_attr *)(attr + 1);
-#if 0
+#if 1
 		fprintf(dnet_fcgi_log, "%s: addr: %s, is object presented there: %d.\n",
 				dnet_dump_id(cmd->id),
 				dnet_server_convert_dnet_addr(&a->addr),
 				attr->flags);
 #endif
-		err = -EAGAIN;
+		err = -ENOENT;
 		if (attr->flags) {
 			char addr[256];
 			char id[DNET_ID_SIZE*2+1];
@@ -487,6 +497,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					hex_dir, id);
 #endif
 			dnet_fcgi_output("%s\r\n", dnet_fcgi_status_pattern);
+			dnet_fcgi_output("Cache-control: no-cache\r\n");
 			dnet_fcgi_output("Location: http://%s%s/%d/%s/%s\r\n",
 					addr,
 					dnet_fcgi_root_pattern,
@@ -885,7 +896,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 	dnet_convert_io_attr(io);
 
-	dnet_fcgi_output("Content-type: octet/stream\r\n\r\n");
+	dnet_fcgi_output("\r\n");
 
 	size = io->size;
 	while (size) {
@@ -1089,6 +1100,23 @@ static int dnet_fcgi_external_stop(struct dnet_node *n, char *query, char *addr,
 	return dnet_fcgi_external_callback_start(query, addr, id, length);
 }
 
+static void dnet_fcgi_output_content_type(char *id)
+{
+	int i;
+	struct dnet_fcgi_content_type *c;
+
+	for (i=0; i<dnet_fcgi_ctypes_num; ++i) {
+		c = &dnet_fcgi_ctypes[i];
+
+		if (strcasestr(id, c->ext)) {
+			dnet_fcgi_output("Content-type: %s\r\n", c->type);
+			return;
+		}
+	}
+	
+	dnet_fcgi_output("Content-type: octet/stream\r\n");
+}
+
 static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, char *id, int length)
 {
 	int err;
@@ -1118,6 +1146,8 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, ch
 		if (i != dnet_fcgi_direct_patterns_num) {
 			memset(&ctl, 0, sizeof(struct dnet_io_control));
 
+			dnet_fcgi_output_content_type(id);
+
 			ctl.fd = -1;
 			ctl.complete = dnet_fcgi_read_complete;
 			ctl.cmd = DNET_CMD_READ;
@@ -1143,6 +1173,65 @@ lookup:
 	}
 
 out_exit:
+	return err;
+}
+
+static int dnet_fcgi_setup_content_type_patterns(char *__patterns)
+{
+	char *patterns = strdup(__patterns);
+	char *tmp, *token, *saveptr;
+	struct dnet_fcgi_content_type cn;
+	int i, err = -ENOMEM;
+
+	if (!patterns)
+		goto err_out_exit;
+
+	tmp = patterns;
+	while (1) {
+		token = strtok_r(tmp, DNET_FCGI_TOKEN_STRING, &saveptr);
+		if (!token)
+			break;
+
+		tmp = strchr(token, DNET_FCGI_TOKEN_DELIM);
+		if (!tmp) {
+			err = -EINVAL;
+			goto err_out_free_ctypes;
+		}
+
+		*tmp++ = '\0';
+
+		snprintf(cn.ext, sizeof(cn.ext), "%s", token);
+		snprintf(cn.type, sizeof(cn.type), "%s", tmp);
+
+		dnet_fcgi_ctypes_num++;
+		dnet_fcgi_ctypes = realloc(dnet_fcgi_ctypes,
+				dnet_fcgi_ctypes_num * sizeof(struct dnet_fcgi_content_type));
+		if (!dnet_fcgi_ctypes) {
+			err = -ENOMEM;
+			goto err_out_free_ctypes;
+		}
+
+		memcpy(&dnet_fcgi_ctypes[dnet_fcgi_ctypes_num - 1], &cn, sizeof(struct dnet_fcgi_content_type));
+
+		tmp = NULL;
+	}
+
+	for (i=0; i<dnet_fcgi_ctypes_num; ++i) {
+		struct dnet_fcgi_content_type *c = &dnet_fcgi_ctypes[i];
+
+		fprintf(dnet_fcgi_log, "%s -> %s\n", c->ext, c->type);
+	}
+
+	free(patterns);
+
+	return 0;
+
+err_out_free_ctypes:
+	free(dnet_fcgi_ctypes);
+	dnet_fcgi_ctypes = NULL;
+	dnet_fcgi_ctypes_num = 0;
+	free(patterns);
+err_out_exit:
 	return err;
 }
 
@@ -1331,6 +1420,10 @@ int main()
 	if (p)
 		dnet_fcgi_dns_lookup = atoi(p);
 
+	p = getenv("DNET_FCGI_CONTENT_TYPES");
+	if (p)
+		dnet_fcgi_setup_content_type_patterns(p);
+
 	p = getenv("DNET_FCGI_EXTERNAL_LIB");
 	if (p)
 		dnet_fcgi_setup_external_callbacks(p);
@@ -1469,8 +1562,9 @@ cont:
 		continue;
 
 err_continue:
-		dnet_fcgi_output("Content-Type: text/html\r\n"
-				"Status: 403 %s: %s [%d]\r\n\r\n", reason, strerror(-err), err);
+		dnet_fcgi_output("Cache-control: no-cache\r\n");
+		dnet_fcgi_output("Content-Type: text/html\r\n");
+		dnet_fcgi_output("Status: %d %s: %s [%d]\r\n\r\n", (err == -ENOENT) ? 404 : 403, reason, strerror(-err), err);
 		fprintf(dnet_fcgi_log, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(-err), err);
 		fflush(dnet_fcgi_log);
 		goto cont;
