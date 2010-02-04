@@ -1,3 +1,10 @@
+elliptics (2.6.3-26) unstable; urgency=low
+
+  * Debian changelog update.
+  * 
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 04 Feb 2010 21:16:09 +0300
+
 elliptics (2.6.3-25) unstable; urgency=low
 
   * Use text/plain instead of text/html for error messages.

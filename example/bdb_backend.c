@@ -1030,7 +1030,6 @@ int bdb_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd,
 		case DNET_CMD_READ:
 			err = bdb_get_data(state, e, cmd, attr, data);
 			break;
-		case DNET_CMD_SYNC:
 		case DNET_CMD_LIST:
 			err = bdb_list(state, e, cmd, attr);
 			break;

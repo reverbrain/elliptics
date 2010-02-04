@@ -44,7 +44,6 @@ enum dnet_commands {
 	DNET_CMD_TRANSFORM_LIST,		/* Receive list of transformation functions */
 	DNET_CMD_STAT,				/* Gather remote VM, LA and FS statistics */
 	DNET_CMD_NOTIFY,			/* Notify when object in question was modified */
-	DNET_CMD_SYNC,				/* Sync range of IDs (and appropriate objects) from another node */
 	DNET_CMD_DEL,				/* Remove given object from the storage */
 };
 

@@ -262,40 +262,6 @@ err_out_exit:
 	return err;
 }
 
-static int file_list1(struct file_backend_root *r, void *state,
-		struct dnet_cmd *cmd, struct dnet_attr *attr)
-{
-	char sub[16];
-	uint64_t start, last;
-	int err;
-	unsigned char id[DNET_ID_SIZE];
-
-	err = dnet_state_get_range(state, cmd->id, id);
-	if (err)
-		return err;
-
-	last = file_backend_get_dir(id, r->bit_mask) - 1;
-	
-	sprintf(sub, "%llx", (unsigned long long)file_backend_get_dir(cmd->id, r->bit_mask));
-
-	err = dnet_listdir(state, cmd, attr, sub, cmd->id);
-	if (err && (err != -ENOENT))
-		goto out_exit;
-
-	err = 0;
-	for (start = file_backend_get_dir(cmd->id, r->bit_mask) - 1; start != last; --start) {
-		sprintf(sub, "%llx", (unsigned long long)start);
-
-		err = dnet_listdir(state, cmd, attr, sub, NULL);
-		if (err && (err != -ENOENT))
-			goto out_exit;
-	}
-	err = 0;
-
-out_exit:
-	return err;
-}
-
 static int file_list(struct file_backend_root *r, void *state,
 		struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
@@ -799,7 +765,6 @@ int file_backend_command_handler(void *state, void *priv,
 		case DNET_CMD_READ:
 			err = file_read(r, state, cmd, attr, data);
 			break;
-		case DNET_CMD_SYNC:
 		case DNET_CMD_LIST:
 			err = file_list(r, state, cmd, attr);
 			break;

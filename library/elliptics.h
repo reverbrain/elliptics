@@ -253,8 +253,6 @@ struct dnet_node
 	struct dnet_wait	*wait;
 	struct timespec		wait_ts;
 
-	uint64_t		total_synced_files;
-
 	int			join_state;
 
 	int			resend_count;
@@ -310,7 +308,6 @@ enum dnet_join_state {
 	DNET_JOINED,		/* Node joined the network */
 	DNET_REJOIN,		/* Some of the states reconnected and node needs to rejoin */
 };
-int dnet_rejoin(struct dnet_node *n, int all);
 
 struct dnet_data_req
 {
@@ -422,9 +419,6 @@ int dnet_signal_thread_raw(struct dnet_io_thread *t, struct dnet_net_state *st, 
 int dnet_schedule_socket(struct dnet_net_state *st);
 
 void dnet_req_trans_destroy(struct dnet_data_req *r, int err);
-
-int dnet_fetch_objects(struct dnet_net_state *st, void *data, uint64_t num, struct dnet_wait *w);
-int dnet_request_sync(struct dnet_net_state *st, unsigned char *id);
 
 struct dnet_addr_storage
 {

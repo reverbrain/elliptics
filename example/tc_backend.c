@@ -316,7 +316,8 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	res = tcadbtrancommit(be->data);
 	if (!res) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to commit data transaction.\n");
+			"%s: failed to commit data transaction.\n",
+			dnet_dump_id(io->origin));
 		err = -EINVAL;
 		goto err_out_hist_trans_abort;
 	}
@@ -325,7 +326,8 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		res = tcadbtrancommit(be->data);
 		if (!res) {
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to commit history transaction.\n");
+				"%s: failed to commit history transaction.\n",
+				dnet_dump_id(io->origin));
 			err = -EINVAL;
 			goto err_out_exit;
 		}
@@ -500,7 +502,6 @@ int tc_backend_command_handler(void *state, void *priv,
 		case DNET_CMD_READ:
 			err = tc_get_data(state, e, cmd, attr, data);
 			break;
-		case DNET_CMD_SYNC:
 		case DNET_CMD_LIST:
 			err = tc_list(state, e, cmd, attr);
 			break;

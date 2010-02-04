@@ -491,51 +491,6 @@ static int dnet_add_reconnect_addr(struct dnet_node *n, struct dnet_addr *addr)
 	return err;
 }
 
-static int dnet_sync_failed_range(struct dnet_net_state *st)
-{
-	struct dnet_net_state *cap;
-	struct dnet_node *n = st->n;
-
-	dnet_log(n, DNET_LOG_INFO, "%s: addr: %s, state: %u, empty: %d.\n",
-			dnet_dump_id(st->id), dnet_state_dump_addr(st),
-			st->join_state, list_empty(&st->state_entry));
-
-	if (list_empty(&st->state_entry))
-		return -EINVAL;
-
-	dnet_state_remove(st);
-
-	if (st->join_state == DNET_CLIENT)
-		return 0;
-
-	cap = dnet_state_search(n, st->id, NULL);
-	if (cap == n->st) {
-		struct dnet_net_state *old_prev, *prev;
-		int i;
-
-		prev = old_prev = cap;
-		for (i=0; i<1; ++i) {
-			prev = dnet_state_get_prev(old_prev);
-
-			dnet_state_put(old_prev);
-
-			if (!prev)
-				break;
-
-			dnet_request_sync(prev, st->id);
-
-			old_prev = prev;
-		}
-		dnet_state_put(prev);
-	} else
-		dnet_state_put(cap);
-
-	if (st->join_state == DNET_CLIENT_JOINED)
-		return 0;
-
-	return dnet_add_reconnect_addr(n, &st->addr);
-}
-
 static int dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *st)
 {
 	struct dnet_node *n = st->n;
@@ -577,7 +532,6 @@ static int dnet_process_trans_new(struct dnet_trans *t, struct dnet_net_state *s
 	return 0;
 
 err_out_put:
-	dnet_sync_failed_range(tmp);
 	dnet_state_put(tmp);
 	dnet_log(n, DNET_LOG_ERROR, "%s: failed to process new transaction %llu: %d.\n",
 			dnet_dump_id(t->cmd.id), (unsigned long long)t->cmd.trans, err);
@@ -887,8 +841,7 @@ err_out_destroy:
 	event_del(&st->event);
 
 	dnet_state_get(st);
-	if (!list_empty(&st->state_entry))
-		dnet_sync_failed_range(st);
+	dnet_add_reconnect_addr(st->n, &st->addr);
 	while (!list_empty(&st->snd_list)) {
 		struct dnet_data_req *r = NULL;
 
@@ -1218,10 +1171,6 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 
 	if (!attr->flags)
 		c->trans |= DNET_TRANS_REPLY;
-	else {
-		a->cmd = DNET_CMD_SYNC;
-		c->flags |= DNET_FLAGS_DIRECT;
-	}
 
 	memcpy(data, odata, size);
 
