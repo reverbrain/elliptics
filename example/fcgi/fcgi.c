@@ -119,7 +119,7 @@ static int dnet_fcgi_output(const char *format, ...) __attribute__ ((format(prin
 static int dnet_fcgi_output(const char *format, ...)
 {
 	va_list args;
-	int size, err;
+	int size, err = 0;
 	char *ptr = dnet_fcgi_tmp_buf;
 
 	va_start(args, format);
