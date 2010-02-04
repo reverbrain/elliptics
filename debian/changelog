@@ -1,3 +1,109 @@
+elliptics (2.6.3-25) unstable; urgency=low
+
+  * Use text/plain instead of text/html for error messages.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 04 Feb 2010 20:13:57 +0300
+
+elliptics (2.6.3-24) unstable; urgency=low
+
+  * Added support for configurable content types.  Config should enable
+    following option (lighttpd example): "DNET_FCGI_CONTENT_TYPES" =>
+    "xml,text/xml jpg,image/jpeg txt,text/plain"  When ID contains first
+    part of comma-separated string, it will set content type to be equal
+    to the second part. Only works for direct download, i.e. through
+    proxy. Changed default error codes: when lookup/read returns -ENOENT
+    (no object) status will be set to 404 and otherwise to 403. Added
+    Cache-control: no-cache where needed. # Please enter the commit
+    message for your changes. Lines starting # with '#' will be ignored,
+    and an empty message aborts the commit. # Explicit paths specified
+    without -i nor -o; assuming --only paths... # On branch master #
+    Changes to be committed: #   (use "git reset HEAD <file>..." to
+    unstage) # # modified:   example/fcgi/fcgi.c # modified:
+    example/fcgi/lighttpd-fastcgi-dnet.conf # # Changed but not updated:
+    #   (use "git add <file>..." to update what will be committed) #
+    (use "git checkout -- <file>..." to discard changes in working
+    directory) # # modified:   debian/changelog # # Untracked files: #
+    (use "git add <file>..." to include in what will be committed) # #
+    build-stamp # debian/dirs # debian/files #
+    example/check/dnet_check_log # example/dnet_check_log #
+    example/fcgi/dnet_fcgi # example/fcgi/fcgi.c.orig # generated.log
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 04 Feb 2010 20:13:23 +0300
+
+elliptics (2.6.3-23) unstable; urgency=low
+
+  * Added object meta iformation dump into hparser util.  It prints
+    total size and parent object id in the last line. # Please enter the
+    commit message for your changes. Lines starting # with '#' will be
+    ignored, and an empty message aborts the commit. # Explicit paths
+    specified without -i nor -o; assuming --only paths... # On branch
+    master # Changes to be committed: #   (use "git reset HEAD
+    <file>..." to unstage) # # modified:   example/hparser.c # # Changed
+    but not updated: #   (use "git add <file>..." to update what will be
+    committed) #   (use "git checkout -- <file>..." to discard changes
+    in working directory) # # modified:   debian/changelog # # Untracked
+    files: #   (use "git add <file>..." to include in what will be
+    committed) # # build-stamp # debian/dirs # debian/files #
+    example/check/dnet_check_log # example/dnet_check_log #
+    example/fcgi/dnet_fcgi # example/fcgi/fcgi.c.orig # generated.log
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 03 Feb 2010 00:52:09 +0300
+
+elliptics (2.6.3-22) unstable; urgency=low
+
+  * Imporoved log checker.  Added ability to properly upload new files
+    when old ones did not exist as file itself, but only as transaction
+    log. # Please enter the commit message for your changes. Lines
+    starting # with '#' will be ignored, and an empty message aborts the
+    commit. # Explicit paths specified without -i nor -o; assuming --
+    only paths... # On branch master # Changes to be committed: #   (use
+    "git reset HEAD <file>..." to unstage) # # modified:
+    example/check/log.c # # Changed but not updated: #   (use "git add
+    <file>..." to update what will be committed) #   (use "git checkout
+    -- <file>..." to discard changes in working directory) # # modified:
+    debian/changelog # # Untracked files: #   (use "git add <file>..."
+    to include in what will be committed) # # build-stamp # debian/dirs
+    # debian/files # example/check/dnet_check_log #
+    example/dnet_check_log # example/fcgi/dnet_fcgi #
+    example/fcgi/fcgi.c.orig # generated.log
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 03 Feb 2010 00:40:15 +0300
+
+elliptics (2.6.3-21) unstable; urgency=low
+
+  * Allow all kinds of files to be checked (both transaction logs and
+    plain data files like written by fcgi proxy)
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 02 Feb 2010 22:22:47 +0300
+
+elliptics (2.6.3-20) unstable; urgency=low
+
+  * Use private mutex-protected helper function to workaround libfcgi
+    64bit and concurency issues.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 02 Feb 2010 20:33:01 +0300
+
+elliptics (2.6.3-19) unstable; urgency=low
+
+  * Always perform 'physical' lookup and do not read history files (read
+    data one).
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 01 Feb 2010 19:42:21 +0300
+
+elliptics (2.6.3-18) unstable; urgency=low
+
+  * Implemented reply to POST method - fcgi daemon returns XML with IDs
+    generated for given object.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 01 Feb 2010 17:46:59 +0300
+
+elliptics (2.6.3-17) unstable; urgency=low
+
+  * Initial fsck implementation. Supports number of copies check
+    currently.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 31 Jan 2010 22:33:25 +0300
+
 elliptics (2.6.3-16) unstable; urgency=low
 
   * Return NULL from watchdog thread to shut up compiler
