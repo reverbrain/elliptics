@@ -81,7 +81,7 @@ struct dnet_net_state
 	atomic_t		refcnt;
 	int			s;
 
-	int			join_state;
+	int			__join_state;
 	unsigned char		id[DNET_ID_SIZE];
 
 	struct dnet_addr	addr;
@@ -114,6 +114,7 @@ int dnet_event_schedule(struct dnet_net_state *st, short mask);
 void *dnet_state_process(void *data);
 
 int dnet_state_insert(struct dnet_net_state *new);
+int dnet_state_insert_raw(struct dnet_net_state *new);
 void dnet_state_remove(struct dnet_net_state *st);
 struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
@@ -131,6 +132,9 @@ static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 }
 static inline void dnet_state_put(struct dnet_net_state *st)
 {
+	/*
+	 * State can be NULL here when we just want to kick IO thread.
+	 */
 	if (st && atomic_dec_and_test(&st->refcnt))
 		dnet_state_destroy(st);
 }

@@ -459,20 +459,26 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_add_reconnect_addr(struct dnet_node *n, struct dnet_addr *addr)
+static int dnet_add_reconnect_state(struct dnet_net_state *st)
 {
-	struct dnet_addr_storage *st, *it;
+	struct dnet_node *n = st->n;
+	struct dnet_addr_storage *a, *it;
 	int err = 0;
 
-	st = malloc(sizeof(struct dnet_addr_storage));
-	if (!st)
-		return -ENOMEM;
+	if (!st->__join_state)
+		goto out_exit;
 
-	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
+	a = malloc(sizeof(struct dnet_addr_storage));
+	if (!a) {
+		err = -ENOMEM;
+		goto out_exit;
+	}
+
+	memcpy(&a->addr, &st->addr, sizeof(struct dnet_addr));
 
 	pthread_mutex_lock(&n->reconnect_lock);
 	list_for_each_entry(it, &n->reconnect_list, reconnect_entry) {
-		if (!memcmp(&it->addr, addr, sizeof(struct dnet_addr))) {
+		if (!memcmp(&it->addr, &a->addr, sizeof(struct dnet_addr))) {
 			err = -EEXIST;
 			break;
 		}
@@ -480,14 +486,15 @@ static int dnet_add_reconnect_addr(struct dnet_node *n, struct dnet_addr *addr)
 
 	if (!err) {
 		dnet_log(n, DNET_LOG_INFO, "%s: added reconnection addr: %s.\n",
-			dnet_dump_id(n->id), dnet_server_convert_dnet_addr(addr));
-		list_add_tail(&st->reconnect_entry, &n->reconnect_list);
+			dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&a->addr));
+		list_add_tail(&a->reconnect_entry, &n->reconnect_list);
 	}
 	pthread_mutex_unlock(&n->reconnect_lock);
 
 	if (err)
-		free(st);
+		free(a);
 
+out_exit:
 	return err;
 }
 
@@ -840,8 +847,7 @@ static void dnet_process_socket(int s __unused, short event, void *arg)
 err_out_destroy:
 	event_del(&st->event);
 
-	dnet_state_get(st);
-	dnet_add_reconnect_addr(st->n, &st->addr);
+	dnet_add_reconnect_state(st);
 	while (!list_empty(&st->snd_list)) {
 		struct dnet_data_req *r = NULL;
 
@@ -855,14 +861,9 @@ err_out_destroy:
 		if (!r)
 			break;
 
-		/*
-		 * Note, that this can kill the last reference to the state,
-		 * so we increase state's reference counter above and drop it
-		 * below, so that structure members access (like st->snd_list)
-		 * would not fault.
-		 */
 		dnet_req_destroy(r, err);
 	}
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: refcnt: %d.\n", dnet_dump_id(st->id), atomic_read(&st->refcnt));
 	dnet_state_put(st);
 }
 
@@ -1000,6 +1001,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 	st->s = s;
 	st->n = n;
 
+	if (id)
+		memcpy(st->id, id, DNET_ID_SIZE);
+
 	atomic_init(&st->refcnt, 1);
 
 	INIT_LIST_HEAD(&st->snd_list);
@@ -1008,31 +1012,32 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	err = dnet_lock_init(&st->snd_lock);
 	if (err) {
-		dnet_log_err(n, "%s: failed to initialize sending queu: err: %d",
+		dnet_log_err(n, "%s: failed to initialize sending queue: err: %d",
 				dnet_dump_id(st->id), err);
 		goto err_out_state_free;
 	}
 
 	err = dnet_schedule_state(st);
-	if (err)
+	if (err) {
+		dnet_log_err(n, "%s: failed to schedule state: %d", dnet_dump_id(st->id), err);
 		goto err_out_snd_lock_destroy;
+	}
 
 	if (!id) {
-		st->join_state = DNET_CLIENT;
 		pthread_rwlock_wrlock(&n->state_lock);
 		list_add_tail(&st->state_entry, &n->empty_state_list);
 		pthread_rwlock_unlock(&n->state_lock);
 	} else {
-		st->join_state = DNET_SERVER;
-		memcpy(st->id, id, DNET_ID_SIZE);
 		err = dnet_state_insert(st);
 		if (err)
 			goto err_out_snd_lock_destroy;
 	}
 
 	err = dnet_signal_thread(st, DNET_THREAD_SCHEDULE);
-	if (err)
+	if (err) {
+		dnet_log_err(n, "%s: failed to signal thread: %d", dnet_dump_id(st->id), err);
 		goto err_out_state_remove;
+	}
 
 	return st;
 
@@ -1130,7 +1135,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 
 	event_del(&st->event);
 
-	if (st->s)
+	if (st->s >= 0)
 		close(st->s);
 
 	dnet_lock_destroy(&st->snd_lock);

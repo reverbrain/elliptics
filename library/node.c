@@ -113,7 +113,7 @@ void dnet_state_remove(struct dnet_net_state *st)
 	pthread_rwlock_unlock(&n->state_lock);
 }
 
-static int dnet_state_insert_raw(struct dnet_net_state *new)
+int dnet_state_insert_raw(struct dnet_net_state *new)
 {
 	struct dnet_node *n = new->n;
 	struct dnet_net_state *st;
@@ -123,7 +123,7 @@ static int dnet_state_insert_raw(struct dnet_net_state *new)
 		err = dnet_id_cmp(st->id, new->id);
 
 		if (!err) {
-#if 0
+#if 1
 			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: old: %s.\n", dnet_dump_id(st->id),
 				dnet_server_convert_dnet_addr(&st->addr));
 			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: new: %s.\n", dnet_dump_id(new->id),
@@ -661,22 +661,20 @@ void dnet_node_destroy(struct dnet_node *n)
 	struct dnet_net_state *st, *tmp;
 	struct dnet_addr_storage *it, *atmp;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: destroying node at %s.\n",
-			dnet_dump_id(n->id), dnet_dump_node(n));
+	dnet_log(n, DNET_LOG_INFO, "%s: destroying node at %s, st: %p.\n",
+			dnet_dump_id(n->id), dnet_dump_node(n), n->st);
 
 	n->need_exit = 1;
 	dnet_resend_thread_stop(n);
 
 	list_for_each_entry_safe(st, tmp, &n->empty_state_list, state_entry) {
-		dnet_state_put(n->st);
+		list_del_init(&st->state_entry);
+		dnet_state_put(st);
 	}
 
 	dnet_check_tree(n, 1);
 	list_for_each_entry_safe(st, tmp, &n->state_list, state_entry) {
 		list_del_init(&st->state_entry);
-
-		dnet_log(n, DNET_LOG_NOTICE, "%s: addr: %s, refcnt: %d.\n",
-				dnet_dump_id(st->id), dnet_state_dump_addr(st), atomic_read(&st->refcnt));
 		dnet_state_put(st);
 	}
 
