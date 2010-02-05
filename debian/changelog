@@ -1,33 +1,14 @@
-elliptics (2.6.3-29) unstable; urgency=low
+elliptics (2.6.3-31) unstable; urgency=low
 
-  *  # Please enter the commit message for your changes. Lines starting
-    # with '#' will be ignored, and an empty message aborts the commit.
-    # On branch master # Changes to be committed: #   (use "git reset
-    HEAD <file>..." to unstage) # # modified:   debian/changelog #
-    modified:   library/dnet.c # modified:   library/elliptics.h #
-    modified:   library/net.c # modified:   library/node.c # # Untracked
-    files: #   (use "git add <file>..." to include in what will be
-    committed) # # build-stamp # debian/dirs # debian/files #
-    example/check/dnet_check_log # example/dnet_check_log #
-    example/fcgi/dnet_fcgi # example/fcgi/fcgi.c.orig # generated.log
+  * Fixed printf warning
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 05 Feb 2010 04:31:53 +0300
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 05 Feb 2010 05:40:29 +0300
 
-elliptics (2.6.3-28) unstable; urgency=low
+elliptics (2.6.3-30) unstable; urgency=low
 
-  *  # Please enter the commit message for your changes. Lines starting
-    # with '#' will be ignored, and an empty message aborts the commit.
-    # On branch master # Changes to be committed: #   (use "git reset
-    HEAD <file>..." to unstage) # # modified:   debian/changelog #
-    modified:   example/check/log.c # modified:   library/dnet.c #
-    modified:   library/elliptics.h # modified:   library/net.c #
-    modified:   library/node.c # # Untracked files: #   (use "git add
-    <file>..." to include in what will be committed) # # build-stamp #
-    debian/dirs # debian/files # example/check/dnet_check_log #
-    example/dnet_check_log # example/fcgi/dnet_fcgi #
-    example/fcgi/fcgi.c.orig # generated.log
+  * Greatly simplified network/reconnection logic.
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 05 Feb 2010 04:31:25 +0300
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 05 Feb 2010 04:33:09 +0300
 
 elliptics (2.6.3-27) unstable; urgency=low
 
@@ -38,7 +19,6 @@ elliptics (2.6.3-27) unstable; urgency=low
 elliptics (2.6.3-26) unstable; urgency=low
 
   * Debian changelog update.
-  * 
 
  -- Evgeniy Polyakov <zbr@gavana>  Thu, 04 Feb 2010 21:16:09 +0300
 
