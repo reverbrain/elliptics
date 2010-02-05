@@ -1659,7 +1659,10 @@ again:
 			n = n->rb_right;
 
 		dnet_log(node, DNET_LOG_NOTICE, "%s: map: %llu/%llu, history: %llu/%llu, cmp: %d, n: %p.\n",
-				dnet_dump_id(a->id), m->offset, m->size, a->offset, a->size, cmp, n);
+				dnet_dump_id(a->id),
+				(unsigned long long)m->offset, (unsigned long long)m->size,
+				(unsigned long long)a->offset, (unsigned long long)a->size,
+				cmp, n);
 		if (!cmp)
 			break;
 	}
