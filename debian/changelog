@@ -1,3 +1,15 @@
+elliptics (2.6.3-33) unstable; urgency=low
+
+  * Fixed fcgi module to properly use dnet_fcgi_output() printing helper
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 06 Feb 2010 02:47:00 +0300
+
+elliptics (2.6.3-32) unstable; urgency=low
+
+  * Debian changelog update
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 05 Feb 2010 05:41:16 +0300
+
 elliptics (2.6.3-31) unstable; urgency=low
 
   * Fixed printf warning
