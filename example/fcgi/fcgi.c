@@ -41,6 +41,7 @@
 #define DNET_FCGI_COOKIE_DELIMITER	"obscure_cookie="
 #define DNET_FCGI_COOKIE_ENDING		";"
 #define DNET_FCGI_TOKEN_STRING		" "
+#define DNET_FCGI_TOKEN_HEADER_SPLIT_STRING		"|"
 #define DNET_FCGI_TOKEN_DELIM		','
 #define DNET_FCGI_STORAGE_BIT_MASK	0xff
 
@@ -96,6 +97,9 @@ static int (* dnet_fcgi_external_callback_stop)(char *query, char *addr, char *i
 static void (* dnet_fcgi_external_exit)(void);
 
 static FCGX_Request dnet_fcgi_request;
+
+static char **dnet_fcgi_pheaders;
+static int dnet_fcgi_pheaders_num;
 
 #define LISTENSOCK_FILENO	0
 #define LISTENSOCK_FLAGS	0
@@ -1298,6 +1302,83 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_fcgi_output_permanent_headers(void)
+{
+	int i;
+
+	for (i=0; i<dnet_fcgi_pheaders_num; ++i) {
+		fprintf(dnet_fcgi_log, "%s\r\n", dnet_fcgi_pheaders[i]);
+		dnet_fcgi_output("%s\r\n", dnet_fcgi_pheaders[i]);
+	}
+
+	return 0;
+}
+
+static int dnet_fcgi_setup_permanent_headers(void)
+{
+	char *env = getenv("DNET_FCGI_PERMANENT_HEADERS");
+	int err = -ENOENT, i;
+	char *tmp, *saveptr, *token;
+	
+	if (!env)
+		goto err_out_exit;
+
+	tmp = strdup(env);
+	if (!tmp) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	env = tmp;
+
+	while (1) {
+		token = strtok_r(tmp, DNET_FCGI_TOKEN_HEADER_SPLIT_STRING, &saveptr);
+		if (!token)
+			break;
+
+		dnet_fcgi_pheaders_num++;
+		dnet_fcgi_pheaders = realloc(dnet_fcgi_pheaders, dnet_fcgi_pheaders_num * sizeof(char *));
+		if (!dnet_fcgi_pheaders) {
+			err = -ENOMEM;
+			goto err_out_free_all;
+		}
+
+		fprintf(dnet_fcgi_log, "Added '%s' permanent header.\n", token);
+
+		dnet_fcgi_pheaders[dnet_fcgi_pheaders_num - 1] = strdup(token);
+		if (!dnet_fcgi_pheaders[dnet_fcgi_pheaders_num - 1]) {
+			err = -ENOMEM;
+			dnet_fcgi_pheaders_num--;
+			goto err_out_free_all;
+		}
+
+		tmp = NULL;
+	}
+
+	free(env);
+	return 0;
+
+err_out_free_all:
+	for (i=0; i<dnet_fcgi_pheaders_num; ++i)
+		free(dnet_fcgi_pheaders[i]);
+	free(dnet_fcgi_pheaders);
+	dnet_fcgi_pheaders_num = 0;
+	free(env);
+err_out_exit:
+	return err;
+}
+
+static void dnet_fcgi_destroy_permanent_headers()
+{
+	int i;
+
+	for (i=0; i<dnet_fcgi_pheaders_num; ++i)
+		free(dnet_fcgi_pheaders[i]);
+
+	free(dnet_fcgi_pheaders);
+	dnet_fcgi_pheaders_num = 0;
+}
+
 int main()
 {
 	char *p, *addr, *reason, *method, *query;
@@ -1414,6 +1495,8 @@ int main()
 	if (err)
 		goto err_out_free;
 
+	dnet_fcgi_setup_permanent_headers();
+
 	p = getenv("DNET_FCGI_DNS_LOOKUP");
 	if (p)
 		dnet_fcgi_dns_lookup = atoi(p);
@@ -1529,6 +1612,8 @@ int main()
 		if (dnet_fcgi_external_callback_start)
 			dnet_fcgi_external_start(n, query, addr, id, length);
 
+		dnet_fcgi_output_permanent_headers();
+
 		if (!strncmp(method, "POST", 4)) {
 			if (!post_allowed) {
 				err = -EACCES;
@@ -1573,6 +1658,7 @@ err_continue:
 
 	free(direct_patterns);
 	free(dnet_fcgi_direct_patterns);
+	dnet_fcgi_destroy_permanent_headers();
 
 	if (dnet_fcgi_external_exit)
 		dnet_fcgi_external_exit();
