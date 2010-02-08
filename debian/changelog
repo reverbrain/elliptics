@@ -1,3 +1,9 @@
+elliptics (2.6.3-34) unstable; urgency=low
+
+  * Added client reconnection logic.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Mon, 08 Feb 2010 21:45:49 +0300
+
 elliptics (2.6.3-33) unstable; urgency=low
 
   * Fixed fcgi module to properly use dnet_fcgi_output() printing helper
