@@ -475,6 +475,7 @@ static int dnet_add_reconnect_state(struct dnet_net_state *st)
 	}
 
 	memcpy(&a->addr, &st->addr, sizeof(struct dnet_addr));
+	a->__join_state = st->__join_state;
 
 	pthread_mutex_lock(&n->reconnect_lock);
 	list_for_each_entry(it, &n->reconnect_list, reconnect_entry) {

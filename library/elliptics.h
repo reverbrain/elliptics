@@ -306,11 +306,8 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 		struct sockaddr *sa, unsigned int salen, int listening);
 
 enum dnet_join_state {
-	DNET_CLIENT = 1,	/* Node did not not join the network */
-	DNET_CLIENT_JOINED,	/* Node directly connected to the server and joined the network */
-	DNET_SERVER,		/* Node was added into route table */
-	DNET_JOINED,		/* Node joined the network */
-	DNET_REJOIN,		/* Some of the states reconnected and node needs to rejoin */
+	DNET_JOIN = 1,			/* Node joined the network */
+	DNET_WANT_RECONNECT,		/* State must be reconnected, when remote peer failed */
 };
 
 struct dnet_data_req
@@ -428,6 +425,7 @@ struct dnet_addr_storage
 {
 	struct list_head		reconnect_entry;
 	struct dnet_addr		addr;
+	unsigned int			__join_state;
 };
 
 /*
