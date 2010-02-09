@@ -127,8 +127,8 @@ static int dnet_fcgi_output(const char *format, ...)
 	char *ptr = dnet_fcgi_tmp_buf;
 
 	va_start(args, format);
-	size = vsnprintf(dnet_fcgi_tmp_buf, sizeof(dnet_fcgi_tmp_buf), format, args);
 	pthread_mutex_lock(&dnet_fcgi_output_lock);
+	size = vsnprintf(dnet_fcgi_tmp_buf, sizeof(dnet_fcgi_tmp_buf), format, args);
 	while (size) {
 		err = FCGX_PutStr(ptr, size, dnet_fcgi_request.out);
 		if (err < 0 && errno != EAGAIN) {

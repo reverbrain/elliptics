@@ -1,3 +1,10 @@
+elliptics (2.6.3-37) unstable; urgency=low
+
+  * Perform vsnprintf() parsing unside locked section to protect
+    dnet_fcgi_tmp_buf content.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Tue, 09 Feb 2010 18:39:32 +0300
+
 elliptics (2.6.3-36) unstable; urgency=low
 
   * Fixed off-by-one cookie truncation.
