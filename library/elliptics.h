@@ -284,8 +284,7 @@ static inline char *dnet_dump_node(struct dnet_node *n)
 {
 	static char buf[128];
 
-	snprintf(buf, sizeof(buf), "%s", dnet_server_convert_dnet_addr(&n->addr));
-	return buf;
+	return dnet_server_convert_dnet_addr_raw(&n->addr, buf, sizeof(buf));
 }
 
 struct dnet_trans;

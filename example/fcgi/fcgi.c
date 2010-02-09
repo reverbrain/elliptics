@@ -512,6 +512,11 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					hex_dir,
 					id);
 
+			/*
+			 * Race lives here - multiple threads can simultaneously
+			 * use shared sign/cookie buffers.
+			 * But we are safe until lookup is called in parallel.
+			 */
 			if (dnet_fcgi_sign_key) {
 				err = dnet_fcgi_generate_sign(timestamp);
 				if (err)
@@ -661,10 +666,11 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 	}
 
 	if (!(cmd->flags & DNET_FLAGS_MORE)) {
+		char id[DNET_ID_SIZE*2+1];
 		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
 		fprintf(dnet_fcgi_log, "%s: upload completed: %d.\n",
 				dnet_dump_id(cmd->id), dnet_fcgi_request_completed);
-		dnet_fcgi_output("<id>%s</id>", dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
+		dnet_fcgi_output("<id>%s</id>", dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id));
 	}
 
 	if (cmd->status) {
@@ -955,6 +961,8 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 	if (state && cmd && attr && attr->size == sizeof(struct dnet_stat)) {
 		float la[3];
 		struct dnet_stat *st;
+		char id[DNET_ID_SIZE * 2 + 1];
+		char addr[128];
 
 		st = (struct dnet_stat *)(attr + 1);
 
@@ -967,9 +975,9 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 		dnet_fcgi_output("<stat addr=\"%s\" id=\"%s\"><la>%.2f %.2f %.2f</la>"
 				"<memtotal>%llu KB</memtotal><memfree>%llu KB</memfree><memcached>%llu KB</memcached>"
 				"<storage_size>%llu MB</storage_size><available_size>%llu MB</available_size>"
-					"<files>%llu</files><fsid>0x%llx</fsid></stat>",
-				dnet_state_dump_addr(state),
-				dnet_dump_id_len(cmd->id, DNET_ID_SIZE),
+				"<files>%llu</files><fsid>0x%llx</fsid></stat>",
+				dnet_server_convert_dnet_addr_raw(dnet_state_addr(state), addr, sizeof(addr)),
+				dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id),
 				la[0], la[1], la[2],
 				(unsigned long long)st->vm_total,
 				(unsigned long long)st->vm_free,

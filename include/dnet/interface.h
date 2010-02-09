@@ -324,19 +324,23 @@ void dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...) D
 /*
  * Logging helpers used for the fine-printed address representation.
  */
-static inline char *dnet_server_convert_addr(struct sockaddr *sa, unsigned int len)
+static inline char *dnet_server_convert_addr_raw(struct sockaddr *sa, unsigned int len, char *inet_addr, int inet_size)
 {
-	static char inet_addr[128];
-
-	memset(&inet_addr, 0, sizeof(inet_addr));
+	memset(inet_addr, 0, inet_size);
 	if (len == sizeof(struct sockaddr_in)) {
 		struct sockaddr_in *in = (struct sockaddr_in *)sa;
-		sprintf(inet_addr, "%s", inet_ntoa(in->sin_addr));
+		snprintf(inet_addr, inet_size, "%s", inet_ntoa(in->sin_addr));
 	} else if (len == sizeof(struct sockaddr_in6)) {
 		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa;
-		sprintf(inet_addr, NIP6_FMT, NIP6(in->sin6_addr));
+		snprintf(inet_addr, inet_size, NIP6_FMT, NIP6(in->sin6_addr));
 	}
 	return inet_addr;
+}
+
+static inline char *dnet_server_convert_addr(struct sockaddr *sa, unsigned int len)
+{
+	static char __inet_addr[128];
+	return dnet_server_convert_addr_raw(sa, len, __inet_addr, sizeof(__inet_addr));
 }
 
 static inline int dnet_server_convert_port(struct sockaddr *sa, unsigned int len)
@@ -351,21 +355,25 @@ static inline int dnet_server_convert_port(struct sockaddr *sa, unsigned int len
 	return 0;
 }
 
-static inline char *dnet_server_convert_dnet_addr(struct dnet_addr *sa)
+static inline char *dnet_server_convert_dnet_addr_raw(struct dnet_addr *sa, char *inet_addr, int inet_size)
 {
-	static char inet_addr[128];
-
-	memset(&inet_addr, 0, sizeof(inet_addr));
+	memset(inet_addr, 0, inet_size);
 	if (sa->addr_len == sizeof(struct sockaddr_in)) {
 		struct sockaddr_in *in = (struct sockaddr_in *)sa->addr;
-		sprintf(inet_addr, "%s:%d", inet_ntoa(in->sin_addr),
+		snprintf(inet_addr, inet_size, "%s:%d", inet_ntoa(in->sin_addr),
 				ntohs(in->sin_port));
 	} else if (sa->addr_len == sizeof(struct sockaddr_in6)) {
 		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa->addr;
-		sprintf(inet_addr, NIP6_FMT":%d", NIP6(in->sin6_addr),
+		snprintf(inet_addr, inet_size, NIP6_FMT":%d", NIP6(in->sin6_addr),
 				ntohs(in->sin6_port));
 	}
 	return inet_addr;
+}
+
+static inline char *dnet_server_convert_dnet_addr(struct dnet_addr *sa)
+{
+	static char ___inet_addr[128];
+	return dnet_server_convert_dnet_addr_raw(sa, ___inet_addr, sizeof(___inet_addr));
 }
 
 struct dnet_addr *dnet_state_addr(struct dnet_net_state *st);
@@ -430,17 +438,22 @@ int dnet_join(struct dnet_node *n);
 /*
  * Logging helper used to print ID (DNET_ID_SIZE bytes) as a hex string.
  */
-static inline char *dnet_dump_id_len(const unsigned char *id, unsigned int len)
+static inline char *dnet_dump_id_len_raw(const unsigned char *id, unsigned int len, char *dst)
 {
 	unsigned int i;
-	static char __dnet_dump_str[2 * DNET_ID_SIZE + 1];
 
 	if (len > DNET_ID_SIZE)
 		len = DNET_ID_SIZE;
 
 	for (i=0; i<len; ++i)
-		sprintf(&__dnet_dump_str[2*i], "%02x", id[i]);
-	return __dnet_dump_str;
+		sprintf(&dst[2*i], "%02x", id[i]);
+	return dst;
+}
+
+static inline char *dnet_dump_id_len(const unsigned char *id, unsigned int len)
+{
+	static char __dnet_dump_str[2 * DNET_ID_SIZE + 1];
+	return dnet_dump_id_len_raw(id, len, __dnet_dump_str);
 }
 
 static inline char *dnet_dump_id(const unsigned char *id)
