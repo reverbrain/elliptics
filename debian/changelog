@@ -1,3 +1,9 @@
+elliptics (2.6.3-36) unstable; urgency=low
+
+  * Fixed off-by-one cookie truncation.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Tue, 09 Feb 2010 16:45:43 +0300
+
 elliptics (2.6.3-35) unstable; urgency=low
 
   * Added permanent headers, which are added on every request.
