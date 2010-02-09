@@ -367,7 +367,7 @@ static int dnet_fcgi_generate_sign(long timestamp)
 	char *cookie = FCGX_GetParam(dnet_fcgi_cookie_header, dnet_fcgi_request.envp);
 	struct dnet_crypto_engine *e = dnet_fcgi_sign_hash;
 	int err, len;
-	char cookie_res[128];
+	char cookie_res[256];
 	unsigned int rsize = sizeof(dnet_fcgi_sign_data);
 
 	if (cookie) {
@@ -382,10 +382,13 @@ static int dnet_fcgi_generate_sign(long timestamp)
 			val += dnet_fcgi_cookie_delimiter_len;
 
 			end = strstr(val, dnet_fcgi_cookie_ending);
+			if (end)
+				len = end - val + 1; /* including NULL byte */
+			else
+				len = sizeof(cookie_res);
 
-			len = end - val;
-			if (len > (int)sizeof(cookie_res) - 1)
-				len = sizeof(cookie_res) - 1;
+			if (len > (int)sizeof(cookie_res))
+				len = sizeof(cookie_res);
 
 			snprintf(cookie_res, len, "%s", val);
 			cookie = cookie_res;
