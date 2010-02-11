@@ -45,6 +45,8 @@
 #define DNET_FCGI_TOKEN_DELIM		','
 #define DNET_FCGI_STORAGE_BIT_MASK	0xff
 
+static long dnet_fcgi_timeout_sec = 10;
+
 static FILE *dnet_fcgi_log;
 static pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -335,12 +337,19 @@ err_out_exit:
 	return err;
 }
 
-#define dnet_fcgi_wait(condition)						\
-({										\
-	pthread_mutex_lock(&dnet_fcgi_wait_lock);				\
-	while (!(condition)) 							\
-		pthread_cond_wait(&dnet_fcgi_cond, &dnet_fcgi_wait_lock);	\
-	pthread_mutex_unlock(&dnet_fcgi_wait_lock);				\
+#define dnet_fcgi_wait(condition, wts)							\
+({											\
+	int _err = 0;									\
+	struct timespec _ts;								\
+ 	struct timeval _tv;								\
+	gettimeofday(&_tv, NULL);							\
+	_ts.tv_nsec = _tv.tv_usec * 1000 + (wts)->tv_nsec;				\
+	_ts.tv_sec = _tv.tv_sec + (wts)->tv_sec;						\
+	pthread_mutex_lock(&dnet_fcgi_wait_lock);					\
+	while (!(condition) && !_err)							\
+		_err = pthread_cond_timedwait(&dnet_fcgi_cond, &dnet_fcgi_wait_lock, &_ts);		\
+	pthread_mutex_unlock(&dnet_fcgi_wait_lock);					\
+	-_err;										\
 })
 
 static void dnet_fcgi_wakeup(int err)
@@ -571,6 +580,7 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len)
 	int err, error = -ENOENT;
 	int pos = 0, num = 0;
 	struct dnet_trans_control ctl;
+	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	fprintf(dnet_fcgi_log, "Unlinking object '%s'.\n", obj);
 
@@ -602,7 +612,11 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len)
 			error = 0;
 	}
 
-	dnet_fcgi_wait(dnet_fcgi_request_completed == num);
+	err = dnet_fcgi_wait(dnet_fcgi_request_completed == num, &ts);
+	if (err) {
+		fprintf(dnet_fcgi_log, "Failed to wait for removal completion of '%s' object.\n", obj);
+		error = err;
+	}
 	return error;
 }
 
@@ -614,6 +628,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 
 	while (1) {
 		unsigned int rsize = DNET_ID_SIZE;
+		struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 		err = dnet_transform(n, obj, len, dnet_fcgi_id, addr, &rsize, &pos);
 		if (err) {
@@ -641,7 +656,12 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 		}
 
 
-		dnet_fcgi_wait(dnet_fcgi_request_completed != dnet_fcgi_request_init_value);
+		err = dnet_fcgi_wait(dnet_fcgi_request_completed != dnet_fcgi_request_init_value, &ts);
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: IO wait completion failed: obj: '%s': %d.\n", dnet_fcgi_id, obj, err);
+			error = err;
+			continue;
+		}
 
 		if (dnet_fcgi_request_completed < 0) {
 			error = dnet_fcgi_request_completed;
@@ -688,6 +708,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 	struct dnet_io_control ctl;
 	int trans_num = 0;
 	int err;
+	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -720,7 +741,10 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 
 	fprintf(dnet_fcgi_log, "%s: waiting for upload completion: %d/%d.\n",
 			addr, dnet_fcgi_request_completed, trans_num);
-	dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num);
+	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num, &ts);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: upload wait completion failed: obj: '%s': %d.\n", addr, obj, err);
+	}
 	dnet_fcgi_output("</post>\r\n");
 
 err_out_exit:
@@ -996,19 +1020,22 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 			struct dnet_attr *attr,
 			void *priv))
 {
-	int err;
+	int err, num;
+	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	dnet_fcgi_stat_good = dnet_fcgi_stat_bad = 0;
 	dnet_fcgi_request_completed = 0;
 
-	err = dnet_request_stat(n, NULL, complete, NULL);
+	num = err = dnet_request_stat(n, NULL, complete, NULL);
 	if (err < 0) {
 		fprintf(dnet_fcgi_log, "Failed to request stat: %d.\n", err);
 		goto err_out_exit;
 	}
 
-	dnet_fcgi_wait(err == dnet_fcgi_request_completed);
-	err = 0;
+	err = dnet_fcgi_wait(num == dnet_fcgi_request_completed, &ts);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "Statistics request wait completion failed: %d.\n", err);
+	}
 err_out_exit:
 	return err;
 }

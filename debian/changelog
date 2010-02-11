@@ -1,3 +1,9 @@
+elliptics (2.6.3-40) unstable; urgency=low
+
+  * Added timeouts into FCGI waits
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 11 Feb 2010 14:54:54 +0300
+
 elliptics (2.6.3-39) unstable; urgency=low
 
   * Check if state was already added when reconnection establishes
