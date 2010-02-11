@@ -1,3 +1,10 @@
+elliptics (2.6.3-39) unstable; urgency=low
+
+  * Check if state was already added when reconnection establishes
+    connection, but can not create state.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 11 Feb 2010 14:28:04 +0300
+
 elliptics (2.6.3-38) unstable; urgency=low
 
   * Implemented ability to dump address or ID into provided buffer, use

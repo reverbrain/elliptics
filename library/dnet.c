@@ -2260,6 +2260,12 @@ int dnet_try_reconnect(struct dnet_node *n)
 		st = dnet_add_state_socket(n, &ast->addr, s);
 		if (!st) {
 			close(s);
+
+			st = dnet_state_search_by_addr(n, &ast->addr);
+			if (st) {
+				dnet_state_put(st);
+				goto out_remove;
+			}
 			continue;
 		}
 
@@ -2273,6 +2279,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 			}
 		}
 
+out_remove:
 		list_del(&ast->reconnect_entry);
 		free(ast);
 	}

@@ -116,6 +116,7 @@ void *dnet_state_process(void *data);
 int dnet_state_insert(struct dnet_net_state *new);
 int dnet_state_insert_raw(struct dnet_net_state *new);
 void dnet_state_remove(struct dnet_net_state *st);
+struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 
