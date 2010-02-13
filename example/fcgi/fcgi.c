@@ -352,13 +352,15 @@ err_out_exit:
 	-_err;										\
 })
 
-static void dnet_fcgi_wakeup(int err)
-{
-	pthread_mutex_lock(&dnet_fcgi_wait_lock);
-	dnet_fcgi_request_completed = err;
-	pthread_cond_broadcast(&dnet_fcgi_cond);
-	pthread_mutex_unlock(&dnet_fcgi_wait_lock);
-}
+#define dnet_fcgi_wakeup(doit)						\
+({										\
+ 	int ______ret;								\
+	pthread_mutex_lock(&dnet_fcgi_wait_lock);				\
+ 	______ret = (doit);							\
+	pthread_cond_broadcast(&dnet_fcgi_cond);					\
+	pthread_mutex_unlock(&dnet_fcgi_wait_lock);				\
+ 	______ret;								\
+})
 
 static void dnet_fcgi_data_to_hex(char *dst, unsigned int dlen, unsigned char *src, unsigned int slen)
 {
@@ -549,7 +551,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			err = 0;
 		}
 
-		dnet_fcgi_wakeup(err);
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
 	}
 
 	if (cmd->status || !cmd->size) {
@@ -561,7 +563,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 err_out_exit:
 	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
-		dnet_fcgi_wakeup(err);
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
 	return err;
 }
 
@@ -570,7 +572,7 @@ static int dnet_fcgi_unlink_complete(struct dnet_net_state *st __unused,
 		void *priv __unused)
 {
 	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
 	return 0;
 }
 
@@ -687,7 +689,7 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 	if (!(cmd->flags & DNET_FLAGS_MORE)) {
 		char id[DNET_ID_SIZE*2+1];
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
 		fprintf(dnet_fcgi_log, "%s: upload completed: %d.\n",
 				dnet_dump_id(cmd->id), dnet_fcgi_request_completed);
 		dnet_fcgi_output("<id>%s</id>", dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id));
@@ -955,7 +957,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 err_out_exit:
 	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
-		dnet_fcgi_wakeup(err);
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
 	return err;
 }
 
@@ -966,16 +968,18 @@ static int dnet_fcgi_stat_complete(struct dnet_net_state *state,
 		if (cmd)
 			fprintf(dnet_fcgi_log, "state: %p, cmd: %p, err: %d.\n", state, cmd, cmd->status);
 		dnet_fcgi_stat_bad++;
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
-		return 0;
+		goto out_wakeup;
 	}
 
 	if (!(cmd->flags & DNET_FLAGS_MORE)) {
 		dnet_fcgi_stat_good++;
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
-		return 0;
+		goto out_wakeup;
 	}
 
+	return 0;
+
+out_wakeup:
+	dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
 	return 0;
 }
 
@@ -1034,7 +1038,8 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 
 	err = dnet_fcgi_wait(num == dnet_fcgi_request_completed, &ts);
 	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "Statistics request wait completion failed: %d.\n", err);
+		dnet_log_raw(n, DNET_LOG_ERROR, "Statistics request wait completion failed: "
+				"%d, num: %d, completed: %d.\n", err, num, dnet_fcgi_request_completed);
 	}
 err_out_exit:
 	return err;

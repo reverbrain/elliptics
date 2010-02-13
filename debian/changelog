@@ -1,3 +1,11 @@
+elliptics (2.6.3-42) unstable; urgency=low
+
+  * Made wakeup a macros which accepts code executed atomically under
+    wait lock. This fixes race in statistics request when multiple
+    thread update completion counter.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 13 Feb 2010 18:58:35 +0300
+
 elliptics (2.6.3-41) unstable; urgency=low
 
   * Added dbg package option.
