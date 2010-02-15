@@ -116,6 +116,7 @@ void *dnet_state_process(void *data);
 int dnet_state_insert(struct dnet_net_state *new);
 int dnet_state_insert_raw(struct dnet_net_state *new);
 void dnet_state_remove(struct dnet_net_state *st);
+struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
 
@@ -284,8 +285,7 @@ static inline char *dnet_dump_node(struct dnet_node *n)
 {
 	static char buf[128];
 
-	snprintf(buf, sizeof(buf), "%s", dnet_server_convert_dnet_addr(&n->addr));
-	return buf;
+	return dnet_server_convert_dnet_addr_raw(&n->addr, buf, sizeof(buf));
 }
 
 struct dnet_trans;
@@ -306,11 +306,8 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 		struct sockaddr *sa, unsigned int salen, int listening);
 
 enum dnet_join_state {
-	DNET_CLIENT = 1,	/* Node did not not join the network */
-	DNET_CLIENT_JOINED,	/* Node directly connected to the server and joined the network */
-	DNET_SERVER,		/* Node was added into route table */
-	DNET_JOINED,		/* Node joined the network */
-	DNET_REJOIN,		/* Some of the states reconnected and node needs to rejoin */
+	DNET_JOIN = 1,			/* Node joined the network */
+	DNET_WANT_RECONNECT,		/* State must be reconnected, when remote peer failed */
 };
 
 struct dnet_data_req
@@ -428,6 +425,7 @@ struct dnet_addr_storage
 {
 	struct list_head		reconnect_entry;
 	struct dnet_addr		addr;
+	unsigned int			__join_state;
 };
 
 /*

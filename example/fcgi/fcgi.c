@@ -41,8 +41,11 @@
 #define DNET_FCGI_COOKIE_DELIMITER	"obscure_cookie="
 #define DNET_FCGI_COOKIE_ENDING		";"
 #define DNET_FCGI_TOKEN_STRING		" "
+#define DNET_FCGI_TOKEN_HEADER_SPLIT_STRING		"|"
 #define DNET_FCGI_TOKEN_DELIM		','
 #define DNET_FCGI_STORAGE_BIT_MASK	0xff
+
+static long dnet_fcgi_timeout_sec = 10;
 
 static FILE *dnet_fcgi_log;
 static pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
@@ -97,6 +100,9 @@ static void (* dnet_fcgi_external_exit)(void);
 
 static FCGX_Request dnet_fcgi_request;
 
+static char **dnet_fcgi_pheaders;
+static int dnet_fcgi_pheaders_num;
+
 #define LISTENSOCK_FILENO	0
 #define LISTENSOCK_FLAGS	0
 
@@ -123,8 +129,8 @@ static int dnet_fcgi_output(const char *format, ...)
 	char *ptr = dnet_fcgi_tmp_buf;
 
 	va_start(args, format);
-	size = vsnprintf(dnet_fcgi_tmp_buf, sizeof(dnet_fcgi_tmp_buf), format, args);
 	pthread_mutex_lock(&dnet_fcgi_output_lock);
+	size = vsnprintf(dnet_fcgi_tmp_buf, sizeof(dnet_fcgi_tmp_buf), format, args);
 	while (size) {
 		err = FCGX_PutStr(ptr, size, dnet_fcgi_request.out);
 		if (err < 0 && errno != EAGAIN) {
@@ -331,21 +337,30 @@ err_out_exit:
 	return err;
 }
 
-#define dnet_fcgi_wait(condition)						\
-({										\
-	pthread_mutex_lock(&dnet_fcgi_wait_lock);				\
-	while (!(condition)) 							\
-		pthread_cond_wait(&dnet_fcgi_cond, &dnet_fcgi_wait_lock);	\
-	pthread_mutex_unlock(&dnet_fcgi_wait_lock);				\
+#define dnet_fcgi_wait(condition, wts)							\
+({											\
+	int _err = 0;									\
+	struct timespec _ts;								\
+ 	struct timeval _tv;								\
+	gettimeofday(&_tv, NULL);							\
+	_ts.tv_nsec = _tv.tv_usec * 1000 + (wts)->tv_nsec;				\
+	_ts.tv_sec = _tv.tv_sec + (wts)->tv_sec;						\
+	pthread_mutex_lock(&dnet_fcgi_wait_lock);					\
+	while (!(condition) && !_err)							\
+		_err = pthread_cond_timedwait(&dnet_fcgi_cond, &dnet_fcgi_wait_lock, &_ts);		\
+	pthread_mutex_unlock(&dnet_fcgi_wait_lock);					\
+	-_err;										\
 })
 
-static void dnet_fcgi_wakeup(int err)
-{
-	pthread_mutex_lock(&dnet_fcgi_wait_lock);
-	dnet_fcgi_request_completed = err;
-	pthread_cond_broadcast(&dnet_fcgi_cond);
-	pthread_mutex_unlock(&dnet_fcgi_wait_lock);
-}
+#define dnet_fcgi_wakeup(doit)						\
+({										\
+ 	int ______ret;								\
+	pthread_mutex_lock(&dnet_fcgi_wait_lock);				\
+ 	______ret = (doit);							\
+	pthread_cond_broadcast(&dnet_fcgi_cond);					\
+	pthread_mutex_unlock(&dnet_fcgi_wait_lock);				\
+ 	______ret;								\
+})
 
 static void dnet_fcgi_data_to_hex(char *dst, unsigned int dlen, unsigned char *src, unsigned int slen)
 {
@@ -363,7 +378,7 @@ static int dnet_fcgi_generate_sign(long timestamp)
 	char *cookie = FCGX_GetParam(dnet_fcgi_cookie_header, dnet_fcgi_request.envp);
 	struct dnet_crypto_engine *e = dnet_fcgi_sign_hash;
 	int err, len;
-	char cookie_res[128];
+	char cookie_res[256];
 	unsigned int rsize = sizeof(dnet_fcgi_sign_data);
 
 	if (cookie) {
@@ -378,10 +393,13 @@ static int dnet_fcgi_generate_sign(long timestamp)
 			val += dnet_fcgi_cookie_delimiter_len;
 
 			end = strstr(val, dnet_fcgi_cookie_ending);
+			if (end)
+				len = end - val + 1; /* including NULL byte */
+			else
+				len = sizeof(cookie_res);
 
-			len = end - val;
-			if (len > (int)sizeof(cookie_res) - 1)
-				len = sizeof(cookie_res) - 1;
+			if (len > (int)sizeof(cookie_res))
+				len = sizeof(cookie_res);
 
 			snprintf(cookie_res, len, "%s", val);
 			cookie = cookie_res;
@@ -505,6 +523,11 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					hex_dir,
 					id);
 
+			/*
+			 * Race lives here - multiple threads can simultaneously
+			 * use shared sign/cookie buffers.
+			 * But we are safe until lookup is called in parallel.
+			 */
 			if (dnet_fcgi_sign_key) {
 				err = dnet_fcgi_generate_sign(timestamp);
 				if (err)
@@ -528,7 +551,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			err = 0;
 		}
 
-		dnet_fcgi_wakeup(err);
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
 	}
 
 	if (cmd->status || !cmd->size) {
@@ -540,7 +563,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 err_out_exit:
 	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
-		dnet_fcgi_wakeup(err);
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
 	return err;
 }
 
@@ -549,7 +572,7 @@ static int dnet_fcgi_unlink_complete(struct dnet_net_state *st __unused,
 		void *priv __unused)
 {
 	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
 	return 0;
 }
 
@@ -559,6 +582,7 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len)
 	int err, error = -ENOENT;
 	int pos = 0, num = 0;
 	struct dnet_trans_control ctl;
+	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	fprintf(dnet_fcgi_log, "Unlinking object '%s'.\n", obj);
 
@@ -590,7 +614,11 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len)
 			error = 0;
 	}
 
-	dnet_fcgi_wait(dnet_fcgi_request_completed == num);
+	err = dnet_fcgi_wait(dnet_fcgi_request_completed == num, &ts);
+	if (err) {
+		fprintf(dnet_fcgi_log, "Failed to wait for removal completion of '%s' object.\n", obj);
+		error = err;
+	}
 	return error;
 }
 
@@ -602,6 +630,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 
 	while (1) {
 		unsigned int rsize = DNET_ID_SIZE;
+		struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 		err = dnet_transform(n, obj, len, dnet_fcgi_id, addr, &rsize, &pos);
 		if (err) {
@@ -629,7 +658,12 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 		}
 
 
-		dnet_fcgi_wait(dnet_fcgi_request_completed != dnet_fcgi_request_init_value);
+		err = dnet_fcgi_wait(dnet_fcgi_request_completed != dnet_fcgi_request_init_value, &ts);
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: IO wait completion failed: obj: '%s': %d.\n", dnet_fcgi_id, obj, err);
+			error = err;
+			continue;
+		}
 
 		if (dnet_fcgi_request_completed < 0) {
 			error = dnet_fcgi_request_completed;
@@ -654,10 +688,11 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 	}
 
 	if (!(cmd->flags & DNET_FLAGS_MORE)) {
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
+		char id[DNET_ID_SIZE*2+1];
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
 		fprintf(dnet_fcgi_log, "%s: upload completed: %d.\n",
 				dnet_dump_id(cmd->id), dnet_fcgi_request_completed);
-		dnet_fcgi_output("<id>%s</id>", dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
+		dnet_fcgi_output("<id>%s</id>", dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id));
 	}
 
 	if (cmd->status) {
@@ -675,6 +710,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 	struct dnet_io_control ctl;
 	int trans_num = 0;
 	int err;
+	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -707,7 +743,10 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 
 	fprintf(dnet_fcgi_log, "%s: waiting for upload completion: %d/%d.\n",
 			addr, dnet_fcgi_request_completed, trans_num);
-	dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num);
+	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num, &ts);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: upload wait completion failed: obj: '%s': %d.\n", addr, obj, err);
+	}
 	dnet_fcgi_output("</post>\r\n");
 
 err_out_exit:
@@ -918,7 +957,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 err_out_exit:
 	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
-		dnet_fcgi_wakeup(err);
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
 	return err;
 }
 
@@ -929,16 +968,18 @@ static int dnet_fcgi_stat_complete(struct dnet_net_state *state,
 		if (cmd)
 			fprintf(dnet_fcgi_log, "state: %p, cmd: %p, err: %d.\n", state, cmd, cmd->status);
 		dnet_fcgi_stat_bad++;
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
-		return 0;
+		goto out_wakeup;
 	}
 
 	if (!(cmd->flags & DNET_FLAGS_MORE)) {
 		dnet_fcgi_stat_good++;
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed + 1);
-		return 0;
+		goto out_wakeup;
 	}
 
+	return 0;
+
+out_wakeup:
+	dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
 	return 0;
 }
 
@@ -948,6 +989,8 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 	if (state && cmd && attr && attr->size == sizeof(struct dnet_stat)) {
 		float la[3];
 		struct dnet_stat *st;
+		char id[DNET_ID_SIZE * 2 + 1];
+		char addr[128];
 
 		st = (struct dnet_stat *)(attr + 1);
 
@@ -960,9 +1003,9 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 		dnet_fcgi_output("<stat addr=\"%s\" id=\"%s\"><la>%.2f %.2f %.2f</la>"
 				"<memtotal>%llu KB</memtotal><memfree>%llu KB</memfree><memcached>%llu KB</memcached>"
 				"<storage_size>%llu MB</storage_size><available_size>%llu MB</available_size>"
-					"<files>%llu</files><fsid>0x%llx</fsid></stat>",
-				dnet_state_dump_addr(state),
-				dnet_dump_id_len(cmd->id, DNET_ID_SIZE),
+				"<files>%llu</files><fsid>0x%llx</fsid></stat>",
+				dnet_server_convert_dnet_addr_raw(dnet_state_addr(state), addr, sizeof(addr)),
+				dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id),
 				la[0], la[1], la[2],
 				(unsigned long long)st->vm_total,
 				(unsigned long long)st->vm_free,
@@ -981,19 +1024,23 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 			struct dnet_attr *attr,
 			void *priv))
 {
-	int err;
+	int err, num;
+	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	dnet_fcgi_stat_good = dnet_fcgi_stat_bad = 0;
 	dnet_fcgi_request_completed = 0;
 
-	err = dnet_request_stat(n, NULL, complete, NULL);
+	num = err = dnet_request_stat(n, NULL, complete, NULL);
 	if (err < 0) {
 		fprintf(dnet_fcgi_log, "Failed to request stat: %d.\n", err);
 		goto err_out_exit;
 	}
 
-	dnet_fcgi_wait(err == dnet_fcgi_request_completed);
-	err = 0;
+	err = dnet_fcgi_wait(num == dnet_fcgi_request_completed, &ts);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "Statistics request wait completion failed: "
+				"%d, num: %d, completed: %d.\n", err, num, dnet_fcgi_request_completed);
+	}
 err_out_exit:
 	return err;
 }
@@ -1298,6 +1345,83 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_fcgi_output_permanent_headers(void)
+{
+	int i;
+
+	for (i=0; i<dnet_fcgi_pheaders_num; ++i) {
+		fprintf(dnet_fcgi_log, "%s\r\n", dnet_fcgi_pheaders[i]);
+		dnet_fcgi_output("%s\r\n", dnet_fcgi_pheaders[i]);
+	}
+
+	return 0;
+}
+
+static int dnet_fcgi_setup_permanent_headers(void)
+{
+	char *env = getenv("DNET_FCGI_PERMANENT_HEADERS");
+	int err = -ENOENT, i;
+	char *tmp, *saveptr, *token;
+	
+	if (!env)
+		goto err_out_exit;
+
+	tmp = strdup(env);
+	if (!tmp) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	env = tmp;
+
+	while (1) {
+		token = strtok_r(tmp, DNET_FCGI_TOKEN_HEADER_SPLIT_STRING, &saveptr);
+		if (!token)
+			break;
+
+		dnet_fcgi_pheaders_num++;
+		dnet_fcgi_pheaders = realloc(dnet_fcgi_pheaders, dnet_fcgi_pheaders_num * sizeof(char *));
+		if (!dnet_fcgi_pheaders) {
+			err = -ENOMEM;
+			goto err_out_free_all;
+		}
+
+		fprintf(dnet_fcgi_log, "Added '%s' permanent header.\n", token);
+
+		dnet_fcgi_pheaders[dnet_fcgi_pheaders_num - 1] = strdup(token);
+		if (!dnet_fcgi_pheaders[dnet_fcgi_pheaders_num - 1]) {
+			err = -ENOMEM;
+			dnet_fcgi_pheaders_num--;
+			goto err_out_free_all;
+		}
+
+		tmp = NULL;
+	}
+
+	free(env);
+	return 0;
+
+err_out_free_all:
+	for (i=0; i<dnet_fcgi_pheaders_num; ++i)
+		free(dnet_fcgi_pheaders[i]);
+	free(dnet_fcgi_pheaders);
+	dnet_fcgi_pheaders_num = 0;
+	free(env);
+err_out_exit:
+	return err;
+}
+
+static void dnet_fcgi_destroy_permanent_headers()
+{
+	int i;
+
+	for (i=0; i<dnet_fcgi_pheaders_num; ++i)
+		free(dnet_fcgi_pheaders[i]);
+
+	free(dnet_fcgi_pheaders);
+	dnet_fcgi_pheaders_num = 0;
+}
+
 int main()
 {
 	char *p, *addr, *reason, *method, *query;
@@ -1414,6 +1538,8 @@ int main()
 	if (err)
 		goto err_out_free;
 
+	dnet_fcgi_setup_permanent_headers();
+
 	p = getenv("DNET_FCGI_DNS_LOOKUP");
 	if (p)
 		dnet_fcgi_dns_lookup = atoi(p);
@@ -1529,6 +1655,8 @@ int main()
 		if (dnet_fcgi_external_callback_start)
 			dnet_fcgi_external_start(n, query, addr, id, length);
 
+		dnet_fcgi_output_permanent_headers();
+
 		if (!strncmp(method, "POST", 4)) {
 			if (!post_allowed) {
 				err = -EACCES;
@@ -1573,6 +1701,7 @@ err_continue:
 
 	free(direct_patterns);
 	free(dnet_fcgi_direct_patterns);
+	dnet_fcgi_destroy_permanent_headers();
 
 	if (dnet_fcgi_external_exit)
 		dnet_fcgi_external_exit();

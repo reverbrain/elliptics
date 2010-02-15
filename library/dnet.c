@@ -726,7 +726,7 @@ static int dnet_state_join(struct dnet_net_state *st)
 		goto out_exit;
 	}
 
-	st->__join_state = DNET_JOINED;
+	st->__join_state = DNET_JOIN;
 	dnet_log(n, DNET_LOG_INFO, "%s: successfully joined network.\n", dnet_dump_id(st->id));
 
 out_exit:
@@ -814,6 +814,8 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		err = -EINVAL;
 		goto err_out_exit;
 	}
+
+	st->__join_state = DNET_WANT_RECONNECT;
 
 	return st;
 
@@ -2270,15 +2272,26 @@ int dnet_try_reconnect(struct dnet_node *n)
 		st = dnet_add_state_socket(n, &ast->addr, s);
 		if (!st) {
 			close(s);
+
+			st = dnet_state_search_by_addr(n, &ast->addr);
+			if (st) {
+				dnet_state_put(st);
+				goto out_remove;
+			}
 			continue;
 		}
 
-		err = dnet_state_join(st);
-		if (err) {
-			dnet_state_put(st);
-			continue;
+		st->__join_state = DNET_WANT_RECONNECT;
+
+		if (ast->__join_state == DNET_JOIN) {
+			err = dnet_state_join(st);
+			if (err) {
+				dnet_state_put(st);
+				continue;
+			}
 		}
 
+out_remove:
 		list_del(&ast->reconnect_entry);
 		free(ast);
 	}

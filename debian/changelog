@@ -1,3 +1,70 @@
+elliptics (2.6.4) unstable; urgency=low
+
+  * Version 2.6.4
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sun, 14 Feb 2010 19:54:47 +0300
+
+elliptics (2.6.3-42) unstable; urgency=low
+
+  * Made wakeup a macros which accepts code executed atomically under
+    wait lock. This fixes race in statistics request when multiple
+    thread update completion counter.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 13 Feb 2010 18:58:35 +0300
+
+elliptics (2.6.3-41) unstable; urgency=low
+
+  * Added dbg package option.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 11 Feb 2010 18:41:14 +0300
+
+elliptics (2.6.3-40) unstable; urgency=low
+
+  * Added timeouts into FCGI waits
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 11 Feb 2010 14:54:54 +0300
+
+elliptics (2.6.3-39) unstable; urgency=low
+
+  * Check if state was already added when reconnection establishes
+    connection, but can not create state.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 11 Feb 2010 14:28:04 +0300
+
+elliptics (2.6.3-38) unstable; urgency=low
+
+  * Implemented ability to dump address or ID into provided buffer, use
+    it in race-critical places in fcgi. Core code will suffer from
+    simultaneous addres/id conversions though, but it is not used in
+    critical parts.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Tue, 09 Feb 2010 20:48:13 +0300
+
+elliptics (2.6.3-37) unstable; urgency=low
+
+  * Perform vsnprintf() parsing unside locked section to protect
+    dnet_fcgi_tmp_buf content.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Tue, 09 Feb 2010 18:39:32 +0300
+
+elliptics (2.6.3-36) unstable; urgency=low
+
+  * Fixed off-by-one cookie truncation.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Tue, 09 Feb 2010 16:45:43 +0300
+
+elliptics (2.6.3-35) unstable; urgency=low
+
+  * Added permanent headers, which are added on every request.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Tue, 09 Feb 2010 00:29:54 +0300
+
+elliptics (2.6.3-34) unstable; urgency=low
+
+  * Added client reconnection logic.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Mon, 08 Feb 2010 21:45:49 +0300
+
 elliptics (2.6.3-33) unstable; urgency=low
 
   * Fixed fcgi module to properly use dnet_fcgi_output() printing helper

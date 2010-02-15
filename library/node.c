@@ -201,6 +201,27 @@ static struct dnet_net_state *__dnet_state_search(struct dnet_node *n, unsigned 
 	return st;
 }
 
+struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr)
+{
+	struct dnet_net_state *st;
+	int err = -ENOENT;
+
+	pthread_rwlock_rdlock(&n->state_lock);
+	list_for_each_entry(st, &n->state_list, state_entry) {
+		if (!memcmp(addr, &st->addr, sizeof(struct dnet_addr))) {
+			err = 0;
+			dnet_state_get(st);
+			break;
+		}
+	}
+	pthread_rwlock_unlock(&n->state_lock);
+
+	if (err)
+		st = NULL;
+
+	return st;
+}
+
 struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self)
 {
 	struct dnet_net_state *st;
