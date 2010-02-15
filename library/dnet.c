@@ -1768,70 +1768,87 @@ again:
 	return -EINVAL;
 }
 
-static int dnet_trans_map(struct dnet_node *n, char *main_file, uint64_t offset, uint64_t size,
-		int (*callback)(void *priv, uint64_t offset, uint64_t size,
-			struct dnet_history_entry *io), void *priv)
+int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map)
 {
-	int fd, err;
+	int err;
 	struct stat st;
-	struct dnet_map_root r;
-	unsigned int isize = sizeof(struct dnet_history_entry);
-	struct dnet_history_entry *entries, e;
-	long i, num;
-	char file[strlen(main_file) + 1 + sizeof(DNET_HISTORY_SUFFIX)];
 
-	if (!callback)
-		return 0;
-
-	sprintf(file, "%s%s", main_file, DNET_HISTORY_SUFFIX);
-
-	fd = open(file, O_RDONLY);
-	if (fd < 0) {
+	map->fd = open(file, O_RDONLY);
+	if (map->fd < 0) {
 		err = -errno;
 		dnet_log_err(n, "Failed to open history file '%s'", file);
 		goto err_out_exit;
 	}
 
-	err = fstat(fd, &st);
+	err = fstat(map->fd, &st);
 	if (err) {
 		err = -errno;
 		dnet_log_err(n, "Failed to stat history file '%s'", file);
 		goto err_out_close;
 	}
 
-	if (!st.st_size || (st.st_size % isize)) {
+	if (!st.st_size || (st.st_size % sizeof(struct dnet_history_entry))) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: Corrupted history file '%s', "
 				"its size %llu has to be modulo of %u.\n",
 				dnet_dump_id(n->id), file,
-				(unsigned long long)st.st_size, isize);
+				(unsigned long long)st.st_size,
+				sizeof(struct dnet_history_entry));
 		err = -EINVAL;
 		goto err_out_close;
 	}
 
-	entries = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
-	if (entries == MAP_FAILED) {
+	map->ent = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, map->fd, 0);
+	if (map->ent == MAP_FAILED) {
 		err = -errno;
 		dnet_log_err(n, "Failed to mmap history file '%s'", file);
 		goto err_out_close;
 	}
 
-	num = st.st_size / isize;
+	map->num = st.st_size / sizeof(struct dnet_history_entry);
+
+	return 0;
+
+err_out_close:
+	close(map->fd);
+err_out_exit:
+	return err;
+}
+
+void dnet_unmap_history(struct dnet_node *n __unused, struct dnet_history_map *map)
+{
+	munmap(map->ent, map->num * sizeof(struct dnet_history_entry));
+	close(map->fd);
+}
+
+static int dnet_trans_map(struct dnet_node *n, char *main_file, uint64_t offset, uint64_t size,
+		int (*callback)(void *priv, uint64_t offset, uint64_t size,
+			struct dnet_history_entry *io), void *priv)
+{
+	struct dnet_map_root r;
+	char file[strlen(main_file) + 1 + sizeof(DNET_HISTORY_SUFFIX)];
+	struct dnet_history_entry e;
+	struct dnet_history_map map;
+	long i;
+	int err;
+
+	if (!callback)
+		return 0;
+
+	sprintf(file, "%s%s", main_file, DNET_HISTORY_SUFFIX);
+
+	err = dnet_map_history(n, file, &map);
+	if (err)
+		goto err_out_exit;
 
 	r.root = RB_ROOT;
 	r.callback = callback;
 	r.priv = priv;
 	r.offset = offset;
-
-	if (!size) {
-		e = entries[0];
-		dnet_convert_history_entry(&e);
-		size = e.size;
-	}
 	r.size = size;
 
 	dnet_log(n, DNET_LOG_INFO, "%s: objects: %ld, range: %llu-%llu, "
 			"counting from the most recent.\n",
-			file, num, (unsigned long long)offset,
+			file, map.num, (unsigned long long)offset,
 			(unsigned long long)offset+r.size);
 
 	err = dnet_trans_map_add_range(&r, offset, size);
@@ -1841,8 +1858,8 @@ static int dnet_trans_map(struct dnet_node *n, char *main_file, uint64_t offset,
 		goto err_out_unmap;
 	}
 
-	for (i=num-1; i>=1; --i) {
-		e = entries[i];
+	for (i=map.num-1; i>=0; --i) {
+		e = map.ent[i];
 
 		dnet_convert_history_entry(&e);
 
@@ -1861,20 +1878,16 @@ static int dnet_trans_map(struct dnet_node *n, char *main_file, uint64_t offset,
 	}
 
 	dnet_trans_map_free(&r);
-	munmap(entries, st.st_size);
-	close(fd);
+	dnet_unmap_history(n, &map);
 
 	return 0;
 
 err_out_free:
 	dnet_trans_map_free(&r);
 err_out_unmap:
-	munmap(entries, st.st_size);
-err_out_close:
-	close(fd);
+	dnet_unmap_history(n, &map);
 err_out_exit:
 	return err;
-
 }
 
 int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t offset, uint64_t size, int hist)
@@ -1892,7 +1905,6 @@ int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t 
 
 	io.size = 0;
 	io.offset = 0;
-	io.flags = 0;
 	io.flags = DNET_IO_FLAGS_HISTORY;
 
 	if (id) {

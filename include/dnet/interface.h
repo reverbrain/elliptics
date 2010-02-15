@@ -681,6 +681,20 @@ int dnet_remove_file(struct dnet_node *n, char *file, unsigned char *file_id);
 int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, void *addr,
 		unsigned int *dsize, int *ppos);
 
+/*
+ * Helper structure and set of functions to map history file and perform basic checks.
+ */
+struct dnet_history_map
+{
+	struct dnet_history_entry	*ent;
+	long				num;
+	int				fd;
+};
+
+int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map);
+void dnet_unmap_history(struct dnet_node *n, struct dnet_history_map *map);
+
+
 #ifdef __cplusplus
 }
 #endif

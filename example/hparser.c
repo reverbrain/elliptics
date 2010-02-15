@@ -133,21 +133,15 @@ int main(int argc, char *argv[])
 
 		dnet_convert_history_entry(&e);
 
-		if (i != 0) {
-			t = e.tsec;
-			localtime_r(&t, &tm);
-			strftime(str, sizeof(str), "%F %R:%S", &tm);
+		t = e.tsec;
+		localtime_r(&t, &tm);
+		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-			printf("%s.%09llu: %s: flags: %08x, offset: %8llu, size: %8llu: %c\n",
-				str, (unsigned long long)e.tnsec,
-				dnet_dump_id(e.id), e.flags,
-				(unsigned long long)e.offset, (unsigned long long)e.size,
-				hparser_region_match(&e, offset, size) ? '+' : '-');
-		} else {
-			printf("\nTotal size: %llu, parent object: %s.\n",
-					(unsigned long long)e.size,
-					dnet_dump_id_len(e.id, DNET_ID_SIZE));
-		}
+		printf("%s.%09llu: %s: flags: %08x, offset: %8llu, size: %8llu: %c\n",
+			str, (unsigned long long)e.tnsec,
+			dnet_dump_id(e.id), e.flags,
+			(unsigned long long)e.offset, (unsigned long long)e.size,
+			hparser_region_match(&e, offset, size) ? '+' : '-');
 	}
 
 	munmap(data, st.st_size);

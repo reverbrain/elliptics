@@ -425,53 +425,6 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 		goto err_out_exit;
 	}
 
-	if ((io->flags & DNET_IO_FLAGS_HISTORY) &&
-			(io->size == sizeof(struct dnet_history_entry))) {
-		struct dnet_history_entry e;
-		struct dnet_history_entry *r = data;
-		int sfd;
-
-		sfd = open(file, oflags & ~O_APPEND, 0644);
-		if (sfd < 0) {
-			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to reopen history file '%s': %s.\n",
-					dnet_dump_id(io->origin), file, strerror(errno));
-			goto err_out_close;
-		}
-		err = pread(sfd, &e, sizeof(struct dnet_history_entry), 0);
-		if (err < 0) {
-			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to read history file '%s': %s.\n",
-					dnet_dump_id(io->origin), file, strerror(errno));
-			close(sfd);
-			goto err_out_close;
-		}
-
-		if (err == 0) {
-			dnet_setup_history_entry(&e, r->id, r->size + r->offset, 0, 0);
-		} else {
-			dnet_convert_history_entry(&e);
-			dnet_convert_history_entry(r);
-			if (e.size < r->offset + r->size)
-				e.size = r->offset + r->size;
-			dnet_convert_history_entry(r);
-			dnet_convert_history_entry(&e);
-		}
-
-		err = pwrite(sfd, &e, sizeof(struct dnet_history_entry), 0);
-		if (err <= 0) {
-			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to update metadata in history file '%s': %s.\n",
-				dnet_dump_id(io->origin), file, strerror(errno));
-			close(sfd);
-			goto err_out_close;
-		}
-		close(sfd);
-	}
-
 	err = write(fd, data, io->size);
 	if (err <= 0) {
 		err = -errno;

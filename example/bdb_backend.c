@@ -331,7 +331,6 @@ static int bdb_put_data(void *state, struct bdb_backend *be, struct dnet_cmd *cm
 		struct dnet_attr *attr, void *buf)
 {
 	int err;
-	DBT key, data;
 	struct bdb_entry *ent = be->data;
 	struct dnet_io_attr *io = buf;
 	struct dnet_history_entry e;
@@ -365,81 +364,8 @@ retry:
 		goto err_out_exit;
 	}
 
-	if (io->flags & DNET_IO_FLAGS_HISTORY) {
+	if (io->flags & DNET_IO_FLAGS_HISTORY)
 		ent = be->hist;
-
-		if (io->size == sizeof(struct dnet_history_entry)) {
-			struct dnet_history_entry *r = buf;
-
-			memset(&key, 0, sizeof(DBT));
-			memset(&data, 0, sizeof(DBT));
-
-			key.data = io->origin;
-			key.size = DNET_ID_SIZE;
-
-			data.ulen = data.dlen = data.size = sizeof(struct dnet_history_entry);
-			data.flags = DB_DBT_PARTIAL | DB_DBT_USERMEM;
-			data.data = &e;
-
-			err = ent->db->get(ent->db, txn, &key, &data, DB_RMW);
-			if (err) {
-				if (err != DB_NOTFOUND) {
-					if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
-						goto err_out_txn_abort_continue;
-
-					dnet_command_handler_log(state, DNET_LOG_ERROR,
-							"%s: failed to get history metadata, err: %d: %s.\n",
-						dnet_dump_id(io->origin), err, db_strerror(err));
-					goto err_out_close_txn;
-				}
-
-				dnet_convert_history_entry(r);
-
-				memcpy(e.id, r->id, DNET_ID_SIZE);
-				e.flags = r->flags;
-				e.size = r->size + r->offset;
-				e.offset = 0;
-
-				dnet_convert_history_entry(r);
-
-				dnet_command_handler_log(state, DNET_LOG_NOTICE,
-					"%s: creating history metadata, size: %llu.\n",
-					dnet_dump_id(io->origin), (unsigned long long)e.size);
-
-				dnet_convert_history_entry(&e);
-
-				err = bdb_put_data_raw(ent, txn, io->origin, DNET_ID_SIZE,
-					&e, 0, sizeof(struct dnet_history_entry), 0);
-			} else {
-				dnet_convert_history_entry(&e);
-				dnet_convert_history_entry(r);
-
-				dnet_command_handler_log(state, DNET_LOG_NOTICE,
-					"%s: history metadata, stored_size: %llu, trans_size: %llu "
-					"(size: %llu, offset: %llu).\n",
-					dnet_dump_id(io->origin), (unsigned long long)e.size,
-					(unsigned long long)(r->size + r->offset),
-					(unsigned long long)r->size, (unsigned long long)r->offset);
-
-				if (e.size < r->size + r->offset) {
-					e.size = r->size + r->offset;
-
-					dnet_convert_history_entry(&e);
-					err = bdb_put_data_raw(ent, txn, io->origin, DNET_ID_SIZE,
-						&e, 0, sizeof(struct dnet_history_entry), 1);
-				}
-				dnet_convert_history_entry(r);
-			}
-			if (err) {
-				if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
-					goto err_out_txn_abort_continue;
-				dnet_command_handler_log(state, DNET_LOG_ERROR,
-						"%s: failed to update history metadata, err: %d: %s.\n",
-					dnet_dump_id(io->origin), err, db_strerror(err));
-				goto err_out_close_txn;
-			}
-		}
-	}
 
 	if (io->flags & DNET_IO_FLAGS_APPEND) {
 		err = bdb_get_record_size(state, ent, txn, io->origin, &offset, 1);
