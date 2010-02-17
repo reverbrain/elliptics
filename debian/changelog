@@ -1,3 +1,9 @@
+elliptics (2.6.4.3) unstable; urgency=low
+
+  * Minor cleanups.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 18 Feb 2010 00:58:54 +0300
+
 elliptics (2.6.4.2) unstable; urgency=low
 
   * Implemented full fsck checker.

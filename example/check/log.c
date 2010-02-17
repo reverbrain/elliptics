@@ -333,7 +333,8 @@ static int dnet_check_read_transactions(struct dnet_check_worker *worker, struct
 		memcpy(ctl.addr, e->id, DNET_ID_SIZE);
 
 		dnet_log_raw(n, DNET_LOG_INFO, "%s: transaction: %s: offset: %8llu, size: %8llu.\n",
-				eid, dnet_dump_id_len(e->id, DNET_ID_SIZE), e->offset, e->size);
+				eid, dnet_dump_id_len(e->id, DNET_ID_SIZE),
+				(unsigned long long)e->offset, (unsigned long long)e->size);
 
 		err = dnet_read_object(n, &ctl);
 		if (err)
@@ -384,8 +385,10 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 
 		err = dnet_write_file_local_offset(n, file, req->id, 0, e->offset, e->size, req->type);
 
-		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: request uploading hist: %s, offset: %llu, size: %llu, err: %d.\n",
-				eid, dnet_dump_id(req->id), e->offset, e->size, err);
+		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: request uploading hist: %s, "
+				"offset: %llu, size: %llu, err: %d.\n",
+				eid, dnet_dump_id(req->id),
+				(unsigned long long)e->offset, (unsigned long long)e->size, err);
 	}
 
 	dnet_unmap_history(n, &map);
@@ -402,7 +405,7 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 	struct dnet_node *n = worker->n;
 	struct dnet_check_request *existing = NULL, *req;
 	char file[128];
-	int i, err, to_upload = 0, error = 0;
+	int i, err = 0, to_upload = 0;
 	char eid[2*DNET_ID_SIZE+1];
 
 	for (i=0; i<num; ++i) {
@@ -416,13 +419,13 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 
 	if (!existing && !update_existing) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "'%s': there are no object copies in the storage.\n", obj);
-		error = -ENOENT;
+		err = -ENOENT;
 		goto out_exit;
 	}
 
 	if (!to_upload && !update_existing) {
 		dnet_log_raw(n, DNET_LOG_INFO, "'%s': all %d copies are in the storage.\n", obj, num);
-		error = 0;
+		err = 0;
 		goto out_exit;
 	}
 
@@ -432,21 +435,21 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir,
 				dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid));
 
-		error = dnet_read_file(n, file, existing->id, 0, ~0ULL, 1);
-		if (error) {
+		err = dnet_read_file(n, file, existing->id, 0, ~0ULL, 1);
+		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to download a copy: %d.\n", obj, err);
 			goto out_exit;
 		}
 
-		error = dnet_check_read_transactions(worker, existing);
-		if (error) {
+		err = dnet_check_read_transactions(worker, existing);
+		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to download transactions from existing copy: %d.\n", obj, err);
 			goto out_unlink;
 		}
 	}
 
 	if (dnet_check_ext_merge) {
-		error = dnet_check_ext_merge(dnet_check_ext_private, file, start, end,
+		err = dnet_check_ext_merge(dnet_check_ext_private, file, start, end,
 				requests, num, update_existing);
 	} else {
 		for (i=0; i<num; ++i) {
@@ -459,7 +462,6 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 			if (err) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to upload a '%s' request list: %d.\n",
 						obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), err);
-				error = err;
 				continue;
 			}
 		}
@@ -467,17 +469,15 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 
 out_unlink:
 	if (!update_existing) {
-#if 0
 		unlink(file);
 		snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
 				dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid),
 				DNET_HISTORY_SUFFIX);
 		unlink(file);
-#endif
 	}
 
 out_exit:
-	return error;
+	return err;
 }
 
 static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, int start, int end,

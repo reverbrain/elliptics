@@ -1587,11 +1587,8 @@ static int dnet_trans_map_cmp(uint64_t old_offset, uint64_t old_size,
 	if (offset + size <= old_offset)
 		return -1;
 
-	if (offset >= old_offset + old_size) {
-		printf("offset: %llx, old_offset: %llx, old_size: %llx.\n",
-				offset, old_offset, old_size);
+	if (offset >= old_offset + old_size)
 		return 1;
-	}
 
 	return 0;
 }
@@ -1811,7 +1808,7 @@ int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *m
 
 	if (!st.st_size || (st.st_size % sizeof(struct dnet_history_entry))) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: Corrupted history file '%s', "
-				"its size %llu has to be modulo of %u.\n",
+				"its size %llu has to be modulo of %zu.\n",
 				dnet_dump_id(n->id), file,
 				(unsigned long long)st.st_size,
 				sizeof(struct dnet_history_entry));
