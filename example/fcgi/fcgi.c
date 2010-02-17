@@ -100,6 +100,15 @@ static void (* dnet_fcgi_external_exit)(void);
 
 static FCGX_Request dnet_fcgi_request;
 
+/*
+ * This is a very weak protection, since data from one request can be sent to another client,
+ * but it will only happen when we exit early on timeout, which should be noticed in logs, and
+ * timeouts changed appropriately.
+ *
+ * It is set to 0 when dnet_fcgi_request is closed.
+ */
+static int dnet_fcgi_request_info;
+
 static char **dnet_fcgi_pheaders;
 static int dnet_fcgi_pheaders_num;
 
@@ -130,6 +139,11 @@ static int dnet_fcgi_output(const char *format, ...)
 
 	va_start(args, format);
 	pthread_mutex_lock(&dnet_fcgi_output_lock);
+	if (!dnet_fcgi_request_info) {
+		err = -EBADF;
+		goto out_unlock;
+	}
+
 	size = vsnprintf(dnet_fcgi_tmp_buf, sizeof(dnet_fcgi_tmp_buf), format, args);
 	while (size) {
 		err = FCGX_PutStr(ptr, size, dnet_fcgi_request.out);
@@ -146,6 +160,8 @@ static int dnet_fcgi_output(const char *format, ...)
 			err = 0;
 		}
 	}
+
+out_unlock:
 	pthread_mutex_unlock(&dnet_fcgi_output_lock);
 	va_end(args);
 
@@ -183,7 +199,7 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 
 	p = getenv("DNET_FCGI_NODE_WAIT_TIMEOUT");
 	if (p)
-		cfg->wait_timeout = strtoul(p, NULL, 0);
+		dnet_fcgi_timeout_sec = cfg->wait_timeout = strtoul(p, NULL, 0);
 
 	p = getenv("DNET_FCGI_NODE_LOCAL_ADDR");
 	if (!p)
@@ -936,6 +952,14 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	dnet_fcgi_output("\r\n");
 
 	size = io->size;
+
+	pthread_mutex_lock(&dnet_fcgi_output_lock);
+
+	if (!dnet_fcgi_request_info) {
+		err = -EBADF;
+		goto err_out_unlock;
+	}
+
 	while (size) {
 		err = FCGX_PutStr(data, size, dnet_fcgi_request.out);
 		if (err < 0 && errno != EAGAIN) {
@@ -944,7 +968,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 					"total of %llu: %s [%d].\n",
 					dnet_dump_id(dnet_fcgi_id), size, (unsigned long long)io->size,
 					strerror(errno), errno);
-			goto err_out_exit;
+			goto err_out_unlock;
 		}
 
 		if (err > 0) {
@@ -955,6 +979,8 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 	err = 0;
 
+err_out_unlock:
+	pthread_mutex_unlock(&dnet_fcgi_output_lock);
 err_out_exit:
 	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
 		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
@@ -1600,6 +1626,10 @@ int main()
 			continue;
 		}
 
+		pthread_mutex_lock(&dnet_fcgi_output_lock);
+		dnet_fcgi_request_info = 1;
+		pthread_mutex_unlock(&dnet_fcgi_output_lock);
+
 		addr = FCGX_GetParam("REMOTE_ADDR", dnet_fcgi_request.envp);
 		if (!addr)
 			continue;
@@ -1684,7 +1714,10 @@ cont:
 		if (dnet_fcgi_external_callback_stop)
 			dnet_fcgi_external_stop(n, query, addr, id, length);
 
+		pthread_mutex_lock(&dnet_fcgi_output_lock);
 		FCGX_Finish_r(&dnet_fcgi_request);
+		dnet_fcgi_request_info = 0;
+		pthread_mutex_unlock(&dnet_fcgi_output_lock);
 		continue;
 
 err_continue:

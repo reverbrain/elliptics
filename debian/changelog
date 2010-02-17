@@ -1,3 +1,15 @@
+elliptics (2.6.4.1) unstable; urgency=low
+
+  * Update dnet_fcgi_timeout_sec from DNET_FCGI_NODE_WAIT_TIMEOUT config
+    option.
+  * Added fcgi request completion flag. When it is not set, fcgi request
+    can not be used, usually because it was already closed. This is a
+    weak protection since data from one request can be sent to another
+    client, but it will only happen when we exit early on timeout, which
+    should be noticed in logs, and timeouts changed appropriately.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Wed, 17 Feb 2010 17:40:17 +0300
+
 elliptics (2.6.4) unstable; urgency=low
 
   * Version 2.6.4
