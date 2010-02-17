@@ -188,15 +188,16 @@ struct dnet_check_completion
 	uint64_t					write_offset;
 };
 
-static int dnet_check_trans_write(struct dnet_check_completion *complete, struct dnet_io_attr *io, void *data)
+static int dnet_check_trans_write(struct dnet_check_completion *complete, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data)
 {
 	struct dnet_check_worker *worker = complete->worker;
 	struct dnet_node *n = worker->n;
 	char file[256];
+	char eid[2*DNET_ID_SIZE+1];
 	int fd;
 	ssize_t err;
 
-	snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len(io->id, DNET_ID_SIZE));
+	snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, eid));
 	fd = open(file, O_RDWR | O_TRUNC | O_CREAT, 0644);
 	if (fd < 0) {
 		err = -errno;
@@ -212,6 +213,8 @@ static int dnet_check_trans_write(struct dnet_check_completion *complete, struct
 	}
 
 	err = 0;
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: successfully written transaction into '%s', offset: %llu, size: %llu.\n",
+			eid, file, (unsigned long long)io->offset, (unsigned long long)io->size);
 
 err_out_close:
 	close(fd);
@@ -264,13 +267,11 @@ static int dnet_check_read_complete(struct dnet_net_state *state,
 	dnet_convert_attr(attr);
 	dnet_convert_io_attr(io);
 
-	dnet_log_raw(n, DNET_LOG_INFO, "%s: io: write_offset: %llu, offset: %llu, size: %llu.\n",
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: io: write_offset: %llu, offset: %llu, size: %llu.\n",
 			dnet_dump_id(cmd->id), (unsigned long long)complete->write_offset,
 			(unsigned long long)io->offset, (unsigned long long)io->size);
 
-	err = dnet_check_trans_write(complete, io, data);
-
-	return 0;
+	return dnet_check_trans_write(complete, cmd, io, data);
 
 out_wakeup:
 	dnet_check_wakeup(worker, worker->wait_num++);
@@ -291,12 +292,7 @@ static int dnet_check_read_transactions(struct dnet_check_worker *worker, struct
 	char eid[DNET_ID_SIZE*2 + 1];
 	struct dnet_check_completion *c;
 
-#if 0
 	dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid);
-#else
-	snprintf(eid, sizeof(eid), "%s", dnet_dump_id_len(req->id, DNET_ID_SIZE));
-#endif
-
 	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir, eid, DNET_HISTORY_SUFFIX);
 
 	err = dnet_map_history(n, file, &map);
@@ -361,19 +357,14 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 	struct dnet_node *n = w->n;
 	char file[256];
 	int err;
+	struct dnet_history_entry *e;
 	struct dnet_history_map map;
 	struct dnet_io_attr io;
-	struct stat st;
 	long i;
-#if 0
 	char eid[DNET_ID_SIZE*2 + 1];
 
 	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
 		dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid), DNET_HISTORY_SUFFIX);
-#else
-	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
-		dnet_dump_id_len(existing->id, DNET_ID_SIZE), DNET_HISTORY_SUFFIX);
-#endif
 
 	err = dnet_map_history(n, file, &map);
 	if (err)
@@ -383,6 +374,18 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 		io.size = 0;
 		io.offset = 0;
 		io.flags = 0;
+
+		e = &map.ent[i];
+
+		dnet_convert_history_entry(e);
+
+		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir,
+			dnet_dump_id_len_raw(e->id, DNET_ID_SIZE, eid));
+
+		err = dnet_write_file_local_offset(n, file, req->id, 0, e->offset, e->size, req->type);
+
+		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: request uploading hist: %s, offset: %llu, size: %llu, err: %d.\n",
+				eid, dnet_dump_id(req->id), e->offset, e->size, err);
 	}
 
 	dnet_unmap_history(n, &map);
@@ -400,6 +403,7 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 	struct dnet_check_request *existing = NULL, *req;
 	char file[128];
 	int i, err, to_upload = 0, error = 0;
+	char eid[2*DNET_ID_SIZE+1];
 
 	for (i=0; i<num; ++i) {
 		req = &requests[i];
@@ -426,7 +430,7 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 		snprintf(file, sizeof(file), "%s", obj);
 	} else {
 		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir,
-				dnet_dump_id_len(existing->id, DNET_ID_SIZE));
+				dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid));
 
 		error = dnet_read_file(n, file, existing->id, 0, ~0ULL, 1);
 		if (error) {
@@ -463,11 +467,13 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 
 out_unlink:
 	if (!update_existing) {
+#if 0
 		unlink(file);
 		snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
-				dnet_dump_id_len(existing->id, DNET_ID_SIZE),
+				dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid),
 				DNET_HISTORY_SUFFIX);
 		unlink(file);
+#endif
 	}
 
 out_exit:
@@ -481,7 +487,8 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 	int pos = 0;
 	int err, i;
 	struct dnet_check_request *requests, *req;
-	char file[128];
+	char file[256];
+	char eid[2*DNET_ID_SIZE+1];
 
 	req = requests = malloc(hash_num * sizeof(struct dnet_check_request));
 	if (!requests)
@@ -504,7 +511,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 		}
 
 		snprintf(file, sizeof(file), "%s/%s",
-				dnet_check_tmp_dir, dnet_dump_id_len(req->id, DNET_ID_SIZE));
+				dnet_check_tmp_dir, dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid));
 		err = dnet_read_file(n, file, req->id, 0, 1, 1);
 		if (err < 0) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read history file: %d.\n",
@@ -517,9 +524,18 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 
 	for (i=0; i<hash_num; ++i) {
 		req = &requests[i];
+
+		if (req->present) {
+			err = dnet_remove_transform_pos(n, req->pos);
+			if (err) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to remove transformation at position %d: %d.\n",
+						dnet_dump_id(req->id), req->pos, err);
+			}
+		}
+
 		dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s' %d/%d, id: %s: type: %d, "
 				"history present: %d, update existing: %d.\n",
-				obj, start, end, dnet_dump_id_len(req->id, DNET_ID_SIZE),
+				obj, start, end, dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid),
 				req->type, req->present, update_existing);
 	}
 
@@ -529,7 +545,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 		req = &requests[i];
 
 		snprintf(file, sizeof(file), "%s/%s.history",
-				dnet_check_tmp_dir, dnet_dump_id_len(req->id, DNET_ID_SIZE));
+				dnet_check_tmp_dir, dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid));
 		unlink(file);
 	}
 

@@ -117,6 +117,13 @@ struct dnet_io_control
 	int				fd;
 
 	/*
+	 * This offset represent local data shift, when local and remote offsets differ.
+	 * For example when we want to put local object into transaction but place it
+	 * after some bytes in the remote object.
+	 */
+	uint64_t			local_offset;
+
+	/*
 	 * IO command.
 	 */
 	unsigned int			cmd;
@@ -176,12 +183,27 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 		unsigned char *id, int hupdate, int *trans_num);
 
 /*
+ * dmet_write_object_single() works the same way dnet_write_object() does,
+ * but only uses single transformation function, which number is specified
+ * in @pos. It will be 
+ */
+int dnet_write_object_single(struct dnet_node *n, struct dnet_io_control *ctl,
+		void *remote, unsigned int len, unsigned char *id, int hupdate,
+		int *trans_nump, int *pos);
+/*
  * Sends given file to the remote nodes and waits until all of them ack the write.
  *
  * Returns negative error value in case of error.
  */
 int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id,
 		uint64_t offset, uint64_t size, unsigned int aflags);
+
+/*
+ * The same as dnet_write_file() except that is uses @local_offset as local file offset,
+ * while @offset is remote file offset. dnet_write_file() assumes that they are the same.
+ */
+int dnet_write_file_local_offset(struct dnet_node *n, char *file, unsigned char *id,
+		uint64_t local_offset, uint64_t offset, uint64_t size, unsigned int aflags);
 
 /*
  * Log flags.
@@ -408,6 +430,7 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 		unsigned int *dsize, unsigned int flags),
 	void (* cleanup)(void *priv));
 int dnet_remove_transform(struct dnet_node *n, char *name);
+int dnet_remove_transform_pos(struct dnet_node *n, int pos);
 int dnet_move_transform(struct dnet_node *n, char *name, int tail);
 
 /*

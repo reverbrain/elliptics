@@ -1,3 +1,9 @@
+elliptics (2.6.4.2) unstable; urgency=low
+
+  * Implemented full fsck checker.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 18 Feb 2010 00:20:08 +0300
+
 elliptics (2.6.4.1) unstable; urgency=low
 
   * Update dnet_fcgi_timeout_sec from DNET_FCGI_NODE_WAIT_TIMEOUT config
