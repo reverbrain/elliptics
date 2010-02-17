@@ -183,7 +183,7 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 
 	p = getenv("DNET_FCGI_NODE_WAIT_TIMEOUT");
 	if (p)
-		cfg->wait_timeout = strtoul(p, NULL, 0);
+		dnet_fcgi_timeout_sec = cfg->wait_timeout = strtoul(p, NULL, 0);
 
 	p = getenv("DNET_FCGI_NODE_LOCAL_ADDR");
 	if (!p)
