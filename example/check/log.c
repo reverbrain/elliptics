@@ -638,7 +638,6 @@ static void *dnet_check_process(void *data)
 {
 	struct dnet_check_worker *w = data;
 	char buf[4096], *tmp, *saveptr, *token, *hash, *obj;
-	char current_hash[128];
 	int size = sizeof(buf);
 	int err, type, hash_num = 0, obj_len;
 	int start, end, update_existing;
@@ -685,11 +684,8 @@ static void *dnet_check_process(void *data)
 		dnet_cleanup_transform(w->n);
 
 		err = dnet_check_process_hash_string(w->n, hash, 1);
-		if (err < 0) {
-			current_hash[0] = '\0';
-			err = 0;
-		} else
-			snprintf(current_hash, sizeof(current_hash), "%s", hash);
+		if (err < 0)
+			continue;
 
 		hash_num = err;
 

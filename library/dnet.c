@@ -1314,6 +1314,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file, unsigned char 
 	ctl.io.size = size;
 	ctl.io.offset = offset;
 
+	trans_num = 0;
 	error = dnet_write_object(n, &ctl, file, strlen(file), id, 1, &trans_num);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: transactions sent: %d, error: %d.\n",

@@ -1,3 +1,10 @@
+elliptics (2.6.4.7) unstable; urgency=low
+
+  * Initialize transaction number to zero prior starting write.
+  * Remove unneded hash checks
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 19 Feb 2010 22:03:56 +0300
+
 elliptics (2.6.4.6) unstable; urgency=low
 
   * Do not compare checker's hash strings, initialize hashes again,
