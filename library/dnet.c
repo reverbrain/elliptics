@@ -592,7 +592,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 }
 
 static int dnet_add_received_state(struct dnet_node *n, unsigned char *id,
-		struct dnet_attr *attr, struct dnet_addr_attr *a);
+		struct dnet_addr_attr *a, int join);
 
 static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv __unused)
@@ -624,22 +624,17 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 
 	num = attr->size / sizeof(struct dnet_route_attr);
 	dnet_log(n, DNET_LOG_INFO, "%s: route list: %d entries.\n", dnet_dump_id(cmd->id), num);
-	i = 0;
-	while (i < num) {
+
+	for (i=0; i<num; ++i) {
 		a = &attrs[i];
 
 		dnet_convert_addr_attr(&a->addr);
 
-		err = dnet_add_received_state(n, a->id, attr, &a->addr);
+		err = dnet_add_received_state(n, a->id, &a->addr, st->__join_state & DNET_JOIN);
 		
 		dnet_log(n, DNET_LOG_INFO, " %2d/%d   %s - %s, added error: %d.\n",
 				i, num, dnet_dump_id(a->id),
 				dnet_server_convert_dnet_addr(&a->addr.addr), err);
-
-		if (num < 10 || !i)
-			i++;
-		else
-			i <<= 1;
 	}
 
 	return 0;
@@ -715,13 +710,6 @@ static int dnet_state_join(struct dnet_net_state *st)
 	err = dnet_send_address(st, n->id, 0, DNET_CMD_JOIN, 0, &n->addr, 0, 1);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send join request to %s.\n",
-			dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr));
-		goto out_exit;
-	}
-
-	err = dnet_recv_route_list(st);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send route list request to %s.\n",
 			dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr));
 		goto out_exit;
 	}
@@ -840,6 +828,8 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_sock_close;
 	}
 
+	dnet_recv_route_list(st);
+
 	return 0;
 
 err_out_sock_close:
@@ -848,7 +838,7 @@ err_out_sock_close:
 }
 
 static int dnet_add_received_state(struct dnet_node *n, unsigned char *id,
-		struct dnet_attr *attr __unused, struct dnet_addr_attr *a)
+		struct dnet_addr_attr *a, int join)
 {
 	int s, err = 0;
 	struct dnet_net_state *nst;
@@ -875,9 +865,13 @@ static int dnet_add_received_state(struct dnet_node *n, unsigned char *id,
 		goto err_out_close;
 	}
 
-	err = dnet_state_join(nst);
-	if (err)
-		goto err_out_put;
+	nst->__join_state = DNET_WANT_RECONNECT;
+
+	if (join) {
+		err = dnet_state_join(nst);
+		if (err)
+			goto err_out_put;
+	}
 
 	dnet_log(n, DNET_LOG_INFO, "%s: added received state %s.\n",
 			dnet_dump_id(id), dnet_state_dump_addr(nst));
@@ -2456,7 +2450,7 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	dnet_convert_addr_attr(a);
 
-	err = dnet_add_received_state(n, cmd->id, attr, a);
+	err = dnet_add_received_state(n, cmd->id, a, 0);
 
 	if (!err)
 		dnet_log(n, DNET_LOG_INFO, "%s: lookup returned address %s.\n",
