@@ -429,8 +429,8 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	int (* final)(void *priv, void *dst, void *addr,
 		unsigned int *dsize, unsigned int flags),
 	void (* cleanup)(void *priv));
-int dnet_remove_transform(struct dnet_node *n, char *name);
-int dnet_remove_transform_pos(struct dnet_node *n, int pos);
+int dnet_remove_transform(struct dnet_node *n, char *name, int cleanup);
+int dnet_remove_transform_pos(struct dnet_node *n, int pos, int cleanup);
 int dnet_move_transform(struct dnet_node *n, char *name, int tail);
 
 /*

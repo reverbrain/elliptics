@@ -2090,7 +2090,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_remove_transform_pos(struct dnet_node *n, int pos)
+int dnet_remove_transform_pos(struct dnet_node *n, int pos, int cleanup)
 {
 	struct dnet_transform *t, *tmp;
 	int err = -ENOENT;
@@ -2103,7 +2103,6 @@ int dnet_remove_transform_pos(struct dnet_node *n, int pos)
 		if (!pos) {
 			n->transform_num--;
 			list_del(&t->tentry);
-			free(t);
 			err = 0;
 			break;
 		}
@@ -2112,10 +2111,16 @@ int dnet_remove_transform_pos(struct dnet_node *n, int pos)
 	}
 	pthread_rwlock_unlock(&n->transform_lock);
 
+	if (!err) {
+		if (cleanup)
+			t->cleanup(t->priv);
+		free(t);
+	}
+
 	return err;
 }
 
-int dnet_remove_transform(struct dnet_node *n, char *name)
+int dnet_remove_transform(struct dnet_node *n, char *name, int cleanup)
 {
 	struct dnet_transform *t, *tmp;
 	int err = -ENOENT;
@@ -2126,17 +2131,19 @@ int dnet_remove_transform(struct dnet_node *n, char *name)
 	pthread_rwlock_wrlock(&n->transform_lock);
 	list_for_each_entry_safe(t, tmp, &n->transform_list, tentry) {
 		if (!strncmp(name, t->name, DNET_MAX_NAME_LEN)) {
+			n->transform_num--;
+			list_del(&t->tentry);
 			err = 0;
 			break;
 		}
 	}
+	pthread_rwlock_unlock(&n->transform_lock);
 
 	if (!err) {
-		n->transform_num--;
-		list_del(&t->tentry);
+		if (cleanup)
+			t->cleanup(t->priv);
 		free(t);
 	}
-	pthread_rwlock_unlock(&n->transform_lock);
 
 	return err;
 }
