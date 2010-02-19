@@ -682,18 +682,16 @@ static void *dnet_check_process(void *data)
 		saveptr = NULL;
 		token = strtok_r(token, DNET_CHECK_NEWLINE_TOKEN_STRING, &saveptr);
 
-		if (strcmp(current_hash, hash)) {
-			dnet_cleanup_transform(w->n);
+		dnet_cleanup_transform(w->n);
 
-			err = dnet_check_process_hash_string(w->n, hash, 1);
-			if (err < 0) {
-				current_hash[0] = '\0';
-				err = 0;
-			} else
-				snprintf(current_hash, sizeof(current_hash), "%s", hash);
+		err = dnet_check_process_hash_string(w->n, hash, 1);
+		if (err < 0) {
+			current_hash[0] = '\0';
+			err = 0;
+		} else
+			snprintf(current_hash, sizeof(current_hash), "%s", hash);
 
-			hash_num = err;
-		}
+		hash_num = err;
 
 		obj_len = strlen(obj);
 

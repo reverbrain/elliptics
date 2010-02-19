@@ -1,3 +1,10 @@
+elliptics (2.6.4.6) unstable; urgency=low
+
+  * Do not compare checker's hash strings, initialize hashes again,
+    since we already dropped them all.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 19 Feb 2010 21:31:48 +0300
+
 elliptics (2.6.4.5) unstable; urgency=low
 
   * Request remote route table when node adds remote address.
