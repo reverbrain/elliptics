@@ -1,3 +1,9 @@
+elliptics (2.6.4.5) unstable; urgency=low
+
+  * Request remote route table when node adds remote address.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 19 Feb 2010 19:50:03 +0300
+
 elliptics (2.6.4.4) unstable; urgency=low
 
   * Fixed multiple log lines processing in checker.
