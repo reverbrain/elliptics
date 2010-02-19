@@ -738,8 +738,6 @@ int dnet_join(struct dnet_node *n)
 			continue;
 
 		err = dnet_state_join(st);
-		if (err)
-			break;
 	}
 	pthread_rwlock_unlock(&n->state_lock);
 
