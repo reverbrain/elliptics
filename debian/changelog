@@ -1,3 +1,9 @@
+elliptics (2.6.4.4) unstable; urgency=low
+
+  * Fixed multiple log lines processing in checker.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 19 Feb 2010 17:38:50 +0300
+
 elliptics (2.6.4.3) unstable; urgency=low
 
   * Minor cleanups.

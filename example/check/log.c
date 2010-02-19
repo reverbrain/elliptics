@@ -156,7 +156,12 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_check_process_hash_string(struct dnet_node *n, char *hash)
+static int dnet_check_del_hash(struct dnet_node *n, char *hash)
+{
+	return dnet_remove_transform(n, hash, 1);
+}
+
+static int dnet_check_process_hash_string(struct dnet_node *n, char *hash, int add)
 {
 	char local_hash[128];
 	char *token, *saveptr;
@@ -171,9 +176,13 @@ static int dnet_check_process_hash_string(struct dnet_node *n, char *hash)
 		if (!token)
 			break;
 
-		err = dnet_check_add_hash(n, token);
-		if (err)
-			return err;
+		if (add) {
+			err = dnet_check_add_hash(n, token);
+			if (err)
+				return err;
+		} else {
+			err = dnet_check_del_hash(n, token);
+		}
 
 		hash = NULL;
 		added++;
@@ -526,7 +535,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 		req = &requests[i];
 
 		if (req->present) {
-			err = dnet_remove_transform_pos(n, req->pos);
+			err = dnet_remove_transform_pos(n, req->pos, 1);
 			if (err) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to remove transformation at position %d: %d.\n",
 						dnet_dump_id(req->id), req->pos, err);
@@ -634,7 +643,7 @@ static void *dnet_check_process(void *data)
 		if (strcmp(current_hash, hash)) {
 			dnet_cleanup_transform(w->n);
 
-			err = dnet_check_process_hash_string(w->n, hash);
+			err = dnet_check_process_hash_string(w->n, hash, 1);
 			if (err < 0) {
 				current_hash[0] = '\0';
 				err = 0;
@@ -657,6 +666,8 @@ static void *dnet_check_process(void *data)
 		}
 
 		err = dnet_check_number_of_copies(w, obj, start, end, hash_num, type, update_existing);
+		
+		dnet_check_process_hash_string(w->n, hash, 0);
 	}
 
 	return NULL;
