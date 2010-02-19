@@ -361,6 +361,45 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_check_cleanup_transactions(struct dnet_check_worker *w, struct dnet_check_request *existing)
+{
+	struct dnet_node *n = w->n;
+	char file[256];
+	int err;
+	struct dnet_history_entry *e;
+	struct dnet_history_map map;
+	struct dnet_io_attr io;
+	long i;
+	char eid[DNET_ID_SIZE*2 + 1];
+
+	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
+		dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid), DNET_HISTORY_SUFFIX);
+
+	err = dnet_map_history(n, file, &map);
+	if (err)
+		goto err_out_exit;
+
+	for (i=0; i<map.num; ++i) {
+		io.size = 0;
+		io.offset = 0;
+		io.flags = 0;
+
+		e = &map.ent[i];
+
+		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir,
+			dnet_dump_id_len_raw(e->id, DNET_ID_SIZE, eid));
+
+		unlink(file);
+	}
+
+	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
+		dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid), DNET_HISTORY_SUFFIX);
+	unlink(file);
+
+err_out_exit:
+	return err;
+}
+
 static int dnet_check_process_request(struct dnet_check_worker *w,
 		struct dnet_check_request *req, struct dnet_check_request *existing)
 {
@@ -477,6 +516,9 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 	}
 
 out_unlink:
+	if (existing)
+		dnet_check_cleanup_transactions(worker, existing);
+
 	if (!update_existing) {
 		unlink(file);
 		snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
