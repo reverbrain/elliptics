@@ -1723,7 +1723,8 @@ cont:
 err_continue:
 		dnet_fcgi_output("Cache-control: no-cache\r\n");
 		dnet_fcgi_output("Content-Type: text/plain\r\n");
-		dnet_fcgi_output("Status: %d %s: %s [%d]\r\n\r\n", (err == -ENOENT) ? 404 : 403, reason, strerror(-err), err);
+		dnet_fcgi_output("Status: %d\r\n\r\n", (err == -ENOENT) ? 404 : 403);
+		dnet_fcgi_output("Reason: %s: %s [%d]\r\n", reason, strerror(-err), err);
 		fprintf(dnet_fcgi_log, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(-err), err);
 		fflush(dnet_fcgi_log);
 		goto cont;
