@@ -24,10 +24,7 @@ The network uses unified ring of the IDs where each new node will get one or ano
 number. After selecting the ID and joining the network (saying its neighbours in the
 ring that they have a new member) node will store data which has IDs less or equal
 to the selected one. Routing protocol manages request forwarding, so each node should
-store data only less or equal than own ID and more than the next one in the ring.
-If neighbour node with smaller ID (in the ring math, so 0xff may be smaller than 1 in
-the [0:0xff] ring for example) fails requests for the failed range will be redirected
-to it.
+store data with greater or equal than own ID and less than the next one in the ring.
 
 ID in the elliptics network can be created from the data content, names, database
 indexes or whatever you want. There are so called transformation functions, which
@@ -58,7 +55,7 @@ performance.
 No need for metadata servers.
 -----------------------------
 Elliptics network does not need special metadata servers to manage ID to object
-mapping, this is achieved by applications by using transformation functions.
+mapping, this is done automatically in applications by using transformation functions.
 
 Maintaining the data redundancy.
 --------------------------------
