@@ -592,7 +592,7 @@ int dnet_process_cmd(struct dnet_trans *t)
 }
 
 static int dnet_add_received_state(struct dnet_node *n, unsigned char *id,
-		struct dnet_attr *attr, struct dnet_addr_attr *a);
+		struct dnet_addr_attr *a, int join);
 
 static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv __unused)
@@ -624,22 +624,17 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 
 	num = attr->size / sizeof(struct dnet_route_attr);
 	dnet_log(n, DNET_LOG_INFO, "%s: route list: %d entries.\n", dnet_dump_id(cmd->id), num);
-	i = 0;
-	while (i < num) {
+
+	for (i=0; i<num; ++i) {
 		a = &attrs[i];
 
 		dnet_convert_addr_attr(&a->addr);
 
-		err = dnet_add_received_state(n, a->id, attr, &a->addr);
+		err = dnet_add_received_state(n, a->id, &a->addr, st->__join_state & DNET_JOIN);
 		
 		dnet_log(n, DNET_LOG_INFO, " %2d/%d   %s - %s, added error: %d.\n",
 				i, num, dnet_dump_id(a->id),
 				dnet_server_convert_dnet_addr(&a->addr.addr), err);
-
-		if (num < 10 || !i)
-			i++;
-		else
-			i <<= 1;
 	}
 
 	return 0;
@@ -719,13 +714,6 @@ static int dnet_state_join(struct dnet_net_state *st)
 		goto out_exit;
 	}
 
-	err = dnet_recv_route_list(st);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send route list request to %s.\n",
-			dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr));
-		goto out_exit;
-	}
-
 	st->__join_state = DNET_JOIN;
 	dnet_log(n, DNET_LOG_INFO, "%s: successfully joined network.\n", dnet_dump_id(st->id));
 
@@ -750,8 +738,6 @@ int dnet_join(struct dnet_node *n)
 			continue;
 
 		err = dnet_state_join(st);
-		if (err)
-			break;
 	}
 	pthread_rwlock_unlock(&n->state_lock);
 
@@ -840,6 +826,8 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_sock_close;
 	}
 
+	dnet_recv_route_list(st);
+
 	return 0;
 
 err_out_sock_close:
@@ -848,7 +836,7 @@ err_out_sock_close:
 }
 
 static int dnet_add_received_state(struct dnet_node *n, unsigned char *id,
-		struct dnet_attr *attr __unused, struct dnet_addr_attr *a)
+		struct dnet_addr_attr *a, int join)
 {
 	int s, err = 0;
 	struct dnet_net_state *nst;
@@ -875,9 +863,13 @@ static int dnet_add_received_state(struct dnet_node *n, unsigned char *id,
 		goto err_out_close;
 	}
 
-	err = dnet_state_join(nst);
-	if (err)
-		goto err_out_put;
+	nst->__join_state = DNET_WANT_RECONNECT;
+
+	if (join) {
+		err = dnet_state_join(nst);
+		if (err)
+			goto err_out_put;
+	}
 
 	dnet_log(n, DNET_LOG_INFO, "%s: added received state %s.\n",
 			dnet_dump_id(id), dnet_state_dump_addr(nst));
@@ -1322,6 +1314,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file, unsigned char 
 	ctl.io.size = size;
 	ctl.io.offset = offset;
 
+	trans_num = 0;
 	error = dnet_write_object(n, &ctl, file, strlen(file), id, 1, &trans_num);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: transactions sent: %d, error: %d.\n",
@@ -2090,7 +2083,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_remove_transform_pos(struct dnet_node *n, int pos)
+int dnet_remove_transform_pos(struct dnet_node *n, int pos, int cleanup)
 {
 	struct dnet_transform *t, *tmp;
 	int err = -ENOENT;
@@ -2103,7 +2096,6 @@ int dnet_remove_transform_pos(struct dnet_node *n, int pos)
 		if (!pos) {
 			n->transform_num--;
 			list_del(&t->tentry);
-			free(t);
 			err = 0;
 			break;
 		}
@@ -2112,10 +2104,16 @@ int dnet_remove_transform_pos(struct dnet_node *n, int pos)
 	}
 	pthread_rwlock_unlock(&n->transform_lock);
 
+	if (!err) {
+		if (cleanup)
+			t->cleanup(t->priv);
+		free(t);
+	}
+
 	return err;
 }
 
-int dnet_remove_transform(struct dnet_node *n, char *name)
+int dnet_remove_transform(struct dnet_node *n, char *name, int cleanup)
 {
 	struct dnet_transform *t, *tmp;
 	int err = -ENOENT;
@@ -2126,17 +2124,19 @@ int dnet_remove_transform(struct dnet_node *n, char *name)
 	pthread_rwlock_wrlock(&n->transform_lock);
 	list_for_each_entry_safe(t, tmp, &n->transform_list, tentry) {
 		if (!strncmp(name, t->name, DNET_MAX_NAME_LEN)) {
+			n->transform_num--;
+			list_del(&t->tentry);
 			err = 0;
 			break;
 		}
 	}
+	pthread_rwlock_unlock(&n->transform_lock);
 
 	if (!err) {
-		n->transform_num--;
-		list_del(&t->tentry);
+		if (cleanup)
+			t->cleanup(t->priv);
 		free(t);
 	}
-	pthread_rwlock_unlock(&n->transform_lock);
 
 	return err;
 }
@@ -2449,7 +2449,7 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	dnet_convert_addr_attr(a);
 
-	err = dnet_add_received_state(n, cmd->id, attr, a);
+	err = dnet_add_received_state(n, cmd->id, a, 0);
 
 	if (!err)
 		dnet_log(n, DNET_LOG_INFO, "%s: lookup returned address %s.\n",

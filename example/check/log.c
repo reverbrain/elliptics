@@ -156,7 +156,12 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_check_process_hash_string(struct dnet_node *n, char *hash)
+static int dnet_check_del_hash(struct dnet_node *n, char *hash)
+{
+	return dnet_remove_transform(n, hash, 1);
+}
+
+static int dnet_check_process_hash_string(struct dnet_node *n, char *hash, int add)
 {
 	char local_hash[128];
 	char *token, *saveptr;
@@ -171,9 +176,13 @@ static int dnet_check_process_hash_string(struct dnet_node *n, char *hash)
 		if (!token)
 			break;
 
-		err = dnet_check_add_hash(n, token);
-		if (err)
-			return err;
+		if (add) {
+			err = dnet_check_add_hash(n, token);
+			if (err)
+				return err;
+		} else {
+			err = dnet_check_del_hash(n, token);
+		}
 
 		hash = NULL;
 		added++;
@@ -352,6 +361,45 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_check_cleanup_transactions(struct dnet_check_worker *w, struct dnet_check_request *existing)
+{
+	struct dnet_node *n = w->n;
+	char file[256];
+	int err;
+	struct dnet_history_entry *e;
+	struct dnet_history_map map;
+	struct dnet_io_attr io;
+	long i;
+	char eid[DNET_ID_SIZE*2 + 1];
+
+	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
+		dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid), DNET_HISTORY_SUFFIX);
+
+	err = dnet_map_history(n, file, &map);
+	if (err)
+		goto err_out_exit;
+
+	for (i=0; i<map.num; ++i) {
+		io.size = 0;
+		io.offset = 0;
+		io.flags = 0;
+
+		e = &map.ent[i];
+
+		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir,
+			dnet_dump_id_len_raw(e->id, DNET_ID_SIZE, eid));
+
+		unlink(file);
+	}
+
+	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
+		dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid), DNET_HISTORY_SUFFIX);
+	unlink(file);
+
+err_out_exit:
+	return err;
+}
+
 static int dnet_check_process_request(struct dnet_check_worker *w,
 		struct dnet_check_request *req, struct dnet_check_request *existing)
 {
@@ -468,6 +516,9 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 	}
 
 out_unlink:
+	if (existing)
+		dnet_check_cleanup_transactions(worker, existing);
+
 	if (!update_existing) {
 		unlink(file);
 		snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
@@ -526,7 +577,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 		req = &requests[i];
 
 		if (req->present) {
-			err = dnet_remove_transform_pos(n, req->pos);
+			err = dnet_remove_transform_pos(n, req->pos, 1);
 			if (err) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to remove transformation at position %d: %d.\n",
 						dnet_dump_id(req->id), req->pos, err);
@@ -587,7 +638,6 @@ static void *dnet_check_process(void *data)
 {
 	struct dnet_check_worker *w = data;
 	char buf[4096], *tmp, *saveptr, *token, *hash, *obj;
-	char current_hash[128];
 	int size = sizeof(buf);
 	int err, type, hash_num = 0, obj_len;
 	int start, end, update_existing;
@@ -631,18 +681,13 @@ static void *dnet_check_process(void *data)
 		saveptr = NULL;
 		token = strtok_r(token, DNET_CHECK_NEWLINE_TOKEN_STRING, &saveptr);
 
-		if (strcmp(current_hash, hash)) {
-			dnet_cleanup_transform(w->n);
+		dnet_cleanup_transform(w->n);
 
-			err = dnet_check_process_hash_string(w->n, hash);
-			if (err < 0) {
-				current_hash[0] = '\0';
-				err = 0;
-			} else
-				snprintf(current_hash, sizeof(current_hash), "%s", hash);
+		err = dnet_check_process_hash_string(w->n, hash, 1);
+		if (err < 0)
+			continue;
 
-			hash_num = err;
-		}
+		hash_num = err;
 
 		obj_len = strlen(obj);
 
@@ -657,6 +702,8 @@ static void *dnet_check_process(void *data)
 		}
 
 		err = dnet_check_number_of_copies(w, obj, start, end, hash_num, type, update_existing);
+		
+		dnet_check_process_hash_string(w->n, hash, 0);
 	}
 
 	return NULL;

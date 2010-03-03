@@ -1,3 +1,29 @@
+elliptics (2.6.4.7) unstable; urgency=low
+
+  * Initialize transaction number to zero prior starting write.
+  * Remove unneded hash checks
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 19 Feb 2010 22:03:56 +0300
+
+elliptics (2.6.4.6) unstable; urgency=low
+
+  * Do not compare checker's hash strings, initialize hashes again,
+    since we already dropped them all.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 19 Feb 2010 21:31:48 +0300
+
+elliptics (2.6.4.5) unstable; urgency=low
+
+  * Request remote route table when node adds remote address.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 19 Feb 2010 19:50:03 +0300
+
+elliptics (2.6.4.4) unstable; urgency=low
+
+  * Fixed multiple log lines processing in checker.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 19 Feb 2010 17:38:50 +0300
+
 elliptics (2.6.4.3) unstable; urgency=low
 
   * Minor cleanups.
