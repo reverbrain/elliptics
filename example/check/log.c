@@ -400,6 +400,11 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_upload_local_file(struct dnet_check_worker *w, struct dnet_check_request *req, char *file)
+{
+	return dnet_write_file(w->n, file, req->id, 0, 0, req->type);
+}
+
 static int dnet_check_process_request(struct dnet_check_worker *w,
 		struct dnet_check_request *req, struct dnet_check_request *existing)
 {
@@ -503,10 +508,13 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 		for (i=0; i<num; ++i) {
 			req = &requests[i];
 
-			if (req->present && !update_existing)
-				continue;
+			err = 0;
+			if (update_existing) {
+				err = dnet_upload_local_file(worker, req, file);
+			} else if (!req->present) {
+				err = dnet_check_process_request(worker, req, existing);
+			}
 
-			err = dnet_check_process_request(worker, req, existing);
 			if (err) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to upload a '%s' request list: %d.\n",
 						obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), err);
