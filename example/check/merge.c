@@ -13,17 +13,36 @@
  * GNU General Public License for more details.
  */
 
-#ifndef __COMMON_H
-#define __COMMON_H
-
 #include "config.h"
-#include "dnet/packet.h"
-#include "dnet/interface.h"
 
-int dnet_parse_addr(char *addr, struct dnet_config *cfg);
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/socket.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
 
-int dnet_parse_numeric_id(char *value, unsigned char *id);
+#include <errno.h>
+#include <ctype.h>
+#include <dirent.h>
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
-void dnet_common_log(void *priv, uint32_t mask, const char *msg);
+#include "common.h"
 
-#endif /* __COMMON_H */
+#include "../common.h"
+#include "../hash.h"
+
+static void *dnet_merge_process(void *data)
+{
+	return NULL;
+}
+
+int main(int argc, char *argv[])
+{
+	return dnet_check_start(argc, argv, dnet_merge_process);
+}
