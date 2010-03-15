@@ -848,6 +848,8 @@ static void dnet_process_socket(int s __unused, short event, void *arg)
 err_out_destroy:
 	event_del(&st->event);
 
+	dnet_state_remove(st);
+
 	dnet_add_reconnect_state(st);
 	while (!list_empty(&st->snd_list)) {
 		struct dnet_data_req *r = NULL;

@@ -1,3 +1,10 @@
+elliptics (2.6.4.8) unstable; urgency=low
+
+  * Return 404 POST status when number of upload errors is more than
+    configured number (0 by default).
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 05 Mar 2010 20:05:14 +0300
+
 elliptics (2.6.4.7) unstable; urgency=low
 
   * Initialize transaction number to zero prior starting write.

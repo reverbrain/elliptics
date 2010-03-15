@@ -50,8 +50,9 @@ static long dnet_fcgi_timeout_sec = 10;
 static FILE *dnet_fcgi_log;
 static pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
-static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344;
+static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344, dnet_fcgi_request_error;
 static char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
+static int dnet_fcgi_tolerate_upload_error_count = 0;
 static unsigned long dnet_fcgi_max_request_size;
 static int dnet_fcgi_base_port;
 static uint64_t dnet_fcgi_bit_mask;
@@ -703,19 +704,16 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 		goto err_out_exit;
 	}
 
+	if (cmd->status)
+		err = cmd->status;
+
 	if (!(cmd->flags & DNET_FLAGS_MORE)) {
 		char id[DNET_ID_SIZE*2+1];
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
-		fprintf(dnet_fcgi_log, "%s: upload completed: %d.\n",
-				dnet_dump_id(cmd->id), dnet_fcgi_request_completed);
-		dnet_fcgi_output("<id>%s</id>", dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id));
+		dnet_fcgi_wakeup({ do { dnet_fcgi_request_completed++; if (err) dnet_fcgi_request_error++; } while (0); -1; });
+		fprintf(dnet_fcgi_log, "%s: upload completed: %d, err: %d.\n",
+				dnet_dump_id(cmd->id), dnet_fcgi_request_completed, err);
+		dnet_fcgi_output("<complete><id>%s</id><status>%d</status></complete>", dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id), err);
 	}
-
-	if (cmd->status) {
-		err = cmd->status;
-		goto err_out_exit;
-	}
-
 
 err_out_exit:
 	return err;
@@ -748,14 +746,13 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 	dnet_fcgi_output("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
 	dnet_fcgi_output("<post object=\"%s\">", obj);
 
+	dnet_fcgi_request_error = 0;
 	dnet_fcgi_request_completed = 0;
 	err = dnet_write_object(n, &ctl, obj, len, NULL, 1, &trans_num);
 	if (err < 0) {
 		fprintf(dnet_fcgi_log, "%s: failed to upload '%s' object: %d.\n", addr, obj, err);
 		goto err_out_exit;
 	}
-
-	err = 0;
 
 	fprintf(dnet_fcgi_log, "%s: waiting for upload completion: %d/%d.\n",
 			addr, dnet_fcgi_request_completed, trans_num);
@@ -764,6 +761,10 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: upload wait completion failed: obj: '%s': %d.\n", addr, obj, err);
 	}
 	dnet_fcgi_output("</post>\r\n");
+	err = 0;
+
+	if (dnet_fcgi_request_error > dnet_fcgi_tolerate_upload_error_count)
+		err = -ENOENT;
 
 err_out_exit:
 	return err;
@@ -1569,6 +1570,10 @@ int main()
 	p = getenv("DNET_FCGI_DNS_LOOKUP");
 	if (p)
 		dnet_fcgi_dns_lookup = atoi(p);
+
+	p = getenv("DNET_FCGI_TOLERATE_UPLOAD_ERROR_COUNT");
+	if (p)
+		dnet_fcgi_tolerate_upload_error_count = atoi(p);
 
 	p = getenv("DNET_FCGI_CONTENT_TYPES");
 	if (p)
