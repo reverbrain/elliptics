@@ -509,8 +509,8 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 /*
  * Compare two IDs.
- * Returns -1 when id1 > id2
- *          1 when id1 < id2
+ * Returns  1 when id1 > id2
+ *         -1 when id1 < id2
  *          0 when id1 = id2
  */
 static inline int dnet_id_cmp(const unsigned char *id1, const unsigned char *id2)
@@ -518,9 +518,9 @@ static inline int dnet_id_cmp(const unsigned char *id1, const unsigned char *id2
 	unsigned int i = 0;
 
 	for (i*=sizeof(unsigned long); i<DNET_ID_SIZE; ++i) {
-		if (id1[i] > id2[i])
-			return -1;
 		if (id1[i] < id2[i])
+			return -1;
+		if (id1[i] > id2[i])
 			return 1;
 	}
 
