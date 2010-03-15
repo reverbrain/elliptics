@@ -164,7 +164,7 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 	int err;
 	unsigned int aflags = 0;
 
-	st = dnet_state_search(n, cmd->id, NULL);
+	st = dnet_state_get_first(n, cmd->id, NULL);
 	if (!st)
 		st = dnet_state_get(orig->n->st);
 

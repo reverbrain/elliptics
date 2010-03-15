@@ -532,18 +532,18 @@ static inline int dnet_id_cmp(const unsigned char *id1, const unsigned char *id2
  */
 int dnet_state_get_next_id(void *state, unsigned char *id);
 
-static inline int dnet_id_within_range(unsigned char *id, unsigned char *start, unsigned char *last)
+static inline int dnet_id_within_range(const unsigned char *id, const unsigned char *start, const unsigned char *last)
 {
 	int direct = dnet_id_cmp(start, last);
 	int ret = 0;
 
 	if (direct > 0) {
-		if ((dnet_id_cmp(id, start) <= 0) && (dnet_id_cmp(id, last) >= 0))
-			ret = 1;
-	} else if (direct < 0) {
 		ret = 1;
-		if ((dnet_id_cmp(id, start) > 0) && (dnet_id_cmp(id, last) < 0))
+		if ((dnet_id_cmp(id, start) < 0) && (dnet_id_cmp(id, last) >= 0))
 			ret = 0;
+	} else if (direct < 0) {
+		if ((dnet_id_cmp(id, start) >= 0) && (dnet_id_cmp(id, last) < 0))
+			ret = 1;
 	} else {
 		ret = !!memcmp(id, start, DNET_ID_SIZE);
 	}

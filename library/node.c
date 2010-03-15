@@ -243,7 +243,7 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *
 
 	if (!st) {
 		err = -ENOENT;
-		list_for_each_entry(st, &n->state_list, state_entry) {
+		list_for_each_entry_reverse(st, &n->state_list, state_entry) {
 			if (st == self)
 				continue;
 
@@ -262,25 +262,36 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *
 
 int dnet_state_get_next_id(void *state, unsigned char *id)
 {
-	struct dnet_net_state *st = state, *next = NULL;
-	struct dnet_node *n = st->n;
+	struct dnet_net_state *st, *next = NULL;
+	struct dnet_net_state *client = state;
+	struct dnet_node *n = client->n;
 	char next_id[DNET_ID_SIZE*2+1];
 	int err = -ENOENT;
 
 	pthread_rwlock_rdlock(&n->state_lock);
-	next = list_entry(st->state_entry.prev, struct dnet_net_state, state_entry);
-	if (&next->state_entry == &n->state_list)
-		next = NULL;
+	st = __dnet_state_search(n, id, client);
+	if (st) {
+		next = list_entry(st->state_entry.prev, struct dnet_net_state, state_entry);
+		if (&next->state_entry == &n->state_list) {
+			next = list_entry(n->state_list.prev, struct dnet_net_state, state_entry);
 
-	if (next) {
-		memcpy(id, next->id, DNET_ID_SIZE);
-		err = 0;
-	} else
+			if (next == st)
+				next = NULL;
+		}
+
+		dnet_log(n, DNET_LOG_INFO, "%s: %p\n", dnet_dump_id(st->id), next);
+
 		memcpy(id, st->id, DNET_ID_SIZE);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: %s - %s\n", dnet_dump_id(st->id),
-			dnet_dump_id_len_raw(id, DNET_ID_SIZE, next_id),
-			(next) ? dnet_server_convert_dnet_addr(&next->addr) : NULL);
+		if (next) {
+			memcpy(id, next->id, DNET_ID_SIZE);
+			err = 0;
+		}
+	}
+
+	dnet_log(n, DNET_LOG_INFO, "%s - %s: %d\n", dnet_dump_id_len_raw(id, DNET_ID_SIZE, next_id),
+			(next) ? dnet_server_convert_dnet_addr(&next->addr) : "null",
+			err);
 
 	pthread_rwlock_unlock(&n->state_lock);
 
