@@ -826,6 +826,8 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_sock_close;
 	}
 
+	memcpy(cfg->id, st->id, DNET_ID_SIZE);
+
 	dnet_recv_route_list(st);
 
 	return 0;
@@ -3129,4 +3131,26 @@ int dnet_remove_file(struct dnet_node *n, char *file, unsigned char *file_id)
 
 err_out_exit:
 	return err;
+}
+
+int dnet_request_ids(struct dnet_node *n, unsigned char *id,
+	unsigned int aflags,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			struct dnet_attr *attr,
+			void *priv),
+	void *priv)
+{
+	struct dnet_trans_control ctl;
+
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+
+	memcpy(ctl.id, id, DNET_ID_SIZE);
+	ctl.cmd = DNET_CMD_LIST;
+	ctl.complete = complete;
+	ctl.priv = priv;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.aflags = aflags;
+
+	return dnet_trans_alloc_send(n, &ctl);
 }

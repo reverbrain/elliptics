@@ -123,6 +123,9 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* Do not work with history/transaction machinery, write data as is into object */
 #define DNET_ATTR_DIRECT_TRANSACTION		(1<<1)
 
+/* Provide only those IDs which are behind of node's range. */
+#define DNET_ATTR_ID_OUT			(1<<0)
+
 struct dnet_attr
 {
 	uint64_t		size;

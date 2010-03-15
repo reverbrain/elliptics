@@ -1172,13 +1172,11 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 		c->flags = DNET_FLAGS_MORE;
 
 	c->size = sizeof(struct dnet_attr) + size;
+	c->trans |= DNET_TRANS_REPLY;
 
 	a->size = size;
-	a->flags = 0;
+	a->flags = attr->flags;
 	a->cmd = attr->cmd;
-
-	if (!attr->flags)
-		c->trans |= DNET_TRANS_REPLY;
 
 	memcpy(data, odata, size);
 

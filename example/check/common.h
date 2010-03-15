@@ -56,9 +56,10 @@ extern int (* dnet_check_ext_merge)(void *priv, char *path, int start, int end,
 extern void *dnet_check_ext_private;
 extern void *dnet_check_ext_library;
 
-int dnet_check_start(int argc, char *argv[], void *(* process)(void *data));
+int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int check_file);
 
-static char dnet_check_tmp_dir[128] = "/tmp";
-static FILE *dnet_check_file;
+extern char dnet_check_tmp_dir[128];
+extern FILE *dnet_check_file;
+extern pthread_mutex_t dnet_check_file_lock;
 
 #endif /* __DNET_CHECK_COMMON_H */

@@ -158,8 +158,7 @@ static int dnet_is_dir(void *state, char *path)
 }
 
 static int dnet_listdir(void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr,	char *sub,
-		unsigned char *first_id)
+		struct dnet_attr *attr,	char *sub, unsigned char *next_id)
 {
 	int err = 0;
 	DIR *dir;
@@ -212,9 +211,8 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 
 		dnet_convert_name_to_id(d->d_name, id);
 
-		if (first_id) {
-			err = dnet_id_cmp(first_id, id);
-			if (err > 0)
+		if (attr->flags & DNET_ATTR_ID_OUT) {
+			if (!dnet_id_within_range(id, next_id, cmd->id))
 				continue;
 		}
 		
@@ -265,25 +263,29 @@ err_out_exit:
 static int file_list(struct file_backend_root *r, void *state,
 		struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
-	int err;
+	int err, out = attr->flags & DNET_ATTR_ID_OUT;
 	DIR *dir;
 	struct dirent *d;
-	long long current, start, last;
+	long long current, last, start;
 	char sub[32];
 	unsigned char id[DNET_ID_SIZE];
 
-	err = dnet_state_get_range(state, cmd->id, id);
-	if (err)
-		goto err_out_exit;
+	start = 0;
+	last = ~0UL;
+
+	if (out) {
+		err = dnet_state_get_next_id(state, id);
+		if (!err) {
+			last = file_backend_get_dir(id, r->bit_mask) - 1;
+			start = file_backend_get_dir(cmd->id, r->bit_mask) - 1;
+		}
+	}
 
 	dir = opendir(".");
 	if (!dir) {
 		err = -errno;
 		goto err_out_exit;
 	}
-	
-	last = file_backend_get_dir(id, r->bit_mask) - 1;
-	start = file_backend_get_dir(cmd->id, r->bit_mask) - 1;
 
 	while ((d = readdir(dir)) != NULL) {
 		if (d->d_name[0] == '.' && d->d_name[1] == '\0')
@@ -300,18 +302,17 @@ static int file_list(struct file_backend_root *r, void *state,
 		err = 0;
 
 		if ((start >= last) && (current >= last) && (current <= start))
-			err = dnet_listdir(state, cmd, attr, sub, NULL);
+			err = dnet_listdir(state, cmd, attr, sub, id);
 
 		if (start < last) {
 			if ((current >= 0) && (current <= start))
-				err = dnet_listdir(state, cmd, attr, sub, NULL);
+				err = dnet_listdir(state, cmd, attr, sub, id);
 
 			if (current < 0) {
 				current += ~0ULL;
 				if (current >= last)
-					err = dnet_listdir(state, cmd, attr, sub, NULL);
+					err = dnet_listdir(state, cmd, attr, sub, id);
 			}
-
 		}
 
 		if (err && (err != -ENOENT))

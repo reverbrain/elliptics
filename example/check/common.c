@@ -51,6 +51,10 @@ int (* dnet_check_ext_merge)(void *priv, char *path, int start, int end,
 void *dnet_check_ext_private;
 void *dnet_check_ext_library;
 
+char dnet_check_tmp_dir[128] = "/tmp";
+FILE *dnet_check_file;
+pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
+
 #define dnet_check_wait(worker,condition)					\
 ({										\
 	pthread_mutex_lock(&(worker)->wait_lock);				\
@@ -387,6 +391,152 @@ err_out_exit:
 	return err;
 }
 
+struct dnet_id_request_completion
+{
+	int				fd;
+	unsigned char			id[DNET_ID_SIZE];
+	struct dnet_check_worker	*worker;
+};
+
+static int dnet_check_write_ids(struct dnet_id_request_completion *complete, unsigned char *id, uint64_t size)
+{
+	struct dnet_check_worker *worker = complete->worker;
+	struct dnet_node *n = worker->n;
+	long i, num = size / DNET_ID_SIZE;
+	int err;
+
+	err = write(complete->fd, id, size);
+	if (err < 0) {
+		err = -errno;
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to write IDs: %s.\n", dnet_dump_id(complete->id), strerror(errno));
+		return err;
+	}
+
+	for (i=0; i<num; ++i) {
+		dnet_log_raw(n, DNET_LOG_INFO, "%s\n", dnet_dump_id_len(id, DNET_ID_SIZE));
+
+		id += DNET_ID_SIZE;
+	}
+
+	return 0;
+}
+
+static int dnet_check_id_complete(struct dnet_net_state *state,
+		struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
+{
+	struct dnet_id_request_completion *complete = priv;
+	struct dnet_check_worker *worker = complete->worker;
+	struct dnet_node *n = worker->n;
+	unsigned char *data;
+	int err = 0, last = 0;
+
+	if (!state || !cmd) {
+		err = -EINVAL;
+		goto out_wakeup;
+	}
+
+	err = cmd->status;
+	last = !(cmd->flags & DNET_FLAGS_MORE);
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: id completion status: %d, last: %d.\n",
+			dnet_dump_id(cmd->id), err, last);
+
+	if (err)
+		goto out_exit;
+
+	if (attr && attr->size) {
+		if (cmd->size <= sizeof(struct dnet_attr)) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: ID completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
+					dnet_dump_id(cmd->id), (unsigned long long)cmd->size,
+					sizeof(struct dnet_attr));
+			err = -EINVAL;
+			goto out_exit;
+		}
+
+		if (!attr) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: no attributes but command size is not null.\n", dnet_dump_id(cmd->id));
+			err = -EINVAL;
+			goto out_exit;
+		}
+
+		data = (unsigned char *)(attr + 1);
+
+		dnet_convert_attr(attr);
+
+		err = dnet_check_write_ids(complete, data, attr->size);
+	}
+
+	if (last)
+		goto out_wakeup;
+
+	return err;
+
+out_wakeup:
+	dnet_check_wakeup(worker, worker->wait_num++);
+	close(complete->fd);
+	free(complete);
+out_exit:
+	return err;
+}
+
+static int dnet_check_request_ids(struct dnet_check_worker *w, unsigned char *id, char *file)
+{
+	int err, fd;
+	struct dnet_node *n = w->n;
+	struct dnet_id_request_completion *c;
+
+	fd = open(file, O_RDWR | O_TRUNC | O_CREAT | O_APPEND, 0644);
+	if (fd < 0) {
+		err = -errno;
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open/create id completion file '%s': %s.\n",
+				dnet_dump_id(id), file, strerror(errno));
+		goto err_out_exit;
+	}
+
+	c = malloc(sizeof(struct dnet_id_request_completion));
+	if (!c) {
+		err = -ENOMEM;
+		goto err_out_close;
+	}
+
+	memcpy(c->id, id, DNET_ID_SIZE);
+	c->fd = fd;
+	c->worker = w;
+
+	w->wait_num = 0;
+	err = dnet_request_ids(n, id, DNET_ATTR_ID_OUT, dnet_check_id_complete, c);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to request IDs from node: %d.\n", dnet_dump_id(id), err);
+		goto err_out_exit;
+	}
+
+	err = dnet_check_wait(w, w->wait_num != 0);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to wait for ID request completion: %d.\n", dnet_dump_id(id), err);
+		goto err_out_exit;
+	}
+
+	if (w->wait_num < 0) {
+		err = w->wait_num;
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: ID request completed with error: %d.\n", dnet_dump_id(id), err);
+		goto err_out_exit;
+	}
+
+	dnet_check_file = fopen(file, "r");
+	if (!dnet_check_file) {
+		err = -errno;
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open ID completion file '%s': %s.\n",
+				dnet_dump_id(id), file, strerror(errno));
+		goto err_out_exit;
+	}
+
+	return 0;
+
+err_out_close:
+	close(fd);
+err_out_exit:
+	return err;
+}
+
 static void dnet_check_log_help(char *p)
 {
 	fprintf(stderr, "Usage: %s <options>\n"
@@ -401,7 +551,7 @@ static void dnet_check_log_help(char *p)
 			"  -h                      - this help.\n", p);
 }
 
-int dnet_check_start(int argc, char *argv[], void *(* process)(void *data))
+int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int request_ids)
 {
 	int ch, err = 0, i, j, worker_num = 1;
 	struct dnet_check_worker *w, *workers;
@@ -471,17 +621,19 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data))
 		goto out_exit;
 	}
 
-	if (!file) {
-		err = -EINVAL;
-		fprintf(stderr, "No input file, exiting.\n");
-		goto out_exit;
-	}
+	if (!request_ids) {
+		if (!file) {
+			err = -EINVAL;
+			fprintf(stderr, "No input file, exiting.\n");
+			goto out_exit;
+		}
 
-	dnet_check_file = fopen(file, "r");
-	if (!dnet_check_file) {
-		err = -errno;
-		fprintf(stderr, "Failed to open file '%s': %s.\n", file, strerror(errno));
-		goto out_exit;
+		dnet_check_file = fopen(file, "r");
+		if (!dnet_check_file) {
+			err = -errno;
+			fprintf(stderr, "Failed to open file '%s': %s.\n", file, strerror(errno));
+			goto out_exit;
+		}
 	}
 
 	if (library) {
@@ -522,12 +674,24 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data))
 			err = dnet_add_state(w->n, &remotes[j]);
 			if (!err)
 				added++;
+
+			if (request_ids && added)
+				break;
 		}
 
 		if (!added) {
 			dnet_log_raw(w->n, DNET_LOG_ERROR, "No remote nodes added, exiting.\n");
 			err = -ENOENT;
 			goto out_join;
+		}
+
+		if (i == 0 && request_ids) {
+			err = dnet_check_request_ids(w, remotes[0].id, file);
+			if (err) {
+				dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to request ID range from node %s: %d.\n",
+						dnet_dump_id_len(remotes[0].id, DNET_ID_SIZE), err);
+				goto out_join;
+			}
 		}
 
 		err = pthread_create(&w->tid, NULL, process, w);

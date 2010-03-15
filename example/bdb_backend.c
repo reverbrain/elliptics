@@ -457,6 +457,7 @@ static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr)
 {
 	int err, end = 0;
+	int out = attr->flags & DNET_ATTR_ID_OUT;
 	struct bdb_entry *e = be->hist;
 	unsigned char id[DNET_ID_SIZE], *k, stop;
 	DBT key, dbdata;
@@ -465,9 +466,8 @@ static int bdb_list(void *state, struct bdb_backend *be, struct dnet_cmd *cmd,
 	DB_TXN *txn;
 	DBC *cursor;
 
-	err = dnet_state_get_range(state, cmd->id, id);
-	if (err)
-		goto err_out_exit;
+	if (out)
+		dnet_state_get_next_id(state, id);
 
 	memset(&key, 0, sizeof(DBT));
 	memset(&dbdata, 0, sizeof(DBT));

@@ -282,15 +282,15 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr)
 {
 	int err, num, size, i;
+	int out = attr->flags & DNET_ATTR_ID_OUT;
 	TCADB *e = be->hist;
 	unsigned char id[DNET_ID_SIZE], start, last;
 	TCLIST *l;
 	int inum = 10240, ipos = 0, wrap = 0;
 	unsigned char ids[inum][DNET_ID_SIZE];
 
-	err = dnet_state_get_range(state, cmd->id, id);
-	if (err)
-		goto err_out_exit;
+	if (out)
+		dnet_state_get_next_id(state, id);
 
 	last = id[0] - 1;
 
@@ -316,8 +316,10 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			if (!idx)
 				break;
 
-			if (start == cmd->id[0] && dnet_id_cmp(cmd->id, idx) > 0)
-				continue;
+			if (attr->flags & DNET_ATTR_ID_OUT) {
+				if (!dnet_id_within_range(idx, id, cmd->id))
+					continue;
+			}
 
 			if (ipos == inum) {
 				err = dnet_send_reply(state, cmd, attr, ids, ipos * DNET_ID_SIZE, 1);

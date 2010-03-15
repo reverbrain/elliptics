@@ -528,10 +528,28 @@ static inline int dnet_id_cmp(const unsigned char *id1, const unsigned char *id2
 }
 
 /*
- * Get range of the IDs given node maintains.
- * It will be less or equal than @req and more than returned @id
+ * Return ID of the next to given node in routing table.
  */
-int dnet_state_get_range(void *state, unsigned char *req, unsigned char *id);
+int dnet_state_get_next_id(void *state, unsigned char *id);
+
+static inline int dnet_id_within_range(unsigned char *id, unsigned char *start, unsigned char *last)
+{
+	int direct = dnet_id_cmp(start, last);
+	int ret = 0;
+
+	if (direct > 0) {
+		if ((dnet_id_cmp(id, start) <= 0) && (dnet_id_cmp(id, last) >= 0))
+			ret = 1;
+	} else if (direct < 0) {
+		ret = 1;
+		if ((dnet_id_cmp(id, start) > 0) && (dnet_id_cmp(id, last) < 0))
+			ret = 0;
+	} else {
+		ret = !!memcmp(id, start, DNET_ID_SIZE);
+	}
+
+	return ret;
+}
 
 /*
  * Data request machinery.
@@ -730,6 +748,13 @@ struct dnet_history_map
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map);
 void dnet_unmap_history(struct dnet_node *n, struct dnet_history_map *map);
 
+int dnet_request_ids(struct dnet_node *n, unsigned char *id,
+	unsigned int aflags,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			struct dnet_attr *attr,
+			void *priv),
+	void *priv);
 
 #ifdef __cplusplus
 }

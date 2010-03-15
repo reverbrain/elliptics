@@ -37,8 +37,6 @@
 
 #include "common.h"
 
-static pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
-
 #define DNET_CHECK_TOKEN_STRING			" 	"
 #define DNET_CHECK_NEWLINE_TOKEN_STRING		"\r\n"
 #define DNET_CHECK_INNER_TOKEN_STRING		","
@@ -254,7 +252,11 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 		req->present = 1;
 	}
 
-	for (i=0; i<hash_num; ++i) {
+	/*
+	 * Must remove existing transformations in reverse order, since otherwise position
+	 * will not correspond to the initial transformation number.
+	 */
+	for (i=hash_num-1; i>=0; --i) {
 		req = &requests[i];
 
 		if (req->present) {
@@ -392,5 +394,5 @@ static void *dnet_check_process(void *data)
 
 int main(int argc, char *argv[])
 {
-	return dnet_check_start(argc, argv, dnet_check_process);
+	return dnet_check_start(argc, argv, dnet_check_process, 0);
 }

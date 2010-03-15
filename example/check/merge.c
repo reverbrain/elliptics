@@ -39,10 +39,26 @@
 
 static void *dnet_merge_process(void *data)
 {
+	struct dnet_check_worker *w = data;
+	struct dnet_node *n = w->n;
+	unsigned char id[DNET_ID_SIZE];
+	int err;
+
+	while (1) {
+		pthread_mutex_lock(&dnet_check_file_lock);
+		err = fread(id, DNET_ID_SIZE, 1, dnet_check_file);
+		pthread_mutex_unlock(&dnet_check_file_lock);
+
+		if (err != 1)
+			break;
+
+		dnet_log_raw(n, DNET_LOG_INFO, "merge: %s\n", dnet_dump_id_len(id, DNET_ID_SIZE));
+	}
+
 	return NULL;
 }
 
 int main(int argc, char *argv[])
 {
-	return dnet_check_start(argc, argv, dnet_merge_process);
+	return dnet_check_start(argc, argv, dnet_merge_process, 1);
 }
