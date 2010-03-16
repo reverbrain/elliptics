@@ -26,7 +26,7 @@ Statistics gathering utility. Can show load average, disk and memory statistics.
 notify.c
 Notification subsystem client. Can show update transactions for given objects.
 
-file_backend.c bdb_backend.c tc_backend.c
+file_backend.c tc_backend.c
 IO storage backends.
 
 hash.c

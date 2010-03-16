@@ -115,9 +115,6 @@ Multiple IO storage backends are supported by the example application server.
 File backend, where each transaction is stored as separated file in the root
 directory (actually in subdir, indexed by the first by of the command ID).
 
-BerkeleyDB (http://www.oracle.com/technology/products/berkeley-db/db/index.html)
-storage backend. Application uses in-memory transaction logging for the performance.
-
 Tokyo Cabinet (http://tokyocabinet.sourceforge.net/index.html) database storage
 backend. It is the fastest backend to date. It can be trivially extended to become
 in-memory storage for the HPC temporary data for example (requires to change a

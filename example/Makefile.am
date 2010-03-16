@@ -9,7 +9,7 @@ EXAMPLE_COMMON_LIBS = ../library/libdnet.la libcommon.a
 
 libhash_a_SOURCES = hash.c lookup3.c
 libcommon_a_SOURCES = common.c
-libbackend_a_SOURCES = file_backend.c bdb_backend.c tc_backend.c backends.c
+libbackend_a_SOURCES = file_backend.c tc_backend.c backends.c
 
 dnet_ioserv_SOURCES = ioserv.c
 dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) libhash.a libbackend.a
@@ -30,9 +30,7 @@ if HAVE_FASTCGI
 SUBDIRS += fcgi
 endif
 
-AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @OPENSSL_CFLAGS@ @BDB_CFLAGS@ \
-	@TOKYOCABINET_CFLAGS@
-AM_LDFLAGS = @PTHREAD_LIBS@ @OPENSSL_LIBS@ @OPENSSL_LDFLAGS@ @BDB_LIBS@ \
-	@TOKYOCABINET_LIBS@
+AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @OPENSSL_CFLAGS@ @TOKYOCABINET_CFLAGS@
+AM_LDFLAGS = @PTHREAD_LIBS@ @OPENSSL_LIBS@ @OPENSSL_LDFLAGS@ @TOKYOCABINET_LIBS@
 
 EXTRA_DIST = EXAMPLE 00-INDEX

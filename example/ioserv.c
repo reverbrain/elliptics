@@ -74,7 +74,6 @@ static void dnet_usage(char *p)
 			" -r addr:port:family  - adds a route to the given node\n"
 			" -j <join>            - join the network\n"
 			"                        become a fair node which may store data from the other nodes\n"
-			" -b <BDB>             - use BerkeleyDB (if present) IO storage backend\n"
 			" -t <TokyoCabinet>    - use TokyoCabinet (if present) IO storage backend\n"
 			" -f num_bits          - use file backend with provided number of bits to generate subdir (8 by default)\n"
 			" -d root              - root directory to load/store the objects\n"
@@ -105,7 +104,7 @@ static void dnet_usage(char *p)
 int main(int argc, char *argv[])
 {
 	int trans_max = 5, trans_num = 0, num_bits = 8;
-	int ch, err, i, have_remote = 0, daemon = 0, bdb = 0, stat = 0;
+	int ch, err, i, have_remote = 0, daemon = 0, stat = 0;
 	int tc = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
@@ -129,7 +128,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "f:u:M:O:S:P:N:bm:tsH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "f:u:M:O:S:P:N:m:tsH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
 			case 'u':
 				removef = optarg;
@@ -148,9 +147,6 @@ int main(int argc, char *argv[])
 				break;
 			case 'N':
 				cfg.io_thread_num = atoi(optarg);
-				break;
-			case 'b':
-				bdb = 1;
 				break;
 			case 't':
 				tc = 1;
@@ -260,12 +256,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (root) {
-		if (bdb) {
-			cfg.command_private = bdb_backend_init(root, "data.db", "history.db");
-			if (!cfg.command_private)
-				return -EINVAL;
-			cfg.command_handler = bdb_backend_command_handler;
-		} else if (tc) {
+		if (tc) {
 			cfg.command_private = tc_backend_init(root, "data.tch", "history.tch");
 			if (!cfg.command_private)
 				return -EINVAL;

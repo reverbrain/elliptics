@@ -44,14 +44,6 @@ static inline uint64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint
 	return size;
 }
 
-int bdb_backend_command_handler(void *state, void *priv,
-		struct dnet_cmd *cmd, struct dnet_attr *attr,
-		void *data);
-
-void bdb_backend_exit(void *data);
-
-void *bdb_backend_init(char *env_dir, char *dbfile, char *histfile);
-
 int tc_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr,
 		void *data);
