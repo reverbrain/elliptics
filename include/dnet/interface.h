@@ -27,6 +27,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+#include "dnet/packet.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
