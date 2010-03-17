@@ -1,3 +1,9 @@
+elliptics (2.7.3) unstable; urgency=low
+
+  * Turn on dh_makeshlibs debian rule.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 17 Mar 2010 20:59:14 +0300
+
 elliptics (2.7.2) unstable; urgency=low
 
   * Depend on libevent 1.4 and higher.
