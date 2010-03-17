@@ -114,7 +114,7 @@ struct dnet_meta *dnet_meta_add(struct dnet_node *n, void *data, uint32_t *size,
 
 	data = realloc(data, *size + sizeof(struct dnet_meta) + add->size);
 	if (!data) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to reallocate buffer: old size: %u, addon: %u.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to reallocate buffer: old size: %u, addon: %zu.\n",
 				dnet_dump_id(n->id), *size, sizeof(struct dnet_meta) + add->size);
 		goto out_exit;
 	}

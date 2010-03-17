@@ -1,3 +1,9 @@
+elliptics (2.7.0) unstable; urgency=low
+
+  * Major version update: 2.7.0
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 17 Mar 2010 16:41:29 +0300
+
 elliptics (2.6.4.8) unstable; urgency=low
 
   * Return 404 POST status when number of upload errors is more than

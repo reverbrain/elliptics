@@ -16,8 +16,6 @@
 #ifndef __DNET_CORE_H
 #define __DNET_CORE_H
 
-#include "config.h"
-
 #include <dnet/typedefs.h>
 
 #define DNET_HISTORY_SUFFIX	".history"

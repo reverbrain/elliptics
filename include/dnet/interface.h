@@ -16,7 +16,9 @@
 #ifndef __DNET_INTERFACE_H
 #define __DNET_INTERFACE_H
 
+#include <dnet/core.h>
 #include <dnet/typedefs.h>
+
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
