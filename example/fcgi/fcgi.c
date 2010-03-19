@@ -6,16 +6,17 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 
+#include <alloca.h>
+#include <ctype.h>
 #include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <errno.h>
 #include <unistd.h>
-#include <ctype.h>
-#include <pthread.h>
-#include <fcntl.h>
 
 #include <fcgiapp.h>
 
@@ -54,7 +55,8 @@ static pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
 static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344, dnet_fcgi_request_error;
 static char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
-static int dnet_fcgi_tolerate_upload_error_count = 0;
+static int dnet_fcgi_tolerate_upload_error_count;
+static int dnet_fcgi_random_hashes;
 static unsigned long dnet_fcgi_max_request_size;
 static int dnet_fcgi_base_port;
 static uint64_t dnet_fcgi_bit_mask;
@@ -645,12 +647,38 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 {
 	unsigned char addr[DNET_ID_SIZE];
 	int err, error = -ENOENT;
-	int pos = 0;
+	int pos = 0, random_num = 0;
+	int *random_pos = NULL;
+
+	if (dnet_fcgi_random_hashes) {
+		int i;
+
+		random_pos = alloca(sizeof(int) * dnet_fcgi_random_hashes);
+		for (i=0; i<dnet_fcgi_random_hashes; ++i)
+			random_pos[i] = i;
+	}
 
 	while (1) {
 		unsigned int rsize = DNET_ID_SIZE;
 		struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
+		if (dnet_fcgi_random_hashes) {
+			if (random_num < dnet_fcgi_random_hashes) {
+				int r;
+
+				r = rand() * (dnet_fcgi_random_hashes - random_num - 1) / RAND_MAX;
+
+				pos = random_pos[r];
+				dnet_log_raw(n, DNET_LOG_INFO, "Using r: %d, pos: %d.\n", r, pos);
+
+				for (; r<dnet_fcgi_random_hashes-1; r++)
+					random_pos[r] = random_pos[r+1];
+
+				random_num++;
+			}
+		}
+
+		dnet_log_raw(n, DNET_LOG_INFO, "Using pos: %d/%d.\n", pos, dnet_fcgi_random_hashes);
 		err = dnet_transform(n, obj, len, dnet_fcgi_id, addr, &rsize, &pos);
 		if (err) {
 			if (err > 0)
@@ -1572,6 +1600,12 @@ int main()
 	p = getenv("DNET_FCGI_DNS_LOOKUP");
 	if (p)
 		dnet_fcgi_dns_lookup = atoi(p);
+
+	p = getenv("DNET_FCGI_RANDOM_HASHES");
+	if (p) {
+		dnet_fcgi_random_hashes = atoi(p);
+		srand(time(NULL));
+	}
 
 	p = getenv("DNET_FCGI_TOLERATE_UPLOAD_ERROR_COUNT");
 	if (p)

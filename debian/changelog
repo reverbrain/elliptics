@@ -1,3 +1,9 @@
+elliptics (2.7.3.1) unstable; urgency=low
+
+  * Added random hash selection itno fastcgi daemon.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 19 Mar 2010 19:47:45 +0300
+
 elliptics (2.7.3) unstable; urgency=low
 
   * Turn on dh_makeshlibs debian rule.
