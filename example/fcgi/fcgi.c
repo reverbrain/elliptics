@@ -669,7 +669,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 				r = rand() * (dnet_fcgi_random_hashes - random_num - 1) / RAND_MAX;
 
 				pos = random_pos[r];
-				dnet_log_raw(n, DNET_LOG_INFO, "Using r: %d, pos: %d.\n", r, pos);
+				dnet_log_raw(n, DNET_LOG_NOTICE, "Using r: %d, pos: %d/%d.\n", r, pos, dnet_fcgi_random_hashes);
 
 				for (; r<dnet_fcgi_random_hashes-1; r++)
 					random_pos[r] = random_pos[r+1];
@@ -678,7 +678,6 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 			}
 		}
 
-		dnet_log_raw(n, DNET_LOG_INFO, "Using pos: %d/%d.\n", pos, dnet_fcgi_random_hashes);
 		err = dnet_transform(n, obj, len, dnet_fcgi_id, addr, &rsize, &pos);
 		if (err) {
 			if (err > 0)
