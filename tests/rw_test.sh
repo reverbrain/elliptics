@@ -32,7 +32,7 @@ start_server $server1_addr 0 "$server_opt -i $server_id_1"
 serever1_pid=last_pid
 
 write_data 0 0 0 $server1_addr $tmp_file $file_id_1
-read_data 1 0 0 $server1_addr $res_file $file_id_1
+read_data 1 9999999999999 0 $server1_addr $res_file $file_id_1
 cmp_files $tmp_file $res_file
 
 #clean  
@@ -58,7 +58,7 @@ serever1_pid=last_pid
 
 write_data 0 $first_trans_size 0 $server1_addr $tmp_file $file_id_1
 write_data 0 $second_trans_size $first_trans_size $server1_addr $tmp_file $file_id_1
-read_data 1 0 0 $server1_addr $res_file $file_id_1
+read_data 1 9999999999999 0 $server1_addr $res_file $file_id_1
 cmp_files $tmp_file $res_file
 
 #clean  
@@ -83,7 +83,7 @@ start_server $server2_addr 0 "$server_opt -i $server_id_2 -r $server1_addr"
 serever2_pid=last_pid
 
 write_data 0 0 0 $server1_addr $tmp_file $file_id_1
-read_data 1 0 0 $server1_addr $res_file $file_id_1
+read_data 1 9999999999999999999 0 $server1_addr $res_file $file_id_1
 cmp_files $tmp_file $res_file
 
 #clean  
@@ -108,7 +108,7 @@ start_server $server2_addr 0 "$server_opt -i $server_id_2 -r $server1_addr"
 serever2_pid=last_pid
 
 write_data 0 0 0 $server1_addr $tmp_file $file_id_1
-read_data 1 0 0 $server2_addr $res_file $file_id_1
+read_data 1 999999999999999999 0 $server2_addr $res_file $file_id_1
 cmp_files $tmp_file $res_file
 
 #clean  
@@ -138,7 +138,7 @@ write_data 0 0 0 $server1_addr $tmp_file $file_id_1
 start_server $server2_addr 0 "$server_opt -i $server_id_2 -r $server1_addr"
 serever2_pid=last_pid
 
-read_data 1 0 0 $server2_addr $res_file $file_id_1
+read_data 1 99999999999999999 0 $server2_addr $res_file $file_id_1
 cmp_files $tmp_file $res_file
 
 #clean  
