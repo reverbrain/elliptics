@@ -51,6 +51,9 @@
 #define DNET_LOG_CHECK
 #endif
 
+#define ALIGN(x,a)		__ALIGN_MASK(x,(typeof(x))(a)-1)
+#define __ALIGN_MASK(x,mask)	(((x)+(mask))&~(mask))
+
 /*
  * Size of the IO thread pool.
  * Single thread can handle multiple clients.

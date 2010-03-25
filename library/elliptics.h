@@ -47,9 +47,6 @@ typedef unsigned short u_short;
 extern "C" {
 #endif
 
-#define ALIGN(x,a)		__ALIGN_MASK(x,(typeof(x))(a)-1)
-#define __ALIGN_MASK(x,mask)	(((x)+(mask))&~(mask))
-
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif

@@ -515,10 +515,10 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			char id[DNET_ID_SIZE*2+1];
 			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
 			long timestamp = time(NULL);
-			char hex_dir[128];
+			char hex_dir[2*DNET_ID_SIZE+1];
 
 			snprintf(id, sizeof(id), "%s", dnet_dump_id_len(dnet_fcgi_id, DNET_ID_SIZE));
-			snprintf(hex_dir, sizeof(hex_dir), "%llx", (unsigned long long)file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask));
+			file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask, hex_dir);
 
 			if (dnet_fcgi_dns_lookup) {
 				err = getnameinfo((struct sockaddr *)a->addr.addr, a->addr.addr_len,

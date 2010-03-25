@@ -20,6 +20,9 @@
 extern "C" {
 #endif
 
+#include <strings.h>
+
+#include "dnet/core.h"
 #include "dnet/packet.h"
 
 static inline uint64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint64_t record_size)
@@ -61,14 +64,20 @@ int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr
 
 int backend_del(void *state, struct dnet_io_attr *io, struct dnet_history_entry *e, unsigned int num);
 
-static inline uint64_t file_backend_get_dir(unsigned char *id, uint64_t bit_mask)
+static inline uint64_t file_backend_get_dir_bits(unsigned char *id, uint64_t bit_mask)
 {
 	uint64_t res, *ptr;
 
 	ptr = (uint64_t *)id;
 	res = *ptr;
-
 	return res & bit_mask;
+}
+
+static inline char *file_backend_get_dir(unsigned char *id, uint64_t bit_mask, char *dst)
+{
+	uint64_t res = file_backend_get_dir_bits(id, bit_mask);
+
+	return dnet_dump_id_len_raw((const unsigned char *)&res, ALIGN(ffsll(~bit_mask), 8) / 8, dst);
 }
 
 #ifdef __cplusplus
