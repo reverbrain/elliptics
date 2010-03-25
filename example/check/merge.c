@@ -120,7 +120,7 @@ static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, uns
 
 	err = dnet_remove_object(n, id, id, NULL, NULL, 1);
 
-	//dnet_merge_unlink_local_files(n, id);
+	dnet_merge_unlink_local_files(n, id);
 
 err_out_exit:
 	return err;
