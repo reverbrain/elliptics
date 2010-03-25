@@ -96,7 +96,6 @@ static void dnet_usage(char *p)
 			" -P num               - maximum number of pending write transactions opened by single thread\n"
 			" -O offset            - read/write offset in the file\n"
 			" -S size              - read/write transaction size\n"
-			" -M strategy          - transaction log merge strategy\n"
 			" -u file              - unlink file\n"
 			, p);
 }
@@ -121,20 +120,16 @@ int main(int argc, char *argv[])
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
 	cfg.log_mask = ~0;
-	cfg.merge_strategy = DNET_MERGE_PREFER_NETWORK;
 	cfg.resend_count = 3;
 
 	size = offset = 0;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "f:u:M:O:S:P:N:m:tsH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
+	while ((ch = getopt(argc, argv, "f:u:O:S:P:N:m:tsH:L:Dc:I:w:l:i:T:W:R:a:r:jd:h")) != -1) {
 		switch (ch) {
 			case 'u':
 				removef = optarg;
-				break;
-			case 'M':
-				cfg.merge_strategy = atoi(optarg);
 				break;
 			case 'O':
 				offset = strtoull(optarg, NULL, 0);
@@ -205,7 +200,7 @@ int main(int argc, char *argv[])
 				memcpy(&remotes[have_remote - 1], &rem, sizeof(rem));
 				break;
 			case 'j':
-				cfg.join = 1;
+				cfg.join = DNET_JOIN_NETWORK;
 				break;
 			case 'd':
 				root = optarg;
@@ -288,7 +283,7 @@ int main(int argc, char *argv[])
 			err = dnet_add_state(n, &remotes[i]);
 	}
 
-	if (cfg.join) {
+	if (cfg.join & DNET_JOIN_NETWORK) {
 		err = dnet_join(n);
 		if (err)
 			return err;
@@ -336,7 +331,7 @@ int main(int argc, char *argv[])
 			return err;
 	}
 
-	if (cfg.join) {
+	if (cfg.join & DNET_JOIN_NETWORK) {
 		/* Zzzz... */
 		while (1)
 			sleep(1);
