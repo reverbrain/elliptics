@@ -1,3 +1,9 @@
+elliptics (2.7.3.2) unstable; urgency=low
+
+  * Debian version update after multiple fixes: 2.7.3.2
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 25 Mar 2010 23:35:09 +0300
+
 elliptics (2.7.3.1) unstable; urgency=low
 
   * Added random hash selection itno fastcgi daemon.
