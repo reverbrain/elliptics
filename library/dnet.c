@@ -828,7 +828,8 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 
 	memcpy(cfg->id, st->id, DNET_ID_SIZE);
 
-	dnet_recv_route_list(st);
+	if (!(cfg->join & DNET_NO_ROUTE_LIST))
+		dnet_recv_route_list(st);
 
 	return 0;
 
@@ -1240,7 +1241,8 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 }
 
 int dnet_write_file_local_offset(struct dnet_node *n, char *file, unsigned char *id,
-		uint64_t local_offset, uint64_t offset, uint64_t size, unsigned int aflags)
+		uint64_t local_offset, uint64_t offset, uint64_t size, unsigned int aflags,
+		unsigned int ioflags)
 {
 	int fd, err, trans_num, error;
 	struct stat stat;
@@ -1312,12 +1314,12 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file, unsigned char 
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.aflags = aflags;
 
-	ctl.io.flags = 0;
+	ctl.io.flags = ioflags;
 	ctl.io.size = size;
 	ctl.io.offset = offset;
 
 	trans_num = 0;
-	error = dnet_write_object(n, &ctl, file, strlen(file), id, 1, &trans_num);
+	error = dnet_write_object(n, &ctl, file, strlen(file), id, !(ioflags & DNET_IO_FLAGS_HISTORY), &trans_num);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: transactions sent: %d, error: %d.\n",
 			dnet_dump_id(ctl.addr), trans_num, error);
@@ -1359,7 +1361,7 @@ err_out_exit:
 
 int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t offset, uint64_t size, unsigned int aflags)
 {
-	return dnet_write_file_local_offset(n, file, id, offset, offset, size, aflags);
+	return dnet_write_file_local_offset(n, file, id, offset, offset, size, aflags, 0);
 }
 
 static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, void *priv)
@@ -1463,7 +1465,7 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl)
 }
 
 static int dnet_read_file_id(struct dnet_node *n, char *file, int len,
-		uint64_t write_offset,
+		int direct, uint64_t write_offset,
 		struct dnet_io_attr *io,
 		struct dnet_wait *w, int hist, int wait)
 {
@@ -1480,6 +1482,9 @@ static int dnet_read_file_id(struct dnet_node *n, char *file, int len,
 	ctl.complete = dnet_read_complete;
 	ctl.cmd = DNET_CMD_READ;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
+
+	if (direct)
+		ctl.cflags |= DNET_FLAGS_DIRECT;
 
 	c = malloc(sizeof(struct dnet_io_completion) + len + 1 + sizeof(DNET_HISTORY_SUFFIX));
 	if (!c) {
@@ -1531,6 +1536,8 @@ struct dnet_map_private
 	char				*file;
 	int				len;
 
+	int				direct;
+
 	struct dnet_node		*node;
 
 	struct dnet_wait		*wait;
@@ -1548,10 +1555,10 @@ static int dnet_trans_map_callback(void *priv, uint64_t offset, uint64_t size,
 	io.size = size;
 	io.flags = 0;
 
-	err = dnet_read_file_id(p->node, p->file, p->len, offset, &io, p->wait, 0, 0);
+	err = dnet_read_file_id(p->node, p->file, p->len, p->direct, offset, &io, p->wait, 0, 0);
 
-	dnet_log(p->node, DNET_LOG_INFO, "%s: reading chunk into file '%s', offset: %llu/%llu, size: %llu, err: %d.\n",
-			dnet_dump_id(e->id), p->file,
+	dnet_log(p->node, DNET_LOG_INFO, "%s: reading chunk into file '%s', direct: %d, offset: %llu/%llu, size: %llu, err: %d.\n",
+			dnet_dump_id(e->id), p->file, p->direct,
 			(unsigned long long)io.offset, (unsigned long long)offset,
 			(unsigned long long)io.size, err);
 
@@ -1904,7 +1911,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t offset, uint64_t size, int hist)
+static int dnet_read_file_raw(struct dnet_node *n, char *file, unsigned char *id, int direct, uint64_t offset, uint64_t size, int hist)
 {
 	int err, len = strlen(file), pos = 0, error = 0;
 	struct dnet_wait *w;
@@ -1925,7 +1932,7 @@ int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t 
 		memcpy(io.origin, id, DNET_ID_SIZE);
 		memcpy(io.id, id, DNET_ID_SIZE);
 
-		err = dnet_read_file_id(n, file, len, 0, &io, w, 1, 1);
+		err = dnet_read_file_id(n, file, len, direct, 0, &io, w, 1, 1);
 		if (err)
 			goto err_out_put;
 	} else {
@@ -1941,7 +1948,7 @@ int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t 
 				continue;
 			}
 
-			err = dnet_read_file_id(n, file, len, 0, &io, w, 1, 1);
+			err = dnet_read_file_id(n, file, len, direct, 0, &io, w, 1, 1);
 			if (err) {
 				error = err;
 				continue;
@@ -1964,6 +1971,7 @@ int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t 
 		p.len = len;
 		p.node = n;
 		p.wait = w;
+		p.direct = direct;
 
 		err = dnet_trans_map(n, file, offset, size, dnet_trans_map_callback, &p);
 		if (err)
@@ -1991,6 +1999,16 @@ err_out_put:
 	dnet_wait_put(w);
 err_out_exit:
 	return err;
+}
+
+int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id, uint64_t offset, uint64_t size, int hist)
+{
+	return dnet_read_file_raw(n, file, id, 0, offset, size, hist);
+}
+
+int dnet_read_file_direct(struct dnet_node *n, char *file, unsigned char *id, uint64_t offset, uint64_t size, int hist)
+{
+	return dnet_read_file_raw(n, file, id, 1, offset, size, hist);
 }
 
 int dnet_move_transform(struct dnet_node *n, char *name, int tail)
@@ -2919,7 +2937,8 @@ static int dnet_remove_object_raw(struct dnet_node *n,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
 			void *priv),
-	void *priv)
+	void *priv,
+	int direct)
 {
 	struct dnet_trans_control ctl;
 	struct dnet_io_attr io;
@@ -2935,6 +2954,8 @@ static int dnet_remove_object_raw(struct dnet_node *n,
 	ctl.complete = complete;
 	ctl.priv = priv;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	if (direct)
+		ctl.cflags |= DNET_FLAGS_DIRECT;
 	ctl.data = &io;
 	ctl.size = sizeof(struct dnet_io_attr);
 
@@ -2954,14 +2975,25 @@ static int dnet_remove_complete(struct dnet_net_state *state,
 			void *priv)
 {
 	struct dnet_wait *w = priv;
+	int err = 0;
 
-	if (!state || !cmd)
-		return 0;
+	if (!state || !cmd) {
+		err = -EINVAL;
+		goto out_put;
+	}
 
-	if (cmd && (cmd->flags && DNET_FLAGS_MORE))
-		return 0;
+	if (cmd) {
+		err = cmd->status;
+		if (cmd->flags & DNET_FLAGS_MORE)
+			return 0;
+	}
 
-	dnet_wakeup(w, dnet_io_complete(w, 0));
+out_put:
+	if (state)
+		dnet_log(state->n, DNET_LOG_NOTICE, "%s: removing completion: %d.\n",
+				dnet_dump_id(cmd->id), err);
+
+	dnet_wakeup(w, dnet_io_complete(w, err));
 	dnet_wait_put(w);
 	return 0;
 }
@@ -2972,7 +3004,8 @@ int dnet_remove_object(struct dnet_node *n,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
 			void *priv),
-	void *priv)
+	void *priv,
+	int direct)
 {
 	struct dnet_wait *w = NULL;
 	int err;
@@ -2990,7 +3023,7 @@ int dnet_remove_object(struct dnet_node *n,
 	}
 
 	err = dnet_remove_object_raw(n, origin, id,
-			complete, priv);
+			complete, priv, direct);
 	if (err)
 		goto err_out_put;
 
@@ -3013,11 +3046,11 @@ err_out_exit:
 static int dnet_remove_file_raw(struct dnet_node *n, char *base, unsigned char *id)
 {
 	char file[strlen(base) + 3 + sizeof(DNET_HISTORY_SUFFIX)];
-	int fd, err;
 	struct dnet_history_entry *e;
-	uint64_t i, num;
-	struct stat st;
+	struct dnet_history_map map;
+	long i;
 	struct dnet_wait *w;
+	int err;
 
 	err = dnet_read_file(n, base, id, 0, 0, 1);
 	if (err)
@@ -3025,38 +3058,9 @@ static int dnet_remove_file_raw(struct dnet_node *n, char *base, unsigned char *
 
 	snprintf(file, sizeof(file), "%s%s", base, DNET_HISTORY_SUFFIX);
 
-	fd = open(file, O_RDONLY);
-	if (fd < 0) {
-		err = -errno;
-		dnet_log_err(n,	"%s: failed to open history of deleted object '%s'",
-				dnet_dump_id(id), file);
-		goto err_out_exit;
-	}
-
-	err = fstat(fd, &st);
-	if (err) {
-		err = -errno;
-		dnet_log_err(n, "%s: failed to stat history of deleted object '%s'",
-				dnet_dump_id(id), file);
-		goto err_out_close;
-	}
-
-	if (st.st_size % sizeof(struct dnet_history_entry)) {
-		err = -EINVAL;
-		dnet_log(n, DNET_LOG_ERROR, "%s: corrupted history object '%s'.\n",
-				dnet_dump_id(id), file);
-		goto err_out_close;
-	}
-
-	e = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
-	if (e == MAP_FAILED) {
-		err = -errno;
-		dnet_log_err(n, "%s: failed to mmap history of deleted object '%s'",
-				dnet_dump_id(id), file);
-		goto err_out_close;
-	}
-
-	num = st.st_size / sizeof(struct dnet_history_entry);
+	err = dnet_map_history(n, file, &map);
+	if (err)
+		goto err_out_unlink;
 
 	w = dnet_wait_alloc(0);
 	if (!w) {
@@ -3064,35 +3068,32 @@ static int dnet_remove_file_raw(struct dnet_node *n, char *base, unsigned char *
 		goto err_out_unmap;
 	}
 
-	for (i=1; i<num; ++i) {
+	for (i=0; i<map.num; ++i) {
 		dnet_wait_get(w);
-		dnet_remove_object_raw(n, id, e[i].id, dnet_remove_complete, w);
+
+		e = &map.ent[i];
+
+		dnet_convert_history_entry(e);
+		dnet_remove_object_raw(n, id, e[i].id, dnet_remove_complete, w, 0);
 	}
 
-	dnet_wait_get(w);
-	dnet_remove_object_raw(n, e[0].id, id, dnet_remove_complete, w);
-	dnet_wait_get(w);
-	dnet_remove_object_raw(n, e[0].id, id, dnet_remove_complete, w);
-
-	err = dnet_wait_event(w, w->cond == (int)(num+1), &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == map.num, &n->wait_ts);
 	if (err)
 		goto err_out_put;
 
 	dnet_wait_put(w);
-	munmap(e, st.st_size);
-	close(fd);
+	dnet_unmap_history(n, &map);
 
-	remove(file);
+	unlink(file);
 
 	return 0;
 
 err_out_put:
 	dnet_wait_put(w);
 err_out_unmap:
-	munmap(e, st.st_size);
-err_out_close:
-	close(fd);
-	remove(file);
+	dnet_unmap_history(n, &map);
+err_out_unlink:
+	unlink(file);
 err_out_exit:
 	return err;
 }

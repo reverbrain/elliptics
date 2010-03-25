@@ -156,8 +156,14 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
  * is used as object ID.
  *
  * Returns negative error value in case of error.
+ *
+ * dnet_read_file_direct() works the same way except it sets DNET_FLAGS_DIRECT flag,
+ * which means it will ask node for given object, which is the closest in routing
+ * table and will not allow to forward this request to other nodes.
  */
 int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id,
+		uint64_t offset, uint64_t size, int hist);
+int dnet_read_file_direct(struct dnet_node *n, char *file, unsigned char *id,
 		uint64_t offset, uint64_t size, int hist);
 
 /*
@@ -207,7 +213,8 @@ int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id,
  * while @offset is remote file offset. dnet_write_file() assumes that they are the same.
  */
 int dnet_write_file_local_offset(struct dnet_node *n, char *file, unsigned char *id,
-		uint64_t local_offset, uint64_t offset, uint64_t size, unsigned int aflags);
+		uint64_t local_offset, uint64_t offset, uint64_t size, unsigned int aflags,
+		unsigned int ioflags);
 
 /*
  * Log flags.
@@ -220,6 +227,9 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file, unsigned char 
 
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
+
+#define DNET_JOIN_NETWORK		(1<<0)
+#define DNET_NO_ROUTE_LIST		(1<<1)
 
 /*
  * Node configuration interface.
@@ -248,11 +258,6 @@ struct dnet_config
 	char			port[DNET_MAX_PORTLEN];
 
 	/*
-	 * Transaction logs merge strategy.
-	 */
-	int			merge_strategy;
-
-	/*
 	 * Wait timeout in seconds used for example to wait
 	 * for remote content sync.
 	 */
@@ -262,6 +267,8 @@ struct dnet_config
 	 * Specifies wether given node will join the network,
 	 * or it is a client node and its ID should not be checked
 	 * against collision with others.
+	 *
+	 * Also has a bit to forbid route list download.
 	 */
 	int			join;
 
@@ -688,30 +695,6 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl);
 int dnet_state_get_prev_id(struct dnet_node *n, unsigned char *id, unsigned char *res, int num);
 
 /*
- * Elliptics network merge strategies.
- */
-enum {
-	DNET_MERGE_PREFER_NETWORK = 0,	/* Discard local changes and
-					 * prefer version which exists in the network.
-					 */
-	DNET_MERGE_PREFER_LOCAL,	/* Send local transaction history into the network
-					 * pretending it to be valid one.
-					 * All changes in the history log, which is stored
-					 * in the network will be discarded.
-					 */
-	DNET_MERGE_REMOTE_PLUS_LOCAL_UPDATES,
-					/* Apply all local changes made after the common ancestor
-					 * commit after full remote log.
-					 */
-	DNET_MERGE_LOCAL_PLUS_REMOTE_UPDATES,
-					/* Apply all remote changes made after the common ancestor
-					 * commit after full local log.
-					 */
-	DNET_MERGE_FAIL,		/* Fail if transaction logs do not match */
-	__DNET_MERGE_MAX,
-};
-
-/*
  * Remove tranasction with @id from the object identified by @origin.
  * If callback is provided, it will be invoked on completion, otherwise
  * function will block until server returns an acknowledge.
@@ -722,7 +705,8 @@ int dnet_remove_object(struct dnet_node *n,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
 			void *priv),
-	void *priv);
+	void *priv,
+	int direct);
 
 /*
  * Remove given file (identified by name or ID) from the storage.

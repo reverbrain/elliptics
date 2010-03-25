@@ -571,7 +571,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	sigaddset(&sig, SIGPIPE);
 	pthread_sigmask(SIG_BLOCK, &sig, NULL);
 
-	if (cfg->join && !cfg->command_handler) {
+	if ((cfg->join & DNET_JOIN_NETWORK) && !cfg->command_handler) {
 		err = -EINVAL;
 		if (cfg->log)
 			cfg->log(cfg->log_private, DNET_LOG_ERROR, "Joining node has to register "
@@ -594,7 +594,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->command_private = cfg->command_private;
 	n->io_thread_num = cfg->io_thread_num;
 	n->notify_hash_size = cfg->hash_size;
-	n->merge_strategy = cfg->merge_strategy;
 	n->resend_count = cfg->resend_count;
 	n->resend_timeout = cfg->resend_timeout;
 
@@ -602,19 +601,13 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	 * Only allow resends for client nodes,
 	 * joined nodes only forward that data or store it locally.
 	 */
-	if (cfg->join)
+	if (cfg->join & DNET_JOIN_NETWORK)
 		n->resend_count = 0;
 
 	if (!n->resend_timeout.tv_sec && !n->resend_timeout.tv_nsec) {
 		n->resend_timeout.tv_sec = DNET_DEFAULT_RESEND_TIMEOUT_SEC;
 		dnet_log(n, DNET_LOG_NOTICE, "%s: using default resend timeout (%ld seconds).\n",
 				dnet_dump_id(n->id), n->resend_timeout.tv_sec);
-	}
-
-	if (!n->merge_strategy || n->merge_strategy >= __DNET_MERGE_MAX) {
-		n->merge_strategy = DNET_MERGE_PREFER_NETWORK;
-		dnet_log(n, DNET_LOG_NOTICE, "%s: prefer network transaction log merge strategy.\n",
-				dnet_dump_id(n->id));
 	}
 
 	if (!n->notify_hash_size) {
@@ -653,7 +646,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_sock_close;
 
-	n->st = dnet_state_create(n, (cfg->join)?n->id:NULL, &n->addr, n->listen_socket);
+	n->st = dnet_state_create(n, (cfg->join & DNET_JOIN_NETWORK)?n->id:NULL, &n->addr, n->listen_socket);
 	if (!n->st)
 		goto err_out_stop_io_threads;
 
