@@ -26,7 +26,7 @@ struct dnet_check_worker
 	int					id;
 	pthread_t				tid;
 
-	int					wait_num;
+	int					wait_num, wait_error;
 	int					object_present, object_missing;
 
 	pthread_cond_t				wait_cond;
@@ -61,5 +61,25 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 extern char dnet_check_tmp_dir[128];
 extern FILE *dnet_check_file;
 extern pthread_mutex_t dnet_check_file_lock;
+
+int dnet_check_read_single(struct dnet_check_worker *worker, unsigned char *id, uint64_t offset, int direct);
+
+#define dnet_check_wait(worker,condition)					\
+({										\
+	pthread_mutex_lock(&(worker)->wait_lock);				\
+	while (!(condition)) 							\
+		pthread_cond_wait(&(worker)->wait_cond, &(worker->wait_lock));	\
+	pthread_mutex_unlock(&(worker)->wait_lock);				\
+})
+
+#define dnet_check_wakeup(worker, doit)						\
+({										\
+ 	int ______ret;								\
+	pthread_mutex_lock(&(worker)->wait_lock);				\
+ 	______ret = (doit);							\
+	pthread_cond_broadcast(&(worker)->wait_cond);					\
+	pthread_mutex_unlock(&(worker)->wait_lock);				\
+ 	______ret;								\
+})
 
 #endif /* __DNET_CHECK_COMMON_H */

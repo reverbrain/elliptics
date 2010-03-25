@@ -107,7 +107,7 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir,
 			dnet_dump_id_len_raw(e->id, DNET_ID_SIZE, eid));
 
-		err = dnet_write_file_local_offset(n, file, req->id, 0, e->offset, e->size, req->type);
+		err = dnet_write_file_local_offset(n, file, req->id, 0, e->offset, e->size, req->type, 0);
 
 		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: request uploading hist: %s, "
 				"offset: %llu, size: %llu, err: %d.\n",

@@ -55,24 +55,6 @@ char dnet_check_tmp_dir[128] = "/tmp";
 FILE *dnet_check_file;
 pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
 
-#define dnet_check_wait(worker,condition)					\
-({										\
-	pthread_mutex_lock(&(worker)->wait_lock);				\
-	while (!(condition)) 							\
-		pthread_cond_wait(&(worker)->wait_cond, &(worker->wait_lock));	\
-	pthread_mutex_unlock(&(worker)->wait_lock);				\
-})
-
-#define dnet_check_wakeup(worker, doit)						\
-({										\
- 	int ______ret;								\
-	pthread_mutex_lock(&(worker)->wait_lock);				\
- 	______ret = (doit);							\
-	pthread_cond_broadcast(&(worker)->wait_cond);					\
-	pthread_mutex_unlock(&(worker)->wait_lock);				\
- 	______ret;								\
-})
-
 static int dnet_check_log_init(struct dnet_node *n, struct dnet_config *cfg, char *log)
 {
 	int err;
@@ -193,42 +175,80 @@ static int dnet_check_read_complete(struct dnet_net_state *state,
 			dnet_dump_id(cmd->id), cmd->status, !(cmd->flags & DNET_FLAGS_MORE));
 
 	if (err)
-		goto out_exit;
+		goto out_check;
 
+	if (attr && attr->size) {
+		if (cmd->size <= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: read completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
+					dnet_dump_id(cmd->id), (unsigned long long)cmd->size,
+					sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
+			err = -EINVAL;
+			goto out_check;
+		}
+
+		if (!attr) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: no attributes but command size is not null.\n", dnet_dump_id(cmd->id));
+			err = -EINVAL;
+			goto out_check;
+		}
+
+		io = (struct dnet_io_attr *)(attr + 1);
+		data = io + 1;
+
+		dnet_convert_attr(attr);
+		dnet_convert_io_attr(io);
+
+		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: io: write_offset: %llu, offset: %llu, size: %llu.\n",
+				dnet_dump_id(cmd->id), (unsigned long long)complete->write_offset,
+				(unsigned long long)io->offset, (unsigned long long)io->size);
+
+		err = dnet_check_trans_write(complete, cmd, io, data);
+	}
+
+out_check:
 	if (!(cmd->flags & DNET_FLAGS_MORE))
 		goto out_wakeup;
 
-	if (cmd->size <= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: read completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)cmd->size,
-				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
-		err = -EINVAL;
-		goto out_exit;
-	}
-
-	if (!attr) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: no attributes but command size is not null.\n", dnet_dump_id(cmd->id));
-		err = -EINVAL;
-		goto out_exit;
-	}
-
-	io = (struct dnet_io_attr *)(attr + 1);
-	data = io + 1;
-
-	dnet_convert_attr(attr);
-	dnet_convert_io_attr(io);
-
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: io: write_offset: %llu, offset: %llu, size: %llu.\n",
-			dnet_dump_id(cmd->id), (unsigned long long)complete->write_offset,
-			(unsigned long long)io->offset, (unsigned long long)io->size);
-
-	return dnet_check_trans_write(complete, cmd, io, data);
+	return err;
 
 out_wakeup:
-	dnet_check_wakeup(worker, worker->wait_num++);
+	dnet_check_wakeup(worker, { do { worker->wait_error = err; worker->wait_num++; } while (0); 0;} );
 	free(complete);
-out_exit:
 	return err;
+}
+
+int dnet_check_read_single(struct dnet_check_worker *worker, unsigned char *id, uint64_t offset, int direct)
+{
+	struct dnet_io_control ctl;
+	struct dnet_node *n = worker->n;
+	struct dnet_check_completion *c;
+
+	c = malloc(sizeof(struct dnet_check_completion));
+	if (!c)
+		return -ENOMEM;
+
+	c->write_offset = offset;
+	c->worker = worker;
+
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
+
+	ctl.fd = -1;
+	ctl.complete = dnet_check_read_complete;
+	ctl.priv = c;
+	ctl.cmd = DNET_CMD_READ;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	if (direct)
+		ctl.cflags |= DNET_FLAGS_DIRECT;
+
+	ctl.io.flags = 0;
+	ctl.io.offset = 0;
+	ctl.io.size = 0;
+
+	memcpy(ctl.io.origin, id, DNET_ID_SIZE);
+	memcpy(ctl.io.id, id, DNET_ID_SIZE);
+	memcpy(ctl.addr, id, DNET_ID_SIZE);
+
+	return dnet_read_object(n, &ctl);
 }
 
 int dnet_check_read_transactions(struct dnet_check_worker *worker, struct dnet_check_request *req)
@@ -239,9 +259,7 @@ int dnet_check_read_transactions(struct dnet_check_worker *worker, struct dnet_c
 	long i;
 	struct dnet_history_map map;
 	struct dnet_history_entry *e;
-	struct dnet_io_control ctl;
 	char eid[DNET_ID_SIZE*2 + 1];
-	struct dnet_check_completion *c;
 
 	dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid);
 	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir, eid, DNET_HISTORY_SUFFIX);
@@ -257,39 +275,13 @@ int dnet_check_read_transactions(struct dnet_check_worker *worker, struct dnet_c
 
 		dnet_convert_history_entry(e);
 
-		c = malloc(sizeof(struct dnet_check_completion));
-		if (!c) {
-			err = -ENOMEM;
-			i--;
+		err = dnet_check_read_single(worker, e->id, e->offset, 0);
+		if (err)
 			goto err_out_wait;
-		}
-
-		c->write_offset = e->offset;
-		c->worker = worker;
-
-		memset(&ctl, 0, sizeof(struct dnet_io_control));
-
-		ctl.fd = -1;
-		ctl.complete = dnet_check_read_complete;
-		ctl.priv = c;
-		ctl.cmd = DNET_CMD_READ;
-		ctl.cflags = DNET_FLAGS_NEED_ACK;
-
-		ctl.io.flags = 0;
-		ctl.io.offset = 0;
-		ctl.io.size = 0;
-
-		memcpy(ctl.io.origin, e->id, DNET_ID_SIZE);
-		memcpy(ctl.io.id, e->id, DNET_ID_SIZE);
-		memcpy(ctl.addr, e->id, DNET_ID_SIZE);
 
 		dnet_log_raw(n, DNET_LOG_INFO, "%s: transaction: %s: offset: %8llu, size: %8llu.\n",
 				eid, dnet_dump_id_len(e->id, DNET_ID_SIZE),
 				(unsigned long long)e->offset, (unsigned long long)e->size);
-
-		err = dnet_read_object(n, &ctl);
-		if (err)
-			goto err_out_wait;
 	}
 
 	dnet_check_wait(worker, worker->wait_num == map.num);
@@ -671,6 +663,9 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 
 		added = 0;
 		for (j=0; j<added_remotes; ++j) {
+			if (request_ids)
+				remotes[i].join = DNET_NO_ROUTE_LIST;
+
 			err = dnet_add_state(w->n, &remotes[j]);
 			if (!err)
 				added++;
