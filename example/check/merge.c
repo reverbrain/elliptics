@@ -260,7 +260,11 @@ static void *dnet_merge_process(void *data)
 			err = dnet_merge_direct(worker, direct, id);
 		} else {
 			snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir, id_str, DNET_HISTORY_SUFFIX);
-			err = dnet_merge_common(worker, direct, file, id);
+			if (dnet_check_ext_merge) {
+				err = dnet_check_ext_merge(dnet_check_ext_private, direct, file, id);
+			} else {
+				err = dnet_merge_common(worker, direct, file, id);
+			}
 		}
 
 		dnet_merge_unlink_local_files(n, id);

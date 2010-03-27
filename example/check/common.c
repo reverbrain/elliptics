@@ -46,8 +46,7 @@
 
 void *(* dnet_check_ext_init)(char *data);
 void (* dnet_check_ext_exit)(void *priv);
-int (* dnet_check_ext_merge)(void *priv, char *path, int start, int end,
-		struct dnet_check_request *req, int num, int update_existing);
+int (* dnet_check_ext_merge)(void *priv, char *direct_path, char *storage_path, unsigned char *id);
 void *dnet_check_ext_private;
 void *dnet_check_ext_library;
 

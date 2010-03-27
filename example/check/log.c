@@ -123,8 +123,7 @@ err_out_exit:
 }
 
 static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
-		int start, int end, struct dnet_check_request *requests, int num,
-		int update_existing)
+		struct dnet_check_request *requests, int num, int update_existing)
 {
 	struct dnet_node *n = worker->n;
 	struct dnet_check_request *existing = NULL, *req;
@@ -172,25 +171,20 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 		}
 	}
 
-	if (dnet_check_ext_merge) {
-		err = dnet_check_ext_merge(dnet_check_ext_private, file, start, end,
-				requests, num, update_existing);
-	} else {
-		for (i=0; i<num; ++i) {
-			req = &requests[i];
+	for (i=0; i<num; ++i) {
+		req = &requests[i];
 
-			err = 0;
-			if (update_existing) {
-				err = dnet_upload_local_file(worker, req, file);
-			} else if (!req->present) {
-				err = dnet_check_process_request(worker, req, existing);
-			}
+		err = 0;
+		if (update_existing) {
+			err = dnet_upload_local_file(worker, req, file);
+		} else if (!req->present) {
+			err = dnet_check_process_request(worker, req, existing);
+		}
 
-			if (err) {
-				dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to upload a '%s' request list: %d.\n",
-						obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), err);
-				continue;
-			}
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to upload a '%s' request list: %d.\n",
+					obj, dnet_dump_id_len(req->id, DNET_ID_SIZE), err);
+			continue;
 		}
 	}
 
@@ -273,7 +267,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 				req->type, req->present, update_existing);
 	}
 
-	err = dnet_update_copies(w, obj, start, end, requests, hash_num, update_existing);
+	err = dnet_update_copies(w, obj, requests, hash_num, update_existing);
 	
 	for (i=0; i<hash_num; ++i) {
 		req = &requests[i];
