@@ -1826,6 +1826,7 @@ int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *m
 	}
 
 	map->num = st.st_size / sizeof(struct dnet_history_entry);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: mapped %ld entries in '%s'.\n", dnet_dump_id(n->id), map->num, file);
 
 	return 0;
 
