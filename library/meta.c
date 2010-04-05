@@ -33,26 +33,12 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
-struct dnet_meta
-{
-	uint32_t			type;
-	uint32_t			size;
-	uint8_t				tmp[32];
-	uint8_t				data[0];
-} __attribute__ ((packed));
-
-static inline void dnet_convert_meta(struct dnet_meta *m)
-{
-	m->type = dnet_bswap32(m->type);
-	m->size = dnet_bswap32(m->size);
-}
-
 struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t size, uint32_t type)
 {
 	struct dnet_meta m, *found = NULL;
 
 	while (size) {
-		if (size && size < sizeof(struct dnet_meta)) {
+		if (size < sizeof(struct dnet_meta)) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: metadata size %u is too small, min %zu, searching for type 0x%x.\n",
 					dnet_dump_id(n->id), size, sizeof(struct dnet_meta), type);
 			break;
@@ -60,6 +46,8 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t siz
 
 		m = *(struct dnet_meta *)data;
 		dnet_convert_meta(&m);
+
+		dnet_log(n, DNET_LOG_INFO, "%s: m: %x, size: %u, type: %x.\n", dnet_dump_id(n->id), m.type, m.size, type);
 
 		if (m.size + sizeof(struct dnet_meta) > size) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: metadata entry broken: entry size %u, type: 0x%x, struct size: %zu, "

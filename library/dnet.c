@@ -3156,3 +3156,9 @@ int dnet_request_ids(struct dnet_node *n, unsigned char *id,
 
 	return dnet_trans_alloc_send(n, &ctl);
 }
+
+struct dnet_node *dnet_get_node_from_state(void *state)
+{
+	struct dnet_net_state *st = state;
+	return st->n;
+}

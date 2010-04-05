@@ -19,6 +19,7 @@
 #include <dnet/typedefs.h>
 
 #define DNET_HISTORY_SUFFIX	".history"
+#define DNET_META_SUFFIX	".meta"
 
 #ifdef CONFIG_ID_SIZE
 #define DNET_ID_SIZE		CONFIG_ID_SIZE

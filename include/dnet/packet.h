@@ -291,6 +291,12 @@ struct dnet_stat
 	uint64_t		vm_free;
 	uint64_t		vm_cached;
 	uint64_t		vm_buffers;
+
+	/*
+	 * Per node IO statistics will live here.
+	 * Reserved for future use.
+	 */
+	uint64_t		reserved[32];
 };
 
 static inline void dnet_convert_stat(struct dnet_stat *st)
