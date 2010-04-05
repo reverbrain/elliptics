@@ -162,8 +162,6 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 
 	ctl.io.offset = 0;
 	ctl.io.size = size;
-	if (!obj)
-		ctl.io.flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 

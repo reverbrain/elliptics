@@ -767,7 +767,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.aflags = DNET_ATTR_DIRECT_TRANSACTION | DNET_ATTR_NO_TRANSACTION_SPLIT;
 
-	ctl.io.flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
+	ctl.io.flags = 0;
 	ctl.io.size = size;
 	ctl.io.offset = 0;
 

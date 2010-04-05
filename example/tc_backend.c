@@ -175,7 +175,6 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	int err;
 	TCADB *db = be->data;
 	struct dnet_io_attr *io = data;
-	struct dnet_history_entry *e, n;
 	bool res = true;
 
 	if (attr->size < sizeof(struct dnet_io_attr)) {
@@ -222,43 +221,6 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
 			(unsigned long long)io->size, (unsigned long long)io->offset);
 
-	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
-		e = &n;
-
-		res = tcadbtranbegin(be->hist);
-		if (!res) {
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to start history append transaction.\n", dnet_dump_id(cmd->id));
-			err = -EINVAL;
-			goto err_out_data_trans_abort;
-		}
-
-		dnet_setup_history_entry(e, io->id, io->size, io->offset, 0);
-
-		res = tcadbputcat(be->hist, io->origin, DNET_ID_SIZE, e, sizeof(struct dnet_history_entry));
-		if (!res) {
-			err = -EINVAL;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: history update failed offset: %llu, size: %llu.\n",
-					dnet_dump_id(io->origin), (unsigned long long)io->offset,
-					(unsigned long long)io->size);
-			goto err_out_hist_trans_abort;
-		}
-		res = tcadbtrancommit(be->hist);
-		if (!res) {
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to commit history update transaction.\n",
-				dnet_dump_id(io->origin));
-			err = -EINVAL;
-			goto err_out_hist_trans_abort;
-		}
-
-		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: history updated: size: %llu, offset: %llu.\n",
-				dnet_dump_id(io->origin), (unsigned long long)io->size,
-				(unsigned long long)io->offset);
-	}
-
 	res = tcadbtrancommit(db);
 	if (!res) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -270,8 +232,6 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 	return 0;
 
-err_out_hist_trans_abort:
-	tcadbtranabort(be->hist);
 err_out_data_trans_abort:
 	tcadbtranabort(db);
 err_out_exit:
