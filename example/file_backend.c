@@ -53,7 +53,7 @@ static inline void file_backend_setup_file(struct file_backend_root *r, char *fi
 	if (io->flags & DNET_IO_FLAGS_HISTORY)
 		snprintf(file, size, "%s/%s%s",
 			dir, dnet_dump_id_len(io->origin, DNET_ID_SIZE), DNET_HISTORY_SUFFIX);
-	else if (meta)
+	else if (meta || (io->flags & DNET_IO_FLAGS_META))
 		snprintf(file, size, "%s/%s%s",
 			dir, dnet_dump_id_len(io->origin, DNET_ID_SIZE), DNET_META_SUFFIX);
 	else

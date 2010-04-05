@@ -51,6 +51,18 @@ struct tc_backend
 	TCADB	*data, *hist, *meta;
 };
 
+static TCADB *tc_setup_db(struct tc_backend *be, struct dnet_io_attr *io)
+{
+	TCADB *db = be->data;
+
+	if (io->flags & DNET_IO_FLAGS_HISTORY)
+		db = be->hist;
+	else if (io->flags & DNET_IO_FLAGS_META)
+		db = be->meta;
+
+	return db;
+}
+
 static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *buf)
 {
@@ -75,8 +87,7 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 	dnet_convert_io_attr(io);
 
-	if (io->flags & DNET_IO_FLAGS_HISTORY)
-		db = be->hist;
+	db = tc_setup_db(be, io);
 
 	ptr = tcadbget(db, io->origin, DNET_ID_SIZE, &size);
 	if (!ptr) {
@@ -281,8 +292,7 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 	data += sizeof(struct dnet_io_attr);
 
-	if (io->flags & DNET_IO_FLAGS_HISTORY)
-		db = be->hist;
+	db = tc_setup_db(be, io);
 
 	res = tcadbtranbegin(db);
 	if (!res) {
