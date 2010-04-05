@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
 
 	if (root) {
 		if (tc) {
-			cfg.command_private = tc_backend_init(root, "data.tch", "history.tch");
+			cfg.command_private = tc_backend_init(root, "data.tch", "history.tch", "metadata.tch");
 			if (!cfg.command_private)
 				return -EINVAL;
 			cfg.command_handler = tc_backend_command_handler;

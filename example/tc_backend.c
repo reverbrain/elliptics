@@ -48,7 +48,7 @@
 struct tc_backend
 {
 	char	*env_dir;
-	TCADB	*data, *hist;
+	TCADB	*data, *hist, *meta;
 };
 
 static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
@@ -415,20 +415,21 @@ int tc_backend_command_handler(void *state, void *priv,
 	return err;
 }
 
+static void tc_backend_close(TCADB *db)
+{
+	tcadbclose(db);
+	tcadbdel(db);
+}
+
 void tc_backend_exit(void *data)
 {
 	struct tc_backend *be = data;
 
 	/* close dbs and delete objects if existing */
-	if (!tcadbclose(be->data))
-		fprintf(stderr, "tc_backend_exit: tcadbclose(be->data) failed\n");
 
-	tcadbdel(be->data);
-
-	if (!tcadbclose(be->hist))
-		fprintf(stderr, "tc_backend_exit: tcadbclose(be->hist) failed\n");
-
-	tcadbdel(be->hist);
+	tc_backend_close(be->data);
+	tc_backend_close(be->hist);
+	tc_backend_close(be->meta);
 
 	free(be->env_dir);
 	free(be);
@@ -483,7 +484,7 @@ err_out_exit:
 	return err;
 }
 
-void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histfile)
+void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histfile, const char *metafile)
 {
 	/* initialize tc_backend struct */
 	struct tc_backend *be;
@@ -529,9 +530,17 @@ void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histf
 		fprintf(stderr, "tcadbopen(be->hist,%s) failed\n", histfile);
 		goto err_out_close_data;
 	}
+	/* open metadata database */
+	err = tc_backend_open(be->meta, env_dir, metafile);
+	if (err) {
+		fprintf(stderr, "tcadbopen(be->meta,%s) failed\n", metafile);
+		goto err_out_close_hist;
+	}
 
 	return be;
 
+err_out_close_hist:
+	tcadbclose(be->hist);
 err_out_close_data:
 	tcadbclose(be->data);
 err_out_del_hist:
@@ -559,7 +568,8 @@ void tc_backend_exit(void *data __unused)
 }
 
 void *tc_backend_init(const char *env_dir __unused,
-		const char *dbfile __unused, const char *histfile __unused)
+		const char *dbfile __unused, const char *histfile __unused,
+		const char *metafile __unused)
 {
 	return NULL;
 }

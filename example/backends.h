@@ -53,7 +53,7 @@ int tc_backend_command_handler(void *state, void *priv,
 
 void tc_backend_exit(void *data);
 
-void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histfile);
+void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histfile, const char *metafile);
 
 
 int file_backend_command_handler(void *state, void *priv,
