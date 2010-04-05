@@ -484,11 +484,35 @@ err_out_exit:
 	return err;
 }
 
+static TCADB *tc_backend_create(const char *env_dir, const char *name)
+{
+	TCADB *db;
+	int err;
+
+	db = tcadbnew();
+	if (!db) {
+		fprintf(stderr, "Failed to create new TC database '%s'.\n", name);
+		goto err_out_exit;
+	}
+
+	err = tc_backend_open(db, env_dir, name);
+	if (err) {
+		fprintf(stderr, "Failed to open new TC database '%s': %d.\n", name, err);
+		goto err_out_close;
+	}
+
+	return db;
+
+err_out_close:
+	tcadbclose(db);
+err_out_exit:
+	return NULL;
+}
+
 void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histfile, const char *metafile)
 {
 	/* initialize tc_backend struct */
 	struct tc_backend *be;
-	int err;
 
 	be = malloc(sizeof(struct tc_backend));
 	if (!be) {
@@ -505,48 +529,24 @@ void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histf
 		}
 	}
 
-	/* create data TCADB object */
-	be->data = tcadbnew();
-	if(!be->data) {
-		fprintf(stderr, "tcadbnew(be->data) failed\n");
+	be->data = tc_backend_create(env_dir, dbfile);
+	if (!be->data)
 		goto err_out_free_env_dir;
-	}
-	/* create hist TCADB object */
-	be->hist = tcadbnew();
-	if(!be->hist) {
-		fprintf(stderr, "tcadbnew(be->hist) failed\n");
-		goto err_out_del_data;
-	}
-
-	/* open data database */
-	err = tc_backend_open(be->data, env_dir, dbfile);
-	if (err) {
-		fprintf(stderr, "tcadbopen(be->data,%s) failed\n", dbfile);
-		goto err_out_del_hist;
-	}
-	/* open hist database */
-	err = tc_backend_open(be->hist, env_dir, histfile);
-	if (err) {
-		fprintf(stderr, "tcadbopen(be->hist,%s) failed\n", histfile);
+	
+	be->hist = tc_backend_create(env_dir, histfile);
+	if (!be->hist)
 		goto err_out_close_data;
-	}
-	/* open metadata database */
-	err = tc_backend_open(be->meta, env_dir, metafile);
-	if (err) {
-		fprintf(stderr, "tcadbopen(be->meta,%s) failed\n", metafile);
+	
+	be->meta = tc_backend_create(env_dir, metafile);
+	if (!be->meta)
 		goto err_out_close_hist;
-	}
 
 	return be;
 
 err_out_close_hist:
-	tcadbclose(be->hist);
+	tc_backend_close(be->hist);
 err_out_close_data:
-	tcadbclose(be->data);
-err_out_del_hist:
-	tcadbdel(be->hist);
-err_out_del_data:
-	tcadbdel(be->data);
+	tc_backend_close(be->data);
 err_out_free_env_dir:
 	free(be->env_dir);
 err_out_free_be:
