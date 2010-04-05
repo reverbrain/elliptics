@@ -169,6 +169,96 @@ err_out_exit:
 	return err;
 }
 
+static int tc_meta_create(struct tc_backend *be, void *state,
+		struct dnet_cmd *cmd, struct dnet_io_attr *io)
+{
+	int err;
+	bool res;
+	TCADB *db = be->meta;
+	
+	err = tcadbvsiz(db, io->origin, DNET_ID_SIZE);
+	if (err > 0)
+		return 0;
+
+	res = tcadbput(db, io->origin, DNET_ID_SIZE, NULL, 0);
+	if (!res) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to create metadata entry.\n",
+			dnet_dump_id(cmd->id));
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int tc_meta_change_refcnt(struct tc_backend *be, void *state, struct dnet_cmd *cmd,
+		struct dnet_io_attr *io, int inc)
+{
+	void *data, *new_data;
+	uint32_t size = 0;
+	int refcnt = 0, err;
+	bool ret;
+
+	data = tcadbget(be->meta, io->origin, DNET_ID_SIZE, (int *)&size);
+	if (!data) {
+		err = -ENOENT;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: can not read metadata object.\n",
+				dnet_dump_id(cmd->id));
+		goto err_out_exit;
+	}
+
+	new_data = backend_refcnt_change(state, cmd, data, &size, inc, &refcnt);
+	if (!new_data) {
+		err = -EINVAL;
+		goto err_out_free;
+	}
+	data = new_data;
+	
+	ret = tcadbput(be->meta, io->origin, DNET_ID_SIZE, data, size);
+	if (!ret) {
+		err = -EINVAL;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: can not update metadata object.\n",
+				dnet_dump_id(cmd->id));
+		goto err_out_free;
+	}
+
+	free(data);
+	return refcnt;
+
+err_out_free:
+	free(data);
+err_out_exit:
+	return err;
+}
+
+static void tc_meta_destroy(struct tc_backend *be, struct dnet_io_attr *io)
+{
+	tcadbout(be->meta, io->origin, DNET_ID_SIZE);
+}
+
+static int tc_meta_inc(struct tc_backend *be, void *state, struct dnet_cmd *cmd,
+		struct dnet_io_attr *io)
+{
+	return tc_meta_change_refcnt(be, state, cmd, io, 1);
+}
+
+static int tc_meta_dec(struct tc_backend *be, void *state, struct dnet_cmd *cmd,
+		struct dnet_io_attr *io)
+{
+	int err;
+
+	err = tc_meta_change_refcnt(be, state, cmd, io, 0);
+	if (err < 0)
+		return err;
+
+	if (!err)
+		tc_meta_destroy(be, io);
+
+	return err;
+}
+
 static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *data)
 {
@@ -200,6 +290,18 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			"%s: failed to start write transaction.\n", dnet_dump_id(cmd->id));
 		err = -EINVAL;
 		goto err_out_data_trans_abort;
+	}
+
+	if (!(io->flags & DNET_IO_FLAGS_HISTORY)) {
+		err = tc_meta_create(be, state, cmd, io);
+		if (err < 0)
+			goto err_out_data_trans_abort;
+
+		err = tc_meta_inc(be, state, cmd, io);
+		if (err < 0) {
+			tc_meta_destroy(be, io);
+			goto err_out_data_trans_abort;
+		}
 	}
 
 	if (io->flags & DNET_IO_FLAGS_APPEND)
