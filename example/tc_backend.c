@@ -314,7 +314,7 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			dnet_dump_id(io->origin), (unsigned long long)io->offset,
 			(unsigned long long)io->size);
 		err = -EINVAL;
-		goto err_out_data_trans_abort;
+		goto err_out_drop_refcnt;
 	}
 
 	dnet_command_handler_log(state, DNET_LOG_NOTICE,
@@ -329,11 +329,13 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			"%s: failed to commit write transaction.\n",
 			dnet_dump_id(io->origin));
 		err = -EINVAL;
-		goto err_out_data_trans_abort;
+		goto err_out_drop_refcnt;
 	}
 
 	return 0;
 
+err_out_drop_refcnt:
+	tc_meta_dec(be, state, cmd, io);
 err_out_data_trans_abort:
 	tcadbtranabort(db);
 err_out_exit:
