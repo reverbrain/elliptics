@@ -239,3 +239,49 @@ int backend_del(void *state, struct dnet_io_attr *io, struct dnet_history_entry 
 	return 0;
 }
 
+void *backend_refcnt_change(void *state, struct dnet_cmd *cmd,
+		void *data, uint32_t *size, int inc, int *refcnt)
+{
+	struct dnet_meta *meta;
+
+	meta = dnet_meta_search(dnet_get_node_from_state(state), data, *size, DNET_META_REFCNT);
+	if (!meta) {
+		struct dnet_meta m;
+
+		if (!inc) {
+			dnet_command_handler_log(state, DNET_LOG_ERROR,
+				"%s: failed metadata: there is no refcnt object to decrease.\n",
+					dnet_dump_id(cmd->id));
+			data = NULL;
+			goto out_exit;
+		}
+
+		memset(&m, 0, sizeof(struct dnet_meta));
+
+		m.type = DNET_META_REFCNT;
+		m.common = 1;
+
+		data = dnet_meta_add(dnet_get_node_from_state(state),
+				data, size, &m, NULL);
+		if (data)
+			*refcnt = 1;
+	} else {
+		dnet_convert_meta(meta);
+		if (inc) {
+			meta->common++;
+		} else {
+			if (meta->common)
+				meta->common--;
+			else
+				dnet_command_handler_log(state, DNET_LOG_ERROR,
+					"%s: failed metadata: refcnt is zero, can not decrease.\n",
+					dnet_dump_id(cmd->id));
+		}
+
+		*refcnt = meta->common;
+		dnet_convert_meta(meta);
+	}
+
+out_exit:
+	return data;
+}
