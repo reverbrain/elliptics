@@ -222,25 +222,28 @@ static void *dnet_merge_process(void *data)
 {
 	struct dnet_check_worker *worker = data;
 	struct dnet_node *n = worker->n;
-	unsigned char id[DNET_ID_SIZE];
 	char file[256], direct[256], id_str[2*DNET_ID_SIZE+1];
+	struct dnet_id id;
 	int err;
 
 	while (1) {
 		pthread_mutex_lock(&dnet_check_file_lock);
-		err = fread(id, DNET_ID_SIZE, 1, dnet_check_file);
+		err = fread(&id, sizeof(struct dnet_id), 1, dnet_check_file);
 		pthread_mutex_unlock(&dnet_check_file_lock);
 
 		if (err != 1)
 			break;
 
-		dnet_log_raw(n, DNET_LOG_INFO, "merge: %s\n", dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str));
+		dnet_log_raw(n, DNET_LOG_INFO, "merge: %s, flags: %x\n", dnet_dump_id_len_raw(id.id, DNET_ID_SIZE, id_str), id.flags);
+
+		if (id.flags & DNET_ID_FLAGS_META)
+			continue;
 
 		snprintf(direct, sizeof(direct), "%s/%s.direct", dnet_check_tmp_dir, id_str);
 
-		err = dnet_read_file_direct(n, direct, id, 0, 0, 1);
+		err = dnet_read_file_direct(n, direct, id.id, 0, 0, 1);
 		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from direct node: %d.\n", dnet_dump_id(id), err);
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from direct node: %d.\n", dnet_dump_id(id.id), err);
 			goto out_continue;
 		}
 		snprintf(file, sizeof(file), "%s%s", direct, DNET_HISTORY_SUFFIX);
@@ -248,31 +251,31 @@ static void *dnet_merge_process(void *data)
 
 		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, id_str);
 
-		err = dnet_read_file(n, file, id, 0, 0, 1);
+		err = dnet_read_file(n, file, id.id, 0, 0, 1);
 		if (err) {
 			if (err != -ENOENT) {
-				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n", dnet_dump_id(id), err);
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n", dnet_dump_id(id.id), err);
 				goto out_continue;
 			}
 
 			dnet_log_raw(n, DNET_LOG_INFO, "%s: there is no history in the storage to merge with, "
-					"doing direct merge (plain upload).\n", dnet_dump_id(id));
-			err = dnet_merge_direct(worker, direct, id);
+					"doing direct merge (plain upload).\n", dnet_dump_id(id.id));
+			err = dnet_merge_direct(worker, direct, id.id);
 		} else {
 			snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir, id_str, DNET_HISTORY_SUFFIX);
 			if (dnet_check_ext_merge) {
-				err = dnet_check_ext_merge(dnet_check_ext_private, direct, file, id);
+				err = dnet_check_ext_merge(dnet_check_ext_private, direct, file, id.id);
 			} else {
-				err = dnet_merge_common(worker, direct, file, id);
+				err = dnet_merge_common(worker, direct, file, id.id);
 			}
 		}
 
-		dnet_merge_unlink_local_files(n, id);
+		dnet_merge_unlink_local_files(n, id.id);
 
 		if (err)
 			goto out_continue;
 
-		dnet_remove_object(n, id, id, NULL, NULL, 1);
+		dnet_remove_object(n, id.id, id.id, NULL, NULL, 1);
 out_continue:
 		continue;
 	}

@@ -335,6 +335,20 @@ static inline void dnet_convert_io_notification(struct dnet_io_notification *n)
 	dnet_convert_io_attr(&n->io);
 }
 
+#define DNET_ID_FLAGS_HISTORY		(1<<0)
+#define DNET_ID_FLAGS_META		(1<<1)
+
+struct dnet_id
+{
+	uint32_t			flags;
+	unsigned char			id[DNET_ID_SIZE];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_id(struct dnet_id *id)
+{
+	id->flags = dnet_bswap32(id->flags);
+}
+
 #ifdef __cplusplus
 }
 #endif

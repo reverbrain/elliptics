@@ -165,18 +165,15 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 	DIR *dir;
 	struct dirent *d;
 	unsigned char id[DNET_ID_SIZE];
-	unsigned int len;
-	unsigned long long osize = 1024 * 1024, size;
-	void *odata, *data;
+	unsigned int len, num = 1024*1024, pos = 0;
+	uint32_t flags;
+	struct dnet_id *ids;
 
-	odata = malloc(osize);
-	if (!odata) {
+	ids = malloc(num * sizeof(struct dnet_id));
+	if (!ids) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-
-	data = odata;
-	size = osize;
 
 	dir = opendir(sub);
 	if (!dir) {
@@ -204,41 +201,47 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 
 		len = strlen(d->d_name);
 
-		if (len != strlen(DNET_HISTORY_SUFFIX) + DNET_ID_SIZE*2)
+		if ((len != strlen(DNET_HISTORY_SUFFIX) + DNET_ID_SIZE*2) &&
+		    (len != strlen(DNET_META_SUFFIX) + DNET_ID_SIZE*2))
 			continue;
 
-		if (strcmp(&d->d_name[DNET_ID_SIZE*2], DNET_HISTORY_SUFFIX))
+		flags = 0;
+		if (!strcmp(&d->d_name[DNET_ID_SIZE*2], DNET_HISTORY_SUFFIX))
+			flags = DNET_ID_FLAGS_HISTORY;
+		else if (!strcmp(&d->d_name[DNET_ID_SIZE*2], DNET_META_SUFFIX))
+			flags = DNET_ID_FLAGS_META;
+		else
 			continue;
 
 		dnet_convert_name_to_id(d->d_name, id);
 
-		dnet_command_handler_log(state, DNET_LOG_INFO, "%s: out: %d, within: %d.\n", d->d_name, out, dnet_id_within_range(id, next_id, cmd->id));
+		dnet_command_handler_log(state, DNET_LOG_NOTICE, "%s: out: %d, within: %d, flags: %x.\n",
+				d->d_name, out, dnet_id_within_range(id, next_id, cmd->id), flags);
 
 		if (out && !dnet_id_within_range(id, next_id, cmd->id))
 			continue;
 
-		if (size < DNET_ID_SIZE) {
-			err = dnet_send_reply(state, cmd, attr, odata, osize - size, 1);
+		if (pos >= num) {
+			err = dnet_send_reply(state, cmd, attr, ids, pos * sizeof(struct dnet_id), 1);
 			if (err)
 				goto err_out_close;
 
-			size = osize;
-			data = odata;
+			pos = 0;
 		}
 
-		memcpy(data, id, DNET_ID_SIZE);
-		data += DNET_ID_SIZE;
-		size -= DNET_ID_SIZE;
+		memcpy(ids[pos].id, id, DNET_ID_SIZE);
+		ids[pos].flags = flags;
 
-		dnet_command_handler_log(state, DNET_LOG_INFO,
-			"%s -> %s.\n", d->d_name, dnet_dump_id(id));
+		dnet_convert_id(&ids[pos]);
+
+		pos++;
+
+		dnet_command_handler_log(state, DNET_LOG_INFO, "%s -> %s.\n", d->d_name, dnet_dump_id(id));
 	}
 
-	if (osize != size) {
-		err = dnet_send_reply(state, cmd, attr, odata, osize - size, 0);
-		if (err)
-			goto err_out_close;
-	}
+	err = dnet_send_reply(state, cmd, attr, ids, pos * sizeof(struct dnet_id), 0);
+	if (err)
+		goto err_out_close;
 
 	err = chdir("..");
 	if (err) {
@@ -249,14 +252,14 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 	}
 
 	closedir(dir);
-	free(odata);
+	free(ids);
 
 	return 0;
 
 err_out_close:
 	closedir(dir);
 err_out_free:
-	free(odata);
+	free(ids);
 err_out_exit:
 	return err;
 }

@@ -389,24 +389,26 @@ struct dnet_id_request_completion
 	struct dnet_check_worker	*worker;
 };
 
-static int dnet_check_write_ids(struct dnet_id_request_completion *complete, unsigned char *id, uint64_t size)
+static int dnet_check_write_ids(struct dnet_id_request_completion *complete, struct dnet_id *id, uint64_t size)
 {
 	struct dnet_check_worker *worker = complete->worker;
 	struct dnet_node *n = worker->n;
-	long i, num = size / DNET_ID_SIZE;
+	long i, num = size / sizeof(struct dnet_id);
 	int err;
+
+	if (!size)
+		return 0;
+
+	for (i=0; i<num; ++i) {
+		dnet_convert_id(&id[i]);
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: %x\n", dnet_dump_id_len(id[i].id, DNET_ID_SIZE), id[i].flags);
+	}
 
 	err = write(complete->fd, id, size);
 	if (err < 0) {
 		err = -errno;
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to write IDs: %s.\n", dnet_dump_id(complete->id), strerror(errno));
 		return err;
-	}
-
-	for (i=0; i<num; ++i) {
-		dnet_log_raw(n, DNET_LOG_INFO, "%s\n", dnet_dump_id_len(id, DNET_ID_SIZE));
-
-		id += DNET_ID_SIZE;
 	}
 
 	return 0;
@@ -418,7 +420,7 @@ static int dnet_check_id_complete(struct dnet_net_state *state,
 	struct dnet_id_request_completion *complete = priv;
 	struct dnet_check_worker *worker = complete->worker;
 	struct dnet_node *n = worker->n;
-	unsigned char *data;
+	struct dnet_id *ids;
 	int err = 0, last = 0;
 
 	if (!state || !cmd) {
@@ -449,11 +451,11 @@ static int dnet_check_id_complete(struct dnet_net_state *state,
 			goto out_exit;
 		}
 
-		data = (unsigned char *)(attr + 1);
+		ids = (struct dnet_id *)(attr + 1);
 
 		dnet_convert_attr(attr);
 
-		err = dnet_check_write_ids(complete, data, attr->size);
+		err = dnet_check_write_ids(complete, ids, attr->size);
 	}
 
 	if (last)

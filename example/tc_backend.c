@@ -352,16 +352,22 @@ err_out_exit:
 	return err;
 }
 
-static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
-		struct dnet_attr *attr)
+static int tc_list_raw(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, int meta)
 {
 	int err, num, size, i;
 	int out = attr->flags & DNET_ATTR_ID_OUT;
 	TCADB *e = be->hist;
+	uint32_t flags = DNET_ID_FLAGS_HISTORY;
 	unsigned char id[DNET_ID_SIZE], start, last;
 	TCLIST *l;
 	int inum = 10240, ipos = 0, wrap = 0;
-	unsigned char ids[inum][DNET_ID_SIZE];
+	struct dnet_id ids[inum];
+
+	if (meta) {
+		e = be->meta;
+		flags = DNET_ID_FLAGS_META;
+	}
 
 	if (out)
 		dnet_state_get_next_id(state, id);
@@ -396,7 +402,7 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			}
 
 			if (ipos == inum) {
-				err = dnet_send_reply(state, cmd, attr, ids, ipos * DNET_ID_SIZE, 1);
+				err = dnet_send_reply(state, cmd, attr, ids, ipos * sizeof(struct dnet_id), 1);
 				if (err)
 					goto out_clean;
 
@@ -404,7 +410,11 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			}
 
 			dnet_command_handler_log(state, DNET_LOG_INFO, "%s\n", dnet_dump_id(idx));
-			memcpy(ids[ipos], idx, DNET_ID_SIZE);
+			memcpy(ids[ipos].id, idx, DNET_ID_SIZE);
+			ids[ipos].flags = flags;
+
+			dnet_convert_id(&ids[ipos]);
+
 			ipos++;
 		}
 
@@ -425,6 +435,19 @@ out_clean:
 err_out_exit:
 	return err;
 }
+
+static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
+		struct dnet_attr *attr)
+{
+	int err;
+
+	err = tc_list_raw(state, be, cmd, attr, 0);
+	if (err)
+		return err;
+	
+	return tc_list_raw(state, be, cmd, attr, 1);
+}
+
 
 static int tc_del(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *buf)

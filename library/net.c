@@ -1178,7 +1178,8 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 	a->flags = attr->flags;
 	a->cmd = attr->cmd;
 
-	memcpy(data, odata, size);
+	if (size)
+		memcpy(data, odata, size);
 
 	dnet_command_handler_log(state, DNET_LOG_INFO,
 		"%s: sending %u reply, size: %u, cflags: %x.\n",
