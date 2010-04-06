@@ -243,7 +243,7 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *
 
 	if (!st) {
 		err = -ENOENT;
-		list_for_each_entry_reverse(st, &n->state_list, state_entry) {
+		list_for_each_entry(st, &n->state_list, state_entry) {
 			if (st == self)
 				continue;
 
