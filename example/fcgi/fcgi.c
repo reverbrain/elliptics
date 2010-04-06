@@ -727,24 +727,24 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 		struct dnet_attr *attr __unused, void *priv __unused)
 {
 	int err = 0;
+	char id[DNET_ID_SIZE*2+1];
 
 	if (!cmd || !st) {
 		err = -EINVAL;
-		goto err_out_exit;
+		goto out_wakeup;
 	}
 
 	if (cmd->status)
 		err = cmd->status;
 
-	if (!(cmd->flags & DNET_FLAGS_MORE)) {
-		char id[DNET_ID_SIZE*2+1];
-		dnet_fcgi_wakeup({ do { dnet_fcgi_request_completed++; if (err) dnet_fcgi_request_error++; } while (0); -1; });
-		fprintf(dnet_fcgi_log, "%s: upload completed: %d, err: %d.\n",
-				dnet_dump_id(cmd->id), dnet_fcgi_request_completed, err);
-		dnet_fcgi_output("<complete><id>%s</id><status>%d</status></complete>", dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id), err);
-	}
+	if (cmd->flags & DNET_FLAGS_MORE)
+		return err;
 
-err_out_exit:
+out_wakeup:
+	fprintf(dnet_fcgi_log, "%s: upload completed: %d, err: %d.\n",
+			dnet_dump_id(cmd->id), dnet_fcgi_request_completed, err);
+	dnet_fcgi_output("<complete><id>%s</id><status>%d</status></complete>", dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id), err);
+	dnet_fcgi_wakeup({ do { dnet_fcgi_request_completed++; if (err) dnet_fcgi_request_error++; } while (0); -1; });
 	return err;
 }
 
