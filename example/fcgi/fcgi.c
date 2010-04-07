@@ -1685,17 +1685,17 @@ int main()
 			goto err_continue;
 		}
 
+		fprintf(dnet_fcgi_log, "query: '%s'.\n", query);
+
 		if (dnet_fcgi_stat_log_pattern) {
-			p = strstr(query, dnet_fcgi_stat_log_pattern);
-			if (p) {
+			if (!strcmp(query, dnet_fcgi_stat_log_pattern)) {
 				dnet_fcgi_stat_log(n);
 				goto cont;
 			}
 		}
 
 		if (dnet_fcgi_stat_pattern) {
-			p = strstr(query, dnet_fcgi_stat_pattern);
-			if (p) {
+			if (!strcmp(query, dnet_fcgi_stat_pattern)) {
 				dnet_fcgi_stat(n);
 				goto cont;
 			}
