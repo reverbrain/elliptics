@@ -1716,7 +1716,7 @@ int main()
 
 		end = strstr(id, id_delimiter);
 		if (!end)
-			end = p + strlen(p);
+			end = p + strlen(id);
 
 		length = end - id;
 
@@ -1765,6 +1765,8 @@ err_continue:
 		dnet_fcgi_output("Content-Type: text/plain\r\n");
 		dnet_fcgi_output("Status: %d\r\n\r\n", (err == -ENOENT) ? 404 : 403);
 		dnet_fcgi_output("Reason: %s: %s [%d]\r\n", reason, strerror(-err), err);
+		if (query)
+			dnet_fcgi_output("Query: %s\r\n", query);
 		fprintf(dnet_fcgi_log, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(-err), err);
 		fflush(dnet_fcgi_log);
 		goto cont;
