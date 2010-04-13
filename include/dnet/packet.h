@@ -202,10 +202,8 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 
 /* History IO request. */
 #define DNET_IO_FLAGS_HISTORY		(1<<0)
-/* Raw metadata IO request, usually it should be done via appropriate command */
-#define DNET_IO_FLAGS_META		(1<<1)
 /* Append given data at the end of the object */
-#define DNET_IO_FLAGS_APPEND		(1<<2)
+#define DNET_IO_FLAGS_APPEND		(1<<1)
 
 struct dnet_io_attr
 {

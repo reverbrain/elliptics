@@ -746,31 +746,6 @@ int dnet_request_ids(struct dnet_node *n, unsigned char *id,
 			void *priv),
 	void *priv);
 
-enum dnet_meta_types {
-	DNET_META_REFCNT = 1,		/* object reference counter */
-};
-
-struct dnet_meta
-{
-	uint32_t			type;
-	uint32_t			size;
-	uint64_t			common;
-	uint8_t				tmp[32];
-	uint8_t				data[0];
-} __attribute__ ((packed));
-
-static inline void dnet_convert_meta(struct dnet_meta *m)
-{
-	m->type = dnet_bswap32(m->type);
-	m->size = dnet_bswap32(m->size);
-	m->common = dnet_bswap64(m->common);
-}
-
-struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t size, uint32_t type);
-int dnet_meta_remove(struct dnet_node *n, void *data, uint32_t *size, struct dnet_meta *m);
-struct dnet_meta *dnet_meta_add(struct dnet_node *n, void *data, uint32_t *size, struct dnet_meta *add, void *add_data);
-struct dnet_meta *dnet_meta_replace(struct dnet_node *n, void *data, uint32_t size, struct dnet_meta *rep, void *rep_data);
-
 #ifdef __cplusplus
 }
 #endif

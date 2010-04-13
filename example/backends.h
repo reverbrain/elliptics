@@ -52,8 +52,7 @@ int tc_backend_command_handler(void *state, void *priv,
 		void *data);
 
 void tc_backend_exit(void *data);
-
-void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histfile, const char *metafile);
+void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histfile);
 
 
 int file_backend_command_handler(void *state, void *priv,
@@ -79,9 +78,6 @@ static inline char *file_backend_get_dir(unsigned char *id, uint64_t bit_mask, c
 
 	return dnet_dump_id_len_raw((const unsigned char *)&res, ALIGN(ffsll(~bit_mask) - 1, 8) / 8, dst);
 }
-
-void *backend_refcnt_change(void *state, struct dnet_cmd *cmd,
-		void *data, uint32_t *size, int inc, int *refcnt);
 
 #ifdef __cplusplus
 }

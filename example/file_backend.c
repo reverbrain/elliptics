@@ -45,7 +45,7 @@ struct file_backend_root
 };
 
 static inline void file_backend_setup_file(struct file_backend_root *r, char *file,
-		unsigned int size, struct dnet_io_attr *io, int meta)
+		unsigned int size, struct dnet_io_attr *io)
 {
 	char dir[2*DNET_ID_SIZE+1];
 
@@ -53,9 +53,6 @@ static inline void file_backend_setup_file(struct file_backend_root *r, char *fi
 	if (io->flags & DNET_IO_FLAGS_HISTORY)
 		snprintf(file, size, "%s/%s%s",
 			dir, dnet_dump_id_len(io->origin, DNET_ID_SIZE), DNET_HISTORY_SUFFIX);
-	else if (meta || (io->flags & DNET_IO_FLAGS_META))
-		snprintf(file, size, "%s/%s%s",
-			dir, dnet_dump_id_len(io->origin, DNET_ID_SIZE), DNET_META_SUFFIX);
 	else
 		snprintf(file, size, "%s/%s",
 			dir, dnet_dump_id_len(io->origin, DNET_ID_SIZE));
@@ -201,15 +198,9 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 
 		len = strlen(d->d_name);
 
-		if ((len != strlen(DNET_HISTORY_SUFFIX) + DNET_ID_SIZE*2) &&
-		    (len != strlen(DNET_META_SUFFIX) + DNET_ID_SIZE*2))
-			continue;
-
 		flags = 0;
 		if (!strcmp(&d->d_name[DNET_ID_SIZE*2], DNET_HISTORY_SUFFIX))
 			flags = DNET_ID_FLAGS_HISTORY;
-		else if (!strcmp(&d->d_name[DNET_ID_SIZE*2], DNET_META_SUFFIX))
-			flags = DNET_ID_FLAGS_META;
 		else
 			continue;
 
@@ -336,142 +327,6 @@ err_out_exit:
 	return err;
 }
 
-static int file_meta_create(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
-		struct dnet_io_attr *io)
-{
-	int err, fd;
-	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_META_SUFFIX)];
-
-	file_backend_setup_file(r, file, sizeof(file), io, 1);
-
-	err = access(file, W_OK);
-	if (err) {
-		err = -errno;
-		if (err != -ENOENT) {
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: metadata access to '%s' is denied: %s [%d].\n",
-				dnet_dump_id(cmd->id), file, strerror(errno), errno);
-			goto err_out_exit;
-		}
-
-		fd = open(file, O_RDWR | O_CREAT, 0644);
-		if (fd < 0) {
-			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to create metadata file '%s': %s [%d].\n",
-				dnet_dump_id(cmd->id), file, strerror(errno), errno);
-			goto err_out_exit;
-		}
-
-		close(fd);
-
-		err = 1;
-	}
-
-err_out_exit:
-	return err;
-}
-
-static void file_meta_destroy(struct file_backend_root *r, struct dnet_io_attr *io)
-{
-	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_META_SUFFIX)];
-
-	file_backend_setup_file(r, file, sizeof(file), io, 1);
-	unlink(file);
-}
-
-static int file_meta_change_refcnt(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
-		struct dnet_io_attr *io, int inc)
-{
-	int err, fd, refcnt;
-	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_META_SUFFIX)];
-	struct stat st;
-	uint32_t size;
-	void *data, *new_data;
-
-	file_backend_setup_file(r, file, sizeof(file), io, 1);
-
-	fd = open(file, O_RDWR);
-	if (fd < 0) {
-		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to open metadata file '%s': %s [%d].\n",
-			dnet_dump_id(cmd->id), file, strerror(errno), errno);
-		goto err_out_exit;
-	}
-
-	err = fstat(fd, &st);
-	if (err) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to stat metadata file '%s': %s [%d].\n",
-			dnet_dump_id(cmd->id), file, strerror(errno), errno);
-		goto err_out_close;
-	}
-
-	size = st.st_size;
-
-	data = malloc(size + 1); /* +1 is useful when size is zero */
-	if (!data) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to allocate %u bytes for metadata object from '%s': %s [%d].\n",
-			dnet_dump_id(cmd->id), size, file, strerror(errno), errno);
-		goto err_out_close;
-	}
-
-	err = read(fd, data, size);
-	if (err != (int)size) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to read %u bytes from metadata object '%s': %s [%d].\n",
-			dnet_dump_id(cmd->id), size, file, strerror(errno), errno);
-		goto err_out_free;
-	}
-
-	new_data = backend_refcnt_change(state, cmd, data, &size, inc, &refcnt);
-	if (!new_data) {
-		err = -EINVAL;
-		goto err_out_free;
-	}
-	data = new_data;
-
-	err = pwrite(fd, data, size, 0);
-	if (err != (int)size) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to write %u bytes to metadata object '%s': %s [%d].\n",
-			dnet_dump_id(cmd->id), size, file, strerror(errno), errno);
-		goto err_out_free;
-	}
-
-	err = refcnt;
-
-err_out_free:
-	free(data);
-err_out_close:
-	close(fd);
-err_out_exit:
-	return err;
-}
-
-static inline int file_meta_inc(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
-		struct dnet_io_attr *io)
-{
-	return file_meta_change_refcnt(r, state, cmd, io, 1);
-}
-
-static inline int file_meta_dec(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
-		struct dnet_io_attr *io)
-{
-	int err;
-
-	err = file_meta_change_refcnt(r, state, cmd, io, 0);
-	if (err < 0)
-		return err;
-
-	if (!err)
-		file_meta_destroy(r, io);
-
-	return err;
-}
-
 static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *data)
 {
@@ -510,32 +365,20 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 		}
 	}
 
-	file_backend_setup_file(r, file, sizeof(file), io, 0);
+	file_backend_setup_file(r, file, sizeof(file), io);
 
 	if (io->flags & DNET_IO_FLAGS_APPEND)
 		oflags |= O_APPEND;
 	else
 		oflags |= O_TRUNC;
 	
-	if (!(io->flags & DNET_IO_FLAGS_HISTORY)) {
-		err = file_meta_create(r, state, cmd, io);
-		if (err < 0)
-			goto err_out_exit;
-
-		err = file_meta_inc(r, state, cmd, io);
-		if (err < 0) {
-			file_meta_destroy(r, io);
-			goto err_out_exit;
-		}
-	}
-
 	fd = open(file, oflags, 0644);
 	if (fd < 0) {
 		err = -errno;
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
 			"%s: failed to open data file '%s': %s.\n",
 				dnet_dump_id(cmd->id), file, strerror(errno));
-		goto err_out_drop_refcnt;
+		goto err_out_exit;
 	}
 
 	err = write(fd, data, io->size);
@@ -560,8 +403,6 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 
 err_out_close:
 	close(fd);
-err_out_drop_refcnt:
-	file_meta_dec(r, state, cmd, io);
 err_out_exit:
 	return err;
 }
@@ -589,7 +430,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 
 	dnet_convert_io_attr(io);
 
-	file_backend_setup_file(r, file, sizeof(file), io, 0);
+	file_backend_setup_file(r, file, sizeof(file), io);
 
 	fd = open(file, O_RDONLY, 0644);
 	if (fd < 0) {
