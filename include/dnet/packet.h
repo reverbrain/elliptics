@@ -200,10 +200,14 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 	dnet_convert_addr_attr(&l->addr);
 }
 
-/* History IO request. */
-#define DNET_IO_FLAGS_HISTORY		(1<<0)
+/* Do not update history for given transaction */
+#define DNET_IO_FLAGS_NO_HISTORY_UPDATE	(1<<0)
+
 /* Append given data at the end of the object */
 #define DNET_IO_FLAGS_APPEND		(1<<1)
+
+/* History IO request. */
+#define DNET_IO_FLAGS_HISTORY		(1<<2)
 
 struct dnet_io_attr
 {
