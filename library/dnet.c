@@ -2942,23 +2942,33 @@ static int dnet_remove_object_raw(struct dnet_node *n,
 	int direct)
 {
 	struct dnet_trans_control ctl;
-	struct dnet_io_attr io;
+	char data[sizeof(struct dnet_io_attr) + sizeof(struct dnet_history_entry)];
+	struct dnet_io_attr *io = (struct dnet_io_attr *)data;
+	struct dnet_history_entry *e = (struct dnet_history_entry *)(io + 1);
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
 	memcpy(ctl.id, id, DNET_ID_SIZE);
 
-	memcpy(io.id, id, DNET_ID_SIZE);
-	memcpy(io.origin, origin, DNET_ID_SIZE);
+	memset(data, 0, sizeof(data));
 
-	ctl.cmd = DNET_CMD_DEL;
+	memcpy(io->id, id, DNET_ID_SIZE);
+	memcpy(io->origin, origin, DNET_ID_SIZE);
+	io->size = sizeof(struct dnet_history_entry);
+	io->flags = DNET_IO_FLAGS_APPEND | DNET_IO_FLAGS_HISTORY;
+
+	dnet_convert_io_attr(io);
+
+	dnet_setup_history_entry(e, id, 0, 0, DNET_HISTORY_FLAGS_REMOVE);
+
+	ctl.cmd = DNET_CMD_WRITE;
 	ctl.complete = complete;
 	ctl.priv = priv;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 	if (direct)
 		ctl.cflags |= DNET_FLAGS_DIRECT;
-	ctl.data = &io;
-	ctl.size = sizeof(struct dnet_io_attr);
+	ctl.data = data;
+	ctl.size = sizeof(data);
 
 	{
 		char id_str[DNET_ID_SIZE * 2 + 1];
@@ -3044,6 +3054,38 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_remove_file_raw(struct dnet_node *n, char *file, unsigned char *id)
+{
+	struct dnet_wait *w;
+	int err;
+
+	w = dnet_wait_alloc(0);
+	if (!w) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	dnet_wait_get(w);
+	err = dnet_remove_object_raw(n, id, id, dnet_remove_complete, w, 0);
+	if (err)
+		goto err_out_put;
+
+	err = dnet_wait_event(w, w->cond == 1, &n->wait_ts);
+	if (err)
+		goto err_out_put;
+
+	dnet_wait_put(w);
+	unlink(file);
+
+	return 0;
+
+err_out_put:
+	dnet_wait_put(w);
+err_out_exit:
+	return err;
+}
+
+#if 0
 static int dnet_remove_file_raw(struct dnet_node *n, char *base, unsigned char *id)
 {
 	char file[strlen(base) + 3 + sizeof(DNET_HISTORY_SUFFIX)];
@@ -3098,6 +3140,7 @@ err_out_unlink:
 err_out_exit:
 	return err;
 }
+#endif
 
 int dnet_remove_file(struct dnet_node *n, char *file, unsigned char *file_id)
 {

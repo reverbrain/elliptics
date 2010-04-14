@@ -394,7 +394,7 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 	}
 
 	dnet_convert_io_attr(io);
-
+	
 	data += sizeof(struct dnet_io_attr);
 
 	file_backend_get_dir(io->origin, r->bit_mask, dir);

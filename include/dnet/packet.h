@@ -225,6 +225,9 @@ static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 	a->size = dnet_bswap64(a->size);
 }
 
+/* Object is being removed from the storage */
+#define DNET_HISTORY_FLAGS_REMOVE		(1<<0)
+
 struct dnet_history_entry
 {
 	uint8_t			id[DNET_ID_SIZE];
