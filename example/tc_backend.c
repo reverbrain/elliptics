@@ -271,7 +271,7 @@ err_out_exit:
 static int tc_list_raw(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr)
 {
-	int err, num, size, i;
+	int err = 0, num, size, i;
 	int out = attr->flags & DNET_ATTR_ID_OUT;
 	TCADB *e = be->hist;
 	uint32_t flags = DNET_ID_FLAGS_HISTORY;
