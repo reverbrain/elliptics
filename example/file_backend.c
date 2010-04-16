@@ -327,6 +327,16 @@ err_out_exit:
 	return err;
 }
 
+static void dnet_remove_file_if_empty(char *file)
+{
+	struct stat st;
+	int err;
+
+	err = stat(file, &st);
+	if (!err && !st.st_size)
+		remove(file);
+}
+
 static int dnet_update_history(struct file_backend_root *r, void *state,
 		struct dnet_io_attr *io, int tmp)
 {
@@ -367,6 +377,7 @@ static int dnet_update_history(struct file_backend_root *r, void *state,
 	return 0;
 
 err_out_close:
+	dnet_remove_file_if_empty(history);
 	close(fd);
 err_out_exit:
 	return err;
@@ -458,6 +469,7 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 	return 0;
 
 err_out_close:
+	dnet_remove_file_if_empty(file);
 	close(fd);
 err_out_exit:
 	return err;
