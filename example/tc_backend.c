@@ -354,74 +354,18 @@ static int tc_list(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 }
 
 
-static int tc_del(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
+static int tc_del(void *state __unused, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *buf)
 {
-	TCADB *db = be->hist;
 	int err = -EINVAL;
-	struct dnet_io_attr *io;
-	struct dnet_history_entry *e;
-	int num, size;
-	bool res;
 
 	if (!attr || !buf)
 		goto err_out_exit;
 
-	if (attr->flags & DNET_ATTR_DIRECT_TRANSACTION) {
-		tcadbout(be->hist, cmd->id, DNET_ID_SIZE);
-		tcadbout(be->data, cmd->id, DNET_ID_SIZE);
-		return 0;
-	}
-
-	if (attr->size != sizeof(struct dnet_io_attr))
-		goto err_out_exit;
-
-	io = buf;
-	dnet_convert_io_attr(io);
-
-	e = tcadbget(db, io->id, DNET_ID_SIZE, &size);
-	if (!e) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to read history of to be deleted object.\n",
-			dnet_dump_id(io->origin));
-		err = -ENOENT;
-		goto err_out_exit;
-	}
-
-	if (size % sizeof(struct dnet_history_entry)) {
-		err = -EINVAL;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: corrupted history of to be deleted object.\n",
-				dnet_dump_id(cmd->id));
-		goto err_out_free;
-	}
-
-	num = size / sizeof(struct dnet_history_entry);
-	size -= sizeof(struct dnet_history_entry);
-
-	err = backend_del(state, io, e, num);
-	if (err)
-		goto err_out_free;
-
-	res = tcadbput(db, io->id, DNET_ID_SIZE, e, size);
-	if (!res) {
-		err = -EINVAL;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: history update of to be deleted object failed.\n",
-				dnet_dump_id(io->origin));
-		goto err_out_free;
-	}
-
-	if (!size) {
-		tcadbout(db, io->id, DNET_ID_SIZE);
-		tcadbout(be->data, io->id, DNET_ID_SIZE);
-	}
-
-	free(e);
+	tcadbout(be->hist, cmd->id, DNET_ID_SIZE);
+	tcadbout(be->data, cmd->id, DNET_ID_SIZE);
 	return 0;
 
-err_out_free:
-	free(e);
 err_out_exit:
 	return err;
 }

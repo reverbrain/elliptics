@@ -35,6 +35,10 @@
 
 #include "backends.h"
 
+#ifndef __unused
+#define __unused	__attribute__ ((unused))
+#endif
+
 struct file_backend_root
 {
 	char			*root;
@@ -607,81 +611,27 @@ err_out_exit:
 	return err;
 }
 
-static int file_del(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
+static int file_del(struct file_backend_root *r, void *state __unused, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *data)
 {
 	int err = -EINVAL;
-	struct dnet_io_attr *io;
 	char file[DNET_ID_SIZE * 2 + 8 + sizeof(DNET_HISTORY_SUFFIX)];
 	char dir[2*DNET_ID_SIZE+1];
-	struct dnet_history_map map;
 
 	if (!attr || !data)
 		goto err_out_exit;
 
 	file_backend_get_dir(cmd->id, r->bit_mask, dir);
 
-	if (attr->flags & DNET_ATTR_DIRECT_TRANSACTION) {
-		snprintf(file, sizeof(file), "%s/%s",
-			dir, dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
-		remove(file);
+	snprintf(file, sizeof(file), "%s/%s",
+		dir, dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
+	remove(file);
 
-		snprintf(file, sizeof(file), "%s/%s%s",
-			dir, dnet_dump_id_len(cmd->id, DNET_ID_SIZE), DNET_HISTORY_SUFFIX);
-		remove(file);
-		return 0;
-	}
-
-	if (attr->size != sizeof(struct dnet_io_attr))
-		goto err_out_exit;
-
-	io = data;
-	dnet_convert_io_attr(io);
-
-	file_backend_get_dir(io->id, r->bit_mask, dir);
-	snprintf(file, sizeof(file), "%s/%s%s", dir,
-			dnet_dump_id_len(io->id, DNET_ID_SIZE), DNET_HISTORY_SUFFIX);
-
-	err = dnet_map_history(dnet_get_node_from_state(state), file, &map);
-	if (err < 0) {
-		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: map to be deleted history file '%s': %s.\n",
-				dnet_dump_id(cmd->id), file, strerror(errno));
-		goto err_out_exit;
-	}
-
-	err = backend_del(state, io, map.ent, map.num);
-	if (err)
-		goto err_out_unmap;
-
-	map.num--;
-
-	err = ftruncate(map.fd, map.num * sizeof(struct dnet_history_entry));
-	if (err) {
-		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to truncate to be deleted history object '%s': %s.\n",
-				dnet_dump_id(cmd->id), file, strerror(errno));
-		goto err_out_unmap;
-	}
-
-	if (map.num == 0) {
-		dnet_command_handler_log(state, DNET_LOG_INFO, "%s: unlinking history object '%s'.\n",
-				dnet_dump_id(cmd->id), file);
-		remove(file);
-
-		snprintf(file, sizeof(file), "%s/%s", dir,
-				dnet_dump_id_len(io->id, DNET_ID_SIZE));
-		remove(file);
-	}
-
-	dnet_unmap_history(dnet_get_node_from_state(state), &map);
-
+	snprintf(file, sizeof(file), "%s/%s%s",
+		dir, dnet_dump_id_len(cmd->id, DNET_ID_SIZE), DNET_HISTORY_SUFFIX);
+	remove(file);
 	return 0;
 
-err_out_unmap:
-	dnet_unmap_history(dnet_get_node_from_state(state), &map);
 err_out_exit:
 	return err;
 }
