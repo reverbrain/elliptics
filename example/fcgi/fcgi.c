@@ -678,12 +678,27 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 			}
 		}
 
+#if 1
 		err = dnet_transform(n, obj, len, dnet_fcgi_id, addr, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				break;
 			continue;
 		}
+#else
+		if (!pos) {
+			char val[2*DNET_ID_SIZE+1];
+
+			snprintf(val, sizeof(val), "%s", obj);
+			if (len < (signed)sizeof(val) - 1)
+				val[len] = '\0';
+			
+			dnet_parse_numeric_id(val, addr);
+			memcpy(dnet_fcgi_id, addr, DNET_ID_SIZE);
+			rsize = DNET_ID_SIZE;
+			pos++;
+		}
+#endif
 
 		dnet_fcgi_request_completed = dnet_fcgi_request_init_value;
 
