@@ -688,7 +688,7 @@ static int dnet_fcgi_get_data_version(struct dnet_node *n, char *obj, int len, u
 	char file[5 + 1 + len + sizeof(DNET_HISTORY_SUFFIX)];
 	struct dnet_history_map m;
 	struct dnet_history_entry *e;
-	int err;
+	int err, stored_version;
 	long i;
 
 	snprintf(file, sizeof(file), "/tmp/%s", obj);
@@ -708,16 +708,27 @@ static int dnet_fcgi_get_data_version(struct dnet_node *n, char *obj, int len, u
 	for (i=m.num-1; i>=0; --i) {
 		e = &m.ent[i];
 
-		if (!memcmp(&e->id[4], &version, 4))
+		memcpy(&stored_version, &e->id[4], 4);
+
+		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: stored: %d, version: %d, deleted: %d.\n",
+				dnet_dump_id(e->id), stored_version, version, !!e->flags);
+
+		if (stored_version <= version) {
+			/* If requested version was removed we have to return error */
+			if (e->flags)
+				i = -1;
 			break;
+		}
 	}
 
 	if (i >= 0) {
 		err = dnet_fcgi_get_data(n, e->id, ctl);
 		if (err)
-			goto err_out_unlink;
+			goto err_out_unmap;
 	}
 
+err_out_unmap:
+	dnet_unmap_history(n, &m);
 err_out_unlink:
 	unlink(file);
 err_out_exit:
