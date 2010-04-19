@@ -689,6 +689,7 @@ struct dnet_trans_control
  * Allocate and send transaction according to above control structure.
  */
 int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl);
+int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *ctl);
 
 /*
  * Copy ID of the state @num entries back from the one responsible for @id ID.
