@@ -59,7 +59,9 @@ struct iotest_state
 static struct iotest_state iotest_root;
 static unsigned long long iotest_bytes, iotest_completed, iotest_started;
 static int iotest_lookup_num, iotest_lookup_found, iotest_lookup_pending;
-static unsigned long iotest_max_pending = 100000;
+static unsigned long long iotest_max_pending = 100000;
+static int iotest_log;
+static int iotest_need_exit;
 
 static int iotest_sleep;
 static int iotest_pipe[2];
@@ -100,6 +102,13 @@ static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *
 	if (cmd && !(cmd->flags & DNET_FLAGS_MORE)) {
 		iotest_completed++;
 
+		if (iotest_log) {
+			char id[2*DNET_ID_SIZE + 1];
+
+			dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id);
+			printf("id: %s\n", id);
+		}
+
 		if (iotest_sleep && (iotest_started - iotest_completed < iotest_max_pending/2)) {
 			unsigned int b;
 			int err;
@@ -130,6 +139,9 @@ static int iotest_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cm
 
 static void iotest_wait(void)
 {
+	printf("started: %lld, completed: %llu, diff: %lld, max: %lld.\n",
+			iotest_started, iotest_completed, iotest_started - iotest_completed, iotest_max_pending);
+
 	if (iotest_started - iotest_completed > iotest_max_pending) {
 		unsigned int b;
 		int err;
@@ -151,9 +163,10 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 		char *obj)
 {
 	struct dnet_io_control ctl;
-	unsigned int *ptr = data;
+	unsigned long long *ptr = data;
 	int first, last, err, trans_num;
 	unsigned int len = obj ? strlen(obj) : 0;
+	char name[256];
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -162,8 +175,10 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 
 	ctl.io.offset = 0;
 	ctl.io.size = size;
-	if (!obj)
+	if (!obj) {
 		ctl.io.flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
+		obj = name;
+	}
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 
@@ -183,9 +198,15 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 		ctl.data = data;
 		ctl.priv = (void *)(unsigned long)size;
 
-		err = dnet_write_object(n, &ctl, obj, len, NULL, !!obj, &trans_num);
+		if (ctl.io.flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)
+			len = snprintf(name, sizeof(name), "%lld", iotest_started);
+
+		trans_num = 0;
+		err = dnet_write_object(n, &ctl, obj, len, NULL, !(ctl.io.flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE), &trans_num);
 		if (err < 0)
 			return err;
+		if (trans_num == 0)
+			return -ECONNRESET;
 
 		iotest_started += trans_num;
 
@@ -198,10 +219,10 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 			iotest_lookup_pending++;
 		}
 
-		iotest_wait();
+		//iotest_wait();
 
 		max -= size;
-		ctl.io.offset += size;
+		//ctl.io.offset += size;
 	}
 
 	return 0;
@@ -313,7 +334,7 @@ static void *iotest_perf(void *log_private)
 	prev_completed = 0;
 	prev_bytes = 0;
 
-	while (1) {
+	while (!iotest_need_exit) {
 		sleep(1);
 
 		st = iotest_root.next;
@@ -363,6 +384,8 @@ static void dnet_usage(char *p)
 			" -I id                - node ID\n"
 			" -n num               - number of the server lookup requests sent during the test\n"
 			" -N num               - number of IO threads\n"
+			" -L                   - dump written IDs into stdout\n"
+			" -p num               - start object names with this number instead of zero\n"
 			, p);
 }
 
@@ -391,8 +414,11 @@ int main(int argc, char *argv[])
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
-	while ((ch = getopt(argc, argv, "N:n:I:t:S:s:m:i:a:r:RT:l:w:h")) != -1) {
+	while ((ch = getopt(argc, argv, "p:LN:n:I:t:S:s:m:i:a:r:RT:l:w:h")) != -1) {
 		switch (ch) {
+			case 'p':
+				iotest_started = strtoull(optarg, NULL, 0);
+				break;
 			case 'N':
 				cfg.io_thread_num = atoi(optarg);
 				break;
@@ -421,6 +447,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'l':
 				logfile = optarg;
+				break;
+			case 'L':
+				iotest_log = 1;
 				break;
 			case 'i':
 				obj = optarg;
@@ -502,6 +531,7 @@ int main(int argc, char *argv[])
 		cfg.log_private = log;
 		cfg.log = dnet_common_log;
 	}
+	cfg.resend_timeout.tv_sec = cfg.wait_timeout;
 
 	n = dnet_node_create(&cfg);
 	if (!n)
@@ -573,10 +603,12 @@ int main(int argc, char *argv[])
 
 	printf("%s: size: %zu, max: %llu, obj: '%s', err: %d.\n", (write)?"Write":"Read", size, max, obj, err);
 
-	if (err)
+	if (err) {
+		iotest_need_exit = 1;
 		return err;
+	}
 
-	while (iotest_bytes < max)
+	while (iotest_bytes < max && !iotest_need_exit)
 		sleep(1);
 
 	return 0;
