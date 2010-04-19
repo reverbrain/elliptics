@@ -101,7 +101,7 @@ static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint6
 	return dnet_data_ready(st, r);
 }
 
-static int dnet_stat_local(struct dnet_net_state *st, unsigned char *id)
+static int dnet_stat_local(struct dnet_net_state *st, unsigned char *id, int history)
 {
 	struct dnet_node *n = st->n;
 	int size, cmd_size;
@@ -137,6 +137,9 @@ static int dnet_stat_local(struct dnet_net_state *st, unsigned char *id)
 	io->offset = 0;
 	io->flags = 0;
 
+	if (history)
+		io->flags = DNET_IO_FLAGS_HISTORY;
+
 	memcpy(io->origin, id, DNET_ID_SIZE);
 	memcpy(io->id, id, DNET_ID_SIZE);
 
@@ -168,12 +171,12 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 	if (!st)
 		st = dnet_state_get(orig->n->st);
 
-	if (attr->flags) {
-		err = dnet_stat_local(orig, cmd->id);
-		dnet_log(n, DNET_LOG_NOTICE, "%s: object is stored locally: %d.\n",
-				dnet_dump_id(cmd->id), !err);
+	if (attr->flags & DNET_ATTR_LOOKUP_STAT) {
+		err = dnet_stat_local(orig, cmd->id, !!(attr->flags & DNET_ATTR_LOOKUP_HISTORY));
+		dnet_log(n, DNET_LOG_NOTICE, "%s: %s object is stored locally: %d.\n",
+				dnet_dump_id(cmd->id), !!(attr->flags & DNET_ATTR_LOOKUP_HISTORY) ? "history" : "plain", !err);
 		if (!err)
-			aflags = 1;
+			aflags = attr->flags;
 	}
 
 	err = dnet_send_address(orig, st->id, cmd->trans, DNET_CMD_LOOKUP, aflags, &st->addr, 1, 0);

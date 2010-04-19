@@ -33,6 +33,7 @@
 
 #define DNET_FCGI_ID_PATTERN		"id="
 #define DNET_FCGI_ID_DELIMITER		"&"
+#define DNET_FCGI_VERSION_PATTERN	"version="
 #define DNET_FCGI_LOG			"/tmp/dnet_fcgi.log"
 #define DNET_FCGI_LOCAL_ADDR		"0.0.0.0:1025:2"
 #define DNET_FCGI_SUCCESS_STATUS_PATTERN	"Status: 301"
@@ -643,7 +644,87 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len)
 	return error;
 }
 
-static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct dnet_io_control *ctl)
+static int dnet_fcgi_get_data(struct dnet_node *n, unsigned char *id, struct dnet_io_control *ctl)
+{
+	int err;
+	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
+
+	dnet_fcgi_request_completed = dnet_fcgi_request_init_value;
+
+	if (ctl) {
+		memcpy(ctl->io.id, id, DNET_ID_SIZE);
+		memcpy(ctl->io.origin, id, DNET_ID_SIZE);
+		memcpy(ctl->addr, id, DNET_ID_SIZE);
+
+		err = dnet_read_object(n, ctl);
+	} else {
+		memcpy(dnet_fcgi_id, id, DNET_ID_SIZE);
+		err = dnet_lookup_object(n, id, DNET_ATTR_LOOKUP_STAT,
+				dnet_fcgi_lookup_complete, NULL);
+	}
+
+	if (err)
+		goto err_out_exit;
+
+	err = dnet_fcgi_wait(dnet_fcgi_request_completed != dnet_fcgi_request_init_value, &ts);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: IO wait completion failed: %d.\n", id, err);
+		goto err_out_exit;
+	}
+
+	if (dnet_fcgi_request_completed < 0) {
+		err = dnet_fcgi_request_completed;
+		goto err_out_exit;
+	}
+
+	err = 0;
+
+err_out_exit:
+	return err;
+}
+
+static int dnet_fcgi_get_data_version(struct dnet_node *n, char *obj, int len, unsigned char *id, struct dnet_io_control *ctl, int version)
+{
+	char file[5 + 1 + len + sizeof(DNET_HISTORY_SUFFIX)];
+	struct dnet_history_map m;
+	struct dnet_history_entry *e;
+	int err;
+	long i;
+
+	snprintf(file, sizeof(file), "/tmp/%s", obj);
+	file[5 + len] = '\0';
+
+	err = dnet_read_file(n, file, id, 0, 0, 1);
+	if (err < 0)
+		goto err_out_exit;
+
+	strcat(file, DNET_HISTORY_SUFFIX);
+
+	err = dnet_map_history(n, file, &m);
+	if (err)
+		goto err_out_unlink;
+
+	err = -ENOENT;
+	for (i=m.num-1; i>=0; --i) {
+		e = &m.ent[i];
+
+		if (!memcmp(&e->id[4], &version, 4))
+			break;
+	}
+
+	if (i >= 0) {
+		err = dnet_fcgi_get_data(n, e->id, ctl);
+		if (err)
+			goto err_out_unlink;
+	}
+
+err_out_unlink:
+	unlink(file);
+err_out_exit:
+	return err;
+}
+
+static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct dnet_io_control *ctl, int version)
 {
 	unsigned char addr[DNET_ID_SIZE];
 	int err, error = -ENOENT;
@@ -660,7 +741,6 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 
 	while (1) {
 		unsigned int rsize = DNET_ID_SIZE;
-		struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 		if (dnet_fcgi_random_hashes) {
 			if (random_num < dnet_fcgi_random_hashes) {
@@ -700,34 +780,14 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 		}
 #endif
 
-		dnet_fcgi_request_completed = dnet_fcgi_request_init_value;
-
-		if (ctl) {
-			memcpy(ctl->io.id, dnet_fcgi_id, DNET_ID_SIZE);
-			memcpy(ctl->io.origin, dnet_fcgi_id, DNET_ID_SIZE);
-			memcpy(ctl->addr, dnet_fcgi_id, DNET_ID_SIZE);
-
-			err = dnet_read_object(n, ctl);
+		if (version == -1) {
+			err = dnet_fcgi_get_data(n, dnet_fcgi_id, ctl);
 		} else {
-			err = dnet_lookup_object(n, dnet_fcgi_id, 1,
-					dnet_fcgi_lookup_complete, NULL);
+			err = dnet_fcgi_get_data_version(n, obj, len, dnet_fcgi_id, ctl, version);
 		}
 
 		if (err) {
 			error = err;
-			continue;
-		}
-
-
-		err = dnet_fcgi_wait(dnet_fcgi_request_completed != dnet_fcgi_request_init_value, &ts);
-		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: IO wait completion failed: obj: '%s': %d.\n", dnet_fcgi_id, obj, err);
-			error = err;
-			continue;
-		}
-
-		if (dnet_fcgi_request_completed < 0) {
-			error = dnet_fcgi_request_completed;
 			continue;
 		}
 
@@ -763,12 +823,64 @@ out_wakeup:
 	return err;
 }
 
-static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned int len, void *data, uint64_t size)
+static int dnet_fcgi_send_upload_transactions(struct dnet_node *n, struct dnet_io_control *ctl)
+{
+	int err, num = 0;
+	struct dnet_io_control hctl;
+	struct dnet_history_entry e;
+
+	err = dnet_trans_create_send(n, ctl);
+	if (err)
+		goto err_out_exit;
+
+	num++;
+
+	if (!(ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)) {
+		memset(&hctl, 0, sizeof(hctl));
+
+		memcpy(hctl.addr, ctl->io.id, DNET_ID_SIZE);
+		memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
+		memcpy(hctl.io.id, ctl->io.id, DNET_ID_SIZE);
+
+		dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, 0);
+
+		hctl.priv = ctl->priv;
+		hctl.complete = ctl->complete;
+		hctl.cmd = DNET_CMD_WRITE;
+		hctl.aflags = 0;
+		hctl.cflags = DNET_FLAGS_NEED_ACK;
+		hctl.fd = -1;
+		hctl.local_offset = 0;
+		hctl.adata = NULL;
+		hctl.asize = 0;
+
+		hctl.data = &e;
+
+		hctl.io.size = sizeof(struct dnet_history_entry);
+		hctl.io.offset = 0;
+		hctl.io.flags = DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
+
+		err = dnet_trans_create_send(n, &hctl);
+		if (err)
+			goto err_out_exit;
+
+		num++;
+	}
+
+err_out_exit:
+	return num;
+}
+
+static void dnet_fcgi_convert_id_version(unsigned char *id, int version)
+{
+	memcpy(id+4, &version, 4);
+}
+
+static int dnet_fcgi_write_object(struct dnet_node *n, char *obj, unsigned int len, void *data, uint64_t size, int version, int pos)
 {
 	struct dnet_io_control ctl;
-	int trans_num = 0;
-	int err;
-	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
+	int old_pos = pos, err;
+	unsigned int rsize;
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -780,11 +892,53 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 	ctl.cmd = DNET_CMD_WRITE;
-	ctl.aflags = DNET_ATTR_DIRECT_TRANSACTION | DNET_ATTR_NO_TRANSACTION_SPLIT;
+	ctl.aflags = DNET_ATTR_NO_TRANSACTION_SPLIT;
 
-	ctl.io.flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
+	/*
+	 * We want to store transaction logs to get modification time.
+	 */
+	//ctl.io.flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
+	ctl.io.flags = 0;
 	ctl.io.size = size;
 	ctl.io.offset = 0;
+
+	pos = old_pos;
+	rsize = DNET_ID_SIZE;
+	err = dnet_transform(n, obj, len, ctl.io.id, ctl.addr, &rsize, &pos);
+	if (err || pos == old_pos)
+		goto out_exit;
+
+	/*
+	 * ctl.addr is used for cmd.id, so the last assignment is correct, since
+	 * we first send transaction with the data and only then history one.
+	 */
+	pos = old_pos;
+	rsize = DNET_ID_SIZE;
+	err = dnet_transform(n, data, size, ctl.io.origin, ctl.addr, &rsize, &pos);
+	if (err || pos == old_pos)
+		goto out_exit;
+
+
+	if (version != -1) {
+		dnet_fcgi_convert_id_version(ctl.io.origin, version);
+		dnet_fcgi_convert_id_version(ctl.addr, version);
+	} else {
+		ctl.aflags |= DNET_ATTR_DIRECT_TRANSACTION;
+	}
+
+	return dnet_fcgi_send_upload_transactions(n, &ctl);
+
+out_exit:
+	if (err > 0 || pos == old_pos)
+		return 0;
+	return err;
+}
+
+static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len, void *data, uint64_t size, int version)
+{
+	int trans_num = 0, pos = 0;
+	int err;
+	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	dnet_fcgi_output("Content-type: application/xml\r\n\r\n");
 	dnet_fcgi_output("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
@@ -792,29 +946,31 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *addr, char *obj, unsigned
 
 	dnet_fcgi_request_error = 0;
 	dnet_fcgi_request_completed = 0;
-	err = dnet_write_object(n, &ctl, obj, len, NULL, 1, &trans_num);
-	if (err < 0) {
-		fprintf(dnet_fcgi_log, "%s: failed to upload '%s' object: %d.\n", addr, obj, err);
-		goto err_out_exit;
+
+	while (1) {
+		err = dnet_fcgi_write_object(n, obj, len, data, size, version, pos);
+		if (err <= 0)
+			break;
+
+		trans_num += err;
+		pos++;
 	}
 
-	fprintf(dnet_fcgi_log, "%s: waiting for upload completion: %d/%d.\n",
-			addr, dnet_fcgi_request_completed, trans_num);
+	fprintf(dnet_fcgi_log, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num, &ts);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: upload wait completion failed: obj: '%s': %d.\n", addr, obj, err);
-	}
 	dnet_fcgi_output("</post>\r\n");
-	err = 0;
 
-	if (dnet_fcgi_request_error > dnet_fcgi_tolerate_upload_error_count)
+	if (!err && dnet_fcgi_request_error > dnet_fcgi_tolerate_upload_error_count)
 		err = -ENOENT;
+	if (err)
+		dnet_log_raw(n, DNET_LOG_ERROR, "Upload failed: obj: '%s', "
+				"err: %d, request_error: %d, tolerate_error_count: %d.\n",
+				obj, err, dnet_fcgi_request_error, dnet_fcgi_tolerate_upload_error_count);
 
-err_out_exit:
 	return err;
 }
 
-static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int length)
+static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int length, int version)
 {
 	void *data;
 	unsigned long data_size, size;
@@ -860,7 +1016,7 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 		size -= err;
 	}
 
-	err = dnet_fcgi_upload(n, addr, id, length, data, data_size);
+	err = dnet_fcgi_upload(n, id, length, data, data_size, version);
 	if (err)
 		goto err_out_free;
 
@@ -1233,18 +1389,14 @@ static void dnet_fcgi_output_content_type(char *id)
 	dnet_fcgi_output("Content-type: octet/stream\r\n");
 }
 
-static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, char *id, int length)
+static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, char *id, int length, int version)
 {
 	int err;
 	char *p;
 	struct dnet_io_control ctl, *c = NULL;
 
-	if (dnet_fcgi_unlink_pattern) {
-		p = strstr(query, dnet_fcgi_unlink_pattern);
-		if (p) {
-			return dnet_fcgi_unlink(n, id, length);
-		}
-	}
+	if (dnet_fcgi_unlink_pattern && strstr(query, dnet_fcgi_unlink_pattern))
+		return dnet_fcgi_unlink(n, id, length);
 
 	if (dnet_fcgi_direct_download) {
 		int i;
@@ -1282,7 +1434,7 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, ch
 	}
 
 lookup:
-	err = dnet_fcgi_process_io(n, id, length, c);
+	err = dnet_fcgi_process_io(n, id, length, c, version);
 	if (err) {
 		fprintf(dnet_fcgi_log, "%s: Failed to lookup object '%s': %d.\n", addr, id, err);
 		goto out_exit;
@@ -1496,8 +1648,9 @@ static void dnet_fcgi_destroy_permanent_headers()
 int main()
 {
 	char *p, *addr, *reason, *method, *query;
-	char *id_pattern, *id_delimiter, *direct_patterns = NULL;
-	int length, id_pattern_length, err, post_allowed;
+	char *id_pattern, *id_delimiter, *direct_patterns = NULL, *version_pattern, *version_str;
+	int length, id_pattern_length, err, post_allowed, version_pattern_len;
+	int version;
 	char *id, *end;
 	struct dnet_config cfg;
 	struct dnet_node *n;
@@ -1653,11 +1806,15 @@ int main()
 
 	id_pattern = getenv("DNET_FCGI_ID_PATTERN");
 	id_delimiter = getenv("DNET_FCGI_ID_DELIMITER");
+	version_pattern = getenv("DNET_FCGI_VERSION_PATTERN");
 
 	if (!id_pattern)
 		id_pattern = DNET_FCGI_ID_PATTERN;
 	if (!id_delimiter)
 		id_delimiter = DNET_FCGI_ID_DELIMITER;
+	if (!version_pattern)
+		version_pattern = DNET_FCGI_VERSION_PATTERN;
+	version_pattern_len = strlen(version_pattern);
 
 	id_pattern_length = strlen(id_pattern);
 
@@ -1731,11 +1888,19 @@ int main()
 
 		end = strstr(id, id_delimiter);
 		if (!end)
-			end = p + strlen(id);
+			end = id + strlen(id);
 
 		length = end - id;
 
-		fprintf(dnet_fcgi_log, "id: '%s', length: %d.\n", id, length);
+		version = -1;
+		version_str = strstr(query, version_pattern);
+		if (version_str) {
+			version_str += version_pattern_len;
+			if (*version_str)
+				version = strtol(version_str, NULL, 0);
+		}
+
+		fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d.\n", id, length, version);
 
 		if (dnet_fcgi_external_callback_start)
 			dnet_fcgi_external_start(n, query, addr, id, length);
@@ -1750,14 +1915,14 @@ int main()
 				goto err_continue;
 			}
 
-			err = dnet_fcgi_handle_post(n, addr, id, length);
+			err = dnet_fcgi_handle_post(n, addr, id, length, version);
 			if (err) {
 				fprintf(dnet_fcgi_log, "%s: Failed to handle POST for object '%s': %d.\n", addr, id, err);
 				reason = "failed to handle POST";
 				goto err_continue;
 			}
 		} else {
-			err = dnet_fcgi_handle_get(n, query, addr, id, length);
+			err = dnet_fcgi_handle_get(n, query, addr, id, length, version);
 			if (err) {
 				fprintf(dnet_fcgi_log, "%s: Failed to handle GET for object '%s': %d.\n", addr, id, err);
 				reason = "failed to handle GET";
