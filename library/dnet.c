@@ -1797,7 +1797,7 @@ int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *m
 	int err;
 	struct stat st;
 
-	map->fd = open(file, O_RDONLY);
+	map->fd = open(file, O_RDWR);
 	if (map->fd < 0) {
 		err = -errno;
 		dnet_log_err(n, "Failed to open history file '%s'", file);
@@ -1821,7 +1821,7 @@ int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *m
 		goto err_out_close;
 	}
 
-	map->ent = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, map->fd, 0);
+	map->ent = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
 	if (map->ent == MAP_FAILED) {
 		err = -errno;
 		dnet_log_err(n, "Failed to mmap history file '%s'", file);
