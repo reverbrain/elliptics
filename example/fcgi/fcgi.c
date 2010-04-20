@@ -598,7 +598,7 @@ static int dnet_fcgi_unlink_complete(struct dnet_net_state *st __unused,
 	return 0;
 }
 
-static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len)
+static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len, int version)
 {
 	unsigned char addr[DNET_ID_SIZE];
 	int err, error = -ENOENT;
@@ -606,7 +606,7 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len)
 	struct dnet_trans_control ctl;
 	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
-	fprintf(dnet_fcgi_log, "Unlinking object '%s'.\n", obj);
+	fprintf(dnet_fcgi_log, "Unlinking object '%s', version: %d.\n", obj, version);
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
@@ -628,8 +628,11 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len)
 
 		memcpy(ctl.id, dnet_fcgi_id, DNET_ID_SIZE);
 
-		err = dnet_trans_alloc_send(n, &ctl);
-		num++;
+		if (version == -1) {
+			err = dnet_trans_alloc_send(n, &ctl);
+			num++;
+		}
+
 		if (err)
 			error = err;
 		else
@@ -918,23 +921,23 @@ static int dnet_fcgi_write_object(struct dnet_node *n, char *obj, unsigned int l
 	err = dnet_transform(n, obj, len, ctl.io.id, ctl.addr, &rsize, &pos);
 	if (err || pos == old_pos)
 		goto out_exit;
-
-	/*
-	 * ctl.addr is used for cmd.id, so the last assignment is correct, since
-	 * we first send transaction with the data and only then history one.
-	 */
-	pos = old_pos;
-	rsize = DNET_ID_SIZE;
-	err = dnet_transform(n, data, size, ctl.io.origin, ctl.addr, &rsize, &pos);
-	if (err || pos == old_pos)
-		goto out_exit;
-
-
+	
 	if (version != -1) {
+		/*
+		 * ctl.addr is used for cmd.id, so the last assignment is correct, since
+		 * we first send transaction with the data and only then history one.
+		 */
+		pos = old_pos;
+		rsize = DNET_ID_SIZE;
+		err = dnet_transform(n, data, size, ctl.io.origin, ctl.addr, &rsize, &pos);
+		if (err || pos == old_pos)
+			goto out_exit;
+
 		dnet_fcgi_convert_id_version(ctl.io.origin, version);
 		dnet_fcgi_convert_id_version(ctl.addr, version);
 	} else {
 		ctl.aflags |= DNET_ATTR_DIRECT_TRANSACTION;
+		memcpy(ctl.io.origin, ctl.io.id, DNET_ID_SIZE);
 	}
 
 	return dnet_fcgi_send_upload_transactions(n, &ctl);
@@ -1407,7 +1410,7 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, ch
 	struct dnet_io_control ctl, *c = NULL;
 
 	if (dnet_fcgi_unlink_pattern && strstr(query, dnet_fcgi_unlink_pattern))
-		return dnet_fcgi_unlink(n, id, length);
+		return dnet_fcgi_unlink(n, id, length, version);
 
 	if (dnet_fcgi_direct_download) {
 		int i;
