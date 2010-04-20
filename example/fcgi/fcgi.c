@@ -598,6 +598,75 @@ static int dnet_fcgi_unlink_complete(struct dnet_net_state *st __unused,
 	return 0;
 }
 
+static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id, unsigned char *dst, int version, int unlink_upload)
+{
+	char file[32 + 5 + 1 + 2*DNET_ID_SIZE + sizeof(DNET_HISTORY_SUFFIX)]; /* 32 is for pid length */
+	struct dnet_history_map m;
+	struct dnet_history_entry *e;
+	int err, stored_version;
+	long i;
+
+	snprintf(file, sizeof(file), "/tmp/%s-%d", dnet_dump_id_len(id, DNET_ID_SIZE), getpid());
+
+	err = dnet_read_file(n, file, id, 0, 0, 1);
+	if (err < 0)
+		goto err_out_exit;
+
+	strcat(file, DNET_HISTORY_SUFFIX);
+
+	err = dnet_map_history(n, file, &m);
+	if (err)
+		goto err_out_unlink;
+
+	err = -ENOENT;
+	for (i=m.num-1; i>=0; --i) {
+		e = &m.ent[i];
+
+		memcpy(&stored_version, &e->id[4], 4);
+
+		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: stored: %d, version: %d, deleted: %d.\n",
+				dnet_dump_id(e->id), stored_version, version, !!e->flags);
+
+		if (stored_version <= version) {
+			/* If requested version was removed we have to return error */
+			if (e->flags)
+				i = -1;
+			break;
+		}
+	}
+
+	if (i >= 0) {
+		memcpy(dst, e->id, DNET_ID_SIZE);
+		err = 0;
+
+		if (unlink_upload) {
+			dnet_convert_history_entry(e);
+			e->flags |= DNET_HISTORY_FLAGS_REMOVE;
+			dnet_convert_history_entry(e);
+
+			err = dnet_write_file_local_offset(n, file, e->id, 0, 0, 0,
+					DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY);
+		}
+	}
+
+	dnet_unmap_history(n, &m);
+err_out_unlink:
+	unlink(file);
+err_out_exit:
+	return err;
+}
+
+static int dnet_fcgi_unlink_version(struct dnet_node *n, struct dnet_trans_control *ctl, int version)
+{
+	int err;
+
+	err = dnet_fcgi_get_data_version_id(n, dnet_fcgi_id, ctl->id, version, 1);
+	if (err)
+		return err;
+
+	return dnet_trans_alloc_send(n, ctl);
+}
+
 static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len, int version)
 {
 	unsigned char addr[DNET_ID_SIZE];
@@ -630,13 +699,16 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len, int version
 
 		if (version == -1) {
 			err = dnet_trans_alloc_send(n, &ctl);
-			num++;
+		} else {
+			err = dnet_fcgi_unlink_version(n, &ctl, version);
 		}
 
 		if (err)
 			error = err;
 		else
 			error = 0;
+
+		num++;
 	}
 
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed == num, &ts);
@@ -686,56 +758,16 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_fcgi_get_data_version(struct dnet_node *n, char *obj, int len, unsigned char *id, struct dnet_io_control *ctl, int version)
+static int dnet_fcgi_get_data_version(struct dnet_node *n, unsigned char *id, struct dnet_io_control *ctl, int version)
 {
-	char file[5 + 1 + len + sizeof(DNET_HISTORY_SUFFIX)];
-	struct dnet_history_map m;
-	struct dnet_history_entry *e;
-	int err, stored_version;
-	long i;
+	int err;
+	unsigned char dst[DNET_ID_SIZE];
 
-	snprintf(file, sizeof(file), "/tmp/%s", obj);
-	file[5 + len] = '\0';
-
-	err = dnet_read_file(n, file, id, 0, 0, 1);
-	if (err < 0)
-		goto err_out_exit;
-
-	strcat(file, DNET_HISTORY_SUFFIX);
-
-	err = dnet_map_history(n, file, &m);
+	err = dnet_fcgi_get_data_version_id(n, id, dst, version, 0);
 	if (err)
-		goto err_out_unlink;
+		return err;
 
-	err = -ENOENT;
-	for (i=m.num-1; i>=0; --i) {
-		e = &m.ent[i];
-
-		memcpy(&stored_version, &e->id[4], 4);
-
-		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: stored: %d, version: %d, deleted: %d.\n",
-				dnet_dump_id(e->id), stored_version, version, !!e->flags);
-
-		if (stored_version <= version) {
-			/* If requested version was removed we have to return error */
-			if (e->flags)
-				i = -1;
-			break;
-		}
-	}
-
-	if (i >= 0) {
-		err = dnet_fcgi_get_data(n, e->id, ctl);
-		if (err)
-			goto err_out_unmap;
-	}
-
-err_out_unmap:
-	dnet_unmap_history(n, &m);
-err_out_unlink:
-	unlink(file);
-err_out_exit:
-	return err;
+	return dnet_fcgi_get_data(n, dst, ctl);
 }
 
 static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct dnet_io_control *ctl, int version)
@@ -797,7 +829,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 		if (version == -1) {
 			err = dnet_fcgi_get_data(n, dnet_fcgi_id, ctl);
 		} else {
-			err = dnet_fcgi_get_data_version(n, obj, len, dnet_fcgi_id, ctl, version);
+			err = dnet_fcgi_get_data_version(n, dnet_fcgi_id, ctl, version);
 		}
 
 		if (err) {
