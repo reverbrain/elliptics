@@ -11,6 +11,7 @@
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <netdb.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -62,6 +63,8 @@ static unsigned long dnet_fcgi_max_request_size;
 static int dnet_fcgi_base_port;
 static uint64_t dnet_fcgi_bit_mask;
 static unsigned char dnet_fcgi_id[DNET_ID_SIZE];
+
+static int dnet_fcgi_last_modified;
 
 static char *dnet_fcgi_direct_download;
 static int dnet_fcgi_direct_patterns_num;
@@ -537,7 +540,8 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					hex_dir, id);
 #endif
 			dnet_fcgi_output("%s\r\n", dnet_fcgi_status_pattern);
-			dnet_fcgi_output("Cache-control: no-cache\r\n");
+			if (!dnet_fcgi_last_modified)
+				dnet_fcgi_output("Cache-control: no-cache\r\n");
 			dnet_fcgi_output("Location: http://%s%s/%d/%s/%s\r\n",
 					addr,
 					dnet_fcgi_root_pattern,
@@ -598,7 +602,8 @@ static int dnet_fcgi_unlink_complete(struct dnet_net_state *st __unused,
 	return 0;
 }
 
-static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id, unsigned char *dst, int version, int unlink_upload)
+static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id, unsigned char *dst,
+		uint64_t *tsec, int version, int unlink_upload)
 {
 	char file[32 + 5 + 1 + 2*DNET_ID_SIZE + sizeof(DNET_HISTORY_SUFFIX)]; /* 32 is for pid length */
 	struct dnet_history_map m;
@@ -636,13 +641,15 @@ static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id,
 	}
 
 	if (i >= 0) {
-		memcpy(dst, e->id, DNET_ID_SIZE);
+		if (dst)
+			memcpy(dst, e->id, DNET_ID_SIZE);
 		err = 0;
 
+		if (tsec)
+			*tsec = dnet_bswap64(e->tsec);
+
 		if (unlink_upload) {
-			dnet_convert_history_entry(e);
-			e->flags |= DNET_HISTORY_FLAGS_REMOVE;
-			dnet_convert_history_entry(e);
+			e->flags |= dnet_bswap32(DNET_HISTORY_FLAGS_REMOVE);
 
 			err = dnet_write_file_local_offset(n, file, e->id, 0, 0, 0,
 					DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY);
@@ -660,7 +667,7 @@ static int dnet_fcgi_unlink_version(struct dnet_node *n, struct dnet_trans_contr
 {
 	int err;
 
-	err = dnet_fcgi_get_data_version_id(n, dnet_fcgi_id, ctl->id, version, 1);
+	err = dnet_fcgi_get_data_version_id(n, dnet_fcgi_id, ctl->id, NULL, version, 1);
 	if (err)
 		return err;
 
@@ -719,10 +726,31 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len, int version
 	return error;
 }
 
-static int dnet_fcgi_get_data(struct dnet_node *n, unsigned char *id, struct dnet_io_control *ctl)
+static int dnet_fcgi_get_data(struct dnet_node *n, unsigned char *id, struct dnet_io_control *ctl, uint64_t *tsec)
 {
 	int err;
 	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
+
+	if (dnet_fcgi_last_modified) {
+		uint64_t tsec_local;
+
+		err = 0;
+		if (!tsec) {
+			tsec = &tsec_local;
+			err = dnet_fcgi_get_data_version_id(n, id, NULL, tsec, INT_MAX, 0);
+			if (err)
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to get last timestamp: %d.\n", dnet_dump_id(id), err);
+		}
+
+		if (!err) {
+			char str[128];
+			struct tm tm;
+
+			gmtime_r((time_t *)tsec, &tm);
+			strftime(str, sizeof(str), "%a, %d %b %Y %T %Z", &tm);
+			dnet_fcgi_output("Last-Modified: %s\r\n", str);
+		}
+	}
 
 	dnet_fcgi_request_completed = dnet_fcgi_request_init_value;
 
@@ -762,12 +790,13 @@ static int dnet_fcgi_get_data_version(struct dnet_node *n, unsigned char *id, st
 {
 	int err;
 	unsigned char dst[DNET_ID_SIZE];
+	uint64_t tsec;
 
-	err = dnet_fcgi_get_data_version_id(n, id, dst, version, 0);
+	err = dnet_fcgi_get_data_version_id(n, id, dst, &tsec, version, 0);
 	if (err)
 		return err;
 
-	return dnet_fcgi_get_data(n, dst, ctl);
+	return dnet_fcgi_get_data(n, dst, ctl, &tsec);
 }
 
 static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct dnet_io_control *ctl, int version)
@@ -827,7 +856,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 #endif
 
 		if (version == -1) {
-			err = dnet_fcgi_get_data(n, dnet_fcgi_id, ctl);
+			err = dnet_fcgi_get_data(n, dnet_fcgi_id, ctl, NULL);
 		} else {
 			err = dnet_fcgi_get_data_version(n, dnet_fcgi_id, ctl, version);
 		}
@@ -1836,6 +1865,10 @@ int main()
 	p = getenv("DNET_FCGI_POST_ALLOWED");
 	if (p)
 		post_allowed = atoi(p);
+
+	p = getenv("DNET_FCGI_LAST_MODIFIED");
+	if (p)
+		dnet_fcgi_last_modified = atoi(p);
 
 	p = getenv("DNET_FCGI_STORAGE_BITS");
 	if (p) {
