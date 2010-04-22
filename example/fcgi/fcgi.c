@@ -70,6 +70,8 @@ static char *dnet_fcgi_direct_download;
 static int dnet_fcgi_direct_patterns_num;
 static char **dnet_fcgi_direct_patterns;
 
+static int dnet_fcgi_upload_host_limit;
+
 /*
  * This is actually not a good idea, but it will work, since
  * no available crypto engines support that large digests.
@@ -1054,6 +1056,16 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 	char *p;
 	long err;
 
+	if (dnet_fcgi_upload_host_limit) {
+		int num = dnet_state_num(n);
+
+		if (num < dnet_fcgi_upload_host_limit) {
+			fprintf(dnet_fcgi_log, "Number of connected states (%d) is less than allowed in config for post (%d).\n",
+				num, dnet_fcgi_upload_host_limit);
+			return -ENOTCONN;
+		}
+	}
+
 	p = FCGX_GetParam("CONTENT_LENGTH", dnet_fcgi_request.envp);
 	if (!p) {
 		fprintf(dnet_fcgi_log, "%s: no content length.\n", addr);
@@ -1844,6 +1856,10 @@ int main()
 	p = getenv("DNET_FCGI_DNS_LOOKUP");
 	if (p)
 		dnet_fcgi_dns_lookup = atoi(p);
+
+	p = getenv("DNET_FCGI_UPLOAD_HOST_LIMIT");
+	if (p)
+		dnet_fcgi_upload_host_limit = atoi(p);
 
 	p = getenv("DNET_FCGI_RANDOM_HASHES");
 	if (p) {
