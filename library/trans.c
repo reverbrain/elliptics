@@ -314,7 +314,8 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 	}
 	dnet_lock_unlock(&n->trans_lock);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: resent/checked %d transactions, total: %d.\n",
+	if (resent || total)
+		dnet_log(n, DNET_LOG_NOTICE, "%s: resent/checked %d transactions, total: %d.\n",
 			dnet_dump_id(n->id), resent, total);
 }
 
