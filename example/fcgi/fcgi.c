@@ -633,6 +633,7 @@ static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id,
 				dnet_dump_id(e->id), stored_version, version, !!e->flags);
 
 		if (stored_version <= version) {
+			dnet_convert_history_entry(e);
 			/* If requested version was removed we have to return error */
 			if (e->flags)
 				i = -1;
@@ -646,12 +647,13 @@ static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id,
 		err = 0;
 
 		if (tsec)
-			*tsec = dnet_bswap64(e->tsec);
+			*tsec = e->tsec;
 
 		if (unlink_upload) {
-			e->flags |= dnet_bswap32(DNET_HISTORY_FLAGS_REMOVE);
+			e->flags |= DNET_HISTORY_FLAGS_REMOVE;
+			dnet_convert_history_entry(e);
 
-			err = dnet_write_file_local_offset(n, file, e->id, 0, 0, 0,
+			err = dnet_write_file_local_offset(n, file, id, 0, 0, 0,
 					DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY);
 		}
 	}
