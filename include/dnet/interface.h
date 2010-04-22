@@ -466,6 +466,13 @@ void dnet_node_destroy(struct dnet_node *n);
 int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg);
 
 /*
+ * Returns number of states we are connected to.
+ * It does not check whether they are alive though.
+ */
+
+int dnet_state_num(struct dnet_node *n);
+
+/*
  * This is used to join the network. When function is completed, node will be
  * used to store data sent from the network.
  */

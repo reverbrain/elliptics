@@ -1059,6 +1059,19 @@ err_out_exit:
 	return NULL;
 }
 
+int dnet_state_num(struct dnet_node *n)
+{
+	struct dnet_net_state *st;
+	int num = 0;
+
+	pthread_rwlock_rdlock(&n->state_lock);
+	list_for_each_entry(st, &n->state_list, state_entry)
+		num++;
+	pthread_rwlock_unlock(&n->state_lock);
+
+	return num;
+}
+
 int dnet_sendfile_data(struct dnet_net_state *st,
 		int fd, uint64_t offset, uint64_t size,
 		void *header, unsigned int hsize)
