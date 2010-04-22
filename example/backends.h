@@ -63,20 +63,25 @@ int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr
 
 int backend_del(void *state, struct dnet_io_attr *io, struct dnet_history_entry *e, unsigned int num);
 
-static inline uint64_t file_backend_get_dir_bits(const unsigned char *id, uint64_t bit_mask)
+static inline uint64_t file_backend_get_dir_bits(const unsigned char *id, int bit_num)
 {
-	uint64_t res, *ptr;
+	uint64_t res = *(uint64_t *)id;
 
-	ptr = (uint64_t *)id;
-	res = *ptr;
-	return res & bit_mask;
+	bit_num = 64 - bit_num;
+
+	res <<= bit_num;
+	res >>= bit_num;
+
+	return res;
 }
 
-static inline char *file_backend_get_dir(const unsigned char *id, uint64_t bit_mask, char *dst)
+static inline char *file_backend_get_dir(const unsigned char *id, uint64_t bit_num, char *dst)
 {
-	uint64_t res = file_backend_get_dir_bits(id, bit_mask);
+	char *res = dnet_dump_id_len_raw(id, ALIGN(bit_num, 8) / 8, dst);
 
-	return dnet_dump_id_len_raw((const unsigned char *)&res, ALIGN(ffsll(~bit_mask) - 1, 8) / 8, dst);
+	if (res)
+		res[bit_num / 4] = '\0';
+	return res;
 }
 
 #ifdef __cplusplus

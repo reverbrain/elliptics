@@ -48,7 +48,7 @@
 #define DNET_FCGI_TOKEN_STRING		" "
 #define DNET_FCGI_TOKEN_HEADER_SPLIT_STRING		"|"
 #define DNET_FCGI_TOKEN_DELIM		','
-#define DNET_FCGI_STORAGE_BIT_MASK	0xff
+#define DNET_FCGI_STORAGE_BIT_NUM	8
 
 static long dnet_fcgi_timeout_sec = 10;
 
@@ -61,7 +61,7 @@ static int dnet_fcgi_tolerate_upload_error_count;
 static int dnet_fcgi_random_hashes;
 static unsigned long dnet_fcgi_max_request_size;
 static int dnet_fcgi_base_port;
-static uint64_t dnet_fcgi_bit_mask;
+static uint64_t dnet_fcgi_bit_num = DNET_FCGI_STORAGE_BIT_NUM;
 static unsigned char dnet_fcgi_id[DNET_ID_SIZE];
 
 static int dnet_fcgi_last_modified;
@@ -522,7 +522,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			char hex_dir[2*DNET_ID_SIZE+1];
 
 			snprintf(id, sizeof(id), "%s", dnet_dump_id_len(dnet_fcgi_id, DNET_ID_SIZE));
-			file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_mask, hex_dir);
+			file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_num, hex_dir);
 
 			if (dnet_fcgi_dns_lookup) {
 				err = getnameinfo((struct sockaddr *)a->addr.addr, a->addr.addr_len,
@@ -1873,14 +1873,8 @@ int main()
 		dnet_fcgi_last_modified = atoi(p);
 
 	p = getenv("DNET_FCGI_STORAGE_BITS");
-	if (p) {
-		unsigned int bits = atoi(p);
-
-		dnet_fcgi_bit_mask = ~0;
-		dnet_fcgi_bit_mask <<= sizeof(dnet_fcgi_bit_mask) * 8 - bits;
-		dnet_fcgi_bit_mask >>= sizeof(dnet_fcgi_bit_mask) * 8 - bits;
-	} else
-		dnet_fcgi_bit_mask = DNET_FCGI_STORAGE_BIT_MASK;
+	if (p)
+		dnet_fcgi_bit_num = ALIGN(atoi(p), 4);
 
 	fprintf(dnet_fcgi_log, "Started on %s, POST is %s.\n", getenv("SERVER_ADDR"), (post_allowed) ? "allowed" : "not allowed");
 	fflush(dnet_fcgi_log);

@@ -45,7 +45,7 @@ struct file_backend_root
 	int			root_len;
 	int			rootfd;
 	int			sync;
-	uint64_t 		bit_mask;
+	int			bit_num;
 };
 
 static inline void file_backend_setup_file(struct file_backend_root *r, char *file,
@@ -53,7 +53,7 @@ static inline void file_backend_setup_file(struct file_backend_root *r, char *fi
 {
 	char dir[2*DNET_ID_SIZE+1];
 
-	file_backend_get_dir(io->origin, r->bit_mask, dir);
+	file_backend_get_dir(io->origin, r->bit_num, dir);
 	if (io->flags & DNET_IO_FLAGS_HISTORY)
 		snprintf(file, size, "%s/%s%s",
 			dir, dnet_dump_id_len(io->origin, DNET_ID_SIZE), DNET_HISTORY_SUFFIX);
@@ -87,9 +87,7 @@ void *file_backend_setup_root(char *root, int sync, unsigned int bits)
 
 	r->root_len = strlen(r->root);
 	r->sync = sync;
-	r->bit_mask = ~0ULL;
-	r->bit_mask <<= sizeof(r->bit_mask) * 8 - bits;
-	r->bit_mask >>= sizeof(r->bit_mask) * 8 - bits;
+	r->bit_num = ALIGN(bits, 4);
 
 	err = fchdir(r->rootfd);
 	if (err) {
@@ -278,8 +276,8 @@ static int file_list(struct file_backend_root *r, void *state,
 		out = 0;
 		err = dnet_state_get_next_id(state, id);
 		if (!err) {
-			last = file_backend_get_dir_bits(id, r->bit_mask);
-			start = file_backend_get_dir_bits(cmd->id, r->bit_mask);
+			last = file_backend_get_dir_bits(id, r->bit_num);
+			start = file_backend_get_dir_bits(cmd->id, r->bit_num);
 			out = 1;
 		}
 	}
@@ -350,7 +348,7 @@ static int dnet_update_history(struct file_backend_root *r, void *state,
 	struct dnet_history_entry e;
 	char dir[2*DNET_ID_SIZE+1];
 
-	file_backend_get_dir(io->origin, r->bit_mask, dir);
+	file_backend_get_dir(io->origin, r->bit_num, dir);
 	snprintf(history, sizeof(history), "%s/%s%s%s", dir,
 			dnet_dump_id_len(io->origin, DNET_ID_SIZE),
 			DNET_HISTORY_SUFFIX, (tmp)?".tmp":"");
@@ -412,7 +410,7 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 	
 	data += sizeof(struct dnet_io_attr);
 
-	file_backend_get_dir(io->origin, r->bit_mask, dir);
+	file_backend_get_dir(io->origin, r->bit_num, dir);
 
 	err = mkdir(dir, 0755);
 	if (err < 0) {
@@ -621,7 +619,7 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 	if (!attr || !data)
 		goto err_out_exit;
 
-	file_backend_get_dir(cmd->id, r->bit_mask, dir);
+	file_backend_get_dir(cmd->id, r->bit_num, dir);
 
 	snprintf(file, sizeof(file), "%s/%s",
 		dir, dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
