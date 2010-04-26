@@ -63,6 +63,7 @@ static unsigned long dnet_fcgi_max_request_size;
 static int dnet_fcgi_base_port;
 static uint64_t dnet_fcgi_bit_num = DNET_FCGI_STORAGE_BIT_NUM;
 static unsigned char dnet_fcgi_id[DNET_ID_SIZE];
+static uint64_t dnet_fcgi_trans_tsec;
 
 static int dnet_fcgi_last_modified;
 
@@ -492,6 +493,36 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_fcgi_put_last_modified()
+{
+	char str[128];
+	char fmt[] = "%a, %d %b %Y %T %Z";
+	struct tm tm;
+	char *p;
+
+	if (!dnet_fcgi_last_modified)
+		return 0;
+
+	p = FCGX_GetParam("HTTP_IF_MODIFIED_SINCE", dnet_fcgi_request.envp);
+	if (p) {
+		p = strptime(p, fmt, &tm);
+		if (p) {
+			uint64_t t = timegm(&tm);
+
+			if (dnet_fcgi_trans_tsec <= t) {
+				dnet_fcgi_output("Status: 304\r\n\r\n");
+				return 1;
+			}
+		}
+	}
+
+	gmtime_r((time_t *)&dnet_fcgi_trans_tsec, &tm);
+	strftime(str, sizeof(str), fmt, &tm);
+	dnet_fcgi_output("Last-Modified: %s\r\n", str);
+
+	return 0;
+}
+
 static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv)
 {
@@ -541,6 +572,13 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
 					hex_dir, id);
 #endif
+			err = dnet_fcgi_put_last_modified();
+			if (err) {
+				if (err > 0)
+					err = 0;
+				goto err_out_exit;
+			}
+
 			dnet_fcgi_output("%s\r\n", dnet_fcgi_status_pattern);
 			if (!dnet_fcgi_last_modified)
 				dnet_fcgi_output("Cache-control: no-cache\r\n");
@@ -746,14 +784,7 @@ static int dnet_fcgi_get_data(struct dnet_node *n, unsigned char *id, struct dne
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to get last timestamp: %d.\n", dnet_dump_id(id), err);
 		}
 
-		if (!err) {
-			char str[128];
-			struct tm tm;
-
-			gmtime_r((time_t *)tsec, &tm);
-			strftime(str, sizeof(str), "%a, %d %b %Y %T %Z", &tm);
-			dnet_fcgi_output("Last-Modified: %s\r\n", str);
-		}
+		dnet_fcgi_trans_tsec = *tsec;
 	}
 
 	dnet_fcgi_request_completed = dnet_fcgi_request_init_value;
@@ -1231,6 +1262,13 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	if (!a) {
 		fprintf(dnet_fcgi_log, "%s: no attributes but command size is not null.\n", dnet_dump_id(cmd->id));
 		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	err = dnet_fcgi_put_last_modified();
+	if (err) {
+		if (err > 0)
+			err = 0;
 		goto err_out_exit;
 	}
 
