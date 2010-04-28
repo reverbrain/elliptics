@@ -1,3 +1,10 @@
+elliptics (2.7.3.4) unstable; urgency=low
+
+  * Added if-modified-since header processing.
+  * Relax libevent build dependency
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 28 Apr 2010 18:14:16 +0400
+
 elliptics (2.7.3.3) unstable; urgency=low
 
   * History merge support.
