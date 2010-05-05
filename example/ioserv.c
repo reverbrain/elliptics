@@ -290,25 +290,25 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		err = dnet_write_file(n, writef, id, offset, size, 0);
+		err = dnet_write_file(n, writef, writef, strlen(writef), id, offset, size, 0);
 		if (err)
 			return err;
 	}
 
 	if (readf) {
-		err = dnet_read_file(n, readf, id, offset, size, 0);
+		err = dnet_read_file(n, readf, readf, strlen(readf), id, offset, size, 0);
 		if (err)
 			return err;
 	}
 
 	if (historyf) {
-		err = dnet_read_file(n, historyf, id, offset, size, 1);
+		err = dnet_read_file(n, historyf, historyf, strlen(historyf), id, offset, size, 1);
 		if (err)
 			return err;
 	}
 	
 	if (removef) {
-		err = dnet_remove_file(n, removef, id);
+		err = dnet_remove_file(n, removef, removef, strlen(removef), id);
 		if (err)
 			return err;
 	}

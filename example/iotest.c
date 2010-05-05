@@ -228,8 +228,7 @@ static int iotest_write(struct dnet_node *n, void *data, size_t size, unsigned l
 	return 0;
 }
 
-static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned long long max,
-		char *obj)
+static int iotest_read(struct dnet_node *n, void *data, size_t size, unsigned long long max, char *obj)
 {
 	struct dnet_io_control ctl;
 	int err, fd;
@@ -240,7 +239,7 @@ static int iotest_read(struct dnet_node *n,void *data, size_t size, unsigned lon
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
-	err = dnet_read_file(n, obj, NULL, 0, 0, 1);
+	err = dnet_read_file(n, obj, obj, strlen(obj), NULL, 0, 0, 1);
 	if (err)
 		return err;
 

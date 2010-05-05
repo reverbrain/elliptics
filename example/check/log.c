@@ -73,7 +73,7 @@ static int dnet_check_process_hash_string(struct dnet_node *n, char *hash, int a
 
 static int dnet_upload_local_file(struct dnet_check_worker *w, struct dnet_check_request *req, char *file)
 {
-	return dnet_write_file(w->n, file, req->id, 0, 0, req->type);
+	return dnet_write_file(w->n, file, file, strlen(file), req->id, 0, 0, req->type);
 }
 
 static int dnet_check_process_request(struct dnet_check_worker *w,
@@ -107,7 +107,7 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir,
 			dnet_dump_id_len_raw(e->id, DNET_ID_SIZE, eid));
 
-		err = dnet_write_file_local_offset(n, file, req->id, 0, e->offset, e->size, req->type, 0);
+		err = dnet_write_file_local_offset(n, file, file, strlen(file), req->id, 0, e->offset, e->size, req->type, 0);
 
 		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: request uploading hist: %s, "
 				"offset: %llu, size: %llu, err: %d.\n",
@@ -158,7 +158,7 @@ static int dnet_update_copies(struct dnet_check_worker *worker,	char *obj,
 		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir,
 				dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid));
 
-		err = dnet_read_file(n, file, existing->id, 0, ~0ULL, 1);
+		err = dnet_read_file(n, file, file, strlen(file), existing->id, 0, ~0ULL, 1);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "'%s': failed to download a copy: %d.\n", obj, err);
 			goto out_exit;
@@ -236,7 +236,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 
 		snprintf(file, sizeof(file), "%s/%s",
 				dnet_check_tmp_dir, dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid));
-		err = dnet_read_file(n, file, req->id, 0, 1, 1);
+		err = dnet_read_file(n, file, file, strlen(file), req->id, 0, 1, 1);
 		if (err < 0) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read history file: %d.\n",
 					dnet_dump_id(req->id), err);

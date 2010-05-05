@@ -62,7 +62,7 @@ static int dnet_merge_write_history(struct dnet_node *n, char *file, unsigned ch
 {
 	int err;
 
-	err = dnet_write_file_local_offset(n, file, id, 0, 0, 0, DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY);
+	err = dnet_write_file_local_offset(n, file, file, strlen(file), id, 0, 0, 0, DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to upload transaction history merged: %d.\n",
 				dnet_dump_id(id), err);
@@ -202,7 +202,7 @@ static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, uns
 		 */
 	} else {
 		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len_raw(id, DNET_ID_SIZE, eid));
-		err = dnet_write_file(n, file, id, 0, 0, DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION);
+		err = dnet_write_file(n, file, file, strlen(file), id, 0, 0, DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to upload transaction to be directly merged: %d.\n",
 					dnet_dump_id(id), err);
@@ -241,7 +241,7 @@ static void *dnet_merge_process(void *data)
 
 		snprintf(direct, sizeof(direct), "%s/%s.direct", dnet_check_tmp_dir, id_str);
 
-		err = dnet_read_file_direct(n, direct, id.id, 0, 0, 1);
+		err = dnet_read_file_direct(n, direct, direct, strlen(direct), id.id, 0, 0, 1);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from direct node: %d.\n", dnet_dump_id(id.id), err);
 			goto out_continue;
@@ -251,7 +251,7 @@ static void *dnet_merge_process(void *data)
 
 		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, id_str);
 
-		err = dnet_read_file(n, file, id.id, 0, 0, 1);
+		err = dnet_read_file(n, file, file, strlen(file), id.id, 0, 0, 1);
 		if (err) {
 			if (err != -ENOENT) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n", dnet_dump_id(id.id), err);
