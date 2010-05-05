@@ -65,6 +65,9 @@ static uint64_t dnet_fcgi_bit_num = DNET_FCGI_STORAGE_BIT_NUM;
 static unsigned char dnet_fcgi_id[DNET_ID_SIZE];
 static uint64_t dnet_fcgi_trans_tsec;
 
+static char *dnet_fcgi_hashes;
+static int dnet_fcgi_hashes_len;
+
 static int dnet_fcgi_last_modified;
 
 static char *dnet_fcgi_direct_download;
@@ -295,7 +298,7 @@ err_out_exit:
 
 static int dnet_fcgi_add_transform(struct dnet_node *n)
 {
-	char *h, *hash, *p;
+	char *h = NULL, *hash, *p;
 	int added = 0, err;
 	struct dnet_crypto_engine *e;
 
@@ -306,10 +309,17 @@ static int dnet_fcgi_add_transform(struct dnet_node *n)
 		goto err_out_exit;
 	}
 
+	dnet_fcgi_hashes = strdup(hash);
+	if (!dnet_fcgi_hashes) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	dnet_fcgi_hashes_len = strlen(dnet_fcgi_hashes);
+
 	h = strdup(hash);
 	if (!h) {
 		err = -ENOMEM;
-		goto err_out_exit;
+		goto err_out_free;
 	}
 
 	hash = h;
@@ -322,7 +332,7 @@ static int dnet_fcgi_add_transform(struct dnet_node *n)
 		e = malloc(sizeof(struct dnet_crypto_engine));
 		if (!e) {
 			err = -ENOMEM;
-			goto err_out_exit;
+			goto err_out_free;
 		}
 
 		memset(e, 0, sizeof(struct dnet_crypto_engine));
@@ -331,13 +341,13 @@ static int dnet_fcgi_add_transform(struct dnet_node *n)
 		if (err) {
 			fprintf(dnet_fcgi_log, "Failed to initialize hash '%s': %d.\n",
 					hash, err);
-			goto err_out_exit;
+			goto err_out_free;
 		}
 
 		err = dnet_add_transform(n, e, e->name,	e->init, e->update, e->final, e->cleanup);
 		if (err) {
 			fprintf(dnet_fcgi_log, "Failed to add hash '%s': %d.\n", hash, err);
-			goto err_out_exit;
+			goto err_out_free;
 		}
 
 		fprintf(dnet_fcgi_log, "Added hash '%s'.\n", hash);
@@ -351,16 +361,21 @@ static int dnet_fcgi_add_transform(struct dnet_node *n)
 		while (hash && *hash && isspace(*hash))
 			hash++;
 	}
-	free(h);
 
 	if (!added) {
 		err = -ENOENT;
 		fprintf(dnet_fcgi_log, "No remote hashes added, aborting.\n");
-		goto err_out_exit;
+		goto err_out_free;
 	}
+
+	free(h);
 
 	return 0;
 
+err_out_free:
+	free(dnet_fcgi_hashes);
+	dnet_fcgi_hashes_len = 0;
+	free(h);
 err_out_exit:
 	return err;
 }
@@ -653,7 +668,7 @@ static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id,
 
 	snprintf(file, sizeof(file), "/tmp/%s-%d", dnet_dump_id_len(id, DNET_ID_SIZE), getpid());
 
-	err = dnet_read_file(n, file, id, 0, 0, 1);
+	err = dnet_read_file(n, file, file, strlen(file), id, 0, 0, 1);
 	if (err < 0)
 		goto err_out_exit;
 
@@ -693,7 +708,7 @@ static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id,
 			e->flags |= DNET_HISTORY_FLAGS_REMOVE;
 			dnet_convert_history_entry(e);
 
-			err = dnet_write_file_local_offset(n, file, id, 0, 0, 0,
+			err = dnet_write_file_local_offset(n, file, file, strlen(file), id, 0, 0, 0,
 					DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY);
 		}
 	}
@@ -986,6 +1001,45 @@ static void dnet_fcgi_convert_id_version(unsigned char *id, int version)
 	memcpy(id+4, &version, 4);
 }
 
+static int dnet_fcgi_send_meta_transactions(struct dnet_node *n, char *obj, int len)
+{
+	struct dnet_meta m;
+	int err;
+	char file[64];
+
+	snprintf(file, sizeof(file), "/tmp/meta-%d", getpid());
+
+	err = dnet_meta_read(n, obj, len, file);
+	if (err && err != -ENOENT)
+		goto err_out_exit;
+
+	memset(&m, 0, sizeof(struct dnet_meta));
+	m.type = DNET_META_TRANSFORM;
+	m.size = dnet_fcgi_hashes_len + 1; /* 0-byte */
+
+	err = dnet_meta_create_file(n, file, &m, dnet_fcgi_hashes);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add transform metadata for object '%s': %d.\n",
+				obj, err);
+		goto err_out_unlink;
+	}
+
+	m.type = DNET_META_PARENT_OBJECT;
+	m.size = len + 1; /* 0-byte */
+
+	err = dnet_meta_write(n, &m, obj, obj, len, file);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add/send parent metadata for '%s': %d.\n", 
+				obj, err);
+		goto err_out_unlink;
+	}
+
+err_out_unlink:
+	unlink(file);
+err_out_exit:
+	return err;
+}
+
 static int dnet_fcgi_write_object(struct dnet_node *n, char *obj, unsigned int len, void *data, uint64_t size, int version, int pos)
 {
 	struct dnet_io_control ctl;
@@ -1036,7 +1090,10 @@ static int dnet_fcgi_write_object(struct dnet_node *n, char *obj, unsigned int l
 		memcpy(ctl.io.origin, ctl.io.id, DNET_ID_SIZE);
 	}
 
-	return dnet_fcgi_send_upload_transactions(n, &ctl);
+	err = dnet_fcgi_send_upload_transactions(n, &ctl);
+	if (err <= 0)
+		goto out_exit;
+	return err;
 
 out_exit:
 	if (err > 0 || pos == old_pos)
@@ -1065,6 +1122,8 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len, vo
 		trans_num += err;
 		pos++;
 	}
+	if (trans_num)
+		dnet_fcgi_send_meta_transactions(n, obj, len);
 
 	fprintf(dnet_fcgi_log, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num, &ts);
