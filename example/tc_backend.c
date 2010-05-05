@@ -231,9 +231,13 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			(unsigned long long)io->size, (unsigned long long)io->offset);
 
 	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
+		uint32_t flags = 0;
+
 		e = &n;
 
-		dnet_setup_history_entry(e, io->id, io->size, io->offset, 0);
+		if (io->flags & DNET_IO_FLAGS_META)
+			flags |= DNET_HISTORY_FLAGS_META;
+		dnet_setup_history_entry(e, io->id, io->size, io->offset, flags);
 
 		res = tcadbputcat(be->hist, io->origin, DNET_ID_SIZE, e, sizeof(struct dnet_history_entry));
 		if (!res) {

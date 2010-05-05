@@ -333,7 +333,7 @@ int dnet_meta_write(struct dnet_node *n, struct dnet_meta *m, void *mdata,
 	if (err)
 		goto err_out_unlink;
 
-	err = dnet_write_file(n, metafile, meta_object, sizeof(meta_object), NULL, 0, 0, 0);
+	err = dnet_write_file_local_offset(n, metafile, meta_object, sizeof(meta_object), NULL, 0, 0, 0, 0, DNET_IO_FLAGS_META);
 
 err_out_unlink:
 	if (meta_unlink)

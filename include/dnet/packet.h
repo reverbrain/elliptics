@@ -217,6 +217,9 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 /* History IO request. */
 #define DNET_IO_FLAGS_HISTORY		(1<<2)
 
+/* Metada IO request */
+#define DNET_IO_FLAGS_META		(1<<3)
+
 struct dnet_io_attr
 {
 	uint8_t			origin[DNET_ID_SIZE];
@@ -235,6 +238,9 @@ static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 
 /* Object is being removed from the storage */
 #define DNET_HISTORY_FLAGS_REMOVE		(1<<0)
+
+/* Object contains metadata */
+#define DNET_HISTORY_FLAGS_META			(1<<1)
 
 struct dnet_history_entry
 {

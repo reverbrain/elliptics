@@ -346,6 +346,7 @@ static int dnet_update_history(struct file_backend_root *r, void *state,
 	char history[DNET_ID_SIZE*2+1 + sizeof(DNET_HISTORY_SUFFIX) + 8 + 9 + 5];
 	int fd, err;
 	struct dnet_history_entry e;
+	uint32_t flags = 0;
 	char dir[2*DNET_ID_SIZE+1];
 
 	file_backend_get_dir(io->origin, r->bit_num, dir);
@@ -362,7 +363,9 @@ static int dnet_update_history(struct file_backend_root *r, void *state,
 		goto err_out_exit;
 	}
 
-	dnet_setup_history_entry(&e, io->id, io->size, io->offset, 0);
+	if (io->flags & DNET_IO_FLAGS_META)
+		flags |= DNET_HISTORY_FLAGS_META;
+	dnet_setup_history_entry(&e, io->id, io->size, io->offset, flags);
 
 	err = write(fd, &e, sizeof(struct dnet_history_entry));
 	if (err <= 0) {
