@@ -157,6 +157,28 @@ static int dnet_is_dir(void *state, char *path)
 	return S_ISDIR(err);
 }
 
+static int dnet_file_get_flags(void *state, char *file, uint32_t *flags)
+{
+	struct dnet_history_map m;
+	int err;
+
+	err = dnet_map_history(dnet_get_node_from_state(state), file, &m);
+	if (err)
+		goto err_out_exit;
+
+	if (!m.num) {
+		err = -ENOENT;
+		goto err_out_unmap;
+	}
+
+	*flags = dnet_bswap32(m.ent[0].flags);
+
+err_out_unmap:
+	dnet_unmap_history(dnet_get_node_from_state(state), &m);
+err_out_exit:
+	return err;
+}
+
 static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 		struct dnet_attr *attr,	char *sub, unsigned char *next_id, int out)
 {
@@ -213,6 +235,12 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 
 		if (out && !dnet_id_within_range(id, next_id, cmd->id))
 			continue;
+
+		if (attr->flags & DNET_ATTR_ID_FLAGS) {
+			err = dnet_file_get_flags(state, d->d_name, &flags);
+			if (err)
+				continue;
+		}
 
 		if (pos >= num) {
 			err = dnet_send_reply(state, cmd, attr, ids, pos * sizeof(struct dnet_id), 1);

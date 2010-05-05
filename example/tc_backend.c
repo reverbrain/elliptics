@@ -272,6 +272,22 @@ err_out_exit:
 	return err;
 }
 
+static int tc_get_flags(void *state, struct tc_backend *be, const unsigned char *id, uint32_t *flags)
+{
+	int size;
+	struct dnet_history_entry *e;
+
+	e = tcadbget(be->hist, id, DNET_ID_SIZE, &size);
+	if (!e) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR, "Failed to get history for id: %s.\n", dnet_dump_id_len(id, DNET_ID_SIZE));
+		return -EINVAL;
+	}
+
+	*flags = dnet_bswap32(e->flags);
+	free(e);
+	return 0;
+}
+
 static int tc_list_raw(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr)
 {
@@ -322,6 +338,12 @@ static int tc_list_raw(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 					goto out_clean;
 
 				ipos = 0;
+			}
+
+			if (attr->flags & DNET_ATTR_ID_FLAGS) {
+				err = tc_get_flags(state, be, idx, &flags);
+				if (err)
+					continue;
 			}
 
 			dnet_command_handler_log(state, DNET_LOG_INFO, "%s\n", dnet_dump_id(idx));

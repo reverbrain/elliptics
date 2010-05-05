@@ -129,6 +129,9 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* Provide only those IDs which are behind of node's range. */
 #define DNET_ATTR_ID_OUT			(1<<0)
 
+/* Read history for given ID and return its flags */
+#define DNET_ATTR_ID_FLAGS			(1<<1)
+
 /* Lookup attribute flags */
 
 /* Stat local object and return state address only if object is readable */
