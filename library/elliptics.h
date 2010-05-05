@@ -445,6 +445,11 @@ void dnet_resend_thread_stop(struct dnet_node *n);
 int dnet_try_reconnect(struct dnet_node *n);
 void dnet_check_tree(struct dnet_node *n, int kill);
 
+int dnet_read_file_id(struct dnet_node *n, char *file, int len,
+		int direct, uint64_t write_offset,
+		struct dnet_io_attr *io,
+		struct dnet_wait *w, int hist, int wait);
+
 #ifdef __cplusplus
 }
 #endif

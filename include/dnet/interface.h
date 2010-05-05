@@ -161,10 +161,10 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
  * which means it will ask node for given object, which is the closest in routing
  * table and will not allow to forward this request to other nodes.
  */
-int dnet_read_file(struct dnet_node *n, char *file, unsigned char *id,
-		uint64_t offset, uint64_t size, int hist);
-int dnet_read_file_direct(struct dnet_node *n, char *file, unsigned char *id,
-		uint64_t offset, uint64_t size, int hist);
+int dnet_read_file(struct dnet_node *n, char *file, char *remote, int remote_len,
+		unsigned char *id, uint64_t offset, uint64_t size, int hist);
+int dnet_read_file_direct(struct dnet_node *n, char *file, char *remote, int remote_len,
+		unsigned char *id, uint64_t offset, uint64_t size, int hist);
 
 /*
  * dnet_write_object() returns 0 on success or negative error otherwise.
@@ -189,7 +189,7 @@ int dnet_read_file_direct(struct dnet_node *n, char *file, unsigned char *id,
  *  and only its own history will be updated.
  */
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
-		void *remote, unsigned int len,
+		void *remote, int remote_len,
 		unsigned char *id, int hupdate, int *trans_num);
 
 /*
@@ -205,16 +205,16 @@ int dnet_write_object_single(struct dnet_node *n, struct dnet_io_control *ctl,
  *
  * Returns negative error value in case of error.
  */
-int dnet_write_file(struct dnet_node *n, char *file, unsigned char *id,
-		uint64_t offset, uint64_t size, unsigned int aflags);
+int dnet_write_file(struct dnet_node *n, char *file, char *remote, int remote_len,
+		unsigned char *id, uint64_t offset, uint64_t size, unsigned int aflags);
 
 /*
  * The same as dnet_write_file() except that is uses @local_offset as local file offset,
  * while @offset is remote file offset. dnet_write_file() assumes that they are the same.
  */
-int dnet_write_file_local_offset(struct dnet_node *n, char *file, unsigned char *id,
-		uint64_t local_offset, uint64_t offset, uint64_t size, unsigned int aflags,
-		unsigned int ioflags);
+int dnet_write_file_local_offset(struct dnet_node *n, char *file, char *remote, int remote_len,
+		unsigned char *id, uint64_t local_offset, uint64_t offset, uint64_t size,
+		unsigned int aflags, unsigned int ioflags);
 
 /*
  * Log flags.
@@ -721,7 +721,7 @@ int dnet_remove_object(struct dnet_node *n,
 /*
  * Remove given file (identified by name or ID) from the storage.
  */
-int dnet_remove_file(struct dnet_node *n, char *file, unsigned char *file_id);
+int dnet_remove_file(struct dnet_node *n, char *file, char *remote, int remote_len, unsigned char *file_id);
 
 /*
  * Transformation helper, which uses *ppos as an index for transformation function.
@@ -753,6 +753,47 @@ int dnet_request_ids(struct dnet_node *n, unsigned char *id,
 			struct dnet_attr *attr,
 			void *priv),
 	void *priv);
+
+enum dnet_meta_types {
+	DNET_META_TRANSFORM = 1,	/* transformation function names */
+	DNET_META_PARENT_OBJECT,	/* parent object name */
+};
+
+struct dnet_meta
+{
+	uint32_t			type;
+	uint32_t			size;
+	uint64_t			common;
+	uint8_t				tmp[32];
+	uint8_t				data[0];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_meta(struct dnet_meta *m)
+{
+	m->type = dnet_bswap32(m->type);
+	m->size = dnet_bswap32(m->size);
+	m->common = dnet_bswap64(m->common);
+}
+
+/*
+ * Modify or search metadata in meta object. Data must be realloc()able.
+ */
+struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t size, uint32_t type);
+int dnet_meta_remove(struct dnet_node *n, void *data, uint32_t *size, struct dnet_meta *m);
+struct dnet_meta *dnet_meta_add(struct dnet_node *n, void *data, uint32_t *size, struct dnet_meta *add, void *add_data);
+struct dnet_meta *dnet_meta_replace(struct dnet_node *n, void *data, uint32_t *size, struct dnet_meta *rep, void *rep_data);
+
+/*
+ * Read/write metadata object into the storage.
+ */
+int dnet_meta_write(struct dnet_node *n, struct dnet_meta *m, void *mdata,
+		char *obj, int len, char *metafile);
+int dnet_meta_read(struct dnet_node *n, char *obj, int len, char *metafile);
+
+/*
+ * Add metadata into meta object located in metafile.
+ */
+int dnet_meta_create_file(struct dnet_node *n, char *metafile, struct dnet_meta *m, void *mdata);
 
 #ifdef __cplusplus
 }
