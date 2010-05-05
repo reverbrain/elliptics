@@ -1094,6 +1094,7 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	unsigned char addr[DNET_ID_SIZE];
 	struct dnet_io_control hctl;
 	struct dnet_history_entry e;
+	uint32_t flags = 0;
 
 	if (!(ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)) {
 		rsize = DNET_ID_SIZE;
@@ -1149,7 +1150,9 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
 	memcpy(hctl.io.id, addr, DNET_ID_SIZE);
 
-	dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, 0);
+	if (ctl->io.flags & DNET_IO_FLAGS_META)
+		flags |= DNET_HISTORY_FLAGS_META;
+	dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, flags);
 
 	hctl.priv = ctl->priv;
 	hctl.complete = ctl->complete;
