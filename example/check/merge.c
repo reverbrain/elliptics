@@ -238,9 +238,6 @@ static void *dnet_merge_process(void *data)
 
 		dnet_log_raw(n, DNET_LOG_INFO, "merge: %s, flags: %x\n", dnet_dump_id_len_raw(id.id, DNET_ID_SIZE, id_str), id.flags);
 
-		if (id.flags & DNET_ID_FLAGS_META)
-			continue;
-
 		snprintf(direct, sizeof(direct), "%s/%s.direct", dnet_check_tmp_dir, id_str);
 
 		err = dnet_read_file_direct(n, direct, direct, strlen(direct), id.id, 0, 0, 1);
