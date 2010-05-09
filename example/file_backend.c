@@ -390,7 +390,7 @@ static int dnet_update_history(struct file_backend_root *r, void *state,
 		goto err_out_exit;
 	}
 
-	dnet_setup_history_entry(&e, io->id, io->size, io->offset, 0);
+	dnet_setup_history_entry(&e, io->id, io->size, io->offset, io->flags);
 
 	err = write(fd, &e, sizeof(struct dnet_history_entry));
 	if (err <= 0) {

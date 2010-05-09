@@ -230,12 +230,14 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
 			(unsigned long long)io->size, (unsigned long long)io->offset);
 
-	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) && !(io->flags & DNET_IO_FLAGS_HISTORY)) {
+	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) &&
+			!(io->flags & DNET_IO_FLAGS_HISTORY)) {
 		e = &n;
 
-		dnet_setup_history_entry(e, io->id, io->size, io->offset, 0);
+		dnet_setup_history_entry(e, io->id, io->size, io->offset, io->flags);
 
-		res = tcadbputcat(be->hist, io->origin, DNET_ID_SIZE, e, sizeof(struct dnet_history_entry));
+		res = tcadbputcat(be->hist, io->origin, DNET_ID_SIZE,
+				e, sizeof(struct dnet_history_entry));
 		if (!res) {
 			err = -EINVAL;
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
