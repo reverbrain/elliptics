@@ -258,3 +258,44 @@ int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
 
 	return trans_num;
 }
+
+int dnet_common_send_meta_transactions(struct dnet_node *n, char *obj, int len,
+		char *hashes, int hashes_len)
+{
+	struct dnet_meta m;
+	int err;
+	char file[64];
+
+	snprintf(file, sizeof(file), "/tmp/meta-%d", getpid());
+
+	err = dnet_meta_read(n, obj, len, file);
+	if (err && err != -ENOENT)
+		goto err_out_exit;
+
+	memset(&m, 0, sizeof(struct dnet_meta));
+	m.type = DNET_META_TRANSFORM;
+	m.size = hashes_len + 1; /* 0-byte */
+
+	err = dnet_meta_create_file(n, file, &m, hashes);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add transform metadata for object '%s': %d.\n",
+				obj, err);
+		goto err_out_unlink;
+	}
+
+	m.type = DNET_META_PARENT_OBJECT;
+	m.size = len + 1; /* 0-byte */
+
+	err = dnet_meta_write(n, &m, obj, obj, len, file);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add/send parent metadata for '%s': %d.\n", 
+				obj, err);
+		goto err_out_unlink;
+	}
+
+err_out_unlink:
+	unlink(file);
+err_out_exit:
+	return err;
+}
+

@@ -45,4 +45,7 @@ int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 		void *priv);
 
+int dnet_common_send_meta_transactions(struct dnet_node *n, char *obj, int len,
+		char *hashes, int hashes_len);
+
 #endif /* __COMMON_H */

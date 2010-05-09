@@ -299,7 +299,7 @@ err_out_exit:
 static int dnet_fcgi_add_transform(struct dnet_node *n)
 {
 	char *h = NULL, *hash, *p;
-	int added = 0, err;
+	int added = 0, err, pos = 0;
 	struct dnet_crypto_engine *e;
 
 	hash = getenv("DNET_FCGI_HASH");
@@ -314,7 +314,6 @@ static int dnet_fcgi_add_transform(struct dnet_node *n)
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-	dnet_fcgi_hashes_len = strlen(dnet_fcgi_hashes);
 
 	h = strdup(hash);
 	if (!h) {
@@ -351,6 +350,7 @@ static int dnet_fcgi_add_transform(struct dnet_node *n)
 		}
 
 		fprintf(dnet_fcgi_log, "Added hash '%s'.\n", hash);
+		pos += sprintf(dnet_fcgi_hashes + pos, "%s,", hash);
 		added++;
 
 		if (!p)
@@ -361,6 +361,11 @@ static int dnet_fcgi_add_transform(struct dnet_node *n)
 		while (hash && *hash && isspace(*hash))
 			hash++;
 	}
+	if (pos) {
+		pos--;
+		dnet_fcgi_hashes[pos] = '\0';
+	}
+	dnet_fcgi_hashes_len = pos;
 
 	if (!added) {
 		err = -ENOENT;
@@ -948,45 +953,6 @@ out_wakeup:
 	return err;
 }
 
-static int dnet_fcgi_send_meta_transactions(struct dnet_node *n, char *obj, int len)
-{
-	struct dnet_meta m;
-	int err;
-	char file[64];
-
-	snprintf(file, sizeof(file), "/tmp/meta-%d", getpid());
-
-	err = dnet_meta_read(n, obj, len, file);
-	if (err && err != -ENOENT)
-		goto err_out_exit;
-
-	memset(&m, 0, sizeof(struct dnet_meta));
-	m.type = DNET_META_TRANSFORM;
-	m.size = dnet_fcgi_hashes_len + 1; /* 0-byte */
-
-	err = dnet_meta_create_file(n, file, &m, dnet_fcgi_hashes);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add transform metadata for object '%s': %d.\n",
-				obj, err);
-		goto err_out_unlink;
-	}
-
-	m.type = DNET_META_PARENT_OBJECT;
-	m.size = len + 1; /* 0-byte */
-
-	err = dnet_meta_write(n, &m, obj, obj, len, file);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add/send parent metadata for '%s': %d.\n", 
-				obj, err);
-		goto err_out_unlink;
-	}
-
-err_out_unlink:
-	unlink(file);
-err_out_exit:
-	return err;
-}
-
 static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 		void *data, uint64_t size, int version)
 {
@@ -1003,8 +969,13 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 
 	err = dnet_common_write_object(n, obj, len, data, size, version, dnet_fcgi_upload_complete, NULL);
 	if (err > 0) {
+		char meta_obj[len + 1];
+
 		trans_num += err;
-		dnet_fcgi_send_meta_transactions(n, obj, len);
+
+		snprintf(meta_obj, sizeof(meta_obj), "%s", obj);
+		meta_obj[len] = '\0';
+		dnet_common_send_meta_transactions(n, meta_obj, len, dnet_fcgi_hashes, dnet_fcgi_hashes_len);
 	}
 
 	fprintf(dnet_fcgi_log, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
