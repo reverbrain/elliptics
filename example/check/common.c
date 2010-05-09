@@ -51,7 +51,7 @@ void *dnet_check_ext_private;
 void *dnet_check_ext_library;
 
 char dnet_check_tmp_dir[128] = "/tmp";
-FILE *dnet_check_file;
+FILE *dnet_check_file, *dnet_check_output;
 pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int dnet_check_log_init(struct dnet_node *n, struct dnet_config *cfg, char *log)
@@ -541,6 +541,7 @@ static void dnet_check_log_help(char *p)
 			"  -m num                  - log mask.\n"
 			"  -l log                  - output log file.\n"
 			"  -f file                 - input file with log information about objects to be checked.\n"
+			"  -F file                 - output file, when used.\n"
 			"  -r addr:port:family     - remote node to connect to.\n"
 			"  -t dir                  - directory to store temporal object.\n"
 			"  -e library              - external library which should export merge callbacks.\n"
@@ -553,7 +554,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 	int ch, err = 0, i, j, worker_num = 1;
 	struct dnet_check_worker *w, *workers;
 	struct dnet_config cfg, *remotes = NULL;
-	char *file = NULL, *log = "/dev/stderr";
+	char *file = NULL, *log = "/dev/stderr", *output_file = NULL;
 	char *library = NULL, *library_data = NULL;
 	char log_file[256];
 	char local_addr[] = "0.0.0.0:0:2";
@@ -569,7 +570,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
-	while ((ch = getopt(argc, argv, "e:E:t:n:m:l:f:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "e:E:t:n:m:l:f:F:r:h")) != -1) {
 		switch (ch) {
 			case 'e':
 				library = optarg;
@@ -588,6 +589,9 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 				break;
 			case 'l':
 				log = optarg;
+				break;
+			case 'F':
+				output_file = optarg;
 				break;
 			case 'f':
 				file = optarg;
@@ -633,10 +637,19 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 		}
 	}
 
+	if (output_file) {
+		dnet_check_output = fopen(output_file, "w+");
+		if (!dnet_check_output) {
+			err = -errno;
+			fprintf(stderr, "Failed to open output file '%s': %s.\n", output_file, strerror(errno));
+			goto out_close_check_file;
+		}
+	}
+
 	if (library) {
 		err = dnet_check_setup_ext(library, library_data);
 		if (err)
-			goto out_close_check_file;
+			goto out_close_output_file;
 	}
 
 	workers = malloc(sizeof(struct dnet_check_worker) * worker_num);
@@ -721,6 +734,9 @@ out_ext_cleanup:
 		dnet_check_ext_exit(dnet_check_ext_private);
 		dlclose(dnet_check_ext_library);
 	}
+out_close_output_file:
+	if (output_file)
+		fclose(dnet_check_output);
 out_close_check_file:
 	fclose(dnet_check_file);
 out_exit:

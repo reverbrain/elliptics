@@ -60,7 +60,7 @@ extern void *dnet_check_ext_library;
 int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int check_file, int types);
 
 extern char dnet_check_tmp_dir[128];
-extern FILE *dnet_check_file;
+extern FILE *dnet_check_file, *dnet_check_output;
 extern pthread_mutex_t dnet_check_file_lock;
 
 int dnet_check_read_single(struct dnet_check_worker *worker, unsigned char *id, uint64_t offset, int direct);
