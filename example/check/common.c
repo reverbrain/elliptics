@@ -471,11 +471,15 @@ out_exit:
 	return err;
 }
 
-static int dnet_check_request_ids(struct dnet_check_worker *w, unsigned char *id, char *file)
+static int dnet_check_request_ids(struct dnet_check_worker *w, unsigned char *id, char *file, int types)
 {
 	int err, fd;
 	struct dnet_node *n = w->n;
 	struct dnet_id_request_completion *c;
+	uint32_t flags = DNET_ATTR_ID_OUT;
+
+	if (types)
+		flags = DNET_ATTR_ID_FLAGS;
 
 	fd = open(file, O_RDWR | O_TRUNC | O_CREAT | O_APPEND, 0644);
 	if (fd < 0) {
@@ -496,7 +500,7 @@ static int dnet_check_request_ids(struct dnet_check_worker *w, unsigned char *id
 	c->worker = w;
 
 	w->wait_num = 0;
-	err = dnet_request_ids(n, id, DNET_ATTR_ID_OUT, dnet_check_id_complete, c);
+	err = dnet_request_ids(n, id, flags, dnet_check_id_complete, c);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to request IDs from node: %d.\n", dnet_dump_id(id), err);
 		goto err_out_exit;
@@ -544,7 +548,7 @@ static void dnet_check_log_help(char *p)
 			"  -h                      - this help.\n", p);
 }
 
-int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int request_ids)
+int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int request_ids, int types)
 {
 	int ch, err = 0, i, j, worker_num = 1;
 	struct dnet_check_worker *w, *workers;
@@ -682,7 +686,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 		}
 
 		if (i == 0 && request_ids) {
-			err = dnet_check_request_ids(w, remotes[0].id, file);
+			err = dnet_check_request_ids(w, remotes[0].id, file, types);
 			if (err) {
 				dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to request ID range from node %s: %d.\n",
 						dnet_dump_id_len(remotes[0].id, DNET_ID_SIZE), err);

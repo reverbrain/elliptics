@@ -682,7 +682,7 @@ static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id,
 	for (i=m.num-1; i>=0; --i) {
 		e = &m.ent[i];
 
-		memcpy(&stored_version, &e->id[4], 4);
+		stored_version = dnet_common_get_version(e->id);
 
 		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: stored: %d, version: %d, deleted: %d.\n",
 				dnet_dump_id(e->id), stored_version, version, !!e->flags);
@@ -948,60 +948,6 @@ out_wakeup:
 	return err;
 }
 
-static int dnet_fcgi_send_upload_transactions(struct dnet_node *n, struct dnet_io_control *ctl)
-{
-	int err, num = 0;
-	struct dnet_io_control hctl;
-	struct dnet_history_entry e;
-	uint32_t flags = ctl->io.flags;
-
-	err = dnet_trans_create_send(n, ctl);
-	if (err)
-		goto err_out_exit;
-
-	num++;
-
-	if (!(ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)) {
-		memset(&hctl, 0, sizeof(hctl));
-
-		memcpy(hctl.addr, ctl->io.id, DNET_ID_SIZE);
-		memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
-		memcpy(hctl.io.id, ctl->io.id, DNET_ID_SIZE);
-
-		dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, flags);
-
-		hctl.priv = ctl->priv;
-		hctl.complete = ctl->complete;
-		hctl.cmd = DNET_CMD_WRITE;
-		hctl.aflags = 0;
-		hctl.cflags = DNET_FLAGS_NEED_ACK;
-		hctl.fd = -1;
-		hctl.local_offset = 0;
-		hctl.adata = NULL;
-		hctl.asize = 0;
-
-		hctl.data = &e;
-
-		hctl.io.size = sizeof(struct dnet_history_entry);
-		hctl.io.offset = 0;
-		hctl.io.flags = flags | DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
-
-		err = dnet_trans_create_send(n, &hctl);
-		if (err)
-			goto err_out_exit;
-
-		num++;
-	}
-
-err_out_exit:
-	return num;
-}
-
-static void dnet_fcgi_convert_id_version(unsigned char *id, int version)
-{
-	memcpy(id+4, &version, 4);
-}
-
 static int dnet_fcgi_send_meta_transactions(struct dnet_node *n, char *obj, int len)
 {
 	struct dnet_meta m;
@@ -1041,73 +987,10 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_fcgi_write_object(struct dnet_node *n, char *obj, unsigned int len, void *data, uint64_t size, int version, int pos)
-{
-	struct dnet_io_control ctl;
-	int old_pos = pos, err;
-	unsigned int rsize;
-
-	memset(&ctl, 0, sizeof(struct dnet_io_control));
-
-	ctl.data = data;
-	ctl.fd = -1;
-
-	ctl.complete = dnet_fcgi_upload_complete;
-	ctl.priv = NULL;
-
-	ctl.cflags = DNET_FLAGS_NEED_ACK;
-	ctl.cmd = DNET_CMD_WRITE;
-	ctl.aflags = DNET_ATTR_NO_TRANSACTION_SPLIT;
-
-	/*
-	 * We want to store transaction logs to get modification time.
-	 */
-	//ctl.io.flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
-	ctl.io.flags = 0;
-	ctl.io.size = size;
-	ctl.io.offset = 0;
-
-	pos = old_pos;
-	rsize = DNET_ID_SIZE;
-	err = dnet_transform(n, obj, len, ctl.io.id, ctl.addr, &rsize, &pos);
-	if (err || pos == old_pos)
-		goto out_exit;
-	
-	if (version != -1) {
-		/*
-		 * ctl.addr is used for cmd.id, so the last assignment is correct, since
-		 * we first send transaction with the data and only then history one.
-		 */
-		pos = old_pos;
-		rsize = DNET_ID_SIZE;
-		err = dnet_transform(n, data, size, ctl.io.origin, ctl.addr, &rsize, &pos);
-		if (err || pos == old_pos)
-			goto out_exit;
-
-		dnet_fcgi_convert_id_version(ctl.io.origin, version);
-		dnet_fcgi_convert_id_version(ctl.addr, version);
-
-		ctl.io.flags |= DNET_IO_FLAGS_ID_VERSION | DNET_IO_FLAGS_ID_CONTENT;
-	} else {
-		ctl.aflags |= DNET_ATTR_DIRECT_TRANSACTION;
-		memcpy(ctl.io.origin, ctl.io.id, DNET_ID_SIZE);
-	}
-
-	err = dnet_fcgi_send_upload_transactions(n, &ctl);
-	if (err <= 0)
-		goto out_exit;
-	return err;
-
-out_exit:
-	if (err > 0 || pos == old_pos)
-		return 0;
-	return err;
-}
-
 static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 		void *data, uint64_t size, int version)
 {
-	int trans_num = 0, pos = 0;
+	int trans_num = 0;
 	int err;
 	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
@@ -1118,16 +1001,11 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 	dnet_fcgi_request_error = 0;
 	dnet_fcgi_request_completed = 0;
 
-	while (1) {
-		err = dnet_fcgi_write_object(n, obj, len, data, size, version, pos);
-		if (err <= 0)
-			break;
-
+	err = dnet_common_write_object(n, obj, len, data, size, version, dnet_fcgi_upload_complete, NULL);
+	if (err > 0) {
 		trans_num += err;
-		pos++;
-	}
-	if (trans_num)
 		dnet_fcgi_send_meta_transactions(n, obj, len);
+	}
 
 	fprintf(dnet_fcgi_log, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num, &ts);

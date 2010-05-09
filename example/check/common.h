@@ -37,7 +37,7 @@ struct dnet_check_request
 {
 	unsigned char			id[DNET_ID_SIZE];
 	unsigned char 			addr[DNET_ID_SIZE];
-	unsigned int			type;
+	unsigned int			flags;
 	unsigned int			present;
 	int				pos;
 
@@ -55,7 +55,7 @@ extern int (* dnet_check_ext_merge)(void *priv, char *direct_path, char *storage
 extern void *dnet_check_ext_private;
 extern void *dnet_check_ext_library;
 
-int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int check_file);
+int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int check_file, int types);
 
 extern char dnet_check_tmp_dir[128];
 extern FILE *dnet_check_file;
@@ -80,5 +80,9 @@ int dnet_check_read_single(struct dnet_check_worker *worker, unsigned char *id, 
 	pthread_mutex_unlock(&(worker)->wait_lock);				\
  	______ret;								\
 })
+
+#ifndef __unused
+#define __unused	__attribute__ ((unused))
+#endif
 
 #endif /* __DNET_CHECK_COMMON_H */
