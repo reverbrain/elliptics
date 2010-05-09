@@ -287,5 +287,5 @@ out_continue:
 
 int main(int argc, char *argv[])
 {
-	return dnet_check_start(argc, argv, dnet_merge_process, 1);
+	return dnet_check_start(argc, argv, dnet_merge_process, 1, 0);
 }
