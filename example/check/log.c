@@ -41,11 +41,12 @@
 #define DNET_CHECK_NEWLINE_TOKEN_STRING		"\r\n"
 #define DNET_CHECK_INNER_TOKEN_STRING		","
 
-static int dnet_check_process_hash_string(struct dnet_node *n, char *hash, int add)
+static int dnet_check_process_hash_string(struct dnet_check_worker *w, char *hash, int add)
 {
+	struct dnet_node *n = w->n;
 	char local_hash[128];
 	char *token, *saveptr;
-	int err, added = 0;
+	int err, added = 0, pos = 0;
 
 	snprintf(local_hash, sizeof(local_hash), "%s", hash);
 
@@ -64,8 +65,15 @@ static int dnet_check_process_hash_string(struct dnet_node *n, char *hash, int a
 			err = dnet_check_del_hash(n, token);
 		}
 
+		pos += snprintf(w->hashes + pos, sizeof(w->hashes) - pos, "%s,", token);
+
 		hash = NULL;
 		added++;
+	}
+
+	if (added) {
+		pos--;
+		w->hashes[pos] = '\0';
 	}
 
 	return added;
@@ -161,7 +169,10 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 		}
 
 		w->wait_num = 0;
-		dnet_common_write_object(n, obj, len, data, size, version, dnet_check_upload_complete, w);
+		err = dnet_common_write_object(n, obj, len, data, size, version, dnet_check_upload_complete, w);
+		if (err > 0) {
+			dnet_common_send_meta_transactions(n, obj, len, w->hashes, strlen(w->hashes));
+		}
 
 		err = dnet_check_wait(w, w->wait_num != 0);
 		if (err) {
@@ -368,7 +379,7 @@ static void *dnet_check_process(void *data)
 
 		dnet_cleanup_transform(w->n);
 
-		err = dnet_check_process_hash_string(w->n, hash, 1);
+		err = dnet_check_process_hash_string(w, hash, 1);
 		if (err < 0)
 			continue;
 
@@ -376,7 +387,7 @@ static void *dnet_check_process(void *data)
 
 		err = dnet_check_number_of_copies(w, obj, strlen(obj), hash_num);
 		
-		dnet_check_process_hash_string(w->n, hash, 0);
+		dnet_check_process_hash_string(w, hash, 0);
 	}
 
 	return NULL;
