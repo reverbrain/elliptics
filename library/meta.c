@@ -217,28 +217,69 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_meta_read_object(struct dnet_node *n, char *meta_object, int meta_len, char *metafile)
+int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
 {
-	int err, pos = 0, error = 0, len;
+	int err, len;
 	struct dnet_io_attr io;
-	struct dnet_wait *w;
 	struct dnet_history_map m;
+	struct dnet_wait *w;
 	char tmp[32];
+
+	memset(&io, 0, sizeof(struct dnet_io_attr));
+	memcpy(io.id, id, DNET_ID_SIZE);
+	memcpy(io.origin, id, DNET_ID_SIZE);
+
+	io.flags = DNET_IO_FLAGS_HISTORY;
+
+	len = snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%d", getpid());
 
 	w = dnet_wait_alloc(~0);
 	if (!w) {
-		error = -ENOMEM;
+		err = -ENOMEM;
 		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting.\n");
 		goto err_out_exit;
 	}
 
+	err = dnet_read_file_id(n, tmp, len, 0, 0, &io, w, 1, 1);
+	dnet_log(n, DNET_LOG_INFO, "%s: metadata reading history: %d.\n", dnet_dump_id(io.origin), err);
+	if (err)
+		goto err_out_put;
+
+	snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%d%s", getpid(), DNET_HISTORY_SUFFIX);
+
+	err = dnet_map_history(n, tmp, &m);
+	if (err)
+		goto err_out_unlink;
+
+	io.flags = 0;
+	memcpy(io.id, m.ent[m.num - 1].id, DNET_ID_SIZE);
+	memcpy(io.origin, io.id, DNET_ID_SIZE);
+
+	err = dnet_read_file_id(n, file, strlen(file), 0, 0, &io, w, 0, 1);
+	dnet_log(n, DNET_LOG_INFO, "%s: metadata reading transaction: %d.\n", dnet_dump_id(io.origin), err);
+	if (err)
+		goto err_out_unmap;
+
+err_out_unmap:
+	dnet_unmap_history(n, &m);
+err_out_unlink:
+	unlink(tmp);
+err_out_put:
+	dnet_wait_put(w);
+err_out_exit:
+	return err;
+}
+
+static int dnet_meta_read_object(struct dnet_node *n, char *meta_object, int meta_len, char *metafile)
+{
+	int err, pos = 0, error = 0;
+	unsigned char id[DNET_ID_SIZE];
+	unsigned char addr[DNET_ID_SIZE];
+
 	while (1) {
 		unsigned int rsize = DNET_ID_SIZE;
 
-		memset(&io, 0, sizeof(struct dnet_io_attr));
-		io.flags = DNET_IO_FLAGS_HISTORY;
-
-		err = dnet_transform(n, meta_object, meta_len, io.origin, io.id, &rsize, &pos);
+		err = dnet_transform(n, meta_object, meta_len, id, addr, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				break;
@@ -247,32 +288,7 @@ static int dnet_meta_read_object(struct dnet_node *n, char *meta_object, int met
 			continue;
 		}
 
-		len = snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%d", getpid());
-
-		err = dnet_read_file_id(n, tmp, len, 0, 0, &io, w, 1, 1);
-		dnet_log(n, DNET_LOG_INFO, "%s: metadata reading history: %d.\n", dnet_dump_id(io.origin), err);
-		if (err) {
-			error = err;
-			continue;
-		}
-
-		snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%d%s", getpid(), DNET_HISTORY_SUFFIX);
-
-		err = dnet_map_history(n, tmp, &m);
-		if (err) {
-			error = err;
-			continue;
-		}
-
-		io.flags = 0;
-		memcpy(io.id, m.ent[m.num - 1].id, DNET_ID_SIZE);
-		memcpy(io.origin, io.id, DNET_ID_SIZE);
-
-		dnet_unmap_history(n, &m);
-		unlink(tmp);
-
-		err = dnet_read_file_id(n, metafile, strlen(metafile), 0, 0, &io, w, 0, 1);
-		dnet_log(n, DNET_LOG_INFO, "%s: metadata reading transaction: %d.\n", dnet_dump_id(io.origin), err);
+		err = dnet_meta_read_object_id(n, id, metafile);
 		if (err) {
 			error = err;
 			continue;
@@ -282,8 +298,6 @@ static int dnet_meta_read_object(struct dnet_node *n, char *meta_object, int met
 		break;
 	}
 
-	dnet_wait_put(w);
-err_out_exit:
 	return error;
 }
 
@@ -333,7 +347,8 @@ int dnet_meta_write(struct dnet_node *n, struct dnet_meta *m, void *mdata,
 	if (err)
 		goto err_out_unlink;
 
-	err = dnet_write_file_local_offset(n, metafile, meta_object, sizeof(meta_object), NULL, 0, 0, 0, 0, DNET_IO_FLAGS_META);
+	err = dnet_write_file_local_offset(n, metafile, meta_object, sizeof(meta_object),
+			NULL, 0, 0, 0, 0, DNET_IO_FLAGS_META | DNET_IO_FLAGS_ID_CONTENT);
 
 err_out_unlink:
 	if (meta_unlink)

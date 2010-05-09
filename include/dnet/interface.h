@@ -789,6 +789,7 @@ struct dnet_meta *dnet_meta_replace(struct dnet_node *n, void *data, uint32_t *s
 int dnet_meta_write(struct dnet_node *n, struct dnet_meta *m, void *mdata,
 		char *obj, int len, char *metafile);
 int dnet_meta_read(struct dnet_node *n, char *obj, int len, char *metafile);
+int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file);
 
 /*
  * Add metadata into meta object located in metafile.
