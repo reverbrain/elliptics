@@ -61,7 +61,7 @@ static void *dnet_clog_process(void *thread_data)
 
 		dnet_log_raw(n, DNET_LOG_INFO, "clog: %s, flags: %x\n", dnet_dump_id_len_raw(id.id, DNET_ID_SIZE, id_str), id.flags);
 
-		if (!(id.flags & DNET_ID_FLAGS_META))
+		if (!(id.flags & DNET_IO_FLAGS_META))
 			continue;
 
 		err = dnet_meta_read_object_id(n, id.id, file);
@@ -109,7 +109,10 @@ static void *dnet_clog_process(void *thread_data)
 		
 		transform = (char *)tmp->data;
 
-		printf("%s: parent: '%s', hashes: '%s'.\n", id_str, parent, transform);
+		if (dnet_check_output)
+			fprintf(dnet_check_output, "%s %s\n", transform, parent);
+
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: parent: '%s', hashes: '%s'.\n", id_str, parent, transform);
 
 out_unmap:
 		munmap(data, st.st_size);
