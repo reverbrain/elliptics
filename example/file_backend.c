@@ -223,9 +223,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 		len = strlen(d->d_name);
 
 		flags = 0;
-		if (!strcmp(&d->d_name[DNET_ID_SIZE*2], DNET_HISTORY_SUFFIX))
-			flags = DNET_ID_FLAGS_HISTORY;
-		else
+		if (strcmp(&d->d_name[DNET_ID_SIZE*2], DNET_HISTORY_SUFFIX))
 			continue;
 
 		dnet_convert_name_to_id(d->d_name, id);

@@ -363,9 +363,6 @@ static inline void dnet_convert_io_notification(struct dnet_io_notification *n)
 	dnet_convert_io_attr(&n->io);
 }
 
-#define DNET_ID_FLAGS_HISTORY		(1<<0)
-#define DNET_ID_FLAGS_META		(1<<1)
-
 struct dnet_id
 {
 	uint32_t			flags;

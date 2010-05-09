@@ -292,7 +292,7 @@ static int tc_list_raw(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	int err = 0, num, size, i;
 	int out = attr->flags & DNET_ATTR_ID_OUT;
 	TCADB *e = be->hist;
-	uint32_t flags = DNET_ID_FLAGS_HISTORY;
+	uint32_t flags;
 	unsigned char id[DNET_ID_SIZE], start, last;
 	TCLIST *l;
 	int inum = 10240, ipos = 0, wrap = 0;
@@ -338,6 +338,7 @@ static int tc_list_raw(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 				ipos = 0;
 			}
 
+			flags = 0;
 			if (attr->flags & DNET_ATTR_ID_FLAGS) {
 				err = tc_get_flags(state, be, idx, &flags);
 				if (err)
