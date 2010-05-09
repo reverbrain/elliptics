@@ -953,6 +953,7 @@ static int dnet_fcgi_send_upload_transactions(struct dnet_node *n, struct dnet_i
 	int err, num = 0;
 	struct dnet_io_control hctl;
 	struct dnet_history_entry e;
+	uint32_t flags = ctl->io.flags;
 
 	err = dnet_trans_create_send(n, ctl);
 	if (err)
@@ -967,7 +968,7 @@ static int dnet_fcgi_send_upload_transactions(struct dnet_node *n, struct dnet_i
 		memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
 		memcpy(hctl.io.id, ctl->io.id, DNET_ID_SIZE);
 
-		dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, 0);
+		dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, flags);
 
 		hctl.priv = ctl->priv;
 		hctl.complete = ctl->complete;
@@ -983,7 +984,7 @@ static int dnet_fcgi_send_upload_transactions(struct dnet_node *n, struct dnet_i
 
 		hctl.io.size = sizeof(struct dnet_history_entry);
 		hctl.io.offset = 0;
-		hctl.io.flags = DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
+		hctl.io.flags = flags | DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
 
 		err = dnet_trans_create_send(n, &hctl);
 		if (err)
@@ -1085,6 +1086,8 @@ static int dnet_fcgi_write_object(struct dnet_node *n, char *obj, unsigned int l
 
 		dnet_fcgi_convert_id_version(ctl.io.origin, version);
 		dnet_fcgi_convert_id_version(ctl.addr, version);
+
+		ctl.io.flags |= DNET_IO_FLAGS_ID_VERSION | DNET_IO_FLAGS_ID_CONTENT;
 	} else {
 		ctl.aflags |= DNET_ATTR_DIRECT_TRANSACTION;
 		memcpy(ctl.io.origin, ctl.io.id, DNET_ID_SIZE);
@@ -1101,7 +1104,8 @@ out_exit:
 	return err;
 }
 
-static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len, void *data, uint64_t size, int version)
+static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
+		void *data, uint64_t size, int version)
 {
 	int trans_num = 0, pos = 0;
 	int err;

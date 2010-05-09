@@ -1094,7 +1094,7 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	unsigned char addr[DNET_ID_SIZE];
 	struct dnet_io_control hctl;
 	struct dnet_history_entry e;
-	uint32_t flags = 0;
+	uint32_t flags = ctl->io.flags;
 
 	if (!(ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)) {
 		rsize = DNET_ID_SIZE;
@@ -1134,6 +1134,13 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 		memcpy(ctl->addr, ctl->io.id, DNET_ID_SIZE);
 	}
 
+	/*
+	 * This is weird, but we do not put META flag on history objects
+	 * created for data transaction. META flag will be added into metadata
+	 * object history log, but not into appropriate data tranactions.
+	 */
+	ctl->io.flags &= ~DNET_IO_FLAGS_META;
+
 	err = dnet_trans_create_send(n, ctl);
 	if (err)
 		goto err_out_exit;
@@ -1150,9 +1157,8 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
 	memcpy(hctl.io.id, addr, DNET_ID_SIZE);
 
-	if (ctl->io.flags & DNET_IO_FLAGS_META)
-		flags |= DNET_HISTORY_FLAGS_META;
-	dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, flags);
+	dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size,
+			ctl->io.offset, flags);
 
 	hctl.priv = ctl->priv;
 	hctl.complete = ctl->complete;
@@ -1168,7 +1174,7 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 
 	hctl.io.size = sizeof(struct dnet_history_entry);
 	hctl.io.offset = 0;
-	hctl.io.flags = DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
+	hctl.io.flags = flags | DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
 
 	err = dnet_trans_create_send(n, &hctl);
 	if (err)
