@@ -26,4 +26,23 @@ int dnet_parse_numeric_id(char *value, unsigned char *id);
 
 void dnet_common_log(void *priv, uint32_t mask, const char *msg);
 
+static inline void dnet_common_convert_id_version(unsigned char *id, int version)
+{
+	memcpy(id+4, &version, 4);
+}
+
+static inline int dnet_common_get_version(unsigned char *id)
+{
+	int version;
+
+	memcpy(&version, &id[4], 4);
+
+	return version;
+}
+
+int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
+		void *data, uint64_t size, int version,
+		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
+		void *priv);
+
 #endif /* __COMMON_H */
