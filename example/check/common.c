@@ -638,7 +638,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 	}
 
 	if (output_file) {
-		dnet_check_output = fopen(output_file, "w+");
+		dnet_check_output = fopen(output_file, "a+");
 		if (!dnet_check_output) {
 			err = -errno;
 			fprintf(stderr, "Failed to open output file '%s': %s.\n", output_file, strerror(errno));
