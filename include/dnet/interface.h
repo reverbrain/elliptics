@@ -705,7 +705,7 @@ int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *ctl);
 int dnet_state_get_prev_id(struct dnet_node *n, unsigned char *id, unsigned char *res, int num);
 
 /*
- * Remove tranasction with @id from the object identified by @origin.
+ * Mark tranasction with @id in the object identified by @origin to be removed.
  * If callback is provided, it will be invoked on completion, otherwise
  * function will block until server returns an acknowledge.
  */
@@ -717,6 +717,9 @@ int dnet_remove_object(struct dnet_node *n,
 			void *priv),
 	void *priv,
 	int direct);
+
+/* Remove object with @id from the storage immediately */
+int dnet_remove_object_now(struct dnet_node *n, unsigned char *id, int direct);
 
 /*
  * Remove given file (identified by name or ID) from the storage.

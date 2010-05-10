@@ -3068,6 +3068,46 @@ err_out_exit:
 	return err;
 }
 
+int dnet_remove_object_now(struct dnet_node *n, unsigned char *id, int direct)
+{
+	struct dnet_wait *w = NULL;
+	struct dnet_trans_control ctl;
+	int err;
+
+	w = dnet_wait_alloc(0);
+	if (!w) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	dnet_wait_get(w);
+
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+
+	memcpy(ctl.id, id, DNET_ID_SIZE);
+	ctl.cmd = DNET_CMD_DEL;
+	ctl.complete = dnet_remove_complete;
+	ctl.priv = w;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.aflags = 0;
+
+	if (direct)
+		ctl.cflags |= DNET_FLAGS_DIRECT;
+
+	err = dnet_trans_alloc_send(n, &ctl);
+	if (err)
+		goto err_out_put;
+
+	err = dnet_wait_event(w, w->cond != 0, &n->wait_ts);
+	if (err)
+		goto err_out_put;
+
+err_out_put:
+	dnet_wait_put(w);
+err_out_exit:
+	return err;
+}
+
 static int dnet_remove_file_raw(struct dnet_node *n, char *file, unsigned char *id)
 {
 	struct dnet_wait *w;
