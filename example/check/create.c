@@ -109,8 +109,11 @@ static void *dnet_clog_process(void *thread_data)
 		
 		transform = (char *)tmp->data;
 
-		if (dnet_check_output)
+		if (dnet_check_output) {
+			pthread_mutex_lock(&dnet_check_file_lock);
 			fprintf(dnet_check_output, "%s %s\n", transform, parent);
+			pthread_mutex_unlock(&dnet_check_file_lock);
+		}
 
 		dnet_log_raw(n, DNET_LOG_INFO, "%s: parent: '%s', hashes: '%s'.\n", id_str, parent, transform);
 
