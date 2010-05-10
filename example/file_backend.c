@@ -52,14 +52,15 @@ static inline void file_backend_setup_file(struct file_backend_root *r, char *fi
 		unsigned int size, struct dnet_io_attr *io)
 {
 	char dir[2*DNET_ID_SIZE+1];
+	char id[2*DNET_ID_SIZE+1];
 
 	file_backend_get_dir(io->origin, r->bit_num, dir);
 	if (io->flags & DNET_IO_FLAGS_HISTORY)
 		snprintf(file, size, "%s/%s%s",
-			dir, dnet_dump_id_len(io->origin, DNET_ID_SIZE), DNET_HISTORY_SUFFIX);
+			dir, dnet_dump_id_len_raw(io->origin, DNET_ID_SIZE, id), DNET_HISTORY_SUFFIX);
 	else
 		snprintf(file, size, "%s/%s",
-			dir, dnet_dump_id_len(io->origin, DNET_ID_SIZE));
+			dir, dnet_dump_id_len_raw(io->origin, DNET_ID_SIZE), id);
 }
 
 void *file_backend_setup_root(char *root, int sync, unsigned int bits)
@@ -373,10 +374,11 @@ static int dnet_update_history(struct file_backend_root *r, void *state,
 	int fd, err;
 	struct dnet_history_entry e;
 	char dir[2*DNET_ID_SIZE+1];
+	char id[2*DNET_ID_SIZE+1];
 
 	file_backend_get_dir(io->origin, r->bit_num, dir);
 	snprintf(history, sizeof(history), "%s/%s%s%s", dir,
-			dnet_dump_id_len(io->origin, DNET_ID_SIZE),
+			dnet_dump_id_len_raw(io->origin, DNET_ID_SIZE, id),
 			DNET_HISTORY_SUFFIX, (tmp)?".tmp":"");
 
 	fd = open(history, O_RDWR | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
@@ -641,6 +643,7 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 	int err = -EINVAL;
 	char file[DNET_ID_SIZE * 2 + 8 + sizeof(DNET_HISTORY_SUFFIX)];
 	char dir[2*DNET_ID_SIZE+1];
+	char id[2*DNET_ID_SIZE+1];
 
 	if (!attr || !data)
 		goto err_out_exit;
@@ -648,11 +651,11 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 	file_backend_get_dir(cmd->id, r->bit_num, dir);
 
 	snprintf(file, sizeof(file), "%s/%s",
-		dir, dnet_dump_id_len(cmd->id, DNET_ID_SIZE));
+		dir, dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id));
 	remove(file);
 
 	snprintf(file, sizeof(file), "%s/%s%s",
-		dir, dnet_dump_id_len(cmd->id, DNET_ID_SIZE), DNET_HISTORY_SUFFIX);
+		dir, dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id), DNET_HISTORY_SUFFIX);
 	remove(file);
 	return 0;
 

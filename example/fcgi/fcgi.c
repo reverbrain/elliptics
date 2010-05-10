@@ -574,7 +574,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			long timestamp = time(NULL);
 			char hex_dir[2*DNET_ID_SIZE+1];
 
-			snprintf(id, sizeof(id), "%s", dnet_dump_id_len(dnet_fcgi_id, DNET_ID_SIZE));
+			dnet_dump_id_len_raw(dnet_fcgi_id, DNET_ID_SIZE, id);
 			file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_num, hex_dir);
 
 			if (dnet_fcgi_dns_lookup) {
@@ -666,12 +666,13 @@ static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id,
 		uint64_t *tsec, int version, int unlink_upload)
 {
 	char file[32 + 5 + 1 + 2*DNET_ID_SIZE + sizeof(DNET_HISTORY_SUFFIX)]; /* 32 is for pid length */
+	char id_str[2*DNET_ID_SIZE+1];
 	struct dnet_history_map m;
 	struct dnet_history_entry *e;
 	int err, stored_version;
 	long i;
 
-	snprintf(file, sizeof(file), "/tmp/%s-%d", dnet_dump_id_len(id, DNET_ID_SIZE), getpid());
+	snprintf(file, sizeof(file), "/tmp/%s-%d", dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str), getpid());
 
 	err = dnet_read_file(n, file, file, strlen(file), id, 0, 0, 1);
 	if (err < 0)
