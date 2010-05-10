@@ -26,16 +26,19 @@ int dnet_parse_numeric_id(char *value, unsigned char *id);
 
 void dnet_common_log(void *priv, uint32_t mask, const char *msg);
 
+#define DNET_VERSION_SIZE		4
+#define DNET_VERSION_OFFSET		(DNET_ID_SIZE - DNET_VERSION_SIZE)
+
 static inline void dnet_common_convert_id_version(unsigned char *id, int version)
 {
-	memcpy(id+4, &version, 4);
+	memcpy(id + DNET_VERSION_OFFSET, &version, DNET_VERSION_SIZE);
 }
 
 static inline int dnet_common_get_version(unsigned char *id)
 {
 	int version;
 
-	memcpy(&version, &id[4], 4);
+	memcpy(&version, &id[DNET_VERSION_OFFSET], DNET_VERSION_SIZE);
 
 	return version;
 }
