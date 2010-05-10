@@ -274,7 +274,7 @@ static void *dnet_merge_process(void *data)
 		if (err)
 			goto out_continue;
 
-		dnet_remove_object(n, id.id, id.id, NULL, NULL, 1);
+		dnet_remove_object_now(n, id.id, 1);
 out_continue:
 		continue;
 	}
