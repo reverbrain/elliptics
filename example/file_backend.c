@@ -60,7 +60,7 @@ static inline void file_backend_setup_file(struct file_backend_root *r, char *fi
 			dir, dnet_dump_id_len_raw(io->origin, DNET_ID_SIZE, id), DNET_HISTORY_SUFFIX);
 	else
 		snprintf(file, size, "%s/%s",
-			dir, dnet_dump_id_len_raw(io->origin, DNET_ID_SIZE), id);
+			dir, dnet_dump_id_len_raw(io->origin, DNET_ID_SIZE, id));
 }
 
 void *file_backend_setup_root(char *root, int sync, unsigned int bits)
