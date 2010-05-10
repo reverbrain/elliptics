@@ -1,3 +1,11 @@
+elliptics (2.7.4.1) unstable; urgency=low
+
+  * history parser extension.
+  * ID conversion fixes.
+  * move version information to ID end
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 10 May 2010 18:40:16 +0400
+
 elliptics (2.7.4) unstable; urgency=low
 
   * Added automatic recovery support.
