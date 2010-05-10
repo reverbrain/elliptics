@@ -1,3 +1,10 @@
+elliptics (2.7.4) unstable; urgency=low
+
+  * Added automatic recovery support.
+  * Fair number of changes.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 10 May 2010 05:03:39 +0400
+
 elliptics (2.7.3.4) unstable; urgency=low
 
   * Added if-modified-since header processing.
