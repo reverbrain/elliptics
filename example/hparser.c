@@ -33,6 +33,8 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
+#include "common.h"
+
 static int hparser_region_match(struct dnet_history_entry *e,
 		unsigned long long offset, unsigned long long size)
 {
@@ -130,6 +132,7 @@ int main(int argc, char *argv[])
 	for (i=num-1; i>=0; --i) {
 		struct dnet_history_entry e = entries[i];
 		time_t t;
+		int version = -1;
 
 		dnet_convert_history_entry(&e);
 
@@ -137,9 +140,15 @@ int main(int argc, char *argv[])
 		localtime_r(&t, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		printf("%s.%09llu: %s: flags: %08x, offset: %8llu, size: %8llu: %c\n",
+		if (e.flags & DNET_IO_FLAGS_ID_VERSION)
+			version = dnet_common_get_version(e.id);
+
+		printf("%s.%09llu: %s: flags: %08x [M: %d, C: %d, V: %d, version: %d], offset: %8llu, size: %8llu: %c\n",
 			str, (unsigned long long)e.tnsec,
-			dnet_dump_id(e.id), e.flags,
+			dnet_dump_id_len(e.id, DNET_ID_SIZE), e.flags,
+			!!(e.flags & DNET_IO_FLAGS_META),
+			!!(e.flags & DNET_IO_FLAGS_ID_CONTENT),
+			!!(e.flags & DNET_IO_FLAGS_ID_VERSION), version,
 			(unsigned long long)e.offset, (unsigned long long)e.size,
 			hparser_region_match(&e, offset, size) ? '+' : '-');
 	}
