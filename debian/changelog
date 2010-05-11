@@ -1,3 +1,11 @@
+elliptics (2.7.5) unstable; urgency=low
+
+  * Make simple stat request to check only number of connected nodes without
+    check them.
+  * Added check applications README.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 11 May 2010 20:15:50 +0400
+
 elliptics (2.7.4.2) unstable; urgency=low
 
   * Drop DNET_HISTORY_FLAGS and use DNET_IO_FLAGS instead.
