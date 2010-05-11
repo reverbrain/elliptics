@@ -120,6 +120,7 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 	void *data;
 	long i;
 	char eid[DNET_ID_SIZE*2 + 1];
+	struct timespec ts;
 
 	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
 		dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid), DNET_HISTORY_SUFFIX);
@@ -136,6 +137,9 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 		io.size = 0;
 		io.offset = 0;
 		io.flags = e->flags;
+
+		ts.tv_sec = e->tsec;
+		ts.tv_nsec = e->tnsec;
 
 		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir,
 			dnet_dump_id_len_raw(e->id, DNET_ID_SIZE, eid));
@@ -169,7 +173,7 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 		}
 
 		w->wait_num = 0;
-		err = dnet_common_write_object(n, obj, len, data, size, version, dnet_check_upload_complete, w);
+		err = dnet_common_write_object(n, obj, len, data, size, version, &ts, dnet_check_upload_complete, w);
 		if (err > 0) {
 			dnet_common_send_meta_transactions(n, obj, len, w->hashes, strlen(w->hashes));
 		}
