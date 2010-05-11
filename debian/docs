@@ -3,3 +3,4 @@ README
 doc/design_notes.txt
 doc/io_storage_backend.txt
 example/fcgi/lighttpd-fastcgi-dnet.conf
+example/check/README.check

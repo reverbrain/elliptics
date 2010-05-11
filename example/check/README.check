@@ -1,0 +1,70 @@
+This directory contains recovery tools.
+
+dnet_check_merge
+Util for history merges - it connects to the first specified in command line node and request
+its IDs which are beyond the range given node currently maintains. I.e. it will receive IDs which
+are stored on this node and are less than node's ID and more than ID of the next node in the routing table.
+
+Merge util will also read objects with those IDs from the storage. If there is a history log for given ID
+in storage, it will me merged with the log downloaded from the node above. By default merge is based on
+transaction timestamps, but one can use external library to provide init/merge/cleanup callbacks.
+
+Merged history is then uploaded into the storage and removed from the specified node, where it lived
+outside of the maintained range and thus was not accessible via elliptics API.
+
+
+dnet_check_log
+This application uses log file which specifies names and transformation functions to check whether requested
+number of copies of the object are present in the storage. Log file format is simple:
+t1,...,tN object.name
+
+where t1, ..., tN are comma-separated transformation function names (example applications are linked with
+OpenSSL as well as provide Jenkins hash) like sha1,md5,dc1_sha256 (more about virtual datacenters and dcN
+prefix one can find at http://www.ioremap.net/node/393 )
+
+object.name is name of the object to be checked in the storage.
+
+With above example application will check whether sha1(object.name), md5(object.name) and dc1_sha256(object.name)
+IDs are present in the storage. If some IDs are missing, it will download present one and upload it into the
+storage with all data transactions and appropriate history logs thus recoverying requested number of copies.
+
+
+dnet_check_create
+This application creates above log by asking specified in command line node to return all its metadata.
+Application downloads history logs for metadata objects stored on given node, selects the last transaction
+and gets appropriate metadata from the storage. If some object was uploaded without appropriate metadata
+(namely transformation functions and object name), there is no way to automatically create log entry to be
+checked. One can write it manually of course.
+
+Currently metadata upload is exported in API and is used by HTTP fcgi frontend.
+
+
+Command line parameters.
+They are the same for all appliacations, but its usage can be slightly different and described in details if needed.
+
+  -n num                  - number of worker threads.
+           Application can perform its tasks in parallel, all IO is guarded by appropriate locks.
+	   Since they use blocking methods, it is likely a good idea to use more threads.
+
+  -m num                  - log mask.
+  -l log                  - output log file.
+ 
+  -f file                 - input file with log information about objects to be checked.
+           This file contains input information in various formats for appropriate applicatins.
+	   For example dnet_check_log uses plain text format described above, while others
+	   use this file as temporal place to download and store IDs in binary format.
+
+  -F file                 - output file, when used.
+           It is used only by dnet_check_create, it will contain resulted log, which can be used
+	   by dnet_check_log. File is opened in append mode and is created if did not exist.
+
+  -r addr:port:family     - remote node to connect to.
+
+  -t dir                  - directory to store temporal object.
+
+  -e library              - external library which should export merge callbacks.
+  -E string               - some obscure string used by external library's intialization code.
+            For details on how this interface can be used developer can check dnet_check_merge sources.
+
+  -h                      - this help.
+
