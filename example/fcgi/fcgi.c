@@ -35,6 +35,7 @@
 #define DNET_FCGI_ID_PATTERN		"id="
 #define DNET_FCGI_ID_DELIMITER		"&"
 #define DNET_FCGI_VERSION_PATTERN	"version="
+#define DNET_FCGI_TIMESTAMP_PATTERN	"timestamp="
 #define DNET_FCGI_LOG			"/tmp/dnet_fcgi.log"
 #define DNET_FCGI_LOCAL_ADDR		"0.0.0.0:1025:2"
 #define DNET_FCGI_SUCCESS_STATUS_PATTERN	"Status: 301"
@@ -955,11 +956,11 @@ out_wakeup:
 }
 
 static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
-		void *data, uint64_t size, int version)
+		void *data, uint64_t size, int version, struct timespec *ts)
 {
 	int trans_num = 0;
 	int err;
-	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
+	struct timespec wait = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	dnet_fcgi_output("Content-type: application/xml\r\n\r\n");
 	dnet_fcgi_output("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
@@ -968,7 +969,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 	dnet_fcgi_request_error = 0;
 	dnet_fcgi_request_completed = 0;
 
-	err = dnet_common_write_object(n, obj, len, data, size, version, dnet_fcgi_upload_complete, NULL);
+	err = dnet_common_write_object(n, obj, len, data, size, version, ts, dnet_fcgi_upload_complete, NULL);
 	if (err > 0) {
 		char meta_obj[len + 1];
 
@@ -980,7 +981,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 	}
 
 	fprintf(dnet_fcgi_log, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
-	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num, &ts);
+	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num, &wait);
 	dnet_fcgi_output("</post>\r\n");
 
 	if (!err && dnet_fcgi_request_error > dnet_fcgi_tolerate_upload_error_count)
@@ -993,7 +994,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 	return err;
 }
 
-static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int length, int version)
+static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int length, int version, struct timespec *ts)
 {
 	void *data;
 	unsigned long data_size, size;
@@ -1049,7 +1050,7 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 		size -= err;
 	}
 
-	err = dnet_fcgi_upload(n, id, length, data, data_size, version);
+	err = dnet_fcgi_upload(n, id, length, data, data_size, version, ts);
 	if (err)
 		goto err_out_free;
 
@@ -1684,8 +1685,8 @@ static void dnet_fcgi_destroy_permanent_headers()
 int main()
 {
 	char *p, *addr, *reason, *method, *query;
-	char *id_pattern, *id_delimiter, *direct_patterns = NULL, *version_pattern, *version_str;
-	int length, id_pattern_length, err, post_allowed, version_pattern_len;
+	char *id_pattern, *id_delimiter, *direct_patterns = NULL, *version_pattern, *version_str, *timestamp_pattern;
+	int length, id_pattern_length, err, post_allowed, version_pattern_len, timestamp_pattern_len;
 	int version;
 	char *id, *end;
 	struct dnet_config cfg;
@@ -1845,6 +1846,7 @@ int main()
 	id_pattern = getenv("DNET_FCGI_ID_PATTERN");
 	id_delimiter = getenv("DNET_FCGI_ID_DELIMITER");
 	version_pattern = getenv("DNET_FCGI_VERSION_PATTERN");
+	timestamp_pattern = getenv("DNET_FCGI_TIMESTAMP_PATTERN");
 
 	if (!id_pattern)
 		id_pattern = DNET_FCGI_ID_PATTERN;
@@ -1853,6 +1855,10 @@ int main()
 	if (!version_pattern)
 		version_pattern = DNET_FCGI_VERSION_PATTERN;
 	version_pattern_len = strlen(version_pattern);
+
+	if (!timestamp_pattern)
+		timestamp_pattern = DNET_FCGI_TIMESTAMP_PATTERN;
+	timestamp_pattern_len = strlen(timestamp_pattern);
 
 	id_pattern_length = strlen(id_pattern);
 
@@ -1946,6 +1952,9 @@ int main()
 		dnet_fcgi_output_permanent_headers();
 
 		if (!strncmp(method, "POST", 4)) {
+			struct timespec ts, *ts_ptr = NULL;
+			char *ts_str;
+
 			if (!post_allowed) {
 				err = -EACCES;
 				fprintf(dnet_fcgi_log, "%s: POST is not allowed for object '%s'.\n", addr, id);
@@ -1953,7 +1962,17 @@ int main()
 				goto err_continue;
 			}
 
-			err = dnet_fcgi_handle_post(n, addr, id, length, version);
+			ts_str = strstr(query, timestamp_pattern);
+			if (ts_str) {
+				ts_str += timestamp_pattern_len;
+				if (*ts_str) {
+					ts.tv_sec = strtoul(ts_str, NULL, 0);
+					ts.tv_nsec = 0;
+					ts_ptr = &ts;
+				}
+			}
+
+			err = dnet_fcgi_handle_post(n, addr, id, length, version, ts_ptr);
 			if (err) {
 				fprintf(dnet_fcgi_log, "%s: Failed to handle POST for object '%s': %d.\n", addr, id, err);
 				reason = "failed to handle POST";
