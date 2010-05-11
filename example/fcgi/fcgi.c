@@ -433,6 +433,8 @@ static int dnet_fcgi_generate_sign(long timestamp)
 	if (cookie) {
 		char *val, *end;
 
+		fprintf(dnet_fcgi_log, "Found cookie: '%s'.\n", cookie);
+
 		val = strstr(cookie, dnet_fcgi_cookie_delimiter);
 
 		if (!val || ((signed)strlen(cookie) <= dnet_fcgi_cookie_delimiter_len)) {
@@ -507,7 +509,7 @@ static int dnet_fcgi_generate_sign(long timestamp)
 
 	dnet_fcgi_data_to_hex(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), (unsigned char *)dnet_fcgi_sign_data, rsize);
 
-	fprintf(dnet_fcgi_log, "Sign generation: '%s%lx%s' [%d bytes] -> '%s'\n",
+	fprintf(dnet_fcgi_log, "Sign generation: '%s %lx %s' [%d bytes] -> '%s'\n",
 			dnet_fcgi_sign_key, timestamp, cookie_res, len, dnet_fcgi_sign_tmp);
 
 err_out_exit:
@@ -634,6 +636,19 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			if (dnet_fcgi_sign_key)
 				dnet_fcgi_output("<s>%s</s>", dnet_fcgi_sign_tmp);
 			dnet_fcgi_output("</download-info>\r\n");
+
+			fprintf(dnet_fcgi_log, "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>",
+					addr,
+					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
+					hex_dir,
+					id,
+					timestamp);
+
+			if (dnet_fcgi_sign_key)
+				fprintf(dnet_fcgi_log, "<s>%s</s>", dnet_fcgi_sign_tmp);
+			fprintf(dnet_fcgi_log, "</download-info>\n");
+
 
 			err = 0;
 		}
