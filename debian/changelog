@@ -1,3 +1,10 @@
+elliptics (2.7.4.2) unstable; urgency=low
+
+  * Drop DNET_HISTORY_FLAGS and use DNET_IO_FLAGS instead.
+  * Extend hparser to show 'removed' flag.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 11 May 2010 17:49:44 +0400
+
 elliptics (2.7.4.1) unstable; urgency=low
 
   * history parser extension.
