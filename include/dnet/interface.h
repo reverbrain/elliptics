@@ -136,6 +136,9 @@ struct dnet_io_control
 	 * Command flags (DNET_FLAGS_*)
 	 */
 	unsigned int			cflags;
+
+	/* Data transaction timestamp */
+	struct timespec			ts;
 };
 
 /*
