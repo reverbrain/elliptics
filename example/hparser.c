@@ -143,12 +143,13 @@ int main(int argc, char *argv[])
 		if (e.flags & DNET_IO_FLAGS_ID_VERSION)
 			version = dnet_common_get_version(e.id);
 
-		printf("%s.%09llu: %s: flags: %08x [M: %d, C: %d, V: %d, version: %d], offset: %8llu, size: %8llu: %c\n",
+		printf("%s.%09llu: %s: flags: %08x [M: %d, C: %d, V: %d, version: %d, R: %d], offset: %8llu, size: %8llu: %c\n",
 			str, (unsigned long long)e.tnsec,
 			dnet_dump_id_len(e.id, DNET_ID_SIZE), e.flags,
 			!!(e.flags & DNET_IO_FLAGS_META),
 			!!(e.flags & DNET_IO_FLAGS_ID_CONTENT),
 			!!(e.flags & DNET_IO_FLAGS_ID_VERSION), version,
+			!!(e.flags & DNET_IO_FLAGS_REMOVED),
 			(unsigned long long)e.offset, (unsigned long long)e.size,
 			hparser_region_match(&e, offset, size) ? '+' : '-');
 	}
