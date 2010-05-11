@@ -268,14 +268,20 @@ static inline void dnet_convert_history_entry(struct dnet_history_entry *a)
 }
 
 static inline void dnet_setup_history_entry(struct dnet_history_entry *e,
-		unsigned char *id, uint64_t size, uint64_t offset, uint32_t flags)
+		unsigned char *id, uint64_t size, uint64_t offset,
+		struct timespec *ts, uint32_t flags)
 {
-	struct timeval tv;
+	if (!ts) {
+		struct timeval tv;
 
-	gettimeofday(&tv, NULL);
+		gettimeofday(&tv, NULL);
 
-	e->tsec = tv.tv_sec;
-	e->tnsec = tv.tv_usec * 1000;
+		e->tsec = tv.tv_sec;
+		e->tnsec = tv.tv_usec * 1000;
+	} else {
+		e->tsec = ts->tv_sec;
+		e->tnsec = ts->tv_nsec;
+	}
 
 	memcpy(e->id, id, DNET_ID_SIZE);
 

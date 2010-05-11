@@ -1157,8 +1157,7 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
 	memcpy(hctl.io.id, addr, DNET_ID_SIZE);
 
-	dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size,
-			ctl->io.offset, flags);
+	dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, NULL, flags);
 
 	hctl.priv = ctl->priv;
 	hctl.complete = ctl->complete;
@@ -2973,7 +2972,7 @@ static int dnet_remove_object_raw(struct dnet_node *n,
 
 	dnet_convert_io_attr(io);
 
-	dnet_setup_history_entry(e, id, 0, 0, DNET_IO_FLAGS_REMOVED);
+	dnet_setup_history_entry(e, id, 0, 0, NULL, DNET_IO_FLAGS_REMOVED);
 
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.complete = complete;

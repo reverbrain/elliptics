@@ -234,7 +234,7 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 			!(io->flags & DNET_IO_FLAGS_HISTORY)) {
 		e = &n;
 
-		dnet_setup_history_entry(e, io->id, io->size, io->offset, io->flags);
+		dnet_setup_history_entry(e, io->id, io->size, io->offset, NULL, io->flags);
 
 		res = tcadbputcat(be->hist, io->origin, DNET_ID_SIZE,
 				e, sizeof(struct dnet_history_entry));

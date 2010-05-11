@@ -44,7 +44,7 @@ static inline int dnet_common_get_version(unsigned char *id)
 }
 
 int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
-		void *data, uint64_t size, int version,
+		void *data, uint64_t size, int version, struct timespec *ts,
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 		void *priv);
 

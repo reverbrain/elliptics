@@ -144,7 +144,10 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 		memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
 		memcpy(hctl.io.id, ctl->io.id, DNET_ID_SIZE);
 
-		dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, flags);
+		if (ctl->ts.tv_sec)
+			dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, &ctl->ts, flags);
+		else
+			dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, NULL, flags);
 
 		hctl.priv = ctl->priv;
 		hctl.complete = ctl->complete;
@@ -174,7 +177,7 @@ err_out_exit:
 }
 
 static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned int len,
-		void *data, uint64_t size, int version, int pos,
+		void *data, uint64_t size, int version, int pos, struct timespec *ts,
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 		void *priv)
 {
@@ -201,6 +204,9 @@ static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned
 	ctl.io.flags = 0;
 	ctl.io.size = size;
 	ctl.io.offset = 0;
+
+	if (ts)
+		ctl.ts = *ts;
 
 	pos = old_pos;
 	rsize = DNET_ID_SIZE;
@@ -240,7 +246,7 @@ out_exit:
 }
 
 int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
-		void *data, uint64_t size, int version,
+		void *data, uint64_t size, int version, struct timespec *ts, 
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 		void *priv)
 {
@@ -248,7 +254,7 @@ int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
 	int pos = 0, trans_num = 0;
 
 	while (1) {
-		err = dnet_common_write_object_raw(n, obj, len, data, size, version, pos, complete, priv);
+		err = dnet_common_write_object_raw(n, obj, len, data, size, version, pos, ts, complete, priv);
 		if (err <= 0)
 			break;
 
