@@ -696,7 +696,7 @@ static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id,
 		if (stored_version <= version) {
 			dnet_convert_history_entry(e);
 			/* If requested version was removed we have to return error */
-			if (e->flags)
+			if (e->flags & DNET_IO_FLAGS_REMOVED)
 				i = -1;
 			break;
 		}
@@ -711,7 +711,7 @@ static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id,
 			*tsec = e->tsec;
 
 		if (unlink_upload) {
-			e->flags |= DNET_HISTORY_FLAGS_REMOVE;
+			e->flags |= DNET_IO_FLAGS_REMOVED;
 			dnet_convert_history_entry(e);
 
 			err = dnet_write_file_local_offset(n, file, file, strlen(file), id, 0, 0, 0,

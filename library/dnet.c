@@ -2973,7 +2973,7 @@ static int dnet_remove_object_raw(struct dnet_node *n,
 
 	dnet_convert_io_attr(io);
 
-	dnet_setup_history_entry(e, id, 0, 0, DNET_HISTORY_FLAGS_REMOVE);
+	dnet_setup_history_entry(e, id, 0, 0, DNET_IO_FLAGS_REMOVED);
 
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.complete = complete;

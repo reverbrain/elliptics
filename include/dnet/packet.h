@@ -229,6 +229,9 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 /* Transaction ID contains version information */
 #define DNET_IO_FLAGS_ID_VERSION	(1<<5)
 
+/* Object was removed */
+#define DNET_IO_FLAGS_REMOVED		(1<<6)
+
 struct dnet_io_attr
 {
 	uint8_t			origin[DNET_ID_SIZE];
@@ -244,12 +247,6 @@ static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 	a->offset = dnet_bswap64(a->offset);
 	a->size = dnet_bswap64(a->size);
 }
-
-/* Object is being removed from the storage */
-#define DNET_HISTORY_FLAGS_REMOVE		(1<<0)
-
-/* Object contains metadata */
-#define DNET_HISTORY_FLAGS_META			(1<<1)
 
 struct dnet_history_entry
 {
