@@ -1,3 +1,9 @@
+elliptics (2.7.5.2) unstable; urgency=low
+
+  * Extend fcgi debug logging.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 12 May 2010 03:40:39 +0400
+
 elliptics (2.7.5.1) unstable; urgency=low
 
   * Added timestamp URI parameter support in fcgi frontend (timestamp=).
