@@ -1329,17 +1329,13 @@ static int dnet_fcgi_stat_log(struct dnet_node *n)
 
 static int dnet_fcgi_stat(struct dnet_node *n)
 {
-	int err = dnet_fcgi_request_stat(n, dnet_fcgi_stat_complete);
+	int num = dnet_state_num(n);
+	int err = 0;
 
-	if (	err ||
-		((dnet_fcgi_stat_bad_limit == -1) && (dnet_fcgi_stat_bad > dnet_fcgi_stat_good)) ||
-		((dnet_fcgi_stat_bad_limit >= 0) && (dnet_fcgi_stat_bad > dnet_fcgi_stat_bad_limit)) ||
-		((dnet_fcgi_stat_bad_limit >= 0) && (dnet_fcgi_stat_good < dnet_fcgi_stat_bad_limit)))
-			err = -1;
-
-	if (err)
+	if (num < dnet_fcgi_stat_bad_limit) {
+		err = -ENOTCONN;
 		dnet_fcgi_output("\r\nStatus: 400\r\n\r\n");
-	else
+	} else
 		dnet_fcgi_output("\r\n%s\r\n\r\n", dnet_fcgi_status_pattern);
 
 	return err;
