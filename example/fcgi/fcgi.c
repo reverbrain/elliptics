@@ -1959,15 +1959,13 @@ int main()
 				version = strtol(version_str, NULL, 0);
 		}
 
-		fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d.\n", id, length, version);
-
 		if (dnet_fcgi_external_callback_start)
 			dnet_fcgi_external_start(n, query, addr, id, length);
 
 		dnet_fcgi_output_permanent_headers();
 
 		if (!strncmp(method, "POST", 4)) {
-			struct timespec ts, *ts_ptr = NULL;
+			struct timespec ts;
 			char *ts_str;
 
 			if (!post_allowed) {
@@ -1983,17 +1981,26 @@ int main()
 				if (*ts_str) {
 					ts.tv_sec = strtoul(ts_str, NULL, 0);
 					ts.tv_nsec = 0;
-					ts_ptr = &ts;
 				}
+			} else {
+				struct timeval tv;
+
+				gettimeofday(&tv, NULL);
+
+				ts.tv_sec = tv.tv_sec;
+				ts.tv_nsec = tv.tv_usec * 1000;
 			}
 
-			err = dnet_fcgi_handle_post(n, addr, id, length, version, ts_ptr);
+			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d, ts: %lu.%lu.\n", id, length, version, ts.tv_sec, ts.tv_nsec);
+
+			err = dnet_fcgi_handle_post(n, addr, id, length, version, &ts);
 			if (err) {
 				fprintf(dnet_fcgi_log, "%s: Failed to handle POST for object '%s': %d.\n", addr, id, err);
 				reason = "failed to handle POST";
 				goto err_continue;
 			}
 		} else {
+			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d.\n", id, length, version);
 			err = dnet_fcgi_handle_get(n, query, addr, id, length, version);
 			if (err) {
 				fprintf(dnet_fcgi_log, "%s: Failed to handle GET for object '%s': %d.\n", addr, id, err);
