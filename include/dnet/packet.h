@@ -48,6 +48,10 @@ enum dnet_commands {
 	DNET_CMD_STAT,				/* Gather remote VM, LA and FS statistics */
 	DNET_CMD_NOTIFY,			/* Notify when object in question was modified */
 	DNET_CMD_DEL,				/* Remove given object from the storage */
+	DNET_CMD_STAT_COUNT,			/* Gather remote per-cmd statistics */
+
+	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
+	__DNET_CMD_MAX,
 };
 
 /*
@@ -375,6 +379,51 @@ struct dnet_id
 static inline void dnet_convert_id(struct dnet_id *id)
 {
 	id->flags = dnet_bswap32(id->flags);
+}
+
+struct dnet_stat_count
+{
+	uint64_t			count;
+	uint64_t			err;
+};
+
+static inline void dnet_convert_stat_count(struct dnet_stat_count *st, int num)
+{
+	int i;
+
+	for (i=0; i<num; ++i) {
+		st[i].count = dnet_bswap64(st[i].count);
+		st[i].err = dnet_bswap64(st[i].err);
+	}
+}
+
+struct dnet_addr_stat
+{
+	struct dnet_addr		addr;
+	unsigned char			id[DNET_ID_SIZE];
+	int				num;
+	struct dnet_stat_count		count[0];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_addr_stat(struct dnet_addr_stat *st, int num)
+{
+	st->addr.addr_len = dnet_bswap32(st->addr.addr_len);
+	st->num = dnet_bswap32(st->num);
+	if (!num)
+		num = st->num;
+
+	dnet_convert_stat_count(st->count, num);
+}
+
+static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)
+{
+	if (cmd >= __DNET_CMD_MAX)
+		cmd = DNET_CMD_UNKNOWN;
+
+	if (!err)
+		st[cmd].count++;
+	else
+		st[cmd].err++;
 }
 
 #ifdef __cplusplus

@@ -101,6 +101,8 @@ struct dnet_net_state
 	uint64_t		req_pending;
 
 	struct dnet_io_thread	*th;
+
+	struct dnet_stat_count	stat[__DNET_CMD_MAX];
 };
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,

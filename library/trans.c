@@ -225,6 +225,8 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
 	return 0;
 
 err_out_destroy:
+	if (ctl->complete)
+		ctl->complete(NULL, NULL, NULL, ctl->priv);
 	dnet_trans_put(t);
 err_out_exit:
 	return err;

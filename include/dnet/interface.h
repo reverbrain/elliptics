@@ -638,6 +638,7 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 /*
  * Request statistics from the node corresponding to given ID.
  * If @id is NULL statistics will be requested from all connected nodes.
+ * @cmd specified stat command to use (DNET_CMD_STAT or DNET_CMD_STAT_COUNT).
  *
  * Function will sleep and print into DNET_LOG_INFO log level short
  * statistics if no @complete function is provided, otherwise it returns
@@ -648,7 +649,7 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
  * or negative error code. In case of error callback completion can
  * still be called.
  */
-int dnet_request_stat(struct dnet_node *n, unsigned char *id,
+int dnet_request_stat(struct dnet_node *n, unsigned char *id, unsigned int cmd,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,

@@ -1269,7 +1269,10 @@ out_wakeup:
 static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 	struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
 {
-	if (state && cmd && attr && attr->size == sizeof(struct dnet_stat)) {
+	if (!state || !cmd || !attr)
+		goto out;
+
+	if (attr->size == sizeof(struct dnet_stat) && attr->cmd == DNET_CMD_STAT) {
 		float la[3];
 		struct dnet_stat *st;
 		char id[DNET_ID_SIZE * 2 + 1];
@@ -1296,8 +1299,24 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 				(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
 				(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),
 				(unsigned long long)st->files, (unsigned long long)st->fsid);
+	} else if (attr->size >= sizeof(struct dnet_addr_stat) && attr->cmd == DNET_CMD_STAT_COUNT) {
+		struct dnet_addr_stat *as = (struct dnet_addr_stat *)(attr + 1);
+		char id[DNET_ID_SIZE * 2 + 1];
+		char addr[128];
+		int i;
+
+		dnet_convert_addr_stat(as, 0);
+
+		dnet_fcgi_output("<count addr=\"%s\" id=\"%s\">",
+			dnet_server_convert_dnet_addr_raw(&as->addr, addr, sizeof(addr)),
+			dnet_dump_id_len_raw(as->id, DNET_ID_SIZE, id));
+		for (i=0; i<as->num; ++i)
+			dnet_fcgi_output("<counter cmd=\"%u\" count=\"%llu\" error=\"%llu\"/>", i,
+					(unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
+		dnet_fcgi_output("</count>");
 	}
 
+out:
 	return dnet_fcgi_stat_complete(state, cmd, attr, priv);
 }
 
@@ -1313,12 +1332,20 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 	dnet_fcgi_stat_good = dnet_fcgi_stat_bad = 0;
 	dnet_fcgi_request_completed = 0;
 
-	num = err = dnet_request_stat(n, NULL, complete, NULL);
+	num = err = dnet_request_stat(n, NULL, DNET_CMD_STAT, complete, NULL);
 	if (err < 0) {
 		fprintf(dnet_fcgi_log, "Failed to request stat: %d.\n", err);
 		goto err_out_exit;
 	}
 
+	err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, complete, NULL);
+	if (err < 0) {
+		fprintf(dnet_fcgi_log, "Failed to request stat: %d.\n", err);
+		goto err_out_wait;
+	}
+	num += err;
+
+err_out_wait:
 	err = dnet_fcgi_wait(num == dnet_fcgi_request_completed, &ts);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Statistics request wait completion failed: "
