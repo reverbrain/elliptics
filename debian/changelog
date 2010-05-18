@@ -1,3 +1,9 @@
+elliptics (2.7.5.3) unstable; urgency=low
+
+  * Added extended per-client per-cmd statistics.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 18 May 2010 16:41:56 +0400
+
 elliptics (2.7.5.2) unstable; urgency=low
 
   * Extend fcgi debug logging.
