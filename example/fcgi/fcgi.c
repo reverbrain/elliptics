@@ -893,7 +893,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 			if (random_num < dnet_fcgi_random_hashes) {
 				int r;
 
-				r = rand() * (dnet_fcgi_random_hashes - random_num - 1) / RAND_MAX;
+				r = (double)(dnet_fcgi_random_hashes - random_num) * rand() / ((double)RAND_MAX);
 
 				pos = random_pos[r];
 				dnet_log_raw(n, DNET_LOG_NOTICE, "Using r: %d, pos: %d/%d.\n", r, pos, dnet_fcgi_random_hashes);
