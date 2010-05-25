@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
 				daemon = 1;
 				break;
 			case 'w':
-				cfg.wait_timeout = atoi(optarg);
+				cfg.resend_timeout.tv_sec = cfg.wait_timeout = atoi(optarg);
 				break;
 			case 'l':
 				logfile = optarg;
