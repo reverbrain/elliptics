@@ -37,6 +37,7 @@
 #define DNET_FCGI_VERSION_PATTERN	"version="
 #define DNET_FCGI_TIMESTAMP_PATTERN	"timestamp="
 #define DNET_FCGI_LOG			"/tmp/dnet_fcgi.log"
+#define DNET_FCGI_TMP_DIR		"/tmp"
 #define DNET_FCGI_LOCAL_ADDR		"0.0.0.0:1025:2"
 #define DNET_FCGI_SUCCESS_STATUS_PATTERN	"Status: 301"
 #define DNET_FCGI_ROOT_PATTERN		""
@@ -76,6 +77,9 @@ static int dnet_fcgi_direct_patterns_num;
 static char **dnet_fcgi_direct_patterns;
 
 static int dnet_fcgi_upload_host_limit;
+
+static char *dnet_fcgi_tmp_dir;
+int dnet_fcgi_tmp_dir_len;
 
 /*
  * This is actually not a good idea, but it will work, since
@@ -681,14 +685,14 @@ static int dnet_fcgi_unlink_complete(struct dnet_net_state *st __unused,
 static int dnet_fcgi_get_data_version_id(struct dnet_node *n, unsigned char *id, unsigned char *dst,
 		uint64_t *tsec, int version, int unlink_upload)
 {
-	char file[32 + 5 + 1 + 2*DNET_ID_SIZE + sizeof(DNET_HISTORY_SUFFIX)]; /* 32 is for pid length */
+	char file[32 + dnet_fcgi_tmp_dir_len + 1 + 2*DNET_ID_SIZE + sizeof(DNET_HISTORY_SUFFIX)]; /* 32 is for pid length */
 	char id_str[2*DNET_ID_SIZE+1];
 	struct dnet_history_map m;
 	struct dnet_history_entry *e;
 	int err, stored_version;
 	long i;
 
-	snprintf(file, sizeof(file), "/tmp/%s-%d", dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str), getpid());
+	snprintf(file, sizeof(file), "%s/%s-%d", dnet_fcgi_tmp_dir, dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str), getpid());
 
 	err = dnet_read_file(n, file, file, strlen(file), id, 0, 0, 1);
 	if (err < 0)
@@ -1652,7 +1656,6 @@ static int dnet_fcgi_output_permanent_headers(void)
 	int i;
 
 	for (i=0; i<dnet_fcgi_pheaders_num; ++i) {
-		fprintf(dnet_fcgi_log, "%s\r\n", dnet_fcgi_pheaders[i]);
 		dnet_fcgi_output("%s\r\n", dnet_fcgi_pheaders[i]);
 	}
 
@@ -1868,6 +1871,16 @@ int main()
 	p = getenv("DNET_FCGI_EXTERNAL_LIB");
 	if (p)
 		dnet_fcgi_setup_external_callbacks(p);
+	
+	p = getenv("DNET_FCGI_TMP_DIR");
+	if (!p)
+		p = DNET_FCGI_TMP_DIR;
+	dnet_fcgi_tmp_dir = strdup(p);
+	if (!dnet_fcgi_tmp_dir) {
+		err = -ENOMEM;
+		goto err_out_free;
+	}
+	dnet_fcgi_tmp_dir_len = strlen(dnet_fcgi_tmp_dir);
 
 	post_allowed = 0;
 	p = getenv("DNET_FCGI_POST_ALLOWED");
@@ -2082,6 +2095,7 @@ err_out_sign_destroy:
 err_out_free_direct_patterns:
 	free(direct_patterns);
 	free(dnet_fcgi_direct_patterns);
+	free(dnet_fcgi_tmp_dir);
 err_out_close:
 	fflush(dnet_fcgi_log);
 	fclose(dnet_fcgi_log);
