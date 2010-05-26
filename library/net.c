@@ -668,6 +668,7 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 {
 	struct dnet_node *n = st->n;
 	struct dnet_data_req *r = NULL;
+	struct dnet_trans *t = NULL;
 	int err = 0;
 
 	dnet_lock_lock(&n->trans_lock);
@@ -677,8 +678,17 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 	if (!r) {
 		err = -ENOENT;
 		dnet_log(n, DNET_LOG_DSA, "%s: empty send queue.\n", dnet_dump_id(st->id));
-		goto err_out_unlock;
+		dnet_lock_unlock(&n->trans_lock);
+
+		goto err_out_exit;
 	}
+
+	if (r->flags & DNET_REQ_NO_DESTRUCT) {
+		t = container_of(r, struct dnet_trans, r);
+		dnet_trans_get(t);
+	}
+
+	dnet_lock_unlock(&n->trans_lock);
 
 	dnet_log(n, DNET_LOG_DSA, "%s: req: %p, hsize: %llu, dsize: %llu, fsize: %llu.\n",
 			dnet_dump_id(st->id), r, (unsigned long long)r->hsize,
@@ -748,18 +758,18 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			if (errno != EAGAIN && errno != EINTR) {
 				err = -errno;
 				dnet_log_err(n, "failed to send %llu bytes", *size);
-				goto err_out_unlock;
+				goto err_out_exit;
 			}
 
 			dnet_log(n, DNET_LOG_DSA, "%s: again.\n", dnet_dump_id(st->id));
-			goto err_out_unlock;
+			goto err_out_exit;
 		}
 
 		if (err == 0) {
 			err = -ECONNRESET;
 			dnet_log(n, DNET_LOG_ERROR, "%s: node dropped connection.\n",
 					dnet_dump_id(st->id));
-			goto err_out_unlock;
+			goto err_out_exit;
 		}
 
 		dnet_log(n, DNET_LOG_DSA, "%s: sent: %d/%llu.\n",
@@ -781,8 +791,6 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 	list_del_init(&r->req_entry);
 	dnet_lock_unlock(&st->snd_lock);
 
-	dnet_lock_unlock(&n->trans_lock);
-
 	dnet_log(n, DNET_LOG_DSA, "%s: destroying send request: %p: "
 			"flags: %x, hsize: %llu/%llu, dsize: %llu/%llu, fsize: %llu/%llu, complete: %p.\n",
 			dnet_dump_id(st->id), r, r->flags,
@@ -791,10 +799,14 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			st->fsize, (unsigned long long)r->size, r->complete);
 
 	dnet_req_destroy(r, 0);
+
+	if (t)
+		dnet_trans_put(t);
 	return 0;
 
-err_out_unlock:
-	dnet_lock_unlock(&n->trans_lock);
+err_out_exit:
+	if (t)
+		dnet_trans_put(t);
 	return err;
 }
 
