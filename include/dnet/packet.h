@@ -292,6 +292,7 @@ static inline void dnet_setup_history_entry(struct dnet_history_entry *e,
 	e->size = size;
 	e->offset = offset;
 	e->flags = flags;
+	e->reserved = 0;
 
 	dnet_convert_history_entry(e);
 }
