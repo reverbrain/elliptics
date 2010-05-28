@@ -44,11 +44,15 @@ static inline int dnet_common_get_version(unsigned char *id)
 }
 
 int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
+		void *adata, uint32_t asize, int history_only,
 		void *data, uint64_t size, int version, struct timespec *ts,
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 		void *priv);
 
-int dnet_common_send_meta_transactions(struct dnet_node *n, char *obj, int len,
-		char *hashes, int hashes_len);
+int dnet_common_write_object_meta(struct dnet_node *n, char *obj, int len,
+		char *hash, int hlen, int history_only,
+		void *data, uint64_t size, int version, struct timespec *ts, 
+		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
+		void *priv);
 
 #endif /* __COMMON_H */

@@ -356,7 +356,7 @@ err_out_exit:
 	return err;
 }
 
-static void dnet_remove_file_if_empty(char *file)
+static void dnet_remove_file_if_empty_raw(char *file)
 {
 	struct stat st;
 	int err;
@@ -366,63 +366,152 @@ static void dnet_remove_file_if_empty(char *file)
 		remove(file);
 }
 
-static int dnet_update_history(struct file_backend_root *r, void *state,
-		struct dnet_io_attr *io, int tmp)
+static void dnet_remove_file_if_empty(struct file_backend_root *r, struct dnet_io_attr *io)
 {
-	/* ff/$IDDNET_HISTORY_SUFFIX.tmp*/
-	char history[DNET_ID_SIZE*2+1 + sizeof(DNET_HISTORY_SUFFIX) + 8 + 9 + 5];
-	int fd, err;
-	struct dnet_history_entry e;
-	char dir[2*DNET_ID_SIZE+1];
-	char id[2*DNET_ID_SIZE+1];
+	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
 
-	file_backend_get_dir(io->origin, r->bit_num, dir);
-	snprintf(history, sizeof(history), "%s/%s%s%s", dir,
-			dnet_dump_id_len_raw(io->origin, DNET_ID_SIZE, id),
-			DNET_HISTORY_SUFFIX, (tmp)?".tmp":"");
+	file_backend_setup_file(r, file, sizeof(file), io);
+	dnet_remove_file_if_empty_raw(file);
+}
 
-	fd = open(history, O_RDWR | O_CREAT | O_APPEND | O_LARGEFILE, 0644);
+static int file_write_raw(struct file_backend_root *r, void *state, struct dnet_io_attr *io)
+{
+	/* null byte + maximum directory length (32 bits in hex) +
+	 * '/' directory prefix and optional history suffix */
+	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
+	int oflags = O_RDWR | O_CREAT | O_LARGEFILE;
+	void *data = io + 1;
+	int err, fd;
+
+	file_backend_setup_file(r, file, sizeof(file), io);
+
+	if (io->flags & DNET_IO_FLAGS_APPEND)
+		oflags |= O_APPEND;
+	else
+		oflags |= O_TRUNC;
+	
+	fd = open(file, oflags, 0644);
 	if (fd < 0) {
 		err = -errno;
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to open history file '%s': %s.\n",
-				dnet_dump_id(io->origin), history, strerror(errno));
+			"%s: failed to open data file '%s': %s.\n",
+				dnet_dump_id(io->id), file, strerror(errno));
 		goto err_out_exit;
 	}
 
-	dnet_setup_history_entry(&e, io->id, io->size, io->offset, NULL, io->flags);
-
-	err = write(fd, &e, sizeof(struct dnet_history_entry));
+	err = write(fd, data, io->size);
 	if (err <= 0) {
 		err = -errno;
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to update history file '%s': %s.\n",
-			dnet_dump_id(io->origin), history, strerror(errno));
+			"%s: failed to write into '%s': %s.\n",
+			dnet_dump_id(io->id), file, strerror(errno));
 		goto err_out_close;
 	}
 
 	if (r->sync)
 		fsync(fd);
 	close(fd);
+
 	return 0;
 
 err_out_close:
-	dnet_remove_file_if_empty(history);
+	dnet_remove_file_if_empty_raw(file);
 	close(fd);
 err_out_exit:
 	return err;
 }
 
+static int file_write_history_meta(void *state, void *backend, struct dnet_io_attr *io,
+		struct dnet_meta *m, void *data)
+{
+	struct file_backend_root *r = backend;
+	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
+	void *hdata, *new_hdata;
+	struct stat st;
+	int err, fd;
+	uint32_t size;
+
+	file_backend_setup_file(r, file, sizeof(file), io);
+
+	fd = open(file, O_RDWR | O_CREAT | O_LARGEFILE, 0644);
+	if (fd < 0) {
+		err = -errno;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to open history file '%s': %s.\n",
+				dnet_dump_id(io->id), file, strerror(errno));
+		goto err_out_exit;
+	}
+
+	err = fstat(fd, &st);
+	if (err) {
+		err = -errno;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to stat history file '%s': %s.\n",
+				dnet_dump_id(io->id), file, strerror(errno));
+		goto err_out_close;
+	}
+
+	size = st.st_size;
+
+	hdata = malloc(size);
+	if (!hdata) {
+		err = -ENOMEM;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to allocate %u bytes for history data: %s.\n",
+				dnet_dump_id(io->id), size, strerror(errno));
+		goto err_out_close;
+	}
+
+	err = read(fd, hdata, size);
+	if (err != (int)size) {
+		err = -errno;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to read %u bytes from history file '%s': %s.\n",
+				dnet_dump_id(io->id), size, file, strerror(errno));
+		goto err_out_free;
+	}
+
+	new_hdata = backend_process_meta(state, io, hdata, &size, m, data);
+	if (!new_hdata) {
+		err = -ENOMEM;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to update history file '%s': %s.\n",
+				dnet_dump_id(io->id), file, strerror(errno));
+		goto err_out_free;
+	}
+	hdata = new_hdata;
+
+	err = pwrite(fd, hdata, size, 0);
+	if (err != (int)size) {
+		err = -errno;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to write %u bytes into history file '%s': %s.\n",
+				dnet_dump_id(io->id), size, file, strerror(errno));
+		goto err_out_free;
+	}
+
+	err = 0;
+
+err_out_free:
+	free(hdata);
+err_out_close:
+	close(fd);
+err_out_exit:
+	return err;
+}
+
+static int file_write_history(struct file_backend_root *r, void *state,
+		struct dnet_io_attr *io, void *iodata)
+{
+	return backend_write_history(state, r, io, iodata, file_write_history_meta);
+}
+
 static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *data)
 {
-	int err, fd;
+	int err;
 	char dir[2*DNET_ID_SIZE+1];
 	struct dnet_io_attr *io = data;
-	int oflags = O_RDWR | O_CREAT | O_LARGEFILE;
-	/* null byte + maximum directory length (32 bits in hex) +
-	 * '/' directory prefix and optional history suffix */
-	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
 
 	if (attr->size < sizeof(struct dnet_io_attr)) {
 		dnet_command_handler_log(state, DNET_LOG_ERROR,
@@ -451,56 +540,39 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 		}
 	}
 
-	file_backend_setup_file(r, file, sizeof(file), io);
-
-	if (io->flags & DNET_IO_FLAGS_APPEND)
-		oflags |= O_APPEND;
-	else
-		oflags |= O_TRUNC;
-	
-	fd = open(file, oflags, 0644);
-	if (fd < 0) {
-		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to open data file '%s': %s.\n",
-				dnet_dump_id(cmd->id), file, strerror(errno));
-		goto err_out_exit;
-	}
-
-	err = write(fd, data, io->size);
-	if (err <= 0) {
-		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to write into '%s': %s.\n",
-			dnet_dump_id(cmd->id), file, strerror(errno));
-		goto err_out_close;
-	}
-
-	if (r->sync)
-		fsync(fd);
-	close(fd);
-
-	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) &&
-			!(io->flags & DNET_IO_FLAGS_HISTORY)) {
-		err = dnet_update_history(r, state, io, 0);
-		if (err) {
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to update history for '%s': %s.\n",
-				dnet_dump_id(cmd->id), file, strerror(errno));
+	if (io->flags & DNET_IO_FLAGS_HISTORY) {
+		err = file_write_history(r, state, io, io + 1);
+		if (err)
 			goto err_out_exit;
+	} else {
+		err = file_write_raw(r, state, io);
+		if (err)
+			goto err_out_exit;
+
+		if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)) {
+			struct dnet_history_entry e;
+
+			dnet_setup_history_entry(&e, io->id, io->size, io->offset, NULL, io->flags);
+
+			io->flags |= DNET_IO_FLAGS_APPEND | DNET_IO_FLAGS_HISTORY;
+			io->flags &= ~DNET_IO_FLAGS_META;
+			io->size = sizeof(struct dnet_history_entry);
+			io->offset = 0;
+
+			err = file_write_history(r, state, io, &e);
+			if (err)
+				goto err_out_check_remove;
 		}
 	}
 
 	dnet_command_handler_log(state, DNET_LOG_NOTICE,
-		"%s: IO file: '%s', offset: %llu, size: %llu.\n",
-			dnet_dump_id(cmd->id), file,
+		"%s: IO offset: %llu, size: %llu.\n", dnet_dump_id(cmd->id),
 			(unsigned long long)io->offset, (unsigned long long)io->size);
 
 	return 0;
 
-err_out_close:
-	dnet_remove_file_if_empty(file);
-	close(fd);
+err_out_check_remove:
+	dnet_remove_file_if_empty(r, io);
 err_out_exit:
 	return err;
 }

@@ -745,8 +745,10 @@ int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, voi
  */
 struct dnet_history_map
 {
+	void				*data;
 	struct dnet_history_entry	*ent;
 	long				num;
+	size_t				size;
 	int				fd;
 };
 
@@ -764,6 +766,7 @@ int dnet_request_ids(struct dnet_node *n, unsigned char *id,
 enum dnet_meta_types {
 	DNET_META_TRANSFORM = 1,	/* transformation function names */
 	DNET_META_PARENT_OBJECT,	/* parent object name */
+	DNET_META_HISTORY,		/* transaction history log */
 };
 
 struct dnet_meta
@@ -771,7 +774,7 @@ struct dnet_meta
 	uint32_t			type;
 	uint32_t			size;
 	uint64_t			common;
-	uint8_t				tmp[32];
+	uint8_t				tmp[16];
 	uint8_t				data[0];
 } __attribute__ ((packed));
 

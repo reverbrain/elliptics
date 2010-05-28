@@ -59,14 +59,11 @@ static void hparser_usage(const char *p)
 
 int main(int argc, char *argv[])
 {
-	struct dnet_history_entry *entries;
-	ssize_t i, num;
-	int err, fd, ch;
+	struct dnet_history_map m;
+	long i;
+	int err, ch;
 	char *file = NULL;
-	void *data;
-	struct stat st;
 	unsigned long long offset, size;
-	unsigned int isize = sizeof(struct dnet_history_entry);
 	char str[64];
 	struct tm tm;
 
@@ -93,44 +90,17 @@ int main(int argc, char *argv[])
 		hparser_usage(argv[0]);
 	}
 
-	fd = open(file, O_RDONLY);
-	if (fd < 0) {
-		err = -errno;
-		fprintf(stderr, "Failed to open history file '%s': %s [%d].\n",
-				file, strerror(errno), errno);
+	err = dnet_map_history(NULL, file, &m);
+	if (err) {
+		fprintf(stderr, "Failed to map history file '%s': %d.\n", file, err);
 		goto err_out_exit;
 	}
 
-	err = fstat(fd, &st);
-	if (err) {
-		err = -errno;
-		fprintf(stderr, "Failed to stat history file '%s': %s [%d].\n",
-				file, strerror(errno), errno);
-		goto err_out_close;
-	}
+	printf("%s: objects: %ld, range: %llu-%llu, counting from the most recent (nanoseconds resolution).\n",
+			file, m.num, offset, offset+size);
 
-	if (!st.st_size || (st.st_size % isize)) {
-		fprintf(stderr, "Corrupted history file '%s', its size %llu has to be modulo of %u.\n",
-				file, (unsigned long long)st.st_size, isize);
-		err = -EINVAL;
-		goto err_out_close;
-	}
-
-	data = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
-	if (data == MAP_FAILED) {
-		err = -errno;
-		fprintf(stderr, "Failed to map history file '%s': %s [%d]",
-				file, strerror(errno), errno);
-		goto err_out_close;
-	}
-
-	entries = data;
-	num = st.st_size / isize;
-
-	printf("%s: objects: %zd, range: %llu-%llu, counting from the most recent (nanoseconds resolution).\n",
-			file, num, offset, offset+size);
-	for (i=num-1; i>=0; --i) {
-		struct dnet_history_entry e = entries[i];
+	for (i=m.num-1; i>=0; --i) {
+		struct dnet_history_entry e = m.ent[i];
 		time_t t;
 		int version = -1;
 
@@ -143,10 +113,9 @@ int main(int argc, char *argv[])
 		if (e.flags & DNET_IO_FLAGS_ID_VERSION)
 			version = dnet_common_get_version(e.id);
 
-		printf("%s.%09llu: %s: flags: %08x [M: %d, C: %d, V: %d, version: %d, R: %d], offset: %8llu, size: %8llu: %c\n",
+		printf("%s.%09llu: %s: flags: %08x [C: %d, V: %d, version: %d, R: %d], offset: %8llu, size: %8llu: %c\n",
 			str, (unsigned long long)e.tnsec,
 			dnet_dump_id_len(e.id, DNET_ID_SIZE), e.flags,
-			!!(e.flags & DNET_IO_FLAGS_META),
 			!!(e.flags & DNET_IO_FLAGS_ID_CONTENT),
 			!!(e.flags & DNET_IO_FLAGS_ID_VERSION), version,
 			!!(e.flags & DNET_IO_FLAGS_REMOVED),
@@ -154,13 +123,8 @@ int main(int argc, char *argv[])
 			hparser_region_match(&e, offset, size) ? '+' : '-');
 	}
 
-	munmap(data, st.st_size);
-	close(fd);
+	dnet_unmap_history(NULL, &m);
 
-	return 0;
-
-err_out_close:
-	close(fd);
 err_out_exit:
 	return err;
 }

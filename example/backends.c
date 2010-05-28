@@ -238,3 +238,107 @@ int backend_del(void *state, struct dnet_io_attr *io, struct dnet_history_entry 
 
 	return 0;
 }
+
+
+static int backend_write_history_process(void *state, void *backend, struct dnet_io_attr *io,
+					struct dnet_meta *m, void *data,
+		int (* process)(void *state, void *backend, struct dnet_io_attr *io,
+					struct dnet_meta *m, void *data))
+{
+	int err;
+	uint32_t old_size = m->size;
+
+	err = process(state, backend, io, m, data);
+
+	dnet_command_handler_log(state, DNET_LOG_INFO, "%s: history update: type: %d, "
+			"size: %u -> %u: %d\n",
+			dnet_dump_id(io->id), m->type, old_size, m->size, err);
+	return err;
+}
+
+int backend_write_history(void *state, void *backend, struct dnet_io_attr *io, void *iodata,
+		int (* process)(void *state, void *backend, struct dnet_io_attr *io,
+					struct dnet_meta *m, void *data))
+{
+	int err = 0;
+
+	if (io->flags & DNET_IO_FLAGS_META) {
+		struct dnet_meta *meta = (struct dnet_meta *)iodata;
+
+		while (io->size) {
+			dnet_convert_meta(meta);
+
+			if (io->size < sizeof(struct dnet_meta) + meta->size) {
+				dnet_command_handler_log(state, DNET_LOG_ERROR,
+						"%s: history update failed: meta size "
+						"(%u plus meta structure size) is more than "
+						"io size (%llu).\n",
+					dnet_dump_id(io->id), meta->size, io->size);
+				err = -EINVAL;
+				goto err_out_exit;
+			}
+
+			err = backend_write_history_process(state, backend, io,
+					meta, meta->data, process);
+			if (err)
+				goto err_out_exit;
+
+			io->size -= meta->size + sizeof(struct dnet_meta);
+			meta = (struct dnet_meta *)(meta->data + meta->size);
+		}
+	} else {
+		struct dnet_meta m;
+
+		memset(&m, 0, sizeof(struct dnet_meta));
+		m.type = DNET_META_HISTORY;
+		m.size = io->size;
+
+		err = backend_write_history_process(state, backend, io, &m, iodata, process);
+		if (err)
+			goto err_out_exit;
+	}
+
+err_out_exit:
+	return err;
+}
+
+void *backend_process_meta(void *state, struct dnet_io_attr *io, void *hdata, uint32_t *size,
+		struct dnet_meta *m, void *data)
+{
+	struct dnet_node *n = dnet_get_node_from_state(state);
+	void *allocated = NULL;
+	void *tmp = data;
+
+	if (io->flags & DNET_IO_FLAGS_APPEND) {
+		struct dnet_meta *meta;
+
+		meta = dnet_meta_search(n, hdata, *size, m->type);
+		if (meta) {
+			struct dnet_meta converted = *meta;
+
+			dnet_convert_meta(&converted);
+			tmp = allocated = malloc(converted.size + m->size);
+			if (!tmp) {
+				hdata = NULL;
+				goto err_out_exit;
+			}
+
+			memcpy(tmp, meta->data, converted.size);
+			memcpy(tmp + converted.size, data, m->size);
+
+			m->size += converted.size;
+		}
+	}
+
+	hdata = dnet_meta_replace(n, hdata, size, m, tmp);
+	if (!hdata) {
+		dnet_command_handler_log(state, DNET_LOG_ERROR,
+			"%s: failed to replace metadata.\n",
+				dnet_dump_id(io->id));
+		goto err_out_exit;
+	}
+
+err_out_exit:
+	free(allocated);
+	return hdata;
+}

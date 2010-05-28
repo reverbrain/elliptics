@@ -178,6 +178,52 @@ err_out_exit:
 	return err;
 }
 
+static int tc_write_history_meta(void *state, void *backend, struct dnet_io_attr *io,
+		struct dnet_meta *m, void *data)
+{
+	TCADB *db = backend;
+	void *hdata, *new_hdata;
+	int size, err;
+	bool res;
+	
+	hdata = tcadbget(db, io->origin, DNET_ID_SIZE, &size);
+	if (!hdata) {
+		err = -ENOMEM;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,	"%s: failed to read history object.\n",
+				dnet_dump_id(io->id));
+		goto err_out_exit;
+	}
+
+	new_hdata = backend_process_meta(state, io, hdata, (uint32_t *)&size, m, data);
+	if (!new_hdata) {
+		err = -ENOMEM;
+		dnet_command_handler_log(state, DNET_LOG_ERROR, "%s: failed to update history object.\n",
+				dnet_dump_id(io->id));
+		goto err_out_free;
+	}
+	hdata = new_hdata;
+
+	res = tcadbput(db, io->origin, DNET_ID_SIZE, hdata, size);
+	if (!res) {
+		err = -EINVAL;
+		dnet_command_handler_log(state, DNET_LOG_ERROR,	"%s: failed to write history object.\n",
+				dnet_dump_id(io->id));
+		goto err_out_free;
+	}
+
+	err = 0;
+
+err_out_free:
+	free(hdata);
+err_out_exit:
+	return err;
+}
+
+static int tc_write_history(TCADB *db, void *state, struct dnet_io_attr *io, void *iodata)
+{
+	return backend_write_history(state, db, io, iodata, tc_write_history_meta);
+}
+
 static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *data)
 {
@@ -211,46 +257,44 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		goto err_out_data_trans_abort;
 	}
 
-	if (io->flags & DNET_IO_FLAGS_APPEND)
-		res = tcadbputcat(db, io->origin, DNET_ID_SIZE, data, io->size);
-	else
-		res = tcadbput(db, io->origin, DNET_ID_SIZE, data, io->size);
-	if (!res) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: direct object put failed: offset: %llu, size: %llu.\n",
-			dnet_dump_id(io->origin), (unsigned long long)io->offset,
-			(unsigned long long)io->size);
-		err = -EINVAL;
-		goto err_out_data_trans_abort;
-	}
-
-	dnet_command_handler_log(state, DNET_LOG_NOTICE,
-		"%s: stored %s object: size: %llu, offset: %llu.\n",
-			dnet_dump_id(io->origin),
-			(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
-			(unsigned long long)io->size, (unsigned long long)io->offset);
-
-	if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE) &&
-			!(io->flags & DNET_IO_FLAGS_HISTORY)) {
-		e = &n;
-
-		dnet_setup_history_entry(e, io->id, io->size, io->offset, NULL, io->flags);
-
-		res = tcadbputcat(be->hist, io->origin, DNET_ID_SIZE,
-				e, sizeof(struct dnet_history_entry));
+	if (io->flags & DNET_IO_FLAGS_HISTORY) {
+		err = tc_write_history(be->hist, state, io, io + 1);
+		if (err)
+			goto err_out_data_trans_abort;
+	} else {
+		if (io->flags & DNET_IO_FLAGS_APPEND)
+			res = tcadbputcat(db, io->origin, DNET_ID_SIZE, data, io->size);
+		else
+			res = tcadbput(db, io->origin, DNET_ID_SIZE, data, io->size);
 		if (!res) {
-			err = -EINVAL;
 			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: history update failed offset: %llu, size: %llu.\n",
-					dnet_dump_id(io->origin), (unsigned long long)io->offset,
-					(unsigned long long)io->size);
+				"%s: direct object put failed: offset: %llu, size: %llu.\n",
+				dnet_dump_id(io->origin), (unsigned long long)io->offset,
+				(unsigned long long)io->size);
+			err = -EINVAL;
 			goto err_out_data_trans_abort;
 		}
 
 		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: history updated: size: %llu, offset: %llu.\n",
-				dnet_dump_id(io->origin), (unsigned long long)io->size,
-				(unsigned long long)io->offset);
+			"%s: stored %s object: size: %llu, offset: %llu.\n",
+				dnet_dump_id(io->origin),
+				(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
+				(unsigned long long)io->size, (unsigned long long)io->offset);
+
+		if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)) {
+			e = &n;
+
+			dnet_setup_history_entry(e, io->id, io->size, io->offset, NULL, io->flags);
+
+			io->flags |= DNET_IO_FLAGS_APPEND | DNET_IO_FLAGS_HISTORY;
+			io->flags &= ~DNET_IO_FLAGS_META;
+			io->size = sizeof(struct dnet_history_entry);
+			io->offset = 0;
+
+			err = tc_write_history(be->hist, state, io, &e);
+			if (err)
+				goto err_out_data_trans_abort;
+		}
 	}
 
 	res = tcadbtrancommit(db);

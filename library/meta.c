@@ -33,26 +33,26 @@
 #include "dnet/packet.h"
 #include "dnet/interface.h"
 
+#define dnet_map_log(n, mask, fmt, a...) do { if ((n)) dnet_log((n), mask, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
+
 struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t size, uint32_t type)
 {
 	struct dnet_meta m, *found = NULL;
 
 	while (size) {
 		if (size < sizeof(struct dnet_meta)) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: metadata size %u is too small, min %zu, searching for type 0x%x.\n",
-					dnet_dump_id(n->id), size, sizeof(struct dnet_meta), type);
+			dnet_map_log(n, DNET_LOG_ERROR, "%s: metadata size %u is too small, min %zu, searching for type 0x%x.\n",
+					(n) ? dnet_dump_id(n->id) : "NULL", size, sizeof(struct dnet_meta), type);
 			break;
 		}
 
 		m = *(struct dnet_meta *)data;
 		dnet_convert_meta(&m);
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: m: %x, size: %u, type: %x.\n", dnet_dump_id(n->id), m.type, m.size, type);
-
 		if (m.size + sizeof(struct dnet_meta) > size) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: metadata entry broken: entry size %u, type: 0x%x, struct size: %zu, "
+			dnet_map_log(n, DNET_LOG_ERROR, "%s: metadata entry broken: entry size %u, type: 0x%x, struct size: %zu, "
 					"total size left: %u, searching for type: 0x%x.\n",
-					dnet_dump_id(n->id), m.size, m.type, sizeof(struct dnet_meta), size, type);
+					(n) ? dnet_dump_id(n->id) : "NULL", m.size, m.type, sizeof(struct dnet_meta), size, type);
 			break;
 		}
 
@@ -80,9 +80,9 @@ int dnet_meta_remove(struct dnet_node *n, void *data, uint32_t *size, struct dne
 	ptr += tmp.size + sizeof(struct dnet_meta);
 
 	if (*size < (uint32_t)(ptr - data)) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: broken metadata object (too large size), nothing was changed: "
+		dnet_map_log(n, DNET_LOG_ERROR, "%s: broken metadata object (too large size), nothing was changed: "
 				"total size: %u, meta: %u, ptr-data: %u.\n",
-				dnet_dump_id(n->id), *size, tmp.size, (uint32_t)(ptr - data));
+				(n) ? dnet_dump_id(n->id) : "NULL", *size, tmp.size, (uint32_t)(ptr - data));
 		err = -EINVAL;
 		goto out_exit;
 	}
@@ -102,8 +102,8 @@ struct dnet_meta *dnet_meta_add(struct dnet_node *n, void *data, uint32_t *size,
 
 	data = realloc(data, *size + sizeof(struct dnet_meta) + add->size);
 	if (!data) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to reallocate buffer: old size: %u, addon: %zu.\n",
-				dnet_dump_id(n->id), *size, sizeof(struct dnet_meta) + add->size);
+		dnet_map_log(n, DNET_LOG_ERROR, "%s: failed to reallocate buffer: old size: %u, addon: %zu.\n",
+				(n) ? dnet_dump_id(n->id) : "NULL", *size, sizeof(struct dnet_meta) + add->size);
 		goto out_exit;
 	}
 
@@ -164,14 +164,14 @@ int dnet_meta_create_file(struct dnet_node *n, char *metafile, struct dnet_meta 
 	fd = open(metafile, O_RDWR | O_CREAT, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_log_err(n, "failed to open metadata file '%s'", metafile);
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to open metadata file '%s'", metafile);
 		goto err_out_exit;
 	}
 
 	err = fstat(fd, &st);
 	if (err) {
 		err = -errno;
-		dnet_log_err(n, "failed to stat metadata file '%s'", metafile);
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to stat metadata file '%s'", metafile);
 		goto err_out_close;
 	}
 	size = st.st_size;
@@ -179,23 +179,23 @@ int dnet_meta_create_file(struct dnet_node *n, char *metafile, struct dnet_meta 
 	data = meta = malloc(size);
 	if (!meta) {
 		err = -errno;
-		dnet_log_err(n, "failed to allocate %d bytes for metadata file '%s'", size, metafile);
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to allocate %d bytes for metadata file '%s'", size, metafile);
 		goto err_out_close;
 	}
 
 	err = read(fd, meta, size);
 	if (err != size) {
 		err = -errno;
-		dnet_log_err(n, "failed to read %d bytes from metadata file '%s'", size, metafile);
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to read %d bytes from metadata file '%s'", size, metafile);
 		goto err_out_free;
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "%s: meta: %d, meta_size: %d, size: %d.\n", metafile, m->type, m->size, size);
+	dnet_map_log(n, DNET_LOG_INFO, "%s: meta: %d, meta_size: %d, size: %d.\n", metafile, m->type, m->size, size);
 
 	meta = dnet_meta_replace(n, meta, (uint32_t *)&size, m, mdata);
 	if (!meta) {
 		err = -ENOMEM;
-		dnet_log_err(n, "failed to replace metadata in file '%s'", metafile);
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to replace metadata in file '%s'", metafile);
 		goto err_out_free;
 	}
 
@@ -204,7 +204,7 @@ int dnet_meta_create_file(struct dnet_node *n, char *metafile, struct dnet_meta 
 	err = pwrite(fd, meta, size, 0);
 	if (err != size) {
 		err = -ENOMEM;
-		dnet_log_err(n, "failed to write metadata in file '%s'", metafile);
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to write metadata in file '%s'", metafile);
 		goto err_out_free;
 	}
 	err = 0;
@@ -236,12 +236,12 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
 	w = dnet_wait_alloc(~0);
 	if (!w) {
 		err = -ENOMEM;
-		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting.\n");
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting.\n");
 		goto err_out_exit;
 	}
 
 	err = dnet_read_file_id(n, tmp, len, 0, 0, &io, w, 1, 1);
-	dnet_log(n, DNET_LOG_INFO, "%s: metadata reading history: %d.\n", dnet_dump_id(io.origin), err);
+	dnet_map_log(n, DNET_LOG_INFO, "%s: metadata reading history: %d.\n", dnet_dump_id(io.origin), err);
 	if (err)
 		goto err_out_put;
 
@@ -256,7 +256,7 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
 	memcpy(io.origin, io.id, DNET_ID_SIZE);
 
 	err = dnet_read_file_id(n, file, strlen(file), 0, 0, &io, w, 0, 1);
-	dnet_log(n, DNET_LOG_INFO, "%s: metadata reading transaction: %d.\n", dnet_dump_id(io.origin), err);
+	dnet_map_log(n, DNET_LOG_INFO, "%s: metadata reading transaction: %d.\n", dnet_dump_id(io.origin), err);
 	if (err)
 		goto err_out_unmap;
 
@@ -334,7 +334,7 @@ int dnet_meta_write(struct dnet_node *n, struct dnet_meta *m, void *mdata,
 		err = open(file, O_RDWR | O_CREAT | O_TRUNC, 0644);
 		if (err < 0) {
 			err = -errno;
-			dnet_log_err(n, "failed to create empty metadata file '%s'", file);
+			dnet_map_log(n, DNET_LOG_ERROR, "Failed to create empty metadata file '%s'", file);
 			goto err_out_exit;
 		}
 		close(err);

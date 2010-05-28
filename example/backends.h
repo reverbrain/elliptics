@@ -84,6 +84,12 @@ static inline char *file_backend_get_dir(const unsigned char *id, uint64_t bit_n
 	return res;
 }
 
+int backend_write_history(void *state, void *backend, struct dnet_io_attr *io, void *iodata,
+		int (* process)(void *state, void *backend, struct dnet_io_attr *io,
+					struct dnet_meta *m, void *data));
+void *backend_process_meta(void *state, struct dnet_io_attr *io, void *hdata, uint32_t *size,
+		struct dnet_meta *m, void *data);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1864,47 +1864,76 @@ again:
 	return -EINVAL;
 }
 
+#define dnet_map_log(n, mask, fmt, a...) do { if ((n)) dnet_log((n), mask, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
+
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map)
 {
 	int err;
 	struct stat st;
+	struct dnet_meta *m;
 
 	map->fd = open(file, O_RDWR);
 	if (map->fd < 0) {
 		err = -errno;
-		dnet_log_err(n, "Failed to open history file '%s'", file);
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to open history file '%s': %s [%d].\n",
+				file, strerror(errno), errno);
 		goto err_out_exit;
 	}
 
 	err = fstat(map->fd, &st);
 	if (err) {
 		err = -errno;
-		dnet_log_err(n, "Failed to stat history file '%s'", file);
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to stat history file '%s': %s [%d].\n",
+				file, strerror(errno), errno);
 		goto err_out_close;
 	}
 
-	if (!st.st_size || (st.st_size % sizeof(struct dnet_history_entry))) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: Corrupted history file '%s', "
-				"its size %llu has to be modulo of %zu.\n",
-				dnet_dump_id(n->id), file,
+	if (st.st_size < sizeof(struct dnet_meta)) {
+		dnet_map_log(n, DNET_LOG_ERROR, "%s: Corrupted history file '%s', "
+				"its size %llu must be more than %zu.\n",
+				(n) ? dnet_dump_id(n->id) : "NULL", file,
 				(unsigned long long)st.st_size,
-				sizeof(struct dnet_history_entry));
+				sizeof(struct dnet_meta));
 		err = -EINVAL;
 		goto err_out_close;
 	}
+	map->size = st.st_size;
 
-	map->ent = mmap(NULL, st.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
-	if (map->ent == MAP_FAILED) {
+	map->data = mmap(NULL, map->size, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
+	if (map->data == MAP_FAILED) {
 		err = -errno;
-		dnet_log_err(n, "Failed to mmap history file '%s'", file);
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to mmap history file '%s': %s [%d].\n",
+				file, strerror(errno), errno);
 		goto err_out_close;
 	}
 
-	map->num = st.st_size / sizeof(struct dnet_history_entry);
-	dnet_log(n, DNET_LOG_NOTICE, "%s: mapped %ld entries in '%s'.\n", dnet_dump_id(n->id), map->num, file);
+	m = dnet_meta_search(n, map->data, map->size, DNET_META_HISTORY);
+	if (!m) {
+		dnet_map_log(n, DNET_LOG_ERROR, "%s: failed to locate history metadata in file '%s'.\n",
+				(n) ? dnet_dump_id(n->id) : "NULL", file);
+		err = -ENOENT;
+		goto err_out_unmap;
+	}
+
+	if (!m->size || (m->size % sizeof(struct dnet_history_entry))) {
+		dnet_map_log(n, DNET_LOG_ERROR, "%s: Corrupted history file '%s', "
+				"its history metadata size %llu has to be modulo of %zu.\n",
+				(n) ? dnet_dump_id(n->id) : "NULL", file,
+				(unsigned long long)m->size,
+				sizeof(struct dnet_history_entry));
+		err = -EINVAL;
+		goto err_out_unmap;
+	}
+
+	map->num = m->size / sizeof(struct dnet_history_entry);
+	map->ent = (struct dnet_history_entry *)m->data;
+
+	dnet_map_log(n, DNET_LOG_NOTICE, "%s: mapped %ld entries in '%s'.\n", (n) ? dnet_dump_id(n->id) : "", map->num, file);
 
 	return 0;
 
+err_out_unmap:
+	munmap(map->data, map->size);
 err_out_close:
 	close(map->fd);
 err_out_exit:
@@ -1913,7 +1942,7 @@ err_out_exit:
 
 void dnet_unmap_history(struct dnet_node *n __unused, struct dnet_history_map *map)
 {
-	munmap(map->ent, map->num * sizeof(struct dnet_history_entry));
+	munmap(map->data, map->size);
 	close(map->fd);
 }
 

@@ -124,7 +124,8 @@ void dnet_common_log(void *priv, uint32_t mask, const char *msg)
 	fflush(stream);
 }
 
-static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet_io_control *ctl)
+static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet_io_control *ctl,
+		void *adata, uint32_t asize)
 {
 	int err, num = 0;
 	struct dnet_io_control hctl;
@@ -144,6 +145,28 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 		memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
 		memcpy(hctl.io.id, ctl->io.id, DNET_ID_SIZE);
 
+		hctl.adata = adata;
+		hctl.asize = asize;
+
+		/*
+		 * This is a bit ugly block, since we break common code to update inner data...
+		 * But originally it lived in the place where this was appropriate, and even now
+		 * it is used the way this processing is needed.
+		 */
+
+		if (adata) {
+			struct dnet_attr *a = adata;
+
+			if (a->cmd == DNET_CMD_WRITE) {
+				struct dnet_io_attr *io = (struct dnet_io_attr *)(a + 1);
+
+				memcpy(io->origin, hctl.io.origin, DNET_ID_SIZE);
+				memcpy(io->id, hctl.io.id, DNET_ID_SIZE);
+
+				dnet_convert_io_attr(io);
+			}
+		}
+
 		if (ctl->ts.tv_sec)
 			dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, &ctl->ts, flags);
 		else
@@ -156,8 +179,6 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 		hctl.cflags = DNET_FLAGS_NEED_ACK;
 		hctl.fd = -1;
 		hctl.local_offset = 0;
-		hctl.adata = NULL;
-		hctl.asize = 0;
 
 		hctl.data = &e;
 
@@ -177,6 +198,7 @@ err_out_exit:
 }
 
 static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned int len,
+		void *adata, uint32_t asize, int history_only,
 		void *data, uint64_t size, int version, int pos, struct timespec *ts,
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 		void *priv)
@@ -192,6 +214,11 @@ static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned
 
 	ctl.complete = complete;
 	ctl.priv = priv;
+
+	if (!history_only) {
+		ctl.adata = adata;
+		ctl.asize = asize;
+	}
 
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 	ctl.cmd = DNET_CMD_WRITE;
@@ -234,7 +261,7 @@ static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned
 		memcpy(ctl.io.origin, ctl.io.id, DNET_ID_SIZE);
 	}
 
-	err = dnet_common_send_upload_transactions(n, &ctl);
+	err = dnet_common_send_upload_transactions(n, &ctl, adata, asize);
 	if (err <= 0)
 		goto out_exit;
 	return err;
@@ -246,6 +273,7 @@ out_exit:
 }
 
 int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
+		void *adata, uint32_t asize, int history_only,
 		void *data, uint64_t size, int version, struct timespec *ts, 
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 		void *priv)
@@ -254,7 +282,8 @@ int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
 	int pos = 0, trans_num = 0;
 
 	while (1) {
-		err = dnet_common_write_object_raw(n, obj, len, data, size, version, pos, ts, complete, priv);
+		err = dnet_common_write_object_raw(n, obj, len, adata, asize, history_only,
+				data, size, version, pos, ts, complete, priv);
 		if (err <= 0)
 			break;
 
@@ -263,6 +292,47 @@ int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
 	}
 
 	return trans_num;
+}
+
+static void dnet_common_setup_meta_data(char *data, char *obj, int len, char *hash, int hlen)
+{
+	struct dnet_attr *a = (struct dnet_attr *)data;
+	struct dnet_io_attr *io = (struct dnet_io_attr *)(a + 1);
+	struct dnet_meta *mo = (struct dnet_meta *)(io + 1);
+	struct dnet_meta *mh = (struct dnet_meta *)(((void *)(mo + 1)) + len + 1);
+
+	a->size = sizeof(struct dnet_io_attr) + sizeof(struct dnet_meta) * 2 + len + hlen + 2; /* 0-bytes */
+	a->cmd = DNET_CMD_WRITE;
+	a->flags = 0;
+
+	io->size = a->size - sizeof(struct dnet_io_attr);
+	io->flags = DNET_IO_FLAGS_META | DNET_IO_FLAGS_HISTORY;
+	io->offset = 0;
+
+	mo->type = DNET_META_PARENT_OBJECT;
+	mo->size = len + 1; /* 0-byte */
+	snprintf((char *)mo->data, mo->size, "%s", obj);
+	dnet_convert_meta(mo);
+
+	mh->type = DNET_META_TRANSFORM;
+	mh->size = hlen + 1;
+	snprintf((char *)mh->data, mh->size, "%s", hash);
+	dnet_convert_meta(mh);
+}
+
+
+int dnet_common_write_object_meta(struct dnet_node *n, char *obj, int len,
+		char *hash, int hlen, int history_only,
+		void *data, uint64_t size, int version, struct timespec *ts, 
+		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
+		void *priv)
+{
+	char adata[len + hlen + sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + sizeof(struct dnet_meta)*2 + 2 /* 0-bytes */];
+
+	memset(adata, 0, sizeof(adata));
+	dnet_common_setup_meta_data(adata, obj, len, hash, hlen);
+
+	return dnet_common_write_object(n, obj, len, adata, sizeof(adata), history_only, data, size, version, ts, complete, priv);
 }
 
 int dnet_common_send_meta_transactions(struct dnet_node *n, char *obj, int len,
