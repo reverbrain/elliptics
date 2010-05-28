@@ -47,7 +47,7 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t siz
 		m = *(struct dnet_meta *)data;
 		dnet_convert_meta(&m);
 
-		dnet_log(n, DNET_LOG_INFO, "%s: m: %x, size: %u, type: %x.\n", dnet_dump_id(n->id), m.type, m.size, type);
+		dnet_log(n, DNET_LOG_NOTICE, "%s: m: %x, size: %u, type: %x.\n", dnet_dump_id(n->id), m.type, m.size, type);
 
 		if (m.size + sizeof(struct dnet_meta) > size) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: metadata entry broken: entry size %u, type: 0x%x, struct size: %zu, "
@@ -90,7 +90,7 @@ int dnet_meta_remove(struct dnet_node *n, void *data, uint32_t *size, struct dne
 
 	if (copy)
 		memmove(m, ptr, copy);
-	*size = *size - tmp.size + sizeof(struct dnet_meta);
+	*size = *size - tmp.size - sizeof(struct dnet_meta);
 
 out_exit:
 	return err;
