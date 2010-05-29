@@ -1157,7 +1157,7 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 	unsigned char addr[DNET_ID_SIZE];
 	struct dnet_io_control hctl;
 	struct dnet_history_entry e;
-	uint32_t flags = ctl->io.flags;
+	uint32_t flags = ctl->io.flags | DNET_IO_FLAGS_PARENT;
 
 	if (!(ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)) {
 		rsize = DNET_ID_SIZE;
@@ -1196,13 +1196,6 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 		memcpy(ctl->io.origin, ctl->io.id, DNET_ID_SIZE);
 		memcpy(ctl->addr, ctl->io.id, DNET_ID_SIZE);
 	}
-
-	/*
-	 * This is weird, but we do not put META flag on history objects
-	 * created for data transaction. META flag will be added into metadata
-	 * object history log, but not into appropriate data tranactions.
-	 */
-	ctl->io.flags &= ~DNET_IO_FLAGS_META;
 
 	err = dnet_trans_create_send(n, ctl);
 	if (err)
@@ -1915,7 +1908,7 @@ int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *m
 		goto err_out_unmap;
 	}
 
-	if (!m->size || (m->size % sizeof(struct dnet_history_entry))) {
+	if (m->size % sizeof(struct dnet_history_entry)) {
 		dnet_map_log(n, DNET_LOG_ERROR, "%s: Corrupted history file '%s', "
 				"its history metadata size %llu has to be modulo of %zu.\n",
 				(n) ? dnet_dump_id(n->id) : "NULL", file,
