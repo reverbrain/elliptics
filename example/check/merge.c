@@ -62,7 +62,9 @@ static int dnet_merge_write_history(struct dnet_node *n, char *file, unsigned ch
 {
 	int err;
 
-	err = dnet_write_file_local_offset(n, file, file, strlen(file), id, 0, 0, 0, DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY);
+	err = dnet_write_file_local_offset(n, file, file, strlen(file), id, 0, 0, 0,
+			DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION,
+			DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_META);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to upload transaction history merged: %d.\n",
 				dnet_dump_id(id), err);
@@ -87,6 +89,89 @@ static int dnet_merge_write_history_entry(struct dnet_node *n, char *result, uns
 	}
 	err = 0;
 
+	return err;
+}
+
+static int dnet_merge_write_meta(struct dnet_node *n, struct dnet_history_map *map, int fd)
+{
+	struct dnet_meta *m, tmp;
+	void *data = map->data;
+	ssize_t size = map->size, local;
+	int err;
+
+	while (size) {
+		m = data;
+		tmp = *m;
+
+		dnet_convert_meta(&tmp);
+
+		local = tmp.size + sizeof(struct dnet_meta);
+
+		if (tmp.type != DNET_META_HISTORY) {
+			err = write(fd, m, local);
+			if (err != local) {
+				err = -errno;
+				dnet_log_raw(n, DNET_LOG_ERROR, "Failed to write %u metadata object (%u bytes)"
+						"into merged file: %s [%d].\n",
+						tmp.type, tmp.size, strerror(errno), errno);
+				goto err_out_exit;
+			}
+
+			dnet_log_raw(n, DNET_LOG_INFO, "Written metadata object: type: %u, size: %u.\n", tmp.type, tmp.size);
+		}
+
+		if (size < local) {
+			err = -EINVAL;
+			dnet_log_raw(n, DNET_LOG_ERROR, "Corrupted metadata file: size left: %zd can not be less than "
+					"size to write: %zd metadata object (type: %u, size: %u).\n",
+					size, local, tmp.type, tmp.size);
+			goto err_out_exit;
+		}
+
+		data += local;
+		size -= local;
+	}
+
+	memset(&tmp, 0, sizeof(struct dnet_meta));
+	tmp.size = 0;
+	tmp.type = DNET_META_HISTORY;
+
+	dnet_convert_meta(&tmp);
+
+	err = write(fd, &tmp, sizeof(struct dnet_meta));
+	if (err != sizeof(struct dnet_meta)) {
+		err = -errno;
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to write %u metadata object (%u bytes)"
+				"into merged file: %s [%d].\n",
+				tmp.type, tmp.size, strerror(errno), errno);
+		goto err_out_exit;
+	}
+
+	err = 0;
+
+err_out_exit:
+	return err;
+}
+
+static int dnet_merge_update_history_meta(struct dnet_node *n, char *file, int added)
+{
+	struct dnet_history_map map;
+	struct dnet_meta *m;
+	int err;
+
+	err = dnet_map_history(n, file, &map);
+	if (err)
+		goto err_out_exit;
+
+	m = ((void *)map.ent) - sizeof(struct dnet_meta);
+
+	dnet_convert_meta(m);
+	m->size = added * sizeof(struct dnet_history_entry);
+	dnet_convert_meta(m);
+
+	dnet_unmap_history(n, &map);
+
+err_out_exit:
 	return err;
 }
 
@@ -116,6 +201,10 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 				dnet_dump_id(id), result, strerror(errno), errno);
 		goto err_out_unmap2;
 	}
+
+	err = dnet_merge_write_meta(n, &m2, fd);
+	if (err)
+		goto err_out_close;
 
 	for (i=0, j=0; i<m1.num || j<m2.num; ++i) {
 		if (i < m1.num) {
@@ -157,6 +246,10 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 			added++;
 		}
 	}
+
+	err = dnet_merge_update_history_meta(n, result, added);
+	if (err)
+		goto err_out_close;
 
 	err = dnet_merge_write_history(n, result, id);
 	if (err)
@@ -204,7 +297,8 @@ static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, uns
 		 */
 	} else {
 		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len_raw(id, DNET_ID_SIZE, eid));
-		err = dnet_write_file(n, file, file, strlen(file), id, 0, 0, DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION);
+		err = dnet_write_file_local_offset(n, file, file, strlen(file), id, 0, 0, 0,
+				DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to upload transaction to be directly merged: %d.\n",
 					dnet_dump_id(id), err);

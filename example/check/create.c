@@ -61,7 +61,7 @@ static void *dnet_clog_process(void *thread_data)
 
 		dnet_log_raw(n, DNET_LOG_INFO, "clog: %s, flags: %x\n", dnet_dump_id_len_raw(id.id, DNET_ID_SIZE, id_str), id.flags);
 
-		if (!(id.flags & DNET_IO_FLAGS_META))
+		if (!(id.flags & DNET_IO_FLAGS_PARENT))
 			continue;
 
 		err = dnet_meta_read_object_id(n, id.id, file);
