@@ -124,13 +124,37 @@ void dnet_common_log(void *priv, uint32_t mask, const char *msg)
 	fflush(stream);
 }
 
+static void dnet_common_convert_adata(void *adata, struct dnet_io_attr *ioattr)
+{
+	/*
+	 * This is a bit ugly block, since we break common code to update inner data...
+	 * But originally it lived in the place where this was appropriate, and even now
+	 * it is used the way this processing is needed.
+	 */
+
+	if (adata) {
+		struct dnet_attr *a = adata;
+
+		if (a->cmd == DNET_CMD_WRITE) {
+			struct dnet_io_attr *io = (struct dnet_io_attr *)(a + 1);
+
+			memcpy(io->origin, ioattr->origin, DNET_ID_SIZE);
+			memcpy(io->id, ioattr->id, DNET_ID_SIZE);
+
+			dnet_convert_io_attr(io);
+		}
+	}
+}
+
 static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet_io_control *ctl,
 		void *adata, uint32_t asize)
 {
 	int err, num = 0;
 	struct dnet_io_control hctl;
 	struct dnet_history_entry e;
-	uint32_t flags = ctl->io.flags;
+	uint32_t flags = ctl->io.flags | DNET_IO_FLAGS_PARENT;
+
+	dnet_common_convert_adata(adata, &ctl->io);
 
 	err = dnet_trans_create_send(n, ctl);
 	if (err)
@@ -145,27 +169,10 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 		memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
 		memcpy(hctl.io.id, ctl->io.id, DNET_ID_SIZE);
 
+		dnet_common_convert_adata(adata, &hctl.io);
+
 		hctl.adata = adata;
 		hctl.asize = asize;
-
-		/*
-		 * This is a bit ugly block, since we break common code to update inner data...
-		 * But originally it lived in the place where this was appropriate, and even now
-		 * it is used the way this processing is needed.
-		 */
-
-		if (adata) {
-			struct dnet_attr *a = adata;
-
-			if (a->cmd == DNET_CMD_WRITE) {
-				struct dnet_io_attr *io = (struct dnet_io_attr *)(a + 1);
-
-				memcpy(io->origin, hctl.io.origin, DNET_ID_SIZE);
-				memcpy(io->id, hctl.io.id, DNET_ID_SIZE);
-
-				dnet_convert_io_attr(io);
-			}
-		}
 
 		if (ctl->ts.tv_sec)
 			dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, &ctl->ts, flags);
@@ -259,6 +266,7 @@ static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned
 	} else {
 		ctl.aflags |= DNET_ATTR_DIRECT_TRANSACTION;
 		memcpy(ctl.io.origin, ctl.io.id, DNET_ID_SIZE);
+		ctl.io.flags |= DNET_IO_FLAGS_PARENT;
 	}
 
 	err = dnet_common_send_upload_transactions(n, &ctl, adata, asize);
@@ -334,44 +342,3 @@ int dnet_common_write_object_meta(struct dnet_node *n, char *obj, int len,
 
 	return dnet_common_write_object(n, obj, len, adata, sizeof(adata), history_only, data, size, version, ts, complete, priv);
 }
-
-int dnet_common_send_meta_transactions(struct dnet_node *n, char *obj, int len,
-		char *hashes, int hashes_len)
-{
-	struct dnet_meta m;
-	int err;
-	char file[64];
-
-	snprintf(file, sizeof(file), "/tmp/meta-%d", getpid());
-
-	err = dnet_meta_read(n, obj, len, file);
-	if (err && err != -ENOENT)
-		goto err_out_exit;
-
-	memset(&m, 0, sizeof(struct dnet_meta));
-	m.type = DNET_META_TRANSFORM;
-	m.size = hashes_len + 1; /* 0-byte */
-
-	err = dnet_meta_create_file(n, file, &m, hashes);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add transform metadata for object '%s': %d.\n",
-				obj, err);
-		goto err_out_unlink;
-	}
-
-	m.type = DNET_META_PARENT_OBJECT;
-	m.size = len + 1; /* 0-byte */
-
-	err = dnet_meta_write(n, &m, obj, obj, len, file);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add/send parent metadata for '%s': %d.\n", 
-				obj, err);
-		goto err_out_unlink;
-	}
-
-err_out_unlink:
-	unlink(file);
-err_out_exit:
-	return err;
-}
-
