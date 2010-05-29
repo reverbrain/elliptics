@@ -1,3 +1,11 @@
+elliptics (2.8.0) unstable; urgency=low
+
+  * Switched to new optimized history format, which contains metadata.
+    History becomes just another metadata object with parent name
+    and list of transformation functions.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 29 May 2010 20:46:43 +0400
+
 elliptics (2.7.5.3) unstable; urgency=low
 
   * Added extended per-client per-cmd statistics.
