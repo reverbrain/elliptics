@@ -988,7 +988,8 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 	dnet_fcgi_request_error = 0;
 	dnet_fcgi_request_completed = 0;
 
-	err = dnet_common_write_object_meta(n, obj, len, dnet_fcgi_hashes, dnet_fcgi_hashes_len, 1, data, size, version, ts, dnet_fcgi_upload_complete, NULL);
+	err = dnet_common_write_object_meta(n, obj, len, dnet_fcgi_hashes, dnet_fcgi_hashes_len, version != -1,
+			data, size, version, ts, dnet_fcgi_upload_complete, NULL);
 	if (err > 0)
 		trans_num = err;
 	fprintf(dnet_fcgi_log, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
