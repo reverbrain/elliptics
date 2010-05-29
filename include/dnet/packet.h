@@ -236,6 +236,9 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 /* Object was removed */
 #define DNET_IO_FLAGS_REMOVED		(1<<6)
 
+/* Object is a parent object */
+#define DNET_IO_FLAGS_PARENT		(1<<7)
+
 struct dnet_io_attr
 {
 	uint8_t			origin[DNET_ID_SIZE];
