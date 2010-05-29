@@ -748,7 +748,7 @@ struct dnet_history_map
 	void				*data;
 	struct dnet_history_entry	*ent;
 	long				num;
-	size_t				size;
+	ssize_t				size;
 	int				fd;
 };
 
