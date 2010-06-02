@@ -186,7 +186,7 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
 	err = rename(tmp, file);
 	if (err) {
 		err = -errno;
-		dnet_map_log(n, DNET_LOG_ERROR, "Failed to rename tmp files: %s -> %s.\n", tmp, file);
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to rename tmp files: %s -> %s: %d.\n", tmp, file, err);
 		goto err_out_put;
 	}
 
