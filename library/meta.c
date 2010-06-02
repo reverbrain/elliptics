@@ -159,7 +159,7 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
 	int err, len;
 	struct dnet_io_attr io;
 	struct dnet_wait *w;
-	char tmp[32];
+	char tmp[256];
 
 	memset(&io, 0, sizeof(struct dnet_io_attr));
 	memcpy(io.id, id, DNET_ID_SIZE);
@@ -177,14 +177,18 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
 	}
 
 	err = dnet_read_file_id(n, tmp, len, 0, 0, &io, w, 1, 1);
-	dnet_map_log(n, DNET_LOG_INFO, "%s: metadata reading history: %d.\n", dnet_dump_id(io.origin), err);
+	dnet_map_log(n, DNET_LOG_NOTICE, "%s: metadata reading history: %d.\n", dnet_dump_id(io.origin), err);
 	if (err)
 		goto err_out_put;
 
 	snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%d%s", getpid(), DNET_HISTORY_SUFFIX);
 
-	unlink(file);
-	rename(tmp, file);
+	err = rename(tmp, file);
+	if (err) {
+		err = -errno;
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to rename tmp files: %s -> %s.\n", tmp, file);
+		goto err_out_put;
+	}
 
 err_out_put:
 	dnet_wait_put(w);
