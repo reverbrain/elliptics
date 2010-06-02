@@ -73,7 +73,7 @@ static void *dnet_clog_process(void *thread_data)
 		fd = open(file, O_RDONLY);
 		if (fd < 0) {
 			err = -errno;
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download meta object: %d.\n", dnet_dump_id(id.id), err);
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read meta object '%s': %d.\n", dnet_dump_id(id.id), file, err);
 			goto out_unlink;
 		}
 
