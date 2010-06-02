@@ -738,7 +738,8 @@ out_close_output_file:
 	if (output_file)
 		fclose(dnet_check_output);
 out_close_check_file:
-	fclose(dnet_check_file);
+	if (dnet_check_file)
+		fclose(dnet_check_file);
 out_exit:
 	free(remotes);
 	return err;
