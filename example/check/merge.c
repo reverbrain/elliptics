@@ -180,6 +180,7 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 	struct dnet_node *n = worker->n;
 	struct dnet_history_entry ent1, ent2;
 	struct dnet_history_map m1, m2;
+	char id_str[DNET_ID_SIZE*2+1];
 	char result[256];
 	long i, j, added = 0;
 	int err, fd;
@@ -192,7 +193,7 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 	if (err)
 		goto err_out_unmap1;
 
-	snprintf(result, sizeof(result), "%s-%d", file, getpid());
+	snprintf(result, sizeof(result), "%s-%s", file, dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str));
 
 	fd = open(result, O_RDWR | O_CREAT | O_TRUNC | O_APPEND, 0644);
 	if (fd < 0) {

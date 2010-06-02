@@ -159,6 +159,7 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
 	int err, len;
 	struct dnet_io_attr io;
 	struct dnet_wait *w;
+	char id_str[DNET_ID_SIZE*2+1];
 	char tmp[256];
 
 	memset(&io, 0, sizeof(struct dnet_io_attr));
@@ -167,7 +168,7 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
 
 	io.flags = DNET_IO_FLAGS_HISTORY;
 
-	len = snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%d", getpid());
+	len = snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%s", dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str));
 
 	w = dnet_wait_alloc(~0);
 	if (!w) {
@@ -181,7 +182,7 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
 	if (err)
 		goto err_out_put;
 
-	snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%d%s", getpid(), DNET_HISTORY_SUFFIX);
+	len = snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%s", id_str);
 
 	err = rename(tmp, file);
 	if (err) {

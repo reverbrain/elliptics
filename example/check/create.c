@@ -49,8 +49,6 @@ static void *dnet_clog_process(void *thread_data)
 	int err, fd;
 	char *parent, *transform;
 
-	snprintf(file, sizeof(file), "/tmp/clog-%d", getpid());
-
 	while (1) {
 		pthread_mutex_lock(&dnet_check_file_lock);
 		err = fread(&id, sizeof(struct dnet_id), 1, dnet_check_file);
@@ -69,6 +67,8 @@ static void *dnet_clog_process(void *thread_data)
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download meta object: %d.\n", dnet_dump_id(id.id), err);
 			goto out_continue;
 		}
+
+		snprintf(file, sizeof(file), "/tmp/clog-%s", id_str);
 
 		fd = open(file, O_RDONLY);
 		if (fd < 0) {
