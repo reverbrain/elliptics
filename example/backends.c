@@ -273,7 +273,8 @@ int backend_write_history(void *state, void *backend, struct dnet_io_attr *io, v
 						"%s: history update failed: meta size "
 						"(%u plus meta structure size) is more than "
 						"io size (%llu).\n",
-					dnet_dump_id(io->id), meta->size, io->size);
+					dnet_dump_id(io->id), meta->size,
+					(unsigned long long)io->size);
 				err = -EINVAL;
 				goto err_out_exit;
 			}

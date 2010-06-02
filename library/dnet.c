@@ -473,7 +473,8 @@ static int dnet_cmd_stat_count_single(struct dnet_net_state *orig, struct dnet_c
 	dnet_log(n, DNET_LOG_INFO, "addr: %s, ptr: %p, orig: %p.\n", dnet_server_convert_dnet_addr(&as->addr), st, orig);
 	for (i=0; i<as->num; ++i) {
 		as->count[i] = st->stat[i];
-		dnet_log(n, DNET_LOG_INFO, "  cmd: %d, count: %llu, err: %llu\n", i, as->count[i].count, as->count[i].err);
+		dnet_log(n, DNET_LOG_INFO, "  cmd: %d, count: %llu, err: %llu\n",
+			i, (unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
 	}
 
 	dnet_convert_addr_stat(as, as->num);
@@ -1881,7 +1882,7 @@ int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *m
 		goto err_out_close;
 	}
 
-	if (st.st_size < sizeof(struct dnet_meta)) {
+	if (st.st_size < (int)sizeof(struct dnet_meta)) {
 		dnet_map_log(n, DNET_LOG_ERROR, "%s: Corrupted history file '%s', "
 				"its size %llu must be more than %zu.\n",
 				(n) ? dnet_dump_id(n->id) : "NULL", file,
