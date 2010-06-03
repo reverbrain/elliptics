@@ -1,3 +1,10 @@
+elliptics (2.8.0.2) unstable; urgency=low
+
+  * Debug cleanups.
+  * Fsck utils fixes.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 03 Jun 2010 18:59:45 +0400
+
 elliptics (2.8.0.1) unstable; urgency=low
 
   * Debug extensions in fsck and meta processing.
