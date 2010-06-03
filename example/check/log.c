@@ -288,7 +288,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 		return -ENOMEM;
 	memset(requests, 0, hash_num * sizeof(struct dnet_check_request));
 
-	while (1) {
+	for (i=0; i<hash_num; ++i) {
 		unsigned int rsize = DNET_ID_SIZE;
 
 		req = &requests[pos];
