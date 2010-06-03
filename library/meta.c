@@ -182,7 +182,7 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
 	if (err)
 		goto err_out_put;
 
-	len = snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%s", id_str);
+	len = snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%s%s", id_str, DNET_HISTORY_SUFFIX);
 
 	err = rename(tmp, file);
 	if (err) {

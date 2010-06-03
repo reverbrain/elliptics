@@ -62,13 +62,13 @@ static void *dnet_clog_process(void *thread_data)
 		if (!(id.flags & DNET_IO_FLAGS_PARENT))
 			continue;
 
+		snprintf(file, sizeof(file), "/tmp/clog-%s", id_str);
+
 		err = dnet_meta_read_object_id(n, id.id, file);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download meta object: %d.\n", dnet_dump_id(id.id), err);
 			goto out_continue;
 		}
-
-		snprintf(file, sizeof(file), "/tmp/clog-%s", id_str);
 
 		fd = open(file, O_RDONLY);
 		if (fd < 0) {
