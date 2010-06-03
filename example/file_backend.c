@@ -158,12 +158,15 @@ static int dnet_is_dir(void *state, char *path)
 	return S_ISDIR(err);
 }
 
-static int dnet_file_get_flags(void *state, char *file, uint32_t *flags)
+static int dnet_file_get_flags(void *state, char *dir, char *file, uint32_t *flags)
 {
+	char path[strlen(dir) + strlen(file) + 16];
 	struct dnet_history_map m;
 	int err;
 
-	err = dnet_map_history(dnet_get_node_from_state(state), file, &m);
+	snprintf(path, sizeof(path), "%s/%s", dir, file);
+
+	err = dnet_map_history(dnet_get_node_from_state(state), path, &m);
 	if (err)
 		goto err_out_exit;
 
@@ -203,15 +206,6 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 		goto err_out_free;
 	}
 
-	err = chdir(sub);
-	if (err) {
-		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"Failed to change directory to '%s': %s.\n",
-			sub, strerror(errno));
-		goto err_out_close;
-	}
-
 	while ((d = readdir(dir)) != NULL) {
 		if (d->d_name[0] == '.' && d->d_name[1] == '\0')
 			continue;
@@ -236,7 +230,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 			continue;
 
 		if (attr->flags & DNET_ATTR_ID_FLAGS) {
-			err = dnet_file_get_flags(state, d->d_name, &flags);
+			err = dnet_file_get_flags(state, sub, d->d_name, &flags);
 			if (err)
 				continue;
 		}
@@ -262,14 +256,6 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 	err = dnet_send_reply(state, cmd, attr, ids, pos * sizeof(struct dnet_id), 0);
 	if (err)
 		goto err_out_close;
-
-	err = chdir("..");
-	if (err) {
-		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"Failed to chdir to the parent: %s.\n", strerror(errno));
-		goto err_out_close;
-	}
 
 	closedir(dir);
 	free(ids);
