@@ -133,8 +133,6 @@ static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *eng, char 
 	eng->cleanup = dnet_openssl_crypto_engine_cleanup;
 	eng->engine = e;
 
-	printf("Successfully initialized '%s' hash.\n", hash);
-
 	return 0;
 }
 
