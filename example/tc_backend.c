@@ -41,8 +41,6 @@
 
 #include "backends.h"
 
-#ifdef HAVE_TOKYOCABINET_SUPPORT
-
 #include <tcadb.h>
 
 struct tc_backend
@@ -439,7 +437,7 @@ err_out_exit:
 	return err;
 }
 
-int tc_backend_command_handler(void *state, void *priv,
+static int tc_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr,
 		void *data)
 {
@@ -474,19 +472,6 @@ static void tc_backend_close(TCADB *db)
 {
 	tcadbclose(db);
 	tcadbdel(db);
-}
-
-void tc_backend_exit(void *data)
-{
-	struct tc_backend *be = data;
-
-	/* close dbs and delete objects if existing */
-
-	tc_backend_close(be->data);
-	tc_backend_close(be->hist);
-
-	free(be->env_dir);
-	free(be);
 }
 
 static int tc_backend_open(TCADB *adb, const char *env_dir, const char *file)
@@ -563,62 +548,78 @@ err_out_exit:
 	return NULL;
 }
 
-void *tc_backend_init(const char *env_dir, const char *dbfile, const char *histfile)
+static int dnet_tc_config_init(struct dnet_config_backend *b, struct dnet_config *c)
 {
-	/* initialize tc_backend struct */
-	struct tc_backend *be;
+	c->command_private = b->data;
+	c->command_handler = tc_backend_command_handler;
 
-	be = malloc(sizeof(struct tc_backend));
-	if (!be) {
-		fprintf(stderr, "malloc(tc_backend) failed\n");
-		goto err_out_exit;
-	}
-	memset(be, 0, sizeof(struct tc_backend));
+	return 0;
+}
 
-	if (env_dir) {
-		be->env_dir = strdup(env_dir);
-		if (!be->env_dir) {
-			fprintf(stderr, "Failed to duplicate environment dir\n");
-			goto err_out_free_be;
-		}
-	}
+static void dnet_tc_config_cleanup(struct dnet_config_backend *b)
+{
+	struct tc_backend *be = b->data;
 
-	be->data = tc_backend_create(env_dir, dbfile);
-	if (!be->data)
-		goto err_out_free_env_dir;
-	
-	be->hist = tc_backend_create(env_dir, histfile);
-	if (!be->hist)
-		goto err_out_close_data;
-	
-	return be;
-
-err_out_close_data:
 	tc_backend_close(be->data);
-err_out_free_env_dir:
+	tc_backend_close(be->hist);
 	free(be->env_dir);
-err_out_free_be:
-	free(be);
-err_out_exit:
-	return NULL;
-}
-#else
-int tc_backend_command_handler(void *state __unused, void *priv __unused,
-		struct dnet_cmd *cmd __unused, struct dnet_attr *attr __unused,
-		void *data __unused)
-{
-	return -ENOTSUP;
 }
 
-void tc_backend_exit(void *data __unused)
+static int dnet_tc_set_env(struct dnet_config_backend *b, char *key __unused, char *root)
 {
-	return;
+	struct tc_backend *be = b->data;
+
+	be->env_dir = strdup(root);
+	if (!be->env_dir)
+		return -ENOMEM;
+
+	return 0;
 }
 
-void *tc_backend_init(const char *env_dir __unused,
-		const char *dbfile __unused, const char *histfile __unused)
+static int dnet_tc_set_data(struct dnet_config_backend *b, char *key __unused, char *file)
 {
-	return NULL;
+	struct tc_backend *be = b->data;
+
+	be->data = tc_backend_create(be->env_dir, file);
+	if (!be->data)
+		return -EINVAL;
+
+	return 0;
 }
 
-#endif
+static int dnet_tc_set_history(struct dnet_config_backend *b, char *key __unused, char *file)
+{
+	struct tc_backend *be = b->data;
+
+	be->hist = tc_backend_create(be->env_dir, file);
+	if (!be->hist)
+		return -EINVAL;
+
+	return 0;
+}
+
+static struct dnet_config_entry dnet_cfg_entries_tc[] = {
+	{"environment_dir", dnet_tc_set_env},
+	{"database_file", dnet_tc_set_data},
+	{"history_file", dnet_tc_set_history},
+};
+
+static struct dnet_config_backend dnet_tc_backend = {
+	.name			= "tokyocabinet",
+	.ent			= dnet_cfg_entries_tc,
+	.num			= ARRAY_SIZE(dnet_cfg_entries_tc),
+	.size			= sizeof(struct tc_backend),
+	.init			= dnet_tc_config_init,
+	.cleanup		= dnet_tc_config_cleanup,
+};
+
+int dnet_tc_backend_init()
+{
+	return dnet_backend_register(&dnet_tc_backend);
+}
+
+void dnet_tc_backend_exit(void)
+{
+	/* cleanup routing will be called explicitly through backend->cleanup() callback */
+}
+

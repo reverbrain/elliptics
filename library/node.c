@@ -585,6 +585,13 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		goto err_out_exit;
 	}
 
+	if (!cfg->sock_type)
+		cfg->sock_type = SOCK_STREAM;
+	if (!cfg->proto)
+		cfg->proto = IPPROTO_TCP;
+	if (!cfg->family)
+		cfg->family = AF_INET;
+
 	memcpy(n->id, cfg->id, DNET_ID_SIZE);
 	n->proto = cfg->proto;
 	n->sock_type = cfg->sock_type;
@@ -596,6 +603,14 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->notify_hash_size = cfg->hash_size;
 	n->resend_count = cfg->resend_count;
 	n->resend_timeout = cfg->resend_timeout;
+
+	if (!n->log)
+		dnet_log_init(n, cfg->log_private, cfg->log_mask, cfg->log);
+
+	if (!n->wait_ts.tv_sec)
+		n->wait_ts.tv_sec = 60*60;
+	if (!n->resend_count)
+		n->resend_count = 3;
 
 	/*
 	 * Only allow resends for client nodes,

@@ -37,6 +37,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 	sa->sa_family = family;
 	s = socket(family, sock_type, proto);
 	if (s < 0) {
+		err = -errno;
 		dnet_log_err(n, "Failed to create socket for %s:%d: "
 				"family: %d, sock_type: %d, proto: %d",
 				dnet_server_convert_addr(sa, salen),
@@ -51,6 +52,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 
 		err = bind(s, sa, salen);
 		if (err) {
+			err = -errno;
 			dnet_log_err(n, "Failed to bind to %s:%d",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
@@ -59,6 +61,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 
 		err = listen(s, 1024);
 		if (err) {
+			err = -errno;
 			dnet_log_err(n, "Failed to listen at %s:%d",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
@@ -71,6 +74,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 	} else {
 		err = connect(s, sa, salen);
 		if (err) {
+			err = -errno;
 			dnet_log_err(n, "Failed to connect to %s:%d",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
@@ -98,6 +102,13 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 	struct addrinfo *ai, hint;
 
 	memset(&hint, 0, sizeof(struct addrinfo));
+
+	if (cfg->family != n->family)
+		cfg->family = n->family;
+	if (cfg->sock_type != n->sock_type)
+		cfg->sock_type = n->sock_type;
+	if (cfg->proto != n->proto)
+		cfg->proto = n->proto;
 
 	hint.ai_family = cfg->family;
 	hint.ai_socktype = cfg->sock_type;

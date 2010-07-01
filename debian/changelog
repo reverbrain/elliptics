@@ -1,3 +1,10 @@
+elliptics (2.9.0) unstable; urgency=low
+
+  * switched ioserv from command line to config
+  * created ioclient which does command line IO operations
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 01 Jul 2010 22:22:26 +0400
+
 elliptics (2.8.1) unstable; urgency=low
 
   * Autoconf update to rollout new release, which contains previous fixes.

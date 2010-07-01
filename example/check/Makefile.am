@@ -2,7 +2,7 @@ bin_PROGRAMS = dnet_check_log dnet_check_merge dnet_check_create
 noinst_LIBRARIES = libcheck.a
 noinst_HEADERS = common.h
 
-CHECK_COMMON_LIBS = libcheck.a ../../library/libdnet.la ../libhash.a ../libcommon.a
+CHECK_COMMON_LIBS = libcheck.a ../../library/libdnet.la ../libcommon.a
 
 libcheck_a_SOURCES = common.c
 

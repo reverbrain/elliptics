@@ -63,53 +63,6 @@ static inline void file_backend_setup_file(struct file_backend_root *r, char *fi
 			dir, dnet_dump_id_len_raw(io->origin, DNET_ID_SIZE, id));
 }
 
-void *file_backend_setup_root(char *root, int sync, unsigned int bits)
-{
-	int err;
-	struct file_backend_root *r;
-
-	r = malloc(sizeof(struct file_backend_root));
-	if (!r)
-		goto err_out_exit;
-
-	r->root = strdup(root);
-	if (!r->root) {
-		err = -ENOMEM;
-		fprintf(stderr, "Failed to duplicate root string '%s'.\n", root);
-		goto err_out_exit;
-	}
-
-	r->rootfd = open(r->root, O_RDONLY);
-	if (r->rootfd < 0) {
-		err = -errno;
-		fprintf(stderr, "Failed to open root '%s': %s.\n", root, strerror(errno));
-		goto err_out_free;
-	}
-
-	r->root_len = strlen(r->root);
-	r->sync = sync;
-	r->bit_num = ALIGN(bits, 4);
-
-	err = fchdir(r->rootfd);
-	if (err) {
-		err = -errno;
-		fprintf(stderr, "Failed to change current dir to root '%s' directory: %s.\n",
-				root, strerror(errno));
-		goto err_out_close;
-	}
-
-	return r;
-
-err_out_close:
-	close(r->rootfd);
-	r->rootfd = -1;
-err_out_free:
-	free(r->root);
-	r->root = NULL;
-err_out_exit:
-	return NULL;
-}
-
 static void dnet_convert_name_to_id(char *name, unsigned char *id)
 {
 	int i;
@@ -140,9 +93,14 @@ static int dnet_stat_object(void *state, char *path)
 	return st.st_mode;
 }
 
-static int dnet_is_regular(void *state, char *path)
+static int dnet_is_regular(void *state, char *sub, unsigned int sub_len, char *path, unsigned int path_len)
 {
-	int err = dnet_stat_object(state, path);
+	char p[sub_len + path_len + 2]; /* / and 0-byte */
+	int err;
+
+	snprintf(p, sizeof(p), "%s/%s", sub, path);
+
+	err = dnet_stat_object(state, p);
 	if (err < 0)
 		return err;
 
@@ -158,13 +116,13 @@ static int dnet_is_dir(void *state, char *path)
 	return S_ISDIR(err);
 }
 
-static int dnet_file_get_flags(void *state, char *dir, char *file, uint32_t *flags)
+static int dnet_file_get_flags(void *state, char *sub, unsigned int sub_len, char *file, unsigned int file_len, uint32_t *flags)
 {
-	char path[strlen(dir) + strlen(file) + 16];
+	char path[sub_len + file_len + 2]; /* / and 0-byte */
 	struct dnet_history_map m;
 	int err;
 
-	snprintf(path, sizeof(path), "%s/%s", dir, file);
+	snprintf(path, sizeof(path), "%s/%s", sub, file);
 
 	err = dnet_map_history(dnet_get_node_from_state(state), path, &m);
 	if (err)
@@ -190,7 +148,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 	DIR *dir;
 	struct dirent *d;
 	unsigned char id[DNET_ID_SIZE];
-	unsigned int len, num = 1024*1024, pos = 0;
+	unsigned int len, sub_len = strlen(sub), num = 1024*1024, pos = 0;
 	uint32_t flags;
 	struct dnet_id *ids;
 
@@ -212,10 +170,10 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 		if (d->d_name[0] == '.' && d->d_name[1] == '.' && d->d_name[2] == '\0')
 			continue;
 
-		if (dnet_is_regular(state, d->d_name) <= 0)
-			continue;
-
 		len = strlen(d->d_name);
+
+		if (dnet_is_regular(state, sub, sub_len, d->d_name, len) <= 0)
+			continue;
 
 		flags = 0;
 		if (strcmp(&d->d_name[DNET_ID_SIZE*2], DNET_HISTORY_SUFFIX))
@@ -230,7 +188,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 			continue;
 
 		if (attr->flags & DNET_ATTR_ID_FLAGS) {
-			err = dnet_file_get_flags(state, sub, d->d_name, &flags);
+			err = dnet_file_get_flags(state, sub, sub_len, d->d_name, len, &flags);
 			if (err)
 				continue;
 		}
@@ -284,7 +242,7 @@ static int file_list(struct file_backend_root *r, void *state,
 	last = 0;
 
 	memcpy(id, cmd->id, DNET_ID_SIZE);
-	
+
 	if (out) {
 		out = 0;
 		err = dnet_state_get_next_id(state, id);
@@ -721,7 +679,7 @@ err_out_exit:
 	return err;
 }
 
-int file_backend_command_handler(void *state, void *priv,
+static int file_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
 	int err;
@@ -749,4 +707,100 @@ int file_backend_command_handler(void *state, void *priv,
 	}
 
 	return err;
+}
+
+static int dnet_file_set_bit_number(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct file_backend_root *r = b->data;
+
+	r->bit_num = ALIGN(atoi(value), 4);
+	return 0;
+}
+
+static int dnet_file_set_sync(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct file_backend_root *r = b->data;
+
+	r->sync = atoi(value);
+	return 0;
+}
+
+static int dnet_file_set_root(struct dnet_config_backend *b, char *key __unused, char *root)
+{
+	struct file_backend_root *r = b->data;
+	int err;
+
+	r->root = strdup(root);
+	if (!r->root) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	r->rootfd = open(r->root, O_RDONLY);
+	if (r->rootfd < 0) {
+		err = -errno;
+		fprintf(stderr, "Failed to open root '%s': %s.\n", root, strerror(errno));
+		goto err_out_free;
+	}
+	r->root_len = strlen(r->root);
+
+	err = fchdir(r->rootfd);
+	if (err) {
+		err = -errno;
+		fprintf(stderr, "Failed to change current dir to root '%s' directory: %s.\n",
+				root, strerror(errno));
+		goto err_out_close;
+	}
+
+	return 0;
+
+err_out_close:
+	close(r->rootfd);
+	r->rootfd = -1;
+err_out_free:
+	free(r->root);
+	r->root = NULL;
+err_out_exit:
+	return err;
+}
+
+static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_config *c)
+{
+	c->command_private = b->data;
+	c->command_handler = file_backend_command_handler;
+
+	return 0;
+}
+
+static void dnet_file_config_cleanup(struct dnet_config_backend *b)
+{
+	struct file_backend_root *r = b->data;
+
+	close(r->rootfd);
+	free(r->root);
+}
+
+static struct dnet_config_entry dnet_cfg_entries_filesystem[] = {
+	{"directory_bit_number", dnet_file_set_bit_number},
+	{"sync", dnet_file_set_sync},
+	{"root", dnet_file_set_root},
+};
+
+static struct dnet_config_backend dnet_file_backend = {
+	.name			= "filesystem",
+	.ent			= dnet_cfg_entries_filesystem,
+	.num			= ARRAY_SIZE(dnet_cfg_entries_filesystem),
+	.size			= sizeof(struct file_backend_root),
+	.init			= dnet_file_config_init,
+	.cleanup		= dnet_file_config_cleanup,
+};
+
+int dnet_file_backend_init(void)
+{
+	return dnet_backend_register(&dnet_file_backend);
+}
+
+void dnet_file_backend_exit(void)
+{
+	/* cleanup routing will be called explicitly through backend->cleanup() callback */
 }

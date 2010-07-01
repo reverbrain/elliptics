@@ -36,6 +36,7 @@
 #include <dnet/interface.h>
 
 #include "common.h"
+#include "hash.h"
 
 #define DNET_CONF_COMMENT	'#'
 #define DNET_CONF_DELIM		'='
@@ -71,8 +72,8 @@ int dnet_parse_addr(char *addr, struct dnet_config *cfg)
 	return 0;
 
 err_out_print_wrong_param:
-	fprintf(stderr, "Wrong address parameter, should be 'addr%cport%cfamily'.\n",
-				DNET_CONF_ADDR_DELIM, DNET_CONF_ADDR_DELIM);
+	fprintf(stderr, "Wrong address parameter '%s', should be 'addr%cport%cfamily'.\n",
+				addr, DNET_CONF_ADDR_DELIM, DNET_CONF_ADDR_DELIM);
 	return -EINVAL;
 }
 
@@ -342,3 +343,139 @@ int dnet_common_write_object_meta(struct dnet_node *n, char *obj, int len,
 
 	return dnet_common_write_object(n, obj, len, adata, sizeof(adata), history_only, data, size, version, ts, complete, priv);
 }
+
+int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cfg, char *orig_addr)
+{
+	char *a;
+	char *addr, *p;
+	int added = 0, err;
+	struct dnet_config cfg;
+
+	if (!orig_addr)
+		return 0;
+
+	a = strdup(orig_addr);
+	if (!a) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	addr = a;
+
+	while (addr) {
+		p = strchr(addr, ' ');
+		if (p)
+			*p++ = '\0';
+
+		memcpy(&cfg, main_cfg, sizeof(struct dnet_config));
+
+		err = dnet_parse_addr(addr, &cfg);
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to parse addr '%s': %d.\n", addr, err);
+			goto next;
+		}
+
+		err = dnet_add_state(n, &cfg);
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add addr '%s': %d.\n", addr, err);
+			goto next;
+		}
+
+		added++;
+
+		if (!p)
+			break;
+
+next:
+		addr = p;
+
+		while (addr && *addr && isspace(*addr))
+			addr++;
+	}
+
+	free(a);
+
+	if (!added) {
+		err = 0;
+		dnet_log_raw(n, DNET_LOG_ERROR, "No remote addresses added. Continue to work though.\n");
+		goto err_out_exit;
+	}
+
+	return 0;
+
+err_out_exit:
+	return err;
+}
+
+int dnet_common_add_transform(struct dnet_node *n, char *orig_hash)
+{
+	char *h = NULL, *hash, *p;
+	int added = 0, err;
+	struct dnet_crypto_engine *e;
+
+	if (!orig_hash)
+		return 0;
+
+	h = strdup(orig_hash);
+	if (!h) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	hash = h;
+
+	while (hash) {
+		p = strchr(hash, ' ');
+		if (p)
+			*p++ = '\0';
+
+		e = malloc(sizeof(struct dnet_crypto_engine));
+		if (!e) {
+			err = -ENOMEM;
+			goto err_out_free;
+		}
+
+		memset(e, 0, sizeof(struct dnet_crypto_engine));
+
+		err = dnet_crypto_engine_init(e, hash);
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to initialize hash '%s': %d.\n",
+					hash, err);
+			goto err_out_free;
+		}
+
+		err = dnet_add_transform(n, e, e->name,	e->init, e->update, e->final, e->cleanup);
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add hash '%s': %d.\n", hash, err);
+			goto err_out_free;
+		}
+
+		dnet_log_raw(n, DNET_LOG_INFO, "Added hash '%s'.\n", hash);
+		added++;
+
+		if (!p)
+			break;
+
+		hash = p;
+
+		while (hash && *hash && isspace(*hash))
+			hash++;
+	}
+
+	if (!added) {
+		err = -ENOENT;
+		dnet_log_raw(n, DNET_LOG_ERROR, "No remote hashes added, aborting.\n");
+		goto err_out_free;
+	}
+
+	free(h);
+
+	return 0;
+
+err_out_free:
+	free(h);
+err_out_exit:
+	return err;
+}
+
+

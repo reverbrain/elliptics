@@ -1,5 +1,5 @@
-bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_iotest dnet_stat dnet_notify
-noinst_LIBRARIES = libhash.a libcommon.a libbackend.a
+bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_iotest dnet_stat dnet_notify dnet_ioclient
+noinst_LIBRARIES = libcommon.a libbackend.a
 noinst_HEADERS = hash.h backends.h common.h
 SUBDIRS = . check
 
@@ -7,18 +7,20 @@ CC = @PTHREAD_CC@
 
 EXAMPLE_COMMON_LIBS = ../library/libdnet.la libcommon.a
 
-libhash_a_SOURCES = hash.c lookup3.c
-libcommon_a_SOURCES = common.c
+libcommon_a_SOURCES = common.c hash.c lookup3.c
 libbackend_a_SOURCES = file_backend.c tc_backend.c backends.c
 
-dnet_ioserv_SOURCES = ioserv.c
-dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) libhash.a libbackend.a
+dnet_ioserv_SOURCES = ioserv.c config.c
+dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) libbackend.a
+
+dnet_ioclient_SOURCES = ioclient.c
+dnet_ioclient_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_hparser_SOURCES = hparser.c
 dnet_hparser_LDADD = ../library/libdnet.la
 
 dnet_iotest_SOURCES = iotest.c
-dnet_iotest_LDADD = $(EXAMPLE_COMMON_LIBS) libhash.a
+dnet_iotest_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_stat_SOURCES = stat.c
 dnet_stat_LDADD = $(EXAMPLE_COMMON_LIBS)

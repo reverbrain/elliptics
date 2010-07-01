@@ -234,162 +234,6 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 	return 0;
 }
 
-static int dnet_fcgi_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cfg)
-{
-	char *a;
-	char *addr, *p;
-	int added = 0, err;
-	struct dnet_config cfg;
-
-	addr = getenv("DNET_FCGI_REMOTE_ADDR");
-	if (!addr) {
-		fprintf(dnet_fcgi_log, "No remote address specified, aborting.\n");
-		err = -ENOENT;
-		goto err_out_exit;
-	}
-
-	a = strdup(addr);
-	if (!a) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	addr = a;
-
-	while (addr) {
-		p = strchr(addr, ' ');
-		if (p)
-			*p++ = '\0';
-
-		memcpy(&cfg, main_cfg, sizeof(struct dnet_config));
-
-		err = dnet_parse_addr(addr, &cfg);
-		if (err) {
-			fprintf(dnet_fcgi_log, "Failed to parse addr '%s': %d.\n", addr, err);
-			goto next;
-		}
-
-		err = dnet_add_state(n, &cfg);
-		if (err) {
-			fprintf(dnet_fcgi_log, "Failed to add addr '%s': %d.\n", addr, err);
-			goto next;
-		}
-
-		added++;
-
-		if (!p)
-			break;
-
-next:
-		addr = p;
-
-		while (addr && *addr && isspace(*addr))
-			addr++;
-	}
-
-	free(a);
-
-	if (!added) {
-		err = -ENOENT;
-		fprintf(dnet_fcgi_log, "No remote addresses added, aborting.\n");
-		goto err_out_exit;
-	}
-
-	return 0;
-
-err_out_exit:
-	return err;
-}
-
-static int dnet_fcgi_add_transform(struct dnet_node *n)
-{
-	char *h = NULL, *hash, *p;
-	int added = 0, err, pos = 0;
-	struct dnet_crypto_engine *e;
-
-	hash = getenv("DNET_FCGI_HASH");
-	if (!hash) {
-		fprintf(dnet_fcgi_log, "No hashes specified, aborting.\n");
-		err = -ENODEV;
-		goto err_out_exit;
-	}
-
-	dnet_fcgi_hashes = strdup(hash);
-	if (!dnet_fcgi_hashes) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	h = strdup(hash);
-	if (!h) {
-		err = -ENOMEM;
-		goto err_out_free;
-	}
-
-	hash = h;
-
-	while (hash) {
-		p = strchr(hash, ' ');
-		if (p)
-			*p++ = '\0';
-
-		e = malloc(sizeof(struct dnet_crypto_engine));
-		if (!e) {
-			err = -ENOMEM;
-			goto err_out_free;
-		}
-
-		memset(e, 0, sizeof(struct dnet_crypto_engine));
-
-		err = dnet_crypto_engine_init(e, hash);
-		if (err) {
-			fprintf(dnet_fcgi_log, "Failed to initialize hash '%s': %d.\n",
-					hash, err);
-			goto err_out_free;
-		}
-
-		err = dnet_add_transform(n, e, e->name,	e->init, e->update, e->final, e->cleanup);
-		if (err) {
-			fprintf(dnet_fcgi_log, "Failed to add hash '%s': %d.\n", hash, err);
-			goto err_out_free;
-		}
-
-		fprintf(dnet_fcgi_log, "Added hash '%s'.\n", hash);
-		pos += sprintf(dnet_fcgi_hashes + pos, "%s,", hash);
-		added++;
-
-		if (!p)
-			break;
-
-		hash = p;
-
-		while (hash && *hash && isspace(*hash))
-			hash++;
-	}
-	if (pos) {
-		pos--;
-		dnet_fcgi_hashes[pos] = '\0';
-	}
-	dnet_fcgi_hashes_len = pos;
-
-	if (!added) {
-		err = -ENOENT;
-		fprintf(dnet_fcgi_log, "No remote hashes added, aborting.\n");
-		goto err_out_free;
-	}
-
-	free(h);
-
-	return 0;
-
-err_out_free:
-	free(dnet_fcgi_hashes);
-	dnet_fcgi_hashes_len = 0;
-	free(h);
-err_out_exit:
-	return err;
-}
-
 #define dnet_fcgi_wait(condition, wts)							\
 ({											\
 	int _err = 0;									\
@@ -1723,7 +1567,7 @@ static void dnet_fcgi_destroy_permanent_headers()
 
 int main()
 {
-	char *p, *addr, *reason, *method, *query;
+	char *p, *addr, *reason, *method, *query, *hash;
 	char *id_pattern, *id_delimiter, *direct_patterns = NULL, *version_pattern, *version_str, *timestamp_pattern;
 	int length, id_pattern_length, err, post_allowed, version_pattern_len, timestamp_pattern_len;
 	int version;
@@ -1830,13 +1674,43 @@ int main()
 	if (!n)
 		goto err_out_sign_destroy;
 
-	err = dnet_fcgi_add_remote_addr(n, &cfg);
+	addr = getenv("DNET_FCGI_REMOTE_ADDR");
+	if (!addr) {
+		fprintf(dnet_fcgi_log, "No remote address specified, aborting.\n");
+		err = -ENOENT;
+		goto err_out_free;
+	}
+
+	err = dnet_common_add_remote_addr(n, &cfg, addr);
 	if (err)
 		goto err_out_free;
 
-	err = dnet_fcgi_add_transform(n);
-	if (err)
+	hash = getenv("DNET_FCGI_HASH");
+	if (!hash) {
+		fprintf(dnet_fcgi_log, "No hashes specified, aborting.\n");
+		err = -ENODEV;
 		goto err_out_free;
+	}
+
+	dnet_fcgi_hashes = strdup(hash);
+	if (!dnet_fcgi_hashes) {
+		err = -ENOMEM;
+		goto err_out_free;
+	}
+	dnet_fcgi_hashes_len = strlen(dnet_fcgi_hashes);
+
+	{
+		int i;
+		for (i=0; i<dnet_fcgi_hashes_len; ++i)
+			if (dnet_fcgi_hashes[i] == ' ')
+				dnet_fcgi_hashes[i] = ',';
+
+		dnet_fcgi_hashes_len++; /* including trailing 0-byte*/
+	}
+
+	err = dnet_common_add_transform(n, hash);
+	if (err)
+		goto err_out_free_hashes;
 
 	dnet_fcgi_setup_permanent_headers();
 
@@ -1872,7 +1746,7 @@ int main()
 	dnet_fcgi_tmp_dir = strdup(p);
 	if (!dnet_fcgi_tmp_dir) {
 		err = -ENOMEM;
-		goto err_out_free;
+		goto err_out_free_hashes;
 	}
 	dnet_fcgi_tmp_dir_len = strlen(dnet_fcgi_tmp_dir);
 
@@ -1914,7 +1788,7 @@ int main()
 	err = FCGX_Init();
 	if (err) {
 		fprintf(dnet_fcgi_log, "FCGX initaliation failed: %d.\n", err);
-		goto err_out_free;
+		goto err_out_free_tmp_dir;
 	}
 
 	err = FCGX_InitRequest(&dnet_fcgi_request, LISTENSOCK_FILENO, LISTENSOCK_FLAGS);
@@ -2082,6 +1956,10 @@ err_continue:
 
 err_out_fcgi_exit:
 	FCGX_ShutdownPending();
+err_out_free_tmp_dir:
+	free(dnet_fcgi_tmp_dir);
+err_out_free_hashes:
+	free(dnet_fcgi_hashes);
 err_out_free:
 	dnet_node_destroy(n);
 err_out_sign_destroy:
@@ -2089,7 +1967,6 @@ err_out_sign_destroy:
 err_out_free_direct_patterns:
 	free(direct_patterns);
 	free(dnet_fcgi_direct_patterns);
-	free(dnet_fcgi_tmp_dir);
 err_out_close:
 	fflush(dnet_fcgi_log);
 	fclose(dnet_fcgi_log);
