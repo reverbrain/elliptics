@@ -43,30 +43,6 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
-static int dnet_background(void)
-{
-	pid_t pid;
-
-	pid = fork();
-	if (pid == -1) {
-		fprintf(stderr, "Failed to fork to background: %s.\n", strerror(errno));
-		return -1;
-	}
-
-	if (pid != 0) {
-		printf("Daemon pid: %d.\n", pid);
-		exit(0);
-	}
-
-	setsid();
-
-	close(0);
-	close(1);
-	close(2);
-
-	return 0;
-}
-
 static void dnet_usage(char *p)
 {
 	fprintf(stderr, "Usage: %s\n"
@@ -101,7 +77,7 @@ int main(int argc, char *argv[])
 	struct dnet_config cfg, rem, *remotes = NULL;
 	struct dnet_crypto_engine *e, *trans[trans_max];
 	char *logfile = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
-	char *historyf = NULL, *root = NULL, *removef = NULL;
+	char *historyf = NULL, *removef = NULL;
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	FILE *log = NULL;
 	uint64_t offset, size;
