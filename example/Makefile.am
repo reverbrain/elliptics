@@ -8,7 +8,11 @@ CC = @PTHREAD_CC@
 EXAMPLE_COMMON_LIBS = ../library/libdnet.la libcommon.a
 
 libcommon_a_SOURCES = common.c hash.c lookup3.c
-libbackend_a_SOURCES = file_backend.c tc_backend.c backends.c
+libbackend_a_SOURCES = file_backend.c backends.c
+
+if HAVE_TOKYOCABINET
+libbackend_a_SOURCES += tc_backend.c 
+endif
 
 dnet_ioserv_SOURCES = ioserv.c config.c
 dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) libbackend.a
