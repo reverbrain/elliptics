@@ -52,7 +52,7 @@ static void dnet_usage(char *p)
 
 int main(int argc, char *argv[])
 {
-	int err, ch;
+	int ch;
 	char *conf = NULL;
 	struct dnet_node *n;
 
