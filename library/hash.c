@@ -284,7 +284,7 @@ int dnet_hash_lookup(struct dnet_hash *h, void *key, unsigned int ksize, void *d
 	int err = -ENOENT;
 
 	dnet_lock_lock(&head->lock);
-	list_for_each_entry(e, &head->list, list_entry) {
+	list_for_each_entry_reverse(e, &head->list, list_entry) {
 		if ((e->ksize == ksize) && !memcmp(key, e->key, ksize)) {
 			unsigned int size = *dsize;
 
