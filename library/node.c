@@ -22,7 +22,7 @@
 #include <signal.h>
 
 #include "elliptics.h"
-#include "dnet/interface.h"
+#include "elliptics/interface.h"
 
 static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 {

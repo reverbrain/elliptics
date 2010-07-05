@@ -1,1 +1,1 @@
-SUBDIRS = dnet
+SUBDIRS = elliptics

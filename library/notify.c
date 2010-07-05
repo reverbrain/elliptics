@@ -30,8 +30,8 @@
 
 #include "elliptics.h"
 
-#include "dnet/packet.h"
-#include "dnet/interface.h"
+#include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 struct dnet_notify_entry
 {

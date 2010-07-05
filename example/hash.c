@@ -24,8 +24,8 @@
 
 #include "hash.h"
 
-#include <dnet/packet.h>
-#include <dnet/interface.h>
+#include <elliptics/packet.h>
+#include <elliptics/interface.h>
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))

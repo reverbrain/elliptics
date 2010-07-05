@@ -30,8 +30,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "dnet/packet.h"
-#include "dnet/interface.h"
+#include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 #include "common.h"
 

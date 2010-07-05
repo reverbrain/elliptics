@@ -30,8 +30,8 @@
 
 #include "elliptics.h"
 
-#include "dnet/packet.h"
-#include "dnet/interface.h"
+#include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, void *addr,
 		unsigned int *dsize, int *ppos)

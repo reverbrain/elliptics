@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "dnet/core.h"
+#include "elliptics/core.h"
 
 struct dnet_node;
 

@@ -36,8 +36,8 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
-#include "dnet/packet.h"
-#include "dnet/interface.h"
+#include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 #include "backends.h"
 

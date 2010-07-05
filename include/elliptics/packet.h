@@ -22,8 +22,8 @@
 #include <string.h>
 #include <stdint.h>
 
-#include <dnet/typedefs.h>
-#include <dnet/core.h>
+#include <elliptics/typedefs.h>
+#include <elliptics/core.h>
 
 #ifdef __cplusplus
 extern "C" {

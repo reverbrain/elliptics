@@ -28,8 +28,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "dnet/packet.h"
-#include "dnet/interface.h"
+#include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 #include "backends.h"
 

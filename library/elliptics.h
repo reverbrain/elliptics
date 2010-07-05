@@ -40,8 +40,8 @@ typedef unsigned short u_short;
 #include "atomic.h"
 #include "lock.h"
 
-#include "dnet/packet.h"
-#include "dnet/interface.h"
+#include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 #ifdef __cplusplus
 extern "C" {

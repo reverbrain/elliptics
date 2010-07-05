@@ -24,8 +24,8 @@
 #include <unistd.h>
 
 #include "elliptics.h"
-#include "dnet/packet.h"
-#include "dnet/interface.h"
+#include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 static inline int dnet_trans_cmp(uint64_t old, uint64_t new)
 {

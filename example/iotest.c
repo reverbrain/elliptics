@@ -35,8 +35,8 @@
 
 #include <netinet/in.h>
 
-#include "dnet/packet.h"
-#include "dnet/interface.h"
+#include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 #include "hash.h"
 #include "common.h"

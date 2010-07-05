@@ -17,8 +17,8 @@
 #define __COMMON_H
 
 #include "config.h"
-#include "dnet/packet.h"
-#include "dnet/interface.h"
+#include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 int dnet_parse_addr(char *addr, struct dnet_config *cfg);
 

@@ -16,8 +16,8 @@
 #ifndef __DNET_CHECK_COMMON_H
 #define __DNET_CHECK_COMMON_H
 
-#include "dnet/packet.h"
-#include "dnet/interface.h"
+#include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 struct dnet_check_worker
 {

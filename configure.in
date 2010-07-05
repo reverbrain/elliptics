@@ -1,4 +1,4 @@
-AC_INIT([dnet], [2.9.0], [zbr@ioremap.net])
+AC_INIT([elliptics], [2.9.0], [zbr@ioremap.net])
 AM_INIT_AUTOMAKE(1.9)
 
 AC_GNU_SOURCE
@@ -16,7 +16,7 @@ AC_SYS_LARGEFILE
 
 AX_CHECK_OPENSSL
 AX_PREFIX_CONFIG_H(config/acsetup.h)
-AX_CREATE_STDINT_H(include/dnet/typedefs.h)
+AX_CREATE_STDINT_H(include/elliptics/typedefs.h)
 
 for i in -W -Wall -Wextra -fstack-protector-all -fno-strict-aliasing; do
 	AX_CHECK_COMPILER_FLAGS([$i], [CFLAGS="$CFLAGS $i"], [])
@@ -35,7 +35,7 @@ AC_CHECK_LIBFCGI
 AC_CHECK_HEADER(dlfcn.h)
 AC_CHECK_LIB(dl,dlopen)
 
-AC_CONFIG_FILES([Makefile include/Makefile include/dnet/Makefile
+AC_CONFIG_FILES([Makefile include/Makefile include/elliptics/Makefile
 		 library/Makefile example/Makefile tests/Makefile
 		 doc/Makefile example/fcgi/Makefile debian/Makefile
 		 example/check/Makefile example/blob/Makefile])

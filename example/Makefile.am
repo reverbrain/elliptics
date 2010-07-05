@@ -5,7 +5,7 @@ SUBDIRS = blob . check
 
 CC = @PTHREAD_CC@
 
-EXAMPLE_COMMON_LIBS = ../library/libdnet.la libcommon.a
+EXAMPLE_COMMON_LIBS = ../library/libelliptics.la libcommon.a
 
 libcommon_a_SOURCES = common.c hash.c lookup3.c
 libbackend_a_SOURCES = file_backend.c backends.c blob/backend.c
@@ -21,7 +21,7 @@ dnet_ioclient_SOURCES = ioclient.c
 dnet_ioclient_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_hparser_SOURCES = hparser.c
-dnet_hparser_LDADD = ../library/libdnet.la
+dnet_hparser_LDADD = ../library/libelliptics.la
 
 dnet_iotest_SOURCES = iotest.c
 dnet_iotest_LDADD = $(EXAMPLE_COMMON_LIBS)
