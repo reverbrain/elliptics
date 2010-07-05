@@ -321,6 +321,10 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 	for (i=hash_num-1; i>=0; --i) {
 		req = &requests[i];
 
+		/* XXX we can upload data transactions back to existing nodes if disable this block 
+		 * It is useful when we change some data locally, for example metadata (number of copies)
+		 */
+#if 1
 		if (req->present) {
 			err = dnet_remove_transform_pos(n, req->pos, 1);
 			if (err) {
@@ -328,7 +332,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 						dnet_dump_id(req->id), req->pos, err);
 			}
 		}
-
+#endif
 		dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', id: %s: history present: %d.\n",
 				obj, dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid),
 				req->present);
