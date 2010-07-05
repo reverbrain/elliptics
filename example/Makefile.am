@@ -1,14 +1,14 @@
 bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_iotest dnet_stat dnet_notify dnet_ioclient
 noinst_LIBRARIES = libcommon.a libbackend.a
 noinst_HEADERS = hash.h backends.h common.h
-SUBDIRS = . check
+SUBDIRS = blob . check
 
 CC = @PTHREAD_CC@
 
 EXAMPLE_COMMON_LIBS = ../library/libdnet.la libcommon.a
 
 libcommon_a_SOURCES = common.c hash.c lookup3.c
-libbackend_a_SOURCES = file_backend.c backends.c
+libbackend_a_SOURCES = file_backend.c backends.c blob/backend.c
 
 if HAVE_TOKYOCABINET
 libbackend_a_SOURCES += tc_backend.c 

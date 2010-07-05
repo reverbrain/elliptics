@@ -252,11 +252,9 @@ struct dnet_node *dnet_parse_config(char *file)
 		goto err_out_file_exit;
 #endif
 
-#ifdef HAVE_BLOB_SUPPORT
 	err = dnet_blob_backend_init();
 	if (err)
 		goto err_out_tc_exit;
-#endif
 
 	while (1) {
 		ptr = fgets(buf, sizeof(buf), f);
@@ -388,9 +386,7 @@ err_out_free:
 	free(dnet_cfg_transform);
 	free(dnet_cfg_remotes);
 err_out_blob_exit:
-#ifdef HAVE_BLOB_SUPPORT
 	dnet_blob_backend_exit();
-#endif
 err_out_tc_exit:
 #ifdef HAVE_TOKYOCABINET_SUPPORT
 	dnet_tc_backend_exit();

@@ -1,0 +1,2 @@
+AM_CFLAGS = -I../../include -I../ -I../../config @PTHREAD_CFLAGS@ @OPENSSL_CFLAGS@
+AM_LDFLAGS = @PTHREAD_LIBS@

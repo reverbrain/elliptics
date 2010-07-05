@@ -38,6 +38,6 @@ AC_CHECK_LIB(dl,dlopen)
 AC_CONFIG_FILES([Makefile include/Makefile include/dnet/Makefile
 		 library/Makefile example/Makefile tests/Makefile
 		 doc/Makefile example/fcgi/Makefile debian/Makefile
-		 example/check/Makefile])
+		 example/check/Makefile example/blob/Makefile])
 
 AC_OUTPUT
