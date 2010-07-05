@@ -599,8 +599,19 @@ int dnet_process_cmd(struct dnet_trans *t)
 				} else
 					err = dnet_notify_remove(st, cmd, a);
 				break;
+			case DNET_CMD_READ:
 			case DNET_CMD_WRITE:
-				if (!(cmd->flags & DNET_FLAGS_NO_LOCAL_TRANSFORM))
+				if (a->size < sizeof(struct dnet_io_attr)) {
+					dnet_log(n, DNET_LOG_ERROR,
+						"%s: wrong read attribute, size does not match "
+							"IO attribute size: size: %llu, must be: %zu.\n",
+							dnet_dump_id(cmd->id), (unsigned long long)a->size,
+							sizeof(struct dnet_io_attr));
+					err = -EINVAL;
+					break;
+				}
+
+				if ((a->cmd == DNET_CMD_WRITE) && !(cmd->flags & DNET_FLAGS_NO_LOCAL_TRANSFORM))
 					err = dnet_local_transform(st, cmd, a, data);
 			default:
 				err = n->command_handler(st, n->command_private, cmd, a, data);
