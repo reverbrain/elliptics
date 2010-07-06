@@ -34,7 +34,8 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "backends.h"
+#include "../backends.h"
+#include "blob.h"
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
@@ -54,26 +55,6 @@ struct blob_backend
 	pthread_mutex_t		lock;
 	off_t			data_offset, history_offset;
 	struct dnet_hash	*hash;
-};
-
-struct blob_disk_control {
-	unsigned char		id[DNET_ID_SIZE];
-	uint64_t		flags;
-	uint64_t		size;
-} __attribute__ ((packed));
-
-#define BLOB_DISK_CTL_REMOVE	(1<<0)
-
-static inline void blob_convert_disk_control(struct blob_disk_control *ctl)
-{
-	ctl->flags = dnet_bswap64(ctl->flags);
-	ctl->size = dnet_bswap64(ctl->size);
-}
-
-struct blob_ram_control {
-	unsigned char		key[DNET_ID_SIZE + 1];
-	size_t			offset;
-	uint64_t		size;
 };
 
 static int blob_write_low_level(void *state, int fd, void *data, size_t size, size_t offset)
@@ -533,6 +514,43 @@ static int dnet_blob_set_hash_flags(struct dnet_config_backend *b, char *key __u
 	return 0;
 }
 
+static int dnet_blob_iter(struct blob_disk_control *dc, void *data __unused, off_t position, void *priv, int hist)
+{
+	struct blob_backend *b = priv;
+	struct blob_ram_control ctl;
+	char id[DNET_ID_SIZE*2+1];
+	int err;
+
+	printf("%s (hist: %d): position: %llu (0x%llx), size: %llu, flags: %llx.\n",
+			dnet_dump_id_len_raw(dc->id, DNET_ID_SIZE, id), hist,
+			(unsigned long long)position, (unsigned long long)position,
+			(unsigned long long)dc->size, (unsigned long long)dc->flags);
+
+	if (dc->flags & BLOB_DISK_CTL_REMOVE)
+		return 0;
+
+	memcpy(ctl.key, dc->id, DNET_ID_SIZE);
+	ctl.key[DNET_ID_SIZE] = hist;
+	ctl.offset = position;
+	ctl.size = dc->size + sizeof(struct blob_disk_control);
+
+	err = dnet_hash_replace(b->hash, ctl.key, sizeof(ctl.key), &ctl, sizeof(ctl));
+	if (err)
+		return err;
+
+	return 0;
+}
+
+static int dnet_blob_iter_history(struct blob_disk_control *dc, void *data, off_t position, void *priv)
+{
+	return dnet_blob_iter(dc, data, position, priv, 1);
+}
+
+static int dnet_blob_iter_data(struct blob_disk_control *dc, void *data, off_t position, void *priv)
+{
+	return dnet_blob_iter(dc, data, position, priv, 0);
+}
+
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *c)
 {
 	struct blob_backend *r = b->data;
@@ -559,11 +577,21 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 		goto err_out_lock_destroy;
 	}
 
+	err = blob_iterate(r->historyfd, dnet_blob_iter_history, r);
+	if (err)
+		goto err_out_hash_destroy;
+	
+	err = blob_iterate(r->datafd, dnet_blob_iter_data, r);
+	if (err)
+		goto err_out_hash_destroy;
+
 	c->command_private = b->data;
 	c->command_handler = blob_backend_command_handler;
 
 	return 0;
 
+err_out_hash_destroy:
+	dnet_hash_exit(r->hash);
 err_out_lock_destroy:
 	pthread_mutex_destroy(&r->lock);
 err_out_close:

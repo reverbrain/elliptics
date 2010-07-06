@@ -8,14 +8,16 @@ CC = @PTHREAD_CC@
 EXAMPLE_COMMON_LIBS = ../library/libelliptics.la libcommon.a
 
 libcommon_a_SOURCES = common.c hash.c lookup3.c
-libbackend_a_SOURCES = file_backend.c backends.c blob/backend.c
+libbackend_a_SOURCES = file_backend.c backends.c
 
 if HAVE_TOKYOCABINET
 libbackend_a_SOURCES += tc_backend.c 
 endif
 
+EXAMPLE_BACKEND_LIBS = libbackend.a blob/libblob_backend.a
+
 dnet_ioserv_SOURCES = ioserv.c config.c
-dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) libbackend.a
+dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) $(EXAMPLE_BACKEND_LIBS)
 
 dnet_ioclient_SOURCES = ioclient.c
 dnet_ioclient_LDADD = $(EXAMPLE_COMMON_LIBS)
