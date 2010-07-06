@@ -15,6 +15,8 @@
 
 #include "config.h"
 
+#define _XOPEN_SOURCE 600
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -471,6 +473,8 @@ static int dnet_blob_set_data(struct dnet_config_backend *b, char *key, char *fi
 		goto err_out_close;
 	}
 
+	posix_fadvise(fd, 0, offset, POSIX_FADV_SEQUENTIAL);
+
 	if (!strcmp(key, "data")) {
 		r->datafd = fd;
 		r->data_offset = offset;
@@ -577,13 +581,15 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 		goto err_out_lock_destroy;
 	}
 
-	err = blob_iterate(r->historyfd, dnet_blob_iter_history, r);
-	if (err)
-		goto err_out_hash_destroy;
-	
 	err = blob_iterate(r->datafd, dnet_blob_iter_data, r);
 	if (err)
 		goto err_out_hash_destroy;
+	posix_fadvise(r->datafd, 0, r->data_offset, POSIX_FADV_RANDOM);
+
+	err = blob_iterate(r->historyfd, dnet_blob_iter_history, r);
+	if (err)
+		goto err_out_hash_destroy;
+	posix_fadvise(r->historyfd, 0, r->history_offset, POSIX_FADV_RANDOM);
 
 	c->command_private = b->data;
 	c->command_handler = blob_backend_command_handler;
