@@ -54,6 +54,11 @@ int blob_iterate(int fd, int (* callback)(struct blob_disk_control *dc, void *da
 
 	size = st.st_size;
 
+	if (!size) {
+		err = 0;
+		goto err_out_exit;
+	}
+
 	ptr = data = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
 	if (data == MAP_FAILED) {
 		err = -errno;
