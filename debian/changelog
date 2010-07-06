@@ -1,3 +1,9 @@
+elliptics (2.9.0.4) unstable; urgency=low
+
+  * Allow dnet_ioclient to request stats.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 06 Jul 2010 21:57:54 +0400
+
 elliptics (2.9.0.3) unstable; urgency=low
 
   * Do not iterate over empty file.
