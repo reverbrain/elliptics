@@ -1,3 +1,9 @@
+elliptics (2.9.0.3) unstable; urgency=low
+
+  * Do not iterate over empty file.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 06 Jul 2010 21:37:50 +0400
+
 elliptics (2.9.0.2) unstable; urgency=low
 
   * Initial POSIX fadvice hints.
