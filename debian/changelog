@@ -1,3 +1,9 @@
+elliptics (2.9.0.1) unstable; urgency=low
+
+  * Added BLOB IO backend. Without abilities to remove objects though.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 06 Jul 2010 04:58:44 +0400
+
 elliptics (2.9.0) unstable; urgency=low
 
   * switched ioserv from command line to config
