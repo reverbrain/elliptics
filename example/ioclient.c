@@ -248,10 +248,10 @@ int main(int argc, char *argv[])
 
 	if (stat) {
 		err = dnet_request_stat(n, NULL, DNET_CMD_STAT, NULL, NULL);
-		if (err)
+		if (err < 0)
 			return err;
 		err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, NULL, NULL);
-		if (err)
+		if (err < 0)
 			return err;
 	}
 
