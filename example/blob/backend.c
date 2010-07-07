@@ -52,6 +52,9 @@ struct blob_backend
 	unsigned int		bsize;
 	int			sync;
 
+	void			*log_private;
+	void			(* log)(void *priv, uint32_t mask, const char *msg);
+
 	int			datafd, historyfd;
 
 	pthread_mutex_t		lock;
@@ -59,7 +62,7 @@ struct blob_backend
 	struct dnet_hash	*hash;
 };
 
-static int blob_write_low_level(void *state, int fd, void *data, size_t size, size_t offset)
+static int blob_write_low_level(int fd, void *data, size_t size, size_t offset)
 {
 	ssize_t err = 0;
 
@@ -67,7 +70,7 @@ static int blob_write_low_level(void *state, int fd, void *data, size_t size, si
 		err = pwrite(fd, data, size, offset);
 		if (err <= 0) {
 			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR, "blob: failed (%zd) to write %zu bytes into datafile: %s.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "blob: failed (%zd) to write %zu bytes into datafile: %s.\n",
 					err, size, strerror(errno));
 			if (!err)
 				err = -EINVAL;
@@ -115,12 +118,12 @@ static int blob_write_raw(struct blob_backend *b, void *state, int hist, struct 
 	}
 
 	offset = ctl.offset;
-	err = blob_write_low_level(state, fd, &disk_ctl, sizeof(struct blob_disk_control), offset);
+	err = blob_write_low_level(fd, &disk_ctl, sizeof(struct blob_disk_control), offset);
 	if (err)
 		goto err_out_unlock;
 	offset += sizeof(struct blob_disk_control);
 
-	err = blob_write_low_level(state, fd, data, io->size, offset);
+	err = blob_write_low_level(fd, data, io->size, offset);
 	if (err)
 		goto err_out_unlock;
 	offset += io->size;
@@ -132,7 +135,7 @@ static int blob_write_raw(struct blob_backend *b, void *state, int hist, struct 
 		if (sz > sizeof(blob_empty_buf))
 			sz = sizeof(blob_empty_buf);
 
-		err = blob_write_low_level(state, fd, blob_empty_buf, sz, offset);
+		err = blob_write_low_level(fd, blob_empty_buf, sz, offset);
 		if (err)
 			goto err_out_unlock;
 
@@ -144,7 +147,7 @@ static int blob_write_raw(struct blob_backend *b, void *state, int hist, struct 
 
 	err = dnet_hash_replace(b->hash, ctl.key, sizeof(ctl.key), &ctl, sizeof(ctl));
 	if (err) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR, "blob: %s: failed to add hash entry: %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "blob: %s: failed to add hash entry: %s [%d].\n",
 				dnet_dump_id(io->origin), strerror(-err), err);
 		goto err_out_unlock;
 	}
@@ -154,7 +157,7 @@ static int blob_write_raw(struct blob_backend *b, void *state, int hist, struct 
 	else
 		b->data_offset += ctl.size;
 
-	dnet_command_handler_log(state, DNET_LOG_INFO, "blob: %s: written history: %d, position: %zu, size: %llu, on-disk-size: %llu.\n",
+	dnet_backend_log(DNET_LOG_INFO, "blob: %s: written history: %d, position: %zu, size: %llu, on-disk-size: %llu.\n",
 			dnet_dump_id(io->origin), hist, ctl.offset, (unsigned long long)io->size, (unsigned long long)ctl.size);
 
 err_out_unlock:
@@ -183,8 +186,7 @@ static int blob_write_history_meta(void *state, void *backend, struct dnet_io_at
 	hdata = malloc(size);
 	if (!hdata) {
 		err = -ENOMEM;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to allocate %zu bytes for history data: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to allocate %zu bytes for history data: %s.\n",
 				dnet_dump_id(key), size, strerror(errno));
 		goto err_out_exit;
 	}
@@ -192,15 +194,13 @@ static int blob_write_history_meta(void *state, void *backend, struct dnet_io_at
 	if (!err) {
 		struct blob_disk_control *dc;
 
-		dnet_command_handler_log(state, DNET_LOG_INFO,
-			"%s: found existing block at: %llu, size: %zu.\n",
+		dnet_backend_log(DNET_LOG_INFO,	"%s: found existing block at: %llu, size: %zu.\n",
 			dnet_dump_id(key), (unsigned long long)ctl.offset, size);
 
 		err = pread(b->historyfd, hdata, size, ctl.offset);
 		if (err != (int)size) {
 			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to read %zu bytes from history at %llu: %s.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "%s: failed to read %zu bytes from history at %llu: %s.\n",
 				dnet_dump_id(key), size, (unsigned long long)ctl.offset, strerror(errno));
 			goto err_out_free;
 		}
@@ -215,8 +215,7 @@ static int blob_write_history_meta(void *state, void *backend, struct dnet_io_at
 		err = pwrite(b->historyfd, dc, sizeof(struct blob_disk_control), ctl.offset);
 		if (err != (int)sizeof(*dc)) {
 			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to erase (mark) history entry at %llu: %s.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "%s: failed to erase (mark) history entry at %llu: %s.\n",
 				dnet_dump_id(key), (unsigned long long)ctl.offset, strerror(errno));
 			goto err_out_free;
 		}
@@ -227,8 +226,7 @@ static int blob_write_history_meta(void *state, void *backend, struct dnet_io_at
 	new_hdata = backend_process_meta(state, io, hdata, &size, m, data);
 	if (!new_hdata) {
 		err = -ENOMEM;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to update history file: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to update history file: %s.\n",
 				dnet_dump_id(key), strerror(errno));
 		goto err_out_free;
 	}
@@ -238,8 +236,7 @@ static int blob_write_history_meta(void *state, void *backend, struct dnet_io_at
 	err = blob_write_raw(b, state, 1, io, new_hdata);
 	if (err) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to update (%zu bytes) history: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to update (%zu bytes) history: %s.\n",
 				dnet_dump_id(key), size, strerror(errno));
 		goto err_out_free;
 	}
@@ -292,8 +289,7 @@ static int blob_write(struct blob_backend *r, void *state, struct dnet_cmd *cmd,
 		}
 	}
 
-	dnet_command_handler_log(state, DNET_LOG_NOTICE,
-		"blob: %s: IO offset: %llu, size: %llu.\n", dnet_dump_id(cmd->id),
+	dnet_backend_log(DNET_LOG_NOTICE, "blob: %s: IO offset: %llu, size: %llu.\n", dnet_dump_id(cmd->id),
 		(unsigned long long)io->offset, (unsigned long long)io->size);
 
 	return 0;
@@ -323,8 +319,7 @@ static int blob_read(struct blob_backend *b, void *state, struct dnet_cmd *cmd,
 
 	err = dnet_hash_lookup(b->hash, key, sizeof(key), &ctl, &dsize);
 	if (err) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"blob: %s: could not find data: %d.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "blob: %s: could not find data: %d.\n",
 				dnet_dump_id(io->origin), err);
 		goto err_out_exit;
 	}
@@ -344,8 +339,7 @@ static int blob_read(struct blob_backend *b, void *state, struct dnet_cmd *cmd,
 				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 		if (!r) {
 			err = -ENOMEM;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to allocate reply attributes.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "%s: failed to allocate reply attributes.\n",
 					dnet_dump_id(io->origin));
 			goto err_out_exit;
 		}
@@ -359,8 +353,8 @@ static int blob_read(struct blob_backend *b, void *state, struct dnet_cmd *cmd,
 		memcpy(c->id, io->origin, DNET_ID_SIZE);
 		memcpy(rio->origin, io->origin, DNET_ID_SIZE);
 	
-		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: read: requested offset: %llu, size: %llu, stored-size: %llu, data lives at: %zu.\n",
+		dnet_backend_log(DNET_LOG_NOTICE, "%s: read: requested offset: %llu, size: %llu, "
+				"stored-size: %llu, data lives at: %zu.\n",
 				dnet_dump_id(io->origin), (unsigned long long)io->offset,
 				size, (unsigned long long)ctl.size, ctl.offset);
 
@@ -393,8 +387,7 @@ static int blob_read(struct blob_backend *b, void *state, struct dnet_cmd *cmd,
 		err = pread(fd, data, size, offset);
 		if (err <= 0) {
 			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to read object data: %s.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "%s: failed to read object data: %s.\n",
 					dnet_dump_id(io->origin), strerror(errno));
 			goto err_out_exit;
 		}
@@ -463,13 +456,13 @@ static int dnet_blob_set_data(struct dnet_config_backend *b, char *key, char *fi
 	fd = open(file, O_RDWR | O_CREAT, 0644);
 	if (fd < 0) {
 		err = -errno;
-		fprintf(stderr, "Failed to open %s file '%s': %s.\n", key, file, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to open '%s' file '%s': %s.\n", key, file, strerror(errno));
 		goto err_out_exit;
 	}
 
 	offset = lseek(fd, 0, SEEK_END);
 	if (offset == (off_t) -1) {
-		fprintf(stderr, "Failed to determine %s file '%s' offset: %s.\n", key, file, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to determine '%s' file '%s' offset: %s.\n", key, file, strerror(errno));
 		goto err_out_close;
 	}
 
@@ -525,7 +518,7 @@ static int dnet_blob_iter(struct blob_disk_control *dc, void *data __unused, off
 	char id[DNET_ID_SIZE*2+1];
 	int err;
 
-	printf("%s (hist: %d): position: %llu (0x%llx), size: %llu, flags: %llx.\n",
+	dnet_backend_log(DNET_LOG_NOTICE,"%s (hist: %d): position: %llu (0x%llx), size: %llu, flags: %llx.\n",
 			dnet_dump_id_len_raw(dc->id, DNET_ID_SIZE, id), hist,
 			(unsigned long long)position, (unsigned long long)position,
 			(unsigned long long)dc->size, (unsigned long long)dc->flags);
@@ -561,13 +554,14 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	int err;
 
 	if (!r->datafd || !r->historyfd) {
+		dnet_backend_log(DNET_LOG_ERROR, "blob: no data/history file present. Exiting.\n");
 		err = -EINVAL;
 		goto err_out_exit;
 	}
 
 	err = pthread_mutex_init(&r->lock, NULL);
 	if (err) {
-		fprintf(stderr, "Failed to initialize pthread mutex: %d\n", err);
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to initialize pthread mutex: %d\n", err);
 		err = -errno;
 		goto err_out_close;
 	}
@@ -577,18 +571,24 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	r->hash = dnet_hash_init(r->hash_size, r->hash_flags);
 	if (!r->hash) {
+		dnet_backend_log(DNET_LOG_ERROR, "blob: failed to initialize hash table: num: %u, flags: 0x%x.\n",
+				r->hash_size, r->hash_flags);
 		err = -EINVAL;
 		goto err_out_lock_destroy;
 	}
 
 	err = blob_iterate(r->datafd, dnet_blob_iter_data, r);
-	if (err)
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "blob: data iteration failed: %d.\n", err);
 		goto err_out_hash_destroy;
+	}
 	posix_fadvise(r->datafd, 0, r->data_offset, POSIX_FADV_RANDOM);
 
 	err = blob_iterate(r->historyfd, dnet_blob_iter_history, r);
-	if (err)
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "blob: history iteration failed: %d.\n", err);
 		goto err_out_hash_destroy;
+	}
 	posix_fadvise(r->historyfd, 0, r->history_offset, POSIX_FADV_RANDOM);
 
 	c->command_private = b->data;

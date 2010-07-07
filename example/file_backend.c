@@ -739,7 +739,7 @@ static int dnet_file_set_root(struct dnet_config_backend *b, char *key __unused,
 	r->rootfd = open(r->root, O_RDONLY);
 	if (r->rootfd < 0) {
 		err = -errno;
-		fprintf(stderr, "Failed to open root '%s': %s.\n", root, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to open root '%s': %s.\n", root, strerror(errno));
 		goto err_out_free;
 	}
 	r->root_len = strlen(r->root);
@@ -747,7 +747,7 @@ static int dnet_file_set_root(struct dnet_config_backend *b, char *key __unused,
 	err = fchdir(r->rootfd);
 	if (err) {
 		err = -errno;
-		fprintf(stderr, "Failed to change current dir to root '%s' directory: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to change current dir to root '%s' directory: %s.\n",
 				root, strerror(errno));
 		goto err_out_close;
 	}

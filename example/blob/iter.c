@@ -31,6 +31,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "elliptics/interface.h"
+#include "backends.h"
 #include "blob.h"
 
 #ifndef __unused
@@ -49,6 +51,7 @@ int blob_iterate(int fd, int (* callback)(struct blob_disk_control *dc, void *da
 	err = fstat(fd, &st);
 	if (err) {
 		err = -errno;
+		dnet_backend_log(DNET_LOG_ERROR, "blob: failed to stat file: %s.\n", strerror(errno));
 		goto err_out_exit;
 	}
 
@@ -62,14 +65,18 @@ int blob_iterate(int fd, int (* callback)(struct blob_disk_control *dc, void *da
 	ptr = data = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
 	if (data == MAP_FAILED) {
 		err = -errno;
+		dnet_backend_log(DNET_LOG_ERROR, "blob: failed to mmap file, size: %zu: %s.\n", strerror(errno));
 		goto err_out_exit;
 	}
 
 	while (size) {
 		err = -EINVAL;
 
-		if (size < sizeof(struct blob_disk_control))
+		if (size < sizeof(struct blob_disk_control)) {
+			dnet_backend_log(DNET_LOG_ERROR, "blob: iteration fails: size (%zu) is less than disk control struct (%zu).\n",
+					size, sizeof(struct blob_disk_control));
 			goto err_out_unmap;
+		}
 
 		dc = *(struct blob_disk_control *)ptr;
 		blob_convert_disk_control(&dc);
@@ -79,15 +86,21 @@ int blob_iterate(int fd, int (* callback)(struct blob_disk_control *dc, void *da
 		ptr += sizeof(struct blob_disk_control);
 		size -= sizeof(struct blob_disk_control);
 
-		if (size < dc.size)
+		if (size < dc.size) {
+			dnet_backend_log(DNET_LOG_ERROR, "blob: iteration fails: size (%zu) is less than on-disk specified size (%llu).\n",
+					size, (unsigned long long)dc.size);
 			goto err_out_unmap;
+		}
 
 		ptr += dc.size;
 		size -= dc.size;
 
 		err = callback(&dc, ptr - dc.size, position, priv);
-		if (err < 0)
+		if (err < 0) {
+			dnet_backend_log(DNET_LOG_ERROR, "blob: iteration callback fails: size: %llu, position: %llu, err: %d.\n",
+					dc.size, position, err);
 			goto err_out_unmap;
+		}
 	}
 
 	err = 0;

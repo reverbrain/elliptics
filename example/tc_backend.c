@@ -499,7 +499,7 @@ static int tc_backend_open(TCADB *adb, const char *env_dir, const char *file)
 	path = malloc(len);
 	if (!path) {
 		err = -ENOMEM;
-		fprintf(stderr, "%s: malloc path failed\n", __func__);
+		dnet_backend_log(DNET_LOG_ERROR, "tc: failed to allocate %zu bytes for path '%s/%s'.\n", len, env_dir, file);
 		goto err_out_exit;
 	}
 
@@ -518,7 +518,7 @@ static int tc_backend_open(TCADB *adb, const char *env_dir, const char *file)
 err_out_free:
 	free(path);
 err_out_print:
-	fprintf(stderr, "Failed to open database at dir: '%s', file: '%s'.\n", env_dir, file);
+	dnet_backend_log(DNET_LOG_ERROR, "Failed to open database at dir: '%s', file: '%s'.\n", env_dir, file);
 err_out_exit:
 	return err;
 }
@@ -530,13 +530,13 @@ static TCADB *tc_backend_create(const char *env_dir, const char *name)
 
 	db = tcadbnew();
 	if (!db) {
-		fprintf(stderr, "Failed to create new TC database '%s'.\n", name);
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to create new TC database '%s' in '%s'.\n", name, env_dir);
 		goto err_out_exit;
 	}
 
 	err = tc_backend_open(db, env_dir, name);
 	if (err) {
-		fprintf(stderr, "Failed to open new TC database '%s': %d.\n", name, err);
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to open new TC database '%s' in '%s': %d.\n", name, env_dir, err);
 		goto err_out_close;
 	}
 

@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -55,7 +56,7 @@ static int dnet_background(void)
 
 	pid = fork();
 	if (pid == -1) {
-		fprintf(stderr, "Failed to fork to background: %s.\n", strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to fork to background: %s.\n", strerror(errno));
 		return -1;
 	}
 
@@ -187,8 +188,9 @@ static int dnet_cur_cfg_size = ARRAY_SIZE(dnet_cfg_entries);
 static struct dnet_config_backend *dnet_cfg_backend, *dnet_cfg_current_backend;
 static int dnet_cfg_backend_num;
 
-static int dnet_set_backend(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_set_backend(struct dnet_config_backend *current_backend __unused, char *key __unused, char *value)
 {
+	struct dnet_config_backend *b;
 	int i;
 
 	for (i=0; i<dnet_cfg_backend_num; ++i) {
@@ -263,7 +265,7 @@ struct dnet_node *dnet_parse_config(char *file)
 				break;
 
 			err = -errno;
-			fprintf(stderr, "cnf: failed to read config file '%s': %s.\n", file, strerror(errno));
+			dnet_backend_log(DNET_LOG_ERROR, "cnf: failed to read config file '%s': %s.\n", file, strerror(errno));
 			goto err_out_free;
 		}
 
@@ -335,7 +337,7 @@ struct dnet_node *dnet_parse_config(char *file)
 		for (i=0; i<dnet_cur_cfg_size; ++i) {
 			if (!strcmp(key, dnet_cur_cfg_entries[i].key)) {
 				err = dnet_cur_cfg_entries[i].callback(dnet_cfg_current_backend, key, value);
-				fprintf(stderr, "backend: %s, key: %s, value: %s, err: %d\n",
+				dnet_backend_log(DNET_LOG_INFO, "backend: %s, key: %s, value: %s, err: %d\n",
 						(dnet_cfg_current_backend) ? dnet_cfg_current_backend->name : "root level",
 						ptr, value, err);
 				if (err)
@@ -397,4 +399,20 @@ err_out_close:
 	fclose(f);
 err_out_exit:
 	return NULL;
+}
+
+void dnet_backend_log(uint32_t mask, const char *format, ...)
+{
+	va_list args;
+	char buf[1024];
+	int buflen = sizeof(buf);
+
+	if (!dnet_cfg_state.log || !(dnet_cfg_state.log_mask & mask))
+		return;
+
+	va_start(args, format);
+	vsnprintf(buf, buflen, format, args);
+	buf[buflen-1] = '\0';
+	dnet_cfg_state.log(dnet_cfg_state.log_private, mask, buf);
+	va_end(args);
 }

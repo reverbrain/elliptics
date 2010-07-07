@@ -105,6 +105,8 @@ void dnet_tc_backend_exit(void);
 int dnet_blob_backend_init(void);
 void dnet_blob_backend_exit(void);
 
+void dnet_backend_log(uint32_t mask, const char *fmt, ...);
+
 #ifdef __cplusplus
 }
 #endif
