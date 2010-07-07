@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "u:O:S:N:m:s:H:L:w:l:c:I:i:a:r:W:R:T:h")) != -1) {
+	while ((ch = getopt(argc, argv, "u:O:S:N:m:sH:L:w:l:c:I:i:a:r:W:R:T:h")) != -1) {
 		switch (ch) {
 			case 'u':
 				removef = optarg;
