@@ -76,7 +76,7 @@ static void dnet_convert_name_to_id(char *name, unsigned char *id)
 	}
 }
 
-static int dnet_stat_object(void *state, char *path)
+static int dnet_stat_object(char *path)
 {
 	struct stat st;
 	int err;
@@ -84,8 +84,7 @@ static int dnet_stat_object(void *state, char *path)
 	err = stat(path, &st);
 	if (err) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"Failed to stat '%s' object: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to stat '%s' object: %s.\n",
 				path, strerror(errno));
 		return err;
 	}
@@ -93,23 +92,23 @@ static int dnet_stat_object(void *state, char *path)
 	return st.st_mode;
 }
 
-static int dnet_is_regular(void *state, char *sub, unsigned int sub_len, char *path, unsigned int path_len)
+static int dnet_is_regular(char *sub, unsigned int sub_len, char *path, unsigned int path_len)
 {
 	char p[sub_len + path_len + 2]; /* / and 0-byte */
 	int err;
 
 	snprintf(p, sizeof(p), "%s/%s", sub, path);
 
-	err = dnet_stat_object(state, p);
+	err = dnet_stat_object(p);
 	if (err < 0)
 		return err;
 
 	return S_ISREG(err);
 }
 
-static int dnet_is_dir(void *state, char *path)
+static int dnet_is_dir(char *path)
 {
-	int err = dnet_stat_object(state, path);
+	int err = dnet_stat_object(path);
 	if (err < 0)
 		return err;
 
@@ -172,7 +171,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 
 		len = strlen(d->d_name);
 
-		if (dnet_is_regular(state, sub, sub_len, d->d_name, len) <= 0)
+		if (dnet_is_regular(sub, sub_len, d->d_name, len) <= 0)
 			continue;
 
 		flags = 0;
@@ -181,7 +180,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 
 		dnet_convert_name_to_id(d->d_name, id);
 
-		dnet_command_handler_log(state, DNET_LOG_NOTICE, "%s: out: %d, within: %d, flags: %x.\n",
+		dnet_backend_log(DNET_LOG_NOTICE, "%s: out: %d, within: %d, flags: %x.\n",
 				d->d_name, out, dnet_id_within_range(id, next_id, cmd->id), flags);
 
 		if (out && !dnet_id_within_range(id, next_id, cmd->id))
@@ -208,7 +207,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 
 		pos++;
 
-		dnet_command_handler_log(state, DNET_LOG_INFO, "%s -> %s.\n", d->d_name, dnet_dump_id(id));
+		dnet_backend_log(DNET_LOG_INFO, "%s -> %s.\n", d->d_name, dnet_dump_id(id));
 	}
 
 	err = dnet_send_reply(state, cmd, attr, ids, pos * sizeof(struct dnet_id), 0);
@@ -265,7 +264,7 @@ static int file_list(struct file_backend_root *r, void *state,
 		if (d->d_name[0] == '.' && d->d_name[1] == '.' && d->d_name[2] == '\0')
 			continue;
 
-		if (dnet_is_dir(state, d->d_name) <= 0)
+		if (dnet_is_dir(d->d_name) <= 0)
 			continue;
 
 		snprintf(sub, sizeof(sub), "0x%s", d->d_name);
@@ -273,7 +272,7 @@ static int file_list(struct file_backend_root *r, void *state,
 
 		err = 0;
 
-		dnet_command_handler_log(state, DNET_LOG_INFO, "start: %llx, last: %llx, current: %llx.\n",
+		dnet_backend_log(DNET_LOG_INFO, "start: %llx, last: %llx, current: %llx.\n",
 				start, last, current);
 
 		if ((start >= last) && (current >= last) && (current <= start))
@@ -318,7 +317,7 @@ static void dnet_remove_file_if_empty(struct file_backend_root *r, struct dnet_i
 	dnet_remove_file_if_empty_raw(file);
 }
 
-static int file_write_raw(struct file_backend_root *r, void *state, struct dnet_io_attr *io)
+static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 {
 	/* null byte + maximum directory length (32 bits in hex) +
 	 * '/' directory prefix and optional history suffix */
@@ -337,8 +336,7 @@ static int file_write_raw(struct file_backend_root *r, void *state, struct dnet_
 	fd = open(file, oflags, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to open data file '%s': %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to open data file '%s': %s.\n",
 				dnet_dump_id(io->id), file, strerror(errno));
 		goto err_out_exit;
 	}
@@ -346,8 +344,7 @@ static int file_write_raw(struct file_backend_root *r, void *state, struct dnet_
 	err = write(fd, data, io->size);
 	if (err <= 0) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to write into '%s': %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to write into '%s': %s.\n",
 			dnet_dump_id(io->id), file, strerror(errno));
 		goto err_out_close;
 	}
@@ -380,8 +377,7 @@ static int file_write_history_meta(void *state, void *backend, struct dnet_io_at
 	fd = open(file, O_RDWR | O_CREAT | O_LARGEFILE, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to open history file '%s': %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to open history file '%s': %s.\n",
 				dnet_dump_id(io->id), file, strerror(errno));
 		goto err_out_exit;
 	}
@@ -389,8 +385,7 @@ static int file_write_history_meta(void *state, void *backend, struct dnet_io_at
 	err = fstat(fd, &st);
 	if (err) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to stat history file '%s': %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to stat history file '%s': %s.\n",
 				dnet_dump_id(io->id), file, strerror(errno));
 		goto err_out_close;
 	}
@@ -400,8 +395,7 @@ static int file_write_history_meta(void *state, void *backend, struct dnet_io_at
 	hdata = malloc(size);
 	if (!hdata) {
 		err = -ENOMEM;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to allocate %u bytes for history data: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to allocate %u bytes for history data: %s.\n",
 				dnet_dump_id(io->id), size, strerror(errno));
 		goto err_out_close;
 	}
@@ -409,8 +403,7 @@ static int file_write_history_meta(void *state, void *backend, struct dnet_io_at
 	err = read(fd, hdata, size);
 	if (err != (int)size) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to read %u bytes from history file '%s': %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to read %u bytes from history file '%s': %s.\n",
 				dnet_dump_id(io->id), size, file, strerror(errno));
 		goto err_out_free;
 	}
@@ -418,8 +411,7 @@ static int file_write_history_meta(void *state, void *backend, struct dnet_io_at
 	new_hdata = backend_process_meta(state, io, hdata, &size, m, data);
 	if (!new_hdata) {
 		err = -ENOMEM;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to update history file '%s': %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to update history file '%s': %s.\n",
 				dnet_dump_id(io->id), file, strerror(errno));
 		goto err_out_free;
 	}
@@ -428,8 +420,7 @@ static int file_write_history_meta(void *state, void *backend, struct dnet_io_at
 	err = pwrite(fd, hdata, size, 0);
 	if (err != (int)size) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to write %u bytes into history file '%s': %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to write %u bytes into history file '%s': %s.\n",
 				dnet_dump_id(io->id), size, file, strerror(errno));
 		goto err_out_free;
 	}
@@ -451,21 +442,11 @@ static int file_write_history(struct file_backend_root *r, void *state,
 }
 
 static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+		struct dnet_attr *attr __unused, void *data)
 {
 	int err;
 	char dir[2*DNET_ID_SIZE+1];
 	struct dnet_io_attr *io = data;
-
-	if (attr->size < sizeof(struct dnet_io_attr)) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: wrong write attribute, size does not match "
-				"IO attribute size: size: %llu, must be more than %zu.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)attr->size,
-				sizeof(struct dnet_io_attr));
-		err = -EINVAL;
-		goto err_out_exit;
-	}
 
 	dnet_convert_io_attr(io);
 	
@@ -477,8 +458,7 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 	if (err < 0) {
 		if (errno != EEXIST) {
 			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: faliled to create dir '%s': %s.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "%s: faliled to create dir '%s': %s.\n",
 					dnet_dump_id(cmd->id), dir, strerror(errno));
 			goto err_out_exit;
 		}
@@ -489,7 +469,7 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 		if (err)
 			goto err_out_exit;
 	} else {
-		err = file_write_raw(r, state, io);
+		err = file_write_raw(r, io);
 		if (err)
 			goto err_out_exit;
 
@@ -509,8 +489,7 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 		}
 	}
 
-	dnet_command_handler_log(state, DNET_LOG_NOTICE,
-		"%s: IO offset: %llu, size: %llu.\n", dnet_dump_id(cmd->id),
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: IO offset: %llu, size: %llu.\n", dnet_dump_id(cmd->id),
 			(unsigned long long)io->offset, (unsigned long long)io->size);
 
 	return 0;
@@ -530,16 +509,6 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
 	struct stat st;
 
-	if (attr->size < sizeof(struct dnet_io_attr)) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: wrong read attribute, size does not match "
-				"IO attribute size: size: %llu, must be: %zu.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)attr->size,
-				sizeof(struct dnet_io_attr));
-		err = -EINVAL;
-		goto err_out_exit;
-	}
-
 	data += sizeof(struct dnet_io_attr);
 
 	dnet_convert_io_attr(io);
@@ -549,8 +518,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	fd = open(file, O_RDONLY, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to open data file '%s': %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to open data file '%s': %s.\n",
 				dnet_dump_id(io->origin), file, strerror(errno));
 		goto err_out_exit;
 	}
@@ -560,8 +528,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	err = fstat(fd, &st);
 	if (err) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to stat file '%s': %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to stat file '%s': %s.\n",
 				dnet_dump_id(io->origin), file, strerror(errno));
 		goto err_out_close_fd;
 	}
@@ -582,8 +549,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 		if (!r) {
 			err = -ENOMEM;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to allocate reply attributes.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "%s: failed to allocate reply attributes.\n",
 					dnet_dump_id(io->origin));
 			goto err_out_close_fd;
 		}
@@ -597,10 +563,8 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 		memcpy(c->id, io->origin, DNET_ID_SIZE);
 		memcpy(rio->origin, io->origin, DNET_ID_SIZE);
 	
-		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: read reply offset: %llu, size: %zu.\n",
-				dnet_dump_id(io->origin),
-				(unsigned long long)io->offset, size);
+		dnet_backend_log(DNET_LOG_NOTICE, "%s: read reply offset: %llu, size: %zu.\n",
+				dnet_dump_id(io->origin), (unsigned long long)io->offset, size);
 
 		if (cmd->flags & DNET_FLAGS_NEED_ACK)
 			c->flags = DNET_FLAGS_MORE;
@@ -633,8 +597,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 		err = pread(fd, data, size, io->offset);
 		if (err <= 0) {
 			err = -errno;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to read object data: %s.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "%s: failed to read object data: %s.\n",
 					dnet_dump_id(io->origin), strerror(errno));
 			goto err_out_close_fd;
 		}

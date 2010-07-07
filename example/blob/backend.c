@@ -90,7 +90,7 @@ err_out_exit:
 
 //static unsigned char blob_empty_buf[4096];
 
-static int blob_write_raw(struct blob_backend *b, void *state, int hist, struct dnet_io_attr *io, void *data)
+static int blob_write_raw(struct blob_backend *b, int hist, struct dnet_io_attr *io, void *data)
 {
 	ssize_t err;
 	int fd;
@@ -233,7 +233,7 @@ static int blob_write_history_meta(void *state, void *backend, struct dnet_io_at
 	hdata = new_hdata;
 
 	io->size = size;
-	err = blob_write_raw(b, state, 1, io, new_hdata);
+	err = blob_write_raw(b, 1, io, new_hdata);
 	if (err) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to update (%zu bytes) history: %s.\n",
@@ -269,7 +269,7 @@ static int blob_write(struct blob_backend *r, void *state, struct dnet_cmd *cmd,
 		if (err)
 			goto err_out_exit;
 	} else {
-		err = blob_write_raw(r, state, 0, io, data);
+		err = blob_write_raw(r, 0, io, data);
 		if (err)
 			goto err_out_exit;
 

@@ -38,7 +38,7 @@
 #endif
 
 #if defined HAVE_PROC_STAT
-static int backend_vm_stat(void *state, struct dnet_stat *st)
+static int backend_vm_stat(struct dnet_stat *st)
 {
 	int err;
 	FILE *f;
@@ -48,7 +48,7 @@ static int backend_vm_stat(void *state, struct dnet_stat *st)
 	f = fopen("/proc/loadavg", "r");
 	if (!f) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR, "Failed to open '/proc/loadavg': %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to open '/proc/loadavg': %s [%d].\n",
 				strerror(errno), errno);
 		goto err_out_exit;
 	}
@@ -59,7 +59,7 @@ static int backend_vm_stat(void *state, struct dnet_stat *st)
 		if (!err)
 			err = -EINVAL;
 
-		dnet_command_handler_log(state, DNET_LOG_ERROR, "Failed to read load average data: %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to read load average data: %s [%d].\n",
 				strerror(errno), errno);
 		goto err_out_close;
 	}
@@ -73,7 +73,7 @@ static int backend_vm_stat(void *state, struct dnet_stat *st)
 	f = fopen("/proc/meminfo", "r");
 	if (!f) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR, "Failed to open '/proc/meminfo': %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to open '/proc/meminfo': %s [%d].\n",
 				strerror(errno), errno);
 		goto err_out_exit;
 	}
@@ -98,7 +98,7 @@ err_out_exit:
 #include <sys/sysctl.h>
 #include <sys/resource.h>
 
-static int backend_vm_stat(void *state, struct dnet_stat *st)
+static int backend_vm_stat(struct dnet_stat *st)
 {
 	int err;
 	struct loadavg la;
@@ -108,7 +108,7 @@ static int backend_vm_stat(void *state, struct dnet_stat *st)
 	err = sysctlbyname("vm.loadavg", &la, &sz, NULL, 0);
 	if (err) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR, "Failed to get load average data: %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to get load average data: %s [%d].\n",
 				strerror(errno), errno);
 		return err;
 	}
@@ -144,13 +144,13 @@ static int backend_vm_stat(void *state, struct dnet_stat *st)
 	return 0;
 }
 #else
-static int backend_vm_stat(void *state __unused, struct dnet_stat *st __unused)
+static int backend_vm_stat(struct dnet_stat *st __unused)
 {
 	return 0;
 }
 #endif
 
-static int backend_stat_low_level(void *state, const char *path, struct dnet_stat *st)
+static int backend_stat_low_level(const char *path, struct dnet_stat *st)
 {
 	struct statvfs s;
 	int err;
@@ -159,7 +159,7 @@ static int backend_stat_low_level(void *state, const char *path, struct dnet_sta
 	err = statvfs(path, &s);
 	if (err) {
 		err = -errno;
-		dnet_command_handler_log(state, DNET_LOG_ERROR, "Failed to get VFS statistics of '%s': %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to get VFS statistics of '%s': %s [%d].\n",
 				path, strerror(errno), errno);
 		return err;
 	}
@@ -176,7 +176,7 @@ static int backend_stat_low_level(void *state, const char *path, struct dnet_sta
 	st->flag = s.f_flag;
 	st->namemax = s.f_namemax;
 
-	err = backend_vm_stat(state, st);
+	err = backend_vm_stat(st);
 	if (err)
 		return err;
 
@@ -184,7 +184,7 @@ static int backend_stat_low_level(void *state, const char *path, struct dnet_sta
 	la[1] = (float)st->la[1] / 100.0;
 	la[2] = (float)st->la[2] / 100.0;
 
-	dnet_command_handler_log(state, DNET_LOG_INFO, "Stat: la: %f %f %f, mem: total: %llu, free: %llu, cache: %llu.\n",
+	dnet_backend_log(DNET_LOG_INFO, "Stat: la: %f %f %f, mem: total: %llu, free: %llu, cache: %llu.\n",
 		la[0], la[1], la[2],
 		(unsigned long long)st->vm_total, (unsigned long long)st->vm_free, (unsigned long long)st->vm_cached);
 
@@ -203,14 +203,14 @@ int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr
 
 	memset(&st, 0, sizeof(struct dnet_stat));
 
-	err = backend_stat_low_level(state, path, &st);
+	err = backend_stat_low_level(path, &st);
 	if (err)
 		return err;
 
 	return dnet_send_reply(state, cmd, attr, &st, sizeof(struct dnet_stat), 0);
 }
 
-int backend_del(void *state, struct dnet_io_attr *io, struct dnet_history_entry *e, unsigned int num)
+int backend_del(struct dnet_io_attr *io, struct dnet_history_entry *e, unsigned int num)
 {
 	unsigned int i;
 
@@ -222,14 +222,14 @@ int backend_del(void *state, struct dnet_io_attr *io, struct dnet_history_entry 
 	if (i == num) {
 		if (memcmp(io->origin, e[0].id, DNET_ID_SIZE)) {
 
-			dnet_command_handler_log(state, DNET_LOG_INFO,
+			dnet_backend_log(DNET_LOG_INFO,
 				"%s: requested transaction was not found.\n",
 				dnet_dump_id(io->origin));
 			return -ENOENT;
 		}
 	}
 
-	dnet_command_handler_log(state, DNET_LOG_INFO,
+	dnet_backend_log(DNET_LOG_INFO,
 			"%s: removing transaction from position %u/%u.\n",
 			dnet_dump_id(io->id), i, num);
 
@@ -250,7 +250,7 @@ static int backend_write_history_process(void *state, void *backend, struct dnet
 
 	err = process(state, backend, io, m, data);
 
-	dnet_command_handler_log(state, DNET_LOG_INFO, "%s: history update: type: %d, "
+	dnet_backend_log(DNET_LOG_INFO, "%s: history update: type: %d, "
 			"size: %u -> %u: %d\n",
 			dnet_dump_id(io->id), m->type, old_size, m->size, err);
 	return err;
@@ -269,7 +269,7 @@ int backend_write_history(void *state, void *backend, struct dnet_io_attr *io, v
 			dnet_convert_meta(meta);
 
 			if (io->size < sizeof(struct dnet_meta) + meta->size) {
-				dnet_command_handler_log(state, DNET_LOG_ERROR,
+				dnet_backend_log(DNET_LOG_ERROR,
 						"%s: history update failed: meta size "
 						"(%u plus meta structure size) is more than "
 						"io size (%llu).\n",
@@ -333,8 +333,7 @@ void *backend_process_meta(void *state, struct dnet_io_attr *io, void *hdata, ui
 
 	hdata = dnet_meta_replace(n, hdata, size, m, tmp);
 	if (!hdata) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to replace metadata.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to replace metadata.\n",
 				dnet_dump_id(io->id));
 		goto err_out_exit;
 	}

@@ -401,7 +401,12 @@ err_out_exit:
 	return NULL;
 }
 
-void dnet_backend_log(uint32_t mask, const char *format, ...)
+int dnet_backend_check_log_mask(uint32_t mask)
+{
+	return (dnet_cfg_state.log && (dnet_cfg_state.log_mask & mask));
+}
+
+void dnet_backend_log_raw(uint32_t mask, const char *format, ...)
 {
 	va_list args;
 	char buf[1024];

@@ -1193,12 +1193,13 @@ void dnet_state_destroy(struct dnet_net_state *st)
 int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 		void *odata, unsigned int size, int more)
 {
+	struct dnet_net_state *st = state;
 	struct dnet_cmd *c;
 	struct dnet_attr *a;
 	struct dnet_data_req *r;
 	void *data;
 
-	r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
+	r = dnet_req_alloc(st, sizeof(struct dnet_cmd) +
 			sizeof(struct dnet_attr) + size);
 	if (!r)
 		return -ENOMEM;
@@ -1222,12 +1223,11 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 	if (size)
 		memcpy(data, odata, size);
 
-	dnet_command_handler_log(state, DNET_LOG_INFO,
-		"%s: sending %u reply, size: %u, cflags: %x.\n",
+	dnet_log(st->n, DNET_LOG_INFO, "%s: sending %u reply, size: %u, cflags: %x.\n",
 		dnet_dump_id(cmd->id), a->cmd, size, c->flags);
 
 	dnet_convert_cmd(c);
 	dnet_convert_attr(a);
 
-	return dnet_data_ready(state, r);
+	return dnet_data_ready(st, r);
 }

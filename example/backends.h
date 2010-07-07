@@ -48,7 +48,7 @@ static inline uint64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint
 }
 
 int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr *attr);
-int backend_del(void *state, struct dnet_io_attr *io, struct dnet_history_entry *e, unsigned int num);
+int backend_del(struct dnet_io_attr *io, struct dnet_history_entry *e, unsigned int num);
 
 static inline uint64_t file_backend_get_dir_bits(const unsigned char *id, int bit_num)
 {
@@ -105,7 +105,13 @@ void dnet_tc_backend_exit(void);
 int dnet_blob_backend_init(void);
 void dnet_blob_backend_exit(void);
 
-void dnet_backend_log(uint32_t mask, const char *fmt, ...);
+int dnet_backend_check_log_mask(uint32_t mask);
+void dnet_backend_log_raw(uint32_t mask, const char *fmt, ...);
+#define dnet_backend_log(mask, format, a...)				\
+	do {								\
+		if (dnet_backend_check_log_mask(mask))			\
+			dnet_backend_log_raw(mask, format, ##a); 	\
+	} while (0)
 
 #ifdef __cplusplus
 }

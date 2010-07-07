@@ -59,8 +59,7 @@ static TCADB *tc_setup_db(struct tc_backend *be, struct dnet_io_attr *io)
 	return db;
 }
 
-static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *buf)
+static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd, struct dnet_attr *attr, void *buf)
 {
 	TCADB *db = be->data;
 	int err;
@@ -68,16 +67,6 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	int size;
 	void *ptr;
 	struct dnet_data_req *r;
-
-	if (attr->size < sizeof(struct dnet_io_attr)) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: wrong read attribute, size does not match "
-				"IO attribute size: size: %llu, must be: %zu.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)attr->size,
-				sizeof(struct dnet_io_attr));
-		err = -EINVAL;
-		goto err_out_exit;
-	}
 
 	buf += sizeof(struct dnet_io_attr);
 
@@ -87,16 +76,14 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 	ptr = tcadbget(db, io->origin, DNET_ID_SIZE, &size);
 	if (!ptr) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to read object.\n", dnet_dump_id(io->origin));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to read object.\n", dnet_dump_id(io->origin));
 		err = -ENOENT;
 		goto err_out_exit;
 	}
 
 	size = dnet_backend_check_get_size(io, size);
 
-	dnet_command_handler_log(state, DNET_LOG_INFO,
-			"%s: read object: io_offset: %llu, io_size: %llu, io_flags: %x, size: %d.\n",
+	dnet_backend_log(DNET_LOG_INFO,	"%s: read object: io_offset: %llu, io_size: %llu, io_flags: %x, size: %d.\n",
 			dnet_dump_id(io->origin), (unsigned long long)io->offset,
 			(unsigned long long)io->size, io->flags, size);
 
@@ -114,8 +101,7 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 		if (!r) {
 			err = -ENOMEM;
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: failed to allocate reply attributes.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "%s: failed to allocate reply attributes.\n",
 				dnet_dump_id(io->origin));
 			goto err_out_free;
 		}
@@ -129,8 +115,7 @@ static int tc_get_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		memcpy(c->id, io->origin, DNET_ID_SIZE);
 		memcpy(rio->origin, io->origin, DNET_ID_SIZE);
 
-		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: read reply offset: %llu, size: %d.\n",
+		dnet_backend_log(DNET_LOG_NOTICE, "%s: read reply offset: %llu, size: %d.\n",
 			dnet_dump_id(io->origin), (unsigned long long)io->offset, size);
 
 		if (cmd->flags & DNET_FLAGS_NEED_ACK)
@@ -187,16 +172,14 @@ static int tc_write_history_meta(void *state, void *backend, struct dnet_io_attr
 	hdata = tcadbget(db, io->origin, DNET_ID_SIZE, &size);
 	if (!hdata) {
 		err = -ENOMEM;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,	"%s: failed to read history object.\n",
-				dnet_dump_id(io->id));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to read history object.\n", dnet_dump_id(io->id));
 		goto err_out_exit;
 	}
 
 	new_hdata = backend_process_meta(state, io, hdata, (uint32_t *)&size, m, data);
 	if (!new_hdata) {
 		err = -ENOMEM;
-		dnet_command_handler_log(state, DNET_LOG_ERROR, "%s: failed to update history object.\n",
-				dnet_dump_id(io->id));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to update history object.\n", dnet_dump_id(io->id));
 		goto err_out_free;
 	}
 	hdata = new_hdata;
@@ -204,8 +187,7 @@ static int tc_write_history_meta(void *state, void *backend, struct dnet_io_attr
 	res = tcadbput(db, io->origin, DNET_ID_SIZE, hdata, size);
 	if (!res) {
 		err = -EINVAL;
-		dnet_command_handler_log(state, DNET_LOG_ERROR,	"%s: failed to write history object.\n",
-				dnet_dump_id(io->id));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to write history object.\n", dnet_dump_id(io->id));
 		goto err_out_free;
 	}
 
@@ -222,24 +204,13 @@ static int tc_write_history(TCADB *db, void *state, struct dnet_io_attr *io, voi
 	return backend_write_history(state, db, io, iodata, tc_write_history_meta);
 }
 
-static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd, void *data)
 {
 	int err;
 	TCADB *db = be->data;
 	struct dnet_io_attr *io = data;
 	struct dnet_history_entry *e, n;
 	bool res = true;
-
-	if (attr->size < sizeof(struct dnet_io_attr)) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: wrong write attribute, size does not match "
-				"IO attribute size: size: %llu, must be more than %zu.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)attr->size,
-				sizeof(struct dnet_io_attr));
-		err = -EINVAL;
-		goto err_out_exit;
-	}
 
 	dnet_convert_io_attr(io);
 
@@ -249,10 +220,9 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 	res = tcadbtranbegin(db);
 	if (!res) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to start write transaction.\n", dnet_dump_id(cmd->id));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to start write transaction.\n", dnet_dump_id(cmd->id));
 		err = -EINVAL;
-		goto err_out_data_trans_abort;
+		goto err_out_exit;
 	}
 
 	if (io->flags & DNET_IO_FLAGS_HISTORY) {
@@ -265,16 +235,14 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		else
 			res = tcadbput(db, io->origin, DNET_ID_SIZE, data, io->size);
 		if (!res) {
-			dnet_command_handler_log(state, DNET_LOG_ERROR,
-				"%s: direct object put failed: offset: %llu, size: %llu.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "%s: direct object put failed: offset: %llu, size: %llu.\n",
 				dnet_dump_id(io->origin), (unsigned long long)io->offset,
 				(unsigned long long)io->size);
 			err = -EINVAL;
 			goto err_out_data_trans_abort;
 		}
 
-		dnet_command_handler_log(state, DNET_LOG_NOTICE,
-			"%s: stored %s object: size: %llu, offset: %llu.\n",
+		dnet_backend_log(DNET_LOG_NOTICE, "%s: stored %s object: size: %llu, offset: %llu.\n",
 				dnet_dump_id(io->origin),
 				(io->flags & DNET_IO_FLAGS_HISTORY) ? "history" : "data",
 				(unsigned long long)io->size, (unsigned long long)io->offset);
@@ -297,8 +265,7 @@ static int tc_put_data(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 	res = tcadbtrancommit(db);
 	if (!res) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR,
-			"%s: failed to commit write transaction.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to commit write transaction.\n",
 			dnet_dump_id(io->origin));
 		err = -EINVAL;
 		goto err_out_data_trans_abort;
@@ -312,14 +279,14 @@ err_out_exit:
 	return err;
 }
 
-static int tc_get_flags(void *state, struct tc_backend *be, const unsigned char *id, uint32_t *flags)
+static int tc_get_flags(struct tc_backend *be, const unsigned char *id, uint32_t *flags)
 {
 	int size;
 	struct dnet_history_entry *e;
 
 	e = tcadbget(be->hist, id, DNET_ID_SIZE, &size);
 	if (!e) {
-		dnet_command_handler_log(state, DNET_LOG_ERROR, "Failed to get history for id: %s.\n", dnet_dump_id_len(id, DNET_ID_SIZE));
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to get history for id: %s.\n", dnet_dump_id_len(id, DNET_ID_SIZE));
 		return -EINVAL;
 	}
 
@@ -359,7 +326,7 @@ static int tc_list_raw(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 		if (!num)
 			goto out_clean;
 
-		dnet_command_handler_log(state, DNET_LOG_INFO, "%02x: %d object(s).\n", start, num);
+		dnet_backend_log(DNET_LOG_INFO, "%02x: %d object(s).\n", start, num);
 
 		for (i=0; i<num; ++i) {
 			const unsigned char *idx = tclistval(l, i, &size);
@@ -382,12 +349,12 @@ static int tc_list_raw(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 
 			flags = 0;
 			if (attr->flags & DNET_ATTR_ID_FLAGS) {
-				err = tc_get_flags(state, be, idx, &flags);
+				err = tc_get_flags(be, idx, &flags);
 				if (err)
 					continue;
 			}
 
-			dnet_command_handler_log(state, DNET_LOG_INFO, "%s\n", dnet_dump_id(idx));
+			dnet_backend_log(DNET_LOG_INFO, "%s\n", dnet_dump_id(idx));
 			memcpy(ids[ipos].id, idx, DNET_ID_SIZE);
 			ids[ipos].flags = flags;
 
@@ -446,7 +413,7 @@ static int tc_backend_command_handler(void *state, void *priv,
 
 	switch (attr->cmd) {
 		case DNET_CMD_WRITE:
-			err = tc_put_data(state, e, cmd, attr, data);
+			err = tc_put_data(state, e, cmd, data);
 			break;
 		case DNET_CMD_READ:
 			err = tc_get_data(state, e, cmd, attr, data);
