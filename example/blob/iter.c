@@ -39,13 +39,14 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
-int blob_iterate(int fd, int (* callback)(struct blob_disk_control *dc, void *data, off_t position, void *priv), void *priv)
+int blob_iterate(int fd, unsigned int bsize,
+		int (* callback)(struct blob_disk_control *dc, void *data, off_t position, void *priv), void *priv)
 {
 	struct blob_disk_control dc;
 	void *data, *ptr;
 	off_t position;
 	struct stat st;
-	size_t size;
+	size_t size, sz;
 	int err;
 
 	err = fstat(fd, &st);
@@ -83,24 +84,25 @@ int blob_iterate(int fd, int (* callback)(struct blob_disk_control *dc, void *da
 
 		position = ptr - data;
 
-		ptr += sizeof(struct blob_disk_control);
-		size -= sizeof(struct blob_disk_control);
-
-		if (size < dc.size) {
+		if (size < dc.size + sizeof(struct blob_disk_control)) {
 			dnet_backend_log(DNET_LOG_ERROR, "blob: iteration fails: size (%zu) is less than on-disk specified size (%llu).\n",
 					size, (unsigned long long)dc.size);
 			goto err_out_unmap;
 		}
 
-		ptr += dc.size;
-		size -= dc.size;
-
-		err = callback(&dc, ptr - dc.size, position, priv);
+		err = callback(&dc, ptr + sizeof(struct blob_disk_control), position, priv);
 		if (err < 0) {
 			dnet_backend_log(DNET_LOG_ERROR, "blob: iteration callback fails: size: %llu, position: %llu, err: %d.\n",
 					dc.size, position, err);
 			goto err_out_unmap;
 		}
+
+		sz = dc.size + sizeof(struct blob_disk_control);
+		if (bsize)
+			sz = ALIGN(sz, bsize);
+
+		ptr += sz;
+		size -= sz;
 	}
 
 	err = 0;

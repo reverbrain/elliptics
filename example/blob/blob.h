@@ -38,6 +38,8 @@ struct blob_ram_control {
 	uint64_t		size;
 };
 
-int blob_iterate(int fd, int (* callback)(struct blob_disk_control *dc, void *data, off_t position, void *priv), void *priv);
+int blob_iterate(int fd, unsigned int bsize,
+		int (* callback)(struct blob_disk_control *dc, void *data, off_t position, void *priv),
+		void *priv);
 
 #endif /* __ELLIPTICS_BLOB_H */

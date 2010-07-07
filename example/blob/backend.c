@@ -49,13 +49,14 @@ struct blob_backend
 {
 	unsigned int		hash_size;
 	unsigned int		hash_flags;
-	unsigned int		bsize;
 	int			sync;
 
 	void			*log_private;
 	void			(* log)(void *priv, uint32_t mask, const char *msg);
 
 	int			datafd, historyfd;
+
+	unsigned int		data_bsize, history_bsize;
 
 	pthread_mutex_t		lock;
 	off_t			data_offset, history_offset;
@@ -88,12 +89,12 @@ err_out_exit:
 	return err;
 }
 
-//static unsigned char blob_empty_buf[4096];
+static unsigned char blob_empty_buf[40960];
 
 static int blob_write_raw(struct blob_backend *b, int hist, struct dnet_io_attr *io, void *data)
 {
 	ssize_t err;
-	int fd;
+	int fd, bsize = 0;
 	struct blob_disk_control disk_ctl;
 	struct blob_ram_control ctl;
 	off_t offset;
@@ -112,9 +113,11 @@ static int blob_write_raw(struct blob_backend *b, int hist, struct dnet_io_attr 
 	if (hist) {
 		fd = b->historyfd;
 		ctl.offset = b->history_offset;
+		bsize = b->history_bsize;
 	} else {
 		fd = b->datafd;
 		ctl.offset = b->data_offset;
+		bsize = b->data_bsize;
 	}
 
 	offset = ctl.offset;
@@ -127,22 +130,24 @@ static int blob_write_raw(struct blob_backend *b, int hist, struct dnet_io_attr 
 	if (err)
 		goto err_out_unlock;
 	offset += io->size;
-#if 0
-	size = (io->size + sizeof(struct blob_ram_control)) % b->hash_size;
-	while (size) {
-		int sz = size;
 
-		if (sz > sizeof(blob_empty_buf))
-			sz = sizeof(blob_empty_buf);
+	if (bsize) {
+		int size = bsize - ((offset - ctl.offset) % bsize);
 
-		err = blob_write_low_level(fd, blob_empty_buf, sz, offset);
-		if (err)
-			goto err_out_unlock;
+		while (size && size < bsize) {
+			unsigned int sz = size;
 
-		size -= sz;
-		offset += sz;
+			if (sz > sizeof(blob_empty_buf))
+				sz = sizeof(blob_empty_buf);
+
+			err = blob_write_low_level(fd, blob_empty_buf, sz, offset);
+			if (err)
+				goto err_out_unlock;
+
+			size -= sz;
+			offset += sz;
+		}
 	}
-#endif
 	ctl.size = offset - ctl.offset;
 
 	err = dnet_hash_replace(b->hash, ctl.key, sizeof(ctl.key), &ctl, sizeof(ctl));
@@ -487,11 +492,14 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_blob_set_block_size(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_block_size(struct dnet_config_backend *b, char *key, char *value)
 {
 	struct blob_backend *r = b->data;
 
-	r->bsize = strtoul(value, NULL, 0);
+	if (!strcmp(key, "data_block_size"))
+		r->data_bsize = strtoul(value, NULL, 0);
+	else
+		r->history_bsize = strtoul(value, NULL, 0);
 	return 0;
 }
 
@@ -577,14 +585,14 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 		goto err_out_lock_destroy;
 	}
 
-	err = blob_iterate(r->datafd, dnet_blob_iter_data, r);
+	err = blob_iterate(r->datafd, r->data_bsize, dnet_blob_iter_data, r);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "blob: data iteration failed: %d.\n", err);
 		goto err_out_hash_destroy;
 	}
 	posix_fadvise(r->datafd, 0, r->data_offset, POSIX_FADV_RANDOM);
 
-	err = blob_iterate(r->historyfd, dnet_blob_iter_history, r);
+	err = blob_iterate(r->historyfd, r->history_bsize, dnet_blob_iter_history, r);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "blob: history iteration failed: %d.\n", err);
 		goto err_out_hash_destroy;
@@ -622,7 +630,8 @@ static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"sync", dnet_blob_set_sync},
 	{"data", dnet_blob_set_data},
 	{"history", dnet_blob_set_data},
-	{"block_size", dnet_blob_set_block_size},
+	{"data_block_size", dnet_blob_set_block_size},
+	{"history_block_size", dnet_blob_set_block_size},
 	{"hash_table_size", dnet_blob_set_hash_size},
 	{"hash_table_flags", dnet_blob_set_hash_flags},
 };
