@@ -57,19 +57,21 @@ pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
 static int dnet_check_log_init(struct dnet_node *n, struct dnet_config *cfg, char *log)
 {
 	int err;
-	FILE *old = cfg->log_private;
+	FILE *old = cfg->log.log_private;
 
 	if (log) {
-		cfg->log_private = fopen(log, "a");
-		if (!cfg->log_private) {
+		cfg->log.log_private = fopen(log, "a");
+		if (!cfg->log.log_private) {
 			err = -errno;
 			fprintf(stderr, "Failed to open log file %s: %s.\n", log, strerror(errno));
 			return err;
 		}
 	}
 
+	cfg->log.log = dnet_common_log;
+
 	if (n)
-		dnet_log_init(n, cfg->log_private, cfg->log_mask, dnet_common_log);
+		dnet_log_init(n, &cfg->log);
 
 	if (log && old)
 		fclose(old);
@@ -565,8 +567,8 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60;
-	cfg.log_mask = DNET_LOG_ERROR;
-	cfg.log = dnet_common_log;
+	cfg.log.log_mask = DNET_LOG_ERROR;
+	cfg.log.log = dnet_common_log;
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
@@ -585,7 +587,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 				worker_num = atoi(optarg);
 				break;
 			case 'm':
-				cfg.log_mask = strtol(optarg, NULL, 0);
+				cfg.log.log_mask = strtol(optarg, NULL, 0);
 				break;
 			case 'l':
 				log = optarg;
@@ -670,7 +672,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 		pthread_mutex_init(&w->wait_lock, NULL);
 
 		snprintf(log_file, sizeof(log_file), "%s.%d", log, w->id);
-		cfg.log_private = NULL;
+		cfg.log.log_private = NULL;
 		dnet_check_log_init(NULL, &cfg, log_file);
 
 		w->n = dnet_node_create(&cfg);
@@ -726,8 +728,8 @@ out_join:
 			dnet_node_destroy(w->n);
 	}
 	free(workers);
-	if (cfg.log_private)
-		fclose(cfg.log_private);
+	if (cfg.log.log_private)
+		fclose(cfg.log.log_private);
 
 out_ext_cleanup:
 	if (dnet_check_ext_library) {

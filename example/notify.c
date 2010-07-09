@@ -107,14 +107,14 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
-	cfg.log_mask = ~0;
+	cfg.log.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
 	while ((ch = getopt(argc, argv, "m:w:l:I:i:a:r:h")) != -1) {
 		switch (ch) {
 			case 'm':
-				cfg.log_mask = strtoul(optarg, NULL, 0);
+				cfg.log.log_mask = strtoul(optarg, NULL, 0);
 				break;
 			case 'w':
 				cfg.wait_timeout = atoi(optarg);
@@ -177,8 +177,8 @@ int main(int argc, char *argv[])
 			return err;
 		}
 
-		cfg.log_private = log;
-		cfg.log = dnet_common_log;
+		cfg.log.log_private = log;
+		cfg.log.log = dnet_common_log;
 	}
 
 	notify = fopen(notify_file, "a");

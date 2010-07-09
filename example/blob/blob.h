@@ -38,7 +38,7 @@ struct blob_ram_control {
 	uint64_t		size;
 };
 
-int blob_iterate(int fd, unsigned int bsize,
+int blob_iterate(int fd, unsigned int bsize, struct dnet_log *l,
 		int (* callback)(struct blob_disk_control *dc, void *data, off_t position, void *priv),
 		void *priv);
 

@@ -234,6 +234,18 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file, char *remote, 
 #define DNET_JOIN_NETWORK		(1<<0)
 #define DNET_NO_ROUTE_LIST		(1<<1)
 
+struct dnet_log {
+	/*
+	 * Logging parameters.
+	 * Mask specifies set of the events we are interested in to log.
+	 * Private data is used in the log function to get access to whatever
+	 * user pointed to.
+	 */
+	uint32_t		log_mask;
+	void			*log_private;
+	void 			(* log)(void *priv, uint32_t mask, const char *msg);
+};
+
 /*
  * Node configuration interface.
  */
@@ -275,15 +287,8 @@ struct dnet_config
 	 */
 	int			join;
 
-	/*
-	 * Logging parameters.
-	 * Mask specifies set of the events we are interested in to log.
-	 * Private data is used in the log function to get access to whatever
-	 * user pointed to.
-	 */
-	uint32_t		log_mask;
-	void			*log_private;
-	void 			(* log)(void *priv, uint32_t mask, const char *msg);
+	/* Private logger */
+	struct dnet_log		log;
 
 	/*
 	 * Network command handler.
@@ -327,11 +332,7 @@ struct dnet_node *dnet_get_node_from_state(void *state);
 /*
  * Initialize private logging system.
  */
-int dnet_log_init(struct dnet_node *n, void *priv, uint32_t mask,
-		void (* log)(void *priv, uint32_t mask, const char *msg));
-
-void dnet_command_handler_log_raw(void *state, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
-int dnet_check_log_mask_state(struct dnet_net_state *st, uint32_t mask);
+int dnet_log_init(struct dnet_node *n, struct dnet_log *l);
 void dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
 
 #define NIP6(addr) \

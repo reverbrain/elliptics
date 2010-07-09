@@ -585,14 +585,14 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 		goto err_out_lock_destroy;
 	}
 
-	err = blob_iterate(r->datafd, r->data_bsize, dnet_blob_iter_data, r);
+	err = blob_iterate(r->datafd, r->data_bsize, b->log, dnet_blob_iter_data, r);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "blob: data iteration failed: %d.\n", err);
 		goto err_out_hash_destroy;
 	}
 	posix_fadvise(r->datafd, 0, r->data_offset, POSIX_FADV_RANDOM);
 
-	err = blob_iterate(r->historyfd, r->history_bsize, dnet_blob_iter_history, r);
+	err = blob_iterate(r->historyfd, r->history_bsize, b->log, dnet_blob_iter_history, r);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "blob: history iteration failed: %d.\n", err);
 		goto err_out_hash_destroy;

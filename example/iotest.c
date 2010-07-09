@@ -409,7 +409,7 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
-	cfg.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
+	cfg.log.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
@@ -439,7 +439,7 @@ int main(int argc, char *argv[])
 				size = strtoul(optarg, NULL, 0);
 				break;
 			case 'm':
-				cfg.log_mask = strtoul(optarg, NULL, 0);
+				cfg.log.log_mask = strtoul(optarg, NULL, 0);
 				break;
 			case 'w':
 				cfg.wait_timeout = atoi(optarg);
@@ -527,8 +527,8 @@ int main(int argc, char *argv[])
 			return err;
 		}
 
-		cfg.log_private = log;
-		cfg.log = dnet_common_log;
+		cfg.log.log_private = log;
+		cfg.log.log = dnet_common_log;
 	}
 	cfg.resend_timeout.tv_sec = cfg.wait_timeout;
 
@@ -587,7 +587,7 @@ int main(int argc, char *argv[])
 	fcntl(iotest_pipe[0], F_SETFL, O_NONBLOCK);
 	fcntl(iotest_pipe[1], F_SETFL, O_NONBLOCK);
 
-	err = pthread_create(&tid, NULL, iotest_perf, cfg.log_private);
+	err = pthread_create(&tid, NULL, iotest_perf, cfg.log.log_private);
 	if (err) {
 		fprintf(stderr, "Failed to spawn performance checking thread, err: %d.\n", err);
 		return err;

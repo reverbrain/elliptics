@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
 				cfg.io_thread_num = atoi(optarg);
 				break;
 			case 'm':
-				cfg.log_mask = strtoul(optarg, NULL, 0);
+				cfg.log.log_mask = strtoul(optarg, NULL, 0);
 				break;
 			case 's':
 				stat = 1;
@@ -190,8 +190,8 @@ int main(int argc, char *argv[])
 			return err;
 		}
 
-		cfg.log_private = log;
-		cfg.log = dnet_common_log;
+		cfg.log.log_private = log;
+		cfg.log.log = dnet_common_log;
 	}
 
 	n = dnet_node_create(&cfg);

@@ -53,7 +53,7 @@ extern "C" {
 
 struct dnet_node;
 
-#define dnet_log(n, mask, format, a...) do { if (n->log_mask & mask) dnet_log_raw(n, mask, format, ##a); } while (0)
+#define dnet_log(n, mask, format, a...) do { if (n->log && (n->log->log_mask & mask)) dnet_log_raw(n, mask, format, ##a); } while (0)
 #define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, "%s: " f ": %s [%d].\n", \
 		dnet_dump_id(n->id), ##a, strerror(errno), errno)
 
@@ -250,9 +250,7 @@ struct dnet_node
 
 	int			merge_strategy;
 
-	uint32_t		log_mask;
-	void			*log_private;
-	void			(*log)(void *priv, uint32_t mask, const char *msg);
+	struct dnet_log		*log;
 
 	struct dnet_wait	*wait;
 	struct timespec		wait_ts;

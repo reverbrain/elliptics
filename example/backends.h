@@ -90,6 +90,8 @@ struct dnet_config_backend {
 	int				size;
 	void				*data;
 
+	struct dnet_log			*log;
+
 	int				(* init)(struct dnet_config_backend *b, struct dnet_config *cfg);
 	void				(* cleanup)(struct dnet_config_backend *b);
 };
