@@ -9,6 +9,7 @@ libblob_backend_a_SOURCES = backend.c
 libblob_backend_a_LIBADD = iter.o
 
 dnet_blob_check_SOURCES = check.c
+dnet_blob_check_LDADD = libelliptics_blob.la
 
 CC = @PTHREAD_CC@
 AM_CFLAGS = -I../../include -I../ -I../../config @PTHREAD_CFLAGS@ @OPENSSL_CFLAGS@
