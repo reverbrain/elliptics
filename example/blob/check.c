@@ -36,10 +36,11 @@ static int blob_check_iterator(struct blob_disk_control *dc, void *data __unused
 {
 	char id[DNET_ID_SIZE*2+1];
 
-	printf("%s: position: %llu (0x%llx), size: %llu, flags: %llx.\n",
+	printf("%s: position: %llu (0x%llx), data size: %llu, disk size: %llu, flags: %llx.\n",
 			dnet_dump_id_len_raw(dc->id, DNET_ID_SIZE, id),
 			(unsigned long long)position, (unsigned long long)position,
-			(unsigned long long)dc->size, (unsigned long long)dc->flags);
+			(unsigned long long)dc->data_size, (unsigned long long)dc->disk_size,
+			(unsigned long long)dc->flags);
 
 	return 0;
 }
@@ -48,7 +49,6 @@ int main(int argc, char *argv[])
 {
 	int i, err, fd;
 	char *file;
-	unsigned int bsize = 0;
 
 	for (i=1; i<argc; ++i) {
 		file = argv[i];
@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
 			continue;
 		}
 
-		err = blob_iterate(fd, bsize, NULL, blob_check_iterator, NULL);
+		err = blob_iterate(fd, NULL, blob_check_iterator, NULL);
 	}
 
 	return 0;
