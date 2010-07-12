@@ -106,7 +106,7 @@ static void *dnet_clog_process(void *thread_data)
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to find transform metadata in object '%s'.\n", dnet_dump_id(id.id), file);
 			goto out_unmap;
 		}
-		
+
 		transform = (char *)tmp->data;
 
 		if (dnet_check_output) {
