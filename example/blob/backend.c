@@ -415,8 +415,68 @@ err_out_exit:
 	return err;
 }
 
-static int blob_del(struct blob_backend *r, void *state __unused, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+static int blob_del_entry(struct blob_backend *b, struct dnet_cmd *cmd, int hist)
+{
+	unsigned char key[DNET_ID_SIZE + 1];
+	struct blob_ram_control ctl;
+	unsigned int dsize = sizeof(struct blob_ram_control);
+	struct blob_disk_control dc;
+	int err, fd = b->datafd;
+
+	memcpy(key, cmd->id, DNET_ID_SIZE);
+	key[DNET_ID_SIZE] = 0;
+
+	if (hist) {
+		key[DNET_ID_SIZE] = 1;
+		fd = b->historyfd;
+	}
+
+	err = dnet_hash_lookup(b->hash, key, sizeof(key), &ctl, &dsize);
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "blob: %s: could not find data to be removed: %d.\n",
+				dnet_dump_id(key), err);
+		goto err_out_exit;
+	}
+
+	dnet_backend_log(DNET_LOG_INFO,	"%s: removing block at: %llu, size: %llu.\n",
+		dnet_dump_id(key), (unsigned long long)ctl.offset, (unsigned long long)ctl.size);
+
+	err = pread(fd, &dc, sizeof(dc), ctl.offset);
+	if (err != (int)sizeof(dc)) {
+		err = -errno;
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to read disk control structure from history at %llu: %s.\n",
+			dnet_dump_id(key), (unsigned long long)ctl.offset, strerror(errno));
+		goto err_out_exit;
+	}
+
+	blob_convert_disk_control(&dc);
+	dc.flags |= BLOB_DISK_CTL_REMOVE;
+	blob_convert_disk_control(&dc);
+
+	err = pwrite(fd, &dc, sizeof(struct blob_disk_control), ctl.offset);
+	if (err != (int)sizeof(dc)) {
+		err = -errno;
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to erase (mark) entry at %llu: %s.\n",
+			dnet_dump_id(key), (unsigned long long)ctl.offset, strerror(errno));
+		goto err_out_exit;
+	}
+	err = 0;
+
+err_out_exit:
+	return err;
+}
+
+static int blob_del(struct blob_backend *b, struct dnet_cmd *cmd)
+{
+	int err;
+
+	err = blob_del_entry(b, cmd, 0);
+	err = blob_del_entry(b, cmd, 1);
+
+	return err;
+}
+
+static int blob_list(struct blob_backend *b, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	return -1;
 }
@@ -425,24 +485,23 @@ static int blob_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
 	int err;
-	struct blob_backend *r = priv;
+	struct blob_backend *b = priv;
 
 	switch (attr->cmd) {
 		case DNET_CMD_WRITE:
-			err = blob_write(r, state, cmd, attr, data);
+			err = blob_write(b, state, cmd, attr, data);
 			break;
 		case DNET_CMD_READ:
-			err = blob_read(r, state, cmd, attr, data);
+			err = blob_read(b, state, cmd, attr, data);
 			break;
 		case DNET_CMD_LIST:
-			err = -ENOTSUP;
-			//err = blob_list(r, state, cmd, attr);
+			err = blob_list(b, state, cmd, attr);
 			break;
 		case DNET_CMD_STAT:
 			err = backend_stat(state, NULL, cmd, attr);
 			break;
 		case DNET_CMD_DEL:
-			err = blob_del(r, state, cmd, attr, data);
+			err = blob_del(b, cmd);
 			break;
 		default:
 			err = -EINVAL;
