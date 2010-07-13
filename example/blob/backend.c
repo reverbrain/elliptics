@@ -51,9 +51,6 @@ struct blob_backend
 	unsigned int		hash_flags;
 	int			sync;
 
-	void			*log_private;
-	void			(* log)(void *priv, uint32_t mask, const char *msg);
-
 	int			datafd, historyfd;
 
 	unsigned int		data_bsize, history_bsize;
@@ -108,6 +105,7 @@ static int blob_write_raw(struct blob_backend *b, int hist, struct dnet_io_attr 
 	pthread_mutex_lock(&b->lock);
 
 	disk_ctl.flags = 0;
+
 	if (hist) {
 		fd = b->historyfd;
 		ctl.offset = b->history_offset;
@@ -186,6 +184,7 @@ static int blob_write_history_meta(void *state, void *backend, struct dnet_io_at
 	unsigned char key[DNET_ID_SIZE + 1];
 	unsigned int dsize = sizeof(struct blob_ram_control);
 	void *hdata, *new_hdata;
+	uint64_t saved_io_size = io->size;
 	size_t size = 0;
 	int err;
 
@@ -236,7 +235,7 @@ static int blob_write_history_meta(void *state, void *backend, struct dnet_io_at
 		memmove(hdata, dc + 1, size);
 	}
 
-	new_hdata = backend_process_meta(state, io, hdata, &size, m, data);
+	new_hdata = backend_process_meta(state, io, hdata, (uint32_t *)&size, m, data);
 	if (!new_hdata) {
 		err = -ENOMEM;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to update history file: %s.\n",
@@ -247,6 +246,7 @@ static int blob_write_history_meta(void *state, void *backend, struct dnet_io_at
 
 	io->size = size;
 	err = blob_write_raw(b, 1, io, new_hdata);
+	io->size = saved_io_size;
 	if (err) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to update (%zu bytes) history: %s.\n",
@@ -274,7 +274,7 @@ static int blob_write(struct blob_backend *r, void *state, struct dnet_cmd *cmd,
 	struct dnet_io_attr *io = data;
 
 	dnet_convert_io_attr(io);
-	
+
 	data += sizeof(struct dnet_io_attr);
 
 	if (io->flags & DNET_IO_FLAGS_HISTORY) {
@@ -365,7 +365,7 @@ static int blob_read(struct blob_backend *b, void *state, struct dnet_cmd *cmd,
 
 		memcpy(c->id, io->origin, DNET_ID_SIZE);
 		memcpy(rio->origin, io->origin, DNET_ID_SIZE);
-	
+
 		dnet_backend_log(DNET_LOG_NOTICE, "%s: read: requested offset: %llu, size: %llu, "
 				"stored-size: %llu, data lives at: %zu.\n",
 				dnet_dump_id(io->origin), (unsigned long long)io->offset,
@@ -476,9 +476,94 @@ static int blob_del(struct blob_backend *b, struct dnet_cmd *cmd)
 	return err;
 }
 
+struct blob_iterate_shared {
+	struct blob_backend	*b;
+	void			*state;
+	struct dnet_cmd		*cmd;
+	struct dnet_attr	*attr;
+	unsigned char		id[DNET_ID_SIZE];
+
+	int			pos;
+	struct dnet_id		ids[10240];
+};
+
+static int blob_iterate_list_callback(struct blob_disk_control *dc, void *data, off_t position __unused, void *priv)
+{
+	struct blob_iterate_shared *s = priv;
+	struct dnet_history_entry *e;
+	struct dnet_meta *m;
+	int err = 0;
+
+	if (s->attr->flags & DNET_ATTR_ID_OUT) {
+		if (!dnet_id_within_range(dc->id, s->id, s->cmd->id))
+			goto err_out_exit;
+	}
+
+	if (dc->flags & BLOB_DISK_CTL_REMOVE)
+		goto err_out_exit;
+
+	m = dnet_meta_search(NULL, data, dc->data_size, DNET_META_HISTORY);
+	if (!m) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to locate history metadata.\n",
+				dnet_dump_id(dc->id));
+		goto err_out_exit;
+	}
+
+	if (!m->size)
+		goto err_out_exit;
+
+	if (m->size % sizeof(struct dnet_history_entry)) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: Corrupted history object, "
+				"its history metadata size %llu has to be modulo of %zu.\n",
+				dnet_dump_id(dc->id), (unsigned long long)m->size,
+				sizeof(struct dnet_history_entry));
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	e = (struct dnet_history_entry *)m->data;
+
+	dnet_backend_log(DNET_LOG_INFO, "%s: flags: %08x\n", dnet_dump_id(dc->id), e->flags);
+
+	memcpy(s->ids[s->pos].id, dc->id, DNET_ID_SIZE);
+	s->ids[s->pos].flags = dnet_bswap32(e->flags);
+
+	dnet_convert_id(&s->ids[s->pos]);
+
+	s->pos++;
+
+	if (s->pos == ARRAY_SIZE(s->ids)) {
+		err = dnet_send_reply(s->state, s->cmd, s->attr, s->ids, s->pos * sizeof(struct dnet_id), 1);
+		if (!err)
+			s->pos = 0;
+	}
+
+err_out_exit:
+	return err;
+}
+
 static int blob_list(struct blob_backend *b, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
-	return -1;
+	struct blob_iterate_shared s;
+	int err;
+
+	s.b = b;
+	s.state = state;
+	s.cmd = cmd;
+	s.attr = attr;
+	s.pos = 0;
+
+	if (attr->flags & DNET_ATTR_ID_OUT)
+		dnet_state_get_next_id(state, s.id);
+
+	err = blob_iterate(b->historyfd, NULL, blob_iterate_list_callback, &s);
+	if (err)
+		return err;
+
+	if (s.pos)
+		err = dnet_send_reply(s.state, s.cmd, s.attr, s.ids, s.pos * sizeof(struct dnet_id), 1);
+
+	return err;
 }
 
 static int blob_backend_command_handler(void *state, void *priv,
