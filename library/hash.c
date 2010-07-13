@@ -302,3 +302,29 @@ int dnet_hash_lookup(struct dnet_hash *h, void *key, unsigned int ksize, void *d
 
 	return err;
 }
+
+int hash_iterate_all(struct dnet_hash *h,
+	int (* callback)(void *key, unsigned int ksize, void *data, unsigned int dsize, void *priv),
+	void *priv)
+{
+	unsigned int i;
+	struct dnet_hash_head *head;
+	struct dnet_hash_entry *e;
+	int err = 0;
+
+	for (i=0; i<h->num; ++i) {
+		head = &h->heads[i];
+
+		dnet_lock_lock(&head->lock);
+		list_for_each_entry(e, &head->list, list_entry) {
+			err = callback(e->key, e->ksize, e->data, e->dsize, priv);
+			if (err) {
+				dnet_lock_unlock(&head->lock);
+				break;
+			}
+		}
+		dnet_lock_unlock(&head->lock);
+	}
+
+	return err;
+}

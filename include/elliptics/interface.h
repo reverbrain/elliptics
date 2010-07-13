@@ -817,6 +817,9 @@ int dnet_hash_insert(struct dnet_hash *h, void *key, unsigned int ksize, void *d
 int dnet_hash_replace(struct dnet_hash *h, void *key, unsigned int ksize, void *data, unsigned int dsize);
 int dnet_hash_remove(struct dnet_hash *h, void *key, unsigned int ksize);
 int dnet_hash_lookup(struct dnet_hash *h, void *key, unsigned int ksize, void *data, unsigned int *dsize);
+int hash_iterate_all(struct dnet_hash *h,
+	int (* callback)(void *key, unsigned int ksize, void *data, unsigned int dsize, void *priv),
+	void *priv);
 
 #ifdef __cplusplus
 }
