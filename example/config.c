@@ -356,6 +356,9 @@ struct dnet_node *dnet_parse_config(char *file)
 		goto err_out_free;
 	}
 
+	if (dnet_daemon_mode)
+		dnet_background();
+
 	err = dnet_cfg_current_backend->init(dnet_cfg_current_backend, &dnet_cfg_state);
 	if (err)
 		goto err_out_free;
@@ -377,9 +380,6 @@ struct dnet_node *dnet_parse_config(char *file)
 		if (err)
 			goto err_out_node_destroy;
 	}
-
-	if (dnet_daemon_mode)
-		dnet_background();
 
 	return n;
 
