@@ -40,6 +40,7 @@ static inline void blob_convert_disk_control(struct blob_disk_control *ctl)
 struct blob_ram_control {
 	unsigned char		key[DNET_ID_SIZE + 1];
 	size_t			offset;
+	off_t			index_pos;
 	uint64_t		size;
 };
 
