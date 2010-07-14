@@ -1,3 +1,9 @@
+elliptics (2.9.0.5) unstable; urgency=low
+
+  * Added data/history indexes.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 15 Jul 2010 00:20:50 +0400
+
 elliptics (2.9.0.4) unstable; urgency=low
 
   * Allow dnet_ioclient to request stats.
