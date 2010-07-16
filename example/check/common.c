@@ -55,6 +55,8 @@ FILE *dnet_check_file, *dnet_check_output;
 pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct dnet_log dnet_check_logger;
 
+int dnet_check_upload_existing;
+
 static int dnet_check_log_init(struct dnet_node *n, struct dnet_config *cfg, char *log)
 {
 	int err;
@@ -549,6 +551,9 @@ static void dnet_check_log_help(char *p)
 			"  -t dir                  - directory to store temporal object.\n"
 			"  -e library              - external library which should export merge callbacks.\n"
 			"  -E string               - some obscure string used by external library's intialization code.\n"
+			"  -u                      - reupload existing copy into storage.\n"
+			"                              Useful when you change log (like added new hash)\n"
+			"                              and want this data uploaded to all nodes."
 			"  -h                      - this help.\n", p);
 }
 
@@ -574,8 +579,11 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
-	while ((ch = getopt(argc, argv, "e:E:t:n:m:l:f:F:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "ue:E:t:n:m:l:f:F:r:h")) != -1) {
 		switch (ch) {
+			case 'u':
+				dnet_check_upload_existing = 1;
+				break;
 			case 'e':
 				library = optarg;
 				break;

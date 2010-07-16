@@ -87,4 +87,6 @@ int dnet_check_read_single(struct dnet_check_worker *worker, unsigned char *id, 
 #define __unused	__attribute__ ((unused))
 #endif
 
+extern int dnet_check_upload_existing;
+
 #endif /* __DNET_CHECK_COMMON_H */
