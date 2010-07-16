@@ -5,6 +5,7 @@ AC_GNU_SOURCE
 AC_CONFIG_HEADERS(config/config.h)
 
 AC_PROG_CC
+AC_PROG_CXX
 AC_PROG_CPP
 AC_PROG_LIBTOOL
 
@@ -38,6 +39,7 @@ AC_CHECK_LIB(dl,dlopen)
 AC_CONFIG_FILES([Makefile include/Makefile include/elliptics/Makefile
 		 library/Makefile example/Makefile tests/Makefile
 		 doc/Makefile example/fcgi/Makefile debian/Makefile
-		 example/check/Makefile example/blob/Makefile])
+		 example/check/Makefile example/blob/Makefile
+		 example/cpp/Makefile])
 
 AC_OUTPUT
