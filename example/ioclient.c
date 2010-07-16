@@ -51,7 +51,8 @@ static void dnet_usage(char *p)
 			" -a addr:port:family  - creates a node with given network address\n"
 			" -r addr:port:family  - adds a route to the given node\n"
 			" -W file              - write given file to the network storage\n"
-			" -s                   - request stats from all connected nodes\n"
+			" -s                   - request IO counter stats from all connected nodes\n"
+			" -z                   - request VFS IO stats from all connected nodes\n"
 			" -R file              - read given file from the network into the local storage\n"
 			" -H file              - read a history for given file into the local storage\n"
 			" -T hash              - OpenSSL hash to use as a transformation function\n"
@@ -74,7 +75,8 @@ static void dnet_usage(char *p)
 int main(int argc, char *argv[])
 {
 	int trans_max = 5, trans_num = 0;
-	int ch, err, i, have_remote = 0, stat = 0;
+	int ch, err, i, have_remote = 0;
+	int io_counter_stat = 0, vfs_stat = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
 	struct dnet_crypto_engine *e, *trans[trans_max];
@@ -90,7 +92,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "u:O:S:N:m:sH:L:w:l:c:I:i:a:r:W:R:T:h")) != -1) {
+	while ((ch = getopt(argc, argv, "u:O:S:N:m:zsH:L:w:l:c:I:i:a:r:W:R:T:h")) != -1) {
 		switch (ch) {
 			case 'u':
 				removef = optarg;
@@ -108,7 +110,10 @@ int main(int argc, char *argv[])
 				ioclient_logger.log_mask = strtoul(optarg, NULL, 0);
 				break;
 			case 's':
-				stat = 1;
+				io_counter_stat = 1;
+				break;
+			case 'z':
+				vfs_stat = 1;
 				break;
 			case 'H':
 				historyf = optarg;
@@ -194,6 +199,7 @@ int main(int argc, char *argv[])
 
 		ioclient_logger.log_private = log;
 		ioclient_logger.log = dnet_common_log;
+		cfg.log = &ioclient_logger;
 	}
 
 	n = dnet_node_create(&cfg);
@@ -208,8 +214,15 @@ int main(int argc, char *argv[])
 	}
 
 	if (have_remote) {
-		for (i=0; i<have_remote; ++i)
+		int error = -ECONNRESET;
+		for (i=0; i<have_remote; ++i) {
 			err = dnet_add_state(n, &remotes[i]);
+			if (!err)
+				error = 0;
+		}
+
+		if (error)
+			return error;
 	}
 
 	if (writef) {
@@ -248,10 +261,13 @@ int main(int argc, char *argv[])
 			return err;
 	}
 
-	if (stat) {
+	if (vfs_stat) {
 		err = dnet_request_stat(n, NULL, DNET_CMD_STAT, NULL, NULL);
 		if (err < 0)
 			return err;
+	}
+
+	if (io_counter_stat) {
 		err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, NULL, NULL);
 		if (err < 0)
 			return err;
