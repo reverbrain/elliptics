@@ -553,7 +553,7 @@ static void dnet_check_log_help(char *p)
 			"  -E string               - some obscure string used by external library's intialization code.\n"
 			"  -u                      - reupload existing copy into storage.\n"
 			"                              Useful when you change log (like added new hash)\n"
-			"                              and want this data uploaded to all nodes."
+			"                              and want this data uploaded to all nodes.\n"
 			"  -h                      - this help.\n", p);
 }
 
