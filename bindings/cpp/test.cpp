@@ -118,7 +118,8 @@ int main()
 	n.write_file(id, const_cast<char *>("/tmp/culinaria.txt.bak"), 0, 0, 0);
 	n.read_file(id, const_cast<char *>("/tmp/culinaria.txt"), 0, 0);
 
-	n.read_file(reinterpret_cast<void *>(const_cast<char *>("1.xml")), 5, const_cast<char *>("/tmp/1.xml.cpp"), 0, 0);
+	n.read_file(reinterpret_cast<void *>(const_cast<char *>("1.xml")), 5,
+			const_cast<char *>("/tmp/1.xml.cpp"), 0, 0);
 
 	/* cool, yeah? we have to wait for read_data() to complete actually */
 	sleep(10);

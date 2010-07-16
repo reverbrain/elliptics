@@ -1,7 +1,7 @@
 bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_iotest dnet_stat dnet_notify dnet_ioclient
 noinst_LIBRARIES = libcommon.a libbackend.a
 noinst_HEADERS = hash.h backends.h common.h
-SUBDIRS = blob . check cpp
+SUBDIRS = blob . check
 
 CC = @PTHREAD_CC@
 

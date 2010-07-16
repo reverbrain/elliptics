@@ -1,4 +1,4 @@
-SUBDIRS = include library tests doc example debian
+SUBDIRS = include library tests doc example bindings debian
 
 ACLOCAL_AMFLAGS = -I config
 AUTOMAKE_OPTIONS = 1.9 foreign
