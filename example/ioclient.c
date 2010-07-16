@@ -43,6 +43,8 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
+static struct dnet_log ioclient_logger;
+
 static void dnet_usage(char *p)
 {
 	fprintf(stderr, "Usage: %s\n"
@@ -103,7 +105,7 @@ int main(int argc, char *argv[])
 				cfg.io_thread_num = atoi(optarg);
 				break;
 			case 'm':
-				cfg.log.log_mask = strtoul(optarg, NULL, 0);
+				ioclient_logger.log_mask = strtoul(optarg, NULL, 0);
 				break;
 			case 's':
 				stat = 1;
@@ -190,8 +192,8 @@ int main(int argc, char *argv[])
 			return err;
 		}
 
-		cfg.log.log_private = log;
-		cfg.log.log = dnet_common_log;
+		ioclient_logger.log_private = log;
+		ioclient_logger.log = dnet_common_log;
 	}
 
 	n = dnet_node_create(&cfg);

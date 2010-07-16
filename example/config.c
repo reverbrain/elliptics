@@ -90,6 +90,7 @@ static char *dnet_skip_line(char *line)
 	return NULL;
 }
 
+static struct dnet_log dnet_backend_logger;
 static struct dnet_config dnet_cfg_state;
 static char *dnet_cfg_remotes, *dnet_cfg_transform;
 static int dnet_daemon_mode;
@@ -103,7 +104,7 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 	else if (!strcmp(key, "io_thread_num"))
 		dnet_cfg_state.io_thread_num = value;
 	else if (!strcmp(key, "log_mask"))
-		dnet_cfg_state.log.log_mask = value;
+		dnet_backend_logger.log_mask = value;
 	else if (!strcmp(key, "wait_timeout"))
 		dnet_cfg_state.wait_timeout = value;
 	else if (!strcmp(key, "resend_timeout"))
@@ -159,12 +160,12 @@ static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unus
 		return err;
 	}
 
-	dnet_cfg_state.log.log_private = log;
-	dnet_cfg_state.log.log = dnet_common_log;
+	dnet_backend_logger.log_private = log;
+	dnet_backend_logger.log = dnet_common_log;
+	dnet_cfg_state.log = &dnet_backend_logger;
 
 	return 0;
 }
-
 
 static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"max_pending_requests", dnet_simple_set},
@@ -204,7 +205,7 @@ static int dnet_set_backend(struct dnet_config_backend *current_backend __unused
 				memset(b->data, 0, b->size);
 			}
 
-			b->log = &dnet_cfg_state.log;
+			b->log = dnet_cfg_state.log;
 
 			dnet_cur_cfg_entries = b->ent;
 			dnet_cur_cfg_size = b->num;
@@ -244,8 +245,9 @@ struct dnet_node *dnet_parse_config(char *file)
 		goto err_out_exit;
 	}
 
-	dnet_cfg_state.log.log_mask = DNET_LOG_ERROR;
-	dnet_cfg_state.log.log = dnet_common_log;
+	dnet_backend_logger.log_mask = DNET_LOG_ERROR;
+	dnet_backend_logger.log = dnet_common_log;
+	dnet_cfg_state.log = &dnet_backend_logger;
 
 	err = dnet_file_backend_init();
 	if (err)
@@ -406,7 +408,7 @@ err_out_exit:
 
 int dnet_backend_check_log_mask(uint32_t mask)
 {
-	struct dnet_log *l = &dnet_cfg_state.log;
+	struct dnet_log *l = dnet_cfg_state.log;
 
 	return (l->log && (l->log_mask & mask));
 }
@@ -415,7 +417,7 @@ void dnet_backend_log_raw(uint32_t mask, const char *format, ...)
 {
 	va_list args;
 	char buf[1024];
-	struct dnet_log *l = &dnet_cfg_state.log;
+	struct dnet_log *l = dnet_cfg_state.log;
 	int buflen = sizeof(buf);
 
 	if (!l->log || !(l->log_mask & mask))

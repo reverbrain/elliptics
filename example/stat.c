@@ -42,6 +42,7 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
+static struct dnet_log stat_logger;
 static int stat_mem, stat_la, stat_fs;
 
 static int stat_complete(struct dnet_net_state *state,
@@ -137,7 +138,7 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
-	cfg.log.log_mask = ~0;
+	stat_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
 
 	timeout = 1;
 
@@ -158,7 +159,7 @@ int main(int argc, char *argv[])
 				timeout = atoi(optarg);
 				break;
 			case 'm':
-				cfg.log.log_mask = strtoul(optarg, NULL, 0);
+				stat_logger.log_mask = strtoul(optarg, NULL, 0);
 				break;
 			case 'w':
 				cfg.wait_timeout = atoi(optarg);
@@ -216,8 +217,9 @@ int main(int argc, char *argv[])
 			return err;
 		}
 
-		cfg.log.log_private = log;
-		cfg.log.log = dnet_common_log;
+		stat_logger.log_private = log;
+		stat_logger.log = dnet_common_log;
+		cfg.log = &stat_logger;
 	}
 
 	stat = fopen(statfile, "a");

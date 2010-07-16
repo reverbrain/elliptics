@@ -38,7 +38,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	n->trans = 0;
 	n->trans_root = RB_ROOT;
 
-	err = dnet_log_init(n, &cfg->log);
+	err = dnet_log_init(n, cfg->log);
 	if (err)
 		goto err_out_free;
 
@@ -573,8 +573,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	if ((cfg->join & DNET_JOIN_NETWORK) && !cfg->command_handler) {
 		err = -EINVAL;
-		if (cfg->log.log)
-			cfg->log.log(cfg->log.log_private, DNET_LOG_ERROR, "Joining node has to register "
+		if (cfg->log && cfg->log->log)
+			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Joining node has to register "
 					"a comamnd handler.\n");
 		goto err_out_exit;
 	}
@@ -605,7 +605,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->resend_timeout = cfg->resend_timeout;
 
 	if (!n->log)
-		dnet_log_init(n, &cfg->log);
+		dnet_log_init(n, cfg->log);
 
 	if (!n->wait_ts.tv_sec)
 		n->wait_ts.tv_sec = 60*60;
@@ -684,8 +684,8 @@ err_out_notify_exit:
 err_out_free:
 	free(n);
 err_out_exit:
-	if (cfg->log.log)
-		cfg->log.log(cfg->log.log_private, DNET_LOG_ERROR, "Error during node creation.\n");
+	if (cfg->log && cfg->log->log)
+		cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Error during node creation.\n");
 	return NULL;
 }
 

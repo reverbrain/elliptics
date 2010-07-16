@@ -288,7 +288,7 @@ struct dnet_config
 	int			join;
 
 	/* Private logger */
-	struct dnet_log		log;
+	struct dnet_log		*log;
 
 	/*
 	 * Network command handler.

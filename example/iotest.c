@@ -66,6 +66,8 @@ static int iotest_need_exit;
 static int iotest_sleep;
 static int iotest_pipe[2];
 
+static struct dnet_log iotest_logger;
+
 static int iotest_complete(struct dnet_net_state *st __unused, struct dnet_cmd *cmd,
 		struct dnet_attr *attr __unused, void *priv)
 {
@@ -409,7 +411,7 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
-	cfg.log.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
+	iotest_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
@@ -439,7 +441,7 @@ int main(int argc, char *argv[])
 				size = strtoul(optarg, NULL, 0);
 				break;
 			case 'm':
-				cfg.log.log_mask = strtoul(optarg, NULL, 0);
+				iotest_logger.log_mask = strtoul(optarg, NULL, 0);
 				break;
 			case 'w':
 				cfg.wait_timeout = atoi(optarg);
@@ -527,8 +529,9 @@ int main(int argc, char *argv[])
 			return err;
 		}
 
-		cfg.log.log_private = log;
-		cfg.log.log = dnet_common_log;
+		cfg.log = &iotest_logger;
+		iotest_logger.log_private = log;
+		iotest_logger.log = dnet_common_log;
 	}
 	cfg.resend_timeout.tv_sec = cfg.wait_timeout;
 
@@ -587,7 +590,7 @@ int main(int argc, char *argv[])
 	fcntl(iotest_pipe[0], F_SETFL, O_NONBLOCK);
 	fcntl(iotest_pipe[1], F_SETFL, O_NONBLOCK);
 
-	err = pthread_create(&tid, NULL, iotest_perf, cfg.log.log_private);
+	err = pthread_create(&tid, NULL, iotest_perf, iotest_logger.log_private);
 	if (err) {
 		fprintf(stderr, "Failed to spawn performance checking thread, err: %d.\n", err);
 		return err;

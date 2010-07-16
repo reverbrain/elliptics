@@ -54,6 +54,8 @@
 
 static long dnet_fcgi_timeout_sec = 10;
 
+static struct dnet_log fcgi_logger;
+
 static FILE *dnet_fcgi_log;
 static pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -201,9 +203,12 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 	cfg->wait_timeout = 60;
 	cfg->io_thread_num = 2;
 	cfg->max_pending = 256;
-	cfg->log.log = dnet_common_log;
-	cfg->log.log_private = dnet_fcgi_log;
-	cfg->log.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
+
+	cfg->log = &fcgi_logger;
+
+	cfg->log->log = dnet_common_log;
+	cfg->log->log_private = dnet_fcgi_log;
+	cfg->log->log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
 
 	p = getenv("DNET_FCGI_NODE_ID");
 	if (p) {
@@ -214,7 +219,7 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 
 	p = getenv("DNET_FCGI_NODE_LOG_MASK");
 	if (p)
-		cfg->log.log_mask = strtoul(p, NULL, 0);
+		cfg->log->log_mask = strtoul(p, NULL, 0);
 
 	p = getenv("DNET_FCGI_NODE_WAIT_TIMEOUT");
 	if (p)
