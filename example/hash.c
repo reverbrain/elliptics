@@ -102,7 +102,7 @@ static void dnet_openssl_crypto_engine_cleanup(void *priv)
 	struct dnet_crypto_engine *eng = priv;
 	struct dnet_openssl_crypto_engine *e = eng->engine;
 
-	EVP_MD_CTX_init(&e->mdctx);
+	EVP_MD_CTX_cleanup(&e->mdctx);
 	free(e);
 	free(priv);
 }
