@@ -164,9 +164,9 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
  * which means it will ask node for given object, which is the closest in routing
  * table and will not allow to forward this request to other nodes.
  */
-int dnet_read_file(struct dnet_node *n, char *file, char *remote, int remote_len,
+int dnet_read_file(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
 		unsigned char *id, uint64_t offset, uint64_t size, int hist);
-int dnet_read_file_direct(struct dnet_node *n, char *file, char *remote, int remote_len,
+int dnet_read_file_direct(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
 		unsigned char *id, uint64_t offset, uint64_t size, int hist);
 
 /*
@@ -208,14 +208,14 @@ int dnet_write_object_single(struct dnet_node *n, struct dnet_io_control *ctl,
  *
  * Returns negative error value in case of error.
  */
-int dnet_write_file(struct dnet_node *n, char *file, char *remote, int remote_len,
+int dnet_write_file(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
 		unsigned char *id, uint64_t offset, uint64_t size, unsigned int aflags);
 
 /*
  * The same as dnet_write_file() except that is uses @local_offset as local file offset,
  * while @offset is remote file offset. dnet_write_file() assumes that they are the same.
  */
-int dnet_write_file_local_offset(struct dnet_node *n, char *file, char *remote, int remote_len,
+int dnet_write_file_local_offset(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
 		unsigned char *id, uint64_t local_offset, uint64_t offset, uint64_t size,
 		unsigned int aflags, unsigned int ioflags);
 

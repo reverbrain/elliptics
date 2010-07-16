@@ -1319,7 +1319,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 	return 0;
 }
 
-int dnet_write_file_local_offset(struct dnet_node *n, char *file, char *remote, int remote_len,
+int dnet_write_file_local_offset(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
 		unsigned char *id, uint64_t local_offset, uint64_t offset, uint64_t size,
 		unsigned int aflags, unsigned int ioflags)
 {
@@ -1438,7 +1438,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_write_file(struct dnet_node *n, char *file, char *remote, int remote_len,
+int dnet_write_file(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
 		unsigned char *id, uint64_t offset, uint64_t size, unsigned int aflags)
 {
 	return dnet_write_file_local_offset(n, file, remote, remote_len, id, offset, offset, size, aflags, 0);
@@ -2021,7 +2021,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, int remote_len,
+static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
 		unsigned char *id, int direct, uint64_t offset, uint64_t size, int hist)
 {
 	int err, len = strlen(file), pos = 0, error = 0;
@@ -2112,12 +2112,14 @@ err_out_exit:
 	return err;
 }
 
-int dnet_read_file(struct dnet_node *n, char *file, char *remote, int remote_len, unsigned char *id, uint64_t offset, uint64_t size, int hist)
+int dnet_read_file(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
+		unsigned char *id, uint64_t offset, uint64_t size, int hist)
 {
 	return dnet_read_file_raw(n, file, remote, remote_len, id, 0, offset, size, hist);
 }
 
-int dnet_read_file_direct(struct dnet_node *n, char *file, char *remote, int remote_len, unsigned char *id, uint64_t offset, uint64_t size, int hist)
+int dnet_read_file_direct(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
+		unsigned char *id, uint64_t offset, uint64_t size, int hist)
 {
 	return dnet_read_file_raw(n, file, remote, remote_len, id, 1, offset, size, hist);
 }
