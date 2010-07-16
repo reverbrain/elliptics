@@ -1,3 +1,10 @@
+elliptics (2.9.0.7) unstable; urgency=low
+
+  * Log cleanups.
+  * Extended ioclient's stat parameters.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 16 Jul 2010 20:08:05 +0400
+
 elliptics (2.9.0.6) unstable; urgency=low
 
   * Added c++ interface.
