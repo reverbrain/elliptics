@@ -149,6 +149,36 @@ class elliptics_transform_wrap : public elliptics_transform, public wrapper<elli
 		};
 };
 
+class elliptics_transform_openssl_wrap : public elliptics_transform_openssl, public wrapper<elliptics_transform_openssl> {
+	public:
+		elliptics_transform_openssl_wrap(const char *name) : elliptics_transform_openssl(name) {};
+		virtual ~elliptics_transform_openssl_wrap() {};
+
+		int transform(void *priv, void *src, uint64_t size, void *dst, unsigned int *dsize, unsigned int flags) {
+			if (override transform = this->get_override("transform"))
+				return transform(priv, src, size, dst, dsize, flags);
+
+			elliptics_transform_openssl::transform(priv, src, size, dst, dsize, flags);
+		}
+
+		int default_transform(void *priv, void *src, uint64_t size, void *dst, unsigned int *dsize, unsigned int flags) {
+			this->elliptics_transform_openssl::transform(priv, src, size, dst, dsize, flags);
+		};
+
+		void cleanup(void *priv) {
+			if (override cleanup = this->get_override("cleanup")) {
+				cleanup(priv);
+				return;
+			}
+
+			elliptics_transform_openssl::cleanup(priv);
+		}
+		
+		void default_cleanup(void *priv) {
+			this->elliptics_transform_openssl::cleanup(priv);
+		};
+};
+
 BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<elliptics_log_wrap, boost::noncopyable>("elliptics_log", init<const uint32_t>())
 		.def("log", pure_virtual(&elliptics_log::log))
@@ -161,6 +191,11 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<elliptics_transform_wrap, boost::noncopyable>("elliptics_transform", init<const char *>())
 		.def("transform", pure_virtual(&elliptics_transform::transform))
 		.def("cleanup", pure_virtual(&elliptics_transform::cleanup))
+	;
+	
+	class_<elliptics_transform_openssl_wrap, boost::noncopyable, bases<elliptics_transform> >("elliptics_transform_openssl", init<const char *>())
+		.def("transform", &elliptics_transform_openssl::transform, &elliptics_transform_openssl_wrap::default_transform)
+		.def("cleanup", &elliptics_transform_openssl::cleanup, &elliptics_transform_openssl_wrap::default_cleanup)
 	;
 };
 #endif
