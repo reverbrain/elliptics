@@ -27,19 +27,19 @@ void elliptics_log::logger(void *priv, const uint32_t mask, const char *msg)
 elliptics_log_file::elliptics_log_file(const char *file, const uint32_t mask) :
 	elliptics_log (mask)
 {
-	stream.open(file);
+	stream = new std::ofstream(file);
 }
 
 elliptics_log_file::~elliptics_log_file()
 {
-	stream.close();
+	delete stream;
 }
 
 void elliptics_log_file::log(uint32_t mask, const char *msg)
 {
 	if (mask & ll.log_mask) {
-		stream << msg;
-		stream.flush();
+		(*stream) << msg;
+		stream->flush();
 	}
 }
 

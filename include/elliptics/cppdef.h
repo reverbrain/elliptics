@@ -34,7 +34,7 @@ class elliptics_log {
 		};
 		virtual ~elliptics_log() {};
 
-		virtual void 		log(const uint32_t mask, const char *msg) {};
+		virtual void 		log(const uint32_t mask, const char *msg) = 0;
 		static void		logger(void *priv, const uint32_t mask, const char *msg);
 		uint32_t		get_log_mask(void) { return ll.log_mask; };
 		struct dnet_log		*get_dnet_log(void) { return &ll; };
@@ -49,7 +49,11 @@ class elliptics_log_file : public elliptics_log {
 
 		virtual void 		log(const uint32_t mask, const char *msg);
 	private:
-		std::ofstream		stream;
+		/*
+		 * Oh shi, I put pointer here to avoid boost::python compiler issues,
+		 * when it tries to copy stream, which is not allowed
+		 */
+		std::ofstream		*stream;
 };
 
 /* we should use proper copy constructors here instead of hardcoded openssl usage */
