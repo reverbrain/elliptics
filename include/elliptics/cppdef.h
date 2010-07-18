@@ -62,22 +62,10 @@ class elliptics_transform {
 		elliptics_transform(const char *n) { snprintf(name, sizeof(name), "%s", n); };
 		virtual ~elliptics_transform() {};
 
-		virtual int		init(void *priv, struct dnet_node *n) {};
-		virtual int		update(void *priv, void *src, uint64_t size,
+		virtual int		transform(void *priv, void *src, uint64_t size,
 					                   void *dst, unsigned int *dsize,
-							   unsigned int flags) {};
-		virtual int		final(void *priv, void *result, void *addr,
-						unsigned int *rsize, unsigned int flags) {};
-		virtual void		cleanup(void *priv) {};
-
-		static int		transform_init(void *priv, struct dnet_node *n);
-		static int		transform_update(void *priv, void *src, uint64_t size,
-					                   void *dst, unsigned int *dsize,
-							   unsigned int flags);
-		static int		transform_final(void *priv, void *result, void *addr,
-						unsigned int *rsize, unsigned int flags);
-		static void		transform_cleanup(void *priv);
-
+							   unsigned int flags) = 0;
+		virtual void		cleanup(void *priv) = 0;
 		const char		*get_name(void) { return name; };
 	private:
 		char			name[DNET_MAX_NAME_LEN];
@@ -91,12 +79,9 @@ class elliptics_transform_openssl : public elliptics_transform {
 		elliptics_transform_openssl(const char *n);
 		virtual ~elliptics_transform_openssl();
 
-		virtual int		init(void *priv, struct dnet_node *n);
-		virtual int		update(void *priv, void *src, uint64_t size,
+		virtual int		transform(void *priv, void *src, uint64_t size,
 					                   void *dst, unsigned int *dsize,
 							   unsigned int flags);
-		virtual int		final(void *priv, void *result, void *addr,
-						unsigned int *rsize, unsigned int flags);
 		virtual void		cleanup(void *priv);
 	private:
 		EVP_MD_CTX 		mdctx;
@@ -108,7 +93,7 @@ class elliptics_callback {
 		elliptics_callback() {};
 		virtual ~elliptics_callback() {};
 
-		virtual	int		callback(void) {};
+		virtual	int		callback(void) = 0;
 
 		static int elliptics_complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, void *priv) {
 			elliptics_callback *c = reinterpret_cast<elliptics_callback *>(priv);
@@ -143,7 +128,8 @@ class elliptics_node {
 
 		void 			write_file(unsigned char *id, char *src_file, uint64_t local_offset, uint64_t offset, uint64_t size,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
-		void			write_file(void *remote, unsigned int remote_size, char *src_file, uint64_t local_offset, uint64_t offset, uint64_t size,
+		void			write_file(void *remote, unsigned int remote_size, char *src_file, uint64_t local_offset,
+							uint64_t offset, uint64_t size,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
 
 		int			write_data(unsigned char *id, void *data, unsigned int size, elliptics_callback &c,

@@ -295,12 +295,13 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 		req->w = w;
 		req->pos = pos;
 
-		err = dnet_transform(n, obj, len, req->id, req->addr, &rsize, &pos);
+		err = dnet_transform(n, obj, len, req->id, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				break;
 			continue;
 		}
+		memcpy(req->addr, req->id, DNET_ID_SIZE);
 
 		snprintf(file, sizeof(file), "%s/%s",
 				dnet_check_tmp_dir, dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid));

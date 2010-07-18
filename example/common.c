@@ -245,10 +245,12 @@ static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned
 
 	pos = old_pos;
 	rsize = DNET_ID_SIZE;
-	err = dnet_transform(n, obj, len, ctl.io.id, ctl.addr, &rsize, &pos);
+	err = dnet_transform(n, obj, len, ctl.io.id, &rsize, &pos);
 	if (err || pos == old_pos)
 		goto out_exit;
-	
+
+	memcpy(ctl.addr, ctl.io.id, DNET_ID_SIZE);
+
 	if (version != -1) {
 		/*
 		 * ctl.addr is used for cmd.id, so the last assignment is correct, since
@@ -256,9 +258,10 @@ static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned
 		 */
 		pos = old_pos;
 		rsize = DNET_ID_SIZE;
-		err = dnet_transform(n, data, size, ctl.io.origin, ctl.addr, &rsize, &pos);
+		err = dnet_transform(n, data, size, ctl.io.origin, &rsize, &pos);
 		if (err || pos == old_pos)
 			goto out_exit;
+		memcpy(ctl.addr, ctl.io.origin, DNET_ID_SIZE);
 
 		dnet_common_convert_id_version(ctl.io.origin, version);
 		dnet_common_convert_id_version(ctl.addr, version);
@@ -444,7 +447,7 @@ int dnet_common_add_transform(struct dnet_node *n, char *orig_hash)
 			goto err_out_free;
 		}
 
-		err = dnet_add_transform(n, e, e->name,	e->init, e->update, e->final, e->cleanup);
+		err = dnet_add_transform(n, e, e->name,	e->transform, e->cleanup);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add hash '%s': %d.\n", hash, err);
 			goto err_out_free;

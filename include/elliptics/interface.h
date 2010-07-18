@@ -434,11 +434,8 @@ static inline char *dnet_state_dump_addr_only(struct dnet_addr *a)
  * @cleanup will be called wien transformation object is about to be destroyed.
  */
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
-	int (* init)(void *priv, struct dnet_node *n),
-	int (* update)(void *priv, void *src, uint64_t size,
+	int (* transform)(void *priv, void *src, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags),
-	int (* final)(void *priv, void *dst, void *addr,
-		unsigned int *dsize, unsigned int flags),
 	void (* cleanup)(void *priv));
 int dnet_remove_transform(struct dnet_node *n, char *name, int cleanup);
 int dnet_remove_transform_pos(struct dnet_node *n, int pos, int cleanup);
@@ -729,10 +726,8 @@ int dnet_remove_file(struct dnet_node *n, char *file, char *remote, int remote_l
  * Transformation helper, which uses *ppos as an index for transformation function.
  * @src and @size correspond to to be transformed source data.
  * @dst and @dsize specify destination buffer.
- * Transformation function can fill @addr, which will be copied into command as destination ID,
- * its size is @DNET_ID_SIZE max.
  */
-int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, void *addr,
+int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst,
 		unsigned int *dsize, int *ppos);
 
 /*

@@ -105,6 +105,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 
 using namespace boost::python;
 
+struct dnet_node;
+
 class elliptics_log_wrap : public elliptics_log, public wrapper<elliptics_log> {
 	public:
 		elliptics_log_wrap(const uint32_t mask = DNET_LOG_ERROR | DNET_LOG_INFO) : elliptics_log(mask) {};
@@ -133,6 +135,19 @@ class elliptics_log_file_wrap : public elliptics_log_file, public wrapper<ellipt
 		void default_log(uint32_t mask, const char *msg) { this->elliptics_log_file::log(mask, msg); }
 };
 
+class elliptics_transform_wrap : public elliptics_transform, public wrapper<elliptics_transform> {
+	public:
+		elliptics_transform_wrap(const char *name) : elliptics_transform(name) {};
+		virtual ~elliptics_transform_wrap() {};
+
+		int transform(void *priv, void *src, uint64_t size, void *dst, unsigned int *dsize, unsigned int flags) {
+			this->get_override("transform")(priv, src, size, dst, dsize, flags);
+		};
+
+		void cleanup(void *priv) {
+			this->get_override("cleanup")(priv);
+		};
+};
 
 BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<elliptics_log_wrap, boost::noncopyable>("elliptics_log", init<const uint32_t>())
@@ -141,6 +156,11 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 
 	class_<elliptics_log_file_wrap, boost::noncopyable, bases<elliptics_log> >("elliptics_log_file", init<const char *, const uint32_t>())
 		.def("log", &elliptics_log_file::log, &elliptics_log_file_wrap::default_log)
+	;
+	
+	class_<elliptics_transform_wrap, boost::noncopyable>("elliptics_transform", init<const char *>())
+		.def("transform", pure_virtual(&elliptics_transform::transform))
+		.def("cleanup", pure_virtual(&elliptics_transform::cleanup))
 	;
 };
 #endif

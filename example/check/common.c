@@ -99,7 +99,7 @@ int dnet_check_add_hash(struct dnet_node *n, char *hash)
 		goto err_out_free;
 	}
 
-	err = dnet_add_transform(n, e, e->name, e->init, e->update, e->final, e->cleanup);
+	err = dnet_add_transform(n, e, e->name, e->transform, e->cleanup);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add transformation engine '%s': %d.\n",
 				hash, err);

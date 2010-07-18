@@ -85,14 +85,25 @@ void elliptics_node::add_remote(const char *addr, const int port, const int fami
 		throw err;
 }
 
+static int elliptics_do_transform(void *priv, void *src, uint64_t size,
+					   void *dst, unsigned int *dsize,
+					   unsigned int flags)
+{
+	elliptics_transform *t = reinterpret_cast<elliptics_transform *>(priv);
+	return t->transform(priv, src, size, dst, dsize, flags);
+}
+
+static void elliptics_do_transform_cleanup(void *priv)
+{
+	elliptics_transform *t = reinterpret_cast<elliptics_transform *>(priv);
+	t->cleanup(priv);
+}
+
 void elliptics_node::add_transform(elliptics_transform &t)
 {
 	int err;
 	err = dnet_add_transform(node, reinterpret_cast<void *>(&t), const_cast<char *>(t.get_name()),
-			elliptics_transform::transform_init,
-			elliptics_transform::transform_update,
-			elliptics_transform::transform_final,
-			elliptics_transform::transform_cleanup);
+			elliptics_do_transform, elliptics_do_transform_cleanup);
 	if (err)
 		throw err;
 }
@@ -148,14 +159,14 @@ void elliptics_node::read_data(unsigned char *id, uint64_t offset, uint64_t size
 
 void elliptics_node::read_data(void *remote, unsigned int remote_size, uint64_t offset, uint64_t size, elliptics_callback &c)
 {
-	unsigned char id[DNET_ID_SIZE], addr[DNET_ID_SIZE];
+	unsigned char id[DNET_ID_SIZE];
 	int err, error = -ENOENT;
 	int pos = 0;
 
 	while (1) {
 		unsigned int rsize = DNET_ID_SIZE;
 
-		err = dnet_transform(node, remote, remote_size, id, addr, &rsize, &pos);
+		err = dnet_transform(node, remote, remote_size, id, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				break;

@@ -29,14 +29,9 @@ struct dnet_crypto_engine
 	char			name[DNET_MAX_NAME_LEN];
 
 	int			num;
-
 	void			*engine;
-	int			(* init)(void *priv, struct dnet_node *n);
-	int			(* update)(void *priv, void *src, uint64_t size,
+	int			(* transform)(void *priv, void *src, uint64_t size,
 					void *dst, unsigned int *dsize, unsigned int flags);
-	int			( *final)(void *priv, void *result, void *addr,
-					unsigned int *rsize, unsigned int flags);
-
 	void			(* cleanup)(void *priv);
 };
 

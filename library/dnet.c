@@ -33,8 +33,7 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, void *addr,
-		unsigned int *dsize, int *ppos)
+int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, unsigned int *dsize, int *ppos)
 {
 	int pos = 0;
 	int err = 1;
@@ -44,17 +43,10 @@ int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, voi
 	list_for_each_entry(t, &n->transform_list, tentry) {
 		if (pos++ == *ppos) {
 			*ppos = pos;
-			err = t->init(t->priv, n);
+
+			err = t->transform(t->priv, src, size, dst, dsize, 0);
 			if (err)
 				continue;
-
-			err = t->update(t->priv, src, size, dst, dsize, 0);
-			if (err)
-				continue;
-
-			err = t->final(t->priv, dst, addr, dsize, 0);
-			if (!err)
-				break;
 		}
 	}
 	pthread_rwlock_unlock(&n->transform_lock);
@@ -1165,20 +1157,21 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 		void *remote, unsigned int len, unsigned char *id, int hupdate, int *posp)
 {
 	unsigned int rsize;
-	int err, pos = *posp;
 	unsigned char addr[DNET_ID_SIZE];
+	int err, pos = *posp;
 	struct dnet_io_control hctl;
 	struct dnet_history_entry e;
 	uint32_t flags = ctl->io.flags | DNET_IO_FLAGS_PARENT;
 
 	if (!(ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)) {
 		rsize = DNET_ID_SIZE;
-		err = dnet_transform(n, ctl->data, ctl->io.size, ctl->io.origin, ctl->addr, &rsize, &pos);
+		err = dnet_transform(n, ctl->data, ctl->io.size, ctl->io.origin, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				return err;
 			goto err_out_complete;
 		}
+		memcpy(addr, ctl->io.origin, DNET_ID_SIZE);
 	}
 
 	if (id) {
@@ -1193,12 +1186,13 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 		if (remote && len) {
 			rsize = DNET_ID_SIZE;
 			pos = *posp;
-			err = dnet_transform(n, remote, len, ctl->io.id, addr, &rsize, &pos);
+			err = dnet_transform(n, remote, len, ctl->io.id, &rsize, &pos);
 			if (err) {
 				if (err > 0)
 					return err;
 				goto err_out_complete;
 			}
+			memcpy(addr, ctl->io.id, DNET_ID_SIZE);
 		}
 	}
 
@@ -1206,7 +1200,7 @@ static int dnet_write_object_raw(struct dnet_node *n, struct dnet_io_control *ct
 
 	if (ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION) {
 		memcpy(ctl->io.origin, ctl->io.id, DNET_ID_SIZE);
-		memcpy(ctl->addr, ctl->io.id, DNET_ID_SIZE);
+		memcpy(ctl->addr, addr, DNET_ID_SIZE);
 	}
 
 	err = dnet_trans_create_send(n, ctl);
@@ -2050,7 +2044,7 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 		while (1) {
 			unsigned int rsize = DNET_ID_SIZE;
 
-			err = dnet_transform(n, remote, remote_len, io.origin, io.id, &rsize, &pos);
+			err = dnet_transform(n, remote, remote_len, io.origin, &rsize, &pos);
 			if (err) {
 				if (err > 0)
 					break;
@@ -2058,6 +2052,7 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 					error = err;
 				continue;
 			}
+			memcpy(io.id, io.origin, DNET_ID_SIZE);
 
 			err = dnet_read_file_id(n, file, len, direct, 0, &io, w, 1, 1);
 			if (err) {
@@ -2163,17 +2158,14 @@ void dnet_cleanup_transform(struct dnet_node *n)
 }
 
 int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
-	int (* init)(void *priv, struct dnet_node *n),
-	int (* update)(void *priv, void *src, uint64_t size,
+	int (* transform)(void *priv, void *src, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags),
-	int (* final)(void *priv, void *dst, void *addr,
-		unsigned int *dsize, unsigned int flags),
 	void (* cleanup)(void *priv))
 {
 	struct dnet_transform *t;
 	int err = 0;
 
-	if (!n || !init || !update || !final || !name) {
+	if (!n || !transform || !name) {
 		err = -EINVAL;
 		goto err_out_exit;
 	}
@@ -2195,9 +2187,7 @@ int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
 	memset(t, 0, sizeof(struct dnet_transform));
 
 	snprintf(t->name, sizeof(t->name), "%s", name);
-	t->init = init;
-	t->update = update;
-	t->final = final;
+	t->transform = transform;
 	t->priv = priv;
 	t->cleanup = cleanup;
 
@@ -2608,7 +2598,7 @@ int dnet_lookup(struct dnet_node *n, char *file)
 {
 	int err, pos = 0, len = strlen(file), error = 0;
 	struct dnet_wait *w;
-	unsigned char origin[DNET_ID_SIZE], addr[DNET_ID_SIZE];
+	unsigned char origin[DNET_ID_SIZE];
 
 	w = dnet_wait_alloc(0);
 	if (!w) {
@@ -2619,7 +2609,7 @@ int dnet_lookup(struct dnet_node *n, char *file)
 	while (1) {
 		unsigned int rsize = DNET_ID_SIZE;
 
-		err = dnet_transform(n, file, len, origin, addr, &rsize, &pos);
+		err = dnet_transform(n, file, len, origin, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				break;
@@ -3308,7 +3298,7 @@ err_out_exit:
 
 int dnet_remove_file(struct dnet_node *n, char *file, char *remote, int remote_len, unsigned char *file_id)
 {
-	unsigned char id[DNET_ID_SIZE], origin[DNET_ID_SIZE];
+	unsigned char origin[DNET_ID_SIZE];
 	int pos = 0;
 	int err, error = 0;
 
@@ -3318,7 +3308,7 @@ int dnet_remove_file(struct dnet_node *n, char *file, char *remote, int remote_l
 	while (1) {
 		unsigned int rsize = DNET_ID_SIZE;
 
-		err = dnet_transform(n, remote, remote_len, origin, id, &rsize, &pos);
+		err = dnet_transform(n, remote, remote_len, origin, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				break;
