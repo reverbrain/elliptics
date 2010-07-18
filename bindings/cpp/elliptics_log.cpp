@@ -42,5 +42,3 @@ void elliptics_log_file::log(uint32_t mask, const char *msg)
 		stream->flush();
 	}
 }
-
-
