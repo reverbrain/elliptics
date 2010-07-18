@@ -2,7 +2,6 @@
 
 from libelliptics_python import *
 from array import *
-import struct
 
 id = array('B')
 for x in xrange(0, 20) :
