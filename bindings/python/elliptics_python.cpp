@@ -40,7 +40,7 @@ class test_class : public test_class_base {
 		virtual ~test_class();
 
 		virtual void log(const char *msg);
-		unsigned char test(unsigned char *ptr) { return *ptr; };
+		unsigned char test(unsigned long lptr) { unsigned char *ptr = (unsigned char *)lptr; return ptr[0]; };
 	private:
 		std::ofstream *stream;
 };
@@ -175,7 +175,7 @@ class elliptics_transform_openssl_wrap : public elliptics_transform_openssl, pub
 
 			elliptics_transform_openssl::cleanup(priv);
 		}
-		
+
 		void default_cleanup(void *priv) {
 			this->elliptics_transform_openssl::cleanup(priv);
 		};
@@ -191,8 +191,33 @@ class elliptics_callback_wrap : public elliptics_callback, public wrapper<ellipt
 		};
 };
 
+class elliptics_node_python : public elliptics_node {
+	public:
+		elliptics_node_python(unsigned long lptr, elliptics_log &l) :
+			elliptics_node((unsigned char *)lptr, &l) {};
+
+		void read_file_by_id(unsigned long lid, const char *file, uint64_t offset, uint64_t size) {
+			elliptics_node::read_file((unsigned char *)lid, const_cast<char *>(file), offset, size);
+		}
+
+		void read_file_by_data_transform(unsigned long lrem, unsigned int rem_size, const char *file, uint64_t offset, uint64_t size) {
+			elliptics_node::read_file((unsigned char *)lrem, rem_size, const_cast<char *>(file), offset, size);
+		}
+
+		void write_file_by_id(unsigned long lid, const char *file, uint64_t local_offset, uint64_t offset, uint64_t size,
+				unsigned int aflags = 0, unsigned int ioflags = 0) {
+			elliptics_node::write_file((unsigned char *)lid, const_cast<char *>(file), local_offset, offset, size, aflags, ioflags);
+		}
+
+		void write_file_by_data_transform(unsigned long lrem, unsigned int rem_size, const char *file, uint64_t local_offset,
+				uint64_t offset, uint64_t size, unsigned int aflags = 0, unsigned int ioflags = 0) {
+			elliptics_node::write_file((unsigned char *)lrem, rem_size, const_cast<char *>(file), local_offset, offset, size, aflags, ioflags);
+		}
+};
+
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
 
+#if 0
 void (elliptics_node::*read_file_by_id)(unsigned char *, char *, uint64_t, uint64_t) = &elliptics_node::read_file;
 void (elliptics_node::*read_file_by_data_transform)(void *, unsigned int, char *, uint64_t, uint64_t) = &elliptics_node::read_file;
 
@@ -214,6 +239,10 @@ BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_id_overloads, write_data, 4
 int (elliptics_node::*write_data_by_data_transform)(void *, unsigned int, void *, unsigned int, elliptics_callback &,
 		unsigned int, unsigned int) = &elliptics_node::write_data;
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_data_transform_overloads, write_data, 5, 7);
+#else
+BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_file_by_id_overloads, write_file_by_id, 5, 7);
+BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_file_by_data_transform_overloads, write_file_by_data_transform, 6, 8);
+#endif
 
 BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<elliptics_log_wrap, boost::noncopyable>("elliptics_log", init<const uint32_t>())
@@ -223,24 +252,24 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<elliptics_log_file_wrap, boost::noncopyable, bases<elliptics_log> >("elliptics_log_file", init<const char *, const uint32_t>())
 		.def("log", &elliptics_log_file::log, &elliptics_log_file_wrap::default_log)
 	;
-	
+
 	class_<elliptics_transform_wrap, boost::noncopyable>("elliptics_transform", init<const char *>())
 		.def("transform", pure_virtual(&elliptics_transform::transform))
 		.def("cleanup", pure_virtual(&elliptics_transform::cleanup))
 	;
-	
+
 	class_<elliptics_transform_openssl_wrap, boost::noncopyable, bases<elliptics_transform> >("elliptics_transform_openssl", init<const char *>())
 		.def("transform", &elliptics_transform_openssl::transform, &elliptics_transform_openssl_wrap::default_transform)
 		.def("cleanup", &elliptics_transform_openssl::cleanup, &elliptics_transform_openssl_wrap::default_cleanup)
 	;
-	
+
 	class_<elliptics_callback_wrap, boost::noncopyable>("elliptics_callback")
 		.def("callback", pure_virtual(&elliptics_callback::callback))
 	;
-
 	class_<elliptics_node>("elliptics_node", init<unsigned char *, elliptics_log *>())
 		.def("add_remote", &elliptics_node::add_remote, add_remote_overloads())
 		.def("add_transform", &elliptics_node::add_transform)
+#if 0
 		.def("read_file", read_file_by_id)
 		.def("read_file", read_file_by_data_transform)
 		.def("read_data", read_data_by_id)
@@ -251,6 +280,15 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		
 		.def("write_data", write_data_by_id, write_data_by_id_overloads())
 		.def("write_data", write_data_by_data_transform, write_data_by_data_transform_overloads())
+#endif
+	;
+	class_<elliptics_node_python, bases<elliptics_node> >("elliptics_node_python", init<unsigned long, elliptics_log &>())
+		.def("add_remote", &elliptics_node::add_remote, add_remote_overloads())
+		.def("add_transform", &elliptics_node::add_transform)
+		.def("read_file", &elliptics_node_python::read_file_by_id)
+		.def("read_file", &elliptics_node_python::read_file_by_data_transform)
+		.def("write_file", &elliptics_node_python::write_file_by_id, write_file_by_id_overloads())
+		.def("write_file", &elliptics_node_python::write_file_by_data_transform, write_file_by_data_transform_overloads())
 	;
 };
 #endif
