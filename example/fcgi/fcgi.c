@@ -323,9 +323,7 @@ static int dnet_fcgi_generate_sign(long timestamp)
 		cookie = dnet_fcgi_sign_tmp;
 		len = snprintf(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), "%s%x%lx", dnet_fcgi_cookie_key, tmp, timestamp);
 
-		e->init(e, NULL);
-		e->update(e, dnet_fcgi_sign_tmp, len, dnet_fcgi_sign_data, &rsize, 0);
-		e->final(e, dnet_fcgi_sign_data, dnet_fcgi_sign_data, &rsize, 0);
+		e->transform(e, dnet_fcgi_sign_tmp, len, dnet_fcgi_sign_data, &rsize, 0);
 
 		dnet_fcgi_data_to_hex(cookie_res, sizeof(cookie_res), (unsigned char *)dnet_fcgi_sign_data, rsize);
 		snprintf(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), "%x.%lx.%s", tmp, timestamp, cookie_res);
@@ -355,9 +353,7 @@ static int dnet_fcgi_generate_sign(long timestamp)
 	len = snprintf(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), "%s%lx%s", dnet_fcgi_sign_key, timestamp, cookie_res);
 
 	rsize = sizeof(dnet_fcgi_sign_data);
-	e->init(e, NULL);
-	e->update(e, dnet_fcgi_sign_tmp, len, dnet_fcgi_sign_data, &rsize, 0);
-	e->final(e, dnet_fcgi_sign_data, dnet_fcgi_sign_data, &rsize, 0);
+	e->transform(e, dnet_fcgi_sign_tmp, len, dnet_fcgi_sign_data, &rsize, 0);
 
 	dnet_fcgi_data_to_hex(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), (unsigned char *)dnet_fcgi_sign_data, rsize);
 
@@ -607,7 +603,6 @@ static int dnet_fcgi_unlink_version(struct dnet_node *n, struct dnet_trans_contr
 
 static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len, int version)
 {
-	unsigned char addr[DNET_ID_SIZE];
 	int err, error = -ENOENT;
 	int pos = 0, num = 0;
 	struct dnet_trans_control ctl;
@@ -626,7 +621,7 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len, int version
 	while (1) {
 		unsigned int rsize = DNET_ID_SIZE;
 
-		err = dnet_transform(n, obj, len, dnet_fcgi_id, addr, &rsize, &pos);
+		err = dnet_transform(n, obj, len, dnet_fcgi_id, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				break;
@@ -725,7 +720,6 @@ static int dnet_fcgi_get_data_version(struct dnet_node *n, unsigned char *id, st
 
 static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct dnet_io_control *ctl, int version)
 {
-	unsigned char addr[DNET_ID_SIZE];
 	int err, error = -ENOENT;
 	int pos = 0, random_num = 0;
 	int *random_pos = NULL;
@@ -758,7 +752,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 		}
 
 #if 1
-		err = dnet_transform(n, obj, len, dnet_fcgi_id, addr, &rsize, &pos);
+		err = dnet_transform(n, obj, len, dnet_fcgi_id, &rsize, &pos);
 		if (err) {
 			if (err > 0)
 				break;
