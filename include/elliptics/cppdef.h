@@ -16,6 +16,7 @@
 #ifndef __EDEF_H
 #define __EDEF_H
 
+#include <errno.h>
 #include <stdint.h>
 
 #include "elliptics/packet.h"
@@ -94,6 +95,19 @@ class elliptics_callback {
 		virtual ~elliptics_callback() {};
 
 		virtual	int		callback(void) = 0;
+
+		bool last(void) {
+			return (!cmd || !(cmd->flags & DNET_FLAGS_MORE));
+		};
+
+		int status(void) {
+			int err = -EINVAL;
+
+			if (cmd)
+				err = cmd->status;
+
+			return err;
+		}
 
 		static int elliptics_complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, void *priv) {
 			elliptics_callback *c = reinterpret_cast<elliptics_callback *>(priv);
