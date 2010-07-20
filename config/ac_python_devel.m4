@@ -36,7 +36,6 @@ dnl @version 2006-05-27
 dnl @license GPLWithACException
 
 AC_DEFUN([AC_PYTHON_DEVEL],[
-	ac_python_found="no"
 	#
 	# Allow the use of a (user set) custom python version
 	#
@@ -202,25 +201,11 @@ $ac_distutils_result])
 		#include <Python.h>
 	],[
 		Py_Initialize();
-	],[pythonexists=yes],[pythonexists=no])
+	],[pythonexists=yes],[pythonexists=no; PYTHON_VERSION=""])
 
 	AC_MSG_RESULT([$pythonexists])
-
-        if test ! "$pythonexists" = "yes"; then
-	   AC_MSG_ERROR([
-  Could not link test program to Python. Maybe the main Python library has been
-  installed in some non-standard library path. If so, pass it to configure,
-  via the LDFLAGS environment variable.
-  Example: ./configure LDFLAGS="-L/usr/non-standard-path/python/lib"
-  ============================================================================
-   ERROR!
-   You probably have to install the development version of the Python package
-   for your distribution.  The exact name of this package varies among them.
-  ============================================================================
-	   ])
-	  PYTHON_VERSION=""
-	fi
 	AC_LANG_POP
+
 	# turn back to default flags
 	CPPFLAGS="$ac_save_CPPFLAGS"
 	LIBS="$ac_save_LIBS"
@@ -229,6 +214,5 @@ $ac_distutils_result])
 	# all done!
 	#
 
-	ac_python_found="yes"
-	AM_CONDITIONAL(HAVE_PYTHON, [test "f$ac_python_found" = "fyes"])
+	AM_CONDITIONAL(HAVE_PYTHON, [test "f$pythonexists" = "fyes"])
 ])
