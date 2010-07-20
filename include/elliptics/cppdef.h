@@ -25,6 +25,7 @@
 #include <iostream>
 #include <fstream>
 #include <exception>
+#include <string>
 
 class elliptics_log {
 	public:
@@ -46,9 +47,12 @@ class elliptics_log {
 class elliptics_log_file : public elliptics_log {
 	public:
 		elliptics_log_file(const char *file, const uint32_t mask = DNET_LOG_ERROR | DNET_LOG_INFO);
+		elliptics_log_file(const elliptics_log_file &l);
 		virtual ~elliptics_log_file();
 
 		virtual void 		log(const uint32_t mask, const char *msg);
+
+		std::string		*file;
 	private:
 		/*
 		 * Oh shi, I put pointer here to avoid boost::python compiler issues,
@@ -91,7 +95,7 @@ class elliptics_transform_openssl : public elliptics_transform {
 
 class elliptics_callback {
 	public:
-		elliptics_callback() {};
+		elliptics_callback() : state(NULL), cmd(NULL), attr(NULL) {};
 		virtual ~elliptics_callback() {};
 
 		virtual	int		callback(void) = 0;
@@ -107,7 +111,7 @@ class elliptics_callback {
 				err = cmd->status;
 
 			return err;
-		}
+		};
 
 		static int elliptics_complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, void *priv) {
 			elliptics_callback *c = reinterpret_cast<elliptics_callback *>(priv);
@@ -117,7 +121,7 @@ class elliptics_callback {
 			c->attr = a;
 
 			return c->callback();
-		}
+		};
 
 	protected:
 		struct dnet_net_state	*state;
@@ -128,7 +132,7 @@ class elliptics_callback {
 class elliptics_node {
 	public:
 		/* we shold use elliptics_log and proper copy constructor here, but not this time */
-		elliptics_node(unsigned char *id, elliptics_log *l);
+		elliptics_node(unsigned char *id, const elliptics_log &l);
 		virtual ~elliptics_node();
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
@@ -136,7 +140,7 @@ class elliptics_node {
 
 		void			read_file(unsigned char *id, char *dst_file, uint64_t offset, uint64_t size);
 		void			read_file(void *remote, unsigned int remote_size, char *dst_file, uint64_t offset, uint64_t size);
-		
+
 		void			read_data(unsigned char *id, uint64_t offset, uint64_t size, elliptics_callback &c);
 		void			read_data(void *remote, unsigned int remote_size, uint64_t offset, uint64_t size, elliptics_callback &c);
 
@@ -151,12 +155,22 @@ class elliptics_node {
 		int			write_data(void *remote, unsigned int remote_len, void *data, unsigned int size, elliptics_callback &c,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
 
+		void			read_data_wait(unsigned char *id, void *data, uint64_t offset, uint64_t size);
+		void			read_data_wait(void *remote, unsigned int remote_size, void *data, uint64_t offset, uint64_t size);
+
+		int			write_data_wait(unsigned char *id, void *data, uint64_t offset, uint64_t size,
+							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION | DNET_ATTR_NO_TRANSACTION_SPLIT,
+							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+		int			write_data_wait(void *remote, unsigned int remote_len, void *data, uint64_t offset, uint64_t size,
+							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION | DNET_ATTR_NO_TRANSACTION_SPLIT,
+							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+
 	private:
 		int			write_data_ll(unsigned char *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,
 							unsigned int aflags, unsigned int ioflags);
 		struct dnet_node	*node;
-		elliptics_log		*log;
+		elliptics_log		&log;
 };
 
 #endif /* __EDEF_H */

@@ -35,7 +35,8 @@
 
 #include "elliptics/cppdef.h"
 
-elliptics_node::elliptics_node(unsigned char *id, elliptics_log *l)
+elliptics_node::elliptics_node(unsigned char *id, const elliptics_log &l) :
+	log(const_cast<elliptics_log &>(l))
 {
 	struct dnet_config cfg;
 
@@ -49,10 +50,9 @@ elliptics_node::elliptics_node(unsigned char *id, elliptics_log *l)
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
-	/* maybe eventually we will implement proper copy constructor */
-	log = l;
+	//log = const_cast<elliptics_log &>(l);
 
-	cfg.log = l->get_dnet_log();
+	cfg.log = log.get_dnet_log();
 
 	memcpy(cfg.id, id, DNET_ID_SIZE);
 
@@ -202,7 +202,7 @@ void elliptics_node::write_file(void *remote, unsigned int remote_size, char *sr
 	if (err)
 		throw err;
 }
-		
+
 int elliptics_node::write_data_ll(unsigned char *id, void *remote, unsigned int remote_len,
 		void *data, unsigned int size, elliptics_callback &c,
 		unsigned int aflags, unsigned int ioflags)
@@ -242,4 +242,60 @@ int elliptics_node::write_data(void *remote, unsigned int remote_len, void *data
 		elliptics_callback &c, unsigned int aflags, unsigned int ioflags)
 {
 	return write_data_ll(NULL, remote, remote_len, data, size, c, aflags, ioflags);
+}
+
+void elliptics_node::read_data_wait(unsigned char *id, void *data, uint64_t offset, uint64_t size)
+{
+	int err = dnet_read_data_wait(node, id, data, offset, size);
+	if (err)
+		throw err;
+}
+
+void elliptics_node::read_data_wait(void *remote, unsigned int remote_size, void *data, uint64_t offset, uint64_t size)
+{
+	unsigned char id[DNET_ID_SIZE];
+	int pos = 0;
+	int err, error = 0;
+
+	while (1) {
+		unsigned int rsize = DNET_ID_SIZE;
+
+		err = dnet_transform(node, remote, remote_size, id, &rsize, &pos);
+		if (err) {
+			if (err > 0)
+				break;
+			continue;
+		}
+
+		try {
+			read_data_wait(id, data, offset, size);
+		} catch (int) {
+			error = err;
+			/* ignore */
+		}
+
+		error = 0;
+		break;
+	}
+
+	if (error)
+		throw error;
+}
+
+int elliptics_node::write_data_wait(unsigned char *id, void *data, uint64_t offset, uint64_t size, unsigned int aflags, unsigned int ioflags)
+{
+	printf("aflags: %x, ioflags: %x\n", aflags, ioflags);
+	int err = dnet_write_data_wait(node, NULL, 0, id, data, offset, size, aflags, ioflags);
+	if (err < 0)
+		throw err;
+	return err;
+}
+
+int elliptics_node::write_data_wait(void *remote, unsigned int remote_size, void *data, uint64_t offset, uint64_t size,
+		unsigned int aflags, unsigned int ioflags)
+{
+	int err = dnet_write_data_wait(node, remote, remote_size, NULL, data, offset, size, aflags, ioflags);
+	if (err < 0)
+		throw err;
+	return err;
 }

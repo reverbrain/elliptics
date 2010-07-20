@@ -105,7 +105,7 @@ int main()
 
 	memset(id, 1, DNET_ID_SIZE);
 
-	elliptics_node n(id, &log);
+	elliptics_node n(id, log);
 
 	n.add_remote("devfs8", 1025, AF_INET);
 	n.add_transform(t);

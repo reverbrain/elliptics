@@ -110,7 +110,6 @@ using namespace boost::python;
 class elliptics_log_wrap : public elliptics_log, public wrapper<elliptics_log> {
 	public:
 		elliptics_log_wrap(const uint32_t mask = DNET_LOG_ERROR | DNET_LOG_INFO) : elliptics_log(mask) {};
-		virtual ~elliptics_log_wrap() {};
 
 		void log(const uint32_t mask, const char *msg) {
 			this->get_override("log")(mask, msg);
@@ -121,7 +120,6 @@ class elliptics_log_file_wrap : public elliptics_log_file, public wrapper<ellipt
 	public:
 		elliptics_log_file_wrap(const char *file, const uint32_t mask = DNET_LOG_ERROR | DNET_LOG_INFO) :
 			elliptics_log_file(file, mask) {};
-		virtual ~elliptics_log_file_wrap() {};
 
 		void log(const uint32_t mask, const char *msg) {
 			if (override log = this->get_override("log")) {
@@ -138,7 +136,6 @@ class elliptics_log_file_wrap : public elliptics_log_file, public wrapper<ellipt
 class elliptics_transform_wrap : public elliptics_transform, public wrapper<elliptics_transform> {
 	public:
 		elliptics_transform_wrap(const char *name) : elliptics_transform(name) {};
-		virtual ~elliptics_transform_wrap() {};
 
 		int transform(void *priv, void *src, uint64_t size, void *dst, unsigned int *dsize, unsigned int flags) {
 			this->get_override("transform")(priv, src, size, dst, dsize, flags);
@@ -152,7 +149,6 @@ class elliptics_transform_wrap : public elliptics_transform, public wrapper<elli
 class elliptics_transform_openssl_wrap : public elliptics_transform_openssl, public wrapper<elliptics_transform_openssl> {
 	public:
 		elliptics_transform_openssl_wrap(const char *name) : elliptics_transform_openssl(name) {};
-		virtual ~elliptics_transform_openssl_wrap() {};
 
 		int transform(void *priv, void *src, uint64_t size, void *dst, unsigned int *dsize, unsigned int flags) {
 			if (override transform = this->get_override("transform"))
@@ -179,20 +175,10 @@ class elliptics_transform_openssl_wrap : public elliptics_transform_openssl, pub
 		};
 };
 
-class elliptics_callback_wrap : public elliptics_callback, public wrapper<elliptics_callback> {
-	public:
-		elliptics_callback_wrap() {};
-		virtual ~elliptics_callback_wrap() {};
-
-		int callback(void) {
-			return this->get_override("callback")();
-		};
-};
-
 class elliptics_node_python : public elliptics_node {
 	public:
-		elliptics_node_python(unsigned long lptr, elliptics_log &l) :
-			elliptics_node((unsigned char *)lptr, &l) {};
+		elliptics_node_python(unsigned long lptr, const elliptics_log &l) :
+			elliptics_node((unsigned char *)lptr, l) {};
 
 		void read_file_by_id(unsigned long lid, const char *file, uint64_t offset, uint64_t size) {
 			elliptics_node::read_file((unsigned char *)lid, const_cast<char *>(file), offset, size);
@@ -212,22 +198,24 @@ class elliptics_node_python : public elliptics_node {
 			elliptics_node::write_file((void *)lrem, rem_size, const_cast<char *>(file), local_offset, offset, size, aflags, ioflags);
 		}
 
-		void read_data_by_id(unsigned long lid, uint64_t offset, uint64_t size, elliptics_callback &c) {
-			elliptics_node::read_data((unsigned char *)lid, offset, size, c);
-		}
-		
-		void read_data_by_data_transform(unsigned long rem, unsigned int rem_size, uint64_t offset, uint64_t size, elliptics_callback &c) {
-			elliptics_node::read_data((void *)rem, rem_size, offset, size, c);
+		void read_data_by_id(unsigned long lid, unsigned long data, uint64_t offset, uint64_t size) {
+			elliptics_node::read_data_wait((unsigned char *)lid, (void *)data, offset, size);
 		}
 
-		int write_data_by_id(unsigned long lid, unsigned long data, unsigned int size, elliptics_callback &c,
-				unsigned int aflags = 0, unsigned int ioflags = 0) {
-			return elliptics_node::write_data((unsigned char *)lid, (void *)data, size, c, aflags, ioflags);
+		void read_data_by_data_transform(unsigned long rem, unsigned int rem_size, unsigned long data, uint64_t offset, uint64_t size) {
+			elliptics_node::read_data_wait((void *)rem, rem_size, (void *)data, offset, size);
 		}
 
-		int write_data_by_data_transform(unsigned long rem, unsigned int rem_size, unsigned long data, unsigned int size, elliptics_callback &c,
-				unsigned int aflags = 0, unsigned int ioflags = 0) {
-			return elliptics_node::write_data((void *)rem, rem_size, (void *)data, size, c, aflags, ioflags);
+		int write_data_by_id(unsigned long lid, unsigned long data, uint64_t offset, uint64_t size,
+							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION | DNET_ATTR_NO_TRANSACTION_SPLIT,
+							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
+			return elliptics_node::write_data_wait((unsigned char *)lid, (void *)data, offset, size, aflags, ioflags);
+		}
+
+		int write_data_by_data_transform(unsigned long rem, unsigned int rem_size, unsigned long data, uint64_t offset, uint64_t size,
+							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION | DNET_ATTR_NO_TRANSACTION_SPLIT,
+							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
+			return elliptics_node::write_data_wait((void *)rem, rem_size, (void *)data, offset, size, aflags, ioflags);
 		}
 };
 
@@ -256,16 +244,12 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("cleanup", &elliptics_transform_openssl::cleanup, &elliptics_transform_openssl_wrap::default_cleanup)
 	;
 
-	class_<elliptics_callback_wrap, boost::noncopyable>("elliptics_callback")
-		.def("callback", pure_virtual(&elliptics_callback::callback))
-		.def("status", &elliptics_callback::status)
-		.def("last", &elliptics_callback::last)
-	;
-	class_<elliptics_node>("elliptics_node", init<unsigned char *, elliptics_log *>())
+	class_<elliptics_node>("elliptics_node", init<unsigned char *, const elliptics_log &>())
 		.def("add_remote", &elliptics_node::add_remote, add_remote_overloads())
 		.def("add_transform", &elliptics_node::add_transform)
 	;
-	class_<elliptics_node_python, bases<elliptics_node> >("elliptics_node_python", init<unsigned long, elliptics_log &>())
+
+	class_<elliptics_node_python, bases<elliptics_node> >("elliptics_node_python", init<unsigned long, const elliptics_log &>())
 		.def("add_remote", &elliptics_node::add_remote, add_remote_overloads())
 		.def("add_transform", &elliptics_node::add_transform)
 

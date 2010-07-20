@@ -3358,3 +3358,172 @@ struct dnet_node *dnet_get_node_from_state(void *state)
 	struct dnet_net_state *st = state;
 	return st->n;
 }
+
+struct dnet_read_data_completion {
+	struct dnet_wait		*w;
+	void				*data;
+	uint64_t			size, offset;
+};
+
+static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
+{
+	struct dnet_read_data_completion *c = priv;
+	int last = (!cmd || !(cmd->flags & DNET_FLAGS_MORE));
+	int err = -EINVAL;
+
+	if (!cmd || !attr || !st) {
+		if (cmd)
+			err = cmd->status;
+		goto err_out_exit;
+	}
+
+	err = cmd->status;
+
+	if (attr->size > sizeof(struct dnet_io_attr)) {
+		struct dnet_io_attr *io = (struct dnet_io_attr *)(attr + 1);
+		void *data;
+		uint64_t sz = c->size;
+
+		data = io + 1;
+
+		dnet_convert_io_attr(io);
+
+		if (io->size < sz)
+			sz = io->size;
+
+		memcpy(c->data + c->offset, data, sz);
+		c->offset += sz;
+	}
+
+	dnet_log(st->n, DNET_LOG_INFO, "%s: object write completed: trans: %llu, status: %d, last: %d.\n",
+		dnet_dump_id(cmd->id), (unsigned long long)(cmd->trans & ~DNET_TRANS_REPLY),
+		cmd->status, last);
+
+err_out_exit:
+	if (last) {
+		dnet_wakeup(c->w, dnet_io_complete(c->w, err));
+		dnet_wait_put(c->w);
+	}
+
+	return err;
+}
+
+int dnet_read_data_wait(struct dnet_node *n, unsigned char *id, void *data, uint64_t offset, uint64_t size)
+{
+	struct dnet_io_control ctl;
+	int err;
+	struct dnet_wait *w;
+	struct dnet_read_data_completion c;
+
+	w = dnet_wait_alloc(0);
+	if (!w) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	c.w = w;
+	c.data = data;
+	c.size = size;
+	c.offset = 0;
+
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
+
+	ctl.fd = -1;
+
+	ctl.priv = &c;
+	ctl.complete = dnet_read_data_complete;
+
+	ctl.cmd = DNET_CMD_READ;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+
+	memcpy(ctl.io.id, id, DNET_ID_SIZE);
+	memcpy(ctl.io.origin, id, DNET_ID_SIZE);
+	memcpy(ctl.addr, id, DNET_ID_SIZE);
+	
+	ctl.io.flags = 0;
+	ctl.io.size = size;
+	ctl.io.offset = offset;
+
+	dnet_wait_get(w);
+	err = dnet_read_object(n, &ctl);
+	if (err)
+		goto err_out_put;
+
+	err = dnet_wait_event(w, w->cond, &n->wait_ts);
+	if (err || w->cond) {
+		if (!err)
+			err = w->status;
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for IO read completion, err: %d, status: %d.\n",
+				dnet_dump_id(ctl.addr), err, w->status);
+		goto err_out_put;
+	}
+	err = 0;
+
+err_out_put:
+	dnet_wait_get(w);
+err_out_exit:
+	return err;
+}
+
+int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int remote_size,
+		unsigned char *id, void *data, uint64_t offset, uint64_t size,
+		unsigned int aflags, unsigned int ioflags)
+{
+	struct dnet_io_control ctl;
+	int err, trans_num = 0, error;
+	struct dnet_wait *w;
+
+	w = dnet_wait_alloc(0);
+	if (!w) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
+
+	ctl.fd = -1;
+	ctl.data = data;
+	ctl.aflags = aflags;
+
+	ctl.priv = w;
+	ctl.complete = dnet_write_complete;
+
+	ctl.cmd = DNET_CMD_WRITE;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+
+	ctl.io.flags = ioflags;
+	ctl.io.size = size;
+	ctl.io.offset = offset;
+
+	atomic_set(&w->refcnt, INT_MAX);
+	error = dnet_write_object(n, &ctl, remote, remote_size, id, !(ioflags & DNET_IO_FLAGS_HISTORY), &trans_num);
+
+	/*
+	 * 1 - the first reference counter we grabbed at allocation time
+	 */
+	atomic_sub(&w->refcnt, INT_MAX - trans_num - 1);
+
+	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
+	if (err || w->status) {
+		if (!err)
+			err = w->status;
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for IO write completion, err: %d.\n",
+				dnet_dump_id(ctl.addr), err);
+		goto err_out_put;
+	}
+
+	if (!err && error) {
+		err = error;
+		dnet_log(n, DNET_LOG_ERROR, "Failed to write data into the storage, err: %d.\n", err);
+		goto err_out_put;
+	}
+
+	dnet_log(n, DNET_LOG_INFO, "Successfully wrote %llu bytes into the storage.\n",
+				(unsigned long long)size);
+	err = 0;
+
+err_out_put:
+	dnet_wait_get(w);
+err_out_exit:
+	return err;
+}

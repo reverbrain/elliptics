@@ -152,6 +152,14 @@ struct dnet_io_control
 int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
 
 /*
+ * Read data associated with key @ID and put it to provided @data pointer.
+ * Requestted chunk will have at most @size bytes in.
+ * It will be read from offset @offset from the start of remote object.
+ */
+int dnet_read_data_wait(struct dnet_node *n, unsigned char *id, void *data,
+		uint64_t offset, uint64_t size);
+
+/*
  * Reads given file from the storage. If there are multiple transformation functions,
  * they will be tried one after another.
  *
@@ -195,6 +203,9 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 		void *remote, int remote_len,
 		unsigned char *id, int hupdate, int *trans_num);
 
+int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int remote_size,
+		unsigned char *id, void *data, uint64_t offset, uint64_t size,
+		unsigned int aflags, unsigned int ioflags);
 /*
  * dmet_write_object_single() works the same way dnet_write_object() does,
  * but only uses single transformation function, which number is specified
