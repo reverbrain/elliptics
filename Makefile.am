@@ -11,5 +11,4 @@ EXTRA_DIST = autogen.sh AUTHORS README .gitignore \
 	config/ac_check_sendfile.m4 config/ac_check_libevent.m4 \
 	config/ac_check_atomic.m4 config/ac_check_tokyocabinet.m4 \
 	config/ac_check_stats.m4 config/ac_check_libfcgi.m4 \
-	config/ax_python.m4 config/ax_boost_python.m4 \
-	config/ac_python_devel.m4
+	config/ax_boost_python.m4 config/ac_python_devel.m4
