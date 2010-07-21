@@ -125,6 +125,8 @@ struct dnet_net_state *dnet_state_get_prev(struct dnet_net_state *st);
 int dnet_state_move(struct dnet_net_state *st);
 void dnet_state_destroy(struct dnet_net_state *st);
 
+int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsigned int join_state);
+
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 {
 	atomic_inc(&st->refcnt);

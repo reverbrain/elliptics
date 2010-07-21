@@ -470,23 +470,23 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_add_reconnect_state(struct dnet_net_state *st)
+int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsigned int join_state)
 {
-	struct dnet_node *n = st->n;
 	struct dnet_addr_storage *a, *it;
 	int err = 0;
 
-	if (!st->__join_state)
+#if 0
+	if (!join_state)
 		goto out_exit;
-
+#endif
 	a = malloc(sizeof(struct dnet_addr_storage));
 	if (!a) {
 		err = -ENOMEM;
 		goto out_exit;
 	}
 
-	memcpy(&a->addr, &st->addr, sizeof(struct dnet_addr));
-	a->__join_state = st->__join_state;
+	memcpy(&a->addr, addr, sizeof(struct dnet_addr));
+	a->__join_state = join_state;
 
 	pthread_mutex_lock(&n->reconnect_lock);
 	list_for_each_entry(it, &n->reconnect_list, reconnect_entry) {
@@ -497,8 +497,8 @@ static int dnet_add_reconnect_state(struct dnet_net_state *st)
 	}
 
 	if (!err) {
-		dnet_log(n, DNET_LOG_INFO, "%s: added reconnection addr: %s.\n",
-			dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&a->addr));
+		dnet_log(n, DNET_LOG_INFO, "Added reconnection addr: %s, join state: %x.\n",
+			dnet_server_convert_dnet_addr(&a->addr), join_state);
 		list_add_tail(&a->reconnect_entry, &n->reconnect_list);
 	}
 	pthread_mutex_unlock(&n->reconnect_lock);
@@ -878,7 +878,7 @@ err_out_destroy:
 
 	dnet_state_remove(st);
 
-	dnet_add_reconnect_state(st);
+	dnet_add_reconnect_state(st->n, &st->addr, st->__join_state);
 	while (!list_empty(&st->snd_list)) {
 		struct dnet_data_req *r = NULL;
 
