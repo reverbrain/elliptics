@@ -41,13 +41,12 @@ elliptics_log_file::elliptics_log_file(const char *file, const uint32_t mask) :
 	}
 }
 
-elliptics_log_file::elliptics_log_file(const elliptics_log_file &l) :
-	elliptics_log(l.ll.log_mask)
+unsigned long elliptics_log_file::clone(void)
 {
-	file = new std::string(l.file->c_str());
+	return reinterpret_cast<unsigned long>(new elliptics_log_file (file->c_str(), get_log_mask()));
 }
 
-elliptics_log_file::~elliptics_log_file()
+elliptics_log_file::~elliptics_log_file(void)
 {
 	delete file;
 	delete stream;

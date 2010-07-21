@@ -35,8 +35,7 @@
 
 #include "elliptics/cppdef.h"
 
-elliptics_node::elliptics_node(unsigned char *id, const elliptics_log &l) :
-	log(const_cast<elliptics_log &>(l))
+elliptics_node::elliptics_node(unsigned char *id, elliptics_log &l)
 {
 	struct dnet_config cfg;
 
@@ -50,9 +49,8 @@ elliptics_node::elliptics_node(unsigned char *id, const elliptics_log &l) :
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
-	//log = const_cast<elliptics_log &>(l);
-
-	cfg.log = log.get_dnet_log();
+	log = reinterpret_cast<elliptics_log *>(l.clone());
+	cfg.log = log->get_dnet_log();
 
 	memcpy(cfg.id, id, DNET_ID_SIZE);
 
@@ -60,13 +58,16 @@ elliptics_node::elliptics_node(unsigned char *id, const elliptics_log &l) :
 	snprintf(cfg.port, sizeof(cfg.port), "0");
 
 	node = dnet_node_create(&cfg);
-	if (!node)
+	if (!node) {
+		delete log;
 		throw;
+	}
 }
 
 elliptics_node::~elliptics_node()
 {
 	dnet_node_destroy(node);
+	delete log;
 }
 
 void elliptics_node::add_remote(const char *addr, const int port, const int family)

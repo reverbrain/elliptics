@@ -37,6 +37,15 @@ class elliptics_log {
 		virtual ~elliptics_log() {};
 
 		virtual void 		log(const uint32_t mask, const char *msg) = 0;
+
+		/*
+		 * Clone is used instead of 'virtual' copy constructor, since we have to
+		 * hold a reference to object outside of our scope, namely python created
+		 * logger. This is also a reason we return 'unsigned long' instead of
+		 * 'elliptics_log *' - python does not have pointer.
+		 */
+		virtual unsigned long	clone(void) = 0;
+
 		static void		logger(void *priv, const uint32_t mask, const char *msg);
 		uint32_t		get_log_mask(void) { return ll.log_mask; };
 		struct dnet_log		*get_dnet_log(void) { return &ll; };
@@ -47,9 +56,9 @@ class elliptics_log {
 class elliptics_log_file : public elliptics_log {
 	public:
 		elliptics_log_file(const char *file, const uint32_t mask = DNET_LOG_ERROR | DNET_LOG_INFO);
-		elliptics_log_file(const elliptics_log_file &l);
 		virtual ~elliptics_log_file();
 
+		virtual unsigned long	clone(void);
 		virtual void 		log(const uint32_t mask, const char *msg);
 
 		std::string		*file;
@@ -132,7 +141,7 @@ class elliptics_callback {
 class elliptics_node {
 	public:
 		/* we shold use elliptics_log and proper copy constructor here, but not this time */
-		elliptics_node(unsigned char *id, const elliptics_log &l);
+		elliptics_node(unsigned char *id, elliptics_log &l);
 		virtual ~elliptics_node();
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
@@ -170,7 +179,7 @@ class elliptics_node {
 							void *data, unsigned int size, elliptics_callback &c,
 							unsigned int aflags, unsigned int ioflags);
 		struct dnet_node	*node;
-		elliptics_log		&log;
+		elliptics_log		*log;
 };
 
 #endif /* __EDEF_H */

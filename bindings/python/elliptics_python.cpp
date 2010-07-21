@@ -114,6 +114,10 @@ class elliptics_log_wrap : public elliptics_log, public wrapper<elliptics_log> {
 		void log(const uint32_t mask, const char *msg) {
 			this->get_override("log")(mask, msg);
 		}
+
+		unsigned long clone(void) {
+			return this->get_override("clone")();
+		}
 };
 
 class elliptics_log_file_wrap : public elliptics_log_file, public wrapper<elliptics_log_file> {
@@ -131,6 +135,15 @@ class elliptics_log_file_wrap : public elliptics_log_file, public wrapper<ellipt
 		}
 
 		void default_log(uint32_t mask, const char *msg) { this->elliptics_log_file::log(mask, msg); }
+
+		unsigned long clone(void) {
+			if (override clone = this->get_override("clone"))
+				return clone();
+
+			return elliptics_log_file::clone();
+		}
+
+		unsigned long default_clone(void) { return this->elliptics_log_file::clone(); }
 };
 
 class elliptics_transform_wrap : public elliptics_transform, public wrapper<elliptics_transform> {
@@ -177,7 +190,7 @@ class elliptics_transform_openssl_wrap : public elliptics_transform_openssl, pub
 
 class elliptics_node_python : public elliptics_node {
 	public:
-		elliptics_node_python(unsigned long lptr, const elliptics_log &l) :
+		elliptics_node_python(unsigned long lptr, elliptics_log &l) :
 			elliptics_node((unsigned char *)lptr, l) {};
 
 		void read_file_by_id(unsigned long lid, const char *file, uint64_t offset, uint64_t size) {
@@ -228,10 +241,12 @@ BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_data_transform_overloads, w
 BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<elliptics_log_wrap, boost::noncopyable>("elliptics_log", init<const uint32_t>())
 		.def("log", pure_virtual(&elliptics_log::log))
+		.def("clone", pure_virtual(&elliptics_log::clone))
 	;
 
 	class_<elliptics_log_file_wrap, boost::noncopyable, bases<elliptics_log> >("elliptics_log_file", init<const char *, const uint32_t>())
 		.def("log", &elliptics_log_file::log, &elliptics_log_file_wrap::default_log)
+		.def("clone", &elliptics_log_file::clone, &elliptics_log_file_wrap::default_clone)
 	;
 
 	class_<elliptics_transform_wrap, boost::noncopyable>("elliptics_transform", init<const char *>())
@@ -244,12 +259,12 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("cleanup", &elliptics_transform_openssl::cleanup, &elliptics_transform_openssl_wrap::default_cleanup)
 	;
 
-	class_<elliptics_node>("elliptics_node", init<unsigned char *, const elliptics_log &>())
+	class_<elliptics_node>("elliptics_node", init<unsigned char *, elliptics_log &>())
 		.def("add_remote", &elliptics_node::add_remote, add_remote_overloads())
 		.def("add_transform", &elliptics_node::add_transform)
 	;
 
-	class_<elliptics_node_python, bases<elliptics_node> >("elliptics_node_python", init<unsigned long, const elliptics_log &>())
+	class_<elliptics_node_python, bases<elliptics_node> >("elliptics_node_python", init<unsigned long, elliptics_log &>())
 		.def("add_remote", &elliptics_node::add_remote, add_remote_overloads())
 		.def("add_transform", &elliptics_node::add_transform)
 
