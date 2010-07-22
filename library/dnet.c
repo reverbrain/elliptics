@@ -3451,7 +3451,7 @@ int dnet_read_data_wait(struct dnet_node *n, unsigned char *id, void *data, uint
 		goto err_out_put;
 
 	err = dnet_wait_event(w, w->cond, &n->wait_ts);
-	if (err || w->cond) {
+	if (err || w->status) {
 		if (!err)
 			err = w->status;
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for IO read completion, err: %d, status: %d.\n",
