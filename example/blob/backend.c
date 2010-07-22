@@ -141,7 +141,8 @@ static int dnet_blob_iterate(struct blob_backend *b, struct blob_backend_io *io,
 			error = err;
 	}
 
-	dnet_backend_log(DNET_LOG_INFO, "blob: interation completed: %d.\n", error);
+	dnet_backend_log(DNET_LOG_INFO, "blob: interation completed: num: %llu, threads: %u, status: %d.\n",
+			io->index_pos, b->iterate_threads, error);
 
 	return error;
 }
