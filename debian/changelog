@@ -1,3 +1,9 @@
+elliptics (2.9.0.9) unstable; urgency=low
+
+  * Return back virtual datacenters.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 22 Jul 2010 22:17:08 +0400
+
 elliptics (2.9.0.8) unstable; urgency=low
 
   * BLOB IO backend updates (multiple threads, index, bug fixes).
