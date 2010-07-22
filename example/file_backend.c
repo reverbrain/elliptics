@@ -620,7 +620,7 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 		struct dnet_attr *attr, void *data)
 {
 	int err = -EINVAL;
-	char file[DNET_ID_SIZE * 2 + 8 + sizeof(DNET_HISTORY_SUFFIX)];
+	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2 + sizeof(DNET_HISTORY_SUFFIX)]; /* file + dir + suffix + slash + 0-byte */
 	char dir[2*DNET_ID_SIZE+1];
 	char id[2*DNET_ID_SIZE+1];
 
