@@ -41,6 +41,13 @@ static void dnet_transform_final(struct dnet_crypto_engine *eng __unused,
 		memcpy(dst, src, rs);
 		*rsize = rs;
 	}
+
+	if (eng->num >= 0) {
+		unsigned int *ptr = dst;
+		*ptr = eng->num;
+		ptr = dst;
+		*ptr = eng->num;
+	}
 }
 
 #ifdef HAVE_OPENSSL
