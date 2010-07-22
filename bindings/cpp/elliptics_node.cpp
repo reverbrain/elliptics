@@ -285,7 +285,6 @@ void elliptics_node::read_data_wait(void *remote, unsigned int remote_size, void
 
 int elliptics_node::write_data_wait(unsigned char *id, void *data, uint64_t offset, uint64_t size, unsigned int aflags, unsigned int ioflags)
 {
-	printf("aflags: %x, ioflags: %x\n", aflags, ioflags);
 	int err = dnet_write_data_wait(node, NULL, 0, id, data, offset, size, aflags, ioflags);
 	if (err < 0)
 		throw err;
