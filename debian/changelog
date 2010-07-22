@@ -1,3 +1,12 @@
+elliptics (2.9.0.8) unstable; urgency=low
+
+  * BLOB IO backend updates (multiple threads, index, bug fixes).
+  * file IO backend fixes
+  * python bindings
+  * c++ binding fixes
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 22 Jul 2010 18:11:17 +0400
+
 elliptics (2.9.0.7) unstable; urgency=low
 
   * Log cleanups.
