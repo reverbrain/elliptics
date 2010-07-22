@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.0.7
+Version:	2.9.0.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -142,5 +142,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jul 22 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.8-1
+- BLOB IO backend updates (multiple threads, index, bug fixes).
+- file IO backend fixes
+- python bindings
+- c++ binding fixes
+
 * Mon Jul 19 2010 Arkady L. Shane <ashejn@yandex-team.ru> - 2.9.0.7-1
 - initial build for Fedora
