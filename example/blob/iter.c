@@ -77,17 +77,18 @@ static void blob_iterate_log_raw(struct dnet_log *l, uint32_t mask, const char *
 			blob_iterate_log_raw((l), mask, format, ##a); 	\
 	} while (0)
 
-int blob_iterate(int fd, struct dnet_log *l,
+int blob_iterate(int fd, off_t pos, size_t num, struct dnet_log *l,
 		int (* callback)(struct blob_disk_control *dc, void *data, off_t position, void *priv),
 		void *priv)
 
 {
+	long page_size = sysconf(_SC_PAGE_SIZE);
 	struct blob_disk_control dc;
 	struct dnet_log log;
 	void *data, *ptr;
-	off_t position;
+	off_t position, offset, off;
+	size_t size, mapped_size;
 	struct stat st;
-	size_t size;
 	int err;
 
 	if (!l) {
@@ -105,19 +106,28 @@ int blob_iterate(int fd, struct dnet_log *l,
 		goto err_out_exit;
 	}
 
-	size = st.st_size;
+	if (!size)
+		size = st.st_size;
 
-	if (!size) {
+	size = num * sizeof(struct blob_disk_control);
+	off = pos * sizeof(struct blob_disk_control);
+	offset = off & ~(page_size - 1);
+
+	if (!size || size + offset >= st.st_size) {
 		err = 0;
 		goto err_out_exit;
 	}
 
-	ptr = data = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+	mapped_size = size + off - offset;
+
+	data = mmap(NULL, mapped_size, PROT_READ, MAP_SHARED, fd, offset);
 	if (data == MAP_FAILED) {
 		err = -errno;
 		blob_iterate_log(l, DNET_LOG_ERROR, "blob: failed to mmap file, size: %zu: %s.\n", strerror(errno));
 		goto err_out_exit;
 	}
+
+	ptr = data + off - offset;
 
 	while (size) {
 		err = -EINVAL;
@@ -153,7 +163,7 @@ int blob_iterate(int fd, struct dnet_log *l,
 	err = 0;
 
 err_out_unmap:
-	munmap(data, st.st_size);
+	munmap(data, mapped_size);
 err_out_exit:
 	return err;
 }

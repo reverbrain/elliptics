@@ -59,11 +59,92 @@ struct blob_backend
 	unsigned int		hash_flags;
 	int			sync;
 
+	int			iterate_threads;
+
 	struct blob_backend_io	data, history;
 
 	pthread_mutex_t		lock;
 	struct dnet_hash	*hash;
 };
+
+struct dnet_blob_iterator_data {
+	pthread_t		id;
+
+	struct blob_backend	*b;
+	struct blob_backend_io	*io;
+	struct dnet_log		*log;
+
+	size_t			num;
+	off_t			pos;
+
+	int			(* iterator)(struct blob_disk_control *dc, void *data, off_t position, void *priv);
+	void			*priv;
+
+	int			err;
+};
+
+static void *dnet_blob_iterator(void *data)
+{
+	struct dnet_blob_iterator_data *p = data;
+
+	p->err = blob_iterate(p->io->index, p->pos, p->num, p->log, p->iterator, p->priv);
+	if (p->err)
+		dnet_backend_log(DNET_LOG_ERROR, "blob: data iteration failed: %d.\n", p->err);
+
+	return &p->err;
+};
+
+static int dnet_blob_iterate(struct blob_backend *b, struct blob_backend_io *io, struct dnet_log *log,
+	int (* iterator)(struct blob_disk_control *dc, void *data, off_t position, void *priv),
+	void *priv)
+{
+	int i, err, error;
+	int thread_num = b->iterate_threads - 1;
+	struct dnet_blob_iterator_data p[thread_num + 1];
+	off_t pos = 0, num = io->index_pos / b->iterate_threads;
+	off_t rest = io->index_pos;
+
+	for (i=0; i<thread_num; ++i) {
+		p[i].pos = pos;
+		p[i].num = num;
+		p[i].b = b;
+		p[i].io = io;
+		p[i].iterator = iterator;
+		p[i].priv = priv;
+		p[i].log = log;
+
+		err = pthread_create(&p[i].id, NULL, dnet_blob_iterator, &p[i]);
+		if (err) {
+			dnet_backend_log(DNET_LOG_ERROR, "blob: failed to create iterator thread: %d.\n", err);
+			break;
+		}
+
+		pos += num;
+		rest -= num;
+	}
+
+	p[thread_num].pos = pos;
+	p[thread_num].num = rest;
+	p[thread_num].b = b;
+	p[thread_num].io = io;
+	p[thread_num].iterator = iterator;
+	p[thread_num].priv = priv;
+	p[thread_num].log = log;
+
+	dnet_blob_iterator(&p[thread_num]);
+
+	error = p[thread_num].err;
+
+	for (i=0; i<thread_num; ++i) {
+		err = pthread_join(p[i].id, NULL);
+		if (err)
+			error = err;
+	}
+
+	dnet_backend_log(DNET_LOG_INFO, "blob: interation completed: %d.\n", error);
+
+	return error;
+}
 
 static int blob_write_low_level(int fd, void *data, size_t size, size_t offset)
 {
@@ -567,6 +648,8 @@ struct blob_iterate_shared {
 	unsigned char		id[DNET_ID_SIZE];
 
 	int			pos;
+
+	pthread_mutex_t		lock;
 	struct dnet_id		ids[10240];
 };
 
@@ -608,18 +691,22 @@ static int blob_iterate_list_callback(struct blob_disk_control *dc, void *data, 
 
 	dnet_backend_log(DNET_LOG_INFO, "%s: flags: %08x\n", dnet_dump_id(dc->id), e->flags);
 
-	memcpy(s->ids[s->pos].id, dc->id, DNET_ID_SIZE);
-	s->ids[s->pos].flags = dnet_bswap32(e->flags);
-
-	dnet_convert_id(&s->ids[s->pos]);
-
-	s->pos++;
+	pthread_mutex_lock(&s->lock);
 
 	if (s->pos == ARRAY_SIZE(s->ids)) {
 		err = dnet_send_reply(s->state, s->cmd, s->attr, s->ids, s->pos * sizeof(struct dnet_id), 1);
 		if (!err)
 			s->pos = 0;
 	}
+
+	if (s->pos < (int)ARRAY_SIZE(s->ids)) {
+		memcpy(s->ids[s->pos].id, dc->id, DNET_ID_SIZE);
+		s->ids[s->pos].flags = dnet_bswap32(e->flags);
+		dnet_convert_id(&s->ids[s->pos]);
+		s->pos++;
+	}
+
+	pthread_mutex_unlock(&s->lock);
 
 err_out_exit:
 	return err;
@@ -636,16 +723,23 @@ static int blob_list(struct blob_backend *b, void *state, struct dnet_cmd *cmd, 
 	s.attr = attr;
 	s.pos = 0;
 
+	err = pthread_mutex_init(&s.lock, NULL);
+	if (err)
+		goto err_out_exit;
+
 	if (attr->flags & DNET_ATTR_ID_OUT)
 		dnet_state_get_next_id(state, s.id);
 
-	err = blob_iterate(b->history.fd, NULL, blob_iterate_list_callback, &s);
+	err = dnet_blob_iterate(b, &b->history, NULL, blob_iterate_list_callback, &s);
 	if (err)
-		return err;
+		goto err_out_lock_destroy;
 
 	if (s.pos)
 		err = dnet_send_reply(s.state, s.cmd, s.attr, s.ids, s.pos * sizeof(struct dnet_id), 1);
 
+err_out_lock_destroy:
+	pthread_mutex_destroy(&s.lock);
+err_out_exit:
 	return err;
 }
 
@@ -780,6 +874,14 @@ static int dnet_blob_set_block_size(struct dnet_config_backend *b, char *key, ch
 	return 0;
 }
 
+static int dnet_blob_set_iterate_thread_num(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct blob_backend *r = b->data;
+
+	r->iterate_threads = strtoul(value, NULL, 0);
+	return 0;
+}
+
 static int dnet_blob_set_hash_size(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct blob_backend *r = b->data;
@@ -848,6 +950,9 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 		goto err_out_exit;
 	}
 
+	if (!r->iterate_threads)
+		r->iterate_threads = 1;
+
 	err = pthread_mutex_init(&r->lock, NULL);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "Failed to initialize pthread mutex: %d\n", err);
@@ -865,15 +970,15 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 		err = -EINVAL;
 		goto err_out_lock_destroy;
 	}
-
-	err = blob_iterate(r->data.index, b->log, dnet_blob_iter_data, r);
+	
+	err = dnet_blob_iterate(r, &r->data, b->log, dnet_blob_iter_data, r);
 	if (err) {
-		dnet_backend_log(DNET_LOG_ERROR, "blob: data iteration failed: %d.\n", err);
+		dnet_backend_log(DNET_LOG_ERROR, "blob: history iteration failed: %d.\n", err);
 		goto err_out_hash_destroy;
 	}
 	posix_fadvise(r->data.fd, 0, r->data.offset, POSIX_FADV_RANDOM);
 
-	err = blob_iterate(r->history.index, b->log, dnet_blob_iter_history, r);
+	err = dnet_blob_iterate(r, &r->history, b->log, dnet_blob_iter_history, r);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "blob: history iteration failed: %d.\n", err);
 		goto err_out_hash_destroy;
@@ -916,6 +1021,7 @@ static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"history_block_size", dnet_blob_set_block_size},
 	{"hash_table_size", dnet_blob_set_hash_size},
 	{"hash_table_flags", dnet_blob_set_hash_flags},
+	{"iterate_thread_num", dnet_blob_set_iterate_thread_num},
 };
 
 static struct dnet_config_backend dnet_blob_backend = {

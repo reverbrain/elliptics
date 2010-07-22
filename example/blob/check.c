@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 		}
 
 		printf("%s\n", file);
-		err = blob_iterate(fd, NULL, blob_check_iterator, NULL);
+		err = blob_iterate(fd, 0, 0, NULL, blob_check_iterator, NULL);
 	}
 
 	return 0;
