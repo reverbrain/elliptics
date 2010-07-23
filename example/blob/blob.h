@@ -42,10 +42,19 @@ struct blob_ram_control {
 	size_t			offset;
 	off_t			index_pos;
 	uint64_t		size;
+
+	int			file_index;
 };
 
-int blob_iterate(int fd, off_t offset, size_t size, struct dnet_log *l,
-		int (* callback)(struct blob_disk_control *dc, void *data, off_t position, void *priv),
+struct blob_backend_io {
+	int			fd, index;
+	int			file_index;
+	off_t			offset;
+	off_t			index_pos;
+};
+
+int blob_iterate(struct blob_backend_io *io, off_t offset, size_t size, struct dnet_log *l,
+		int (* callback)(struct blob_disk_control *dc, int file_index, void *data, off_t position, void *priv),
 		void *priv);
 
 #endif /* __ELLIPTICS_BLOB_H */

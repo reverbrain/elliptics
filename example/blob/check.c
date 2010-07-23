@@ -32,12 +32,12 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
-static int blob_check_iterator(struct blob_disk_control *dc, void *data __unused, off_t position, void *priv __unused)
+static int blob_check_iterator(struct blob_disk_control *dc, int file_index, void *data __unused, off_t position, void *priv __unused)
 {
 	char id[DNET_ID_SIZE*2+1];
 
-	printf("%s: position: %llu (0x%llx), data position: %llu (0x%llx), data size: %llu, disk size: %llu, flags: %llx.\n",
-			dnet_dump_id_len_raw(dc->id, DNET_ID_SIZE, id),
+	printf("%s: file index: %d, position: %llu (0x%llx), data position: %llu (0x%llx), data size: %llu, disk size: %llu, flags: %llx.\n",
+			dnet_dump_id_len_raw(dc->id, DNET_ID_SIZE, id), file_index,
 			(unsigned long long)position, (unsigned long long)position,
 			(unsigned long long)dc->position, (unsigned long long)dc->position,
 			(unsigned long long)dc->data_size, (unsigned long long)dc->disk_size,
@@ -48,22 +48,26 @@ static int blob_check_iterator(struct blob_disk_control *dc, void *data __unused
 
 int main(int argc, char *argv[])
 {
-	int i, err, fd;
+	int i, err;
 	char *file;
+	struct blob_backend_io io;
+
+	memset(&io, 0, sizeof(io));
 
 	for (i=1; i<argc; ++i) {
 		file = argv[i];
 
-		fd = open(file, O_RDONLY);
-		if (fd < 0) {
+		io.fd = open(file, O_RDONLY);
+		if (io.fd < 0) {
 			err = -errno;
 			fprintf(stderr, "Failed to open file '%s': %s.\n",
 					file, strerror(errno));
 			continue;
 		}
+		io.index = io.fd;
 
 		printf("%s\n", file);
-		err = blob_iterate(fd, 0, 0, NULL, blob_check_iterator, NULL);
+		err = blob_iterate(&io, 0, 0, NULL, blob_check_iterator, NULL);
 	}
 
 	return 0;

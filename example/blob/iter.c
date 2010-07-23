@@ -77,8 +77,8 @@ static void blob_iterate_log_raw(struct dnet_log *l, uint32_t mask, const char *
 			blob_iterate_log_raw((l), mask, format, ##a); 	\
 	} while (0)
 
-int blob_iterate(int fd, off_t pos, size_t num, struct dnet_log *l,
-		int (* callback)(struct blob_disk_control *dc, void *data, off_t position, void *priv),
+int blob_iterate(struct blob_backend_io *io, off_t pos, size_t num, struct dnet_log *l,
+		int (* callback)(struct blob_disk_control *dc, int file_idx, void *data, off_t position, void *priv),
 		void *priv)
 
 {
@@ -99,10 +99,10 @@ int blob_iterate(int fd, off_t pos, size_t num, struct dnet_log *l,
 		l = &log;
 	}
 
-	err = fstat(fd, &st);
+	err = fstat(io->index, &st);
 	if (err) {
 		err = -errno;
-		blob_iterate_log(l, DNET_LOG_ERROR, "blob: failed to stat file: %s.\n", strerror(errno));
+		blob_iterate_log(l, DNET_LOG_ERROR, "blob %d: failed to stat file: %s.\n", io->file_index, strerror(errno));
 		goto err_out_exit;
 	}
 
@@ -113,17 +113,19 @@ int blob_iterate(int fd, off_t pos, size_t num, struct dnet_log *l,
 	off = pos * sizeof(struct blob_disk_control);
 	offset = off & ~(page_size - 1);
 
-	if (!size || size + offset >= st.st_size) {
+	if (!size || offset >= st.st_size) {
+		blob_iterate_log(l, DNET_LOG_ERROR, "blob %d: exiting iteration without error: size: %zu, offset: %llu, file size: %llu.\n",
+				io->file_index, size, offset, st.st_size);
 		err = 0;
 		goto err_out_exit;
 	}
 
 	mapped_size = size + off - offset;
 
-	data = mmap(NULL, mapped_size, PROT_READ, MAP_SHARED, fd, offset);
+	data = mmap(NULL, mapped_size, PROT_READ, MAP_SHARED, io->index, offset);
 	if (data == MAP_FAILED) {
 		err = -errno;
-		blob_iterate_log(l, DNET_LOG_ERROR, "blob: failed to mmap file, size: %zu: %s.\n", strerror(errno));
+		blob_iterate_log(l, DNET_LOG_ERROR, "blob %d: failed to mmap file, size: %zu: %s.\n", io->file_index, strerror(errno));
 		goto err_out_exit;
 	}
 
@@ -133,8 +135,8 @@ int blob_iterate(int fd, off_t pos, size_t num, struct dnet_log *l,
 		err = -EINVAL;
 
 		if (size < sizeof(struct blob_disk_control)) {
-			blob_iterate_log(l, DNET_LOG_ERROR, "blob: iteration fails: size (%zu) is less than disk control struct (%zu).\n",
-					size, sizeof(struct blob_disk_control));
+			blob_iterate_log(l, DNET_LOG_ERROR, "blob %d: iteration fails: size (%zu) is less than disk control struct (%zu).\n",
+					io->file_index, size, sizeof(struct blob_disk_control));
 			goto err_out_unmap;
 		}
 
@@ -143,16 +145,23 @@ int blob_iterate(int fd, off_t pos, size_t num, struct dnet_log *l,
 
 		position = ptr - data;
 
-		if (size < dc.disk_size) {
-			blob_iterate_log(l, DNET_LOG_ERROR, "blob: iteration fails: size (%zu) is less than on-disk specified size (%llu).\n",
-					size, (unsigned long long)dc.disk_size);
+		if (!dc.disk_size) {
+			blob_iterate_log(l, DNET_LOG_ERROR, "blob %d: iteration fails: on-disk format broken: "
+					"rest of the file: %zu, disk-specified size (%llu).\n",
+					io->file_index, size, (unsigned long long)dc.disk_size);
 			goto err_out_unmap;
 		}
 
-		err = callback(&dc, ptr + sizeof(struct blob_disk_control), position, priv);
+		if (size < dc.disk_size) {
+			blob_iterate_log(l, DNET_LOG_ERROR, "blob %d: iteration fails: size (%zu) is less than on-disk specified size (%llu).\n",
+					io->file_index, size, (unsigned long long)dc.disk_size);
+			goto err_out_unmap;
+		}
+
+		err = callback(&dc, io->file_index, ptr + sizeof(struct blob_disk_control), position, priv);
 		if (err < 0) {
-			blob_iterate_log(l, DNET_LOG_ERROR, "blob: iteration callback fails: data size: %llu, disk size: %llu, position: %llu, err: %d.\n",
-					(unsigned long long)dc.data_size, (unsigned long long)dc.disk_size, position, err);
+			blob_iterate_log(l, DNET_LOG_ERROR, "blob %d: iteration callback fails: data size: %llu, disk size: %llu, position: %llu, err: %d.\n",
+					io->file_index, (unsigned long long)dc.data_size, (unsigned long long)dc.disk_size, position, err);
 			goto err_out_unmap;
 		}
 
