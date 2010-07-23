@@ -1,3 +1,9 @@
+elliptics (2.9.0.10) unstable; urgency=low
+
+  * return back addressing magic^W logic in dnet_write_object_raw()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 23 Jul 2010 12:04:11 +0400
+
 elliptics (2.9.0.9) unstable; urgency=low
 
   * Return back virtual datacenters.
