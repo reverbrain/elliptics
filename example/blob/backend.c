@@ -375,7 +375,8 @@ static int blob_update_index(struct blob_backend *b, struct blob_backend_io *io,
 		goto err_out_exit;
 	}
 
-	printf("wrote %u bytes at %llu into %d\n", sizeof(dc), (*offset)*sizeof(dc), io->index);
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: wrote %u bytes at %llu into %d\n",
+			dnet_dump_id(data_ctl->key), sizeof(dc), (*offset)*sizeof(dc), io->index);
 
 	*offset = *offset + 1;
 	err = 0;
