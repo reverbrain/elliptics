@@ -36,6 +36,7 @@
 #define DNET_FCGI_ID_DELIMITER		"&"
 #define DNET_FCGI_VERSION_PATTERN	"version="
 #define DNET_FCGI_TIMESTAMP_PATTERN	"timestamp="
+#define DNET_FCGI_EMBED_PATTERN		"embed"
 #define DNET_FCGI_LOG			"/tmp/dnet_fcgi.log"
 #define DNET_FCGI_TMP_DIR		"/tmp"
 #define DNET_FCGI_LOCAL_ADDR		"0.0.0.0:1025:2"
@@ -143,6 +144,25 @@ struct dnet_fcgi_content_type {
 };
 static int dnet_fcgi_ctypes_num;
 static struct dnet_fcgi_content_type *dnet_fcgi_ctypes;
+
+enum {
+	DNET_FCGI_EMBED_DATA		= 1,
+	DNET_FCGI_EMBED_TIMESTAMP,
+} dnet_fcgi_embed_types;
+
+struct dnet_fcgi_embed {
+	uint64_t		size;
+	uint32_t		type;
+	uint32_t		flags;
+	uint8_t			data[0];
+};
+
+static inline void dnet_fcgi_convert_embedded(struct dnet_fcgi_embed *e)
+{
+	e->size = dnet_bswap64(e->size);
+	e->type = dnet_bswap32(e->type);
+	e->flags = dnet_bswap32(e->flags);
+}
 
 /*
  * Workaround for libfcgi 64bit issues, namely we will format
@@ -364,7 +384,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_fcgi_put_last_modified()
+static int dnet_fcgi_put_last_modified(void)
 {
 	char str[128];
 	char fmt[] = "%a, %d %b %Y %T %Z";
@@ -652,12 +672,12 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len, int version
 	return error;
 }
 
-static int dnet_fcgi_get_data(struct dnet_node *n, unsigned char *id, struct dnet_io_control *ctl, uint64_t *tsec)
+static int dnet_fcgi_get_data(struct dnet_node *n, unsigned char *id, struct dnet_io_control *ctl, uint64_t *tsec, int embed)
 {
 	int err;
 	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
-	if (dnet_fcgi_last_modified) {
+	if (dnet_fcgi_last_modified && !embed) {
 		uint64_t tsec_local;
 
 		err = 0;
@@ -715,10 +735,10 @@ static int dnet_fcgi_get_data_version(struct dnet_node *n, unsigned char *id, st
 	if (err)
 		return err;
 
-	return dnet_fcgi_get_data(n, dst, ctl, &tsec);
+	return dnet_fcgi_get_data(n, dst, ctl, &tsec, 0);
 }
 
-static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct dnet_io_control *ctl, int version)
+static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct dnet_io_control *ctl, int version, int embed)
 {
 	int err, error = -ENOENT;
 	int pos = 0, random_num = 0;
@@ -774,7 +794,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 #endif
 
 		if (version == -1) {
-			err = dnet_fcgi_get_data(n, dnet_fcgi_id, ctl, NULL);
+			err = dnet_fcgi_get_data(n, dnet_fcgi_id, ctl, NULL, embed);
 		} else {
 			err = dnet_fcgi_get_data_version(n, dnet_fcgi_id, ctl, version);
 		}
@@ -849,7 +869,8 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 	return err;
 }
 
-static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int length, int version, struct timespec *ts)
+static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int length,
+	int version, struct timespec *ts, int embed)
 {
 	void *data;
 	unsigned long data_size, size;
@@ -878,14 +899,40 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 		goto err_out_exit;
 	}
 
+	size = data_size;
+	if (embed)
+		data_size += sizeof(struct dnet_fcgi_embed) * 2 + sizeof(uint64_t) * 2;
+
 	data = malloc(data_size);
 	if (!data) {
 		fprintf(dnet_fcgi_log, "%s: failed to allocate %lu bytes.\n", addr, data_size);
 		goto err_out_exit;
 	}
 
-	size = data_size;
 	p = data;
+
+	if (embed) {
+		struct dnet_fcgi_embed *e = (struct dnet_fcgi_embed *)p;
+		uint64_t *edata = (uint64_t *)e->data;
+
+		e->size = sizeof(uint64_t) * 2;
+		e->type = DNET_FCGI_EMBED_TIMESTAMP;
+		e->flags = 0;
+		dnet_fcgi_convert_embedded(e);
+
+		edata[0] = dnet_bswap64(ts->tv_sec);
+		edata[1] = dnet_bswap64(ts->tv_nsec);
+
+		p += sizeof(struct dnet_fcgi_embed) + sizeof(uint64_t) * 2;
+		e = (struct dnet_fcgi_embed *)p;
+
+		e->size = size;
+		e->type = DNET_FCGI_EMBED_DATA;
+		e->flags = 0;
+		dnet_fcgi_convert_embedded(e);
+
+		p += sizeof(struct dnet_fcgi_embed);
+	}
 
 	while (size) {
 		err = FCGX_GetStr(p, size, dnet_fcgi_request.in);
@@ -1003,7 +1050,7 @@ err_out_exit:
 }
 
 static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *a, void *priv __unused)
+		struct dnet_attr *a, void *priv)
 {
 	int err;
 	struct dnet_io_attr *io;
@@ -1034,6 +1081,39 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		goto err_out_exit;
 	}
 
+	io = (struct dnet_io_attr *)(a + 1);
+	data = io + 1;
+
+	dnet_convert_io_attr(io);
+	size = io->size;
+
+	/* received data embeds objects, potentially timestamp which we will hunt for here */
+	if (priv) {
+		while (1) {
+			struct dnet_fcgi_embed *e = data;
+
+			dnet_fcgi_convert_embedded(e);
+
+			if (e->type == DNET_FCGI_EMBED_TIMESTAMP) {
+				uint64_t *ptr = (uint64_t *)e->data;
+
+				dnet_fcgi_trans_tsec = dnet_bswap64(ptr[0]);
+				/* dnet_fcgi_trans_nsec = dnet_bswap64(ptr[1]); */
+			}
+
+			fprintf(dnet_fcgi_log, "%s: found embedded object: type: %x, flags: %x, size: %llu.\n",
+					dnet_dump_id(dnet_fcgi_id), e->type, e->flags, e->size);
+
+			data += sizeof(struct dnet_fcgi_embed);
+			if (e->type == DNET_FCGI_EMBED_DATA) {
+				size = e->size;
+				break;
+			}
+
+			data += e->size;
+		}
+	}
+
 	err = dnet_fcgi_put_last_modified();
 	if (err) {
 		if (err > 0)
@@ -1041,14 +1121,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		goto err_out_exit;
 	}
 
-	io = (struct dnet_io_attr *)(a + 1);
-	data = io + 1;
-
-	dnet_convert_io_attr(io);
-
 	dnet_fcgi_output("\r\n");
-
-	size = io->size;
 
 	pthread_mutex_lock(&dnet_fcgi_output_lock);
 
@@ -1308,7 +1381,8 @@ static void dnet_fcgi_output_content_type(char *id)
 	dnet_fcgi_output("Content-type: octet/stream\r\n");
 }
 
-static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, char *id, int length, int version)
+static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr,
+		char *id, int length, int version, int embed)
 {
 	int err;
 	char *p;
@@ -1339,6 +1413,7 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, ch
 			ctl.complete = dnet_fcgi_read_complete;
 			ctl.cmd = DNET_CMD_READ;
 			ctl.cflags = DNET_FLAGS_NEED_ACK;
+			ctl.priv = (void *)embed;
 
 			c = &ctl;
 		} else {
@@ -1353,7 +1428,7 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr, ch
 	}
 
 lookup:
-	err = dnet_fcgi_process_io(n, id, length, c, version);
+	err = dnet_fcgi_process_io(n, id, length, c, version, embed);
 	if (err) {
 		fprintf(dnet_fcgi_log, "%s: Failed to lookup object '%s': %d.\n", addr, id, err);
 		goto out_exit;
@@ -1566,7 +1641,7 @@ static void dnet_fcgi_destroy_permanent_headers()
 int main()
 {
 	char *p, *addr, *reason, *method, *query, *hash;
-	char *id_pattern, *id_delimiter, *direct_patterns = NULL, *version_pattern, *version_str, *timestamp_pattern;
+	char *id_pattern, *id_delimiter, *direct_patterns = NULL, *version_pattern, *version_str, *timestamp_pattern, *embed_pattern, *embed_str;
 	int length, id_pattern_length, err, post_allowed, version_pattern_len, timestamp_pattern_len;
 	int version;
 	char *id, *end;
@@ -1720,12 +1795,6 @@ int main()
 	if (p)
 		dnet_fcgi_upload_host_limit = atoi(p);
 
-	p = getenv("DNET_FCGI_RANDOM_HASHES");
-	if (p) {
-		dnet_fcgi_random_hashes = atoi(p);
-		srand(time(NULL));
-	}
-
 	p = getenv("DNET_FCGI_TOLERATE_UPLOAD_ERROR_COUNT");
 	if (p)
 		dnet_fcgi_tolerate_upload_error_count = atoi(p);
@@ -1768,6 +1837,7 @@ int main()
 	id_delimiter = getenv("DNET_FCGI_ID_DELIMITER");
 	version_pattern = getenv("DNET_FCGI_VERSION_PATTERN");
 	timestamp_pattern = getenv("DNET_FCGI_TIMESTAMP_PATTERN");
+	embed_pattern = getenv("DNET_FCGI_EMBED_PATTERN");
 
 	if (!id_pattern)
 		id_pattern = DNET_FCGI_ID_PATTERN;
@@ -1780,6 +1850,9 @@ int main()
 	if (!timestamp_pattern)
 		timestamp_pattern = DNET_FCGI_TIMESTAMP_PATTERN;
 	timestamp_pattern_len = strlen(timestamp_pattern);
+
+	if (!embed_pattern)
+		embed_pattern = DNET_FCGI_EMBED_PATTERN;
 
 	id_pattern_length = strlen(id_pattern);
 
@@ -1864,6 +1937,8 @@ int main()
 			if (*version_str)
 				version = strtol(version_str, NULL, 0);
 		}
+		
+		embed_str = strstr(query, embed_pattern);
 
 		if (dnet_fcgi_external_callback_start)
 			dnet_fcgi_external_start(n, query, addr, id, length);
@@ -1897,17 +1972,18 @@ int main()
 				ts.tv_nsec = tv.tv_usec * 1000;
 			}
 
-			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d, ts: %lu.%lu.\n", id, length, version, ts.tv_sec, ts.tv_nsec);
+			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d, ts: %lu.%lu, embed: %d.\n",
+					id, length, version, ts.tv_sec, ts.tv_nsec, !!embed_str);
 
-			err = dnet_fcgi_handle_post(n, addr, id, length, version, &ts);
+			err = dnet_fcgi_handle_post(n, addr, id, length, version, &ts, !!embed_str);
 			if (err) {
 				fprintf(dnet_fcgi_log, "%s: Failed to handle POST for object '%s': %d.\n", addr, id, err);
 				reason = "failed to handle POST";
 				goto err_continue;
 			}
 		} else {
-			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d.\n", id, length, version);
-			err = dnet_fcgi_handle_get(n, query, addr, id, length, version);
+			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d, embed: %d.\n", id, length, version, !!embed_str);
+			err = dnet_fcgi_handle_get(n, query, addr, id, length, version, !!embed_str);
 			if (err) {
 				fprintf(dnet_fcgi_log, "%s: Failed to handle GET for object '%s': %d.\n", addr, id, err);
 				reason = "failed to handle GET";
