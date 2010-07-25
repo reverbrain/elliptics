@@ -142,6 +142,20 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Jul 25 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.11-1
+- Added embedded URI parameter, which will force timestamp to be embedded
+    with data. It is possible to embed other parameters too.
+
+    post: wget -O /tmp/1111 -S --post-file=elliptics.spec
+    "http://devfs1/test.mp3?name=qwerty.xml&embed&timestamp=123"
+
+    get: wget -O /tmp/1111 -S --header="If-Modified-Since: Thu, 01 Jan 1970
+    00:02:00 GMT"  "http://devfs1/test.mp3?name=qwerty.xml&embed&direct=1"
+- fixed random hash selection in fcgi frontend.
+
+* Fri Jul 23 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.10-1
+-return back addressing magic^W logic in dnet_write_object_raw()
+
 * Thu Jul 22 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.9-1
 - return back virtual datacenters.
 

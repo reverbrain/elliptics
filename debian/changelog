@@ -1,3 +1,17 @@
+elliptics (2.9.0.11) unstable; urgency=low
+
+  * Added embedded URI parameter, which will force timestamp to be embedded
+    with data. It is possible to embed other parameters too.
+
+    post: wget -O /tmp/1111 -S --post-file=elliptics.spec
+    "http://devfs1/test.mp3?name=qwerty.xml&embed&timestamp=123"
+
+    get: wget -O /tmp/1111 -S --header="If-Modified-Since: Thu, 01 Jan 1970
+    00:02:00 GMT"  "http://devfs1/test.mp3?name=qwerty.xml&embed&direct=1"
+  * fixed random hash selection in fcgi frontend.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 25 Jul 2010 20:09:20 +0400
+
 elliptics (2.9.0.10) unstable; urgency=low
 
   * return back addressing magic^W logic in dnet_write_object_raw()
