@@ -1781,9 +1781,18 @@ int main()
 		dnet_fcgi_hashes_len++; /* including trailing 0-byte*/
 	}
 
+	p = getenv("DNET_FCGI_RANDOM_HASHES");
+	if (p) {
+		dnet_fcgi_random_hashes = atoi(p);
+		srand(time(NULL));
+	}
+
 	err = dnet_common_add_transform(n, hash);
-	if (err)
+	if (err < 0)
 		goto err_out_free_hashes;
+
+	if (dnet_fcgi_random_hashes > err)
+		dnet_fcgi_random_hashes = err;
 
 	dnet_fcgi_setup_permanent_headers();
 

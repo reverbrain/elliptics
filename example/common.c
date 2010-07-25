@@ -416,12 +416,6 @@ int dnet_common_add_transform(struct dnet_node *n, char *orig_hash)
 	int added = 0, err;
 	struct dnet_crypto_engine *e;
 
-	p = getenv("DNET_FCGI_RANDOM_HASHES");
-	if (p) {
-		dnet_fcgi_random_hashes = atoi(p);
-		srand(time(NULL));
-	}
-
 	if (!orig_hash)
 		return 0;
 
@@ -477,12 +471,9 @@ int dnet_common_add_transform(struct dnet_node *n, char *orig_hash)
 		goto err_out_free;
 	}
 
-	if (dnet_fcgi_random_hashes > added)
-		dnet_fcgi_random_hashes = added;
-
 	free(h);
 
-	return 0;
+	return added;
 
 err_out_free:
 	free(h);

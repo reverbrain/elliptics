@@ -259,9 +259,11 @@ struct dnet_node *dnet_parse_config(char *file)
 		goto err_out_file_exit;
 #endif
 
-	err = dnet_blob_backend_init();
+#ifdef HAVE_EBLOB_SUPPORT
+	err = dnet_eblob_backend_init();
 	if (err)
 		goto err_out_tc_exit;
+#endif
 
 	while (1) {
 		ptr = fgets(buf, sizeof(buf), f);
@@ -374,7 +376,7 @@ struct dnet_node *dnet_parse_config(char *file)
 		goto err_out_node_destroy;
 
 	err = dnet_common_add_transform(n, dnet_cfg_transform);
-	if (err)
+	if (err < 0)
 		goto err_out_node_destroy;
 
 	if (dnet_cfg_state.join & DNET_JOIN_NETWORK) {
@@ -393,7 +395,9 @@ err_out_free:
 	free(dnet_cfg_transform);
 	free(dnet_cfg_remotes);
 err_out_blob_exit:
-	dnet_blob_backend_exit();
+#ifdef HAVE_EBLOB_SUPPORT
+	dnet_eblob_backend_exit();
+#endif
 err_out_tc_exit:
 #ifdef HAVE_TOKYOCABINET_SUPPORT
 	dnet_tc_backend_exit();
