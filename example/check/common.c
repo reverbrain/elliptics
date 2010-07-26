@@ -572,7 +572,9 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
-	cfg.wait_timeout = 60;
+	cfg.wait_timeout = 60*60;
+	cfg.resend_timeout.tv_sec = 60*60*10;
+	cfg.resend_count = 0;
 	dnet_check_logger.log_mask = DNET_LOG_ERROR;
 	dnet_check_logger.log = dnet_common_log;
 	cfg.log = &dnet_check_logger;
