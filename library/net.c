@@ -475,10 +475,9 @@ int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsign
 	struct dnet_addr_storage *a, *it;
 	int err = 0;
 
-#if 0
 	if (!join_state)
 		goto out_exit;
-#endif
+
 	a = malloc(sizeof(struct dnet_addr_storage));
 	if (!a) {
 		err = -ENOMEM;
