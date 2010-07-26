@@ -308,7 +308,7 @@ struct blob_iterate_shared {
 	int			pos;
 
 	pthread_mutex_t		lock;
-	struct dnet_id		ids[10240];
+	struct dnet_id		ids[1024];
 };
 
 static int blob_iterate_list_callback(struct eblob_disk_control *dc, int file_index __unused,

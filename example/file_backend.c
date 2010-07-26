@@ -147,7 +147,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 	DIR *dir;
 	struct dirent *d;
 	unsigned char id[DNET_ID_SIZE];
-	unsigned int len, sub_len = strlen(sub), num = 1024*1024, pos = 0;
+	unsigned int len, sub_len = strlen(sub), num = 1024, pos = 0;
 	uint32_t flags;
 	struct dnet_id *ids;
 

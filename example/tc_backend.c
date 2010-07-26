@@ -307,7 +307,7 @@ static int tc_list_raw(void *state, struct tc_backend *be, struct dnet_cmd *cmd,
 	uint32_t flags;
 	unsigned char id[DNET_ID_SIZE], start, last;
 	TCLIST *l;
-	int inum = 10240, ipos = 0, wrap = 0;
+	int inum = 1024, ipos = 0, wrap = 0;
 	struct dnet_id ids[inum];
 
 	if (out)
