@@ -315,6 +315,15 @@ static int dnet_trans_exec(struct dnet_trans *t)
 {
 	int err = 0;
 
+	if (t->cmd.flags & DNET_FLAGS_MORE) {
+		struct timeval tv;
+
+		gettimeofday(&tv, NULL);
+
+		t->fire_time.tv_sec = tv.tv_sec;
+		t->fire_time.tv_nsec = tv.tv_usec * 1000;
+	}
+
 	dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: executing transaction %llu, reply: %d, complete: %p, r: %p.\n",
 			dnet_dump_id(t->cmd.id), t->cmd.trans & ~DNET_TRANS_REPLY,
 			!!(t->cmd.trans & DNET_TRANS_REPLY), t->complete, &t->r);
