@@ -893,7 +893,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 	st = dnet_add_state_socket(n, &addr, s);
 	if (!st) {
 		err = -EINVAL;
-		dnet_add_reconnect_state(n, &addr, cfg->join);
+		dnet_add_reconnect_state(n, &addr, cfg->join | DNET_WANT_RECONNECT);
 		goto err_out_sock_close;
 	}
 
