@@ -112,14 +112,12 @@ rm -rf %{buildroot}
 %doc AUTHORS AUTHORS COPYING README
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
-%{_libdir}/libelliptics_blob.so.*
 
 
 %files devel
 %defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/libelliptics.so
-%{_libdir}/libelliptics_blob.so
 
 %files python
 %defattr(-,root,root,-)
