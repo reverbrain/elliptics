@@ -142,6 +142,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Jul 26 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.12-1
+- Let check applications to sleep longer waiting for replies.
+- Reduce number of ids sent via DNET_CMD_LIST command to 1024 per reply.
+- Mark states added via dnet_add_state() as reconnect-friendly.
+- Do not add reconnection addresses which do not have joining flags.
+- Updated to the latest eblob lib (moved blob code outside to libeblob).
+- Reschedule transaction's fire time when (non-last) reply is received.
+- Do not mess with dnet_fcgi_random_hashes outside of fcgi.c
+
 * Sun Jul 25 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.11-1
 - Added embedded URI parameter, which will force timestamp to be embedded
     with data. It is possible to embed other parameters too.
