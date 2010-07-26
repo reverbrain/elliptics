@@ -123,7 +123,7 @@ static int blob_write_history_meta(void *state, void *backend, struct dnet_io_at
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: updating history: size: %llu, iosize: %llu.\n",
 				dnet_dump_id(io->origin), (unsigned long long)size, (unsigned long long)io->size);
 
-	err = eblob_write_data(b, io->origin, DNET_ID_SIZE, new_hdata, 0, size, 0);
+	err = eblob_write_data(b, io->origin, DNET_ID_SIZE, new_hdata, size, BLOB_DISK_CTL_NOCSUM);
 	if (err) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to update (%llu bytes) history: %s.\n",
@@ -137,7 +137,8 @@ err_out_exit:
 	return err;
 }
 
-static int blob_write_history(struct eblob_backend *b, void *state, struct dnet_io_attr *io, void *data)
+static int blob_write_history(struct eblob_backend *b, void *state,
+		struct dnet_io_attr *io, void *data)
 {
 	return backend_write_history(state, b, io, data, blob_write_history_meta);
 }
@@ -157,14 +158,16 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 		if (err)
 			goto err_out_exit;
 	} else {
-		err = eblob_write_data(c->data_blob, io->origin, DNET_ID_SIZE, data, io->offset, io->size, 0);
+		err = eblob_write_data(c->data_blob, io->origin, DNET_ID_SIZE,
+				data, io->size, BLOB_DISK_CTL_NOCSUM);
 		if (err)
 			goto err_out_exit;
 
 		if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)) {
 			struct dnet_history_entry e;
 
-			dnet_setup_history_entry(&e, io->id, io->size, io->offset, NULL, io->flags);
+			dnet_setup_history_entry(&e, io->id, io->size, io->offset,
+					NULL, io->flags);
 
 			io->flags |= DNET_IO_FLAGS_APPEND | DNET_IO_FLAGS_HISTORY;
 			io->flags &= ~DNET_IO_FLAGS_META;
@@ -177,7 +180,8 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 		}
 	}
 
-	dnet_backend_log(DNET_LOG_NOTICE, "blob: %s: IO offset: %llu, size: %llu.\n", dnet_dump_id(cmd->id),
+	dnet_backend_log(DNET_LOG_NOTICE, "blob: %s: IO offset: %llu, size: %llu.\n",
+		dnet_dump_id(cmd->id),
 		(unsigned long long)io->offset, (unsigned long long)io->size);
 
 	return 0;
@@ -203,7 +207,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	else
 		b = c->data_blob;
 
-	err = eblob_read(b, io->origin, DNET_ID_SIZE, &fd, &size, &offset);
+	err = eblob_read(b, io->origin, DNET_ID_SIZE, &fd, &offset, &size);
 
 	if (io->size && size > io->size)
 		size = io->size;
