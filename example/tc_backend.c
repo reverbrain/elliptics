@@ -166,14 +166,17 @@ static int tc_write_history_meta(void *state, void *backend, struct dnet_io_attr
 {
 	TCADB *db = backend;
 	void *hdata, *new_hdata;
-	int size, err;
+	int size = 0, err;
 	bool res;
 	
 	hdata = tcadbget(db, io->origin, DNET_ID_SIZE, &size);
 	if (!hdata) {
-		err = -ENOMEM;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to read history object.\n", dnet_dump_id(io->id));
-		goto err_out_exit;
+		hdata = malloc(size);
+		if (!hdata) {
+			err = -ENOMEM;
+			dnet_backend_log(DNET_LOG_ERROR, "%s: failed to allocate empty history object.\n", dnet_dump_id(io->id));
+			goto err_out_exit;
+		}
 	}
 
 	new_hdata = backend_process_meta(state, io, hdata, (uint32_t *)&size, m, data);

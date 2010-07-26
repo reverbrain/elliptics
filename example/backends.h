@@ -104,11 +104,11 @@ void dnet_file_backend_exit(void);
 int dnet_tc_backend_init(void);
 void dnet_tc_backend_exit(void);
 
-int dnet_blob_backend_init(void);
-void dnet_blob_backend_exit(void);
+int dnet_eblob_backend_init(void);
+void dnet_eblob_backend_exit(void);
 
 int dnet_backend_check_log_mask(uint32_t mask);
-void dnet_backend_log_raw(uint32_t mask, const char *fmt, ...);
+void dnet_backend_log_raw(uint32_t mask, const char *fmt, ...) __attribute__ ((format(printf, 2, 3)));
 #define dnet_backend_log(mask, format, a...)				\
 	do {								\
 		if (dnet_backend_check_log_mask(mask))			\

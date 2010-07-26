@@ -807,26 +807,6 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
  */
 int dnet_meta_create_file(struct dnet_node *n, char *metafile, struct dnet_meta *m, void *mdata);
 
-
-#define DNET_HASH_MLOCK		(1<<0)
-
-struct dnet_hash_head;
-struct dnet_hash {
-	unsigned int		num;
-	unsigned int		flags;
-	struct dnet_hash_head	*heads;
-};
-
-struct dnet_hash *dnet_hash_init(unsigned int num, unsigned int flags);
-void dnet_hash_exit(struct dnet_hash *h);
-int dnet_hash_insert(struct dnet_hash *h, void *key, unsigned int ksize, void *data, unsigned int dsize);
-int dnet_hash_replace(struct dnet_hash *h, void *key, unsigned int ksize, void *data, unsigned int dsize);
-int dnet_hash_remove(struct dnet_hash *h, void *key, unsigned int ksize);
-int dnet_hash_lookup(struct dnet_hash *h, void *key, unsigned int ksize, void *data, unsigned int *dsize);
-int hash_iterate_all(struct dnet_hash *h,
-	int (* callback)(void *key, unsigned int ksize, void *data, unsigned int dsize, void *priv),
-	void *priv);
-
 #ifdef __cplusplus
 }
 #endif
