@@ -1,3 +1,9 @@
+elliptics (2.9.0.13) unstable; urgency=low
+
+  * Added logs into file io backend listing processor.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 27 Jul 2010 21:00:45 +0400
+
 elliptics (2.9.0.12) unstable; urgency=low
 
   * Let check applications to sleep longer waiting for replies.
