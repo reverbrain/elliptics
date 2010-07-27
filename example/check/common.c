@@ -79,6 +79,7 @@ static int dnet_check_log_init(struct dnet_node *n, struct dnet_config *cfg, cha
 	if (log && old)
 		fclose(old);
 
+	dnet_common_log(cfg->log->log_private, DNET_LOG_ERROR, "Reinitialized log.\n");
 	return 0;
 }
 
@@ -682,11 +683,13 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 
 		pthread_cond_init(&w->wait_cond, NULL);
 		pthread_mutex_init(&w->wait_lock, NULL);
-
+#if 0
 		snprintf(log_file, sizeof(log_file), "%s.%d", log, w->id);
+#else
+		snprintf(log_file, sizeof(log_file), "%s", log);
+#endif
 		dnet_check_logger.log_private = NULL;
 		dnet_check_log_init(NULL, &cfg, log_file);
-
 		w->n = dnet_node_create(&cfg);
 		if (!w->n) {
 			err = -ENOMEM;
