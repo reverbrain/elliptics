@@ -197,6 +197,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 			if (err)
 				goto err_out_close;
 
+			dnet_backend_log(DNET_LOG_INFO, "%s: successfully sent %d ids.\n", dnet_dump_id(cmd->id), pos);
 			pos = 0;
 		}
 
@@ -207,7 +208,7 @@ static int dnet_listdir(void *state, struct dnet_cmd *cmd,
 
 		pos++;
 
-		dnet_backend_log(DNET_LOG_INFO, "%s -> %s.\n", d->d_name, dnet_dump_id(id));
+		dnet_backend_log(DNET_LOG_INFO, "%d/%d: %s -> %s.\n", pos, num, d->d_name, dnet_dump_id(id));
 	}
 
 	err = dnet_send_reply(state, cmd, attr, ids, pos * sizeof(struct dnet_id), 0);
