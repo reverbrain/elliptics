@@ -91,7 +91,7 @@ static int blob_write_history_meta(void *state, void *backend, struct dnet_io_at
 
 		dc = hdata;
 
-		blob_convert_disk_control(dc);
+		eblob_convert_disk_control(dc);
 
 		dnet_backend_log(DNET_LOG_INFO,	"%s: found existing block at: %llu, size: %llu, on-disk-stored-size: %llu, fd: %d.\n",
 			dnet_dump_id(io->origin), (unsigned long long)offset, (unsigned long long)size,
