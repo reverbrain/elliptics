@@ -1,3 +1,9 @@
+elliptics (2.9.0.19) unstable; urgency=low
+
+  * Unmap history file when failed to read transaction.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 28 Jul 2010 20:37:21 +0400
+
 elliptics (2.9.0.18) unstable; urgency=low
 
   * Guard OpenSSL_add_all_digests() and initialize it only once per thread
