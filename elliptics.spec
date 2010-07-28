@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.0.12
+Version:	2.9.0.15
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.15-1
+- Made elliptics depend on eblob
+- Updated checker's logger.
+- Increase example/check/common.c waiting timeout.
+- Added logs into file io backend listing processor.
+
 * Sun Jul 26 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.12-1
 - Let check applications to sleep longer waiting for replies.
 - Reduce number of ids sent via DNET_CMD_LIST command to 1024 per reply.
