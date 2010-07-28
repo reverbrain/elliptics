@@ -111,7 +111,7 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 {
 	struct dnet_node *n = w->n;
 	char file[256];
-	int err, version, fd;
+	int err, version, fd, trans_num;
 	struct stat st;
 	struct dnet_history_entry *e;
 	struct dnet_history_map map;
@@ -172,11 +172,15 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 			goto out_close;
 		}
 
+		trans_num = 0;
 		w->wait_num = 0;
 		err = dnet_common_write_object_meta(n, obj, len, w->hashes, strlen(w->hashes), (version != -1),
 				data, size, version, &ts, dnet_check_upload_complete, w);
 
-		err = dnet_check_wait(w, w->wait_num != 0);
+		if (err > 0)
+			trans_num = err;
+
+		err = dnet_check_wait(w, w->wait_num == trans_num);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to wait for common write completion: %d.\n", dnet_dump_id(e->id), err);
 			goto out_unmap;
