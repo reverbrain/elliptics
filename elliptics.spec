@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.0.15
+Version:	2.9.0.17
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.17-1
+- Fixed compilation warnings on 64bit platform (uint64_t to unsigned long
+	long and void * to unsigned long)
+- Try only requested transformation function, do not continue with the next
+	one.
+- Use errno to differentiate reconnection state.
+
 * Sun Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.15-1
 - Made elliptics depend on eblob
 - Updated checker's logger.
