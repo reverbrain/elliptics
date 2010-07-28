@@ -15,6 +15,7 @@ BuildRequires:	openssl-devel
 BuildRequires:	python-devel
 BuildRequires:	boost-python
 BuildRequires:	boost-devel
+BuildRequires:	eblob-devel
 BuildRequires:	automake autoconf libtool
 
 %description
