@@ -15,12 +15,13 @@
 
 #include "config.h"
 
-#include <fcntl.h>
 #include <errno.h>
-#include <unistd.h>
+#include <fcntl.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "hash.h"
 
@@ -87,11 +88,19 @@ static void dnet_openssl_crypto_engine_cleanup(void *priv)
 	free(priv);
 }
 
+static int dnet_openssl_initialized = 0;
+static pthread_mutex_t dnet_openssl_lock = PTHREAD_MUTEX_INITIALIZER;
+
 static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *eng, char *hash)
 {
 	struct dnet_openssl_crypto_engine *e;
 
- 	OpenSSL_add_all_digests();
+	if (!dnet_openssl_initialized) {
+		pthread_mutex_lock(&dnet_openssl_lock);
+	 	OpenSSL_add_all_digests();
+		dnet_openssl_initialized = 1;
+		pthread_mutex_unlock(&dnet_openssl_lock);
+	}
 
 	e = malloc(sizeof(struct dnet_openssl_crypto_engine));
 	if (!e)
