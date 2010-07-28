@@ -45,8 +45,7 @@ int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst, uns
 			*ppos = pos;
 
 			err = t->transform(t->priv, src, size, dst, dsize, 0);
-			if (err)
-				continue;
+			break;
 		}
 	}
 	pthread_rwlock_unlock(&n->transform_lock);
