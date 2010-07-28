@@ -331,6 +331,8 @@ int dnet_check_cleanup_transactions(struct dnet_check_worker *w, struct dnet_che
 
 		unlink(file);
 	}
+	
+	dnet_unmap_history(n, &map);
 
 	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
 		dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid), DNET_HISTORY_SUFFIX);

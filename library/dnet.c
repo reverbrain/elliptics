@@ -1501,7 +1501,6 @@ static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, s
 		goto err_out_close;
 	}
 
-	fsync(fd);
 	close(fd);
 	dnet_log(n, DNET_LOG_INFO, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d.\n",
 			dnet_dump_id(cmd->id), c->file, (unsigned long long)c->offset,
@@ -1513,6 +1512,7 @@ err_out_close:
 	dnet_log(n, DNET_LOG_ERROR, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d, err: %d.\n",
 			dnet_dump_id(cmd->id), c->file, (unsigned long long)io->offset,
 			(unsigned long long)io->size, cmd->status, err);
+	close(fd);
 err_out_exit:
 	if (freeing) {
 		if (c->wait) {
