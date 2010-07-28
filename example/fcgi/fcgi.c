@@ -1102,7 +1102,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 			}
 
 			fprintf(dnet_fcgi_log, "%s: found embedded object: type: %x, flags: %x, size: %llu.\n",
-					dnet_dump_id(dnet_fcgi_id), e->type, e->flags, e->size);
+					dnet_dump_id(dnet_fcgi_id), e->type, e->flags, (unsigned long long)e->size);
 
 			data += sizeof(struct dnet_fcgi_embed);
 			if (e->type == DNET_FCGI_EMBED_DATA) {
@@ -1413,7 +1413,7 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr,
 			ctl.complete = dnet_fcgi_read_complete;
 			ctl.cmd = DNET_CMD_READ;
 			ctl.cflags = DNET_FLAGS_NEED_ACK;
-			ctl.priv = (void *)embed;
+			ctl.priv = (void *)(unsigned long)embed;
 
 			c = &ctl;
 		} else {
