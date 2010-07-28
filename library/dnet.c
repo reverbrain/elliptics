@@ -887,13 +887,14 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 
 	addr.addr_len = sizeof(addr.addr);
 	s = dnet_socket_create(n, cfg, (struct sockaddr *)&addr.addr, &addr.addr_len, 0);
-	if (s < 0)
-		return s;
+	if (s < 0) {
+		err = s;
+		goto err_out_reconnect;
+	}
 
 	st = dnet_add_state_socket(n, &addr, s);
 	if (!st) {
 		err = -EINVAL;
-		dnet_add_reconnect_state(n, &addr, cfg->join | DNET_WANT_RECONNECT);
 		goto err_out_sock_close;
 	}
 
@@ -906,6 +907,10 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 
 err_out_sock_close:
 	close(s);
+err_out_reconnect:
+	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) ||
+			(err == -EINPROGRESS) || (err == -EAGAIN))
+		dnet_add_reconnect_state(n, &addr, cfg->join | DNET_WANT_RECONNECT);
 	return err;
 }
 

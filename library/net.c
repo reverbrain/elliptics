@@ -116,6 +116,7 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 
 	err = getaddrinfo(cfg->addr, cfg->port, &hint, &ai);
 	if (err) {
+		err = -errno;
 		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%s, family: %d, err: %d.\n",
 				cfg->addr, cfg->port, cfg->family, err);
 		goto err_out_exit;
@@ -124,7 +125,7 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 	s = dnet_socket_create_addr(n, cfg->sock_type, cfg->proto, cfg->family,
 			ai->ai_addr, ai->ai_addrlen, listening);
 	if (s < 0) {
-		err = -1;
+		err = -errno;
 		goto err_out_free;
 	}
 
