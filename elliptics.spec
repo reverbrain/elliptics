@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.0.17
+Version:	2.9.0.18
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.18-1
+- Guard OpenSSL_add_all_digests() and initialize it only once per thread
+	group.
+- Force dnet_check_process_request() to wait for all sent transactions, do
+	not wakeup after receiving reply from the first one.
+
 * Sun Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.17-1
 - Fixed compilation warnings on 64bit platform (uint64_t to unsigned long
 	long and void * to unsigned long)

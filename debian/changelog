@@ -1,3 +1,12 @@
+elliptics (2.9.0.18) unstable; urgency=low
+
+  * Guard OpenSSL_add_all_digests() and initialize it only once per thread
+    group.
+  * Force dnet_check_process_request() to wait for all sent transactions, do
+    not wakeup after receiving reply from the first one.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 28 Jul 2010 18:42:44 +0400
+
 elliptics (2.9.0.17) unstable; urgency=low
 
   * Fixed compilation warnings on 64bit platform (uint64_t to unsigned long
