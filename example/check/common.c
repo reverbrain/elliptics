@@ -296,6 +296,7 @@ int dnet_check_read_transactions(struct dnet_check_worker *worker, struct dnet_c
 
 err_out_wait:
 	dnet_check_wait(worker, worker->wait_num == i);
+	dnet_unmap_history(n, &map);
 err_out_exit:
 	return err;
 }
