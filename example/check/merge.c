@@ -183,7 +183,7 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 	char id_str[DNET_ID_SIZE*2+1];
 	char result[256];
 	long i, j, added = 0;
-	int err, fd;
+	int err, fd, removed = 0;
 
 	err = dnet_map_history(n, direct, &m1);
 	if (err)
@@ -238,6 +238,7 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 			if (err)
 				goto err_out_close;
 			added++;
+			removed = !!(ent2.flags & DNET_IO_FLAGS_REMOVED);
 		}
 
 		if (i < m1.num) {
@@ -245,6 +246,7 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 			if (err)
 				goto err_out_close;
 			added++;
+			removed = !!(ent1.flags & DNET_IO_FLAGS_REMOVED);
 		}
 	}
 
@@ -256,7 +258,11 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 	if (err)
 		goto err_out_close;
 
-	dnet_log_raw(n, DNET_LOG_INFO, "%s: merged %ld.%ld -> %ld entries.\n", dnet_dump_id(id), m1.num, m2.num, added);
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: merged %ld.%ld -> %ld entries, removed: %d.\n",
+			dnet_dump_id(id), m1.num, m2.num, added, removed);
+
+	if (removed)
+		dnet_remove_object_now(n, id, 0);
 
 err_out_close:
 	unlink(result);
