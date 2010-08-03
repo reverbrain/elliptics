@@ -220,8 +220,8 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 			ent2 = m2.ent[j];
 
 			dnet_convert_history_entry(&ent2);
-			dnet_log_raw(n, DNET_LOG_NOTICE, "%s: 2 ts: %llu.%llu\n", dnet_dump_id(ent1.id),
-					(unsigned long long)ent1.tsec, (unsigned long long)ent1.tnsec);
+			dnet_log_raw(n, DNET_LOG_NOTICE, "%s: 2 ts: %llu.%llu\n", dnet_dump_id(ent2.id),
+					(unsigned long long)ent2.tsec, (unsigned long long)ent2.tnsec);
 
 			if (i < m1.num) {
 				if (ent1.tsec < ent2.tsec)
