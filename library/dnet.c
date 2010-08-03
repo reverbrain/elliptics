@@ -2084,6 +2084,9 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 		p.wait = w;
 		p.direct = direct;
 
+		if (!size)
+			size = ~0ULL;
+
 		err = dnet_trans_map(n, file, offset, size, dnet_trans_map_callback, &p);
 		if (err)
 			goto err_out_put;
