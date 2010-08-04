@@ -1,3 +1,9 @@
+elliptics (2.9.0.22) unstable; urgency=low
+
+  * Guard multiple 'logical' xml writes against parallel write
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 04 Aug 2010 22:05:46 +0400
+
 elliptics (2.9.0.21) unstable; urgency=low
 
   * Implemented direct transaction merge.

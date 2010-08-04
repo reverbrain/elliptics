@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.0.21
+Version:	2.9.0.22
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 4 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.22-1
+- Guard multiple 'logical' xml writes against parallel write
+
 * Wed Aug 4 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.21-1
 - Implemented direct transaction merge.
 - If reading size was set to 0 map ~0ULL size, i.e. the whole file.
