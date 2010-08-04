@@ -175,6 +175,102 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_merge_check_direct_tranasction_time(struct dnet_check_worker *worker, struct dnet_history_entry *f)
+{
+	struct dnet_node *n = worker->n;
+	struct dnet_history_map m;
+	struct dnet_history_entry e;
+	char id_str[2*DNET_ID_SIZE+1];
+	char file[256];
+	int err;
+
+	dnet_dump_id_len_raw(f->id, DNET_ID_SIZE, id_str);
+
+	snprintf(file, sizeof(file), "%s/%s-trans", dnet_check_tmp_dir, id_str);
+	err = dnet_read_file_direct(n, file, NULL, 0, f->id, 0, 0, 1);
+	if (err)
+		goto err_out_exit;
+
+	snprintf(file, sizeof(file), "%s/%s-trans%s", dnet_check_tmp_dir, id_str, DNET_HISTORY_SUFFIX);
+
+	err = dnet_map_history(n, file, &m);
+	if (err)
+		goto err_out_exit;
+
+	e = m.ent[m.num - 1];
+	dnet_convert_history_entry(&e);
+
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: direct: %llu.%llu, size: %llu, history transaction: %llu.%llu, size: %llu.\n",
+			id_str, e.tsec, e.tnsec, e.size, f->tsec, f->tnsec, f->size);
+
+	if (e.tsec < f->tsec)
+		goto err_out_unmap;
+
+	if ((e.tsec == f->tsec) && (e.tnsec < f->tnsec))
+		goto err_out_unmap;
+
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: replacing transction with data read directly.\n", id_str);
+
+	worker->wait_num = 0;
+	worker->wait_error = 0;
+
+	err = dnet_check_read_single(worker, e.id, 0, 1);
+	dnet_check_wait(worker, worker->wait_num == 1);
+
+	if (!err && worker->wait_error)
+		err = worker->wait_error;
+
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: failed to read direct transction: %d.\n", id_str, err);
+		goto err_out_unmap;
+	}
+
+	snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, id_str);
+	err = dnet_write_file_local_offset(n, file, NULL, 0, f->id, 0, 0, 0,
+		DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+
+err_out_unmap:
+	dnet_unmap_history(n, &m);
+err_out_exit:
+	return err;
+}
+
+static int dnet_merge_get_latest_transactions(struct dnet_check_worker *worker, char *history)
+{
+	struct dnet_node *n = worker->n;
+	struct dnet_history_map m;
+	struct dnet_history_entry *e, *first = NULL;
+	long i = 0;
+	int err;
+
+	err = dnet_map_history(n, history, &m);
+	if (err)
+		goto err_out_exit;
+
+	i = m.num - 1;
+	first = &m.ent[i];
+
+	do {
+		e = &m.ent[i];
+
+		if (!dnet_id_cmp(first->id, e->id))
+			continue;
+
+		dnet_merge_check_direct_tranasction_time(worker, first);
+
+		first = e;
+	} while (--i >= 0);
+
+	if (first != e)
+		dnet_merge_check_direct_tranasction_time(worker, first);
+
+	err = 0;
+
+err_out_exit:
+	return err;
+}
+
+
 static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, char *file, unsigned char *id)
 {
 	struct dnet_node *n = worker->n;
@@ -228,7 +324,7 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 					break;
 				if ((ent1.tsec == ent2.tsec) && (ent1.tnsec < ent2.tnsec))
 					break;
-				if (!dnet_id_cmp(ent1.id, ent2.id)) {
+				if ((ent1.tnsec == ent2.tnsec) && !dnet_id_cmp(ent1.id, ent2.id)) {
 					j++;
 					break;
 				}
@@ -263,6 +359,8 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 
 	if (removed)
 		dnet_remove_object_now(n, id, 0);
+	else
+		err = dnet_merge_get_latest_transactions(worker, result);
 
 err_out_close:
 	unlink(result);
