@@ -1,3 +1,13 @@
+elliptics (2.9.0.21) unstable; urgency=low
+
+  * Implemented direct transaction merge.
+  * If reading size was set to 0 map ~0ULL size, i.e. the whole file.
+  * Remove object from the storage if its history log says so.
+  * Drop unused DNET_FCGI_EMBED_TIMESTAMP_PATTERN and change to use
+    DNET_FCGI_EMBED_PATTERN option.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 04 Aug 2010 21:23:10 +0400
+
 elliptics (2.9.0.20) unstable; urgency=low
 
   * Fixed several fd leaks.

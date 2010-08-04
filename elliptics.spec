@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.0.20
+Version:	2.9.0.21
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 4 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.21-1
+- Implemented direct transaction merge.
+- If reading size was set to 0 map ~0ULL size, i.e. the whole file.
+- Remove object from the storage if its history log says so.
+- Drop unused DNET_FCGI_EMBED_TIMESTAMP_PATTERN and change to use
+	DNET_FCGI_EMBED_PATTERN option.
+
 * Sun Jul 28 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.20-1
   - Fixed several fd leaks.
 
