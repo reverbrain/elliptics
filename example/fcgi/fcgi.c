@@ -120,6 +120,7 @@ static char *dnet_fcgi_stat_pattern, *dnet_fcgi_stat_log_pattern;
 static int (* dnet_fcgi_external_callback_start)(char *query, char *addr, char *id, int length);
 static int (* dnet_fcgi_external_callback_stop)(char *query, char *addr, char *id, int length);
 static void (* dnet_fcgi_external_exit)(void);
+static int dnet_fcgi_region = -1;
 
 static FCGX_Request dnet_fcgi_request;
 
@@ -503,6 +504,8 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 			if (dnet_fcgi_sign_key)
 				dnet_fcgi_output("<s>%s</s>", dnet_fcgi_sign_tmp);
+			if (dnet_fcgi_region != -1)
+				dnet_fcgi_output("<region>%d</region>", dnet_fcgi_region);
 			dnet_fcgi_output("</download-info>\r\n");
 
 			fprintf(dnet_fcgi_log, "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
@@ -1302,14 +1305,16 @@ static int dnet_fcgi_stat(struct dnet_node *n)
 	return err;
 }
 
-static int dnet_fcgi_external_raw(struct dnet_node *n, char *query, char *addr, char *id, int length, int tail)
+#if 0
+static int dnet_fcgi_external_raw(struct dnet_node *n, char *query, char *addr,
+		char *id, int length, int tail)
 {
 	int err, region;
 	char trans[32], *hash, *h, *p;
 
 	err = dnet_fcgi_external_callback_start(query, addr, id, length);
 	if (err < 0)
-		return err;
+		goto err_out_exit;
 
 	region = err;
 
@@ -1343,7 +1348,6 @@ static int dnet_fcgi_external_raw(struct dnet_node *n, char *query, char *addr, 
 			hash++;
 	}
 	free(h);
-
 	return 0;
 
 err_out_exit:
@@ -1368,6 +1372,27 @@ static int dnet_fcgi_external_stop(struct dnet_node *n, char *query, char *addr,
 
 	return dnet_fcgi_external_callback_start(query, addr, id, length);
 }
+#else
+static int dnet_fcgi_external_start(struct dnet_node *n __unused, char *query, char *addr, char *id, int length)
+{
+	int err;
+
+	err = dnet_fcgi_external_callback_start(query, addr, id, length);
+	if (err < 0) {
+		fprintf(dnet_fcgi_log, "q: '%s', failed to determine region for addr '%s': %d.\n",
+				query, addr, err);
+		return err;
+	}
+
+	dnet_fcgi_region = err;
+	return 0;
+}
+
+static int dnet_fcgi_external_stop(struct dnet_node *n __unused, char *query, char *addr, char *id, int length)
+{
+	return dnet_fcgi_external_callback_stop(query, addr, id, length);
+}
+#endif
 
 static void dnet_fcgi_output_content_type(char *id)
 {
@@ -1986,8 +2011,8 @@ int main()
 				ts.tv_nsec = tv.tv_usec * 1000;
 			}
 
-			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d, ts: %lu.%lu, embed: %d.\n",
-					id, length, version, ts.tv_sec, ts.tv_nsec, !!embed_str);
+			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d, ts: %lu.%lu, embed: %d, region: %d.\n",
+					id, length, version, ts.tv_sec, ts.tv_nsec, !!embed_str, dnet_fcgi_region);
 
 			err = dnet_fcgi_handle_post(n, addr, id, length, version, &ts, !!embed_str);
 			if (err) {
@@ -1996,7 +2021,8 @@ int main()
 				goto err_continue;
 			}
 		} else {
-			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d, embed: %d.\n", id, length, version, !!embed_str);
+			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d, embed: %d, region: %d.\n",
+					id, length, version, !!embed_str, dnet_fcgi_region);
 			err = dnet_fcgi_handle_get(n, query, addr, id, length, version, !!embed_str);
 			if (err) {
 				fprintf(dnet_fcgi_log, "%s: Failed to handle GET for object '%s': %d.\n", addr, id, err);
@@ -2006,6 +2032,7 @@ int main()
 		}
 
 cont:
+		dnet_fcgi_region = -1;
 		if (dnet_fcgi_external_callback_stop)
 			dnet_fcgi_external_stop(n, query, addr, id, length);
 
