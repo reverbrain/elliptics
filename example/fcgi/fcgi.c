@@ -1179,6 +1179,9 @@ out_wakeup:
 	return 0;
 }
 
+/* I'm a small hack, do not look at me */
+static pthread_mutex_t dnet_fcgi_stat_lock = PTHREAD_MUTEX_INITIALIZER;
+
 static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 	struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
 {
@@ -1220,6 +1223,7 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 
 		dnet_convert_addr_stat(as, 0);
 
+		pthread_mutex_lock(&dnet_fcgi_stat_lock);
 		dnet_fcgi_output("<count addr=\"%s\" id=\"%s\">",
 			dnet_server_convert_dnet_addr_raw(&as->addr, addr, sizeof(addr)),
 			dnet_dump_id_len_raw(as->id, DNET_ID_SIZE, id));
@@ -1227,6 +1231,7 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 			dnet_fcgi_output("<counter cmd=\"%u\" count=\"%llu\" error=\"%llu\"/>", i,
 					(unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
 		dnet_fcgi_output("</count>");
+		pthread_mutex_unlock(&dnet_fcgi_stat_lock);
 	}
 
 out:
