@@ -495,17 +495,17 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			dnet_fcgi_output("Content-type: application/xml\r\n\r\n");
 
 			dnet_fcgi_output("<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>",
+					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>"
+					"<region>%d</region>",
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
 					hex_dir,
 					id,
-					timestamp);
+					timestamp,
+					dnet_fcgi_region);
 
 			if (dnet_fcgi_sign_key)
 				dnet_fcgi_output("<s>%s</s>", dnet_fcgi_sign_tmp);
-			if (dnet_fcgi_region != -1)
-				dnet_fcgi_output("<region>%d</region>", dnet_fcgi_region);
 			dnet_fcgi_output("</download-info>\r\n");
 
 			fprintf(dnet_fcgi_log, "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
