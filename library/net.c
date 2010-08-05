@@ -703,11 +703,12 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 		goto err_out_exit;
 	}
 
+	list_del_init(&r->req_entry);
+
 	if (r->flags & DNET_REQ_NO_DESTRUCT) {
 		t = container_of(r, struct dnet_trans, r);
 		dnet_trans_get(t);
 	}
-
 	dnet_lock_unlock(&n->trans_lock);
 
 	dnet_log(n, DNET_LOG_DSA, "%s: req: %p, hsize: %llu, dsize: %llu, fsize: %llu.\n",
@@ -778,18 +779,18 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			if (errno != EAGAIN && errno != EINTR) {
 				err = -errno;
 				dnet_log_err(n, "failed to send %llu bytes", *size);
-				goto err_out_exit;
+				goto err_out_put_back;
 			}
 
 			dnet_log(n, DNET_LOG_DSA, "%s: again.\n", dnet_dump_id(st->id));
-			goto err_out_exit;
+			goto err_out_put_back;
 		}
 
 		if (err == 0) {
 			err = -ECONNRESET;
 			dnet_log(n, DNET_LOG_ERROR, "%s: node dropped connection.\n",
 					dnet_dump_id(st->id));
-			goto err_out_exit;
+			goto err_out_put_back;
 		}
 
 		dnet_log(n, DNET_LOG_DSA, "%s: sent: %d/%llu.\n",
@@ -807,10 +808,6 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 		err = 0;
 	}
 
-	dnet_lock_lock(&st->snd_lock);
-	list_del_init(&r->req_entry);
-	dnet_lock_unlock(&st->snd_lock);
-
 	dnet_log(n, DNET_LOG_DSA, "%s: destroying send request: %p: "
 			"flags: %x, hsize: %llu/%llu, dsize: %llu/%llu, fsize: %llu/%llu, complete: %p.\n",
 			dnet_dump_id(st->id), r, r->flags,
@@ -823,6 +820,11 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 	if (t)
 		dnet_trans_put(t);
 	return 0;
+
+err_out_put_back:
+	dnet_lock_lock(&n->trans_lock);
+	list_add(&r->req_entry, &st->snd_list);
+	dnet_lock_unlock(&n->trans_lock);
 
 err_out_exit:
 	if (t)
@@ -891,12 +893,12 @@ err_out_destroy:
 	while (!list_empty(&st->snd_list)) {
 		struct dnet_data_req *r = NULL;
 
-		dnet_lock_lock(&st->snd_lock);
+		dnet_lock_lock(&st->n->trans_lock);
 		if (!list_empty(&st->snd_list)) {
 			r = list_first_entry(&st->snd_list, struct dnet_data_req, req_entry);
 			list_del_init(&r->req_entry);
 		}
-		dnet_lock_unlock(&st->snd_lock);
+		dnet_lock_unlock(&st->n->trans_lock);
 
 		if (!r)
 			break;
@@ -1050,17 +1052,10 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
 
-	err = dnet_lock_init(&st->snd_lock);
-	if (err) {
-		dnet_log_err(n, "%s: failed to initialize sending queue: err: %d",
-				dnet_dump_id(st->id), err);
-		goto err_out_state_free;
-	}
-
 	err = dnet_schedule_state(st);
 	if (err) {
 		dnet_log_err(n, "%s: failed to schedule state: %d", dnet_dump_id(st->id), err);
-		goto err_out_snd_lock_destroy;
+		goto err_out_state_free;
 	}
 
 	if (!id) {
@@ -1070,7 +1065,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 	} else {
 		err = dnet_state_insert(st);
 		if (err)
-			goto err_out_snd_lock_destroy;
+			goto err_out_state_free;
 	}
 
 	err = dnet_signal_thread(st, DNET_THREAD_SCHEDULE);
@@ -1083,8 +1078,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 err_out_state_remove:
 	dnet_state_remove(st);
-err_out_snd_lock_destroy:
-	dnet_lock_destroy(&st->snd_lock);
 err_out_state_free:
 	free(st);
 err_out_exit:
@@ -1191,10 +1184,8 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	if (st->s >= 0)
 		close(st->s);
 
-	dnet_lock_destroy(&st->snd_lock);
-
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: freeing state %s, socket: %d.\n", dnet_dump_id(st->id),
-		dnet_server_convert_dnet_addr(&st->addr), st->s);
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: freeing state %s, socket: %d.\n",
+		dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr), st->s);
 
 	free(st);
 }

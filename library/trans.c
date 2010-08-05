@@ -236,14 +236,8 @@ static int dnet_trans_resend(struct dnet_trans *t)
 {
 	struct dnet_net_state *st = t->st;
 	struct dnet_node *n = t->st->n;
-	int empty = 1;
 
-	dnet_lock_lock(&st->snd_lock);
 	if (!list_empty(&t->r.req_entry))
-		empty = 0;
-	dnet_lock_unlock(&st->snd_lock);
-
-	if (!empty)
 		return 0;
 
 	st = dnet_state_get_first(n, t->cmd.id, n->st);

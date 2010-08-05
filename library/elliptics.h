@@ -93,7 +93,6 @@ struct dnet_net_state
 	struct dnet_trans	*rcv_trans;
 	
 	struct list_head	snd_list;
-	struct dnet_lock	snd_lock;
 	unsigned long long	snd_offset;
 	unsigned long long	snd_size;
 	unsigned long long	dsize, fsize, hsize, foffset;
