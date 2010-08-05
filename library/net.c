@@ -122,6 +122,16 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 		goto err_out_exit;
 	}
 
+	if (*addr_len >= ai->ai_addrlen)
+		*addr_len = ai->ai_addrlen;
+	else {
+		dnet_log(n, DNET_LOG_ERROR, "Failed to copy address: size %u is too small (must be more than %u).\n",
+				*addr_len, ai->ai_addrlen);
+		err = -ENOBUFS;
+		goto err_out_exit;
+	}
+	memcpy(sa, ai->ai_addr, *addr_len);
+
 	s = dnet_socket_create_addr(n, cfg->sock_type, cfg->proto, cfg->family,
 			ai->ai_addr, ai->ai_addrlen, listening);
 	if (s < 0) {
@@ -129,22 +139,10 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 		goto err_out_free;
 	}
 
-	if (*addr_len >= ai->ai_addrlen)
-		*addr_len = ai->ai_addrlen;
-	else {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to copy address: size %u is too small (must be more than %u).\n",
-				*addr_len, ai->ai_addrlen);
-		err = -ENOBUFS;
-		goto err_out_close;
-	}
-	memcpy(sa, ai->ai_addr, *addr_len);
-
 	freeaddrinfo(ai);
 
 	return s;
 
-err_out_close:
-	close(s);
 err_out_free:
 	freeaddrinfo(ai);
 err_out_exit:
