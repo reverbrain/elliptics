@@ -1,3 +1,9 @@
+elliptics (2.9.0.24) unstable; urgency=low
+
+  * Refactor fcgi/check loggers to write pid/thread id into single log file.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 05 Aug 2010 20:13:50 +0400
+
 elliptics (2.9.0.23) unstable; urgency=low
 
   * Added <region> tag into download-info XML output
