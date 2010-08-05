@@ -1,3 +1,10 @@
+elliptics (2.9.0.23) unstable; urgency=low
+
+  * Added <region> tag into download-info XML output
+  * Shanged sending locking.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 05 Aug 2010 18:50:56 +0400
+
 elliptics (2.9.0.22) unstable; urgency=low
 
   * Guard multiple 'logical' xml writes against parallel write

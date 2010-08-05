@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.0.22
+Version:	2.9.0.23
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 5 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.23-1
+- Added <region> tag into download-info XML output
+- Shanged sending locking.
+
 * Wed Aug 4 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.22-1
 - Guard multiple 'logical' xml writes against parallel write
 
