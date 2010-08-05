@@ -33,6 +33,9 @@ struct dnet_check_worker
 	pthread_mutex_t				wait_lock;
 
 	char					hashes[128];
+
+	FILE					*stream;
+	struct dnet_log				log;
 };
 
 struct dnet_check_request

@@ -1677,7 +1677,6 @@ int main()
 	char *id, *end;
 	struct dnet_config cfg;
 	struct dnet_node *n;
-	char tmp[128];
 
 	dnet_fcgi_status_pattern = getenv("DNET_FCGI_SUCCESS_STATUS_PATTERN");
 	if (!dnet_fcgi_status_pattern)
@@ -1697,9 +1696,6 @@ int main()
 	p = getenv("DNET_FCGI_LOG");
 	if (!p)
 		p = DNET_FCGI_LOG;
-
-	snprintf(tmp, sizeof(tmp), "%s.%d", p, getpid());
-	p = tmp;
 
 	dnet_fcgi_log = fopen(p, "a");
 	if (!dnet_fcgi_log) {

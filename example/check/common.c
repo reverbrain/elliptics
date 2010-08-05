@@ -53,34 +53,23 @@ void *dnet_check_ext_library;
 char dnet_check_tmp_dir[128] = "/tmp";
 FILE *dnet_check_file, *dnet_check_output;
 pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
-static struct dnet_log dnet_check_logger;
 
 int dnet_check_upload_existing;
 
-static int dnet_check_log_init(struct dnet_node *n, struct dnet_config *cfg, char *log)
+static void dnet_check_log(void *priv, uint32_t mask, const char *msg)
 {
-	int err;
-	FILE *old = cfg->log->log_private;
+	char str[64];
+	struct tm tm;
+	struct timeval tv;
+	struct dnet_check_worker *w = priv;
+	FILE *stream = w->stream;
 
-	if (log) {
-		cfg->log->log_private = fopen(log, "a");
-		if (!cfg->log->log_private) {
-			err = -errno;
-			fprintf(stderr, "Failed to open log file %s: %s.\n", log, strerror(errno));
-			return err;
-		}
-	}
+	gettimeofday(&tv, NULL);
+	localtime_r((time_t *)&tv.tv_sec, &tm);
+	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	cfg->log->log = dnet_common_log;
-
-	if (n)
-		dnet_log_init(n, cfg->log);
-
-	if (log && old)
-		fclose(old);
-
-	dnet_common_log(cfg->log->log_private, DNET_LOG_ERROR, "Reinitialized log.\n");
-	return 0;
+	fprintf(stream, "%s.%06lu %d %1x: %s", str, tv.tv_usec, w->id, mask, msg);
+	fflush(stream);
 }
 
 int dnet_check_add_hash(struct dnet_node *n, char *hash)
@@ -563,25 +552,23 @@ static void dnet_check_log_help(char *p)
 
 int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int request_ids, int types)
 {
-	int ch, err = 0, i, j, worker_num = 1;
+	int ch, err = 0, i, j, worker_num = 1, log_mask;
 	struct dnet_check_worker *w, *workers;
 	struct dnet_config cfg, *remotes = NULL;
 	char *file = NULL, *log = "/dev/stderr", *output_file = NULL;
 	char *library = NULL, *library_data = NULL;
-	char log_file[256];
 	char local_addr[] = "0.0.0.0:0:2";
 	int added_remotes = 0;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
+
+	log_mask = DNET_LOG_ERROR;
 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60*10;
 	cfg.resend_timeout.tv_sec = 60*60*10;
 	cfg.resend_count = 0;
-	dnet_check_logger.log_mask = DNET_LOG_ERROR;
-	dnet_check_logger.log = dnet_common_log;
-	cfg.log = &dnet_check_logger;
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
@@ -603,7 +590,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 				worker_num = atoi(optarg);
 				break;
 			case 'm':
-				dnet_check_logger.log_mask = strtol(optarg, NULL, 0);
+				log_mask = strtol(optarg, NULL, 0);
 				break;
 			case 'l':
 				log = optarg;
@@ -686,13 +673,19 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 
 		pthread_cond_init(&w->wait_cond, NULL);
 		pthread_mutex_init(&w->wait_lock, NULL);
-#if 0
-		snprintf(log_file, sizeof(log_file), "%s.%d", log, w->id);
-#else
-		snprintf(log_file, sizeof(log_file), "%s", log);
-#endif
-		dnet_check_logger.log_private = NULL;
-		dnet_check_log_init(NULL, &cfg, log_file);
+
+		w->stream = fopen(log, "a");
+		if (!w->stream) {
+			err = -errno;
+			fprintf(stderr, "Failed to open log file %s: %s.\n", log, strerror(errno));
+			goto out_join;
+		}
+		w->log.log_mask = log_mask;
+		w->log.log_private = w;
+		w->log.log = dnet_check_log;
+
+		cfg.log = &w->log;
+
 		w->n = dnet_node_create(&cfg);
 		if (!w->n) {
 			err = -ENOMEM;
@@ -744,10 +737,11 @@ out_join:
 
 		if (w->n)
 			dnet_node_destroy(w->n);
+
+		if (w->stream)
+			fclose(w->stream);
 	}
 	free(workers);
-	if (dnet_check_logger.log_private)
-		fclose(dnet_check_logger.log_private);
 
 out_ext_cleanup:
 	if (dnet_check_ext_library) {
