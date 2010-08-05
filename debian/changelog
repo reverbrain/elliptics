@@ -1,3 +1,10 @@
+elliptics (2.9.0.25) unstable; urgency=low
+
+  * Copy resolved address into buffer (later used for reconnection) before
+    trying to connect.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 05 Aug 2010 21:12:57 +0400
+
 elliptics (2.9.0.24) unstable; urgency=low
 
   * Refactor fcgi/check loggers to write pid/thread id into single log file.

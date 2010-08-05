@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.0.24
+Version:	2.9.0.25
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 5 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.25-1
+- Copy resolved address into buffer (later used for reconnection)
+	before trying to connect.
+
 * Thu Aug 5 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.24-1
 - Refactor fcgi/check loggers to write pid/thread id into single log file.
 
