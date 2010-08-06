@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.0.25
+Version:	2.9.0.27
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 6 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.27-1
+- Added sanity checks for embedded reading.
+
 * Thu Aug 6 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.26-1
 - Disabled per-client statistics request in fcgi daemon.
 - Added subtle timeout and data rewrite when FCGX_PutStr() returns error.
