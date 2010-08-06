@@ -208,6 +208,11 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 		b = c->data_blob;
 
 	err = eblob_read(b, io->origin, DNET_ID_SIZE, &fd, &offset, &size);
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to lookup requested key: %d.\n",
+				dnet_dump_id(io->origin), err);
+		goto err_out_exit;
+	}
 
 	if (io->size && size > io->size)
 		size = io->size;
@@ -499,7 +504,7 @@ static int dnet_blob_set_hash_size(struct dnet_config_backend *b, char *key, cha
 {
 	struct eblob_backend_config *c = b->data;
 
-	if (!strcmp(key, "history_hash_size"))
+	if (!strcmp(key, "history_hash_table_size"))
 		c->history.hash_size = strtoul(value, NULL, 0);
 	else
 		c->data.hash_size = strtoul(value, NULL, 0);
@@ -510,7 +515,7 @@ static int dnet_blob_set_hash_flags(struct dnet_config_backend *b, char *key, ch
 {
 	struct eblob_backend_config *c = b->data;
 
-	if (!strcmp(key, "history_hash_flags"))
+	if (!strcmp(key, "history_hash_table_flags"))
 		c->history.hash_flags = strtoul(value, NULL, 0);
 	else
 		c->data.hash_flags = strtoul(value, NULL, 0);
