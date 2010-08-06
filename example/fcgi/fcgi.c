@@ -301,7 +301,7 @@ static void dnet_fcgi_data_to_hex(char *dst, unsigned int dlen, unsigned char *s
 		sprintf(&dst[2*i], "%02x", src[i]);
 }
 
-static int dnet_fcgi_generate_sign(long timestamp)
+static int dnet_fcgi_generate_sign(struct dnet_node *n, long timestamp)
 {
 	char *cookie = FCGX_GetParam(dnet_fcgi_cookie_header, dnet_fcgi_request.envp);
 	struct dnet_crypto_engine *e = dnet_fcgi_sign_hash;
@@ -312,12 +312,12 @@ static int dnet_fcgi_generate_sign(long timestamp)
 	if (cookie) {
 		char *val, *end;
 
-		fprintf(dnet_fcgi_log, "Found cookie: '%s'.\n", cookie);
+		dnet_log_raw(n, DNET_LOG_NOTICE, "Found cookie: '%s'.\n", cookie);
 
 		val = strstr(cookie, dnet_fcgi_cookie_delimiter);
 
 		if (!val || ((signed)strlen(cookie) <= dnet_fcgi_cookie_delimiter_len)) {
-			fprintf(dnet_fcgi_log, "wrong cookie '%s', generating new one.\n", cookie);
+			dnet_log_raw(n, DNET_LOG_ERROR, "wrong cookie '%s', generating new one.\n", cookie);
 			cookie = NULL;
 		} else {
 			val += dnet_fcgi_cookie_delimiter_len;
@@ -342,7 +342,7 @@ static int dnet_fcgi_generate_sign(long timestamp)
 		err = read(dnet_urandom_fd, &tmp, sizeof(tmp));
 		if (err < 0) {
 			err = -errno;
-			fprintf(dnet_fcgi_log, "Failed to read random data: %s [%d].\n",
+			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to read random data: %s [%d].\n",
 					strerror(errno), errno);
 			goto err_out_exit;
 		}
@@ -355,7 +355,7 @@ static int dnet_fcgi_generate_sign(long timestamp)
 		dnet_fcgi_data_to_hex(cookie_res, sizeof(cookie_res), (unsigned char *)dnet_fcgi_sign_data, rsize);
 		snprintf(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), "%x.%lx.%s", tmp, timestamp, cookie_res);
 
-		fprintf(dnet_fcgi_log, "Cookie generation: '%s' [%d bytes] -> '%s' : '%s%s'\n",
+		dnet_log_raw(n, DNET_LOG_INFO, "Cookie generation: '%s' [%d bytes] -> '%s' : '%s%s'\n",
 				dnet_fcgi_sign_tmp, len, cookie_res,
 				dnet_fcgi_cookie_delimiter, dnet_fcgi_sign_tmp);
 
@@ -384,7 +384,7 @@ static int dnet_fcgi_generate_sign(long timestamp)
 
 	dnet_fcgi_data_to_hex(dnet_fcgi_sign_tmp, sizeof(dnet_fcgi_sign_tmp), (unsigned char *)dnet_fcgi_sign_data, rsize);
 
-	fprintf(dnet_fcgi_log, "Sign generation: '%s %lx %s' [%d bytes] -> '%s'\n",
+	dnet_log_raw(n, DNET_LOG_INFO, "Sign generation: '%s %lx %s' [%d bytes] -> '%s'\n",
 			dnet_fcgi_sign_key, timestamp, cookie_res, len, dnet_fcgi_sign_tmp);
 
 err_out_exit:
@@ -425,6 +425,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 		struct dnet_attr *attr, void *priv)
 {
 	int err = 0;
+	struct dnet_node *n = dnet_get_node_from_state(st);
 	struct dnet_addr_attr *a;
 
 	if (!cmd || !st) {
@@ -439,7 +440,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 		a = (struct dnet_addr_attr *)(attr + 1);
 #if 1
-		fprintf(dnet_fcgi_log, "%s: addr: %s, is object presented there: %d.\n",
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: addr: %s, is object presented there: %d.\n",
 				dnet_dump_id(cmd->id),
 				dnet_server_convert_dnet_addr(&a->addr),
 				attr->flags);
@@ -464,7 +465,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 				snprintf(addr, sizeof(addr), "%s", dnet_state_dump_addr_only(&a->addr));
 			}
 #if 1
-			fprintf(dnet_fcgi_log, "%s -> http://%s%s/%d/%s/%s...\n",
+			dnet_log_raw(n, DNET_LOG_INFO, "%s -> http://%s%s/%d/%s/%s...\n",
 					dnet_fcgi_status_pattern,
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
@@ -493,7 +494,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			 * But we are safe until lookup is called in parallel.
 			 */
 			if (dnet_fcgi_sign_key) {
-				err = dnet_fcgi_generate_sign(timestamp);
+				err = dnet_fcgi_generate_sign(n, timestamp);
 				if (err)
 					goto err_out_exit;
 			}
@@ -514,8 +515,9 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 				dnet_fcgi_output("<s>%s</s>", dnet_fcgi_sign_tmp);
 			dnet_fcgi_output("</download-info>\r\n");
 
-			fprintf(dnet_fcgi_log, "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+			fprintf(dnet_fcgi_log, "%d: <?xml version=\"1.0\" encoding=\"utf-8\"?>"
 					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>",
+					getpid(),
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
 					hex_dir,
@@ -637,7 +639,7 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len, int version
 	struct dnet_trans_control ctl;
 	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
-	fprintf(dnet_fcgi_log, "Unlinking object '%s', version: %d.\n", obj, version);
+	dnet_log_raw(n, DNET_LOG_INFO, "Unlinking object '%s', version: %d.\n", obj, version);
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
@@ -675,7 +677,7 @@ static int dnet_fcgi_unlink(struct dnet_node *n, char *obj, int len, int version
 
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed == num, &ts);
 	if (err) {
-		fprintf(dnet_fcgi_log, "Failed to wait for removal completion of '%s' object.\n", obj);
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to wait for removal completion of '%s' object.\n", obj);
 		error = err;
 	}
 	return error;
@@ -838,7 +840,7 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 		return err;
 
 out_wakeup:
-	fprintf(dnet_fcgi_log, "%s: upload completed: %d, err: %d.\n",
+	dnet_log_raw(dnet_get_node_from_state(st), DNET_LOG_ERROR, "%s: upload completed: %d, err: %d.\n",
 			dnet_dump_id(cmd->id), dnet_fcgi_request_completed, err);
 	dnet_fcgi_output("<complete><id>%s</id><status>%d</status></complete>", dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id), err);
 	dnet_fcgi_wakeup({ do { dnet_fcgi_request_completed++; if (err) dnet_fcgi_request_error++; } while (0); -1; });
@@ -863,7 +865,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 			data, size, version, ts, dnet_fcgi_upload_complete, NULL);
 	if (err > 0)
 		trans_num = err;
-	fprintf(dnet_fcgi_log, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
+	dnet_log_raw(n, DNET_LOG_INFO, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
 
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num, &wait);
 	dnet_fcgi_output("</post>\r\n");
@@ -890,7 +892,7 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 		int num = dnet_state_num(n);
 
 		if (num < dnet_fcgi_upload_host_limit) {
-			fprintf(dnet_fcgi_log, "Number of connected states (%d) is less than allowed in config for post (%d).\n",
+			dnet_log_raw(n, DNET_LOG_ERROR, "Number of connected states (%d) is less than allowed in config for post (%d).\n",
 				num, dnet_fcgi_upload_host_limit);
 			return -ENOTCONN;
 		}
@@ -898,13 +900,13 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 
 	p = FCGX_GetParam("CONTENT_LENGTH", dnet_fcgi_request.envp);
 	if (!p) {
-		fprintf(dnet_fcgi_log, "%s: no content length.\n", addr);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: no content length.\n", addr);
 		goto err_out_exit;
 	}
 
 	data_size = strtoul(p, NULL, 0);
 	if (data_size > dnet_fcgi_max_request_size || !data_size) {
-		fprintf(dnet_fcgi_log, "%s: invalid content length: %lu.\n", addr, data_size);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: invalid content length: %lu.\n", addr, data_size);
 		goto err_out_exit;
 	}
 
@@ -914,7 +916,7 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 
 	data = malloc(data_size);
 	if (!data) {
-		fprintf(dnet_fcgi_log, "%s: failed to allocate %lu bytes.\n", addr, data_size);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to allocate %lu bytes.\n", addr, data_size);
 		goto err_out_exit;
 	}
 
@@ -946,13 +948,13 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 	while (size) {
 		err = FCGX_GetStr(p, size, dnet_fcgi_request.in);
 		if (err < 0 && errno != EAGAIN) {
-			fprintf(dnet_fcgi_log, "%s: failed to read %lu bytes, total of %lu: %s [%d].\n",
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read %lu bytes, total of %lu: %s [%d].\n",
 					addr, size, data_size, strerror(errno), errno);
 			goto err_out_free;
 		}
 
 		if (err == 0) {
-			fprintf(dnet_fcgi_log, "%s: short read, %lu/%lu, aborting.\n",
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: short read, %lu/%lu, aborting.\n",
 					addr, size, data_size);
 			goto err_out_free;
 		}
@@ -1062,6 +1064,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		struct dnet_attr *a, void *priv)
 {
 	int err;
+	struct dnet_node *n = dnet_get_node_from_state(st);
 	struct dnet_io_attr *io;
 	unsigned long long size;
 	void *data;
@@ -1077,7 +1080,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	}
 
 	if (cmd->size <= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
-		fprintf(dnet_fcgi_log, "%s: read completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: read completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
 				dnet_dump_id(cmd->id), (unsigned long long)cmd->size,
 				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 		err = -EINVAL;
@@ -1085,7 +1088,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	}
 
 	if (!a) {
-		fprintf(dnet_fcgi_log, "%s: no attributes but command size is not null.\n", dnet_dump_id(cmd->id));
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: no attributes but command size is not null.\n", dnet_dump_id(cmd->id));
 		err = -EINVAL;
 		goto err_out_exit;
 	}
@@ -1103,12 +1106,12 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 			dnet_fcgi_convert_embedded(e);
 
-			fprintf(dnet_fcgi_log, "%s: found embedded object: type: %x, flags: %x, size: %llu, rest: %llu.\n",
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: found embedded object: type: %x, flags: %x, size: %llu, rest: %llu.\n",
 					dnet_dump_id(dnet_fcgi_id), e->type, e->flags, (unsigned long long)e->size,
 					(unsigned long long)size);
 
 			if (size < e->size + sizeof(struct dnet_fcgi_embed)) {
-				fprintf(dnet_fcgi_log, "%s: broken embedded object: e->size(%llu) + "
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: broken embedded object: e->size(%llu) + "
 						"embed-struct-size(%zu) > data-size(%llu).\n",
 						dnet_dump_id(dnet_fcgi_id), (unsigned long long)e->size,
 						sizeof(struct dnet_fcgi_embed), size);
@@ -1156,7 +1159,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		err = FCGX_PutStr(data, size, dnet_fcgi_request.out);
 		if (err < 0 && errno != EAGAIN) {
 			err = -errno;
-			fprintf(dnet_fcgi_log, "%s: failed to write %llu bytes, "
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to write %llu bytes, "
 					"total of %llu: %s [%d].\n",
 					dnet_dump_id(dnet_fcgi_id), size, (unsigned long long)io->size,
 					strerror(errno), errno);
@@ -1184,7 +1187,8 @@ static int dnet_fcgi_stat_complete(struct dnet_net_state *state,
 {
 	if (!state || !cmd || cmd->status) {
 		if (cmd)
-			fprintf(dnet_fcgi_log, "state: %p, cmd: %p, err: %d.\n", state, cmd, cmd->status);
+			dnet_log_raw(dnet_get_node_from_state(state), DNET_LOG_ERROR,
+					"state: %p, cmd: %p, err: %d.\n", state, cmd, cmd->status);
 		dnet_fcgi_stat_bad++;
 		goto out_wakeup;
 	}
@@ -1274,7 +1278,7 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 
 	err = dnet_request_stat(n, NULL, DNET_CMD_STAT, complete, NULL);
 	if (err < 0) {
-		fprintf(dnet_fcgi_log, "Failed to request stat: %d.\n", err);
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to request stat: %d.\n", err);
 		goto err_out_exit;
 	}
 	num += err;
@@ -1282,7 +1286,7 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 #if 0
 	err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, complete, NULL);
 	if (err < 0) {
-		fprintf(dnet_fcgi_log, "Failed to request stat: %d.\n", err);
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to request stat: %d.\n", err);
 		goto err_out_wait;
 	}
 	num += err;
@@ -1342,7 +1346,7 @@ static int dnet_fcgi_external_raw(struct dnet_node *n, char *query, char *addr,
 
 	hash = getenv("DNET_FCGI_HASH");
 	if (!hash) {
-		fprintf(dnet_fcgi_log, "No hashes specified, aborting.\n");
+		dnet_log_raw(n, DNET_LOG_ERROR, "No hashes specified, aborting.\n");
 		err = -ENODEV;
 		goto err_out_exit;
 	}
@@ -1395,13 +1399,13 @@ static int dnet_fcgi_external_stop(struct dnet_node *n, char *query, char *addr,
 	return dnet_fcgi_external_callback_start(query, addr, id, length);
 }
 #else
-static int dnet_fcgi_external_start(struct dnet_node *n __unused, char *query, char *addr, char *id, int length)
+static int dnet_fcgi_external_start(struct dnet_node *n, char *query, char *addr, char *id, int length)
 {
 	int err;
 
 	err = dnet_fcgi_external_callback_start(query, addr, id, length);
 	if (err < 0) {
-		fprintf(dnet_fcgi_log, "q: '%s', failed to determine region for addr '%s': %d.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "q: '%s', failed to determine region for addr '%s': %d.\n",
 				query, addr, err);
 		return err;
 	}
@@ -1482,7 +1486,7 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr,
 lookup:
 	err = dnet_fcgi_process_io(n, id, length, c, version, embed);
 	if (err) {
-		fprintf(dnet_fcgi_log, "%s: Failed to lookup object '%s': %d.\n", addr, id, err);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: Failed to lookup object '%s': %d.\n", addr, id, err);
 		goto out_exit;
 	}
 
@@ -1928,7 +1932,7 @@ int main()
 	while (1) {
 		err = FCGX_Accept_r(&dnet_fcgi_request);
 		if (err || !dnet_fcgi_request.in || !dnet_fcgi_request.out || !dnet_fcgi_request.err || !dnet_fcgi_request.envp) {
-			fprintf(dnet_fcgi_log, "Failed to accept client: no IO streams: in: %p, out: %p, err: %p, env: %p, err: %d.\n",
+			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to accept client: no IO streams: in: %p, out: %p, err: %p, env: %p, err: %d.\n",
 					dnet_fcgi_request.in, dnet_fcgi_request.out, dnet_fcgi_request.err, dnet_fcgi_request.envp, err);
 			continue;
 		}
@@ -1952,8 +1956,6 @@ int main()
 			goto err_continue;
 		}
 
-		fprintf(dnet_fcgi_log, "query: '%s'.\n", query);
-
 		if (dnet_fcgi_stat_log_pattern) {
 			if (!strcmp(query, dnet_fcgi_stat_log_pattern)) {
 				dnet_fcgi_stat_log(n);
@@ -1967,6 +1969,8 @@ int main()
 				goto cont;
 			}
 		}
+
+		dnet_log_raw(n, DNET_LOG_INFO, "query: '%s'.\n", query);
 
 		p = query;
 		id = strstr(p, id_pattern);
@@ -2008,7 +2012,7 @@ int main()
 
 			if (!post_allowed) {
 				err = -EACCES;
-				fprintf(dnet_fcgi_log, "%s: POST is not allowed for object '%s'.\n", addr, id);
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: POST is not allowed for object '%s'.\n", addr, id);
 				reason = "POST is not allowed";
 				goto err_continue;
 			}
@@ -2029,21 +2033,21 @@ int main()
 				ts.tv_nsec = tv.tv_usec * 1000;
 			}
 
-			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d, ts: %lu.%lu, embed: %d, region: %d.\n",
+			dnet_log_raw(n, DNET_LOG_INFO, "id: '%s', length: %d, version: %d, ts: %lu.%lu, embed: %d, region: %d.\n",
 					id, length, version, ts.tv_sec, ts.tv_nsec, !!embed_str, dnet_fcgi_region);
 
 			err = dnet_fcgi_handle_post(n, addr, id, length, version, &ts, !!embed_str);
 			if (err) {
-				fprintf(dnet_fcgi_log, "%s: Failed to handle POST for object '%s': %d.\n", addr, id, err);
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: Failed to handle POST for object '%s': %d.\n", addr, id, err);
 				reason = "failed to handle POST";
 				goto err_continue;
 			}
 		} else {
-			fprintf(dnet_fcgi_log, "id: '%s', length: %d, version: %d, embed: %d, region: %d.\n",
+			dnet_log_raw(n, DNET_LOG_INFO, "id: '%s', length: %d, version: %d, embed: %d, region: %d.\n",
 					id, length, version, !!embed_str, dnet_fcgi_region);
 			err = dnet_fcgi_handle_get(n, query, addr, id, length, version, !!embed_str);
 			if (err) {
-				fprintf(dnet_fcgi_log, "%s: Failed to handle GET for object '%s': %d.\n", addr, id, err);
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: Failed to handle GET for object '%s': %d.\n", addr, id, err);
 				reason = "failed to handle GET";
 				goto err_continue;
 			}
@@ -2067,7 +2071,7 @@ err_continue:
 		dnet_fcgi_output("Reason: %s: %s [%d]\r\n", reason, strerror(-err), err);
 		if (query)
 			dnet_fcgi_output("Query: %s\r\n", query);
-		fprintf(dnet_fcgi_log, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(-err), err);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(-err), err);
 		fflush(dnet_fcgi_log);
 		goto cont;
 	}
