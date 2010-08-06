@@ -141,6 +141,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 6 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.26-1
+- Disabled per-client statistics request in fcgi daemon.
+- Added subtle timeout and data rewrite when FCGX_PutStr() returns error.
+
 * Thu Aug 5 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.25-1
 - Copy resolved address into buffer (later used for reconnection)
 	before trying to connect.
