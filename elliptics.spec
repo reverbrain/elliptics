@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.0.27
+Version:	2.9.0.29
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Aug 7 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.29-1
+- Refactor fcgi logging (29)
+- Return read error when key was not found. Use right config file options. (28)
+
 * Thu Aug 6 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.27-1
 - Added sanity checks for embedded reading.
 
