@@ -178,6 +178,7 @@ static int dnet_fcgi_output(const char *format, ...)
 {
 	va_list args;
 	int size, err = 0;
+	int i = 0, num = 5;
 	char *ptr = dnet_fcgi_tmp_buf;
 
 	va_start(args, format);
@@ -192,9 +193,14 @@ static int dnet_fcgi_output(const char *format, ...)
 		err = FCGX_PutStr(ptr, size, dnet_fcgi_request.out);
 		if (err < 0 && errno != EAGAIN) {
 			err = -errno;
-			fprintf(dnet_fcgi_log, "Failed to output %d bytes: %s [%d].\n",
-					size, strerror(errno), errno);
-			break;
+			fprintf(dnet_fcgi_log, "%d/%d: failed to output %d bytes: %s [%d].\n",
+					i, num, size, strerror(errno), errno);
+
+			if (++i >= num)
+				break;
+
+			usleep(50000);
+			continue;
 		}
 
 		if (err > 0) {
@@ -1191,6 +1197,7 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 	if (!state || !cmd || !attr)
 		goto out;
 
+	pthread_mutex_lock(&dnet_fcgi_stat_lock);
 	if (attr->size == sizeof(struct dnet_stat) && attr->cmd == DNET_CMD_STAT) {
 		float la[3];
 		struct dnet_stat *st;
@@ -1226,7 +1233,6 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 
 		dnet_convert_addr_stat(as, 0);
 
-		pthread_mutex_lock(&dnet_fcgi_stat_lock);
 		dnet_fcgi_output("<count addr=\"%s\" id=\"%s\">",
 			dnet_server_convert_dnet_addr_raw(&as->addr, addr, sizeof(addr)),
 			dnet_dump_id_len_raw(as->id, DNET_ID_SIZE, id));
@@ -1234,8 +1240,8 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 			dnet_fcgi_output("<counter cmd=\"%u\" count=\"%llu\" error=\"%llu\"/>", i,
 					(unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
 		dnet_fcgi_output("</count>");
-		pthread_mutex_unlock(&dnet_fcgi_stat_lock);
 	}
+	pthread_mutex_unlock(&dnet_fcgi_stat_lock);
 
 out:
 	return dnet_fcgi_stat_complete(state, cmd, attr, priv);
@@ -1247,18 +1253,20 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 			struct dnet_attr *attr,
 			void *priv))
 {
-	int err, num;
+	int err, num = 0;
 	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	dnet_fcgi_stat_good = dnet_fcgi_stat_bad = 0;
 	dnet_fcgi_request_completed = 0;
 
-	num = err = dnet_request_stat(n, NULL, DNET_CMD_STAT, complete, NULL);
+	err = dnet_request_stat(n, NULL, DNET_CMD_STAT, complete, NULL);
 	if (err < 0) {
 		fprintf(dnet_fcgi_log, "Failed to request stat: %d.\n", err);
 		goto err_out_exit;
 	}
+	num += err;
 
+#if 0
 	err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, complete, NULL);
 	if (err < 0) {
 		fprintf(dnet_fcgi_log, "Failed to request stat: %d.\n", err);
@@ -1267,6 +1275,7 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 	num += err;
 
 err_out_wait:
+#endif
 	err = dnet_fcgi_wait(num == dnet_fcgi_request_completed, &ts);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Statistics request wait completion failed: "
