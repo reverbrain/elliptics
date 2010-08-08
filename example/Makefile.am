@@ -1,4 +1,4 @@
-bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_iotest dnet_stat dnet_notify dnet_ioclient
+bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_iotest dnet_stat dnet_notify dnet_ioclient dnet_monitor
 noinst_LIBRARIES = libcommon.a libbackend.a
 noinst_HEADERS = hash.h backends.h common.h
 SUBDIRS = . check
@@ -34,6 +34,9 @@ dnet_iotest_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_stat_SOURCES = stat.c
 dnet_stat_LDADD = $(EXAMPLE_COMMON_LIBS)
+
+dnet_monitor_SOURCES = monitor.c
+dnet_monitor_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_notify_SOURCES = notify.c
 dnet_notify_LDADD = $(EXAMPLE_COMMON_LIBS)
