@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.0.30
+Version:	2.9.0.31
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Aug 10 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.31-1
+- Logger cleanups.
+- Fixed resend locking bug.
+
 * Mon Aug 9 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.0.30-1
 - Fixed lock/unlock typo in dnet_data_ready().
 
