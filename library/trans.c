@@ -254,7 +254,7 @@ static int dnet_trans_resend(struct dnet_trans *t)
 			dnet_dump_id(t->cmd.id), (unsigned long long)t->trans,
 			dnet_state_dump_addr(st));
 
-	dnet_data_ready(t->st, &t->r);
+	dnet_data_ready_nolock(t->st, &t->r);
 	return 1;
 }
 

@@ -2696,16 +2696,25 @@ int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd)
 	return err;
 }
 
-int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
+int dnet_data_ready_nolock(struct dnet_net_state *st, struct dnet_data_req *r)
 {
 	int err = 0, add;
 
-	dnet_lock_lock(&st->n->trans_lock);
 	add = list_empty(&st->snd_list);
 	list_add_tail(&r->req_entry, &st->snd_list);
 
 	if (add)
 		err = dnet_signal_thread(st, DNET_THREAD_DATA_READY);
+
+	return err;
+}
+
+int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r)
+{
+	int err;
+
+	dnet_lock_lock(&st->n->trans_lock);
+	err = dnet_data_ready_nolock(st, r);
 	dnet_lock_unlock(&st->n->trans_lock);
 
 	if (err)

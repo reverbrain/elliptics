@@ -415,6 +415,7 @@ int dnet_signal_thread_raw(struct dnet_io_thread *t, struct dnet_net_state *st, 
 int dnet_schedule_socket(struct dnet_net_state *st);
 
 void dnet_req_trans_destroy(struct dnet_data_req *r, int err);
+int dnet_data_ready_nolock(struct dnet_net_state *st, struct dnet_data_req *r);
 
 struct dnet_addr_storage
 {
