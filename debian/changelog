@@ -1,3 +1,9 @@
+elliptics (2.9.1) unstable; urgency=low
+
+  * New elliptics network release: 2.9.1
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 10 Aug 2010 23:06:25 +0400
+
 elliptics (2.9.0.31) unstable; urgency=low
 
   * Logger cleanups.
