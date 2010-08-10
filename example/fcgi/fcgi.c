@@ -721,7 +721,7 @@ static int dnet_fcgi_get_data(struct dnet_node *n, unsigned char *id, struct dne
 
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed != dnet_fcgi_request_init_value, &ts);
 	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: IO wait completion failed: %d.\n", id, err);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: IO wait completion failed: %d.\n", dnet_dump_id(id), err);
 		goto err_out_exit;
 	}
 
