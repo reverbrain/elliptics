@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.1
+Version:	2.9.1.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Aug 13 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.1.1-1
+- Added DNET_FCGI_PUT_REGION config option to optionally enable region tag
+- Added wildcard direct download pattern (*)
+- Force direct download patterns to be checked against ID ending and
+  just by having this substring somewhere in the query.
+
 * Tue Aug 10 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.1-1
 - New elliptics network release: 2.9.1
 
