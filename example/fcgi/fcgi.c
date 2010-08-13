@@ -51,6 +51,7 @@
 #define DNET_FCGI_TOKEN_STRING		" "
 #define DNET_FCGI_TOKEN_HEADER_SPLIT_STRING		"|"
 #define DNET_FCGI_TOKEN_DELIM		','
+#define DNET_FCGI_TOKEN_DIRECT_ALL	'*'
 #define DNET_FCGI_STORAGE_BIT_NUM	8
 
 static long dnet_fcgi_timeout_sec = 10;
@@ -76,7 +77,7 @@ static int dnet_fcgi_hashes_len;
 static int dnet_fcgi_last_modified;
 
 static char *dnet_fcgi_direct_download;
-static int dnet_fcgi_direct_patterns_num;
+static int dnet_fcgi_direct_patterns_num, dnet_fcgi_direct_download_all;
 static char **dnet_fcgi_direct_patterns;
 
 static int dnet_fcgi_upload_host_limit;
@@ -120,7 +121,7 @@ static char *dnet_fcgi_stat_pattern, *dnet_fcgi_stat_log_pattern;
 static int (* dnet_fcgi_external_callback_start)(char *query, char *addr, char *id, int length);
 static int (* dnet_fcgi_external_callback_stop)(char *query, char *addr, char *id, int length);
 static void (* dnet_fcgi_external_exit)(void);
-static int dnet_fcgi_region = -1;
+static int dnet_fcgi_region = -1, dnet_fcgi_put_region;
 
 static FCGX_Request dnet_fcgi_request;
 
@@ -502,27 +503,30 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 			dnet_fcgi_output("Content-type: application/xml\r\n\r\n");
 
 			dnet_fcgi_output("<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>"
-					"<region>%d</region>",
+					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>",
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
 					hex_dir,
 					id,
-					timestamp,
-					dnet_fcgi_region);
+					timestamp);
+
+			if (dnet_fcgi_put_region)
+				dnet_fcgi_output("<region>%d</region>", dnet_fcgi_region);
 
 			if (dnet_fcgi_sign_key)
 				dnet_fcgi_output("<s>%s</s>", dnet_fcgi_sign_tmp);
 			dnet_fcgi_output("</download-info>\r\n");
 
 			fprintf(dnet_fcgi_log, "%d: <?xml version=\"1.0\" encoding=\"utf-8\"?>"
-					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>",
+					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>"
+					"<region>%d</region>",
 					getpid(),
 					addr,
 					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
 					hex_dir,
 					id,
-					timestamp);
+					timestamp,
+					dnet_fcgi_region);
 
 			if (dnet_fcgi_sign_key)
 				fprintf(dnet_fcgi_log, "<s>%s</s>", dnet_fcgi_sign_tmp);
@@ -1448,16 +1452,23 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *addr,
 		return dnet_fcgi_unlink(n, id, length, version);
 
 	if (dnet_fcgi_direct_download) {
-		int i;
+		int i = 0;
 
 		p = strstr(query, dnet_fcgi_direct_download);
 		if (!p)
 			goto lookup;
 
-		for (i=0; i<dnet_fcgi_direct_patterns_num; ++i) {
-			p = strstr(query, dnet_fcgi_direct_patterns[i]);
-			if (p)
-				break;
+		if (!dnet_fcgi_direct_download_all) {
+			for (i=0; i<dnet_fcgi_direct_patterns_num; ++i) {
+				char *pattern = dnet_fcgi_direct_patterns[i];
+				int len = strlen(pattern);
+
+				if (length < len)
+					continue;
+
+				if (!strncmp(id + length - len, pattern, len))
+					break;
+			}
 		}
 
 		if (i != dnet_fcgi_direct_patterns_num) {
@@ -1768,17 +1779,21 @@ int main()
 				if (!token)
 					break;
 
-				dnet_fcgi_direct_patterns_num++;
-				dnet_fcgi_direct_patterns = realloc(dnet_fcgi_direct_patterns,
-						dnet_fcgi_direct_patterns_num * sizeof(char *));
-				if (!dnet_fcgi_direct_patterns) {
-					err = -ENOMEM;
-					goto err_out_free_direct_patterns;
+				if ((strlen(token) == 1) && (*token == DNET_FCGI_TOKEN_DIRECT_ALL)) {
+					dnet_fcgi_direct_download_all = 1;
+				} else {
+					dnet_fcgi_direct_patterns_num++;
+					dnet_fcgi_direct_patterns = realloc(dnet_fcgi_direct_patterns,
+							dnet_fcgi_direct_patterns_num * sizeof(char *));
+					if (!dnet_fcgi_direct_patterns) {
+						err = -ENOMEM;
+						goto err_out_free_direct_patterns;
+					}
+
+					dnet_fcgi_direct_patterns[dnet_fcgi_direct_patterns_num - 1] = token;
 				}
 
 				fprintf(dnet_fcgi_log, "Added '%s' direct download pattern.\n", token);
-
-				dnet_fcgi_direct_patterns[dnet_fcgi_direct_patterns_num - 1] = token;
 				tmp = NULL;
 			}
 		}
@@ -1847,6 +1862,10 @@ int main()
 		dnet_fcgi_random_hashes = err;
 
 	dnet_fcgi_setup_permanent_headers();
+
+	p = getenv("DNET_FCGI_PUT_REGION");
+	if (p)
+		dnet_fcgi_put_region = atoi(p);
 
 	p = getenv("DNET_FCGI_DNS_LOOKUP");
 	if (p)
