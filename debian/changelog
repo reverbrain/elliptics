@@ -1,3 +1,11 @@
+elliptics (2.9.1.2) unstable; urgency=low
+
+  * Added special URI parameter for atomic appends (where supported by
+    backend). Added ioflags to common write operations.
+  * Dropped TokyoCabinet IO backend support.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 17 Aug 2010 20:36:09 +0400
+
 elliptics (2.9.1.1) unstable; urgency=low
 
   * Added DNET_FCGI_PUT_REGION config option to optionally enable region tag
