@@ -253,16 +253,10 @@ struct dnet_node *dnet_parse_config(char *file)
 	if (err)
 		goto err_out_close;
  
-#ifdef HAVE_TOKYOCABINET_SUPPORT
-	err = dnet_tc_backend_init();
-	if (err)
-		goto err_out_file_exit;
-#endif
-
 #ifdef HAVE_EBLOB_SUPPORT
 	err = dnet_eblob_backend_init();
 	if (err)
-		goto err_out_tc_exit;
+		goto err_out_file_exit;
 #endif
 
 	while (1) {
@@ -394,13 +388,9 @@ err_out_cleanup:
 err_out_free:
 	free(dnet_cfg_transform);
 	free(dnet_cfg_remotes);
-err_out_blob_exit:
+//err_out_blob_exit:
 #ifdef HAVE_EBLOB_SUPPORT
 	dnet_eblob_backend_exit();
-#endif
-err_out_tc_exit:
-#ifdef HAVE_TOKYOCABINET_SUPPORT
-	dnet_tc_backend_exit();
 #endif
 err_out_file_exit:
 	dnet_file_backend_exit();

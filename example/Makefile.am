@@ -10,10 +10,6 @@ EXAMPLE_COMMON_LIBS = ../library/libelliptics.la libcommon.a
 libcommon_a_SOURCES = common.c hash.c lookup3.c
 libbackend_a_SOURCES = file_backend.c backends.c
 
-if HAVE_TOKYOCABINET
-libbackend_a_SOURCES += tc_backend.c 
-endif
-
 if HAVE_EBLOB
 libbackend_a_SOURCES += eblob_backend.c 
 endif
@@ -45,7 +41,7 @@ if HAVE_FASTCGI
 SUBDIRS += fcgi
 endif
 
-AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @OPENSSL_CFLAGS@ @TOKYOCABINET_CFLAGS@ @EBLOB_CFLAGS@
-AM_LDFLAGS = @PTHREAD_LIBS@ @OPENSSL_LIBS@ @OPENSSL_LDFLAGS@ @TOKYOCABINET_LIBS@ @EBLOB_LIBS@
+AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @OPENSSL_CFLAGS@ @EBLOB_CFLAGS@
+AM_LDFLAGS = @PTHREAD_LIBS@ @OPENSSL_LIBS@ @OPENSSL_LDFLAGS@ @EBLOB_LIBS@
 
 EXTRA_DIST = EXAMPLE 00-INDEX ioserv.conf
