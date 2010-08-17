@@ -36,6 +36,7 @@
 #define DNET_FCGI_ID_DELIMITER		"&"
 #define DNET_FCGI_VERSION_PATTERN	"version="
 #define DNET_FCGI_TIMESTAMP_PATTERN	"timestamp="
+#define DNET_FCGI_APPEND_PATTERN	"append"
 #define DNET_FCGI_EMBED_PATTERN		"embed"
 #define DNET_FCGI_LOG			"/tmp/dnet_fcgi.log"
 #define DNET_FCGI_TMP_DIR		"/tmp"
@@ -852,9 +853,11 @@ out_wakeup:
 }
 
 static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
-		void *data, uint64_t size, int version, struct timespec *ts)
+		void *data, uint64_t size, int version, struct timespec *ts,
+		int append)
 {
 	int trans_num = 0;
+	uint32_t ioflags = 0;
 	int err;
 	struct timespec wait = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
@@ -865,8 +868,11 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 	dnet_fcgi_request_error = 0;
 	dnet_fcgi_request_completed = 0;
 
+	if (append)
+		ioflags = DNET_IO_FLAGS_APPEND;
+
 	err = dnet_common_write_object_meta(n, obj, len, dnet_fcgi_hashes, dnet_fcgi_hashes_len, version != -1,
-			data, size, version, ts, dnet_fcgi_upload_complete, NULL);
+			data, size, version, ts, dnet_fcgi_upload_complete, NULL, ioflags);
 	if (err > 0)
 		trans_num = err;
 	dnet_log_raw(n, DNET_LOG_INFO, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
@@ -885,7 +891,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 }
 
 static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int length,
-	int version, struct timespec *ts, int embed)
+	int version, struct timespec *ts, int embed, int append)
 {
 	void *data;
 	unsigned long data_size, size;
@@ -967,7 +973,7 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 		size -= err;
 	}
 
-	err = dnet_fcgi_upload(n, id, length, data, data_size, version, ts);
+	err = dnet_fcgi_upload(n, id, length, data, data_size, version, ts, append);
 	if (err)
 		goto err_out_free;
 
@@ -1709,6 +1715,7 @@ int main()
 {
 	char *p, *addr, *reason, *method, *query, *hash;
 	char *id_pattern, *id_delimiter, *direct_patterns = NULL, *version_pattern, *version_str, *timestamp_pattern, *embed_pattern, *embed_str;
+	char *append_pattern;
 	int length, id_pattern_length, err, post_allowed, version_pattern_len, timestamp_pattern_len;
 	int version;
 	char *id, *end;
@@ -1917,6 +1924,7 @@ int main()
 	id_delimiter = getenv("DNET_FCGI_ID_DELIMITER");
 	version_pattern = getenv("DNET_FCGI_VERSION_PATTERN");
 	timestamp_pattern = getenv("DNET_FCGI_TIMESTAMP_PATTERN");
+	append_pattern = getenv("DNET_FCGI_APPEND_PATTERN");
 	embed_pattern = getenv("DNET_FCGI_EMBED_PATTERN");
 
 	if (!id_pattern)
@@ -1927,6 +1935,8 @@ int main()
 		version_pattern = DNET_FCGI_VERSION_PATTERN;
 	version_pattern_len = strlen(version_pattern);
 
+	if (!append_pattern)
+		append_pattern = DNET_FCGI_APPEND_PATTERN;
 	if (!timestamp_pattern)
 		timestamp_pattern = DNET_FCGI_TIMESTAMP_PATTERN;
 	timestamp_pattern_len = strlen(timestamp_pattern);
@@ -2027,6 +2037,7 @@ int main()
 
 		if (!strncmp(method, "POST", 4)) {
 			struct timespec ts;
+			int append;
 			char *ts_str;
 
 			if (!post_allowed) {
@@ -2035,6 +2046,7 @@ int main()
 				reason = "POST is not allowed";
 				goto err_continue;
 			}
+			append = !!strstr(query, append_pattern);
 
 			ts_str = strstr(query, timestamp_pattern);
 			if (ts_str) {
@@ -2052,10 +2064,10 @@ int main()
 				ts.tv_nsec = tv.tv_usec * 1000;
 			}
 
-			dnet_log_raw(n, DNET_LOG_INFO, "id: '%s', length: %d, version: %d, ts: %lu.%lu, embed: %d, region: %d.\n",
-					id, length, version, ts.tv_sec, ts.tv_nsec, !!embed_str, dnet_fcgi_region);
+			dnet_log_raw(n, DNET_LOG_INFO, "id: '%s', length: %d, version: %d, ts: %lu.%lu, embed: %d, region: %d, append: %d.\n",
+					id, length, version, ts.tv_sec, ts.tv_nsec, !!embed_str, dnet_fcgi_region, append);
 
-			err = dnet_fcgi_handle_post(n, addr, id, length, version, &ts, !!embed_str);
+			err = dnet_fcgi_handle_post(n, addr, id, length, version, &ts, !!embed_str, append);
 			if (err) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: Failed to handle POST for object '%s': %d.\n", addr, id, err);
 				reason = "failed to handle POST";

@@ -175,7 +175,7 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 		trans_num = 0;
 		w->wait_num = 0;
 		err = dnet_common_write_object_meta(n, obj, len, w->hashes, strlen(w->hashes), (version != -1),
-				data, size, version, &ts, dnet_check_upload_complete, w);
+				data, size, version, &ts, dnet_check_upload_complete, w, 0);
 
 		if (err > 0)
 			trans_num = err;

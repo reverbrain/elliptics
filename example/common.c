@@ -192,7 +192,7 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 
 		hctl.io.size = sizeof(struct dnet_history_entry);
 		hctl.io.offset = 0;
-		hctl.io.flags = flags | DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
+		hctl.io.flags = (flags & ~DNET_IO_FLAGS_APPEND) | DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
 
 		err = dnet_trans_create_send(n, &hctl);
 		if (err)
@@ -209,7 +209,8 @@ static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned
 		void *adata, uint32_t asize, int history_only,
 		void *data, uint64_t size, int version, int pos, struct timespec *ts,
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-		void *priv)
+		void *priv,
+		uint32_t ioflags)
 {
 	struct dnet_io_control ctl;
 	int old_pos = pos, err;
@@ -236,7 +237,7 @@ static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned
 	 * We want to store transaction logs to get modification time.
 	 */
 	//ctl.io.flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
-	ctl.io.flags = 0;
+	ctl.io.flags = ioflags;
 	ctl.io.size = size;
 	ctl.io.offset = 0;
 
@@ -288,14 +289,14 @@ int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
 		void *adata, uint32_t asize, int history_only,
 		void *data, uint64_t size, int version, struct timespec *ts, 
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-		void *priv)
+		void *priv, uint32_t ioflags)
 {
 	int err;
 	int pos = 0, trans_num = 0;
 
 	while (1) {
 		err = dnet_common_write_object_raw(n, obj, len, adata, asize, history_only,
-				data, size, version, pos, ts, complete, priv);
+				data, size, version, pos, ts, complete, priv, ioflags);
 		if (err <= 0)
 			break;
 
@@ -337,14 +338,14 @@ int dnet_common_write_object_meta(struct dnet_node *n, char *obj, int len,
 		char *hash, int hlen, int history_only,
 		void *data, uint64_t size, int version, struct timespec *ts, 
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-		void *priv)
+		void *priv, uint32_t ioflags)
 {
 	char adata[len + hlen + sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + sizeof(struct dnet_meta)*2 + 2 /* 0-bytes */];
 
 	memset(adata, 0, sizeof(adata));
 	dnet_common_setup_meta_data(adata, obj, len, hash, hlen);
 
-	return dnet_common_write_object(n, obj, len, adata, sizeof(adata), history_only, data, size, version, ts, complete, priv);
+	return dnet_common_write_object(n, obj, len, adata, sizeof(adata), history_only, data, size, version, ts, complete, priv, ioflags);
 }
 
 int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cfg, char *orig_addr)
