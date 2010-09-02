@@ -547,6 +547,7 @@ static void dnet_check_log_help(char *p)
 			"  -u                      - reupload existing copy into storage.\n"
 			"                              Useful when you change log (like added new hash)\n"
 			"                              and want this data uploaded to all nodes.\n"
+			"  -w seconds              - timeout to wait for transction completion\n"
 			"  -h                      - this help.\n", p);
 }
 
@@ -572,8 +573,11 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 
-	while ((ch = getopt(argc, argv, "ue:E:t:n:m:l:f:F:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "w:ue:E:t:n:m:l:f:F:r:h")) != -1) {
 		switch (ch) {
+			case 'w':
+				cfg.wait_timeout = cfg.resend_timeout.tv_sec = strtoul(optarg, NULL, 0);
+				break;
 			case 'u':
 				dnet_check_upload_existing = 1;
 				break;
