@@ -1,3 +1,9 @@
+elliptics (2.9.1.3) unstable; urgency=low
+
+  * Added timeout to wait for transction completion.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 02 Sep 2010 18:37:43 +0400
+
 elliptics (2.9.1.2) unstable; urgency=low
 
   * Added special URI parameter for atomic appends (where supported by
