@@ -1,3 +1,9 @@
+elliptics (2.9.2.1) unstable; urgency=low
+
+  * Initialize state list entry prior other usage.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 07 Sep 2010 01:59:48 +0400
+
 elliptics (2.9.2) unstable; urgency=low
 
   * Switched from libevent state machine to thread-per-client model.
