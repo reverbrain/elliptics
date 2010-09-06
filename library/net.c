@@ -506,7 +506,8 @@ static int dnet_process_recv(struct dnet_net_state *st)
 
 		if (!t) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: could not find transaction for reply: trans %llu.\n",
-				dnet_dump_id(t->cmd.id), (t->cmd.trans & ~DNET_TRANS_REPLY));
+				dnet_dump_id(st->rcv_cmd.id), tid);
+			err = 0;
 			goto err_out_exit;
 		}
 	}
@@ -547,7 +548,8 @@ err_out_destroy:
 err_out_put_forward:
 	dnet_state_put(forward_state);
 err_out_exit:
-	dnet_log(st->n, DNET_LOG_ERROR, "%s: error during received transaction processing: trans %llu, reply: %d, error: %d.\n",
+	if (t)
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: error during received transaction processing: trans %llu, reply: %d, error: %d.\n",
 			dnet_dump_id(t->cmd.id), (t->cmd.trans & ~DNET_TRANS_REPLY),
 			!!(t->cmd.trans & DNET_TRANS_REPLY), err);
 	return err;
