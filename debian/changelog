@@ -1,3 +1,9 @@
+elliptics (2.9.2.5) unstable; urgency=low
+
+  * Do not deal with NULL transactions.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 07 Sep 2010 03:51:20 +0400
+
 elliptics (2.9.2.4) unstable; urgency=low
 
   * Extended debug.
