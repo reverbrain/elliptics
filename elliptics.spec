@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.1.1
+Version:	2.9.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -9,7 +9,6 @@ URL:		http://www.ioremap.net/projects/elliptics
 Source0:	%{name}-%{version}.tar.gz
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-BuildRequires:	libevent-devel >= 1.3
 BuildRequires:	fcgi-devel
 BuildRequires:	openssl-devel
 BuildRequires:	python-devel
@@ -141,6 +140,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 7 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2-1
+- Switched from libevent state machine to thread-per-client model.
+
 * Fri Aug 13 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.1.1-1
 - Added DNET_FCGI_PUT_REGION config option to optionally enable region tag
 - Added wildcard direct download pattern (*)
