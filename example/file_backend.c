@@ -34,6 +34,7 @@
 #include "elliptics/interface.h"
 
 #include "backends.h"
+#include "common.h"
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
@@ -502,10 +503,10 @@ err_out_exit:
 }
 
 static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+		struct dnet_attr *attr __unused, void *data)
 {
 	struct dnet_io_attr *io = data;
-	int fd, err, deref = 0;
+	int fd, err;
 	size_t size;
 	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
 	struct stat st;
@@ -540,76 +541,8 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 		goto err_out_close_fd;
 	}
 
-	if (attr->size == sizeof(struct dnet_io_attr)) {
-		struct dnet_data_req *r;
-		struct dnet_cmd *c;
-		struct dnet_attr *a;
-		struct dnet_io_attr *rio;
-
-		r = dnet_req_alloc(state, sizeof(struct dnet_cmd) +
-				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
-		if (!r) {
-			err = -ENOMEM;
-			dnet_backend_log(DNET_LOG_ERROR, "%s: failed to allocate reply attributes.\n",
-					dnet_dump_id(io->origin));
-			goto err_out_close_fd;
-		}
-
-		dnet_req_set_fd(r, fd, io->offset, size, 1);
-
-		c = dnet_req_header(r);
-		a = (struct dnet_attr *)(c + 1);
-		rio = (struct dnet_io_attr *)(a + 1);
-
-		memcpy(c->id, io->origin, DNET_ID_SIZE);
-		memcpy(rio->origin, io->origin, DNET_ID_SIZE);
-	
-		dnet_backend_log(DNET_LOG_NOTICE, "%s: read reply offset: %llu, size: %zu.\n",
-				dnet_dump_id(io->origin), (unsigned long long)io->offset, size);
-
-		if (cmd->flags & DNET_FLAGS_NEED_ACK)
-			c->flags = DNET_FLAGS_MORE;
-
-		c->status = 0;
-		c->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + size;
-		c->trans = cmd->trans | DNET_TRANS_REPLY;
-
-		a->cmd = DNET_CMD_READ;
-		a->size = sizeof(struct dnet_io_attr) + size;
-		a->flags = attr->flags;
-
-		rio->size = size;
-		rio->offset = io->offset;
-		rio->flags = io->flags;
-
-		dnet_convert_cmd(c);
-		dnet_convert_attr(a);
-		dnet_convert_io_attr(rio);
-
-		err = dnet_data_ready(state, r);
-		if (err)
-			goto err_out_close_fd;
-
-		deref = 1;
-	} else {
-		if (size > attr->size - sizeof(struct dnet_io_attr))
-			size = attr->size - sizeof(struct dnet_io_attr);
-
-		err = pread(fd, data, size, io->offset);
-		if (err <= 0) {
-			err = -errno;
-			dnet_backend_log(DNET_LOG_ERROR, "%s: failed to read object data: %s.\n",
-					dnet_dump_id(io->origin), strerror(errno));
-			goto err_out_close_fd;
-		}
-
-		io->size = err;
-		attr->size = sizeof(struct dnet_io_attr) + io->size;
-	}
-	if (!deref)
-		close(fd);
-
-	return 0;
+	io->size = size;
+	err = dnet_send_read_data(state, cmd, io, NULL, fd);
 
 err_out_close_fd:
 	close(fd);

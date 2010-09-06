@@ -515,6 +515,10 @@ static inline char *dnet_dump_id(const unsigned char *id)
  */
 int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command);
 
+ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size);
+ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, void *data, uint64_t dsize);
+ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, int fd, uint64_t offset, uint64_t dsize);
+
 /*
  * Lookup a node which hosts given ID.
  *
@@ -576,40 +580,6 @@ static inline int dnet_id_within_range(const unsigned char *id, const unsigned c
 
 	return ret;
 }
-
-/*
- * Data request machinery.
- * For more details see doc/io_storage_backend.txt
- */
-#define DNET_REQ_FREE_HEADER		(1<<0)
-#define DNET_REQ_FREE_DATA		(1<<1)
-#define DNET_REQ_CLOSE_FD		(1<<2)
-#define DNET_REQ_NO_DESTRUCT		(1<<3)
-
-struct dnet_data_req;
-
-void *dnet_req_header(struct dnet_data_req *r);
-void *dnet_req_data(struct dnet_data_req *r);
-void *dnet_req_private(struct dnet_data_req *r);
-
-void dnet_req_set_header(struct dnet_data_req *r, void *header, uint64_t hsize, int free);
-void dnet_req_set_data(struct dnet_data_req *r, void *data, uint64_t size, uint64_t offset, int free);
-void dnet_req_set_fd(struct dnet_data_req *r, int fd, uint64_t offset, uint64_t size, int close);
-void dnet_req_set_flags(struct dnet_data_req *r, unsigned int mask, unsigned int flags);
-
-/*
- * Completion callback will be invoked when data request is about to be freed,
- * i.e. none holds any reference on it.
- * Completion callback should free data request (if needed) using plain free(3),
- * since otherwise it will not be freed by the system.
- */
-void dnet_req_set_complete(struct dnet_data_req *r,
-		void (* complete)(struct dnet_data_req *r, int err), void *priv);
-
-struct dnet_data_req *dnet_req_alloc(struct dnet_net_state *st, uint64_t hsize);
-void dnet_req_destroy(struct dnet_data_req *r, int err);
-
-int dnet_data_ready(struct dnet_net_state *st, struct dnet_data_req *r);
 
 /*
  * Server-side transformation reading completion structure.

@@ -388,179 +388,6 @@ int dnet_state_move(struct dnet_net_state *st)
 	return err;
 }
 
-static void dnet_dummy_pipe_read(int s, short event, void *arg)
-{
-	struct dnet_io_thread *t = arg;
-	struct dnet_node *n = t->node;
-	struct dnet_thread_signal ts;
-	int err;
-
-	dnet_log(n, DNET_LOG_DSA, "%s: thread control pipe event: %x.\n",
-			dnet_dump_id(n->id), event);
-
-	if (!(event & EV_READ))
-		return;
-
-	while (1) {
-		err = read(s, &ts, sizeof(struct dnet_thread_signal));
-		if (err < 0) {
-			err = -errno;
-			if (err != -EAGAIN && err != -EINTR) {
-				dnet_log_err(n, "failed to read from pipe");
-				break;
-			}
-
-			break;
-		}
-
-		if (err != sizeof(struct dnet_thread_signal)) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: short pipe read.\n", dnet_dump_id(t->node->id));
-			break;
-		}
-
-		dnet_log(n, DNET_LOG_DSA, "thread: %lu, err: %d, cmd: %u, state: %s.\n",
-				(unsigned long)t->tid, err, ts.cmd, ts.state?dnet_dump_id(ts.state->id):"raw");
-
-		/*
-		 * Size we read has to be smaller than atomic pipe IO size.
-		 */
-
-		switch (ts.cmd) {
-			case DNET_THREAD_DATA_READY:
-				dnet_event_schedule(ts.state, EV_READ | EV_WRITE);
-				break;
-			case DNET_THREAD_SCHEDULE:
-				dnet_schedule_socket(ts.state);
-				break;
-			case DNET_THREAD_EXIT:
-				event_base_loopexit(t->base, 0);
-				break;
-			default:
-				break;
-		}
-
-		dnet_state_put(ts.state);
-	}
-
-	return;
-}
-
-static void *dnet_io_thread_process(void *data)
-{
-	struct dnet_io_thread *t = data;
-	struct dnet_node *n = t->node;
-	int err = 0;
-	sigset_t sig;
-
-	sigemptyset(&sig);
-	sigaddset(&sig, SIGPIPE);
-	pthread_sigmask(SIG_BLOCK, &sig, NULL);
-
-	while (!t->need_exit) {
-		err = event_base_dispatch(t->base);
-		if (err) {
-			dnet_log(n, DNET_LOG_NOTICE, "%s: thread %lu fails to "
-					"process events: %d.\n",
-					dnet_dump_id(t->node->id),
-					(unsigned long)t->tid, err);
-			sleep(1);
-		}
-	}
-
-	event_del(&t->ev);
-	close(t->pipe[0]);
-	close(t->pipe[1]);
-	event_base_free(t->base);
-
-	t->need_exit = err;
-	dnet_log(n, DNET_LOG_NOTICE, "%s: thread %lu exiting with status %d.\n",
-		dnet_dump_id(n->id), (unsigned long)t->tid, err);
-	return &t->need_exit;
-}
-
-static void dnet_stop_io_threads(struct dnet_node *n)
-{
-	struct dnet_io_thread *t, *tmp;
-
-	list_for_each_entry_safe(t, tmp, &n->io_thread_list, thread_entry) {
-		t->need_exit = 1;
-		
-		dnet_signal_thread_raw(t, NULL, DNET_THREAD_EXIT);
-		pthread_join(t->tid, NULL);
-
-		list_del(&t->thread_entry);
-		free(t);
-	}
-}
-
-static int dnet_start_io_threads(struct dnet_node *n)
-{
-	int i, err;
-	struct dnet_io_thread *t;
-
-	dnet_log(n, DNET_LOG_NOTICE, "%s: starting %d IO threads.\n",
-			dnet_dump_id(n->id), n->io_thread_num);
-	for (i=0; i<n->io_thread_num; ++i) {
-		t = malloc(sizeof(struct dnet_io_thread));
-		if (!t) {
-			err = -ENOMEM;
-			goto err_out_free_all;
-		}
-		memset(t, 0, sizeof(struct dnet_io_thread));
-
-		t->node = n;
-
-		err = pipe(t->pipe);
-		if (err) {
-			err = -errno;
-			dnet_log_err(n, "failed to create a dummy IO pipe");
-			goto err_out_free;
-		}
-#if 1
-		fcntl(t->pipe[0], F_SETFL, O_NONBLOCK);
-		fcntl(t->pipe[1], F_SETFL, O_NONBLOCK);
-#endif
-		t->base = event_init();
-		if (!t->base) {
-			err = -errno;
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to initialize event base.\n",
-					dnet_dump_id(n->id));
-			if (!err)
-				err = -EINVAL;
-			goto err_out_close;
-		}
-
-		event_set(&t->ev, t->pipe[0], EV_READ | EV_PERSIST, dnet_dummy_pipe_read, t);
-		event_base_set(t->base, &t->ev);
-		event_add(&t->ev, NULL);
-
-		err = pthread_create(&t->tid, NULL, dnet_io_thread_process, t);
-		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to create IO thread: err: %d.\n",
-					dnet_dump_id(n->id), err);
-			err = -err;
-			goto err_out_free_base;
-		}
-
-		pthread_rwlock_wrlock(&n->io_thread_lock);
-		list_add_tail(&t->thread_entry, &n->io_thread_list);
-		pthread_rwlock_unlock(&n->io_thread_lock);
-	}
-
-	return 0;
-
-err_out_free_base:
-	event_base_free(t->base);
-err_out_close:
-	close(t->pipe[0]);
-	close(t->pipe[1]);
-err_out_free:
-	free(t);
-err_out_free_all:
-	dnet_stop_io_threads(n);
-	return err;
-}
-
 struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 {
 	struct dnet_node *n;
@@ -599,7 +426,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->wait_ts.tv_sec = cfg->wait_timeout;
 	n->command_handler = cfg->command_handler;
 	n->command_private = cfg->command_private;
-	n->io_thread_num = cfg->io_thread_num;
 	n->notify_hash_size = cfg->hash_size;
 	n->resend_count = cfg->resend_count;
 	n->resend_timeout = cfg->resend_timeout;
@@ -635,20 +461,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_free;
 
-	if (!n->io_thread_num) {
-		n->io_thread_num = DNET_IO_THREAD_NUM_DEFAULT;
-		dnet_log(n, DNET_LOG_NOTICE, "%s: no IO thread number provided, using default %d.\n",
-				dnet_dump_id(n->id), n->io_thread_num);
-	}
-	
-	n->max_pending = cfg->max_pending;
-	if (!n->max_pending) {
-		n->max_pending = DNET_IO_MAX_PENDING;
-		dnet_log(n, DNET_LOG_NOTICE, "%s: no maximum number of transaction from the same client "
-				"processed in parallel, using default %llu.\n",
-				dnet_dump_id(n->id), (unsigned long long)n->max_pending);
-	}
-
 	n->addr.addr_len = sizeof(n->addr.addr);
 
 	err = dnet_socket_create(n, cfg, (struct sockaddr *)&n->addr.addr, &n->addr.addr_len, 1);
@@ -657,13 +469,9 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	n->listen_socket = err;
 
-	err = dnet_start_io_threads(n);
-	if (err)
-		goto err_out_sock_close;
-
 	n->st = dnet_state_create(n, (cfg->join & DNET_JOIN_NETWORK)?n->id:NULL, &n->addr, n->listen_socket);
 	if (!n->st)
-		goto err_out_stop_io_threads;
+		goto err_out_sock_close;
 
 	err = dnet_resend_thread_start(n);
 	if (err)
@@ -675,8 +483,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 err_out_state_destroy:
 	dnet_state_put(n->st);
-err_out_stop_io_threads:
-	dnet_stop_io_threads(n);
 err_out_sock_close:
 	close(n->listen_socket);
 err_out_notify_exit:
@@ -710,8 +516,6 @@ void dnet_node_destroy(struct dnet_node *n)
 		list_del_init(&st->state_entry);
 		dnet_state_put(st);
 	}
-
-	dnet_stop_io_threads(n);
 
 	dnet_cleanup_transform(n);
 

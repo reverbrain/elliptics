@@ -99,11 +99,7 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 {
 	unsigned long value = strtoul(str, NULL, 0);
 
-	if (!strcmp(key, "max_pending_requests"))
-		dnet_cfg_state.max_pending = value;
-	else if (!strcmp(key, "io_thread_num"))
-		dnet_cfg_state.io_thread_num = value;
-	else if (!strcmp(key, "log_mask"))
+	if (!strcmp(key, "log_mask"))
 		dnet_backend_logger.log_mask = value;
 	else if (!strcmp(key, "wait_timeout"))
 		dnet_cfg_state.wait_timeout = value;
@@ -168,8 +164,6 @@ static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unus
 }
 
 static struct dnet_config_entry dnet_cfg_entries[] = {
-	{"max_pending_requests", dnet_simple_set},
-	{"io_thread_num", dnet_simple_set},
 	{"log_mask", dnet_simple_set},
 	{"wait_timeout", dnet_simple_set},
 	{"resend_timeout", dnet_simple_set},

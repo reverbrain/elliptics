@@ -33,8 +33,6 @@ typedef unsigned char u_char;
 typedef unsigned short u_short;
 #endif
 
-#include <event.h>
-
 #include "list.h"
 #include "rbtree.h"
 #include "atomic.h"
@@ -83,31 +81,20 @@ struct dnet_net_state
 
 	struct dnet_addr	addr;
 
-	struct event		event;
-
 	struct dnet_cmd		rcv_cmd;
 	uint64_t		rcv_offset;
 	uint64_t		rcv_size;
 	unsigned int		rcv_flags;
 	void			*rcv_data;
-	struct dnet_trans	*rcv_trans;
-	
-	struct list_head	snd_list;
-	unsigned long long	snd_offset;
-	unsigned long long	snd_size;
-	unsigned long long	dsize, fsize, hsize, foffset;
 
-	uint64_t		req_pending;
-
-	struct dnet_io_thread	*th;
+	pthread_mutex_t		send_lock;
+	pthread_t		tid;
 
 	struct dnet_stat_count	stat[__DNET_CMD_MAX];
 };
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		struct dnet_addr *addr, int s);
-
-int dnet_event_schedule(struct dnet_net_state *st, short mask);
 
 void *dnet_state_process(void *data);
 
@@ -187,22 +174,6 @@ static inline void dnet_wait_put(struct dnet_wait *w)
 	if (atomic_dec_and_test(&w->refcnt))
 		dnet_wait_destroy(w);
 }
-
-struct dnet_io_thread
-{
-	struct list_head	thread_entry;
-
-	int			pipe[2];
-	struct event		ev;
-
-	int			need_exit;
-
-	pthread_t		tid;
-
-	struct dnet_node	*node;
-
-	struct event_base	*base;
-};
 
 struct dnet_notify_bucket
 {
@@ -287,14 +258,9 @@ static inline char *dnet_dump_node(struct dnet_node *n)
 }
 
 struct dnet_trans;
-int dnet_process_cmd(struct dnet_trans *t);
+int dnet_process_cmd(struct dnet_net_state *st);
 
-int dnet_send(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
-int dnet_wait(struct dnet_net_state *st);
-int dnet_sendfile_data(struct dnet_net_state *st,
-		int fd, uint64_t offset, uint64_t size,
-		void *header, unsigned int hsize);
 int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size);
 
 struct dnet_config;
@@ -308,38 +274,15 @@ enum dnet_join_state {
 	DNET_WANT_RECONNECT,		/* State must be reconnected, when remote peer failed */
 };
 
-struct dnet_data_req
-{
-	struct list_head	req_entry;
-
-	struct dnet_net_state	*st;
-
-	void			*header;
-	uint64_t		hsize;
-
-	void			*data;
-	uint64_t		dsize;
-	uint64_t		doff;
-
-	unsigned int		flags;
-
-	int			fd;
-	uint64_t		offset;
-	uint64_t		size;
-
-	void			*priv;
-	void			(* complete)(struct dnet_data_req *r, int err);
-};
-
 struct dnet_trans
 {
 	struct rb_node			trans_entry;
 	struct dnet_net_state		*st;
-	uint64_t			trans, recv_trans;
+	uint64_t			trans, rcv_trans;
 	struct dnet_cmd			cmd;
-	void				*data;
 
-	struct dnet_data_req		r;
+	void				*data;
+	uint64_t			size;
 
 	atomic_t			refcnt;
 	int				resend_count;
@@ -397,25 +340,6 @@ struct dnet_transform
 
 	void			(* cleanup)(void *priv);
 };
-
-enum dnet_thread_cmd {
-	DNET_THREAD_SCHEDULE = 1,		/* Schedule new state event on given thread */
-	DNET_THREAD_DATA_READY,			/* Given state has new data, reschedule write event */
-	DNET_THREAD_EXIT,			/* Exit event processing */
-};
-
-struct dnet_thread_signal
-{
-	unsigned int		cmd;
-	struct dnet_net_state	*state;
-} __attribute__ ((packed));
-
-int dnet_signal_thread(struct dnet_net_state *st, unsigned int cmd);
-int dnet_signal_thread_raw(struct dnet_io_thread *t, struct dnet_net_state *st, unsigned int cmd);
-int dnet_schedule_socket(struct dnet_net_state *st);
-
-void dnet_req_trans_destroy(struct dnet_data_req *r, int err);
-int dnet_data_ready_nolock(struct dnet_net_state *st, struct dnet_data_req *r);
 
 struct dnet_addr_storage
 {

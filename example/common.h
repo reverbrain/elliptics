@@ -60,4 +60,6 @@ int dnet_common_write_object_meta(struct dnet_node *n, char *obj, int len,
 
 struct dnet_node *dnet_parse_config(char *file);
 
+int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data, int fd);
+
 #endif /* __COMMON_H */
