@@ -507,14 +507,12 @@ void dnet_node_destroy(struct dnet_node *n)
 	dnet_resend_thread_stop(n);
 
 	list_for_each_entry_safe(st, tmp, &n->empty_state_list, state_entry) {
-		list_del_init(&st->state_entry);
-		dnet_state_put(st);
+		pthread_join(st->tid, NULL);
 	}
 
 	dnet_check_tree(n, 1);
 	list_for_each_entry_safe(st, tmp, &n->state_list, state_entry) {
-		list_del_init(&st->state_entry);
-		dnet_state_put(st);
+		pthread_join(st->tid, NULL);
 	}
 
 	dnet_cleanup_transform(n);
