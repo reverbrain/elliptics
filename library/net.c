@@ -346,7 +346,7 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 		}
 
 		if (err == 0) {
-			dnet_log(st->n, DNET_LOG_ERROR, "Peer %s has disconnected.\n",
+			dnet_log(st->n, DNET_LOG_ERROR, "dnet_recv: peer %s has disconnected.\n",
 					dnet_server_convert_dnet_addr(&st->addr));
 			return -ECONNRESET;
 		}
@@ -679,24 +679,21 @@ static void *dnet_accept_client(void *priv)
 		if (cs <= 0) {
 			err = -errno;
 			dnet_log_err(n, "failed to accept new client at %s", dnet_state_dump_addr(orig));
-			goto err_out_exit;
+			continue;
 		}
 
 		fcntl(cs, F_SETFL, O_NONBLOCK);
 		
 		st = dnet_state_create(n, NULL, &addr, cs);
-		if (!st)
-			goto err_out_close;
+		if (!st) {
+			close(cs);
+			continue;
+		}
 
 		dnet_log(n, DNET_LOG_INFO, "%s: accepted client %s, socket: %d.\n", dnet_dump_id(orig->id),
 				dnet_server_convert_dnet_addr(&addr), cs);
 	}
 
-	return NULL;
-
-err_out_close:
-	close(cs);
-err_out_exit:
 	return NULL;
 }
 
@@ -812,7 +809,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	if (st->s >= 0)
 		close(st->s);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: freeing state %s, socket: %d.\n",
+	dnet_log(st->n, DNET_LOG_INFO, "%s: freeing state %s, socket: %d.\n",
 		dnet_dump_id(st->id), dnet_server_convert_dnet_addr(&st->addr), st->s);
 
 	free(st);
