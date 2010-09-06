@@ -1,3 +1,9 @@
+elliptics (2.9.2.3) unstable; urgency=low
+
+  * Start state IO thread after state initialization.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 07 Sep 2010 02:44:45 +0400
+
 elliptics (2.9.2.2) unstable; urgency=low
 
   * Join to io state thread instead of freeing it directly.
