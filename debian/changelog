@@ -1,3 +1,10 @@
+elliptics (2.9.2.2) unstable; urgency=low
+
+  * Join to io state thread instead of freeing it directly.
+  * Do not exit from accept loop on error.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 07 Sep 2010 02:31:23 +0400
+
 elliptics (2.9.2.1) unstable; urgency=low
 
   * Initialize state list entry prior other usage.
