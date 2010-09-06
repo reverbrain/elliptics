@@ -2562,7 +2562,6 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	dnet_convert_addr_attr(a);
 
 	err = dnet_add_received_state(n, cmd->id, a, 0);
-
 	if (!err)
 		dnet_log(n, DNET_LOG_INFO, "%s: lookup returned address %s.\n",
 			dnet_dump_id(cmd->id), dnet_server_convert_dnet_addr(&a->addr));
