@@ -761,12 +761,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 
 	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
 
-	err = pthread_create(&st->tid, NULL, func, st);
-	if (err) {
-		dnet_log_err(n, "%s: failed to create new state thread: %d", dnet_dump_id(st->id), err);
-		goto err_out_send_destroy;
-	}
-
 	if (!id) {
 		pthread_rwlock_wrlock(&n->state_lock);
 		list_add_tail(&st->state_entry, &n->empty_state_list);
@@ -774,7 +768,13 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 	} else {
 		err = dnet_state_insert(st);
 		if (err)
-			goto err_out_state_remove;
+			goto err_out_send_destroy;
+	}
+
+	err = pthread_create(&st->tid, NULL, func, st);
+	if (err) {
+		dnet_log_err(n, "%s: failed to create new state thread: %d", dnet_dump_id(st->id), err);
+		goto err_out_state_remove;
 	}
 
 	return st;
