@@ -503,6 +503,12 @@ static int dnet_process_recv(struct dnet_net_state *st)
 			dnet_trans_remove_nolock(&n->trans_root, t);
 		}
 		dnet_lock_unlock(&n->trans_lock);
+
+		if (!t) {
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: could not find transaction for reply: trans %llu.\n",
+				dnet_dump_id(t->cmd.id), (t->cmd.trans & ~DNET_TRANS_REPLY));
+			goto err_out_exit;
+		}
 	}
 
 	if (t) {
@@ -540,8 +546,8 @@ err_out_destroy:
 	dnet_trans_put(t);
 err_out_put_forward:
 	dnet_state_put(forward_state);
-
-	dnet_log(st->n, DNET_LOG_ERROR, "%s: process recv trans %llu, reply: %d, error: %d.\n",
+err_out_exit:
+	dnet_log(st->n, DNET_LOG_ERROR, "%s: error during received transaction processing: trans %llu, reply: %d, error: %d.\n",
 			dnet_dump_id(t->cmd.id), (t->cmd.trans & ~DNET_TRANS_REPLY),
 			!!(t->cmd.trans & DNET_TRANS_REPLY), err);
 	return err;
@@ -613,12 +619,12 @@ again:
 		unsigned long long tid;
 		struct dnet_cmd *c = &st->rcv_cmd;
 
-		dnet_convert_cmd(&st->rcv_cmd);
+		dnet_convert_cmd(c);
 
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: received trans: %llu, reply: %d, size: %llu, flags: %u.\n",
-				dnet_dump_id(c->id), tid, tid != c->trans,
+		dnet_log(n, DNET_LOG_NOTICE, "%s: received trans: %llu / %llx, reply: %d, size: %llu, flags: %u.\n",
+				dnet_dump_id(c->id), tid, c->trans, !!(c->trans & DNET_TRANS_REPLY),
 				(unsigned long long)c->size, c->flags);
 
 		if (c->size) {
@@ -633,10 +639,12 @@ again:
 		st->rcv_offset = 0;
 		st->rcv_size = c->size;
 
-		/*
-		 * We read the command header, now get the data.
-		 */
-		goto again;
+		if (c->size) {
+			/*
+			 * We read the command header, now get the data.
+			 */
+			goto again;
+		}
 	}
 
 	err = dnet_process_recv(st);
