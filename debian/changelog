@@ -1,3 +1,10 @@
+elliptics (2.9.2.12) unstable; urgency=low
+
+  * Do not create unneded listening state when node does not join network.
+  * Reset accept state on error.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 07 Sep 2010 23:24:12 +0400
+
 elliptics (2.9.2.11) unstable; urgency=low
 
   * Do not join to states in state lists, since they can be freed in own
