@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.2
+Version:	2.9.2.6
 Release:	1%{?dist}
 
 License:	GPLv2+
