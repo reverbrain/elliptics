@@ -704,6 +704,7 @@ static void *dnet_accept_client(void *priv)
 				dnet_server_convert_dnet_addr(&addr), cs);
 	}
 
+	dnet_net_state_reset(orig);
 	return NULL;
 }
 

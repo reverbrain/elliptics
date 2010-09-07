@@ -38,6 +38,8 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	n->trans = 0;
 	n->trans_root = RB_ROOT;
 
+	n->listen_socket = -1;
+
 	err = dnet_log_init(n, cfg->log);
 	if (err)
 		goto err_out_free;
@@ -451,17 +453,21 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_free;
 
-	n->addr.addr_len = sizeof(n->addr.addr);
+	if (cfg->join & DNET_JOIN_NETWORK) {
+		n->addr.addr_len = sizeof(n->addr.addr);
 
-	err = dnet_socket_create(n, cfg, (struct sockaddr *)&n->addr.addr, &n->addr.addr_len, 1);
-	if (err < 0)
-		goto err_out_notify_exit;
+		err = dnet_socket_create(n, cfg, (struct sockaddr *)&n->addr.addr, &n->addr.addr_len, 1);
+		if (err < 0)
+			goto err_out_notify_exit;
 
-	n->listen_socket = err;
+		n->listen_socket = err;
 
-	n->st = dnet_state_create(n, (cfg->join & DNET_JOIN_NETWORK)?n->id:NULL, &n->addr, n->listen_socket);
-	if (!n->st)
-		goto err_out_sock_close;
+		n->st = dnet_state_create(n, (cfg->join & DNET_JOIN_NETWORK)?n->id:NULL, &n->addr, n->listen_socket);
+		if (!n->st) {
+			close(n->listen_socket);
+			goto err_out_notify_exit;
+		}
+	}
 
 	err = dnet_check_thread_start(n);
 	if (err)
@@ -473,8 +479,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 err_out_state_destroy:
 	dnet_state_put(n->st);
-err_out_sock_close:
-	close(n->listen_socket);
 err_out_notify_exit:
 	dnet_notify_exit(n);
 err_out_free:
