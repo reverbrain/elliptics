@@ -1,3 +1,9 @@
+elliptics (2.9.2.7) unstable; urgency=low
+
+  * Use pthread_self() instead of getpid() to get uniq thread id.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 07 Sep 2010 17:33:59 +0400
+
 elliptics (2.9.2.6) unstable; urgency=low
 
   * If DNET_IO_FLAGS_NO_HISTORY_UPDATE flag was set for read command, do not
