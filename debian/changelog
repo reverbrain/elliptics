@@ -1,3 +1,10 @@
+elliptics (2.9.2.11) unstable; urgency=low
+
+  * Do not join to states in state lists, since they can be freed in own
+    threads.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 07 Sep 2010 22:48:26 +0400
+
 elliptics (2.9.2.10) unstable; urgency=low
 
   * Drop transaction resending support.
