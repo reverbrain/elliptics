@@ -372,8 +372,8 @@ static int dnet_trans_exec(struct dnet_trans *t, struct dnet_net_state *st)
 	}
 
 	dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: executing transaction %llu, reply: %d.\n",
-			dnet_dump_id(t->cmd.id), t->cmd.trans & ~DNET_TRANS_REPLY,
-			!!(t->cmd.trans & DNET_TRANS_REPLY));
+			dnet_dump_id(st->rcv_cmd.id), st->rcv_cmd.trans & ~DNET_TRANS_REPLY,
+			!!(st->rcv_cmd.trans & DNET_TRANS_REPLY));
 
 	if (t->complete)
 		t->complete(t->st, &st->rcv_cmd, st->rcv_data, t->priv);
