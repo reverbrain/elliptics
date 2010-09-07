@@ -140,6 +140,17 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 7 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.6-1
+- If DNET_IO_FLAGS_NO_HISTORY_UPDATE flag was set for read command, do not
+    send data reply. Used in local stat command.
+- Debug cleanup.
+- From previous releases:
+  Do not deal with NULL transactions.
+  Start state IO thread after state initialization.
+  Join to io state thread instead of freeing it directly.
+  Do not exit from accept loop on error.
+  Initialize state list entry prior other usage.
+
 * Tue Sep 7 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2-1
 - Switched from libevent state machine to thread-per-client model.
 

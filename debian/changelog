@@ -1,3 +1,11 @@
+elliptics (2.9.2.6) unstable; urgency=low
+
+  * If DNET_IO_FLAGS_NO_HISTORY_UPDATE flag was set for read command, do not
+    send data reply. Used in local stat command.
+  * Debug cleanup.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 07 Sep 2010 04:17:45 +0400
+
 elliptics (2.9.2.5) unstable; urgency=low
 
   * Do not deal with NULL transactions.
