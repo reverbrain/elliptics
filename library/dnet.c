@@ -528,9 +528,9 @@ int dnet_process_cmd(struct dnet_net_state *st)
 		sz = a->size;
 
 		if (size < sizeof(struct dnet_attr)) {
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: 1 wrong cmd: size: %llu/%llu, "
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: 1 wrong cmd: %d, size: %llu/%llu, "
 					"attr_size: %llu.\n",
-					dnet_dump_id(st->id), (unsigned long long)cmd->size,
+					dnet_dump_id(st->id), a->cmd, (unsigned long long)cmd->size,
 					size, sz);
 			err = -EINVAL;
 			break;
@@ -540,9 +540,9 @@ int dnet_process_cmd(struct dnet_net_state *st)
 		size -= sizeof(struct dnet_attr);
 
 		if (size < a->size) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: 2 wrong cmd: size: %llu/%llu, "
+			dnet_log(n, DNET_LOG_ERROR, "%s: 2 wrong cmd: %d, size: %llu/%llu, "
 					"attr_size: %llu.\n",
-				dnet_dump_id(st->id), (unsigned long long)cmd->size, size, sz);
+				dnet_dump_id(st->id), a->cmd, (unsigned long long)cmd->size, size, sz);
 			err = -EINVAL;
 			break;
 		}
@@ -612,10 +612,8 @@ int dnet_process_cmd(struct dnet_net_state *st)
 				break;
 		}
 
-		dnet_log(n, DNET_LOG_INFO, "%s: trans: %llu, transaction_size_left: %llu, "
-				"starting cmd: %u, attribute_size: %llu, err: %d.\n",
-			dnet_dump_id(cmd->id), tid, size,
-			a->cmd, (unsigned long long)a->size, err);
+		dnet_log(n, DNET_LOG_INFO, "%s: trans: %llu, completed cmd: %u, err: %d.\n",
+			dnet_dump_id(cmd->id), tid, a->cmd, err);
 
 		dnet_stat_inc(st->stat, a->cmd, err);
 
@@ -623,9 +621,9 @@ int dnet_process_cmd(struct dnet_net_state *st)
 			break;
 
 		if (size < sz) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: 3 wrong cmd: size: %llu/%llu, "
+			dnet_log(n, DNET_LOG_ERROR, "%s: 3 wrong cmd: %d, size: %llu/%llu, "
 					"attr_size: %llu.\n",
-				dnet_dump_id(st->id), (unsigned long long)cmd->size, size, sz);
+				dnet_dump_id(st->id), a->cmd, (unsigned long long)cmd->size, size, sz);
 			err = -EINVAL;
 			break;
 		}
