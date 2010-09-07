@@ -487,7 +487,6 @@ err_out_exit:
 
 void dnet_node_destroy(struct dnet_node *n)
 {
-	struct dnet_net_state *st, *tmp;
 	struct dnet_addr_storage *it, *atmp;
 
 	dnet_log(n, DNET_LOG_INFO, "%s: destroying node at %s, st: %p.\n",
@@ -496,13 +495,12 @@ void dnet_node_destroy(struct dnet_node *n)
 	n->need_exit = 1;
 	dnet_check_thread_stop(n);
 
-	list_for_each_entry_safe(st, tmp, &n->empty_state_list, state_entry) {
-		pthread_join(st->tid, NULL);
-	}
-
 	dnet_check_tree(n, 1);
-	list_for_each_entry_safe(st, tmp, &n->state_list, state_entry) {
-		pthread_join(st->tid, NULL);
+
+	while (!list_empty(&n->empty_state_list) || !list_empty(&n->state_list)) {
+		dnet_log(n, DNET_LOG_NOTICE, "%s: waiting for state lists to become empty: empty_state_list: %d, state_list: %d.\n",
+				dnet_dump_id(n->id), list_empty(&n->empty_state_list), list_empty(&n->state_list));
+		sleep(1);
 	}
 
 	dnet_cleanup_transform(n);
