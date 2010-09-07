@@ -327,11 +327,9 @@ struct dnet_config
 	uint64_t		max_pending;	
 
 	/*
-	 * Number of resends client transaction will be tried to be delivered.
-	 * Delay between resends corresponds to @resend_timeout.
+	 * Wait until transaction acknowledge is received.
 	 */
-	int			resend_count;
-	struct timespec		resend_timeout;
+	struct timespec		check_timeout;
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);

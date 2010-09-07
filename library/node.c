@@ -427,28 +427,18 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->command_handler = cfg->command_handler;
 	n->command_private = cfg->command_private;
 	n->notify_hash_size = cfg->hash_size;
-	n->resend_count = cfg->resend_count;
-	n->resend_timeout = cfg->resend_timeout;
+	n->check_timeout = cfg->check_timeout;
 
 	if (!n->log)
 		dnet_log_init(n, cfg->log);
 
 	if (!n->wait_ts.tv_sec)
 		n->wait_ts.tv_sec = 60*60;
-	if (!n->resend_count)
-		n->resend_count = 3;
 
-	/*
-	 * Only allow resends for client nodes,
-	 * joined nodes only forward that data or store it locally.
-	 */
-	if (cfg->join & DNET_JOIN_NETWORK)
-		n->resend_count = 0;
-
-	if (!n->resend_timeout.tv_sec && !n->resend_timeout.tv_nsec) {
-		n->resend_timeout.tv_sec = DNET_DEFAULT_RESEND_TIMEOUT_SEC;
-		dnet_log(n, DNET_LOG_NOTICE, "%s: using default resend timeout (%ld seconds).\n",
-				dnet_dump_id(n->id), n->resend_timeout.tv_sec);
+	if (!n->check_timeout.tv_sec && !n->check_timeout.tv_nsec) {
+		n->check_timeout.tv_sec = DNET_DEFAULT_CHECK_TIMEOUT_SEC;
+		dnet_log(n, DNET_LOG_NOTICE, "%s: using default check timeout (%ld seconds).\n",
+				dnet_dump_id(n->id), n->check_timeout.tv_sec);
 	}
 
 	if (!n->notify_hash_size) {
@@ -473,7 +463,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->st)
 		goto err_out_sock_close;
 
-	err = dnet_resend_thread_start(n);
+	err = dnet_check_thread_start(n);
 	if (err)
 		goto err_out_state_destroy;
 
@@ -504,7 +494,7 @@ void dnet_node_destroy(struct dnet_node *n)
 			dnet_dump_id(n->id), dnet_dump_node(n), n->st);
 
 	n->need_exit = 1;
-	dnet_resend_thread_stop(n);
+	dnet_check_thread_stop(n);
 
 	list_for_each_entry_safe(st, tmp, &n->empty_state_list, state_entry) {
 		pthread_join(st->tid, NULL);

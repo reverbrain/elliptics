@@ -44,8 +44,7 @@ elliptics_node::elliptics_node(unsigned char *id, elliptics_log &l)
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60;
-	cfg.resend_timeout.tv_sec = 60;
-	cfg.resend_count = 1;
+	cfg.check_timeout.tv_sec = 60;
 	cfg.io_thread_num = 2;
 	cfg.max_pending = 256;
 

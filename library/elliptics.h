@@ -229,9 +229,8 @@ struct dnet_node
 
 	int			join_state;
 
-	int			resend_count;
-	struct timespec		resend_timeout;
-	pthread_t		resend_tid;
+	struct timespec		check_timeout;
+	pthread_t		check_tid;
 
 	int			(* command_handler)(void *state, void *priv,
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
@@ -285,7 +284,6 @@ struct dnet_trans
 	uint64_t			size;
 
 	atomic_t			refcnt;
-	int				resend_count;
 	struct timespec			fire_time;
 
 	void				*priv;
@@ -363,10 +361,10 @@ static inline int dnet_time_before(struct timespec *t1, struct timespec *t2)
 }
 #define dnet_time_after(t2, t1) 	dnet_time_before(t1, t2)
 
-int dnet_resend_thread_start(struct dnet_node *n);
-void dnet_resend_thread_stop(struct dnet_node *n);
-int dnet_try_reconnect(struct dnet_node *n);
+int dnet_check_thread_start(struct dnet_node *n);
+void dnet_check_thread_stop(struct dnet_node *n);
 void dnet_check_tree(struct dnet_node *n, int kill);
+int dnet_try_reconnect(struct dnet_node *n);
 
 int dnet_read_file_id(struct dnet_node *n, char *file, int len,
 		int direct, uint64_t write_offset,

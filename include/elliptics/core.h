@@ -72,9 +72,9 @@
 #define DNET_DEFAULT_NOTIFY_HASH_SIZE	256
 
 /*
- * Default resend timeout in seconds.
+ * Default check timeout in seconds.
  */
-#define DNET_DEFAULT_RESEND_TIMEOUT_SEC	60
+#define DNET_DEFAULT_CHECK_TIMEOUT_SEC	60
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 

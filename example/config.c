@@ -103,8 +103,8 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_backend_logger.log_mask = value;
 	else if (!strcmp(key, "wait_timeout"))
 		dnet_cfg_state.wait_timeout = value;
-	else if (!strcmp(key, "resend_timeout"))
-		dnet_cfg_state.resend_timeout.tv_sec = value;
+	else if (!strcmp(key, "check_timeout"))
+		dnet_cfg_state.check_timeout.tv_sec = value;
 	else if (!strcmp(key, "join"))
 		dnet_cfg_state.join = value;
 	else if (!strcmp(key, "daemon"))
@@ -166,7 +166,7 @@ static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unus
 static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"log_mask", dnet_simple_set},
 	{"wait_timeout", dnet_simple_set},
-	{"resend_timeout", dnet_simple_set},
+	{"check_timeout", dnet_simple_set},
 	{"id", dnet_set_id},
 	{"addr", dnet_set_addr},
 	{"remote", dnet_set_remote_addrs},

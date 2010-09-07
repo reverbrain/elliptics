@@ -533,7 +533,7 @@ int main(int argc, char *argv[])
 		iotest_logger.log_private = log;
 		iotest_logger.log = dnet_common_log;
 	}
-	cfg.resend_timeout.tv_sec = cfg.wait_timeout;
+	cfg.check_timeout.tv_sec = cfg.wait_timeout;
 
 	n = dnet_node_create(&cfg);
 	if (!n)
