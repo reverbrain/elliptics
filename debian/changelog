@@ -1,3 +1,9 @@
+elliptics (2.9.2.8) unstable; urgency=low
+
+  * Also print pid in common logger.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 07 Sep 2010 17:37:59 +0400
+
 elliptics (2.9.2.7) unstable; urgency=low
 
   * Use pthread_self() instead of getpid() to get uniq thread id.
