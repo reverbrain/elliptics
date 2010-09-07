@@ -1,3 +1,9 @@
+elliptics (2.9.2.9) unstable; urgency=low
+
+  * Extended local command processing log.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 07 Sep 2010 18:04:09 +0400
+
 elliptics (2.9.2.8) unstable; urgency=low
 
   * Also print pid in common logger.
