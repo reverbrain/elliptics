@@ -122,7 +122,7 @@ void dnet_common_log(void *priv, uint32_t mask, const char *msg)
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	fprintf(stream, "%s.%06lu %8lx %1x: %s", str, tv.tv_usec, (long)pthread_self(), mask, msg);
+	fprintf(stream, "%s.%06lu %8lx/%4d %1x: %s", str, tv.tv_usec, (long)pthread_self(), getpid(), mask, msg);
 	fflush(stream);
 }
 
