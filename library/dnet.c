@@ -126,10 +126,10 @@ static int dnet_stat_local(struct dnet_net_state *st, unsigned char *id, int his
 
 	io->size = attr->size - sizeof(struct dnet_io_attr);
 	io->offset = 0;
-	io->flags = 0;
+	io->flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
 
 	if (history)
-		io->flags = DNET_IO_FLAGS_HISTORY;
+		io->flags |= DNET_IO_FLAGS_HISTORY;
 
 	memcpy(io->origin, id, DNET_ID_SIZE);
 	memcpy(io->id, id, DNET_ID_SIZE);

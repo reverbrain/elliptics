@@ -490,6 +490,15 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	int hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr);
 	int err;
 
+	/*
+	 * A simple hack to forbid read reply sending.
+	 * It is used in local stat - we do not want to send stat data
+	 * back to original client, instead server will wrap data into
+	 * proper transaction reply next to this obscure packet.
+	 */
+	if (io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)
+		return 0;
+
 	c = malloc(hsize);
 	if (!c) {
 		err = -ENOMEM;
