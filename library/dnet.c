@@ -298,7 +298,7 @@ static int dnet_cmd_transform_list(struct dnet_net_state *orig, struct dnet_cmd 
 	if (!cmd)
 		return -ENOMEM;
 
-	melloc(cmd, 0, sz);
+	memset(cmd, 0, sz);
 
 	attr = (struct dnet_attr *)(cmd + 1);
 	data = (char *)(attr + 1);
