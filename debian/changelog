@@ -1,3 +1,9 @@
+elliptics (2.9.2.14) unstable; urgency=low
+
+  * Fill all allocated memory with zeroes.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 17 Sep 2010 00:08:18 +0400
+
 elliptics (2.9.2.13) unstable; urgency=low
 
   * Put transaction after it was executed. Its refcnt was increased during
