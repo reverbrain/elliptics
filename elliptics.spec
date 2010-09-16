@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.2.6
+Version:	2.9.2.13
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,19 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 16 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.13-1
+- Put transaction after it was executed. Its refcnt was increased during
+    search call.
+- Do not try to dereference state when it can be null.
+- Do not create unneded listening state when node does not join network. (12)
+- Reset accept state on error.
+- Do not join to states in state lists, since they can be freed in own
+    threads. (11)
+- Drop transaction resending support. (10)
+- Extended local command processing log. (9)
+- Also print pid in common logger. (8)
+- Use pthread_self() instead of getpid() to get uniq thread id. (7)
+
 * Tue Sep 7 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.6-1
 - If DNET_IO_FLAGS_NO_HISTORY_UPDATE flag was set for read command, do not
     send data reply. Used in local stat command.

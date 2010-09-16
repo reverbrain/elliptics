@@ -1,3 +1,11 @@
+elliptics (2.9.2.13) unstable; urgency=low
+
+  * Put transaction after it was executed. Its refcnt was increased during
+    search call.
+  * Do not try to dereference state when it can be null.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 16 Sep 2010 20:55:09 +0400
+
 elliptics (2.9.2.12) unstable; urgency=low
 
   * Do not create unneded listening state when node does not join network.
