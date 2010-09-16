@@ -427,13 +427,15 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 		struct dnet_attr *attr, void *priv)
 {
 	int err = 0;
-	struct dnet_node *n = dnet_get_node_from_state(st);
+	struct dnet_node *n;
 	struct dnet_addr_attr *a;
 
 	if (!cmd || !st) {
 		err = -EINVAL;
 		goto err_out_exit;
 	}
+
+	n = dnet_get_node_from_state(st);
 
 	if (!(cmd->flags & DNET_FLAGS_MORE)) {
 		err = dnet_lookup_complete(st, cmd, attr, priv);
