@@ -463,6 +463,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *orig,
 
 	t->data = orig->rcv_data;
 	t->size = size;
+	orig->rcv_data = NULL;
 
 	t->st = dnet_state_get(orig);
 
@@ -654,9 +655,21 @@ again:
 
 	dnet_schedule_command(st);
 
+	if (st->rcv_cmd.size && st->rcv_data) {
+		free(st->rcv_data);
+		st->rcv_data = NULL;
+	}
+
+	return 0;
+
 out:
-	if (err == -EAGAIN || err == -EINTR)
+	if (err == -EAGAIN || err == -EINTR) {
 		err = 0;
+	} else if (st->rcv_cmd.size && st->rcv_data) {
+		free(st->rcv_data);
+		st->rcv_data = NULL;
+	}
+
 	return err;
 }
 
