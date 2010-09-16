@@ -510,10 +510,9 @@ static int dnet_process_recv(struct dnet_net_state *st)
 			err = 0;
 			goto err_out_exit;
 		}
-	}
 
-	if (t) {
 		err = dnet_trans_exec(t, st);
+		dnet_trans_put(t);
 		if (!(st->rcv_cmd.flags & DNET_FLAGS_MORE))
 			dnet_trans_put(t);
 		goto out;
