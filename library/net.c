@@ -837,6 +837,8 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 	c = malloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
 	if (!c)
 		return -ENOMEM;
+	
+	memset(c, 0, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
 
 	a = (struct dnet_attr *)(c + 1);
 	data = a + 1;

@@ -63,6 +63,8 @@ static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint6
 	if (!c)
 		return -ENOMEM;
 
+	memset(c, 0, sizeof(struct dnet_addr_cmd));
+
 	memcpy(c->cmd.id, id, DNET_ID_SIZE);
 	c->cmd.size = sizeof(struct dnet_addr_cmd) - sizeof(struct dnet_cmd);
 	c->cmd.trans = trans;
@@ -295,6 +297,8 @@ static int dnet_cmd_transform_list(struct dnet_net_state *orig, struct dnet_cmd 
 	cmd = malloc(sz);
 	if (!cmd)
 		return -ENOMEM;
+
+	melloc(cmd, 0, sz);
 
 	attr = (struct dnet_attr *)(cmd + 1);
 	data = (char *)(attr + 1);
