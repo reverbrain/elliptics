@@ -154,7 +154,7 @@ static int dnet_set_malloc_options(struct dnet_config_backend *b __unused, char 
 		return err;
 	}
 
-	dnet_backend_log(DNET_LOG_INFO, "Set mmap threshold to %d: %s\n", thr);
+	dnet_backend_log(DNET_LOG_INFO, "Set mmap threshold to %d.\n", thr);
 	return 0;
 }
 
