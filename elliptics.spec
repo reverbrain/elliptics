@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.2.16
+Version:	2.9.2.17
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Sep 17 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.17-1
+- Really fixed recv state transaction processing leak.
+
 * Fri Sep 17 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.16-1
 -Do not try to dereferece null state. Happens when transaction is completed
     on timeout.
