@@ -24,12 +24,13 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <unistd.h>
+#include <malloc.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
@@ -142,6 +143,21 @@ static int dnet_set_transform_functions(struct dnet_config_backend *b __unused, 
 
 	return 0;
 }
+
+static int dnet_set_malloc_options(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	int err, thr = atoi(value);
+
+	err = mallopt(M_MMAP_THRESHOLD, thr);
+	if (err < 0) {
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to set mmap threshold to %d: %s\n", thr, strerror(errno));
+		return err;
+	}
+
+	dnet_backend_log(DNET_LOG_INFO, "Set mmap threshold to %d: %s\n", thr);
+	return 0;
+}
+
 static int dnet_set_backend(struct dnet_config_backend *b, char *key __unused, char *value);
 	
 static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
@@ -164,6 +180,7 @@ static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unus
 }
 
 static struct dnet_config_entry dnet_cfg_entries[] = {
+	{"mallopt_mmap_threshold", dnet_set_malloc_options},
 	{"log_mask", dnet_simple_set},
 	{"wait_timeout", dnet_simple_set},
 	{"check_timeout", dnet_simple_set},
