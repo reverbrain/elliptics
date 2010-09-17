@@ -276,7 +276,7 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 	dnet_lock_unlock(&n->trans_lock);
 
 	if (total)
-		dnet_log(n, DNET_LOG_NOTICE, "%s: checked %d transactions, total: %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: checked %d transactions.\n",
 			dnet_dump_id(n->id), total);
 }
 
@@ -308,7 +308,7 @@ int dnet_check_thread_start(struct dnet_node *n)
 {
 	int err;
 
-	err = pthread_create(&n->check_tid, NULL, dnet_check_tree_from_thread, n);
+	err = pthread_create(&n->check_tid, &n->attr, dnet_check_tree_from_thread, n);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to start tree checking thread: err: %d.\n",
 				dnet_dump_id(n->id), err);

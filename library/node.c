@@ -81,6 +81,21 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		goto err_out_destroy_wait;
 	}
 
+	err = pthread_attr_init(&n->attr);
+	if (err) {
+		err = -err;
+		dnet_log_err(n, "Failed to initialize pthread attributes: err: %d", err);
+		goto err_out_destroy_reconnect_lock;
+	}
+
+	err = pthread_attr_setstacksize(&n->attr, cfg->stack_size);
+	if (err) {
+		err = -err;
+		dnet_log_err(n, "Failed to set stack size to %d, err: %d", cfg->stack_size, err);
+		goto err_out_destroy_attr;
+	}
+
+
 	INIT_LIST_HEAD(&n->transform_list);
 	INIT_LIST_HEAD(&n->state_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
@@ -91,6 +106,10 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	return n;
 
+err_out_destroy_attr:
+	pthread_attr_destroy(&n->attr);
+err_out_destroy_reconnect_lock:
+	pthread_mutex_destroy(&n->reconnect_lock);
 err_out_destroy_wait:
 	dnet_wait_put(n->wait);
 err_out_destroy_io_thread_lock:
@@ -408,6 +427,9 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		goto err_out_exit;
 	}
 
+	if (!cfg->stack_size)
+		cfg->stack_size = 100*1024;
+
 	n = dnet_node_alloc(cfg);
 	if (!n) {
 		err = -ENOMEM;
@@ -436,6 +458,9 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	if (!n->wait_ts.tv_sec)
 		n->wait_ts.tv_sec = 60*60;
+
+	dnet_log(n, DNET_LOG_NOTICE, "%s: using %d stack size.\n",
+			dnet_dump_id(n->id), cfg->stack_size);
 
 	if (!n->check_timeout.tv_sec && !n->check_timeout.tv_nsec) {
 		n->check_timeout.tv_sec = DNET_DEFAULT_CHECK_TIMEOUT_SEC;
@@ -508,6 +533,8 @@ void dnet_node_destroy(struct dnet_node *n)
 	}
 
 	dnet_cleanup_transform(n);
+
+	pthread_attr_destroy(&n->attr);
 
 	pthread_rwlock_destroy(&n->state_lock);
 	dnet_lock_destroy(&n->trans_lock);

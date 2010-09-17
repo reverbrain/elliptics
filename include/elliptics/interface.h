@@ -330,6 +330,11 @@ struct dnet_config
 	 * Wait until transaction acknowledge is received.
 	 */
 	struct timespec		check_timeout;
+
+	/*
+	 * Spawned thread size in bytes.
+	 */
+	int			stack_size;
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);

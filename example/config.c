@@ -158,6 +158,11 @@ static int dnet_set_malloc_options(struct dnet_config_backend *b __unused, char 
 	return 0;
 }
 
+static int dnet_set_stack_size(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	dnet_cfg_state.stack_size = atoi(value);
+}
+
 static int dnet_set_backend(struct dnet_config_backend *b, char *key __unused, char *value);
 	
 static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
@@ -181,6 +186,7 @@ static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unus
 
 static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"mallopt_mmap_threshold", dnet_set_malloc_options},
+	{"stack_size", dnet_set_stack_size},
 	{"log_mask", dnet_simple_set},
 	{"wait_timeout", dnet_simple_set},
 	{"check_timeout", dnet_simple_set},

@@ -563,6 +563,12 @@ err_out_exit:
 static void dnet_schedule_command(struct dnet_net_state *st)
 {
 	st->rcv_flags = DNET_IO_CMD;
+
+	{
+		struct dnet_cmd *c = &st->rcv_cmd;
+		dnet_log(st->n, DNET_LOG_INFO, "freed: size: %llu, trans: %llu, ptr: %p.\n",
+						c->size, c->trans, st->rcv_data);
+	}
 	free(st->rcv_data);
 	st->rcv_data = NULL;
 	st->rcv_size = sizeof(struct dnet_cmd);
@@ -641,6 +647,9 @@ again:
 				err = -ENOMEM;
 				goto out;
 			}
+
+			dnet_log(n, DNET_LOG_INFO, "allocated: %llu, trans: %llu, ptr: %p.\n",
+					c->size, c->trans, st->rcv_data);
 		}
 
 		st->rcv_flags &= ~DNET_IO_CMD;
@@ -794,7 +803,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 			goto err_out_send_destroy;
 	}
 
-	err = pthread_create(&st->tid, NULL, func, st);
+	err = pthread_create(&st->tid, &n->attr, func, st);
 	if (err) {
 		dnet_log_err(n, "%s: failed to create new state thread: %d", dnet_dump_id(st->id), err);
 		goto err_out_state_remove;

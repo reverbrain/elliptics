@@ -205,6 +205,8 @@ struct dnet_node
 
 	int			listen_socket;
 
+	pthread_attr_t		attr;
+
 	struct dnet_addr	addr;
 	int			sock_type, proto, family;
 
