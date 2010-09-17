@@ -563,6 +563,7 @@ err_out_exit:
 static void dnet_schedule_command(struct dnet_net_state *st)
 {
 	st->rcv_flags = DNET_IO_CMD;
+	free(st->rcv_data);
 	st->rcv_data = NULL;
 	st->rcv_size = sizeof(struct dnet_cmd);
 	st->rcv_offset = 0;
@@ -660,19 +661,13 @@ again:
 
 	dnet_schedule_command(st);
 
-	if (st->rcv_data) {
-		free(st->rcv_data);
-		st->rcv_data = NULL;
-	}
-
 	return 0;
 
 out:
 	if (err == -EAGAIN || err == -EINTR) {
 		err = 0;
-	} else if (st->rcv_data) {
-		free(st->rcv_data);
-		st->rcv_data = NULL;
+	} else {
+		dnet_schedule_command(st);
 	}
 
 	return err;
