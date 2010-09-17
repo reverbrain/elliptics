@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.2.15
+Version:	2.9.2.16
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Sep 17 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.16-1
+-Do not try to dereferece null state. Happens when transaction is completed
+    on timeout.
+- Use lineary (+60 seconds each turn) growing reconnection timeout. Added
+    reconnection limit of 1 day.
+- Fixed recv state transaction processing leak.
+
 * Fri Sep 17 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.15-1
 - Compilation typo fixed.
 
