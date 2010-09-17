@@ -660,7 +660,7 @@ again:
 
 	dnet_schedule_command(st);
 
-	if (st->rcv_cmd.size && st->rcv_data) {
+	if (st->rcv_data) {
 		free(st->rcv_data);
 		st->rcv_data = NULL;
 	}
@@ -670,7 +670,7 @@ again:
 out:
 	if (err == -EAGAIN || err == -EINTR) {
 		err = 0;
-	} else if (st->rcv_cmd.size && st->rcv_data) {
+	} else if (st->rcv_data) {
 		free(st->rcv_data);
 		st->rcv_data = NULL;
 	}
