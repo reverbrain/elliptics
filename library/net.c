@@ -413,6 +413,11 @@ int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsign
 		err = -ENOMEM;
 		goto out_exit;
 	}
+	memset(a, 0, sizeof(struct dnet_addr_storage));
+
+	a->reconnect_num = 0;
+	a->reconnect_num_max = 1;
+	a->reconnect_num_limit = 86400; /* 1 day */
 
 	memcpy(&a->addr, addr, sizeof(struct dnet_addr));
 	a->__join_state = join_state;

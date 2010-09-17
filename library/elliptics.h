@@ -341,6 +341,7 @@ struct dnet_transform
 
 struct dnet_addr_storage
 {
+	int				reconnect_num, reconnect_num_max, reconnect_num_limit;
 	struct list_head		reconnect_entry;
 	struct dnet_addr		addr;
 	unsigned int			__join_state;

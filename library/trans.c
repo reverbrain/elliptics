@@ -232,7 +232,7 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 	struct timespec ts;
 	struct timeval tv;
 	struct rb_node *node, *next;
-	int resent = 0, total = 0;
+	int total = 0;
 
 	dnet_try_reconnect(n);
 
@@ -275,9 +275,9 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 	}
 	dnet_lock_unlock(&n->trans_lock);
 
-	if (resent || total)
-		dnet_log(n, DNET_LOG_NOTICE, "%s: resent/checked %d transactions, total: %d.\n",
-			dnet_dump_id(n->id), resent, total);
+	if (total)
+		dnet_log(n, DNET_LOG_NOTICE, "%s: checked %d transactions, total: %d.\n",
+			dnet_dump_id(n->id), total);
 }
 
 static void *dnet_check_tree_from_thread(void *data)
