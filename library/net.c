@@ -99,7 +99,7 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 		struct sockaddr *sa, unsigned int *addr_len, int listening)
 {
 	int s, err = -EINVAL;
-	struct addrinfo *ai, hint;
+	struct addrinfo *ai = NULL, hint;
 
 	memset(&hint, 0, sizeof(struct addrinfo));
 
@@ -115,7 +115,7 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 	hint.ai_protocol = cfg->proto;
 
 	err = getaddrinfo(cfg->addr, cfg->port, &hint, &ai);
-	if (err) {
+	if (err || ai == NULL) {
 		err = -errno;
 		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%s, family: %d, err: %d.\n",
 				cfg->addr, cfg->port, cfg->family, err);
