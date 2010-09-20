@@ -564,13 +564,15 @@ static void dnet_schedule_command(struct dnet_net_state *st)
 {
 	st->rcv_flags = DNET_IO_CMD;
 
-	{
+	if (st->rcv_data) {
 		struct dnet_cmd *c = &st->rcv_cmd;
-		dnet_log(st->n, DNET_LOG_INFO, "freed: size: %llu, trans: %llu, ptr: %p.\n",
+		dnet_log(st->n, DNET_LOG_NOTICE, "freed: size: %llu, trans: %llu, ptr: %p.\n",
 						c->size, c->trans, st->rcv_data);
+
+		free(st->rcv_data);
+		st->rcv_data = NULL;
 	}
-	free(st->rcv_data);
-	st->rcv_data = NULL;
+
 	st->rcv_size = sizeof(struct dnet_cmd);
 	st->rcv_offset = 0;
 }
@@ -648,7 +650,7 @@ again:
 				goto out;
 			}
 
-			dnet_log(n, DNET_LOG_INFO, "allocated: %llu, trans: %llu, ptr: %p.\n",
+			dnet_log(n, DNET_LOG_NOTICE, "allocated: %llu, trans: %llu, ptr: %p.\n",
 					c->size, c->trans, st->rcv_data);
 		}
 
