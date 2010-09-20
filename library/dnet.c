@@ -1085,6 +1085,13 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	dnet_convert_attr(a);
 	dnet_convert_io_attr(io);
 
+	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %u, size: %llu, offset: %llu, local_offset: %llu -> %s.\n",
+			dnet_dump_id(ctl->addr),
+			(unsigned long long)t->trans, ctl->cmd,
+			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
+			(unsigned long long)ctl->local_offset,
+			dnet_server_convert_dnet_addr(&t->st->addr));
+
 	if (ctl->fd >= 0) {
 		err = dnet_send_fd(t->st, cmd, tsize, ctl->fd, ctl->local_offset, size);
 	} else {
@@ -1134,14 +1141,6 @@ int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *ctl)
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to create transaction.\n", dnet_dump_id(ctl->addr));
 		goto err_out_exit;
 	}
-	st = t->st;
-
-	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %u, size: %llu, offset: %llu, local_offset: %llu -> %s.\n",
-			dnet_dump_id(ctl->addr),
-			(unsigned long long)t->trans, ctl->cmd,
-			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
-			(unsigned long long)ctl->local_offset,
-			dnet_server_convert_dnet_addr(&st->addr));
 
 	return 0;
 
