@@ -1,3 +1,9 @@
+elliptics (2.9.2.21) unstable; urgency=low
+
+  * Do not dereference null state in dnet_fcgi_read_complete.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 20 Sep 2010 18:19:05 +0400
+
 elliptics (2.9.2.20) unstable; urgency=low
 
   * Added thread stack size parameter.

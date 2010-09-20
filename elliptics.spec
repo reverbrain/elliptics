@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.2.20
+Version:	2.9.2.21
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Sep 20 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.21-1
+- Do not dereference null state in dnet_fcgi_read_complete.
+
 * Fri Sep 17 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.20-1
 - Added thread stack size parameter.
 - Added malloc mmap threshold config parameter. (19)
