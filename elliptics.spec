@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.2.21
+Version:	2.9.2.22
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Sep 20 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.22-1
+- Moved transaction debug output into the place where it can not dereference stale data.
+- Decrease debug level for allocations.
+- Added addrinfo null check. Should be useless though.
+
 * Mon Sep 20 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.21-1
 - Do not dereference null state in dnet_fcgi_read_complete.
 
