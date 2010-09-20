@@ -1078,7 +1078,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		struct dnet_attr *a, void *priv)
 {
 	int err;
-	struct dnet_node *n = dnet_get_node_from_state(st);
+	struct dnet_node *n;
 	struct dnet_io_attr *io;
 	unsigned long long size;
 	void *data;
@@ -1087,6 +1087,8 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		err = -EINVAL;
 		goto err_out_exit;
 	}
+
+	n = dnet_get_node_from_state(st);
 
 	if (cmd->status || !cmd->size) {
 		err = cmd->status;
