@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.2.22
+Version:	2.9.2.23
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 30 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.23-1
+- Remove io_thread_num and max_pending config parameters.
+- Added stack size parameter to check tools.
+
 * Mon Sep 20 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.22-1
 - Moved transaction debug output into the place where it can not dereference stale data.
 - Decrease debug level for allocations.

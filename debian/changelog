@@ -1,3 +1,10 @@
+elliptics (2.9.2.23) unstable; urgency=low
+
+  * Remove io_thread_num and max_pending config parameters.
+  * Added stack size parameter to check tools.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 30 Sep 2010 17:29:54 +0400
+
 elliptics (2.9.2.22) unstable; urgency=low
 
   * Moved transaction debug output into the place where it can not dereference
