@@ -161,6 +161,7 @@ static int dnet_set_malloc_options(struct dnet_config_backend *b __unused, char 
 static int dnet_set_stack_size(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
 	dnet_cfg_state.stack_size = atoi(value);
+	return 0;
 }
 
 static int dnet_set_backend(struct dnet_config_backend *b, char *key __unused, char *value);
