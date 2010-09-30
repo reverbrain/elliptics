@@ -253,22 +253,22 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 		if (kill)
 			err = -EIO;
 
+		if (!err && !dnet_time_after(&ts, &t->fire_time))
+			break;
+
 		if (dnet_time_after(&ts, &t->fire_time))
 			err = -ETIMEDOUT;
+		dnet_trans_remove_nolock(&n->trans_root, t);
 
-		if (err) {
-			dnet_trans_remove_nolock(&n->trans_root, t);
+		dnet_log(n, DNET_LOG_ERROR, "%s: freeing transaction %llu: err: %d.\n",
+				dnet_dump_id(t->cmd.id), t->trans, err);
 
-			dnet_log(n, DNET_LOG_ERROR, "%s: freeing transaction %llu: err: %d.\n",
-					dnet_dump_id(t->cmd.id), t->trans, err);
+		t->cmd.status = err;
+		t->cmd.size = 0;
 
-			t->cmd.status = err;
-			t->cmd.size = 0;
-
-			if (t->complete)
-				t->complete(n->st, &t->cmd, NULL, t->priv);
-			dnet_trans_put(t);
-		}
+		if (t->complete)
+			t->complete(n->st, &t->cmd, NULL, t->priv);
+		dnet_trans_put(t);
 
 		total++;
 		node = next;
