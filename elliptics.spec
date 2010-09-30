@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.2.23
+Version:	2.9.2.24
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 30 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.24-1
+- Do not traverse the whole transaction tree after we found the
+	first one which fire time has not yet elapsed.
+
 * Thu Sep 30 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.23-1
 - Remove io_thread_num and max_pending config parameters.
 - Added stack size parameter to check tools.
