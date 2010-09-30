@@ -548,6 +548,7 @@ static void dnet_check_log_help(char *p)
 			"                              Useful when you change log (like added new hash)\n"
 			"                              and want this data uploaded to all nodes.\n"
 			"  -w seconds              - timeout to wait for transction completion\n"
+			"  -s stack                - thread stack size in bytes\n"
 			"  -h                      - this help.\n", p);
 }
 
@@ -569,11 +570,13 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60*10;
 	cfg.check_timeout.tv_sec = 60*60*10;
-	cfg.io_thread_num = 2;
-	cfg.max_pending = 256;
+	cfg.stack_size = 1024*1024;
 
-	while ((ch = getopt(argc, argv, "w:ue:E:t:n:m:l:f:F:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "s:w:ue:E:t:n:m:l:f:F:r:h")) != -1) {
 		switch (ch) {
+			case 's':
+				cfg.stack_size = atoi(optarg);
+				break;
 			case 'w':
 				cfg.wait_timeout = cfg.check_timeout.tv_sec = strtoul(optarg, NULL, 0);
 				break;

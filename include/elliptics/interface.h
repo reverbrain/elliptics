@@ -311,20 +311,8 @@ struct dnet_config
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
 
-	/* Number of IO threads created for each node,
-	 * if zero default number will be allocated
-	 * (DNET_IO_THREAD_NUM_DEFAULT)
-	 */
-	int			io_thread_num;
-
 	/* Notify hash table size */
 	unsigned int		hash_size;
-
-	/*
-	 * Maximum number of transactions from the same client processed in parallel.
-	 * If not set default number is used 
-	 */
-	uint64_t		max_pending;	
 
 	/*
 	 * Wait until transaction acknowledge is received.

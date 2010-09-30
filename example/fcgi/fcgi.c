@@ -230,8 +230,6 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 	cfg->sock_type = SOCK_STREAM;
 	cfg->proto = IPPROTO_TCP;
 	cfg->wait_timeout = 60;
-	cfg->io_thread_num = 2;
-	cfg->max_pending = 256;
 
 	cfg->log = &fcgi_logger;
 

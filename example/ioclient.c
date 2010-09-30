@@ -65,7 +65,6 @@ static void dnet_usage(char *p)
 			" ...                  - parameters can be repeated multiple times\n"
 			"                        each time they correspond to the last added node\n"
 			" -m mask              - log events mask\n"
-			" -N num               - number of IO threads\n"
 			" -O offset            - read/write offset in the file\n"
 			" -S size              - read/write transaction size\n"
 			" -u file              - unlink file\n"
@@ -92,7 +91,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "u:O:S:N:m:zsH:L:w:l:c:I:i:a:r:W:R:T:h")) != -1) {
+	while ((ch = getopt(argc, argv, "u:O:S:m:zsH:L:w:l:c:I:i:a:r:W:R:T:h")) != -1) {
 		switch (ch) {
 			case 'u':
 				removef = optarg;
@@ -102,9 +101,6 @@ int main(int argc, char *argv[])
 				break;
 			case 'S':
 				size = strtoull(optarg, NULL, 0);
-				break;
-			case 'N':
-				cfg.io_thread_num = atoi(optarg);
 				break;
 			case 'm':
 				ioclient_logger.log_mask = strtoul(optarg, NULL, 0);

@@ -384,7 +384,6 @@ static void dnet_usage(char *p)
 			" -t seconds           - speed check interval\n"
 			" -I id                - node ID\n"
 			" -n num               - number of the server lookup requests sent during the test\n"
-			" -N num               - number of IO threads\n"
 			" -L                   - dump written IDs into stdout\n"
 			" -p num               - start object names with this number instead of zero\n"
 			, p);
@@ -412,16 +411,11 @@ int main(int argc, char *argv[])
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
 	iotest_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
-	cfg.io_thread_num = 2;
-	cfg.max_pending = 256;
 
-	while ((ch = getopt(argc, argv, "p:LN:n:I:t:S:s:m:i:a:r:RT:l:w:h")) != -1) {
+	while ((ch = getopt(argc, argv, "p:Ln:I:t:S:s:m:i:a:r:RT:l:w:h")) != -1) {
 		switch (ch) {
 			case 'p':
 				iotest_started = strtoull(optarg, NULL, 0);
-				break;
-			case 'N':
-				cfg.io_thread_num = atoi(optarg);
 				break;
 			case 'n':
 				iotest_lookup_num = atoi(optarg);
