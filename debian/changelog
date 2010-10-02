@@ -1,3 +1,10 @@
+elliptics (2.9.2.25) unstable; urgency=low
+
+  * Added norequest flag to fsck util (will use existing file).
+  * Fixed remotes processing typo.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 02 Oct 2010 20:39:48 +0400
+
 elliptics (2.9.2.24) unstable; urgency=low
 
   * Do not traverse the whole transaction tree after we found the first one

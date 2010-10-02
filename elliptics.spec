@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.2.24
+Version:	2.9.2.25
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Oct 2 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.25-1
+- Added norequest flag to fsck util (will use existing file).
+- Fixed remotes processing typo.
+
 * Thu Sep 30 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.24-1
 - Do not traverse the whole transaction tree after we found the
 	first one which fire time has not yet elapsed.
