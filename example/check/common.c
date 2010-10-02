@@ -561,6 +561,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 	char *library = NULL, *library_data = NULL;
 	char local_addr[] = "0.0.0.0:0:2";
 	int added_remotes = 0;
+	int norequest = 0;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -572,8 +573,11 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 	cfg.check_timeout.tv_sec = 60*60*10;
 	cfg.stack_size = 1024*1024;
 
-	while ((ch = getopt(argc, argv, "s:w:ue:E:t:n:m:l:f:F:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "Ns:w:ue:E:t:n:m:l:f:F:r:h")) != -1) {
 		switch (ch) {
+			case 'N':
+				norequest = 1;
+				break;
 			case 's':
 				cfg.stack_size = atoi(optarg);
 				break;
@@ -701,7 +705,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 		added = 0;
 		for (j=0; j<added_remotes; ++j) {
 			if (request_ids)
-				remotes[i].join = DNET_NO_ROUTE_LIST;
+				remotes[j].join = DNET_NO_ROUTE_LIST;
 
 			err = dnet_add_state(w->n, &remotes[j]);
 			if (!err)
@@ -717,7 +721,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 			goto out_join;
 		}
 
-		if (i == 0 && request_ids) {
+		if (i == 0 && request_ids && !norequest) {
 			err = dnet_check_request_ids(w, remotes[0].id, file, types);
 			if (err) {
 				dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to request ID range from node %s: %d.\n",
