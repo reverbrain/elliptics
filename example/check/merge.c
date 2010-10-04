@@ -232,6 +232,10 @@ static int dnet_merge_check_direct_tranasction_time(struct dnet_check_worker *wo
 err_out_unmap:
 	dnet_unmap_history(n, &m);
 err_out_exit:
+	snprintf(file, sizeof(file), "%s/%s-trans%s", dnet_check_tmp_dir, id_str, DNET_HISTORY_SUFFIX);
+	unlink(file);
+	snprintf(file, sizeof(file), "%s/%s-trans", dnet_check_tmp_dir, id_str);
+	unlink(file);
 	return err;
 }
 
