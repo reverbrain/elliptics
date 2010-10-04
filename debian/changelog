@@ -1,3 +1,10 @@
+elliptics (2.9.2.26) unstable; urgency=low
+
+  * Do not log error when state is NULL in stat completion callback.
+  * Unlink transaction and history after direct merge.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 04 Oct 2010 18:16:49 +0400
+
 elliptics (2.9.2.25) unstable; urgency=low
 
   * Added norequest flag to fsck util (will use existing file).
