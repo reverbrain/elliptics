@@ -1200,7 +1200,7 @@ static int dnet_fcgi_stat_complete(struct dnet_net_state *state,
 	struct dnet_cmd *cmd, struct dnet_attr *attr __unused, void *priv __unused)
 {
 	if (!state || !cmd || cmd->status) {
-		if (cmd)
+		if (cmd && state)
 			dnet_log_raw(dnet_get_node_from_state(state), DNET_LOG_ERROR,
 					"state: %p, cmd: %p, err: %d.\n", state, cmd, cmd->status);
 		dnet_fcgi_stat_bad++;
