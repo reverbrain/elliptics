@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.2.26
+Version:	2.9.2.27
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Oct 6 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.27-1
+- Added keep-alive options.
+
 * Mon Oct 4 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.26-1
 - Unlink transaction and history after direct merge.
 - Do not log error when state is NULL in completion callback.
