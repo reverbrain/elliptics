@@ -25,6 +25,8 @@
 #include <poll.h>
 #include <fcntl.h>
 
+#include <netinet/tcp.h>
+
 #include "elliptics.h"
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
@@ -80,6 +82,15 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 				dnet_server_convert_port(sa, salen));
 			goto err_out_close;
 		}
+		err = 1;
+		setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &err, 4);
+
+		err = 4;
+		setsockopt(s, IPPROTO_TCP, TCP_KEEPCNT, &err, 4);
+		err = 30;
+		setsockopt(s, IPPROTO_TCP, TCP_KEEPIDLE, &err, 4);
+		err = 20;
+		setsockopt(s, IPPROTO_TCP, TCP_KEEPINTVL, &err, 4);
 
 		dnet_log(n, DNET_LOG_INFO, "connected to %s:%d.\n",
 			dnet_server_convert_addr(sa, salen),
