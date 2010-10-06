@@ -118,7 +118,7 @@ int main(int argc, char *argv[])
 				lookup = optarg;
 				break;
 			case 'w':
-				cfg.check_timeout.tv_sec = cfg.wait_timeout = atoi(optarg);
+				cfg.check_timeout = cfg.wait_timeout = atoi(optarg);
 				break;
 			case 'l':
 				logfile = optarg;

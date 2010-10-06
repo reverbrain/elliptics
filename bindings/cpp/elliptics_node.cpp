@@ -44,7 +44,7 @@ elliptics_node::elliptics_node(unsigned char *id, elliptics_log &l)
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60;
-	cfg.check_timeout.tv_sec = 60;
+	cfg.check_timeout = 60;
 
 	log = reinterpret_cast<elliptics_log *>(l.clone());
 	cfg.log = log->get_dnet_log();

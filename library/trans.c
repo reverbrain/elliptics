@@ -138,8 +138,8 @@ struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size)
 
 	atomic_set(&t->refcnt, 1);
 
-	t->fire_time.tv_sec = tv.tv_sec + n->check_timeout.tv_sec;
-	t->fire_time.tv_nsec = tv.tv_usec * 1000 + n->check_timeout.tv_nsec;
+	t->fire_time.tv_sec = tv.tv_sec + n->check_timeout;
+	t->fire_time.tv_nsec = tv.tv_usec * 1000;
 
 	return t;
 }
@@ -283,16 +283,21 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 static void *dnet_check_tree_from_thread(void *data)
 {
 	struct dnet_node *n = data;
-	unsigned long i, timeout = n->check_timeout.tv_sec;
+	long i, timeout;
+	struct timeval tv1, tv2;
 
-	if (!timeout)
-		timeout = 1;
+	if (!n->check_timeout)
+		n->check_timeout = 10;
 
 	dnet_log(n, DNET_LOG_INFO, "%s: started checking thread. Timeout: %lu seconds.\n",
-			dnet_dump_id(n->id), timeout);
+			dnet_dump_id(n->id), n->check_timeout);
 
 	while (!n->need_exit) {
+		gettimeofday(&tv1, NULL);
 		dnet_check_tree(n, 0);
+		gettimeofday(&tv2, NULL);
+
+		timeout = n->check_timeout - (tv2.tv_sec - tv1.tv_sec);
 
 		for (i=0; i<timeout; ++i) {
 			if (n->need_exit)

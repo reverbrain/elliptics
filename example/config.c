@@ -105,7 +105,7 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 	else if (!strcmp(key, "wait_timeout"))
 		dnet_cfg_state.wait_timeout = value;
 	else if (!strcmp(key, "check_timeout"))
-		dnet_cfg_state.check_timeout.tv_sec = value;
+		dnet_cfg_state.check_timeout = value;
 	else if (!strcmp(key, "join"))
 		dnet_cfg_state.join = value;
 	else if (!strcmp(key, "daemon"))

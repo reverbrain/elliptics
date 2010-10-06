@@ -570,7 +570,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60*10;
-	cfg.check_timeout.tv_sec = 60*60*10;
+	cfg.check_timeout = 60*60*10;
 	cfg.stack_size = 1024*1024;
 
 	while ((ch = getopt(argc, argv, "Ns:w:ue:E:t:n:m:l:f:F:r:h")) != -1) {
@@ -582,7 +582,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 				cfg.stack_size = atoi(optarg);
 				break;
 			case 'w':
-				cfg.wait_timeout = cfg.check_timeout.tv_sec = strtoul(optarg, NULL, 0);
+				cfg.wait_timeout = cfg.check_timeout = strtoul(optarg, NULL, 0);
 				break;
 			case 'u':
 				dnet_check_upload_existing = 1;

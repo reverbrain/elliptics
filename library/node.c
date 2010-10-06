@@ -462,10 +462,10 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	dnet_log(n, DNET_LOG_NOTICE, "%s: using %d stack size.\n",
 			dnet_dump_id(n->id), cfg->stack_size);
 
-	if (!n->check_timeout.tv_sec && !n->check_timeout.tv_nsec) {
-		n->check_timeout.tv_sec = DNET_DEFAULT_CHECK_TIMEOUT_SEC;
+	if (!n->check_timeout) {
+		n->check_timeout = DNET_DEFAULT_CHECK_TIMEOUT_SEC;
 		dnet_log(n, DNET_LOG_NOTICE, "%s: using default check timeout (%ld seconds).\n",
-				dnet_dump_id(n->id), n->check_timeout.tv_sec);
+				dnet_dump_id(n->id), n->check_timeout);
 	}
 
 	if (!n->notify_hash_size) {

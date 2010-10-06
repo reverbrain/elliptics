@@ -231,7 +231,7 @@ struct dnet_node
 
 	int			join_state;
 
-	struct timespec		check_timeout;
+	long			check_timeout;
 	pthread_t		check_tid;
 
 	int			(* command_handler)(void *state, void *priv,

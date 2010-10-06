@@ -317,7 +317,7 @@ struct dnet_config
 	/*
 	 * Wait until transaction acknowledge is received.
 	 */
-	struct timespec		check_timeout;
+	long			check_timeout;
 
 	/*
 	 * Spawned thread size in bytes.

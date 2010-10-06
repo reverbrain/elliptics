@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
 	monitor_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
-	cfg.check_timeout.tv_sec = 60;
+	cfg.check_timeout = 60;
 
 	check_num = 1;
 	timeout = 1;

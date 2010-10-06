@@ -2423,7 +2423,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 
 	pthread_mutex_lock(&n->reconnect_lock);
 	list_for_each_entry_safe(ast, tmp, &n->reconnect_list, reconnect_entry) {
-		ast->reconnect_num += n->check_timeout.tv_sec;
+		ast->reconnect_num += n->check_timeout;
 		if (ast->reconnect_num < ast->reconnect_num_max)
 			continue;
 
