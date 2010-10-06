@@ -280,6 +280,32 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 			dnet_dump_id(n->id), total);
 }
 
+static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd *cmd,
+		struct dnet_attr *attr __unused, void *priv __unused)
+{
+	struct dnet_node *n;
+	struct dnet_net_state *st;
+
+	if (!orig || !cmd)
+		return -EINVAL;
+
+	if (!cmd->status)
+		return 0;
+
+	n = orig->n;
+
+	st = dnet_state_search(n, cmd->id, NULL);
+	if (!st || dnet_id_cmp(cmd->id, st->id)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to find matching state to free on error: %d.\n", dnet_dump_id(cmd->id), cmd->status);
+		return cmd->status;
+	}
+
+	dnet_log(n, DNET_LOG_ERROR, "%s: removing state on error: %d\n", dnet_dump_id(st->id), cmd->status);
+
+	dnet_state_reset(st);
+	return cmd->status;
+}
+
 static void *dnet_check_tree_from_thread(void *data)
 {
 	struct dnet_node *n = data;
@@ -295,6 +321,9 @@ static void *dnet_check_tree_from_thread(void *data)
 	while (!n->need_exit) {
 		gettimeofday(&tv1, NULL);
 		dnet_check_tree(n, 0);
+
+		dnet_request_stat(n, NULL, DNET_CMD_STAT, dnet_check_stat_complete, NULL);
+
 		gettimeofday(&tv2, NULL);
 
 		timeout = n->check_timeout - (tv2.tv_sec - tv1.tv_sec);

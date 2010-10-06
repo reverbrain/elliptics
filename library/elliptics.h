@@ -96,7 +96,7 @@ struct dnet_net_state
 struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 		struct dnet_addr *addr, int s);
 
-void *dnet_state_process(void *data);
+void dnet_state_reset(struct dnet_net_state *st);
 
 int dnet_state_insert(struct dnet_net_state *new);
 int dnet_state_insert_raw(struct dnet_net_state *new);

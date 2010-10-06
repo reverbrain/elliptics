@@ -695,7 +695,7 @@ out:
 	return err;
 }
 
-static void dnet_net_state_reset(struct dnet_net_state *st)
+void dnet_state_reset(struct dnet_net_state *st)
 {
 	dnet_state_remove(st);
 	dnet_add_reconnect_state(st->n, &st->addr, st->__join_state);
@@ -738,7 +738,7 @@ static void *dnet_accept_client(void *priv)
 				dnet_server_convert_dnet_addr(&addr), cs);
 	}
 
-	dnet_net_state_reset(orig);
+	dnet_state_reset(orig);
 	return NULL;
 }
 
@@ -765,7 +765,7 @@ static void *dnet_state_processing(void *priv)
 	}
 
 out_exit:
-	dnet_net_state_reset(st);
+	dnet_state_reset(st);
 	return NULL;
 }
 
