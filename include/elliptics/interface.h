@@ -768,6 +768,14 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
  */
 int dnet_meta_create_file(struct dnet_node *n, char *metafile, struct dnet_meta *m, void *mdata);
 
+struct dnet_id_la {
+	unsigned char		id[DNET_ID_SIZE];
+	int			la;
+} __attribute__ ((packed));
+
+int dnet_generate_ids_by_la(struct dnet_node *n, void *obj, int len, struct dnet_id_la **dst);
+int dnet_get_la(struct dnet_node *n, unsigned char *id);
+
 #ifdef __cplusplus
 }
 #endif

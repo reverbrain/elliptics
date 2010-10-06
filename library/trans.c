@@ -281,7 +281,7 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 }
 
 static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *priv __unused)
+		struct dnet_attr *attr, void *priv __unused)
 {
 	struct dnet_node *n;
 	struct dnet_net_state *st;
@@ -289,21 +289,30 @@ static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd
 	if (!orig || !cmd)
 		return -EINVAL;
 
-	if (!cmd->status)
-		return 0;
-
 	n = orig->n;
 
-	st = dnet_state_search(n, cmd->id, NULL);
-	if (!st || dnet_id_cmp(cmd->id, st->id)) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to find matching state to free on error: %d.\n", dnet_dump_id(cmd->id), cmd->status);
+	if (cmd->status) {
+		st = dnet_state_search(n, cmd->id, NULL);
+		if (!st || dnet_id_cmp(cmd->id, st->id)) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to find matching state to free on stat check error: %d.\n", dnet_dump_id(cmd->id), cmd->status);
+			return cmd->status;
+		}
+
+		dnet_log(n, DNET_LOG_ERROR, "%s: removing state on stat check error: %d\n", dnet_dump_id(st->id), cmd->status);
+
+		dnet_state_reset(st);
 		return cmd->status;
 	}
 
-	dnet_log(n, DNET_LOG_ERROR, "%s: removing state on error: %d\n", dnet_dump_id(st->id), cmd->status);
+	if (attr && (attr->size == sizeof(struct dnet_stat))) {
+		struct dnet_stat *stat = (struct dnet_stat *)(attr + 1);
+		dnet_convert_stat(stat);
 
-	dnet_state_reset(st);
-	return cmd->status;
+		orig->la = (int)stat->la[0];
+		dnet_log(n, DNET_LOG_NOTICE, "%s: la: %d.\n", dnet_dump_id(orig->id), orig->la);
+	}
+
+	return 0;
 }
 
 static void *dnet_check_tree_from_thread(void *data)

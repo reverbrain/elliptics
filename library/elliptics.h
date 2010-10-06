@@ -90,6 +90,8 @@ struct dnet_net_state
 	pthread_mutex_t		send_lock;
 	pthread_t		tid;
 
+	int			la;
+
 	struct dnet_stat_count	stat[__DNET_CMD_MAX];
 };
 

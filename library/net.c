@@ -786,6 +786,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
 	st->s = s;
 	st->n = n;
 
+	st->la = 1;
+
 	INIT_LIST_HEAD(&st->state_entry);
 
 	if (id)

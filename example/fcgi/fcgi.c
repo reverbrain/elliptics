@@ -108,6 +108,8 @@ static int dnet_urandom_fd;
 
 static int dnet_fcgi_dns_lookup;
 
+static int dnet_fcgi_use_la_check;
+
 static char *dnet_fcgi_unlink_pattern;
 
 #define DNET_FCGI_STAT_LOG		1
@@ -759,8 +761,15 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 	int err, error = -ENOENT;
 	int pos = 0, random_num = 0;
 	int *random_pos = NULL;
+	struct dnet_id_la *ids = NULL;
+	int ids_num = 0;
 
-	if (dnet_fcgi_random_hashes) {
+	if (dnet_fcgi_use_la_check) {
+		err = dnet_generate_ids_by_la(n, obj, len, &ids);
+		if (err < 0)
+			return err;
+		ids_num = err;
+	} else if (dnet_fcgi_random_hashes) {
 		int i;
 
 		random_pos = alloca(sizeof(int) * dnet_fcgi_random_hashes);
@@ -769,45 +778,55 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 	}
 
 	while (1) {
-		unsigned int rsize = DNET_ID_SIZE;
-
-		if (dnet_fcgi_random_hashes) {
-			if (random_num < dnet_fcgi_random_hashes) {
-				int r;
-
-				r = (double)(dnet_fcgi_random_hashes - random_num) * rand() / ((double)RAND_MAX);
-
-				pos = random_pos[r];
-				dnet_log_raw(n, DNET_LOG_NOTICE, "Using r: %d, pos: %d/%d.\n", r, pos, dnet_fcgi_random_hashes);
-
-				for (; r<dnet_fcgi_random_hashes-1; r++)
-					random_pos[r] = random_pos[r+1];
-
-				random_num++;
+		if (dnet_fcgi_use_la_check) {
+			if (pos >= ids_num) {
+				error = -ENOENT;
+				break;
 			}
-		}
+
+			memcpy(dnet_fcgi_id, ids[pos].id, DNET_ID_SIZE);
+			pos++;
+		} else {
+			unsigned int rsize = DNET_ID_SIZE;
+
+			if (dnet_fcgi_random_hashes) {
+				if (random_num < dnet_fcgi_random_hashes) {
+					int r;
+
+					r = (double)(dnet_fcgi_random_hashes - random_num) * rand() / ((double)RAND_MAX);
+
+					pos = random_pos[r];
+					dnet_log_raw(n, DNET_LOG_NOTICE, "Using r: %d, pos: %d/%d.\n", r, pos, dnet_fcgi_random_hashes);
+
+					for (; r<dnet_fcgi_random_hashes-1; r++)
+						random_pos[r] = random_pos[r+1];
+
+					random_num++;
+				}
+			}
 
 #if 1
-		err = dnet_transform(n, obj, len, dnet_fcgi_id, &rsize, &pos);
-		if (err) {
-			if (err > 0)
-				break;
-			continue;
-		}
+			err = dnet_transform(n, obj, len, dnet_fcgi_id, &rsize, &pos);
+			if (err) {
+				if (err > 0)
+					break;
+				continue;
+			}
 #else
-		if (!pos) {
-			char val[2*DNET_ID_SIZE+1];
+			if (!pos) {
+				char val[2*DNET_ID_SIZE+1];
 
-			snprintf(val, sizeof(val), "%s", obj);
-			if (len < (signed)sizeof(val) - 1)
-				val[len] = '\0';
-			
-			dnet_parse_numeric_id(val, addr);
-			memcpy(dnet_fcgi_id, addr, DNET_ID_SIZE);
-			rsize = DNET_ID_SIZE;
-			pos++;
-		}
+				snprintf(val, sizeof(val), "%s", obj);
+				if (len < (signed)sizeof(val) - 1)
+					val[len] = '\0';
+				
+				dnet_parse_numeric_id(val, addr);
+				memcpy(dnet_fcgi_id, addr, DNET_ID_SIZE);
+				rsize = DNET_ID_SIZE;
+				pos++;
+			}
 #endif
+		}
 
 		if (version == -1) {
 			err = dnet_fcgi_get_data(n, dnet_fcgi_id, ctl, NULL, embed);
@@ -823,6 +842,8 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 		error = 0;
 		break;
 	}
+
+	free(ids);
 
 	return error;
 }
@@ -1877,6 +1898,10 @@ int main()
 	p = getenv("DNET_FCGI_PUT_REGION");
 	if (p)
 		dnet_fcgi_put_region = atoi(p);
+
+	p = getenv("DNET_FCGI_USE_LA");
+	if (p)
+		dnet_fcgi_use_la_check = atoi(p);
 
 	p = getenv("DNET_FCGI_DNS_LOOKUP");
 	if (p)

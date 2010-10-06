@@ -3356,3 +3356,70 @@ err_out_put:
 err_out_exit:
 	return err;
 }
+
+int dnet_get_la(struct dnet_node *n, unsigned char *id)
+{
+	struct dnet_net_state *st;
+	int ret;
+
+	st = dnet_state_search(n, id, n->st);
+	if (!st)
+		return -ENOENT;
+
+	ret = st->la;
+	dnet_state_put(st);
+
+	return ret;
+}
+
+static int dnet_compare_by_la(const void *id1, const void *id2)
+{
+	const struct dnet_id_la *l1 = id1;
+	const struct dnet_id_la *l2 = id2;
+
+	return l1->la - l2->la;
+}
+
+int dnet_generate_ids_by_la(struct dnet_node *n, void *obj, int len, struct dnet_id_la **dst)
+{
+	struct dnet_transform *t;
+	int num = n->transform_num, i = 0;
+	struct dnet_id_la *ids;
+	unsigned int dsize;
+
+	ids = malloc(num * sizeof(struct dnet_id_la));
+	if (!ids)
+		return -ENOMEM;
+
+	pthread_rwlock_rdlock(&n->transform_lock);
+	list_for_each_entry(t, &n->transform_list, tentry) {
+		if (i >= num)
+			break;
+
+		dsize = DNET_ID_SIZE;
+		t->transform(t->priv, obj, len, ids[i].id, &dsize, 0);
+		i++;
+	}
+	pthread_rwlock_unlock(&n->transform_lock);
+
+	if (i == 0) {
+		free(ids);
+		return -ENOENT;
+	}
+
+	num = i;
+	for (i=0; i<num; ++i) {
+		ids[i].la = dnet_get_la(n, ids[i].id);
+		if (ids[i].la < 0)
+			ids[i].la = 1;
+	}
+
+	qsort(ids, num, DNET_ID_SIZE, dnet_compare_by_la);
+	*dst = ids;
+
+	for (i=0; i<num; ++i) {
+		dnet_log(n, DNET_LOG_NOTICE, "%s: la: %d\n", dnet_dump_id(ids[i].id), ids[i].la);
+	}
+
+	return num;
+}
