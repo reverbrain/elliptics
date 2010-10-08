@@ -1,3 +1,9 @@
+elliptics (2.9.2.30) unstable; urgency=low
+
+  * Added LA check debug.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 08 Oct 2010 19:14:05 +0400
+
 elliptics (2.9.2.29) unstable; urgency=low
 
   * Added id-by-LA generation and sorting.
