@@ -3367,7 +3367,6 @@ int dnet_get_la(struct dnet_node *n, unsigned char *id)
 		return -ENOENT;
 
 	ret = st->la;
-	dnet_log(n, DNET_LOG_NOTICE, "id: %s, la: %d\n", dnet_dump_id_len(id, DNET_ID_SIZE), ret);
 	dnet_state_put(st);
 
 	return ret;
@@ -3399,7 +3398,6 @@ int dnet_generate_ids_by_la(struct dnet_node *n, void *obj, int len, struct dnet
 
 		dsize = DNET_ID_SIZE;
 		t->transform(t->priv, obj, len, ids[i].id, &dsize, 0);
-		dnet_log(n, DNET_LOG_NOTICE, "%s: generated id: %s\n", (char *)obj, dnet_dump_id_len(ids[i].id, DNET_ID_SIZE));
 		i++;
 	}
 	pthread_rwlock_unlock(&n->transform_lock);
@@ -3416,7 +3414,7 @@ int dnet_generate_ids_by_la(struct dnet_node *n, void *obj, int len, struct dnet
 			ids[i].la = 1;
 	}
 
-	qsort(ids, num, DNET_ID_SIZE, dnet_compare_by_la);
+	qsort(ids, num, sizeof(struct dnet_id_la), dnet_compare_by_la);
 	*dst = ids;
 
 	for (i=0; i<num; ++i) {
