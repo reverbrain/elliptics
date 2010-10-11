@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.2.31
+Version:	2.9.2.32
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Oct 11 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.32-1
+- Added configurable value to check header for remote node IP address.
+- Added joining client check: returned address must be reachable to be
+    inserted into route table.
+
 * Fri Oct 8 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.2.31-1
 - Fixed LA sorting.
 

@@ -1,3 +1,11 @@
+elliptics (2.9.2.32) unstable; urgency=low
+
+  * Added configurable value to check header for remote node IP address.
+  * Added joining client check: returned address must be reachable to be
+    inserted into route table.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 11 Oct 2010 16:43:56 +0400
+
 elliptics (2.9.2.31) unstable; urgency=low
 
   * Fixed LA sorting.
