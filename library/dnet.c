@@ -186,6 +186,19 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 			&n->addr, 1, 0);
 }
 
+static int dnet_check_connection(struct dnet_node *n, struct dnet_addr_attr *a)
+{
+	int s;
+
+	s = dnet_socket_create_addr(n, a->sock_type, a->proto, a->family,
+			(struct sockaddr *)a->addr.addr, a->addr.addr_len, 0);
+	if (s < 0)
+		return s;
+
+	close(s);
+	return 0;
+}
+
 static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr __unused, void *data)
 {
@@ -194,6 +207,15 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	int err = 1;
 
 	dnet_convert_addr_attr(a);
+
+	dnet_log(n, DNET_LOG_INFO, "%s: accepted joining client (%s), requesting statistics.\n",
+			dnet_dump_id(cmd->id), dnet_server_convert_dnet_addr(&a->addr));
+	err = dnet_check_connection(n, a);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to request statistics from joining client (%s), dropping connection.\n",
+				dnet_dump_id(cmd->id), dnet_server_convert_dnet_addr(&a->addr));
+		return err;
+	}
 
 	pthread_rwlock_wrlock(&n->state_lock);
 	if (!list_empty(&st->state_entry)) {
