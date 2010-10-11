@@ -54,6 +54,7 @@
 #define DNET_FCGI_TOKEN_DELIM		','
 #define DNET_FCGI_TOKEN_DIRECT_ALL	'*'
 #define DNET_FCGI_STORAGE_BIT_NUM	8
+#define DNET_FCGI_ADDR_HEADER		"REMOTE_ADDR"
 
 static long dnet_fcgi_timeout_sec = 10;
 
@@ -80,6 +81,8 @@ static int dnet_fcgi_last_modified;
 static char *dnet_fcgi_direct_download;
 static int dnet_fcgi_direct_patterns_num, dnet_fcgi_direct_download_all;
 static char **dnet_fcgi_direct_patterns;
+
+static char *dnet_fcgi_remote_addr_header = DNET_FCGI_ADDR_HEADER;
 
 static int dnet_fcgi_upload_host_limit;
 
@@ -1919,6 +1922,10 @@ int main()
 	if (p)
 		dnet_fcgi_setup_content_type_patterns(p);
 
+	p = getenv("DNET_FCGI_ADDR_HEADER");
+	if (p)
+		dnet_fcgi_remote_addr_header = p;
+
 	p = getenv("DNET_FCGI_EXTERNAL_LIB");
 	if (p)
 		dnet_fcgi_setup_external_callbacks(p);
@@ -1999,9 +2006,12 @@ int main()
 		dnet_fcgi_request_info = 1;
 		pthread_mutex_unlock(&dnet_fcgi_output_lock);
 
-		addr = FCGX_GetParam("REMOTE_ADDR", dnet_fcgi_request.envp);
-		if (!addr)
-			continue;
+		addr = FCGX_GetParam(dnet_fcgi_remote_addr_header, dnet_fcgi_request.envp);
+		if (!addr) {
+			addr = FCGX_GetParam(DNET_FCGI_ADDR_HEADER, dnet_fcgi_request.envp);
+			if (!addr)
+				continue;
+		}
 
 		method = FCGX_GetParam("REQUEST_METHOD", dnet_fcgi_request.envp);
 		id = NULL;
@@ -2056,7 +2066,7 @@ int main()
 			if (*version_str)
 				version = strtol(version_str, NULL, 0);
 		}
-		
+
 		embed_str = strstr(query, embed_pattern);
 
 		if (dnet_fcgi_external_callback_start)
