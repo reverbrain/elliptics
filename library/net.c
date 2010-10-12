@@ -523,7 +523,7 @@ static int dnet_process_recv(struct dnet_net_state *st)
 
 		if (!t) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: could not find transaction for reply: trans %llu.\n",
-				dnet_dump_id(st->rcv_cmd.id), tid);
+				dnet_dump_id(st->rcv_cmd.id), (unsigned long long)tid);
 			err = 0;
 			goto err_out_exit;
 		}
@@ -653,7 +653,7 @@ again:
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: received trans: %llu / %llx, reply: %d, size: %llu, flags: %u.\n",
-				dnet_dump_id(c->id), tid, c->trans, !!(c->trans & DNET_TRANS_REPLY),
+				dnet_dump_id(c->id), tid, (unsigned long long)c->trans, !!(c->trans & DNET_TRANS_REPLY),
 				(unsigned long long)c->size, c->flags);
 
 		if (c->size) {

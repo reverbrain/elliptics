@@ -201,7 +201,8 @@ static int dnet_merge_check_direct_tranasction_time(struct dnet_check_worker *wo
 	dnet_convert_history_entry(&e);
 
 	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: direct: %llu.%llu, size: %llu, history transaction: %llu.%llu, size: %llu.\n",
-			id_str, e.tsec, e.tnsec, e.size, f->tsec, f->tnsec, f->size);
+			id_str, (unsigned long long)e.tsec, (unsigned long long)e.tnsec, (unsigned long long)e.size,
+			(unsigned long long)f->tsec, (unsigned long long)f->tnsec, (unsigned long long)f->size);
 
 	if (e.tsec < f->tsec)
 		goto err_out_unmap;
