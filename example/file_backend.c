@@ -326,7 +326,8 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
 	int oflags = O_RDWR | O_CREAT | O_LARGEFILE;
 	void *data = io + 1;
-	int err, fd;
+	int fd;
+	ssize_t err;
 
 	file_backend_setup_file(r, file, sizeof(file), io);
 
@@ -344,7 +345,7 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 	}
 
 	err = write(fd, data, io->size);
-	if (err <= 0) {
+	if (err != (ssize_t)io->size) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to write into '%s': %s.\n",
 			dnet_dump_id(io->id), file, strerror(errno));

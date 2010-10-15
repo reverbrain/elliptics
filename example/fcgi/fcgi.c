@@ -919,8 +919,8 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, unsigned int len,
 static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int length,
 	int version, struct timespec *ts, int embed, int append)
 {
-	void *data;
-	unsigned long data_size, size;
+	void *data = NULL;
+	unsigned long data_size = 0, size;
 	char *p;
 	long err;
 
@@ -935,68 +935,65 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *addr, char *id, int 
 	}
 
 	p = FCGX_GetParam("CONTENT_LENGTH", dnet_fcgi_request.envp);
-	if (!p) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: no content length.\n", addr);
-		goto err_out_exit;
-	}
-
-	data_size = strtoul(p, NULL, 0);
-	if (data_size > dnet_fcgi_max_request_size || !data_size) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: invalid content length: %lu.\n", addr, data_size);
-		goto err_out_exit;
-	}
-
-	size = data_size;
-	if (embed)
-		data_size += sizeof(struct dnet_fcgi_embed) * 2 + sizeof(uint64_t) * 2;
-
-	data = malloc(data_size);
-	if (!data) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to allocate %lu bytes.\n", addr, data_size);
-		goto err_out_exit;
-	}
-
-	p = data;
-
-	if (embed) {
-		struct dnet_fcgi_embed *e = (struct dnet_fcgi_embed *)p;
-		uint64_t *edata = (uint64_t *)e->data;
-
-		e->size = sizeof(uint64_t) * 2;
-		e->type = DNET_FCGI_EMBED_TIMESTAMP;
-		e->flags = 0;
-		dnet_fcgi_convert_embedded(e);
-
-		edata[0] = dnet_bswap64(ts->tv_sec);
-		edata[1] = dnet_bswap64(ts->tv_nsec);
-
-		p += sizeof(struct dnet_fcgi_embed) + sizeof(uint64_t) * 2;
-		e = (struct dnet_fcgi_embed *)p;
-
-		e->size = size;
-		e->type = DNET_FCGI_EMBED_DATA;
-		e->flags = 0;
-		dnet_fcgi_convert_embedded(e);
-
-		p += sizeof(struct dnet_fcgi_embed);
-	}
-
-	while (size) {
-		err = FCGX_GetStr(p, size, dnet_fcgi_request.in);
-		if (err < 0 && errno != EAGAIN) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read %lu bytes, total of %lu: %s [%d].\n",
-					addr, size, data_size, strerror(errno), errno);
-			goto err_out_free;
+	if (p) {
+		data_size = strtoul(p, NULL, 0);
+		if (data_size > dnet_fcgi_max_request_size || !data_size) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: invalid content length: %lu.\n", addr, data_size);
+			goto err_out_exit;
 		}
 
-		if (err == 0) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: short read, %lu/%lu, aborting.\n",
-					addr, size, data_size);
-			goto err_out_free;
+		size = data_size;
+		if (embed)
+			data_size += sizeof(struct dnet_fcgi_embed) * 2 + sizeof(uint64_t) * 2;
+
+		data = malloc(data_size);
+		if (!data) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to allocate %lu bytes.\n", addr, data_size);
+			goto err_out_exit;
 		}
 
-		p += err;
-		size -= err;
+		p = data;
+
+		if (embed) {
+			struct dnet_fcgi_embed *e = (struct dnet_fcgi_embed *)p;
+			uint64_t *edata = (uint64_t *)e->data;
+
+			e->size = sizeof(uint64_t) * 2;
+			e->type = DNET_FCGI_EMBED_TIMESTAMP;
+			e->flags = 0;
+			dnet_fcgi_convert_embedded(e);
+
+			edata[0] = dnet_bswap64(ts->tv_sec);
+			edata[1] = dnet_bswap64(ts->tv_nsec);
+
+			p += sizeof(struct dnet_fcgi_embed) + sizeof(uint64_t) * 2;
+			e = (struct dnet_fcgi_embed *)p;
+
+			e->size = size;
+			e->type = DNET_FCGI_EMBED_DATA;
+			e->flags = 0;
+			dnet_fcgi_convert_embedded(e);
+
+			p += sizeof(struct dnet_fcgi_embed);
+		}
+
+		while (size) {
+			err = FCGX_GetStr(p, size, dnet_fcgi_request.in);
+			if (err < 0 && errno != EAGAIN) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read %lu bytes, total of %lu: %s [%d].\n",
+						addr, size, data_size, strerror(errno), errno);
+				goto err_out_free;
+			}
+
+			if (err == 0) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: short read, %lu/%lu, aborting.\n",
+						addr, size, data_size);
+				goto err_out_free;
+			}
+
+			p += err;
+			size -= err;
+		}
 	}
 
 	err = dnet_fcgi_upload(n, id, length, data, data_size, version, ts, append);
