@@ -549,6 +549,7 @@ static void dnet_check_log_help(char *p)
 			"                              and want this data uploaded to all nodes.\n"
 			"  -w seconds              - timeout to wait for transction completion\n"
 			"  -s stack                - thread stack size in bytes\n"
+			"  -N                      - do not request IDs and use presumably fetched previously\n"
 			"  -h                      - this help.\n", p);
 }
 
