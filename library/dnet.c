@@ -1458,7 +1458,7 @@ int dnet_write_file(struct dnet_node *n, char *file, void *remote, unsigned int 
 static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, void *priv)
 {
 	int fd, err, freeing = 0;
-	struct dnet_node *n = st->n;
+	struct dnet_node *n;
 	struct dnet_io_completion *c = priv;
 	struct dnet_io_attr *io;
 	void *data;
@@ -1468,6 +1468,8 @@ static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, s
 		freeing = 1;
 		goto err_out_exit;
 	}
+
+	n = st->n;
 
 	freeing = !(cmd->flags & DNET_FLAGS_MORE);
 
