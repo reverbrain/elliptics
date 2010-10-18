@@ -836,6 +836,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, char *obj, int len, struct 
 		} else {
 			err = dnet_fcgi_get_data_version(n, dnet_fcgi_id, ctl, version);
 		}
+		dnet_log_raw(n, DNET_LOG_INFO, "%s -> %s: %d\n", obj, dnet_dump_id_len(dnet_fcgi_id, DNET_ID_SIZE), err);
 
 		if (err) {
 			error = err;
