@@ -140,7 +140,13 @@ rm -rf %{buildroot}
 
 
 %changelog
-* Mon Oct 18 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.1-1
+* Mon Oct 18 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.2-1
+- Added full object ID dump and request error.
+- Exit merge early if no id file was provided.
+- Do not dereference state in dnet_read_complete() if it is NULL.
+- Added -N (do not request ids and use prevously downloaded) option comment into fsck help.
+
+* Mon Oct 18 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.2-1
 - Extended alloc/free debug.
 - Allow zero-sized writes.
 

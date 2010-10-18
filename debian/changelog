@@ -1,3 +1,13 @@
+elliptics (2.9.3.2) unstable; urgency=low
+
+  * Added full object ID dump and request error.
+  * Exit merge early if no id file was provided.
+  * Do not dereference state in dnet_read_complete() if it is NULL.
+  * Added -N (do not request ids and use prevously downloaded) option comment
+    into fsck help.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Oct 2010 19:27:55 +0400
+
 elliptics (2.9.3.1) unstable; urgency=low
 
   * Extended alloc/free debug.
