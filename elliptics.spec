@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.3
+Version:	2.9.3.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Oct 18 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.1-1
+- Extended alloc/free debug.
+- Allow zero-sized writes.
+
 * Wed Oct 13 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3-1
 - New minor release. No changes from 2.9.2.32.
 

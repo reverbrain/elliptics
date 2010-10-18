@@ -1,3 +1,10 @@
+elliptics (2.9.3.1) unstable; urgency=low
+
+  * Extended alloc/free debug.
+  * Allow zero-sized writes.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Oct 2010 13:29:32 +0400
+
 elliptics (2.9.3) unstable; urgency=low
 
   * New minor release.
