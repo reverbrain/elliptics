@@ -432,6 +432,11 @@ static void *dnet_merge_process(void *data)
 	struct dnet_id id;
 	int err;
 
+	if (!dnet_check_file) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "No ID file, exiting.\n");
+		return NULL;
+	}
+
 	while (1) {
 		pthread_mutex_lock(&dnet_check_file_lock);
 		err = fread(&id, sizeof(struct dnet_id), 1, dnet_check_file);
