@@ -221,8 +221,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	offset += sizeof(struct eblob_disk_control) + io->offset;
 
 	io->size = size;
-	io->offset = offset;
-	err = dnet_send_read_data(state, cmd, io, NULL, fd);
+	err = dnet_send_read_data(state, cmd, io, NULL, fd, offset);
 
 err_out_exit:
 	return err;
