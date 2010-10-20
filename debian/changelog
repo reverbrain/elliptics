@@ -1,3 +1,10 @@
+elliptics (2.9.3.3) unstable; urgency=low
+
+  * Unmap history after selecting transaction with the last update time in
+    dnet_merge_get_latest_transactions()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 20 Oct 2010 18:06:08 +0400
+
 elliptics (2.9.3.2) unstable; urgency=low
 
   * Added full object ID dump and request error.
