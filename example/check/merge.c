@@ -271,6 +271,8 @@ static int dnet_merge_get_latest_transactions(struct dnet_check_worker *worker, 
 
 	err = 0;
 
+	dnet_unmap_history(n, &m);
+
 err_out_exit:
 	return err;
 }
