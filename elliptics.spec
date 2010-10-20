@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.3.3
+Version:	2.9.3.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Oct 20 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.4-1
+- Extend dnet_send_read_data() to get offset from parameters and do not abuse dnet_io_attr structure.
+
 * Wed Oct 20 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.3-1
 - Unmap history after selecting transaction with the last update time in dnet_merge_get_latest_transactions()
 
