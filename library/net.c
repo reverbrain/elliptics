@@ -372,15 +372,12 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 static int dnet_trans_exec(struct dnet_trans *t, struct dnet_net_state *st)
 {
 	int err = 0;
+	struct timeval tv;
 
-	if (t->cmd.flags & DNET_FLAGS_MORE) {
-		struct timeval tv;
+	gettimeofday(&tv, NULL);
 
-		gettimeofday(&tv, NULL);
-
-		t->fire_time.tv_sec = tv.tv_sec;
-		t->fire_time.tv_nsec = tv.tv_usec * 1000;
-	}
+	t->fire_time.tv_sec = tv.tv_sec + st->n->check_timeout;
+	t->fire_time.tv_nsec = tv.tv_usec * 1000;
 
 	dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: executing transaction %llu, reply: %d.\n",
 			dnet_dump_id(st->rcv_cmd.id), st->rcv_cmd.trans & ~DNET_TRANS_REPLY,
