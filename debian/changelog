@@ -1,3 +1,9 @@
+elliptics (2.9.3.5) unstable; urgency=low
+
+  * Update transaction fire time to include check timeout.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Oct 2010 17:06:13 +0400
+
 elliptics (2.9.3.4) unstable; urgency=low
 
   * Extend dnet_send_read_data() to get offset from parameters and do not
