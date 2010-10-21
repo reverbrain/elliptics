@@ -167,10 +167,14 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 
 	if (attr->flags & DNET_ATTR_LOOKUP_STAT) {
 		err = dnet_stat_local(orig, cmd->id, !!(attr->flags & DNET_ATTR_LOOKUP_HISTORY));
-		dnet_log(n, DNET_LOG_NOTICE, "%s: %s object is stored locally: %d.\n",
-				dnet_dump_id(cmd->id), !!(attr->flags & DNET_ATTR_LOOKUP_HISTORY) ? "history" : "plain", !err);
-		if (!err)
+		dnet_log(n, DNET_LOG_NOTICE, "%s: %s object is stored locally (%s): %d.\n",
+				dnet_dump_id(cmd->id), !!(attr->flags & DNET_ATTR_LOOKUP_HISTORY) ? "history" : "plain",
+				dnet_state_dump_addr(st), !err);
+		if (!err) {
 			aflags = attr->flags;
+			dnet_state_put(st);
+			st = orig->n->st;
+		}
 	}
 
 	err = dnet_send_address(orig, st->id, cmd->trans, DNET_CMD_LOOKUP, aflags, &st->addr, 1, 0);
