@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.3.7
+Version:	2.9.3.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Oct 21 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.8-1
+- Always use local address for succeeded local lookup.
+
 * Thu Oct 21 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.7-1
 - Kill state when check thread got error. (7)
 - Extended fire time debug. (6)
