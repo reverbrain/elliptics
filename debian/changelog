@@ -1,3 +1,9 @@
+elliptics (2.9.3.9) unstable; urgency=low
+
+  * Fixed state leak in lookup processing.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Oct 2010 20:47:59 +0400
+
 elliptics (2.9.3.8) unstable; urgency=low
 
   * Always use local address for succeeded local lookup.
