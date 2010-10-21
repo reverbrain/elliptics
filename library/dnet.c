@@ -83,8 +83,9 @@ static int dnet_send_address(struct dnet_net_state *st, unsigned char *id, uint6
 	c->addr.sock_type = st->n->sock_type;
 	c->addr.proto = st->n->proto;
 
-	dnet_log(st->n, DNET_LOG_INFO, "%s: sending address command: trans: %llu, reply: %d, cmd: %u, aflags: %x.\n",
-			dnet_dump_id(id), (unsigned long long)trans, reply, cmd, aflags);
+	dnet_log(st->n, DNET_LOG_INFO, "%s: sending address %s: trans: %llu, reply: %d, cmd: %u, aflags: %x.\n",
+			dnet_dump_id(id), dnet_server_convert_dnet_addr(addr),
+			(unsigned long long)trans, reply, cmd, aflags);
 
 	dnet_convert_addr_cmd(c);
 
