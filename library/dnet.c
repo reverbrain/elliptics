@@ -173,7 +173,7 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 		if (!err) {
 			aflags = attr->flags;
 			dnet_state_put(st);
-			st = orig->n->st;
+			st = dnet_state_get(orig->n->st);
 		}
 	}
 
