@@ -270,6 +270,14 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 
 		if (t->complete)
 			t->complete(n->st, &t->cmd, NULL, t->priv);
+
+		if (t->st) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: removing state %s on error check error: %d\n",
+					dnet_dump_id(t->st->id), dnet_state_dump_addr(t->st), err);
+			dnet_state_get(t->st);
+			dnet_state_reset(t->st);
+		}
+
 		dnet_trans_put(t);
 
 		total++;
@@ -300,7 +308,8 @@ static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd
 			return cmd->status;
 		}
 
-		dnet_log(n, DNET_LOG_ERROR, "%s: removing state on stat check error: %d\n", dnet_dump_id(st->id), cmd->status);
+		dnet_log(n, DNET_LOG_ERROR, "%s: removing state %s on stat check error: %d\n",
+				dnet_dump_id(st->id), dnet_state_dump_addr(st), cmd->status);
 
 		dnet_state_reset(st);
 		return cmd->status;
