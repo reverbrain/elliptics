@@ -379,9 +379,10 @@ static int dnet_trans_exec(struct dnet_trans *t, struct dnet_net_state *st)
 	t->fire_time.tv_sec = tv.tv_sec + st->n->check_timeout;
 	t->fire_time.tv_nsec = tv.tv_usec * 1000;
 
-	dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: executing transaction %llu, reply: %d.\n",
+	dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: executing trans: %llu, reply: %d, fire_time: %ld.%ld.\n",
 			dnet_dump_id(st->rcv_cmd.id), st->rcv_cmd.trans & ~DNET_TRANS_REPLY,
-			!!(st->rcv_cmd.trans & DNET_TRANS_REPLY));
+			!!(st->rcv_cmd.trans & DNET_TRANS_REPLY),
+			t->fire_time.tv_sec, t->fire_time.tv_nsec);
 
 	if (t->complete)
 		t->complete(t->st, &st->rcv_cmd, st->rcv_data, t->priv);
