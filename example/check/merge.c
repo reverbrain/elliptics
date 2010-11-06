@@ -277,6 +277,51 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, unsigned char *id)
+{
+	struct dnet_node *n = worker->n;
+	char file[256];
+	char eid[2*DNET_ID_SIZE+1];
+	int err;
+
+	worker->wait_num = 0;
+	worker->wait_error = 0;
+
+	err = dnet_check_read_single(worker, id, 0, 1);
+	dnet_check_wait(worker, worker->wait_num == 1);
+
+	if (!err && worker->wait_error)
+		err = worker->wait_error;
+
+	if (err) {
+		if (err != -ENOENT) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read single transaction: %d.\n",
+					dnet_dump_id(id), err);
+			goto err_out_exit;
+		}
+
+		/*
+		 * This is a history log for object, which consists of another objects,
+		 * not plain transaction, so we just upload history file into the storage.
+		 */
+	} else {
+		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len_raw(id, DNET_ID_SIZE, eid));
+		err = dnet_write_file_local_offset(n, file, file, strlen(file), id, 0, 0, 0,
+				DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to upload transaction to be directly merged: %d.\n",
+					dnet_dump_id(id), err);
+			goto err_out_exit;
+		}
+	}
+
+	err = dnet_merge_write_history(n, direct, id);
+	if (err)
+		goto err_out_exit;
+
+err_out_exit:
+	return err;
+}
 
 static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, char *file, unsigned char *id)
 {
@@ -293,8 +338,10 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 		goto err_out_exit;
 
 	err = dnet_map_history(n, file, &m2);
-	if (err)
+	if (err) {
+		dnet_merge_direct(worker, direct, id);
 		goto err_out_unmap1;
+	}
 
 	snprintf(result, sizeof(result), "%s-%s", file, dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str));
 
@@ -376,52 +423,6 @@ err_out_unmap2:
 	dnet_unmap_history(n, &m2);
 err_out_unmap1:
 	dnet_unmap_history(n, &m1);
-err_out_exit:
-	return err;
-}
-
-static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, unsigned char *id)
-{
-	struct dnet_node *n = worker->n;
-	char file[256];
-	char eid[2*DNET_ID_SIZE+1];
-	int err;
-
-	worker->wait_num = 0;
-	worker->wait_error = 0;
-
-	err = dnet_check_read_single(worker, id, 0, 1);
-	dnet_check_wait(worker, worker->wait_num == 1);
-
-	if (!err && worker->wait_error)
-		err = worker->wait_error;
-
-	if (err) {
-		if (err != -ENOENT) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read single transaction: %d.\n",
-					dnet_dump_id(id), err);
-			goto err_out_exit;
-		}
-
-		/*
-		 * This is a history log for object, which consists of another objects,
-		 * not plain transaction, so we just upload history file into the storage.
-		 */
-	} else {
-		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len_raw(id, DNET_ID_SIZE, eid));
-		err = dnet_write_file_local_offset(n, file, file, strlen(file), id, 0, 0, 0,
-				DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_NO_HISTORY_UPDATE);
-		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to upload transaction to be directly merged: %d.\n",
-					dnet_dump_id(id), err);
-			goto err_out_exit;
-		}
-	}
-
-	err = dnet_merge_write_history(n, direct, id);
-	if (err)
-		goto err_out_exit;
-
 err_out_exit:
 	return err;
 }
