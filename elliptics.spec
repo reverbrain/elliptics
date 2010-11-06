@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.3.9
+Version:	2.9.3.10
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Nov 4 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.10-1
+- Fixed bit directory generation in file_backend_get_dir_bits()
+
 * Thu Oct 21 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.9-1
 - Fixed state leak in lookup processing.
 

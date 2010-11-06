@@ -1,3 +1,9 @@
+elliptics (2.9.3.10) unstable; urgency=low
+
+  * Fixed bit directory generation in file_backend_get_dir_bits()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 06 Nov 2010 18:03:00 +0300
+
 elliptics (2.9.3.9) unstable; urgency=low
 
   * Fixed state leak in lookup processing.
