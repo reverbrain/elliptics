@@ -229,6 +229,27 @@ err_out_exit:
 	return err;
 }
 
+static inline uint64_t file_backend_get_dir_bits(const unsigned char *id, int bit_num)
+{
+#if 0
+	uint64_t res = *(uint64_t *)id;
+
+	bit_num = 64 - bit_num;
+
+	res <<= bit_num;
+	res >>= bit_num;
+
+	return res;
+#else
+	char sub[DNET_ID_SIZE*2+1];
+	char *res = file_backend_get_dir(id, bit_num, sub);
+	char hex[DNET_ID_SIZE*2 + 1 + 2];
+
+	snprintf(hex, sizeof(hex), "0x%s", res);
+	return strtoull(hex, NULL, 16);
+#endif
+}
+
 static int file_list(struct file_backend_root *r, void *state,
 		struct dnet_cmd *cmd, struct dnet_attr *attr)
 {

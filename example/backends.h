@@ -50,18 +50,6 @@ static inline uint64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint
 int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr *attr);
 int backend_del(struct dnet_io_attr *io, struct dnet_history_entry *e, unsigned int num);
 
-static inline uint64_t file_backend_get_dir_bits(const unsigned char *id, int bit_num)
-{
-	uint64_t res = *(uint64_t *)id;
-
-	bit_num = 64 - bit_num;
-
-	res <<= bit_num;
-	res >>= bit_num;
-
-	return res;
-}
-
 static inline char *file_backend_get_dir(const unsigned char *id, uint64_t bit_num, char *dst)
 {
 	char *res = dnet_dump_id_len_raw(id, ALIGN(bit_num, 8) / 8, dst);
