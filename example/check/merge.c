@@ -339,7 +339,7 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 
 	err = dnet_map_history(n, file, &m2);
 	if (err) {
-		dnet_merge_direct(worker, direct, id);
+		err = dnet_merge_direct(worker, direct, id);
 		goto err_out_unmap1;
 	}
 
