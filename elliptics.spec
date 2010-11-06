@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.3.10
+Version:	2.9.3.11
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -140,6 +140,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Nov 4 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.11-1
+- Attempt to do direct merge when we can not parse non-direct history stored in main storage.
+
 * Sat Nov 4 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.10-1
 - Fixed bit directory generation in file_backend_get_dir_bits()
 

@@ -1,3 +1,10 @@
+elliptics (2.9.3.11) unstable; urgency=low
+
+  * Attempt to do direct merge when we can not parse non-direct history stored
+    in main storage.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 06 Nov 2010 18:59:11 +0300
+
 elliptics (2.9.3.10) unstable; urgency=low
 
   * Fixed bit directory generation in file_backend_get_dir_bits()
