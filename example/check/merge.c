@@ -334,8 +334,14 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 	int err, fd, removed = 0;
 
 	err = dnet_map_history(n, direct, &m1);
-	if (err)
+	if (err) {
+		/*
+		 * If we can not map directly downloaded history entry likely object is also broken.
+		 * Let's delete it.
+		 */
+		dnet_remove_object_now(n, id, 1);
 		goto err_out_exit;
+	}
 
 	err = dnet_map_history(n, file, &m2);
 	if (err) {
