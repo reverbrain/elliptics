@@ -41,6 +41,8 @@
 #define DNET_CHECK_NEWLINE_TOKEN_STRING		"\r\n"
 #define DNET_CHECK_INNER_TOKEN_STRING		","
 
+static int dnet_check_log_num;
+
 static int dnet_check_process_hash_string(struct dnet_check_worker *w, char *hash, int add)
 {
 	struct dnet_node *n = w->n;
@@ -367,19 +369,27 @@ static void *dnet_check_process(void *data)
 	while (1) {
 		pthread_mutex_lock(&dnet_check_file_lock);
 		tmp = fgets(buf, size, dnet_check_file);
+		if (tmp)
+			dnet_check_log_num++;
+
 		pthread_mutex_unlock(&dnet_check_file_lock);
-		if (!tmp)
+		if (!tmp) {
+			dnet_log_raw(w->n, DNET_LOG_INFO, "Check file is empty, exiting.\n");
 			break;
+		}
+
+		obj = hash = NULL;
+		err = -EINVAL;
 
 		token = strtok_r(tmp, DNET_CHECK_TOKEN_STRING, &saveptr);
 		if (!token)
-			continue;
+			goto out_continue;
 		hash = token;
 
 		tmp = NULL;
 		token = strtok_r(tmp, DNET_CHECK_TOKEN_STRING, &saveptr);
 		if (!token)
-			continue;
+			goto out_continue;
 		obj = token;
 
 		/*
@@ -392,13 +402,18 @@ static void *dnet_check_process(void *data)
 
 		err = dnet_check_process_hash_string(w, hash, 1);
 		if (err < 0)
-			continue;
+			goto out_continue;
 
 		hash_num = err;
 
 		err = dnet_check_number_of_copies(w, obj, strlen(obj), hash_num);
 		
 		dnet_check_process_hash_string(w, hash, 0);
+
+out_continue:
+		dnet_log_raw(w->n, DNET_LOG_INFO, "%d/%d: processed obj: %s, hash: %s, err: %d\n",
+				dnet_check_log_num, dnet_check_id_num,
+				obj, hash, err);
 	}
 
 	return NULL;

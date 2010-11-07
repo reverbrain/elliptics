@@ -54,6 +54,7 @@ char dnet_check_tmp_dir[128] = "/tmp";
 FILE *dnet_check_file, *dnet_check_output;
 pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
 
+int dnet_check_id_num = 0;
 int dnet_check_upload_existing;
 
 static void dnet_check_log(void *priv, uint32_t mask, const char *msg)
@@ -454,6 +455,11 @@ static int dnet_check_id_complete(struct dnet_net_state *state,
 		dnet_convert_attr(attr);
 
 		err = dnet_check_write_ids(complete, ids, attr->size);
+		if (!err) {
+			pthread_mutex_lock(&dnet_check_file_lock);
+			dnet_check_id_num += attr->size / sizeof(struct dnet_id);
+			pthread_mutex_unlock(&dnet_check_file_lock);
+		}
 	}
 
 	if (last)

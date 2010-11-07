@@ -41,6 +41,8 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
+static int dnet_check_id_merged;
+
 static void dnet_merge_unlink_local_files(struct dnet_node *n __unused, unsigned char *id)
 {
 	char file[256];
@@ -449,10 +451,14 @@ static void *dnet_merge_process(void *data)
 	while (1) {
 		pthread_mutex_lock(&dnet_check_file_lock);
 		err = fread(&id, sizeof(struct dnet_id), 1, dnet_check_file);
+		if (err == 1)
+			dnet_check_id_merged++;
 		pthread_mutex_unlock(&dnet_check_file_lock);
 
-		if (err != 1)
+		if (err != 1) {
+			dnet_log_raw(n, DNET_LOG_INFO, "Check file is empty, exiting.\n");
 			break;
+		}
 
 		dnet_log_raw(n, DNET_LOG_INFO, "merge: %s, flags: %x\n", dnet_dump_id_len_raw(id.id, DNET_ID_SIZE, id_str), id.flags);
 
@@ -494,6 +500,10 @@ static void *dnet_merge_process(void *data)
 
 		dnet_remove_object_now(n, id.id, 1);
 out_continue:
+		dnet_log_raw(n, DNET_LOG_INFO, "%d/%d: processed: %s, err: %d\n",
+				dnet_check_id_merged, dnet_check_id_num,
+				dnet_dump_id_len_raw(id.id, DNET_ID_SIZE, id_str),
+				err);
 		continue;
 	}
 

@@ -112,6 +112,7 @@ static void *dnet_clog_process(void *thread_data)
 		if (dnet_check_output) {
 			pthread_mutex_lock(&dnet_check_file_lock);
 			fprintf(dnet_check_output, "%s %s\n", transform, parent);
+			dnet_check_id_num++;
 			pthread_mutex_unlock(&dnet_check_file_lock);
 		}
 

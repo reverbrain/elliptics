@@ -66,6 +66,8 @@ extern char dnet_check_tmp_dir[128];
 extern FILE *dnet_check_file, *dnet_check_output;
 extern pthread_mutex_t dnet_check_file_lock;
 
+extern int dnet_check_id_num;
+
 int dnet_check_read_single(struct dnet_check_worker *worker, unsigned char *id, uint64_t offset, int direct);
 
 #define dnet_check_wait(worker,condition)					\
