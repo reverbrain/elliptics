@@ -1,3 +1,9 @@
+elliptics (2.9.3.14) unstable; urgency=low
+
+  * Remove direct object if it can not be uploaded to the storage.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Nov 2010 15:41:30 +0300
+
 elliptics (2.9.3.13) unstable; urgency=low
 
   * Remove empty/broken history objects during merge.
