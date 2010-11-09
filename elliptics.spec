@@ -140,6 +140,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Nov 9 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.12-1
+- Added more debug about processed objects in fsck tools.
+- Delete directly read object if its history can not be mapped.
+- Return error from dnet_merge_direct() when merge falls back to direct
+	merge during common merge.
+
 * Sat Nov 4 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.3.11-1
 - Attempt to do direct merge when we can not parse non-direct history stored in main storage.
 

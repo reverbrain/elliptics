@@ -1,3 +1,12 @@
+elliptics (2.9.3.12) unstable; urgency=low
+
+  * Added more debug about processed objects in fsck tools.
+  * Delete directly read object if its history can not be mapped.
+  * Return error from dnet_merge_direct() when merge falls back to direct
+    merge during common merge.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Nov 2010 14:46:48 +0300
+
 elliptics (2.9.3.11) unstable; urgency=low
 
   * Attempt to do direct merge when we can not parse non-direct history stored
