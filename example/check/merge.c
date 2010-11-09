@@ -296,10 +296,25 @@ static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, uns
 		err = worker->wait_error;
 
 	if (err) {
+		struct dnet_history_map m;
+
 		if (err != -ENOENT) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read single transaction: %d.\n",
 					dnet_dump_id(id), err);
 			goto err_out_exit;
+		}
+
+		err = dnet_map_history(n, direct, &m);
+		if (err) {
+			dnet_remove_object_now(n, id, 1);
+			goto err_out_exit;
+		} else {
+			if (m.num == 0 || (m.num == 1 && !dnet_id_cmp(id, m.ent[0].id))) {
+				dnet_remove_object_now(n, id, 1);
+				goto err_out_exit;
+			}
+
+			dnet_unmap_history(n, &m);
 		}
 
 		/*
@@ -460,7 +475,9 @@ static void *dnet_merge_process(void *data)
 			break;
 		}
 
-		dnet_log_raw(n, DNET_LOG_INFO, "merge: %s, flags: %x\n", dnet_dump_id_len_raw(id.id, DNET_ID_SIZE, id_str), id.flags);
+		dnet_log_raw(n, DNET_LOG_INFO, "%d/%d: started merge: %s, flags: %x\n",
+				dnet_check_id_merged, dnet_check_id_num,
+				dnet_dump_id_len_raw(id.id, DNET_ID_SIZE, id_str), id.flags);
 
 		snprintf(direct, sizeof(direct), "%s/%s.direct", dnet_check_tmp_dir, id_str);
 
