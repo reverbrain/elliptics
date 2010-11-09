@@ -1,3 +1,9 @@
+elliptics (2.9.3.13) unstable; urgency=low
+
+  * Remove empty/broken history objects during merge.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Nov 2010 15:20:40 +0300
+
 elliptics (2.9.3.12) unstable; urgency=low
 
   * Added more debug about processed objects in fsck tools.
