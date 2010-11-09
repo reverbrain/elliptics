@@ -328,6 +328,8 @@ static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, uns
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to upload transaction to be directly merged: %d.\n",
 					dnet_dump_id(id), err);
+			if (err == -ENOENT)
+				dnet_remove_object_now(n, id, 1);
 			goto err_out_exit;
 		}
 	}
