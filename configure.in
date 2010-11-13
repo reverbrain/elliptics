@@ -1,4 +1,4 @@
-AC_INIT([elliptics], [2.9.3], [zbr@ioremap.net])
+AC_INIT([elliptics], [2.9.4], [zbr@ioremap.net])
 AM_INIT_AUTOMAKE(1.9)
 
 AC_GNU_SOURCE
@@ -31,6 +31,7 @@ AC_CHECK_ATOMIC
 AC_CHECK_STAT
 AC_CHECK_LIBFCGI
 AC_CHECK_EBLOB
+AC_CHECK_BDB
 
 AX_BOOST_PYTHON
 

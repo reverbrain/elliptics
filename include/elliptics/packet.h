@@ -133,9 +133,6 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* Provide only those IDs which are behind of node's range. */
 #define DNET_ATTR_ID_OUT			(1<<0)
 
-/* Read history for given ID and return its flags */
-#define DNET_ATTR_ID_FLAGS			(1<<1)
-
 /* Lookup attribute flags */
 
 /* Stat local object and return state address only if object is readable */
@@ -372,17 +369,6 @@ static inline void dnet_convert_io_notification(struct dnet_io_notification *n)
 {
 	dnet_convert_addr_attr(&n->addr);
 	dnet_convert_io_attr(&n->io);
-}
-
-struct dnet_id
-{
-	uint32_t			flags;
-	unsigned char			id[DNET_ID_SIZE];
-} __attribute__ ((packed));
-
-static inline void dnet_convert_id(struct dnet_id *id)
-{
-	id->flags = dnet_bswap32(id->flags);
 }
 
 struct dnet_stat_count

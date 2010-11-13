@@ -28,13 +28,18 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <db.h>
+
 #ifndef HAVE_UCHAR
 typedef unsigned char u_char;
 typedef unsigned short u_short;
 #endif
 
 #include "list.h"
+
+#undef offsetof
 #include "rbtree.h"
+
 #include "atomic.h"
 #include "lock.h"
 
@@ -236,6 +241,9 @@ struct dnet_node
 	long			check_timeout;
 	pthread_t		check_tid;
 
+	DB_ENV			*env;
+	DB			*history, *meta;
+
 	int			(* command_handler)(void *state, void *priv,
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
@@ -375,6 +383,13 @@ int dnet_read_file_id(struct dnet_node *n, char *file, int len,
 		int direct, uint64_t write_offset,
 		struct dnet_io_attr *io,
 		struct dnet_wait *w, int hist, int wait);
+
+int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data);
+int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io);
+int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr);
+int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr);
+void dnet_db_cleanup(struct dnet_node *n);
+int dnet_db_init(struct dnet_node *n, char *histfile);
 
 #ifdef __cplusplus
 }

@@ -159,6 +159,9 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
 int dnet_read_data_wait(struct dnet_node *n, unsigned char *id, void *data,
 		uint64_t offset, uint64_t size);
 
+int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
+		void *data, int fd, uint64_t offset);
+
 /*
  * Reads given file from the storage. If there are multiple transformation functions,
  * they will be tried one after another.
@@ -323,6 +326,11 @@ struct dnet_config
 	 * Spawned thread size in bytes.
 	 */
 	int			stack_size;
+
+	/*
+	 * BerkeleyDB history file.
+	 */
+	char			history_env[1024];
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);
@@ -707,7 +715,6 @@ int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst,
  */
 struct dnet_history_map
 {
-	void				*data;
 	struct dnet_history_entry	*ent;
 	long				num;
 	ssize_t				size;
@@ -728,7 +735,7 @@ int dnet_request_ids(struct dnet_node *n, unsigned char *id,
 enum dnet_meta_types {
 	DNET_META_TRANSFORM = 1,	/* transformation function names */
 	DNET_META_PARENT_OBJECT,	/* parent object name */
-	DNET_META_HISTORY,		/* transaction history log */
+	DNET_META_ID,			/* this object has copies with given IDs */
 };
 
 struct dnet_meta
@@ -767,6 +774,17 @@ int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
  * Add metadata into meta object located in metafile.
  */
 int dnet_meta_create_file(struct dnet_node *n, char *metafile, struct dnet_meta *m, void *mdata);
+
+struct dnet_meta_container {
+	unsigned char			id[DNET_ID_SIZE];
+	unsigned int			size;
+	unsigned char			data[0];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
+{
+	m->size = dnet_bswap32(m->size);
+}
 
 struct dnet_id_la {
 	unsigned char		id[DNET_ID_SIZE];

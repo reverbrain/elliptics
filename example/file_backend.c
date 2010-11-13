@@ -56,177 +56,7 @@ static inline void file_backend_setup_file(struct file_backend_root *r, char *fi
 	char id[2*DNET_ID_SIZE+1];
 
 	file_backend_get_dir(io->origin, r->bit_num, dir);
-	if (io->flags & DNET_IO_FLAGS_HISTORY)
-		snprintf(file, size, "%s/%s%s",
-			dir, dnet_dump_id_len_raw(io->origin, DNET_ID_SIZE, id), DNET_HISTORY_SUFFIX);
-	else
-		snprintf(file, size, "%s/%s",
-			dir, dnet_dump_id_len_raw(io->origin, DNET_ID_SIZE, id));
-}
-
-static void dnet_convert_name_to_id(char *name, unsigned char *id)
-{
-	int i;
-	char sub[3];
-
-	sub[2] = '\0';
-	for (i=0; i<DNET_ID_SIZE; i++) {
-		sub[0] = name[2*i];
-		sub[1] = name[2*i + 1];
-		id[i] = strtol(sub, NULL, 16);
-	}
-}
-
-static int dnet_stat_object(char *path)
-{
-	struct stat st;
-	int err;
-
-	err = stat(path, &st);
-	if (err) {
-		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "Failed to stat '%s' object: %s.\n",
-				path, strerror(errno));
-		return err;
-	}
-
-	return st.st_mode;
-}
-
-static int dnet_is_regular(char *sub, unsigned int sub_len, char *path, unsigned int path_len)
-{
-	char p[sub_len + path_len + 2]; /* / and 0-byte */
-	int err;
-
-	snprintf(p, sizeof(p), "%s/%s", sub, path);
-
-	err = dnet_stat_object(p);
-	if (err < 0)
-		return err;
-
-	return S_ISREG(err);
-}
-
-static int dnet_is_dir(char *path)
-{
-	int err = dnet_stat_object(path);
-	if (err < 0)
-		return err;
-
-	return S_ISDIR(err);
-}
-
-static int dnet_file_get_flags(void *state, char *sub, unsigned int sub_len, char *file, unsigned int file_len, uint32_t *flags)
-{
-	char path[sub_len + file_len + 2]; /* / and 0-byte */
-	struct dnet_history_map m;
-	int err;
-
-	snprintf(path, sizeof(path), "%s/%s", sub, file);
-
-	err = dnet_map_history(dnet_get_node_from_state(state), path, &m);
-	if (err)
-		goto err_out_exit;
-
-	if (!m.num) {
-		err = -ENOENT;
-		goto err_out_unmap;
-	}
-
-	*flags = dnet_bswap32(m.ent[0].flags);
-
-err_out_unmap:
-	dnet_unmap_history(dnet_get_node_from_state(state), &m);
-err_out_exit:
-	return err;
-}
-
-static int dnet_listdir(void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr,	char *sub, unsigned char *next_id, int out)
-{
-	int err = 0;
-	DIR *dir;
-	struct dirent *d;
-	unsigned char id[DNET_ID_SIZE];
-	unsigned int len, sub_len = strlen(sub), num = 1024, pos = 0;
-	uint32_t flags;
-	struct dnet_id *ids;
-
-	ids = malloc(num * sizeof(struct dnet_id));
-	if (!ids) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	dir = opendir(sub);
-	if (!dir) {
-		err = -errno;
-		goto err_out_free;
-	}
-
-	while ((d = readdir(dir)) != NULL) {
-		if (d->d_name[0] == '.' && d->d_name[1] == '\0')
-			continue;
-		if (d->d_name[0] == '.' && d->d_name[1] == '.' && d->d_name[2] == '\0')
-			continue;
-
-		len = strlen(d->d_name);
-
-		if (dnet_is_regular(sub, sub_len, d->d_name, len) <= 0)
-			continue;
-
-		flags = 0;
-		if (strcmp(&d->d_name[DNET_ID_SIZE*2], DNET_HISTORY_SUFFIX))
-			continue;
-
-		dnet_convert_name_to_id(d->d_name, id);
-
-		dnet_backend_log(DNET_LOG_NOTICE, "%s: out: %d, within: %d, flags: %x.\n",
-				d->d_name, out, dnet_id_within_range(id, next_id, cmd->id), flags);
-
-		if (out && !dnet_id_within_range(id, next_id, cmd->id))
-			continue;
-
-		if (attr->flags & DNET_ATTR_ID_FLAGS) {
-			err = dnet_file_get_flags(state, sub, sub_len, d->d_name, len, &flags);
-			if (err)
-				continue;
-		}
-
-		if (pos >= num) {
-			err = dnet_send_reply(state, cmd, attr, ids, pos * sizeof(struct dnet_id), 1);
-			if (err)
-				goto err_out_close;
-
-			dnet_backend_log(DNET_LOG_INFO, "%s: successfully sent %d ids.\n", dnet_dump_id(cmd->id), pos);
-			pos = 0;
-		}
-
-		memcpy(ids[pos].id, id, DNET_ID_SIZE);
-		ids[pos].flags = flags;
-
-		dnet_convert_id(&ids[pos]);
-
-		pos++;
-
-		dnet_backend_log(DNET_LOG_INFO, "%d/%d: %s -> %s.\n", pos, num, d->d_name, dnet_dump_id(id));
-	}
-
-	err = dnet_send_reply(state, cmd, attr, ids, pos * sizeof(struct dnet_id), 0);
-	if (err)
-		goto err_out_close;
-
-	closedir(dir);
-	free(ids);
-
-	return 0;
-
-err_out_close:
-	closedir(dir);
-err_out_free:
-	free(ids);
-err_out_exit:
-	return err;
+	snprintf(file, size, "%s/%s", dir, dnet_dump_id_len_raw(io->origin, DNET_ID_SIZE, id));
 }
 
 static inline uint64_t file_backend_get_dir_bits(const unsigned char *id, int bit_num)
@@ -250,78 +80,6 @@ static inline uint64_t file_backend_get_dir_bits(const unsigned char *id, int bi
 #endif
 }
 
-static int file_list(struct file_backend_root *r, void *state,
-		struct dnet_cmd *cmd, struct dnet_attr *attr)
-{
-	int err, out = attr->flags & DNET_ATTR_ID_OUT;
-	DIR *dir;
-	struct dirent *d;
-	unsigned long long current, last, start;
-	char sub[32];
-	unsigned char id[DNET_ID_SIZE];
-
-	start = ~0ULL;
-	last = 0;
-
-	memcpy(id, cmd->id, DNET_ID_SIZE);
-
-	if (out) {
-		out = 0;
-		err = dnet_state_get_next_id(state, id);
-		if (!err) {
-			last = file_backend_get_dir_bits(id, r->bit_num);
-			start = file_backend_get_dir_bits(cmd->id, r->bit_num);
-			out = 1;
-		}
-	}
-
-	dir = opendir(".");
-	if (!dir) {
-		err = -errno;
-		goto err_out_exit;
-	}
-
-	while ((d = readdir(dir)) != NULL) {
-		if (d->d_name[0] == '.' && d->d_name[1] == '\0')
-			continue;
-		if (d->d_name[0] == '.' && d->d_name[1] == '.' && d->d_name[2] == '\0')
-			continue;
-
-		if (dnet_is_dir(d->d_name) <= 0)
-			continue;
-
-		snprintf(sub, sizeof(sub), "0x%s", d->d_name);
-		current = strtoull(sub, NULL, 16);
-
-		err = 0;
-
-		dnet_backend_log(DNET_LOG_INFO, "start: %llx, last: %llx, current: %llx.\n",
-				start, last, current);
-
-		if ((start >= last) && (current >= last) && (current <= start))
-			err = dnet_listdir(state, cmd, attr, d->d_name, id, out);
-
-		if (start < last) {
-			if (current <= start)
-				err = dnet_listdir(state, cmd, attr, d->d_name, id, out);
-
-			if (current >= last)
-				err = dnet_listdir(state, cmd, attr, d->d_name, id, out);
-		}
-
-		if (err && (err != -ENOENT))
-			goto err_out_close;
-	}
-
-	closedir(dir);
-	return 0;
-
-err_out_close:
-	closedir(dir);
-err_out_exit:
-	return err;
-}
-
 static void dnet_remove_file_if_empty_raw(char *file)
 {
 	struct stat st;
@@ -334,7 +92,7 @@ static void dnet_remove_file_if_empty_raw(char *file)
 
 static void dnet_remove_file_if_empty(struct file_backend_root *r, struct dnet_io_attr *io)
 {
-	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
+	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2];
 
 	file_backend_setup_file(r, file, sizeof(file), io);
 	dnet_remove_file_if_empty_raw(file);
@@ -342,9 +100,8 @@ static void dnet_remove_file_if_empty(struct file_backend_root *r, struct dnet_i
 
 static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 {
-	/* null byte + maximum directory length (32 bits in hex) +
-	 * '/' directory prefix and optional history suffix */
-	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
+	/* null byte + maximum directory length (32 bits in hex) + '/' directory prefix */
+	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2];
 	int oflags = O_RDWR | O_CREAT | O_LARGEFILE;
 	void *data = io + 1;
 	int fd;
@@ -386,86 +143,7 @@ err_out_exit:
 	return err;
 }
 
-static int file_write_history_meta(void *state, void *backend, struct dnet_io_attr *io,
-		struct dnet_meta *m, void *data)
-{
-	struct file_backend_root *r = backend;
-	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
-	void *hdata, *new_hdata;
-	struct stat st;
-	int err, fd;
-	uint32_t size;
-
-	file_backend_setup_file(r, file, sizeof(file), io);
-
-	fd = open(file, O_RDWR | O_CREAT | O_LARGEFILE, 0644);
-	if (fd < 0) {
-		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to open history file '%s': %s.\n",
-				dnet_dump_id(io->id), file, strerror(errno));
-		goto err_out_exit;
-	}
-
-	err = fstat(fd, &st);
-	if (err) {
-		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to stat history file '%s': %s.\n",
-				dnet_dump_id(io->id), file, strerror(errno));
-		goto err_out_close;
-	}
-
-	size = st.st_size;
-
-	hdata = malloc(size);
-	if (!hdata) {
-		err = -ENOMEM;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to allocate %u bytes for history data: %s.\n",
-				dnet_dump_id(io->id), size, strerror(errno));
-		goto err_out_close;
-	}
-
-	err = read(fd, hdata, size);
-	if (err != (int)size) {
-		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to read %u bytes from history file '%s': %s.\n",
-				dnet_dump_id(io->id), size, file, strerror(errno));
-		goto err_out_free;
-	}
-
-	new_hdata = backend_process_meta(state, io, hdata, &size, m, data);
-	if (!new_hdata) {
-		err = -ENOMEM;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to update history file '%s': %s.\n",
-				dnet_dump_id(io->id), file, strerror(errno));
-		goto err_out_free;
-	}
-	hdata = new_hdata;
-
-	err = pwrite(fd, hdata, size, 0);
-	if (err != (int)size) {
-		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to write %u bytes into history file '%s': %s.\n",
-				dnet_dump_id(io->id), size, file, strerror(errno));
-		goto err_out_free;
-	}
-
-	err = 0;
-
-err_out_free:
-	free(hdata);
-err_out_close:
-	close(fd);
-err_out_exit:
-	return err;
-}
-
-static int file_write_history(struct file_backend_root *r, void *state,
-		struct dnet_io_attr *io, void *iodata)
-{
-	return backend_write_history(state, r, io, iodata, file_write_history_meta);
-}
-
-static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
+static int file_write(struct file_backend_root *r, void *state __unused, struct dnet_cmd *cmd,
 		struct dnet_attr *attr __unused, void *data)
 {
 	int err;
@@ -488,30 +166,9 @@ static int file_write(struct file_backend_root *r, void *state, struct dnet_cmd 
 		}
 	}
 
-	if (io->flags & DNET_IO_FLAGS_HISTORY) {
-		err = file_write_history(r, state, io, io + 1);
-		if (err)
-			goto err_out_exit;
-	} else {
-		err = file_write_raw(r, io);
-		if (err)
-			goto err_out_exit;
-
-		if (!(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)) {
-			struct dnet_history_entry e;
-
-			dnet_setup_history_entry(&e, io->id, io->size, io->offset, NULL, io->flags);
-
-			io->flags |= DNET_IO_FLAGS_APPEND | DNET_IO_FLAGS_HISTORY;
-			io->flags &= ~DNET_IO_FLAGS_META;
-			io->size = sizeof(struct dnet_history_entry);
-			io->offset = 0;
-
-			err = file_write_history(r, state, io, &e);
-			if (err)
-				goto err_out_check_remove;
-		}
-	}
+	err = file_write_raw(r, io);
+	if (err)
+		goto err_out_check_remove;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: IO offset: %llu, size: %llu.\n", dnet_dump_id(cmd->id),
 			(unsigned long long)io->offset, (unsigned long long)io->size);
@@ -530,7 +187,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	struct dnet_io_attr *io = data;
 	int fd, err;
 	size_t size;
-	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2 + sizeof(DNET_HISTORY_SUFFIX)];
+	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2];
 	struct stat st;
 
 	data += sizeof(struct dnet_io_attr);
@@ -576,7 +233,7 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 		struct dnet_attr *attr, void *data)
 {
 	int err = -EINVAL;
-	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2 + sizeof(DNET_HISTORY_SUFFIX)]; /* file + dir + suffix + slash + 0-byte */
+	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
 	char dir[2*DNET_ID_SIZE+1];
 	char id[2*DNET_ID_SIZE+1];
 
@@ -589,9 +246,6 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 		dir, dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id));
 	remove(file);
 
-	snprintf(file, sizeof(file), "%s/%s%s",
-		dir, dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, id), DNET_HISTORY_SUFFIX);
-	remove(file);
 	return 0;
 
 err_out_exit:
@@ -610,9 +264,6 @@ static int file_backend_command_handler(void *state, void *priv,
 			break;
 		case DNET_CMD_READ:
 			err = file_read(r, state, cmd, attr, data);
-			break;
-		case DNET_CMD_LIST:
-			err = file_list(r, state, cmd, attr);
 			break;
 		case DNET_CMD_STAT:
 			err = backend_stat(state, r->root, cmd, attr);

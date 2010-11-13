@@ -622,24 +622,62 @@ int dnet_process_cmd(struct dnet_net_state *st)
 				} else
 					err = dnet_notify_remove(st, cmd, a);
 				break;
+			case DNET_CMD_LIST:
+				err = dnet_db_list(st, cmd, a);
+				break;
 			case DNET_CMD_READ:
 			case DNET_CMD_WRITE:
-				if (a->size < sizeof(struct dnet_io_attr)) {
-					dnet_log(n, DNET_LOG_ERROR,
-						"%s: wrong read attribute, size does not match "
-							"IO attribute size: size: %llu, must be: %zu.\n",
-							dnet_dump_id(cmd->id), (unsigned long long)a->size,
-							sizeof(struct dnet_io_attr));
-					err = -EINVAL;
-					break;
-				}
+			case DNET_CMD_DEL:
+				if (a->cmd == DNET_CMD_DEL) {
+					err = dnet_db_del(n, cmd, a);
+					if (err < 0)
+						break;
 
-				if ((a->cmd == DNET_CMD_WRITE) && !(cmd->flags & DNET_FLAGS_NO_LOCAL_TRANSFORM))
-					err = dnet_local_transform(st, cmd, a, data);
+					if (err == 0)
+						break;
+
+					/* if positive value returned we will delete data object */
+				} else {
+					struct dnet_io_attr *io;
+
+					if (a->size < sizeof(struct dnet_io_attr)) {
+						dnet_log(n, DNET_LOG_ERROR,
+							"%s: wrong read attribute, size does not match "
+								"IO attribute size: size: %llu, must be: %zu.\n",
+								dnet_dump_id(cmd->id), (unsigned long long)a->size,
+								sizeof(struct dnet_io_attr));
+						err = -EINVAL;
+						break;
+					}
+
+					io = data;
+					dnet_convert_io_attr(io);
+
+					if ((a->cmd == DNET_CMD_WRITE) && !(cmd->flags & DNET_FLAGS_NO_LOCAL_TRANSFORM))
+						err = dnet_local_transform(st, cmd, a, data);
+
+					if (io->flags & DNET_IO_FLAGS_HISTORY) {
+						if (a->cmd == DNET_CMD_READ) {
+							err = dnet_db_read(st, cmd, io);
+						} else if (a->cmd == DNET_CMD_WRITE) {
+							err = dnet_db_write(n, cmd, io);
+						} else
+							err = -EINVAL;
+						break;
+					}
+
+					dnet_convert_io_attr(io);
+				}
 			default:
 				err = n->command_handler(st, n->command_private, cmd, a, data);
-				if (a->cmd == DNET_CMD_WRITE && !err)
-					dnet_update_notify(st, cmd, a, data);
+				if (err || (a->cmd != DNET_CMD_WRITE))
+					break;
+
+				err = dnet_db_write(n, cmd, data);
+				if (err)
+					break;
+
+				dnet_update_notify(st, cmd, a, data);
 				break;
 		}
 
@@ -1893,7 +1931,6 @@ int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *m
 {
 	int err;
 	struct stat st;
-	struct dnet_meta *m;
 
 	map->fd = open(file, O_RDWR);
 	if (map->fd < 0) {
@@ -1911,52 +1948,31 @@ int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *m
 		goto err_out_close;
 	}
 
-	if (st.st_size < (int)sizeof(struct dnet_meta)) {
+	if (st.st_size % (int)sizeof(struct dnet_history_entry)) {
 		dnet_map_log(n, DNET_LOG_ERROR, "%s: Corrupted history file '%s', "
-				"its size %llu must be more than %zu.\n",
+				"its size %llu must be multiple of %zu.\n",
 				(n) ? dnet_dump_id(n->id) : "NULL", file,
 				(unsigned long long)st.st_size,
-				sizeof(struct dnet_meta));
+				sizeof(struct dnet_history_entry));
 		err = -EINVAL;
 		goto err_out_close;
 	}
 	map->size = st.st_size;
 
-	map->data = mmap(NULL, map->size, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
-	if (map->data == MAP_FAILED) {
+	map->ent = mmap(NULL, map->size, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
+	if (map->ent == MAP_FAILED) {
 		err = -errno;
 		dnet_map_log(n, DNET_LOG_ERROR, "Failed to mmap history file '%s': %s [%d].\n",
 				file, strerror(errno), errno);
 		goto err_out_close;
 	}
 
-	m = dnet_meta_search(n, map->data, map->size, DNET_META_HISTORY);
-	if (!m) {
-		dnet_map_log(n, DNET_LOG_ERROR, "%s: failed to locate history metadata in file '%s'.\n",
-				(n) ? dnet_dump_id(n->id) : "NULL", file);
-		err = -ENOENT;
-		goto err_out_unmap;
-	}
-
-	if (m->size % sizeof(struct dnet_history_entry)) {
-		dnet_map_log(n, DNET_LOG_ERROR, "%s: Corrupted history file '%s', "
-				"its history metadata size %llu has to be modulo of %zu.\n",
-				(n) ? dnet_dump_id(n->id) : "NULL", file,
-				(unsigned long long)m->size,
-				sizeof(struct dnet_history_entry));
-		err = -EINVAL;
-		goto err_out_unmap;
-	}
-
-	map->num = m->size / sizeof(struct dnet_history_entry);
-	map->ent = (struct dnet_history_entry *)m->data;
+	map->num = map->size / sizeof(struct dnet_history_entry);
 
 	dnet_map_log(n, DNET_LOG_NOTICE, "%s: mapped %ld entries in '%s'.\n", (n) ? dnet_dump_id(n->id) : "", map->num, file);
 
 	return 0;
 
-err_out_unmap:
-	munmap(map->data, map->size);
 err_out_close:
 	close(map->fd);
 err_out_exit:
@@ -1965,7 +1981,7 @@ err_out_exit:
 
 void dnet_unmap_history(struct dnet_node *n __unused, struct dnet_history_map *map)
 {
-	munmap(map->data, map->size);
+	munmap(map->ent, map->size);
 	close(map->fd);
 }
 
@@ -3047,7 +3063,7 @@ int dnet_remove_object_now(struct dnet_node *n, unsigned char *id, int direct)
 	ctl.complete = dnet_remove_complete;
 	ctl.priv = w;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
-	ctl.aflags = 0;
+	ctl.aflags = DNET_ATTR_DIRECT_TRANSACTION;
 
 	if (direct)
 		ctl.cflags |= DNET_FLAGS_DIRECT;
@@ -3451,4 +3467,65 @@ int dnet_generate_ids_by_la(struct dnet_node *n, void *obj, int len, struct dnet
 	}
 
 	return num;
+}
+
+int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data, int fd, uint64_t offset)
+{
+	struct dnet_cmd *c;
+	struct dnet_attr *a;
+	struct dnet_io_attr *rio;
+	int hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr);
+	int err;
+
+	/*
+	 * A simple hack to forbid read reply sending.
+	 * It is used in local stat - we do not want to send stat data
+	 * back to original client, instead server will wrap data into
+	 * proper transaction reply next to this obscure packet.
+	 */
+	if (io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)
+		return 0;
+
+	c = malloc(hsize);
+	if (!c) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	a = (struct dnet_attr *)(c + 1);
+	rio = (struct dnet_io_attr *)(a + 1);
+
+	memcpy(c->id, io->origin, DNET_ID_SIZE);
+	memcpy(rio->origin, io->origin, DNET_ID_SIZE);
+
+	dnet_log_raw(dnet_get_node_from_state(state), DNET_LOG_NOTICE, "%s: read reply offset: %llu, size: %llu.\n",
+			dnet_dump_id(io->origin), (unsigned long long)io->offset,
+			(unsigned long long)io->size);
+
+	if (cmd->flags & DNET_FLAGS_NEED_ACK)
+		c->flags = DNET_FLAGS_MORE;
+
+	c->status = 0;
+	c->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + io->size;
+	c->trans = cmd->trans | DNET_TRANS_REPLY;
+
+	a->cmd = DNET_CMD_READ;
+	a->size = sizeof(struct dnet_io_attr) + io->size;
+	a->flags = 0;
+
+	rio->size = io->size;
+	rio->offset = io->offset;
+	rio->flags = io->flags;
+
+	dnet_convert_cmd(c);
+	dnet_convert_attr(a);
+	dnet_convert_io_attr(rio);
+
+	if (data)
+		err = dnet_send_data(state, c, hsize, data, io->size);
+	else
+		err = dnet_send_fd(state, c, hsize, fd, offset, io->size);
+
+err_out_exit:
+	return err;
 }

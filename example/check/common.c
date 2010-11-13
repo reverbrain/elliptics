@@ -51,11 +51,14 @@ void *dnet_check_ext_private;
 void *dnet_check_ext_library;
 
 char dnet_check_tmp_dir[128] = "/tmp";
-FILE *dnet_check_file, *dnet_check_output;
-pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
 
 int dnet_check_id_num = 0;
 int dnet_check_upload_existing;
+
+static int dnet_check_id_read;
+static off_t dnet_check_offset;
+static int dnet_check_fd = -1;
+static pthread_mutex_t dnet_check_file_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void dnet_check_log(void *priv, uint32_t mask, const char *msg)
 {
@@ -388,29 +391,78 @@ struct dnet_id_request_completion
 	struct dnet_check_worker	*worker;
 };
 
-static int dnet_check_write_ids(struct dnet_id_request_completion *complete, struct dnet_id *id, uint64_t size)
+static int dnet_check_write_metadata(struct dnet_id_request_completion *complete, void *data, unsigned long long size)
 {
+	struct dnet_meta_container *mc;
 	struct dnet_check_worker *worker = complete->worker;
 	struct dnet_node *n = worker->n;
-	long i, num = size / sizeof(struct dnet_id);
-	int err;
+	unsigned long long osize = size;
+	uint32_t sz;
+	ssize_t err;
+	int count = 0;
 
 	if (!size)
 		return 0;
 
-	for (i=0; i<num; ++i) {
-		dnet_convert_id(&id[i]);
-		dnet_log_raw(n, DNET_LOG_INFO, "%s: %x\n", dnet_dump_id_len(id[i].id, DNET_ID_SIZE), id[i].flags);
+	while (!size) {
+		mc = data;
+
+		if (size < sizeof(struct dnet_meta_container)) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: invalid size %llu, must be more than meta container size %zu.\n",
+					dnet_dump_id(complete->id), size, sizeof(struct dnet_meta_container));
+			return -EINVAL;
+		}
+
+		size -= sizeof(struct dnet_meta_container);
+		data += sizeof(struct dnet_meta_container);
+
+		dnet_convert_meta_container(mc);
+
+		if (size < mc->size) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: invalid size %llu, must be more than embedded meta container size %u.\n",
+					dnet_dump_id(complete->id), size, mc->size);
+			return -EINVAL;
+		}
+
+		sz = mc->size;
+		while (sz) {
+			struct dnet_meta *m = data;
+
+			if (sz < sizeof(struct dnet_meta)) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: invalid size %u, must be more than meta size %zu.\n",
+						dnet_dump_id(complete->id), sz, sizeof(struct dnet_meta));
+				return -EINVAL;
+			}
+
+			data += sizeof(struct dnet_meta);
+			size -= sizeof(struct dnet_meta);
+			sz -= sizeof(struct dnet_meta);
+
+			dnet_convert_meta(m);
+
+			if (sz < m->size) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: invalid size %u, must be more than embedded meta size %u.\n",
+						dnet_dump_id(complete->id), sz, m->size);
+				return -EINVAL;
+			}
+
+			data += m->size;
+			size -= m->size;
+			sz -= m->size;
+		}
+
+		count++;
 	}
 
-	err = write(complete->fd, id, size);
+	err = write(complete->fd, data, osize);
 	if (err < 0) {
 		err = -errno;
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to write IDs: %s.\n", dnet_dump_id(complete->id), strerror(errno));
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to write IDs: %s.\n",
+				dnet_dump_id(complete->id), strerror(errno));
 		return err;
 	}
 
-	return 0;
+	return count;
 }
 
 static int dnet_check_id_complete(struct dnet_net_state *state,
@@ -419,7 +471,6 @@ static int dnet_check_id_complete(struct dnet_net_state *state,
 	struct dnet_id_request_completion *complete = priv;
 	struct dnet_check_worker *worker = complete->worker;
 	struct dnet_node *n = worker->n;
-	struct dnet_id *ids;
 	int err = 0, last = 0;
 
 	if (!state || !cmd) {
@@ -450,16 +501,16 @@ static int dnet_check_id_complete(struct dnet_net_state *state,
 			goto out_exit;
 		}
 
-		ids = (struct dnet_id *)(attr + 1);
-
 		dnet_convert_attr(attr);
 
-		err = dnet_check_write_ids(complete, ids, attr->size);
-		if (!err) {
+		err = dnet_check_write_metadata(complete, attr + 1, attr->size);
+		if (err > 0) {
 			pthread_mutex_lock(&dnet_check_file_lock);
-			dnet_check_id_num += attr->size / sizeof(struct dnet_id);
+			dnet_check_id_num += err;
 			pthread_mutex_unlock(&dnet_check_file_lock);
 		}
+
+		err = 0;
 	}
 
 	if (last)
@@ -475,15 +526,12 @@ out_exit:
 	return err;
 }
 
-static int dnet_check_request_ids(struct dnet_check_worker *w, unsigned char *id, char *file, int types)
+static int dnet_check_request_ids(struct dnet_check_worker *w, unsigned char *id, char *file)
 {
 	int err, fd;
 	struct dnet_node *n = w->n;
 	struct dnet_id_request_completion *c;
 	uint32_t flags = DNET_ATTR_ID_OUT;
-
-	if (types)
-		flags = DNET_ATTR_ID_FLAGS;
 
 	fd = open(file, O_RDWR | O_TRUNC | O_CREAT | O_APPEND, 0644);
 	if (fd < 0) {
@@ -522,14 +570,6 @@ static int dnet_check_request_ids(struct dnet_check_worker *w, unsigned char *id
 		goto err_out_exit;
 	}
 
-	dnet_check_file = fopen(file, "r");
-	if (!dnet_check_file) {
-		err = -errno;
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open ID completion file '%s': %s.\n",
-				dnet_dump_id(id), file, strerror(errno));
-		goto err_out_exit;
-	}
-
 	return 0;
 
 err_out_close:
@@ -543,9 +583,9 @@ static void dnet_check_log_help(char *p)
 	fprintf(stderr, "Usage: %s <options>\n"
 			"  -n num                  - number of worker threads.\n"
 			"  -m num                  - log mask.\n"
-			"  -l log                  - output log file.\n"
-			"  -f file                 - input file with log information about objects to be checked.\n"
-			"  -F file                 - output file, when used.\n"
+			"  -l log                  - log file.\n"
+			"  -f file                 - input file with information about objects to be checked.\n"
+			"                            If ommitted, then object list will be downloaded.\n"
 			"  -r addr:port:family     - remote node to connect to.\n"
 			"  -t dir                  - directory to store temporal object.\n"
 			"  -e library              - external library which should export merge callbacks.\n"
@@ -555,20 +595,19 @@ static void dnet_check_log_help(char *p)
 			"                              and want this data uploaded to all nodes.\n"
 			"  -w seconds              - timeout to wait for transction completion\n"
 			"  -s stack                - thread stack size in bytes\n"
-			"  -N                      - do not request IDs and use presumably fetched previously\n"
 			"  -h                      - this help.\n", p);
 }
 
-int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int request_ids, int types)
+int dnet_check_start(int argc, char *argv[], void *(* process)(void *data))
 {
 	int ch, err = 0, i, j, worker_num = 1, log_mask;
 	struct dnet_check_worker *w, *workers;
+	char file_template[256];
 	struct dnet_config cfg, *remotes = NULL;
-	char *file = NULL, *log = "/dev/stderr", *output_file = NULL;
+	char *file = NULL, *log = "/dev/stderr";
 	char *library = NULL, *library_data = NULL;
 	char local_addr[] = "0.0.0.0:0:2";
 	int added_remotes = 0;
-	int norequest = 0;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -580,11 +619,8 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 	cfg.check_timeout = 60*60*10;
 	cfg.stack_size = 1024*1024;
 
-	while ((ch = getopt(argc, argv, "Ns:w:ue:E:t:n:m:l:f:F:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "s:w:ue:E:t:n:m:l:f:r:h")) != -1) {
 		switch (ch) {
-			case 'N':
-				norequest = 1;
-				break;
 			case 's':
 				cfg.stack_size = atoi(optarg);
 				break;
@@ -612,9 +648,6 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 			case 'l':
 				log = optarg;
 				break;
-			case 'F':
-				output_file = optarg;
-				break;
 			case 'f':
 				file = optarg;
 				break;
@@ -636,6 +669,8 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 		}
 	}
 
+	snprintf(file_template, sizeof(file_template), "%s/input", dnet_check_tmp_dir);
+
 	dnet_parse_addr(local_addr, &cfg);
 
 	if (!added_remotes) {
@@ -644,34 +679,10 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 		goto out_exit;
 	}
 
-	if (!request_ids) {
-		if (!file) {
-			err = -EINVAL;
-			fprintf(stderr, "No input file, exiting.\n");
-			goto out_exit;
-		}
-
-		dnet_check_file = fopen(file, "r");
-		if (!dnet_check_file) {
-			err = -errno;
-			fprintf(stderr, "Failed to open file '%s': %s.\n", file, strerror(errno));
-			goto out_exit;
-		}
-	}
-
-	if (output_file) {
-		dnet_check_output = fopen(output_file, "a+");
-		if (!dnet_check_output) {
-			err = -errno;
-			fprintf(stderr, "Failed to open output file '%s': %s.\n", output_file, strerror(errno));
-			goto out_close_check_file;
-		}
-	}
-
 	if (library) {
 		err = dnet_check_setup_ext(library, library_data);
 		if (err)
-			goto out_close_output_file;
+			goto out_exit;
 	}
 
 	workers = malloc(sizeof(struct dnet_check_worker) * worker_num);
@@ -711,15 +722,12 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 
 		added = 0;
 		for (j=0; j<added_remotes; ++j) {
-			if (request_ids)
-				remotes[j].join = DNET_NO_ROUTE_LIST;
-
+			remotes[j].join = DNET_NO_ROUTE_LIST;
 			err = dnet_add_state(w->n, &remotes[j]);
-			if (!err)
+			if (!err) {
 				added++;
-
-			if (request_ids && added)
 				break;
+			}
 		}
 
 		if (!added) {
@@ -728,11 +736,22 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 			goto out_join;
 		}
 
-		if (i == 0 && request_ids && !norequest) {
-			err = dnet_check_request_ids(w, remotes[0].id, file, types);
-			if (err) {
-				dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to request ID range from node %s: %d.\n",
-						dnet_dump_id_len(remotes[0].id, DNET_ID_SIZE), err);
+		if (i == 0) {
+			if (!file) {
+				file = file_template;
+				err = dnet_check_request_ids(w, remotes[0].id, file);
+				if (err) {
+					dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to request ID range from node %s: %d.\n",
+							dnet_dump_id_len(remotes[0].id, DNET_ID_SIZE), err);
+					goto out_join;
+				}
+			}
+
+			dnet_check_fd = open(file, O_RDONLY);
+			if (dnet_check_fd < 0) {
+				err = -errno;
+				dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to open input check file '%s': %s\n",
+						file, strerror(errno));
 				goto out_join;
 			}
 		}
@@ -765,14 +784,66 @@ out_ext_cleanup:
 		dnet_check_ext_exit(dnet_check_ext_private);
 		dlclose(dnet_check_ext_library);
 	}
-out_close_output_file:
-	if (output_file)
-		fclose(dnet_check_output);
-out_close_check_file:
-	if (dnet_check_file)
-		fclose(dnet_check_file);
+
+	if (dnet_check_fd >= 0) {
+		close(dnet_check_fd);
+		dnet_check_fd = -1;
+	}
+
 out_exit:
 	free(remotes);
 	return err;
 }
 
+int dnet_check_read_block(struct dnet_node *n, void *buf, int size, int *nump, int *startp)
+{
+	int num = 0, err;
+	void *ptr = buf;
+	struct dnet_meta_container *mc;
+
+	if (size < (int)sizeof(struct dnet_meta_container)) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "Too small block size, must be equal to meta container size (%zu bytes) at least.\n",
+				sizeof(struct dnet_meta_container));
+		return -EINVAL;
+	}
+
+	pthread_mutex_lock(&dnet_check_file_lock);
+	err = pread(dnet_check_fd, buf, size, dnet_check_offset);
+	if (err < 0) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to read data, exiting.\n");
+		goto err_out_unlock;
+	}
+	if (err == 0) {
+		err = 1;
+		dnet_log_raw(n, DNET_LOG_ERROR, "End of file reached, exiting.\n");
+		goto err_out_unlock;
+	}
+
+	while (err) {
+		if (err < (int)sizeof(struct dnet_meta_container))
+			break;
+
+		mc = ptr;
+
+		if (err < (int)(sizeof(struct dnet_meta_container) + mc->size))
+			break;
+
+		ptr += mc->size + sizeof(struct dnet_meta_container);
+		err -= mc->size + sizeof(struct dnet_meta_container);
+
+		num++;
+	}
+
+	*nump = num;
+	*startp = dnet_check_id_read;
+
+	dnet_check_offset += ptr - buf;
+	dnet_check_id_read += num;
+
+	err = 0;
+
+err_out_unlock:
+	pthread_mutex_unlock(&dnet_check_file_lock);
+
+	return err;
+}

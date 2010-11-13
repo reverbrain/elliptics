@@ -37,11 +37,7 @@
 
 #include "common.h"
 
-#define DNET_CHECK_TOKEN_STRING			" 	"
-#define DNET_CHECK_NEWLINE_TOKEN_STRING		"\r\n"
-#define DNET_CHECK_INNER_TOKEN_STRING		","
-
-static int dnet_check_log_num;
+#define DNET_CHECK_INNER_TOKEN_STRING ","
 
 static int dnet_check_process_hash_string(struct dnet_check_worker *w, char *hash, int add)
 {
@@ -309,12 +305,18 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 		}
 		memcpy(req->addr, req->id, DNET_ID_SIZE);
 
-		snprintf(file, sizeof(file), "%s/%s",
-				dnet_check_tmp_dir, dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid));
-		err = dnet_read_file(n, file, file, strlen(file), req->id, 0, 1, 1);
+		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid));
+		err = dnet_read_file(n, file, file, strlen(file), req->id, 0, 1, 0);
 		if (err < 0) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read history file: %d.\n",
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read data file: %d.\n",
 					dnet_dump_id(req->id), err);
+
+			/*
+			 * Kill history and metadata if we failed to read data.
+			 * If we will not remove history, fsck will append recovered history to
+			 * old one increasing its size more and more.
+			 */
+			dnet_remove_object_now(n, req->id, 0);
 			continue;
 		}
 
@@ -340,7 +342,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 			}
 		}
 
-		dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', id: %s: history present: %d, uploading existing: %d.\n",
+		dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', id: %s: object present: %d, uploading existing: %d.\n",
 				obj, dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid),
 				req->present, dnet_check_upload_existing);
 	}
@@ -362,64 +364,85 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 static void *dnet_check_process(void *data)
 {
 	struct dnet_check_worker *w = data;
-	char buf[4096], *tmp, *saveptr, *token, *hash, *obj;
-	int size = sizeof(buf);
-	int err, hash_num = 0;
+	struct dnet_node *n = w->n;
+	char hash[256];
+	void *ptr, *buf;
+	int size = 1024*1024*10;
+	int err, hash_num = 0, start, i, num;
+	struct dnet_meta_container *mc;
+	struct dnet_meta *m;
+	char id_str[DNET_ID_SIZE*2 + 1];
 
-	while (1) {
-		pthread_mutex_lock(&dnet_check_file_lock);
-		tmp = fgets(buf, size, dnet_check_file);
-		if (tmp)
-			dnet_check_log_num++;
-
-		pthread_mutex_unlock(&dnet_check_file_lock);
-		if (!tmp) {
-			dnet_log_raw(w->n, DNET_LOG_INFO, "Check file is empty, exiting.\n");
-			break;
-		}
-
-		obj = hash = NULL;
-		err = -EINVAL;
-
-		token = strtok_r(tmp, DNET_CHECK_TOKEN_STRING, &saveptr);
-		if (!token)
-			goto out_continue;
-		hash = token;
-
-		tmp = NULL;
-		token = strtok_r(tmp, DNET_CHECK_TOKEN_STRING, &saveptr);
-		if (!token)
-			goto out_continue;
-		obj = token;
-
-		/*
-		 * Cut off remaining newlines
-		 */
-		saveptr = NULL;
-		token = strtok_r(token, DNET_CHECK_NEWLINE_TOKEN_STRING, &saveptr);
-
-		dnet_cleanup_transform(w->n);
-
-		err = dnet_check_process_hash_string(w, hash, 1);
-		if (err < 0)
-			goto out_continue;
-
-		hash_num = err;
-
-		err = dnet_check_number_of_copies(w, obj, strlen(obj), hash_num);
-		
-		dnet_check_process_hash_string(w, hash, 0);
-
-out_continue:
-		dnet_log_raw(w->n, DNET_LOG_INFO, "%d/%d: processed obj: %s, hash: %s, err: %d\n",
-				dnet_check_log_num, dnet_check_id_num,
-				obj, hash, err);
+	buf = malloc(size);
+	if (!buf) {
+		err = -ENOMEM;
+		goto err_out_exit;
 	}
 
+	while (1) {
+		err = dnet_check_read_block(n, buf, size, &num, &start);
+		if (err)
+			break;
+
+		ptr = buf;
+		for (i=0; i<num; ++i) {
+			mc = ptr;
+			ptr += sizeof(struct dnet_meta_container);
+
+			dnet_log_raw(n, DNET_LOG_INFO, "%d/%d: started log: %s\n",
+					start + i, dnet_check_id_num,
+					dnet_dump_id_len_raw(mc->id, DNET_ID_SIZE, id_str));
+
+			dnet_cleanup_transform(w->n);
+
+			m = dnet_meta_search(n, mc->data, mc->size, DNET_META_TRANSFORM);
+			if (!m) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to find transform metadata.\n", dnet_dump_id(mc->id));
+				err = -ENOENT;
+				goto out_continue;
+			}
+			if (m->size + 1 > sizeof(hash)) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: stored transform metadata is too large (%u + 1 bytes), max: %zu.\n",
+						dnet_dump_id(mc->id), m->size, sizeof(hash));
+				err = -EINVAL;
+				goto out_continue;
+			}
+			snprintf(hash, m->size + 1, "%s", m->data);
+
+			m = dnet_meta_search(n, mc->data, mc->size, DNET_META_PARENT_OBJECT);
+			if (!m) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to find parent object metadata.\n", dnet_dump_id(mc->id));
+				err = -ENOENT;
+				goto out_continue;
+			}
+
+			err = dnet_check_process_hash_string(w, hash, 1);
+			if (err < 0)
+				goto out_continue;
+
+			hash_num = err;
+
+			dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', hash: '%s', hash_num: %d\n", (char *)m->data, hash, hash_num);
+
+			/* object does not include trailing 0 byte */
+			err = dnet_check_number_of_copies(w, (char *)m->data, m->size - 1, hash_num);
+			
+			dnet_check_process_hash_string(w, hash, 0);
+
+out_continue:
+			dnet_log_raw(n, DNET_LOG_INFO, "%d/%d: processed log: %s, err: %d\n",
+					start + i, dnet_check_id_num, id_str, err);
+
+			ptr += mc->size;
+		}
+	}
+
+	free(buf);
+err_out_exit:
 	return NULL;
 }
 
 int main(int argc, char *argv[])
 {
-	return dnet_check_start(argc, argv, dnet_check_process, 0, 0);
+	return dnet_check_start(argc, argv, dnet_check_process);
 }

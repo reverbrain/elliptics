@@ -474,9 +474,15 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 				dnet_dump_id(n->id), n->notify_hash_size);
 	}
 
+	if (cfg->join & DNET_JOIN_NETWORK) {
+		err = dnet_db_init(n, cfg->history_env);
+		if (err)
+			goto err_out_free;
+	}
+
 	err = dnet_notify_init(n);
 	if (err)
-		goto err_out_free;
+		goto err_out_db_cleanup;
 
 	if (cfg->join & DNET_JOIN_NETWORK) {
 		n->addr.addr_len = sizeof(n->addr.addr);
@@ -506,6 +512,8 @@ err_out_state_destroy:
 	dnet_state_put(n->st);
 err_out_notify_exit:
 	dnet_notify_exit(n);
+err_out_db_cleanup:
+	dnet_db_cleanup(n);
 err_out_free:
 	free(n);
 err_out_exit:
@@ -533,6 +541,10 @@ void dnet_node_destroy(struct dnet_node *n)
 	}
 
 	dnet_cleanup_transform(n);
+
+	dnet_notify_exit(n);
+
+	dnet_db_cleanup(n);
 
 	pthread_attr_destroy(&n->attr);
 

@@ -60,15 +60,14 @@ extern int (* dnet_check_ext_merge)(void *priv, char *direct_path, char *storage
 extern void *dnet_check_ext_private;
 extern void *dnet_check_ext_library;
 
-int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int check_file, int types);
+int dnet_check_start(int argc, char *argv[], void *(* process)(void *data));
 
 extern char dnet_check_tmp_dir[128];
-extern FILE *dnet_check_file, *dnet_check_output;
-extern pthread_mutex_t dnet_check_file_lock;
-
 extern int dnet_check_id_num;
+extern int dnet_check_upload_existing;
 
 int dnet_check_read_single(struct dnet_check_worker *worker, unsigned char *id, uint64_t offset, int direct);
+int dnet_check_read_block(struct dnet_node *n, void *buf, int size, int *nump, int *startp);
 
 #define dnet_check_wait(worker,condition)					\
 ({										\
@@ -91,7 +90,5 @@ int dnet_check_read_single(struct dnet_check_worker *worker, unsigned char *id, 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
-
-extern int dnet_check_upload_existing;
 
 #endif /* __DNET_CHECK_COMMON_H */

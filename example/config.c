@@ -185,6 +185,12 @@ static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unus
 	return 0;
 }
 
+static int dnet_set_history_env(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	snprintf(dnet_cfg_state.history_env, sizeof(dnet_cfg_state.history_env), "%s", value);
+	return 0;
+}
+
 static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"mallopt_mmap_threshold", dnet_set_malloc_options},
 	{"stack_size", dnet_set_stack_size},
@@ -199,6 +205,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"backend", dnet_set_backend},
 	{"daemon", dnet_simple_set},
 	{"log", dnet_set_log},
+	{"history", dnet_set_history_env},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;
