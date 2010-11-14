@@ -198,6 +198,7 @@ static int bdb_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_i
 	int err;
 	DB_TXN *txn;
 	DB *db = n->history;
+	char *dbf = "history";
 	unsigned int offset = 0;
 
 retry:
@@ -211,6 +212,7 @@ retry:
 
 	if (io->flags & DNET_IO_FLAGS_META) {
 		db = n->meta;
+		dbf = "meta";
 	} else if ((io->flags & DNET_IO_FLAGS_APPEND) || !(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)) {
 		err = bdb_get_record_size(n, db, txn, io->origin, &offset, 1);
 		if (err) {
@@ -222,8 +224,8 @@ retry:
 
 	err = bdb_put_data_raw(db, txn, io->origin, DNET_ID_SIZE, data, offset, size, offset != 0);
 	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR,	"%s: object put failed: offset: %llu, size: %llu, err: %d: %s.\n",
-			dnet_dump_id(io->origin), (unsigned long long)io->offset,
+		dnet_log_raw(n, DNET_LOG_ERROR,	"%s: %s object put failed: offset: %llu, size: %llu, err: %d: %s.\n",
+			dnet_dump_id(io->origin), dbf, (unsigned long long)io->offset,
 			(unsigned long long)io->size, err, db_strerror(err));
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
@@ -231,8 +233,8 @@ retry:
 		goto err_out_close_txn;
 	}
 
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: stored history object: size: %llu, offset: %llu, update_offset: %u.\n",
-			dnet_dump_id(io->origin), (unsigned long long)io->size, (unsigned long long)io->offset,
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: stored %s object: size: %llu, offset: %llu, update_offset: %u.\n",
+			dnet_dump_id(io->origin), dbf, (unsigned long long)io->size, (unsigned long long)io->offset,
 			offset);
 
 	err = txn->commit(txn, 0);
@@ -296,6 +298,14 @@ retry:
 	err = n->history->del(n->history, txn, &key, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: history object removal failed, err: %d: %s.\n",
+			dnet_dump_id(cmd->id), err, db_strerror(err));
+		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
+			goto err_out_txn_abort_continue;
+	}
+
+	err = n->meta->del(n->meta, txn, &key, 0);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: meta object removal failed, err: %d: %s.\n",
 			dnet_dump_id(cmd->id), err, db_strerror(err));
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
@@ -467,9 +477,9 @@ err_out_exit:
 int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	struct dnet_node *n = st->n;
-	int err, end = 0;
+	int err, wrap = 0;
 	int out = attr->flags & DNET_ATTR_ID_OUT;
-	unsigned char id[DNET_ID_SIZE], *k, stop;
+	unsigned char id[DNET_ID_SIZE], *k, stop[DNET_ID_SIZE];
 	DBT key, dbdata;
 	unsigned long long osize = 1024 * 1024 * 10, size;
 	void *odata, *data;
@@ -478,8 +488,30 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	struct dnet_meta_container m;
 	DBC *cursor;
 
-	if (out)
+	if (out) {
+		memcpy(id, cmd->id, DNET_ID_SIZE);
 		dnet_state_get_next_id(st, id);
+
+		err = dnet_id_cmp(cmd->id, id);
+		if (err == 0) {
+			dnet_log_raw(n, DNET_LOG_INFO, "%s: requested list of ids which are out of "
+					"supported range, but there are no nodes in route table.\n",
+					dnet_dump_id(cmd->id));
+			return 0;
+		}
+
+		memcpy(stop, cmd->id, DNET_ID_SIZE);
+		if (err > 0) {
+			wrap = 0;
+		} else {
+			wrap = 1;
+		}
+
+	} else {
+		memset(id, 0, DNET_ID_SIZE);
+		memset(stop, 0xff, DNET_ID_SIZE);
+		wrap = 0;
+	}
 
 	memset(&key, 0, sizeof(DBT));
 	memset(&dbdata, 0, sizeof(DBT));
@@ -495,12 +527,6 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 	data = odata;
 	size = osize;
-
-	stop = cmd->id[0];
-
-	err = dnet_id_cmp(cmd->id, id);
-	if (err <= 0)
-		end = 1;
 
 	txn = NULL;
 	err = n->env->txn_begin(n->env, NULL, &txn, DB_READ_UNCOMMITTED);
@@ -525,8 +551,9 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 				continue;
 
 			k = key.data;
+			dnet_log_raw(n, DNET_LOG_NOTICE, "key: %s, wrap: %d, stop: %x, out: %d.\n", dnet_dump_id(k), wrap, stop[0], out);
 
-			if (end && k[0] > stop)
+			if (!wrap && (k[0] > stop[0] || dnet_id_cmp(k, stop) >= 0))
 				break;
 
 			if (size < dbdata.size + sizeof(struct dnet_meta_container)) {
@@ -553,10 +580,10 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 			dnet_log_raw(n, DNET_LOG_NOTICE, "%s.\n", dnet_dump_id(k));
 		} while ((err = cursor->c_get(cursor, &key, &dbdata, DB_NEXT)) == 0);
 
-		if (!end) {
+		if (wrap) {
 			memset(id, 0, DNET_ID_SIZE);
 			key.data = id;
-			end = 1;
+			wrap = 0;
 		} else
 			break;
 	}

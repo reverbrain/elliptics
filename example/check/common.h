@@ -60,7 +60,7 @@ extern int (* dnet_check_ext_merge)(void *priv, char *direct_path, char *storage
 extern void *dnet_check_ext_private;
 extern void *dnet_check_ext_library;
 
-int dnet_check_start(int argc, char *argv[], void *(* process)(void *data));
+int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int out);
 
 extern char dnet_check_tmp_dir[128];
 extern int dnet_check_id_num;

@@ -526,12 +526,15 @@ out_exit:
 	return err;
 }
 
-static int dnet_check_request_ids(struct dnet_check_worker *w, unsigned char *id, char *file)
+static int dnet_check_request_ids(struct dnet_check_worker *w, unsigned char *id, char *file, int out)
 {
 	int err, fd;
 	struct dnet_node *n = w->n;
 	struct dnet_id_request_completion *c;
-	uint32_t flags = DNET_ATTR_ID_OUT;
+	uint32_t flags = 0;
+
+	if (out)
+		flags = DNET_ATTR_ID_OUT;
 
 	fd = open(file, O_RDWR | O_TRUNC | O_CREAT | O_APPEND, 0644);
 	if (fd < 0) {
@@ -598,7 +601,7 @@ static void dnet_check_log_help(char *p)
 			"  -h                      - this help.\n", p);
 }
 
-int dnet_check_start(int argc, char *argv[], void *(* process)(void *data))
+int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int out)
 {
 	int ch, err = 0, i, j, worker_num = 1, log_mask;
 	struct dnet_check_worker *w, *workers;
@@ -739,7 +742,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data))
 		if (i == 0) {
 			if (!file) {
 				file = file_template;
-				err = dnet_check_request_ids(w, remotes[0].id, file);
+				err = dnet_check_request_ids(w, remotes[0].id, file, out);
 				if (err) {
 					dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to request ID range from node %s: %d.\n",
 							dnet_dump_id_len(remotes[0].id, DNET_ID_SIZE), err);

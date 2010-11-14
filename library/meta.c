@@ -47,7 +47,7 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t siz
 		}
 
 		m = *(struct dnet_meta *)data;
-		dnet_convert_meta(&m);
+		//dnet_convert_meta(&m);
 
 		if (m.size + sizeof(struct dnet_meta) > size) {
 			dnet_map_log(n, DNET_LOG_ERROR, "%s: metadata entry broken: entry size %u, type: 0x%x, struct size: %zu, "

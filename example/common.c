@@ -320,7 +320,7 @@ static void dnet_common_setup_meta_data(char *data, char *obj, int len, char *ha
 	a->flags = 0;
 
 	io->size = a->size - sizeof(struct dnet_io_attr);
-	io->flags = DNET_IO_FLAGS_META | DNET_IO_FLAGS_HISTORY;
+	io->flags = DNET_IO_FLAGS_META;
 	io->offset = 0;
 
 	mo->type = DNET_META_PARENT_OBJECT;

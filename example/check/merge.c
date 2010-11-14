@@ -64,7 +64,7 @@ static int dnet_merge_write_history(struct dnet_node *n, char *file, unsigned ch
 
 	err = dnet_write_file_local_offset(n, file, file, strlen(file), id, 0, 0, 0,
 			DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION,
-			DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_META);
+			DNET_IO_FLAGS_HISTORY);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to upload transaction history merged: %d.\n",
 				dnet_dump_id(id), err);
@@ -196,7 +196,7 @@ err_out_exit:
 
 static int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert)
 {
-	int size = mc->size + sizeof(struct dnet_meta_container);
+	int size = mc->size;
 
 	if (convert) {
 		void *ptr = mc->data;
@@ -211,11 +211,9 @@ static int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *
 
 			dnet_convert_meta(m);
 		}
-
-		dnet_convert_meta_container(mc);
 	}
 
-	return dnet_write_data_wait(n, NULL, 0, mc->id, mc, 0, size, DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META);
+	return dnet_write_data_wait(n, NULL, 0, mc->id, mc->data, 0, mc->size, DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META);
 }
 
 static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, struct dnet_meta_container *mc)
@@ -454,5 +452,5 @@ err_out_exit:
 
 int main(int argc, char *argv[])
 {
-	return dnet_check_start(argc, argv, dnet_merge_process);
+	return dnet_check_start(argc, argv, dnet_merge_process, 1);
 }

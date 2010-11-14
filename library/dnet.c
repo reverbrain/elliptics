@@ -656,7 +656,7 @@ int dnet_process_cmd(struct dnet_net_state *st)
 					if ((a->cmd == DNET_CMD_WRITE) && !(cmd->flags & DNET_FLAGS_NO_LOCAL_TRANSFORM))
 						err = dnet_local_transform(st, cmd, a, data);
 
-					if (io->flags & DNET_IO_FLAGS_HISTORY) {
+					if ((io->flags & DNET_IO_FLAGS_HISTORY) || (io->flags & DNET_IO_FLAGS_META)) {
 						if (a->cmd == DNET_CMD_READ) {
 							err = dnet_db_read(st, cmd, io);
 						} else if (a->cmd == DNET_CMD_WRITE) {
@@ -1452,7 +1452,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file, void *remote, 
 
 	trans_num = 0;
 	error = dnet_write_object(n, &ctl, remote, remote_len, id,
-			!(ioflags & (DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE)), &trans_num);
+			!(ioflags & (DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE | DNET_IO_FLAGS_META)), &trans_num);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: transactions sent: %d, error: %d.\n",
 			dnet_dump_id(ctl.addr), trans_num, error);
@@ -3370,7 +3370,7 @@ int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int remote_
 	ctl.io.offset = offset;
 
 	atomic_set(&w->refcnt, INT_MAX);
-	error = dnet_write_object(n, &ctl, remote, remote_size, id, !(ioflags & DNET_IO_FLAGS_HISTORY), &trans_num);
+	error = dnet_write_object(n, &ctl, remote, remote_size, id, !(ioflags & (DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_META)), &trans_num);
 
 	/*
 	 * 1 - the first reference counter we grabbed at allocation time

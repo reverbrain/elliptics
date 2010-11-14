@@ -361,6 +361,34 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, char *obj, i
 	return err;
 }
 
+static int dnet_dump_meta_container(struct dnet_node *n, struct dnet_meta_container *mc)
+{
+	int fd, err;
+	char *file = "/tmp/meta.container";
+
+	fd = open(file, O_RDWR | O_TRUNC | O_CREAT, 0644);
+	if (fd < 0) {
+		err = -errno;
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open meta container file '%s': %s\n",
+				file, strerror(errno));
+		goto err_out_exit;
+	}
+
+	err = write(fd, mc->data, mc->size);
+	if (err != (int)mc->size) {
+		err = -errno;
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to write meta container into '%s': %s\n",
+				file, strerror(errno));
+		goto err_out_close;
+	}
+	err = 0;
+
+err_out_close:
+	close(fd);
+err_out_exit:
+	return err;
+}
+
 static void *dnet_check_process(void *data)
 {
 	struct dnet_check_worker *w = data;
@@ -397,7 +425,8 @@ static void *dnet_check_process(void *data)
 
 			m = dnet_meta_search(n, mc->data, mc->size, DNET_META_TRANSFORM);
 			if (!m) {
-				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to find transform metadata.\n", dnet_dump_id(mc->id));
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to find transform metadata, size: %u.\n", dnet_dump_id(mc->id), mc->size);
+				dnet_dump_meta_container(n, mc);
 				err = -ENOENT;
 				goto out_continue;
 			}
@@ -444,5 +473,5 @@ err_out_exit:
 
 int main(int argc, char *argv[])
 {
-	return dnet_check_start(argc, argv, dnet_check_process);
+	return dnet_check_start(argc, argv, dnet_check_process, 0);
 }
