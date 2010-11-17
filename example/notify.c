@@ -35,7 +35,6 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "hash.h"
 #include "common.h"
 
 #ifndef __unused
@@ -72,7 +71,7 @@ static int notify_complete(struct dnet_net_state *state,
 	dnet_convert_io_notification(io);
 
 	fprintf(stream, "%s: client: %s, size: %llu, offset: %llu, flags: %x\n",
-			dnet_dump_id(io->io.id), dnet_server_convert_dnet_addr(&io->addr.addr),
+			dnet_dump_id_str(io->io.id), dnet_server_convert_dnet_addr(&io->addr.addr),
 			(unsigned long long)io->io.size,
 			(unsigned long long)io->io.offset, io->io.flags);
 	fflush(stream);
@@ -89,7 +88,7 @@ static void notify_usage(char *p)
 			" -L log               - notifications log. Default: stdout\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" -m mask              - log events mask\n"
-			" -i id                - node's ID (zero by default)\n"
+			" -g group_id          - group ID to connect\n"
 			" -I id                - request notifications for given ID\n"
 	       , p);
 }
@@ -99,7 +98,7 @@ int main(int argc, char *argv[])
 	int ch, err, have_remote = 0, i;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem;
-	int max_id_idx = 1000, id_idx = 0;
+	int max_id_idx = 1000, id_idx = 0, group_id = 0;
 	unsigned char id[max_id_idx][DNET_ID_SIZE];
 	char *logfile = NULL, *notify_file = "/dev/stdout";
 	FILE *log = NULL, *notify;
@@ -113,7 +112,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "m:w:l:I:i:a:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "g:m:w:l:I:a:r:h")) != -1) {
 		switch (ch) {
 			case 'm':
 				notify_logger.log_mask = strtoul(optarg, NULL, 0);
@@ -135,10 +134,8 @@ int main(int argc, char *argv[])
 					id_idx++;
 				}
 				break;
-			case 'i':
-				err = dnet_parse_numeric_id(optarg, cfg.id);
-				if (err)
-					return err;
+			case 'g':
+				group_id = atoi(optarg);
 				break;
 			case 'a':
 				err = dnet_parse_addr(optarg, &cfg);
@@ -200,7 +197,9 @@ int main(int argc, char *argv[])
 		return err;
 
 	for (i=0; i<id_idx; ++i) {
-		err = dnet_request_notification(n, id[i], notify_complete, notify);
+		struct dnet_id raw;
+		dnet_setup_id(&raw, group_id, id[i]);
+		err = dnet_request_notification(n, &raw, notify_complete, notify);
 	}
 
 	while (1) {

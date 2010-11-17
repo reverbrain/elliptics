@@ -30,6 +30,4 @@ AC_TRY_LINK([#include <db.h>],
 AC_SUBST(BDB_LIBS)
 AC_SUBST(BDB_CFLAGS)
 LIBS="$saved_LIBS"
-
-AM_CONDITIONAL(HAVE_BDB, [test "f$ac_have_bdb" = "fyes"])
 ])

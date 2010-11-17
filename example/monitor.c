@@ -36,7 +36,6 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "hash.h"
 #include "common.h"
 
 #ifndef __unused
@@ -44,8 +43,8 @@
 #endif
 
 struct monitor_id {
-	unsigned char id[DNET_ID_SIZE];
-	struct dnet_addr addr;
+	struct dnet_id		id;
+	struct dnet_addr	addr;
 };
 
 static pthread_cond_t monitor_wait_cond = PTHREAD_COND_INITIALIZER;
@@ -98,14 +97,14 @@ static int monitor_complete(struct dnet_net_state *state,
 		goto out_unlock;
 	}
 
-	memcpy(monitor_current_ids[monitor_current_num].id, cmd->id, DNET_ID_SIZE);
+	memcpy(&monitor_current_ids[monitor_current_num].id, &cmd->id, sizeof(struct dnet_id));
 	memcpy(&monitor_current_ids[monitor_current_num].addr, dnet_state_addr(state), sizeof(struct dnet_addr));
 
 out_unlock:
 	pthread_mutex_unlock(&monitor_wait_lock);
 
 	monitor_wakeup(monitor_wait_num++);
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: %s", dnet_dump_id(cmd->id), dnet_state_dump_addr(state));
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: %s", dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 
 	return err;
 }
@@ -115,7 +114,7 @@ static int monitor_compare(const void *data1, const void *data2)
 	const struct monitor_id *id1 = data1;
 	const struct monitor_id *id2 = data2;
 
-	return dnet_id_cmp(id1->id, id2->id);
+	return dnet_id_cmp(&id1->id, &id2->id);
 }
 
 static void monitor_usage(char *p)
@@ -244,16 +243,16 @@ int main(int argc, char *argv[])
 				for (; j<monitor_prev_num; ++j) {
 					p = &monitor_prev_ids[j];
 
-					cmp = dnet_id_cmp(c->id, p->id);
+					cmp = dnet_id_cmp(&c->id, &p->id);
 					if (cmp <= 0)
 						break;
-					dnet_log_raw(n, DNET_LOG_NOTICE, "diff: - %s: %s", dnet_dump_id(p->id), dnet_server_convert_dnet_addr(&p->addr));
+					dnet_log_raw(n, DNET_LOG_NOTICE, "diff: - %s: %s", dnet_dump_id(&p->id), dnet_server_convert_dnet_addr(&p->addr));
 				}
 
 				if (!cmp)
 					continue;
 
-				dnet_log_raw(n, DNET_LOG_NOTICE, "diff: + %s: %s", dnet_dump_id(c->id), dnet_server_convert_dnet_addr(&c->addr));
+				dnet_log_raw(n, DNET_LOG_NOTICE, "diff: + %s: %s", dnet_dump_id(&c->id), dnet_server_convert_dnet_addr(&c->addr));
 			}
 		}
 

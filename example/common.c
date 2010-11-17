@@ -37,7 +37,6 @@
 #include <elliptics/interface.h>
 
 #include "common.h"
-#include "hash.h"
 
 #define DNET_CONF_COMMENT	'#'
 #define DNET_CONF_DELIM		'='
@@ -76,6 +75,59 @@ err_out_print_wrong_param:
 	fprintf(stderr, "Wrong address parameter '%s', should be 'addr%cport%cfamily'.\n",
 				addr, DNET_CONF_ADDR_DELIM, DNET_CONF_ADDR_DELIM);
 	return -EINVAL;
+}
+
+int dnet_parse_groups(char *value, int **groupsp)
+{
+	int len = strlen(value), i, num = 0, start = 0, pos = 0;
+	char *ptr = value;
+	int *groups;
+
+	for (i=0; i<len; ++i) {
+		if (value[i] == DNET_CONF_ADDR_DELIM)
+			start = 0;
+		else if (!start) {
+			start = 1;
+			num++;
+		}
+	}
+
+	if (!num) {
+		fprintf(stderr, "no groups found\n");
+		return -ENOENT;
+	}
+
+	groups = malloc(sizeof(int) * num);
+	if (!groups)
+		return -ENOMEM;
+
+	memset(groups, 0, num * sizeof(int));
+
+	start = 0;
+	for (i=0; i<num; ++i) {
+		if (value[i] == DNET_CONF_ADDR_DELIM) {
+			value[i] = '\0';
+			if (start) {
+				groups[pos] = atoi(ptr);
+				pos++;
+				start = 0;
+			}
+		} else if (!start) {
+			ptr = &value[i];
+			start = 1;
+		}
+	}
+
+	if (start) {
+		groups[pos] = atoi(ptr);
+		pos++;
+	}
+
+	for (i=0; i<pos; ++i)
+		printf("%d\n", groups[i]);
+
+	*groupsp = groups;
+	return pos;
 }
 
 int dnet_parse_numeric_id(char *value, unsigned char *id)
@@ -130,7 +182,7 @@ static void dnet_common_convert_adata(void *adata, struct dnet_io_attr *ioattr)
 {
 	/*
 	 * This is a bit ugly block, since we break common code to update inner data...
-	 * But originally it lived in the place where this was appropriate, and even now
+	 * But parentally it lived in the place where this was appropriate, and even now
 	 * it is used the way this processing is needed.
 	 */
 
@@ -140,7 +192,7 @@ static void dnet_common_convert_adata(void *adata, struct dnet_io_attr *ioattr)
 		if (a->cmd == DNET_CMD_WRITE) {
 			struct dnet_io_attr *io = (struct dnet_io_attr *)(a + 1);
 
-			memcpy(io->origin, ioattr->origin, DNET_ID_SIZE);
+			memcpy(io->parent, ioattr->parent, DNET_ID_SIZE);
 			memcpy(io->id, ioattr->id, DNET_ID_SIZE);
 
 			dnet_convert_io_attr(io);
@@ -158,17 +210,17 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 
 	dnet_common_convert_adata(adata, &ctl->io);
 
-	err = dnet_trans_create_send(n, ctl);
-	if (err)
+	err = dnet_trans_create_send_all(n, ctl);
+	if (err <= 0)
 		goto err_out_exit;
 
-	num++;
+	num = err;
 
 	if (!(ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)) {
 		memset(&hctl, 0, sizeof(hctl));
 
-		memcpy(hctl.addr, ctl->io.id, DNET_ID_SIZE);
-		memcpy(hctl.io.origin, ctl->io.id, DNET_ID_SIZE);
+		memcpy(&hctl.id, &ctl->id, sizeof(struct dnet_id));
+		memcpy(hctl.io.parent, ctl->io.id, DNET_ID_SIZE);
 		memcpy(hctl.io.id, ctl->io.id, DNET_ID_SIZE);
 
 		dnet_common_convert_adata(adata, &hctl.io);
@@ -177,9 +229,9 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 		hctl.asize = asize;
 
 		if (ctl->ts.tv_sec)
-			dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, &ctl->ts, flags);
+			dnet_setup_history_entry(&e, ctl->io.parent, ctl->io.size, ctl->io.offset, &ctl->ts, flags);
 		else
-			dnet_setup_history_entry(&e, ctl->io.origin, ctl->io.size, ctl->io.offset, NULL, flags);
+			dnet_setup_history_entry(&e, ctl->io.parent, ctl->io.size, ctl->io.offset, NULL, flags);
 
 		hctl.priv = ctl->priv;
 		hctl.complete = ctl->complete;
@@ -195,27 +247,22 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 		hctl.io.offset = 0;
 		hctl.io.flags = (flags & ~DNET_IO_FLAGS_APPEND) | DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
 
-		err = dnet_trans_create_send(n, &hctl);
-		if (err)
-			goto err_out_exit;
-
-		num++;
+		err = dnet_trans_create_send_all(n, &hctl);
+		if (err > 0)
+			num += err;
 	}
 
 err_out_exit:
 	return num;
 }
 
-static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned int len,
+int dnet_common_write_object(struct dnet_node *n, struct dnet_id *id,
 		void *adata, uint32_t asize, int history_only,
-		void *data, uint64_t size, int version, int pos, struct timespec *ts,
-		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-		void *priv,
+		void *data, uint64_t size, int version, struct timespec *ts,
+		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *), void *priv,
 		uint32_t ioflags)
 {
 	struct dnet_io_control ctl;
-	int old_pos = pos, err;
-	unsigned int rsize;
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -232,12 +279,11 @@ static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned
 
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 	ctl.cmd = DNET_CMD_WRITE;
-	ctl.aflags = DNET_ATTR_NO_TRANSACTION_SPLIT;
+	ctl.aflags = 0;
 
 	/*
 	 * We want to store transaction logs to get modification time.
 	 */
-	//ctl.io.flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
 	ctl.io.flags = ioflags;
 	ctl.io.size = size;
 	ctl.io.offset = 0;
@@ -245,77 +291,38 @@ static int dnet_common_write_object_raw(struct dnet_node *n, char *obj, unsigned
 	if (ts)
 		ctl.ts = *ts;
 
-	pos = old_pos;
-	rsize = DNET_ID_SIZE;
-	err = dnet_transform(n, obj, len, ctl.io.id, &rsize, &pos);
-	if (err || pos == old_pos)
-		goto out_exit;
-
-	memcpy(ctl.addr, ctl.io.id, DNET_ID_SIZE);
+	memcpy(&ctl.id, id, sizeof(struct dnet_id));
+	memcpy(ctl.io.id, ctl.id.id, DNET_ID_SIZE);
 
 	if (version != -1) {
 		/*
-		 * ctl.addr is used for cmd.id, so the last assignment is correct, since
+		 * ctl.id is used for cmd.id, so the last assignment is correct, since
 		 * we first send transaction with the data and only then history one.
 		 */
-		pos = old_pos;
-		rsize = DNET_ID_SIZE;
-		err = dnet_transform(n, data, size, ctl.io.origin, &rsize, &pos);
-		if (err || pos == old_pos)
-			goto out_exit;
-		memcpy(ctl.addr, ctl.io.origin, DNET_ID_SIZE);
+		dnet_transform(n, data, size, &ctl.id);
+		memcpy(ctl.io.parent, ctl.id.id, DNET_ID_SIZE);
 
-		dnet_common_convert_id_version(ctl.io.origin, version);
-		dnet_common_convert_id_version(ctl.addr, version);
+		dnet_common_convert_id_version(ctl.io.parent, version);
+		dnet_common_convert_id_version(ctl.id.id, version);
 
 		ctl.io.flags |= DNET_IO_FLAGS_ID_VERSION | DNET_IO_FLAGS_ID_CONTENT;
 	} else {
 		ctl.aflags |= DNET_ATTR_DIRECT_TRANSACTION;
-		memcpy(ctl.io.origin, ctl.io.id, DNET_ID_SIZE);
+		memcpy(ctl.io.parent, ctl.io.id, DNET_ID_SIZE);
 		ctl.io.flags |= DNET_IO_FLAGS_PARENT;
 	}
 
-	err = dnet_common_send_upload_transactions(n, &ctl, adata, asize);
-	if (err <= 0)
-		goto out_exit;
-	return err;
-
-out_exit:
-	if (err > 0 || pos == old_pos)
-		return 0;
-	return err;
+	return dnet_common_send_upload_transactions(n, &ctl, adata, asize);
 }
 
-int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
-		void *adata, uint32_t asize, int history_only,
-		void *data, uint64_t size, int version, struct timespec *ts, 
-		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-		void *priv, uint32_t ioflags)
-{
-	int err;
-	int pos = 0, trans_num = 0;
-
-	while (1) {
-		err = dnet_common_write_object_raw(n, obj, len, adata, asize, history_only,
-				data, size, version, pos, ts, complete, priv, ioflags);
-		if (err <= 0)
-			break;
-
-		trans_num += err;
-		pos++;
-	}
-
-	return trans_num;
-}
-
-static void dnet_common_setup_meta_data(char *data, char *obj, int len, char *hash, int hlen)
+static void dnet_common_setup_meta_data(char *data, char *obj, int len)
 {
 	struct dnet_attr *a = (struct dnet_attr *)data;
 	struct dnet_io_attr *io = (struct dnet_io_attr *)(a + 1);
 	struct dnet_meta *mo = (struct dnet_meta *)(io + 1);
-	struct dnet_meta *mh = (struct dnet_meta *)(((void *)(mo + 1)) + len + 1);
+	//struct dnet_meta *mh = (struct dnet_meta *)(((void *)(mo + 1)) + len + 1);
 
-	a->size = sizeof(struct dnet_io_attr) + sizeof(struct dnet_meta) * 2 + len + hlen + 2; /* 0-bytes */
+	a->size = sizeof(struct dnet_io_attr) + sizeof(struct dnet_meta) * 1 + len + 2; /* 0-bytes */
 	a->cmd = DNET_CMD_WRITE;
 	a->flags = 0;
 
@@ -327,26 +334,6 @@ static void dnet_common_setup_meta_data(char *data, char *obj, int len, char *ha
 	mo->size = len + 1; /* 0-byte */
 	snprintf((char *)mo->data, mo->size, "%s", obj);
 	dnet_convert_meta(mo);
-
-	mh->type = DNET_META_TRANSFORM;
-	mh->size = hlen + 1;
-	snprintf((char *)mh->data, mh->size, "%s", hash);
-	dnet_convert_meta(mh);
-}
-
-
-int dnet_common_write_object_meta(struct dnet_node *n, char *obj, int len,
-		char *hash, int hlen, int history_only,
-		void *data, uint64_t size, int version, struct timespec *ts, 
-		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-		void *priv, uint32_t ioflags)
-{
-	char adata[len + hlen + sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + sizeof(struct dnet_meta)*2 + 2 /* 0-bytes */];
-
-	memset(adata, 0, sizeof(adata));
-	dnet_common_setup_meta_data(adata, obj, len, hash, hlen);
-
-	return dnet_common_write_object(n, obj, len, adata, sizeof(adata), history_only, data, size, version, ts, complete, priv, ioflags);
 }
 
 int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cfg, char *orig_addr)
@@ -408,77 +395,6 @@ next:
 
 	return 0;
 
-err_out_exit:
-	return err;
-}
-
-int dnet_common_add_transform(struct dnet_node *n, char *orig_hash)
-{
-	char *h = NULL, *hash, *p;
-	int added = 0, err;
-	struct dnet_crypto_engine *e;
-
-	if (!orig_hash)
-		return 0;
-
-	h = strdup(orig_hash);
-	if (!h) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	hash = h;
-
-	while (hash) {
-		p = strchr(hash, ' ');
-		if (p)
-			*p++ = '\0';
-
-		e = malloc(sizeof(struct dnet_crypto_engine));
-		if (!e) {
-			err = -ENOMEM;
-			goto err_out_free;
-		}
-
-		memset(e, 0, sizeof(struct dnet_crypto_engine));
-
-		err = dnet_crypto_engine_init(e, hash);
-		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to initialize hash '%s': %d.\n",
-					hash, err);
-			goto err_out_free;
-		}
-
-		err = dnet_add_transform(n, e, e->name,	e->transform, e->cleanup);
-		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add hash '%s': %d.\n", hash, err);
-			goto err_out_free;
-		}
-
-		dnet_log_raw(n, DNET_LOG_INFO, "Added hash '%s'.\n", hash);
-		added++;
-
-		if (!p)
-			break;
-
-		hash = p;
-
-		while (hash && *hash && isspace(*hash))
-			hash++;
-	}
-
-	if (!added) {
-		err = -ENOENT;
-		dnet_log_raw(n, DNET_LOG_ERROR, "No remote hashes added, aborting.\n");
-		goto err_out_free;
-	}
-
-	free(h);
-
-	return added;
-
-err_out_free:
-	free(h);
 err_out_exit:
 	return err;
 }

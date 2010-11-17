@@ -50,7 +50,7 @@ struct eblob_backend_config {
 	struct eblob_backend		*data_blob;
 };
 
-static int blob_write(struct eblob_backend_config *c, void *state __unused, struct dnet_cmd *cmd,
+static int blob_write(struct eblob_backend_config *c, void *state __unused, struct dnet_cmd *cmd __unused,
 		struct dnet_attr *attr __unused, void *data)
 {
 	int err;
@@ -60,14 +60,13 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 
 	data += sizeof(struct dnet_io_attr);
 
-	err = eblob_write_data(c->data_blob, io->origin, DNET_ID_SIZE,
+	err = eblob_write_data(c->data_blob, io->id, DNET_ID_SIZE,
 			data, io->size, BLOB_DISK_CTL_NOCSUM);
 	if (err)
 		goto err_out_exit;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "blob: %s: IO offset: %llu, size: %llu.\n",
-		dnet_dump_id(cmd->id),
-		(unsigned long long)io->offset, (unsigned long long)io->size);
+		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size);
 
 	return 0;
 
@@ -87,10 +86,10 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 	dnet_convert_io_attr(io);
 
-	err = eblob_read(b, io->origin, DNET_ID_SIZE, &fd, &offset, &size);
+	err = eblob_read(b, io->id, DNET_ID_SIZE, &fd, &offset, &size);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to lookup requested key: %d.\n",
-				dnet_dump_id(io->origin), err);
+				dnet_dump_id_str(io->id), err);
 		goto err_out_exit;
 	}
 
@@ -108,7 +107,7 @@ err_out_exit:
 
 static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 {
-	return eblob_remove(c->data_blob, cmd->id, DNET_ID_SIZE);
+	return eblob_remove(c->data_blob, cmd->id.id, DNET_ID_SIZE);
 }
 
 static int eblob_backend_command_handler(void *state, void *priv,

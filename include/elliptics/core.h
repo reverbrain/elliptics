@@ -24,9 +24,11 @@
 #ifdef CONFIG_ID_SIZE
 #define DNET_ID_SIZE		CONFIG_ID_SIZE
 #else
-#define DNET_ID_SIZE		20
+#define DNET_ID_SIZE		64
 #endif
 #define DNET_MAX_NAME_LEN	64
+
+#define DNET_CRYPTO_HASH	"sha512"
 
 /*
  * Each read transaction reply is being split into

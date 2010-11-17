@@ -35,36 +35,34 @@
 #include "common.h"
 
 #include "../common.h"
-#include "../hash.h"
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
 
-static void dnet_merge_unlink_local_files(struct dnet_node *n __unused, unsigned char *id)
+static void dnet_merge_unlink_local_files(struct dnet_node *n __unused, struct dnet_id *id)
 {
 	char file[256];
 	char eid[2*DNET_ID_SIZE+1];
 
-	dnet_dump_id_len_raw(id, DNET_ID_SIZE, eid);
+	dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, eid);
 	
-	snprintf(file, sizeof(file), "%s/%s.direct%s", dnet_check_tmp_dir, eid, DNET_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%s/%s.%d.direct%s", dnet_check_tmp_dir, eid, id->group_id, DNET_HISTORY_SUFFIX);
 	unlink(file);
 
-	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir, eid, DNET_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%s/%s.%d%s", dnet_check_tmp_dir, eid, id->group_id, DNET_HISTORY_SUFFIX);
 	unlink(file);
 	
-	snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, eid);
+	snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir, eid, id->group_id);
 	unlink(file);
 }
 
-static int dnet_merge_write_history(struct dnet_node *n, char *file, unsigned char *id)
+static int dnet_merge_write_history(struct dnet_node *n, char *file, struct dnet_id *id)
 {
 	int err;
 
 	err = dnet_write_file_local_offset(n, file, file, strlen(file), id, 0, 0, 0,
-			DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION,
-			DNET_IO_FLAGS_HISTORY);
+			DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to upload transaction history merged: %d.\n",
 				dnet_dump_id(id), err);
@@ -77,7 +75,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_merge_write_history_entry(struct dnet_node *n, char *result, unsigned char *id, int fd, struct dnet_history_entry *ent)
+static int dnet_merge_write_history_entry(struct dnet_node *n, char *result, int fd, struct dnet_history_entry *ent)
 {
 	int err;
 
@@ -85,26 +83,28 @@ static int dnet_merge_write_history_entry(struct dnet_node *n, char *result, uns
 	if (err < 0) {
 		err = -errno;
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to write merged entry into result file '%s': %s [%d].\n",
-				dnet_dump_id(id), result, strerror(errno), errno);
+				dnet_dump_id_str(ent->id), result, strerror(errno), errno);
 	}
 	err = 0;
 
 	return err;
 }
 
-static int dnet_merge_check_direct_tranasction_time(struct dnet_check_worker *worker, struct dnet_history_entry *f)
+static int dnet_merge_check_direct_transaction_time(struct dnet_check_worker *worker, struct dnet_history_entry *f)
 {
 	struct dnet_node *n = worker->n;
 	struct dnet_history_map m;
 	struct dnet_history_entry e;
 	char id_str[2*DNET_ID_SIZE+1];
+	struct dnet_id raw;
 	char file[256];
 	int err;
 
 	dnet_dump_id_len_raw(f->id, DNET_ID_SIZE, id_str);
+	dnet_setup_id(&raw, worker->group_id, f->id);
 
 	snprintf(file, sizeof(file), "%s/%s-trans", dnet_check_tmp_dir, id_str);
-	err = dnet_read_file_direct(n, file, NULL, 0, f->id, 0, 0, 1);
+	err = dnet_read_file_direct(n, file, NULL, 0, &raw, 0, 0, 1);
 	if (err)
 		goto err_out_exit;
 
@@ -127,12 +127,12 @@ static int dnet_merge_check_direct_tranasction_time(struct dnet_check_worker *wo
 	if ((e.tsec == f->tsec) && (e.tnsec < f->tnsec))
 		goto err_out_unmap;
 
-	dnet_log_raw(n, DNET_LOG_INFO, "%s: replacing transction with data read directly.\n", id_str);
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: replacing transction with data read directly.\n", id_str);
 
 	worker->wait_num = 0;
 	worker->wait_error = 0;
 
-	err = dnet_check_read_single(worker, e.id, 0, 1);
+	err = dnet_check_read_single(worker, &raw, 0, 1);
 	dnet_check_wait(worker, worker->wait_num == 1);
 
 	if (!err && worker->wait_error)
@@ -143,9 +143,8 @@ static int dnet_merge_check_direct_tranasction_time(struct dnet_check_worker *wo
 		goto err_out_unmap;
 	}
 
-	snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, id_str);
-	err = dnet_write_file_local_offset(n, file, NULL, 0, f->id, 0, 0, 0,
-		DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+	snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir, id_str, raw.group_id);
+	err = dnet_write_file_local_offset(n, file, NULL, 0, &raw, 0, 0, 0, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 
 err_out_unmap:
 	dnet_unmap_history(n, &m);
@@ -175,16 +174,16 @@ static int dnet_merge_get_latest_transactions(struct dnet_check_worker *worker, 
 	do {
 		e = &m.ent[i];
 
-		if (!dnet_id_cmp(first->id, e->id))
+		if (!dnet_id_cmp_str(first->id, e->id))
 			continue;
 
-		dnet_merge_check_direct_tranasction_time(worker, first);
+		dnet_merge_check_direct_transaction_time(worker, first);
 
 		first = e;
 	} while (--i >= 0);
 
 	if (first != e)
-		dnet_merge_check_direct_tranasction_time(worker, first);
+		dnet_merge_check_direct_transaction_time(worker, first);
 
 	err = 0;
 
@@ -192,28 +191,6 @@ static int dnet_merge_get_latest_transactions(struct dnet_check_worker *worker, 
 
 err_out_exit:
 	return err;
-}
-
-static int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert)
-{
-	int size = mc->size;
-
-	if (convert) {
-		void *ptr = mc->data;
-		int size = mc->size;
-		struct dnet_meta *m;
-
-		while (size) {
-			m = ptr;
-
-			ptr += sizeof(struct dnet_meta) + m->size;
-			size -= sizeof(struct dnet_meta) + m->size;
-
-			dnet_convert_meta(m);
-		}
-	}
-
-	return dnet_write_data_wait(n, NULL, 0, mc->id, mc->data, 0, mc->size, DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META);
 }
 
 static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, struct dnet_meta_container *mc)
@@ -226,7 +203,7 @@ static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, str
 	worker->wait_num = 0;
 	worker->wait_error = 0;
 
-	err = dnet_check_read_single(worker, mc->id, 0, 1);
+	err = dnet_check_read_single(worker, &mc->id, 0, 1);
 	dnet_check_wait(worker, worker->wait_num == 1);
 
 	if (!err && worker->wait_error)
@@ -235,7 +212,7 @@ static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, str
 	if (err) {
 		if (err != -ENOENT) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read single transaction: %d.\n",
-					dnet_dump_id(mc->id), err);
+					dnet_dump_id(&mc->id), err);
 			goto err_out_exit;
 		}
 
@@ -244,21 +221,20 @@ static int dnet_merge_direct(struct dnet_check_worker *worker, char *direct, str
 		 * not plain transaction, so we just upload history file into the storage.
 		 */
 	} else {
-		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len_raw(mc->id, DNET_ID_SIZE, eid));
-		err = dnet_write_file_local_offset(n, file, file, strlen(file), mc->id, 0, 0, 0,
-				DNET_ATTR_NO_TRANSACTION_SPLIT | DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+		snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir, dnet_dump_id_len_raw(mc->id.id, DNET_ID_SIZE, eid), mc->id.group_id);
+		err = dnet_write_file_local_offset(n, file, file, strlen(file), &mc->id, 0, 0, 0, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to upload transaction to be directly merged: %d.\n",
-					dnet_dump_id(mc->id), err);
+					dnet_dump_id(&mc->id), err);
 			if (err == -ENOENT)
-				dnet_remove_object_now(n, mc->id, 1);
+				dnet_remove_object_now(n, &mc->id, 1);
 			goto err_out_exit;
 		}
 
 		err = dnet_write_metadata(n, mc, 1);
 	}
 
-	err = dnet_merge_write_history(n, direct, mc->id);
+	err = dnet_merge_write_history(n, direct, &mc->id);
 	if (err)
 		goto err_out_exit;
 
@@ -282,7 +258,7 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 		 * If we can not map directly downloaded history entry likely object is also broken.
 		 * So delete it.
 		 */
-		dnet_remove_object_now(n, mc->id, 1);
+		dnet_remove_object_now(n, &mc->id, 1);
 		goto err_out_exit;
 	}
 
@@ -292,13 +268,13 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 		goto err_out_unmap1;
 	}
 
-	snprintf(result, sizeof(result), "%s-%s", file, dnet_dump_id_len_raw(mc->id, DNET_ID_SIZE, id_str));
+	snprintf(result, sizeof(result), "%s-%s", file, dnet_dump_id_len_raw(mc->id.id, DNET_ID_SIZE, id_str));
 
 	fd = open(result, O_RDWR | O_CREAT | O_TRUNC | O_APPEND, 0644);
 	if (fd < 0) {
 		err = -errno;
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to create result file '%s': %s [%d].\n",
-				dnet_dump_id(mc->id), result, strerror(errno), errno);
+				dnet_dump_id(&mc->id), result, strerror(errno), errno);
 		goto err_out_unmap2;
 	}
 
@@ -307,7 +283,7 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 			ent1 = m1.ent[i];
 
 			dnet_convert_history_entry(&ent1);
-			dnet_log_raw(n, DNET_LOG_NOTICE, "%s: 1 ts: %llu.%llu\n", dnet_dump_id(ent1.id),
+			dnet_log_raw(n, DNET_LOG_NOTICE, "%s: 1 ts: %llu.%llu\n", dnet_dump_id_str(ent1.id),
 					(unsigned long long)ent1.tsec, (unsigned long long)ent1.tnsec);
 		}
 
@@ -315,7 +291,7 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 			ent2 = m2.ent[j];
 
 			dnet_convert_history_entry(&ent2);
-			dnet_log_raw(n, DNET_LOG_NOTICE, "%s: 2 ts: %llu.%llu\n", dnet_dump_id(ent2.id),
+			dnet_log_raw(n, DNET_LOG_NOTICE, "%s: 2 ts: %llu.%llu\n", dnet_dump_id_str(ent2.id),
 					(unsigned long long)ent2.tsec, (unsigned long long)ent2.tnsec);
 
 			if (i < m1.num) {
@@ -323,13 +299,13 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 					break;
 				if ((ent1.tsec == ent2.tsec) && (ent1.tnsec < ent2.tnsec))
 					break;
-				if ((ent1.tnsec == ent2.tnsec) && !dnet_id_cmp(ent1.id, ent2.id)) {
+				if ((ent1.tnsec == ent2.tnsec) && !dnet_id_cmp_str(ent1.id, ent2.id)) {
 					j++;
 					break;
 				}
 			}
 
-			err = dnet_merge_write_history_entry(n, result, mc->id, fd, &m2.ent[j]);
+			err = dnet_merge_write_history_entry(n, result, fd, &m2.ent[j]);
 			if (err)
 				goto err_out_close;
 			added++;
@@ -337,7 +313,7 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 		}
 
 		if (i < m1.num) {
-			err = dnet_merge_write_history_entry(n, result, mc->id, fd, &m1.ent[i]);
+			err = dnet_merge_write_history_entry(n, result, fd, &m1.ent[i]);
 			if (err)
 				goto err_out_close;
 			added++;
@@ -347,15 +323,15 @@ static int dnet_merge_common(struct dnet_check_worker *worker, char *direct, cha
 
 	fsync(fd);
 
-	err = dnet_merge_write_history(n, result, mc->id);
+	err = dnet_merge_write_history(n, result, &mc->id);
 	if (err)
 		goto err_out_close;
 
 	dnet_log_raw(n, DNET_LOG_INFO, "%s: merged %ld.%ld -> %ld entries, removed: %d.\n",
-			dnet_dump_id(mc->id), m1.num, m2.num, added, removed);
+			dnet_dump_id(&mc->id), m1.num, m2.num, added, removed);
 
 	if (removed)
-		dnet_remove_object_now(n, mc->id, 0);
+		dnet_remove_object_now(n, &mc->id, 0);
 	else
 		err = dnet_merge_get_latest_transactions(worker, result);
 
@@ -397,45 +373,45 @@ static void *dnet_merge_process(void *data)
 
 			dnet_log_raw(n, DNET_LOG_INFO, "%d/%d: started merge: %s\n",
 					start + i, dnet_check_id_num,
-					dnet_dump_id_len_raw(mc->id, DNET_ID_SIZE, id_str));
+					dnet_dump_id_len_raw(mc->id.id, DNET_ID_SIZE, id_str));
 
-			snprintf(direct, sizeof(direct), "%s/%s.direct", dnet_check_tmp_dir, id_str);
+			snprintf(direct, sizeof(direct), "%s/%s.%d.direct", dnet_check_tmp_dir, id_str, mc->id.group_id);
 
-			err = dnet_read_file_direct(n, direct, direct, strlen(direct), mc->id, 0, 0, 1);
+			err = dnet_read_file_direct(n, direct, direct, strlen(direct), &mc->id, 0, 0, 1);
 			if (err) {
-				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from direct node: %d.\n", dnet_dump_id(mc->id), err);
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from direct node: %d.\n", dnet_dump_id(&mc->id), err);
 				goto out_continue;
 			}
-			snprintf(file, sizeof(file), "%s%s", direct, DNET_HISTORY_SUFFIX);
+			snprintf(file, sizeof(file), "%s.%d%s", direct, mc->id.group_id, DNET_HISTORY_SUFFIX);
 			snprintf(direct, sizeof(direct), "%s", file);
 
-			snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, id_str);
+			snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir, id_str, mc->id.group_id);
 
-			err = dnet_read_file(n, file, file, strlen(file), mc->id, 0, 0, 1);
+			err = dnet_read_file(n, file, file, strlen(file), &mc->id, 0, 0, 1);
 			if (err) {
 				if (err != -ENOENT) {
-					dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n", dnet_dump_id(mc->id), err);
+					dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n", dnet_dump_id(&mc->id), err);
 					goto out_continue;
 				}
 
 				dnet_log_raw(n, DNET_LOG_INFO, "%s: there is no history in the storage to merge with, "
-						"doing direct merge (plain upload).\n", dnet_dump_id(mc->id));
+						"doing direct merge (plain upload).\n", dnet_dump_id(&mc->id));
 				err = dnet_merge_direct(worker, direct, mc);
 			} else {
 				snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir, id_str, DNET_HISTORY_SUFFIX);
 				if (dnet_check_ext_merge) {
-					err = dnet_check_ext_merge(dnet_check_ext_private, direct, file, mc->id);
+					err = dnet_check_ext_merge(dnet_check_ext_private, direct, file, &mc->id);
 				} else {
 					err = dnet_merge_common(worker, direct, file, mc);
 				}
 			}
 
-			dnet_merge_unlink_local_files(n, mc->id);
+			dnet_merge_unlink_local_files(n, &mc->id);
 
 			if (err)
 				goto out_continue;
 
-			dnet_remove_object_now(n, mc->id, 1);
+			dnet_remove_object_now(n, &mc->id, 1);
 out_continue:
 			dnet_log_raw(n, DNET_LOG_INFO, "%d/%d: processed: %s, err: %d\n",
 					start + i, dnet_check_id_num, id_str, err);

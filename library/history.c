@@ -49,7 +49,7 @@ static int bdb_get_record_size(struct dnet_node *n, DB *db, DB_TXN *txn, unsigne
 	err = db->cursor(db, txn, &cursor, DB_READ_UNCOMMITTED);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
-				dnet_dump_id(id), err, db_strerror(err));
+				dnet_dump_id_str(id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
@@ -60,20 +60,20 @@ static int bdb_get_record_size(struct dnet_node *n, DB *db, DB_TXN *txn, unsigne
 			*size = 0;
 		} else {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to get record size, err: %d: %s.\n",
-				dnet_dump_id(id), err, db_strerror(err));
+				dnet_dump_id_str(id), err, db_strerror(err));
 		}
 		goto err_out_close_cursor;
 	}
 
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: data size: %u, dlen: %u.\n",
-			dnet_dump_id(id), data.size, data.dlen);
+	dnet_log_raw(n, DNET_LOG_DSA, "%s: bdb record size read: data size: %u, dlen: %u.\n",
+			dnet_dump_id_str(id), data.size, data.dlen);
 
 	*size = data.size;
 
 	err = cursor->c_close(cursor);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to close list cursor: err: %d: %s.\n",
-				dnet_dump_id(id), err, db_strerror(err));
+				dnet_dump_id_str(id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
@@ -102,11 +102,11 @@ retry:
 	err = n->env->txn_begin(n->env, NULL, &txn, DB_READ_UNCOMMITTED);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a read transaction, err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
-	err = bdb_get_record_size(n, db, txn, io->origin, &size, 0);
+	err = bdb_get_record_size(n, db, txn, io->id, &size, 0);
 	if (err) {
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
@@ -124,7 +124,7 @@ retry:
 	memset(&key, 0, sizeof(DBT));
 	memset(&data, 0, sizeof(DBT));
 
-	key.data = io->origin;
+	key.data = io->id;
 	key.size = DNET_ID_SIZE;
 
 	data.size = data.dlen = size;
@@ -134,7 +134,7 @@ retry:
 	err = db->get(db, txn, &key, &data, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: allocated read failed offset: %u, "
-			"size: %u, err: %d: %s.\n", dnet_dump_id(io->origin),
+			"size: %u, err: %d: %s.\n", dnet_dump_id(&cmd->id),
 			(unsigned int)io->offset, size, err, db_strerror(err));
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
@@ -153,7 +153,7 @@ retry:
 	err = txn->commit(txn, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to commit a read transaction: err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
@@ -206,7 +206,7 @@ retry:
 	err = n->env->txn_begin(n->env, NULL, &txn, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a write transaction, err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
@@ -214,7 +214,7 @@ retry:
 		db = n->meta;
 		dbf = "meta";
 	} else if ((io->flags & DNET_IO_FLAGS_APPEND) || !(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)) {
-		err = bdb_get_record_size(n, db, txn, io->origin, &offset, 1);
+		err = bdb_get_record_size(n, db, txn, io->id, &offset, 1);
 		if (err) {
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
@@ -222,10 +222,10 @@ retry:
 		}
 	}
 
-	err = bdb_put_data_raw(db, txn, io->origin, DNET_ID_SIZE, data, offset, size, offset != 0);
+	err = bdb_put_data_raw(db, txn, io->id, DNET_ID_SIZE, data, offset, size, offset != 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR,	"%s: %s object put failed: offset: %llu, size: %llu, err: %d: %s.\n",
-			dnet_dump_id(io->origin), dbf, (unsigned long long)io->offset,
+			dnet_dump_id(&cmd->id), dbf, (unsigned long long)io->offset,
 			(unsigned long long)io->size, err, db_strerror(err));
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
@@ -233,14 +233,14 @@ retry:
 		goto err_out_close_txn;
 	}
 
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: stored %s object: size: %llu, offset: %llu, update_offset: %u.\n",
-			dnet_dump_id(io->origin), dbf, (unsigned long long)io->size, (unsigned long long)io->offset,
-			offset);
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: stored %s object: io_size: %llu, io_offset: %llu, update_size: %u, update_offset: %u.\n",
+			dnet_dump_id(&cmd->id), dbf, (unsigned long long)io->size, (unsigned long long)io->offset,
+			size, offset);
 
 	err = txn->commit(txn, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to commit a write transaction: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
 
@@ -270,7 +270,7 @@ int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data)
 	if (io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)
 		return 0;
 
-	dnet_setup_history_entry(&e, io->id, io->size, io->offset, NULL, io->flags);
+	dnet_setup_history_entry(&e, io->parent, io->size, io->offset, NULL, io->flags);
 	return bdb_put_data(n, cmd, io, &e, sizeof(struct dnet_history_entry));
 }
 
@@ -285,20 +285,20 @@ retry:
 	err = n->env->txn_begin(n->env, NULL, &txn, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a deletion transaction, err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
 	memset(&key, 0, sizeof(DBT));
 	memset(&data, 0, sizeof(DBT));
 
-	key.data = cmd->id;
+	key.data = cmd->id.id;
 	key.size = DNET_ID_SIZE;
 
 	err = n->history->del(n->history, txn, &key, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: history object removal failed, err: %d: %s.\n",
-			dnet_dump_id(cmd->id), err, db_strerror(err));
+			dnet_dump_id(&cmd->id), err, db_strerror(err));
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
 	}
@@ -306,7 +306,7 @@ retry:
 	err = n->meta->del(n->meta, txn, &key, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: meta object removal failed, err: %d: %s.\n",
-			dnet_dump_id(cmd->id), err, db_strerror(err));
+			dnet_dump_id(&cmd->id), err, db_strerror(err));
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
 	}
@@ -314,7 +314,7 @@ retry:
 	err = txn->commit(txn, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to commit a deletion transaction: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
 
@@ -331,12 +331,12 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_history_del_entry(struct dnet_node *n, unsigned char *id, struct dnet_history_entry *e, unsigned int num)
+static int dnet_history_del_entry(struct dnet_node *n, struct dnet_id *id, struct dnet_history_entry *e, unsigned int num)
 {
 	unsigned int i;
 
 	for (i=0; i<num; ++i) {
-		if (!memcmp(id, e[i].id, DNET_ID_SIZE))
+		if (!memcmp(id->id, e[i].id, DNET_ID_SIZE))
 			break;
 	}
 
@@ -374,14 +374,14 @@ retry:
 	err = n->env->txn_begin(n->env, NULL, &txn, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a deletion transaction, err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
 	memset(&key, 0, sizeof(DBT));
 	memset(&data, 0, sizeof(DBT));
 
-	key.data = cmd->id;
+	key.data = cmd->id.id;
 	key.size = DNET_ID_SIZE;
 
 	data.flags = DB_DBT_MALLOC;
@@ -389,7 +389,7 @@ retry:
 	err = n->history->get(n->history, txn, &key, &data, DB_RMW);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read history of to be deleted object, err: %d: %s.\n",
-			dnet_dump_id(cmd->id), err, db_strerror(err));
+			dnet_dump_id(&cmd->id), err, db_strerror(err));
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
 
@@ -401,23 +401,23 @@ retry:
 	if (data.size % sizeof(struct dnet_history_entry)) {
 		err = -EINVAL;
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: corrupted history of to be deleted object.\n",
-			dnet_dump_id(cmd->id));
+			dnet_dump_id(&cmd->id));
 		goto err_out_free;
 	}
 
 	num = data.size / sizeof(struct dnet_history_entry);
 	data.size -= sizeof(struct dnet_history_entry);
 
-	err = dnet_history_del_entry(n, cmd->id, data.data, num);
+	err = dnet_history_del_entry(n, &cmd->id, data.data, num);
 	if (err)
 		goto err_out_free;
 
 	if (data.size) {
-		err = bdb_put_data_raw(n->history, txn, cmd->id, DNET_ID_SIZE, data.data, 0, data.size, 0);
+		err = bdb_put_data_raw(n->history, txn, key.data, DNET_ID_SIZE, data.data, 0, data.size, 0);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: object put updated history object after "
 				"transaction removal, err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
 
@@ -427,7 +427,7 @@ retry:
 		err = n->history->del(n->history, txn, &key, 0);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: history object removal failed, err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
 		}
@@ -435,7 +435,7 @@ retry:
 		err = n->meta->del(n->meta, txn, &key, 0);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: meta object removal failed, err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 			if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 				goto err_out_txn_abort_continue;
 		}
@@ -444,7 +444,7 @@ retry:
 	}
 
 	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: updated history of to be removed object: should be deleted: %d.\n",
-		dnet_dump_id(cmd->id), ret);
+		dnet_dump_id(&cmd->id), ret);
 
 	free(e);
 
@@ -452,7 +452,7 @@ retry:
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR,
 			"%s: failed to commit a deletion transaction: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
 
@@ -479,7 +479,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	struct dnet_node *n = st->n;
 	int err, wrap = 0;
 	int out = attr->flags & DNET_ATTR_ID_OUT;
-	unsigned char id[DNET_ID_SIZE], *k, stop[DNET_ID_SIZE];
+	struct dnet_id id, stop, raw;
 	DBT key, dbdata;
 	unsigned long long osize = 1024 * 1024 * 10, size;
 	void *odata, *data;
@@ -489,34 +489,35 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	DBC *cursor;
 
 	if (out) {
-		memcpy(id, cmd->id, DNET_ID_SIZE);
-		dnet_state_get_next_id(st, id);
+		memcpy(&id, &cmd->id, sizeof(struct dnet_id));
+		dnet_state_get_next_id(n, &id);
 
-		err = dnet_id_cmp(cmd->id, id);
+		err = dnet_id_cmp(&cmd->id, &id);
 		if (err == 0) {
 			dnet_log_raw(n, DNET_LOG_INFO, "%s: requested list of ids which are out of "
 					"supported range, but there are no nodes in route table.\n",
-					dnet_dump_id(cmd->id));
+					dnet_dump_id(&cmd->id));
 			return 0;
 		}
 
-		memcpy(stop, cmd->id, DNET_ID_SIZE);
 		if (err > 0) {
 			wrap = 0;
 		} else {
 			wrap = 1;
 		}
 
+		memcpy(&stop, &cmd->id, sizeof(struct dnet_id));
+
 	} else {
-		memset(id, 0, DNET_ID_SIZE);
-		memset(stop, 0xff, DNET_ID_SIZE);
+		memset(&id, 0, sizeof(struct dnet_id));
+		memset(&stop, 0xff, sizeof(struct dnet_id));
 		wrap = 0;
 	}
 
 	memset(&key, 0, sizeof(DBT));
 	memset(&dbdata, 0, sizeof(DBT));
 
-	key.data = id;
+	key.data = id.id;
 	key.size = DNET_ID_SIZE;
 
 	odata = malloc(osize);
@@ -532,14 +533,14 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	err = n->env->txn_begin(n->env, NULL, &txn, DB_READ_UNCOMMITTED);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a list transaction, err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_free;
 	}
 
 	err = db->cursor(db, txn, &cursor, DB_READ_UNCOMMITTED);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_close_txn;
 	}
 
@@ -550,10 +551,11 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 			if (err)
 				continue;
 
-			k = key.data;
-			dnet_log_raw(n, DNET_LOG_NOTICE, "key: %s, wrap: %d, stop: %x, out: %d.\n", dnet_dump_id(k), wrap, stop[0], out);
+			dnet_log_raw(n, DNET_LOG_NOTICE, "key: %s, start: %x, stop: %x, out: %d, wrap: %d.\n",
+					dnet_dump_id_str(key.data), id.id[0], stop.id[0], out, wrap);
 
-			if (!wrap && (k[0] > stop[0] || dnet_id_cmp(k, stop) >= 0))
+			dnet_setup_id(&raw, cmd->id.group_id, key.data);
+			if (!wrap && (dnet_id_cmp(&raw, &stop) >= 0))
 				break;
 
 			if (size < dbdata.size + sizeof(struct dnet_meta_container)) {
@@ -565,7 +567,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 				data = odata;
 			}
 
-			memcpy(m.id, k, DNET_ID_SIZE);
+			dnet_setup_id(&m.id, cmd->id.group_id, key.data);
 			m.size = dbdata.size;
 			dnet_convert_meta_container(&m);
 
@@ -577,12 +579,12 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 			data += dbdata.size;
 			size -= dbdata.size;
 
-			dnet_log_raw(n, DNET_LOG_NOTICE, "%s.\n", dnet_dump_id(k));
+			dnet_log_raw(n, DNET_LOG_NOTICE, "%s.\n", dnet_dump_id(&raw));
 		} while ((err = cursor->c_get(cursor, &key, &dbdata, DB_NEXT)) == 0);
 
 		if (wrap) {
-			memset(id, 0, DNET_ID_SIZE);
-			key.data = id;
+			memset(&id, 0, sizeof(struct dnet_id));
+			key.data = id.id;
 			wrap = 0;
 		} else
 			break;
@@ -598,7 +600,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR,
 			"%s: failed to close list cursor: err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_close_txn;
 	}
 
@@ -606,7 +608,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR,
 			"%s: failed to commit a list transaction: err: %d: %s.\n",
-				dnet_dump_id(cmd->id), err, db_strerror(err));
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_free;
 	}
 

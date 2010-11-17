@@ -55,10 +55,11 @@ extern "C" {
 #endif
 
 struct dnet_node;
+struct dnet_group;
 
 #define dnet_log(n, mask, format, a...) do { if (n->log && (n->log->log_mask & mask)) dnet_log_raw(n, mask, format, ##a); } while (0)
 #define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, "%s: " f ": %s [%d].\n", \
-		dnet_dump_id(n->id), ##a, strerror(errno), errno)
+		dnet_dump_id(&n->id), ##a, strerror(errno), errno)
 
 /*
  * Currently executed network state machine:
@@ -78,11 +79,13 @@ struct dnet_net_state
 	struct dnet_node	*n;
 	long			timeout;
 
+	struct dnet_group	*group;
+
 	atomic_t		refcnt;
 	int			s;
 
 	int			__join_state;
-	unsigned char		id[DNET_ID_SIZE];
+	struct dnet_id		id;
 
 	struct dnet_addr	addr;
 
@@ -100,7 +103,7 @@ struct dnet_net_state
 	struct dnet_stat_count	stat[__DNET_CMD_MAX];
 };
 
-struct dnet_net_state *dnet_state_create(struct dnet_node *n, unsigned char *id,
+struct dnet_net_state *dnet_state_create(struct dnet_node *n, struct dnet_id *id,
 		struct dnet_addr *addr, int s);
 
 void dnet_state_reset(struct dnet_net_state *st);
@@ -109,13 +112,9 @@ int dnet_state_insert(struct dnet_net_state *new);
 int dnet_state_insert_raw(struct dnet_net_state *new);
 void dnet_state_remove(struct dnet_net_state *st);
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
-struct dnet_net_state *dnet_state_search(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
-struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, unsigned char *id, struct dnet_net_state *self);
+struct dnet_net_state *dnet_state_search(struct dnet_node *n, struct dnet_id *id, struct dnet_net_state *self);
+struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id, struct dnet_net_state *self);
 
-struct dnet_net_state *dnet_state_get_next(struct dnet_net_state *st);
-struct dnet_net_state *dnet_state_get_prev(struct dnet_net_state *st);
-
-int dnet_state_move(struct dnet_net_state *st);
 void dnet_state_destroy(struct dnet_net_state *st);
 
 int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsigned int join_state);
@@ -198,15 +197,52 @@ int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd,
 int dnet_notify_init(struct dnet_node *n);
 void dnet_notify_exit(struct dnet_node *n);
 
+
+struct dnet_group
+{
+	struct list_head	group_entry;
+
+	unsigned int		group_id;
+
+	struct list_head	state_list;
+
+	atomic_t		refcnt;
+};
+
+static inline struct dnet_group *dnet_group_get(struct dnet_group *g)
+{
+	atomic_inc(&g->refcnt);
+	return g;
+}
+
+void dnet_group_destroy(struct dnet_group *g);
+static inline void dnet_group_put(struct dnet_group *g)
+{
+	if (atomic_dec_and_test(&g->refcnt))
+		dnet_group_destroy(g);
+}
+
+struct dnet_transform
+{
+	void			*priv;
+
+	int 			(* transform)(void *priv, void *src, uint64_t size,
+					void *dst, unsigned int *dsize, unsigned int flags);
+};
+
+int dnet_crypto_init(struct dnet_node *n);
+void dnet_crypto_cleanup(struct dnet_node *n);
+
 struct dnet_node
 {
 	struct list_head	check_entry;
 
-	unsigned char		id[DNET_ID_SIZE];
+	struct dnet_id		id;
 
-	pthread_rwlock_t	transform_lock;
-	struct list_head	transform_list;
-	int			transform_num;
+	struct dnet_transform	transform;
+
+	int			group_num;
+	int			*groups;
 
 	int			need_exit;
 
@@ -218,7 +254,7 @@ struct dnet_node
 	int			sock_type, proto, family;
 
 	pthread_rwlock_t	state_lock;
-	struct list_head	state_list;
+	struct list_head	group_list;
 	struct list_head	empty_state_list;
 
 	struct dnet_lock	trans_lock;
@@ -325,7 +361,7 @@ void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
 int dnet_trans_insert(struct dnet_trans *t);
 struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
 
-int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *ctl);
+int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl);
 
 int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st);
 
@@ -334,21 +370,6 @@ struct dnet_io_completion
 	struct dnet_wait	*wait;
 	char			*file;
 	uint64_t		offset;
-	uint64_t		size;
-};
-
-struct dnet_transform
-{
-	struct list_head	tentry;
-
-	char			name[DNET_MAX_NAME_LEN];
-
-	void			*priv;
-
-	int 			(* transform)(void *priv, void *src, uint64_t size,
-					void *dst, unsigned int *dsize, unsigned int flags);
-
-	void			(* cleanup)(void *priv);
 };
 
 struct dnet_addr_storage
@@ -379,10 +400,9 @@ void dnet_check_thread_stop(struct dnet_node *n);
 void dnet_check_tree(struct dnet_node *n, int kill);
 int dnet_try_reconnect(struct dnet_node *n);
 
-int dnet_read_file_id(struct dnet_node *n, char *file, int len,
-		int direct, uint64_t write_offset,
-		struct dnet_io_attr *io,
-		struct dnet_wait *w, int hist, int wait);
+int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
+		int direct, uint64_t write_offset, uint64_t io_offset, uint64_t io_size,
+		struct dnet_id *id, struct dnet_wait *w, int hist, int wait);
 
 int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data);
 int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io);

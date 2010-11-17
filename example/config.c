@@ -37,7 +37,6 @@
 
 #include "common.h"
 #include "backends.h"
-#include "hash.h"
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
@@ -93,7 +92,7 @@ static char *dnet_skip_line(char *line)
 
 static struct dnet_log dnet_backend_logger;
 static struct dnet_config dnet_cfg_state;
-static char *dnet_cfg_remotes, *dnet_cfg_transform;
+static char *dnet_cfg_remotes;
 static int dnet_daemon_mode;
 
 static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, char *str)
@@ -118,7 +117,13 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 
 static int dnet_set_id(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
-	return dnet_parse_numeric_id(value, dnet_cfg_state.id);
+	return dnet_parse_numeric_id(value, dnet_cfg_state.id.id);
+}
+
+static int dnet_set_group(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	dnet_cfg_state.id.group_id = strtoul(value, NULL, 0);
+	return 0;
 }
 
 static int dnet_set_addr(struct dnet_config_backend *b __unused, char *key __unused, char *value)
@@ -130,15 +135,6 @@ static int dnet_set_remote_addrs(struct dnet_config_backend *b __unused, char *k
 {
 	dnet_cfg_remotes = strdup(value);
 	if (!dnet_cfg_remotes)
-		return -ENOMEM;
-
-	return 0;
-}
-
-static int dnet_set_transform_functions(struct dnet_config_backend *b __unused, char *key __unused, char *value)
-{
-	dnet_cfg_transform = strdup(value);
-	if (!dnet_cfg_transform)
 		return -ENOMEM;
 
 	return 0;
@@ -198,10 +194,10 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"wait_timeout", dnet_simple_set},
 	{"check_timeout", dnet_simple_set},
 	{"id", dnet_set_id},
+	{"group", dnet_set_group},
 	{"addr", dnet_set_addr},
 	{"remote", dnet_set_remote_addrs},
 	{"join", dnet_simple_set},
-	{"transform", dnet_set_transform_functions},
 	{"backend", dnet_set_backend},
 	{"daemon", dnet_simple_set},
 	{"log", dnet_set_log},
@@ -394,10 +390,6 @@ struct dnet_node *dnet_parse_config(char *file)
 	if (err)
 		goto err_out_node_destroy;
 
-	err = dnet_common_add_transform(n, dnet_cfg_transform);
-	if (err < 0)
-		goto err_out_node_destroy;
-
 	if (dnet_cfg_state.join & DNET_JOIN_NETWORK) {
 		err = dnet_join(n);
 		if (err)
@@ -411,7 +403,6 @@ err_out_node_destroy:
 err_out_cleanup:
 	dnet_cfg_current_backend->cleanup(dnet_cfg_current_backend);
 err_out_free:
-	free(dnet_cfg_transform);
 	free(dnet_cfg_remotes);
 //err_out_blob_exit:
 #ifdef HAVE_EBLOB_SUPPORT

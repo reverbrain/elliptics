@@ -46,20 +46,13 @@ static inline int dnet_common_get_version(unsigned char *id)
 int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cfg, char *orig_addr);
 int dnet_common_add_transform(struct dnet_node *n, char *orig_hash);
 
-int dnet_common_write_object(struct dnet_node *n, char *obj, int len,
+struct dnet_node *dnet_parse_config(char *file);
+int dnet_parse_groups(char *value, int **groups);
+
+int dnet_common_write_object(struct dnet_node *n, struct dnet_id *id,
 		void *adata, uint32_t asize, int history_only,
 		void *data, uint64_t size, int version, struct timespec *ts,
-		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-		void *priv, uint32_t ioflags);
-
-int dnet_common_write_object_meta(struct dnet_node *n, char *obj, int len,
-		char *hash, int hlen, int history_only,
-		void *data, uint64_t size, int version, struct timespec *ts, 
-		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
-		void *priv, uint32_t ioflags);
-
-struct dnet_node *dnet_parse_config(char *file);
-
-int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data, int fd, uint64_t offset);
+		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *), void *priv,
+		uint32_t ioflags);
 
 #endif /* __COMMON_H */

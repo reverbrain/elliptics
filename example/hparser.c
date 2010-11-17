@@ -66,6 +66,7 @@ int main(int argc, char *argv[])
 	unsigned long long offset, size;
 	char str[64];
 	struct tm tm;
+	char id_str[DNET_ID_SIZE*2 + 1];
 
 	size = offset = 0;
 
@@ -115,7 +116,7 @@ int main(int argc, char *argv[])
 
 		printf("%s.%09llu: %s: flags: %08x [P: %d, C: %d, V: %d, version: %d, R: %d], offset: %8llu, size: %8llu: %c\n",
 			str, (unsigned long long)e.tnsec,
-			dnet_dump_id_len(e.id, DNET_ID_SIZE), e.flags,
+			dnet_dump_id_len_raw(e.id, DNET_ID_SIZE, id_str), e.flags,
 			!!(e.flags & DNET_IO_FLAGS_PARENT),
 			!!(e.flags & DNET_IO_FLAGS_ID_CONTENT),
 			!!(e.flags & DNET_IO_FLAGS_ID_VERSION), version,

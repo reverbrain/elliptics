@@ -55,5 +55,8 @@ AC_DEFUN([AX_CHECK_OPENSSL],
 			ifelse([$3], , :, [$3])
 		fi	
 	fi
-	AM_CONDITIONAL(HAVE_OPENSSL, [test "f$ac_ssl_found" = "fyes"])
+	
+	if test "f$ac_ssl_found" = "fno"; then
+		AC_MSG_ERROR([OpenSSL is not installed])
+	fi
 ])

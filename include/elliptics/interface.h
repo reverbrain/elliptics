@@ -63,10 +63,9 @@ struct dnet_node;
  * freed when transaction is completed.
  */
 
-struct dnet_io_control
-{
-	/* Used as cmd->id - 'address' of the remote node */
-	unsigned char			addr[DNET_ID_SIZE];
+struct dnet_io_control {
+	/* Used as cmd->id/group_id - 'address' of the remote node */
+	struct dnet_id			id;
 
 	/*
 	 * IO control structure - it is copied into resulted transaction as is.
@@ -156,7 +155,7 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
  * Requestted chunk will have at most @size bytes in.
  * It will be read from offset @offset from the start of remote object.
  */
-int dnet_read_data_wait(struct dnet_node *n, unsigned char *id, void *data,
+int dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, void *data,
 		uint64_t offset, uint64_t size);
 
 int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
@@ -176,13 +175,13 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
  * table and will not allow to forward this request to other nodes.
  */
 int dnet_read_file(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
-		unsigned char *id, uint64_t offset, uint64_t size, int hist);
+		struct dnet_id *id, uint64_t offset, uint64_t size, int hist);
 int dnet_read_file_direct(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
-		unsigned char *id, uint64_t offset, uint64_t size, int hist);
+		struct dnet_id *id, uint64_t offset, uint64_t size, int hist);
 
 /*
- * dnet_write_object() returns 0 on success or negative error otherwise.
- * @trans_num will contain number of nodes data was sent to prior return.
+ * dnet_write_object() returns number of transactions sent. If it is equal to 0,
+ * then no transactions were sent which indicates error.
  *
  * ->complete() may be called for each transformation function twice:
  *  for tranasction completion and history update (if specified),
@@ -203,34 +202,27 @@ int dnet_read_file_direct(struct dnet_node *n, char *file, void *remote, unsigne
  *  and only its own history will be updated.
  */
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
-		void *remote, int remote_len,
-		unsigned char *id, int hupdate, int *trans_num);
+		void *remote, unsigned int len, struct dnet_id *id, int hupdate);
 
-int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int remote_size,
-		unsigned char *id, void *data, uint64_t offset, uint64_t size,
-		unsigned int aflags, unsigned int ioflags);
-/*
- * dmet_write_object_single() works the same way dnet_write_object() does,
- * but only uses single transformation function, which number is specified
- * in @pos. It will be 
- */
-int dnet_write_object_single(struct dnet_node *n, struct dnet_io_control *ctl,
-		void *remote, unsigned int len, unsigned char *id, int hupdate,
-		int *trans_nump, int *pos);
+int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
+		struct dnet_id *id, void *data, uint64_t offset, uint64_t size,
+		struct timespec *ts, unsigned int aflags, unsigned int ioflags);
+
 /*
  * Sends given file to the remote nodes and waits until all of them ack the write.
  *
  * Returns negative error value in case of error.
  */
-int dnet_write_file(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
-		unsigned char *id, uint64_t offset, uint64_t size, unsigned int aflags);
+int dnet_write_file(struct dnet_node *n, char *file, void *remote, unsigned int len,
+		struct dnet_id *id, uint64_t offset, uint64_t size, unsigned int aflags);
 
 /*
  * The same as dnet_write_file() except that is uses @local_offset as local file offset,
  * while @offset is remote file offset. dnet_write_file() assumes that they are the same.
  */
-int dnet_write_file_local_offset(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
-		unsigned char *id, uint64_t local_offset, uint64_t offset, uint64_t size,
+int dnet_write_file_local_offset(struct dnet_node *n, char *file,
+		void *remote, unsigned int remote_len, struct dnet_id *id,
+		uint64_t local_offset, uint64_t offset, uint64_t size,
 		unsigned int aflags, unsigned int ioflags);
 
 /*
@@ -266,9 +258,9 @@ struct dnet_log {
 struct dnet_config
 {
 	/*
-	 * Unique network-wide ID.
+	 * Unique group-wide ID.
 	 */
-	unsigned char		id[DNET_ID_SIZE];
+	struct dnet_id		id;
 
 	/*
 	 * Socket type (SOCK_STREAM, SOCK_DGRAM and so on),
@@ -334,6 +326,8 @@ struct dnet_config
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);
+
+void dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num);
 
 /*
  * Logging helpers.
@@ -431,32 +425,6 @@ static inline char *dnet_state_dump_addr_only(struct dnet_addr *a)
 }
 
 /*
- * Transformation functions are used to create ID from the provided data content.
- * One can add/remove them in a run-time. init/update/final sequence is used
- * each time for every transformed block, update can be invoked multiple times
- * between init and final ones.
- *
- * Final transformation function has to specify not only transformation result,
- * but also a *dsize bytes of destination address for this data, which will be
- * used as transaction address. This allows to put different IDs to the nodes,
- * which are not supposed to store them.
- *
- * @cleanup will be called wien transformation object is about to be destroyed.
- */
-int dnet_add_transform(struct dnet_node *n, void *priv, char *name,
-	int (* transform)(void *priv, void *src, uint64_t size,
-		void *dst, unsigned int *dsize, unsigned int flags),
-	void (* cleanup)(void *priv));
-int dnet_remove_transform(struct dnet_node *n, char *name, int cleanup);
-int dnet_remove_transform_pos(struct dnet_node *n, int pos, int cleanup);
-int dnet_move_transform(struct dnet_node *n, char *name, int tail);
-
-/*
- * Cleanup all transformation functions.
- */
-void dnet_cleanup_transform(struct dnet_node *n);
-
-/*
  * Node creation/destruction callbacks. Node is a building block of the storage
  * and it is needed for every operation one may want to do with the network.
  */
@@ -483,6 +451,7 @@ int dnet_state_num(struct dnet_node *n);
  */
 int dnet_join(struct dnet_node *n);
 
+#define DNET_DUMP_NUM	6
 /*
  * Logging helper used to print ID (DNET_ID_SIZE bytes) as a hex string.
  */
@@ -498,21 +467,29 @@ static inline char *dnet_dump_id_len_raw(const unsigned char *id, unsigned int l
 	return dst;
 }
 
-static inline char *dnet_dump_id_len(const unsigned char *id, unsigned int len)
+static inline char *dnet_dump_id_len(const struct dnet_id *id, unsigned int len)
 {
-	static char __dnet_dump_str[2 * DNET_ID_SIZE + 1];
-	return dnet_dump_id_len_raw(id, len, __dnet_dump_str);
+	static char __dnet_dump_str[2 * DNET_ID_SIZE + 3];
+	snprintf(__dnet_dump_str, sizeof(__dnet_dump_str), "%1d:%s", id->group_id,
+			dnet_dump_id_len_raw(id->id, len, __dnet_dump_str + 2));
+	return __dnet_dump_str;
 }
 
-static inline char *dnet_dump_id(const unsigned char *id)
+static inline char *dnet_dump_id(const struct dnet_id *id)
 {
-	return dnet_dump_id_len(id, 6);
+	return dnet_dump_id_len(id, DNET_DUMP_NUM);
+}
+
+static inline char *dnet_dump_id_str(const unsigned char *id)
+{
+	static char __dnet_dump_id_str[2 * DNET_ID_SIZE + 1];
+	return dnet_dump_id_len_raw(id, DNET_DUMP_NUM, __dnet_dump_id_str);
 }
 
 /*
  * Send a shell command to the remote node for execution.
  */
-int dnet_send_cmd(struct dnet_node *n, unsigned char *id, char *command);
+int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, char *command);
 
 ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size);
 ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, void *data, uint64_t dsize);
@@ -529,9 +506,9 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
  * Effectively dnet_lookup() is a dnet_lookup_object() with dnet_lookup_complete()
  * 	completion function.
  */
-int dnet_lookup_object(struct dnet_node *n, unsigned char *id, unsigned int aflags,
-	int (* complete)(struct dnet_net_state *, struct dnet_cmd *,
-		struct dnet_attr *, void *), void *priv);
+int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int aflags,
+	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
+	void *priv);
 int dnet_lookup(struct dnet_node *n, char *file);
 int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv);
@@ -542,7 +519,7 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
  *         -1 when id1 < id2
  *          0 when id1 = id2
  */
-static inline int dnet_id_cmp(const unsigned char *id1, const unsigned char *id2)
+static inline int dnet_id_cmp_str(const unsigned char *id1, const unsigned char *id2)
 {
 	unsigned int i = 0;
 
@@ -555,46 +532,20 @@ static inline int dnet_id_cmp(const unsigned char *id1, const unsigned char *id2
 
 	return 0;
 }
+static inline int dnet_id_cmp(const struct dnet_id *id1, const struct dnet_id *id2)
+{
+	if (id1->group_id < id2->group_id)
+		return -1;
+	if (id1->group_id > id2->group_id)
+		return 1;
+
+	return dnet_id_cmp_str(id1->id, id2->id);
+}
 
 /*
  * Return ID of the next to given node in routing table.
  */
-int dnet_state_get_next_id(void *state, unsigned char *id);
-
-static inline int dnet_id_within_range(const unsigned char *id, const unsigned char *start, const unsigned char *last)
-{
-	int direct = dnet_id_cmp(start, last);
-	int ret = 0;
-
-	if (direct > 0) {
-		ret = 1;
-		if ((dnet_id_cmp(id, start) < 0) && (dnet_id_cmp(id, last) >= 0))
-			ret = 0;
-	} else if (direct < 0) {
-		if ((dnet_id_cmp(id, start) >= 0) && (dnet_id_cmp(id, last) < 0))
-			ret = 1;
-	} else {
-		ret = !!memcmp(id, start, DNET_ID_SIZE);
-	}
-
-	return ret;
-}
-
-/*
- * Server-side transformation reading completion structure.
- */
-struct dnet_transform_complete
-{
-	void				*priv;
-	void				(* callback)(struct dnet_transform_complete *t,
-							char *name);
-};
-
-/*
- * Receive list of server-side transformation functions.
- */
-int dnet_recv_transform_list(struct dnet_node *n, unsigned char *id,
-		struct dnet_transform_complete *t);
+int dnet_state_get_next_id(struct dnet_node *n, struct dnet_id *id);
 
 /*
  * Send given number of bytes as reply command.
@@ -621,7 +572,7 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
  * or negative error code. In case of error callback completion can
  * still be called.
  */
-int dnet_request_stat(struct dnet_node *n, unsigned char *id, unsigned int cmd,
+int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
@@ -635,7 +586,7 @@ int dnet_request_stat(struct dnet_node *n, unsigned char *id, unsigned int cmd,
  *
  * @complete will be invoked each time object with given @id is modified.
  */
-int dnet_request_notification(struct dnet_node *n, unsigned char *id,
+int dnet_request_notification(struct dnet_node *n, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
@@ -645,14 +596,14 @@ int dnet_request_notification(struct dnet_node *n, unsigned char *id,
 /*
  * Drop notifications for given ID.
  */
-int dnet_drop_notification(struct dnet_node *n, unsigned char *id);
+int dnet_drop_notification(struct dnet_node *n, struct dnet_id *id);
 
 /*
  * Low-level transaction allocation and sending function.
  */
 struct dnet_trans_control
 {
-	unsigned char		id[DNET_ID_SIZE];
+	struct dnet_id		id;
 
 	unsigned int		cmd;
 	unsigned int		cflags;
@@ -672,13 +623,7 @@ struct dnet_trans_control
  * Allocate and send transaction according to above control structure.
  */
 int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl);
-int dnet_trans_create_send(struct dnet_node *n, struct dnet_io_control *ctl);
-
-/*
- * Copy ID of the state @num entries back from the one responsible for @id ID.
- * Returns negative error value if operation failed or zero in success case.
- */
-int dnet_state_get_prev_id(struct dnet_node *n, unsigned char *id, unsigned char *res, int num);
+int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl);
 
 /*
  * Mark tranasction with @id in the object identified by @origin to be removed.
@@ -686,7 +631,7 @@ int dnet_state_get_prev_id(struct dnet_node *n, unsigned char *id, unsigned char
  * function will block until server returns an acknowledge.
  */
 int dnet_remove_object(struct dnet_node *n,
-	unsigned char *origin, unsigned char *id,
+	unsigned char *parent, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
@@ -695,20 +640,19 @@ int dnet_remove_object(struct dnet_node *n,
 	int direct);
 
 /* Remove object with @id from the storage immediately */
-int dnet_remove_object_now(struct dnet_node *n, unsigned char *id, int direct);
+int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, int direct);
 
 /*
  * Remove given file (identified by name or ID) from the storage.
  */
-int dnet_remove_file(struct dnet_node *n, char *file, char *remote, int remote_len, unsigned char *file_id);
+int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id);
 
 /*
  * Transformation helper, which uses *ppos as an index for transformation function.
  * @src and @size correspond to to be transformed source data.
  * @dst and @dsize specify destination buffer.
  */
-int dnet_transform(struct dnet_node *n, void *src, uint64_t size, void *dst,
-		unsigned int *dsize, int *ppos);
+int dnet_transform(struct dnet_node *n, void *src, uint64_t size, struct dnet_id *id);
 
 /*
  * Helper structure and set of functions to map history file and perform basic checks.
@@ -724,8 +668,7 @@ struct dnet_history_map
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map);
 void dnet_unmap_history(struct dnet_node *n, struct dnet_history_map *map);
 
-int dnet_request_ids(struct dnet_node *n, unsigned char *id,
-	unsigned int aflags,
+int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, unsigned int aflags,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
@@ -733,9 +676,8 @@ int dnet_request_ids(struct dnet_node *n, unsigned char *id,
 	void *priv);
 
 enum dnet_meta_types {
-	DNET_META_TRANSFORM = 1,	/* transformation function names */
-	DNET_META_PARENT_OBJECT,	/* parent object name */
-	DNET_META_ID,			/* this object has copies with given IDs */
+	DNET_META_PARENT_OBJECT = 1,	/* parent object name */
+	DNET_META_GROUPS,		/* this object has copies in given groups */
 };
 
 struct dnet_meta
@@ -758,25 +700,9 @@ static inline void dnet_convert_meta(struct dnet_meta *m)
  * Modify or search metadata in meta object. Data must be realloc()able.
  */
 struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t size, uint32_t type);
-int dnet_meta_remove(struct dnet_node *n, void *data, uint32_t *size, struct dnet_meta *m);
-struct dnet_meta *dnet_meta_add(struct dnet_node *n, void *data, uint32_t *size, struct dnet_meta *add, void *add_data);
-struct dnet_meta *dnet_meta_replace(struct dnet_node *n, void *data, uint32_t *size, struct dnet_meta *rep, void *rep_data);
-
-/*
- * Read/write metadata object into the storage.
- */
-int dnet_meta_write(struct dnet_node *n, struct dnet_meta *m, void *mdata,
-		char *obj, int len, char *metafile);
-int dnet_meta_read(struct dnet_node *n, char *obj, int len, char *metafile);
-int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file);
-
-/*
- * Add metadata into meta object located in metafile.
- */
-int dnet_meta_create_file(struct dnet_node *n, char *metafile, struct dnet_meta *m, void *mdata);
 
 struct dnet_meta_container {
-	unsigned char			id[DNET_ID_SIZE];
+	struct dnet_id			id;
 	unsigned int			size;
 	unsigned char			data[0];
 } __attribute__ ((packed));
@@ -786,13 +712,17 @@ static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
 	m->size = dnet_bswap32(m->size);
 }
 
+int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
+
 struct dnet_id_la {
-	unsigned char		id[DNET_ID_SIZE];
+	unsigned int		group_id;
 	int			la;
 } __attribute__ ((packed));
 
-int dnet_generate_ids_by_la(struct dnet_node *n, void *obj, int len, struct dnet_id_la **dst);
-int dnet_get_la(struct dnet_node *n, unsigned char *id);
+int dnet_generate_ids_by_la(struct dnet_node *n, struct dnet_id *id, struct dnet_id_la **dst);
+int dnet_get_la(struct dnet_node *n, struct dnet_id *id);
+
+void dnet_node_set_id(struct dnet_node *n, struct dnet_id *id);
 
 #ifdef __cplusplus
 }

@@ -23,6 +23,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <openssl/hmac.h>
+#include <openssl/evp.h>
+
 #include "hash.h"
 
 #include <elliptics/packet.h>
@@ -32,7 +35,7 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
-static void dnet_transform_final(struct dnet_crypto_engine *eng __unused,
+static void dnet_transform_final(struct dnet_crypto_engine *eng,
 		void *dst, void *src, unsigned int *rsize, unsigned int rs)
 {
 	if (*rsize < rs) {
@@ -50,11 +53,6 @@ static void dnet_transform_final(struct dnet_crypto_engine *eng __unused,
 		*ptr = eng->num;
 	}
 }
-
-#ifdef HAVE_OPENSSL
-
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
 
 struct dnet_openssl_crypto_engine
 {
@@ -122,69 +120,6 @@ static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *eng, char 
 	return 0;
 }
 
-#else
-
-static int dnet_openssl_crypto_engine_init(struct dnet_crypto_engine *e __unused, char *hash __unused)
-{
-	return -ENOTSUP;
-}
-
-#endif
-
-struct dnet_jhash_engine
-{
-	uint32_t		initval;
-};
-
-#ifdef WORDS_BIGENDIAN
-extern uint32_t hashbig( const void *key, size_t length, uint32_t initval);
-#else
-extern uint32_t hashlittle( const void *key, size_t length, uint32_t initval);
-#endif
-
-static int dnet_jhash_transform(void *priv, void *src, uint64_t size,
-		void *dst, unsigned int *dsize,	unsigned int flags __unused)
-{
-	struct dnet_crypto_engine *eng = priv;
-	struct dnet_jhash_engine *e = eng->engine;
-	unsigned int rs = *dsize;
-
-	e->initval = 0;
-#ifdef WORDS_BIGENDIAN
-	e->initval = hashbig(src, size, e->initval);
-#else
-	e->initval = hashlittle(src, size, e->initval);
-#endif
-	*dsize = sizeof(e->initval);
-	dnet_transform_final(eng, dst, &e->initval, dsize, rs);
-
-	return 0;
-}
-
-static void dnet_jhash_crypto_engine_cleanup(void *priv)
-{
-	struct dnet_crypto_engine *eng = priv;
-	struct dnet_jhash_engine *e = eng->engine;
-
-	free(e);
-	free(priv);
-}
-
-static int dnet_jhash_crypto_engine_init(struct dnet_crypto_engine *eng)
-{
-	struct dnet_jhash_engine *e;
-
-	e = malloc(sizeof(struct dnet_jhash_engine));
-	if (!e)
-		return -ENOMEM;
-	memset(e, 0, sizeof(struct dnet_jhash_engine));
-
-	eng->transform = dnet_jhash_transform;
-	eng->cleanup = dnet_jhash_crypto_engine_cleanup;
-	eng->engine = e;
-	return 0;
-}
-
 int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 {
 	char *str = NULL;
@@ -198,12 +133,6 @@ int dnet_crypto_engine_init(struct dnet_crypto_engine *e, char *hash)
 		hash = str;
 	else
 		e->num = -1;
-
-	if (!strcmp(hash, "jhash")) {
-		err = dnet_jhash_crypto_engine_init(e);
-		if (err)
-			goto out;
-	}
 
 	err = dnet_openssl_crypto_engine_init(e, hash);
 	if (err)

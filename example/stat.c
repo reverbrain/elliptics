@@ -35,7 +35,6 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "hash.h"
 #include "common.h"
 
 #ifndef __unused
@@ -81,7 +80,7 @@ static int stat_complete(struct dnet_net_state *state,
 	la[2] = (float)st->la[2] / 100.0;
 
 
-	fprintf(stream, "%s: %s: ", dnet_dump_id(cmd->id), dnet_state_dump_addr(state));
+	fprintf(stream, "%s: %s: ", dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 
 	if (stat_la)
 		fprintf(stream, "la: %3.2f %3.2f %3.2f ", la[0], la[1], la[2]);
@@ -179,7 +178,7 @@ int main(int argc, char *argv[])
 				}
 				break;
 			case 'i':
-				err = dnet_parse_numeric_id(optarg, cfg.id);
+				err = dnet_parse_numeric_id(optarg, cfg.id.id);
 				if (err)
 					return err;
 				break;
@@ -238,6 +237,8 @@ int main(int argc, char *argv[])
 		return err;
 
 	while (1) {
+		struct dnet_id raw;
+
 		if (!id_idx) {
 			err = dnet_request_stat(n, NULL, DNET_CMD_STAT, stat_complete, stat);
 			if (err < 0)
@@ -245,7 +246,8 @@ int main(int argc, char *argv[])
 		}
 
 		for (i=0; i<id_idx; ++i) {
-			err = dnet_request_stat(n, id[i], DNET_CMD_STAT, stat_complete, stat);
+			dnet_setup_id(&raw, 0, id[i]);
+			err = dnet_request_stat(n, &raw, DNET_CMD_STAT, stat_complete, stat);
 			if (err < 0)
 				return err;
 		}

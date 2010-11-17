@@ -35,7 +35,6 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#include "hash.h"
 #include "backends.h"
 #include "common.h"
 
@@ -48,16 +47,14 @@ static struct dnet_log ioclient_logger;
 static void dnet_usage(char *p)
 {
 	fprintf(stderr, "Usage: %s\n"
-			" -a addr:port:family  - creates a node with given network address\n"
 			" -r addr:port:family  - adds a route to the given node\n"
 			" -W file              - write given file to the network storage\n"
 			" -s                   - request IO counter stats from all connected nodes\n"
 			" -z                   - request VFS IO stats from all connected nodes\n"
 			" -R file              - read given file from the network into the local storage\n"
 			" -H file              - read a history for given file into the local storage\n"
-			" -T hash              - OpenSSL hash to use as a transformation function\n"
-			" -i id                - node's ID (zero by default)\n"
 			" -I id                - transaction id\n"
+			" -g groups            - group IDs to connect\n"
 			" -c cmd               - execute given command on the remote node\n"
 			" -L file              - lookup a storage which hosts given file\n"
 			" -l log               - log file. Default: disabled\n"
@@ -73,17 +70,16 @@ static void dnet_usage(char *p)
 
 int main(int argc, char *argv[])
 {
-	int trans_max = 5, trans_num = 0;
 	int ch, err, i, have_remote = 0;
 	int io_counter_stat = 0, vfs_stat = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
-	struct dnet_crypto_engine *e, *trans[trans_max];
 	char *logfile = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
 	char *historyf = NULL, *removef = NULL;
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	FILE *log = NULL;
 	uint64_t offset, size;
+	int *groups = NULL, group_num = 0;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -91,7 +87,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "u:O:S:m:zsH:L:w:l:c:I:i:a:r:W:R:T:h")) != -1) {
+	while ((ch = getopt(argc, argv, "g:u:O:S:m:zsH:L:w:l:c:I:r:W:R:h")) != -1) {
 		switch (ch) {
 			case 'u':
 				removef = optarg;
@@ -132,15 +128,10 @@ int main(int argc, char *argv[])
 					return err;
 				id = trans_id;
 				break;
-			case 'i':
-				err = dnet_parse_numeric_id(optarg, cfg.id);
-				if (err)
-					return err;
-				break;
-			case 'a':
-				err = dnet_parse_addr(optarg, &cfg);
-				if (err)
-					return err;
+			case 'g':
+				group_num = dnet_parse_groups(optarg, &groups);
+				if (group_num <= 0)
+					return -1;
 				break;
 			case 'r':
 				err = dnet_parse_addr(optarg, &rem);
@@ -157,23 +148,6 @@ int main(int argc, char *argv[])
 				break;
 			case 'R':
 				readf = optarg;
-				break;
-			case 'T':
-				if (trans_num == trans_max - 1) {
-					fprintf(stderr, "Only %d transformation functions allowed in this example.\n",
-							trans_max);
-					break;
-				}
-
-				e = malloc(sizeof(struct dnet_crypto_engine));
-				if (!e)
-					return -ENOMEM;
-				memset(e, 0, sizeof(struct dnet_crypto_engine));
-
-				err = dnet_crypto_engine_init(e, optarg);
-				if (err)
-					return err;
-				trans[trans_num++] = e;
 				break;
 			case 'h':
 			default:
@@ -202,12 +176,7 @@ int main(int argc, char *argv[])
 	if (!n)
 		return -1;
 
-	for (i=0; i<trans_num; ++i) {
-		err = dnet_add_transform(n, trans[i], trans[i]->name,
-			trans[i]->transform, trans[i]->cleanup);
-		if (err)
-			return err;
-	}
+	dnet_node_set_groups(n, groups, group_num);
 
 	if (have_remote) {
 		int error = -ECONNRESET;
@@ -222,14 +191,14 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		err = dnet_write_file(n, writef, writef, strlen(writef), id, offset, size, 0);
+		err = dnet_write_file(n, writef, writef, strlen(writef), NULL, offset, size, 0);
 		if (err)
 			return err;
 	}
 
 	if (readf) {
 		char file[strlen(readf) + sizeof(DNET_HISTORY_SUFFIX) + 1];
-		err = dnet_read_file(n, readf, readf, strlen(readf), id, offset, size, 0);
+		err = dnet_read_file(n, readf, readf, strlen(readf), NULL, offset, size, 0);
 
 		snprintf(file, sizeof(file), "%s%s", readf, DNET_HISTORY_SUFFIX);
 		unlink(file);
@@ -239,19 +208,19 @@ int main(int argc, char *argv[])
 	}
 
 	if (historyf) {
-		err = dnet_read_file(n, historyf, historyf, strlen(historyf), id, offset, size, 1);
+		err = dnet_read_file(n, historyf, historyf, strlen(historyf), NULL, offset, size, 1);
 		if (err)
 			return err;
 	}
 	
 	if (removef) {
-		err = dnet_remove_file(n, removef, removef, strlen(removef), id);
+		err = dnet_remove_file(n, removef, strlen(removef), NULL);
 		if (err)
 			return err;
 	}
 
 	if (cmd) {
-		err = dnet_send_cmd(n, trans_id, cmd);
+		err = dnet_send_cmd(n, NULL, cmd);
 		if (err)
 			return err;
 	}

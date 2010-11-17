@@ -44,7 +44,6 @@ enum dnet_commands {
 	DNET_CMD_LIST,				/* List all objects for given node ID */
 	DNET_CMD_EXEC,				/* Execute given command on the remote node */
 	DNET_CMD_ROUTE_LIST,			/* Receive route table from given node */
-	DNET_CMD_TRANSFORM_LIST,		/* Receive list of transformation functions */
 	DNET_CMD_STAT,				/* Gather remote VM, LA and FS statistics */
 	DNET_CMD_NOTIFY,			/* Notify when object in question was modified */
 	DNET_CMD_DEL,				/* Remove given object from the storage */
@@ -83,9 +82,21 @@ enum dnet_commands {
 /* Do not perform local transformation of the received transaction */
 #define DNET_FLAGS_NO_LOCAL_TRANSFORM	(1<<4)
 
+struct dnet_id {
+	uint8_t			id[DNET_ID_SIZE];
+	uint32_t		group_id;
+	uint32_t		version;
+} __attribute__ ((packed));
+
+static inline void dnet_setup_id(struct dnet_id *id, unsigned int group_id, unsigned char *raw)
+{
+	memcpy(id->id, raw, DNET_ID_SIZE);
+	id->group_id = group_id;
+}
+
 struct dnet_cmd
 {
-	uint8_t			id[DNET_ID_SIZE];
+	struct dnet_id		id;
 	uint32_t		flags;
 	int			status;
 	uint64_t		trans;
@@ -116,19 +127,23 @@ struct dnet_cmd
 #define dnet_bswap64(x) (x)
 #endif
 
+static inline void dnet_convert_id(struct dnet_id *id)
+{
+	id->group_id = dnet_bswap32(id->group_id);
+	id->version = dnet_bswap32(id->version);
+}
+
 static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 {
+	dnet_convert_id(&cmd->id);
 	cmd->flags = dnet_bswap32(cmd->flags);
 	cmd->status = dnet_bswap32(cmd->status);
 	cmd->size = dnet_bswap64(cmd->size);
 	cmd->trans = dnet_bswap64(cmd->trans);
 }
 
-/* Do not split data into multiple transactions */
-#define DNET_ATTR_NO_TRANSACTION_SPLIT		(1<<0)
-
 /* Do not work with history/transaction machinery, write data as is into object */
-#define DNET_ATTR_DIRECT_TRANSACTION		(1<<1)
+#define DNET_ATTR_DIRECT_TRANSACTION		(1<<0)
 
 /* Provide only those IDs which are behind of node's range. */
 #define DNET_ATTR_ID_OUT			(1<<0)
@@ -166,13 +181,14 @@ struct dnet_addr
 
 struct dnet_list
 {
-	uint8_t			id[DNET_ID_SIZE];
+	struct dnet_id		id;
 	uint32_t		size;
 	uint8_t			data[0];
 } __attribute__ ((packed));
 
 static inline void dnet_convert_list(struct dnet_list *l)
 {
+	dnet_convert_id(&l->id);
 	l->size = dnet_bswap32(l->size);
 }
 
@@ -192,12 +208,6 @@ static inline void dnet_convert_addr_attr(struct dnet_addr_attr *a)
 	a->family = dnet_bswap16(a->family);
 }
 
-struct dnet_route_attr
-{
-	unsigned char		id[DNET_ID_SIZE];
-	struct dnet_addr_attr	addr;
-} __attribute__ ((packed));
-
 struct dnet_addr_cmd
 {
 	struct dnet_cmd		cmd;
@@ -210,6 +220,18 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 	dnet_convert_cmd(&l->cmd);
 	dnet_convert_attr(&l->a);
 	dnet_convert_addr_attr(&l->addr);
+}
+
+struct dnet_route_attr
+{
+	struct dnet_id		id;
+	struct dnet_addr_attr	addr;
+} __attribute__ ((packed));
+
+static inline void dnet_convert_route_attr(struct dnet_route_attr *r)
+{
+	dnet_convert_id(&r->id);
+	dnet_convert_addr_attr(&r->addr);
 }
 
 /* Do not update history for given transaction */
@@ -238,7 +260,7 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 
 struct dnet_io_attr
 {
-	uint8_t			origin[DNET_ID_SIZE];
+	uint8_t			parent[DNET_ID_SIZE];
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		flags;
 	uint64_t		offset;
@@ -390,7 +412,7 @@ static inline void dnet_convert_stat_count(struct dnet_stat_count *st, int num)
 struct dnet_addr_stat
 {
 	struct dnet_addr		addr;
-	unsigned char			id[DNET_ID_SIZE];
+	struct dnet_id			id;
 	int				num;
 	struct dnet_stat_count		count[0];
 } __attribute__ ((packed));
@@ -402,6 +424,7 @@ static inline void dnet_convert_addr_stat(struct dnet_addr_stat *st, int num)
 	if (!num)
 		num = st->num;
 
+	dnet_convert_id(&st->id);
 	dnet_convert_stat_count(st->count, num);
 }
 

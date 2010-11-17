@@ -36,7 +36,6 @@
 #include "elliptics/interface.h"
 
 #include "../common.h"
-#include "../hash.h"
 
 #include "common.h"
 
@@ -46,7 +45,7 @@
 
 void *(* dnet_check_ext_init)(char *data);
 void (* dnet_check_ext_exit)(void *priv);
-int (* dnet_check_ext_merge)(void *priv, char *direct_path, char *storage_path, unsigned char *id);
+int (* dnet_check_ext_merge)(void *priv, char *direct_path, char *storage_path, struct dnet_id *id);
 void *dnet_check_ext_private;
 void *dnet_check_ext_library;
 
@@ -76,43 +75,6 @@ static void dnet_check_log(void *priv, uint32_t mask, const char *msg)
 	fflush(stream);
 }
 
-int dnet_check_add_hash(struct dnet_node *n, char *hash)
-{
-	struct dnet_crypto_engine *e;
-	int err = -ENOMEM;
-
-	e = malloc(sizeof(struct dnet_crypto_engine));
-	if (!e)
-		goto err_out_exit;
-	memset(e, 0, sizeof(struct dnet_crypto_engine));
-
-	err = dnet_crypto_engine_init(e, hash);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to initialize crypto engine '%s': %d.\n",
-				hash, err);
-		goto err_out_free;
-	}
-
-	err = dnet_add_transform(n, e, e->name, e->transform, e->cleanup);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add transformation engine '%s': %d.\n",
-				hash, err);
-		goto err_out_exit;
-	}
-
-	return 0;
-
-err_out_free:
-	free(e);
-err_out_exit:
-	return err;
-}
-
-int dnet_check_del_hash(struct dnet_node *n, char *hash)
-{
-	return dnet_remove_transform(n, hash, 1);
-}
-
 struct dnet_check_completion
 {
 	struct dnet_check_worker			*worker;
@@ -128,7 +90,7 @@ static int dnet_check_trans_write(struct dnet_check_completion *complete, struct
 	int fd;
 	ssize_t err;
 
-	snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir, dnet_dump_id_len_raw(cmd->id, DNET_ID_SIZE, eid));
+	snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir, dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, eid), cmd->id.group_id);
 	fd = open(file, O_RDWR | O_TRUNC | O_CREAT, 0644);
 	if (fd < 0) {
 		err = -errno;
@@ -144,7 +106,7 @@ static int dnet_check_trans_write(struct dnet_check_completion *complete, struct
 	}
 
 	err = 0;
-	dnet_log_raw(n, DNET_LOG_INFO, "%s: successfully written transaction into '%s', offset: %llu, size: %llu.\n",
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: successfully written transaction into '%s', offset: %llu, size: %llu.\n",
 			eid, file, (unsigned long long)io->offset, (unsigned long long)io->size);
 
 err_out_close:
@@ -169,8 +131,8 @@ static int dnet_check_read_complete(struct dnet_net_state *state,
 	}
 
 	err = cmd->status;
-	dnet_log_raw(n, DNET_LOG_INFO, "%s: status: %d, last: %d.\n",
-			dnet_dump_id(cmd->id), cmd->status, !(cmd->flags & DNET_FLAGS_MORE));
+	dnet_log_raw(n, DNET_LOG_DSA, "%s: status: %d, last: %d.\n",
+			dnet_dump_id(&cmd->id), cmd->status, !(cmd->flags & DNET_FLAGS_MORE));
 
 	if (err)
 		goto out_check;
@@ -178,14 +140,14 @@ static int dnet_check_read_complete(struct dnet_net_state *state,
 	if (attr && attr->size) {
 		if (cmd->size <= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: read completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
-					dnet_dump_id(cmd->id), (unsigned long long)cmd->size,
+					dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,
 					sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 			err = -EINVAL;
 			goto out_check;
 		}
 
 		if (!attr) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: no attributes but command size is not null.\n", dnet_dump_id(cmd->id));
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: no attributes but command size is not null.\n", dnet_dump_id(&cmd->id));
 			err = -EINVAL;
 			goto out_check;
 		}
@@ -197,7 +159,7 @@ static int dnet_check_read_complete(struct dnet_net_state *state,
 		dnet_convert_io_attr(io);
 
 		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: io: write_offset: %llu, offset: %llu, size: %llu.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)complete->write_offset,
+				dnet_dump_id(&cmd->id), (unsigned long long)complete->write_offset,
 				(unsigned long long)io->offset, (unsigned long long)io->size);
 
 		err = dnet_check_trans_write(complete, cmd, io, data);
@@ -215,7 +177,7 @@ out_wakeup:
 	return err;
 }
 
-int dnet_check_read_single(struct dnet_check_worker *worker, unsigned char *id, uint64_t offset, int direct)
+int dnet_check_read_single(struct dnet_check_worker *worker, struct dnet_id *id, uint64_t offset, int direct)
 {
 	struct dnet_io_control ctl;
 	struct dnet_node *n = worker->n;
@@ -242,14 +204,14 @@ int dnet_check_read_single(struct dnet_check_worker *worker, unsigned char *id, 
 	ctl.io.offset = 0;
 	ctl.io.size = 0;
 
-	memcpy(ctl.io.origin, id, DNET_ID_SIZE);
-	memcpy(ctl.io.id, id, DNET_ID_SIZE);
-	memcpy(ctl.addr, id, DNET_ID_SIZE);
+	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
+	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
+	memcpy(&ctl.id, id, sizeof(struct dnet_id));
 
 	return dnet_read_object(n, &ctl);
 }
 
-int dnet_check_read_transactions(struct dnet_check_worker *worker, struct dnet_check_request *req)
+int dnet_check_read_transactions(struct dnet_check_worker *worker, struct dnet_id *id)
 {
 	struct dnet_node *n = worker->n;
 	char file[256];
@@ -258,9 +220,10 @@ int dnet_check_read_transactions(struct dnet_check_worker *worker, struct dnet_c
 	struct dnet_history_map map;
 	struct dnet_history_entry *e;
 	char eid[DNET_ID_SIZE*2 + 1];
+	struct dnet_id raw;
 
-	dnet_dump_id_len_raw(req->id, DNET_ID_SIZE, eid);
-	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir, eid, DNET_HISTORY_SUFFIX);
+	dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, eid);
+	snprintf(file, sizeof(file), "%s/%s%s.%d", dnet_check_tmp_dir, eid, DNET_HISTORY_SUFFIX, id->group_id);
 
 	err = dnet_map_history(n, file, &map);
 	if (err)
@@ -273,12 +236,13 @@ int dnet_check_read_transactions(struct dnet_check_worker *worker, struct dnet_c
 
 		dnet_convert_history_entry(e);
 
-		err = dnet_check_read_single(worker, e->id, e->offset, 0);
+		dnet_setup_id(&raw, id->group_id, e->id);
+		err = dnet_check_read_single(worker, &raw, e->offset, 0);
 		if (err)
 			goto err_out_wait;
 
 		dnet_log_raw(n, DNET_LOG_INFO, "%s: transaction: %s: offset: %8llu, size: %8llu.\n",
-				eid, dnet_dump_id_len(e->id, DNET_ID_SIZE),
+				eid, dnet_dump_id_len(&raw, DNET_ID_SIZE),
 				(unsigned long long)e->offset, (unsigned long long)e->size);
 	}
 
@@ -294,41 +258,38 @@ err_out_exit:
 	return err;
 }
 
-int dnet_check_cleanup_transactions(struct dnet_check_worker *w, struct dnet_check_request *existing)
+int dnet_check_cleanup_transactions(struct dnet_check_worker *w, struct dnet_id *id)
 {
 	struct dnet_node *n = w->n;
 	char file[256];
 	int err;
 	struct dnet_history_entry *e;
 	struct dnet_history_map map;
-	struct dnet_io_attr io;
 	long i;
 	char eid[DNET_ID_SIZE*2 + 1];
 
-	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
-		dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid), DNET_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%s/%s.%d%s", dnet_check_tmp_dir,
+		dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, eid),
+		id->group_id, DNET_HISTORY_SUFFIX);
 
 	err = dnet_map_history(n, file, &map);
 	if (err)
 		goto err_out_exit;
 
 	for (i=0; i<map.num; ++i) {
-		io.size = 0;
-		io.offset = 0;
-		io.flags = 0;
-
 		e = &map.ent[i];
 
-		snprintf(file, sizeof(file), "%s/%s", dnet_check_tmp_dir,
-			dnet_dump_id_len_raw(e->id, DNET_ID_SIZE, eid));
+		snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir,
+			dnet_dump_id_len_raw(e->id, DNET_ID_SIZE, eid), id->group_id);
 
 		unlink(file);
 	}
 
 	dnet_unmap_history(n, &map);
 
-	snprintf(file, sizeof(file), "%s/%s%s", dnet_check_tmp_dir,
-		dnet_dump_id_len_raw(existing->id, DNET_ID_SIZE, eid), DNET_HISTORY_SUFFIX);
+	snprintf(file, sizeof(file), "%s/%s.%d%s", dnet_check_tmp_dir,
+		dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, eid),
+		id->group_id, DNET_HISTORY_SUFFIX);
 	unlink(file);
 
 err_out_exit:
@@ -387,7 +348,7 @@ err_out_exit:
 struct dnet_id_request_completion
 {
 	int				fd;
-	unsigned char			id[DNET_ID_SIZE];
+	struct dnet_id			id;
 	struct dnet_check_worker	*worker;
 };
 
@@ -409,7 +370,7 @@ static int dnet_check_write_metadata(struct dnet_id_request_completion *complete
 
 		if (size < sizeof(struct dnet_meta_container)) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: invalid size %llu, must be more than meta container size %zu.\n",
-					dnet_dump_id(complete->id), size, sizeof(struct dnet_meta_container));
+					dnet_dump_id(&complete->id), size, sizeof(struct dnet_meta_container));
 			return -EINVAL;
 		}
 
@@ -420,7 +381,7 @@ static int dnet_check_write_metadata(struct dnet_id_request_completion *complete
 
 		if (size < mc->size) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: invalid size %llu, must be more than embedded meta container size %u.\n",
-					dnet_dump_id(complete->id), size, mc->size);
+					dnet_dump_id(&complete->id), size, mc->size);
 			return -EINVAL;
 		}
 
@@ -430,7 +391,7 @@ static int dnet_check_write_metadata(struct dnet_id_request_completion *complete
 
 			if (sz < sizeof(struct dnet_meta)) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: invalid size %u, must be more than meta size %zu.\n",
-						dnet_dump_id(complete->id), sz, sizeof(struct dnet_meta));
+						dnet_dump_id(&complete->id), sz, sizeof(struct dnet_meta));
 				return -EINVAL;
 			}
 
@@ -442,7 +403,7 @@ static int dnet_check_write_metadata(struct dnet_id_request_completion *complete
 
 			if (sz < m->size) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: invalid size %u, must be more than embedded meta size %u.\n",
-						dnet_dump_id(complete->id), sz, m->size);
+						dnet_dump_id(&complete->id), sz, m->size);
 				return -EINVAL;
 			}
 
@@ -458,7 +419,7 @@ static int dnet_check_write_metadata(struct dnet_id_request_completion *complete
 	if (err < 0) {
 		err = -errno;
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to write IDs: %s.\n",
-				dnet_dump_id(complete->id), strerror(errno));
+				dnet_dump_id(&complete->id), strerror(errno));
 		return err;
 	}
 
@@ -480,8 +441,8 @@ static int dnet_check_id_complete(struct dnet_net_state *state,
 
 	err = cmd->status;
 	last = !(cmd->flags & DNET_FLAGS_MORE);
-	dnet_log_raw(n, DNET_LOG_INFO, "%s: id completion status: %d, last: %d.\n",
-			dnet_dump_id(cmd->id), err, last);
+	dnet_log_raw(n, DNET_LOG_DSA, "%s: id completion status: %d, last: %d.\n",
+			dnet_dump_id(&cmd->id), err, last);
 
 	if (err)
 		goto out_exit;
@@ -489,14 +450,14 @@ static int dnet_check_id_complete(struct dnet_net_state *state,
 	if (attr && attr->size) {
 		if (cmd->size <= sizeof(struct dnet_attr)) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: ID completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
-					dnet_dump_id(cmd->id), (unsigned long long)cmd->size,
+					dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,
 					sizeof(struct dnet_attr));
 			err = -EINVAL;
 			goto out_exit;
 		}
 
 		if (!attr) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: no attributes but command size is not null.\n", dnet_dump_id(cmd->id));
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: no attributes but command size is not null.\n", dnet_dump_id(&cmd->id));
 			err = -EINVAL;
 			goto out_exit;
 		}
@@ -526,7 +487,7 @@ out_exit:
 	return err;
 }
 
-static int dnet_check_request_ids(struct dnet_check_worker *w, unsigned char *id, char *file, int out)
+static int dnet_check_request_ids(struct dnet_check_worker *w, struct dnet_id *id, char *file, int out)
 {
 	int err, fd;
 	struct dnet_node *n = w->n;
@@ -550,7 +511,7 @@ static int dnet_check_request_ids(struct dnet_check_worker *w, unsigned char *id
 		goto err_out_close;
 	}
 
-	memcpy(c->id, id, DNET_ID_SIZE);
+	memcpy(&c->id, id, sizeof(struct dnet_id));
 	c->fd = fd;
 	c->worker = w;
 
@@ -728,6 +689,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 			remotes[j].join = DNET_NO_ROUTE_LIST;
 			err = dnet_add_state(w->n, &remotes[j]);
 			if (!err) {
+				w->group_id = remotes[j].id.group_id;
 				added++;
 				break;
 			}
@@ -742,10 +704,10 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 		if (i == 0) {
 			if (!file) {
 				file = file_template;
-				err = dnet_check_request_ids(w, remotes[0].id, file, out);
+				err = dnet_check_request_ids(w, &remotes[0].id, file, out);
 				if (err) {
 					dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to request ID range from node %s: %d.\n",
-							dnet_dump_id_len(remotes[0].id, DNET_ID_SIZE), err);
+							dnet_dump_id_len(&remotes[0].id, DNET_ID_SIZE), err);
 					goto out_join;
 				}
 			}

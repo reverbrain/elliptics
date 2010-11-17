@@ -70,38 +70,6 @@ class elliptics_log_file : public elliptics_log {
 		std::ofstream		*stream;
 };
 
-/* we should use proper copy constructors here instead of hardcoded openssl usage */
-class elliptics_transform {
-	public:
-		elliptics_transform(const char *n) { snprintf(name, sizeof(name), "%s", n); };
-		virtual ~elliptics_transform() {};
-
-		virtual int		transform(void *priv, void *src, uint64_t size,
-					                   void *dst, unsigned int *dsize,
-							   unsigned int flags) = 0;
-		virtual void		cleanup(void *priv) = 0;
-		const char		*get_name(void) { return name; };
-	private:
-		char			name[DNET_MAX_NAME_LEN];
-};
-
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
-
-class elliptics_transform_openssl : public elliptics_transform {
-	public:
-		elliptics_transform_openssl(const char *n);
-		virtual ~elliptics_transform_openssl();
-
-		virtual int		transform(void *priv, void *src, uint64_t size,
-					                   void *dst, unsigned int *dsize,
-							   unsigned int flags);
-		virtual void		cleanup(void *priv);
-	private:
-		EVP_MD_CTX 		mdctx;
-		const EVP_MD		*evp_md;
-};
-
 class elliptics_callback {
 	public:
 		elliptics_callback() : state(NULL), cmd(NULL), attr(NULL) {};
@@ -141,45 +109,51 @@ class elliptics_callback {
 class elliptics_node {
 	public:
 		/* we shold use elliptics_log and proper copy constructor here, but not this time */
-		elliptics_node(unsigned char *id, elliptics_log &l);
+		elliptics_node(elliptics_log &l);
 		virtual ~elliptics_node();
 
-		void			add_remote(const char *addr, const int port, const int family = AF_INET);
-		void			add_transform(elliptics_transform &t);
+		void			set_id(struct dnet_id &id) { dnet_node_set_id(node, &id); };
 
-		void			read_file(unsigned char *id, char *dst_file, uint64_t offset, uint64_t size);
+		void			add_groups(int g[], int gnum);
+
+		void			add_remote(const char *addr, const int port, const int family = AF_INET);
+
+		void			read_file(struct dnet_id &id, char *dst_file, uint64_t offset, uint64_t size);
 		void			read_file(void *remote, unsigned int remote_size, char *dst_file, uint64_t offset, uint64_t size);
 
-		void			read_data(unsigned char *id, uint64_t offset, uint64_t size, elliptics_callback &c);
+		void			read_data(struct dnet_id &id, uint64_t offset, uint64_t size, elliptics_callback &c);
 		void			read_data(void *remote, unsigned int remote_size, uint64_t offset, uint64_t size, elliptics_callback &c);
 
-		void 			write_file(unsigned char *id, char *src_file, uint64_t local_offset, uint64_t offset, uint64_t size,
+		void 			write_file(struct dnet_id &id, char *src_file, uint64_t local_offset, uint64_t offset, uint64_t size,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
 		void			write_file(void *remote, unsigned int remote_size, char *src_file, uint64_t local_offset,
 							uint64_t offset, uint64_t size,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
 
-		int			write_data(unsigned char *id, void *data, unsigned int size, elliptics_callback &c,
+		int			write_data(struct dnet_id &id, void *data, unsigned int size, elliptics_callback &c,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
 		int			write_data(void *remote, unsigned int remote_len, void *data, unsigned int size, elliptics_callback &c,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
 
-		void			read_data_wait(unsigned char *id, void *data, uint64_t offset, uint64_t size);
+		void			read_data_wait(struct dnet_id &id, void *data, uint64_t offset, uint64_t size);
 		void			read_data_wait(void *remote, unsigned int remote_size, void *data, uint64_t offset, uint64_t size);
 
-		int			write_data_wait(unsigned char *id, void *data, uint64_t offset, uint64_t size,
-							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION | DNET_ATTR_NO_TRANSACTION_SPLIT,
+		int			write_data_wait(struct dnet_id &id, void *data, uint64_t offset, uint64_t size,
+							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
 							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 		int			write_data_wait(void *remote, unsigned int remote_len, void *data, uint64_t offset, uint64_t size,
-							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION | DNET_ATTR_NO_TRANSACTION_SPLIT,
+							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
 							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 
 	private:
-		int			write_data_ll(unsigned char *id, void *remote, unsigned int remote_len,
+		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,
 							unsigned int aflags, unsigned int ioflags);
 		struct dnet_node	*node;
 		elliptics_log		*log;
+
+		int			*groups;
+		int			group_num;
 };
 
 #endif /* __EDEF_H */

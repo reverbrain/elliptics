@@ -16,6 +16,7 @@
 #include "config.h"
 
 #include <errno.h>
+#include <stdarg.h>
 #include <string.h>
 
 #include <fstream>
@@ -69,7 +70,7 @@ int elliptics_callback_io::callback(void)
 	if (cmd->size <= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
 		test_log_raw(log, DNET_LOG_ERROR, "%s: read completion error: wrong size: "
 				"cmd_size: %llu, must be more than %zu.\n",
-				dnet_dump_id(cmd->id), (unsigned long long)cmd->size,
+				dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,
 				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 		err = -EINVAL;
 		goto err_out_exit;
@@ -77,7 +78,7 @@ int elliptics_callback_io::callback(void)
 
 	if (!attr) {
 		test_log_raw(log, DNET_LOG_ERROR, "%s: no attributes but command size is not null.\n",
-				dnet_dump_id(cmd->id));
+				dnet_dump_id(&cmd->id));
 		err = -EINVAL;
 		goto err_out_exit;
 	}
@@ -89,30 +90,33 @@ int elliptics_callback_io::callback(void)
 	err = 0;
 
 	test_log_raw(log, DNET_LOG_INFO, "%s: io completion: offset: %llu, size: %llu.\n",
-			dnet_dump_id(cmd->id), (unsigned long long)io->offset, (unsigned long long)io->size);
+			dnet_dump_id(&cmd->id), (unsigned long long)io->offset, (unsigned long long)io->size);
 
 err_out_exit:
 	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
-		test_log_raw(log, DNET_LOG_INFO, "%s: io completed: %d.\n", cmd ? dnet_dump_id(cmd->id) : "nil", err);
+		test_log_raw(log, DNET_LOG_INFO, "%s: io completed: %d.\n", cmd ? dnet_dump_id(&cmd->id) : "nil", err);
 	return err;
 }
 
 int main()
 {
-	unsigned char id[DNET_ID_SIZE];
-	elliptics_transform_openssl t("sha1");
+	struct dnet_id id;
+	int groups[] = {1, 2, 3};
+
 	elliptics_log_file log("/dev/stderr", 15);
 
-	memset(id, 1, DNET_ID_SIZE);
+	memset(id.id, 1, DNET_ID_SIZE);
+	id.group_id = 0;
 
-	elliptics_node n(id, log);
+	elliptics_node n(log);
+	n.set_id(id);
+	n.add_groups(groups, ARRAY_SIZE(groups));
 
 	n.add_remote("devfs8", 1025, AF_INET);
-	n.add_transform(t);
 #if 1
 	elliptics_callback_io callback(&log);
 
-	memset(id, 0xff, DNET_ID_SIZE);
+	memset(id.id, 0xff, DNET_ID_SIZE);
 	n.read_data(id, 0, 0, callback);
 #endif
 	n.write_file(id, const_cast<char *>("/tmp/culinaria.txt.bak"), 0, 0, 0);

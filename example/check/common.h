@@ -26,6 +26,8 @@ struct dnet_check_worker
 	int					id;
 	pthread_t				tid;
 
+	unsigned int				group_id;
+
 	int					wait_num, wait_error;
 	int					object_present, object_missing;
 
@@ -38,25 +40,12 @@ struct dnet_check_worker
 	struct dnet_log				log;
 };
 
-struct dnet_check_request
-{
-	unsigned char			id[DNET_ID_SIZE];
-	unsigned char 			addr[DNET_ID_SIZE];
-	unsigned int			flags;
-	unsigned int			present;
-	int				pos;
-
-	struct dnet_check_worker	*w;
-};
-
-int dnet_check_add_hash(struct dnet_node *n, char *hash);
-int dnet_check_del_hash(struct dnet_node *n, char *hash);
-int dnet_check_read_transactions(struct dnet_check_worker *worker, struct dnet_check_request *req);
-int dnet_check_cleanup_transactions(struct dnet_check_worker *w, struct dnet_check_request *existing);
+int dnet_check_read_transactions(struct dnet_check_worker *worker, struct dnet_id *id);
+int dnet_check_cleanup_transactions(struct dnet_check_worker *w, struct dnet_id *id);
 
 extern void *(* dnet_check_ext_init)(char *data);
 extern void (* dnet_check_ext_exit)(void *priv);
-extern int (* dnet_check_ext_merge)(void *priv, char *direct_path, char *storage_path, unsigned char *id);
+int (* dnet_check_ext_merge)(void *priv, char *direct_path, char *storage_path, struct dnet_id *id);
 extern void *dnet_check_ext_private;
 extern void *dnet_check_ext_library;
 
@@ -66,7 +55,7 @@ extern char dnet_check_tmp_dir[128];
 extern int dnet_check_id_num;
 extern int dnet_check_upload_existing;
 
-int dnet_check_read_single(struct dnet_check_worker *worker, unsigned char *id, uint64_t offset, int direct);
+int dnet_check_read_single(struct dnet_check_worker *worker, struct dnet_id *id, uint64_t offset, int direct);
 int dnet_check_read_block(struct dnet_node *n, void *buf, int size, int *nump, int *startp);
 
 #define dnet_check_wait(worker,condition)					\

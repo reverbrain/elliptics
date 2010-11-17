@@ -42,7 +42,7 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t siz
 	while (size) {
 		if (size < sizeof(struct dnet_meta)) {
 			dnet_map_log(n, DNET_LOG_ERROR, "%s: metadata size %u is too small, min %zu, searching for type 0x%x.\n",
-					(n) ? dnet_dump_id(n->id) : "NULL", size, sizeof(struct dnet_meta), type);
+					(n) ? dnet_dump_id(&n->id) : "NULL", size, sizeof(struct dnet_meta), type);
 			break;
 		}
 
@@ -52,7 +52,7 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t siz
 		if (m.size + sizeof(struct dnet_meta) > size) {
 			dnet_map_log(n, DNET_LOG_ERROR, "%s: metadata entry broken: entry size %u, type: 0x%x, struct size: %zu, "
 					"total size left: %u, searching for type: 0x%x.\n",
-					(n) ? dnet_dump_id(n->id) : "NULL", m.size, m.type, sizeof(struct dnet_meta), size, type);
+					(n) ? dnet_dump_id(&n->id) : "NULL", m.size, m.type, sizeof(struct dnet_meta), size, type);
 			break;
 		}
 
@@ -68,131 +68,23 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t siz
 	return found;
 }
 
-int dnet_meta_remove(struct dnet_node *n, void *data, uint32_t *size, struct dnet_meta *m)
+int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert)
 {
-	int err = 0;
-	void *ptr = m;
-	struct dnet_meta tmp = *m;
-	uint32_t copy;
+	if (convert) {
+		void *ptr = mc->data;
+		int size = mc->size;
+		struct dnet_meta *m;
 
-	dnet_convert_meta(&tmp);
+		while (size) {
+			m = ptr;
 
-	ptr += tmp.size + sizeof(struct dnet_meta);
+			ptr += sizeof(struct dnet_meta) + m->size;
+			size -= sizeof(struct dnet_meta) + m->size;
 
-	if (*size < (uint32_t)(ptr - data)) {
-		dnet_map_log(n, DNET_LOG_ERROR, "%s: broken metadata object (too large size), nothing was changed: "
-				"total size: %u, meta: %u, ptr-data: %u.\n",
-				(n) ? dnet_dump_id(n->id) : "NULL", *size, tmp.size, (uint32_t)(ptr - data));
-		err = -EINVAL;
-		goto out_exit;
-	}
-	copy = *size - (uint32_t)(ptr - data);
-
-	if (copy)
-		memmove(m, ptr, copy);
-	*size = *size - tmp.size - sizeof(struct dnet_meta);
-
-out_exit:
-	return err;
-}
-
-struct dnet_meta *dnet_meta_add(struct dnet_node *n, void *data, uint32_t *size, struct dnet_meta *add, void *add_data)
-{
-	void *ptr;
-
-	data = realloc(data, *size + sizeof(struct dnet_meta) + add->size);
-	if (!data) {
-		dnet_map_log(n, DNET_LOG_ERROR, "%s: failed to reallocate buffer: old size: %u, addon: %zu.\n",
-				(n) ? dnet_dump_id(n->id) : "NULL", *size, sizeof(struct dnet_meta) + add->size);
-		goto out_exit;
-	}
-
-	ptr = data + *size;
-
-	memcpy(ptr, add, sizeof(struct dnet_meta));
-	dnet_convert_meta(ptr);
-
-	if (add->size)
-		memcpy(ptr + sizeof(struct dnet_meta), add_data, add->size);
-
-	*size = *size + sizeof(struct dnet_meta) + add->size;
-
-out_exit:
-	return data;
-}
-
-struct dnet_meta *dnet_meta_replace(struct dnet_node *n, void *data, uint32_t *size, struct dnet_meta *rep, void *rep_data)
-{
-	struct dnet_meta *m, tmp;
-	int err = 0;
-
-	m = dnet_meta_search(n, data, *size, rep->type);
-	if (m) {
-		tmp = *m;
-
-		dnet_convert_meta(&tmp);
-
-		if (tmp.size == rep->size) {
-			memcpy(m->data, rep_data, tmp.size);
-			return data;
+			dnet_convert_meta(m);
 		}
-
-		err = dnet_meta_remove(n, data, size, m);
-		if (err)
-			goto err_out_exit;
 	}
 
-	data = dnet_meta_add(n, data, size, rep, rep_data);
-	if (!data) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	return data;
-
-err_out_exit:
-	return NULL;
+	return dnet_write_data_wait(n, NULL, 0, &mc->id, mc->data, 0, mc->size, NULL, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META);
 }
 
-int dnet_meta_read_object_id(struct dnet_node *n, unsigned char *id, char *file)
-{
-	int err, len;
-	struct dnet_io_attr io;
-	struct dnet_wait *w;
-	char id_str[DNET_ID_SIZE*2+1];
-	char tmp[256];
-
-	memset(&io, 0, sizeof(struct dnet_io_attr));
-	memcpy(io.id, id, DNET_ID_SIZE);
-	memcpy(io.origin, id, DNET_ID_SIZE);
-
-	io.flags = DNET_IO_FLAGS_HISTORY;
-
-	len = snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%s", dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str));
-
-	w = dnet_wait_alloc(~0);
-	if (!w) {
-		err = -ENOMEM;
-		dnet_map_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting.\n");
-		goto err_out_exit;
-	}
-
-	err = dnet_read_file_id(n, tmp, len, 0, 0, &io, w, 1, 1);
-	dnet_map_log(n, DNET_LOG_NOTICE, "%s: metadata reading history: %d.\n", dnet_dump_id(io.origin), err);
-	if (err)
-		goto err_out_put;
-
-	len = snprintf(tmp, sizeof(tmp), "/tmp/meta-hist-%s%s", id_str, DNET_HISTORY_SUFFIX);
-
-	err = rename(tmp, file);
-	if (err) {
-		err = -errno;
-		dnet_map_log(n, DNET_LOG_ERROR, "Failed to rename tmp files: %s -> %s: %d.\n", tmp, file, err);
-		goto err_out_put;
-	}
-
-err_out_put:
-	dnet_wait_put(w);
-err_out_exit:
-	return err;
-}

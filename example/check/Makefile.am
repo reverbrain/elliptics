@@ -13,7 +13,7 @@ dnet_check_merge_SOURCES = merge.c
 dnet_check_merge_LDADD = $(CHECK_COMMON_LIBS)
 
 CC = @PTHREAD_CC@
-AM_CFLAGS = -I../../include -I../../config @PTHREAD_CFLAGS@ @OPENSSL_CFLAGS@
-AM_LDFLAGS = @PTHREAD_LIBS@ @OPENSSL_LIBS@ @OPENSSL_LDFLAGS@
+AM_CFLAGS = -I../../include -I../../config @PTHREAD_CFLAGS@
+AM_LDFLAGS = @PTHREAD_LIBS@
 
 EXTRA_DIST = README.check
