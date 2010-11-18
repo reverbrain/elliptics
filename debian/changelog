@@ -1,3 +1,9 @@
+elliptics (2.9.3.15) unstable; urgency=low
+
+  * Temporarily disable update notifications.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 18 Nov 2010 21:25:23 +0300
+
 elliptics (2.9.3.14) unstable; urgency=low
 
   * Remove direct object if it can not be uploaded to the storage.
