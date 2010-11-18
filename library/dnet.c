@@ -638,8 +638,10 @@ int dnet_process_cmd(struct dnet_net_state *st)
 					err = dnet_local_transform(st, cmd, a, data);
 			default:
 				err = n->command_handler(st, n->command_private, cmd, a, data);
+#if 0
 				if (a->cmd == DNET_CMD_WRITE && !err)
 					dnet_update_notify(st, cmd, a, data);
+#endif
 				break;
 		}
 
