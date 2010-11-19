@@ -315,27 +315,6 @@ int dnet_common_write_object(struct dnet_node *n, struct dnet_id *id,
 	return dnet_common_send_upload_transactions(n, &ctl, adata, asize);
 }
 
-static void dnet_common_setup_meta_data(char *data, char *obj, int len)
-{
-	struct dnet_attr *a = (struct dnet_attr *)data;
-	struct dnet_io_attr *io = (struct dnet_io_attr *)(a + 1);
-	struct dnet_meta *mo = (struct dnet_meta *)(io + 1);
-	//struct dnet_meta *mh = (struct dnet_meta *)(((void *)(mo + 1)) + len + 1);
-
-	a->size = sizeof(struct dnet_io_attr) + sizeof(struct dnet_meta) * 1 + len + 2; /* 0-bytes */
-	a->cmd = DNET_CMD_WRITE;
-	a->flags = 0;
-
-	io->size = a->size - sizeof(struct dnet_io_attr);
-	io->flags = DNET_IO_FLAGS_META;
-	io->offset = 0;
-
-	mo->type = DNET_META_PARENT_OBJECT;
-	mo->size = len + 1; /* 0-byte */
-	snprintf((char *)mo->data, mo->size, "%s", obj);
-	dnet_convert_meta(mo);
-}
-
 int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cfg, char *orig_addr)
 {
 	char *a;

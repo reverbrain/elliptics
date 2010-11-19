@@ -713,6 +713,7 @@ static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
 }
 
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
+int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *obj, int len, int *groups, int group_num);
 
 struct dnet_id_la {
 	unsigned int		group_id;

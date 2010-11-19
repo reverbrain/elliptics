@@ -546,6 +546,8 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 	while (1) {
 		err = cursor->c_get(cursor, &key, &dbdata, DB_SET_RANGE);
+		dnet_log_raw(n, DNET_LOG_NOTICE, "init loop key: %s, start: %x, stop: %x, out: %d, wrap: %d, err: %d: %s.\n",
+				dnet_dump_id_str(key.data), id.id[0], stop.id[0], out, wrap, err, db_strerror(err));
 
 		do {
 			if (err)
@@ -631,6 +633,13 @@ static void bdb_backend_error_handler(const DB_ENV *env __unused, const char *pr
 	fprintf(stderr, "%s: %s.\n", prefix, msg);
 }
 
+static int bdb_compare(DB *db, const DBT *key1, const DBT *key2)
+{
+	printf("k1: %s\n", dnet_dump_id_str(key1->data));
+	printf("k2: %s\n", dnet_dump_id_str(key2->data));
+	return dnet_id_cmp_str(key1->data, key2->data);
+}
+
 static DB *bdb_backend_open(struct dnet_node *n, char *dbfile)
 {
 	int err;
@@ -642,6 +651,7 @@ static DB *bdb_backend_open(struct dnet_node *n, char *dbfile)
 		goto err_out_exit;
 	}
 
+	db->set_bt_compare(db, bdb_compare);
 	db->set_errcall(db, bdb_backend_error_handler);
 	db->set_errpfx(db, "bdb");
 

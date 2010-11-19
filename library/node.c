@@ -344,7 +344,7 @@ int dnet_state_get_next_id(struct dnet_node *n, struct dnet_id *id)
 	struct dnet_group *g;
 
 	pthread_rwlock_rdlock(&n->state_lock);
-	st = __dnet_state_search(n, id, n->st);
+	st = __dnet_state_search(n, id, NULL);
 	if (!st)
 		goto err_out_unlock;
 
@@ -358,17 +358,14 @@ int dnet_state_get_next_id(struct dnet_node *n, struct dnet_id *id)
 
 	memcpy(id, &next->id, DNET_ID_SIZE);
 
-	dnet_log(n, DNET_LOG_INFO, "st: %s\n", dnet_dump_id(&st->id));
-	dnet_log(n, DNET_LOG_INFO, "nx: %s\n", dnet_dump_id(&next->id));
+	dnet_log(n, DNET_LOG_INFO, "st: %s - %s\n", dnet_dump_id(&st->id), dnet_server_convert_dnet_addr(&st->addr));
+	dnet_log(n, DNET_LOG_INFO, "nx: %s - %s\n", dnet_dump_id(&next->id), dnet_server_convert_dnet_addr(&next->addr));
 
 	dnet_group_put(g);
 
 err_out_put:
 	dnet_state_put(st);
 err_out_unlock:
-	dnet_log(n, DNET_LOG_INFO, "%s - %s\n", dnet_dump_id_len(id, DNET_ID_SIZE),
-			dnet_server_convert_dnet_addr(&next->addr));
-
 	pthread_rwlock_unlock(&n->state_lock);
 
 	return 0;

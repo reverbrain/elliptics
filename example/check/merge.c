@@ -382,7 +382,7 @@ static void *dnet_merge_process(void *data)
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from direct node: %d.\n", dnet_dump_id(&mc->id), err);
 				goto out_continue;
 			}
-			snprintf(file, sizeof(file), "%s.%d%s", direct, mc->id.group_id, DNET_HISTORY_SUFFIX);
+			snprintf(file, sizeof(file), "%s%s", direct, DNET_HISTORY_SUFFIX);
 			snprintf(direct, sizeof(direct), "%s", file);
 
 			snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir, id_str, mc->id.group_id);

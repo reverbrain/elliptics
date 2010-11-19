@@ -843,7 +843,7 @@ out_wakeup:
 	return err;
 }
 
-static int dnet_fcgi_upload(struct dnet_node *n, struct dnet_id *id,
+static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct dnet_id *id,
 		void *data, uint64_t size, int version, struct timespec *ts,
 		int append)
 {
@@ -864,8 +864,16 @@ static int dnet_fcgi_upload(struct dnet_node *n, struct dnet_id *id,
 
 	err = dnet_common_write_object(n, id, NULL, 0, version != -1, data, size, version, ts,
 			dnet_fcgi_upload_complete, NULL, ioflags);
-	if (err > 0)
+	if (err > 0) {
 		trans_num = err;
+		err = dnet_create_write_metadata(n, id, obj, length, dnet_fcgi_groups, dnet_fcgi_group_num);
+		if (err <= 0) {
+			if (err == 0)
+				err = -ENOENT;
+
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: Failed to upload metadata: %d.\n", dnet_dump_id(id), err);
+		}
+	}
 	dnet_log_raw(n, DNET_LOG_DSA, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
 
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num, &wait);
@@ -880,7 +888,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, struct dnet_id *id,
 	return err;
 }
 
-static int dnet_fcgi_handle_post(struct dnet_node *n, struct dnet_id *id,
+static int dnet_fcgi_handle_post(struct dnet_node *n, char *obj, int length, struct dnet_id *id,
 	int version, struct timespec *ts, int embed, int append)
 {
 	void *data = NULL;
@@ -961,7 +969,7 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, struct dnet_id *id,
 		}
 	}
 
-	err = dnet_fcgi_upload(n, id, data, data_size, version, ts, append);
+	err = dnet_fcgi_upload(n, obj, length, id, data, data_size, version, ts, append);
 	if (err)
 		goto err_out_free;
 
@@ -1982,7 +1990,7 @@ int main()
 			dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', length: %d, version: %d, ts: %lu.%lu, embed: %d, region: %d, append: %d.\n",
 					obj, length, version, ts.tv_sec, ts.tv_nsec, !!embed_str, dnet_fcgi_region, append);
 
-			err = dnet_fcgi_handle_post(n, &raw, version, &ts, !!embed_str, append);
+			err = dnet_fcgi_handle_post(n, obj, length, &raw, version, &ts, !!embed_str, append);
 			if (err) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: Failed to handle POST for object '%s': %d.\n", addr, obj, err);
 				reason = "failed to handle POST";

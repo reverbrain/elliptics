@@ -1048,11 +1048,20 @@ int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 
 		t = dnet_io_trans_create(n, ctl);
 		if (!t) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to create transaction.\n", dnet_dump_id(&ctl->id));
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to create and send transaction.\n", dnet_dump_id(&ctl->id));
 			continue;
 		}
 
 		num++;
+	}
+
+	if (!num) {
+		t = dnet_io_trans_create(n, ctl);
+		if (!t) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to create and send transaction (after n->groups loop).\n", dnet_dump_id(&ctl->id));
+		} else {
+			num++;
+		}
 	}
 
 	return num;
@@ -2822,7 +2831,7 @@ int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
 	}
 
 	if (trans_num)
-		dnet_log(n, DNET_LOG_INFO, "Successfully wrote %llu bytes into the storage.\n", (unsigned long long)size);
+		dnet_log(n, DNET_LOG_NOTICE, "Successfully wrote %llu bytes into the storage.\n", (unsigned long long)size);
 	err = trans_num;
 
 err_out_put:

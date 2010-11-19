@@ -88,3 +88,60 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 	return dnet_write_data_wait(n, NULL, 0, &mc->id, mc->data, 0, mc->size, NULL, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META);
 }
 
+int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *obj, int len, int *groups, int group_num)
+{
+	struct dnet_meta_container *mc;
+	struct dnet_meta *m;
+	int size = 0, err;
+
+	if (obj && len)
+		size += len + sizeof(struct dnet_meta);
+
+	if (groups && group_num)
+		size += group_num * sizeof(int) + sizeof(struct dnet_meta);
+	else if (n->groups && n->group_num) {
+		groups = n->groups;
+		group_num = n->group_num;
+		size += group_num * sizeof(int) + sizeof(struct dnet_meta);
+	}
+
+	if (!size) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	mc = malloc(sizeof(struct dnet_meta_container) + size);
+	if (!mc) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	memset(mc, 0, sizeof(struct dnet_meta_container) + size);
+
+	m = (struct dnet_meta *)(mc + 1);
+
+	if (obj && len) {
+		m->size = len;
+		m->type = DNET_META_PARENT_OBJECT;
+		memcpy(m->data, obj, len);
+
+		m = (struct dnet_meta *)(m->data + len);
+	}
+
+	if (groups && group_num) {
+		m->size = group_num * sizeof(int);
+		m->type = DNET_META_GROUPS;
+		memcpy(m->data, groups, group_num * sizeof(int));
+
+		m = (struct dnet_meta *)(m->data + len);
+	}
+
+	mc->size = size;
+	memcpy(&mc->id, id, sizeof(struct dnet_id));
+
+	err = dnet_write_metadata(n, mc, 1);
+
+	free(mc);
+err_out_exit:
+	return err;
+}
+
