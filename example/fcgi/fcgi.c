@@ -1826,7 +1826,7 @@ int main()
 	}
 
 	dnet_node_set_groups(n, dnet_fcgi_groups, dnet_fcgi_group_num);
-	
+
 	p = getenv("DNET_FCGI_TMP_DIR");
 	if (!p)
 		p = DNET_FCGI_TMP_DIR;
