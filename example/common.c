@@ -104,7 +104,7 @@ int dnet_parse_groups(char *value, int **groupsp)
 	memset(groups, 0, num * sizeof(int));
 
 	start = 0;
-	for (i=0; i<num; ++i) {
+	for (i=0; i<len; ++i) {
 		if (value[i] == DNET_CONF_ADDR_DELIM) {
 			value[i] = '\0';
 			if (start) {
