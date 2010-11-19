@@ -222,8 +222,10 @@ int dnet_check_read_transactions(struct dnet_check_worker *worker, struct dnet_i
 	char eid[DNET_ID_SIZE*2 + 1];
 	struct dnet_id raw;
 
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: downloading data transactions.\n", dnet_dump_id(id));
+
 	dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, eid);
-	snprintf(file, sizeof(file), "%s/%s%s.%d", dnet_check_tmp_dir, eid, DNET_HISTORY_SUFFIX, id->group_id);
+	snprintf(file, sizeof(file), "%s/%s.%d%s", dnet_check_tmp_dir, eid, id->group_id, DNET_HISTORY_SUFFIX);
 
 	err = dnet_map_history(n, file, &map);
 	if (err)
@@ -255,6 +257,7 @@ err_out_wait:
 	dnet_check_wait(worker, worker->wait_num == i);
 	dnet_unmap_history(n, &map);
 err_out_exit:
+	dnet_log_raw(n, DNET_LOG_ERROR, "%s: faield to download data transactions: %d.\n", dnet_dump_id(id), err);
 	return err;
 }
 
@@ -686,7 +689,8 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 
 		added = 0;
 		for (j=0; j<added_remotes; ++j) {
-			remotes[j].join = DNET_NO_ROUTE_LIST;
+			if (out)
+				remotes[j].join = DNET_NO_ROUTE_LIST;
 			err = dnet_add_state(w->n, &remotes[j]);
 			if (!err) {
 				w->group_id = remotes[j].id.group_id;

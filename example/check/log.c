@@ -49,6 +49,8 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 	char eid[DNET_ID_SIZE*2 + 1];
 	struct timespec ts;
 
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: starting to multiplicate data transactions.\n", dnet_dump_id(&mc->id));
+
 	snprintf(file, sizeof(file), "%s/%s.%d%s", dnet_check_tmp_dir,
 		dnet_dump_id_len_raw(mc->id.id, DNET_ID_SIZE, eid),
 		existing_group, DNET_HISTORY_SUFFIX);
@@ -83,7 +85,8 @@ static int dnet_check_process_request(struct dnet_check_worker *w,
 
 			err = dnet_write_file_local_offset(n, file, NULL, 0, &raw, 0, 0, 0,
 					(version == -1) ? DNET_ATTR_DIRECT_TRANSACTION : 0, 0);
-			if (err > 0) {
+			dnet_log_raw(n, DNET_LOG_DSA, "%s: uploaded data copy, tranasctions: %d\n", dnet_dump_id(&raw), err);
+			if (!err) {
 				mc->id.group_id = raw.group_id;
 				err = dnet_write_metadata(n, mc, 1);
 			}
@@ -110,7 +113,7 @@ static int dnet_update_copies(struct dnet_check_worker *worker,
 		int *groups, int group_num, unsigned int existing_group)
 {
 	struct dnet_node *n = worker->n;
-	char file[128];
+	char file[256];
 	int err;
 	char eid[2*DNET_ID_SIZE+1];
 	struct dnet_id raw;
@@ -120,6 +123,8 @@ static int dnet_update_copies(struct dnet_check_worker *worker,
 	snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir,
 			dnet_dump_id_len_raw(mc->id.id, DNET_ID_SIZE, eid),
 			existing_group);
+
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: downloading history of existing copy.\n", dnet_dump_id(&raw));
 
 	err = dnet_read_file(n, file, file, strlen(file), &raw, 0, ~0ULL, 1);
 	if (err) {
@@ -165,9 +170,11 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, struct dnet_
 		snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir,
 			dnet_dump_id_len_raw(raw.id, DNET_ID_SIZE, eid), raw.group_id);
 
+		dnet_log_raw(n, DNET_LOG_NOTICE, "Checking whether object is present in the storage: %s\n", dnet_dump_id(&raw));
+
 		err = dnet_read_file(n, file, file, strlen(file), &raw, 0, 1, 0);
 		if (err < 0) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read data file: %d.\n",
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: object is NOT present in the storage: %d.\n",
 					dnet_dump_id(&raw), err);
 
 			/*
@@ -181,6 +188,7 @@ static int dnet_check_number_of_copies(struct dnet_check_worker *w, struct dnet_
 		}
 
 		found = raw.group_id;
+		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: object is present in the storage.\n", dnet_dump_id(&raw));
 	}
 
 	if (found == -1) {
@@ -243,6 +251,7 @@ err_out_exit:
 static int dnet_check_log_meta(struct dnet_node *n, struct dnet_meta_container *mc)
 {
 	struct dnet_meta *m;
+	char obj[256];
 	int err;
 
 	m = dnet_meta_search(n, mc->data, mc->size, DNET_META_PARENT_OBJECT);
@@ -252,7 +261,9 @@ static int dnet_check_log_meta(struct dnet_node *n, struct dnet_meta_container *
 		goto err_out_exit;
 	}
 
-	dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', id: %s", (char *)m->data, dnet_dump_id_len(&mc->id, DNET_ID_SIZE));
+	snprintf(obj, sizeof(obj) < m->size ? sizeof(obj) : m->size, "%s", (char *)m->data);
+
+	dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', id: %s\n", obj, dnet_dump_id_len(&mc->id, DNET_ID_SIZE));
 
 	return 0;
 
@@ -261,10 +272,11 @@ err_out_exit:
 	return err;
 }
 
-int dnet_check_find_groups(struct dnet_node *n, struct dnet_meta_container *mc, int **groups)
+int dnet_check_find_groups(struct dnet_node *n, struct dnet_meta_container *mc, int **groupsp)
 {
-	int err;
+	int err, i, num;
 	struct dnet_meta *m;
+	int *groups;
 
 	m = dnet_meta_search(n, mc->data, mc->size, DNET_META_GROUPS);
 	if (!m) {
@@ -273,15 +285,22 @@ int dnet_check_find_groups(struct dnet_node *n, struct dnet_meta_container *mc, 
 		goto err_out_exit;
 	}
 
-	err = dnet_parse_groups((char *)m->data, groups);
-	if (err <= 0) {
-		if (err == 0)
-			err = -ENOENT;
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to find parse groups metadata: %d.\n", dnet_dump_id(&mc->id), err);
+	groups = malloc(m->size);
+	if (!groups) {
+		err = -ENOMEM;
 		goto err_out_exit;
 	}
+	memcpy(groups, m->data, m->size);
 
-	return err;
+	num = m->size / sizeof(int32_t);
+
+	for (i=0; i<num; ++i) {
+		dnet_log_raw(n, DNET_LOG_DSA, "%s: group: %d\n", dnet_dump_id(&mc->id), groups[i]);
+	}
+
+	*groupsp = groups;
+
+	return num;
 
 err_out_exit:
 	dnet_dump_meta_container(n, mc);
