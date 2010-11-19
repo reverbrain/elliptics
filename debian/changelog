@@ -1,3 +1,9 @@
+elliptics (2.9.4.1) unstable; urgency=low
+
+  * Switched to new addressing model.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 19 Nov 2010 20:50:25 +0300
+
 elliptics (2.9.3.14) unstable; urgency=low
 
   * Remove direct object if it can not be uploaded to the storage.
