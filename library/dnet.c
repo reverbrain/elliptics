@@ -532,7 +532,9 @@ int dnet_process_cmd(struct dnet_net_state *st)
 				if (err)
 					break;
 
+#if 0
 				dnet_update_notify(st, cmd, a, data);
+#endif
 				break;
 		}
 
