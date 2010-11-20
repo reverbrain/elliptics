@@ -64,9 +64,6 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_io_notification not;
 	struct dnet_attr a;
 
-	if (attr->size <= sizeof(struct dnet_io_attr))
-		return 0;
-
 	if (io->size == sizeof(struct dnet_history_entry)) {
 		struct dnet_history_entry *h = (struct dnet_history_entry *)(io + 1);
 
@@ -90,8 +87,7 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	a.size = 0;
 	a.flags = 0;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: notification hash: %x.\n",
-			dnet_dump_id(&cmd->id), hash);
+	dnet_log(n, DNET_LOG_DSA, "%s: notification hash: %x.\n", dnet_dump_id(&cmd->id), hash);
 
 	pthread_rwlock_rdlock(&b->notify_lock);
 	list_for_each_entry(nt, &b->notify_list, notify_entry) {
