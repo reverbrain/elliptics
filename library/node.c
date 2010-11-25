@@ -420,9 +420,9 @@ err_out_unlock:
 	return 0;
 }
 
-static int dnet_ids_generate(struct dnet_node *n, const char *file)
+static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned long long storage_free)
 {
-	int fd, err, size = 1024, i;
+	int fd, err, size = 1024, i, num;
 	struct dnet_id id;
 	struct dnet_raw_id raw;
 	char *buf;
@@ -442,7 +442,8 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file)
 		goto err_out_close;
 	}
 
-	for (i=0; i<1024; ++i) {
+	num = storage_free / (1024 * 1024 * 1024) + 1;
+	for (i=0; i<num; ++i) {
 		int r = rand();
 		memcpy(buf, &n->addr, sizeof(struct dnet_addr));
 		memcpy(buf + sizeof(struct dnet_addr), &r, sizeof(r));
@@ -468,7 +469,7 @@ err_out_exit:
 	return err;
 }
 
-static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, int *id_num)
+static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, int *id_num, unsigned long long storage_free)
 {
 	int fd, err, num;
 	const char *file = "ids";
@@ -483,7 +484,7 @@ again:
 	if (fd < 0) {
 		err = -errno;
 		if (err == -ENOENT) {
-			err = dnet_ids_generate(n, path);
+			err = dnet_ids_generate(n, path, storage_free);
 			if (err)
 				goto err_out_exit;
 
@@ -614,7 +615,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		goto err_out_crypto_cleanup;
 
 	if (cfg->join & DNET_JOIN_NETWORK) {
-		ids = dnet_ids_init(n, cfg->history_env, &id_num);
+		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
 		if (!ids)
 			goto err_out_notify_exit;
 

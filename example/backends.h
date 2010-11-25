@@ -48,7 +48,6 @@ static inline uint64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint
 }
 
 int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr *attr);
-int backend_del(struct dnet_io_attr *io, struct dnet_history_entry *e, unsigned int num);
 
 static inline char *file_backend_get_dir(const unsigned char *id, uint64_t bit_num, char *dst)
 {
@@ -58,12 +57,6 @@ static inline char *file_backend_get_dir(const unsigned char *id, uint64_t bit_n
 		res[bit_num / 4] = '\0';
 	return res;
 }
-
-int backend_write_history(void *state, void *backend, struct dnet_io_attr *io, void *iodata,
-		int (* process)(void *state, void *backend, struct dnet_io_attr *io,
-					struct dnet_meta *m, void *data));
-void *backend_process_meta(void *state, struct dnet_io_attr *io, void *hdata, uint32_t *size,
-		struct dnet_meta *m, void *data);
 
 struct dnet_config_backend;
 struct dnet_config_entry {
@@ -78,6 +71,9 @@ struct dnet_config_backend {
 	int				size;
 	void				*data;
 
+	unsigned long long		storage_size;
+	unsigned long long		storage_free;
+
 	struct dnet_log			*log;
 
 	int				(* init)(struct dnet_config_backend *b, struct dnet_config *cfg);
@@ -89,11 +85,10 @@ int dnet_backend_register(struct dnet_config_backend *b);
 int dnet_file_backend_init(void);
 void dnet_file_backend_exit(void);
 
-int dnet_tc_backend_init(void);
-void dnet_tc_backend_exit(void);
-
 int dnet_eblob_backend_init(void);
 void dnet_eblob_backend_exit(void);
+
+int backend_storage_size(struct dnet_config_backend *b, const char *root);
 
 int dnet_backend_check_log_mask(uint32_t mask);
 void dnet_backend_log_raw(uint32_t mask, const char *fmt, ...) __attribute__ ((format(printf, 2, 3)));

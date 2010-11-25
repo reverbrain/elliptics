@@ -306,6 +306,12 @@ struct dnet_config
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
 
+	/*
+	 * Free and total space on given storage.
+	 */
+	unsigned long long	storage_free;
+	unsigned long long	storage_size;
+
 	/* Notify hash table size */
 	unsigned int		hash_size;
 

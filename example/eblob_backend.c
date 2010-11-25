@@ -148,6 +148,11 @@ static int dnet_blob_set_sync(struct dnet_config_backend *b, char *key __unused,
 static int dnet_blob_set_data(struct dnet_config_backend *b, char *key __unused, char *file)
 {
 	struct eblob_backend_config *c = b->data;
+	int err;
+
+	err = backend_storage_size(b, file);
+	if (err)
+		return err;
 
 	free(c->data.file);
 	c->data.file = strdup(file);
@@ -225,6 +230,9 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 		err = -EINVAL;
 		goto err_out_exit;
 	}
+
+	cfg->storage_size = b->storage_size;
+	cfg->storage_free = b->storage_free;
 
 	cfg->command_private = c;
 	cfg->command_handler = eblob_backend_command_handler;

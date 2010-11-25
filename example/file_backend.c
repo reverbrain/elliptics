@@ -293,6 +293,10 @@ static int dnet_file_set_root(struct dnet_config_backend *b, char *key __unused,
 	struct file_backend_root *r = b->data;
 	int err;
 
+	err = backend_storage_size(b, root);
+	if (err)
+		goto err_out_exit;
+
 	r->root = strdup(root);
 	if (!r->root) {
 		err = -ENOMEM;
@@ -331,6 +335,9 @@ static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_conf
 {
 	c->command_private = b->data;
 	c->command_handler = file_backend_command_handler;
+
+	c->storage_size = b->storage_size;
+	c->storage_free = b->storage_free;
 
 	return 0;
 }

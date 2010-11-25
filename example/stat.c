@@ -106,7 +106,6 @@ static int stat_complete(struct dnet_net_state *state,
 static void stat_usage(char *p)
 {
 	fprintf(stderr, "Usage: %s\n"
-			" -a addr:port:family  - creates a node with given network address\n"
 			" -r addr:port:family  - adds a route to the given node\n"
 			" -l log               - log file. Default: disabled\n"
 			" -L log               - statistics log. Default: stdout\n"
@@ -142,7 +141,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "MFAt:m:w:l:I:a:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "MFAt:m:w:l:I:r:h")) != -1) {
 		switch (ch) {
 			case 'M':
 				stat_mem = 1;
@@ -175,11 +174,6 @@ int main(int argc, char *argv[])
 						return err;
 					id_idx++;
 				}
-				break;
-			case 'a':
-				err = dnet_parse_addr(optarg, &cfg);
-				if (err)
-					return err;
 				break;
 			case 'r':
 				err = dnet_parse_addr(optarg, &rem);

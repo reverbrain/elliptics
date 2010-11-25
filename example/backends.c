@@ -209,3 +209,22 @@ int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr
 
 	return dnet_send_reply(state, cmd, attr, &st, sizeof(struct dnet_stat), 0);
 }
+
+int backend_storage_size(struct dnet_config_backend *b, const char *root)
+{
+	struct statvfs s;
+	int err;
+
+	err = statvfs(root, &s);
+	if (err) {
+		err = -errno;
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to get VFS statistics of '%s': %s [%d].\n",
+				root, strerror(errno), errno);
+		return err;
+	}
+
+	b->storage_size = s.f_frsize * s.f_blocks;
+	b->storage_free = s.f_bsize * s.f_bavail;
+
+	return 0;
+}
