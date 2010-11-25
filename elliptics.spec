@@ -9,6 +9,7 @@ URL:		http://www.ioremap.net/projects/elliptics
 Source0:	%{name}-%{version}.tar.gz
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
+BuildRequires:	db4-devel
 BuildRequires:	fcgi-devel
 BuildRequires:	openssl-devel
 BuildRequires:	python-devel
