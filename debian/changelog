@@ -1,3 +1,9 @@
+elliptics (2.9.4.2) unstable; urgency=low
+
+  * Switched to random ids (1024 ids are generated at first start)
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 25 Nov 2010 19:56:41 +0300
+
 elliptics (2.9.4.1) unstable; urgency=low
 
   * Switched to new addressing model.
