@@ -115,14 +115,9 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 	return 0;
 }
 
-static int dnet_set_id(struct dnet_config_backend *b __unused, char *key __unused, char *value)
-{
-	return dnet_parse_numeric_id(value, dnet_cfg_state.id.id);
-}
-
 static int dnet_set_group(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
-	dnet_cfg_state.id.group_id = strtoul(value, NULL, 0);
+	dnet_cfg_state.group_id = strtoul(value, NULL, 0);
 	return 0;
 }
 
@@ -193,7 +188,6 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"log_mask", dnet_simple_set},
 	{"wait_timeout", dnet_simple_set},
 	{"check_timeout", dnet_simple_set},
-	{"id", dnet_set_id},
 	{"group", dnet_set_group},
 	{"addr", dnet_set_addr},
 	{"remote", dnet_set_remote_addrs},

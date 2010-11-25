@@ -490,7 +490,7 @@ out_exit:
 	return err;
 }
 
-static int dnet_check_request_ids(struct dnet_check_worker *w, struct dnet_id *id, char *file, int out)
+static int dnet_check_request_ids(struct dnet_check_worker *w, char *file, int out)
 {
 	int err, fd;
 	struct dnet_node *n = w->n;
@@ -503,8 +503,8 @@ static int dnet_check_request_ids(struct dnet_check_worker *w, struct dnet_id *i
 	fd = open(file, O_RDWR | O_TRUNC | O_CREAT | O_APPEND, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open/create id completion file '%s': %s.\n",
-				dnet_dump_id(id), file, strerror(errno));
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open/create id completion file '%s': %s.\n",
+				file, strerror(errno));
 		goto err_out_exit;
 	}
 
@@ -514,26 +514,25 @@ static int dnet_check_request_ids(struct dnet_check_worker *w, struct dnet_id *i
 		goto err_out_close;
 	}
 
-	memcpy(&c->id, id, sizeof(struct dnet_id));
 	c->fd = fd;
 	c->worker = w;
 
 	w->wait_num = 0;
-	err = dnet_request_ids(n, id, flags, dnet_check_id_complete, c);
+	err = dnet_request_ids(n, NULL, flags, dnet_check_id_complete, c);
 	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to request IDs from node: %d.\n", dnet_dump_id(id), err);
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to request IDs from node: %d.\n", err);
 		goto err_out_exit;
 	}
 
 	err = dnet_check_wait(w, w->wait_num != 0);
 	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to wait for ID request completion: %d.\n", dnet_dump_id(id), err);
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to wait for ID request completion: %d.\n", err);
 		goto err_out_exit;
 	}
 
 	if (w->wait_num < 0) {
 		err = w->wait_num;
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: ID request completed with error: %d.\n", dnet_dump_id(id), err);
+		dnet_log_raw(n, DNET_LOG_ERROR, "ID request completed with error: %d.\n", err);
 		goto err_out_exit;
 	}
 
@@ -693,7 +692,7 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 				remotes[j].join = DNET_NO_ROUTE_LIST;
 			err = dnet_add_state(w->n, &remotes[j]);
 			if (!err) {
-				w->group_id = remotes[j].id.group_id;
+				w->group_id = remotes[j].group_id;
 				added++;
 				break;
 			}
@@ -708,10 +707,9 @@ int dnet_check_start(int argc, char *argv[], void *(* process)(void *data), int 
 		if (i == 0) {
 			if (!file) {
 				file = file_template;
-				err = dnet_check_request_ids(w, &remotes[0].id, file, out);
+				err = dnet_check_request_ids(w, file, out);
 				if (err) {
-					dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to request ID range from node %s: %d.\n",
-							dnet_dump_id_len(&remotes[0].id, DNET_ID_SIZE), err);
+					dnet_log_raw(w->n, DNET_LOG_ERROR, "Failed to request ID range: %d.\n",	err);
 					goto out_join;
 				}
 			}

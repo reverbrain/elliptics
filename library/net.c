@@ -176,14 +176,14 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 			goto out_exit;
 		}
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: failed to wait for descriptor: err: %d, socket: %d.\n",
-				dnet_dump_id(&st->id), err, st->s);
+		dnet_log(st->n, DNET_LOG_ERROR, "Failed to wait for descriptor: err: %d, socket: %d.\n",
+				err, st->s);
 		err = -errno;
 		goto out_exit;
 	}
 
 	if (st->n->need_exit) {
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: need to exit.\n", dnet_dump_id(&st->id));
+		dnet_log(st->n, DNET_LOG_ERROR, "Need to exit.\n");
 		err = -EIO;
 		goto out_exit;
 	}
@@ -198,8 +198,8 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 		goto out_exit;
 	}
 
-	dnet_log(st->n, DNET_LOG_ERROR, "%s: socket reported error: sock: %d, revents: %x.\n",
-			dnet_dump_id(&st->id), st->s, pfd.revents);
+	dnet_log(st->n, DNET_LOG_ERROR, "Socket reported error: sock: %d, revents: %x.\n",
+			st->s, pfd.revents);
 	err = -EINVAL;
 out_exit:
 	return err;
@@ -209,7 +209,6 @@ static ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t 
 {
 	ssize_t err = 0;
 	struct dnet_node *n = st->n;
-	unsigned long long orig_size = size;
 
 	while (size) {
 		err = dnet_wait(st, POLLOUT, st->timeout);
@@ -238,8 +237,6 @@ static ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t 
 
 		err = 0;
 	}
-
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: sent %llu data bytes.\n", dnet_dump_id(&st->id), orig_size);
 
 	return err;
 }
@@ -278,9 +275,8 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 		if (err < 0)
 			goto err_out_unlock;
 		if (err == 0) {
-			dnet_log(st->n, DNET_LOG_INFO, "%s: looks like truncated file, "
-					"size: %llu.\n", dnet_dump_id(&st->id),
-					(unsigned long long)dsize);
+			dnet_log(st->n, DNET_LOG_DSA, "Looks like truncated file, "
+					"size: %llu.\n", (unsigned long long)dsize);
 			break;
 		}
 
@@ -293,9 +289,8 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 
 		memset(buf, 0, sizeof(buf));
 
-		dnet_log(st->n, DNET_LOG_INFO, "%s: truncated file, orig: %llu, zeroes: %llu bytes.\n",
-				dnet_dump_id(&st->id), (unsigned long long)dsize + err,
-				(unsigned long long)dsize);
+		dnet_log(st->n, DNET_LOG_DSA, "Truncated file, orig: %llu, zeroes: %llu bytes.\n",
+				(unsigned long long)dsize + err, (unsigned long long)dsize);
 
 		while (dsize) {
 			sz = dsize;
@@ -310,9 +305,8 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 		}
 	}
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: sent %llu header bytes and %llu data bytes from fd %d, offset %llu -> %llu.\n",
-			dnet_dump_id(&st->id), (unsigned long long)hsize, orig_dsize, fd,
-			orig_offset, (unsigned long long)offset);
+	dnet_log(st->n, DNET_LOG_DSA, "Sent %llu header bytes and %llu data bytes from fd %d, offset %llu -> %llu.\n",
+			(unsigned long long)hsize, orig_dsize, fd, orig_offset, (unsigned long long)offset);
 
 	err = 0;
 
@@ -533,7 +527,7 @@ static int dnet_process_recv(struct dnet_net_state *st)
 		goto out;
 	}
 
-	forward_state = dnet_state_get_first(n, &st->rcv_cmd.id, NULL);
+	forward_state = dnet_state_get_first(n, &st->rcv_cmd.id);
 	if (!forward_state || forward_state == st || forward_state == n->st ||
 			(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {
 		dnet_state_put(forward_state);
@@ -595,10 +589,6 @@ static int dnet_process_recv_single(struct dnet_net_state *st)
 	uint64_t size;
 	int err;
 
-	dnet_log(n, DNET_LOG_DSA, "%s: receiving: cmd: %d, size: %llu, offset: %llu.\n",
-		dnet_dump_id(&st->id), !!(st->rcv_flags & DNET_IO_CMD),
-		(unsigned long long)st->rcv_size, (unsigned long long)st->rcv_offset);
-
 again:
 	/*
 	 * Reading command first.
@@ -620,7 +610,6 @@ again:
 				goto out;
 			}
 
-			dnet_log(n, DNET_LOG_DSA, "%s: no data.\n", dnet_dump_id(&st->id));
 			goto out;
 		}
 
@@ -634,11 +623,6 @@ again:
 		st->rcv_offset += err;
 	}
 
-	dnet_log(n, DNET_LOG_DSA, "%s: receiving: offset: %llu, size: %llu, flags: %x.\n",
-			dnet_dump_id(&st->id),
-			(unsigned long long)st->rcv_offset, (unsigned long long)st->rcv_size,
-			st->rcv_flags);
-
 	if (st->rcv_offset != st->rcv_size)
 		goto again;
 
@@ -650,7 +634,7 @@ again:
 
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: received trans: %llu / %llx, reply: %d, size: %llu, flags: %u.\n",
+		dnet_log(n, DNET_LOG_DSA, "%s: received trans: %llu / %llx, reply: %d, size: %llu, flags: %u.\n",
 				dnet_dump_id(&c->id), tid, (unsigned long long)c->trans, !!(c->trans & DNET_TRANS_REPLY),
 				(unsigned long long)c->size, c->flags);
 
@@ -696,6 +680,15 @@ out:
 	return err;
 }
 
+static void dnet_state_remove(struct dnet_net_state *st)
+{
+	struct dnet_node *n = st->n;
+
+	pthread_rwlock_wrlock(&n->state_lock);
+	list_del_init(&st->state_entry);
+	pthread_rwlock_unlock(&n->state_lock);
+}
+
 void dnet_state_reset(struct dnet_net_state *st)
 {
 	dnet_state_remove(st);
@@ -729,13 +722,13 @@ static void *dnet_accept_client(void *priv)
 
 		fcntl(cs, F_SETFL, O_NONBLOCK);
 		
-		st = dnet_state_create(n, NULL, &addr, cs);
+		st = dnet_state_create(n, 0, NULL, 0, &addr, cs);
 		if (!st) {
 			close(cs);
 			continue;
 		}
 
-		dnet_log(n, DNET_LOG_INFO, "%s: accepted client %s, socket: %d.\n", dnet_dump_id(&orig->id),
+		dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d.\n",
 				dnet_server_convert_dnet_addr(&addr), cs);
 	}
 
@@ -770,7 +763,8 @@ out_exit:
 	return NULL;
 }
 
-struct dnet_net_state *dnet_state_create(struct dnet_node *n, struct dnet_id *id,
+struct dnet_net_state *dnet_state_create(struct dnet_node *n,
+		int group_id, struct dnet_raw_id *ids, int id_num,
 		struct dnet_addr *addr, int s)
 {
 	int err = -ENOMEM;
@@ -787,14 +781,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, struct dnet_id *id
 	st->s = s;
 	st->n = n;
 
-	st->group = NULL;
-
 	st->la = 1;
 
 	INIT_LIST_HEAD(&st->state_entry);
-
-	if (id)
-		memcpy(&st->id, id, DNET_ID_SIZE);
 
 	func = dnet_state_processing;
 	if (s == n->listen_socket)
@@ -803,7 +792,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, struct dnet_id *id
 	err = pthread_mutex_init(&st->send_lock, NULL);
 	if (err) {
 		err = -err;
-		dnet_log_err(n, "%s: failed to initialize send mutex: %d", dnet_dump_id(&st->id), err);
+		dnet_log_err(n, "Failed to initialize send mutex: %d", err);
 		goto err_out_state_free;
 	}
 
@@ -811,27 +800,26 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n, struct dnet_id *id
 
 	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
 
-	if (!id) {
+	if (ids && id_num) {
+		err = dnet_idc_create(st, group_id, ids, id_num);
+		if (err)
+			goto err_out_send_destroy;
+	} else {
 		pthread_rwlock_wrlock(&n->state_lock);
 		list_add_tail(&st->state_entry, &n->empty_state_list);
 		pthread_rwlock_unlock(&n->state_lock);
-	} else {
-		memcpy(&st->id, id, sizeof(struct dnet_id));
-		err = dnet_state_insert(st);
-		if (err)
-			goto err_out_send_destroy;
 	}
 
 	err = pthread_create(&st->tid, &n->attr, func, st);
 	if (err) {
-		dnet_log_err(n, "%s: failed to create new state thread: %d", dnet_dump_id(&st->id), err);
-		goto err_out_state_remove;
+		dnet_log_err(n, "Failed to create new state thread: %d", err);
+		goto err_out_idc_destroy;
 	}
 
 	return st;
 
-err_out_state_remove:
-	dnet_state_remove(st);
+err_out_idc_destroy:
+	dnet_idc_destroy(st);
 err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
 err_out_state_free:
@@ -865,14 +853,12 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	if (st->s >= 0)
 		close(st->s);
 
-	if (st->group) {
-		pthread_rwlock_wrlock(&n->state_lock);
-		dnet_group_put(st->group);
-		pthread_rwlock_unlock(&n->state_lock);
-	}
+	pthread_rwlock_wrlock(&n->state_lock);
+	dnet_idc_destroy(st);
+	pthread_rwlock_unlock(&n->state_lock);
 
-	dnet_log(st->n, DNET_LOG_INFO, "%s: freeing state %s, socket: %d.\n",
-		dnet_dump_id(&st->id), dnet_server_convert_dnet_addr(&st->addr), st->s);
+	dnet_log(st->n, DNET_LOG_DSA, "Freeing state %s, socket: %d.\n",
+		dnet_server_convert_dnet_addr(&st->addr), st->s);
 
 	free(st);
 }

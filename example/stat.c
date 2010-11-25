@@ -112,7 +112,6 @@ static void stat_usage(char *p)
 			" -L log               - statistics log. Default: stdout\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" -m mask              - log events mask\n"
-			" -i id                - node's ID (zero by default)\n"
 			" -I id                - request statistics from node which handles given id\n"
 			" -t timeout           - timeout in seconds to repeatedly request statistics\n"
 			" -M                   - show memory usage statistics\n"
@@ -143,7 +142,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "MFAt:m:w:l:I:i:a:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "MFAt:m:w:l:I:a:r:h")) != -1) {
 		switch (ch) {
 			case 'M':
 				stat_mem = 1;
@@ -176,11 +175,6 @@ int main(int argc, char *argv[])
 						return err;
 					id_idx++;
 				}
-				break;
-			case 'i':
-				err = dnet_parse_numeric_id(optarg, cfg.id.id);
-				if (err)
-					return err;
 				break;
 			case 'a':
 				err = dnet_parse_addr(optarg, &cfg);

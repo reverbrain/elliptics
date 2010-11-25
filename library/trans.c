@@ -164,8 +164,9 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	}
 }
 
-int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
+int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_control *ctl)
 {
+	struct dnet_node *n = st->n;
 	struct dnet_cmd *cmd;
 	struct dnet_attr *a;
 	struct dnet_trans *t;
@@ -198,11 +199,7 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
 	if (ctl->size && ctl->data)
 		memcpy(a + 1, ctl->data, ctl->size);
 
-	t->st = dnet_state_get_first(n, &cmd->id, n->st);
-	if (!t->st) {
-		err = -ENOENT;
-		goto err_out_destroy;
-	}
+	t->st = dnet_state_get(st);
 
 	err = dnet_trans_insert(t);
 	if (err)
@@ -223,6 +220,24 @@ err_out_destroy:
 	if (ctl->complete)
 		ctl->complete(NULL, NULL, NULL, ctl->priv);
 	dnet_trans_put(t);
+err_out_exit:
+	return err;
+}
+
+int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
+{
+	struct dnet_net_state *st;
+	int err;
+
+	st = dnet_state_get_first(n, &ctl->id);
+	if (!st) {
+		err = -ENOENT;
+		goto err_out_exit;
+	}
+
+	err = dnet_trans_alloc_send_state(st, ctl);
+	dnet_state_put(st);
+
 err_out_exit:
 	return err;
 }
@@ -272,8 +287,8 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 			t->complete(n->st, &t->cmd, NULL, t->priv);
 
 		if (t->st) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: removing state %s on check error: %d\n",
-					dnet_dump_id(&t->st->id), dnet_state_dump_addr(t->st), err);
+			dnet_log(n, DNET_LOG_ERROR, "Removing state %s on check error: %d\n",
+					dnet_state_dump_addr(t->st), err);
 			dnet_state_get(t->st);
 			dnet_state_reset(t->st);
 		}
@@ -286,8 +301,7 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 	dnet_lock_unlock(&n->trans_lock);
 
 	if (total)
-		dnet_log(n, DNET_LOG_NOTICE, "%s: checked %d transactions.\n",
-			dnet_dump_id(&n->id), total);
+		dnet_log(n, DNET_LOG_DSA, "Checked %d transactions.\n", total);
 }
 
 static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd *cmd,
@@ -302,14 +316,14 @@ static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd
 	n = orig->n;
 
 	if (cmd->status) {
-		st = dnet_state_search(n, &cmd->id, NULL);
-		if (!st || dnet_id_cmp(&cmd->id, &st->id)) {
+		st = dnet_state_search(n, &cmd->id);
+		if (!st) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: failed to find matching state to free on stat check error: %d.\n", dnet_dump_id(&cmd->id), cmd->status);
 			return cmd->status;
 		}
 
 		dnet_log(n, DNET_LOG_ERROR, "%s: removing state %s on stat check error: %d\n",
-				dnet_dump_id(&st->id), dnet_state_dump_addr(st), cmd->status);
+				dnet_dump_id(&cmd->id), dnet_state_dump_addr(st), cmd->status);
 
 		dnet_state_reset(st);
 		return cmd->status;
@@ -320,7 +334,7 @@ static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd
 		dnet_convert_stat(stat);
 
 		orig->la = (int)stat->la[0];
-		dnet_log(n, DNET_LOG_NOTICE, "%s: la: %d.\n", dnet_dump_id(&orig->id), orig->la);
+		orig->free = stat->bsize * stat->bavail;
 	}
 
 	return 0;
@@ -335,8 +349,8 @@ static void *dnet_check_tree_from_thread(void *data)
 	if (!n->check_timeout)
 		n->check_timeout = 10;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: started checking thread. Timeout: %lu seconds.\n",
-			dnet_dump_id(&n->id), n->check_timeout);
+	dnet_log(n, DNET_LOG_INFO, "Started checking thread. Timeout: %lu seconds.\n",
+			n->check_timeout);
 
 	while (!n->need_exit) {
 		gettimeofday(&tv1, NULL);
@@ -364,8 +378,8 @@ int dnet_check_thread_start(struct dnet_node *n)
 
 	err = pthread_create(&n->check_tid, &n->attr, dnet_check_tree_from_thread, n);
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to start tree checking thread: err: %d.\n",
-				dnet_dump_id(&n->id), err);
+		dnet_log(n, DNET_LOG_ERROR, "Failed to start tree checking thread: err: %d.\n",
+				err);
 		return -err;
 	}
 
@@ -375,5 +389,5 @@ int dnet_check_thread_start(struct dnet_node *n)
 void dnet_check_thread_stop(struct dnet_node *n)
 {
 	pthread_join(n->check_tid, NULL);
-	dnet_log(n, DNET_LOG_NOTICE, "%s: checking thread stopped.\n", dnet_dump_id(&n->id));
+	dnet_log(n, DNET_LOG_NOTICE, "Checking thread stopped.\n");
 }

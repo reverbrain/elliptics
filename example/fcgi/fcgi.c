@@ -243,13 +243,6 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 	cfg->log->log_private = dnet_fcgi_log;
 	cfg->log->log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
 
-	p = getenv("DNET_FCGI_NODE_ID");
-	if (p) {
-		err = dnet_parse_numeric_id(p, cfg->id.id);
-		if (err)
-			return err;
-	}
-
 	p = getenv("DNET_FCGI_NODE_LOG_MASK");
 	if (p)
 		cfg->log->log_mask = strtoul(p, NULL, 0);
@@ -1252,15 +1245,13 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 				(unsigned long long)st->files, (unsigned long long)st->fsid);
 	} else if (attr->size >= sizeof(struct dnet_addr_stat) && attr->cmd == DNET_CMD_STAT_COUNT) {
 		struct dnet_addr_stat *as = (struct dnet_addr_stat *)(attr + 1);
-		char id[DNET_ID_SIZE * 2 + 1];
 		char addr[128];
 		int i;
 
 		dnet_convert_addr_stat(as, 0);
 
-		dnet_fcgi_output("<count addr=\"%s\" id=\"%s\">",
-			dnet_server_convert_dnet_addr_raw(&as->addr, addr, sizeof(addr)),
-			dnet_dump_id_len_raw(as->id.id, DNET_ID_SIZE, id));
+		dnet_fcgi_output("<count addr=\"%s\">",
+			dnet_server_convert_dnet_addr_raw(&as->addr, addr, sizeof(addr)));
 		for (i=0; i<as->num; ++i)
 			dnet_fcgi_output("<counter cmd=\"%u\" count=\"%llu\" error=\"%llu\"/>", i,
 					(unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);

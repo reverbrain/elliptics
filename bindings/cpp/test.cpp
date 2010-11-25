@@ -105,11 +105,9 @@ int main()
 
 	elliptics_log_file log("/dev/stderr", 15);
 
-	memset(id.id, 1, DNET_ID_SIZE);
 	id.group_id = 0;
 
 	elliptics_node n(log);
-	n.set_id(id);
 	n.add_groups(groups, ARRAY_SIZE(groups));
 
 	n.add_remote("devfs8", 1025, AF_INET);

@@ -54,7 +54,7 @@ static unsigned int dnet_notify_hash(struct dnet_id *id, unsigned int hash_size)
 }
 
 int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+		struct dnet_attr *attr __unused, void *data)
 {
 	struct dnet_node *n = st->n;
 	unsigned int hash = dnet_notify_hash(&cmd->id, n->notify_hash_size);
@@ -186,8 +186,8 @@ int dnet_notify_init(struct dnet_node *n)
 		}
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "%s: successfully initialized notify hash table (%u entries).\n",
-			dnet_dump_id(&n->id), n->notify_hash_size);
+	dnet_log(n, DNET_LOG_INFO, "Successfully initialized notify hash table (%u entries).\n",
+			n->notify_hash_size);
 
 	return 0;
 
@@ -252,22 +252,16 @@ int dnet_request_notification(struct dnet_node *n, struct dnet_id *id,
 			void *priv),
 	void *priv)
 {
-	if (!complete || !id) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: notification request requires completion callback and ID.\n",
-				(id) ? dnet_dump_id(id) : dnet_dump_id(&n->id));
+	if (!complete || !id)
 		return -EINVAL;
-	}
 
 	return dnet_request_notification_raw(n, id, 0, complete, priv);
 }
 
 int dnet_drop_notification(struct dnet_node *n, struct dnet_id *id)
 {
-	if (!id) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: notification drop request requires ID.\n",
-				dnet_dump_id(&n->id));
+	if (!id)
 		return -EINVAL;
-	}
 
 	return dnet_request_notification_raw(n, id, 1, NULL, NULL);
 }

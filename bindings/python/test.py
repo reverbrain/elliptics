@@ -14,7 +14,7 @@ for x in xrange(0, 20) :
 
 try:
 	log = elliptics_log_file("/dev/stderr", 15)
-	n = elliptics_node_python(id.buffer_info()[0], log)
+	n = elliptics_node_python(log)
 
 	t = elliptics_transform_openssl("sha1")
 

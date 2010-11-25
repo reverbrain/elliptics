@@ -88,6 +88,14 @@ struct dnet_id {
 	uint32_t		version;
 } __attribute__ ((packed));
 
+struct dnet_raw_id {
+	uint8_t			id[DNET_ID_SIZE];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_raw_id(struct dnet_raw_id *id __attribute__ ((unused)))
+{
+}
+
 static inline void dnet_setup_id(struct dnet_id *id, unsigned int group_id, unsigned char *raw)
 {
 	memcpy(id->id, raw, DNET_ID_SIZE);
@@ -220,18 +228,6 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 	dnet_convert_cmd(&l->cmd);
 	dnet_convert_attr(&l->a);
 	dnet_convert_addr_attr(&l->addr);
-}
-
-struct dnet_route_attr
-{
-	struct dnet_id		id;
-	struct dnet_addr_attr	addr;
-} __attribute__ ((packed));
-
-static inline void dnet_convert_route_attr(struct dnet_route_attr *r)
-{
-	dnet_convert_id(&r->id);
-	dnet_convert_addr_attr(&r->addr);
 }
 
 /* Do not update history for given transaction */
@@ -412,7 +408,6 @@ static inline void dnet_convert_stat_count(struct dnet_stat_count *st, int num)
 struct dnet_addr_stat
 {
 	struct dnet_addr		addr;
-	struct dnet_id			id;
 	int				num;
 	struct dnet_stat_count		count[0];
 } __attribute__ ((packed));
@@ -424,7 +419,6 @@ static inline void dnet_convert_addr_stat(struct dnet_addr_stat *st, int num)
 	if (!num)
 		num = st->num;
 
-	dnet_convert_id(&st->id);
 	dnet_convert_stat_count(st->count, num);
 }
 

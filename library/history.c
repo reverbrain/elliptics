@@ -633,7 +633,7 @@ static void bdb_backend_error_handler(const DB_ENV *env __unused, const char *pr
 	fprintf(stderr, "%s: %s.\n", prefix, msg);
 }
 
-static int bdb_compare(DB *db, const DBT *key1, const DBT *key2)
+static int bdb_compare(DB *db __unused, const DBT *key1, const DBT *key2)
 {
 	printf("k1: %s\n", dnet_dump_id_str(key1->data));
 	printf("k2: %s\n", dnet_dump_id_str(key2->data));

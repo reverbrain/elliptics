@@ -126,9 +126,13 @@ static struct dnet_group *dnet_group_create(unsigned int group_id)
 
 	memset(g, 0, sizeof(struct dnet_group));
 
-	INIT_LIST_HEAD(&g->state_list);
 	atomic_set(&g->refcnt, 1);
 	g->group_id = group_id;
+
+	INIT_LIST_HEAD(&g->state_list);
+
+	g->id_num = 0;
+	g->ids = NULL;
 
 	return g;
 }
@@ -140,6 +144,7 @@ void dnet_group_destroy(struct dnet_group *g)
 		exit(-1);
 	}
 	list_del(&g->group_entry);
+	free(g->ids);
 	free(g);
 }
 
@@ -157,120 +162,158 @@ static struct dnet_group *dnet_group_search(struct dnet_node *n, unsigned int gr
 	return found;
 }
 
-void dnet_state_remove(struct dnet_net_state *st)
+static int dnet_idc_compare(const void *k1, const void *k2)
 {
-	struct dnet_node *n = st->n;
-
-	pthread_rwlock_wrlock(&n->state_lock);
-	list_del_init(&st->state_entry);
-	pthread_rwlock_unlock(&n->state_lock);
+	const struct dnet_state_id *id1 = k1;
+	const struct dnet_state_id *id2 = k2;
+	
+	return dnet_id_cmp_str(id1->raw.id, id2->raw.id);
 }
 
-int dnet_state_insert_raw(struct dnet_net_state *new)
+int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id *ids, int id_num)
 {
-	struct dnet_node *n = new->n;
+	struct dnet_node *n = st->n;
+	struct dnet_idc *idc;
 	struct dnet_group *g;
-	struct dnet_net_state *st;
-	int err = 1;
+	int err = -ENOMEM, i;
 
-	g = dnet_group_search(n, new->id.group_id);
+	idc = malloc(sizeof(struct dnet_idc) + sizeof(struct dnet_state_id) * id_num);
+	if (!idc)
+		goto err_out_exit;
+
+	memset(idc, 0, sizeof(struct dnet_idc));
+
+	for (i=0; i<id_num; ++i) {
+		struct dnet_state_id *sid = &idc->ids[i];
+		memcpy(&sid->raw, &ids[i], sizeof(struct dnet_raw_id));
+		sid->idc = idc;
+	}
+
+	pthread_rwlock_wrlock(&n->state_lock);
+
+	g = dnet_group_search(n, group_id);
 	if (!g) {
-		g = dnet_group_create(new->id.group_id);
+		g = dnet_group_create(group_id);
 		if (!g)
-			return -ENOMEM;
+			goto err_out_unlock;
 
 		list_add_tail(&g->group_entry, &n->group_list);
 	}
 
-	new->group = g;
+	g->ids = realloc(g->ids, (g->id_num + id_num) * sizeof(struct dnet_state_id));
+	if (!g->ids)
+		goto err_out_unlock;
 
-	list_for_each_entry(st, &g->state_list, state_entry) {
-		err = dnet_id_cmp(&st->id, &new->id);
+	memcpy(&g->ids[g->id_num], idc->ids, id_num * sizeof(struct dnet_state_id));
 
-		if (!err) {
-#if 0
-			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: old: %s.\n", dnet_dump_id(&st->id),
-				dnet_server_convert_dnet_addr(&st->addr));
-			dnet_log(n, DNET_LOG_ERROR, "%s: state exists: new: %s.\n", dnet_dump_id(&new->id),
-				dnet_server_convert_dnet_addr(&new->addr));
-#endif
-			break;
-		}
+	g->id_num += id_num;
 
-		if (err < 0) {
-			dnet_log(n, DNET_LOG_DSA, "adding %s before %s.\n",
-					dnet_server_convert_dnet_addr(&new->addr),
-					dnet_dump_id(&st->id));
-			list_add_tail(&new->state_entry, &st->state_entry);
-			break;
-		}
-	}
+	qsort(g->ids, g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
 
-	if (err > 0) {
-		dnet_log(n, DNET_LOG_DSA, "adding %s to the end.\n",
-				dnet_server_convert_dnet_addr(&new->addr));
-		list_add_tail(&new->state_entry, &g->state_list);
-	}
+	list_add_tail(&st->state_entry, &g->state_list);
 
-	if (err) {
-		dnet_log(n, DNET_LOG_DSA, "%s: group: %u list dump:\n", dnet_dump_id(&new->id), g->group_id);
-		list_for_each_entry(st, &g->state_list, state_entry) {
-			dnet_log(n, DNET_LOG_DSA, "      id: %s, addr: %s.\n",
-				dnet_dump_id(&st->id), dnet_server_convert_dnet_addr(&st->addr));
-		}
-	}
-
-	if (!err) {
-		err = -EEXIST;
-		dnet_group_put(new->group);
-		new->group = NULL;
-	} else
-		err = 0;
-
-	return err;
-}
-
-int dnet_state_insert(struct dnet_net_state *st)
-{
-	int err;
-	struct dnet_node *n = st->n;
-
-	pthread_rwlock_wrlock(&n->state_lock);
-	err = dnet_state_insert_raw(st);
 	pthread_rwlock_unlock(&n->state_lock);
 
+	idc->id_num = id_num;
+	idc->st = st;
+	idc->group = g;
+
+	dnet_log(n, DNET_LOG_DSA, "Initialized group %d with %d ids.\n", g->group_id, g->id_num);
+
+	st->idc = idc;
+	return 0;
+
+err_out_unlock:
+	pthread_rwlock_unlock(&n->state_lock);
+	free(idc);
+err_out_exit:
 	return err;
 }
 
-static struct dnet_net_state *__dnet_state_search(struct dnet_node *n, struct dnet_id *id, struct dnet_net_state *self)
+void dnet_idc_destroy(struct dnet_net_state *st)
 {
-	struct dnet_net_state *st, *found = NULL;
+	struct dnet_idc *idc = st->idc;
+	struct dnet_group *g;
+	int i;
+
+	if (!idc)
+		return;
+
+	g = idc->group;
+
+	for (i=0; i<g->id_num; ++i) {
+		if (g->ids[i].idc == idc) {
+			memmove(&g->ids[i], &g->ids[i+1], (g->id_num - i) * sizeof(struct dnet_state_id));
+
+			g->id_num--;
+		}
+	}
+
+	qsort(g->ids,  g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
+
+	dnet_group_put(idc->group);
+	free(idc);
+
+	st->idc = NULL;
+}
+
+static int __dnet_idc_search(struct dnet_group *g, struct dnet_id *id)
+{
+	int low, high, i, cmp;
+	struct dnet_state_id *sid;
+
+	for (low = -1, high = g->id_num; high-low > 1; ) {
+		i = low + (high - low)/2; 
+		sid = &g->ids[i];
+
+		cmp = dnet_id_cmp_str(sid->raw.id, id->id);
+		if (cmp < 0)
+			low = i;
+		else if (cmp > 0)
+			high = i;
+		else
+			goto out;
+	}
+	i = high - 1;
+
+out:
+	if (i == -1)
+		i = g->id_num - 1;
+
+	dnet_log(g->ids[0].idc->st->n, DNET_LOG_DSA, "%s: pos: %d\n", dnet_dump_id(id), i);
+
+	return i;
+}
+
+static struct dnet_state_id *dnet_idc_search(struct dnet_group *g, struct dnet_id *id)
+{
+	return &g->ids[__dnet_idc_search(g, id)];
+}
+
+static struct dnet_state_id *__dnet_state_search_id(struct dnet_node *n, struct dnet_id *id)
+{
+	struct dnet_state_id *sid;
 	struct dnet_group *group;
-	int cmp;
 
 	group = dnet_group_search(n, id->group_id);
 	if (!group)
 		return NULL;
 
-	list_for_each_entry(st, &group->state_list, state_entry) {
-		if (st == self)
-			continue;
-
-		cmp = dnet_id_cmp(&st->id, id);
-
-		dnet_log(n, DNET_LOG_DSA, "state search: group: %u, id: %02x, state: %02x, cmp: %d.\n",
-				id->group_id, id->id[0], st->id.id[0], cmp);
-
-		if (cmp <= 0) {
-			found = st;
-			dnet_state_get(found);
-			break;
-		}
-	}
+	sid = dnet_idc_search(group, id);
 
 	dnet_group_put(group);
 
-	return found;
+	return sid;
+}
+
+static struct dnet_net_state *__dnet_state_search(struct dnet_node *n, struct dnet_id *id)
+{
+	struct dnet_state_id *sid = __dnet_state_search_id(n, id);
+
+	if (!sid)
+		return NULL;
+
+	return dnet_state_get(sid->idc->st);
 }
 
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr)
@@ -296,40 +339,47 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	return found;
 }
 
-struct dnet_net_state *dnet_state_search(struct dnet_node *n, struct dnet_id *id, struct dnet_net_state *self)
+struct dnet_net_state *dnet_state_search(struct dnet_node *n, struct dnet_id *id)
 {
 	struct dnet_net_state *st;
 
 	pthread_rwlock_rdlock(&n->state_lock);
-	st = __dnet_state_search(n, id, self);
+	st = __dnet_state_search(n, id);
 	pthread_rwlock_unlock(&n->state_lock);
 
 	return st;
 }
 
-struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id, struct dnet_net_state *self)
+int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp)
+{
+	struct dnet_state_id *sid;
+	int err = -ENOENT;
+
+	pthread_rwlock_rdlock(&n->state_lock);
+	sid = __dnet_state_search_id(n, id);
+	if (sid) {
+		err = 0;
+		memcpy(sidp, sid, sizeof(struct dnet_state_id));
+	}
+	pthread_rwlock_unlock(&n->state_lock);
+
+	return err;
+}
+
+struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id)
 {
 	struct dnet_net_state *found;
 
 	pthread_rwlock_rdlock(&n->state_lock);
-	found = __dnet_state_search(n, id, self);
+	found = __dnet_state_search(n, id);
 	if (!found) {
 		struct dnet_group *g;
-		struct dnet_net_state *st;
 
 		g = dnet_group_search(n, id->group_id);
 		if (!g)
 			goto err_out_unlock;
 
-		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (st == self)
-				continue;
-
-			found = st;
-			dnet_state_get(found);
-			break;
-		}
-
+		found = dnet_state_get(g->ids[0].idc->st);
 		dnet_group_put(g);
 	}
 
@@ -340,40 +390,161 @@ err_out_unlock:
 
 int dnet_state_get_next_id(struct dnet_node *n, struct dnet_id *id)
 {
-	struct dnet_net_state *st, *next = NULL;
+	struct dnet_state_id *this, *next;
+	int pos;
 	struct dnet_group *g;
 
 	pthread_rwlock_rdlock(&n->state_lock);
-	st = __dnet_state_search(n, id, NULL);
-	if (!st)
-		goto err_out_unlock;
-
 	g = dnet_group_search(n, id->group_id);
 	if (!g)
-		goto err_out_put;
+		goto err_out_unlock;
 
-	next = list_entry(st->state_entry.prev, struct dnet_net_state, state_entry);
-	if (&next->state_entry == &g->state_list)
-		next = list_entry(g->state_list.prev, struct dnet_net_state, state_entry);
+	pos = __dnet_idc_search(g, id);
+	this = &g->ids[pos];
 
-	memcpy(id, &next->id, DNET_ID_SIZE);
+	pos++;
+	if (pos == g->id_num)
+		pos = 0;
+	next = &g->ids[pos];
 
-	dnet_log(n, DNET_LOG_INFO, "st: %s - %s\n", dnet_dump_id(&st->id), dnet_server_convert_dnet_addr(&st->addr));
-	dnet_log(n, DNET_LOG_INFO, "nx: %s - %s\n", dnet_dump_id(&next->id), dnet_server_convert_dnet_addr(&next->addr));
+	memcpy(id->id, next->raw.id, DNET_ID_SIZE);
+
+	dnet_log(n, DNET_LOG_DSA, "this: %s - %s\n", dnet_dump_id_str(this->raw.id), dnet_server_convert_dnet_addr(&this->idc->st->addr));
+	dnet_log(n, DNET_LOG_DSA, "next: %s - %s\n", dnet_dump_id_str(next->raw.id), dnet_server_convert_dnet_addr(&next->idc->st->addr));
 
 	dnet_group_put(g);
 
-err_out_put:
-	dnet_state_put(st);
 err_out_unlock:
 	pthread_rwlock_unlock(&n->state_lock);
 
 	return 0;
 }
 
+static int dnet_ids_generate(struct dnet_node *n, const char *file)
+{
+	int fd, err, size = 1024, i;
+	struct dnet_id id;
+	struct dnet_raw_id raw;
+	char *buf;
+
+	srand(time(NULL));
+
+	fd = open(file, O_RDWR | O_CREAT | O_TRUNC | O_APPEND, 0644);
+	if (fd < 0) {
+		err = -errno;
+		dnet_log_err(n, "failed to open/create ids file '%s'", file);
+		goto err_out_exit;
+	}
+
+	buf = malloc(size);
+	if (!buf) {
+		err = -ENOMEM;
+		goto err_out_close;
+	}
+
+	for (i=0; i<1024; ++i) {
+		int r = rand();
+		memcpy(buf, &n->addr, sizeof(struct dnet_addr));
+		memcpy(buf + sizeof(struct dnet_addr), &r, sizeof(r));
+
+		dnet_transform(n, buf, size, &id);
+		memcpy(&raw, id.id, sizeof(struct dnet_raw_id));
+
+		err = write(fd, &raw, sizeof(struct dnet_raw_id));
+		if (err != sizeof(struct dnet_raw_id)) {
+			dnet_log_err(n, "failed to write id into ids file '%s'", file);
+			goto err_out_unlink;
+		}
+	}
+
+	close(fd);
+	return 0;
+
+err_out_unlink:
+	unlink(file);
+err_out_close:
+	close(fd);
+err_out_exit:
+	return err;
+}
+
+static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, int *id_num)
+{
+	int fd, err, num;
+	const char *file = "ids";
+	char path[strlen(hdir) + 1 + strlen(file) + 1]; /* / + null-byte */
+	struct stat st;
+	struct dnet_raw_id *ids;
+
+	snprintf(path, sizeof(path), "%s/%s", hdir, file);
+
+again:
+	fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		err = -errno;
+		if (err == -ENOENT) {
+			err = dnet_ids_generate(n, path);
+			if (err)
+				goto err_out_exit;
+
+			goto again;
+		}
+
+		dnet_log_err(n, "failed to open ids file '%s'", path);
+		goto err_out_exit;
+	}
+
+	err = fstat(fd, &st);
+	if (err)
+		goto err_out_close;
+
+	if (st.st_size % sizeof(struct dnet_raw_id)) {
+		dnet_log(n, DNET_LOG_ERROR, "Ids file size (%lu) is wrong, must be modulo of raw ID size (%zu).\n",
+				(unsigned long)st.st_size, sizeof(struct dnet_raw_id));
+		goto err_out_close;
+	}
+
+	num = st.st_size / sizeof(struct dnet_raw_id);
+
+	dnet_log(n, DNET_LOG_DSA, "Reading ids file: %d ids found.\n", num);
+
+	if (!num) {
+		dnet_log(n, DNET_LOG_ERROR, "No ids read, exiting.\n");
+		err = -EINVAL;
+		goto err_out_close;
+	}
+
+	ids = malloc(st.st_size);
+	if (!ids) {
+		err = -ENOMEM;
+		goto err_out_close;
+	}
+
+	err = read(fd, ids, st.st_size);
+	if (err != st.st_size) {
+		err = -errno;
+		dnet_log_err(n, "Failed to read ids file '%s'", path);
+		goto err_out_free;
+	}
+
+	close(fd);
+
+	*id_num = num;
+	return ids;
+
+err_out_free:
+	free(ids);
+err_out_close:
+	close(fd);
+err_out_exit:
+	return NULL;
+}
+
 struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 {
 	struct dnet_node *n;
+	struct dnet_raw_id *ids = NULL;
+	int id_num;
 	int err = -ENOMEM;
 	sigset_t sig;
 
@@ -405,8 +576,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!cfg->family)
 		cfg->family = AF_INET;
 
-	memcpy(&n->id, &cfg->id, sizeof(struct dnet_id));
-
 	n->proto = cfg->proto;
 	n->sock_type = cfg->sock_type;
 	n->family = cfg->family;
@@ -422,67 +591,73 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->wait_ts.tv_sec)
 		n->wait_ts.tv_sec = 60*60;
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: using %d stack size.\n",
-			dnet_dump_id(&n->id), cfg->stack_size);
+	dnet_log(n, DNET_LOG_DSA, "Using %d stack size.\n", cfg->stack_size);
 
 	if (!n->check_timeout) {
 		n->check_timeout = DNET_DEFAULT_CHECK_TIMEOUT_SEC;
-		dnet_log(n, DNET_LOG_NOTICE, "%s: using default check timeout (%ld seconds).\n",
-				dnet_dump_id(&n->id), n->check_timeout);
+		dnet_log(n, DNET_LOG_NOTICE, "Using default check timeout (%ld seconds).\n",
+				n->check_timeout);
 	}
 
 	if (!n->notify_hash_size) {
 		n->notify_hash_size = DNET_DEFAULT_NOTIFY_HASH_SIZE;
-		dnet_log(n, DNET_LOG_NOTICE, "%s: no hash size provided, using default %d.\n",
-				dnet_dump_id(&n->id), n->notify_hash_size);
-	}
-
-	if (cfg->join & DNET_JOIN_NETWORK) {
-		err = dnet_db_init(n, cfg->history_env);
-		if (err)
-			goto err_out_free;
+		dnet_log(n, DNET_LOG_NOTICE, "No notify hash size provided, using default %d.\n",
+				n->notify_hash_size);
 	}
 
 	err = dnet_crypto_init(n);
 	if (err)
-		goto err_out_db_cleanup;
+		goto err_out_free;
 
 	err = dnet_notify_init(n);
 	if (err)
 		goto err_out_crypto_cleanup;
 
 	if (cfg->join & DNET_JOIN_NETWORK) {
+		ids = dnet_ids_init(n, cfg->history_env, &id_num);
+		if (!ids)
+			goto err_out_notify_exit;
+
+		err = dnet_db_init(n, cfg->history_env);
+		if (err)
+			goto err_out_ids_cleanup;
+
 		n->addr.addr_len = sizeof(n->addr.addr);
 
 		err = dnet_socket_create(n, cfg, (struct sockaddr *)&n->addr.addr, &n->addr.addr_len, 1);
 		if (err < 0)
-			goto err_out_notify_exit;
+			goto err_out_db_cleanup;
 
 		n->listen_socket = err;
 
-		n->st = dnet_state_create(n, (cfg->join & DNET_JOIN_NETWORK)?&n->id:NULL, &n->addr, n->listen_socket);
+		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, n->listen_socket);
 		if (!n->st) {
 			close(n->listen_socket);
-			goto err_out_notify_exit;
+			goto err_out_db_cleanup;
 		}
+
+		free(ids);
+		ids = NULL;
 	}
 
 	err = dnet_check_thread_start(n);
 	if (err)
 		goto err_out_state_destroy;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: new node has been created at %s, id_size: %u.\n",
-			dnet_dump_id(&n->id), dnet_dump_node(n), DNET_ID_SIZE);
+	dnet_log(n, DNET_LOG_DSA, "New node has been created at %s, id_size: %u.\n",
+			dnet_dump_node(n), DNET_ID_SIZE);
 	return n;
 
 err_out_state_destroy:
 	dnet_state_put(n->st);
+err_out_db_cleanup:
+	dnet_db_cleanup(n);
+err_out_ids_cleanup:
+	free(ids);
 err_out_notify_exit:
 	dnet_notify_exit(n);
 err_out_crypto_cleanup:
 	dnet_crypto_cleanup(n);
-err_out_db_cleanup:
-	dnet_db_cleanup(n);
 err_out_free:
 	free(n);
 err_out_exit:
@@ -495,8 +670,8 @@ void dnet_node_destroy(struct dnet_node *n)
 {
 	struct dnet_addr_storage *it, *atmp;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: destroying node at %s, st: %p.\n",
-			dnet_dump_id(&n->id), dnet_dump_node(n), n->st);
+	dnet_log(n, DNET_LOG_DSA, "Destroying node at %s, st: %p.\n",
+			dnet_dump_node(n), n->st);
 
 	n->need_exit = 1;
 	dnet_check_thread_stop(n);
@@ -504,8 +679,8 @@ void dnet_node_destroy(struct dnet_node *n)
 	dnet_check_tree(n, 1);
 
 	while (!list_empty(&n->empty_state_list) || !list_empty(&n->group_list)) {
-		dnet_log(n, DNET_LOG_NOTICE, "%s: waiting for state lists to become empty: empty_state_list: %d, group_list: %d.\n",
-				dnet_dump_id(&n->id), list_empty(&n->empty_state_list), list_empty(&n->group_list));
+		dnet_log(n, DNET_LOG_NOTICE, "Waiting for state lists to become empty: empty_state_list: %d, group_list: %d.\n",
+				list_empty(&n->empty_state_list), list_empty(&n->group_list));
 		sleep(1);
 	}
 
@@ -538,9 +713,4 @@ void dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num)
 
 	n->groups = groups;
 	n->group_num = group_num;
-}
-
-void dnet_node_set_id(struct dnet_node *n, struct dnet_id *id)
-{
-	memcpy(&n->id, id, sizeof(struct dnet_id));
 }

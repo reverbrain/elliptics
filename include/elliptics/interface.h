@@ -258,11 +258,6 @@ struct dnet_log {
 struct dnet_config
 {
 	/*
-	 * Unique group-wide ID.
-	 */
-	struct dnet_id		id;
-
-	/*
 	 * Socket type (SOCK_STREAM, SOCK_DGRAM and so on),
 	 * a protocol (IPPROTO_TCP for example) and
 	 * a family (AF_INET, AF_INET6 and so on)
@@ -292,6 +287,11 @@ struct dnet_config
 	 * Also has a bit to forbid route list download.
 	 */
 	int			join;
+
+	/*
+	 * If node joins network this will be used to find a group to join.
+	 */
+	int			group_id;
 
 	/* Private logger */
 	struct dnet_log		*log;
@@ -722,8 +722,6 @@ struct dnet_id_la {
 
 int dnet_generate_ids_by_la(struct dnet_node *n, struct dnet_id *id, struct dnet_id_la **dst);
 int dnet_get_la(struct dnet_node *n, struct dnet_id *id);
-
-void dnet_node_set_id(struct dnet_node *n, struct dnet_id *id);
 
 #ifdef __cplusplus
 }

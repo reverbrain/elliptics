@@ -41,8 +41,8 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t siz
 
 	while (size) {
 		if (size < sizeof(struct dnet_meta)) {
-			dnet_map_log(n, DNET_LOG_ERROR, "%s: metadata size %u is too small, min %zu, searching for type 0x%x.\n",
-					(n) ? dnet_dump_id(&n->id) : "NULL", size, sizeof(struct dnet_meta), type);
+			dnet_map_log(n, DNET_LOG_ERROR, "Metadata size %u is too small, min %zu, searching for type 0x%x.\n",
+					size, sizeof(struct dnet_meta), type);
 			break;
 		}
 
@@ -50,9 +50,9 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t siz
 		//dnet_convert_meta(&m);
 
 		if (m.size + sizeof(struct dnet_meta) > size) {
-			dnet_map_log(n, DNET_LOG_ERROR, "%s: metadata entry broken: entry size %u, type: 0x%x, struct size: %zu, "
+			dnet_map_log(n, DNET_LOG_ERROR, "Metadata entry broken: entry size %u, type: 0x%x, struct size: %zu, "
 					"total size left: %u, searching for type: 0x%x.\n",
-					(n) ? dnet_dump_id(&n->id) : "NULL", m.size, m.type, sizeof(struct dnet_meta), size, type);
+					m.size, m.type, sizeof(struct dnet_meta), size, type);
 			break;
 		}
 
