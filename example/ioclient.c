@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
 
 	if (cmd) {
 		err = dnet_send_cmd(n, NULL, cmd);
-		if (err)
+		if (err < 0)
 			return err;
 	}
 
