@@ -169,9 +169,13 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 	int *groups;
 
 	err = dnet_check_find_groups(n, mc, &groups);
-	if (err > 0) {
-		err = dnet_check_number_of_copies(n, mc, groups, err);
-	}
+	if (err < 0)
+		return err;
+	if (err == 0)
+		return -ENOENT;
+
+	err = dnet_check_number_of_copies(n, mc, groups, err);
+	free(groups);
 
 	return err;
 }
