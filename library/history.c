@@ -565,8 +565,6 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 			goto err_out_close_cursor;
 		}
 
-		sleep(1);
-
 		size += sizeof(struct dnet_meta_container) + mc.size;
 	}
 

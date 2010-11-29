@@ -202,6 +202,8 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 		list_add_tail(&g->group_entry, &n->group_list);
 	}
 
+	dnet_log(n, DNET_LOG_DSA, "g: %p, g_id_num: %d, id_num: %d\n", g, g->id_num, id_num);
+
 	g->ids = realloc(g->ids, (g->id_num + id_num) * sizeof(struct dnet_state_id));
 	if (!g->ids)
 		goto err_out_unlock;
@@ -214,15 +216,21 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 
 	list_add_tail(&st->state_entry, &g->state_list);
 
-	pthread_rwlock_unlock(&n->state_lock);
-
 	idc->id_num = id_num;
 	idc->st = st;
 	idc->group = g;
 
+	st->idc = idc;
+
+	for (i=0; i<g->id_num; ++i) {
+		struct dnet_state_id *id = &g->ids[i];
+		dnet_log(n, DNET_LOG_DSA, "%d: %s -> %s\n", g->group_id, dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st));
+	}
+
+	pthread_rwlock_unlock(&n->state_lock);
+
 	dnet_log(n, DNET_LOG_DSA, "Initialized group %d with %d ids.\n", g->group_id, g->id_num);
 
-	st->idc = idc;
 	return 0;
 
 err_out_unlock:
@@ -248,6 +256,7 @@ void dnet_idc_destroy(struct dnet_net_state *st)
 			memmove(&g->ids[i], &g->ids[i+1], (g->id_num - i) * sizeof(struct dnet_state_id));
 
 			g->id_num--;
+			i--;
 		}
 	}
 

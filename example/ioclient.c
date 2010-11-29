@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 	int io_counter_stat = 0, vfs_stat = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
-	char *logfile = NULL, *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
+	char *logfile = "/dev/stderr", *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
 	char *historyf = NULL, *removef = NULL;
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	FILE *log = NULL;
@@ -84,6 +84,11 @@ int main(int argc, char *argv[])
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
 	size = offset = 0;
+
+	cfg.sock_type = SOCK_STREAM;
+	cfg.proto = IPPROTO_TCP;
+	cfg.wait_timeout = 60;
+	ioclient_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO | DNET_LOG_NOTICE;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
@@ -156,21 +161,16 @@ int main(int argc, char *argv[])
 		}
 	}
 	
-	if (!logfile)
-		fprintf(stderr, "No log file found, logging will be disabled.\n");
-
-	if (logfile) {
-		log = fopen(logfile, "a");
-		if (!log) {
-			err = -errno;
-			fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
-			return err;
-		}
-
-		ioclient_logger.log_private = log;
-		ioclient_logger.log = dnet_common_log;
-		cfg.log = &ioclient_logger;
+	log = fopen(logfile, "a");
+	if (!log) {
+		err = -errno;
+		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
+		return err;
 	}
+
+	ioclient_logger.log_private = log;
+	ioclient_logger.log = dnet_common_log;
+	cfg.log = &ioclient_logger;
 
 	n = dnet_node_create(&cfg);
 	if (!n)

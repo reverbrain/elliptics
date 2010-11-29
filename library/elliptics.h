@@ -322,6 +322,7 @@ static inline char *dnet_dump_node(struct dnet_node *n)
 
 struct dnet_trans;
 int dnet_process_cmd(struct dnet_net_state *st);
+int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
 
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size);

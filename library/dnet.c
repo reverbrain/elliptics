@@ -416,8 +416,11 @@ err_out_exit:
 
 int dnet_process_cmd(struct dnet_net_state *st)
 {
-	struct dnet_cmd *cmd = &st->rcv_cmd;
-	void *data = st->rcv_data;
+	return dnet_process_cmd_raw(st, &st->rcv_cmd, st->rcv_data);
+}
+
+int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+{
 	int err = 0;
 	unsigned long long size = cmd->size;
 	struct dnet_node *n = st->n;
@@ -596,7 +599,7 @@ static int dnet_state_join(struct dnet_net_state *st)
 
 	dnet_setup_id(&id, n->st->idc->group->group_id, st->idc->ids[0].raw.id);
 
-	err = dnet_send_idc(st, st, &id, 0, DNET_CMD_JOIN, 0, 1, 0);
+	err = dnet_send_idc(n->st, st, &id, 0, DNET_CMD_JOIN, 0, 1, 0);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send join request to %s.\n",
 			dnet_dump_id(&id), dnet_server_convert_dnet_addr(&st->addr));
@@ -1264,7 +1267,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 
 			dnet_setup_id(&raw, ctl.id.group_id, ctl.io.parent);
 
-			err = dnet_create_write_metadata(n, &ctl.id, remote, remote_len, n->groups, n->group_num);
+			err = dnet_create_write_metadata(n, &raw, remote, remote_len, n->groups, n->group_num);
 			if (err < 0) {
 				dnet_log(n, DNET_LOG_ERROR, "Failed to write history metadata for file '%s' into the storage, transactions: %d, err: %d.\n", file, trans_num, err);
 				goto err_out_close;

@@ -101,7 +101,7 @@ err_out_exit:
 static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_container *mc, int *groups, int group_num)
 {
 	struct dnet_id raw;
-	int group_id = n->st->idc->group->group_id;
+	int group_id = mc->id.group_id;
 	struct dnet_net_state *st;
 	void *data;
 	char file[256];
@@ -156,7 +156,7 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 				continue;
 
 			err = dnet_write_data_wait(n, NULL, 0, &raw, data, -1, 0, 0, err, NULL,
-				DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY);
+				DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 		}
 	}
 
@@ -180,9 +180,262 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 	return err;
 }
 
-static int dnet_check_merge(struct dnet_node *n __unused, struct dnet_meta_container *mc __unused)
+static void dnet_merge_unlink_local_files(struct dnet_node *n __unused, struct dnet_id *id)
 {
-	return -1;
+	char file[256];
+	char eid[2*DNET_ID_SIZE+1];
+
+	dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, eid);
+	
+	snprintf(file, sizeof(file), "%s/%s.%d%s", dnet_check_tmp_dir, eid, id->group_id, DNET_HISTORY_SUFFIX);
+	unlink(file);
+	
+	snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir, eid, id->group_id);
+	unlink(file);
+}
+
+static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc)
+{
+	void *local_history;
+	int err;
+
+	err = n->send(n->st, n->command_private, &mc->id);
+	if (err < 0)
+		goto err_out_exit;
+
+	err = dnet_db_read_raw(n, 0, mc->id.id, &local_history);
+	if (err <= 0)
+		goto err_out_exit;
+
+	err = dnet_write_data_wait(n, NULL, 0, &mc->id, local_history, -1, 0, 0, err, NULL,
+			DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+	free(local_history);
+	if (err <= 0)
+		goto err_out_exit;
+
+	err = dnet_write_metadata(n, mc, 1);
+	if (err <= 0)
+		goto err_out_exit;
+
+	err = 0;
+
+err_out_exit:
+	return err;
+}
+
+static int dnet_merge_write_history_entry(struct dnet_node *n, char *result, int fd, struct dnet_history_entry *ent)
+{
+	int err;
+
+	err = write(fd, ent, sizeof(struct dnet_history_entry));
+	if (err < 0) {
+		err = -errno;
+		dnet_log_err(n, "%s: failed to write merged entry into result file '%s'",
+				dnet_dump_id_str(ent->id), result);
+		return err;
+	}
+
+	return 0;
+}
+
+static int dnet_merge_upload_latest(struct dnet_node *n, struct dnet_meta_container *mc,
+		struct dnet_history_map *local, struct dnet_history_map *remote)
+{
+	struct dnet_history_entry *elocal = &local->ent[local->num - 1];
+	struct dnet_history_entry *eremote = &remote->ent[remote->num - 1];
+	struct timespec ltime = {.tv_sec = elocal->tsec, .tv_nsec = elocal->tnsec};
+	struct timespec rtime = {.tv_sec = eremote->tsec, .tv_nsec = eremote->tnsec};
+	int err;
+
+	if (dnet_time_after(&ltime, &rtime)) {
+		err = n->send(n->st, n->command_private, &mc->id);
+		if (err)
+			return err;
+
+		err = dnet_write_metadata(n, mc, 1);
+		if (err <= 0)
+			return err;
+	}
+
+	return 0;
+}
+
+static int dnet_merge_common(struct dnet_node *n, char *remote_history, struct dnet_meta_container *mc)
+{
+	struct dnet_history_entry ent1, ent2;
+	struct dnet_history_map remote, local;
+	char id_str[DNET_ID_SIZE*2+1];
+	char result[256];
+	long i, j, added = 0;
+	int err, fd, removed = 0;
+	void *local_history;
+
+	err = dnet_db_read_raw(n, 0, mc->id.id, &local_history);
+	if (err <= 0) {
+		/*
+		 * If we can not map directly downloaded history entry likely object is also broken.
+		 * So delete it.
+		 */
+		dnet_remove_object_now(n, &mc->id, 1);
+		goto err_out_exit;
+	}
+
+	local.num = err / sizeof(struct dnet_history_entry);
+	local.size = err;
+	local.ent = local_history;
+
+	err = dnet_map_history(n, remote_history, &remote);
+	if (err) {
+		err = dnet_merge_direct(n, mc);
+		goto err_out_free;
+	}
+
+	snprintf(result, sizeof(result), "%s/%s.result",
+			dnet_check_tmp_dir,
+			dnet_dump_id_len_raw(mc->id.id, DNET_ID_SIZE, id_str));
+
+	fd = open(result, O_RDWR | O_CREAT | O_TRUNC | O_APPEND, 0644);
+	if (fd < 0) {
+		err = -errno;
+		dnet_log_err(n, "%s: failed to create result file '%s'",
+				dnet_dump_id(&mc->id), result);
+		goto err_out_unmap;
+	}
+
+	for (i=0, j=0; i<remote.num || j<local.num; ++i) {
+		if (i < remote.num) {
+			ent1 = remote.ent[i];
+
+			dnet_convert_history_entry(&ent1);
+			dnet_log(n, DNET_LOG_DSA, "%s: 1 ts: %llu.%llu\n", dnet_dump_id_str(ent1.id),
+					(unsigned long long)ent1.tsec, (unsigned long long)ent1.tnsec);
+		}
+
+		for (; j<local.num; ++j) {
+			ent2 = local.ent[j];
+
+			dnet_convert_history_entry(&ent2);
+			dnet_log_raw(n, DNET_LOG_DSA, "%s: 2 ts: %llu.%llu\n", dnet_dump_id_str(ent2.id),
+					(unsigned long long)ent2.tsec, (unsigned long long)ent2.tnsec);
+
+			if (i < remote.num) {
+				if (ent1.tsec < ent2.tsec)
+					break;
+				if ((ent1.tsec == ent2.tsec) && (ent1.tnsec < ent2.tnsec))
+					break;
+				if ((ent1.tnsec == ent2.tnsec) && !dnet_id_cmp_str(ent1.id, ent2.id)) {
+					j++;
+					break;
+				}
+			}
+
+			err = dnet_merge_write_history_entry(n, result, fd, &local.ent[j]);
+			if (err)
+				goto err_out_close;
+			added++;
+			removed = !!(ent2.flags & DNET_IO_FLAGS_REMOVED);
+		}
+
+		if (i < remote.num) {
+			err = dnet_merge_write_history_entry(n, result, fd, &remote.ent[i]);
+			if (err)
+				goto err_out_close;
+			added++;
+			removed = !!(ent1.flags & DNET_IO_FLAGS_REMOVED);
+		}
+	}
+
+	fsync(fd);
+
+	err = dnet_write_file_local_offset(n, result, NULL, 0, &mc->id, 0, 0, 0,
+			DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to upload merged transaction history: %d.\n",
+				dnet_dump_id(&mc->id), err);
+		goto err_out_close;
+	}
+
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: merged local: %ld, remote: %ld -> %ld entries, removed: %d.\n",
+			dnet_dump_id(&mc->id), local.num, remote.num, added, removed);
+
+	if (removed) {
+		dnet_remove_object_now(n, &mc->id, 0);
+	} else {
+		err = dnet_merge_upload_latest(n, mc, &local, &remote);
+	}
+
+err_out_close:
+	unlink(result);
+	close(fd);
+err_out_unmap:
+	dnet_unmap_history(n, &remote);
+err_out_free:
+	free(local_history);
+err_out_exit:
+	return err;
+}
+
+static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id)
+{
+	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)];
+	struct dnet_cmd *cmd;
+	struct dnet_attr *attr;
+
+	memset(buf, 0, sizeof(buf));
+
+	cmd = (struct dnet_cmd *)buf;
+	attr = (struct dnet_attr *)(cmd + 1);
+
+	memcpy(&cmd->id, id, sizeof(struct dnet_id));
+	cmd->size = sizeof(struct dnet_attr);
+
+	attr->cmd = DNET_CMD_DEL;
+	attr->flags = DNET_ATTR_DIRECT_TRANSACTION;
+
+	dnet_convert_attr(attr);
+
+	return dnet_process_cmd_raw(n->st, cmd, attr);
+}
+
+static int dnet_check_merge(struct dnet_node *n, struct dnet_meta_container *mc)
+{
+	int err;
+	char file[256], id_str[2*DNET_ID_SIZE+1];
+
+	snprintf(file, sizeof(file), "%s/%s.%d",
+			dnet_check_tmp_dir,
+			dnet_dump_id_len_raw(mc->id.id, DNET_ID_SIZE, id_str),
+			mc->id.group_id);
+
+	err = dnet_read_file(n, file, NULL, 0, &mc->id, 0, 0, 1);
+	if (err) {
+		if (err != -ENOENT) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n", dnet_dump_id(&mc->id), err);
+			goto err_out_exit;
+		}
+
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: there is no history in the storage to merge with, "
+				"doing direct merge (plain upload).\n", dnet_dump_id(&mc->id));
+		err = dnet_merge_direct(n, mc);
+	} else {
+		snprintf(file, sizeof(file), "%s/%s.%d%s",
+				dnet_check_tmp_dir,
+				id_str,
+				mc->id.group_id,
+				DNET_HISTORY_SUFFIX);
+
+		err = dnet_merge_common(n, file, mc);
+	}
+
+	dnet_merge_unlink_local_files(n, &mc->id);
+
+	if (err)
+		goto err_out_exit;
+
+	dnet_merge_remove_local(n, &mc->id);
+
+err_out_exit:
+	return err;
 }
 
 int dnet_check(struct dnet_node *n, const char *file, unsigned long long size)
@@ -209,6 +462,7 @@ int dnet_check(struct dnet_node *n, const char *file, unsigned long long size)
 	while (!n->need_exit && size > 0) {
 		mc = data;
 		check_copies = mc->id.group_id;
+		mc->id.group_id = n->st->idc->group->group_id;
 
 		if (check_copies) {
 			err = dnet_check_copies(n, mc);
