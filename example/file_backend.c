@@ -50,13 +50,13 @@ struct file_backend_root
 };
 
 static inline void file_backend_setup_file(struct file_backend_root *r, char *file,
-		unsigned int size, struct dnet_io_attr *io)
+		unsigned int size, const unsigned char *id)
 {
 	char dir[2*DNET_ID_SIZE+1];
-	char id[2*DNET_ID_SIZE+1];
+	char id_str[2*DNET_ID_SIZE+1];
 
-	file_backend_get_dir(io->id, r->bit_num, dir);
-	snprintf(file, size, "%s/%s", dir, dnet_dump_id_len_raw(io->id, DNET_ID_SIZE, id));
+	file_backend_get_dir(id, r->bit_num, dir);
+	snprintf(file, size, "%s/%s", dir, dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str));
 }
 
 static inline uint64_t file_backend_get_dir_bits(const unsigned char *id, int bit_num)
@@ -94,7 +94,7 @@ static void dnet_remove_file_if_empty(struct file_backend_root *r, struct dnet_i
 {
 	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2];
 
-	file_backend_setup_file(r, file, sizeof(file), io);
+	file_backend_setup_file(r, file, sizeof(file), io->id);
 	dnet_remove_file_if_empty_raw(file);
 }
 
@@ -107,7 +107,7 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 	int fd;
 	ssize_t err;
 
-	file_backend_setup_file(r, file, sizeof(file), io);
+	file_backend_setup_file(r, file, sizeof(file), io->id);
 
 	if (io->flags & DNET_IO_FLAGS_APPEND)
 		oflags |= O_APPEND;
@@ -194,7 +194,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 
 	dnet_convert_io_attr(io);
 
-	file_backend_setup_file(r, file, sizeof(file), io);
+	file_backend_setup_file(r, file, sizeof(file), io->id);
 
 	fd = open(file, O_RDONLY, 0644);
 	if (fd < 0) {
@@ -331,10 +331,31 @@ err_out_exit:
 	return err;
 }
 
+static int file_backend_send(void *state, void *priv, struct dnet_id *id)
+{
+	struct dnet_node *n = dnet_get_node_from_state(state);
+	struct file_backend_root *r = priv;
+	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
+	int err = 0;
+
+	file_backend_setup_file(r, file, sizeof(file), id->id);
+
+	if (!access(file, R_OK)) {
+		err = dnet_write_file_local_offset(n, file, NULL, 0, id, 0, 0, 0,
+				DNET_ATTR_DIRECT_TRANSACTION, 0);
+		if (err)
+			goto err_out_exit;
+	}
+
+err_out_exit:
+	return err;
+}
+
 static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_config *c)
 {
 	c->command_private = b->data;
 	c->command_handler = file_backend_command_handler;
+	c->send = file_backend_send;
 
 	c->storage_size = b->storage_size;
 	c->storage_free = b->storage_free;

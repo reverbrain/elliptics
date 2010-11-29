@@ -110,6 +110,25 @@ static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 	return eblob_remove(c->data_blob, cmd->id.id, DNET_ID_SIZE);
 }
 
+static int eblob_send(void *state, void *priv, struct dnet_id *id)
+{
+	struct dnet_node *n = dnet_get_node_from_state(state);
+	struct eblob_backend *b = priv;
+	uint64_t offset, size;
+	int err, fd;
+
+	err = eblob_read(b, id->id, DNET_ID_SIZE, &fd, &offset, &size);
+	if (!err) {
+		err = dnet_write_data_wait(n, NULL, 0, id, NULL, fd, offset, 0, size,
+				NULL, DNET_ATTR_DIRECT_TRANSACTION, 0);
+		if (err)
+			goto err_out_exit;
+	}
+
+err_out_exit:
+	return err;
+}
+
 static int eblob_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
@@ -236,6 +255,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	cfg->command_private = c;
 	cfg->command_handler = eblob_backend_command_handler;
+	cfg->send = eblob_send;
 
 	return 0;
 

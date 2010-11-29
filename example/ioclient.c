@@ -190,6 +190,8 @@ int main(int argc, char *argv[])
 			return error;
 	}
 
+	sleep(1);
+
 	if (writef) {
 		err = dnet_write_file(n, writef, writef, strlen(writef), NULL, offset, size, 0);
 		if (err)

@@ -205,7 +205,8 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 		void *remote, unsigned int len, struct dnet_id *id, int hupdate);
 
 int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
-		struct dnet_id *id, void *data, uint64_t offset, uint64_t size,
+		struct dnet_id *id, void *data, int fd, uint64_t local_offset,
+		uint64_t offset, uint64_t size,
 		struct timespec *ts, unsigned int aflags, unsigned int ioflags);
 
 /*
@@ -305,6 +306,7 @@ struct dnet_config
 	int			(* command_handler)(void *state, void *priv,
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
+	int			(* send)(void *state, void *priv, struct dnet_id *id);
 
 	/*
 	 * Free and total space on given storage.
@@ -728,6 +730,8 @@ struct dnet_id_la {
 
 int dnet_generate_ids_by_la(struct dnet_node *n, struct dnet_id *id, struct dnet_id_la **dst);
 int dnet_get_la(struct dnet_node *n, struct dnet_id *id);
+
+int dnet_request_check(struct dnet_node *n);
 
 #ifdef __cplusplus
 }

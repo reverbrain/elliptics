@@ -298,6 +298,7 @@ struct dnet_node
 	int			(* command_handler)(void *state, void *priv,
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
+	int			(* send)(void *state, void *priv, struct dnet_id *id);
 
 	struct list_head	io_thread_list;
 	pthread_rwlock_t	io_thread_lock;
@@ -422,10 +423,21 @@ int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 
 int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data);
 int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io);
+int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **datap);
 int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr);
 int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr);
 void dnet_db_cleanup(struct dnet_node *n);
 int dnet_db_init(struct dnet_node *n, char *histfile);
+
+int dnet_check(struct dnet_node *n, const char *file, unsigned long long size);
+
+int dnet_request_cmd_single(struct dnet_node *n,
+	struct dnet_net_state *st, struct dnet_id *id, unsigned int cmd,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			struct dnet_attr *attr,
+			void *priv),
+	void *priv);
 
 #ifdef __cplusplus
 }

@@ -213,6 +213,8 @@ static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *sen
 		dnet_convert_raw_id(&sid[i]);
 	}
 
+	dnet_log(n, DNET_LOG_DSA, "%s: sending address %s\n", dnet_dump_id(id), dnet_state_dump_addr(orig));
+
 	dnet_convert_addr_cmd(buf);
 
 	err = dnet_send(send, buf, size);
@@ -295,7 +297,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
 				continue;
 
-			cmd->id.group_id = st->idc->group->group_id;
+			cmd->id.group_id = g->group_id;
 			err = dnet_send_idc(st, orig, &cmd->id, cmd->trans, DNET_CMD_ROUTE_LIST, 1, 0, 1);
 			if (err)
 				goto err_out_unlock;
@@ -592,7 +594,7 @@ static int dnet_state_join(struct dnet_net_state *st)
 	struct dnet_node *n = st->n;
 	struct dnet_id id;
 
-	dnet_setup_id(&id, st->idc->group->group_id, st->idc->ids[0].raw.id);
+	dnet_setup_id(&id, n->st->idc->group->group_id, st->idc->ids[0].raw.id);
 
 	err = dnet_send_idc(st, st, &id, 0, DNET_CMD_JOIN, 0, 1, 0);
 	if (err) {
@@ -602,7 +604,7 @@ static int dnet_state_join(struct dnet_net_state *st)
 	}
 
 	st->__join_state = DNET_JOIN;
-	dnet_log(n, DNET_LOG_INFO, "%s: successfully joined network.\n", dnet_dump_id(&id));
+	dnet_log(n, DNET_LOG_INFO, "%s: successfully joined network, group %d.\n", dnet_dump_id(&id), id.group_id);
 
 out_exit:
 	return err;
@@ -1259,11 +1261,21 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 	if (!err && !trans_num)
 		err = -EINVAL;
 
-	if (err)
+	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to write file '%s' into the storage, transactions: %d, err: %d.\n", file, trans_num, err);
-	else
-		dnet_log(n, DNET_LOG_INFO, "Successfully wrote file: '%s' into the storage, size: %llu.\n",
-				file, (unsigned long long)size);
+		goto err_out_close;
+	}
+
+	if ((n->groups && n->group_num) || (remote_len && remote)) {
+		err = dnet_create_write_metadata(n, &ctl.id, remote, remote_len, n->groups, n->group_num);
+		if (err < 0) {
+			dnet_log(n, DNET_LOG_ERROR, "Failed to write metadata for file '%s' into the storage, transactions: %d, err: %d.\n", file, trans_num, err);
+			goto err_out_close;
+		}
+	}
+
+	dnet_log(n, DNET_LOG_NOTICE, "Successfully wrote file: '%s' into the storage, size: %llu.\n",
+			file, (unsigned long long)size);
 
 	close(fd);
 	dnet_wait_put(w);
@@ -2362,7 +2374,7 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 	return err;
 }
 
-static int dnet_request_stat_single(struct dnet_node *n,
+int dnet_request_cmd_single(struct dnet_node *n,
 	struct dnet_net_state *st, struct dnet_id *id, unsigned int cmd,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
@@ -2409,7 +2421,7 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
 	if (id) {
 		if (w)
 			dnet_wait_get(w);
-		err = dnet_request_stat_single(n, NULL, id, cmd, complete, priv);
+		err = dnet_request_cmd_single(n, NULL, id, cmd, complete, priv);
 		num = 1;
 	} else {
 		struct dnet_net_state *st;
@@ -2427,7 +2439,7 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
 					dnet_wait_get(w);
 
 				dnet_setup_id(&raw, st->idc->group->group_id, st->idc->ids[0].raw.id);
-				dnet_request_stat_single(n, st, &raw, cmd, complete, priv);
+				dnet_request_cmd_single(n, st, &raw, cmd, complete, priv);
 				num++;
 			}
 		}
@@ -2794,7 +2806,8 @@ err_out_exit:
 }
 
 int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
-		struct dnet_id *id, void *data, uint64_t offset, uint64_t size,
+		struct dnet_id *id, void *data, int fd, uint64_t local_offset,
+		uint64_t offset, uint64_t size,
 		struct timespec *ts, unsigned int aflags, unsigned int ioflags)
 {
 	struct dnet_io_control ctl;
@@ -2809,8 +2822,9 @@ int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
-	ctl.fd = -1;
 	ctl.data = data;
+	ctl.fd = fd;
+	ctl.local_offset = local_offset;
 	ctl.aflags = aflags;
 
 	if (ts)

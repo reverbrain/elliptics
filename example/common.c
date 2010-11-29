@@ -123,9 +123,6 @@ int dnet_parse_groups(char *value, int **groupsp)
 		pos++;
 	}
 
-	for (i=0; i<pos; ++i)
-		printf("%d\n", groups[i]);
-
 	*groupsp = groups;
 	return pos;
 }

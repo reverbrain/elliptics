@@ -217,37 +217,6 @@ err_out_free:
 	return err;
 }
 
-static int dnet_dump_meta_container(struct dnet_node *n, struct dnet_meta_container *mc)
-{
-	int fd, err;
-	char file[256];
-	char id_str[DNET_ID_SIZE*2+1];
-
-	snprintf(file, sizeof(file), "%s/%s.meta", dnet_check_tmp_dir, dnet_dump_id_len_raw(mc->id.id, DNET_ID_SIZE, id_str));
-
-	fd = open(file, O_RDWR | O_TRUNC | O_CREAT, 0644);
-	if (fd < 0) {
-		err = -errno;
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open meta container file '%s': %s\n",
-				file, strerror(errno));
-		goto err_out_exit;
-	}
-
-	err = write(fd, mc->data, mc->size);
-	if (err != (int)mc->size) {
-		err = -errno;
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to write meta container into '%s': %s\n",
-				file, strerror(errno));
-		goto err_out_close;
-	}
-	err = 0;
-
-err_out_close:
-	close(fd);
-err_out_exit:
-	return err;
-}
-
 static int dnet_check_log_meta(struct dnet_node *n, struct dnet_meta_container *mc)
 {
 	struct dnet_meta *m;
@@ -266,41 +235,6 @@ static int dnet_check_log_meta(struct dnet_node *n, struct dnet_meta_container *
 	dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', id: %s\n", obj, dnet_dump_id_len(&mc->id, DNET_ID_SIZE));
 
 	return 0;
-
-err_out_exit:
-	dnet_dump_meta_container(n, mc);
-	return err;
-}
-
-int dnet_check_find_groups(struct dnet_node *n, struct dnet_meta_container *mc, int **groupsp)
-{
-	int err, i, num;
-	struct dnet_meta *m;
-	int *groups;
-
-	m = dnet_meta_search(n, mc->data, mc->size, DNET_META_GROUPS);
-	if (!m) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to find groups metadata.\n", dnet_dump_id(&mc->id));
-		err = -ENOENT;
-		goto err_out_exit;
-	}
-
-	groups = malloc(m->size);
-	if (!groups) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-	memcpy(groups, m->data, m->size);
-
-	num = m->size / sizeof(int32_t);
-
-	for (i=0; i<num; ++i) {
-		dnet_log_raw(n, DNET_LOG_DSA, "%s: group: %d\n", dnet_dump_id(&mc->id), groups[i]);
-	}
-
-	*groupsp = groups;
-
-	return num;
 
 err_out_exit:
 	dnet_dump_meta_container(n, mc);

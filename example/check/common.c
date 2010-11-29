@@ -497,8 +497,10 @@ static int dnet_check_request_ids(struct dnet_check_worker *w, char *file, int o
 	struct dnet_id_request_completion *c;
 	uint32_t flags = 0;
 
+#if 0
 	if (out)
 		flags = DNET_ATTR_ID_OUT;
+#endif
 
 	fd = open(file, O_RDWR | O_TRUNC | O_CREAT | O_APPEND, 0644);
 	if (fd < 0) {

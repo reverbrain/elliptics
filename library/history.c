@@ -85,16 +85,15 @@ err_out_exit:
 	return err;
 }
 
-int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io)
+int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **datap)
 {
-	struct dnet_node *n = st->n;
 	int err;
 	DBT key, data;
 	unsigned int size;
 	DB *db = n->history;
 	DB_TXN *txn;
 
-	if (io->flags & DNET_IO_FLAGS_META)
+	if (meta)
 		db = n->meta;
 
 retry:
@@ -102,11 +101,11 @@ retry:
 	err = n->env->txn_begin(n->env, NULL, &txn, DB_READ_UNCOMMITTED);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a read transaction, err: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, db_strerror(err));
+				dnet_dump_id_str(id), err, db_strerror(err));
 		goto err_out_exit;
 	}
 
-	err = bdb_get_record_size(n, db, txn, io->id, &size, 0);
+	err = bdb_get_record_size(n, db, txn, id, &size, 0);
 	if (err) {
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
@@ -124,48 +123,62 @@ retry:
 	memset(&key, 0, sizeof(DBT));
 	memset(&data, 0, sizeof(DBT));
 
-	key.data = io->id;
-	key.size = DNET_ID_SIZE;
+	key.data = id;
+	key.size = key.dlen = key.ulen = DNET_ID_SIZE;
+	key.flags = DB_DBT_USERMEM;
 
 	data.size = data.dlen = size;
-	data.flags = DB_DBT_PARTIAL | DB_DBT_MALLOC;
-	data.doff = io->offset;
+	data.flags = DB_DBT_MALLOC;
+	data.doff = 0;
 
 	err = db->get(db, txn, &key, &data, 0);
+
 	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: allocated read failed offset: %u, "
-			"size: %u, err: %d: %s.\n", dnet_dump_id(&cmd->id),
-			(unsigned int)io->offset, size, err, db_strerror(err));
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: allocated read failed "
+			"size: %u, err: %d: %s.\n", dnet_dump_id_str(id),
+			size, err, db_strerror(err));
 		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
 			goto err_out_txn_abort_continue;
 		goto err_out_close_txn;
 	}
 
-	io->size = size;
-
-	err = dnet_send_read_data(st, cmd, io, data.data, -1, 0);
-
-	free(data.data);
-
-	if (err)
-		goto err_out_close_txn;
-
+out_commit:
 	err = txn->commit(txn, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to commit a read transaction: err: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, db_strerror(err));
-		goto err_out_exit;
+				dnet_dump_id_str(id), err, db_strerror(err));
+		goto err_out_free;
 	}
 
-	return 0;
+	*datap = data.data;
+
+	return size;
 
 err_out_txn_abort_continue:
 	txn->abort(txn);
 	goto retry;
-
+err_out_free:
+	free(data.data);
 err_out_close_txn:
 	txn->abort(txn);
 err_out_exit:
+	return err;
+}
+
+int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io)
+{
+	struct dnet_node *n = st->n;
+	int err;
+	void *data;
+
+	err = dnet_db_read_raw(n, !!(io->flags & DNET_IO_FLAGS_META), io->id, &data);
+	if (err <= 0)
+		return err;
+
+	io->size = err;
+	err = dnet_send_read_data(st, cmd, io, data, -1, 0);
+	free(data);
+
 	return err;
 }
 
@@ -382,7 +395,8 @@ retry:
 	memset(&data, 0, sizeof(DBT));
 
 	key.data = cmd->id.id;
-	key.size = DNET_ID_SIZE;
+	key.ulen = key.size = DNET_ID_SIZE;
+	key.flags = DB_DBT_USERMEM;
 
 	data.flags = DB_DBT_MALLOC;
 
@@ -474,69 +488,45 @@ err_out_exit:
 	return err;
 }
 
-int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr)
+int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr __unused)
 {
 	struct dnet_node *n = st->n;
-	int err, wrap = 0;
-	int out = attr->flags & DNET_ATTR_ID_OUT;
-	struct dnet_id id, stop, raw;
+	struct dnet_net_state *tmp;
+	struct dnet_meta_container mc;
+	unsigned long long size = 0;
+	struct dnet_id id;
 	DBT key, dbdata;
-	unsigned long long osize = 1024 * 1024 * 10, size;
-	void *odata, *data;
 	DB_TXN *txn;
 	DB *db = n->meta;
-	struct dnet_meta_container m;
 	DBC *cursor;
+	int err, fd;
+	char file[256];
 
-	if (out) {
-		memcpy(&id, &cmd->id, sizeof(struct dnet_id));
-		dnet_state_get_next_id(n, &id);
-
-		err = dnet_id_cmp(&cmd->id, &id);
-		if (err == 0) {
-			dnet_log_raw(n, DNET_LOG_INFO, "%s: requested list of ids which are out of "
-					"supported range, but there are no nodes in route table.\n",
-					dnet_dump_id(&cmd->id));
-			return 0;
-		}
-
-		if (err > 0) {
-			wrap = 0;
-		} else {
-			wrap = 1;
-		}
-
-		memcpy(&stop, &cmd->id, sizeof(struct dnet_id));
-
-	} else {
-		memset(&id, 0, sizeof(struct dnet_id));
-		memset(&stop, 0xff, sizeof(struct dnet_id));
-		wrap = 0;
+	snprintf(file, sizeof(file), "/tmp/check.%d", getpid());
+	fd = open(file, O_RDWR | O_TRUNC | O_CREAT | O_APPEND, 0644);
+	if (fd < 0) {
+		err = -errno;
+		dnet_log_err(n, "failed to open/create temporary check file");
+		goto err_out_exit;
 	}
 
 	memset(&key, 0, sizeof(DBT));
 	memset(&dbdata, 0, sizeof(DBT));
 
+	memset(&id, 0, sizeof(struct dnet_id));
+
 	key.data = id.id;
 	key.size = DNET_ID_SIZE;
 
-	odata = malloc(osize);
-	if (!odata) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	data = odata;
-	size = osize;
-
 	txn = NULL;
+#if 0
 	err = n->env->txn_begin(n->env, NULL, &txn, DB_READ_UNCOMMITTED);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a list transaction, err: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, db_strerror(err));
-		goto err_out_free;
+		goto err_out_close;
 	}
-
+#endif
 	err = db->cursor(db, txn, &cursor, DB_READ_UNCOMMITTED);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
@@ -544,58 +534,41 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		goto err_out_close_txn;
 	}
 
-	while (1) {
-		err = cursor->c_get(cursor, &key, &dbdata, DB_SET_RANGE);
-		dnet_log_raw(n, DNET_LOG_NOTICE, "init loop key: %s, start: %x, stop: %x, out: %d, wrap: %d, err: %d: %s.\n",
-				dnet_dump_id_str(key.data), id.id[0], stop.id[0], out, wrap, err, db_strerror(err));
+	while ((err = cursor->c_get(cursor, &key, &dbdata, DB_NEXT)) == 0) {
+		dnet_setup_id(&mc.id, cmd->id.group_id, key.data);
 
-		do {
-			if (err)
-				continue;
+		tmp = dnet_state_search(n, &mc.id);
 
-			dnet_log_raw(n, DNET_LOG_NOTICE, "key: %s, start: %x, stop: %x, out: %d, wrap: %d.\n",
-					dnet_dump_id_str(key.data), id.id[0], stop.id[0], out, wrap);
+		/*
+		 * Use group ID field to specify whether we should check number of copies
+		 * or merge transaction with other history log in the storage
+		 */
+		mc.id.group_id = !!(tmp == n->st);
 
-			dnet_setup_id(&raw, cmd->id.group_id, key.data);
-			if (!wrap && (dnet_id_cmp(&raw, &stop) >= 0))
-				break;
+		dnet_state_put(tmp);
 
-			if (size < dbdata.size + sizeof(struct dnet_meta_container)) {
-				err = dnet_send_reply(st, cmd, attr, odata, osize - size, 1);
-				if (err)
-					goto err_out_close_cursor;
+		dnet_log_raw(n, DNET_LOG_DSA, "key: %s, check_copies: %d, size: %u.\n",
+				dnet_dump_id_str(key.data), mc.id.group_id, dbdata.size);
 
-				size = osize;
-				data = odata;
-			}
+		mc.size = dbdata.size;
 
-			dnet_setup_id(&m.id, cmd->id.group_id, key.data);
-			m.size = dbdata.size;
-			dnet_convert_meta_container(&m);
-
-			memcpy(data, &m, sizeof(struct dnet_meta_container));
-			data += sizeof(struct dnet_meta_container);
-			size -= sizeof(struct dnet_meta_container);
-
-			memcpy(data, dbdata.data, dbdata.size);
-			data += dbdata.size;
-			size -= dbdata.size;
-
-			dnet_log_raw(n, DNET_LOG_NOTICE, "%s.\n", dnet_dump_id(&raw));
-		} while ((err = cursor->c_get(cursor, &key, &dbdata, DB_NEXT)) == 0);
-
-		if (wrap) {
-			memset(&id, 0, sizeof(struct dnet_id));
-			key.data = id.id;
-			wrap = 0;
-		} else
-			break;
-	}
-
-	if (osize != size) {
-		err = dnet_send_reply(st, cmd, attr, odata, osize - size, 0);
-		if (err)
+		err = write(fd, &mc, sizeof(struct dnet_meta_container));
+		if (err != sizeof(struct dnet_meta_container)) {
+			err = -errno;
+			dnet_log_err(n, "failed to write ID entry (meta container) to be checked");
 			goto err_out_close_cursor;
+		}
+
+		err = write(fd, dbdata.data, mc.size);
+		if (err != (signed)mc.size) {
+			err = -errno;
+			dnet_log_err(n, "failed to write ID entry (metadata) to be checked");
+			goto err_out_close_cursor;
+		}
+
+		sleep(1);
+
+		size += sizeof(struct dnet_meta_container) + mc.size;
 	}
 
 	err = cursor->c_close(cursor);
@@ -605,25 +578,25 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_close_txn;
 	}
-
+#if 0
 	err = txn->commit(txn, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR,
 			"%s: failed to commit a list transaction: err: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, db_strerror(err));
-		goto err_out_free;
+		goto err_out_close;
 	}
+#endif
+	close(fd);
 
-	free(odata);
-
-	return 0;
+	return dnet_check(n, file, size);
 
 err_out_close_cursor:
 	cursor->c_close(cursor);
 err_out_close_txn:
 	txn->abort(txn);
-err_out_free:
-	free(odata);
+err_out_close:
+	close(fd);
 err_out_exit:
 	return err;
 }
@@ -635,8 +608,6 @@ static void bdb_backend_error_handler(const DB_ENV *env __unused, const char *pr
 
 static int bdb_compare(DB *db __unused, const DBT *key1, const DBT *key2)
 {
-	printf("k1: %s\n", dnet_dump_id_str(key1->data));
-	printf("k2: %s\n", dnet_dump_id_str(key2->data));
 	return dnet_id_cmp_str(key1->data, key2->data);
 }
 
@@ -727,7 +698,7 @@ int dnet_db_init(struct dnet_node *n, char *env_dir)
 	 * After it fires (put()/get() returns DB_LOCK_DEADLOCK or DB_LOCK_NOTGRANTED),
 	 * transaction is being destroyed and command restarted.
 	 */
-	err = env->set_timeout(env, 100000, DB_SET_TXN_TIMEOUT);
+	err = env->set_timeout(env, 1000, DB_SET_TXN_TIMEOUT);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to set transaction lock timeout: %s.\n", db_strerror(err));
 		goto err_out_destroy_env;

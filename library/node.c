@@ -280,7 +280,7 @@ out:
 	if (i == -1)
 		i = g->id_num - 1;
 
-	dnet_log(g->ids[0].idc->st->n, DNET_LOG_DSA, "%s: pos: %d\n", dnet_dump_id(id), i);
+	dnet_log(g->ids[0].idc->st->n, DNET_LOG_DSA, "%s: found idc pos: %d\n", dnet_dump_id(id), i);
 
 	return i;
 }
@@ -553,11 +553,11 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	sigaddset(&sig, SIGPIPE);
 	pthread_sigmask(SIG_BLOCK, &sig, NULL);
 
-	if ((cfg->join & DNET_JOIN_NETWORK) && !cfg->command_handler) {
+	if ((cfg->join & DNET_JOIN_NETWORK) && (!cfg->command_handler || !cfg->send)) {
 		err = -EINVAL;
 		if (cfg->log && cfg->log->log)
 			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Joining node has to register "
-					"a comamnd handler.\n");
+					"a command handler.\n");
 		goto err_out_exit;
 	}
 
@@ -583,6 +583,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->wait_ts.tv_sec = cfg->wait_timeout;
 	n->command_handler = cfg->command_handler;
 	n->command_private = cfg->command_private;
+	n->send = cfg->send;
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;
 

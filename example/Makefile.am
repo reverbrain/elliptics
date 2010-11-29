@@ -1,7 +1,8 @@
-bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor
+bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check
 noinst_LIBRARIES = libcommon.a libbackend.a
 noinst_HEADERS = backends.h common.h hash.h
-SUBDIRS = . check
+SUBDIRS = .
+#SUBDIRS += check
 
 CC = @PTHREAD_CC@
 
@@ -18,6 +19,9 @@ EXAMPLE_BACKEND_LIBS = libbackend.a
 
 dnet_ioserv_SOURCES = ioserv.c config.c
 dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) $(EXAMPLE_BACKEND_LIBS)
+
+dnet_check_SOURCES = check.c
+dnet_check_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_ioclient_SOURCES = ioclient.c
 dnet_ioclient_LDADD = $(EXAMPLE_COMMON_LIBS)
