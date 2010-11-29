@@ -1292,7 +1292,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 	close(fd);
 	dnet_wait_put(w);
 
-	return err;
+	return 0;
 
 err_out_close:
 	close(fd);
