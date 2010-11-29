@@ -142,7 +142,6 @@ retry:
 		goto err_out_close_txn;
 	}
 
-out_commit:
 	err = txn->commit(txn, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to commit a read transaction: err: %d: %s.\n",

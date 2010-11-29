@@ -401,8 +401,8 @@ err_out_free:
 //err_out_blob_exit:
 #ifdef HAVE_EBLOB_SUPPORT
 	dnet_eblob_backend_exit();
-#endif
 err_out_file_exit:
+#endif
 	dnet_file_backend_exit();
 err_out_close:
 	fclose(f);
