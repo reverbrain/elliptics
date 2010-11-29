@@ -1252,6 +1252,14 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 
 	munmap(data, ALIGN(size, page_size));
 
+	if ((trans_num > 0) && ((n->groups && n->group_num) || (remote_len && remote))) {
+		err = dnet_create_write_metadata(n, &ctl.id, remote, remote_len, n->groups, n->group_num);
+		if (err < 0) {
+			dnet_log(n, DNET_LOG_ERROR, "Failed to write metadata for file '%s' into the storage, transactions: %d, err: %d.\n", file, trans_num, err);
+			goto err_out_close;
+		}
+	}
+
 	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
 	if (err || w->status) {
 		if (!err)
@@ -1264,14 +1272,6 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to write file '%s' into the storage, transactions: %d, err: %d.\n", file, trans_num, err);
 		goto err_out_close;
-	}
-
-	if ((n->groups && n->group_num) || (remote_len && remote)) {
-		err = dnet_create_write_metadata(n, &ctl.id, remote, remote_len, n->groups, n->group_num);
-		if (err < 0) {
-			dnet_log(n, DNET_LOG_ERROR, "Failed to write metadata for file '%s' into the storage, transactions: %d, err: %d.\n", file, trans_num, err);
-			goto err_out_close;
-		}
 	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "Successfully wrote file: '%s' into the storage, size: %llu.\n",
