@@ -91,34 +91,9 @@ int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **da
 	DBT key, data;
 	unsigned int size;
 	DB *db = n->history;
-	DB_TXN *txn;
 
 	if (meta)
 		db = n->meta;
-
-retry:
-	txn = NULL;
-	err = n->env->txn_begin(n->env, NULL, &txn, DB_READ_UNCOMMITTED);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a read transaction, err: %d: %s.\n",
-				dnet_dump_id_str(id), err, db_strerror(err));
-		goto err_out_exit;
-	}
-
-	err = bdb_get_record_size(n, db, txn, id, &size, 0);
-	if (err) {
-		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
-			goto err_out_txn_abort_continue;
-		goto err_out_close_txn;
-	}
-
-	/*
-	 * Do not process empty records, pretend we do not have it.
-	 */
-	if (!err && !size) {
-		err = -ENOENT;
-		goto err_out_close_txn;
-	}
 
 	memset(&key, 0, sizeof(DBT));
 	memset(&data, 0, sizeof(DBT));
@@ -127,39 +102,23 @@ retry:
 	key.size = key.dlen = key.ulen = DNET_ID_SIZE;
 	key.flags = DB_DBT_USERMEM;
 
-	data.size = data.dlen = size;
+	data.size = data.dlen = 0;
 	data.flags = DB_DBT_MALLOC;
 	data.doff = 0;
 
-	err = db->get(db, txn, &key, &data, 0);
-
+	err = db->get(db, NULL, &key, &data, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: allocated read failed "
-			"size: %u, err: %d: %s.\n", dnet_dump_id_str(id),
-			size, err, db_strerror(err));
-		if (err == DB_LOCK_DEADLOCK || err == DB_LOCK_NOTGRANTED)
-			goto err_out_txn_abort_continue;
-		goto err_out_close_txn;
+			"err: %d: %s.\n", dnet_dump_id_str(id),
+			err, db_strerror(err));
+		goto err_out_exit;
 	}
 
-	err = txn->commit(txn, 0);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to commit a read transaction: err: %d: %s.\n",
-				dnet_dump_id_str(id), err, db_strerror(err));
-		goto err_out_free;
-	}
-
+	size = data.size;
 	*datap = data.data;
 
 	return size;
 
-err_out_txn_abort_continue:
-	txn->abort(txn);
-	goto retry;
-err_out_free:
-	free(data.data);
-err_out_close_txn:
-	txn->abort(txn);
 err_out_exit:
 	return err;
 }
@@ -495,7 +454,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	unsigned long long size = 0;
 	struct dnet_id id;
 	DBT key, dbdata;
-	DB_TXN *txn;
+	DB_TXN *txn = NULL;
 	DB *db = n->meta;
 	DBC *cursor;
 	int err, fd;
@@ -517,15 +476,6 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	key.data = id.id;
 	key.size = DNET_ID_SIZE;
 
-	txn = NULL;
-#if 0
-	err = n->env->txn_begin(n->env, NULL, &txn, DB_READ_UNCOMMITTED);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a list transaction, err: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, db_strerror(err));
-		goto err_out_close;
-	}
-#endif
 	err = db->cursor(db, txn, &cursor, DB_READ_UNCOMMITTED);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
@@ -575,15 +525,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_close_txn;
 	}
-#if 0
-	err = txn->commit(txn, 0);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR,
-			"%s: failed to commit a list transaction: err: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, db_strerror(err));
-		goto err_out_close;
-	}
-#endif
+
 	close(fd);
 
 	return dnet_check(n, file, size);
@@ -592,7 +534,6 @@ err_out_close_cursor:
 	cursor->c_close(cursor);
 err_out_close_txn:
 	txn->abort(txn);
-err_out_close:
 	close(fd);
 err_out_exit:
 	return err;
