@@ -1068,6 +1068,7 @@ int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 	struct dnet_trans *t;
 	int num = 0, i;
 
+	pthread_mutex_lock(&n->group_lock);
 	for (i=0; i<n->group_num; ++i) {
 		ctl->id.group_id = n->groups[i];
 
@@ -1079,6 +1080,7 @@ int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 
 		num++;
 	}
+	pthread_mutex_unlock(&n->group_lock);
 
 	if (!num) {
 		t = dnet_io_trans_create(n, ctl);
@@ -1890,6 +1892,7 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 		id = &raw;
 
 		dnet_transform(n, remote, remote_len, id);
+		pthread_mutex_lock(&n->group_lock);
 		for (i=0; i<n->group_num; ++i) {
 			id->group_id = n->groups[i];
 
@@ -1902,6 +1905,7 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 			error = 0;
 			break;
 		}
+		pthread_mutex_unlock(&n->group_lock);
 
 		if (error) {
 			err = error;
@@ -2295,6 +2299,7 @@ int dnet_lookup(struct dnet_node *n, char *file)
 
 	dnet_transform(n, file, strlen(file), &raw);
 
+	pthread_mutex_lock(&n->group_lock);
 	for (i=0; i<n->group_num; ++i) {
 		raw.group_id = n->groups[i];
 
@@ -2315,6 +2320,7 @@ int dnet_lookup(struct dnet_node *n, char *file)
 		error = 0;
 		break;
 	}
+	pthread_mutex_unlock(&n->group_lock);
 
 	dnet_wait_put(w);
 	return error;
@@ -2673,12 +2679,14 @@ int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct d
 
 	dnet_transform(n, remote, remote_len, &raw);
 
+	pthread_mutex_lock(&n->group_lock);
 	for (i=0; i<n->group_num; ++i) {
 		raw.group_id = n->groups[i];
 		err = dnet_remove_file_raw(n, &raw);
 		if (err)
 			error = err;
 	}
+	pthread_mutex_unlock(&n->group_lock);
 
 	return error;
 }
@@ -2914,7 +2922,7 @@ int64_t dnet_get_param(struct dnet_node *n, struct dnet_id *id, enum id_params p
 	return ret;
 }
 
-static int dnet_compare_by_la(const void *id1, const void *id2)
+static int dnet_compare_by_param(const void *id1, const void *id2)
 {
 	const struct dnet_id_param *l1 = id1;
 	const struct dnet_id_param *l2 = id2;
@@ -2924,37 +2932,71 @@ static int dnet_compare_by_la(const void *id1, const void *id2)
 
 int dnet_generate_ids_by_param(struct dnet_node *n, struct dnet_id *id, enum id_params param, struct dnet_id_param **dst)
 {
-	int i, err;
+	int i, err, group_num = 0;
 	struct dnet_id_param *ids;
+	struct dnet_group *g;
 
-	pthread_mutex_lock(&n->group_lock);
+	if (n->group_num) {
+		pthread_mutex_lock(&n->group_lock);
+		if (n->group_num) {
+			group_num = n->group_num;
 
-	ids = malloc(n->group_num * sizeof(struct dnet_id_param));
-	if (!ids) {
-		err = -ENOMEM;
-		goto err_out_unlock;
+			ids = malloc(group_num * sizeof(struct dnet_id_param));
+			if (!ids) {
+				err = -ENOMEM;
+				goto err_out_unlock_group;
+			}
+			for (i=0; i<group_num; ++i)
+				ids[i].group_id = n->groups[i];
+		}
+err_out_unlock_group:
+		pthread_mutex_unlock(&n->group_lock);
+		if (err)
+			goto err_out_exit;
 	}
 
-	for (i=0; i<n->group_num; ++i) {
-		ids[i].group_id = id->group_id = n->groups[i];
+	if (!group_num) {
+		int pos = 0;
 
+		pthread_rwlock_rdlock(&n->state_lock);
+		list_for_each_entry(g, &n->group_list, group_entry)
+			group_num++;
+
+		ids = malloc(group_num * sizeof(struct dnet_id_param));
+		if (!ids) {
+			err = -ENOMEM;
+			goto err_out_unlock_state;
+		}
+
+		list_for_each_entry(g, &n->group_list, group_entry) {
+			ids[pos].group_id = g->group_id;
+			pos++;
+		}
+err_out_unlock_state:
+		pthread_rwlock_unlock(&n->state_lock);
+		if (err)
+			goto err_out_exit;
+	}
+
+	for (i=0; i<group_num; ++i) {
+		id->group_id = ids[i].group_id;
 		ids[i].param = dnet_get_param(n, id, param);
 	}
 
-	qsort(ids, n->group_num, sizeof(struct dnet_id_param), dnet_compare_by_la);
+	qsort(ids, group_num, sizeof(struct dnet_id_param), dnet_compare_by_param);
 	*dst = ids;
 
-	for (i=0; i<n->group_num; ++i)
-		dnet_log(n, DNET_LOG_NOTICE, "%s: requested param: %d, group: %u, param: %llu\n",
-				dnet_dump_id_len(id, DNET_ID_SIZE),
-				param,
+	for (i=0; i<group_num; ++i) {
+		id->group_id = ids[i].group_id;
+
+		dnet_log(n, DNET_LOG_DSA, "%s: requested param: %d, group: %u, param: %llu\n",
+				dnet_dump_id(id), param,
 				ids[i].group_id, (unsigned long long)ids[i].param);
+	}
 
-	err = n->group_num;
+	err = group_num;
 
-err_out_unlock:
-	pthread_mutex_unlock(&n->group_lock);
-
+err_out_exit:
 	return err;
 }
 
