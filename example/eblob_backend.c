@@ -170,8 +170,19 @@ static int dnet_blob_set_data(struct dnet_config_backend *b, char *key __unused,
 	int err;
 
 	err = backend_storage_size(b, file);
-	if (err)
-		return err;
+	if (err) {
+		char root[strlen(file)+1], *ptr;
+
+		snprintf(root, sizeof(root), "%s", file);
+		ptr = strrchr(root, '/');
+		if (ptr) {
+			*ptr = '\0';
+			err = backend_storage_size(b, root);
+		}
+
+		if (err)
+			return err;
+	}
 
 	free(c->data.file);
 	c->data.file = strdup(file);
