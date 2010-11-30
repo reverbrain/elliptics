@@ -723,13 +723,18 @@ static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *obj, int len, int *groups, int group_num);
 
-struct dnet_id_la {
+struct dnet_id_param {
 	unsigned int		group_id;
-	int			la;
+	uint64_t		param;
 } __attribute__ ((packed));
 
-int dnet_generate_ids_by_la(struct dnet_node *n, struct dnet_id *id, struct dnet_id_la **dst);
-int dnet_get_la(struct dnet_node *n, struct dnet_id *id);
+enum id_params {
+	DNET_ID_PARAM_LA = 1,
+	DNET_ID_PARAM_FREE_SPACE,
+};
+
+int dnet_generate_ids_by_param(struct dnet_node *n, struct dnet_id *id, enum id_params param, struct dnet_id_param **dst);
+int64_t dnet_get_param(struct dnet_node *n, struct dnet_id *id, enum id_params param);
 
 int dnet_request_check(struct dnet_node *n);
 

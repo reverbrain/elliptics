@@ -83,6 +83,11 @@ int dnet_parse_groups(char *value, int **groupsp)
 	char *ptr = value;
 	int *groups;
 
+	if (sscanf(value, "auto%d", &num) == 1) {
+		*groupsp = NULL;
+		return num;
+	}
+
 	for (i=0; i<len; ++i) {
 		if (value[i] == DNET_CONF_ADDR_DELIM)
 			start = 0;

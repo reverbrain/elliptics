@@ -77,11 +77,18 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		goto err_out_destroy_wait;
 	}
 
+	err = pthread_mutex_init(&n->group_lock, NULL);
+	if (err) {
+		err = -err;
+		dnet_log_err(n, "Failed to initialize group lock: err: %d", err);
+		goto err_out_destroy_reconnect_lock;
+	}
+
 	err = pthread_attr_init(&n->attr);
 	if (err) {
 		err = -err;
 		dnet_log_err(n, "Failed to initialize pthread attributes: err: %d", err);
-		goto err_out_destroy_reconnect_lock;
+		goto err_out_destroy_group_lock;
 	}
 
 	err = pthread_attr_setstacksize(&n->attr, cfg->stack_size);
@@ -90,7 +97,6 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		dnet_log_err(n, "Failed to set stack size to %d, err: %d", cfg->stack_size, err);
 		goto err_out_destroy_attr;
 	}
-
 
 	INIT_LIST_HEAD(&n->group_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
@@ -103,6 +109,8 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 err_out_destroy_attr:
 	pthread_attr_destroy(&n->attr);
+err_out_destroy_group_lock:
+	pthread_mutex_destroy(&n->group_lock);
 err_out_destroy_reconnect_lock:
 	pthread_mutex_destroy(&n->reconnect_lock);
 err_out_destroy_wait:
@@ -712,6 +720,7 @@ void dnet_node_destroy(struct dnet_node *n)
 		free(it);
 	}
 	pthread_mutex_destroy(&n->reconnect_lock);
+	pthread_mutex_destroy(&n->group_lock);
 
 	dnet_wait_put(n->wait);
 
@@ -722,8 +731,12 @@ void dnet_node_destroy(struct dnet_node *n)
 
 void dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num)
 {
+	pthread_mutex_lock(&n->group_lock);
+
 	free(n->groups);
 
 	n->groups = groups;
 	n->group_num = group_num;
+
+	pthread_mutex_unlock(&n->group_lock);
 }

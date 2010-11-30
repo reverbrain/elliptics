@@ -740,11 +740,11 @@ static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct 
 	int err, error = -ENOENT;
 	int random_num = 0, i;
 	int *groups = NULL;
-	struct dnet_id_la *ids = NULL;
+	struct dnet_id_param *ids = NULL;
 	int ids_num = 0;
 
 	if (dnet_fcgi_use_la_check) {
-		err = dnet_generate_ids_by_la(n, id, &ids);
+		err = dnet_generate_ids_by_param(n, id, DNET_ID_PARAM_LA, &ids);
 		if (err < 0)
 			return err;
 		ids_num = err;
