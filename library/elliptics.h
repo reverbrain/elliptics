@@ -301,12 +301,6 @@ struct dnet_node
 	void			*command_private;
 	int			(* send)(void *state, void *priv, struct dnet_id *id);
 
-	struct list_head	io_thread_list;
-	pthread_rwlock_t	io_thread_lock;
-	int			io_thread_num, io_thread_pos;
-
-	uint64_t		max_pending;
-
 	unsigned int		notify_hash_size;
 	struct dnet_notify_bucket	*notify_hash;
 

@@ -58,16 +58,10 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		goto err_out_destroy_state;
 	}
 
-	err = pthread_rwlock_init(&n->io_thread_lock, NULL);
-	if (err) {
-		dnet_log_err(n, "Failed to initialize IO thread lock: err: %d", err);
-		goto err_out_destroy_trans;
-	}
-
 	n->wait = dnet_wait_alloc(0);
 	if (!n->wait) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate wait structure.\n");
-		goto err_out_destroy_io_thread_lock;
+		goto err_out_destroy_trans;
 	}
 
 	err = pthread_mutex_init(&n->reconnect_lock, NULL);
@@ -100,7 +94,6 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	INIT_LIST_HEAD(&n->group_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
-	INIT_LIST_HEAD(&n->io_thread_list);
 	INIT_LIST_HEAD(&n->reconnect_list);
 
 	INIT_LIST_HEAD(&n->check_entry);
@@ -115,8 +108,6 @@ err_out_destroy_reconnect_lock:
 	pthread_mutex_destroy(&n->reconnect_lock);
 err_out_destroy_wait:
 	dnet_wait_put(n->wait);
-err_out_destroy_io_thread_lock:
-	pthread_rwlock_destroy(&n->io_thread_lock);
 err_out_destroy_trans:
 	dnet_lock_destroy(&n->trans_lock);
 err_out_destroy_state:
