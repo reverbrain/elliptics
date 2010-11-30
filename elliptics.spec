@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.4.2
+Version:	2.9.4.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Nov 30 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.4.3-1
+- Implemented bdb fsck (both merge and copy check).
+
 * Thu Nov 25 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.4.2-1
 - Switched to random ids (1024 ids are generated at first start)
 
