@@ -771,6 +771,13 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	struct dnet_net_state *st;
 	void * (* func)(void *);
 
+	st = dnet_state_search_by_addr(n, addr);
+	if (st) {
+		err = -EEXIST;
+		dnet_state_put(st);
+		goto err_out_exit;
+	}
+
 	st = malloc(sizeof(struct dnet_net_state));
 	if (!st)
 		goto err_out_exit;
