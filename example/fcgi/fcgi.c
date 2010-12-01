@@ -74,6 +74,9 @@ static unsigned char dnet_fcgi_id[DNET_ID_SIZE];
 static uint64_t dnet_fcgi_trans_tsec;
 static int dnet_fcgi_post_allowed;
 
+static char *dnet_fcgi_post_buf;
+static int dnet_fcgi_post_len, dnet_fcgi_post_buf_size;
+
 static int *dnet_fcgi_groups;
 static int dnet_fcgi_group_num;
 
@@ -288,6 +291,17 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 	pthread_mutex_unlock(&dnet_fcgi_wait_lock);				\
  	______ret;								\
 })
+
+static int dnet_fcgi_output_permanent_headers(void)
+{
+	int i;
+
+	for (i=0; i<dnet_fcgi_pheaders_num; ++i) {
+		dnet_fcgi_output("%s\r\n", dnet_fcgi_pheaders[i]);
+	}
+
+	return 0;
+}
 
 static void dnet_fcgi_data_to_hex(char *dst, unsigned int dlen, unsigned char *src, unsigned int slen)
 {
@@ -805,7 +819,6 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 		struct dnet_attr *attr __unused, void *priv __unused)
 {
 	int err = 0;
-	char id[DNET_ID_SIZE*2+1];
 
 	if (!cmd || !st) {
 		err = -EINVAL;
@@ -823,8 +836,9 @@ out_wakeup:
 		dnet_log_raw(dnet_get_node_from_state(st), DNET_LOG_ERROR, "%s: upload completed: %d, err: %d.\n",
 			dnet_dump_id(&cmd->id), dnet_fcgi_request_completed, err);
 	}
-	dnet_fcgi_output("<complete><id>%s</id><group>%d</group><status>%d</status></complete>",
-			dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id), cmd->id.group_id, err);
+	dnet_fcgi_post_len += snprintf(dnet_fcgi_post_buf + dnet_fcgi_post_len, dnet_fcgi_post_buf_size - dnet_fcgi_post_len,
+			"<complete group=\"%d\" status=\"%d\" />",
+			cmd->id.group_id, err);
 	dnet_fcgi_wakeup({
 				do {
 					dnet_fcgi_request_completed++;
@@ -844,10 +858,13 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 	uint32_t ioflags = 0;
 	int err;
 	struct timespec wait = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
+	char id_str[DNET_ID_SIZE*2+1];
 
-	dnet_fcgi_output("Content-type: application/xml\r\n\r\n");
-	dnet_fcgi_output("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
-	dnet_fcgi_output("<post>");
+	dnet_fcgi_post_len = snprintf(dnet_fcgi_post_buf, dnet_fcgi_post_buf_size,
+			"<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+			"<post id=\"%s\" groups=\"%d\">",
+			dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, id_str),
+			dnet_fcgi_group_num);
 
 	dnet_fcgi_request_error = 0;
 	dnet_fcgi_request_completed = 0;
@@ -870,16 +887,31 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 	dnet_log_raw(n, DNET_LOG_DSA, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
 
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num, &wait);
-	dnet_fcgi_output("</post>\r\n");
+
+	dnet_fcgi_post_len += snprintf(dnet_fcgi_post_buf + dnet_fcgi_post_len, dnet_fcgi_post_buf_size - dnet_fcgi_post_len,
+			"<written>%d</written></post>\r\n",
+			trans_num);
+
+	dnet_fcgi_request_error += dnet_fcgi_group_num - trans_num;
 
 	if (!err && dnet_fcgi_request_error > dnet_fcgi_tolerate_upload_error_count)
 		err = -ENOENT;
-	if (err)
+	if (err) {
+		dnet_fcgi_output("Cache-control: no-cache\r\n");
+		dnet_fcgi_output("Reason: %s [%d]\r\n", strerror(-err), err);
+		dnet_fcgi_output("Status: %d\r\n\r\n", 403);
+
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: upload failed: err: %d, request_error: %d, tolerate_error_count: %d.\n",
 				dnet_dump_id(id), err, dnet_fcgi_request_error, dnet_fcgi_tolerate_upload_error_count);
+	} else {
+		dnet_fcgi_output("Content-type: application/xml\r\n");
+		dnet_fcgi_output("%s\r\n\r\n", dnet_fcgi_status_pattern);
+	}
+
+	dnet_fcgi_output("%s", dnet_fcgi_post_buf);
 
 	/*
-	 * We can not return error here, since we already said that status is 200 OK.
+	 * We can not return error here, since we already wrote status.
 	 */
 	return 0;
 }
@@ -1556,17 +1588,6 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_fcgi_output_permanent_headers(void)
-{
-	int i;
-
-	for (i=0; i<dnet_fcgi_pheaders_num; ++i) {
-		dnet_fcgi_output("%s\r\n", dnet_fcgi_pheaders[i]);
-	}
-
-	return 0;
-}
-
 static int dnet_fcgi_setup_permanent_headers(void)
 {
 	char *env = getenv("DNET_FCGI_PERMANENT_HEADERS");
@@ -1821,6 +1842,13 @@ int main()
 
 	dnet_node_set_groups(n, dnet_fcgi_groups, dnet_fcgi_group_num);
 
+	dnet_fcgi_post_buf_size = (dnet_fcgi_group_num + 1) * 1024;
+	dnet_fcgi_post_buf = malloc(dnet_fcgi_post_buf_size);
+	if (!dnet_fcgi_post_buf) {
+		err = -ENOMEM;
+		goto err_out_free;
+	}
+
 	p = getenv("DNET_FCGI_TMP_DIR");
 	if (!p)
 		p = DNET_FCGI_TMP_DIR;
@@ -1936,6 +1964,7 @@ int main()
 
 		dnet_transform(n, obj, length, &raw);
 		memcpy(dnet_fcgi_id, raw.id, DNET_ID_SIZE);
+		raw.group_id = 0;
 
 		version = -1;
 		version_str = strstr(query, version_pattern);
@@ -1987,11 +2016,10 @@ int main()
 			err = dnet_fcgi_handle_post(n, obj, length, &raw, version, &ts, !!embed_str, append);
 			if (err) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: Failed to handle POST for object '%s': %d.\n", addr, obj, err);
-				reason = "failed to handle POST";
-				goto err_continue;
+				goto cont;
 			}
 		} else if (dnet_fcgi_unlink_pattern && strstr(query, dnet_fcgi_unlink_pattern)) {
-			return dnet_fcgi_unlink(n, &raw, version);
+			err = dnet_fcgi_unlink(n, &raw, version);
 		} else {
 			dnet_log_raw(n, DNET_LOG_INFO, "obj: '%s', length: %d, version: %d, embed: %d, region: %d.\n",
 					obj, length, version, !!embed_str, dnet_fcgi_region);
@@ -2047,6 +2075,7 @@ err_out_free_tmp_dir:
 	free(dnet_fcgi_tmp_dir);
 err_out_free:
 	dnet_node_destroy(n);
+	free(dnet_fcgi_post_buf);
 err_out_sign_destroy:
 	dnet_fcgi_destroy_sign_hash();
 err_out_free_direct_patterns:
