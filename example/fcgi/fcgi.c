@@ -832,7 +832,7 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 		return err;
 
 out_wakeup:
-	if (st) {
+	if (st && err) {
 		dnet_log_raw(dnet_get_node_from_state(st), DNET_LOG_ERROR, "%s: upload completed: %d, err: %d.\n",
 			dnet_dump_id(&cmd->id), dnet_fcgi_request_completed, err);
 	}

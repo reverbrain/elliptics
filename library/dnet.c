@@ -426,9 +426,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	struct dnet_node *n = st->n;
 	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: processing local cmd: size: %llu, trans: %llu, flags: %x.\n",
-			dnet_dump_id(&cmd->id), size, tid, cmd->flags);
-
 	while (size) {
 		struct dnet_attr *a = data;
 		unsigned long long sz;
@@ -455,8 +452,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 		dnet_log(n, DNET_LOG_INFO, "%s: trans: %llu, transaction_size_left: %llu, "
 				"starting cmd: %u, attribute_size: %llu, attribute_flags: %x.\n",
-			dnet_dump_id(&cmd->id), tid,
-			size, a->cmd, (unsigned long long)a->size, a->flags);
+			dnet_dump_id(&cmd->id), tid, size, a->cmd, (unsigned long long)a->size, a->flags);
 
 		switch (a->cmd) {
 			case DNET_CMD_LOOKUP:
@@ -923,7 +919,7 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 		if (cmd && st) {
 			err = cmd->status;
-			dnet_log(st->n, DNET_LOG_INFO, "%s: object write completed: trans: %llu, status: %d.\n",
+			dnet_log(st->n, DNET_LOG_DSA, "%s: object write completed: trans: %llu, status: %d.\n",
 				dnet_dump_id(&cmd->id), (unsigned long long)(cmd->trans & ~DNET_TRANS_REPLY),
 				cmd->status);
 		}
