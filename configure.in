@@ -41,7 +41,7 @@ AC_CHECK_LIB(dl,dlopen)
 AC_CONFIG_FILES([Makefile include/Makefile include/elliptics/Makefile
 		 library/Makefile example/Makefile tests/Makefile
 		 doc/Makefile example/fcgi/Makefile debian/Makefile
-		 example/check/Makefile bindings/Makefile bindings/cpp/Makefile
+		 bindings/Makefile bindings/cpp/Makefile
 		 bindings/python/Makefile])
 
 AC_OUTPUT
