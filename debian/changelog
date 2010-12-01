@@ -1,3 +1,9 @@
+elliptics (2.9.4.4) unstable; urgency=low
+
+  * Fair number of fixes in fcgi and lib
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 01 Dec 2010 23:54:32 +0300
+
 elliptics (2.9.4.3) unstable; urgency=low
 
   * Implemented bdb fsck (both merge and copy check).
