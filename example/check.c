@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
 				check_logger.log_mask = strtoul(optarg, NULL, 0);
 				break;
 			case 'w':
-				cfg.wait_timeout = atoi(optarg);
+				cfg.check_timeout = cfg.wait_timeout = atoi(optarg);
 				break;
 			case 'l':
 				logfile = optarg;
