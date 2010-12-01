@@ -113,7 +113,8 @@ static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 static int eblob_send(void *state, void *priv, struct dnet_id *id)
 {
 	struct dnet_node *n = dnet_get_node_from_state(state);
-	struct eblob_backend *b = priv;
+	struct eblob_backend_config *c = priv;
+	struct eblob_backend *b = c->data_blob;
 	uint64_t offset, size;
 	int err, fd;
 
