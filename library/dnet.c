@@ -160,7 +160,7 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 		memset(sid.raw.id, 0, DNET_ID_SIZE);
 	}
 
-	dnet_setup_id(&raw, orig->idc->group->group_id, sid.raw.id);
+	dnet_setup_id(&raw, cmd->id.group_id, sid.raw.id);
 
 	return dnet_lookup_reply(orig, &raw, cmd->trans, aflags, &orig->addr, err);
 }
@@ -2932,7 +2932,7 @@ static int dnet_compare_by_param(const void *id1, const void *id2)
 
 int dnet_generate_ids_by_param(struct dnet_node *n, struct dnet_id *id, enum id_params param, struct dnet_id_param **dst)
 {
-	int i, err, group_num = 0;
+	int i, err = 0, group_num = 0;
 	struct dnet_id_param *ids;
 	struct dnet_group *g;
 
