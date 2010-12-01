@@ -216,6 +216,17 @@ int main(int argc, char *argv[])
 	}
 	
 	if (removef) {
+		if (id) {
+			struct dnet_id raw;
+
+			for (i=0; i<group_num; ++i) {
+				dnet_setup_id(&raw, groups[i], id);
+				dnet_remove_object_now(n, &raw, 0);
+			}
+
+			return 0;
+		}
+
 		err = dnet_remove_file(n, removef, strlen(removef), NULL);
 		if (err)
 			return err;
