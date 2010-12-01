@@ -539,9 +539,10 @@ err_out_exit:
 	return err;
 }
 
-static void bdb_backend_error_handler(const DB_ENV *env __unused, const char *prefix, const char *msg)
+static void bdb_backend_error_handler(const DB_ENV *env, const char *prefix, const char *msg)
 {
-	fprintf(stderr, "%s: %s.\n", prefix, msg);
+	struct dnet_node *n = env->app_private;
+	dnet_log(n, DNET_LOG_ERROR, "%s: %s.\n", prefix, msg);
 }
 
 static int bdb_compare(DB *db __unused, const DBT *key1, const DBT *key2)
@@ -567,12 +568,14 @@ static DB *bdb_backend_open(struct dnet_node *n, char *dbfile)
 	err = db->open(db, NULL, dbfile, NULL, DB_BTREE, DB_CREATE | DB_AUTO_COMMIT |
 			DB_THREAD | DB_READ_UNCOMMITTED, 0);
 	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open '%s' database, err: %d", dbfile, err);
-		goto err_out_exit;
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open '%s' database, err: %d %s\n", dbfile, err, db_strerror(err));
+		goto err_out_close;
 	}
 
 	return db;
 
+err_out_close:
+	db->close(db, 0);
 err_out_exit:
 	return NULL;
 }
@@ -587,27 +590,9 @@ int dnet_db_init(struct dnet_node *n, char *env_dir)
 		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to create new environment instance, err: %d.\n", err);
 		goto err_out_exit;
 	}
+	env->app_private = n;
 
-	/*
-	 * We can not use in-memory logging since we do not know the maximum size of the transaction.
-	 */
-#if 0
-#ifdef DB_LOG_IN_MEMORY
-#define __DB_LOG_IN_MEMORY	DB_LOG_IN_MEMORY
-#else
-#define __DB_LOG_IN_MEMORY	DB_LOG_INMEMORY
-#endif
-
-#if DB_VERSION_MINOR >= 7
-	/* 
-	 * We want logging to be done in memory for performance.
-	 * In the perfect world this could be configured though.
-	 */
-	env->log_set_config(env, __DB_LOG_IN_MEMORY, 1);
-#else
-#endif
-	env->set_flags(env, __DB_LOG_IN_MEMORY, 1);
-#endif
+	env->log_set_config(env, DB_LOG_ZERO | DB_LOG_AUTO_REMOVE | DB_LOG_IN_MEMORY, 1);
 	/*
 	 * We do not need durable transaction, so we do not
 	 * want disk IO at transaction commit.
@@ -643,14 +628,16 @@ int dnet_db_init(struct dnet_node *n, char *env_dir)
 	}
 
 	err = env->open(env, env_dir, DB_CREATE | DB_INIT_MPOOL |
-			DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_THREAD | DB_LOG_AUTO_REMOVE, 0);
+			DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_THREAD, 0);
 	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open '%s' environment instance, err: %d.\n", env_dir, err);
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open '%s' environment instance, err: %d %s.\n",
+				env_dir, err, db_strerror(err));
 		goto err_out_destroy_env;
 	}
 
 	n->env = env;
 
+	err = -EINVAL;
 	n->history = bdb_backend_open(n, "history");
 	if (!n->history)
 		goto err_out_close_env;
