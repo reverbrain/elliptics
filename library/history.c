@@ -643,7 +643,7 @@ int dnet_db_init(struct dnet_node *n, char *env_dir)
 	}
 
 	err = env->open(env, env_dir, DB_CREATE | DB_INIT_MPOOL |
-			DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_THREAD, 0);
+			DB_INIT_TXN | DB_INIT_LOCK | DB_INIT_LOG | DB_THREAD | DB_LOG_AUTO_REMOVE, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open '%s' environment instance, err: %d.\n", env_dir, err);
 		goto err_out_destroy_env;
