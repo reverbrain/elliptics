@@ -878,7 +878,10 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: upload failed: err: %d, request_error: %d, tolerate_error_count: %d.\n",
 				dnet_dump_id(id), err, dnet_fcgi_request_error, dnet_fcgi_tolerate_upload_error_count);
 
-	return err;
+	/*
+	 * We can not return error here, since we already said that status is 200 OK.
+	 */
+	return 0;
 }
 
 static int dnet_fcgi_handle_post(struct dnet_node *n, char *obj, int length, struct dnet_id *id,
