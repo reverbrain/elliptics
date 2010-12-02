@@ -238,6 +238,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 
 	if (!num) {
 		err = -EEXIST;
+		dnet_group_put(g);
 		goto err_out_free;
 	}
 
