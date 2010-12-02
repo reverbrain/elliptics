@@ -201,8 +201,6 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 		list_add_tail(&g->group_entry, &n->group_list);
 	}
 
-	dnet_log(n, DNET_LOG_DSA, "g: %p, g_id_num: %d, id_num: %d\n", g, g->id_num, id_num);
-
 	g->ids = realloc(g->ids, (g->id_num + id_num) * sizeof(struct dnet_state_id));
 	if (!g->ids)
 		goto err_out_unlock;
@@ -210,7 +208,6 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	num = 0;
 	for (i=0; i<id_num; ++i) {
 		if (!bsearch(&idc->ids[i], g->ids, g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare)) {
-			dnet_log(n, DNET_LOG_DSA, "i: %d, num: %d, dst: %d\n", i, num, g->id_num + num);
 			memcpy(&g->ids[g->id_num + num], &idc->ids[i], sizeof(struct dnet_state_id));
 			num++;
 		}
