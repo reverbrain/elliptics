@@ -489,7 +489,7 @@ int dnet_check(struct dnet_node *n, const char *file, unsigned long long size)
 	int fd, err = 0;
 	struct dnet_check_control ctl;
 	void *data;
-	int num = 30, i;
+	int num = 50, i;
 	pthread_t tid[num];
 
 	fd = open(file, O_RDWR);
