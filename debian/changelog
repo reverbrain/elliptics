@@ -1,3 +1,10 @@
+elliptics (2.9.4.6) unstable; urgency=low
+
+  * Fixed eblob_send().
+  * Use 50 check threads.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 02 Dec 2010 03:09:47 +0300
+
 elliptics (2.9.4.5) unstable; urgency=low
 
   * Multi-threaded fsck.
