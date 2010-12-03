@@ -11,8 +11,6 @@ for the actual data storing, thus it has to be able to process transactions and 
 commands.
 
 So, for the reference, a short description of the elliptics protocol.
-For the more detailed view please check doc/network_protocol.txt file.
-
 Each packet in the elliptics network contains at least two global parts:
 main header and one or more attributes.
 
@@ -56,77 +54,19 @@ Attribute size has to match size of the data plus size of the dnet_io_attr struc
 which describes IO pattern.
 
 It includes data size, offset to be placed at and flags. Two other fields are ID of the
-main object this transaction belongs to (id field) and ID of the transaction
-itself (origin field). If it is a stand-alone transaction, the latter is not used.
+main object this transaction belongs to (parent field) and ID of the transaction
+itself (id field). If it is a stand-alone transaction, the latter is not used.
 
-Example for the data write into some file: id field will contain transformed
-file name, and origin field will contain ID of the transformed data. Size will specify
+Example for the data write into some file: 'parent' field will contain transformed
+file name, and 'id' field will contain ID of the transformed data. Size will specify
 number of attached bytes, offset will be set to the offset in the updated file this
 data was placed at.
-
-Flags may have following constants:
-DNET_IO_FLAGS_NO_HISTORY_UPDATE - this write should not involve history update.
-DNET_IO_FLAGS_APPEND - append data to the existing record.
-DNET_IO_FLAGS_HISTORY - this is an IO request for transaction history and not object.
 
 Storage backend should check that attribute size matches data size specified in
 dnet_io_attr and size of this structure.
 
-Update of the object should also update history of the given object only if there are
-no DNET_IO_FLAGS_NO_HISTORY_UPDATE or DNET_IO_FLAGS_HISTORY flags.
-History update involves appending a dnet_history_entry structure into history for the
-specified object. History entry contains id, size, offset and flags fields of the
-original dnet_io_attr command.
-
-It has to be stored converted (i.e. after changed by dnet_convert_history_entry()).
-
-When DNET_IO_FLAGS_HISTORY flag is specified and size of the IO attribute
-(dnet_io_attr) is equal to the dnet_history_entry size, special steps has to be done.
-This special command updates metadata for the transaction, namely it stores size of
-the stored data and ID of the main object this transaction belongs to. Backend has to
-read the first entry in the history log, check if size+offset of the given
-transaction exeeds the one stored in the log, and update it if needed.
-If there is no history record for the given transaction, it has to be created and
-first written history entry should correspond to the above description.
-
-For file update example, the first history entry will contain size of the object
-corresponding to that file (after transformation, i.e.
-hash('/tmp/test') -> 0x1234, so above size will correspond to the size of the 0x1234
-object), and its ID (0x1234 in the example).
-
-For the stand-alone transction the first history entry will contain size of the
-transaction (its data) and ID of the transaction.
-
-For the transaction, which belongs to some file, it will contain size of the
-transaction (its data) and ID of the corresponding file object.
-
-All subsequent history entries will contain tranaction IDs and their attributes,
-namely size, offset and processing flags.
-
-
-It is needed to store data not using offset thus reducing sparse area before actual
-data. Read requests will take that into account and request data like transaction
-offset is always zero, and shift it in the resulted data according to the object
-history.
-
-For example write into offset 0x123 should be stored without any offset, but history
-should contain a record, that given transaction should be placed at 0x123 offset.
-
-When DNET_IO_FLAGS_HISTORY is specified (modulo above case), the same IO command should
-be done against history records and not objects themself.
-
 DNET_CMD_READ
 -------------
-All history (DNET_IO_FLAGS_HISTORY flag means we operate with history and not the
-object) and structure related issues (dnet_io_attr structure definition) are
-described in the write command part.
-
-There is a number of special cases in object reading.
-First, when attribute size is greater than size of the dnet_io_attr structure,
-it means that data has to be copied into provided buffer
-(after dnet_io_attr structure). Otherwise new data request has to be allocated
-and filled with the read data.
-
 When size specified in dnet_io_attr structure equals to zero, this means that the
 whole object has to be returned back to the client. It is possible that requested
 size and offset will be out of the object range (for example when stored object
@@ -136,53 +76,6 @@ take dnet_io_attr attribute structure and size of the stored record, and return
 size to be read from the given record and pushed back to the client. If it is zero,
 nothing should be returned, likely because request is out of range.
 
-
-Data request (dnet_data_req structure) is a control structure used to specify
-what data should be sent to the given network connection. There are three fields
-representing the data: header, data itself and file descriptor. Each field has
-corresponding size and optionally offset (for the file descriptor and data) fields,
-which are used to show from which offset requested number of bytes has to be sent.
-Each helper function to specify data portion has a flag, which specifies weather
-given resource should be freed/closed when processed. One can also specify a
-completion callback, which is invoked after given data request has been fully sent
-into the network. If this callback is specified, it is responsible for freeing data
-request itself. It is also possible to specify a flag, which will tell, that given
-data request should not be freed at all. It is used when data request is a part of
-some other structure which has own reference counter and will be freed by different
-layers.
-By default data request has a header with specified at allocation time size,
-does not have data and associated file descriptor. It does not have callback and
-associated private date either. If network state was specified at allocation time,
-its reference was grabbed and will be released at destruction time.
-
 Each reply (weather it is read data reply or anything else) should include
 at least original transaction number with the special DNET_TRANS_REPLY bit set.
-Its ID usually should match the request one.
-
-All other fields can be set according to the requested conditions.
-
-For example for data read reply we should specify main header (dnet_cmd structure),
-where ID and transaction are set as described above, status field corresponds to the
-completion result, and size tells how many bytes are attached to the structure.
-Data reading attribute structure (dnet_attr) should contain DNET_CMD_READ reply
-command, original request flags and size of the read data plus size of the
-dnet_io_attr stucture, which will tell how many bytes are attached, from which offset
-it was read and which flags were used (like was it history reading or object).
-
-Main header flags field should contain DNET_FLAGS_MORE flag if read was split or
-request required acknowledge, otherwise client will complete and free transaction
-after receiving the first reply, so subsequent packets with the same transaction
-number will be dropped.
-
-
-DNET_CMD_LIST
--------------
-This command is required for the node joining protocol, when joining node requests list
-of IDs maintained by the given node which corresponds to the range of the joining node.
-
-Processing node should call dnet_state_get_range() helper to determine the range
-of the IDs to send, it will write the first ID in the provided buffer. The last ID is
-main header ID, i.e. dnet_cmd id field.
-
-IDs should be groupped one after another in the data buffer and sent using
-dnet_send_list() helper.
+Its ID usually should match the request one. There are special helpers to deal with it.

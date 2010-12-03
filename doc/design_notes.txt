@@ -18,22 +18,26 @@ a remote command execution, which can be used as a load balancing job manager.
 Elliptics network does not contain dedicated metadata servers, all nodes play exactly
 the same single role - data storage and request forwarding to another nodes if needed.
 
+Nodes can be organized into groups, which may represent physically dedicated datacenters
+for example.
+
+
 Network addressing.
 -------------------
-The network uses unified ring of the IDs where each new node will get one or another
-number. After selecting the ID and joining the network (saying its neighbours in the
-ring that they have a new member) node will store data which has IDs less or equal
-to the selected one. Routing protocol manages request forwarding, so each node should
-store data with greater or equal than own ID and less than the next one in the ring.
+The network uses unified ring of the IDs where each new node will get a random set of IDs
+according to free space (or one can generate ID file by hands and specify IDs he likes).
+After selecting IDs and joining the network (saying its neighbours in the
+ring that they have a new member) node will store data which has IDs more or equal
+to the one associated with the node. Routing protocol manages request forwarding,
+so each node should store data with greater or equal than own ID and less than
+the next one in the ring.
 
 ID in the elliptics network can be created from the data content, names, database
-indexes or whatever you want. There are so called transformation functions, which
-generate ID for the data blocks. All existing examples implement some kind of hashing
-of the data, but it is also possible to return an ID of some node to forcibly store
-given data on the specified node (it is also possible to set a flag in the header
-though, but it is described in the appropriate file).
+indexes or whatever you want. By default elliptics uses sha512 to generate ID for
+the data blocks.
 ID can also be created as some internal to application object like database index
 or row entry in the table.
+
 
 IO transactions.
 ----------------
@@ -43,57 +47,42 @@ commands processed atomically. When transaction receives a positive (zero status
 acknowledge (can be turned off for some requests if needed), it means that all
 specified operations were completed successfully. Otherwise (usually negative error
 status corresponding to the errno or other low-level error) means that one or another
-operation failed and the whole transaction is not considered processed.
+operation failed and the whole transaction failed.
 In this case client may try different recovery strategies described below.
 
 Each object contains a history of updates, where each update is a separate transaction
-stored somewhere in the network. Thus it is possible by using transaction history to
+stored somewhere in the network. By using transaction history it is possible to
 recreate any object in its previous state providing snapshotting mechanism. One can
 also fetch multiple transactions from the history log in parallel increasing IO
 performance.
 
+
 No need for metadata servers.
 -----------------------------
 Elliptics network does not need special metadata servers to manage ID to object
-mapping, this is done automatically in applications by using transformation functions.
+mapping, this is done automatically in applications by using name or content hash
+to determine node which should manage given object.
+
 
 Maintaining the data redundancy.
 --------------------------------
-Transformation functions are also used for the data replication: the same data
-can be processed by multiple transformation functions, which will result in
-different IDs, so objects will be potentially stored on the multiple nodes (depending
-on the network configuration of course, network with two nodes will only be able to
-store data at least on two machines).
+Elliptics network uses server groups to maintain data redundancy.
 
-There are two types of data replication: client and server side.
-Client-side replication works at write time when multiple transactions are created
-for the same data to be written, and they are sent in parallel to the corresponding
-nodes.
+Client can specify which groups to use for data processing, for example which groups
+should host to be written data or which groups can be used to fetch it.
 
-Server-side replications works the same way, but works not with own data, but with
-requests received from clients. When server gets new write transaction it checks if
-it is already a result of the server-side replication. In this case no additional
-steps are made - transaction is processed as usual, i.e. saved into the storage.
-When server receives a plain write transaction (i.e. when it is not a replica made
-by another server), it runs it through the local set of transformation functions,
-which create new object-ID mapping and thus new transactions are created and are sent
-into the network.
+It is also possible to specify automatic group selection during write. For example
+we can connect to 10 server groups and only want to write 3 copies. Automatic selection
+will find 3 groups and return them to the client. Elliptics sorts groups according
+to free space.
 
-Client may connect to the given server and request its list of transformation
-functions. It can add them into local list of the functions if application supports
-them. This allows to fetch data from different nodes when the node specified by another
-transformation is not accessible.
+Write functions either return number of transactions written or invoke clien't callback
+with appropriate completion status. Reading will automatically switch between groups
+when object is not present in one of them.
 
-Data recovery.
---------------
-If client stored data using multiple transformation functions, or when client knows
-what server-side replication transformations were made against its data, it can request
-data using different IDs created using different transformation functions.
+It is also possible in fcgi frontend to sort groups to read data according to LA,
+i.e. client will fetch data from the node with smallest average load.
 
-For example when client stored data using two transforamtion functions, he can
-request object with the ID generated by the first function, and if no data is
-accessible, try another transformation, which will generate new ID, so object with the
-new ID may be fetched from the different node.
 
 Frontend and backend modular approach.
 --------------------------------------
@@ -115,30 +104,6 @@ Multiple IO storage backends are supported by the example application server.
 File backend, where each transaction is stored as separated file in the root
 directory (actually in subdir, indexed by the first by of the command ID).
 
-Tokyo Cabinet (http://tokyocabinet.sourceforge.net/index.html) database storage
-backend. It is the fastest backend to date. It can be trivially extended to become
-in-memory storage for the HPC temporary data for example (requires to change a
-database name, which is one of the configuration methods in Tokyo Cabinet).
-
-IO operations logic. Writing.
------------------------------
-Data to be written is processed by the transformation functions in registration order,
-which produce transaction IDs used to select a node in the network to store the data.
-Each write may or may not belong to some global object update (for example when we
-write into some file). In this case each transaction should be also noted in the
-update history of the corresponding object (file to be written in above example).
-
-Writes never overwrite data in some or another object, instead update transactions
-are stored in the network and history of the main object is updated.
-
-IO operations logic. Reading.
------------------------------
-Reading recreates object by fetching needed transaction from the network according
-to its history file.
-
-It is of course possible to fetch separate transactions not bound to some global
-object.
-
-In any case system has to have an ID of the transaction to fetch from the network.
-ID can be generated by the different transformation functions or obtained from external
-source (like update transaction history log or some other object).
+Eblob backend, which stores data in huge data blobs with index locked in memory.
+This allows to perform O(1) lookup and use only single seek to get data from disk.
+One can find more details on eblob homepage: http://www.ioremap.net/projects/eblob
