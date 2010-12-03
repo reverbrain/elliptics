@@ -741,8 +741,6 @@ void dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num)
 		return;
 
 	pthread_mutex_lock(&n->group_lock);
-	free(n->groups);
-
 	n->groups = groups;
 	n->group_num = group_num;
 	pthread_mutex_unlock(&n->group_lock);
