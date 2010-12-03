@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.4.7
+Version:	2.9.4.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Dec 3 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.4.8-1
+- Fixed fcgi reading with new groups URI.
+
 * Fri Dec 3 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.4.7-1
 - Implemented automatic groups selection by free space.
 - Bug fixes.
