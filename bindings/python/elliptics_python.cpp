@@ -192,14 +192,14 @@ class elliptics_node_python : public elliptics_node {
 			elliptics_node::write_file((void *)lrem, rem_size, const_cast<char *>(file), local_offset, offset, size, aflags, ioflags);
 		}
 
-		void read_data_by_id(struct elliptics_id &id, unsigned long data, uint64_t offset, uint64_t size) {
+		boost::python::ssize_t read_data_by_id(struct elliptics_id &id, unsigned long data, uint64_t offset, uint64_t size) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
-			elliptics_node::read_data_wait(raw, (void *)data, offset, size);
+			return elliptics_node::read_data_wait(raw, (void *)data, offset, size);
 		}
 
-		void read_data_by_data_transform(unsigned long rem, unsigned int rem_size, unsigned long data, uint64_t offset, uint64_t size) {
-			elliptics_node::read_data_wait((void *)rem, rem_size, (void *)data, offset, size);
+		boost::python::ssize_t read_data_by_data_transform(unsigned long rem, unsigned int rem_size, unsigned long data, uint64_t offset, uint64_t size) {
+			return elliptics_node::read_data_wait((void *)rem, rem_size, (void *)data, offset, size);
 		}
 
 		int write_data_by_id(struct elliptics_id &id, unsigned long data, uint64_t offset, uint64_t size,

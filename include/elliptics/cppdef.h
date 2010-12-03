@@ -133,8 +133,8 @@ class elliptics_node {
 		int			write_data(void *remote, unsigned int remote_len, void *data, unsigned int size, elliptics_callback &c,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
 
-		void			read_data_wait(struct dnet_id &id, void *data, uint64_t offset, uint64_t size);
-		void			read_data_wait(void *remote, unsigned int remote_size, void *data, uint64_t offset, uint64_t size);
+		ssize_t			read_data_wait(struct dnet_id &id, void *data, uint64_t offset, uint64_t size);
+		ssize_t			read_data_wait(void *remote, unsigned int remote_size, void *data, uint64_t offset, uint64_t size);
 
 		int			write_data_wait(struct dnet_id &id, void *data, uint64_t offset, uint64_t size,
 							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,

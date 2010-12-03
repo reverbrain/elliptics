@@ -2721,6 +2721,7 @@ struct dnet_read_data_completion {
 	struct dnet_wait		*w;
 	void				*data;
 	uint64_t			size, offset;
+	ssize_t				read;
 };
 
 static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
@@ -2746,11 +2747,15 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 		dnet_convert_io_attr(io);
 
-		if (io->size < sz)
-			sz = io->size;
+		if (c->size) {
+			if (io->size < sz)
+				sz = io->size;
 
-		memcpy(c->data + c->offset, data, sz);
-		c->offset += sz;
+			memcpy(c->data + c->offset, data, sz);
+			c->offset += sz;
+			c->size -= sz;
+			c->read += sz;
+		}
 	}
 
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: object read completed: trans: %llu, status: %d, last: %d.\n",
@@ -2766,10 +2771,10 @@ err_out_exit:
 	return err;
 }
 
-int dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, void *data, uint64_t offset, uint64_t size)
+ssize_t dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, void *data, uint64_t offset, uint64_t size)
 {
 	struct dnet_io_control ctl;
-	int err;
+	ssize_t err;
 	struct dnet_wait *w;
 	struct dnet_read_data_completion c;
 
@@ -2783,6 +2788,7 @@ int dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, void *data, uin
 	c.data = data;
 	c.size = size;
 	c.offset = 0;
+	c.read = 0;
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -2816,7 +2822,7 @@ int dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, void *data, uin
 				dnet_dump_id(&ctl.id), err, w->status);
 		goto err_out_put;
 	}
-	err = 0;
+	err = c.read;
 
 err_out_put:
 	dnet_wait_get(w);
