@@ -1,3 +1,9 @@
+elliptics (2.9.5.1) unstable; urgency=low
+
+  * Documentation update.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 03 Dec 2010 22:17:31 +0300
+
 elliptics (2.9.4.8) unstable; urgency=low
 
   * Fixed fcgi reading with new groups URI.
