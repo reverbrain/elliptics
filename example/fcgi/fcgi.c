@@ -771,26 +771,22 @@ static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct 
 		groups = alloca(sizeof(int) * dnet_fcgi_group_num);
 		for (i=0; i<dnet_fcgi_group_num; ++i)
 			groups[i] = dnet_fcgi_groups[i];
+		ids_num = dnet_fcgi_group_num;
 	}
 
-	for (i=0; i<dnet_fcgi_group_num; ++i) {
+	for (i=0; i<ids_num; ++i) {
 		if (dnet_fcgi_use_la_check) {
-			if (i >= ids_num) {
-				error = -ENOENT;
-				break;
-			}
-
 			id->group_id = ids[i].group_id;
 		} else {
-			if (random_num < dnet_fcgi_group_num) {
+			if (random_num < ids_num) {
 				int r;
 
-				r = (double)(dnet_fcgi_group_num - random_num) * rand() / ((double)RAND_MAX);
+				r = (double)(ids_num - random_num) * rand() / ((double)RAND_MAX);
 
 				id->group_id = groups[r];
-				dnet_log_raw(n, DNET_LOG_DSA, "Using r: %d, group: %d/%d.\n", r, id->group_id, dnet_fcgi_group_num);
+				dnet_log_raw(n, DNET_LOG_DSA, "Using r: %d, group: %d, total groups: %d.\n", r, id->group_id, ids_num);
 
-				for (; r<dnet_fcgi_group_num-1; r++)
+				for (; r<ids_num-1; r++)
 					groups[r] = groups[r+1];
 
 				random_num++;
