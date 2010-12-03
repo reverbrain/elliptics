@@ -335,6 +335,8 @@ static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd
 
 		orig->la = (int)stat->la[0];
 		orig->free = stat->bsize * stat->bavail;
+
+		dnet_log(n, DNET_LOG_DSA, "%s: la: %d, free: %llu\n", dnet_dump_id(&cmd->id), orig->la, orig->free);
 	}
 
 	return 0;
