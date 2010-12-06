@@ -836,8 +836,8 @@ out_wakeup:
 			dnet_dump_id(&cmd->id), dnet_fcgi_request_completed, err);
 	}
 	dnet_fcgi_post_len += snprintf(dnet_fcgi_post_buf + dnet_fcgi_post_len, dnet_fcgi_post_buf_size - dnet_fcgi_post_len,
-			"<complete group=\"%d\" status=\"%d\" />",
-			cmd->id.group_id, err);
+			"<complete addr=\"%s\" group=\"%d\" status=\"%d\"/>",
+			dnet_state_dump_addr(st), cmd->id.group_id, err);
 	dnet_fcgi_wakeup({
 				do {
 					dnet_fcgi_request_completed++;
@@ -858,12 +858,20 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 	int err;
 	struct timespec wait = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 	char id_str[DNET_ID_SIZE*2+1];
+	char obj_str[length + 1];
+	char crc_str[2*DNET_ID_SIZE + 1];
+	struct dnet_id raw;
+
+	snprintf(obj_str, sizeof(obj_str), "%s", obj);
+
+	dnet_transform(n, data, size, &raw);
 
 	dnet_fcgi_post_len = snprintf(dnet_fcgi_post_buf, dnet_fcgi_post_buf_size,
 			"<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-			"<post id=\"%s\" groups=\"%d\">",
-			dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, id_str),
-			dnet_fcgi_group_num);
+			"<post obj=\"%s\" id=\"%s\" crc=\"%s\" groups=\"%d\" size=\"%llu\">",
+			obj_str, dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, id_str),
+			dnet_dump_id_len_raw(raw.id, DNET_ID_SIZE, crc_str),
+			dnet_fcgi_group_num, (unsigned long long)size);
 
 	dnet_fcgi_request_error = 0;
 	dnet_fcgi_request_completed = 0;
