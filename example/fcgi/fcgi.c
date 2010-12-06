@@ -817,7 +817,10 @@ static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct 
 static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr __unused, void *priv __unused)
 {
-	int err = 0;
+	int err = 0, port;
+	struct dnet_addr *addr;
+	char id_str[DNET_ID_SIZE*2+1];
+	char hex_dir[2*DNET_ID_SIZE+1];
 
 	if (!cmd || !st) {
 		err = -EINVAL;
@@ -835,9 +838,20 @@ out_wakeup:
 		dnet_log_raw(dnet_get_node_from_state(st), DNET_LOG_ERROR, "%s: upload completed: %d, err: %d.\n",
 			dnet_dump_id(&cmd->id), dnet_fcgi_request_completed, err);
 	}
+
+	file_backend_get_dir(cmd->id.id, dnet_fcgi_bit_num, hex_dir);
+	dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id_str);
+
+	addr = dnet_state_addr(st);
+	port = dnet_server_convert_port((struct sockaddr *)addr->addr, addr->addr_len);
+
 	dnet_fcgi_post_len += snprintf(dnet_fcgi_post_buf + dnet_fcgi_post_len, dnet_fcgi_post_buf_size - dnet_fcgi_post_len,
-			"<complete addr=\"%s\" group=\"%d\" status=\"%d\"/>",
-			dnet_state_dump_addr(st), cmd->id.group_id, err);
+			"<complete addr=\"%s\" path=\"%s/%d/%s/%s\" group=\"%d\" status=\"%d\"/>",
+			dnet_state_dump_addr(st),
+			dnet_fcgi_root_pattern,
+			port - dnet_fcgi_base_port,
+			hex_dir, id_str,
+			cmd->id.group_id, err);
 	dnet_fcgi_wakeup({
 				do {
 					dnet_fcgi_request_completed++;
@@ -865,11 +879,12 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 	snprintf(obj_str, sizeof(obj_str), "%s", obj);
 
 	dnet_transform(n, data, size, &raw);
+	dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, id_str);
 
 	dnet_fcgi_post_len = snprintf(dnet_fcgi_post_buf, dnet_fcgi_post_buf_size,
 			"<?xml version=\"1.0\" encoding=\"utf-8\"?>"
 			"<post obj=\"%s\" id=\"%s\" crc=\"%s\" groups=\"%d\" size=\"%llu\">",
-			obj_str, dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, id_str),
+			obj_str, id_str,
 			dnet_dump_id_len_raw(raw.id, DNET_ID_SIZE, crc_str),
 			dnet_fcgi_group_num, (unsigned long long)size);
 
