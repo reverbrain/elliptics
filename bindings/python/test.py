@@ -17,8 +17,11 @@ try:
 	id.version = 0
 
 	n.write_data(id, '1234567890qwertyuio')
-
 	s = n.read_data(id, 0)
+	print s
+
+	n.write_data("test.txt", '1234567890qwertyuio')
+	s = n.read_data("test.txt", 0)
 	print s
 except:
 	print "Unexpected error:", sys.exc_info()[0]

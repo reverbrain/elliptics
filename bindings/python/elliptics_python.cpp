@@ -172,6 +172,18 @@ class elliptics_node_python : public elliptics_node {
 	public:
 		elliptics_node_python(elliptics_log &l) : elliptics_node(l) {}
 
+		void add_groups(list groups) {
+			int num = len(groups);
+			int *g = (int *)malloc(num * sizeof(int));
+			if (!g)
+				throw std::bad_alloc();
+
+			for (int i=0; i<num; ++i)
+				g[i] = extract<uint32_t>(groups[i]);
+
+			elliptics_node::add_groups(g, num);
+		}
+
 		void read_file_by_id(struct elliptics_id &id, const char *file, uint64_t offset, uint64_t size) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
@@ -250,7 +262,7 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<elliptics_node_python, bases<elliptics_node> >("elliptics_node_python", init<elliptics_log &>())
 		.def("add_remote", &elliptics_node::add_remote, add_remote_overloads())
 
-		.def("add_groups", &elliptics_node::add_groups)
+		.def("add_groups", &elliptics_node_python::add_groups)
 
 		.def("read_file", &elliptics_node_python::read_file_by_id)
 		.def("read_file", &elliptics_node_python::read_file_by_data_transform)

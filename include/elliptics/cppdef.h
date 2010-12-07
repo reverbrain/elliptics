@@ -112,7 +112,7 @@ class elliptics_node {
 		elliptics_node(elliptics_log &l);
 		virtual ~elliptics_node();
 
-		void			add_groups(int g[], int gnum);
+		void			add_groups(int *g, int gnum);
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 

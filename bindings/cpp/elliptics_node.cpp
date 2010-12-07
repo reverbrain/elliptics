@@ -65,10 +65,15 @@ elliptics_node::~elliptics_node()
 	delete log;
 }
 
-void elliptics_node::add_groups(int g[], int gnum)
+void elliptics_node::add_groups(int *g, int gnum)
 {
 	groups = new int [gnum];
 	group_num = gnum;
+
+	for (int i=0; i<gnum; ++i)
+		groups[i] = g[i];
+
+	dnet_node_set_groups(node, g, gnum);
 }
 
 void elliptics_node::add_remote(const char *addr, const int port, const int family)
@@ -150,6 +155,7 @@ void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t si
 			read_data(id, offset, size, c);
 		} catch (int err) {
 			error = err;
+			continue;
 		}
 
 		error = 0;
@@ -242,6 +248,7 @@ std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 			ret = read_data_wait(id, size);
 		} catch (int err) {
 			error = err;
+			continue;
 		}
 
 		error = 0;
