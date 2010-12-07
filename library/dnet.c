@@ -2720,8 +2720,7 @@ struct dnet_node *dnet_get_node_from_state(void *state)
 struct dnet_read_data_completion {
 	struct dnet_wait		*w;
 	void				*data;
-	uint64_t			size, offset;
-	ssize_t				read;
+	uint64_t			size;
 };
 
 static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
@@ -2747,15 +2746,15 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 		dnet_convert_io_attr(io);
 
-		if (c->size) {
-			if (io->size < sz)
-				sz = io->size;
-
-			memcpy(c->data + c->offset, data, sz);
-			c->offset += sz;
-			c->size -= sz;
-			c->read += sz;
+		sz += io->size;
+		c->data = realloc(c->data, sz);
+		if (!c->data) {
+			err = -ENOMEM;
+			goto err_out_exit;
 		}
+
+		memcpy(c->data + c->size, data, io->size);
+		c->size += io->size;
 	}
 
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: object read completed: trans: %llu, status: %d, last: %d.\n",
@@ -2771,12 +2770,13 @@ err_out_exit:
 	return err;
 }
 
-ssize_t dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, void *data, uint64_t offset, uint64_t size)
+void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *size)
 {
 	struct dnet_io_control ctl;
 	ssize_t err;
 	struct dnet_wait *w;
 	struct dnet_read_data_completion c;
+	void *data = NULL;
 
 	w = dnet_wait_alloc(0);
 	if (!w) {
@@ -2785,10 +2785,8 @@ ssize_t dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, void *data,
 	}
 
 	c.w = w;
-	c.data = data;
-	c.size = size;
-	c.offset = 0;
-	c.read = 0;
+	c.size = 0;
+	c.data = NULL;
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -2806,8 +2804,8 @@ ssize_t dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, void *data,
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
 	
 	ctl.io.flags = 0;
-	ctl.io.size = size;
-	ctl.io.offset = offset;
+	ctl.io.size = *size;
+	ctl.io.offset = 0;
 
 	dnet_wait_get(w);
 	err = dnet_read_object(n, &ctl);
@@ -2818,16 +2816,17 @@ ssize_t dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, void *data,
 	if (err || w->status) {
 		if (!err)
 			err = w->status;
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for IO read completion, err: %d, status: %d.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for IO read completion, err: %zd, status: %d.\n",
 				dnet_dump_id(&ctl.id), err, w->status);
 		goto err_out_put;
 	}
-	err = c.read;
+	*size = c.size;
+	data = c.data;
 
 err_out_put:
 	dnet_wait_get(w);
 err_out_exit:
-	return err;
+	return data;
 }
 
 int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,

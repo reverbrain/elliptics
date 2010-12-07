@@ -112,34 +112,34 @@ class elliptics_node {
 		elliptics_node(elliptics_log &l);
 		virtual ~elliptics_node();
 
-		void			add_groups(int g[], int gnum);
+		void			add_groups(int *g, int gnum);
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 
 		void			read_file(struct dnet_id &id, char *dst_file, uint64_t offset, uint64_t size);
-		void			read_file(void *remote, unsigned int remote_size, char *dst_file, uint64_t offset, uint64_t size);
+		void			read_file(std::string &remote, char *dst_file, uint64_t offset, uint64_t size);
 
 		void			read_data(struct dnet_id &id, uint64_t offset, uint64_t size, elliptics_callback &c);
-		void			read_data(void *remote, unsigned int remote_size, uint64_t offset, uint64_t size, elliptics_callback &c);
+		void			read_data(std::string &remote, uint64_t offset, uint64_t size, elliptics_callback &c);
 
 		void 			write_file(struct dnet_id &id, char *src_file, uint64_t local_offset, uint64_t offset, uint64_t size,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
-		void			write_file(void *remote, unsigned int remote_size, char *src_file, uint64_t local_offset,
+		void			write_file(std::string &remote, char *src_file, uint64_t local_offset,
 							uint64_t offset, uint64_t size,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
 
-		int			write_data(struct dnet_id &id, void *data, unsigned int size, elliptics_callback &c,
+		int			write_data(struct dnet_id &id, std::string &str, elliptics_callback &c,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
-		int			write_data(void *remote, unsigned int remote_len, void *data, unsigned int size, elliptics_callback &c,
+		int			write_data(std::string &remote, std::string &str, elliptics_callback &c,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
 
-		ssize_t			read_data_wait(struct dnet_id &id, void *data, uint64_t offset, uint64_t size);
-		ssize_t			read_data_wait(void *remote, unsigned int remote_size, void *data, uint64_t offset, uint64_t size);
+		std::string		read_data_wait(struct dnet_id &id, uint64_t size);
+		std::string		read_data_wait(std::string &remote, uint64_t size);
 
-		int			write_data_wait(struct dnet_id &id, void *data, uint64_t offset, uint64_t size,
+		int			write_data_wait(struct dnet_id &id, std::string &str,
 							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
 							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE);
-		int			write_data_wait(void *remote, unsigned int remote_len, void *data, uint64_t offset, uint64_t size,
+		int			write_data_wait(std::string &remote, std::string &str,
 							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
 							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 

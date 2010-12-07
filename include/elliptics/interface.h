@@ -157,8 +157,7 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
  *
  * Returns number of bytes read or negative error code.
  */
-ssize_t dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id,
-		void *data, uint64_t offset, uint64_t size);
+void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *size);
 
 int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
 		void *data, int fd, uint64_t offset);

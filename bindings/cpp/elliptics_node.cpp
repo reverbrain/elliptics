@@ -65,10 +65,15 @@ elliptics_node::~elliptics_node()
 	delete log;
 }
 
-void elliptics_node::add_groups(int g[], int gnum)
+void elliptics_node::add_groups(int *g, int gnum)
 {
 	groups = new int [gnum];
 	group_num = gnum;
+
+	for (int i=0; i<gnum; ++i)
+		groups[i] = g[i];
+
+	dnet_node_set_groups(node, g, gnum);
 }
 
 void elliptics_node::add_remote(const char *addr, const int port, const int family)
@@ -99,14 +104,14 @@ void elliptics_node::read_file(struct dnet_id &id, char *dst_file, uint64_t offs
 		throw err;
 }
 
-void elliptics_node::read_file(void *remote, unsigned int remote_size, char *dst_file, uint64_t offset, uint64_t size)
+void elliptics_node::read_file(std::string &remote, char *dst_file, uint64_t offset, uint64_t size)
 {
 	int err;
 
 	if (!size)
 		size = ~0ULL;
 
-	err = dnet_read_file(node, dst_file, reinterpret_cast<char *>(remote), remote_size, NULL, offset, size, 0);
+	err = dnet_read_file(node, dst_file, (void *)remote.data(), remote.size(), NULL, offset, size, 0);
 	if (err)
 		throw err;
 }
@@ -137,12 +142,12 @@ void elliptics_node::read_data(struct dnet_id &id, uint64_t offset, uint64_t siz
 		throw err;
 }
 
-void elliptics_node::read_data(void *remote, unsigned int remote_size, uint64_t offset, uint64_t size, elliptics_callback &c)
+void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t size, elliptics_callback &c)
 {
 	int err, error = 0, i;
 	struct dnet_id id;
 
-	dnet_transform(node, remote, remote_size, &id);
+	dnet_transform(node, (void *)remote.data(), remote.size(), &id);
 	for (i=0; i<group_num; ++i) {
 		id.group_id = groups[i];
 
@@ -150,6 +155,7 @@ void elliptics_node::read_data(void *remote, unsigned int remote_size, uint64_t 
 			read_data(id, offset, size, c);
 		} catch (int err) {
 			error = err;
+			continue;
 		}
 
 		error = 0;
@@ -167,10 +173,10 @@ void elliptics_node::write_file(struct dnet_id &id, char *src_file, uint64_t loc
 	if (err)
 		throw err;
 }
-void elliptics_node::write_file(void *remote, unsigned int remote_size, char *src_file, uint64_t local_offset, uint64_t offset, uint64_t size,
+void elliptics_node::write_file(std::string &remote, char *src_file, uint64_t local_offset, uint64_t offset, uint64_t size,
 		unsigned int aflags, unsigned int ioflags)
 {
-	int err = dnet_write_file_local_offset(node, src_file, remote, remote_size, NULL, local_offset, offset, size, aflags, ioflags);
+	int err = dnet_write_file_local_offset(node, src_file, (void *)remote.data(), remote.size(), NULL, local_offset, offset, size, aflags, ioflags);
 	if (err)
 		throw err;
 }
@@ -207,41 +213,42 @@ int elliptics_node::write_data_ll(struct dnet_id *id, void *remote, unsigned int
 	return err;
 }
 
-int elliptics_node::write_data(struct dnet_id &id, void *data, unsigned int size,
+int elliptics_node::write_data(struct dnet_id &id, std::string &str,
 		elliptics_callback &c, unsigned int aflags, unsigned int ioflags)
 {
-	return write_data_ll(&id, NULL, 0, data, size, c, aflags, ioflags);
+	return write_data_ll(&id, NULL, 0, (void *)str.data(), str.size(), c, aflags, ioflags);
 }
 
-int elliptics_node::write_data(void *remote, unsigned int remote_len, void *data, unsigned int size,
+int elliptics_node::write_data(std::string &remote, std::string &str,
 		elliptics_callback &c, unsigned int aflags, unsigned int ioflags)
 {
-	return write_data_ll(NULL, remote, remote_len, data, size, c, aflags, ioflags);
+	return write_data_ll(NULL, (void *)remote.data(), remote.size(), (void *)str.data(), str.size(), c, aflags, ioflags);
 }
 
-ssize_t elliptics_node::read_data_wait(struct dnet_id &id, void *data, uint64_t offset, uint64_t size)
+std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size)
 {
-	int err = dnet_read_data_wait(node, &id, data, offset, size);
-	if (err < 0)
-		throw err;
+	void *data = dnet_read_data_wait(node, &id, &size);
+	if (!data)
+		throw -1;
 
-	return err;
+	return std::string((const char *)data, size);
 }
 
-ssize_t elliptics_node::read_data_wait(void *remote, unsigned int remote_size, void *data, uint64_t offset, uint64_t size)
+std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 {
 	struct dnet_id id;
 	int err, error = 0, i;
-	ssize_t ret;
+	std::string ret;
 
-	dnet_transform(node, remote, remote_size, &id);
+	dnet_transform(node, (void *)remote.data(), remote.size(), &id);
 	for (i=0; i<group_num; ++i) {
 		id.group_id = groups[i];
 
 		try {
-			ret = read_data_wait(id, data, offset, size);
+			ret = read_data_wait(id, size);
 		} catch (int err) {
 			error = err;
+			continue;
 		}
 
 		error = 0;
@@ -255,18 +262,17 @@ ssize_t elliptics_node::read_data_wait(void *remote, unsigned int remote_size, v
 
 }
 
-int elliptics_node::write_data_wait(struct dnet_id &id, void *data, uint64_t offset, uint64_t size, unsigned int aflags, unsigned int ioflags)
+int elliptics_node::write_data_wait(struct dnet_id &id, std::string &str, unsigned int aflags, unsigned int ioflags)
 {
-	int err = dnet_write_data_wait(node, NULL, 0, &id, data, -1, 0, offset, size, NULL, aflags, ioflags);
+	int err = dnet_write_data_wait(node, NULL, 0, &id, (void *)str.data(), -1, 0, 0, str.size(), NULL, aflags, ioflags);
 	if (err < 0)
 		throw err;
 	return err;
 }
 
-int elliptics_node::write_data_wait(void *remote, unsigned int remote_size, void *data, uint64_t offset, uint64_t size,
-		unsigned int aflags, unsigned int ioflags)
+int elliptics_node::write_data_wait(std::string &remote, std::string &str, unsigned int aflags, unsigned int ioflags)
 {
-	int err = dnet_write_data_wait(node, remote, remote_size, NULL, data, -1, 0, offset, size, NULL, aflags, ioflags);
+	int err = dnet_write_data_wait(node, (void *)remote.data(), remote.size(), NULL, (void *)str.data(), -1, 0, 0, str.size(), NULL, aflags, ioflags);
 	if (err < 0)
 		throw err;
 	return err;
