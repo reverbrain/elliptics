@@ -536,6 +536,7 @@ err_out_unmap:
 err_out_close:
 	close(fd);
 err_out_exit:
+	unlink(file);
 	return err;
 }
 
