@@ -113,9 +113,11 @@ struct elliptics_id {
 	uint32_t	version;
 };
 
-static void elliptics_extract_id(struct elliptics_id &e, struct dnet_id &id)
+static void elliptics_extract_id(const struct elliptics_id &e, struct dnet_id &id)
 {
 	int length = len(e.id);
+
+	memset(id.id, 0, sizeof(id.id));
 
 	if (length > sizeof(id.id))
 		length = sizeof(id.id);
@@ -176,8 +178,8 @@ class elliptics_node_python : public elliptics_node {
 			elliptics_node::read_file(raw, const_cast<char *>(file), offset, size);
 		}
 
-		void read_file_by_data_transform(unsigned long lrem, unsigned int rem_size, const char *file, uint64_t offset, uint64_t size) {
-			elliptics_node::read_file((void *)lrem, rem_size, const_cast<char *>(file), offset, size);
+		void read_file_by_data_transform(const std::string &remote, const char *file, uint64_t offset, uint64_t size) {
+			elliptics_node::read_file((std::string &)remote, const_cast<char *>(file), offset, size);
 		}
 
 		void write_file_by_id(struct elliptics_id &id, const char *file, uint64_t local_offset, uint64_t offset, uint64_t size,
@@ -187,41 +189,41 @@ class elliptics_node_python : public elliptics_node {
 			elliptics_node::write_file(raw, const_cast<char *>(file), local_offset, offset, size, aflags, ioflags);
 		}
 
-		void write_file_by_data_transform(unsigned long lrem, unsigned int rem_size, const char *file, uint64_t local_offset,
+		void write_file_by_data_transform(const std::string &remote, const char *file, uint64_t local_offset,
 				uint64_t offset, uint64_t size, unsigned int aflags = 0, unsigned int ioflags = 0) {
-			elliptics_node::write_file((void *)lrem, rem_size, const_cast<char *>(file), local_offset, offset, size, aflags, ioflags);
+			elliptics_node::write_file((std::string &)remote, const_cast<char *>(file), local_offset, offset, size, aflags, ioflags);
 		}
 
-		boost::python::ssize_t read_data_by_id(struct elliptics_id &id, unsigned long data, uint64_t offset, uint64_t size) {
+		std::string read_data_by_id(const struct elliptics_id &id, uint64_t size) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
-			return elliptics_node::read_data_wait(raw, (void *)data, offset, size);
+			return elliptics_node::read_data_wait(raw, size);
 		}
 
-		boost::python::ssize_t read_data_by_data_transform(unsigned long rem, unsigned int rem_size, unsigned long data, uint64_t offset, uint64_t size) {
-			return elliptics_node::read_data_wait((void *)rem, rem_size, (void *)data, offset, size);
+		std::string read_data_by_data_transform(const std::string &remote, uint64_t size) {
+			return elliptics_node::read_data_wait((std::string &)remote, size);
 		}
 
-		int write_data_by_id(struct elliptics_id &id, unsigned long data, uint64_t offset, uint64_t size,
+		int write_data_by_id(const struct elliptics_id &id, const std::string &data,
 							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
 							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
-			return elliptics_node::write_data_wait(raw, (void *)data, offset, size, aflags, ioflags);
+			return elliptics_node::write_data_wait(raw, (std::string &)data, aflags, ioflags);
 		}
 
-		int write_data_by_data_transform(unsigned long rem, unsigned int rem_size, unsigned long data, uint64_t offset, uint64_t size,
+		int write_data_by_data_transform(const std::string &remote, const std::string &data,
 							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
 							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
-			return elliptics_node::write_data_wait((void *)rem, rem_size, (void *)data, offset, size, aflags, ioflags);
+			return elliptics_node::write_data_wait((std::string &)remote, (std::string &)data, aflags, ioflags);
 		}
 };
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_file_by_id_overloads, write_file_by_id, 5, 7);
-BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_file_by_data_transform_overloads, write_file_by_data_transform, 6, 8);
-BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_id_overloads, write_data_by_id, 4, 6);
-BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_data_transform_overloads, write_data_by_data_transform, 5, 7);
+BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_file_by_data_transform_overloads, write_file_by_data_transform, 5, 7);
+BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_id_overloads, write_data_by_id, 2, 4);
+BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_data_transform_overloads, write_data_by_data_transform, 2, 4);
 
 BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<elliptics_id>("elliptics_id")

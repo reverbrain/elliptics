@@ -103,26 +103,32 @@ int main()
 	struct dnet_id id;
 	int groups[] = {1, 2, 3};
 
-	elliptics_log_file log("/dev/stderr", 15);
+	try {
+		elliptics_log_file log("/dev/stderr", 15);
 
-	id.group_id = 0;
+		id.group_id = 2;
+		elliptics_callback_io callback(&log);
 
-	elliptics_node n(log);
-	n.add_groups(groups, ARRAY_SIZE(groups));
+		elliptics_node n(log);
+		n.add_groups(groups, ARRAY_SIZE(groups));
 
-	n.add_remote("devfs8", 1025, AF_INET);
+		n.add_remote("localhost", 1025, AF_INET);
 #if 1
-	elliptics_callback_io callback(&log);
-
-	memset(id.id, 0xff, DNET_ID_SIZE);
-	n.read_data(id, 0, 0, callback);
+		memset(id.id, 0xff, DNET_ID_SIZE);
+		n.read_data(id, 0, 0, callback);
 #endif
-	n.write_file(id, const_cast<char *>("/tmp/culinaria.txt.bak"), 0, 0, 0);
-	n.read_file(id, const_cast<char *>("/tmp/culinaria.txt"), 0, 0);
+		n.write_file(id, (char *)"/tmp/culinaria.txt.bak", 0, 0, 0);
+		n.read_file(id, (char *)"/tmp/culinaria.txt", 0, 0);
+#if 0
+		std::string remote("1.xml");
+		n.read_file(remote, (char *)"/tmp/1.xml.cpp", 0, 0);
 
-	n.read_file(reinterpret_cast<void *>(const_cast<char *>("1.xml")), 5,
-			const_cast<char *>("/tmp/1.xml.cpp"), 0, 0);
-
-	/* cool, yeah? we have to wait for read_data() to complete actually */
-	sleep(10);
+		/* cool, yeah? we have to wait for read_data() to complete actually */
+		sleep(10);
+#endif
+	} catch (std::exception &e) {
+		std::cerr << "Error occured : " << e.what() << std::endl;
+	} catch (int err) {
+		std::cerr << "Error : " << err << std::endl;
+	}
 }
