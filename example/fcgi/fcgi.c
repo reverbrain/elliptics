@@ -38,6 +38,7 @@
 #define DNET_FCGI_TIMESTAMP_PATTERN	"timestamp="
 #define DNET_FCGI_APPEND_PATTERN	"append"
 #define DNET_FCGI_EMBED_PATTERN		"embed"
+#define DNET_FCGI_MULTIPLE_PATTERN	"multiple="
 #define DNET_FCGI_LOG			"/tmp/dnet_fcgi.log"
 #define DNET_FCGI_TMP_DIR		"/tmp"
 #define DNET_FCGI_LOCAL_ADDR		"0.0.0.0:1025:2"
@@ -690,7 +691,7 @@ static int dnet_fcgi_get_data(struct dnet_node *n, struct dnet_id *id, struct dn
 	int err;
 	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
-	if (dnet_fcgi_last_modified && !embed) {
+	if (dnet_fcgi_last_modified && !embed && !dnet_fcgi_trans_tsec) {
 		uint64_t tsec_local;
 
 		err = 0;
@@ -752,7 +753,8 @@ static int dnet_fcgi_get_data_version(struct dnet_node *n, struct dnet_id *id, s
 	return dnet_fcgi_get_data(n, id, ctl, &tsec, 0);
 }
 
-static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct dnet_io_control *ctl, int version, int embed)
+static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct dnet_io_control *ctl,
+		int version, int embed, int multiple)
 {
 	int err, error = -ENOENT;
 	int random_num = 0, i;
@@ -760,9 +762,14 @@ static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct 
 	struct dnet_id_param *ids = NULL;
 	int ids_num = 0;
 
-	if (dnet_fcgi_use_la_check) {
+	if (multiple) {
+		err = dnet_read_multiple(n, id, multiple, &ids);
+		if (err <= 0)
+			return err;
+		ids_num = err;
+	} else if (dnet_fcgi_use_la_check) {
 		err = dnet_generate_ids_by_param(n, id, DNET_ID_PARAM_LA, &ids);
-		if (err < 0)
+		if (err <= 0)
 			return err;
 		ids_num = err;
 	} else {
@@ -775,7 +782,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct 
 	}
 
 	for (i=0; i<ids_num; ++i) {
-		if (dnet_fcgi_use_la_check) {
+		if (dnet_fcgi_use_la_check || multiple) {
 			id->group_id = ids[i].group_id;
 		} else {
 			if (random_num < ids_num) {
@@ -792,6 +799,10 @@ static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct 
 				random_num++;
 			}
 		}
+
+		dnet_fcgi_trans_tsec = 0;
+		if (multiple)
+			dnet_fcgi_trans_tsec = ids[i].param;
 
 		if (version == -1) {
 			err = dnet_fcgi_get_data(n, id, ctl, NULL, embed);
@@ -1424,7 +1435,8 @@ static void dnet_fcgi_output_content_type(char *obj)
 	dnet_fcgi_output("Content-type: octet/stream\r\n");
 }
 
-static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *obj, int length, struct dnet_id *id, int version, int embed)
+static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *obj, int length, struct dnet_id *id,
+		int version, int embed, int multiple)
 {
 	int err;
 	char *p;
@@ -1476,7 +1488,7 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *obj, int
 	}
 
 lookup:
-	err = dnet_fcgi_process_io(n, id, c, version, embed);
+	err = dnet_fcgi_process_io(n, id, c, version, embed, multiple);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: lookup/read failed : %d.\n", dnet_dump_id(id), err);
 		goto out_exit;
@@ -1743,42 +1755,48 @@ static void dnet_setup_params(void)
 
 }
 
-static int dnet_fcgi_get_groups(struct dnet_node *n, char *query, struct dnet_id *id, int **groupsp)
+static int dnet_fcgi_get_groups(struct dnet_node *n, char *q, struct dnet_id *id, int **groupsp)
 {
 	struct dnet_id_param *ids;
 	int *groups;
 	int err, group_num, i, start;
-	char *p;
+	char *p, *query;
+
+	query = strdup(q);
+	if (!query) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
 
 	p = strstr(query, dnet_fcgi_groups_pattern);
 	if (!p) {
 		err = -ENOENT;
-		goto err_out_exit;
+		goto err_out_free;
 	}
 
 	p += dnet_fcgi_groups_pattern_len;
 	if (!p || !*p) {
 		err = -EINVAL;
-		goto err_out_exit;
+		goto err_out_free;
 	}
 
 	err = dnet_parse_groups(p, groupsp);
 	if (err <= 0)
-		goto err_out_exit;
+		goto err_out_free;
 
 	if (*groupsp)
-		goto err_out_exit;
+		goto err_out_free;
 	group_num = err;
 
 	groups = malloc(sizeof(int) * group_num);
 	if (!groups) {
 		err = -ENOMEM;
-		goto err_out_exit;
+		goto err_out_free;
 	}
 
 	err = dnet_generate_ids_by_param(n, id, DNET_ID_PARAM_FREE_SPACE, &ids);
 	if (err <= 0)
-		goto err_out_free;
+		goto err_out_free_groups;
 
 	start = 0;
 	for (i=0; i<group_num; ++i) {
@@ -1797,8 +1815,10 @@ static int dnet_fcgi_get_groups(struct dnet_node *n, char *query, struct dnet_id
 	*groupsp = groups;
 	return group_num;
 
-err_out_free:
+err_out_free_groups:
 	free(groups);
+err_out_free:
+	free(query);
 err_out_exit:
 	return err;
 }
@@ -1807,8 +1827,8 @@ int main()
 {
 	char *p, *addr, *reason, *method, *query;
 	char *id_pattern, *id_delimiter, *direct_patterns = NULL, *version_pattern, *version_str, *timestamp_pattern, *embed_pattern, *embed_str;
-	char *append_pattern;
-	int length, id_pattern_length, err, version_pattern_len, timestamp_pattern_len;
+	char *multiple_pattern, *append_pattern;
+	int length, id_pattern_length, err, version_pattern_len, timestamp_pattern_len, multiple_pattern_len;
 	int version;
 	char *obj, *end;
 	struct dnet_config cfg;
@@ -1954,6 +1974,7 @@ int main()
 	timestamp_pattern = getenv("DNET_FCGI_TIMESTAMP_PATTERN");
 	append_pattern = getenv("DNET_FCGI_APPEND_PATTERN");
 	embed_pattern = getenv("DNET_FCGI_EMBED_PATTERN");
+	multiple_pattern = getenv("DNET_FCGI_MULTIPLE_PATTERN");
 
 	if (!id_pattern)
 		id_pattern = DNET_FCGI_ID_PATTERN;
@@ -1971,6 +1992,10 @@ int main()
 
 	if (!embed_pattern)
 		embed_pattern = DNET_FCGI_EMBED_PATTERN;
+	
+	if (!multiple_pattern)
+		multiple_pattern = DNET_FCGI_MULTIPLE_PATTERN;
+	multiple_pattern_len = strlen(multiple_pattern);
 
 	id_pattern_length = strlen(id_pattern);
 
@@ -2142,9 +2167,19 @@ int main()
 		} else if (dnet_fcgi_unlink_pattern && strstr(query, dnet_fcgi_unlink_pattern)) {
 			err = dnet_fcgi_unlink(n, &raw, version);
 		} else {
-			dnet_log_raw(n, DNET_LOG_INFO, "%s: obj: '%s', length: %d, version: %d, embed: %d, region: %d.\n",
-					dnet_dump_id(&raw), obj, length, version, !!embed_str, dnet_fcgi_region);
-			err = dnet_fcgi_handle_get(n, query, obj, length, &raw, version, !!embed_str);
+			int multiple = 0;
+			char *multiple_str;
+
+			multiple_str = strstr(query, multiple_pattern);
+			if (multiple_str) {
+				multiple_str += multiple_pattern_len;
+				if (*multiple_str)
+					multiple = atoi(multiple_str);
+			}
+
+			dnet_log_raw(n, DNET_LOG_INFO, "%s: obj: '%s', length: %d, version: %d, embed: %d, region: %d, multiple: %d.\n",
+					dnet_dump_id(&raw), obj, length, version, !!embed_str, dnet_fcgi_region, multiple);
+			err = dnet_fcgi_handle_get(n, query, obj, length, &raw, version, !!embed_str, multiple);
 			if (err) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: Failed to handle GET for object '%s': %d.\n", addr, obj, err);
 				reason = "failed to handle GET";

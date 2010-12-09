@@ -2928,6 +2928,20 @@ static int dnet_compare_by_param(const void *id1, const void *id2)
 	const struct dnet_id_param *l1 = id1;
 	const struct dnet_id_param *l2 = id2;
 
+	if (l1->param == l2->param)
+		return l1->param_reserved - l2->param_reserved;
+
+	return l1->param - l2->param;
+}
+
+static int dnet_compare_by_param_reverse(const void *id1, const void *id2)
+{
+	const struct dnet_id_param *l2 = id1;
+	const struct dnet_id_param *l1 = id2;
+
+	if (l1->param == l2->param)
+		return l1->param_reserved - l2->param_reserved;
+
 	return l1->param - l2->param;
 }
 
@@ -3116,7 +3130,8 @@ static int dnet_read_multiple_complete(struct dnet_net_state *state,
 		dnet_convert_attr(attr);
 		dnet_convert_io_attr(io);
 
-		if (!io->size < sizeof(struct dnet_history_entry)) {
+		if (io->size < sizeof(struct dnet_history_entry)) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: read multiple: invalid io size %llu.\n", dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 			err = -EINVAL;
 			goto out_check;
 		}
@@ -3130,6 +3145,8 @@ static int dnet_read_multiple_complete(struct dnet_net_state *state,
 			if (m->ids[i].group_id == cmd->id.group_id) {
 				m->ids[i].param = he->tsec;
 				m->ids[i].param_reserved = he->tnsec;
+				dnet_log(n, DNET_LOG_DSA, "%s: multiple read reply: i: %d, ts: %llu.%llu\n",
+						dnet_dump_id(&cmd->id), i, he->tsec, he->tnsec);
 				break;
 			}
 		}
@@ -3147,13 +3164,12 @@ out_wakeup:
 	return err;
 }
 
-int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, int num)
+int dnet_read_multiple(struct dnet_node *n, struct dnet_id *id, int num, struct dnet_id_param **dst)
 {
-	int err, i, group_id;
+	int err, i;
 	struct dnet_id_param *ids;
 	struct dnet_wait *w;
 	struct dnet_read_multiple mult;
-	struct timespec ts;
 	struct dnet_io_control ctl;
 
 	err = dnet_generate_ids_by_param(n, id, DNET_ID_PARAM_LA, &ids);
@@ -3162,7 +3178,6 @@ int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, int num)
 
 	memset(&mult, 0, sizeof(struct dnet_read_multiple));
 
-	mult.num = err;
 	if (err < num)
 		num = err;
 
@@ -3171,6 +3186,10 @@ int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, int num)
 		err = -ENOMEM;
 		goto err_out_free;
 	}
+
+	mult.ids = ids;
+	mult.num = err;
+	mult.w = w;
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -3199,22 +3218,26 @@ int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, int num)
 	err = dnet_wait_event(w, mult.wait_num == num, &n->wait_ts);
 	if (!err)
 		err = mult.wait_error;
+	if (err)
+		goto err_out_put;
 
-	group_id = ids[0].group_id;
-	ts.tv_sec = ids[0].param;
-	ts.tv_nsec = ids[0].param_reserved;
-	for (i=1; i<num; ++i) {
-		struct timespec tmp = {.tv_sec = ids[i].param, .tv_nsec = ids[i].param_reserved};
+	qsort(ids, num, sizeof(struct dnet_id_param), dnet_compare_by_param_reverse);
+	*dst = ids;
 
-		if (dnet_time_before(&ts, &tmp)) {
-			ts = tmp;
-			group_id = ids[i].group_id;
-		}
+	for (i=0; i<num; ++i) {
+		id->group_id = ids[i].group_id;
+
+		dnet_log(n, DNET_LOG_DSA, "%s: read multiple: group: %u, tsec: %lld.%lld\n",
+				dnet_dump_id(id), ids[i].group_id,
+				(long long)ids[i].param,
+				(long long)ids[i].param_reserved);
 	}
-	err = group_id;
 
 	dnet_wait_put(w);
+	return num;
 
+err_out_put:
+	dnet_wait_put(w);
 err_out_free:
 	free(ids);
 err_out_exit:

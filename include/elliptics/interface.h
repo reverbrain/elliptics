@@ -740,7 +740,7 @@ int64_t dnet_get_param(struct dnet_node *n, struct dnet_id *id, enum id_params p
 
 int dnet_request_check(struct dnet_node *n);
 
-int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, int num);
+int dnet_read_multiple(struct dnet_node *n, struct dnet_id *id, int num, struct dnet_id_param **dst);
 
 #ifdef __cplusplus
 }
