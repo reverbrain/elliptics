@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.5.1
+Version:	2.9.5.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -141,6 +141,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 9 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.5.2-1
+- Implemented multiple read in elliptics core and FCGI frontend.
+- Implemented very user-friendly C++/Python interface.
+- Extended FCGI xml output for POST request: added data crc, size,
+    per-group addresses and path to the destination object on file backend.
+
 * Fri Dec 3 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.5.1-1
 - Documentation update.
 

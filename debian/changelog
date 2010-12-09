@@ -1,3 +1,12 @@
+elliptics (2.9.5.2) unstable; urgency=low
+
+  * Implemented multiple read in elliptics core and FCGI frontend.
+  * Implemented very user-friendly C++/Python interface.
+  * Extended FCGI xml output for POST request: added data crc, size,
+    per-group addresses and path to the destination object on file backend.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 09 Dec 2010 20:18:23 +0300
+
 elliptics (2.9.5.1) unstable; urgency=low
 
   * Documentation update.
