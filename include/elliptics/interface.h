@@ -727,6 +727,7 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *ob
 struct dnet_id_param {
 	unsigned int		group_id;
 	uint64_t		param;
+	uint64_t		param_reserved;
 } __attribute__ ((packed));
 
 enum id_params {
@@ -738,6 +739,8 @@ int dnet_generate_ids_by_param(struct dnet_node *n, struct dnet_id *id, enum id_
 int64_t dnet_get_param(struct dnet_node *n, struct dnet_id *id, enum id_params param);
 
 int dnet_request_check(struct dnet_node *n);
+
+int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, int num);
 
 #ifdef __cplusplus
 }
