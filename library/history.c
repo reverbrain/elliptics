@@ -580,6 +580,19 @@ err_out_exit:
 	return NULL;
 }
 
+int dnet_db_checkpoint(struct dnet_node *n)
+{
+	int err;
+
+	err = n->env->txn_checkpoint(n->env, 0, 0, 0);
+	if (err) {
+		n->env->err(n->env, err, "checkpoint thread");
+		exit(err);
+        }
+
+	return 0;
+}
+
 int dnet_db_init(struct dnet_node *n, char *env_dir)
 {
 	int err;
@@ -592,7 +605,6 @@ int dnet_db_init(struct dnet_node *n, char *env_dir)
 	}
 	env->app_private = n;
 
-#if 0
 	env->log_set_config(env, DB_LOG_ZERO | DB_LOG_AUTO_REMOVE | DB_LOG_IN_MEMORY, 1);
 	/*
 	 * We do not need durable transaction, so we do not
@@ -600,7 +612,7 @@ int dnet_db_init(struct dnet_node *n, char *env_dir)
 	 * It shuold have no effect because of the in-memory logging though.
 	 */
 	env->set_flags(env, DB_TXN_NOSYNC, 1);
-#endif
+
 	err = env->set_lg_bsize(env, 5 * DNET_MAX_TRANS_SIZE);
 	if (err != 0) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to set log buffer size: %s\n", db_strerror(err));
