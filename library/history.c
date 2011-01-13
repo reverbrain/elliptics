@@ -460,7 +460,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	int err, fd;
 	char file[256];
 
-	snprintf(file, sizeof(file), "/tmp/check.%d", getpid());
+	snprintf(file, sizeof(file), "/%s/check.%d", db->dirname, getpid());
 	fd = open(file, O_RDWR | O_TRUNC | O_CREAT | O_APPEND, 0644);
 	if (fd < 0) {
 		err = -errno;
