@@ -1,3 +1,9 @@
+elliptics (2.9.5.6) unstable; urgency=low
+
+  * Added automatic checkpointing from checking thread.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 13 Jan 2011 22:01:09 +0300
+
 elliptics (2.9.5.5) unstable; urgency=low
 
   * Turn off in-memory BDB logging.
