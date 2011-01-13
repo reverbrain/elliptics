@@ -1,3 +1,9 @@
+elliptics (2.9.5.7) unstable; urgency=low
+
+  * Do not allow checkpoint if environment is not initialized.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 13 Jan 2011 22:20:08 +0300
+
 elliptics (2.9.5.6) unstable; urgency=low
 
   * Added automatic checkpointing from checking thread.
