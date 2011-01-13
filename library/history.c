@@ -584,6 +584,9 @@ int dnet_db_checkpoint(struct dnet_node *n)
 {
 	int err;
 
+	if (!n->env)
+		return -1;
+
 	err = n->env->txn_checkpoint(n->env, 0, 0, 0);
 	if (err) {
 		n->env->err(n->env, err, "checkpoint thread");
