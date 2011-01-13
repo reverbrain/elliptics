@@ -293,6 +293,8 @@ struct dnet_node
 	long			check_timeout;
 	pthread_t		check_tid;
 
+	char			*check_dir;
+
 	DB_ENV			*env;
 	DB			*history, *meta;
 

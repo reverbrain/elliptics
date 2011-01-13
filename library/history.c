@@ -460,7 +460,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	int err, fd;
 	char file[256];
 
-	snprintf(file, sizeof(file), "/%s/check.%d", *n->env->db_data_dir, getpid());
+	snprintf(file, sizeof(file), "/%s/check.%d", n->check_dir, getpid());
 	fd = open(file, O_RDWR | O_TRUNC | O_CREAT | O_APPEND, 0644);
 	if (fd < 0) {
 		err = -errno;
@@ -662,8 +662,17 @@ int dnet_db_init(struct dnet_node *n, char *env_dir)
 	if (!n->meta)
 		goto err_out_close_history;
 
+	n->check_dir = strdup(env_dir);
+	if (!n->check_dir) {
+		err = -ENOMEM;
+		goto err_out_close_meta;
+	}
+
 	return 0;
 
+err_out_close_meta:
+	n->meta->close(n->meta, 0);
+	n->meta = NULL;
 err_out_close_history:
 	n->history->close(n->history, 0);
 	n->history = NULL;
@@ -685,4 +694,6 @@ void dnet_db_cleanup(struct dnet_node *n)
 
 	if (n->env)
 		n->env->close(n->env, 0);
+
+	free(n->check_dir);
 }
