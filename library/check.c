@@ -179,21 +179,45 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 	return 0;
 }
 
+static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id)
+{
+	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)];
+	struct dnet_cmd *cmd;
+	struct dnet_attr *attr;
+
+	memset(buf, 0, sizeof(buf));
+
+	cmd = (struct dnet_cmd *)buf;
+	attr = (struct dnet_attr *)(cmd + 1);
+
+	memcpy(&cmd->id, id, sizeof(struct dnet_id));
+	cmd->size = sizeof(struct dnet_attr);
+
+	attr->cmd = DNET_CMD_DEL;
+	attr->flags = DNET_ATTR_DIRECT_TRANSACTION;
+
+	dnet_convert_attr(attr);
+
+	return dnet_process_cmd_raw(n->st, cmd, attr);
+}
+
 static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc)
 {
 	int err;
 	int *groups = NULL;
 
 	err = dnet_check_find_groups(n, mc, &groups);
-	if (err < 0)
-		return err;
-	if (err == 0)
-		return -ENOENT;
+	if (err <= 0)
+		goto err_out_remove;
 
 	err = dnet_check_number_of_copies(n, mc, groups, err);
 	free(groups);
 
 	return err;
+
+err_out_remove:
+	dnet_merge_remove_local(n, &mc->id);
+	return 0;
 }
 
 static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc)
@@ -376,28 +400,6 @@ err_out_free:
 	free(local_history);
 err_out_exit:
 	return err;
-}
-
-static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id)
-{
-	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)];
-	struct dnet_cmd *cmd;
-	struct dnet_attr *attr;
-
-	memset(buf, 0, sizeof(buf));
-
-	cmd = (struct dnet_cmd *)buf;
-	attr = (struct dnet_attr *)(cmd + 1);
-
-	memcpy(&cmd->id, id, sizeof(struct dnet_id));
-	cmd->size = sizeof(struct dnet_attr);
-
-	attr->cmd = DNET_CMD_DEL;
-	attr->flags = DNET_ATTR_DIRECT_TRANSACTION;
-
-	dnet_convert_attr(attr);
-
-	return dnet_process_cmd_raw(n->st, cmd, attr);
 }
 
 static int dnet_check_merge(struct dnet_node *n, struct dnet_meta_container *mc)
