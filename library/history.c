@@ -449,6 +449,7 @@ err_out_exit:
 struct dnet_db_list_control {
 	struct dnet_node		*n;
 	DBC				*cursor;
+	DB_TXN				*txn;
 	struct dnet_lock		lock;
 
 	int				need_exit;
@@ -508,6 +509,12 @@ static void *dnet_db_list_iter(void *data)
 		memcpy(mc->data, dbdata.data, mc->size);
 
 		err = dnet_check(n, mc, check_copies);
+		if (err == -ENOENT) {
+			err = n->history->del(n->history, ctl->txn, &key, 0);
+			err = n->meta->del(n->meta, ctl->txn, &key, 0);
+
+			err = 0;
+		}
 		free(mc);
 
 		dnet_log_raw(n, DNET_LOG_INFO, "complete key: %s, check_copies: %d, size: %u, err: %d.\n",
@@ -557,6 +564,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 	ctl.n = n;
 	ctl.cursor = cursor;
+	ctl.txn = txn;
 
 	for (i=0; i<num; ++i) {
 		err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);

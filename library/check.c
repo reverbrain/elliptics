@@ -208,16 +208,12 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 
 	err = dnet_check_find_groups(n, mc, &groups);
 	if (err <= 0)
-		goto err_out_remove;
+		return -ENOENT;
 
 	err = dnet_check_number_of_copies(n, mc, groups, err);
 	free(groups);
 
 	return err;
-
-err_out_remove:
-	dnet_merge_remove_local(n, &mc->id);
-	return 0;
 }
 
 static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc)
