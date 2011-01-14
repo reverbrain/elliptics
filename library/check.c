@@ -410,7 +410,7 @@ static int dnet_check_merge(struct dnet_node *n, struct dnet_meta_container *mc)
 
 	err = dnet_read_file(n, file, NULL, 0, &mc->id, 0, 0, 1);
 	if (err) {
-		if (err != -ENOENT) {
+		if (err != -ENOENT && err != DB_NOTFOUND) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n", dnet_dump_id(&mc->id), err);
 			goto err_out_exit;
 		}
