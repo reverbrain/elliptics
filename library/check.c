@@ -440,111 +440,16 @@ err_out_exit:
 	return err;
 }
 
-struct dnet_check_control {
-	void			*data;
-	unsigned long long	size;
-	struct dnet_lock	lock;
-	struct dnet_node	*n;
-	int			need_exit;
-};
-
-static void *dnet_check_process(void *priv)
+int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies)
 {
-	struct dnet_check_control *ctl = priv;
-	struct dnet_node *n = ctl->n;
-	struct dnet_meta_container *mc;
-	int err, check_copies;
+	int err;
 
-	while (!n->need_exit && !ctl->need_exit) {
-		mc = NULL;
-
-		dnet_lock_lock(&ctl->lock);
-		if (!ctl->need_exit) {
-			mc = ctl->data;
-
-			ctl->data += sizeof(struct dnet_meta_container) + mc->size;
-			ctl->size -= sizeof(struct dnet_meta_container) + mc->size;
-
-			if (!ctl->size)
-				ctl->need_exit = 1;
-		}
-		dnet_lock_unlock(&ctl->lock);
-
-		if (!mc)
-			break;
-
-		check_copies = mc->id.group_id;
-		mc->id.group_id = n->st->idc->group->group_id;
-
-		dnet_log(n, DNET_LOG_INFO, "%s: check_copies: %d.\n", dnet_dump_id(&mc->id), check_copies);
-
-		if (check_copies) {
-			err = dnet_check_copies(n, mc);
-		} else {
-			err = dnet_check_merge(n, mc);
-		}
+	if (check_copies) {
+		err = dnet_check_copies(n, mc);
+	} else {
+		err = dnet_check_merge(n, mc);
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Check completed.\n");
-
-	return NULL;
-}
-
-int dnet_check(struct dnet_node *n, const char *file, unsigned long long size)
-{
-	int fd, err = 0;
-	struct dnet_check_control ctl;
-	void *data;
-	int num = 50, i;
-	pthread_t tid[num];
-
-	fd = open(file, O_RDWR);
-	if (fd < 0) {
-		err = -errno;
-		dnet_log_err(n, "failed to open check file '%s'", file);
-		goto err_out_exit;
-	}
-
-	data = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (data == MAP_FAILED) {
-		err = -errno;
-		dnet_log_err(n, "failed to map check file '%s'", file);
-		goto err_out_close;
-	}
-
-	memset(&ctl, 0, sizeof(struct dnet_check_control));
-
-	ctl.data = data;
-	ctl.size = size;
-	ctl.n = n;
-	ctl.need_exit = 0;
-
-	err = dnet_lock_init(&ctl.lock);
-	if (err)
-		goto err_out_unmap;
-
-	for (i=0; i<num; ++i) {
-		err = pthread_create(&tid[i], NULL, dnet_check_process, &ctl);
-		if (err) {
-			dnet_log_err(n, "can not create %d'th check thread out of %d", i, num);
-			num = i;
-			ctl.need_exit = 1;
-			goto err_out_join;
-		}
-	}
-
-err_out_join:
-	for (i=0; i<num; ++i)
-		pthread_join(tid[i], NULL);
-
-	dnet_log(n, DNET_LOG_INFO, "All check threads completed, return status: %d\n", err);
-
-err_out_unmap:
-	munmap(data, size);
-err_out_close:
-	close(fd);
-err_out_exit:
-	unlink(file);
 	return err;
 }
 
