@@ -1,3 +1,9 @@
+elliptics (2.9.5.17) unstable; urgency=low
+
+  * Do not aciquire transaction for cursor listing.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 15 Jan 2011 01:31:39 +0300
+
 elliptics (2.9.5.16) unstable; urgency=low
 
   * Do not stop merge processing if remote node returned DB_NOTFOUND.
