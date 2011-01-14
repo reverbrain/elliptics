@@ -1,3 +1,9 @@
+elliptics (2.9.5.14) unstable; urgency=low
+
+  * Do not bail out of metadata is broken and remove local object instead.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 15 Jan 2011 00:54:32 +0300
+
 elliptics (2.9.5.13) unstable; urgency=low
 
   * Create cursor transaction.
