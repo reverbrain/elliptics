@@ -1,3 +1,9 @@
+elliptics (2.9.5.16) unstable; urgency=low
+
+  * Do not stop merge processing if remote node returned DB_NOTFOUND.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 15 Jan 2011 01:20:06 +0300
+
 elliptics (2.9.5.15) unstable; urgency=low
 
   * Explicitly del broken entries using cursor transaction.
