@@ -98,6 +98,20 @@ err_out_exit:
 	return err;
 }
 
+static void dnet_merge_unlink_local_files(struct dnet_node *n __unused, struct dnet_id *id)
+{
+	char file[256];
+	char eid[2*DNET_ID_SIZE+1];
+
+	dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, eid);
+	
+	snprintf(file, sizeof(file), "%s/%s.%d%s", dnet_check_tmp_dir, eid, id->group_id, DNET_HISTORY_SUFFIX);
+	unlink(file);
+	
+	snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir, eid, id->group_id);
+	unlink(file);
+}
+
 static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_container *mc, int *groups, int group_num)
 {
 	struct dnet_id raw;
@@ -158,6 +172,8 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 			err = dnet_write_data_wait(n, NULL, 0, &raw, data, -1, 0, 0, err, NULL,
 				DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 		}
+
+		dnet_merge_unlink_local_files(n, &raw);
 	}
 
 	return 0;
@@ -178,20 +194,6 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 	free(groups);
 
 	return err;
-}
-
-static void dnet_merge_unlink_local_files(struct dnet_node *n __unused, struct dnet_id *id)
-{
-	char file[256];
-	char eid[2*DNET_ID_SIZE+1];
-
-	dnet_dump_id_len_raw(id->id, DNET_ID_SIZE, eid);
-	
-	snprintf(file, sizeof(file), "%s/%s.%d%s", dnet_check_tmp_dir, eid, id->group_id, DNET_HISTORY_SUFFIX);
-	unlink(file);
-	
-	snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir, eid, id->group_id);
-	unlink(file);
 }
 
 static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc)
@@ -474,12 +476,16 @@ static void *dnet_check_process(void *priv)
 		check_copies = mc->id.group_id;
 		mc->id.group_id = n->st->idc->group->group_id;
 
+		dnet_log(n, DNET_LOG_INFO, "%s: check_copies: %d.\n", dnet_dump_id(&mc->id), check_copies);
+
 		if (check_copies) {
 			err = dnet_check_copies(n, mc);
 		} else {
 			err = dnet_check_merge(n, mc);
 		}
 	}
+
+	dnet_log(n, DNET_LOG_INFO, "Check completed.\n");
 
 	return NULL;
 }
@@ -530,6 +536,8 @@ int dnet_check(struct dnet_node *n, const char *file, unsigned long long size)
 err_out_join:
 	for (i=0; i<num; ++i)
 		pthread_join(tid[i], NULL);
+
+	dnet_log(n, DNET_LOG_INFO, "All check threads completed, return status: %d\n", err);
 
 err_out_unmap:
 	munmap(data, size);
