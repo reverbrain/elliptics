@@ -428,7 +428,7 @@ void dnet_db_cleanup(struct dnet_node *n);
 int dnet_db_init(struct dnet_node *n, char *histfile);
 int dnet_db_checkpoint(struct dnet_node *n);
 
-int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies);
+int dnet_check(struct dnet_node *n, const char *file, unsigned long long size);
 
 int dnet_request_cmd_single(struct dnet_node *n,
 	struct dnet_net_state *st, struct dnet_id *id, unsigned int cmd,
