@@ -279,6 +279,7 @@ static int dnet_merge_common(struct dnet_node *n, char *remote_history, struct d
 		 * So delete it.
 		 */
 		dnet_remove_object_now(n, &mc->id, 1);
+		err = 0;
 		goto err_out_exit;
 	}
 
