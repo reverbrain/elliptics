@@ -455,6 +455,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	struct dnet_id id;
 	DBT key, dbdata;
 	DB *db = n->meta;
+	DB_TXN *txn;
 	DBC *cursor;
 	int err, fd;
 	char file[256];
@@ -475,7 +476,14 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	key.data = id.id;
 	key.size = DNET_ID_SIZE;
 
-	err = db->cursor(db, NULL, &cursor, DB_READ_UNCOMMITTED);
+	err = n->env->txn_begin(n->env, NULL, &txn, 0);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a write transaction, err: %d: %s.\n",
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
+		goto err_out_close;
+	}
+
+	err = db->cursor(db, txn, &cursor, DB_READ_UNCOMMITTED);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, db_strerror(err));
@@ -518,6 +526,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	}
 
 	err = cursor->c_close(cursor);
+	err = txn->commit(txn, 0);
 	close(fd);
 
 	return dnet_check(n, file, size);
@@ -525,6 +534,8 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 err_out_close_cursor:
 	cursor->c_close(cursor);
 err_out_close_txn:
+	txn->abort(txn);
+err_out_close:
 	close(fd);
 err_out_exit:
 	return err;
