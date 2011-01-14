@@ -543,14 +543,6 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 	memset(&ctl, 0, sizeof(struct dnet_db_list_control));
 
-	txn = NULL;
-	err = n->env->txn_begin(n->env, NULL, &txn, 0);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a cursor transaction, err: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, db_strerror(err));
-		goto err_out_exit;
-	}
-
 	err = db->cursor(db, txn, &cursor, DB_READ_UNCOMMITTED);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
@@ -587,10 +579,6 @@ err_out_join:
 err_out_close_cursor:
 	cursor->c_close(cursor);
 err_out_close_txn:
-	if (err)
-		txn->abort(txn);
-	else
-		txn->commit(txn, 0);
 err_out_exit:
 	return err;
 }
