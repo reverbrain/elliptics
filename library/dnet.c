@@ -3146,7 +3146,7 @@ static int dnet_read_multiple_complete(struct dnet_net_state *state,
 				m->ids[i].param = he->tsec;
 				m->ids[i].param_reserved = he->tnsec;
 				dnet_log(n, DNET_LOG_DSA, "%s: multiple read reply: i: %d, ts: %llu.%llu\n",
-						dnet_dump_id(&cmd->id), i, he->tsec, he->tnsec);
+						dnet_dump_id(&cmd->id), i, (unsigned long long)he->tsec, (unsigned long long)he->tnsec);
 				break;
 			}
 		}
