@@ -89,6 +89,7 @@ int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **da
 {
 	int err;
 	DBT key, data;
+	DB_TXN *txn = NULL;
 	unsigned int size;
 	DB *db = n->history;
 
@@ -106,19 +107,30 @@ int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **da
 	data.flags = DB_DBT_MALLOC;
 	data.doff = 0;
 
-	err = db->get(db, NULL, &key, &data, 0);
+	err = n->env->txn_begin(n->env, NULL, &txn, 0);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a deletion transaction, err: %d: %s.\n",
+				dnet_dump_id_str(id), err, db_strerror(err));
+		goto err_out_exit;
+	}
+
+	err = db->get(db, txn, &key, &data, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: allocated read failed "
 			"err: %d: %s.\n", dnet_dump_id_str(id),
 			err, db_strerror(err));
-		goto err_out_exit;
+		goto err_out_abort_txn;
 	}
+
+	txn->commit(txn, 0);
 
 	size = data.size;
 	*datap = data.data;
 
 	return size;
 
+err_out_abort_txn:
+	txn->abort(txn);
 err_out_exit:
 	return err;
 }
@@ -446,27 +458,25 @@ err_out_exit:
 	return err;
 }
 
-int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr __unused)
-{
-	struct dnet_node *n = st->n;
-	struct dnet_net_state *tmp;
-	struct dnet_meta_container mc;
-	unsigned long long size = 0;
-	struct dnet_id id;
-	DBT key, dbdata;
-	DB *db = n->meta;
-	DB_TXN *txn;
-	DBC *cursor;
-	int err, fd;
-	char file[256];
+struct dnet_db_list_control {
+	struct dnet_node		*n;
+	DBC				*cursor;
+	DB_TXN				*txn;
+	struct dnet_lock		lock;
 
-	snprintf(file, sizeof(file), "/%s/check.%d", n->check_dir, getpid());
-	fd = open(file, O_RDWR | O_TRUNC | O_CREAT | O_APPEND, 0644);
-	if (fd < 0) {
-		err = -errno;
-		dnet_log_err(n, "failed to open/create temporary check file");
-		goto err_out_exit;
-	}
+	int				need_exit;
+};
+
+static void *dnet_db_list_iter(void *data)
+{
+	struct dnet_db_list_control *ctl = data;
+	struct dnet_node *n = ctl->n;
+	int group_id = n->st->idc->group->group_id;
+	struct dnet_meta_container *mc;
+	DBT key, dbdata;
+	struct dnet_id id;
+	struct dnet_net_state *tmp;
+	int check_copies, err;
 
 	memset(&key, 0, sizeof(DBT));
 	memset(&dbdata, 0, sizeof(DBT));
@@ -476,68 +486,111 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	key.data = id.id;
 	key.size = DNET_ID_SIZE;
 
-	err = n->env->txn_begin(n->env, NULL, &txn, 0);
-	if (err) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start a write transaction, err: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, db_strerror(err));
-		goto err_out_close;
+	while (!ctl->need_exit) {
+		dnet_lock_lock(&ctl->lock);
+		err = ctl->cursor->c_get(ctl->cursor, &key, &dbdata, DB_NEXT);
+		dnet_lock_unlock(&ctl->lock);
+
+		if (err)
+			break;
+
+		mc = malloc(sizeof(struct dnet_meta_container) + dbdata.size);
+		if (!mc) {
+			err = -ENOMEM;
+			break;
+		}
+
+		memset(mc, 0, sizeof(struct dnet_meta_container));
+
+		dnet_setup_id(&mc->id, group_id, key.data);
+
+		tmp = dnet_state_search(n, &mc->id);
+
+		/*
+		 * Use group ID field to specify whether we should check number of copies
+		 * or merge transaction with other history log in the storage
+		 */
+		check_copies = !!(tmp == n->st);
+
+		dnet_state_put(tmp);
+
+		dnet_log_raw(n, DNET_LOG_INFO, "start key: %s, check_copies: %d, size: %u.\n",
+				dnet_dump_id_str(key.data), check_copies, dbdata.size);
+
+		mc->size = dbdata.size;
+		memcpy(mc->data, dbdata.data, mc->size);
+
+		err = dnet_check(n, mc, check_copies);
+		if (err == -ENOENT) {
+			err = n->history->del(n->history, ctl->txn, &key, 0);
+			err = n->meta->del(n->meta, ctl->txn, &key, 0);
+
+			err = 0;
+		}
+		free(mc);
+
+		dnet_log_raw(n, DNET_LOG_INFO, "complete key: %s, check_copies: %d, size: %u, err: %d.\n",
+				dnet_dump_id_str(key.data), check_copies, dbdata.size, err);
+
+		if (err)
+			break;
 	}
 
-	err = db->cursor(db, txn, &cursor, DB_READ_UNCOMMITTED);
+	if (err)
+		ctl->need_exit = err;
+
+	return NULL;
+}
+
+int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr __unused)
+{
+	struct dnet_node *n = st->n;
+	struct dnet_db_list_control ctl;	
+	DB_TXN *txn = NULL;
+	DB *db = n->meta;
+	DBC *cursor;
+	int err, num = 50, i;
+	pthread_t tid[num];
+
+
+	memset(&ctl, 0, sizeof(struct dnet_db_list_control));
+
+	err = db->cursor(db, txn, &cursor, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, db_strerror(err));
 		goto err_out_close_txn;
 	}
 
-	while ((err = cursor->c_get(cursor, &key, &dbdata, DB_NEXT)) == 0) {
-		dnet_setup_id(&mc.id, cmd->id.group_id, key.data);
+	err = dnet_lock_init(&ctl.lock);
+	if (err)
+		goto err_out_close_cursor;
 
-		tmp = dnet_state_search(n, &mc.id);
+	ctl.n = n;
+	ctl.cursor = cursor;
+	ctl.txn = txn;
 
-		/*
-		 * Use group ID field to specify whether we should check number of copies
-		 * or merge transaction with other history log in the storage
-		 */
-		mc.id.group_id = !!(tmp == n->st);
-
-		dnet_state_put(tmp);
-
-		dnet_log_raw(n, DNET_LOG_DSA, "key: %s, check_copies: %d, size: %u.\n",
-				dnet_dump_id_str(key.data), mc.id.group_id, dbdata.size);
-
-		mc.size = dbdata.size;
-
-		err = write(fd, &mc, sizeof(struct dnet_meta_container));
-		if (err != sizeof(struct dnet_meta_container)) {
-			err = -errno;
-			dnet_log_err(n, "failed to write ID entry (meta container) to be checked");
-			goto err_out_close_cursor;
+	for (i=0; i<num; ++i) {
+		err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);
+		if (err) {
+			dnet_log_err(n, "can not create %d'th check thread out of %d", i, num);
+			num = i;
+			ctl.need_exit = 1;
+			goto err_out_join;
 		}
-
-		err = write(fd, dbdata.data, mc.size);
-		if (err != (signed)mc.size) {
-			err = -errno;
-			dnet_log_err(n, "failed to write ID entry (metadata) to be checked");
-			goto err_out_close_cursor;
-		}
-
-		size += sizeof(struct dnet_meta_container) + mc.size;
 	}
 
-	err = cursor->c_close(cursor);
-	err = txn->commit(txn, 0);
-	close(fd);
+	dnet_log(n, DNET_LOG_INFO, "Started %d checking threads, err: %d.\n", num, err);
 
-	return dnet_check(n, file, size);
+err_out_join:
+	for (i=0; i<num; ++i)
+		pthread_join(tid[i], NULL);
+
+	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", num, err);
 
 err_out_close_cursor:
 	cursor->c_close(cursor);
 err_out_close_txn:
-	txn->abort(txn);
-err_out_close:
-	close(fd);
-err_out_exit:
 	return err;
 }
 
