@@ -1,3 +1,9 @@
+elliptics (2.9.5.22) unstable; urgency=low
+
+  * Switched to pipe and thread pool. Pipe is filled by single thread iterating over cursor.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 17 Jan 2011 18:45:11 +0300
+
 elliptics (2.9.5.21) unstable; urgency=low
 
   * Revert back multi-threaded cursor traversal
