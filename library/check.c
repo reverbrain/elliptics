@@ -449,6 +449,11 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_co
 		err = dnet_check_merge(n, mc);
 	}
 
+	if (err == -ENOENT) {
+		dnet_merge_remove_local(n, &mc->id);
+		err = 0;
+	}
+
 	return err;
 }
 
