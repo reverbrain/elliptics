@@ -145,8 +145,9 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 	struct dnet_id raw;
 	int err;
 	unsigned int aflags = 0;
+	struct dnet_addr addr;
 
-	err = dnet_state_search_id(n, &cmd->id, &sid);
+	err = dnet_state_search_id(n, &cmd->id, &sid, &addr);
 	if (!err) {
 		if (attr->flags & DNET_ATTR_LOOKUP_STAT) {
 			err = dnet_stat_local(orig, &cmd->id, !!(attr->flags & DNET_ATTR_LOOKUP_HISTORY));
@@ -162,7 +163,7 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 
 	dnet_setup_id(&raw, cmd->id.group_id, sid.raw.id);
 
-	return dnet_lookup_reply(orig, &raw, cmd->trans, aflags, &orig->addr, err);
+	return dnet_lookup_reply(orig, &raw, cmd->trans, aflags, &addr, err);
 }
 
 static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *send, struct dnet_id *id, uint64_t trans,
@@ -619,7 +620,7 @@ static int dnet_add_received_state(struct dnet_node *n, struct dnet_addr_attr *a
 
 	dnet_setup_id(&raw, group_id, ids[0].id);
 
-	err = dnet_state_search_id(n, &raw, &sid);
+	err = dnet_state_search_id(n, &raw, &sid, NULL);
 	if (!err && !memcmp(&sid.raw, &ids[0], sizeof(struct dnet_raw_id)))
 		return 0;
 

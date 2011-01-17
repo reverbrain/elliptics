@@ -373,7 +373,7 @@ struct dnet_net_state *dnet_state_search(struct dnet_node *n, struct dnet_id *id
 	return st;
 }
 
-int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp)
+int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp, struct dnet_addr *addr)
 {
 	struct dnet_state_id *sid;
 	int err = -ENOENT;
@@ -383,6 +383,9 @@ int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_st
 	if (sid) {
 		err = 0;
 		memcpy(sidp, sid, sizeof(struct dnet_state_id));
+
+		if (addr)
+			memcpy(addr, &sid->idc->st->addr, sizeof(struct dnet_addr));
 	}
 	pthread_rwlock_unlock(&n->state_lock);
 
