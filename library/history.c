@@ -565,11 +565,18 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 	memset(&ctl, 0, sizeof(struct dnet_db_list_control));
 
+	err = n->env->txn_begin(n->env, NULL, &txn, 0);
+	if (err) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start cursor transaction, err: %d: %s.\n",
+				dnet_dump_id(&cmd->id), err, db_strerror(err));
+		goto err_out_free;
+	}
+
 	err = db->cursor(db, txn, &cursor, 0);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, db_strerror(err));
-		goto err_out_free;
+		goto err_out_destroy_txn;
 	}
 
 	err = pthread_mutex_init(&ctl.lock, NULL);
@@ -650,6 +657,11 @@ err_out_destroy_mutex:
 	pthread_mutex_destroy(&ctl.lock);
 err_out_close_cursor:
 	cursor->c_close(cursor);
+err_out_destroy_txn:
+	if (err)
+		txn->abort(txn);
+	else
+		txn->commit(txn, 0);
 err_out_free:
 	free(buf);
 err_out_exit:
