@@ -1,3 +1,10 @@
+elliptics (2.9.5.25) unstable; urgency=low
+
+  * Remove local file if there is no history. Exit cursor writing loop if
+    need_exit was set.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 17 Jan 2011 21:15:50 +0300
+
 elliptics (2.9.5.24) unstable; urgency=low
 
   * Fixed erroneous free().
