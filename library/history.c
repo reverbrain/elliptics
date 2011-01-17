@@ -474,7 +474,7 @@ static void *dnet_db_list_iter(void *data)
 	int group_id = n->st->idc->group->group_id;
 	struct dnet_meta_container *mc;
 	void *buf;
-	int err, check_copies;
+	int err = 0, check_copies;
 
 	buf = malloc(1024*1024);
 	if (!buf) {
@@ -505,7 +505,7 @@ static void *dnet_db_list_iter(void *data)
 out_unlock:
 		pthread_mutex_unlock(&ctl->lock);
 
-		if (err)
+		if (err < 0)
 			break;
 
 		check_copies = mc->id.group_id;
@@ -515,7 +515,7 @@ out_unlock:
 		dnet_log_raw(n, DNET_LOG_INFO, "complete key: %s, check_copies: %d, size: %u, err: %d.\n",
 				dnet_dump_id(&mc->id), check_copies, mc->size, err);
 
-		if (err)
+		if (err < 0)
 			break;
 	}
 
