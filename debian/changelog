@@ -1,3 +1,9 @@
+elliptics (2.9.5.24) unstable; urgency=low
+
+  * Fixed erroneous free().
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 17 Jan 2011 20:49:41 +0300
+
 elliptics (2.9.5.23) unstable; urgency=low
 
   * Return correct state address in lookup response.
