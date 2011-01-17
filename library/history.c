@@ -625,7 +625,6 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		memcpy(mc->data, dbdata.data, mc->size);
 
 		err = write(ctl.pipe[1], mc, mc->size + sizeof(struct dnet_meta_container));
-		free(mc);
 
 		if (err <= 0) {
 			err = -errno;
