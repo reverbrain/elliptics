@@ -1,3 +1,10 @@
+elliptics (2.9.5.23) unstable; urgency=low
+
+  * Return correct state address in lookup response.
+  * Do not stop listing processing in non-error cases.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 17 Jan 2011 20:41:38 +0300
+
 elliptics (2.9.5.22) unstable; urgency=low
 
   * Switched to pipe and thread pool. Pipe is filled by single thread iterating over cursor.
