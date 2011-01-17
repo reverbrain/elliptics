@@ -525,6 +525,8 @@ out_exit:
 	if (err)
 		ctl->need_exit = err;
 
+	dnet_log(n, DNET_LOG_INFO, "Exited iteration loop, err: %d.\n", err);
+
 	return NULL;
 }
 
