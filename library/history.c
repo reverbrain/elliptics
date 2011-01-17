@@ -591,7 +591,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	}
 	dnet_log(n, DNET_LOG_INFO, "Started %d checking threads, err: %d.\n", num, err);
 
-	while (1) {
+	while (!ctl.need_exit) {
 		err = cursor->c_get(cursor, &key, &dbdata, DB_NEXT);
 		if (err < 0)
 			break;

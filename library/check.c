@@ -227,20 +227,23 @@ static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc
 
 	err = dnet_db_read_raw(n, 0, mc->id.id, &local_history);
 	if (err <= 0)
-		goto err_out_exit;
+		goto err_out_local_remove;
 
 	err = dnet_write_data_wait(n, NULL, 0, &mc->id, local_history, -1, 0, 0, err, NULL,
 			DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 	free(local_history);
 	if (err <= 0)
-		goto err_out_exit;
+		goto err_out_local_remove;
 
 	err = dnet_write_metadata(n, mc, 1);
 	if (err <= 0)
-		goto err_out_exit;
+		goto err_out_local_remove;
 
+	return 0;
+
+err_out_local_remove:
+	dnet_merge_remove_local(n, &mc->id);
 	err = 0;
-
 err_out_exit:
 	return err;
 }
