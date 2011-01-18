@@ -370,10 +370,10 @@ static int dnet_cmd_stat_count_single(struct dnet_net_state *orig, struct dnet_c
 	memcpy(&as->addr, &st->addr, sizeof(struct dnet_addr));
 	as->num = __DNET_CMD_MAX;
 
-	dnet_log(n, DNET_LOG_INFO, "addr: %s, ptr: %p, orig: %p.\n", dnet_server_convert_dnet_addr(&as->addr), st, orig);
+	dnet_log(n, DNET_LOG_DSA, "addr: %s, ptr: %p, orig: %p.\n", dnet_server_convert_dnet_addr(&as->addr), st, orig);
 	for (i=0; i<as->num; ++i) {
 		as->count[i] = st->stat[i];
-		dnet_log(n, DNET_LOG_INFO, "  cmd: %d, count: %llu, err: %llu\n",
+		dnet_log(n, DNET_LOG_DSA, "  cmd: %d, count: %llu, err: %llu\n",
 			i, (unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
 	}
 

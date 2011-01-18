@@ -903,7 +903,7 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 	if (size)
 		memcpy(data, odata, size);
 
-	dnet_log(st->n, DNET_LOG_INFO, "%s: sending %u reply, size: %u, cflags: %x.\n",
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: sending reply: %u, size: %u, cflags: %x.\n",
 		dnet_dump_id(&cmd->id), a->cmd, size, c->flags);
 
 	dnet_convert_cmd(c);
