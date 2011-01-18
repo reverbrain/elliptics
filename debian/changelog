@@ -1,3 +1,9 @@
+elliptics (2.9.5.30) unstable; urgency=low
+
+  * Enable bdb updates back. Added completion log.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 18 Jan 2011 20:19:43 +0300
+
 elliptics (2.9.5.29) unstable; urgency=low
 
   * Do not try to work with node if reading return network is down.
