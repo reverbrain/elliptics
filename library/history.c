@@ -497,7 +497,7 @@ static void *dnet_db_list_iter(void *data)
 
 		err = read(ctl->pipe[0], mc->data, mc->size);
 		if (err != (signed)mc->size) {
-			dnet_log(n, DNET_LOG_ERROR, "Failed to read meta container data: size: %zu, read: %d\n",
+			dnet_log(n, DNET_LOG_ERROR, "Failed to read meta container data: size: %u, read: %d\n",
 					mc->size, err);
 			err = -EINVAL;
 			goto out_unlock;
