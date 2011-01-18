@@ -451,9 +451,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			break;
 		}
 
-		dnet_log(n, DNET_LOG_INFO, "%s: trans: %llu, transaction_size_left: %llu, "
-				"starting cmd: %u, attribute_size: %llu, attribute_flags: %x.\n",
-			dnet_dump_id(&cmd->id), tid, size, a->cmd, (unsigned long long)a->size, a->flags);
+		if (a->cmd != DNET_CMD_STAT_COUNT && a->cmd != DNET_CMD_STAT)
+			dnet_log(n, DNET_LOG_INFO, "%s: trans: %llu, transaction_size_left: %llu, "
+					"starting cmd: %u, attribute_size: %llu, attribute_flags: %x.\n",
+					dnet_dump_id(&cmd->id), tid, size, a->cmd, (unsigned long long)a->size, a->flags);
 
 		switch (a->cmd) {
 			case DNET_CMD_LOOKUP:
@@ -549,7 +550,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				break;
 		}
 
-		dnet_log(n, DNET_LOG_INFO, "%s: trans: %llu, completed cmd: %u, err: %d.\n",
+		dnet_log(n, DNET_LOG_DSA, "%s: trans: %llu, completed cmd: %u, err: %d.\n",
 			dnet_dump_id(&cmd->id), tid, a->cmd, err);
 
 		dnet_stat_inc(st->stat, a->cmd, err);

@@ -184,7 +184,7 @@ static int backend_stat_low_level(const char *path, struct dnet_stat *st)
 	la[1] = (float)st->la[1] / 100.0;
 	la[2] = (float)st->la[2] / 100.0;
 
-	dnet_backend_log(DNET_LOG_INFO, "Stat: la: %f %f %f, mem: total: %llu, free: %llu, cache: %llu.\n",
+	dnet_backend_log(DNET_LOG_DSA, "Stat: la: %f %f %f, mem: total: %llu, free: %llu, cache: %llu.\n",
 		la[0], la[1], la[2],
 		(unsigned long long)st->vm_total, (unsigned long long)st->vm_free, (unsigned long long)st->vm_cached);
 
