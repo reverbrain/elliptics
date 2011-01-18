@@ -479,8 +479,8 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				if (!a->flags) {
 					err = dnet_notify_add(st, cmd);
 					/*
-					 * We drop need ack flag, since notification
-					 * transaction is a long-standing one, since
+					 * We drop 'need ack' flag, since notification
+					 * transaction is a long-living one, since
 					 * every notification will be sent as transaction
 					 * completion.
 					 *
