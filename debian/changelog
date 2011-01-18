@@ -1,3 +1,9 @@
+elliptics (2.9.5.28) unstable; urgency=low
+
+  * Added temporal lookup addr debug.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 18 Jan 2011 18:42:52 +0300
+
 elliptics (2.9.5.27) unstable; urgency=low
 
   * Log cleanups.
