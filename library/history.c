@@ -602,8 +602,11 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 	while (!ctl.need_exit) {
 		err = cursor->c_get(cursor, &key, &dbdata, DB_NEXT);
-		if (err < 0)
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "cursor reading returned error %d: %s.\n",
+					err, db_strerror(err));
 			break;
+		}
 
 		if (sizeof(struct dnet_meta_container) + dbdata.size > buf_size) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: cursor returned too big data chunk: data_size: %zu, max_size: %zu.\n",
