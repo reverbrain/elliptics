@@ -522,7 +522,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 					io = data;
 					dnet_convert_io_attr(io);
-
+#if 0
 					if ((io->flags & DNET_IO_FLAGS_HISTORY) || (io->flags & DNET_IO_FLAGS_META)) {
 						if (a->cmd == DNET_CMD_READ) {
 							err = dnet_db_read(st, cmd, io);
@@ -532,18 +532,18 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 							err = -EINVAL;
 						break;
 					}
-
+#endif
 					dnet_convert_io_attr(io);
 				}
 			default:
 				err = n->command_handler(st, n->command_private, cmd, a, data);
 				if (err || (a->cmd != DNET_CMD_WRITE))
 					break;
-
+#if 0
 				err = dnet_db_write(n, cmd, data);
 				if (err)
 					break;
-
+#endif
 #if 0
 				dnet_update_notify(st, cmd, a, data);
 #endif
