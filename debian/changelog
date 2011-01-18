@@ -1,3 +1,10 @@
+elliptics (2.9.5.29) unstable; urgency=low
+
+  * Do not try to work with node if reading return network is down.
+  * Temporarily disable bdb updates to find out possible bottleneck.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 18 Jan 2011 20:09:41 +0300
+
 elliptics (2.9.5.28) unstable; urgency=low
 
   * Added temporal lookup addr debug.
