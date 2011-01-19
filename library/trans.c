@@ -355,8 +355,6 @@ static void *dnet_check_tree_from_thread(void *data)
 			n->check_timeout);
 
 	while (!n->need_exit) {
-		dnet_db_checkpoint(n);
-
 		gettimeofday(&tv1, NULL);
 		dnet_check_tree(n, 0);
 

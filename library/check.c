@@ -139,7 +139,7 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: object is NOT present in the storage: %d.\n",
 					dnet_dump_id(&raw), err);
 
-			if ((err != -ENOENT) && (err != DB_NOTFOUND) && (err != -ECONNRESET) && (err != -ETIMEDOUT)) {
+			if ((err != -ENOENT) && (err != -ECONNRESET) && (err != -ETIMEDOUT)) {
 				/*
 				 * Kill history and metadata if we failed to read data.
 				 * If we will not remove history, fsck will append recovered history to
@@ -410,7 +410,7 @@ static int dnet_check_merge(struct dnet_node *n, struct dnet_meta_container *mc)
 
 	err = dnet_read_file(n, file, NULL, 0, &mc->id, 0, 0, 1);
 	if (err) {
-		if (err != -ENOENT && err != DB_NOTFOUND) {
+		if (err != -ENOENT) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n", dnet_dump_id(&mc->id), err);
 			goto err_out_exit;
 		}
@@ -447,7 +447,7 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_co
 		err = dnet_check_merge(n, mc);
 	}
 
-	if (err == -ENOENT || err == DB_NOTFOUND || (err == 0 && !check_copies)) {
+	if (err == -ENOENT || (err == 0 && !check_copies)) {
 		dnet_merge_remove_local(n, &mc->id);
 	}
 

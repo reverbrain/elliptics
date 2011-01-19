@@ -28,7 +28,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <db.h>
+#include <kclangc.h>
 
 #ifndef HAVE_UCHAR
 typedef unsigned char u_char;
@@ -293,10 +293,7 @@ struct dnet_node
 	long			check_timeout;
 	pthread_t		check_tid;
 
-	char			*check_dir;
-
-	DB_ENV			*env;
-	DB			*history, *meta;
+	KCDB			*history, *meta;
 
 	int			(* command_handler)(void *state, void *priv,
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
@@ -426,7 +423,6 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr);
 void dnet_db_cleanup(struct dnet_node *n);
 int dnet_db_init(struct dnet_node *n, char *histfile);
-int dnet_db_checkpoint(struct dnet_node *n);
 
 int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies);
 
