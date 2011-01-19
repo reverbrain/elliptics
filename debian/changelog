@@ -1,3 +1,9 @@
+elliptics (2.9.5.31) unstable; urgency=low
+
+  * Replaced BDB with KyotoCabinet.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 19 Jan 2011 19:26:39 +0300
+
 elliptics (2.9.5.30) unstable; urgency=low
 
   * Enable bdb updates back. Added completion log.
