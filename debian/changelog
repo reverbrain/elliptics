@@ -1,3 +1,10 @@
+elliptics (2.9.5.32) unstable; urgency=low
+
+  * Debug cleanup
+  * Exit check if it encountered errors.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 27 Jan 2011 20:48:38 +0300
+
 elliptics (2.9.5.31) unstable; urgency=low
 
   * Replaced BDB with KyotoCabinet.
