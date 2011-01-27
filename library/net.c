@@ -188,6 +188,13 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 		goto out_exit;
 	}
 
+	if (pfd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
+		dnet_log(st->n, DNET_LOG_ERROR, "Connection reset by peer: sock: %d, revents: %x.\n",
+			st->s, pfd.revents);
+		err = -ECONNRESET;
+		goto out_exit;
+	}
+
 	if (err == 0) {
 		err = -EAGAIN;
 		goto out_exit;
@@ -744,7 +751,7 @@ static void *dnet_state_processing(void *priv)
 	dnet_schedule_command(st);
 
 	while (!st->n->need_exit) {
-		err = dnet_wait(st, POLLIN | POLLRDHUP | POLLERR | POLLHUP | POLLNVAL, 1000);
+		err = dnet_wait(st, POLLIN, 1000);
 		if (err == -EAGAIN)
 			continue;
 
