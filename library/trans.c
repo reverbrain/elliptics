@@ -248,7 +248,7 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 	struct timespec ts;
 	struct timeval tv;
 	struct rb_node *node, *next;
-	int total = 0;
+	int total = 0, error_count = 0;
 
 	dnet_try_reconnect(n);
 
@@ -266,6 +266,8 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 		next = rb_next(node);
 		t = rb_entry(node, struct dnet_trans, trans_entry);
 
+		total++;
+
 		if (kill)
 			err = -EIO;
 
@@ -277,7 +279,8 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 		dnet_trans_remove_nolock(&n->trans_root, t);
 
 		dnet_log(n, DNET_LOG_ERROR, "%s: %ld.%ld: freeing trans: %llu: fire_time: %ld.%ld, err: %d.\n",
-				dnet_dump_id(&t->cmd.id), ts.tv_sec, ts.tv_nsec,	(unsigned long long)t->trans,
+				dnet_dump_id(&t->cmd.id), ts.tv_sec, ts.tv_nsec,
+				(unsigned long long)t->trans,
 				t->fire_time.tv_sec, t->fire_time.tv_nsec, err);
 
 		t->cmd.status = err;
@@ -295,13 +298,13 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 
 		dnet_trans_put(t);
 
-		total++;
+		error_count++;
 		node = next;
 	}
 	dnet_lock_unlock(&n->trans_lock);
 
 	if (total)
-		dnet_log(n, DNET_LOG_DSA, "Checked %d transactions.\n", total);
+		dnet_log(n, DNET_LOG_INFO, "Checked: %d, error: %d transactions.\n", total, error_count);
 }
 
 static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd *cmd,
