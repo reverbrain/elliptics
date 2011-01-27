@@ -120,7 +120,7 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 	void *data;
 	char file[256];
 	char eid[2*DNET_ID_SIZE+1];
-	int err, i;
+	int err, i, error = 0;
 
 	for (i=0; i<group_num; ++i) {
 		if (groups[i] == group_id)
@@ -148,35 +148,48 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 				dnet_remove_object_now(n, &raw, 0);
 			}
 
+			err = -ENOENT;
 			st = dnet_state_get_first(n, &raw);
 			if (!st)
-				continue;
+				goto err_out_continue;
 
-			err = -ENOENT;
 			if (st != n->st)
 				err = n->send(st, n->command_private, &raw);
 			dnet_state_put(st);
 
 			if (err)
-				continue;
+				goto err_out_continue;
 
 			mc->id.group_id = raw.group_id;
 			err = dnet_write_metadata(n, mc, 1);
-			if (err <= 0)
-				continue;
+			if (err <= 0) {
+				if (err == 0)
+					err = -ENOENT;
+				goto err_out_continue;
+			}
 
 			err = dnet_db_read_raw(n, 0, mc->id.id, &data);
-			if (err <= 0)
-				continue;
+			if (err <= 0) {
+				if (err == 0)
+					err = -ENOENT;
+				goto err_out_continue;
+			}
 
 			err = dnet_write_data_wait(n, NULL, 0, &raw, data, -1, 0, 0, err, NULL,
 				DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
-		}
+
+err_out_continue:
+			if (!err)
+				error = 0;
+			else if (!error)
+				error = err;
+		} else
+			error = 0;
 
 		dnet_merge_unlink_local_files(n, &raw);
 	}
 
-	return 0;
+	return error;
 }
 
 static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id)
