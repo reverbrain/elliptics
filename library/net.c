@@ -189,7 +189,7 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 	}
 
 	if (pfd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
-		dnet_log(st->n, DNET_LOG_ERROR, "Connection reset by peer: sock: %d, revents: %x.\n",
+		dnet_log(st->n, DNET_LOG_DSA, "Connection reset by peer: sock: %d, revents: %x.\n",
 			st->s, pfd.revents);
 		err = -ECONNRESET;
 		goto out_exit;
@@ -756,7 +756,8 @@ static void *dnet_state_processing(void *priv)
 			continue;
 
 		if (err < 0) {
-			dnet_log_err(st->n, "failed to process poll events at %s", dnet_state_dump_addr(st));
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: failed to process poll events: %s [%d]",
+					dnet_state_dump_addr(st), strerror(-err), err);
 			goto out_exit;
 		}
 

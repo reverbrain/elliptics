@@ -41,10 +41,10 @@ int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **da
 
 	data = kcdbget(db, (void *)id, DNET_ID_SIZE, &size);
 	if (!data) {
-		err = kcdbecode(db);
+		err = -kcdbecode(db);
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: raw DB read failed "
 			"err: %d: %s.\n", dnet_dump_id_str(id),
-			err, kcecodename(err));
+			err, kcecodename(-err));
 		goto err_out_exit;
 	}
 
@@ -93,9 +93,9 @@ static int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io
 	}
 
 	if (!ret) {
-		int err = kcdbecode(db);
+		int err = -kcdbecode(db);
 		dnet_log(n, DNET_LOG_ERROR, "%s: %s: failed to store %u bytes: %s [%d]\n", dnet_dump_id(&cmd->id), dbf,
-				size, kcecodename(err), err);
+				size, kcecodename(-err), err);
 		return err;
 	}
 
@@ -166,17 +166,17 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 
 	ret = kcdbbegintran(n->history, 1);
 	if (!ret) {
-		err = kcdbecode(n->history);
+		err = -kcdbecode(n->history);
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start history deketion transaction, err: %d: %s.\n",
-			dnet_dump_id(&cmd->id), err, kcecodename(err));
+			dnet_dump_id(&cmd->id), err, kcecodename(-err));
 		goto err_out_exit;
 	}
 
 	e = kcdbget(n->history, (void *)cmd->id.id, DNET_ID_SIZE, &size);
 	if (!e) {
-		err = kcdbecode(n->history);
+		err = -kcdbecode(n->history);
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read history of to be deleted object, err: %d: %s.\n",
-			dnet_dump_id(&cmd->id), err, kcecodename(err));
+			dnet_dump_id(&cmd->id), err, kcecodename(-err));
 
 		goto err_out_txn_end;
 	}
@@ -198,9 +198,9 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 	if (size) {
 		ret = kcdbset(n->history, (void *)cmd->id.id, DNET_ID_SIZE, e, size);
 		if (!ret) {
-			err = kcdbecode(n->history);
+			err = -kcdbecode(n->history);
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to store truncated history, err: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, kcecodename(err));
+				dnet_dump_id(&cmd->id), err, kcecodename(-err));
 
 			goto err_out_free;
 		}
@@ -322,9 +322,9 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 	cursor = kcdbcursor(n->meta);
 	if (!cursor) {
-		err = kcdbecode(n->meta);
+		err = -kcdbecode(n->meta);
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, kcecodename(err));
+				dnet_dump_id(&cmd->id), err, kcecodename(-err));
 		goto err_out_free;
 	}
 	kccurjump(cursor);
@@ -430,8 +430,8 @@ static KCDB *db_backend_open(struct dnet_node *n, char *dbfile)
 
 	ret = kcdbopen(db, dbfile, KCOWRITER | KCOCREATE | KCOAUTOTRAN);
 	if (!ret) {
-		err = kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open '%s' database, err: %d %s\n", dbfile, err, kcecodename(err));
+		err = -kcdbecode(db);
+		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open '%s' database, err: %d %s\n", dbfile, err, kcecodename(-err));
 		goto err_out_close;
 	}
 
