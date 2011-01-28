@@ -756,7 +756,7 @@ static void *dnet_state_processing(void *priv)
 			continue;
 
 		if (err < 0) {
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: failed to process poll events: %s [%d]",
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: failed to process poll events: %s [%d]\n",
 					dnet_state_dump_addr(st), strerror(-err), err);
 			goto out_exit;
 		}
