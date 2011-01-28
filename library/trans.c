@@ -271,18 +271,24 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 		if (kill)
 			err = -EIO;
 
+		dnet_log(n, DNET_LOG_DSA, "%s: %ld.%ld: checking trans: %llu: fire_time: %ld.%ld (will fire: %d).\n",
+				dnet_dump_id(&t->cmd.id), ts.tv_sec, ts.tv_nsec,
+				(unsigned long long)t->trans,
+				t->fire_time.tv_sec, t->fire_time.tv_nsec,
+				!!dnet_time_after(&ts, &t->fire_time));
+
 		if (!err && !dnet_time_after(&ts, &t->fire_time))
 			break;
 
 		if (dnet_time_after(&ts, &t->fire_time))
 			err = -ETIMEDOUT;
 		dnet_trans_remove_nolock(&n->trans_root, t);
-
+#if 0
 		dnet_log(n, DNET_LOG_ERROR, "%s: %ld.%ld: freeing trans: %llu: fire_time: %ld.%ld, err: %d.\n",
 				dnet_dump_id(&t->cmd.id), ts.tv_sec, ts.tv_nsec,
 				(unsigned long long)t->trans,
 				t->fire_time.tv_sec, t->fire_time.tv_nsec, err);
-
+#endif
 		t->cmd.status = err;
 		t->cmd.size = 0;
 
