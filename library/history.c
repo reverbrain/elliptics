@@ -310,6 +310,12 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	void *buf;
 	size_t buf_size = 1024*1024;
 
+	if (n->check_in_progress)
+		return -EINPROGRESS;
+
+	/* Racy, but we do not care much */
+	n->check_in_progress = 1;
+
 	buf = malloc(buf_size);
 	if (!buf) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate buffer for cursor data.\n");
@@ -418,6 +424,7 @@ err_out_close_cursor:
 err_out_free:
 	free(buf);
 err_out_exit:
+	n->check_in_progress = 0;
 	return err;
 }
 

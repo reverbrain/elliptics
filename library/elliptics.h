@@ -290,6 +290,7 @@ struct dnet_node
 
 	int			join_state;
 
+	int			check_in_progress;
 	long			check_timeout;
 	pthread_t		check_tid;
 
