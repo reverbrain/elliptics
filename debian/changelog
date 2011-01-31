@@ -1,3 +1,9 @@
+elliptics (2.9.5.35) unstable; urgency=low
+
+  * Do not allow multiple checks to run in parallel.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 31 Jan 2011 22:57:08 +0300
+
 elliptics (2.9.5.34) unstable; urgency=low
 
   * Do not try to delete remove record if its reading returns -7 (no record
