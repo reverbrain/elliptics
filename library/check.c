@@ -139,7 +139,10 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: object is NOT present in the storage: %d.\n",
 					dnet_dump_id(&raw), err);
 
-			if ((err != -ENOENT) && (err != -ECONNRESET) && (err != -ETIMEDOUT)) {
+			/*
+			 * -7 - no record Kyoto Cabinet error
+			 */
+			if ((err != -ENOENT) && (err != -ECONNRESET) && (err != -ETIMEDOUT) && (err != -7)) {
 				/*
 				 * Kill history and metadata if we failed to read data.
 				 * If we will not remove history, fsck will append recovered history to
