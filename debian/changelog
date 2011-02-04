@@ -1,3 +1,11 @@
+elliptics (2.9.5.36) unstable; urgency=low
+
+  * Log cleanups.
+  * Check copies detection changed a bit.
+  * Do not request route table when doing stat request in ioclient
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 04 Feb 2011 23:06:39 +0300
+
 elliptics (2.9.5.35) unstable; urgency=low
 
   * Do not allow multiple checks to run in parallel.
