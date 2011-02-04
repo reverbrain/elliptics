@@ -363,6 +363,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		kbuf = kccurget(cursor, &ksize, (const char **)&dbuf, &dsize, 1);
 		if (!kbuf) {
 			dnet_log(n, DNET_LOG_ERROR, "cursor reading returned no data.\n");
+			ctl.need_exit = 1;
 			break;
 		}
 
@@ -378,7 +379,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 		dnet_setup_id(&mc->id, group_id, kbuf);
 
-		tmp = dnet_state_search(n, &mc->id);
+		tmp = dnet_state_get_first(n, &mc->id);
 
 		/*
 		 * Use group ID field to specify whether we should check number of copies

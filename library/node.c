@@ -386,10 +386,6 @@ int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_st
 
 		if (addr) {
 			memcpy(addr, &sid->idc->st->addr, sizeof(struct dnet_addr));
-			dnet_log(n, DNET_LOG_INFO, "addr: %p\n", addr);
-			dnet_log(n, DNET_LOG_INFO, "idc: %p\n", sid->idc);
-			dnet_log(n, DNET_LOG_INFO, "st: %p\n", sid->idc->st);
-			dnet_log(n, DNET_LOG_INFO, "addr: %s\n", dnet_server_convert_dnet_addr(addr));
 		}
 	}
 	pthread_rwlock_unlock(&n->state_lock);

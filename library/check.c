@@ -426,7 +426,7 @@ static int dnet_check_merge(struct dnet_node *n, struct dnet_meta_container *mc)
 
 	err = dnet_read_file(n, file, NULL, 0, &mc->id, 0, 0, 1);
 	if (err) {
-		if (err != -ENOENT) {
+		if ((err != -ENOENT) && (err != -7)) { /* Kyoto Cabinet 'no record' error */
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n", dnet_dump_id(&mc->id), err);
 			goto err_out_exit;
 		}
@@ -455,16 +455,14 @@ err_out_exit:
 
 int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies)
 {
-	int err;
+	int err = 0;
 
-	if (check_copies) {
-		err = dnet_check_copies(n, mc);
-	} else {
+	if (!check_copies) {
 		err = dnet_check_merge(n, mc);
-	}
-
-	if (err == -ENOENT || (err == 0 && !check_copies)) {
-		dnet_merge_remove_local(n, &mc->id);
+		if (!err)
+			dnet_merge_remove_local(n, &mc->id);
+	} else {
+		err = dnet_check_copies(n, mc);
 	}
 
 	return err;
