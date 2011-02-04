@@ -181,6 +181,8 @@ int main(int argc, char *argv[])
 	if (have_remote) {
 		int error = -ECONNRESET;
 		for (i=0; i<have_remote; ++i) {
+			if (vfs_stat)
+				remotes[i].join = DNET_NO_ROUTE_LIST;
 			err = dnet_add_state(n, &remotes[i]);
 			if (!err)
 				error = 0;
