@@ -1,3 +1,9 @@
+elliptics (2.9.5.37) unstable; urgency=low
+
+  * Do not sleep when requesting stat.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 05 Feb 2011 01:09:35 +0300
+
 elliptics (2.9.5.36) unstable; urgency=low
 
   * Log cleanups.
