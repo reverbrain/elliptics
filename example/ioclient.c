@@ -192,7 +192,11 @@ int main(int argc, char *argv[])
 			return error;
 	}
 
-	sleep(1);
+	/*
+	 * Used to wait for all nodes to complete connection.
+	 */
+	if (!vfs_stat)
+		sleep(1);
 
 	if (writef) {
 		err = dnet_write_file(n, writef, writef, strlen(writef), NULL, offset, size, 0);
