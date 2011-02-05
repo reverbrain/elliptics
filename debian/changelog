@@ -1,3 +1,11 @@
+elliptics (2.9.5.38) unstable; urgency=low
+
+  * Multi-threaded cursor reading during check.
+  * Merge-only check.
+  * Return statistics (total, completed and error numbers) data to client during check.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 05 Feb 2011 22:33:02 +0300
+
 elliptics (2.9.5.37) unstable; urgency=low
 
   * Do not sleep when requesting stat.
