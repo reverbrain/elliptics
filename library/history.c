@@ -297,7 +297,7 @@ out_exit:
 	return NULL;
 }
 
-int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr __unused)
+int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	struct dnet_node *n = st->n;
 	struct dnet_db_list_control ctl;	
@@ -309,6 +309,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	struct dnet_meta_container *mc;
 	void *buf;
 	size_t buf_size = 1024*1024;
+	int only_merge = !!(attr->flags & DNET_ATTR_CHECK_MERGE);
 
 	if (n->check_in_progress)
 		return -EINPROGRESS;
@@ -371,8 +372,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 			dnet_log(n, DNET_LOG_ERROR, "%s: cursor returned too big data chunk: data_size: %zu, max_size: %zu.\n",
 					dnet_dump_id_str(kbuf), sizeof(struct dnet_meta_container) + dsize, buf_size);
 			err = -EINVAL;
-			kcfree(kbuf);
-			break;
+			goto err_out_kcfree;
 		}
 
 		memset(mc, 0, sizeof(struct dnet_meta_container));
@@ -389,22 +389,27 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 		dnet_state_put(tmp);
 
-		dnet_log_raw(n, DNET_LOG_INFO, "start key: %s, check_copies: %d, size: %zu.\n",
-				dnet_dump_id_str(kbuf), check_copies, dsize);
+		if (check_copies && !only_merge) {
+			dnet_log_raw(n, DNET_LOG_INFO, "start key: %s, check_copies: %d, size: %zu.\n",
+					dnet_dump_id_str(kbuf), check_copies, dsize);
 
-		mc->id.group_id = check_copies;
-		mc->size = dsize;
-		memcpy(mc->data, dbuf, mc->size);
+			mc->id.group_id = check_copies;
+			mc->size = dsize;
+			memcpy(mc->data, dbuf, mc->size);
 
-		kcfree(kbuf);
+			err = write(ctl.pipe[1], mc, mc->size + sizeof(struct dnet_meta_container));
 
-		err = write(ctl.pipe[1], mc, mc->size + sizeof(struct dnet_meta_container));
-
-		if (err <= 0) {
-			err = -errno;
-			dnet_log_err(n, "failed to write into cursor pipe");
-			break;
+			if (err <= 0) {
+				err = -errno;
+				dnet_log_err(n, "failed to write into cursor pipe");
+				goto err_out_kcfree;
+			}
 		}
+
+err_out_kcfree:
+		kcfree(kbuf);
+		if (err)
+			break;
 	}
 
 err_out_join:

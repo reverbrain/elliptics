@@ -51,6 +51,7 @@ static void check_usage(char *p)
 			" -l log               - log file. Default: disabled\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" -m mask              - log events mask\n"
+			" -M                   - do not check copies in other groups, run only merge check\n"
 			" -h                   - this help\n"
 	       , p);
 }
@@ -62,6 +63,7 @@ int main(int argc, char *argv[])
 	struct dnet_config cfg, rem;
 	char *logfile = "/dev/stderr";
 	FILE *log = NULL;
+	unsigned int aflags = 0;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -73,8 +75,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "m:w:l:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "Mm:w:l:r:h")) != -1) {
 		switch (ch) {
+			case 'M':
+				aflags |= DNET_ATTR_CHECK_MERGE;
+				break;
 			case 'm':
 				check_logger.log_mask = strtoul(optarg, NULL, 0);
 				break;
@@ -122,5 +127,5 @@ int main(int argc, char *argv[])
 	if (err)
 		return err;
 
-	return dnet_request_check(n);
+	return dnet_request_check(n, aflags);
 }

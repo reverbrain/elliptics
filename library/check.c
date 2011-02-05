@@ -488,7 +488,7 @@ static int dnet_check_complete(struct dnet_net_state *state, struct dnet_cmd *cm
 	return err;
 }
 
-int dnet_request_check(struct dnet_node *n)
+int dnet_request_check(struct dnet_node *n, unsigned int aflags)
 {
 	struct dnet_wait *w;
 	struct dnet_net_state *st;
@@ -512,7 +512,7 @@ int dnet_request_check(struct dnet_node *n)
 			dnet_wait_get(w);
 
 			dnet_setup_id(&raw, st->idc->group->group_id, st->idc->ids[0].raw.id);
-			dnet_request_cmd_single(n, st, &raw, DNET_CMD_LIST, dnet_check_complete, w);
+			dnet_request_cmd_single(n, st, &raw, DNET_CMD_LIST, aflags, dnet_check_complete, w);
 			num++;
 		}
 	}

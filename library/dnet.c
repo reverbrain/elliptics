@@ -2395,7 +2395,8 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 }
 
 int dnet_request_cmd_single(struct dnet_node *n,
-	struct dnet_net_state *st, struct dnet_id *id, unsigned int cmd,
+	struct dnet_net_state *st, struct dnet_id *id,
+	unsigned int cmd, unsigned int aflags,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
@@ -2411,6 +2412,7 @@ int dnet_request_cmd_single(struct dnet_node *n,
 	ctl.complete = complete;
 	ctl.priv = priv;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.aflags = aflags;
 
 	if (st)
 		return dnet_trans_alloc_send_state(st, &ctl);
@@ -2441,7 +2443,7 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
 	if (id) {
 		if (w)
 			dnet_wait_get(w);
-		err = dnet_request_cmd_single(n, NULL, id, cmd, complete, priv);
+		err = dnet_request_cmd_single(n, NULL, id, cmd, 0, complete, priv);
 		num = 1;
 	} else {
 		struct dnet_net_state *st;
@@ -2459,7 +2461,7 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
 					dnet_wait_get(w);
 
 				dnet_setup_id(&raw, st->idc->group->group_id, st->idc->ids[0].raw.id);
-				dnet_request_cmd_single(n, st, &raw, cmd, complete, priv);
+				dnet_request_cmd_single(n, st, &raw, cmd, 0, complete, priv);
 				num++;
 			}
 		}

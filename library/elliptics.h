@@ -428,7 +428,8 @@ int dnet_db_init(struct dnet_node *n, char *histfile);
 int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies);
 
 int dnet_request_cmd_single(struct dnet_node *n,
-	struct dnet_net_state *st, struct dnet_id *id, unsigned int cmd,
+	struct dnet_net_state *st, struct dnet_id *id,
+	unsigned int cmd, unsigned int aflags,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
