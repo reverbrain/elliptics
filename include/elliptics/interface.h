@@ -738,6 +738,20 @@ enum id_params {
 int dnet_generate_ids_by_param(struct dnet_node *n, struct dnet_id *id, enum id_params param, struct dnet_id_param **dst);
 int64_t dnet_get_param(struct dnet_node *n, struct dnet_id *id, enum id_params param);
 
+struct dnet_check_reply {
+	int			total;
+	int			completed;
+	int			errors;
+	int			reserved[5];
+};
+
+static inline void dnet_convert_check_reply(struct dnet_check_reply *r)
+{
+	r->total = dnet_bswap32(r->total);
+	r->completed = dnet_bswap32(r->completed);
+	r->errors = dnet_bswap32(r->errors);
+}
+
 int dnet_request_check(struct dnet_node *n, unsigned int aflags);
 
 int dnet_read_multiple(struct dnet_node *n, struct dnet_id *id, int num, struct dnet_id_param **dst);

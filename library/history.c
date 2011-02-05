@@ -227,12 +227,32 @@ err_out_exit:
 
 struct dnet_db_list_control {
 	struct dnet_node		*n;
+	struct dnet_net_state		*st;
+	struct dnet_cmd			*cmd;
+	struct dnet_attr		*attr;
 
-	int				pipe[2];
+	KCCUR				*cursor;
 	pthread_mutex_t			lock;
 
 	int				need_exit;
+	int				only_merge;
+
+	atomic_t			completed;
+	atomic_t			errors;
+	atomic_t			total;
 };
+
+static int dnet_db_send_check_reply(struct dnet_db_list_control *ctl)
+{
+	struct dnet_check_reply reply;
+
+	reply.total = atomic_read(&ctl->total);
+	reply.errors = atomic_read(&ctl->errors);
+	reply.completed = atomic_read(&ctl->completed);
+
+	dnet_convert_check_reply(&reply);
+	return dnet_send_reply(ctl->st, ctl->cmd, ctl->attr, &reply, sizeof(reply), 1);
+}
 
 static void *dnet_db_list_iter(void *data)
 {
@@ -240,10 +260,15 @@ static void *dnet_db_list_iter(void *data)
 	struct dnet_node *n = ctl->n;
 	int group_id = n->st->idc->group->group_id;
 	struct dnet_meta_container *mc;
-	void *buf;
+	struct dnet_net_state *tmp;
 	int err = 0, check_copies;
+	void *kbuf, *dbuf;
+	size_t ksize, dsize;
+	int send_check_reply = 1;
+	size_t buf_size = 1024*1024;
+	void *buf;
 
-	buf = malloc(1024*1024);
+	buf = malloc(buf_size);
 	if (!buf) {
 		err = -ENOMEM;
 		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate temporal buffer for cursor data.\n");
@@ -254,117 +279,12 @@ static void *dnet_db_list_iter(void *data)
 
 	while (!ctl->need_exit) {
 		pthread_mutex_lock(&ctl->lock);
-		err = read(ctl->pipe[0], mc, sizeof(struct dnet_meta_container));
-		if (err != sizeof(struct dnet_meta_container)) {
-			dnet_log(n, DNET_LOG_ERROR, "Failed to read meta container: size: %zu, read: %d\n",
-					sizeof(struct dnet_meta_container), err);
-			err = -EINVAL;
-			goto out_unlock;
-		}
-
-		err = read(ctl->pipe[0], mc->data, mc->size);
-		if (err != (signed)mc->size) {
-			dnet_log(n, DNET_LOG_ERROR, "Failed to read meta container data: size: %u, read: %d\n",
-					mc->size, err);
-			err = -EINVAL;
-			goto out_unlock;
-		}
-out_unlock:
+		kbuf = kccurget(ctl->cursor, &ksize, (const char **)&dbuf, &dsize, 1);
 		pthread_mutex_unlock(&ctl->lock);
 
-		if (err < 0)
-			break;
-
-		check_copies = mc->id.group_id;
-		mc->id.group_id = group_id;
-		err = dnet_check(n, mc, check_copies);
-
-		dnet_log_raw(n, DNET_LOG_INFO, "complete key: %s, check_copies: %d, size: %u, err: %d.\n",
-				dnet_dump_id(&mc->id), check_copies, mc->size, err);
-
-		if (err < 0)
-			break;
-	}
-
-	free(buf);
-
-out_exit:
-	if (err)
-		ctl->need_exit = err;
-
-	dnet_log(n, DNET_LOG_INFO, "Exited iteration loop, err: %d.\n", err);
-
-	return NULL;
-}
-
-int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr)
-{
-	struct dnet_node *n = st->n;
-	struct dnet_db_list_control ctl;	
-	KCCUR *cursor;
-	int err, num = 50, i, check_copies;
-	int group_id = n->st->idc->group->group_id;
-	pthread_t tid[num];
-	struct dnet_net_state *tmp;
-	struct dnet_meta_container *mc;
-	void *buf;
-	size_t buf_size = 1024*1024;
-	int only_merge = !!(attr->flags & DNET_ATTR_CHECK_MERGE);
-
-	if (n->check_in_progress)
-		return -EINPROGRESS;
-
-	/* Racy, but we do not care much */
-	n->check_in_progress = 1;
-
-	buf = malloc(buf_size);
-	if (!buf) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate buffer for cursor data.\n");
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-	mc = buf;
-
-	memset(&ctl, 0, sizeof(struct dnet_db_list_control));
-
-	cursor = kcdbcursor(n->meta);
-	if (!cursor) {
-		err = -kcdbecode(n->meta);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, kcecodename(-err));
-		goto err_out_free;
-	}
-	kccurjump(cursor);
-
-	err = pthread_mutex_init(&ctl.lock, NULL);
-	if (err)
-		goto err_out_close_cursor;
-
-	err = pipe(ctl.pipe);
-	if (err < 0)
-		goto err_out_destroy_mutex;
-
-	ctl.n = n;
-
-	for (i=0; i<num; ++i) {
-		err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);
-		if (err) {
-			dnet_log_err(n, "can not create %d'th check thread out of %d", i, num);
-			num = i;
-			ctl.need_exit = 1;
-			goto err_out_join;
-		}
-	}
-	dnet_log(n, DNET_LOG_INFO, "Started %d checking threads, err: %d.\n", num, err);
-
-	while (!ctl.need_exit) {
-		void *kbuf, *dbuf;
-		size_t ksize, dsize;
-
-		kbuf = kccurget(cursor, &ksize, (const char **)&dbuf, &dsize, 1);
 		if (!kbuf) {
 			dnet_log(n, DNET_LOG_ERROR, "cursor reading returned no data.\n");
-			ctl.need_exit = 1;
+			ctl->need_exit = 1;
 			break;
 		}
 
@@ -389,46 +309,112 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 		dnet_state_put(tmp);
 
-		if (check_copies && !only_merge) {
-			dnet_log_raw(n, DNET_LOG_INFO, "start key: %s, check_copies: %d, size: %zu.\n",
-					dnet_dump_id_str(kbuf), check_copies, dsize);
-
-			mc->id.group_id = check_copies;
+		atomic_inc(&ctl->total);
+		if (check_copies && !ctl->only_merge) {
 			mc->size = dsize;
 			memcpy(mc->data, dbuf, mc->size);
 
-			err = write(ctl.pipe[1], mc, mc->size + sizeof(struct dnet_meta_container));
+			err = dnet_check(n, mc, check_copies);
 
-			if (err <= 0) {
-				err = -errno;
-				dnet_log_err(n, "failed to write into cursor pipe");
+			dnet_log_raw(n, DNET_LOG_NOTICE, "complete key: %s, check_copies: %d, size: %u, err: %d.\n",
+				dnet_dump_id(&mc->id), check_copies, mc->size, err);
+
+			atomic_inc(&ctl->completed);
+
+			if (err < 0) {
+				atomic_inc(&ctl->errors);
 				goto err_out_kcfree;
 			}
 		}
 
 err_out_kcfree:
 		kcfree(kbuf);
+
+		if ((atomic_read(&ctl->total) % 1000) == 0) {
+			if (send_check_reply) {
+				if (dnet_db_send_check_reply(ctl))
+					send_check_reply = 0;
+			}
+
+			dnet_log(n, DNET_LOG_INFO, "check: total: %d, completed: %d, errors: %d\n",
+					atomic_read(&ctl->total), atomic_read(&ctl->completed), atomic_read(&ctl->errors));
+		}
+
 		if (err)
 			break;
 	}
 
+	free(buf);
+
+out_exit:
+	if (err)
+		ctl->need_exit = err;
+
+	dnet_log(n, DNET_LOG_INFO, "Exited iteration loop, err: %d.\n", err);
+
+	return NULL;
+}
+
+int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr)
+{
+	struct dnet_node *n = st->n;
+	struct dnet_db_list_control ctl;	
+	int err, num = 50, i;
+	pthread_t tid[num];
+
+	if (n->check_in_progress)
+		return -EINPROGRESS;
+
+	/* Racy, but we do not care much */
+	n->check_in_progress = 1;
+
+	memset(&ctl, 0, sizeof(struct dnet_db_list_control));
+
+	atomic_set(&ctl.completed, 0);
+	atomic_set(&ctl.errors, 0);
+	atomic_set(&ctl.total, 0);
+
+	ctl.n = n;
+	ctl.st = st;
+	ctl.cmd = cmd;
+	ctl.attr = attr;
+	ctl.only_merge = !!(attr->flags & DNET_ATTR_CHECK_MERGE);
+
+	ctl.cursor = kcdbcursor(n->meta);
+	if (!ctl.cursor) {
+		err = -kcdbecode(n->meta);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
+				dnet_dump_id(&cmd->id), err, kcecodename(-err));
+		goto err_out_exit;
+	}
+	kccurjump(ctl.cursor);
+
+	err = pthread_mutex_init(&ctl.lock, NULL);
+	if (err)
+		goto err_out_close_cursor;
+
+	for (i=0; i<num; ++i) {
+		err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);
+		if (err) {
+			dnet_log_err(n, "can not create %d'th check thread out of %d", i, num);
+			num = i;
+			ctl.need_exit = 1;
+			goto err_out_join;
+		}
+	}
+	dnet_log(n, DNET_LOG_INFO, "Started %d checking threads, err: %d.\n", num, err);
+
 err_out_join:
-	ctl.need_exit = 1;
-
-	close(ctl.pipe[0]);
-	close(ctl.pipe[1]);
-
 	for (i=0; i<num; ++i)
 		pthread_join(tid[i], NULL);
 
 	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", num, err);
 
-err_out_destroy_mutex:
+	dnet_db_send_check_reply(&ctl);
+
 	pthread_mutex_destroy(&ctl.lock);
 err_out_close_cursor:
-	kccurdel(cursor);
-err_out_free:
-	free(buf);
+	kccurdel(ctl.cursor);
 err_out_exit:
 	n->check_in_progress = 0;
 	return err;

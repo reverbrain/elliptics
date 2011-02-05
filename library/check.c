@@ -480,6 +480,15 @@ static int dnet_check_complete(struct dnet_net_state *state, struct dnet_cmd *cm
 		return 0;
 	}
 
+	if (attr->size == sizeof(struct dnet_check_reply)) {
+		struct dnet_check_reply *r = (struct dnet_check_reply *)(attr + 1);
+
+		dnet_convert_check_reply(r);
+
+		dnet_log(state->n, DNET_LOG_INFO, "check: total: %d, completed: %d, errors: %d\n",
+				r->total, r->completed, r->errors);
+	}
+
 	if (!(cmd->flags & DNET_FLAGS_MORE)) {
 		dnet_wakeup(w, w->cond++);
 		dnet_wait_put(w);
