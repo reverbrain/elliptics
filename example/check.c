@@ -52,6 +52,9 @@ static void check_usage(char *p)
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" -m mask              - log events mask\n"
 			" -M                   - do not check copies in other groups, run only merge check\n"
+			" -t timestamp         - only check those objects, which were previously checked BEFORE this time\n"
+			"                          format: year-month-day hours:minutes:seconds like \"2011-01-13 23:15:00\"\n"
+			" -n num               - number of checking threads to start by the server\n"
 			" -h                   - this help\n"
 	       , p);
 }
@@ -63,7 +66,8 @@ int main(int argc, char *argv[])
 	struct dnet_config cfg, rem;
 	char *logfile = "/dev/stderr";
 	FILE *log = NULL;
-	unsigned int aflags = 0;
+	struct dnet_check_request r;
+	struct tm tm;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -74,11 +78,25 @@ int main(int argc, char *argv[])
 	cfg.check_timeout = 60;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
+	memset(&tm, 0, sizeof(tm));
 
-	while ((ch = getopt(argc, argv, "Mm:w:l:r:h")) != -1) {
+	memset(&r, 0, sizeof(r));
+
+	while ((ch = getopt(argc, argv, "n:t:Mm:w:l:r:h")) != -1) {
 		switch (ch) {
+			case 'n':
+				r.thread_num = atoi(optarg);
+				break;
+			case 't':
+				if (!strptime(optarg, "%F %T", &tm)) {
+					fprintf(stderr, "Invalid timestamp string\n");
+					check_usage(argv[0]);
+					return -EINVAL;
+				}
+				r.timestamp = mktime(&tm);
+				break;
 			case 'M':
-				aflags |= DNET_ATTR_CHECK_MERGE;
+				r.flags |= DNET_CHECK_MERGE;
 				break;
 			case 'm':
 				check_logger.log_mask = strtoul(optarg, NULL, 0);
@@ -127,5 +145,5 @@ int main(int argc, char *argv[])
 	if (err)
 		return err;
 
-	return dnet_request_check(n, aflags);
+	return dnet_request_check(n, &r);
 }

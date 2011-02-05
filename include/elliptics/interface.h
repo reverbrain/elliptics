@@ -687,6 +687,7 @@ int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, unsigned int aflag
 enum dnet_meta_types {
 	DNET_META_PARENT_OBJECT = 1,	/* parent object name */
 	DNET_META_GROUPS,		/* this object has copies in given groups */
+	DNET_META_CHECK_STATUS,		/* last checking status: timestamp and so on */
 };
 
 struct dnet_meta
@@ -738,6 +739,8 @@ enum id_params {
 int dnet_generate_ids_by_param(struct dnet_node *n, struct dnet_id *id, enum id_params param, struct dnet_id_param **dst);
 int64_t dnet_get_param(struct dnet_node *n, struct dnet_id *id, enum id_params param);
 
+int dnet_read_multiple(struct dnet_node *n, struct dnet_id *id, int num, struct dnet_id_param **dst);
+
 struct dnet_check_reply {
 	int			total;
 	int			completed;
@@ -752,9 +755,39 @@ static inline void dnet_convert_check_reply(struct dnet_check_reply *r)
 	r->errors = dnet_bswap32(r->errors);
 }
 
-int dnet_request_check(struct dnet_node *n, unsigned int aflags);
+struct dnet_meta_check_status {
+	int			status;
+	int			pad;
+	uint64_t		tsec, tnsec;
+	uint64_t		reserved[4];
+} __attribute__ ((packed));
 
-int dnet_read_multiple(struct dnet_node *n, struct dnet_id *id, int num, struct dnet_id_param **dst);
+static inline void dnet_convert_meta_check_status(struct dnet_meta_check_status *c)
+{
+	c->status = dnet_bswap32(c->status);
+	c->tsec = dnet_bswap64(c->tsec);
+	c->tnsec = dnet_bswap64(c->tnsec);
+}
+
+/* Set by dnet_check when we only want to merge transaction
+ * and do not check copies in other groups
+ */
+#define DNET_CHECK_MERGE			(1<<0)
+
+struct dnet_check_request {
+	uint32_t		flags;
+	uint32_t		thread_num;
+	uint64_t		timestamp;
+} __attribute__ ((packed));
+
+static inline void dnet_convert_check_request(struct dnet_check_request *r)
+{
+	r->timestamp = dnet_bswap64(r->timestamp);
+	r->flags = dnet_bswap32(r->flags);
+	r->thread_num = dnet_bswap32(r->thread_num);
+}
+
+int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r);
 
 #ifdef __cplusplus
 }

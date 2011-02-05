@@ -161,11 +161,6 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* Lookup history object instead of data one */
 #define DNET_ATTR_LOOKUP_HISTORY		(1<<1)
 
-/* Set by dnet_check when we only want to merge transaction
- * and do not check copies in other groups
- */
-#define DNET_ATTR_CHECK_MERGE			(1<<0)
-
 struct dnet_attr
 {
 	uint64_t		size;

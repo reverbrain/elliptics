@@ -81,6 +81,19 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 			ptr += sizeof(struct dnet_meta) + m->size;
 			size -= sizeof(struct dnet_meta) + m->size;
 
+			if (m->type == DNET_META_CHECK_STATUS) {
+				struct timeval tv;
+				struct dnet_meta_check_status *c = (struct dnet_meta_check_status *)m->data;
+
+				gettimeofday(&tv, NULL);
+
+				c->tsec = tv.tv_sec;
+				c->tnsec = tv.tv_usec * 1000;
+				c->status = 0;
+
+				dnet_convert_meta_check_status(c);
+			}
+
 			dnet_convert_meta(m);
 		}
 	}
@@ -92,8 +105,11 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *obj, int len, int *groups, int group_num)
 {
 	struct dnet_meta_container *mc;
+	struct dnet_meta_check_status *c;
 	struct dnet_meta *m;
 	int size = 0, err;
+
+	size += sizeof(struct dnet_meta_check_status) + sizeof(struct dnet_meta);
 
 	if (obj && len)
 		size += len + sizeof(struct dnet_meta);
@@ -120,6 +136,15 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *ob
 
 	m = (struct dnet_meta *)(mc + 1);
 
+	c = (struct dnet_meta_check_status *)m->data;
+	m->size = sizeof(struct dnet_meta_check_status);
+	m->type = DNET_META_CHECK_STATUS;
+
+	/* Check status is undefined for now, it will be filled during actual check */
+	memset(c, 0, sizeof(struct dnet_meta_check_status));
+
+	m = (struct dnet_meta *)(m->data + m->size);
+
 	if (obj && len) {
 		m->size = len;
 		m->type = DNET_META_PARENT_OBJECT;
@@ -133,7 +158,7 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *ob
 		m->type = DNET_META_GROUPS;
 		memcpy(m->data, groups, group_num * sizeof(int));
 
-		m = (struct dnet_meta *)(m->data + len);
+		m = (struct dnet_meta *)(m->data + m->size);
 	}
 
 	mc->size = size;

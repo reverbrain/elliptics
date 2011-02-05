@@ -237,10 +237,62 @@ struct dnet_db_list_control {
 	int				need_exit;
 	int				only_merge;
 
+	time_t				timestamp;
+
 	atomic_t			completed;
 	atomic_t			errors;
 	atomic_t			total;
 };
+
+static int dnet_db_check_update(struct dnet_node *n, struct dnet_db_list_control *ctl, struct dnet_meta_container *morig)
+{
+	struct dnet_meta_container *mc = morig;
+	struct dnet_meta *m;
+	struct dnet_meta_check_status *c;
+	struct timeval tv;
+	struct dnet_io_attr io;
+	int err;
+
+	m = dnet_meta_search(n, mc->data, mc->size, DNET_META_CHECK_STATUS);
+	if (!m) {
+		mc = malloc(sizeof(*mc) + mc->size + sizeof(struct dnet_meta_check_status) + sizeof(struct dnet_meta));
+		if (!mc)
+			return -ENOMEM;
+
+		memcpy(mc, morig, sizeof(*mc) + morig->size);
+
+		m = (struct dnet_meta *)(mc->data + morig->size);
+
+		memset(m, 0, sizeof(*m));
+
+		m->size = sizeof(struct dnet_meta_check_status);
+		m->type = DNET_META_CHECK_STATUS;
+
+		mc->size += sizeof(struct dnet_meta_check_status) + sizeof(struct dnet_meta);
+	}
+
+	c = (struct dnet_meta_check_status *)m->data;
+
+	gettimeofday(&tv, NULL);
+
+	c->tsec = tv.tv_sec;
+	c->tnsec = tv.tv_usec * 1000;
+	c->status = 0;
+
+	dnet_convert_meta_check_status(c);
+	dnet_convert_meta(m);
+
+	memset(&io, 0, sizeof(io));
+	io.flags = DNET_IO_FLAGS_META;
+
+	memcpy(&io.id, mc->id.id, sizeof(io.id));
+
+	err = db_put_data(n, ctl->cmd, &io, mc->data, mc->size);
+	if (mc != morig)
+		free(mc);
+
+	return err;
+}
 
 static int dnet_db_send_check_reply(struct dnet_db_list_control *ctl)
 {
@@ -254,6 +306,21 @@ static int dnet_db_send_check_reply(struct dnet_db_list_control *ctl)
 	return dnet_send_reply(ctl->st, ctl->cmd, ctl->attr, &reply, sizeof(reply), 1);
 }
 
+static long long dnet_meta_get_ts(struct dnet_node *n, struct dnet_meta_container *mc)
+{
+	struct dnet_meta *m;
+	struct dnet_meta_check_status *c;
+
+	m = dnet_meta_search(n, mc->data, mc->size, DNET_META_CHECK_STATUS);
+	if (!m)
+		return -ENOENT;
+
+	c = (struct dnet_meta_check_status *)m->data;
+	dnet_convert_meta_check_status(c);
+
+	return (long long)c->tsec;
+}
+
 static void *dnet_db_list_iter(void *data)
 {
 	struct dnet_db_list_control *ctl = data;
@@ -264,9 +331,15 @@ static void *dnet_db_list_iter(void *data)
 	int err = 0, check_copies;
 	void *kbuf, *dbuf;
 	size_t ksize, dsize;
-	int send_check_reply = 1;
+	int send_check_reply = 1, will_check;
+	char time_buf[64], ctl_time[64];
+	struct tm tm;
 	size_t buf_size = 1024*1024;
+	long long ts;
 	void *buf;
+
+	localtime_r(&ctl->timestamp, &tm);
+	strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
 
 	buf = malloc(buf_size);
 	if (!buf) {
@@ -298,6 +371,8 @@ static void *dnet_db_list_iter(void *data)
 		memset(mc, 0, sizeof(struct dnet_meta_container));
 
 		dnet_setup_id(&mc->id, group_id, kbuf);
+		mc->size = dsize;
+		memcpy(mc->data, dbuf, mc->size);
 
 		tmp = dnet_state_get_first(n, &mc->id);
 
@@ -320,14 +395,24 @@ static void *dnet_db_list_iter(void *data)
 
 		atomic_inc(&ctl->total);
 
-		if (!check_copies || !ctl->only_merge) {
-			mc->size = dsize;
-			memcpy(mc->data, dbuf, mc->size);
+		ts = dnet_meta_get_ts(n, mc);
+		will_check = !(ctl->timestamp && (ts > ctl->timestamp)) && (!check_copies || !ctl->only_merge);
 
+		if (n->log->log_mask & DNET_LOG_NOTICE) {
+			localtime_r((time_t *)&ts, &tm);
+			strftime(time_buf, sizeof(time_buf), "%F %R:%S %Z", &tm);
+
+			dnet_log_raw(n, DNET_LOG_NOTICE, "start key: %s, timestamp: %lld [%s], check before: %lld [%s], will check: %d, check_copies: %d, only_merge: %d, size: %u.\n",
+				dnet_dump_id(&mc->id), ts, time_buf, (long long)ctl->timestamp, ctl_time, will_check, check_copies, ctl->only_merge, mc->size);
+		}
+
+		if (will_check) {
 			err = dnet_check(n, mc, check_copies);
+			if (!err)
+				err = dnet_db_check_update(n, ctl, mc);
 
-			dnet_log_raw(n, DNET_LOG_NOTICE, "complete key: %s, check_copies: %d, size: %u, err: %d.\n",
-				dnet_dump_id(&mc->id), check_copies, mc->size, err);
+			dnet_log_raw(n, DNET_LOG_NOTICE, "complete key: %s, timestamp: %lld [%s], check_copies: %d, size: %u, err: %d.\n",
+				dnet_dump_id(&mc->id), ts, time_buf, check_copies, mc->size, err);
 
 			atomic_inc(&ctl->completed);
 
@@ -368,12 +453,28 @@ out_exit:
 int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	struct dnet_node *n = st->n;
-	struct dnet_db_list_control ctl;	
-	int err, num = 50, i;
-	pthread_t tid[num];
+	struct dnet_db_list_control ctl;
+	struct dnet_check_request *r;
+	unsigned int i;
+	int err;
+	pthread_t *tid;
+	char ctl_time[64];
+	struct tm tm;
 
 	if (n->check_in_progress)
 		return -EINPROGRESS;
+
+	if (attr->size != sizeof(struct dnet_check_request)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: check: invalid check request size %llu, must be %zu\n",
+				dnet_dump_id(&cmd->id),	(unsigned long long)attr->size, sizeof(struct dnet_check_request));
+		return -EINVAL;
+	}
+
+	r = (struct dnet_check_request *)(attr + 1);
+	dnet_convert_check_request(r);
+
+	if (!r->thread_num)
+		r->thread_num = 50;
 
 	/* Racy, but we do not care much */
 	n->check_in_progress = 1;
@@ -388,14 +489,21 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	ctl.st = st;
 	ctl.cmd = cmd;
 	ctl.attr = attr;
-	ctl.only_merge = !!(attr->flags & DNET_ATTR_CHECK_MERGE);
+	ctl.only_merge = !!(r->flags & DNET_CHECK_MERGE);
+	ctl.timestamp = r->timestamp;
+
+	tid = malloc(sizeof(pthread_t) * r->thread_num);
+	if (!tid) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
 
 	ctl.cursor = kcdbcursor(n->meta);
 	if (!ctl.cursor) {
 		err = -kcdbecode(n->meta);
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, kcecodename(-err));
-		goto err_out_exit;
+		goto err_out_free;
 	}
 	kccurjump(ctl.cursor);
 
@@ -403,22 +511,27 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	if (err)
 		goto err_out_close_cursor;
 
-	for (i=0; i<num; ++i) {
+	for (i=0; i<r->thread_num; ++i) {
 		err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);
 		if (err) {
-			dnet_log_err(n, "can not create %d'th check thread out of %d", i, num);
-			num = i;
+			dnet_log_err(n, "can not create %d'th check thread out of %d", i, r->thread_num);
+			r->thread_num = i;
 			ctl.need_exit = 1;
 			goto err_out_join;
 		}
 	}
-	dnet_log(n, DNET_LOG_INFO, "Started %d checking threads, err: %d.\n", num, err);
+
+	localtime_r(&ctl.timestamp, &tm);
+	strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
+
+	dnet_log(n, DNET_LOG_INFO, "Started %d checking threads, recovering transactions, which started before %s: err: %d.\n",
+			r->thread_num, ctl_time, err);
 
 err_out_join:
-	for (i=0; i<num; ++i)
+	for (i=0; i<r->thread_num; ++i)
 		pthread_join(tid[i], NULL);
 
-	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", num, err);
+	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", r->thread_num, err);
 	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d\n",
 			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors));
 
@@ -427,6 +540,8 @@ err_out_join:
 	pthread_mutex_destroy(&ctl.lock);
 err_out_close_cursor:
 	kccurdel(ctl.cursor);
+err_out_free:
+	free(tid);
 err_out_exit:
 	n->check_in_progress = 0;
 	return err;
