@@ -306,6 +306,15 @@ static void *dnet_db_list_iter(void *data)
 		 * or merge transaction with other history log in the storage
 		 */
 		check_copies = !!(tmp == n->st);
+#if 1
+		if (mc->id.id[0] == 0x90 && mc->id.id[1] == 0x77 && mc->id.id[2] == 0x4f) {
+			char key_str[DNET_ID_SIZE*2+1];
+			dnet_log_raw(n, DNET_LOG_NOTICE, "check key: %s, dst: %s, check_copies: %d, size: %u, err: %d.\n",
+				dnet_dump_id_len_raw(mc->id.id, DNET_ID_SIZE, key_str),
+				tmp ? dnet_state_dump_addr(tmp) : "NULL",
+				check_copies, mc->size, err);
+		}
+#endif
 
 		dnet_state_put(tmp);
 
@@ -330,7 +339,7 @@ static void *dnet_db_list_iter(void *data)
 err_out_kcfree:
 		kcfree(kbuf);
 
-		if ((atomic_read(&ctl->total) % 1000) == 0) {
+		if ((atomic_read(&ctl->total) % 30000) == 0) {
 			if (send_check_reply) {
 				if (dnet_db_send_check_reply(ctl))
 					send_check_reply = 0;
@@ -409,6 +418,8 @@ err_out_join:
 		pthread_join(tid[i], NULL);
 
 	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", num, err);
+	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d\n",
+			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors));
 
 	dnet_db_send_check_reply(&ctl);
 
