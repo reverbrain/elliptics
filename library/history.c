@@ -306,10 +306,10 @@ static void *dnet_db_list_iter(void *data)
 		 * or merge transaction with other history log in the storage
 		 */
 		check_copies = !!(tmp == n->st);
-#if 1
+#if 0
 		if (mc->id.id[0] == 0x90 && mc->id.id[1] == 0x77 && mc->id.id[2] == 0x4f) {
 			char key_str[DNET_ID_SIZE*2+1];
-			dnet_log_raw(n, DNET_LOG_NOTICE, "check key: %s, dst: %s, check_copies: %d, size: %u, err: %d.\n",
+			dnet_log_raw(n, DNET_LOG_INFO, "check key: %s, dst: %s, check_copies: %d, size: %u, err: %d.\n",
 				dnet_dump_id_len_raw(mc->id.id, DNET_ID_SIZE, key_str),
 				tmp ? dnet_state_dump_addr(tmp) : "NULL",
 				check_copies, mc->size, err);
@@ -319,7 +319,8 @@ static void *dnet_db_list_iter(void *data)
 		dnet_state_put(tmp);
 
 		atomic_inc(&ctl->total);
-		if (check_copies && !ctl->only_merge) {
+
+		if (!check_copies || !ctl->only_merge) {
 			mc->size = dsize;
 			memcpy(mc->data, dbuf, mc->size);
 
