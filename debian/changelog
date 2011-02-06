@@ -1,3 +1,16 @@
+elliptics (2.9.6.1) unstable; urgency=low
+
+  * New release: 2.9.6.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 06 Feb 2011 04:38:58 +0300
+
+elliptics (2.9.5.41) unstable; urgency=low
+
+  * Added iterative recovery with timestamps.
+  * Added configurable number of threads to spawn by checker.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 06 Feb 2011 04:36:50 +0300
+
 elliptics (2.9.5.40) unstable; urgency=low
 
   * Fixed only_merge and check_copies binary manipulations.
