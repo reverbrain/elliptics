@@ -1888,7 +1888,7 @@ int main()
 
 				if ((strlen(token) == 1) && (*token == DNET_FCGI_TOKEN_DIRECT_ALL)) {
 					dnet_fcgi_direct_download_all = 1;
-					fprintf(dnet_fcgi_log, "Added 'allow-all' direct download pattern.\n", token);
+					fprintf(dnet_fcgi_log, "Added 'allow-all' direct download pattern.\n");
 				} else {
 					dnet_fcgi_direct_patterns_num++;
 					dnet_fcgi_direct_patterns = realloc(dnet_fcgi_direct_patterns,
