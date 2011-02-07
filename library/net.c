@@ -781,6 +781,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	st = dnet_state_search_by_addr(n, addr);
 	if (st) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: state already exists.\n", dnet_server_convert_dnet_addr(addr));
 		err = -EEXIST;
 		dnet_state_put(st);
 		goto err_out_exit;
