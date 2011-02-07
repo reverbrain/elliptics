@@ -1,3 +1,10 @@
+elliptics (2.9.6.2) unstable; urgency=low
+
+  * Added db_map/db_buckets config parameters. By default they are set to 10
+    millions.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 07 Feb 2011 18:38:34 +0300
+
 elliptics (2.9.6.1) unstable; urgency=low
 
   * New release: 2.9.6.
