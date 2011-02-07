@@ -553,6 +553,8 @@ static KCDB *db_backend_open(struct dnet_node *n, char *dbfile)
 	KCDB *db;
 
 	db = kcdbnew();
+	if (!db)
+		goto err_out_exit;
 
 	ret = kcdbopen(db, dbfile, KCOWRITER | KCOCREATE | KCOAUTOTRAN);
 	if (!ret) {
@@ -565,20 +567,27 @@ static KCDB *db_backend_open(struct dnet_node *n, char *dbfile)
 
 err_out_close:
 	kcdbdel(db);
+err_out_exit:
 	return NULL;
 }
 
-int dnet_db_init(struct dnet_node *n, char *env_dir)
+int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg)
 {
 	int err = -EINVAL;
-	char path[strlen(env_dir) + 32]; /* 32 has to be enough for meta/history dbname + .kch suffix */
+	/* 32 has to be enough for meta/history dbname + .kch suffix, 128 - for tune params*/
+	char path[strlen(cfg->history_env) + 32 + 128];
 
-	snprintf(path, sizeof(path), "%s/%s.kch", env_dir, "history");
+	if (!cfg->db_buckets)
+		cfg->db_buckets = 10 * 1024 * 1024;
+	if (!cfg->db_map)
+		cfg->db_map = 10 * 1024 * 1024;
+
+	snprintf(path, sizeof(path), "%s/%s.kch#bnum=%llu#msiz=%llu", cfg->history_env, "history", cfg->db_buckets, cfg->db_map);
 	n->history = db_backend_open(n, path);
 	if (!n->history)
 		goto err_out_exit;
 
-	snprintf(path, sizeof(path), "%s/%s.kch", env_dir, "meta");
+	snprintf(path, sizeof(path), "%s/%s.kch#bnum=%llu#msiz=%llu", cfg->history_env, "meta", cfg->db_buckets, cfg->db_map);
 	n->meta = db_backend_open(n, path);
 	if (!n->meta)
 		goto err_out_close_history;

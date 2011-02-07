@@ -328,6 +328,10 @@ struct dnet_config
 	 */
 	int			stack_size;
 
+	/* Database tuning parameters */
+	unsigned long long		db_buckets;
+	unsigned long long		db_map;
+
 	/*
 	 * BerkeleyDB history file.
 	 */

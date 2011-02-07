@@ -647,7 +647,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		if (!ids)
 			goto err_out_notify_exit;
 
-		err = dnet_db_init(n, cfg->history_env);
+		err = dnet_db_init(n, cfg);
 		if (err)
 			goto err_out_ids_cleanup;
 
