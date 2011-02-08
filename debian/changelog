@@ -1,3 +1,9 @@
+elliptics (2.9.6.5) unstable; urgency=low
+
+  * Do not exit check iteration loop when dnet_check() returns positive value.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 08 Feb 2011 20:34:01 +0300
+
 elliptics (2.9.6.4) unstable; urgency=low
 
   * Added some randomness into dnet_ids_generate().
