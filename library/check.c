@@ -490,6 +490,7 @@ static int dnet_check_complete(struct dnet_net_state *state, struct dnet_cmd *cm
 	}
 
 	if (!(cmd->flags & DNET_FLAGS_MORE)) {
+		w->status = cmd->status;
 		dnet_wakeup(w, w->cond++);
 		dnet_wait_put(w);
 	}
@@ -553,6 +554,11 @@ int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r)
 	if (err)
 		goto err_out_put;
 
+	if (!err || !w->status) {
+		err = w->status;
+		goto err_out_put;
+	}
+
 	dnet_wait_put(w);
 
 	return num;
@@ -560,5 +566,6 @@ int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r)
 err_out_put:
 	dnet_wait_put(w);
 err_out_exit:
+	dnet_log(n, DNET_LOG_ERROR, "Check exited with status %d\n", err);
 	return err;
 }
