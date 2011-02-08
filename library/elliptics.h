@@ -294,6 +294,9 @@ struct dnet_node
 	long			check_timeout;
 	pthread_t		check_tid;
 
+	pthread_t		monitor_tid;
+	int			monitor_fd;
+
 	KCDB			*history, *meta;
 
 	int			(* command_handler)(void *state, void *priv,
@@ -435,6 +438,9 @@ int dnet_request_cmd_single(struct dnet_node *n,
 			struct dnet_attr *attr,
 			void *priv),
 	void *priv);
+
+void dnet_monitor_exit(struct dnet_node *n);
+int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 
 #ifdef __cplusplus
 }

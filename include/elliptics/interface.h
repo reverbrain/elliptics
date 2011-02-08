@@ -36,6 +36,8 @@ extern "C" {
 struct dnet_net_state;
 struct dnet_node;
 
+int dnet_need_exit(struct dnet_node *n);
+
 /*
  * Callback data structures.
  *
@@ -329,8 +331,11 @@ struct dnet_config
 	int			stack_size;
 
 	/* Database tuning parameters */
-	unsigned long long		db_buckets;
-	unsigned long long		db_map;
+	unsigned long long	db_buckets;
+	unsigned long long	db_map;
+
+	/* Monitor unix socket */
+	char			monitor_path[128];
 
 	/*
 	 * BerkeleyDB history file.

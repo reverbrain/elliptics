@@ -642,10 +642,14 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_crypto_cleanup;
 
+	err = dnet_monitor_init(n, cfg);
+	if (err)
+		goto err_out_notify_exit;
+
 	if (cfg->join & DNET_JOIN_NETWORK) {
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
 		if (!ids)
-			goto err_out_notify_exit;
+			goto err_out_monitor_exit;
 
 		err = dnet_db_init(n, cfg);
 		if (err)
@@ -683,6 +687,8 @@ err_out_db_cleanup:
 	dnet_db_cleanup(n);
 err_out_ids_cleanup:
 	free(ids);
+err_out_monitor_exit:
+	dnet_monitor_exit(n);
 err_out_notify_exit:
 	dnet_notify_exit(n);
 err_out_crypto_cleanup:
@@ -693,6 +699,11 @@ err_out_exit:
 	if (cfg->log && cfg->log->log)
 		cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Error during node creation.\n");
 	return NULL;
+}
+
+int dnet_need_exit(struct dnet_node *n)
+{
+	return n->need_exit;
 }
 
 void dnet_node_destroy(struct dnet_node *n)

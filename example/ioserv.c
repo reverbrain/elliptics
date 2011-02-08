@@ -77,12 +77,10 @@ int main(int argc, char *argv[])
 	if (!n)
 		return -1;
 
-	while (1)
+	while (!dnet_need_exit(n))
 		sleep(1);
 
 	dnet_node_destroy(n);
-
-	printf("Successfully executed given command.\n");
 
 	return 0;
 }

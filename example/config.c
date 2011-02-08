@@ -182,7 +182,7 @@ static int dnet_set_history_env(struct dnet_config_backend *b __unused, char *ke
 	return 0;
 }
 
-static int dnet_set_db_data(struct dnet_config_backend *b, char *key, char *value)
+static int dnet_set_db_data(struct dnet_config_backend *b __unused, char *key, char *value)
 {
 	long long v = strtoull(value, NULL, 0);
 
@@ -191,6 +191,12 @@ static int dnet_set_db_data(struct dnet_config_backend *b, char *key, char *valu
 	else if (!strcmp(key, "db_map"))
 		dnet_cfg_state.db_map = v;
 
+	return 0;
+}
+
+static int dnet_set_monitor_path(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	snprintf(dnet_cfg_state.monitor_path, sizeof(dnet_cfg_state.monitor_path), "%s", value);
 	return 0;
 }
 
@@ -210,6 +216,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"history", dnet_set_history_env},
 	{"db_buckets", dnet_set_db_data},
 	{"db_map", dnet_set_db_data},
+	{"monitor_path", dnet_set_monitor_path},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;
