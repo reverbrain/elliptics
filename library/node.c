@@ -454,7 +454,7 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 	struct dnet_raw_id raw;
 	char *buf;
 
-	srand(time(NULL));
+	srand(time(NULL) + (unsigned long)n + (unsigned long)file + (unsigned long)&buf);
 
 	fd = open(file, O_RDWR | O_CREAT | O_TRUNC | O_APPEND, 0644);
 	if (fd < 0) {
