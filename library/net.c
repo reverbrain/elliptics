@@ -188,15 +188,15 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 		goto out_exit;
 	}
 
+	if (err == 0) {
+		err = -EAGAIN;
+		goto out_exit;
+	}
+
 	if (pfd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
 		dnet_log(st->n, DNET_LOG_DSA, "Connection reset by peer: sock: %d, revents: %x.\n",
 			st->s, pfd.revents);
 		err = -ECONNRESET;
-		goto out_exit;
-	}
-
-	if (err == 0) {
-		err = -EAGAIN;
 		goto out_exit;
 	}
 
