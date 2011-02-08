@@ -269,7 +269,8 @@ int dnet_backend_register(struct dnet_config_backend *b)
 struct dnet_node *dnet_parse_config(char *file)
 {
 	FILE *f;
-	char buf[4096], *ptr, *value, *key;
+	int buf_size = 1024 * 1024;
+	char *buf, *ptr, *value, *key;
 	int err, i, len;
 	int line_num = 0;
 	struct dnet_node *n;
@@ -281,13 +282,19 @@ struct dnet_node *dnet_parse_config(char *file)
 		goto err_out_exit;
 	}
 
+	buf = malloc(buf_size);
+	if (!buf) {
+		err = -ENOMEM;
+		goto err_out_close;
+	}
+
 	dnet_backend_logger.log_mask = DNET_LOG_ERROR;
 	dnet_backend_logger.log = dnet_common_log;
 	dnet_cfg_state.log = &dnet_backend_logger;
 
 	err = dnet_file_backend_init();
 	if (err)
-		goto err_out_close;
+		goto err_out_free_buf;
  
 #ifdef HAVE_EBLOB_SUPPORT
 	err = dnet_eblob_backend_init();
@@ -296,7 +303,7 @@ struct dnet_node *dnet_parse_config(char *file)
 #endif
 
 	while (1) {
-		ptr = fgets(buf, sizeof(buf), f);
+		ptr = fgets(buf, buf_size, f);
 		if (!ptr) {
 			if (feof(f))
 				break;
@@ -425,6 +432,8 @@ err_out_free:
 err_out_file_exit:
 #endif
 	dnet_file_backend_exit();
+err_out_free_buf:
+	free(buf);
 err_out_close:
 	fclose(f);
 err_out_exit:
