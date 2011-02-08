@@ -1,3 +1,9 @@
+elliptics (2.9.6.4) unstable; urgency=low
+
+  * Added some randomness into dnet_ids_generate().
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 08 Feb 2011 19:50:16 +0300
+
 elliptics (2.9.6.3) unstable; urgency=low
 
   * Use dynamically allocated config parser's buffer.
