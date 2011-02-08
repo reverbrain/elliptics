@@ -1,3 +1,9 @@
+elliptics (2.9.6.3) unstable; urgency=low
+
+  * Use dynamically allocated config parser's buffer.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 08 Feb 2011 19:23:19 +0300
+
 elliptics (2.9.6.2) unstable; urgency=low
 
   * Added db_map/db_buckets config parameters. By default they are set to 10
