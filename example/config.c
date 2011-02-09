@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -159,20 +160,28 @@ static int dnet_set_backend(struct dnet_config_backend *b, char *key __unused, c
 	
 static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
-	FILE *log;
-	int err;
+	if (!strcmp(value, "syslog")) {
+		openlog("elliptics", 0, LOG_USER);
 
-	log = fopen(value, "a");
-	if (!log) {
-		err = -errno;
-		fprintf(stderr, "cnf: failed to open log file '%s': %s.\n", value, strerror(errno));
-		return err;
+		dnet_backend_logger.log_private = NULL;
+		dnet_backend_logger.log = dnet_syslog;
+	} else {
+		FILE *log;
+		int err;
+
+		log = fopen(value, "a");
+		if (!log) {
+			err = -errno;
+			fprintf(stderr, "cnf: failed to open log file '%s': %s.\n", value, strerror(errno));
+			return err;
+		}
+
+		dnet_backend_logger.log_private = log;
+		dnet_backend_logger.log = dnet_common_log;
+		dnet_cfg_state.log = &dnet_backend_logger;
 	}
 
-	dnet_backend_logger.log_private = log;
-	dnet_backend_logger.log = dnet_common_log;
 	dnet_cfg_state.log = &dnet_backend_logger;
-
 	return 0;
 }
 

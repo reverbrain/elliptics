@@ -445,7 +445,7 @@ out_exit:
 	if (err)
 		ctl->need_exit = err;
 
-	dnet_log(n, DNET_LOG_INFO, "Exited iteration loop, err: %d.\n", err);
+	dnet_log(n, DNET_LOG_INFO, "Exited iteration loop, err: %d, need_exit: %d.\n", err, ctl->need_exit);
 
 	return NULL;
 }
