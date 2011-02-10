@@ -1837,6 +1837,8 @@ int main()
 	char *id_pattern, *id_delimiter, *direct_patterns = NULL, *version_pattern, *version_str, *timestamp_pattern, *embed_pattern, *embed_str;
 	char *multiple_pattern, *append_pattern;
 	int length, id_pattern_length, err, version_pattern_len, timestamp_pattern_len, multiple_pattern_len;
+	struct timeval tstart, tend;
+	long tdiff;
 	int version;
 	char *obj, *end;
 	struct dnet_config cfg;
@@ -1934,9 +1936,6 @@ int main()
 	n = dnet_node_create(&cfg);
 	if (!n)
 		goto err_out_sign_destroy;
-
-	cfg.log->log(cfg.log->log_private, DNET_LOG_ERROR, "created\n\n");
-	dnet_log_raw(n, DNET_LOG_ERROR, "CREATED\n");
 
 	addr = getenv("DNET_FCGI_REMOTE_ADDR");
 	if (!addr) {
@@ -2054,6 +2053,9 @@ int main()
 		groups = NULL;
 		group_num = 0;
 
+		version = -1;
+		embed_str = NULL;
+
 		method = FCGX_GetParam("REQUEST_METHOD", dnet_fcgi_request.envp);
 		obj = NULL;
 		length = 0;
@@ -2080,6 +2082,7 @@ int main()
 		}
 
 		dnet_log_raw(n, DNET_LOG_DSA, "query: '%s'.\n", query);
+		gettimeofday(&tstart, NULL);
 
 		p = query;
 		obj = strstr(p, id_pattern);
@@ -2104,7 +2107,6 @@ int main()
 		memcpy(dnet_fcgi_id, raw.id, DNET_ID_SIZE);
 		raw.group_id = 0;
 
-		version = -1;
 		version_str = strstr(query, version_pattern);
 		if (version_str) {
 			version_str += version_pattern_len;
@@ -2174,7 +2176,8 @@ int main()
 				ts.tv_nsec = tv.tv_usec * 1000;
 			}
 
-			dnet_log_raw(n, DNET_LOG_INFO, "%s: obj: '%s', length: %d, version: %d, ts: %lu.%lu, embed: %d, region: %d, append: %d.\n",
+			obj[length] = '\0';
+			dnet_log_raw(n, DNET_LOG_INFO, "%s: obj: '%s', len: %d, v: %d, ts: %lu.%lu, embed: %d, region: %d, append: %d.\n",
 					dnet_dump_id(&raw), obj, length, version, ts.tv_sec, ts.tv_nsec, !!embed_str, dnet_fcgi_region, append);
 
 			err = dnet_fcgi_handle_post(n, obj, length, &raw, version, &ts, !!embed_str, append);
@@ -2195,7 +2198,7 @@ int main()
 					multiple = atoi(multiple_str);
 			}
 
-			dnet_log_raw(n, DNET_LOG_INFO, "%s: obj: '%s', length: %d, version: %d, embed: %d, region: %d, multiple: %d.\n",
+			dnet_log_raw(n, DNET_LOG_INFO, "%s: obj: '%s', len: %d, v: %d, embed: %d, region: %d, mult: %d.\n",
 					dnet_dump_id(&raw), obj, length, version, !!embed_str, dnet_fcgi_region, multiple);
 			err = dnet_fcgi_handle_get(n, query, obj, length, &raw, version, !!embed_str, multiple);
 			if (err) {
@@ -2221,6 +2224,14 @@ cont:
 		FCGX_Finish_r(&dnet_fcgi_request);
 		dnet_fcgi_request_info = 0;
 		pthread_mutex_unlock(&dnet_fcgi_output_lock);
+
+		gettimeofday(&tend, NULL);
+
+		tdiff = (tend.tv_sec - tstart.tv_sec) * 1000 + tend.tv_usec - tstart.tv_usec;
+
+		obj[length] = '\0';
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: completed: obj: '%s', len: %d, v: %d, embed: %d, region: %d, err: %d, time: %lu usecs.\n",
+					dnet_dump_id(&raw), obj, length, version, !!embed_str, dnet_fcgi_region, err, tdiff);
 		continue;
 
 err_continue:
