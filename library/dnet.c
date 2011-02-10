@@ -3078,6 +3078,8 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	else
 		err = dnet_send_fd(st, c, hsize, fd, offset, io->size);
 
+	free(c);
+
 err_out_exit:
 	return err;
 }
