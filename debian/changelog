@@ -1,3 +1,9 @@
+elliptics (2.9.6.7) unstable; urgency=low
+
+  * Added syslog support.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 10 Feb 2011 03:34:11 +0300
+
 elliptics (2.9.6.6) unstable; urgency=low
 
   * Return error when check failed to start
