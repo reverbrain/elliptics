@@ -1,3 +1,9 @@
+elliptics (2.9.6.8) unstable; urgency=low
+
+  * Fixed stupid leak in dnet_send_read_data()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 10 Feb 2011 03:41:23 +0300
+
 elliptics (2.9.6.7) unstable; urgency=low
 
   * Added syslog support.
