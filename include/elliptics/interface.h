@@ -787,6 +787,8 @@ struct dnet_check_request {
 	uint32_t		flags;
 	uint32_t		thread_num;
 	uint64_t		timestamp;
+	uint32_t		obj_num;
+	uint32_t		pad;
 } __attribute__ ((packed));
 
 static inline void dnet_convert_check_request(struct dnet_check_request *r)
@@ -794,6 +796,7 @@ static inline void dnet_convert_check_request(struct dnet_check_request *r)
 	r->timestamp = dnet_bswap64(r->timestamp);
 	r->flags = dnet_bswap32(r->flags);
 	r->thread_num = dnet_bswap32(r->thread_num);
+	r->obj_num = dnet_bswap32(r->obj_num);
 }
 
 int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r);

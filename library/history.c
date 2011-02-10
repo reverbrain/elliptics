@@ -68,7 +68,7 @@ int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io
 
 	io->size = err;
 	err = dnet_send_read_data(st, cmd, io, data, -1, 0);
-	free(data);
+	kcfree(data);
 
 	return err;
 }
@@ -235,9 +235,9 @@ struct dnet_db_list_control {
 	pthread_mutex_t			lock;
 
 	int				need_exit;
-	int				only_merge;
 
-	time_t				timestamp;
+	unsigned int			obj_pos;
+	struct dnet_check_request	*req;
 
 	atomic_t			completed;
 	atomic_t			errors;
@@ -330,15 +330,18 @@ static void *dnet_db_list_iter(void *data)
 	struct dnet_net_state *tmp;
 	int err = 0, check_copies;
 	void *kbuf, *dbuf;
+	unsigned char *key = NULL;
 	size_t ksize, dsize;
 	int send_check_reply = 1, will_check;
+	int only_merge = !!(ctl->req->flags & DNET_CHECK_MERGE);
+	struct dnet_id *ids = (struct dnet_id *)(ctl->req + 1);
 	char time_buf[64], ctl_time[64];
 	struct tm tm;
 	size_t buf_size = 1024*1024;
-	long long ts;
+	long long ts, edge = ctl->req->timestamp;
 	void *buf;
 
-	localtime_r(&ctl->timestamp, &tm);
+	localtime_r((time_t *)&edge, &tm);
 	strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
 
 	buf = malloc(buf_size);
@@ -352,25 +355,55 @@ static void *dnet_db_list_iter(void *data)
 
 	while (!ctl->need_exit) {
 		pthread_mutex_lock(&ctl->lock);
-		kbuf = kccurget(ctl->cursor, &ksize, (const char **)&dbuf, &dsize, 1);
+		if (ctl->req->obj_num) {
+			kbuf = NULL;
+
+			if (ctl->obj_pos < ctl->req->obj_num) {
+				struct dnet_id *id = &ids[ctl->obj_pos];
+
+				dnet_convert_id(id);
+				err = dnet_db_read_raw(n, 1, id->id, &dbuf);
+				if (err < 0) {
+					dnet_log(n, DNET_LOG_ERROR, "%s: there is no object on given node.\n", dnet_dump_id_str(id->id));
+					dbuf = NULL;
+				} else {
+					dsize = err;
+				}
+
+				kbuf = dbuf;
+				key = id->id;
+				ctl->obj_pos++;
+			}
+		} else {
+			kbuf = kccurget(ctl->cursor, &ksize, (const char **)&dbuf, &dsize, 1);
+			if (!kbuf) {
+				dnet_log(n, DNET_LOG_ERROR, "cursor reading returned no data.\n");
+				ctl->need_exit = 1;
+			}
+			key = kbuf;
+		}
 		pthread_mutex_unlock(&ctl->lock);
 
-		if (!kbuf) {
-			dnet_log(n, DNET_LOG_ERROR, "cursor reading returned no data.\n");
-			ctl->need_exit = 1;
+		if (ctl->need_exit)
 			break;
-		}
+
+		/*
+		 * Happens when we loop over list of ids recived from client, i.e. not from cursor,
+		 * and given ID does not exist on the node check runs on.
+		 */
+		if (!kbuf)
+			goto err_out_kcfree;
 
 		if (sizeof(struct dnet_meta_container) + dsize > buf_size) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: cursor returned too big data chunk: data_size: %zu, max_size: %zu.\n",
-					dnet_dump_id_str(kbuf), sizeof(struct dnet_meta_container) + dsize, buf_size);
+					dnet_dump_id_str(key), sizeof(struct dnet_meta_container) + dsize, buf_size);
 			err = -EINVAL;
 			goto err_out_kcfree;
 		}
 
 		memset(mc, 0, sizeof(struct dnet_meta_container));
 
-		dnet_setup_id(&mc->id, group_id, kbuf);
+		dnet_setup_id(&mc->id, group_id, key);
 		mc->size = dsize;
 		memcpy(mc->data, dbuf, mc->size);
 
@@ -393,17 +426,15 @@ static void *dnet_db_list_iter(void *data)
 
 		dnet_state_put(tmp);
 
-		atomic_inc(&ctl->total);
-
 		ts = dnet_meta_get_ts(n, mc);
-		will_check = !(ctl->timestamp && (ts > ctl->timestamp)) && (!check_copies || !ctl->only_merge);
+		will_check = !(edge && (ts > edge)) && (!check_copies || !only_merge);
 
 		if (n->log->log_mask & DNET_LOG_NOTICE) {
 			localtime_r((time_t *)&ts, &tm);
 			strftime(time_buf, sizeof(time_buf), "%F %R:%S %Z", &tm);
 
 			dnet_log_raw(n, DNET_LOG_NOTICE, "start key: %s, timestamp: %lld [%s], check before: %lld [%s], will check: %d, check_copies: %d, only_merge: %d, size: %u.\n",
-				dnet_dump_id(&mc->id), ts, time_buf, (long long)ctl->timestamp, ctl_time, will_check, check_copies, ctl->only_merge, mc->size);
+				dnet_dump_id(&mc->id), ts, time_buf, edge, ctl_time, will_check, check_copies, only_merge, mc->size);
 		}
 
 		if (will_check) {
@@ -415,14 +446,15 @@ static void *dnet_db_list_iter(void *data)
 				dnet_dump_id(&mc->id), ts, time_buf, check_copies, mc->size, err);
 
 			atomic_inc(&ctl->completed);
-
-			if (err < 0) {
-				atomic_inc(&ctl->errors);
-				goto err_out_kcfree;
-			}
 		}
 
 err_out_kcfree:
+		atomic_inc(&ctl->total);
+		if (err < 0) {
+			atomic_inc(&ctl->errors);
+			goto err_out_kcfree;
+		}
+
 		kcfree(kbuf);
 
 		if ((atomic_read(&ctl->total) % 30000) == 0) {
@@ -464,7 +496,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	if (n->check_in_progress)
 		return -EINPROGRESS;
 
-	if (attr->size != sizeof(struct dnet_check_request)) {
+	if (attr->size < sizeof(struct dnet_check_request)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: check: invalid check request size %llu, must be %zu\n",
 				dnet_dump_id(&cmd->id),	(unsigned long long)attr->size, sizeof(struct dnet_check_request));
 		return -EINVAL;
@@ -489,8 +521,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	ctl.st = st;
 	ctl.cmd = cmd;
 	ctl.attr = attr;
-	ctl.only_merge = !!(r->flags & DNET_CHECK_MERGE);
-	ctl.timestamp = r->timestamp;
+	ctl.req = r;
 
 	tid = malloc(sizeof(pthread_t) * r->thread_num);
 	if (!tid) {
@@ -521,7 +552,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		}
 	}
 
-	localtime_r(&ctl.timestamp, &tm);
+	localtime_r((time_t *)&r->timestamp, &tm);
 	strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
 
 	dnet_log(n, DNET_LOG_INFO, "Started %d checking threads, recovering transactions, which started before %s: err: %d.\n",

@@ -15,11 +15,12 @@
 
 #include "config.h"
 
-#include <sys/types.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
-#include <sys/time.h>
 #include <sys/syscall.h>
+#include <sys/time.h>
+#include <sys/types.h>
 
 #include <ctype.h>
 #include <fcntl.h>
@@ -55,8 +56,110 @@ static void check_usage(char *p)
 			" -t timestamp         - only check those objects, which were previously checked BEFORE this time\n"
 			"                          format: year-month-day hours:minutes:seconds like \"2011-01-13 23:15:00\"\n"
 			" -n num               - number of checking threads to start by the server\n"
+			" -f file              - file with list of objects to check\n"
 			" -h                   - this help\n"
 	       , p);
+}
+
+static int dnet_check_fill(struct dnet_node *n, struct dnet_check_request *r, char *data, int num)
+{
+	int i;
+	char *cur;
+	struct dnet_id id;
+	struct dnet_id *rid = (struct dnet_id *)(r + 1);
+	char tmp_str[DNET_ID_SIZE*2+1];
+
+	for (i=0; i<num; ++i) {
+		cur = strchr(data, '\n');
+
+		if (!cur || !*cur)
+			break;
+
+		dnet_transform(n, data, cur - data, &id);
+
+		rid[i] = id;
+		dnet_convert_id(&rid[i]);
+
+		dnet_log_raw(n, DNET_LOG_NOTICE, "check: %s\n", dnet_dump_id_len_raw(id.id, DNET_ID_SIZE, tmp_str));
+
+		data = cur + 1;
+	}
+
+	return 0;
+}
+
+static struct dnet_check_request *dnet_check_gen_request(struct dnet_node *n, struct dnet_check_request *base, char *file)
+{
+	struct dnet_check_request *r;
+	char *data, *cur;
+	int fd, err, num = 0;
+	struct stat st;
+
+	fd = open(file, O_RDONLY);
+	if (fd < 0) {
+		err = -errno;
+		dnet_log_raw(n, DNET_LOG_ERROR, "check: failed to open check file '%s': %s [%d]\n",
+				file, strerror(errno), errno);
+		goto err_out_exit;
+	}
+
+	err = fstat(fd, &st);
+	if (err < 0) {
+		err = -errno;
+		dnet_log_raw(n, DNET_LOG_ERROR, "check: failed to stat check file '%s': %s [%d]\n",
+				file, strerror(errno), errno);
+		goto err_out_close;
+	}
+
+	data = mmap(NULL, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
+	if (data == MAP_FAILED) {
+		err = -errno;
+		dnet_log_raw(n, DNET_LOG_ERROR, "check: failed to map check file '%s': %s [%d]\n",
+				file, strerror(errno), errno);
+		goto err_out_close;
+	}
+
+	cur = data;
+	while (cur && *cur) {
+		cur = strchr(cur, '\n');
+		if (!cur)
+			break;
+
+		num++;
+		cur++;
+	}
+
+	if (!num) {
+		dnet_log_raw(n, DNET_LOG_NOTICE, "check: check file '%s' is empty: %s [%d]\n",
+				file, strerror(errno), errno);
+	}
+
+	r = malloc(sizeof(*r) + num * sizeof(struct dnet_id));
+	if (!r) {
+		err = -ENOMEM;
+		goto err_out_unmap;
+	}
+
+	memcpy(r, base, sizeof(*r));
+	r->obj_num = num;
+
+	err = dnet_check_fill(n, r, data, num);
+	if (err)
+		goto err_out_free;
+
+	munmap(data, st.st_size);
+	close(fd);
+
+	return r;
+
+err_out_free:
+	free(r);
+err_out_unmap:
+	munmap(data, st.st_size);
+err_out_close:
+	close(fd);
+err_out_exit:
+	return NULL;
 }
 
 int main(int argc, char *argv[])
@@ -66,8 +169,9 @@ int main(int argc, char *argv[])
 	struct dnet_config cfg, rem;
 	char *logfile = "/dev/stderr";
 	FILE *log = NULL;
-	struct dnet_check_request r;
+	struct dnet_check_request r, *req;
 	struct tm tm;
+	char *file = NULL;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -82,8 +186,11 @@ int main(int argc, char *argv[])
 
 	memset(&r, 0, sizeof(r));
 
-	while ((ch = getopt(argc, argv, "n:t:Mm:w:l:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "f:n:t:Mm:w:l:r:h")) != -1) {
 		switch (ch) {
+			case 'f':
+				file = optarg;
+				break;
 			case 'n':
 				r.thread_num = atoi(optarg);
 				break;
@@ -144,6 +251,13 @@ int main(int argc, char *argv[])
 	err = dnet_add_state(n, &rem);
 	if (err)
 		return err;
+
+	req = &r;
+	if (file) {
+		req = dnet_check_gen_request(n, &r, file);
+		if (!req)
+			return -EINVAL;
+	}
 
 	return dnet_request_check(n, &r);
 }
