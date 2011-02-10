@@ -1,3 +1,9 @@
+elliptics (2.9.6.10) unstable; urgency=low
+
+  * Added FCGI command execution times.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 10 Feb 2011 19:19:10 +0300
+
 elliptics (2.9.6.9) unstable; urgency=low
 
   * Do not check direct pattern index if we have download-all wildcard
