@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #include <fcgiapp.h>
@@ -62,7 +63,7 @@ static long dnet_fcgi_timeout_sec = 10;
 
 static struct dnet_log fcgi_logger;
 
-static FILE *dnet_fcgi_log;
+static FILE *dnet_fcgi_log = NULL;
 static pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
 static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344, dnet_fcgi_request_error;
@@ -180,6 +181,8 @@ static inline void dnet_fcgi_convert_embedded(struct dnet_fcgi_embed *e)
 	e->flags = dnet_bswap32(e->flags);
 }
 
+#define dnet_fcgi_log_write(fmt, a...) do { if (dnet_fcgi_log) fprintf(dnet_fcgi_log, fmt, ##a); else syslog(LOG_INFO, fmt, ##a); } while (0)
+
 /*
  * Workaround for libfcgi 64bit issues, namely we will format
  * output here, since FCGX_FPrintF() resets the stream when sees
@@ -208,7 +211,7 @@ static int dnet_fcgi_output(const char *format, ...)
 		err = FCGX_PutStr(ptr, size, dnet_fcgi_request.out);
 		if (err < 0 && errno != EAGAIN) {
 			err = -errno;
-			fprintf(dnet_fcgi_log, "%d/%d: failed to output %d bytes: %s [%d].\n",
+			dnet_fcgi_log_write("%d/%d: failed to output %d bytes: %s [%d].\n",
 					i, num, size, strerror(errno), errno);
 
 			if (++i >= num)
@@ -246,9 +249,14 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 
 	cfg->log = &fcgi_logger;
 
-	cfg->log->log = dnet_common_log;
-	cfg->log->log_private = dnet_fcgi_log;
 	cfg->log->log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
+	if (dnet_fcgi_log) {
+		cfg->log->log = dnet_common_log;
+		cfg->log->log_private = dnet_fcgi_log;
+	} else {
+		cfg->log->log = dnet_syslog;
+		cfg->log->log_private = NULL;
+	}
 
 	p = getenv("DNET_FCGI_NODE_LOG_MASK");
 	if (p)
@@ -527,7 +535,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 				dnet_fcgi_output("<s>%s</s>", dnet_fcgi_sign_tmp);
 			dnet_fcgi_output("</download-info>\r\n");
 
-			fprintf(dnet_fcgi_log, "%d: <?xml version=\"1.0\" encoding=\"utf-8\"?>"
+			dnet_fcgi_log_write("%d: <?xml version=\"1.0\" encoding=\"utf-8\"?>"
 					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>"
 					"<region>%d</region>",
 					getpid(),
@@ -539,8 +547,8 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 					dnet_fcgi_region);
 
 			if (dnet_fcgi_sign_key)
-				fprintf(dnet_fcgi_log, "<s>%s</s>", dnet_fcgi_sign_tmp);
-			fprintf(dnet_fcgi_log, "</download-info>\n");
+				dnet_fcgi_log_write("<s>%s</s>", dnet_fcgi_sign_tmp);
+			dnet_fcgi_log_write("</download-info>\n");
 
 
 			err = 0;
@@ -1060,7 +1068,7 @@ static int dnet_fcgi_setup_sign_hash(void)
 	dnet_fcgi_sign_key = getenv("DNET_FCGI_SIGN_KEY");
 	if (!dnet_fcgi_sign_key) {
 		err = 0;
-		fprintf(dnet_fcgi_log, "No sign key, system will not authentificate users.\n");
+		dnet_fcgi_log_write("No sign key, system will not authentificate users.\n");
 		goto err_out_exit;
 	}
 
@@ -1074,7 +1082,7 @@ static int dnet_fcgi_setup_sign_hash(void)
 
 	err = dnet_crypto_engine_init(dnet_fcgi_sign_hash, p);
 	if (err) {
-		fprintf(dnet_fcgi_log, "Failed to initialize hash '%s': %d.\n", p, err);
+		dnet_fcgi_log_write("Failed to initialize hash '%s': %d.\n", p, err);
 		goto err_out_free;
 	}
 
@@ -1084,7 +1092,7 @@ static int dnet_fcgi_setup_sign_hash(void)
 	err = open(p, O_RDONLY);
 	if (err < 0) {
 		err = -errno;
-		fprintf(dnet_fcgi_log, "Failed to open (read-only) random file '%s': %s [%d].\n",
+		dnet_fcgi_log_write("Failed to open (read-only) random file '%s': %s [%d].\n",
 				p, strerror(errno), errno);
 		goto err_out_destroy;
 	}
@@ -1541,7 +1549,7 @@ static int dnet_fcgi_setup_content_type_patterns(char *__patterns)
 	for (i=0; i<dnet_fcgi_ctypes_num; ++i) {
 		struct dnet_fcgi_content_type *c = &dnet_fcgi_ctypes[i];
 
-		fprintf(dnet_fcgi_log, "%s -> %s\n", c->ext, c->type);
+		dnet_fcgi_log_write("%s -> %s\n", c->ext, c->type);
 	}
 
 	free(patterns);
@@ -1566,35 +1574,35 @@ static int dnet_fcgi_setup_external_callbacks(char *name)
 
 	lib = dlopen(name, RTLD_NOW);
 	if (!lib) {
-		fprintf(dnet_fcgi_log, "Failed to load external library '%s': %s.\n",
+		dnet_fcgi_log_write("Failed to load external library '%s': %s.\n",
 				name, dlerror());
 		goto err_out_exit;
 	}
 
 	dnet_fcgi_external_callback_start = dlsym(lib, DNET_FCGI_EXTERNAL_CALLBACK_START);
 	if (!dnet_fcgi_external_callback_start) {
-		fprintf(dnet_fcgi_log, "Failed to get '%s' symbol from external library '%s'.\n",
+		dnet_fcgi_log_write("Failed to get '%s' symbol from external library '%s'.\n",
 				DNET_FCGI_EXTERNAL_CALLBACK_START, name);
 		goto err_out_close;
 	}
 
 	dnet_fcgi_external_callback_stop = dlsym(lib, DNET_FCGI_EXTERNAL_CALLBACK_STOP);
 	if (!dnet_fcgi_external_callback_stop) {
-		fprintf(dnet_fcgi_log, "Failed to get '%s' symbol from external library '%s'.\n",
+		dnet_fcgi_log_write("Failed to get '%s' symbol from external library '%s'.\n",
 				DNET_FCGI_EXTERNAL_CALLBACK_STOP, name);
 		goto err_out_null;
 	}
 
 	init = dlsym(lib, DNET_FCGI_EXTERNAL_INIT);
 	if (!init) {
-		fprintf(dnet_fcgi_log, "Failed to get '%s' symbol from external library '%s'.\n",
+		dnet_fcgi_log_write("Failed to get '%s' symbol from external library '%s'.\n",
 				DNET_FCGI_EXTERNAL_INIT, name);
 		goto err_out_null;
 	}
 
 	dnet_fcgi_external_exit = dlsym(lib, DNET_FCGI_EXTERNAL_EXIT);
 	if (!dnet_fcgi_external_exit) {
-		fprintf(dnet_fcgi_log, "Failed to get '%s' symbol from external library '%s'.\n",
+		dnet_fcgi_log_write("Failed to get '%s' symbol from external library '%s'.\n",
 				DNET_FCGI_EXTERNAL_EXIT, name);
 		goto err_out_null;
 	}
@@ -1602,12 +1610,12 @@ static int dnet_fcgi_setup_external_callbacks(char *name)
 	data = getenv("DNET_FCGI_EXTERNAL_DATA");
 	err = init(data);
 	if (err) {
-		fprintf(dnet_fcgi_log, "Failed to initialize external library '%s' using data '%s'.\n",
+		dnet_fcgi_log_write("Failed to initialize external library '%s' using data '%s'.\n",
 				name, data);
 		goto err_out_null;
 	}
 
-	fprintf(dnet_fcgi_log, "Successfully initialized external library '%s' using data '%s'.\n",
+	dnet_fcgi_log_write("Successfully initialized external library '%s' using data '%s'.\n",
 				name, data);
 
 	return 0;
@@ -1651,7 +1659,7 @@ static int dnet_fcgi_setup_permanent_headers(void)
 			goto err_out_free_all;
 		}
 
-		fprintf(dnet_fcgi_log, "Added '%s' permanent header.\n", token);
+		dnet_fcgi_log_write("Added '%s' permanent header.\n", token);
 
 		dnet_fcgi_pheaders[dnet_fcgi_pheaders_num - 1] = strdup(token);
 		if (!dnet_fcgi_pheaders[dnet_fcgi_pheaders_num - 1]) {
@@ -1841,11 +1849,15 @@ int main()
 	if (!p)
 		p = DNET_FCGI_LOG;
 
-	dnet_fcgi_log = fopen(p, "a");
-	if (!dnet_fcgi_log) {
-		err = -errno;
-		fprintf(stderr, "Failed to open '%s' log file.\n", p);
-		goto err_out_exit;
+	if (!strcmp(p, "syslog")) {
+		openlog("fcgi", LOG_PID, LOG_USER);
+	} else {
+		dnet_fcgi_log = fopen(p, "a");
+		if (!dnet_fcgi_log) {
+			err = -errno;
+			fprintf(stderr, "Failed to open '%s' log file.\n", p);
+			goto err_out_exit;
+		}
 	}
 
 	dnet_setup_params();
@@ -1853,7 +1865,7 @@ int main()
 	p = getenv("DNET_FCGI_BASE_PORT");
 	if (!p) {
 		err = -ENOENT;
-		fprintf(dnet_fcgi_log, "No DNET_FCGI_BASE_PORT provided, I will not be able to determine proper directory to fetch objects.\n");
+		dnet_fcgi_log_write("No DNET_FCGI_BASE_PORT provided, I will not be able to determine proper directory to fetch objects.\n");
 		goto err_out_close;
 	}
 	dnet_fcgi_base_port = atoi(p);
@@ -1888,7 +1900,7 @@ int main()
 
 				if ((strlen(token) == 1) && (*token == DNET_FCGI_TOKEN_DIRECT_ALL)) {
 					dnet_fcgi_direct_download_all = 1;
-					fprintf(dnet_fcgi_log, "Added 'allow-all' direct download pattern.\n");
+					dnet_fcgi_log_write("Added 'allow-all' direct download pattern.\n");
 				} else {
 					dnet_fcgi_direct_patterns_num++;
 					dnet_fcgi_direct_patterns = realloc(dnet_fcgi_direct_patterns,
@@ -1899,7 +1911,7 @@ int main()
 					}
 
 					dnet_fcgi_direct_patterns[dnet_fcgi_direct_patterns_num - 1] = token;
-					fprintf(dnet_fcgi_log, "Added '%s' direct download pattern.\n", token);
+					dnet_fcgi_log_write("Added '%s' direct download pattern.\n", token);
 				}
 
 				tmp = NULL;
@@ -1909,21 +1921,26 @@ int main()
 
 	err = dnet_fcgi_fill_config(&cfg);
 	if (err) {
-		fprintf(dnet_fcgi_log, "Failed to parse config.\n");
+		dnet_fcgi_log_write("Failed to parse config.\n");
 		goto err_out_free_direct_patterns;
 	}
 
 	err = dnet_fcgi_setup_sign_hash();
 	if (err)
 		goto err_out_close;
+	
+	cfg.log->log(cfg.log->log_private, DNET_LOG_ERROR, "test\n\n");
 
 	n = dnet_node_create(&cfg);
 	if (!n)
 		goto err_out_sign_destroy;
 
+	cfg.log->log(cfg.log->log_private, DNET_LOG_ERROR, "created\n\n");
+	dnet_log_raw(n, DNET_LOG_ERROR, "CREATED\n");
+
 	addr = getenv("DNET_FCGI_REMOTE_ADDR");
 	if (!addr) {
-		fprintf(dnet_fcgi_log, "No remote address specified, aborting.\n");
+		dnet_fcgi_log_write("No remote address specified, aborting.\n");
 		err = -ENOENT;
 		goto err_out_free;
 	}
@@ -1934,13 +1951,13 @@ int main()
 
 	p = getenv("DNET_FCGI_GROUPS");
 	if (!p) {
-		fprintf(dnet_fcgi_log, "No groups specified, aborting.\n");
+		dnet_fcgi_log_write("No groups specified, aborting.\n");
 		err = -ENODEV;
 		goto err_out_free;
 	}
 	dnet_fcgi_group_num = dnet_parse_groups(p, &dnet_fcgi_groups);
 	if (dnet_fcgi_group_num <= 0) {
-		fprintf(dnet_fcgi_log, "Invalid groups specified: '%s', aborting.\n", p);
+		dnet_fcgi_log_write("Invalid groups specified: '%s', aborting.\n", p);
 		err = -EINVAL;
 		goto err_out_free;
 	}
@@ -2002,13 +2019,13 @@ int main()
 
 	err = FCGX_Init();
 	if (err) {
-		fprintf(dnet_fcgi_log, "FCGX initaliation failed: %d.\n", err);
+		dnet_fcgi_log_write("FCGX initaliation failed: %d.\n", err);
 		goto err_out_free_tmp_dir;
 	}
 
 	err = FCGX_InitRequest(&dnet_fcgi_request, LISTENSOCK_FILENO, LISTENSOCK_FLAGS);
 	if (err) {
-		fprintf(dnet_fcgi_log, "FCGX request initaliation failed: %d.\n", err);
+		dnet_fcgi_log_write("FCGX request initaliation failed: %d.\n", err);
 		goto err_out_fcgi_exit;
 	}
 
@@ -2214,7 +2231,6 @@ err_continue:
 		if (query)
 			dnet_fcgi_output("Query: %s\r\n", query);
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: bad request: %s: %s [%d]\n", addr, reason, strerror(-err), err);
-		fflush(dnet_fcgi_log);
 		goto cont;
 	}
 
@@ -2228,8 +2244,10 @@ err_continue:
 	if (dnet_fcgi_external_exit)
 		dnet_fcgi_external_exit();
 
-	fflush(dnet_fcgi_log);
-	fclose(dnet_fcgi_log);
+	if (dnet_fcgi_log)
+		fclose(dnet_fcgi_log);
+	else
+		closelog();
 
 	return 0;
 
