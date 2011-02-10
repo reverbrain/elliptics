@@ -1470,7 +1470,7 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *obj, int
 			}
 		}
 
-		if (i != dnet_fcgi_direct_patterns_num) {
+		if (dnet_fcgi_direct_download_all || (i != dnet_fcgi_direct_patterns_num)) {
 			memset(&ctl, 0, sizeof(struct dnet_io_control));
 
 			dnet_fcgi_output_content_type(obj);
@@ -1490,7 +1490,7 @@ static int dnet_fcgi_handle_get(struct dnet_node *n, char *query, char *obj, int
 			 * unsupported type was requested.
 			 */
 
-			err = -EINVAL;
+			err = -EPERM;
 			goto out_exit;
 		}
 	}
