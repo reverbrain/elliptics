@@ -1402,11 +1402,8 @@ err_out_exit:
 
 int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl)
 {
-	if (!dnet_io_trans_create(n, ctl)) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to read object.\n",
-				dnet_dump_id(&ctl->id));
+	if (!dnet_io_trans_create(n, ctl))
 		return -EINVAL;
-	}
 
 	return 0;
 }

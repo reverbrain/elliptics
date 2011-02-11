@@ -1187,7 +1187,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 			dnet_fcgi_convert_embedded(e);
 
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: found embedded object: type: %x, flags: %x, size: %llu, rest: %llu.\n",
+			dnet_log_raw(n, DNET_LOG_NOTICE, "%s: found embedded object: type: %x, flags: %x, size: %llu, rest: %llu.\n",
 					dnet_dump_id(&cmd->id), e->type, e->flags, (unsigned long long)e->size,
 					(unsigned long long)size);
 
