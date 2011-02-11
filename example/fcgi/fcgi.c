@@ -788,14 +788,11 @@ static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct 
 		for (i=dnet_fcgi_random_group_index; i<dnet_fcgi_group_num - 1; ++i) {
 			r = i + (double)(dnet_fcgi_group_num - i) * rand() / ((double)RAND_MAX);
 
-			dnet_log_raw(n, DNET_LOG_INFO, "%s: i: %d, r: %d, %d <-> %d\n", dnet_dump_id(id), i, r, dnet_fcgi_groups[i], dnet_fcgi_groups[r]);
+			dnet_log_raw(n, DNET_LOG_DSA, "%s: i: %d, r: %d, %d <-> %d\n", dnet_dump_id(id), i, r, dnet_fcgi_groups[i], dnet_fcgi_groups[r]);
 
 			tmp = dnet_fcgi_groups[i];
 			dnet_fcgi_groups[i] = dnet_fcgi_groups[r];
 			dnet_fcgi_groups[r] = tmp;
-		}
-		for (i=0; i<dnet_fcgi_group_num; ++i) {
-			dnet_log_raw(n, DNET_LOG_INFO, "%s: %d\n", dnet_dump_id(id), dnet_fcgi_groups[i]);
 		}
 
 		groups = dnet_fcgi_groups;
