@@ -69,7 +69,6 @@ static pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
 static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344, dnet_fcgi_request_error;
 static char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
 static int dnet_fcgi_tolerate_upload_error_count;
-static int dnet_fcgi_group_num;
 static unsigned long dnet_fcgi_max_request_size;
 static int dnet_fcgi_base_port;
 static uint64_t dnet_fcgi_bit_num = DNET_FCGI_STORAGE_BIT_NUM;
@@ -84,6 +83,7 @@ static int *dnet_fcgi_groups;
 static int dnet_fcgi_group_num;
 static char *dnet_fcgi_groups_pattern = DNET_FCGI_GROUPS_PATTERN;
 static int dnet_fcgi_groups_pattern_len;
+static int dnet_fcgi_random_group_index = INT_MAX;
 
 static int dnet_fcgi_last_modified;
 
@@ -767,7 +767,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct 
 		int version, int embed, int multiple)
 {
 	int err, error = -ENOENT;
-	int random_num = 0, i;
+	int i;
 	int *groups = NULL;
 	struct dnet_id_param *ids = NULL;
 	int ids_num = 0;
@@ -783,11 +783,22 @@ static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct 
 			return err;
 		ids_num = err;
 	} else {
-		int i;
+		int tmp, r;
 
-		groups = alloca(sizeof(int) * dnet_fcgi_group_num);
-		for (i=0; i<dnet_fcgi_group_num; ++i)
-			groups[i] = dnet_fcgi_groups[i];
+		for (i=dnet_fcgi_random_group_index; i<dnet_fcgi_group_num - 1; ++i) {
+			r = i + (double)(dnet_fcgi_group_num - i) * rand() / ((double)RAND_MAX);
+
+			dnet_log_raw(n, DNET_LOG_INFO, "%s: i: %d, r: %d, %d <-> %d\n", dnet_dump_id(id), i, r, dnet_fcgi_groups[i], dnet_fcgi_groups[r]);
+
+			tmp = dnet_fcgi_groups[i];
+			dnet_fcgi_groups[i] = dnet_fcgi_groups[r];
+			dnet_fcgi_groups[r] = tmp;
+		}
+		for (i=0; i<dnet_fcgi_group_num; ++i) {
+			dnet_log_raw(n, DNET_LOG_INFO, "%s: %d\n", dnet_dump_id(id), dnet_fcgi_groups[i]);
+		}
+
+		groups = dnet_fcgi_groups;
 		ids_num = dnet_fcgi_group_num;
 	}
 
@@ -795,19 +806,7 @@ static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct 
 		if (dnet_fcgi_use_la_check || multiple) {
 			id->group_id = ids[i].group_id;
 		} else {
-			if (random_num < ids_num) {
-				int r;
-
-				r = (double)(ids_num - random_num) * rand() / ((double)RAND_MAX);
-
-				id->group_id = groups[r];
-				dnet_log_raw(n, DNET_LOG_DSA, "Using r: %d, group: %d, total groups: %d.\n", r, id->group_id, ids_num);
-
-				for (; r<ids_num-1; r++)
-					groups[r] = groups[r+1];
-
-				random_num++;
-			}
+			id->group_id = groups[i];
 		}
 
 		dnet_fcgi_trans_tsec = 0;
@@ -1099,6 +1098,10 @@ static int dnet_fcgi_setup_sign_hash(void)
 		goto err_out_destroy;
 	}
 	dnet_urandom_fd  = err;
+
+	p = getenv("DNET_FCGI_RANDOMIZE_GROUPS_FROM");
+	if (p)
+		dnet_fcgi_random_group_index = atoi(p);
 
 	dnet_fcgi_cookie_header = getenv("DNET_FCGI_COOKIE_HEADER");
 	if (!dnet_fcgi_cookie_header)
@@ -1935,8 +1938,6 @@ int main()
 	if (err)
 		goto err_out_close;
 	
-	cfg.log->log(cfg.log->log_private, DNET_LOG_ERROR, "test\n\n");
-
 	n = dnet_node_create(&cfg);
 	if (!n)
 		goto err_out_sign_destroy;
