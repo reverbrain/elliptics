@@ -95,6 +95,8 @@ static char *dnet_fcgi_remote_addr_header = DNET_FCGI_ADDR_HEADER;
 
 static int dnet_fcgi_upload_host_limit;
 
+static struct timeval dnet_fcgi_read_time;
+
 static char *dnet_fcgi_tmp_dir;
 int dnet_fcgi_tmp_dir_len;
 
@@ -1176,6 +1178,8 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	dnet_convert_io_attr(io);
 	size = io->size;
 
+	gettimeofday(&dnet_fcgi_read_time, NULL);
+
 	/* received data embeds objects, potentially timestamp which we will hunt for here */
 	if (priv) {
 		while (size) {
@@ -1838,7 +1842,7 @@ int main()
 	char *multiple_pattern, *append_pattern;
 	int length, id_pattern_length, err, version_pattern_len, timestamp_pattern_len, multiple_pattern_len;
 	struct timeval tstart, tend;
-	long tdiff;
+	long tdiff, iodiff;
 	int version;
 	char *obj, *end;
 	struct dnet_config cfg;
@@ -2147,6 +2151,8 @@ int main()
 
 		dnet_fcgi_output_permanent_headers();
 
+		dnet_fcgi_read_time.tv_sec = 0;
+
 		if (!strncmp(method, "POST", 4)) {
 			struct timespec ts;
 			int append;
@@ -2176,7 +2182,6 @@ int main()
 				ts.tv_nsec = tv.tv_usec * 1000;
 			}
 
-			obj[length] = '\0';
 			dnet_log_raw(n, DNET_LOG_INFO, "%s: obj: '%s', len: %d, v: %d, ts: %lu.%lu, embed: %d, region: %d, append: %d.\n",
 					dnet_dump_id(&raw), obj, length, version, ts.tv_sec, ts.tv_nsec, !!embed_str, dnet_fcgi_region, append);
 
@@ -2228,10 +2233,13 @@ cont:
 		gettimeofday(&tend, NULL);
 
 		tdiff = (tend.tv_sec - tstart.tv_sec) * 1000 + tend.tv_usec - tstart.tv_usec;
+		iodiff = -1;
+		if (dnet_fcgi_read_time.tv_sec) {
+			iodiff = (dnet_fcgi_read_time.tv_sec - tstart.tv_sec) * 1000 + dnet_fcgi_read_time.tv_usec - tstart.tv_usec;
+		}
 
-		obj[length] = '\0';
-		dnet_log_raw(n, DNET_LOG_INFO, "%s: completed: obj: '%s', len: %d, v: %d, embed: %d, region: %d, err: %d, time: %lu usecs.\n",
-					dnet_dump_id(&raw), obj, length, version, !!embed_str, dnet_fcgi_region, err, tdiff);
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: completed: obj: '%s', len: %d, v: %d, embed: %d, region: %d, err: %d, total time: %lu usecs, read io time: %ld usecs.\n",
+					dnet_dump_id(&raw), obj, length, version, !!embed_str, dnet_fcgi_region, err, tdiff, iodiff);
 		continue;
 
 err_continue:
