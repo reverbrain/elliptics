@@ -1,3 +1,9 @@
+elliptics (2.9.6.15) unstable; urgency=low
+
+  * Drop randomization debug in fcgi.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 12 Feb 2011 02:00:16 +0300
+
 elliptics (2.9.6.14) unstable; urgency=low
 
   * Added remote groups randomization trick.
