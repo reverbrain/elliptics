@@ -232,6 +232,8 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
 	st = dnet_state_get_first(n, &ctl->id);
 	if (!st) {
 		err = -ENOENT;
+		if (ctl->complete)
+			ctl->complete(NULL, NULL, NULL, ctl->priv);
 		goto err_out_exit;
 	}
 
