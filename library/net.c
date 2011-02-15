@@ -282,8 +282,8 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 		if (err < 0)
 			goto err_out_unlock;
 		if (err == 0) {
-			dnet_log(st->n, DNET_LOG_DSA, "Looks like truncated file, "
-					"size: %llu.\n", (unsigned long long)dsize);
+			dnet_log(st->n, DNET_LOG_ERROR, "Looks like truncated file: fd: %d, offset: %llu, size: %llu.\n",
+					fd, (unsigned long long)offset, (unsigned long long)dsize);
 			break;
 		}
 
@@ -304,7 +304,7 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 			if (sz > sizeof(buf))
 				sz = sizeof(buf);
 
-			err = dnet_send(st, buf, sz);
+			err = dnet_send_nolock(st, buf, sz);
 			if (err)
 				goto err_out_unlock;
 
