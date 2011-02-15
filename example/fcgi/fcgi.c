@@ -2190,6 +2190,11 @@ int main()
 			}
 		} else if (dnet_fcgi_unlink_pattern && strstr(query, dnet_fcgi_unlink_pattern)) {
 			err = dnet_fcgi_unlink(n, &raw, version);
+			if (err) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: Failed to unlink object '%s': %d.\n", addr, obj, err);
+				reason = "failed to unlink";
+				goto err_continue;
+			}
 		} else {
 			int multiple = 0;
 			char *multiple_str;
