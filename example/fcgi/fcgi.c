@@ -2230,10 +2230,10 @@ cont:
 
 		gettimeofday(&tend, NULL);
 
-		tdiff = (tend.tv_sec - tstart.tv_sec) * 1000 + tend.tv_usec - tstart.tv_usec;
+		tdiff = (tend.tv_sec - tstart.tv_sec) * 1000000 + tend.tv_usec - tstart.tv_usec;
 		iodiff = -1;
 		if (dnet_fcgi_read_time.tv_sec) {
-			iodiff = (dnet_fcgi_read_time.tv_sec - tstart.tv_sec) * 1000 + dnet_fcgi_read_time.tv_usec - tstart.tv_usec;
+			iodiff = (dnet_fcgi_read_time.tv_sec - tstart.tv_sec) * 1000000 + dnet_fcgi_read_time.tv_usec - tstart.tv_usec;
 		}
 
 		dnet_log_raw(n, DNET_LOG_INFO, "%s: completed: obj: '%s', len: %d, v: %d, embed: %d, region: %d, err: %d, total time: %lu usecs, read io time: %ld usecs.\n",
