@@ -1,3 +1,9 @@
+elliptics (2.9.6.18) unstable; urgency=low
+
+  * Use correct multiplier for sec->usec conversation.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 17 Feb 2011 02:25:56 +0300
+
 elliptics (2.9.6.17) unstable; urgency=low
 
   * Finish fcgi object at the very end after logs.
