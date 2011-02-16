@@ -2228,11 +2228,6 @@ cont:
 		if (dnet_fcgi_external_callback_stop)
 			dnet_fcgi_external_stop(n, query, addr, obj, length);
 
-		pthread_mutex_lock(&dnet_fcgi_output_lock);
-		FCGX_Finish_r(&dnet_fcgi_request);
-		dnet_fcgi_request_info = 0;
-		pthread_mutex_unlock(&dnet_fcgi_output_lock);
-
 		gettimeofday(&tend, NULL);
 
 		tdiff = (tend.tv_sec - tstart.tv_sec) * 1000 + tend.tv_usec - tstart.tv_usec;
@@ -2243,6 +2238,12 @@ cont:
 
 		dnet_log_raw(n, DNET_LOG_INFO, "%s: completed: obj: '%s', len: %d, v: %d, embed: %d, region: %d, err: %d, total time: %lu usecs, read io time: %ld usecs.\n",
 					dnet_dump_id(&raw), obj, length, version, !!embed_str, dnet_fcgi_region, err, tdiff, iodiff);
+
+		pthread_mutex_lock(&dnet_fcgi_output_lock);
+		FCGX_Finish_r(&dnet_fcgi_request);
+		dnet_fcgi_request_info = 0;
+		pthread_mutex_unlock(&dnet_fcgi_output_lock);
+
 		continue;
 
 err_continue:
