@@ -1,3 +1,9 @@
+elliptics (2.9.6.17) unstable; urgency=low
+
+  * Finish fcgi object at the very end after logs.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 17 Feb 2011 02:13:22 +0300
+
 elliptics (2.9.6.16) unstable; urgency=low
 
   * Return error when unlink failed.
