@@ -1,3 +1,9 @@
+elliptics (2.9.6.20) unstable; urgency=low
+
+  * Wrap write and delete db operations into transactions.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 21 Feb 2011 17:41:15 +0300
+
 elliptics (2.9.6.19) unstable; urgency=low
 
   * Fill check reply structure with zeroes first.
