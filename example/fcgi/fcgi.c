@@ -2062,6 +2062,8 @@ int main()
 		obj = NULL;
 		length = 0;
 
+		gettimeofday(&tstart, NULL);
+
 		err = -EINVAL;
 		query = p = FCGX_GetParam("QUERY_STRING", dnet_fcgi_request.envp);
 		if (!p) {
@@ -2071,20 +2073,19 @@ int main()
 
 		if (dnet_fcgi_stat_log_pattern) {
 			if (!strcmp(query, dnet_fcgi_stat_log_pattern)) {
-				dnet_fcgi_stat_log(n);
+				err = dnet_fcgi_stat_log(n);
 				goto cont;
 			}
 		}
 
 		if (dnet_fcgi_stat_pattern) {
 			if (!strcmp(query, dnet_fcgi_stat_pattern)) {
-				dnet_fcgi_stat(n);
+				err = dnet_fcgi_stat(n);
 				goto cont;
 			}
 		}
 
 		dnet_log_raw(n, DNET_LOG_DSA, "query: '%s'.\n", query);
-		gettimeofday(&tstart, NULL);
 
 		p = query;
 		obj = strstr(p, id_pattern);
