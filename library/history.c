@@ -78,12 +78,21 @@ static int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io
 	int ret, append = 0;
 	KCDB *db = n->history;
 	char *dbf = "history";
+	int err;
 
 	if (io->flags & DNET_IO_FLAGS_META) {
 		db = n->meta;
 		dbf = "meta";
 	} else if ((io->flags & DNET_IO_FLAGS_APPEND) || !(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)) {
 		append = 1;
+	}
+
+	ret = kcdbbegintran(db, 1);
+	if (!ret) {
+		err = -kcdbecode(db);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start update transaction, err: %d: %s.\n",
+			dnet_dump_id(&cmd->id), err, kcecodename(-err));
+		goto err_out_exit;
 	}
 
 	if (append) {
@@ -93,16 +102,22 @@ static int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io
 	}
 
 	if (!ret) {
-		int err = -kcdbecode(db);
+		err = -kcdbecode(db);
 		dnet_log(n, DNET_LOG_ERROR, "%s: %s: failed to store %u bytes: %s [%d]\n", dnet_dump_id(&cmd->id), dbf,
 				size, kcecodename(-err), err);
-		return err;
+		goto err_out_txn_end;
 	}
+	kcdbendtran(db, 1);
 
 	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: %s: stored %u bytes.\n",
 			dnet_dump_id(&cmd->id), dbf, size);
 
 	return 0;
+
+err_out_txn_end:
+	kcdbendtran(db, 0);
+err_out_exit:
+	return err;
 }
 
 int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data)
@@ -120,10 +135,29 @@ int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data)
 	return db_put_data(n, cmd, io, &e, sizeof(struct dnet_history_entry));
 }
 
-static int db_del_direct(struct dnet_node *n, struct dnet_cmd *cmd)
+static int db_del_direct_notran(struct dnet_node *n, struct dnet_cmd *cmd)
 {
 	kcdbremove(n->history, (void *)cmd->id.id, DNET_ID_SIZE);
 	kcdbremove(n->meta, (void *)cmd->id.id, DNET_ID_SIZE);
+
+	return 0;
+}
+
+static int db_del_direct(struct dnet_node *n, struct dnet_cmd *cmd)
+{
+	int ret;
+
+	ret = kcdbbegintran(n->history, 1);
+	if (ret) {
+		kcdbremove(n->history, (void *)cmd->id.id, DNET_ID_SIZE);
+		kcdbendtran(n->history, 1);
+	}
+
+	ret = kcdbbegintran(n->meta, 1);
+	if (ret) {
+		kcdbremove(n->meta, (void *)cmd->id.id, DNET_ID_SIZE);
+		kcdbendtran(n->meta, 1);
+	}
 
 	return 0;
 }
@@ -167,7 +201,7 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 	ret = kcdbbegintran(n->history, 1);
 	if (!ret) {
 		err = -kcdbecode(n->history);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start history deketion transaction, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start history deletion transaction, err: %d: %s.\n",
 			dnet_dump_id(&cmd->id), err, kcecodename(-err));
 		goto err_out_exit;
 	}
@@ -205,7 +239,7 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 			goto err_out_free;
 		}
 	} else {
-		db_del_direct(n, cmd);
+		db_del_direct_notran(n, cmd);
 		ret = 1;
 	}
 
