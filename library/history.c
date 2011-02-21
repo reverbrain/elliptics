@@ -298,6 +298,8 @@ static int dnet_db_send_check_reply(struct dnet_db_list_control *ctl)
 {
 	struct dnet_check_reply reply;
 
+	memset(&reply, 0, sizeof(reply));
+
 	reply.total = atomic_read(&ctl->total);
 	reply.errors = atomic_read(&ctl->errors);
 	reply.completed = atomic_read(&ctl->completed);
