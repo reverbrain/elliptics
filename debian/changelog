@@ -1,3 +1,10 @@
+elliptics (2.9.6.21) unstable; urgency=low
+
+  * Improved check debug.
+  * Use newly allocated check request structure when file option is provided.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 21 Feb 2011 22:33:08 +0300
+
 elliptics (2.9.6.20) unstable; urgency=low
 
   * Wrap write and delete db operations into transactions.
