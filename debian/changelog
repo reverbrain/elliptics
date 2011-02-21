@@ -1,3 +1,11 @@
+elliptics (2.9.6.19) unstable; urgency=low
+
+  * Fill check reply structure with zeroes first.
+  * Return and show error from stat requests. Read command start time right
+    after we got query.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 21 Feb 2011 15:45:53 +0300
+
 elliptics (2.9.6.18) unstable; urgency=low
 
   * Use correct multiplier for sec->usec conversation.
