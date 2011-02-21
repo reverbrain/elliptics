@@ -502,6 +502,8 @@ static int dnet_send_check_request(struct dnet_net_state *st, struct dnet_id *id
 		struct dnet_wait *w, struct dnet_check_request *r)
 {
 	struct dnet_trans_control ctl;
+	char ctl_time[64];
+	struct tm tm;
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
@@ -511,6 +513,17 @@ static int dnet_send_check_request(struct dnet_net_state *st, struct dnet_id *id
 	ctl.priv = w;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 	ctl.aflags = 0;
+
+	if (r->timestamp) {
+		localtime_r((time_t *)&r->timestamp, &tm);
+		strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
+	} else {
+		snprintf(ctl_time, sizeof(ctl_time), "all records");
+	}
+
+	dnet_log(st->n, DNET_LOG_INFO, "%s: check request: objects: %llu, threads: %llu, timestamp: %s, merge: %d\n",
+			dnet_state_dump_addr(st), (unsigned long long)r->obj_num, (unsigned long long)r->thread_num,
+			ctl_time, !!(r->flags & DNET_CHECK_MERGE));
 
 	dnet_convert_check_request(r);
 

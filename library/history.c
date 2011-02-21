@@ -377,8 +377,12 @@ static void *dnet_db_list_iter(void *data)
 	long long ts, edge = ctl->req->timestamp;
 	void *buf;
 
-	localtime_r((time_t *)&edge, &tm);
-	strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
+	if (edge) {
+		localtime_r((time_t *)&edge, &tm);
+		strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
+	} else {
+		snprintf(ctl_time, sizeof(ctl_time), "all records");
+	}
 
 	buf = malloc(buf_size);
 	if (!buf) {
@@ -588,11 +592,15 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		}
 	}
 
-	localtime_r((time_t *)&r->timestamp, &tm);
-	strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
+	if (r->timestamp) {
+		localtime_r((time_t *)&r->timestamp, &tm);
+		strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
+	} else {
+		snprintf(ctl_time, sizeof(ctl_time), "all records");
+	}
 
-	dnet_log(n, DNET_LOG_INFO, "Started %d checking threads, recovering transactions, which started before %s: err: %d.\n",
-			r->thread_num, ctl_time, err);
+	dnet_log(n, DNET_LOG_INFO, "Started %d checking threads, recovering %llu transactions, which started before %s: merge: %d, err: %d.\n",
+			(unsigned long long)r->thread_num, (unsigned long long)r->obj_num, ctl_time, !!(r->flags & DNET_CHECK_MERGE), err);
 
 err_out_join:
 	for (i=0; i<r->thread_num; ++i)
