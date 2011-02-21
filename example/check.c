@@ -259,5 +259,5 @@ int main(int argc, char *argv[])
 			return -EINVAL;
 	}
 
-	return dnet_request_check(n, &r);
+	return dnet_request_check(n, req);
 }
