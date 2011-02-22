@@ -415,38 +415,6 @@ err_out_unlock:
 	return found;
 }
 
-int dnet_state_get_next_id(struct dnet_node *n, struct dnet_id *id)
-{
-	struct dnet_state_id *this, *next;
-	int pos;
-	struct dnet_group *g;
-
-	pthread_rwlock_rdlock(&n->state_lock);
-	g = dnet_group_search(n, id->group_id);
-	if (!g)
-		goto err_out_unlock;
-
-	pos = __dnet_idc_search(g, id);
-	this = &g->ids[pos];
-
-	pos++;
-	if (pos == g->id_num)
-		pos = 0;
-	next = &g->ids[pos];
-
-	memcpy(id->id, next->raw.id, DNET_ID_SIZE);
-
-	dnet_log(n, DNET_LOG_DSA, "this: %s - %s\n", dnet_dump_id_str(this->raw.id), dnet_server_convert_dnet_addr(&this->idc->st->addr));
-	dnet_log(n, DNET_LOG_DSA, "next: %s - %s\n", dnet_dump_id_str(next->raw.id), dnet_server_convert_dnet_addr(&next->idc->st->addr));
-
-	dnet_group_put(g);
-
-err_out_unlock:
-	pthread_rwlock_unlock(&n->state_lock);
-
-	return 0;
-}
-
 static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned long long storage_free)
 {
 	int fd, err, size = 1024, i, num;

@@ -561,11 +561,6 @@ static inline int dnet_id_cmp(const struct dnet_id *id1, const struct dnet_id *i
 }
 
 /*
- * Return ID of the next to given node in routing table.
- */
-int dnet_state_get_next_id(struct dnet_node *n, struct dnet_id *id);
-
-/*
  * Send given number of bytes as reply command.
  * It will fill transaction, command and ID from the original command and copy given data.
  * It will set DNET_FLAGS_MORE if original command requested acknowledge or @more is set.
