@@ -2212,7 +2212,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 
 	err = dnet_send(st, cmd, sizeof(struct dnet_attr) + sizeof(struct dnet_cmd));
 	if (err)
-		goto err_out_destroy;
+		goto err_out_destroy_no_complete;
 
 	return 0;
 
@@ -2222,6 +2222,9 @@ err_out_complete_destroy:
 	goto err_out_exit;
 
 err_out_destroy:
+	if (complete)
+		complete(NULL, NULL, NULL, priv);
+err_out_destroy_no_complete:
 	dnet_trans_put(t);
 err_out_exit:
 	return err;
@@ -2891,7 +2894,8 @@ int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
 	}
 
 	if (trans_num)
-		dnet_log(n, DNET_LOG_NOTICE, "Successfully wrote %llu bytes into the storage.\n", (unsigned long long)size);
+		dnet_log(n, DNET_LOG_NOTICE, "Successfully wrote %llu bytes into the storage (%d groups).\n",
+				(unsigned long long)size, trans_num);
 	err = trans_num;
 
 err_out_put:
