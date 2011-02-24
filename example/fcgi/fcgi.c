@@ -140,16 +140,26 @@ static int (* dnet_fcgi_external_callback_stop)(char *query, char *addr, char *i
 static void (* dnet_fcgi_external_exit)(void);
 static int dnet_fcgi_region = -1, dnet_fcgi_put_region;
 
-static FCGX_Request dnet_fcgi_request;
+static int dnet_fcgi_refcnt = 1;
+static pthread_cond_t dnet_fcgi_refcnt_cond = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t dnet_fcgi_refcnt_lock = PTHREAD_MUTEX_INITIALIZER;
 
-/*
- * This is a very weak protection, since data from one request can be sent to another client,
- * but it will only happen when we exit early on timeout, which should be noticed in logs, and
- * timeouts changed appropriately.
- *
- * It is set to 0 when dnet_fcgi_request is closed.
- */
-static int dnet_fcgi_request_info;
+static inline void dnet_fcgi_refcnt_get(int num)
+{
+	pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
+	dnet_fcgi_refcnt += num;
+	pthread_mutex_unlock(&dnet_fcgi_refcnt_lock);
+}
+
+static inline void dnet_fcgi_refcnt_put(void)
+{
+	pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
+	dnet_fcgi_refcnt--;
+	pthread_cond_broadcast(&dnet_fcgi_refcnt_cond);
+	pthread_mutex_unlock(&dnet_fcgi_refcnt_lock);
+}
+
+static FCGX_Request dnet_fcgi_request;
 
 static char **dnet_fcgi_pheaders;
 static int dnet_fcgi_pheaders_num;
@@ -203,10 +213,6 @@ static int dnet_fcgi_output(const char *format, ...)
 
 	va_start(args, format);
 	pthread_mutex_lock(&dnet_fcgi_output_lock);
-	if (!dnet_fcgi_request_info) {
-		err = -EBADF;
-		goto out_unlock;
-	}
 
 	size = vsnprintf(dnet_fcgi_tmp_buf, sizeof(dnet_fcgi_tmp_buf), format, args);
 	while (size) {
@@ -230,7 +236,6 @@ static int dnet_fcgi_output(const char *format, ...)
 		}
 	}
 
-out_unlock:
 	pthread_mutex_unlock(&dnet_fcgi_output_lock);
 	va_end(args);
 
@@ -567,8 +572,11 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 	return err;
 
 err_out_exit:
-	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
+	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE)) {
 		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
+		dnet_fcgi_refcnt_put();
+	}
+
 	return err;
 }
 
@@ -576,8 +584,11 @@ static int dnet_fcgi_unlink_complete(struct dnet_net_state *st __unused,
 		struct dnet_cmd *cmd, struct dnet_attr *a __unused,
 		void *priv __unused)
 {
-	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
+	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE)) {
 		dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
+		dnet_fcgi_refcnt_put();
+	}
+
 	return 0;
 }
 
@@ -688,6 +699,8 @@ static int dnet_fcgi_unlink(struct dnet_node *n, struct dnet_id *id, int version
 		num++;
 	}
 
+	dnet_fcgi_refcnt_get(num);
+
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed == num, &ts);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to wait for removal completion: %d.\n", dnet_dump_id(id), err);
@@ -717,6 +730,7 @@ static int dnet_fcgi_get_data(struct dnet_node *n, struct dnet_id *id, struct dn
 	}
 
 	dnet_fcgi_request_completed = dnet_fcgi_request_init_value;
+	dnet_fcgi_refcnt_get(1);
 
 	if (ctl) {
 		memcpy(ctl->io.id, ctl->id.id, DNET_ID_SIZE);
@@ -877,6 +891,8 @@ out_wakeup:
 				} while (0);
 			-1;
 	});
+	dnet_fcgi_refcnt_put();
+
 	return err;
 }
 
@@ -915,6 +931,9 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 			dnet_fcgi_upload_complete, NULL, ioflags);
 	if (err > 0) {
 		trans_num = err;
+
+		dnet_fcgi_refcnt_get(trans_num);
+
 		err = dnet_create_write_metadata(n, id, obj, length, dnet_fcgi_groups, dnet_fcgi_group_num);
 		if (err <= 0) {
 			if (err == 0)
@@ -1231,11 +1250,6 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 	pthread_mutex_lock(&dnet_fcgi_output_lock);
 
-	if (!dnet_fcgi_request_info) {
-		err = -EBADF;
-		goto err_out_unlock;
-	}
-
 	while (size) {
 		err = FCGX_PutStr(data, size, dnet_fcgi_request.out);
 		if (err < 0 && errno != EAGAIN) {
@@ -1258,8 +1272,11 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 err_out_unlock:
 	pthread_mutex_unlock(&dnet_fcgi_output_lock);
 err_out_exit:
-	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
+	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE)) {
 		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
+		dnet_fcgi_refcnt_put();
+	}
+
 	return err;
 }
 
@@ -2038,16 +2055,7 @@ int main()
 			continue;
 		}
 
-		pthread_mutex_lock(&dnet_fcgi_output_lock);
-		dnet_fcgi_request_info = 1;
-		pthread_mutex_unlock(&dnet_fcgi_output_lock);
-
-		addr = FCGX_GetParam(dnet_fcgi_remote_addr_header, dnet_fcgi_request.envp);
-		if (!addr) {
-			addr = FCGX_GetParam(DNET_FCGI_ADDR_HEADER, dnet_fcgi_request.envp);
-			if (!addr)
-				continue;
-		}
+		dnet_fcgi_refcnt_get(1);
 
 		tmp_groups = NULL;
 		tmp_group_num = 0;
@@ -2057,14 +2065,25 @@ int main()
 
 		version = -1;
 		embed_str = NULL;
-
-		method = FCGX_GetParam("REQUEST_METHOD", dnet_fcgi_request.envp);
 		obj = NULL;
 		length = 0;
+		query = NULL;
 
 		gettimeofday(&tstart, NULL);
 
 		err = -EINVAL;
+
+		addr = FCGX_GetParam(dnet_fcgi_remote_addr_header, dnet_fcgi_request.envp);
+		if (!addr) {
+			addr = FCGX_GetParam(DNET_FCGI_ADDR_HEADER, dnet_fcgi_request.envp);
+			if (!addr) {
+				reason = "no address given";
+				goto err_continue;
+			}
+		}
+
+		method = FCGX_GetParam("REQUEST_METHOD", dnet_fcgi_request.envp);
+
 		query = p = FCGX_GetParam("QUERY_STRING", dnet_fcgi_request.envp);
 		if (!p) {
 			reason = "no query string";
@@ -2240,11 +2259,24 @@ cont:
 		dnet_log_raw(n, DNET_LOG_INFO, "%s: completed: obj: '%s', len: %d, v: %d, embed: %d, region: %d, err: %d, total time: %lu usecs, read io time: %ld usecs.\n",
 					dnet_dump_id(&raw), obj, length, version, !!embed_str, dnet_fcgi_region, err, tdiff, iodiff);
 
-		pthread_mutex_lock(&dnet_fcgi_output_lock);
-		FCGX_Finish_r(&dnet_fcgi_request);
-		dnet_fcgi_request_info = 0;
-		pthread_mutex_unlock(&dnet_fcgi_output_lock);
+		dnet_fcgi_refcnt_put();
 
+		err = 1;
+		while (err) {
+			struct timespec ts;
+
+			ts.tv_sec = 1;
+			ts.tv_nsec = 0;
+
+			pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
+			while (dnet_fcgi_refcnt != 1)
+				err = pthread_cond_timedwait(&dnet_fcgi_refcnt_cond, &dnet_fcgi_refcnt_lock, &ts);
+			pthread_mutex_unlock(&dnet_fcgi_refcnt_lock);
+
+			dnet_log_raw(n, DNET_LOG_INFO, "Waiting for refcnt (%d) to become 1: %d\n", dnet_fcgi_refcnt, err);
+		}
+
+		FCGX_Finish_r(&dnet_fcgi_request);
 		continue;
 
 err_continue:
