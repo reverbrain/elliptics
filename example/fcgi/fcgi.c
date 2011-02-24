@@ -2271,9 +2271,10 @@ cont:
 			ts.tv_sec = tv.tv_sec + 1;
 			ts.tv_nsec = 0;
 
+			err = 0;
 			pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
-			while (dnet_fcgi_refcnt != 1)
-				err = pthread_cond_timedwait(&dnet_fcgi_refcnt_cond, &dnet_fcgi_refcnt_lock, &ts);
+			while ((dnet_fcgi_refcnt != 1) && !err)
+				err = -pthread_cond_timedwait(&dnet_fcgi_refcnt_cond, &dnet_fcgi_refcnt_lock, &ts);
 			pthread_mutex_unlock(&dnet_fcgi_refcnt_lock);
 
 			dnet_log_raw(n, DNET_LOG_INFO, "Waiting for refcnt (%d) to become 1: %d\n", dnet_fcgi_refcnt, err);
