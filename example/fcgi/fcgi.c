@@ -866,7 +866,6 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 	if (cmd->flags & DNET_FLAGS_MORE)
 		return err;
 
-out_wakeup:
 	if (st && err) {
 		dnet_log_raw(dnet_get_node_from_state(st), DNET_LOG_ERROR, "%s: upload completed: %d, err: %d.\n",
 			dnet_dump_id(&cmd->id), dnet_fcgi_request_completed, err);
@@ -885,6 +884,7 @@ out_wakeup:
 			port - dnet_fcgi_base_port,
 			hex_dir, id_str,
 			cmd->id.group_id, err);
+out_wakeup:
 	dnet_fcgi_wakeup({
 				do {
 					dnet_fcgi_request_completed++;
