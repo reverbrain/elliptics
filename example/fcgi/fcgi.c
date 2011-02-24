@@ -148,7 +148,6 @@ static inline void dnet_fcgi_refcnt_get(int num)
 {
 	pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
 	dnet_fcgi_refcnt += num;
-	fprintf(dnet_fcgi_log, "refcnt: GET: %d, num: %d\n", dnet_fcgi_refcnt, num);
 	pthread_mutex_unlock(&dnet_fcgi_refcnt_lock);
 }
 
@@ -156,7 +155,6 @@ static inline void dnet_fcgi_refcnt_put(void)
 {
 	pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
 	dnet_fcgi_refcnt--;
-	fprintf(dnet_fcgi_log, "refcnt: PUT: %d\n", dnet_fcgi_refcnt);
 	pthread_cond_broadcast(&dnet_fcgi_refcnt_cond);
 	pthread_mutex_unlock(&dnet_fcgi_refcnt_lock);
 }
@@ -310,6 +308,7 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
  	______ret = (doit);							\
 	pthread_cond_broadcast(&dnet_fcgi_cond);					\
 	pthread_mutex_unlock(&dnet_fcgi_wait_lock);				\
+	dnet_fcgi_refcnt_put();							\
  	______ret;								\
 })
 
@@ -562,8 +561,6 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 
 			err = 0;
 		}
-
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
 	}
 
 	if (cmd->status || !cmd->size) {
@@ -571,13 +568,9 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 		goto err_out_exit;
 	}
 
-	return err;
-
 err_out_exit:
-	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE)) {
+	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
 		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
-		dnet_fcgi_refcnt_put();
-	}
 
 	return err;
 }
@@ -586,10 +579,8 @@ static int dnet_fcgi_unlink_complete(struct dnet_net_state *st __unused,
 		struct dnet_cmd *cmd, struct dnet_attr *a __unused,
 		void *priv __unused)
 {
-	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE)) {
+	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
 		dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
-		dnet_fcgi_refcnt_put();
-	}
 
 	return 0;
 }
@@ -893,7 +884,6 @@ out_wakeup:
 				} while (0);
 			-1;
 	});
-	dnet_fcgi_refcnt_put();
 
 	return err;
 }
@@ -1274,10 +1264,8 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 err_out_unlock:
 	pthread_mutex_unlock(&dnet_fcgi_output_lock);
 err_out_exit:
-	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE)) {
+	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
 		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
-		dnet_fcgi_refcnt_put();
-	}
 
 	return err;
 }
@@ -1391,6 +1379,7 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 
 err_out_wait:
 #endif
+	dnet_fcgi_refcnt_get(num);
 	err = dnet_fcgi_wait(num == dnet_fcgi_request_completed, &ts);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Statistics request wait completion failed: "
