@@ -1,3 +1,10 @@
+elliptics (2.9.6.22) unstable; urgency=low
+
+  * Fixed dnet_wait leak.
+  * Disable object removal if read failed during check.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 16:30:29 +0300
+
 elliptics (2.9.6.21) unstable; urgency=low
 
   * Improved check debug.
