@@ -136,7 +136,7 @@ struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size)
 
 	gettimeofday(&tv, NULL);
 
-	atomic_set(&t->refcnt, 1);
+	atomic_init(&t->refcnt, 1);
 
 	t->fire_time.tv_sec = tv.tv_sec + n->check_timeout;
 	t->fire_time.tv_nsec = tv.tv_usec * 1000;

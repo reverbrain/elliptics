@@ -127,7 +127,7 @@ static struct dnet_group *dnet_group_create(unsigned int group_id)
 
 	memset(g, 0, sizeof(struct dnet_group));
 
-	atomic_set(&g->refcnt, 1);
+	atomic_init(&g->refcnt, 1);
 	g->group_id = group_id;
 
 	INIT_LIST_HEAD(&g->state_list);
