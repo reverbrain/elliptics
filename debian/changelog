@@ -1,3 +1,9 @@
+elliptics (2.9.6.29) unstable; urgency=low
+
+  * Added temporal FCGI refcnt debug.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 20:27:21 +0300
+
 elliptics (2.9.6.28) unstable; urgency=low
 
   * Additional error check in fcgi refcnt wait.
