@@ -1,3 +1,10 @@
+elliptics (2.9.6.32) unstable; urgency=low
+
+  * Disable FCGI refcnt debug
+  * Invoke completion callback even when error happened.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 21:16:12 +0300
+
 elliptics (2.9.6.31) unstable; urgency=low
 
   * Added temporal FCGI refcnt debug.
