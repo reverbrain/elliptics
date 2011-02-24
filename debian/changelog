@@ -1,3 +1,9 @@
+elliptics (2.9.6.26) unstable; urgency=low
+
+  * Implemented 'reference counter' for fcgi connection handler.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 19:18:32 +0300
+
 elliptics (2.9.6.25) unstable; urgency=low
 
   * Fixed endless error loop in db iterator.
