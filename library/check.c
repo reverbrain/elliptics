@@ -138,7 +138,7 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 		if (err < 0) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: object is NOT present in the storage: %d.\n",
 					dnet_dump_id(&raw), err);
-
+#if 0
 			/*
 			 * -7 - no record Kyoto Cabinet error
 			 */
@@ -150,7 +150,7 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 				 */
 				dnet_remove_object_now(n, &raw, 0);
 			}
-
+#endif
 			err = -ENOENT;
 			st = dnet_state_get_first(n, &raw);
 			if (!st)
