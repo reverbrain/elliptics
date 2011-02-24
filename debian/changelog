@@ -1,3 +1,9 @@
+elliptics (2.9.6.28) unstable; urgency=low
+
+  * Additional error check in fcgi refcnt wait.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 20:09:06 +0300
+
 elliptics (2.9.6.27) unstable; urgency=low
 
   * Use absolute timeout in fcgi refcnt waiter.
