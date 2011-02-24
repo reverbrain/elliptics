@@ -1,3 +1,9 @@
+elliptics (2.9.6.27) unstable; urgency=low
+
+  * Use absolute timeout in fcgi refcnt waiter.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 20:02:12 +0300
+
 elliptics (2.9.6.26) unstable; urgency=low
 
   * Implemented 'reference counter' for fcgi connection handler.
