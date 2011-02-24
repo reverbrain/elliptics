@@ -553,9 +553,9 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 	memset(&ctl, 0, sizeof(struct dnet_db_list_control));
 
-	atomic_set(&ctl.completed, 0);
-	atomic_set(&ctl.errors, 0);
-	atomic_set(&ctl.total, 0);
+	atomic_init(&ctl.completed, 0);
+	atomic_init(&ctl.errors, 0);
+	atomic_init(&ctl.total, 0);
 
 	ctl.n = n;
 	ctl.st = st;
