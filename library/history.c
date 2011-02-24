@@ -428,11 +428,13 @@ static void *dnet_db_list_iter(void *data)
 			break;
 
 		/*
-		 * Happens when we loop over list of ids recived from client, i.e. not from cursor,
+		 * Happens when we loop over list of ids received from client, i.e. not from cursor,
 		 * and given ID does not exist on the node check runs on.
 		 */
-		if (!kbuf)
+		if (!kbuf) {
+			err = -ENOENT;
 			goto err_out_kcfree;
+		}
 
 		if (sizeof(struct dnet_meta_container) + dsize > buf_size) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: cursor returned too big data chunk: data_size: %zu, max_size: %zu.\n",
@@ -478,8 +480,7 @@ static void *dnet_db_list_iter(void *data)
 		}
 
 		if (will_check) {
-			err = -ENOENT;
-			//err = dnet_check(n, mc, check_copies);
+			err = dnet_check(n, mc, check_copies);
 			if (err >= 0)
 				err = dnet_db_check_update(n, ctl, mc);
 
@@ -491,10 +492,8 @@ static void *dnet_db_list_iter(void *data)
 
 err_out_kcfree:
 		atomic_inc(&ctl->total);
-		if (err < 0) {
+		if (err < 0)
 			atomic_inc(&ctl->errors);
-			goto err_out_kcfree;
-		}
 
 		kcfree(kbuf);
 
@@ -507,9 +506,10 @@ err_out_kcfree:
 			dnet_log(n, DNET_LOG_INFO, "check: total: %d, completed: %d, errors: %d\n",
 					atomic_read(&ctl->total), atomic_read(&ctl->completed), atomic_read(&ctl->errors));
 		}
-
+#if 0
 		if (err)
 			break;
+#endif
 	}
 
 	free(buf);
