@@ -1998,6 +1998,7 @@ void dnet_wait_destroy(struct dnet_wait *w)
 {
 	pthread_mutex_destroy(&w->wait_lock);
 	pthread_cond_destroy(&w->wait);
+	free(w);
 }
 
 static void __dnet_send_cmd_complete(struct dnet_wait *w, int status)
