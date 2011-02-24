@@ -567,7 +567,7 @@ int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r)
 	if (err)
 		goto err_out_put;
 
-	if (!err || !w->status) {
+	if (w->status) {
 		err = w->status;
 		goto err_out_put;
 	}
