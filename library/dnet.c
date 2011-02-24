@@ -1057,6 +1057,8 @@ err_out_complete_destroy:
 	goto err_out_exit;
 
 err_out_destroy:
+	if (ctl->complete)
+		ctl->complete(NULL, NULL, NULL, ctl->priv);
 	dnet_trans_put(t);
 err_out_exit:
 	return NULL;
@@ -1387,12 +1389,8 @@ err_out_close:
 err_out_exit:
 	if (freeing) {
 		if (c->wait) {
-			int destroy = atomic_dec_and_test(&c->wait->refcnt);
-
 			dnet_wakeup(c->wait, c->wait->cond = err);
-
-			if (destroy)
-				dnet_wait_destroy(c->wait);
+			dnet_wait_put(c->wait);
 		}
 
 		free(c);
