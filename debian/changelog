@@ -1,3 +1,9 @@
+elliptics (2.9.6.31) unstable; urgency=low
+
+  * Added temporal FCGI refcnt debug.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 21:05:35 +0300
+
 elliptics (2.9.6.30) unstable; urgency=low
 
   * Fixed FCGI reference counter leak.
