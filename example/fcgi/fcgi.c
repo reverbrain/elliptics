@@ -2264,8 +2264,11 @@ cont:
 		err = 1;
 		while (err) {
 			struct timespec ts;
+ 			struct timeval tv;
 
-			ts.tv_sec = 1;
+			gettimeofday(&tv, NULL);
+
+			ts.tv_sec = tv.tv_sec + 1;
 			ts.tv_nsec = 0;
 
 			pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
