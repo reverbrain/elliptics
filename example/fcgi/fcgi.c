@@ -148,7 +148,9 @@ static inline void dnet_fcgi_refcnt_get(int num)
 {
 	pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
 	dnet_fcgi_refcnt += num;
+#if 0
 	fprintf(dnet_fcgi_log, "%d: refcnt get: %d, num: %d\n", getpid(), dnet_fcgi_refcnt, num);
+#endif
 	pthread_mutex_unlock(&dnet_fcgi_refcnt_lock);
 }
 
@@ -156,7 +158,9 @@ static inline void dnet_fcgi_refcnt_put(void)
 {
 	pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
 	dnet_fcgi_refcnt--;
+#if 0
 	fprintf(dnet_fcgi_log, "%d: refcnt put: %d\n", getpid(), dnet_fcgi_refcnt);
+#endif
 	pthread_cond_broadcast(&dnet_fcgi_refcnt_cond);
 	pthread_mutex_unlock(&dnet_fcgi_refcnt_lock);
 }
