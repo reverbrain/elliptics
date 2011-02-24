@@ -478,7 +478,8 @@ static void *dnet_db_list_iter(void *data)
 		}
 
 		if (will_check) {
-			err = dnet_check(n, mc, check_copies);
+			err = -ENOENT;
+			//err = dnet_check(n, mc, check_copies);
 			if (err >= 0)
 				err = dnet_db_check_update(n, ctl, mc);
 
