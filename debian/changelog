@@ -1,3 +1,9 @@
+elliptics (2.9.6.23) unstable; urgency=low
+
+  * Dnet wait misc fixes.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 17:13:08 +0300
+
 elliptics (2.9.6.22) unstable; urgency=low
 
   * Fixed dnet_wait leak.
