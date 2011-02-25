@@ -112,7 +112,7 @@ static void dnet_merge_unlink_local_files(struct dnet_node *n __unused, struct d
 	unlink(file);
 }
 
-static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_container *mc, int *groups, int group_num)
+static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_container *mc, int *groups, int group_num, int check_copies)
 {
 	struct dnet_id raw;
 	int group_id = mc->id.group_id;
@@ -131,65 +131,71 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 		snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir,
 			dnet_dump_id_len_raw(raw.id, DNET_ID_SIZE, eid), raw.group_id);
 
-		/*
-		 * Reading history object, if it does not exist - upload current data.
-		 */
-		err = dnet_read_file(n, file, NULL, 0, &raw, 0, 0, 1);
-		if (err < 0) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: object is NOT present in the storage: %d.\n",
-					dnet_dump_id(&raw), err);
-#if 0
+		if (check_copies == DNET_CHECK_COPIES_HISTORY) {
 			/*
-			 * -7 - no record Kyoto Cabinet error
+			 * Reading history object, if it does not exist - upload current data.
 			 */
-			if ((err != -ENOENT) && (err != -ECONNRESET) && (err != -ETIMEDOUT) && (err != -7)) {
-				/*
-				 * Kill history and metadata if we failed to read data.
-				 * If we will not remove history, fsck will append recovered history to
-				 * old one increasing its size more and more.
-				 */
-				dnet_remove_object_now(n, &raw, 0);
-			}
+			err = dnet_read_file(n, file, NULL, 0, &raw, 0, 0, 1);
+		} else if (check_copies == DNET_CHECK_COPIES_FULL) {
+			/*
+			 * Reading first byte of data object, if it does not exist - upload current data.
+			 */
+			err = dnet_read_file(n, file, NULL, 0, &raw, 0, 1, 0);
+		}
+
+		if (!err)
+			goto err_out_continue;
+
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: object is NOT present in the storage: %d.\n",
+				dnet_dump_id(&raw), err);
+#if 0
+		/*
+		 * -7 - no record Kyoto Cabinet error
+		 */
+		if ((err != -ENOENT) && (err != -ECONNRESET) && (err != -ETIMEDOUT) && (err != -7)) {
+			/*
+			 * Kill history and metadata if we failed to read data.
+			 * If we will not remove history, fsck will append recovered history to
+			 * old one increasing its size more and more.
+			 */
+			dnet_remove_object_now(n, &raw, 0);
+		}
 #endif
-			err = -ENOENT;
-			st = dnet_state_get_first(n, &raw);
-			dnet_log_raw(n, DNET_LOG_INFO, "%s: state: %s.\n",
-					dnet_dump_id(&raw), st ? dnet_state_dump_addr(st) : "NULL");
-			if (!st)
-				goto err_out_continue;
+		err = -ENOENT;
+		st = dnet_state_get_first(n, &raw);
+		if (!st)
+			goto err_out_continue;
 
-			if (st != n->st)
-				err = n->send(st, n->command_private, &raw);
-			dnet_state_put(st);
+		if (st != n->st)
+			err = n->send(st, n->command_private, &raw);
+		dnet_state_put(st);
 
-			if (err)
-				goto err_out_continue;
+		if (err)
+			goto err_out_continue;
 
-			mc->id.group_id = raw.group_id;
-			err = dnet_write_metadata(n, mc, 1);
-			if (err <= 0) {
-				if (err == 0)
-					err = -ENOENT;
-				goto err_out_continue;
-			}
+		mc->id.group_id = raw.group_id;
+		err = dnet_write_metadata(n, mc, 1);
+		if (err <= 0) {
+			if (err == 0)
+				err = -ENOENT;
+			goto err_out_continue;
+		}
 
-			err = dnet_db_read_raw(n, 0, mc->id.id, &data);
-			if (err <= 0) {
-				if (err == 0)
-					err = -ENOENT;
-				goto err_out_continue;
-			}
+		err = dnet_db_read_raw(n, 0, mc->id.id, &data);
+		if (err <= 0) {
+			if (err == 0)
+				err = -ENOENT;
+			goto err_out_continue;
+		}
 
-			err = dnet_write_data_wait(n, NULL, 0, &raw, data, -1, 0, 0, err, NULL,
-				DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+		err = dnet_write_data_wait(n, NULL, 0, &raw, data, -1, 0, 0, err, NULL,
+			DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 
 err_out_continue:
-			if (!err)
-				error = 0;
-			else if (!error)
-				error = err;
-		} else
+		if (!err)
 			error = 0;
+		else if (!error)
+			error = err;
 
 		dnet_merge_unlink_local_files(n, &raw);
 	}
@@ -219,7 +225,7 @@ static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id)
 	return dnet_process_cmd_raw(n->st, cmd, attr);
 }
 
-static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc)
+static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies)
 {
 	int err;
 	int *groups = NULL;
@@ -228,7 +234,7 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 	if (err <= 0)
 		return -ENOENT;
 
-	err = dnet_check_number_of_copies(n, mc, groups, err);
+	err = dnet_check_number_of_copies(n, mc, groups, err, check_copies);
 	free(groups);
 
 	return err;
@@ -464,7 +470,7 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_co
 		if (!err)
 			dnet_merge_remove_local(n, &mc->id);
 	} else {
-		err = dnet_check_copies(n, mc);
+		err = dnet_check_copies(n, mc, check_copies);
 	}
 
 	return err;

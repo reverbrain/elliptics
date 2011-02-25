@@ -376,6 +376,7 @@ static void *dnet_db_list_iter(void *data)
 	size_t buf_size = 1024*1024;
 	long long ts, edge = ctl->req->timestamp;
 	void *buf;
+	int check_copies_from_request = (ctl->req->flags & DNET_CHECK_FULL) ? DNET_CHECK_COPIES_FULL : DNET_CHECK_COPIES_HISTORY;
 
 	if (edge) {
 		localtime_r((time_t *)&edge, &tm);
@@ -480,6 +481,9 @@ static void *dnet_db_list_iter(void *data)
 		}
 
 		if (will_check) {
+			if (check_copies)
+				check_copies = check_copies_from_request;
+
 			err = dnet_check(n, mc, check_copies);
 			if (err >= 0)
 				err = dnet_db_check_update(n, ctl, mc);
@@ -600,8 +604,10 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		snprintf(ctl_time, sizeof(ctl_time), "all records");
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Started %d checking threads, recovering %llu transactions, which started before %s: merge: %d, err: %d.\n",
-			(unsigned long long)r->thread_num, (unsigned long long)r->obj_num, ctl_time, !!(r->flags & DNET_CHECK_MERGE), err);
+	dnet_log(n, DNET_LOG_INFO, "Started %u checking threads, recovering %llu transactions, which started before %s: merge: %d, full: %d, err: %d.\n",
+			r->thread_num, (unsigned long long)r->obj_num, ctl_time,
+			!!(r->flags & DNET_CHECK_MERGE), !!(r->flags & DNET_CHECK_FULL),
+			err);
 
 err_out_join:
 	for (i=0; i<r->thread_num; ++i)

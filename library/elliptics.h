@@ -428,6 +428,9 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 void dnet_db_cleanup(struct dnet_node *n);
 int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg);
 
+#define DNET_CHECK_COPIES_HISTORY		1
+#define DNET_CHECK_COPIES_FULL			2
+
 int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies);
 int dnet_check_list(struct dnet_net_state *st, struct dnet_check_request *r);
 

@@ -777,6 +777,8 @@ static inline void dnet_convert_meta_check_status(struct dnet_meta_check_status 
  * and do not check copies in other groups
  */
 #define DNET_CHECK_MERGE			(1<<0)
+/* Check not only history presence but also try to read part of the data object */
+#define DNET_CHECK_FULL				(1<<1)
 
 struct dnet_check_request {
 	uint32_t		flags;
