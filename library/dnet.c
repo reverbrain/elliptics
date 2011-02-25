@@ -2880,9 +2880,8 @@ int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
 	if (err || w->status) {
 		if (!err)
 			err = w->status;
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for IO write completion, err: %d.\n",
-				dnet_dump_id(&ctl.id), err);
-		goto err_out_put;
+		dnet_log(n, DNET_LOG_NOTICE, "%s: failed to wait for IO write completion, err: %d, status: %d.\n",
+				dnet_dump_id(&ctl.id), err, w->status);
 	}
 
 	if (!err && !trans_num) {
