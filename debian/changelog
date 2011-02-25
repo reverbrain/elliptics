@@ -1,3 +1,9 @@
+elliptics (2.9.6.34) unstable; urgency=low
+
+  * Added temporal copies check debug.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 25 Feb 2011 19:58:29 +0300
+
 elliptics (2.9.6.33) unstable; urgency=low
 
   * Force dnet_trans_create_send_all() to return total number of send attempts
