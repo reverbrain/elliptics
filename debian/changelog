@@ -1,3 +1,10 @@
+elliptics (2.9.6.35) unstable; urgency=low
+
+  * Added full check support - system will try to read data objects in this
+    mode, while in plain check it will only read history logs.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 25 Feb 2011 20:53:54 +0300
+
 elliptics (2.9.6.34) unstable; urgency=low
 
   * Added temporal copies check debug.
