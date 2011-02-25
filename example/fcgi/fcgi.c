@@ -140,31 +140,6 @@ static int (* dnet_fcgi_external_callback_stop)(char *query, char *addr, char *i
 static void (* dnet_fcgi_external_exit)(void);
 static int dnet_fcgi_region = -1, dnet_fcgi_put_region;
 
-static int dnet_fcgi_refcnt = 1;
-static pthread_cond_t dnet_fcgi_refcnt_cond = PTHREAD_COND_INITIALIZER;
-static pthread_mutex_t dnet_fcgi_refcnt_lock = PTHREAD_MUTEX_INITIALIZER;
-
-static inline void dnet_fcgi_refcnt_get(int num)
-{
-	pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
-	dnet_fcgi_refcnt += num;
-#if 0
-	fprintf(dnet_fcgi_log, "%d: refcnt get: %d, num: %d\n", getpid(), dnet_fcgi_refcnt, num);
-#endif
-	pthread_mutex_unlock(&dnet_fcgi_refcnt_lock);
-}
-
-static inline void dnet_fcgi_refcnt_put(void)
-{
-	pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
-	dnet_fcgi_refcnt--;
-#if 0
-	fprintf(dnet_fcgi_log, "%d: refcnt put: %d\n", getpid(), dnet_fcgi_refcnt);
-#endif
-	pthread_cond_broadcast(&dnet_fcgi_refcnt_cond);
-	pthread_mutex_unlock(&dnet_fcgi_refcnt_lock);
-}
-
 static FCGX_Request dnet_fcgi_request;
 
 static char **dnet_fcgi_pheaders;
@@ -275,9 +250,8 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 	if (p)
 		cfg->log->log_mask = strtoul(p, NULL, 0);
 
-	p = getenv("DNET_FCGI_NODE_WAIT_TIMEOUT");
-	if (p)
-		dnet_fcgi_timeout_sec = cfg->wait_timeout = strtoul(p, NULL, 0);
+	dnet_fcgi_timeout_sec = ~0UL;
+	cfg->wait_timeout = ~0U;
 
 	p = getenv("DNET_FCGI_NODE_LOCAL_ADDR");
 	if (!p)
@@ -292,17 +266,12 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 	return 0;
 }
 
-#define dnet_fcgi_wait(condition, wts)							\
+#define dnet_fcgi_wait(condition)							\
 ({											\
 	int _err = 0;									\
-	struct timespec _ts;								\
- 	struct timeval _tv;								\
-	gettimeofday(&_tv, NULL);							\
-	_ts.tv_nsec = _tv.tv_usec * 1000 + (wts)->tv_nsec;				\
-	_ts.tv_sec = _tv.tv_sec + (wts)->tv_sec;						\
 	pthread_mutex_lock(&dnet_fcgi_wait_lock);					\
 	while (!(condition) && !_err)							\
-		_err = pthread_cond_timedwait(&dnet_fcgi_cond, &dnet_fcgi_wait_lock, &_ts);		\
+		_err = pthread_cond_wait(&dnet_fcgi_cond, &dnet_fcgi_wait_lock);		\
 	pthread_mutex_unlock(&dnet_fcgi_wait_lock);					\
 	-_err;										\
 })
@@ -314,7 +283,6 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
  	______ret = (doit);							\
 	pthread_cond_broadcast(&dnet_fcgi_cond);					\
 	pthread_mutex_unlock(&dnet_fcgi_wait_lock);				\
-	dnet_fcgi_refcnt_put();							\
  	______ret;								\
 })
 
@@ -671,7 +639,6 @@ static int dnet_fcgi_unlink(struct dnet_node *n, struct dnet_id *id, int version
 	int num = 0, i;
 	int err, error = -ENOENT;
 	struct dnet_trans_control ctl;
-	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
@@ -698,9 +665,7 @@ static int dnet_fcgi_unlink(struct dnet_node *n, struct dnet_id *id, int version
 		num++;
 	}
 
-	dnet_fcgi_refcnt_get(num);
-
-	err = dnet_fcgi_wait(dnet_fcgi_request_completed == num, &ts);
+	err = dnet_fcgi_wait(dnet_fcgi_request_completed == num);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to wait for removal completion: %d.\n", dnet_dump_id(id), err);
 		error = err;
@@ -711,7 +676,6 @@ static int dnet_fcgi_unlink(struct dnet_node *n, struct dnet_id *id, int version
 static int dnet_fcgi_get_data(struct dnet_node *n, struct dnet_id *id, struct dnet_io_control *ctl, uint64_t *tsec, int embed)
 {
 	int err;
-	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	if (dnet_fcgi_last_modified && !embed && !dnet_fcgi_trans_tsec) {
 		uint64_t tsec_local;
@@ -729,7 +693,6 @@ static int dnet_fcgi_get_data(struct dnet_node *n, struct dnet_id *id, struct dn
 	}
 
 	dnet_fcgi_request_completed = dnet_fcgi_request_init_value;
-	dnet_fcgi_refcnt_get(1);
 
 	if (ctl) {
 		memcpy(ctl->io.id, ctl->id.id, DNET_ID_SIZE);
@@ -745,7 +708,7 @@ static int dnet_fcgi_get_data(struct dnet_node *n, struct dnet_id *id, struct dn
 	if (err)
 		goto err_out_exit;
 
-	err = dnet_fcgi_wait(dnet_fcgi_request_completed != dnet_fcgi_request_init_value, &ts);
+	err = dnet_fcgi_wait(dnet_fcgi_request_completed != dnet_fcgi_request_init_value);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: IO wait completion failed: %d.\n", dnet_dump_id(id), err);
 		goto err_out_exit;
@@ -901,7 +864,6 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 	int trans_num = 0;
 	uint32_t ioflags = 0;
 	int err;
-	struct timespec wait = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 	char id_str[DNET_ID_SIZE*2+1];
 	char obj_str[length + 1];
 	char crc_str[2*DNET_ID_SIZE + 1];
@@ -930,8 +892,6 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 	if (err > 0) {
 		trans_num = err;
 
-		dnet_fcgi_refcnt_get(trans_num);
-
 		err = dnet_create_write_metadata(n, id, obj, length, dnet_fcgi_groups, dnet_fcgi_group_num);
 		if (err <= 0) {
 			if (err == 0)
@@ -942,7 +902,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 	}
 	dnet_log_raw(n, DNET_LOG_DSA, "Waiting for upload completion: %d/%d.\n", dnet_fcgi_request_completed, trans_num);
 
-	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num, &wait);
+	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num);
 
 	dnet_fcgi_post_len += snprintf(dnet_fcgi_post_buf + dnet_fcgi_post_len, dnet_fcgi_post_buf_size - dnet_fcgi_post_len,
 			"<written>%d</written></post>\r\n",
@@ -1363,7 +1323,6 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 			void *priv))
 {
 	int err, num = 0;
-	struct timespec ts = {.tv_sec = dnet_fcgi_timeout_sec, .tv_nsec = 0};
 
 	dnet_fcgi_stat_good = dnet_fcgi_stat_bad = 0;
 	dnet_fcgi_request_completed = 0;
@@ -1385,8 +1344,7 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 
 err_out_wait:
 #endif
-	dnet_fcgi_refcnt_get(num);
-	err = dnet_fcgi_wait(num == dnet_fcgi_request_completed, &ts);
+	err = dnet_fcgi_wait(num == dnet_fcgi_request_completed);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Statistics request wait completion failed: "
 				"%d, num: %d, completed: %d.\n", err, num, dnet_fcgi_request_completed);
@@ -2052,8 +2010,6 @@ int main()
 			continue;
 		}
 
-		dnet_fcgi_refcnt_get(1);
-
 		tmp_groups = NULL;
 		tmp_group_num = 0;
 
@@ -2255,27 +2211,6 @@ cont:
 
 		dnet_log_raw(n, DNET_LOG_INFO, "%s: completed: obj: '%s', len: %d, v: %d, embed: %d, region: %d, err: %d, total time: %lu usecs, read io time: %ld usecs.\n",
 					dnet_dump_id(&raw), obj, length, version, !!embed_str, dnet_fcgi_region, err, tdiff, iodiff);
-
-		dnet_fcgi_refcnt_put();
-
-		err = 1;
-		while (err) {
-			struct timespec ts;
- 			struct timeval tv;
-
-			gettimeofday(&tv, NULL);
-
-			ts.tv_sec = tv.tv_sec + 1;
-			ts.tv_nsec = 0;
-
-			err = 0;
-			pthread_mutex_lock(&dnet_fcgi_refcnt_lock);
-			while ((dnet_fcgi_refcnt != 1) && !err)
-				err = -pthread_cond_timedwait(&dnet_fcgi_refcnt_cond, &dnet_fcgi_refcnt_lock, &ts);
-			pthread_mutex_unlock(&dnet_fcgi_refcnt_lock);
-
-			dnet_log_raw(n, DNET_LOG_INFO, "Waiting for refcnt (%d) to become 1: %d\n", dnet_fcgi_refcnt, err);
-		}
 
 		FCGX_Finish_r(&dnet_fcgi_request);
 		continue;
