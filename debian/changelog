@@ -1,3 +1,10 @@
+elliptics (2.9.6.37) unstable; urgency=low
+
+  * Return correct number of successfully written objects.
+  * Do not return error if failed to write data into some group.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 25 Feb 2011 22:44:32 +0300
+
 elliptics (2.9.6.36) unstable; urgency=low
 
   * "Dropped wait timeout, it is infinite in FCGI frontend, instead allow to
