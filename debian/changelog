@@ -1,3 +1,10 @@
+elliptics (2.9.6.33) unstable; urgency=low
+
+  * Force dnet_trans_create_send_all() to return total number of send attempts
+    which end up with completion callback invocation.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 25 Feb 2011 19:42:52 +0300
+
 elliptics (2.9.6.32) unstable; urgency=low
 
   * Disable FCGI refcnt debug
