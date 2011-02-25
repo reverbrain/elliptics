@@ -233,7 +233,6 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 
 	cfg->sock_type = SOCK_STREAM;
 	cfg->proto = IPPROTO_TCP;
-	cfg->wait_timeout = 60;
 
 	cfg->log = &fcgi_logger;
 
@@ -252,6 +251,10 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 
 	dnet_fcgi_timeout_sec = ~0UL;
 	cfg->wait_timeout = ~0U;
+
+	p = getenv("DNET_FCGI_NODE_CHECK_TIMEOUT");
+	if (p)
+		cfg->check_timeout = strtoul(p, NULL, 0);
 
 	p = getenv("DNET_FCGI_NODE_LOCAL_ADDR");
 	if (!p)
