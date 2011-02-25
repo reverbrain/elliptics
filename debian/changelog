@@ -1,3 +1,10 @@
+elliptics (2.9.6.36) unstable; urgency=low
+
+  * "Dropped wait timeout, it is infinite in FCGI frontend, instead allow to
+    tune check timeout, which will fire up stalled transactions.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 25 Feb 2011 21:11:25 +0300
+
 elliptics (2.9.6.35) unstable; urgency=low
 
   * Added full check support - system will try to read data objects in this
