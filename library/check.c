@@ -153,6 +153,8 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 #endif
 			err = -ENOENT;
 			st = dnet_state_get_first(n, &raw);
+			dnet_log_raw(n, DNET_LOG_INFO, "%s: state: %s.\n",
+					dnet_dump_id(&raw), st ? dnet_state_dump_addr(st) : "NULL");
 			if (!st)
 				goto err_out_continue;
 
