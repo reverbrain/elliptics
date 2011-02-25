@@ -212,13 +212,14 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 
 	err = dnet_send(t->st, cmd, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + ctl->size);
 	if (err)
-		goto err_out_destroy;
+		goto err_out_destroy_no_complete;
 
 	return 0;
 
 err_out_destroy:
 	if (ctl->complete)
 		ctl->complete(NULL, NULL, NULL, ctl->priv);
+err_out_destroy_no_complete:
 	dnet_trans_put(t);
 err_out_exit:
 	return err;
