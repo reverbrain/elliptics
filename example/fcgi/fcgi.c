@@ -909,9 +909,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 
 	dnet_fcgi_post_len += snprintf(dnet_fcgi_post_buf + dnet_fcgi_post_len, dnet_fcgi_post_buf_size - dnet_fcgi_post_len,
 			"<written>%d</written></post>\r\n",
-			trans_num);
-
-	dnet_fcgi_request_error += dnet_fcgi_group_num - trans_num;
+			trans_num - dnet_fcgi_request_error);
 
 	if (!err && dnet_fcgi_request_error > dnet_fcgi_tolerate_upload_error_count)
 		err = -ENOENT;
