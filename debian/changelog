@@ -1,3 +1,10 @@
+elliptics (2.9.6.38) unstable; urgency=low
+
+  * Do not hold trans_lock while checking the whole tree, grab it only to get
+    first entry.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 27 Feb 2011 20:09:12 +0300
+
 elliptics (2.9.6.37) unstable; urgency=low
 
   * Return correct number of successfully written objects.
