@@ -250,7 +250,7 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 	struct dnet_trans *t;
 	struct timespec ts;
 	struct timeval tv;
-	struct rb_node *node, *next;
+	struct rb_node *node;
 	int total = 0, error_count = 0;
 
 	dnet_try_reconnect(n);
@@ -260,32 +260,36 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 	ts.tv_sec = tv.tv_sec;
 	ts.tv_nsec = tv.tv_usec * 1000;
 
-	dnet_lock_lock(&n->trans_lock);
-	node = rb_first(&n->trans_root);
-
-	while (node) {
+	while (1) {
 		int err = 0;
 
-		next = rb_next(node);
-		t = rb_entry(node, struct dnet_trans, trans_entry);
+		dnet_lock_lock(&n->trans_lock);
+		node = rb_first(&n->trans_root);
 
-		total++;
+		if (node) {
+			t = rb_entry(node, struct dnet_trans, trans_entry);
 
-		if (kill)
-			err = -EIO;
+			total++;
 
-		dnet_log(n, DNET_LOG_DSA, "%s: %ld.%ld: checking trans: %llu: fire_time: %ld.%ld (will fire: %d).\n",
-				dnet_dump_id(&t->cmd.id), ts.tv_sec, ts.tv_nsec,
-				(unsigned long long)t->trans,
-				t->fire_time.tv_sec, t->fire_time.tv_nsec,
-				!!dnet_time_after(&ts, &t->fire_time));
+			if (kill)
+				err = -EIO;
 
-		if (!err && !dnet_time_after(&ts, &t->fire_time))
+			dnet_log(n, DNET_LOG_DSA, "%s: %ld.%ld: checking trans: %llu: fire_time: %ld.%ld (will fire: %d).\n",
+					dnet_dump_id(&t->cmd.id), ts.tv_sec, ts.tv_nsec,
+					(unsigned long long)t->trans,
+					t->fire_time.tv_sec, t->fire_time.tv_nsec,
+					!!dnet_time_after(&ts, &t->fire_time));
+
+			if (err || dnet_time_after(&ts, &t->fire_time)) {
+				if (!err)
+					err = -ETIMEDOUT;
+				dnet_trans_remove_nolock(&n->trans_root, t);
+			}
+		}
+		dnet_lock_unlock(&n->trans_lock);
+
+		if (!err)
 			break;
-
-		if (dnet_time_after(&ts, &t->fire_time))
-			err = -ETIMEDOUT;
-		dnet_trans_remove_nolock(&n->trans_root, t);
 #if 0
 		dnet_log(n, DNET_LOG_ERROR, "%s: %ld.%ld: freeing trans: %llu: fire_time: %ld.%ld, err: %d.\n",
 				dnet_dump_id(&t->cmd.id), ts.tv_sec, ts.tv_nsec,
@@ -308,9 +312,7 @@ void dnet_check_tree(struct dnet_node *n, int kill)
 		dnet_trans_put(t);
 
 		error_count++;
-		node = next;
 	}
-	dnet_lock_unlock(&n->trans_lock);
 
 	if (total)
 		dnet_log(n, DNET_LOG_INFO, "Checked: %d, error: %d transactions.\n", total, error_count);
