@@ -2044,6 +2044,8 @@ int main()
 			goto err_continue;
 		}
 
+		dnet_log_raw(n, DNET_LOG_NOTICE, "query: '%s'\n", query);
+
 		if (dnet_fcgi_stat_log_pattern) {
 			if (!strcmp(query, dnet_fcgi_stat_log_pattern)) {
 				err = dnet_fcgi_stat_log(n);
