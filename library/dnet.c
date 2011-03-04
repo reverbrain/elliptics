@@ -1299,18 +1299,6 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 			dnet_log(n, DNET_LOG_ERROR, "Failed to write metadata for file '%s' into the storage, transactions: %d, err: %d.\n", file, trans_num, err);
 			goto err_out_close;
 		}
-
-		if (trans_num > 1 && !(ioflags & (DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE | DNET_IO_FLAGS_META))) {
-			struct dnet_id raw;
-
-			dnet_setup_id(&raw, ctl.id.group_id, ctl.io.parent);
-
-			err = dnet_create_write_metadata(n, &raw, remote, remote_len, n->groups, n->group_num);
-			if (err < 0) {
-				dnet_log(n, DNET_LOG_ERROR, "Failed to write history metadata for file '%s' into the storage, transactions: %d, err: %d.\n", file, trans_num, err);
-				goto err_out_close;
-			}
-		}
 	}
 
 	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
