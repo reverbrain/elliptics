@@ -420,6 +420,7 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 	int fd, err, size = 1024, i, num;
 	struct dnet_id id;
 	struct dnet_raw_id raw;
+	unsigned long long q = 100 * 1024 * 1024 * 1024ULL;
 	char *buf;
 
 	srand(time(NULL) + (unsigned long)n + (unsigned long)file + (unsigned long)&buf);
@@ -437,7 +438,7 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 		goto err_out_close;
 	}
 
-	num = storage_free / (100 * 1024 * 1024 * 1024) + 1;
+	num = storage_free / q + 1;
 	for (i=0; i<num; ++i) {
 		int r = rand();
 		memcpy(buf, &n->addr, sizeof(struct dnet_addr));
