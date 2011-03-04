@@ -166,24 +166,15 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 	return dnet_lookup_reply(orig, &raw, cmd->trans, aflags, &addr, err);
 }
 
-static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *send, struct dnet_id *id, uint64_t trans,
-		unsigned int command, int reply, int direct, int more)
+static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
+		struct dnet_id *id, uint64_t trans, unsigned int command, int reply, int direct, int more)
 {
-	struct dnet_node *n = orig->n;
-	void *buf;
+	struct dnet_node *n = st->n;
 	struct dnet_cmd *cmd;
 	struct dnet_attr *attr;
 	struct dnet_raw_id *sid;
 	struct dnet_addr_attr *addr;
-	int size = sizeof(struct dnet_addr_cmd) + orig->idc->id_num * sizeof(struct dnet_raw_id);
-	int err, i;
-
-	buf = malloc(size);
-	if (!buf) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-	memset(buf, 0, sizeof(struct dnet_addr_cmd));
+	int i;
 
 	cmd = buf;
 	attr = (struct dnet_attr *)(cmd + 1);
@@ -207,16 +198,34 @@ static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *sen
 	addr->sock_type = n->sock_type;
 	addr->family = n->family;
 	addr->proto = n->proto;
-	memcpy(&addr->addr, &orig->addr, sizeof(struct dnet_addr));
+	memcpy(&addr->addr, &st->addr, sizeof(struct dnet_addr));
 
-	for (i=0; i<orig->idc->id_num; ++i) {
-		memcpy(&sid[i], &orig->idc->ids[i].raw, sizeof(struct dnet_raw_id));
+	for (i=0; i<st->idc->id_num; ++i) {
+		memcpy(&sid[i], &st->idc->ids[i].raw, sizeof(struct dnet_raw_id));
 		dnet_convert_raw_id(&sid[i]);
 	}
 
-	dnet_log(n, DNET_LOG_DSA, "%s: sending address %s\n", dnet_dump_id(id), dnet_state_dump_addr(orig));
-
 	dnet_convert_addr_cmd(buf);
+}
+
+static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *send, struct dnet_id *id, uint64_t trans,
+		unsigned int command, int reply, int direct, int more)
+{
+	struct dnet_node *n = orig->n;
+	int size = sizeof(struct dnet_addr_cmd) + orig->idc->id_num * sizeof(struct dnet_raw_id);
+	void *buf;
+	int err;
+
+	buf = malloc(size);
+	if (!buf) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	memset(buf, 0, sizeof(struct dnet_addr_cmd));
+
+	dnet_send_idc_fill(orig, buf, size, id, trans, command, reply, direct, more);
+
+	dnet_log(n, DNET_LOG_DSA, "%s: sending address %s\n", dnet_dump_id(id), dnet_state_dump_addr(orig));
 
 	err = dnet_send(send, buf, size);
 
@@ -288,28 +297,54 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
+	void *buf, *orig_buf;
+	size_t size = 0, send_size = 0, sz;
 	int err;
 
 	pthread_rwlock_rdlock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			err = -1;
-
 			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
 				continue;
 
-			cmd->id.group_id = g->group_id;
-			err = dnet_send_idc(st, orig, &cmd->id, cmd->trans, DNET_CMD_ROUTE_LIST, 1, 0, 1);
-			if (err)
-				goto err_out_unlock;
+			size += st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd);
 		}
 	}
 	pthread_rwlock_unlock(&n->state_lock);
 
-	return 0;
+	orig_buf = buf = malloc(size);
+	if (!buf) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
 
-err_out_unlock:
+	pthread_rwlock_rdlock(&n->state_lock);
+	list_for_each_entry(g, &n->group_list, group_entry) {
+		list_for_each_entry(st, &g->state_list, state_entry) {
+			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
+				continue;
+
+			sz = st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd);
+			if (sz <= size) {
+				cmd->id.group_id = g->group_id;
+				dnet_send_idc_fill(st, buf, sz, &cmd->id, cmd->trans, DNET_CMD_ROUTE_LIST, 1, 0, 1);
+
+				size -= sz;
+				buf += sz;
+
+				send_size += sz;
+			}
+		}
+	}
 	pthread_rwlock_unlock(&n->state_lock);
+
+	err = dnet_send(orig, orig_buf, send_size);
+	if (err)
+		goto err_out_free;
+
+err_out_free:
+	free(orig_buf);
+err_out_exit:
 	return err;
 }
 
