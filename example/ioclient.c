@@ -65,6 +65,7 @@ static void dnet_usage(char *p)
 			" -O offset            - read/write offset in the file\n"
 			" -S size              - read/write transaction size\n"
 			" -u file              - unlink file\n"
+			" -N namespace         - use this namespace for operations\n"
 			, p);
 }
 
@@ -92,8 +93,12 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "g:u:O:S:m:zsH:L:w:l:c:I:r:W:R:h")) != -1) {
+	while ((ch = getopt(argc, argv, "N:g:u:O:S:m:zsH:L:w:l:c:I:r:W:R:h")) != -1) {
 		switch (ch) {
+			case 'N':
+				cfg.ns = optarg;
+				cfg.nsize = strlen(optarg);
+				break;
 			case 'u':
 				removef = optarg;
 				break;

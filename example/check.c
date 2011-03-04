@@ -187,8 +187,12 @@ int main(int argc, char *argv[])
 
 	memset(&r, 0, sizeof(r));
 
-	while ((ch = getopt(argc, argv, "f:n:t:FMm:w:l:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "N:f:n:t:FMm:w:l:r:h")) != -1) {
 		switch (ch) {
+			case 'N':
+				cfg.ns = optarg;
+				cfg.nsize = strlen(optarg);
+				break;
 			case 'f':
 				file = optarg;
 				break;

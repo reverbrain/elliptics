@@ -603,7 +603,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 				n->notify_hash_size);
 	}
 
-	err = dnet_crypto_init(n);
+	err = dnet_crypto_init(n, cfg->ns, cfg->nsize);
 	if (err)
 		goto err_out_free;
 

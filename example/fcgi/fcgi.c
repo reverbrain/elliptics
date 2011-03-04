@@ -58,6 +58,7 @@
 #define DNET_FCGI_STORAGE_BIT_NUM	8
 #define DNET_FCGI_ADDR_HEADER		"REMOTE_ADDR"
 #define DNET_FCGI_GROUPS_PATTERN	"groups="
+#define DNET_FCGI_NAMESPACE_PATTERN	"namespace="
 
 static long dnet_fcgi_timeout_sec = 10;
 
@@ -84,6 +85,9 @@ static int dnet_fcgi_group_num;
 static char *dnet_fcgi_groups_pattern = DNET_FCGI_GROUPS_PATTERN;
 static int dnet_fcgi_groups_pattern_len;
 static int dnet_fcgi_random_group_index = INT_MAX;
+
+static char *dnet_fcgi_namespace_pattern = DNET_FCGI_NAMESPACE_PATTERN;
+static int dnet_fcgi_namespace_pattern_len;
 
 static int dnet_fcgi_last_modified;
 
@@ -244,6 +248,10 @@ static int dnet_fcgi_fill_config(struct dnet_config *cfg)
 		cfg->log->log = dnet_syslog;
 		cfg->log->log_private = NULL;
 	}
+
+	cfg->ns = getenv("DNET_FCGI_NAMESPACE");
+	if (cfg->ns)
+		cfg->nsize = strlen(cfg->ns);
 
 	p = getenv("DNET_FCGI_NODE_LOG_MASK");
 	if (p)
@@ -1823,6 +1831,8 @@ int main()
 	struct dnet_id raw;
 	int *tmp_groups, tmp_group_num;
 	int *groups, group_num;
+	char *ns, *tmp_ns;
+	int tmp_nsize, nsize;
 
 	p = getenv("DNET_FCGI_LOG");
 	if (!p)
@@ -1848,6 +1858,11 @@ int main()
 		goto err_out_close;
 	}
 	dnet_fcgi_base_port = atoi(p);
+
+	p = getenv("DNET_FCGI_NAMESPACE_PATTERN");
+	if (p)
+		dnet_fcgi_namespace_pattern = p;
+	dnet_fcgi_namespace_pattern_len = strlen(dnet_fcgi_namespace_pattern);
 
 	dnet_fcgi_unlink_pattern = getenv("DNET_FCGI_UNLINK_PATTERN_URI");
 	dnet_fcgi_stat_pattern = getenv("DNET_FCGI_STAT_PATTERN_URI");
@@ -2023,6 +2038,9 @@ int main()
 		length = 0;
 		query = NULL;
 
+		tmp_nsize = nsize = 0;
+		ns = tmp_ns = NULL;
+
 		gettimeofday(&tstart, NULL);
 
 		err = -EINVAL;
@@ -2081,10 +2099,6 @@ int main()
 
 		length = end - obj;
 
-		dnet_transform(n, obj, length, &raw);
-		memcpy(dnet_fcgi_id, raw.id, DNET_ID_SIZE);
-		raw.group_id = 0;
-
 		version_str = strstr(query, version_pattern);
 		if (version_str) {
 			version_str += version_pattern_len;
@@ -2093,6 +2107,29 @@ int main()
 		}
 
 		embed_str = strstr(query, embed_pattern);
+
+		if (dnet_fcgi_namespace_pattern) {
+			tmp_ns = dnet_node_get_ns(n, &tmp_nsize);
+
+			ns = strstr(query, dnet_fcgi_namespace_pattern);
+			if (ns) {
+				ns += dnet_fcgi_namespace_pattern_len;
+				if (ns && *ns) {
+					char *end = strchr(ns, '&');
+
+					if (end)
+						nsize = end - ns;
+					else
+						nsize = strlen(ns);
+
+					dnet_node_set_ns(n, ns, nsize);
+				}
+			}
+		}
+
+		dnet_transform(n, obj, length, &raw);
+		memcpy(dnet_fcgi_id, raw.id, DNET_ID_SIZE);
+		raw.group_id = 0;
 
 		if (dnet_fcgi_groups_pattern) {
 			tmp_groups = dnet_fcgi_groups;
@@ -2156,8 +2193,8 @@ int main()
 				ts.tv_nsec = tv.tv_usec * 1000;
 			}
 
-			dnet_log_raw(n, DNET_LOG_INFO, "%s: obj: '%s', len: %d, v: %d, ts: %lu.%lu, embed: %d, region: %d, append: %d.\n",
-					dnet_dump_id(&raw), obj, length, version, ts.tv_sec, ts.tv_nsec, !!embed_str, dnet_fcgi_region, append);
+			dnet_log_raw(n, DNET_LOG_INFO, "%s: obj: '%s', len: %d, ns: '%s'/%d, v: %d, ts: %lu.%lu, embed: %d, region: %d, append: %d.\n",
+					dnet_dump_id(&raw), obj, length, ns ? ns : "", nsize, version, ts.tv_sec, ts.tv_nsec, !!embed_str, dnet_fcgi_region, append);
 
 			err = dnet_fcgi_handle_post(n, obj, length, &raw, version, &ts, !!embed_str, append);
 			if (err) {
@@ -2182,8 +2219,8 @@ int main()
 					multiple = atoi(multiple_str);
 			}
 
-			dnet_log_raw(n, DNET_LOG_INFO, "%s: obj: '%s', len: %d, v: %d, embed: %d, region: %d, mult: %d.\n",
-					dnet_dump_id(&raw), obj, length, version, !!embed_str, dnet_fcgi_region, multiple);
+			dnet_log_raw(n, DNET_LOG_INFO, "%s: obj: '%s', len: %d, ns: '%s'/%d, v: %d, embed: %d, region: %d, mult: %d.\n",
+					dnet_dump_id(&raw), obj, length, ns ? ns : "", nsize, version, !!embed_str, dnet_fcgi_region, multiple);
 			err = dnet_fcgi_handle_get(n, query, obj, length, &raw, version, !!embed_str, multiple);
 			if (err) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: Failed to handle GET for object '%s': %d.\n", addr, obj, err);
@@ -2200,6 +2237,9 @@ cont:
 
 			free(groups);
 		}
+		if (tmp_ns && tmp_nsize)
+			dnet_node_set_ns(n, tmp_ns, tmp_nsize);
+
 		dnet_fcgi_region = -1;
 		if (dnet_fcgi_external_callback_stop)
 			dnet_fcgi_external_stop(n, query, addr, obj, length);
@@ -2212,8 +2252,8 @@ cont:
 			iodiff = (dnet_fcgi_read_time.tv_sec - tstart.tv_sec) * 1000000 + dnet_fcgi_read_time.tv_usec - tstart.tv_usec;
 		}
 
-		dnet_log_raw(n, DNET_LOG_INFO, "%s: completed: obj: '%s', len: %d, v: %d, embed: %d, region: %d, err: %d, total time: %lu usecs, read io time: %ld usecs.\n",
-					dnet_dump_id(&raw), obj, length, version, !!embed_str, dnet_fcgi_region, err, tdiff, iodiff);
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: completed: obj: '%s', len: %d, ns: '%s'/%d, v: %d, embed: %d, region: %d, err: %d, total time: %lu usecs, read io time: %ld usecs.\n",
+					dnet_dump_id(&raw), obj, length, ns ? ns : "", nsize, version, !!embed_str, dnet_fcgi_region, err, tdiff, iodiff);
 
 		FCGX_Finish_r(&dnet_fcgi_request);
 		continue;

@@ -247,7 +247,7 @@ struct dnet_transform
 					void *dst, unsigned int *dsize, unsigned int flags);
 };
 
-int dnet_crypto_init(struct dnet_node *n);
+int dnet_crypto_init(struct dnet_node *n, void *ns, int nsize);
 void dnet_crypto_cleanup(struct dnet_node *n);
 
 struct dnet_node

@@ -1137,6 +1137,8 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 	struct dnet_id raw;
 	int err, num;
 
+	memset(&raw, 0, sizeof(struct dnet_id));
+
 	if (id) {
 		memcpy(ctl->io.parent, id->id, DNET_ID_SIZE);
 	} else {
@@ -1260,11 +1262,6 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 	ctl.fd = fd;
 	ctl.local_offset = local_offset;
 
-	dnet_log(n, DNET_LOG_DSA, "data: %p, ctl.data: %p, local offset: %llu/%llu, remote offset: %llu, size: %llu/%llu\n",
-			data, ctl.data, (unsigned long long)local_offset, (unsigned long long)off,
-			(unsigned long long)offset,
-			(unsigned long long)size, (unsigned long long)ALIGN(size, page_size));
-
 	ctl.complete = dnet_write_complete;
 	ctl.priv = w;
 
@@ -1275,6 +1272,11 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 	ctl.io.flags = ioflags;
 	ctl.io.size = size;
 	ctl.io.offset = offset;
+
+	dnet_log(n, DNET_LOG_DSA, "data: %p, ctl.data: %p, local offset: %llu/%llu, remote offset: %llu, size: %llu/%llu\n",
+			data, ctl.data, (unsigned long long)local_offset, (unsigned long long)off,
+			(unsigned long long)offset,
+			(unsigned long long)size, (unsigned long long)ALIGN(size, page_size));
 
 	trans_num = dnet_write_object(n, &ctl, remote, remote_len, id,
 			!(ioflags & (DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE | DNET_IO_FLAGS_META)));
@@ -2919,7 +2921,7 @@ int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
 				dnet_dump_id(&ctl.id), err, w->status);
 	}
 
-	if (!err && !trans_num) {
+	if (err || !trans_num) {
 		err = -EINVAL;
 		dnet_log(n, DNET_LOG_ERROR, "Failed to write data into the storage, err: %d, trans_num: %d.\n", err, trans_num);
 		goto err_out_put;

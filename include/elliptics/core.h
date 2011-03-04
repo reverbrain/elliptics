@@ -28,8 +28,6 @@
 #endif
 #define DNET_MAX_NAME_LEN	64
 
-#define DNET_CRYPTO_HASH	"sha512"
-
 /*
  * Each read transaction reply is being split into
  * chunks of this bytes max, thus reading transaction

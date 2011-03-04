@@ -337,10 +337,12 @@ struct dnet_config
 	/* Monitor unix socket */
 	char			monitor_path[128];
 
-	/*
-	 * BerkeleyDB history file.
-	 */
+	/* Metadata directory path. */
 	char			history_env[1024];
+
+	/* Namespace */
+	char			*ns;
+	int			nsize;
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);
@@ -797,6 +799,9 @@ static inline void dnet_convert_check_request(struct dnet_check_request *r)
 }
 
 int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r);
+
+void *dnet_node_get_ns(struct dnet_node *n, int *nsize);
+void dnet_node_set_ns(struct dnet_node *n, void *ns, int nsize);
 
 #ifdef __cplusplus
 }

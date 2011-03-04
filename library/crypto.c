@@ -27,14 +27,13 @@
 #include "elliptics.h"
 #include "elliptics/interface.h"
 
-static int dnet_openssl_initialized = 0;
-static pthread_mutex_t dnet_openssl_lock = PTHREAD_MUTEX_INITIALIZER;
-
 struct dnet_openssl_crypto_engine
 {
 	EVP_MD_CTX 		mdctx;
 	const EVP_MD		*evp_md;
 	struct dnet_lock	lock;
+	void			*ns;
+	int			nsize;
 };
 
 static void dnet_transform_final(void *dst, void *src, unsigned int *rsize, unsigned int rs)
@@ -57,6 +56,8 @@ static int dnet_openssl_digest_transform(void *priv, void *src, uint64_t size,
 
 	dnet_lock_lock(&e->lock);
 	EVP_DigestInit_ex(&e->mdctx, e->evp_md, NULL);
+	if (e->nsize)
+		EVP_DigestUpdate(&e->mdctx, e->ns, e->nsize);
 	EVP_DigestUpdate(&e->mdctx, src, size);
 	EVP_DigestFinal_ex(&e->mdctx, md_value, dsize);
 	dnet_lock_unlock(&e->lock);
@@ -76,27 +77,24 @@ void dnet_crypto_cleanup(struct dnet_node *n)
 	free(e);
 }
 
-int dnet_crypto_init(struct dnet_node *n)
+int dnet_crypto_init(struct dnet_node *n, void *ns, int nsize)
 {
 	struct dnet_openssl_crypto_engine *e;
 	struct dnet_transform *t = &n->transform;
-	char *hash = DNET_CRYPTO_HASH;
+	char *hash = "sha512";
 	int err = -ENOMEM;
 
-	if (!dnet_openssl_initialized) {
-		pthread_mutex_lock(&dnet_openssl_lock);
-	 	OpenSSL_add_all_digests();
-		dnet_openssl_initialized = 1;
-		pthread_mutex_unlock(&dnet_openssl_lock);
-	}
-
-	e = malloc(sizeof(struct dnet_openssl_crypto_engine));
+	e = malloc(sizeof(struct dnet_openssl_crypto_engine) + nsize);
 	if (!e)
 		goto err_out_exit;
 
 	memset(e, 0, sizeof(struct dnet_openssl_crypto_engine));
+	e->ns = e + 1;
 
-	e->evp_md = EVP_get_digestbyname(hash);
+	memcpy(e->ns, ns, nsize);
+	e->nsize = nsize;
+
+	e->evp_md = EVP_sha512();
 	if (!e->evp_md) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to find algorithm '%s' implementation.\n", hash);
 		goto err_out_free;
@@ -119,4 +117,22 @@ err_out_free:
 	free(e);
 err_out_exit:
 	return err;
+}
+
+void *dnet_node_get_ns(struct dnet_node *n, int *nsize)
+{
+	struct dnet_transform *t = &n->transform;
+	struct dnet_openssl_crypto_engine *e = t->priv;
+
+	*nsize = e->nsize;
+	return e->ns;
+}
+
+void dnet_node_set_ns(struct dnet_node *n, void *ns, int nsize)
+{
+	struct dnet_transform *t = &n->transform;
+	struct dnet_openssl_crypto_engine *e = t->priv;
+
+	e->ns = ns;
+	e->nsize = nsize;
 }
