@@ -1,3 +1,9 @@
+elliptics (2.9.6.44) unstable; urgency=low
+
+  * Fill raw ID with zeroes before using it for logs.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 05 Mar 2011 18:52:28 +0300
+
 elliptics (2.9.6.43) unstable; urgency=low
 
   * Added 0-byte at the end of namespace string to guard it against complex
