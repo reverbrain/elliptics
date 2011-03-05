@@ -1,3 +1,10 @@
+elliptics (2.9.6.43) unstable; urgency=low
+
+  * Added 0-byte at the end of namespace string to guard it against complex
+    object names.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 05 Mar 2011 14:46:09 +0300
+
 elliptics (2.9.6.42) unstable; urgency=low
 
   * Use mutex instead of rwlock for state lock. RW lock may lead to starvation
