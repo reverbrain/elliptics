@@ -107,7 +107,8 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *ob
 	struct dnet_meta_container *mc;
 	struct dnet_meta_check_status *c;
 	struct dnet_meta *m;
-	int size = 0, err;
+	int size = 0, err, nsize = 0;
+	void *ns;
 
 	size += sizeof(struct dnet_meta_check_status) + sizeof(struct dnet_meta);
 
@@ -121,6 +122,10 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *ob
 		group_num = n->group_num;
 		size += group_num * sizeof(int) + sizeof(struct dnet_meta);
 	}
+
+	ns = dnet_node_get_ns(n, &nsize);
+	if (ns && nsize)
+		size += nsize + sizeof(struct dnet_meta);
 
 	if (!size) {
 		err = -EINVAL;
@@ -157,6 +162,14 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *ob
 		m->size = group_num * sizeof(int);
 		m->type = DNET_META_GROUPS;
 		memcpy(m->data, groups, group_num * sizeof(int));
+
+		m = (struct dnet_meta *)(m->data + m->size);
+	}
+
+	if (ns && nsize) {
+		m->size = nsize;
+		m->type = DNET_META_NAMESPACE;
+		memcpy(m->data, ns, nsize);
 
 		m = (struct dnet_meta *)(m->data + m->size);
 	}

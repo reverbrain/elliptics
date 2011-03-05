@@ -694,6 +694,7 @@ enum dnet_meta_types {
 	DNET_META_PARENT_OBJECT = 1,	/* parent object name */
 	DNET_META_GROUPS,		/* this object has copies in given groups */
 	DNET_META_CHECK_STATUS,		/* last checking status: timestamp and so on */
+	DNET_META_NAMESPACE,		/* namespace where given object lives */
 };
 
 struct dnet_meta
