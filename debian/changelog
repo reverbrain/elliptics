@@ -1,3 +1,9 @@
+elliptics (2.9.6.40) unstable; urgency=low
+
+  * Added namespace support
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 05 Mar 2011 03:02:13 +0300
+
 elliptics (2.9.6.39) unstable; urgency=low
 
   * Allocate buffer for route table and do not lock states during send.
