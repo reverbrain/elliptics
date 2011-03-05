@@ -279,9 +279,9 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	for (i=0; i<num; ++i)
 		dnet_convert_raw_id(&ids[0]);
 
-	pthread_rwlock_wrlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	list_del_init(&st->state_entry);
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 
 	memcpy(&st->addr, &a->addr, sizeof(struct dnet_addr));
 	err = dnet_idc_create(st, cmd->id.group_id, ids, num);
@@ -301,7 +301,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	size_t size = 0, send_size = 0, sz;
 	int err;
 
-	pthread_rwlock_rdlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
 			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
@@ -310,7 +310,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 			size += st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd);
 		}
 	}
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 
 	orig_buf = buf = malloc(size);
 	if (!buf) {
@@ -318,7 +318,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 		goto err_out_exit;
 	}
 
-	pthread_rwlock_rdlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
 			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
@@ -336,7 +336,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 			}
 		}
 	}
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 
 	err = dnet_send(orig, orig_buf, send_size);
 	if (err)
@@ -430,7 +430,7 @@ static int dnet_cmd_stat_count(struct dnet_net_state *orig, struct dnet_cmd *cmd
 		goto err_out_exit;
 	}
 
-	pthread_rwlock_rdlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 #if 0
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		err = dnet_cmd_stat_count_single(orig, cmd, st, as);
@@ -445,7 +445,7 @@ static int dnet_cmd_stat_count(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	}
 
 err_out_unlock:
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 err_out_exit:
 	return err;
 }
@@ -802,7 +802,7 @@ int dnet_join(struct dnet_node *n)
 		return -EINVAL;
 	}
 
-	pthread_rwlock_rdlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
 			if (st == n->st)
@@ -811,7 +811,7 @@ int dnet_join(struct dnet_node *n)
 			err = dnet_state_join(st);
 		}
 	}
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 
 	return err;
 }
@@ -2092,7 +2092,7 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, char *cmd)
 	} else {
 		struct dnet_group *g;
 
-		pthread_rwlock_rdlock(&n->state_lock);
+		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(g, &n->group_list, group_entry) {
 			list_for_each_entry(st, &g->state_list, state_entry) {
 				if (st == n->st)
@@ -2104,7 +2104,7 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, char *cmd)
 				num++;
 			}
 		}
-		pthread_rwlock_unlock(&n->state_lock);
+		pthread_mutex_unlock(&n->state_lock);
 	}
 
 	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
@@ -2471,7 +2471,7 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
 		struct dnet_net_state *st;
 		struct dnet_group *g;
 
-		pthread_rwlock_rdlock(&n->state_lock);
+		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(g, &n->group_list, group_entry) {
 			list_for_each_entry(st, &g->state_list, state_entry) {
 				struct dnet_id raw;
@@ -2487,7 +2487,7 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
 				num++;
 			}
 		}
-		pthread_rwlock_unlock(&n->state_lock);
+		pthread_mutex_unlock(&n->state_lock);
 	}
 
 	if (!w)
@@ -3000,7 +3000,7 @@ err_out_unlock_group:
 	if (!group_num) {
 		int pos = 0;
 
-		pthread_rwlock_rdlock(&n->state_lock);
+		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(g, &n->group_list, group_entry)
 			group_num++;
 
@@ -3015,7 +3015,7 @@ err_out_unlock_group:
 			pos++;
 		}
 err_out_unlock_state:
-		pthread_rwlock_unlock(&n->state_lock);
+		pthread_mutex_unlock(&n->state_lock);
 		if (err)
 			goto err_out_exit;
 	}

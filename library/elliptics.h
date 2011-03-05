@@ -269,7 +269,7 @@ struct dnet_node
 	struct dnet_addr	addr;
 	int			sock_type, proto, family;
 
-	pthread_rwlock_t	state_lock;
+	pthread_mutex_t		state_lock;
 	struct list_head	group_list;
 	struct list_head	empty_state_list;
 

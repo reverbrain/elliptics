@@ -46,7 +46,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	if (err)
 		goto err_out_free;
 
-	err = pthread_rwlock_init(&n->state_lock, NULL);
+	err = pthread_mutex_init(&n->state_lock, NULL);
 	if (err) {
 		dnet_log_err(n, "Failed to initialize state lock: err: %d", err);
 		goto err_out_free;
@@ -111,7 +111,7 @@ err_out_destroy_wait:
 err_out_destroy_trans:
 	dnet_lock_destroy(&n->trans_lock);
 err_out_destroy_state:
-	pthread_rwlock_destroy(&n->state_lock);
+	pthread_mutex_destroy(&n->state_lock);
 err_out_free:
 	free(n);
 	return NULL;
@@ -190,7 +190,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 		sid->idc = idc;
 	}
 
-	pthread_rwlock_wrlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 
 	g = dnet_group_search(n, group_id);
 	if (!g) {
@@ -232,7 +232,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 		}
 	}
 
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 
 	dnet_log(n, DNET_LOG_DSA, "Initialized group %d with %d ids, added %d ids out of %d.\n", g->group_id, g->id_num, num, id_num);
 
@@ -245,7 +245,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	return 0;
 
 err_out_unlock:
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 err_out_free:
 	free(idc);
 err_out_exit:
@@ -344,7 +344,7 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	struct dnet_net_state *st, *found = NULL;
 	struct dnet_group *g;
 
-	pthread_rwlock_rdlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
 			if (!memcmp(addr, &st->addr, sizeof(struct dnet_addr))) {
@@ -357,7 +357,7 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 			break;
 		}
 	}
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 
 	return found;
 }
@@ -366,9 +366,9 @@ struct dnet_net_state *dnet_state_search(struct dnet_node *n, struct dnet_id *id
 {
 	struct dnet_net_state *st;
 
-	pthread_rwlock_rdlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	st = __dnet_state_search(n, id);
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 
 	return st;
 }
@@ -378,7 +378,7 @@ int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_st
 	struct dnet_state_id *sid;
 	int err = -ENOENT;
 
-	pthread_rwlock_rdlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	sid = __dnet_state_search_id(n, id);
 	if (sid) {
 		err = 0;
@@ -388,7 +388,7 @@ int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_st
 			memcpy(addr, &sid->idc->st->addr, sizeof(struct dnet_addr));
 		}
 	}
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 
 	return err;
 }
@@ -397,7 +397,7 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id 
 {
 	struct dnet_net_state *found;
 
-	pthread_rwlock_rdlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	found = __dnet_state_search(n, id);
 	if (!found) {
 		struct dnet_group *g;
@@ -411,7 +411,7 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id 
 	}
 
 err_out_unlock:
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 	return found;
 }
 
@@ -699,7 +699,7 @@ void dnet_node_destroy(struct dnet_node *n)
 
 	pthread_attr_destroy(&n->attr);
 
-	pthread_rwlock_destroy(&n->state_lock);
+	pthread_mutex_destroy(&n->state_lock);
 	dnet_lock_destroy(&n->trans_lock);
 	dnet_crypto_cleanup(n);
 

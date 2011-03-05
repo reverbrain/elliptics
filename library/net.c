@@ -691,9 +691,9 @@ static void dnet_state_remove(struct dnet_net_state *st)
 {
 	struct dnet_node *n = st->n;
 
-	pthread_rwlock_wrlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	list_del_init(&st->state_entry);
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 }
 
 void dnet_state_reset(struct dnet_net_state *st)
@@ -821,9 +821,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		if (err)
 			goto err_out_send_destroy;
 	} else {
-		pthread_rwlock_wrlock(&n->state_lock);
+		pthread_mutex_lock(&n->state_lock);
 		list_add_tail(&st->state_entry, &n->empty_state_list);
-		pthread_rwlock_unlock(&n->state_lock);
+		pthread_mutex_unlock(&n->state_lock);
 	}
 
 	err = pthread_create(&st->tid, &n->attr, func, st);
@@ -850,12 +850,12 @@ int dnet_state_num(struct dnet_node *n)
 	struct dnet_group *g;
 	int num = 0;
 
-	pthread_rwlock_rdlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry)
 			num++;
 	}
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 
 	return num;
 }
@@ -869,9 +869,9 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	if (st->s >= 0)
 		close(st->s);
 
-	pthread_rwlock_wrlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	dnet_idc_destroy(st);
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 
 	dnet_log(st->n, DNET_LOG_DSA, "Freeing state %s, socket: %d.\n",
 		dnet_server_convert_dnet_addr(&st->addr), st->s);

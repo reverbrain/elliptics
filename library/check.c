@@ -554,7 +554,7 @@ int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r)
 		goto err_out_exit;
 	}
 
-	pthread_rwlock_rdlock(&n->state_lock);
+	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
 			struct dnet_id raw;
@@ -569,7 +569,7 @@ int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r)
 			num++;
 		}
 	}
-	pthread_rwlock_unlock(&n->state_lock);
+	pthread_mutex_unlock(&n->state_lock);
 
 	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
 	if (err)
