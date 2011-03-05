@@ -56,8 +56,11 @@ static int dnet_openssl_digest_transform(void *priv, void *src, uint64_t size,
 
 	dnet_lock_lock(&e->lock);
 	EVP_DigestInit_ex(&e->mdctx, e->evp_md, NULL);
-	if (e->nsize)
+	if (e->nsize) {
+		char x = '\0';
 		EVP_DigestUpdate(&e->mdctx, e->ns, e->nsize);
+		EVP_DigestUpdate(&e->mdctx, &x, 1);
+	}
 	EVP_DigestUpdate(&e->mdctx, src, size);
 	EVP_DigestFinal_ex(&e->mdctx, md_value, dsize);
 	dnet_lock_unlock(&e->lock);
