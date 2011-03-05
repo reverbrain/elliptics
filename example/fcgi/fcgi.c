@@ -2041,6 +2041,8 @@ int main()
 		tmp_nsize = nsize = 0;
 		ns = tmp_ns = NULL;
 
+		memset(&raw, 0, sizeof(raw));
+
 		gettimeofday(&tstart, NULL);
 
 		err = -EINVAL;
