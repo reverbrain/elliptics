@@ -1,3 +1,11 @@
+elliptics (2.9.6.45) unstable; urgency=low
+
+  * git commit -a -m "Added dnet_ids app to update ids file if underlying
+    storage device size was changed. Generates one ID per 100 Gb, older
+    elliptics versions used one ID per 1 Gb!"
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 06 Mar 2011 03:40:04 +0300
+
 elliptics (2.9.6.44) unstable; urgency=low
 
   * Fill raw ID with zeroes before using it for logs.
