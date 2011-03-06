@@ -1,3 +1,9 @@
+elliptics (2.9.6.46) unstable; urgency=low
+
+  * Forget to add -i switch into getopt() loop.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 06 Mar 2011 04:05:24 +0300
+
 elliptics (2.9.6.45) unstable; urgency=low
 
   * git commit -a -m "Added dnet_ids app to update ids file if underlying
