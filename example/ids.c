@@ -29,7 +29,7 @@
 
 static void ids_usage(char *p)
 {
-	fprintf(stderr, "Usage: %s <options>"
+	fprintf(stderr, "Usage: %s <options>\n"
 			"  -i file                   - ids file\n"
 			"  -r file                   - random file\n"
 			"  -d dir                    - storage dir path\n"
@@ -150,6 +150,9 @@ int main(int argc, char *argv[])
 
 	while ((ch = getopt(argc, argv, "i:r:d:th")) != -1) {
 		switch (ch) {
+			case 'i':
+				ids = optarg;
+				break;
 			case 'r':
 				random = optarg;
 				break;
