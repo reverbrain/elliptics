@@ -1,4 +1,4 @@
-bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check
+bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check dnet_ids
 noinst_LIBRARIES = libcommon.a libbackend.a
 noinst_HEADERS = backends.h common.h hash.h
 SUBDIRS = .
@@ -6,12 +6,17 @@ SUBDIRS = .
 
 CC = @PTHREAD_CC@
 
+AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@
+AM_LDFLAGS = @PTHREAD_LIBS@
+
 EXAMPLE_COMMON_LIBS = ../library/libelliptics.la libcommon.a
 
 libcommon_a_SOURCES = common.c hash.c
 libbackend_a_SOURCES = file_backend.c backends.c
 
 if HAVE_EBLOB
+AM_CFLAGS += @EBLOB_CFLAGS@
+AM_LDFLAGS += @EBLOB_LIBS@
 libbackend_a_SOURCES += eblob_backend.c 
 endif
 
@@ -38,11 +43,10 @@ dnet_monitor_LDADD = $(EXAMPLE_COMMON_LIBS)
 dnet_notify_SOURCES = notify.c
 dnet_notify_LDADD = $(EXAMPLE_COMMON_LIBS)
 
+dnet_ids_SOURCES = ids.c
+
 if HAVE_FASTCGI
 SUBDIRS += fcgi
 endif
-
-AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
-AM_LDFLAGS = @PTHREAD_LIBS@ @EBLOB_LIBS@
 
 EXTRA_DIST = EXAMPLE 00-INDEX ioserv.conf
