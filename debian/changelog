@@ -1,3 +1,11 @@
+elliptics (2.9.6.48) unstable; urgency=low
+
+  * Switched to new transaction tracking system based on POSIX timers
+  * Command processing log cleanups
+  * Added monitor mode
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 10 Mar 2011 01:03:58 +0300
+
 elliptics (2.9.6.47) unstable; urgency=low
 
   * Do not remove object from storage when we failed to read its local copy.
