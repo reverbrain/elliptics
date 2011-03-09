@@ -87,16 +87,50 @@ static int dnet_trans_insert_raw(struct rb_root *root, struct dnet_trans *a)
 	return 0;
 }
 
-int dnet_trans_insert(struct dnet_trans *t)
+int dnet_trans_timer_setup(struct dnet_trans *t)
 {
-	struct dnet_node *n = t->st->n;
+	long timeout = (t->st && t->st->n) ? t->st->n->check_timeout : 60;
+	struct itimerspec its;
 	int err;
 
-	dnet_lock_lock(&n->trans_lock);
-	t->rcv_trans = t->trans = (n->trans++) & ~DNET_TRANS_REPLY;
-	err = dnet_trans_insert_raw(&n->trans_root, t);
-	dnet_lock_unlock(&n->trans_lock);
+	its.it_value.tv_sec = timeout;
+	its.it_value.tv_nsec = 0;
 
+	its.it_interval.tv_sec = its.it_interval.tv_nsec = 0;
+
+	err = timer_settime(t->timerid, 0, &its, NULL);
+	if (err == -1) {
+		err = -errno;
+		if (t->st && t->st->n)
+			dnet_log_err(t->st->n, "failed to setup timer for trans: %llu", (unsigned long long)t->trans);
+	}
+
+	return err;
+}
+
+int dnet_trans_insert(struct dnet_trans *t)
+{
+	struct dnet_net_state *st = t->st;
+	int err;
+
+	t->rcv_trans = t->trans = atomic_inc(&st->n->trans) & ~DNET_TRANS_REPLY;
+
+	dnet_lock_lock(&st->trans_lock);
+	err = dnet_trans_insert_raw(&st->trans_root, t);
+	dnet_lock_unlock(&st->trans_lock);
+
+	if (err)
+		goto err_out_exit;
+
+	err = dnet_trans_timer_setup(t);
+	if (err)
+		goto err_out_remove;
+
+	return 0;
+
+err_out_remove:
+	dnet_trans_remove(t);
+err_out_exit:
 	return err;
 }
 
@@ -117,51 +151,83 @@ void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t)
 
 void dnet_trans_remove(struct dnet_trans *t)
 {
-	struct dnet_node *n = t->st->n;
+	struct dnet_net_state *st = t->st;
 
-	dnet_lock_lock(&n->trans_lock);
-	dnet_trans_remove_nolock(&n->trans_root, t);
-	dnet_lock_unlock(&n->trans_lock);
+	dnet_lock_lock(&st->trans_lock);
+	dnet_trans_remove_nolock(&st->trans_root, t);
+	dnet_lock_unlock(&st->trans_lock);
+}
+
+static void dnet_trans_timer_notify(union sigval sv)
+{
+	struct dnet_trans *t = sv.sival_ptr;
+
+	dnet_log(t->st->n, DNET_LOG_ERROR, "%s: trans: %llu, st: %s: TIMEOUT ERROR\n",
+			dnet_dump_id(&t->cmd.id), (unsigned long long)t->trans, dnet_state_dump_addr(t->st));
+	dnet_trans_put(t);
 }
 
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size)
 {
 	struct dnet_trans *t;
-	struct timeval tv;
+	struct sigevent sev;
+	int err;
 
 	t = malloc(sizeof(struct dnet_trans) + size);
-	if (!t)
-		return NULL;
-	memset(t, 0, sizeof(struct dnet_trans) + size);
+	if (!t) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
 
-	gettimeofday(&tv, NULL);
+	memset(t, 0, sizeof(struct dnet_trans) + size);
 
 	atomic_init(&t->refcnt, 1);
 
-	t->fire_time.tv_sec = tv.tv_sec + n->check_timeout;
-	t->fire_time.tv_nsec = tv.tv_usec * 1000;
+	memset(&sev, 0, sizeof(sev));
+	sev.sigev_notify = SIGEV_THREAD;
+	sev.sigev_value.sival_ptr = t;
+	sev.sigev_notify_function = dnet_trans_timer_notify;
+
+	err = timer_create(CLOCK_MONOTONIC, &sev, &t->timerid);
+	if (err == -1) {
+		err = -errno;
+		dnet_log_err(n, "failed to create realtime clock");
+		goto err_out_free;
+	}
 
 	return t;
+
+err_out_free:
+	free(t);
+err_out_exit:
+	return NULL;
 }
 
 void dnet_trans_destroy(struct dnet_trans *t)
 {
-	if (t) {
-		if (t->st && t->st->n)
-			dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, st: %p, data: %p.\n",
-				dnet_dump_id(&t->cmd.id),
-				(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
-				!!(t->trans & ~DNET_TRANS_REPLY),
-				t->st, t->data);
+	struct itimerspec its;
+	if (!t)
+		return;
 
-		if (t->trans_entry.rb_parent_color && t->st && t->st->n)
-			dnet_trans_remove(t);
+	if (t->st && t->st->n)
+		dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, st: %p, data: %p.\n",
+			dnet_dump_id(&t->cmd.id),
+			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
+			!!(t->trans & ~DNET_TRANS_REPLY),
+			t->st, t->data);
 
-		dnet_state_put(t->st);
-		free(t->data);
+	if (t->trans_entry.rb_parent_color && t->st && t->st->n)
+		dnet_trans_remove(t);
 
-		free(t);
-	}
+	dnet_state_put(t->st);
+	free(t->data);
+
+	its.it_interval.tv_sec = its.it_interval.tv_nsec = 0;
+	its.it_value.tv_sec = its.it_value.tv_nsec = 0;
+
+	timer_delete(t->timerid);
+
+	free(t);
 }
 
 int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_control *ctl)
@@ -200,7 +266,6 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 		memcpy(a + 1, ctl->data, ctl->size);
 
 	t->st = dnet_state_get(st);
-
 	err = dnet_trans_insert(t);
 	if (err)
 		goto err_out_destroy;
@@ -243,79 +308,6 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
 
 err_out_exit:
 	return err;
-}
-
-void dnet_check_tree(struct dnet_node *n, int kill)
-{
-	struct dnet_trans *t;
-	struct timespec ts;
-	struct timeval tv;
-	struct rb_node *node;
-	int total = 0, error_count = 0;
-
-	dnet_try_reconnect(n);
-
-	gettimeofday(&tv, NULL);
-
-	ts.tv_sec = tv.tv_sec;
-	ts.tv_nsec = tv.tv_usec * 1000;
-
-	while (1) {
-		int err = 0;
-
-		dnet_lock_lock(&n->trans_lock);
-		node = rb_first(&n->trans_root);
-
-		if (node) {
-			t = rb_entry(node, struct dnet_trans, trans_entry);
-
-			total++;
-
-			if (kill)
-				err = -EIO;
-
-			dnet_log(n, DNET_LOG_DSA, "%s: %ld.%ld: checking trans: %llu: fire_time: %ld.%ld (will fire: %d).\n",
-					dnet_dump_id(&t->cmd.id), ts.tv_sec, ts.tv_nsec,
-					(unsigned long long)t->trans,
-					t->fire_time.tv_sec, t->fire_time.tv_nsec,
-					!!dnet_time_after(&ts, &t->fire_time));
-
-			if (err || dnet_time_after(&ts, &t->fire_time)) {
-				if (!err)
-					err = -ETIMEDOUT;
-				dnet_trans_remove_nolock(&n->trans_root, t);
-			}
-		}
-		dnet_lock_unlock(&n->trans_lock);
-
-		if (!err)
-			break;
-#if 0
-		dnet_log(n, DNET_LOG_ERROR, "%s: %ld.%ld: freeing trans: %llu: fire_time: %ld.%ld, err: %d.\n",
-				dnet_dump_id(&t->cmd.id), ts.tv_sec, ts.tv_nsec,
-				(unsigned long long)t->trans,
-				t->fire_time.tv_sec, t->fire_time.tv_nsec, err);
-#endif
-		t->cmd.status = err;
-		t->cmd.size = 0;
-
-		if (t->complete)
-			t->complete(n->st, &t->cmd, NULL, t->priv);
-
-		if (t->st) {
-			dnet_log(n, DNET_LOG_ERROR, "Removing state %s on check error: %d\n",
-					dnet_state_dump_addr(t->st), err);
-			dnet_state_get(t->st);
-			dnet_state_reset(t->st);
-		}
-
-		dnet_trans_put(t);
-
-		error_count++;
-	}
-
-	if (total)
-		dnet_log(n, DNET_LOG_INFO, "Checked: %d, error: %d transactions.\n", total, error_count);
 }
 
 static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd *cmd,
@@ -370,7 +362,8 @@ static void *dnet_check_tree_from_thread(void *data)
 
 	while (!n->need_exit) {
 		gettimeofday(&tv1, NULL);
-		dnet_check_tree(n, 0);
+
+		dnet_try_reconnect(n);
 
 		dnet_request_stat(n, NULL, DNET_CMD_STAT, dnet_check_stat_complete, NULL);
 

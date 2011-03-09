@@ -160,6 +160,35 @@ err_out_exit:
 	return err;
 }
 
+static void dnet_state_clean(struct dnet_net_state *st)
+{
+	struct rb_node *rb_node;
+	struct dnet_trans *t;
+
+	dnet_log(st->n, DNET_LOG_INFO, "Cleaning state %s\n", dnet_state_dump_addr(st));
+
+	while (1) {
+		t = NULL;
+
+		dnet_lock_lock(&st->trans_lock);
+		rb_node = rb_first(&st->trans_root);
+		if (rb_node) {
+			t = rb_entry(rb_node, struct dnet_trans, trans_entry);
+			dnet_trans_get(t);
+		}
+		dnet_lock_unlock(&st->trans_lock);
+
+		if (!t)
+			break;
+
+		if (t->complete)
+			t->complete(NULL, NULL, NULL, t->priv);
+
+		dnet_trans_put(t);
+		dnet_trans_put(t);
+	}
+}
+
 static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeout)
 {
 	struct pollfd pfd;
@@ -256,6 +285,9 @@ ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size)
 	err = dnet_send_nolock(st, data, size);
 	pthread_mutex_unlock(&st->send_lock);
 
+	if (err)
+		dnet_state_clean(st);
+
 	return err;
 }
 
@@ -319,6 +351,9 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 
 err_out_unlock:
 	pthread_mutex_unlock(&st->send_lock);
+
+	if (err)
+		dnet_state_clean(st);
 	return err;
 }
 
@@ -373,17 +408,12 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 static int dnet_trans_exec(struct dnet_trans *t, struct dnet_net_state *st)
 {
 	int err = 0;
-	struct timeval tv;
 
-	gettimeofday(&tv, NULL);
+	dnet_trans_timer_setup(t);
 
-	t->fire_time.tv_sec = tv.tv_sec + st->n->check_timeout;
-	t->fire_time.tv_nsec = tv.tv_usec * 1000;
-
-	dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: executing trans: %llu, reply: %d, fire_time: %ld.%ld.\n",
+	dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: executing trans: %llu, reply: %d.\n",
 			dnet_dump_id(&st->rcv_cmd.id), st->rcv_cmd.trans & ~DNET_TRANS_REPLY,
-			!!(st->rcv_cmd.trans & DNET_TRANS_REPLY),
-			t->fire_time.tv_sec, t->fire_time.tv_nsec);
+			!!(st->rcv_cmd.trans & DNET_TRANS_REPLY));
 
 	if (t->complete)
 		t->complete(t->st, &st->rcv_cmd, st->rcv_data, t->priv);
@@ -424,10 +454,6 @@ int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsign
 		goto out_exit;
 	}
 	memset(a, 0, sizeof(struct dnet_addr_storage));
-
-	a->reconnect_num = 0;
-	a->reconnect_num_max = 1;
-	a->reconnect_num_limit = 86400; /* 1 day */
 
 	memcpy(&a->addr, addr, sizeof(struct dnet_addr));
 	a->__join_state = join_state;
@@ -513,12 +539,12 @@ static int dnet_process_recv(struct dnet_net_state *st)
 	if (st->rcv_cmd.trans & DNET_TRANS_REPLY) {
 		uint64_t tid = st->rcv_cmd.trans & ~DNET_TRANS_REPLY;
 
-		dnet_lock_lock(&n->trans_lock);
-		t = dnet_trans_search(&n->trans_root, tid);
+		dnet_lock_lock(&st->trans_lock);
+		t = dnet_trans_search(&st->trans_root, tid);
 		if (t && !(st->rcv_cmd.flags & DNET_FLAGS_MORE)) {
-			dnet_trans_remove_nolock(&n->trans_root, t);
+			dnet_trans_remove_nolock(&st->trans_root, t);
 		}
-		dnet_lock_unlock(&n->trans_lock);
+		dnet_lock_unlock(&st->trans_lock);
 
 		if (!t) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: could not find transaction for reply: trans %llu.\n",
@@ -700,6 +726,8 @@ void dnet_state_reset(struct dnet_net_state *st)
 {
 	dnet_state_remove(st);
 	dnet_add_reconnect_state(st->n, &st->addr, st->__join_state);
+
+	dnet_state_clean(st);
 	dnet_state_put(st);
 }
 
@@ -800,6 +828,11 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	st->la = 1;
 
 	INIT_LIST_HEAD(&st->state_entry);
+	st->trans_root = RB_ROOT;
+
+	err = dnet_lock_init(&st->trans_lock);
+	if (err)
+		goto err_out_state_free;
 
 	func = dnet_state_processing;
 	if (s == n->listen_socket)
@@ -809,7 +842,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	if (err) {
 		err = -err;
 		dnet_log_err(n, "Failed to initialize send mutex: %d", err);
-		goto err_out_state_free;
+		goto err_out_trans_lock_destroy;
 	}
 
 	atomic_init(&st->refcnt, 1);
@@ -838,6 +871,8 @@ err_out_idc_destroy:
 	dnet_idc_destroy(st);
 err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
+err_out_trans_lock_destroy:
+	dnet_lock_destroy(&st->trans_lock);
 err_out_state_free:
 	free(st);
 err_out_exit:
@@ -865,6 +900,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	struct dnet_node *n = st->n;
 
 	dnet_state_remove(st);
+	dnet_state_clean(st);
 
 	if (st->s >= 0)
 		close(st->s);
@@ -872,6 +908,8 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	pthread_mutex_lock(&n->state_lock);
 	dnet_idc_destroy(st);
 	pthread_mutex_unlock(&n->state_lock);
+
+	dnet_lock_destroy(&st->trans_lock);
 
 	dnet_log(st->n, DNET_LOG_DSA, "Freeing state %s, socket: %d.\n",
 		dnet_server_convert_dnet_addr(&st->addr), st->s);

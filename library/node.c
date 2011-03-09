@@ -37,8 +37,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	memset(n, 0, sizeof(struct dnet_node));
 
-	n->trans = 0;
-	n->trans_root = RB_ROOT;
+	atomic_init(&n->trans, 0);
 
 	n->listen_socket = -1;
 
@@ -52,16 +51,10 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		goto err_out_free;
 	}
 
-	err = dnet_lock_init(&n->trans_lock);
-	if (err) {
-		dnet_log_err(n, "Failed to initialize transaction lock: err: %d", err);
-		goto err_out_destroy_state;
-	}
-
 	n->wait = dnet_wait_alloc(0);
 	if (!n->wait) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate wait structure.\n");
-		goto err_out_destroy_trans;
+		goto err_out_destroy_state;
 	}
 
 	err = pthread_mutex_init(&n->reconnect_lock, NULL);
@@ -108,8 +101,6 @@ err_out_destroy_reconnect_lock:
 	pthread_mutex_destroy(&n->reconnect_lock);
 err_out_destroy_wait:
 	dnet_wait_put(n->wait);
-err_out_destroy_trans:
-	dnet_lock_destroy(&n->trans_lock);
 err_out_destroy_state:
 	pthread_mutex_destroy(&n->state_lock);
 err_out_free:
@@ -685,8 +676,6 @@ void dnet_node_destroy(struct dnet_node *n)
 	n->need_exit = 1;
 	dnet_check_thread_stop(n);
 
-	dnet_check_tree(n, 1);
-
 	while (!list_empty(&n->empty_state_list) || !list_empty(&n->group_list)) {
 		dnet_log(n, DNET_LOG_NOTICE, "Waiting for state lists to become empty: empty_state_list: %d, group_list: %d.\n",
 				list_empty(&n->empty_state_list), list_empty(&n->group_list));
@@ -700,7 +689,6 @@ void dnet_node_destroy(struct dnet_node *n)
 	pthread_attr_destroy(&n->attr);
 
 	pthread_mutex_destroy(&n->state_lock);
-	dnet_lock_destroy(&n->trans_lock);
 	dnet_crypto_cleanup(n);
 
 	list_for_each_entry_safe(it, atmp, &n->reconnect_list, reconnect_entry) {

@@ -99,6 +99,9 @@ struct dnet_net_state
 
 	struct dnet_idc		*idc;
 
+	struct dnet_lock	trans_lock;
+	struct rb_root		trans_root;
+
 	struct dnet_stat_count	stat[__DNET_CMD_MAX];
 };
 
@@ -273,9 +276,7 @@ struct dnet_node
 	struct list_head	group_list;
 	struct list_head	empty_state_list;
 
-	struct dnet_lock	trans_lock;
-	struct rb_root		trans_root;
-	uint64_t		trans;
+	atomic_t		trans;
 
 	struct dnet_net_state	*st;
 
@@ -347,7 +348,7 @@ struct dnet_trans
 	uint64_t			size;
 
 	atomic_t			refcnt;
-	struct timespec			fire_time;
+	timer_t				timerid;
 
 	void				*priv;
 	int				(* complete)(struct dnet_net_state *st,
@@ -359,6 +360,7 @@ struct dnet_trans
 void dnet_trans_destroy(struct dnet_trans *t);
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size);
 int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_control *ctl);
+int dnet_trans_timer_setup(struct dnet_trans *t);
 
 static inline struct dnet_trans *dnet_trans_get(struct dnet_trans *t)
 {
@@ -390,7 +392,7 @@ struct dnet_io_completion
 
 struct dnet_addr_storage
 {
-	int				reconnect_num, reconnect_num_max, reconnect_num_limit;
+	int				reconnect_time, reconnect_time_max;
 	struct list_head		reconnect_entry;
 	struct dnet_addr		addr;
 	unsigned int			__join_state;
@@ -413,7 +415,6 @@ static inline int dnet_time_before(struct timespec *t1, struct timespec *t2)
 
 int dnet_check_thread_start(struct dnet_node *n);
 void dnet_check_thread_stop(struct dnet_node *n);
-void dnet_check_tree(struct dnet_node *n, int kill);
 int dnet_try_reconnect(struct dnet_node *n);
 
 int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,

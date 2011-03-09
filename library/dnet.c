@@ -2132,19 +2132,6 @@ int dnet_try_reconnect(struct dnet_node *n)
 
 	pthread_mutex_lock(&n->reconnect_lock);
 	list_for_each_entry_safe(ast, tmp, &n->reconnect_list, reconnect_entry) {
-		ast->reconnect_num += n->check_timeout;
-		if (ast->reconnect_num < ast->reconnect_num_max)
-			continue;
-
-		ast->reconnect_num = 0;
-		ast->reconnect_num_max += 60;
-
-		if (ast->reconnect_num_max > ast->reconnect_num_limit) {
-			dnet_log(n, DNET_LOG_ERROR, "Reconnect num %d reached limit %d, will not try to reconnect anymore.\n",
-					ast->reconnect_num_max, ast->reconnect_num_limit);
-			goto out_remove;
-		}
-
 		s = dnet_socket_create_addr(n, n->sock_type, n->proto, n->family,
 				(struct sockaddr *)ast->addr.addr, ast->addr.addr_len, 0);
 		if (s < 0)
