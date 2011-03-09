@@ -506,9 +506,10 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *orig,
 	t->size = size;
 	orig->rcv_data = NULL;
 
+	t->st = forward;
+	err = dnet_trans_insert(t);
 	t->st = dnet_state_get(orig);
 
-	err = dnet_trans_insert(t);
 	if (err)
 		goto err_out_exit;
 
