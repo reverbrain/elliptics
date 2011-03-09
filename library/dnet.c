@@ -455,16 +455,44 @@ int dnet_process_cmd(struct dnet_net_state *st)
 	return dnet_process_cmd_raw(st, &st->rcv_cmd, st->rcv_data);
 }
 
+static char *dnet_cmd_strings[] = {
+	[DNET_CMD_LOOKUP] = "LOOKUP",
+	[DNET_CMD_REVERSE_LOOKUP] = "REVERSE LOOKUP",
+	[DNET_CMD_JOIN] = "JOIN",
+	[DNET_CMD_WRITE] = "WRITE",
+	[DNET_CMD_READ] = "READ",
+	[DNET_CMD_LIST] = "CHECK",
+	[DNET_CMD_EXEC] = "EXEC",
+	[DNET_CMD_ROUTE_LIST] = "ROUTE LIST",
+	[DNET_CMD_STAT] = "STAT",
+	[DNET_CMD_NOTIFY] = "NOTIFY",
+	[DNET_CMD_DEL] = "REMOVE",
+	[DNET_CMD_STAT_COUNT] = "STAT COUNT",
+	[DNET_CMD_UNKNOWN] = "UNKNOWN",
+};
+
+static char *dnet_cmd_string(int cmd)
+{
+	if (cmd == 0 || cmd >= __DNET_CMD_MAX)
+		cmd = DNET_CMD_UNKNOWN;
+
+	return dnet_cmd_strings[cmd];
+}
+
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	int err = 0;
 	unsigned long long size = cmd->size;
 	struct dnet_node *n = st->n;
 	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
+	struct timeval start, end;
+	long diff;
 
 	while (size) {
 		struct dnet_attr *a = data;
 		unsigned long long sz;
+
+		gettimeofday(&start, NULL);
 
 		if (size < sizeof(struct dnet_attr)) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid size: cmd_size: %llu, rest_size: %llu.\n",
@@ -485,11 +513,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			err = -EINVAL;
 			break;
 		}
-
-		if (a->cmd != DNET_CMD_STAT_COUNT && a->cmd != DNET_CMD_STAT)
-			dnet_log(n, DNET_LOG_INFO, "%s: trans: %llu, transaction_size_left: %llu, "
-					"starting cmd: %u, attribute_size: %llu, attribute_flags: %x.\n",
-					dnet_dump_id(&cmd->id), tid, size, a->cmd, (unsigned long long)a->size, a->flags);
 
 		switch (a->cmd) {
 			case DNET_CMD_LOOKUP:
@@ -585,11 +608,16 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				break;
 		}
 
-		if (a->cmd != DNET_CMD_STAT_COUNT && a->cmd != DNET_CMD_STAT)
-			dnet_log(n, DNET_LOG_INFO, "%s: trans: %llu, completed cmd: %u, err: %d.\n",
-				dnet_dump_id(&cmd->id), tid, a->cmd, err);
+
 
 		dnet_stat_inc(st->stat, a->cmd, err);
+
+		gettimeofday(&end, NULL);
+		
+		diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
+		dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, size: %llu, time: %ld usecs, err: %d.\n",
+				dnet_dump_id(&cmd->id), dnet_cmd_string(a->cmd), tid,
+				(unsigned long long)a->size, diff, err);
 
 		if (err)
 			break;
@@ -614,7 +642,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
 		ack.status = err;
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: ack trans: %llu, flags: %x, status: %d.\n",
+		dnet_log(n, DNET_LOG_DSA, "%s: ack trans: %llu, flags: %x, status: %d.\n",
 				dnet_dump_id(&cmd->id), tid,
 				ack.flags, err);
 
