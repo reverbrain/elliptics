@@ -320,9 +320,8 @@ static int dnet_merge_common(struct dnet_node *n, char *remote_history, struct d
 	if (err <= 0) {
 		/*
 		 * If we can not map directly downloaded history entry likely object is also broken.
-		 * So delete it.
+		 * We return 0 here so that dnet_check() subsequently remove local metadata.
 		 */
-		dnet_remove_object_now(n, &mc->id, 1);
 		err = 0;
 		goto err_out_exit;
 	}
