@@ -275,7 +275,7 @@ int dnet_backend_register(struct dnet_config_backend *b)
 	return 0;
 }
 
-struct dnet_node *dnet_parse_config(char *file)
+struct dnet_node *dnet_parse_config(char *file, int mon)
 {
 	FILE *f;
 	int buf_size = 1024 * 1024;
@@ -406,7 +406,7 @@ struct dnet_node *dnet_parse_config(char *file)
 		goto err_out_free;
 	}
 
-	if (dnet_daemon_mode)
+	if (dnet_daemon_mode && !mon)
 		dnet_background();
 
 	err = dnet_cfg_current_backend->init(dnet_cfg_current_backend, &dnet_cfg_state);

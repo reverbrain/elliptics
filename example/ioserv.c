@@ -19,7 +19,7 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/time.h>
-#include <sys/syscall.h>
+#include <sys/wait.h>
 
 #include <ctype.h>
 #include <fcntl.h>
@@ -45,19 +45,61 @@ static void dnet_usage(char *p)
 {
 	fprintf(stderr, "Usage: %s\n"
 			" -c config                - config file\n"
+			" -m                       - run under internal monitor\n"
 			" -l log                   - log file\n"
 			" -h                       - this help\n"
 			, p);
 }
 
-int main(int argc, char *argv[])
+static int ioserv_monitor(void)
 {
-	int ch;
-	char *conf = NULL;
+	pid_t pid;
+
+	pid = fork();
+	if (pid == -1) {
+		fprintf(stderr, "Failed to fork to background: %s.\n", strerror(errno));
+		exit(pid);
+	}
+
+	if (pid != 0) {
+		printf("Children pid: %d\n", pid);
+		return pid;
+	}
+	setsid();
+
+#if 0
+	close(0);
+	close(1);
+	close(2);
+#endif
+	return 0;
+}
+
+static int ioserv_start(char *conf, int mon)
+{
 	struct dnet_node *n;
 
-	while ((ch = getopt(argc, argv, "c:h")) != -1) {
+	n = dnet_parse_config(conf, mon);
+	if (!n)
+		return -1;
+
+	while (!dnet_need_exit(n))
+		sleep(1);
+
+	dnet_node_destroy(n);
+	return 0;
+}
+
+int main(int argc, char *argv[])
+{
+	int ch, mon = 0, err;
+	char *conf = NULL;
+
+	while ((ch = getopt(argc, argv, "mc:h")) != -1) {
 		switch (ch) {
+			case 'm':
+				mon = 1;
+				break;
 			case 'c':
 				conf = optarg;
 				break;
@@ -73,14 +115,39 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	n = dnet_parse_config(conf);
-	if (!n)
-		return -1;
+	if (mon) {
+#if 0
+		err = ioserv_monitor();
+		if (err > 0)
+			exit();
+#endif
+		while (1) {
+			err = ioserv_monitor();
+			if (err > 0) {
+				int status;
 
-	while (!dnet_need_exit(n))
-		sleep(1);
+				waitpid(err, &status, 0);
 
-	dnet_node_destroy(n);
+				err = WEXITSTATUS(status);
+				fprintf(stderr, "child exited with status: %d\n", err);
+				if (WIFEXITED(status)) {
+					printf("exited, status=%d\n", WEXITSTATUS(status));
+				} else if (WIFSIGNALED(status)) {
+					printf("killed by signal %d\n", WTERMSIG(status));
+				} else if (WIFSTOPPED(status)) {
+					printf("stopped by signal %d\n", WSTOPSIG(status));
+				} else if (WIFCONTINUED(status)) {
+					printf("continued\n");
+				}
+			} else {
+				exit(ioserv_start(conf, mon));
+			}
+
+			sleep(1);
+		}
+	} else {
+		ioserv_start(conf, mon);
+	}
 
 	return 0;
 }

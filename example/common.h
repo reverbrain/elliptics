@@ -47,7 +47,7 @@ static inline int dnet_common_get_version(unsigned char *id)
 int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cfg, char *orig_addr);
 int dnet_common_add_transform(struct dnet_node *n, char *orig_hash);
 
-struct dnet_node *dnet_parse_config(char *file);
+struct dnet_node *dnet_parse_config(char *file, int mon);
 int dnet_parse_groups(char *value, int **groups);
 
 int dnet_common_write_object(struct dnet_node *n, struct dnet_id *id,
