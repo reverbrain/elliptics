@@ -1,3 +1,10 @@
+elliptics (2.9.6.49) unstable; urgency=low
+
+  * Insert transaction into forwarding state and then set its state back to
+    original.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 10 Mar 2011 02:08:14 +0300
+
 elliptics (2.9.6.48) unstable; urgency=low
 
   * Switched to new transaction tracking system based on POSIX timers
