@@ -175,6 +175,7 @@ static void dnet_state_clean(struct dnet_net_state *st)
 		if (rb_node) {
 			t = rb_entry(rb_node, struct dnet_trans, trans_entry);
 			dnet_trans_get(t);
+			dnet_trans_remove_nolock(&st->trans_root, t);
 		}
 		pthread_mutex_unlock(&st->trans_lock);
 
