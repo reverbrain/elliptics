@@ -28,6 +28,19 @@
 
 #include "elliptics.h"
 
+/*
+ * Supported in Linux only so far
+ */
+#ifdef HAVE_SENDFILE4_SUPPORT
+#include <sys/prctl.h>
+int dnet_set_name(char *name)
+{
+	return prctl(PR_SET_NAME, name);
+}
+#else
+int dnet_set_name(char *name __attribute__ ((unused))) { return 0; }
+#endif
+
 #ifdef HAVE_SENDFILE4_SUPPORT
 #include <sys/sendfile.h>
 int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size)

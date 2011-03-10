@@ -170,13 +170,13 @@ static void dnet_state_clean(struct dnet_net_state *st)
 	while (1) {
 		t = NULL;
 
-		dnet_lock_lock(&st->trans_lock);
+		pthread_mutex_lock(&st->trans_lock);
 		rb_node = rb_first(&st->trans_root);
 		if (rb_node) {
 			t = rb_entry(rb_node, struct dnet_trans, trans_entry);
 			dnet_trans_get(t);
 		}
-		dnet_lock_unlock(&st->trans_lock);
+		pthread_mutex_unlock(&st->trans_lock);
 
 		if (!t)
 			break;
@@ -540,12 +540,12 @@ static int dnet_process_recv(struct dnet_net_state *st)
 	if (st->rcv_cmd.trans & DNET_TRANS_REPLY) {
 		uint64_t tid = st->rcv_cmd.trans & ~DNET_TRANS_REPLY;
 
-		dnet_lock_lock(&st->trans_lock);
+		pthread_mutex_lock(&st->trans_lock);
 		t = dnet_trans_search(&st->trans_root, tid);
 		if (t && !(st->rcv_cmd.flags & DNET_FLAGS_MORE)) {
 			dnet_trans_remove_nolock(&st->trans_root, t);
 		}
-		dnet_lock_unlock(&st->trans_lock);
+		pthread_mutex_unlock(&st->trans_lock);
 
 		if (!t) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: could not find transaction for reply: trans %llu.\n",
@@ -740,6 +740,8 @@ static void *dnet_accept_client(void *priv)
 	struct dnet_addr addr;
 	int cs, err;
 
+	dnet_set_name("acceptor");
+
 	while (!n->need_exit) {
 		err = dnet_wait(orig, POLLIN | POLLRDHUP | POLLERR | POLLHUP | POLLNVAL, 1000);
 		if (err == -EAGAIN)
@@ -776,7 +778,10 @@ static void *dnet_state_processing(void *priv)
 {
 	struct dnet_net_state *st = priv;
 	int err;
+	char name[16];
 
+	snprintf(name, sizeof(name), "%s", dnet_state_dump_addr(st));
+	dnet_set_name(name);
 	dnet_schedule_command(st);
 
 	while (!st->n->need_exit) {
@@ -831,7 +836,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	INIT_LIST_HEAD(&st->state_entry);
 	st->trans_root = RB_ROOT;
 
-	err = dnet_lock_init(&st->trans_lock);
+	err = pthread_mutex_init(&st->trans_lock, NULL);
 	if (err)
 		goto err_out_state_free;
 
@@ -873,7 +878,7 @@ err_out_idc_destroy:
 err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
 err_out_trans_lock_destroy:
-	dnet_lock_destroy(&st->trans_lock);
+	pthread_mutex_destroy(&st->trans_lock);
 err_out_state_free:
 	free(st);
 err_out_exit:
@@ -910,7 +915,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	dnet_idc_destroy(st);
 	pthread_mutex_unlock(&n->state_lock);
 
-	dnet_lock_destroy(&st->trans_lock);
+	pthread_mutex_destroy(&st->trans_lock);
 
 	dnet_log(st->n, DNET_LOG_DSA, "Freeing state %s, socket: %d.\n",
 		dnet_server_convert_dnet_addr(&st->addr), st->s);

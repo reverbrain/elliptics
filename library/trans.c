@@ -115,9 +115,9 @@ int dnet_trans_insert(struct dnet_trans *t)
 
 	t->rcv_trans = t->trans = atomic_inc(&st->n->trans) & ~DNET_TRANS_REPLY;
 
-	dnet_lock_lock(&st->trans_lock);
+	pthread_mutex_lock(&st->trans_lock);
 	err = dnet_trans_insert_raw(&st->trans_root, t);
-	dnet_lock_unlock(&st->trans_lock);
+	pthread_mutex_unlock(&st->trans_lock);
 
 	if (err)
 		goto err_out_exit;
@@ -153,9 +153,9 @@ void dnet_trans_remove(struct dnet_trans *t)
 {
 	struct dnet_net_state *st = t->st;
 
-	dnet_lock_lock(&st->trans_lock);
+	pthread_mutex_lock(&st->trans_lock);
 	dnet_trans_remove_nolock(&st->trans_root, t);
-	dnet_lock_unlock(&st->trans_lock);
+	pthread_mutex_unlock(&st->trans_lock);
 }
 
 static void dnet_trans_timer_notify(union sigval sv)
@@ -353,6 +353,8 @@ static void *dnet_check_tree_from_thread(void *data)
 	struct dnet_node *n = data;
 	long i, timeout;
 	struct timeval tv1, tv2;
+
+	dnet_set_name("check");
 
 	if (!n->check_timeout)
 		n->check_timeout = 10;

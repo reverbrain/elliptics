@@ -99,7 +99,7 @@ struct dnet_net_state
 
 	struct dnet_idc		*idc;
 
-	struct dnet_lock	trans_lock;
+	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
 
 	struct dnet_stat_count	stat[__DNET_CMD_MAX];
@@ -446,6 +446,8 @@ int dnet_request_cmd_single(struct dnet_node *n,
 
 void dnet_monitor_exit(struct dnet_node *n);
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
+
+int dnet_set_name(char *name);
 
 #ifdef __cplusplus
 }

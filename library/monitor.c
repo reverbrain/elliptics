@@ -35,6 +35,8 @@ static void *dnet_monitor_process(void *__n)
 	int err = 0;
 	char buf[512];
 
+	dnet_set_name("monitor");
+
 	pfd.events = POLLIN;
 	pfd.fd = n->monitor_fd;
 	pfd.revents = 0;

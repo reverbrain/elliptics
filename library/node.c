@@ -536,6 +536,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	int err = -ENOMEM;
 	sigset_t sig;
 
+	dnet_set_name("main");
+
 	sigemptyset(&sig);
 	sigaddset(&sig, SIGPIPE);
 	pthread_sigmask(SIG_BLOCK, &sig, NULL);

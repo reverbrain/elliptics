@@ -378,6 +378,8 @@ static void *dnet_db_list_iter(void *data)
 	void *buf;
 	int check_copies_from_request = (ctl->req->flags & DNET_CHECK_FULL) ? DNET_CHECK_COPIES_FULL : DNET_CHECK_COPIES_HISTORY;
 
+	dnet_set_name("iterator");
+
 	if (edge) {
 		localtime_r((time_t *)&edge, &tm);
 		strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
