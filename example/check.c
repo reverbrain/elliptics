@@ -188,7 +188,7 @@ int main(int argc, char *argv[])
 
 	memset(&r, 0, sizeof(r));
 
-	while ((ch = getopt(argc, argv, "D:N:f:n:t:FMm:w:l:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "DN:f:n:t:FMm:w:l:r:h")) != -1) {
 		switch (ch) {
 			case 'N':
 				cfg.ns = optarg;
