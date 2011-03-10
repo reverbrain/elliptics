@@ -1,3 +1,9 @@
+elliptics (2.9.6.52) unstable; urgency=low
+
+  * Protect dnet_trans_complete_forward() against NULL state and cmd.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 10 Mar 2011 20:17:02 +0300
+
 elliptics (2.9.6.51) unstable; urgency=low
 
   * Added dry-run mode for check util.
