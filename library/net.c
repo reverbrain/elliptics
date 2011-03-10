@@ -785,10 +785,8 @@ static void *dnet_state_processing(void *priv)
 {
 	struct dnet_net_state *st = priv;
 	int err;
-	char name[16];
 
-	snprintf(name, sizeof(name), "%s", dnet_state_dump_addr(st));
-	dnet_set_name(name);
+	dnet_set_name(dnet_state_dump_addr(st));
 	dnet_schedule_command(st);
 
 	while (!st->n->need_exit) {
