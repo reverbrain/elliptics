@@ -104,7 +104,7 @@ out_unlock:
 	pthread_mutex_unlock(&monitor_wait_lock);
 
 	monitor_wakeup(monitor_wait_num++);
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: %s", dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: %s\n", dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 
 	return err;
 }
@@ -138,7 +138,7 @@ int main(int argc, char *argv[])
 	struct dnet_config cfg, rem, *remotes = NULL;
 	int timeout, check_num;
 	int error = -ECONNRESET;
-	char *logfile = NULL;
+	char *logfile = "/dev/stdout";
 	FILE *log = NULL;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -193,21 +193,16 @@ int main(int argc, char *argv[])
 		return -ENOENT;
 	}
 
-	if (!logfile)
-		fprintf(stderr, "No log file found, logging will be disabled.\n");
-
-	if (logfile) {
-		log = fopen(logfile, "a");
-		if (!log) {
-			err = -errno;
-			fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
-			return err;
-		}
-
-		monitor_logger.log_private = log;
-		monitor_logger.log = dnet_common_log;
-		cfg.log = &monitor_logger;
+	log = fopen(logfile, "a");
+	if (!log) {
+		err = -errno;
+		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
+		return err;
 	}
+
+	monitor_logger.log_private = log;
+	monitor_logger.log = dnet_common_log;
+	cfg.log = &monitor_logger;
 
 	n = dnet_node_create(&cfg);
 	if (!n)
@@ -246,19 +241,24 @@ int main(int argc, char *argv[])
 					cmp = dnet_id_cmp(&c->id, &p->id);
 					if (cmp <= 0)
 						break;
-					dnet_log_raw(n, DNET_LOG_NOTICE, "diff: - %s: %s", dnet_dump_id(&p->id), dnet_server_convert_dnet_addr(&p->addr));
+					dnet_log_raw(n, DNET_LOG_INFO, "diff: - %s: %s", dnet_dump_id(&p->id), dnet_server_convert_dnet_addr(&p->addr));
 				}
 
 				if (!cmp)
 					continue;
 
-				dnet_log_raw(n, DNET_LOG_NOTICE, "diff: + %s: %s", dnet_dump_id(&c->id), dnet_server_convert_dnet_addr(&c->addr));
+				dnet_log_raw(n, DNET_LOG_INFO, "diff: + %s: %s", dnet_dump_id(&c->id), dnet_server_convert_dnet_addr(&c->addr));
 			}
 		}
 
+		pthread_mutex_lock(&monitor_wait_lock);
 		free(monitor_prev_ids);
 		monitor_prev_ids = monitor_current_ids;
 		monitor_prev_num = monitor_current_num;
+
+		monitor_current_ids = NULL;
+		monitor_current_num = 0;
+		pthread_mutex_unlock(&monitor_wait_lock);
 
 		sleep(timeout);
 	}
