@@ -1,3 +1,9 @@
+elliptics (2.9.6.55) unstable; urgency=low
+
+  * dnet_check does not require argument for -D option
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 11 Mar 2011 02:25:55 +0300
+
 elliptics (2.9.6.54) unstable; urgency=low
 
   * Send @size bytes of history, not 0 when doing direct merge upload.
