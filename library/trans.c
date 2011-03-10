@@ -311,7 +311,7 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
 err_out_exit:
 	return err;
 }
-
+#if 0
 static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv __unused)
 {
@@ -349,6 +349,7 @@ static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd
 
 	return 0;
 }
+#endif
 
 static void *dnet_check_tree_from_thread(void *data)
 {
@@ -368,8 +369,6 @@ static void *dnet_check_tree_from_thread(void *data)
 		gettimeofday(&tv1, NULL);
 
 		dnet_try_reconnect(n);
-
-		dnet_request_stat(n, NULL, DNET_CMD_STAT, dnet_check_stat_complete, NULL);
 
 		gettimeofday(&tv2, NULL);
 
