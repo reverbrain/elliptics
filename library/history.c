@@ -377,6 +377,7 @@ static void *dnet_db_list_iter(void *data)
 	long long ts, edge = ctl->req->timestamp;
 	void *buf;
 	int check_copies_from_request = (ctl->req->flags & DNET_CHECK_FULL) ? DNET_CHECK_COPIES_FULL : DNET_CHECK_COPIES_HISTORY;
+	int dry_run = !!(ctl->req->flags & DNET_CHECK_DRY_RUN);
 
 	dnet_set_name("iterator");
 
@@ -478,20 +479,22 @@ static void *dnet_db_list_iter(void *data)
 			localtime_r((time_t *)&ts, &tm);
 			strftime(time_buf, sizeof(time_buf), "%F %R:%S %Z", &tm);
 
-			dnet_log_raw(n, DNET_LOG_NOTICE, "start key: %s, timestamp: %lld [%s], check before: %lld [%s], will check: %d, check_copies: %d, only_merge: %d, size: %u.\n",
-				dnet_dump_id(&mc->id), ts, time_buf, edge, ctl_time, will_check, check_copies, only_merge, mc->size);
+			dnet_log_raw(n, DNET_LOG_NOTICE, "start key: %s, timestamp: %lld [%s], check before: %lld [%s], will check: %d, check_copies: %d, only_merge: %d, dry: %d, size: %u.\n",
+				dnet_dump_id(&mc->id), ts, time_buf, edge, ctl_time, will_check, check_copies, only_merge, dry_run, mc->size);
 		}
 
 		if (will_check) {
 			if (check_copies)
 				check_copies = check_copies_from_request;
 
-			err = dnet_check(n, mc, check_copies);
-			if (err >= 0)
-				err = dnet_db_check_update(n, ctl, mc);
+			if (!dry_run) {
+				err = dnet_check(n, mc, check_copies);
+				if (err >= 0)
+					err = dnet_db_check_update(n, ctl, mc);
+			}
 
-			dnet_log_raw(n, DNET_LOG_NOTICE, "complete key: %s, timestamp: %lld [%s], check_copies: %d, size: %u, err: %d.\n",
-				dnet_dump_id(&mc->id), ts, time_buf, check_copies, mc->size, err);
+			dnet_log_raw(n, DNET_LOG_NOTICE, "complete key: %s, timestamp: %lld [%s], check_copies: %d, only_merge: %d, dry: %d, size: %u, err: %d.\n",
+				dnet_dump_id(&mc->id), ts, time_buf, check_copies, only_merge, dry_run, mc->size, err);
 
 			atomic_inc(&ctl->completed);
 		}

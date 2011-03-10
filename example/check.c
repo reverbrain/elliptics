@@ -54,6 +54,7 @@ static void check_usage(char *p)
 			" -m mask              - log events mask\n"
 			" -M                   - do not check copies in other groups, run only merge check\n"
 			" -F                   - check not only history logs, but also try to read data object when checking number of copies\n"
+			" -D                   - dry run - do not perform any action, just update counters\n"
 			" -t timestamp         - only check those objects, which were previously checked BEFORE this time\n"
 			"                          format: year-month-day hours:minutes:seconds like \"2011-01-13 23:15:00\"\n"
 			" -n num               - number of checking threads to start by the server\n"
@@ -187,7 +188,7 @@ int main(int argc, char *argv[])
 
 	memset(&r, 0, sizeof(r));
 
-	while ((ch = getopt(argc, argv, "N:f:n:t:FMm:w:l:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "D:N:f:n:t:FMm:w:l:r:h")) != -1) {
 		switch (ch) {
 			case 'N':
 				cfg.ns = optarg;
@@ -206,6 +207,9 @@ int main(int argc, char *argv[])
 					return -EINVAL;
 				}
 				r.timestamp = mktime(&tm);
+				break;
+			case 'D':
+				r.flags |= DNET_CHECK_DRY_RUN;
 				break;
 			case 'M':
 				r.flags |= DNET_CHECK_MERGE;

@@ -782,6 +782,8 @@ static inline void dnet_convert_meta_check_status(struct dnet_meta_check_status 
 #define DNET_CHECK_MERGE			(1<<0)
 /* Check not only history presence but also try to read part of the data object */
 #define DNET_CHECK_FULL				(1<<1)
+/* Do not actually perform any action, just update counters */
+#define DNET_CHECK_DRY_RUN			(1<<2)
 
 struct dnet_check_request {
 	uint32_t		flags;
