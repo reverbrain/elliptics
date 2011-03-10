@@ -131,6 +131,7 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 		snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir,
 			dnet_dump_id_len_raw(raw.id, DNET_ID_SIZE, eid), raw.group_id);
 
+		err = 0;
 		if (check_copies == DNET_CHECK_COPIES_HISTORY) {
 			/*
 			 * Reading history object, if it does not exist - upload current data.
@@ -243,15 +244,19 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc)
 {
 	void *local_history;
-	int err;
+	int err, size;
 
 	err = n->send(n->st, n->command_private, &mc->id);
 	if (err < 0)
-		goto err_out_exit;
+		goto err_out_remove;
 
-	err = dnet_db_read_raw(n, 0, mc->id.id, &local_history);
-	if (err <= 0)
-		goto err_out_exit;
+	size = dnet_db_read_raw(n, 0, mc->id.id, &local_history);
+	if (size <= 0) {
+		err = -EINVAL;
+		if (size == 0 || size == -7)
+			err = -ENOENT;
+		goto err_out_remove;
+	}
 
 	err = dnet_write_data_wait(n, NULL, 0, &mc->id, local_history, -1, 0, 0, err, NULL,
 			DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
@@ -265,6 +270,9 @@ static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc
 
 	err = 0;
 
+err_out_remove:
+	if (err == -ENOENT)
+		dnet_merge_remove_local(n, &mc->id);
 err_out_exit:
 	return err;
 }

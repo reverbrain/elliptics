@@ -336,18 +336,15 @@ static int file_backend_send(void *state, void *priv, struct dnet_id *id)
 	struct dnet_node *n = dnet_get_node_from_state(state);
 	struct file_backend_root *r = priv;
 	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
-	int err = 0;
+	int err = -ENOENT;
 
 	file_backend_setup_file(r, file, sizeof(file), id->id);
 
 	if (!access(file, R_OK)) {
 		err = dnet_write_file_local_offset(n, file, NULL, 0, id, 0, 0, 0,
 				DNET_ATTR_DIRECT_TRANSACTION, 0);
-		if (err)
-			goto err_out_exit;
 	}
 
-err_out_exit:
 	return err;
 }
 
