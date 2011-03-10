@@ -488,14 +488,20 @@ static int dnet_trans_complete_forward(struct dnet_net_state *state __unused,
 {
 	struct dnet_trans *t = priv;
 	struct dnet_net_state *dst = t->st;
-	uint64_t size = cmd->size;
+	int err = -EINVAL;
 
-	cmd->trans = t->rcv_trans | DNET_TRANS_REPLY;
+	if (cmd) {
+		uint64_t size = cmd->size;
 
-	dnet_convert_cmd(cmd);
-	dnet_convert_attr(attr);
+		cmd->trans = t->rcv_trans | DNET_TRANS_REPLY;
 
-	return dnet_send_data(dst, cmd, sizeof(struct dnet_cmd), attr, size);
+		dnet_convert_cmd(cmd);
+		dnet_convert_attr(attr);
+
+		err = dnet_send_data(dst, cmd, sizeof(struct dnet_cmd), attr, size);
+	}
+
+	return err;
 }
 
 static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *orig, struct dnet_net_state *forward)
