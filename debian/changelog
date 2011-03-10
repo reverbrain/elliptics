@@ -1,3 +1,10 @@
+elliptics (2.9.6.53) unstable; urgency=low
+
+  * Fixed various loggers initialization
+  * Set proper process names via prctl() in dnet_set_name()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 10 Mar 2011 20:54:31 +0300
+
 elliptics (2.9.6.52) unstable; urgency=low
 
   * Protect dnet_trans_complete_forward() against NULL state and cmd.
