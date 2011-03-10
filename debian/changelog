@@ -1,3 +1,12 @@
+elliptics (2.9.6.51) unstable; urgency=low
+
+  * Added dry-run mode for check util.
+  * Remove local object if we failed to read its metadata and vice versa.
+  * Remove transaction from the tree in dnet_state_clean() before its
+    completion callback is invoked.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 10 Mar 2011 18:46:28 +0300
+
 elliptics (2.9.6.50) unstable; urgency=low
 
   * Stop requesting statistics from check thread. Use transaction completion
