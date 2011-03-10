@@ -164,6 +164,8 @@ static void dnet_trans_timer_notify(union sigval sv)
 
 	dnet_log(t->st->n, DNET_LOG_ERROR, "%s: trans: %llu, st: %s: TIMEOUT ERROR\n",
 			dnet_dump_id(&t->cmd.id), (unsigned long long)t->trans, dnet_state_dump_addr(t->st));
+
+	dnet_state_reset(t->st);
 	dnet_trans_put(t);
 }
 
