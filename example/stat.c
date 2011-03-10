@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
 	int max_id_idx = 1000, id_idx = 0;
 	int timeout;
 	unsigned char id[max_id_idx][DNET_ID_SIZE];
-	char *logfile = NULL, *statfile = "/dev/stdout";
+	char *logfile = "/dev/stderr", *statfile = "/dev/stdout";
 	FILE *log = NULL, *stat;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -193,21 +193,16 @@ int main(int argc, char *argv[])
 		return -ENOENT;
 	}
 
-	if (!logfile)
-		fprintf(stderr, "No log file found, logging will be disabled.\n");
-
-	if (logfile) {
-		log = fopen(logfile, "a");
-		if (!log) {
-			err = -errno;
-			fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
-			return err;
-		}
-
-		stat_logger.log_private = log;
-		stat_logger.log = dnet_common_log;
-		cfg.log = &stat_logger;
+	log = fopen(logfile, "a");
+	if (!log) {
+		err = -errno;
+		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
+		return err;
 	}
+
+	stat_logger.log_private = log;
+	stat_logger.log = dnet_common_log;
+	cfg.log = &stat_logger;
 
 	stat = fopen(statfile, "a");
 	if (!stat) {
