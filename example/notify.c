@@ -100,7 +100,7 @@ int main(int argc, char *argv[])
 	struct dnet_config cfg, rem;
 	int max_id_idx = 1000, id_idx = 0, group_id = 0;
 	unsigned char id[max_id_idx][DNET_ID_SIZE];
-	char *logfile = NULL, *notify_file = "/dev/stdout";
+	char *logfile = "/dev/stderr", *notify_file = "/dev/stdout";
 	FILE *log = NULL, *notify;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -165,21 +165,16 @@ int main(int argc, char *argv[])
 		return -ENOENT;
 	}
 
-	if (!logfile)
-		fprintf(stderr, "No log file found, logging will be disabled.\n");
-
-	if (logfile) {
-		log = fopen(logfile, "a");
-		if (!log) {
-			err = -errno;
-			fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
-			return err;
-		}
-
-		notify_logger.log_private = log;
-		notify_logger.log = dnet_common_log;
-		cfg.log = &notify_logger;
+	log = fopen(logfile, "a");
+	if (!log) {
+		err = -errno;
+		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
+		return err;
 	}
+
+	notify_logger.log_private = log;
+	notify_logger.log = dnet_common_log;
+	cfg.log = &notify_logger;
 
 	notify = fopen(notify_file, "a");
 	if (!notify) {
