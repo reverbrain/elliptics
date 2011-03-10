@@ -1,3 +1,13 @@
+elliptics (2.9.6.50) unstable; urgency=low
+
+  * Stop requesting statistics from check thread. Use transaction completion
+    error mechanism to mark states dead.
+  * Reset state on timeout errors.
+  * Replaced state transaction lock with mutex
+  * Added dnet_set_name() to name threads
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 10 Mar 2011 04:35:16 +0300
+
 elliptics (2.9.6.49) unstable; urgency=low
 
   * Insert transaction into forwarding state and then set its state back to
