@@ -192,6 +192,7 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 		err = dnet_write_data_wait(n, NULL, 0, &raw, data, -1, 0, 0, err, NULL,
 			DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 
+		kcfree(data);
 err_out_continue:
 		if (!err)
 			error = 0;
@@ -260,7 +261,7 @@ static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc
 
 	err = dnet_write_data_wait(n, NULL, 0, &mc->id, local_history, -1, 0, 0, size, NULL,
 			DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
-	free(local_history);
+	kcfree(local_history);
 	if (err <= 0)
 		goto err_out_exit;
 
@@ -424,7 +425,7 @@ err_out_close:
 err_out_unmap:
 	dnet_unmap_history(n, &remote);
 err_out_free:
-	free(local_history);
+	kcfree(local_history);
 err_out_exit:
 	return err;
 }

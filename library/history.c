@@ -246,13 +246,13 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: truncated history: going to remove object: %d.\n",
 		dnet_dump_id(&cmd->id), ret);
 
-	free(e);
+	kcfree(e);
 	kcdbendtran(n->history, 1);
 
 	return ret;
 
 err_out_free:
-	free(e);
+	kcfree(e);
 err_out_txn_end:
 	kcdbendtran(n->history, 0);
 err_out_exit:
@@ -417,6 +417,8 @@ static void *dnet_db_list_iter(void *data)
 				kbuf = dbuf;
 				key = id->id;
 				ctl->obj_pos++;
+			} else {
+				ctl->need_exit = 1;
 			}
 		} else {
 			kbuf = kccurget(ctl->cursor, &ksize, (const char **)&dbuf, &dsize, 1);
@@ -429,7 +431,7 @@ static void *dnet_db_list_iter(void *data)
 		pthread_mutex_unlock(&ctl->lock);
 
 		if (ctl->need_exit)
-			break;
+			goto err_out_kcfree;
 
 		/*
 		 * Happens when we loop over list of ids received from client, i.e. not from cursor,
