@@ -943,6 +943,8 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 	struct dnet_addr addr;
 	struct dnet_net_state *st;
 
+	memset(&addr, 0, sizeof(addr));
+
 	addr.addr_len = sizeof(addr.addr);
 	s = dnet_socket_create(n, cfg, (struct sockaddr *)&addr.addr, &addr.addr_len, 0);
 	if (s < 0) {
