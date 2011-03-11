@@ -239,7 +239,6 @@ err_out_unlock_put:
 	dnet_group_put(g);
 err_out_unlock:
 	pthread_mutex_unlock(&n->state_lock);
-err_out_free:
 	free(idc);
 err_out_exit:
 	return err;
@@ -247,12 +246,16 @@ err_out_exit:
 
 void dnet_idc_destroy(struct dnet_net_state *st)
 {
-	struct dnet_idc *idc = st->idc;
+	struct dnet_node *n = st->n;
+	struct dnet_idc *idc;
 	struct dnet_group *g;
 	int i;
 
+	pthread_mutex_lock(&n->state_lock);
+
+	idc = st->idc;
 	if (!idc)
-		return;
+		goto err_out_unlock;
 
 	g = idc->group;
 
@@ -271,6 +274,9 @@ void dnet_idc_destroy(struct dnet_net_state *st)
 	free(idc);
 
 	st->idc = NULL;
+
+err_out_unlock:
+	pthread_mutex_unlock(&n->state_lock);
 }
 
 static int __dnet_idc_search(struct dnet_group *g, struct dnet_id *id)

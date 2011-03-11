@@ -223,7 +223,9 @@ static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *sen
 	}
 	memset(buf, 0, sizeof(struct dnet_addr_cmd));
 
+	pthread_mutex_lock(&n->state_lock);
 	dnet_send_idc_fill(orig, buf, size, id, trans, command, reply, direct, more);
+	pthread_mutex_unlock(&n->state_lock);
 
 	dnet_log(n, DNET_LOG_DSA, "%s: sending address %s\n", dnet_dump_id(id), dnet_state_dump_addr(orig));
 
@@ -2087,7 +2089,7 @@ static int dnet_send_cmd_single(struct dnet_net_state *st, struct dnet_wait *w, 
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
-	memcpy(&ctl.id, &st->idc->ids[0], sizeof(struct dnet_id));
+	dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
 	ctl.cmd = DNET_CMD_EXEC;
 	ctl.complete = dnet_send_cmd_complete;
 	ctl.priv = w;

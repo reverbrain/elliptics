@@ -164,8 +164,7 @@ static void dnet_state_clean(struct dnet_net_state *st)
 {
 	struct rb_node *rb_node;
 	struct dnet_trans *t;
-
-	dnet_log(st->n, DNET_LOG_INFO, "Cleaning state %s\n", dnet_state_dump_addr(st));
+	int num = 0;
 
 	while (1) {
 		t = NULL;
@@ -187,7 +186,10 @@ static void dnet_state_clean(struct dnet_net_state *st)
 
 		dnet_trans_put(t);
 		dnet_trans_put(t);
+		num++;
 	}
+
+	dnet_log(st->n, DNET_LOG_INFO, "Cleaned state %s, transaction freed: %d\n", dnet_state_dump_addr(st), num);
 }
 
 static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeout)
@@ -879,9 +881,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	return st;
 
 err_out_idc_destroy:
-	pthread_mutex_lock(&n->state_lock);
 	dnet_idc_destroy(st);
-	pthread_mutex_unlock(&n->state_lock);
 err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
 err_out_trans_lock_destroy:
@@ -918,9 +918,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	if (st->s >= 0)
 		close(st->s);
 
-	pthread_mutex_lock(&n->state_lock);
 	dnet_idc_destroy(st);
-	pthread_mutex_unlock(&n->state_lock);
 
 	pthread_mutex_destroy(&st->trans_lock);
 
