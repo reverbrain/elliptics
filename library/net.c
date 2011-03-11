@@ -214,7 +214,7 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 		goto out_exit;
 	}
 
-	if (st->n->need_exit) {
+	if (st->n->need_exit || st->need_exit) {
 		dnet_log(st->n, DNET_LOG_ERROR, "Need to exit.\n");
 		err = -EIO;
 		goto out_exit;
@@ -791,7 +791,7 @@ static void *dnet_state_processing(void *priv)
 	dnet_set_name(dnet_state_dump_addr(st));
 	dnet_schedule_command(st);
 
-	while (!st->n->need_exit) {
+	while (!st->n->need_exit && !st->need_exit) {
 		err = dnet_wait(st, POLLIN, 1000);
 		if (err == -EAGAIN)
 			continue;
@@ -910,8 +910,6 @@ int dnet_state_num(struct dnet_node *n)
 
 void dnet_state_destroy(struct dnet_net_state *st)
 {
-	struct dnet_node *n = st->n;
-
 	dnet_state_remove(st);
 	dnet_state_clean(st);
 

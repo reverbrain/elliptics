@@ -81,6 +81,8 @@ struct dnet_net_state
 	atomic_t		refcnt;
 	int			s;
 
+	int			need_exit;
+
 	int			__join_state;
 
 	struct dnet_addr	addr;

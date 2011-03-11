@@ -165,8 +165,7 @@ static void dnet_trans_timer_notify(union sigval sv)
 	dnet_log(t->st->n, DNET_LOG_ERROR, "%s: trans: %llu, st: %s: TIMEOUT ERROR\n",
 			dnet_dump_id(&t->cmd.id), (unsigned long long)t->trans, dnet_state_dump_addr(t->st));
 
-	dnet_state_reset(t->st);
-	dnet_trans_put(t);
+	t->st->need_exit = 1;
 }
 
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size)
@@ -221,13 +220,13 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	if (t->trans_entry.rb_parent_color && t->st && t->st->n)
 		dnet_trans_remove(t);
 
-	dnet_state_put(t->st);
-	free(t->data);
-
 	its.it_interval.tv_sec = its.it_interval.tv_nsec = 0;
 	its.it_value.tv_sec = its.it_value.tv_nsec = 0;
 
 	timer_delete(t->timerid);
+
+	dnet_state_put(t->st);
+	free(t->data);
 
 	free(t);
 }
