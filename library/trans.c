@@ -87,55 +87,6 @@ static int dnet_trans_insert_raw(struct rb_root *root, struct dnet_trans *a)
 	return 0;
 }
 
-/* can be racy with state removal? */
-static void dnet_trans_timer_notify(union sigval sv)
-{
-	struct dnet_net_state *st = sv.sival_ptr;
-
-	dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT ERROR\n", dnet_state_dump_addr(st));
-
-	st->need_exit = 1;
-}
-
-int dnet_trans_timer_setup(struct dnet_trans *t)
-{
-	int err = 0;
-
-	if (t->st) {
-		long timeout = t->st->n->check_timeout;
-		struct itimerspec its;
-		struct sigevent sev;
-
-		its.it_value.tv_sec = timeout;
-		its.it_value.tv_nsec = 0;
-
-		its.it_interval.tv_sec = its.it_interval.tv_nsec = 0;
-
-		if (!t->timerid) {
-			memset(&sev, 0, sizeof(sev));
-			sev.sigev_notify = SIGEV_THREAD;
-			sev.sigev_value.sival_ptr = t->st;
-			sev.sigev_notify_function = dnet_trans_timer_notify;
-
-			err = timer_create(CLOCK_MONOTONIC, &sev, &t->timerid);
-			if (err == -1) {
-				err = -errno;
-				dnet_log_err(t->st->n, "failed to create realtime clock");
-				goto err_out_exit;
-			}
-		}
-
-		err = timer_settime(t->timerid, 0, &its, NULL);
-		if (err == -1) {
-			err = -errno;
-			dnet_log_err(t->st->n, "failed to setup timer for trans: %llu", (unsigned long long)t->trans);
-		}
-	}
-
-err_out_exit:
-	return err;
-}
-
 int dnet_trans_insert(struct dnet_trans *t)
 {
 	struct dnet_net_state *st = t->st;
@@ -147,18 +98,6 @@ int dnet_trans_insert(struct dnet_trans *t)
 	err = dnet_trans_insert_raw(&st->trans_root, t);
 	pthread_mutex_unlock(&st->trans_lock);
 
-	if (err)
-		goto err_out_exit;
-
-	err = dnet_trans_timer_setup(t);
-	if (err)
-		goto err_out_remove;
-
-	return 0;
-
-err_out_remove:
-	dnet_trans_remove(t);
-err_out_exit:
 	return err;
 }
 
@@ -209,7 +148,6 @@ err_out_exit:
 
 void dnet_trans_destroy(struct dnet_trans *t)
 {
-	struct itimerspec its;
 	if (!t)
 		return;
 
@@ -222,11 +160,6 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 	if (t->trans_entry.rb_parent_color && t->st && t->st->n)
 		dnet_trans_remove(t);
-
-	its.it_interval.tv_sec = its.it_interval.tv_nsec = 0;
-	its.it_value.tv_sec = its.it_value.tv_nsec = 0;
-
-	timer_delete(t->timerid);
 
 	dnet_state_put(t->st);
 	free(t->data);

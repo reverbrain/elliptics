@@ -410,8 +410,6 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 
 static int dnet_trans_exec(struct dnet_trans *t, struct dnet_net_state *st)
 {
-	dnet_trans_timer_setup(t);
-
 	dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: executing trans: %llu, reply: %d.\n",
 			dnet_dump_id(&st->rcv_cmd.id), st->rcv_cmd.trans & ~DNET_TRANS_REPLY,
 			!!(st->rcv_cmd.trans & DNET_TRANS_REPLY));
@@ -784,15 +782,30 @@ static void *dnet_accept_client(void *priv)
 static void *dnet_state_processing(void *priv)
 {
 	struct dnet_net_state *st = priv;
+	struct timeval start, cur;
 	int err;
 
 	dnet_set_name(dnet_state_dump_addr(st));
 	dnet_schedule_command(st);
 
+	gettimeofday(&start, NULL);
 	while (!st->n->need_exit && !st->need_exit) {
 		err = dnet_wait(st, POLLIN, 1000);
-		if (err == -EAGAIN)
+		if (err == -EAGAIN) {
+			long diff;
+
+			gettimeofday(&cur, NULL);
+
+			diff = cur.tv_sec - start.tv_sec;
+			if (diff > st->n->check_timeout && !RB_EMPTY_ROOT(&st->trans_root)) {
+				err = -ETIMEDOUT;
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: STATE TIMEOUT\n",
+						dnet_state_dump_addr(st));
+				goto out_exit;
+			}
+
 			continue;
+		}
 
 		if (err < 0) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: failed to process poll events: %s [%d]\n",
@@ -803,6 +816,8 @@ static void *dnet_state_processing(void *priv)
 		err = dnet_process_recv_single(st);
 		if (err < 0)
 			goto out_exit;
+
+		gettimeofday(&start, NULL);
 	}
 
 out_exit:

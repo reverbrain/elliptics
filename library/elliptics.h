@@ -350,7 +350,6 @@ struct dnet_trans
 	uint64_t			size;
 
 	atomic_t			refcnt;
-	timer_t				timerid;
 
 	void				*priv;
 	int				(* complete)(struct dnet_net_state *st,
