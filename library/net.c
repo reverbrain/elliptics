@@ -128,8 +128,11 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 	err = getaddrinfo(cfg->addr, cfg->port, &hint, &ai);
 	if (err || ai == NULL) {
 		err = -errno;
-		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%s, family: %d, err: %d.\n",
-				cfg->addr, cfg->port, cfg->family, err);
+		if (!err)
+			err = -EINVAL;
+
+		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%s, family: %d, err: %d: %s [%d].\n",
+				cfg->addr, cfg->port, cfg->family, err, strerror(errno), errno);
 		goto err_out_exit;
 	}
 
@@ -277,6 +280,8 @@ static ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t 
 		err = 0;
 	}
 
+	if (err)
+		st->need_exit = err;
 	return err;
 }
 
@@ -287,9 +292,6 @@ ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size)
 	pthread_mutex_lock(&st->send_lock);
 	err = dnet_send_nolock(st, data, size);
 	pthread_mutex_unlock(&st->send_lock);
-
-	if (err)
-		dnet_state_clean(st);
 
 	return err;
 }
@@ -353,10 +355,10 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 	err = 0;
 
 err_out_unlock:
+	if (err)
+		st->need_exit = err;
 	pthread_mutex_unlock(&st->send_lock);
 
-	if (err)
-		dnet_state_clean(st);
 	return err;
 }
 
@@ -509,6 +511,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *orig,
 
 	t->data = orig->rcv_data;
 	t->size = size;
+
 	orig->rcv_data = NULL;
 
 	t->st = forward;
