@@ -206,37 +206,32 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 		}
 	}
 
+	if (!num) {
+		err = -EEXIST;
+		goto err_out_unlock_put;
+	}
+
 	g->id_num += num;
+	qsort(g->ids, g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
 
-	if (num) {
-		qsort(g->ids, g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
+	list_add_tail(&st->state_entry, &g->state_list);
 
-		list_add_tail(&st->state_entry, &g->state_list);
+	idc->id_num = id_num;
+	idc->st = st;
+	idc->group = g;
 
-		idc->id_num = id_num;
-		idc->st = st;
-		idc->group = g;
+	st->idc = idc;
 
-		st->idc = idc;
-
-		if (n->log->log_mask & DNET_LOG_DSA) {
-			for (i=0; i<g->id_num; ++i) {
-				struct dnet_state_id *id = &g->ids[i];
-				dnet_log(n, DNET_LOG_DSA, "%d: %s -> %s\n", g->group_id, dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st));
-			}
+	if (n->log->log_mask & DNET_LOG_DSA) {
+		for (i=0; i<g->id_num; ++i) {
+			struct dnet_state_id *id = &g->ids[i];
+			dnet_log(n, DNET_LOG_DSA, "%d: %s -> %s\n", g->group_id, dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st));
 		}
-	} else {
-		dnet_group_put(g);
 	}
 
 	pthread_mutex_unlock(&n->state_lock);
 
 	dnet_log(n, DNET_LOG_DSA, "Initialized group %d with %d ids, added %d ids out of %d.\n", g->group_id, g->id_num, num, id_num);
-
-	if (!num) {
-		err = -EEXIST;
-		goto err_out_free;
-	}
 
 	return 0;
 
