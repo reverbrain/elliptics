@@ -1,3 +1,9 @@
+elliptics (2.9.6.62) unstable; urgency=low
+
+  * Fixed typo in dnet_trans_timer_setup() during timer creation.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 11 Mar 2011 05:48:41 +0300
+
 elliptics (2.9.6.61) unstable; urgency=low
 
   * Use state pointer rather than transaction in timer completion callback.
