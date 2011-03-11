@@ -94,15 +94,14 @@ struct dnet_net_state
 	void			*rcv_data;
 
 	pthread_mutex_t		send_lock;
+	struct rb_root		trans_root;
+
 	pthread_t		tid;
 
 	int			la;
 	unsigned long long	free;
 
 	struct dnet_idc		*idc;
-
-	pthread_mutex_t		trans_lock;
-	struct rb_root		trans_root;
 
 	struct dnet_stat_count	stat[__DNET_CMD_MAX];
 };
@@ -346,9 +345,6 @@ struct dnet_trans
 	uint64_t			trans, rcv_trans;
 	struct dnet_cmd			cmd;
 
-	void				*data;
-	uint64_t			size;
-
 	atomic_t			refcnt;
 
 	void				*priv;
@@ -371,18 +367,38 @@ static inline struct dnet_trans *dnet_trans_get(struct dnet_trans *t)
 
 static inline void dnet_trans_put(struct dnet_trans *t)
 {
-	if (atomic_dec_and_test(&t->refcnt))
+	if (t && atomic_dec_and_test(&t->refcnt))
 		dnet_trans_destroy(t);
 }
 
+int dnet_trans_insert_nolock(struct rb_root *root, struct dnet_trans *a);
 void dnet_trans_remove(struct dnet_trans *t);
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
-int dnet_trans_insert(struct dnet_trans *t);
 struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
+
+struct dnet_trans_send_ctl {
+	struct dnet_net_state		*st;
+	struct dnet_trans		*t;
+
+	void				*header;
+	unsigned long long		hsize;
+
+	void				*data;
+	unsigned long long		dsize;
+
+	int				fd;
+	unsigned long long		foffset, fsize;
+};
+
+int dnet_trans_send(struct dnet_trans_send_ctl *ctl);
 
 int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl);
 
 int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st);
+
+ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, int fd, uint64_t offset, uint64_t dsize);
+ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, void *data, uint64_t dsize);
+ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size);
 
 struct dnet_io_completion
 {

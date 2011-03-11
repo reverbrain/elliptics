@@ -57,7 +57,7 @@ struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans)
 	return NULL;
 }
 
-static int dnet_trans_insert_raw(struct rb_root *root, struct dnet_trans *a)
+int dnet_trans_insert_nolock(struct rb_root *root, struct dnet_trans *a)
 {
 	struct rb_node **n = &root->rb_node, *parent = NULL;
 	struct dnet_trans *t;
@@ -87,20 +87,6 @@ static int dnet_trans_insert_raw(struct rb_root *root, struct dnet_trans *a)
 	return 0;
 }
 
-int dnet_trans_insert(struct dnet_trans *t)
-{
-	struct dnet_net_state *st = t->st;
-	int err;
-
-	t->rcv_trans = t->trans = atomic_inc(&st->n->trans) & ~DNET_TRANS_REPLY;
-
-	pthread_mutex_lock(&st->trans_lock);
-	err = dnet_trans_insert_raw(&st->trans_root, t);
-	pthread_mutex_unlock(&st->trans_lock);
-
-	return err;
-}
-
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t)
 {
 	if (!t->trans_entry.rb_parent_color) {
@@ -120,9 +106,9 @@ void dnet_trans_remove(struct dnet_trans *t)
 {
 	struct dnet_net_state *st = t->st;
 
-	pthread_mutex_lock(&st->trans_lock);
+	pthread_mutex_lock(&st->send_lock);
 	dnet_trans_remove_nolock(&st->trans_root, t);
-	pthread_mutex_unlock(&st->trans_lock);
+	pthread_mutex_unlock(&st->send_lock);
 }
 
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
@@ -152,23 +138,23 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		return;
 
 	if (t->st && t->st->n)
-		dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, st: %p, data: %p.\n",
+		dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, st: %s.\n",
 			dnet_dump_id(&t->cmd.id),
 			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
 			!!(t->trans & ~DNET_TRANS_REPLY),
-			t->st, t->data);
+			dnet_state_dump_addr(t->st));
 
 	if (t->trans_entry.rb_parent_color && t->st && t->st->n)
 		dnet_trans_remove(t);
 
 	dnet_state_put(t->st);
-	free(t->data);
 
 	free(t);
 }
 
 int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_control *ctl)
 {
+	struct dnet_trans_send_ctl sc;
 	struct dnet_node *n = st->n;
 	struct dnet_cmd *cmd;
 	struct dnet_attr *a;
@@ -201,27 +187,29 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 
 	if (ctl->size && ctl->data)
 		memcpy(a + 1, ctl->data, ctl->size);
-
-	t->st = dnet_state_get(st);
-	err = dnet_trans_insert(t);
-	if (err)
-		goto err_out_destroy;
-
-	cmd->trans = t->trans;
+	
+	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
 	dnet_convert_cmd(cmd);
 	dnet_convert_attr(a);
 
-	err = dnet_send(t->st, cmd, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + ctl->size);
+	t->st = dnet_state_get(st);
+
+	memset(&sc, 0, sizeof(sc));
+	sc.st = st;
+	sc.t = t;
+	sc.header = cmd;
+	sc.hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + ctl->size;
+
+	err = dnet_trans_send(&sc);
 	if (err)
-		goto err_out_destroy_no_complete;
+		goto err_out_destroy;
 
 	return 0;
 
 err_out_destroy:
 	if (ctl->complete)
 		ctl->complete(NULL, NULL, NULL, ctl->priv);
-err_out_destroy_no_complete:
 	dnet_trans_put(t);
 err_out_exit:
 	return err;

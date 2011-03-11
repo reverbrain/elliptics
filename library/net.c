@@ -172,14 +172,14 @@ static void dnet_state_clean(struct dnet_net_state *st)
 	while (1) {
 		t = NULL;
 
-		pthread_mutex_lock(&st->trans_lock);
+		pthread_mutex_lock(&st->send_lock);
 		rb_node = rb_first(&st->trans_root);
 		if (rb_node) {
 			t = rb_entry(rb_node, struct dnet_trans, trans_entry);
 			dnet_trans_get(t);
 			dnet_trans_remove_nolock(&st->trans_root, t);
 		}
-		pthread_mutex_unlock(&st->trans_lock);
+		pthread_mutex_unlock(&st->send_lock);
 
 		if (!t)
 			break;
@@ -296,16 +296,29 @@ ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size)
 	return err;
 }
 
-ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, int fd, uint64_t offset, uint64_t dsize)
+ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, void *data, uint64_t dsize)
 {
 	ssize_t err;
-	unsigned long long orig_dsize = dsize;
-	unsigned long long orig_offset = offset;
 
 	pthread_mutex_lock(&st->send_lock);
 	err = dnet_send_nolock(st, header, hsize);
 	if (err < 0)
 		goto err_out_unlock;
+
+	err = dnet_send_nolock(st, data, dsize);
+	if (err < 0)
+		goto err_out_unlock;
+
+err_out_unlock:
+	pthread_mutex_unlock(&st->send_lock);
+	return err;
+}
+
+static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t offset, uint64_t dsize)
+{
+	ssize_t err;
+	unsigned long long orig_dsize = dsize;
+	unsigned long long orig_offset = offset;
 
 	while (dsize) {
 		err = dnet_wait(st, POLLOUT, st->timeout);
@@ -313,11 +326,11 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 			continue;
 
 		if (err < 0)
-			goto err_out_unlock;
+			goto err_out_exit;
 
 		err = dnet_sendfile(st, fd, &offset, dsize);
 		if (err < 0)
-			goto err_out_unlock;
+			goto err_out_exit;
 		if (err == 0) {
 			dnet_log(st->n, DNET_LOG_ERROR, "Looks like truncated file: fd: %d, offset: %llu, size: %llu.\n",
 					fd, (unsigned long long)offset, (unsigned long long)dsize);
@@ -343,40 +356,74 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 
 			err = dnet_send_nolock(st, buf, sz);
 			if (err)
-				goto err_out_unlock;
+				goto err_out_exit;
 
 			dsize -= sz;
 		}
 	}
 
-	dnet_log(st->n, DNET_LOG_DSA, "Sent %llu header bytes and %llu data bytes from fd %d, offset %llu -> %llu.\n",
-			(unsigned long long)hsize, orig_dsize, fd, orig_offset, (unsigned long long)offset);
+	dnet_log(st->n, DNET_LOG_DSA, "Sent %llu data bytes from fd %d, offset %llu -> %llu.\n",
+			orig_dsize, fd, orig_offset, (unsigned long long)offset);
 
 	err = 0;
 
-err_out_unlock:
+err_out_exit:
 	if (err)
 		st->need_exit = err;
-	pthread_mutex_unlock(&st->send_lock);
 
 	return err;
 }
 
-ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, void *data, uint64_t dsize)
+ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, int fd, uint64_t offset, uint64_t dsize)
 {
-	ssize_t err;
+	int err;
 
 	pthread_mutex_lock(&st->send_lock);
 	err = dnet_send_nolock(st, header, hsize);
-	if (err < 0)
+	if (err)
 		goto err_out_unlock;
 
-	err = dnet_send_nolock(st, data, dsize);
-	if (err < 0)
+	err = dnet_send_fd_nolock(st, fd, offset, dsize);
+	if (err)
 		goto err_out_unlock;
 
 err_out_unlock:
 	pthread_mutex_unlock(&st->send_lock);
+	return err;
+}
+
+int dnet_trans_send(struct dnet_trans_send_ctl *ctl)
+{
+	struct dnet_net_state *st = ctl->st;
+	int err;
+
+	pthread_mutex_lock(&st->send_lock);
+	err = dnet_trans_insert_nolock(&st->trans_root, ctl->t);
+	if (err)
+		goto err_out_unlock;
+
+	if (ctl->header && ctl->hsize) {
+		err = dnet_send_nolock(st, ctl->header, ctl->hsize);
+		if (err)
+			goto err_out_remove;
+	}
+
+	if (ctl->fd != -1 && ctl->fsize)
+		err = dnet_send_fd_nolock(st, ctl->fd, ctl->foffset, ctl->fsize);
+	else if (ctl->data && ctl->dsize)
+		err = dnet_send_nolock(st, ctl->data, ctl->dsize);
+
+	if (err)
+		goto err_out_remove;
+	pthread_mutex_unlock(&st->send_lock);
+
+	return 0;
+
+err_out_remove:
+	dnet_trans_remove_nolock(&st->trans_root, ctl->t);
+err_out_unlock:
+	pthread_mutex_unlock(&st->send_lock);
+
 	return err;
 }
 
@@ -506,36 +553,29 @@ static int dnet_trans_complete_forward(struct dnet_net_state *state __unused,
 
 static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *orig, struct dnet_net_state *forward)
 {
-	uint64_t size = orig->rcv_cmd.size;
-	int err;
-
-	t->data = orig->rcv_data;
-	t->size = size;
-
-	orig->rcv_data = NULL;
-
-	t->st = forward;
-	err = dnet_trans_insert(t);
-	t->st = dnet_state_get(orig);
-
-	if (err)
-		goto err_out_exit;
+	struct dnet_trans_send_ctl sc;
 
 	t->rcv_trans = t->cmd.trans;
-	t->cmd.trans = t->trans;
+	t->cmd.trans = t->trans = atomic_inc(&orig->n->trans);
 
 	t->complete = dnet_trans_complete_forward;
 	t->priv = t;
 
-	err = dnet_send_data(forward, &t->cmd, sizeof(struct dnet_cmd), t->data, t->size);
+	t->st = dnet_state_get(orig);
 
-err_out_exit:
-	dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarded to %s, trans: %llu -> %llu, err: %d.\n",
+	memset(&sc, 0, sizeof(sc));
+	sc.t = t;
+	sc.st = forward;
+	sc.header = &t->cmd;
+	sc.hsize = sizeof(struct dnet_cmd);
+	sc.data = orig->rcv_data;
+	sc.dsize = orig->rcv_cmd.size;
+
+	dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding to %s, trans: %llu -> %llu\n",
 			dnet_dump_id(&t->cmd.id), dnet_state_dump_addr(forward),
-			(unsigned long long)t->rcv_trans, (unsigned long long)t->trans,
-			err);
+			(unsigned long long)t->rcv_trans, (unsigned long long)t->trans);
 
-	return err;
+	return dnet_trans_send(&sc);
 }
 
 static int dnet_process_recv(struct dnet_net_state *st)
@@ -548,12 +588,12 @@ static int dnet_process_recv(struct dnet_net_state *st)
 	if (st->rcv_cmd.trans & DNET_TRANS_REPLY) {
 		uint64_t tid = st->rcv_cmd.trans & ~DNET_TRANS_REPLY;
 
-		pthread_mutex_lock(&st->trans_lock);
+		pthread_mutex_lock(&st->send_lock);
 		t = dnet_trans_search(&st->trans_root, tid);
 		if (t && !(st->rcv_cmd.flags & DNET_FLAGS_MORE)) {
 			dnet_trans_remove_nolock(&st->trans_root, t);
 		}
-		pthread_mutex_unlock(&st->trans_lock);
+		pthread_mutex_unlock(&st->send_lock);
 
 		if (!t) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: could not find transaction for reply: trans %llu.\n",
@@ -859,10 +899,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	INIT_LIST_HEAD(&st->state_entry);
 	st->trans_root = RB_ROOT;
 
-	err = pthread_mutex_init(&st->trans_lock, NULL);
-	if (err)
-		goto err_out_state_free;
-
 	func = dnet_state_processing;
 	if (s == n->listen_socket)
 		func = dnet_accept_client;
@@ -871,7 +907,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	if (err) {
 		err = -err;
 		dnet_log_err(n, "Failed to initialize send mutex: %d", err);
-		goto err_out_trans_lock_destroy;
+		goto err_out_free;
 	}
 
 	atomic_init(&st->refcnt, 1);
@@ -900,9 +936,7 @@ err_out_idc_destroy:
 	dnet_idc_destroy(st);
 err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
-err_out_trans_lock_destroy:
-	pthread_mutex_destroy(&st->trans_lock);
-err_out_state_free:
+err_out_free:
 	free(st);
 err_out_exit:
 	return NULL;
@@ -934,7 +968,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 
 	dnet_idc_destroy(st);
 
-	pthread_mutex_destroy(&st->trans_lock);
+	pthread_mutex_destroy(&st->send_lock);
 
 	dnet_log(st->n, DNET_LOG_DSA, "Freeing state %s, socket: %d.\n",
 		dnet_server_convert_dnet_addr(&st->addr), st->s);

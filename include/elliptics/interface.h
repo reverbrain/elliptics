@@ -511,10 +511,6 @@ static inline char *dnet_dump_id_str(const unsigned char *id)
  */
 int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, char *command);
 
-ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size);
-ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, void *data, uint64_t dsize);
-ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, int fd, uint64_t offset, uint64_t dsize);
-
 /*
  * Lookup a node which hosts given ID.
  *
