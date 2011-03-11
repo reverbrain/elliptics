@@ -109,7 +109,7 @@ int dnet_trans_timer_setup(struct dnet_trans *t)
 
 	its.it_interval.tv_sec = its.it_interval.tv_nsec = 0;
 
-	if (t->timerid) {
+	if (!t->timerid) {
 		memset(&sev, 0, sizeof(sev));
 		sev.sigev_notify = SIGEV_THREAD;
 		sev.sigev_value.sival_ptr = t->st;
