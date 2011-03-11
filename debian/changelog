@@ -1,3 +1,9 @@
+elliptics (2.9.6.57) unstable; urgency=low
+
+  * Fixed off-by-one in dnet_idc_destroy()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 11 Mar 2011 03:10:47 +0300
+
 elliptics (2.9.6.56) unstable; urgency=low
 
   * KC memory freeing cleanup
