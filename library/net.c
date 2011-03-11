@@ -410,8 +410,6 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 
 static int dnet_trans_exec(struct dnet_trans *t, struct dnet_net_state *st)
 {
-	int err = 0;
-
 	dnet_trans_timer_setup(t);
 
 	dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: executing trans: %llu, reply: %d.\n",
@@ -421,7 +419,7 @@ static int dnet_trans_exec(struct dnet_trans *t, struct dnet_net_state *st)
 	if (t->complete)
 		t->complete(t->st, &st->rcv_cmd, st->rcv_data, t->priv);
 
-	return err;
+	return 0;
 }
 
 static struct dnet_trans *dnet_trans_new(struct dnet_net_state *st)

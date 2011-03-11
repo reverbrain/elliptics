@@ -99,34 +99,37 @@ static void dnet_trans_timer_notify(union sigval sv)
 
 int dnet_trans_timer_setup(struct dnet_trans *t)
 {
-	long timeout = (t->st && t->st->n) ? t->st->n->check_timeout : 60;
-	struct itimerspec its;
-	struct sigevent sev;
-	int err;
+	int err = 0;
 
-	its.it_value.tv_sec = timeout;
-	its.it_value.tv_nsec = 0;
+	if (t->st) {
+		long timeout = t->st->n->check_timeout;
+		struct itimerspec its;
+		struct sigevent sev;
 
-	its.it_interval.tv_sec = its.it_interval.tv_nsec = 0;
+		its.it_value.tv_sec = timeout;
+		its.it_value.tv_nsec = 0;
 
-	if (!t->timerid) {
-		memset(&sev, 0, sizeof(sev));
-		sev.sigev_notify = SIGEV_THREAD;
-		sev.sigev_value.sival_ptr = t->st;
-		sev.sigev_notify_function = dnet_trans_timer_notify;
+		its.it_interval.tv_sec = its.it_interval.tv_nsec = 0;
 
-		err = timer_create(CLOCK_MONOTONIC, &sev, &t->timerid);
+		if (!t->timerid) {
+			memset(&sev, 0, sizeof(sev));
+			sev.sigev_notify = SIGEV_THREAD;
+			sev.sigev_value.sival_ptr = t->st;
+			sev.sigev_notify_function = dnet_trans_timer_notify;
+
+			err = timer_create(CLOCK_MONOTONIC, &sev, &t->timerid);
+			if (err == -1) {
+				err = -errno;
+				dnet_log_err(t->st->n, "failed to create realtime clock");
+				goto err_out_exit;
+			}
+		}
+
+		err = timer_settime(t->timerid, 0, &its, NULL);
 		if (err == -1) {
 			err = -errno;
-			dnet_log_err(t->st->n, "failed to create realtime clock");
-			goto err_out_exit;
+			dnet_log_err(t->st->n, "failed to setup timer for trans: %llu", (unsigned long long)t->trans);
 		}
-	}
-
-	err = timer_settime(t->timerid, 0, &its, NULL);
-	if (err == -1) {
-		err = -errno;
-		dnet_log_err(t->st->n, "failed to setup timer for trans: %llu", (unsigned long long)t->trans);
 	}
 
 err_out_exit:
