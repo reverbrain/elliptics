@@ -87,10 +87,21 @@ static int dnet_trans_insert_raw(struct rb_root *root, struct dnet_trans *a)
 	return 0;
 }
 
+/* can be racy with state removal? */
+static void dnet_trans_timer_notify(union sigval sv)
+{
+	struct dnet_net_state *st = sv.sival_ptr;
+
+	dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT ERROR\n", dnet_state_dump_addr(st));
+
+	st->need_exit = 1;
+}
+
 int dnet_trans_timer_setup(struct dnet_trans *t)
 {
 	long timeout = (t->st && t->st->n) ? t->st->n->check_timeout : 60;
 	struct itimerspec its;
+	struct sigevent sev;
 	int err;
 
 	its.it_value.tv_sec = timeout;
@@ -98,13 +109,27 @@ int dnet_trans_timer_setup(struct dnet_trans *t)
 
 	its.it_interval.tv_sec = its.it_interval.tv_nsec = 0;
 
+	if (t->timerid) {
+		memset(&sev, 0, sizeof(sev));
+		sev.sigev_notify = SIGEV_THREAD;
+		sev.sigev_value.sival_ptr = t->st;
+		sev.sigev_notify_function = dnet_trans_timer_notify;
+
+		err = timer_create(CLOCK_MONOTONIC, &sev, &t->timerid);
+		if (err == -1) {
+			err = -errno;
+			dnet_log_err(t->st->n, "failed to create realtime clock");
+			goto err_out_exit;
+		}
+	}
+
 	err = timer_settime(t->timerid, 0, &its, NULL);
 	if (err == -1) {
 		err = -errno;
-		if (t->st && t->st->n)
-			dnet_log_err(t->st->n, "failed to setup timer for trans: %llu", (unsigned long long)t->trans);
+		dnet_log_err(t->st->n, "failed to setup timer for trans: %llu", (unsigned long long)t->trans);
 	}
 
+err_out_exit:
 	return err;
 }
 
@@ -158,20 +183,9 @@ void dnet_trans_remove(struct dnet_trans *t)
 	pthread_mutex_unlock(&st->trans_lock);
 }
 
-static void dnet_trans_timer_notify(union sigval sv)
-{
-	struct dnet_trans *t = sv.sival_ptr;
-
-	dnet_log(t->st->n, DNET_LOG_ERROR, "%s: trans: %llu, st: %s: TIMEOUT ERROR\n",
-			dnet_dump_id(&t->cmd.id), (unsigned long long)t->trans, dnet_state_dump_addr(t->st));
-
-	t->st->need_exit = 1;
-}
-
-struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size)
+struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
 {
 	struct dnet_trans *t;
-	struct sigevent sev;
 	int err;
 
 	t = malloc(sizeof(struct dnet_trans) + size);
@@ -184,22 +198,8 @@ struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size)
 
 	atomic_init(&t->refcnt, 1);
 
-	memset(&sev, 0, sizeof(sev));
-	sev.sigev_notify = SIGEV_THREAD;
-	sev.sigev_value.sival_ptr = t;
-	sev.sigev_notify_function = dnet_trans_timer_notify;
-
-	err = timer_create(CLOCK_MONOTONIC, &sev, &t->timerid);
-	if (err == -1) {
-		err = -errno;
-		dnet_log_err(n, "failed to create realtime clock");
-		goto err_out_free;
-	}
-
 	return t;
 
-err_out_free:
-	free(t);
 err_out_exit:
 	return NULL;
 }
