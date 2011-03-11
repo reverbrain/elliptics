@@ -1,3 +1,9 @@
+elliptics (2.9.6.60) unstable; urgency=low
+
+  * Do not put transaction and state in tranaction' timeout handler.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 11 Mar 2011 04:39:22 +0300
+
 elliptics (2.9.6.59) unstable; urgency=low
 
   * More idc/group cleanups.
