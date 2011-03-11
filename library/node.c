@@ -193,8 +193,10 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	}
 
 	g->ids = realloc(g->ids, (g->id_num + id_num) * sizeof(struct dnet_state_id));
-	if (!g->ids)
-		goto err_out_unlock;
+	if (!g->ids) {
+		g->id_num = 0;
+		goto err_out_unlock_put;
+	}
 
 	num = 0;
 	for (i=0; i<id_num; ++i) {
@@ -217,10 +219,14 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 
 		st->idc = idc;
 
-		for (i=0; i<g->id_num; ++i) {
-			struct dnet_state_id *id = &g->ids[i];
-			dnet_log(n, DNET_LOG_DSA, "%d: %s -> %s\n", g->group_id, dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st));
+		if (n->log->log_mask & DNET_LOG_DSA) {
+			for (i=0; i<g->id_num; ++i) {
+				struct dnet_state_id *id = &g->ids[i];
+				dnet_log(n, DNET_LOG_DSA, "%d: %s -> %s\n", g->group_id, dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st));
+			}
 		}
+	} else {
+		dnet_group_put(g);
 	}
 
 	pthread_mutex_unlock(&n->state_lock);
@@ -229,12 +235,13 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 
 	if (!num) {
 		err = -EEXIST;
-		dnet_group_put(g);
 		goto err_out_free;
 	}
 
 	return 0;
 
+err_out_unlock_put:
+	dnet_group_put(g);
 err_out_unlock:
 	pthread_mutex_unlock(&n->state_lock);
 err_out_free:

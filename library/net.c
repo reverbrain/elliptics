@@ -879,7 +879,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	return st;
 
 err_out_idc_destroy:
+	pthread_mutex_lock(&n->state_lock);
 	dnet_idc_destroy(st);
+	pthread_mutex_unlock(&n->state_lock);
 err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
 err_out_trans_lock_destroy:
