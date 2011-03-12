@@ -1034,7 +1034,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 err_out_sock_close:
 	close(s);
 err_out_reconnect:
-	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) ||
+	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) || (err == -ECONNRESET) ||
 			(err == -EINPROGRESS) || (err == -EAGAIN))
 		dnet_add_reconnect_state(n, &addr, cfg->join | DNET_WANT_RECONNECT);
 	return err;
