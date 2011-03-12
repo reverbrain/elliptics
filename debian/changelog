@@ -1,3 +1,9 @@
+elliptics (2.9.6.72) unstable; urgency=low
+
+  * Optimized route list request.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 12 Mar 2011 06:52:53 +0300
+
 elliptics (2.9.6.71) unstable; urgency=low
 
   * No need to initialize direct command id.
