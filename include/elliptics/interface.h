@@ -241,6 +241,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
 
+/* cfg->join flags */
 #define DNET_JOIN_NETWORK		(1<<0)
 #define DNET_NO_ROUTE_LIST		(1<<1)
 
