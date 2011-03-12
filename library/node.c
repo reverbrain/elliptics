@@ -261,7 +261,7 @@ void dnet_idc_destroy(struct dnet_net_state *st)
 
 	for (i=0; i<g->id_num - 1; ++i) {
 		if (g->ids[i].idc == idc) {
-			memmove(&g->ids[i], &g->ids[i+1], (g->id_num - i) * sizeof(struct dnet_state_id));
+			memmove(&g->ids[i], &g->ids[i+1], (g->id_num - i - 1) * sizeof(struct dnet_state_id));
 
 			g->id_num--;
 			i--;
