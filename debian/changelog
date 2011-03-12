@@ -1,3 +1,10 @@
+elliptics (2.9.6.73) unstable; urgency=low
+
+  * Optimized dnet_idc_destroy()
+  * Temporarily disable route list reply processing.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 12 Mar 2011 07:07:25 +0300
+
 elliptics (2.9.6.72) unstable; urgency=low
 
   * Optimized route list request.
