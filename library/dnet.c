@@ -215,6 +215,10 @@ static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *sen
 	int size = sizeof(struct dnet_addr_cmd) + orig->idc->id_num * sizeof(struct dnet_raw_id);
 	void *buf;
 	int err;
+	struct timeval start, end;
+	long diff;
+
+	gettimeofday(&start, NULL);
 
 	buf = malloc(size);
 	if (!buf) {
@@ -227,7 +231,9 @@ static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *sen
 	dnet_send_idc_fill(orig, buf, size, id, trans, command, reply, direct, more);
 	pthread_mutex_unlock(&n->state_lock);
 
-	dnet_log(n, DNET_LOG_DSA, "%s: sending address %s\n", dnet_dump_id(id), dnet_state_dump_addr(orig));
+	gettimeofday(&end, NULL);
+	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
+	dnet_log(n, DNET_LOG_INFO, "%s: sending address %s: %ld\n", dnet_dump_id(id), dnet_state_dump_addr(orig), diff);
 
 	err = dnet_send(send, buf, size);
 
@@ -879,11 +885,15 @@ int dnet_join(struct dnet_node *n)
 	int err = 0;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
+	struct timeval start, end;
+	long diff;
 
 	if (!n->command_handler) {
 		dnet_log(n, DNET_LOG_ERROR, "Can not join without command handler.\n");
 		return -EINVAL;
 	}
+
+	gettimeofday(&start, NULL);
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
@@ -895,6 +905,12 @@ int dnet_join(struct dnet_node *n)
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
+	
+	gettimeofday(&end, NULL);
+	
+	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
+	dnet_log(n, DNET_LOG_ERROR, "Join: err: %d: %ld usecs.\n", err, diff);
+
 
 	return err;
 }
@@ -2175,7 +2191,10 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, char *cmd)
 		num = 1;
 	} else {
 		struct dnet_group *g;
+		struct timeval start, end;
+		long diff;
 
+		gettimeofday(&start, NULL);
 		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(g, &n->group_list, group_entry) {
 			list_for_each_entry(st, &g->state_list, state_entry) {
@@ -2189,6 +2208,10 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, char *cmd)
 			}
 		}
 		pthread_mutex_unlock(&n->state_lock);
+
+		gettimeofday(&end, NULL);
+		diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
+		dnet_log(n, DNET_LOG_ERROR, "%s: cmd %s: %ld usecs.\n", dnet_dump_id(id), cmd, diff);
 	}
 
 	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
@@ -2533,6 +2556,10 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
 	} else {
 		struct dnet_net_state *st;
 		struct dnet_group *g;
+		struct timeval start, end;
+		long diff;
+
+		gettimeofday(&start, NULL);
 
 		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(g, &n->group_list, group_entry) {
@@ -2551,6 +2578,10 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
 			}
 		}
 		pthread_mutex_unlock(&n->state_lock);
+
+		gettimeofday(&end, NULL);
+		diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
+		dnet_log(n, DNET_LOG_ERROR, "stat request: %ld usecs.\n", diff);
 	}
 
 	if (!w)

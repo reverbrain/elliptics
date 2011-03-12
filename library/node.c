@@ -168,6 +168,13 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	struct dnet_idc *idc;
 	struct dnet_group *g;
 	int err = -ENOMEM, i, num;
+	struct timeval start, end;
+	long diff;
+
+	gettimeofday(&start, NULL);
+
+	if (id_num)
+		id_num = 1;
 
 	idc = malloc(sizeof(struct dnet_idc) + sizeof(struct dnet_state_id) * id_num);
 	if (!idc)
@@ -230,8 +237,11 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	}
 
 	pthread_mutex_unlock(&n->state_lock);
+	
+	gettimeofday(&end, NULL);
+	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 
-	dnet_log(n, DNET_LOG_DSA, "Initialized group %d with %d ids, added %d ids out of %d.\n", g->group_id, g->id_num, num, id_num);
+	dnet_log(n, DNET_LOG_INFO, "Initialized group %d with %d ids, added %d ids out of %d: %ld usecs.\n", g->group_id, g->id_num, num, id_num, diff);
 
 	return 0;
 
@@ -241,6 +251,9 @@ err_out_unlock:
 	pthread_mutex_unlock(&n->state_lock);
 	free(idc);
 err_out_exit:
+	gettimeofday(&end, NULL);
+	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
+	dnet_log(n, DNET_LOG_ERROR, "Failed to initialized group %d with %d ids: err: %d: %ld usecs.\n", group_id, id_num, err, diff);
 	return err;
 }
 
