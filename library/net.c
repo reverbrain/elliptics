@@ -138,7 +138,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 			goto err_out_close;
 		}
 
-		err = listen(s, 1024);
+		err = listen(s, 10240);
 		if (err) {
 			err = -errno;
 			dnet_log_err(n, "Failed to listen at %s:%d",
