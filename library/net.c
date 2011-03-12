@@ -493,8 +493,6 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 
 	while (size) {
 		err = dnet_wait(st, POLLIN, st->timeout);
-		if (err == -EAGAIN)
-			continue;
 		if (err < 0)
 			return err;
 
