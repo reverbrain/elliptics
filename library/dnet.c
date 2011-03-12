@@ -765,6 +765,8 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 	long size;
 	int err;
 
+	return 0;
+
 	if (!st || !cmd || !attr) {
 		err = -EINVAL;
 		goto err_out_exit;
