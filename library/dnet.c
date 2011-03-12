@@ -2232,6 +2232,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 {
 	struct dnet_addr_storage *ast, *tmp;
 	struct dnet_net_state *st;
+	LIST_HEAD(list);
 	int s, err;
 
 	if (list_empty(&n->reconnect_list))
@@ -2239,10 +2240,15 @@ int dnet_try_reconnect(struct dnet_node *n)
 
 	pthread_mutex_lock(&n->reconnect_lock);
 	list_for_each_entry_safe(ast, tmp, &n->reconnect_list, reconnect_entry) {
+		list_move(&ast->reconnect_entry, &list);
+	}
+	pthread_mutex_unlock(&n->reconnect_lock);
+
+	list_for_each_entry_safe(ast, tmp, &list, reconnect_entry) {
 		s = dnet_socket_create_addr(n, n->sock_type, n->proto, n->family,
 				(struct sockaddr *)ast->addr.addr, ast->addr.addr_len, 0);
 		if (s < 0)
-			continue;
+			goto out_add;
 
 		st = dnet_add_state_socket(n, &ast->addr, s, &err);
 		if (!st) {
@@ -2252,7 +2258,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 			if (err == -EEXIST || err == -EINVAL)
 				goto out_remove;
 
-			continue;
+			goto out_add;
 		}
 
 		st->__join_state = DNET_WANT_RECONNECT;
@@ -2261,15 +2267,16 @@ int dnet_try_reconnect(struct dnet_node *n)
 			err = dnet_state_join(st);
 			if (err) {
 				dnet_state_put(st);
-				continue;
+				goto out_add;
 			}
 		}
 
+out_add:
+		dnet_add_reconnect_state(n, &ast->addr, ast->__join_state);
 out_remove:
 		list_del(&ast->reconnect_entry);
 		free(ast);
 	}
-	pthread_mutex_unlock(&n->reconnect_lock);
 
 	return 0;
 }
