@@ -1,3 +1,10 @@
+elliptics (2.9.6.67) unstable; urgency=low
+
+  * Enable back whole route table download at state add creation.
+  * Fixed off-by-one in dnet_idc_destroy() during memmove()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 12 Mar 2011 03:13:14 +0300
+
 elliptics (2.9.6.66) unstable; urgency=low
 
   * Do not request route list at startup.
