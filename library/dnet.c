@@ -712,7 +712,7 @@ static int dnet_add_received_state(struct dnet_node *n, struct dnet_addr_attr *a
 			goto err_out_put;
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "%d: added received state %s.\n",
+	dnet_log(n, DNET_LOG_NOTICE, "%d: added received state %s.\n",
 			group_id, dnet_state_dump_addr(nst));
 
 	return 0;
@@ -849,7 +849,7 @@ int dnet_join(struct dnet_node *n)
 	return err;
 }
 
-static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct dnet_addr *addr, int s)
+static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct dnet_addr *addr, int s, int *errp)
 {
 	struct dnet_net_state *st, dummy;
 	char buf[sizeof(struct dnet_addr_cmd)];
@@ -937,6 +937,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 err_out_free:
 	free(ids);
 err_out_exit:
+	*errp = err;
 	return NULL;
 }
 
@@ -955,11 +956,9 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_reconnect;
 	}
 
-	st = dnet_add_state_socket(n, &addr, s);
-	if (!st) {
-		err = -EINVAL;
+	st = dnet_add_state_socket(n, &addr, s, &err);
+	if (!st)
 		goto err_out_sock_close;
-	}
 
 	if (!(cfg->join & DNET_NO_ROUTE_LIST))
 		dnet_recv_route_list(st);
@@ -2172,15 +2171,14 @@ int dnet_try_reconnect(struct dnet_node *n)
 		if (s < 0)
 			continue;
 
-		st = dnet_add_state_socket(n, &ast->addr, s);
+		st = dnet_add_state_socket(n, &ast->addr, s, &err);
 		if (!st) {
+			dnet_log(n, DNET_LOG_INFO, "Disconnecting from %s: %d\n", dnet_server_convert_dnet_addr(&ast->addr), err);
 			close(s);
 
-			st = dnet_state_search_by_addr(n, &ast->addr);
-			if (st) {
-				dnet_state_put(st);
+			if (err == -EEXIST || err == -EINVAL)
 				goto out_remove;
-			}
+
 			continue;
 		}
 
