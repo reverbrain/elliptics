@@ -249,7 +249,7 @@ void dnet_idc_destroy(struct dnet_net_state *st)
 	struct dnet_node *n = st->n;
 	struct dnet_idc *idc;
 	struct dnet_group *g;
-	int i;
+	int i, pos;
 
 	pthread_mutex_lock(&n->state_lock);
 
@@ -259,18 +259,18 @@ void dnet_idc_destroy(struct dnet_net_state *st)
 
 	g = idc->group;
 
-	for (i=0; i<g->id_num - 1; ++i) {
-		if (g->ids[i].idc == idc) {
-			memmove(&g->ids[i], &g->ids[i+1], (g->id_num - i - 1) * sizeof(struct dnet_state_id));
-
-			g->id_num--;
-			i--;
+	for (i=0, pos=0; i<g->id_num; ++i) {
+		if (g->ids[i].idc != idc) {
+			g->ids[pos] = g->ids[i];
+			pos++;
 		}
 	}
 
+	g->id_num = pos;
+
 	qsort(g->ids,  g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
 
-	dnet_group_put(idc->group);
+	dnet_group_put(g);
 	free(idc);
 
 	st->idc = NULL;
