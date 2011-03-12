@@ -2018,6 +2018,8 @@ int main()
 		goto err_out_fcgi_exit;
 	}
 
+	dnet_fcgi_log_write("STARTED.\n");
+
 	while (1) {
 		err = FCGX_Accept_r(&dnet_fcgi_request);
 		if (err || !dnet_fcgi_request.in || !dnet_fcgi_request.out || !dnet_fcgi_request.err || !dnet_fcgi_request.envp) {
