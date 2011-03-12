@@ -856,9 +856,16 @@ static void *dnet_accept_client(void *priv)
 	struct dnet_addr addr;
 	int cs, err;
 
+	dnet_log(n, DNET_LOG_INFO, "start\n");
 	dnet_set_name("acceptor");
-	free(ctl->ids);
-
+#if 1
+	if (ctl->id_num) {
+		err = dnet_idc_create(ctl->st, ctl->group_id, ctl->ids, ctl->id_num);
+		free(ctl);
+		if (err)
+			goto out_exit;
+	}
+#endif
 	while (!n->need_exit) {
 		err = dnet_wait(orig, POLLIN | POLLRDHUP | POLLERR | POLLHUP | POLLNVAL, 1000);
 		if (err == -EAGAIN)
@@ -887,6 +894,7 @@ static void *dnet_accept_client(void *priv)
 				dnet_server_convert_dnet_addr(&addr), cs);
 	}
 
+out_exit:
 	dnet_state_reset(orig);
 	return NULL;
 }
@@ -901,10 +909,12 @@ static void *dnet_state_processing(void *priv)
 	dnet_set_name(dnet_state_dump_addr(st));
 	dnet_schedule_command(st);
 
-	err = dnet_idc_create(st, ctl->group_id, ctl->ids, ctl->id_num);
-	free(ctl->ids);
-	if (err)
-		goto out_exit;
+	if (ctl->id_num) {
+		err = dnet_idc_create(st, ctl->group_id, ctl->ids, ctl->id_num);
+		free(ctl);
+		if (err)
+			goto out_exit;
+	}
 
 	gettimeofday(&start, NULL);
 	while (!st->n->need_exit && !st->need_exit) {
@@ -950,7 +960,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	int err = -ENOMEM;
 	struct dnet_net_state *st;
 	void * (* func)(void *);
-	struct dnet_state_ctl ctl;
+	struct dnet_state_ctl *ctl;
 
 	if (ids && id_num) {
 		st = dnet_state_search_by_addr(n, addr);
@@ -997,20 +1007,22 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		pthread_mutex_unlock(&n->state_lock);
 	}
 
-	memset(&ctl, 0, sizeof(ctl));
+	ctl = malloc(sizeof(*ctl) + id_num * sizeof(*ids));
+	if (!ctl)
+		goto err_out_send_destroy;
 
-	ctl.st = st;
-	ctl.group_id = group_id;
-	ctl.id_num = id_num;
-	if (ctl.id_num) {
-		ctl.ids = malloc(id_num * sizeof(*ids));
-		if (!ctl.ids)
-			goto err_out_send_destroy;
+	memset(ctl, 0, sizeof(*ctl));
 
-		memcpy(ctl.ids, ids, id_num * sizeof(*ids));
+	ctl->st = st;
+	ctl->group_id = group_id;
+	ctl->id_num = id_num;
+	ctl->ids = (struct dnet_raw_id *)(ctl + 1);
+	if (id_num && ids) {
+		memcpy(ctl->ids, ids, id_num * sizeof(*ids));
+		dnet_log(n, DNET_LOG_INFO, "copied %d ids\n", id_num);
 	}
 
-	err = pthread_create(&st->tid, &n->attr, func, &ctl);
+	err = pthread_create(&st->tid, &n->attr, func, ctl);
 	if (err) {
 		dnet_log_err(n, "Failed to create new state thread: %d", err);
 		goto err_out_ids_free;
@@ -1019,7 +1031,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	return st;
 
 err_out_ids_free:
-	free(ctl.ids);
+	free(ctl);
 err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
 err_out_free:
