@@ -961,7 +961,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_sock_close;
 	}
 
-	if (!(cfg->join & DNET_NO_ROUTE_LIST) && 0)
+	if (!(cfg->join & DNET_NO_ROUTE_LIST))
 		dnet_recv_route_list(st);
 
 	return 0;
