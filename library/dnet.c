@@ -304,6 +304,8 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	struct dnet_cmd *acmd;
 	int err;
 
+	return 0;
+
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
@@ -764,8 +766,6 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 	void *buf;
 	long size;
 	int err;
-
-	return 0;
 
 	if (!st || !cmd || !attr) {
 		err = -EINVAL;
