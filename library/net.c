@@ -1019,7 +1019,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	ctl->ids = (struct dnet_raw_id *)(ctl + 1);
 	if (id_num && ids) {
 		memcpy(ctl->ids, ids, id_num * sizeof(*ids));
-		dnet_log(n, DNET_LOG_INFO, "copied %d ids\n", id_num);
 	}
 
 	err = pthread_create(&st->tid, &n->attr, func, ctl);

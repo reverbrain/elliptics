@@ -786,7 +786,6 @@ static int dnet_recv_route_list(struct dnet_net_state *st)
 	cmd = (struct dnet_cmd *)(t + 1);
 	a = (struct dnet_attr *)(cmd + 1);
 
-	dnet_setup_id(&cmd->id, st->idc->group->group_id, st->idc->ids[0].raw.id);
 	cmd->size = sizeof(struct dnet_attr);
 	cmd->flags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT;
 	cmd->status = 0;
