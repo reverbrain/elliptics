@@ -31,6 +31,83 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
+static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, unsigned int salen)
+{
+	int err;
+
+	fcntl(s, F_SETFL, O_NONBLOCK);
+
+	err = connect(s, sa, salen);
+	if (err) {
+		struct pollfd pfd;
+		socklen_t slen;
+		int status;
+
+		pfd.fd = s;
+		pfd.revents = 0;
+		pfd.events = POLLOUT;
+
+		err = -errno;
+		if (err != -EINPROGRESS) {
+			dnet_log_err(n, "Failed to connect to %s:%d",
+				dnet_server_convert_addr(sa, salen),
+				dnet_server_convert_port(sa, salen));
+			goto err_out_exit;
+		}
+
+		err = poll(&pfd, 1, 1000);
+		if (err < 0)
+			goto err_out_exit;
+		if (err == 0) {
+			err = -ETIMEDOUT;
+			dnet_log_err(n, "Failed to wait to connect to %s:%d",
+				dnet_server_convert_addr(sa, salen),
+				dnet_server_convert_port(sa, salen));
+			goto err_out_exit;
+		}
+		if ((!(pfd.revents & POLLOUT)) || (pfd.revents & (POLLERR | POLLHUP))) {
+			err = -ECONNREFUSED;
+			dnet_log_err(n, "Connection refused by %s:%d",
+				dnet_server_convert_addr(sa, salen),
+				dnet_server_convert_port(sa, salen));
+			goto err_out_exit;
+		}
+
+		status = 0;
+		slen = 4;
+		err = getsockopt(s, SOL_SOCKET, SO_ERROR, &status, &slen);
+		if (err || status) {
+			err = -errno;
+			if (!err)
+				err = -status;
+			dnet_log_err(n, "Failed to connect to %s:%d: %s [%d]",
+				dnet_server_convert_addr(sa, salen),
+				dnet_server_convert_port(sa, salen),
+				strerror(-err), err);
+			goto err_out_exit;
+		}
+	}
+
+	err = 1;
+	setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &err, 4);
+
+	err = 3;
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPCNT, &err, 4);
+	err = 10;
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPIDLE, &err, 4);
+	err = 10;
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPINTVL, &err, 4);
+
+	dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d.\n",
+		dnet_server_convert_addr(sa, salen),
+		dnet_server_convert_port(sa, salen));
+
+	err = 0;
+
+err_out_exit:
+	return err;
+}
+
 int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int family,
 		struct sockaddr *sa, unsigned int salen, int listening)
 {
@@ -73,30 +150,13 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 		dnet_log(n, DNET_LOG_INFO, "Server is now listening at %s:%d.\n",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
+
+		fcntl(s, F_SETFL, O_NONBLOCK);
 	} else {
-		err = connect(s, sa, salen);
-		if (err) {
-			err = -errno;
-			dnet_log_err(n, "Failed to connect to %s:%d",
-				dnet_server_convert_addr(sa, salen),
-				dnet_server_convert_port(sa, salen));
+		err = dnet_socket_connect(n, s, sa, salen);
+		if (err)
 			goto err_out_close;
-		}
-		err = 1;
-		setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &err, 4);
-
-		err = 4;
-		setsockopt(s, IPPROTO_TCP, TCP_KEEPCNT, &err, 4);
-		err = 30;
-		setsockopt(s, IPPROTO_TCP, TCP_KEEPIDLE, &err, 4);
-		err = 20;
-		setsockopt(s, IPPROTO_TCP, TCP_KEEPINTVL, &err, 4);
-
-		dnet_log(n, DNET_LOG_INFO, "connected to %s:%d.\n",
-			dnet_server_convert_addr(sa, salen),
-			dnet_server_convert_port(sa, salen));
 	}
-	fcntl(s, F_SETFL, O_NONBLOCK);
 
 	return s;
 
@@ -878,7 +938,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	st = dnet_state_search_by_addr(n, addr);
 	if (st) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: state already exists.\n", dnet_server_convert_dnet_addr(addr));
 		err = -EEXIST;
 		dnet_state_put(st);
 		goto err_out_exit;
@@ -939,6 +998,8 @@ err_out_send_destroy:
 err_out_free:
 	free(st);
 err_out_exit:
+	if (err == -EEXIST)
+		dnet_log(n, DNET_LOG_ERROR, "%s: state already exists.\n", dnet_server_convert_dnet_addr(addr));
 	return NULL;
 }
 
