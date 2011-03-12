@@ -252,7 +252,7 @@ static void dnet_state_clean(struct dnet_net_state *st)
 		num++;
 	}
 
-	dnet_log(st->n, DNET_LOG_INFO, "Cleaned state %s, transaction freed: %d\n", dnet_state_dump_addr(st), num);
+	dnet_log(st->n, DNET_LOG_INFO, "Cleaned state %s, transactions freed: %d\n", dnet_state_dump_addr(st), num);
 }
 
 static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeout)
