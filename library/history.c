@@ -143,21 +143,43 @@ static int db_del_direct_notran(struct dnet_node *n, struct dnet_cmd *cmd)
 	return 0;
 }
 
+static int db_del_direct_trans(struct dnet_node *n, struct dnet_id *id, int meta)
+{
+	int ret, err = 0;
+	KCDB *db = meta ? n->meta : n->history;
+	char *dbname = meta ? "meta" : "history";
+
+	ret = kcdbbegintran(db, 1);
+	if (!ret) {
+		err = -kcdbecode(db);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start %s remove transaction, err: %d: %s.\n",
+			dnet_dump_id(id), dbname, err, kcecodename(-err));
+		goto err_out_exit;
+	}
+
+	ret = kcdbremove(db, (void *)id->id, DNET_ID_SIZE);
+	if (!ret) {
+		err = -kcdbecode(db);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to remove %s object, err: %d: %s.\n",
+			dnet_dump_id(id), dbname, err, kcecodename(-err));
+	}
+	kcdbendtran(db, ret);
+
+err_out_exit:
+	return err;
+}
+
 static int db_del_direct(struct dnet_node *n, struct dnet_cmd *cmd)
 {
-	int ret;
+	int err;
 
-	ret = kcdbbegintran(n->history, 1);
-	if (ret) {
-		kcdbremove(n->history, (void *)cmd->id.id, DNET_ID_SIZE);
-		kcdbendtran(n->history, 1);
-	}
+	err = db_del_direct_trans(n, &cmd->id, 0);
+	if (err)
+		return err;
 
-	ret = kcdbbegintran(n->meta, 1);
-	if (ret) {
-		kcdbremove(n->meta, (void *)cmd->id.id, DNET_ID_SIZE);
-		kcdbendtran(n->meta, 1);
-	}
+	err = db_del_direct_trans(n, &cmd->id, 1);
+	if (err)
+		return err;
 
 	return 0;
 }
