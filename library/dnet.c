@@ -227,9 +227,7 @@ static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *sen
 	}
 	memset(buf, 0, sizeof(struct dnet_addr_cmd));
 
-	pthread_mutex_lock(&n->state_lock);
 	dnet_send_idc_fill(orig, buf, size, id, trans, command, reply, direct, more);
-	pthread_mutex_unlock(&n->state_lock);
 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
@@ -307,10 +305,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	struct dnet_group *g;
 	void *buf, *orig_buf;
 	size_t size = 0, send_size = 0, sz;
-	struct dnet_cmd *acmd;
 	int err;
-
-	return 0;
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
@@ -349,17 +344,9 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	acmd = orig_buf;
-	dnet_convert_cmd(acmd);
-	acmd->size = send_size - sizeof(struct dnet_cmd);
-	acmd->flags &= ~DNET_FLAGS_MORE;
-	dnet_convert_cmd(acmd);
-
 	err = dnet_send(orig, orig_buf, send_size);
 	if (err)
 		goto err_out_free;
-
-	cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 
 err_out_free:
 	free(orig_buf);
@@ -769,7 +756,6 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 {
 	struct dnet_addr_attr *a;
 	struct dnet_node *n;
-	void *buf;
 	long size;
 	int err;
 
@@ -794,30 +780,6 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 	dnet_convert_addr_attr(a);
 
 	err = dnet_process_addr_attr(st, attr, a, cmd->id.group_id);
-
-	buf = a;
-	buf += attr->size;
-	size = cmd->size - attr->size - sizeof(struct dnet_attr);
-
-	while (size > 0) {
-		struct dnet_addr_cmd *acmd = buf;
-
-		if (size < (signed)sizeof(struct dnet_addr_cmd)) {
-			err = -EINVAL;
-			goto err_out_exit;
-		}
-
-		cmd = &acmd->cmd;
-		attr = &acmd->a;
-		a = &acmd->addr;
-
-		dnet_convert_addr_cmd(acmd);
-
-		err = dnet_process_addr_attr(st, attr, a, cmd->id.group_id);
-
-		size -= cmd->size + sizeof(struct dnet_cmd);
-		buf += cmd->size + sizeof(struct dnet_cmd);
-	}
 
 err_out_exit:
 	return err;

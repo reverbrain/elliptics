@@ -173,9 +173,6 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 
 	gettimeofday(&start, NULL);
 
-	if (id_num)
-		id_num = 1;
-
 	idc = malloc(sizeof(struct dnet_idc) + sizeof(struct dnet_state_id) * id_num);
 	if (!idc)
 		goto err_out_exit;
