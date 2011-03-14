@@ -171,13 +171,8 @@ err_out_exit:
 
 static int db_del_direct(struct dnet_node *n, struct dnet_cmd *cmd)
 {
-	int err;
-
-	err = db_del_direct_trans(n, &cmd->id, 0);
-	err = db_del_direct_trans(n, &cmd->id, 1);
-	if (err)
-		return err;
-
+	db_del_direct_trans(n, &cmd->id, 1);
+	db_del_direct_trans(n, &cmd->id, 0);
 	return 0;
 }
 
