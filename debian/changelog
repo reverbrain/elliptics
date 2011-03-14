@@ -1,3 +1,9 @@
+elliptics (2.9.6.79) unstable; urgency=low
+
+  * Added error checks and debug into remove command.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 01:33:17 +0300
+
 elliptics (2.9.6.78) unstable; urgency=low
 
   * Roll back some testing changes. Fixed state_lock@join deadlock.
