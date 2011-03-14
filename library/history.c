@@ -659,7 +659,7 @@ static KCDB *db_backend_open(struct dnet_node *n, char *dbfile)
 	if (!db)
 		goto err_out_exit;
 
-	ret = kcdbopen(db, dbfile, KCOWRITER | KCOCREATE | KCOAUTOTRAN);
+	ret = kcdbopen(db, dbfile, KCOWRITER | KCOCREATE | KCOAUTOTRAN | KCOAUTOSYNC);
 	if (!ret) {
 		err = -kcdbecode(db);
 		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open '%s' database, err: %d %s\n", dbfile, err, kcecodename(-err));
