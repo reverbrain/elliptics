@@ -540,7 +540,7 @@ err_out_kcfree:
 	free(buf);
 
 out_exit:
-	if (err)
+	if (err && (err != -ENOENT) && (err != -7))
 		ctl->need_exit = err;
 
 	dnet_log(n, DNET_LOG_INFO, "Exited iteration loop, err: %d, need_exit: %d.\n", err, ctl->need_exit);
