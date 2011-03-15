@@ -803,6 +803,8 @@ int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r);
 void *dnet_node_get_ns(struct dnet_node *n, int *nsize);
 void dnet_node_set_ns(struct dnet_node *n, void *ns, int nsize);
 
+long dnet_get_id(void);
+
 #ifdef __cplusplus
 }
 #endif
