@@ -187,7 +187,7 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 
 	if (ctl->size && ctl->data)
 		memcpy(a + 1, ctl->data, ctl->size);
-	
+
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
 	dnet_convert_cmd(cmd);

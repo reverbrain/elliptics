@@ -107,7 +107,7 @@ static int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id, int hi
 
 	memcpy(&cmd->id, id, sizeof(struct dnet_id));
 	cmd->size = cmd_size - sizeof(struct dnet_cmd);
-	
+
 	attr->size = cmd->size - sizeof(struct dnet_attr);
 	attr->cmd = DNET_CMD_READ;
 
@@ -443,7 +443,7 @@ static int dnet_cmd_stat_count(struct dnet_net_state *orig, struct dnet_cmd *cmd
 		if (err)
 			goto err_out_unlock;
 	}
-#endif	
+#endif
 	list_for_each_entry(st, &n->empty_state_list, state_entry) {
 		err = dnet_cmd_stat_count_single(orig, cmd, st, as);
 		if (err)
@@ -619,7 +619,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		dnet_stat_inc(st->stat, a->cmd, err);
 
 		gettimeofday(&end, NULL);
-		
+
 		diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
 		dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, size: %llu, time: %ld usecs, err: %d.\n",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(a->cmd), tid,
@@ -801,7 +801,7 @@ static int dnet_recv_route_list(struct dnet_net_state *st)
 	}
 
 	t->complete = dnet_recv_route_list_complete;
-	
+
 	cmd = (struct dnet_cmd *)(t + 1);
 	a = (struct dnet_attr *)(cmd + 1);
 
@@ -829,7 +829,7 @@ static int dnet_recv_route_list(struct dnet_net_state *st)
 	sc.t = t;
 	sc.header = cmd;
 	sc.hsize = sizeof(struct dnet_attr) + sizeof(struct dnet_cmd);
-	
+
 	err = dnet_trans_send(&sc);
 	if (err)
 		goto err_out_destroy;
@@ -867,9 +867,9 @@ int dnet_join(struct dnet_node *n)
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
-	
+
 	gettimeofday(&end, NULL);
-	
+
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 	dnet_log(n, DNET_LOG_ERROR, "Join: err: %d: %ld usecs.\n", err, diff);
 
@@ -1646,7 +1646,7 @@ static int dnet_trans_map_add_range_raw(struct rb_root *root, struct dnet_map_en
 
 	rb_link_node(&new->map_entry, parent, n);
 	rb_insert_color(&new->map_entry, root);
-	return 0;	
+	return 0;
 }
 
 static int dnet_trans_map_add_range(struct dnet_map_root *r, uint64_t offset, uint64_t size)
@@ -1766,7 +1766,7 @@ again:
 		r->size -= m->offset + m->size - a->offset;
 		goto again;
 	}
-	
+
 	/*
 	 *            a->offset + a->size
 	 * ==================|
@@ -2892,7 +2892,7 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
 
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
-	
+
 	ctl.io.flags = 0;
 	ctl.io.size = *size;
 	ctl.io.offset = 0;

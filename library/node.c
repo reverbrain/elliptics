@@ -158,7 +158,7 @@ static int dnet_idc_compare(const void *k1, const void *k2)
 {
 	const struct dnet_state_id *id1 = k1;
 	const struct dnet_state_id *id2 = k2;
-	
+
 	return dnet_id_cmp_str(id1->raw.id, id2->raw.id);
 }
 
@@ -234,7 +234,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	}
 
 	pthread_mutex_unlock(&n->state_lock);
-	
+
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 
@@ -295,7 +295,7 @@ static int __dnet_idc_search(struct dnet_group *g, struct dnet_id *id)
 	struct dnet_state_id *sid;
 
 	for (low = -1, high = g->id_num; high-low > 1; ) {
-		i = low + (high - low)/2; 
+		i = low + (high - low)/2;
 		sid = &g->ids[i];
 
 		cmp = dnet_id_cmp_str(sid->raw.id, id->id);

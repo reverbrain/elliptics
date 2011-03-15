@@ -865,7 +865,7 @@ static void *dnet_accept_client(void *priv)
 		}
 
 		fcntl(cs, F_SETFL, O_NONBLOCK);
-		
+
 		st = dnet_state_create(n, 0, NULL, 0, &addr, cs);
 		if (!st) {
 			close(cs);
@@ -1052,7 +1052,7 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 	c = malloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
 	if (!c)
 		return -ENOMEM;
-	
+
 	memset(c, 0, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
 
 	a = (struct dnet_attr *)(c + 1);
