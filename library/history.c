@@ -510,13 +510,12 @@ static void *dnet_db_list_iter(void *data)
 		}
 
 err_out_kcfree:
-		atomic_inc(&ctl->total);
 		if (err < 0)
 			atomic_inc(&ctl->errors);
 
 		kcfree(kbuf);
 
-		if ((atomic_read(&ctl->total) % 30000) == 0) {
+		if ((atomic_inc(&ctl->total) % 30000) == 0) {
 			if (send_check_reply) {
 				if (dnet_db_send_check_reply(ctl))
 					send_check_reply = 0;
