@@ -1,3 +1,9 @@
+elliptics (2.9.6.86) unstable; urgency=low
+
+  * Improved some debug output.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 19:53:52 +0300
+
 elliptics (2.9.6.85) unstable; urgency=low
 
   * Minor dnet_check updates.
