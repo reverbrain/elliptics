@@ -83,6 +83,8 @@ struct dnet_net_state
 
 	int			need_exit;
 
+	int			timeout_counter;
+
 	int			__join_state;
 
 	struct dnet_addr	addr;

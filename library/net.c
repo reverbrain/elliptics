@@ -458,6 +458,9 @@ int dnet_trans_send(struct dnet_trans_send_ctl *ctl)
 	int err;
 
 	pthread_mutex_lock(&st->send_lock);
+	if (RB_EMPTY_ROOT(&st->trans_root))
+		st->timeout_counter = st->n->check_timeout;
+
 	err = dnet_trans_insert_nolock(&st->trans_root, ctl->t);
 	if (err)
 		goto err_out_unlock;
@@ -885,22 +888,16 @@ static void *dnet_accept_client(void *priv)
 static void *dnet_state_processing(void *priv)
 {
 	struct dnet_net_state *st = priv;
-	struct timeval start, cur;
 	int err;
+	char addr[64];
 
-	dnet_set_name(dnet_state_dump_addr(st));
+	dnet_set_name(dnet_server_convert_dnet_addr_raw(&st->addr, addr, sizeof(addr)));
 	dnet_schedule_command(st);
 
-	gettimeofday(&start, NULL);
 	while (!st->n->need_exit && !st->need_exit) {
 		err = dnet_wait(st, POLLIN, 1000);
 		if (err == -EAGAIN) {
-			long diff;
-
-			gettimeofday(&cur, NULL);
-
-			diff = cur.tv_sec - start.tv_sec;
-			if (diff > st->n->check_timeout && !RB_EMPTY_ROOT(&st->trans_root)) {
+			if (!RB_EMPTY_ROOT(&st->trans_root) && (--st->timeout_counter <= 0)) {
 				err = -ETIMEDOUT;
 				dnet_log(st->n, DNET_LOG_ERROR, "%s: STATE TIMEOUT\n",
 						dnet_state_dump_addr(st));
@@ -920,7 +917,7 @@ static void *dnet_state_processing(void *priv)
 		if (err < 0)
 			goto out_exit;
 
-		gettimeofday(&start, NULL);
+		st->timeout_counter = st->n->check_timeout;
 	}
 
 out_exit:
