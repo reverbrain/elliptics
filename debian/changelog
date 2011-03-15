@@ -1,3 +1,10 @@
+elliptics (2.9.6.88) unstable; urgency=low
+
+  * state timeout updates
+  * tuned idc destruction
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 16 Mar 2011 01:22:56 +0300
+
 elliptics (2.9.6.87) unstable; urgency=low
 
   * Create all client state threads in detached state.
