@@ -431,21 +431,15 @@ static void *dnet_db_list_iter(void *data)
 				kbuf = dbuf;
 				key = id->id;
 				ctl->obj_pos++;
-			} else {
-				ctl->need_exit = 1;
 			}
 		} else {
 			kbuf = kccurget(ctl->cursor, &ksize, (const char **)&dbuf, &dsize, 1);
 			if (!kbuf) {
 				dnet_log(n, DNET_LOG_ERROR, "cursor reading returned no data.\n");
-				ctl->need_exit = 1;
 			}
 			key = kbuf;
 		}
 		pthread_mutex_unlock(&ctl->lock);
-
-		if (ctl->need_exit)
-			goto err_out_kcfree;
 
 		/*
 		 * Happens when we loop over list of ids received from client, i.e. not from cursor,
@@ -453,7 +447,7 @@ static void *dnet_db_list_iter(void *data)
 		 */
 		if (!kbuf) {
 			err = -ENOENT;
-			goto err_out_kcfree;
+			break;
 		}
 
 		if (sizeof(struct dnet_meta_container) + dsize > buf_size) {
