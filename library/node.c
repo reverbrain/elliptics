@@ -77,6 +77,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		dnet_log_err(n, "Failed to initialize pthread attributes: err: %d", err);
 		goto err_out_destroy_group_lock;
 	}
+	pthread_attr_setdetachstate(&n->attr, PTHREAD_CREATE_DETACHED);
 
 	err = pthread_attr_setstacksize(&n->attr, cfg->stack_size);
 	if (err) {

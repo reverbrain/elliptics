@@ -311,7 +311,7 @@ int dnet_check_thread_start(struct dnet_node *n)
 {
 	int err;
 
-	err = pthread_create(&n->check_tid, &n->attr, dnet_check_tree_from_thread, n);
+	err = pthread_create(&n->check_tid, NULL, dnet_check_tree_from_thread, n);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to start tree checking thread: err: %d.\n",
 				err);
