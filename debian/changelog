@@ -1,3 +1,9 @@
+elliptics (2.9.6.83) unstable; urgency=low
+
+  * Force checker to run in single-threading mode.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 03:15:24 +0300
+
 elliptics (2.9.6.82) unstable; urgency=low
 
   * Added KCOAUTOSYNC database mode.
