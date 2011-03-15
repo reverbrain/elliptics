@@ -986,13 +986,16 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	err = pthread_create(&st->tid, &n->attr, func, st);
 	if (err) {
 		dnet_log_err(n, "Failed to create new state thread: %d", err);
-		goto err_out_ids_free;
+		goto err_out_put;
 	}
 
 	return st;
 
-err_out_ids_free:
-	dnet_idc_destroy(st);
+
+err_out_put:
+	dnet_state_reset(st);
+	return NULL;
+
 err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
 err_out_free:
@@ -1031,7 +1034,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 
 	pthread_mutex_destroy(&st->send_lock);
 
-	dnet_log(st->n, DNET_LOG_DSA, "Freeing state %s, socket: %d.\n",
+	dnet_log(st->n, DNET_LOG_INFO, "Freeing state %s, socket: %d.\n",
 		dnet_server_convert_dnet_addr(&st->addr), st->s);
 
 	free(st);
