@@ -607,7 +607,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	err = pthread_mutex_init(&ctl.lock, NULL);
 	if (err)
 		goto err_out_close_cursor;
-
+#if 0
 	for (i=0; i<r->thread_num; ++i) {
 		err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);
 		if (err) {
@@ -617,7 +617,9 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 			goto err_out_join;
 		}
 	}
-
+#else
+	dnet_db_list_iter(&ctl);
+#endif
 	if (r->timestamp) {
 		localtime_r((time_t *)&r->timestamp, &tm);
 		strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
@@ -631,9 +633,10 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 			err);
 
 err_out_join:
+#if 0
 	for (i=0; i<r->thread_num; ++i)
 		pthread_join(tid[i], NULL);
-
+#endif
 	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", r->thread_num, err);
 	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d\n",
 			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors));
