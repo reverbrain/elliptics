@@ -209,7 +209,7 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 	s = dnet_socket_create_addr(n, cfg->sock_type, cfg->proto, cfg->family,
 			ai->ai_addr, ai->ai_addrlen, listening);
 	if (s < 0) {
-		err = -errno;
+		err = s;
 		goto err_out_free;
 	}
 
