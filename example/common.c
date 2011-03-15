@@ -363,7 +363,7 @@ int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cf
 
 		err = dnet_add_state(n, &cfg);
 		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add addr '%s': %d.\n", addr, err);
+			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add addr '%s:%s': %d.\n", cfg.addr, cfg.port, err);
 			goto next;
 		}
 
