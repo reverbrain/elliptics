@@ -1,3 +1,10 @@
+elliptics (2.9.6.84) unstable; urgency=low
+
+  * Do not write check completion metadata when doing merge check. Returned
+    back multi-threaded check.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 03:23:38 +0300
+
 elliptics (2.9.6.83) unstable; urgency=low
 
   * Force checker to run in single-threading mode.
