@@ -1,3 +1,9 @@
+elliptics (2.9.6.85) unstable; urgency=low
+
+  * Minor dnet_check updates.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 03:51:50 +0300
+
 elliptics (2.9.6.84) unstable; urgency=low
 
   * Do not write check completion metadata when doing merge check. Returned
