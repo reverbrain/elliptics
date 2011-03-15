@@ -832,6 +832,8 @@ static void dnet_state_remove(struct dnet_net_state *st)
 void dnet_state_reset(struct dnet_net_state *st)
 {
 	dnet_state_remove(st);
+	dnet_idc_destroy(st);
+
 	dnet_add_reconnect_state(st->n, &st->addr, st->__join_state);
 
 	dnet_state_clean(st);
@@ -1025,12 +1027,12 @@ int dnet_state_num(struct dnet_node *n)
 void dnet_state_destroy(struct dnet_net_state *st)
 {
 	dnet_state_remove(st);
-	dnet_state_clean(st);
 
 	if (st->s >= 0)
 		close(st->s);
 
 	dnet_idc_destroy(st);
+	dnet_state_clean(st);
 
 	pthread_mutex_destroy(&st->send_lock);
 
