@@ -1,3 +1,9 @@
+elliptics (2.9.6.89) unstable; urgency=low
+
+  * Use trans_lock to protect transaction tree instead of send_lock.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Wed, 16 Mar 2011 06:10:42 +0300
+
 elliptics (2.9.6.88) unstable; urgency=low
 
   * state timeout updates
