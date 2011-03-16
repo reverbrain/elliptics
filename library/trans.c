@@ -106,9 +106,9 @@ void dnet_trans_remove(struct dnet_trans *t)
 {
 	struct dnet_net_state *st = t->st;
 
-	pthread_mutex_lock(&st->send_lock);
+	pthread_mutex_lock(&st->trans_lock);
 	dnet_trans_remove_nolock(&st->trans_root, t);
-	pthread_mutex_unlock(&st->send_lock);
+	pthread_mutex_unlock(&st->trans_lock);
 }
 
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
