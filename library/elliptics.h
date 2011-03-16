@@ -96,6 +96,7 @@ struct dnet_net_state
 	void			*rcv_data;
 
 	pthread_mutex_t		send_lock;
+	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
 
 	pthread_t		tid;
