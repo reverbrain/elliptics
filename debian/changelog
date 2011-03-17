@@ -1,3 +1,9 @@
+elliptics (2.9.6.90) unstable; urgency=low
+
+  * Hold transaction when sending and inserting it into the state.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 17 Mar 2011 18:42:21 +0300
+
 elliptics (2.9.6.89) unstable; urgency=low
 
   * Use trans_lock to protect transaction tree instead of send_lock.
