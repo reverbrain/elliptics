@@ -457,6 +457,8 @@ int dnet_trans_send(struct dnet_trans_send_ctl *ctl)
 	struct dnet_net_state *st = ctl->st;
 	int err;
 
+	dnet_trans_get(ctl->t);
+
 	pthread_mutex_lock(&st->trans_lock);
 	if (RB_EMPTY_ROOT(&st->trans_root))
 		st->timeout_counter = st->n->check_timeout;
@@ -482,6 +484,7 @@ int dnet_trans_send(struct dnet_trans_send_ctl *ctl)
 		goto err_out_unlock;
 	pthread_mutex_unlock(&st->send_lock);
 
+	dnet_trans_put(ctl->t);
 	return 0;
 
 
@@ -490,6 +493,7 @@ err_out_unlock:
 
 	dnet_trans_remove(ctl->t);
 err_out_exit:
+	dnet_trans_put(ctl->t);
 	return err;
 }
 
