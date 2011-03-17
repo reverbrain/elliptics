@@ -2049,6 +2049,7 @@ int main()
 
 		err = -EINVAL;
 
+		method = FCGX_GetParam("REQUEST_METHOD", dnet_fcgi_request.envp);
 		addr = FCGX_GetParam(dnet_fcgi_remote_addr_header, dnet_fcgi_request.envp);
 		if (!addr) {
 			addr = FCGX_GetParam(DNET_FCGI_ADDR_HEADER, dnet_fcgi_request.envp);
@@ -2057,8 +2058,6 @@ int main()
 				goto err_continue;
 			}
 		}
-
-		method = FCGX_GetParam("REQUEST_METHOD", dnet_fcgi_request.envp);
 
 		query = p = FCGX_GetParam("QUERY_STRING", dnet_fcgi_request.envp);
 		if (!p) {
@@ -2256,8 +2255,8 @@ cont:
 			iodiff = (dnet_fcgi_read_time.tv_sec - tstart.tv_sec) * 1000000 + dnet_fcgi_read_time.tv_usec - tstart.tv_usec;
 		}
 
-		dnet_log_raw(n, DNET_LOG_INFO, "%s: completed: obj: '%s', len: %d, ns: '%s'/%d, v: %d, embed: %d, region: %d, err: %d, total time: %lu usecs, read io time: %ld usecs.\n",
-					dnet_dump_id(&raw), obj, length, ns ? ns : "", nsize, version, !!embed_str, dnet_fcgi_region, err, tdiff, iodiff);
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: completed: %s: obj: '%s', len: %d, ns: '%s'/%d, v: %d, embed: %d, region: %d, err: %d, total time: %lu usecs, read io time: %ld usecs.\n",
+					dnet_dump_id(&raw), method, obj, length, ns ? ns : "", nsize, version, !!embed_str, dnet_fcgi_region, err, tdiff, iodiff);
 
 		FCGX_Finish_r(&dnet_fcgi_request);
 		continue;
