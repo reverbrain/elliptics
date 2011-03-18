@@ -147,6 +147,11 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	if (t->trans_entry.rb_parent_color && t->st && t->st->n)
 		dnet_trans_remove(t);
 
+	if (t->complete) {
+		t->cmd.flags |= DNET_FLAGS_DESTROY;
+		t->complete(t->st, &t->cmd, NULL, t->priv);
+	}
+
 	dnet_state_put(t->st);
 
 	free(t);
@@ -203,13 +208,11 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 
 	err = dnet_trans_send(&sc);
 	if (err)
-		goto err_out_destroy;
+		goto err_out_put;
 
 	return 0;
 
-err_out_destroy:
-	if (ctl->complete)
-		ctl->complete(NULL, NULL, NULL, ctl->priv);
+err_out_put:
 	dnet_trans_put(t);
 err_out_exit:
 	return err;
@@ -234,45 +237,6 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
 err_out_exit:
 	return err;
 }
-#if 0
-static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *priv __unused)
-{
-	struct dnet_node *n;
-	struct dnet_net_state *st;
-
-	if (!orig || !cmd)
-		return -EINVAL;
-
-	n = orig->n;
-
-	if (cmd->status) {
-		st = dnet_state_search(n, &cmd->id);
-		if (!st) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to find matching state to free on stat check error: %d.\n", dnet_dump_id(&cmd->id), cmd->status);
-			return cmd->status;
-		}
-
-		dnet_log(n, DNET_LOG_ERROR, "%s: removing state %s on stat check error: %d\n",
-				dnet_dump_id(&cmd->id), dnet_state_dump_addr(st), cmd->status);
-
-		dnet_state_reset(st);
-		return cmd->status;
-	}
-
-	if (attr && (attr->size == sizeof(struct dnet_stat))) {
-		struct dnet_stat *stat = (struct dnet_stat *)(attr + 1);
-		dnet_convert_stat(stat);
-
-		orig->la = (int)stat->la[0];
-		orig->free = stat->bsize * stat->bavail;
-
-		dnet_log(n, DNET_LOG_DSA, "%s: la: %d, free: %llu\n", dnet_dump_id(&cmd->id), orig->la, orig->free);
-	}
-
-	return 0;
-}
-#endif
 
 static void *dnet_check_tree_from_thread(void *data)
 {

@@ -56,7 +56,7 @@ static int stat_complete(struct dnet_net_state *state,
 	struct timeval tv;
 	FILE *stream = priv;
 
-	if (!state || !cmd || !attr)
+	if (is_trans_destroyed(state, cmd, attr))
 		return 0;
 
 	if (attr->size != sizeof(struct dnet_stat))

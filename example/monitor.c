@@ -82,8 +82,10 @@ static int monitor_complete(struct dnet_net_state *state,
 	struct dnet_stat *st;
 	int err = 0;
 
-	if (!state || !cmd || !attr)
+	if (is_trans_destroyed(state, cmd, attr)) {
+		monitor_wakeup(monitor_wait_num++);
 		return 0;
+	}
 
 	if (attr->size != sizeof(struct dnet_stat))
 		return 0;
@@ -103,7 +105,6 @@ static int monitor_complete(struct dnet_net_state *state,
 out_unlock:
 	pthread_mutex_unlock(&monitor_wait_lock);
 
-	monitor_wakeup(monitor_wait_num++);
 	dnet_log_raw(n, DNET_LOG_INFO, "%s: %s\n", dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 
 	return err;

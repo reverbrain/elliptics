@@ -759,7 +759,7 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 	long size;
 	int err;
 
-	if (!st || !cmd || !attr) {
+	if (is_trans_destroyed(st, cmd, attr)) {
 		err = -EINVAL;
 		goto err_out_exit;
 	}
@@ -1002,32 +1002,25 @@ err_out_reconnect:
 	return err;
 }
 
-static void dnet_io_complete(struct dnet_wait *w, int status)
-{
-	if (status)
-		w->status = status;
-	w->cond++;
-}
-
 static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr __unused, void *priv)
 {
 	int err = -EINVAL;
+	struct dnet_wait *w = priv;
 
-	if (!cmd || !cmd->status || cmd->size == 0) {
-		struct dnet_wait *w = priv;
-
-		if (cmd && st) {
-			err = cmd->status;
-			dnet_log(st->n, DNET_LOG_DSA, "%s: object write completed: trans: %llu, status: %d.\n",
-				dnet_dump_id(&cmd->id), (unsigned long long)(cmd->trans & ~DNET_TRANS_REPLY),
-				cmd->status);
-		}
-
-		dnet_wakeup(w, dnet_io_complete(w, err));
+	if (is_trans_destroyed(st, cmd, attr)) {
+		dnet_wakeup(w, w->cond++);
 		dnet_wait_put(w);
-	} else
-		err = cmd->status;
+		return 0;
+	}
+
+	err = cmd->status;
+	dnet_log(st->n, DNET_LOG_DSA, "%s: object write completed: trans: %llu, status: %d.\n",
+		dnet_dump_id(&cmd->id), (unsigned long long)(cmd->trans & ~DNET_TRANS_REPLY),
+		cmd->status);
+
+	if (err)
+		w->status = err;
 
 	return 0;
 }
@@ -1054,7 +1047,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 					"larger or equal than %zu bytes (struct dnet_attr).\n",
 					dnet_dump_id(&ctl->id), ctl->asize, sizeof(struct dnet_attr));
 			err = -EINVAL;
-			goto err_out_destroy;
+			goto err_out_complete;
 		}
 
 		a = ctl->adata;
@@ -1066,7 +1059,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 					(unsigned long long)ctl->asize - sizeof(struct dnet_attr),
 					(unsigned long long)a->size);
 			err = -EINVAL;
-			goto err_out_destroy;
+			goto err_out_complete;
 		}
 
 		tsize += ctl->asize;
@@ -1078,7 +1071,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	t = dnet_trans_alloc(n, tsize);
 	if (!t) {
 		err = -ENOMEM;
-		goto err_out_destroy;
+		goto err_out_complete;
 	}
 	t->complete = ctl->complete;
 	t->priv = ctl->priv;
@@ -1154,9 +1147,12 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 
 	return t;
 
-err_out_destroy:
+err_out_complete:
 	if (ctl->complete)
 		ctl->complete(NULL, NULL, NULL, ctl->priv);
+	return NULL;
+
+err_out_destroy:
 	dnet_trans_put(t);
 	return NULL;
 }
@@ -1401,28 +1397,27 @@ int dnet_write_file(struct dnet_node *n, char *file, void *remote, unsigned int 
 
 static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, void *priv)
 {
-	int fd, err, freeing = 0;
+	int fd, err;
 	struct dnet_node *n;
 	struct dnet_io_completion *c = priv;
 	struct dnet_io_attr *io;
 	void *data;
 
-	if (!st || !cmd) {
-		err = -ENOMEM;
-		freeing = 1;
-		goto err_out_exit;
+	if (is_trans_destroyed(st, cmd, a)) {
+		if (c->wait) {
+			dnet_wakeup(c->wait, );
+			dnet_wait_put(c->wait);
+		}
+
+		free(c);
+		return 0;
 	}
 
 	n = st->n;
 
-	freeing = !(cmd->flags & DNET_FLAGS_MORE);
-
 	if (cmd->status != 0 || cmd->size == 0) {
 		err = cmd->status;
-
-		dnet_log(n, DNET_LOG_NOTICE, "%s: read completed: file: '%s', status: %d, freeing: %d.\n",
-				dnet_dump_id(&cmd->id), c->file, cmd->status, freeing);
-		goto err_out_exit;
+		goto err_out_exit_no_log;
 	}
 
 	if (cmd->size <= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
@@ -1430,13 +1425,7 @@ static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, s
 				dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,
 				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 		err = -EINVAL;
-		goto err_out_exit;
-	}
-
-	if (!a) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: no attributes but command size is not null.\n", dnet_dump_id(&cmd->id));
-		err = -EINVAL;
-		goto err_out_exit;
+		goto err_out_exit_no_log;
 	}
 
 	io = (struct dnet_io_attr *)(a + 1);
@@ -1467,19 +1456,13 @@ static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, s
 	return cmd->status;
 
 err_out_close:
+	close(fd);
+err_out_exit:
 	dnet_log(n, DNET_LOG_ERROR, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d, err: %d.\n",
 			dnet_dump_id(&cmd->id), c->file, (unsigned long long)io->offset,
 			(unsigned long long)io->size, cmd->status, err);
-	close(fd);
-err_out_exit:
-	if (freeing) {
-		if (c->wait) {
-			dnet_wakeup(c->wait, c->wait->cond = err);
-			dnet_wait_put(c->wait);
-		}
-
-		free(c);
-	}
+err_out_exit_no_log:
+	c->wait->cond = err;
 	return err;
 }
 
@@ -2084,34 +2067,20 @@ void dnet_wait_destroy(struct dnet_wait *w)
 	free(w);
 }
 
-static void __dnet_send_cmd_complete(struct dnet_wait *w, int status)
-{
-	w->status = status;
-	w->cond++;
-}
-
 static int dnet_send_cmd_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
-			struct dnet_attr *attr __unused, void *priv)
+			struct dnet_attr *attr, void *priv)
 {
-	int err = -EINVAL;
+	int err;
 	struct dnet_wait *w = priv;
 
-	if (!cmd)
-		goto err_out_complete;
+	if (is_trans_destroyed(st, cmd, attr)) {
+		dnet_wakeup(w, w->cond++);
+		dnet_wait_put(w);
+		return 0;
+	}
 
 	err = cmd->status;
-	if (cmd->status != 0)
-		goto err_out_complete;
-
-	if (cmd->flags & DNET_FLAGS_MORE)
-		return 0;
-
-err_out_complete:
-	if (st && cmd)
-		dnet_log(st->n, DNET_LOG_DSA, "%s: completed command, err: %d.\n", dnet_dump_id(&cmd->id), err);
-
-	dnet_wakeup(w, __dnet_send_cmd_complete(w, err));
-	dnet_wait_put(w);
+	w->status = err;
 	return err;
 }
 
@@ -2257,7 +2226,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 			sizeof(struct dnet_cmd));
 	if (!t) {
 		err = -ENOMEM;
-		goto err_out_destroy;
+		goto err_out_complete;
 	}
 	t->complete = complete;
 	t->priv = priv;
@@ -2301,9 +2270,12 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 
 	return 0;
 
-err_out_destroy:
+err_out_complete:
 	if (complete)
 		complete(NULL, NULL, NULL, priv);
+	return err;
+
+err_out_destroy:
 	dnet_trans_put(t);
 	return err;
 }
@@ -2317,9 +2289,10 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_net_state *other;
 	int err;
 
-	if (!cmd || !st) {
-		err = -EINVAL;
-		goto err_out_exit;
+	if (is_trans_destroyed(st, cmd, attr)) {
+		dnet_wakeup(w, w->cond = 1);
+		dnet_wait_put(w);
+		return 0;
 	}
 	n = st->n;
 
@@ -2345,19 +2318,12 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		dnet_recv_route_list(st);
 	}
 
-	if (!(cmd->flags & DNET_FLAGS_MORE))
-		goto out;
-
 	return 0;
 
 err_out_exit:
 	if (n)
 		dnet_log(n, DNET_LOG_ERROR, "%s: lookup completion status: %d, err: %d.\n", dnet_dump_id(&cmd->id), cmd->status, err);
-out:
-	if (w) {
-		dnet_wakeup(w, w->cond = 1);
-		dnet_wait_put(w);
-	}
+
 	return err;
 }
 
@@ -2418,7 +2384,7 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 	struct dnet_stat *st;
 	int err = -EINVAL;
 
-	if (!state || !cmd || !attr) {
+	if (is_trans_destroyed(state, cmd, attr)) {
 		dnet_wakeup(w, w->cond++);
 		dnet_wait_put(w);
 		return 0;
@@ -2461,11 +2427,6 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		for (i=0; i<as->num; ++i)
 			dnet_log(state->n, DNET_LOG_DSA, "    cmd: %d, count: %llu, err: %llu\n", i,
 					(unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
-	}
-
-	if (!(cmd->flags & DNET_FLAGS_MORE)) {
-		dnet_wakeup(w, w->cond++);
-		dnet_wait_put(w);
 	}
 
 	return err;
@@ -2613,31 +2574,20 @@ static int dnet_remove_object_raw(struct dnet_node *n,
 
 static int dnet_remove_complete(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
-			struct dnet_attr *attr __unused,
+			struct dnet_attr *attr,
 			void *priv)
 {
 	struct dnet_wait *w = priv;
-	int err = 0;
 
-	if (!state || !cmd) {
-		err = -EINVAL;
-		goto out_put;
+	if (is_trans_destroyed(state, cmd, attr)) {
+		dnet_wakeup(w, w->cond++);
+		dnet_wait_put(w);
+		return 0;
 	}
 
-	if (cmd) {
-		err = cmd->status;
-		if (cmd->flags & DNET_FLAGS_MORE)
-			return 0;
-	}
-
-out_put:
-	if (state)
-		dnet_log(state->n, DNET_LOG_NOTICE, "%s: removing completion: %d.\n",
-				dnet_dump_id(&cmd->id), err);
-
-	dnet_wakeup(w, dnet_io_complete(w, err));
-	dnet_wait_put(w);
-	return 0;
+	if (cmd->status)
+		w->status = cmd->status;
+	return cmd->status;
 }
 
 int dnet_remove_object(struct dnet_node *n,
@@ -2816,16 +2766,19 @@ struct dnet_read_data_completion {
 static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
 {
 	struct dnet_read_data_completion *c = priv;
+	struct dnet_wait *w = c->w;
 	int last = (!cmd || !(cmd->flags & DNET_FLAGS_MORE));
 	int err = -EINVAL;
 
-	if (!cmd || !attr || !st) {
-		if (cmd)
-			err = cmd->status;
-		goto err_out_exit;
+	if (is_trans_destroyed(st, cmd, attr)) {
+		dnet_wakeup(w, w->cond++);
+		dnet_wait_put(w);
+		return err;
 	}
 
 	err = cmd->status;
+	if (err)
+		w->status = err;
 
 	if (attr->size > sizeof(struct dnet_io_attr)) {
 		struct dnet_io_attr *io = (struct dnet_io_attr *)(attr + 1);
@@ -2847,15 +2800,10 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 		c->size += io->size;
 	}
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: object read completed: trans: %llu, status: %d, last: %d.\n",
-		dnet_dump_id(&cmd->id), (unsigned long long)(cmd->trans & ~DNET_TRANS_REPLY),
-		cmd->status, last);
-
 err_out_exit:
-	if (last) {
-		dnet_wakeup(c->w, dnet_io_complete(c->w, err));
-		dnet_wait_put(c->w);
-	}
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: object read completed: trans: %llu, status: %d, last: %d, err: %d.\n",
+		dnet_dump_id(&cmd->id), (unsigned long long)(cmd->trans & ~DNET_TRANS_REPLY),
+		cmd->status, last, err);
 
 	return err;
 }
@@ -3182,24 +3130,27 @@ static int dnet_read_multiple_complete(struct dnet_net_state *state,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
 {
 	struct dnet_read_multiple *m = priv;
+	struct dnet_wait *w = m->w;
 	struct dnet_node *n;
 	struct dnet_io_attr *io;
 	struct dnet_history_entry *he;
 	int err = 0, last, i, num;
 
-	if (!state || !cmd) {
-		err = -EINVAL;
-		goto out_wakeup;
+	if (is_trans_destroyed(state, cmd, attr)) {
+		dnet_wakeup(w, m->wait_num++);
+		dnet_wait_put(w);
+		return 0;
 	}
 
 	n = state->n;
 	err = cmd->status;
+
 	last = !(cmd->flags & DNET_FLAGS_MORE);
 	dnet_log_raw(n, DNET_LOG_DSA, "%s: read multiple status: %d, last: %d.\n",
 			dnet_dump_id(&cmd->id), cmd->status, last);
 
 	if (err)
-		goto out_check;
+		goto err_out_exit;
 
 	if (attr && attr->size) {
 		if (cmd->size <= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
@@ -3207,13 +3158,13 @@ static int dnet_read_multiple_complete(struct dnet_net_state *state,
 					dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,
 					sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
 			err = -EINVAL;
-			goto out_check;
+			goto err_out_exit;
 		}
 
 		if (!attr) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: read multiple: no attributes but command size is not null.\n", dnet_dump_id(&cmd->id));
 			err = -EINVAL;
-			goto out_check;
+			goto err_out_exit;
 		}
 
 		io = (struct dnet_io_attr *)(attr + 1);
@@ -3225,7 +3176,7 @@ static int dnet_read_multiple_complete(struct dnet_net_state *state,
 		if (io->size < sizeof(struct dnet_history_entry)) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: read multiple: invalid io size %llu.\n", dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 			err = -EINVAL;
-			goto out_check;
+			goto err_out_exit;
 		}
 
 		num = io->size / sizeof(struct dnet_history_entry);
@@ -3244,15 +3195,9 @@ static int dnet_read_multiple_complete(struct dnet_net_state *state,
 		}
 	}
 
-out_check:
-	if (last)
-		goto out_wakeup;
-
-	return err;
-
-out_wakeup:
-	dnet_wakeup(m->w, { do { if (err) m->wait_error = err; m->wait_num++; } while (0); 0;} );
-	dnet_wait_put(m->w);
+err_out_exit:
+	if (err)
+		m->wait_error = err;
 	return err;
 }
 

@@ -490,7 +490,7 @@ static int dnet_check_complete(struct dnet_net_state *state, struct dnet_cmd *cm
 	struct dnet_wait *w = priv;
 	int err = -EINVAL;
 
-	if (!state || !cmd || !attr) {
+	if (is_trans_destroyed(state, cmd, attr)) {
 		dnet_wakeup(w, w->cond++);
 		dnet_wait_put(w);
 		return 0;
@@ -505,12 +505,7 @@ static int dnet_check_complete(struct dnet_net_state *state, struct dnet_cmd *cm
 				r->total, r->completed, r->errors);
 	}
 
-	if (!(cmd->flags & DNET_FLAGS_MORE)) {
-		w->status = cmd->status;
-		dnet_wakeup(w, w->cond++);
-		dnet_wait_put(w);
-	}
-
+	w->status = cmd->status;
 	return err;
 }
 

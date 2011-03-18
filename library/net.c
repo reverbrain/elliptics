@@ -244,9 +244,6 @@ static void dnet_state_clean(struct dnet_net_state *st)
 		if (!t)
 			break;
 
-		if (t->complete)
-			t->complete(NULL, NULL, NULL, t->priv);
-
 		dnet_trans_put(t);
 		dnet_trans_put(t);
 		num++;

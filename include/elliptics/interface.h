@@ -805,6 +805,20 @@ void dnet_node_set_ns(struct dnet_node *n, void *ns, int nsize);
 
 long dnet_get_id(void);
 
+static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *attr __attribute__ ((unused)))
+{
+	int ret = 0;
+
+	if (!st || !cmd || (cmd->flags & DNET_FLAGS_DESTROY)) {
+		ret = 1;
+		if (cmd && cmd->status)
+			ret = cmd->status;
+	}
+
+	return ret;
+}
+
 #ifdef __cplusplus
 }
 #endif

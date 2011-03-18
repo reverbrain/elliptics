@@ -67,7 +67,7 @@ static struct dnet_log fcgi_logger;
 static FILE *dnet_fcgi_log = NULL;
 static pthread_cond_t dnet_fcgi_cond = PTHREAD_COND_INITIALIZER;
 static pthread_mutex_t dnet_fcgi_wait_lock = PTHREAD_MUTEX_INITIALIZER;
-static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344, dnet_fcgi_request_error;
+static int dnet_fcgi_request_completed, dnet_fcgi_request_init_value = 11223344, dnet_fcgi_request_error, dnet_fcgi_written;
 static char *dnet_fcgi_status_pattern, *dnet_fcgi_root_pattern;
 static int dnet_fcgi_tolerate_upload_error_count;
 static unsigned long dnet_fcgi_max_request_size;
@@ -131,7 +131,7 @@ static int dnet_fcgi_use_la_check;
 static char *dnet_fcgi_unlink_pattern;
 
 #define DNET_FCGI_STAT_LOG		1
-static int dnet_fcgi_stat_good, dnet_fcgi_stat_bad, dnet_fcgi_stat_bad_limit = -1;
+static int dnet_fcgi_stat_bad_limit = -1;
 static char *dnet_fcgi_stat_pattern, *dnet_fcgi_stat_log_pattern;
 
 #define DNET_FCGI_EXTERNAL_CALLBACK_START	"dnet_fcgi_external_callback_start"
@@ -444,130 +444,136 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 	struct dnet_node *n;
 	struct dnet_addr_attr *a;
 
-	if (!cmd || !st) {
-		err = -EINVAL;
-		goto err_out_exit;
+	if (is_trans_destroyed(st, cmd, attr)) {
+		dnet_fcgi_wakeup(err = 0);
+		return 0;
 	}
 
 	n = dnet_get_node_from_state(st);
 
-	if (!(cmd->flags & DNET_FLAGS_MORE)) {
-		err = dnet_lookup_complete(st, cmd, attr, priv);
-		if (err && err != -EEXIST)
-			goto err_out_exit;
-
-		a = (struct dnet_addr_attr *)(attr + 1);
-#if 1
-		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: addr: %s, is object presented there: %d.\n",
-				dnet_dump_id(&cmd->id),
-				dnet_server_convert_dnet_addr(&a->addr),
-				attr->flags);
-#endif
-		err = -ENOENT;
-		if (attr->flags) {
-			char addr[256];
-			char id[DNET_ID_SIZE*2+1];
-			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
-			long timestamp = time(NULL);
-			char hex_dir[2*DNET_ID_SIZE+1];
-
-			dnet_dump_id_len_raw(dnet_fcgi_id, DNET_ID_SIZE, id);
-			file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_num, hex_dir);
-
-			if (dnet_fcgi_dns_lookup) {
-				err = getnameinfo((struct sockaddr *)a->addr.addr, a->addr.addr_len,
-						addr, sizeof(addr), NULL, 0, 0);
-				if (err)
-					snprintf(addr, sizeof(addr), "%s", dnet_state_dump_addr_only(&a->addr));
-			} else {
-				snprintf(addr, sizeof(addr), "%s", dnet_state_dump_addr_only(&a->addr));
-			}
-
-			err = dnet_fcgi_put_last_modified();
-			if (err) {
-				if (err > 0)
-					err = 0;
-				goto err_out_exit;
-			}
-
-			dnet_fcgi_output("%s\r\n", dnet_fcgi_status_pattern);
-			if (!dnet_fcgi_last_modified)
-				dnet_fcgi_output("Cache-control: no-cache\r\n");
-			dnet_fcgi_output("Location: http://%s%s/%d/%s/%s\r\n",
-					addr,
-					dnet_fcgi_root_pattern,
-					port - dnet_fcgi_base_port,
-					hex_dir,
-					id);
-
-			/*
-			 * Race lives here - multiple threads can simultaneously
-			 * use shared sign/cookie buffers.
-			 * But we are safe until lookup is called in parallel.
-			 */
-			if (dnet_fcgi_sign_key) {
-				err = dnet_fcgi_generate_sign(n, timestamp);
-				if (err)
-					goto err_out_exit;
-			}
-
-			dnet_fcgi_output("Content-type: application/xml\r\n\r\n");
-
-			dnet_fcgi_output("<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>",
-					addr,
-					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
-					hex_dir,
-					id,
-					timestamp);
-
-			if (dnet_fcgi_put_region)
-				dnet_fcgi_output("<region>%d</region>", dnet_fcgi_region);
-
-			if (dnet_fcgi_sign_key)
-				dnet_fcgi_output("<s>%s</s>", dnet_fcgi_sign_tmp);
-			dnet_fcgi_output("</download-info>\r\n");
-
-			dnet_fcgi_log_write("%d: <?xml version=\"1.0\" encoding=\"utf-8\"?>"
-					"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>"
-					"<region>%d</region>",
-					getpid(),
-					addr,
-					dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
-					hex_dir,
-					id,
-					timestamp,
-					dnet_fcgi_region);
-
-			if (dnet_fcgi_sign_key)
-				dnet_fcgi_log_write("<s>%s</s>", dnet_fcgi_sign_tmp);
-			dnet_fcgi_log_write("</download-info>\n");
-
-
-			err = 0;
-		}
-	}
+	err = dnet_lookup_complete(st, cmd, attr, priv);
+	if (err && err != -EEXIST)
+		goto err_out_exit;
 
 	if (cmd->status || !cmd->size) {
 		err = cmd->status;
 		goto err_out_exit;
 	}
 
-err_out_exit:
-	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
+	if (cmd->size < sizeof(struct dnet_attr) + sizeof(struct dnet_addr_attr)) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
 
+	a = (struct dnet_addr_attr *)(attr + 1);
+#if 1
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: addr: %s, is object presented there: %d.\n",
+			dnet_dump_id(&cmd->id),
+			dnet_server_convert_dnet_addr(&a->addr),
+			attr->flags);
+#endif
+	err = -ENOENT;
+	if (attr->flags) {
+		char addr[256];
+		char id[DNET_ID_SIZE*2+1];
+		int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
+		long timestamp = time(NULL);
+		char hex_dir[2*DNET_ID_SIZE+1];
+
+		dnet_dump_id_len_raw(dnet_fcgi_id, DNET_ID_SIZE, id);
+		file_backend_get_dir(dnet_fcgi_id, dnet_fcgi_bit_num, hex_dir);
+
+		if (dnet_fcgi_dns_lookup) {
+			err = getnameinfo((struct sockaddr *)a->addr.addr, a->addr.addr_len,
+					addr, sizeof(addr), NULL, 0, 0);
+			if (err)
+				snprintf(addr, sizeof(addr), "%s", dnet_state_dump_addr_only(&a->addr));
+		} else {
+			snprintf(addr, sizeof(addr), "%s", dnet_state_dump_addr_only(&a->addr));
+		}
+
+		err = dnet_fcgi_put_last_modified();
+		if (err) {
+			if (err > 0)
+				err = 0;
+			goto err_out_exit;
+		}
+
+		dnet_fcgi_output("%s\r\n", dnet_fcgi_status_pattern);
+		if (!dnet_fcgi_last_modified)
+			dnet_fcgi_output("Cache-control: no-cache\r\n");
+		dnet_fcgi_output("Location: http://%s%s/%d/%s/%s\r\n",
+				addr,
+				dnet_fcgi_root_pattern,
+				port - dnet_fcgi_base_port,
+				hex_dir,
+				id);
+
+		/*
+		 * Race lives here - multiple threads can simultaneously
+		 * use shared sign/cookie buffers.
+		 * But we are safe until lookup is called in parallel.
+		 */
+		if (dnet_fcgi_sign_key) {
+			err = dnet_fcgi_generate_sign(n, timestamp);
+			if (err)
+				goto err_out_exit;
+		}
+
+		dnet_fcgi_output("Content-type: application/xml\r\n\r\n");
+
+		dnet_fcgi_output("<?xml version=\"1.0\" encoding=\"utf-8\"?>"
+				"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>",
+				addr,
+				dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
+				hex_dir,
+				id,
+				timestamp);
+
+		if (dnet_fcgi_put_region)
+			dnet_fcgi_output("<region>%d</region>", dnet_fcgi_region);
+
+		if (dnet_fcgi_sign_key)
+			dnet_fcgi_output("<s>%s</s>", dnet_fcgi_sign_tmp);
+		dnet_fcgi_output("</download-info>\r\n");
+
+		dnet_fcgi_log_write("%d: <?xml version=\"1.0\" encoding=\"utf-8\"?>"
+				"<download-info><host>%s</host><path>%s/%d/%s/%s</path><ts>%lx</ts>"
+				"<region>%d</region>",
+				getpid(),
+				addr,
+				dnet_fcgi_root_pattern, port - dnet_fcgi_base_port,
+				hex_dir,
+				id,
+				timestamp,
+				dnet_fcgi_region);
+
+		if (dnet_fcgi_sign_key)
+			dnet_fcgi_log_write("<s>%s</s>", dnet_fcgi_sign_tmp);
+		dnet_fcgi_log_write("</download-info>\n");
+
+
+		err = 0;
+	}
+
+err_out_exit:
+	dnet_fcgi_request_completed = err;
 	return err;
 }
 
-static int dnet_fcgi_unlink_complete(struct dnet_net_state *st __unused,
-		struct dnet_cmd *cmd, struct dnet_attr *a __unused,
+static int dnet_fcgi_unlink_complete(struct dnet_net_state *st,
+		struct dnet_cmd *cmd, struct dnet_attr *a,
 		void *priv __unused)
 {
-	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
+	if (is_trans_destroyed(st, cmd, a)) {
 		dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
+		return 0;
+	}
 
-	return 0;
+	if (cmd->status)
+		dnet_fcgi_request_error = cmd->status;
+
+	return cmd->status;
 }
 
 static int dnet_fcgi_get_data_version_id(struct dnet_node *n, struct dnet_id *id, unsigned char *dst,
@@ -647,8 +653,7 @@ static int dnet_fcgi_unlink_version(struct dnet_node *n, struct dnet_trans_contr
 
 static int dnet_fcgi_unlink(struct dnet_node *n, struct dnet_id *id, int version)
 {
-	int num = 0, i;
-	int err, error = -ENOENT;
+	int num = 0, i, err;
 	struct dnet_trans_control ctl;
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
@@ -658,7 +663,7 @@ static int dnet_fcgi_unlink(struct dnet_node *n, struct dnet_id *id, int version
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 	ctl.aflags = DNET_ATTR_DIRECT_TRANSACTION;
 
-	dnet_fcgi_request_completed = 0;
+	dnet_fcgi_request_completed = dnet_fcgi_request_error = 0;
 	for (i=0; i<dnet_fcgi_group_num; ++i) {
 		dnet_setup_id(&ctl.id, dnet_fcgi_groups[i], id->id);
 
@@ -668,20 +673,14 @@ static int dnet_fcgi_unlink(struct dnet_node *n, struct dnet_id *id, int version
 			err = dnet_fcgi_unlink_version(n, &ctl, version);
 		}
 
-		if (err)
-			error = err;
-		else
-			error = 0;
-
 		num++;
 	}
 
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed == num);
 	if (err) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to wait for removal completion: %d.\n", dnet_dump_id(id), err);
-		error = err;
 	}
-	return error;
+	return err;
 }
 
 static int dnet_fcgi_get_data(struct dnet_node *n, struct dnet_id *id, struct dnet_io_control *ctl, uint64_t *tsec, int embed)
@@ -819,16 +818,16 @@ static int dnet_fcgi_process_io(struct dnet_node *n, struct dnet_id *id, struct 
 }
 
 static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *priv __unused)
+		struct dnet_attr *attr, void *priv __unused)
 {
 	int err = 0, port;
 	struct dnet_addr *addr;
 	char id_str[DNET_ID_SIZE*2+1];
 	char hex_dir[2*DNET_ID_SIZE+1];
 
-	if (!cmd || !st) {
-		err = -EINVAL;
-		goto out_wakeup;
+	if (is_trans_destroyed(st, cmd, attr)) {
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
+		return 0;
 	}
 
 	if (cmd->status)
@@ -837,7 +836,7 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 	if (cmd->flags & DNET_FLAGS_MORE)
 		return err;
 
-	if (st && err) {
+	if (err) {
 		dnet_log_raw(dnet_get_node_from_state(st), DNET_LOG_ERROR, "%s: upload completed: %d, err: %d.\n",
 			dnet_dump_id(&cmd->id), dnet_fcgi_request_completed, err);
 	}
@@ -855,17 +854,12 @@ static int dnet_fcgi_upload_complete(struct dnet_net_state *st, struct dnet_cmd 
 			port - dnet_fcgi_base_port,
 			hex_dir, id_str,
 			cmd->id.group_id, err);
-out_wakeup:
-	dnet_fcgi_wakeup({
-				do {
-					dnet_fcgi_request_completed++;
-					if (err)
-						dnet_fcgi_request_error++;
-				} while (0);
-			-1;
-	});
 
-	return err;
+	pthread_mutex_lock(&dnet_fcgi_wait_lock);
+	dnet_fcgi_written++;
+	pthread_mutex_unlock(&dnet_fcgi_wait_lock);
+
+	return 0;
 }
 
 static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct dnet_id *id,
@@ -894,6 +888,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 
 	dnet_fcgi_request_error = 0;
 	dnet_fcgi_request_completed = 0;
+	dnet_fcgi_written = 0;
 
 	if (append)
 		ioflags = DNET_IO_FLAGS_APPEND;
@@ -916,8 +911,7 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 	err = dnet_fcgi_wait(dnet_fcgi_request_completed == trans_num);
 
 	dnet_fcgi_post_len += snprintf(dnet_fcgi_post_buf + dnet_fcgi_post_len, dnet_fcgi_post_buf_size - dnet_fcgi_post_len,
-			"<written>%d</written></post>\r\n",
-			trans_num - dnet_fcgi_request_error);
+			"<written>%d</written></post>\r\n", dnet_fcgi_written);
 
 	if (!err && dnet_fcgi_request_error > dnet_fcgi_tolerate_upload_error_count)
 		err = -ENOENT;
@@ -1132,9 +1126,9 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	unsigned long long size;
 	void *data;
 
-	if (!cmd || !st) {
-		err = -EINVAL;
-		goto err_out_exit;
+	if (is_trans_destroyed(st, cmd, a)) {
+		dnet_fcgi_wakeup(err = 0);
+		return 0;
 	}
 
 	n = dnet_get_node_from_state(st);
@@ -1239,32 +1233,18 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 err_out_unlock:
 	pthread_mutex_unlock(&dnet_fcgi_output_lock);
 err_out_exit:
-	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
-		dnet_fcgi_wakeup(dnet_fcgi_request_completed = err);
-
+	dnet_fcgi_request_completed = err;
 	return err;
 }
 
 static int dnet_fcgi_stat_complete(struct dnet_net_state *state,
-	struct dnet_cmd *cmd, struct dnet_attr *attr __unused, void *priv __unused)
+	struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv __unused)
 {
-	if (!state || !cmd || cmd->status) {
-		if (cmd && state)
-			dnet_log_raw(dnet_get_node_from_state(state), DNET_LOG_ERROR,
-					"state: %p, cmd: %p, err: %d.\n", state, cmd, cmd->status);
-		dnet_fcgi_stat_bad++;
-		goto out_wakeup;
+	if (is_trans_destroyed(state, cmd, attr)) {
+		dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
+		return 0;
 	}
 
-	if (!(cmd->flags & DNET_FLAGS_MORE)) {
-		dnet_fcgi_stat_good++;
-		goto out_wakeup;
-	}
-
-	return 0;
-
-out_wakeup:
-	dnet_fcgi_wakeup(dnet_fcgi_request_completed++);
 	return 0;
 }
 
@@ -1274,8 +1254,8 @@ static pthread_mutex_t dnet_fcgi_stat_lock = PTHREAD_MUTEX_INITIALIZER;
 static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 	struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
 {
-	if (!state || !cmd || !attr)
-		goto out;
+	if (is_trans_destroyed(state, cmd, attr))
+		return dnet_fcgi_stat_complete(state, cmd, attr, priv);
 
 	pthread_mutex_lock(&dnet_fcgi_stat_lock);
 	if (attr->size == sizeof(struct dnet_stat) && attr->cmd == DNET_CMD_STAT) {
@@ -1321,8 +1301,7 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 	}
 	pthread_mutex_unlock(&dnet_fcgi_stat_lock);
 
-out:
-	return dnet_fcgi_stat_complete(state, cmd, attr, priv);
+	return 0;
 }
 
 static int dnet_fcgi_request_stat(struct dnet_node *n,
@@ -1333,7 +1312,6 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 {
 	int err, num = 0;
 
-	dnet_fcgi_stat_good = dnet_fcgi_stat_bad = 0;
 	dnet_fcgi_request_completed = 0;
 
 	err = dnet_request_stat(n, NULL, DNET_CMD_STAT, complete, NULL);
@@ -2207,7 +2185,6 @@ int main()
 		} else if (dnet_fcgi_unlink_pattern && strstr(query, dnet_fcgi_unlink_pattern)) {
 			err = dnet_fcgi_unlink(n, &raw, version);
 			if (err) {
-				dnet_log_raw(n, DNET_LOG_ERROR, "%s: Failed to unlink object '%s': %d.\n", addr, obj, err);
 				reason = "failed to unlink";
 				goto err_continue;
 			}
