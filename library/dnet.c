@@ -1025,7 +1025,7 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	return 0;
 }
 
-static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_io_control *ctl)
+static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_io_control *ctl, int *errp)
 {
 	struct dnet_trans_send_ctl sc;
 	struct dnet_trans *t = NULL;
@@ -1110,6 +1110,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 
 	t->st = dnet_state_get_first(n, &cmd->id);
 	if (!t->st) {
+		err = -ENOENT;
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to find a state.\n", dnet_dump_id(&cmd->id));
 		goto err_out_destroy;
 	}
@@ -1150,29 +1151,31 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 err_out_complete:
 	if (ctl->complete)
 		ctl->complete(NULL, NULL, NULL, ctl->priv);
+	*errp = err;
 	return NULL;
 
 err_out_destroy:
 	dnet_trans_put(t);
+	*errp = err;
 	return NULL;
 }
 
 int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 {
 	struct dnet_trans *t;
-	int num = 0, i;
+	int num = 0, i, err;
 
 	pthread_mutex_lock(&n->group_lock);
 	for (i=0; i<n->group_num; ++i) {
 		ctl->id.group_id = n->groups[i];
 
-		t = dnet_io_trans_create(n, ctl);
+		t = dnet_io_trans_create(n, ctl, &err);
 		num++;
 	}
 	pthread_mutex_unlock(&n->group_lock);
 
 	if (!num) {
-		t = dnet_io_trans_create(n, ctl);
+		t = dnet_io_trans_create(n, ctl, &err);
 		num++;
 	}
 
@@ -1461,8 +1464,10 @@ err_out_exit_no_log:
 
 int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl)
 {
-	if (!dnet_io_trans_create(n, ctl))
-		return -EINVAL;
+	int err;
+
+	if (!dnet_io_trans_create(n, ctl, &err))
+		return err;
 
 	return 0;
 }
