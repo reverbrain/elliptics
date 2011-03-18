@@ -1167,19 +1167,12 @@ int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 		ctl->id.group_id = n->groups[i];
 
 		t = dnet_io_trans_create(n, ctl);
-		if (!t) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to create and send transaction.\n", dnet_dump_id(&ctl->id));
-		}
-
 		num++;
 	}
 	pthread_mutex_unlock(&n->group_lock);
 
 	if (!num) {
 		t = dnet_io_trans_create(n, ctl);
-		if (!t) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to create and send transaction (after n->groups loop).\n", dnet_dump_id(&ctl->id));
-		}
 		num++;
 	}
 
