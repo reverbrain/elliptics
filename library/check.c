@@ -496,6 +496,9 @@ static int dnet_check_complete(struct dnet_net_state *state, struct dnet_cmd *cm
 		return 0;
 	}
 
+	if (!attr)
+		return cmd->status;
+
 	if (attr->size == sizeof(struct dnet_check_reply)) {
 		struct dnet_check_reply *r = (struct dnet_check_reply *)(attr + 1);
 

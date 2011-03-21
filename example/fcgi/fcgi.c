@@ -455,7 +455,7 @@ static int dnet_fcgi_lookup_complete(struct dnet_net_state *st, struct dnet_cmd 
 	if (err && err != -EEXIST)
 		goto err_out_exit;
 
-	if (cmd->status || !cmd->size) {
+	if (cmd->status || !cmd->size || !attr) {
 		err = cmd->status;
 		goto err_out_exit;
 	}
@@ -1133,7 +1133,7 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 	n = dnet_get_node_from_state(st);
 
-	if (cmd->status || !cmd->size) {
+	if (cmd->status || !cmd->size || !a) {
 		err = cmd->status;
 		goto err_out_exit;
 	}
@@ -1256,6 +1256,9 @@ static int dnet_fcgi_stat_complete_log(struct dnet_net_state *state,
 {
 	if (is_trans_destroyed(state, cmd, attr))
 		return dnet_fcgi_stat_complete(state, cmd, attr, priv);
+
+	if (!attr)
+		return cmd->status;
 
 	pthread_mutex_lock(&dnet_fcgi_stat_lock);
 	if (attr->size == sizeof(struct dnet_stat) && attr->cmd == DNET_CMD_STAT) {

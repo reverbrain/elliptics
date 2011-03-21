@@ -767,7 +767,7 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 	n = st->n;
 
 	err = cmd->status;
-	if (!cmd->size || err)
+	if (!cmd->size || err || !attr)
 		goto err_out_exit;
 
 	size = cmd->size + sizeof(struct dnet_cmd);
@@ -1003,7 +1003,7 @@ err_out_reconnect:
 }
 
 static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *priv)
+		struct dnet_attr *attr, void *priv)
 {
 	int err = -EINVAL;
 	struct dnet_wait *w = priv;
@@ -1391,7 +1391,7 @@ int dnet_write_file(struct dnet_node *n, char *file, void *remote, unsigned int 
 	return dnet_write_file_local_offset(n, file, remote, len, id, offset, offset, size, aflags, 0);
 }
 
-static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, void *priv)
+static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
 {
 	int fd, err;
 	struct dnet_node *n;
@@ -1399,7 +1399,7 @@ static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, s
 	struct dnet_io_attr *io;
 	void *data;
 
-	if (is_trans_destroyed(st, cmd, a)) {
+	if (is_trans_destroyed(st, cmd, attr)) {
 		if (c->wait) {
 			dnet_wakeup(c->wait, );
 			dnet_wait_put(c->wait);
@@ -1411,7 +1411,7 @@ static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, s
 
 	n = st->n;
 
-	if (cmd->status != 0 || cmd->size == 0) {
+	if (cmd->status != 0 || cmd->size == 0 || !attr) {
 		err = cmd->status;
 		goto err_out_exit_no_log;
 	}
@@ -1424,10 +1424,9 @@ static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, s
 		goto err_out_exit_no_log;
 	}
 
-	io = (struct dnet_io_attr *)(a + 1);
+	io = (struct dnet_io_attr *)(attr + 1);
 	data = io + 1;
 
-	dnet_convert_attr(a);
 	dnet_convert_io_attr(io);
 
 	fd = open(c->file, O_RDWR | O_CREAT, 0644);
@@ -2295,7 +2294,7 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	n = st->n;
 
 	err = cmd->status;
-	if (err || !cmd->size)
+	if (err || !cmd->size || !attr)
 		goto err_out_exit;
 
 	if (attr->size != sizeof(struct dnet_addr_attr)) {
@@ -2387,6 +2386,9 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		dnet_wait_put(w);
 		return 0;
 	}
+
+	if (!attr)
+		return cmd->status;
 
 	if (attr->cmd == DNET_CMD_STAT && attr->size == sizeof(struct dnet_stat)) {
 		st = (struct dnet_stat *)(attr + 1);
@@ -2778,6 +2780,9 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	if (err)
 		w->status = err;
 
+	if (!attr)
+		return err;
+
 	if (attr->size > sizeof(struct dnet_io_attr)) {
 		struct dnet_io_attr *io = (struct dnet_io_attr *)(attr + 1);
 		void *data;
@@ -3147,10 +3152,10 @@ static int dnet_read_multiple_complete(struct dnet_net_state *state,
 	dnet_log_raw(n, DNET_LOG_DSA, "%s: read multiple status: %d, last: %d.\n",
 			dnet_dump_id(&cmd->id), cmd->status, last);
 
-	if (err)
+	if (err || !attr)
 		goto err_out_exit;
 
-	if (attr && attr->size) {
+	if (attr->size) {
 		if (cmd->size <= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: read multiple completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
 					dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,

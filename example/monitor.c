@@ -87,8 +87,8 @@ static int monitor_complete(struct dnet_net_state *state,
 		return 0;
 	}
 
-	if (attr->size != sizeof(struct dnet_stat))
-		return 0;
+	if (!attr || attr->size != sizeof(struct dnet_stat))
+		return cmd->status;
 
 	st = (struct dnet_stat *)(attr + 1);
 
