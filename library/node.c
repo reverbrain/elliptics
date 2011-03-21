@@ -601,6 +601,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->wait_ts.tv_sec)
 		n->wait_ts.tv_sec = 60*60;
 
+	dnet_log(n, DNET_LOG_INFO, "Elliptics starts, version: %s, changed files: %s\n", ELLIPTICS_GIT_VERSION, ELLIPTICS_HAS_CHANGES);
 	dnet_log(n, DNET_LOG_DSA, "Using %d stack size.\n", cfg->stack_size);
 
 	if (!n->check_timeout) {
