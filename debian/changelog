@@ -1,3 +1,12 @@
+elliptics (2.9.6.92) unstable; urgency=low
+
+  * Added log dump of elliptics version and number of changed files in git
+    tree.
+  * Added attr check in completion callbacks. It can be NULL if it is cmd-only
+    reply.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 21 Mar 2011 19:03:35 +0300
+
 elliptics (2.9.6.91) unstable; urgency=low
 
   * Added final transaction completion invocation, used in
