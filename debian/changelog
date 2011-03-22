@@ -1,3 +1,10 @@
+elliptics (2.9.6.97) unstable; urgency=low
+
+  * Restart check automatically if we checked less than half of the local
+    storage.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Mar 2011 23:10:08 +0300
+
 elliptics (2.9.6.96) unstable; urgency=low
 
   * Only forbid write command during check. Temporal hack.
