@@ -562,12 +562,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			case DNET_CMD_READ:
 			case DNET_CMD_WRITE:
 			case DNET_CMD_DEL:
-				if (a->cmd == DNET_CMD_WRITE) {
-					if (n->check_in_progress) {
-						err = -EINPROGRESS;
-						break;
-					}
-				}
 				if (a->cmd == DNET_CMD_DEL) {
 					err = dnet_db_del(n, cmd, a);
 					if (err < 0)

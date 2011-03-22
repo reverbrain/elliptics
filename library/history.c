@@ -565,6 +565,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	if (!r->thread_num)
 		r->thread_num = 50;
 
+again:
 	/* Racy, but we do not care much */
 	n->check_in_progress = 1;
 
@@ -629,6 +630,11 @@ err_out_join:
 	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d, meta_records: %lld, history_records: %lld\n",
 			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors),
 			kcdbcount(n->meta), kcdbcount(n->history));
+
+	if (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total)) {
+		dnet_log(n, DNET_LOG_INFO, "Restarting check.\n");
+		goto again;
+	}
 
 	dnet_db_send_check_reply(&ctl);
 
