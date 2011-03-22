@@ -435,16 +435,14 @@ static void *dnet_db_list_iter(void *data)
 		} else {
 			kbuf = kccurget(ctl->cursor, &ksize, (const char **)&dbuf, &dsize, 1);
 			if (!kbuf) {
-				dnet_log(n, DNET_LOG_ERROR, "cursor reading returned no data.\n");
+				err = -kcdbecode(n->meta);
+				dnet_log(n, DNET_LOG_ERROR, "Cursor returned no data: %d: %s.\n",
+						err, kcecodename(-err));
 			}
 			key = kbuf;
 		}
 		pthread_mutex_unlock(&ctl->lock);
 
-		/*
-		 * Happens when we loop over list of ids received from client, i.e. not from cursor,
-		 * and given ID does not exist on the node check runs on.
-		 */
 		if (!kbuf) {
 			err = -ENOENT;
 			break;
@@ -618,18 +616,19 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		snprintf(ctl_time, sizeof(ctl_time), "all records");
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Started %u checking threads, recovering %llu transactions, which started before %s: merge: %d, full: %d, err: %d.\n",
+	dnet_log(n, DNET_LOG_INFO, "Started %u checking threads, recovering %llu transactions, which started before %s: merge: %d, full: %d, dry: %d.\n",
 			r->thread_num, (unsigned long long)r->obj_num, ctl_time,
 			!!(r->flags & DNET_CHECK_MERGE), !!(r->flags & DNET_CHECK_FULL),
-			err);
+			!!(r->flags & DNET_CHECK_DRY_RUN));
 
 err_out_join:
 	for (i=0; i<r->thread_num; ++i)
 		pthread_join(tid[i], NULL);
 
 	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", r->thread_num, err);
-	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d\n",
-			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors));
+	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d, meta_records: %lld, history_records: %lld\n",
+			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors),
+			kcdbcount(n->meta), kcdbcount(n->history));
 
 	dnet_db_send_check_reply(&ctl);
 
