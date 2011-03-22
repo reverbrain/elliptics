@@ -1,3 +1,9 @@
+elliptics (2.9.6.93) unstable; urgency=low
+
+  * Added db cursor logs.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Mar 2011 20:08:44 +0300
+
 elliptics (2.9.6.92) unstable; urgency=low
 
   * Added log dump of elliptics version and number of changed files in git
