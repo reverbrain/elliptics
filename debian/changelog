@@ -1,3 +1,10 @@
+elliptics (2.9.6.94) unstable; urgency=low
+
+  * Temporarily do not allow write and delete commands if check is in
+    progress.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Mar 2011 21:08:41 +0300
+
 elliptics (2.9.6.93) unstable; urgency=low
 
   * Added db cursor logs.
