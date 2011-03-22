@@ -1,3 +1,9 @@
+elliptics (2.9.6.95) unstable; urgency=low
+
+  * do not break protocol processing for del/write commands during check.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Mar 2011 22:27:04 +0300
+
 elliptics (2.9.6.94) unstable; urgency=low
 
   * Temporarily do not allow write and delete commands if check is in
