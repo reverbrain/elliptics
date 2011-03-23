@@ -1,3 +1,11 @@
+elliptics (2.9.6.100) unstable; urgency=low
+
+  * Added explicit database synchronization called from check/reconnect
+    thread.
+  * Added db_flags to ioserv config. Autosync is turned off by default now!
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Mar 2011 01:55:50 +0300
+
 elliptics (2.9.6.99) unstable; urgency=low
 
   * Drop invalid goto in need_exit check in dnet_wait()
