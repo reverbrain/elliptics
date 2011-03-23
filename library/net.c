@@ -298,7 +298,6 @@ out_exit:
 	if (st->n->need_exit || st->need_exit) {
 		dnet_log(st->n, DNET_LOG_ERROR, "Need to exit.\n");
 		err = -EIO;
-		goto out_exit;
 	}
 
 	return err;
