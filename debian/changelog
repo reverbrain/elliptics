@@ -1,3 +1,9 @@
+elliptics (2.9.6.99) unstable; urgency=low
+
+  * Drop invalid goto in need_exit check in dnet_wait()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 23 Mar 2011 18:42:37 +0300
+
 elliptics (2.9.6.98) unstable; urgency=low
 
   * Do not allow dnet_state_get_first() to return own state. Dropped unused
