@@ -629,7 +629,7 @@ err_out_join:
 	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", r->thread_num, err);
 	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d, meta_records: %lld, history_records: %lld\n",
 			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors),
-			kcdbcount(n->meta), kcdbcount(n->history));
+			(long long)kcdbcount(n->meta), (long long)kcdbcount(n->history));
 
 	if (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total)) {
 		dnet_log(n, DNET_LOG_INFO, "Restarting check.\n");
