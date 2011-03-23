@@ -132,7 +132,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 void dnet_state_reset(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
-struct dnet_net_state *dnet_state_search(struct dnet_node *n, struct dnet_id *id);
 int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp, struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id);
 

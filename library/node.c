@@ -372,17 +372,6 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	return found;
 }
 
-struct dnet_net_state *dnet_state_search(struct dnet_node *n, struct dnet_id *id)
-{
-	struct dnet_net_state *st;
-
-	pthread_mutex_lock(&n->state_lock);
-	st = __dnet_state_search(n, id);
-	pthread_mutex_unlock(&n->state_lock);
-
-	return st;
-}
-
 int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp, struct dnet_addr *addr)
 {
 	struct dnet_state_id *sid;
@@ -418,6 +407,11 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id 
 
 		found = dnet_state_get(g->ids[0].idc->st);
 		dnet_group_put(g);
+	}
+
+	if (found == n->st) {
+		dnet_state_put(found);
+		found = NULL;
 	}
 
 err_out_unlock:
