@@ -1,3 +1,13 @@
+elliptics (2.9.6.98) unstable; urgency=low
+
+  * Do not allow dnet_state_get_first() to return own state. Dropped unused
+    dnet_state_search().
+  * Check for need_exit during data send at the very end, so we would not miss
+    this event.
+  * printf warnings fixed
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 23 Mar 2011 16:51:44 +0300
+
 elliptics (2.9.6.97) unstable; urgency=low
 
   * Restart check automatically if we checked less than half of the local
