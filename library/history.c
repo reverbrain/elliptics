@@ -712,3 +712,9 @@ void dnet_db_cleanup(struct dnet_node *n)
 	if (n->meta)
 		kcdbdel(n->meta);
 }
+
+int dnet_db_sync(struct dnet_node *n)
+{
+	kcdbsync(n->meta, 1, NULL, NULL);
+	kcdbsync(n->history, 1, NULL, NULL);
+}

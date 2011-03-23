@@ -266,6 +266,8 @@ static void *dnet_check_tree_from_thread(void *data)
 				break;
 			sleep(1);
 		}
+
+		dnet_db_sync(n);
 	}
 
 	return NULL;

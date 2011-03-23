@@ -445,6 +445,7 @@ int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io
 int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **datap);
 int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr);
 int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr);
+int dnet_db_sync(struct dnet_node *n);
 void dnet_db_cleanup(struct dnet_node *n);
 int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg);
 
