@@ -335,6 +335,16 @@ struct dnet_config
 	unsigned long long	db_buckets;
 	unsigned long long	db_map;
 
+	/*
+	 * KyotoCabinet database flags, can be ORed
+	 *
+	 * auto sync: 0x20
+	 * auto trans: 0x10
+	 *
+	 * For other flags check /usr/include/kclangc.h -> Open modes
+	 */
+	unsigned int		db_flags;
+
 	/* Monitor unix socket */
 	char			monitor_path[128];
 

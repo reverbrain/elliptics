@@ -648,7 +648,7 @@ err_out_exit:
 	return err;
 }
 
-static KCDB *db_backend_open(struct dnet_node *n, char *dbfile)
+static KCDB *db_backend_open(struct dnet_node *n, char *dbfile, int flags)
 {
 	int err, ret;
 	KCDB *db;
@@ -657,7 +657,7 @@ static KCDB *db_backend_open(struct dnet_node *n, char *dbfile)
 	if (!db)
 		goto err_out_exit;
 
-	ret = kcdbopen(db, dbfile, KCOWRITER | KCOCREATE | KCOAUTOTRAN | KCOAUTOSYNC);
+	ret = kcdbopen(db, dbfile, KCOWRITER | KCOCREATE | flags);
 	if (!ret) {
 		err = -kcdbecode(db);
 		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open '%s' database, err: %d %s\n", dbfile, err, kcecodename(-err));
@@ -683,13 +683,16 @@ int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg)
 	if (!cfg->db_map)
 		cfg->db_map = 10 * 1024 * 1024;
 
+	/* Do not allow database truncation */
+	cfg->db_flags &= ~KCOTRUNCATE;
+
 	snprintf(path, sizeof(path), "%s/%s.kch#bnum=%llu#msiz=%llu", cfg->history_env, "history", cfg->db_buckets, cfg->db_map);
-	n->history = db_backend_open(n, path);
+	n->history = db_backend_open(n, path, cfg->db_flags);
 	if (!n->history)
 		goto err_out_exit;
 
 	snprintf(path, sizeof(path), "%s/%s.kch#bnum=%llu#msiz=%llu", cfg->history_env, "meta", cfg->db_buckets, cfg->db_map);
-	n->meta = db_backend_open(n, path);
+	n->meta = db_backend_open(n, path, cfg->db_flags);
 	if (!n->meta)
 		goto err_out_close_history;
 
