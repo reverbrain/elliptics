@@ -274,12 +274,6 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 		goto out_exit;
 	}
 
-	if (st->n->need_exit || st->need_exit) {
-		dnet_log(st->n, DNET_LOG_ERROR, "Need to exit.\n");
-		err = -EIO;
-		goto out_exit;
-	}
-
 	if (err == 0) {
 		err = -EAGAIN;
 		goto out_exit;
@@ -301,6 +295,12 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 			st->s, pfd.revents);
 	err = -EINVAL;
 out_exit:
+	if (st->n->need_exit || st->need_exit) {
+		dnet_log(st->n, DNET_LOG_ERROR, "Need to exit.\n");
+		err = -EIO;
+		goto out_exit;
+	}
+
 	return err;
 }
 
