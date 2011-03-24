@@ -1,3 +1,10 @@
+elliptics (2.9.6.102) unstable; urgency=low
+
+  * Optimize merge of broken objects: if meta is present, but there is no
+    history, just delete record.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Mar 2011 19:55:41 +0300
+
 elliptics (2.9.6.101) unstable; urgency=low
 
   * Do not sync null databases.
