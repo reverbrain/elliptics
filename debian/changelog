@@ -1,3 +1,9 @@
+elliptics (2.9.6.101) unstable; urgency=low
+
+  * Do not sync null databases.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Mar 2011 15:21:28 +0300
+
 elliptics (2.9.6.100) unstable; urgency=low
 
   * Added explicit database synchronization called from check/reconnect
