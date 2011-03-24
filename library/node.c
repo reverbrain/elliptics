@@ -555,6 +555,9 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	sigaddset(&sig, SIGPIPE);
 	pthread_sigmask(SIG_BLOCK, &sig, NULL);
 
+	sigemptyset(&sig);
+	sigaddset(&sig, SIGPIPE);
+
 	if ((cfg->join & DNET_JOIN_NETWORK) && (!cfg->command_handler || !cfg->send)) {
 		err = -EINVAL;
 		if (cfg->log && cfg->log->log)
@@ -680,6 +683,11 @@ err_out_exit:
 int dnet_need_exit(struct dnet_node *n)
 {
 	return n->need_exit;
+}
+
+void dnet_set_need_exit(struct dnet_node *n)
+{
+	n->need_exit = 1;
 }
 
 void dnet_node_destroy(struct dnet_node *n)

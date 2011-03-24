@@ -37,6 +37,7 @@ struct dnet_net_state;
 struct dnet_node;
 
 int dnet_need_exit(struct dnet_node *n);
+void dnet_set_need_exit(struct dnet_node *n);
 
 /*
  * Callback data structures.
