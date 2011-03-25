@@ -1,3 +1,9 @@
+elliptics (2.9.6.105) unstable; urgency=low
+
+  * Really fixed checker
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 04:41:31 +0300
+
 elliptics (2.9.6.104) unstable; urgency=low
 
   * Since dnet_state_get_first() now returns NULL for own main state, check
