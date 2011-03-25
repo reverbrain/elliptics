@@ -601,7 +601,7 @@ static int dnet_trans_complete_forward(struct dnet_net_state *state __unused,
 	struct dnet_net_state *dst = t->st;
 	int err = -EINVAL;
 
-	if (cmd) {
+	if (!is_trans_destroyed(state, cmd, attr)) {
 		uint64_t size = cmd->size;
 
 		cmd->trans = t->rcv_trans | DNET_TRANS_REPLY;
