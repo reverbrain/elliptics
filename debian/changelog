@@ -1,3 +1,10 @@
+elliptics (2.9.6.107) unstable; urgency=low
+
+  * forwarding fix
+  * initialize error to zero prior reading key from cursor
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 06:03:56 +0300
+
 elliptics (2.9.6.106) unstable; urgency=low
 
   * Only remove local object if dnet_db_read_raw() returned negative or zero
