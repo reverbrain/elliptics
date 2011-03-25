@@ -412,6 +412,8 @@ static void *dnet_db_list_iter(void *data)
 	mc = buf;
 
 	while (!ctl->need_exit) {
+		err = 0;
+
 		pthread_mutex_lock(&ctl->lock);
 		if (ctl->req->obj_num) {
 			kbuf = NULL;
