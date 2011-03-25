@@ -1,3 +1,10 @@
+elliptics (2.9.6.106) unstable; urgency=low
+
+  * Only remove local object if dnet_db_read_raw() returned negative or zero
+    error value. Positive is data size.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 05:03:16 +0300
+
 elliptics (2.9.6.105) unstable; urgency=low
 
   * Really fixed checker
