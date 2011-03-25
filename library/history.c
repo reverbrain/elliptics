@@ -467,7 +467,7 @@ static void *dnet_db_list_iter(void *data)
 		 * Use group ID field to specify whether we should check number of copies
 		 * or merge transaction with other history log in the storage
 		 */
-		check_copies = !!(tmp == n->st);
+		check_copies = !!tmp;
 #if 0
 		if (mc->id.id[0] == 0x90 && mc->id.id[1] == 0x77 && mc->id.id[2] == 0x4f) {
 			char key_str[DNET_ID_SIZE*2+1];
