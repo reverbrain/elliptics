@@ -1,3 +1,10 @@
+elliptics (2.9.6.104) unstable; urgency=low
+
+  * Since dnet_state_get_first() now returns NULL for own main state, check
+    iterator should take that into account.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 04:30:40 +0300
+
 elliptics (2.9.6.103) unstable; urgency=low
 
   * Graceful exit in sigint/sigterm.
