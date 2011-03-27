@@ -1,3 +1,9 @@
+elliptics (2.9.6.108) unstable; urgency=low
+
+  * Tune state timeout detection
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 28 Mar 2011 02:15:21 +0400
+
 elliptics (2.9.6.107) unstable; urgency=low
 
   * forwarding fix
