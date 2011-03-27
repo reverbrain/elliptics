@@ -726,4 +726,6 @@ int dnet_db_sync(struct dnet_node *n)
 		kcdbsync(n->meta, 1, NULL, NULL);
 	if (n->history)
 		kcdbsync(n->history, 1, NULL, NULL);
+
+	return 0;
 }
