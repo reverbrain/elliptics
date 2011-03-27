@@ -471,8 +471,6 @@ int dnet_trans_send(struct dnet_trans_send_ctl *ctl)
 	dnet_trans_get(ctl->t);
 
 	pthread_mutex_lock(&st->trans_lock);
-	if (RB_EMPTY_ROOT(&st->trans_root))
-		st->timeout_counter = st->n->check_timeout;
 	err = dnet_trans_insert_nolock(&st->trans_root, ctl->t);
 	pthread_mutex_unlock(&st->trans_lock);
 
@@ -906,22 +904,32 @@ static void *dnet_accept_client(void *priv)
 static void *dnet_state_processing(void *priv)
 {
 	struct dnet_net_state *st = priv;
-	int err;
+	struct timeval start, end;
 	char addr[64];
+	long diff;
+	int err;
 
 	dnet_set_name(dnet_server_convert_dnet_addr_raw(&st->addr, addr, sizeof(addr)));
 	dnet_schedule_command(st);
 
+	gettimeofday(&start, NULL);
+
 	while (!st->n->need_exit && !st->need_exit) {
 		err = dnet_wait(st, POLLIN, 1000);
+
+		gettimeofday(&end, NULL);
+		diff = end.tv_sec - start.tv_sec;
+
 		if (err == -EAGAIN) {
-			if (!RB_EMPTY_ROOT(&st->trans_root) && (--st->timeout_counter <= 0)) {
+			if (!RB_EMPTY_ROOT(&st->trans_root) && (diff > st->n->check_timeout)) {
 				err = -ETIMEDOUT;
-				dnet_log(st->n, DNET_LOG_ERROR, "%s: STATE TIMEOUT\n",
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: STATE TIMEOUT (recv side)\n",
 						dnet_state_dump_addr(st));
 				goto out_exit;
 			}
 
+			if (RB_EMPTY_ROOT(&st->trans_root))
+				gettimeofday(&start, NULL);
 			continue;
 		}
 
@@ -935,7 +943,7 @@ static void *dnet_state_processing(void *priv)
 		if (err < 0)
 			goto out_exit;
 
-		st->timeout_counter = st->n->check_timeout;
+		gettimeofday(&start, NULL);
 	}
 
 out_exit:
