@@ -307,9 +307,23 @@ static ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t 
 {
 	ssize_t err = 0;
 	struct dnet_node *n = st->n;
+	struct timeval start, end;
+	long diff;
+
+	gettimeofday(&start, NULL);
 
 	while (size) {
 		err = dnet_wait(st, POLLOUT, st->timeout);
+
+		gettimeofday(&end, NULL);
+		diff = end.tv_sec - start.tv_sec;
+
+		if ((err < 0) && (diff > n->check_timeout)) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: STATE TIMEOUT (send side)\n", dnet_state_dump_addr(st));
+			err = -ETIMEDOUT;
+			break;
+		}
+
 		if (err == -EAGAIN)
 			continue;
 
@@ -325,7 +339,7 @@ static ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t 
 		}
 
 		if (err == 0) {
-			dnet_log(n, DNET_LOG_ERROR, "Peer has dropped the connection: socket: %d.\n", st->s);
+			dnet_log(n, DNET_LOG_ERROR, "Peer %s has dropped the connection: socket: %d.\n", dnet_state_dump_addr(st), st->s);
 			err = -ECONNRESET;
 			break;
 		}
@@ -334,6 +348,7 @@ static ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t 
 		size -= err;
 
 		err = 0;
+		gettimeofday(&start, NULL);
 	}
 
 	if (err)
