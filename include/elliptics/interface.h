@@ -359,7 +359,7 @@ struct dnet_config
 
 struct dnet_node *dnet_get_node_from_state(void *state);
 
-void dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num);
+int dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num);
 
 /*
  * Logging helpers.
@@ -739,6 +739,8 @@ static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
 
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *obj, int len, int *groups, int group_num);
+
+int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen);
 
 struct dnet_id_param {
 	unsigned int		group_id;

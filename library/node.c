@@ -729,15 +729,28 @@ void dnet_node_destroy(struct dnet_node *n)
 	free(n);
 }
 
-void dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num)
+int dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num)
 {
+	int *g, i;
+
 	if (groups && !group_num)
-		return;
+		return -EINVAL;
 	if (group_num && !groups)
-		return;
+		return -EINVAL;
+
+	g = malloc(group_num * sizeof(int));
+	if (!g)
+		return -ENOMEM;
+
+	for (i=0; i<group_num; ++i)
+		g[i] = groups[i];
 
 	pthread_mutex_lock(&n->group_lock);
-	n->groups = groups;
+	free(n->groups);
+
+	n->groups = g;
 	n->group_num = group_num;
 	pthread_mutex_unlock(&n->group_lock);
+
+	return 0;
 }
