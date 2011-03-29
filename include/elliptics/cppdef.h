@@ -26,6 +26,7 @@
 #include <fstream>
 #include <exception>
 #include <string>
+#include <vector>
 
 class elliptics_log {
 	public:
@@ -112,7 +113,7 @@ class elliptics_node {
 		elliptics_node(elliptics_log &l);
 		virtual ~elliptics_node();
 
-		void			add_groups(int *g, int gnum);
+		void			add_groups(const std::vector<int> &groups);
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 
@@ -143,6 +144,10 @@ class elliptics_node {
 							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
 							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 
+		std::string		lookup_addr(const std::string &remote, const int group_id);
+
+		int			write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups);
+
 	private:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,
@@ -150,8 +155,7 @@ class elliptics_node {
 		struct dnet_node	*node;
 		elliptics_log		*log;
 
-		int			*groups;
-		int			group_num;
+		std::vector<int>	groups;
 };
 
 #endif /* __EDEF_H */

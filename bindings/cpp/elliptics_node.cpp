@@ -65,15 +65,10 @@ elliptics_node::~elliptics_node()
 	delete log;
 }
 
-void elliptics_node::add_groups(int *g, int gnum)
+void elliptics_node::add_groups(const std::vector<int> &groups)
 {
-	groups = new int [gnum];
-	group_num = gnum;
-
-	for (int i=0; i<gnum; ++i)
-		groups[i] = g[i];
-
-	dnet_node_set_groups(node, g, gnum);
+	this->groups = groups;
+	dnet_node_set_groups(node, (int *)&groups[0], groups.size());
 }
 
 void elliptics_node::add_remote(const char *addr, const int port, const int family)
@@ -144,11 +139,11 @@ void elliptics_node::read_data(struct dnet_id &id, uint64_t offset, uint64_t siz
 
 void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t size, elliptics_callback &c)
 {
-	int err, error = 0, i;
+	int err, error = -ENOENT, i;
 	struct dnet_id id;
 
 	dnet_transform(node, (void *)remote.data(), remote.size(), &id);
-	for (i=0; i<group_num; ++i) {
+	for (i=0; i<groups.size(); ++i) {
 		id.group_id = groups[i];
 
 		try {
@@ -237,11 +232,11 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size)
 std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 {
 	struct dnet_id id;
-	int err, error = 0, i;
+	int err, error = -ENOENT, i;
 	std::string ret;
 
 	dnet_transform(node, (void *)remote.data(), remote.size(), &id);
-	for (i=0; i<group_num; ++i) {
+	for (i=0; i<groups.size(); ++i) {
 		id.group_id = groups[i];
 
 		try {
@@ -275,5 +270,27 @@ int elliptics_node::write_data_wait(std::string &remote, std::string &str, unsig
 	int err = dnet_write_data_wait(node, (void *)remote.data(), remote.size(), NULL, (void *)str.data(), -1, 0, 0, str.size(), NULL, aflags, ioflags);
 	if (err < 0)
 		throw err;
+	return err;
+}
+
+std::string elliptics_node::lookup_addr(const std::string &remote, const int group_id)
+{
+	char buf[128];
+
+	int err = dnet_lookup_addr(node, (void *)remote.data(), remote.size(), group_id, buf, sizeof(buf));
+	if (err < 0)
+		throw err;
+
+	return std::string((const char *)buf, sizeof(buf));
+}
+
+int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups)
+{
+	int err;
+
+	err = dnet_create_write_metadata(node, (struct dnet_id *)&id, (char *)obj.data(), obj.size(), (int *)&groups[0], groups.size());
+	if (err)
+		throw err;
+
 	return err;
 }
