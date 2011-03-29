@@ -727,7 +727,7 @@ static void dnet_schedule_command(struct dnet_net_state *st)
 	st->rcv_flags = DNET_IO_CMD;
 
 	if (st->rcv_data) {
-#if 1
+#if 0
 		struct dnet_cmd *c = &st->rcv_cmd;
 		unsigned long long tid = c->trans & ~DNET_TRANS_REPLY;
 		dnet_log(st->n, DNET_LOG_DSA, "freed: size: %llu, trans: %llu, reply: %d, ptr: %p.\n",
@@ -793,9 +793,9 @@ again:
 
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
-		dnet_log(n, DNET_LOG_DSA, "%s: received trans: %llu / %llx, reply: %d, size: %llu, flags: %u.\n",
+		dnet_log(n, DNET_LOG_DSA, "%s: received trans: %llu / %llx, reply: %d, size: %llu, flags: %x, status: %d.\n",
 				dnet_dump_id(&c->id), tid, (unsigned long long)c->trans, !!(c->trans & DNET_TRANS_REPLY),
-				(unsigned long long)c->size, c->flags);
+				(unsigned long long)c->size, c->flags, c->status);
 
 		if (c->size) {
 			st->rcv_data = malloc(c->size);
@@ -803,7 +803,7 @@ again:
 				err = -ENOMEM;
 				goto out;
 			}
-#if 1
+#if 0
 			dnet_log(n, DNET_LOG_DSA, "allocated: %llu, trans: %llu, reply: %d, ptr: %p.\n",
 					(unsigned long long)c->size, tid, tid != c->trans, st->rcv_data);
 #endif
