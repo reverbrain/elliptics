@@ -18,6 +18,15 @@ if HAVE_EBLOB
 AM_CFLAGS += @EBLOB_CFLAGS@
 AM_LDFLAGS += @EBLOB_LIBS@
 libbackend_a_SOURCES += eblob_backend.c 
+
+if HAVE_BOOST_ASIO
+bin_PROGRAMS += dnet_eblob_from_tar
+
+AM_CXXFLAGS = -I../../include -I../ -I../../config @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
+
+dnet_eblob_from_tar_SOURCES = eblob_from_tar.cpp
+dnet_eblob_from_tar_LDADD = @BOOST_ASIO_LIB@ ../bindings/cpp/libelliptics_cpp.la
+endif
 endif
 
 EXAMPLE_BACKEND_LIBS = libbackend.a
