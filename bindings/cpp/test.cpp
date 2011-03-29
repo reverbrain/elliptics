@@ -57,7 +57,7 @@ int elliptics_callback_io::callback(void)
 	unsigned long long size;
 	void *data;
 
-	if (is_trans_destroyed(t)) {
+	if (is_trans_destroyed(state, cmd, attr)) {
 		err = -EINVAL;
 		goto err_out_exit;
 	}
