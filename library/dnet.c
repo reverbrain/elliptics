@@ -176,6 +176,8 @@ static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
 	struct dnet_addr_attr *addr;
 	int i;
 
+	memset(buf, 0, sizeof(*cmd) + sizeof(*attr) + sizeof(*addr));
+
 	cmd = buf;
 	attr = (struct dnet_attr *)(cmd + 1);
 	addr = (struct dnet_addr_attr *)(attr + 1);
@@ -1019,8 +1021,10 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		dnet_dump_id(&cmd->id), (unsigned long long)(cmd->trans & ~DNET_TRANS_REPLY),
 		cmd->status);
 
-	if (err)
+	pthread_mutex_lock(&w->wait_lock);
+	if (w->status < 0)
 		w->status = err;
+	pthread_mutex_unlock(&w->wait_lock);
 
 	return 0;
 }
@@ -1316,6 +1320,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 	ctl.fd = fd;
 	ctl.local_offset = local_offset;
 
+	w->status = -ENOENT;
 	ctl.complete = dnet_write_complete;
 	ctl.priv = w;
 
@@ -2895,6 +2900,7 @@ int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
 	if (ts)
 		ctl.ts = *ts;
 
+	w->status = -ENOENT;
 	ctl.priv = w;
 	ctl.complete = dnet_write_complete;
 
@@ -2924,7 +2930,8 @@ int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
 	}
 
 	if (err || !trans_num) {
-		err = -EINVAL;
+		if (!err)
+			err = -EINVAL;
 		dnet_log(n, DNET_LOG_ERROR, "Failed to write data into the storage, err: %d, trans_num: %d.\n", err, trans_num);
 		goto err_out_put;
 	}
@@ -3280,6 +3287,27 @@ err_out_put:
 	dnet_wait_put(w);
 err_out_free:
 	free(ids);
+err_out_exit:
+	return err;
+}
+
+int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen)
+{
+	struct dnet_id id;
+	struct dnet_net_state *st;
+	int err = -ENOENT;
+
+	dnet_transform(n, remote, len, &id);
+	id.group_id = group_id;
+
+	st = dnet_state_get_first(n, &id);
+	if (!st)
+		goto err_out_exit;
+
+	dnet_server_convert_dnet_addr_raw(dnet_state_addr(st), dst, dlen);
+	dnet_state_put(st);
+	err = 0;
+
 err_out_exit:
 	return err;
 }
