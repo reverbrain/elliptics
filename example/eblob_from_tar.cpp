@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
 			("log-mask", po::value<int>(&log_mask)->default_value(EBLOB_LOG_ERROR | EBLOB_LOG_INFO),
 			 	"Log mask (1 - notice, 2 - info, 8 - error, 16 - state updates (huge and kinda useless)")
 			("blob-base", po::value<std::string>(&eblob_base), "Base filename for eblobs, system will append .N where N is index of the blob (*)")
-			("blob-size", po::value<unsigned long long>(&cfg.blob_size), "Single eblob size in bytes")
+			("blob-size", po::value<unsigned long long>((unsigned long long *)&cfg.blob_size), "Single eblob size in bytes")
 			("prepend-timestamp", po::value<bool>(&prepend_timestamp)->default_value(false), "Whether to prepend data ith timestamp")
 			("group", po::value<std::vector<int> >(&groups), "Group number which will host given object, can be used multiple times for several groups")
 			("remote-addr", po::value<std::string>(&addr)->default_value("localhost"), "Connect to this remote node")
