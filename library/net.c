@@ -313,7 +313,7 @@ static ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t 
 	gettimeofday(&start, NULL);
 
 	while (size) {
-		err = dnet_wait(st, POLLOUT, st->timeout);
+		err = dnet_wait(st, POLLOUT, 1000);
 
 		gettimeofday(&end, NULL);
 		diff = end.tv_sec - start.tv_sec;
@@ -390,9 +390,22 @@ static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t o
 	ssize_t err;
 	unsigned long long orig_dsize = dsize;
 	unsigned long long orig_offset = offset;
+	struct timeval start, end;
+	long diff;
+
+	gettimeofday(&start, NULL);
 
 	while (dsize) {
-		err = dnet_wait(st, POLLOUT, st->timeout);
+		err = dnet_wait(st, POLLOUT, 0);
+
+		gettimeofday(&end, NULL);
+		diff = end.tv_sec - start.tv_sec;
+
+		if ((err < 0) && (diff > st->n->check_timeout)) {
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: STATE TIMEOUT (sendfile side)\n", dnet_state_dump_addr(st));
+			err = -ETIMEDOUT;
+			break;
+		}
 		if (err == -EAGAIN)
 			continue;
 
@@ -409,6 +422,7 @@ static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t o
 		}
 
 		dsize -= err;
+		gettimeofday(&start, NULL);
 	}
 
 	if (dsize) {
@@ -511,7 +525,7 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 	int err;
 
 	while (size) {
-		err = dnet_wait(st, POLLIN, st->timeout);
+		err = dnet_wait(st, POLLIN, 1000);
 		if (err < 0)
 			return err;
 
@@ -974,7 +988,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	memset(st, 0, sizeof(struct dnet_net_state));
 
-	st->timeout = n->wait_ts.tv_sec * 1000;
 	st->s = s;
 	st->n = n;
 

@@ -76,7 +76,6 @@ struct dnet_net_state
 	struct list_head	state_entry;
 
 	struct dnet_node	*n;
-	long			timeout;
 
 	atomic_t		refcnt;
 	int			s;

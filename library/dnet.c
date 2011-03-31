@@ -906,7 +906,6 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	st->s = s;
 	st->n = n;
-	st->timeout = n->wait_ts.tv_sec * 1000;
 
 	err = dnet_send(st, buf, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
 	if (err) {
