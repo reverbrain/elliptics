@@ -411,7 +411,7 @@ static void *dnet_db_list_iter(void *data)
 
 	mc = buf;
 
-	while (!ctl->need_exit) {
+	while (!ctl->need_exit && !n->need_exit) {
 		err = 0;
 
 		pthread_mutex_lock(&ctl->lock);
