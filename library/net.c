@@ -55,7 +55,7 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 			goto err_out_exit;
 		}
 
-		err = poll(&pfd, 1, 10000);
+		err = poll(&pfd, 1, 2000);
 		if (err < 0)
 			goto err_out_exit;
 		if (err == 0) {
