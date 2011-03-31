@@ -159,25 +159,6 @@ struct dnet_fcgi_content_type {
 static int dnet_fcgi_ctypes_num;
 static struct dnet_fcgi_content_type *dnet_fcgi_ctypes;
 
-enum {
-	DNET_FCGI_EMBED_DATA		= 1,
-	DNET_FCGI_EMBED_TIMESTAMP,
-} dnet_fcgi_embed_types;
-
-struct dnet_fcgi_embed {
-	uint64_t		size;
-	uint32_t		type;
-	uint32_t		flags;
-	uint8_t			data[0];
-};
-
-static inline void dnet_fcgi_convert_embedded(struct dnet_fcgi_embed *e)
-{
-	e->size = dnet_bswap64(e->size);
-	e->type = dnet_bswap32(e->type);
-	e->flags = dnet_bswap32(e->flags);
-}
-
 #define dnet_fcgi_log_write(fmt, a...) do { if (dnet_fcgi_log) fprintf(dnet_fcgi_log, fmt, ##a); else syslog(LOG_INFO, fmt, ##a); } while (0)
 
 /*
@@ -964,7 +945,8 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *obj, int length, str
 
 		size = data_size;
 		if (embed)
-			data_size += sizeof(struct dnet_fcgi_embed) * 2 + sizeof(uint64_t) * 2;
+			data_size += sizeof(struct dnet_common_embed) * 2 /* for timestamp and data holders */
+				+ sizeof(uint64_t) * 2 /* timestamp == 2 uint64_t fields */;
 
 		data = malloc(data_size);
 		if (!data) {
@@ -975,26 +957,13 @@ static int dnet_fcgi_handle_post(struct dnet_node *n, char *obj, int length, str
 		p = data;
 
 		if (embed) {
-			struct dnet_fcgi_embed *e = (struct dnet_fcgi_embed *)p;
-			uint64_t *edata = (uint64_t *)e->data;
+			int bufsize = data_size;
 
-			e->size = sizeof(uint64_t) * 2;
-			e->type = DNET_FCGI_EMBED_TIMESTAMP;
-			e->flags = 0;
-			dnet_fcgi_convert_embedded(e);
+			err = dnet_common_prepend_data(ts, size, p, &bufsize);
+			if (err)
+				goto err_out_free;
 
-			edata[0] = dnet_bswap64(ts->tv_sec);
-			edata[1] = dnet_bswap64(ts->tv_nsec);
-
-			p += sizeof(struct dnet_fcgi_embed) + sizeof(uint64_t) * 2;
-			e = (struct dnet_fcgi_embed *)p;
-
-			e->size = size;
-			e->type = DNET_FCGI_EMBED_DATA;
-			e->flags = 0;
-			dnet_fcgi_convert_embedded(e);
-
-			p += sizeof(struct dnet_fcgi_embed);
+			p += bufsize;
 		}
 
 		while (size) {
@@ -1163,19 +1132,19 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	/* received data embeds objects, potentially timestamp which we will hunt for here */
 	if (priv) {
 		while (size) {
-			struct dnet_fcgi_embed *e = data;
+			struct dnet_common_embed *e = data;
 
-			dnet_fcgi_convert_embedded(e);
+			dnet_common_convert_embedded(e);
 
 			dnet_log_raw(n, DNET_LOG_NOTICE, "%s: found embedded object: type: %x, flags: %x, size: %llu, rest: %llu.\n",
 					dnet_dump_id(&cmd->id), e->type, e->flags, (unsigned long long)e->size,
 					(unsigned long long)size);
 
-			if (size < e->size + sizeof(struct dnet_fcgi_embed)) {
+			if (size < e->size + sizeof(struct dnet_common_embed)) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "%s: broken embedded object: e->size(%llu) + "
 						"embed-struct-size(%zu) > data-size(%llu).\n",
 						dnet_dump_id(&cmd->id), (unsigned long long)e->size,
-						sizeof(struct dnet_fcgi_embed), size);
+						sizeof(struct dnet_common_embed), size);
 				err = -EINVAL;
 				goto err_out_exit;
 			}
@@ -1187,8 +1156,8 @@ static int dnet_fcgi_read_complete(struct dnet_net_state *st, struct dnet_cmd *c
 				/* dnet_fcgi_trans_nsec = dnet_bswap64(ptr[1]); */
 			}
 
-			data += sizeof(struct dnet_fcgi_embed);
-			size -= sizeof(struct dnet_fcgi_embed);
+			data += sizeof(struct dnet_common_embed);
+			size -= sizeof(struct dnet_common_embed);
 
 			if (e->type == DNET_FCGI_EMBED_DATA) {
 				size = e->size;

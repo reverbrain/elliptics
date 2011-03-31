@@ -1,3 +1,17 @@
+elliptics (2.9.6.109) unstable; urgency=low
+
+  * Use small and repeated timeout in send/sendfile path. Drop st->timeout
+  * Check n->need_exit flag in check iterators
+  * Added boost::asio deps/configure and (empty) example application which
+    will create eblobs locally from tar files.
+  * Updated cpp/python bindings
+  * Added dnet_lookup_addr() function which fills provided buffer with the
+    state address which is supposed to host object with id generated from
+    given data
+  * Make dnet_node_set_groups() reallocate provided groups and free old ones.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 31 Mar 2011 18:47:42 +0400
+
 elliptics (2.9.6.108) unstable; urgency=low
 
   * Tune state timeout detection

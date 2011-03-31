@@ -113,7 +113,10 @@ class elliptics_node {
 		elliptics_node(elliptics_log &l);
 		virtual ~elliptics_node();
 
-		void			add_groups(const std::vector<int> &groups);
+		void			transform(const std::string &data, struct dnet_id &id);
+
+		void			add_groups(std::vector<int> &groups);
+		std::vector<int>	&get_groups() {return groups;};
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 

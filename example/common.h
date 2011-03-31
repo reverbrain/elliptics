@@ -20,6 +20,10 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int dnet_parse_addr(char *addr, struct dnet_config *cfg);
 
 int dnet_parse_numeric_id(char *value, unsigned char *id);
@@ -55,5 +59,30 @@ int dnet_common_write_object(struct dnet_node *n, struct dnet_id *id,
 		void *data, uint64_t size, int version, struct timespec *ts,
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *), void *priv,
 		uint32_t ioflags);
+
+enum {
+	DNET_FCGI_EMBED_DATA		= 1,
+	DNET_FCGI_EMBED_TIMESTAMP,
+} dnet_common_embed_types;
+
+struct dnet_common_embed {
+	uint64_t		size;
+	uint32_t		type;
+	uint32_t		flags;
+	uint8_t			data[0];
+};
+
+static inline void dnet_common_convert_embedded(struct dnet_common_embed *e)
+{
+	e->size = dnet_bswap64(e->size);
+	e->type = dnet_bswap32(e->type);
+	e->flags = dnet_bswap32(e->flags);
+}
+
+int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int *bufsize);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* __COMMON_H */

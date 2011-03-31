@@ -65,10 +65,11 @@ elliptics_node::~elliptics_node()
 	delete log;
 }
 
-void elliptics_node::add_groups(const std::vector<int> &groups)
+void elliptics_node::add_groups(std::vector<int> &groups)
 {
-	this->groups = groups;
-	dnet_node_set_groups(node, (int *)&groups[0], groups.size());
+	if (dnet_node_set_groups(node, (int *)&groups[0], groups.size()))
+		throw std::bad_alloc();
+	this->groups.swap(groups);
 }
 
 void elliptics_node::add_remote(const char *addr, const int port, const int family)
@@ -293,4 +294,9 @@ int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &
 		throw err;
 
 	return err;
+}
+		
+void elliptics_node::transform(const std::string &data, struct dnet_id &id)
+{
+	dnet_transform(node, (void *)data.data(), data.size(), &id);
 }

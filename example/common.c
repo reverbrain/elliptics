@@ -392,3 +392,34 @@ next:
 err_out_exit:
 	return err;
 }
+
+int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int *bufsize)
+{
+	void *orig = buf;
+	struct dnet_common_embed *e = buf;
+	uint64_t *edata = (uint64_t *)e->data;
+
+	if (*bufsize < (int)(sizeof(struct dnet_common_embed) + sizeof(uint64_t)) * 2)
+		return -ENOBUFS;
+
+	e->size = sizeof(uint64_t) * 2;
+	e->type = DNET_FCGI_EMBED_TIMESTAMP;
+	e->flags = 0;
+	dnet_common_convert_embedded(e);
+
+	edata[0] = dnet_bswap64(ts->tv_sec);
+	edata[1] = dnet_bswap64(ts->tv_nsec);
+
+	buf += sizeof(struct dnet_common_embed) + sizeof(uint64_t) * 2;
+
+	e = buf;
+	e->size = size;
+	e->type = DNET_FCGI_EMBED_DATA;
+	e->flags = 0;
+	dnet_common_convert_embedded(e);
+
+	buf += sizeof(struct dnet_common_embed);
+
+	*bufsize = buf - orig;
+	return 0;
+}

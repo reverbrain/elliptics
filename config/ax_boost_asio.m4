@@ -79,34 +79,34 @@ AC_DEFUN([AX_BOOST_ASIO],
                              ax_cv_boost_asio=yes, ax_cv_boost_asio=no)
          AC_LANG_POP([C++])
 		])
-		if test "x$ax_cv_boost_asio" = "xyes"; then
-			AC_DEFINE(HAVE_BOOST_ASIO,,[define if the Boost::ASIO library is available])
-			BN=boost_system
-            if test "x$ax_boost_user_asio_lib" = "x"; then
-				for ax_lib in $BN $BN-$CC $BN-$CC-mt $BN-$CC-mt-s $BN-$CC-s \
-                              lib$BN lib$BN-$CC lib$BN-$CC-mt lib$BN-$CC-mt-s lib$BN-$CC-s \
-                              $BN-mgw $BN-mgw $BN-mgw-mt $BN-mgw-mt-s $BN-mgw-s ; do
-				    AC_CHECK_LIB($ax_lib, main, [BOOST_ASIO_LIB="-l$ax_lib" AC_SUBST(BOOST_ASIO_LIB) link_thread="yes" break],
-                                 [link_thread="no"])
-				done
-            else
-               for ax_lib in $ax_boost_user_asio_lib $BN-$ax_boost_user_asio_lib; do
-				      AC_CHECK_LIB($ax_lib, main,
-                                   [BOOST_ASIO_LIB="-l$ax_lib" AC_SUBST(BOOST_ASIO_LIB) link_asio="yes" break],
-                                   [link_asio="no"])
-                  done
-
-            fi
-            if test "x$ax_lib" = "x"; then
-                AC_MSG_ERROR(Could not find a version of the library!)
-            fi
-			if test "x$link_asio" = "xno"; then
-				AC_MSG_ERROR(Could not link against $ax_lib !)
-			fi
+	if test "x$ax_cv_boost_asio" = "xyes"; then
+		AC_DEFINE(HAVE_BOOST_ASIO,,[define if the Boost::ASIO library is available])
+		BN=boost_system
+		if test "x$ax_boost_user_asio_lib" = "x"; then
+			for ax_lib in $BN $BN-$CC $BN-$CC-mt $BN-$CC-mt-s $BN-$CC-s \
+					lib$BN lib$BN-$CC lib$BN-$CC-mt lib$BN-$CC-mt-s lib$BN-$CC-s \
+					$BN-mgw $BN-mgw $BN-mgw-mt $BN-mgw-mt-s $BN-mgw-s ; do
+				AC_CHECK_LIB($ax_lib, main,
+					[BOOST_ASIO_LIB="-l$ax_lib" AC_SUBST(BOOST_ASIO_LIB) link_thread="yes" break],
+					[link_thread="no"])
+			done
+		else
+			for ax_lib in $ax_boost_user_asio_lib $BN-$ax_boost_user_asio_lib; do
+				AC_CHECK_LIB($ax_lib, main,
+					[BOOST_ASIO_LIB="-l$ax_lib" AC_SUBST(BOOST_ASIO_LIB) link_asio="yes" break],
+					[link_asio="no"])
+					
+			done
 		fi
+	fi
 
-		CPPFLAGS="$CPPFLAGS_SAVED"
+	CPPFLAGS="$CPPFLAGS_SAVED"
 	LDFLAGS="$LDFLAGS_SAVED"
-	AM_CONDITIONAL([HAVE_BOOST_ASIO], [test "x$ax_cv_boost_asio" = "xyes"])
+	fi
+
+	if test "x$link_asio" = "xyes"; then
+		AM_CONDITIONAL([HAVE_BOOST_ASIO], [test "x$link_asio" = "xyes"])
+	else
+		AM_CONDITIONAL([HAVE_BOOST_ASIO], [test "x$link_thread" = "xyes"])
 	fi
 ])
