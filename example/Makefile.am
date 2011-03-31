@@ -21,18 +21,7 @@ AM_CFLAGS += @EBLOB_CFLAGS@
 EXAMPLE_BACKEND_LIBS += @EBLOB_LIBS@
 libbackend_a_SOURCES += eblob_backend.c 
 
-if HAVE_BOOST_ASIO
-if HAVE_BOOST_FILESYSTEM
-if HAVE_BOOST_PROGRAM_OPTIONS
-bin_PROGRAMS += dnet_eblob_from_tar
-
-AM_CXXFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
-
-dnet_eblob_from_tar_SOURCES = eblob_from_tar.cpp
-dnet_eblob_from_tar_LDADD = @BOOST_ASIO_LIB@ @BOOST_FILESYSTEM_LIB@ @BOOST_PROGRAM_OPTIONS_LIB@ @EBLOB_LIBS@ ../bindings/cpp/libelliptics_cpp.la libcommon.a
-endif
-endif
-endif
+SUBDIRS += eblob_gen
 
 # have eblob
 endif
