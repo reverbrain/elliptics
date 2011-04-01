@@ -24,13 +24,14 @@ void eblob_processor::process(elliptics_node &node, const std::string &path)
 	if (fs::is_directory(fs::path(path))) {
 		source = new eblob_dir_source(path);
 	} else {
-		std::cout << path << " is file\n";
-		throw std::runtime_error("Unsupported data source");
+		source = new eblob_tar_source(path);
 	}
 
 	do {
 		try {
 			have_data = source->next(prepend_data_, NULL, name, data);
+			if (!have_data)
+				break;
 
 			node.transform(name, id);
 
@@ -53,8 +54,6 @@ void eblob_processor::process(elliptics_node &node, const std::string &path)
 
 						std::string file = eblob_base_ + "/" + addr + "/data";
 						eblob_cfg_.file = (char *)file.c_str();
-
-						std::cout << "file: " << eblob_cfg_.file << std::endl;
 
 						boost::shared_ptr<eblob> e(new eblob(eblob_cfg_));
 

@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include <time.h>
+#include <libtar.h>
 
 #include <fstream>
 #include <iostream>
@@ -80,6 +81,17 @@ class eblob_dir_source : public eblob_data_source {
 				std::string &name, std::string &data);
 	private:
 		fs::directory_iterator end_itr, itr;
+};
+
+class eblob_tar_source : public eblob_data_source {
+	public:
+		eblob_tar_source(const std::string &path);
+		virtual ~eblob_tar_source();
+
+		virtual bool next(const bool prepend, const struct timespec *ts,
+				std::string &name, std::string &data);
+	private:
+		TAR *tar;
 };
 
 class eblob_processor {
