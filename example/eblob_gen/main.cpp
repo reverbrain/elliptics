@@ -34,6 +34,7 @@ void eblob_processor::process(elliptics_node &node, const std::string &path)
 				break;
 
 			node.transform(name, id);
+			node.write_metadata(id, name, groups_);
 
 			std::vector<int>::const_iterator end_itr = groups_.end();
 			for (std::vector<int>::const_iterator itr = groups_.begin(); itr != end_itr; ++itr) {
