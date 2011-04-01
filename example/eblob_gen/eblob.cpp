@@ -34,8 +34,6 @@ void eblob::write(const struct dnet_id &id, const std::string &data)
 {
 	int err;
 
-	std::cout << "id: " << dnet_dump_id(&id) << ", data size: " << data.size() << std::endl;
-
 	err = eblob_write_data(blob, (unsigned char *)id.id, sizeof(id.id), (void *)data.data(), data.size(), 0);
 	if (err) {
 		std::ostringstream str;
