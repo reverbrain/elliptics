@@ -60,10 +60,10 @@ int dnet_common_write_object(struct dnet_node *n, struct dnet_id *id,
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *), void *priv,
 		uint32_t ioflags);
 
-static enum {
+enum dnet_common_embed_types {
 	DNET_FCGI_EMBED_DATA		= 1,
 	DNET_FCGI_EMBED_TIMESTAMP,
-} dnet_common_embed_types;
+};
 
 struct dnet_common_embed {
 	uint64_t		size;
