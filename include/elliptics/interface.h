@@ -37,6 +37,7 @@ struct dnet_net_state;
 struct dnet_node;
 
 int dnet_need_exit(struct dnet_node *n);
+void dnet_set_need_exit(struct dnet_node *n);
 
 /*
  * Callback data structures.
@@ -335,6 +336,16 @@ struct dnet_config
 	unsigned long long	db_buckets;
 	unsigned long long	db_map;
 
+	/*
+	 * KyotoCabinet database flags, can be ORed
+	 *
+	 * auto sync: 0x20
+	 * auto trans: 0x10
+	 *
+	 * For other flags check /usr/include/kclangc.h -> Open modes
+	 */
+	unsigned int		db_flags;
+
 	/* Monitor unix socket */
 	char			monitor_path[128];
 
@@ -348,7 +359,7 @@ struct dnet_config
 
 struct dnet_node *dnet_get_node_from_state(void *state);
 
-void dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num);
+int dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num);
 
 /*
  * Logging helpers.
@@ -729,6 +740,8 @@ static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *obj, int len, int *groups, int group_num);
 
+int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen);
+
 struct dnet_id_param {
 	unsigned int		group_id;
 	uint64_t		param;
@@ -802,6 +815,22 @@ int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r);
 
 void *dnet_node_get_ns(struct dnet_node *n, int *nsize);
 void dnet_node_set_ns(struct dnet_node *n, void *ns, int nsize);
+
+long dnet_get_id(void);
+
+static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *attr __attribute__ ((unused)))
+{
+	int ret = 0;
+
+	if (!st || !cmd || (cmd->flags & DNET_FLAGS_DESTROY)) {
+		ret = 1;
+		if (cmd && cmd->status)
+			ret = cmd->status;
+	}
+
+	return ret;
+}
 
 #ifdef __cplusplus
 }

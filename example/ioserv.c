@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -75,6 +76,36 @@ static int ioserv_monitor(void)
 	return 0;
 }
 
+static struct dnet_node *global_n;
+static void ioserv_destroy_handler(int sig __unused, siginfo_t *si __unused, void *uc __unused)
+{
+	dnet_set_need_exit(global_n);
+}
+
+static int ioserv_setup_signals(void)
+{
+	struct sigaction sa;
+
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_flags = SA_SIGINFO;
+	sa.sa_sigaction = ioserv_destroy_handler;
+	sigemptyset(&sa.sa_mask);
+	sigaction(SIGTERM, &sa, NULL);
+	sigaction(SIGINT, &sa, NULL);
+
+	return 0;
+}
+
+static void ioserv_cleanup_signals(void)
+{
+	sigset_t sig;
+
+	sigemptyset(&sig);
+	sigaddset(&sig, SIGTERM);
+	sigaddset(&sig, SIGINT);
+	sigprocmask(SIG_BLOCK, &sig, NULL);
+}
+
 static int ioserv_start(char *conf, int mon)
 {
 	struct dnet_node *n;
@@ -83,9 +114,13 @@ static int ioserv_start(char *conf, int mon)
 	if (!n)
 		return -1;
 
+	global_n = n;
+	ioserv_setup_signals();
+
 	while (!dnet_need_exit(n))
 		sleep(1);
 
+	ioserv_cleanup_signals();
 	dnet_node_destroy(n);
 	return 0;
 }

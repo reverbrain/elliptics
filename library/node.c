@@ -77,6 +77,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		dnet_log_err(n, "Failed to initialize pthread attributes: err: %d", err);
 		goto err_out_destroy_group_lock;
 	}
+	pthread_attr_setdetachstate(&n->attr, PTHREAD_CREATE_DETACHED);
 
 	err = pthread_attr_setstacksize(&n->attr, cfg->stack_size);
 	if (err) {
@@ -158,7 +159,7 @@ static int dnet_idc_compare(const void *k1, const void *k2)
 {
 	const struct dnet_state_id *id1 = k1;
 	const struct dnet_state_id *id2 = k2;
-	
+
 	return dnet_id_cmp_str(id1->raw.id, id2->raw.id);
 }
 
@@ -172,9 +173,6 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	long diff;
 
 	gettimeofday(&start, NULL);
-
-	if (id_num)
-		id_num = 1;
 
 	idc = malloc(sizeof(struct dnet_idc) + sizeof(struct dnet_state_id) * id_num);
 	if (!idc)
@@ -237,7 +235,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	}
 
 	pthread_mutex_unlock(&n->state_lock);
-	
+
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 
@@ -298,7 +296,7 @@ static int __dnet_idc_search(struct dnet_group *g, struct dnet_id *id)
 	struct dnet_state_id *sid;
 
 	for (low = -1, high = g->id_num; high-low > 1; ) {
-		i = low + (high - low)/2; 
+		i = low + (high - low)/2;
 		sid = &g->ids[i];
 
 		cmp = dnet_id_cmp_str(sid->raw.id, id->id);
@@ -374,17 +372,6 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	return found;
 }
 
-struct dnet_net_state *dnet_state_search(struct dnet_node *n, struct dnet_id *id)
-{
-	struct dnet_net_state *st;
-
-	pthread_mutex_lock(&n->state_lock);
-	st = __dnet_state_search(n, id);
-	pthread_mutex_unlock(&n->state_lock);
-
-	return st;
-}
-
 int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp, struct dnet_addr *addr)
 {
 	struct dnet_state_id *sid;
@@ -420,6 +407,11 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id 
 
 		found = dnet_state_get(g->ids[0].idc->st);
 		dnet_group_put(g);
+	}
+
+	if (found == n->st) {
+		dnet_state_put(found);
+		found = NULL;
 	}
 
 err_out_unlock:
@@ -563,6 +555,9 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	sigaddset(&sig, SIGPIPE);
 	pthread_sigmask(SIG_BLOCK, &sig, NULL);
 
+	sigemptyset(&sig);
+	sigaddset(&sig, SIGPIPE);
+
 	if ((cfg->join & DNET_JOIN_NETWORK) && (!cfg->command_handler || !cfg->send)) {
 		err = -EINVAL;
 		if (cfg->log && cfg->log->log)
@@ -603,6 +598,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->wait_ts.tv_sec)
 		n->wait_ts.tv_sec = 60*60;
 
+	dnet_log(n, DNET_LOG_INFO, "Elliptics starts, version: %s, changed files: %s\n", ELLIPTICS_GIT_VERSION, ELLIPTICS_HAS_CHANGES);
 	dnet_log(n, DNET_LOG_DSA, "Using %d stack size.\n", cfg->stack_size);
 
 	if (!n->check_timeout) {
@@ -689,6 +685,11 @@ int dnet_need_exit(struct dnet_node *n)
 	return n->need_exit;
 }
 
+void dnet_set_need_exit(struct dnet_node *n)
+{
+	n->need_exit = 1;
+}
+
 void dnet_node_destroy(struct dnet_node *n)
 {
 	struct dnet_addr_storage *it, *atmp;
@@ -728,15 +729,28 @@ void dnet_node_destroy(struct dnet_node *n)
 	free(n);
 }
 
-void dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num)
+int dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num)
 {
+	int *g, i;
+
 	if (groups && !group_num)
-		return;
+		return -EINVAL;
 	if (group_num && !groups)
-		return;
+		return -EINVAL;
+
+	g = malloc(group_num * sizeof(int));
+	if (!g)
+		return -ENOMEM;
+
+	for (i=0; i<group_num; ++i)
+		g[i] = groups[i];
 
 	pthread_mutex_lock(&n->group_lock);
-	n->groups = groups;
+	free(n->groups);
+
+	n->groups = g;
 	n->group_num = group_num;
 	pthread_mutex_unlock(&n->group_lock);
+
+	return 0;
 }

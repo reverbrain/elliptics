@@ -106,9 +106,9 @@ void dnet_trans_remove(struct dnet_trans *t)
 {
 	struct dnet_net_state *st = t->st;
 
-	pthread_mutex_lock(&st->send_lock);
+	pthread_mutex_lock(&st->trans_lock);
 	dnet_trans_remove_nolock(&st->trans_root, t);
-	pthread_mutex_unlock(&st->send_lock);
+	pthread_mutex_unlock(&st->trans_lock);
 }
 
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
@@ -146,6 +146,11 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 	if (t->trans_entry.rb_parent_color && t->st && t->st->n)
 		dnet_trans_remove(t);
+
+	if (t->complete) {
+		t->cmd.flags |= DNET_FLAGS_DESTROY;
+		t->complete(t->st, &t->cmd, NULL, t->priv);
+	}
 
 	dnet_state_put(t->st);
 
@@ -187,7 +192,7 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 
 	if (ctl->size && ctl->data)
 		memcpy(a + 1, ctl->data, ctl->size);
-	
+
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
 	dnet_convert_cmd(cmd);
@@ -203,13 +208,11 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 
 	err = dnet_trans_send(&sc);
 	if (err)
-		goto err_out_destroy;
+		goto err_out_put;
 
 	return 0;
 
-err_out_destroy:
-	if (ctl->complete)
-		ctl->complete(NULL, NULL, NULL, ctl->priv);
+err_out_put:
 	dnet_trans_put(t);
 err_out_exit:
 	return err;
@@ -234,45 +237,6 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
 err_out_exit:
 	return err;
 }
-#if 0
-static int dnet_check_stat_complete(struct dnet_net_state *orig, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *priv __unused)
-{
-	struct dnet_node *n;
-	struct dnet_net_state *st;
-
-	if (!orig || !cmd)
-		return -EINVAL;
-
-	n = orig->n;
-
-	if (cmd->status) {
-		st = dnet_state_search(n, &cmd->id);
-		if (!st) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to find matching state to free on stat check error: %d.\n", dnet_dump_id(&cmd->id), cmd->status);
-			return cmd->status;
-		}
-
-		dnet_log(n, DNET_LOG_ERROR, "%s: removing state %s on stat check error: %d\n",
-				dnet_dump_id(&cmd->id), dnet_state_dump_addr(st), cmd->status);
-
-		dnet_state_reset(st);
-		return cmd->status;
-	}
-
-	if (attr && (attr->size == sizeof(struct dnet_stat))) {
-		struct dnet_stat *stat = (struct dnet_stat *)(attr + 1);
-		dnet_convert_stat(stat);
-
-		orig->la = (int)stat->la[0];
-		orig->free = stat->bsize * stat->bavail;
-
-		dnet_log(n, DNET_LOG_DSA, "%s: la: %d, free: %llu\n", dnet_dump_id(&cmd->id), orig->la, orig->free);
-	}
-
-	return 0;
-}
-#endif
 
 static void *dnet_check_tree_from_thread(void *data)
 {
@@ -302,6 +266,8 @@ static void *dnet_check_tree_from_thread(void *data)
 				break;
 			sleep(1);
 		}
+
+		dnet_db_sync(n);
 	}
 
 	return NULL;
@@ -311,7 +277,7 @@ int dnet_check_thread_start(struct dnet_node *n)
 {
 	int err;
 
-	err = pthread_create(&n->check_tid, &n->attr, dnet_check_tree_from_thread, n);
+	err = pthread_create(&n->check_tid, NULL, dnet_check_tree_from_thread, n);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to start tree checking thread: err: %d.\n",
 				err);

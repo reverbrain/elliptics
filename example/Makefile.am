@@ -10,17 +10,32 @@ AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@
 AM_LDFLAGS = @PTHREAD_LIBS@
 
 EXAMPLE_COMMON_LIBS = ../library/libelliptics.la libcommon.a
+EXAMPLE_BACKEND_LIBS = libbackend.a
 
 libcommon_a_SOURCES = common.c hash.c
 libbackend_a_SOURCES = file_backend.c backends.c
 
 if HAVE_EBLOB
 AM_CFLAGS += @EBLOB_CFLAGS@
-AM_LDFLAGS += @EBLOB_LIBS@
+
+EXAMPLE_BACKEND_LIBS += @EBLOB_LIBS@
 libbackend_a_SOURCES += eblob_backend.c 
+
+if HAVE_BOOST_ASIO
+if HAVE_BOOST_FILESYSTEM
+if HAVE_BOOST_PROGRAM_OPTIONS
+bin_PROGRAMS += dnet_eblob_from_tar
+
+AM_CXXFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
+
+dnet_eblob_from_tar_SOURCES = eblob_from_tar.cpp
+dnet_eblob_from_tar_LDADD = @BOOST_ASIO_LIB@ @BOOST_FILESYSTEM_LIB@ @BOOST_PROGRAM_OPTIONS_LIB@ @EBLOB_LIBS@ ../bindings/cpp/libelliptics_cpp.la libcommon.a
+endif
+endif
 endif
 
-EXAMPLE_BACKEND_LIBS = libbackend.a
+# have eblob
+endif
 
 dnet_ioserv_SOURCES = ioserv.c config.c
 dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) $(EXAMPLE_BACKEND_LIBS)

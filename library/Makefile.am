@@ -9,3 +9,6 @@ AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @ATOMIC_CFLAGS@ @OPENSSL_C
 AM_LDFLAGS = @PTHREAD_LIBS@ @SENDFILE_LIBS@ @ATOMIC_LIBS@ @OPENSSL_LIBS@ @OPENSSL_LDFLAGS@ @KYOTOCABINET_LIBS@
 
 noinst_HEADERS = elliptics.h list.h rbtree.h atomic.h lock.h
+
+AM_CFLAGS += -DELLIPTICS_GIT_VERSION=\"$(shell test -d ../.git && git show-ref --hash refs/heads/master)\" \
+	     -DELLIPTICS_HAS_CHANGES=\"$(shell git status --porcelain --untracked-files=no | wc -l)\"

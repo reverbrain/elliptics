@@ -1,4 +1,4 @@
-SUBDIRS = include library tests doc example bindings debian
+SUBDIRS = include library tests doc bindings example debian
 
 ACLOCAL_AMFLAGS = -I config
 AUTOMAKE_OPTIONS = 1.9 foreign
@@ -12,4 +12,6 @@ EXTRA_DIST = autogen.sh AUTHORS README .gitignore \
 	config/ac_check_atomic.m4 \
 	config/ac_check_stats.m4 config/ac_check_libfcgi.m4 \
 	config/ax_boost_python.m4 config/ac_python_devel.m4 \
-	config/ac_check_eblob.m4 config/ac_check_kyotocabinet.m4
+	config/ac_check_eblob.m4 config/ac_check_kyotocabinet.m4 \
+	config/ax_boost_base.m4 config/ax_boost_asio.m4 \
+	config/ax_boost_program_options.m4 config/ax_boost_filesystem.m4

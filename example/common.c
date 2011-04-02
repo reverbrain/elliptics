@@ -177,7 +177,7 @@ void dnet_common_log(void *priv, uint32_t mask, const char *msg)
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	fprintf(stream, "%s.%06lu %8lx/%4d %1x: %s", str, tv.tv_usec, (long)pthread_self(), getpid(), mask, msg);
+	fprintf(stream, "%s.%06lu %ld/%4d %1x: %s", str, tv.tv_usec, dnet_get_id(), getpid(), mask, msg);
 	fflush(stream);
 }
 
@@ -363,7 +363,7 @@ int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cf
 
 		err = dnet_add_state(n, &cfg);
 		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add addr '%s': %d.\n", addr, err);
+			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to add addr '%s:%s': %d.\n", cfg.addr, cfg.port, err);
 			goto next;
 		}
 
@@ -391,4 +391,35 @@ next:
 
 err_out_exit:
 	return err;
+}
+
+int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int *bufsize)
+{
+	void *orig = buf;
+	struct dnet_common_embed *e = buf;
+	uint64_t *edata = (uint64_t *)e->data;
+
+	if (*bufsize < (int)(sizeof(struct dnet_common_embed) + sizeof(uint64_t)) * 2)
+		return -ENOBUFS;
+
+	e->size = sizeof(uint64_t) * 2;
+	e->type = DNET_FCGI_EMBED_TIMESTAMP;
+	e->flags = 0;
+	dnet_common_convert_embedded(e);
+
+	edata[0] = dnet_bswap64(ts->tv_sec);
+	edata[1] = dnet_bswap64(ts->tv_nsec);
+
+	buf += sizeof(struct dnet_common_embed) + sizeof(uint64_t) * 2;
+
+	e = buf;
+	e->size = size;
+	e->type = DNET_FCGI_EMBED_DATA;
+	e->flags = 0;
+	dnet_common_convert_embedded(e);
+
+	buf += sizeof(struct dnet_common_embed);
+
+	*bufsize = buf - orig;
+	return 0;
 }

@@ -76,7 +76,6 @@ struct dnet_net_state
 	struct list_head	state_entry;
 
 	struct dnet_node	*n;
-	long			timeout;
 
 	atomic_t		refcnt;
 	int			s;
@@ -94,6 +93,7 @@ struct dnet_net_state
 	void			*rcv_data;
 
 	pthread_mutex_t		send_lock;
+	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
 
 	pthread_t		tid;
@@ -129,7 +129,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 void dnet_state_reset(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
-struct dnet_net_state *dnet_state_search(struct dnet_node *n, struct dnet_id *id);
 int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp, struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id);
 
@@ -443,6 +442,7 @@ int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io
 int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **datap);
 int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr);
 int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr);
+int dnet_db_sync(struct dnet_node *n);
 void dnet_db_cleanup(struct dnet_node *n);
 int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg);
 

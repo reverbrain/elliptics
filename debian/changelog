@@ -1,3 +1,222 @@
+elliptics (2.9.6.109) unstable; urgency=low
+
+  * Use small and repeated timeout in send/sendfile path. Drop st->timeout
+  * Check n->need_exit flag in check iterators
+  * Added boost::asio deps/configure and (empty) example application which
+    will create eblobs locally from tar files.
+  * Updated cpp/python bindings
+  * Added dnet_lookup_addr() function which fills provided buffer with the
+    state address which is supposed to host object with id generated from
+    given data
+  * Make dnet_node_set_groups() reallocate provided groups and free old ones.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 31 Mar 2011 18:47:42 +0400
+
+elliptics (2.9.6.108) unstable; urgency=low
+
+  * Tune state timeout detection
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 28 Mar 2011 02:15:21 +0400
+
+elliptics (2.9.6.107) unstable; urgency=low
+
+  * forwarding fix
+  * initialize error to zero prior reading key from cursor
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 06:03:56 +0300
+
+elliptics (2.9.6.106) unstable; urgency=low
+
+  * Only remove local object if dnet_db_read_raw() returned negative or zero
+    error value. Positive is data size.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 05:03:16 +0300
+
+elliptics (2.9.6.105) unstable; urgency=low
+
+  * Really fixed checker
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 04:41:31 +0300
+
+elliptics (2.9.6.104) unstable; urgency=low
+
+  * Since dnet_state_get_first() now returns NULL for own main state, check
+    iterator should take that into account.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 04:30:40 +0300
+
+elliptics (2.9.6.103) unstable; urgency=low
+
+  * Graceful exit in sigint/sigterm.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 25 Mar 2011 01:57:12 +0300
+
+elliptics (2.9.6.102) unstable; urgency=low
+
+  * Optimize merge of broken objects: if meta is present, but there is no
+    history, just delete record.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Mar 2011 19:55:41 +0300
+
+elliptics (2.9.6.101) unstable; urgency=low
+
+  * Do not sync null databases.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Mar 2011 15:21:28 +0300
+
+elliptics (2.9.6.100) unstable; urgency=low
+
+  * Added explicit database synchronization called from check/reconnect
+    thread.
+  * Added db_flags to ioserv config. Autosync is turned off by default now!
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Mar 2011 01:55:50 +0300
+
+elliptics (2.9.6.99) unstable; urgency=low
+
+  * Drop invalid goto in need_exit check in dnet_wait()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 23 Mar 2011 18:42:37 +0300
+
+elliptics (2.9.6.98) unstable; urgency=low
+
+  * Do not allow dnet_state_get_first() to return own state. Dropped unused
+    dnet_state_search().
+  * Check for need_exit during data send at the very end, so we would not miss
+    this event.
+  * printf warnings fixed
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 23 Mar 2011 16:51:44 +0300
+
+elliptics (2.9.6.97) unstable; urgency=low
+
+  * Restart check automatically if we checked less than half of the local
+    storage.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Mar 2011 23:10:08 +0300
+
+elliptics (2.9.6.96) unstable; urgency=low
+
+  * Only forbid write command during check. Temporal hack.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Mar 2011 22:34:15 +0300
+
+elliptics (2.9.6.95) unstable; urgency=low
+
+  * do not break protocol processing for del/write commands during check.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Mar 2011 22:27:04 +0300
+
+elliptics (2.9.6.94) unstable; urgency=low
+
+  * Temporarily do not allow write and delete commands if check is in
+    progress.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Mar 2011 21:08:41 +0300
+
+elliptics (2.9.6.93) unstable; urgency=low
+
+  * Added db cursor logs.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Mar 2011 20:08:44 +0300
+
+elliptics (2.9.6.92) unstable; urgency=low
+
+  * Added log dump of elliptics version and number of changed files in git
+    tree.
+  * Added attr check in completion callbacks. It can be NULL if it is cmd-only
+    reply.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 21 Mar 2011 19:03:35 +0300
+
+elliptics (2.9.6.91) unstable; urgency=low
+
+  * Added final transaction completion invocation, used in
+    dnet_trans_destroy() to specify the last moment this transaction lives.
+  * Log debug cleanups
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 19 Mar 2011 01:10:55 +0300
+
+elliptics (2.9.6.90) unstable; urgency=low
+
+  * Hold transaction when sending and inserting it into the state.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 17 Mar 2011 18:42:21 +0300
+
+elliptics (2.9.6.89) unstable; urgency=low
+
+  * Use trans_lock to protect transaction tree instead of send_lock.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Wed, 16 Mar 2011 06:10:42 +0300
+
+elliptics (2.9.6.88) unstable; urgency=low
+
+  * state timeout updates
+  * tuned idc destruction
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 16 Mar 2011 01:22:56 +0300
+
+elliptics (2.9.6.87) unstable; urgency=low
+
+  * Create all client state threads in detached state.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 21:10:16 +0300
+
+elliptics (2.9.6.86) unstable; urgency=low
+
+  * Improved some debug output.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 19:53:52 +0300
+
+elliptics (2.9.6.85) unstable; urgency=low
+
+  * Minor dnet_check updates.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 03:51:50 +0300
+
+elliptics (2.9.6.84) unstable; urgency=low
+
+  * Do not write check completion metadata when doing merge check. Returned
+    back multi-threaded check.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 03:23:38 +0300
+
+elliptics (2.9.6.83) unstable; urgency=low
+
+  * Force checker to run in single-threading mode.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 03:15:24 +0300
+
+elliptics (2.9.6.82) unstable; urgency=low
+
+  * Added KCOAUTOSYNC database mode.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 02:37:21 +0300
+
+elliptics (2.9.6.81) unstable; urgency=low
+
+  * Uncondtionally remove meta and history objects.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 01:56:48 +0300
+
+elliptics (2.9.6.80) unstable; urgency=low
+
+  * Try to remove meta even if history was not found in the databse.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 01:42:35 +0300
+
+elliptics (2.9.6.79) unstable; urgency=low
+
+  * Added error checks and debug into remove command.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 01:33:17 +0300
+
+elliptics (2.9.6.78) unstable; urgency=low
+
+  * Roll back some testing changes. Fixed state_lock@join deadlock.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Mar 2011 00:28:50 +0300
+
 elliptics (2.9.6.77) unstable; urgency=low
 
   * Do not wait until state is ready, return error early from dnet_recv()

@@ -472,6 +472,16 @@ err_out_exit:
 int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies)
 {
 	int err = 0;
+	void *data;
+
+	err = dnet_db_read_raw(n, 0, mc->id.id, &data);
+	if (err <= 0) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: meta is present, but there is no history, removing object.\n",
+				dnet_dump_id(&mc->id));
+		dnet_merge_remove_local(n, &mc->id);
+		return err;
+	}
+	kcfree(data);
 
 	if (!check_copies) {
 		err = dnet_check_merge(n, mc);
@@ -490,11 +500,14 @@ static int dnet_check_complete(struct dnet_net_state *state, struct dnet_cmd *cm
 	struct dnet_wait *w = priv;
 	int err = -EINVAL;
 
-	if (!state || !cmd || !attr) {
+	if (is_trans_destroyed(state, cmd, attr)) {
 		dnet_wakeup(w, w->cond++);
 		dnet_wait_put(w);
 		return 0;
 	}
+
+	if (!attr)
+		return cmd->status;
 
 	if (attr->size == sizeof(struct dnet_check_reply)) {
 		struct dnet_check_reply *r = (struct dnet_check_reply *)(attr + 1);
@@ -505,12 +518,7 @@ static int dnet_check_complete(struct dnet_net_state *state, struct dnet_cmd *cm
 				r->total, r->completed, r->errors);
 	}
 
-	if (!(cmd->flags & DNET_FLAGS_MORE)) {
-		w->status = cmd->status;
-		dnet_wakeup(w, w->cond++);
-		dnet_wait_put(w);
-	}
-
+	w->status = cmd->status;
 	return err;
 }
 

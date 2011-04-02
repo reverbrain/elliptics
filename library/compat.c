@@ -33,6 +33,7 @@
  */
 #ifdef HAVE_SENDFILE4_SUPPORT
 #include <sys/prctl.h>
+
 int dnet_set_name(char *n)
 {
 	char str[] = "dnet-";
@@ -47,8 +48,19 @@ int dnet_set_name(char *n)
 	snprintf(name, sizeof(name), "%s%s", str, n + offset);
 	return prctl(PR_SET_NAME, name);
 }
+
+#include <sys/syscall.h>
+long dnet_get_id(void)
+{
+	return syscall(SYS_gettid);
+}
 #else
 int dnet_set_name(char *name __attribute__ ((unused))) { return 0; }
+
+long dnet_get_id(void)
+{
+	return pthread_self();
+}
 #endif
 
 #ifdef HAVE_SENDFILE4_SUPPORT

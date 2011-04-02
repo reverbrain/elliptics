@@ -57,7 +57,7 @@ int elliptics_callback_io::callback(void)
 	unsigned long long size;
 	void *data;
 
-	if (!cmd || !state) {
+	if (is_trans_destroyed(state, cmd, attr)) {
 		err = -EINVAL;
 		goto err_out_exit;
 	}
@@ -101,7 +101,8 @@ err_out_exit:
 int main()
 {
 	struct dnet_id id;
-	int groups[] = {1, 2, 3};
+	int g[] = {1, 2, 3};
+	std::vector<int> groups(g, g+ARRAY_SIZE(g));
 
 	try {
 		elliptics_log_file log("/dev/stderr", 15);
@@ -110,7 +111,7 @@ int main()
 		elliptics_callback_io callback(&log);
 
 		elliptics_node n(log);
-		n.add_groups(groups, ARRAY_SIZE(groups));
+		n.add_groups(groups);
 
 		n.add_remote("localhost", 1025, AF_INET);
 #if 1

@@ -191,6 +191,14 @@ static int dnet_set_history_env(struct dnet_config_backend *b __unused, char *ke
 	return 0;
 }
 
+static int dnet_set_db_flags(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	long v = strtoul(value, NULL, 0);
+
+	dnet_cfg_state.db_flags = v;
+	return 0;
+}
+
 static int dnet_set_db_data(struct dnet_config_backend *b __unused, char *key, char *value)
 {
 	long long v = strtoull(value, NULL, 0);
@@ -225,6 +233,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"history", dnet_set_history_env},
 	{"db_buckets", dnet_set_db_data},
 	{"db_map", dnet_set_db_data},
+	{"db_flags", dnet_set_db_flags},
 	{"monitor_path", dnet_set_monitor_path},
 };
 
