@@ -159,6 +159,31 @@ struct dnet_fcgi_content_type {
 static int dnet_fcgi_ctypes_num;
 static struct dnet_fcgi_content_type *dnet_fcgi_ctypes;
 
+void dnet_fcgi_log_write(const char *fmt, ...) __attribute__ ((format(printf, 1, 2)));
+void dnet_fcgi_log_write(const char *fmt, ...)
+{
+	va_list args;
+	char buf[1024];
+	int buflen = sizeof(buf);
+	char str[64];
+	struct tm tm;
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+	localtime_r((time_t *)&tv.tv_sec, &tm);
+	strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+	va_start(args, fmt);
+	vsnprintf(buf, buflen, fmt, args);
+
+	if (dnet_fcgi_log)
+		fprintf(dnet_fcgi_log, "%s.%06lu %ld/%4d : %s", str, tv.tv_usec, dnet_get_id(), getpid(), buf);
+	else
+		syslog(LOG_INFO, "%s.%06lu %ld/%4d : %s", str, tv.tv_usec, dnet_get_id(), getpid(), buf);
+
+	va_end(args);
+}
+
 #define dnet_fcgi_log_write(fmt, a...) do { if (dnet_fcgi_log) fprintf(dnet_fcgi_log, fmt, ##a); else syslog(LOG_INFO, fmt, ##a); } while (0)
 
 /*

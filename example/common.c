@@ -184,13 +184,20 @@ void dnet_common_log(void *priv, uint32_t mask, const char *msg)
 void dnet_syslog(void *priv __attribute__ ((unused)), uint32_t mask, const char *msg)
 {
 	int prio = LOG_DEBUG;
+	char str[64];
+	struct tm tm;
+	struct timeval tv;
 
 	if (mask & DNET_LOG_ERROR)
 		prio = LOG_ERR;
 	if (mask & DNET_LOG_INFO)
 		prio = LOG_INFO;
 
-	syslog(prio, "%8lx/%4d %1x: %s", (long)pthread_self(), getpid(), mask, msg);
+	gettimeofday(&tv, NULL);
+	localtime_r((time_t *)&tv.tv_sec, &tm);
+	strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+	syslog(prio, "%s.%06lu %ld/%4d %1x: %s", str, tv.tv_usec, dnet_get_id(), getpid(), mask, msg);
 }
 
 static void dnet_common_convert_adata(void *adata, struct dnet_io_attr *ioattr)
