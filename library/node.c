@@ -636,13 +636,13 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 		n->addr.addr_len = sizeof(n->addr.addr);
 
-		err = dnet_socket_create(n, cfg, (struct sockaddr *)&n->addr.addr, &n->addr.addr_len, 1);
+		err = dnet_socket_create(n, cfg, &n->addr, 1);
 		if (err < 0)
 			goto err_out_db_cleanup;
 
 		n->listen_socket = err;
 
-		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, n->listen_socket);
+		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, n->listen_socket, &err);
 		if (!n->st) {
 			close(n->listen_socket);
 			goto err_out_db_cleanup;

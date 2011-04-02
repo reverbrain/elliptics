@@ -124,7 +124,7 @@ void dnet_idc_destroy(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
-		struct dnet_addr *addr, int s);
+		struct dnet_addr *addr, int s, int *errp);
 
 void dnet_state_reset(struct dnet_net_state *st);
 
@@ -327,8 +327,7 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size);
 
 struct dnet_config;
-int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
-		struct sockaddr *sa, unsigned int *addr_len, int listening);
+int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg, struct dnet_addr *addr, int listening);
 int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int family,
 		struct sockaddr *sa, unsigned int salen, int listening);
 

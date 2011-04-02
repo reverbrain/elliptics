@@ -167,10 +167,11 @@ err_out_exit:
 }
 
 int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
-		struct sockaddr *sa, unsigned int *addr_len, int listening)
+		struct dnet_addr *addr, int listening)
 {
 	int s, err = -EINVAL;
 	struct addrinfo *ai = NULL, hint;
+	struct dnet_net_state *st;
 
 	memset(&hint, 0, sizeof(struct addrinfo));
 
@@ -196,15 +197,23 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 		goto err_out_exit;
 	}
 
-	if (*addr_len >= ai->ai_addrlen)
-		*addr_len = ai->ai_addrlen;
+	if (addr->addr_len >= ai->ai_addrlen)
+		addr->addr_len = ai->ai_addrlen;
 	else {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to copy address: size %u is too small (must be more than %u).\n",
-				*addr_len, ai->ai_addrlen);
+				addr->addr_len, ai->ai_addrlen);
 		err = -ENOBUFS;
 		goto err_out_exit;
 	}
-	memcpy(sa, ai->ai_addr, *addr_len);
+	memcpy(addr->addr, ai->ai_addr, addr->addr_len);
+
+	st = dnet_state_search_by_addr(n, addr);
+	if (st) {
+		dnet_log(n, DNET_LOG_ERROR, "Address %s:%s already exists in route table\n", cfg->addr, cfg->port);
+		err = -EEXIST;
+		dnet_state_put(st);
+		goto err_out_free;
+	}
 
 	s = dnet_socket_create_addr(n, cfg->sock_type, cfg->proto, cfg->family,
 			ai->ai_addr, ai->ai_addrlen, listening);
@@ -901,7 +910,7 @@ static void *dnet_accept_client(void *priv)
 
 		fcntl(cs, F_SETFL, O_NONBLOCK);
 
-		st = dnet_state_create(n, 0, NULL, 0, &addr, cs);
+		st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err);
 		if (!st) {
 			close(cs);
 			continue;
@@ -967,7 +976,7 @@ out_exit:
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
-		struct dnet_addr *addr, int s)
+		struct dnet_addr *addr, int s, int *errp)
 {
 	int err = -ENOMEM;
 	struct dnet_net_state *st;
@@ -1034,7 +1043,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 err_out_put:
 	dnet_state_reset(st);
-	return NULL;
+	goto err_out_exit;
 
 err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
@@ -1044,6 +1053,7 @@ err_out_free:
 err_out_exit:
 	if (err == -EEXIST)
 		dnet_log(n, DNET_LOG_ERROR, "%s: state already exists.\n", dnet_server_convert_dnet_addr(addr));
+	*errp = err;
 	return NULL;
 }
 

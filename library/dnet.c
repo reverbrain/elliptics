@@ -704,11 +704,9 @@ static int dnet_add_received_state(struct dnet_node *n, struct dnet_addr_attr *a
 		goto err_out_exit;
 	}
 
-	nst = dnet_state_create(n, group_id, ids, id_num, &a->addr, s);
-	if (!nst) {
-		err = -EINVAL;
+	nst = dnet_state_create(n, group_id, ids, id_num, &a->addr, s, &err);
+	if (!nst)
 		goto err_out_close;
-	}
 
 	nst->__join_state = DNET_WANT_RECONNECT;
 
@@ -952,11 +950,9 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	for (i=0; i<num; ++i)
 		dnet_convert_raw_id(&ids[i]);
 
-	st = dnet_state_create(n, cmd->id.group_id, ids, num, addr, s);
-	if (!st) {
-		err = -EINVAL;
+	st = dnet_state_create(n, cmd->id.group_id, ids, num, addr, s, &err);
+	if (!st)
 		goto err_out_free;
-	}
 	free(ids);
 
 	st->__join_state = DNET_WANT_RECONNECT;
@@ -979,7 +975,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 	memset(&addr, 0, sizeof(addr));
 
 	addr.addr_len = sizeof(addr.addr);
-	s = dnet_socket_create(n, cfg, (struct sockaddr *)&addr.addr, &addr.addr_len, 0);
+	s = dnet_socket_create(n, cfg, &addr, 0);
 	if (s < 0) {
 		err = s;
 		goto err_out_reconnect;
