@@ -2001,7 +2001,8 @@ int main()
 		if (err || !dnet_fcgi_request.in || !dnet_fcgi_request.out || !dnet_fcgi_request.err || !dnet_fcgi_request.envp) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to accept client: no IO streams: in: %p, out: %p, err: %p, env: %p, err: %d.\n",
 					dnet_fcgi_request.in, dnet_fcgi_request.out, dnet_fcgi_request.err, dnet_fcgi_request.envp, err);
-			continue;
+			err = -EINVAL;
+			goto err_out_fcgi_exit;
 		}
 
 		tmp_groups = NULL;
