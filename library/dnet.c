@@ -905,7 +905,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	st->s = s;
 	st->n = n;
 
-	err = dnet_send(st, buf, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
+	err = dnet_send_nolock(st, buf, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to send reverse "
 				"lookup message to %s, err: %d.\n",
