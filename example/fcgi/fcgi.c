@@ -1811,7 +1811,11 @@ int main()
 		p = DNET_FCGI_LOG;
 
 	if (!strcmp(p, "syslog")) {
-		openlog("fcgi", LOG_PID, LOG_USER);
+		p = getenv("DNET_FCGI_SYSLOG_PROGRAM");
+		if (!p)
+			p = "fcgi";
+
+		openlog(p, LOG_PID, LOG_USER);
 	} else {
 		dnet_fcgi_log = fopen(p, "a");
 		if (!dnet_fcgi_log) {
