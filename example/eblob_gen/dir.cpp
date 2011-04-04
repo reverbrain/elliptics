@@ -28,13 +28,6 @@ bool eblob_dir_source::next(const bool prepend, const struct timespec *ts, std::
 	if (itr == end_itr)
 		return false;
 
-	if (!fs::is_regular_file(*itr)) {
-		std::ostringstream str;
-
-		str << "Not regular file " << *itr << std::endl;
-		throw std::runtime_error(str.str());
-	}
-
 	std::ifstream file(itr->path().string().c_str(), std::ios::binary | std::ios::in);
 	std::filebuf *pbuf = file.rdbuf();
 	std::stringstream ss;
