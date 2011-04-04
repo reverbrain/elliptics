@@ -552,7 +552,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	struct dnet_db_list_control ctl;
 	struct dnet_check_request *r;
 	unsigned int i;
-	int err;
+	int err, restarts = 0;
 	pthread_t *tid;
 	char ctl_time[64];
 	struct tm tm;
@@ -639,7 +639,15 @@ err_out_join:
 			(long long)kcdbcount(n->meta), (long long)kcdbcount(n->history));
 
 	if (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total)) {
-		dnet_log(n, DNET_LOG_INFO, "Restarting check.\n");
+		if (restarts > 20) {
+			dnet_log(n, DNET_LOG_ERROR, "Check did not complete and restarted %d times already, "
+					"do not restarting again, probably database should be checked manually.\n",
+					restarts);
+			err = -EINVAL;
+		} else {
+			dnet_log(n, DNET_LOG_INFO, "Restarting check.\n");
+		}
+		restarts++;
 		goto again;
 	}
 
