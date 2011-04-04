@@ -329,6 +329,8 @@ static void dnet_send_req_free(struct dnet_net_state *st, struct dnet_send_req *
 	list_del(&r->req_entry);
 	pthread_mutex_unlock(&st->send_lock);
 
+	if (r->fd >= 0)
+		close(r->fd);
 	free(r);
 }
 
