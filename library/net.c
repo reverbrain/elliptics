@@ -1153,6 +1153,15 @@ int dnet_state_num(struct dnet_node *n)
 	return num;
 }
 
+static void dnet_state_send_clean(struct dnet_net_state *st)
+{
+	struct dnet_send_req *r, *tmp;
+
+	list_for_each_entry_safe(r, tmp, &st->send_list, req_entry) {
+		dnet_send_req_free(st, r);
+	}
+}
+
 void dnet_state_destroy(struct dnet_net_state *st)
 {
 	dnet_state_remove(st);
@@ -1164,6 +1173,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	dnet_state_clean(st);
 
 	pthread_join(st->send_tid, NULL);
+	dnet_state_send_clean(st);
 
 	pthread_cond_destroy(&st->send_wait);
 	pthread_mutex_destroy(&st->send_lock);
