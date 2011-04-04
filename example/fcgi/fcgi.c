@@ -2297,8 +2297,10 @@ err_out_free_direct_patterns:
 	free(direct_patterns);
 	free(dnet_fcgi_direct_patterns);
 err_out_close:
-	fflush(dnet_fcgi_log);
-	fclose(dnet_fcgi_log);
+	if (dnet_fcgi_log)
+		fclose(dnet_fcgi_log);
+	else
+		closelog();
 	dnet_fcgi_destroy_permanent_headers();
 err_out_exit:
 	return err;
