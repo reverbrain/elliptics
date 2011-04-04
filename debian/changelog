@@ -1,3 +1,10 @@
+elliptics (2.9.6.116) unstable; urgency=low
+
+  * Dropped dnet_fcgi_log_write() macros, use proper function instead
+  * Do not close file log if syslog was used
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 05 Apr 2011 02:37:35 +0400
+
 elliptics (2.9.6.115) unstable; urgency=low
 
   * Do not allow double close on fd
