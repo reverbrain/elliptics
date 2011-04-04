@@ -1,3 +1,9 @@
+elliptics (2.9.6.113) unstable; urgency=low
+
+  * Do not try to free sending thread if it was not started.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 04 Apr 2011 23:57:10 +0400
+
 elliptics (2.9.6.112) unstable; urgency=low
 
   * Added DNET_FCGI_SYSLOG_PROGRAM option used by fcgi syslog
