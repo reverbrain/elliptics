@@ -88,15 +88,7 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 		}
 	}
 
-	err = 1;
-	setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &err, 4);
-
-	err = 3;
-	setsockopt(s, IPPROTO_TCP, TCP_KEEPCNT, &err, 4);
-	err = 10;
-	setsockopt(s, IPPROTO_TCP, TCP_KEEPIDLE, &err, 4);
-	err = 10;
-	setsockopt(s, IPPROTO_TCP, TCP_KEEPINTVL, &err, 4);
+	dnet_set_sockopt(s);
 
 	dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d.\n",
 		dnet_server_convert_addr(sa, salen),
@@ -161,8 +153,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 	return s;
 
 err_out_close:
-	shutdown(s, 2);
-	close(s);
+	dnet_sock_close(s);
 err_out_exit:
 	return err;
 }
@@ -940,6 +931,35 @@ void dnet_state_reset(struct dnet_net_state *st)
 	dnet_state_put(st);
 }
 
+void dnet_sock_close(int s)
+{
+	shutdown(s, 2);
+	close(s);
+}
+
+void dnet_set_sockopt(int s)
+{
+	struct linger l;
+	int opt;
+
+	opt = 1;
+	setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &opt, 4);
+
+	opt = 3;
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPCNT, &opt, 4);
+	opt = 10;
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPIDLE, &opt, 4);
+	opt = 10;
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPINTVL, &opt, 4);
+
+	l.l_onoff = 1;
+	l.l_linger = 1;
+
+	setsockopt(s, SOL_SOCKET, SO_LINGER, &l, sizeof(l));
+
+	fcntl(s, F_SETFL, O_NONBLOCK);
+}
+
 static void *dnet_accept_client(void *priv)
 {
 	struct dnet_net_state *orig = priv;
@@ -966,12 +986,11 @@ static void *dnet_accept_client(void *priv)
 			continue;
 		}
 
-		fcntl(cs, F_SETFL, O_NONBLOCK);
+		dnet_set_sockopt(cs);
 
 		st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err);
 		if (!st) {
-			shutdown(cs, 2);
-			close(cs);
+			dnet_sock_close(cs);
 			continue;
 		}
 
@@ -1169,8 +1188,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	dnet_state_remove(st);
 
 	if (st->s >= 0) {
-		shutdown(st->s, 2);
-		close(st->s);
+		dnet_sock_close(st->s);
 	}
 
 	dnet_idc_destroy(st);

@@ -351,6 +351,9 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg, struct dnet
 int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int family,
 		struct sockaddr *sa, unsigned int salen, int listening);
 
+void dnet_set_sockopt(int s);
+void dnet_sock_close(int s);
+
 enum dnet_join_state {
 	DNET_JOIN = 1,			/* Node joined the network */
 	DNET_WANT_RECONNECT,		/* State must be reconnected, when remote peer failed */
