@@ -528,7 +528,7 @@ static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t o
 
 err_out_exit:
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: setting sendfile need_exit to %d\n", dnet_state_dump_addr(st), err);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: setting sendfile need_exit to %d\n", dnet_state_dump_addr(st), err);
 		st->need_exit = err;
 	}
 
