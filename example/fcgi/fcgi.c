@@ -184,8 +184,6 @@ void dnet_fcgi_log_write(const char *fmt, ...)
 	va_end(args);
 }
 
-#define dnet_fcgi_log_write(fmt, a...) do { if (dnet_fcgi_log) fprintf(dnet_fcgi_log, fmt, ##a); else syslog(LOG_INFO, fmt, ##a); } while (0)
-
 /*
  * Workaround for libfcgi 64bit issues, namely we will format
  * output here, since FCGX_FPrintF() resets the stream when sees
