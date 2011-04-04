@@ -1,3 +1,14 @@
+elliptics (2.9.6.110) unstable; urgency=low
+
+  * Use async sending model
+  * Debug log cleanups
+  * Do not connect to the addr which is present in route table
+  * Added eblob-from-tar generator
+  * Throw std exceptionms rather than int
+  * Use 2 seconds for connect timeout
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 04 Apr 2011 18:18:22 +0400
+
 elliptics (2.9.6.109) unstable; urgency=low
 
   * Use small and repeated timeout in send/sendfile path. Drop st->timeout
