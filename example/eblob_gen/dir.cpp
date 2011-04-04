@@ -28,7 +28,7 @@ bool eblob_dir_source::next(const bool prepend, const struct timespec *ts, std::
 	if (itr == end_itr)
 		return false;
 
-	if (!is_regular_file(*itr)) {
+	if (!fs::is_regular_file(*itr)) {
 		std::ostringstream str;
 
 		str << "Not regular file " << *itr << std::endl;
