@@ -1,3 +1,11 @@
+elliptics (2.9.6.112) unstable; urgency=low
+
+  * Added DNET_FCGI_SYSLOG_PROGRAM option used by fcgi syslog
+  *  Do not restart check infinitely, only do it 20 times and then print error
+     message.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 04 Apr 2011 19:28:25 +0400
+
 elliptics (2.9.6.111) unstable; urgency=low
 
   * Cleanup send queue on state destruction.
