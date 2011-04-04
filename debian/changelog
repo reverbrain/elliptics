@@ -1,3 +1,9 @@
+elliptics (2.9.6.111) unstable; urgency=low
+
+  * Cleanup send queue on state destruction.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 04 Apr 2011 18:33:35 +0400
+
 elliptics (2.9.6.110) unstable; urgency=low
 
   * Use async sending model
