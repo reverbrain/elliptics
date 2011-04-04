@@ -1,3 +1,9 @@
+elliptics (2.9.6.117) unstable; urgency=low
+
+  * Do not close r->fd if it is >= 0, it must be setup correctly.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 05 Apr 2011 03:18:30 +0400
+
 elliptics (2.9.6.116) unstable; urgency=low
 
   * Dropped dnet_fcgi_log_write() macros, use proper function instead
