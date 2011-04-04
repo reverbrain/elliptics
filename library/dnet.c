@@ -951,8 +951,11 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		dnet_convert_raw_id(&ids[i]);
 
 	st = dnet_state_create(n, cmd->id.group_id, ids, num, addr, s, &err);
-	if (!st)
+	if (!st) {
+		/* socket is already closed */
+		s = -1;
 		goto err_out_free;
+	}
 	free(ids);
 
 	st->__join_state = DNET_WANT_RECONNECT;
@@ -963,6 +966,8 @@ err_out_free:
 	free(ids);
 err_out_exit:
 	*errp = err;
+	if (s >= 0)
+		dnet_sock_close(s);
 	return NULL;
 }
 
@@ -981,17 +986,16 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_reconnect;
 	}
 
+	/* will close socket on error */
 	st = dnet_add_state_socket(n, &addr, s, &err);
 	if (!st)
-		goto err_out_sock_close;
+		goto err_out_reconnect;
 
 	if (!(cfg->join & DNET_NO_ROUTE_LIST))
 		dnet_recv_route_list(st);
 
 	return 0;
 
-err_out_sock_close:
-	dnet_sock_close(s);
 err_out_reconnect:
 	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) || (err == -ECONNRESET) ||
 			(err == -EINPROGRESS) || (err == -EAGAIN))

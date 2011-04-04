@@ -1065,13 +1065,13 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		if (st) {
 			err = -EEXIST;
 			dnet_state_put(st);
-			goto err_out_exit;
+			goto err_out_close;
 		}
 	}
 
 	st = malloc(sizeof(struct dnet_net_state));
 	if (!st)
-		goto err_out_exit;
+		goto err_out_close;
 
 	memset(st, 0, sizeof(struct dnet_net_state));
 
@@ -1151,6 +1151,8 @@ err_out_send_cond_destroy:
 	pthread_cond_destroy(&st->send_wait);
 err_out_free:
 	free(st);
+err_out_close:
+	dnet_sock_close(s);
 err_out_exit:
 	if (err == -EEXIST)
 		dnet_log(n, DNET_LOG_ERROR, "%s: state already exists.\n", dnet_server_convert_dnet_addr(addr));
