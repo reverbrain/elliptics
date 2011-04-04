@@ -1,3 +1,10 @@
+elliptics (2.9.6.114) unstable; urgency=low
+
+  * Added options (linger and keepalive) to all created sockets
+  * Use shutdown() before closing socket
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 05 Apr 2011 01:53:33 +0400
+
 elliptics (2.9.6.113) unstable; urgency=low
 
   * Do not try to free sending thread if it was not started.
