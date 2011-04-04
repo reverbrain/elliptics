@@ -1104,15 +1104,15 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 			goto err_out_send_destroy;
 	}
 
-	err = pthread_create(&st->tid, &n->attr, func, st);
-	if (err) {
-		dnet_log_err(n, "Failed to create new recv state thread: %d", err);
-		goto err_out_put;
-	}
-
 	err = pthread_create(&st->send_tid, NULL, dnet_state_send, st);
 	if (err) {
 		dnet_log_err(n, "Failed to create new send state thread: %d", err);
+		goto err_out_put;
+	}
+
+	err = pthread_create(&st->tid, &n->attr, func, st);
+	if (err) {
+		dnet_log_err(n, "Failed to create new recv state thread: %d", err);
 		goto err_out_put;
 	}
 
@@ -1172,8 +1172,10 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	dnet_idc_destroy(st);
 	dnet_state_clean(st);
 
-	pthread_join(st->send_tid, NULL);
-	dnet_state_send_clean(st);
+	if ((long)st->send_tid != 0) {
+		pthread_join(st->send_tid, NULL);
+		dnet_state_send_clean(st);
+	}
 
 	pthread_cond_destroy(&st->send_wait);
 	pthread_mutex_destroy(&st->send_lock);
