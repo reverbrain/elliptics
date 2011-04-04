@@ -259,6 +259,7 @@ static int dnet_check_connection(struct dnet_node *n, struct dnet_addr_attr *a)
 	if (s < 0)
 		return s;
 
+	shutdown(s, 2);
 	close(s);
 	return 0;
 }
@@ -726,6 +727,7 @@ err_out_put:
 	return err;
 
 err_out_close:
+	shutdown(s, 2);
 	close(s);
 err_out_exit:
 	return err;
@@ -991,6 +993,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 	return 0;
 
 err_out_sock_close:
+	shutdown(s, 2);
 	close(s);
 err_out_reconnect:
 	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) || (err == -ECONNRESET) ||
@@ -2182,6 +2185,8 @@ int dnet_try_reconnect(struct dnet_node *n)
 		st = dnet_add_state_socket(n, &ast->addr, s, &err);
 		if (!st) {
 			dnet_log(n, DNET_LOG_INFO, "Disconnecting from %s: %d\n", dnet_server_convert_dnet_addr(&ast->addr), err);
+
+			shutdown(s, 2);
 			close(s);
 
 			if (err == -EEXIST || err == -EINVAL)

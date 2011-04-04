@@ -161,6 +161,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 	return s;
 
 err_out_close:
+	shutdown(s, 2);
 	close(s);
 err_out_exit:
 	return err;
@@ -969,6 +970,7 @@ static void *dnet_accept_client(void *priv)
 
 		st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err);
 		if (!st) {
+			shutdown(cs, 2);
 			close(cs);
 			continue;
 		}
@@ -1166,8 +1168,10 @@ void dnet_state_destroy(struct dnet_net_state *st)
 {
 	dnet_state_remove(st);
 
-	if (st->s >= 0)
+	if (st->s >= 0) {
+		shutdown(st->s, 2);
 		close(st->s);
+	}
 
 	dnet_idc_destroy(st);
 	dnet_state_clean(st);
