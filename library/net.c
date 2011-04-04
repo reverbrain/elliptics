@@ -273,6 +273,7 @@ static int dnet_send_req_queue(struct dnet_net_state *st, struct dnet_send_req *
 		goto err_out_exit;
 	}
 	memset(r, 0, sizeof(struct dnet_send_req));
+	r->fd = -1;
 
 	if (orig->header && orig->hsize) {
 		r->header = buf + sizeof(struct dnet_send_req);
@@ -321,7 +322,7 @@ static void dnet_send_req_free(struct dnet_net_state *st, struct dnet_send_req *
 	list_del(&r->req_entry);
 	pthread_mutex_unlock(&st->send_lock);
 
-	if (r->fd >= 0)
+	if (r->fd >= 0 && r->fsize)
 		close(r->fd);
 	free(r);
 }
@@ -425,8 +426,10 @@ ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t size)
 		gettimeofday(&start, NULL);
 	}
 
-	if (err)
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: setting need_exit to %d\n", dnet_state_dump_addr(st), err);
 		st->need_exit = err;
+	}
 	return err;
 }
 
@@ -437,6 +440,7 @@ ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size)
 	memset(&r, 0, sizeof(r));
 	r.data = data;
 	r.dsize = size;
+	r.fd = -1;
 
 	return dnet_send_req_queue(st, &r);
 }
@@ -450,6 +454,7 @@ ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, 
 	r.hsize = hsize;
 	r.data = data;
 	r.dsize = dsize;
+	r.fd = -1;
 
 	return dnet_send_req_queue(st, &r);
 }
@@ -465,7 +470,7 @@ static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t o
 	gettimeofday(&start, NULL);
 
 	while (dsize) {
-		err = dnet_wait(st, POLLOUT, 0);
+		err = dnet_wait(st, POLLOUT, 1000);
 
 		gettimeofday(&end, NULL);
 		diff = end.tv_sec - start.tv_sec;
@@ -522,8 +527,10 @@ static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t o
 	err = 0;
 
 err_out_exit:
-	if (err)
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: setting sendfile need_exit to %d\n", dnet_state_dump_addr(st), err);
 		st->need_exit = err;
+	}
 
 	return err;
 }
@@ -553,6 +560,8 @@ int dnet_trans_send(struct dnet_trans_send_ctl *ctl)
 	pthread_mutex_lock(&st->trans_lock);
 	err = dnet_trans_insert_nolock(&st->trans_root, ctl->t);
 	pthread_mutex_unlock(&st->trans_lock);
+	if (err)
+		goto err_out_put;
 
 	memset(&r, 0, sizeof(r));
 	r.header = ctl->header;
@@ -574,6 +583,7 @@ int dnet_trans_send(struct dnet_trans_send_ctl *ctl)
 
 err_out_remove:
 	dnet_trans_remove(ctl->t);
+err_out_put:
 	dnet_trans_put(ctl->t);
 	return err;
 }
