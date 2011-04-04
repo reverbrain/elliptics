@@ -41,9 +41,9 @@ bool eblob_dir_source::next(const bool prepend, const struct timespec *ts, std::
 
 	ss << pbuf;
 
-	name.assign(itr->path().filename());
+	name.assign(itr->leaf());
 	data.append(ss.str());
 	++itr;
 
-	return itr != end_itr;
+	return true;
 }
