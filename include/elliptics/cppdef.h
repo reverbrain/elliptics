@@ -25,6 +25,7 @@
 #include <iostream>
 #include <fstream>
 #include <exception>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -73,10 +74,10 @@ class elliptics_log_file : public elliptics_log {
 
 class elliptics_callback {
 	public:
-		elliptics_callback() : state(NULL), cmd(NULL), attr(NULL) {};
-		virtual ~elliptics_callback() {};
+		elliptics_callback();
+		virtual ~elliptics_callback();
 
-		virtual	int		callback(void) = 0;
+		virtual int callback(void);
 
 		bool last(void) {
 			return (!cmd || !(cmd->flags & DNET_FLAGS_MORE));
@@ -84,7 +85,6 @@ class elliptics_callback {
 
 		int status(void) {
 			int err = -EINVAL;
-
 			if (cmd)
 				err = cmd->status;
 
@@ -98,13 +98,26 @@ class elliptics_callback {
 			c->cmd = cmd;
 			c->attr = a;
 
-			return c->callback();
+			int ret = c->callback();
+
+			c->state = NULL;
+			c->cmd = NULL;
+			c->attr = NULL;
+
+			return ret;
 		};
+
+		std::string wait(int completed = 1);
 
 	protected:
 		struct dnet_net_state	*state;
 		struct dnet_cmd		*cmd;
 		struct dnet_attr	*attr;
+
+		std::string		data;
+		pthread_cond_t		wait_cond;
+		pthread_mutex_t		lock;
+		int			complete;
 };
 
 class elliptics_node {
@@ -157,6 +170,8 @@ class elliptics_node {
 
 		void 			remove(struct dnet_id &id);
 		void			remove(const std::string &data);
+
+		std::string		stat_log();
 
 	private:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,

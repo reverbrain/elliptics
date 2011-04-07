@@ -385,56 +385,41 @@ void elliptics_node::lookup(const std::string &data, const elliptics_callback &c
 	}
 }
 
-class elliptics_lookup_callback : public elliptics_callback {
-	public:
-		elliptics_lookup_callback() : wait(PTHREAD_COND_INITIALIZER), lock(PTHREAD_MUTEX_INITIALIZER), complete(0) {};
-
-		std::string data;
-		pthread_cond_t wait;
-		pthread_mutex_t lock;
-		int complete;
-
-		int callback(void) {
-			if (is_trans_destroyed(state, cmd, attr)) {
-				pthread_mutex_lock(&lock);
-				complete = 1;
-				pthread_cond_broadcast(&wait);
-				pthread_mutex_unlock(&lock);
-			} else if (cmd && state && attr && cmd->size) {
-				struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
-				struct dnet_node *n = dnet_get_node_from_state(state);
-
-				dnet_lookup_complete(state, cmd, attr, NULL);
-
-				dnet_convert_addr_attr(a);
-
-				dnet_log_raw(n, DNET_LOG_INFO, "%s: addr: %s, is object presented there: %d.\n",
-						dnet_dump_id(&cmd->id),
-						dnet_server_convert_dnet_addr(&a->addr),
-						attr->flags);
-
-				data.assign((const char*)a, attr->size);
-			}
-		};
-};
-
 std::string elliptics_node::lookup(const std::string &data)
 {
-	elliptics_lookup_callback *l = new elliptics_lookup_callback();
+	struct dnet_id id;
+	int error = -ENOENT, i;
+	std::string ret;
+
+	transform(data, id);
 
 	try {
-		lookup(data, *l);
-		pthread_mutex_lock(&l->lock);
-		while (!l->complete)
-			pthread_cond_wait(&l->wait, &l->lock);
-		pthread_mutex_unlock(&l->lock);
+		for (i=0; i<groups.size(); ++i) {
+			elliptics_callback l;
+			id.group_id = groups[i];
+
+			lookup(data, l);
+			ret = l.wait();
+
+			struct dnet_addr *addr = (struct dnet_addr *)ret.data();
+			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
+			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
+
+			if (attr->flags) {
+				error = 0;
+				break;
+			}
+		}
 	} catch (...) {
-		delete l;
 		throw;
 	}
 
-	std::string ret(l->data);
-	delete l;
+	if (error) {
+		std::ostringstream str;
+		str << data << ": could not find object";
+
+		throw std::runtime_error(str.str());
+	}
 
 	return ret;
 }
@@ -475,4 +460,65 @@ void elliptics_node::remove(const std::string &data)
 		str << "Failed to remove data object: key: " << dnet_dump_id(&id);
 		throw std::runtime_error(str.str());
 	}
+}
+
+std::string elliptics_node::stat_log()
+{
+	elliptics_callback *l = new elliptics_callback();
+	std::string ret;
+	int err;
+
+	err = dnet_request_stat(node, NULL, DNET_CMD_STAT,
+		elliptics_callback::elliptics_complete_callback, (void *)l);
+	if (err < 0) {
+		delete l;
+
+		std::ostringstream str;
+		str << "Failed to request statistics: " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	ret = l->wait(err);
+	delete l;
+#if 0
+	float la[3];
+	const void *data = ret.data();
+	int size = ret.size();
+	char id_str[DNET_ID_SIZE*2 + 1];
+	char addr_str[128];
+
+	while (size) {
+		struct dnet_addr *addr = (struct dnet_addr *)data;
+		struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
+		struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
+		struct dnet_stat *st = (struct dnet_stat *)(attr + 1);
+
+		dnet_convert_stat(st);
+
+		la[0] = (float)st->la[0] / 100.0;
+		la[1] = (float)st->la[1] / 100.0;
+		la[2] = (float)st->la[2] / 100.0;
+
+		printf("<stat addr=\"%s\" id=\"%s\"><la>%.2f %.2f %.2f</la>"
+				"<memtotal>%llu KB</memtotal><memfree>%llu KB</memfree><memcached>%llu KB</memcached>"
+				"<storage_size>%llu MB</storage_size><available_size>%llu MB</available_size>"
+				"<files>%llu</files><fsid>0x%llx</fsid></stat>",
+				dnet_server_convert_dnet_addr_raw(addr, addr_str, sizeof(addr_str)),
+				dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id_str),
+				la[0], la[1], la[2],
+				(unsigned long long)st->vm_total,
+				(unsigned long long)st->vm_free,
+				(unsigned long long)st->vm_cached,
+				(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
+				(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),
+				(unsigned long long)st->files, (unsigned long long)st->fsid);
+		printf("\n");
+
+		int sz = sizeof(*addr) + sizeof(*cmd) + sizeof(*attr) + attr->size;
+
+		size -= sz;
+		data += sz;
+	}
+#endif
+	return ret;
 }
