@@ -1,3 +1,11 @@
+elliptics (2.9.6.118) unstable; urgency=low
+
+  * Added remove cpp methods
+  * Added lookup cpp methods
+  * Fixed bad print of uninitialized groups
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 07 Apr 2011 18:09:37 +0400
+
 elliptics (2.9.6.117) unstable; urgency=low
 
   * Do not close r->fd if it is >= 0, it must be setup correctly.
