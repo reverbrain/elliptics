@@ -333,7 +333,7 @@ int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &
 	err = dnet_create_write_metadata(node, (struct dnet_id *)&id, (char *)obj.data(), obj.size(), (int *)&groups[0], groups.size());
 	if (err < 0) {
 		std::ostringstream str;
-		str << "Failed write metadata: key: " << dnet_dump_id(&id) << ", err: " << err;
+		str << "Failed to write metadata: key: " << dnet_dump_id(&id) << ", err: " << err;
 		throw std::runtime_error(str.str());
 	}
 
@@ -353,7 +353,7 @@ void elliptics_node::lookup(const struct dnet_id &id, const elliptics_callback &
 
 	if (err) {
 		std::ostringstream str;
-		str << "Failed lookup ID " << dnet_dump_id(&id) << ": " << err;
+		str << "Failed to lookup ID " << dnet_dump_id(&id) << ": " << err;
 		throw std::runtime_error(str.str());
 	}
 }
@@ -380,7 +380,7 @@ void elliptics_node::lookup(const std::string &data, const elliptics_callback &c
 
 	if (error) {
 		std::ostringstream str;
-		str << "Failed lookup data object: key: " << dnet_dump_id(&id);
+		str << "Failed to lookup data object: key: " << dnet_dump_id(&id);
 		throw std::runtime_error(str.str());
 	}
 }
@@ -437,4 +437,42 @@ std::string elliptics_node::lookup(const std::string &data)
 	delete l;
 
 	return ret;
+}
+
+void elliptics_node::remove(struct dnet_id &id)
+{
+	int err = dnet_remove_object_now(node, &id, 0);
+
+	if (err) {
+		std::ostringstream str;
+		str << "Failed to remove data object: key: " << dnet_dump_id(&id);
+		throw std::runtime_error(str.str());
+	}
+}
+
+void elliptics_node::remove(const std::string &data)
+{
+	struct dnet_id id;
+	int error = -ENOENT, ret, i;
+
+	transform(data, id);
+
+	for (i=0; i<groups.size(); ++i) {
+		id.group_id = groups[i];
+
+		try {
+			remove(id);
+		} catch (...) {
+			continue;
+		}
+
+		error = 0;
+		break;
+	}
+
+	if (error) {
+		std::ostringstream str;
+		str << "Failed to remove data object: key: " << dnet_dump_id(&id);
+		throw std::runtime_error(str.str());
+	}
 }

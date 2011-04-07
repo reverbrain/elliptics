@@ -155,6 +155,9 @@ class elliptics_node {
 		void			lookup(const struct dnet_id &id, const elliptics_callback &c);
 		std::string		lookup(const std::string &data);
 
+		void 			remove(struct dnet_id &id);
+		void			remove(const std::string &data);
+
 	private:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,
