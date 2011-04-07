@@ -113,7 +113,9 @@ int main()
 		elliptics_node n(log);
 		n.add_groups(groups);
 
-		n.add_remote("localhost", 1025, AF_INET);
+		n.add_remote("elisto01e.mt.yandex.ru", 1025, AF_INET);
+
+		n.lookup("1.xml");
 #if 1
 		memset(id.id, 0xff, DNET_ID_SIZE);
 		n.read_data(id, 0, 0, callback);

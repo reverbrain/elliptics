@@ -151,6 +151,10 @@ class elliptics_node {
 
 		int			write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups);
 
+		void			lookup(const std::string &data, const elliptics_callback &c);
+		void			lookup(const struct dnet_id &id, const elliptics_callback &c);
+		std::string		lookup(const std::string &data);
+
 	private:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,

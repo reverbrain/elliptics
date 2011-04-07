@@ -288,7 +288,6 @@ std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 	}
 
 	return ret;
-
 }
 
 int elliptics_node::write_data_wait(struct dnet_id &id, std::string &str, unsigned int aflags, unsigned int ioflags)
@@ -344,4 +343,98 @@ int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &
 void elliptics_node::transform(const std::string &data, struct dnet_id &id)
 {
 	dnet_transform(node, (void *)data.data(), data.size(), &id);
+}
+
+void elliptics_node::lookup(const struct dnet_id &id, const elliptics_callback &c)
+{
+	int err = dnet_lookup_object(node, (struct dnet_id *)&id, DNET_ATTR_LOOKUP_STAT,
+			elliptics_callback::elliptics_complete_callback,
+			(void *)&c);
+
+	if (err) {
+		std::ostringstream str;
+		str << "Failed lookup ID " << dnet_dump_id(&id) << ": " << err;
+		throw std::runtime_error(str.str());
+	}
+}
+
+void elliptics_node::lookup(const std::string &data, const elliptics_callback &c)
+{
+	struct dnet_id id;
+	int error = -ENOENT, ret, i;
+
+	transform(data, id);
+
+	for (i=0; i<groups.size(); ++i) {
+		id.group_id = groups[i];
+
+		try {
+			lookup(id, c);
+		} catch (...) {
+			continue;
+		}
+
+		error = 0;
+		break;
+	}
+
+	if (error) {
+		std::ostringstream str;
+		str << "Failed lookup data object: key: " << dnet_dump_id(&id);
+		throw std::runtime_error(str.str());
+	}
+}
+
+class elliptics_lookup_callback : public elliptics_callback {
+	public:
+		elliptics_lookup_callback() : wait(PTHREAD_COND_INITIALIZER), lock(PTHREAD_MUTEX_INITIALIZER), complete(0) {};
+
+		std::string data;
+		pthread_cond_t wait;
+		pthread_mutex_t lock;
+		int complete;
+
+		int callback(void) {
+			if (is_trans_destroyed(state, cmd, attr)) {
+				pthread_mutex_lock(&lock);
+				complete = 1;
+				pthread_cond_broadcast(&wait);
+				pthread_mutex_unlock(&lock);
+			} else if (cmd && state && attr && cmd->size) {
+				struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+				struct dnet_node *n = dnet_get_node_from_state(state);
+
+				dnet_lookup_complete(state, cmd, attr, NULL);
+
+				dnet_convert_addr_attr(a);
+
+				dnet_log_raw(n, DNET_LOG_INFO, "%s: addr: %s, is object presented there: %d.\n",
+						dnet_dump_id(&cmd->id),
+						dnet_server_convert_dnet_addr(&a->addr),
+						attr->flags);
+
+				data.assign((const char*)a, attr->size);
+			}
+		};
+};
+
+std::string elliptics_node::lookup(const std::string &data)
+{
+	elliptics_lookup_callback *l = new elliptics_lookup_callback();
+
+	try {
+		lookup(data, *l);
+		pthread_mutex_lock(&l->lock);
+		while (!l->complete)
+			pthread_cond_wait(&l->wait, &l->lock);
+		pthread_mutex_unlock(&l->lock);
+	} catch (...) {
+		delete l;
+		throw;
+	}
+
+	std::string ret(l->data);
+	delete l;
+
+	return ret;
 }
