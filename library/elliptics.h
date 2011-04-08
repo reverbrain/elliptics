@@ -352,16 +352,17 @@ static inline void dnet_counter_inc(struct dnet_node *n, int counter, int err)
 	if (counter >= __DNET_CNTR_MAX)
 		counter = DNET_CNTR_UNKNOWN;
 
-	dnet_log(n, DNET_LOG_INFO, "Incrementing counter: %d, err: %d, old value is: %llu %llu.\n",
-				counter, err,
-				(unsigned long long)n->counters[counter].count,
-				(unsigned long long)n->counters[counter].err);
 	dnet_lock_lock(&n->counters_lock);
 	if (!err)
 		n->counters[counter].count++;
 	else
 		n->counters[counter].err++;
 	dnet_lock_unlock(&n->counters_lock);
+
+	dnet_log(n, DNET_LOG_DSA, "Incrementing counter: %d, err: %d, value is: %llu %llu.\n",
+				counter, err,
+				(unsigned long long)n->counters[counter].count,
+				(unsigned long long)n->counters[counter].err);
 }
 
 static inline void dnet_counter_set(struct dnet_node *n, int counter, int err, int64_t val)
