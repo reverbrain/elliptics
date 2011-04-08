@@ -657,9 +657,9 @@ err_out_exit:
 			err = -EINVAL;
 		} else {
 			dnet_log(n, DNET_LOG_INFO, "Restarting check.\n");
+			restarts++;
 			goto again;
 		}
-		restarts++;
 	}
 
 	n->check_in_progress = 0;
