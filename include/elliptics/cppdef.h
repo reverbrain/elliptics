@@ -173,6 +173,8 @@ class elliptics_node {
 
 		std::string		stat_log();
 
+		int			state_num();
+
 	private:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,

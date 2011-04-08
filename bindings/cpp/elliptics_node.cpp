@@ -522,3 +522,8 @@ std::string elliptics_node::stat_log()
 #endif
 	return ret;
 }
+
+int elliptics_node::state_num(void)
+{
+	return dnet_state_num(node);
+}
