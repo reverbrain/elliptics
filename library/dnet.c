@@ -2539,13 +2539,17 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		for (i=0; i<as->num; ++i) {
 			if (as->num > as->cmd_num) {
 				if (i == 0)
-					dnet_log(state->n, DNET_LOG_INFO, "Storage commands\n");
+					dnet_log(state->n, DNET_LOG_INFO, "%s: %s: Storage commands\n",
+						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 				if (i == as->cmd_num)
-					dnet_log(state->n, DNET_LOG_INFO, "Proxy commands\n");
+					dnet_log(state->n, DNET_LOG_INFO, "%s: %s: Proxy commands\n",
+						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 				if (i == as->cmd_num * 2)
-					dnet_log(state->n, DNET_LOG_INFO, "Counters\n");
+					dnet_log(state->n, DNET_LOG_INFO, "%s: %s: Counters\n",
+						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 			}	
-			dnet_log(state->n, DNET_LOG_INFO, "    cmd: %s, count: %llu, err: %llu\n",
+			dnet_log(state->n, DNET_LOG_INFO, "%s: %s:    cmd: %s, count: %llu, err: %llu\n",
+					dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
 					dnet_counter_string(i, as->cmd_num),
 					(unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
 		}
