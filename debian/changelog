@@ -1,3 +1,10 @@
+elliptics (2.9.6.120) unstable; urgency=low
+
+  * Fixed fcgi output when upload fails.
+  * Added state_num() into c++ binding
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 08 Apr 2011 16:49:39 +0400
+
 elliptics (2.9.6.119) unstable; urgency=low
 
   * Refactored c++ bindings
