@@ -646,9 +646,9 @@ err_out_join:
 			err = -EINVAL;
 		} else {
 			dnet_log(n, DNET_LOG_INFO, "Restarting check.\n");
+			goto again;
 		}
 		restarts++;
-		goto again;
 	}
 
 	dnet_db_send_check_reply(&ctl);
