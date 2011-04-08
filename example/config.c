@@ -110,6 +110,8 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_cfg_state.join = value;
 	else if (!strcmp(key, "daemon"))
 		dnet_daemon_mode = value;
+	else if (!strcmp(key, "io_thread_num"))
+		dnet_cfg_state.io_thread_num = value;
 	else
 		return -1;
 
