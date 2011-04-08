@@ -206,10 +206,15 @@ void dnet_unschedule_send(struct dnet_net_state *st)
 {
 	struct epoll_event ev;
 
+	pthread_mutex_lock(&st->send_lock);
 	ev.events = EPOLLOUT;
 	ev.data.ptr = st;
 
 	epoll_ctl(st->n->io->epoll_fd, EPOLL_CTL_DEL, st->write_s, &ev);
+
+	if (!st->need_exit)
+		st->need_exit = -ECONNRESET;
+	pthread_mutex_unlock(&st->send_lock);
 }
 
 void dnet_unschedule_recv(struct dnet_net_state *st)

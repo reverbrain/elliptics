@@ -305,7 +305,9 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 
 	pthread_mutex_lock(&st->send_lock);
 	list_add_tail(&r->req_entry, &st->send_list);
-	dnet_schedule_send(st);
+
+	if (!st->need_exit)
+		dnet_schedule_send(st);
 	pthread_mutex_unlock(&st->send_lock);
 
 	return 0;
