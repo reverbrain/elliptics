@@ -1,3 +1,9 @@
+elliptics (2.9.6.124) unstable; urgency=low
+
+  * Do not schedule sending of the dying state.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 03:44:52 +0400
+
 elliptics (2.9.6.123) unstable; urgency=low
 
   * Update restart counter when really restart checking threads.
