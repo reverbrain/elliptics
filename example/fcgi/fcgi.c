@@ -1311,7 +1311,7 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 
 	dnet_fcgi_request_completed = 0;
 
-	err = dnet_request_stat(n, NULL, DNET_CMD_STAT, complete, NULL);
+	err = dnet_request_stat(n, NULL, DNET_CMD_STAT, 0, complete, NULL);
 	if (err < 0) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to request stat: %d.\n", err);
 		goto err_out_exit;
@@ -1319,7 +1319,7 @@ static int dnet_fcgi_request_stat(struct dnet_node *n,
 	num += err;
 
 #if 0
-	err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, complete, NULL);
+	err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, 0, complete, NULL);
 	if (err < 0) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to request stat: %d.\n", err);
 		goto err_out_wait;

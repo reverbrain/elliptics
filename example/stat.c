@@ -223,14 +223,14 @@ int main(int argc, char *argv[])
 		struct dnet_id raw;
 
 		if (!id_idx) {
-			err = dnet_request_stat(n, NULL, DNET_CMD_STAT, stat_complete, stat);
+			err = dnet_request_stat(n, NULL, DNET_CMD_STAT, 0, stat_complete, stat);
 			if (err < 0)
 				return err;
 		}
 
 		for (i=0; i<id_idx; ++i) {
 			dnet_setup_id(&raw, 0, id[i]);
-			err = dnet_request_stat(n, &raw, DNET_CMD_STAT, stat_complete, stat);
+			err = dnet_request_stat(n, &raw, DNET_CMD_STAT, 0, stat_complete, stat);
 			if (err < 0)
 				return err;
 		}

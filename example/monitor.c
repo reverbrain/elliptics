@@ -220,7 +220,7 @@ int main(int argc, char *argv[])
 
 	while (check_num-- != 0) {
 		monitor_wait_num = 0;
-		err = dnet_request_stat(n, NULL, DNET_CMD_STAT, monitor_complete, NULL);
+		err = dnet_request_stat(n, NULL, DNET_CMD_STAT, 0, monitor_complete, NULL);
 		if (err < 0)
 			return err;
 

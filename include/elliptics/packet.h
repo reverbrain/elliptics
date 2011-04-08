@@ -53,6 +53,31 @@ enum dnet_commands {
 	__DNET_CMD_MAX,
 };
 
+enum dnet_counters {
+	DNET_CNTR_LA1 = __DNET_CMD_MAX*2,	/* Load average for 1 min */
+	DNET_CNTR_LA5,				/* Load average for 5 min */
+	DNET_CNTR_LA15,				/* Load average for 15 min */
+	DNET_CNTR_BSIZE,			/* Block size */
+	DNET_CNTR_FRSIZE,			/* Fragment size */
+	DNET_CNTR_BLOCKS,			/* Filesystem size in frsize units */
+	DNET_CNTR_BFREE,			/* # free blocks */
+	DNET_CNTR_BAVAIL,			/* # free blocks for non-root */
+	DNET_CNTR_FILES,			/* # inodes */
+	DNET_CNTR_FFREE,			/* # free inodes */
+	DNET_CNTR_FAVAIL,			/* # free inodes for non-root */
+	DNET_CNTR_FSID,				/* File system ID */
+	DNET_CNTR_VM_ACTIVE,			/* Active memory */
+	DNET_CNTR_VM_INACTIVE,			/* Inactive memory */
+	DNET_CNTR_VM_TOTAL,			/* Total memory */
+	DNET_CNTR_VM_FREE,			/* Free memory */
+	DNET_CNTR_VM_CACHED,			/* Used for cache */
+	DNET_CNTR_VM_BUFFERS,			/* Used for buffers */
+	DNET_CNTR_NODE_FILES,			/* # files in meta */
+	DNET_CNTR_NODE_LAST_MERGE,		/* Result of the last merge */
+	DNET_CNTR_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown counters */
+	__DNET_CNTR_MAX,
+};
+
 /*
  * Transaction ID direction bit.
  * When set, data is a reply for the given transaction.
@@ -160,6 +185,9 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 
 /* Lookup history object instead of data one */
 #define DNET_ATTR_LOOKUP_HISTORY		(1<<1)
+
+/* What type of counters to fetch */
+#define DNET_ATTR_CNTR_GLOBAL			(1<<0)
 
 struct dnet_attr
 {
@@ -406,6 +434,7 @@ struct dnet_addr_stat
 {
 	struct dnet_addr		addr;
 	int				num;
+	int				cmd_num;
 	struct dnet_stat_count		count[0];
 } __attribute__ ((packed));
 
@@ -415,6 +444,7 @@ static inline void dnet_convert_addr_stat(struct dnet_addr_stat *st, int num)
 	st->num = dnet_bswap32(st->num);
 	if (!num)
 		num = st->num;
+	st->cmd_num = dnet_bswap32(st->cmd_num);
 
 	dnet_convert_stat_count(st->count, num);
 }

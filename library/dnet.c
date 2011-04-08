@@ -412,8 +412,10 @@ static int dnet_cmd_stat_count_single(struct dnet_net_state *orig, struct dnet_c
 
 	memcpy(&as->addr, &st->addr, sizeof(struct dnet_addr));
 	as->num = __DNET_CMD_MAX;
+	as->cmd_num = __DNET_CMD_MAX;
 
 	dnet_log(n, DNET_LOG_DSA, "addr: %s, ptr: %p, orig: %p.\n", dnet_server_convert_dnet_addr(&as->addr), st, orig);
+	dnet_log(n, DNET_LOG_DSA, "as->num = %d, as->cmd_num = %d\n", as->num, as->cmd_num);
 	for (i=0; i<as->num; ++i) {
 		as->count[i] = st->stat[i];
 		dnet_log(n, DNET_LOG_DSA, "  cmd: %d, count: %llu, err: %llu\n",
@@ -425,20 +427,84 @@ static int dnet_cmd_stat_count_single(struct dnet_net_state *orig, struct dnet_c
 	return dnet_send_reply(orig, cmd, &ca, as, sizeof(struct dnet_addr_stat) + __DNET_CMD_MAX * sizeof(struct dnet_stat_count), 1);
 }
 
-static int dnet_cmd_stat_count(struct dnet_net_state *orig, struct dnet_cmd *cmd)
+static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_cmd *cmd,
+		struct dnet_node *n, struct dnet_addr_stat *as)
+{
+	struct dnet_attr ca;
+	struct dnet_stat st;
+	int i;
+	int err = 0;
+
+	ca.cmd = DNET_CMD_STAT_COUNT;
+	ca.size = 0;
+	ca.flags = 0;
+
+	memcpy(&as->addr, &n->addr, sizeof(struct dnet_addr));
+	as->num = __DNET_CNTR_MAX;
+	as->cmd_num = __DNET_CMD_MAX;
+
+	dnet_log(n, DNET_LOG_DSA, "storage_stat = %p\n, command_private = %p\n",
+			n->storage_stat, n->command_private);
+
+	memcpy(as->count, n->counters, sizeof(struct dnet_stat_count) * __DNET_CNTR_MAX);
+
+	if (n->storage_stat) {
+		err = n->storage_stat(n->command_private, &st);
+		dnet_log(n, DNET_LOG_DSA, "storage_stat returns %d\n", err);
+		if (err)
+			return err;
+
+		as->count[DNET_CNTR_LA1].count = st.la[0];
+		as->count[DNET_CNTR_LA5].count = st.la[1];
+		as->count[DNET_CNTR_LA15].count = st.la[2];
+		as->count[DNET_CNTR_BSIZE].count = st.bsize;
+		as->count[DNET_CNTR_FRSIZE].count = st.frsize;
+		as->count[DNET_CNTR_BLOCKS].count = st.blocks;
+		as->count[DNET_CNTR_BFREE].count = st.bfree;
+		as->count[DNET_CNTR_BAVAIL].count = st.bavail;
+		as->count[DNET_CNTR_FILES].count = st.files;
+		as->count[DNET_CNTR_FFREE].count = st.ffree;
+		as->count[DNET_CNTR_FAVAIL].count = st.favail;
+		as->count[DNET_CNTR_FSID].count = st.fsid;
+		as->count[DNET_CNTR_VM_ACTIVE].count = st.vm_active;
+		as->count[DNET_CNTR_VM_INACTIVE].count = st.vm_inactive;
+		as->count[DNET_CNTR_VM_TOTAL].count = st.vm_total;
+		as->count[DNET_CNTR_VM_FREE].count = st.vm_free;
+		as->count[DNET_CNTR_VM_CACHED].count = st.vm_cached;
+		as->count[DNET_CNTR_VM_BUFFERS].count = st.vm_buffers;
+	}
+	as->count[DNET_CNTR_NODE_FILES].count = kcdbcount(n->meta);
+
+	dnet_log(n, DNET_LOG_DSA, "as->num = %d, as->cmd_num = %d\n", as->num, as->cmd_num);
+
+	for (i=0; i<as->num && (n->log->log_mask & DNET_LOG_DSA); ++i) {
+		dnet_log(n, DNET_LOG_DSA, "  counter: %d, count: %llu, err: %llu\n",
+			i, (unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
+	}
+
+	dnet_convert_addr_stat(as, as->num);
+
+	return dnet_send_reply(orig, cmd, &ca, as, sizeof(struct dnet_addr_stat) + __DNET_CNTR_MAX * sizeof(struct dnet_stat_count), 1);
+}
+
+static int dnet_cmd_stat_count(struct dnet_net_state *orig, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, void *data __unused)
 {
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
 	struct dnet_addr_stat *as;
 	int err = 0;
 
-	as = alloca(sizeof(struct dnet_addr_stat) + __DNET_CMD_MAX * sizeof(struct dnet_stat_count));
+	as = alloca(sizeof(struct dnet_addr_stat) + __DNET_CNTR_MAX * sizeof(struct dnet_stat_count));
 	if (!as) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
-	pthread_mutex_lock(&n->state_lock);
+	if (attr->flags & DNET_ATTR_CNTR_GLOBAL) {
+		err = dnet_cmd_stat_count_global(orig, cmd, orig->n, as);
+	} else {
+		pthread_mutex_lock(&n->state_lock);
 #if 0
 	list_for_each_entry(st, &n->state_list, state_entry) {
 		err = dnet_cmd_stat_count_single(orig, cmd, st, as);
@@ -446,14 +512,15 @@ static int dnet_cmd_stat_count(struct dnet_net_state *orig, struct dnet_cmd *cmd
 			goto err_out_unlock;
 	}
 #endif
-	list_for_each_entry(st, &n->empty_state_list, state_entry) {
-		err = dnet_cmd_stat_count_single(orig, cmd, st, as);
-		if (err)
-			goto err_out_unlock;
+		list_for_each_entry(st, &n->empty_state_list, state_entry) {
+			err = dnet_cmd_stat_count_single(orig, cmd, st, as);
+			if (err)
+				goto err_out_unlock;
+		}
+err_out_unlock:
+		pthread_mutex_unlock(&n->state_lock);
 	}
 
-err_out_unlock:
-	pthread_mutex_unlock(&n->state_lock);
 err_out_exit:
 	return err;
 }
@@ -479,12 +546,50 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 
+static char *dnet_counter_strings[] = {
+	[DNET_CNTR_LA1] = "DNET_CNTR_LA1",
+	[DNET_CNTR_LA5] = "DNET_CNTR_LA5",
+	[DNET_CNTR_LA15] = "DNET_CNTR_LA15",
+	[DNET_CNTR_BSIZE] = "DNET_CNTR_BSIZE",
+	[DNET_CNTR_FRSIZE] = "DNET_CNTR_FRSIZE",
+	[DNET_CNTR_BLOCKS] = "DNET_CNTR_BLOCKS",
+	[DNET_CNTR_BFREE] = "DNET_CNTR_BFREE",
+	[DNET_CNTR_BAVAIL] = "DNET_CNTR_BAVAIL",
+	[DNET_CNTR_FILES] = "DNET_CNTR_FILES",
+	[DNET_CNTR_FFREE] = "DNET_CNTR_FFREE",
+	[DNET_CNTR_FAVAIL] = "DNET_CNTR_FAVAIL",
+	[DNET_CNTR_FSID] = "DNET_CNTR_FSID",
+	[DNET_CNTR_VM_ACTIVE] = "DNET_CNTR_VM_ACTIVE",
+	[DNET_CNTR_VM_INACTIVE] = "DNET_CNTR_VM_INACTIVE",
+	[DNET_CNTR_VM_TOTAL] = "DNET_CNTR_VM_TOTAL",
+	[DNET_CNTR_VM_FREE] = "DNET_CNTR_VM_FREE",
+	[DNET_CNTR_VM_CACHED] = "DNET_CNTR_VM_CACHED",
+	[DNET_CNTR_VM_BUFFERS] = "DNET_CNTR_VM_BUFFERS",
+	[DNET_CNTR_NODE_FILES] = "DNET_CNTR_NODE_FILES",
+	[DNET_CNTR_NODE_LAST_MERGE] = "DNET_CNTR_NODE_LAST_MERGE",
+	[DNET_CNTR_UNKNOWN] = "UNKNOWN",
+};
+
 static char *dnet_cmd_string(int cmd)
 {
 	if (cmd == 0 || cmd >= __DNET_CMD_MAX)
 		cmd = DNET_CMD_UNKNOWN;
 
 	return dnet_cmd_strings[cmd];
+}
+
+static char *dnet_counter_string(int cntr, int cmd_num)
+{
+	if (cntr == 0 || cntr >= __DNET_CNTR_MAX)
+		cntr = DNET_CNTR_UNKNOWN;
+
+	if (cntr < cmd_num)
+		return dnet_cmd_string(cntr);
+
+	if (cntr >= cmd_num && cntr < (cmd_num * 2))
+		return dnet_cmd_string(cntr - cmd_num);
+
+	return dnet_counter_strings[cntr];
 }
 
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
@@ -539,7 +644,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				err = dnet_cmd_exec(st, cmd, a, data);
 				break;
 			case DNET_CMD_STAT_COUNT:
-				err = dnet_cmd_stat_count(st, cmd);
+				err = dnet_cmd_stat_count(st, cmd, a, data);
 				break;
 			case DNET_CMD_NOTIFY:
 				if (!a->flags) {
@@ -619,6 +724,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 
 		dnet_stat_inc(st->stat, a->cmd, err);
+		if (st->__join_state == DNET_JOIN)
+			dnet_counter_inc(n, a->cmd, err);
+		else
+			dnet_counter_inc(n, a->cmd + __DNET_CMD_MAX, err);
 
 		gettimeofday(&end, NULL);
 
@@ -2421,12 +2530,25 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		int i;
 
 		dnet_convert_addr_stat(as, 0);
-
+		
 		dnet_log(state->n, DNET_LOG_DSA, "%s: per-cmd operation counters:\n",
 			dnet_server_convert_dnet_addr_raw(&as->addr, addr, sizeof(addr)));
-		for (i=0; i<as->num; ++i)
-			dnet_log(state->n, DNET_LOG_DSA, "    cmd: %d, count: %llu, err: %llu\n", i,
+
+		dnet_log(state->n, DNET_LOG_DSA, "as->num = %d, as->cmd_num = %d\n", as->num, as->cmd_num);
+
+		for (i=0; i<as->num; ++i) {
+			if (as->num > as->cmd_num) {
+				if (i == 0)
+					dnet_log(state->n, DNET_LOG_INFO, "Storage commands\n");
+				if (i == as->cmd_num)
+					dnet_log(state->n, DNET_LOG_INFO, "Proxy commands\n");
+				if (i == as->cmd_num * 2)
+					dnet_log(state->n, DNET_LOG_INFO, "Counters\n");
+			}	
+			dnet_log(state->n, DNET_LOG_INFO, "    cmd: %s, count: %llu, err: %llu\n",
+					dnet_counter_string(i, as->cmd_num),
 					(unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
+		}
 	}
 
 	return err;
@@ -2458,7 +2580,8 @@ int dnet_request_cmd_single(struct dnet_node *n,
 		return dnet_trans_alloc_send(n, &ctl);
 }
 
-int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
+int dnet_request_stat(struct dnet_node *n, struct dnet_id *id,
+	unsigned int cmd, unsigned int aflags,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
@@ -2481,7 +2604,7 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
 	if (id) {
 		if (w)
 			dnet_wait_get(w);
-		err = dnet_request_cmd_single(n, NULL, id, cmd, 0, complete, priv);
+		err = dnet_request_cmd_single(n, NULL, id, cmd, aflags, complete, priv);
 		num = 1;
 	} else {
 		struct dnet_net_state *st;
@@ -2503,7 +2626,7 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
 					dnet_wait_get(w);
 
 				dnet_setup_id(&raw, st->idc->group->group_id, st->idc->ids[0].raw.id);
-				dnet_request_cmd_single(n, st, &raw, cmd, 0, complete, priv);
+				dnet_request_cmd_single(n, st, &raw, cmd, aflags, complete, priv);
 				num++;
 			}
 		}

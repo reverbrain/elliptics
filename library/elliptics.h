@@ -304,13 +304,58 @@ struct dnet_node
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
 	int			(* send)(void *state, void *priv, struct dnet_id *id);
+	int			(* storage_stat)(void *priv, struct dnet_stat *st);
 
 	unsigned int		notify_hash_size;
 	struct dnet_notify_bucket	*notify_hash;
 
 	pthread_mutex_t		reconnect_lock;
 	struct list_head	reconnect_list;
+
+	struct dnet_lock	counters_lock;
+	struct dnet_stat_count	counters[__DNET_CNTR_MAX];
 };
+
+static inline int dnet_counter_init(struct dnet_node *n)
+{
+	memset(&n->counters, 0, __DNET_CNTR_MAX * sizeof(struct dnet_stat_count));
+	return dnet_lock_init(&n->counters_lock);
+}
+
+static inline void dnet_counter_destroy(struct dnet_node *n)
+{
+	return dnet_lock_destroy(&n->counters_lock);
+}
+
+static inline void dnet_counter_inc(struct dnet_node *n, int counter, int err)
+{
+	if (counter >= __DNET_CNTR_MAX)
+		counter = DNET_CNTR_UNKNOWN;
+
+	dnet_log(n, DNET_LOG_INFO, "Incrementing counter: %d, err: %d, old value is: %llu %llu.\n",
+				counter, err,
+				(unsigned long long)n->counters[counter].count,
+				(unsigned long long)n->counters[counter].err);
+	dnet_lock_lock(&n->counters_lock);
+	if (!err)
+		n->counters[counter].count++;
+	else
+		n->counters[counter].err++;
+	dnet_lock_unlock(&n->counters_lock);
+}
+
+static inline void dnet_counter_set(struct dnet_node *n, int counter, int err, int64_t val)
+{
+	if (counter >= __DNET_CNTR_MAX)
+		counter = DNET_CNTR_UNKNOWN;
+
+	dnet_lock_lock(&n->counters_lock);
+	if (!err)
+		n->counters[counter].count = val;
+	else
+		n->counters[counter].err = val;
+	dnet_lock_unlock(&n->counters_lock);
+}
 
 static inline char *dnet_dump_node(struct dnet_node *n)
 {

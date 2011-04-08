@@ -243,6 +243,31 @@ static int dnet_blob_set_hash_flags(struct dnet_config_backend *b, char *key __u
 	return 0;
 }
 
+int eblob_backend_storage_stat(void *priv, struct dnet_stat *st)
+{
+	int err;
+	struct eblob_backend_config *r = priv;
+
+	memset(st, 0, sizeof(struct dnet_stat));
+
+	err = backend_stat_low_level(r->data.file, st);
+	if (err) {
+		char root[strlen(r->data.file)+1], *ptr;
+
+		snprintf(root, sizeof(root), "%s", r->data.file);
+		ptr = strrchr(root, '/');
+		if (ptr) {
+			*ptr = '\0';
+			err = backend_stat_low_level(root, st);
+		}
+
+		if (err)
+			return err;
+	}
+
+	return 0;
+}
+
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)
 {
 	struct eblob_backend_config *c = b->data;
@@ -264,6 +289,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	cfg->storage_size = b->storage_size;
 	cfg->storage_free = b->storage_free;
+	cfg->storage_stat = eblob_backend_storage_stat;
 
 	cfg->command_private = c;
 	cfg->command_handler = eblob_backend_command_handler;

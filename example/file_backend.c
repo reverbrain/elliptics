@@ -348,6 +348,20 @@ static int file_backend_send(void *state, void *priv, struct dnet_id *id)
 	return err;
 }
 
+int file_backend_storage_stat(void *priv, struct dnet_stat *st)
+{
+	int err;
+	struct file_backend_root *r = priv;
+
+	memset(st, 0, sizeof(struct dnet_stat));
+
+	err = backend_stat_low_level(r->root?r->root:".", st);
+	if (err)
+		return err;
+
+	return 0;
+}
+
 static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_config *c)
 {
 	c->command_private = b->data;
@@ -356,6 +370,7 @@ static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	c->storage_size = b->storage_size;
 	c->storage_free = b->storage_free;
+	c->storage_stat = file_backend_storage_stat;
 
 	return 0;
 }

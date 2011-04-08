@@ -638,6 +638,11 @@ err_out_join:
 			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors),
 			(long long)kcdbcount(n->meta), (long long)kcdbcount(n->history));
 
+	if(r->flags & DNET_CHECK_MERGE) {
+		dnet_counter_set(n, DNET_CNTR_NODE_LAST_MERGE, 0, atomic_read(&ctl.completed));
+		dnet_counter_set(n, DNET_CNTR_NODE_LAST_MERGE, 1, atomic_read(&ctl.errors));
+	}
+
 	if (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total)) {
 		dnet_log(n, DNET_LOG_INFO, "Restarting check.\n");
 		goto again;

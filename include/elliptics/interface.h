@@ -318,6 +318,7 @@ struct dnet_config
 	 */
 	unsigned long long	storage_free;
 	unsigned long long	storage_size;
+	int			(* storage_stat)(void *priv, struct dnet_stat *st);
 
 	/* Notify hash table size */
 	unsigned int		hash_size;
@@ -595,7 +596,8 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
  * or negative error code. In case of error callback completion can
  * still be called.
  */
-int dnet_request_stat(struct dnet_node *n, struct dnet_id *id, unsigned int cmd,
+int dnet_request_stat(struct dnet_node *n, struct dnet_id *id,
+	unsigned int cmd, unsigned int aflags,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,

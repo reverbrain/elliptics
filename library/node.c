@@ -57,11 +57,17 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		goto err_out_destroy_state;
 	}
 
+	err = dnet_counter_init(n);
+	if (err) {
+		dnet_log_err(n, "Failed to initialize statictics counters lock: err: %d", err);
+		goto err_out_destroy_wait;
+	}
+
 	err = pthread_mutex_init(&n->reconnect_lock, NULL);
 	if (err) {
 		err = -err;
 		dnet_log_err(n, "Failed to initialize reconnection lock: err: %d", err);
-		goto err_out_destroy_wait;
+		goto err_out_destroy_counter;
 	}
 
 	err = pthread_mutex_init(&n->group_lock, NULL);
@@ -100,6 +106,8 @@ err_out_destroy_group_lock:
 	pthread_mutex_destroy(&n->group_lock);
 err_out_destroy_reconnect_lock:
 	pthread_mutex_destroy(&n->reconnect_lock);
+err_out_destroy_counter:
+	dnet_counter_destroy(n);
 err_out_destroy_wait:
 	dnet_wait_put(n->wait);
 err_out_destroy_state:
@@ -589,6 +597,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->command_handler = cfg->command_handler;
 	n->command_private = cfg->command_private;
 	n->send = cfg->send;
+	n->storage_stat = cfg->storage_stat;
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;
 
@@ -719,6 +728,7 @@ void dnet_node_destroy(struct dnet_node *n)
 		list_del(&it->reconnect_entry);
 		free(it);
 	}
+	dnet_counter_destroy(n);
 	pthread_mutex_destroy(&n->reconnect_lock);
 	pthread_mutex_destroy(&n->group_lock);
 

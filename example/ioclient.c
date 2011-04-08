@@ -256,13 +256,13 @@ int main(int argc, char *argv[])
 	}
 
 	if (vfs_stat) {
-		err = dnet_request_stat(n, NULL, DNET_CMD_STAT, NULL, NULL);
+		err = dnet_request_stat(n, NULL, DNET_CMD_STAT, 0, NULL, NULL);
 		if (err < 0)
 			return err;
 	}
 
 	if (io_counter_stat) {
-		err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, NULL, NULL);
+		err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL, NULL, NULL);
 		if (err < 0)
 			return err;
 	}

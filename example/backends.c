@@ -150,7 +150,7 @@ static int backend_vm_stat(struct dnet_stat *st __unused)
 }
 #endif
 
-static int backend_stat_low_level(const char *path, struct dnet_stat *st)
+int backend_stat_low_level(const char *path, struct dnet_stat *st)
 {
 	struct statvfs s;
 	int err;
@@ -228,3 +228,4 @@ int backend_storage_size(struct dnet_config_backend *b, const char *root)
 
 	return 0;
 }
+
