@@ -921,8 +921,8 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 		err = -ENOENT;
 	if (err) {
 		dnet_fcgi_output("Cache-control: no-cache\r\n");
-		dnet_fcgi_output("Reason: %s [%d]\r\n", strerror(-err), err);
-		dnet_fcgi_output("Status: %d\r\n\r\n", 403);
+		dnet_fcgi_output("Status: %d\r\n", 403);
+		dnet_fcgi_output("Reason: %s [%d]\r\n\r\n", strerror(-err), err);
 
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: upload failed: err: %d, request_error: %d, tolerate_error_count: %d.\n",
 				dnet_dump_id(id), err, dnet_fcgi_request_error, dnet_fcgi_tolerate_upload_error_count);
