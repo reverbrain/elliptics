@@ -49,8 +49,9 @@ static void dnet_usage(char *p)
 	fprintf(stderr, "Usage: %s\n"
 			" -r addr:port:family  - adds a route to the given node\n"
 			" -W file              - write given file to the network storage\n"
-			" -s                   - request IO counter stats from all connected nodes\n"
-			" -z                   - request VFS IO stats from all connected nodes\n"
+			" -s                   - request IO counter stats from node\n"
+			" -z                   - request VFS IO stats from node\n"
+			" -a                   - request stats from all connected nodes\n"
 			" -R file              - read given file from the network into the local storage\n"
 			" -H file              - read a history for given file into the local storage\n"
 			" -I id                - transaction id\n"
@@ -72,7 +73,7 @@ static void dnet_usage(char *p)
 int main(int argc, char *argv[])
 {
 	int ch, err, i, have_remote = 0;
-	int io_counter_stat = 0, vfs_stat = 0;
+	int io_counter_stat = 0, vfs_stat = 0, single_node_stat = 1;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
 	char *logfile = "/dev/stderr", *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
@@ -93,7 +94,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "N:g:u:O:S:m:zsH:L:w:l:c:I:r:W:R:h")) != -1) {
+	while ((ch = getopt(argc, argv, "N:g:u:O:S:m:zsaH:L:w:l:c:I:r:W:R:h")) != -1) {
 		switch (ch) {
 			case 'N':
 				cfg.ns = optarg;
@@ -116,6 +117,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'z':
 				vfs_stat = 1;
+				break;
+			case 'a':
+				single_node_stat = 0;
 				break;
 			case 'H':
 				historyf = optarg;
@@ -186,7 +190,7 @@ int main(int argc, char *argv[])
 	if (have_remote) {
 		int error = -ECONNRESET;
 		for (i=0; i<have_remote; ++i) {
-			if (vfs_stat)
+			if (single_node_stat && (vfs_stat || io_counter_stat))
 				remotes[i].join = DNET_NO_ROUTE_LIST;
 			err = dnet_add_state(n, &remotes[i]);
 			if (!err)
@@ -200,7 +204,7 @@ int main(int argc, char *argv[])
 	/*
 	 * Used to wait for all nodes to complete connection.
 	 */
-	if (!vfs_stat)
+	if (!(single_node_stat && (vfs_stat || io_counter_stat)))
 		sleep(1);
 
 	if (writef) {
