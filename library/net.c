@@ -733,7 +733,12 @@ void dnet_state_reset(struct dnet_net_state *st)
 	dnet_state_remove(st);
 	dnet_idc_destroy(st);
 
+	pthread_mutex_lock(&st->send_lock);
+	if (!st->need_exit)
+		st->need_exit = -ECONNRESET;
 	dnet_unschedule_send(st);
+	pthread_mutex_unlock(&st->send_lock);
+
 	dnet_unschedule_recv(st);
 
 	dnet_add_reconnect_state(st->n, &st->addr, st->__join_state);
