@@ -60,6 +60,22 @@ struct dnet_group;
 #define dnet_log(n, mask, format, a...) do { if (n->log && (n->log->log_mask & mask)) dnet_log_raw(n, mask, format, ##a); } while (0)
 #define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
 
+struct dnet_send_req {
+	struct list_head	req_entry;
+
+	void			*header;
+	size_t			hsize;
+
+	void			*data;
+	size_t			dsize;
+
+	int			fd;
+	off_t			local_offset;
+	size_t			fsize;
+};
+
+void *dnet_state_send(void *_data);
+
 /*
  * Currently executed network state machine:
  * receives and sends command and data.
@@ -92,7 +108,11 @@ struct dnet_net_state
 	unsigned int		rcv_flags;
 	void			*rcv_data;
 
+	pthread_t		send_tid;
 	pthread_mutex_t		send_lock;
+	pthread_cond_t		send_wait;
+	struct list_head	send_list;
+
 	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
 
@@ -376,6 +396,9 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg, struct dnet
 int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int family,
 		struct sockaddr *sa, unsigned int salen, int listening);
 
+void dnet_set_sockopt(int s);
+void dnet_sock_close(int s);
+
 enum dnet_join_state {
 	DNET_JOIN = 1,			/* Node joined the network */
 	DNET_WANT_RECONNECT,		/* State must be reconnected, when remote peer failed */
@@ -442,6 +465,7 @@ int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st);
 ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, int fd, uint64_t offset, uint64_t dsize);
 ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, void *data, uint64_t dsize);
 ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size);
+ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t size);
 
 struct dnet_io_completion
 {

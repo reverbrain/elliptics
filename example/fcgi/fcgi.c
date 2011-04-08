@@ -184,8 +184,6 @@ void dnet_fcgi_log_write(const char *fmt, ...)
 	va_end(args);
 }
 
-#define dnet_fcgi_log_write(fmt, a...) do { if (dnet_fcgi_log) fprintf(dnet_fcgi_log, fmt, ##a); else syslog(LOG_INFO, fmt, ##a); } while (0)
-
 /*
  * Workaround for libfcgi 64bit issues, namely we will format
  * output here, since FCGX_FPrintF() resets the stream when sees
@@ -923,8 +921,8 @@ static int dnet_fcgi_upload(struct dnet_node *n, char *obj, int length, struct d
 		err = -ENOENT;
 	if (err) {
 		dnet_fcgi_output("Cache-control: no-cache\r\n");
-		dnet_fcgi_output("Reason: %s [%d]\r\n", strerror(-err), err);
-		dnet_fcgi_output("Status: %d\r\n\r\n", 403);
+		dnet_fcgi_output("Status: %d\r\n", 403);
+		dnet_fcgi_output("Reason: %s [%d]\r\n\r\n", strerror(-err), err);
 
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: upload failed: err: %d, request_error: %d, tolerate_error_count: %d.\n",
 				dnet_dump_id(id), err, dnet_fcgi_request_error, dnet_fcgi_tolerate_upload_error_count);
@@ -1811,7 +1809,11 @@ int main()
 		p = DNET_FCGI_LOG;
 
 	if (!strcmp(p, "syslog")) {
-		openlog("fcgi", LOG_PID, LOG_USER);
+		p = getenv("DNET_FCGI_SYSLOG_PROGRAM");
+		if (!p)
+			p = "fcgi";
+
+		openlog(p, LOG_PID, LOG_USER);
 	} else {
 		dnet_fcgi_log = fopen(p, "a");
 		if (!dnet_fcgi_log) {
@@ -1997,7 +1999,8 @@ int main()
 		if (err || !dnet_fcgi_request.in || !dnet_fcgi_request.out || !dnet_fcgi_request.err || !dnet_fcgi_request.envp) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to accept client: no IO streams: in: %p, out: %p, err: %p, env: %p, err: %d.\n",
 					dnet_fcgi_request.in, dnet_fcgi_request.out, dnet_fcgi_request.err, dnet_fcgi_request.envp, err);
-			continue;
+			err = -EINVAL;
+			goto err_out_fcgi_exit;
 		}
 
 		tmp_groups = NULL;
@@ -2292,8 +2295,10 @@ err_out_free_direct_patterns:
 	free(direct_patterns);
 	free(dnet_fcgi_direct_patterns);
 err_out_close:
-	fflush(dnet_fcgi_log);
-	fclose(dnet_fcgi_log);
+	if (dnet_fcgi_log)
+		fclose(dnet_fcgi_log);
+	else
+		closelog();
 	dnet_fcgi_destroy_permanent_headers();
 err_out_exit:
 	return err;

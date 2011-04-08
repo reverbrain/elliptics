@@ -88,15 +88,7 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 		}
 	}
 
-	err = 1;
-	setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &err, 4);
-
-	err = 3;
-	setsockopt(s, IPPROTO_TCP, TCP_KEEPCNT, &err, 4);
-	err = 10;
-	setsockopt(s, IPPROTO_TCP, TCP_KEEPIDLE, &err, 4);
-	err = 10;
-	setsockopt(s, IPPROTO_TCP, TCP_KEEPINTVL, &err, 4);
+	dnet_set_sockopt(s);
 
 	dnet_log(n, DNET_LOG_INFO, "Connected to %s:%d.\n",
 		dnet_server_convert_addr(sa, salen),
@@ -161,7 +153,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 	return s;
 
 err_out_close:
-	close(s);
+	dnet_sock_close(s);
 err_out_exit:
 	return err;
 }
@@ -261,6 +253,80 @@ static void dnet_state_clean(struct dnet_net_state *st)
 	dnet_log(st->n, DNET_LOG_INFO, "Cleaned state %s, transactions freed: %d\n", dnet_state_dump_addr(st), num);
 }
 
+/*
+ * Eventually we may end up with proper reference counters here, but for now let's just copy the whole buf.
+ * Large data blocks are being sent through sendfile anyway, so it should not be _that_ costly operation.
+ */
+static int dnet_send_req_queue(struct dnet_net_state *st, struct dnet_send_req *orig)
+{
+	void *buf;
+	struct dnet_send_req *r;
+	int offset = 0;
+	int err;
+
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: send queue: hsize: %zu, dsize: %zu, fsize: %zu\n",
+			dnet_state_dump_addr(st), orig->hsize, orig->dsize, orig->fsize);
+
+	buf = r = malloc(sizeof(struct dnet_send_req) + orig->dsize + orig->hsize);
+	if (!r) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	memset(r, 0, sizeof(struct dnet_send_req));
+	r->fd = -1;
+
+	if (orig->header && orig->hsize) {
+		r->header = buf + sizeof(struct dnet_send_req);
+		r->hsize = orig->hsize;
+
+		offset = r->hsize;
+		memcpy(r->header, orig->header, r->hsize);
+	}
+
+	if (orig->data && orig->dsize) {
+		r->data = buf + sizeof(struct dnet_send_req) + offset;
+		r->dsize = orig->dsize;
+		
+		offset += r->dsize;
+		memcpy(r->data, orig->data, r->dsize);
+	}
+
+	if (orig->fd >= 0 && orig->fsize) {
+		r->fd = dup(orig->fd);
+		if (r->fd < 0) {
+			err = -errno;
+			dnet_log_err(st->n, "%s: failed to duplicate send fd(%d)", dnet_state_dump_addr(st), orig->fd);
+			goto err_out_free;
+		}
+
+		r->local_offset = orig->local_offset;
+		r->fsize = orig->fsize;
+	}
+
+	pthread_mutex_lock(&st->send_lock);
+	list_add_tail(&r->req_entry, &st->send_list);
+	pthread_cond_broadcast(&st->send_wait);
+	pthread_mutex_unlock(&st->send_lock);
+
+	return 0;
+
+err_out_free:
+	free(r);
+err_out_exit:
+	return err;
+}
+
+static void dnet_send_req_free(struct dnet_net_state *st, struct dnet_send_req *r)
+{
+	pthread_mutex_lock(&st->send_lock);
+	list_del(&r->req_entry);
+	pthread_mutex_unlock(&st->send_lock);
+
+	if (r->fd >= 0 && r->fsize)
+		close(r->fd);
+	free(r);
+}
+
 static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeout)
 {
 	struct pollfd pfd;
@@ -312,7 +378,7 @@ out_exit:
 	return err;
 }
 
-static ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t size)
+ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t size)
 {
 	ssize_t err = 0;
 	struct dnet_node *n = st->n;
@@ -360,38 +426,37 @@ static ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t 
 		gettimeofday(&start, NULL);
 	}
 
-	if (err)
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: setting need_exit to %d\n", dnet_state_dump_addr(st), err);
 		st->need_exit = err;
+	}
 	return err;
 }
 
 ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size)
 {
-	ssize_t err;
+	struct dnet_send_req r;
 
-	pthread_mutex_lock(&st->send_lock);
-	err = dnet_send_nolock(st, data, size);
-	pthread_mutex_unlock(&st->send_lock);
+	memset(&r, 0, sizeof(r));
+	r.data = data;
+	r.dsize = size;
+	r.fd = -1;
 
-	return err;
+	return dnet_send_req_queue(st, &r);
 }
 
 ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, void *data, uint64_t dsize)
 {
-	ssize_t err;
+	struct dnet_send_req r;
 
-	pthread_mutex_lock(&st->send_lock);
-	err = dnet_send_nolock(st, header, hsize);
-	if (err < 0)
-		goto err_out_unlock;
+	memset(&r, 0, sizeof(r));
+	r.header = header;
+	r.hsize = hsize;
+	r.data = data;
+	r.dsize = dsize;
+	r.fd = -1;
 
-	err = dnet_send_nolock(st, data, dsize);
-	if (err < 0)
-		goto err_out_unlock;
-
-err_out_unlock:
-	pthread_mutex_unlock(&st->send_lock);
-	return err;
+	return dnet_send_req_queue(st, &r);
 }
 
 static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t offset, uint64_t dsize)
@@ -405,7 +470,7 @@ static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t o
 	gettimeofday(&start, NULL);
 
 	while (dsize) {
-		err = dnet_wait(st, POLLOUT, 0);
+		err = dnet_wait(st, POLLOUT, 1000);
 
 		gettimeofday(&end, NULL);
 		diff = end.tv_sec - start.tv_sec;
@@ -462,33 +527,32 @@ static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t o
 	err = 0;
 
 err_out_exit:
-	if (err)
+	if (err) {
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: setting sendfile need_exit to %d\n", dnet_state_dump_addr(st), err);
 		st->need_exit = err;
+	}
 
 	return err;
 }
 
 ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, int fd, uint64_t offset, uint64_t dsize)
 {
-	int err;
+	struct dnet_send_req r;
 
-	pthread_mutex_lock(&st->send_lock);
-	err = dnet_send_nolock(st, header, hsize);
-	if (err)
-		goto err_out_unlock;
+	memset(&r, 0, sizeof(r));
+	r.header = header;
+	r.hsize = hsize;
+	r.fd = fd;
+	r.local_offset = offset;
+	r.fsize = dsize;
 
-	err = dnet_send_fd_nolock(st, fd, offset, dsize);
-	if (err)
-		goto err_out_unlock;
-
-err_out_unlock:
-	pthread_mutex_unlock(&st->send_lock);
-	return err;
+	return dnet_send_req_queue(st, &r);
 }
 
 int dnet_trans_send(struct dnet_trans_send_ctl *ctl)
 {
 	struct dnet_net_state *st = ctl->st;
+	struct dnet_send_req r;
 	int err;
 
 	dnet_trans_get(ctl->t);
@@ -496,35 +560,30 @@ int dnet_trans_send(struct dnet_trans_send_ctl *ctl)
 	pthread_mutex_lock(&st->trans_lock);
 	err = dnet_trans_insert_nolock(&st->trans_root, ctl->t);
 	pthread_mutex_unlock(&st->trans_lock);
-
 	if (err)
-		goto err_out_exit;
+		goto err_out_put;
 
-	pthread_mutex_lock(&st->send_lock);
-	if (ctl->header && ctl->hsize) {
-		err = dnet_send_nolock(st, ctl->header, ctl->hsize);
-		if (err)
-			goto err_out_unlock;
-	}
+	memset(&r, 0, sizeof(r));
+	r.header = ctl->header;
+	r.hsize = ctl->hsize;
 
-	if (ctl->fd != -1 && ctl->fsize)
-		err = dnet_send_fd_nolock(st, ctl->fd, ctl->foffset, ctl->fsize);
-	else if (ctl->data && ctl->dsize)
-		err = dnet_send_nolock(st, ctl->data, ctl->dsize);
+	r.data = ctl->data;
+	r.dsize = ctl->dsize;
 
+	r.fd = ctl->fd;
+	r.local_offset = ctl->foffset;
+	r.fsize = ctl->fsize;
+
+	err = dnet_send_req_queue(st, &r);
 	if (err)
-		goto err_out_unlock;
-	pthread_mutex_unlock(&st->send_lock);
+		goto err_out_remove;
 
 	dnet_trans_put(ctl->t);
 	return 0;
 
-
-err_out_unlock:
-	pthread_mutex_unlock(&st->send_lock);
-
+err_out_remove:
 	dnet_trans_remove(ctl->t);
-err_out_exit:
+err_out_put:
 	dnet_trans_put(ctl->t);
 	return err;
 }
@@ -882,6 +941,35 @@ void dnet_state_reset(struct dnet_net_state *st)
 	dnet_state_put(st);
 }
 
+void dnet_sock_close(int s)
+{
+	shutdown(s, 2);
+	close(s);
+}
+
+void dnet_set_sockopt(int s)
+{
+	struct linger l;
+	int opt;
+
+	opt = 1;
+	setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &opt, 4);
+
+	opt = 3;
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPCNT, &opt, 4);
+	opt = 10;
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPIDLE, &opt, 4);
+	opt = 10;
+	setsockopt(s, IPPROTO_TCP, TCP_KEEPINTVL, &opt, 4);
+
+	l.l_onoff = 1;
+	l.l_linger = 1;
+
+	setsockopt(s, SOL_SOCKET, SO_LINGER, &l, sizeof(l));
+
+	fcntl(s, F_SETFL, O_NONBLOCK);
+}
+
 static void *dnet_accept_client(void *priv)
 {
 	struct dnet_net_state *orig = priv;
@@ -908,11 +996,11 @@ static void *dnet_accept_client(void *priv)
 			continue;
 		}
 
-		fcntl(cs, F_SETFL, O_NONBLOCK);
+		dnet_set_sockopt(cs);
 
 		st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err);
 		if (!st) {
-			close(cs);
+			dnet_sock_close(cs);
 			continue;
 		}
 
@@ -987,13 +1075,13 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		if (st) {
 			err = -EEXIST;
 			dnet_state_put(st);
-			goto err_out_exit;
+			goto err_out_close;
 		}
 	}
 
 	st = malloc(sizeof(struct dnet_net_state));
 	if (!st)
-		goto err_out_exit;
+		goto err_out_close;
 
 	memset(st, 0, sizeof(struct dnet_net_state));
 
@@ -1002,6 +1090,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	st->la = 1;
 
+	INIT_LIST_HEAD(&st->send_list);
+
 	INIT_LIST_HEAD(&st->state_entry);
 	st->trans_root = RB_ROOT;
 
@@ -1009,13 +1099,26 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	if (s == n->listen_socket)
 		func = dnet_accept_client;
 
-	pthread_mutex_init(&st->trans_lock, NULL);
+	err = pthread_cond_init(&st->send_wait, NULL);
+	if (err) {
+		err = -err;
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize send conditional: %s [%d]\n",
+				strerror(err), err);
+		goto err_out_free;
+	}
+
+	err = pthread_mutex_init(&st->trans_lock, NULL);
+	if (err) {
+		err = -err;
+		dnet_log_err(n, "Failed to initialize transaction mutex: %d", err);
+		goto err_out_send_cond_destroy;
+	}
 
 	err = pthread_mutex_init(&st->send_lock, NULL);
 	if (err) {
 		err = -err;
 		dnet_log_err(n, "Failed to initialize send mutex: %d", err);
-		goto err_out_free;
+		goto err_out_trans_destroy;
 	}
 
 	atomic_init(&st->refcnt, 1);
@@ -1032,14 +1135,19 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 			goto err_out_send_destroy;
 	}
 
+	err = pthread_create(&st->send_tid, NULL, dnet_state_send, st);
+	if (err) {
+		dnet_log_err(n, "Failed to create new send state thread: %d", err);
+		goto err_out_put;
+	}
+
 	err = pthread_create(&st->tid, &n->attr, func, st);
 	if (err) {
-		dnet_log_err(n, "Failed to create new state thread: %d", err);
+		dnet_log_err(n, "Failed to create new recv state thread: %d", err);
 		goto err_out_put;
 	}
 
 	return st;
-
 
 err_out_put:
 	dnet_state_reset(st);
@@ -1047,9 +1155,14 @@ err_out_put:
 
 err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
+err_out_trans_destroy:
 	pthread_mutex_destroy(&st->trans_lock);
+err_out_send_cond_destroy:
+	pthread_cond_destroy(&st->send_wait);
 err_out_free:
 	free(st);
+err_out_close:
+	dnet_sock_close(s);
 err_out_exit:
 	if (err == -EEXIST)
 		dnet_log(n, DNET_LOG_ERROR, "%s: state already exists.\n", dnet_server_convert_dnet_addr(addr));
@@ -1073,16 +1186,32 @@ int dnet_state_num(struct dnet_node *n)
 	return num;
 }
 
+static void dnet_state_send_clean(struct dnet_net_state *st)
+{
+	struct dnet_send_req *r, *tmp;
+
+	list_for_each_entry_safe(r, tmp, &st->send_list, req_entry) {
+		dnet_send_req_free(st, r);
+	}
+}
+
 void dnet_state_destroy(struct dnet_net_state *st)
 {
 	dnet_state_remove(st);
 
-	if (st->s >= 0)
-		close(st->s);
+	if (st->s >= 0) {
+		dnet_sock_close(st->s);
+	}
 
 	dnet_idc_destroy(st);
 	dnet_state_clean(st);
 
+	if ((long)st->send_tid != 0) {
+		pthread_join(st->send_tid, NULL);
+		dnet_state_send_clean(st);
+	}
+
+	pthread_cond_destroy(&st->send_wait);
 	pthread_mutex_destroy(&st->send_lock);
 	pthread_mutex_destroy(&st->trans_lock);
 
@@ -1135,4 +1264,86 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 	free(c);
 
 	return err;
+}
+
+static int dnet_send_request(struct dnet_net_state *st, struct dnet_send_req *r)
+{
+	int err = 0;
+
+	if (r->hsize && r->header) {
+		err = dnet_send_nolock(st, r->header, r->hsize);
+		if (err)
+			goto err_out_exit;
+	}
+
+	if (r->dsize && r->data) {
+		err = dnet_send_nolock(st, r->data, r->dsize);
+		if (err)
+			goto err_out_exit;
+	}
+
+	if (r->fd >= 0 && r->fsize) {
+		err = dnet_send_fd_nolock(st, r->fd, r->local_offset, r->dsize);
+		if (err)
+			goto err_out_exit;
+	}
+
+err_out_exit:
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: sent: hsize: %zu, dsize: %zu, fsize: %zu, err: %d\n",
+			dnet_state_dump_addr(st), r->hsize, r->dsize, r->fsize, err);
+
+
+	dnet_send_req_free(st, r);
+	return err;
+}
+
+void *dnet_state_send(void *_data)
+{
+	struct dnet_net_state *st = _data;
+	struct dnet_node *n = st->n;
+	struct timespec ts;
+	struct timeval tv;
+	struct dnet_send_req *r;
+	int err;
+
+	while (!n->need_exit && !st->need_exit) {
+		r = NULL;
+		err = 0;
+
+		gettimeofday(&tv, NULL);
+		ts.tv_sec = tv.tv_sec + 1; /* repeat check once per second */
+		ts.tv_nsec = tv.tv_usec * 1000;
+
+		pthread_mutex_lock(&st->send_lock);
+		if (list_empty(&st->send_list))
+			err = pthread_cond_timedwait(&st->send_wait, &st->send_lock, &ts);
+		else
+			r = list_first_entry(&st->send_list, struct dnet_send_req, req_entry);
+		pthread_mutex_unlock(&st->send_lock);
+
+		if (err) {
+			if (err == ETIMEDOUT)
+				continue;
+
+			err = -err;
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for send condition: %s [%d]\n",
+					dnet_state_dump_addr(st), strerror(err), err);
+
+			st->need_exit = err;
+			break;
+		}
+
+		if (!r)
+			continue;
+
+		err = dnet_send_request(st, r);
+		if (err < 0) {
+			st->need_exit = err;
+			break;
+		}
+
+	}
+
+	/* state will be deleted in receiving processing function */
+	return NULL;
 }

@@ -259,7 +259,7 @@ static int dnet_check_connection(struct dnet_node *n, struct dnet_addr_attr *a)
 	if (s < 0)
 		return s;
 
-	close(s);
+	dnet_sock_close(s);
 	return 0;
 }
 
@@ -835,7 +835,7 @@ err_out_put:
 	return err;
 
 err_out_close:
-	close(s);
+	dnet_sock_close(s);
 err_out_exit:
 	return err;
 }
@@ -1014,7 +1014,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	st->s = s;
 	st->n = n;
 
-	err = dnet_send(st, buf, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
+	err = dnet_send_nolock(st, buf, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to send reverse "
 				"lookup message to %s, err: %d.\n",
@@ -1060,8 +1060,11 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		dnet_convert_raw_id(&ids[i]);
 
 	st = dnet_state_create(n, cmd->id.group_id, ids, num, addr, s, &err);
-	if (!st)
+	if (!st) {
+		/* socket is already closed */
+		s = -1;
 		goto err_out_free;
+	}
 	free(ids);
 
 	st->__join_state = DNET_WANT_RECONNECT;
@@ -1072,6 +1075,8 @@ err_out_free:
 	free(ids);
 err_out_exit:
 	*errp = err;
+	if (s >= 0)
+		dnet_sock_close(s);
 	return NULL;
 }
 
@@ -1090,17 +1095,16 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_reconnect;
 	}
 
+	/* will close socket on error */
 	st = dnet_add_state_socket(n, &addr, s, &err);
 	if (!st)
-		goto err_out_sock_close;
+		goto err_out_reconnect;
 
 	if (!(cfg->join & DNET_NO_ROUTE_LIST))
 		dnet_recv_route_list(st);
 
 	return 0;
 
-err_out_sock_close:
-	close(s);
 err_out_reconnect:
 	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) || (err == -ECONNRESET) ||
 			(err == -EINPROGRESS) || (err == -EAGAIN))
@@ -1228,9 +1232,10 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	dnet_convert_attr(a);
 	dnet_convert_io_attr(io);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %u, size: %llu, offset: %llu, fd: %d, local_offset: %llu -> %s.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, size: %llu, offset: %llu, fd: %d, local_offset: %llu -> %s.\n",
 			dnet_dump_id(&ctl->id),
-			(unsigned long long)t->trans, ctl->cmd,
+			(unsigned long long)t->trans,
+			dnet_cmd_string(ctl->cmd),
 			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
 			ctl->fd,
 			(unsigned long long)ctl->local_offset,
@@ -2289,8 +2294,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 
 		st = dnet_add_state_socket(n, &ast->addr, s, &err);
 		if (!st) {
-			dnet_log(n, DNET_LOG_INFO, "Disconnecting from %s: %d\n", dnet_server_convert_dnet_addr(&ast->addr), err);
-			close(s);
+			dnet_sock_close(s);
 
 			if (err == -EEXIST || err == -EINVAL)
 				goto out_remove;
