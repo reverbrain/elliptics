@@ -633,12 +633,23 @@ err_out_join:
 	for (i=0; i<r->thread_num; ++i)
 		pthread_join(tid[i], NULL);
 
+	err = 0;
+
 	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", r->thread_num, err);
 	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d, meta_records: %lld, history_records: %lld\n",
 			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors),
 			(long long)kcdbcount(n->meta), (long long)kcdbcount(n->history));
 
-	if (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total)) {
+	dnet_db_send_check_reply(&ctl);
+
+	pthread_mutex_destroy(&ctl.lock);
+err_out_close_cursor:
+	kccurdel(ctl.cursor);
+err_out_free:
+	free(tid);
+err_out_exit:
+
+	if (!err && (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total))) {
 		if (restarts > 20) {
 			dnet_log(n, DNET_LOG_ERROR, "Check did not complete and restarted %d times already, "
 					"do not restarting again, probably database should be checked manually.\n",
@@ -651,14 +662,6 @@ err_out_join:
 		restarts++;
 	}
 
-	dnet_db_send_check_reply(&ctl);
-
-	pthread_mutex_destroy(&ctl.lock);
-err_out_close_cursor:
-	kccurdel(ctl.cursor);
-err_out_free:
-	free(tid);
-err_out_exit:
 	n->check_in_progress = 0;
 	return err;
 }
