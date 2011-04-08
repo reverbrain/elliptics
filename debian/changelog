@@ -1,3 +1,10 @@
+elliptics (2.9.6.123) unstable; urgency=low
+
+  * Update restart counter when really restart checking threads.
+  * Save check request structure locally.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 03:26:55 +0400
+
 elliptics (2.9.6.122) unstable; urgency=low
 
   * Do not restart checking threads when limit reached.
