@@ -1,3 +1,10 @@
+elliptics (2.9.6.129) unstable; urgency=low
+
+  * Do not break epoll loop on interrupts and eagain
+  * Dropped counter debug
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 16:14:59 +0400
+
 elliptics (2.9.6.128) unstable; urgency=low
 
   * Fixed storage_state_list iterator
