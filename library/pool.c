@@ -384,6 +384,9 @@ static void *dnet_io_process_pool(void *data_)
 				err = 0;
 			}
 		}
+
+		if (r)
+			list_del_init(&r->req_entry);
 		pthread_mutex_unlock(&io->recv_lock);
 
 		if (!r) {
