@@ -576,8 +576,11 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		goto err_out_exit;
 	}
 
-	if (!cfg->io_thread_num)
-		cfg->io_thread_num = 20;
+	if (!cfg->io_thread_num) {
+		cfg->io_thread_num = 1;
+		if (cfg->join && DNET_JOIN_NETWORK)
+			cfg->io_thread_num = 20;
+	}
 
 	if (!cfg->stack_size)
 		cfg->stack_size = 100*1024;
