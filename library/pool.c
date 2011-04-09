@@ -322,6 +322,10 @@ static void *dnet_io_process(void *data_)
 
 		if (err < 0) {
 			err = -errno;
+
+			if (err == -EAGAIN || err == -EINTR)
+				continue;
+
 			dnet_log_err(n, "Failed to wait for IO fds");
 			n->need_exit = err;
 			break;
