@@ -1,3 +1,10 @@
+elliptics (2.9.6.128) unstable; urgency=low
+
+  * Fixed storage_state_list iterator
+  * Use 1 IO thread for client and 20 for server by default
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 15:37:37 +0400
+
 elliptics (2.9.6.127) unstable; urgency=low
 
   * Fixed req processing in multi-thread IO pool
