@@ -368,7 +368,7 @@ static void *dnet_io_process_pool(void *data_)
 	struct timespec ts;
 	struct timeval tv;
 	struct dnet_io_req *r;
-	int err;
+	int err = 0;
 
 	dnet_log(n, DNET_LOG_INFO, "Starting IO processing thread.\n");
 
@@ -395,12 +395,9 @@ static void *dnet_io_process_pool(void *data_)
 			list_del_init(&r->req_entry);
 		pthread_mutex_unlock(&io->recv_lock);
 
-		if (!r) {
-			if (err == ETIMEDOUT)
-				continue;
-			err = -err;
-			break;
-		}
+		if (!r)
+			continue;
+
 		st = r->st;
 
 		dnet_log(n, DNET_LOG_DSA, "%s: %s: got IO event: %p: hsize: %zu, dsize: %zu\n",
@@ -416,7 +413,7 @@ static void *dnet_io_process_pool(void *data_)
 		dnet_state_put(st);
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Exiting IO processing thread.\n");
+	dnet_log(n, DNET_LOG_INFO, "Exiting IO processing thread: need_exit: %d, err: %d.\n", n->need_exit, err);
 	return NULL;
 }
 
