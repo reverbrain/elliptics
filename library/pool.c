@@ -351,7 +351,7 @@ static void dnet_io_cleanup_states(struct dnet_node *n)
 {
 	struct dnet_net_state *st, *tmp;
 
-	list_for_each_entry_safe(st, tmp, &n->storage_state_list, state_entry) {
+	list_for_each_entry_safe(st, tmp, &n->storage_state_list, storage_state_entry) {
 		dnet_state_reset(st);
 	}
 }
