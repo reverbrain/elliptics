@@ -1,3 +1,11 @@
+elliptics (2.9.6.126) unstable; urgency=low
+
+  * Merged statistics update
+  * Added missed io_thread_num parser
+  * Simplified state destruction during node cleanup
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 15:13:02 +0400
+
 elliptics (2.9.6.125) unstable; urgency=low
 
   * Do not deadlock when unscheduling sending state
