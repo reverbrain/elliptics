@@ -304,6 +304,11 @@ int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev)
 		err = dnet_process_send_single(st);
 	}
 
+	if (ev->events & (EPOLLHUP | EPOLLERR)) {
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask %x\n", dnet_state_dump_addr(st), ev->events);
+		err = -ECONNRESET;
+	}
+
 	return err;
 }
 
