@@ -468,7 +468,7 @@ std::string elliptics_node::stat_log()
 	std::string ret;
 	int err;
 
-	err = dnet_request_stat(node, NULL, DNET_CMD_STAT,
+	err = dnet_request_stat(node, NULL, DNET_CMD_STAT, 0,
 		elliptics_callback::elliptics_complete_callback, (void *)l);
 	if (err < 0) {
 		delete l;
