@@ -1,3 +1,9 @@
+elliptics (2.9.6.132) unstable; urgency=low
+
+  * Return -ECONNRESET on EPOLLHUP/EPOLLERR
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sun, 10 Apr 2011 03:51:54 +0400
+
 elliptics (2.9.6.131) unstable; urgency=low
 
   * Do not exit from IO thread handler on non-critical errors.
