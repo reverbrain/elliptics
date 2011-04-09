@@ -259,7 +259,7 @@ static int dnet_check_connection(struct dnet_node *n, struct dnet_addr_attr *a)
 	if (s < 0)
 		return s;
 
-	close(s);
+	dnet_sock_close(s);
 	return 0;
 }
 
@@ -523,11 +523,6 @@ err_out_unlock:
 
 err_out_exit:
 	return err;
-}
-
-int dnet_process_cmd(struct dnet_net_state *st)
-{
-	return dnet_process_cmd_raw(st, &st->rcv_cmd, st->rcv_data);
 }
 
 static char *dnet_cmd_strings[] = {
@@ -797,14 +792,16 @@ static int dnet_add_received_state(struct dnet_node *n, struct dnet_addr_attr *a
 {
 	int s, err = 0;
 	struct dnet_net_state *nst;
-	struct dnet_state_id sid;
 	struct dnet_id raw;
 
 	dnet_setup_id(&raw, group_id, ids[0].id);
 
-	err = dnet_state_search_id(n, &raw, &sid, NULL);
-	if (!err && !memcmp(&sid.raw, &ids[0], sizeof(struct dnet_raw_id)))
-		return -EEXIST;
+	nst = dnet_state_search_by_addr(n, &a->addr);
+	if (nst) {
+		err = -EEXIST;
+		dnet_state_put(nst);
+		goto err_out_exit;
+	}
 
 	s = dnet_socket_create_addr(n, a->sock_type, a->proto, a->family,
 			(struct sockaddr *)&a->addr.addr, a->addr.addr_len, 0);
@@ -813,7 +810,7 @@ static int dnet_add_received_state(struct dnet_node *n, struct dnet_addr_attr *a
 		goto err_out_exit;
 	}
 
-	nst = dnet_state_create(n, group_id, ids, id_num, &a->addr, s, &err);
+	nst = dnet_state_create(n, group_id, ids, id_num, &a->addr, s, &err, dnet_state_net_process);
 	if (!nst)
 		goto err_out_close;
 
@@ -835,7 +832,7 @@ err_out_put:
 	return err;
 
 err_out_close:
-	close(s);
+	dnet_sock_close(s);
 err_out_exit:
 	return err;
 }
@@ -954,7 +951,7 @@ err_out_exit:
 int dnet_join(struct dnet_node *n)
 {
 	int err = 0;
-	struct dnet_net_state *st;
+	struct dnet_net_state *st, *send = NULL;
 	struct dnet_group *g;
 	struct timeval start, end;
 	long diff;
@@ -973,6 +970,8 @@ int dnet_join(struct dnet_node *n)
 				continue;
 
 			err = dnet_state_join(st);
+			if (!err)
+				send = dnet_state_get(st);
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
@@ -982,6 +981,10 @@ int dnet_join(struct dnet_node *n)
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 	dnet_log(n, DNET_LOG_ERROR, "Join: err: %d: %ld usecs.\n", err, diff);
 
+	if (send) {
+		dnet_recv_route_list(send);
+		dnet_state_put(send);
+	}
 
 	return err;
 }
@@ -1011,10 +1014,10 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	st = &dummy;
 	memset(st, 0, sizeof(struct dnet_net_state));
 
-	st->s = s;
+	st->write_s = st->read_s = s;
 	st->n = n;
 
-	err = dnet_send(st, buf, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
+	err = dnet_send_nolock(st, buf, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to send reverse "
 				"lookup message to %s, err: %d.\n",
@@ -1059,9 +1062,12 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	for (i=0; i<num; ++i)
 		dnet_convert_raw_id(&ids[i]);
 
-	st = dnet_state_create(n, cmd->id.group_id, ids, num, addr, s, &err);
-	if (!st)
+	st = dnet_state_create(n, cmd->id.group_id, ids, num, addr, s, &err, dnet_state_net_process);
+	if (!st) {
+		/* socket is already closed */
+		s = -1;
 		goto err_out_free;
+	}
 	free(ids);
 
 	st->__join_state = DNET_WANT_RECONNECT;
@@ -1072,6 +1078,8 @@ err_out_free:
 	free(ids);
 err_out_exit:
 	*errp = err;
+	if (s >= 0)
+		dnet_sock_close(s);
 	return NULL;
 }
 
@@ -1090,17 +1098,13 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_reconnect;
 	}
 
+	/* will close socket on error */
 	st = dnet_add_state_socket(n, &addr, s, &err);
 	if (!st)
-		goto err_out_sock_close;
-
-	if (!(cfg->join & DNET_NO_ROUTE_LIST))
-		dnet_recv_route_list(st);
+		goto err_out_reconnect;
 
 	return 0;
 
-err_out_sock_close:
-	close(s);
 err_out_reconnect:
 	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) || (err == -ECONNRESET) ||
 			(err == -EINPROGRESS) || (err == -EAGAIN))
@@ -1228,9 +1232,10 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	dnet_convert_attr(a);
 	dnet_convert_io_attr(io);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %u, size: %llu, offset: %llu, fd: %d, local_offset: %llu -> %s.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, size: %llu, offset: %llu, fd: %d, local_offset: %llu -> %s.\n",
 			dnet_dump_id(&ctl->id),
-			(unsigned long long)t->trans, ctl->cmd,
+			(unsigned long long)t->trans,
+			dnet_cmd_string(ctl->cmd),
 			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
 			ctl->fd,
 			(unsigned long long)ctl->local_offset,
@@ -1245,7 +1250,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	sc.foffset = ctl->local_offset;
 	sc.fsize = size;
 
-	if (size >= DNET_COPY_IO_SIZE) {
+	if ((ctl->fd == -1) && (size >= DNET_COPY_IO_SIZE)) {
 		sc.data = ctl->data;
 		sc.dsize = size;
 	}
@@ -2289,8 +2294,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 
 		st = dnet_add_state_socket(n, &ast->addr, s, &err);
 		if (!st) {
-			dnet_log(n, DNET_LOG_INFO, "Disconnecting from %s: %d\n", dnet_server_convert_dnet_addr(&ast->addr), err);
-			close(s);
+			dnet_sock_close(s);
 
 			if (err == -EEXIST || err == -EINVAL)
 				goto out_remove;

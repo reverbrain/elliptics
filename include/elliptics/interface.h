@@ -333,6 +333,11 @@ struct dnet_config
 	 */
 	int			stack_size;
 
+	/*
+	 * Number of IO threads in processing pool
+	 */
+	int			io_thread_num;
+
 	/* Database tuning parameters */
 	unsigned long long	db_buckets;
 	unsigned long long	db_map;
@@ -502,9 +507,11 @@ static inline char *dnet_dump_id_len_raw(const unsigned char *id, unsigned int l
 
 static inline char *dnet_dump_id_len(const struct dnet_id *id, unsigned int len)
 {
-	static char __dnet_dump_str[2 * DNET_ID_SIZE + 3];
-	snprintf(__dnet_dump_str, sizeof(__dnet_dump_str), "%1d:%s", id->group_id,
-			dnet_dump_id_len_raw(id->id, len, __dnet_dump_str + 2));
+	static char __dnet_dump_str[2 * DNET_ID_SIZE + 16 + 3];
+	char tmp[2*DNET_ID_SIZE + 1];
+	
+	snprintf(__dnet_dump_str, sizeof(__dnet_dump_str), "%d:%s", id->group_id,
+			dnet_dump_id_len_raw(id->id, len, tmp));
 	return __dnet_dump_str;
 }
 

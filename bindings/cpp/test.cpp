@@ -113,7 +113,21 @@ int main()
 		elliptics_node n(log);
 		n.add_groups(groups);
 
-		n.add_remote("localhost", 1025, AF_INET);
+		n.add_remote("elisto01e.mt.yandex.ru", 1025, AF_INET);
+
+		std::string lobj = "1.xml";
+		std::string lret = n.lookup(lobj);
+
+		struct dnet_addr *addr = (struct dnet_addr *)lret.data();
+		struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
+		struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
+		struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+		dnet_convert_addr_attr(a);
+
+		std::cout << lobj << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr) << std::endl ;
+
+		n.stat_log();
+		return 0;
 #if 1
 		memset(id.id, 0xff, DNET_ID_SIZE);
 		n.read_data(id, 0, 0, callback);

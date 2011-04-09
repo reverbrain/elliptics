@@ -550,9 +550,9 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 {
 	struct dnet_node *n = st->n;
 	struct dnet_db_list_control ctl;
-	struct dnet_check_request *r;
+	struct dnet_check_request *r, req;
 	unsigned int i;
-	int err;
+	int err, restarts = 0;
 	pthread_t *tid;
 	char ctl_time[64];
 	struct tm tm;
@@ -572,6 +572,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	if (!r->thread_num)
 		r->thread_num = 50;
 
+	memcpy(&req, r, sizeof(req));
 again:
 	/* Racy, but we do not care much */
 	n->check_in_progress = 1;
@@ -586,9 +587,9 @@ again:
 	ctl.st = st;
 	ctl.cmd = cmd;
 	ctl.attr = attr;
-	ctl.req = r;
+	ctl.req = &req;
 
-	tid = malloc(sizeof(pthread_t) * r->thread_num);
+	tid = malloc(sizeof(pthread_t) * req.thread_num);
 	if (!tid) {
 		err = -ENOMEM;
 		goto err_out_exit;
@@ -607,33 +608,35 @@ again:
 	if (err)
 		goto err_out_close_cursor;
 
-	for (i=0; i<r->thread_num; ++i) {
+	for (i=0; i<req.thread_num; ++i) {
 		err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);
 		if (err) {
-			dnet_log_err(n, "can not create %d'th check thread out of %d", i, r->thread_num);
-			r->thread_num = i;
+			dnet_log_err(n, "can not create %d'th check thread out of %d", i, req.thread_num);
+			req.thread_num = i;
 			ctl.need_exit = 1;
 			goto err_out_join;
 		}
 	}
 
-	if (r->timestamp) {
-		localtime_r((time_t *)&r->timestamp, &tm);
+	if (req.timestamp) {
+		localtime_r((time_t *)&req.timestamp, &tm);
 		strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
 	} else {
 		snprintf(ctl_time, sizeof(ctl_time), "all records");
 	}
 
 	dnet_log(n, DNET_LOG_INFO, "Started %u checking threads, recovering %llu transactions, which started before %s: merge: %d, full: %d, dry: %d.\n",
-			r->thread_num, (unsigned long long)r->obj_num, ctl_time,
-			!!(r->flags & DNET_CHECK_MERGE), !!(r->flags & DNET_CHECK_FULL),
-			!!(r->flags & DNET_CHECK_DRY_RUN));
+			req.thread_num, (unsigned long long)req.obj_num, ctl_time,
+			!!(req.flags & DNET_CHECK_MERGE), !!(req.flags & DNET_CHECK_FULL),
+			!!(req.flags & DNET_CHECK_DRY_RUN));
 
 err_out_join:
-	for (i=0; i<r->thread_num; ++i)
+	for (i=0; i<req.thread_num; ++i)
 		pthread_join(tid[i], NULL);
 
-	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", r->thread_num, err);
+	err = 0;
+
+	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", req.thread_num, err);
 	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d, meta_records: %lld, history_records: %lld\n",
 			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors),
 			(long long)kcdbcount(n->meta), (long long)kcdbcount(n->history));
@@ -641,11 +644,6 @@ err_out_join:
 	if(r->flags & DNET_CHECK_MERGE) {
 		dnet_counter_set(n, DNET_CNTR_NODE_LAST_MERGE, 0, atomic_read(&ctl.completed));
 		dnet_counter_set(n, DNET_CNTR_NODE_LAST_MERGE, 1, atomic_read(&ctl.errors));
-	}
-
-	if (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total)) {
-		dnet_log(n, DNET_LOG_INFO, "Restarting check.\n");
-		goto again;
 	}
 
 	dnet_db_send_check_reply(&ctl);
@@ -656,6 +654,20 @@ err_out_close_cursor:
 err_out_free:
 	free(tid);
 err_out_exit:
+
+	if (!err && (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total))) {
+		if (restarts > 20) {
+			dnet_log(n, DNET_LOG_ERROR, "Check did not complete and restarted %d times already, "
+					"do not restarting again, probably database should be checked manually.\n",
+					restarts);
+			err = -EINVAL;
+		} else {
+			dnet_log(n, DNET_LOG_INFO, "Restarting check.\n");
+			restarts++;
+			goto again;
+		}
+	}
+
 	n->check_in_progress = 0;
 	return err;
 }
