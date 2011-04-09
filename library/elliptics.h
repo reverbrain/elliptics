@@ -389,7 +389,7 @@ static inline void dnet_counter_inc(struct dnet_node *n, int counter, int err)
 	if (counter >= __DNET_CNTR_MAX)
 		counter = DNET_CNTR_UNKNOWN;
 
-	dnet_log(n, DNET_LOG_INFO, "Incrementing counter: %d, err: %d, old value is: %llu %llu.\n",
+	dnet_log(n, DNET_LOG_DSA, "Incrementing counter: %d, err: %d, old value is: %llu %llu.\n",
 				counter, err,
 				(unsigned long long)n->counters[counter].count,
 				(unsigned long long)n->counters[counter].err);
