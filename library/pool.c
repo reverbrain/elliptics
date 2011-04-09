@@ -370,6 +370,8 @@ static void *dnet_io_process_pool(void *data_)
 	struct dnet_io_req *r;
 	int err;
 
+	dnet_log(n, DNET_LOG_INFO, "Starting IO processing thread.\n");
+
 	while (!n->need_exit) {
 		r = NULL;
 		err = 0;
@@ -414,6 +416,7 @@ static void *dnet_io_process_pool(void *data_)
 		dnet_state_put(st);
 	}
 
+	dnet_log(n, DNET_LOG_INFO, "Exiting IO processing thread.\n");
 	return NULL;
 }
 

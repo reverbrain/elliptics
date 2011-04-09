@@ -721,7 +721,7 @@ void dnet_node_destroy(struct dnet_node *n)
 
 	n->need_exit = 1;
 	dnet_check_thread_stop(n);
-	
+
 	dnet_io_exit(n);
 
 	dnet_notify_exit(n);
