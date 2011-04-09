@@ -88,6 +88,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	INIT_LIST_HEAD(&n->group_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
+	INIT_LIST_HEAD(&n->storage_state_list);
 	INIT_LIST_HEAD(&n->reconnect_list);
 
 	INIT_LIST_HEAD(&n->check_entry);
@@ -568,7 +569,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	}
 
 	if (!cfg->io_thread_num)
-		cfg->io_thread_num = 1;
+		cfg->io_thread_num = 20;
 
 	if (!cfg->stack_size)
 		cfg->stack_size = 100*1024;
@@ -708,6 +709,7 @@ void dnet_node_destroy(struct dnet_node *n)
 
 	n->need_exit = 1;
 	dnet_check_thread_stop(n);
+	
 	dnet_io_exit(n);
 
 	dnet_notify_exit(n);

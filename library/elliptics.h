@@ -92,6 +92,7 @@ struct dnet_io_req {
 struct dnet_net_state
 {
 	struct list_head	state_entry;
+	struct list_head	storage_state_entry;
 
 	struct dnet_node	*n;
 
@@ -325,7 +326,12 @@ struct dnet_node
 
 	pthread_mutex_t		state_lock;
 	struct list_head	group_list;
+
+	/* hosts client states, i.e. those who didn't join network */
 	struct list_head	empty_state_list;
+
+	/* hosts all states added to given node */
+	struct list_head	storage_state_list;
 
 	atomic_t		trans;
 

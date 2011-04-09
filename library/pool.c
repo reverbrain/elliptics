@@ -351,20 +351,8 @@ static void dnet_io_cleanup_states(struct dnet_node *n)
 {
 	struct dnet_net_state *st, *tmp;
 
-	list_for_each_entry_safe(st, tmp, &n->empty_state_list, state_entry) {
+	list_for_each_entry_safe(st, tmp, &n->storage_state_list, state_entry) {
 		dnet_state_reset(st);
-	}
-
-	while (!list_empty(&n->group_list)) {
-		struct dnet_group *g = list_first_entry(&n->group_list, struct dnet_group, group_entry);
-
-		list_del_init(&g->group_entry);
-
-		dnet_log(n, DNET_LOG_NOTICE, "Freeing states in group %u\n", g->group_id);
-		while (!list_empty(&g->state_list)) {
-			st = list_first_entry(&g->state_list, struct dnet_net_state, state_entry);
-			dnet_state_reset(st);
-		}
 	}
 }
 

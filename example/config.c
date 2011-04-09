@@ -237,6 +237,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"db_map", dnet_set_db_data},
 	{"db_flags", dnet_set_db_flags},
 	{"monitor_path", dnet_set_monitor_path},
+	{"io_thread_num", dnet_simple_set},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;

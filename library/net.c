@@ -725,6 +725,7 @@ static void dnet_state_remove(struct dnet_net_state *st)
 
 	pthread_mutex_lock(&n->state_lock);
 	list_del_init(&st->state_entry);
+	list_del_init(&st->storage_state_entry);
 	pthread_mutex_unlock(&n->state_lock);
 }
 
@@ -845,6 +846,10 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		list_add_tail(&st->state_entry, &n->empty_state_list);
 		pthread_mutex_unlock(&n->state_lock);
 	}
+
+	pthread_mutex_lock(&n->state_lock);
+	list_add_tail(&st->storage_state_entry, &n->storage_state_list);
+	pthread_mutex_unlock(&n->state_lock);
 
 	dnet_schedule_command(st);
 	err = dnet_schedule_recv(st);
