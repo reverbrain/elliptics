@@ -477,21 +477,7 @@ void dnet_trans_remove(struct dnet_trans *t);
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
 struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
 
-struct dnet_trans_send_ctl {
-	struct dnet_net_state		*st;
-	struct dnet_trans		*t;
-
-	void				*header;
-	unsigned long long		hsize;
-
-	void				*data;
-	unsigned long long		dsize;
-
-	int				fd;
-	unsigned long long		foffset, fsize;
-};
-
-int dnet_trans_send(struct dnet_trans_send_ctl *ctl);
+int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req);
 
 int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl);
 

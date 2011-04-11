@@ -893,7 +893,7 @@ err_out_exit:
 
 static int dnet_recv_route_list(struct dnet_net_state *st)
 {
-	struct dnet_trans_send_ctl sc;
+	struct dnet_io_req req;
 	struct dnet_node *n = st->n;
 	struct dnet_trans *t;
 	struct dnet_cmd *cmd;
@@ -930,13 +930,12 @@ static int dnet_recv_route_list(struct dnet_net_state *st)
 	dnet_log(n, DNET_LOG_DSA, "%s: list route request to %s.\n", dnet_dump_id(&cmd->id),
 		dnet_server_convert_dnet_addr(&st->addr));
 
-	memset(&sc, 0, sizeof(sc));
-	sc.st = st;
-	sc.t = t;
-	sc.header = cmd;
-	sc.hsize = sizeof(struct dnet_attr) + sizeof(struct dnet_cmd);
+	memset(&req, 0, sizeof(req));
+	req.st = st;
+	req.header = cmd;
+	req.hsize = sizeof(struct dnet_attr) + sizeof(struct dnet_cmd);
 
-	err = dnet_trans_send(&sc);
+	err = dnet_trans_send(t, &req);
 	if (err)
 		goto err_out_destroy;
 
@@ -1135,7 +1134,7 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_io_control *ctl, int *errp)
 {
-	struct dnet_trans_send_ctl sc;
+	struct dnet_io_req req;
 	struct dnet_trans *t = NULL;
 	struct dnet_attr *a;
 	struct dnet_io_attr *io;
@@ -1237,21 +1236,20 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 			(unsigned long long)ctl->local_offset,
 			dnet_server_convert_dnet_addr(&t->st->addr));
 
-	memset(&sc, 0, sizeof(sc));
-	sc.st = t->st;
-	sc.t = t;
-	sc.header = cmd;
-	sc.hsize = tsize;
-	sc.fd = ctl->fd;
-	sc.foffset = ctl->local_offset;
-	sc.fsize = size;
+	memset(&req, 0, sizeof(req));
+	req.st = t->st;
+	req.header = cmd;
+	req.hsize = tsize;
+	req.fd = ctl->fd;
+	req.local_offset = ctl->local_offset;
+	req.fsize = size;
 
 	if ((ctl->fd == -1) && (size >= DNET_COPY_IO_SIZE)) {
-		sc.data = ctl->data;
-		sc.dsize = size;
+		req.data = ctl->data;
+		req.dsize = size;
 	}
 
-	err = dnet_trans_send(&sc);
+	err = dnet_trans_send(t, &req);
 	if (err)
 		goto err_out_destroy;
 
@@ -2322,7 +2320,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 	void *priv)
 {
-	struct dnet_trans_send_ctl sc;
+	struct dnet_io_req req;
 	struct dnet_trans *t;
 	struct dnet_attr *a;
 	struct dnet_cmd *cmd;
@@ -2364,13 +2362,12 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 	dnet_log(n, DNET_LOG_NOTICE, "%s: %s lookup to %s.\n", dnet_dump_id(id),
 		(a->flags) ? "stat" : "plain", dnet_server_convert_dnet_addr(&t->st->addr));
 
-	memset(&sc, 0, sizeof(sc));
-	sc.st = t->st;
-	sc.t = t;
-	sc.header = cmd;
-	sc.hsize = sizeof(struct dnet_attr) + sizeof(struct dnet_cmd);
+	memset(&req, 0, sizeof(req));
+	req.st = t->st;
+	req.header = cmd;
+	req.hsize = sizeof(struct dnet_attr) + sizeof(struct dnet_cmd);
 
-	err = dnet_trans_send(&sc);
+	err = dnet_trans_send(t, &req);
 	if (err)
 		goto err_out_destroy;
 

@@ -474,42 +474,30 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 	return dnet_io_req_queue(st, &r);
 }
 
-int dnet_trans_send(struct dnet_trans_send_ctl *ctl)
+int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 {
-	struct dnet_net_state *st = ctl->st;
-	struct dnet_io_req r;
+	struct dnet_net_state *st = req->st;
 	int err;
 
-	dnet_trans_get(ctl->t);
+	dnet_trans_get(t);
 
 	pthread_mutex_lock(&st->trans_lock);
-	err = dnet_trans_insert_nolock(&st->trans_root, ctl->t);
+	err = dnet_trans_insert_nolock(&st->trans_root, t);
 	pthread_mutex_unlock(&st->trans_lock);
 	if (err)
 		goto err_out_put;
 
-	memset(&r, 0, sizeof(r));
-	r.header = ctl->header;
-	r.hsize = ctl->hsize;
-
-	r.data = ctl->data;
-	r.dsize = ctl->dsize;
-
-	r.fd = ctl->fd;
-	r.local_offset = ctl->foffset;
-	r.fsize = ctl->fsize;
-
-	err = dnet_io_req_queue(st, &r);
+	err = dnet_io_req_queue(st, req);
 	if (err)
 		goto err_out_remove;
 
-	dnet_trans_put(ctl->t);
+	dnet_trans_put(t);
 	return 0;
 
 err_out_remove:
-	dnet_trans_remove(ctl->t);
+	dnet_trans_remove(t);
 err_out_put:
-	dnet_trans_put(ctl->t);
+	dnet_trans_put(t);
 	return err;
 }
 
@@ -625,7 +613,7 @@ static int dnet_trans_complete_forward(struct dnet_net_state *state __unused,
 
 static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *orig, struct dnet_net_state *forward)
 {
-	struct dnet_trans_send_ctl sc;
+	struct dnet_io_req req;
 
 	t->rcv_trans = t->cmd.trans;
 	t->cmd.trans = t->trans = atomic_inc(&orig->n->trans);
@@ -635,19 +623,18 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *orig,
 
 	t->st = dnet_state_get(orig);
 
-	memset(&sc, 0, sizeof(sc));
-	sc.t = t;
-	sc.st = forward;
-	sc.header = &t->cmd;
-	sc.hsize = sizeof(struct dnet_cmd);
-	sc.data = orig->rcv_data;
-	sc.dsize = orig->rcv_cmd.size;
+	memset(&req, 0, sizeof(req));
+	req.st = forward;
+	req.header = &t->cmd;
+	req.hsize = sizeof(struct dnet_cmd);
+	req.data = orig->rcv_data;
+	req.dsize = orig->rcv_cmd.size;
 
 	dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding to %s, trans: %llu -> %llu\n",
 			dnet_dump_id(&t->cmd.id), dnet_state_dump_addr(forward),
 			(unsigned long long)t->rcv_trans, (unsigned long long)t->trans);
 
-	return dnet_trans_send(&sc);
+	return dnet_trans_send(t, &req);
 }
 
 int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
