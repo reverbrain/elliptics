@@ -411,9 +411,6 @@ static void *dnet_io_process_pool(void *data_)
 
 		err = dnet_process_recv(st, r);
 
-		pthread_mutex_lock(&io->recv_lock);
-		list_del(&r->req_entry);
-		pthread_mutex_unlock(&io->recv_lock);
 		dnet_io_req_free(r);
 
 		dnet_state_put(st);
