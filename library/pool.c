@@ -188,8 +188,11 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	dnet_set_sockopt(cs);
 
 	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, dnet_state_net_process);
-	if (!st)
+	if (!st) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]\n",
+				dnet_server_convert_dnet_addr(&addr), strerror(err), err);
 		goto err_out_exit;
+	}
 
 	dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d.\n",
 			dnet_server_convert_dnet_addr(&addr), cs);
