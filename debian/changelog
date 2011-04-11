@@ -1,3 +1,10 @@
+elliptics (2.9.6.133) unstable; urgency=low
+
+  * Request route table from all added nodes
+  * dnet_monitor must request stats from all connected nodes
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 11 Apr 2011 16:44:52 +0400
+
 elliptics (2.9.6.132) unstable; urgency=low
 
   * Return -ECONNRESET on EPOLLHUP/EPOLLERR
