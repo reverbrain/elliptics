@@ -951,7 +951,7 @@ err_out_exit:
 int dnet_join(struct dnet_node *n)
 {
 	int err = 0;
-	struct dnet_net_state *st, *send = NULL;
+	struct dnet_net_state *st;
 	struct dnet_group *g;
 	struct timeval start, end;
 	long diff;
@@ -970,8 +970,6 @@ int dnet_join(struct dnet_node *n)
 				continue;
 
 			err = dnet_state_join(st);
-			if (!err)
-				send = dnet_state_get(st);
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
@@ -980,11 +978,6 @@ int dnet_join(struct dnet_node *n)
 
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 	dnet_log(n, DNET_LOG_ERROR, "Join: err: %d: %ld usecs.\n", err, diff);
-
-	if (send) {
-		dnet_recv_route_list(send);
-		dnet_state_put(send);
-	}
 
 	return err;
 }
@@ -1102,6 +1095,9 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 	st = dnet_add_state_socket(n, &addr, s, &err);
 	if (!st)
 		goto err_out_reconnect;
+
+	if (!(cfg->join & DNET_NO_ROUTE_LIST))
+		dnet_recv_route_list(send);
 
 	return 0;
 
