@@ -1509,6 +1509,8 @@ static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, s
 
 	if (is_trans_destroyed(st, cmd, attr)) {
 		if (c->wait) {
+			if (cmd && cmd->status)
+				c->wait->cond = cmd->status;
 			dnet_wakeup(c->wait, );
 			dnet_wait_put(c->wait);
 		}
