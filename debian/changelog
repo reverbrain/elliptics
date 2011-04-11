@@ -1,3 +1,12 @@
+elliptics (2.9.6.134) unstable; urgency=low
+
+  * Do not double close accepted socket if state creation fails.
+  * Propogate read completion back to caller
+  * Use dnet_io_req instead of essentially the same dnet_trans_send_ctl
+    structure.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 12 Apr 2011 02:44:32 +0400
+
 elliptics (2.9.6.133) unstable; urgency=low
 
   * Request route table from all added nodes
