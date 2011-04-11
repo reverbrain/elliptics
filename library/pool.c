@@ -189,15 +189,13 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 
 	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, dnet_state_net_process);
 	if (!st)
-		goto err_out_close;
+		goto err_out_exit;
 
 	dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d.\n",
 			dnet_server_convert_dnet_addr(&addr), cs);
 
 	return 0;
-
-err_out_close:
-	dnet_sock_close(cs);
+	/* socket is closed in dnet_state_create() */
 err_out_exit:
 	return err;
 }
