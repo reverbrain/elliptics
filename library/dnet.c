@@ -2991,7 +2991,7 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 	data = c.data;
 
 err_out_put:
-	dnet_wait_get(w);
+	dnet_wait_put(w);
 err_out_exit:
 	return data;
 }
