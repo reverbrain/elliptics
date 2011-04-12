@@ -333,6 +333,11 @@ struct dnet_config
 	 */
 	int			stack_size;
 
+	/*
+	 * Number of IO threads in processing pool
+	 */
+	int			io_thread_num;
+
 	/* Database tuning parameters */
 	unsigned long long	db_buckets;
 	unsigned long long	db_map;

@@ -69,7 +69,7 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t 
 {
 	int err;
 
-	err = sendfile(st->s, fd, (off_t *)offset, size);
+	err = sendfile(st->write_s, fd, (off_t *)offset, size);
 	if (err < 0)
 		return -errno;
 
@@ -81,7 +81,7 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t 
 {
 	int err;
 
-	err = sendfile(fd, st->s, *offset, size, NULL, &size, 0);
+	err = sendfile(fd, st->write_s, *offset, size, NULL, &size, 0);
 	if (err && errno != EAGAIN)
 		return -errno;
 
@@ -98,7 +98,7 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t 
 {
 	int err;
 
-	err = sendfile(fd, st->s, *offset, &size, NULL, 0);
+	err = sendfile(fd, st->write_s, *offset, &size, NULL, 0);
 	if (err && errno != EAGAIN)
 		return -errno;
 
@@ -146,7 +146,7 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t 
 		sz = err;
 
 		while (sz) {
-			err = send(st->s, buf, sz, 0);
+			err = send(st->write_s, buf, sz, 0);
 			if (err < 0) {
 				if (errno == EAGAIN || errno == EINTR)
 					break;

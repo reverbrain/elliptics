@@ -1,3 +1,96 @@
+elliptics (2.9.6.134) unstable; urgency=low
+
+  * Do not double close accepted socket if state creation fails.
+  * Propogate read completion back to caller
+  * Use dnet_io_req instead of essentially the same dnet_trans_send_ctl
+    structure.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 12 Apr 2011 02:44:32 +0400
+
+elliptics (2.9.6.133) unstable; urgency=low
+
+  * Request route table from all added nodes
+  * dnet_monitor must request stats from all connected nodes
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 11 Apr 2011 16:44:52 +0400
+
+elliptics (2.9.6.132) unstable; urgency=low
+
+  * Return -ECONNRESET on EPOLLHUP/EPOLLERR
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sun, 10 Apr 2011 03:51:54 +0400
+
+elliptics (2.9.6.131) unstable; urgency=low
+
+  * Do not exit from IO thread handler on non-critical errors.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 16:32:36 +0400
+
+elliptics (2.9.6.130) unstable; urgency=low
+
+  * Added start/stop IO thread debug
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 16:27:48 +0400
+
+elliptics (2.9.6.129) unstable; urgency=low
+
+  * Do not break epoll loop on interrupts and eagain
+  * Dropped counter debug
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 16:14:59 +0400
+
+elliptics (2.9.6.128) unstable; urgency=low
+
+  * Fixed storage_state_list iterator
+  * Use 1 IO thread for client and 20 for server by default
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 15:37:37 +0400
+
+elliptics (2.9.6.127) unstable; urgency=low
+
+  * Fixed req processing in multi-thread IO pool
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 15:26:12 +0400
+
+elliptics (2.9.6.126) unstable; urgency=low
+
+  * Merged statistics update
+  * Added missed io_thread_num parser
+  * Simplified state destruction during node cleanup
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 15:13:02 +0400
+
+elliptics (2.9.6.125) unstable; urgency=low
+
+  * Do not deadlock when unscheduling sending state
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 03:50:05 +0400
+
+elliptics (2.9.6.124) unstable; urgency=low
+
+  * Do not schedule sending of the dying state.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 03:44:52 +0400
+
+elliptics (2.9.6.123) unstable; urgency=low
+
+  * Update restart counter when really restart checking threads.
+  * Save check request structure locally.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 03:26:55 +0400
+
+elliptics (2.9.6.122) unstable; urgency=low
+
+  * Do not restart checking threads when limit reached.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 02:58:38 +0400
+
+elliptics (2.9.6.121) unstable; urgency=low
+
+  * Switched to IO thread pool model.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 02:34:44 +0400
+
 elliptics (2.9.6.120) unstable; urgency=low
 
   * Fixed fcgi output when upload fails.

@@ -18,6 +18,7 @@
 
 #include <sys/time.h>
 #include <sys/socket.h>
+#include <sys/epoll.h>
 
 #include <errno.h>
 #include <netdb.h>
@@ -56,12 +57,15 @@ extern "C" {
 
 struct dnet_node;
 struct dnet_group;
+struct dnet_net_state;
 
 #define dnet_log(n, mask, format, a...) do { if (n->log && (n->log->log_mask & mask)) dnet_log_raw(n, mask, format, ##a); } while (0)
 #define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
 
-struct dnet_send_req {
+struct dnet_io_req {
 	struct list_head	req_entry;
+
+	struct dnet_net_state	*st;
 
 	void			*header;
 	size_t			hsize;
@@ -73,8 +77,6 @@ struct dnet_send_req {
 	off_t			local_offset;
 	size_t			fsize;
 };
-
-void *dnet_state_send(void *_data);
 
 /*
  * Currently executed network state machine:
@@ -90,11 +92,12 @@ void *dnet_state_send(void *_data);
 struct dnet_net_state
 {
 	struct list_head	state_entry;
+	struct list_head	storage_state_entry;
 
 	struct dnet_node	*n;
 
 	atomic_t		refcnt;
-	int			s;
+	int			read_s, write_s;
 
 	int			need_exit;
 
@@ -102,21 +105,20 @@ struct dnet_net_state
 
 	struct dnet_addr	addr;
 
+	int			(* process)(struct dnet_net_state *st, struct epoll_event *ev);
+
 	struct dnet_cmd		rcv_cmd;
 	uint64_t		rcv_offset;
-	uint64_t		rcv_size;
+	uint64_t		rcv_end;
 	unsigned int		rcv_flags;
 	void			*rcv_data;
 
-	pthread_t		send_tid;
+	size_t			send_offset;
 	pthread_mutex_t		send_lock;
-	pthread_cond_t		send_wait;
 	struct list_head	send_list;
 
 	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
-
-	pthread_t		tid;
 
 	int			la;
 	unsigned long long	free;
@@ -144,7 +146,8 @@ void dnet_idc_destroy(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
-		struct dnet_addr *addr, int s, int *errp);
+		struct dnet_addr *addr, int s, int *errp,
+		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
 void dnet_state_reset(struct dnet_net_state *st);
 
@@ -153,6 +156,13 @@ int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_st
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id);
 
 void dnet_state_destroy(struct dnet_net_state *st);
+
+int dnet_schedule_send(struct dnet_net_state *st);
+int dnet_schedule_recv(struct dnet_net_state *st);
+void dnet_schedule_command(struct dnet_net_state *st);
+
+void dnet_unschedule_send(struct dnet_net_state *st);
+void dnet_unschedule_recv(struct dnet_net_state *st);
 
 int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsigned int join_state);
 
@@ -273,6 +283,28 @@ struct dnet_transform
 int dnet_crypto_init(struct dnet_node *n, void *ns, int nsize);
 void dnet_crypto_cleanup(struct dnet_node *n);
 
+struct dnet_io {
+	int			need_exit;
+
+	int			epoll_fd;
+
+	pthread_t		tid;
+
+	pthread_mutex_t		recv_lock;
+	struct list_head	recv_list;
+	pthread_cond_t		recv_wait;
+
+	int			thread_num;
+	pthread_t		threads[0];
+};
+
+int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
+int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev);
+int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg);
+void dnet_io_exit(struct dnet_node *n);
+
+void dnet_io_req_free(struct dnet_io_req *r);
+
 struct dnet_node
 {
 	struct list_head	check_entry;
@@ -294,7 +326,12 @@ struct dnet_node
 
 	pthread_mutex_t		state_lock;
 	struct list_head	group_list;
+
+	/* hosts client states, i.e. those who didn't join network */
 	struct list_head	empty_state_list;
+
+	/* hosts all states added to given node */
+	struct list_head	storage_state_list;
 
 	atomic_t		trans;
 
@@ -302,12 +339,12 @@ struct dnet_node
 
 	int			error;
 
-	int			merge_strategy;
-
 	struct dnet_log		*log;
 
 	struct dnet_wait	*wait;
 	struct timespec		wait_ts;
+
+	struct dnet_io		*io;
 
 	int			join_state;
 
@@ -386,11 +423,13 @@ static inline char *dnet_dump_node(struct dnet_node *n)
 }
 
 struct dnet_trans;
-int dnet_process_cmd(struct dnet_net_state *st);
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
+int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r);
 
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
 int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t size);
+
+int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r);
 
 struct dnet_config;
 int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg, struct dnet_addr *addr, int listening);
@@ -443,21 +482,7 @@ void dnet_trans_remove(struct dnet_trans *t);
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
 struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
 
-struct dnet_trans_send_ctl {
-	struct dnet_net_state		*st;
-	struct dnet_trans		*t;
-
-	void				*header;
-	unsigned long long		hsize;
-
-	void				*data;
-	unsigned long long		dsize;
-
-	int				fd;
-	unsigned long long		foffset, fsize;
-};
-
-int dnet_trans_send(struct dnet_trans_send_ctl *ctl);
+int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req);
 
 int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl);
 

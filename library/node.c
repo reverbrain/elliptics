@@ -94,6 +94,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	INIT_LIST_HEAD(&n->group_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
+	INIT_LIST_HEAD(&n->storage_state_list);
 	INIT_LIST_HEAD(&n->reconnect_list);
 
 	INIT_LIST_HEAD(&n->check_entry);
@@ -365,7 +366,8 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (!memcmp(addr, &st->addr, sizeof(struct dnet_addr))) {
+			if (st->addr.addr_len == addr->addr_len &&
+					!memcmp(addr, &st->addr, st->addr.addr_len)) {
 				found = st;
 				break;
 			}
@@ -574,6 +576,12 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		goto err_out_exit;
 	}
 
+	if (!cfg->io_thread_num) {
+		cfg->io_thread_num = 1;
+		if (cfg->join && DNET_JOIN_NETWORK)
+			cfg->io_thread_num = 20;
+	}
+
 	if (!cfg->stack_size)
 		cfg->stack_size = 100*1024;
 
@@ -608,7 +616,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		n->wait_ts.tv_sec = 60*60;
 
 	dnet_log(n, DNET_LOG_INFO, "Elliptics starts, version: %s, changed files: %s\n", ELLIPTICS_GIT_VERSION, ELLIPTICS_HAS_CHANGES);
-	dnet_log(n, DNET_LOG_DSA, "Using %d stack size.\n", cfg->stack_size);
 
 	if (!n->check_timeout) {
 		n->check_timeout = DNET_DEFAULT_CHECK_TIMEOUT_SEC;
@@ -634,10 +641,14 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_notify_exit;
 
+	err = dnet_io_init(n, cfg);
+	if (err)
+		goto err_out_monitor_exit;
+
 	if (cfg->join & DNET_JOIN_NETWORK) {
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
 		if (!ids)
-			goto err_out_monitor_exit;
+			goto err_out_io_exit;
 
 		err = dnet_db_init(n, cfg);
 		if (err)
@@ -651,7 +662,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 		n->listen_socket = err;
 
-		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, n->listen_socket, &err);
+		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, n->listen_socket, &err, dnet_state_accept_process);
 		if (!n->st) {
 			close(n->listen_socket);
 			goto err_out_db_cleanup;
@@ -675,6 +686,8 @@ err_out_db_cleanup:
 	dnet_db_cleanup(n);
 err_out_ids_cleanup:
 	free(ids);
+err_out_io_exit:
+	dnet_io_exit(n);
 err_out_monitor_exit:
 	dnet_monitor_exit(n);
 err_out_notify_exit:
@@ -709,11 +722,7 @@ void dnet_node_destroy(struct dnet_node *n)
 	n->need_exit = 1;
 	dnet_check_thread_stop(n);
 
-	while (!list_empty(&n->empty_state_list) || !list_empty(&n->group_list)) {
-		dnet_log(n, DNET_LOG_NOTICE, "Waiting for state lists to become empty: empty_state_list: %d, group_list: %d.\n",
-				list_empty(&n->empty_state_list), list_empty(&n->group_list));
-		sleep(1);
-	}
+	dnet_io_exit(n);
 
 	dnet_notify_exit(n);
 

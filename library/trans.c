@@ -159,7 +159,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_control *ctl)
 {
-	struct dnet_trans_send_ctl sc;
+	struct dnet_io_req req;
 	struct dnet_node *n = st->n;
 	struct dnet_cmd *cmd;
 	struct dnet_attr *a;
@@ -200,13 +200,12 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 
 	t->st = dnet_state_get(st);
 
-	memset(&sc, 0, sizeof(sc));
-	sc.st = st;
-	sc.t = t;
-	sc.header = cmd;
-	sc.hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + ctl->size;
+	memset(&req, 0, sizeof(req));
+	req.st = st;
+	req.header = cmd;
+	req.hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + ctl->size;
 
-	err = dnet_trans_send(&sc);
+	err = dnet_trans_send(t, &req);
 	if (err)
 		goto err_out_put;
 
