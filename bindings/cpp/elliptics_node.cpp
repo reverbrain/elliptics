@@ -401,7 +401,7 @@ std::string elliptics_node::lookup(const std::string &data)
 			elliptics_callback l;
 			id.group_id = groups[i];
 
-			lookup(data, l);
+			lookup(id, l);
 			ret = l.wait();
 
 			struct dnet_addr *addr = (struct dnet_addr *)ret.data();

@@ -1,3 +1,9 @@
+elliptics (2.9.6.136) unstable; urgency=low
+
+  * Use generated ID with proper group_id field when performing data lookup
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 12 Apr 2011 20:13:43 +0400
+
 elliptics (2.9.6.135) unstable; urgency=low
 
   * Data returned from C code must be freed in binding, std::string will copy
