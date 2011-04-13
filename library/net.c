@@ -239,6 +239,7 @@ static void dnet_state_clean(struct dnet_net_state *st)
 			t = rb_entry(rb_node, struct dnet_trans, trans_entry);
 			dnet_trans_get(t);
 			dnet_trans_remove_nolock(&st->trans_root, t);
+			list_del_init(&t->trans_list_entry);
 		}
 		pthread_mutex_unlock(&st->trans_lock);
 
@@ -474,6 +475,14 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 	return dnet_io_req_queue(st, &r);
 }
 
+static void dnet_trans_timestamp(struct dnet_net_state *st, struct dnet_trans *t)
+{
+	gettimeofday(&t->time, NULL);
+	t->time.tv_sec += st->n->wait_ts.tv_sec;
+
+	list_move_tail(&t->trans_list_entry, &st->trans_list);
+}
+
 int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 {
 	struct dnet_net_state *st = req->st;
@@ -483,6 +492,8 @@ int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 
 	pthread_mutex_lock(&st->trans_lock);
 	err = dnet_trans_insert_nolock(&st->trans_root, t);
+	if (!err)
+		dnet_trans_timestamp(st, t);
 	pthread_mutex_unlock(&st->trans_lock);
 	if (err)
 		goto err_out_put;
@@ -650,8 +661,12 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 
 		pthread_mutex_lock(&st->trans_lock);
 		t = dnet_trans_search(&st->trans_root, tid);
-		if (t && !(cmd->flags & DNET_FLAGS_MORE)) {
-			dnet_trans_remove_nolock(&st->trans_root, t);
+		if (t) {
+			if (!(cmd->flags & DNET_FLAGS_MORE)) {
+				dnet_trans_remove_nolock(&st->trans_root, t);
+				list_del_init(&t->trans_list_entry);
+			} else
+				dnet_trans_timestamp(st, t);
 		}
 		pthread_mutex_unlock(&st->trans_lock);
 
@@ -664,6 +679,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 
 		if (t->complete)
 			t->complete(t->st, cmd, r->data, t->priv);
+
 		dnet_trans_put(t);
 		if (!(cmd->flags & DNET_FLAGS_MORE))
 			dnet_trans_put(t);
@@ -804,6 +820,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	INIT_LIST_HEAD(&st->state_entry);
 
 	st->trans_root = RB_ROOT;
+	INIT_LIST_HEAD(&st->trans_list);
 
 	err = pthread_mutex_init(&st->trans_lock, NULL);
 	if (err) {
