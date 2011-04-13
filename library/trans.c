@@ -292,10 +292,10 @@ static void dnet_check_all_states(struct dnet_node *n)
 	}
 }
 
-static void *dnet_check_tree_from_thread(void *data)
+static void *dnet_check_process(void *data)
 {
 	struct dnet_node *n = data;
-	long i, timeout, wait;
+	long i, timeout, wait_for_stall;
 	struct timeval tv1, tv2;
 
 	dnet_set_name("check");
@@ -308,20 +308,18 @@ static void *dnet_check_tree_from_thread(void *data)
 
 	while (!n->need_exit) {
 		gettimeofday(&tv1, NULL);
-
 		dnet_try_reconnect(n);
-
 		gettimeofday(&tv2, NULL);
 
 		timeout = n->check_timeout - (tv2.tv_sec - tv1.tv_sec);
-		wait = n->wait_ts.tv_sec;
+		wait_for_stall = n->wait_ts.tv_sec;
 
 		for (i=0; i<timeout; ++i) {
 			if (n->need_exit)
 				break;
 
-			if (--wait == 0) {
-				wait = n->wait_ts.tv_sec;
+			if (--wait_for_stall == 0) {
+				wait_for_stall = n->wait_ts.tv_sec;
 				dnet_check_all_states(n);
 			}
 			sleep(1);
@@ -337,7 +335,7 @@ int dnet_check_thread_start(struct dnet_node *n)
 {
 	int err;
 
-	err = pthread_create(&n->check_tid, NULL, dnet_check_tree_from_thread, n);
+	err = pthread_create(&n->check_tid, NULL, dnet_check_process, n);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to start tree checking thread: err: %d.\n",
 				err);
