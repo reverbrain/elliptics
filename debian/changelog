@@ -1,3 +1,9 @@
+elliptics (2.9.6.137) unstable; urgency=low
+
+  * Added per-transction timeouts (use n->wait_ts actually)
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Apr 2011 21:35:58 +0400
+
 elliptics (2.9.6.136) unstable; urgency=low
 
   * Use generated ID with proper group_id field when performing data lookup
