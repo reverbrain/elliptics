@@ -253,6 +253,13 @@ err_out_exit:
 	return err;
 }
 
+
+/*
+ * State can be destroyed in network processing loop, but we can access it in thread pool (namely this happens with n->st)
+ * FIXME
+ *
+ */
+
 static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 {
 	struct epoll_event ev;
