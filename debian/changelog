@@ -1,3 +1,11 @@
+elliptics (2.9.6.139) unstable; urgency=low
+
+  * Fixed data forwarding
+  * Fixed lookup try/catch and added node constructor with dnet_config lref
+  * Added usec timestamp into common C++ logger
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Apr 2011 01:57:07 +0400
+
 elliptics (2.9.6.138) unstable; urgency=low
 
   * Wait proper timeout when waiting for reverse lookup headers
