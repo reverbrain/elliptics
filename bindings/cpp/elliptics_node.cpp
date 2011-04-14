@@ -46,8 +46,26 @@ elliptics_node::elliptics_node(elliptics_log &l)
 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
-	cfg.wait_timeout = 60;
-	cfg.check_timeout = 60;
+	cfg.wait_timeout = 5;
+	cfg.check_timeout = 20;
+
+	log = reinterpret_cast<elliptics_log *>(l.clone());
+	cfg.log = log->get_dnet_log();
+
+	snprintf(cfg.addr, sizeof(cfg.addr), "0.0.0.0");
+	snprintf(cfg.port, sizeof(cfg.port), "0");
+
+	node = dnet_node_create(&cfg);
+	if (!node) {
+		delete log;
+		throw std::bad_alloc();
+	}
+}
+
+elliptics_node::elliptics_node(elliptics_log &l, struct dnet_config &cfg)
+{
+	cfg.sock_type = SOCK_STREAM;
+	cfg.proto = IPPROTO_TCP;
 
 	log = reinterpret_cast<elliptics_log *>(l.clone());
 	cfg.log = log->get_dnet_log();
@@ -396,8 +414,8 @@ std::string elliptics_node::lookup(const std::string &data)
 
 	transform(data, id);
 
-	try {
-		for (i=0; i<groups.size(); ++i) {
+	for (i=0; i<groups.size(); ++i) {
+		try {
 			elliptics_callback l;
 			id.group_id = groups[i];
 
@@ -412,9 +430,9 @@ std::string elliptics_node::lookup(const std::string &data)
 				error = 0;
 				break;
 			}
+		} catch (...) {
+			continue;
 		}
-	} catch (...) {
-		throw;
 	}
 
 	if (error) {
