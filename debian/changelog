@@ -1,3 +1,10 @@
+elliptics (2.9.6.138) unstable; urgency=low
+
+  * Wait proper timeout when waiting for reverse lookup headers
+  * Default wait timeout equals to 20 seconds now
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Apr 2011 00:35:53 +0400
+
 elliptics (2.9.6.137) unstable; urgency=low
 
   * Added per-transction timeouts (use n->wait_ts actually)
