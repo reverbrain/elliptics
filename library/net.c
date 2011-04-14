@@ -515,11 +515,19 @@ err_out_put:
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 {
 	int err;
+	int wait = st->n->wait_ts.tv_sec;
 
 	while (size) {
 		err = dnet_wait(st, POLLIN, 1000);
-		if (err < 0)
+		if (err < 0) {
+			if (err == -EAGAIN) {
+				if (--wait > 0)
+					continue;
+
+				err = -ETIMEDOUT;
+			}
 			return err;
+		}
 
 		err = recv(st->read_s, data, size, 0);
 		if (err < 0) {
@@ -535,6 +543,7 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 
 		data += err;
 		size -= err;
+		wait = st->n->wait_ts.tv_sec;
 	}
 
 	return 0;
