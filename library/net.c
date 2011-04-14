@@ -557,11 +557,6 @@ static struct dnet_trans *dnet_trans_new(struct dnet_net_state *st)
 	if (!t)
 		goto err_out_exit;
 
-	memcpy(&t->cmd, &st->rcv_cmd, sizeof(struct dnet_cmd));
-	dnet_convert_cmd(&t->cmd);
-
-	t->trans = t->rcv_trans = st->rcv_cmd.trans;
-
 	return t;
 
 err_out_exit:
@@ -631,30 +626,30 @@ static int dnet_trans_complete_forward(struct dnet_net_state *state __unused,
 	return err;
 }
 
-static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *orig, struct dnet_net_state *forward)
+static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
+		struct dnet_net_state *orig, struct dnet_net_state *forward)
 {
-	struct dnet_io_req req;
+	struct dnet_cmd *cmd = r->header;
 
-	t->rcv_trans = t->cmd.trans;
-	t->cmd.trans = t->trans = atomic_inc(&orig->n->trans);
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
+
+	t->rcv_trans = cmd->trans;
+	cmd->trans = t->cmd.trans = t->trans = atomic_inc(&orig->n->trans);
+
+	dnet_convert_cmd(cmd);
 
 	t->complete = dnet_trans_complete_forward;
 	t->priv = t;
 
 	t->st = dnet_state_get(orig);
 
-	memset(&req, 0, sizeof(req));
-	req.st = forward;
-	req.header = &t->cmd;
-	req.hsize = sizeof(struct dnet_cmd);
-	req.data = orig->rcv_data;
-	req.dsize = orig->rcv_cmd.size;
+	r->st = forward;
 
 	dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding to %s, trans: %llu -> %llu\n",
 			dnet_dump_id(&t->cmd.id), dnet_state_dump_addr(forward),
 			(unsigned long long)t->rcv_trans, (unsigned long long)t->trans);
 
-	return dnet_trans_send(t, &req);
+	return dnet_trans_send(t, r);
 }
 
 int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
@@ -710,7 +705,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 		goto err_out_put_forward;
 	}
 
-	err = dnet_trans_forward(t, st, forward_state);
+	err = dnet_trans_forward(t, r, st, forward_state);
 	if (err)
 		goto err_out_destroy;
 
