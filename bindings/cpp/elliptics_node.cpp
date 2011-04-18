@@ -422,6 +422,13 @@ std::string elliptics_node::lookup(const std::string &data)
 			lookup(id, l);
 			ret = l.wait();
 
+			if (ret.size() <= sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)) {
+				std::stringstream str;
+
+				str << dnet_dump_id(&id) << " : failed to receive lookup request";
+				throw std::runtime_error(str.str());
+			}
+
 			struct dnet_addr *addr = (struct dnet_addr *)ret.data();
 			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
 			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
@@ -430,7 +437,8 @@ std::string elliptics_node::lookup(const std::string &data)
 				error = 0;
 				break;
 			}
-		} catch (...) {
+		} catch (const std::exception &e) {
+			dnet_log_raw(node, DNET_LOG_ERROR, "%s", e.what());
 			continue;
 		}
 	}
