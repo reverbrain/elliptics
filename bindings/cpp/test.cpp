@@ -107,8 +107,6 @@ int main()
 	try {
 		elliptics_log_file log("/dev/stderr", 15);
 
-		id.group_id = 2;
-
 		elliptics_node n(log);
 		n.add_groups(groups);
 
@@ -129,6 +127,7 @@ int main()
 		return 0;
 #if 1
 		elliptics_callback_io callback(&log);
+		id.group_id = 2;
 		memset(id.id, 0xff, DNET_ID_SIZE);
 		n.read_data(id, 0, 0, callback);
 #endif
