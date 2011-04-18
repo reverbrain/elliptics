@@ -1,3 +1,10 @@
+elliptics (2.9.6.140) unstable; urgency=low
+
+  * Added pool of network processing threads
+  * Added strict lookup checks
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 19:11:52 +0400
+
 elliptics (2.9.6.139) unstable; urgency=low
 
   * Fixed data forwarding
