@@ -190,13 +190,14 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "Failed to iterate history database '%s': %d.\n", database, -kcdbecode(db));
 			goto err_out_dbopen;
 		}
-	}
 
 err_out_dbopen:
-	err = kcdbclose(db);
-	if (!err)
-		fprintf(stderr, "Failed to close history database '%s': %d.\n", database, -kcdbecode(db));
-	kcdbdel(db);
+		err = kcdbclose(db);
+		if (!err)
+			fprintf(stderr, "Failed to close history database '%s': %d.\n", database, -kcdbecode(db));
+		kcdbdel(db);
+	}
+
 err_out_exit:
 	return err;
 }
