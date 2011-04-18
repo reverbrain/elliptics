@@ -357,7 +357,7 @@ static void *dnet_io_process(void *data_)
 			if (err == -EAGAIN)
 				break;
 
-			if (err < 0 || (st->stall == 10)) {
+			if (err < 0 || (st->stall >= 10)) {
 				dnet_state_reset(st);
 				break;
 			}
