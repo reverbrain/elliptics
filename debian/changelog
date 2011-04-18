@@ -1,3 +1,16 @@
+elliptics (2.9.6.142) unstable; urgency=low
+
+  * Use default wait timeout of 5 seconds
+  * Dropped tests - they are outdated to hell
+  * Fixed off-by-one in net_thread_pos selection
+  * Added IO/net thread names and start/stop debug for net pool
+  * Use DNET_DEFAULT_STALL_TRANSACTIONS instead of hardcoded 10
+  * Schedule send and recv event when stall counter reaches
+    DNET_DEFAULT_STALL_TRANSACTIONS
+  * Reset state when its stall counter >= DNET_DEFAULT_STALL_TRANSACTIONS
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 21:16:17 +0400
+
 elliptics (2.9.6.141) unstable; urgency=low
 
   * Added state stall counter
