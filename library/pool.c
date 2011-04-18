@@ -328,7 +328,10 @@ static void *dnet_io_process(void *data_)
 	struct dnet_node *n = nio->n;
 	struct dnet_net_state *st;
 	struct epoll_event ev;
-	int err;
+	int err = 0;
+
+	dnet_set_name("net_pool");
+	dnet_log(n, DNET_LOG_NOTICE, "Starting network processing thread.\n");
 
 	while (!n->need_exit) {
 		err = epoll_wait(nio->epoll_fd, &ev, 1, 1000);
@@ -364,6 +367,7 @@ static void *dnet_io_process(void *data_)
 		}
 	}
 
+	dnet_log(n, DNET_LOG_NOTICE, "Exiting network processing thread: need_exit: %d, err: %d.\n", n->need_exit, err);
 	return &n->need_exit;
 }
 
@@ -387,6 +391,7 @@ static void *dnet_io_process_pool(void *data_)
 	int err = 0;
 
 	dnet_log(n, DNET_LOG_NOTICE, "Starting IO processing thread.\n");
+	dnet_set_name("io_pool");
 
 	while (!n->need_exit) {
 		r = NULL;
