@@ -1,3 +1,9 @@
+elliptics (2.9.6.141) unstable; urgency=low
+
+  * Added state stall counter
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 19:25:57 +0400
+
 elliptics (2.9.6.140) unstable; urgency=low
 
   * Added pool of network processing threads
