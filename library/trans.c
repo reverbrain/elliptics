@@ -272,6 +272,10 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 		st->stall++;
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: stall counter: %d\n",
 				dnet_state_dump_addr(st), st->stall);
+		if (st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
+			dnet_schedule_recv(st);
+			dnet_schedule_send(st);
+		}
 	} else
 		st->stall = 0;
 }
