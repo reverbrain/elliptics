@@ -354,10 +354,10 @@ static void *dnet_io_process(void *data_)
 			if (err == 0)
 				continue;
 
-			if (err == -EAGAIN && st->stall < 10)
+			if (err == -EAGAIN && st->stall < DNET_DEFAULT_STALL_TRANSACTIONS)
 				break;
 
-			if (err < 0 || st->stall >= 10) {
+			if (err < 0 || st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
 				dnet_state_reset(st);
 				break;
 			}
