@@ -701,6 +701,9 @@ struct dnet_history_map
 static inline int dnet_check_object_removed(struct dnet_history_map *map)
 {
 	long i;
+	if (map->num <= 0)
+		return 0;
+
 	uint32_t flags = dnet_bswap32(map->ent[map->num-1].flags);
 
 	if (flags & DNET_IO_FLAGS_REMOVED && !(flags & DNET_IO_FLAGS_PARENT))

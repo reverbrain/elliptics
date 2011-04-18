@@ -325,8 +325,21 @@ int dnet_merge_history(struct dnet_node *n, struct dnet_history_map *map1, struc
 	struct dnet_history_map *result = NULL;
 
 	result_size = map1->size + map2->size;
+	*res = NULL;
+
 	result = (struct dnet_history_map *)malloc(sizeof(struct dnet_history_map));
+	if (!result)
+		return -1;
+
+	result->ent = NULL;
+	if (result_size <= 0)
+		goto err_out_free;
+
+	*res = result;
+
 	result->ent = (struct dnet_history_entry *)malloc(result_size);
+	if (!result->ent)
+		goto err_out_free;
 
 	memset(result->ent, 0, result_size);
 	result->num = 0;
@@ -395,9 +408,13 @@ int dnet_merge_history(struct dnet_node *n, struct dnet_history_map *map1, struc
 	result->size = result->num * sizeof(struct dnet_history_entry);
 
 	result->ent = realloc(result->ent, result->size);
-	*res = result;
 
 	return removed;
+
+err_out_free:
+	free(result);
+	*res = NULL;
+	return -1;
 } 
 
 static int dnet_merge_common(struct dnet_node *n, char *remote_history, struct dnet_meta_container *mc)
@@ -621,7 +638,10 @@ int dnet_check_delete_data(struct dnet_node *n, struct dnet_id *id, struct dnet_
 		if (err)
 			goto err_out_continue;
 
-		dnet_merge_history(n, map, &remote_map, &result_map);
+		err = dnet_merge_history(n, map, &remote_map, &result_map);
+		if (err < 0)
+			goto err_out_continue;
+
 		if (dnet_check_object_removed(result_map)) {
 			err = 1;
 		}
