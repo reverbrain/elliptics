@@ -1,3 +1,9 @@
+elliptics (2.9.6.143) unstable; urgency=low
+
+  * Added refcnt into dnet_read_data_wait() shared completion structure
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 22:05:12 +0400
+
 elliptics (2.9.6.142) unstable; urgency=low
 
   * Use default wait timeout of 5 seconds
