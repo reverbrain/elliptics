@@ -789,8 +789,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_addr *addr, int s, int *errp,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev))
 {
-	int err = -ENOMEM;
+	int err = -ENOMEM, pos;
 	struct dnet_net_state *st;
+	struct dnet_io *io = n->io;
 
 	if (ids && id_num) {
 		st = dnet_state_search_by_addr(n, addr);
@@ -857,6 +858,10 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	pthread_mutex_lock(&n->state_lock);
 	list_add_tail(&st->storage_state_entry, &n->storage_state_list);
+	pos = io->net_thread_pos;
+	if (++io->net_thread_pos > io->net_thread_num)
+		io->net_thread_pos = 0;
+	st->epoll_fd = io->net[pos].epoll_fd;
 	pthread_mutex_unlock(&n->state_lock);
 
 	dnet_schedule_command(st);

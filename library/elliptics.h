@@ -113,6 +113,7 @@ struct dnet_net_state
 	unsigned int		rcv_flags;
 	void			*rcv_data;
 
+	int			epoll_fd;
 	size_t			send_offset;
 	pthread_mutex_t		send_lock;
 	struct list_head	send_list;
@@ -159,9 +160,10 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id 
 
 void dnet_state_destroy(struct dnet_net_state *st);
 
+void dnet_schedule_command(struct dnet_net_state *st);
+
 int dnet_schedule_send(struct dnet_net_state *st);
 int dnet_schedule_recv(struct dnet_net_state *st);
-void dnet_schedule_command(struct dnet_net_state *st);
 
 void dnet_unschedule_send(struct dnet_net_state *st);
 void dnet_unschedule_recv(struct dnet_net_state *st);
@@ -285,19 +287,24 @@ struct dnet_transform
 int dnet_crypto_init(struct dnet_node *n, void *ns, int nsize);
 void dnet_crypto_cleanup(struct dnet_node *n);
 
+struct dnet_net_io {
+	int			epoll_fd;
+	pthread_t		tid;
+	struct dnet_node	*n;
+};
+
 struct dnet_io {
 	int			need_exit;
 
-	int			epoll_fd;
-
-	pthread_t		tid;
+	int			net_thread_num, net_thread_pos;
+	struct dnet_net_io	*net;
 
 	pthread_mutex_t		recv_lock;
 	struct list_head	recv_list;
 	pthread_cond_t		recv_wait;
 
 	int			thread_num;
-	pthread_t		threads[0];
+	pthread_t		*threads;
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
