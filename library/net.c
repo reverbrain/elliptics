@@ -859,7 +859,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	pthread_mutex_lock(&n->state_lock);
 	list_add_tail(&st->storage_state_entry, &n->storage_state_list);
 	pos = io->net_thread_pos;
-	if (++io->net_thread_pos > io->net_thread_num)
+	if (++io->net_thread_pos >= io->net_thread_num)
 		io->net_thread_pos = 0;
 	st->epoll_fd = io->net[pos].epoll_fd;
 	pthread_mutex_unlock(&n->state_lock);
