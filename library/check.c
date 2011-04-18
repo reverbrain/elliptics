@@ -205,7 +205,7 @@ err_out_continue:
 	return error;
 }
 
-static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id)
+static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id, int full_process)
 {
 	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)];
 	struct dnet_cmd *cmd;
@@ -220,7 +220,8 @@ static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id)
 	cmd->size = sizeof(struct dnet_attr);
 
 	attr->cmd = DNET_CMD_DEL;
-	attr->flags = DNET_ATTR_DIRECT_TRANSACTION;
+	if (!full_process)
+		attr->flags = DNET_ATTR_DELETE_HISTORY | DNET_ATTR_DIRECT_TRANSACTION;
 
 	dnet_convert_attr(attr);
 
@@ -273,7 +274,7 @@ static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc
 
 err_out_remove:
 	if (err == -ENOENT)
-		dnet_merge_remove_local(n, &mc->id);
+		dnet_merge_remove_local(n, &mc->id, 0);
 err_out_exit:
 	return err;
 }
@@ -314,6 +315,90 @@ static int dnet_merge_upload_latest(struct dnet_node *n, struct dnet_meta_contai
 
 	return 0;
 }
+
+int dnet_merge_history(struct dnet_node *n, struct dnet_history_map *map1, struct dnet_history_map *map2, struct dnet_history_map **res)
+{
+	struct dnet_history_entry ent1, ent2;
+	uint32_t flags1, flags2;
+	long i, j, removed = 1;
+	size_t result_size;
+	struct dnet_history_map *result = NULL;
+
+	result_size = map1->size + map2->size;
+	result = (struct dnet_history_map *)malloc(sizeof(struct dnet_history_map));
+	result->ent = (struct dnet_history_entry *)malloc(result_size);
+
+	memset(result->ent, 0, result_size);
+	result->num = 0;
+	result->fd = -1;
+
+	for (i=0, j=0; i<map1->num || j<map2->num; ++i) {
+		if (i < map1->num) {
+			ent1 = map1->ent[i];
+
+			dnet_convert_history_entry(&ent1);
+			dnet_log(n, DNET_LOG_DSA, "%s: 1 ts: %llu.%llu\n", dnet_dump_id_str(ent1.id),
+					(unsigned long long)ent1.tsec, (unsigned long long)ent1.tnsec);
+		}
+
+		for (; j<map2->num; ++j) {
+			ent2 = map2->ent[j];
+
+			dnet_convert_history_entry(&ent2);
+			dnet_log_raw(n, DNET_LOG_DSA, "%s: 2 ts: %llu.%llu\n", dnet_dump_id_str(ent2.id),
+					(unsigned long long)ent2.tsec, (unsigned long long)ent2.tnsec);
+
+			if (i < map1->num) {
+				if (ent1.tsec < ent2.tsec)
+					break;
+				if ((ent1.tsec == ent2.tsec) && (ent1.tnsec < ent2.tnsec))
+					break;
+				if ((ent1.tnsec == ent2.tnsec) && !dnet_id_cmp_str(ent1.id, ent2.id)) {
+					j++;
+					break;
+				}
+			}
+
+			memcpy(&result->ent[result->num], &map2->ent[j], sizeof(struct dnet_history_entry));
+			result->num++;
+		}
+
+		if (i < map1->num) {
+			memcpy(&result->ent[result->num], &map1->ent[i], sizeof(struct dnet_history_entry));
+			result->num++;
+		}
+	}
+
+	dnet_log(n, DNET_LOG_DSA, "result->num=%ld\n", result->num);
+	/* Collapse records with flag REMOVED */
+	for (i = result->num-1; i > 0; --i) {
+		flags1 = dnet_bswap32(result->ent[i].flags);
+		if (!(flags1 & DNET_IO_FLAGS_REMOVED))
+			removed = 0;
+
+		for (j = i-1; j >= 0 && (flags1 & DNET_IO_FLAGS_REMOVED); --j) {
+			dnet_log(n, DNET_LOG_DSA, "i=%ld, j=%ld\n", i, j);
+			flags2 = dnet_bswap32(result->ent[j].flags);
+			if (!memcmp(result->ent[i].id, result->ent[j].id, DNET_ID_SIZE)
+				&& result->ent[i].size == result->ent[i].size
+				&& result->ent[i].offset == result->ent[i].offset
+				&& (flags1 & ~DNET_IO_FLAGS_REMOVED) == (flags2 & ~DNET_IO_FLAGS_REMOVED)) {
+				dnet_log(n, DNET_LOG_DSA, "Removing entry, i=%ld, result->num=%ld\n", i, result->num);
+				memmove(&result->ent[j], &result->ent[j+1], (result->num - j - 1) * sizeof(struct dnet_history_entry));
+				--i;
+				result->num--;
+				dnet_log(n, DNET_LOG_DSA, "After remove, i=%ld, result->num=%ld\n", i, result->num);
+			}
+		}
+	}
+
+	result->size = result->num * sizeof(struct dnet_history_entry);
+
+	result->ent = realloc(result->ent, result->size);
+	*res = result;
+
+	return removed;
+} 
 
 static int dnet_merge_common(struct dnet_node *n, char *remote_history, struct dnet_meta_container *mc)
 {
@@ -478,7 +563,7 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_co
 	if (err <= 0) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: meta is present, but there is no history, removing object.\n",
 				dnet_dump_id(&mc->id));
-		dnet_merge_remove_local(n, &mc->id);
+		dnet_merge_remove_local(n, &mc->id, 0);
 		return err;
 	}
 	kcfree(data);
@@ -486,10 +571,125 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_co
 	if (!check_copies) {
 		err = dnet_check_merge(n, mc);
 		if (!err)
-			dnet_merge_remove_local(n, &mc->id);
+			dnet_merge_remove_local(n, &mc->id, 1);
 	} else {
 		err = dnet_check_copies(n, mc, check_copies);
 	}
+
+	return err;
+}
+
+int dnet_check_delete_data(struct dnet_node *n, struct dnet_id *id, struct dnet_history_map *map, struct dnet_meta_container *mc)
+{
+	int err = 0, i, group_num;
+	int *groups = NULL;
+	struct dnet_id raw;
+	int group_id = mc->id.group_id;
+	char file[256];
+	char eid[2*DNET_ID_SIZE+1];
+	struct dnet_history_map remote_map, *result_map;
+
+	err = dnet_check_find_groups(n, mc, &groups);
+	dnet_log(n, DNET_LOG_DSA, "%s: %d groups found\n", dnet_dump_id(id), err);
+	if (err <= 0)
+		return -ENOENT;
+
+	group_num = err;
+
+	for (i=0; i<group_num; ++i) {
+		dnet_log(n, DNET_LOG_DSA, "%s: processing group %d [%d] \n", dnet_dump_id(id), groups[i], i);
+		if (groups[i] == group_id)
+			continue;
+
+		dnet_setup_id(&raw, groups[i], mc->id.id);
+
+		snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir,
+			dnet_dump_id_len_raw(raw.id, DNET_ID_SIZE, eid), raw.group_id);
+
+		err = 0;
+
+		err = dnet_read_file(n, file, NULL, 0, &raw, 0, 0, 1);
+		dnet_log(n, DNET_LOG_DSA, "%s: reading file history, err=%d \n", dnet_dump_id(id), err);
+		if (err)
+			goto err_out_continue;
+
+		snprintf(file, sizeof(file), "%s/%s.%d%s", dnet_check_tmp_dir,
+			dnet_dump_id_len_raw(raw.id, DNET_ID_SIZE, eid), raw.group_id, DNET_HISTORY_SUFFIX);
+
+		err = dnet_map_history(n, file, &remote_map);
+		dnet_log(n, DNET_LOG_DSA, "%s: mapping history, err=%d \n", dnet_dump_id(id), err);
+		if (err)
+			goto err_out_continue;
+
+		dnet_merge_history(n, map, &remote_map, &result_map);
+		if (dnet_check_object_removed(result_map)) {
+			err = 1;
+		}
+		free(result_map);
+
+		if (!err && !dnet_check_object_removed(&remote_map)) {
+			err = dnet_remove_object(n, NULL, &raw, NULL, NULL, 0);
+		}
+
+		dnet_log(n, DNET_LOG_DSA, "%s: is file removed? err=%d \n", dnet_dump_id(id), err);
+err_out_unmap:
+		dnet_unmap_history(n, &remote_map);
+
+err_out_continue:
+		dnet_merge_unlink_local_files(n, &raw);
+		if (err)
+			break;
+	}
+
+	dnet_log(n, DNET_LOG_DSA, "%s: after loop err=%d \n", dnet_dump_id(id), err);
+	if (err)
+		goto err_out_exit;
+
+	for (i=0; i<group_num; ++i) {
+		dnet_log(n, DNET_LOG_DSA, "%s: processing group %d [%d]\n", dnet_dump_id(id), groups[i], i);
+		if (groups[i] == group_id)
+			continue;
+
+		dnet_setup_id(&raw, groups[i], mc->id.id);
+		err = dnet_remove_object_now(n, &raw, 0);
+		dnet_log(n, DNET_LOG_DSA, "%s: removing file on remote node, err=%d \n", dnet_dump_id(id), err);
+		if (err)
+			goto err_out_exit;
+	}
+
+	err = dnet_merge_remove_local(n, id, 0);
+	dnet_log(n, DNET_LOG_DSA, "%s: removing file on local node, err=%d \n", dnet_dump_id(id), err);
+
+err_out_exit:
+	free(groups);
+	return err;
+}
+
+int dnet_check_delete(struct dnet_node *n, struct dnet_id *id, struct dnet_history_map *map)
+{
+	int err = 0;
+	struct dnet_meta_container *mc;
+	void *data;
+	size_t size;
+
+	err = dnet_db_read_raw(n, 1, id->id, &data);
+	if (err <= 0) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: meta is not present, removing file hash.\n",
+				dnet_dump_id(id));
+		err = dnet_merge_remove_local(n, id, 0);
+		return err;
+	}
+
+	size = err;
+	mc = (struct dnet_meta_container *)malloc(size + sizeof(struct dnet_meta_container));
+	memcpy(&mc->data, data, size);
+	memcpy(&mc->id, id, sizeof(struct dnet_id));
+	mc->size = size;
+
+	err = dnet_check_delete_data(n, id, map, mc);
+
+	free(mc);
+	kcfree(data);
 
 	return err;
 }

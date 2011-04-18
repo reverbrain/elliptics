@@ -176,7 +176,52 @@ static int db_del_direct(struct dnet_node *n, struct dnet_cmd *cmd)
 	return 0;
 }
 
-static int dnet_history_del_entry(struct dnet_node *n, struct dnet_id *id, struct dnet_history_entry *e, unsigned int num)
+int dnet_history_update_flags(struct dnet_node *n, struct dnet_id *id, struct dnet_history_entry *e, unsigned int num, struct timespec *ts, uint32_t flags_set, uint32_t flags_unset)
+{
+	unsigned int i;
+	struct dnet_history_entry tmp;
+
+	for (i=0; i<num; ++i) {
+		if (!memcmp(id->id, e[i].id, DNET_ID_SIZE))
+			break;
+	}
+
+	if (i == num) {
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: requested transaction was not found.\n",
+			dnet_dump_id(id));
+		return -ENOENT;
+	}
+
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: removing transaction from position %u/%u.\n",
+			dnet_dump_id(id), i, num);
+
+	dnet_convert_history_entry(&e[i]);
+	if (!ts) {
+		struct timeval tv;
+
+		gettimeofday(&tv, NULL);
+
+		e[i].tsec = tv.tv_sec;
+		e[i].tnsec = tv.tv_usec * 1000;
+	} else {
+		e[i].tsec = ts->tv_sec;
+		e[i].tnsec = ts->tv_nsec;
+	}
+	e[i].flags |= flags_set;
+	e[i].flags &= ~flags_unset;
+	dnet_convert_history_entry(&e[i]);
+
+	if (i < num - 1)
+	{
+		memcpy(&tmp, &e[i], sizeof(struct dnet_history_entry));
+		memmove(&e[i], &e[i+1], (num - i - 1) * sizeof(struct dnet_history_entry));
+		memcpy(&e[num-1], &tmp, sizeof(struct dnet_history_entry));
+	}
+
+	return 0;
+}
+
+int dnet_history_del_entry(struct dnet_node *n, struct dnet_id *id, struct dnet_history_entry *e, unsigned int num)
 {
 	unsigned int i;
 
@@ -202,13 +247,16 @@ static int dnet_history_del_entry(struct dnet_node *n, struct dnet_id *id, struc
 
 int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
-	int err = -EINVAL, ret;
-	size_t size;
-	void *e = NULL;
-	unsigned int num;
+	int err = -EINVAL, ret = 0;
+	size_t size, size2;
+	struct dnet_history_entry *e = NULL, *e2 = NULL;
+	unsigned int num, num2, i;
+	struct dnet_history_entry he;
 
-	if (attr->flags & DNET_ATTR_DIRECT_TRANSACTION) {
+	dnet_log_raw(n, DNET_LOG_DSA, "flags=%x\n", attr->flags);
+	if (attr->flags & DNET_ATTR_DELETE_HISTORY) {
 		db_del_direct(n, cmd);
+		dnet_log(n, DNET_LOG_DSA, "History and metadata removed\n");
 		return 1;
 	}
 
@@ -220,15 +268,24 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 		goto err_out_exit;
 	}
 
-	e = kcdbget(n->history, (void *)cmd->id.id, DNET_ID_SIZE, &size);
+	e = (struct dnet_history_entry *)kcdbget(n->history, (void *)cmd->id.id, DNET_ID_SIZE, &size);
 	if (!e) {
 		err = -kcdbecode(n->history);
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read history of to be deleted object, err: %d: %s.\n",
 			dnet_dump_id(&cmd->id), err, kcecodename(-err));
 
+		dnet_setup_history_entry(&he, cmd->id.id, 0, 0, NULL, DNET_IO_FLAGS_REMOVED);
+		ret = kcdbset(n->history, (void *)cmd->id.id, DNET_ID_SIZE, (void *)(&he), sizeof(he));
+		if (!ret) {
+			err = -kcdbecode(n->history);
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to store updated history, err: %d: %s.\n",
+				dnet_dump_id(&cmd->id), err, kcecodename(-err));
+		}
+
 		goto err_out_txn_end;
 	}
 
+	dnet_log_raw(n, DNET_LOG_DSA, "History retreived for %s\n", dnet_dump_id(&cmd->id));
 	if (size % sizeof(struct dnet_history_entry)) {
 		err = -EINVAL;
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: corrupted history of to be deleted object.\n",
@@ -237,34 +294,77 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 	}
 
 	num = size / sizeof(struct dnet_history_entry);
-	size -= sizeof(struct dnet_history_entry);
 
-	err = dnet_history_del_entry(n, &cmd->id, e, num);
-	if (err)
+	if (e[num-1].flags & DNET_IO_FLAGS_REMOVED) {
+		err = -ENOENT;
 		goto err_out_free;
+	}
 
-	if (size) {
-		ret = kcdbset(n->history, (void *)cmd->id.id, DNET_ID_SIZE, e, size);
+	for (i = 0; i < num; ++i)
+	{
+		dnet_log_raw(n, DNET_LOG_DSA, "Processing record %d: %s\n", i, dnet_dump_id_str(e[i].id));
+		if (!memcmp(cmd->id.id, e[i].id, DNET_ID_SIZE)) {
+			dnet_log_raw(n, DNET_LOG_DSA, "ID equals for record %d: flags=%x, ret=%d\n", i, e[i].flags, ret);
+			ret = 1;
+			continue;
+		}
+
+		e2 = (struct dnet_history_entry *)kcdbget(n->history, (void *)e[i].id, DNET_ID_SIZE, &size2);
+		if (!e2) {
+			err = -kcdbecode(n->history);
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read history of to be deleted object, err: %d: %s.\n",
+				dnet_dump_id_str(e[i].id), err, kcecodename(-err));
+
+			goto err_out_free;
+		}
+		dnet_log_raw(n, DNET_LOG_DSA, "History retreived for %s\n", dnet_dump_id_str(e[i].id));
+
+		if (size2 % sizeof(struct dnet_history_entry)) {
+			err = -EINVAL;
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: corrupted history of to be deleted object.\n",
+				dnet_dump_id(&cmd->id));
+			goto err_out_free2;
+		}
+
+		num2 = size2 / sizeof(struct dnet_history_entry);
+
+		err = dnet_history_update_flags(n, &cmd->id, e2, num2, NULL, DNET_IO_FLAGS_REMOVED, 0);
+		dnet_log_raw(n, DNET_LOG_DSA, "History flags updated for %s, err=%d\n", dnet_dump_id_str(e[i].id), err);
+		if (err)
+			goto err_out_free2;
+
+		ret = kcdbset(n->history, (void *)e[i].id, DNET_ID_SIZE, (void *)e2, size2);
 		if (!ret) {
 			err = -kcdbecode(n->history);
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to store truncated history, err: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, kcecodename(-err));
 
-			goto err_out_free;
+			goto err_out_free2;
 		}
-	} else {
-		db_del_direct_notran(n, cmd);
-		ret = 1;
+
+		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: truncated history: going to remove object: %d.\n",
+			dnet_dump_id(&cmd->id), ret);
+		kcfree(e2);
 	}
 
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: truncated history: going to remove object: %d.\n",
-		dnet_dump_id(&cmd->id), ret);
+	dnet_setup_history_entry(&he, cmd->id.id, 0, 0, NULL, DNET_IO_FLAGS_REMOVED);
+	ret = kcdbappend(n->history, (void *)cmd->id.id, DNET_ID_SIZE, (void *)(&he), sizeof(he));
+	if (!ret) {
+		err = -kcdbecode(n->history);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to store updated history, err: %d: %s.\n",
+			dnet_dump_id(&cmd->id), err, kcecodename(-err));
+
+		goto err_out_free;
+	}
+
 
 	kcfree(e);
 	kcdbendtran(n->history, 1);
 
 	return ret;
 
+err_out_free2:
+	kcfree(e2);
 err_out_free:
 	kcfree(e);
 err_out_txn_end:
@@ -370,6 +470,121 @@ static long long dnet_meta_get_ts(struct dnet_node *n, struct dnet_meta_containe
 
 	return (long long)c->tsec;
 }
+
+static void *dnet_db_list_iter_del(void *data)
+{
+	struct dnet_db_list_control *ctl = data;
+	struct dnet_node *n = ctl->n;
+	int group_id = n->st->idc->group->group_id;
+	int dry_run = !!(ctl->req->flags & DNET_CHECK_DRY_RUN);
+	struct dnet_id id;
+	struct dnet_history_entry *e;
+	struct dnet_history_map map;
+	unsigned int num, i;
+	void *kbuf, *dbuf;
+	size_t ksize, dsize;
+	unsigned char *key = NULL;
+	struct dnet_net_state *tmp;
+	int send_check_reply = 1;
+	int err = 0, check_copies, is_deleted;
+
+	dnet_set_name("del-iterator");
+
+	while (!ctl->need_exit && !n->need_exit) {
+		err = 0;
+
+		pthread_mutex_lock(&ctl->lock);
+		kbuf = kccurget(ctl->cursor, &ksize, (const char **)&dbuf, &dsize, 1);
+		if (!kbuf) {
+			err = -kcdbecode(n->history);
+			dnet_log(n, DNET_LOG_ERROR, "Cursor returned no data: %d: %s.\n",
+					err, kcecodename(-err));
+		}
+		key = kbuf;
+		pthread_mutex_unlock(&ctl->lock);
+
+		if (!kbuf) {
+			err = -ENOENT;
+			break;
+		}
+
+		e = dbuf;
+		num = dsize / sizeof(struct dnet_history_entry);
+
+		is_deleted = 1;
+
+		/* For hashes generated by filename last record should be with flag REMOVED*/
+		if (!(e[num-1].flags & DNET_IO_FLAGS_REMOVED))
+			is_deleted = 0;
+
+		/* For hashes generated by content all not PARENT records should be REMOVED */
+		for (i = 0; i < num && is_deleted; i++) {
+			if (!(e[i].flags & DNET_IO_FLAGS_PARENT)
+				&& !(e[i].flags & DNET_IO_FLAGS_REMOVED)) {
+				is_deleted = 0;
+				break;
+			}
+		}
+
+		if (!is_deleted)
+			goto err_out_kcfree;
+		/*
+		 * Use group ID field to specify whether we should check number of copies
+		 * or merge transaction with other history log in the storage
+		 *
+		 * tmp == NULL means this key belongs to given node and we should check
+		 * number of its copies in the storage. If state is not NULL then given
+		 * key must be moved to another machine and potentially merged with data
+		 * present there
+		 */
+		dnet_setup_id(&id, group_id, key);
+		tmp = dnet_state_get_first(n, &id);
+		check_copies = (tmp == NULL);
+		dnet_state_put(tmp);
+
+		if (!check_copies)
+			goto err_out_kcfree;
+
+		if (!dry_run) {
+			map.size = dsize;
+			map.num = num;
+			map.fd = -1;
+			map.ent = e;
+			err = dnet_check_delete(n, &id, &map);
+		}
+
+		dnet_log_raw(n, DNET_LOG_NOTICE, "complete key: %s, dry: %d, size: %u, err: %d.\n",
+			dnet_dump_id(&id), dry_run, dsize, err);
+
+		if (err)
+			atomic_inc(&ctl->completed);
+err_out_kcfree:
+		if (err < 0)
+			atomic_inc(&ctl->errors);
+
+		kcfree(kbuf);
+
+		if ((atomic_inc(&ctl->total) % 30000) == 0) {
+			if (send_check_reply) {
+				if (dnet_db_send_check_reply(ctl))
+					send_check_reply = 0;
+			}
+
+			dnet_log(n, DNET_LOG_INFO, "check: total: %d, completed: %d, errors: %d\n",
+					atomic_read(&ctl->total), atomic_read(&ctl->completed), atomic_read(&ctl->errors));
+		}
+
+	}
+
+
+	if (err && (err != -ENOENT) && (err != -7))
+		ctl->need_exit = err;
+
+	dnet_log(n, DNET_LOG_INFO, "Exited iteration loop, err: %d, need_exit: %d.\n", err, ctl->need_exit);
+
+	return NULL;
+}
+
 
 static void *dnet_db_list_iter(void *data)
 {
@@ -595,12 +810,23 @@ again:
 		goto err_out_exit;
 	}
 
-	ctl.cursor = kcdbcursor(n->meta);
-	if (!ctl.cursor) {
-		err = -kcdbecode(n->meta);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, kcecodename(-err));
-		goto err_out_free;
+	if (req.flags & DNET_CHECK_DELETE)
+	{
+		ctl.cursor = kcdbcursor(n->history);
+		if (!ctl.cursor) {
+			err = -kcdbecode(n->history);
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
+					dnet_dump_id(&cmd->id), err, kcecodename(-err));
+			goto err_out_free;
+		}
+	} else {
+		ctl.cursor = kcdbcursor(n->meta);
+		if (!ctl.cursor) {
+			err = -kcdbecode(n->meta);
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
+					dnet_dump_id(&cmd->id), err, kcecodename(-err));
+			goto err_out_free;
+		}
 	}
 	kccurjump(ctl.cursor);
 
@@ -609,7 +835,12 @@ again:
 		goto err_out_close_cursor;
 
 	for (i=0; i<req.thread_num; ++i) {
-		err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);
+		if (req.flags & DNET_CHECK_DELETE)
+		{
+			err = pthread_create(&tid[i], NULL, dnet_db_list_iter_del, &ctl);
+		} else {
+			err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);
+		}
 		if (err) {
 			dnet_log_err(n, "can not create %d'th check thread out of %d", i, req.thread_num);
 			req.thread_num = i;
@@ -625,10 +856,10 @@ again:
 		snprintf(ctl_time, sizeof(ctl_time), "all records");
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Started %u checking threads, recovering %llu transactions, which started before %s: merge: %d, full: %d, dry: %d.\n",
+	dnet_log(n, DNET_LOG_INFO, "Started %u checking threads, recovering %llu transactions, which started before %s: merge: %d, full: %d, dry: %d, del: %d.\n",
 			req.thread_num, (unsigned long long)req.obj_num, ctl_time,
 			!!(req.flags & DNET_CHECK_MERGE), !!(req.flags & DNET_CHECK_FULL),
-			!!(req.flags & DNET_CHECK_DRY_RUN));
+			!!(req.flags & DNET_CHECK_DRY_RUN), !!(req.flags & DNET_CHECK_DELETE));
 
 err_out_join:
 	for (i=0; i<req.thread_num; ++i)
@@ -641,7 +872,7 @@ err_out_join:
 			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors),
 			(long long)kcdbcount(n->meta), (long long)kcdbcount(n->history));
 
-	if(r->flags & DNET_CHECK_MERGE) {
+	if(req.flags & DNET_CHECK_MERGE) {
 		dnet_counter_set(n, DNET_CNTR_NODE_LAST_MERGE, 0, atomic_read(&ctl.completed));
 		dnet_counter_set(n, DNET_CNTR_NODE_LAST_MERGE, 1, atomic_read(&ctl.errors));
 	}
@@ -655,7 +886,8 @@ err_out_free:
 	free(tid);
 err_out_exit:
 
-	if (!err && (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total))) {
+	if (!err && (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total))
+		&& !(req.flags & DNET_CHECK_DELETE)) {
 		if (restarts > 20) {
 			dnet_log(n, DNET_LOG_ERROR, "Check did not complete and restarted %d times already, "
 					"do not restarting again, probably database should be checked manually.\n",

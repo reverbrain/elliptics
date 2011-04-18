@@ -697,6 +697,24 @@ struct dnet_history_map
 	int				fd;
 };
 
+/* Checks if this object is marked as REMOVED in history DB */
+static inline int dnet_check_object_removed(struct dnet_history_map *map)
+{
+	long i;
+	uint32_t flags = dnet_bswap32(map->ent[map->num-1].flags);
+
+	if (flags & DNET_IO_FLAGS_REMOVED && !(flags & DNET_IO_FLAGS_PARENT))
+		return 0;
+
+	for (i = 0; i < map->num; ++i) {
+		flags = dnet_bswap32(map->ent[i].flags);
+		if (!(flags & DNET_IO_FLAGS_REMOVED)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map);
 void dnet_unmap_history(struct dnet_node *n, struct dnet_history_map *map);
 
@@ -803,6 +821,8 @@ static inline void dnet_convert_meta_check_status(struct dnet_meta_check_status 
 #define DNET_CHECK_FULL				(1<<1)
 /* Do not actually perform any action, just update counters */
 #define DNET_CHECK_DRY_RUN			(1<<2)
+/* Physically delete files marked as REMOVED in history */
+#define DNET_CHECK_DELETE			(1<<3)
 
 struct dnet_check_request {
 	uint32_t		flags;

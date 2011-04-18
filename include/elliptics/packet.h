@@ -178,6 +178,9 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* Do not work with history/transaction machinery, write data as is into object */
 #define DNET_ATTR_DIRECT_TRANSACTION		(1<<0)
 
+/* Completely remove object history and metadata */
+#define DNET_ATTR_DELETE_HISTORY		(1<<1)
+
 /* Lookup attribute flags */
 
 /* Stat local object and return state address only if object is readable */

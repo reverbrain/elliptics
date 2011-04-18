@@ -666,10 +666,8 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			case DNET_CMD_DEL:
 				if (a->cmd == DNET_CMD_DEL) {
 					err = dnet_db_del(n, cmd, a);
-					if (err < 0)
-						break;
-
-					if (err == 0)
+					dnet_log(n, DNET_LOG_DSA, "after dnet_db_del err=%d\n", err);
+					if (err <= 0)
 						break;
 
 					/* if positive value returned we will delete data object */
@@ -703,6 +701,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				}
 			default:
 				err = n->command_handler(st, n->command_private, cmd, a, data);
+				if (err == -ENOENT && !(a->flags & DNET_ATTR_DIRECT_TRANSACTION)
+					&& a->cmd == DNET_CMD_DEL)
+					err = 0;
 				if (err || (a->cmd != DNET_CMD_WRITE))
 					break;
 
@@ -1313,6 +1314,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 	} else {
 		dnet_transform(n, ctl->data, ctl->io.size, &raw);
 		memcpy(ctl->io.id, raw.id, DNET_ID_SIZE);
+		ctl->io.flags |= DNET_IO_FLAGS_ID_CONTENT;
 	}
 	memcpy(&ctl->id, id, sizeof(struct dnet_id));
 
@@ -1986,6 +1988,10 @@ static int dnet_trans_map(struct dnet_node *n, char *main_file, uint64_t offset,
 	err = dnet_map_history(n, file, &map);
 	if (err)
 		goto err_out_exit;
+	if (map.ent[map.num-1].flags & DNET_IO_FLAGS_REMOVED) {
+		err = -ENOENT;
+		goto err_out_unmap;
+	}
 
 	r.root = RB_ROOT;
 	r.callback = callback;
@@ -2658,7 +2664,7 @@ err_out_exit:
 }
 
 static int dnet_remove_object_raw(struct dnet_node *n,
-	unsigned char *parent, struct dnet_id *id,
+	unsigned char *parent __unused, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
@@ -2667,6 +2673,7 @@ static int dnet_remove_object_raw(struct dnet_node *n,
 	int direct)
 {
 	struct dnet_trans_control ctl;
+#if 0
 	char data[sizeof(struct dnet_io_attr) + sizeof(struct dnet_history_entry)];
 	struct dnet_io_attr *io = (struct dnet_io_attr *)data;
 	struct dnet_history_entry *e = (struct dnet_history_entry *)(io + 1);
@@ -2694,6 +2701,18 @@ static int dnet_remove_object_raw(struct dnet_node *n,
 		ctl.cflags |= DNET_FLAGS_DIRECT;
 	ctl.data = data;
 	ctl.size = sizeof(data);
+#endif
+
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+
+	memcpy(&ctl.id, id, sizeof(struct dnet_id));
+
+	ctl.cmd = DNET_CMD_DEL;
+	ctl.complete = complete;
+	ctl.priv = priv;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	if (direct)
+		ctl.cflags |= DNET_FLAGS_DIRECT;
 
 	return dnet_trans_alloc_send(n, &ctl);
 }
@@ -2782,7 +2801,7 @@ int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, int direct)
 	ctl.complete = dnet_remove_complete;
 	ctl.priv = w;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
-	ctl.aflags = DNET_ATTR_DIRECT_TRANSACTION;
+	ctl.aflags = DNET_ATTR_DIRECT_TRANSACTION | DNET_ATTR_DELETE_HISTORY;
 
 	if (direct)
 		ctl.cflags |= DNET_FLAGS_DIRECT;

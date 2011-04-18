@@ -539,11 +539,14 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 int dnet_db_sync(struct dnet_node *n);
 void dnet_db_cleanup(struct dnet_node *n);
 int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg);
+int dnet_history_update_flags(struct dnet_node *n, struct dnet_id *id, struct dnet_history_entry *e, unsigned int num, struct timespec *ts, uint32_t flags_set, uint32_t flags_unset);
+int dnet_history_del_entry(struct dnet_node *n, struct dnet_id *id, struct dnet_history_entry *e, unsigned int num);
 
 #define DNET_CHECK_COPIES_HISTORY		1
 #define DNET_CHECK_COPIES_FULL			2
 
 int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies);
+int dnet_check_delete(struct dnet_node *n, struct dnet_id *id, struct dnet_history_map *map);
 int dnet_check_list(struct dnet_net_state *st, struct dnet_check_request *r);
 
 int dnet_request_cmd_single(struct dnet_node *n,
