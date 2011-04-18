@@ -2887,6 +2887,7 @@ struct dnet_read_data_completion {
 	struct dnet_wait		*w;
 	void				*data;
 	uint64_t			size;
+	atomic_t			refcnt;
 };
 
 static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
@@ -2899,6 +2900,8 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	if (is_trans_destroyed(st, cmd, attr)) {
 		dnet_wakeup(w, w->cond++);
 		dnet_wait_put(w);
+		if (atomic_dec_and_test(&c->refcnt))
+			free(c);
 		return err;
 	}
 
@@ -2942,7 +2945,7 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 	struct dnet_io_control ctl;
 	ssize_t err;
 	struct dnet_wait *w;
-	struct dnet_read_data_completion c;
+	struct dnet_read_data_completion *c;
 	void *data = NULL;
 
 	w = dnet_wait_alloc(0);
@@ -2951,15 +2954,23 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 		goto err_out_exit;
 	}
 
-	c.w = w;
-	c.size = 0;
-	c.data = NULL;
+	c = malloc(sizeof(*c));
+	if (!c) {
+		err = -ENOMEM;
+		goto err_out_put;
+	}
+
+	c->w = w;
+	c->size = 0;
+	c->data = NULL;
+	/* one for completion callback, another for this function */
+	atomic_init(&c->refcnt, 2);
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
 	ctl.fd = -1;
 
-	ctl.priv = &c;
+	ctl.priv = c;
 	ctl.complete = dnet_read_data_complete;
 
 	ctl.cmd = DNET_CMD_READ;
@@ -2977,7 +2988,7 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 	dnet_wait_get(w);
 	err = dnet_read_object(n, &ctl);
 	if (err)
-		goto err_out_put;
+		goto err_out_put_complete;
 
 	err = dnet_wait_event(w, w->cond, &n->wait_ts);
 	if (err || w->status) {
@@ -2985,11 +2996,14 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 			err = w->status;
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for IO read completion, err: %zd, status: %d.\n",
 				dnet_dump_id(&ctl.id), err, w->status);
-		goto err_out_put;
+		goto err_out_put_complete;
 	}
-	*size = c.size;
-	data = c.data;
+	*size = c->size;
+	data = c->data;
 
+err_out_put_complete:
+	if (atomic_dec_and_test(&c->refcnt))
+		free(c);
 err_out_put:
 	dnet_wait_put(w);
 err_out_exit:
