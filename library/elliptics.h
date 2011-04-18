@@ -101,6 +101,8 @@ struct dnet_net_state
 
 	int			need_exit;
 
+	int			stall;
+
 	int			__join_state;
 
 	struct dnet_addr	addr;
