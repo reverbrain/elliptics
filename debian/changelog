@@ -1,3 +1,24 @@
+elliptics (2.9.6.139) unstable; urgency=low
+
+  * Fixed data forwarding
+  * Fixed lookup try/catch and added node constructor with dnet_config lref
+  * Added usec timestamp into common C++ logger
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Apr 2011 01:57:07 +0400
+
+elliptics (2.9.6.138) unstable; urgency=low
+
+  * Wait proper timeout when waiting for reverse lookup headers
+  * Default wait timeout equals to 20 seconds now
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Apr 2011 00:35:53 +0400
+
+elliptics (2.9.6.137) unstable; urgency=low
+
+  * Added per-transction timeouts (use n->wait_ts actually)
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Apr 2011 21:35:58 +0400
+
 elliptics (2.9.6.136) unstable; urgency=low
 
   * Use generated ID with proper group_id field when performing data lookup

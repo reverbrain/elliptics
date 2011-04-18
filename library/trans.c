@@ -18,6 +18,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -108,6 +109,7 @@ void dnet_trans_remove(struct dnet_trans *t)
 
 	pthread_mutex_lock(&st->trans_lock);
 	dnet_trans_remove_nolock(&st->trans_root, t);
+	list_del_init(&t->trans_list_entry);
 	pthread_mutex_unlock(&st->trans_lock);
 }
 
@@ -125,6 +127,7 @@ struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
 	memset(t, 0, sizeof(struct dnet_trans) + size);
 
 	atomic_init(&t->refcnt, 1);
+	INIT_LIST_HEAD(&t->trans_list_entry);
 
 	return t;
 
@@ -137,15 +140,24 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	if (!t)
 		return;
 
-	if (t->st && t->st->n)
-		dnet_log(t->st->n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, st: %s.\n",
+	if (t->st && t->st->n) {
+		struct dnet_node *n = t->st->n;
+
+		dnet_log(n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, st: %s.\n",
 			dnet_dump_id(&t->cmd.id),
 			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
 			!!(t->trans & ~DNET_TRANS_REPLY),
 			dnet_state_dump_addr(t->st));
 
-	if (t->trans_entry.rb_parent_color && t->st && t->st->n)
-		dnet_trans_remove(t);
+		pthread_mutex_lock(&t->st->trans_lock);
+		list_del_init(&t->trans_list_entry);
+		pthread_mutex_unlock(&t->st->trans_lock);
+
+		if (t->trans_entry.rb_parent_color)
+			dnet_trans_remove(t);
+	} else if (!list_empty(&t->trans_list_entry)) {
+		assert(0);
+	}
 
 	if (t->complete) {
 		t->cmd.flags |= DNET_FLAGS_DESTROY;
@@ -237,10 +249,53 @@ err_out_exit:
 	return err;
 }
 
-static void *dnet_check_tree_from_thread(void *data)
+static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *head)
+{
+	struct dnet_trans *t, *tmp;
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+
+	pthread_mutex_lock(&st->trans_lock);
+	list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
+		if (t->time.tv_sec >= tv.tv_sec)
+			break;
+
+		dnet_trans_remove_nolock(&st->trans_root, t);
+		list_move_tail(&t->trans_list_entry, head);
+
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT\n", dnet_state_dump_addr(st), (unsigned long long)t->trans);
+	}
+	pthread_mutex_unlock(&st->trans_lock);
+}
+
+static void dnet_check_all_states(struct dnet_node *n)
+{
+	struct dnet_trans *t, *tmp;
+	struct dnet_net_state *st;
+	struct dnet_group *g;
+	LIST_HEAD(head);
+
+	pthread_mutex_lock(&n->state_lock);
+	list_for_each_entry(g, &n->group_list, group_entry) {
+		list_for_each_entry(st, &g->state_list, state_entry) {
+			dnet_trans_check_stall(st, &head);
+		}
+	}
+	pthread_mutex_unlock(&n->state_lock);
+
+	list_for_each_entry_safe(t, tmp, &head, trans_list_entry) {
+		t->cmd.status = -ETIMEDOUT;
+		t->cmd.size = 0;
+
+		dnet_trans_put(t);
+	}
+}
+
+static void *dnet_check_process(void *data)
 {
 	struct dnet_node *n = data;
-	long i, timeout;
+	long i, timeout, wait_for_stall;
 	struct timeval tv1, tv2;
 
 	dnet_set_name("check");
@@ -253,16 +308,20 @@ static void *dnet_check_tree_from_thread(void *data)
 
 	while (!n->need_exit) {
 		gettimeofday(&tv1, NULL);
-
 		dnet_try_reconnect(n);
-
 		gettimeofday(&tv2, NULL);
 
 		timeout = n->check_timeout - (tv2.tv_sec - tv1.tv_sec);
+		wait_for_stall = n->wait_ts.tv_sec;
 
 		for (i=0; i<timeout; ++i) {
 			if (n->need_exit)
 				break;
+
+			if (--wait_for_stall == 0) {
+				wait_for_stall = n->wait_ts.tv_sec;
+				dnet_check_all_states(n);
+			}
 			sleep(1);
 		}
 
@@ -276,7 +335,7 @@ int dnet_check_thread_start(struct dnet_node *n)
 {
 	int err;
 
-	err = pthread_create(&n->check_tid, NULL, dnet_check_tree_from_thread, n);
+	err = pthread_create(&n->check_tid, NULL, dnet_check_process, n);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to start tree checking thread: err: %d.\n",
 				err);

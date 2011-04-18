@@ -55,7 +55,18 @@ elliptics_log_file::~elliptics_log_file(void)
 void elliptics_log_file::log(uint32_t mask, const char *msg)
 {
 	if (mask & ll.log_mask) {
-		(*stream) << msg;
+		char str[64];
+		struct tm tm;
+		struct timeval tv;
+		char usecs[32];
+
+		gettimeofday(&tv, NULL);
+		localtime_r((time_t *)&tv.tv_sec, &tm);
+		strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+		snprintf(usecs, sizeof(usecs), ".%06lu : ", tv.tv_usec);
+
+		(*stream) << str << usecs << msg;
 		stream->flush();
 	}
 }

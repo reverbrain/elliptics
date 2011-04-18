@@ -124,6 +124,7 @@ class elliptics_node {
 	public:
 		/* we shold use elliptics_log and proper copy constructor here, but not this time */
 		elliptics_node(elliptics_log &l);
+		elliptics_node(elliptics_log &l, struct dnet_config &cfg);
 		virtual ~elliptics_node();
 
 		void			transform(const std::string &data, struct dnet_id &id);

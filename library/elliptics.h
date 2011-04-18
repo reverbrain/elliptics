@@ -119,6 +119,8 @@ struct dnet_net_state
 
 	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
+	struct list_head	trans_list;
+
 
 	int			la;
 	unsigned long long	free;
@@ -192,17 +194,17 @@ struct dnet_wait
 
 #define dnet_wait_event(w, condition, wts)						\
 ({											\
-	int err = 0;									\
-	struct timespec ts;								\
- 	struct timeval tv;								\
-	gettimeofday(&tv, NULL);							\
-	ts.tv_nsec = tv.tv_usec * 1000 + (wts)->tv_nsec;				\
-	ts.tv_sec = tv.tv_sec + (wts)->tv_sec;						\
+	int __err = 0;									\
+	struct timespec __ts;								\
+ 	struct timeval __tv;								\
+	gettimeofday(&__tv, NULL);							\
+	__ts.tv_nsec = __tv.tv_usec * 1000 + (wts)->tv_nsec;				\
+	__ts.tv_sec = __tv.tv_sec + (wts)->tv_sec;						\
 	pthread_mutex_lock(&(w)->wait_lock);						\
-	while (!(condition) && !err)							\
-		err = pthread_cond_timedwait(&(w)->wait, &(w)->wait_lock, &ts);		\
+	while (!(condition) && !__err)							\
+		__err = pthread_cond_timedwait(&(w)->wait, &(w)->wait_lock, &__ts);		\
 	pthread_mutex_unlock(&(w)->wait_lock);						\
-	-err;										\
+	-__err;										\
 })
 
 #define dnet_wakeup(w, task)								\
@@ -447,6 +449,10 @@ enum dnet_join_state {
 struct dnet_trans
 {
 	struct rb_node			trans_entry;
+	struct list_head		trans_list_entry;
+
+	struct timeval			time;
+
 	struct dnet_net_state		*st;
 	uint64_t			trans, rcv_trans;
 	struct dnet_cmd			cmd;

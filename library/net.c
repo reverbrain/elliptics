@@ -239,6 +239,7 @@ static void dnet_state_clean(struct dnet_net_state *st)
 			t = rb_entry(rb_node, struct dnet_trans, trans_entry);
 			dnet_trans_get(t);
 			dnet_trans_remove_nolock(&st->trans_root, t);
+			list_del_init(&t->trans_list_entry);
 		}
 		pthread_mutex_unlock(&st->trans_lock);
 
@@ -474,6 +475,14 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 	return dnet_io_req_queue(st, &r);
 }
 
+static void dnet_trans_timestamp(struct dnet_net_state *st, struct dnet_trans *t)
+{
+	gettimeofday(&t->time, NULL);
+	t->time.tv_sec += st->n->wait_ts.tv_sec;
+
+	list_move_tail(&t->trans_list_entry, &st->trans_list);
+}
+
 int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 {
 	struct dnet_net_state *st = req->st;
@@ -483,6 +492,8 @@ int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req)
 
 	pthread_mutex_lock(&st->trans_lock);
 	err = dnet_trans_insert_nolock(&st->trans_root, t);
+	if (!err)
+		dnet_trans_timestamp(st, t);
 	pthread_mutex_unlock(&st->trans_lock);
 	if (err)
 		goto err_out_put;
@@ -504,11 +515,19 @@ err_out_put:
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 {
 	int err;
+	int wait = st->n->wait_ts.tv_sec;
 
 	while (size) {
 		err = dnet_wait(st, POLLIN, 1000);
-		if (err < 0)
+		if (err < 0) {
+			if (err == -EAGAIN) {
+				if (--wait > 0)
+					continue;
+
+				err = -ETIMEDOUT;
+			}
 			return err;
+		}
 
 		err = recv(st->read_s, data, size, 0);
 		if (err < 0) {
@@ -524,6 +543,7 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 
 		data += err;
 		size -= err;
+		wait = st->n->wait_ts.tv_sec;
 	}
 
 	return 0;
@@ -536,11 +556,6 @@ static struct dnet_trans *dnet_trans_new(struct dnet_net_state *st)
 	t = dnet_trans_alloc(st->n, 0);
 	if (!t)
 		goto err_out_exit;
-
-	memcpy(&t->cmd, &st->rcv_cmd, sizeof(struct dnet_cmd));
-	dnet_convert_cmd(&t->cmd);
-
-	t->trans = t->rcv_trans = st->rcv_cmd.trans;
 
 	return t;
 
@@ -611,30 +626,30 @@ static int dnet_trans_complete_forward(struct dnet_net_state *state __unused,
 	return err;
 }
 
-static int dnet_trans_forward(struct dnet_trans *t, struct dnet_net_state *orig, struct dnet_net_state *forward)
+static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
+		struct dnet_net_state *orig, struct dnet_net_state *forward)
 {
-	struct dnet_io_req req;
+	struct dnet_cmd *cmd = r->header;
 
-	t->rcv_trans = t->cmd.trans;
-	t->cmd.trans = t->trans = atomic_inc(&orig->n->trans);
+	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
+
+	t->rcv_trans = cmd->trans;
+	cmd->trans = t->cmd.trans = t->trans = atomic_inc(&orig->n->trans);
+
+	dnet_convert_cmd(cmd);
 
 	t->complete = dnet_trans_complete_forward;
 	t->priv = t;
 
 	t->st = dnet_state_get(orig);
 
-	memset(&req, 0, sizeof(req));
-	req.st = forward;
-	req.header = &t->cmd;
-	req.hsize = sizeof(struct dnet_cmd);
-	req.data = orig->rcv_data;
-	req.dsize = orig->rcv_cmd.size;
+	r->st = forward;
 
 	dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding to %s, trans: %llu -> %llu\n",
 			dnet_dump_id(&t->cmd.id), dnet_state_dump_addr(forward),
 			(unsigned long long)t->rcv_trans, (unsigned long long)t->trans);
 
-	return dnet_trans_send(t, &req);
+	return dnet_trans_send(t, r);
 }
 
 int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
@@ -650,8 +665,12 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 
 		pthread_mutex_lock(&st->trans_lock);
 		t = dnet_trans_search(&st->trans_root, tid);
-		if (t && !(cmd->flags & DNET_FLAGS_MORE)) {
-			dnet_trans_remove_nolock(&st->trans_root, t);
+		if (t) {
+			if (!(cmd->flags & DNET_FLAGS_MORE)) {
+				dnet_trans_remove_nolock(&st->trans_root, t);
+				list_del_init(&t->trans_list_entry);
+			} else
+				dnet_trans_timestamp(st, t);
 		}
 		pthread_mutex_unlock(&st->trans_lock);
 
@@ -664,6 +683,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 
 		if (t->complete)
 			t->complete(t->st, cmd, r->data, t->priv);
+
 		dnet_trans_put(t);
 		if (!(cmd->flags & DNET_FLAGS_MORE))
 			dnet_trans_put(t);
@@ -685,7 +705,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 		goto err_out_put_forward;
 	}
 
-	err = dnet_trans_forward(t, st, forward_state);
+	err = dnet_trans_forward(t, r, st, forward_state);
 	if (err)
 		goto err_out_destroy;
 
@@ -804,6 +824,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	INIT_LIST_HEAD(&st->state_entry);
 
 	st->trans_root = RB_ROOT;
+	INIT_LIST_HEAD(&st->trans_list);
 
 	err = pthread_mutex_init(&st->trans_lock, NULL);
 	if (err) {

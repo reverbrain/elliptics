@@ -1643,8 +1643,8 @@ int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 		if (err || (w->cond != 0 && w->cond != wait_init)) {
 			if (!err)
 				err = w->cond;
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for '%s' read completion, err: %d.\n",
-					dnet_dump_id(&ctl.id), file, err);
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for '%s' read completion, err: %d, cond: %d.\n",
+					dnet_dump_id(&ctl.id), file, err, w->cond);
 			goto err_out_exit;
 		}
 	}
