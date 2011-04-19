@@ -786,7 +786,7 @@ void dnet_set_sockopt(int s)
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
-		struct dnet_addr *addr, int s, int *errp,
+		struct dnet_addr *addr, int s, int *errp, int join,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev))
 {
 	int err = -ENOMEM, pos;
@@ -846,6 +846,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
 
+	dnet_schedule_command(st);
+
 	if (ids && id_num) {
 		err = dnet_idc_create(st, group_id, ids, id_num);
 		if (err)
@@ -862,15 +864,24 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	if (++io->net_thread_pos >= io->net_thread_num)
 		io->net_thread_pos = 0;
 	st->epoll_fd = io->net[pos].epoll_fd;
+
+	if (join == DNET_JOIN) {
+		err = dnet_state_join_nolock(st);
+		if (err)
+			goto err_out_unlock;
+	}
+
+	st->__join_state = join;
 	pthread_mutex_unlock(&n->state_lock);
 
-	dnet_schedule_command(st);
 	err = dnet_schedule_recv(st);
 	if (err)
 		goto err_out_put;
 
 	return st;
 
+err_out_unlock:
+	pthread_mutex_unlock(&n->state_lock);
 err_out_put:
 	/* since we already added state into route table
 	 * it is possible that some other thread grabbed a reference to it

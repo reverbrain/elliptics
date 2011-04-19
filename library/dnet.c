@@ -246,8 +246,18 @@ err_out_exit:
 static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr __unused, void *data __unused)
 {
-	cmd->id.group_id = st->n->st->idc->group->group_id;
-	return dnet_send_idc(st->n->st, st, &cmd->id, cmd->trans, DNET_CMD_REVERSE_LOOKUP, 1, 0, 0);
+	struct dnet_node *n = st->n;
+	struct dnet_net_state *base;
+	int err = -ENOENT;
+
+	cmd->id.group_id = n->id.group_id;
+	base = dnet_node_state(n);
+	if (base) {
+		err = dnet_send_idc(base, st, &cmd->id, cmd->trans, DNET_CMD_REVERSE_LOOKUP, 1, 0, 0);
+		dnet_state_put(base);
+	}
+
+	return err;
 }
 
 static int dnet_check_connection(struct dnet_node *n, struct dnet_addr_attr *a)
@@ -765,25 +775,40 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	return err;
 }
 
-static int dnet_state_join(struct dnet_net_state *st)
+int dnet_state_join_nolock(struct dnet_net_state *st)
 {
 	int err;
 	struct dnet_node *n = st->n;
+	struct dnet_net_state *base;
 	struct dnet_id id;
 
-	dnet_setup_id(&id, n->st->idc->group->group_id, st->idc->ids[0].raw.id);
+	base = dnet_state_search_nolock(n, &n->id);
+	if (!base) {
+		err = -ENOENT;
+		goto err_out_exit;
+	}
 
-	err = dnet_send_idc(n->st, st, &id, 0, DNET_CMD_JOIN, 0, 1, 0);
+	/* we do not care about group_id actually, since use direct send */
+	dnet_setup_id(&id, n->id.group_id, st->idc->ids[0].raw.id);
+
+	err = dnet_send_idc(base, st, &id, 0, DNET_CMD_JOIN, 0, 1, 0);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to send join request to %s.\n",
 			dnet_dump_id(&id), dnet_server_convert_dnet_addr(&st->addr));
-		goto out_exit;
+		goto err_out_put;
 	}
 
 	st->__join_state = DNET_JOIN;
 	dnet_log(n, DNET_LOG_INFO, "%s: successfully joined network, group %d.\n", dnet_dump_id(&id), id.group_id);
 
-out_exit:
+err_out_put:
+	/* this is dangerous, since base can go away and we will destroy it here,
+	 * which in turn will call dnet_state_remove(), which will deadlock with n->state_lock already being held
+	 *
+	 * FIXME
+	 */
+	dnet_state_put(base);
+err_out_exit:
 	return err;
 }
 
@@ -810,26 +835,18 @@ static int dnet_add_received_state(struct dnet_node *n, struct dnet_addr_attr *a
 		goto err_out_exit;
 	}
 
-	nst = dnet_state_create(n, group_id, ids, id_num, &a->addr, s, &err, dnet_state_net_process);
+	join = DNET_WANT_RECONNECT;
+	if (join & DNET_JOIN_NETWORK)
+		join = DNET_JOIN;
+
+	nst = dnet_state_create(n, group_id, ids, id_num, &a->addr, s, &err, join, dnet_state_net_process);
 	if (!nst)
 		goto err_out_close;
-
-	nst->__join_state = DNET_WANT_RECONNECT;
-
-	if (join) {
-		err = dnet_state_join(nst);
-		if (err)
-			goto err_out_put;
-	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "%d: added received state %s.\n",
 			group_id, dnet_state_dump_addr(nst));
 
 	return 0;
-
-err_out_put:
-	dnet_state_put(nst);
-	return err;
 
 err_out_close:
 	dnet_sock_close(s);
@@ -851,7 +868,7 @@ static int dnet_process_addr_attr(struct dnet_net_state *st, struct dnet_attr *a
 	for (i=0; i<num; ++i)
 		dnet_convert_raw_id(&ids[0]);
 
-	err = dnet_add_received_state(n, a, group_id, ids, num, st->__join_state & DNET_JOIN);
+	err = dnet_add_received_state(n, a, group_id, ids, num, st->__join_state);
 	dnet_log(n, DNET_LOG_DSA, "%s: route list: %d entries: %d.\n", dnet_server_convert_dnet_addr(&a->addr), num, err);
 
 	return err;
@@ -968,7 +985,10 @@ int dnet_join(struct dnet_node *n)
 			if (st == n->st)
 				continue;
 
-			err = dnet_state_join(st);
+			if (st->__join_state == DNET_JOIN)
+				continue;
+
+			err = dnet_state_join_nolock(st);
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
@@ -981,7 +1001,7 @@ int dnet_join(struct dnet_node *n)
 	return err;
 }
 
-static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct dnet_addr *addr, int s, int *errp)
+static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct dnet_addr *addr, int s, int *errp, int join)
 {
 	struct dnet_net_state *st, dummy;
 	char buf[sizeof(struct dnet_addr_cmd)];
@@ -1054,7 +1074,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	for (i=0; i<num; ++i)
 		dnet_convert_raw_id(&ids[i]);
 
-	st = dnet_state_create(n, cmd->id.group_id, ids, num, addr, s, &err, dnet_state_net_process);
+	st = dnet_state_create(n, cmd->id.group_id, ids, num, addr, s, &err, join, dnet_state_net_process);
 	if (!st) {
 		/* socket is already closed */
 		s = -1;
@@ -1077,7 +1097,7 @@ err_out_exit:
 
 int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 {
-	int s, err;
+	int s, err, join;
 	struct dnet_addr addr;
 	struct dnet_net_state *st;
 
@@ -1090,8 +1110,12 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_reconnect;
 	}
 
+	join = DNET_WANT_RECONNECT;
+	if (cfg->join & DNET_JOIN_NETWORK)
+		join = DNET_JOIN;
+
 	/* will close socket on error */
-	st = dnet_add_state_socket(n, &addr, s, &err);
+	st = dnet_add_state_socket(n, &addr, s, &err, join);
 	if (!st)
 		goto err_out_reconnect;
 
@@ -2281,7 +2305,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 	struct dnet_addr_storage *ast, *tmp;
 	struct dnet_net_state *st;
 	LIST_HEAD(list);
-	int s, err;
+	int s, err, join;
 
 	if (list_empty(&n->reconnect_list))
 		return 0;
@@ -2298,25 +2322,18 @@ int dnet_try_reconnect(struct dnet_node *n)
 		if (s < 0)
 			goto out_add;
 
-		st = dnet_add_state_socket(n, &ast->addr, s, &err);
-		if (!st) {
-			dnet_sock_close(s);
+		join = DNET_WANT_RECONNECT;
+		if (ast->__join_state == DNET_JOIN)
+			join = DNET_JOIN;
 
-			if (err == -EEXIST || err == -EINVAL)
-				goto out_remove;
+		st = dnet_add_state_socket(n, &ast->addr, s, &err, join);
+		if (st)
+			goto out_remove;
 
-			goto out_add;
-		}
+		dnet_sock_close(s);
 
-		st->__join_state = DNET_WANT_RECONNECT;
-
-		if (ast->__join_state == DNET_JOIN) {
-			err = dnet_state_join(st);
-			if (err) {
-				dnet_state_put(st);
-				goto out_add;
-			}
-		}
+		if (err == -EEXIST || err == -EINVAL)
+			goto out_remove;
 
 out_add:
 		dnet_add_reconnect_state(n, &ast->addr, ast->__join_state);

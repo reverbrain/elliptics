@@ -375,7 +375,7 @@ static void *dnet_db_list_iter(void *data)
 {
 	struct dnet_db_list_control *ctl = data;
 	struct dnet_node *n = ctl->n;
-	int group_id = n->st->idc->group->group_id;
+	int group_id = n->id.group_id;
 	struct dnet_meta_container *mc;
 	struct dnet_net_state *tmp;
 	int err = 0, check_copies;

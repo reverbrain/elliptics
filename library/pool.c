@@ -188,7 +188,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 
 	dnet_set_sockopt(cs);
 
-	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, dnet_state_net_process);
+	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, 0, dnet_state_net_process);
 	if (!st) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]\n",
 				dnet_server_convert_dnet_addr(&addr), strerror(err), err);
@@ -253,14 +253,6 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 err_out_exit:
 	return err;
 }
-
-
-/*
- * State can be destroyed in network processing loop,
- * but we can access it in thread pool (namely this happens with n->st)
- * FIXME
- *
- */
 
 static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 {
