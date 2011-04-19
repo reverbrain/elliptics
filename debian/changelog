@@ -1,3 +1,10 @@
+elliptics (2.9.6.144) unstable; urgency=low
+
+  * Refactor state logic: join and plain n->st dereference changes
+  * Fixed potential invalid pointer dereferences during metadata write
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 19 Apr 2011 23:40:34 +0400
+
 elliptics (2.9.6.143) unstable; urgency=low
 
   * Added refcnt into dnet_read_data_wait() shared completion structure
