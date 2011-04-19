@@ -68,6 +68,35 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t siz
 	return found;
 }
 
+void dnet_update_check_metadata_raw(struct dnet_node *n, void *data, int size)
+{
+	void *ptr = data;
+	struct dnet_meta *m;
+
+	while (size) {
+		m = ptr;
+
+		ptr += sizeof(struct dnet_meta) + m->size;
+		size -= sizeof(struct dnet_meta) + m->size;
+
+		if (m->type == DNET_META_CHECK_STATUS) {
+			struct timeval tv;
+			struct dnet_meta_check_status *c = (struct dnet_meta_check_status *)m->data;
+
+			gettimeofday(&tv, NULL);
+
+			c->tsec = tv.tv_sec;
+			c->tnsec = tv.tv_usec * 1000;
+			c->status = 0;
+
+			dnet_convert_meta_check_status(c);
+			dnet_log(n, DNET_LOG_DSA, "Metadata updated\n");
+		}
+
+		dnet_convert_meta(m);
+	}
+}
+
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert)
 {
 	if (convert) {

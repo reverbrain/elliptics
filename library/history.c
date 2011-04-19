@@ -607,6 +607,10 @@ static void *dnet_db_list_iter(void *data)
 	void *buf;
 	int check_copies_from_request = (ctl->req->flags & DNET_CHECK_FULL) ? DNET_CHECK_COPIES_FULL : DNET_CHECK_COPIES_HISTORY;
 	int dry_run = !!(ctl->req->flags & DNET_CHECK_DRY_RUN);
+	struct dnet_bulk_array bulk_array;
+	struct dnet_net_state *st;
+	struct dnet_group *g;
+	int bulk_array_tmp_num, i;
 
 	dnet_set_name("iterator");
 
@@ -625,6 +629,54 @@ static void *dnet_db_list_iter(void *data)
 	}
 
 	mc = buf;
+
+	dnet_log(n, DNET_LOG_DSA, "BULK: only_merge=%d\n", only_merge);
+	if (!only_merge) {
+		bulk_array_tmp_num = DNET_BULK_STATES_ALLOC_STEP;
+		bulk_array.num = 0;
+		bulk_array.states = NULL;
+		dnet_log(n, DNET_LOG_DSA, "BULK: allocating space for arrays, num=%d\n", bulk_array_tmp_num);
+		bulk_array.states = (struct dnet_bulk_state *)malloc(sizeof(struct dnet_bulk_state) * bulk_array_tmp_num);
+		if (!bulk_array.states) {
+			err = -ENOMEM;
+			dnet_log(n, DNET_LOG_ERROR, "BULK: Failed to allocate buffer for bulk states array.\n");
+			goto out_exit;
+		}
+
+		pthread_mutex_lock(&n->state_lock);
+		list_for_each_entry(g, &n->group_list, group_entry) {
+			if (g->group_id == n->st->idc->group->group_id)
+				continue;
+			list_for_each_entry(st, &g->state_list, state_entry) {
+				if (st == n->st)
+					continue;
+				if (bulk_array.num == bulk_array_tmp_num) {
+					dnet_log(n, DNET_LOG_DSA, "BULK: reallocating space for arrays, num=%d\n", bulk_array_tmp_num);
+					bulk_array_tmp_num += DNET_BULK_STATES_ALLOC_STEP;
+					bulk_array.states = (struct dnet_bulk_state *)realloc(bulk_array.states, sizeof(struct dnet_bulk_state) * bulk_array_tmp_num);
+					if (!bulk_array.states) {
+						err = -ENOMEM;
+						dnet_log(n, DNET_LOG_ERROR, "BULK: Failed to reallocate buffer for bulk states array.\n");
+						goto out_exit;
+					}
+				}
+				memcpy(&bulk_array.states[bulk_array.num].addr, &st->addr, sizeof(struct dnet_addr));
+				pthread_mutex_init(&bulk_array.states[bulk_array.num].state_lock, NULL);
+				bulk_array.states[bulk_array.num].num = 0;
+				bulk_array.states[bulk_array.num].ids = NULL;
+				bulk_array.states[bulk_array.num].ids = (struct dnet_bulk_id *)malloc(sizeof(struct dnet_bulk_id) * DNET_BULK_IDS_SIZE);
+				if (!bulk_array.states[bulk_array.num].ids) {
+					err = -ENOMEM;
+					dnet_log(n, DNET_LOG_ERROR, "BULK: Failed to reallocate buffer for bulk states array.\n");
+					goto out_exit;
+				}
+				dnet_log(n, DNET_LOG_DSA, "BULK: added state %s (%s)\n", dnet_dump_id_str(st->idc->ids[0].raw.id), dnet_server_convert_dnet_addr(&st->addr));
+				bulk_array.num++;
+			}
+		}
+		pthread_mutex_unlock(&n->state_lock);
+		qsort(bulk_array.states, bulk_array.num, sizeof(struct dnet_bulk_state), dnet_compare_bulk_state);
+	}
 
 	while (!ctl->need_exit && !n->need_exit) {
 		err = 0;
@@ -718,7 +770,7 @@ static void *dnet_db_list_iter(void *data)
 				check_copies = check_copies_from_request;
 
 			if (!dry_run) {
-				err = dnet_check(n, mc, check_copies);
+				err = dnet_check(n, mc, &bulk_array, check_copies);
 				if (err >= 0 && check_copies)
 					err = dnet_db_check_update(n, ctl, mc);
 			}
@@ -752,9 +804,29 @@ err_out_kcfree:
 
 	free(buf);
 
+	if (!only_merge) {
+		dnet_log(n, DNET_LOG_DSA, "BULK: requesting all nodes with remaining data\n");
+		for (i = 0; i < bulk_array.num; ++i) {
+			if (bulk_array.states[i].num == 0)
+				continue;
+			dnet_log(n, DNET_LOG_DSA, "BULK: sending request to %s, i=%d, num=%d\n", dnet_server_convert_dnet_addr(&bulk_array.states[i].addr), i, bulk_array.states[i].num);
+			err = dnet_request_bulk_check(n, &bulk_array.states[i]);
+			if (err)
+				dnet_log(n, DNET_LOG_ERROR, "BULK: dnet_request_bulk_check returned %d\n", err);
+		}
+	}
+
 out_exit:
 	if (err && (err != -ENOENT) && (err != -7))
 		ctl->need_exit = err;
+
+	if (bulk_array.states) {
+		for (i = 0; i < bulk_array.num; ++i) {
+			if (bulk_array.states[i].ids)
+				free(bulk_array.states[i].ids);
+		}
+		free(bulk_array.states);
+	}
 
 	dnet_log(n, DNET_LOG_INFO, "Exited iteration loop, err: %d, need_exit: %d.\n", err, ctl->need_exit);
 

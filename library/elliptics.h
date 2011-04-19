@@ -551,9 +551,42 @@ int dnet_history_del_entry(struct dnet_node *n, struct dnet_id *id, struct dnet_
 #define DNET_CHECK_COPIES_HISTORY		1
 #define DNET_CHECK_COPIES_FULL			2
 
-int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies);
+#define DNET_BULK_IDS_SIZE			1000
+#define DNET_BULK_STATES_ALLOC_STEP		10
+
+struct dnet_bulk_state
+{
+	struct dnet_addr addr;
+	pthread_mutex_t	state_lock;
+	int num;
+	struct dnet_bulk_id *ids;
+};
+
+struct dnet_bulk_array
+{
+	int num;
+	struct dnet_bulk_state *states;
+};
+
+static inline int dnet_compare_bulk_state(const void *k1, const void *k2)
+{
+        const struct dnet_bulk_state *st1 = k1;
+        const struct dnet_bulk_state *st2 = k2;
+
+	if (st1->addr.addr_len > st2->addr.addr_len)
+		return 1;
+	if (st1->addr.addr_len < st2->addr.addr_len)
+		return -1;
+	return memcmp(st1->addr.addr, st2->addr.addr, st1->addr.addr_len);
+}
+
+int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_copies);
 int dnet_check_delete(struct dnet_node *n, struct dnet_id *id, struct dnet_history_map *map);
 int dnet_check_list(struct dnet_net_state *st, struct dnet_check_request *r);
+int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
+int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state);
+
+void dnet_update_check_metadata_raw(struct dnet_node *n, void *data, int size);
 
 int dnet_request_cmd_single(struct dnet_node *n,
 	struct dnet_net_state *st, struct dnet_id *id,

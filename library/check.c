@@ -112,7 +112,244 @@ static void dnet_merge_unlink_local_files(struct dnet_node *n __unused, struct d
 	unlink(file);
 }
 
-static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_container *mc, int *groups, int group_num, int check_copies)
+int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
+{
+	struct dnet_attr ca;
+	struct dnet_bulk_id *ids = (struct dnet_bulk_id *)data;
+	struct dnet_history_entry *hist;
+	int i;
+	int err = 0;
+	int num;
+
+	ca.cmd = DNET_CMD_LIST;
+	ca.size = 0;
+	ca.flags = 0;
+
+	if (!(attr->size % sizeof(struct dnet_bulk_id))) {
+		num = attr->size / sizeof(struct dnet_bulk_id);
+
+		dnet_log(orig->n, DNET_LOG_DSA, "BULK: received %d entries\n", num);
+
+		for (i = 0; i < num; ++i) {
+			dnet_log(orig->n, DNET_LOG_DSA, "BULK: processing ID %s\n", dnet_dump_id_str(ids[i].id));
+			hist = NULL;
+			err = dnet_db_read_raw(orig->n, 0, ids[i].id, (void **)&hist);
+			if (hist)
+				kcfree(hist);
+			/* FIXME: History comparation should be here */
+			if (err > 0) {
+				dnet_log(orig->n, DNET_LOG_DSA, "BULK: file exists in history DB, removing it from output\n");
+				memmove(&ids[i], &ids[i+1], (num-i-1) * sizeof(struct dnet_bulk_id));
+				--i;
+				--num;
+			}
+		}
+	} else {
+		dnet_log(orig->n, DNET_LOG_ERROR, "BULK: received corrupted data, size = %llu, sizeof(dnet_bulk_id) = %d\n", attr->size, sizeof(struct dnet_bulk_id));
+		err = -1;
+		goto err_out_exit;
+	}
+
+	return dnet_send_reply(orig, cmd, &ca, data, sizeof(struct dnet_bulk_id) * num, 0);
+
+err_out_exit:
+	return err;
+}
+
+static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cmd *cmd,
+	struct dnet_attr *attr, void *priv)
+{
+	struct dnet_wait *w = priv;
+	struct dnet_id id;
+	void *data;
+	int err = -EINVAL;
+
+	if (is_trans_destroyed(state, cmd, attr)) {
+		dnet_wakeup(w, w->cond++);
+		dnet_wait_put(w);
+		return 0;
+	}
+
+	if (!attr)
+		return cmd->status;
+
+	if (!(attr->size % sizeof(struct dnet_bulk_id))) {
+		struct dnet_bulk_id *ids = (struct dnet_bulk_id *)(attr + 1);
+		int num = attr->size / sizeof(struct dnet_bulk_id);
+		int i;
+
+		dnet_log(state->n, DNET_LOG_DSA, "BULK: received %d entries\n", num);
+
+		for (i = 0; i < num; ++i) {
+			dnet_log(state->n, DNET_LOG_DSA, "BULK: sending ID %s\n", dnet_dump_id_str(ids[i].id));
+			err = -ENOENT;
+
+			dnet_setup_id(&id, state->idc->group->group_id, ids[i].id);
+			err = state->n->send(state, state->n->command_private, &id);
+
+			if (err)
+				goto err_out_continue;
+
+			err = dnet_db_read_raw(state->n, 1, ids[i].id, &data);
+			if (err <= 0) {
+				if (err == 0)
+					err = -ENOENT;
+				goto err_out_continue;
+			}
+
+			dnet_update_check_metadata_raw(state->n, data, err);
+			err = dnet_write_data_wait(state->n, NULL, 0, &id, data, -1, 0, 0, err, NULL,
+				DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+
+			kcfree(data);
+
+			err = dnet_db_read_raw(state->n, 0, ids[i].id, &data);
+			if (err <= 0) {
+				if (err == 0)
+					err = -ENOENT;
+				goto err_out_continue;
+			}
+
+			err = dnet_write_data_wait(state->n, NULL, 0, &id, data, -1, 0, 0, err, NULL,
+				DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+
+			kcfree(data);
+
+err_out_continue:
+			if (err) {
+				dnet_log(state->n, DNET_LOG_ERROR, "Failed to send ID %s to %s, err=%d\n", dnet_dump_id_str(ids[i].id),
+						dnet_state_dump_addr(state), err);
+			}
+		}
+	} else {
+		dnet_log(state->n, DNET_LOG_ERROR, "BULK: received corrupted data, size = %llu, sizeof(dnet_bulk_id) = %d\n", attr->size, sizeof(struct dnet_bulk_id));
+	}
+
+	w->status = cmd->status;
+	return err;
+}
+
+int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state)
+{
+	struct dnet_trans_control ctl;
+	struct dnet_net_state *st;
+	struct dnet_wait *w;
+	int err;
+
+	w = dnet_wait_alloc(0);
+	if (!w) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+
+	ctl.cmd = DNET_CMD_LIST;
+	ctl.complete = dnet_bulk_check_complete;
+	ctl.priv = w;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.aflags = DNET_ATTR_BULK_CHECK;
+
+	ctl.data = state->ids;
+	ctl.size = sizeof(struct dnet_bulk_id) * state->num;
+
+	st = dnet_state_search_by_addr(n, &state->addr);
+	if (!st) {
+		err = -ENOENT;
+		goto err_out_put;
+	}
+	dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
+	dnet_log(n, DNET_LOG_DSA, "BULK: sending %u bytes of data to %s (%s)\n", ctl.size, dnet_dump_id(&ctl.id), dnet_server_convert_dnet_addr(&state->addr));
+	err = dnet_trans_alloc_send_state(st, &ctl);
+	dnet_state_put(st);
+
+	err = dnet_wait_event(w, w->cond != 0, &n->wait_ts);
+	if (err)
+		goto err_out_put;
+
+	if (w->status) {
+		err = w->status;
+		goto err_out_put;
+	}
+
+	dnet_wait_put(w);
+	return 0;
+
+err_out_put:
+	dnet_wait_put(w);
+
+err_out_exit:
+	dnet_log(n, DNET_LOG_ERROR, "Bulk check exited with status %d\n", err);
+	return err;
+}
+
+static int dnet_bulk_add_id(struct dnet_node *n, struct dnet_bulk_array *bulk_array, struct dnet_id *id)
+{
+	int err = 0;
+	struct dnet_bulk_state tmp;
+	struct dnet_bulk_state *state = NULL;
+	struct dnet_net_state *st = dnet_state_get_first(n, id);
+	struct dnet_bulk_id *bulk_id;
+	struct dnet_history_entry *hist;
+	int size, num;
+
+	dnet_log(n, DNET_LOG_DSA, "BULK: adding ID %s to array\n", dnet_dump_id(id));
+	if (!st)
+		return -1;
+
+	memcpy(&tmp.addr, &st->addr, sizeof(struct dnet_addr));
+	dnet_state_put(st);
+	state = bsearch(&tmp, bulk_array->states, bulk_array->num, sizeof(struct dnet_bulk_state), dnet_compare_bulk_state);
+	if (!state)
+		return -1;
+
+	dnet_log(n, DNET_LOG_DSA, "BULK: addr = %s state->num = %d\n", dnet_server_convert_dnet_addr(&state->addr), state->num);
+	pthread_mutex_lock(&state->state_lock);
+	if (state->num >= DNET_BULK_IDS_SIZE || state->num < 0)
+		goto err_out_unlock;
+
+	size = dnet_db_read_raw(n, 0, id->id, (void **)&hist);
+	if (size <= 0) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: error while retreiving history, err=%d\n", dnet_dump_id(id), err);
+		goto err_out_unlock;
+	}
+
+	dnet_log(n, DNET_LOG_DSA, "BULK: history retrieved for ID %s\n", dnet_dump_id(id));
+	if (size % sizeof(struct dnet_history_entry)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: corrupted history for id %s\n", dnet_dump_id(id), dnet_dump_id_len(id, DNET_ID_SIZE));
+		goto err_out_kcfree;
+	}
+
+	num = size / sizeof(struct dnet_history_entry);
+	bulk_id = &state->ids[state->num];
+	memset(bulk_id, 0, sizeof(struct dnet_bulk_id));
+	memcpy(&bulk_id->last_history, &hist[num-1], sizeof(struct dnet_history_entry));
+	dnet_convert_history_entry(&bulk_id->last_history);
+	memcpy(&bulk_id->id, &id->id, DNET_ID_SIZE);
+	state->num++;
+
+	kcfree(hist);
+
+	dnet_log(n, DNET_LOG_DSA, "BULK: addr = %s state->num = %d\n", dnet_server_convert_dnet_addr(&state->addr), state->num);
+	if (state->num == DNET_BULK_IDS_SIZE) {
+		err = dnet_request_bulk_check(n, state);
+		state->num = 0;
+		if (err)
+			goto err_out_unlock;
+	}
+
+	pthread_mutex_unlock(&state->state_lock);
+
+	return 0;
+
+err_out_kcfree:
+	kcfree(hist);
+err_out_unlock:
+	pthread_mutex_unlock(&state->state_lock);
+	return -2;
+}
+
+static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_container *mc, int *groups, int group_num, struct dnet_bulk_array *bulk_array, int check_copies)
 {
 	struct dnet_id raw;
 	int group_id = mc->id.group_id;
@@ -128,6 +365,11 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 
 		dnet_setup_id(&raw, groups[i], mc->id.id);
 
+		err = dnet_bulk_add_id(n, bulk_array, &raw);
+		if (err)
+			dnet_log(n, DNET_LOG_ERROR, "BULK: after adding ID %s err = %d\n", dnet_dump_id(&raw), err);
+
+#if 0
 		snprintf(file, sizeof(file), "%s/%s.%d", dnet_check_tmp_dir,
 			dnet_dump_id_len_raw(raw.id, DNET_ID_SIZE, eid), raw.group_id);
 
@@ -194,12 +436,13 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 
 		kcfree(data);
 err_out_continue:
+#endif
 		if (!err)
 			error = 0;
 		else if (!error)
 			error = err;
 
-		dnet_merge_unlink_local_files(n, &raw);
+		//dnet_merge_unlink_local_files(n, &raw);
 	}
 
 	return error;
@@ -228,7 +471,7 @@ static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id, int 
 	return dnet_process_cmd_raw(n->st, cmd, attr);
 }
 
-static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies)
+static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_copies)
 {
 	int err;
 	int *groups = NULL;
@@ -237,7 +480,7 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 	if (err <= 0)
 		return -ENOENT;
 
-	err = dnet_check_number_of_copies(n, mc, groups, err, check_copies);
+	err = dnet_check_number_of_copies(n, mc, groups, err, bulk_array, check_copies);
 	free(groups);
 
 	return err;
@@ -571,7 +814,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies)
+int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_copies)
 {
 	int err = 0;
 	void *data;
@@ -590,7 +833,7 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_co
 		if (!err)
 			dnet_merge_remove_local(n, &mc->id, 1);
 	} else {
-		err = dnet_check_copies(n, mc, check_copies);
+		err = dnet_check_copies(n, mc, bulk_array, check_copies);
 	}
 
 	return err;
@@ -640,7 +883,7 @@ int dnet_check_delete_data(struct dnet_node *n, struct dnet_id *id, struct dnet_
 
 		err = dnet_merge_history(n, map, &remote_map, &result_map);
 		if (err < 0)
-			goto err_out_continue;
+			goto err_out_unmap;
 
 		if (dnet_check_object_removed(result_map)) {
 			err = 1;

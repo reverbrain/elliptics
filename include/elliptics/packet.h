@@ -192,6 +192,9 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* What type of counters to fetch */
 #define DNET_ATTR_CNTR_GLOBAL			(1<<0)
 
+/* Bulk request for checking files */
+#define DNET_ATTR_BULK_CHECK			(1<<0)
+
 struct dnet_attr
 {
 	uint64_t		size;
@@ -462,6 +465,12 @@ static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)
 	else
 		st[cmd].err++;
 }
+
+struct dnet_bulk_id
+{
+	uint8_t	id[DNET_ID_SIZE];
+	struct dnet_history_entry last_history;
+} __attribute__ ((packed));
 
 #ifdef __cplusplus
 }
