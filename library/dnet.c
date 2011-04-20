@@ -1681,10 +1681,12 @@ int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 	if (wait) {
 		err = dnet_wait_event(w, w->cond != wait_init, &n->wait_ts);
 		if (err || (w->cond != 0 && w->cond != wait_init)) {
+			char id_str[2*DNET_ID_SIZE + 1];
 			if (!err)
 				err = w->cond;
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for '%s' read completion, err: %d, cond: %d.\n",
-					dnet_dump_id(&ctl.id), file, err, w->cond);
+			dnet_log(n, DNET_LOG_ERROR, "%d:%s '%s' : failed to read data: %d\n",
+				ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str),
+				file, err);
 			goto err_out_exit;
 		}
 	}
@@ -3030,10 +3032,11 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 
 	err = dnet_wait_event(w, w->cond, &n->wait_ts);
 	if (err || w->status) {
+		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
 			err = w->status;
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for IO read completion, err: %zd, status: %d.\n",
-				dnet_dump_id(&ctl.id), err, w->status);
+		dnet_log(n, DNET_LOG_ERROR, "%d:%s : failed to read data: %d\n",
+			ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str), err);
 		goto err_out_put_complete;
 	}
 	*size = c->size;
