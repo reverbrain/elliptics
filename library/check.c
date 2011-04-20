@@ -117,6 +117,7 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 	struct dnet_attr ca;
 	struct dnet_bulk_id *ids = (struct dnet_bulk_id *)data;
 	struct dnet_history_entry *hist;
+	struct dnet_history_entry e;
 	int i;
 	int err = 0;
 	int num;
@@ -134,9 +135,16 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 			dnet_log(orig->n, DNET_LOG_DSA, "BULK: processing ID %s\n", dnet_dump_id_str(ids[i].id));
 			hist = NULL;
 			err = dnet_db_read_raw(orig->n, 0, ids[i].id, (void **)&hist);
-			if (hist)
+			if (hist) {
+				dnet_convert_history_entry(hist);
+				memcpy(&e, &ids[i].last_history, sizeof(struct dnet_history_entry));
+				dnet_convert_history_entry(&e);
+				if ((hist->tsec < e.tsec) || ((hist->tsec == e.tsec) && (hist->tnsec < e.tnsec))) {
+					/* Local file is older than remote */
+					err = 0;
+				}
 				kcfree(hist);
-			/* FIXME: History comparation should be here */
+			}
 			if (err > 0) {
 				dnet_log(orig->n, DNET_LOG_DSA, "BULK: file exists in history DB, removing it from output\n");
 				memmove(&ids[i], &ids[i+1], (num-i-1) * sizeof(struct dnet_bulk_id));
