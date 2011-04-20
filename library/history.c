@@ -860,6 +860,10 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		r->thread_num = 50;
 
 	memcpy(&req, r, sizeof(req));
+	if(!(req.flags & DNET_CHECK_MERGE)) {
+		dnet_counter_set(n, DNET_CNTR_NODE_CHECK_COPY, 0, 0);
+		dnet_counter_set(n, DNET_CNTR_NODE_CHECK_COPY, 1, 0);
+	}
 again:
 	/* Racy, but we do not care much */
 	n->check_in_progress = 1;

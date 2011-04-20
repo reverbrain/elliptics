@@ -202,6 +202,8 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 				DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 
 			kcfree(data);
+			if (err < 0)
+				goto err_out_continue;
 
 			err = dnet_db_read_raw(state->n, 0, ids[i].id, &data);
 			if (err <= 0) {
@@ -214,12 +216,14 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 				DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
 
 			kcfree(data);
-
+			if (err > 0)
+				err = 0;
 err_out_continue:
-			if (err) {
+			if (err < 0) {
 				dnet_log(state->n, DNET_LOG_ERROR, "Failed to send ID %s to %s, err=%d\n", dnet_dump_id_str(ids[i].id),
 						dnet_state_dump_addr(state), err);
 			}
+			dnet_counter_inc(state->n, DNET_CNTR_NODE_CHECK_COPY, err);
 		}
 	} else {
 		dnet_log(state->n, DNET_LOG_ERROR, "BULK: received corrupted data, size = %llu, sizeof(dnet_bulk_id) = %d\n", attr->size, sizeof(struct dnet_bulk_id));
