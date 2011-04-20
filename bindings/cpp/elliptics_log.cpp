@@ -34,7 +34,7 @@ elliptics_log_file::elliptics_log_file(const char *file, const uint32_t mask) :
 	}
 
 	try {
-		stream = new std::ofstream(file);
+		stream = new std::ofstream(file, std::ios_base::app);
 	} catch (...) {
 		delete this->file;
 		throw -errno;
