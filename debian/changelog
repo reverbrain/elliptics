@@ -1,3 +1,10 @@
+elliptics (2.9.6.145) unstable; urgency=low
+
+  * dnet_trans_check_stall() could errorneously mark states as stall.
+  * Extend ::lookup()/::read() exception debug a bit
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 20 Apr 2011 21:13:43 +0400
+
 elliptics (2.9.6.144) unstable; urgency=low
 
   * Refactor state logic: join and plain n->st dereference changes
