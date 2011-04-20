@@ -613,6 +613,7 @@ static void *dnet_db_list_iter(void *data)
 	int bulk_array_tmp_num, i;
 
 	dnet_set_name("iterator");
+	dnet_ioprio_set(dnet_get_id(), 3, 0);
 
 	if (edge) {
 		localtime_r((time_t *)&edge, &tm);

@@ -612,6 +612,8 @@ void dnet_monitor_exit(struct dnet_node *n);
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 
 int dnet_set_name(char *name);
+int dnet_ioprio_set(long pid, int class, int prio);
+int dnet_ioprio_get(long pid);
 
 #ifdef __cplusplus
 }
