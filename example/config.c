@@ -114,6 +114,10 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_cfg_state.io_thread_num = value;
 	else if (!strcmp(key, "net_thread_num"))
 		dnet_cfg_state.net_thread_num = value;
+	else if (!strcmp(key, "bg_ionice_class"))
+		dnet_cfg_state.bg_ionice_class = value;
+	else if (!strcmp(key, "bg_ionice_prio"))
+		dnet_cfg_state.bg_ionice_prio = value;
 	else
 		return -1;
 
@@ -241,6 +245,8 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"monitor_path", dnet_set_monitor_path},
 	{"io_thread_num", dnet_simple_set},
 	{"net_thread_num", dnet_simple_set},
+	{"bg_ionice_class", dnet_simple_set},
+	{"bg_ionice_prio", dnet_simple_set},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;

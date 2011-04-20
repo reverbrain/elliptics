@@ -613,7 +613,8 @@ static void *dnet_db_list_iter(void *data)
 	int bulk_array_tmp_num, i;
 
 	dnet_set_name("iterator");
-	dnet_ioprio_set(dnet_get_id(), 3, 0);
+	dnet_ioprio_set(dnet_get_id(), n->bg_ionice_class, n->bg_ionice_prio);
+	dnet_log(n, DNET_LOG_DSA, "New thread IO priority is %02x\n", dnet_ioprio_get(dnet_get_id()));
 
 	if (edge) {
 		localtime_r((time_t *)&edge, &tm);

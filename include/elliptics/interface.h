@@ -366,6 +366,10 @@ struct dnet_config
 	/* Namespace */
 	char			*ns;
 	int			nsize;
+
+	/* IO nice parameters for background operations */
+	int			bg_ionice_class;
+	int			bg_ionice_prio;
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);

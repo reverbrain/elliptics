@@ -382,6 +382,9 @@ struct dnet_node
 
 	struct dnet_lock	counters_lock;
 	struct dnet_stat_count	counters[__DNET_CNTR_MAX];
+
+	int			bg_ionice_class;
+	int			bg_ionice_prio;
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)
