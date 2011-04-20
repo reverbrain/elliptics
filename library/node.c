@@ -39,8 +39,6 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	atomic_init(&n->trans, 0);
 
-	n->listen_socket = -1;
-
 	err = dnet_log_init(n, cfg->log);
 	if (err)
 		goto err_out_free;
@@ -402,30 +400,54 @@ int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_st
 	return err;
 }
 
-struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id)
+struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, struct dnet_id *id)
 {
 	struct dnet_net_state *found;
 
-	pthread_mutex_lock(&n->state_lock);
 	found = __dnet_state_search(n, id);
 	if (!found) {
 		struct dnet_group *g;
 
 		g = dnet_group_search(n, id->group_id);
 		if (!g)
-			goto err_out_unlock;
+			goto err_out_exit;
 
 		found = dnet_state_get(g->ids[0].idc->st);
 		dnet_group_put(g);
 	}
 
+err_out_exit:
+	return found;
+}
+
+struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id)
+{
+	struct dnet_net_state *found;
+
+	pthread_mutex_lock(&n->state_lock);
+	found = dnet_state_search_nolock(n, id);
 	if (found == n->st) {
 		dnet_state_put(found);
 		found = NULL;
 	}
 
-err_out_unlock:
 	pthread_mutex_unlock(&n->state_lock);
+
+	return found;
+}
+
+/*
+ * We do not blindly return n->st, since it will go away eventually,
+ * since we want multiple states/listen sockets per single node
+ */
+struct dnet_net_state *dnet_node_state(struct dnet_node *n)
+{
+	struct dnet_net_state *found;
+
+	pthread_mutex_lock(&n->state_lock);
+	found = dnet_state_search_nolock(n, &n->id);
+	pthread_mutex_unlock(&n->state_lock);
+
 	return found;
 }
 
@@ -578,8 +600,14 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	if (!cfg->io_thread_num) {
 		cfg->io_thread_num = 1;
-		if (cfg->join && DNET_JOIN_NETWORK)
+		if (cfg->join & DNET_JOIN_NETWORK)
 			cfg->io_thread_num = 20;
+	}
+
+	if (!cfg->net_thread_num) {
+		cfg->net_thread_num = 1;
+		if (cfg->join & DNET_JOIN_NETWORK)
+			cfg->net_thread_num = 8;
 	}
 
 	if (!cfg->stack_size)
@@ -608,12 +636,16 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->storage_stat = cfg->storage_stat;
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;
+	n->id.group_id = cfg->group_id;
 
 	if (!n->log)
 		dnet_log_init(n, cfg->log);
 
-	if (!n->wait_ts.tv_sec)
-		n->wait_ts.tv_sec = 20;
+	if (!n->wait_ts.tv_sec) {
+		n->wait_ts.tv_sec = 5;
+		dnet_log(n, DNET_LOG_NOTICE, "Using default wait timeout (%ld seconds).\n",
+				n->wait_ts.tv_sec);
+	}
 
 	dnet_log(n, DNET_LOG_INFO, "Elliptics starts, version: %s, changed files: %s\n", ELLIPTICS_GIT_VERSION, ELLIPTICS_HAS_CHANGES);
 
@@ -646,6 +678,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		goto err_out_monitor_exit;
 
 	if (cfg->join & DNET_JOIN_NETWORK) {
+		int s;
+
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
 		if (!ids)
 			goto err_out_io_exit;
@@ -660,11 +694,12 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		if (err < 0)
 			goto err_out_db_cleanup;
 
-		n->listen_socket = err;
+		s = err;
+		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
 
-		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, n->listen_socket, &err, dnet_state_accept_process);
+		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, s, &err, DNET_JOIN, dnet_state_accept_process);
 		if (!n->st) {
-			close(n->listen_socket);
+			close(s);
 			goto err_out_db_cleanup;
 		}
 

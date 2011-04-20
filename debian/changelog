@@ -1,3 +1,42 @@
+elliptics (2.9.6.144) unstable; urgency=low
+
+  * Refactor state logic: join and plain n->st dereference changes
+  * Fixed potential invalid pointer dereferences during metadata write
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 19 Apr 2011 23:40:34 +0400
+
+elliptics (2.9.6.143) unstable; urgency=low
+
+  * Added refcnt into dnet_read_data_wait() shared completion structure
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 22:05:12 +0400
+
+elliptics (2.9.6.142) unstable; urgency=low
+
+  * Use default wait timeout of 5 seconds
+  * Dropped tests - they are outdated to hell
+  * Fixed off-by-one in net_thread_pos selection
+  * Added IO/net thread names and start/stop debug for net pool
+  * Use DNET_DEFAULT_STALL_TRANSACTIONS instead of hardcoded 10
+  * Schedule send and recv event when stall counter reaches
+    DNET_DEFAULT_STALL_TRANSACTIONS
+  * Reset state when its stall counter >= DNET_DEFAULT_STALL_TRANSACTIONS
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 21:16:17 +0400
+
+elliptics (2.9.6.141) unstable; urgency=low
+
+  * Added state stall counter
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 19:25:57 +0400
+
+elliptics (2.9.6.140) unstable; urgency=low
+
+  * Added pool of network processing threads
+  * Added strict lookup checks
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 19:11:52 +0400
+
 elliptics (2.9.6.139) unstable; urgency=low
 
   * Fixed data forwarding

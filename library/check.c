@@ -413,8 +413,7 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 		if (!st)
 			goto err_out_continue;
 
-		if (st != n->st)
-			err = n->send(st, n->command_private, &raw);
+		err = n->send(st, n->command_private, &raw);
 		dnet_state_put(st);
 
 		if (err)
@@ -457,6 +456,8 @@ static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id, int 
 	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)];
 	struct dnet_cmd *cmd;
 	struct dnet_attr *attr;
+	struct dnet_net_state *base;
+	int err = -ENOENT;
 
 	memset(buf, 0, sizeof(buf));
 
@@ -472,7 +473,13 @@ static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id, int 
 
 	dnet_convert_attr(attr);
 
-	return dnet_process_cmd_raw(n->st, cmd, attr);
+	base = dnet_node_state(n);
+	if (base) {
+		err = dnet_process_cmd_raw(base, cmd, attr);
+		dnet_state_put(base);
+	}
+
+	return err;
 }
 
 static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_copies)
@@ -492,10 +499,17 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 
 static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc)
 {
+	struct dnet_net_state *base;
 	void *local_history;
 	int err, size;
 
-	err = n->send(n->st, n->command_private, &mc->id);
+	base = dnet_node_state(n);
+	if (!base) {
+		err = -ENOENT;
+		goto err_out_exit;
+	}
+
+	err = n->send(base, n->command_private, &mc->id);
 	if (err < 0)
 		goto err_out_remove;
 
@@ -522,6 +536,7 @@ static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc
 err_out_remove:
 	if (err == -ENOENT)
 		dnet_merge_remove_local(n, &mc->id, 0);
+	dnet_state_put(base);
 err_out_exit:
 	return err;
 }
@@ -548,19 +563,30 @@ static int dnet_merge_upload_latest(struct dnet_node *n, struct dnet_meta_contai
 	struct dnet_history_entry *eremote = &remote->ent[remote->num - 1];
 	struct timespec ltime = {.tv_sec = elocal->tsec, .tv_nsec = elocal->tnsec};
 	struct timespec rtime = {.tv_sec = eremote->tsec, .tv_nsec = eremote->tnsec};
-	int err;
+	struct dnet_net_state *base;
+	int err = 0;
 
-	if (dnet_time_after(&ltime, &rtime)) {
-		err = n->send(n->st, n->command_private, &mc->id);
-		if (err)
-			return err;
+	if (!dnet_time_after(&ltime, &rtime))
+		goto err_out_exit;
 
-		err = dnet_write_metadata(n, mc, 1);
-		if (err <= 0)
-			return err;
+	base = dnet_node_state(n);
+	if (!base) {
+		err = -ENOENT;
+		goto err_out_exit;
 	}
 
-	return 0;
+	err = n->send(base, n->command_private, &mc->id);
+	if (err)
+		goto err_out_put;
+
+	err = dnet_write_metadata(n, mc, 1);
+	if (err <= 0)
+		goto err_out_put;
+
+err_out_put:
+	dnet_state_put(base);
+err_out_exit:
+	return err;
 }
 
 int dnet_merge_history(struct dnet_node *n, struct dnet_history_map *map1, struct dnet_history_map *map2, struct dnet_history_map **res)

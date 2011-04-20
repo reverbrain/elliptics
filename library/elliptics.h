@@ -101,6 +101,8 @@ struct dnet_net_state
 
 	int			need_exit;
 
+	int			stall;
+
 	int			__join_state;
 
 	struct dnet_addr	addr;
@@ -113,6 +115,7 @@ struct dnet_net_state
 	unsigned int		rcv_flags;
 	void			*rcv_data;
 
+	int			epoll_fd;
 	size_t			send_offset;
 	pthread_mutex_t		send_lock;
 	struct list_head	send_list;
@@ -148,7 +151,7 @@ void dnet_idc_destroy(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
-		struct dnet_addr *addr, int s, int *errp,
+		struct dnet_addr *addr, int s, int *errp, int join,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
 void dnet_state_reset(struct dnet_net_state *st);
@@ -156,12 +159,15 @@ void dnet_state_reset(struct dnet_net_state *st);
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
 int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp, struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id);
+struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, struct dnet_id *id);
+struct dnet_net_state *dnet_node_state(struct dnet_node *n);
 
 void dnet_state_destroy(struct dnet_net_state *st);
 
+void dnet_schedule_command(struct dnet_net_state *st);
+
 int dnet_schedule_send(struct dnet_net_state *st);
 int dnet_schedule_recv(struct dnet_net_state *st);
-void dnet_schedule_command(struct dnet_net_state *st);
 
 void dnet_unschedule_send(struct dnet_net_state *st);
 void dnet_unschedule_recv(struct dnet_net_state *st);
@@ -285,19 +291,24 @@ struct dnet_transform
 int dnet_crypto_init(struct dnet_node *n, void *ns, int nsize);
 void dnet_crypto_cleanup(struct dnet_node *n);
 
+struct dnet_net_io {
+	int			epoll_fd;
+	pthread_t		tid;
+	struct dnet_node	*n;
+};
+
 struct dnet_io {
 	int			need_exit;
 
-	int			epoll_fd;
-
-	pthread_t		tid;
+	int			net_thread_num, net_thread_pos;
+	struct dnet_net_io	*net;
 
 	pthread_mutex_t		recv_lock;
 	struct list_head	recv_list;
 	pthread_cond_t		recv_wait;
 
 	int			thread_num;
-	pthread_t		threads[0];
+	pthread_t		*threads;
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
@@ -319,7 +330,7 @@ struct dnet_node
 
 	int			need_exit;
 
-	int			listen_socket;
+	struct dnet_id		id;
 
 	pthread_attr_t		attr;
 
@@ -347,8 +358,6 @@ struct dnet_node
 	struct timespec		wait_ts;
 
 	struct dnet_io		*io;
-
-	int			join_state;
 
 	int			check_in_progress;
 	long			check_timeout;
@@ -445,6 +454,8 @@ enum dnet_join_state {
 	DNET_JOIN = 1,			/* Node joined the network */
 	DNET_WANT_RECONNECT,		/* State must be reconnected, when remote peer failed */
 };
+
+int dnet_state_join_nolock(struct dnet_net_state *st);
 
 struct dnet_trans
 {

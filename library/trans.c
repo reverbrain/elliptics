@@ -267,6 +267,17 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT\n", dnet_state_dump_addr(st), (unsigned long long)t->trans);
 	}
 	pthread_mutex_unlock(&st->trans_lock);
+
+	if (!list_empty(head)) {
+		st->stall++;
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: stall counter: %d\n",
+				dnet_state_dump_addr(st), st->stall);
+		if (st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
+			dnet_schedule_recv(st);
+			dnet_schedule_send(st);
+		}
+	} else
+		st->stall = 0;
 }
 
 static void dnet_check_all_states(struct dnet_node *n)

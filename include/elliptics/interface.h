@@ -338,6 +338,11 @@ struct dnet_config
 	 */
 	int			io_thread_num;
 
+	/*
+	 * Number of threads in network processing pool
+	 */
+	int			net_thread_num;
+
 	/* Database tuning parameters */
 	unsigned long long	db_buckets;
 	unsigned long long	db_map;

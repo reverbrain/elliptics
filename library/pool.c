@@ -157,6 +157,7 @@ again:
 	dnet_schedule_command(st);
 
 	r->st = dnet_state_get(st);
+
 	dnet_schedule_io(n, r);
 	return 0;
 
@@ -187,7 +188,7 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 
 	dnet_set_sockopt(cs);
 
-	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, dnet_state_net_process);
+	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, 0, dnet_state_net_process);
 	if (!st) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]\n",
 				dnet_server_convert_dnet_addr(&addr), strerror(err), err);
@@ -210,7 +211,7 @@ void dnet_unschedule_send(struct dnet_net_state *st)
 	ev.events = EPOLLOUT;
 	ev.data.ptr = st;
 
-	epoll_ctl(st->n->io->epoll_fd, EPOLL_CTL_DEL, st->write_s, &ev);
+	epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->write_s, &ev);
 }
 
 void dnet_unschedule_recv(struct dnet_net_state *st)
@@ -220,7 +221,7 @@ void dnet_unschedule_recv(struct dnet_net_state *st)
 	ev.events = EPOLLIN;
 	ev.data.ptr = st;
 
-	epoll_ctl(st->n->io->epoll_fd, EPOLL_CTL_DEL, st->read_s, &ev);
+	epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->read_s, &ev);
 }
 
 static int dnet_process_send_single(struct dnet_net_state *st)
@@ -253,13 +254,6 @@ err_out_exit:
 	return err;
 }
 
-
-/*
- * State can be destroyed in network processing loop, but we can access it in thread pool (namely this happens with n->st)
- * FIXME
- *
- */
-
 static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 {
 	struct epoll_event ev;
@@ -274,7 +268,7 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 	}
 	ev.data.ptr = st;
 
-	err = epoll_ctl(st->n->io->epoll_fd, EPOLL_CTL_ADD, fd, &ev);
+	err = epoll_ctl(st->epoll_fd, EPOLL_CTL_ADD, fd, &ev);
 	if (err < 0) {
 		err = -errno;
 
@@ -322,14 +316,17 @@ int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev)
 
 static void *dnet_io_process(void *data_)
 {
-	struct dnet_node *n = data_;
-	struct dnet_io *io = n->io;
+	struct dnet_net_io *nio = data_;
+	struct dnet_node *n = nio->n;
 	struct dnet_net_state *st;
 	struct epoll_event ev;
-	int err;
+	int err = 0;
+
+	dnet_set_name("net_pool");
+	dnet_log(n, DNET_LOG_NOTICE, "Starting network processing thread.\n");
 
 	while (!n->need_exit) {
-		err = epoll_wait(io->epoll_fd, &ev, 1, 1000);
+		err = epoll_wait(nio->epoll_fd, &ev, 1, 1000);
 		if (err == 0)
 			continue;
 
@@ -345,22 +342,24 @@ static void *dnet_io_process(void *data_)
 		}
 
 		st = ev.data.ptr;
+		st->epoll_fd = nio->epoll_fd;
 
 		while (1) {
 			err = st->process(st, &ev);
 			if (err == 0)
 				continue;
 
-			if (err == -EAGAIN)
+			if (err == -EAGAIN && st->stall < DNET_DEFAULT_STALL_TRANSACTIONS)
 				break;
 
-			if (err < 0) {
+			if (err < 0 || st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
 				dnet_state_reset(st);
 				break;
 			}
 		}
 	}
 
+	dnet_log(n, DNET_LOG_NOTICE, "Exiting network processing thread: need_exit: %d, err: %d.\n", n->need_exit, err);
 	return &n->need_exit;
 }
 
@@ -384,6 +383,7 @@ static void *dnet_io_process_pool(void *data_)
 	int err = 0;
 
 	dnet_log(n, DNET_LOG_NOTICE, "Starting IO processing thread.\n");
+	dnet_set_name("io_pool");
 
 	while (!n->need_exit) {
 		r = NULL;
@@ -432,7 +432,9 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 	int err, i;
 	struct dnet_io *io;
 
-	io = malloc(sizeof(struct dnet_io) + sizeof(pthread_t) * cfg->io_thread_num);
+	io = malloc(sizeof(struct dnet_io) +
+			sizeof(pthread_t) * cfg->io_thread_num +
+			sizeof(struct dnet_net_io) * cfg->net_thread_num);
 	if (!io) {
 		err = -ENOMEM;
 		goto err_out_exit;
@@ -441,6 +443,11 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 	memset(io, 0, sizeof(struct dnet_io));
 
 	io->thread_num = cfg->io_thread_num;
+	io->net_thread_num = cfg->net_thread_num;
+
+	io->threads = (pthread_t *)(io + 1);
+	io->net = (struct dnet_net_io *)(io->threads + cfg->io_thread_num);
+
 	INIT_LIST_HEAD(&io->recv_list);
 	n->io = io;
 
@@ -458,18 +465,27 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_recv_cond;
 	}
 
-	io->epoll_fd = epoll_create(100000);
-	if (io->epoll_fd < 0) {
-		err = -errno;
-		dnet_log_err(n, "Failed to create epoll fd");
-		goto err_out_recv_lock;
-	}
+	for (i=0; i<io->net_thread_num; ++i) {
+		struct dnet_net_io *nio = &io->net[i];
 
-	err = pthread_create(&io->tid, NULL, dnet_io_process, n);
-	if (err) {
-		err = -err;
-		dnet_log(n, DNET_LOG_ERROR, "Failed to create network processing thread: %d\n", err);
-		goto err_out_epoll_fd;
+		nio->n = n;
+
+		nio->epoll_fd = epoll_create(100000);
+		if (nio->epoll_fd < 0) {
+			err = -errno;
+			dnet_log_err(n, "Failed to create epoll fd");
+			io->net_thread_num = i;
+			goto err_out_net_destroy;
+		}
+
+		err = pthread_create(&nio->tid, NULL, dnet_io_process, nio);
+		if (err) {
+			close(nio->epoll_fd);
+			err = -err;
+			dnet_log(n, DNET_LOG_ERROR, "Failed to create network processing thread: %d\n", err);
+			io->net_thread_num = i;
+			goto err_out_net_destroy;
+		}
 	}
 
 	for (i=0; i<io->thread_num; ++i) {
@@ -488,10 +504,12 @@ err_out_io_threads:
 	for (i=0; i<io->thread_num; ++i)
 		pthread_join(io->threads[i], NULL);
 
-	pthread_join(io->tid, NULL);
-err_out_epoll_fd:
-	close(io->epoll_fd);
-err_out_recv_lock:
+err_out_net_destroy:
+	for (i=0; i<io->net_thread_num; ++i) {
+		pthread_join(io->net[i].tid, NULL);
+		close(io->net[i].epoll_fd);
+	}
+
 	pthread_mutex_destroy(&io->recv_lock);
 err_out_recv_cond:
 	pthread_cond_destroy(&io->recv_wait);
@@ -510,10 +528,12 @@ void dnet_io_exit(struct dnet_node *n)
 	for (i=0; i<io->thread_num; ++i)
 		pthread_join(io->threads[i], NULL);
 
-	pthread_join(io->tid, NULL);
-	dnet_io_cleanup_states(n);
+	for (i=0; i<io->net_thread_num; ++i) {
+		pthread_join(io->net[i].tid, NULL);
+		close(io->net[i].epoll_fd);
+	}
 
-	close(io->epoll_fd);
+	dnet_io_cleanup_states(n);
 
 	list_for_each_entry_safe(r, tmp, &io->recv_list, req_entry) {
 		list_del(&r->req_entry);
