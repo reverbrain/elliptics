@@ -253,6 +253,7 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 {
 	struct dnet_trans *t, *tmp;
 	struct timeval tv;
+	int trans_timeout = 0;
 
 	gettimeofday(&tv, NULL);
 
@@ -265,13 +266,14 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 		list_move_tail(&t->trans_list_entry, head);
 
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT\n", dnet_state_dump_addr(st), (unsigned long long)t->trans);
+		trans_timeout++;
 	}
 	pthread_mutex_unlock(&st->trans_lock);
 
-	if (!list_empty(head)) {
+	if (trans_timeout) {
 		st->stall++;
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: stall counter: %d\n",
-				dnet_state_dump_addr(st), st->stall);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d\n",
+				dnet_state_dump_addr(st), trans_timeout, st->stall);
 		if (st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
 			dnet_schedule_recv(st);
 			dnet_schedule_send(st);
