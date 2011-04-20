@@ -293,7 +293,8 @@ std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 
 		try {
 			ret = read_data_wait(id, size);
-		} catch (...) {
+		} catch (const std::exception &e) {
+			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), remote.c_str());
 			error++;
 			continue;
 		}
@@ -438,7 +439,7 @@ std::string elliptics_node::lookup(const std::string &data)
 				break;
 			}
 		} catch (const std::exception &e) {
-			dnet_log_raw(node, DNET_LOG_ERROR, "%s", e.what());
+			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), data.c_str());
 			continue;
 		}
 	}
