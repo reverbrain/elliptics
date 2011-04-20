@@ -3035,7 +3035,7 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
 			err = w->status;
-		dnet_log(n, DNET_LOG_ERROR, "%d:%s : failed to read data: %d\n",
+		dnet_log(n, DNET_LOG_ERROR, "%d:%s : failed to read data: %zd\n",
 			ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str), err);
 		goto err_out_put_complete;
 	}
