@@ -131,26 +131,23 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 	return dnet_write_data_wait(n, NULL, 0, &mc->id, mc->data, -1, 0, 0, mc->size, NULL, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META);
 }
 
-int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *obj, int len, int *groups, int group_num)
+int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl)
 {
 	struct dnet_meta_container *mc;
 	struct dnet_meta_check_status *c;
+	struct dnet_meta_update *mu;
 	struct dnet_meta *m;
 	int size = 0, err, nsize = 0;
 	void *ns;
 
 	size += sizeof(struct dnet_meta_check_status) + sizeof(struct dnet_meta);
+	size += sizeof(struct dnet_meta_update) + sizeof(struct dnet_meta);
 
-	if (obj && len)
-		size += len + sizeof(struct dnet_meta);
+	if (ctl->obj && ctl->len)
+		size += ctl->len + sizeof(struct dnet_meta);
 
-	if (groups && group_num)
-		size += group_num * sizeof(int) + sizeof(struct dnet_meta);
-	else if (n->groups && n->group_num) {
-		groups = n->groups;
-		group_num = n->group_num;
-		size += group_num * sizeof(int) + sizeof(struct dnet_meta);
-	}
+	if (ctl->groups && ctl->group_num)
+		size += ctl->group_num * sizeof(int) + sizeof(struct dnet_meta);
 
 	ns = dnet_node_get_ns(n, &nsize);
 	if (ns && nsize)
@@ -178,19 +175,35 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *ob
 	memset(c, 0, sizeof(struct dnet_meta_check_status));
 
 	m = (struct dnet_meta *)(m->data + m->size);
+	mu = (struct dnet_meta_update *)m->data;
+	m->size = sizeof(*mu);
+	m->type = DNET_META_UPDATE;
+	mu->flags = ctl->update_flags;
+	if (!ctl->ts.tv_sec) {
+		struct timeval tv;
 
-	if (obj && len) {
-		m->size = len;
+		gettimeofday(&tv, NULL);
+		ctl->ts.tv_sec = tv.tv_sec;
+		ctl->ts.tv_nsec = tv.tv_usec * 1000;
+	}
+	mu->tsec = ctl->ts.tv_sec;
+	mu->tnsec = ctl->ts.tv_nsec;
+
+	dnet_convert_meta_update(mu);
+	m = (struct dnet_meta *)(m->data + m->size);
+
+	if (ctl->obj && ctl->len) {
+		m->size = ctl->len;
 		m->type = DNET_META_PARENT_OBJECT;
-		memcpy(m->data, obj, len);
+		memcpy(m->data, ctl->obj, ctl->len);
 
-		m = (struct dnet_meta *)(m->data + len);
+		m = (struct dnet_meta *)(m->data + m->size);
 	}
 
-	if (groups && group_num) {
-		m->size = group_num * sizeof(int);
+	if (ctl->groups && ctl->group_num) {
+		m->size = ctl->group_num * sizeof(int);
 		m->type = DNET_META_GROUPS;
-		memcpy(m->data, groups, group_num * sizeof(int));
+		memcpy(m->data, ctl->groups, ctl->group_num * sizeof(int));
 
 		m = (struct dnet_meta *)(m->data + m->size);
 	}
@@ -204,7 +217,7 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *ob
 	}
 
 	mc->size = size;
-	memcpy(&mc->id, id, sizeof(struct dnet_id));
+	memcpy(&mc->id, &ctl->id, sizeof(struct dnet_id));
 
 	err = dnet_write_metadata(n, mc, 1);
 

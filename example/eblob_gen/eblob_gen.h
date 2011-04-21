@@ -51,7 +51,7 @@ class eblob_gen {
 		virtual ~eblob_gen();
 
 		void add_remote(const char *addr, const int port, const int family = AF_INET);
-		void write(const std::string &name, const std::string &data);
+		void write(const std::string &name, const std::string &data, const struct timespec &ts);
 	private:
 		elliptics_node		node;
 };

@@ -742,6 +742,7 @@ enum dnet_meta_types {
 	DNET_META_GROUPS,		/* this object has copies in given groups */
 	DNET_META_CHECK_STATUS,		/* last checking status: timestamp and so on */
 	DNET_META_NAMESPACE,		/* namespace where given object lives */
+	DNET_META_UPDATE,		/* last update information (timestamp, flags) */
 };
 
 struct dnet_meta
@@ -776,8 +777,20 @@ static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
 	m->size = dnet_bswap32(m->size);
 }
 
+struct dnet_metadata_control {
+	struct dnet_id			id;
+	char				*obj;
+	int				len;
+
+	int				*groups;
+	int				group_num;
+
+	uint64_t			update_flags;
+	struct timespec			ts;
+};
+
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
-int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *obj, int len, int *groups, int group_num);
+int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl);
 
 int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen);
 
@@ -809,6 +822,19 @@ static inline void dnet_convert_check_reply(struct dnet_check_reply *r)
 	r->total = dnet_bswap32(r->total);
 	r->completed = dnet_bswap32(r->completed);
 	r->errors = dnet_bswap32(r->errors);
+}
+
+struct dnet_meta_update {
+	uint64_t		flags;
+	uint64_t		tsec, tnsec;
+	uint64_t		reserved[4];
+} __attribute__((packed));
+
+static inline void dnet_convert_meta_update(struct dnet_meta_update *m)
+{
+	m->flags = dnet_bswap64(m->flags);
+	m->tsec = dnet_bswap64(m->tsec);
+	m->tnsec = dnet_bswap64(m->tnsec);
 }
 
 struct dnet_meta_check_status {

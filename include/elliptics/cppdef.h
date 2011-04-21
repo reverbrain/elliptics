@@ -130,7 +130,7 @@ class elliptics_node {
 		void			transform(const std::string &data, struct dnet_id &id);
 
 		void			add_groups(std::vector<int> &groups);
-		std::vector<int>	&get_groups() {return groups;};
+		std::vector<int>	get_groups() {return groups;};
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 
@@ -163,7 +163,7 @@ class elliptics_node {
 
 		std::string		lookup_addr(const std::string &remote, const int group_id);
 
-		int			write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups);
+		int			write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups, const struct timespec &ts);
 
 		void			lookup(const std::string &data, const elliptics_callback &c);
 		void			lookup(const struct dnet_id &id, const elliptics_callback &c);

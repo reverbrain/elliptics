@@ -1487,6 +1487,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 	munmap(data, ALIGN(size, page_size));
 
 	if ((trans_num > 0) && ((n->groups && n->group_num) || (remote_len && remote))) {
+		struct dnet_metadata_control mc;
 		int *groups = NULL;
 		int group_num = 0;
 
@@ -1497,7 +1498,14 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 		memcpy(groups, n->groups, group_num * sizeof(int));
 		pthread_mutex_unlock(&n->group_lock);
 
-		err = dnet_create_write_metadata(n, &ctl.id, remote, remote_len, groups, group_num);
+		memset(&mc, 0, sizeof(mc));
+		mc.obj = remote;
+		mc.len = remote_len;
+		mc.groups = groups;
+		mc.group_num = group_num;
+		mc.id = ctl.id;
+
+		err = dnet_create_write_metadata(n, &mc);
 		if (err < 0) {
 			dnet_log(n, DNET_LOG_ERROR, "Failed to write metadata for file '%s' into the storage, transactions: %d, err: %d.\n", file, trans_num, err);
 			goto err_out_close;
@@ -1680,10 +1688,12 @@ int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 	if (wait) {
 		err = dnet_wait_event(w, w->cond != wait_init, &n->wait_ts);
 		if (err || (w->cond != 0 && w->cond != wait_init)) {
+			char id_str[2*DNET_ID_SIZE + 1];
 			if (!err)
 				err = w->cond;
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for '%s' read completion, err: %d, cond: %d.\n",
-					dnet_dump_id(&ctl.id), file, err, w->cond);
+			dnet_log(n, DNET_LOG_ERROR, "%d:%s '%s' : failed to read data: %d\n",
+				ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str),
+				file, err);
 			goto err_out_exit;
 		}
 	}
@@ -2931,6 +2941,9 @@ int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, unsigned int aflag
 struct dnet_node *dnet_get_node_from_state(void *state)
 {
 	struct dnet_net_state *st = state;
+
+	if (!st)
+		return NULL;
 	return st->n;
 }
 
@@ -3043,10 +3056,11 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 
 	err = dnet_wait_event(w, w->cond, &n->wait_ts);
 	if (err || w->status) {
+		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
 			err = w->status;
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to wait for IO read completion, err: %zd, status: %d.\n",
-				dnet_dump_id(&ctl.id), err, w->status);
+		dnet_log(n, DNET_LOG_ERROR, "%d:%s : failed to read data: %zd\n",
+			ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str), err);
 		goto err_out_put_complete;
 	}
 	*size = c->size;

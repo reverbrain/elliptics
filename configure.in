@@ -30,7 +30,6 @@ AC_CHECK_SENDFILE
 AC_CHECK_IOPRIO
 AC_CHECK_ATOMIC
 AC_CHECK_STAT
-AC_CHECK_LIBFCGI
 AC_CHECK_EBLOB
 AC_CHECK_KYOTOCABINET
 
@@ -44,7 +43,7 @@ AC_CHECK_LIB(dl,dlopen)
 
 AC_CONFIG_FILES([Makefile include/Makefile include/elliptics/Makefile
 		 library/Makefile example/Makefile
-		 doc/Makefile example/fcgi/Makefile debian/Makefile
+		 doc/Makefile debian/Makefile
 		 bindings/Makefile bindings/cpp/Makefile
 		 bindings/python/Makefile example/eblob_gen/Makefile])
 

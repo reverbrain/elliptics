@@ -293,7 +293,8 @@ std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 
 		try {
 			ret = read_data_wait(id, size);
-		} catch (...) {
+		} catch (const std::exception &e) {
+			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), remote.c_str());
 			error++;
 			continue;
 		}
@@ -347,11 +348,23 @@ std::string elliptics_node::lookup_addr(const std::string &remote, const int gro
 	return std::string((const char *)buf, strlen(buf));
 }
 
-int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups)
+int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups, const struct timespec &ts)
 {
 	int err;
+	struct dnet_metadata_control ctl;
 
-	err = dnet_create_write_metadata(node, (struct dnet_id *)&id, (char *)obj.data(), obj.size(), (int *)&groups[0], groups.size());
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.obj = (char *)obj.data();
+	ctl.len = obj.size();
+	
+	ctl.groups = (int *)&groups[0];
+	ctl.group_num = groups.size();
+
+	ctl.ts = ts;
+	ctl.id = id;
+
+	err = dnet_create_write_metadata(node, &ctl);
 	if (err < 0) {
 		std::ostringstream str;
 		str << "Failed to write metadata: key: " << dnet_dump_id(&id) << ", err: " << err;
@@ -438,7 +451,7 @@ std::string elliptics_node::lookup(const std::string &data)
 				break;
 			}
 		} catch (const std::exception &e) {
-			dnet_log_raw(node, DNET_LOG_ERROR, "%s", e.what());
+			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), data.c_str());
 			continue;
 		}
 	}
