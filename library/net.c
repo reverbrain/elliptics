@@ -609,7 +609,7 @@ static int dnet_trans_complete_forward(struct dnet_net_state *state __unused,
 				void *priv)
 {
 	struct dnet_trans *t = priv;
-	struct dnet_net_state *dst = t->st;
+	struct dnet_net_state *orig = t->orig;
 	int err = -EINVAL;
 
 	if (!is_trans_destroyed(state, cmd, attr)) {
@@ -618,9 +618,11 @@ static int dnet_trans_complete_forward(struct dnet_net_state *state __unused,
 		cmd->trans = t->rcv_trans | DNET_TRANS_REPLY;
 
 		dnet_convert_cmd(cmd);
-		dnet_convert_attr(attr);
 
-		err = dnet_send_data(dst, cmd, sizeof(struct dnet_cmd), attr, size);
+		if (attr)
+			dnet_convert_attr(attr);
+
+		err = dnet_send_data(orig, cmd, sizeof(struct dnet_cmd), attr, size);
 	}
 
 	return err;
@@ -641,7 +643,8 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 	t->complete = dnet_trans_complete_forward;
 	t->priv = t;
 
-	t->st = dnet_state_get(orig);
+	t->orig = dnet_state_get(orig);
+	t->st = dnet_state_get(forward);
 
 	r->st = forward;
 
@@ -689,7 +692,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 			dnet_trans_put(t);
 		goto out;
 	}
-#if 0
+#if 1
 	forward_state = dnet_state_get_first(n, &cmd->id);
 	if (!forward_state || forward_state == st || forward_state == n->st ||
 			(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {

@@ -165,6 +165,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	}
 
 	dnet_state_put(t->st);
+	dnet_state_put(t->orig);
 
 	free(t);
 }

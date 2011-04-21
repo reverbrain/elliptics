@@ -462,6 +462,8 @@ struct dnet_trans
 
 	struct timeval			time;
 
+	struct dnet_net_state		*orig; /* only for forward */
+
 	struct dnet_net_state		*st;
 	uint64_t			trans, rcv_trans;
 	struct dnet_cmd			cmd;
