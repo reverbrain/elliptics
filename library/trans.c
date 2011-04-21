@@ -217,6 +217,12 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 	req.header = cmd;
 	req.hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + ctl->size;
 
+	dnet_log(n, DNET_LOG_INFO, "%s: alloc/send trans: %llu, cmd: %s -> %s.\n",
+			dnet_dump_id(&cmd->id),
+			(unsigned long long)t->trans,
+			dnet_cmd_string(ctl->cmd),
+			dnet_server_convert_dnet_addr(&t->st->addr));
+
 	err = dnet_trans_send(t, &req);
 	if (err)
 		goto err_out_put;

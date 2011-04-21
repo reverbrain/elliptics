@@ -575,7 +575,7 @@ static char *dnet_counter_strings[] = {
 	[DNET_CNTR_UNKNOWN] = "UNKNOWN",
 };
 
-static char *dnet_cmd_string(int cmd)
+char *dnet_cmd_string(int cmd)
 {
 	if (cmd == 0 || cmd >= __DNET_CMD_MAX)
 		cmd = DNET_CMD_UNKNOWN;

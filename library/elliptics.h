@@ -154,6 +154,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_addr *addr, int s, int *errp, int join,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
+char *dnet_cmd_string(int cmd);
+
 void dnet_state_reset(struct dnet_net_state *st);
 void dnet_state_remove_nolock(struct dnet_net_state *st);
 
