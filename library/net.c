@@ -728,8 +728,6 @@ err_out_exit:
 
 void dnet_state_remove_nolock(struct dnet_net_state *st)
 {
-	struct dnet_node *n = st->n;
-
 	list_del_init(&st->state_entry);
 	list_del_init(&st->storage_state_entry);
 	dnet_idc_destroy_nolock(st);

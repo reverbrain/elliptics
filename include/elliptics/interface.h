@@ -766,6 +766,7 @@ struct dnet_metadata_control {
 
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl);
+int dnet_create_write_metadata_strings(struct dnet_node *n, void *remote, unsigned int remote_len, struct dnet_id *id, struct timespec *ts);
 
 int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen);
 
@@ -800,6 +801,8 @@ static inline void dnet_convert_check_reply(struct dnet_check_reply *r)
 }
 
 struct dnet_meta_update {
+	int			group_id;
+	int			unused_gap;
 	uint64_t		flags;
 	uint64_t		tsec, tnsec;
 	uint64_t		reserved[4];
@@ -807,6 +810,7 @@ struct dnet_meta_update {
 
 static inline void dnet_convert_meta_update(struct dnet_meta_update *m)
 {
+	m->group_id = dnet_bswap32(m->group_id);
 	m->flags = dnet_bswap64(m->flags);
 	m->tsec = dnet_bswap64(m->tsec);
 	m->tnsec = dnet_bswap64(m->tnsec);
