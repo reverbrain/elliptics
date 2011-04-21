@@ -1,3 +1,9 @@
+elliptics (2.9.6.148) unstable; urgency=low
+
+  * Write metadata directly from dnet_write_object()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Apr 2011 20:44:50 +0400
+
 elliptics (2.9.6.147) unstable; urgency=low
 
   * Remove state when we detect its stall counter reached limit
