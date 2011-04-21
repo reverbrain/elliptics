@@ -309,6 +309,8 @@ static void dnet_check_all_states(struct dnet_node *n)
 		t->cmd.status = -ETIMEDOUT;
 		t->cmd.size = 0;
 
+		list_del_init(&t->trans_list_entry);
+
 		dnet_trans_put(t);
 	}
 }
