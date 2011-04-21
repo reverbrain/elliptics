@@ -565,6 +565,9 @@ std::string elliptics_node::stat_log()
 		data += sz;
 	}
 #endif
+
+	if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + sizeof(struct dnet_stat))
+		throw std::runtime_error("Failed to request statistics: not enough data returned");
 	return ret;
 }
 
