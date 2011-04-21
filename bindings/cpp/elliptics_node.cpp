@@ -248,9 +248,10 @@ int elliptics_node::write_data_ll(struct dnet_id *id, void *remote, unsigned int
 
 	if (err < 0) {
 		std::ostringstream str;
-		str << "Failed write data: key: " << dnet_dump_id(id) << ", size: " << size << ": " << err;
+		str << "Failed write data: key: " << dnet_dump_id(&ctl.id) << ", size: " << size << ": " << err;
 		throw std::runtime_error(str.str());
-	}
+	} else
+		dnet_create_write_metadata_strings(node, remote, remote_len, &ctl.id, NULL);
 
 	return err;
 }

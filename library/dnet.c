@@ -1338,7 +1338,6 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 	memcpy(&ctl->id, id, sizeof(struct dnet_id));
 
 	num = dnet_trans_create_send_all(n, ctl);
-	dnet_create_write_metadata_strings(n, remote, remote_len, id, NULL);
 
 	return num;
 }
@@ -1430,6 +1429,8 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 
 	if (trans_num < 0)
 		trans_num = 0;
+	else
+		dnet_create_write_metadata_strings(n, remote, remote_len, &ctl.id, NULL);
 
 	/*
 	 * 1 - the first reference counter we grabbed at allocation time
