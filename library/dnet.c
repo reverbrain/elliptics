@@ -716,9 +716,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				}
 			default:
 				err = n->command_handler(st, n->command_private, cmd, a, data);
-				if (err == -ENOENT && !(a->flags & DNET_ATTR_DIRECT_TRANSACTION)
-					&& a->cmd == DNET_CMD_DEL)
-					err = 0;
 				if (err || (a->cmd != DNET_CMD_WRITE))
 					break;
 
@@ -1323,8 +1320,8 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 		void *remote, unsigned int len, struct dnet_id *id, int hupdate)
 {
 	struct dnet_io_control hctl;
-	struct dnet_history_entry e;
-	uint32_t flags = ctl->io.flags | DNET_IO_FLAGS_PARENT;
+	//struct dnet_history_entry e;
+	uint32_t flags = ctl->io.flags;
 	struct dnet_id raw;
 	int err, num;
 
@@ -1338,13 +1335,15 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 		memcpy(ctl->io.parent, raw.id, DNET_ID_SIZE);
 	}
 
-	if (ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION) {
+	memcpy(ctl->io.id, ctl->io.parent, DNET_ID_SIZE);
+	dnet_log(n, DNET_LOG_DSA, "Remote = %.*s, Generated id: %s\n", len, (char *)remote, dnet_dump_id(&raw));
+	/*if (ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION) {
 		memcpy(ctl->io.id, ctl->io.parent, DNET_ID_SIZE);
 	} else {
 		dnet_transform(n, ctl->data, ctl->io.size, &raw);
 		memcpy(ctl->io.id, raw.id, DNET_ID_SIZE);
 		ctl->io.flags |= DNET_IO_FLAGS_ID_CONTENT;
-	}
+	}*/
 	memcpy(&ctl->id, id, sizeof(struct dnet_id));
 
 	err = dnet_trans_create_send_all(n, ctl);
@@ -1352,7 +1351,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 		goto err_out_exit;
 	num = err;
 
-	if (!hupdate || (ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION))
+	/*if (!hupdate || (ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION))
 		return num;
 
 	memset(&hctl, 0, sizeof(hctl));
@@ -1384,7 +1383,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 		goto err_out_exit;
 
 	num += err;
-
+*/
 	return num;
 
 err_out_exit:
@@ -1704,6 +1703,7 @@ err_out_exit:
 	return err;
 }
 
+/*
 struct dnet_map_private
 {
 	char				*file;
@@ -1869,7 +1869,7 @@ again:
 	 *
 	 * |------------------|          |--------------------|
 	 *
-	 */
+	 *
 	if (m->offset < a->offset && m->offset + m->size > a->offset + a->size) {
 		uint64_t right_size = m->offset + m->size - (a->offset + a->size);
 
@@ -1897,7 +1897,7 @@ again:
 	 *
 	 * |---------|
 	 *
-	 */
+	 *
 	if (m->offset < a->offset) {
 		err = r->callback(r->priv, a->offset, m->offset + m->size - a->offset, a);
 		if (err)
@@ -1918,7 +1918,7 @@ again:
 	 *
 	 *                   |-------------------|
 	 *
-	 */
+	 *
 
 	if (m->offset + m->size > a->offset + a->size) {
 		err = r->callback(r->priv, m->offset, a->offset + a->size - m->offset, a);
@@ -1939,7 +1939,7 @@ again:
 	 *
 	 * removed
 	 *
-	 */
+	 *
 
 	if (m->offset + m->size <= a->offset + a->size) {
 		err = r->callback(r->priv, m->offset, m->size, a);
@@ -1954,7 +1954,7 @@ again:
 
 	/*
 	 * Should not be here.
-	 */
+	 *
 	return -EINVAL;
 }
 
@@ -2093,7 +2093,7 @@ err_out_unmap:
 err_out_exit:
 	return err;
 }
-
+*/
 static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
 		struct dnet_id *id, int direct, uint64_t offset, uint64_t size, int hist)
 {
@@ -2108,8 +2108,11 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 		goto err_out_exit;
 	}
 
+	if (!size)
+		size = ~0ULL;
+
 	if (id) {
-		err = dnet_read_file_id(n, file, len, direct, 0, 0, 0, id, w, 1, 1);
+		err = dnet_read_file_id(n, file, len, direct, 0, offset, size, id, w, 0, 1);
 		if (err)
 			goto err_out_put;
 	} else {
@@ -2120,7 +2123,7 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 		for (i=0; i<n->group_num; ++i) {
 			id->group_id = n->groups[i];
 
-			err = dnet_read_file_id(n, file, len, direct, 0, 0, 0, id, w, 1, 1);
+			err = dnet_read_file_id(n, file, len, direct, 0, offset, size, id, w, 0, 1);
 			if (err) {
 				error = err;
 				continue;
@@ -2137,6 +2140,7 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 		}
 	}
 
+/*
 	if (!hist) {
 		struct dnet_map_private p;
 
@@ -2156,7 +2160,7 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 
 		/*
 		 * Waiting for all readers to complete the transactions.
-		 */
+		 *
 		err = dnet_wait_event(w, atomic_read(&w->refcnt) == 1, &n->wait_ts);
 		if (err || (w->cond < 0 && w->cond != ~0)) {
 			if (w->cond < 0 && w->cond != ~0)
@@ -2167,7 +2171,7 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 			goto err_out_put;
 		}
 	}
-
+*/
 	dnet_wait_put(w);
 
 	return 0;
@@ -2843,7 +2847,7 @@ int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, int direct)
 	ctl.complete = dnet_remove_complete;
 	ctl.priv = w;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
-	ctl.aflags = DNET_ATTR_DIRECT_TRANSACTION | DNET_ATTR_DELETE_HISTORY;
+	ctl.aflags = DNET_ATTR_DELETE_HISTORY;
 
 	if (direct)
 		ctl.cflags |= DNET_FLAGS_DIRECT;
@@ -3327,6 +3331,7 @@ err_out_exit:
 	return err;
 }
 
+/*
 struct dnet_read_multiple {
 	struct dnet_wait		*w;
 	struct dnet_id_param		*ids;
@@ -3490,6 +3495,7 @@ err_out_free:
 err_out_exit:
 	return err;
 }
+*/
 
 int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen)
 {

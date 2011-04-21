@@ -227,8 +227,8 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 {
 	int err, num = 0;
 	struct dnet_io_control hctl;
-	struct dnet_history_entry e;
-	uint32_t flags = ctl->io.flags | DNET_IO_FLAGS_PARENT;
+	//struct dnet_history_entry e;
+	uint32_t flags = ctl->io.flags;
 
 	dnet_common_convert_adata(adata, &ctl->io);
 
@@ -238,7 +238,7 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 
 	num = err;
 
-	if (!(ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)) {
+	/*if (!(ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)) {
 		memset(&hctl, 0, sizeof(hctl));
 
 		memcpy(&hctl.id, &ctl->id, sizeof(struct dnet_id));
@@ -272,7 +272,7 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 		err = dnet_trans_create_send_all(n, &hctl);
 		if (err > 0)
 			num += err;
-	}
+	}*/
 
 err_out_exit:
 	return num;
@@ -316,11 +316,11 @@ int dnet_common_write_object(struct dnet_node *n, struct dnet_id *id,
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
 	memcpy(ctl.io.id, ctl.id.id, DNET_ID_SIZE);
 
-	if (version != -1) {
+	/*if (version != -1) {
 		/*
 		 * ctl.id is used for cmd.id, so the last assignment is correct, since
 		 * we first send transaction with the data and only then history one.
-		 */
+		 *
 		dnet_transform(n, data, size, &ctl.id);
 		memcpy(ctl.io.parent, ctl.id.id, DNET_ID_SIZE);
 
@@ -332,7 +332,8 @@ int dnet_common_write_object(struct dnet_node *n, struct dnet_id *id,
 		ctl.aflags |= DNET_ATTR_DIRECT_TRANSACTION;
 		memcpy(ctl.io.parent, ctl.io.id, DNET_ID_SIZE);
 		ctl.io.flags |= DNET_IO_FLAGS_PARENT;
-	}
+	}*/
+	memcpy(ctl.io.parent, ctl.io.id, DNET_ID_SIZE);
 
 	return dnet_common_send_upload_transactions(n, &ctl, adata, asize);
 }

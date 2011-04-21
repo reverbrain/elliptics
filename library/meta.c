@@ -35,8 +35,11 @@
 
 #define dnet_map_log(n, mask, fmt, a...) do { if ((n)) dnet_log((n), mask, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
 
-struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t size, uint32_t type)
+struct dnet_meta *dnet_meta_search(struct dnet_node *n, struct dnet_meta_container *mc, uint32_t type)
 {
+	void *data = mc->data;
+	uint32_t size = mc->size;
+
 	struct dnet_meta m, *found = NULL;
 
 	while (size) {
@@ -128,12 +131,12 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 	}
 
 	dnet_log(n, DNET_LOG_DSA, "%s: writing metadata (%u bytes)\n", dnet_dump_id(&mc->id), mc->size);
-	return dnet_write_data_wait(n, NULL, 0, &mc->id, mc->data, -1, 0, 0, mc->size, NULL, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META);
+	return dnet_write_data_wait(n, NULL, 0, &mc->id, mc->data, -1, 0, 0, mc->size, NULL, 0, DNET_IO_FLAGS_META);
 }
 
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl)
 {
-	struct dnet_meta_container *mc;
+	struct dnet_meta_container mc;
 	struct dnet_meta_check_status *c;
 	struct dnet_meta_update *mu;
 	struct dnet_meta *m;
@@ -158,14 +161,15 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 		goto err_out_exit;
 	}
 
-	mc = malloc(sizeof(struct dnet_meta_container) + size);
-	if (!mc) {
+	memset(&mc, 0, sizeof(struct dnet_meta_container));
+	mc.data = malloc(size);
+	if (mc.data) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-	memset(mc, 0, sizeof(struct dnet_meta_container) + size);
+	memset(mc.data, 0, size);
 
-	m = (struct dnet_meta *)(mc + 1);
+	m = (struct dnet_meta *)(mc.data);
 
 	c = (struct dnet_meta_check_status *)m->data;
 	m->size = sizeof(struct dnet_meta_check_status);
@@ -216,12 +220,12 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 		m = (struct dnet_meta *)(m->data + m->size);
 	}
 
-	mc->size = size;
-	memcpy(&mc->id, &ctl->id, sizeof(struct dnet_id));
+	mc.size = size;
+	memcpy(&mc.id, &ctl->id, sizeof(struct dnet_id));
 
-	err = dnet_write_metadata(n, mc, 1);
+	err = dnet_write_metadata(n, &mc, 1);
 
-	free(mc);
+	free(mc.data);
 err_out_exit:
 	return err;
 }

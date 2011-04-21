@@ -697,7 +697,7 @@ int dnet_transform(struct dnet_node *n, void *src, uint64_t size, struct dnet_id
 
 /*
  * Helper structure and set of functions to map history file and perform basic checks.
- */
+ *
 struct dnet_history_map
 {
 	struct dnet_history_entry	*ent;
@@ -706,7 +706,7 @@ struct dnet_history_map
 	int				fd;
 };
 
-/* Checks if this object is marked as REMOVED in history DB */
+/* Checks if this object is marked as REMOVED in history DB *
 static inline int dnet_check_object_removed(struct dnet_history_map *map)
 {
 	long i;
@@ -729,7 +729,7 @@ static inline int dnet_check_object_removed(struct dnet_history_map *map)
 
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map);
 void dnet_unmap_history(struct dnet_node *n, struct dnet_history_map *map);
-
+*/
 int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, unsigned int aflags,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
@@ -761,15 +761,10 @@ static inline void dnet_convert_meta(struct dnet_meta *m)
 	m->common = dnet_bswap64(m->common);
 }
 
-/*
- * Modify or search metadata in meta object. Data must be realloc()able.
- */
-struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t size, uint32_t type);
-
 struct dnet_meta_container {
 	struct dnet_id			id;
 	unsigned int			size;
-	unsigned char			data[0];
+	unsigned char			*data;
 } __attribute__ ((packed));
 
 static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
@@ -788,6 +783,11 @@ struct dnet_metadata_control {
 	uint64_t			update_flags;
 	struct timespec			ts;
 };
+
+/*
+ * Modify or search metadata in meta object. Data must be realloc()able.
+ */
+struct dnet_meta *dnet_meta_search(struct dnet_node *n, struct dnet_meta_container *mc, uint32_t type);
 
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl);

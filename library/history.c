@@ -29,15 +29,12 @@
 #include "elliptics.h"
 #include "elliptics/interface.h"
 
-int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **datap)
+int dnet_db_read_raw(struct dnet_node *n, unsigned char *id, void **datap)
 {
 	int err;
 	size_t size;
-	KCDB *db = n->history;
+	KCDB *db = n->meta;
 	void *data;
-
-	if (meta)
-		db = n->meta;
 
 	data = kcdbget(db, (void *)id, DNET_ID_SIZE, &size);
 	if (!data) {
@@ -62,7 +59,7 @@ int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io
 	int err;
 	void *data;
 
-	err = dnet_db_read_raw(n, !!(io->flags & DNET_IO_FLAGS_META), io->id, &data);
+	err = dnet_db_read_raw(n, io->id, &data);
 	if (err <= 0)
 		return err;
 
@@ -73,19 +70,12 @@ int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io
 	return err;
 }
 
-static int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data, unsigned int size)
+static int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data, unsigned int size, int append)
 {
-	int ret, append = 0;
-	KCDB *db = n->history;
-	char *dbf = "history";
+	int ret;
+	KCDB *db = n->meta;
+	char *dbf = "meta";
 	int err;
-
-	if (io->flags & DNET_IO_FLAGS_META) {
-		db = n->meta;
-		dbf = "meta";
-	} else if ((io->flags & DNET_IO_FLAGS_APPEND) || !(io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)) {
-		append = 1;
-	}
 
 	ret = kcdbbegintran(db, 1);
 	if (!ret) {
@@ -123,31 +113,30 @@ err_out_exit:
 int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_io_attr *io = data;
-	struct dnet_history_entry e;
 
-	if ((io->flags & DNET_IO_FLAGS_HISTORY) || (io->flags & DNET_IO_FLAGS_META))
-		return db_put_data(n, cmd, io, io + 1, io->size);
+	if (io->flags & DNET_IO_FLAGS_META)
+		return db_put_data(n, cmd, io, io + 1, io->size, 0);
 
 	if (io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)
 		return 0;
 
-	dnet_setup_history_entry(&e, io->parent, io->size, io->offset, NULL, io->flags);
-	return db_put_data(n, cmd, io, &e, sizeof(struct dnet_history_entry));
+	//dnet_setup_history_entry(&e, io->parent, io->size, io->offset, NULL, io->flags);
+	//return db_put_data(n, cmd, io, &e, sizeof(struct dnet_history_entry));
+	return 0;
 }
 
 static int db_del_direct_notran(struct dnet_node *n, struct dnet_cmd *cmd)
 {
-	kcdbremove(n->history, (void *)cmd->id.id, DNET_ID_SIZE);
 	kcdbremove(n->meta, (void *)cmd->id.id, DNET_ID_SIZE);
 
 	return 0;
 }
 
-static int db_del_direct_trans(struct dnet_node *n, struct dnet_id *id, int meta)
+static int db_del_direct_trans(struct dnet_node *n, struct dnet_id *id)
 {
 	int ret, err = 0;
-	KCDB *db = meta ? n->meta : n->history;
-	char *dbname = meta ? "meta" : "history";
+	KCDB *db = n->meta;
+	char *dbname = "meta";
 
 	ret = kcdbbegintran(db, 1);
 	if (!ret) {
@@ -171,11 +160,11 @@ err_out_exit:
 
 static int db_del_direct(struct dnet_node *n, struct dnet_cmd *cmd)
 {
-	db_del_direct_trans(n, &cmd->id, 1);
-	db_del_direct_trans(n, &cmd->id, 0);
+	db_del_direct_trans(n, &cmd->id);
 	return 0;
 }
 
+/*
 int dnet_history_update_flags(struct dnet_node *n, struct dnet_id *id, struct dnet_history_entry *e, unsigned int num, struct timespec *ts, uint32_t flags_set, uint32_t flags_unset)
 {
 	unsigned int i;
@@ -244,22 +233,72 @@ int dnet_history_del_entry(struct dnet_node *n, struct dnet_id *id, struct dnet_
 
 	return 0;
 }
+*/
 
 int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	int err = -EINVAL, ret = 0;
-	size_t size, size2;
-	struct dnet_history_entry *e = NULL, *e2 = NULL;
-	unsigned int num, num2, i;
-	struct dnet_history_entry he;
+	//size_t size, size2;
+	//struct dnet_history_entry *e = NULL, *e2 = NULL;
+	//unsigned int num, num2, i;
+	struct dnet_meta_container mc;
+	struct dnet_meta *m;
+	struct dnet_meta_update *mu;
+	//struct dnet_history_entry he;
 
 	dnet_log_raw(n, DNET_LOG_DSA, "flags=%x\n", attr->flags);
 	if (attr->flags & DNET_ATTR_DELETE_HISTORY) {
 		db_del_direct(n, cmd);
-		dnet_log(n, DNET_LOG_DSA, "History and metadata removed\n");
+		dnet_log(n, DNET_LOG_DSA, "Metadata is removed\n");
 		return 1;
 	}
 
+	memset(&mc, 0, sizeof(struct dnet_meta_container));
+
+	ret = kcdbbegintran(n->meta, 1);
+	if (!ret) {
+		err = -kcdbecode(n->meta);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start meta deletion transaction, err: %d: %s.\n",
+			dnet_dump_id(&cmd->id), err, kcecodename(-err));
+		goto err_out_exit;
+	}
+
+	mc.data = kcdbget(n->meta, (void *)cmd->id.id, DNET_ID_SIZE, &mc.size);
+	if (!mc.data) {
+		err = -kcdbecode(n->meta);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read meta of to be deleted object, err: %d: %s.\n",
+			dnet_dump_id(&cmd->id), err, kcecodename(-err));
+
+		m = (struct dnet_meta *)malloc(sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update));
+		m->size = sizeof(struct dnet_meta_update);
+		m->type = DNET_META_UPDATE;
+		mu = m->data;
+
+		ret = kcdbset(n->meta, (void *)cmd->id.id, DNET_ID_SIZE, (void *)m, m->size + sizeof(struct dnet_meta));
+		if (!ret) {
+			err = -kcdbecode(n->history);
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to store updated meta, err: %d: %s.\n",
+				dnet_dump_id(&cmd->id), err, kcecodename(-err));
+		}
+
+		goto err_out_txn_end;
+	}
+
+	ret = kcdbset(n->meta, (void *)cmd->id.id, DNET_ID_SIZE, mc.data, mc.size);
+	if (!ret) {
+		err = -kcdbecode(n->meta);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to store updated meta, err: %d: %s.\n",
+			dnet_dump_id(&cmd->id), err, kcecodename(-err));
+
+		goto err_out_free;
+	}
+
+
+	kcfree(mc.data);
+	kcdbendtran(n->history, 1);
+
+	return err;
+/*
 	ret = kcdbbegintran(n->history, 1);
 	if (!ret) {
 		err = -kcdbecode(n->history);
@@ -365,10 +404,11 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 
 err_out_free2:
 	kcfree(e2);
+*/
 err_out_free:
-	kcfree(e);
+	kcfree(mc.data);
 err_out_txn_end:
-	kcdbendtran(n->history, 0);
+	kcdbendtran(n->meta, 0);
 err_out_exit:
 	return err;
 }
@@ -395,14 +435,15 @@ struct dnet_db_list_control {
 static int dnet_db_check_update(struct dnet_node *n, struct dnet_db_list_control *ctl, struct dnet_meta_container *morig)
 {
 	struct dnet_meta_container *mc = morig;
-	struct dnet_meta *m;
+	struct dnet_meta *m, *tmp = NULL;
 	struct dnet_meta_check_status *c;
 	struct timeval tv;
 	struct dnet_io_attr io;
 	int err;
 
-	m = dnet_meta_search(n, mc->data, mc->size, DNET_META_CHECK_STATUS);
+	m = dnet_meta_search(n, mc, DNET_META_CHECK_STATUS);
 	if (!m) {
+/*
 		mc = malloc(sizeof(*mc) + mc->size + sizeof(struct dnet_meta_check_status) + sizeof(struct dnet_meta));
 		if (!mc)
 			return -ENOMEM;
@@ -417,9 +458,19 @@ static int dnet_db_check_update(struct dnet_node *n, struct dnet_db_list_control
 		m->type = DNET_META_CHECK_STATUS;
 
 		mc->size += sizeof(struct dnet_meta_check_status) + sizeof(struct dnet_meta);
-	}
+*/
+		tmp = (struct dnet_meta *)malloc(sizeof(struct dnet_meta) + sizeof(struct dnet_meta_check_status));
+		if (!tmp)
+			return -ENOMEM;
 
-	c = (struct dnet_meta_check_status *)m->data;
+		memset(tmp, 0, sizeof(*tmp));
+		tmp->size = sizeof(struct dnet_meta_check_status);
+		tmp->type = DNET_META_CHECK_STATUS;
+
+		c = (struct dnet_meta_check_status *)tmp->data;
+	} else {
+		c = (struct dnet_meta_check_status *)m->data;
+	}
 
 	gettimeofday(&tv, NULL);
 
@@ -435,9 +486,12 @@ static int dnet_db_check_update(struct dnet_node *n, struct dnet_db_list_control
 
 	memcpy(&io.id, mc->id.id, sizeof(io.id));
 
-	err = db_put_data(n, ctl->cmd, &io, mc->data, mc->size);
-	if (mc != morig)
-		free(mc);
+	if (tmp) {
+		err = db_put_data(n, ctl->cmd, &io, tmp->data, tmp->size + sizeof(struct dnet_meta), 1);
+		free(tmp);
+	} else {
+		err = db_put_data(n, ctl->cmd, &io, mc->data, mc->size, 0);
+	}
 
 	return err;
 }
@@ -459,18 +513,19 @@ static int dnet_db_send_check_reply(struct dnet_db_list_control *ctl)
 static long long dnet_meta_get_ts(struct dnet_node *n, struct dnet_meta_container *mc)
 {
 	struct dnet_meta *m;
-	struct dnet_meta_check_status *c;
+	struct dnet_meta_check_status c;
 
-	m = dnet_meta_search(n, mc->data, mc->size, DNET_META_CHECK_STATUS);
+	m = dnet_meta_search(n, mc, DNET_META_CHECK_STATUS);
 	if (!m)
 		return -ENOENT;
 
-	c = (struct dnet_meta_check_status *)m->data;
-	dnet_convert_meta_check_status(c);
+	memcpy(&c, m->data, sizeof(struct dnet_meta_check_status));
+	dnet_convert_meta_check_status(&c);
 
-	return (long long)c->tsec;
+	return (long long)c.tsec;
 }
 
+/*
 static void *dnet_db_list_iter_del(void *data)
 {
 	struct dnet_db_list_control *ctl = data;
@@ -513,11 +568,11 @@ static void *dnet_db_list_iter_del(void *data)
 
 		is_deleted = 1;
 
-		/* For hashes generated by filename last record should be with flag REMOVED*/
+		/* For hashes generated by filename last record should be with flag REMOVED*
 		if (!(e[num-1].flags & DNET_IO_FLAGS_REMOVED))
 			is_deleted = 0;
 
-		/* For hashes generated by content all not PARENT records should be REMOVED */
+		/* For hashes generated by content all not PARENT records should be REMOVED *
 		for (i = 0; i < num && is_deleted; i++) {
 			if (!(e[i].flags & DNET_IO_FLAGS_PARENT)
 				&& !(e[i].flags & DNET_IO_FLAGS_REMOVED)) {
@@ -536,7 +591,7 @@ static void *dnet_db_list_iter_del(void *data)
 		 * number of its copies in the storage. If state is not NULL then given
 		 * key must be moved to another machine and potentially merged with data
 		 * present there
-		 */
+		 *
 		dnet_setup_id(&id, group_id, key);
 		tmp = dnet_state_get_first(n, &id);
 		check_copies = (tmp == NULL);
@@ -584,7 +639,7 @@ err_out_kcfree:
 
 	return NULL;
 }
-
+*/
 
 static void *dnet_db_list_iter(void *data)
 {
@@ -691,7 +746,7 @@ static void *dnet_db_list_iter(void *data)
 				struct dnet_id *id = &ids[ctl->obj_pos];
 
 				dnet_convert_id(id);
-				err = dnet_db_read_raw(n, 1, id->id, &dbuf);
+				err = dnet_db_read_raw(n, id->id, &dbuf);
 				if (err < 0) {
 					dnet_log(n, DNET_LOG_ERROR, "%s: there is no object on given node.\n", dnet_dump_id_str(id->id));
 					dbuf = NULL;
@@ -888,7 +943,7 @@ again:
 		goto err_out_exit;
 	}
 
-	if (req.flags & DNET_CHECK_DELETE)
+	/*if (req.flags & DNET_CHECK_DELETE)
 	{
 		ctl.cursor = kcdbcursor(n->history);
 		if (!ctl.cursor) {
@@ -897,7 +952,7 @@ again:
 					dnet_dump_id(&cmd->id), err, kcecodename(-err));
 			goto err_out_free;
 		}
-	} else {
+	} else {*/
 		ctl.cursor = kcdbcursor(n->meta);
 		if (!ctl.cursor) {
 			err = -kcdbecode(n->meta);
@@ -905,7 +960,7 @@ again:
 					dnet_dump_id(&cmd->id), err, kcecodename(-err));
 			goto err_out_free;
 		}
-	}
+	//}
 	kccurjump(ctl.cursor);
 
 	err = pthread_mutex_init(&ctl.lock, NULL);
@@ -913,12 +968,12 @@ again:
 		goto err_out_close_cursor;
 
 	for (i=0; i<req.thread_num; ++i) {
-		if (req.flags & DNET_CHECK_DELETE)
-		{
-			err = pthread_create(&tid[i], NULL, dnet_db_list_iter_del, &ctl);
-		} else {
+		//if (req.flags & DNET_CHECK_DELETE)
+		//{
+			//err = pthread_create(&tid[i], NULL, dnet_db_list_iter_del, &ctl);
+		//} else {
 			err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);
-		}
+		//}
 		if (err) {
 			dnet_log_err(n, "can not create %d'th check thread out of %d", i, req.thread_num);
 			req.thread_num = i;
@@ -1020,29 +1075,19 @@ int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg)
 	/* Do not allow database truncation */
 	cfg->db_flags &= ~KCOTRUNCATE;
 
-	snprintf(path, sizeof(path), "%s/%s.kch#bnum=%llu#msiz=%llu", cfg->history_env, "history", cfg->db_buckets, cfg->db_map);
-	n->history = db_backend_open(n, path, cfg->db_flags);
-	if (!n->history)
-		goto err_out_exit;
-
 	snprintf(path, sizeof(path), "%s/%s.kch#bnum=%llu#msiz=%llu", cfg->history_env, "meta", cfg->db_buckets, cfg->db_map);
 	n->meta = db_backend_open(n, path, cfg->db_flags);
 	if (!n->meta)
-		goto err_out_close_history;
+		goto err_out_exit;
 
 	return 0;
 
-err_out_close_history:
-	kcdbdel(n->history);
 err_out_exit:
 	return err;
 }
 
 void dnet_db_cleanup(struct dnet_node *n)
 {
-	if (n->history)
-		kcdbdel(n->history);
-
 	if (n->meta)
 		kcdbdel(n->meta);
 }
@@ -1051,8 +1096,6 @@ int dnet_db_sync(struct dnet_node *n)
 {
 	if (n->meta)
 		kcdbsync(n->meta, 1, NULL, NULL);
-	if (n->history)
-		kcdbsync(n->history, 1, NULL, NULL);
 
 	return 0;
 }

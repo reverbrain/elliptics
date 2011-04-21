@@ -302,7 +302,7 @@ static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 	a->size = dnet_bswap64(a->size);
 }
 
-struct dnet_history_entry
+/*struct dnet_history_entry
 {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		flags;
@@ -346,7 +346,7 @@ static inline void dnet_setup_history_entry(struct dnet_history_entry *e,
 
 	dnet_convert_history_entry(e);
 }
-
+*/
 struct dnet_stat
 {
 	/* Load average from the target system multiplied by 100 */
@@ -466,12 +466,6 @@ static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)
 	else
 		st[cmd].err++;
 }
-
-struct dnet_bulk_id
-{
-	uint8_t	id[DNET_ID_SIZE];
-	struct dnet_history_entry last_history;
-} __attribute__ ((packed));
 
 #ifdef __cplusplus
 }
