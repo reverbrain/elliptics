@@ -498,8 +498,8 @@ err_out_exit:
 int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies)
 {
 	int err = 0;
-	void *data;
 #if 0
+	void *data;
 	err = dnet_db_read_raw(n, 0, mc->id.id, &data);
 	if (err <= 0) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: meta is present, but there is no history, removing object.\n",
