@@ -245,6 +245,7 @@ int elliptics_node::write_data_ll(struct dnet_id *id, void *remote, unsigned int
 		!(ioflags & (DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_META | DNET_IO_FLAGS_NO_HISTORY_UPDATE)));
 	if (err == 0)
 		err = -ENOENT;
+
 	if (err < 0) {
 		std::ostringstream str;
 		str << "Failed write data: key: " << dnet_dump_id(id) << ", size: " << size << ": " << err;

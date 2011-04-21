@@ -1320,13 +1320,10 @@ int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 }
 
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
-		void *remote, unsigned int len, struct dnet_id *id, int hupdate)
+		void *remote, unsigned int remote_len, struct dnet_id *id, int hupdate __unused)
 {
-	struct dnet_io_control hctl;
-	struct dnet_history_entry e;
-	uint32_t flags = ctl->io.flags | DNET_IO_FLAGS_PARENT;
 	struct dnet_id raw;
-	int err, num;
+	int num;
 
 	memset(&raw, 0, sizeof(struct dnet_id));
 
@@ -1334,7 +1331,7 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 		memcpy(ctl->io.parent, id->id, DNET_ID_SIZE);
 	} else {
 		id = &raw;
-		dnet_transform(n, remote, len, &raw);
+		dnet_transform(n, remote, remote_len, &raw);
 		memcpy(ctl->io.parent, raw.id, DNET_ID_SIZE);
 	}
 
@@ -1347,48 +1344,10 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 	}
 	memcpy(&ctl->id, id, sizeof(struct dnet_id));
 
-	err = dnet_trans_create_send_all(n, ctl);
-	if (err <= 0)
-		goto err_out_exit;
-	num = err;
-
-	if (!hupdate || (ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION))
-		return num;
-
-	memset(&hctl, 0, sizeof(hctl));
-
-	dnet_setup_id(&hctl.id, id->group_id, ctl->io.parent);
-	memcpy(hctl.io.parent, ctl->io.parent, DNET_ID_SIZE);
-	memcpy(hctl.io.id, ctl->io.parent, DNET_ID_SIZE);
-
-	dnet_setup_history_entry(&e, ctl->io.id, ctl->io.size, ctl->io.offset, NULL, flags);
-
-	hctl.priv = ctl->priv;
-	hctl.complete = ctl->complete;
-	hctl.cmd = DNET_CMD_WRITE;
-	hctl.aflags = 0;
-	hctl.cflags = DNET_FLAGS_NEED_ACK;
-	hctl.fd = -1;
-	hctl.local_offset = 0;
-	hctl.adata = NULL;
-	hctl.asize = 0;
-
-	hctl.data = &e;
-
-	hctl.io.size = sizeof(struct dnet_history_entry);
-	hctl.io.offset = 0;
-	hctl.io.flags = flags | DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
-
-	err = dnet_trans_create_send_all(n, &hctl);
-	if (err <= 0)
-		goto err_out_exit;
-
-	num += err;
+	num = dnet_trans_create_send_all(n, ctl);
+	dnet_create_write_metadata_strings(n, remote, remote_len, id, NULL);
 
 	return num;
-
-err_out_exit:
-	return err;
 }
 
 int dnet_write_file_local_offset(struct dnet_node *n, char *file,
@@ -1485,33 +1444,6 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 	atomic_sub(&w->refcnt, INT_MAX - trans_num - 1);
 
 	munmap(data, ALIGN(size, page_size));
-
-	if ((trans_num > 0) && ((n->groups && n->group_num) || (remote_len && remote))) {
-		struct dnet_metadata_control mc;
-		int *groups = NULL;
-		int group_num = 0;
-
-		pthread_mutex_lock(&n->group_lock);
-		group_num = n->group_num;
-		groups = alloca(group_num * sizeof(int));
-
-		memcpy(groups, n->groups, group_num * sizeof(int));
-		pthread_mutex_unlock(&n->group_lock);
-
-		memset(&mc, 0, sizeof(mc));
-		mc.obj = remote;
-		mc.len = remote_len;
-		mc.groups = groups;
-		mc.group_num = group_num;
-		mc.id = ctl.id;
-
-		err = dnet_create_write_metadata(n, &mc);
-		if (err < 0) {
-			dnet_log(n, DNET_LOG_ERROR, "Failed to write metadata for file '%s' into the storage, transactions: %d, err: %d.\n", file, trans_num, err);
-			goto err_out_close;
-		}
-	}
-
 	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
 	if (err || w->status) {
 		if (!err)

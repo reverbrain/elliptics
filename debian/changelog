@@ -1,3 +1,9 @@
+elliptics (2.9.6.147) unstable; urgency=low
+
+  * Remove state when we detect its stall counter reached limit
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Apr 2011 19:48:16 +0400
+
 elliptics (2.9.6.146) unstable; urgency=low
 
   * Put whole ID into error log when we fail to read object or file
