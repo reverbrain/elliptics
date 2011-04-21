@@ -1,3 +1,10 @@
+elliptics (2.9.6.150) unstable; urgency=low
+
+  * Temporarily disable forwarding
+  * Remove transaction from tmp list when completing on timeout
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Apr 2011 01:47:03 +0400
+
 elliptics (2.9.6.149) unstable; urgency=low
 
   * Write metadata after data in high-level functions
