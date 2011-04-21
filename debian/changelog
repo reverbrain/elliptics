@@ -1,3 +1,10 @@
+elliptics (2.9.6.149) unstable; urgency=low
+
+  * Write metadata after data in high-level functions
+  * Do not remove object if check did not find history
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Apr 2011 21:12:54 +0400
+
 elliptics (2.9.6.148) unstable; urgency=low
 
   * Write metadata directly from dnet_write_object()
