@@ -147,7 +147,7 @@ struct dnet_idc {
 };
 
 int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id *ids, int id_num);
-void dnet_idc_destroy(struct dnet_net_state *st);
+void dnet_idc_destroy_nolock(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
@@ -155,6 +155,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
 void dnet_state_reset(struct dnet_net_state *st);
+void dnet_state_remove_nolock(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
 int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp, struct dnet_addr *addr);

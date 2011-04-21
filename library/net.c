@@ -726,20 +726,27 @@ err_out_exit:
 	return err;
 }
 
+void dnet_state_remove_nolock(struct dnet_net_state *st)
+{
+	struct dnet_node *n = st->n;
+
+	list_del_init(&st->state_entry);
+	list_del_init(&st->storage_state_entry);
+	dnet_idc_destroy_nolock(st);
+}
+
 static void dnet_state_remove(struct dnet_net_state *st)
 {
 	struct dnet_node *n = st->n;
 
 	pthread_mutex_lock(&n->state_lock);
-	list_del_init(&st->state_entry);
-	list_del_init(&st->storage_state_entry);
+	dnet_state_remove_nolock(st);
 	pthread_mutex_unlock(&n->state_lock);
 }
 
 void dnet_state_reset(struct dnet_net_state *st)
 {
 	dnet_state_remove(st);
-	dnet_idc_destroy(st);
 
 	pthread_mutex_lock(&st->send_lock);
 	if (!st->need_exit)
@@ -941,7 +948,6 @@ void dnet_state_destroy(struct dnet_net_state *st)
 		dnet_sock_close(st->write_s);
 	}
 
-	dnet_idc_destroy(st);
 	dnet_state_clean(st);
 
 	dnet_state_send_clean(st);
