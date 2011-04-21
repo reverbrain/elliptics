@@ -491,7 +491,8 @@ void elliptics_node::remove(const std::string &data)
 
 		try {
 			remove(id);
-		} catch (...) {
+		} catch (const std::exception &e) {
+			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), data.c_str());
 			continue;
 		}
 
