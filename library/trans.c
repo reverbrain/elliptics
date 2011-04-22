@@ -256,7 +256,7 @@ err_out_exit:
 	return err;
 }
 
-static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *head)
+static void dnet_trans_check_stall(struct dnet_net_state *st)
 {
 	struct dnet_trans *t, *tmp;
 	struct timeval tv;
@@ -268,9 +268,6 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 	list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
 		if (t->time.tv_sec >= tv.tv_sec)
 			break;
-
-		dnet_trans_remove_nolock(&st->trans_root, t);
-		list_move_tail(&t->trans_list_entry, head);
 
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT\n", dnet_state_dump_addr(st), (unsigned long long)t->trans);
 		trans_timeout++;
@@ -290,6 +287,9 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 			shutdown(st->write_s, 2);
 
 			dnet_state_remove_nolock(st);
+		} else {
+			dnet_schedule_recv(st);
+			dnet_schedule_send(st);
 		}
 	} else {
 		st->stall = 0;
@@ -306,27 +306,16 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 
 static void dnet_check_all_states(struct dnet_node *n)
 {
-	struct dnet_trans *t, *tmp;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
-	LIST_HEAD(head);
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			dnet_trans_check_stall(st, &head);
+			dnet_trans_check_stall(st);
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
-
-	list_for_each_entry_safe(t, tmp, &head, trans_list_entry) {
-		t->cmd.status = -ETIMEDOUT;
-		t->cmd.size = 0;
-
-		list_del_init(&t->trans_list_entry);
-
-		dnet_trans_put(t);
-	}
 }
 
 static void *dnet_check_process(void *data)

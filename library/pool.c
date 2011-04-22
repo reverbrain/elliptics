@@ -321,7 +321,10 @@ static void *dnet_io_process(void *data_)
 	struct dnet_node *n = nio->n;
 	struct dnet_net_state *st;
 	struct epoll_event ev;
-	int err = 0;
+	int err = 0, check;
+	struct dnet_trans *t, *tmp;
+	struct timeval tv;
+	struct list_head head;
 
 	dnet_set_name("net_pool");
 	dnet_log(n, DNET_LOG_NOTICE, "Starting network processing thread.\n");
@@ -344,6 +347,7 @@ static void *dnet_io_process(void *data_)
 
 		st = ev.data.ptr;
 		st->epoll_fd = nio->epoll_fd;
+		check = st->stall;
 
 		while (1) {
 			err = st->process(st, &ev);
@@ -355,8 +359,42 @@ static void *dnet_io_process(void *data_)
 
 			if (err < 0 || st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
 				dnet_state_reset(st);
+				check = 0;
 				break;
 			}
+		}
+
+		if (!check)
+			continue;
+
+		gettimeofday(&tv, NULL);
+
+		INIT_LIST_HEAD(&head);
+
+		pthread_mutex_lock(&st->trans_lock);
+		list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
+			if (t->time.tv_sec >= tv.tv_sec)
+				break;
+
+			dnet_trans_remove_nolock(&st->trans_root, t);
+			list_move(&t->trans_list_entry, &head);
+		}
+		pthread_mutex_unlock(&st->trans_lock);
+
+		list_for_each_entry_safe(t, tmp, &head, trans_list_entry) {
+			list_del_init(&t->trans_list_entry);
+
+			t->cmd.flags = 0;
+			t->cmd.size = 0;
+			t->cmd.status = -ETIMEDOUT;
+
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: destructing trans: %llu on TIMEOUT\n",
+					dnet_state_dump_addr(st), (unsigned long long)t->trans);
+
+			if (t->complete)
+				t->complete(st, &t->cmd, NULL, t->priv);
+
+			dnet_trans_put(t);
 		}
 	}
 
