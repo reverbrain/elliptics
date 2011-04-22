@@ -130,6 +130,7 @@ struct dnet_net_state
 	int			la;
 	unsigned long long	free;
 	float			weight;
+	long			median_read_time;
 
 	struct dnet_idc		*idc;
 
@@ -474,6 +475,8 @@ struct dnet_trans
 	struct dnet_cmd			cmd;
 
 	atomic_t			refcnt;
+
+	int				command; /* main command this transaction carries */
 
 	void				*priv;
 	int				(* complete)(struct dnet_net_state *st,

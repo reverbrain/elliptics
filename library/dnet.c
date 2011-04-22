@@ -1231,7 +1231,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	cmd->flags = ctl->cflags;
 	cmd->status = 0;
 
-	a->cmd = ctl->cmd;
+	a->cmd = t->command = ctl->cmd;
 	a->size = sizeof(struct dnet_io_attr) + size;
 	a->flags = ctl->aflags;
 

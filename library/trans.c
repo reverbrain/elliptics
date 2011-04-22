@@ -137,6 +137,8 @@ err_out_exit:
 
 void dnet_trans_destroy(struct dnet_trans *t)
 {
+	struct dnet_net_state *st = NULL;
+
 	if (!t)
 		return;
 
@@ -148,6 +150,9 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
 			!!(t->trans & ~DNET_TRANS_REPLY),
 			dnet_state_dump_addr(t->st));
+
+
+		st = t->st;
 
 		pthread_mutex_lock(&t->st->trans_lock);
 		list_del_init(&t->trans_list_entry);
@@ -162,6 +167,31 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	if (t->complete) {
 		t->cmd.flags |= DNET_FLAGS_DESTROY;
 		t->complete(t->st, &t->cmd, NULL, t->priv);
+	}
+
+	if (st && (t->cmd.status == 0) &&
+			((t->command == DNET_CMD_READ) || (t->command == DNET_CMD_LOOKUP))) {
+		struct timeval tv;
+		long diff;
+
+		/* calculate time of the last tranaction schedule */
+		t->time.tv_sec -= st->n->wait_ts.tv_sec;
+
+		gettimeofday(&tv, NULL);
+
+		diff = 1000 * (tv.tv_sec - t->time.tv_sec) + (tv.tv_usec - t->time.tv_usec);
+
+		st->weight *= (st->median_read_time < diff) ? 0.9 : 1.1;
+		st->median_read_time = (st->median_read_time + diff) / 2;
+
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, st: %s, weight: %f, times: median: %ld, current: %ld.\n",
+			dnet_dump_id(&t->cmd.id),
+			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
+			!!(t->trans & ~DNET_TRANS_REPLY),
+			dnet_state_dump_addr(t->st),
+			st->weight,
+			st->median_read_time, diff);
+
 	}
 
 	dnet_state_put(t->st);
