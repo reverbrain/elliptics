@@ -1,3 +1,9 @@
+elliptics (2.9.6.155) unstable; urgency=low
+
+  * Fixed usec->msec transformation during estimator calculus
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Apr 2011 03:19:18 +0400
+
 elliptics (2.9.6.154) unstable; urgency=low
 
   * Added weight estimator based on read transaction timings
