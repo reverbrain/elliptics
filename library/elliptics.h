@@ -338,6 +338,8 @@ struct dnet_node
 
 	struct dnet_id		id;
 
+	int			flags;
+
 	pthread_attr_t		attr;
 
 	struct dnet_addr	addr;

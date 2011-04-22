@@ -813,11 +813,12 @@ err_out_exit:
 }
 
 static int dnet_add_received_state(struct dnet_node *n, struct dnet_addr_attr *a,
-		int group_id, struct dnet_raw_id *ids, int id_num, int join)
+		int group_id, struct dnet_raw_id *ids, int id_num)
 {
 	int s, err = 0;
 	struct dnet_net_state *nst;
 	struct dnet_id raw;
+	int join;
 
 	dnet_setup_id(&raw, group_id, ids[0].id);
 
@@ -836,7 +837,7 @@ static int dnet_add_received_state(struct dnet_node *n, struct dnet_addr_attr *a
 	}
 
 	join = DNET_WANT_RECONNECT;
-	if (join & DNET_JOIN_NETWORK)
+	if (n->flags & DNET_CFG_JOIN_NETWORK)
 		join = DNET_JOIN;
 
 	nst = dnet_state_create(n, group_id, ids, id_num, &a->addr, s, &err, join, dnet_state_net_process);
@@ -868,7 +869,7 @@ static int dnet_process_addr_attr(struct dnet_net_state *st, struct dnet_attr *a
 	for (i=0; i<num; ++i)
 		dnet_convert_raw_id(&ids[0]);
 
-	err = dnet_add_received_state(n, a, group_id, ids, num, st->__join_state);
+	err = dnet_add_received_state(n, a, group_id, ids, num);
 	dnet_log(n, DNET_LOG_DSA, "%s: route list: %d entries: %d.\n", dnet_server_convert_dnet_addr(&a->addr), num, err);
 
 	return err;
@@ -1097,7 +1098,7 @@ err_out_exit:
 
 int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 {
-	int s, err, join;
+	int s, err, join = DNET_WANT_RECONNECT;
 	struct dnet_addr addr;
 	struct dnet_net_state *st;
 
@@ -1110,8 +1111,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_reconnect;
 	}
 
-	join = DNET_WANT_RECONNECT;
-	if (cfg->join & DNET_JOIN_NETWORK)
+	if (cfg->flags & DNET_CFG_JOIN_NETWORK)
 		join = DNET_JOIN;
 
 	/* will close socket on error */
@@ -1119,7 +1119,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 	if (!st)
 		goto err_out_reconnect;
 
-	if (!(cfg->join & DNET_NO_ROUTE_LIST))
+	if (!(cfg->flags & DNET_CFG_NO_ROUTE_LIST))
 		dnet_recv_route_list(st);
 
 	return 0;
@@ -1127,7 +1127,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 err_out_reconnect:
 	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) || (err == -ECONNRESET) ||
 			(err == -EINPROGRESS) || (err == -EAGAIN))
-		dnet_add_reconnect_state(n, &addr, cfg->join | DNET_WANT_RECONNECT);
+		dnet_add_reconnect_state(n, &addr, join);
 	return err;
 }
 

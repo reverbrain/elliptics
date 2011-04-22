@@ -242,9 +242,10 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
 
-/* cfg->join flags */
-#define DNET_JOIN_NETWORK		(1<<0)
-#define DNET_NO_ROUTE_LIST		(1<<1)
+/* cfg->flags */
+#define DNET_CFG_JOIN_NETWORK		(1<<0)		/* given node joins network and becomes part of the storage */
+#define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */
+#define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
 
 struct dnet_log {
 	/*
@@ -292,7 +293,7 @@ struct dnet_config
 	 *
 	 * Also has a bit to forbid route list download.
 	 */
-	int			join;
+	int			flags;
 
 	/*
 	 * If node joins network this will be used to find a group to join.
