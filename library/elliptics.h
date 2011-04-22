@@ -89,6 +89,8 @@ struct dnet_io_req {
 /* Attached data should be discarded */
 #define DNET_IO_DROP		(1<<1)
 
+#define DNET_STATE_MAX_WEIGHT		(1024 * 10)
+
 struct dnet_net_state
 {
 	struct list_head	state_entry;
@@ -127,6 +129,7 @@ struct dnet_net_state
 
 	int			la;
 	unsigned long long	free;
+	float			weight;
 
 	struct dnet_idc		*idc;
 

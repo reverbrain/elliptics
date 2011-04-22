@@ -177,6 +177,8 @@ void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t si
 	struct dnet_id id;
 
 	dnet_transform(node, (void *)remote.data(), remote.size(), &id);
+	dnet_mix_states(node, &id);
+
 	for (i=0; i<groups.size(); ++i) {
 		id.group_id = groups[i];
 
@@ -428,6 +430,8 @@ std::string elliptics_node::lookup(const std::string &data)
 	std::string ret;
 
 	transform(data, id);
+
+	dnet_mix_states(node, &id);
 
 	for (i=0; i<groups.size(); ++i) {
 		try {

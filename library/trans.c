@@ -279,16 +279,29 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 
 	if (trans_timeout) {
 		st->stall++;
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d\n",
-				dnet_state_dump_addr(st), trans_timeout, st->stall);
+
+		if (st->weight >= 2)
+			st->weight /= 2;
+
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d, weight: %f\n",
+				dnet_state_dump_addr(st), trans_timeout, st->stall, st->weight);
 		if (st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
 			shutdown(st->read_s, 2);
 			shutdown(st->write_s, 2);
 
 			dnet_state_remove_nolock(st);
 		}
-	} else
+	} else {
 		st->stall = 0;
+
+		if (st->weight < DNET_STATE_MAX_WEIGHT)
+			st->weight *= 1.2;
+
+		if (st->stall) {
+			dnet_log(st->n, DNET_LOG_INFO, "%s: reseting state stall counter: weight: %f\n",
+					dnet_state_dump_addr(st), st->weight);
+		}
+	}
 }
 
 static void dnet_check_all_states(struct dnet_node *n)

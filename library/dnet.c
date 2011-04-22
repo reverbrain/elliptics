@@ -3420,3 +3420,58 @@ int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, c
 err_out_exit:
 	return err;
 }
+
+struct dnet_weight {
+	int			weight;
+	int			group_id;
+};
+
+static int dnet_weight_compare(const void *v1, const void *v2)
+{
+	const struct dnet_weight *w1 = v1;
+	const struct dnet_weight *w2 = v2;
+
+	return w1->weight - w2->weight;
+}
+
+void dnet_mix_states(struct dnet_node *n, struct dnet_id *id)
+{
+	struct dnet_weight *weights;
+	int *groups;
+	int group_num, i, num;
+	struct dnet_net_state *st;
+
+	pthread_mutex_lock(&n->group_lock);
+	group_num = n->group_num;
+
+	weights = alloca(n->group_num * sizeof(*weights));
+	groups = alloca(n->group_num * sizeof(*groups));
+
+	memcpy(groups, n->groups, n->group_num * sizeof(*groups));
+	pthread_mutex_unlock(&n->group_lock);
+
+	memset(weights, 0, group_num * sizeof(*weights));
+
+	for (i=0, num=0; i<group_num; ++i) {
+		id->group_id = groups[i];
+
+		st = dnet_state_get_first(n, id);
+		if (st) {
+			weights[num].weight = (int)st->weight;
+			weights[num].group_id = id->group_id;
+
+			dnet_state_put(st);
+
+			num++;
+		}
+	}
+
+	qsort(weights, group_num, sizeof(struct dnet_weight), dnet_weight_compare);
+
+	/* weights are sorted in ascending order */
+	for (i=0; i<num; ++i) {
+		groups[i] = weights[num - i - 1].group_id;
+	}
+
+	dnet_node_set_groups(n, groups, group_num);
+}

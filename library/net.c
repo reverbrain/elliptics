@@ -831,6 +831,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	st->process = process;
 
 	st->la = 1;
+	st->weight = DNET_STATE_MAX_WEIGHT / 2;
 
 	INIT_LIST_HEAD(&st->state_entry);
 
