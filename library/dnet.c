@@ -3441,6 +3441,9 @@ void dnet_mix_states(struct dnet_node *n, struct dnet_id *id)
 	int group_num, i, num;
 	struct dnet_net_state *st;
 
+	if (!(n->flags & DNET_CFG_MIX_STATES))
+		return;
+
 	pthread_mutex_lock(&n->group_lock);
 	group_num = n->group_num;
 
