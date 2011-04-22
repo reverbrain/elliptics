@@ -577,6 +577,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	dnet_set_name("main");
 
+	srand(time(NULL));
+
 	sigemptyset(&sig);
 	sigaddset(&sig, SIGPIPE);
 	pthread_sigmask(SIG_BLOCK, &sig, NULL);

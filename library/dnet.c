@@ -3469,11 +3469,31 @@ void dnet_mix_states(struct dnet_node *n, struct dnet_id *id)
 		}
 	}
 
-	qsort(weights, group_num, sizeof(struct dnet_weight), dnet_weight_compare);
+	group_num = num;
+	if (group_num) {
+		int have_equal = 0;
 
-	/* weights are sorted in ascending order */
-	for (i=0; i<num; ++i) {
-		groups[i] = weights[num - i - 1].group_id;
+		qsort(weights, group_num, sizeof(struct dnet_weight), dnet_weight_compare);
+
+		/* if we have equal weights, add random salt to them and rerun */
+		for (i=1; i<group_num; ++i) {
+			if (weights[i].weight == weights[i - 1].weight) {
+				float r = rand();
+
+				r /= (float)RAND_MAX;
+
+				weights[i].weight += (r > 0.5) ? +r : -r;
+				have_equal = 1;
+			}
+		}
+
+		if (have_equal)
+			qsort(weights, group_num, sizeof(struct dnet_weight), dnet_weight_compare);
+
+		/* weights are sorted in ascending order */
+		for (i=0; i<group_num; ++i) {
+			groups[i] = weights[num - i - 1].group_id;
+		}
 	}
 
 	dnet_node_set_groups(n, groups, group_num);
