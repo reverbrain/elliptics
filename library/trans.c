@@ -179,7 +179,8 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 		gettimeofday(&tv, NULL);
 
-		diff = 1000 * (tv.tv_sec - t->time.tv_sec) + (tv.tv_usec - t->time.tv_usec);
+		diff = 1000000 * (tv.tv_sec - t->time.tv_sec) + (tv.tv_usec - t->time.tv_usec);
+		diff = (diff + 999) / 1000; /* from useconds to milliseconds */
 
 		st->weight *= (st->median_read_time < diff) ? 0.9 : 1.1;
 		st->median_read_time = (st->median_read_time + diff) / 2;
