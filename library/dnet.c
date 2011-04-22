@@ -3483,6 +3483,8 @@ void dnet_mix_states(struct dnet_node *n, struct dnet_id *id)
 				r /= (float)RAND_MAX;
 
 				weights[i].weight += (r > 0.5) ? +r : -r;
+				weights[i - 1].weight -= (r > 0.5) ? +r : -r;
+
 				have_equal = 1;
 			}
 		}
