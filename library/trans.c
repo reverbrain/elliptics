@@ -129,6 +129,8 @@ struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
 	atomic_init(&t->refcnt, 1);
 	INIT_LIST_HEAD(&t->trans_list_entry);
 
+	gettimeofday(&t->start, NULL);
+
 	return t;
 
 err_out_exit:
@@ -174,12 +176,9 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		struct timeval tv;
 		long diff;
 
-		/* calculate time of the last tranaction schedule */
-		t->time.tv_sec -= st->n->wait_ts.tv_sec;
-
 		gettimeofday(&tv, NULL);
 
-		diff = 1000000 * (tv.tv_sec - t->time.tv_sec) + (tv.tv_usec - t->time.tv_usec);
+		diff = 1000000 * (tv.tv_sec - t->start.tv_sec) + (tv.tv_usec - t->start.tv_usec);
 		diff = (diff + 999) / 1000; /* from useconds to milliseconds */
 
 		st->weight *= (st->median_read_time < diff) ? 0.9 : 1.1;

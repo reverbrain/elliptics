@@ -466,7 +466,7 @@ struct dnet_trans
 	struct rb_node			trans_entry;
 	struct list_head		trans_list_entry;
 
-	struct timeval			time;
+	struct timeval			time, start;
 
 	struct dnet_net_state		*orig; /* only for forward */
 
