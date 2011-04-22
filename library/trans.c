@@ -306,12 +306,12 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 
 static void dnet_check_all_states(struct dnet_node *n)
 {
-	struct dnet_net_state *st;
-	struct dnet_group *g;
+	struct dnet_net_state *st, *tmp;
+	struct dnet_group *g, *gtmp;
 
 	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		list_for_each_entry(st, &g->state_list, state_entry) {
+	list_for_each_entry_safe(g, gtmp, &n->group_list, group_entry) {
+		list_for_each_entry_safe(st, tmp, &g->state_list, state_entry) {
 			dnet_trans_check_stall(st);
 		}
 	}
