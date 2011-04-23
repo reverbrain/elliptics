@@ -140,26 +140,21 @@ err_out_exit:
 void dnet_trans_destroy(struct dnet_trans *t)
 {
 	struct dnet_net_state *st = NULL;
+	struct timeval tv;
+	long diff;
 
 	if (!t)
 		return;
 
+	gettimeofday(&tv, NULL);
+	diff = 1000000 * (tv.tv_sec - t->start.tv_sec) + (tv.tv_usec - t->start.tv_usec);
+
 	if (t->st && t->st->n) {
-		struct dnet_node *n = t->st->n;
-
-		if (t->cmd.status || (t->command != DNET_CMD_READ && t->command != DNET_CMD_LOOKUP))
-			dnet_log(n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, st: %s.\n",
-				dnet_dump_id(&t->cmd.id),
-				(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
-				!!(t->trans & ~DNET_TRANS_REPLY),
-				dnet_state_dump_addr(t->st));
-
-
 		st = t->st;
 
-		pthread_mutex_lock(&t->st->trans_lock);
+		pthread_mutex_lock(&st->trans_lock);
 		list_del_init(&t->trans_list_entry);
-		pthread_mutex_unlock(&t->st->trans_lock);
+		pthread_mutex_unlock(&st->trans_lock);
 
 		if (t->trans_entry.rb_parent_color)
 			dnet_trans_remove(t);
@@ -174,12 +169,6 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 	if (st && (t->cmd.status == 0) &&
 			((t->command == DNET_CMD_READ) || (t->command == DNET_CMD_LOOKUP))) {
-		struct timeval tv;
-		long diff;
-
-		gettimeofday(&tv, NULL);
-
-		diff = 1000000 * (tv.tv_sec - t->start.tv_sec) + (tv.tv_usec - t->start.tv_usec);
 
 		if (diff < st->median_read_time && st->weight < DNET_STATE_MAX_WEIGHT)
 			st->weight *= 1.1;
@@ -187,16 +176,17 @@ void dnet_trans_destroy(struct dnet_trans *t)
 			st->weight *= 0.8;
 
 		st->median_read_time = (st->median_read_time + diff) / 2;
+	}
 
-		dnet_log(st->n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, st: %s, weight: %f, times: median: %ld, current: %ld.\n",
+	if (st && st->n)
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: destruction %s trans: %llu, reply: %d, st: %s, weight: %f, mrt: %ld, time: %ld.\n",
 			dnet_dump_id(&t->cmd.id),
+			dnet_cmd_string(t->command),
 			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
 			!!(t->trans & ~DNET_TRANS_REPLY),
 			dnet_state_dump_addr(t->st),
-			st->weight,
-			st->median_read_time, diff);
+			st->weight, st->median_read_time, diff);
 
-	}
 
 	dnet_state_put(t->st);
 	dnet_state_put(t->orig);
