@@ -147,11 +147,12 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	if (t->st && t->st->n) {
 		struct dnet_node *n = t->st->n;
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, st: %s.\n",
-			dnet_dump_id(&t->cmd.id),
-			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
-			!!(t->trans & ~DNET_TRANS_REPLY),
-			dnet_state_dump_addr(t->st));
+		if (t->cmd.status || (t->command != DNET_CMD_READ && t->command != DNET_CMD_LOOKUP))
+			dnet_log(n, DNET_LOG_NOTICE, "%s: destruction trans: %llu, reply: %d, st: %s.\n",
+				dnet_dump_id(&t->cmd.id),
+				(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
+				!!(t->trans & ~DNET_TRANS_REPLY),
+				dnet_state_dump_addr(t->st));
 
 
 		st = t->st;
