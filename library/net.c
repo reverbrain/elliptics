@@ -834,7 +834,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	st->la = 1;
 	st->weight = DNET_STATE_MAX_WEIGHT / 2;
-	st->median_read_time = 100; /* milliseconds for start */
+	st->median_read_time = 1000; /* useconds for start */
 
 	INIT_LIST_HEAD(&st->state_entry);
 
