@@ -178,8 +178,8 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		st->median_read_time = (st->median_read_time + diff) / 2;
 	}
 
-	if (st && st->n)
-		dnet_log(st->n, DNET_LOG_NOTICE, "%s: destruction %s trans: %llu, reply: %d, st: %s, weight: %f, mrt: %ld, time: %ld.\n",
+	if (st && st->n && t->command != 0)
+		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, weight: %f, mrt: %ld, time: %ld.\n",
 			dnet_dump_id(&t->cmd.id),
 			dnet_cmd_string(t->command),
 			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
@@ -223,7 +223,7 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
-	a->cmd = ctl->cmd;
+	a->cmd = t->command = ctl->cmd;
 	a->size = ctl->size;
 	a->flags = ctl->aflags;
 
@@ -242,10 +242,10 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 	req.header = cmd;
 	req.hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + ctl->size;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: alloc/send trans: %llu, cmd: %s -> %s %f.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: alloc/send %s trans: %llu -> %s %f.\n",
 			dnet_dump_id(&cmd->id),
-			(unsigned long long)t->trans,
 			dnet_cmd_string(ctl->cmd),
+			(unsigned long long)t->trans,
 			dnet_server_convert_dnet_addr(&t->st->addr), t->st->weight);
 
 	err = dnet_trans_send(t, &req);

@@ -935,7 +935,7 @@ static int dnet_recv_route_list(struct dnet_net_state *st)
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
-	a->cmd = DNET_CMD_ROUTE_LIST;
+	a->cmd = t->command = DNET_CMD_ROUTE_LIST;
 	a->size = 0;
 	a->flags = 0;
 
@@ -2316,7 +2316,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
-	a->cmd = DNET_CMD_LOOKUP;
+	a->cmd = t->command = DNET_CMD_LOOKUP;
 	a->size = 0;
 	a->flags = aflags;
 

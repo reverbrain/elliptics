@@ -632,6 +632,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 		struct dnet_net_state *orig, struct dnet_net_state *forward)
 {
 	struct dnet_cmd *cmd = r->header;
+	struct dnet_attr *attr = r->data;
 	char orig_addr[128];
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
@@ -640,6 +641,12 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 	cmd->trans = t->cmd.trans = t->trans = atomic_inc(&orig->n->trans);
 
 	dnet_convert_cmd(cmd);
+
+	if (attr) {
+		dnet_convert_attr(attr);
+		t->command = attr->cmd;
+		dnet_convert_attr(attr);
+	}
 
 	t->complete = dnet_trans_complete_forward;
 	t->priv = t;
@@ -650,8 +657,9 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 	r->st = forward;
 
 	dnet_server_convert_dnet_addr_raw(&orig->addr, orig_addr, sizeof(orig_addr));
-	dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding %s -> %s, trans: %llu -> %llu\n",
-			dnet_dump_id(&t->cmd.id), orig_addr, dnet_state_dump_addr(forward),
+	dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding %s trans: %s -> %s, trans: %llu -> %llu\n",
+			dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->command),
+			orig_addr, dnet_state_dump_addr(forward),
 			(unsigned long long)t->rcv_trans, (unsigned long long)t->trans);
 
 	return dnet_trans_send(t, r);
