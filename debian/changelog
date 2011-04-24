@@ -1,3 +1,11 @@
+elliptics (2.9.6.156) unstable; urgency=low
+
+  * Remove dnet_join(), states are added into route table automatically. Fixed
+    race between route table update (dnet_idc_create()) and storage_state_list
+    update.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 25 Apr 2011 00:47:18 +0400
+
 elliptics (2.9.6.155) unstable; urgency=low
 
   * Fixed usec->msec transformation during estimator calculus
