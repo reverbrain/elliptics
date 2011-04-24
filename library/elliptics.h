@@ -179,6 +179,8 @@ int dnet_schedule_recv(struct dnet_net_state *st);
 void dnet_unschedule_send(struct dnet_net_state *st);
 void dnet_unschedule_recv(struct dnet_net_state *st);
 
+int dnet_setup_control_nolock(struct dnet_net_state *st);
+
 int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsigned int join_state);
 
 static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)

@@ -299,6 +299,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	pthread_mutex_lock(&n->state_lock);
 	list_del_init(&st->state_entry);
+	list_del_init(&st->storage_state_entry);
 	pthread_mutex_unlock(&n->state_lock);
 
 	memcpy(&st->addr, &a->addr, sizeof(struct dnet_addr));
@@ -965,43 +966,6 @@ err_out_exit:
 	return err;
 }
 
-int dnet_join(struct dnet_node *n)
-{
-	int err = 0;
-	struct dnet_net_state *st;
-	struct dnet_group *g;
-	struct timeval start, end;
-	long diff;
-
-	if (!n->command_handler) {
-		dnet_log(n, DNET_LOG_ERROR, "Can not join without command handler.\n");
-		return -EINVAL;
-	}
-
-	gettimeofday(&start, NULL);
-
-	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (st == n->st)
-				continue;
-
-			if (st->__join_state == DNET_JOIN)
-				continue;
-
-			err = dnet_state_join_nolock(st);
-		}
-	}
-	pthread_mutex_unlock(&n->state_lock);
-
-	gettimeofday(&end, NULL);
-
-	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-	dnet_log(n, DNET_LOG_ERROR, "Join: err: %d: %ld usecs.\n", err, diff);
-
-	return err;
-}
-
 static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct dnet_addr *addr, int s, int *errp, int join)
 {
 	struct dnet_net_state *st, dummy;
@@ -1111,7 +1075,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_reconnect;
 	}
 
-	if (cfg->flags & DNET_CFG_JOIN_NETWORK)
+	if (n->flags & DNET_CFG_JOIN_NETWORK)
 		join = DNET_JOIN;
 
 	/* will close socket on error */

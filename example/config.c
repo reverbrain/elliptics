@@ -439,12 +439,6 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	if (err)
 		goto err_out_node_destroy;
 
-	if (dnet_cfg_state.flags & DNET_CFG_JOIN_NETWORK) {
-		err = dnet_join(n);
-		if (err)
-			goto err_out_node_destroy;
-	}
-
 	return n;
 
 err_out_node_destroy:

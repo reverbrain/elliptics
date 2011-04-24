@@ -170,6 +170,23 @@ static int dnet_idc_compare(const void *k1, const void *k2)
 	return dnet_id_cmp_str(id1->raw.id, id2->raw.id);
 }
 
+static void dnet_idc_remove_ids(struct dnet_net_state *st, struct dnet_group *g)
+{
+	int i, pos;
+
+	for (i=0, pos=0; i<g->id_num; ++i) {
+		if (g->ids[i].idc != st->idc) {
+			g->ids[pos] = g->ids[i];
+			pos++;
+		}
+	}
+
+	g->id_num = pos;
+
+	qsort(g->ids,  g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
+	st->idc = NULL;
+}
+
 int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id *ids, int id_num)
 {
 	struct dnet_node *n = st->n;
@@ -227,6 +244,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	qsort(g->ids, g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
 
 	list_add_tail(&st->state_entry, &g->state_list);
+	list_add_tail(&st->storage_state_entry, &n->storage_state_list);
 
 	idc->id_num = id_num;
 	idc->st = st;
@@ -241,15 +259,23 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 		}
 	}
 
+	err = dnet_setup_control_nolock(st);
+	if (err)
+		goto err_out_remove_nolock;
+
 	pthread_mutex_unlock(&n->state_lock);
 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 
-	dnet_log(n, DNET_LOG_INFO, "Initialized group %d with %d ids, added %d ids out of %d: %ld usecs.\n", g->group_id, g->id_num, num, id_num, diff);
+	dnet_log(n, DNET_LOG_INFO, "Initialized group: %d, total ids: %d, added ids: %d out of %d: %ld usecs.\n", g->group_id, g->id_num, num, id_num, diff);
 
 	return 0;
 
+err_out_remove_nolock:
+	dnet_idc_remove_ids(st, g);
+	list_del_init(&st->state_entry);
+	list_del_init(&st->storage_state_entry);
 err_out_unlock_put:
 	dnet_group_put(g);
 err_out_unlock:
@@ -266,29 +292,15 @@ void dnet_idc_destroy_nolock(struct dnet_net_state *st)
 {
 	struct dnet_idc *idc;
 	struct dnet_group *g;
-	int i, pos;
 
 	idc = st->idc;
 	if (!idc)
 		return;
 
 	g = idc->group;
-
-	for (i=0, pos=0; i<g->id_num; ++i) {
-		if (g->ids[i].idc != idc) {
-			g->ids[pos] = g->ids[i];
-			pos++;
-		}
-	}
-
-	g->id_num = pos;
-
-	qsort(g->ids,  g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
-
+	dnet_idc_remove_ids(st, g);
 	dnet_group_put(g);
 	free(idc);
-
-	st->idc = NULL;
 }
 
 static int __dnet_idc_search(struct dnet_group *g, struct dnet_id *id)

@@ -489,12 +489,6 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg);
 
 int dnet_state_num(struct dnet_node *n);
 
-/*
- * This is used to join the network. When function is completed, node will be
- * used to store data sent from the network.
- */
-int dnet_join(struct dnet_node *n);
-
 #define DNET_DUMP_NUM	6
 /*
  * Logging helper used to print ID (DNET_ID_SIZE bytes) as a hex string.
