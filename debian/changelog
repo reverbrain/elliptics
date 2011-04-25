@@ -1,3 +1,66 @@
+elliptics (2.9.6.156) unstable; urgency=low
+
+  * Remove dnet_join(), states are added into route table automatically. Fixed
+    race between route table update (dnet_idc_create()) and storage_state_list
+    update.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 25 Apr 2011 00:47:18 +0400
+
+elliptics (2.9.6.155) unstable; urgency=low
+
+  * Fixed usec->msec transformation during estimator calculus
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Apr 2011 03:19:18 +0400
+
+elliptics (2.9.6.154) unstable; urgency=low
+
+  * Added weight estimator based on read transaction timings
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Apr 2011 02:46:19 +0400
+
+elliptics (2.9.6.153) unstable; urgency=low
+
+  * Add some salt if there are equal weights and rerun sort
+  * Fixed all-state-check - since states can be removed we must use safe
+    iterator
+  * Extended transaction debug - added weights
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Apr 2011 01:39:14 +0400
+
+elliptics (2.9.6.152) unstable; urgency=low
+
+  * Moved stall transaction processing into network IO thread
+  * Added 'flags' parameter into ioserv config
+  * Added state mix according to their weights
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Apr 2011 19:27:41 +0400
+
+elliptics (2.9.6.151) unstable; urgency=low
+
+  * Enable transaction forwarding. Use special saved state for this.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Apr 2011 03:10:42 +0400
+
+elliptics (2.9.6.150) unstable; urgency=low
+
+  * Temporarily disable forwarding
+  * Remove transaction from tmp list when completing on timeout
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Apr 2011 01:47:03 +0400
+
+elliptics (2.9.6.149) unstable; urgency=low
+
+  * Write metadata after data in high-level functions
+  * Do not remove object if check did not find history
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Apr 2011 21:12:54 +0400
+
+elliptics (2.9.6.148) unstable; urgency=low
+
+  * Write metadata directly from dnet_write_object()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Apr 2011 20:44:50 +0400
+
 elliptics (2.9.6.147) unstable; urgency=low
 
   * Remove state when we detect its stall counter reached limit

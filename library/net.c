@@ -609,7 +609,7 @@ static int dnet_trans_complete_forward(struct dnet_net_state *state __unused,
 				void *priv)
 {
 	struct dnet_trans *t = priv;
-	struct dnet_net_state *dst = t->st;
+	struct dnet_net_state *orig = t->orig;
 	int err = -EINVAL;
 
 	if (!is_trans_destroyed(state, cmd, attr)) {
@@ -618,9 +618,11 @@ static int dnet_trans_complete_forward(struct dnet_net_state *state __unused,
 		cmd->trans = t->rcv_trans | DNET_TRANS_REPLY;
 
 		dnet_convert_cmd(cmd);
-		dnet_convert_attr(attr);
 
-		err = dnet_send_data(dst, cmd, sizeof(struct dnet_cmd), attr, size);
+		if (attr)
+			dnet_convert_attr(attr);
+
+		err = dnet_send_data(orig, cmd, sizeof(struct dnet_cmd), attr, size);
 	}
 
 	return err;
@@ -630,6 +632,8 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 		struct dnet_net_state *orig, struct dnet_net_state *forward)
 {
 	struct dnet_cmd *cmd = r->header;
+	struct dnet_attr *attr = r->data;
+	char orig_addr[128];
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
@@ -638,15 +642,24 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 
 	dnet_convert_cmd(cmd);
 
+	if (attr) {
+		dnet_convert_attr(attr);
+		t->command = attr->cmd;
+		dnet_convert_attr(attr);
+	}
+
 	t->complete = dnet_trans_complete_forward;
 	t->priv = t;
 
-	t->st = dnet_state_get(orig);
+	t->orig = dnet_state_get(orig);
+	t->st = dnet_state_get(forward);
 
 	r->st = forward;
 
-	dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding to %s, trans: %llu -> %llu\n",
-			dnet_dump_id(&t->cmd.id), dnet_state_dump_addr(forward),
+	dnet_server_convert_dnet_addr_raw(&orig->addr, orig_addr, sizeof(orig_addr));
+	dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding %s trans: %s -> %s, trans: %llu -> %llu\n",
+			dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->command),
+			orig_addr, dnet_state_dump_addr(forward),
 			(unsigned long long)t->rcv_trans, (unsigned long long)t->trans);
 
 	return dnet_trans_send(t, r);
@@ -689,7 +702,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 			dnet_trans_put(t);
 		goto out;
 	}
-
+#if 1
 	forward_state = dnet_state_get_first(n, &cmd->id);
 	if (!forward_state || forward_state == st || forward_state == n->st ||
 			(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {
@@ -710,7 +723,9 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 		goto err_out_destroy;
 
 	dnet_state_put(forward_state);
-
+#else
+	dnet_process_cmd_raw(st, cmd, r->data);
+#endif
 out:
 	return 0;
 
@@ -789,14 +804,39 @@ void dnet_set_sockopt(int s)
 	fcntl(s, F_SETFL, O_NONBLOCK);
 }
 
+int dnet_setup_control_nolock(struct dnet_net_state *st)
+{
+	struct dnet_node *n = st->n;
+	struct dnet_io *io = n->io;
+	int err, pos;
+
+	pos = io->net_thread_pos;
+	if (++io->net_thread_pos >= io->net_thread_num)
+		io->net_thread_pos = 0;
+	st->epoll_fd = io->net[pos].epoll_fd;
+
+	err = dnet_schedule_recv(st);
+	if (err)
+		goto err_out_unschedule;
+
+	return 0;
+
+err_out_unschedule:
+	dnet_unschedule_send(st);
+	dnet_unschedule_recv(st);
+
+	st->epoll_fd = -1;
+	list_del_init(&st->storage_state_entry);
+	return err;
+}
+
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
 		struct dnet_addr *addr, int s, int *errp, int join,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev))
 {
-	int err = -ENOMEM, pos;
+	int err = -ENOMEM;
 	struct dnet_net_state *st;
-	struct dnet_io *io = n->io;
 
 	if (ids && id_num) {
 		st = dnet_state_search_by_addr(n, addr);
@@ -826,8 +866,11 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	st->process = process;
 
 	st->la = 1;
+	st->weight = DNET_STATE_MAX_WEIGHT / 2;
+	st->median_read_time = 1000; /* useconds for start */
 
 	INIT_LIST_HEAD(&st->state_entry);
+	INIT_LIST_HEAD(&st->storage_state_entry);
 
 	st->trans_root = RB_ROOT;
 	INIT_LIST_HEAD(&st->trans_list);
@@ -852,48 +895,34 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
 
 	dnet_schedule_command(st);
+	st->__join_state = join;
 
 	if (ids && id_num) {
 		err = dnet_idc_create(st, group_id, ids, id_num);
 		if (err)
 			goto err_out_send_destroy;
+
+		if (st->__join_state == DNET_JOIN) {
+			pthread_mutex_lock(&n->state_lock);
+			err = dnet_state_join_nolock(st);
+			pthread_mutex_unlock(&n->state_lock);
+		}
 	} else {
 		pthread_mutex_lock(&n->state_lock);
 		list_add_tail(&st->state_entry, &n->empty_state_list);
-		pthread_mutex_unlock(&n->state_lock);
-	}
+		list_add_tail(&st->storage_state_entry, &n->storage_state_list);
 
-	pthread_mutex_lock(&n->state_lock);
-	list_add_tail(&st->storage_state_entry, &n->storage_state_list);
-	pos = io->net_thread_pos;
-	if (++io->net_thread_pos >= io->net_thread_num)
-		io->net_thread_pos = 0;
-	st->epoll_fd = io->net[pos].epoll_fd;
-
-	if (join == DNET_JOIN) {
-		err = dnet_state_join_nolock(st);
+		err = dnet_setup_control_nolock(st);
 		if (err)
 			goto err_out_unlock;
+		pthread_mutex_unlock(&n->state_lock);
 	}
-
-	st->__join_state = join;
-	pthread_mutex_unlock(&n->state_lock);
-
-	err = dnet_schedule_recv(st);
-	if (err)
-		goto err_out_put;
 
 	return st;
 
 err_out_unlock:
+	list_del_init(&st->state_entry);
 	pthread_mutex_unlock(&n->state_lock);
-err_out_put:
-	/* since we already added state into route table
-	 * it is possible that some other thread grabbed a reference to it
-	 */
-	dnet_state_put(st);
-	goto err_out_exit;
-
 err_out_send_destroy:
 	pthread_mutex_destroy(&st->send_lock);
 err_out_trans_destroy:
@@ -904,7 +933,7 @@ err_out_free:
 	free(st);
 err_out_close:
 	dnet_sock_close(s);
-err_out_exit:
+
 	if (err == -EEXIST)
 		dnet_log(n, DNET_LOG_ERROR, "%s: state already exists.\n", dnet_server_convert_dnet_addr(addr));
 	*errp = err;

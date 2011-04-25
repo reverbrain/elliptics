@@ -294,6 +294,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	pthread_mutex_lock(&n->state_lock);
 	list_del_init(&st->state_entry);
+	list_del_init(&st->storage_state_entry);
 	pthread_mutex_unlock(&n->state_lock);
 
 	memcpy(&st->addr, &a->addr, sizeof(struct dnet_addr));
@@ -571,7 +572,7 @@ static char *dnet_counter_strings[] = {
 	[DNET_CNTR_UNKNOWN] = "UNKNOWN",
 };
 
-static char *dnet_cmd_string(int cmd)
+char *dnet_cmd_string(int cmd)
 {
 	if (cmd == 0 || cmd >= __DNET_CMD_MAX)
 		cmd = DNET_CMD_UNKNOWN;
@@ -811,11 +812,12 @@ err_out_exit:
 }
 
 static int dnet_add_received_state(struct dnet_node *n, struct dnet_addr_attr *a,
-		int group_id, struct dnet_raw_id *ids, int id_num, int join)
+		int group_id, struct dnet_raw_id *ids, int id_num)
 {
 	int s, err = 0;
 	struct dnet_net_state *nst;
 	struct dnet_id raw;
+	int join;
 
 	dnet_setup_id(&raw, group_id, ids[0].id);
 
@@ -834,7 +836,7 @@ static int dnet_add_received_state(struct dnet_node *n, struct dnet_addr_attr *a
 	}
 
 	join = DNET_WANT_RECONNECT;
-	if (join & DNET_JOIN_NETWORK)
+	if (n->flags & DNET_CFG_JOIN_NETWORK)
 		join = DNET_JOIN;
 
 	nst = dnet_state_create(n, group_id, ids, id_num, &a->addr, s, &err, join, dnet_state_net_process);
@@ -866,7 +868,7 @@ static int dnet_process_addr_attr(struct dnet_net_state *st, struct dnet_attr *a
 	for (i=0; i<num; ++i)
 		dnet_convert_raw_id(&ids[0]);
 
-	err = dnet_add_received_state(n, a, group_id, ids, num, st->__join_state);
+	err = dnet_add_received_state(n, a, group_id, ids, num);
 	dnet_log(n, DNET_LOG_DSA, "%s: route list: %d entries: %d.\n", dnet_server_convert_dnet_addr(&a->addr), num, err);
 
 	return err;
@@ -932,7 +934,7 @@ static int dnet_recv_route_list(struct dnet_net_state *st)
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
-	a->cmd = DNET_CMD_ROUTE_LIST;
+	a->cmd = t->command = DNET_CMD_ROUTE_LIST;
 	a->size = 0;
 	a->flags = 0;
 
@@ -959,43 +961,6 @@ static int dnet_recv_route_list(struct dnet_net_state *st)
 err_out_destroy:
 	dnet_trans_put(t);
 err_out_exit:
-	return err;
-}
-
-int dnet_join(struct dnet_node *n)
-{
-	int err = 0;
-	struct dnet_net_state *st;
-	struct dnet_group *g;
-	struct timeval start, end;
-	long diff;
-
-	if (!n->command_handler) {
-		dnet_log(n, DNET_LOG_ERROR, "Can not join without command handler.\n");
-		return -EINVAL;
-	}
-
-	gettimeofday(&start, NULL);
-
-	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (st == n->st)
-				continue;
-
-			if (st->__join_state == DNET_JOIN)
-				continue;
-
-			err = dnet_state_join_nolock(st);
-		}
-	}
-	pthread_mutex_unlock(&n->state_lock);
-
-	gettimeofday(&end, NULL);
-
-	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-	dnet_log(n, DNET_LOG_ERROR, "Join: err: %d: %ld usecs.\n", err, diff);
-
 	return err;
 }
 
@@ -1095,7 +1060,7 @@ err_out_exit:
 
 int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 {
-	int s, err, join;
+	int s, err, join = DNET_WANT_RECONNECT;
 	struct dnet_addr addr;
 	struct dnet_net_state *st;
 
@@ -1108,8 +1073,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_reconnect;
 	}
 
-	join = DNET_WANT_RECONNECT;
-	if (cfg->join & DNET_JOIN_NETWORK)
+	if (n->flags & DNET_CFG_JOIN_NETWORK)
 		join = DNET_JOIN;
 
 	/* will close socket on error */
@@ -1117,7 +1081,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 	if (!st)
 		goto err_out_reconnect;
 
-	if (!(cfg->join & DNET_NO_ROUTE_LIST))
+	if (!(cfg->flags & DNET_CFG_NO_ROUTE_LIST))
 		dnet_recv_route_list(st);
 
 	return 0;
@@ -1125,7 +1089,7 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 err_out_reconnect:
 	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) || (err == -ECONNRESET) ||
 			(err == -EINPROGRESS) || (err == -EAGAIN))
-		dnet_add_reconnect_state(n, &addr, cfg->join | DNET_WANT_RECONNECT);
+		dnet_add_reconnect_state(n, &addr, join);
 	return err;
 }
 
@@ -1229,7 +1193,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	cmd->flags = ctl->cflags;
 	cmd->status = 0;
 
-	a->cmd = ctl->cmd;
+	a->cmd = t->command = ctl->cmd;
 	a->size = sizeof(struct dnet_io_attr) + size;
 	a->flags = ctl->aflags;
 
@@ -1249,14 +1213,14 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	dnet_convert_attr(a);
 	dnet_convert_io_attr(io);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, size: %llu, offset: %llu, fd: %d, local_offset: %llu -> %s.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, size: %llu, offset: %llu, fd: %d, local_offset: %llu -> %s weight: %f, mrt: %ld.\n",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
 			dnet_cmd_string(ctl->cmd),
 			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
 			ctl->fd,
 			(unsigned long long)ctl->local_offset,
-			dnet_server_convert_dnet_addr(&t->st->addr));
+			dnet_server_convert_dnet_addr(&t->st->addr), t->st->weight, t->st->median_read_time);
 
 	memset(&req, 0, sizeof(req));
 	req.st = t->st;
@@ -1332,7 +1296,6 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 	memcpy(&ctl->id, id, sizeof(struct dnet_id));
 
 	num = dnet_trans_create_send_all(n, ctl);
-	dnet_create_write_metadata_strings(n, remote, remote_len, id, NULL);
 
 	return num;
 }
@@ -1423,6 +1386,8 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 
 	if (trans_num < 0)
 		trans_num = 0;
+	else
+		dnet_create_write_metadata_strings(n, remote, remote_len, &ctl.id, NULL);
 
 	/*
 	 * 1 - the first reference counter we grabbed at allocation time
@@ -1889,7 +1854,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
-	a->cmd = DNET_CMD_LOOKUP;
+	a->cmd = t->command = DNET_CMD_LOOKUP;
 	a->size = 0;
 	a->flags = aflags;
 
@@ -2978,4 +2943,84 @@ int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, c
 
 err_out_exit:
 	return err;
+}
+
+struct dnet_weight {
+	int			weight;
+	int			group_id;
+};
+
+static int dnet_weight_compare(const void *v1, const void *v2)
+{
+	const struct dnet_weight *w1 = v1;
+	const struct dnet_weight *w2 = v2;
+
+	return w1->weight - w2->weight;
+}
+
+void dnet_mix_states(struct dnet_node *n, struct dnet_id *id)
+{
+	struct dnet_weight *weights;
+	int *groups;
+	int group_num, i, num;
+	struct dnet_net_state *st;
+
+	if (!(n->flags & DNET_CFG_MIX_STATES))
+		return;
+
+	pthread_mutex_lock(&n->group_lock);
+	group_num = n->group_num;
+
+	weights = alloca(n->group_num * sizeof(*weights));
+	groups = alloca(n->group_num * sizeof(*groups));
+
+	memcpy(groups, n->groups, n->group_num * sizeof(*groups));
+	pthread_mutex_unlock(&n->group_lock);
+
+	memset(weights, 0, group_num * sizeof(*weights));
+
+	for (i=0, num=0; i<group_num; ++i) {
+		id->group_id = groups[i];
+
+		st = dnet_state_get_first(n, id);
+		if (st) {
+			weights[num].weight = (int)st->weight;
+			weights[num].group_id = id->group_id;
+
+			dnet_state_put(st);
+
+			num++;
+		}
+	}
+
+	group_num = num;
+	if (group_num) {
+		int have_equal = 0;
+
+		qsort(weights, group_num, sizeof(struct dnet_weight), dnet_weight_compare);
+
+		/* if we have equal weights, add random salt to them and rerun */
+		for (i=1; i<group_num; ++i) {
+			if (weights[i].weight == weights[i - 1].weight) {
+				float r = rand();
+
+				r /= (float)RAND_MAX;
+
+				weights[i].weight += (r > 0.5) ? +r : -r;
+				weights[i - 1].weight -= (r > 0.5) ? +r : -r;
+
+				have_equal = 1;
+			}
+		}
+
+		if (have_equal)
+			qsort(weights, group_num, sizeof(struct dnet_weight), dnet_weight_compare);
+
+		/* weights are sorted in ascending order */
+		for (i=0; i<group_num; ++i) {
+			groups[i] = weights[num - i - 1].group_id;
+		}
+	}
+
+	dnet_node_set_groups(n, groups, group_num);
 }

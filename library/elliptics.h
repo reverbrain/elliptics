@@ -89,6 +89,8 @@ struct dnet_io_req {
 /* Attached data should be discarded */
 #define DNET_IO_DROP		(1<<1)
 
+#define DNET_STATE_MAX_WEIGHT		(1024 * 10)
+
 struct dnet_net_state
 {
 	struct list_head	state_entry;
@@ -127,6 +129,8 @@ struct dnet_net_state
 
 	int			la;
 	unsigned long long	free;
+	float			weight;
+	long			median_read_time;
 
 	struct dnet_idc		*idc;
 
@@ -154,6 +158,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_addr *addr, int s, int *errp, int join,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
+char *dnet_cmd_string(int cmd);
+
 void dnet_state_reset(struct dnet_net_state *st);
 void dnet_state_remove_nolock(struct dnet_net_state *st);
 
@@ -172,6 +178,8 @@ int dnet_schedule_recv(struct dnet_net_state *st);
 
 void dnet_unschedule_send(struct dnet_net_state *st);
 void dnet_unschedule_recv(struct dnet_net_state *st);
+
+int dnet_setup_control_nolock(struct dnet_net_state *st);
 
 int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsigned int join_state);
 
@@ -333,6 +341,8 @@ struct dnet_node
 
 	struct dnet_id		id;
 
+	int			flags;
+
 	pthread_attr_t		attr;
 
 	struct dnet_addr	addr;
@@ -466,13 +476,17 @@ struct dnet_trans
 	struct rb_node			trans_entry;
 	struct list_head		trans_list_entry;
 
-	struct timeval			time;
+	struct timeval			time, start;
+
+	struct dnet_net_state		*orig; /* only for forward */
 
 	struct dnet_net_state		*st;
 	uint64_t			trans, rcv_trans;
 	struct dnet_cmd			cmd;
 
 	atomic_t			refcnt;
+
+	int				command; /* main command this transaction carries */
 
 	void				*priv;
 	int				(* complete)(struct dnet_net_state *st,
