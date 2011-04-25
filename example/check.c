@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
 	if (!n)
 		return -1;
 
-	rem.join = DNET_NO_ROUTE_LIST;
+	rem.flags = DNET_CFG_NO_ROUTE_LIST;
 	err = dnet_add_state(n, &rem);
 	if (err)
 		return err;

@@ -855,8 +855,8 @@ err_out_exit:
 int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_copies)
 {
 	int err = 0;
+#if 0
 	void *data;
-
 	err = dnet_db_read_raw(n, 0, mc->id.id, &data);
 	if (err <= 0) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: meta is present, but there is no history, removing object.\n",
@@ -865,7 +865,7 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_
 		return err;
 	}
 	kcfree(data);
-
+#endif
 	if (!check_copies) {
 		err = dnet_check_merge(n, mc);
 		if (!err)

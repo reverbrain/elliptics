@@ -242,9 +242,10 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
 
-/* cfg->join flags */
-#define DNET_JOIN_NETWORK		(1<<0)
-#define DNET_NO_ROUTE_LIST		(1<<1)
+/* cfg->flags */
+#define DNET_CFG_JOIN_NETWORK		(1<<0)		/* given node joins network and becomes part of the storage */
+#define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */
+#define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
 
 struct dnet_log {
 	/*
@@ -292,7 +293,7 @@ struct dnet_config
 	 *
 	 * Also has a bit to forbid route list download.
 	 */
-	int			join;
+	int			flags;
 
 	/*
 	 * If node joins network this will be used to find a group to join.
@@ -491,12 +492,6 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg);
  */
 
 int dnet_state_num(struct dnet_node *n);
-
-/*
- * This is used to join the network. When function is completed, node will be
- * used to store data sent from the network.
- */
-int dnet_join(struct dnet_node *n);
 
 #define DNET_DUMP_NUM	6
 /*
@@ -902,6 +897,8 @@ static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd 
 
 	return ret;
 }
+
+void dnet_mix_states(struct dnet_node *n, struct dnet_id *id);
 
 #ifdef __cplusplus
 }
