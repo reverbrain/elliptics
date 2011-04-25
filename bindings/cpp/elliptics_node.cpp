@@ -119,7 +119,7 @@ void elliptics_node::read_file(struct dnet_id &id, char *dst_file, uint64_t offs
 	if (!size)
 		size = ~0ULL;
 
-	err = dnet_read_file(node, const_cast<char *>(dst_file), NULL, 0, &id, offset, size, 0);
+	err = dnet_read_file(node, const_cast<char *>(dst_file), NULL, 0, &id, offset, size);
 	if (err) {
 		std::ostringstream str;
 		str << "Failed read file " << dst_file << ": offset: " << offset << ", size: " << size << ": " << err;
@@ -134,7 +134,7 @@ void elliptics_node::read_file(std::string &remote, char *dst_file, uint64_t off
 	if (!size)
 		size = ~0ULL;
 
-	err = dnet_read_file(node, dst_file, (void *)remote.data(), remote.size(), NULL, offset, size, 0);
+	err = dnet_read_file(node, dst_file, (void *)remote.data(), remote.size(), NULL, offset, size);
 	if (err) {
 		std::ostringstream str;
 		str << "Failed read file " << dst_file << ", offset: " << offset << ", size: " << size << ": " << err;
@@ -241,8 +241,7 @@ int elliptics_node::write_data_ll(struct dnet_id *id, void *remote, unsigned int
 	ctl.io.flags = ioflags;
 	ctl.io.size = size;
 
-	err = dnet_write_object(node, &ctl, remote, remote_len, id,
-		!(ioflags & (DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_META | DNET_IO_FLAGS_NO_HISTORY_UPDATE)));
+	err = dnet_write_object(node, &ctl, remote, remote_len, id);
 	if (err == 0)
 		err = -ENOENT;
 

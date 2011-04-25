@@ -56,7 +56,7 @@ int dnet_parse_groups(char *value, int **groups);
 
 int dnet_common_write_object(struct dnet_node *n, struct dnet_id *id,
 		void *adata, uint32_t asize, int history_only,
-		void *data, uint64_t size, int version, struct timespec *ts,
+		void *data, uint64_t size, struct timespec *ts,
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *), void *priv,
 		uint32_t ioflags);
 

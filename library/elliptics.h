@@ -550,7 +550,7 @@ int dnet_try_reconnect(struct dnet_node *n);
 
 int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 		int direct, uint64_t write_offset, uint64_t io_offset, uint64_t io_size,
-		struct dnet_id *id, struct dnet_wait *w, int hist, int wait);
+		struct dnet_id *id, struct dnet_wait *w, int wait);
 
 int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data);
 int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io);
@@ -560,11 +560,11 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 int dnet_db_sync(struct dnet_node *n);
 void dnet_db_cleanup(struct dnet_node *n);
 int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg);
-//int dnet_history_update_flags(struct dnet_node *n, struct dnet_id *id, struct dnet_history_entry *e, unsigned int num, struct timespec *ts, uint32_t flags_set, uint32_t flags_unset);
-//int dnet_history_del_entry(struct dnet_node *n, struct dnet_id *id, struct dnet_history_entry *e, unsigned int num);
 
-#define DNET_CHECK_COPIES_HISTORY		1
-#define DNET_CHECK_COPIES_FULL			2
+#define DNET_CHECK_TYPE_COPIES_HISTORY		1
+#define DNET_CHECK_TYPE_COPIES_FULL		2
+#define DNET_CHECK_TYPE_MERGE			3
+#define DNET_CHECK_TYPE_DELETE			4
 
 #define DNET_BULK_IDS_SIZE			1000
 #define DNET_BULK_STATES_ALLOC_STEP		10
@@ -602,12 +602,13 @@ static inline int dnet_compare_bulk_state(const void *k1, const void *k2)
 }
 
 int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_copies);
-//int dnet_check_delete(struct dnet_node *n, struct dnet_id *id, struct dnet_history_map *map);
 int dnet_check_list(struct dnet_net_state *st, struct dnet_check_request *r);
 int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state);
 
 void dnet_update_check_metadata_raw(struct dnet_node *n, void *data, int size);
+struct dnet_meta_update * dnet_get_meta_update(struct dnet_node *n, struct dnet_meta_container *mc, int group_id, struct dnet_meta_update *meta_update);
+int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t flags_set, uint64_t flags_clear);
 
 int dnet_request_cmd_single(struct dnet_node *n,
 	struct dnet_net_state *st, struct dnet_id *id,
