@@ -1,3 +1,9 @@
+elliptics (2.9.6.157) unstable; urgency=low
+
+  * Do not put state into epoll fd if it was already initialized
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 26 Apr 2011 18:36:51 +0400
+
 elliptics (2.9.6.156) unstable; urgency=low
 
   * Remove dnet_join(), states are added into route table automatically. Fixed
