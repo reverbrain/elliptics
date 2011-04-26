@@ -810,14 +810,16 @@ int dnet_setup_control_nolock(struct dnet_net_state *st)
 	struct dnet_io *io = n->io;
 	int err, pos;
 
-	pos = io->net_thread_pos;
-	if (++io->net_thread_pos >= io->net_thread_num)
-		io->net_thread_pos = 0;
-	st->epoll_fd = io->net[pos].epoll_fd;
+	if (st->epoll_fd == -1) {
+		pos = io->net_thread_pos;
+		if (++io->net_thread_pos >= io->net_thread_num)
+			io->net_thread_pos = 0;
+		st->epoll_fd = io->net[pos].epoll_fd;
 
-	err = dnet_schedule_recv(st);
-	if (err)
-		goto err_out_unschedule;
+		err = dnet_schedule_recv(st);
+		if (err)
+			goto err_out_unschedule;
+	}
 
 	return 0;
 
@@ -874,6 +876,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	st->trans_root = RB_ROOT;
 	INIT_LIST_HEAD(&st->trans_list);
+
+	st->epoll_fd = -1;
 
 	err = pthread_mutex_init(&st->trans_lock, NULL);
 	if (err) {
