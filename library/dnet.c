@@ -1259,15 +1259,18 @@ int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 	int num = 0, i, err;
 
 	pthread_mutex_lock(&n->group_lock);
+dnet_log(n, DNET_LOG_DSA, "group_num = %d\n", n->group_num);
 	for (i=0; i<n->group_num; ++i) {
 		ctl->id.group_id = n->groups[i];
 
+dnet_log(n, DNET_LOG_DSA, "%s: sending to group %d\n", dnet_dump_id(&ctl->id), n->groups[i]);
 		t = dnet_io_trans_create(n, ctl, &err);
 		num++;
 	}
 	pthread_mutex_unlock(&n->group_lock);
 
 	if (!num) {
+dnet_log(n, DNET_LOG_DSA, "%s: !num sending to group %d\n", dnet_dump_id(&ctl->id), ctl->id.group_id);
 		t = dnet_io_trans_create(n, ctl, &err);
 		num++;
 	}
@@ -1650,6 +1653,188 @@ int dnet_read_file_direct(struct dnet_node *n, char *file, void *remote, unsigne
 	return dnet_read_file_raw(n, file, remote, remote_len, id, 1, offset, size);
 }
 
+struct dnet_read_meta_control
+{
+	struct dnet_wait		*wait;
+	struct dnet_meta_container	*mc;
+};
+
+static int dnet_read_meta_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
+{
+	int err;
+	struct dnet_node *n;
+	struct dnet_read_meta_control *c = priv;
+	struct dnet_io_attr *io;
+	void *data;
+
+	if (is_trans_destroyed(st, cmd, attr)) {
+		if (c->wait) {
+			if (cmd && cmd->status)
+				c->wait->cond = cmd->status;
+			dnet_wakeup(c->wait, );
+			dnet_wait_put(c->wait);
+		}
+
+		free(c);
+		return 0;
+	}
+
+	n = st->n;
+
+	if (cmd->status != 0 || cmd->size == 0 || !attr) {
+		err = cmd->status;
+		goto err_out_exit_no_log;
+	}
+
+	if (cmd->size <= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: read completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
+				dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,
+				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
+		err = -EINVAL;
+		goto err_out_exit_no_log;
+	}
+
+	io = (struct dnet_io_attr *)(attr + 1);
+	data = io + 1;
+
+	dnet_convert_io_attr(io);
+
+	c->mc->data = malloc(io->size);
+	if (!c->mc->data) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate meta data\n",
+				dnet_dump_id(&cmd->id));
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	c->mc->size = io->size;
+	memcpy(c->mc->data, data, io->size);
+
+	dnet_log(n, DNET_LOG_NOTICE, "%s: meta read completed: size: %llu, status: %d.\n",
+			dnet_dump_id(&cmd->id), (unsigned long long)io->size, cmd->status);
+
+	return cmd->status;
+
+err_out_exit:
+	dnet_log(n, DNET_LOG_ERROR, "%s: read failed: size: %llu, status: %d, err: %d.\n",
+			dnet_dump_id(&cmd->id), (unsigned long long)io->size, cmd->status, err);
+err_out_exit_no_log:
+	c->wait->cond = err;
+	return err;
+}
+
+int dnet_read_meta_id(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_id *id, struct dnet_wait *w, int wait)
+{
+	struct dnet_io_control ctl;
+	struct dnet_read_meta_control *c;
+	int err, wait_init = ~0;
+
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
+
+	ctl.io.flags = DNET_IO_FLAGS_META;
+	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
+	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
+
+	memcpy(&ctl.id, id, sizeof(struct dnet_id));
+
+	ctl.fd = -1;
+	ctl.complete = dnet_read_meta_complete;
+	ctl.cmd = DNET_CMD_READ;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+
+	c = malloc(sizeof(struct dnet_read_meta_control));
+	if (!c) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate read meta control structure\n",
+				dnet_dump_id(&ctl.id));
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memset(c, 0, sizeof(struct dnet_read_meta_control));
+
+	c->wait = dnet_wait_get(w);
+	c->mc = mc;
+
+	ctl.priv = c;
+
+	w->cond = wait_init;
+	err = dnet_read_object(n, &ctl);
+	if (err)
+		goto err_out_exit;
+
+	if (wait) {
+		err = dnet_wait_event(w, w->cond != wait_init, &n->wait_ts);
+		if (err || (w->cond != 0 && w->cond != wait_init)) {
+			char id_str[2*DNET_ID_SIZE + 1];
+			if (!err)
+				err = w->cond;
+			dnet_log(n, DNET_LOG_ERROR, "%d:%s failed to read meta: %d\n",
+				ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str), err);
+			goto err_out_exit;
+		}
+	}
+
+	return 0;
+
+err_out_exit:
+	return err;
+}
+
+int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc, void *remote, unsigned int remote_len, struct dnet_id *id)
+{
+	int err, error = 0, i;
+	struct dnet_wait *w;
+	struct dnet_id raw;
+
+	if (!mc)
+		return -EINVAL;
+
+	w = dnet_wait_alloc(~0);
+	if (!w) {
+		err = -ENOMEM;
+		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting.\n");
+		goto err_out_exit;
+	}
+
+	if (id) {
+		err = dnet_read_meta_id(n, mc, id, w, 1);
+		if (err)
+			goto err_out_put;
+	} else {
+		id = &raw;
+
+		dnet_transform(n, remote, remote_len, id);
+		pthread_mutex_lock(&n->group_lock);
+		for (i=0; i<n->group_num; ++i) {
+			id->group_id = n->groups[i];
+
+			err = dnet_read_meta_id(n, mc, id, w, 1);
+			if (err) {
+				error = err;
+				continue;
+			}
+
+			error = 0;
+			break;
+		}
+		pthread_mutex_unlock(&n->group_lock);
+
+		if (error) {
+			err = error;
+			goto err_out_put;
+		}
+	}
+
+	dnet_wait_put(w);
+
+	return 0;
+
+err_out_put:
+	dnet_wait_put(w);
+err_out_exit:
+	return err;
+
+
+}
 struct dnet_wait *dnet_wait_alloc(int cond)
 {
 	int err;

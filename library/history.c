@@ -625,9 +625,9 @@ err_out_join:
 	err = 0;
 
 	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", req.thread_num, err);
-	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d, meta_records: %lld, history_records: %lld\n",
+	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d, meta_records: %lld\n",
 			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors),
-			(long long)kcdbcount(n->meta), (long long)kcdbcount(n->history));
+			(long long)kcdbcount(n->meta));
 
 	if(req.flags & DNET_CHECK_MERGE) {
 		dnet_counter_set(n, DNET_CNTR_NODE_LAST_MERGE, 0, atomic_read(&ctl.completed));
