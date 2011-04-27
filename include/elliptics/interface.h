@@ -752,6 +752,7 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, struct dnet_meta_contain
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl);
 int dnet_create_write_metadata_strings(struct dnet_node *n, void *remote, unsigned int remote_len, struct dnet_id *id, struct timespec *ts);
+void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc);
 
 int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen);
 

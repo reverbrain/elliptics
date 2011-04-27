@@ -302,7 +302,7 @@ static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 	a->size = dnet_bswap64(a->size);
 }
 
-/*struct dnet_history_entry
+struct dnet_history_entry
 {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		flags;
@@ -311,6 +311,17 @@ static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 	uint64_t		offset;
 	uint64_t		size;
 } __attribute__ ((packed));
+
+/*
+ * Helper structure and set of functions to map history file and perform basic checks.
+ */
+struct dnet_history_map
+{
+	struct dnet_history_entry	*ent;
+	long				num;
+	ssize_t				size;
+	int				fd;
+};
 
 static inline void dnet_convert_history_entry(struct dnet_history_entry *a)
 {
@@ -346,7 +357,7 @@ static inline void dnet_setup_history_entry(struct dnet_history_entry *e,
 
 	dnet_convert_history_entry(e);
 }
-*/
+
 struct dnet_stat
 {
 	/* Load average from the target system multiplied by 100 */

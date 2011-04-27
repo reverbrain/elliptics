@@ -453,3 +453,66 @@ err_out_exit:
 	return err;
 }
 
+static char *dnet_meta_types[] = {
+	[DNET_META_PARENT_OBJECT] ="DNET_META_PARENT_OBJECT",
+	[DNET_META_GROUPS] ="DNET_META_GROUPS",
+	[DNET_META_CHECK_STATUS] ="DNET_META_CHECK_STATUS",
+	[DNET_META_NAMESPACE] ="DNET_META_NAMESPACE",
+	[DNET_META_UPDATE] ="DNET_META_UPDATE",
+};
+
+void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
+{
+	void *data;
+	int size;
+	struct dnet_meta *m, mp;
+	int i, num;
+	int *groups;
+	struct dnet_meta_check_status *c;
+	struct dnet_meta_update *mu;
+
+	data = mc->data;
+	size = mc->size;
+
+	while (size) {
+		m = (struct dnet_meta *)data;
+		mp = *m;
+		dnet_convert_meta(&mp);
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: meta type=%s (%d), size=%d\n", dnet_dump_id(&mc->id), dnet_meta_types[mp.type], mp.type, mp.size);
+
+		switch(mp.type) {
+		case DNET_META_PARENT_OBJECT:
+			dnet_log_raw(n, DNET_LOG_INFO, "%s: 	%.*s\n", dnet_dump_id(&mc->id), mp.size, m->data);
+			break;
+
+		case DNET_META_GROUPS:
+			num = m->size / sizeof(int);
+			groups = (int *)m->data;
+			dnet_log_raw(n, DNET_LOG_INFO, "%s:	%i groups:\n", dnet_dump_id(&mc->id), num);
+			for (i = 0; i < num; ++i)
+				dnet_log_raw(n, DNET_LOG_INFO, " 		%d\n", groups[i]);
+			break;
+
+		case DNET_META_CHECK_STATUS:
+			c = (struct dnet_meta_check_status *)m->data;
+			dnet_log_raw(n, DNET_LOG_INFO, "%s:	tsec=%llu, tnsec=%llu, status=%d\n", dnet_dump_id(&mc->id), c->tsec, c->tnsec, c->status);
+			break;
+
+		case DNET_META_NAMESPACE:
+			dnet_log_raw(n, DNET_LOG_INFO, "%s:	%.*s\n", dnet_dump_id(&mc->id), mp.size, m->data);
+			break;
+
+		case DNET_META_UPDATE:
+			num = m->size / sizeof(struct dnet_meta_update);
+			mu = (struct dnet_meta_update *)m->data;
+			for (i = 0; i < num; ++i)
+				dnet_log_raw(n, DNET_LOG_INFO, "%s:	group_id=%d, tsec=%llu, tnsec=%llu, flags=%02x\n",
+						dnet_dump_id(&mc->id), mu[i].group_id, mu[i].tsec, mu[i].tnsec, mu[i].flags);
+			break;
+		}
+
+		size -= mp.size + sizeof(struct dnet_meta);
+		data += mp.size + sizeof(struct dnet_meta);
+	}
+}
+

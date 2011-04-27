@@ -205,7 +205,7 @@ struct dnet_db_list_control {
 	atomic_t			total;
 };
 
-static int dnet_db_check_update(struct dnet_node *n, struct dnet_meta_container *mc)
+int dnet_db_check_update(struct dnet_node *n, struct dnet_meta_container *mc)
 {
 	struct dnet_meta *m, *tmp = NULL;
 	struct dnet_meta_check_status *c;
@@ -323,6 +323,7 @@ static void *dnet_db_list_iter(void *data)
 
 	mc.data = buf;
 
+	bulk_array.states = NULL;
 	dnet_log(n, DNET_LOG_DSA, "BULK: only_merge=%d\n", only_merge);
 	if (!only_merge) {
 		bulk_array_tmp_num = DNET_BULK_STATES_ALLOC_STEP;

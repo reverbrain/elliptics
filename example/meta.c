@@ -65,26 +65,12 @@ struct meta_control {
 	int			num;
 };
 
-static char *dnet_meta_types[] = {
-	[DNET_META_PARENT_OBJECT] ="DNET_META_PARENT_OBJECT",
-	[DNET_META_GROUPS] ="DNET_META_GROUPS",
-	[DNET_META_CHECK_STATUS] ="DNET_META_CHECK_STATUS",
-	[DNET_META_NAMESPACE] ="DNET_META_NAMESPACE",
-	[DNET_META_UPDATE] ="DNET_META_UPDATE",
-};
-
 static int meta_request_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
 {
 	struct meta_control *mc = priv;
 	struct dnet_node *n;
 	struct dnet_io_attr *io;
-	void *data;
-	int size;
-	struct dnet_meta *m;
-	int i, num;
-	int *groups;
-	struct dnet_meta_check_status *c;
-	struct dnet_meta_update *mu;
+	struct dnet_meta_container m;
 
 	if (is_trans_destroyed(state, cmd, attr)) {
 		pthread_mutex_lock(&mc->lock);
@@ -113,49 +99,11 @@ static int meta_request_complete(struct dnet_net_state *state, struct dnet_cmd *
 
 	dnet_log_raw(n, DNET_LOG_INFO, "%s: metadata: %llu bytes\n", dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 
-	data = io+1;
-	size = io->size;
+	m.data = (void *)io+1;
+	m.size = io->size;
+	memcpy(&m.id, &cmd->id, sizeof(struct dnet_id));
 
-	while (size) {
-		m = (struct dnet_meta *)data;
-		dnet_convert_meta(m);
-		dnet_log_raw(n, DNET_LOG_INFO, "%s: meta type=%s (%d), size=%d\n", dnet_dump_id(&cmd->id), dnet_meta_types[m->type], m->type, m->size);
-
-		switch(m->type) {
-		case DNET_META_PARENT_OBJECT:
-			dnet_log_raw(n, DNET_LOG_INFO, "%s: 	%.*s\n", dnet_dump_id(&cmd->id), m->size, m->data);
-			break;
-
-		case DNET_META_GROUPS:
-			num = m->size / sizeof(int);
-			groups = (int *)m->data;
-			dnet_log_raw(n, DNET_LOG_INFO, "%s:	%i groups:\n", dnet_dump_id(&cmd->id), num);
-			for (i = 0; i < num; ++i)
-				dnet_log_raw(n, DNET_LOG_INFO, " 		%d\n", groups[i]);
-			break;
-
-		case DNET_META_CHECK_STATUS:
-			c = (struct dnet_meta_check_status *)m->data;
-			dnet_log_raw(n, DNET_LOG_INFO, "%s:	tsec=%llu, tnsec=%llu, status=%d\n", dnet_dump_id(&cmd->id), c->tsec, c->tnsec, c->status);
-			break;
-
-		case DNET_META_NAMESPACE:
-			dnet_log_raw(n, DNET_LOG_INFO, "%s:	%.*s\n", dnet_dump_id(&cmd->id), m->size, m->data);
-			break;
-
-		case DNET_META_UPDATE:
-			num = m->size / sizeof(struct dnet_meta_update);
-			mu = (struct dnet_meta_update *)m->data;
-			for (i = 0; i < num; ++i)
-				dnet_log_raw(n, DNET_LOG_INFO, "%s:	group_id=%d, tsec=%llu, tnsec=%llu, flags=%02x\n",
-						dnet_dump_id(&cmd->id), mu[i].group_id, mu[i].tsec, mu[i].tnsec, mu[i].flags);
-			break;
-		}
-
-		size -= m->size + sizeof(struct dnet_meta);
-		data += m->size + sizeof(struct dnet_meta);
-	}
-
+	dnet_meta_print(n, &m);
 	
 	return 0;
 }
