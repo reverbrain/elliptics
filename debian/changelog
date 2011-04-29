@@ -1,3 +1,10 @@
+elliptics (2.9.6.158) unstable; urgency=low
+
+  * Added DB/CHECK prefixes to appropriate operations. Exit process if we hit
+    fatal database error and let starup recovery fix the things.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 29 Apr 2011 21:34:18 +0400
+
 elliptics (2.9.6.157) unstable; urgency=low
 
   * Do not put state into epoll fd if it was already initialized
