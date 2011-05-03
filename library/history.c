@@ -237,7 +237,7 @@ int dnet_db_check_update(struct dnet_node *n, struct dnet_meta_container *mc)
 	dnet_convert_meta_check_status(c);
 
 	if (tmp) {
-		err = dnet_db_write_trans(n, &mc->id, tmp->data, tmp->size + sizeof(struct dnet_meta), 1);
+		err = dnet_db_write_trans(n, &mc->id, (void *)tmp, tmp->size + sizeof(struct dnet_meta), 1);
 		free(tmp);
 	} else {
 		err = dnet_db_write_trans(n, &mc->id, mc->data, mc->size, 0);
@@ -469,8 +469,8 @@ static void *dnet_db_list_iter(void *data)
 
 			if (!dry_run) {
 				err = dnet_check(n, &mc, &bulk_array, check_type);
-				if (err >= 0 && check_copies)
-					err = dnet_db_check_update(n, &mc);
+				//if (err >= 0 && check_copies)
+				//	err = dnet_db_check_update(n, &mc);
 			}
 
 			dnet_log_raw(n, DNET_LOG_NOTICE, "complete key: %s, timestamp: %lld [%s], check_copies: %d, only_merge: %d, dry: %d, size: %u, err: %d.\n",
@@ -502,7 +502,7 @@ err_out_kcfree:
 
 	free(buf);
 
-	if (!only_merge) {
+	if (!only_merge && !ctl->need_exit && !n->need_exit) {
 		dnet_log(n, DNET_LOG_DSA, "BULK: requesting all nodes with remaining data\n");
 		for (i = 0; i < bulk_array.num; ++i) {
 			if (bulk_array.states[i].num == 0)

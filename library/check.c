@@ -226,7 +226,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 	struct dnet_meta *mg;
 	int *groups, group_num;
 	int my_group = state->n->st->idc->group->group_id;
-	int err = -EINVAL;
+	int err = -EINVAL, error = 0;
 
 	if (is_trans_destroyed(state, cmd, attr)) {
 		dnet_wakeup(w, w->cond++);
@@ -250,6 +250,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 		for (i = 0; i < num; ++i) {
 			dnet_log(state->n, DNET_LOG_DSA, "BULK: checking ID %s\n", dnet_dump_id_str(ids[i].id));
 			err = -ENOENT;
+			error = 0;
 
 			dnet_setup_id(&mc.id, my_group, ids[i].id);
 
@@ -303,6 +304,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 			}
 			group_num = mg->size / sizeof(int);
 			groups = (int *)mg->data;
+			dnet_convert_meta(mg);
 
 			/* Iterate through groups to filnd the lastest */
 			for (j = 0; j < group_num; ++j) {
@@ -340,9 +342,6 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 				err = 0;
 				goto err_out_kcfree;
 			}
-
-			if (!(lastest_mu.flags & DNET_IO_FLAGS_REMOVED) || removed_in_all)
-				dnet_update_check_metadata_raw(state->n, mc.data, mc.size);
 
 			for (j = 0; j < group_num; ++j) {
 				err = 0;
@@ -385,8 +384,10 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 				}
 err_out_cont2:
 				if (err < 0)
-					dnet_log(state->n, DNET_LOG_ERROR, "%s: BULK: Error during sending transaction to group %d\n",
-							dnet_dump_id_str(ids[i].id), groups[j]);
+					dnet_log(state->n, DNET_LOG_ERROR, "%s: BULK: Error during sending transaction to group %d, err=%d\n",
+							dnet_dump_id_str(ids[i].id), groups[j], err);
+				if (!error && err < 0)
+					error = err;
 			}
 
 			if (lastest_mu.flags & DNET_IO_FLAGS_REMOVED) {
@@ -396,18 +397,20 @@ err_out_cont2:
 					err = dnet_merge_remove_local(state->n, &mc.id, 1);
 				}
 			}
-					
 
-			if (err > 0)
-				err = 0;
+			if (!(lastest_mu.flags & DNET_IO_FLAGS_REMOVED) && !error)
+				dnet_db_check_update(state->n, &mc);
+
+			if (error > 0)
+				error = 0;
 err_out_kcfree:
 			kcfree(mc.data);
 err_out_continue:
-			if (err < 0) {
+			if (error < 0) {
 				dnet_log(state->n, DNET_LOG_ERROR, "Failed to check ID %s to %s, err=%d\n", dnet_dump_id_str(ids[i].id),
-						dnet_state_dump_addr(state), err);
+						dnet_state_dump_addr(state), error);
 			}
-			dnet_counter_inc(state->n, DNET_CNTR_NODE_CHECK_COPY, err);
+			dnet_counter_inc(state->n, DNET_CNTR_NODE_CHECK_COPY, error);
 		}
 	} else {
 		dnet_log(state->n, DNET_LOG_ERROR, "BULK: received corrupted data, size = %llu, sizeof(dnet_bulk_id) = %d\n", attr->size, sizeof(struct dnet_bulk_id));
@@ -447,6 +450,8 @@ int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state)
 		goto err_out_put;
 	}
 	dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
+	dnet_wait_get(w);
+
 	dnet_log(n, DNET_LOG_DSA, "BULK: sending %u bytes of data to %s (%s)\n", ctl.size, dnet_dump_id(&ctl.id), dnet_server_convert_dnet_addr(&state->addr));
 	err = dnet_trans_alloc_send_state(st, &ctl);
 	dnet_state_put(st);
