@@ -288,7 +288,7 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size)
 std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 {
 	struct dnet_id id;
-	int err, error = 0, i;
+	int err, error = -ENOENT, i;
 	std::string ret;
 
 	dnet_transform(node, (void *)remote.data(), remote.size(), &id);
@@ -299,7 +299,6 @@ std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 			ret = read_data_wait(id, size);
 		} catch (const std::exception &e) {
 			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), remote.c_str());
-			error++;
 			continue;
 		}
 
