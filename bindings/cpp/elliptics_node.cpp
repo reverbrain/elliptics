@@ -503,7 +503,6 @@ void elliptics_node::remove(const std::string &data)
 		}
 
 		error = 0;
-		break;
 	}
 
 	if (error) {
