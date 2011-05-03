@@ -291,7 +291,10 @@ std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 	int err, error = -ENOENT, i;
 	std::string ret;
 
-	dnet_transform(node, (void *)remote.data(), remote.size(), &id);
+	transform(remote, id);
+
+	dnet_mix_states(node, &id);
+
 	for (i=0; i<groups.size(); ++i) {
 		id.group_id = groups[i];
 
