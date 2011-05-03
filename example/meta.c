@@ -125,15 +125,15 @@ static int meta_request_complete(struct dnet_net_state *state, struct dnet_cmd *
 			ptr = str;
 			rest = sizeof(str);
 			for (i=0; i<gnum; ++i) {
-				if (i == gnum - 1)
-					err = snprintf(ptr, rest, "%d", groups[i]);
-				else
-					err = snprintf(ptr, rest, "%d:", groups[i]);
+				err = snprintf(ptr, rest, "%d:", groups[i]);
 				if (err > rest)
 					break;
 
 				rest -= err;
 				ptr += err;
+
+				if (i == gnum - 1)
+					*(--ptr) = '\0';
 			}
 
 			dnet_log_raw(n, DNET_LOG_INFO, "type: %u, size: %u, groups: %s\n",
