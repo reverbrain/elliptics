@@ -99,7 +99,7 @@ static int meta_request_complete(struct dnet_net_state *state, struct dnet_cmd *
 
 	dnet_log_raw(n, DNET_LOG_INFO, "%s: metadata: %llu bytes\n", dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 
-	m.data = (void *)io+1;
+	m.data = (void *)(io+1);
 	m.size = io->size;
 	memcpy(&m.id, &cmd->id, sizeof(struct dnet_id));
 

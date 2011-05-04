@@ -478,6 +478,10 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 		m = (struct dnet_meta *)data;
 		mp = *m;
 		dnet_convert_meta(&mp);
+		if (mp.type > DNET_META_UPDATE || mp.type < DNET_META_PARENT_OBJECT) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: incorrect meta type %d\n", dnet_dump_id(&mc->id), mp.type);
+			return;
+		}
 		dnet_log_raw(n, DNET_LOG_INFO, "%s: meta type=%s (%d), size=%d\n", dnet_dump_id(&mc->id), dnet_meta_types[mp.type], mp.type, mp.size);
 
 		switch(mp.type) {

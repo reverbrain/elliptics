@@ -242,7 +242,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 		int num = attr->size / sizeof(struct dnet_bulk_id);
 		int i, j;
 		int lastest_group = -1;
-		struct dnet_meta_update lastest_mu, my_mu, tmp_mu;
+		struct dnet_meta_update lastest_mu, my_mu, tmp_mu, *tmp_mup;
 		int removed_in_all = 1;
 
 		dnet_log(state->n, DNET_LOG_DSA, "BULK: received %d entries\n", num);
@@ -348,7 +348,8 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 				if (groups[j] == my_group)
 					continue;
 
-				if (!dnet_get_meta_update(state->n, &mc, groups[j], &tmp_mu)) {
+				tmp_mup = dnet_get_meta_update(state->n, &mc, groups[j], &tmp_mu);
+				if (!tmp_mup) {
 					dnet_log(state->n, DNET_LOG_ERROR, "%s: BULK: meta_update structure doesn't exist for group %d\n",
 							dnet_dump_id_str(ids[i].id), groups[j]);
 					err = -ENOENT;
@@ -373,6 +374,9 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 
 						if (err)
 							goto err_out_cont2;
+
+						memcpy(tmp_mup, &lastest_mu, sizeof(struct dnet_meta_update));
+						dnet_convert_meta(tmp_mup);
 
 						err = dnet_write_data_wait(state->n, NULL, 0, &id, mc.data, -1, 0, 0, mc.size, NULL,
 							0, DNET_IO_FLAGS_META | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
@@ -499,7 +503,7 @@ static int dnet_bulk_add_id(struct dnet_node *n, struct dnet_bulk_array *bulk_ar
 		return -ENOENT;
 
 	dnet_log(n, DNET_LOG_DSA, "BULK: addr = %s state->num = %d\n", dnet_server_convert_dnet_addr(&state->addr), state->num);
-	pthread_mutex_lock(&state->state_lock);
+	//pthread_mutex_lock(&state->state_lock);
 	if (state->num >= DNET_BULK_IDS_SIZE || state->num < 0)
 		goto err_out_unlock;
 
@@ -520,12 +524,12 @@ static int dnet_bulk_add_id(struct dnet_node *n, struct dnet_bulk_array *bulk_ar
 			goto err_out_unlock;
 	}
 
-	pthread_mutex_unlock(&state->state_lock);
+	//pthread_mutex_unlock(&state->state_lock);
 
 	return 0;
 
 err_out_unlock:
-	pthread_mutex_unlock(&state->state_lock);
+	//pthread_mutex_unlock(&state->state_lock);
 	return -2;
 }
 
