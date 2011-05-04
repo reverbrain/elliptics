@@ -107,9 +107,15 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 	else if (!strcmp(key, "check_timeout"))
 		dnet_cfg_state.check_timeout = value;
 	else if (!strcmp(key, "join"))
-		dnet_cfg_state.join = value;
+		dnet_cfg_state.flags |= value ? DNET_CFG_JOIN_NETWORK : 0;
+	else if (!strcmp(key, "flags"))
+		dnet_cfg_state.flags |= (value & ~DNET_CFG_JOIN_NETWORK);
 	else if (!strcmp(key, "daemon"))
 		dnet_daemon_mode = value;
+	else if (!strcmp(key, "io_thread_num"))
+		dnet_cfg_state.io_thread_num = value;
+	else if (!strcmp(key, "net_thread_num"))
+		dnet_cfg_state.net_thread_num = value;
 	else
 		return -1;
 
@@ -227,6 +233,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"addr", dnet_set_addr},
 	{"remote", dnet_set_remote_addrs},
 	{"join", dnet_simple_set},
+	{"flags", dnet_simple_set},
 	{"backend", dnet_set_backend},
 	{"daemon", dnet_simple_set},
 	{"log", dnet_set_log},
@@ -235,6 +242,8 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"db_map", dnet_set_db_data},
 	{"db_flags", dnet_set_db_flags},
 	{"monitor_path", dnet_set_monitor_path},
+	{"io_thread_num", dnet_simple_set},
+	{"net_thread_num", dnet_simple_set},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;
@@ -429,12 +438,6 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	err = dnet_common_add_remote_addr(n, &dnet_cfg_state, dnet_cfg_remotes);
 	if (err)
 		goto err_out_node_destroy;
-
-	if (dnet_cfg_state.join & DNET_JOIN_NETWORK) {
-		err = dnet_join(n);
-		if (err)
-			goto err_out_node_destroy;
-	}
 
 	return n;
 

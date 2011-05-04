@@ -65,6 +65,8 @@
  */
 #define DNET_DEFAULT_CHECK_TIMEOUT_SEC	60
 
+#define DNET_DEFAULT_STALL_TRANSACTIONS 10
+
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #undef offsetof

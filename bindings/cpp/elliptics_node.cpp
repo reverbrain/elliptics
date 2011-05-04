@@ -46,8 +46,26 @@ elliptics_node::elliptics_node(elliptics_log &l)
 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
-	cfg.wait_timeout = 60;
-	cfg.check_timeout = 60;
+	cfg.wait_timeout = 5;
+	cfg.check_timeout = 20;
+
+	log = reinterpret_cast<elliptics_log *>(l.clone());
+	cfg.log = log->get_dnet_log();
+
+	snprintf(cfg.addr, sizeof(cfg.addr), "0.0.0.0");
+	snprintf(cfg.port, sizeof(cfg.port), "0");
+
+	node = dnet_node_create(&cfg);
+	if (!node) {
+		delete log;
+		throw std::bad_alloc();
+	}
+}
+
+elliptics_node::elliptics_node(elliptics_log &l, struct dnet_config &cfg)
+{
+	cfg.sock_type = SOCK_STREAM;
+	cfg.proto = IPPROTO_TCP;
 
 	log = reinterpret_cast<elliptics_log *>(l.clone());
 	cfg.log = log->get_dnet_log();
@@ -159,6 +177,8 @@ void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t si
 	struct dnet_id id;
 
 	dnet_transform(node, (void *)remote.data(), remote.size(), &id);
+	dnet_mix_states(node, &id);
+
 	for (i=0; i<groups.size(); ++i) {
 		id.group_id = groups[i];
 
@@ -227,11 +247,13 @@ int elliptics_node::write_data_ll(struct dnet_id *id, void *remote, unsigned int
 		!(ioflags & (DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_META | DNET_IO_FLAGS_NO_HISTORY_UPDATE)));
 	if (err == 0)
 		err = -ENOENT;
+
 	if (err < 0) {
 		std::ostringstream str;
-		str << "Failed write data: key: " << dnet_dump_id(id) << ", size: " << size << ": " << err;
+		str << "Failed write data: key: " << dnet_dump_id(&ctl.id) << ", size: " << size << ": " << err;
 		throw std::runtime_error(str.str());
-	}
+	} else
+		dnet_create_write_metadata_strings(node, remote, remote_len, &ctl.id, NULL);
 
 	return err;
 }
@@ -257,23 +279,29 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size)
 		throw std::runtime_error(str.str());
 	}
 
-	return std::string((const char *)data, size);
+	std::string ret = std::string((const char *)data, size);
+	free(data);
+
+	return ret;
 }
 
 std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 {
 	struct dnet_id id;
-	int err, error = 0, i;
+	int err, error = -ENOENT, i;
 	std::string ret;
 
-	dnet_transform(node, (void *)remote.data(), remote.size(), &id);
+	transform(remote, id);
+
+	dnet_mix_states(node, &id);
+
 	for (i=0; i<groups.size(); ++i) {
 		id.group_id = groups[i];
 
 		try {
 			ret = read_data_wait(id, size);
-		} catch (...) {
-			error++;
+		} catch (const std::exception &e) {
+			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), remote.c_str());
 			continue;
 		}
 
@@ -326,11 +354,23 @@ std::string elliptics_node::lookup_addr(const std::string &remote, const int gro
 	return std::string((const char *)buf, strlen(buf));
 }
 
-int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups)
+int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups, const struct timespec &ts)
 {
 	int err;
+	struct dnet_metadata_control ctl;
 
-	err = dnet_create_write_metadata(node, (struct dnet_id *)&id, (char *)obj.data(), obj.size(), (int *)&groups[0], groups.size());
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.obj = (char *)obj.data();
+	ctl.len = obj.size();
+	
+	ctl.groups = (int *)&groups[0];
+	ctl.group_num = groups.size();
+
+	ctl.ts = ts;
+	ctl.id = id;
+
+	err = dnet_create_write_metadata(node, &ctl);
 	if (err < 0) {
 		std::ostringstream str;
 		str << "Failed to write metadata: key: " << dnet_dump_id(&id) << ", err: " << err;
@@ -393,13 +433,22 @@ std::string elliptics_node::lookup(const std::string &data)
 
 	transform(data, id);
 
-	try {
-		for (i=0; i<groups.size(); ++i) {
+	dnet_mix_states(node, &id);
+
+	for (i=0; i<groups.size(); ++i) {
+		try {
 			elliptics_callback l;
 			id.group_id = groups[i];
 
-			lookup(data, l);
+			lookup(id, l);
 			ret = l.wait();
+
+			if (ret.size() <= sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)) {
+				std::stringstream str;
+
+				str << dnet_dump_id(&id) << " : failed to receive lookup request";
+				throw std::runtime_error(str.str());
+			}
 
 			struct dnet_addr *addr = (struct dnet_addr *)ret.data();
 			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
@@ -409,9 +458,10 @@ std::string elliptics_node::lookup(const std::string &data)
 				error = 0;
 				break;
 			}
+		} catch (const std::exception &e) {
+			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), data.c_str());
+			continue;
 		}
-	} catch (...) {
-		throw;
 	}
 
 	if (error) {
@@ -447,12 +497,12 @@ void elliptics_node::remove(const std::string &data)
 
 		try {
 			remove(id);
-		} catch (...) {
+		} catch (const std::exception &e) {
+			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), data.c_str());
 			continue;
 		}
 
 		error = 0;
-		break;
 	}
 
 	if (error) {
@@ -520,6 +570,9 @@ std::string elliptics_node::stat_log()
 		data += sz;
 	}
 #endif
+
+	if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + sizeof(struct dnet_stat))
+		throw std::runtime_error("Failed to request statistics: not enough data returned");
 	return ret;
 }
 

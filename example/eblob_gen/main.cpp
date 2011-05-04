@@ -20,12 +20,18 @@ void eblob_processor::process(elliptics_node &node, const std::string &path)
 	bool have_data;
 	eblob_data_source *source;
 	struct dnet_id id;
+	struct timeval tv;
+	struct timespec ts;
 
 	if (fs::is_directory(fs::path(path))) {
 		source = new eblob_dir_source(path);
 	} else {
 		source = new eblob_tar_source(path);
 	}
+
+	gettimeofday(&tv, NULL);
+	ts.tv_sec = tv.tv_sec;
+	ts.tv_nsec = tv.tv_usec * 1000;
 
 	do {
 		try {
@@ -34,7 +40,7 @@ void eblob_processor::process(elliptics_node &node, const std::string &path)
 				break;
 
 			node.transform(name, id);
-			node.write_metadata(id, name, groups_);
+			node.write_metadata(id, name, groups_, ts);
 
 			std::vector<int>::const_iterator end_itr = groups_.end();
 			for (std::vector<int>::const_iterator itr = groups_.begin(); itr != end_itr; ++itr) {

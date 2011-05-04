@@ -242,9 +242,10 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
 
-/* cfg->join flags */
-#define DNET_JOIN_NETWORK		(1<<0)
-#define DNET_NO_ROUTE_LIST		(1<<1)
+/* cfg->flags */
+#define DNET_CFG_JOIN_NETWORK		(1<<0)		/* given node joins network and becomes part of the storage */
+#define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */
+#define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
 
 struct dnet_log {
 	/*
@@ -292,7 +293,7 @@ struct dnet_config
 	 *
 	 * Also has a bit to forbid route list download.
 	 */
-	int			join;
+	int			flags;
 
 	/*
 	 * If node joins network this will be used to find a group to join.
@@ -332,6 +333,16 @@ struct dnet_config
 	 * Spawned thread size in bytes.
 	 */
 	int			stack_size;
+
+	/*
+	 * Number of IO threads in processing pool
+	 */
+	int			io_thread_num;
+
+	/*
+	 * Number of threads in network processing pool
+	 */
+	int			net_thread_num;
 
 	/* Database tuning parameters */
 	unsigned long long	db_buckets;
@@ -477,12 +488,6 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg);
  */
 
 int dnet_state_num(struct dnet_node *n);
-
-/*
- * This is used to join the network. When function is completed, node will be
- * used to store data sent from the network.
- */
-int dnet_join(struct dnet_node *n);
 
 #define DNET_DUMP_NUM	6
 /*
@@ -707,6 +712,7 @@ enum dnet_meta_types {
 	DNET_META_GROUPS,		/* this object has copies in given groups */
 	DNET_META_CHECK_STATUS,		/* last checking status: timestamp and so on */
 	DNET_META_NAMESPACE,		/* namespace where given object lives */
+	DNET_META_UPDATE,		/* last update information (timestamp, flags) */
 };
 
 struct dnet_meta
@@ -741,8 +747,21 @@ static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
 	m->size = dnet_bswap32(m->size);
 }
 
+struct dnet_metadata_control {
+	struct dnet_id			id;
+	char				*obj;
+	int				len;
+
+	int				*groups;
+	int				group_num;
+
+	uint64_t			update_flags;
+	struct timespec			ts;
+};
+
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
-int dnet_create_write_metadata(struct dnet_node *n, struct dnet_id *id, char *obj, int len, int *groups, int group_num);
+int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl);
+int dnet_create_write_metadata_strings(struct dnet_node *n, void *remote, unsigned int remote_len, struct dnet_id *id, struct timespec *ts);
 
 int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen);
 
@@ -774,6 +793,22 @@ static inline void dnet_convert_check_reply(struct dnet_check_reply *r)
 	r->total = dnet_bswap32(r->total);
 	r->completed = dnet_bswap32(r->completed);
 	r->errors = dnet_bswap32(r->errors);
+}
+
+struct dnet_meta_update {
+	int			group_id;
+	int			unused_gap;
+	uint64_t		flags;
+	uint64_t		tsec, tnsec;
+	uint64_t		reserved[4];
+} __attribute__((packed));
+
+static inline void dnet_convert_meta_update(struct dnet_meta_update *m)
+{
+	m->group_id = dnet_bswap32(m->group_id);
+	m->flags = dnet_bswap64(m->flags);
+	m->tsec = dnet_bswap64(m->tsec);
+	m->tnsec = dnet_bswap64(m->tnsec);
 }
 
 struct dnet_meta_check_status {
@@ -835,6 +870,8 @@ static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd 
 
 	return ret;
 }
+
+void dnet_mix_states(struct dnet_node *n, struct dnet_id *id);
 
 #ifdef __cplusplus
 }

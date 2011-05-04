@@ -1,3 +1,279 @@
+elliptics (2.9.6.159) unstable; urgency=low
+
+  * Always add state addr and cmd if they are present in
+    elliptics_callback::callback()
+  * Do not break remove loop if we successfully removed object.
+  * Mix states prior direct data reading reading in ::read_data_wait().
+  * Throw exception if there is no group to read data from
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 03 May 2011 18:14:55 +0400
+
+elliptics (2.9.6.158) unstable; urgency=low
+
+  * Added DB/CHECK prefixes to appropriate operations. Exit process if we hit
+    fatal database error and let starup recovery fix the things.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 29 Apr 2011 21:34:18 +0400
+
+elliptics (2.9.6.157) unstable; urgency=low
+
+  * Do not put state into epoll fd if it was already initialized
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 26 Apr 2011 18:36:51 +0400
+
+elliptics (2.9.6.156) unstable; urgency=low
+
+  * Remove dnet_join(), states are added into route table automatically. Fixed
+    race between route table update (dnet_idc_create()) and storage_state_list
+    update.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 25 Apr 2011 00:47:18 +0400
+
+elliptics (2.9.6.155) unstable; urgency=low
+
+  * Fixed usec->msec transformation during estimator calculus
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Apr 2011 03:19:18 +0400
+
+elliptics (2.9.6.154) unstable; urgency=low
+
+  * Added weight estimator based on read transaction timings
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Apr 2011 02:46:19 +0400
+
+elliptics (2.9.6.153) unstable; urgency=low
+
+  * Add some salt if there are equal weights and rerun sort
+  * Fixed all-state-check - since states can be removed we must use safe
+    iterator
+  * Extended transaction debug - added weights
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Apr 2011 01:39:14 +0400
+
+elliptics (2.9.6.152) unstable; urgency=low
+
+  * Moved stall transaction processing into network IO thread
+  * Added 'flags' parameter into ioserv config
+  * Added state mix according to their weights
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Apr 2011 19:27:41 +0400
+
+elliptics (2.9.6.151) unstable; urgency=low
+
+  * Enable transaction forwarding. Use special saved state for this.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Apr 2011 03:10:42 +0400
+
+elliptics (2.9.6.150) unstable; urgency=low
+
+  * Temporarily disable forwarding
+  * Remove transaction from tmp list when completing on timeout
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Apr 2011 01:47:03 +0400
+
+elliptics (2.9.6.149) unstable; urgency=low
+
+  * Write metadata after data in high-level functions
+  * Do not remove object if check did not find history
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Apr 2011 21:12:54 +0400
+
+elliptics (2.9.6.148) unstable; urgency=low
+
+  * Write metadata directly from dnet_write_object()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Apr 2011 20:44:50 +0400
+
+elliptics (2.9.6.147) unstable; urgency=low
+
+  * Remove state when we detect its stall counter reached limit
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Apr 2011 19:48:16 +0400
+
+elliptics (2.9.6.146) unstable; urgency=low
+
+  * Put whole ID into error log when we fail to read object or file
+  * Updated metadata writer
+  * Added dnet_meta - metdata fetcher
+  * Removed fcgi in favour of fastcgi-daemon
+  * Open cpp logger in append mode
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Apr 2011 00:56:29 +0400
+
+elliptics (2.9.6.145) unstable; urgency=low
+
+  * dnet_trans_check_stall() could errorneously mark states as stall.
+  * Extend ::lookup()/::read() exception debug a bit
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 20 Apr 2011 21:13:43 +0400
+
+elliptics (2.9.6.144) unstable; urgency=low
+
+  * Refactor state logic: join and plain n->st dereference changes
+  * Fixed potential invalid pointer dereferences during metadata write
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 19 Apr 2011 23:40:34 +0400
+
+elliptics (2.9.6.143) unstable; urgency=low
+
+  * Added refcnt into dnet_read_data_wait() shared completion structure
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 22:05:12 +0400
+
+elliptics (2.9.6.142) unstable; urgency=low
+
+  * Use default wait timeout of 5 seconds
+  * Dropped tests - they are outdated to hell
+  * Fixed off-by-one in net_thread_pos selection
+  * Added IO/net thread names and start/stop debug for net pool
+  * Use DNET_DEFAULT_STALL_TRANSACTIONS instead of hardcoded 10
+  * Schedule send and recv event when stall counter reaches
+    DNET_DEFAULT_STALL_TRANSACTIONS
+  * Reset state when its stall counter >= DNET_DEFAULT_STALL_TRANSACTIONS
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 21:16:17 +0400
+
+elliptics (2.9.6.141) unstable; urgency=low
+
+  * Added state stall counter
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 19:25:57 +0400
+
+elliptics (2.9.6.140) unstable; urgency=low
+
+  * Added pool of network processing threads
+  * Added strict lookup checks
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Apr 2011 19:11:52 +0400
+
+elliptics (2.9.6.139) unstable; urgency=low
+
+  * Fixed data forwarding
+  * Fixed lookup try/catch and added node constructor with dnet_config lref
+  * Added usec timestamp into common C++ logger
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Apr 2011 01:57:07 +0400
+
+elliptics (2.9.6.138) unstable; urgency=low
+
+  * Wait proper timeout when waiting for reverse lookup headers
+  * Default wait timeout equals to 20 seconds now
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Apr 2011 00:35:53 +0400
+
+elliptics (2.9.6.137) unstable; urgency=low
+
+  * Added per-transction timeouts (use n->wait_ts actually)
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Apr 2011 21:35:58 +0400
+
+elliptics (2.9.6.136) unstable; urgency=low
+
+  * Use generated ID with proper group_id field when performing data lookup
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 12 Apr 2011 20:13:43 +0400
+
+elliptics (2.9.6.135) unstable; urgency=low
+
+  * Data returned from C code must be freed in binding, std::string will copy
+    it instead of reuse
+  * Fixed typo when putting wait structure in dnet_read_data_wait()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 12 Apr 2011 19:53:33 +0400
+
+elliptics (2.9.6.134) unstable; urgency=low
+
+  * Do not double close accepted socket if state creation fails.
+  * Propogate read completion back to caller
+  * Use dnet_io_req instead of essentially the same dnet_trans_send_ctl
+    structure.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 12 Apr 2011 02:44:32 +0400
+
+elliptics (2.9.6.133) unstable; urgency=low
+
+  * Request route table from all added nodes
+  * dnet_monitor must request stats from all connected nodes
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 11 Apr 2011 16:44:52 +0400
+
+elliptics (2.9.6.132) unstable; urgency=low
+
+  * Return -ECONNRESET on EPOLLHUP/EPOLLERR
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sun, 10 Apr 2011 03:51:54 +0400
+
+elliptics (2.9.6.131) unstable; urgency=low
+
+  * Do not exit from IO thread handler on non-critical errors.
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 16:32:36 +0400
+
+elliptics (2.9.6.130) unstable; urgency=low
+
+  * Added start/stop IO thread debug
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 16:27:48 +0400
+
+elliptics (2.9.6.129) unstable; urgency=low
+
+  * Do not break epoll loop on interrupts and eagain
+  * Dropped counter debug
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 16:14:59 +0400
+
+elliptics (2.9.6.128) unstable; urgency=low
+
+  * Fixed storage_state_list iterator
+  * Use 1 IO thread for client and 20 for server by default
+
+ -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 15:37:37 +0400
+
+elliptics (2.9.6.127) unstable; urgency=low
+
+  * Fixed req processing in multi-thread IO pool
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 15:26:12 +0400
+
+elliptics (2.9.6.126) unstable; urgency=low
+
+  * Merged statistics update
+  * Added missed io_thread_num parser
+  * Simplified state destruction during node cleanup
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 15:13:02 +0400
+
+elliptics (2.9.6.125) unstable; urgency=low
+
+  * Do not deadlock when unscheduling sending state
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 03:50:05 +0400
+
+elliptics (2.9.6.124) unstable; urgency=low
+
+  * Do not schedule sending of the dying state.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 03:44:52 +0400
+
+elliptics (2.9.6.123) unstable; urgency=low
+
+  * Update restart counter when really restart checking threads.
+  * Save check request structure locally.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 03:26:55 +0400
+
+elliptics (2.9.6.122) unstable; urgency=low
+
+  * Do not restart checking threads when limit reached.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 02:58:38 +0400
+
+elliptics (2.9.6.121) unstable; urgency=low
+
+  * Switched to IO thread pool model.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 02:34:44 +0400
+
 elliptics (2.9.6.120) unstable; urgency=low
 
   * Fixed fcgi output when upload fails.

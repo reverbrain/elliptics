@@ -107,13 +107,10 @@ int main()
 	try {
 		elliptics_log_file log("/dev/stderr", 15);
 
-		id.group_id = 2;
-		elliptics_callback_io callback(&log);
-
 		elliptics_node n(log);
 		n.add_groups(groups);
 
-		n.add_remote("elisto01e.mt.yandex.ru", 1025, AF_INET);
+		n.add_remote("localhost", 1025, AF_INET);
 
 		std::string lobj = "1.xml";
 		std::string lret = n.lookup(lobj);
@@ -129,6 +126,8 @@ int main()
 		n.stat_log();
 		return 0;
 #if 1
+		elliptics_callback_io callback(&log);
+		id.group_id = 2;
 		memset(id.id, 0xff, DNET_ID_SIZE);
 		n.read_data(id, 0, 0, callback);
 #endif

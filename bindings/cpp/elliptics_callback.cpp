@@ -45,10 +45,11 @@ int elliptics_callback::callback()
 		complete++;
 		pthread_cond_broadcast(&wait_cond);
 		pthread_mutex_unlock(&lock);
-	} else if (cmd && state && attr && cmd->size) {
+	} else if (cmd && state) {
 		data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
 		data.append((const char *)cmd, sizeof(*cmd));
-		data.append((const char *)attr, sizeof(*attr) + attr->size);
+		if (attr && cmd->size)
+			data.append((const char *)attr, sizeof(*attr) + attr->size);
 	}
 
 	return 0;

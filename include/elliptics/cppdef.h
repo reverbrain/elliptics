@@ -124,12 +124,13 @@ class elliptics_node {
 	public:
 		/* we shold use elliptics_log and proper copy constructor here, but not this time */
 		elliptics_node(elliptics_log &l);
+		elliptics_node(elliptics_log &l, struct dnet_config &cfg);
 		virtual ~elliptics_node();
 
 		void			transform(const std::string &data, struct dnet_id &id);
 
 		void			add_groups(std::vector<int> &groups);
-		std::vector<int>	&get_groups() {return groups;};
+		std::vector<int>	get_groups() {return groups;};
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 
@@ -162,7 +163,7 @@ class elliptics_node {
 
 		std::string		lookup_addr(const std::string &remote, const int group_id);
 
-		int			write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups);
+		int			write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups, const struct timespec &ts);
 
 		void			lookup(const std::string &data, const elliptics_callback &c);
 		void			lookup(const struct dnet_id &id, const elliptics_callback &c);

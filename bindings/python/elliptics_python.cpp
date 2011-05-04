@@ -182,6 +182,9 @@ class elliptics_node_python : public elliptics_node {
 		}
 
 		void write_metadata(const struct elliptics_id &id, const std::string &remote, const list &pgroups) {
+			struct timespec ts;
+			memset(&ts, 0, sizeof(ts));
+
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
 
@@ -190,7 +193,7 @@ class elliptics_node_python : public elliptics_node {
 			for (int i=0; i<len(pgroups); ++i)
 				groups.push_back(extract<int>(pgroups[i]));
 
-			elliptics_node::write_metadata((const dnet_id&)raw, remote, groups);
+			elliptics_node::write_metadata((const dnet_id&)raw, remote, groups, ts);
 		}
 
 		void read_file_by_id(struct elliptics_id &id, const char *file, uint64_t offset, uint64_t size) {

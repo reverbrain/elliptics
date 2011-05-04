@@ -29,6 +29,19 @@
 #include "elliptics.h"
 #include "elliptics/interface.h"
 
+static __attribute__((noreturn)) void dnet_db_fatal_error(struct dnet_node *n, KCDB *db)
+{
+	int err = -kcdbecode(db);
+
+
+	if (n) {
+		dnet_log(n, DNET_LOG_ERROR, "DB: exiting on fatal error: %d: %s\n",
+				err, kcecodename(-err));
+	}
+
+	exit(err);
+}
+
 int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **datap)
 {
 	int err;
@@ -42,7 +55,7 @@ int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **da
 	data = kcdbget(db, (void *)id, DNET_ID_SIZE, &size);
 	if (!data) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: raw DB read failed "
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: raw read failed "
 			"err: %d: %s.\n", dnet_dump_id_str(id),
 			err, kcecodename(-err));
 		goto err_out_exit;
@@ -90,9 +103,9 @@ static int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io
 	ret = kcdbbegintran(db, 1);
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start update transaction, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to start update transaction, err: %d: %s.\n",
 			dnet_dump_id(&cmd->id), err, kcecodename(-err));
-		goto err_out_exit;
+		goto err_out_real_exit;
 	}
 
 	if (append) {
@@ -103,21 +116,24 @@ static int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io
 
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log(n, DNET_LOG_ERROR, "%s: %s: failed to store %u bytes: %s [%d]\n", dnet_dump_id(&cmd->id), dbf,
+		dnet_log(n, DNET_LOG_ERROR, "%s: DB: %s: failed to store %u bytes: %s [%d]\n", dnet_dump_id(&cmd->id), dbf,
 				size, kcecodename(-err), err);
 		goto err_out_txn_end;
 	}
 	kcdbendtran(db, 1);
 
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: %s: stored %u bytes.\n",
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: DB: %s: stored %u bytes.\n",
 			dnet_dump_id(&cmd->id), dbf, size);
 
 	return 0;
 
 err_out_txn_end:
 	kcdbendtran(db, 0);
-err_out_exit:
 	return err;
+
+err_out_real_exit:
+	/* this is a major trouble with database, let's try to recover it on startup */
+	dnet_db_fatal_error(n, db);
 }
 
 int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data)
@@ -152,7 +168,7 @@ static int db_del_direct_trans(struct dnet_node *n, struct dnet_id *id, int meta
 	ret = kcdbbegintran(db, 1);
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start %s remove transaction, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to start %s remove transaction, err: %d: %s.\n",
 			dnet_dump_id(id), dbname, err, kcecodename(-err));
 		goto err_out_exit;
 	}
@@ -160,13 +176,16 @@ static int db_del_direct_trans(struct dnet_node *n, struct dnet_id *id, int meta
 	ret = kcdbremove(db, (void *)id->id, DNET_ID_SIZE);
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to remove %s object, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to remove %s object, err: %d: %s.\n",
 			dnet_dump_id(id), dbname, err, kcecodename(-err));
 	}
 	kcdbendtran(db, ret);
 
+	return 0;
+
 err_out_exit:
-	return err;
+	/* this is a major trouble with database, let's try to recover it on startup */
+	dnet_db_fatal_error(n, db);
 }
 
 static int db_del_direct(struct dnet_node *n, struct dnet_cmd *cmd)
@@ -186,12 +205,12 @@ static int dnet_history_del_entry(struct dnet_node *n, struct dnet_id *id, struc
 	}
 
 	if (i == num) {
-		dnet_log_raw(n, DNET_LOG_INFO, "%s: requested transaction was not found.\n",
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: DB: requested transaction was not found.\n",
 			dnet_dump_id(id));
 		return -ENOENT;
 	}
 
-	dnet_log_raw(n, DNET_LOG_INFO, "%s: removing transaction from position %u/%u.\n",
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: DB: removing transaction from position %u/%u.\n",
 			dnet_dump_id(id), i, num);
 
 	if (i < num - 1)
@@ -215,7 +234,7 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 	ret = kcdbbegintran(n->history, 1);
 	if (!ret) {
 		err = -kcdbecode(n->history);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to start history deletion transaction, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to start history deletion transaction, err: %d: %s.\n",
 			dnet_dump_id(&cmd->id), err, kcecodename(-err));
 		goto err_out_exit;
 	}
@@ -223,7 +242,7 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 	e = kcdbget(n->history, (void *)cmd->id.id, DNET_ID_SIZE, &size);
 	if (!e) {
 		err = -kcdbecode(n->history);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to read history of to be deleted object, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to read history of to be deleted object, err: %d: %s.\n",
 			dnet_dump_id(&cmd->id), err, kcecodename(-err));
 
 		goto err_out_txn_end;
@@ -231,7 +250,7 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 
 	if (size % sizeof(struct dnet_history_entry)) {
 		err = -EINVAL;
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: corrupted history of to be deleted object.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: corrupted history of to be deleted object.\n",
 			dnet_dump_id(&cmd->id));
 		goto err_out_free;
 	}
@@ -247,7 +266,7 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 		ret = kcdbset(n->history, (void *)cmd->id.id, DNET_ID_SIZE, e, size);
 		if (!ret) {
 			err = -kcdbecode(n->history);
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to store truncated history, err: %d: %s.\n",
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to store truncated history, err: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, kcecodename(-err));
 
 			goto err_out_free;
@@ -257,7 +276,7 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 		ret = 1;
 	}
 
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: truncated history: going to remove object: %d.\n",
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: DB: truncated history: going to remove object: %d.\n",
 		dnet_dump_id(&cmd->id), ret);
 
 	kcfree(e);
@@ -269,8 +288,10 @@ err_out_free:
 	kcfree(e);
 err_out_txn_end:
 	kcdbendtran(n->history, 0);
-err_out_exit:
 	return err;
+
+err_out_exit:
+	dnet_db_fatal_error(n, n->history);
 }
 
 struct dnet_db_list_control {
@@ -375,7 +396,7 @@ static void *dnet_db_list_iter(void *data)
 {
 	struct dnet_db_list_control *ctl = data;
 	struct dnet_node *n = ctl->n;
-	int group_id = n->st->idc->group->group_id;
+	int group_id = n->id.group_id;
 	struct dnet_meta_container *mc;
 	struct dnet_net_state *tmp;
 	int err = 0, check_copies;
@@ -405,7 +426,7 @@ static void *dnet_db_list_iter(void *data)
 	buf = malloc(buf_size);
 	if (!buf) {
 		err = -ENOMEM;
-		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate temporal buffer for cursor data.\n");
+		dnet_log(n, DNET_LOG_ERROR, "CHECK: failed to allocate temporal buffer for cursor data.\n");
 		goto out_exit;
 	}
 
@@ -424,7 +445,7 @@ static void *dnet_db_list_iter(void *data)
 				dnet_convert_id(id);
 				err = dnet_db_read_raw(n, 1, id->id, &dbuf);
 				if (err < 0) {
-					dnet_log(n, DNET_LOG_ERROR, "%s: there is no object on given node.\n", dnet_dump_id_str(id->id));
+					dnet_log(n, DNET_LOG_ERROR, "%s: CHECK: there is no object on given node.\n", dnet_dump_id_str(id->id));
 					dbuf = NULL;
 				} else {
 					dsize = err;
@@ -438,7 +459,7 @@ static void *dnet_db_list_iter(void *data)
 			kbuf = kccurget(ctl->cursor, &ksize, (const char **)&dbuf, &dsize, 1);
 			if (!kbuf) {
 				err = -kcdbecode(n->meta);
-				dnet_log(n, DNET_LOG_ERROR, "Cursor returned no data: %d: %s.\n",
+				dnet_log(n, DNET_LOG_ERROR, "CHECK: cursor returned no data: %d: %s.\n",
 						err, kcecodename(-err));
 			}
 			key = kbuf;
@@ -451,7 +472,7 @@ static void *dnet_db_list_iter(void *data)
 		}
 
 		if (sizeof(struct dnet_meta_container) + dsize > buf_size) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: cursor returned too big data chunk: data_size: %zu, max_size: %zu.\n",
+			dnet_log(n, DNET_LOG_ERROR, "%s: CHECK: cursor returned too big data chunk: data_size: %zu, max_size: %zu.\n",
 					dnet_dump_id_str(key), sizeof(struct dnet_meta_container) + dsize, buf_size);
 			err = -EINVAL;
 			goto err_out_kcfree;
@@ -494,8 +515,10 @@ static void *dnet_db_list_iter(void *data)
 			localtime_r((time_t *)&ts, &tm);
 			strftime(time_buf, sizeof(time_buf), "%F %R:%S %Z", &tm);
 
-			dnet_log_raw(n, DNET_LOG_NOTICE, "start key: %s, timestamp: %lld [%s], check before: %lld [%s], will check: %d, check_copies: %d, only_merge: %d, dry: %d, size: %u.\n",
-				dnet_dump_id(&mc->id), ts, time_buf, edge, ctl_time, will_check, check_copies, only_merge, dry_run, mc->size);
+			dnet_log_raw(n, DNET_LOG_NOTICE, "CHECK: start key: %s, timestamp: %lld [%s], check before: %lld [%s], "
+					"will check: %d, check_copies: %d, only_merge: %d, dry: %d, size: %u.\n",
+				dnet_dump_id(&mc->id), ts, time_buf, edge, ctl_time,
+				will_check, check_copies, only_merge, dry_run, mc->size);
 		}
 
 		if (will_check) {
@@ -508,7 +531,8 @@ static void *dnet_db_list_iter(void *data)
 					err = dnet_db_check_update(n, ctl, mc);
 			}
 
-			dnet_log_raw(n, DNET_LOG_NOTICE, "complete key: %s, timestamp: %lld [%s], check_copies: %d, only_merge: %d, dry: %d, size: %u, err: %d.\n",
+			dnet_log_raw(n, DNET_LOG_NOTICE, "CHECK: complete key: %s, timestamp: %lld [%s], "
+					"check_copies: %d, only_merge: %d, dry: %d, size: %u, err: %d.\n",
 				dnet_dump_id(&mc->id), ts, time_buf, check_copies, only_merge, dry_run, mc->size, err);
 
 			atomic_inc(&ctl->completed);
@@ -526,7 +550,7 @@ err_out_kcfree:
 					send_check_reply = 0;
 			}
 
-			dnet_log(n, DNET_LOG_INFO, "check: total: %d, completed: %d, errors: %d\n",
+			dnet_log(n, DNET_LOG_INFO, "CHECK: total: %d, completed: %d, errors: %d\n",
 					atomic_read(&ctl->total), atomic_read(&ctl->completed), atomic_read(&ctl->errors));
 		}
 #if 0
@@ -541,7 +565,7 @@ out_exit:
 	if (err && (err != -ENOENT) && (err != -7))
 		ctl->need_exit = err;
 
-	dnet_log(n, DNET_LOG_INFO, "Exited iteration loop, err: %d, need_exit: %d.\n", err, ctl->need_exit);
+	dnet_log(n, DNET_LOG_INFO, "CHECK: exited iteration loop, err: %d, need_exit: %d.\n", err, ctl->need_exit);
 
 	return NULL;
 }
@@ -550,7 +574,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 {
 	struct dnet_node *n = st->n;
 	struct dnet_db_list_control ctl;
-	struct dnet_check_request *r;
+	struct dnet_check_request *r, req;
 	unsigned int i;
 	int err, restarts = 0;
 	pthread_t *tid;
@@ -561,7 +585,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		return -EINPROGRESS;
 
 	if (attr->size < sizeof(struct dnet_check_request)) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: check: invalid check request size %llu, must be %zu\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: CHECK: invalid check request size %llu, must be %zu\n",
 				dnet_dump_id(&cmd->id),	(unsigned long long)attr->size, sizeof(struct dnet_check_request));
 		return -EINVAL;
 	}
@@ -572,6 +596,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	if (!r->thread_num)
 		r->thread_num = 50;
 
+	memcpy(&req, r, sizeof(req));
 again:
 	/* Racy, but we do not care much */
 	n->check_in_progress = 1;
@@ -586,9 +611,9 @@ again:
 	ctl.st = st;
 	ctl.cmd = cmd;
 	ctl.attr = attr;
-	ctl.req = r;
+	ctl.req = &req;
 
-	tid = malloc(sizeof(pthread_t) * r->thread_num);
+	tid = malloc(sizeof(pthread_t) * req.thread_num);
 	if (!tid) {
 		err = -ENOMEM;
 		goto err_out_exit;
@@ -597,7 +622,7 @@ again:
 	ctl.cursor = kcdbcursor(n->meta);
 	if (!ctl.cursor) {
 		err = -kcdbecode(n->meta);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to open list cursor, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: CHECK: failed to open list cursor, err: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, kcecodename(-err));
 		goto err_out_free;
 	}
@@ -607,53 +632,43 @@ again:
 	if (err)
 		goto err_out_close_cursor;
 
-	for (i=0; i<r->thread_num; ++i) {
+	for (i=0; i<req.thread_num; ++i) {
 		err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);
 		if (err) {
-			dnet_log_err(n, "can not create %d'th check thread out of %d", i, r->thread_num);
-			r->thread_num = i;
+			dnet_log_err(n, "CHECK: can not create %d'th check thread out of %d", i, req.thread_num);
+			req.thread_num = i;
 			ctl.need_exit = 1;
 			goto err_out_join;
 		}
 	}
 
-	if (r->timestamp) {
-		localtime_r((time_t *)&r->timestamp, &tm);
+	if (req.timestamp) {
+		localtime_r((time_t *)&req.timestamp, &tm);
 		strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
 	} else {
 		snprintf(ctl_time, sizeof(ctl_time), "all records");
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Started %u checking threads, recovering %llu transactions, which started before %s: merge: %d, full: %d, dry: %d.\n",
-			r->thread_num, (unsigned long long)r->obj_num, ctl_time,
-			!!(r->flags & DNET_CHECK_MERGE), !!(r->flags & DNET_CHECK_FULL),
-			!!(r->flags & DNET_CHECK_DRY_RUN));
+	dnet_log(n, DNET_LOG_INFO, "CHECK: Started %u checking threads, recovering %llu transactions, "
+			"which started before %s: merge: %d, full: %d, dry: %d.\n",
+			req.thread_num, (unsigned long long)req.obj_num, ctl_time,
+			!!(req.flags & DNET_CHECK_MERGE), !!(req.flags & DNET_CHECK_FULL),
+			!!(req.flags & DNET_CHECK_DRY_RUN));
 
 err_out_join:
-	for (i=0; i<r->thread_num; ++i)
+	for (i=0; i<req.thread_num; ++i)
 		pthread_join(tid[i], NULL);
 
-	dnet_log(n, DNET_LOG_INFO, "Completed %d checking threads, err: %d.\n", r->thread_num, err);
-	dnet_log(n, DNET_LOG_INFO, "checked: total: %d, completed: %d, errors: %d, meta_records: %lld, history_records: %lld\n",
+	err = 0;
+
+	dnet_log(n, DNET_LOG_INFO, "CHECK: completed %d checking threads, err: %d.\n", req.thread_num, err);
+	dnet_log(n, DNET_LOG_INFO, "CHECK: total: %d, completed: %d, errors: %d, meta_records: %lld, history_records: %lld\n",
 			atomic_read(&ctl.total), atomic_read(&ctl.completed), atomic_read(&ctl.errors),
 			(long long)kcdbcount(n->meta), (long long)kcdbcount(n->history));
 
 	if(r->flags & DNET_CHECK_MERGE) {
 		dnet_counter_set(n, DNET_CNTR_NODE_LAST_MERGE, 0, atomic_read(&ctl.completed));
 		dnet_counter_set(n, DNET_CNTR_NODE_LAST_MERGE, 1, atomic_read(&ctl.errors));
-	}
-
-	if (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total)) {
-		if (restarts > 20) {
-			dnet_log(n, DNET_LOG_ERROR, "Check did not complete and restarted %d times already, "
-					"do not restarting again, probably database should be checked manually.\n",
-					restarts);
-			err = -EINVAL;
-		} else {
-			dnet_log(n, DNET_LOG_INFO, "Restarting check.\n");
-		}
-		restarts++;
-		goto again;
 	}
 
 	dnet_db_send_check_reply(&ctl);
@@ -664,6 +679,20 @@ err_out_close_cursor:
 err_out_free:
 	free(tid);
 err_out_exit:
+
+	if (!err && (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total))) {
+		if (restarts > 20) {
+			dnet_log(n, DNET_LOG_ERROR, "CHEC: did not complete and restarted %d times already, "
+					"do not restarting again, probably database should be checked manually.\n",
+					restarts);
+			err = -EINVAL;
+		} else {
+			dnet_log(n, DNET_LOG_INFO, "CHECK: restarting\n");
+			restarts++;
+			goto again;
+		}
+	}
+
 	n->check_in_progress = 0;
 	return err;
 }
@@ -680,7 +709,7 @@ static KCDB *db_backend_open(struct dnet_node *n, char *dbfile, int flags)
 	ret = kcdbopen(db, dbfile, KCOWRITER | KCOCREATE | flags);
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open '%s' database, err: %d %s\n", dbfile, err, kcecodename(-err));
+		dnet_log_raw(n, DNET_LOG_ERROR, "DB: failed to open '%s' database, err: %d %s\n", dbfile, err, kcecodename(-err));
 		goto err_out_close;
 	}
 

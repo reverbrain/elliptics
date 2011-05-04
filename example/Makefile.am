@@ -1,4 +1,4 @@
-bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check dnet_ids
+bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check dnet_ids dnet_meta
 noinst_LIBRARIES = libcommon.a libbackend.a
 noinst_HEADERS = backends.h common.h hash.h
 SUBDIRS = .
@@ -32,6 +32,9 @@ dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) $(EXAMPLE_BACKEND_LIBS)
 dnet_check_SOURCES = check.c
 dnet_check_LDADD = $(EXAMPLE_COMMON_LIBS)
 
+dnet_meta_SOURCES = meta.c
+dnet_meta_LDADD = $(EXAMPLE_COMMON_LIBS)
+
 dnet_ioclient_SOURCES = ioclient.c
 dnet_ioclient_LDADD = $(EXAMPLE_COMMON_LIBS)
 
@@ -48,9 +51,5 @@ dnet_notify_SOURCES = notify.c
 dnet_notify_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_ids_SOURCES = ids.c
-
-if HAVE_FASTCGI
-SUBDIRS += fcgi
-endif
 
 EXTRA_DIST = EXAMPLE 00-INDEX ioserv.conf

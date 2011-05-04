@@ -39,8 +39,6 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	atomic_init(&n->trans, 0);
 
-	n->listen_socket = -1;
-
 	err = dnet_log_init(n, cfg->log);
 	if (err)
 		goto err_out_free;
@@ -94,6 +92,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	INIT_LIST_HEAD(&n->group_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
+	INIT_LIST_HEAD(&n->storage_state_list);
 	INIT_LIST_HEAD(&n->reconnect_list);
 
 	INIT_LIST_HEAD(&n->check_entry);
@@ -171,6 +170,23 @@ static int dnet_idc_compare(const void *k1, const void *k2)
 	return dnet_id_cmp_str(id1->raw.id, id2->raw.id);
 }
 
+static void dnet_idc_remove_ids(struct dnet_net_state *st, struct dnet_group *g)
+{
+	int i, pos;
+
+	for (i=0, pos=0; i<g->id_num; ++i) {
+		if (g->ids[i].idc != st->idc) {
+			g->ids[pos] = g->ids[i];
+			pos++;
+		}
+	}
+
+	g->id_num = pos;
+
+	qsort(g->ids,  g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
+	st->idc = NULL;
+}
+
 int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id *ids, int id_num)
 {
 	struct dnet_node *n = st->n;
@@ -228,6 +244,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	qsort(g->ids, g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
 
 	list_add_tail(&st->state_entry, &g->state_list);
+	list_add_tail(&st->storage_state_entry, &n->storage_state_list);
 
 	idc->id_num = id_num;
 	idc->st = st;
@@ -242,15 +259,23 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 		}
 	}
 
+	err = dnet_setup_control_nolock(st);
+	if (err)
+		goto err_out_remove_nolock;
+
 	pthread_mutex_unlock(&n->state_lock);
 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 
-	dnet_log(n, DNET_LOG_INFO, "Initialized group %d with %d ids, added %d ids out of %d: %ld usecs.\n", g->group_id, g->id_num, num, id_num, diff);
+	dnet_log(n, DNET_LOG_INFO, "Initialized group: %d, total ids: %d, added ids: %d out of %d: %ld usecs.\n", g->group_id, g->id_num, num, id_num, diff);
 
 	return 0;
 
+err_out_remove_nolock:
+	dnet_idc_remove_ids(st, g);
+	list_del_init(&st->state_entry);
+	list_del_init(&st->storage_state_entry);
 err_out_unlock_put:
 	dnet_group_put(g);
 err_out_unlock:
@@ -263,39 +288,19 @@ err_out_exit:
 	return err;
 }
 
-void dnet_idc_destroy(struct dnet_net_state *st)
+void dnet_idc_destroy_nolock(struct dnet_net_state *st)
 {
-	struct dnet_node *n = st->n;
 	struct dnet_idc *idc;
 	struct dnet_group *g;
-	int i, pos;
-
-	pthread_mutex_lock(&n->state_lock);
 
 	idc = st->idc;
 	if (!idc)
-		goto err_out_unlock;
+		return;
 
 	g = idc->group;
-
-	for (i=0, pos=0; i<g->id_num; ++i) {
-		if (g->ids[i].idc != idc) {
-			g->ids[pos] = g->ids[i];
-			pos++;
-		}
-	}
-
-	g->id_num = pos;
-
-	qsort(g->ids,  g->id_num, sizeof(struct dnet_state_id), dnet_idc_compare);
-
+	dnet_idc_remove_ids(st, g);
 	dnet_group_put(g);
 	free(idc);
-
-	st->idc = NULL;
-
-err_out_unlock:
-	pthread_mutex_unlock(&n->state_lock);
 }
 
 static int __dnet_idc_search(struct dnet_group *g, struct dnet_id *id)
@@ -365,7 +370,8 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (!memcmp(addr, &st->addr, sizeof(struct dnet_addr))) {
+			if (st->addr.addr_len == addr->addr_len &&
+					!memcmp(addr, &st->addr, st->addr.addr_len)) {
 				found = st;
 				break;
 			}
@@ -400,30 +406,54 @@ int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_st
 	return err;
 }
 
-struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id)
+struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, struct dnet_id *id)
 {
 	struct dnet_net_state *found;
 
-	pthread_mutex_lock(&n->state_lock);
 	found = __dnet_state_search(n, id);
 	if (!found) {
 		struct dnet_group *g;
 
 		g = dnet_group_search(n, id->group_id);
 		if (!g)
-			goto err_out_unlock;
+			goto err_out_exit;
 
 		found = dnet_state_get(g->ids[0].idc->st);
 		dnet_group_put(g);
 	}
 
+err_out_exit:
+	return found;
+}
+
+struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id)
+{
+	struct dnet_net_state *found;
+
+	pthread_mutex_lock(&n->state_lock);
+	found = dnet_state_search_nolock(n, id);
 	if (found == n->st) {
 		dnet_state_put(found);
 		found = NULL;
 	}
 
-err_out_unlock:
 	pthread_mutex_unlock(&n->state_lock);
+
+	return found;
+}
+
+/*
+ * We do not blindly return n->st, since it will go away eventually,
+ * since we want multiple states/listen sockets per single node
+ */
+struct dnet_net_state *dnet_node_state(struct dnet_node *n)
+{
+	struct dnet_net_state *found;
+
+	pthread_mutex_lock(&n->state_lock);
+	found = dnet_state_search_nolock(n, &n->id);
+	pthread_mutex_unlock(&n->state_lock);
+
 	return found;
 }
 
@@ -559,6 +589,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	dnet_set_name("main");
 
+	srand(time(NULL));
+
 	sigemptyset(&sig);
 	sigaddset(&sig, SIGPIPE);
 	pthread_sigmask(SIG_BLOCK, &sig, NULL);
@@ -566,12 +598,24 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	sigemptyset(&sig);
 	sigaddset(&sig, SIGPIPE);
 
-	if ((cfg->join & DNET_JOIN_NETWORK) && (!cfg->command_handler || !cfg->send)) {
+	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->command_handler || !cfg->send)) {
 		err = -EINVAL;
 		if (cfg->log && cfg->log->log)
 			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Joining node has to register "
 					"a command handler.\n");
 		goto err_out_exit;
+	}
+
+	if (!cfg->io_thread_num) {
+		cfg->io_thread_num = 1;
+		if (cfg->flags & DNET_CFG_JOIN_NETWORK)
+			cfg->io_thread_num = 20;
+	}
+
+	if (!cfg->net_thread_num) {
+		cfg->net_thread_num = 1;
+		if (cfg->flags & DNET_CFG_JOIN_NETWORK)
+			cfg->net_thread_num = 8;
 	}
 
 	if (!cfg->stack_size)
@@ -600,15 +644,19 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->storage_stat = cfg->storage_stat;
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;
+	n->id.group_id = cfg->group_id;
+	n->flags = cfg->flags;
 
 	if (!n->log)
 		dnet_log_init(n, cfg->log);
 
-	if (!n->wait_ts.tv_sec)
-		n->wait_ts.tv_sec = 60*60;
+	if (!n->wait_ts.tv_sec) {
+		n->wait_ts.tv_sec = 5;
+		dnet_log(n, DNET_LOG_NOTICE, "Using default wait timeout (%ld seconds).\n",
+				n->wait_ts.tv_sec);
+	}
 
 	dnet_log(n, DNET_LOG_INFO, "Elliptics starts, version: %s, changed files: %s\n", ELLIPTICS_GIT_VERSION, ELLIPTICS_HAS_CHANGES);
-	dnet_log(n, DNET_LOG_DSA, "Using %d stack size.\n", cfg->stack_size);
 
 	if (!n->check_timeout) {
 		n->check_timeout = DNET_DEFAULT_CHECK_TIMEOUT_SEC;
@@ -634,10 +682,16 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_notify_exit;
 
-	if (cfg->join & DNET_JOIN_NETWORK) {
+	err = dnet_io_init(n, cfg);
+	if (err)
+		goto err_out_monitor_exit;
+
+	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
+		int s;
+
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
 		if (!ids)
-			goto err_out_monitor_exit;
+			goto err_out_io_exit;
 
 		err = dnet_db_init(n, cfg);
 		if (err)
@@ -649,11 +703,12 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		if (err < 0)
 			goto err_out_db_cleanup;
 
-		n->listen_socket = err;
+		s = err;
+		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
 
-		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, n->listen_socket, &err);
+		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, s, &err, DNET_JOIN, dnet_state_accept_process);
 		if (!n->st) {
-			close(n->listen_socket);
+			close(s);
 			goto err_out_db_cleanup;
 		}
 
@@ -675,6 +730,8 @@ err_out_db_cleanup:
 	dnet_db_cleanup(n);
 err_out_ids_cleanup:
 	free(ids);
+err_out_io_exit:
+	dnet_io_exit(n);
 err_out_monitor_exit:
 	dnet_monitor_exit(n);
 err_out_notify_exit:
@@ -709,11 +766,7 @@ void dnet_node_destroy(struct dnet_node *n)
 	n->need_exit = 1;
 	dnet_check_thread_stop(n);
 
-	while (!list_empty(&n->empty_state_list) || !list_empty(&n->group_list)) {
-		dnet_log(n, DNET_LOG_NOTICE, "Waiting for state lists to become empty: empty_state_list: %d, group_list: %d.\n",
-				list_empty(&n->empty_state_list), list_empty(&n->group_list));
-		sleep(1);
-	}
+	dnet_io_exit(n);
 
 	dnet_notify_exit(n);
 
