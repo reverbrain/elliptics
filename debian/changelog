@@ -1,3 +1,20 @@
+elliptics (2.9.6.159) unstable; urgency=low
+
+  * Always add state addr and cmd if they are present in
+    elliptics_callback::callback()
+  * Do not break remove loop if we successfully removed object.
+  * Mix states prior direct data reading reading in ::read_data_wait().
+  * Throw exception if there is no group to read data from
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 03 May 2011 18:14:55 +0400
+
+elliptics (2.9.6.158) unstable; urgency=low
+
+  * Added DB/CHECK prefixes to appropriate operations. Exit process if we hit
+    fatal database error and let starup recovery fix the things.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 29 Apr 2011 21:34:18 +0400
+
 elliptics (2.9.6.157) unstable; urgency=low
 
   * Do not put state into epoll fd if it was already initialized
