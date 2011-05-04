@@ -1259,18 +1259,15 @@ int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 	int num = 0, i, err;
 
 	pthread_mutex_lock(&n->group_lock);
-dnet_log(n, DNET_LOG_DSA, "group_num = %d\n", n->group_num);
 	for (i=0; i<n->group_num; ++i) {
 		ctl->id.group_id = n->groups[i];
 
-dnet_log(n, DNET_LOG_DSA, "%s: sending to group %d\n", dnet_dump_id(&ctl->id), n->groups[i]);
 		t = dnet_io_trans_create(n, ctl, &err);
 		num++;
 	}
 	pthread_mutex_unlock(&n->group_lock);
 
 	if (!num) {
-dnet_log(n, DNET_LOG_DSA, "%s: !num sending to group %d\n", dnet_dump_id(&ctl->id), ctl->id.group_id);
 		t = dnet_io_trans_create(n, ctl, &err);
 		num++;
 	}

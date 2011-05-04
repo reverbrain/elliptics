@@ -723,7 +723,7 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_
 {
 	int err = 0;
 
-dnet_log(n, DNET_LOG_DSA, "check_type = %d\n", check_type);
+	dnet_log(n, DNET_LOG_DSA, "check_type = %d\n", check_type);
 	switch (check_type) {
 		case DNET_CHECK_TYPE_COPIES_HISTORY:
 		case DNET_CHECK_TYPE_COPIES_FULL:
