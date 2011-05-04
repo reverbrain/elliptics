@@ -3398,24 +3398,31 @@ static int dnet_weight_compare(const void *v1, const void *v2)
 	return w1->weight - w2->weight;
 }
 
-void dnet_mix_states(struct dnet_node *n, struct dnet_id *id)
+int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp)
 {
 	struct dnet_weight *weights;
 	int *groups;
 	int group_num, i, num;
 	struct dnet_net_state *st;
 
-	if (!(n->flags & DNET_CFG_MIX_STATES))
-		return;
-
 	pthread_mutex_lock(&n->group_lock);
 	group_num = n->group_num;
 
 	weights = alloca(n->group_num * sizeof(*weights));
-	groups = alloca(n->group_num * sizeof(*groups));
-
-	memcpy(groups, n->groups, n->group_num * sizeof(*groups));
+	groups = malloc(n->group_num * sizeof(*groups));
+	if (groups)
+		memcpy(groups, n->groups, n->group_num * sizeof(*groups));
 	pthread_mutex_unlock(&n->group_lock);
+
+	if (!groups) {
+		*groupsp = NULL;
+		return -ENOMEM;
+	}
+
+	if (!(n->flags & DNET_CFG_MIX_STATES)) {
+		*groupsp = groups;
+		return group_num;
+	}
 
 	memset(weights, 0, group_num * sizeof(*weights));
 
@@ -3463,4 +3470,7 @@ void dnet_mix_states(struct dnet_node *n, struct dnet_id *id)
 	}
 
 	dnet_node_set_groups(n, groups, group_num);
+
+	*groupsp = groups;
+	return group_num;
 }
