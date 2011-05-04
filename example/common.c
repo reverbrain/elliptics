@@ -225,10 +225,7 @@ static void dnet_common_convert_adata(void *adata, struct dnet_io_attr *ioattr)
 static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet_io_control *ctl,
 		void *adata, uint32_t asize)
 {
-	int err, num = 0;
-	struct dnet_io_control hctl;
-	struct dnet_history_entry e;
-	uint32_t flags = ctl->io.flags | DNET_IO_FLAGS_PARENT;
+	int err = 0;
 
 	dnet_common_convert_adata(adata, &ctl->io);
 
@@ -236,51 +233,13 @@ static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet
 	if (err <= 0)
 		goto err_out_exit;
 
-	num = err;
-
-	if (!(ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION)) {
-		memset(&hctl, 0, sizeof(hctl));
-
-		memcpy(&hctl.id, &ctl->id, sizeof(struct dnet_id));
-		memcpy(hctl.io.parent, ctl->io.id, DNET_ID_SIZE);
-		memcpy(hctl.io.id, ctl->io.id, DNET_ID_SIZE);
-
-		dnet_common_convert_adata(adata, &hctl.io);
-
-		hctl.adata = adata;
-		hctl.asize = asize;
-
-		if (ctl->ts.tv_sec)
-			dnet_setup_history_entry(&e, ctl->io.parent, ctl->io.size, ctl->io.offset, &ctl->ts, flags);
-		else
-			dnet_setup_history_entry(&e, ctl->io.parent, ctl->io.size, ctl->io.offset, NULL, flags);
-
-		hctl.priv = ctl->priv;
-		hctl.complete = ctl->complete;
-		hctl.cmd = DNET_CMD_WRITE;
-		hctl.aflags = 0;
-		hctl.cflags = DNET_FLAGS_NEED_ACK;
-		hctl.fd = -1;
-		hctl.local_offset = 0;
-
-		hctl.data = &e;
-
-		hctl.io.size = sizeof(struct dnet_history_entry);
-		hctl.io.offset = 0;
-		hctl.io.flags = (flags & ~DNET_IO_FLAGS_APPEND) | DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_APPEND;
-
-		err = dnet_trans_create_send_all(n, &hctl);
-		if (err > 0)
-			num += err;
-	}
-
 err_out_exit:
-	return num;
+	return err;
 }
 
 int dnet_common_write_object(struct dnet_node *n, struct dnet_id *id,
 		void *adata, uint32_t asize, int history_only,
-		void *data, uint64_t size, int version, struct timespec *ts,
+		void *data, uint64_t size, struct timespec *ts,
 		int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *), void *priv,
 		uint32_t ioflags)
 {
@@ -316,23 +275,7 @@ int dnet_common_write_object(struct dnet_node *n, struct dnet_id *id,
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
 	memcpy(ctl.io.id, ctl.id.id, DNET_ID_SIZE);
 
-	if (version != -1) {
-		/*
-		 * ctl.id is used for cmd.id, so the last assignment is correct, since
-		 * we first send transaction with the data and only then history one.
-		 */
-		dnet_transform(n, data, size, &ctl.id);
-		memcpy(ctl.io.parent, ctl.id.id, DNET_ID_SIZE);
-
-		dnet_common_convert_id_version(ctl.io.parent, version);
-		dnet_common_convert_id_version(ctl.id.id, version);
-
-		ctl.io.flags |= DNET_IO_FLAGS_ID_VERSION | DNET_IO_FLAGS_ID_CONTENT;
-	} else {
-		ctl.aflags |= DNET_ATTR_DIRECT_TRANSACTION;
-		memcpy(ctl.io.parent, ctl.io.id, DNET_ID_SIZE);
-		ctl.io.flags |= DNET_IO_FLAGS_PARENT;
-	}
+	memcpy(ctl.io.parent, ctl.io.id, DNET_ID_SIZE);
 
 	return dnet_common_send_upload_transactions(n, &ctl, adata, asize);
 }
@@ -428,3 +371,63 @@ int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int 
 	*bufsize = buf - orig;
 	return 0;
 }
+
+#define dnet_map_log(n, mask, fmt, a...) do { fprintf(stderr, fmt, ##a); } while (0)
+
+int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map)
+{
+	int err;
+	struct stat st;
+
+	map->fd = open(file, O_RDWR);
+	if (map->fd < 0) {
+		err = -errno;
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to open history file '%s': %s [%d].\n",
+				file, strerror(errno), errno);
+		goto err_out_exit;
+	}
+
+	err = fstat(map->fd, &st);
+	if (err) {
+		err = -errno;
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to stat history file '%s': %s [%d].\n",
+				file, strerror(errno), errno);
+		goto err_out_close;
+	}
+
+	if (st.st_size % (int)sizeof(struct dnet_history_entry)) {
+		dnet_map_log(n, DNET_LOG_ERROR, "Corrupted history file '%s', "
+				"its size %llu must be multiple of %zu.\n",
+				file, (unsigned long long)st.st_size,
+				sizeof(struct dnet_history_entry));
+		err = -EINVAL;
+		goto err_out_close;
+	}
+	map->size = st.st_size;
+
+	map->ent = mmap(NULL, map->size, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
+	if (map->ent == MAP_FAILED) {
+		err = -errno;
+		dnet_map_log(n, DNET_LOG_ERROR, "Failed to mmap history file '%s': %s [%d].\n",
+				file, strerror(errno), errno);
+		goto err_out_close;
+	}
+
+	map->num = map->size / sizeof(struct dnet_history_entry);
+
+	dnet_map_log(n, DNET_LOG_NOTICE, "Mapped %ld entries in '%s'.\n", map->num, file);
+
+	return 0;
+
+err_out_close:
+	close(map->fd);
+err_out_exit:
+	return err;
+}
+
+void dnet_unmap_history(struct dnet_node *n, struct dnet_history_map *map)
+{
+	munmap(map->ent, map->size);
+	close(map->fd);
+}
+

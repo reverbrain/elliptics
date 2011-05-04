@@ -70,6 +70,7 @@ static int meta_request_complete(struct dnet_net_state *state, struct dnet_cmd *
 	struct meta_control *mc = priv;
 	struct dnet_node *n;
 	struct dnet_io_attr *io;
+	struct dnet_meta_container m;
 
 	if (is_trans_destroyed(state, cmd, attr)) {
 		pthread_mutex_lock(&mc->lock);
@@ -97,6 +98,13 @@ static int meta_request_complete(struct dnet_net_state *state, struct dnet_cmd *
 	dnet_convert_io_attr(io);
 
 	dnet_log_raw(n, DNET_LOG_INFO, "%s: metadata: %llu bytes\n", dnet_dump_id(&cmd->id), (unsigned long long)io->size);
+
+	m.data = (void *)(io+1);
+	m.size = io->size;
+	memcpy(&m.id, &cmd->id, sizeof(struct dnet_id));
+
+	dnet_meta_print(n, &m);
+	
 	return 0;
 }
 

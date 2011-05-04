@@ -312,6 +312,17 @@ struct dnet_history_entry
 	uint64_t		size;
 } __attribute__ ((packed));
 
+/*
+ * Helper structure and set of functions to map history file and perform basic checks.
+ */
+struct dnet_history_map
+{
+	struct dnet_history_entry	*ent;
+	long				num;
+	ssize_t				size;
+	int				fd;
+};
+
 static inline void dnet_convert_history_entry(struct dnet_history_entry *a)
 {
 	a->flags = dnet_bswap32(a->flags);
@@ -466,12 +477,6 @@ static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)
 	else
 		st[cmd].err++;
 }
-
-struct dnet_bulk_id
-{
-	uint8_t	id[DNET_ID_SIZE];
-	struct dnet_history_entry last_history;
-} __attribute__ ((packed));
 
 #ifdef __cplusplus
 }

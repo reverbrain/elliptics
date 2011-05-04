@@ -64,7 +64,7 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_io_notification not;
 	struct dnet_attr a;
 
-	if (io->size == sizeof(struct dnet_history_entry)) {
+	/*if (io->size == sizeof(struct dnet_history_entry)) {
 		struct dnet_history_entry *h = (struct dnet_history_entry *)(io + 1);
 
 		memcpy(&not.io.id, h->id, DNET_ID_SIZE);
@@ -74,10 +74,10 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		not.io.flags = io->flags;
 
 		dnet_convert_io_attr(&not.io);
-	} else {
+	} else {*/
 		memcpy(&not.io, io, sizeof(struct dnet_io_attr));
 		dnet_convert_io_attr(&not.io);
-	}
+	//}
 
 	not.addr.sock_type = n->sock_type;
 	not.addr.family = n->family;

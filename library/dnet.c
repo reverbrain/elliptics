@@ -79,7 +79,7 @@ static int dnet_lookup_reply(struct dnet_net_state *st, struct dnet_id *id, uint
 	return err;
 }
 
-static int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id, int history)
+int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 {
 	struct dnet_node *n = st->n;
 	int size, cmd_size;
@@ -115,9 +115,6 @@ static int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id, int hi
 	io->offset = 0;
 	io->flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
 
-	if (history)
-		io->flags |= DNET_IO_FLAGS_HISTORY;
-
 	memcpy(io->parent, id->id, DNET_ID_SIZE);
 	memcpy(io->id, id->id, DNET_ID_SIZE);
 
@@ -150,10 +147,8 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 	err = dnet_state_search_id(n, &cmd->id, &sid, &addr);
 	if (!err) {
 		if (attr->flags & DNET_ATTR_LOOKUP_STAT) {
-			err = dnet_stat_local(orig, &cmd->id, !!(attr->flags & DNET_ATTR_LOOKUP_HISTORY));
-			dnet_log(n, DNET_LOG_DSA, "%s: %s object is stored locally: %s.\n", dnet_dump_id(&cmd->id),
-					!!(attr->flags & DNET_ATTR_LOOKUP_HISTORY) ? "history" : "plain",
-					err ? "no" : "yes");
+			err = dnet_stat_local(orig, &cmd->id);
+			dnet_log(n, DNET_LOG_DSA, "%s: object is stored locally: %s.\n", dnet_dump_id(&cmd->id), err ? "no" : "yes");
 			if (!err)
 				aflags = attr->flags;
 		}
@@ -703,7 +698,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					io = data;
 					dnet_convert_io_attr(io);
 
-					if ((io->flags & DNET_IO_FLAGS_HISTORY) || (io->flags & DNET_IO_FLAGS_META)) {
+					if (io->flags & DNET_IO_FLAGS_META) {
 						if (a->cmd == DNET_CMD_READ) {
 							err = dnet_db_read(st, cmd, io);
 						} else if (a->cmd == DNET_CMD_WRITE) {
@@ -717,9 +712,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				}
 			default:
 				err = n->command_handler(st, n->command_private, cmd, a, data);
-				if (err == -ENOENT && !(a->flags & DNET_ATTR_DIRECT_TRANSACTION)
-					&& a->cmd == DNET_CMD_DEL)
-					err = 0;
 				if (err || (a->cmd != DNET_CMD_WRITE))
 					break;
 
@@ -1284,7 +1276,7 @@ int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 }
 
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
-		void *remote, unsigned int remote_len, struct dnet_id *id, int hupdate __unused)
+		void *remote, unsigned int remote_len, struct dnet_id *id)
 {
 	struct dnet_id raw;
 	int num;
@@ -1299,13 +1291,8 @@ int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
 		memcpy(ctl->io.parent, raw.id, DNET_ID_SIZE);
 	}
 
-	if (ctl->aflags & DNET_ATTR_DIRECT_TRANSACTION) {
-		memcpy(ctl->io.id, ctl->io.parent, DNET_ID_SIZE);
-	} else {
-		dnet_transform(n, ctl->data, ctl->io.size, &raw);
-		memcpy(ctl->io.id, raw.id, DNET_ID_SIZE);
-		ctl->io.flags |= DNET_IO_FLAGS_ID_CONTENT;
-	}
+	memcpy(ctl->io.id, ctl->io.parent, DNET_ID_SIZE);
+	dnet_log(n, DNET_LOG_DSA, "Remote = %.*s, Generated id: %s\n", remote_len, (char *)remote, dnet_dump_id(&raw));
 	memcpy(&ctl->id, id, sizeof(struct dnet_id));
 
 	num = dnet_trans_create_send_all(n, ctl);
@@ -1393,8 +1380,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 			(unsigned long long)offset,
 			(unsigned long long)size, (unsigned long long)ALIGN(size, page_size));
 
-	trans_num = dnet_write_object(n, &ctl, remote, remote_len, id,
-			!(ioflags & (DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE | DNET_IO_FLAGS_META)));
+	trans_num = dnet_write_object(n, &ctl, remote, remote_len, id);
 	dnet_log(n, DNET_LOG_DSA, "%s: transactions sent: %d, err: %d.\n",
 			dnet_dump_id(&ctl.id), trans_num, err);
 
@@ -1529,7 +1515,7 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl)
 
 int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 		int direct, uint64_t write_offset, uint64_t io_offset, uint64_t io_size,
-		struct dnet_id *id, struct dnet_wait *w, int hist, int wait)
+		struct dnet_id *id, struct dnet_wait *w, int wait)
 {
 	struct dnet_io_control ctl;
 	struct dnet_io_completion *c;
@@ -1539,8 +1525,6 @@ int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 
 	ctl.io.size = io_size;
 	ctl.io.offset = io_offset;
-	if (hist)
-		ctl.io.flags = DNET_IO_FLAGS_HISTORY;
 
 	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
 	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
@@ -1570,10 +1554,7 @@ int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 	c->offset = write_offset;
 	c->file = (char *)(c + 1);
 
-	if (hist)
-		sprintf(c->file, "%s%s", file, DNET_HISTORY_SUFFIX);
-	else
-		sprintf(c->file, "%s", file);
+	sprintf(c->file, "%s", file);
 
 	ctl.priv = c;
 
@@ -1601,398 +1582,8 @@ err_out_exit:
 	return err;
 }
 
-struct dnet_map_private
-{
-	char				*file;
-	int				len;
-
-	int				direct;
-	struct dnet_id			id;
-
-	struct dnet_node		*node;
-
-	struct dnet_wait		*wait;
-};
-
-static int dnet_trans_map_callback(void *priv, uint64_t offset, uint64_t size,
-		struct dnet_history_entry *e)
-{
-	struct dnet_map_private *p = priv;
-	int err;
-
-	dnet_setup_id(&p->id, p->id.group_id, e->id);
-
-	err = dnet_read_file_id(p->node, p->file, p->len, p->direct, offset, offset - e->offset, size, &p->id, p->wait, 0, 0);
-
-	dnet_log(p->node, DNET_LOG_NOTICE, "%s: reading chunk into file '%s', direct: %d, write_offset: %llu, io_offset: %llu, io_size: %llu, err: %d.\n",
-			dnet_dump_id(&p->id), p->file, p->direct,
-			(unsigned long long)offset, (unsigned long long)offset - e->offset,
-			(unsigned long long)size, err);
-
-	return err;
-}
-
-struct dnet_map_entry
-{
-	struct rb_node			map_entry;
-	uint64_t			offset, size;
-};
-
-struct dnet_map_root
-{
-	struct rb_root			root;
-
-	uint64_t			offset, size;
-
-	int				(* callback)(	void *priv,
-							uint64_t moffset, uint64_t msize,
-							struct dnet_history_entry *io);
-	void				*priv;
-};
-
-static int dnet_trans_map_cmp(uint64_t old_offset, uint64_t old_size,
-		uint64_t offset, uint64_t size)
-{
-	if (offset + size <= old_offset)
-		return -1;
-
-	if (offset >= old_offset + old_size)
-		return 1;
-
-	return 0;
-}
-
-static int dnet_trans_map_add_range_raw(struct rb_root *root, struct dnet_map_entry *new)
-{
-	struct rb_node **n = &root->rb_node, *parent = NULL;
-	struct dnet_map_entry *m;
-	int cmp;
-
-	while (*n) {
-		parent = *n;
-
-		m = rb_entry(parent, struct dnet_map_entry, map_entry);
-
-		cmp = dnet_trans_map_cmp(m->offset, m->size, new->offset, new->size);
-		if (cmp < 0)
-			n = &parent->rb_left;
-		else if (cmp > 0)
-			n = &parent->rb_right;
-		else
-			return -EEXIST;
-	}
-
-	rb_link_node(&new->map_entry, parent, n);
-	rb_insert_color(&new->map_entry, root);
-	return 0;
-}
-
-static int dnet_trans_map_add_range(struct dnet_map_root *r, uint64_t offset, uint64_t size)
-{
-	struct rb_root *root = &r->root;
-	struct dnet_map_entry *m;
-	int err = -ENOMEM;
-
-	m = malloc(sizeof(struct dnet_map_entry));
-	if (!m)
-		goto err_out_exit;
-
-	m->offset = offset;
-	m->size = size;
-
-	err = dnet_trans_map_add_range_raw(root, m);
-	if (err)
-		goto err_out_free;
-
-	return 0;
-
-err_out_free:
-	free(m);
-err_out_exit:
-	return err;
-}
-
-static void dnet_trans_map_free(struct dnet_map_root *r)
-{
-	struct rb_node *n;
-	struct dnet_map_entry *m;
-
-	for (n = rb_first(&r->root); n; ) {
-		m = rb_entry(n, struct dnet_map_entry, map_entry);
-
-		n = rb_next(n);
-
-		free(m);
-	}
-}
-
-static int dnet_trans_map_match(struct dnet_node *node, struct dnet_map_root *r, struct dnet_history_entry *a)
-{
-	struct rb_root *root = &r->root;
-	struct rb_node *n;
-	struct dnet_map_entry *m;
-	int cmp, err;
-
-again:
-	n = root->rb_node;
-	cmp = 1;
-
-	while (n) {
-		m = rb_entry(n, struct dnet_map_entry, map_entry);
-
-		cmp = dnet_trans_map_cmp(m->offset, m->size, a->offset, a->size);
-		if (cmp < 0)
-			n = n->rb_left;
-		else if (cmp > 0)
-			n = n->rb_right;
-
-		dnet_log(node, DNET_LOG_NOTICE, "map: %llu/%llu, history: %llu/%llu, cmp: %d, n: %p.\n",
-				(unsigned long long)m->offset, (unsigned long long)m->size,
-				(unsigned long long)a->offset, (unsigned long long)a->size,
-				cmp, n);
-		if (!cmp)
-			break;
-	}
-
-	if (cmp)
-		return -ENOENT;
-
-	/*
-	 *                         a->offset+a->size   m->offset+m->size
-	 * |------------------|==========|--------------------|
-	 * m->offset      a->offset
-	 *
-	 * split into two ranges
-	 *
-	 * |------------------|          |--------------------|
-	 *
-	 */
-	if (m->offset < a->offset && m->offset + m->size > a->offset + a->size) {
-		uint64_t right_size = m->offset + m->size - (a->offset + a->size);
-
-		err = r->callback(r->priv, a->offset, a->size, a);
-		if (err)
-			return err;
-
-		m->size = a->offset - m->offset;
-
-		err = dnet_trans_map_add_range(r, a->offset + a->size, right_size);
-		if (err)
-			return err;
-
-		r->size -= a->size;
-		goto again;
-	}
-
-	/*
-	 *         a->offset
-	 *           |====================
-	 * |--------------------------|
-	 * m->offset             m->offset+m->size
-	 *
-	 * truncated to
-	 *
-	 * |---------|
-	 *
-	 */
-	if (m->offset < a->offset) {
-		err = r->callback(r->priv, a->offset, m->offset + m->size - a->offset, a);
-		if (err)
-			return err;
-
-		m->size = a->offset - m->offset;
-		r->size -= m->offset + m->size - a->offset;
-		goto again;
-	}
-
-	/*
-	 *            a->offset + a->size
-	 * ==================|
-	 * |-------------------------------------|
-	 * m->offset                    m->offset+m->size
-	 *
-	 * changed to
-	 *
-	 *                   |-------------------|
-	 *
-	 */
-
-	if (m->offset + m->size > a->offset + a->size) {
-		err = r->callback(r->priv, m->offset, a->offset + a->size - m->offset, a);
-		if (err)
-			return err;
-
-		m->offset = a->offset + a->size;
-		r->size -= a->offset + a->size - m->offset;
-		goto again;
-	}
-
-
-	/*
-	 *                               a->offset + a->size
-	 * =====================================|
-	 * |----------------------|
-	 * m->offset      m->offset+m->size
-	 *
-	 * removed
-	 *
-	 */
-
-	if (m->offset + m->size <= a->offset + a->size) {
-		err = r->callback(r->priv, m->offset, m->size, a);
-		if (err)
-			return err;
-
-		rb_erase(&m->map_entry, root);
-		r->size -= m->size;
-		free(m);
-		goto again;
-	}
-
-	/*
-	 * Should not be here.
-	 */
-	return -EINVAL;
-}
-
-#define dnet_map_log(n, mask, fmt, a...) do { if ((n)) dnet_log((n), mask, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
-
-int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map)
-{
-	int err;
-	struct stat st;
-
-	map->fd = open(file, O_RDWR);
-	if (map->fd < 0) {
-		err = -errno;
-		dnet_map_log(n, DNET_LOG_ERROR, "Failed to open history file '%s': %s [%d].\n",
-				file, strerror(errno), errno);
-		goto err_out_exit;
-	}
-
-	err = fstat(map->fd, &st);
-	if (err) {
-		err = -errno;
-		dnet_map_log(n, DNET_LOG_ERROR, "Failed to stat history file '%s': %s [%d].\n",
-				file, strerror(errno), errno);
-		goto err_out_close;
-	}
-
-	if (st.st_size % (int)sizeof(struct dnet_history_entry)) {
-		dnet_map_log(n, DNET_LOG_ERROR, "Corrupted history file '%s', "
-				"its size %llu must be multiple of %zu.\n",
-				file, (unsigned long long)st.st_size,
-				sizeof(struct dnet_history_entry));
-		err = -EINVAL;
-		goto err_out_close;
-	}
-	map->size = st.st_size;
-
-	map->ent = mmap(NULL, map->size, PROT_READ | PROT_WRITE, MAP_SHARED, map->fd, 0);
-	if (map->ent == MAP_FAILED) {
-		err = -errno;
-		dnet_map_log(n, DNET_LOG_ERROR, "Failed to mmap history file '%s': %s [%d].\n",
-				file, strerror(errno), errno);
-		goto err_out_close;
-	}
-
-	map->num = map->size / sizeof(struct dnet_history_entry);
-
-	dnet_map_log(n, DNET_LOG_NOTICE, "Mapped %ld entries in '%s'.\n", map->num, file);
-
-	return 0;
-
-err_out_close:
-	close(map->fd);
-err_out_exit:
-	return err;
-}
-
-void dnet_unmap_history(struct dnet_node *n __unused, struct dnet_history_map *map)
-{
-	munmap(map->ent, map->size);
-	close(map->fd);
-}
-
-static int dnet_trans_map(struct dnet_node *n, char *main_file, uint64_t offset, uint64_t size,
-		struct dnet_id *id, int (*callback)(void *priv, uint64_t offset, uint64_t size,
-			struct dnet_history_entry *io), void *priv)
-{
-	struct dnet_map_root r;
-	char file[strlen(main_file) + 1 + sizeof(DNET_HISTORY_SUFFIX)];
-	struct dnet_history_entry e;
-	struct dnet_history_map map;
-	struct dnet_id raw;
-	long i;
-	int err;
-
-	if (!callback)
-		return 0;
-
-	sprintf(file, "%s%s", main_file, DNET_HISTORY_SUFFIX);
-
-	err = dnet_map_history(n, file, &map);
-	if (err)
-		goto err_out_exit;
-	if (map.ent[map.num-1].flags & DNET_IO_FLAGS_REMOVED) {
-		err = -ENOENT;
-		goto err_out_unmap;
-	}
-
-	r.root = RB_ROOT;
-	r.callback = callback;
-	r.priv = priv;
-	r.offset = offset;
-	r.size = size;
-
-	dnet_log(n, DNET_LOG_NOTICE, "%s: objects: %ld, range: %llu-%llu, "
-			"counting from the most recent.\n",
-			file, map.num, (unsigned long long)offset,
-			(unsigned long long)offset+r.size);
-
-	err = dnet_trans_map_add_range(&r, offset, size);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to add range: offset: %llu, size: %llu, err: %d.\n",
-			(unsigned long long)offset, (unsigned long long)size, err);
-		goto err_out_unmap;
-	}
-
-	for (i=map.num-1; i>=0; --i) {
-		e = map.ent[i];
-
-		dnet_convert_history_entry(&e);
-
-		err = dnet_trans_map_match(n, &r, &e);
-
-		dnet_setup_id(&raw, id->group_id, e.id);
-
-		dnet_log(n, DNET_LOG_NOTICE, "%s: flags: %08x, offset: %8llu, size: %8llu: match: %d, rest: %llu\n",
-			dnet_dump_id(&raw), e.flags,
-			(unsigned long long)e.offset, (unsigned long long)e.size,
-			err, (unsigned long long)r.size);
-
-		if (err < 0 && err != -ENOENT)
-			goto err_out_free;
-
-		if (!r.size)
-			break;
-	}
-
-	dnet_trans_map_free(&r);
-	dnet_unmap_history(n, &map);
-
-	return 0;
-
-err_out_free:
-	dnet_trans_map_free(&r);
-err_out_unmap:
-	dnet_unmap_history(n, &map);
-err_out_exit:
-	return err;
-}
-
 static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
-		struct dnet_id *id, int direct, uint64_t offset, uint64_t size, int hist)
+		struct dnet_id *id, int direct, uint64_t offset, uint64_t size)
 {
 	int err, len = strlen(file), error = 0, i;
 	struct dnet_wait *w;
@@ -2005,8 +1596,11 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 		goto err_out_exit;
 	}
 
+	if (!size)
+		size = ~0ULL;
+
 	if (id) {
-		err = dnet_read_file_id(n, file, len, direct, 0, 0, 0, id, w, 1, 1);
+		err = dnet_read_file_id(n, file, len, direct, 0, offset, size, id, w, 1);
 		if (err)
 			goto err_out_put;
 	} else {
@@ -2017,7 +1611,7 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 		for (i=0; i<n->group_num; ++i) {
 			id->group_id = n->groups[i];
 
-			err = dnet_read_file_id(n, file, len, direct, 0, 0, 0, id, w, 1, 1);
+			err = dnet_read_file_id(n, file, len, direct, 0, offset, size, id, w, 1);
 			if (err) {
 				error = err;
 				continue;
@@ -2034,33 +1628,195 @@ static int dnet_read_file_raw(struct dnet_node *n, char *file, void *remote, uns
 		}
 	}
 
-	if (!hist) {
-		struct dnet_map_private p;
+	dnet_wait_put(w);
 
-		p.file = file;
-		p.len = len;
-		p.node = n;
-		p.wait = w;
-		p.direct = direct;
-		memcpy(&p.id, id, sizeof(struct dnet_id));
+	return 0;
 
-		if (!size)
-			size = ~0ULL;
+err_out_put:
+	dnet_wait_put(w);
+err_out_exit:
+	return err;
+}
 
-		err = dnet_trans_map(n, file, offset, size, id, dnet_trans_map_callback, &p);
+int dnet_read_file(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
+		struct dnet_id *id, uint64_t offset, uint64_t size)
+{
+	return dnet_read_file_raw(n, file, remote, remote_len, id, 0, offset, size);
+}
+
+int dnet_read_file_direct(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
+		struct dnet_id *id, uint64_t offset, uint64_t size)
+{
+	return dnet_read_file_raw(n, file, remote, remote_len, id, 1, offset, size);
+}
+
+struct dnet_read_meta_control
+{
+	struct dnet_wait		*wait;
+	struct dnet_meta_container	*mc;
+};
+
+static int dnet_read_meta_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
+{
+	int err;
+	struct dnet_node *n;
+	struct dnet_read_meta_control *c = priv;
+	struct dnet_io_attr *io;
+	void *data;
+
+	if (is_trans_destroyed(st, cmd, attr)) {
+		if (c->wait) {
+			if (cmd && cmd->status)
+				c->wait->cond = cmd->status;
+			dnet_wakeup(c->wait, );
+			dnet_wait_put(c->wait);
+		}
+
+		free(c);
+		return 0;
+	}
+
+	n = st->n;
+
+	if (cmd->status != 0 || cmd->size == 0 || !attr) {
+		err = cmd->status;
+		goto err_out_exit_no_log;
+	}
+
+	if (cmd->size <= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: read completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
+				dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,
+				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
+		err = -EINVAL;
+		goto err_out_exit_no_log;
+	}
+
+	io = (struct dnet_io_attr *)(attr + 1);
+	data = io + 1;
+
+	dnet_convert_io_attr(io);
+
+	c->mc->data = malloc(io->size);
+	if (!c->mc->data) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate meta data\n",
+				dnet_dump_id(&cmd->id));
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	c->mc->size = io->size;
+	memcpy(c->mc->data, data, io->size);
+
+	dnet_log(n, DNET_LOG_NOTICE, "%s: meta read completed: size: %llu, status: %d.\n",
+			dnet_dump_id(&cmd->id), (unsigned long long)io->size, cmd->status);
+
+	return cmd->status;
+
+err_out_exit:
+	dnet_log(n, DNET_LOG_ERROR, "%s: read failed: size: %llu, status: %d, err: %d.\n",
+			dnet_dump_id(&cmd->id), (unsigned long long)io->size, cmd->status, err);
+err_out_exit_no_log:
+	c->wait->cond = err;
+	return err;
+}
+
+int dnet_read_meta_id(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_id *id, struct dnet_wait *w, int wait)
+{
+	struct dnet_io_control ctl;
+	struct dnet_read_meta_control *c;
+	int err, wait_init = ~0;
+
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
+
+	ctl.io.flags = DNET_IO_FLAGS_META;
+	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
+	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
+
+	memcpy(&ctl.id, id, sizeof(struct dnet_id));
+
+	ctl.fd = -1;
+	ctl.complete = dnet_read_meta_complete;
+	ctl.cmd = DNET_CMD_READ;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+
+	c = malloc(sizeof(struct dnet_read_meta_control));
+	if (!c) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate read meta control structure\n",
+				dnet_dump_id(&ctl.id));
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memset(c, 0, sizeof(struct dnet_read_meta_control));
+
+	c->wait = dnet_wait_get(w);
+	c->mc = mc;
+
+	ctl.priv = c;
+
+	w->cond = wait_init;
+	err = dnet_read_object(n, &ctl);
+	if (err)
+		goto err_out_exit;
+
+	if (wait) {
+		err = dnet_wait_event(w, w->cond != wait_init, &n->wait_ts);
+		if (err || (w->cond != 0 && w->cond != wait_init)) {
+			char id_str[2*DNET_ID_SIZE + 1];
+			if (!err)
+				err = w->cond;
+			dnet_log(n, DNET_LOG_ERROR, "%d:%s failed to read meta: %d\n",
+				ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str), err);
+			goto err_out_exit;
+		}
+	}
+
+	return 0;
+
+err_out_exit:
+	return err;
+}
+
+int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc, void *remote, unsigned int remote_len, struct dnet_id *id)
+{
+	int err, error = 0, i;
+	struct dnet_wait *w;
+	struct dnet_id raw;
+
+	if (!mc)
+		return -EINVAL;
+
+	w = dnet_wait_alloc(~0);
+	if (!w) {
+		err = -ENOMEM;
+		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting.\n");
+		goto err_out_exit;
+	}
+
+	if (id) {
+		err = dnet_read_meta_id(n, mc, id, w, 1);
 		if (err)
 			goto err_out_put;
+	} else {
+		id = &raw;
 
-		/*
-		 * Waiting for all readers to complete the transactions.
-		 */
-		err = dnet_wait_event(w, atomic_read(&w->refcnt) == 1, &n->wait_ts);
-		if (err || (w->cond < 0 && w->cond != ~0)) {
-			if (w->cond < 0 && w->cond != ~0)
-				err = w->cond;
-			dnet_log(n, DNET_LOG_ERROR, "%s: failed to read file '%s', offset: %llu, size: %llu, err: %d.\n",
-					dnet_dump_id(id), file, (unsigned long long)offset,
-					(unsigned long long)size, err);
+		dnet_transform(n, remote, remote_len, id);
+		pthread_mutex_lock(&n->group_lock);
+		for (i=0; i<n->group_num; ++i) {
+			id->group_id = n->groups[i];
+
+			err = dnet_read_meta_id(n, mc, id, w, 1);
+			if (err) {
+				error = err;
+				continue;
+			}
+
+			error = 0;
+			break;
+		}
+		pthread_mutex_unlock(&n->group_lock);
+
+		if (error) {
+			err = error;
 			goto err_out_put;
 		}
 	}
@@ -2073,20 +1829,9 @@ err_out_put:
 	dnet_wait_put(w);
 err_out_exit:
 	return err;
-}
 
-int dnet_read_file(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
-		struct dnet_id *id, uint64_t offset, uint64_t size, int hist)
-{
-	return dnet_read_file_raw(n, file, remote, remote_len, id, 0, offset, size, hist);
-}
 
-int dnet_read_file_direct(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
-		struct dnet_id *id, uint64_t offset, uint64_t size, int hist)
-{
-	return dnet_read_file_raw(n, file, remote, remote_len, id, 1, offset, size, hist);
 }
-
 struct dnet_wait *dnet_wait_alloc(int cond)
 {
 	int err;
@@ -2612,35 +2357,6 @@ static int dnet_remove_object_raw(struct dnet_node *n,
 	int direct)
 {
 	struct dnet_trans_control ctl;
-#if 0
-	char data[sizeof(struct dnet_io_attr) + sizeof(struct dnet_history_entry)];
-	struct dnet_io_attr *io = (struct dnet_io_attr *)data;
-	struct dnet_history_entry *e = (struct dnet_history_entry *)(io + 1);
-
-	memset(&ctl, 0, sizeof(struct dnet_trans_control));
-
-	memcpy(&ctl.id, id, sizeof(struct dnet_id));
-
-	memset(data, 0, sizeof(data));
-
-	memcpy(io->id, id->id, DNET_ID_SIZE);
-	memcpy(io->parent, parent, DNET_ID_SIZE);
-	io->size = sizeof(struct dnet_history_entry);
-	io->flags = DNET_IO_FLAGS_APPEND | DNET_IO_FLAGS_HISTORY;
-
-	dnet_convert_io_attr(io);
-
-	dnet_setup_history_entry(e, id->id, 0, 0, NULL, DNET_IO_FLAGS_REMOVED);
-
-	ctl.cmd = DNET_CMD_WRITE;
-	ctl.complete = complete;
-	ctl.priv = priv;
-	ctl.cflags = DNET_FLAGS_NEED_ACK;
-	if (direct)
-		ctl.cflags |= DNET_FLAGS_DIRECT;
-	ctl.data = data;
-	ctl.size = sizeof(data);
-#endif
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
@@ -2740,7 +2456,7 @@ int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, int direct)
 	ctl.complete = dnet_remove_complete;
 	ctl.priv = w;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
-	ctl.aflags = DNET_ATTR_DIRECT_TRANSACTION | DNET_ATTR_DELETE_HISTORY;
+	ctl.aflags = DNET_ATTR_DELETE_HISTORY;
 
 	if (direct)
 		ctl.cflags |= DNET_FLAGS_DIRECT;
@@ -3009,7 +2725,7 @@ int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
 	ctl.io.offset = offset;
 
 	atomic_set(&w->refcnt, INT_MAX);
-	trans_num = dnet_write_object(n, &ctl, remote, len, id, !(ioflags & (DNET_IO_FLAGS_HISTORY | DNET_IO_FLAGS_NO_HISTORY_UPDATE | DNET_IO_FLAGS_META)));
+	trans_num = dnet_write_object(n, &ctl, remote, len, id);
 	if (trans_num < 0)
 		trans_num = 0;
 
@@ -3224,6 +2940,7 @@ err_out_exit:
 	return err;
 }
 
+/*
 struct dnet_read_multiple {
 	struct dnet_wait		*w;
 	struct dnet_id_param		*ids;
@@ -3387,6 +3104,7 @@ err_out_free:
 err_out_exit:
 	return err;
 }
+*/
 
 int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen)
 {
