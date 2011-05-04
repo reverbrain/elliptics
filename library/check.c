@@ -179,8 +179,8 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 					dnet_log(orig->n, DNET_LOG_DSA, "BULK: last_update.tsec=%lu, last_update.tnsec=%lu, last_update.flags=%02lx\n",
 							(unsigned long)ids[i].last_update.tsec, (unsigned long)ids[i].last_update.tnsec, (unsigned long)ids[i].last_update.flags);
 
-					if ((mu.flags & DNET_IO_FLAGS_REMOVED) || (mu.tsec <= ids[i].last_update.tsec) || 
-							((mu.tnsec != ids[i].last_update.tnsec) && (mu.tsec == ids[i].last_update.tsec))) {
+					if ((mu.flags & DNET_IO_FLAGS_REMOVED) || (mu.tsec < ids[i].last_update.tsec) || 
+							((mu.tnsec < ids[i].last_update.tnsec) && (mu.tsec == ids[i].last_update.tsec))) {
 						err = 0;
 					} else {
 						dnet_setup_id(&raw, orig->n->id.group_id, ids[i].id);
@@ -386,6 +386,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 							goto err_out_cont2;
 
 						memcpy(tmp_mup, &lastest_mu, sizeof(struct dnet_meta_update));
+						tmp_mup->group_id = tmp_mu.group_id;
 						dnet_convert_meta_update(tmp_mup);
 
 						err = dnet_write_data_wait(state->n, NULL, 0, &id, mc.data, -1, 0, 0, mc.size, NULL,
