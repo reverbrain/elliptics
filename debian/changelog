@@ -1,3 +1,13 @@
+elliptics (2.9.6.160) unstable; urgency=low
+
+  * Copy mixed groups and use them in cpp bindings instead of plain groups
+    dereference.
+  * Save the last cmd in t->cmd and print its status when transaction is
+    destroyed.
+  * Extended metadata dump.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 05 May 2011 00:55:48 +0400
+
 elliptics (2.9.6.159) unstable; urgency=low
 
   * Always add state addr and cmd if they are present in
