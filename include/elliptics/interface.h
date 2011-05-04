@@ -866,7 +866,7 @@ static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd 
 	return ret;
 }
 
-void dnet_mix_states(struct dnet_node *n, struct dnet_id *id);
+int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp);
 
 #ifdef __cplusplus
 }

@@ -173,14 +173,17 @@ void elliptics_node::read_data(struct dnet_id &id, uint64_t offset, uint64_t siz
 
 void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t size, elliptics_callback &c)
 {
-	int err, error = 0, i;
+	int err, error = 0, i, num, *g;
 	struct dnet_id id;
 
-	dnet_transform(node, (void *)remote.data(), remote.size(), &id);
-	dnet_mix_states(node, &id);
+	transform(remote, id);
 
-	for (i=0; i<groups.size(); ++i) {
-		id.group_id = groups[i];
+	num = dnet_mix_states(node, &id, &g);
+	if (num < 0)
+		throw std::bad_alloc();
+
+	for (i=0; i<num; ++i) {
+		id.group_id = g[i];
 
 		try {
 			read_data(id, offset, size, c);
@@ -192,6 +195,8 @@ void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t si
 		error = 0;
 		break;
 	}
+
+	free(g);
 
 	if (error) {
 		std::ostringstream str;
@@ -287,15 +292,17 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size)
 std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 {
 	struct dnet_id id;
-	int err, error = -ENOENT, i;
+	int err, error = -ENOENT, i, num, *g;
 	std::string ret;
 
 	transform(remote, id);
 
-	dnet_mix_states(node, &id);
+	num = dnet_mix_states(node, &id, &g);
+	if (num < 0)
+		throw std::bad_alloc();
 
-	for (i=0; i<groups.size(); ++i) {
-		id.group_id = groups[i];
+	for (i=0; i<num; ++i) {
+		id.group_id = g[i];
 
 		try {
 			ret = read_data_wait(id, size);
@@ -307,6 +314,8 @@ std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 		error = 0;
 		break;
 	}
+
+	free(g);
 
 	if (error) {
 		std::ostringstream str;
@@ -400,12 +409,16 @@ void elliptics_node::lookup(const struct dnet_id &id, const elliptics_callback &
 void elliptics_node::lookup(const std::string &data, const elliptics_callback &c)
 {
 	struct dnet_id id;
-	int error = -ENOENT, ret, i;
+	int error = -ENOENT, ret, i, num, *g;
 
 	transform(data, id);
 
-	for (i=0; i<groups.size(); ++i) {
-		id.group_id = groups[i];
+	num = dnet_mix_states(node, &id, &g);
+	if (num < 0)
+		throw std::bad_alloc();
+
+	for (i=0; i<num; ++i) {
+		id.group_id = g[i];
 
 		try {
 			lookup(id, c);
@@ -417,6 +430,8 @@ void elliptics_node::lookup(const std::string &data, const elliptics_callback &c
 		break;
 	}
 
+	free(g);
+
 	if (error) {
 		std::ostringstream str;
 		str << "Failed to lookup data object: key: " << dnet_dump_id(&id);
@@ -427,17 +442,19 @@ void elliptics_node::lookup(const std::string &data, const elliptics_callback &c
 std::string elliptics_node::lookup(const std::string &data)
 {
 	struct dnet_id id;
-	int error = -ENOENT, i;
+	int error = -ENOENT, i, num, *g;
 	std::string ret;
 
 	transform(data, id);
 
-	dnet_mix_states(node, &id);
+	num = dnet_mix_states(node, &id, &g);
+	if (num < 0)
+		throw std::bad_alloc();
 
-	for (i=0; i<groups.size(); ++i) {
+	for (i=0; i<num; ++i) {
 		try {
 			elliptics_callback l;
-			id.group_id = groups[i];
+			id.group_id = g[i];
 
 			lookup(id, l);
 			ret = l.wait();
@@ -462,6 +479,8 @@ std::string elliptics_node::lookup(const std::string &data)
 			continue;
 		}
 	}
+
+	free(g);
 
 	if (error) {
 		std::ostringstream str;
@@ -488,11 +507,12 @@ void elliptics_node::remove(const std::string &data)
 {
 	struct dnet_id id;
 	int error = -ENOENT, ret, i;
+	std::vector<int> g = groups;
 
 	transform(data, id);
 
-	for (i=0; i<groups.size(); ++i) {
-		id.group_id = groups[i];
+	for (i=0; i<g.size(); ++i) {
+		id.group_id = g[i];
 
 		try {
 			remove(id);
