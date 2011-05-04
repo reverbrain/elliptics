@@ -155,11 +155,9 @@ class elliptics_node {
 		std::string		read_data_wait(std::string &remote, uint64_t size);
 
 		int			write_data_wait(struct dnet_id &id, std::string &str,
-							unsigned int aflags = 0,
-							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+							unsigned int aflags = 0, unsigned int ioflags = 0);
 		int			write_data_wait(std::string &remote, std::string &str,
-							unsigned int aflags = 0,
-							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE);
+							unsigned int aflags = 0, unsigned int ioflags = 0);
 
 		std::string		lookup_addr(const std::string &remote, const int group_id);
 
