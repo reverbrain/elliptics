@@ -149,6 +149,7 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 	struct dnet_bulk_id *ids = (struct dnet_bulk_id *)data;
 	struct dnet_meta_container mc;
 	struct dnet_meta_update mu;
+	struct dnet_id raw;
 	int i;
 	int err = 0;
 	int num;
@@ -181,11 +182,19 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 							((mu.tnsec != ids[i].last_update.tnsec) && (mu.tsec == ids[i].last_update.tsec))) {
 						err = 0;
 					} else {
-						err = dnet_db_check_update(orig->n, &mc);
+						dnet_setup_id(&raw, orig->n->id.group_id, ids[i].id);
+						err = dnet_stat_local(orig, &raw);
 						if (err) {
-							dnet_log(orig->n, DNET_LOG_ERROR, "%s: couldn't update meta CHECK_STATUS\n", dnet_dump_id_str(ids[i].id));
+							//File was not found in the storage
+							mu.tsec = 1;
+							mu.flags = 0;
+						} else {
+							err = dnet_db_check_update(orig->n, &mc);
+							if (err) {
+								dnet_log(orig->n, DNET_LOG_ERROR, "%s: couldn't update meta CHECK_STATUS\n", dnet_dump_id_str(ids[i].id));
+							}
 						}
-					} 
+					}
 
 					memcpy(&ids[i].last_update, &mu, sizeof(struct dnet_meta_update));
 					dnet_convert_meta_update(&ids[i].last_update);
@@ -376,7 +385,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 							goto err_out_cont2;
 
 						memcpy(tmp_mup, &lastest_mu, sizeof(struct dnet_meta_update));
-						dnet_convert_meta(tmp_mup);
+						dnet_convert_meta_update(tmp_mup);
 
 						err = dnet_write_data_wait(state->n, NULL, 0, &id, mc.data, -1, 0, 0, mc.size, NULL,
 							0, DNET_IO_FLAGS_META | DNET_IO_FLAGS_NO_HISTORY_UPDATE);

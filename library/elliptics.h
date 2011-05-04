@@ -566,6 +566,8 @@ int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 		int direct, uint64_t write_offset, uint64_t io_offset, uint64_t io_size,
 		struct dnet_id *id, struct dnet_wait *w, int wait);
 
+int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc, void *remote, unsigned int remote_len, struct dnet_id *id);
+
 int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data);
 int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io);
 int dnet_db_read_raw(struct dnet_node *n, unsigned char *id, void **datap);
