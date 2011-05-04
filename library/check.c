@@ -235,7 +235,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 	struct dnet_meta_update *mu;
 	struct dnet_meta *mg;
 	int *groups, group_num;
-	int my_group = state->n->st->idc->group->group_id;
+	int my_gropu;
 	int err = -EINVAL, error = 0;
 
 	if (is_trans_destroyed(state, cmd, attr)) {
@@ -246,6 +246,8 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 
 	if (!attr)
 		return cmd->status;
+
+	my_group = state->n->st->idc->group->group_id;
 
 	if (!(attr->size % sizeof(struct dnet_bulk_id))) {
 		struct dnet_bulk_id *ids = (struct dnet_bulk_id *)(attr + 1);
@@ -273,7 +275,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 			mc.size = err;
 
 			/* Set current group meta_update as lastest_mu */
-			if(!dnet_get_meta_update(state->n, &mc, my_group, &my_mu)) {
+			if (!dnet_get_meta_update(state->n, &mc, my_group, &my_mu)) {
 				dnet_log(state->n, DNET_LOG_ERROR, "%s: BULK: meta_update structure doesn't exist for group %d\n",
 						dnet_dump_id_str(ids[i].id), my_group);
 				err = -ENOENT;
@@ -316,7 +318,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 			groups = (int *)mg->data;
 			dnet_convert_meta(mg);
 
-			/* Iterate through groups to filnd the lastest */
+			/* Iterate through groups to find the lastest */
 			for (j = 0; j < group_num; ++j) {
 				if (groups[j] == my_group)
 					continue;
@@ -333,20 +335,26 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 				if (!(tmp_mu.flags & DNET_IO_FLAGS_REMOVED))
 					removed_in_all = 0;
 
-				if ((tmp_mu.tsec > lastest_mu.tsec) || ((tmp_mu.tsec == lastest_mu.tsec) && ((tmp_mu.tnsec > lastest_mu.tnsec)))) {
+				if ((tmp_mu.tsec > lastest_mu.tsec) || ((tmp_mu.tsec == lastest_mu.tsec) && (tmp_mu.tnsec > lastest_mu.tnsec))) {
 					memcpy(&lastest_mu, &tmp_mu, sizeof(struct dnet_meta_update));
 					lastest_group = groups[j];
 				}
 			}
 
+			/* XXX
+			 *
+			 * tmp_mu can be uninitialized here, should it be latest_mu instead?
+			 */
 			if (tmp_mu.flags == ~0U) {
 				err = 0;
 				goto err_out_kcfree;
 			}
 
-			/* TODO: receive newer files from remote groups */
-			if ((lastest_group != my_group) && !(lastest_mu.flags & DNET_IO_FLAGS_REMOVED))
-			{
+			/* TODO: receive newer files from remote groups
+			 *
+			 * Yep, we should read it locally and send it to other groups too
+			 */
+			if ((lastest_group != my_group) && !(lastest_mu.flags & DNET_IO_FLAGS_REMOVED)) {
 				dnet_log(state->n, DNET_LOG_DSA, "%s: File on remote group %d is newer, skipping this file\n",
 						dnet_dump_id_str(ids[i].id), lastest_group);
 				err = 0;
@@ -365,7 +373,9 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 					err = -ENOENT;
 					goto err_out_kcfree;
 				}
+
 				dnet_setup_id(&id, groups[j], ids[i].id);
+
 				if (lastest_mu.flags & DNET_IO_FLAGS_REMOVED) {
 					if (removed_in_all) {
 						dnet_log(state->n, DNET_LOG_DSA, "BULK: dnet_remove_object_now %s in group %d, err=%d\n", dnet_dump_id(&id), my_group, err);
@@ -506,6 +516,7 @@ static int dnet_bulk_add_id(struct dnet_node *n, struct dnet_bulk_array *bulk_ar
 
 	memcpy(&tmp.addr, &st->addr, sizeof(struct dnet_addr));
 	dnet_state_put(st);
+
 	state = bsearch(&tmp, bulk_array->states, bulk_array->num, sizeof(struct dnet_bulk_state), dnet_compare_bulk_state);
 	if (!state)
 		return -1;
@@ -561,7 +572,7 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 		if (groups[i] == group_id)
 			continue;
 
-		dnet_log(n, DNET_LOG_DSA, "Cleaning META_UPDATE for group %d\n", groups[i]);
+		dnet_log(n, DNET_LOG_NOTICE, "Cleaning META_UPDATE for group %d\n", groups[i]);
 		mu = dnet_get_meta_update(n, mc, groups[i], NULL);
 		if (!mu) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: BULK: meta_update structure doesn't exist for group %d\n", dnet_dump_id(&mc->id), groups[i]);
