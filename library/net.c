@@ -698,8 +698,10 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 			t->complete(t->st, cmd, r->data, t->priv);
 
 		dnet_trans_put(t);
-		if (!(cmd->flags & DNET_FLAGS_MORE))
+		if (!(cmd->flags & DNET_FLAGS_MORE)) {
+			memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 			dnet_trans_put(t);
+		}
 		goto out;
 	}
 #if 1
