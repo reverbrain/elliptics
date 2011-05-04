@@ -74,6 +74,7 @@ enum dnet_counters {
 	DNET_CNTR_VM_BUFFERS,			/* Used for buffers */
 	DNET_CNTR_NODE_FILES,			/* # files in meta */
 	DNET_CNTR_NODE_LAST_MERGE,		/* Result of the last merge */
+	DNET_CNTR_NODE_CHECK_COPY,		/* Result of the last check copies */
 	DNET_CNTR_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown counters */
 	__DNET_CNTR_MAX,
 };
@@ -178,6 +179,9 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* Do not work with history/transaction machinery, write data as is into object */
 #define DNET_ATTR_DIRECT_TRANSACTION		(1<<0)
 
+/* Completely remove object history and metadata */
+#define DNET_ATTR_DELETE_HISTORY		(1<<1)
+
 /* Lookup attribute flags */
 
 /* Stat local object and return state address only if object is readable */
@@ -188,6 +192,9 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 
 /* What type of counters to fetch */
 #define DNET_ATTR_CNTR_GLOBAL			(1<<0)
+
+/* Bulk request for checking files */
+#define DNET_ATTR_BULK_CHECK			(1<<0)
 
 struct dnet_attr
 {
@@ -304,6 +311,17 @@ struct dnet_history_entry
 	uint64_t		offset;
 	uint64_t		size;
 } __attribute__ ((packed));
+
+/*
+ * Helper structure and set of functions to map history file and perform basic checks.
+ */
+struct dnet_history_map
+{
+	struct dnet_history_entry	*ent;
+	long				num;
+	ssize_t				size;
+	int				fd;
+};
 
 static inline void dnet_convert_history_entry(struct dnet_history_entry *a)
 {

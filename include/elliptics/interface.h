@@ -179,9 +179,9 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
  * table and will not allow to forward this request to other nodes.
  */
 int dnet_read_file(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
-		struct dnet_id *id, uint64_t offset, uint64_t size, int hist);
+		struct dnet_id *id, uint64_t offset, uint64_t size);
 int dnet_read_file_direct(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
-		struct dnet_id *id, uint64_t offset, uint64_t size, int hist);
+		struct dnet_id *id, uint64_t offset, uint64_t size);
 
 /*
  * dnet_write_object() returns number of transactions sent. If it is equal to 0,
@@ -206,7 +206,7 @@ int dnet_read_file_direct(struct dnet_node *n, char *file, void *remote, unsigne
  *  and only its own history will be updated.
  */
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
-		void *remote, unsigned int len, struct dnet_id *id, int hupdate);
+		void *remote, unsigned int len, struct dnet_id *id);
 
 int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
 		struct dnet_id *id, void *data, int fd, uint64_t local_offset,
@@ -367,6 +367,10 @@ struct dnet_config
 	/* Namespace */
 	char			*ns;
 	int			nsize;
+
+	/* IO nice parameters for background operations */
+	int			bg_ionice_class;
+	int			bg_ionice_prio;
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);
@@ -548,6 +552,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 int dnet_lookup(struct dnet_node *n, char *file);
 int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv);
+int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id);
 
 /*
  * Compare two IDs.
@@ -686,20 +691,6 @@ int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct d
  */
 int dnet_transform(struct dnet_node *n, void *src, uint64_t size, struct dnet_id *id);
 
-/*
- * Helper structure and set of functions to map history file and perform basic checks.
- */
-struct dnet_history_map
-{
-	struct dnet_history_entry	*ent;
-	long				num;
-	ssize_t				size;
-	int				fd;
-};
-
-int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map);
-void dnet_unmap_history(struct dnet_node *n, struct dnet_history_map *map);
-
 int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, unsigned int aflags,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
@@ -713,6 +704,7 @@ enum dnet_meta_types {
 	DNET_META_CHECK_STATUS,		/* last checking status: timestamp and so on */
 	DNET_META_NAMESPACE,		/* namespace where given object lives */
 	DNET_META_UPDATE,		/* last update information (timestamp, flags) */
+	__DNET_META_MAX,
 };
 
 struct dnet_meta
@@ -731,15 +723,10 @@ static inline void dnet_convert_meta(struct dnet_meta *m)
 	m->common = dnet_bswap64(m->common);
 }
 
-/*
- * Modify or search metadata in meta object. Data must be realloc()able.
- */
-struct dnet_meta *dnet_meta_search(struct dnet_node *n, void *data, uint32_t size, uint32_t type);
-
 struct dnet_meta_container {
 	struct dnet_id			id;
 	unsigned int			size;
-	unsigned char			data[0];
+	void				*data;
 } __attribute__ ((packed));
 
 static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
@@ -759,9 +746,15 @@ struct dnet_metadata_control {
 	struct timespec			ts;
 };
 
+/*
+ * Modify or search metadata in meta object. Data must be realloc()able.
+ */
+struct dnet_meta *dnet_meta_search(struct dnet_node *n, struct dnet_meta_container *mc, uint32_t type);
+
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl);
 int dnet_create_write_metadata_strings(struct dnet_node *n, void *remote, unsigned int remote_len, struct dnet_id *id, struct timespec *ts);
+void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc);
 
 int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen);
 
@@ -833,6 +826,8 @@ static inline void dnet_convert_meta_check_status(struct dnet_meta_check_status 
 #define DNET_CHECK_FULL				(1<<1)
 /* Do not actually perform any action, just update counters */
 #define DNET_CHECK_DRY_RUN			(1<<2)
+/* Physically delete files marked as REMOVED in history */
+#define DNET_CHECK_DELETE			(1<<3)
 
 struct dnet_check_request {
 	uint32_t		flags;

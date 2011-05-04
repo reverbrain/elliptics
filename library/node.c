@@ -645,6 +645,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;
 	n->id.group_id = cfg->group_id;
+	n->bg_ionice_class = cfg->bg_ionice_class;
+	n->bg_ionice_prio = cfg->bg_ionice_prio;
 	n->flags = cfg->flags;
 
 	if (!n->log)

@@ -393,6 +393,9 @@ struct dnet_node
 
 	struct dnet_lock	counters_lock;
 	struct dnet_stat_count	counters[__DNET_CNTR_MAX];
+
+	int			bg_ionice_class;
+	int			bg_ionice_prio;
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)
@@ -561,22 +564,69 @@ int dnet_try_reconnect(struct dnet_node *n);
 
 int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 		int direct, uint64_t write_offset, uint64_t io_offset, uint64_t io_size,
-		struct dnet_id *id, struct dnet_wait *w, int hist, int wait);
+		struct dnet_id *id, struct dnet_wait *w, int wait);
+
+int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc, void *remote, unsigned int remote_len, struct dnet_id *id);
 
 int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data);
 int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io);
-int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **datap);
+int dnet_db_read_raw(struct dnet_node *n, unsigned char *id, void **datap);
 int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr);
 int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr);
 int dnet_db_sync(struct dnet_node *n);
 void dnet_db_cleanup(struct dnet_node *n);
 int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg);
+int dnet_db_check_update(struct dnet_node *n, struct dnet_meta_container *mc);
 
-#define DNET_CHECK_COPIES_HISTORY		1
-#define DNET_CHECK_COPIES_FULL			2
+#define DNET_CHECK_TYPE_COPIES_HISTORY		1
+#define DNET_CHECK_TYPE_COPIES_FULL		2
+#define DNET_CHECK_TYPE_MERGE			3
+#define DNET_CHECK_TYPE_DELETE			4
 
-int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_copies);
+#define DNET_BULK_IDS_SIZE			1000
+#define DNET_BULK_STATES_ALLOC_STEP		10
+
+struct dnet_bulk_id
+{
+	uint8_t	id[DNET_ID_SIZE];
+	struct dnet_meta_update last_update;
+} __attribute__ ((packed));
+
+struct dnet_bulk_state
+{
+	struct dnet_addr addr;
+	pthread_mutex_t	state_lock;
+	int num;
+	struct dnet_bulk_id *ids;
+};
+
+struct dnet_bulk_array
+{
+	int num;
+	struct dnet_bulk_state *states;
+};
+
+static inline int dnet_compare_bulk_state(const void *k1, const void *k2)
+{
+        const struct dnet_bulk_state *st1 = k1;
+        const struct dnet_bulk_state *st2 = k2;
+
+	if (st1->addr.addr_len > st2->addr.addr_len)
+		return 1;
+	if (st1->addr.addr_len < st2->addr.addr_len)
+		return -1;
+	return memcmp(st1->addr.addr, st2->addr.addr, st1->addr.addr_len);
+}
+
+int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_copies);
 int dnet_check_list(struct dnet_net_state *st, struct dnet_check_request *r);
+int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
+int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state);
+
+void dnet_update_check_metadata_raw(struct dnet_node *n, void *data, int size);
+struct dnet_meta_update * dnet_get_meta_update(struct dnet_node *n, struct dnet_meta_container *mc, int group_id, struct dnet_meta_update *meta_update);
+int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t flags_set, uint64_t flags_clear);
+int dnet_db_write_trans(struct dnet_node *n, struct dnet_id *id, void *data, unsigned int size, int append);
 
 int dnet_request_cmd_single(struct dnet_node *n,
 	struct dnet_net_state *st, struct dnet_id *id,
@@ -591,6 +641,8 @@ void dnet_monitor_exit(struct dnet_node *n);
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 
 int dnet_set_name(char *name);
+int dnet_ioprio_set(long pid, int class, int prio);
+int dnet_ioprio_get(long pid);
 
 #ifdef __cplusplus
 }
