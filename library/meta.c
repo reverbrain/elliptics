@@ -226,9 +226,10 @@ struct dnet_meta_update *dnet_get_meta_update(struct dnet_node *n, struct dnet_m
 			for (i = 0; i < num; ++i) {
 				mu_group_id = dnet_bswap32(mu[i].group_id);
 				if (mu_group_id == group_id) {
-					if (meta_update)
+					if (meta_update) {
 						memcpy(meta_update, &mu[i], sizeof(struct dnet_meta_update));
-					dnet_convert_meta_update(meta_update);
+						dnet_convert_meta_update(meta_update);
+					}
 					return &mu[i];
 				}
 			}
