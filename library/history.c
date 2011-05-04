@@ -374,6 +374,7 @@ static void *dnet_db_list_iter(void *data)
 				if (!bulk_array.states[bulk_array.num].ids) {
 					err = -ENOMEM;
 					dnet_log(n, DNET_LOG_ERROR, "BULK: Failed to reallocate buffer for bulk states array.\n");
+					pthread_mutex_unlock(&n->state_lock);
 					goto out_exit;
 				}
 				dnet_log(n, DNET_LOG_DSA, "BULK: added state %s (%s)\n", dnet_dump_id_str(st->idc->ids[0].raw.id), dnet_server_convert_dnet_addr(&st->addr));
