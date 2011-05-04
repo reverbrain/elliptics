@@ -14,4 +14,5 @@ EXTRA_DIST = autogen.sh AUTHORS README .gitignore \
 	config/ax_boost_python.m4 config/ac_python_devel.m4 \
 	config/ac_check_eblob.m4 config/ac_check_kyotocabinet.m4 \
 	config/ax_boost_base.m4 \
-	config/ax_boost_program_options.m4 config/ax_boost_filesystem.m4
+	config/ax_boost_program_options.m4 config/ax_boost_filesystem.m4 \
+	config/ac_check_ioprio.m4
