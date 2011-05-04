@@ -79,7 +79,7 @@ static int dnet_lookup_reply(struct dnet_net_state *st, struct dnet_id *id, uint
 	return err;
 }
 
-static int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
+int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 {
 	struct dnet_node *n = st->n;
 	int size, cmd_size;

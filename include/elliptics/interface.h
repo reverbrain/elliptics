@@ -552,6 +552,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 int dnet_lookup(struct dnet_node *n, char *file);
 int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv);
+int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id);
 
 /*
  * Compare two IDs.
