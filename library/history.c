@@ -680,9 +680,9 @@ err_out_free:
 	free(tid);
 err_out_exit:
 
-	if (!err && (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total))) {
+	if (!r->obj_num && !err && (kcdbcount(n->meta) / 2 > atomic_read(&ctl.total))) {
 		if (restarts > 20) {
-			dnet_log(n, DNET_LOG_ERROR, "CHEC: did not complete and restarted %d times already, "
+			dnet_log(n, DNET_LOG_ERROR, "CHECK: did not complete and restarted %d times already, "
 					"do not restarting again, probably database should be checked manually.\n",
 					restarts);
 			err = -EINVAL;
