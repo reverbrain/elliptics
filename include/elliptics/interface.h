@@ -657,6 +657,8 @@ struct dnet_trans_control
 int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl);
 int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl);
 
+int dnet_request_cmd(struct dnet_node *n, struct dnet_trans_control *ctl);
+
 /*
  * Mark tranasction with @id in the object identified by @origin to be removed.
  * If callback is provided, it will be invoked on completion, otherwise
@@ -872,6 +874,8 @@ static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd 
 }
 
 int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp);
+
+char *dnet_cmd_string(int cmd);
 
 #ifdef __cplusplus
 }

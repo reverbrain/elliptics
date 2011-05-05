@@ -175,6 +175,8 @@ class elliptics_node {
 		std::string		stat_log();
 
 		int			state_num();
+		
+		int			request_cmd(struct dnet_trans_control &ctl);
 
 	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,

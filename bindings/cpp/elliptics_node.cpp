@@ -600,3 +600,17 @@ int elliptics_node::state_num(void)
 {
 	return dnet_state_num(node);
 }
+
+int elliptics_node::request_cmd(struct dnet_trans_control &ctl)
+{
+	int err;
+
+	err = dnet_request_cmd(node, &ctl);
+	if (err < 0) {
+		std::ostringstream str;
+		str << dnet_dump_id(&ctl.id) << ": failed to request cmd: " << dnet_cmd_string(ctl.cmd) << ": " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	return err;
+}
