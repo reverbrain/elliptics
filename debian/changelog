@@ -1,3 +1,12 @@
+elliptics (2.9.6.163) unstable; urgency=low
+
+  * Added find utility.
+  * Added dnet_request_cmd() and its binding
+  * We may need to access node and groups in children classes, make them
+    protected
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 06 May 2011 03:23:42 +0400
+
 elliptics (2.9.6.162) unstable; urgency=low
 
   * Added transaction timestamp into destruction log
