@@ -2605,6 +2605,7 @@ static int dnet_request_cmd_complete(struct dnet_net_state *state,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
 {
 	struct dnet_request_cmd_priv *p = priv;
+	int err = p->complete(state, cmd, attr, p->priv);
 
 	if (is_trans_destroyed(state, cmd, attr)) {
 		struct dnet_wait *w = p->w;
@@ -2615,7 +2616,7 @@ static int dnet_request_cmd_complete(struct dnet_net_state *state,
 		dnet_wait_put(w);
 	}
 
-	return p->complete(state, cmd, attr, p->priv);
+	return err;
 }
 
 int dnet_request_cmd(struct dnet_node *n, struct dnet_trans_control *ctl)
