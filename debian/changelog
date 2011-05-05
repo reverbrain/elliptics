@@ -1,3 +1,11 @@
+elliptics (2.9.6.162) unstable; urgency=low
+
+  * Added transaction timestamp into destruction log
+  * Do not restart check if we provided file list
+  * Fixed generated file list check
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 05 May 2011 19:52:10 +0400
+
 elliptics (2.9.6.161) unstable; urgency=low
 
   * Extended reconnection logs. Added tid/pid into elliptics_log_file::log()
