@@ -176,7 +176,7 @@ class elliptics_node {
 
 		int			state_num();
 
-	private:
+	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,
 							unsigned int aflags, unsigned int ioflags);
