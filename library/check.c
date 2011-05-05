@@ -578,7 +578,7 @@ static int dnet_send_check_request(struct dnet_net_state *st, struct dnet_id *id
 	dnet_convert_check_request(r);
 
 	ctl.data = r;
-	ctl.size = sizeof(*r);
+	ctl.size = sizeof(*r) + r->obj_num * sizeof(struct dnet_id);
 
 	return dnet_trans_alloc_send_state(st, &ctl);
 }

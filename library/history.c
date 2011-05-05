@@ -307,6 +307,7 @@ struct dnet_db_list_control {
 
 	unsigned int			obj_pos;
 	struct dnet_check_request	*req;
+	struct dnet_id			*ids;
 
 	atomic_t			completed;
 	atomic_t			errors;
@@ -405,7 +406,6 @@ static void *dnet_db_list_iter(void *data)
 	size_t ksize, dsize;
 	int send_check_reply = 1, will_check;
 	int only_merge = !!(ctl->req->flags & DNET_CHECK_MERGE);
-	struct dnet_id *ids = (struct dnet_id *)(ctl->req + 1);
 	char time_buf[64], ctl_time[64];
 	struct tm tm;
 	size_t buf_size = 1024*1024;
@@ -440,12 +440,13 @@ static void *dnet_db_list_iter(void *data)
 			kbuf = NULL;
 
 			if (ctl->obj_pos < ctl->req->obj_num) {
-				struct dnet_id *id = &ids[ctl->obj_pos];
+				struct dnet_id *id = &ctl->ids[ctl->obj_pos];
 
 				dnet_convert_id(id);
 				err = dnet_db_read_raw(n, 1, id->id, &dbuf);
 				if (err < 0) {
-					dnet_log(n, DNET_LOG_ERROR, "%s: CHECK: there is no object on given node.\n", dnet_dump_id_str(id->id));
+					dnet_log(n, DNET_LOG_ERROR, "%s: CHECK: %d/%d there is no object on given node.\n",
+							dnet_dump_id_str(id->id), ctl->obj_pos, ctl->req->obj_num);
 					dbuf = NULL;
 				} else {
 					dsize = err;
@@ -453,8 +454,9 @@ static void *dnet_db_list_iter(void *data)
 
 				kbuf = dbuf;
 				key = id->id;
-				ctl->obj_pos++;
 			}
+			/* we check whether obj_pos <= obj_num when updating counters */
+			ctl->obj_pos++;
 		} else {
 			kbuf = kccurget(ctl->cursor, &ksize, (const char **)&dbuf, &dsize, 1);
 			if (!kbuf) {
@@ -467,6 +469,9 @@ static void *dnet_db_list_iter(void *data)
 		pthread_mutex_unlock(&ctl->lock);
 
 		if (!kbuf) {
+			if (ctl->req->obj_num && ctl->obj_pos <= ctl->req->obj_num)
+				goto err_out_kcfree;
+
 			err = -ENOENT;
 			break;
 		}
@@ -612,6 +617,7 @@ again:
 	ctl.cmd = cmd;
 	ctl.attr = attr;
 	ctl.req = &req;
+	ctl.ids = (struct dnet_id *)(r + 1);
 
 	tid = malloc(sizeof(pthread_t) * req.thread_num);
 	if (!tid) {
