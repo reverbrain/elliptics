@@ -1,4 +1,4 @@
-bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check dnet_ids dnet_meta
+bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check dnet_ids dnet_meta dnet_find
 noinst_LIBRARIES = libcommon.a libbackend.a
 noinst_HEADERS = backends.h common.h hash.h
 SUBDIRS = .
@@ -7,6 +7,8 @@ SUBDIRS = .
 CC = @PTHREAD_CC@
 
 AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@
+AM_CXXFLAGS = -I../include -I../config @PTHREAD_CFLAGS@
+
 AM_LDFLAGS = @PTHREAD_LIBS@
 
 EXAMPLE_COMMON_LIBS = ../library/libelliptics.la libcommon.a
@@ -31,6 +33,9 @@ dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) $(EXAMPLE_BACKEND_LIBS)
 
 dnet_check_SOURCES = check.c
 dnet_check_LDADD = $(EXAMPLE_COMMON_LIBS)
+
+dnet_find_SOURCES = find.cpp
+dnet_find_LDADD = $(EXAMPLE_COMMON_LIBS) ../bindings/cpp/libelliptics_cpp.la
 
 dnet_meta_SOURCES = meta.c
 dnet_meta_LDADD = $(EXAMPLE_COMMON_LIBS)
