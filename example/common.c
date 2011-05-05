@@ -223,7 +223,7 @@ static void dnet_common_convert_adata(void *adata, struct dnet_io_attr *ioattr)
 }
 
 static int dnet_common_send_upload_transactions(struct dnet_node *n, struct dnet_io_control *ctl,
-		void *adata, uint32_t asize)
+		void *adata, uint32_t asize __attribute((unused)))
 {
 	int err = 0;
 
@@ -425,7 +425,7 @@ err_out_exit:
 	return err;
 }
 
-void dnet_unmap_history(struct dnet_node *n, struct dnet_history_map *map)
+void dnet_unmap_history(struct dnet_node *n __attribute((unused)), struct dnet_history_map *map)
 {
 	munmap(map->ent, map->size);
 	close(map->fd);

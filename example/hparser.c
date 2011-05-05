@@ -95,7 +95,7 @@ static void hparser_dump_history(struct dnet_history_map *m, unsigned long long 
 }
 
 static const char * hparser_visit(const char *key, size_t keysz,
-			const char *data, size_t datasz, size_t *sp, void *opq)
+			const char *data, size_t datasz, size_t *sp __attribute((unused)), void *opq __attribute((unused)))
 {
 	char id_str[2 * DNET_ID_SIZE + 1];
 	struct dnet_history_map m;
@@ -105,7 +105,7 @@ static const char * hparser_visit(const char *key, size_t keysz,
 		return KCVISNOP;
 	}
 
-	dnet_dump_id_len_raw(key, DNET_ID_SIZE, id_str);
+	dnet_dump_id_len_raw((unsigned char *)key, DNET_ID_SIZE, id_str);
 	
 	printf("Processing key %.128s\n", id_str);
 
