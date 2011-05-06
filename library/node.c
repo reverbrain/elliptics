@@ -619,7 +619,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	}
 
 	if (!cfg->stack_size)
-		cfg->stack_size = 100*1024;
+		cfg->stack_size = 4*1024*1024;
 
 	n = dnet_node_alloc(cfg);
 	if (!n) {
