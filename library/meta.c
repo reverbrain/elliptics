@@ -541,7 +541,7 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 				localtime_r((time_t *)&mu->tsec, &tm);
 				strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
 
-				err = snprintf(ptr, rest, "%d:%llx:%s %lld.%lld:",
+				err = snprintf(ptr, rest, "%d:%llx:%s %lld.%lld    ",
 						mu->group_id, (unsigned long long)mu->flags, tstr,
 						(unsigned long long)mu->tsec,
 						(unsigned long long)mu->tnsec);

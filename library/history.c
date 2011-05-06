@@ -468,6 +468,9 @@ static void *dnet_db_list_iter(void *data)
 			check_type = DNET_CHECK_TYPE_DELETE;
 		}
 
+		if ((ctl->req->flags & DNET_CHECK_DELETE) && check_type != DNET_CHECK_TYPE_DELETE)
+			will_check = 0;
+
 		if (n->log->log_mask & DNET_LOG_NOTICE) {
 			localtime_r((time_t *)&ts, &tm);
 			strftime(time_buf, sizeof(time_buf), "%F %R:%S %Z", &tm);

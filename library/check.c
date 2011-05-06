@@ -169,10 +169,11 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 							((mu.tnsec < ids[i].last_update.tnsec) && (mu.tsec == ids[i].last_update.tsec))) {
 						err = 0;
 					} else {
+						/* File is not needed to be updated */
 						dnet_setup_id(&raw, orig->n->id.group_id, ids[i].id);
 						err = dnet_stat_local(orig, &raw);
 						if (err) {
-							//File was not found in the storage
+							/* File was not found in the storage */
 							mu.tsec = 1;
 							mu.flags = 0;
 						} else {
@@ -188,6 +189,7 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 				}
 				kcfree(mc.data);
 			} else {
+				/* Meta is not present - set timestamp to very old one */
 				dnet_convert_meta_update(&ids[i].last_update);
 				ids[i].last_update.tsec = 1;
 				ids[i].last_update.flags = 0;
@@ -223,6 +225,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 	int j;
 	int my_group, lastest_group = -1;
 	struct dnet_meta_update lastest_mu, my_mu, tmp_mu, *tmp_mup;
+	struct timeval current_ts;
 	int removed_in_all = 1;
 
 	my_group = state->n->id.group_id;
@@ -314,6 +317,12 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 		err = 0;
 		goto err_out_kcfree;
 	}
+
+	/* Check if removal_delay second has gone since object was marked as REMOVED */
+	gettimeofday(&current_ts, NULL);
+	if (((uint64_t)current_ts.tv_sec < lastest_mu.tsec) 
+		|| ((uint64_t)current_ts.tv_sec - lastest_mu.tsec) < (uint64_t)(state->n->removal_delay * 3600 * 24))
+		removed_in_all = 0;
 
 	/* TODO: receive newer files from remote groups
 	 *
