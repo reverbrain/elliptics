@@ -173,7 +173,7 @@ void elliptics_node::read_data(struct dnet_id &id, uint64_t offset, uint64_t siz
 
 void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t size, elliptics_callback &c)
 {
-	int err, error = 0, i, num, *g;
+	int error = 0, i, num, *g;
 	struct dnet_id id;
 
 	transform(remote, id);
@@ -231,7 +231,6 @@ int elliptics_node::write_data_ll(struct dnet_id *id, void *remote, unsigned int
 		unsigned int aflags, unsigned int ioflags)
 {
 	struct dnet_io_control ctl;
-	int trans_num = 0;
 	int err;
 
 	memset(&ctl, 0, sizeof(ctl));
@@ -293,7 +292,7 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size)
 std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 {
 	struct dnet_id id;
-	int err, error = -ENOENT, i, num, *g;
+	int error = -ENOENT, i, num, *g;
 	std::string ret;
 
 	transform(remote, id);
@@ -410,7 +409,7 @@ void elliptics_node::lookup(const struct dnet_id &id, const elliptics_callback &
 void elliptics_node::lookup(const std::string &data, const elliptics_callback &c)
 {
 	struct dnet_id id;
-	int error = -ENOENT, ret, i, num, *g;
+	int error = -ENOENT, i, num, *g;
 
 	transform(data, id);
 
@@ -507,12 +506,12 @@ void elliptics_node::remove(struct dnet_id &id)
 void elliptics_node::remove(const std::string &data)
 {
 	struct dnet_id id;
-	int error = -ENOENT, ret, i;
+	int error = -ENOENT, i;
 	std::vector<int> g = groups;
 
 	transform(data, id);
 
-	for (i=0; i<g.size(); ++i) {
+	for (i=0; i<(int)g.size(); ++i) {
 		id.group_id = g[i];
 
 		try {
