@@ -431,3 +431,38 @@ void dnet_unmap_history(struct dnet_node *n __attribute((unused)), struct dnet_h
 	close(map->fd);
 }
 
+struct dnet_meta * dnet_meta_search_cust(struct dnet_meta_container *mc, uint32_t type)
+{
+	void *data = mc->data;
+	uint32_t size = mc->size;
+	struct dnet_meta m, *found = NULL;
+
+	while (size) {
+		if (size < sizeof(struct dnet_meta)) {
+			fprintf(stderr, "Metadata size %u is too small, min %zu, searching for 0x%x.\n",
+					size, sizeof(struct dnet_meta), type);
+			break;
+		}
+
+		m = *(struct dnet_meta *)data;
+		dnet_convert_meta(&m);
+
+		if (m.size + sizeof(struct dnet_meta) > size) {
+			fprintf(stderr, "Metadata entry broken: entry size %u, type: 0x%x, struct size: %zu, "
+					"total size left: %u, searching for 0x%x.\n",
+					m.size, m.type, sizeof(struct dnet_meta), size, type);
+			break;
+		}
+
+		if (m.type == type) {
+			found = data;
+			break;
+		}
+
+		data += m.size + sizeof(struct dnet_meta);
+		size -= m.size + sizeof(struct dnet_meta);
+	}
+
+	return found;
+}
+

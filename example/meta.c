@@ -59,112 +59,6 @@ static void meta_usage(char *p)
 	exit(-1);
 }
 
-struct meta_control {
-	pthread_cond_t		wait;
-	pthread_mutex_t		lock;
-	int			num;
-};
-
-static int meta_request_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
-{
-	struct meta_control *mc = priv;
-	struct dnet_node *n;
-	struct dnet_io_attr *io;
-	struct dnet_meta_container m;
-
-	if (is_trans_destroyed(state, cmd, attr)) {
-		pthread_mutex_lock(&mc->lock);
-		mc->num++;
-		pthread_cond_broadcast(&mc->wait);
-		pthread_mutex_unlock(&mc->lock);
-		return 0;
-	}
-
-	n = dnet_get_node_from_state(state);
-
-	if (!attr) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: transaction returned no data: %d\n", dnet_dump_id(&cmd->id), cmd->status);
-		return -1;
-	}
-
-	if (attr->size <= sizeof(struct dnet_io_attr)) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: transaction returned %llu bytes, "
-				"which is not enough for IO (must be more than %zu)\n",
-				dnet_dump_id(&cmd->id), (unsigned long long)attr->size, sizeof(struct dnet_io_attr));
-		return -1;
-	}
-
-	io = (struct dnet_io_attr *)(attr + 1);
-	dnet_convert_io_attr(io);
-
-	dnet_log_raw(n, DNET_LOG_INFO, "%s: metadata: %llu bytes\n", dnet_dump_id(&cmd->id), (unsigned long long)io->size);
-
-	m.data = io+1;
-	m.size = io->size;
-	memcpy(&m.id, &cmd->id, sizeof(struct dnet_id));
-
-	dnet_meta_print(n, &m);
-	
-	return 0;
-}
-
-static int meta_request(struct dnet_node *n, int *groups, int group_num, char *name, unsigned char *raw_id)
-{
-	struct dnet_id raw;
-	struct dnet_io_control ctl;
-	int i, err;
-	struct meta_control *mc;
-
-	if (name) {
-		dnet_transform(n, name, strlen(name), &raw);
-	} else {
-		dnet_setup_id(&raw, 0, raw_id);
-	}
-
-	mc = malloc(sizeof(*mc));
-	if (!mc) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-	memset(mc, 0, sizeof(*mc));
-
-	pthread_mutex_init(&mc->lock, NULL);
-	pthread_cond_init(&mc->wait, NULL);
-	mc->num = 0;
-
-	memset(&ctl, 0, sizeof(ctl));
-
-	memcpy(&ctl.id, &raw, sizeof(raw));
-	memcpy(&ctl.io.parent, raw.id, sizeof(ctl.io.parent));
-	memcpy(&ctl.io.id, raw.id, sizeof(ctl.io.parent));
-
-	ctl.io.flags = DNET_IO_FLAGS_META;
-
-	ctl.complete = meta_request_complete;
-	ctl.priv = mc;
-
-	ctl.cmd = DNET_CMD_READ;
-	ctl.cflags = DNET_FLAGS_NEED_ACK;
-
-	for (i=0; i<group_num; ++i) {
-		ctl.id.group_id = groups[i];
-
-		err = dnet_read_object(n, &ctl);
-	}
-
-	pthread_mutex_lock(&mc->lock);
-	while (mc->num != group_num) {
-		dnet_log_raw(n, DNET_LOG_INFO, "%s: waiting %d == %d\n", dnet_dump_id(&raw), mc->num, group_num);
-		pthread_cond_wait(&mc->wait, &mc->lock);
-	}
-	pthread_mutex_unlock(&mc->lock);
-
-	free(mc);
-
-err_out_exit:
-	return err;
-}
-
 int main(int argc, char *argv[])
 {
 	int ch, err;
@@ -175,6 +69,8 @@ int main(int argc, char *argv[])
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	struct dnet_config cfg, rem;
 	struct dnet_node *n;
+	struct dnet_id raw;
+	struct dnet_meta_container mc;
 
 	memset(&cfg, 0, sizeof(cfg));
 
@@ -185,8 +81,12 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "g:w:I:n:r:m:l:h")) != -1) {
+	while ((ch = getopt(argc, argv, "N:g:w:I:n:r:m:l:h")) != -1) {
 		switch (ch) {
+			case 'N':
+				cfg.ns = optarg;
+				cfg.nsize = strlen(optarg);
+				break;
 			case 'r':
 				err = dnet_parse_addr(optarg, &rem);
 				if (err)
@@ -227,6 +127,11 @@ int main(int argc, char *argv[])
 		meta_usage(argv[0]);
 	}
 
+	if (id && group_num <= 0) {
+		fprintf(stderr, "You must specify groups\n");
+		meta_usage(argv[0]);
+	}
+
 	log = fopen(logfile, "a");
 	if (!log) {
 		err = -errno;
@@ -248,7 +153,19 @@ int main(int argc, char *argv[])
 
 	dnet_node_set_groups(n, groups, group_num);
 
-	err = meta_request(n, groups, group_num, name, id);
+	if (id) {
+		dnet_setup_id(&raw, groups[0], id);
+		err = dnet_read_meta(n, &mc, NULL, 0, &raw);
+	} else {
+		err = dnet_read_meta(n, &mc, name, strlen(name), NULL);
+	}
+
+	if (err < 0) {
+		fprintf(stderr, "Error during reading meta: %d\n", err);
+		goto err_out_destroy;
+	}
+
+	dnet_meta_print(n, &mc);
 
 err_out_destroy:
 	dnet_node_destroy(n);

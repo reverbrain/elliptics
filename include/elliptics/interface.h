@@ -747,6 +747,17 @@ struct dnet_metadata_control {
 };
 
 /*
+ * Reads meta of given file from the storage. If there are multiple transformation functions,
+ * they will be tried one after another.
+ *
+ * If @id is set, it is used as a main object ID, otherwise @remote transformation
+ * is used as object ID.
+ *
+ * Returns negative error value in case of error.
+ */
+int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc, void *remote, unsigned int remote_len, struct dnet_id *id);
+
+/*
  * Modify or search metadata in meta object. Data must be realloc()able.
  */
 struct dnet_meta *dnet_meta_search(struct dnet_node *n, struct dnet_meta_container *mc, uint32_t type);
