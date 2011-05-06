@@ -534,22 +534,19 @@ void elliptics_node::remove(const std::string &data)
 
 std::string elliptics_node::stat_log()
 {
-	elliptics_callback *l = new elliptics_callback();
+	elliptics_callback c;
 	std::string ret;
 	int err;
 
 	err = dnet_request_stat(node, NULL, DNET_CMD_STAT, 0,
-		elliptics_callback::elliptics_complete_callback, (void *)l);
+		elliptics_callback::elliptics_complete_callback, (void *)&c);
 	if (err < 0) {
-		delete l;
-
 		std::ostringstream str;
 		str << "Failed to request statistics: " << err;
 		throw std::runtime_error(str.str());
 	}
 
-	ret = l->wait(err);
-	delete l;
+	ret = c.wait(err);
 #if 0
 	float la[3];
 	const void *data = ret.data();
