@@ -1,3 +1,12 @@
+elliptics (2.9.6.165) unstable; urgency=low
+
+  * Unify IO logs
+  * Prepend size and timestamp if needed when generating eblob from tar files
+  * Return -E2BIG error when filesize 0 and we want to read more than that
+  * Enable compiler flags for g++, fixed -W generated warnings in cpp binding
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 12 May 2011 22:33:27 +0400
+
 elliptics (2.9.6.164) unstable; urgency=low
 
   * Increase default stack size to 4mb
