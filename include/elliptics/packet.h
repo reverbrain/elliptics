@@ -75,6 +75,11 @@ enum dnet_counters {
 	DNET_CNTR_NODE_FILES,			/* # files in meta */
 	DNET_CNTR_NODE_LAST_MERGE,		/* Result of the last merge */
 	DNET_CNTR_NODE_CHECK_COPY,		/* Result of the last check copies */
+	DNET_CNTR_DBR_NOREC,			/* Kyoto Cabinet DB read error KCENOREC */
+	DNET_CNTR_DBR_SYSTEM,			/* Kyoto Cabinet DB read error KCESYSTEM */
+	DNET_CNTR_DBR_ERROR,			/* Kyoto Cabinet DB read error */
+	DNET_CNTR_DBW_SYSTEM,			/* Kyoto Cabinet DB write error KCESYSTEM */
+	DNET_CNTR_DBW_ERROR,			/* Kyoto Cabinet DB write error */
 	DNET_CNTR_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown counters */
 	__DNET_CNTR_MAX,
 };

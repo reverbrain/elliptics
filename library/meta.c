@@ -112,6 +112,12 @@ int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t fl
 		err = -kcdbecode(n->meta);
 		dnet_log_raw(n, DNET_LOG_DSA, "%s: failed to read meta of the object, err: %d: %s.\n",
 			dnet_dump_id(id), err, kcecodename(-err));
+		if (err == -7) 
+			dnet_counter_inc(n, DNET_CNTR_DBR_NOREC, err);
+		else if (err == -9) 
+			dnet_counter_inc(n, DNET_CNTR_DBR_SYSTEM, err);
+		else
+			dnet_counter_inc(n, DNET_CNTR_DBR_ERROR, err);
 
 		m = (struct dnet_meta *)malloc(sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update));
 		m->size = sizeof(struct dnet_meta_update);
@@ -134,6 +140,10 @@ int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t fl
 			err = -kcdbecode(n->meta);
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to store updated meta, err: %d: %s.\n",
 				dnet_dump_id(id), err, kcecodename(-err));
+			if (err == -9) 
+				dnet_counter_inc(n, DNET_CNTR_DBW_SYSTEM, err);
+			else
+				dnet_counter_inc(n, DNET_CNTR_DBW_ERROR, err);
 			goto err_out_txn_end;
 		}
 		err = 0;
@@ -164,6 +174,10 @@ int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t fl
 			err = -kcdbecode(n->meta);
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to store updated meta, err: %d: %s.\n",
 				dnet_dump_id(id), err, kcecodename(-err));
+			if (err == -9) 
+				dnet_counter_inc(n, DNET_CNTR_DBW_SYSTEM, err);
+			else
+				dnet_counter_inc(n, DNET_CNTR_DBW_ERROR, err);
 
 			goto err_out_free;
 		}
@@ -174,6 +188,10 @@ int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t fl
 			err = -kcdbecode(n->meta);
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to store updated meta, err: %d: %s.\n",
 				dnet_dump_id(id), err, kcecodename(-err));
+			if (err == -9) 
+				dnet_counter_inc(n, DNET_CNTR_DBW_SYSTEM, err);
+			else
+				dnet_counter_inc(n, DNET_CNTR_DBW_ERROR, err);
 
 			goto err_out_free;
 		}

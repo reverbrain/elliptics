@@ -55,6 +55,13 @@ int dnet_db_read_raw(struct dnet_node *n, unsigned char *id, void **datap)
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: raw read failed "
 			"err: %d: %s.\n", dnet_dump_id_str(id),
 			err, kcecodename(-err));
+		if (err == -7) 
+			dnet_counter_inc(n, DNET_CNTR_DBR_NOREC, err);
+		else if (err == -9) 
+			dnet_counter_inc(n, DNET_CNTR_DBR_SYSTEM, err);
+		else
+			dnet_counter_inc(n, DNET_CNTR_DBR_ERROR, err);
+	
 		goto err_out_exit;
 	}
 
@@ -108,6 +115,10 @@ int dnet_db_write_trans(struct dnet_node *n, struct dnet_id *id, void *data, uns
 		err = -kcdbecode(db);
 		dnet_log(n, DNET_LOG_ERROR, "%s: DB: %s: failed to store %u bytes: %s [%d]\n", dnet_dump_id(id), dbf,
 				size, kcecodename(-err), err);
+		if (err == -9) 
+			dnet_counter_inc(n, DNET_CNTR_DBW_SYSTEM, err);
+		else
+			dnet_counter_inc(n, DNET_CNTR_DBW_ERROR, err);
 		goto err_out_txn_end;
 	}
 	kcdbendtran(db, 1);
