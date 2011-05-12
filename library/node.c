@@ -619,7 +619,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	}
 
 	if (!cfg->stack_size)
-		cfg->stack_size = 100*1024;
+		cfg->stack_size = 4*1024*1024;
 
 	n = dnet_node_alloc(cfg);
 	if (!n) {
@@ -652,13 +652,13 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->log)
 		dnet_log_init(n, cfg->log);
 
+	dnet_log(n, DNET_LOG_INFO, "Elliptics starts, version: %s, changed files: %s\n", ELLIPTICS_GIT_VERSION, ELLIPTICS_HAS_CHANGES);
+
 	if (!n->wait_ts.tv_sec) {
 		n->wait_ts.tv_sec = 5;
 		dnet_log(n, DNET_LOG_NOTICE, "Using default wait timeout (%ld seconds).\n",
 				n->wait_ts.tv_sec);
 	}
-
-	dnet_log(n, DNET_LOG_INFO, "Elliptics starts, version: %s, changed files: %s\n", ELLIPTICS_GIT_VERSION, ELLIPTICS_HAS_CHANGES);
 
 	if (!n->check_timeout) {
 		n->check_timeout = DNET_DEFAULT_CHECK_TIMEOUT_SEC;

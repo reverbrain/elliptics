@@ -568,8 +568,12 @@ int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsign
 	struct dnet_addr_storage *a, *it;
 	int err = 0;
 
-	if (!join_state || n->need_exit)
+	if (!join_state || n->need_exit) {
+		if (!join_state)
+			dnet_log(n, DNET_LOG_INFO, "Do not add reconnection addr: %s, join state: %x.\n",
+				dnet_server_convert_dnet_addr(addr), join_state);
 		goto out_exit;
+	}
 
 	a = malloc(sizeof(struct dnet_addr_storage));
 	if (!a) {
@@ -584,6 +588,8 @@ int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsign
 	pthread_mutex_lock(&n->reconnect_lock);
 	list_for_each_entry(it, &n->reconnect_list, reconnect_entry) {
 		if (!memcmp(&it->addr, &a->addr, sizeof(struct dnet_addr))) {
+			dnet_log(n, DNET_LOG_INFO, "Address already exists in reconnection array: addr: %s, join state: %x.\n",
+				dnet_server_convert_dnet_addr(&a->addr), join_state);
 			err = -EEXIST;
 			break;
 		}

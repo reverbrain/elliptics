@@ -58,15 +58,15 @@ void elliptics_log_file::log(uint32_t mask, const char *msg)
 		char str[64];
 		struct tm tm;
 		struct timeval tv;
-		char usecs[32];
+		char usecs_and_id[64];
 
 		gettimeofday(&tv, NULL);
 		localtime_r((time_t *)&tv.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		snprintf(usecs, sizeof(usecs), ".%06lu : ", tv.tv_usec);
+		snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %ld/%d : ", tv.tv_usec, dnet_get_id(), getpid());
 
-		(*stream) << str << usecs << msg;
+		(*stream) << str << usecs_and_id << msg;
 		stream->flush();
 	}
 }

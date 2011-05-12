@@ -178,15 +178,23 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		st->median_read_time = (st->median_read_time + diff) / 2;
 	}
 
-	if (st && st->n && t->command != 0)
-		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, weight: %f, mrt: %ld, time: %ld, cached status: %d.\n",
+	if (st && st->n && t->command != 0) {
+		char str[64];
+		struct tm tm;
+
+		localtime_r((time_t *)&t->start.tv_sec, &tm);
+		strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, weight: %f, mrt: %ld, time: %ld, started: %s.%06lu, cached status: %d.\n",
 			dnet_dump_id(&t->cmd.id),
 			dnet_cmd_string(t->command),
 			(unsigned long long)(t->trans & ~DNET_TRANS_REPLY),
 			!!(t->trans & ~DNET_TRANS_REPLY),
 			dnet_state_dump_addr(t->st),
 			st->weight, st->median_read_time, diff,
+			str, t->start.tv_usec,
 			t->cmd.status);
+	}
 
 
 	dnet_state_put(t->st);

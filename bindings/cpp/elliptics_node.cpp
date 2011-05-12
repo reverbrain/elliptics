@@ -173,7 +173,7 @@ void elliptics_node::read_data(struct dnet_id &id, uint64_t offset, uint64_t siz
 
 void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t size, elliptics_callback &c)
 {
-	int err, error = 0, i, num, *g;
+	int error = 0, i, num, *g;
 	struct dnet_id id;
 
 	transform(remote, id);
@@ -231,7 +231,6 @@ int elliptics_node::write_data_ll(struct dnet_id *id, void *remote, unsigned int
 		unsigned int aflags, unsigned int ioflags)
 {
 	struct dnet_io_control ctl;
-	int trans_num = 0;
 	int err;
 
 	memset(&ctl, 0, sizeof(ctl));
@@ -292,7 +291,7 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size)
 std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 {
 	struct dnet_id id;
-	int err, error = -ENOENT, i, num, *g;
+	int error = -ENOENT, i, num, *g;
 	std::string ret;
 
 	transform(remote, id);
@@ -409,7 +408,7 @@ void elliptics_node::lookup(const struct dnet_id &id, const elliptics_callback &
 void elliptics_node::lookup(const std::string &data, const elliptics_callback &c)
 {
 	struct dnet_id id;
-	int error = -ENOENT, ret, i, num, *g;
+	int error = -ENOENT, i, num, *g;
 
 	transform(data, id);
 
@@ -506,12 +505,12 @@ void elliptics_node::remove(struct dnet_id &id)
 void elliptics_node::remove(const std::string &data)
 {
 	struct dnet_id id;
-	int error = -ENOENT, ret, i;
+	int error = -ENOENT, i;
 	std::vector<int> g = groups;
 
 	transform(data, id);
 
-	for (i=0; i<g.size(); ++i) {
+	for (i=0; i<(int)g.size(); ++i) {
 		id.group_id = g[i];
 
 		try {
@@ -533,22 +532,19 @@ void elliptics_node::remove(const std::string &data)
 
 std::string elliptics_node::stat_log()
 {
-	elliptics_callback *l = new elliptics_callback();
+	elliptics_callback c;
 	std::string ret;
 	int err;
 
-	err = dnet_request_stat(node, NULL, DNET_CMD_STAT, DNET_ATTR_CNTR_GLOBAL,
+	err = dnet_request_stat(node, NULL, DNET_CMD_STAT, 0,
 		elliptics_callback::elliptics_complete_callback, (void *)l);
 	if (err < 0) {
-		delete l;
-
 		std::ostringstream str;
 		str << "Failed to request statistics: " << err;
 		throw std::runtime_error(str.str());
 	}
 
-	ret = l->wait(err);
-	delete l;
+	ret = c.wait(err);
 #if 0
 	float la[3];
 	const void *data = ret.data();
@@ -598,4 +594,18 @@ std::string elliptics_node::stat_log()
 int elliptics_node::state_num(void)
 {
 	return dnet_state_num(node);
+}
+
+int elliptics_node::request_cmd(struct dnet_trans_control &ctl)
+{
+	int err;
+
+	err = dnet_request_cmd(node, &ctl);
+	if (err < 0) {
+		std::ostringstream str;
+		str << dnet_dump_id(&ctl.id) << ": failed to request cmd: " << dnet_cmd_string(ctl.cmd) << ": " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	return err;
 }

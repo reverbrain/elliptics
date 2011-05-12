@@ -158,8 +158,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_addr *addr, int s, int *errp, int join,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
-char *dnet_cmd_string(int cmd);
-
 void dnet_state_reset(struct dnet_net_state *st);
 void dnet_state_remove_nolock(struct dnet_net_state *st);
 
@@ -627,15 +625,6 @@ void dnet_update_check_metadata_raw(struct dnet_node *n, void *data, int size);
 struct dnet_meta_update * dnet_get_meta_update(struct dnet_node *n, struct dnet_meta_container *mc, int group_id, struct dnet_meta_update *meta_update);
 int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t flags_set, uint64_t flags_clear);
 int dnet_db_write_trans(struct dnet_node *n, struct dnet_id *id, void *data, unsigned int size, int append);
-
-int dnet_request_cmd_single(struct dnet_node *n,
-	struct dnet_net_state *st, struct dnet_id *id,
-	unsigned int cmd, unsigned int aflags,
-	int (* complete)(struct dnet_net_state *state,
-			struct dnet_cmd *cmd,
-			struct dnet_attr *attr,
-			void *priv),
-	void *priv);
 
 void dnet_monitor_exit(struct dnet_node *n);
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
