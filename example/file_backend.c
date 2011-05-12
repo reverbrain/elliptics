@@ -117,16 +117,16 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 	fd = open(file, oflags, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to open data file '%s': %s.\n",
-				dnet_dump_id_str(io->id), file, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: OPEN: %d: %s.\n",
+				dnet_dump_id_str(io->id), file, err, strerror(errno));
 		goto err_out_exit;
 	}
 
 	err = write(fd, data, io->size);
 	if (err != (ssize_t)io->size) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to write into '%s': %s.\n",
-			dnet_dump_id_str(io->id), file, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: WRITE: %d: %s.\n",
+			dnet_dump_id_str(io->id), file, err, strerror(errno));
 		goto err_out_close;
 	}
 
@@ -160,8 +160,8 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	if (err < 0) {
 		if (errno != EEXIST) {
 			err = -errno;
-			dnet_backend_log(DNET_LOG_ERROR, "%s: faliled to create dir '%s': %s.\n",
-					dnet_dump_id(&cmd->id), dir, strerror(errno));
+			dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: dir-create: %d: %s.\n",
+					dnet_dump_id(&cmd->id), dir, err, strerror(errno));
 			goto err_out_exit;
 		}
 	}
@@ -170,8 +170,8 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	if (err)
 		goto err_out_check_remove;
 
-	dnet_backend_log(DNET_LOG_NOTICE, "%s: IO offset: %llu, size: %llu.\n", dnet_dump_id(&cmd->id),
-			(unsigned long long)io->offset, (unsigned long long)io->size);
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: FILE: %s: WRITE: 0: written offset: %llu, size: %llu.\n",
+			dnet_dump_id(&cmd->id), dir, (unsigned long long)io->offset, (unsigned long long)io->size);
 
 	return 0;
 
@@ -186,7 +186,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 {
 	struct dnet_io_attr *io = data;
 	int fd, err;
-	size_t size;
+	ssize_t size;
 	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2];
 	struct stat st;
 
@@ -199,8 +199,8 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	fd = open(file, O_RDONLY, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to open data file '%s': %s.\n",
-				dnet_dump_id(&cmd->id), file, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: READ: %d: %s.\n",
+				dnet_dump_id(&cmd->id), file, err, strerror(errno));
 		goto err_out_exit;
 	}
 
@@ -209,14 +209,14 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	err = fstat(fd, &st);
 	if (err) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to stat file '%s': %s.\n",
-				dnet_dump_id(&cmd->id), file, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: read-stat: %d: %s.\n",
+				dnet_dump_id(&cmd->id), file, err, strerror(errno));
 		goto err_out_close_fd;
 	}
 
 	size = dnet_backend_check_get_size(io, st.st_size);
-	if (!size) {
-		err = 0;
+	if (size <= 0) {
+		err = size;
 		goto err_out_close_fd;
 	}
 

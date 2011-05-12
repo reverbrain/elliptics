@@ -25,12 +25,15 @@ extern "C" {
 #include "elliptics/core.h"
 #include "elliptics/packet.h"
 
-static inline uint64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint64_t record_size)
+static inline int64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint64_t record_size)
 {
 	uint64_t size = io->size;
 
 	if (record_size <= io->offset)
 		return 0;
+
+	if (!record_size && size)
+		return -E2BIG;
 
 	if (!size || size + io->offset >= record_size) {
 		if (!size)

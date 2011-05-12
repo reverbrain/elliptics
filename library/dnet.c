@@ -151,9 +151,9 @@ static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
 	if (!err) {
 		if (attr->flags & DNET_ATTR_LOOKUP_STAT) {
 			err = dnet_stat_local(orig, &cmd->id, !!(attr->flags & DNET_ATTR_LOOKUP_HISTORY));
-			dnet_log(n, DNET_LOG_DSA, "%s: %s object is stored locally: %s.\n", dnet_dump_id(&cmd->id),
+			dnet_log(n, DNET_LOG_DSA, "%s: %s object is stored locally: %d: %s.\n", dnet_dump_id(&cmd->id),
 					!!(attr->flags & DNET_ATTR_LOOKUP_HISTORY) ? "history" : "plain",
-					err ? "no" : "yes");
+					err, err ? "no" : "yes");
 			if (!err)
 				aflags = attr->flags;
 		}
