@@ -62,10 +62,13 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 
 	err = eblob_write_data(c->data_blob, io->id, DNET_ID_SIZE,
 			data, io->size, BLOB_DISK_CTL_NOCSUM);
-	if (err)
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: WRITE: %d: %s\n",
+			dnet_dump_id_str(io->id), err, strerror(-err));
 		goto err_out_exit;
+	}
 
-	dnet_backend_log(DNET_LOG_NOTICE, "blob: %s: IO offset: %llu, size: %llu.\n",
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: 0: offset: %llu, size: %llu.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size);
 
 	return 0;
@@ -88,8 +91,8 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 	err = eblob_read(b, io->id, DNET_ID_SIZE, &fd, &offset, &size);
 	if (err) {
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to lookup requested key: %d.\n",
-				dnet_dump_id_str(io->id), err);
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read: READ: %d: %s\n",
+			dnet_dump_id_str(io->id), err, strerror(-err));
 		goto err_out_exit;
 	}
 
@@ -107,7 +110,14 @@ err_out_exit:
 
 static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 {
-	return eblob_remove(c->data_blob, cmd->id.id, DNET_ID_SIZE);
+	int err = eblob_remove(c->data_blob, cmd->id.id, DNET_ID_SIZE);
+
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del: REMOVE: %d: %s\n",
+			dnet_dump_id_str(cmd->id.id), err, strerror(-err));
+	}
+
+	return err;
 }
 
 static int eblob_send(void *state, void *priv, struct dnet_id *id)

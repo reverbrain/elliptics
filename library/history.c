@@ -35,7 +35,7 @@ static __attribute__((noreturn)) void dnet_db_fatal_error(struct dnet_node *n, K
 
 
 	if (n) {
-		dnet_log(n, DNET_LOG_ERROR, "DB: exiting on fatal error: %d: %s\n",
+		dnet_log(n, DNET_LOG_ERROR, "exit: DB: IO: fatal: err: %d: %s\n",
 				err, kcecodename(-err));
 	}
 
@@ -47,17 +47,19 @@ int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **da
 	int err;
 	size_t size;
 	KCDB *db = n->history;
+	char *dbf = "history";
 	void *data;
 
-	if (meta)
+	if (meta) {
 		db = n->meta;
+		dbf = "meta";
+	}
 
 	data = kcdbget(db, (void *)id, DNET_ID_SIZE, &size);
 	if (!data) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: raw read failed "
-			"err: %d: %s.\n", dnet_dump_id_str(id),
-			err, kcecodename(-err));
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: %s: READ: err: %d: %s.\n",
+				dnet_dump_id_str(id), dbf, err, kcecodename(-err));
 		goto err_out_exit;
 	}
 
@@ -103,8 +105,8 @@ static int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io
 	ret = kcdbbegintran(db, 1);
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to start update transaction, err: %d: %s.\n",
-			dnet_dump_id(&cmd->id), err, kcecodename(-err));
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: %s: put_transaction: %d: %s.\n",
+			dnet_dump_id(&cmd->id), dbf, err, kcecodename(-err));
 		goto err_out_real_exit;
 	}
 
@@ -116,13 +118,14 @@ static int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io
 
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log(n, DNET_LOG_ERROR, "%s: DB: %s: failed to store %u bytes: %s [%d]\n", dnet_dump_id(&cmd->id), dbf,
-				size, kcecodename(-err), err);
+		dnet_log(n, DNET_LOG_ERROR, "%s: DB: %s: WRITE(%u): %d: %s\n",
+				dnet_dump_id(&cmd->id), dbf,
+				size, err, kcecodename(-err));
 		goto err_out_txn_end;
 	}
 	kcdbendtran(db, 1);
 
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: DB: %s: stored %u bytes.\n",
+	dnet_log(n, DNET_LOG_NOTICE, "%s: DB: %s: WRITE(%u): 0: success\n",
 			dnet_dump_id(&cmd->id), dbf, size);
 
 	return 0;
@@ -168,7 +171,7 @@ static int db_del_direct_trans(struct dnet_node *n, struct dnet_id *id, int meta
 	ret = kcdbbegintran(db, 1);
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to start %s remove transaction, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: %s: remove-transaction: %d: %s\n",
 			dnet_dump_id(id), dbname, err, kcecodename(-err));
 		goto err_out_exit;
 	}
@@ -176,7 +179,7 @@ static int db_del_direct_trans(struct dnet_node *n, struct dnet_id *id, int meta
 	ret = kcdbremove(db, (void *)id->id, DNET_ID_SIZE);
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to remove %s object, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: %s: REMOVE: %d: %s\n",
 			dnet_dump_id(id), dbname, err, kcecodename(-err));
 	}
 	kcdbendtran(db, ret);
@@ -205,12 +208,12 @@ static int dnet_history_del_entry(struct dnet_node *n, struct dnet_id *id, struc
 	}
 
 	if (i == num) {
-		dnet_log_raw(n, DNET_LOG_INFO, "%s: DB: requested transaction was not found.\n",
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: DB: history: no-transaction-found: -2: stub\n",
 			dnet_dump_id(id));
 		return -ENOENT;
 	}
 
-	dnet_log_raw(n, DNET_LOG_INFO, "%s: DB: removing transaction from position %u/%u.\n",
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: DB: history: 0: removing transaction from position %u/%u.\n",
 			dnet_dump_id(id), i, num);
 
 	if (i < num - 1)
@@ -234,7 +237,7 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 	ret = kcdbbegintran(n->history, 1);
 	if (!ret) {
 		err = -kcdbecode(n->history);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to start history deletion transaction, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: history: remove-trans: %d: %s\n",
 			dnet_dump_id(&cmd->id), err, kcecodename(-err));
 		goto err_out_exit;
 	}
@@ -242,7 +245,7 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 	e = kcdbget(n->history, (void *)cmd->id.id, DNET_ID_SIZE, &size);
 	if (!e) {
 		err = -kcdbecode(n->history);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to read history of to be deleted object, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: history: remove-read: %d: %s\n",
 			dnet_dump_id(&cmd->id), err, kcecodename(-err));
 
 		goto err_out_txn_end;
@@ -250,8 +253,8 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 
 	if (size % sizeof(struct dnet_history_entry)) {
 		err = -EINVAL;
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: corrupted history of to be deleted object.\n",
-			dnet_dump_id(&cmd->id));
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: history: remove-corrupted: %d: stub\n",
+			dnet_dump_id(&cmd->id), err);
 		goto err_out_free;
 	}
 
@@ -266,7 +269,7 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 		ret = kcdbset(n->history, (void *)cmd->id.id, DNET_ID_SIZE, e, size);
 		if (!ret) {
 			err = -kcdbecode(n->history);
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to store truncated history, err: %d: %s.\n",
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: history: remove-store: %d: %s\n",
 				dnet_dump_id(&cmd->id), err, kcecodename(-err));
 
 			goto err_out_free;
@@ -276,8 +279,7 @@ int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *att
 		ret = 1;
 	}
 
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: DB: truncated history: going to remove object: %d.\n",
-		dnet_dump_id(&cmd->id), ret);
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: DB: history: remove: 0: success\n", dnet_dump_id(&cmd->id));
 
 	kcfree(e);
 	kcdbendtran(n->history, 1);
@@ -715,7 +717,7 @@ static KCDB *db_backend_open(struct dnet_node *n, char *dbfile, int flags)
 	ret = kcdbopen(db, dbfile, KCOWRITER | KCOCREATE | flags);
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "DB: failed to open '%s' database, err: %d %s\n", dbfile, err, kcecodename(-err));
+		dnet_log_raw(n, DNET_LOG_ERROR, "start: DB: %s: OPEN: %d %s\n", dbfile, err, kcecodename(-err));
 		goto err_out_close;
 	}
 
