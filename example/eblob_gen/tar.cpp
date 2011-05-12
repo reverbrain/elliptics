@@ -59,6 +59,12 @@ bool eblob_tar_source::next(const bool prepend, const struct timespec *ts,
 	name.assign(th_get_pathname(tar));
 
 	orig_size = size = th_get_size(tar);
+
+	data.clear();
+
+	if (prepend)
+		prepend_data(data, size, (struct timespec *)ts);
+
 	char *buf = new char[size];
 
 	try {
@@ -87,7 +93,7 @@ bool eblob_tar_source::next(const bool prepend, const struct timespec *ts,
 		lseek(tar_fd(tar), -orig_size, SEEK_CUR);
 		tar_skip_regfile(tar);
 
-		data.assign(buf, orig_size);
+		data.append(buf, orig_size);
 	} catch (...) {
 		delete [] buf;
 		throw;
