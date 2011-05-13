@@ -54,7 +54,6 @@ int elliptics_callback_io::callback(void)
 {
 	int err;
 	struct dnet_io_attr *io;
-	unsigned long long size;
 	void *data;
 
 	if (is_trans_destroyed(state, cmd, attr)) {
