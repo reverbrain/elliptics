@@ -41,131 +41,6 @@ int dnet_transform(struct dnet_node *n, void *src, uint64_t size, struct dnet_id
 	return t->transform(t->priv, src, size, id->id, &dsize, 0);
 }
 
-static int dnet_lookup_reply(struct dnet_net_state *st, struct dnet_id *id, uint64_t trans,
-		unsigned int aflags, struct dnet_addr *addr, int status)
-{
-	struct dnet_addr_cmd *c;
-	int err;
-
-	c = malloc(sizeof(struct dnet_addr_cmd));
-	if (!c)
-		return -ENOMEM;
-
-	memset(c, 0, sizeof(struct dnet_addr_cmd));
-
-	memcpy(&c->cmd.id, id, sizeof(struct dnet_id));
-	c->cmd.size = sizeof(struct dnet_addr_cmd) - sizeof(struct dnet_cmd);
-	c->cmd.status = status;
-	c->cmd.trans = trans | DNET_TRANS_REPLY;
-
-	c->a.cmd = DNET_CMD_LOOKUP;
-	c->a.size = sizeof(struct dnet_addr_cmd) - sizeof(struct dnet_cmd) - sizeof(struct dnet_attr);
-	c->a.flags = aflags;
-
-	memcpy(&c->addr.addr, addr, sizeof(struct dnet_addr));
-	c->addr.family = st->n->family;
-	c->addr.sock_type = st->n->sock_type;
-	c->addr.proto = st->n->proto;
-
-	dnet_log(st->n, DNET_LOG_DSA, "%s: sending address %s: trans: %llu, aflags: %x.\n",
-			dnet_dump_id(id), dnet_server_convert_dnet_addr(addr),
-			(unsigned long long)trans, aflags);
-
-	dnet_convert_addr_cmd(c);
-
-	err = dnet_send(st, c, sizeof(struct dnet_addr_cmd));
-	free(c);
-
-	return err;
-}
-
-static int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id, int history)
-{
-	struct dnet_node *n = st->n;
-	int size, cmd_size;
-	struct dnet_cmd *cmd;
-	struct dnet_attr *attr;
-	struct dnet_io_attr *io;
-	int err;
-
-	size = 1;
-	cmd_size = size + sizeof(struct dnet_cmd) +
-		sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr);
-
-	cmd = malloc(cmd_size);
-	if (!cmd) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate %d bytes for local stat.\n",
-				dnet_dump_id(id), cmd_size);
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	memset(cmd, 0, cmd_size);
-
-	attr = (struct dnet_attr *)(cmd + 1);
-	io = (struct dnet_io_attr *)(attr + 1);
-
-	memcpy(&cmd->id, id, sizeof(struct dnet_id));
-	cmd->size = cmd_size - sizeof(struct dnet_cmd);
-
-	attr->size = cmd->size - sizeof(struct dnet_attr);
-	attr->cmd = DNET_CMD_READ;
-
-	io->size = attr->size - sizeof(struct dnet_io_attr);
-	io->offset = 0;
-	io->flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
-
-	if (history)
-		io->flags |= DNET_IO_FLAGS_HISTORY;
-
-	memcpy(io->parent, id->id, DNET_ID_SIZE);
-	memcpy(io->id, id->id, DNET_ID_SIZE);
-
-	dnet_log(n, DNET_LOG_INFO, "%s: local stat: reading %llu byte(s).\n",
-			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
-
-	dnet_convert_io_attr(io);
-
-	err = n->command_handler(st, n->command_private, cmd, attr, io);
-	dnet_log(n, DNET_LOG_INFO, "%s: local stat: io_size: %llu, err: %d.\n",
-					dnet_dump_id(&cmd->id),
-					(unsigned long long)io->size, err);
-
-	free(cmd);
-
-err_out_exit:
-	return err;
-}
-
-static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data __unused)
-{
-	struct dnet_node *n = orig->n;
-	struct dnet_state_id sid;
-	struct dnet_id raw;
-	int err;
-	unsigned int aflags = 0;
-	struct dnet_addr addr;
-
-	err = dnet_state_search_id(n, &cmd->id, &sid, &addr);
-	if (!err) {
-		if (attr->flags & DNET_ATTR_LOOKUP_STAT) {
-			err = dnet_stat_local(orig, &cmd->id, !!(attr->flags & DNET_ATTR_LOOKUP_HISTORY));
-			dnet_log(n, DNET_LOG_DSA, "%s: %s object is stored locally: %d: %s.\n", dnet_dump_id(&cmd->id),
-					!!(attr->flags & DNET_ATTR_LOOKUP_HISTORY) ? "history" : "plain",
-					err, err ? "no" : "yes");
-			if (!err)
-				aflags = attr->flags;
-		}
-	} else {
-		memset(sid.raw.id, 0, DNET_ID_SIZE);
-	}
-
-	dnet_setup_id(&raw, cmd->id.group_id, sid.raw.id);
-
-	return dnet_lookup_reply(orig, &raw, cmd->trans, aflags, &addr, err);
-}
-
 static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
 		struct dnet_id *id, uint64_t trans, unsigned int command, int reply, int direct, int more)
 {
@@ -634,9 +509,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		}
 
 		switch (a->cmd) {
-			case DNET_CMD_LOOKUP:
-				err = dnet_cmd_lookup(st, cmd, a, data);
-				break;
 			case DNET_CMD_REVERSE_LOOKUP:
 				err = dnet_cmd_reverse_lookup(st, cmd, a, data);
 				break;
@@ -2277,6 +2149,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 	memcpy(&cmd->id, id, sizeof(struct dnet_id));
 	cmd->size = sizeof(struct dnet_attr);
 	cmd->status = 0;
+	cmd->flags = DNET_FLAGS_NEED_ACK;
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
@@ -2295,8 +2168,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 	dnet_convert_cmd(cmd);
 	dnet_convert_attr(a);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: %s lookup to %s.\n", dnet_dump_id(id),
-		(a->flags) ? "stat" : "plain", dnet_server_convert_dnet_addr(&t->st->addr));
+	dnet_log(n, DNET_LOG_NOTICE, "%s: lookup to %s.\n", dnet_dump_id(id), dnet_server_convert_dnet_addr(&t->st->addr));
 
 	memset(&req, 0, sizeof(req));
 	req.st = t->st;
@@ -2326,6 +2198,7 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_node *n = NULL;
 	struct dnet_addr_attr *a;
 	struct dnet_net_state *other;
+	char addr_str[128] = "no-address";
 	int err;
 
 	if (is_trans_destroyed(st, cmd, attr)) {
@@ -2339,8 +2212,8 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	if (err || !cmd->size || !attr)
 		goto err_out_exit;
 
-	if (attr->size != sizeof(struct dnet_addr_attr)) {
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: wrong dnet_addr attribute size %llu, must be %zu.\n",
+	if (attr->size < sizeof(struct dnet_addr_attr)) {
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: wrong dnet_addr attribute size %llu, must be at least %zu.\n",
 				dnet_dump_id(&cmd->id), (unsigned long long)attr->size, sizeof(struct dnet_addr_attr));
 		err = -EINVAL;
 		goto err_out_exit;
@@ -2349,6 +2222,23 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	a = (struct dnet_addr_attr *)(attr + 1);
 
 	dnet_convert_addr_attr(a);
+	dnet_server_convert_dnet_addr_raw(&a->addr, addr_str, sizeof(addr_str));
+
+	if (attr->size > sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info)) {
+		struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
+
+		dnet_convert_file_info(info);
+
+		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: lookup object: %s: "
+				"offset: %llu, size: %llu, mode: %llo, path: %s\n",
+			dnet_dump_id(&cmd->id), addr_str,
+			(unsigned long long)info->offset, (unsigned long long)info->size,
+			(unsigned long long)info->mode, (char *)(info + 1));
+	} else {
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: lookup object: %s\n",
+			dnet_dump_id(&cmd->id), addr_str);
+	}
+
 
 	other = dnet_state_search_by_addr(n, &a->addr);
 	if (other) {
@@ -3574,4 +3464,13 @@ int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp)
 
 	*groupsp = groups;
 	return group_num;
+}
+
+void dnet_fill_addr_attr(struct dnet_node *n, struct dnet_addr_attr *attr)
+{
+	memcpy(&attr->addr, &n->addr, sizeof(struct dnet_addr));
+
+	attr->sock_type = n->sock_type;
+	attr->family = n->family;
+	attr->proto = n->proto;
 }

@@ -245,6 +245,56 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 	return 0;
 }
 
+static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
+{
+	struct dnet_node *n = dnet_get_node_from_state(state);
+	int len = strlen(r->root) + 2; /* final slash and null-byte */
+	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
+	char dir[2*DNET_ID_SIZE+1];
+	char id[2*DNET_ID_SIZE+1];
+	struct dnet_file_info *info;
+	struct dnet_addr_attr *a;
+	struct stat st;
+	int err;
+
+	file_backend_get_dir(cmd->id.id, r->bit_num, dir);
+
+	snprintf(file, sizeof(file), "%s/%s",
+		dir, dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id));
+
+	err = stat(file, &st);
+	if (err) {
+		err = -errno;
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: info-stat: %d: %s.\n",
+				dnet_dump_id(&cmd->id), file, err, strerror(errno));
+		goto err_out_exit;
+	}
+
+	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + sizeof(file) + len);
+	if (!a) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	info = (struct dnet_file_info *)(a + 1);
+
+	dnet_fill_addr_attr(n, a);
+
+	info->flen = snprintf((char *)(info + 1), len + sizeof(file), "%s/%s", r->root, file) + 1;
+	len = info->flen;
+
+	dnet_info_from_stat(info, &st);
+
+	dnet_convert_addr_attr(a);
+	dnet_convert_file_info(info);
+
+	err = dnet_send_reply(state, cmd, attr, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + len, 0);
+
+	free(a);
+
+err_out_exit:
+	return err;
+}
+
 static int file_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
@@ -252,6 +302,9 @@ static int file_backend_command_handler(void *state, void *priv,
 	struct file_backend_root *r = priv;
 
 	switch (attr->cmd) {
+		case DNET_CMD_LOOKUP:
+			err = file_info(r, state, cmd, attr);
+			break;
 		case DNET_CMD_WRITE:
 			err = file_write(r, state, cmd, attr, data);
 			break;

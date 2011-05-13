@@ -766,6 +766,7 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 int dnet_create_write_metadata_strings(struct dnet_node *n, void *remote, unsigned int remote_len, struct dnet_id *id, struct timespec *ts);
 
 int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen);
+void dnet_fill_addr_attr(struct dnet_node *n, struct dnet_addr_attr *attr);
 
 struct dnet_id_param {
 	unsigned int		group_id;

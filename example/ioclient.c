@@ -208,14 +208,14 @@ int main(int argc, char *argv[])
 		sleep(1);
 
 	if (writef) {
-		err = dnet_write_file(n, writef, writef, strlen(writef), NULL, offset, size, 0);
+		err = dnet_write_file(n, writef, writef, strlen(writef), NULL, offset, size, DNET_ATTR_DIRECT_TRANSACTION);
 		if (err)
 			return err;
 	}
 
 	if (readf) {
 		char file[strlen(readf) + sizeof(DNET_HISTORY_SUFFIX) + 1];
-		err = dnet_read_file(n, readf, readf, strlen(readf), NULL, offset, size, 0);
+		err = dnet_read_file(n, readf, readf, strlen(readf), NULL, offset, size, DNET_ATTR_DIRECT_TRANSACTION);
 
 		snprintf(file, sizeof(file), "%s%s", readf, DNET_HISTORY_SUFFIX);
 		unlink(file);

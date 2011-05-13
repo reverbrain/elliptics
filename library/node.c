@@ -386,26 +386,6 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	return found;
 }
 
-int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp, struct dnet_addr *addr)
-{
-	struct dnet_state_id *sid;
-	int err = -ENOENT;
-
-	pthread_mutex_lock(&n->state_lock);
-	sid = __dnet_state_search_id(n, id);
-	if (sid) {
-		err = 0;
-		memcpy(sidp, sid, sizeof(struct dnet_state_id));
-
-		if (addr) {
-			memcpy(addr, &sid->idc->st->addr, sizeof(struct dnet_addr));
-		}
-	}
-	pthread_mutex_unlock(&n->state_lock);
-
-	return err;
-}
-
 struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, struct dnet_id *id)
 {
 	struct dnet_net_state *found;

@@ -914,7 +914,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		if (err)
 			goto err_out_send_destroy;
 
-		if (st->__join_state == DNET_JOIN) {
+		if ((st->__join_state == DNET_JOIN) && n->st) {
 			pthread_mutex_lock(&n->state_lock);
 			err = dnet_state_join_nolock(st);
 			pthread_mutex_unlock(&n->state_lock);

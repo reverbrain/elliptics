@@ -101,10 +101,16 @@ void elliptics_finder::parse_lookup(const std::string &ret)
 
 		if (cmd->size) {
 			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
+			struct dnet_file_info *info = NULL;
 			char addr_str[128] = "no-address";
 
-			if (attr->size == sizeof(struct dnet_addr_attr)) {
+			if (attr->size >= sizeof(struct dnet_addr_attr)) {
 				struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+
+				if (attr->size > sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info)) {
+					info = (struct dnet_file_info *)(a + 1);
+					dnet_convert_file_info(info);
+				}
 
 				dnet_convert_addr_attr(a);
 				dnet_server_convert_dnet_addr_raw(&a->addr, addr_str, sizeof(addr_str));
@@ -117,14 +123,15 @@ void elliptics_finder::parse_lookup(const std::string &ret)
 			} catch (const std::exception &e) {
 			}
 
-			dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: %s: cmd: %s, present: %s, should live at: %s\n",
-					dnet_dump_id(&cmd->id), addr_str,
-					dnet_cmd_string(attr->cmd), attr->flags ? "YES" : "NO",
-					route_addr.c_str());
-
-			if (attr->flags) {
-			} else {
-			}
+			if (!info)
+				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: %s: should live at: %s\n",
+					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
+			else
+				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: %s: should live at: %s, "
+						"offset: %llu, size: %llu, mode: %llo, path: %s\n",
+					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
+					(unsigned long long)info->offset, (unsigned long long)info->size,
+					(unsigned long long)info->mode, (char *)(info + 1));
 		} else {
 			dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
 		}
@@ -234,9 +241,8 @@ int main(int argc, char *argv[])
 			ctl.complete = elliptics_callback::elliptics_complete_callback;
 
 			dnet_setup_id(&ctl.id, 0, raw.id);
-			ctl.cflags = DNET_FLAGS_DIRECT;
+			ctl.cflags = DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK;
 			ctl.cmd = DNET_CMD_LOOKUP;
-			ctl.aflags = DNET_ATTR_LOOKUP_STAT;
 
 			int num = find.request_cmd(ctl);
 			std::string lookup_ret = c.wait(num);

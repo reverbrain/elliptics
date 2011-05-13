@@ -140,6 +140,57 @@ err_out_exit:
 	return err;
 }
 
+static int blob_file_info(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
+{
+	struct dnet_node *n = dnet_get_node_from_state(state);
+	int err, len = strlen(c->data.file) + 1 + 32; /* should be enough for .NNN aka index */
+	struct eblob_backend *b = c->data_blob;
+	struct dnet_file_info *info;
+	struct dnet_addr_attr *a;
+	uint64_t offset, size;
+	int fd, index, flen;
+	struct stat st;
+
+	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + len);
+	if (!a) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	info = (struct dnet_file_info *)(a + 1);
+
+	dnet_fill_addr_attr(n, a);
+
+	err = eblob_read_file_index(b, cmd->id.id, DNET_ID_SIZE, &fd, &offset, &size, &index);
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-file-info: info-read-index: %d: %s.\n",
+				dnet_dump_id(&cmd->id), err, strerror(errno));
+		goto err_out_exit;
+	}
+
+	err = fstat(fd, &st);
+	if (err) {
+		err = -errno;
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-idx-%d: info-stat: %d: %s.\n",
+				dnet_dump_id(&cmd->id), index, err, strerror(errno));
+		goto err_out_exit;
+	}
+
+	dnet_info_from_stat(info, &st);
+
+	info->size = size;
+	info->offset = offset + sizeof(struct eblob_disk_control);
+
+	flen = info->flen = snprintf((char *)(info + 1), len, "%s.%d", c->data.file, index) + 1;
+	dnet_convert_file_info(info);
+
+	err = dnet_send_reply(state, cmd, attr, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen, 0);
+
+	free(a);
+
+err_out_exit:
+	return err;
+}
+
 static int eblob_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
@@ -147,6 +198,9 @@ static int eblob_backend_command_handler(void *state, void *priv,
 	struct eblob_backend_config *c = priv;
 
 	switch (attr->cmd) {
+		case DNET_CMD_LOOKUP:
+			err = blob_file_info(c, state, cmd, attr);
+			break;
 		case DNET_CMD_WRITE:
 			err = blob_write(c, state, cmd, attr, data);
 			break;

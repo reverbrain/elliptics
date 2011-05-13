@@ -118,9 +118,20 @@ int main()
 		struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
 		struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
 		struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
-		dnet_convert_addr_attr(a);
 
-		std::cout << lobj << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr) << std::endl ;
+		dnet_convert_addr_attr(a);
+		std::cout << lobj << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
+
+		if (attr->size > sizeof(struct dnet_addr_attr)) {
+			struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
+
+			dnet_convert_file_info(info);
+			std::cout << ": mode: " << std::oct << info->mode;
+			std::cout << ", offset: " << info->offset;
+			std::cout << ", size: " << info->size;
+			std::cout << ", file: " << (char *)(info + 1);
+		}
+		std::cout << std::endl;
 
 		n.stat_log();
 		return 0;

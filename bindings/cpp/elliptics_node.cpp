@@ -410,7 +410,7 @@ void elliptics_node::transform(const std::string &data, struct dnet_id &id)
 
 void elliptics_node::lookup(const struct dnet_id &id, const elliptics_callback &c)
 {
-	int err = dnet_lookup_object(node, (struct dnet_id *)&id, DNET_ATTR_LOOKUP_STAT,
+	int err = dnet_lookup_object(node, (struct dnet_id *)&id, 0,
 			elliptics_callback::elliptics_complete_callback,
 			(void *)&c);
 
@@ -474,23 +474,30 @@ std::string elliptics_node::lookup(const std::string &data)
 			lookup(id, l);
 			ret = l.wait();
 
-			if (ret.size() <= sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)) {
+			if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)) {
 				std::stringstream str;
 
-				str << dnet_dump_id(&id) << " : failed to receive lookup request";
+				str << dnet_dump_id(&id) << ": failed to receive lookup request";
 				throw std::runtime_error(str.str());
 			}
-
+#if 0
 			struct dnet_addr *addr = (struct dnet_addr *)ret.data();
 			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
 			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
 
-			if (attr->flags) {
-				error = 0;
-				break;
+			if (attr->size > sizeof(struct dnet_addr_attr)) {
+				struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+				struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
+
+				dnet_convert_addr_attr(a);
+				dnet_convert_file_info(info);
 			}
+#endif
+			dnet_log_raw(node, DNET_LOG_DSA, "%s: %s: %u bytes\n", dnet_dump_id(&id), data.c_str(), ret.size());
+			error = 0;
+			break;
 		} catch (const std::exception &e) {
-			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), data.c_str());
+			dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s : %s\n", dnet_dump_id(&id), e.what(), data.c_str());
 			continue;
 		}
 	}

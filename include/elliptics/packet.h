@@ -18,6 +18,7 @@
 
 #include <sys/time.h>
 #include <arpa/inet.h>
+#include <sys/stat.h>
 
 #include <string.h>
 #include <stdint.h>
@@ -30,7 +31,7 @@ extern "C" {
 #endif
 
 enum dnet_commands {
-	DNET_CMD_LOOKUP = 1,			/* Lookup address by ID */
+	DNET_CMD_LOOKUP = 1,			/* Lookup address by ID and per-object info: size, permissions and so on*/
 	DNET_CMD_REVERSE_LOOKUP,		/* Lookup ID by address */
 	DNET_CMD_JOIN,				/* Join the network - force remote nodes to update
 						 * their route tables to include given node with given
@@ -179,9 +180,6 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 #define DNET_ATTR_DIRECT_TRANSACTION		(1<<0)
 
 /* Lookup attribute flags */
-
-/* Stat local object and return state address only if object is readable */
-#define DNET_ATTR_LOOKUP_STAT			(1<<0)
 
 /* Lookup history object instead of data one */
 #define DNET_ATTR_LOOKUP_HISTORY		(1<<1)
@@ -458,6 +456,69 @@ static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)
 		st[cmd].count++;
 	else
 		st[cmd].err++;
+}
+
+struct dnet_file_info {
+	int			flen;		/* filename length, which goes after this structure */
+	unsigned int		nlink;
+
+	uint64_t		mode;
+
+	uint64_t		dev;
+	uint64_t		rdev;
+
+	uint64_t		ino;
+
+	uint64_t		uid;
+	uint64_t		gid;
+
+	uint64_t		blksize;
+	uint64_t		blocks;
+
+	uint64_t		size;
+	uint64_t		offset;		/* offset within eblob */
+
+	uint64_t		atime;
+	uint64_t		ctime;
+	uint64_t		mtime;
+};
+
+static inline void dnet_convert_file_info(struct dnet_file_info *info)
+{
+	info->flen = dnet_bswap32(info->flen);
+	info->nlink = dnet_bswap32(info->nlink);
+
+	info->mode = dnet_bswap64(info->mode);
+	info->dev = dnet_bswap64(info->dev);
+	info->ino = dnet_bswap64(info->ino);
+	info->uid = dnet_bswap64(info->uid);
+	info->gid = dnet_bswap64(info->gid);
+	info->blksize = dnet_bswap64(info->blksize);
+	info->blocks = dnet_bswap64(info->blocks);
+	info->rdev = dnet_bswap64(info->rdev);
+	info->size = dnet_bswap64(info->size);
+	info->offset = dnet_bswap64(info->offset);
+	info->atime = dnet_bswap64(info->atime);
+	info->ctime = dnet_bswap64(info->ctime);
+	info->mtime = dnet_bswap64(info->mtime);
+}
+
+static inline void dnet_info_from_stat(struct dnet_file_info *info, struct stat *st)
+{
+	info->nlink = st->st_nlink;
+	info->mode = st->st_mode;
+	info->dev = st->st_dev;
+	info->ino = st->st_ino;
+	info->uid = st->st_uid;
+	info->gid = st->st_gid;
+	info->blksize = st->st_blksize;
+	info->blocks = st->st_blocks;
+	info->rdev = st->st_rdev;
+	info->size = st->st_size;
+	info->offset = 0;
+	info->atime = st->st_atime;
+	info->ctime = st->st_ctime;
+	info->mtime = st->st_mtime;
 }
 
 #ifdef __cplusplus
