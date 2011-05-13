@@ -352,7 +352,7 @@ std::string elliptics_node::lookup_addr(const std::string &remote, const int gro
 {
 	char buf[128];
 
-	int err = dnet_lookup_addr(node, (void *)remote.data(), remote.size(), group_id, buf, sizeof(buf));
+	int err = dnet_lookup_addr(node, (void *)remote.data(), remote.size(), NULL, group_id, buf, sizeof(buf));
 	if (err < 0) {
 		std::ostringstream str;
 		str << "Failed to lookup in group " << group_id << ": key size: " << remote.size() << ", err: " << err;
@@ -361,6 +361,21 @@ std::string elliptics_node::lookup_addr(const std::string &remote, const int gro
 
 	return std::string((const char *)buf, strlen(buf));
 }
+
+std::string elliptics_node::lookup_addr(const struct dnet_id &id)
+{
+	char buf[128];
+
+	int err = dnet_lookup_addr(node, NULL, 0, (struct dnet_id *)&id, id.group_id, buf, sizeof(buf));
+	if (err < 0) {
+		std::ostringstream str;
+		str << "Failed to lookup " << dnet_dump_id(&id) << ": err: " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	return std::string((const char *)buf, strlen(buf));
+}
+
 
 int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups, const struct timespec &ts)
 {

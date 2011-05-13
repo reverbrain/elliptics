@@ -3462,16 +3462,19 @@ err_out_exit:
 	return err;
 }
 
-int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen)
+int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen)
 {
-	struct dnet_id id;
+	struct dnet_id raw;
 	struct dnet_net_state *st;
 	int err = -ENOENT;
 
-	dnet_transform(n, remote, len, &id);
-	id.group_id = group_id;
+	if (!id) {
+		dnet_transform(n, remote, len, &raw);
+		id = &raw;
+	}
+	id->group_id = group_id;
 
-	st = dnet_state_get_first(n, &id);
+	st = dnet_state_get_first(n, id);
 	if (!st)
 		goto err_out_exit;
 

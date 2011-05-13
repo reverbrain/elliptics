@@ -110,15 +110,23 @@ void elliptics_finder::parse_lookup(const std::string &ret)
 				dnet_server_convert_dnet_addr_raw(&a->addr, addr_str, sizeof(addr_str));
 			}
 
-			dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND: %s: cmd: %s, present: %s\n",
+			std::string route_addr = "failed to get route table";
+
+			try {
+				route_addr = lookup_addr(cmd->id);
+			} catch (const std::exception &e) {
+			}
+
+			dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: %s: cmd: %s, present: %s, should live at: %s\n",
 					dnet_dump_id(&cmd->id), addr_str,
-					dnet_cmd_string(attr->cmd), attr->flags ? "YES" : "NO");
+					dnet_cmd_string(attr->cmd), attr->flags ? "YES" : "NO",
+					route_addr.c_str());
 
 			if (attr->flags) {
 			} else {
 			}
 		} else {
-			dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
+			dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
 		}
 
 		data = (char *)data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
@@ -147,13 +155,13 @@ void elliptics_finder::parse_meta(const std::string &ret)
 
 				dnet_convert_io_attr(io);
 
-				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND: %s: cmd: %s, io size: %llu\n",
+				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND meta: %s: cmd: %s, io size: %llu\n",
 						dnet_dump_id(&cmd->id), addr_str, dnet_cmd_string(attr->cmd),
 						(unsigned long long)io->size);
 			} else {
 			}
 		} else {
-			dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND: %s: status: %d\n", dnet_dump_id(&cmd->id), addr_str, cmd->status);
+			dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND meta: %s: status: %d\n", dnet_dump_id(&cmd->id), addr_str, cmd->status);
 		}
 
 		data = (char *)data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
