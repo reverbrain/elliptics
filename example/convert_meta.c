@@ -186,7 +186,7 @@ static const char *hparser_visit(const char *key, size_t keysz,
 			kcdbendtran(ptrs->newmeta, 1);
 		}
 
-		err = kcdbbegintran(ptrs->newmeta, 1);
+		err = kcdbbegintran(ptrs->newmeta, 0);
 		if (!err) {
 			err = -kcdbecode(ptrs->newmeta);
 			fprintf(stdout, "%s: meta DB transaction start failed "
