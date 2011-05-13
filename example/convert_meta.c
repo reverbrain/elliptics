@@ -131,17 +131,19 @@ static const char *hparser_visit(const char *key, size_t keysz,
 	group_num = mp->size / sizeof(int);
 	groups = (int *)mp->data;
 	dnet_convert_meta(mp);
-	fprintf(stdout, "%d groups found in meta\n", group_num);
 
 	mp = dnet_meta_search_cust(&mc, DNET_META_UPDATE);
 	if (!mp) {
+		// Add new meta structure after the end of current metadata
 		if (mc.size + sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update) * group_num > BUFFER_SIZE) {
 			fprintf(stdout, "failed. New meta size=%d is too big\n", 
 					mc.size + sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update) * group_num);
 			goto err_out_kcfree;
 		}
-		mc.size += sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update) * group_num;
 		mp = m = mc.data + mc.size;
+		mc.size += sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update) * group_num;
+
+		memset(m, 0, sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update) * group_num);
 		m->type = DNET_META_UPDATE;
 		m->size = sizeof(struct dnet_meta_update) * group_num;
 		memset(m->data, 0, m->size);
@@ -194,7 +196,7 @@ static const char *hparser_visit(const char *key, size_t keysz,
 		}
 	}
 
-	err = kcdbset(ptrs->newmeta, key, DNET_ID_SIZE, (void *)m, sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update) * group_num);
+	err = kcdbset(ptrs->newmeta, key, DNET_ID_SIZE, (void *)mc.data, mc.size);
 	if (!err) {
 		err = -kcdbecode(ptrs->newmeta);
 		fprintf(stdout, "%s: meta DB append failed "
