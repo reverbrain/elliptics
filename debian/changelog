@@ -1,3 +1,11 @@
+elliptics (2.9.6.167) unstable; urgency=low
+
+  * Store checksum for written objects. Checksum is calculated each time
+    metadata is written.
+  * Added RW/RO and exit status as well as interface to set node status.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 16 May 2011 21:01:52 +0400
+
 elliptics (2.9.6.166) unstable; urgency=low
 
   * Extended lookup response with file-info data.
