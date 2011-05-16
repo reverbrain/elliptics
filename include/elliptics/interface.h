@@ -659,6 +659,10 @@ int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 
 int dnet_request_cmd(struct dnet_node *n, struct dnet_trans_control *ctl);
 
+/* Change node status on given address or ID */
+int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr,
+		struct dnet_id *id, unsigned int status);
+
 /*
  * Mark tranasction with @id in the object identified by @origin to be removed.
  * If callback is provided, it will be invoked on completion, otherwise

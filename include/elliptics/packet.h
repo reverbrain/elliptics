@@ -49,6 +49,7 @@ enum dnet_commands {
 	DNET_CMD_NOTIFY,			/* Notify when object in question was modified */
 	DNET_CMD_DEL,				/* Remove given object from the storage */
 	DNET_CMD_STAT_COUNT,			/* Gather remote per-cmd statistics */
+	DNET_CMD_STATUS,			/* Change elliptics node status */
 
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
@@ -520,6 +521,15 @@ static inline void dnet_info_from_stat(struct dnet_file_info *info, struct stat 
 	info->ctime = st->st_ctime;
 	info->mtime = st->st_mtime;
 }
+
+/* Elliptics node status */
+
+/* Elliptics node should exit */
+#define DNET_STATUS_EXIT		(1<<0)
+
+/* Ellipitcs node goes ro/rw */
+#define DNET_STATUS_RO			(1<<1)
+#define DNET_STATUS_RW			(1<<2)
 
 #ifdef __cplusplus
 }

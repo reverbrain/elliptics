@@ -339,6 +339,7 @@ struct dnet_node
 	struct dnet_id		id;
 
 	int			flags;
+	int			ro;
 
 	pthread_attr_t		attr;
 
