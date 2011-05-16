@@ -578,7 +578,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	sigemptyset(&sig);
 	sigaddset(&sig, SIGPIPE);
 
-	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->command_handler || !cfg->send)) {
+	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->command_handler || !cfg->send || !cfg->checksum)) {
 		err = -EINVAL;
 		if (cfg->log && cfg->log->log)
 			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Joining node has to register "
@@ -618,9 +618,12 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->sock_type = cfg->sock_type;
 	n->family = cfg->family;
 	n->wait_ts.tv_sec = cfg->wait_timeout;
+
 	n->command_handler = cfg->command_handler;
 	n->command_private = cfg->command_private;
 	n->send = cfg->send;
+	n->checksum = cfg->checksum;
+
 	n->storage_stat = cfg->storage_stat;
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;

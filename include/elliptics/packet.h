@@ -461,6 +461,8 @@ static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)
 
 struct dnet_file_info {
 	int			flen;		/* filename length, which goes after this structure */
+	unsigned char		checksum[DNET_CSUM_SIZE];
+
 	unsigned int		nlink;
 
 	uint64_t		mode;

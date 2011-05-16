@@ -33,12 +33,18 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-int dnet_transform(struct dnet_node *n, void *src, uint64_t size, struct dnet_id *id)
+int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, void *data, uint64_t size)
 {
-	unsigned int dsize = sizeof(id->id);
 	struct dnet_transform *t = &n->transform;
 
-	return t->transform(t->priv, src, size, id->id, &dsize, 0);
+	return t->transform(t->priv, data, size, csum, (unsigned int *)csize, 0);
+}
+
+int dnet_transform(struct dnet_node *n, void *src, uint64_t size, struct dnet_id *id)
+{
+	int dsize = sizeof(id->id);
+
+	return dnet_checksum_data(n, id->id, &dsize, src, size);
 }
 
 static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
@@ -611,6 +617,12 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 							err = dnet_db_read(st, cmd, io);
 						} else if (a->cmd == DNET_CMD_WRITE) {
 							err = dnet_db_write(n, cmd, io);
+							if (!err) {
+								struct dnet_id raw;
+								dnet_setup_id(&raw, cmd->id.group_id, io->id);
+
+								err = dnet_meta_update_checksum(n, &raw);
+							}
 						} else
 							err = -EINVAL;
 						break;
@@ -3570,4 +3582,67 @@ void dnet_fill_addr_attr(struct dnet_node *n, struct dnet_addr_attr *attr)
 	attr->sock_type = n->sock_type;
 	attr->family = n->family;
 	attr->proto = n->proto;
+}
+
+int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size)
+{
+	void *data, *csum_data;
+	uint64_t off, sz;
+	long page_size = sysconf(_SC_PAGE_SIZE);
+	int err;
+
+	if (!size) {
+		struct stat st;
+
+		err = fstat(fd, &st);
+		if (err < 0) {
+			err = -errno;
+			dnet_log_err(n, "CSUM: fd: %d", fd);
+			goto err_out_exit;
+		}
+
+		size = st.st_size;
+	}
+
+
+	off = offset & ~(page_size - 1);
+	sz = ALIGN(size + offset - off, page_size);
+
+	data = mmap(NULL, sz, PROT_READ, MAP_SHARED, fd, off);
+	if (data == MAP_FAILED) {
+		err = -errno;
+		dnet_log_err(n, "Failed to map to be csummed file: size: %llu, use: %llu, local offset: %llu, use: %llu",
+				(unsigned long long)size, (unsigned long long)sz,
+				(unsigned long long)offset, (unsigned long long)off);
+		goto err_out_exit;
+	}
+
+	csum_data = data + offset - off;
+
+	err = dnet_checksum_data(n, csum, csize, csum_data, size);
+
+	munmap(data, sz);
+
+err_out_exit:
+	return err;
+}
+
+int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size)
+{
+	int fd, err;
+
+	err = open(file, O_RDONLY);
+	if (err < 0) {
+		err = -errno;
+		dnet_log_err(n, "failed to open to be csummed file '%s'", file);
+		goto err_out_exit;
+	}
+	fd = err;
+
+	err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
+
+	close(fd);
+
+err_out_exit:
+	return err;
 }

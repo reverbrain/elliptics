@@ -145,11 +145,10 @@ static int meta_request_complete(struct dnet_net_state *state, struct dnet_cmd *
 			struct tm tm;
 
 			localtime_r((time_t *)&s->tsec, &tm);
-			strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
+			strftime(tstr, sizeof(tstr), "%F %Z %R:%S", &tm);
 
-			dnet_log_raw(n, DNET_LOG_INFO, "type: %u, size: %u, check status: %d, ts: %s: %lld.%lld\n",
+			dnet_log_raw(n, DNET_LOG_INFO, "type: %u, size: %u, check status: %d, ts: %s.%06lld\n",
 					m->type, m->size, s->status, tstr,
-					(unsigned long long)s->tsec,
 					(unsigned long long)s->tnsec);
 		} else if (m->type == DNET_META_UPDATE) {
 			struct dnet_meta_update *mu = (struct dnet_meta_update *)m->data;
@@ -166,11 +165,10 @@ static int meta_request_complete(struct dnet_net_state *state, struct dnet_cmd *
 				dnet_convert_meta_update(mu);
 
 				localtime_r((time_t *)&mu->tsec, &tm);
-				strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
+				strftime(tstr, sizeof(tstr), "%F %Z %R:%S", &tm);
 
-				err = snprintf(ptr, rest, "%d:%llx:%s %lld.%lld:",
+				err = snprintf(ptr, rest, "%d:%llx:%s.%06lld | ",
 						mu->group_id, (unsigned long long)mu->flags, tstr,
-						(unsigned long long)mu->tsec,
 						(unsigned long long)mu->tnsec);
 				if (err > rest)
 					break;
@@ -178,8 +176,12 @@ static int meta_request_complete(struct dnet_net_state *state, struct dnet_cmd *
 				rest -= err;
 				ptr += err;
 
-				if (i == num - 1)
+				/* remove trailing ' | ' */
+				if (i == num - 1) {
 					*(--ptr) = '\0';
+					*(--ptr) = '\0';
+					*(--ptr) = '\0';
+				}
 
 				++mu;
 			}
@@ -192,6 +194,20 @@ static int meta_request_complete(struct dnet_net_state *state, struct dnet_cmd *
 
 			dnet_log_raw(n, DNET_LOG_INFO, "type: %u, size: %u, namespace: %s\n",
 					m->type, m->size, str);
+		} else if (m->type == DNET_META_CHECKSUM) {
+			struct dnet_meta_checksum *csum = (struct dnet_meta_checksum *)m->data;
+			char id_str[sizeof(csum->checksum)*2 + 1];
+			char tstr[64];
+			struct tm tm;
+
+			dnet_convert_meta_checksum(csum);
+
+			localtime_r((time_t *)&csum->tsec, &tm);
+			strftime(tstr, sizeof(tstr), "%F %Z %R:%S", &tm);
+
+			dnet_log_raw(n, DNET_LOG_INFO, "type: %u, size: %u, time: %s.%06lld, csum: %s\n",
+					m->type, m->size, tstr, (unsigned long long)csum->tnsec,
+					dnet_dump_id_len_raw(csum->checksum, sizeof(csum->checksum), id_str));
 		} else {
 			dnet_log_raw(n, DNET_LOG_INFO, "type: %u, size: %u\n", m->type, m->size);
 		}
@@ -248,7 +264,6 @@ static int meta_request(struct dnet_node *n, int *groups, int group_num, char *n
 
 	pthread_mutex_lock(&mc->lock);
 	while (mc->num != group_num) {
-		dnet_log_raw(n, DNET_LOG_INFO, "%s: waiting %d == %d\n", dnet_dump_id(&raw), mc->num, group_num);
 		pthread_cond_wait(&mc->wait, &mc->lock);
 	}
 	pthread_mutex_unlock(&mc->lock);

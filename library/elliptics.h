@@ -381,6 +381,8 @@ struct dnet_node
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
 	int			(* send)(void *state, void *priv, struct dnet_id *id);
+	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
+			void *csum, int *csize);
 	int			(* storage_stat)(void *priv, struct dnet_stat *st);
 
 	unsigned int		notify_hash_size;
@@ -557,6 +559,7 @@ int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 		struct dnet_id *id, struct dnet_wait *w, int hist, int wait);
 
 int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data);
+int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data, unsigned int size);
 int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io);
 int dnet_db_read_raw(struct dnet_node *n, int meta, unsigned char *id, void **datap);
 int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr);

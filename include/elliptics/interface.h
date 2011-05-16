@@ -313,6 +313,8 @@ struct dnet_config
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
 	int			(* send)(void *state, void *priv, struct dnet_id *id);
+	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
+			void *csum, int *csize);
 
 	/*
 	 * Free and total space on given storage.
@@ -719,6 +721,7 @@ enum dnet_meta_types {
 	DNET_META_CHECK_STATUS,		/* last checking status: timestamp and so on */
 	DNET_META_NAMESPACE,		/* namespace where given object lives */
 	DNET_META_UPDATE,		/* last update information (timestamp, flags) */
+	DNET_META_CHECKSUM,		/* checksum (sha512) of the whole data object calculated on server */
 };
 
 struct dnet_meta
@@ -832,6 +835,17 @@ static inline void dnet_convert_meta_check_status(struct dnet_meta_check_status 
 	c->tnsec = dnet_bswap64(c->tnsec);
 }
 
+struct dnet_meta_checksum {
+	uint8_t			checksum[DNET_CSUM_SIZE];
+	uint64_t		tsec, tnsec;
+} __attribute__ ((packed));
+
+static inline void dnet_convert_meta_checksum(struct dnet_meta_checksum *c)
+{
+	c->tsec = dnet_bswap64(c->tsec);
+	c->tnsec = dnet_bswap64(c->tnsec);
+}
+
 /* Set by dnet_check when we only want to merge transaction
  * and do not check copies in other groups
  */
@@ -881,6 +895,12 @@ static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd 
 int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp);
 
 char *dnet_cmd_string(int cmd);
+
+int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, void *data, uint64_t size);
+int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size);
+int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size);
+
+int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_id *id);
 
 #ifdef __cplusplus
 }

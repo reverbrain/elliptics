@@ -401,6 +401,16 @@ static int file_backend_send(void *state, void *priv, struct dnet_id *id)
 	return err;
 }
 
+static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
+{
+	struct file_backend_root *r = priv;
+	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
+
+	file_backend_setup_file(r, file, sizeof(file), id->id);
+
+	return dnet_checksum_file(n, csum, csize, file, 0, 0);
+}
+
 int file_backend_storage_stat(void *priv, struct dnet_stat *st)
 {
 	int err;
@@ -420,6 +430,7 @@ static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_conf
 	c->command_private = b->data;
 	c->command_handler = file_backend_command_handler;
 	c->send = file_backend_send;
+	c->checksum = file_backend_checksum;
 
 	c->storage_size = b->storage_size;
 	c->storage_free = b->storage_free;

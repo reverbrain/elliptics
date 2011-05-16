@@ -332,6 +332,28 @@ int eblob_backend_storage_stat(void *priv, struct dnet_stat *st)
 	return 0;
 }
 
+static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
+{
+	struct eblob_backend_config *c = priv;
+	struct eblob_backend *b = c->data_blob;
+	uint64_t offset, size;
+	int fd, index, err;
+
+	err = eblob_read_file_index(b, id->id, DNET_ID_SIZE, &fd, &offset, &size, &index);
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read-index: %d: %s.\n",
+				dnet_dump_id(id), err, strerror(errno));
+		goto err_out_exit;
+	}
+
+	offset += sizeof(struct eblob_disk_control);
+
+	err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
+
+err_out_exit:
+	return err;
+}
+
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)
 {
 	struct eblob_backend_config *c = b->data;
@@ -354,6 +376,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	cfg->storage_size = b->storage_size;
 	cfg->storage_free = b->storage_free;
 	cfg->storage_stat = eblob_backend_storage_stat;
+	cfg->checksum = eblob_backend_checksum;
 
 	cfg->command_private = c;
 	cfg->command_handler = eblob_backend_command_handler;

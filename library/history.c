@@ -88,7 +88,7 @@ int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io
 	return err;
 }
 
-static int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data, unsigned int size)
+int db_put_data(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data, unsigned int size)
 {
 	int ret, append = 0;
 	KCDB *db = n->history;
