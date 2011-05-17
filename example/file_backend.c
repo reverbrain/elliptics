@@ -245,6 +245,16 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 	return 0;
 }
 
+static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
+{
+	struct file_backend_root *r = priv;
+	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
+
+	file_backend_setup_file(r, file, sizeof(file), id->id);
+
+	return dnet_checksum_file(n, csum, csize, file, 0, 0);
+}
+
 static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	struct dnet_node *n = dnet_get_node_from_state(state);
@@ -255,7 +265,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	struct dnet_file_info *info;
 	struct dnet_addr_attr *a;
 	struct stat st;
-	int err;
+	int err, csize;
 
 	file_backend_get_dir(cmd->id.id, r->bit_num, dir);
 
@@ -284,13 +294,22 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 
 	dnet_info_from_stat(info, &st);
 
+	csize = sizeof(info->checksum);
+	if (attr->flags & DNET_ATTR_NOCSUM) {
+		memset(info->checksum, 0, csize);
+	} else {
+		err = file_backend_checksum(n, r, &cmd->id, info->checksum, &csize);
+		if (err)
+			goto err_out_free;
+	}
+
 	dnet_convert_addr_attr(a);
 	dnet_convert_file_info(info);
 
 	err = dnet_send_reply(state, cmd, attr, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + len, 0);
 
+err_out_free:
 	free(a);
-
 err_out_exit:
 	return err;
 }
@@ -399,16 +418,6 @@ static int file_backend_send(void *state, void *priv, struct dnet_id *id)
 	}
 
 	return err;
-}
-
-static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
-{
-	struct file_backend_root *r = priv;
-	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
-
-	file_backend_setup_file(r, file, sizeof(file), id->id);
-
-	return dnet_checksum_file(n, csum, csize, file, 0, 0);
 }
 
 int file_backend_storage_stat(void *priv, struct dnet_stat *st)
