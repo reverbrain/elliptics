@@ -335,3 +335,38 @@ err_out_exit:
 	dnet_log(n, DNET_LOG_INFO, "%s: meta: CHECKSUM: result: %d\n", dnet_dump_id(id), err);
 	return err;
 }
+
+int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_id *id, struct dnet_meta_checksum *csum)
+{
+	struct dnet_meta *m;
+	void *meta;
+	ssize_t size;
+	int err;
+
+	size = dnet_db_read_raw(n, 1, id->id, &meta);
+	if (size < 0) {
+		err = size;
+		goto err_out_exit;
+	}
+
+	dnet_convert_metadata(meta, size, 0);
+
+	m = dnet_meta_search(n, meta, size, DNET_META_CHECKSUM);
+	if (!m) {
+		err = -ENOENT;
+		goto err_out_kcfree;
+	}
+
+	if (m->size != sizeof(struct dnet_meta_checksum)) {
+		err = -EINVAL;
+		goto err_out_kcfree;
+	}
+
+	memcpy(csum, m->data, sizeof(struct dnet_meta_checksum));
+	err = 0;
+
+err_out_kcfree:
+	kcfree(meta);
+err_out_exit:
+	return err;
+}

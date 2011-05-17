@@ -188,6 +188,9 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* What type of counters to fetch */
 #define DNET_ATTR_CNTR_GLOBAL			(1<<0)
 
+/* Do not verify checksum */
+#define DNET_ATTR_NOCSUM			(1<<2)
+
 struct dnet_attr
 {
 	uint64_t		size;
@@ -277,6 +280,8 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 
 /* Object is a parent object */
 #define DNET_IO_FLAGS_PARENT		(1<<7)
+
+#define DNET_IO_FLAGS_NOCSUM		(1<<8)
 
 struct dnet_io_attr
 {
