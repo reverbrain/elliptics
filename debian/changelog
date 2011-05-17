@@ -1,3 +1,11 @@
+elliptics (2.9.6.168) unstable; urgency=low
+
+  * Verify checksum for all lookup and read requests. Added flag to disable
+    checksum.
+  * Put object checksum into dnet_file_info structure
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 17 May 2011 21:49:28 +0400
+
 elliptics (2.9.6.167) unstable; urgency=low
 
   * Store checksum for written objects. Checksum is calculated each time
