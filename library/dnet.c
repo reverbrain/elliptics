@@ -645,8 +645,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 						if (err && (err != -ENODATA))
 							break;
 					}
-
-					dnet_log(n, DNET_LOG_INFO, "cmd: %s, err: %d\n", dnet_cmd_string(a->cmd), err);
 				}
 
 				err = n->command_handler(st, n->command_private, cmd, a, data);
@@ -3694,5 +3692,7 @@ int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id)
 	}
 
 err_out_exit:
+	if (err)
+		dnet_log(n, DNET_LOG_ERROR, "%s: CSUM: verification: failed: %d: %s\n", dnet_dump_id(&raw), err, strerror(-err));
 	return err;
 }
