@@ -575,7 +575,6 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, int check_co
 int dnet_check_list(struct dnet_net_state *st, struct dnet_check_request *r);
 
 int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_id *id, struct dnet_meta_checksum *csum);
-int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id);
 
 void dnet_monitor_exit(struct dnet_node *n);
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);

@@ -901,6 +901,7 @@ int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64
 int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size);
 
 int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_id *id);
+int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id, unsigned char *result, int *res_len);
 
 #ifdef __cplusplus
 }

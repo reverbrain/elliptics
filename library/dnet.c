@@ -630,18 +630,11 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					dnet_convert_io_attr(io);
 				}
 			default:
-				if ((a->cmd == DNET_CMD_READ) || (a->cmd == DNET_CMD_LOOKUP)) {
+				if (a->cmd == DNET_CMD_READ) {
 					if (!(a->flags & DNET_ATTR_NOCSUM)) {
-						unsigned char *id;
+						io = data;
 
-						if (a->cmd == DNET_CMD_READ) {
-							io = data;
-							id = io->id;
-						} else {
-							id = cmd->id.id;
-						}
-
-						err = dnet_verify_checksum_io(n, id);
+						err = dnet_verify_checksum_io(n, io->id, NULL, NULL);
 						if (err && (err != -ENODATA))
 							break;
 					}
@@ -3663,7 +3656,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id)
+int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id, unsigned char *result, int *res_len)
 {
 	struct dnet_id raw;
 	int csize = DNET_CSUM_SIZE;
@@ -3674,21 +3667,29 @@ int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id)
 
 	dnet_setup_id(&raw, n->id.group_id, id);
 
-	err = n->checksum(n, n->command_private, &raw, csum, &csize);
-	if (err)
-		goto err_out_exit;
-
 	err = dnet_meta_read_checksum(n, &raw, &mc);
 	if (err) {
 		err = -ENODATA;
 		goto err_out_exit;
 	}
+
+	err = n->checksum(n, n->command_private, &raw, csum, &csize);
+	if (err)
+		goto err_out_exit;
+
 	dnet_log(n, DNET_LOG_DSA, "%s: calculated csum: %s\n", dnet_dump_id(&raw), dnet_dump_id_len_raw(csum, csize, str));
 	dnet_log(n, DNET_LOG_DSA, "%s: stored     csum: %s\n", dnet_dump_id(&raw), dnet_dump_id_len_raw(mc.checksum, csize, str));
 
 	if (memcmp(mc.checksum, csum, csize)) {
 		err = -EBADFD;
 		goto err_out_exit;
+	}
+
+	if (result) {
+		if (*res_len > csize)
+			*res_len = csize;
+
+		memcpy(result, csum, *res_len);
 	}
 
 err_out_exit:

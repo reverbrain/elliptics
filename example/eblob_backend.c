@@ -203,8 +203,8 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	if (attr->flags & DNET_ATTR_NOCSUM) {
 		memset(info->checksum, 0, csize);
 	} else {
-		err = eblob_backend_checksum(n, c, &cmd->id, info->checksum, &csize);
-		if (err)
+		err = dnet_verify_checksum_io(n, &cmd->id, info->checksum, &csize);
+		if (err && (err != -ENODATA))
 			goto err_out_free;
 	}
 
