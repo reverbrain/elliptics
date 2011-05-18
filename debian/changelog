@@ -1,3 +1,13 @@
+elliptics (2.9.6.169) unstable; urgency=low
+
+  * We should grab state reference, since state can be killed between
+    dnet_idc_create() and dnet_state_join_nolock()
+  * Optimize checksum verification: do not calculate it twice in lookup. Read
+    metadata checksum first, and only calculate on-disk csum if metadata csum
+    exists
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 18 May 2011 18:25:16 +0400
+
 elliptics (2.9.6.168) unstable; urgency=low
 
   * Verify checksum for all lookup and read requests. Added flag to disable
