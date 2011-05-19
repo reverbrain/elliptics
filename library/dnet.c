@@ -837,7 +837,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_recv_route_list(struct dnet_net_state *st)
+int dnet_recv_route_list(struct dnet_net_state *st)
 {
 	struct dnet_io_req req;
 	struct dnet_node *n = st->n;
