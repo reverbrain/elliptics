@@ -351,11 +351,39 @@ static void dnet_check_all_states(struct dnet_node *n)
 	pthread_mutex_unlock(&n->state_lock);
 }
 
+static int dnet_check_route_table(struct dnet_node *n)
+{
+	int rnd = rand();
+	struct dnet_id id;
+	int *groups, group_num, i;
+	struct dnet_net_state *st;
+
+	pthread_mutex_lock(&n->group_lock);
+	groups = alloca(n->group_num * sizeof(int));
+	group_num = n->group_num;
+	memcpy(groups, n->groups, n->group_num * sizeof(int));
+	pthread_mutex_unlock(&n->group_lock);
+
+	for (i=0; i<group_num; ++i) {
+		id.group_id = groups[i];
+		memcpy(id.id, &rnd, sizeof(rnd));
+
+		st = dnet_state_get_first(n, &id);
+		if (st) {
+			dnet_recv_route_list(st);
+			dnet_state_put(st);
+		}
+	}
+
+	return 0;
+}
+
 static void *dnet_check_process(void *data)
 {
 	struct dnet_node *n = data;
 	long i, timeout, wait_for_stall;
 	struct timeval tv1, tv2;
+	int checks = 0, route_table_checks = 3;
 
 	dnet_set_name("check");
 
@@ -368,6 +396,10 @@ static void *dnet_check_process(void *data)
 	while (!n->need_exit) {
 		gettimeofday(&tv1, NULL);
 		dnet_try_reconnect(n);
+		if (++checks == route_table_checks) {
+			checks = 0;
+			dnet_check_route_table(n);
+		}
 		gettimeofday(&tv2, NULL);
 
 		timeout = n->check_timeout - (tv2.tv_sec - tv1.tv_sec);
