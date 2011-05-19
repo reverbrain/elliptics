@@ -1,3 +1,9 @@
+elliptics (2.9.6.170) unstable; urgency=low
+
+  * Force depending on eblob >= 0.2.0
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 19 May 2011 17:58:23 +0400
+
 elliptics (2.9.6.169) unstable; urgency=low
 
   * We should grab state reference, since state can be killed between
