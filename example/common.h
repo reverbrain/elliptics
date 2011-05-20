@@ -86,6 +86,8 @@ int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int 
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map);
 void dnet_unmap_history(struct dnet_node *n, struct dnet_history_map *map);
 
+struct dnet_meta * dnet_meta_search_cust(struct dnet_meta_container *mc, uint32_t type);
+
 #ifdef __cplusplus
 }
 #endif

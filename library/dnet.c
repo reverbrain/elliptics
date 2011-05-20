@@ -2898,7 +2898,7 @@ static int dnet_compare_by_param(const void *id1, const void *id2)
 	return l1->param - l2->param;
 }
 
-static int dnet_compare_by_param_reverse(const void *id1, const void *id2)
+/*static int dnet_compare_by_param_reverse(const void *id1, const void *id2)
 {
 	const struct dnet_id_param *l2 = id1;
 	const struct dnet_id_param *l1 = id2;
@@ -2907,7 +2907,7 @@ static int dnet_compare_by_param_reverse(const void *id1, const void *id2)
 		return l1->param_reserved - l2->param_reserved;
 
 	return l1->param - l2->param;
-}
+}*/
 
 int dnet_generate_ids_by_param(struct dnet_node *n, struct dnet_id *id, enum id_params param, struct dnet_id_param **dst)
 {

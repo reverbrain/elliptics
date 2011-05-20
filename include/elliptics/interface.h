@@ -363,6 +363,8 @@ struct dnet_config
 
 	/* Metadata directory path. */
 	char			history_env[1024];
+	/* Temporary metadata for CHECK process directory path */
+	char			temp_meta_env[1024];
 
 	/* Namespace */
 	char			*ns;
@@ -371,6 +373,7 @@ struct dnet_config
 	/* IO nice parameters for background operations */
 	int			bg_ionice_class;
 	int			bg_ionice_prio;
+	int			removal_delay;
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);
@@ -747,6 +750,17 @@ struct dnet_metadata_control {
 	uint64_t			update_flags;
 	struct timespec			ts;
 };
+
+/*
+ * Reads meta of given file from the storage. If there are multiple transformation functions,
+ * they will be tried one after another.
+ *
+ * If @id is set, it is used as a main object ID, otherwise @remote transformation
+ * is used as object ID.
+ *
+ * Returns negative error value in case of error.
+ */
+int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc, void *remote, unsigned int remote_len, struct dnet_id *id);
 
 /*
  * Modify or search metadata in meta object. Data must be realloc()able.
