@@ -363,6 +363,8 @@ struct dnet_config
 
 	/* Metadata directory path. */
 	char			history_env[1024];
+	/* Temporary metadata for CHECK process directory path */
+	char			temp_meta_env[1024];
 
 	/* Namespace */
 	char			*ns;

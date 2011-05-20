@@ -42,18 +42,26 @@ static __attribute__((noreturn)) void dnet_db_fatal_error(struct dnet_node *n, K
 	exit(err);
 }
 
-int dnet_db_read_raw(struct dnet_node *n, unsigned char *id, void **datap)
+int dnet_db_read_raw(struct dnet_node *n, unsigned char *id, void **datap, int temp_meta)
 {
 	int err;
 	size_t size;
 	KCDB *db = n->meta;
+	char *dbf = "meta";
 	void *data;
+
+	if (temp_meta) {
+		db = n->temp_meta.db;
+		dbf = "temp_meta";
+	}
 
 	data = kcdbget(db, (void *)id, DNET_ID_SIZE, &size);
 	if (!data) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: raw read failed "
-			"err: %d: %s.\n", dnet_dump_id_str(id),
+		if (temp_meta && err == -KCENOREC)
+			return 0;
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: '%s' raw read failed "
+			"err: %d: %s.\n", dnet_dump_id_str(id), dbf,
 			err, kcecodename(-err));
 		goto err_out_exit;
 	}
@@ -72,7 +80,7 @@ int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io
 	int err;
 	void *data;
 
-	err = dnet_db_read_raw(n, io->id, &data);
+	err = dnet_db_read_raw(n, io->id, &data, 0);
 	if (err <= 0)
 		return err;
 
@@ -80,6 +88,40 @@ int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io
 	err = dnet_send_read_data(st, cmd, io, data, -1, 0);
 	kcfree(data);
 
+	return err;
+}
+
+int dnet_db_write_notrans(struct dnet_node *n, struct dnet_id *id, void *data, unsigned int size, int append, int temp_meta)
+{
+	int ret;
+	KCDB *db = n->meta;
+	char *dbf = "meta";
+	int err;
+
+	if (temp_meta) {
+		db = n->temp_meta.db;
+		dbf = "temp_meta";
+	}
+
+	if (append) {
+		ret = kcdbappend(db, (void *)id->id, DNET_ID_SIZE, data, size);
+	} else {
+		ret = kcdbset(db, (void *)id->id, DNET_ID_SIZE, data, size);
+	}
+
+	if (!ret) {
+		err = -kcdbecode(db);
+		dnet_log(n, DNET_LOG_ERROR, "%s: DB: %s: failed to store %u bytes: %s [%d]\n", dnet_dump_id(id), dbf,
+				size, kcecodename(-err), err);
+		goto err_out_exit;
+	}
+
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: DB: %s: stored %u bytes.\n",
+			dnet_dump_id(id), dbf, size);
+
+	return 0;
+
+err_out_exit:
 	return err;
 }
 
@@ -222,13 +264,13 @@ int dnet_db_check_update(struct dnet_node *n, struct dnet_meta_container *mc)
 	struct dnet_meta *m, *tmp = NULL;
 	struct dnet_meta_check_status *c;
 	struct timeval tv;
-	int err;
+	int err = 0;
 
 	m = dnet_meta_search(n, mc, DNET_META_CHECK_STATUS);
 	if (!m) {
-		tmp = (struct dnet_meta *)malloc(sizeof(struct dnet_meta) + sizeof(struct dnet_meta_check_status));
-		if (!tmp)
-			return -ENOMEM;
+
+		tmp = mc->data + mc->size;
+		mc->size += sizeof(struct dnet_meta) + sizeof(struct dnet_meta_check_status);
 
 		memset(tmp, 0, sizeof(*tmp));
 		tmp->size = sizeof(struct dnet_meta_check_status);
@@ -247,13 +289,6 @@ int dnet_db_check_update(struct dnet_node *n, struct dnet_meta_container *mc)
 	c->status = 0;
 
 	dnet_convert_meta_check_status(c);
-
-	if (tmp) {
-		err = dnet_db_write_trans(n, &mc->id, (void *)tmp, tmp->size + sizeof(struct dnet_meta), 1);
-		free(tmp);
-	} else {
-		err = dnet_db_write_trans(n, &mc->id, mc->data, mc->size, 0);
-	}
 
 	return err;
 }
@@ -396,7 +431,7 @@ static void *dnet_db_list_iter(void *data)
 				struct dnet_id *id = &ids[ctl->obj_pos];
 
 				dnet_convert_id(id);
-				err = dnet_db_read_raw(n, id->id, &dbuf);
+				err = dnet_db_read_raw(n, id->id, &dbuf, 0);
 				if (err < 0) {
 					dnet_log(n, DNET_LOG_ERROR, "%s: CHECK: there is no object on given node.\n", dnet_dump_id_str(id->id));
 					dbuf = NULL;
@@ -424,7 +459,7 @@ static void *dnet_db_list_iter(void *data)
 			break;
 		}
 
-		if (sizeof(struct dnet_meta_container) + dsize > buf_size) {
+		if (dsize + sizeof(struct dnet_meta_check_status) > buf_size) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: CHECK: cursor returned too big data chunk: data_size: %zu, max_size: %zu.\n",
 					dnet_dump_id_str(key), sizeof(struct dnet_meta_container) + dsize, buf_size);
 			err = -EINVAL;
@@ -486,8 +521,6 @@ static void *dnet_db_list_iter(void *data)
 
 			if (!dry_run) {
 				err = dnet_check(n, &mc, &bulk_array, check_type);
-				//if (err >= 0 && check_copies)
-				//	err = dnet_db_check_update(n, &mc);
 			}
 
 			dnet_log_raw(n, DNET_LOG_NOTICE, "CHECK: complete key: %s, timestamp: %lld [%s], check_copies: %d, only_merge: %d, dry: %d, size: %u, err: %d.\n",
@@ -558,6 +591,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	pthread_t *tid;
 	char ctl_time[64];
 	struct tm tm;
+	char temp_meta_path[strlen(n->temp_meta_env) + 128];
 
 	if (n->check_in_progress)
 		return -EINPROGRESS;
@@ -610,9 +644,34 @@ again:
 	}
 	kccurjump(ctl.cursor);
 
+	sprintf(temp_meta_path, "%s/temp_meta.kch", n->temp_meta_env);
+	err = unlink(temp_meta_path);
+	if (err && err != -EPERM) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: CHECK: unable to unlink temporary meta file %s, err: %d\n",
+				dnet_dump_id(&cmd->id), temp_meta_path, err);
+		goto err_out_close_cursor;
+	}
+
+	sprintf(temp_meta_path, "%s/temp_meta.kch#bnum=%d", n->temp_meta_env, (int)kcdbcount(n->meta));
+	dnet_log_raw(n, DNET_LOG_DSA, "CHECK: opening temporary DB %s\n", temp_meta_path);
+	n->temp_meta.db = kcdbnew();
+	if (!n->temp_meta.db) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: CHECK: unable to create db handler\n", dnet_dump_id(&cmd->id));
+		goto err_out_close_cursor;
+	}
+
+	err = kcdbopen(n->temp_meta.db, temp_meta_path, KCOCREATE | KCOWRITER | KCOTRUNCATE);
+	if (!err) {
+		err = -kcdbecode(n->temp_meta.db);
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: CHECK: unable to open temporary meta file %s, err: %d\n",
+				dnet_dump_id(&cmd->id), temp_meta_path, err);
+		goto err_out_close_cursor;
+	}
+	dnet_db_ptr_get(&n->temp_meta);
+
 	err = pthread_mutex_init(&ctl.lock, NULL);
 	if (err)
-		goto err_out_close_cursor;
+		goto err_out_close_meta;
 
 	for (i=0; i<req.thread_num; ++i) {
 		err = pthread_create(&tid[i], NULL, dnet_db_list_iter, &ctl);
@@ -656,6 +715,8 @@ err_out_join:
 	dnet_db_send_check_reply(&ctl);
 
 	pthread_mutex_destroy(&ctl.lock);
+err_out_close_meta:
+	dnet_db_ptr_put(n, &n->temp_meta);
 err_out_close_cursor:
 	kccurdel(ctl.cursor);
 err_out_free:
@@ -717,6 +778,9 @@ int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg)
 
 	/* Do not allow database truncation */
 	cfg->db_flags &= ~KCOTRUNCATE;
+
+	atomic_init(&n->temp_meta.refcnt, 0);
+	n->temp_meta.db = NULL;
 
 	snprintf(path, sizeof(path), "%s/%s.kch#bnum=%llu#msiz=%llu", cfg->history_env, "meta", cfg->db_buckets, cfg->db_map);
 	n->meta = db_backend_open(n, path, cfg->db_flags);
