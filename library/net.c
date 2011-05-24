@@ -909,12 +909,18 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	dnet_schedule_command(st);
 	st->__join_state = join;
 
+	/*
+	 * it is possible that state can be removed after inserted into route table,
+	 * so we should grab a reference here and drop it after we are done
+	 */
+	dnet_state_get(st);
+
 	if (ids && id_num) {
 		err = dnet_idc_create(st, group_id, ids, id_num);
 		if (err)
 			goto err_out_send_destroy;
 
-		if (st->__join_state == DNET_JOIN) {
+		if ((st->__join_state == DNET_JOIN) && n->st) {
 			pthread_mutex_lock(&n->state_lock);
 			err = dnet_state_join_nolock(st);
 			pthread_mutex_unlock(&n->state_lock);
@@ -930,12 +936,23 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		pthread_mutex_unlock(&n->state_lock);
 	}
 
+	if (atomic_read(&st->refcnt) == 1) {
+		err = st->need_exit;
+		if (!err)
+			err = -ECONNRESET;
+	}
+	dnet_state_put(st);
+
+	if (err)
+		goto err_out_exit;
+
 	return st;
 
 err_out_unlock:
 	list_del_init(&st->state_entry);
 	pthread_mutex_unlock(&n->state_lock);
 err_out_send_destroy:
+	dnet_state_put(st);
 	pthread_mutex_destroy(&st->send_lock);
 err_out_trans_destroy:
 	pthread_mutex_destroy(&st->trans_lock);
@@ -946,6 +963,7 @@ err_out_free:
 err_out_close:
 	dnet_sock_close(s);
 
+err_out_exit:
 	if (err == -EEXIST)
 		dnet_log(n, DNET_LOG_ERROR, "%s: state already exists.\n", dnet_server_convert_dnet_addr(addr));
 	*errp = err;

@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
 		sleep(1);
 
 	if (writef) {
-		err = dnet_write_file(n, writef, writef, strlen(writef), NULL, offset, size, 0);
+		err = dnet_write_file(n, writef, writef, strlen(writef), NULL, offset, size, DNET_ATTR_DIRECT_TRANSACTION);
 		if (err)
 			return err;
 	}

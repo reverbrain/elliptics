@@ -119,7 +119,7 @@ static void elliptics_extract_id(const struct elliptics_id &e, struct dnet_id &i
 
 	memset(id.id, 0, sizeof(id.id));
 
-	if (length > sizeof(id.id))
+	if (length > (int)sizeof(id.id))
 		length = sizeof(id.id);
 
 	for (int i=0; i<length; ++i)
@@ -241,6 +241,17 @@ class elliptics_node_python : public elliptics_node {
 							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
 			return elliptics_node::write_data_wait((std::string &)remote, (std::string &)data, aflags, ioflags);
 		}
+
+		std::string lookup_addr_by_data_transform(const std::string &remote, const int group_id) {
+			return elliptics_node::lookup_addr(remote, group_id);
+		}
+
+		std::string lookup_addr_by_id(const struct elliptics_id &id) {
+			struct dnet_id raw;
+			elliptics_extract_id(id, raw);
+
+			return elliptics_node::lookup_addr(raw);
+		}
 };
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
@@ -285,7 +296,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("write_data", &elliptics_node_python::write_data_by_id, write_data_by_id_overloads())
 		.def("write_data", &elliptics_node_python::write_data_by_data_transform, write_data_by_data_transform_overloads())
 
-		.def("lookup_addr", &elliptics_node::lookup_addr)
+		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_data_transform)
+		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_id)
 		.def("write_metadata", &elliptics_node_python::write_metadata)
 	;
 };

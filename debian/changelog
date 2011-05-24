@@ -1,3 +1,58 @@
+elliptics (2.9.6.171) unstable; urgency=low
+
+  * Request statistics to sync route table update in dnet_meta
+  * Periodically request route table in dnet_check_process()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 20 May 2011 01:20:06 +0400
+
+elliptics (2.9.6.170) unstable; urgency=low
+
+  * Force depending on eblob >= 0.2.0
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 19 May 2011 17:58:23 +0400
+
+elliptics (2.9.6.169) unstable; urgency=low
+
+  * We should grab state reference, since state can be killed between
+    dnet_idc_create() and dnet_state_join_nolock()
+  * Optimize checksum verification: do not calculate it twice in lookup. Read
+    metadata checksum first, and only calculate on-disk csum if metadata csum
+    exists
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 18 May 2011 18:25:16 +0400
+
+elliptics (2.9.6.168) unstable; urgency=low
+
+  * Verify checksum for all lookup and read requests. Added flag to disable
+    checksum.
+  * Put object checksum into dnet_file_info structure
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 17 May 2011 21:49:28 +0400
+
+elliptics (2.9.6.167) unstable; urgency=low
+
+  * Store checksum for written objects. Checksum is calculated each time
+    metadata is written.
+  * Added RW/RO and exit status as well as interface to set node status.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 16 May 2011 21:01:52 +0400
+
+elliptics (2.9.6.166) unstable; urgency=low
+
+  * Extended lookup response with file-info data.
+  * Added possibility to lookup addr by ID
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 14 May 2011 02:23:18 +0400
+
+elliptics (2.9.6.165) unstable; urgency=low
+
+  * Unify IO logs
+  * Prepend size and timestamp if needed when generating eblob from tar files
+  * Return -E2BIG error when filesize 0 and we want to read more than that
+  * Enable compiler flags for g++, fixed -W generated warnings in cpp binding
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 12 May 2011 22:33:27 +0400
+
 elliptics (2.9.6.164) unstable; urgency=low
 
   * Increase default stack size to 4mb

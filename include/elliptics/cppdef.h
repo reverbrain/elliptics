@@ -160,6 +160,7 @@ class elliptics_node {
 							unsigned int aflags = 0, unsigned int ioflags = 0);
 
 		std::string		lookup_addr(const std::string &remote, const int group_id);
+		std::string		lookup_addr(const struct dnet_id &id);
 
 		int			write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups, const struct timespec &ts);
 

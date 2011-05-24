@@ -386,26 +386,6 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	return found;
 }
 
-int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp, struct dnet_addr *addr)
-{
-	struct dnet_state_id *sid;
-	int err = -ENOENT;
-
-	pthread_mutex_lock(&n->state_lock);
-	sid = __dnet_state_search_id(n, id);
-	if (sid) {
-		err = 0;
-		memcpy(sidp, sid, sizeof(struct dnet_state_id));
-
-		if (addr) {
-			memcpy(addr, &sid->idc->st->addr, sizeof(struct dnet_addr));
-		}
-	}
-	pthread_mutex_unlock(&n->state_lock);
-
-	return err;
-}
-
 struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, struct dnet_id *id)
 {
 	struct dnet_net_state *found;
@@ -598,7 +578,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	sigemptyset(&sig);
 	sigaddset(&sig, SIGPIPE);
 
-	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->command_handler || !cfg->send)) {
+	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->command_handler || !cfg->send || !cfg->checksum)) {
 		err = -EINVAL;
 		if (cfg->log && cfg->log->log)
 			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Joining node has to register "
@@ -641,9 +621,12 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->sock_type = cfg->sock_type;
 	n->family = cfg->family;
 	n->wait_ts.tv_sec = cfg->wait_timeout;
+
 	n->command_handler = cfg->command_handler;
 	n->command_private = cfg->command_private;
 	n->send = cfg->send;
+	n->checksum = cfg->checksum;
+
 	n->storage_stat = cfg->storage_stat;
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;

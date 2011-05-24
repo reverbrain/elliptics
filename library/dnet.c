@@ -33,50 +33,18 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-int dnet_transform(struct dnet_node *n, void *src, uint64_t size, struct dnet_id *id)
+int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, void *data, uint64_t size)
 {
-	unsigned int dsize = sizeof(id->id);
 	struct dnet_transform *t = &n->transform;
 
-	return t->transform(t->priv, src, size, id->id, &dsize, 0);
+	return t->transform(t->priv, data, size, csum, (unsigned int *)csize, 0);
 }
 
-static int dnet_lookup_reply(struct dnet_net_state *st, struct dnet_id *id, uint64_t trans,
-		unsigned int aflags, struct dnet_addr *addr, int status)
+int dnet_transform(struct dnet_node *n, void *src, uint64_t size, struct dnet_id *id)
 {
-	struct dnet_addr_cmd *c;
-	int err;
+	int dsize = sizeof(id->id);
 
-	c = malloc(sizeof(struct dnet_addr_cmd));
-	if (!c)
-		return -ENOMEM;
-
-	memset(c, 0, sizeof(struct dnet_addr_cmd));
-
-	memcpy(&c->cmd.id, id, sizeof(struct dnet_id));
-	c->cmd.size = sizeof(struct dnet_addr_cmd) - sizeof(struct dnet_cmd);
-	c->cmd.status = status;
-	c->cmd.trans = trans | DNET_TRANS_REPLY;
-
-	c->a.cmd = DNET_CMD_LOOKUP;
-	c->a.size = sizeof(struct dnet_addr_cmd) - sizeof(struct dnet_cmd) - sizeof(struct dnet_attr);
-	c->a.flags = aflags;
-
-	memcpy(&c->addr.addr, addr, sizeof(struct dnet_addr));
-	c->addr.family = st->n->family;
-	c->addr.sock_type = st->n->sock_type;
-	c->addr.proto = st->n->proto;
-
-	dnet_log(st->n, DNET_LOG_DSA, "%s: sending address %s: trans: %llu, aflags: %x.\n",
-			dnet_dump_id(id), dnet_server_convert_dnet_addr(addr),
-			(unsigned long long)trans, aflags);
-
-	dnet_convert_addr_cmd(c);
-
-	err = dnet_send(st, c, sizeof(struct dnet_addr_cmd));
-	free(c);
-
-	return err;
+	return dnet_checksum_data(n, id->id, &dsize, src, size);
 }
 
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
@@ -132,33 +100,6 @@ int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 
 err_out_exit:
 	return err;
-}
-
-static int dnet_cmd_lookup(struct dnet_net_state *orig, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data __unused)
-{
-	struct dnet_node *n = orig->n;
-	struct dnet_state_id sid;
-	struct dnet_id raw;
-	int err;
-	unsigned int aflags = 0;
-	struct dnet_addr addr;
-
-	err = dnet_state_search_id(n, &cmd->id, &sid, &addr);
-	if (!err) {
-		if (attr->flags & DNET_ATTR_LOOKUP_STAT) {
-			err = dnet_stat_local(orig, &cmd->id);
-			dnet_log(n, DNET_LOG_DSA, "%s: object is stored locally: %s.\n", dnet_dump_id(&cmd->id), err ? "no" : "yes");
-			if (!err)
-				aflags = attr->flags;
-		}
-	} else {
-		memset(sid.raw.id, 0, DNET_ID_SIZE);
-	}
-
-	dnet_setup_id(&raw, cmd->id.group_id, sid.raw.id);
-
-	return dnet_lookup_reply(orig, &raw, cmd->trans, aflags, &addr, err);
 }
 
 static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
@@ -599,12 +540,35 @@ static char *dnet_counter_string(int cntr, int cmd_num)
 	return dnet_counter_strings[cntr];
 }
 
+static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, struct dnet_attr *attr)
+{
+	struct dnet_node *n = orig->n;
+
+	if (attr->flags & DNET_STATUS_EXIT) {
+		dnet_set_need_exit(n);
+		return 0;
+	}
+
+	if (attr->flags & DNET_STATUS_RO) {
+		n->ro = 1;
+		return 0;
+	}
+
+	if (attr->flags & DNET_STATUS_RW) {
+		n->ro = 0;
+		return 0;
+	}
+
+	return -ENOTSUP;
+}
+
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	int err = 0;
 	unsigned long long size = cmd->size;
 	struct dnet_node *n = st->n;
 	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
+	struct dnet_io_attr *io;
 	struct timeval start, end;
 	long diff;
 
@@ -635,8 +599,8 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		}
 
 		switch (a->cmd) {
-			case DNET_CMD_LOOKUP:
-				err = dnet_cmd_lookup(st, cmd, a, data);
+			case DNET_CMD_STATUS:
+				err = dnet_cmd_status(st, cmd, a);
 				break;
 			case DNET_CMD_REVERSE_LOOKUP:
 				err = dnet_cmd_reverse_lookup(st, cmd, a, data);
@@ -671,15 +635,23 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					err = dnet_notify_remove(st, cmd, a);
 				break;
 			case DNET_CMD_LIST:
-				if (a->flags & DNET_ATTR_BULK_CHECK) {
-					err = dnet_cmd_bulk_check(st, cmd, a, data);
+				if (n->ro) {
+					err = -EROFS;
 				} else {
-					err = dnet_db_list(st, cmd, a);
+					if (a->flags & DNET_ATTR_BULK_CHECK)
+						err = dnet_cmd_bulk_check(st, cmd, a, data);
+					else
+						err = dnet_db_list(st, cmd, a);
 				}
 				break;
 			case DNET_CMD_READ:
 			case DNET_CMD_WRITE:
 			case DNET_CMD_DEL:
+				if (n->ro && ((a->cmd == DNET_CMD_DEL) || (a->cmd == DNET_CMD_WRITE))) {
+					err = -EROFS;
+					break;
+				}
+
 				if (a->cmd == DNET_CMD_DEL) {
 					err = dnet_db_del(n, cmd, a);
 					dnet_log(n, DNET_LOG_DSA, "after dnet_db_del err=%d\n", err);
@@ -688,8 +660,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 					/* if positive value returned we will delete data object */
 				} else {
-					struct dnet_io_attr *io;
-
 					if (a->size < sizeof(struct dnet_io_attr)) {
 						dnet_log(n, DNET_LOG_ERROR,
 							"%s: wrong read attribute, size does not match "
@@ -708,6 +678,12 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 							err = dnet_db_read(st, cmd, io);
 						} else if (a->cmd == DNET_CMD_WRITE) {
 							err = dnet_db_write(n, cmd, io);
+							if (!err) {
+								struct dnet_id raw;
+								dnet_setup_id(&raw, cmd->id.group_id, io->id);
+
+								err = dnet_meta_update_checksum(n, &raw);
+							}
 						} else
 							err = -EINVAL;
 						break;
@@ -716,6 +692,16 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					dnet_convert_io_attr(io);
 				}
 			default:
+				if (a->cmd == DNET_CMD_READ) {
+					if (!(a->flags & DNET_ATTR_NOCSUM)) {
+						io = data;
+
+						err = dnet_verify_checksum_io(n, io->id, NULL, NULL);
+						if (err && (err != -ENODATA))
+							break;
+					}
+				}
+
 				err = n->command_handler(st, n->command_private, cmd, a, data);
 				if (err || (a->cmd != DNET_CMD_WRITE))
 					break;
@@ -913,7 +899,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_recv_route_list(struct dnet_net_state *st)
+int dnet_recv_route_list(struct dnet_net_state *st)
 {
 	struct dnet_io_req req;
 	struct dnet_node *n = st->n;
@@ -2038,6 +2024,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 	memcpy(&cmd->id, id, sizeof(struct dnet_id));
 	cmd->size = sizeof(struct dnet_attr);
 	cmd->status = 0;
+	cmd->flags = DNET_FLAGS_NEED_ACK;
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
@@ -2056,8 +2043,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 	dnet_convert_cmd(cmd);
 	dnet_convert_attr(a);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: %s lookup to %s.\n", dnet_dump_id(id),
-		(a->flags) ? "stat" : "plain", dnet_server_convert_dnet_addr(&t->st->addr));
+	dnet_log(n, DNET_LOG_NOTICE, "%s: lookup to %s.\n", dnet_dump_id(id), dnet_server_convert_dnet_addr(&t->st->addr));
 
 	memset(&req, 0, sizeof(req));
 	req.st = t->st;
@@ -2087,6 +2073,7 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_node *n = NULL;
 	struct dnet_addr_attr *a;
 	struct dnet_net_state *other;
+	char addr_str[128] = "no-address";
 	int err;
 
 	if (is_trans_destroyed(st, cmd, attr)) {
@@ -2100,8 +2087,8 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	if (err || !cmd->size || !attr)
 		goto err_out_exit;
 
-	if (attr->size != sizeof(struct dnet_addr_attr)) {
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: wrong dnet_addr attribute size %llu, must be %zu.\n",
+	if (attr->size < sizeof(struct dnet_addr_attr)) {
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: wrong dnet_addr attribute size %llu, must be at least %zu.\n",
 				dnet_dump_id(&cmd->id), (unsigned long long)attr->size, sizeof(struct dnet_addr_attr));
 		err = -EINVAL;
 		goto err_out_exit;
@@ -2110,6 +2097,23 @@ int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	a = (struct dnet_addr_attr *)(attr + 1);
 
 	dnet_convert_addr_attr(a);
+	dnet_server_convert_dnet_addr_raw(&a->addr, addr_str, sizeof(addr_str));
+
+	if (attr->size > sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info)) {
+		struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
+
+		dnet_convert_file_info(info);
+
+		dnet_log_raw(n, DNET_LOG_NOTICE, "%s: lookup object: %s: "
+				"offset: %llu, size: %llu, mode: %llo, path: %s\n",
+			dnet_dump_id(&cmd->id), addr_str,
+			(unsigned long long)info->offset, (unsigned long long)info->size,
+			(unsigned long long)info->mode, (char *)(info + 1));
+	} else {
+		dnet_log_raw(n, DNET_LOG_INFO, "%s: lookup object: %s\n",
+			dnet_dump_id(&cmd->id), addr_str);
+	}
+
 
 	other = dnet_state_search_by_addr(n, &a->addr);
 	if (other) {
@@ -2446,6 +2450,69 @@ int dnet_request_cmd(struct dnet_node *n, struct dnet_trans_control *ctl)
 
 err_out_free:
 	free(p);
+err_out_exit:
+	return err;
+}
+
+static int dnet_update_status_complete(struct dnet_net_state *state,
+		struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
+{
+	struct dnet_wait *w = priv;
+
+	if (is_trans_destroyed(state, cmd, attr)) {
+		dnet_wakeup(w, w->cond++);
+		dnet_wait_put(w);
+	}
+
+	return 0;
+}
+
+int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr, struct dnet_id *id, unsigned int status)
+{
+	int err;
+	struct dnet_wait *w;
+	struct dnet_trans_control ctl;
+
+	if (!id && !addr) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	if (id) {
+		memcpy(&ctl.id, id, sizeof(struct dnet_id));
+	} else {
+		struct dnet_net_state *st;
+
+		st = dnet_state_search_by_addr(n, addr);
+		if (!st) {
+			err = -ENOENT;
+			goto err_out_exit;
+		}
+
+		dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
+		dnet_state_put(st);
+	}
+
+	w = dnet_wait_alloc(0);
+	if (!w) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	ctl.complete = dnet_update_status_complete;
+	ctl.priv = w;
+	ctl.cmd = DNET_CMD_STATUS;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.aflags = status;
+
+	dnet_wait_get(w);
+	dnet_request_cmd_single(n, NULL, &ctl);
+
+	err = dnet_wait_event(w, w->cond == 1, &n->wait_ts);
+	dnet_wait_put(w);
+
 err_out_exit:
 	return err;
 }
@@ -3209,16 +3276,19 @@ err_out_exit:
 }
 */
 
-int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, int group_id, char *dst, int dlen)
+int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen)
 {
-	struct dnet_id id;
+	struct dnet_id raw;
 	struct dnet_net_state *st;
 	int err = -ENOENT;
 
-	dnet_transform(n, remote, len, &id);
-	id.group_id = group_id;
+	if (!id) {
+		dnet_transform(n, remote, len, &raw);
+		id = &raw;
+	}
+	id->group_id = group_id;
 
-	st = dnet_state_get_first(n, &id);
+	st = dnet_state_get_first(n, id);
 	if (!st)
 		goto err_out_exit;
 
@@ -3318,4 +3388,118 @@ int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp)
 
 	*groupsp = groups;
 	return group_num;
+}
+
+void dnet_fill_addr_attr(struct dnet_node *n, struct dnet_addr_attr *attr)
+{
+	memcpy(&attr->addr, &n->addr, sizeof(struct dnet_addr));
+
+	attr->sock_type = n->sock_type;
+	attr->family = n->family;
+	attr->proto = n->proto;
+}
+
+int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size)
+{
+	void *data, *csum_data;
+	uint64_t off, sz;
+	long page_size = sysconf(_SC_PAGE_SIZE);
+	int err;
+
+	if (!size) {
+		struct stat st;
+
+		err = fstat(fd, &st);
+		if (err < 0) {
+			err = -errno;
+			dnet_log_err(n, "CSUM: fd: %d", fd);
+			goto err_out_exit;
+		}
+
+		size = st.st_size;
+	}
+
+
+	off = offset & ~(page_size - 1);
+	sz = ALIGN(size + offset - off, page_size);
+
+	data = mmap(NULL, sz, PROT_READ, MAP_SHARED, fd, off);
+	if (data == MAP_FAILED) {
+		err = -errno;
+		dnet_log_err(n, "Failed to map to be csummed file: size: %llu, use: %llu, local offset: %llu, use: %llu",
+				(unsigned long long)size, (unsigned long long)sz,
+				(unsigned long long)offset, (unsigned long long)off);
+		goto err_out_exit;
+	}
+
+	csum_data = data + offset - off;
+
+	err = dnet_checksum_data(n, csum, csize, csum_data, size);
+
+	munmap(data, sz);
+
+err_out_exit:
+	return err;
+}
+
+int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size)
+{
+	int fd, err;
+
+	err = open(file, O_RDONLY);
+	if (err < 0) {
+		err = -errno;
+		dnet_log_err(n, "failed to open to be csummed file '%s'", file);
+		goto err_out_exit;
+	}
+	fd = err;
+
+	err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
+
+	close(fd);
+
+err_out_exit:
+	return err;
+}
+
+int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id, unsigned char *result, int *res_len)
+{
+	struct dnet_id raw;
+	int csize = DNET_CSUM_SIZE;
+	unsigned char csum[csize];
+	struct dnet_meta_checksum mc;
+	char str[csize*2+1];
+	int err;
+
+	dnet_setup_id(&raw, n->id.group_id, id);
+
+	err = dnet_meta_read_checksum(n, &raw, &mc);
+	if (err) {
+		err = -ENODATA;
+		goto err_out_exit;
+	}
+
+	err = n->checksum(n, n->command_private, &raw, csum, &csize);
+	if (err)
+		goto err_out_exit;
+
+	dnet_log(n, DNET_LOG_DSA, "%s: calculated csum: %s\n", dnet_dump_id(&raw), dnet_dump_id_len_raw(csum, csize, str));
+	dnet_log(n, DNET_LOG_DSA, "%s: stored     csum: %s\n", dnet_dump_id(&raw), dnet_dump_id_len_raw(mc.checksum, csize, str));
+
+	if (memcmp(mc.checksum, csum, csize)) {
+		err = -EBADFD;
+		goto err_out_exit;
+	}
+
+	if (result) {
+		if (*res_len > csize)
+			*res_len = csize;
+
+		memcpy(result, csum, *res_len);
+	}
+
+err_out_exit:
+	if (err)
+		dnet_log(n, DNET_LOG_ERROR, "%s: CSUM: verification: failed: %d: %s\n", dnet_dump_id(&raw), err, strerror(-err));
+	return err;
 }

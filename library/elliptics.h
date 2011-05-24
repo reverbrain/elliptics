@@ -162,10 +162,11 @@ void dnet_state_reset(struct dnet_net_state *st);
 void dnet_state_remove_nolock(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
-int dnet_state_search_id(struct dnet_node *n, struct dnet_id *id, struct dnet_state_id *sidp, struct dnet_addr *addr);
 struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id);
 struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, struct dnet_id *id);
 struct dnet_net_state *dnet_node_state(struct dnet_node *n);
+
+int dnet_recv_route_list(struct dnet_net_state *st);
 
 void dnet_state_destroy(struct dnet_net_state *st);
 
@@ -345,6 +346,7 @@ struct dnet_node
 	struct dnet_id		id;
 
 	int			flags;
+	int			ro;
 
 	pthread_attr_t		attr;
 
@@ -388,6 +390,8 @@ struct dnet_node
 			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 	void			*command_private;
 	int			(* send)(void *state, void *priv, struct dnet_id *id);
+	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
+			void *csum, int *csize);
 	int			(* storage_stat)(void *priv, struct dnet_stat *st);
 
 	unsigned int		notify_hash_size;
@@ -659,6 +663,8 @@ struct dnet_meta_update * dnet_get_meta_update(struct dnet_node *n, struct dnet_
 int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t flags_set, uint64_t flags_clear);
 int dnet_db_write_trans(struct dnet_node *n, struct dnet_id *id, void *data, unsigned int size, int append);
 int dnet_db_write_notrans(struct dnet_node *n, struct dnet_id *id, void *data, unsigned int size, int append, int temp_meta);
+
+int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_id *id, struct dnet_meta_checksum *csum);
 
 void dnet_monitor_exit(struct dnet_node *n);
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);

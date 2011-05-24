@@ -76,4 +76,7 @@
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 #endif
 
+/* checksum size, must be enough to store sha512 hash */
+#define DNET_CSUM_SIZE		64
+
 #endif /* __DNET_CORE_H */

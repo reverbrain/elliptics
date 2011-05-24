@@ -18,6 +18,7 @@
 
 #include <sys/time.h>
 #include <arpa/inet.h>
+#include <sys/stat.h>
 
 #include <string.h>
 #include <stdint.h>
@@ -30,7 +31,7 @@ extern "C" {
 #endif
 
 enum dnet_commands {
-	DNET_CMD_LOOKUP = 1,			/* Lookup address by ID */
+	DNET_CMD_LOOKUP = 1,			/* Lookup address by ID and per-object info: size, permissions and so on*/
 	DNET_CMD_REVERSE_LOOKUP,		/* Lookup ID by address */
 	DNET_CMD_JOIN,				/* Join the network - force remote nodes to update
 						 * their route tables to include given node with given
@@ -48,6 +49,7 @@ enum dnet_commands {
 	DNET_CMD_NOTIFY,			/* Notify when object in question was modified */
 	DNET_CMD_DEL,				/* Remove given object from the storage */
 	DNET_CMD_STAT_COUNT,			/* Gather remote per-cmd statistics */
+	DNET_CMD_STATUS,			/* Change elliptics node status */
 
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
@@ -189,9 +191,6 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 
 /* Lookup attribute flags */
 
-/* Stat local object and return state address only if object is readable */
-#define DNET_ATTR_LOOKUP_STAT			(1<<0)
-
 /* Lookup history object instead of data one */
 #define DNET_ATTR_LOOKUP_HISTORY		(1<<1)
 
@@ -200,6 +199,9 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 
 /* Bulk request for checking files */
 #define DNET_ATTR_BULK_CHECK			(1<<0)
+
+/* Do not verify checksum */
+#define DNET_ATTR_NOCSUM			(1<<2)
 
 struct dnet_attr
 {
@@ -290,6 +292,8 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 
 /* Object is a parent object */
 #define DNET_IO_FLAGS_PARENT		(1<<7)
+
+#define DNET_IO_FLAGS_NOCSUM		(1<<8)
 
 struct dnet_io_attr
 {
@@ -482,6 +486,80 @@ static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)
 	else
 		st[cmd].err++;
 }
+
+struct dnet_file_info {
+	int			flen;		/* filename length, which goes after this structure */
+	unsigned char		checksum[DNET_CSUM_SIZE];
+
+	unsigned int		nlink;
+
+	uint64_t		mode;
+
+	uint64_t		dev;
+	uint64_t		rdev;
+
+	uint64_t		ino;
+
+	uint64_t		uid;
+	uint64_t		gid;
+
+	uint64_t		blksize;
+	uint64_t		blocks;
+
+	uint64_t		size;
+	uint64_t		offset;		/* offset within eblob */
+
+	uint64_t		atime;
+	uint64_t		ctime;
+	uint64_t		mtime;
+};
+
+static inline void dnet_convert_file_info(struct dnet_file_info *info)
+{
+	info->flen = dnet_bswap32(info->flen);
+	info->nlink = dnet_bswap32(info->nlink);
+
+	info->mode = dnet_bswap64(info->mode);
+	info->dev = dnet_bswap64(info->dev);
+	info->ino = dnet_bswap64(info->ino);
+	info->uid = dnet_bswap64(info->uid);
+	info->gid = dnet_bswap64(info->gid);
+	info->blksize = dnet_bswap64(info->blksize);
+	info->blocks = dnet_bswap64(info->blocks);
+	info->rdev = dnet_bswap64(info->rdev);
+	info->size = dnet_bswap64(info->size);
+	info->offset = dnet_bswap64(info->offset);
+	info->atime = dnet_bswap64(info->atime);
+	info->ctime = dnet_bswap64(info->ctime);
+	info->mtime = dnet_bswap64(info->mtime);
+}
+
+static inline void dnet_info_from_stat(struct dnet_file_info *info, struct stat *st)
+{
+	info->nlink = st->st_nlink;
+	info->mode = st->st_mode;
+	info->dev = st->st_dev;
+	info->ino = st->st_ino;
+	info->uid = st->st_uid;
+	info->gid = st->st_gid;
+	info->blksize = st->st_blksize;
+	info->blocks = st->st_blocks;
+	info->rdev = st->st_rdev;
+	info->size = st->st_size;
+	info->offset = 0;
+	info->atime = st->st_atime;
+	info->ctime = st->st_ctime;
+	info->mtime = st->st_mtime;
+}
+
+/* Elliptics node status */
+
+/* Elliptics node should exit */
+#define DNET_STATUS_EXIT		(1<<0)
+
+/* Ellipitcs node goes ro/rw */
+#define DNET_STATUS_RO			(1<<1)
+#define DNET_STATUS_RW			(1<<2)
 
 #ifdef __cplusplus
 }

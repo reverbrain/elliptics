@@ -35,7 +35,7 @@ static __attribute__((noreturn)) void dnet_db_fatal_error(struct dnet_node *n, K
 
 
 	if (n) {
-		dnet_log(n, DNET_LOG_ERROR, "DB: exiting on fatal error: %d: %s\n",
+		dnet_log(n, DNET_LOG_ERROR, "exit: DB: IO: fatal: err: %d: %s\n",
 				err, kcecodename(-err));
 	}
 
@@ -197,7 +197,7 @@ static int db_del_direct_trans(struct dnet_node *n, struct dnet_id *id)
 	ret = kcdbbegintran(db, 1);
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to start %s remove transaction, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: %s: remove-transaction: %d: %s\n",
 			dnet_dump_id(id), dbname, err, kcecodename(-err));
 		goto err_out_exit;
 	}
@@ -205,7 +205,7 @@ static int db_del_direct_trans(struct dnet_node *n, struct dnet_id *id)
 	ret = kcdbremove(db, (void *)id->id, DNET_ID_SIZE);
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: failed to remove %s object, err: %d: %s.\n",
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: DB: %s: REMOVE: %d: %s\n",
 			dnet_dump_id(id), dbname, err, kcecodename(-err));
 	}
 	kcdbendtran(db, ret);
@@ -769,7 +769,7 @@ static KCDB *db_backend_open(struct dnet_node *n, char *dbfile, int flags)
 	ret = kcdbopen(db, dbfile, KCOWRITER | KCOCREATE | flags);
 	if (!ret) {
 		err = -kcdbecode(db);
-		dnet_log_raw(n, DNET_LOG_ERROR, "DB: failed to open '%s' database, err: %d %s\n", dbfile, err, kcecodename(-err));
+		dnet_log_raw(n, DNET_LOG_ERROR, "start: DB: %s: OPEN: %d %s\n", dbfile, err, kcecodename(-err));
 		goto err_out_close;
 	}
 

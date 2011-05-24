@@ -351,7 +351,7 @@ std::string elliptics_node::lookup_addr(const std::string &remote, const int gro
 {
 	char buf[128];
 
-	int err = dnet_lookup_addr(node, (void *)remote.data(), remote.size(), group_id, buf, sizeof(buf));
+	int err = dnet_lookup_addr(node, (void *)remote.data(), remote.size(), NULL, group_id, buf, sizeof(buf));
 	if (err < 0) {
 		std::ostringstream str;
 		str << "Failed to lookup in group " << group_id << ": key size: " << remote.size() << ", err: " << err;
@@ -360,6 +360,21 @@ std::string elliptics_node::lookup_addr(const std::string &remote, const int gro
 
 	return std::string((const char *)buf, strlen(buf));
 }
+
+std::string elliptics_node::lookup_addr(const struct dnet_id &id)
+{
+	char buf[128];
+
+	int err = dnet_lookup_addr(node, NULL, 0, (struct dnet_id *)&id, id.group_id, buf, sizeof(buf));
+	if (err < 0) {
+		std::ostringstream str;
+		str << "Failed to lookup " << dnet_dump_id(&id) << ": err: " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	return std::string((const char *)buf, strlen(buf));
+}
+
 
 int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups, const struct timespec &ts)
 {
@@ -394,7 +409,7 @@ void elliptics_node::transform(const std::string &data, struct dnet_id &id)
 
 void elliptics_node::lookup(const struct dnet_id &id, const elliptics_callback &c)
 {
-	int err = dnet_lookup_object(node, (struct dnet_id *)&id, DNET_ATTR_LOOKUP_STAT,
+	int err = dnet_lookup_object(node, (struct dnet_id *)&id, 0,
 			elliptics_callback::elliptics_complete_callback,
 			(void *)&c);
 
@@ -458,23 +473,30 @@ std::string elliptics_node::lookup(const std::string &data)
 			lookup(id, l);
 			ret = l.wait();
 
-			if (ret.size() <= sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)) {
+			if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)) {
 				std::stringstream str;
 
-				str << dnet_dump_id(&id) << " : failed to receive lookup request";
+				str << dnet_dump_id(&id) << ": failed to receive lookup request";
 				throw std::runtime_error(str.str());
 			}
-
+#if 0
 			struct dnet_addr *addr = (struct dnet_addr *)ret.data();
 			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
 			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
 
-			if (attr->flags) {
-				error = 0;
-				break;
+			if (attr->size > sizeof(struct dnet_addr_attr)) {
+				struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+				struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
+
+				dnet_convert_addr_attr(a);
+				dnet_convert_file_info(info);
 			}
+#endif
+			dnet_log_raw(node, DNET_LOG_DSA, "%s: %s: %u bytes\n", dnet_dump_id(&id), data.c_str(), ret.size());
+			error = 0;
+			break;
 		} catch (const std::exception &e) {
-			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), data.c_str());
+			dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s : %s\n", dnet_dump_id(&id), e.what(), data.c_str());
 			continue;
 		}
 	}
@@ -537,7 +559,7 @@ std::string elliptics_node::stat_log()
 	int err;
 
 	err = dnet_request_stat(node, NULL, DNET_CMD_STAT, 0,
-		elliptics_callback::elliptics_complete_callback, (void *)l);
+		elliptics_callback::elliptics_complete_callback, (void *)&c);
 	if (err < 0) {
 		std::ostringstream str;
 		str << "Failed to request statistics: " << err;

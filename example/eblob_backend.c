@@ -62,10 +62,13 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 
 	err = eblob_write_data(c->data_blob, io->id, DNET_ID_SIZE,
 			data, io->size, BLOB_DISK_CTL_NOCSUM);
-	if (err)
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: WRITE: %d: %s\n",
+			dnet_dump_id_str(io->id), err, strerror(-err));
 		goto err_out_exit;
+	}
 
-	dnet_backend_log(DNET_LOG_NOTICE, "blob: %s: IO offset: %llu, size: %llu.\n",
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: 0: offset: %llu, size: %llu.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size);
 
 	return 0;
@@ -88,8 +91,8 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 	err = eblob_read(b, io->id, DNET_ID_SIZE, &fd, &offset, &size);
 	if (err) {
-		dnet_backend_log(DNET_LOG_ERROR, "%s: failed to lookup requested key: %d.\n",
-				dnet_dump_id_str(io->id), err);
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read: READ: %d: %s\n",
+			dnet_dump_id_str(io->id), err, strerror(-err));
 		goto err_out_exit;
 	}
 
@@ -107,7 +110,14 @@ err_out_exit:
 
 static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 {
-	return eblob_remove(c->data_blob, cmd->id.id, DNET_ID_SIZE);
+	int err = eblob_remove(c->data_blob, cmd->id.id, DNET_ID_SIZE);
+
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del: REMOVE: %d: %s\n",
+			dnet_dump_id_str(cmd->id.id), err, strerror(-err));
+	}
+
+	return err;
 }
 
 static int eblob_send(void *state, void *priv, struct dnet_id *id)
@@ -130,6 +140,88 @@ err_out_exit:
 	return err;
 }
 
+static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
+{
+	struct eblob_backend_config *c = priv;
+	struct eblob_backend *b = c->data_blob;
+	uint64_t offset, size;
+	int fd, index, err;
+
+	err = eblob_read_file_index(b, id->id, DNET_ID_SIZE, &fd, &offset, &size, &index);
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read-index: %d: %s.\n",
+				dnet_dump_id(id), err, strerror(errno));
+		goto err_out_exit;
+	}
+
+	offset += sizeof(struct eblob_disk_control);
+
+	err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
+
+err_out_exit:
+	return err;
+}
+
+static int blob_file_info(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
+{
+	struct dnet_node *n = dnet_get_node_from_state(state);
+	int err, len = strlen(c->data.file) + 1 + 32; /* should be enough for .NNN aka index */
+	struct eblob_backend *b = c->data_blob;
+	struct dnet_file_info *info;
+	struct dnet_addr_attr *a;
+	uint64_t offset, size;
+	int fd, index, flen, csize;
+	struct stat st;
+
+	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + len);
+	if (!a) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	info = (struct dnet_file_info *)(a + 1);
+
+	dnet_fill_addr_attr(n, a);
+
+	err = eblob_read_file_index(b, cmd->id.id, DNET_ID_SIZE, &fd, &offset, &size, &index);
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-file-info: info-read-index: %d: %s.\n",
+				dnet_dump_id(&cmd->id), err, strerror(errno));
+		goto err_out_free;
+	}
+
+	err = fstat(fd, &st);
+	if (err) {
+		err = -errno;
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-idx-%d: info-stat: %d: %s.\n",
+				dnet_dump_id(&cmd->id), index, err, strerror(errno));
+		goto err_out_free;
+	}
+
+	dnet_info_from_stat(info, &st);
+
+	csize = sizeof(info->checksum);
+	if (attr->flags & DNET_ATTR_NOCSUM) {
+		memset(info->checksum, 0, csize);
+	} else {
+		err = dnet_verify_checksum_io(n, (unsigned char *)&cmd->id.id, info->checksum, &csize);
+		if (err && (err != -ENODATA))
+			goto err_out_free;
+	}
+
+	info->size = size;
+	info->offset = offset + sizeof(struct eblob_disk_control);
+
+	flen = info->flen = snprintf((char *)(info + 1), len, "%s.%d", c->data.file, index) + 1;
+	dnet_convert_file_info(info);
+
+	err = dnet_send_reply(state, cmd, attr, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen, 0);
+
+err_out_free:
+	free(a);
+err_out_exit:
+	return err;
+}
+
 static int eblob_backend_command_handler(void *state, void *priv,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
 {
@@ -137,6 +229,9 @@ static int eblob_backend_command_handler(void *state, void *priv,
 	struct eblob_backend_config *c = priv;
 
 	switch (attr->cmd) {
+		case DNET_CMD_LOOKUP:
+			err = blob_file_info(c, state, cmd, attr);
+			break;
 		case DNET_CMD_WRITE:
 			err = blob_write(c, state, cmd, attr, data);
 			break;
@@ -290,6 +385,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	cfg->storage_size = b->storage_size;
 	cfg->storage_free = b->storage_free;
 	cfg->storage_stat = eblob_backend_storage_stat;
+	cfg->checksum = eblob_backend_checksum;
 
 	cfg->command_private = c;
 	cfg->command_handler = eblob_backend_command_handler;

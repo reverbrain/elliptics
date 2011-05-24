@@ -35,7 +35,7 @@ void eblob_gen::add_remote(const char *addr, const int port, const int family)
 	}
 }
 
-void eblob_gen::write(const std::string &name, const std::string &data, const struct timespec &ts)
+void eblob_gen::write(const std::string &name, const std::string &, const struct timespec &ts)
 {
 	struct dnet_id id;
 

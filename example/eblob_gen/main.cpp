@@ -17,7 +17,7 @@ eblob_processor::eblob_processor(const bool prepend_data, std::vector<int> &grou
 void eblob_processor::process(elliptics_node &node, const std::string &path)
 {
 	std::string data, name;
-	bool have_data;
+	bool have_data = false;
 	eblob_data_source *source;
 	struct dnet_id id;
 	struct timeval tv;

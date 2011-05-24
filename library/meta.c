@@ -371,6 +371,7 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 	struct dnet_meta_container mc;
 	struct dnet_meta_check_status *c;
 	struct dnet_meta_update *mu;
+	struct dnet_meta_checksum *csum;
 	struct dnet_meta *m;
 	int size = 0, err, nsize = 0, groups_in_meta = 1, i;
 	void *ns;
@@ -384,6 +385,8 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 		size += ctl->group_num * sizeof(int) + sizeof(struct dnet_meta);
 		groups_in_meta = ctl->group_num;
 	}
+
+	size += sizeof(struct dnet_meta_checksum) + sizeof(struct dnet_meta);
 
 	size += sizeof(struct dnet_meta_update)*groups_in_meta + sizeof(struct dnet_meta);
 
@@ -423,6 +426,7 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 		ctl->ts.tv_sec = tv.tv_sec;
 		ctl->ts.tv_nsec = tv.tv_usec * 1000;
 	}
+
 	for (i=0; i<groups_in_meta; ++i) {
 		mu = (struct dnet_meta_update *)(m->data + i*sizeof(struct dnet_meta_update));
 
@@ -459,6 +463,14 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 
 		m = (struct dnet_meta *)(m->data + m->size);
 	}
+
+	csum = (struct dnet_meta_checksum *)m->data;
+	csum->tsec = ctl->ts.tv_sec;
+	csum->tnsec = ctl->ts.tv_nsec;
+	dnet_convert_meta_checksum(csum);
+	m->size = sizeof(struct dnet_meta_checksum);
+	m->type = DNET_META_CHECKSUM;
+	m = (struct dnet_meta *)(m->data + m->size);
 
 	mc.size = size;
 	memcpy(&mc.id, &ctl->id, sizeof(struct dnet_id));
@@ -593,3 +605,82 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 	}
 }
 
+int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_id *id)
+{
+	struct dnet_meta *m, *new_m = NULL;
+	struct dnet_meta_container mc;
+	struct dnet_meta_checksum *csum;
+	int err, csize;
+
+	err = dnet_db_read_raw(n, id->id, &mc.data, 0);
+	if (err < 0) {
+		goto err_out_exit;
+	}
+	mc.size = err;
+
+	m = dnet_meta_search(n, &mc, DNET_META_CHECKSUM);
+	if (!m) {
+		new_m = malloc(sizeof(struct dnet_meta) + sizeof(struct dnet_meta_checksum));
+		if (!new_m) {
+			err = -ENOMEM;
+			goto err_out_kcfree;
+		}
+
+		new_m->type = DNET_META_CHECKSUM;
+		new_m->size = sizeof(struct dnet_meta_checksum);
+		dnet_convert_meta(new_m);
+		m = new_m;
+	}
+
+	csum = (struct dnet_meta_checksum *)m->data;
+	csize = sizeof(csum->checksum);
+	err = n->checksum(n, n->command_private, id, csum->checksum, &csize);
+	if (err)
+		goto err_out_free_new_meta;
+
+	if (new_m) {
+		err = dnet_db_write_trans(n, id, new_m, new_m->size + sizeof(struct dnet_meta), 1);
+	} else {
+		err = dnet_db_write_trans(n, id, mc.data, mc.size, 0);
+	}
+
+err_out_free_new_meta:
+	free(new_m);
+err_out_kcfree:
+	kcfree(mc.data);
+err_out_exit:
+	dnet_log(n, DNET_LOG_INFO, "%s: meta: CHECKSUM: result: %d\n", dnet_dump_id(id), err);
+	return err;
+}
+
+int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_id *id, struct dnet_meta_checksum *csum)
+{
+	struct dnet_meta *m;
+	struct dnet_meta_container mc;
+	int err;
+
+	err = dnet_db_read_raw(n, id->id, &mc.data, 0);
+	if (err < 0) {
+		goto err_out_exit;
+	}
+	mc.size = err;
+
+	m = dnet_meta_search(n, &mc, DNET_META_CHECKSUM);
+	if (!m) {
+		err = -ENOENT;
+		goto err_out_kcfree;
+	}
+
+	if (m->size != sizeof(struct dnet_meta_checksum)) {
+		err = -EINVAL;
+		goto err_out_kcfree;
+	}
+
+	memcpy(csum, m->data, sizeof(struct dnet_meta_checksum));
+	err = 0;
+
+err_out_kcfree:
+	kcfree(mc.data);
+err_out_exit:
+	return err;
+}
