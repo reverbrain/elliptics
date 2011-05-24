@@ -189,8 +189,6 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* Completely remove object history and metadata */
 #define DNET_ATTR_DELETE_HISTORY		(1<<1)
 
-/* Lookup attribute flags */
-
 /* Lookup history object instead of data one */
 #define DNET_ATTR_LOOKUP_HISTORY		(1<<1)
 

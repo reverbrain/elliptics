@@ -666,6 +666,8 @@ int dnet_db_write_notrans(struct dnet_node *n, struct dnet_id *id, void *data, u
 
 int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_id *id, struct dnet_meta_checksum *csum);
 
+int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_id *id, struct dnet_meta_checksum *csum);
+
 void dnet_monitor_exit(struct dnet_node *n);
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 
