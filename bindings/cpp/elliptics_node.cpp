@@ -274,9 +274,9 @@ int elliptics_node::write_data(std::string &remote, std::string &str,
 	return write_data_ll(NULL, (void *)remote.data(), remote.size(), (void *)str.data(), str.size(), c, aflags, ioflags);
 }
 
-std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size)
+std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size, uint64_t offset, uint32_t aflags, uint32_t ioflags)
 {
-	void *data = dnet_read_data_wait(node, &id, &size);
+	void *data = dnet_read_data_wait(node, &id, &size, offset, aflags, ioflags);
 	if (!data) {
 		std::ostringstream str;
 		str << "Failed read single data object: key: " << dnet_dump_id(&id) << ", size: " << size;
@@ -289,7 +289,7 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size)
 	return ret;
 }
 
-std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
+std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size, uint64_t offset, uint32_t aflags, uint32_t ioflags)
 {
 	struct dnet_id id;
 	int error = -ENOENT, i, num, *g;
@@ -305,7 +305,7 @@ std::string elliptics_node::read_data_wait(std::string &remote, uint64_t size)
 		id.group_id = g[i];
 
 		try {
-			ret = read_data_wait(id, size);
+			ret = read_data_wait(id, size, offset, aflags, ioflags);
 		} catch (const std::exception &e) {
 			dnet_log_raw(node, DNET_LOG_ERROR, "%s : %s\n", e.what(), remote.c_str());
 			continue;

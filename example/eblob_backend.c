@@ -150,7 +150,7 @@ static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 	err = eblob_read_file_index(b, id->id, DNET_ID_SIZE, &fd, &offset, &size, &index);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read-index: %d: %s.\n",
-				dnet_dump_id(id), err, strerror(errno));
+				dnet_dump_id(id), err, strerror(-err));
 		goto err_out_exit;
 	}
 
@@ -185,7 +185,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	err = eblob_read_file_index(b, cmd->id.id, DNET_ID_SIZE, &fd, &offset, &size, &index);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-file-info: info-read-index: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, strerror(errno));
+				dnet_dump_id(&cmd->id), err, strerror(-err));
 		goto err_out_free;
 	}
 
@@ -193,7 +193,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	if (err) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-idx-%d: info-stat: %d: %s.\n",
-				dnet_dump_id(&cmd->id), index, err, strerror(errno));
+				dnet_dump_id(&cmd->id), index, err, strerror(-err));
 		goto err_out_free;
 	}
 
@@ -203,7 +203,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	if (attr->flags & DNET_ATTR_NOCSUM) {
 		memset(info->checksum, 0, csize);
 	} else {
-		err = dnet_verify_checksum_io(n, &cmd->id, info->checksum, &csize);
+		err = dnet_verify_checksum_io(n, cmd->id.id, info->checksum, &csize);
 		if (err && (err != -ENODATA))
 			goto err_out_free;
 	}

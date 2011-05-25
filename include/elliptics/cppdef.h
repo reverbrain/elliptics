@@ -151,8 +151,10 @@ class elliptics_node {
 		int			write_data(std::string &remote, std::string &str, elliptics_callback &c,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
 
-		std::string		read_data_wait(struct dnet_id &id, uint64_t size);
-		std::string		read_data_wait(std::string &remote, uint64_t size);
+		std::string		read_data_wait(struct dnet_id &id, uint64_t size, uint64_t offset = 0,
+				uint32_t aflags = DNET_ATTR_DIRECT_TRANSACTION, uint32_t ioflags = 0);
+		std::string		read_data_wait(std::string &remote, uint64_t size, uint64_t offset = 0,
+				uint32_t aflags = DNET_ATTR_DIRECT_TRANSACTION, uint32_t ioflags = 0);
 
 		int			write_data_wait(struct dnet_id &id, std::string &str,
 							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
@@ -178,6 +180,8 @@ class elliptics_node {
 		int			state_num();
 		
 		int			request_cmd(struct dnet_trans_control &ctl);
+
+		std::string		read_metadata(struct dnet_id &id);
 
 	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,

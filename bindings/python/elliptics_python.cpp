@@ -218,14 +218,18 @@ class elliptics_node_python : public elliptics_node {
 			elliptics_node::write_file((std::string &)remote, const_cast<char *>(file), local_offset, offset, size, aflags, ioflags);
 		}
 
-		std::string read_data_by_id(const struct elliptics_id &id, uint64_t size) {
+		std::string read_data_by_id(const struct elliptics_id &id, uint64_t size, uint64_t offset,
+							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
+							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
-			return elliptics_node::read_data_wait(raw, size);
+			return elliptics_node::read_data_wait(raw, size, offset, aflags, ioflags);
 		}
 
-		std::string read_data_by_data_transform(const std::string &remote, uint64_t size) {
-			return elliptics_node::read_data_wait((std::string &)remote, size);
+		std::string read_data_by_data_transform(const std::string &remote, uint64_t size, uint64_t offset,
+							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
+							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
+			return elliptics_node::read_data_wait((std::string &)remote, size, offset, aflags, ioflags);
 		}
 
 		int write_data_by_id(const struct elliptics_id &id, const std::string &data,
@@ -255,6 +259,8 @@ class elliptics_node_python : public elliptics_node {
 };
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
+BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(read_data_by_id_overloads, read_data_by_id, 3, 5);
+BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(read_data_by_data_transform_overloads, read_data_by_data_transform, 3, 5);
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_file_by_id_overloads, write_file_by_id, 5, 7);
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_file_by_data_transform_overloads, write_file_by_data_transform, 5, 7);
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_id_overloads, write_data_by_id, 2, 4);
@@ -291,8 +297,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("write_file", &elliptics_node_python::write_file_by_id, write_file_by_id_overloads())
 		.def("write_file", &elliptics_node_python::write_file_by_data_transform, write_file_by_data_transform_overloads())
 
-		.def("read_data", &elliptics_node_python::read_data_by_id)
-		.def("read_data", &elliptics_node_python::read_data_by_data_transform)
+		.def("read_data", &elliptics_node_python::read_data_by_id, read_data_by_id_overloads())
+		.def("read_data", &elliptics_node_python::read_data_by_data_transform, read_data_by_data_transform_overloads())
 		.def("write_data", &elliptics_node_python::write_data_by_id, write_data_by_id_overloads())
 		.def("write_data", &elliptics_node_python::write_data_by_data_transform, write_data_by_data_transform_overloads())
 
