@@ -142,7 +142,8 @@ void elliptics_node::read_file(std::string &remote, char *dst_file, uint64_t off
 	}
 }
 
-void elliptics_node::read_data(struct dnet_id &id, uint64_t offset, uint64_t size, elliptics_callback &c)
+void elliptics_node::read_data(struct dnet_id &id, uint64_t offset, uint64_t size, elliptics_callback &c,
+		unsigned int aflags, unsigned int ioflags)
 {
 	struct dnet_io_control ctl;
 	int err;
@@ -154,6 +155,7 @@ void elliptics_node::read_data(struct dnet_id &id, uint64_t offset, uint64_t siz
 	ctl.complete = elliptics_callback::elliptics_complete_callback;
 	ctl.cmd = DNET_CMD_READ;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.aflags = aflags;
 
 	memcpy(ctl.io.id, id.id, DNET_ID_SIZE);
 	memcpy(ctl.io.parent, id.id, DNET_ID_SIZE);
@@ -162,6 +164,7 @@ void elliptics_node::read_data(struct dnet_id &id, uint64_t offset, uint64_t siz
 
 	ctl.io.size = size;
 	ctl.io.offset = offset;
+	ctl.io.flags = ioflags;
 
 	err = dnet_read_object(node, &ctl);
 	if (err) {
@@ -171,7 +174,8 @@ void elliptics_node::read_data(struct dnet_id &id, uint64_t offset, uint64_t siz
 	}
 }
 
-void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t size, elliptics_callback &c)
+void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t size, elliptics_callback &c,
+		unsigned int aflags, unsigned int ioflags)
 {
 	int error = 0, i, num, *g;
 	struct dnet_id id;
@@ -186,7 +190,7 @@ void elliptics_node::read_data(std::string &remote, uint64_t offset, uint64_t si
 		id.group_id = g[i];
 
 		try {
-			read_data(id, offset, size, c);
+			read_data(id, offset, size, c, aflags, ioflags);
 		} catch (...) {
 			error++;
 			continue;
