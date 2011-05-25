@@ -222,7 +222,7 @@ static int meta_request(struct dnet_node *n, int *groups, int group_num, char *n
 {
 	struct dnet_id raw;
 	struct dnet_io_control ctl;
-	int i, err -ENOENT;
+	int i, err = -ENOENT;
 	struct meta_control *mc;
 
 	if (name) {
