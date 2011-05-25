@@ -14,6 +14,7 @@
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <boost/program_options.hpp>
 #include <boost/thread.hpp>
+#include <boost/bind.hpp>
 #include <boost/filesystem/operations.hpp>
 namespace fs = boost::filesystem;
 
@@ -96,14 +97,14 @@ class fs_processor : public generic_processor {
 				if (itr_ == end_itr_)
 					throw std::runtime_error("Whole directory has been traversed");
 
-				if (itr_->filename().size() != DNET_ID_SIZE * 2) {
+				if (itr_->leaf().size() != DNET_ID_SIZE * 2) {
 					++itr_;
 					continue;
 				}
 
-				parse(itr_->filename(), key);
+				parse(itr_->leaf(), key);
 
-				std::cout << "fs: " << itr_->filename() << std::endl;
+				std::cout << "fs: " << itr_->leaf() << std::endl;
 
 				++itr_;
 				break;

@@ -52,6 +52,8 @@ AC_DEFUN([AX_BOOST_THREAD],
         [want_boost="yes"]
 	)
 
+	have_boost_thread="no"
+
 	if test "x$want_boost" = "xyes"; then
         AC_REQUIRE([AC_PROG_CC])
         AC_REQUIRE([AC_CANONICAL_BUILD])
@@ -82,7 +84,7 @@ AC_DEFUN([AX_BOOST_THREAD],
 				   boost::thread_group thrds;
 				   boost::bind(&test::test_func, &t);
                                    return 0;]])],
-                   ax_cv_boost_thread=yes, ax_cv_boost_thread=no)
+				   ax_cv_boost_thread=yes, ax_cv_boost_thread=no)
 			 CXXFLAGS=$CXXFLAGS_SAVE
              AC_LANG_POP([C++])
 		])
@@ -139,12 +141,13 @@ AC_DEFUN([AX_BOOST_THREAD],
                               ;;
                            esac
 
+				have_boost_thread="yes"
 			fi
 		fi
-
-		AM_CONDITIONAL([HAVE_BOOST_THREAD], [test x$link_thread = "xyes"])
 
 		CPPFLAGS="$CPPFLAGS_SAVED"
 	LDFLAGS="$LDFLAGS_SAVED"
 	fi
+
+	AM_CONDITIONAL([HAVE_BOOST_THREAD], [test x$have_boost_thread = "xyes"])
 ])

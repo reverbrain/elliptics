@@ -1,7 +1,7 @@
 if HAVE_BOOST_FILESYSTEM
 if HAVE_BOOST_PROGRAM_OPTIONS
 
-bin_PROGRAMS = dnet_eblob_gen dnet_meta_update_all
+bin_PROGRAMS = dnet_eblob_gen
 noinst_HEADERS = eblob_gen.h
 
 AM_CXXFLAGS = -I../../include -I../../config -I../ @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
@@ -13,6 +13,8 @@ dnet_eblob_gen_LDADD = @BOOST_FILESYSTEM_LIB@ @BOOST_PROGRAM_OPTIONS_LIB@ @EBLOB
 
 if HAVE_BOOST_IOSTREAMS
 if HAVE_BOOST_THREAD
+
+bin_PROGRAMS += dnet_meta_update_all
 
 dnet_meta_update_all_SOURCES = meta_update.cpp
 dnet_meta_update_all_LDADD = ../../bindings/cpp/libelliptics_cpp.la ../../library/libelliptics.la \
