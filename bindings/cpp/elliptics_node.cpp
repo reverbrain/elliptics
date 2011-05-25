@@ -632,3 +632,37 @@ int elliptics_node::request_cmd(struct dnet_trans_control &ctl)
 
 	return err;
 }
+
+void elliptics_node::update_status(const char *saddr, const int port, const int family, const unsigned int status)
+{
+	int err;
+	struct dnet_addr addr;
+	char sport[16];
+
+	memset(&addr, 0, sizeof(addr));
+
+	snprintf(sport, sizeof(sport), "%d", port);
+
+	err = dnet_fill_addr(&addr, saddr, sport, family, SOCK_STREAM, IPPROTO_TCP);
+	if (!err)
+		err = dnet_update_status(node, &addr, NULL, status);
+
+	if (err < 0) {
+		std::ostringstream str;
+		str << saddr << ":" << port << ": failed to request set status " << std::hex << status << ": " << err;
+		throw std::runtime_error(str.str());
+	}
+}
+
+void elliptics_node::update_status(struct dnet_id &id, const unsigned int status)
+{
+	int err;
+
+	err = dnet_update_status(node, NULL, &id, status);
+	if (err < 0) {
+		std::ostringstream str;
+
+		str << dnet_dump_id(&id) << ": failed to request set status " << std::hex << status << ": " << err;
+		throw std::runtime_error(str.str());
+	}
+}

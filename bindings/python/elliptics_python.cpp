@@ -256,6 +256,17 @@ class elliptics_node_python : public elliptics_node {
 
 			return elliptics_node::lookup_addr(raw);
 		}
+
+		void update_status_by_id(const struct elliptics_id &id, unsigned int status) {
+			struct dnet_id raw;
+			elliptics_extract_id(id, raw);
+
+			elliptics_node::update_status(raw, status);
+		}
+		
+		void update_status_by_string(const std::string &saddr, const int port, const int family, const unsigned int status) {
+			elliptics_node::update_status(saddr.c_str(), port, family, status);
+		}
 };
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
@@ -305,6 +316,9 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_data_transform)
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_id)
 		.def("write_metadata", &elliptics_node_python::write_metadata)
+
+		.def("update_status", &elliptics_node_python::update_status_by_id)
+		.def("update_status", &elliptics_node_python::update_status_by_string)
 	;
 };
 #endif
