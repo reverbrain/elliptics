@@ -658,6 +658,9 @@ int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 
 int dnet_request_cmd(struct dnet_node *n, struct dnet_trans_control *ctl);
 
+int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const char *port, const int family,
+		const int sock_type, const int proto);
+
 /* Change node status on given address or ID */
 int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr,
 		struct dnet_id *id, unsigned int status);
