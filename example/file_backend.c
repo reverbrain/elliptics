@@ -298,7 +298,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	if (attr->flags & DNET_ATTR_NOCSUM) {
 		memset(info->checksum, 0, csize);
 	} else {
-		err = dnet_verify_checksum_io(n, &cmd->id, info->checksum, &csize);
+		err = dnet_verify_checksum_io(n, cmd->id.id, info->checksum, &csize);
 		if (err && (err != -ENODATA))
 			goto err_out_free;
 	}
