@@ -222,7 +222,7 @@ static int meta_request(struct dnet_node *n, int *groups, int group_num, char *n
 {
 	struct dnet_id raw;
 	struct dnet_io_control ctl;
-	int i, err;
+	int i, err -ENOENT;
 	struct meta_control *mc;
 
 	if (name) {
@@ -339,7 +339,7 @@ int main(int argc, char *argv[])
 	log = fopen(logfile, "a");
 	if (!log) {
 		err = -errno;
-		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
+		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(-err));
 		goto err_out_exit;
 	}
 
@@ -348,8 +348,10 @@ int main(int argc, char *argv[])
 	cfg.log = &meta_logger;
 
 	n = dnet_node_create(&cfg);
-	if (!n)
+	if (!n) {
+		err = -EINVAL;
 		goto err_out_exit;
+	}
 
 	err = dnet_add_state(n, &rem);
 	if (err)

@@ -497,7 +497,7 @@ std::string elliptics_node::lookup(const std::string &data)
 				dnet_convert_file_info(info);
 			}
 #endif
-			dnet_log_raw(node, DNET_LOG_DSA, "%s: %s: %u bytes\n", dnet_dump_id(&id), data.c_str(), ret.size());
+			dnet_log_raw(node, DNET_LOG_DSA, "%s: %s: %zu bytes\n", dnet_dump_id(&id), data.c_str(), ret.size());
 			error = 0;
 			break;
 		} catch (const std::exception &e) {

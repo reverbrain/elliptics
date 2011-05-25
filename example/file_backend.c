@@ -117,16 +117,16 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 	fd = open(file, oflags, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: OPEN: %d: %s.\n",
-				dnet_dump_id_str(io->id), file, err, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: OPEN: %zd: %s.\n",
+				dnet_dump_id_str(io->id), file, err, strerror(-err));
 		goto err_out_exit;
 	}
 
 	err = write(fd, data, io->size);
 	if (err != (ssize_t)io->size) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: WRITE: %d: %s.\n",
-			dnet_dump_id_str(io->id), file, err, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: WRITE: %zd: %s.\n",
+			dnet_dump_id_str(io->id), file, err, strerror(-err));
 		goto err_out_close;
 	}
 
@@ -161,7 +161,7 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 		if (errno != EEXIST) {
 			err = -errno;
 			dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: dir-create: %d: %s.\n",
-					dnet_dump_id(&cmd->id), dir, err, strerror(errno));
+					dnet_dump_id(&cmd->id), dir, err, strerror(-err));
 			goto err_out_exit;
 		}
 	}
@@ -200,7 +200,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	if (fd < 0) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: READ: %d: %s.\n",
-				dnet_dump_id(&cmd->id), file, err, strerror(errno));
+				dnet_dump_id(&cmd->id), file, err, strerror(-err));
 		goto err_out_exit;
 	}
 
@@ -210,7 +210,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	if (err) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: read-stat: %d: %s.\n",
-				dnet_dump_id(&cmd->id), file, err, strerror(errno));
+				dnet_dump_id(&cmd->id), file, err, strerror(-err));
 		goto err_out_close_fd;
 	}
 
@@ -276,7 +276,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	if (err) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: info-stat: %d: %s.\n",
-				dnet_dump_id(&cmd->id), file, err, strerror(errno));
+				dnet_dump_id(&cmd->id), file, err, strerror(-err));
 		goto err_out_exit;
 	}
 
@@ -378,7 +378,7 @@ static int dnet_file_set_root(struct dnet_config_backend *b, char *key __unused,
 	r->rootfd = open(r->root, O_RDONLY);
 	if (r->rootfd < 0) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "Failed to open root '%s': %s.\n", root, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to open root '%s': %s.\n", root, strerror(-err));
 		goto err_out_free;
 	}
 	r->root_len = strlen(r->root);
@@ -387,7 +387,7 @@ static int dnet_file_set_root(struct dnet_config_backend *b, char *key __unused,
 	if (err) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "Failed to change current dir to root '%s' directory: %s.\n",
-				root, strerror(errno));
+				root, strerror(-err));
 		goto err_out_close;
 	}
 
