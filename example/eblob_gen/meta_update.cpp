@@ -229,8 +229,16 @@ class remote_update {
 					std::string key;
 
 					{
-						boost::lock_guard<boost::mutex> lock(data_lock_);
-						key = proc->next();
+						data_lock_.lock();
+
+						try {
+							key = proc->next();
+						} catch (...) {
+							data_lock_.unlock();
+							break;
+						}
+
+						data_lock_.unlock();
 					}
 
 					update(n, key);
