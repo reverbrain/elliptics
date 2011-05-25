@@ -75,8 +75,12 @@ AC_DEFUN([AX_BOOST_THREAD],
 			 else
 				CXXFLAGS="-pthread $CXXFLAGS"
 			 fi
-			 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[@%:@include <boost/thread.hpp>]] [[@%:@include <boost/bind.hpp>]],
-                                   [[boost::thread_group thrds;
+			 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[@%:@include <boost/thread.hpp>
+			 @%:@include <boost/bind.hpp>
+			 class test {public: void test_func() {};};]],
+				   [[test t;
+				   boost::thread_group thrds;
+				   boost::bind(&test::test_func, &t);
                                    return 0;]])],
                    ax_cv_boost_thread=yes, ax_cv_boost_thread=no)
 			 CXXFLAGS=$CXXFLAGS_SAVE
