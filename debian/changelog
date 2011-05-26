@@ -1,3 +1,9 @@
+elliptics (2.9.6.173) unstable; urgency=low
+
+  * Use recursive_directory_iterator(). Use proper flags in read_data_wait()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 26 May 2011 21:21:47 +0400
+
 elliptics (2.9.6.172) unstable; urgency=low
 
   * Added meta updating tools, it scans directory or blobs and adds groups

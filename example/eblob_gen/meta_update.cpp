@@ -156,11 +156,14 @@ class fs_processor : public generic_processor {
 
 class remote_update {
 	public:
-		remote_update(const std::vector<int> groups) : groups_(groups) {
+		remote_update(const std::vector<int> groups) : groups_(groups), aflags_(DNET_ATTR_DIRECT_TRANSACTION) {
 		}
 
-		void process(elliptics_node &n, const std::string &path, int tnum = 16) {
+		void process(elliptics_node &n, const std::string &path, int tnum = 16, int csum_enabled = 0) {
 			generic_processor *proc;
+
+			if (!csum_enabled)
+				aflags_ |= DNET_ATTR_NOCSUM;
 
 			if (fs::is_directory(fs::path(path))) {
 				proc = new fs_processor(path);
@@ -187,6 +190,7 @@ class remote_update {
 	private:
 		std::vector<int> groups_;
 		boost::mutex data_lock_;
+		int aflags_;
 
 		void update(elliptics_node *n, const std::string &key) {
 			struct dnet_id id;
@@ -199,7 +203,7 @@ class remote_update {
 				std::string meta;
 
 				try {
-					meta = n->read_data_wait(id, 0, 0, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META);
+					meta = n->read_data_wait(id, 0, 0, aflags_, DNET_IO_FLAGS_META);
 				} catch (...) {
 				}
 
@@ -259,6 +263,7 @@ int main(int argc, char *argv[])
 		std::string addr;
 		int port, family;
 		int thread_num;
+		int csum_enabled;
 
 		desc.add_options()
 			("help", "This help message")
@@ -270,6 +275,7 @@ int main(int argc, char *argv[])
 			("remote-addr", po::value<std::string>(&addr)->default_value("localhost"), "Connect to this remote node")
 			("remote-port", po::value<int>(&port)->default_value(1025), "Connect to this remote port")
 			("addr-family", po::value<int>(&family)->default_value(AF_INET), "Address family (2 - IPv4, 6 - IPv6)")
+			("enable-checksum", po::value<int>(&csum_enabled)->default_value(0), "Set to 1 if you want to enable server generated checksums")
 		;
 
 		po::variables_map vm;
@@ -293,7 +299,7 @@ int main(int argc, char *argv[])
 		node.add_remote(addr.c_str(), port, family);
 
 		remote_update up(groups);
-		up.process(node, vm["input-path"].as<std::string>(), thread_num);
+		up.process(node, vm["input-path"].as<std::string>(), thread_num, csum_enabled);
 	} catch (const std::exception &e) {
 		std::cerr << "Exiting: " << e.what() << std::endl;
 	}
