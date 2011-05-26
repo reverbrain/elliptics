@@ -15,7 +15,7 @@
 #include <boost/program_options.hpp>
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
-#include <boost/filesystem/operations.hpp>
+#include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
 
 #include <elliptics/cppdef.h>
@@ -94,8 +94,14 @@ class fs_processor : public generic_processor {
 			std::string key;
 
 			while (true) {
-				if (itr_ == end_itr_)
+				if (itr_ == end_itr_) {
 					throw std::runtime_error("Whole directory has been traversed");
+				}
+
+				if (fs::is_directory(itr_->path())) {
+					++itr_;
+					continue;
+				}
 
 				if (itr_->leaf().size() != DNET_ID_SIZE * 2) {
 					++itr_;
@@ -113,7 +119,8 @@ class fs_processor : public generic_processor {
 		}
 
 	private:
-		fs::directory_iterator end_itr_, itr_;
+		fs::recursive_directory_iterator end_itr_, itr_;
+		std::vector<std::string> dirs_;
 
 		void parse(const std::string &value, std::string &key) {
 			unsigned char ch[5];
@@ -192,13 +199,13 @@ class remote_update {
 				std::string meta;
 
 				try {
-					meta = n->read_data_wait(id, 0, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META);
+					meta = n->read_data_wait(id, 0, 0, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META);
 				} catch (...) {
 				}
 
 				m = dnet_meta_search(NULL, (void *)meta.data(), meta.size(), DNET_META_GROUPS);
 				if (m) {
-					std::cout << "Valid metadata found in group " << groups_[i] << std::endl;
+					std::cout << dnet_dump_id(&id) << ": valid metadata found in group: " << groups_[i] << std::endl;
 					err = 0;
 					break;
 				}
