@@ -313,6 +313,7 @@ struct dnet_config
 	int			(* send)(void *state, void *priv, struct dnet_id *id);
 	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
 			void *csum, int *csize);
+	void			(* backend_cleanup)(void *command_private);
 
 	/*
 	 * Free and total space on given storage.

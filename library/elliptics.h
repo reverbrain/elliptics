@@ -386,6 +386,7 @@ struct dnet_node
 	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
 			void *csum, int *csize);
 	int			(* storage_stat)(void *priv, struct dnet_stat *st);
+	void			(* backend_cleanup)(void *command_private);
 
 	unsigned int		notify_hash_size;
 	struct dnet_notify_bucket	*notify_hash;

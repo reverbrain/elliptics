@@ -434,6 +434,14 @@ int file_backend_storage_stat(void *priv, struct dnet_stat *st)
 	return 0;
 }
 
+static void file_backend_cleanup(void *priv)
+{
+	struct file_backend_root *r = priv;
+
+	close(r->rootfd);
+	free(r->root);
+}
+
 static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_config *c)
 {
 	c->command_private = b->data;
@@ -444,6 +452,7 @@ static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_conf
 	c->storage_size = b->storage_size;
 	c->storage_free = b->storage_free;
 	c->storage_stat = file_backend_storage_stat;
+	c->backend_cleanup = file_backend_cleanup;
 
 	return 0;
 }
@@ -452,8 +461,7 @@ static void dnet_file_config_cleanup(struct dnet_config_backend *b)
 {
 	struct file_backend_root *r = b->data;
 
-	close(r->rootfd);
-	free(r->root);
+	file_backend_cleanup(r);
 }
 
 static struct dnet_config_entry dnet_cfg_entries_filesystem[] = {
