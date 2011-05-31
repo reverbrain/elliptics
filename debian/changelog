@@ -1,3 +1,9 @@
+elliptics (2.9.7.1) unstable; urgency=low
+
+  * Added library version generation
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 31 May 2011 13:43:31 +0400
+
 elliptics (2.9.7.0) unstable; urgency=low
 
   * Added backend_cleanup() callback into dnet_config and dnet_node
