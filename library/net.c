@@ -456,7 +456,7 @@ static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t o
 		if (err < 0)
 			break;
 		if (err == 0) {
-			err = -errno;
+			err = -ENODATA;
 			dnet_log_err(st->n, "Looks like truncated file: fd: %d, offset: %llu, size: %llu.\n",
 					fd, (unsigned long long)offset, (unsigned long long)dsize);
 			break;
