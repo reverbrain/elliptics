@@ -1,3 +1,10 @@
+elliptics (2.9.7.2) unstable; urgency=low
+
+  * Return -ENODATA instead of errno (-EAGAIN) when sendfile() fails to
+    transfer file after it was truncated
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 31 May 2011 14:36:13 +0400
+
 elliptics (2.9.7.1) unstable; urgency=low
 
   * Added library version generation
