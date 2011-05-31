@@ -19,6 +19,8 @@ AX_CHECK_OPENSSL
 AX_PREFIX_CONFIG_H(config/acsetup.h)
 AX_CREATE_STDINT_H(include/elliptics/typedefs.h)
 
+AX_SET_VERSION_INFO
+
 for i in -W -Wall -Wextra -fstack-protector-all -fno-strict-aliasing; do
 	AX_CHECK_COMPILER_FLAGS([$i], [CFLAGS="$CFLAGS $i"; CXXFLAGS="$CXXFLAGS $i"], [])
 done
