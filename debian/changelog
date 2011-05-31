@@ -1,3 +1,9 @@
+elliptics (2.9.7.0) unstable; urgency=low
+
+  * Added backend_cleanup() callback into dnet_config and dnet_node
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 31 May 2011 10:17:47 +0400
+
 elliptics (2.9.6.174) unstable; urgency=low
 
   * Added dh_makeshlibs version dependency
