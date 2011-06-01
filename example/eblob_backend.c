@@ -132,8 +132,11 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 	if (!err) {
 		err = dnet_write_data_wait(n, NULL, 0, id, NULL, fd, offset + sizeof(struct eblob_disk_control), 0, size,
 				NULL, DNET_ATTR_DIRECT_TRANSACTION, 0);
-		if (err)
+		if (err <= 0) {
+			if (err == 0)
+				err = -ENOENT;
 			goto err_out_exit;
+		}
 	}
 
 err_out_exit:
