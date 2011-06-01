@@ -724,6 +724,7 @@ enum dnet_meta_types {
 	DNET_META_NAMESPACE,		/* namespace where given object lives */
 	DNET_META_UPDATE,		/* last update information (timestamp, flags) */
 	DNET_META_CHECKSUM,		/* checksum (sha512) of the whole data object calculated on server */
+	__DNET_META_MAX,
 };
 
 struct dnet_meta
