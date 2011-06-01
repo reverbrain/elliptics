@@ -626,6 +626,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->command_private = cfg->command_private;
 	n->send = cfg->send;
 	n->checksum = cfg->checksum;
+	n->backend_cleanup = cfg->backend_cleanup;
 
 	n->storage_stat = cfg->storage_stat;
 	n->notify_hash_size = cfg->hash_size;
@@ -781,6 +782,9 @@ void dnet_node_destroy(struct dnet_node *n)
 	dnet_wait_put(n->wait);
 
 	free(n->groups);
+
+	if (n->backend_cleanup)
+		n->backend_cleanup(n->command_private);
 
 	free(n);
 }

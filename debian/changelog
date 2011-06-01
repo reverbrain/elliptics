@@ -1,3 +1,46 @@
+elliptics (2.9.7.2) unstable; urgency=low
+
+  * Return -ENODATA instead of errno (-EAGAIN) when sendfile() fails to
+    transfer file after it was truncated
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 31 May 2011 14:36:13 +0400
+
+elliptics (2.9.7.1) unstable; urgency=low
+
+  * Added library version generation
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 31 May 2011 13:43:31 +0400
+
+elliptics (2.9.7.0) unstable; urgency=low
+
+  * Added backend_cleanup() callback into dnet_config and dnet_node
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 31 May 2011 10:17:47 +0400
+
+elliptics (2.9.6.174) unstable; urgency=low
+
+  * Added dh_makeshlibs version dependency
+  * Added flag to globally disable checksum generation and verification
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 30 May 2011 17:18:24 +0400
+
+elliptics (2.9.6.173) unstable; urgency=low
+
+  * Use recursive_directory_iterator(). Use proper flags in read_data_wait()
+  * Added checksum enabled flag
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 26 May 2011 21:21:47 +0400
+
+elliptics (2.9.6.172) unstable; urgency=low
+
+  * Added meta updating tools, it scans directory or blobs and adds groups
+    metadata if it is not present.
+  * Added status update methods to cpp/python bindings.
+  * Added offset, aflags and ioflags into dnet_read_data_wait() and children
+    and read_data()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 25 May 2011 21:23:20 +0400
+
 elliptics (2.9.6.171) unstable; urgency=low
 
   * Request statistics to sync route table update in dnet_meta

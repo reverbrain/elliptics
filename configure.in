@@ -1,4 +1,4 @@
-AC_INIT([elliptics], [2.9.6], [zbr@ioremap.net])
+AC_INIT([elliptics], [2.9.7], [zbr@ioremap.net])
 AM_INIT_AUTOMAKE(1.9)
 
 AC_GNU_SOURCE
@@ -19,6 +19,8 @@ AX_CHECK_OPENSSL
 AX_PREFIX_CONFIG_H(config/acsetup.h)
 AX_CREATE_STDINT_H(include/elliptics/typedefs.h)
 
+AX_SET_VERSION_INFO
+
 for i in -W -Wall -Wextra -fstack-protector-all -fno-strict-aliasing; do
 	AX_CHECK_COMPILER_FLAGS([$i], [CFLAGS="$CFLAGS $i"; CXXFLAGS="$CXXFLAGS $i"], [])
 done
@@ -36,6 +38,8 @@ AC_CHECK_KYOTOCABINET
 AX_BOOST_BASE
 AX_BOOST_PROGRAM_OPTIONS
 AX_BOOST_FILESYSTEM
+AX_BOOST_IOSTREAMS
+AX_BOOST_THREAD
 AX_BOOST_PYTHON
 
 AC_CHECK_HEADER(dlfcn.h)

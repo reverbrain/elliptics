@@ -441,8 +441,10 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 		goto err_out_free;
 
 	n = dnet_node_create(&dnet_cfg_state);
-	if (!n)
-		goto err_out_cleanup;
+	if (!n) {
+		dnet_cfg_current_backend->cleanup(dnet_cfg_current_backend);
+		goto err_out_free;
+	}
 
 	err = dnet_common_add_remote_addr(n, &dnet_cfg_state, dnet_cfg_remotes);
 	if (err)
@@ -452,8 +454,6 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 
 err_out_node_destroy:
 	dnet_node_destroy(n);
-err_out_cleanup:
-	dnet_cfg_current_backend->cleanup(dnet_cfg_current_backend);
 err_out_free:
 	free(dnet_cfg_remotes);
 //err_out_blob_exit:

@@ -150,7 +150,7 @@ static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 	err = eblob_read_file_index(b, id->id, DNET_ID_SIZE, &fd, &offset, &size, &index);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read-index: %d: %s.\n",
-				dnet_dump_id(id), err, strerror(errno));
+				dnet_dump_id(id), err, strerror(-err));
 		goto err_out_exit;
 	}
 
@@ -185,7 +185,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	err = eblob_read_file_index(b, cmd->id.id, DNET_ID_SIZE, &fd, &offset, &size, &index);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-file-info: info-read-index: %d: %s.\n",
-				dnet_dump_id(&cmd->id), err, strerror(errno));
+				dnet_dump_id(&cmd->id), err, strerror(-err));
 		goto err_out_free;
 	}
 
@@ -193,7 +193,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	if (err) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-idx-%d: info-stat: %d: %s.\n",
-				dnet_dump_id(&cmd->id), index, err, strerror(errno));
+				dnet_dump_id(&cmd->id), index, err, strerror(-err));
 		goto err_out_free;
 	}
 
@@ -203,7 +203,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	if (attr->flags & DNET_ATTR_NOCSUM) {
 		memset(info->checksum, 0, csize);
 	} else {
-		err = dnet_verify_checksum_io(n, (unsigned char *)&cmd->id.id, info->checksum, &csize);
+		err = dnet_verify_checksum_io(n, cmd->id.id, info->checksum, &csize);
 		if (err && (err != -ENODATA))
 			goto err_out_free;
 	}
@@ -363,9 +363,22 @@ int eblob_backend_storage_stat(void *priv, struct dnet_stat *st)
 	return 0;
 }
 
+static void eblob_backend_cleanup(void *priv)
+{
+	struct eblob_backend_config *c = priv;
+
+	eblob_cleanup(c->data_blob);
+
+	unlink(c->data.mmap_file);
+
+	free(c->data.mmap_file);
+	free(c->data.file);
+}
+
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)
 {
 	struct eblob_backend_config *c = b->data;
+	char mmap_file[256];
 	int err = 0;
 
 	if (!c->data.file) {
@@ -375,11 +388,18 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	}
 
 	c->data.log = (struct eblob_log *)b->log;
+	snprintf(mmap_file, sizeof(mmap_file), "%s.mmap.%d", c->data.file, getpid());
+
+	c->data.mmap_file = strdup(mmap_file);
+	if (!c->data.mmap_file) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
 
 	c->data_blob = eblob_init(&c->data);
 	if (!c->data_blob) {
 		err = -EINVAL;
-		goto err_out_exit;
+		goto err_out_free;
 	}
 
 	cfg->storage_size = b->storage_size;
@@ -390,9 +410,12 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	cfg->command_private = c;
 	cfg->command_handler = eblob_backend_command_handler;
 	cfg->send = eblob_send;
+	cfg->backend_cleanup = eblob_backend_cleanup;
 
 	return 0;
 
+err_out_free:
+	free(c->data.mmap_file);
 err_out_exit:
 	return err;
 }
@@ -401,9 +424,7 @@ static void dnet_blob_config_cleanup(struct dnet_config_backend *b)
 {
 	struct eblob_backend_config *c = b->data;
 
-	eblob_cleanup(c->data_blob);
-
-	free(c->data.file);
+	eblob_backend_cleanup(c);
 }
 
 static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {

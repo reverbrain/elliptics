@@ -158,14 +158,47 @@ err_out_exit:
 	return err;
 }
 
+int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const char *port, const int family,
+		const int sock_type, const int proto)
+{
+	struct addrinfo *ai = NULL, hint;
+	int err;
+
+	memset(&hint, 0, sizeof(struct addrinfo));
+
+	hint.ai_family = family;
+	hint.ai_socktype = sock_type;
+	hint.ai_protocol = proto;
+
+	err = getaddrinfo(saddr, port, &hint, &ai);
+	if (err || ai == NULL) {
+		err = -errno;
+		if (!err)
+			err = -EINVAL;
+
+		goto err_out_exit;
+	}
+
+	if (addr->addr_len >= ai->ai_addrlen)
+		addr->addr_len = ai->ai_addrlen;
+	else {
+		err = -ENOBUFS;
+		goto err_out_free;
+	}
+	memcpy(addr->addr, ai->ai_addr, addr->addr_len);
+
+err_out_free:
+	freeaddrinfo(ai);
+err_out_exit:
+	return err;
+}
+
 int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 		struct dnet_addr *addr, int listening)
 {
 	int s, err = -EINVAL;
-	struct addrinfo *ai = NULL, hint;
 	struct dnet_net_state *st;
 
-	memset(&hint, 0, sizeof(struct addrinfo));
 
 	if (cfg->family != n->family)
 		cfg->family = n->family;
@@ -174,52 +207,30 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 	if (cfg->proto != n->proto)
 		cfg->proto = n->proto;
 
-	hint.ai_family = cfg->family;
-	hint.ai_socktype = cfg->sock_type;
-	hint.ai_protocol = cfg->proto;
-
-	err = getaddrinfo(cfg->addr, cfg->port, &hint, &ai);
-	if (err || ai == NULL) {
-		err = -errno;
-		if (!err)
-			err = -EINVAL;
-
-		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%s, family: %d, err: %d: %s [%d].\n",
-				cfg->addr, cfg->port, cfg->family, err, strerror(errno), errno);
+	err = dnet_fill_addr(addr, cfg->addr, cfg->port, cfg->family, cfg->sock_type, cfg->proto);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%s, family: %d, err: %d: %s.\n",
+				cfg->addr, cfg->port, cfg->family, err, strerror(-err));
 		goto err_out_exit;
 	}
-
-	if (addr->addr_len >= ai->ai_addrlen)
-		addr->addr_len = ai->ai_addrlen;
-	else {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to copy address: size %u is too small (must be more than %u).\n",
-				addr->addr_len, ai->ai_addrlen);
-		err = -ENOBUFS;
-		goto err_out_exit;
-	}
-	memcpy(addr->addr, ai->ai_addr, addr->addr_len);
 
 	st = dnet_state_search_by_addr(n, addr);
 	if (st) {
 		dnet_log(n, DNET_LOG_ERROR, "Address %s:%s already exists in route table\n", cfg->addr, cfg->port);
 		err = -EEXIST;
 		dnet_state_put(st);
-		goto err_out_free;
+		goto err_out_exit;
 	}
 
 	s = dnet_socket_create_addr(n, cfg->sock_type, cfg->proto, cfg->family,
-			ai->ai_addr, ai->ai_addrlen, listening);
+			(struct sockaddr *)addr->addr, addr->addr_len, listening);
 	if (s < 0) {
 		err = s;
-		goto err_out_free;
+		goto err_out_exit;
 	}
-
-	freeaddrinfo(ai);
 
 	return s;
 
-err_out_free:
-	freeaddrinfo(ai);
 err_out_exit:
 	return err;
 }
@@ -445,7 +456,7 @@ static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t o
 		if (err < 0)
 			break;
 		if (err == 0) {
-			err = -errno;
+			err = -ENODATA;
 			dnet_log_err(st->n, "Looks like truncated file: fd: %d, offset: %llu, size: %llu.\n",
 					fd, (unsigned long long)offset, (unsigned long long)dsize);
 			break;

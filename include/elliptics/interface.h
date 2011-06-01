@@ -154,13 +154,10 @@ struct dnet_io_control {
 int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
 
 /*
- * Read data associated with key @ID and put it to provided @data pointer.
- * Requestted chunk will have at most @size bytes in.
- * It will be read from offset @offset from the start of remote object.
- *
- * Returns number of bytes read or negative error code.
+ * Read @size bytes (0 means everything) of data associated with key @ID.
  */
-void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *size);
+void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *size,
+		uint64_t offset, uint32_t aflags, uint32_t ioflags);
 
 int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
 		void *data, int fd, uint64_t offset);
@@ -246,6 +243,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 #define DNET_CFG_JOIN_NETWORK		(1<<0)		/* given node joins network and becomes part of the storage */
 #define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */
 #define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
+#define DNET_CFG_NO_CSUM		(1<<3)		/* globally disable checksum verification and update */
 
 struct dnet_log {
 	/*
@@ -315,6 +313,7 @@ struct dnet_config
 	int			(* send)(void *state, void *priv, struct dnet_id *id);
 	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
 			void *csum, int *csize);
+	void			(* backend_cleanup)(void *command_private);
 
 	/*
 	 * Free and total space on given storage.
@@ -668,6 +667,9 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl);
 int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl);
 
 int dnet_request_cmd(struct dnet_node *n, struct dnet_trans_control *ctl);
+
+int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const char *port, const int family,
+		const int sock_type, const int proto);
 
 /* Change node status on given address or ID */
 int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr,

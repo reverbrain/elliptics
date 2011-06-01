@@ -678,7 +678,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 							err = dnet_db_read(st, cmd, io);
 						} else if (a->cmd == DNET_CMD_WRITE) {
 							err = dnet_db_write(n, cmd, io);
-							if (!err) {
+							if (!err && !(a->flags & DNET_ATTR_NOCSUM) && !(n->flags & DNET_CFG_NO_CSUM)) {
 								struct dnet_id raw;
 								dnet_setup_id(&raw, cmd->id.group_id, io->id);
 
@@ -693,7 +693,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				}
 			default:
 				if (a->cmd == DNET_CMD_READ) {
-					if (!(a->flags & DNET_ATTR_NOCSUM)) {
+					if (!(a->flags & DNET_ATTR_NOCSUM) && !(n->flags & DNET_CFG_NO_CSUM)) {
 						io = data;
 
 						err = dnet_verify_checksum_io(n, io->id, NULL, NULL);
@@ -2787,7 +2787,7 @@ err_out_exit:
 	return err;
 }
 
-void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *size)
+void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *size, uint64_t offset, uint32_t aflags, uint32_t ioflags)
 {
 	struct dnet_io_control ctl;
 	ssize_t err;
@@ -2823,14 +2823,16 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 	ctl.cmd = DNET_CMD_READ;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 
+	ctl.aflags = aflags;
+
 	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
 	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
 
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
 
-	ctl.io.flags = 0;
+	ctl.io.flags = ioflags;
 	ctl.io.size = *size;
-	ctl.io.offset = 0;
+	ctl.io.offset = offset;
 
 	dnet_wait_get(w);
 	err = dnet_read_object(n, &ctl);
