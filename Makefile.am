@@ -15,8 +15,5 @@ EXTRA_DIST = autogen.sh AUTHORS README .gitignore \
 	config/ac_check_eblob.m4 config/ac_check_kyotocabinet.m4 \
 	config/ax_boost_base.m4 \
 	config/ax_boost_program_options.m4 config/ax_boost_filesystem.m4 \
-<<<<<<< HEAD
-	config/ac_check_ioprio.m4
-=======
+	config/ac_check_ioprio.m4 \
 	config/ac_set_releaseinfo_versioninfo.m4
->>>>>>> 76d4a4d43e26d3409a79b2dda14ea74979a8c986
