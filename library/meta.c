@@ -126,8 +126,10 @@ int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t fl
 
 		gettimeofday(&tv, NULL);
 
+		mu->group_id = id->group_id;
 		mu->tsec = tv.tv_sec;
 		mu->tnsec = tv.tv_usec * 1000;
+		mu->flags = 0;
 		mu->flags |= flags_set;
 		mu->flags &= ~flags_clear;
 
@@ -241,6 +243,7 @@ struct dnet_meta_update *dnet_get_meta_update(struct dnet_node *n, struct dnet_m
 		if (m.type == DNET_META_UPDATE) {
 			mu = (struct dnet_meta_update *)(data + sizeof(struct dnet_meta));
 			num = m.size / sizeof(struct dnet_meta_update);
+/*
 			for (i = 0; i < num; ++i) {
 				mu_group_id = dnet_bswap32(mu[i].group_id);
 				if (mu_group_id == group_id) {
@@ -250,6 +253,14 @@ struct dnet_meta_update *dnet_get_meta_update(struct dnet_node *n, struct dnet_m
 					}
 					return &mu[i];
 				}
+			}
+*/
+			if (num >= 0) {
+				if (meta_update) {
+					memcpy(meta_update, &mu[0], sizeof(struct dnet_meta_update));
+					dnet_convert_meta_update(meta_update);
+				}
+				return &mu[0];
 			}
 		}
 

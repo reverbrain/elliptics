@@ -558,7 +558,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 		//	return err;
 		//}
 
-		for (i = 0; i < num; ++i) {
+		for (i = 0; i < num && !state->n->need_exit; ++i) {
 			err = dnet_bulk_check_complete_single(state, &ids[i], mc_array, &rec_num, cmd->id.group_id);
 		}
 
