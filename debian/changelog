@@ -1,3 +1,9 @@
+elliptics (2.9.7.4) unstable; urgency=low
+
+  * Added flag to disable metadata writes
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 02 Jun 2011 15:08:39 +0400
+
 elliptics (2.9.7.3) unstable; urgency=low
 
   * If checksum is disabled globally propagate it into per-command attribute
