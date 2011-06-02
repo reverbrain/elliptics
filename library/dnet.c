@@ -615,6 +615,11 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 						if (a->cmd == DNET_CMD_READ) {
 							err = dnet_db_read(st, cmd, io);
 						} else if (a->cmd == DNET_CMD_WRITE) {
+							if (n->flags & DNET_CFG_NO_META) {
+								err = 0;
+								break;
+							}
+
 							err = dnet_db_write(n, cmd, io);
 							if (!err && !(a->flags & DNET_ATTR_NOCSUM) && !(n->flags & DNET_CFG_NO_CSUM)) {
 								struct dnet_id raw;
@@ -647,9 +652,11 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				if (err || (a->cmd != DNET_CMD_WRITE))
 					break;
 
-				err = dnet_db_write(n, cmd, data);
-				if (err)
-					break;
+				if (!(n->flags & DNET_CFG_NO_META)) {
+					err = dnet_db_write(n, cmd, data);
+					if (err)
+						break;
+				}
 
 #if 0
 				dnet_update_notify(st, cmd, a, data);

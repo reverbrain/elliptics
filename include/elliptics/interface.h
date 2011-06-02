@@ -244,6 +244,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 #define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */
 #define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
 #define DNET_CFG_NO_CSUM		(1<<3)		/* globally disable checksum verification and update */
+#define DNET_CFG_NO_META		(1<<4)		/* do not write metadata */
 
 struct dnet_log {
 	/*
