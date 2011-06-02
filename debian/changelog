@@ -1,3 +1,14 @@
+elliptics (2.9.7.3) unstable; urgency=low
+
+  * If checksum is disabled globally propagate it into per-command attribute
+    flag
+  * Added AC_CONFIG_MACRO_DIR
+  * Added __DNET_META_MAX into meta enum
+  * ->send() callback returns positive number of transactions it sent or
+    negative error number
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 02 Jun 2011 14:40:42 +0400
+
 elliptics (2.9.7.2) unstable; urgency=low
 
   * Return -ENODATA instead of errno (-EAGAIN) when sendfile() fails to
