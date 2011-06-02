@@ -640,6 +640,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					}
 				}
 
+				if (n->flags & DNET_CFG_NO_CSUM)
+					a->flags |= DNET_ATTR_NOCSUM;
+
 				err = n->command_handler(st, n->command_private, cmd, a, data);
 				if (err || (a->cmd != DNET_CMD_WRITE))
 					break;
