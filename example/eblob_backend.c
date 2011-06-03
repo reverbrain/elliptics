@@ -391,7 +391,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	}
 
 	c->data.log = (struct eblob_log *)b->log;
-	snprintf(mmap_file, sizeof(mmap_file), "%s.mmap.%d", c->data.file, getpid());
+	snprintf(mmap_file, sizeof(mmap_file), "%s.mmap", c->data.file);
 
 	c->data.mmap_file = strdup(mmap_file);
 	if (!c->data.mmap_file) {
