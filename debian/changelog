@@ -1,3 +1,10 @@
+elliptics (2.9.7.6) unstable; urgency=low
+
+  * Write data/metadata if it is not present in selected group. If data is
+    present, but metadata isn't, upload metadata
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 06 Jun 2011 20:57:24 +0400
+
 elliptics (2.9.7.5) unstable; urgency=low
 
   * Use the same eblob mmap file
