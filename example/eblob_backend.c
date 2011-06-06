@@ -131,9 +131,12 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 	err = eblob_read(b, id->id, DNET_ID_SIZE, &fd, &offset, &size);
 	if (!err) {
 		err = dnet_write_data_wait(n, NULL, 0, id, NULL, fd, offset + sizeof(struct eblob_disk_control), 0, size,
-				NULL, 0, 0);
-		if (err)
+				NULL, DNET_ATTR_DIRECT_TRANSACTION, 0);
+		if (err <= 0) {
+			if (err == 0)
+				err = -ENOENT;
 			goto err_out_exit;
+		}
 	}
 
 err_out_exit:
@@ -388,7 +391,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	}
 
 	c->data.log = (struct eblob_log *)b->log;
-	snprintf(mmap_file, sizeof(mmap_file), "%s.mmap.%d", c->data.file, getpid());
+	snprintf(mmap_file, sizeof(mmap_file), "%s.mmap", c->data.file);
 
 	c->data.mmap_file = strdup(mmap_file);
 	if (!c->data.mmap_file) {

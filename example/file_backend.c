@@ -413,9 +413,16 @@ static int file_backend_send(void *state, void *priv, struct dnet_id *id)
 	file_backend_setup_file(r, file, sizeof(file), id->id);
 
 	if (!access(file, R_OK)) {
-		err = dnet_write_file_local_offset(n, file, NULL, 0, id, 0, 0, 0, 0, 0);
+		err = dnet_write_file_local_offset(n, file, NULL, 0, id, 0, 0, 0,
+				DNET_ATTR_DIRECT_TRANSACTION, 0);
+		if (err <= 0) {
+			if (err == 0)
+				err = -ENOENT;
+			goto err_out_exit;
+		}
 	}
 
+err_out_exit:
 	return err;
 }
 
