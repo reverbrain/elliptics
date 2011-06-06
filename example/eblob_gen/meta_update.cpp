@@ -15,6 +15,7 @@
 #include <boost/program_options.hpp>
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
+#include <boost/lexical_cast.hpp>
 #include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
 
@@ -24,9 +25,18 @@ extern "C" {
 #include <eblob/blob.h>
 }
 
+
+class processor_key {
+	public:
+		std::string path;
+		uint64_t offset;
+		uint64_t size;
+		std::string id;
+};
+
 class generic_processor {
 	public:
-		virtual std::string next(void) = 0;
+		virtual processor_key next(void) = 0;
 };
 
 class eblob_processor : public generic_processor {
@@ -40,9 +50,9 @@ class eblob_processor : public generic_processor {
 				file_.close();
 		}
 
-		std::string next(void) {
+		processor_key next(void) {
 			struct eblob_disk_control dc;
-			std::string key;
+			processor_key key;
 
 			while (true) {
 				if (pos_ >= file_.size()) {
@@ -56,7 +66,10 @@ class eblob_processor : public generic_processor {
 				pos_ += sizeof(dc);
 
 				if (!(dc.flags & BLOB_DISK_CTL_REMOVE)) {
-					key.assign((char *)dc.id, sizeof(dc.id));
+					key.id.assign((char *)dc.id, sizeof(dc.id));
+					key.path = path_;
+					key.offset = dc.position + sizeof(dc);
+					key.size = dc.data_size;
 					break;
 				}
 			}
@@ -90,8 +103,8 @@ class fs_processor : public generic_processor {
 		fs_processor(const std::string &path) : itr_(fs::path(path)) {
 		}
 
-		std::string next(void) {
-			std::string key;
+		processor_key next(void) {
+			processor_key key;
 
 			while (true) {
 				if (itr_ == end_itr_) {
@@ -108,9 +121,12 @@ class fs_processor : public generic_processor {
 					continue;
 				}
 
-				parse(itr_->leaf(), key);
+				parse(itr_->leaf(), key.id);
+				key.path = itr_->path().string();
+				key.offset = 0;
+				key.size = 0;
 
-				std::cout << "fs: " << itr_->leaf() << std::endl;
+				std::cout << "fs: " << itr_->path() << std::endl;
 
 				++itr_;
 				break;
@@ -156,7 +172,7 @@ class fs_processor : public generic_processor {
 
 class remote_update {
 	public:
-		remote_update(const std::vector<int> groups) : groups_(groups), aflags_(DNET_ATTR_DIRECT_TRANSACTION) {
+		remote_update(const std::vector<int> groups, const std::string &addr) : groups_(groups), aflags_(DNET_ATTR_DIRECT_TRANSACTION), local_addr_(addr) {
 		}
 
 		void process(elliptics_node &n, const std::string &path, int tnum = 16, int csum_enabled = 0) {
@@ -191,14 +207,15 @@ class remote_update {
 		std::vector<int> groups_;
 		boost::mutex data_lock_;
 		int aflags_;
+		std::string local_addr_;
 
-		void update(elliptics_node *n, const std::string &key) {
+		void update(elliptics_node *n, processor_key &key) {
 			struct dnet_id id;
 			int err = -ENOENT;
 			struct dnet_meta *m;
 
 			for (int i=0; i<(int)groups_.size(); ++i) {
-				dnet_setup_id(&id, groups_[i], (unsigned char *)key.data());
+				dnet_setup_id(&id, groups_[i], (unsigned char *)key.id.data());
 
 				std::string meta;
 
@@ -216,6 +233,13 @@ class remote_update {
 			}
 
 			if (err) {
+				std::string lookup_addr = n->lookup_addr(id);
+				std::cout << dnet_dump_id(&id) << ": lookup_addr: " << lookup_addr << ", local_addr: " << local_addr_ << std::endl;
+				if (lookup_addr != local_addr_) {
+					std::cout << dnet_dump_id(&id) << ": sending " << key.path << " offset " << key.offset << " size " << key.size << std::endl;
+					n->write_file(id, (char *)key.path.c_str(), key.offset, 0, key.size, DNET_ATTR_DIRECT_TRANSACTION, 0);
+				}
+
 				char buf[sizeof(struct dnet_meta) + sizeof(int) * groups_.size()];
 
 				memset(buf, 0, sizeof(struct dnet_meta));
@@ -237,7 +261,7 @@ class remote_update {
 		void process_data(generic_processor *proc, elliptics_node *n) {
 			try {
 				while (true) {
-					std::string key;
+					processor_key key;
 
 					{
 						boost::mutex::scoped_lock scoped_lock(data_lock_);
@@ -250,6 +274,27 @@ class remote_update {
 			}
 		}
 };
+
+std::string convert_addr(std::string host, std::string port, int family)
+{
+	char buf[128];
+	int err = 0;
+	struct dnet_addr addr;
+
+	addr.addr_len = sizeof(addr.addr);
+
+	std::cout << "Converting host " << host.c_str() << " port " << port.c_str() << " family " << family <<std::endl;
+	err = dnet_fill_addr(&addr, host.c_str(), port.c_str(), family, SOCK_STREAM, IPPROTO_TCP);
+	if (err < 0) {
+		std::ostringstream str;
+		str << "Failed to convert addr, err: " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	dnet_server_convert_dnet_addr_raw(&addr, buf, sizeof(buf));
+
+	return std::string((const char *)buf, strlen(buf));
+}
 
 int main(int argc, char *argv[])
 {
@@ -298,7 +343,7 @@ int main(int argc, char *argv[])
 		node.add_groups(groups);
 		node.add_remote(addr.c_str(), port, family);
 
-		remote_update up(groups);
+		remote_update up(groups, convert_addr(addr, boost::lexical_cast<std::string>(port), family));
 		up.process(node, vm["input-path"].as<std::string>(), thread_num, csum_enabled);
 	} catch (const std::exception &e) {
 		std::cerr << "Exiting: " << e.what() << std::endl;
