@@ -67,7 +67,7 @@ class eblob_processor : public generic_processor {
 
 				if (!(dc.flags & BLOB_DISK_CTL_REMOVE)) {
 					key.id.assign((char *)dc.id, sizeof(dc.id));
-					key.path = path_;
+					key.path = path_ + "." + boost::lexical_cast<std::string>(index_ - 1);
 					key.offset = dc.position + sizeof(dc);
 					key.size = dc.data_size;
 					break;
