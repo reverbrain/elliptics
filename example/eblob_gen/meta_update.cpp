@@ -172,7 +172,7 @@ class fs_processor : public generic_processor {
 
 class remote_update {
 	public:
-		remote_update(const std::vector<int> groups, const std::string &addr) : groups_(groups), aflags_(DNET_ATTR_DIRECT_TRANSACTION), local_addr_(addr) {
+		remote_update(const std::vector<int> groups) : groups_(groups), aflags_(DNET_ATTR_DIRECT_TRANSACTION) {
 		}
 
 		void process(elliptics_node &n, const std::string &path, int tnum = 16, int csum_enabled = 0) {
@@ -207,54 +207,50 @@ class remote_update {
 		std::vector<int> groups_;
 		boost::mutex data_lock_;
 		int aflags_;
-		std::string local_addr_;
 
 		void update(elliptics_node *n, processor_key &key) {
 			struct dnet_id id;
-			int err = -ENOENT;
 			struct dnet_meta *m;
 
 			for (int i=0; i<(int)groups_.size(); ++i) {
 				dnet_setup_id(&id, groups_[i], (unsigned char *)key.id.data());
 
-				std::string meta;
+				std::string meta, data;
 
 				try {
-					meta = n->read_data_wait(id, 0, 0, aflags_, DNET_IO_FLAGS_META);
+					data = n->read_data_wait(id, 1, 0);
 				} catch (...) {
 				}
 
-				m = dnet_meta_search(NULL, (void *)meta.data(), meta.size(), DNET_META_GROUPS);
-				if (m) {
-					std::cout << dnet_dump_id(&id) << ": valid metadata found in group: " << groups_[i] << std::endl;
-					err = 0;
-					break;
-				}
-			}
-
-			if (err) {
-				std::string lookup_addr = n->lookup_addr(id);
-				std::cout << dnet_dump_id(&id) << ": lookup_addr: " << lookup_addr << ", local_addr: " << local_addr_ << std::endl;
-				if (lookup_addr != local_addr_) {
+				if (!data.size()) {
 					std::cout << dnet_dump_id(&id) << ": sending " << key.path << " offset " << key.offset << " size " << key.size << std::endl;
 					n->write_file(id, (char *)key.path.c_str(), key.offset, 0, key.size, DNET_ATTR_DIRECT_TRANSACTION, 0);
+				} else {
+					try {
+						meta = n->read_data_wait(id, 0, 0, aflags_, DNET_IO_FLAGS_META);
+					} catch (...) {
+					}
+
+					m = dnet_meta_search(NULL, (void *)meta.data(), meta.size(), DNET_META_GROUPS);
+					if (m)
+						continue;
+
+					char buf[sizeof(struct dnet_meta) + sizeof(int) * groups_.size()];
+
+					memset(buf, 0, sizeof(struct dnet_meta));
+
+					m = (struct dnet_meta *)buf;
+
+					m->type = DNET_META_GROUPS;
+					m->size = sizeof(int) * groups_.size();
+
+					memcpy(m->data, groups_.data(), groups_.size() * sizeof(int));
+
+					std::string meta;
+					meta.assign(buf, sizeof(buf));
+
+					n->write_data_wait(id, meta, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META | DNET_IO_FLAGS_APPEND);
 				}
-
-				char buf[sizeof(struct dnet_meta) + sizeof(int) * groups_.size()];
-
-				memset(buf, 0, sizeof(struct dnet_meta));
-
-				m = (struct dnet_meta *)buf;
-
-				m->type = DNET_META_GROUPS;
-				m->size = sizeof(int) * groups_.size();
-
-				memcpy(m->data, groups_.data(), groups_.size() * sizeof(int));
-
-				std::string meta;
-				meta.assign(buf, sizeof(buf));
-
-				n->write_data_wait(id, meta, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META | DNET_IO_FLAGS_APPEND);
 			}
 		}
 
@@ -274,27 +270,6 @@ class remote_update {
 			}
 		}
 };
-
-std::string convert_addr(std::string host, std::string port, int family)
-{
-	char buf[128];
-	int err = 0;
-	struct dnet_addr addr;
-
-	addr.addr_len = sizeof(addr.addr);
-
-	std::cout << "Converting host " << host.c_str() << " port " << port.c_str() << " family " << family <<std::endl;
-	err = dnet_fill_addr(&addr, host.c_str(), port.c_str(), family, SOCK_STREAM, IPPROTO_TCP);
-	if (err < 0) {
-		std::ostringstream str;
-		str << "Failed to convert addr, err: " << err;
-		throw std::runtime_error(str.str());
-	}
-
-	dnet_server_convert_dnet_addr_raw(&addr, buf, sizeof(buf));
-
-	return std::string((const char *)buf, strlen(buf));
-}
 
 int main(int argc, char *argv[])
 {
@@ -343,7 +318,7 @@ int main(int argc, char *argv[])
 		node.add_groups(groups);
 		node.add_remote(addr.c_str(), port, family);
 
-		remote_update up(groups, convert_addr(addr, boost::lexical_cast<std::string>(port), family));
+		remote_update up(groups);
 		up.process(node, vm["input-path"].as<std::string>(), thread_num, csum_enabled);
 	} catch (const std::exception &e) {
 		std::cerr << "Exiting: " << e.what() << std::endl;
