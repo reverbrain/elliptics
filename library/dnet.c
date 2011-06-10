@@ -675,10 +675,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		gettimeofday(&end, NULL);
 
 		diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
-		dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, size: %llu, time: %ld usecs, err: %d.\n",
+		dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, cflags: %x, aflags: %x, time: %ld usecs, err: %d.\n",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(a->cmd), tid,
-				(unsigned long long)a->size, diff, err);
-
+				cmd->flags, a->flags, diff, err);
 		if (err)
 			break;
 
