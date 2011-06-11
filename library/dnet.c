@@ -726,7 +726,7 @@ int dnet_state_join_nolock(struct dnet_net_state *st)
 	}
 
 	/* we do not care about group_id actually, since use direct send */
-	dnet_setup_id(&id, n->id.group_id, st->idc->ids[0].raw.id);
+	memcpy(&id, &n->id, sizeof(id));
 
 	err = dnet_send_idc(base, st, &id, 0, DNET_CMD_JOIN, 0, 1, 0);
 	if (err) {
