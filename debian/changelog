@@ -1,3 +1,9 @@
+elliptics (2.9.7.8) unstable; urgency=low
+
+  * Do not try to dereference st->idc without lock, it can go away
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 12 Jun 2011 01:54:23 +0400
+
 elliptics (2.9.7.7) unstable; urgency=low
 
   * Meta update should use direct transactions
