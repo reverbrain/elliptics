@@ -813,8 +813,9 @@ static int dnet_process_addr_attr(struct dnet_net_state *st, struct dnet_attr *a
 }
 
 static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *priv __unused)
+		struct dnet_attr *attr, void *priv)
 {
+	struct dnet_wait *w = priv;
 	struct dnet_addr_attr *a;
 	struct dnet_node *n;
 	long size;
@@ -822,6 +823,12 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 
 	if (is_trans_destroyed(st, cmd, attr)) {
 		err = -EINVAL;
+		if (cmd)
+			err = cmd->status;
+
+		w->status = err;
+		dnet_wakeup(w, w->cond = 1);
+		dnet_wait_put(w);
 		goto err_out_exit;
 	}
 
@@ -853,15 +860,23 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 	struct dnet_trans *t;
 	struct dnet_cmd *cmd;
 	struct dnet_attr *a;
+	struct dnet_wait *w;
 	int err;
 
-	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
-	if (!t) {
+	w = dnet_wait_alloc(0);
+	if (!w) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
+	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr));
+	if (!t) {
+		err = -ENOMEM;
+		goto err_out_wait_put;
+	}
+
 	t->complete = dnet_recv_route_list_complete;
+	t->priv = w;
 
 	cmd = (struct dnet_cmd *)(t + 1);
 	a = (struct dnet_attr *)(cmd + 1);
@@ -890,14 +905,20 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 	req.header = cmd;
 	req.hsize = sizeof(struct dnet_attr) + sizeof(struct dnet_cmd);
 
+	dnet_wait_get(w);
 	err = dnet_trans_send(t, &req);
 	if (err)
 		goto err_out_destroy;
+
+	err = dnet_wait_event(w, w->cond != 1, &n->wait_ts);
+	dnet_wait_put(w);
 
 	return 0;
 
 err_out_destroy:
 	dnet_trans_put(t);
+err_out_wait_put:
+	dnet_wait_put(w);
 err_out_exit:
 	return err;
 }
