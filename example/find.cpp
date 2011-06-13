@@ -108,7 +108,7 @@ void elliptics_finder::parse_lookup(const std::string &ret)
 				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: %s: should live at: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
 			else
-				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: %s: should live at: %s, "
+				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND-OK object: %s: should live at: %s, "
 						"offset: %llu, size: %llu, mode: %llo, path: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
 					(unsigned long long)info->offset, (unsigned long long)info->size,
@@ -143,7 +143,7 @@ void elliptics_finder::parse_meta(const std::string &ret)
 
 				dnet_convert_io_attr(io);
 
-				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND meta: %s: cmd: %s, io size: %llu\n",
+				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
 						dnet_dump_id(&cmd->id), addr_str, dnet_cmd_string(attr->cmd),
 						(unsigned long long)io->size);
 			} else {
