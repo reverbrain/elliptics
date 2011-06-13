@@ -50,28 +50,9 @@ class elliptics_finder : public elliptics_node {
 
 		void add_remote(const char *addr);
 
-		void sync_route(void);
-
 		void parse_lookup(const std::string &ret);
 		void parse_meta(const std::string &ret);
 };
-
-void elliptics_finder::sync_route(void)
-{
-	elliptics_callback c;
-	int err;
-
-	err = dnet_request_stat(node, NULL, DNET_CMD_ROUTE_LIST, 0,
-		elliptics_callback::elliptics_complete_callback, (void *)&c);
-	if (err < 0) {
-		std::ostringstream str;
-		str << "Failed to sync route table: " << err;
-		throw std::runtime_error(str.str());
-	}
-
-	std::string ret;
-	ret = c.wait(err);
-}
 
 void elliptics_finder::add_remote(const char *addr)
 {
@@ -230,7 +211,6 @@ int main(int argc, char *argv[])
 		elliptics_finder find(log);
 
 		find.add_remote(remote);
-		find.sync_route();
 
 		{
 			elliptics_callback c;

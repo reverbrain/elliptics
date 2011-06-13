@@ -359,9 +359,6 @@ int main(int argc, char *argv[])
 
 	dnet_node_set_groups(n, groups, group_num);
 
-	/* request statistics to sync routes */
-	err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL, NULL, NULL);
-
 	err = meta_request(n, groups, group_num, name, id);
 
 err_out_destroy:
