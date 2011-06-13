@@ -1,3 +1,12 @@
+elliptics (2.9.7.9) unstable; urgency=low
+
+  * Removed route synchronization calls
+  * Made dnet_add_state() synchronous - it waits for dnet_recv_route_list()
+    for complete now
+  * Updated makefiles to fix linking with Natty libtool
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 13 Jun 2011 22:42:24 +0400
+
 elliptics (2.9.7.8) unstable; urgency=low
 
   * Do not try to dereference st->idc without lock, it can go away
