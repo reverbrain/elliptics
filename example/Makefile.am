@@ -9,7 +9,7 @@ CC = @PTHREAD_CC@
 AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@
 AM_CXXFLAGS = -I../include -I../config @PTHREAD_CFLAGS@
 
-AM_LDFLAGS = @PTHREAD_LIBS@
+AM_LDFLAGS = @PTHREAD_LIBS@ @KYOTOCABINET_LIBS@
 
 EXAMPLE_COMMON_LIBS = ../library/libelliptics.la libcommon.a
 EXAMPLE_BACKEND_LIBS = libbackend.a
