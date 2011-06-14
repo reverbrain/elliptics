@@ -50,6 +50,7 @@ enum dnet_commands {
 	DNET_CMD_DEL,				/* Remove given object from the storage */
 	DNET_CMD_STAT_COUNT,			/* Gather remote per-cmd statistics */
 	DNET_CMD_STATUS,			/* Change elliptics node status */
+	DNET_CMD_READ_RANGE,			/* Read range of objects */
 
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
