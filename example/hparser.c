@@ -111,7 +111,7 @@ static const char * hparser_visit(const char *key, size_t keysz,
 
 	if (datasz % (int)sizeof(struct dnet_history_entry)) {
 		fprintf(stderr, "Corrupted history record, "
-				"its size %d must be multiple of %zu.\n",
+				"its size %zu must be multiple of %zu.\n",
 				datasz, sizeof(struct dnet_history_entry));
 		return KCVISNOP;
 	}

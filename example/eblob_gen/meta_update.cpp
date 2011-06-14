@@ -172,7 +172,7 @@ class fs_processor : public generic_processor {
 
 class remote_update {
 	public:
-		remote_update(const std::vector<int> groups) : groups_(groups), aflags_(DNET_ATTR_DIRECT_TRANSACTION) {
+		remote_update(const std::vector<int> groups) : groups_(groups), aflags_(0) {
 		}
 
 		void process(elliptics_node &n, const std::string &path, int tnum = 16, int csum_enabled = 0) {
@@ -223,8 +223,9 @@ class remote_update {
 				try {
 					data = n->read_data_wait(id, 1, aflags_, 0);
 				} catch (...) {
-					std::cout << dnet_dump_id(&id) << ": sending " << key.path << " offset " << key.offset << " size " << key.size << std::endl;
-					n->write_file(id, (char *)key.path.c_str(), key.offset, 0, key.size, DNET_ATTR_DIRECT_TRANSACTION, 0);
+					std::cout << dnet_dump_id(&id) << ": sending " << key.path <<
+						" offset " << key.offset << " size " << key.size << std::endl;
+					n->write_file(id, (char *)key.path.c_str(), key.offset, 0, key.size, 0, 0);
 					continue;
 				}
 

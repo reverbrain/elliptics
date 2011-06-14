@@ -219,30 +219,26 @@ class elliptics_node_python : public elliptics_node {
 		}
 
 		std::string read_data_by_id(const struct elliptics_id &id, uint64_t size, uint64_t offset,
-							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
-							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
+							unsigned int aflags = 0, unsigned int ioflags = 0) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
 			return elliptics_node::read_data_wait(raw, size, offset, aflags, ioflags);
 		}
 
 		std::string read_data_by_data_transform(const std::string &remote, uint64_t size, uint64_t offset,
-							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
-							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
+							unsigned int aflags = 0, unsigned int ioflags = 0) {
 			return elliptics_node::read_data_wait((std::string &)remote, size, offset, aflags, ioflags);
 		}
 
 		int write_data_by_id(const struct elliptics_id &id, const std::string &data,
-							unsigned int aflags = 0,
-							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
+							unsigned int aflags = 0, unsigned int ioflags = 0) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
 			return elliptics_node::write_data_wait(raw, (std::string &)data, aflags, ioflags);
 		}
 
 		int write_data_by_data_transform(const std::string &remote, const std::string &data,
-							unsigned int aflags = 0,
-							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
+							unsigned int aflags = 0, unsigned int ioflags = 0) {
 			return elliptics_node::write_data_wait((std::string &)remote, (std::string &)data, aflags, ioflags);
 		}
 

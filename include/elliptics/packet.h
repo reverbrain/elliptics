@@ -184,14 +184,8 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 	cmd->trans = dnet_bswap64(cmd->trans);
 }
 
-/* Do not work with history/transaction machinery, write data as is into object */
-#define DNET_ATTR_DIRECT_TRANSACTION		(1<<0)
-
 /* Completely remove object history and metadata */
-#define DNET_ATTR_DELETE_HISTORY		(1<<1)
-
-/* Lookup history object instead of data one */
-#define DNET_ATTR_LOOKUP_HISTORY		(1<<1)
+#define DNET_ATTR_DELETE_HISTORY		(1<<0)
 
 /* What type of counters to fetch */
 #define DNET_ATTR_CNTR_GLOBAL			(1<<0)

@@ -138,25 +138,25 @@ class elliptics_node {
 		void			read_file(std::string &remote, char *dst_file, uint64_t offset, uint64_t size);
 
 		void			read_data(struct dnet_id &id, uint64_t offset, uint64_t size, elliptics_callback &c,
-						unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION, unsigned int ioflags = 0);
+							unsigned int aflags = 0, unsigned int ioflags = 0);
 		void			read_data(std::string &remote, uint64_t offset, uint64_t size, elliptics_callback &c,
-						unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION, unsigned int ioflags = 0);
+							unsigned int aflags = 0, unsigned int ioflags = 0);
 
 		void 			write_file(struct dnet_id &id, char *src_file, uint64_t local_offset, uint64_t offset, uint64_t size,
-							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION, unsigned int ioflags = 0);
+							unsigned int aflags = 0, unsigned int ioflags = 0);
 		void			write_file(std::string &remote, char *src_file, uint64_t local_offset,
 							uint64_t offset, uint64_t size,
-							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION, unsigned int ioflags = 0);
+							unsigned int aflags = 0, unsigned int ioflags = 0);
 
 		int			write_data(struct dnet_id &id, std::string &str, elliptics_callback &c,
-							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION, unsigned int ioflags = 0);
+							unsigned int aflags = 0, unsigned int ioflags = 0);
 		int			write_data(std::string &remote, std::string &str, elliptics_callback &c,
-							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION, unsigned int ioflags = 0);
+							unsigned int aflags = 0, unsigned int ioflags = 0);
 
 		std::string		read_data_wait(struct dnet_id &id, uint64_t size, uint64_t offset = 0,
-				uint32_t aflags = DNET_ATTR_DIRECT_TRANSACTION, uint32_t ioflags = 0);
+							uint32_t aflags = 0, uint32_t ioflags = 0);
 		std::string		read_data_wait(std::string &remote, uint64_t size, uint64_t offset = 0,
-				uint32_t aflags = DNET_ATTR_DIRECT_TRANSACTION, uint32_t ioflags = 0);
+							uint32_t aflags = 0, uint32_t ioflags = 0);
 
 		int			write_data_wait(struct dnet_id &id, std::string &str,
 							unsigned int aflags = 0, unsigned int ioflags = 0);
@@ -166,7 +166,8 @@ class elliptics_node {
 		std::string		lookup_addr(const std::string &remote, const int group_id);
 		std::string		lookup_addr(const struct dnet_id &id);
 
-		int			write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups, const struct timespec &ts);
+		int			write_metadata(const struct dnet_id &id, const std::string &obj,
+							const std::vector<int> &groups, const struct timespec &ts);
 
 		void			lookup(const std::string &data, const elliptics_callback &c);
 		void			lookup(const struct dnet_id &id, const elliptics_callback &c);
