@@ -2791,10 +2791,7 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 	if (attr->size > sizeof(struct dnet_io_attr)) {
 		struct dnet_io_attr *io = (struct dnet_io_attr *)(attr + 1);
-		void *data;
 		uint64_t sz = c->size;
-
-		data = io + 1;
 
 		dnet_convert_io_attr(io);
 
@@ -2805,8 +2802,8 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 			goto err_out_exit;
 		}
 
-		memcpy(c->data + c->size, data, io->size);
-		c->size += io->size;
+		memcpy(c->data + c->size, io, sizeof(struct dnet_io_attr) + io->size);
+		c->size = sz;
 	}
 
 err_out_exit:

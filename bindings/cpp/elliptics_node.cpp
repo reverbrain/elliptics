@@ -286,7 +286,7 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size, ui
 		throw std::runtime_error(str.str());
 	}
 
-	std::string ret = std::string((const char *)data, size);
+	std::string ret = std::string((const char *)data + sizeof(struct dnet_io_attr), size);
 	free(data);
 
 	return ret;
