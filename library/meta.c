@@ -96,6 +96,7 @@ int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t fl
 	struct dnet_meta *m;
 	struct dnet_meta_update *mu;
 	struct timeval tv;
+	size_t mc_size;
 
 	memset(&mc, 0, sizeof(struct dnet_meta_container));
 
@@ -107,7 +108,8 @@ int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t fl
 		goto err_out_exit;
 	}
 
-	mc.data = (unsigned char *)kcdbget(n->meta, (void *)id->id, DNET_ID_SIZE, &mc.size);
+	mc.data = (unsigned char *)kcdbget(n->meta, (void *)id->id, DNET_ID_SIZE, &mc_size);
+	mc.size = mc_size;
 	if (!mc.data) {
 		err = -kcdbecode(n->meta);
 		dnet_log_raw(n, DNET_LOG_DSA, "%s: failed to read meta of the object, err: %d: %s.\n",
@@ -214,14 +216,13 @@ err_out_exit:
 	return err;
 }
 
-struct dnet_meta_update *dnet_get_meta_update(struct dnet_node *n, struct dnet_meta_container *mc, int group_id, struct dnet_meta_update *meta_update)
+struct dnet_meta_update *dnet_get_meta_update(struct dnet_node *n, struct dnet_meta_container *mc,
+		int group_id, struct dnet_meta_update *meta_update)
 {
 	struct dnet_meta m;
 	void *data = mc->data;
 	uint32_t size = mc->size;
 	struct dnet_meta_update *mu;
-	int mu_group_id;
-	int i, num;
 
 	while (size) {
 		if (size < sizeof(struct dnet_meta)) {
@@ -244,6 +245,8 @@ struct dnet_meta_update *dnet_get_meta_update(struct dnet_node *n, struct dnet_m
 			mu = (struct dnet_meta_update *)(data + sizeof(struct dnet_meta));
 			num = m.size / sizeof(struct dnet_meta_update);
 /*
+	int i, num;
+	int mu_group_id;
 			for (i = 0; i < num; ++i) {
 				mu_group_id = dnet_bswap32(mu[i].group_id);
 				if (mu_group_id == group_id) {
