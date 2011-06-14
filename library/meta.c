@@ -223,6 +223,7 @@ struct dnet_meta_update *dnet_get_meta_update(struct dnet_node *n, struct dnet_m
 	void *data = mc->data;
 	uint32_t size = mc->size;
 	struct dnet_meta_update *mu;
+	int num;
 
 	while (size) {
 		if (size < sizeof(struct dnet_meta)) {
@@ -245,8 +246,7 @@ struct dnet_meta_update *dnet_get_meta_update(struct dnet_node *n, struct dnet_m
 			mu = (struct dnet_meta_update *)(data + sizeof(struct dnet_meta));
 			num = m.size / sizeof(struct dnet_meta_update);
 /*
-	int i, num;
-	int mu_group_id;
+	int mu_group_id, i;
 			for (i = 0; i < num; ++i) {
 				mu_group_id = dnet_bswap32(mu[i].group_id);
 				if (mu_group_id == group_id) {
