@@ -77,6 +77,12 @@ enum dnet_counters {
 	DNET_CNTR_VM_BUFFERS,			/* Used for buffers */
 	DNET_CNTR_NODE_FILES,			/* # files in meta */
 	DNET_CNTR_NODE_LAST_MERGE,		/* Result of the last merge */
+	DNET_CNTR_NODE_CHECK_COPY,		/* Result of the last check copies */
+	DNET_CNTR_DBR_NOREC,			/* Kyoto Cabinet DB read error KCENOREC */
+	DNET_CNTR_DBR_SYSTEM,			/* Kyoto Cabinet DB read error KCESYSTEM */
+	DNET_CNTR_DBR_ERROR,			/* Kyoto Cabinet DB read error */
+	DNET_CNTR_DBW_SYSTEM,			/* Kyoto Cabinet DB write error KCESYSTEM */
+	DNET_CNTR_DBW_ERROR,			/* Kyoto Cabinet DB write error */
 	DNET_CNTR_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown counters */
 	__DNET_CNTR_MAX,
 };
@@ -181,13 +187,17 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* Do not work with history/transaction machinery, write data as is into object */
 #define DNET_ATTR_DIRECT_TRANSACTION		(1<<0)
 
-/* Lookup attribute flags */
+/* Completely remove object history and metadata */
+#define DNET_ATTR_DELETE_HISTORY		(1<<1)
 
 /* Lookup history object instead of data one */
 #define DNET_ATTR_LOOKUP_HISTORY		(1<<1)
 
 /* What type of counters to fetch */
 #define DNET_ATTR_CNTR_GLOBAL			(1<<0)
+
+/* Bulk request for checking files */
+#define DNET_ATTR_BULK_CHECK			(1<<0)
 
 /* Do not verify checksum */
 #define DNET_ATTR_NOCSUM			(1<<2)
@@ -309,6 +319,17 @@ struct dnet_history_entry
 	uint64_t		offset;
 	uint64_t		size;
 } __attribute__ ((packed));
+
+/*
+ * Helper structure and set of functions to map history file and perform basic checks.
+ */
+struct dnet_history_map
+{
+	struct dnet_history_entry	*ent;
+	long				num;
+	ssize_t				size;
+	int				fd;
+};
 
 static inline void dnet_convert_history_entry(struct dnet_history_entry *a)
 {

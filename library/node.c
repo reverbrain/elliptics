@@ -614,6 +614,9 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!cfg->family)
 		cfg->family = AF_INET;
 
+	if (!cfg->removal_delay)
+		cfg->removal_delay = 10; /* Store removed files 10 days by default */
+
 	n->proto = cfg->proto;
 	n->sock_type = cfg->sock_type;
 	n->family = cfg->family;
@@ -629,7 +632,14 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;
 	n->id.group_id = cfg->group_id;
+	n->bg_ionice_class = cfg->bg_ionice_class;
+	n->bg_ionice_prio = cfg->bg_ionice_prio;
+	n->removal_delay = cfg->removal_delay;
 	n->flags = cfg->flags;
+	if (strlen(cfg->temp_meta_env) > 0)
+		n->temp_meta_env = cfg->temp_meta_env;
+	else
+		n->temp_meta_env = cfg->history_env;
 
 	if (!n->log)
 		dnet_log_init(n, cfg->log);

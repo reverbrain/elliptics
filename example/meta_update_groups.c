@@ -51,6 +51,7 @@ static void meta_usage(char *p)
 			"  -I id                  - use this ID to get metadata\n"
 			"  -n name                - use this name to get metadata\n"
 			"  -g group:group...      - groups to get matadata from\n"
+			"  -G group:group...      - groups to upload matadata to\n"
 			"  -w timeout             - wait timeout in seconds\n"
 			"  -r addr:port:family    - connect to this remote node\n"
 			"  -m mask                - log mask\n"
@@ -66,11 +67,14 @@ int main(int argc, char *argv[])
 	char *name = NULL;
 	FILE *log;
 	int *groups, group_num = 0;
+	int *newgroups, newgroup_num = 0;
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	struct dnet_config cfg, rem;
 	struct dnet_node *n;
 	struct dnet_id raw;
 	struct dnet_meta_container mc;
+	struct dnet_metadata_control mctl;
+	struct dnet_meta *m;
 
 	memset(&cfg, 0, sizeof(cfg));
 
@@ -81,7 +85,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "N:g:w:I:n:r:m:l:h")) != -1) {
+	while ((ch = getopt(argc, argv, "N:g:G:w:I:n:r:m:l:h")) != -1) {
 		switch (ch) {
 			case 'N':
 				cfg.ns = optarg;
@@ -112,6 +116,11 @@ int main(int argc, char *argv[])
 				if (group_num <= 0)
 					return -1;
 				break;
+			case 'G':
+				newgroup_num = dnet_parse_groups(optarg, &newgroups);
+				if (newgroup_num <= 0)
+					return -1;
+				break;
 			case 'n':
 				name = optarg;
 				break;
@@ -132,10 +141,15 @@ int main(int argc, char *argv[])
 		meta_usage(argv[0]);
 	}
 
+	if (newgroup_num <= 0) {
+		fprintf(stderr, "You must specify new groups\n");
+		meta_usage(argv[0]);
+	}
+
 	log = fopen(logfile, "a");
 	if (!log) {
 		err = -errno;
-		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(-err));
+		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
 		goto err_out_exit;
 	}
 
@@ -144,10 +158,8 @@ int main(int argc, char *argv[])
 	cfg.log = &meta_logger;
 
 	n = dnet_node_create(&cfg);
-	if (!n) {
-		err = -EINVAL;
+	if (!n)
 		goto err_out_exit;
-	}
 
 	err = dnet_add_state(n, &rem);
 	if (err)
@@ -155,10 +167,17 @@ int main(int argc, char *argv[])
 
 	dnet_node_set_groups(n, groups, group_num);
 
-	if (id) {
+	/* Read meta */
+	memset(&raw, 0, sizeof(struct dnet_id));
+	if (!name) {
 		dnet_setup_id(&raw, groups[0], id);
 		err = dnet_read_meta(n, &mc, NULL, 0, &raw);
 	} else {
+		err = dnet_transform(n, name, strlen(name), &raw);
+		if (err) {
+			fprintf(stderr, "dnet_transform failed, err=%d\n", err);
+			goto err_out_destroy;
+		}
 		err = dnet_read_meta(n, &mc, name, strlen(name), NULL);
 	}
 
@@ -167,7 +186,32 @@ int main(int argc, char *argv[])
 		goto err_out_destroy;
 	}
 
-	dnet_meta_print(n, &mc);
+	/* Prepare control structure for dnet_create_write_metadata */
+	memset(&mctl, 0, sizeof(mctl));
+	if (!name) {
+		m = dnet_meta_search_cust(&mc, DNET_META_PARENT_OBJECT);
+		dnet_convert_meta(m);
+		mctl.obj = (char *)m->data;
+		mctl.len = m->size;
+		fprintf(stderr, "File name from meta: %.*s\n", mctl.len, mctl.obj);
+	} else {
+		mctl.obj = name;
+		mctl.len = strlen(name);
+	}
+
+	mctl.groups = newgroups;
+	mctl.group_num = newgroup_num;
+	dnet_setup_id(&mctl.id, newgroups[0], (unsigned char *)&raw.id);
+
+	/* Write new meta */
+	dnet_node_set_groups(n, newgroups, newgroup_num);
+	err = dnet_create_write_metadata(n, &mctl);
+	if (err < 0) {
+		fprintf(stderr, "Meta update failed, err=%d\n", err);
+	} else {
+		fprintf(stderr, "Meta was successfully updated in %d groups\n", err);
+	}
+	
 
 err_out_destroy:
 	dnet_node_destroy(n);

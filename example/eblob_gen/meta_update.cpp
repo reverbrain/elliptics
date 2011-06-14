@@ -211,6 +211,9 @@ class remote_update {
 		void update(elliptics_node *n, processor_key &key) {
 			struct dnet_id id;
 			struct dnet_meta *m;
+			struct dnet_meta_container mc;
+
+			memset(&mc, 0, sizeof(mc));
 
 			for (int i=0; i<(int)groups_.size(); ++i) {
 				dnet_setup_id(&id, groups_[i], (unsigned char *)key.id.data());
@@ -230,7 +233,10 @@ class remote_update {
 				} catch (...) {
 				}
 
-				m = dnet_meta_search(NULL, (void *)meta.data(), meta.size(), DNET_META_GROUPS);
+				mc.data = (void *)meta.data();
+				mc.size = meta.size();
+
+				m = dnet_meta_search(NULL, &mc, DNET_META_GROUPS);
 				if (m)
 					continue;
 

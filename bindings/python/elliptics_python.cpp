@@ -233,7 +233,7 @@ class elliptics_node_python : public elliptics_node {
 		}
 
 		int write_data_by_id(const struct elliptics_id &id, const std::string &data,
-							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
+							unsigned int aflags = 0,
 							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
@@ -241,7 +241,7 @@ class elliptics_node_python : public elliptics_node {
 		}
 
 		int write_data_by_data_transform(const std::string &remote, const std::string &data,
-							unsigned int aflags = DNET_ATTR_DIRECT_TRANSACTION,
+							unsigned int aflags = 0,
 							unsigned int ioflags = DNET_IO_FLAGS_NO_HISTORY_UPDATE) {
 			return elliptics_node::write_data_wait((std::string &)remote, (std::string &)data, aflags, ioflags);
 		}

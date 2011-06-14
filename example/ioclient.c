@@ -53,7 +53,6 @@ static void dnet_usage(char *p)
 			" -z                   - request VFS IO stats from node\n"
 			" -a                   - request stats from all connected nodes\n"
 			" -R file              - read given file from the network into the local storage\n"
-			" -H file              - read a history for given file into the local storage\n"
 			" -I id                - transaction id\n"
 			" -g groups            - group IDs to connect\n"
 			" -c cmd               - execute given command on the remote node\n"
@@ -77,7 +76,7 @@ int main(int argc, char *argv[])
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
 	char *logfile = "/dev/stderr", *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
-	char *historyf = NULL, *removef = NULL;
+	char *removef = NULL;
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	FILE *log = NULL;
 	uint64_t offset, size;
@@ -94,7 +93,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "N:g:u:O:S:m:zsaH:L:w:l:c:I:r:W:R:h")) != -1) {
+	while ((ch = getopt(argc, argv, "N:g:u:O:S:m:zsaL:w:l:c:I:r:W:R:h")) != -1) {
 		switch (ch) {
 			case 'N':
 				cfg.ns = optarg;
@@ -120,9 +119,6 @@ int main(int argc, char *argv[])
 				break;
 			case 'a':
 				single_node_stat = 0;
-				break;
-			case 'H':
-				historyf = optarg;
 				break;
 			case 'L':
 				lookup = optarg;
@@ -214,22 +210,12 @@ int main(int argc, char *argv[])
 	}
 
 	if (readf) {
-		char file[strlen(readf) + sizeof(DNET_HISTORY_SUFFIX) + 1];
-		err = dnet_read_file(n, readf, readf, strlen(readf), NULL, offset, size, 0);
-
-		snprintf(file, sizeof(file), "%s%s", readf, DNET_HISTORY_SUFFIX);
-		unlink(file);
+		err = dnet_read_file(n, readf, readf, strlen(readf), NULL, offset, size);
 
 		if (err)
 			return err;
 	}
 
-	if (historyf) {
-		err = dnet_read_file(n, historyf, historyf, strlen(historyf), NULL, offset, size, 1);
-		if (err)
-			return err;
-	}
-	
 	if (removef) {
 		if (id) {
 			struct dnet_id raw;
