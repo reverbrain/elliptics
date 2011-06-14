@@ -336,6 +336,9 @@ static int file_backend_command_handler(void *state, void *priv,
 		case DNET_CMD_DEL:
 			err = file_del(r, state, cmd, attr, data);
 			break;
+		case DNET_CMD_READ_RANGE:
+			err = -ENOTSUP;
+			break;
 		default:
 			err = -EINVAL;
 			break;

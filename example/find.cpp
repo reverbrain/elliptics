@@ -50,28 +50,9 @@ class elliptics_finder : public elliptics_node {
 
 		void add_remote(const char *addr);
 
-		void sync_route(void);
-
 		void parse_lookup(const std::string &ret);
 		void parse_meta(const std::string &ret);
 };
-
-void elliptics_finder::sync_route(void)
-{
-	elliptics_callback c;
-	int err;
-
-	err = dnet_request_stat(node, NULL, DNET_CMD_ROUTE_LIST, 0,
-		elliptics_callback::elliptics_complete_callback, (void *)&c);
-	if (err < 0) {
-		std::ostringstream str;
-		str << "Failed to sync route table: " << err;
-		throw std::runtime_error(str.str());
-	}
-
-	std::string ret;
-	ret = c.wait(err);
-}
 
 void elliptics_finder::add_remote(const char *addr)
 {
@@ -127,7 +108,7 @@ void elliptics_finder::parse_lookup(const std::string &ret)
 				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: %s: should live at: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
 			else
-				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: %s: should live at: %s, "
+				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND-OK object: %s: should live at: %s, "
 						"offset: %llu, size: %llu, mode: %llo, path: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
 					(unsigned long long)info->offset, (unsigned long long)info->size,
@@ -162,7 +143,7 @@ void elliptics_finder::parse_meta(const std::string &ret)
 
 				dnet_convert_io_attr(io);
 
-				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND meta: %s: cmd: %s, io size: %llu\n",
+				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
 						dnet_dump_id(&cmd->id), addr_str, dnet_cmd_string(attr->cmd),
 						(unsigned long long)io->size);
 			} else {
@@ -230,7 +211,6 @@ int main(int argc, char *argv[])
 		elliptics_finder find(log);
 
 		find.add_remote(remote);
-		find.sync_route();
 
 		{
 			elliptics_callback c;

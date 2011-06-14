@@ -266,7 +266,8 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 			dnet_log(orig->n, DNET_LOG_ERROR, "BULK: couldn't update meta CHECK_STATUS\n");
 		}
 	} else {
-		dnet_log(orig->n, DNET_LOG_ERROR, "BULK: received corrupted data, size = %llu, sizeof(dnet_bulk_id) = %d\n", attr->size, sizeof(struct dnet_bulk_id));
+		dnet_log(orig->n, DNET_LOG_ERROR, "BULK: received corrupted data, size = %llu, sizeof(dnet_bulk_id) = %zu\n",
+				(unsigned long long)attr->size, sizeof(struct dnet_bulk_id));
 		err = -1;
 		goto err_out_exit;
 	}
@@ -288,7 +289,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 	char *tmpdata = NULL;
 	int *groups, group_num;
 	int err = -EINVAL, error = 0, ret;
-	int i,j;
+	int i;
 	int my_group, lastest_group = -1;
 	struct dnet_meta_update lastest_mu, my_mu;
 	struct timeval current_ts;
@@ -479,7 +480,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 err_out_cont2:
 		if (err < 0)
 			dnet_log(state->n, DNET_LOG_ERROR, "BULK: %s: Error during sending transaction to group %d, err=%d\n",
-					dnet_dump_id_str(ids->id), groups[j], err);
+					dnet_dump_id_str(ids->id), groups[i], err);
 		if (!error && err < 0)
 			error = err;
 	}
@@ -532,7 +533,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 	struct dnet_wait *w = priv;
 	struct dnet_meta_container mc_array[DNET_BULK_META_UPD_SIZE];
 	int rec_num = 0;
-	int err = 0, ret = 0, i;
+	int err = 0, i;
 
 	if (is_trans_destroyed(state, cmd, attr)) {
 		dnet_wakeup(w, w->cond++);
@@ -570,7 +571,8 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 			dnet_log(state->n, DNET_LOG_ERROR, "BULK: couldn't update meta CHECK_STATUS\n");
 		}
 	} else {
-		dnet_log(state->n, DNET_LOG_ERROR, "BULK: received corrupted data, size = %llu, sizeof(dnet_bulk_id) = %d\n", attr->size, sizeof(struct dnet_bulk_id));
+		dnet_log(state->n, DNET_LOG_ERROR, "BULK: received corrupted data, size = %llu, sizeof(dnet_bulk_id) = %zu\n",
+				(unsigned long long)attr->size, sizeof(struct dnet_bulk_id));
 	}
 
 	w->status = cmd->status;

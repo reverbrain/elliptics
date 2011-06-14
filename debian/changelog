@@ -1,3 +1,32 @@
+elliptics (2.9.7.9) unstable; urgency=low
+
+  * Removed route synchronization calls
+  * Made dnet_add_state() synchronous - it waits for dnet_recv_route_list()
+    for complete now
+  * Updated makefiles to fix linking with Natty libtool
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 13 Jun 2011 22:42:24 +0400
+
+elliptics (2.9.7.8) unstable; urgency=low
+
+  * Do not try to dereference st->idc without lock, it can go away
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 12 Jun 2011 01:54:23 +0400
+
+elliptics (2.9.7.7) unstable; urgency=low
+
+  * Meta update should use direct transactions
+  * Log level cleanups - decreased info writes
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 10 Jun 2011 15:22:45 +0400
+
+elliptics (2.9.7.6) unstable; urgency=low
+
+  * Write data/metadata if it is not present in selected group. If data is
+    present, but metadata isn't, upload metadata
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 06 Jun 2011 20:57:24 +0400
+
 elliptics (2.9.7.5) unstable; urgency=low
 
   * Use the same eblob mmap file

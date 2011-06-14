@@ -211,6 +211,9 @@ class remote_update {
 		void update(elliptics_node *n, processor_key &key) {
 			struct dnet_id id;
 			struct dnet_meta *m;
+			struct dnet_meta_container mc;
+
+			memset(&mc, 0, sizeof(mc));
 
 			for (int i=0; i<(int)groups_.size(); ++i) {
 				dnet_setup_id(&id, groups_[i], (unsigned char *)key.id.data());
@@ -218,39 +221,39 @@ class remote_update {
 				std::string meta, data;
 
 				try {
-					data = n->read_data_wait(id, 1, 0);
+					data = n->read_data_wait(id, 1, aflags_, 0);
+				} catch (...) {
+					std::cout << dnet_dump_id(&id) << ": sending " << key.path << " offset " << key.offset << " size " << key.size << std::endl;
+					n->write_file(id, (char *)key.path.c_str(), key.offset, 0, key.size, DNET_ATTR_DIRECT_TRANSACTION, 0);
+					continue;
+				}
+
+				try {
+					meta = n->read_data_wait(id, 0, 0, aflags_, DNET_IO_FLAGS_META);
 				} catch (...) {
 				}
 
-				if (!data.size()) {
-					std::cout << dnet_dump_id(&id) << ": sending " << key.path << " offset " << key.offset << " size " << key.size << std::endl;
-					n->write_file(id, (char *)key.path.c_str(), key.offset, 0, key.size, DNET_ATTR_DIRECT_TRANSACTION, 0);
-				} else {
-					try {
-						meta = n->read_data_wait(id, 0, 0, aflags_, DNET_IO_FLAGS_META);
-					} catch (...) {
-					}
+				mc.data = (void *)meta.data();
+				mc.size = meta.size();
 
-					m = dnet_meta_search(NULL, (void *)meta.data(), meta.size(), DNET_META_GROUPS);
-					if (m)
-						continue;
+				m = dnet_meta_search(NULL, &mc, DNET_META_GROUPS);
+				if (m)
+					continue;
 
-					char buf[sizeof(struct dnet_meta) + sizeof(int) * groups_.size()];
+				char buf[sizeof(struct dnet_meta) + sizeof(int) * groups_.size()];
 
-					memset(buf, 0, sizeof(struct dnet_meta));
+				memset(buf, 0, sizeof(struct dnet_meta));
 
-					m = (struct dnet_meta *)buf;
+				m = (struct dnet_meta *)buf;
 
-					m->type = DNET_META_GROUPS;
-					m->size = sizeof(int) * groups_.size();
+				m->type = DNET_META_GROUPS;
+				m->size = sizeof(int) * groups_.size();
 
-					memcpy(m->data, groups_.data(), groups_.size() * sizeof(int));
+				memcpy(m->data, groups_.data(), groups_.size() * sizeof(int));
 
-					std::string meta;
-					meta.assign(buf, sizeof(buf));
+				meta.assign(buf, sizeof(buf));
 
-					n->write_data_wait(id, meta, DNET_ATTR_DIRECT_TRANSACTION, DNET_IO_FLAGS_META | DNET_IO_FLAGS_APPEND);
-				}
+				n->write_data_wait(id, meta, aflags_, DNET_IO_FLAGS_META | DNET_IO_FLAGS_APPEND);
 			}
 		}
 

@@ -48,8 +48,8 @@ static void hparser_usage(const char *p)
 	exit(-1);
 }
 
-uint64_t counter = 0;
-uint64_t total = 0;
+static unsigned long long db_parser_counter = 0;
+static unsigned long long db_parser_total = 0;
 
 struct db_ptrs {
 	KCDB *meta;
@@ -76,6 +76,7 @@ static const char *hparser_visit(const char *key, size_t keysz,
 	char tstr[64];
 	time_t t;
 	struct tm *tm;
+	size_t mc_size;
 
 	if (keysz != DNET_ID_SIZE) {
 		fprintf(stdout, "Incorrect key size\n");
@@ -89,7 +90,7 @@ static const char *hparser_visit(const char *key, size_t keysz,
 
 	if (datasz % (int)sizeof(struct dnet_history_entry)) {
 		fprintf(stdout, "Corrupted history record, "
-				"its size %d must be multiple of %zu.\n",
+				"its size %zu must be multiple of %zu.\n",
 				datasz, sizeof(struct dnet_history_entry));
 		goto err_out_exit;
 	}
@@ -99,7 +100,7 @@ static const char *hparser_visit(const char *key, size_t keysz,
 	hm.size = datasz;
 
 	dnet_setup_id(&mc.id, 0, id);
-	data = kcdbget(ptrs->meta, (void *)key, DNET_ID_SIZE, &mc.size);
+	data = kcdbget(ptrs->meta, (void *)key, DNET_ID_SIZE, &mc_size);
 	if (!data) {
 		err = -kcdbecode(ptrs->meta);
 		fprintf(stdout, "failed. %s: meta DB read failed "
@@ -108,11 +109,12 @@ static const char *hparser_visit(const char *key, size_t keysz,
 		goto err_out_exit;
 	}
 
-	if (mc.size > BUFFER_SIZE) {
-		fprintf(stdout, "failed. Meta size=%d is too big\n", mc.size);
+	if (mc_size > BUFFER_SIZE) {
+		fprintf(stdout, "failed. Meta size=%zu is too big\n", mc_size);
 		goto err_out_kcfree;
 	}
 
+	mc.size = mc_size;
 	mc.data = ptrs->buffer;
 	memcpy(mc.data, data, mc.size);
 
@@ -136,8 +138,9 @@ static const char *hparser_visit(const char *key, size_t keysz,
 	if (!mp) {
 		// Add new meta structure after the end of current metadata
 		if (mc.size + sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update) * group_num > BUFFER_SIZE) {
-			fprintf(stdout, "failed. New meta size=%d is too big\n", 
-					mc.size + sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update) * group_num);
+			fprintf(stdout, "failed. New meta size=%u is too big\n", 
+					mc.size + (unsigned int)sizeof(struct dnet_meta) +
+					(unsigned int)sizeof(struct dnet_meta_update) * group_num);
 			goto err_out_kcfree;
 		}
 		mp = m = mc.data + mc.size;
@@ -181,8 +184,8 @@ static const char *hparser_visit(const char *key, size_t keysz,
 	}
 
 	// Commit every 1000 records.
-	if (!(counter % 1000)) {
-		if (counter > 0) {
+	if (!(db_parser_counter % 1000)) {
+		if (db_parser_counter > 0) {
 			kcdbendtran(ptrs->newmeta, 1);
 		}
 
@@ -206,17 +209,18 @@ static const char *hparser_visit(const char *key, size_t keysz,
 	}
 
 
-	fprintf(stdout, "ok. Last update stamp %llu %llu\n", hm.ent[hm.num-1].tsec, hm.ent[hm.num-1].tnsec);
+	fprintf(stdout, "ok. Last update stamp %llu %llu\n",
+			(unsigned long long)hm.ent[hm.num-1].tsec, (unsigned long long)hm.ent[hm.num-1].tnsec);
 
 err_out_kcfree:
 	kcfree(data);
 err_out_exit:
-	counter++;
-	if (!(counter % 10000)) {
+	db_parser_counter++;
+	if (!(db_parser_counter % 10000)) {
 		t = time(NULL);
 		tm = localtime(&t);
 		strftime(tstr, sizeof(tstr), "%F %R:%S %Z", tm);
-		fprintf(stderr, "%s: %llu/%llu records processed\n", tstr, counter, total);
+		fprintf(stderr, "%s: %llu/%llu records processed\n", tstr, db_parser_counter, db_parser_total);
 	}
 
 	return KCVISNOP;
@@ -293,8 +297,8 @@ int main(int argc, char *argv[])
 	t = time(NULL);
 	tm = localtime(&t);
 	strftime(tstr, sizeof(tstr), "%F %R:%S %Z", tm);
-	total = (unsigned long long)kcdbcount(history);
-	fprintf(stderr, "%s: Total %llu records in history DB\n", tstr, total);
+	db_parser_total = (unsigned long long)kcdbcount(history);
+	fprintf(stderr, "%s: Total %llu records in history DB\n", tstr, db_parser_total);
 
 	err = kcdbiterate(history, hparser_visit, &ptrs, 0);
 	if (!err) {
@@ -305,8 +309,8 @@ int main(int argc, char *argv[])
 	t = time(NULL);
 	tm = localtime(&t);
 	strftime(tstr, sizeof(tstr), "%F %R:%S %Z", tm);
-	total = (unsigned long long)kcdbcount(history);
-	fprintf(stderr, "%s: Totally processed %llu records from history DB\n", tstr, counter);
+	db_parser_total = (unsigned long long)kcdbcount(history);
+	fprintf(stderr, "%s: Totally processed %llu records from history DB\n", tstr, db_parser_counter);
 
 err_out_dbopen3:
 	err = kcdbclose(newmeta);

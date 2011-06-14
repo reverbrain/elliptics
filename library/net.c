@@ -262,7 +262,7 @@ static void dnet_state_clean(struct dnet_net_state *st)
 		num++;
 	}
 
-	dnet_log(st->n, DNET_LOG_INFO, "Cleaned state %s, transactions freed: %d\n", dnet_state_dump_addr(st), num);
+	dnet_log(st->n, DNET_LOG_NOTICE, "Cleaned state %s, transactions freed: %d\n", dnet_state_dump_addr(st), num);
 }
 
 /*
@@ -1023,7 +1023,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	pthread_mutex_destroy(&st->send_lock);
 	pthread_mutex_destroy(&st->trans_lock);
 
-	dnet_log(st->n, DNET_LOG_INFO, "Freeing state %s, socket: %d/%d.\n",
+	dnet_log(st->n, DNET_LOG_NOTICE, "Freeing state %s, socket: %d/%d.\n",
 		dnet_server_convert_dnet_addr(&st->addr), st->read_s, st->write_s);
 
 	free(st);
