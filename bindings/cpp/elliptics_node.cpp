@@ -279,14 +279,23 @@ int elliptics_node::write_data(std::string &remote, std::string &str,
 
 std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t size, uint64_t offset, uint32_t aflags, uint32_t ioflags)
 {
-	void *data = dnet_read_data_wait(node, &id, &size, offset, aflags, ioflags);
+	struct dnet_io_attr io;
+	int err;
+
+	memset(&io, 0, sizeof(io));
+	io.size = size;
+	io.offset = offset;
+	io.flags = ioflags;
+
+	void *data = dnet_read_data_wait(node, &id, &io, aflags, &err);
 	if (!data) {
 		std::ostringstream str;
-		str << "Failed read single data object: key: " << dnet_dump_id(&id) << ", size: " << size;
+		str << "Failed read single data object: key: " << dnet_dump_id(&id) <<
+			", size: " << size << ": err: " << strerror(-err) << ": " << err;
 		throw std::runtime_error(str.str());
 	}
 
-	std::string ret = std::string((const char *)data + sizeof(struct dnet_io_attr), size);
+	std::string ret = std::string((const char *)data + sizeof(struct dnet_io_attr), io.size - sizeof(struct dnet_io_attr));
 	free(data);
 
 	return ret;

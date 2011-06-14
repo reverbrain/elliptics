@@ -2795,7 +2795,7 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 
 		dnet_convert_io_attr(io);
 
-		sz += io->size;
+		sz += io->size + sizeof(struct dnet_io_attr);
 		c->data = realloc(c->data, sz);
 		if (!c->data) {
 			err = -ENOMEM;
@@ -2814,13 +2814,14 @@ err_out_exit:
 	return err;
 }
 
-void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *size, uint64_t offset, uint32_t aflags, uint32_t ioflags)
+static void *dnet_read_data_wait_raw(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io,
+		int cmd, uint32_t aflags, int *errp)
 {
 	struct dnet_io_control ctl;
-	ssize_t err;
 	struct dnet_wait *w;
 	struct dnet_read_data_completion *c;
 	void *data = NULL;
+	int err;
 
 	w = dnet_wait_alloc(0);
 	if (!w) {
@@ -2847,19 +2848,13 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 	ctl.priv = c;
 	ctl.complete = dnet_read_data_complete;
 
-	ctl.cmd = DNET_CMD_READ;
+	ctl.cmd = cmd;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 
 	ctl.aflags = aflags;
 
-	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
-	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
-
+	memcpy(&ctl.io, io, sizeof(struct dnet_io_attr));
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
-
-	ctl.io.flags = ioflags;
-	ctl.io.size = *size;
-	ctl.io.offset = offset;
 
 	dnet_wait_get(w);
 	err = dnet_read_object(n, &ctl);
@@ -2871,12 +2866,13 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *siz
 		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
 			err = w->status;
-		dnet_log(n, DNET_LOG_ERROR, "%d:%s : failed to read data: %zd\n",
+		dnet_log(n, DNET_LOG_ERROR, "%d:%s : failed to read data: %d\n",
 			ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str), err);
 		goto err_out_put_complete;
 	}
-	*size = c->size;
+	io->size = c->size;
 	data = c->data;
+	err = 0;
 
 err_out_put_complete:
 	if (atomic_dec_and_test(&c->refcnt))
@@ -2884,7 +2880,14 @@ err_out_put_complete:
 err_out_put:
 	dnet_wait_put(w);
 err_out_exit:
+	*errp = err;
 	return data;
+}
+
+void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io,
+		uint32_t aflags, int *errp)
+{
+	return dnet_read_data_wait_raw(n, id, io, DNET_CMD_READ, aflags, errp);
 }
 
 int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
@@ -3531,4 +3534,9 @@ err_out_exit:
 	if (err)
 		dnet_log(n, DNET_LOG_ERROR, "%s: CSUM: verification: failed: %d: %s\n", dnet_dump_id(&raw), err, strerror(-err));
 	return err;
+}
+
+void *dnet_read_range(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io, uint32_t aflags, int *errp)
+{
+	return dnet_read_data_wait_raw(n, id, io, DNET_CMD_READ_RANGE, aflags, errp);
 }

@@ -154,10 +154,19 @@ struct dnet_io_control {
 int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
 
 /*
- * Read @size bytes (0 means everything) of data associated with key @ID.
+ * Read @io->size bytes (0 means everything) from @io->offset bytes
+ * of data associated with key @ID. Use @io->flags and @aflags for control
+ * Returns NULL and set @errp when error happens
  */
-void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id, uint64_t *size,
-		uint64_t offset, uint32_t aflags, uint32_t ioflags);
+void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id,
+		struct dnet_io_attr *io, uint32_t aflags, int *errp);
+
+/*
+ * Read data from range of keys [io->id, io->parent)
+ * Other parameters are treated the same as in dnet_read_data_wait()
+ */
+void *dnet_read_range(struct dnet_node *n, struct dnet_id *id,
+		struct dnet_io_attr *io, uint32_t aflags, int *errp);
 
 int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
 		void *data, int fd, uint64_t offset);
