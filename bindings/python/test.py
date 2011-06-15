@@ -2,17 +2,13 @@
 # -*- coding: utf-8 -*-
 
 from libelliptics_python import *
-from array import *
-import sys, time
 
 try:
 	log = elliptics_log_file("/dev/stderr", 15)
 	n = elliptics_node_python(log)
 
 	n.add_groups([1,2,3])
-	n.add_remote("elisto16f.dev.yandex.net", 1025)
-
-	time.sleep(1)
+	n.add_remote("localhost", 1025)
 
 	id = elliptics_id()
 	id.id = [1, 2, 3, 4]
