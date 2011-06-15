@@ -336,6 +336,41 @@ static struct dnet_state_id *dnet_idc_search(struct dnet_group *g, struct dnet_i
 	return &g->ids[__dnet_idc_search(g, id)];
 }
 
+static int dnet_search_range_nolock(struct dnet_node *n, struct dnet_id *id, struct dnet_raw_id *start, struct dnet_raw_id *next)
+{
+	struct dnet_state_id *sid;
+	struct dnet_group *group;
+	int idc_pos;
+
+	group = dnet_group_search(n, id->group_id);
+	if (!group)
+		return -ENOENT;
+
+	idc_pos = __dnet_idc_search(group, id);
+	sid = &group->ids[idc_pos];
+	memcpy(start, &sid->raw, sizeof(struct dnet_raw_id));
+
+	if (++idc_pos >= group->id_num)
+		idc_pos = 0;
+	sid = &group->ids[idc_pos];
+	memcpy(next, &sid->raw, sizeof(struct dnet_raw_id));
+
+	dnet_group_put(group);
+
+	return 0;
+}
+
+int dnet_search_range(struct dnet_node *n, struct dnet_id *id, struct dnet_raw_id *start, struct dnet_raw_id *next)
+{
+	int err;
+
+	pthread_mutex_lock(&n->state_lock);
+	err = dnet_search_range_nolock(n, id, start, next);
+	pthread_mutex_unlock(&n->state_lock);
+
+	return err;
+}
+
 static struct dnet_state_id *__dnet_state_search_id(struct dnet_node *n, struct dnet_id *id)
 {
 	struct dnet_state_id *sid;

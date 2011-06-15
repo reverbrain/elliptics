@@ -164,8 +164,14 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id,
 /*
  * Read data from range of keys [io->id, io->parent)
  * Other parameters are treated the same as in dnet_read_data_wait()
+ * On success @errp will point to number of dnet_range_data structures.
  */
-void *dnet_read_range(struct dnet_node *n, struct dnet_io_attr *io,
+struct dnet_range_data {
+	uint64_t			size;
+	void				*data;
+};
+
+struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr *io,
 		int group_id, uint32_t aflags, int *errp);
 
 int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,

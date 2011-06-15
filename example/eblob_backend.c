@@ -191,6 +191,16 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 		goto err_out_exit;
 	}
 
+	if (req.current_pos) {
+		struct dnet_io_attr r;
+
+		memcpy(&r, io, sizeof(struct dnet_io_attr));
+		r.num = req.current_pos;
+		r.offset = r.size = 0;
+
+		err = dnet_send_read_data(state, cmd, &r, NULL, -1, 0);
+	}
+
 err_out_exit:
 	return err;
 }

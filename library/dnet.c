@@ -2792,7 +2792,7 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	if (!attr)
 		return err;
 
-	if (attr->size > sizeof(struct dnet_io_attr)) {
+	if (attr->size >= sizeof(struct dnet_io_attr)) {
 		struct dnet_io_attr *io = (struct dnet_io_attr *)(attr + 1);
 		uint64_t sz = c->size;
 
@@ -3108,8 +3108,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	a = (struct dnet_attr *)(c + 1);
 	rio = (struct dnet_io_attr *)(a + 1);
 
-	dnet_setup_id(&c->id, cmd->id.group_id, io->parent);
-	memcpy(rio->parent, io->parent, DNET_ID_SIZE);
+	dnet_setup_id(&c->id, cmd->id.group_id, io->id);
 
 	dnet_log_raw(st->n, DNET_LOG_NOTICE, "%s: read reply offset: %llu, size: %llu.\n",
 			dnet_dump_id(&c->id), (unsigned long long)io->offset,
@@ -3126,9 +3125,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	a->size = sizeof(struct dnet_io_attr) + io->size;
 	a->flags = 0;
 
-	rio->size = io->size;
-	rio->offset = io->offset;
-	rio->flags = io->flags;
+	memcpy(rio, io, sizeof(struct dnet_io_attr));
 
 	dnet_convert_cmd(c);
 	dnet_convert_attr(a);
@@ -3539,13 +3536,96 @@ err_out_exit:
 	return err;
 }
 
-void *dnet_read_range(struct dnet_node *n, struct dnet_io_attr *io, int group_id, uint32_t aflags, int *errp)
+struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr *io, int group_id, uint32_t aflags, int *errp)
 {
 	struct dnet_id id;
+	int ret_num;
+	struct dnet_range_data *ret;
+	struct dnet_raw_id start, next;
+	struct dnet_raw_id end;
+	uint64_t size = io->size;
+	void *data;
+	int err, cmp;
+
+	memcpy(end.id, io->parent, DNET_ID_SIZE);
 
 	memcpy(&id.id, io->id, DNET_ID_SIZE);
 	id.group_id = group_id;
 	id.version = 0;
 
-	return dnet_read_data_wait_raw(n, &id, io, DNET_CMD_READ_RANGE, aflags, errp);
+	ret = NULL;
+	ret_num = 0;
+	while (1) {
+		err = dnet_search_range(n, &id, &start, &next);
+		if (err)
+			goto err_out_exit;
+
+		if (!memcmp(start.id, next.id, DNET_ID_SIZE)) {
+			memcpy(next.id, end.id, DNET_ID_SIZE);
+		}
+
+		memcpy(io->id, id.id, DNET_ID_SIZE);
+		memcpy(io->parent, next.id, DNET_ID_SIZE);
+
+		io->size = size;
+
+		data = dnet_read_data_wait_raw(n, &id, io, DNET_CMD_READ_RANGE, aflags, &err);
+		if (data) {
+			struct dnet_io_attr *rep = data + io->size - sizeof(struct dnet_io_attr);
+
+			io->size -= sizeof(struct dnet_io_attr);
+			dnet_convert_io_attr(rep);
+
+			dnet_log(n, DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
+					dnet_dump_id(&id), (unsigned long long)rep->num, (unsigned long long)io->start,
+					(unsigned long long)io->num, (unsigned long long)io->size);
+
+			if (io->start < rep->num) {
+				rep->num -= io->start;
+				io->start = 0;
+				io->num -= rep->num;
+			} else {
+				io->start -= rep->num;
+			}
+
+			if (!io->size) {
+				free(data);
+			} else {
+				struct dnet_range_data *new_ret;
+
+				ret_num++;
+
+				new_ret = realloc(ret, ret_num * sizeof(struct dnet_range_data));
+				if (!new_ret) {
+					goto err_out_exit;
+				}
+
+				ret = new_ret;
+
+				ret[ret_num - 1].data = data;
+				ret[ret_num - 1].size = io->size;
+			}
+
+			err = 0;
+			if (!io->num)
+				break;
+		}
+
+		cmp = dnet_id_cmp_str(next.id, end.id);
+		if (cmp >= 0) {
+			err = 0;
+			break;
+		}
+
+
+		memcpy(id.id, next.id, DNET_ID_SIZE);
+	}
+
+err_out_exit:
+	if (ret) {
+		*errp = ret_num;
+	} else {
+		*errp = err;
+	}
+	return ret;
 }

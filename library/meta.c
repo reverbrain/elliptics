@@ -217,7 +217,7 @@ err_out_exit:
 }
 
 struct dnet_meta_update *dnet_get_meta_update(struct dnet_node *n, struct dnet_meta_container *mc,
-		int group_id, struct dnet_meta_update *meta_update)
+		int group_id __attribute__ ((unused)), struct dnet_meta_update *meta_update)
 {
 	struct dnet_meta m;
 	void *data = mc->data;

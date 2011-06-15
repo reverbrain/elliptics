@@ -166,6 +166,9 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id 
 struct dnet_net_state *dnet_state_search_nolock(struct dnet_node *n, struct dnet_id *id);
 struct dnet_net_state *dnet_node_state(struct dnet_node *n);
 
+int dnet_search_range(struct dnet_node *n, struct dnet_id *id,
+		struct dnet_raw_id *start, struct dnet_raw_id *next);
+
 int dnet_recv_route_list(struct dnet_net_state *st);
 
 void dnet_state_destroy(struct dnet_net_state *st);
