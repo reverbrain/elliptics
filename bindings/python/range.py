@@ -15,5 +15,7 @@ r = elliptics_range()
 r.start = [1, 2, 3, 4]
 r.end = [0xcc, 0xdd]
 r.group_id = group
+r.limit_start = 2
+r.limit_num = 2
 
 print n.read_data_range(r)

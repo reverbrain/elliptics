@@ -108,19 +108,16 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 using namespace boost::python;
 
 struct elliptics_id {
-	elliptics_id() : id(0), group_id(0), version(0) {
-	};
-	elliptics_id(list id_, int group) : id(id_), group_id(group), version(0) {
-	};
+	elliptics_id() : group_id(0), version(0) {}
+	elliptics_id(list id_, int group) : id(id_), group_id(group), version(0) {}
 	list		id;
 	uint32_t	group_id;
 	uint32_t	version;
 };
 
 struct elliptics_range {
-	elliptics_range() : start(0), end(0), offset(0), size(0),
-		limit_start(0), limit_num(0), ioflags(0), aflags(0), group_id(0) {
-		}
+	elliptics_range() : offset(0), size(0),
+		limit_start(0), limit_num(0), ioflags(0), aflags(0), group_id(0) {}
 
 	list		start, end;
 	uint64_t	offset, size;
@@ -161,6 +158,8 @@ static void elliptics_extract_range(const struct elliptics_range &r, struct dnet
 	io.flags = r.ioflags;
 	io.size = r.size;
 	io.offset = r.offset;
+	io.start = r.limit_start;
+	io.num = r.limit_num;
 }
 
 class elliptics_log_wrap : public elliptics_log, public wrapper<elliptics_log> {
@@ -329,6 +328,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("ioflags", &elliptics_range::ioflags)
 		.def_readwrite("aflags", &elliptics_range::aflags)
 		.def_readwrite("group_id", &elliptics_range::group_id)
+		.def_readwrite("limit_start", &elliptics_range::limit_start)
+		.def_readwrite("limit_num", &elliptics_range::limit_num)
 	;
 
 	class_<elliptics_log_wrap, boost::noncopyable>("elliptics_log", init<const uint32_t>())

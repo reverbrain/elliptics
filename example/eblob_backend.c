@@ -124,21 +124,32 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 	dnet_dump_id_len_raw(req->end, len, end_id);
 	dnet_dump_id_len_raw(req->record_key, len, cur_id);
 
-	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-read-range: READ: start: %s, end: %s: io record/requested: "
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-read-range: READ: limit: %llu [%llu, %llu]: start: %s, end: %s: io record/requested: "
 			"offset: %llu/%llu, size: %llu/%llu\n",
-			cur_id, start_id, end_id,
+			cur_id,
+			(unsigned long long)req->current_pos,
+			(unsigned long long)req->requested_limit_start, (unsigned long long)req->requested_limit_num,
+			start_id, end_id,
 			(unsigned long long)req->record_offset, (unsigned long long)req->requested_offset,
 			(unsigned long long)req->record_size, (unsigned long long)req->requested_size);
 
+	if (req->requested_offset > req->record_size) {
+		err = 0;
+		goto err_out_exit;
+	}
+
 	io.flags = 0;
-	io.size = req->record_size;
-	io.offset = req->record_offset + sizeof(struct eblob_disk_control);
+	io.size = req->record_size - req->requested_offset;
+	io.offset = req->requested_offset;
 	
 	memcpy(io.id, req->record_key, DNET_ID_SIZE);
 	memcpy(io.parent, req->end, DNET_ID_SIZE);
 
-	err = dnet_send_read_data(p->state, p->cmd, &io, NULL, req->record_fd, io.offset);
-
+	err = dnet_send_read_data(p->state, p->cmd, &io, NULL, req->record_fd,
+			req->record_offset + sizeof(struct eblob_disk_control) + req->requested_offset);
+	if (!err)
+		req->current_pos++;
+err_out_exit:
 	return err;
 }
 
@@ -162,6 +173,11 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 	memcpy(req.end, io->parent, EBLOB_ID_SIZE);
 	req.requested_offset = io->offset;
 	req.requested_size = io->size;
+	req.requested_limit_start = io->start;
+	req.requested_limit_num = io->num;
+
+	if (!req.requested_limit_num)
+		req.requested_limit_num = ~0ULL;
 
 	req.priv = state;
 	req.callback = blob_read_range_callback;

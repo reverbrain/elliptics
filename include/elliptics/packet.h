@@ -287,6 +287,7 @@ struct dnet_io_attr
 {
 	uint8_t			parent[DNET_ID_SIZE];
 	uint8_t			id[DNET_ID_SIZE];
+	uint64_t		start, num;
 	uint32_t		flags;
 	uint64_t		offset;
 	uint64_t		size;
@@ -294,6 +295,9 @@ struct dnet_io_attr
 
 static inline void dnet_convert_io_attr(struct dnet_io_attr *a)
 {
+	a->start = dnet_bswap64(a->start);
+	a->num = dnet_bswap64(a->num);
+
 	a->flags = dnet_bswap32(a->flags);
 	a->offset = dnet_bswap64(a->offset);
 	a->size = dnet_bswap64(a->size);

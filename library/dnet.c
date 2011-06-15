@@ -1236,7 +1236,8 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	dnet_convert_attr(a);
 	dnet_convert_io_attr(io);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, size: %llu, offset: %llu, fd: %d, local_offset: %llu -> %s weight: %f, mrt: %ld.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, size: %llu, offset: %llu, "
+			"fd: %d, local_offset: %llu -> %s weight: %f, mrt: %ld.\n",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
 			dnet_cmd_string(ctl->cmd),
