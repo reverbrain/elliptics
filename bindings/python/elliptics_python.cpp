@@ -108,14 +108,23 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 using namespace boost::python;
 
 struct elliptics_id {
+	elliptics_id() : id(0), group_id(0), version(0) {
+	};
+	elliptics_id(list id_, int group) : id(id_), group_id(group), version(0) {
+	};
 	list		id;
 	uint32_t	group_id;
 	uint32_t	version;
 };
 
 struct elliptics_range {
+	elliptics_range() : start(0), end(0), offset(0), size(0),
+		limit_start(0), limit_num(0), ioflags(0), aflags(0), group_id(0) {
+		}
+
 	list		start, end;
 	uint64_t	offset, size;
+	uint64_t	limit_start, limit_num;
 	uint32_t	ioflags, aflags;
 	int		group_id;
 };
@@ -305,13 +314,14 @@ BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_id_overloads, write_data_by
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_data_transform_overloads, write_data_by_data_transform, 2, 4);
 
 BOOST_PYTHON_MODULE(libelliptics_python) {
-	class_<elliptics_id>("elliptics_id")
+	class_<elliptics_id>("elliptics_id", init<>())
+		.def(init<list, int>())
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_readwrite("version", &elliptics_id::version)
 	;
 
-	class_<elliptics_range>("elliptics_range")
+	class_<elliptics_range>("elliptics_range", init<>())
 		.def_readwrite("start", &elliptics_range::start)
 		.def_readwrite("end", &elliptics_range::end)
 		.def_readwrite("offset", &elliptics_range::offset)
