@@ -187,6 +187,8 @@ class elliptics_node {
 		void			update_status(const char *addr, const int port, const int family, const unsigned int status);
 		void			update_status(struct dnet_id &id, const unsigned int status);
 
+		std::string		read_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags = 0);
+
 	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,

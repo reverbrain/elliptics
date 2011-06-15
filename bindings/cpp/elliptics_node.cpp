@@ -680,3 +680,21 @@ void elliptics_node::update_status(struct dnet_id &id, const unsigned int status
 		throw std::runtime_error(str.str());
 	}
 }
+
+std::string elliptics_node::read_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags)
+{
+	int err;
+	void *data = dnet_read_range(node, &io, group_id, aflags, &err);
+	if (!data) {
+		std::ostringstream str;
+		str << "Failed to read range data object: group: " << group_id <<
+			", key: " << dnet_dump_id_str(io.id) <<
+			", size: " << io.size << ": err: " << strerror(-err) << ": " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	std::string ret = std::string((const char *)data, io.size);
+	free(data);
+
+	return ret;
+}

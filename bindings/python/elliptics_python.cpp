@@ -113,20 +113,45 @@ struct elliptics_id {
 	uint32_t	version;
 };
 
+struct elliptics_range {
+	list		start, end;
+	uint64_t	offset, size;
+	uint32_t	ioflags, aflags;
+	int		group_id;
+};
+
+static void elliptics_extract_arr(const list &l, unsigned char *dst, int *dlen)
+{
+	int length = len(l);
+
+	if (length > *dlen)
+		length = *dlen;
+
+	memset(dst, 0, *dlen);
+	for (int i = 0; i < length; ++i)
+		dst[i] = extract<unsigned char>(l[i]);
+}
+
 static void elliptics_extract_id(const struct elliptics_id &e, struct dnet_id &id)
 {
-	int length = len(e.id);
+	int len = sizeof(id.id);
 
-	memset(id.id, 0, sizeof(id.id));
-
-	if (length > (int)sizeof(id.id))
-		length = sizeof(id.id);
-
-	for (int i=0; i<length; ++i)
-		id.id[i] = extract<uint8_t>(e.id[i]);
+	elliptics_extract_arr(e.id, id.id, &len);
 
 	id.group_id = e.group_id;
 	id.version = e.version;
+}
+
+static void elliptics_extract_range(const struct elliptics_range &r, struct dnet_io_attr &io)
+{
+	int len = sizeof(io.id);
+
+	elliptics_extract_arr(r.start, io.id, &len);
+	elliptics_extract_arr(r.end, io.parent, &len);
+
+	io.flags = r.ioflags;
+	io.size = r.size;
+	io.offset = r.offset;
 }
 
 class elliptics_log_wrap : public elliptics_log, public wrapper<elliptics_log> {
@@ -263,6 +288,12 @@ class elliptics_node_python : public elliptics_node {
 		void update_status_by_string(const std::string &saddr, const int port, const int family, const unsigned int status) {
 			elliptics_node::update_status(saddr.c_str(), port, family, status);
 		}
+
+		std::string read_data_range(const struct elliptics_range &r) {
+			struct dnet_io_attr io;
+			elliptics_extract_range(r, io);
+			return elliptics_node::read_data_range(io, r.group_id, r.aflags);
+		}
 };
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
@@ -278,6 +309,16 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_readwrite("version", &elliptics_id::version)
+	;
+
+	class_<elliptics_range>("elliptics_range")
+		.def_readwrite("start", &elliptics_range::start)
+		.def_readwrite("end", &elliptics_range::end)
+		.def_readwrite("offset", &elliptics_range::offset)
+		.def_readwrite("size", &elliptics_range::size)
+		.def_readwrite("ioflags", &elliptics_range::ioflags)
+		.def_readwrite("aflags", &elliptics_range::aflags)
+		.def_readwrite("group_id", &elliptics_range::group_id)
 	;
 
 	class_<elliptics_log_wrap, boost::noncopyable>("elliptics_log", init<const uint32_t>())
@@ -315,6 +356,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 
 		.def("update_status", &elliptics_node_python::update_status_by_id)
 		.def("update_status", &elliptics_node_python::update_status_by_string)
+
+		.def("read_data_range", &elliptics_node_python::read_data_range)
 	;
 };
 #endif

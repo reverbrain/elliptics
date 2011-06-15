@@ -165,8 +165,8 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id,
  * Read data from range of keys [io->id, io->parent)
  * Other parameters are treated the same as in dnet_read_data_wait()
  */
-void *dnet_read_range(struct dnet_node *n, struct dnet_id *id,
-		struct dnet_io_attr *io, uint32_t aflags, int *errp);
+void *dnet_read_range(struct dnet_node *n, struct dnet_io_attr *io,
+		int group_id, uint32_t aflags, int *errp);
 
 int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
 		void *data, int fd, uint64_t offset);

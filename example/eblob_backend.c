@@ -106,31 +106,53 @@ err_out_exit:
 	return err;
 }
 
+struct eblob_read_range_priv {
+	void			*state;
+	struct dnet_cmd		*cmd;
+};
+
+
 static int blob_read_range_callback(struct eblob_range_request *req)
 {
+	struct eblob_read_range_priv *p = req->priv;
 	int len = 10;
 	char start_id[len*2+1], end_id[len*2+1], cur_id[2*len+1];
+	struct dnet_io_attr io;
+	int err;
 
 	dnet_dump_id_len_raw(req->start, len, start_id);
 	dnet_dump_id_len_raw(req->end, len, end_id);
 	dnet_dump_id_len_raw(req->record_key, len, cur_id);
 
-	dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-range: READ: start: %s, end: %s: io record/requested: "
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-read-range: READ: start: %s, end: %s: io record/requested: "
 			"offset: %llu/%llu, size: %llu/%llu\n",
 			cur_id, start_id, end_id,
 			(unsigned long long)req->record_offset, (unsigned long long)req->requested_offset,
 			(unsigned long long)req->record_size, (unsigned long long)req->requested_size);
 
-	return 0;
+	io.flags = 0;
+	io.size = req->record_size;
+	io.offset = req->record_offset + sizeof(struct eblob_disk_control);
+	
+	memcpy(io.id, req->record_key, DNET_ID_SIZE);
+	memcpy(io.parent, req->end, DNET_ID_SIZE);
+
+	err = dnet_send_read_data(p->state, p->cmd, &io, NULL, req->record_fd, io.offset);
+
+	return err;
 }
 
-static int blob_read_range(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd __unused,
+static int blob_read_range(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd,
 		struct dnet_attr *attr __unused, void *data)
 {
+	struct eblob_read_range_priv p;
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->data_blob;
 	struct eblob_range_request req;
 	int err;
+
+	p.cmd = cmd;
+	p.state = state;
 
 	dnet_convert_io_attr(io);
 
@@ -144,6 +166,7 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 	req.priv = state;
 	req.callback = blob_read_range_callback;
 	req.back = b;
+	req.priv = &p;
 
 	err = eblob_read_range(&req);
 	if (err) {

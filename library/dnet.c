@@ -81,7 +81,7 @@ int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 
 	io->size = attr->size - sizeof(struct dnet_io_attr);
 	io->offset = 0;
-	io->flags = DNET_IO_FLAGS_NO_HISTORY_UPDATE;
+	io->flags = DNET_IO_FLAGS_SKIP_SENDING;
 
 	memcpy(io->parent, id->id, DNET_ID_SIZE);
 	memcpy(io->id, id->id, DNET_ID_SIZE);
@@ -485,6 +485,8 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_NOTIFY] = "NOTIFY",
 	[DNET_CMD_DEL] = "REMOVE",
 	[DNET_CMD_STAT_COUNT] = "STAT_COUNT",
+	[DNET_CMD_STATUS] = "STATUS",
+	[DNET_CMD_READ_RANGE] = "READ_RANGE",
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 
@@ -3093,7 +3095,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	 * back to parental client, instead server will wrap data into
 	 * proper transaction reply next to this obscure packet.
 	 */
-	if (io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)
+	if (io->flags & DNET_IO_FLAGS_SKIP_SENDING)
 		return 0;
 
 	c = malloc(hsize);
@@ -3262,7 +3264,7 @@ int dnet_read_multiple(struct dnet_node *n, struct dnet_id *id, int num, struct 
 	ctl.cmd = DNET_CMD_READ;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 
-	ctl.io.flags = DNET_IO_FLAGS_HISTORY;
+	ctl.io.flags = 0;
 	ctl.io.offset = 0;
 	ctl.io.size = 0;
 
@@ -3536,7 +3538,13 @@ err_out_exit:
 	return err;
 }
 
-void *dnet_read_range(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io, uint32_t aflags, int *errp)
+void *dnet_read_range(struct dnet_node *n, struct dnet_io_attr *io, int group_id, uint32_t aflags, int *errp)
 {
-	return dnet_read_data_wait_raw(n, id, io, DNET_CMD_READ_RANGE, aflags, errp);
+	struct dnet_id id;
+
+	memcpy(&id.id, io->id, DNET_ID_SIZE);
+	id.group_id = group_id;
+	id.version = 0;
+
+	return dnet_read_data_wait_raw(n, &id, io, DNET_CMD_READ_RANGE, aflags, errp);
 }
