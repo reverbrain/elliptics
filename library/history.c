@@ -245,9 +245,6 @@ int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data)
 	if (io->flags & DNET_IO_FLAGS_META)
 		return db_put_data(n, cmd, io, io + 1, io->size, 0);
 
-	if (io->flags & DNET_IO_FLAGS_NO_HISTORY_UPDATE)
-		return 0;
-
 	return dnet_update_ts_metadata(n, &cmd->id, 0, 0);
 }
 

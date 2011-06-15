@@ -70,7 +70,6 @@ static void hparser_dump_history(struct dnet_history_map *m, unsigned long long 
 	for (i=m->num-1; i>=0; --i) {
 		struct dnet_history_entry e = m->ent[i];
 		time_t t;
-		int version = -1;
 
 		dnet_convert_history_entry(&e);
 
@@ -78,16 +77,10 @@ static void hparser_dump_history(struct dnet_history_map *m, unsigned long long 
 		localtime_r(&t, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		if (e.flags & DNET_IO_FLAGS_ID_VERSION)
-			version = dnet_common_get_version(e.id);
-
-		printf("%s.%09llu: %s: flags: %08x [P: %d, C: %d, V: %d, version: %d, R: %d], offset: %8llu, size: %8llu: %c\n",
+		printf("%s.%09llu: %s: flags: %08x [removed: %s], offset: %8llu, size: %8llu: %c\n",
 			str, (unsigned long long)e.tnsec,
 			dnet_dump_id_len_raw(e.id, DNET_ID_SIZE, id_str), e.flags,
-			!!(e.flags & DNET_IO_FLAGS_PARENT),
-			!!(e.flags & DNET_IO_FLAGS_ID_CONTENT),
-			!!(e.flags & DNET_IO_FLAGS_ID_VERSION), version,
-			!!(e.flags & DNET_IO_FLAGS_REMOVED),
+			(e.flags & DNET_IO_FLAGS_REMOVED) ? "yes" : "no",
 			(unsigned long long)e.offset, (unsigned long long)e.size,
 			hparser_region_match(&e, offset, size) ? '+' : '-');
 	}

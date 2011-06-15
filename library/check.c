@@ -469,9 +469,9 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 					goto err_out_cont2;
 
 				dnet_update_check_metadata_raw(state->n, mc.data, mc.size);
-				err = dnet_write_data_wait(state->n, NULL, 0, &id, mc.data, -1, 0, 0, mc.size, NULL,
-					0, DNET_IO_FLAGS_META | DNET_IO_FLAGS_NO_HISTORY_UPDATE);
-				dnet_log(state->n, DNET_LOG_DSA, "BULK: dnet_write_data_wait %s in group %d, err=%d\n", dnet_dump_id(&id), my_group, err);
+				err = dnet_write_data_wait(state->n, NULL, 0, &id, mc.data, -1, 0, 0, mc.size, NULL, 0, DNET_IO_FLAGS_META);
+				dnet_log(state->n, DNET_LOG_DSA, "BULK: dnet_write_data_wait %s in group %d, err=%d\n",
+						dnet_dump_id(&id), my_group, err);
 
 				if (err < 0)
 					goto err_out_cont2;
