@@ -17,6 +17,8 @@
 
 #include "elliptics/cppdef.h"
 
+using namespace zbr;
+
 void elliptics_log::logger(void *priv, const uint32_t mask, const char *msg)
 {
 	elliptics_log *log = reinterpret_cast<elliptics_log *> (priv);

@@ -28,6 +28,8 @@
 
 #include "elliptics/cppdef.h"
 
+using namespace zbr;
+
 elliptics_callback::elliptics_callback() : state(NULL), cmd(NULL), attr(NULL), complete(0)
 {
 	pthread_cond_init(&wait_cond, NULL);

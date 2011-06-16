@@ -29,11 +29,10 @@
 
 #include <boost/shared_ptr.hpp>
 
-extern "C" {
 #include <eblob/blob.h>
-}
+#include <elliptics/cppdef.h>
 
-#include "elliptics/cppdef.h"
+using namespace zbr;
 
 class eblob {
 	public:

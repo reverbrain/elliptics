@@ -23,6 +23,8 @@
 
 #include "elliptics/cppdef.h"
 
+using namespace zbr;
+
 static void test_log_raw(elliptics_log *l, uint32_t mask, const char *format, ...)
 {
 	va_list args;

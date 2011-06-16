@@ -42,6 +42,8 @@
 
 #include "common.h"
 
+using namespace zbr;
+
 class elliptics_finder : public elliptics_node {
 	public:
 		elliptics_finder(elliptics_log &log) : elliptics_node(log) {};

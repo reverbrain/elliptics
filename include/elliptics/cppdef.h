@@ -29,6 +29,8 @@
 #include <string>
 #include <vector>
 
+namespace zbr {
+
 class elliptics_log {
 	public:
 		elliptics_log(const uint32_t mask = DNET_LOG_ERROR | DNET_LOG_INFO) {
@@ -199,4 +201,5 @@ class elliptics_node {
 		std::vector<int>	groups;
 };
 
+}; /* namespace zbr */
 #endif /* __EDEF_H */

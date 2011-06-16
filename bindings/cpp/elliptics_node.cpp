@@ -38,6 +38,8 @@
 
 #include "elliptics/cppdef.h"
 
+using namespace zbr;
+
 elliptics_node::elliptics_node(elliptics_log &l)
 {
 	struct dnet_config cfg;

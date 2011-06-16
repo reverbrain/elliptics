@@ -106,6 +106,7 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 #include "elliptics/cppdef.h"
 
 using namespace boost::python;
+using namespace zbr;
 
 struct elliptics_id {
 	elliptics_id() : group_id(0), version(0) {}

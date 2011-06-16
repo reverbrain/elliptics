@@ -19,12 +19,10 @@
 #include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
 
+#include <eblob/blob.h>
 #include <elliptics/cppdef.h>
 
-extern "C" {
-#include <eblob/blob.h>
-}
-
+using namespace zbr;
 
 class processor_key {
 	public:
