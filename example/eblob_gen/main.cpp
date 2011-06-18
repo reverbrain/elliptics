@@ -6,11 +6,14 @@
 
 #include "common.h"
 
-eblob_processor::eblob_processor(const bool prepend_data, std::vector<int> &groups, const std::string &eblob_base, const struct eblob_config &cfg) :
+eblob_processor::eblob_processor(const std::string &log_file,
+		const bool prepend_data, std::vector<int> &groups,
+		const std::string &eblob_base, const struct eblob_config &cfg) :
 	prepend_data_(prepend_data),
 	groups_(groups),
 	eblob_cfg_(cfg),
-	eblob_base_(eblob_base)
+	eblob_base_(eblob_base),
+	log_file_(log_file)
 {
 }
 
@@ -54,7 +57,11 @@ void eblob_processor::process(elliptics_node &node, const std::string &path)
 					std::string addr = node.lookup_addr(name, group_id);
 					res = blobs.find(addr);
 
-					std::cout << name << ": size: " << data.size() << ", key: " << dnet_dump_id(&id) << " -> " << addr << std::endl;
+					std::cout << name << ": size: " << data.size() <<
+						", key: " << dnet_dump_id(&id) << " -> " << addr << std::endl;
+
+					struct eblob_key k;
+					memcpy(k.id, id.id, EBLOB_ID_SIZE);
 
 					if (res == blobs.end()) {
 						fs::create_directory(eblob_base_ + "/" + addr);
@@ -62,13 +69,14 @@ void eblob_processor::process(elliptics_node &node, const std::string &path)
 						std::string file = eblob_base_ + "/" + addr + "/data";
 						eblob_cfg_.file = (char *)file.c_str();
 
-						boost::shared_ptr<eblob> e(new eblob(eblob_cfg_));
+						boost::shared_ptr<eblob> e(new eblob(log_file_.c_str(),
+									eblob_cfg_.log->log_mask, &eblob_cfg_));
 
 						blobs[addr] = e;
 
-						e->write(id, data);
+						e->write(k, data);
 					} else {
-						res->second->write(id, data);
+						res->second->write(k, data);
 					}
 
 				} catch (std::exception &e) {
@@ -113,8 +121,10 @@ int main(int argc, char *argv[])
 			 	"Base filename for eblobs, system will append $address.N "
 				"where N is index of the blob and $address is the address which should host given blob(*)")
 			("blob-size", po::value<unsigned long long>((unsigned long long *)&cfg.blob_size), "Single eblob size in bytes")
-			("prepend-timestamp", po::value<bool>(&prepend_timestamp)->default_value(false), "Whether to prepend data ith timestamp")
-			("group", po::value<std::vector<int> >(&groups), "Group number which will host given object, can be used multiple times for several groups")
+			("prepend-timestamp", po::value<bool>(&prepend_timestamp)->default_value(false),
+			 	"Whether to prepend data ith timestamp")
+			("group", po::value<std::vector<int> >(&groups),
+			 	"Group number which will host given object, can be used multiple times for several groups")
 			("remote-addr", po::value<std::string>(&addr)->default_value("localhost"), "Connect to this remote node")
 			("remote-port", po::value<int>(&port)->default_value(1025), "Connect to this remote port")
 			("addr-family", po::value<int>(&family)->default_value(AF_INET), "Address family (2 - IPv4, 6 - IPv6)")
@@ -141,7 +151,7 @@ int main(int argc, char *argv[])
 		node.add_groups(groups);
 		node.add_remote(addr.c_str(), port, family);
 
-		eblob_processor proc(prepend_timestamp, groups, eblob_base, cfg);
+		eblob_processor proc(log_file, prepend_timestamp, groups, eblob_base, cfg);
 		proc.process(node, vm["input-path"].as<std::string>());
 	} catch (std::exception &e) {
 		std::cerr << "Exception: " << e.what() << "\n";

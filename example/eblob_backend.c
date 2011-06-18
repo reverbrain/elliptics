@@ -50,18 +50,23 @@ struct eblob_backend_config {
 	struct eblob_backend		*data_blob;
 };
 
+#if EBLOB_ID_SIZE != DNET_ID_SIZE
+#error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE" 
+#endif
+
 static int blob_write(struct eblob_backend_config *c, void *state __unused, struct dnet_cmd *cmd __unused,
 		struct dnet_attr *attr __unused, void *data)
 {
 	int err;
 	struct dnet_io_attr *io = data;
+	struct eblob_key key;
 
 	dnet_convert_io_attr(io);
 
 	data += sizeof(struct dnet_io_attr);
 
-	err = eblob_write_data(c->data_blob, io->id, DNET_ID_SIZE,
-			data, io->size, BLOB_DISK_CTL_NOCSUM);
+	memcpy(key.id, io->id, EBLOB_ID_SIZE);
+	err = eblob_write(c->data_blob, &key, data, io->size, BLOB_DISK_CTL_NOCSUM);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: WRITE: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
@@ -83,11 +88,14 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->data_blob;
 	uint64_t offset, size;
+	struct eblob_key key;
 	int fd, err;
 
 	dnet_convert_io_attr(io);
 
-	err = eblob_read(b, io->id, DNET_ID_SIZE, &fd, &offset, &size);
+	memcpy(key.id, io->id, EBLOB_ID_SIZE);
+
+	err = eblob_read(b, &key, &fd, &offset, &size);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read: READ: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
@@ -207,7 +215,11 @@ err_out_exit:
 
 static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 {
-	int err = eblob_remove(c->data_blob, cmd->id.id, DNET_ID_SIZE);
+	struct eblob_key key;
+	int err;
+
+	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
+	err = eblob_remove(c->data_blob, &key);
 
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del: REMOVE: %d: %s\n",
@@ -223,9 +235,11 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 	struct eblob_backend_config *c = priv;
 	struct eblob_backend *b = c->data_blob;
 	uint64_t offset, size;
+	struct eblob_key key;
 	int err, fd;
 
-	err = eblob_read(b, id->id, DNET_ID_SIZE, &fd, &offset, &size);
+	memcpy(key.id, id->id, EBLOB_ID_SIZE);
+	err = eblob_read(b, &key, &fd, &offset, &size);
 	if (!err) {
 		err = dnet_write_data_wait(n, NULL, 0, id, NULL, fd, offset + sizeof(struct eblob_disk_control), 0, size,
 				NULL, 0, 0);
@@ -245,9 +259,11 @@ static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 	struct eblob_backend_config *c = priv;
 	struct eblob_backend *b = c->data_blob;
 	uint64_t offset, size;
+	struct eblob_key key;
 	int fd, index, err;
 
-	err = eblob_read_file_index(b, id->id, DNET_ID_SIZE, &fd, &offset, &size, &index);
+	memcpy(key.id, id->id, EBLOB_ID_SIZE);
+	err = eblob_read_file_index(b, &key, &fd, &offset, &size, &index);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read-index: %d: %s.\n",
 				dnet_dump_id(id), err, strerror(-err));
@@ -269,6 +285,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	struct eblob_backend *b = c->data_blob;
 	struct dnet_file_info *info;
 	struct dnet_addr_attr *a;
+	struct eblob_key key;
 	uint64_t offset, size;
 	int fd, index, flen, csize;
 	struct stat st;
@@ -282,7 +299,8 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 
 	dnet_fill_addr_attr(n, a);
 
-	err = eblob_read_file_index(b, cmd->id.id, DNET_ID_SIZE, &fd, &offset, &size, &index);
+	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
+	err = eblob_read_file_index(b, &key, &fd, &offset, &size, &index);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-file-info: info-read-index: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, strerror(-err));

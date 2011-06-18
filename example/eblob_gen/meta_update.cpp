@@ -59,12 +59,13 @@ class eblob_processor : public generic_processor {
 
 				memcpy(&dc, file_.const_data() + pos_, sizeof(dc));
 
-				std::cout << "offset: " << dc.position << ", size: " << dc.data_size << ", disk_size: " << dc.disk_size << std::endl;
+				std::cout << "offset: " << dc.position << ", size: " << dc.data_size <<
+					", disk_size: " << dc.disk_size << std::endl;
 
 				pos_ += sizeof(dc);
 
 				if (!(dc.flags & BLOB_DISK_CTL_REMOVE)) {
-					key.id.assign((char *)dc.id, sizeof(dc.id));
+					key.id.assign((char *)dc.key.id, sizeof(dc.key.id));
 					key.path = path_ + "." + boost::lexical_cast<std::string>(index_ - 1);
 					key.offset = dc.position + sizeof(dc);
 					key.size = dc.data_size;

@@ -29,20 +29,10 @@
 
 #include <boost/shared_ptr.hpp>
 
-#include <eblob/blob.h>
+#include <eblob/eblob.hpp>
 #include <elliptics/cppdef.h>
 
 using namespace zbr;
-
-class eblob {
-	public:
-		eblob(struct eblob_config &cfg);
-		virtual ~eblob();
-
-		void write(const struct dnet_id &id, const std::string &data);
-	private:
-		struct eblob_backend *blob;
-};
 
 class eblob_gen {
 	public:
@@ -95,7 +85,9 @@ class eblob_tar_source : public eblob_data_source {
 
 class eblob_processor {
 	public:
-		eblob_processor(const bool prepend_data, std::vector<int> &groups, const std::string &eblob_base, const struct eblob_config &cfg);
+		eblob_processor(const std::string &log_file, const bool prepend_data,
+				std::vector<int> &groups, const std::string &eblob_base,
+				const struct eblob_config &cfg);
 
 		void process(elliptics_node &node, const std::string &path);
 
@@ -103,7 +95,7 @@ class eblob_processor {
 		bool prepend_data_;
 		std::vector<int> groups_;
 		struct eblob_config eblob_cfg_;
-		std::string eblob_base_;
+		std::string eblob_base_, log_file_;
 
 		std::map<std::string, boost::shared_ptr<eblob> > blobs;
 };
