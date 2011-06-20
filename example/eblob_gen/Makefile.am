@@ -4,8 +4,8 @@ if HAVE_BOOST_PROGRAM_OPTIONS
 bin_PROGRAMS = dnet_eblob_gen
 noinst_HEADERS = eblob_gen.h
 
-AM_CXXFLAGS = -I../../include -I../../config -I../ @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
-AM_LDFLAGS = @KYOTOCABINET_LIBS@
+AM_CXXFLAGS = -I../../include -I../../config -I../ @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@ @BOOST_CPPFLAGS@
+AM_LDFLAGS = @KYOTOCABINET_LIBS@ @BOOST_LDFLAGS@ @BOOST_SYSTEM_LIB@
 
 dnet_eblob_gen_SOURCES = main.cpp dir.cpp eblob_gen.cpp data_source.cpp tar.cpp
 dnet_eblob_gen_LDADD = @BOOST_FILESYSTEM_LIB@ @BOOST_PROGRAM_OPTIONS_LIB@ @EBLOB_LIBS@ -leblob_cpp \
