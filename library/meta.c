@@ -502,6 +502,7 @@ static char *dnet_meta_types[] = {
 	[DNET_META_CHECK_STATUS] ="DNET_META_CHECK_STATUS",
 	[DNET_META_NAMESPACE] ="DNET_META_NAMESPACE",
 	[DNET_META_UPDATE] ="DNET_META_UPDATE",
+	[DNET_META_CHECKSUM] ="DNET_META_CHECKSUM",
 };
 
 void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
@@ -609,6 +610,21 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 
 			dnet_log_raw(n, DNET_LOG_INFO, "%s: type: %u, size: %u, namespace: %s\n",
 					dnet_meta_types[m->type], m->type, m->size, str);
+		} else if (m->type == DNET_META_CHECKSUM) {
+			struct dnet_meta_checksum *s = (struct dnet_meta_checksum *)m->data;
+			dnet_convert_meta_checksum(s);
+			char tstr[64];
+			char str[sizeof(s->checksum)*2+1];
+			struct tm tm;
+
+			localtime_r((time_t *)&s->tsec, &tm);
+			strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
+
+			dnet_log_raw(n, DNET_LOG_INFO, "%s: type: %u, size: %u, checksum: %s, ts: %s: %lld.%lld\n",
+					dnet_meta_types[m->type],
+					m->type, m->size, dnet_dump_id_len_raw(s->checksum, sizeof(s->checksum), str), tstr,
+					(unsigned long long)s->tsec,
+					(unsigned long long)s->tnsec);
 		} else {
 			dnet_log_raw(n, DNET_LOG_INFO, "%s: type: %u, size: %u\n",
 					dnet_meta_types[m->type], m->type, m->size);
