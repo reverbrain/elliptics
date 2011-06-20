@@ -111,7 +111,7 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 
 	if (io->flags & DNET_IO_FLAGS_APPEND)
 		oflags |= O_APPEND;
-	else
+	else if (!io->offset)
 		oflags |= O_TRUNC;
 	
 	fd = open(file, oflags, 0644);
@@ -122,11 +122,13 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 		goto err_out_exit;
 	}
 
-	err = write(fd, data, io->size);
+	err = pwrite(fd, data, io->size, io->offset);
 	if (err != (ssize_t)io->size) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: WRITE: %zd: %s.\n",
-			dnet_dump_id_str(io->id), file, err, strerror(-err));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: WRITE: %zd: offset: %llu, size: %llu: %s.\n",
+			dnet_dump_id_str(io->id), file, err,
+			(unsigned long long)io->offset, (unsigned long long)io->size,
+			strerror(-err));
 		goto err_out_close;
 	}
 
