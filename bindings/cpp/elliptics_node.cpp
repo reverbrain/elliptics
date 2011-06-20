@@ -656,6 +656,7 @@ void elliptics_node::update_status(const char *saddr, const int port, const int 
 	char sport[16];
 
 	memset(&addr, 0, sizeof(addr));
+	addr.addr_len = sizeof(addr.addr);
 
 	snprintf(sport, sizeof(sport), "%d", port);
 
