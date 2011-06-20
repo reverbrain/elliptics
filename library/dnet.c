@@ -717,13 +717,13 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				err = n->command_handler(st, n->command_private, cmd, a, data);
 				if (err || (a->cmd != DNET_CMD_WRITE))
 					break;
-
+#if 0
 				if (!(n->flags & DNET_CFG_NO_META)) {
 					err = dnet_db_write(n, cmd, data);
 					if (err)
 						break;
 				}
-
+#endif
 #if 0
 				dnet_update_notify(st, cmd, a, data);
 #endif
