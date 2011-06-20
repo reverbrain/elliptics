@@ -420,7 +420,7 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 		as->count[DNET_CNTR_VM_CACHED].count = st.vm_cached;
 		as->count[DNET_CNTR_VM_BUFFERS].count = st.vm_buffers;
 	}
-	as->count[DNET_CNTR_NODE_FILES].count = kcdbcount(n->meta);
+	as->count[DNET_CNTR_NODE_FILES].count = eblob_total_elements(n->meta);
 
 	dnet_log(n, DNET_LOG_DSA, "as->num = %d, as->cmd_num = %d\n", as->num, as->cmd_num);
 
@@ -640,10 +640,12 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				if (n->ro) {
 					err = -EROFS;
 				} else {
+#ifdef HAVE_CHECK
 					if (a->flags & DNET_ATTR_BULK_CHECK)
 						err = dnet_cmd_bulk_check(st, cmd, a, data);
 					else
 						err = dnet_db_list(st, cmd, a);
+#endif
 				}
 				break;
 			case DNET_CMD_READ:
@@ -1802,7 +1804,7 @@ err_out_exit:
 
 int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc, void *remote, unsigned int remote_len, struct dnet_id *id)
 {
-	int err, error = 0, i;
+	int err, error = -ENOENT, i;
 	struct dnet_wait *w;
 	struct dnet_id raw;
 

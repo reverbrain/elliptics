@@ -29,7 +29,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <kclangc.h>
+#include <eblob/blob.h>
 
 #ifndef HAVE_UCHAR
 typedef unsigned char u_char;
@@ -263,12 +263,6 @@ int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd,
 int dnet_notify_init(struct dnet_node *n);
 void dnet_notify_exit(struct dnet_node *n);
 
-struct dnet_db_ptr
-{
-	KCDB			*db;
-	atomic_t		refcnt;
-};
-
 struct dnet_group
 {
 	struct list_head	group_entry;
@@ -385,8 +379,8 @@ struct dnet_node
 	pthread_t		monitor_tid;
 	int			monitor_fd;
 
-	KCDB			*meta;
-	struct dnet_db_ptr	temp_meta;
+	struct eblob_log	elog;
+	struct eblob_backend	*meta;
 	char			*temp_meta_env;
 
 	int			(* command_handler)(void *state, void *priv,
@@ -411,31 +405,6 @@ struct dnet_node
 	int			bg_ionice_prio;
 	int			removal_delay;
 };
-
-static inline struct dnet_db_ptr *dnet_db_ptr_get(struct dnet_db_ptr *db)
-{
-	atomic_inc(&db->refcnt);
-	return db;
-}
-
-static inline void dnet_db_ptr_put(struct dnet_node *n, struct dnet_db_ptr *db)
-{
-	dnet_log_raw(n, DNET_LOG_DSA, "DB: dnet_db_ptr_put, refcnt: %d\n", db->refcnt.val);
-	if (atomic_dec_and_test(&db->refcnt)) {
-		char temp_meta_path[strlen(n->temp_meta_env) + 128];
-		int err;
-		kcdbclose(db->db);
-		kcdbdel(db->db);
-		db->db = NULL;
-		sprintf(temp_meta_path, "%s/temp_meta.kch", n->temp_meta_env);
-		err = unlink(temp_meta_path);
-	        if (err) {
-        	        dnet_log_raw(n, DNET_LOG_ERROR, "DB: unable to unlink temporary meta file %s, err: %d\n",
-                	                temp_meta_path, err);
-        	}
-	}
-}
-
 
 static inline int dnet_counter_init(struct dnet_node *n)
 {
@@ -608,10 +577,10 @@ int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 
 int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data);
 int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io);
-int dnet_db_read_raw(struct dnet_node *n, unsigned char *id, void **datap, int temp_meta);
+ssize_t dnet_db_read_raw(struct dnet_node *n, unsigned char *id, void **datap);
+int dnet_db_write_raw(struct dnet_node *n, unsigned char *id, void *data, unsigned int size);
 int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr);
 int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr);
-int dnet_db_sync(struct dnet_node *n);
 void dnet_db_cleanup(struct dnet_node *n);
 int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg);
 int dnet_db_check_update(struct dnet_node *n, struct dnet_meta_container *mc);
@@ -659,16 +628,14 @@ static inline int dnet_compare_bulk_state(const void *k1, const void *k2)
 
 int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_copies);
 int dnet_check_list(struct dnet_net_state *st, struct dnet_check_request *r);
+#ifdef HAVE_CHECK
 int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state);
+#endif
 
-void dnet_update_check_metadata_raw(struct dnet_node *n, void *data, int size);
-struct dnet_meta_update * dnet_get_meta_update(struct dnet_node *n, struct dnet_meta_container *mc, int group_id, struct dnet_meta_update *meta_update);
+struct dnet_meta_update * dnet_get_meta_update(struct dnet_node *n, struct dnet_meta_container *mc,
+		int group_id, struct dnet_meta_update *meta_update);
 int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t flags_set, uint64_t flags_clear);
-int dnet_db_write_trans(struct dnet_node *n, struct dnet_id *id, void *data, unsigned int size, int append);
-int dnet_db_write_notrans(struct dnet_node *n, struct dnet_id *id, void *data, unsigned int size, int append, int temp_meta);
-
-int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_id *id, struct dnet_meta_checksum *csum);
 
 int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_id *id, struct dnet_meta_checksum *csum);
 

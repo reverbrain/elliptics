@@ -415,8 +415,6 @@ static void *dnet_check_process(void *data)
 			}
 			sleep(1);
 		}
-
-		dnet_db_sync(n);
 	}
 
 	return NULL;
