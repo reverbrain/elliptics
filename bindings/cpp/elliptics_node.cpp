@@ -649,7 +649,7 @@ int elliptics_node::request_cmd(struct dnet_trans_control &ctl)
 	return err;
 }
 
-void elliptics_node::update_status(const char *saddr, const int port, const int family, const unsigned int status)
+void elliptics_node::update_status(const char *saddr, const int port, const int family, struct dnet_node_status *status, int update)
 {
 	int err;
 	struct dnet_addr addr;
@@ -662,7 +662,7 @@ void elliptics_node::update_status(const char *saddr, const int port, const int 
 
 	err = dnet_fill_addr(&addr, saddr, sport, family, SOCK_STREAM, IPPROTO_TCP);
 	if (!err)
-		err = dnet_update_status(node, &addr, NULL, status);
+		err = dnet_update_status(node, &addr, NULL, status, update);
 
 	if (err < 0) {
 		std::ostringstream str;
@@ -671,11 +671,11 @@ void elliptics_node::update_status(const char *saddr, const int port, const int 
 	}
 }
 
-void elliptics_node::update_status(struct dnet_id &id, const unsigned int status)
+void elliptics_node::update_status(struct dnet_id &id, struct dnet_node_status *status, int update)
 {
 	int err;
 
-	err = dnet_update_status(node, NULL, &id, status);
+	err = dnet_update_status(node, NULL, &id, status, update);
 	if (err < 0) {
 		std::ostringstream str;
 

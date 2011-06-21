@@ -52,6 +52,7 @@ static void dnet_usage(char *p)
 			" -s                   - request IO counter stats from node\n"
 			" -z                   - request VFS IO stats from node\n"
 			" -a                   - request stats from all connected nodes\n"
+			" -U                   - show/update server flags and log mask\n"
 			" -R file              - read given file from the network into the local storage\n"
 			" -I id                - transaction id\n"
 			" -g groups            - group IDs to connect\n"
@@ -73,6 +74,7 @@ int main(int argc, char *argv[])
 {
 	int ch, err, i, have_remote = 0;
 	int io_counter_stat = 0, vfs_stat = 0, single_node_stat = 1;
+	int update_status = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
 	char *logfile = "/dev/stderr", *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
@@ -93,7 +95,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "N:g:u:O:S:m:zsaL:w:l:c:I:r:W:R:h")) != -1) {
+	while ((ch = getopt(argc, argv, "N:g:u:O:S:m:zsUaL:w:l:c:I:r:W:R:h")) != -1) {
 		switch (ch) {
 			case 'N':
 				cfg.ns = optarg;
@@ -113,6 +115,9 @@ int main(int argc, char *argv[])
 				break;
 			case 's':
 				io_counter_stat = 1;
+				break;
+			case 'U':
+				update_status = 1;
 				break;
 			case 'z':
 				vfs_stat = 1;
@@ -249,6 +254,20 @@ int main(int argc, char *argv[])
 		err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL, NULL, NULL);
 		if (err < 0)
 			return err;
+	}
+
+	if (update_status) {
+		struct dnet_node_status node_status;
+		struct dnet_addr addr;
+
+		for (i=0; i<have_remote; ++i) {
+			err = dnet_fill_addr(&addr, remotes[i].addr, remotes[i].port,
+						remotes[i].family, remotes[i].sock_type, remotes[i].proto);
+
+			err = dnet_update_status(n, &addr, NULL, &node_status, 0);
+			printf("err = %d\n", err);
+		}
+
 	}
 
 	dnet_node_destroy(n);
