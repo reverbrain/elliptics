@@ -542,26 +542,48 @@ static char *dnet_counter_string(int cntr, int cmd_num)
 	return dnet_counter_strings[cntr];
 }
 
-static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, struct dnet_attr *attr)
+static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, struct dnet_attr *attr, void *data)
 {
 	struct dnet_node *n = orig->n;
+	struct dnet_node_status *st = data;
+	struct dnet_attr ca;
+	
+	dnet_convert_node_status(st);
 
-	if (attr->flags & DNET_STATUS_EXIT) {
-		dnet_set_need_exit(n);
-		return 0;
+	if (attr->flags & DNET_STATUS_CHANGE) {
+		if (st->status_flags & DNET_STATUS_EXIT) {
+			dnet_set_need_exit(n);
+		}
+
+		if (st->status_flags & DNET_STATUS_RO) {
+			n->ro = 1;
+		} else {
+			n->ro = 0;
+		}
+
+		n->flags = st->nflags;
+
+		n->log->log_mask = st->log_mask;
 	}
 
-	if (attr->flags & DNET_STATUS_RO) {
-		n->ro = 1;
-		return 0;
-	}
+	st->nflags = n->flags;
+	st->log_mask = n->log->log_mask;
+	st->status_flags = 0;
 
-	if (attr->flags & DNET_STATUS_RW) {
-		n->ro = 0;
-		return 0;
-	}
+	if (n->need_exit)
+		st->status_flags |= DNET_STATUS_EXIT;
 
-	return -ENOTSUP;
+	if (n->ro)
+		st->status_flags |= DNET_STATUS_RO;
+
+
+	dnet_convert_node_status(st);
+
+	ca.cmd = DNET_CMD_STATUS;
+	ca.size = 0;
+	ca.flags = 0;
+
+	return dnet_send_reply(orig, cmd, &ca, st, sizeof(struct dnet_node_status), 1);
 }
 
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
@@ -602,7 +624,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 		switch (a->cmd) {
 			case DNET_CMD_STATUS:
-				err = dnet_cmd_status(st, cmd, a);
+				err = dnet_cmd_status(st, cmd, a, data);
 				break;
 			case DNET_CMD_REVERSE_LOOKUP:
 				err = dnet_cmd_reverse_lookup(st, cmd, a, data);
@@ -2489,23 +2511,40 @@ err_out_exit:
 	return err;
 }
 
+struct dnet_update_status_priv {
+	struct dnet_wait *w;
+	struct dnet_node_status status;
+	atomic_t refcnt;
+};
+
 static int dnet_update_status_complete(struct dnet_net_state *state,
 		struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
 {
-	struct dnet_wait *w = priv;
+	struct dnet_update_status_priv *p = priv;
 
 	if (is_trans_destroyed(state, cmd, attr)) {
-		dnet_wakeup(w, w->cond++);
-		dnet_wait_put(w);
+		dnet_wakeup(p->w, p->w->cond++);
+		dnet_wait_put(p->w);
+		if (atomic_dec_and_test(&p->refcnt))
+			free(p);
 	}
 
-	return 0;
+	if (!attr)
+		return cmd->status;
+
+	if (attr->size == sizeof(struct dnet_node_status)) {
+		memcpy(&p->status, attr+1, sizeof(struct dnet_node_status));
+		return 0;
+	}
+
+	return -ENOENT;
 }
 
-int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr, struct dnet_id *id, unsigned int status)
+int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr, struct dnet_id *id,
+			struct dnet_node_status *status, int update)
 {
 	int err;
-	struct dnet_wait *w;
+	struct dnet_update_status_priv *priv;
 	struct dnet_trans_control ctl;
 
 	if (!id && !addr) {
@@ -2530,23 +2569,32 @@ int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr, struct dnet_
 		dnet_state_put(st);
 	}
 
-	w = dnet_wait_alloc(0);
-	if (!w) {
+	priv = malloc(sizeof(struct dnet_update_status_priv));
+	priv->w = dnet_wait_alloc(0);
+	if (!priv->w) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
 	ctl.complete = dnet_update_status_complete;
-	ctl.priv = w;
+	ctl.priv = priv;
 	ctl.cmd = DNET_CMD_STATUS;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
-	ctl.aflags = status;
+	if (update)
+		ctl.aflags = DNET_STATUS_CHANGE;
+	ctl.size = sizeof(struct dnet_node_status);
+	ctl.data = status;
 
-	dnet_wait_get(w);
+	dnet_wait_get(priv->w);
 	dnet_request_cmd_single(n, NULL, &ctl);
 
-	err = dnet_wait_event(w, w->cond == 1, &n->wait_ts);
-	dnet_wait_put(w);
+	err = dnet_wait_event(priv->w, priv->w->cond == 1, &n->wait_ts);
+	dnet_wait_put(priv->w);
+	if (!err && priv) {
+		memcpy(status, &priv->status, sizeof(struct dnet_node_status));
+	}
+	if (atomic_dec_and_test(&priv->refcnt))
+		free(priv);
 
 err_out_exit:
 	return err;

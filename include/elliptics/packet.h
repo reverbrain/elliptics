@@ -545,13 +545,26 @@ static inline void dnet_info_from_stat(struct dnet_file_info *info, struct stat 
 }
 
 /* Elliptics node status */
+#define DNET_STATUS_CHANGE		(1<<0)
 
 /* Elliptics node should exit */
 #define DNET_STATUS_EXIT		(1<<0)
 
 /* Ellipitcs node goes ro/rw */
 #define DNET_STATUS_RO			(1<<1)
-#define DNET_STATUS_RW			(1<<2)
+
+struct dnet_node_status {
+	int nflags;
+	int status_flags;  /* DNET_STATUS_EXIT, DNET_STATUS_RO should be specified here */
+	uint32_t log_mask;
+};
+
+static inline void dnet_convert_node_status(struct dnet_node_status *st)
+{
+	st->nflags = dnet_bswap32(st->nflags);
+	st->status_flags = dnet_bswap32(st->status_flags);
+	st->log_mask = dnet_bswap32(st->log_mask);
+}
 
 #ifdef __cplusplus
 }

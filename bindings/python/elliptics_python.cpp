@@ -287,15 +287,18 @@ class elliptics_node_python : public elliptics_node {
 			return elliptics_node::lookup_addr(raw);
 		}
 
-		void update_status_by_id(const struct elliptics_id &id, unsigned int status) {
+		struct dnet_node_status update_status_by_id(const struct elliptics_id &id, struct dnet_node_status &status, int update) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
 
-			elliptics_node::update_status(raw, status);
+			elliptics_node::update_status(raw, &status, update);
+			return status;
 		}
 		
-		void update_status_by_string(const std::string &saddr, const int port, const int family, const unsigned int status) {
-			elliptics_node::update_status(saddr.c_str(), port, family, status);
+		struct dnet_node_status  update_status_by_string(const std::string &saddr, const int port, const int family,
+									struct dnet_node_status &status, int update) {
+			elliptics_node::update_status(saddr.c_str(), port, family, &status, update);
+			return status;
 		}
 
 		std::string read_data_range(const struct elliptics_range &r) {
@@ -341,6 +344,12 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<elliptics_log_file_wrap, boost::noncopyable, bases<elliptics_log> >("elliptics_log_file", init<const char *, const uint32_t>())
 		.def("log", &elliptics_log_file::log, &elliptics_log_file_wrap::default_log)
 		.def("clone", &elliptics_log_file::clone, &elliptics_log_file_wrap::default_clone)
+	;
+
+	class_<dnet_node_status>("dnet_node_status", init<>())
+		.def_readwrite("nflags", &dnet_node_status::nflags)
+		.def_readwrite("status_flags", &dnet_node_status::status_flags)
+		.def_readwrite("log_mask", &dnet_node_status::log_mask)
 	;
 
 	class_<elliptics_node>("elliptics_node", init<elliptics_log &>())

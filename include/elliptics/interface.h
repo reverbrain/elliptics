@@ -688,8 +688,8 @@ int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const char *port, 
 		const int sock_type, const int proto);
 
 /* Change node status on given address or ID */
-int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr,
-		struct dnet_id *id, unsigned int status);
+int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr, struct dnet_id *id,
+			struct dnet_node_status *status, int update);
 
 /*
  * Mark tranasction with @id in the object identified by @origin to be removed.
