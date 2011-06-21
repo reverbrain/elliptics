@@ -105,7 +105,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	if (io->size && size > io->size)
 		size = io->size;
 
-	offset += sizeof(struct eblob_disk_control) + io->offset;
+	offset += io->offset;
 
 	io->size = size;
 	err = dnet_send_read_data(state, cmd, io, NULL, fd, offset);
@@ -154,7 +154,7 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 	memcpy(io.parent, req->end, DNET_ID_SIZE);
 
 	err = dnet_send_read_data(p->state, p->cmd, &io, NULL, req->record_fd,
-			req->record_offset + sizeof(struct eblob_disk_control) + req->requested_offset);
+			req->record_offset + req->requested_offset);
 	if (!err)
 		req->current_pos++;
 err_out_exit:
@@ -241,7 +241,7 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
 	err = eblob_read(b, &key, &fd, &offset, &size);
 	if (!err) {
-		err = dnet_write_data_wait(n, NULL, 0, id, NULL, fd, offset + sizeof(struct eblob_disk_control), 0, size,
+		err = dnet_write_data_wait(n, NULL, 0, id, NULL, fd, offset, 0, size,
 				NULL, 0, 0);
 		if (err <= 0) {
 			if (err == 0)
@@ -269,8 +269,6 @@ static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 				dnet_dump_id(id), err, strerror(-err));
 		goto err_out_exit;
 	}
-
-	offset += sizeof(struct eblob_disk_control);
 
 	err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
 
@@ -327,7 +325,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	}
 
 	info->size = size;
-	info->offset = offset + sizeof(struct eblob_disk_control);
+	info->offset = offset;
 
 	flen = info->flen = snprintf((char *)(info + 1), len, "%s.%d", c->data.file, index) + 1;
 	dnet_convert_file_info(info);

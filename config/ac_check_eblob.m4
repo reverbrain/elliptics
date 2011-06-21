@@ -26,7 +26,7 @@ AC_TRY_LINK([#include <eblob/blob.h>],
 	], [
 		EBLOB_LIBS=""
 		EBLOB_CFLAGS=""
-		AC_MSG_RESULT([no])
+		AC_MSG_ERROR([no])
 	])
 
 AC_SUBST(EBLOB_LIBS)

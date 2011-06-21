@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
 	struct dnet_id raw;
 	struct dnet_meta_container mc;
 
+	memset(&mc, 0, sizeof(mc));
 	memset(&cfg, 0, sizeof(cfg));
 
 	cfg.sock_type = SOCK_STREAM;

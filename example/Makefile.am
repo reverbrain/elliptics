@@ -6,27 +6,17 @@ SUBDIRS = .
 
 CC = @PTHREAD_CC@
 
-AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@
-AM_CXXFLAGS = -I../include -I../config @PTHREAD_CFLAGS@
+AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
+AM_CXXFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
 
-AM_LDFLAGS = @PTHREAD_LIBS@ @KYOTOCABINET_LIBS@
+AM_LDFLAGS = @PTHREAD_LIBS@ @KYOTOCABINET_LIBS@ @EBLOB_LIBS@
+
 
 EXAMPLE_COMMON_LIBS = ../library/libelliptics.la libcommon.a
-EXAMPLE_BACKEND_LIBS = libbackend.a
+EXAMPLE_BACKEND_LIBS = libbackend.a 
 
 libcommon_a_SOURCES = common.c hash.c
-libbackend_a_SOURCES = file_backend.c backends.c
-
-if HAVE_EBLOB
-AM_CFLAGS += @EBLOB_CFLAGS@
-
-EXAMPLE_BACKEND_LIBS += @EBLOB_LIBS@
-libbackend_a_SOURCES += eblob_backend.c 
-
-SUBDIRS += eblob_gen
-
-# have eblob
-endif
+libbackend_a_SOURCES = file_backend.c backends.c eblob_backend.c
 
 dnet_ioserv_SOURCES = ioserv.c config.c
 dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) $(EXAMPLE_BACKEND_LIBS)

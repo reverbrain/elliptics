@@ -30,6 +30,7 @@
 #include "elliptics.h"
 #include "elliptics/interface.h"
 
+#ifdef HAVE_CHECK
 static char dnet_check_tmp_dir[] = "/dev/shm";
 
 static int dnet_dump_meta_container(struct dnet_node *n, struct dnet_meta_container *mc)
@@ -876,6 +877,7 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_
 
 	return err;
 }
+#endif
 
 static int dnet_check_complete(struct dnet_net_state *state, struct dnet_cmd *cmd,
 	struct dnet_attr *attr, void *priv)

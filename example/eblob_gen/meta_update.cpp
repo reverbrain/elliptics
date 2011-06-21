@@ -294,11 +294,13 @@ int main(int argc, char *argv[])
 			("log-file", po::value<std::string>(&log_file)->default_value("/dev/stdout"), "Log file")
 			("log-mask", po::value<int>(&log_mask)->default_value(DNET_LOG_ERROR | DNET_LOG_INFO), "Log mask")
 			("threads", po::value<int>(&thread_num)->default_value(16), "Number of threads to iterate over input data")
-			("group", po::value<std::vector<int> >(&groups), "Group number which will host given object, can be used multiple times for several groups")
+			("group", po::value<std::vector<int> >(&groups),
+			 	"Group number which will host given object, can be used multiple times for several groups")
 			("remote-addr", po::value<std::string>(&addr)->default_value("localhost"), "Connect to this remote node")
 			("remote-port", po::value<int>(&port)->default_value(1025), "Connect to this remote port")
 			("addr-family", po::value<int>(&family)->default_value(AF_INET), "Address family (2 - IPv4, 6 - IPv6)")
-			("enable-checksum", po::value<int>(&csum_enabled)->default_value(0), "Set to 1 if you want to enable server generated checksums")
+			("enable-checksum", po::value<int>(&csum_enabled)->default_value(0),
+			 	"Set to 1 if you want to enable server generated checksums")
 		;
 
 		po::variables_map vm;
