@@ -138,6 +138,11 @@ static int dnet_bulk_db_check_update(struct dnet_node *n, struct dnet_meta_conta
 	KCREC recs[DNET_BULK_META_UPD_SIZE];
 	int rec_iter = 0;
 
+	if (!rec_num || *rec_num > DNET_BULK_META_UPD_SIZE) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
 	if (!final) {
 		if (!mc) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "CHECK: mc should be passed\n");
@@ -147,6 +152,10 @@ static int dnet_bulk_db_check_update(struct dnet_node *n, struct dnet_meta_conta
 		mc_array[*rec_num].size = mc->size;
 		// Allocate extra memory for potential META_CHECK_STATUS structure
 		mc_array[*rec_num].data = malloc(mc->size + sizeof(struct dnet_meta) + sizeof(struct dnet_meta_check_status));
+		if (!mc_array[*rec_num].data) {
+			err = -ENOMEM;
+			goto err_out_exit;
+		}
 		memcpy(mc_array[*rec_num].data, mc->data, mc->size);
 		(*rec_num)++;
 	}

@@ -2570,6 +2570,11 @@ int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr, struct dnet_
 	}
 
 	priv = malloc(sizeof(struct dnet_update_status_priv));
+	if (!priv) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
 	priv->w = dnet_wait_alloc(0);
 	if (!priv->w) {
 		err = -ENOMEM;
