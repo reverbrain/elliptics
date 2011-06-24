@@ -1974,10 +1974,7 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, char *cmd)
 		num = 1;
 	} else {
 		struct dnet_group *g;
-		struct timeval start, end;
-		long diff;
 
-		gettimeofday(&start, NULL);
 		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(g, &n->group_list, group_entry) {
 			list_for_each_entry(st, &g->state_list, state_entry) {
@@ -1991,10 +1988,6 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, char *cmd)
 			}
 		}
 		pthread_mutex_unlock(&n->state_lock);
-
-		gettimeofday(&end, NULL);
-		diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-		dnet_log(n, DNET_LOG_ERROR, "%s: cmd %s: %ld usecs.\n", dnet_dump_id(id), cmd, diff);
 	}
 
 	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
