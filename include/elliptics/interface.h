@@ -235,6 +235,7 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 #define DNET_LOG_TRANS			(1<<2)
 #define DNET_LOG_ERROR			(1<<3)
 #define DNET_LOG_DSA			(1<<4)
+#define DNET_LOG_DATA			(1<<5)
 
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8

@@ -272,6 +272,120 @@ err_out_exit:
 	return err;
 }
 
+static char *dnet_meta_types[__DNET_META_MAX] = {
+	[DNET_META_PARENT_OBJECT] = "DNET_META_PARENT_OBJECT",
+	[DNET_META_GROUPS] = "DNET_META_GROUPS",
+	[DNET_META_CHECK_STATUS] = "DNET_META_CHECK_STATUS",
+	[DNET_META_NAMESPACE] = "DNET_META_NAMESPACE",
+	[DNET_META_UPDATE] = "DNET_META_UPDATE",
+	[DNET_META_CHECKSUM] = "DNET_META_CHECKSUM",
+};
+
+void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
+{
+	void *data;
+	int size, err;
+	struct dnet_meta *m;
+	char tstr[64];
+	struct tm tm;
+
+	data = mc->data;
+	size = mc->size;
+
+	while (size) {
+		m = data;
+
+		dnet_convert_meta(m);
+
+		if (m->type >= __DNET_META_MAX || m->type < DNET_META_PARENT_OBJECT) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: incorrect meta type %d\n", dnet_dump_id(&mc->id), m->type);
+			return;
+		}
+
+		if (m->type == DNET_META_PARENT_OBJECT) {
+			char name[m->size + 1];
+
+			memcpy(name, m->data, m->size);
+			name[m->size] = '\0';
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, name: '%s'\n",
+					dnet_meta_types[m->type], m->type, m->size, name);
+		} else if (m->type == DNET_META_GROUPS) {
+			int *groups = (int *)m->data;
+			int gnum = m->size / sizeof(int);
+			char str[gnum * 36 + 1], *ptr;
+			int i, rest;
+
+			memset(str, 0, sizeof(str));
+
+			ptr = str;
+			rest = sizeof(str);
+			for (i=0; i<gnum; ++i) {
+				err = snprintf(ptr, rest, "%d:", groups[i]);
+				if (err > rest)
+					break;
+
+				rest -= err;
+				ptr += err;
+
+				if (i == gnum - 1)
+					*(--ptr) = '\0';
+			}
+
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, groups: %s\n",
+					dnet_meta_types[m->type], m->type, m->size, str);
+		} else if (m->type == DNET_META_CHECK_STATUS) {
+			struct dnet_meta_check_status *s = (struct dnet_meta_check_status *)m->data;
+
+			dnet_convert_meta_check_status(s);
+
+			localtime_r((time_t *)&s->tsec, &tm);
+			strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
+
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, check status: %d, ts: %s: %lld.%lld\n",
+					dnet_meta_types[m->type],
+					m->type, m->size, s->status, tstr,
+					(unsigned long long)s->tsec,
+					(unsigned long long)s->tnsec);
+		} else if (m->type == DNET_META_UPDATE) {
+			struct dnet_meta_update *mu = (struct dnet_meta_update *)m->data;
+
+			dnet_convert_meta_update(mu);
+
+			localtime_r((time_t *)&mu->tsec, &tm);
+			strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
+
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, group: %d, flags: %llx, ts: %s %lld.%lld\n",
+					dnet_meta_types[m->type], m->type, m->size,
+					mu->group_id, (unsigned long long)mu->flags, tstr,
+					(unsigned long long)mu->tsec, (unsigned long long)mu->tnsec);
+		} else if (m->type == DNET_META_NAMESPACE) {
+			char str[m->size + 1];
+			memcpy(str, m->data, m->size);
+			str[m->size] = '\0';
+
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, namespace: %s\n",
+					dnet_meta_types[m->type], m->type, m->size, str);
+		} else if (m->type == DNET_META_CHECKSUM) {
+			struct dnet_meta_checksum *cs = (struct dnet_meta_checksum *)m->data;
+			char str[2*DNET_CSUM_SIZE+1];
+
+			localtime_r((time_t *)&cs->tsec, &tm);
+			strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
+
+			dnet_dump_id_len_raw(cs->checksum, DNET_CSUM_SIZE, str);
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, csum: %s, ts: %s %lld.%lld\n",
+					dnet_meta_types[m->type], m->type, m->size, str, tstr,
+					(unsigned long long)cs->tsec, (unsigned long long)cs->tnsec);
+		} else {
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u\n",
+					dnet_meta_types[m->type], m->type, m->size);
+		}
+
+		data += m->size + sizeof(*m);
+		size -= m->size + sizeof(*m);
+	}
+}
+
 int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_id *id)
 {
 	struct dnet_meta *m;
