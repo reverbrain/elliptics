@@ -177,7 +177,7 @@ int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t fl
 		}
 	}
 
-	err = eblob_write(n->meta, &key, mc.data, mc.size, BLOB_DISK_CTL_NOCSUM);
+	err = eblob_write(n->meta, &key, mc.data, mc.size, BLOB_DISK_CTL_NOCSUM, EBLOB_TYPE_META);
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: META: update-ts-write: %d: %s.\n",
 			dnet_dump_id(id), err, strerror(-err));

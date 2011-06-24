@@ -38,7 +38,7 @@ ssize_t dnet_db_read_raw(struct dnet_node *n, unsigned char *id, void **datap)
 
 	memcpy(key.id, id, DNET_ID_SIZE);
 
-	err = eblob_read(n->meta, &key, &fd, &offset, &size);
+	err = eblob_read(n->meta, &key, &fd, &offset, &size, EBLOB_TYPE_META);
 	if (err) {
 		if (err == -ENOENT)
 			dnet_counter_inc(n, DNET_CNTR_DBR_NOREC, err);
@@ -79,7 +79,7 @@ int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io
 	int fd, err;
 
 	memcpy(key.id, io->id, DNET_ID_SIZE);
-	err = eblob_read(n->meta, &key, &fd, &offset, &size);
+	err = eblob_read(n->meta, &key, &fd, &offset, &size, EBLOB_TYPE_META);
 	if (err < 0)
 		return err;
 
@@ -94,7 +94,7 @@ int dnet_db_write_raw(struct dnet_node *n, unsigned char *id, void *data, unsign
 	struct eblob_key key;
 
 	memcpy(key.id, id, DNET_ID_SIZE);
-	return eblob_write(n->meta, &key, data, size, BLOB_DISK_CTL_NOCSUM);
+	return eblob_write(n->meta, &key, data, size, BLOB_DISK_CTL_NOCSUM, EBLOB_TYPE_META);
 }
 
 static int db_del_direct(struct dnet_node *n, struct dnet_id *id)
@@ -102,7 +102,7 @@ static int db_del_direct(struct dnet_node *n, struct dnet_id *id)
 	struct eblob_key key;
 
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-	return eblob_remove(n->meta, &key);
+	return eblob_remove(n->meta, &key, EBLOB_TYPE_META);
 }
 
 int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr)
@@ -145,7 +145,7 @@ int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg)
 
 	n->elog.log = n->log->log;
 	n->elog.log_private = n->log->log_private;
-	n->elog.log_mask = EBLOB_LOG_ERROR | EBLOB_LOG_INFO | EBLOB_LOG_NOTICE;
+	n->elog.log_mask = EBLOB_LOG_ERROR | EBLOB_LOG_INFO | EBLOB_LOG_NOTICE | 0xff;
 
 	ecfg.log = &n->elog;
 
