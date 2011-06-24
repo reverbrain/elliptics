@@ -332,11 +332,9 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	if (err)
 		goto err_out_free_buf;
  
-#ifdef HAVE_EBLOB_SUPPORT
 	err = dnet_eblob_backend_init();
 	if (err)
 		goto err_out_file_exit;
-#endif
 
 	while (1) {
 		ptr = fgets(buf, buf_size, f);
@@ -456,11 +454,9 @@ err_out_node_destroy:
 	dnet_node_destroy(n);
 err_out_free:
 	free(dnet_cfg_remotes);
-//err_out_blob_exit:
-#ifdef HAVE_EBLOB_SUPPORT
+
 	dnet_eblob_backend_exit();
 err_out_file_exit:
-#endif
 	dnet_file_backend_exit();
 err_out_free_buf:
 	free(buf);
