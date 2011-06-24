@@ -107,16 +107,16 @@ void elliptics_finder::parse_lookup(const std::string &ret)
 			}
 
 			if (!info)
-				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: %s: should live at: %s\n",
+				dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND object: %s: should live at: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
 			else
-				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND-OK object: %s: should live at: %s, "
+				dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND-OK object: %s: should live at: %s, "
 						"offset: %llu, size: %llu, mode: %llo, path: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
 					(unsigned long long)info->offset, (unsigned long long)info->size,
 					(unsigned long long)info->mode, (char *)(info + 1));
 		} else {
-			dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
+			dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
 		}
 
 		data = (char *)data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
@@ -145,13 +145,13 @@ void elliptics_finder::parse_meta(const std::string &ret)
 
 				dnet_convert_io_attr(io);
 
-				dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
+				dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
 						dnet_dump_id(&cmd->id), addr_str, dnet_cmd_string(attr->cmd),
 						(unsigned long long)io->size);
 			} else {
 			}
 		} else {
-			dnet_log_raw(node, DNET_LOG_INFO, "%s: FIND meta: %s: status: %d\n", dnet_dump_id(&cmd->id), addr_str, cmd->status);
+			dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND meta: %s: status: %d\n", dnet_dump_id(&cmd->id), addr_str, cmd->status);
 		}
 
 		data = (char *)data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 {
 	int ch, err;
 	char *logfile = (char *)"/dev/stderr";
-	int log_mask = DNET_LOG_INFO | DNET_LOG_ERROR;
+	int log_mask = DNET_LOG_INFO | DNET_LOG_ERROR | DNET_LOG_DATA;
 	char *remote = NULL;
 	struct dnet_id raw;
 	struct dnet_trans_control ctl;

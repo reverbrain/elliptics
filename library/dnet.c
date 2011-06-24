@@ -2263,16 +2263,16 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		la[1] = (float)st->la[1] / 100.0;
 		la[2] = (float)st->la[2] / 100.0;
 
-		dnet_log(state->n, DNET_LOG_INFO, "%s: %s: la: %.2f %.2f %.2f.\n",
+		dnet_log(state->n, DNET_LOG_DATA, "%s: %s: la: %.2f %.2f %.2f.\n",
 				dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
 				la[0], la[1], la[2]);
-		dnet_log(state->n, DNET_LOG_INFO, "%s: %s: mem: "
+		dnet_log(state->n, DNET_LOG_DATA, "%s: %s: mem: "
 				"total: %llu kB, free: %llu kB, cache: %llu kB.\n",
 				dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
 				(unsigned long long)st->vm_total,
 				(unsigned long long)st->vm_free,
 				(unsigned long long)st->vm_cached);
-		dnet_log(state->n, DNET_LOG_INFO, "%s: %s: fs: "
+		dnet_log(state->n, DNET_LOG_DATA, "%s: %s: fs: "
 				"total: %llu mB, avail: %llu mB, files: %llu, fsid: %llx.\n",
 				dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
 				(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
@@ -2294,16 +2294,16 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		for (i=0; i<as->num; ++i) {
 			if (as->num > as->cmd_num) {
 				if (i == 0)
-					dnet_log(state->n, DNET_LOG_INFO, "%s: %s: Storage commands\n",
+					dnet_log(state->n, DNET_LOG_DATA, "%s: %s: Storage commands\n",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 				if (i == as->cmd_num)
-					dnet_log(state->n, DNET_LOG_INFO, "%s: %s: Proxy commands\n",
+					dnet_log(state->n, DNET_LOG_DATA, "%s: %s: Proxy commands\n",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 				if (i == as->cmd_num * 2)
-					dnet_log(state->n, DNET_LOG_INFO, "%s: %s: Counters\n",
+					dnet_log(state->n, DNET_LOG_DATA, "%s: %s: Counters\n",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 			}	
-			dnet_log(state->n, DNET_LOG_INFO, "%s: %s:    cmd: %s, count: %llu, err: %llu\n",
+			dnet_log(state->n, DNET_LOG_DATA, "%s: %s:    cmd: %s, count: %llu, err: %llu\n",
 					dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
 					dnet_counter_string(i, as->cmd_num),
 					(unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);

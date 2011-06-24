@@ -78,7 +78,7 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 10;
-	meta_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
+	meta_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO | DNET_LOG_DATA;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 

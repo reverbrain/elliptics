@@ -478,7 +478,7 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 
 			memcpy(name, m->data, m->size);
 			name[m->size] = '\0';
-			dnet_log(n, DNET_LOG_INFO, "%s: type: %u, size: %u, name: '%s'\n",
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, name: '%s'\n",
 					dnet_meta_types[m->type], m->type, m->size, name);
 		} else if (m->type == DNET_META_GROUPS) {
 			int *groups = (int *)m->data;
@@ -502,7 +502,7 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 					*(--ptr) = '\0';
 			}
 
-			dnet_log(n, DNET_LOG_INFO, "%s: type: %u, size: %u, groups: %s\n",
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, groups: %s\n",
 					dnet_meta_types[m->type], m->type, m->size, str);
 		} else if (m->type == DNET_META_CHECK_STATUS) {
 			struct dnet_meta_check_status *s = (struct dnet_meta_check_status *)m->data;
@@ -512,7 +512,7 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 			localtime_r((time_t *)&s->tsec, &tm);
 			strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
 
-			dnet_log(n, DNET_LOG_INFO, "%s: type: %u, size: %u, check status: %d, ts: %s: %lld.%lld\n",
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, check status: %d, ts: %s: %lld.%lld\n",
 					dnet_meta_types[m->type],
 					m->type, m->size, s->status, tstr,
 					(unsigned long long)s->tsec,
@@ -525,7 +525,7 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 			localtime_r((time_t *)&mu->tsec, &tm);
 			strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
 
-			dnet_log(n, DNET_LOG_INFO, "%s: type: %u, size: %u, group: %d, flags: %llx, ts: %s %lld.%lld\n",
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, group: %d, flags: %llx, ts: %s %lld.%lld\n",
 					dnet_meta_types[m->type], m->type, m->size,
 					mu->group_id, (unsigned long long)mu->flags, tstr,
 					(unsigned long long)mu->tsec, (unsigned long long)mu->tnsec);
@@ -534,7 +534,7 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 			memcpy(str, m->data, m->size);
 			str[m->size] = '\0';
 
-			dnet_log(n, DNET_LOG_INFO, "%s: type: %u, size: %u, namespace: %s\n",
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, namespace: %s\n",
 					dnet_meta_types[m->type], m->type, m->size, str);
 		} else if (m->type == DNET_META_CHECKSUM) {
 			struct dnet_meta_checksum *cs = (struct dnet_meta_checksum *)m->data;
@@ -544,11 +544,11 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 			strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
 
 			dnet_dump_id_len_raw(cs->checksum, DNET_CSUM_SIZE, str);
-			dnet_log(n, DNET_LOG_INFO, "%s: type: %u, size: %u, csum: %s, ts: %s %lld.%lld\n",
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, csum: %s, ts: %s %lld.%lld\n",
 					dnet_meta_types[m->type], m->type, m->size, str, tstr,
 					(unsigned long long)cs->tsec, (unsigned long long)cs->tnsec);
 		} else {
-			dnet_log(n, DNET_LOG_INFO, "%s: type: %u, size: %u\n",
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u\n",
 					dnet_meta_types[m->type], m->type, m->size);
 		}
 
