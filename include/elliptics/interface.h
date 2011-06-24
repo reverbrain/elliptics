@@ -273,6 +273,17 @@ struct dnet_log {
 	void 			(* log)(void *priv, uint32_t mask, const char *msg);
 };
 
+struct dnet_backend_callbacks {
+	int			(* command_handler)(void *state, void *priv,
+			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
+	void			*command_private;
+	int			(* send)(void *state, void *priv, struct dnet_id *id);
+	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
+			void *csum, int *csize);
+	int			(* storage_stat)(void *priv, struct dnet_stat *st);
+	void			(* backend_cleanup)(void *command_private);
+};
+
 /*
  * Node configuration interface.
  */
@@ -323,20 +334,13 @@ struct dnet_config
 	 *
 	 * Private data is accessible from the handler as parameter.
 	 */
-	int			(* command_handler)(void *state, void *priv,
-			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
-	void			*command_private;
-	int			(* send)(void *state, void *priv, struct dnet_id *id);
-	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
-			void *csum, int *csize);
-	void			(* backend_cleanup)(void *command_private);
+	struct dnet_backend_callbacks	*cb;
 
 	/*
 	 * Free and total space on given storage.
 	 */
 	unsigned long long	storage_free;
 	unsigned long long	storage_size;
-	int			(* storage_stat)(void *priv, struct dnet_stat *st);
 
 	/* Notify hash table size */
 	unsigned int		hash_size;

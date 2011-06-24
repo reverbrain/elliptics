@@ -588,7 +588,7 @@ int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_id *id)
 
 	csum = (struct dnet_meta_checksum *)m->data;
 	csize = sizeof(csum->checksum);
-	err = n->checksum(n, n->command_private, id, csum->checksum, &csize);
+	err = n->cb->checksum(n, n->cb->command_private, id, csum->checksum, &csize);
 	if (err)
 		goto err_out_free;
 

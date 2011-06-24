@@ -613,7 +613,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	sigemptyset(&sig);
 	sigaddset(&sig, SIGPIPE);
 
-	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->command_handler || !cfg->send || !cfg->checksum)) {
+	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->cb)) {
 		err = -EINVAL;
 		if (cfg->log && cfg->log->log)
 			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Joining node has to register "
@@ -657,13 +657,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->family = cfg->family;
 	n->wait_ts.tv_sec = cfg->wait_timeout;
 
-	n->command_handler = cfg->command_handler;
-	n->command_private = cfg->command_private;
-	n->send = cfg->send;
-	n->checksum = cfg->checksum;
-	n->backend_cleanup = cfg->backend_cleanup;
+	n->cb = cfg->cb;
 
-	n->storage_stat = cfg->storage_stat;
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;
 	n->id.group_id = cfg->group_id;
@@ -818,8 +813,8 @@ void dnet_node_destroy(struct dnet_node *n)
 
 	free(n->groups);
 
-	if (n->backend_cleanup)
-		n->backend_cleanup(n->command_private);
+	if (n->cb->backend_cleanup)
+		n->cb->backend_cleanup(n->cb->command_private);
 
 	free(n);
 }

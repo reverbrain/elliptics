@@ -523,15 +523,16 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 		goto err_out_free;
 	}
 
+	cfg->cb = &b->cb;
 	cfg->storage_size = b->storage_size;
 	cfg->storage_free = b->storage_free;
-	cfg->storage_stat = eblob_backend_storage_stat;
-	cfg->checksum = eblob_backend_checksum;
+	b->cb.storage_stat = eblob_backend_storage_stat;
+	b->cb.checksum = eblob_backend_checksum;
 
-	cfg->command_private = c;
-	cfg->command_handler = eblob_backend_command_handler;
-	cfg->send = eblob_send;
-	cfg->backend_cleanup = eblob_backend_cleanup;
+	b->cb.command_private = c;
+	b->cb.command_handler = eblob_backend_command_handler;
+	b->cb.send = eblob_send;
+	b->cb.backend_cleanup = eblob_backend_cleanup;
 
 	return 0;
 

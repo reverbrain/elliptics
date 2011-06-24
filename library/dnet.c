@@ -91,7 +91,7 @@ int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 
 	dnet_convert_io_attr(io);
 
-	err = n->command_handler(st, n->command_private, cmd, attr, io);
+	err = n->cb->command_handler(st, n->cb->command_private, cmd, attr, io);
 	dnet_log(n, DNET_LOG_INFO, "%s: local stat: io_size: %llu, err: %d.\n",
 					dnet_dump_id(&cmd->id),
 					(unsigned long long)io->size, err);
@@ -390,14 +390,10 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 	as->num = __DNET_CNTR_MAX;
 	as->cmd_num = __DNET_CMD_MAX;
 
-	dnet_log(n, DNET_LOG_DSA, "storage_stat = %p\n, command_private = %p\n",
-			n->storage_stat, n->command_private);
-
 	memcpy(as->count, n->counters, sizeof(struct dnet_stat_count) * __DNET_CNTR_MAX);
 
-	if (n->storage_stat) {
-		err = n->storage_stat(n->command_private, &st);
-		dnet_log(n, DNET_LOG_DSA, "storage_stat returns %d\n", err);
+	if (n->cb->storage_stat) {
+		err = n->cb->storage_stat(n->cb->command_private, &st);
 		if (err)
 			return err;
 
@@ -421,8 +417,6 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 		as->count[DNET_CNTR_VM_BUFFERS].count = st.vm_buffers;
 	}
 	as->count[DNET_CNTR_NODE_FILES].count = eblob_total_elements(n->meta);
-
-	dnet_log(n, DNET_LOG_DSA, "as->num = %d, as->cmd_num = %d\n", as->num, as->cmd_num);
 
 	for (i=0; i<as->num && (n->log->log_mask & DNET_LOG_DSA); ++i) {
 		dnet_log(n, DNET_LOG_DSA, "  counter: %d, count: %llu, err: %llu\n",
@@ -736,7 +730,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				if (n->flags & DNET_CFG_NO_CSUM)
 					a->flags |= DNET_ATTR_NOCSUM;
 
-				err = n->command_handler(st, n->command_private, cmd, a, data);
+				err = n->cb->command_handler(st, n->cb->command_private, cmd, a, data);
 				if (err || (a->cmd != DNET_CMD_WRITE))
 					break;
 #if 0
@@ -3554,7 +3548,7 @@ int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id, unsigned cha
 		goto err_out_exit;
 	}
 
-	err = n->checksum(n, n->command_private, &raw, csum, &csize);
+	err = n->cb->checksum(n, n->cb->command_private, &raw, csum, &csize);
 	if (err)
 		goto err_out_exit;
 

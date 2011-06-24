@@ -383,14 +383,7 @@ struct dnet_node
 	struct eblob_backend	*meta;
 	char			*temp_meta_env;
 
-	int			(* command_handler)(void *state, void *priv,
-			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
-	void			*command_private;
-	int			(* send)(void *state, void *priv, struct dnet_id *id);
-	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
-			void *csum, int *csize);
-	int			(* storage_stat)(void *priv, struct dnet_stat *st);
-	void			(* backend_cleanup)(void *command_private);
+	struct dnet_backend_callbacks	*cb;
 
 	unsigned int		notify_hash_size;
 	struct dnet_notify_bucket	*notify_hash;

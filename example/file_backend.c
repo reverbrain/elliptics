@@ -454,15 +454,17 @@ static void file_backend_cleanup(void *priv)
 
 static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_config *c)
 {
-	c->command_private = b->data;
-	c->command_handler = file_backend_command_handler;
-	c->send = file_backend_send;
-	c->checksum = file_backend_checksum;
+	c->cb = &b->cb;
+
+	b->cb.command_private = b->data;
+	b->cb.command_handler = file_backend_command_handler;
+	b->cb.send = file_backend_send;
+	b->cb.checksum = file_backend_checksum;
 
 	c->storage_size = b->storage_size;
 	c->storage_free = b->storage_free;
-	c->storage_stat = file_backend_storage_stat;
-	c->backend_cleanup = file_backend_cleanup;
+	b->cb.storage_stat = file_backend_storage_stat;
+	b->cb.backend_cleanup = file_backend_cleanup;
 
 	return 0;
 }
