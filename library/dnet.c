@@ -910,7 +910,7 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 	if (err)
 		goto err_out_destroy;
 
-	err = dnet_wait_event(w, w->cond != 1, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond != 0, &n->wait_ts);
 	dnet_wait_put(w);
 
 	return 0;
