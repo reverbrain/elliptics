@@ -152,3 +152,21 @@ int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 err_out_exit:
 	return err;
 }
+
+int dnet_db_iterate(struct eblob_backend *b, unsigned int flags,
+		int (* callback)(struct eblob_disk_control *dc,
+			struct eblob_ram_control *rc, void *data, void *p),
+		void *callback_private)
+{
+	struct eblob_iterate_control ctl;
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.check_index = 1;
+	ctl.priv = callback_private;
+	ctl.iterator = callback;
+	ctl.start_type = ctl.max_type = EBLOB_TYPE_META;
+
+	return eblob_iterate(b, &ctl);
+}
+

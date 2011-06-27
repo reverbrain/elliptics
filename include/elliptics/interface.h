@@ -305,13 +305,16 @@ struct dnet_backend_callbacks {
 	int			(* meta_remove)(void *priv, struct dnet_raw_id *id, int real_remove);
 
 	/*
-	 * metadata iterator - given callback will be executed for every not deleted record found,
+	 * parallel metadata iterator
+	 * given callback will be executed for every not deleted record found,
 	 * if it returns negative error value, iteration stops
+	 * @callback_private will be accessible in @callback as argument @p
 	 */
 	int			(* meta_iterate)(void *priv, unsigned int flags,
 					int (* callback)(struct eblob_disk_control *dc,
 						         struct eblob_ram_control *rc,
-							 void *data, void *p));
+							 void *data, void *p),
+					void *callback_private);
 
 	/* returns number of metadata elements */
 	long long		(* meta_total_elements)(void *priv);
@@ -957,6 +960,10 @@ int dnet_verify_checksum_io(struct dnet_node *n, struct dnet_raw_id *id, unsigne
 ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void **datap);
 int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *data, unsigned int size);
 int dnet_db_remove_raw(struct eblob_backend *b, struct dnet_raw_id *id, int real_del);
+int dnet_db_iterate(struct eblob_backend *b, unsigned int flags,
+		int (* callback)(struct eblob_disk_control *dc,
+			struct eblob_ram_control *rc, void *data, void *p),
+		void *callback_private);
 
 #ifdef __cplusplus
 }

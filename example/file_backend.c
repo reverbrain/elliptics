@@ -513,6 +513,15 @@ static long long dnet_file_db_total_elements(void *priv)
 	return eblob_total_elements(r->meta);
 }
 
+static int dnet_file_db_iterate(void *priv, unsigned int flags,
+		int (* callback)(struct eblob_disk_control *dc,
+			struct eblob_ram_control *rc, void *data, void *p),
+		void *callback_private)
+{
+	struct file_backend_root *r = priv;
+	return dnet_db_iterate(r->meta, flags, callback, callback_private);
+}
+
 static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_config *c)
 {
 	struct file_backend_root *r = b->data;
@@ -536,6 +545,7 @@ static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_conf
 	b->cb.meta_write = dnet_file_db_write;
 	b->cb.meta_remove = dnet_file_db_remove;
 	b->cb.meta_total_elements = dnet_file_db_total_elements;
+	b->cb.meta_iterate = dnet_file_db_iterate;
 
 	mkdir("history", 0755);
 	err = dnet_file_db_init(r, c, "history");

@@ -522,6 +522,15 @@ static long long dnet_eblob_db_total_elements(void *priv)
 	return eblob_total_elements(c->eblob);
 }
 
+static int dnet_eblob_db_iterate(void *priv, unsigned int flags,
+		int (* callback)(struct eblob_disk_control *dc,
+			struct eblob_ram_control *rc, void *data, void *p),
+		void *callback_private)
+{
+	struct eblob_backend_config *c = priv;
+	return dnet_db_iterate(c->eblob, flags, callback, callback_private);
+}
+
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)
 {
 	struct eblob_backend_config *c = b->data;
@@ -564,6 +573,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	b->cb.meta_write = dnet_eblob_db_write;
 	b->cb.meta_remove = dnet_eblob_db_remove;
 	b->cb.meta_total_elements = dnet_eblob_db_total_elements;
+	b->cb.meta_iterate = dnet_eblob_db_iterate;
 
 	return 0;
 
