@@ -171,13 +171,8 @@ int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const char *port, 
 	hint.ai_protocol = proto;
 
 	err = getaddrinfo(saddr, port, &hint, &ai);
-	if (err || ai == NULL) {
-		err = -errno;
-		if (!err)
-			err = -EINVAL;
-
+	if (err || ai == NULL)
 		goto err_out_exit;
-	}
 
 	if (addr->addr_len >= ai->ai_addrlen)
 		addr->addr_len = ai->ai_addrlen;

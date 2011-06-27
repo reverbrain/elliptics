@@ -416,7 +416,7 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 		as->count[DNET_CNTR_VM_CACHED].count = st.vm_cached;
 		as->count[DNET_CNTR_VM_BUFFERS].count = st.vm_buffers;
 	}
-	as->count[DNET_CNTR_NODE_FILES].count = eblob_total_elements(n->meta);
+	as->count[DNET_CNTR_NODE_FILES].count = n->cb->meta_total_elements(n->cb->command_private);
 
 	for (i=0; i<as->num && (n->log->log_mask & DNET_LOG_DSA); ++i) {
 		dnet_log(n, DNET_LOG_DSA, "  counter: %d, count: %llu, err: %llu\n",
@@ -672,56 +672,23 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					break;
 				}
 
-				if (a->cmd == DNET_CMD_DEL) {
-					err = dnet_db_del(n, cmd, a);
-					dnet_log(n, DNET_LOG_DSA, "after dnet_db_del err=%d\n", err);
-					if (err <= 0)
-						break;
+				io = data;
+				dnet_convert_io_attr(io);
 
-					/* if positive value returned we will delete data object */
-				} else {
-					if (a->size < sizeof(struct dnet_io_attr)) {
-						dnet_log(n, DNET_LOG_ERROR,
-							"%s: wrong read attribute, size does not match "
-								"IO attribute size: size: %llu, must be: %zu.\n",
-								dnet_dump_id(&cmd->id), (unsigned long long)a->size,
-								sizeof(struct dnet_io_attr));
-						err = -EINVAL;
-						break;
-					}
-
-					io = data;
-					dnet_convert_io_attr(io);
-
-					if (io->flags & DNET_IO_FLAGS_META) {
-						if (a->cmd == DNET_CMD_READ) {
-							err = dnet_db_read(st, cmd, io);
-						} else if (a->cmd == DNET_CMD_WRITE) {
-							if (n->flags & DNET_CFG_NO_META) {
-								err = 0;
-								break;
-							}
-
-							err = dnet_db_write(n, cmd, io);
-							if (!err && !(a->flags & DNET_ATTR_NOCSUM) && !(n->flags & DNET_CFG_NO_CSUM)) {
-								struct dnet_id raw;
-								dnet_setup_id(&raw, cmd->id.group_id, io->id);
-
-								err = dnet_meta_update_checksum(n, &raw);
-							}
-						} else
-							err = -EINVAL;
-						break;
-					}
-
-					dnet_convert_io_attr(io);
+				if (io->flags & DNET_IO_FLAGS_META) {
+					err = dnet_process_meta(st, cmd, a, data);
+					break;
 				}
+
+				dnet_convert_io_attr(io);
 			default:
 				if (a->cmd == DNET_CMD_READ) {
 					if (!(a->flags & DNET_ATTR_NOCSUM) && !(n->flags & DNET_CFG_NO_CSUM)) {
-						io = data;
+						struct dnet_raw_id id;
 
-						err = dnet_verify_checksum_io(n, io->id, NULL, NULL);
+						io = data;
+						memcpy(id.id, io->id, DNET_ID_SIZE);
+						err = dnet_verify_checksum_io(n, &id, NULL, NULL);
 						if (err && (err != -ENODATA))
 							break;
 					}
@@ -3531,29 +3498,26 @@ err_out_exit:
 	return err;
 }
 
-int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id, unsigned char *result, int *res_len)
+int dnet_verify_checksum_io(struct dnet_node *n, struct dnet_raw_id *id, unsigned char *result, int *res_len)
 {
-	struct dnet_id raw;
 	int csize = DNET_CSUM_SIZE;
 	unsigned char csum[csize];
 	struct dnet_meta_checksum mc;
 	char str[csize*2+1];
 	int err;
 
-	dnet_setup_id(&raw, n->id.group_id, id);
-
-	err = dnet_meta_read_checksum(n, &raw, &mc);
+	err = dnet_meta_read_checksum(n, id, &mc);
 	if (err) {
 		err = -ENODATA;
 		goto err_out_exit;
 	}
 
-	err = n->cb->checksum(n, n->cb->command_private, &raw, csum, &csize);
+	err = n->cb->checksum(n, n->cb->command_private, id, csum, &csize);
 	if (err)
 		goto err_out_exit;
 
-	dnet_log(n, DNET_LOG_DSA, "%s: calculated csum: %s\n", dnet_dump_id(&raw), dnet_dump_id_len_raw(csum, csize, str));
-	dnet_log(n, DNET_LOG_DSA, "%s: stored     csum: %s\n", dnet_dump_id(&raw), dnet_dump_id_len_raw(mc.checksum, csize, str));
+	dnet_log(n, DNET_LOG_DSA, "%s: calculated csum: %s\n", dnet_dump_id_str(id->id), dnet_dump_id_len_raw(csum, csize, str));
+	dnet_log(n, DNET_LOG_DSA, "%s: stored     csum: %s\n", dnet_dump_id_str(id->id), dnet_dump_id_len_raw(mc.checksum, csize, str));
 
 	if (memcmp(mc.checksum, csum, csize)) {
 		err = -EBADFD;
@@ -3569,7 +3533,7 @@ int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id, unsigned cha
 
 err_out_exit:
 	if (err)
-		dnet_log(n, DNET_LOG_ERROR, "%s: CSUM: verification: failed: %d: %s\n", dnet_dump_id(&raw), err, strerror(-err));
+		dnet_log(n, DNET_LOG_ERROR, "%s: CSUM: verification: failed: %d: %s\n", dnet_dump_id_str(id->id), err, strerror(-err));
 	return err;
 }
 
