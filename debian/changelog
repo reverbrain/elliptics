@@ -1,3 +1,9 @@
+elliptics (2.10.0.1) unstable; urgency=low
+
+  * Added eblob 0.5.2 iterators for meta_iterate() callback.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 28 Jun 2011 01:35:47 +0400
+
 elliptics (2.10.0.0) unstable; urgency=low
 
   * Switched to backend's metadata storage. File backend uses eblob, eblob
