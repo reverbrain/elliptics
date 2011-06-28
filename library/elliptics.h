@@ -628,6 +628,19 @@ int dnet_set_name(char *name);
 int dnet_ioprio_set(long pid, int class, int prio);
 int dnet_ioprio_get(long pid);
 
+struct dnet_map_fd {
+	int			fd;
+	uint64_t		offset, size;
+	
+	void			*data;
+
+	uint64_t		mapped_size;
+	void			*mapped_data;
+};
+
+int dnet_data_map(struct dnet_map_fd *map);
+void dnet_data_unmap(struct dnet_map_fd *map);
+
 #ifdef __cplusplus
 }
 #endif

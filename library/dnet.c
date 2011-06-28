@@ -1319,9 +1319,6 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 	struct stat stat;
 	struct dnet_wait *w;
 	struct dnet_io_control ctl;
-	long page_size = sysconf(_SC_PAGE_SIZE);
-	void *data;
-	uint64_t off = 0;
 
 	w = dnet_wait_alloc(0);
 	if (!w) {
@@ -1354,22 +1351,9 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
-	off = local_offset & ~(page_size - 1);
-
-	data = mmap(NULL, ALIGN(size + local_offset - off, page_size), PROT_READ, MAP_SHARED, fd, off);
-	if (data == MAP_FAILED) {
-		err = -errno;
-		dnet_log_err(n, "Failed to map to be written file '%s', "
-				"size: %llu, use: %llu, local offset: %llu, use: %llu",
-				file, (unsigned long long)size,
-				(unsigned long long)ALIGN(size + local_offset - off, page_size),
-				(unsigned long long)local_offset, (unsigned long long)off);
-		goto err_out_close;
-	}
-
 	atomic_set(&w->refcnt, INT_MAX);
 
-	ctl.data = data + local_offset - off;
+	ctl.data = NULL;
 	ctl.fd = fd;
 	ctl.local_offset = local_offset;
 
@@ -1385,11 +1369,6 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 	ctl.io.size = size;
 	ctl.io.offset = offset;
 
-	dnet_log(n, DNET_LOG_DSA, "data: %p, ctl.data: %p, local offset: %llu/%llu, remote offset: %llu, size: %llu/%llu\n",
-			data, ctl.data, (unsigned long long)local_offset, (unsigned long long)off,
-			(unsigned long long)offset,
-			(unsigned long long)size, (unsigned long long)ALIGN(size, page_size));
-
 	trans_num = dnet_write_object(n, &ctl, remote, remote_len, id);
 	dnet_log(n, DNET_LOG_DSA, "%s: transactions sent: %d, err: %d.\n",
 			dnet_dump_id(&ctl.id), trans_num, err);
@@ -1404,7 +1383,6 @@ int dnet_write_file_local_offset(struct dnet_node *n, char *file,
 	 */
 	atomic_sub(&w->refcnt, INT_MAX - trans_num - 1);
 
-	munmap(data, ALIGN(size, page_size));
 	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
 	if (err || w->status) {
 		if (!err)
@@ -3441,12 +3419,36 @@ void dnet_fill_addr_attr(struct dnet_node *n, struct dnet_addr_attr *attr)
 	attr->proto = n->proto;
 }
 
+int dnet_data_map(struct dnet_map_fd *map)
+{
+	uint64_t off;
+	long page_size = sysconf(_SC_PAGE_SIZE);
+	int err = 0;
+
+	off = map->offset & ~(page_size - 1);
+	map->mapped_size = ALIGN(map->size + map->offset - off, page_size);
+
+	map->mapped_data = mmap(NULL, map->mapped_size, PROT_READ, MAP_SHARED, map->fd, off);
+	if (map->mapped_data == MAP_FAILED) {
+		err = -errno;
+		goto err_out_exit;
+	}
+
+	map->data = map->mapped_data + map->offset - off;
+
+err_out_exit:
+	return err;
+}
+
+void dnet_data_unmap(struct dnet_map_fd *map)
+{
+	munmap(map->mapped_data, map->mapped_size);
+}
+
 int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size)
 {
-	void *data, *csum_data;
-	uint64_t off, sz;
-	long page_size = sysconf(_SC_PAGE_SIZE);
 	int err;
+	struct dnet_map_fd m;
 
 	if (!size) {
 		struct stat st;
@@ -3461,24 +3463,17 @@ int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64
 		size = st.st_size;
 	}
 
+	m.fd = fd;
+	m.size = size;
+	m.offset = offset;
 
-	off = offset & ~(page_size - 1);
-	sz = ALIGN(size + offset - off, page_size);
-
-	data = mmap(NULL, sz, PROT_READ, MAP_SHARED, fd, off);
-	if (data == MAP_FAILED) {
-		err = -errno;
-		dnet_log_err(n, "Failed to map to be csummed file: size: %llu, use: %llu, local offset: %llu, use: %llu",
-				(unsigned long long)size, (unsigned long long)sz,
-				(unsigned long long)offset, (unsigned long long)off);
+	err = dnet_data_map(&m);
+	if (err)
 		goto err_out_exit;
-	}
 
-	csum_data = data + offset - off;
+	err = dnet_checksum_data(n, csum, csize, m.data, size);
 
-	err = dnet_checksum_data(n, csum, csize, csum_data, size);
-
-	munmap(data, sz);
+	dnet_data_unmap(&m);
 
 err_out_exit:
 	return err;
