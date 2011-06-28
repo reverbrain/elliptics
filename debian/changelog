@@ -1,3 +1,23 @@
+elliptics (2.10.0.1) unstable; urgency=low
+
+  * Added eblob 0.5.2 iterators for meta_iterate() callback.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 28 Jun 2011 01:35:47 +0400
+
+elliptics (2.10.0.0) unstable; urgency=low
+
+  * Switched to backend's metadata storage. File backend uses eblob, eblob
+    backend embeds metadata in it as separate column
+  * Want 0.5.1 eblob and higher
+  * Extended UPDATE_STATUS command
+  * Do not update metadata after write command, client should send us full
+    meta update
+  * Switched to eblob as metadata storage
+  * Added namespace zbr
+  * Added range requests API
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 27 Jun 2011 22:04:16 +0400
+
 elliptics (2.9.7.9) unstable; urgency=low
 
   * Removed route synchronization calls

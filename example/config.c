@@ -203,26 +203,6 @@ static int dnet_set_history_env(struct dnet_config_backend *b __unused, char *ke
 	return 0;
 }
 
-static int dnet_set_db_flags(struct dnet_config_backend *b __unused, char *key __unused, char *value)
-{
-	long v = strtoul(value, NULL, 0);
-
-	dnet_cfg_state.db_flags = v;
-	return 0;
-}
-
-static int dnet_set_db_data(struct dnet_config_backend *b __unused, char *key, char *value)
-{
-	long long v = strtoull(value, NULL, 0);
-
-	if (!strcmp(key, "db_buckets"))
-		dnet_cfg_state.db_buckets = v;
-	else if (!strcmp(key, "db_map"))
-		dnet_cfg_state.db_map = v;
-
-	return 0;
-}
-
 static int dnet_set_monitor_path(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
 	snprintf(dnet_cfg_state.monitor_path, sizeof(dnet_cfg_state.monitor_path), "%s", value);
@@ -244,9 +224,6 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"daemon", dnet_simple_set},
 	{"log", dnet_set_log},
 	{"history", dnet_set_history_env},
-	{"db_buckets", dnet_set_db_data},
-	{"db_map", dnet_set_db_data},
-	{"db_flags", dnet_set_db_flags},
 	{"monitor_path", dnet_set_monitor_path},
 	{"io_thread_num", dnet_simple_set},
 	{"net_thread_num", dnet_simple_set},
@@ -332,11 +309,9 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	if (err)
 		goto err_out_free_buf;
  
-#ifdef HAVE_EBLOB_SUPPORT
 	err = dnet_eblob_backend_init();
 	if (err)
 		goto err_out_file_exit;
-#endif
 
 	while (1) {
 		ptr = fgets(buf, buf_size, f);
@@ -456,11 +431,9 @@ err_out_node_destroy:
 	dnet_node_destroy(n);
 err_out_free:
 	free(dnet_cfg_remotes);
-//err_out_blob_exit:
-#ifdef HAVE_EBLOB_SUPPORT
+
 	dnet_eblob_backend_exit();
 err_out_file_exit:
-#endif
 	dnet_file_backend_exit();
 err_out_free_buf:
 	free(buf);

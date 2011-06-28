@@ -27,6 +27,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
+#include <eblob/blob.h>
+
 #include "elliptics/packet.h"
 
 #ifdef __cplusplus
@@ -274,6 +276,51 @@ struct dnet_log {
 	void 			(* log)(void *priv, uint32_t mask, const char *msg);
 };
 
+struct dnet_backend_callbacks {
+	/* command handler processes DNET_CMD_* commands */
+	int			(* command_handler)(void *state, void *priv,
+			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
+
+	/* this must be provided as @priv argument to all above and below callbacks*/
+	void			*command_private;
+
+	/* sends object with given ID to specified @state */
+	int			(* send)(void *state, void *priv, struct dnet_id *id);
+
+	/*
+	 * calculates checksum and writes (no more than *@csize bytes) it into @csum,
+	 * @csize must be set to actual @csum size
+	 */
+	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_raw_id *id,
+			void *csum, int *csize);
+
+	/* fills storage statistics */
+	int			(* storage_stat)(void *priv, struct dnet_stat *st);
+
+	/* cleanups backend at exit */
+	void			(* backend_cleanup)(void *command_private);
+
+	/* metadata read/write/remove commands */
+	ssize_t			(* meta_read)(void *priv, struct dnet_raw_id *id, void **datap);
+	int			(* meta_write)(void *priv, struct dnet_raw_id *id, void *data, size_t size);
+	int			(* meta_remove)(void *priv, struct dnet_raw_id *id, int real_remove);
+
+	/*
+	 * parallel metadata iterator
+	 * given callback will be executed for every not deleted record found,
+	 * if it returns negative error value, iteration stops
+	 * @callback_private will be accessible in @callback as argument @p
+	 */
+	int			(* meta_iterate)(void *priv, unsigned int flags,
+					int (* callback)(struct eblob_disk_control *dc,
+						         struct eblob_ram_control *rc,
+							 void *data, void *p),
+					void *callback_private);
+
+	/* returns number of metadata elements */
+	long long		(* meta_total_elements)(void *priv);
+};
+
 /*
  * Node configuration interface.
  */
@@ -324,20 +371,13 @@ struct dnet_config
 	 *
 	 * Private data is accessible from the handler as parameter.
 	 */
-	int			(* command_handler)(void *state, void *priv,
-			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
-	void			*command_private;
-	int			(* send)(void *state, void *priv, struct dnet_id *id);
-	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
-			void *csum, int *csize);
-	void			(* backend_cleanup)(void *command_private);
+	struct dnet_backend_callbacks	*cb;
 
 	/*
 	 * Free and total space on given storage.
 	 */
 	unsigned long long	storage_free;
 	unsigned long long	storage_size;
-	int			(* storage_stat)(void *priv, struct dnet_stat *st);
 
 	/* Notify hash table size */
 	unsigned int		hash_size;
@@ -362,27 +402,14 @@ struct dnet_config
 	 */
 	int			net_thread_num;
 
-	/* Database tuning parameters */
-	unsigned long long	db_buckets;
-	unsigned long long	db_map;
-
-	/*
-	 * KyotoCabinet database flags, can be ORed
-	 *
-	 * auto sync: 0x20
-	 * auto trans: 0x10
-	 *
-	 * For other flags check /usr/include/kclangc.h -> Open modes
-	 */
-	unsigned int		db_flags;
-
 	/* Monitor unix socket */
 	char			monitor_path[128];
 
-	/* Metadata directory path. */
-	char			history_env[1024];
 	/* Temporary metadata for CHECK process directory path */
 	char			temp_meta_env[1024];
+
+	/* Temporary metadata for CHECK process directory path */
+	char			history_env[1024];
 
 	/* Namespace */
 	char			*ns;
@@ -928,8 +955,16 @@ int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, void *data, 
 int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size);
 int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size);
 
-int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_id *id);
-int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id, unsigned char *result, int *res_len);
+int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_raw_id *id);
+int dnet_verify_checksum_io(struct dnet_node *n, struct dnet_raw_id *id, unsigned char *result, int *res_len);
+
+ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void **datap);
+int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *data, unsigned int size);
+int dnet_db_remove_raw(struct eblob_backend *b, struct dnet_raw_id *id, int real_del);
+int dnet_db_iterate(struct eblob_backend *b, unsigned int flags,
+		int (* callback)(struct eblob_disk_control *dc,
+			struct eblob_ram_control *rc, void *data, void *p),
+		void *callback_private);
 
 #ifdef __cplusplus
 }

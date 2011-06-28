@@ -157,18 +157,23 @@ int main(int argc, char *argv[])
 	dnet_node_set_groups(n, groups, group_num);
 
 	if (id) {
-		dnet_setup_id(&raw, groups[0], id);
-		err = dnet_read_meta(n, &mc, NULL, 0, &raw);
+		int i;
+
+		for (i=0; i<group_num; ++i) {
+			dnet_setup_id(&raw, groups[i], id);
+			err = dnet_read_meta(n, &mc, NULL, 0, &raw);
+			if (!err)
+				dnet_meta_print(n, &mc);
+		}
 	} else {
 		err = dnet_read_meta(n, &mc, name, strlen(name), NULL);
+		dnet_meta_print(n, &mc);
 	}
 
 	if (err < 0) {
 		fprintf(stderr, "Error during reading meta: %d\n", err);
 		goto err_out_destroy;
 	}
-
-	dnet_meta_print(n, &mc);
 
 err_out_destroy:
 	dnet_node_destroy(n);

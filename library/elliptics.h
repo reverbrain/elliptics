@@ -379,18 +379,9 @@ struct dnet_node
 	pthread_t		monitor_tid;
 	int			monitor_fd;
 
-	struct eblob_log	elog;
-	struct eblob_backend	*meta;
 	char			*temp_meta_env;
 
-	int			(* command_handler)(void *state, void *priv,
-			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
-	void			*command_private;
-	int			(* send)(void *state, void *priv, struct dnet_id *id);
-	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
-			void *csum, int *csize);
-	int			(* storage_stat)(void *priv, struct dnet_stat *st);
-	void			(* backend_cleanup)(void *command_private);
+	struct dnet_backend_callbacks	*cb;
 
 	unsigned int		notify_hash_size;
 	struct dnet_notify_bucket	*notify_hash;
@@ -574,17 +565,6 @@ int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
 		int direct, uint64_t write_offset, uint64_t io_offset, uint64_t io_size,
 		struct dnet_id *id, struct dnet_wait *w, int wait);
 
-
-int dnet_db_write(struct dnet_node *n, struct dnet_cmd *cmd, void *data);
-int dnet_db_read(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io);
-ssize_t dnet_db_read_raw(struct dnet_node *n, unsigned char *id, void **datap);
-int dnet_db_write_raw(struct dnet_node *n, unsigned char *id, void *data, unsigned int size);
-int dnet_db_del(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr);
-int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr);
-void dnet_db_cleanup(struct dnet_node *n);
-int dnet_db_init(struct dnet_node *n, struct dnet_config *cfg);
-int dnet_db_check_update(struct dnet_node *n, struct dnet_meta_container *mc);
-
 #define DNET_CHECK_TYPE_COPIES_HISTORY		1
 #define DNET_CHECK_TYPE_COPIES_FULL		2
 #define DNET_CHECK_TYPE_MERGE			3
@@ -634,10 +614,12 @@ int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state);
 #endif
 
 struct dnet_meta_update * dnet_get_meta_update(struct dnet_node *n, struct dnet_meta_container *mc,
-		int group_id, struct dnet_meta_update *meta_update);
-int dnet_update_ts_metadata(struct dnet_node *n, struct dnet_id *id, uint64_t flags_set, uint64_t flags_clear);
+		struct dnet_meta_update *meta_update);
 
-int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_id *id, struct dnet_meta_checksum *csum);
+int dnet_update_ts_metadata(struct eblob_backend *b, struct dnet_raw_id *id, uint64_t flags_set, uint64_t flags_clear);
+int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_raw_id *id, struct dnet_meta_checksum *csum);
+
+int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, struct dnet_io_attr *io);
 
 void dnet_monitor_exit(struct dnet_node *n);
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);

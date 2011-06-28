@@ -83,6 +83,8 @@ struct dnet_config_backend {
 
 	int				(* init)(struct dnet_config_backend *b, struct dnet_config *cfg);
 	void				(* cleanup)(struct dnet_config_backend *b);
+
+	struct dnet_backend_callbacks	cb;
 };
 
 int dnet_backend_register(struct dnet_config_backend *b);

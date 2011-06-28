@@ -47,6 +47,9 @@ struct file_backend_root
 	int			rootfd;
 	int			sync;
 	int			bit_num;
+
+	struct eblob_log	log;
+	struct eblob_backend	*meta;
 };
 
 static inline void file_backend_setup_file(struct file_backend_root *r, char *file,
@@ -247,7 +250,7 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 	return 0;
 }
 
-static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
+static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_raw_id *id, void *csum, int *csize)
 {
 	struct file_backend_root *r = priv;
 	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
@@ -300,7 +303,9 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	if (attr->flags & DNET_ATTR_NOCSUM) {
 		memset(info->checksum, 0, csize);
 	} else {
-		err = dnet_verify_checksum_io(n, cmd->id.id, info->checksum, &csize);
+		struct dnet_raw_id raw;
+		memcpy(raw.id, cmd->id.id, DNET_ID_SIZE);
+		err = dnet_verify_checksum_io(n, &raw, info->checksum, &csize);
 		if (err && (err != -ENODATA))
 			goto err_out_free;
 	}
@@ -444,25 +449,108 @@ int file_backend_storage_stat(void *priv, struct dnet_stat *st)
 	return 0;
 }
 
+static void dnet_file_db_cleanup(struct file_backend_root *r)
+{
+	eblob_cleanup(r->meta);
+}
+
+static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c, const char *path)
+{
+	static char meta_path[300];
+	struct eblob_config ecfg;
+	int err = 0;
+
+	snprintf(meta_path, sizeof(meta_path), "%s/meta", path);
+
+	memset(&ecfg, 0, sizeof(ecfg));
+	ecfg.file = meta_path;
+
+	r->log.log = c->log->log;
+	r->log.log_private = c->log->log_private;
+	r->log.log_mask = EBLOB_LOG_ERROR | EBLOB_LOG_INFO | EBLOB_LOG_NOTICE;
+
+	ecfg.log = &r->log;
+
+	r->meta = eblob_init(&ecfg);
+	if (!r->meta) {
+		err = -EINVAL;
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to initialize metadata eblob\n");
+	}
+
+	return err;
+}
+
 static void file_backend_cleanup(void *priv)
 {
 	struct file_backend_root *r = priv;
 
+	dnet_file_db_cleanup(r);
 	close(r->rootfd);
 	free(r->root);
 }
 
+static ssize_t dnet_file_db_read(void *priv, struct dnet_raw_id *id, void **datap)
+{
+	struct file_backend_root *r = priv;
+	return dnet_db_read_raw(r->meta, id, datap);
+}
+
+static int dnet_file_db_write(void *priv, struct dnet_raw_id *id, void *data, size_t size)
+{
+	struct file_backend_root *r = priv;
+	return dnet_db_write_raw(r->meta, id, data, size);
+}
+
+static int dnet_file_db_remove(void *priv, struct dnet_raw_id *id, int real_del)
+{
+	struct file_backend_root *r = priv;
+	return dnet_db_remove_raw(r->meta, id, real_del);
+}
+
+static long long dnet_file_db_total_elements(void *priv)
+{
+	struct file_backend_root *r = priv;
+	return eblob_total_elements(r->meta);
+}
+
+static int dnet_file_db_iterate(void *priv, unsigned int flags,
+		int (* callback)(struct eblob_disk_control *dc,
+			struct eblob_ram_control *rc, void *data, void *p),
+		void *callback_private)
+{
+	struct file_backend_root *r = priv;
+	return dnet_db_iterate(r->meta, flags, callback, callback_private);
+}
+
 static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_config *c)
 {
-	c->command_private = b->data;
-	c->command_handler = file_backend_command_handler;
-	c->send = file_backend_send;
-	c->checksum = file_backend_checksum;
+	struct file_backend_root *r = b->data;
+	int err;
+
+	c->cb = &b->cb;
+
+	b->cb.command_private = r;
+
+	b->cb.command_handler = file_backend_command_handler;
+	b->cb.send = file_backend_send;
+	b->cb.checksum = file_backend_checksum;
 
 	c->storage_size = b->storage_size;
 	c->storage_free = b->storage_free;
-	c->storage_stat = file_backend_storage_stat;
-	c->backend_cleanup = file_backend_cleanup;
+
+	b->cb.storage_stat = file_backend_storage_stat;
+	b->cb.backend_cleanup = file_backend_cleanup;
+
+	b->cb.meta_read = dnet_file_db_read;
+	b->cb.meta_write = dnet_file_db_write;
+	b->cb.meta_remove = dnet_file_db_remove;
+	b->cb.meta_total_elements = dnet_file_db_total_elements;
+	b->cb.meta_iterate = dnet_file_db_iterate;
+
+	mkdir("history", 0755);
+	err = dnet_file_db_init(r, c, "history");
+	if (err)
+		return err;
 
 	return 0;
 }

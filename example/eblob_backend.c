@@ -47,7 +47,7 @@
 
 struct eblob_backend_config {
 	struct eblob_config		data;
-	struct eblob_backend		*data_blob;
+	struct eblob_backend		*eblob;
 };
 
 #if EBLOB_ID_SIZE != DNET_ID_SIZE
@@ -66,7 +66,7 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 	data += sizeof(struct dnet_io_attr);
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
-	err = eblob_write(c->data_blob, &key, data, io->size, BLOB_DISK_CTL_NOCSUM);
+	err = eblob_write(c->eblob, &key, data, io->size, BLOB_DISK_CTL_NOCSUM, EBLOB_TYPE_DATA);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: WRITE: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
@@ -86,7 +86,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 		struct dnet_attr *attr __unused, void *data)
 {
 	struct dnet_io_attr *io = data;
-	struct eblob_backend *b = c->data_blob;
+	struct eblob_backend *b = c->eblob;
 	uint64_t offset, size;
 	struct eblob_key key;
 	int fd, err;
@@ -95,7 +95,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
-	err = eblob_read(b, &key, &fd, &offset, &size);
+	err = eblob_read(b, &key, &fd, &offset, &size, EBLOB_TYPE_DATA);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read: READ: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
@@ -166,7 +166,7 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 {
 	struct eblob_read_range_priv p;
 	struct dnet_io_attr *io = data;
-	struct eblob_backend *b = c->data_blob;
+	struct eblob_backend *b = c->eblob;
 	struct eblob_range_request req;
 	int err;
 
@@ -183,6 +183,7 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 	req.requested_size = io->size;
 	req.requested_limit_start = io->start;
 	req.requested_limit_num = io->num;
+	req.requested_type = EBLOB_TYPE_DATA;
 
 	if (!req.requested_limit_num)
 		req.requested_limit_num = ~0ULL;
@@ -219,7 +220,7 @@ static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 	int err;
 
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
-	err = eblob_remove(c->data_blob, &key);
+	err = eblob_remove(c->eblob, &key, EBLOB_TYPE_DATA);
 
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del: REMOVE: %d: %s\n",
@@ -233,13 +234,13 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 {
 	struct dnet_node *n = dnet_get_node_from_state(state);
 	struct eblob_backend_config *c = priv;
-	struct eblob_backend *b = c->data_blob;
+	struct eblob_backend *b = c->eblob;
 	uint64_t offset, size;
 	struct eblob_key key;
 	int err, fd;
 
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-	err = eblob_read(b, &key, &fd, &offset, &size);
+	err = eblob_read(b, &key, &fd, &offset, &size, EBLOB_TYPE_DATA);
 	if (!err) {
 		err = dnet_write_data_wait(n, NULL, 0, id, NULL, fd, offset, 0, size,
 				NULL, 0, 0);
@@ -254,19 +255,19 @@ err_out_exit:
 	return err;
 }
 
-static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
+static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_raw_id *id, void *csum, int *csize)
 {
 	struct eblob_backend_config *c = priv;
-	struct eblob_backend *b = c->data_blob;
+	struct eblob_backend *b = c->eblob;
 	uint64_t offset, size;
 	struct eblob_key key;
-	int fd, index, err;
+	int fd, err;
 
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-	err = eblob_read_file_index(b, &key, &fd, &offset, &size, &index);
+	err = eblob_read(b, &key, &fd, &offset, &size, EBLOB_TYPE_DATA);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read-index: %d: %s.\n",
-				dnet_dump_id(id), err, strerror(-err));
+				dnet_dump_id_str(id->id), err, strerror(-err));
 		goto err_out_exit;
 	}
 
@@ -280,12 +281,12 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 {
 	struct dnet_node *n = dnet_get_node_from_state(state);
 	int err, len = strlen(c->data.file) + 1 + 32; /* should be enough for .NNN aka index */
-	struct eblob_backend *b = c->data_blob;
+	struct eblob_backend *b = c->eblob;
 	struct dnet_file_info *info;
 	struct dnet_addr_attr *a;
 	struct eblob_key key;
 	uint64_t offset, size;
-	int fd, index, flen, csize;
+	int fd, flen, csize;
 	struct stat st;
 
 	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + len);
@@ -298,7 +299,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	dnet_fill_addr_attr(n, a);
 
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
-	err = eblob_read_file_index(b, &key, &fd, &offset, &size, &index);
+	err = eblob_read(b, &key, &fd, &offset, &size, EBLOB_TYPE_DATA);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-file-info: info-read-index: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, strerror(-err));
@@ -308,8 +309,8 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	err = fstat(fd, &st);
 	if (err) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-idx-%d: info-stat: %d: %s.\n",
-				dnet_dump_id(&cmd->id), index, err, strerror(-err));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-idx-XXX: info-stat: %d: %s.\n",
+				dnet_dump_id(&cmd->id), err, strerror(-err));
 		goto err_out_free;
 	}
 
@@ -319,7 +320,9 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	if (attr->flags & DNET_ATTR_NOCSUM) {
 		memset(info->checksum, 0, csize);
 	} else {
-		err = dnet_verify_checksum_io(n, cmd->id.id, info->checksum, &csize);
+		struct dnet_raw_id raw;
+		memcpy(raw.id, cmd->id.id, DNET_ID_SIZE);
+		err = dnet_verify_checksum_io(n, &raw, info->checksum, &csize);
 		if (err && (err != -ENODATA))
 			goto err_out_free;
 	}
@@ -327,7 +330,8 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	info->size = size;
 	info->offset = offset;
 
-	flen = info->flen = snprintf((char *)(info + 1), len, "%s.%d", c->data.file, index) + 1;
+	/* XXX need to read full path through /proc/self/fd */
+	flen = info->flen = snprintf((char *)(info + 1), len, "%s.XXX", c->data.file) + 1;
 	dnet_convert_file_info(info);
 
 	err = dnet_send_reply(state, cmd, attr, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen, 0);
@@ -486,12 +490,45 @@ static void eblob_backend_cleanup(void *priv)
 {
 	struct eblob_backend_config *c = priv;
 
-	eblob_cleanup(c->data_blob);
+	eblob_cleanup(c->eblob);
 
 	unlink(c->data.mmap_file);
 
 	free(c->data.mmap_file);
 	free(c->data.file);
+}
+
+static ssize_t dnet_eblob_db_read(void *priv, struct dnet_raw_id *id, void **datap)
+{
+	struct eblob_backend_config *c = priv;
+	return dnet_db_read_raw(c->eblob, id, datap);
+}
+
+static int dnet_eblob_db_write(void *priv, struct dnet_raw_id *id, void *data, size_t size)
+{
+	struct eblob_backend_config *c = priv;
+	return dnet_db_write_raw(c->eblob, id, data, size);
+}
+
+static int dnet_eblob_db_remove(void *priv, struct dnet_raw_id *id, int real_del)
+{
+	struct eblob_backend_config *c = priv;
+	return dnet_db_remove_raw(c->eblob, id, real_del);
+}
+
+static long long dnet_eblob_db_total_elements(void *priv)
+{
+	struct eblob_backend_config *c = priv;
+	return eblob_total_elements(c->eblob);
+}
+
+static int dnet_eblob_db_iterate(void *priv, unsigned int flags,
+		int (* callback)(struct eblob_disk_control *dc,
+			struct eblob_ram_control *rc, void *data, void *p),
+		void *callback_private)
+{
+	struct eblob_backend_config *c = priv;
+	return dnet_db_iterate(c->eblob, flags, callback, callback_private);
 }
 
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)
@@ -515,21 +552,28 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 		goto err_out_exit;
 	}
 
-	c->data_blob = eblob_init(&c->data);
-	if (!c->data_blob) {
+	c->eblob = eblob_init(&c->data);
+	if (!c->eblob) {
 		err = -EINVAL;
 		goto err_out_free;
 	}
 
+	cfg->cb = &b->cb;
 	cfg->storage_size = b->storage_size;
 	cfg->storage_free = b->storage_free;
-	cfg->storage_stat = eblob_backend_storage_stat;
-	cfg->checksum = eblob_backend_checksum;
+	b->cb.storage_stat = eblob_backend_storage_stat;
+	b->cb.checksum = eblob_backend_checksum;
 
-	cfg->command_private = c;
-	cfg->command_handler = eblob_backend_command_handler;
-	cfg->send = eblob_send;
-	cfg->backend_cleanup = eblob_backend_cleanup;
+	b->cb.command_private = c;
+	b->cb.command_handler = eblob_backend_command_handler;
+	b->cb.send = eblob_send;
+	b->cb.backend_cleanup = eblob_backend_cleanup;
+
+	b->cb.meta_read = dnet_eblob_db_read;
+	b->cb.meta_write = dnet_eblob_db_write;
+	b->cb.meta_remove = dnet_eblob_db_remove;
+	b->cb.meta_total_elements = dnet_eblob_db_total_elements;
+	b->cb.meta_iterate = dnet_eblob_db_iterate;
 
 	return 0;
 

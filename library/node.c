@@ -613,7 +613,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	sigemptyset(&sig);
 	sigaddset(&sig, SIGPIPE);
 
-	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->command_handler || !cfg->send || !cfg->checksum)) {
+	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->cb)) {
 		err = -EINVAL;
 		if (cfg->log && cfg->log->log)
 			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Joining node has to register "
@@ -657,13 +657,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->family = cfg->family;
 	n->wait_ts.tv_sec = cfg->wait_timeout;
 
-	n->command_handler = cfg->command_handler;
-	n->command_private = cfg->command_private;
-	n->send = cfg->send;
-	n->checksum = cfg->checksum;
-	n->backend_cleanup = cfg->backend_cleanup;
+	n->cb = cfg->cb;
 
-	n->storage_stat = cfg->storage_stat;
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;
 	n->id.group_id = cfg->group_id;
@@ -671,7 +666,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->bg_ionice_prio = cfg->bg_ionice_prio;
 	n->removal_delay = cfg->removal_delay;
 	n->flags = cfg->flags;
-	if (strlen(cfg->temp_meta_env) > 0)
+	if (strlen(cfg->temp_meta_env))
 		n->temp_meta_env = cfg->temp_meta_env;
 	else
 		n->temp_meta_env = cfg->history_env;
@@ -722,15 +717,10 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		if (!ids)
 			goto err_out_io_exit;
 
-		err = dnet_db_init(n, cfg);
-		if (err)
-			goto err_out_ids_cleanup;
-
 		n->addr.addr_len = sizeof(n->addr.addr);
-
 		err = dnet_socket_create(n, cfg, &n->addr, 1);
 		if (err < 0)
-			goto err_out_db_cleanup;
+			goto err_out_ids_cleanup;
 
 		s = err;
 		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
@@ -738,7 +728,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, s, &err, DNET_JOIN, dnet_state_accept_process);
 		if (!n->st) {
 			close(s);
-			goto err_out_db_cleanup;
+			goto err_out_state_destroy;
 		}
 
 		free(ids);
@@ -755,8 +745,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 err_out_state_destroy:
 	dnet_state_put(n->st);
-err_out_db_cleanup:
-	dnet_db_cleanup(n);
 err_out_ids_cleanup:
 	free(ids);
 err_out_io_exit:
@@ -799,8 +787,6 @@ void dnet_node_destroy(struct dnet_node *n)
 
 	dnet_notify_exit(n);
 
-	dnet_db_cleanup(n);
-
 	pthread_attr_destroy(&n->attr);
 
 	pthread_mutex_destroy(&n->state_lock);
@@ -818,8 +804,8 @@ void dnet_node_destroy(struct dnet_node *n)
 
 	free(n->groups);
 
-	if (n->backend_cleanup)
-		n->backend_cleanup(n->command_private);
+	if (n->cb && n->cb->backend_cleanup)
+		n->cb->backend_cleanup(n->cb->command_private);
 
 	free(n);
 }
