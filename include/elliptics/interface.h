@@ -291,7 +291,7 @@ struct dnet_backend_callbacks {
 	 * calculates checksum and writes (no more than *@csize bytes) it into @csum,
 	 * @csize must be set to actual @csum size
 	 */
-	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_raw_id *id,
+	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
 			void *csum, int *csize);
 
 	/* fills storage statistics */
@@ -955,8 +955,8 @@ int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, void *data, 
 int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size);
 int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size);
 
-int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_raw_id *id);
-int dnet_verify_checksum_io(struct dnet_node *n, struct dnet_raw_id *id, unsigned char *result, int *res_len);
+int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_id *id);
+int dnet_verify_checksum_io(struct dnet_node *n, struct dnet_id *id, unsigned char *result, int *res_len);
 
 ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void **datap);
 int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *data, unsigned int size);

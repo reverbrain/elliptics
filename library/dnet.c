@@ -685,10 +685,13 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			default:
 				if (a->cmd == DNET_CMD_READ) {
 					if (!(a->flags & DNET_ATTR_NOCSUM) && !(n->flags & DNET_CFG_NO_CSUM)) {
-						struct dnet_raw_id id;
+						struct dnet_id id;
 
 						io = data;
-						memcpy(id.id, io->id, DNET_ID_SIZE);
+
+						dnet_setup_id(&id, 0, io->id);
+						id.type = io->type;
+
 						err = dnet_verify_checksum_io(n, &id, NULL, NULL);
 						if (err && (err != -ENODATA))
 							break;
@@ -1416,7 +1419,7 @@ err_out_exit:
 int dnet_write_file(struct dnet_node *n, char *file, void *remote, unsigned int len,
 		struct dnet_id *id, uint64_t offset, uint64_t size, unsigned int aflags)
 {
-	return dnet_write_file_local_offset(n, file, remote, len, id, offset, offset, size, aflags, 0);
+	return dnet_write_file_local_offset(n, file, remote, len, id, offset, offset, size, aflags, DNET_IO_FLAGS_COMPRESS);
 }
 
 static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, void *priv)
@@ -3499,15 +3502,18 @@ err_out_exit:
 	return err;
 }
 
-int dnet_verify_checksum_io(struct dnet_node *n, struct dnet_raw_id *id, unsigned char *result, int *res_len)
+int dnet_verify_checksum_io(struct dnet_node *n, struct dnet_id *id, unsigned char *result, int *res_len)
 {
 	int csize = DNET_CSUM_SIZE;
 	unsigned char csum[csize];
 	struct dnet_meta_checksum mc;
+	struct dnet_raw_id raw;
 	char str[csize*2+1];
 	int err;
 
-	err = dnet_meta_read_checksum(n, id, &mc);
+	memcpy(raw.id, id->id, DNET_ID_SIZE);
+
+	err = dnet_meta_read_checksum(n, &raw, &mc);
 	if (err) {
 		err = -ENODATA;
 		goto err_out_exit;
@@ -3551,9 +3557,8 @@ struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr
 
 	memcpy(end.id, io->parent, DNET_ID_SIZE);
 
-	memcpy(&id.id, io->id, DNET_ID_SIZE);
-	id.group_id = group_id;
-	id.version = 0;
+	dnet_setup_id(&id, group_id, io->id);
+	id.type = io->type;
 
 	ret = NULL;
 	ret_num = 0;

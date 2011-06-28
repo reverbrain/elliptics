@@ -109,22 +109,23 @@ using namespace boost::python;
 using namespace zbr;
 
 struct elliptics_id {
-	elliptics_id() : group_id(0), version(0) {}
-	elliptics_id(list id_, int group) : id(id_), group_id(group), version(0) {}
+	elliptics_id() : group_id(0), type(0) {}
+	elliptics_id(list id_, int group) : id(id_), group_id(group), type(0) {}
 	list		id;
 	uint32_t	group_id;
-	uint32_t	version;
+	uint32_t	type;
 };
 
 struct elliptics_range {
 	elliptics_range() : offset(0), size(0),
-		limit_start(0), limit_num(0), ioflags(0), aflags(0), group_id(0) {}
+		limit_start(0), limit_num(0), ioflags(0), aflags(0), group_id(0), type(0) {}
 
 	list		start, end;
 	uint64_t	offset, size;
 	uint64_t	limit_start, limit_num;
 	uint32_t	ioflags, aflags;
 	int		group_id;
+	int		type;
 };
 
 static void elliptics_extract_arr(const list &l, unsigned char *dst, int *dlen)
@@ -146,7 +147,7 @@ static void elliptics_extract_id(const struct elliptics_id &e, struct dnet_id &i
 	elliptics_extract_arr(e.id, id.id, &len);
 
 	id.group_id = e.group_id;
-	id.version = e.version;
+	id.type = e.type;
 }
 
 static void elliptics_extract_range(const struct elliptics_range &r, struct dnet_io_attr &io)
@@ -161,6 +162,7 @@ static void elliptics_extract_range(const struct elliptics_range &r, struct dnet
 	io.offset = r.offset;
 	io.start = r.limit_start;
 	io.num = r.limit_num;
+	io.type = r.type;
 }
 
 class elliptics_log_wrap : public elliptics_log, public wrapper<elliptics_log> {
@@ -321,7 +323,7 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def(init<list, int>())
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
-		.def_readwrite("version", &elliptics_id::version)
+		.def_readwrite("type", &elliptics_id::type)
 	;
 
 	class_<elliptics_range>("elliptics_range", init<>())
@@ -332,6 +334,7 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("ioflags", &elliptics_range::ioflags)
 		.def_readwrite("aflags", &elliptics_range::aflags)
 		.def_readwrite("group_id", &elliptics_range::group_id)
+		.def_readwrite("type", &elliptics_range::type)
 		.def_readwrite("limit_start", &elliptics_range::limit_start)
 		.def_readwrite("limit_num", &elliptics_range::limit_num)
 	;

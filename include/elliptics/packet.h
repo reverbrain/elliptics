@@ -119,7 +119,7 @@ enum dnet_counters {
 struct dnet_id {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		group_id;
-	uint32_t		version;
+	uint32_t		type;
 } __attribute__ ((packed));
 
 struct dnet_raw_id {
@@ -172,7 +172,7 @@ struct dnet_cmd
 static inline void dnet_convert_id(struct dnet_id *id)
 {
 	id->group_id = dnet_bswap32(id->group_id);
-	id->version = dnet_bswap32(id->version);
+	id->type = dnet_bswap32(id->type);
 }
 
 static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
@@ -268,7 +268,7 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 /* Append given data at the end of the object */
 #define DNET_IO_FLAGS_APPEND		(1<<1)
 
-#define DNET_IO_FLAGS_UNUSED2		(1<<2)
+#define DNET_IO_FLAGS_COMPRESS		(1<<2)
 
 /* Metada IO request */
 #define DNET_IO_FLAGS_META		(1<<3)
@@ -288,6 +288,7 @@ struct dnet_io_attr
 	uint8_t			parent[DNET_ID_SIZE];
 	uint8_t			id[DNET_ID_SIZE];
 	uint64_t		start, num;
+	int			type;
 	uint32_t		flags;
 	uint64_t		offset;
 	uint64_t		size;

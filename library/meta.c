@@ -525,14 +525,17 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 	}
 }
 
-int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_raw_id *id)
+int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_id *id)
 {
 	struct dnet_meta *m;
 	struct dnet_meta_container mc;
 	struct dnet_meta_checksum *csum;
+	struct dnet_raw_id raw;
 	int err, csize;
 
-	err = n->cb->meta_read(n->cb->command_private, id, &mc.data);
+	memcpy(raw.id, id->id, DNET_ID_SIZE);
+
+	err = n->cb->meta_read(n->cb->command_private, &raw, &mc.data);
 	if (err < 0) {
 		goto err_out_exit;
 	}
@@ -560,7 +563,7 @@ int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_raw_id *id)
 	if (err)
 		goto err_out_free;
 
-	err = n->cb->meta_write(n->cb->command_private, id, mc.data, mc.size);
+	err = n->cb->meta_write(n->cb->command_private, &raw, mc.data, mc.size);
 
 err_out_free:
 	free(mc.data);

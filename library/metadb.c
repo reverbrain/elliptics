@@ -132,7 +132,11 @@ int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 
 		err = n->cb->meta_write(n->cb->command_private, &id, data, io->size);
 		if (!err && !(a->flags & DNET_ATTR_NOCSUM) && !(n->flags & DNET_CFG_NO_CSUM)) {
-			err = dnet_meta_update_checksum(n, &id);
+			struct dnet_id did;
+			dnet_setup_id(&did, cmd->id.group_id, id.id);
+			did.type = io->type;
+
+			err = dnet_meta_update_checksum(n, &did);
 		}
 		break;
 	case DNET_CMD_DEL:
@@ -195,7 +199,7 @@ static int dnet_db_send_check_reply(struct dnet_db_list_control *ctl)
 }
 
 
-int dnet_db_iterate(struct eblob_backend *b, unsigned int flags,
+int dnet_db_iterate(struct eblob_backend *b, unsigned int flags __unused,
 		int (* callback)(struct eblob_disk_control *dc,
 			struct eblob_ram_control *rc, void *data, void *p),
 		void *callback_private)
