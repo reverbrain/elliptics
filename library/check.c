@@ -30,9 +30,40 @@
 #include "elliptics.h"
 #include "elliptics/interface.h"
 
-#ifdef HAVE_CHECK
 static char dnet_check_tmp_dir[] = "/dev/shm";
 
+static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id, int full_process)
+{
+	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)];
+	struct dnet_cmd *cmd;
+	struct dnet_attr *attr;
+	struct dnet_net_state *base;
+	int err = -ENOENT;
+
+	memset(buf, 0, sizeof(buf));
+
+	cmd = (struct dnet_cmd *)buf;
+	attr = (struct dnet_attr *)(cmd + 1);
+
+	memcpy(&cmd->id, id, sizeof(struct dnet_id));
+	cmd->size = sizeof(struct dnet_attr);
+
+	attr->cmd = DNET_CMD_DEL;
+	if (!full_process)
+		attr->flags = DNET_ATTR_DELETE_HISTORY;
+
+	dnet_convert_attr(attr);
+
+	base = dnet_node_state(n);
+	if (base) {
+		err = dnet_process_cmd_raw(base, cmd, attr);
+		dnet_state_put(base);
+	}
+
+	return err;
+}
+
+#ifdef HAVE_CHECK
 static int dnet_dump_meta_container(struct dnet_node *n, struct dnet_meta_container *mc)
 {
 	int fd, err;
@@ -96,37 +127,6 @@ static int dnet_check_find_groups(struct dnet_node *n, struct dnet_meta_containe
 
 err_out_exit:
 	dnet_dump_meta_container(n, mc);
-	return err;
-}
-
-static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id, int full_process)
-{
-	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)];
-	struct dnet_cmd *cmd;
-	struct dnet_attr *attr;
-	struct dnet_net_state *base;
-	int err = -ENOENT;
-
-	memset(buf, 0, sizeof(buf));
-
-	cmd = (struct dnet_cmd *)buf;
-	attr = (struct dnet_attr *)(cmd + 1);
-
-	memcpy(&cmd->id, id, sizeof(struct dnet_id));
-	cmd->size = sizeof(struct dnet_attr);
-
-	attr->cmd = DNET_CMD_DEL;
-	if (!full_process)
-		attr->flags = DNET_ATTR_DELETE_HISTORY;
-
-	dnet_convert_attr(attr);
-
-	base = dnet_node_state(n);
-	if (base) {
-		err = dnet_process_cmd_raw(base, cmd, attr);
-		dnet_state_put(base);
-	}
-
 	return err;
 }
 
@@ -745,28 +745,30 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 	return err;
 }
 
+#endif
 static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc)
 {
 	struct dnet_net_state *base;
 	int err;
 
+	dnet_log(n, DNET_LOG_DSA, "in dnet_merge_direct mc->size = %u\n", mc->size);
 	base = dnet_node_state(n);
 	if (!base) {
 		err = -ENOENT;
 		goto err_out_exit;
 	}
 
-	err = n->send(base, n->command_private, &mc->id);
+	err = n->cb->send(base, n->cb->command_private, &mc->id);
+	dnet_log(n, DNET_LOG_DSA, "in dnet_merge_direct after n->cb->send err = %d\n\n", err);
 	if (err < 0)
 		goto err_out_put;
 
+	dnet_log(n, DNET_LOG_DSA, "in dnet_merge_direct2 mc->size = %u\n", mc->size);
 	err = dnet_write_metadata(n, mc, 0);
 	if (err <= 0)
 		goto err_out_put;
 
 	err = 0;
-
-	//dnet_merge_remove_local(n, &mc->id, 0);
 
 err_out_put:
 	dnet_state_put(base);
@@ -774,6 +776,7 @@ err_out_exit:
 	return err;
 }
 
+/*
 static int dnet_merge_upload(struct dnet_node *n, struct dnet_meta_container *mc)
 {
 	struct dnet_net_state *base;
@@ -785,7 +788,7 @@ static int dnet_merge_upload(struct dnet_node *n, struct dnet_meta_container *mc
 		goto err_out_exit;
 	}
 
-	err = n->send(base, n->command_private, &mc->id);
+	err = n->cb->send(base, n->cb->command_private, &mc->id);
 	if (err)
 		goto err_out_put;
 
@@ -798,19 +801,21 @@ err_out_put:
 err_out_exit:
 	return err;
 }
+*/
 
 static int dnet_merge_common(struct dnet_node *n, struct dnet_meta_container *remote_meta, struct dnet_meta_container *mc)
 {
 	int err = 0;
 	struct dnet_meta_update local, remote;
 
-	if (!dnet_get_meta_update(n, mc, mc->id.group_id, &local)) {
+	dnet_log(n, DNET_LOG_DSA, "in dnet_merge_common mc->size = %d\n", mc->size);
+	if (!dnet_get_meta_update(n, mc, &local)) {
 		err = -ENOENT;
 		dnet_log(n, DNET_LOG_ERROR, "%s: META_UPDATE not found in local meta\n", dnet_dump_id(&mc->id));
 		goto err_out_exit;
 	}
 
-	if (!dnet_get_meta_update(n, remote_meta, mc->id.group_id, &remote)) {
+	if (!dnet_get_meta_update(n, remote_meta, &remote)) {
 		err = -ENOENT;
 		dnet_log(n, DNET_LOG_ERROR, "%s: META_UPDATE not found in remote meta, perform direct merge\n", dnet_dump_id(&mc->id));
 		err = dnet_merge_direct(n, mc);
@@ -821,7 +826,7 @@ static int dnet_merge_common(struct dnet_node *n, struct dnet_meta_container *re
 		if (local.flags & DNET_IO_FLAGS_REMOVED) {
 			err = dnet_remove_object_now(n, &mc->id, 0);
 		} else {
-			err = dnet_merge_upload(n, mc);
+			err = dnet_merge_direct(n, mc);
 		}
 	}
 
@@ -835,11 +840,12 @@ static int dnet_check_merge(struct dnet_node *n, struct dnet_meta_container *mc)
 	int err;
 	struct dnet_meta_container remote_mc;
 
+	dnet_log(n, DNET_LOG_DSA, "in dnet_check_merge mc->size = %d\n", mc->size);
 	memset(&remote_mc, 0, sizeof(struct dnet_meta_container));
 
 	err = dnet_read_meta(n, &remote_mc, NULL, 0, &mc->id);
 	if (err) {
-		if ((err != -ENOENT) && (err != -7)) { /* Kyoto Cabinet 'no record' error */
+		if (err != -ENOENT) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n", dnet_dump_id(&mc->id), err);
 			goto err_out_exit;
 		}
@@ -852,8 +858,6 @@ static int dnet_check_merge(struct dnet_node *n, struct dnet_meta_container *mc)
 		err = dnet_merge_common(n, &remote_mc, mc);
 	}
 
-	//dnet_merge_unlink_local_files(n, &mc->id);
-
 	if (err)
 		goto err_out_exit;
 
@@ -863,30 +867,21 @@ err_out_exit:
 	return err;
 }
 
-int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_type)
+int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int need_merge)
 {
 	int err = 0;
 
-	dnet_log(n, DNET_LOG_DSA, "check_type = %d\n", check_type);
-	switch (check_type) {
-		case DNET_CHECK_TYPE_COPIES_HISTORY:
-		case DNET_CHECK_TYPE_COPIES_FULL:
-		case DNET_CHECK_TYPE_DELETE:
-			err = dnet_check_copies(n, mc, bulk_array);
-			break;
-		case DNET_CHECK_TYPE_MERGE:
-			err = dnet_check_merge(n, mc);
-			if (!err)
-				dnet_merge_remove_local(n, &mc->id, 0);
-			break;
-		default:
-			dnet_log(n, DNET_LOG_ERROR, "%s: Incorrect check type %d.\n",
-				dnet_dump_id(&mc->id), check_type);
+	dnet_log(n, DNET_LOG_DSA, "need_merge = %d, mc.size = %d\n", need_merge, mc->size);
+	if (need_merge) {
+		err = dnet_check_merge(n, mc);
+		dnet_log(n, DNET_LOG_DSA, "err=%d\n", err);
+		if (!err)
+			dnet_merge_remove_local(n, &mc->id, 0);
+//	} else {
+//		err = dnet_check_copies(n, mc, bulk_array);
 	}
-
 	return err;
 }
-#endif
 
 static int dnet_check_complete(struct dnet_net_state *state, struct dnet_cmd *cmd,
 	struct dnet_attr *attr, void *priv)

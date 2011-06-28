@@ -662,6 +662,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					else
 						err = dnet_db_list(st, cmd, a);
 #endif
+					err = dnet_db_list(st, cmd, a);
 				}
 				break;
 			case DNET_CMD_READ:

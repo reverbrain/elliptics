@@ -269,6 +269,7 @@ static void dnet_update_check_metadata_raw(struct dnet_node *n __unused, void *d
 
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert)
 {
+	dnet_log(n, DNET_LOG_DSA, "in dnet_write_metadata mc->size = %u\n", mc->size);
 	if (convert) {
 		dnet_update_check_metadata_raw(n, mc->data, mc->size);
 	}

@@ -607,7 +607,7 @@ static inline int dnet_compare_bulk_state(const void *k1, const void *k2)
 }
 
 int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_copies);
-int dnet_check_list(struct dnet_net_state *st, struct dnet_check_request *r);
+int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr);
 #ifdef HAVE_CHECK
 int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
 int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state);
