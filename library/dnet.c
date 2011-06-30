@@ -3705,6 +3705,12 @@ int dnet_verify_checksum_io(struct dnet_node *n, unsigned char *id, unsigned cha
 		goto err_out_exit;
 	}
 
+	memset(csum, 0, sizeof(csum));
+	if (!memcmp(mc.checksum, csum, DNET_CSUM_SIZE)) {
+		err = -ENODATA;
+		goto err_out_exit;
+	}
+
 	err = n->checksum(n, n->command_private, &raw, csum, &csize);
 	if (err)
 		goto err_out_exit;
