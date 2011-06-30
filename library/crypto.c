@@ -21,16 +21,13 @@
 #include <fcntl.h>
 #include <signal.h>
 
-#include <openssl/hmac.h>
-#include <openssl/evp.h>
-
 #include "elliptics.h"
 #include "elliptics/interface.h"
 
-struct dnet_openssl_crypto_engine
+#include "crypto/sha512.h"
+
+struct dnet_local_crypto_engine
 {
-	EVP_MD_CTX 		mdctx;
-	const EVP_MD		*evp_md;
 	struct dnet_lock	lock;
 	void			*ns;
 	int			nsize;
@@ -47,61 +44,60 @@ static void dnet_transform_final(void *dst, const void *src, unsigned int *rsize
 	}
 }
 
-static int dnet_openssl_digest_transform(void *priv, const void *src, uint64_t size,
+static int dnet_local_digest_transform(void *priv, const void *src, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags __unused)
 {
-	struct dnet_openssl_crypto_engine *e = priv;
-	unsigned char md_value[EVP_MAX_MD_SIZE];
+	struct dnet_local_crypto_engine *e = priv;
 	unsigned int rs = *dsize;
+	unsigned char hash[64];
+#if 1
+	struct sha512_ctx ctx;
 
-	dnet_lock_lock(&e->lock);
-	EVP_DigestInit_ex(&e->mdctx, e->evp_md, NULL);
+	sha512_init_ctx(&ctx);
+
 	if (e->nsize) {
 		char x = '\0';
-		EVP_DigestUpdate(&e->mdctx, e->ns, e->nsize);
-		EVP_DigestUpdate(&e->mdctx, &x, 1);
+
+		dnet_lock_lock(&e->lock);
+		sha512_process_bytes(e->ns, e->nsize, &ctx);
+		sha512_process_bytes(&x, 1, &ctx);
+		dnet_lock_unlock(&e->lock);
 	}
-	EVP_DigestUpdate(&e->mdctx, src, size);
-	EVP_DigestFinal_ex(&e->mdctx, md_value, dsize);
-	dnet_lock_unlock(&e->lock);
 
-	dnet_transform_final(dst, md_value, dsize, rs);
+	sha512_process_bytes(src, size, &ctx);
+	sha512_finish_ctx(&ctx, hash);
 
+#else
+	sha512_buffer(src, size, hash);
+#endif
+	dnet_transform_final(dst, hash, dsize, rs);
 	return 0;
 }
 
 void dnet_crypto_cleanup(struct dnet_node *n)
 {
 	struct dnet_transform *t = &n->transform;
-	struct dnet_openssl_crypto_engine *e = t->priv;
+	struct dnet_local_crypto_engine *e = t->priv;
 
-	EVP_MD_CTX_cleanup(&e->mdctx);
 	dnet_lock_destroy(&e->lock);
 	free(e);
 }
 
 int dnet_crypto_init(struct dnet_node *n, void *ns, int nsize)
 {
-	struct dnet_openssl_crypto_engine *e;
+	struct dnet_local_crypto_engine *e;
 	struct dnet_transform *t = &n->transform;
-	char *hash = "sha512";
 	int err = -ENOMEM;
 
-	e = malloc(sizeof(struct dnet_openssl_crypto_engine) + nsize);
+	e = malloc(sizeof(struct dnet_local_crypto_engine) + nsize);
 	if (!e)
 		goto err_out_exit;
 
-	memset(e, 0, sizeof(struct dnet_openssl_crypto_engine));
+	memset(e, 0, sizeof(struct dnet_local_crypto_engine));
 	e->ns = e + 1;
 
 	memcpy(e->ns, ns, nsize);
 	e->nsize = nsize;
-
-	e->evp_md = EVP_sha512();
-	if (!e->evp_md) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to find algorithm '%s' implementation.\n", hash);
-		goto err_out_free;
-	}
 
 	err = dnet_lock_init(&e->lock);
 	if (err) {
@@ -109,9 +105,7 @@ int dnet_crypto_init(struct dnet_node *n, void *ns, int nsize)
 		goto err_out_free;
 	}
 
-	EVP_MD_CTX_init(&e->mdctx);
-
-	t->transform = dnet_openssl_digest_transform;
+	t->transform = dnet_local_digest_transform;
 	t->priv = e;
 
 	return 0;
@@ -125,7 +119,7 @@ err_out_exit:
 void *dnet_node_get_ns(struct dnet_node *n, int *nsize)
 {
 	struct dnet_transform *t = &n->transform;
-	struct dnet_openssl_crypto_engine *e = t->priv;
+	struct dnet_local_crypto_engine *e = t->priv;
 
 	*nsize = e->nsize;
 	return e->ns;
@@ -134,7 +128,7 @@ void *dnet_node_get_ns(struct dnet_node *n, int *nsize)
 void dnet_node_set_ns(struct dnet_node *n, void *ns, int nsize)
 {
 	struct dnet_transform *t = &n->transform;
-	struct dnet_openssl_crypto_engine *e = t->priv;
+	struct dnet_local_crypto_engine *e = t->priv;
 
 	e->ns = ns;
 	e->nsize = nsize;
