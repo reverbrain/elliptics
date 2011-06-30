@@ -100,7 +100,7 @@ struct dnet_io_control {
 	/*
 	 * Data to be sent.
 	 */
-	void				*data;
+	const void			*data;
 
 	/*
 	 * Additional attribute data, which will be copied at the beginning
@@ -186,63 +186,41 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
  * If @id is set, it is used as a main object ID, otherwise @file transformation
  * is used as object ID.
  *
+ * @type is column type, only meaningful with eblob backend, otherwise it is unused
+ *
  * Returns negative error value in case of error.
  *
  * dnet_read_file_direct() works the same way except it sets DNET_FLAGS_DIRECT flag,
  * which means it will ask node for given object, which is the closest in routing
  * table and will not allow to forward this request to other nodes.
  */
-int dnet_read_file(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
-		struct dnet_id *id, uint64_t offset, uint64_t size);
-int dnet_read_file_direct(struct dnet_node *n, char *file, void *remote, unsigned int remote_len,
-		struct dnet_id *id, uint64_t offset, uint64_t size);
+int dnet_read_file_id(struct dnet_node *n, const char *file, struct dnet_id *id,
+		uint64_t offset, uint64_t size);
+int dnet_read_file(struct dnet_node *n, const char *file, const void *remote, int remote_size,
+		uint64_t offset, uint64_t size, int type);
 
 /*
  * dnet_write_object() returns number of transactions sent. If it is equal to 0,
- * then no transactions were sent which indicates error.
+ * then no transactions were sent which indicates an error.
  *
- * ->complete() may be called for each transformation function twice:
- *  for tranasction completion and history update (if specified),
- *  if there was an error all parameters maybe NULL (private pointer will be set
- *  to what was provided by the user as private data).
- *
- *  Transaction will be freed when @flags field in
- *  the command structure (if non null)
- *  does not have DNET_FLAGS_MORE bit set.
- *
- *  if @hupdate is 0, no history update for the @remote or @id object will be done,
- *  otherwise another transaction will be sent to update the history.
- *
- *  If @id is set, it is used as master object ID.
- *  Otherwise if @remote is specified, its transformation is used as master object,
- *  whose history is updated (if @hupdate is set).
- *  Otherwise transaction is considered as self-contained,
- *  and only its own history will be updated.
+ * ->complete() can be called multiple times, depending on how server sends data
  */
-int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl,
-		void *remote, unsigned int len, struct dnet_id *id);
+int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl);
 
-int dnet_write_data_wait(struct dnet_node *n, void *remote, unsigned int len,
-		struct dnet_id *id, void *data, int fd, uint64_t local_offset,
-		uint64_t offset, uint64_t size,
-		struct timespec *ts, unsigned int aflags, unsigned int ioflags);
+/* Returns positive number of transactions sent or negative error value */
+int dnet_write_data_wait(struct dnet_node *n, struct dnet_io_control *ctl);
 
 /*
  * Sends given file to the remote nodes and waits until all of them ack the write.
  *
  * Returns negative error value in case of error.
  */
-int dnet_write_file(struct dnet_node *n, char *file, void *remote, unsigned int len,
-		struct dnet_id *id, uint64_t offset, uint64_t size, unsigned int aflags);
+int dnet_write_file_id(struct dnet_node *n, const char *file, struct dnet_id *id, uint64_t local_offset,
+		uint64_t remote_offset, uint64_t size, unsigned int aflags, unsigned int ioflags);
 
-/*
- * The same as dnet_write_file() except that is uses @local_offset as local file offset,
- * while @offset is remote file offset. dnet_write_file() assumes that they are the same.
- */
-int dnet_write_file_local_offset(struct dnet_node *n, char *file,
-		void *remote, unsigned int remote_len, struct dnet_id *id,
-		uint64_t local_offset, uint64_t offset, uint64_t size,
-		unsigned int aflags, unsigned int ioflags);
+int dnet_write_file(struct dnet_node *n, const char *file, const void *remote, int remote_len,
+		uint64_t local_offset, uint64_t remote_offset, uint64_t size,
+		unsigned int aflags, unsigned int ioflags, int type);
 
 /*
  * Log flags.
@@ -597,7 +575,7 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, char *command);
 int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int aflags,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
 	void *priv);
-int dnet_lookup(struct dnet_node *n, char *file);
+int dnet_lookup(struct dnet_node *n, const char *file);
 int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv);
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id);
@@ -720,12 +698,11 @@ int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr, struct dnet_
 			struct dnet_node_status *status, int update);
 
 /*
- * Mark tranasction with @id in the object identified by @origin to be removed.
+ * Remove object by @id
  * If callback is provided, it will be invoked on completion, otherwise
  * function will block until server returns an acknowledge.
  */
-int dnet_remove_object(struct dnet_node *n,
-	unsigned char *parent, struct dnet_id *id,
+int dnet_remove_object(struct dnet_node *n, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			struct dnet_attr *attr,
@@ -746,7 +723,7 @@ int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct d
  * @src and @size correspond to to be transformed source data.
  * @dst and @dsize specify destination buffer.
  */
-int dnet_transform(struct dnet_node *n, void *src, uint64_t size, struct dnet_id *id);
+int dnet_transform(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id);
 
 int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, unsigned int aflags,
 	int (* complete)(struct dnet_net_state *state,
@@ -794,7 +771,7 @@ static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
 
 struct dnet_metadata_control {
 	struct dnet_id			id;
-	char				*obj;
+	const char			*obj;
 	int				len;
 
 	int				*groups;
@@ -813,7 +790,8 @@ struct dnet_metadata_control {
  *
  * Returns negative error value in case of error.
  */
-int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc, void *remote, unsigned int remote_len, struct dnet_id *id);
+int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc,
+		const void *remote, unsigned int remote_len, struct dnet_id *id);
 
 /*
  * Modify or search metadata in meta object. Data must be realloc()able.
@@ -822,10 +800,11 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, struct dnet_meta_contain
 
 int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert);
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl);
-int dnet_create_write_metadata_strings(struct dnet_node *n, void *remote, unsigned int remote_len, struct dnet_id *id, struct timespec *ts);
+int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, unsigned int remote_len,
+		struct dnet_id *id, struct timespec *ts);
 void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc);
 
-int dnet_lookup_addr(struct dnet_node *n, void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen);
+int dnet_lookup_addr(struct dnet_node *n, const void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen);
 void dnet_fill_addr_attr(struct dnet_node *n, struct dnet_addr_attr *attr);
 
 struct dnet_id_param {
@@ -951,7 +930,7 @@ int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp);
 
 char *dnet_cmd_string(int cmd);
 
-int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, void *data, uint64_t size);
+int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, const void *data, uint64_t size);
 int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size);
 int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size);
 

@@ -250,7 +250,7 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 	return 0;
 }
 
-static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_raw_id *id, void *csum, int *csize)
+static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
 {
 	struct file_backend_root *r = priv;
 	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
@@ -303,9 +303,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	if (attr->flags & DNET_ATTR_NOCSUM) {
 		memset(info->checksum, 0, csize);
 	} else {
-		struct dnet_raw_id raw;
-		memcpy(raw.id, cmd->id.id, DNET_ID_SIZE);
-		err = dnet_verify_checksum_io(n, &raw, info->checksum, &csize);
+		err = dnet_verify_checksum_io(n, &cmd->id, info->checksum, &csize);
 		if (err && (err != -ENODATA))
 			goto err_out_free;
 	}
@@ -423,7 +421,7 @@ static int file_backend_send(void *state, void *priv, struct dnet_id *id)
 	file_backend_setup_file(r, file, sizeof(file), id->id);
 
 	if (!access(file, R_OK)) {
-		err = dnet_write_file_local_offset(n, file, NULL, 0, id, 0, 0, 0, 0, 0);
+		err = dnet_write_file_id(n, file, id, 0, 0, 0, 0, 0);
 		if (err < 0) {
 			goto err_out_exit;
 		}

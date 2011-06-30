@@ -136,34 +136,24 @@ class elliptics_node {
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 
-		void			read_file(struct dnet_id &id, char *dst_file, uint64_t offset, uint64_t size);
-		void			read_file(std::string &remote, char *dst_file, uint64_t offset, uint64_t size);
+		void			read_file(struct dnet_id &id, const std::string &file, uint64_t offset, uint64_t size);
+		void			read_file(const std::string &remote, const std::string &file, uint64_t offset, uint64_t size, int type);
 
-		void			read_data(struct dnet_id &id, uint64_t offset, uint64_t size, elliptics_callback &c,
-							unsigned int aflags = 0, unsigned int ioflags = 0);
-		void			read_data(std::string &remote, uint64_t offset, uint64_t size, elliptics_callback &c,
-							unsigned int aflags = 0, unsigned int ioflags = 0);
+		void			write_file(struct dnet_id &id, const std::string &file, uint64_t local_offset,
+						uint64_t offset, uint64_t size, unsigned int aflags, unsigned int ioflags);
+		void			write_file(const std::string &remote, const std::string &file,
+						uint64_t local_offset, uint64_t offset, uint64_t size,
+						unsigned int aflags, unsigned int ioflags, int type);
 
-		void 			write_file(struct dnet_id &id, char *src_file, uint64_t local_offset, uint64_t offset, uint64_t size,
-							unsigned int aflags = 0, unsigned int ioflags = 0);
-		void			write_file(std::string &remote, char *src_file, uint64_t local_offset,
-							uint64_t offset, uint64_t size,
-							unsigned int aflags = 0, unsigned int ioflags = 0);
+		std::string		read_data_wait(struct dnet_id &id, uint64_t offset, uint64_t size,
+						uint32_t aflags, uint32_t ioflags);
+		std::string		read_data_wait(const std::string &remote, uint64_t offset, uint64_t size,
+						uint32_t aflags, uint32_t ioflags, int type);
 
-		int			write_data(struct dnet_id &id, std::string &str, elliptics_callback &c,
-							unsigned int aflags = 0, unsigned int ioflags = 0);
-		int			write_data(std::string &remote, std::string &str, elliptics_callback &c,
-							unsigned int aflags = 0, unsigned int ioflags = 0);
-
-		std::string		read_data_wait(struct dnet_id &id, uint64_t size, uint64_t offset = 0,
-							uint32_t aflags = 0, uint32_t ioflags = 0);
-		std::string		read_data_wait(std::string &remote, uint64_t size, uint64_t offset = 0,
-							uint32_t aflags = 0, uint32_t ioflags = 0);
-
-		int			write_data_wait(struct dnet_id &id, std::string &str,
-							unsigned int aflags = 0, unsigned int ioflags = 0);
-		int			write_data_wait(std::string &remote, std::string &str,
-							unsigned int aflags = 0, unsigned int ioflags = 0);
+		int			write_data_wait(struct dnet_id &id, const std::string &str,
+						uint64_t remote_offset, unsigned int aflags, unsigned int ioflags);
+		int			write_data_wait(const std::string &remote, const std::string &str,
+						uint64_t remote_offset, unsigned int aflags, unsigned int ioflags, int type);
 
 		std::string		lookup_addr(const std::string &remote, const int group_id);
 		std::string		lookup_addr(const struct dnet_id &id);
@@ -176,7 +166,7 @@ class elliptics_node {
 		std::string		lookup(const std::string &data);
 
 		void 			remove(struct dnet_id &id);
-		void			remove(const std::string &data);
+		void			remove(const std::string &data, int type = EBLOB_TYPE_DATA);
 
 		std::string		stat_log();
 
@@ -186,7 +176,8 @@ class elliptics_node {
 
 		std::string		read_metadata(struct dnet_id &id);
 
-		void			update_status(const char *addr, const int port, const int family, struct dnet_node_status *status, int update);
+		void			update_status(const char *addr, const int port, const int family,
+						struct dnet_node_status *status, int update);
 		void			update_status(struct dnet_id &id, struct dnet_node_status *status, int update);
 
 		std::string		read_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags = 0);
@@ -194,7 +185,7 @@ class elliptics_node {
 	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,
-							unsigned int aflags, unsigned int ioflags);
+							unsigned int aflags, unsigned int ioflags, int type);
 		struct dnet_node	*node;
 		elliptics_log		*log;
 

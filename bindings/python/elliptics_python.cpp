@@ -232,50 +232,53 @@ class elliptics_node_python : public elliptics_node {
 			elliptics_node::write_metadata((const dnet_id&)raw, remote, groups, ts);
 		}
 
-		void read_file_by_id(struct elliptics_id &id, const char *file, uint64_t offset, uint64_t size) {
+		void read_file_by_id(struct elliptics_id &id, const std::string &file, uint64_t offset, uint64_t size) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
-			elliptics_node::read_file(raw, const_cast<char *>(file), offset, size);
+			elliptics_node::read_file(raw, file, offset, size);
 		}
 
-		void read_file_by_data_transform(const std::string &remote, const char *file, uint64_t offset, uint64_t size) {
-			elliptics_node::read_file((std::string &)remote, const_cast<char *>(file), offset, size);
+		void read_file_by_data_transform(const std::string &remote, const std::string &file,
+				uint64_t offset, uint64_t size,	int type) {
+			elliptics_node::read_file(remote, file, offset, size, type);
 		}
 
-		void write_file_by_id(struct elliptics_id &id, const char *file, uint64_t local_offset, uint64_t offset, uint64_t size,
-				unsigned int aflags = 0, unsigned int ioflags = 0) {
+		void write_file_by_id(struct elliptics_id &id, const std::string &file,
+				uint64_t local_offset, uint64_t offset, uint64_t size,
+				unsigned int aflags, unsigned int ioflags) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
-			elliptics_node::write_file(raw, const_cast<char *>(file), local_offset, offset, size, aflags, ioflags);
+			elliptics_node::write_file(raw, file, local_offset, offset, size, aflags, ioflags);
 		}
 
-		void write_file_by_data_transform(const std::string &remote, const char *file, uint64_t local_offset,
-				uint64_t offset, uint64_t size, unsigned int aflags = 0, unsigned int ioflags = 0) {
-			elliptics_node::write_file((std::string &)remote, const_cast<char *>(file), local_offset, offset, size, aflags, ioflags);
+		void write_file_by_data_transform(const std::string &remote, const std::string &file,
+				uint64_t local_offset, uint64_t offset, uint64_t size,
+				unsigned int aflags, unsigned int ioflags, int type) {
+			elliptics_node::write_file(remote, file, local_offset, offset, size, aflags, ioflags, type);
 		}
 
-		std::string read_data_by_id(const struct elliptics_id &id, uint64_t size, uint64_t offset,
-							unsigned int aflags = 0, unsigned int ioflags = 0) {
+		std::string read_data_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size,
+				unsigned int aflags, unsigned int ioflags) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
-			return elliptics_node::read_data_wait(raw, size, offset, aflags, ioflags);
+			return elliptics_node::read_data_wait(raw, offset, size, aflags, ioflags);
 		}
 
-		std::string read_data_by_data_transform(const std::string &remote, uint64_t size, uint64_t offset,
-							unsigned int aflags = 0, unsigned int ioflags = 0) {
-			return elliptics_node::read_data_wait((std::string &)remote, size, offset, aflags, ioflags);
+		std::string read_data_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
+				unsigned int aflags, unsigned int ioflags, int type) {
+			return elliptics_node::read_data_wait(remote, offset, size, aflags, ioflags, type);
 		}
 
-		int write_data_by_id(const struct elliptics_id &id, const std::string &data,
-							unsigned int aflags = 0, unsigned int ioflags = 0) {
+		int write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset,
+				unsigned int aflags, unsigned int ioflags) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
-			return elliptics_node::write_data_wait(raw, (std::string &)data, aflags, ioflags);
+			return elliptics_node::write_data_wait(raw, data, remote_offset, aflags, ioflags);
 		}
 
-		int write_data_by_data_transform(const std::string &remote, const std::string &data,
-							unsigned int aflags = 0, unsigned int ioflags = 0) {
-			return elliptics_node::write_data_wait((std::string &)remote, (std::string &)data, aflags, ioflags);
+		int write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset,
+				unsigned int aflags, unsigned int ioflags, int type) {
+			return elliptics_node::write_data_wait(remote, data, remote_offset, aflags, ioflags, type);
 		}
 
 		std::string lookup_addr_by_data_transform(const std::string &remote, const int group_id) {
@@ -297,7 +300,7 @@ class elliptics_node_python : public elliptics_node {
 			return status;
 		}
 		
-		struct dnet_node_status  update_status_by_string(const std::string &saddr, const int port, const int family,
+		struct dnet_node_status update_status_by_string(const std::string &saddr, const int port, const int family,
 									struct dnet_node_status &status, int update) {
 			elliptics_node::update_status(saddr.c_str(), port, family, &status, update);
 			return status;
@@ -311,12 +314,6 @@ class elliptics_node_python : public elliptics_node {
 };
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
-BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(read_data_by_id_overloads, read_data_by_id, 3, 5);
-BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(read_data_by_data_transform_overloads, read_data_by_data_transform, 3, 5);
-BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_file_by_id_overloads, write_file_by_id, 5, 7);
-BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_file_by_data_transform_overloads, write_file_by_data_transform, 5, 7);
-BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_id_overloads, write_data_by_id, 2, 4);
-BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(write_data_by_data_transform_overloads, write_data_by_data_transform, 2, 4);
 
 BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<elliptics_id>("elliptics_id", init<>())
@@ -366,13 +363,13 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 
 		.def("read_file", &elliptics_node_python::read_file_by_id)
 		.def("read_file", &elliptics_node_python::read_file_by_data_transform)
-		.def("write_file", &elliptics_node_python::write_file_by_id, write_file_by_id_overloads())
-		.def("write_file", &elliptics_node_python::write_file_by_data_transform, write_file_by_data_transform_overloads())
+		.def("write_file", &elliptics_node_python::write_file_by_id)
+		.def("write_file", &elliptics_node_python::write_file_by_data_transform)
 
-		.def("read_data", &elliptics_node_python::read_data_by_id, read_data_by_id_overloads())
-		.def("read_data", &elliptics_node_python::read_data_by_data_transform, read_data_by_data_transform_overloads())
-		.def("write_data", &elliptics_node_python::write_data_by_id, write_data_by_id_overloads())
-		.def("write_data", &elliptics_node_python::write_data_by_data_transform, write_data_by_data_transform_overloads())
+		.def("read_data", &elliptics_node_python::read_data_by_id)
+		.def("read_data", &elliptics_node_python::read_data_by_data_transform)
+		.def("write_data", &elliptics_node_python::write_data_by_id)
+		.def("write_data", &elliptics_node_python::write_data_by_data_transform)
 
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_data_transform)
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_id)

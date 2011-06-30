@@ -203,13 +203,13 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		err = dnet_write_file(n, writef, writef, strlen(writef), NULL, offset, size, 0);
+		err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, 0, 0, 0);
 		if (err)
 			return err;
 	}
 
 	if (readf) {
-		err = dnet_read_file(n, readf, readf, strlen(readf), NULL, offset, size);
+		err = dnet_read_file(n, readf, readf, strlen(readf), offset, size, 0);
 
 		if (err)
 			return err;

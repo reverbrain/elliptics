@@ -36,7 +36,7 @@ struct dnet_openssl_crypto_engine
 	int			nsize;
 };
 
-static void dnet_transform_final(void *dst, void *src, unsigned int *rsize, unsigned int rs)
+static void dnet_transform_final(void *dst, const void *src, unsigned int *rsize, unsigned int rs)
 {
 	if (*rsize < rs) {
 		memcpy((char *)dst, src, *rsize);
@@ -47,7 +47,7 @@ static void dnet_transform_final(void *dst, void *src, unsigned int *rsize, unsi
 	}
 }
 
-static int dnet_openssl_digest_transform(void *priv, void *src, uint64_t size,
+static int dnet_openssl_digest_transform(void *priv, const void *src, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags __unused)
 {
 	struct dnet_openssl_crypto_engine *e = priv;

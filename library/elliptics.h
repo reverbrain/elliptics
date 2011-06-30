@@ -294,7 +294,7 @@ struct dnet_transform
 {
 	void			*priv;
 
-	int 			(* transform)(void *priv, void *src, uint64_t size,
+	int 			(* transform)(void *priv, const void *src, uint64_t size,
 					void *dst, unsigned int *dsize, unsigned int flags);
 };
 
@@ -561,10 +561,6 @@ int dnet_check_thread_start(struct dnet_node *n);
 void dnet_check_thread_stop(struct dnet_node *n);
 int dnet_try_reconnect(struct dnet_node *n);
 
-int dnet_read_file_id(struct dnet_node *n, char *file, unsigned int len,
-		int direct, uint64_t write_offset, uint64_t io_offset, uint64_t io_size,
-		struct dnet_id *id, struct dnet_wait *w, int wait);
-
 #define DNET_CHECK_TYPE_COPIES_HISTORY		1
 #define DNET_CHECK_TYPE_COPIES_FULL		2
 #define DNET_CHECK_TYPE_MERGE			3
@@ -631,7 +627,7 @@ int dnet_ioprio_get(long pid);
 struct dnet_map_fd {
 	int			fd;
 	uint64_t		offset, size;
-	
+
 	void			*data;
 
 	uint64_t		mapped_size;

@@ -101,57 +101,56 @@ err_out_exit:
 
 int main()
 {
-	struct dnet_id id;
 	int g[] = {1, 2, 3};
 	std::vector<int> groups(g, g+ARRAY_SIZE(g));
 
 	try {
-		elliptics_log_file log("/dev/stderr", 15);
+		elliptics_log_file log("/dev/stderr", 8);
 
 		elliptics_node n(log);
 		n.add_groups(groups);
 
 		n.add_remote("localhost", 1025, AF_INET);
 
-		std::string lobj = "1.xml";
-		std::string lret = n.lookup(lobj);
+		std::string lobj = "2.xml";
+		try {
+			std::string lret = n.lookup(lobj);
 
-		struct dnet_addr *addr = (struct dnet_addr *)lret.data();
-		struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-		struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
-		struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+			struct dnet_addr *addr = (struct dnet_addr *)lret.data();
+			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
+			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
+			struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
 
-		dnet_convert_addr_attr(a);
-		std::cout << lobj << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
+			dnet_convert_addr_attr(a);
+			std::cout << lobj << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
 
-		if (attr->size > sizeof(struct dnet_addr_attr)) {
-			struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
+			if (attr->size > sizeof(struct dnet_addr_attr)) {
+				struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
 
-			dnet_convert_file_info(info);
-			std::cout << ": mode: " << std::oct << info->mode;
-			std::cout << ", offset: " << info->offset;
-			std::cout << ", size: " << info->size;
-			std::cout << ", file: " << (char *)(info + 1);
+				dnet_convert_file_info(info);
+				std::cout << ": mode: " << std::oct << info->mode;
+				std::cout << ", offset: " << info->offset;
+				std::cout << ", size: " << info->size;
+				std::cout << ", file: " << (char *)(info + 1);
+			}
+			std::cout << std::endl;
+		} catch (const std::exception &e) {
+			std::cerr << lobj << ": LOOKUP failed" << std::endl;
 		}
-		std::cout << std::endl;
 
 		n.stat_log();
-		return 0;
-#if 1
-		elliptics_callback_io callback(&log);
-		id.group_id = 2;
-		memset(id.id, 0xff, DNET_ID_SIZE);
-		n.read_data(id, 0, 0, callback);
-#endif
-		n.write_file(id, (char *)"/tmp/culinaria.txt.bak", 0, 0, 0);
-		n.read_file(id, (char *)"/tmp/culinaria.txt", 0, 0);
-#if 0
-		std::string remote("1.xml");
-		n.read_file(remote, (char *)"/tmp/1.xml.cpp", 0, 0);
 
-		/* cool, yeah? we have to wait for read_data() to complete actually */
-		sleep(10);
-#endif
+		std::string key1 = "some-key-1";
+		std::string key2 = "some-key-2";
+
+		std::string data1 = "some-data-1";
+		std::string data2 = "some-data-2";
+
+		n.write_data_wait(key1, data1, 0, 0, 0, 2);
+		n.write_data_wait(key2, data2, 0, 0, 0, 3);
+
+		std::cout << "read1: " << key1 << ":" << n.read_data_wait(key1, 0, 0, 0, 0, 2) << std::endl;
+		std::cout << "read2: " << key2 << ":" << n.read_data_wait(key2, 0, 0, 0, 0, 3) << std::endl;
 	} catch (std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {

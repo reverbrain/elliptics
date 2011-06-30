@@ -269,11 +269,23 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
 	err = eblob_read(b, &key, &fd, &offset, &size, id->type);
 	if (err >= 0) {
-		err = dnet_write_data_wait(n, NULL, 0, id, NULL, fd, offset, 0, size,
-				NULL, 0, 0);
+		struct dnet_io_control ctl;
+
+		memset(&ctl, 0, sizeof(ctl));
+
+		ctl.fd = fd;
+		memcpy(&ctl.id, id, sizeof(struct dnet_id));
+
+		ctl.io.offset = offset;
+		ctl.io.size = size;
+		ctl.io.type = id->type;
+		ctl.io.flags = 0;
+
+		err = dnet_write_data_wait(n, &ctl);
 		if (err < 0) {
 			goto err_out_exit;
 		}
+		err = 0;
 	}
 
 err_out_exit:
@@ -289,7 +301,7 @@ static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 	int fd, err;
 
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-	err = eblob_read(b, &key, &fd, &offset, &size, id->type);
+	err = eblob_read(b, &key, &fd, &offset, &size, EBLOB_TYPE_DATA);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read-index: type: %d: %d: %s.\n",
 				dnet_dump_id_str(id->id), id->type, err, strerror(-err));
