@@ -621,7 +621,7 @@ sha512_process_block (const void *buffer, size_t len, struct sha512_ctx *ctx)
       h = ctx->state[7] = u64plus (ctx->state[7], h);
     }
 }
-
+#if 0
 int main(int argc, char *argv[])
 {
 	FILE *f = stdin;
@@ -647,3 +647,4 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
+#endif

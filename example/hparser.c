@@ -29,7 +29,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <kclangc.h>
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
@@ -87,44 +86,12 @@ static void hparser_dump_history(struct dnet_history_map *m, unsigned long long 
 	return;
 }
 
-static const char * hparser_visit(const char *key, size_t keysz,
-			const char *data, size_t datasz, size_t *sp __attribute((unused)), void *opq __attribute((unused)))
-{
-	char id_str[2 * DNET_ID_SIZE + 1];
-	struct dnet_history_map m;
-
-	if (keysz != DNET_ID_SIZE) {
-		fprintf(stderr, "Incorrect key size\n");
-		return KCVISNOP;
-	}
-
-	dnet_dump_id_len_raw((unsigned char *)key, DNET_ID_SIZE, id_str);
-	
-	printf("Processing key %.128s\n", id_str);
-
-	if (datasz % (int)sizeof(struct dnet_history_entry)) {
-		fprintf(stderr, "Corrupted history record, "
-				"its size %zu must be multiple of %zu.\n",
-				datasz, sizeof(struct dnet_history_entry));
-		return KCVISNOP;
-	}
-
-	m.ent = (struct dnet_history_entry *)data;
-	m.num = datasz / sizeof(struct dnet_history_entry);
-	m.size = datasz;
-
-	hparser_dump_history(&m, 0, 0);
-	
-	return KCVISNOP;
-}
-
 int main(int argc, char *argv[])
 {
 	struct dnet_history_map m;
 	int err, ch;
 	char *file = NULL, *database = NULL;
 	unsigned long long offset, size;
-	KCDB * db = NULL;
 
 	size = offset = 0;
 
@@ -168,27 +135,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (database) {
-		printf("opening %s history database\n", database);
-		fflush(stdout);
-		fflush(stderr);
-		db = kcdbnew();
-
-		err = kcdbopen(db, database, KCOREADER | KCONOREPAIR);
-		if (!err) {
-			fprintf(stderr, "Failed to open history database '%s': %d.\n", database, -kcdbecode(db));
-			goto err_out_exit;
-		}
-		err = kcdbiterate(db, hparser_visit, NULL, 0);
-		if (!err) {
-			fprintf(stderr, "Failed to iterate history database '%s': %d.\n", database, -kcdbecode(db));
-			goto err_out_dbopen;
-		}
-
-err_out_dbopen:
-		err = kcdbclose(db);
-		if (!err)
-			fprintf(stderr, "Failed to close history database '%s': %d.\n", database, -kcdbecode(db));
-		kcdbdel(db);
+		printf("not yet supported\n");
 	}
 
 err_out_exit:

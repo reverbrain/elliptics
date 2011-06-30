@@ -1,4 +1,4 @@
-bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check dnet_ids dnet_meta dnet_convert_meta dnet_meta_update_groups dnet_find
+bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check dnet_ids dnet_meta dnet_meta_update_groups dnet_find
 noinst_LIBRARIES = libcommon.a libbackend.a
 noinst_HEADERS = backends.h common.h hash.h
 SUBDIRS = .
@@ -9,7 +9,7 @@ CC = @PTHREAD_CC@
 AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
 AM_CXXFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
 
-AM_LDFLAGS = @PTHREAD_LIBS@ @KYOTOCABINET_LIBS@ @EBLOB_LIBS@
+AM_LDFLAGS = @PTHREAD_LIBS@ @EBLOB_LIBS@
 
 
 EXAMPLE_COMMON_LIBS = ../library/libelliptics.la libcommon.a
@@ -44,9 +44,6 @@ dnet_monitor_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_notify_SOURCES = notify.c
 dnet_notify_LDADD = $(EXAMPLE_COMMON_LIBS)
-
-dnet_convert_meta_SOURCES = convert_meta.c
-dnet_convert_meta_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_meta_update_groups_SOURCES = meta_update_groups.c
 dnet_meta_update_groups_LDADD = $(EXAMPLE_COMMON_LIBS)
