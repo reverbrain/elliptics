@@ -1,3 +1,10 @@
+elliptics (2.10.0.2) unstable; urgency=low
+
+  * Implemented proper column API
+  * Added compression support
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 30 Jun 2011 04:30:12 +0400
+
 elliptics (2.10.0.1) unstable; urgency=low
 
   * Added eblob 0.5.2 iterators for meta_iterate() callback.
