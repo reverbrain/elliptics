@@ -1,3 +1,12 @@
+elliptics (2.9.7.10) unstable; urgency=low
+
+  * Switch from openssl to FSF coreutils sha implementation
+  * Do not process zero checksums
+  * Added DNET_LOG_DATA log level
+  * Fixed typo in dnet_recv_route_list() wait
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 30 Jun 2011 21:08:25 +0400
+
 elliptics (2.9.7.9) unstable; urgency=low
 
   * Removed route synchronization calls
