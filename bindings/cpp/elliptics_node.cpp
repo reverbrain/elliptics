@@ -178,8 +178,7 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t offset, 
 	io.size = size;
 	io.offset = offset;
 	io.flags = ioflags;
-
-	id.type = io.type;
+	io.type = id.type;
 
 	void *data = dnet_read_data_wait(node, &id, &io, aflags, &err);
 	if (!data) {
@@ -220,6 +219,8 @@ int elliptics_node::write_data_wait(struct dnet_id &id, const std::string &str,
 	ctl.io.size = str.size();
 	ctl.io.type = id.type;
 
+	memcpy(&ctl.id, &id, sizeof(struct dnet_id));
+
 	ctl.fd = -1;
 
 	int err = dnet_write_data_wait(node, &ctl);
@@ -238,6 +239,7 @@ int elliptics_node::write_data_wait(const std::string &remote, const std::string
 
 	transform(remote, id);
 	id.type = type;
+	id.group_id = 0;
 
 	return write_data_wait(id, str, remote_offset, aflags, ioflags);
 }

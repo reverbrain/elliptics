@@ -105,7 +105,7 @@ int main()
 	std::vector<int> groups(g, g+ARRAY_SIZE(g));
 
 	try {
-		elliptics_log_file log("/dev/stderr", 8);
+		elliptics_log_file log("/dev/stderr", 15);
 
 		elliptics_node n(log);
 		n.add_groups(groups);
@@ -140,17 +140,16 @@ int main()
 
 		n.stat_log();
 
-		std::string key1 = "some-key-1";
-		std::string key2 = "some-key-2";
+		std::string key = "some-key-1";
 
-		std::string data1 = "some-data-1";
-		std::string data2 = "some-data-2";
+		std::string data1 = "some-data-in-column-2";
+		std::string data2 = "some-data-in-column-3";
 
-		n.write_data_wait(key1, data1, 0, 0, 0, 2);
-		n.write_data_wait(key2, data2, 0, 0, 0, 3);
+		n.write_data_wait(key, data1, 0, 0, 0, 2);
+		n.write_data_wait(key, data2, 0, 0, 0, 3);
 
-		std::cout << "read1: " << key1 << ":" << n.read_data_wait(key1, 0, 0, 0, 0, 2) << std::endl;
-		std::cout << "read2: " << key2 << ":" << n.read_data_wait(key2, 0, 0, 0, 0, 3) << std::endl;
+		std::cout << "read-column-2: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 2) << std::endl;
+		std::cout << "read-column-3: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 3) << std::endl;
 	} catch (std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {
