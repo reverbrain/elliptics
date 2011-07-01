@@ -434,6 +434,8 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 	data = mc->data;
 	size = mc->size;
 
+	dnet_log(n, DNET_LOG_DATA, "%s: size: %u\n", dnet_dump_id_len(&mc->id, DNET_ID_SIZE), mc->size);
+
 	while (size) {
 		m = data;
 
@@ -636,7 +638,7 @@ int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc,
 	io.type = id->type = EBLOB_TYPE_META;
 	io.start = io.num = 0;
 
-	data = dnet_read_data_wait(n, id, &io, 0, &err);
+	data = dnet_read_data_wait_raw(n, id, &io, DNET_CMD_READ, 0, &err);
 	if (data) {
 		io.size -= sizeof(struct dnet_io_attr);
 

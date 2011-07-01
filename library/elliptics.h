@@ -637,6 +637,9 @@ struct dnet_map_fd {
 int dnet_data_map(struct dnet_map_fd *map);
 void dnet_data_unmap(struct dnet_map_fd *map);
 
+void *dnet_read_data_wait_raw(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io,
+		int cmd, uint32_t aflags, int *errp);
+
 #ifdef __cplusplus
 }
 #endif

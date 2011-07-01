@@ -2609,7 +2609,7 @@ err_out_exit:
 	return err;
 }
 
-static void *dnet_read_data_wait_raw(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io,
+void *dnet_read_data_wait_raw(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io,
 		int cmd, uint32_t aflags, int *errp)
 {
 	struct dnet_io_control ctl;
