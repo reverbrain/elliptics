@@ -180,6 +180,9 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t offset, 
 	io.flags = ioflags;
 	io.type = id.type;
 
+	memcpy(io.id, id.id, DNET_ID_SIZE);
+	memcpy(io.parent, id.id, DNET_ID_SIZE);
+
 	void *data = dnet_read_data_wait(node, &id, &io, aflags, &err);
 	if (!data) {
 		std::ostringstream str;
