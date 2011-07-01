@@ -1216,7 +1216,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	t->st = dnet_state_get_first(n, &cmd->id);
 	if (!t->st) {
 		err = -ENOENT;
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to find a state.\n", dnet_dump_id(&cmd->id));
+		dnet_log(n, DNET_LOG_DSA, "%s: failed to find a state.\n", dnet_dump_id(&cmd->id));
 		goto err_out_destroy;
 	}
 
@@ -1832,7 +1832,7 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int afl
 	t->st = dnet_state_get_first(n, &cmd->id);
 	if (!t->st) {
 		err = -ENOENT;
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to find a state.\n", dnet_dump_id(&cmd->id));
+		dnet_log(n, DNET_LOG_DSA, "%s: failed to find a state.\n", dnet_dump_id(&cmd->id));
 		goto err_out_destroy;
 	}
 
