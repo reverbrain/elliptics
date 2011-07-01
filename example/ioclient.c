@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
 		/* number of copies to check to find the latest data */
 		io.num = group_num;
 
-		err = dnet_read_latest(n, &raw, &io, &data);
+		err = dnet_read_latest(n, &raw, &io, 0, &data);
 		if (err)
 			return err;
 
@@ -309,8 +309,6 @@ int main(int argc, char *argv[])
 	}
 
 	dnet_node_destroy(n);
-
-	printf("Successfully executed given command.\n");
 
 	return 0;
 }

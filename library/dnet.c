@@ -1239,11 +1239,13 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	req.st = t->st;
 	req.header = cmd;
 	req.hsize = tsize;
-	req.fd = ctl->fd;
-	req.local_offset = ctl->local_offset;
-	req.fsize = size;
 
-	if ((ctl->fd == -1) && (size >= DNET_COPY_IO_SIZE)) {
+	req.fd = ctl->fd;
+
+	if (ctl->fd >= 0) {
+		req.local_offset = ctl->local_offset;
+		req.fsize = size;
+	} else if (size >= DNET_COPY_IO_SIZE) {
 		req.data = (void *)ctl->data;
 		req.dsize = size;
 	}
@@ -3382,7 +3384,7 @@ static int dnet_file_read_latest_cmp(const void *p1, const void *p2)
 	return ret;
 }
 
-int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io, void **datap)
+int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io, uint32_t aflags, void **datap)
 {
 	int *g, num, err, i;
 	struct dnet_read_latest_ctl *ctl;
@@ -3427,16 +3429,18 @@ int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, struct dnet_io_att
 		id->group_id = g[i];
 
 		dnet_wait_get(ctl->w);
-		dnet_lookup_object(n, id, DNET_ATTR_META_TIMES, dnet_read_latest_complete, ctl);
+		dnet_lookup_object(n, id, DNET_ATTR_META_TIMES | aflags, dnet_read_latest_complete, ctl);
 	}
 
 	err = dnet_wait_event(ctl->w, ctl->w->cond == num, &n->wait_ts);
 	if (err)
 		goto err_out_put;
 
+	num = ctl->pos;
+
 	qsort(ctl->ids, num, sizeof(struct dnet_read_latest_id), dnet_file_read_latest_cmp);
 	for (i = 0; i < num; ++i) {
-		void *data = dnet_read_data_wait_raw(n, &ctl->ids[i].id, io, DNET_CMD_READ, 0, &err);
+		void *data = dnet_read_data_wait_raw(n, &ctl->ids[i].id, io, DNET_CMD_READ, aflags, &err);
 		if (data) {
 			*datap = data;
 			err = 0;
@@ -3444,7 +3448,7 @@ int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, struct dnet_io_att
 		}
 	}
 
-	err = -ENOENT;
+	err = -ENODATA;
 
 err_out_put:
 	dnet_read_latest_ctl_put(ctl);

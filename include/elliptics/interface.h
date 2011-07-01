@@ -165,7 +165,7 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id,
 
 /* Read latest data according to stored metadata */
 int dnet_read_latest(struct dnet_node *n, struct dnet_id *id,
-		struct dnet_io_attr *io, void **datap);
+		struct dnet_io_attr *io, uint32_t aflags, void **datap);
 
 /*
  * Read data from range of keys [io->id, io->parent)
