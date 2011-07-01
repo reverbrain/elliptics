@@ -164,15 +164,12 @@ int main(int argc, char *argv[])
 			err = dnet_read_meta(n, &mc, NULL, 0, &raw);
 			if (!err)
 				dnet_meta_print(n, &mc);
+			else
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: could not read metadata\n", dnet_dump_id(&raw));
 		}
 	} else {
 		err = dnet_read_meta(n, &mc, name, strlen(name), NULL);
 		dnet_meta_print(n, &mc);
-	}
-
-	if (err < 0) {
-		fprintf(stderr, "Error during reading meta: %d\n", err);
-		goto err_out_destroy;
 	}
 
 err_out_destroy:
