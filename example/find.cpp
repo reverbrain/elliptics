@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 {
 	int ch, err;
 	char *logfile = (char *)"/dev/stderr";
-	int log_mask = DNET_LOG_INFO | DNET_LOG_ERROR | DNET_LOG_DATA;
+	int log_mask = DNET_LOG_ERROR | DNET_LOG_DATA;
 	char *remote = NULL;
 	struct dnet_id raw;
 	struct dnet_trans_control ctl;
