@@ -110,7 +110,7 @@ using namespace zbr;
 
 struct elliptics_id {
 	elliptics_id() : group_id(0), type(0) {}
-	elliptics_id(list id_, int group) : id(id_), group_id(group), type(0) {}
+	elliptics_id(list id_, int group_, int type_) : id(id_), group_id(group_), type(type_) {}
 	list		id;
 	uint32_t	group_id;
 	uint32_t	type;
@@ -269,6 +269,18 @@ class elliptics_node_python : public elliptics_node {
 			return elliptics_node::read_data_wait(remote, offset, size, aflags, ioflags, type);
 		}
 
+		std::string read_latest_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size,
+				unsigned int aflags, unsigned int ioflags) {
+			struct dnet_id raw;
+			elliptics_extract_id(id, raw);
+			return elliptics_node::read_latest(raw, offset, size, aflags, ioflags);
+		}
+
+		std::string read_latest_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
+				unsigned int aflags, unsigned int ioflags, int type) {
+			return elliptics_node::read_latest(remote, offset, size, aflags, ioflags, type);
+		}
+
 		int write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset,
 				unsigned int aflags, unsigned int ioflags) {
 			struct dnet_id raw;
@@ -317,7 +329,7 @@ BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
 
 BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<elliptics_id>("elliptics_id", init<>())
-		.def(init<list, int>())
+		.def(init<list, int, int>())
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_readwrite("type", &elliptics_id::type)
@@ -368,11 +380,16 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 
 		.def("read_data", &elliptics_node_python::read_data_by_id)
 		.def("read_data", &elliptics_node_python::read_data_by_data_transform)
+
+		.def("read_latest", &elliptics_node_python::read_latest_by_id)
+		.def("read_latest", &elliptics_node_python::read_latest_by_data_transform)
+
 		.def("write_data", &elliptics_node_python::write_data_by_id)
 		.def("write_data", &elliptics_node_python::write_data_by_data_transform)
 
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_data_transform)
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_id)
+
 		.def("write_metadata", &elliptics_node_python::write_metadata)
 
 		.def("update_status", &elliptics_node_python::update_status_by_id)
