@@ -214,46 +214,30 @@ class remote_update {
 
 			memset(&mc, 0, sizeof(mc));
 
-			for (int i=0; i<(int)groups_.size(); ++i) {
-				dnet_setup_id(&id, groups_[i], (unsigned char *)key.id.data());
+			std::string meta, data;
 
-				std::string meta, data;
+			dnet_setup_id(&id, 0, (unsigned char *)key.id.data());
+			id.type = 0;
 
-				try {
-					data = n->read_data_wait(id, 1, aflags_, 0);
-				} catch (...) {
-					std::cout << dnet_dump_id(&id) << ": sending " << key.path <<
-						" offset " << key.offset << " size " << key.size << std::endl;
-					n->write_file(id, (char *)key.path.c_str(), key.offset, 0, key.size, 0, 0);
-					continue;
-				}
+			try {
+				data = n->read_data_wait(id, 0, 1, aflags_, 0);
+				meta = n->read_data_wait(id, 0, 0, aflags_, DNET_IO_FLAGS_META);
+			} catch (...) {
+				std::cout << dnet_dump_id_len(&id, DNET_ID_SIZE) << ": sending " << key.path <<
+					" offset " << key.offset << " size " << key.size << std::endl;
+				n->write_file(id, key.path, key.offset, 0, key.size, 0, 0);
+				return;
+			}
 
-				try {
-					meta = n->read_data_wait(id, 0, 0, aflags_, DNET_IO_FLAGS_META);
-				} catch (...) {
-				}
+			mc.data = (void *)meta.data();
+			mc.size = meta.size();
 
-				mc.data = (void *)meta.data();
-				mc.size = meta.size();
+			m = dnet_meta_search(NULL, &mc, DNET_META_GROUPS);
+			if (!m) {
+				std::string name;
+				struct timespec ts = {0, 0};
 
-				m = dnet_meta_search(NULL, &mc, DNET_META_GROUPS);
-				if (m)
-					continue;
-
-				char buf[sizeof(struct dnet_meta) + sizeof(int) * groups_.size()];
-
-				memset(buf, 0, sizeof(struct dnet_meta));
-
-				m = (struct dnet_meta *)buf;
-
-				m->type = DNET_META_GROUPS;
-				m->size = sizeof(int) * groups_.size();
-
-				memcpy(m->data, groups_.data(), groups_.size() * sizeof(int));
-
-				meta.assign(buf, sizeof(buf));
-
-				n->write_data_wait(id, meta, aflags_, DNET_IO_FLAGS_META | DNET_IO_FLAGS_APPEND);
+				n->write_metadata(id, name, groups_, ts);
 			}
 		}
 

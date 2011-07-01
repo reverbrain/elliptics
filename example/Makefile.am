@@ -1,8 +1,7 @@
 bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check dnet_ids dnet_meta dnet_meta_update_groups dnet_find
 noinst_LIBRARIES = libcommon.a libbackend.a
 noinst_HEADERS = backends.h common.h hash.h
-SUBDIRS = .
-#SUBDIRS += check
+SUBDIRS = . eblob_gen
 
 CC = @PTHREAD_CC@
 
