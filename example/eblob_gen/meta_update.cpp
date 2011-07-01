@@ -35,6 +35,8 @@ class processor_key {
 class generic_processor {
 	public:
 		virtual processor_key next(void) = 0;
+		virtual void move(processor_key &) = 0;
+		virtual void remove(processor_key &) = 0;
 };
 
 class eblob_processor : public generic_processor {
@@ -74,6 +76,11 @@ class eblob_processor : public generic_processor {
 			}
 
 			return key;
+		}
+
+		void move(processor_key &) {
+		}
+		void remove(processor_key &) {
 		}
 
 	private:
@@ -131,6 +138,23 @@ class fs_processor : public generic_processor {
 				break;
 			}
 			return key;
+		}
+
+		void move(processor_key &k) {
+			char dstr[DNET_ID_SIZE*2+1];
+			dnet_dump_id_len_raw((const unsigned char *)k.id.data(), DNET_ID_SIZE, dstr);
+
+			std::string dst = "/tmp/";
+			dst.append(dstr);
+
+			fs::rename(k.path, dst);
+
+			std::cout << "moved " << k.path << " -> " << dst << std::endl;
+			k.path = dst;
+		}
+
+		void remove(processor_key &k) {
+			fs::remove(k.path);
 		}
 
 	private:
@@ -207,7 +231,7 @@ class remote_update {
 		boost::mutex data_lock_;
 		int aflags_;
 
-		void update(elliptics_node *n, processor_key &key) {
+		void update(generic_processor *proc, elliptics_node *n, processor_key &key) {
 			struct dnet_id id;
 			struct dnet_meta *m;
 			struct dnet_meta_container mc;
@@ -223,9 +247,11 @@ class remote_update {
 				data = n->read_data_wait(id, 0, 1, aflags_, 0);
 				meta = n->read_data_wait(id, 0, 0, aflags_, DNET_IO_FLAGS_META);
 			} catch (...) {
+				proc->move(key);
 				std::cout << dnet_dump_id_len(&id, DNET_ID_SIZE) << ": sending " << key.path <<
 					" offset " << key.offset << " size " << key.size << std::endl;
 				n->write_file(id, key.path, key.offset, 0, key.size, 0, 0);
+				proc->remove(key);
 				return;
 			}
 
@@ -251,7 +277,7 @@ class remote_update {
 						key = proc->next();
 					}
 
-					update(n, key);
+					update(proc, n, key);
 				}
 			} catch (...) {
 			}
