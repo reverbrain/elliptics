@@ -105,12 +105,24 @@ int main()
 	std::vector<int> groups(g, g+ARRAY_SIZE(g));
 
 	try {
-		elliptics_log_file log("/dev/stderr", 15);
+		elliptics_log_file log("/dev/stderr", DNET_LOG_ERROR | DNET_LOG_DATA);
 
 		elliptics_node n(log);
 		n.add_groups(groups);
 
-		n.add_remote("localhost", 1025, AF_INET);
+		int ports[] = {1025, 1026};
+		int added = 0;
+
+		for (int i = 0; i < (int)ARRAY_SIZE(ports); ++i) {
+			try {
+				n.add_remote("localhost", ports[i], AF_INET);
+				added++;
+			} catch (...) {
+			}
+		}
+
+		if (!added)
+			throw std::runtime_error("Could not add remote nodes, exiting");
 
 		std::string lobj = "2.xml";
 		try {
@@ -148,9 +160,24 @@ int main()
 		n.write_data_wait(key, data1, 0, 0, 0, 2);
 		n.write_data_wait(key, data2, 0, 0, 0, 3);
 
+		/*
+		 * metadata write will fail, since it will try to checksum data (column 0),
+		 * but we didn't write into that column.
+		 */
+#if 0
+		std::cout << "Writing metadata" << std::endl;
+
+		struct dnet_id id;
+		n.transform(key, id);
+		id.group_id = 0;
+		id.type = 0;
+
+		struct timespec ts = {0, 0};
+		n.write_metadata(id, key, groups, ts);
+#endif
 		std::cout << "read-column-2: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 2) << std::endl;
 		std::cout << "read-column-3: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 3) << std::endl;
-	} catch (std::exception &e) {
+	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {
 		std::cerr << "Error : " << err << std::endl;

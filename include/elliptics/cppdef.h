@@ -150,6 +150,11 @@ class elliptics_node {
 		std::string		read_data_wait(const std::string &remote, uint64_t offset, uint64_t size,
 						uint32_t aflags, uint32_t ioflags, int type);
 
+		std::string		read_latest(struct dnet_id &id, uint64_t offset, uint64_t size,
+						uint32_t aflags, uint32_t ioflags);
+		std::string		read_latest(const std::string &remote, uint64_t offset, uint64_t size,
+						uint32_t aflags, uint32_t ioflags, int type);
+
 		int			write_data_wait(struct dnet_id &id, const std::string &str,
 						uint64_t remote_offset, unsigned int aflags, unsigned int ioflags);
 		int			write_data_wait(const std::string &remote, const std::string &str,

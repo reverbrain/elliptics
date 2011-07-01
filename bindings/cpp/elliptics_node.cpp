@@ -40,7 +40,7 @@
 
 using namespace zbr;
 
-elliptics_node::elliptics_node(elliptics_log &l)
+elliptics_node::elliptics_node(elliptics_log &l) : node(NULL), log(NULL)
 {
 	struct dnet_config cfg;
 
@@ -64,7 +64,7 @@ elliptics_node::elliptics_node(elliptics_log &l)
 	}
 }
 
-elliptics_node::elliptics_node(elliptics_log &l, struct dnet_config &cfg)
+elliptics_node::elliptics_node(elliptics_log &l, struct dnet_config &cfg) : node(NULL), log(NULL)
 {
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
@@ -205,6 +205,47 @@ std::string elliptics_node::read_data_wait(const std::string &remote, uint64_t o
 	id.type = type;
 
 	return read_data_wait(id, size, offset, aflags, ioflags);
+}
+
+std::string elliptics_node::read_latest(struct dnet_id &id, uint64_t offset, uint64_t size,
+		uint32_t aflags, uint32_t ioflags)
+{
+	struct dnet_io_attr io;
+	void *data;
+	int err;
+
+	memset(&io, 0, sizeof(io));
+	io.size = size;
+	io.offset = offset;
+	io.flags = ioflags;
+	io.type = id.type;
+	io.num = groups.size();
+
+	memcpy(io.id, id.id, DNET_ID_SIZE);
+	memcpy(io.parent, id.id, DNET_ID_SIZE);
+
+	err = dnet_read_latest(node, &id, &io, aflags, &data);
+	if (err < 0) {
+		std::ostringstream str;
+		str << dnet_dump_id(&id) << ": READ: size: " << size << ": err: " << strerror(-err) << ": " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	std::string ret = std::string((const char *)data + sizeof(struct dnet_io_attr), io.size - sizeof(struct dnet_io_attr));
+	free(data);
+
+	return ret;
+}
+
+std::string elliptics_node::read_latest(const std::string &remote, uint64_t offset, uint64_t size,
+		uint32_t aflags, uint32_t ioflags, int type)
+{
+	struct dnet_id id;
+
+	transform(remote, id);
+	id.type = type;
+
+	return read_latest(id, size, offset, aflags, ioflags);
 }
 
 int elliptics_node::write_data_wait(struct dnet_id &id, const std::string &str,
