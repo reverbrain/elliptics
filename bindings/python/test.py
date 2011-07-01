@@ -11,12 +11,13 @@ try:
 	n.add_groups([1,2,3])
 	n.add_remote("localhost", 1025)
 
-	group = 2
+	group = 5
 	try:
 		obj = "qwerty.xml"
-		print "object", obj, "should live at", n.lookup_addr(obj, group), "in group", group
-	except:
-		print "Failed to lookup in group ", group
+		addr = n.lookup_addr(obj, group)
+		print "object", obj, "should live at", addr, "in group", group
+	except Exception as e:
+		print "Failed to lookup in group", group, ":", e
 
 	id = elliptics_id([1, 2, 3, 4], 2, 0)
 
@@ -26,14 +27,14 @@ try:
 		data = '1234567890qwertyuio'
 		n.write_data(id, data, 0, 0, 0)
 		print "WRITE:", data
-	except:
-		print "Failed to write data by id"
+	except Exception as e:
+		print "Failed to write data by id:", e
 
 	try:
 		s = n.read_data(id, 0, 0, 0, 0)
 		print " READ:", s
-	except:
-		print "Failed to read data by id"
+	except Exception as e:
+		print "Failed to read data by id:", e
 
 	# write data into all 3 groups specified in add_groups() call.
 	# read data from the first available group
@@ -42,15 +43,15 @@ try:
 		data = '1234567890qwertyuio'
 		n.write_data(key, data, 0, 0, 0, 0)
 		print "WRITE:", key, ":", data
-	except:
-		print "Failed to write data by string"
+	except Exception as e:
+		print "Failed to write data by string:", e
 
 	try:
 		key = "test.txt"
 		s = n.read_data("test.txt", 0, 0, 0, 0, 0)
 		print " READ:", key, ":", s
-	except:
-		print "Failed to read data by string"
+	except Exception as e:
+		print "Failed to read data by string:", e
 
 	print n.read_latest("2.xml", 0, 0, 0, 0, 0);
 
