@@ -193,6 +193,9 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* Bulk request for checking files */
 #define DNET_ATTR_BULK_CHECK			(1<<0)
 
+/* Fill ctime/mtime from metadata when processing DNET_CMD_LOOKUP */
+#define DNET_ATTR_META_TIMES			(1<<1)
+
 /* Do not verify checksum */
 #define DNET_ATTR_NOCSUM			(1<<2)
 
@@ -480,6 +483,16 @@ static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)
 		st[cmd].err++;
 }
 
+struct dnet_time {
+	uint64_t		tsec, tnsec;
+};
+
+static inline void dnet_convert_time(struct dnet_time *tm)
+{
+	tm->tsec = dnet_bswap64(tm->tsec);
+	tm->tnsec = dnet_bswap64(tm->tnsec);
+}
+
 struct dnet_file_info {
 	int			flen;		/* filename length, which goes after this structure */
 	unsigned char		checksum[DNET_CSUM_SIZE];
@@ -502,9 +515,9 @@ struct dnet_file_info {
 	uint64_t		size;
 	uint64_t		offset;		/* offset within eblob */
 
-	uint64_t		atime;
-	uint64_t		ctime;
-	uint64_t		mtime;
+	struct dnet_time	atime;
+	struct dnet_time	ctime;
+	struct dnet_time	mtime;
 };
 
 static inline void dnet_convert_file_info(struct dnet_file_info *info)
@@ -522,9 +535,10 @@ static inline void dnet_convert_file_info(struct dnet_file_info *info)
 	info->rdev = dnet_bswap64(info->rdev);
 	info->size = dnet_bswap64(info->size);
 	info->offset = dnet_bswap64(info->offset);
-	info->atime = dnet_bswap64(info->atime);
-	info->ctime = dnet_bswap64(info->ctime);
-	info->mtime = dnet_bswap64(info->mtime);
+
+	dnet_convert_time(&info->atime);
+	dnet_convert_time(&info->ctime);
+	dnet_convert_time(&info->mtime);
 }
 
 static inline void dnet_info_from_stat(struct dnet_file_info *info, struct stat *st)
@@ -540,9 +554,14 @@ static inline void dnet_info_from_stat(struct dnet_file_info *info, struct stat 
 	info->rdev = st->st_rdev;
 	info->size = st->st_size;
 	info->offset = 0;
-	info->atime = st->st_atime;
-	info->ctime = st->st_ctime;
-	info->mtime = st->st_mtime;
+
+	info->atime.tsec = st->st_atime;
+	info->ctime.tsec = st->st_ctime;
+	info->mtime.tsec = st->st_mtime;
+
+	info->atime.tnsec = 0;
+	info->ctime.tnsec = 0;
+	info->mtime.tnsec = 0;
 }
 
 /* Elliptics node status */

@@ -822,7 +822,7 @@ static int dnet_merge_common(struct dnet_node *n, struct dnet_meta_container *re
 		goto err_out_exit;
 	}
 
-	if ((local.tsec > remote.tsec) || (local.tsec == remote.tsec && local.tnsec > remote.tnsec)) {
+	if ((local.tm.tsec > remote.tm.tsec) || (local.tm.tsec == remote.tm.tsec && local.tm.tnsec > remote.tm.tnsec)) {
 		if (local.flags & DNET_IO_FLAGS_REMOVED) {
 			err = dnet_remove_object_now(n, &mc->id, 0);
 		} else {

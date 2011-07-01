@@ -78,6 +78,7 @@ int main(int argc, char *argv[])
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
 	char *logfile = "/dev/stderr", *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
+	char *read_data = NULL;
 	char *removef = NULL;
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	FILE *log = NULL;
@@ -95,7 +96,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "N:g:u:O:S:m:zsUaL:w:l:c:I:r:W:R:h")) != -1) {
+	while ((ch = getopt(argc, argv, "N:g:u:O:S:m:zsUaL:w:l:c:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
 			case 'N':
 				cfg.ns = optarg;
@@ -164,6 +165,9 @@ int main(int argc, char *argv[])
 			case 'R':
 				readf = optarg;
 				break;
+			case 'D':
+				read_data = optarg;
+				break;
 			case 'h':
 			default:
 				dnet_usage(argv[0]);
@@ -213,6 +217,40 @@ int main(int argc, char *argv[])
 
 		if (err)
 			return err;
+	}
+	
+	if (read_data) {
+		void *data;
+		struct dnet_id raw;
+		struct dnet_io_attr io;
+
+		dnet_transform(n, read_data, strlen(read_data), &raw);
+
+		memset(&io, 0, sizeof(io));
+		memcpy(io.id, raw.id, DNET_ID_SIZE);
+		memcpy(io.parent, raw.id, DNET_ID_SIZE);
+
+		/* number of copies to check to find the latest data */
+		io.num = group_num;
+
+		err = dnet_read_latest(n, &raw, &io, &data);
+		if (err)
+			return err;
+
+		data += sizeof(struct dnet_io_attr);
+		io.size -= sizeof(struct dnet_io_attr);
+
+		while (io.size) {
+			err = write(1, data, io.size);
+			if (err <= 0) {
+				err = -errno;
+				dnet_log_raw(n, DNET_LOG_ERROR, "%s: can not write data to stdout: %d %s",
+						read_data, err, strerror(-err));
+				return err;
+			}
+
+			io.size -= err;
+		}
 	}
 
 	if (removef) {

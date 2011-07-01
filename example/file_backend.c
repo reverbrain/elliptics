@@ -308,6 +308,12 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 			goto err_out_free;
 	}
 
+	if (attr->flags & DNET_ATTR_META_TIMES) {
+		err = dnet_meta_fill(n, &cmd->id, info);
+		if (err)
+			goto err_out_free;
+	}
+
 	dnet_convert_addr_attr(a);
 	dnet_convert_file_info(info);
 

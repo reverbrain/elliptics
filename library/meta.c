@@ -61,8 +61,8 @@ static int dnet_update_ts_metadata_raw(struct dnet_meta_container *mc, uint64_t 
 			dnet_convert_meta_update(mu);
 			gettimeofday(&tv, NULL);
 
-			mu->tsec = tv.tv_sec;
-			mu->tnsec = tv.tv_usec * 1000;
+			mu->tm.tsec = tv.tv_sec;
+			mu->tm.tnsec = tv.tv_usec * 1000;
 			mu->flags |= flags_set;
 			mu->flags &= ~flags_clear;
 
@@ -93,8 +93,8 @@ static void dnet_create_meta_update(struct dnet_meta *m, struct timespec *ts, ui
 		ts = &raw_ts;
 	}
 
-	mu->tsec = ts->tv_sec;
-	mu->tnsec = ts->tv_nsec;
+	mu->tm.tsec = ts->tv_sec;
+	mu->tm.tnsec = ts->tv_nsec;
 
 	mu->flags = 0;
 	mu->flags |= flags_set;
@@ -493,13 +493,13 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 
 			dnet_convert_meta_update(mu);
 
-			localtime_r((time_t *)&mu->tsec, &tm);
+			localtime_r((time_t *)&mu->tm.tsec, &tm);
 			strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
 
-			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, group: %d, flags: %llx, ts: %s %lld.%lld\n",
+			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, flags: %llx, ts: %s %lld.%lld\n",
 					dnet_meta_types[m->type], m->type, m->size,
-					mu->group_id, (unsigned long long)mu->flags, tstr,
-					(unsigned long long)mu->tsec, (unsigned long long)mu->tnsec);
+					(unsigned long long)mu->flags, tstr,
+					(unsigned long long)mu->tm.tsec, (unsigned long long)mu->tm.tnsec);
 		} else if (m->type == DNET_META_NAMESPACE) {
 			char str[m->size + 1];
 			memcpy(str, m->data, m->size);
@@ -654,6 +654,42 @@ int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc,
 
 err_out_free:
 	free(data);
+err_out_exit:
+	return err;
+}
+
+int dnet_meta_fill(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *fi)
+{
+	struct dnet_meta_container mc;
+	struct dnet_meta_update *mu;
+	struct dnet_raw_id raw;
+	struct dnet_meta *m;
+	int err;
+
+	memcpy(raw.id, id->id, DNET_ID_SIZE);
+
+	err = n->cb->meta_read(n->cb->command_private, &raw, &mc.data);
+	if (err < 0) {
+		goto err_out_exit;
+	}
+	mc.size = err;
+
+	m = dnet_meta_search(n, &mc, DNET_META_UPDATE);
+	if (!m) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: READ: meta-fill: no DNET_META_UPDATE tag in metadata\n",
+				dnet_dump_id(id));
+		err = -ENODATA;
+		goto err_out_free;
+	}
+
+	mu = (struct dnet_meta_update *)m->data;
+	dnet_convert_meta_update(mu);
+
+	fi->ctime = fi->mtime = mu->tm;
+	err = 0;
+
+err_out_free:
+	free(mc.data);
 err_out_exit:
 	return err;
 }

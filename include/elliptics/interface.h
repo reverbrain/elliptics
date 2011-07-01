@@ -163,6 +163,10 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
 void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id,
 		struct dnet_io_attr *io, uint32_t aflags, int *errp);
 
+/* Read latest data according to stored metadata */
+int dnet_read_latest(struct dnet_node *n, struct dnet_id *id,
+		struct dnet_io_attr *io, void **datap);
+
 /*
  * Read data from range of keys [io->id, io->parent)
  * Other parameters are treated the same as in dnet_read_data_wait()
@@ -803,6 +807,7 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, unsigned int remote_len,
 		struct dnet_id *id, struct timespec *ts);
 void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc);
+int dnet_meta_fill(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *fi);
 
 int dnet_lookup_addr(struct dnet_node *n, const void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen);
 void dnet_fill_addr_attr(struct dnet_node *n, struct dnet_addr_attr *attr);
@@ -838,19 +843,16 @@ static inline void dnet_convert_check_reply(struct dnet_check_reply *r)
 }
 
 struct dnet_meta_update {
-	int			group_id;
-	int			unused_gap;
+	int			unused_gap[2];
 	uint64_t		flags;
-	uint64_t		tsec, tnsec;
+	struct dnet_time	tm;
 	uint64_t		reserved[4];
 } __attribute__((packed));
 
 static inline void dnet_convert_meta_update(struct dnet_meta_update *m)
 {
-	m->group_id = dnet_bswap32(m->group_id);
+	dnet_convert_time(&m->tm);
 	m->flags = dnet_bswap64(m->flags);
-	m->tsec = dnet_bswap64(m->tsec);
-	m->tnsec = dnet_bswap64(m->tnsec);
 }
 
 struct dnet_meta_check_status {

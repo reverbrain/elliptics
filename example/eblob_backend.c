@@ -352,6 +352,8 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	}
 
 	dnet_info_from_stat(info, &st);
+	/* this is not valid data from raw blob file stat */
+	info->ctime.tsec = info->mtime.tsec = 0;
 
 	csize = sizeof(info->checksum);
 	if (attr->flags & DNET_ATTR_NOCSUM) {
@@ -359,6 +361,12 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	} else {
 		err = dnet_verify_checksum_io(n, &cmd->id, info->checksum, &csize);
 		if (err && (err != -ENODATA))
+			goto err_out_free;
+	}
+
+	if (attr->flags & DNET_ATTR_META_TIMES) {
+		err = dnet_meta_fill(n, &cmd->id, info);
+		if (err)
 			goto err_out_free;
 	}
 
