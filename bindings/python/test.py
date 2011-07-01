@@ -11,9 +11,10 @@ try:
 	n.add_groups([1,2,3])
 	n.add_remote("localhost", 1025)
 
-	group = 5
+	group = 2
 	try:
-		print n.lookup_addr("qwerty.xml", group)
+		obj = "qwerty.xml"
+		print "object", obj, "should live at", n.lookup_addr(obj, group), "in group", group
 	except:
 		print "Failed to lookup in group ", group
 
