@@ -1,3 +1,17 @@
+elliptics (2.10.0.3) unstable; urgency=low
+
+  * Do not csum zero-length files
+  * Request metadata times in dnet_find()
+  * Use readlink() to get eblob name through /proc/self/fd
+  * Metadata reading should behave similar when reading by name and by ID
+  * Move to be written object into /tmp and then remove (dnet_meta_update_all)
+  * Export dnet_read_data_wait_raw() and use it for metadata reading
+  * Implemented latest read, i.e. kind of R from R, W and N, but we always get
+    the latest data from those R reads. Also C++/Python bindings
+  * Removed kyoto cabinet support
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 03 Jul 2011 03:50:09 +0400
+
 elliptics (2.10.0.2) unstable; urgency=low
 
   * Implemented proper column API
