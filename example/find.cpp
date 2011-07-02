@@ -225,6 +225,7 @@ int main(int argc, char *argv[])
 			dnet_setup_id(&ctl.id, 0, raw.id);
 			ctl.cflags = DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK;
 			ctl.cmd = DNET_CMD_LOOKUP;
+			ctl.aflags = DNET_ATTR_META_TIMES;
 
 			int num = find.request_cmd(ctl);
 			std::string lookup_ret = c.wait(num);
@@ -242,9 +243,8 @@ int main(int argc, char *argv[])
 			ctl.complete = elliptics_callback::elliptics_complete_callback;
 
 			dnet_setup_id(&ctl.id, 0, raw.id);
-			ctl.cflags = DNET_FLAGS_DIRECT;
 			ctl.cmd = DNET_CMD_READ;
-			ctl.cflags = DNET_FLAGS_NEED_ACK;
+			ctl.cflags = DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK;
 
 			struct dnet_io_attr io;
 			memset(&io, 0, sizeof(io));
