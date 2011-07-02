@@ -308,7 +308,11 @@ static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 		goto err_out_exit;
 	}
 
-	err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
+	err = 0;
+	if (!size)
+		memset(csum, 0, *csize);
+	else
+		err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
 
 err_out_exit:
 	return err;
