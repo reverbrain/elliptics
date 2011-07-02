@@ -169,7 +169,8 @@ int main(int argc, char *argv[])
 		}
 	} else {
 		err = dnet_read_meta(n, &mc, name, strlen(name), NULL);
-		dnet_meta_print(n, &mc);
+		if (!err)
+			dnet_meta_print(n, &mc);
 	}
 
 err_out_destroy:

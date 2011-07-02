@@ -620,6 +620,12 @@ int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc,
 	void *data;
 	int err;
 
+	io.flags = DNET_IO_FLAGS_META;
+	io.size = 0;
+	io.offset = 0;
+	io.type = 0;
+	io.start = io.num = 0;
+
 	if (!id) {
 		if (!remote) {
 			err = -EINVAL;
@@ -628,17 +634,22 @@ int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc,
 
 		dnet_transform(n, remote, remote_len, &raw);
 		id = &raw;
+
+		id->type = 0;
+
+		memcpy(io.id, id->id, DNET_ID_SIZE);
+		memcpy(io.parent, id->id, DNET_ID_SIZE);
+
+		data = dnet_read_data_wait(n, id, &io, 0, &err);
+	} else {
+		id->type = 0;
+
+		memcpy(io.id, id->id, DNET_ID_SIZE);
+		memcpy(io.parent, id->id, DNET_ID_SIZE);
+
+		data = dnet_read_data_wait_raw(n, id, &io, DNET_CMD_READ, 0, &err);
 	}
 
-	memcpy(io.id, id->id, DNET_ID_SIZE);
-	memcpy(io.parent, id->id, DNET_ID_SIZE);
-	io.flags = DNET_IO_FLAGS_META;
-	io.size = 0;
-	io.offset = 0;
-	io.type = id->type = EBLOB_TYPE_META;
-	io.start = io.num = 0;
-
-	data = dnet_read_data_wait_raw(n, id, &io, DNET_CMD_READ, 0, &err);
 	if (data) {
 		io.size -= sizeof(struct dnet_io_attr);
 
