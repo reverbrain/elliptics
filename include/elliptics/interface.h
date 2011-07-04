@@ -296,7 +296,7 @@ struct dnet_backend_callbacks {
 	int			(* meta_iterate)(void *priv, unsigned int flags,
 					int (* callback)(struct eblob_disk_control *dc,
 						         struct eblob_ram_control *rc,
-							 void *data, void *p),
+							 void *data, void *p, void *thread_priv),
 					void *callback_private);
 
 	/* returns number of metadata elements */
@@ -943,8 +943,7 @@ ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *
 int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *data, unsigned int size);
 int dnet_db_remove_raw(struct eblob_backend *b, struct dnet_raw_id *id, int real_del);
 int dnet_db_iterate(struct eblob_backend *b, unsigned int flags,
-		int (* callback)(struct eblob_disk_control *dc,
-			struct eblob_ram_control *rc, void *data, void *p),
+		struct eblob_iterate_callbacks *iterate_cb,
 		void *callback_private);
 
 #ifdef __cplusplus

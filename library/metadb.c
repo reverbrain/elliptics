@@ -200,8 +200,7 @@ static int dnet_db_send_check_reply(struct dnet_db_list_control *ctl)
 
 
 int dnet_db_iterate(struct eblob_backend *b, unsigned int flags __unused,
-		int (* callback)(struct eblob_disk_control *dc,
-			struct eblob_ram_control *rc, void *data, void *p),
+		struct eblob_iterate_callbacks *iterate_cb,
 		void *callback_private)
 {
 	struct eblob_iterate_control ctl;
@@ -210,7 +209,7 @@ int dnet_db_iterate(struct eblob_backend *b, unsigned int flags __unused,
 
 	ctl.check_index = 1;
 	ctl.priv = callback_private;
-	ctl.iterator = callback;
+	memcpy(&ctl.iterator_cb, iterate_cb, sizeof(struct eblob_iterate_callbacks));
 	ctl.start_type = ctl.max_type = EBLOB_TYPE_META;
 
 	return eblob_iterate(b, &ctl);
@@ -377,7 +376,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 			}
 		}
 	} else {
-		err = n->cb->meta_iterate(n->cb->command_private, 0, dnet_db_list_iter, &ctl);
+		//err = n->cb->meta_iterate(n->cb->command_private, 0, dnet_db_list_iter, &ctl);
 	}
 
 	if(r->flags & DNET_CHECK_MERGE) {
