@@ -41,7 +41,6 @@ static int dnet_update_ts_metadata_raw(struct dnet_meta_container *mc, uint64_t 
 	void *data = mc->data;
 	uint32_t size = mc->size;
 	struct dnet_meta_update *mu;
-	struct timeval tv;
 
 	while (size) {
 		if (size < sizeof(struct dnet_meta)) {
@@ -59,10 +58,8 @@ static int dnet_update_ts_metadata_raw(struct dnet_meta_container *mc, uint64_t 
 			mu = (struct dnet_meta_update *)(data + sizeof(struct dnet_meta));
 
 			dnet_convert_meta_update(mu);
-			gettimeofday(&tv, NULL);
 
-			mu->tm.tsec = tv.tv_sec;
-			mu->tm.tnsec = tv.tv_usec * 1000;
+			dnet_current_time(&mu->tm);
 			mu->flags |= flags_set;
 			mu->flags &= ~flags_clear;
 
@@ -79,22 +76,16 @@ static int dnet_update_ts_metadata_raw(struct dnet_meta_container *mc, uint64_t 
 static void dnet_create_meta_update(struct dnet_meta *m, struct timespec *ts, uint64_t flags_set, uint64_t flags_clear)
 {
 	struct dnet_meta_update *mu = (struct dnet_meta_update *)m->data;
-	struct timespec raw_ts;
 
 	m->size = sizeof(struct dnet_meta_update);
 	m->type = DNET_META_UPDATE;
 
 	if (!ts) {
-		struct timeval tv;
-
-		gettimeofday(&tv, NULL);
-		raw_ts.tv_sec = tv.tv_sec;
-		raw_ts.tv_nsec = tv.tv_usec * 1000;
-		ts = &raw_ts;
+		dnet_current_time(&mu->tm);
+	} else {
+		mu->tm.tsec = ts->tv_sec;
+		mu->tm.tnsec = ts->tv_nsec;
 	}
-
-	mu->tm.tsec = ts->tv_sec;
-	mu->tm.tnsec = ts->tv_nsec;
 
 	mu->flags = 0;
 	mu->flags |= flags_set;
@@ -397,8 +388,8 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 	}
 
 	csum = (struct dnet_meta_checksum *)m->data;
-	csum->tsec = ctl->ts.tv_sec;
-	csum->tnsec = ctl->ts.tv_nsec;
+	csum->tm.tsec = ctl->ts.tv_sec;
+	csum->tm.tnsec = ctl->ts.tv_nsec;
 	dnet_convert_meta_checksum(csum);
 	m->size = sizeof(struct dnet_meta_checksum);
 	m->type = DNET_META_CHECKSUM;
@@ -482,14 +473,14 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 
 			dnet_convert_meta_check_status(s);
 
-			localtime_r((time_t *)&s->tsec, &tm);
+			localtime_r((time_t *)&s->tm.tsec, &tm);
 			strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
 
 			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, check status: %d, ts: %s: %lld.%lld\n",
 					dnet_meta_types[m->type],
 					m->type, m->size, s->status, tstr,
-					(unsigned long long)s->tsec,
-					(unsigned long long)s->tnsec);
+					(unsigned long long)s->tm.tsec,
+					(unsigned long long)s->tm.tnsec);
 		} else if (m->type == DNET_META_UPDATE) {
 			struct dnet_meta_update *mu = (struct dnet_meta_update *)m->data;
 
@@ -513,13 +504,13 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 			struct dnet_meta_checksum *cs = (struct dnet_meta_checksum *)m->data;
 			char str[2*DNET_CSUM_SIZE+1];
 
-			localtime_r((time_t *)&cs->tsec, &tm);
+			localtime_r((time_t *)&cs->tm.tsec, &tm);
 			strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
 
 			dnet_dump_id_len_raw(cs->checksum, DNET_CSUM_SIZE, str);
 			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u, csum: %s, ts: %s %lld.%lld\n",
 					dnet_meta_types[m->type], m->type, m->size, str, tstr,
-					(unsigned long long)cs->tsec, (unsigned long long)cs->tnsec);
+					(unsigned long long)cs->tm.tsec, (unsigned long long)cs->tm.tnsec);
 		} else {
 			dnet_log(n, DNET_LOG_DATA, "%s: type: %u, size: %u\n",
 					dnet_meta_types[m->type], m->type, m->size);

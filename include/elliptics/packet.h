@@ -493,6 +493,16 @@ static inline void dnet_convert_time(struct dnet_time *tm)
 	tm->tnsec = dnet_bswap64(tm->tnsec);
 }
 
+static inline void dnet_current_time(struct dnet_time *t)
+{
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+
+	t->tsec = tv.tv_sec;
+	t->tnsec = tv.tv_usec * 1000;
+}
+
 struct dnet_file_info {
 	int			flen;		/* filename length, which goes after this structure */
 	unsigned char		checksum[DNET_CSUM_SIZE];

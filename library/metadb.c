@@ -181,7 +181,7 @@ static long long dnet_meta_get_ts(struct dnet_node *n, struct dnet_meta_containe
 	c = (struct dnet_meta_check_status *)m->data;
 	dnet_convert_meta_check_status(c);
 
-	return (long long)c->tsec;
+	return (long long)c->tm.tsec;
 }
 
 static int dnet_db_send_check_reply(struct dnet_db_list_control *ctl)
