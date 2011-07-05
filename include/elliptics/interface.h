@@ -294,9 +294,7 @@ struct dnet_backend_callbacks {
 	 * @callback_private will be accessible in @callback as argument @p
 	 */
 	int			(* meta_iterate)(void *priv, unsigned int flags,
-					int (* callback)(struct eblob_disk_control *dc,
-						         struct eblob_ram_control *rc,
-							 void *data, void *p, void *thread_priv),
+					struct eblob_iterate_callbacks *iterate_cb,
 					void *callback_private);
 
 	/* returns number of metadata elements */
