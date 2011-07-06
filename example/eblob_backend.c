@@ -610,8 +610,7 @@ static long long dnet_eblob_db_total_elements(void *priv)
 }
 
 static int dnet_eblob_db_iterate(void *priv, unsigned int flags,
-		struct eblob_iterate_callbacks *iterate_cb,
-		void *callback_private)
+		struct eblob_iterate_callbacks *iterate_cb, void *callback_private)
 {
 	struct eblob_backend_config *c = priv;
 	return dnet_db_iterate(c->eblob, flags, iterate_cb, callback_private);

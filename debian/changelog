@@ -1,3 +1,11 @@
+elliptics (2.10.0.4) unstable; urgency=low
+
+  * Merge eblob iterator callback changes
+  * Switched from tsec/tnsec to dnet_time
+  * Sync with 0.7.0 eblob changes
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 05 Jul 2011 22:06:26 +0400
+
 elliptics (2.10.0.3) unstable; urgency=low
 
   * Do not csum zero-length files

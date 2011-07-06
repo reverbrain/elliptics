@@ -294,7 +294,7 @@ struct dnet_backend_callbacks {
 	 * @callback_private will be accessible in @callback as argument @p
 	 */
 	int			(* meta_iterate)(void *priv, unsigned int flags,
-					struct eblob_iterate_callbacks *iterator_cb,
+					struct eblob_iterate_callbacks *iterate_cb,
 					void *callback_private);
 
 	/* returns number of metadata elements */
@@ -859,26 +859,24 @@ static inline void dnet_convert_meta_update(struct dnet_meta_update *m)
 struct dnet_meta_check_status {
 	int			status;
 	int			pad;
-	uint64_t		tsec, tnsec;
+	struct dnet_time	tm;
 	uint64_t		reserved[4];
 } __attribute__ ((packed));
 
 static inline void dnet_convert_meta_check_status(struct dnet_meta_check_status *c)
 {
 	c->status = dnet_bswap32(c->status);
-	c->tsec = dnet_bswap64(c->tsec);
-	c->tnsec = dnet_bswap64(c->tnsec);
+	dnet_convert_time(&c->tm);
 }
 
 struct dnet_meta_checksum {
 	uint8_t			checksum[DNET_CSUM_SIZE];
-	uint64_t		tsec, tnsec;
+	struct dnet_time	tm;
 } __attribute__ ((packed));
 
 static inline void dnet_convert_meta_checksum(struct dnet_meta_checksum *c)
 {
-	c->tsec = dnet_bswap64(c->tsec);
-	c->tnsec = dnet_bswap64(c->tnsec);
+	dnet_convert_time(&c->tm);
 }
 
 /* Set by dnet_check when we only want to merge transaction
