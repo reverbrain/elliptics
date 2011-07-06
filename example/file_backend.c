@@ -48,6 +48,8 @@ struct file_backend_root
 	int			sync;
 	int			bit_num;
 
+	unsigned int		db_buckets;
+
 	struct eblob_log	log;
 	struct eblob_backend	*meta;
 };
@@ -364,6 +366,14 @@ static int dnet_file_set_bit_number(struct dnet_config_backend *b, char *key __u
 	return 0;
 }
 
+static int dnet_file_set_db_buckets(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct file_backend_root *r = b->data;
+
+	r->db_buckets = (unsigned int)strtoul(value, NULL, 0);
+	return 0;
+}
+
 static int dnet_file_set_sync(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct file_backend_root *r = b->data;
@@ -464,6 +474,8 @@ static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c,
 
 	memset(&ecfg, 0, sizeof(ecfg));
 	ecfg.file = meta_path;
+	ecfg.hash_size = r->db_buckets;
+	dnet_backend_log(DNET_LOG_DSA, "ecfg.hash_size = %d\n", ecfg.hash_size);
 
 	r->log.log = c->log->log;
 	r->log.log_private = c->log->log_private;
@@ -565,6 +577,7 @@ static struct dnet_config_entry dnet_cfg_entries_filesystem[] = {
 	{"directory_bit_number", dnet_file_set_bit_number},
 	{"sync", dnet_file_set_sync},
 	{"root", dnet_file_set_root},
+	{"db_buckets", dnet_file_set_db_buckets},
 };
 
 static struct dnet_config_backend dnet_file_backend = {
