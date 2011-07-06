@@ -572,7 +572,7 @@ int dnet_try_reconnect(struct dnet_node *n);
 
 struct dnet_bulk_id
 {
-	uint8_t	id[DNET_ID_SIZE];
+	struct dnet_raw_id id;
 	struct dnet_meta_update last_update;
 } __attribute__ ((packed));
 
@@ -588,6 +588,7 @@ struct dnet_bulk_array
 {
 	int num;
 	struct dnet_bulk_state *states;
+	atomic_t refcnt;
 };
 
 static inline int dnet_compare_bulk_state(const void *k1, const void *k2)
@@ -602,12 +603,30 @@ static inline int dnet_compare_bulk_state(const void *k1, const void *k2)
 	return memcmp(st1->addr.addr, st2->addr.addr, st1->addr.addr_len);
 }
 
-int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_copies);
+struct dnet_check_temp_db {
+	struct eblob_backend *b;
+	struct eblob_log log;
+	atomic_t refcnt;
+};
+
+
+
+static inline struct dnet_check_temp_db * dnet_check_temp_db_get(struct dnet_check_temp_db *db) {
+	atomic_inc(&db->refcnt);
+	return db;
+}
+
+static inline void dnet_check_temp_db_put(struct dnet_check_temp_db *db) {
+	if (atomic_dec_and_test(&db->refcnt)) {
+		eblob_cleanup(db->b);
+		free(db);
+	}
+}
+
+int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, int check_copies, struct dnet_check_temp_db *db);
 int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr);
-#ifdef HAVE_CHECK
 int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
-int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state);
-#endif
+int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state, struct dnet_check_temp_db *db);
 
 struct dnet_meta_update * dnet_get_meta_update(struct dnet_node *n, struct dnet_meta_container *mc,
 		struct dnet_meta_update *meta_update);

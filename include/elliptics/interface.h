@@ -294,9 +294,7 @@ struct dnet_backend_callbacks {
 	 * @callback_private will be accessible in @callback as argument @p
 	 */
 	int			(* meta_iterate)(void *priv, unsigned int flags,
-					int (* callback)(struct eblob_disk_control *dc,
-						         struct eblob_ram_control *rc,
-							 void *data, void *p, void *thread_priv),
+					struct eblob_iterate_callbacks *iterator_cb,
 					void *callback_private);
 
 	/* returns number of metadata elements */
@@ -808,6 +806,8 @@ int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, 
 		struct dnet_id *id, struct timespec *ts);
 void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc);
 int dnet_meta_fill(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *fi);
+int dnet_meta_update_check_status_raw(struct dnet_node *n, struct dnet_meta_container *mc);
+int dnet_meta_update_check_status(struct dnet_node *n, struct dnet_meta_container *mc);
 
 int dnet_lookup_addr(struct dnet_node *n, const void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen);
 void dnet_fill_addr_attr(struct dnet_node *n, struct dnet_addr_attr *attr);
@@ -843,7 +843,8 @@ static inline void dnet_convert_check_reply(struct dnet_check_reply *r)
 }
 
 struct dnet_meta_update {
-	int			unused_gap[2];
+	int			unused_gap;
+	int			group_id;
 	uint64_t		flags;
 	struct dnet_time	tm;
 	uint64_t		reserved[4];
