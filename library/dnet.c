@@ -656,13 +656,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				if (n->ro) {
 					err = -EROFS;
 				} else {
-#ifdef HAVE_CHECK
 					if (a->flags & DNET_ATTR_BULK_CHECK)
 						err = dnet_cmd_bulk_check(st, cmd, a, data);
 					else
 						err = dnet_db_list(st, cmd, a);
-#endif
-					err = dnet_db_list(st, cmd, a);
 				}
 				break;
 			case DNET_CMD_READ:

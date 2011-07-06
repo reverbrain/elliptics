@@ -706,3 +706,67 @@ err_out_free:
 err_out_exit:
 	return err;
 }
+
+int dnet_meta_update_check_status_raw(struct dnet_node *n, struct dnet_meta_container *mc)
+{
+	struct dnet_meta *m = NULL;
+	struct dnet_meta_check_status *meta_check;
+	struct timeval tv;
+	int err = 0;
+
+	m = dnet_meta_search(n, mc, DNET_META_CHECK_STATUS);
+
+	if (!m) {
+		mc->data = realloc(mc->data, mc->size + sizeof(struct dnet_meta) + sizeof(struct dnet_meta_check_status));
+		if (!mc->data) {
+			err = -ENOMEM;
+			goto err_out_free;
+		}
+
+		m = mc->data + mc->size;
+		mc->size += sizeof(struct dnet_meta) + sizeof(struct dnet_meta_check_status);
+
+		m->type = DNET_META_CHECK_STATUS;
+		m->size = sizeof(struct dnet_meta_check_status);
+		dnet_convert_meta(m);
+	}
+
+	meta_check = (struct dnet_meta_check_status *)m->data;
+	meta_check->status = 0;
+
+	gettimeofday(&tv, NULL);
+	meta_check->tsec = tv.tv_sec;
+	meta_check->tnsec = tv.tv_usec * 1000;
+
+	dnet_convert_meta_check_status(meta_check);
+
+	return err;
+
+err_out_free:
+	free(mc->data);
+	return err;
+}
+
+int dnet_meta_update_check_status(struct dnet_node *n, struct dnet_meta_container *mc)
+{
+	struct dnet_raw_id id;
+	int err;
+
+	err = dnet_meta_update_check_status_raw(n, mc);
+
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to update DNET_META_CHECK_STATUS, err=%d\n",
+				dnet_dump_id(&mc->id), err);
+		return err;
+	} else {
+		memcpy(&id.id, &mc->id.id, DNET_ID_SIZE);
+		err = n->cb->meta_write(n->cb->command_private, &id, mc->data, mc->size);
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: failed to write meta, err=%d\n",
+					dnet_dump_id(&mc->id), err);
+		}
+	}
+
+	return err;
+}
+

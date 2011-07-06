@@ -163,6 +163,7 @@ struct dnet_db_list_control {
 	struct dnet_cmd			*cmd;
 	struct dnet_attr		*attr;
 	struct dnet_check_request	*req;
+	struct dnet_check_temp_db	*db;
 
 	atomic_t			completed;
 	atomic_t			errors;
@@ -198,6 +199,42 @@ static int dnet_db_send_check_reply(struct dnet_db_list_control *ctl)
 	return dnet_send_reply(ctl->st, ctl->cmd, ctl->attr, &reply, sizeof(reply), 1);
 }
 
+struct dnet_check_temp_db * dnet_check_temp_db_alloc(struct dnet_node *n, char *path)
+{
+	static char temp_meta_path[310];
+	struct eblob_config ecfg;
+	struct dnet_check_temp_db *db;
+
+	db = (struct dnet_check_temp_db *)malloc(sizeof(struct dnet_check_temp_db));
+	if (!db) {
+		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate memory for temp meta eblob config\n");
+		return NULL;
+	}
+
+	snprintf(temp_meta_path, sizeof(temp_meta_path), "%s/tmp_meta", path);
+
+	ecfg.file = temp_meta_path;
+	ecfg.hash_size = DNET_BULK_IDS_SIZE * 100;
+
+	db->log.log = n->log->log;
+	db->log.log_private = n->log->log_private;
+	db->log.log_mask = EBLOB_LOG_ERROR | EBLOB_LOG_INFO | EBLOB_LOG_NOTICE;
+	ecfg.log = &db->log;
+
+	db->b = eblob_init(&ecfg);
+	if (!db->b) {
+		dnet_log(n, DNET_LOG_ERROR, "Failed to initialize temp meta eblob\n");
+		goto err_out_free;
+	}
+
+	atomic_init(&db->refcnt, 1);
+
+	return db;
+
+err_out_free:
+	free(db);
+	return NULL;
+}
 
 int dnet_db_iterate(struct eblob_backend *b, unsigned int flags __unused,
 		struct eblob_iterate_callbacks *iterate_cb,
@@ -215,18 +252,142 @@ int dnet_db_iterate(struct eblob_backend *b, unsigned int flags __unused,
 	return eblob_iterate(b, &ctl);
 }
 
-static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_control *rc, void *data, void *p)
+static int dnet_db_list_iter_init(struct eblob_iterate_control *iter_ctl, void **thread_priv)
+{
+	struct dnet_db_list_control *ctl = iter_ctl->priv;
+	struct dnet_node *n = ctl->n;
+	struct dnet_bulk_array *bulk_array = NULL;
+	struct dnet_net_state *st;
+	struct dnet_group *g;
+	int only_merge = !!(ctl->req->flags & DNET_CHECK_MERGE);
+	int bulk_array_tmp_num;
+	int err = 0;
+
+	dnet_log(n, DNET_LOG_DSA, "BULK: only_merge=%d\n", only_merge);
+	if (!only_merge) {
+		bulk_array = malloc(sizeof(struct dnet_bulk_array));
+		if (!bulk_array) {
+			err = -ENOMEM;
+			goto err_out_exit;
+		}
+		atomic_init(&bulk_array->refcnt, 0);
+
+		bulk_array_tmp_num = DNET_BULK_STATES_ALLOC_STEP;
+		bulk_array->num = 0;
+		bulk_array->states = NULL;
+		dnet_log(n, DNET_LOG_DSA, "BULK: allocating space for arrays, num=%d\n", bulk_array_tmp_num);
+
+		bulk_array->states = (struct dnet_bulk_state *)malloc(sizeof(struct dnet_bulk_state) * bulk_array_tmp_num);
+		if (!bulk_array->states) {
+			err = -ENOMEM;
+			dnet_log(n, DNET_LOG_ERROR, "BULK: Failed to allocate buffer for bulk states array.\n");
+			goto err_out_exit;
+		}
+
+		pthread_mutex_lock(&n->state_lock);
+		list_for_each_entry(g, &n->group_list, group_entry) {
+			if (g->group_id == n->st->idc->group->group_id)
+				continue;
+
+			list_for_each_entry(st, &g->state_list, state_entry) {
+				if (st == n->st)
+					continue;
+
+				if (bulk_array->num == bulk_array_tmp_num) {
+					dnet_log(n, DNET_LOG_DSA, "BULK: reallocating space for arrays, num=%d\n", bulk_array_tmp_num);
+					bulk_array_tmp_num += DNET_BULK_STATES_ALLOC_STEP;
+					bulk_array->states = (struct dnet_bulk_state *)realloc(bulk_array->states, sizeof(struct dnet_bulk_state) * bulk_array_tmp_num);
+					if (!bulk_array->states) {
+						err = -ENOMEM;
+						dnet_log(n, DNET_LOG_ERROR, "BULK: Failed to reallocate buffer for bulk states array.\n");
+						goto err_out_exit;
+					}
+				}
+
+				memcpy(&bulk_array->states[bulk_array->num].addr, &st->addr, sizeof(struct dnet_addr));
+				pthread_mutex_init(&bulk_array->states[bulk_array->num].state_lock, NULL);
+				bulk_array->states[bulk_array->num].num = 0;
+				bulk_array->states[bulk_array->num].ids = NULL;
+
+				bulk_array->states[bulk_array->num].ids = (struct dnet_bulk_id *)malloc(sizeof(struct dnet_bulk_id) * DNET_BULK_IDS_SIZE);
+				if (!bulk_array->states[bulk_array->num].ids) {
+					err = -ENOMEM;
+					dnet_log(n, DNET_LOG_ERROR, "BULK: Failed to reallocate buffer for bulk states array.\n");
+					pthread_mutex_unlock(&n->state_lock);
+					goto err_out_exit;
+				}
+
+				dnet_log(n, DNET_LOG_DSA, "BULK: added state %s (%s)\n", dnet_dump_id_str(st->idc->ids[0].raw.id), dnet_server_convert_dnet_addr(&st->addr));
+				bulk_array->num++;
+			}
+		}
+		pthread_mutex_unlock(&n->state_lock);
+
+		qsort(bulk_array->states, bulk_array->num, sizeof(struct dnet_bulk_state), dnet_compare_bulk_state);
+	}
+
+	*thread_priv = bulk_array;
+	return 0;
+
+err_out_exit:
+	return err;
+}
+
+static int dnet_db_list_iter_free(struct eblob_iterate_control *iter_ctl, void **thread_priv)
+{
+	struct dnet_db_list_control *ctl = iter_ctl->priv;
+	struct dnet_node *n = ctl->n;
+	struct dnet_bulk_array *bulk_array = *thread_priv;
+	int err;
+	int i;
+
+	if (bulk_array) {
+		while(atomic_read(&bulk_array->refcnt) > 0)
+			sleep(1);
+
+		for (i = 0; i < bulk_array->num; ++i) {
+			dnet_log(n, DNET_LOG_DSA, "CHECK: free: processing state %d %s: %d ids in this state\n",
+					i, dnet_server_convert_dnet_addr(&bulk_array->states[i].addr), bulk_array->states[i].num);
+
+			if (bulk_array->states[i].num > 0) {
+				err = dnet_request_bulk_check(n, &bulk_array->states[i], ctl->db);
+				if (err) {
+					dnet_log(n, DNET_LOG_ERROR, "CHECK: dnet_request_bulk_check failed, state %s, err %d\n",
+							dnet_server_convert_dnet_addr(&bulk_array->states[i].addr), err);
+				}
+			}
+			free(bulk_array->states[i].ids);
+		}
+
+		free(bulk_array->states);
+		free(bulk_array);
+	}
+
+	*thread_priv = NULL;
+
+	return 0;
+}
+
+static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_control *rc,
+				void *data, void *p, void *thread_priv)
 {
 	struct dnet_db_list_control *ctl = p;
 	struct dnet_node *n = ctl->n;
 	struct dnet_meta_container mc;
 	struct dnet_net_state *tmp;
+	struct dnet_bulk_array *bulk_array;
 	long long ts, edge = ctl->req->timestamp;
 	char time_buf[64], ctl_time[64];
 	struct tm tm;
 	int will_check, should_be_merged;
 	int send_check_reply = 1;
-	int err;
+	int err = 0;
+
+	bulk_array = thread_priv;
+	if (!bulk_array && !(ctl->req->flags & DNET_CHECK_MERGE)) {
+		dnet_log(n, DNET_LOG_ERROR, "CHECK: bulk_array is not initialized and check type is not MERGE_ONLY\n");
+		return -ENOMEM;
+	}
 
 	mc.data = data;
 	mc.size = rc->size;
@@ -279,9 +440,13 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 	}
 
 	if (will_check) {
-		err = dnet_check(n, &mc, NULL, should_be_merged);
-//		if (err >= 0 && !should_be_merged)
-//			err = dnet_db_check_update(n, ctl, &mc);
+		err = dnet_check(n, &mc, bulk_array, should_be_merged, ctl->db);
+
+		if (!err) {
+			atomic_inc(&ctl->completed);
+		} else {
+			atomic_inc(&ctl->errors);
+		}
 
 		dnet_log_raw(n, DNET_LOG_NOTICE, "CHECK: complete key: %s, timestamp: %lld [%s], err: %d\n",
 				dnet_dump_id(&mc.id), ts, time_buf, err);
@@ -298,7 +463,7 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 				atomic_read(&ctl->total), atomic_read(&ctl->completed), atomic_read(&ctl->errors));
 	}
 
-	return 0;
+	return err;
 }
 
 int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr)
@@ -340,6 +505,11 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	ctl.cmd = cmd;
 	ctl.attr = attr;
 	ctl.req = &req;
+	ctl.db = dnet_check_temp_db_alloc(n, n->temp_meta_env);
+	if (!ctl.db) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
 
 	if (req.timestamp) {
 		localtime_r((time_t *)&req.timestamp, &tm);
@@ -356,15 +526,21 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 	if (req.obj_num > 0) {
 		struct dnet_id *ids = (struct dnet_id *)(r + 1);
+		struct eblob_iterate_control iter_ctl;
 		struct eblob_disk_control dc;
 		struct eblob_ram_control rc;
 		struct dnet_raw_id id;
 		void *data;
+		void *priv = NULL;
 		int err;
 		uint32_t i;
 
 		memset(&dc, 0, sizeof(struct eblob_disk_control));
 		memset(&rc, 0, sizeof(struct eblob_ram_control));
+
+		iter_ctl.thread_num = 1;
+		iter_ctl.priv = &ctl;
+		dnet_db_list_iter_init(&iter_ctl, &priv);
 
 		for (i = 0; i < req.obj_num; ++i) {
 			memcpy(&id.id, &ids[i].id, DNET_ID_SIZE);
@@ -372,11 +548,19 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 			if (err > 0) {
 				rc.size = err;
 				memcpy(&dc.key.id, &ids[i].id, DNET_ID_SIZE);
-				err = dnet_db_list_iter(&dc, &rc, data, &ctl);
+				err = dnet_db_list_iter(&dc, &rc, data, &ctl, priv);
 			}
 		}
+		dnet_db_list_iter_free(&iter_ctl, &priv);
+
 	} else {
-		//err = n->cb->meta_iterate(n->cb->command_private, 0, dnet_db_list_iter, &ctl);
+		struct eblob_iterate_callbacks cb;
+
+		cb.iterator = dnet_db_list_iter;
+		cb.iterator_init = dnet_db_list_iter_init;
+		cb.iterator_free = dnet_db_list_iter_free;
+
+		err = n->cb->meta_iterate(n->cb->command_private, 0, &cb, &ctl);
 	}
 
 	if(r->flags & DNET_CHECK_MERGE) {
@@ -386,6 +570,9 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 	dnet_db_send_check_reply(&ctl);
 
+	dnet_check_temp_db_put(ctl.db);
+
+err_out_exit:
 	n->check_in_progress = 0;
 	return err;
 }
