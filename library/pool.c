@@ -401,8 +401,10 @@ static void *dnet_io_process(void *data_)
 		}
 
 out_continue:
-		/* this reference was grabbed in dnet_schedule_network_io() */
-		dnet_state_put(st);
+		if (st->process != dnet_state_accept_process) {
+			/* this reference was grabbed in dnet_schedule_network_io() */
+			dnet_state_put(st);
+		}
 	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "Exiting network processing thread: need_exit: %d, err: %d.\n", n->need_exit, err);
