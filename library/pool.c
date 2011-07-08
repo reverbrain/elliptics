@@ -401,7 +401,7 @@ static void *dnet_io_process(void *data_)
 		}
 
 out_continue:
-		if (st->process != dnet_state_accept_process) {
+		if (st->process == dnet_state_net_process) {
 			/* this reference was grabbed in dnet_schedule_network_io() */
 			dnet_state_put(st);
 		}
