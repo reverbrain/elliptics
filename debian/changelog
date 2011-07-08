@@ -1,3 +1,9 @@
+elliptics (2.10.0.7) unstable; urgency=low
+
+  * Only put dnet_state_net_process() states
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 08 Jul 2011 04:09:15 +0400
+
 elliptics (2.10.0.6) unstable; urgency=low
 
   * Do not put accepting socket
