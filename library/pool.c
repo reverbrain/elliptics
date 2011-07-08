@@ -260,8 +260,6 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 	struct epoll_event ev;
 	int err, fd;
 
-	dnet_state_get(st);
-
 	if (send) {
 		ev.events = EPOLLOUT;
 		fd = st->write_s;
@@ -279,7 +277,6 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 			err = 0;
 		} else {
 			dnet_log_err(st->n, "%s: failed to add %s event", dnet_state_dump_addr(st), send ? "SEND" : "RECV");
-			dnet_state_put(st);
 		}
 	}
 
@@ -368,7 +365,7 @@ static void *dnet_io_process(void *data_)
 		}
 
 		if (!check)
-			goto out_continue;
+			continue;
 
 		gettimeofday(&tv, NULL);
 
@@ -398,12 +395,6 @@ static void *dnet_io_process(void *data_)
 				t->complete(st, &t->cmd, NULL, t->priv);
 
 			dnet_trans_put(t);
-		}
-
-out_continue:
-		if (st->process == dnet_state_net_process) {
-			/* this reference was grabbed in dnet_schedule_network_io() */
-			dnet_state_put(st);
 		}
 	}
 
