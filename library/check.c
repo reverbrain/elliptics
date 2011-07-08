@@ -285,9 +285,9 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 	struct dnet_meta *mg;
 	struct dnet_id id;
 	char *tmpdata = NULL;
-	int *groups, group_num;
+	int *groups, group_num = 1;
 	int err = -EINVAL, error = 0;
-	int i;
+	int i = 0;
 	int my_group, lastest_group = -1;
 	struct dnet_meta_update lastest_mu, my_mu;
 	struct timeval current_ts;

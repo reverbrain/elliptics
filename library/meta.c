@@ -726,8 +726,8 @@ int dnet_meta_update_check_status_raw(struct dnet_node *n, struct dnet_meta_cont
 	meta_check->status = 0;
 
 	gettimeofday(&tv, NULL);
-	meta_check->tsec = tv.tv_sec;
-	meta_check->tnsec = tv.tv_usec * 1000;
+	meta_check->tm.tsec = tv.tv_sec;
+	meta_check->tm.tnsec = tv.tv_usec * 1000;
 
 	dnet_convert_meta_check_status(meta_check);
 
