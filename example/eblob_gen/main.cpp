@@ -69,8 +69,7 @@ void eblob_processor::process(elliptics_node &node, const std::string &path)
 						std::string file = eblob_base_ + "/" + addr + "/data";
 						eblob_cfg_.file = (char *)file.c_str();
 
-						boost::shared_ptr<eblob> e(new eblob(log_file_.c_str(),
-									eblob_cfg_.log->log_mask, &eblob_cfg_));
+						boost::shared_ptr<eblob> e(new eblob(&eblob_cfg_));
 
 						blobs[addr] = e;
 
