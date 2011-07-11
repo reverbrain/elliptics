@@ -702,7 +702,6 @@ int dnet_meta_update_check_status_raw(struct dnet_node *n, struct dnet_meta_cont
 {
 	struct dnet_meta *m = NULL;
 	struct dnet_meta_check_status *meta_check;
-	struct timeval tv;
 	int err = 0;
 
 	m = dnet_meta_search(n, mc, DNET_META_CHECK_STATUS);
@@ -725,9 +724,7 @@ int dnet_meta_update_check_status_raw(struct dnet_node *n, struct dnet_meta_cont
 	meta_check = (struct dnet_meta_check_status *)m->data;
 	meta_check->status = 0;
 
-	gettimeofday(&tv, NULL);
-	meta_check->tm.tsec = tv.tv_sec;
-	meta_check->tm.tnsec = tv.tv_usec * 1000;
+	dnet_current_time(&meta_check->tm);
 
 	dnet_convert_meta_check_status(meta_check);
 
