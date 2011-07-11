@@ -73,7 +73,7 @@ static int dnet_update_ts_metadata_raw(struct dnet_meta_container *mc, uint64_t 
 	return -ENOENT;
 }
 
-static void dnet_create_meta_update(struct dnet_meta *m, struct timespec *ts, uint64_t flags_set, uint64_t flags_clear)
+void dnet_create_meta_update(struct dnet_meta *m, struct timespec *ts, uint64_t flags_set, uint64_t flags_clear)
 {
 	struct dnet_meta_update *mu = (struct dnet_meta_update *)m->data;
 
