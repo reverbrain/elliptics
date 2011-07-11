@@ -618,6 +618,7 @@ static inline struct dnet_check_temp_db * dnet_check_temp_db_get(struct dnet_che
 
 static inline void dnet_check_temp_db_put(struct dnet_check_temp_db *db) {
 	if (atomic_dec_and_test(&db->refcnt)) {
+		eblob_remove_blobs(db->b);
 		eblob_cleanup(db->b);
 		free(db);
 	}
