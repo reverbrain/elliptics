@@ -1,3 +1,9 @@
+elliptics (2.10.0.9) unstable; urgency=low
+
+  * Merged recovery fixes from Anton Kortunov
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 11 Jul 2011 21:27:51 +0400
+
 elliptics (2.10.0.8) unstable; urgency=low
 
   * Get rid of state get/put in pool processing
