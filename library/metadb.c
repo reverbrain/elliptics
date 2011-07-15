@@ -518,6 +518,9 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		snprintf(ctl_time, sizeof(ctl_time), "all records");
 	}
 
+	if (req.obj_num > 0)
+		req.thread_num = 1;
+
 	dnet_log(n, DNET_LOG_INFO, "CHECK: Started %u checking threads, recovering %llu transactions, "
 			"which started before %s: merge: %d, full: %d, dry: %d.\n",
 			req.thread_num, (unsigned long long)req.obj_num, ctl_time,
@@ -559,6 +562,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		cb.iterator = dnet_db_list_iter;
 		cb.iterator_init = dnet_db_list_iter_init;
 		cb.iterator_free = dnet_db_list_iter_free;
+		cb.thread_num = req.thread_num;
 
 		err = n->cb->meta_iterate(n->cb->command_private, 0, &cb, &ctl);
 	}
