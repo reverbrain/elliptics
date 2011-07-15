@@ -1,3 +1,10 @@
+elliptics (2.10.0.10) unstable; urgency=low
+
+  * Added thread num control to check
+  * Depend on eblob 0.8.4 and higher
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Jul 2011 19:08:58 +0400
+
 elliptics (2.10.0.9) unstable; urgency=low
 
   * Merged recovery fixes from Anton Kortunov
