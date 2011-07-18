@@ -271,7 +271,7 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	int offset = 0;
 	int err;
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: send queue: hsize: %zu, dsize: %zu, fsize: %zu\n",
+	dnet_log(st->n, DNET_LOG_DSA, "%s: send queue: hsize: %zu, dsize: %zu, fsize: %zu\n",
 			dnet_state_dump_addr(st), orig->hsize, orig->dsize, orig->fsize);
 
 	buf = r = malloc(sizeof(struct dnet_io_req) + orig->dsize + orig->hsize);
@@ -1057,8 +1057,8 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 	if (size)
 		memcpy(data, odata, size);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: sending reply: %u, size: %u, cflags: %x.\n",
-		dnet_dump_id(&cmd->id), a->cmd, size, c->flags);
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply: size: %u, cflags: %x.\n",
+		dnet_dump_id(&cmd->id), dnet_cmd_string(a->cmd), size, c->flags);
 
 	dnet_convert_cmd(c);
 	dnet_convert_attr(a);

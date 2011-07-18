@@ -2922,10 +2922,6 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 
 	dnet_setup_id(&c->id, cmd->id.group_id, io->id);
 
-	dnet_log_raw(st->n, DNET_LOG_NOTICE, "%s: read reply offset: %llu, size: %llu.\n",
-			dnet_dump_id(&c->id), (unsigned long long)io->offset,
-			(unsigned long long)io->size);
-
 	if (cmd->flags & DNET_FLAGS_NEED_ACK)
 		c->flags = DNET_FLAGS_MORE;
 
@@ -2938,6 +2934,10 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	a->flags = 0;
 
 	memcpy(rio, io, sizeof(struct dnet_io_attr));
+
+	dnet_log_raw(st->n, DNET_LOG_INFO, "%s: %s: reply: offset: %llu, size: %llu.\n",
+			dnet_dump_id(&c->id), dnet_cmd_string(a->cmd),
+			(unsigned long long)io->offset,	(unsigned long long)io->size);
 
 	dnet_convert_cmd(c);
 	dnet_convert_attr(a);
