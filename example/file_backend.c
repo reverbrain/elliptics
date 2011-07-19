@@ -177,7 +177,7 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	if (err)
 		goto err_out_check_remove;
 
-	dnet_backend_log(DNET_LOG_NOTICE, "%s: FILE: %s: WRITE: 0: written offset: %llu, size: %llu.\n",
+	dnet_backend_log(DNET_LOG_INFO, "%s: FILE: %s: WRITE: Ok: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&cmd->id), dir, (unsigned long long)io->offset, (unsigned long long)io->size);
 
 	return 0;

@@ -77,7 +77,7 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 		goto err_out_exit;
 	}
 
-	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: 0: offset: %llu, size: %llu, type: %d.\n",
+	dnet_backend_log(DNET_LOG_INFO, "%s: EBLOB: blob-write: WRITE: Ok: offset: %llu, size: %llu, type: %d.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->type);
 
 	return 0;
