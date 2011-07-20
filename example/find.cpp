@@ -155,6 +155,7 @@ void elliptics_finder::parse_meta(const std::string &ret)
 				mc.data = io + 1;
 				mc.size = io->size;
 
+				memcpy(&mc.id, &cmd->id, sizeof(struct dnet_id));
 				dnet_meta_print(node, &mc);
 			} else {
 			}
