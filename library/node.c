@@ -83,13 +83,6 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	}
 	pthread_attr_setdetachstate(&n->attr, PTHREAD_CREATE_DETACHED);
 
-	err = pthread_attr_setstacksize(&n->attr, cfg->stack_size);
-	if (err) {
-		err = -err;
-		dnet_log_err(n, "Failed to set stack size to %d, err: %d", cfg->stack_size, err);
-		goto err_out_destroy_attr;
-	}
-
 	INIT_LIST_HEAD(&n->group_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
 	INIT_LIST_HEAD(&n->storage_state_list);
@@ -99,8 +92,6 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	return n;
 
-err_out_destroy_attr:
-	pthread_attr_destroy(&n->attr);
 err_out_destroy_group_lock:
 	pthread_mutex_destroy(&n->group_lock);
 err_out_destroy_reconnect_lock:
@@ -632,9 +623,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		if (cfg->flags & DNET_CFG_JOIN_NETWORK)
 			cfg->net_thread_num = 8;
 	}
-
-	if (!cfg->stack_size)
-		cfg->stack_size = 4*1024*1024;
 
 	n = dnet_node_alloc(cfg);
 	if (!n) {

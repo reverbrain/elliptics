@@ -368,11 +368,6 @@ struct dnet_config
 	long			check_timeout;
 
 	/*
-	 * Spawned thread size in bytes.
-	 */
-	int			stack_size;
-
-	/*
 	 * Number of IO threads in processing pool
 	 */
 	int			io_thread_num;
