@@ -574,8 +574,8 @@ static inline void dnet_info_from_stat(struct dnet_file_info *info, struct stat 
 	info->mtime.tnsec = 0;
 }
 
-/* Elliptics node status */
-#define DNET_STATUS_CHANGE		(1<<0)
+/* Elliptics node status - if set, status will be changed */
+#define DNET_ATTR_STATUS_CHANGE		(1<<0)
 
 /* Elliptics node should exit */
 #define DNET_STATUS_EXIT		(1<<0)

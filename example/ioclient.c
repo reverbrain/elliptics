@@ -52,7 +52,7 @@ static void dnet_usage(char *p)
 			" -s                   - request IO counter stats from node\n"
 			" -z                   - request VFS IO stats from node\n"
 			" -a                   - request stats from all connected nodes\n"
-			" -U                   - show/update server flags and log mask\n"
+			" -U status            - update server status: 1 - elliptics exits, 2 - goes RO\n"
 			" -R file              - read given file from the network into the local storage\n"
 			" -I id                - transaction id\n"
 			" -g groups            - group IDs to connect\n"
@@ -63,6 +63,7 @@ static void dnet_usage(char *p)
 			" ...                  - parameters can be repeated multiple times\n"
 			"                        each time they correspond to the last added node\n"
 			" -m mask              - log events mask\n"
+			" -M mask              - set new log mask\n"
 			" -O offset            - read/write offset in the file\n"
 			" -S size              - read/write transaction size\n"
 			" -u file              - unlink file\n"
@@ -74,6 +75,7 @@ int main(int argc, char *argv[])
 {
 	int ch, err, i, have_remote = 0;
 	int io_counter_stat = 0, vfs_stat = 0, single_node_stat = 1;
+	struct dnet_node_status node_status;
 	int update_status = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
@@ -85,6 +87,7 @@ int main(int argc, char *argv[])
 	uint64_t offset, size;
 	int *groups = NULL, group_num = 0;
 
+	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
 	size = offset = 0;
@@ -96,8 +99,12 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "N:g:u:O:S:m:zsUaL:w:l:c:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
+			case 'M':
+				node_status.log_mask = strtol(optarg, NULL, 0);
+				update_status = 1;
+				break;
 			case 'N':
 				cfg.ns = optarg;
 				cfg.nsize = strlen(optarg);
@@ -118,6 +125,7 @@ int main(int argc, char *argv[])
 				io_counter_stat = 1;
 				break;
 			case 'U':
+				node_status.status_flags = strtol(optarg, NULL, 0);
 				update_status = 1;
 				break;
 			case 'z':
@@ -295,15 +303,14 @@ int main(int argc, char *argv[])
 	}
 
 	if (update_status) {
-		struct dnet_node_status node_status;
 		struct dnet_addr addr;
 
+		node_status.nflags = -1;
 		for (i=0; i<have_remote; ++i) {
 			err = dnet_fill_addr(&addr, remotes[i].addr, remotes[i].port,
 						remotes[i].family, remotes[i].sock_type, remotes[i].proto);
 
-			err = dnet_update_status(n, &addr, NULL, &node_status, 0);
-			printf("err = %d\n", err);
+			err = dnet_update_status(n, &addr, NULL, &node_status, update_status > 0);
 		}
 
 	}
