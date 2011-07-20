@@ -116,7 +116,8 @@ void elliptics_finder::parse_lookup(const std::string &ret)
 					(unsigned long long)info->offset, (unsigned long long)info->size,
 					(unsigned long long)info->mode, (char *)(info + 1));
 		} else {
-			dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
+			if (cmd->status != 0)
+				dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
 		}
 
 		data = (char *)data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
@@ -148,10 +149,19 @@ void elliptics_finder::parse_meta(const std::string &ret)
 				dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
 						dnet_dump_id(&cmd->id), addr_str, dnet_cmd_string(attr->cmd),
 						(unsigned long long)io->size);
+
+				struct dnet_meta_container mc;
+				memset(&mc, 0, sizeof(mc));
+				mc.data = io + 1;
+				mc.size = io->size;
+
+				dnet_meta_print(node, &mc);
 			} else {
 			}
 		} else {
-			dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND meta: %s: status: %d\n", dnet_dump_id(&cmd->id), addr_str, cmd->status);
+			if (cmd->status != 0)
+				dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND meta: %s: status: %d\n",
+						dnet_dump_id(&cmd->id), addr_str, cmd->status);
 		}
 
 		data = (char *)data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
