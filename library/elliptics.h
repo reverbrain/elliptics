@@ -567,6 +567,7 @@ int dnet_try_reconnect(struct dnet_node *n);
 #define DNET_CHECK_TYPE_DELETE			4
 
 #define DNET_BULK_IDS_SIZE			1000
+#define DNET_BULK_CHECK_PING			100
 #define DNET_BULK_STATES_ALLOC_STEP		10
 #define DNET_BULK_META_UPD_SIZE			1000
 

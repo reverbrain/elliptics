@@ -216,6 +216,12 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 		dnet_log(orig->n, DNET_LOG_DSA, "BULK: received %d entries\n", num);
 
 		for (i = 0; i < num; ++i) {
+
+			/* Send empty reply every DNET_BULK_CHECK_PING records to prevent timeout */
+			if (i % DNET_BULK_CHECK_PING == 0 && i > 0) {
+				dnet_send_reply(orig, cmd, &ca, NULL, 0, 1);
+			}
+
 			dnet_log(orig->n, DNET_LOG_DSA, "BULK: processing ID %s\n", dnet_dump_id_str(ids[i].id.id));
 			mc.data = NULL;
 			err = orig->n->cb->meta_read(orig->n->cb->command_private, &ids[i].id, &mc.data);
@@ -447,6 +453,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 			continue;
 
 		dnet_setup_id(&id, mu[i].group_id, ids->id.id);
+		id.type = EBLOB_TYPE_DATA;
 
 		if (mu[lastest].flags & DNET_IO_FLAGS_REMOVED) {
 			if (removed_in_all) {
@@ -555,6 +562,11 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 
 	if (!attr)
 		return cmd->status;
+
+	/* Empty reply that prevents timeout */
+	if (attr->size == 0) {
+		return 0;
+	}
 
 	if (!(attr->size % sizeof(struct dnet_bulk_id))) {
 		struct dnet_bulk_id *ids = (struct dnet_bulk_id *)(attr + 1);
