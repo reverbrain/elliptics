@@ -1,3 +1,16 @@
+elliptics (2.10.0.12) unstable; urgency=low
+
+  * Added possibility to change log mask and server status(ro, exit) via
+    dnet_ioclient
+  * Update ioserv.conf config
+  * File sync should be in sync with eblob sync: 0 means sync after each
+    write, positive number - once per N seconds
+  * Dropped stack size setup
+  * Fixed check copy
+  * Log cleanups
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 20 Jul 2011 23:01:22 +0400
+
 elliptics (2.10.0.11) unstable; urgency=low
 
   * Use dnet_cmd_string() for nice logs
