@@ -137,7 +137,7 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 		goto err_out_close;
 	}
 
-	if (r->sync)
+	if (!r->sync)
 		fsync(fd);
 	close(fd);
 
@@ -475,6 +475,7 @@ static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c,
 	memset(&ecfg, 0, sizeof(ecfg));
 	ecfg.file = meta_path;
 	ecfg.hash_size = r->meta_hash_size;
+	ecfg.sync = r->sync;
 	dnet_backend_log(DNET_LOG_DSA, "ecfg.hash_size = %d\n", ecfg.hash_size);
 
 	r->log.log = c->log->log;
