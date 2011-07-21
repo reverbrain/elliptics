@@ -1,3 +1,10 @@
+elliptics (2.10.0.13) unstable; urgency=low
+
+  * dnet_find should print metadata found information via dnet_print_meta()
+    the same way dnet_meta does
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Jul 2011 01:48:25 +0400
+
 elliptics (2.10.0.12) unstable; urgency=low
 
   * Added possibility to change log mask and server status(ro, exit) via
