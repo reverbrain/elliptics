@@ -64,6 +64,7 @@ static void dnet_usage(char *p)
 			"                        each time they correspond to the last added node\n"
 			" -m mask              - log events mask\n"
 			" -M mask              - set new log mask\n"
+			" -F flags             - change node flags (see @cfg->flags comments in include/elliptics/interface.h)"
 			" -O offset            - read/write offset in the file\n"
 			" -S size              - read/write transaction size\n"
 			" -u file              - unlink file\n"
@@ -90,6 +91,10 @@ int main(int argc, char *argv[])
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
+	node_status.nflags = -1;
+	node_status.status_flags = -1;
+	node_status.log_mask = ~0U;
+
 	size = offset = 0;
 
 	cfg.sock_type = SOCK_STREAM;
@@ -99,8 +104,12 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
+			case 'F':
+				node_status.nflags = strtol(optarg, NULL, 0);
+				update_status = 1;
+				break;
 			case 'M':
 				node_status.log_mask = strtol(optarg, NULL, 0);
 				update_status = 1;
@@ -305,7 +314,6 @@ int main(int argc, char *argv[])
 	if (update_status) {
 		struct dnet_addr addr;
 
-		node_status.nflags = -1;
 		for (i=0; i<have_remote; ++i) {
 			err = dnet_fill_addr(&addr, remotes[i].addr, remotes[i].port,
 						remotes[i].family, remotes[i].sock_type, remotes[i].proto);

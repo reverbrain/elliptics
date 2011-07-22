@@ -550,20 +550,23 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 				dnet_dump_id(&cmd->id), n->flags, st->nflags, n->log->log_mask, st->log_mask,
 				!!(st->status_flags & DNET_STATUS_EXIT), !!(st->status_flags & DNET_STATUS_RO));
 
-		if (st->status_flags & DNET_STATUS_EXIT) {
-			dnet_set_need_exit(n);
-		}
+		if (st->status_flags != -1) {
+			if (st->status_flags & DNET_STATUS_EXIT) {
+				dnet_set_need_exit(n);
+			}
 
-		if (st->status_flags & DNET_STATUS_RO) {
-			n->ro = 1;
-		} else {
-			n->ro = 0;
+			if (st->status_flags & DNET_STATUS_RO) {
+				n->ro = 1;
+			} else {
+				n->ro = 0;
+			}
 		}
 
 		if (st->nflags != -1)
 			n->flags = st->nflags;
 
-		n->log->log_mask = st->log_mask;
+		if (st->log_mask != ~0U)
+			n->log->log_mask = st->log_mask;
 	}
 
 	st->nflags = n->flags;
