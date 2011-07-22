@@ -42,7 +42,7 @@ build-stamp:  config.status
 
 	# Add here commands to compile the package.
 	$(MAKE)
-	#docbook-to-man debian/elliptics.sgml > elliptics.1
+	#docbook-to-man debian/elliptics-2.10.sgml > elliptics-2.10.1
 
 	touch $@
 
@@ -64,7 +64,7 @@ install: build
 	dh_installdirs
 
 	# Add here commands to install the package into debian/elliptics.
-	$(MAKE) DESTDIR=$(CURDIR)/debian/elliptics install
+	$(MAKE) DESTDIR=$(CURDIR)/debian/elliptics-2.10 install
 
 
 # Build architecture-independent files here.
@@ -91,11 +91,11 @@ binary-arch: install
 #	dh_installinfo
 	dh_installman
 	dh_link
-	dh_strip --dbg-package=elliptics-dbg
+	dh_strip --dbg-package=elliptics-dbg-2.10
 #	dh_compress
 	dh_fixperms
 #	dh_perl
-	dh_makeshlibs -V "elliptics (>= $(shell head -n1 debian/changelog |  sed -e 's/.*[(]//' | sed -e 's/[)].*//' | tr -d '\n' | cut -d . -f 1-3))"
+	dh_makeshlibs -V "elliptics-2.10 (>= $(shell head -n1 debian/changelog |  sed -e 's/.*[(]//' | sed -e 's/[)].*//' | tr -d '\n' | cut -d . -f 1-3))"
 	dh_installdeb
 	dh_shlibdeps
 	dh_gencontrol
