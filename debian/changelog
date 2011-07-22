@@ -1,3 +1,9 @@
+elliptics (2.10.1.0) unstable; urgency=low
+
+  * Switch to 2.10 package name
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Jul 2011 17:32:48 +0400
+
 elliptics (2.10.0.13) unstable; urgency=low
 
   * dnet_find should print metadata found information via dnet_print_meta()
