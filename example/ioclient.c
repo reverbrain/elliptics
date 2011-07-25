@@ -64,7 +64,7 @@ static void dnet_usage(char *p)
 			"                        each time they correspond to the last added node\n"
 			" -m mask              - log events mask\n"
 			" -M mask              - set new log mask\n"
-			" -F flags             - change node flags (see @cfg->flags comments in include/elliptics/interface.h)"
+			" -F flags             - change node flags (see @cfg->flags comments in include/elliptics/interface.h)\n"
 			" -O offset            - read/write offset in the file\n"
 			" -S size              - read/write transaction size\n"
 			" -u file              - unlink file\n"
