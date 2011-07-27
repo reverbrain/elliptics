@@ -99,6 +99,40 @@ err_out_exit:
 	return err;
 }
 
+static void test_prepare_commit(elliptics_node &n, int psize, int csize)
+{
+	std::string key = "prepare-commit-test";
+
+	std::string prepare_data = "prepare data|";
+	std::string commit_data = "commit data";
+	std::string plain_data[3] = {"plain data0|", "plain data1|", "plain data2|"};
+
+	if (psize)
+		prepare_data.clear();
+	if (csize)
+		commit_data.clear();
+
+	uint64_t offset = 0;
+	uint64_t total_size_to_reserve = 1024;
+
+	unsigned int aflags = 0;
+	unsigned int ioflags = 0;
+
+	int column = 0;
+
+	n.write_prepare(key, prepare_data, offset, total_size_to_reserve, aflags, ioflags, column);
+	offset += prepare_data.size();
+
+	for (int i = 0; i < 3; ++i) {
+		n.write_plain(key, plain_data[i], offset, aflags, ioflags, column);
+		offset += plain_data[i].size();
+	}
+
+	n.write_commit(key, commit_data, offset, 0, aflags, ioflags, column);
+
+	std::cout << "prepare/commit read: " << n.read_data_wait(key, 0, 0, aflags, ioflags, column) << std::endl;
+}
+
 int main()
 {
 	int g[] = {1, 2, 3};
@@ -177,6 +211,11 @@ int main()
 #endif
 		std::cout << "read-column-2: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 2) << std::endl;
 		std::cout << "read-column-3: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 3) << std::endl;
+
+		test_prepare_commit(n, 0, 0);
+		test_prepare_commit(n, 1, 0);
+		test_prepare_commit(n, 0, 1);
+		test_prepare_commit(n, 1, 1);
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {

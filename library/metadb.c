@@ -70,7 +70,7 @@ int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *dat
 	struct eblob_key key;
 
 	memcpy(key.id, id->id, DNET_ID_SIZE);
-	return eblob_write(b, &key, data, size, BLOB_DISK_CTL_NOCSUM, EBLOB_TYPE_META);
+	return eblob_write(b, &key, data, 0, size, BLOB_DISK_CTL_NOCSUM, EBLOB_TYPE_META);
 }
 
 static int dnet_db_remove_direct(struct eblob_backend *b, struct dnet_raw_id *id)

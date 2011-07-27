@@ -70,7 +70,33 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 		flags |= BLOB_DISK_CTL_COMPRESS;
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
-	err = eblob_write(c->eblob, &key, data, io->size, flags, io->type);
+
+	if (io->flags & DNET_IO_FLAGS_PREPARE) {
+		struct eblob_write_control wc;
+
+		memset(&wc, 0, sizeof(wc));
+		wc.offset = 0;
+		wc.size = io->num;
+		wc.flags = flags;
+		wc.type = io->type;
+
+		err = eblob_write_prepare(c->eblob, &key, &wc);
+		if (err) {
+			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_prepare: size: %llu: type: %d: %s %d\n",
+				dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
+			goto err_out_exit;
+		}
+
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_prepare: size: %llu: type: %d: Ok\n",
+			dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type);
+	}
+
+	if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
+		err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, io->type);
+	} else {
+		err = eblob_write(c->eblob, &key, data, io->offset, io->size, flags, io->type);
+	}
+
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: WRITE: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
@@ -79,6 +105,26 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 
 	dnet_backend_log(DNET_LOG_INFO, "%s: EBLOB: blob-write: WRITE: Ok: offset: %llu, size: %llu, type: %d.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->type);
+
+	if (io->flags & DNET_IO_FLAGS_COMMIT) {
+		struct eblob_write_control wc;
+
+		memset(&wc, 0, sizeof(wc));
+		wc.offset = 0;
+		wc.size = io->num;
+		wc.flags = flags;
+		wc.type = io->type;
+
+		err = eblob_write_commit(c->eblob, &key, NULL, 0, &wc);
+		if (err) {
+			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: type: %d: %s %d\n",
+				dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
+			goto err_out_exit;
+		}
+
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: type: %d: Ok\n",
+			dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type);
+	}	
 
 	return 0;
 

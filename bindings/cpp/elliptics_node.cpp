@@ -635,3 +635,95 @@ std::string elliptics_node::read_data_range(struct dnet_io_attr &io, int group_i
 
 	return ret;
 }
+
+int elliptics_node::write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
+		uint64_t psize, unsigned int aflags, unsigned int ioflags, int type)
+{
+	struct dnet_io_control ctl;
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.aflags = aflags;
+	ctl.data = str.data();
+
+	ctl.io.flags = ioflags | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.offset = remote_offset;
+	ctl.io.size = str.size();
+	ctl.io.type = type;
+	ctl.io.num = psize;
+
+	transform(remote, ctl.id);
+	ctl.id.type = type;
+	ctl.id.group_id = 0;
+
+	ctl.fd = -1;
+
+	int err = dnet_write_data_wait(node, &ctl);
+	if (err < 0) {
+		std::ostringstream string;
+		string << dnet_dump_id(&ctl.id) << ": " << remote << ": write_prepare: size: " << str.size() << ", err: " << err;
+		throw std::runtime_error(string.str());
+	}
+	return err;
+}
+
+int elliptics_node::write_commit(const std::string &remote, const std::string &str, uint64_t remote_offset, uint64_t csize,
+		unsigned int aflags, unsigned int ioflags, int type)
+{
+	struct dnet_io_control ctl;
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.aflags = aflags;
+	ctl.data = str.data();
+
+	ctl.io.flags = ioflags | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.offset = remote_offset;
+	ctl.io.size = str.size();
+	ctl.io.type = type;
+	ctl.io.num = csize;
+
+	transform(remote, ctl.id);
+	ctl.id.type = type;
+	ctl.id.group_id = 0;
+
+	ctl.fd = -1;
+
+	int err = dnet_write_data_wait(node, &ctl);
+	if (err < 0) {
+		std::ostringstream string;
+		string << dnet_dump_id(&ctl.id) << ": " << remote << ": write_commit: size: " << str.size() << ", err: " << err;
+		throw std::runtime_error(string.str());
+	}
+	return err;
+}
+
+int elliptics_node::write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
+		unsigned int aflags, unsigned int ioflags, int type)
+{
+	struct dnet_io_control ctl;
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.aflags = aflags;
+	ctl.data = str.data();
+
+	ctl.io.flags = ioflags | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.offset = remote_offset;
+	ctl.io.size = str.size();
+	ctl.io.type = type;
+
+	transform(remote, ctl.id);
+	ctl.id.type = type;
+	ctl.id.group_id = 0;
+
+	ctl.fd = -1;
+
+	int err = dnet_write_data_wait(node, &ctl);
+	if (err < 0) {
+		std::ostringstream string;
+		string << dnet_dump_id(&ctl.id) << ": " << remote << ": write_plain: size: " << str.size() << ", err: " << err;
+		throw std::runtime_error(string.str());
+	}
+	return err;
+}

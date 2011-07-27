@@ -276,13 +276,19 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 /* Metada IO request */
 #define DNET_IO_FLAGS_META		(1<<3)
 
-#define DNET_IO_FLAGS_UNUSED4		(1<<4)
-#define DNET_IO_FLAGS_UNUSED5		(1<<5)
+/* eblob prepare/commit phase */
+#define DNET_IO_FLAGS_PREPARE		(1<<4)
+#define DNET_IO_FLAGS_COMMIT		(1<<5)
 
 /* Object was removed */
 #define DNET_IO_FLAGS_REMOVED		(1<<6)
 
-#define DNET_IO_FLAGS_UNUSED7		(1<<7)
+/*
+ * this flag is used when we want backend not to perform any additional actions
+ * except than write data at given offset. This is no-op in filesystem backend,
+ * but eblob one should disable prepare/commit operations.
+ */
+#define DNET_IO_FLAGS_PLAIN_WRITE	(1<<7)
 
 #define DNET_IO_FLAGS_NOCSUM		(1<<8)
 
@@ -290,6 +296,13 @@ struct dnet_io_attr
 {
 	uint8_t			parent[DNET_ID_SIZE];
 	uint8_t			id[DNET_ID_SIZE];
+
+	/*
+	 * used in range request as start and number for LIMIT(start, num) 
+	 *
+	 * write prepare request uses @num is used as a placeholder
+	 * for number of bytes to reserve on disk
+	 */
 	uint64_t		start, num;
 	int			type;
 	uint32_t		flags;
