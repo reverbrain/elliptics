@@ -71,6 +71,13 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
+	if ((io->type == EBLOB_TYPE_META) && !(io->flags & DNET_IO_FLAGS_META)) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: meta-check: COLUMN %d IS RESERVED FOR METADATA\n",
+			dnet_dump_id_str(io->id), io->type);
+		err = -EPERM;
+		goto err_out_exit;
+	}
+
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
 		struct eblob_write_control wc;
 
