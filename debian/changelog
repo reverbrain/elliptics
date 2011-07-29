@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.1.3) unstable; urgency=low
+
+  * Change package replace/provide list
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 30 Jul 2011 00:47:13 +0400
+
 elliptics-2.10 (2.10.1.2) unstable; urgency=low
 
   * Change package replace/provide list
