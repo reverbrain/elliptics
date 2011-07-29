@@ -1,3 +1,11 @@
+elliptics-2.10 (2.10.1.2) unstable; urgency=low
+
+  * Change package replace/provide list
+  * Do not allow EBLOB_TYPE_META column update without DNET_IO_FLAGS_META flag
+    set
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 30 Jul 2011 00:28:35 +0400
+
 elliptics-2.10 (2.10.1.1) unstable; urgency=low
 
   * Added prepare/commit C++ methods. Updated to 0.9.0 eblob
