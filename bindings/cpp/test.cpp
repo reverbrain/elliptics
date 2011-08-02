@@ -133,6 +133,40 @@ static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 	std::cout << "prepare/commit read: " << n.read_data_wait(key, 0, 0, aflags, ioflags, column) << std::endl;
 }
 
+static void test_range_request(elliptics_node &n, int limit_start, int limit_num)
+{
+	struct dnet_io_attr io;
+
+	memset(&io, 0, sizeof(io));
+
+	memset(io.id, 0x00, sizeof(io.id));
+	memset(io.parent, 0xff, sizeof(io.id));
+
+	io.start = limit_start;
+	io.num = limit_num;
+
+	int group_id = 2;
+	unsigned int aflags = 0;
+
+	std::string ret;
+	ret = n.read_data_range(io, group_id, aflags);
+
+	struct dnet_io_attr *rio;
+	char *data = (char *)ret.data();
+	size_t size = ret.size();
+
+	while (size) {
+		rio = (struct dnet_io_attr *)data;
+
+		dnet_convert_io_attr(rio);
+
+		std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << (char *)(rio + 1) << std::endl;
+
+		data += sizeof(struct dnet_io_attr) + rio->size;
+		size -= sizeof(struct dnet_io_attr) + rio->size;
+	}
+}
+
 int main()
 {
 	int g[] = {1, 2, 3};
@@ -216,6 +250,10 @@ int main()
 		test_prepare_commit(n, 1, 0);
 		test_prepare_commit(n, 0, 1);
 		test_prepare_commit(n, 1, 1);
+
+		test_range_request(n, 0, 0);
+		test_range_request(n, 1, 0);
+		test_range_request(n, 0, 1);
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {
