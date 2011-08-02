@@ -614,7 +614,7 @@ std::string elliptics_node::read_data_range(struct dnet_io_attr &io, int group_i
 	int err;
 
 	data = dnet_read_range(node, &io, group_id, aflags, &err);
-	if (!data) {
+	if (!data && err) {
 		std::ostringstream str;
 		str << "Failed to read range data object: group: " << group_id <<
 			", key: " << dnet_dump_id_str(io.id) <<
@@ -624,14 +624,16 @@ std::string elliptics_node::read_data_range(struct dnet_io_attr &io, int group_i
 
 	std::string ret;
 
-	for (int i = 0; i < err; ++i) {
-		struct dnet_range_data *d = &data[i];
+	if (data) {
+		for (int i = 0; i < err; ++i) {
+			struct dnet_range_data *d = &data[i];
 
-		ret.append((const char *)d->data, d->size);
-		free(d->data);
+			ret.append((const char *)d->data, d->size);
+			free(d->data);
+		}
+
+		free(data);
 	}
-
-	free(data);
 
 	return ret;
 }
