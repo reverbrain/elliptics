@@ -1,3 +1,12 @@
+elliptics-2.10 (2.10.1.4) unstable; urgency=low
+
+  * Do not fail if dnet_read_range() returned no data AND no error. Read
+    returned data only if it is not NULL
+  * Added test_range_request()
+  * Removed '-Replaces:' directive from debian/control
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 02 Aug 2011 17:27:26 +0400
+
 elliptics-2.10 (2.10.1.3) unstable; urgency=low
 
   * Change package replace/provide list
