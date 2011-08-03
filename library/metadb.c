@@ -142,8 +142,8 @@ int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 	case DNET_CMD_DEL:
 		memcpy(id.id, cmd->id.id, DNET_ID_SIZE);
 		err = n->cb->meta_remove(n->cb->command_private, &id, !!(a->flags & DNET_ATTR_DELETE_HISTORY));
-		if (err > 0) {
-			/* if positive value returned we will delete data object */
+		if (err >= 0) {
+			/* remove object if metadata processing did not return error */
 
 			err = n->cb->command_handler(st, n->cb->command_private, cmd, a, io);
 		}
