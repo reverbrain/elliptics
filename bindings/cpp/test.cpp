@@ -169,7 +169,7 @@ int main()
 	std::vector<int> groups(g, g+ARRAY_SIZE(g));
 
 	try {
-		elliptics_log_file log("/dev/stderr", DNET_LOG_ERROR | DNET_LOG_DATA | 15);
+		elliptics_log_file log("/dev/stderr", DNET_LOG_ERROR | DNET_LOG_DATA);
 
 		elliptics_node n(log);
 		n.add_groups(groups);
