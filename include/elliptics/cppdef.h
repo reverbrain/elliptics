@@ -192,7 +192,7 @@ class elliptics_node {
 						struct dnet_node_status *status, int update);
 		void			update_status(struct dnet_id &id, struct dnet_node_status *status, int update);
 
-		std::string		read_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags = 0);
+		std::vector<std::string>	read_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags = 0);
 
 	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,

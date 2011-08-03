@@ -136,6 +136,7 @@ static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 static void test_range_request(elliptics_node &n, int limit_start, int limit_num)
 {
 	struct dnet_io_attr io;
+	char id_str[DNET_ID_SIZE * 2 + 1];
 
 	memset(&io, 0, sizeof(io));
 
@@ -148,22 +149,17 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 	int group_id = 2;
 	unsigned int aflags = 0;
 
-	std::string ret;
+	std::vector<std::string> ret;
 	ret = n.read_data_range(io, group_id, aflags);
 
-	struct dnet_io_attr *rio;
-	char *data = (char *)ret.data();
-	size_t size = ret.size();
+	for (size_t i = 0; i < ret.size(); ++i) {
+		const char *data = ret[i].data();
+		const unsigned char *id = (const unsigned char *)data;
+		uint64_t size = *(uint64_t *)(data + DNET_ID_SIZE);
+		char *str = (char *)(data + DNET_ID_SIZE + 8);
 
-	while (size) {
-		rio = (struct dnet_io_attr *)data;
-
-		dnet_convert_io_attr(rio);
-
-		std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << (char *)(rio + 1) << std::endl;
-
-		data += sizeof(struct dnet_io_attr) + rio->size;
-		size -= sizeof(struct dnet_io_attr) + rio->size;
+		std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " <<
+			dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str) << ": size: " << size << ": " << str << std::endl;
 	}
 }
 
@@ -173,7 +169,7 @@ int main()
 	std::vector<int> groups(g, g+ARRAY_SIZE(g));
 
 	try {
-		elliptics_log_file log("/dev/stderr", DNET_LOG_ERROR | DNET_LOG_DATA);
+		elliptics_log_file log("/dev/stderr", DNET_LOG_ERROR | DNET_LOG_DATA | 15);
 
 		elliptics_node n(log);
 		n.add_groups(groups);

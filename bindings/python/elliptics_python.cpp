@@ -14,6 +14,7 @@
  */
 
 #include <boost/python.hpp>
+#include <boost/python/list.hpp>
 
 #if 0
 
@@ -318,10 +319,20 @@ class elliptics_node_python : public elliptics_node {
 			return status;
 		}
 
-		std::string read_data_range(const struct elliptics_range &r) {
+		boost::python::list read_data_range(const struct elliptics_range &r) {
 			struct dnet_io_attr io;
 			elliptics_extract_range(r, io);
-			return elliptics_node::read_data_range(io, r.group_id, r.aflags);
+
+			std::vector<std::string> ret;
+			ret = elliptics_node::read_data_range(io, r.group_id, r.aflags);
+
+			boost::python::list l;
+
+			for (size_t i = 0; i < ret.size(); ++i) {
+				l.append(ret[i]);
+			}
+
+			return l;
 		}
 };
 
