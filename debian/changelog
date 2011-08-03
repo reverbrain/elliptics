@@ -1,3 +1,14 @@
+elliptics-2.10 (2.10.1.5) unstable; urgency=low
+
+  * Depend on eblob 0.9.6 and higher
+  * Remove object if metadata processing did not return error
+  * Call metadata removal when DNET_CMD_DEL requested
+  * Expose range reply in C++ binding as std::vector<std::string>. Python
+    binding uses list
+  * Daemon mode for dnet_check
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 03 Aug 2011 21:12:56 +0400
+
 elliptics-2.10 (2.10.1.4) unstable; urgency=low
 
   * Do not fail if dnet_read_range() returned no data AND no error. Read
