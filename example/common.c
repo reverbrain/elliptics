@@ -386,3 +386,27 @@ struct dnet_meta * dnet_meta_search_cust(struct dnet_meta_container *mc, uint32_
 	return found;
 }
 
+int dnet_background(void)
+{
+	pid_t pid;
+
+	pid = fork();
+	if (pid == -1) {
+		fprintf(stderr, "Failed to fork to background: %s.\n", strerror(errno));
+		return -1;
+	}
+
+	if (pid != 0) {
+		printf("Daemon pid: %d.\n", pid);
+		exit(0);
+	}
+
+	setsid();
+
+	close(0);
+	close(1);
+	close(2);
+
+	return 0;
+}
+

@@ -51,30 +51,6 @@
 #define DNET_CONF_COMMENT	'#'
 #define DNET_CONF_DELIMITER	'='
 
-static int dnet_background(void)
-{
-	pid_t pid;
-
-	pid = fork();
-	if (pid == -1) {
-		dnet_backend_log(DNET_LOG_ERROR, "Failed to fork to background: %s.\n", strerror(errno));
-		return -1;
-	}
-
-	if (pid != 0) {
-		printf("Daemon pid: %d.\n", pid);
-		exit(0);
-	}
-
-	setsid();
-
-	close(0);
-	close(1);
-	close(2);
-
-	return 0;
-}
-
 static char *dnet_skip_line(char *line)
 {
 	int len = strlen(line), i;
