@@ -44,12 +44,14 @@
 #endif
 
 static struct dnet_log check_logger;
+static char *default_log = "/dev/stderr";
 
 static void check_usage(char *p)
 {
 	fprintf(stderr, "Usage: %s\n"
 			" -r addr:port:family  - adds remote node\n"
 			" -l log               - log file. Default: disabled\n"
+			" -d                   - work as daemon\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" -m mask              - log events mask\n"
 			" -M                   - do not check copies in other groups, run only merge check\n"
@@ -170,7 +172,8 @@ int main(int argc, char *argv[])
 	int ch, err, have_remote = 0;
 	struct dnet_node *n = NULL;
 	struct dnet_config cfg, rem;
-	char *logfile = "/dev/stderr";
+	char *logfile = default_log;
+	int daemonize = 0;
 	FILE *log = NULL;
 	struct dnet_check_request r, *req;
 	struct tm tm;
@@ -190,7 +193,7 @@ int main(int argc, char *argv[])
 	memset(&r, 0, sizeof(r));
 
 //	while ((ch = getopt(argc, argv, "DN:f:n:t:FMRm:w:l:r:h")) != -1) {
-	while ((ch = getopt(argc, argv, "DN:f:n:t:MRm:w:l:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "DN:f:n:t:MRm:w:l:dr:h")) != -1) {
 		switch (ch) {
 			case 'N':
 				cfg.ns = optarg;
@@ -231,6 +234,9 @@ int main(int argc, char *argv[])
 			case 'l':
 				logfile = optarg;
 				break;
+			case 'd':
+				daemonize = 1;
+				break;
 			case 'r':
 				err = dnet_parse_addr(optarg, &rem);
 				if (err)
@@ -254,6 +260,14 @@ int main(int argc, char *argv[])
 		err = -errno;
 		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
 		return err;
+	}
+
+	if (daemonize) {
+		if (logfile == default_log) {
+			fprintf(stderr, "You should specify log file for daemon mode\n");
+		} else {
+			dnet_background();
+		}
 	}
 
 	check_logger.log_private = log;

@@ -59,6 +59,8 @@ static inline void dnet_common_convert_embedded(struct dnet_common_embed *e)
 
 int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int *bufsize);
 
+int dnet_background(void);
+
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map);
 void dnet_unmap_history(struct dnet_node *n, struct dnet_history_map *map);
 
