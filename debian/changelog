@@ -1,3 +1,10 @@
+elliptics-2.10 (2.10.1.6) unstable; urgency=low
+
+  * Added Replaces and Provides directives to debian/control
+  * Process READ and WRITE commands for metadata
+
+ -- Anton Kortunov <toshik@yandex-team.ru>  Thu, 04 Aug 2011 17:10:00 +0300
+
 elliptics-2.10 (2.10.1.5) unstable; urgency=low
 
   * Depend on eblob 0.9.6 and higher
