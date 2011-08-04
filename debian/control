@@ -9,11 +9,15 @@ Homepage: http://www.ioremap.net/projects/elliptics
 Package: elliptics-2.10
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.9.6)
+Replaces: elliptics
+Provides: elliptics
 Description: Distributed hash table storage
  Elliptics network is a fault tolerant distributed hash table object storage.
 
 Package: elliptics-dbg-2.10
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends},  eblob-dbg (>= 0.9.6)
+Replaces: elliptics-dbg
+Provides: elliptics-dbg
 Description: Distributed hash table storage
  Elliptics network is a fault tolerant distributed hash table object storage.
