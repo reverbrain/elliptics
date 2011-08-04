@@ -3224,7 +3224,7 @@ struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr
 	struct dnet_raw_id end;
 	uint64_t size = io->size;
 	void *data;
-	int err, cmp;
+	int err, need_exit = 0;
 
 	memcpy(end.id, io->parent, DNET_ID_SIZE);
 
@@ -3233,13 +3233,29 @@ struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr
 
 	ret = NULL;
 	ret_num = 0;
-	while (1) {
+	while (!need_exit) {
 		err = dnet_search_range(n, &id, &start, &next);
 		if (err)
 			goto err_out_exit;
 
-		if (!memcmp(start.id, next.id, DNET_ID_SIZE)) {
+		if ((dnet_id_cmp_str(id.id, next.id) > 0) || !memcmp(start.id, next.id, DNET_ID_SIZE)) {
 			memcpy(next.id, end.id, DNET_ID_SIZE);
+			need_exit = 1;
+		}
+
+		if (n->log->log_mask & DNET_LOG_NOTICE) {
+			int len = 6;
+			char start_id[2*len + 1];
+			char next_id[2*len + 1];
+			char end_id[2*len + 1];
+			char id_str[2*len + 1];
+
+			dnet_log(n, DNET_LOG_NOTICE, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d\n",
+					dnet_dump_id_len_raw(id.id, len, id_str),
+					dnet_dump_id_len_raw(start.id, len, start_id),
+					dnet_dump_id_len_raw(next.id, len, next_id),
+					dnet_dump_id_len_raw(end.id, len, end_id),
+					(unsigned long long)size, dnet_id_cmp_str(next.id, end.id));
 		}
 
 		memcpy(io->id, id.id, DNET_ID_SIZE);
@@ -3288,13 +3304,6 @@ struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr
 			if (!io->num)
 				break;
 		}
-
-		cmp = dnet_id_cmp_str(next.id, end.id);
-		if (cmp >= 0) {
-			err = 0;
-			break;
-		}
-
 
 		memcpy(id.id, next.id, DNET_ID_SIZE);
 	}
