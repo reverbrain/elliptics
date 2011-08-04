@@ -163,6 +163,47 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 	}
 }
 
+static void test_lookup(elliptics_node &n, std::vector<int> &groups)
+{
+	std::string key = "2.xml";
+	std::string data = "lookup data";
+	n.write_data_wait(key, data, 0, 0, 0, 0);
+
+	struct dnet_id id;
+	n.transform(key, id);
+	id.group_id = 0;
+	id.type = 0;
+
+	struct timespec ts = {0, 0};
+	n.write_metadata(id, key, groups, ts);
+
+	try {
+		std::string lret = n.lookup(key);
+
+		struct dnet_addr *addr = (struct dnet_addr *)lret.data();
+		struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
+		struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
+		struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+
+		dnet_convert_addr_attr(a);
+		std::cout << key << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
+
+		if (attr->size > sizeof(struct dnet_addr_attr)) {
+			struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
+
+			dnet_convert_file_info(info);
+			std::cout << ": mode: " << std::oct << info->mode;
+			std::cout << ", offset: " << info->offset;
+			std::cout << ", size: " << info->size;
+			std::cout << ", file: " << (char *)(info + 1);
+		}
+		std::cout << std::endl;
+	} catch (const std::exception &e) {
+		std::cerr << key << ": LOOKUP failed" << std::endl;
+	}
+
+}
+
 int main()
 {
 	int g[] = {1, 2, 3};
@@ -188,31 +229,7 @@ int main()
 		if (!added)
 			throw std::runtime_error("Could not add remote nodes, exiting");
 
-		std::string lobj = "2.xml";
-		try {
-			std::string lret = n.lookup(lobj);
-
-			struct dnet_addr *addr = (struct dnet_addr *)lret.data();
-			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
-			struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
-
-			dnet_convert_addr_attr(a);
-			std::cout << lobj << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
-
-			if (attr->size > sizeof(struct dnet_addr_attr)) {
-				struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
-
-				dnet_convert_file_info(info);
-				std::cout << ": mode: " << std::oct << info->mode;
-				std::cout << ", offset: " << info->offset;
-				std::cout << ", size: " << info->size;
-				std::cout << ", file: " << (char *)(info + 1);
-			}
-			std::cout << std::endl;
-		} catch (const std::exception &e) {
-			std::cerr << lobj << ": LOOKUP failed" << std::endl;
-		}
+		test_lookup(n, groups);
 
 		n.stat_log();
 
@@ -224,21 +241,6 @@ int main()
 		n.write_data_wait(key, data1, 0, 0, 0, 2);
 		n.write_data_wait(key, data2, 0, 0, 0, 3);
 
-		/*
-		 * metadata write will fail, since it will try to checksum data (column 0),
-		 * but we didn't write into that column.
-		 */
-#if 0
-		std::cout << "Writing metadata" << std::endl;
-
-		struct dnet_id id;
-		n.transform(key, id);
-		id.group_id = 0;
-		id.type = 0;
-
-		struct timespec ts = {0, 0};
-		n.write_metadata(id, key, groups, ts);
-#endif
 		std::cout << "read-column-2: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 2) << std::endl;
 		std::cout << "read-column-3: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 3) << std::endl;
 
