@@ -3238,7 +3238,9 @@ struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr
 		if (err)
 			goto err_out_exit;
 
-		if ((dnet_id_cmp_str(id.id, next.id) > 0) || !memcmp(start.id, next.id, DNET_ID_SIZE)) {
+		if ((dnet_id_cmp_str(id.id, next.id) > 0) ||
+				!memcmp(start.id, next.id, DNET_ID_SIZE) ||
+				(dnet_id_cmp_str(next.id, end.id) > 0)) {
 			memcpy(next.id, end.id, DNET_ID_SIZE);
 			need_exit = 1;
 		}
@@ -3278,31 +3280,31 @@ struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr
 				rep->num -= io->start;
 				io->start = 0;
 				io->num -= rep->num;
+
+				if (!io->size) {
+					free(data);
+				} else {
+					struct dnet_range_data *new_ret;
+
+					ret_num++;
+
+					new_ret = realloc(ret, ret_num * sizeof(struct dnet_range_data));
+					if (!new_ret) {
+						goto err_out_exit;
+					}
+
+					ret = new_ret;
+
+					ret[ret_num - 1].data = data;
+					ret[ret_num - 1].size = io->size;
+				}
+
+				err = 0;
+				if (!io->num)
+					break;
 			} else {
 				io->start -= rep->num;
 			}
-
-			if (!io->size) {
-				free(data);
-			} else {
-				struct dnet_range_data *new_ret;
-
-				ret_num++;
-
-				new_ret = realloc(ret, ret_num * sizeof(struct dnet_range_data));
-				if (!new_ret) {
-					goto err_out_exit;
-				}
-
-				ret = new_ret;
-
-				ret[ret_num - 1].data = data;
-				ret[ret_num - 1].size = io->size;
-			}
-
-			err = 0;
-			if (!io->num)
-				break;
 		}
 
 		memcpy(id.id, next.id, DNET_ID_SIZE);
