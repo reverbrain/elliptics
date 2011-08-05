@@ -2776,8 +2776,8 @@ int dnet_write_data_wait(struct dnet_node *n, struct dnet_io_control *ctl)
 	}
 
 	if (trans_num)
-		dnet_log(n, DNET_LOG_NOTICE, "%s: successfully wrote %llu bytes into the storage (%d groups).\n",
-				dnet_dump_id(&ctl->id), (unsigned long long)ctl->io.size, trans_num);
+		dnet_log(n, DNET_LOG_NOTICE, "%s: successfully wrote %llu bytes into the storage.\n",
+				dnet_dump_id(&ctl->id), (unsigned long long)ctl->io.size);
 	err = trans_num;
 
 err_out_put:
