@@ -199,6 +199,12 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* Do not verify checksum */
 #define DNET_ATTR_NOCSUM			(1<<2)
 
+/*
+ * ascending sort data before returning range request to user
+ * c++ bindings only
+ */
+#define DNET_ATTR_SORT				(1<<3)
+
 struct dnet_attr
 {
 	uint64_t		size;

@@ -33,8 +33,12 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <sstream>
+#include <algorithm>
+#include <iostream>
 #include <stdexcept>
+#include <string>
+#include <sstream>
+#include <vector>
 
 #include "elliptics/cppdef.h"
 
@@ -608,6 +612,17 @@ void elliptics_node::update_status(struct dnet_id &id, struct dnet_node_status *
 	}
 }
 
+struct range_sort_compare {
+		bool operator () (const std::string &s1, const std::string &s2) {
+			unsigned char *id1 = (unsigned char *)s1.data();
+			unsigned char *id2 = (unsigned char *)s2.data();
+
+			int cmp = dnet_id_cmp_str(id1, id2);
+
+			return cmp < 0;
+		}
+};
+
 std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags)
 {
 	struct dnet_range_data *data;
@@ -631,9 +646,10 @@ std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io
 
 			while (d->size) {
 				struct dnet_io_attr *io = (struct dnet_io_attr *)data;
-				uint64_t size = dnet_bswap64(io->size);
 
 				dnet_convert_io_attr(io);
+
+				uint64_t size = dnet_bswap64(io->size);
 
 				std::string str;
 
@@ -651,6 +667,9 @@ std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io
 		}
 
 		free(data);
+
+		if (aflags & DNET_ATTR_SORT)
+			std::sort(ret.begin(), ret.end(), range_sort_compare());
 	}
 
 	return ret;

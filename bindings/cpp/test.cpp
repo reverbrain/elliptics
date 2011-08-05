@@ -133,7 +133,7 @@ static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 	std::cout << "prepare/commit read: " << n.read_data_wait(key, 0, 0, aflags, ioflags, column) << std::endl;
 }
 
-static void test_range_request(elliptics_node &n, int limit_start, int limit_num)
+static void test_range_request(elliptics_node &n, int limit_start, int limit_num, unsigned int aflags)
 {
 	struct dnet_io_attr io;
 	char id_str[DNET_ID_SIZE * 2 + 1];
@@ -147,7 +147,6 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 	io.num = limit_num;
 
 	int group_id = 2;
-	unsigned int aflags = 0;
 
 	std::vector<std::string> ret;
 	ret = n.read_data_range(io, group_id, aflags);
@@ -155,7 +154,7 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 	for (size_t i = 0; i < ret.size(); ++i) {
 		const char *data = ret[i].data();
 		const unsigned char *id = (const unsigned char *)data;
-		uint64_t size = *(uint64_t *)(data + DNET_ID_SIZE);
+		uint64_t size = dnet_bswap64(*(uint64_t *)(data + DNET_ID_SIZE));
 		char *str = (char *)(data + DNET_ID_SIZE + 8);
 
 		std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " <<
@@ -192,9 +191,9 @@ static void test_lookup(elliptics_node &n, std::vector<int> &groups)
 			struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
 
 			dnet_convert_file_info(info);
-			std::cout << ": mode: " << std::oct << info->mode;
-			std::cout << ", offset: " << info->offset;
-			std::cout << ", size: " << info->size;
+			std::cout << ": mode: " << std::oct << info->mode << std::dec;
+			std::cout << ", offset: " << (unsigned long long)info->offset;
+			std::cout << ", size: " << (unsigned long long)info->size;
 			std::cout << ", file: " << (char *)(info + 1);
 		}
 		std::cout << std::endl;
@@ -249,9 +248,10 @@ int main()
 		test_prepare_commit(n, 0, 1);
 		test_prepare_commit(n, 1, 1);
 
-		test_range_request(n, 0, 0);
-		test_range_request(n, 1, 0);
-		test_range_request(n, 0, 1);
+		test_range_request(n, 0, 0, 0);
+		test_range_request(n, 0, 0, DNET_ATTR_SORT);
+		test_range_request(n, 1, 0, 0);
+		test_range_request(n, 0, 1, 0);
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {
