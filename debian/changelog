@@ -1,3 +1,11 @@
+elliptics-2.10 (2.10.1.9) unstable; urgency=low
+
+  * Do not print ENOENT error for DNET_CMD_READ_RANGE command
+  * Added attribute flags for sorted range output
+  * Return little-endian size in read_data_range()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 06 Aug 2011 02:06:49 +0400
+
 elliptics-2.10 (2.10.1.8) unstable; urgency=low
 
   * Exit from range loop early when detected that next.id > end.id. Only copy
