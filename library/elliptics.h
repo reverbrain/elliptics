@@ -634,7 +634,6 @@ struct dnet_meta_update * dnet_get_meta_update(struct dnet_node *n, struct dnet_
 		struct dnet_meta_update *meta_update);
 
 int dnet_update_ts_metadata(struct eblob_backend *b, struct dnet_raw_id *id, uint64_t flags_set, uint64_t flags_clear);
-int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_raw_id *id, struct dnet_meta_checksum *csum);
 
 int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, struct dnet_io_attr *io);
 

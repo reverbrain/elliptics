@@ -571,38 +571,6 @@ err_out_exit:
 	return err;
 }
 
-int dnet_meta_read_checksum(struct dnet_node *n, struct dnet_raw_id *id, struct dnet_meta_checksum *csum)
-{
-	struct dnet_meta *m;
-	struct dnet_meta_container mc;
-	int err;
-
-	err = n->cb->meta_read(n->cb->command_private, id, &mc.data);
-	if (err < 0) {
-		goto err_out_exit;
-	}
-	mc.size = err;
-
-	m = dnet_meta_search(n, &mc, DNET_META_CHECKSUM);
-	if (!m) {
-		err = -ENOENT;
-		goto err_out_free;
-	}
-
-	if (m->size != sizeof(struct dnet_meta_checksum)) {
-		err = -EINVAL;
-		goto err_out_free;
-	}
-
-	memcpy(csum, m->data, sizeof(struct dnet_meta_checksum));
-	err = 0;
-
-err_out_free:
-	free(mc.data);
-err_out_exit:
-	return err;
-}
-
 int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc,
 		const void *remote, unsigned int remote_len, struct dnet_id *id)
 {

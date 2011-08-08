@@ -3153,54 +3153,6 @@ err_out_exit:
 	return err;
 }
 
-int dnet_verify_checksum_io(struct dnet_node *n, struct dnet_id *id, unsigned char *result, int *res_len)
-{
-	int csize = DNET_CSUM_SIZE;
-	unsigned char csum[csize];
-	struct dnet_meta_checksum mc;
-	struct dnet_raw_id raw;
-	char str[csize*2+1];
-	int err;
-
-	memcpy(raw.id, id->id, DNET_ID_SIZE);
-
-	err = dnet_meta_read_checksum(n, &raw, &mc);
-	if (err) {
-		err = -ENODATA;
-		goto err_out_exit;
-	}
-
-	memset(csum, 0, sizeof(csum));
-	if (!memcmp(mc.checksum, csum, DNET_CSUM_SIZE)) {
-		err = -ENODATA;
-		goto err_out_exit;
-	}
-
-	err = n->cb->checksum(n, n->cb->command_private, id, csum, &csize);
-	if (err)
-		goto err_out_exit;
-
-	dnet_log(n, DNET_LOG_DSA, "%s: calculated csum: %s\n", dnet_dump_id_str(id->id), dnet_dump_id_len_raw(csum, csize, str));
-	dnet_log(n, DNET_LOG_DSA, "%s: stored     csum: %s\n", dnet_dump_id_str(id->id), dnet_dump_id_len_raw(mc.checksum, csize, str));
-
-	if (memcmp(mc.checksum, csum, csize)) {
-		err = -EBADFD;
-		goto err_out_exit;
-	}
-
-	if (result) {
-		if (*res_len > csize)
-			*res_len = csize;
-
-		memcpy(result, csum, *res_len);
-	}
-
-err_out_exit:
-	if (err)
-		dnet_log(n, DNET_LOG_ERROR, "%s: CSUM: verification: failed: %d: %s\n", dnet_dump_id_str(id->id), err, strerror(-err));
-	return err;
-}
-
 int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info, int fd, uint64_t offset, uint64_t size)
 {
 	struct dnet_meta *m;
