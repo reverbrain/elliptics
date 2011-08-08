@@ -1,3 +1,12 @@
+elliptics-2.10 (2.10.1.10) unstable; urgency=low
+
+  * Removed dnet_verify_checksum_io() and dnet_meta_read_checksum()
+  * Pushed csum verification and dnet_file_info fill down to backends to
+    reduce number of lookups
+  * Do not print meaningless number of written groups
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Aug 2011 00:27:15 +0400
+
 elliptics-2.10 (2.10.1.9) unstable; urgency=low
 
   * Do not print ENOENT error for DNET_CMD_READ_RANGE command
