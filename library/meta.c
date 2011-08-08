@@ -662,42 +662,6 @@ err_out_exit:
 	return err;
 }
 
-int dnet_meta_fill(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *fi)
-{
-	struct dnet_meta_container mc;
-	struct dnet_meta_update *mu;
-	struct dnet_raw_id raw;
-	struct dnet_meta *m;
-	int err;
-
-	memcpy(raw.id, id->id, DNET_ID_SIZE);
-
-	err = n->cb->meta_read(n->cb->command_private, &raw, &mc.data);
-	if (err < 0) {
-		goto err_out_exit;
-	}
-	mc.size = err;
-
-	m = dnet_meta_search(n, &mc, DNET_META_UPDATE);
-	if (!m) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: READ: meta-fill: no DNET_META_UPDATE tag in metadata\n",
-				dnet_dump_id(id));
-		err = -ENODATA;
-		goto err_out_free;
-	}
-
-	mu = (struct dnet_meta_update *)m->data;
-	dnet_convert_meta_update(mu);
-
-	fi->ctime = fi->mtime = mu->tm;
-	err = 0;
-
-err_out_free:
-	free(mc.data);
-err_out_exit:
-	return err;
-}
-
 int dnet_meta_update_check_status_raw(struct dnet_node *n, struct dnet_meta_container *mc)
 {
 	struct dnet_meta *m = NULL;

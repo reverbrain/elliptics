@@ -182,12 +182,24 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 			size = io->size;
 	}
 
+	if (!(attr->flags & DNET_ATTR_NOCSUM) && fd != -1 && size) {
+		struct dnet_file_info info;
+		struct dnet_id id;
+
+		dnet_setup_id(&id, cmd->id.group_id, io->id);
+		id.type = io->type;
+
+		err = dnet_read_file_info(dnet_get_node_from_state(state), &id, &info, fd, offset, size);
+		if (err && (err != -ENODATA))
+			goto err_out_free;
+	}
+
 	io->size = size;
 	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset);
 
+err_out_free:
 	/* free compressed data */
 	free(read_data);
-
 err_out_exit:
 	return err;
 }
@@ -408,7 +420,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	struct dnet_addr_attr *a;
 	struct eblob_key key;
 	uint64_t offset, size;
-	int fd, flen, csize, err;
+	int fd, flen, err;
 	char *file;
 	struct stat st;
 
@@ -447,21 +459,14 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	/* this is not valid data from raw blob file stat */
 	info->ctime.tsec = info->mtime.tsec = 0;
 
-	csize = sizeof(info->checksum);
-	if (attr->flags & DNET_ATTR_NOCSUM) {
-		memset(info->checksum, 0, csize);
-	} else {
-		err = dnet_verify_checksum_io(n, &cmd->id, info->checksum, &csize);
+	if (!(attr->flags & DNET_ATTR_NOCSUM) || (attr->flags & DNET_ATTR_META_TIMES)) {
+		int csum_fd = -1;
+		if (!(attr->flags & DNET_ATTR_NOCSUM) && size)
+			csum_fd = fd;
+
+		err = dnet_read_file_info(n, &cmd->id, info, csum_fd, offset, size);
 		if (err && (err != -ENODATA))
 			goto err_out_free;
-	}
-
-	if (attr->flags & DNET_ATTR_META_TIMES) {
-		err = dnet_meta_fill(n, &cmd->id, info);
-		if (err) {
-			struct dnet_time nt = {0, 0};
-			info->mtime = info->ctime = info->atime = nt;
-		}
 	}
 
 	info->size = size;

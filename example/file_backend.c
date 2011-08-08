@@ -227,6 +227,18 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 		goto err_out_close_fd;
 	}
 
+	if (!(attr->flags & DNET_ATTR_NOCSUM)) {
+		struct dnet_file_info info;
+		struct dnet_id id;
+
+		dnet_setup_id(&id, cmd->id.group_id, io->id);
+		id.type = io->type;
+
+		err = dnet_read_file_info(dnet_get_node_from_state(state), &id, &info, fd, 0, size);
+		if (err && (err != -ENODATA))
+			goto err_out_close_fd;
+	}
+
 	io->size = size;
 	err = dnet_send_read_data(state, cmd, io, NULL, fd, io->offset);
 
@@ -272,7 +284,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	struct dnet_file_info *info;
 	struct dnet_addr_attr *a;
 	struct stat st;
-	int err, csize;
+	int err;
 
 	file_backend_get_dir(cmd->id.id, r->bit_num, dir);
 
@@ -301,17 +313,27 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 
 	dnet_info_from_stat(info, &st);
 
-	csize = sizeof(info->checksum);
-	if (attr->flags & DNET_ATTR_NOCSUM) {
-		memset(info->checksum, 0, csize);
-	} else {
-		err = dnet_verify_checksum_io(n, &cmd->id, info->checksum, &csize);
+	if (!(attr->flags & DNET_ATTR_NOCSUM) || (attr->flags & DNET_ATTR_META_TIMES)) {
+		int csum_fd = -1;
+
+		if (!(attr->flags & DNET_ATTR_NOCSUM)) {
+			err = open(file, O_RDONLY);
+			if (err < 0) {
+				err = -errno;
+				dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: info-stat-open-csum: %d: %s.\n",
+					dnet_dump_id(&cmd->id), file, err, strerror(-err));
+				goto err_out_free;
+			}
+
+			csum_fd = err;
+		}
+
+		err = dnet_read_file_info(n, &cmd->id, info, csum_fd, 0, st.st_size);
+
+		close(csum_fd);
+
 		if (err && (err != -ENODATA))
 			goto err_out_free;
-	}
-
-	if (attr->flags & DNET_ATTR_META_TIMES) {
-		dnet_meta_fill(n, &cmd->id, info);
 	}
 
 	dnet_convert_addr_attr(a);

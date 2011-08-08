@@ -688,21 +688,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 				dnet_convert_io_attr(io);
 			default:
-				if (a->cmd == DNET_CMD_READ) {
-					if (!(a->flags & DNET_ATTR_NOCSUM) && !(n->flags & DNET_CFG_NO_CSUM)) {
-						struct dnet_id id;
-
-						io = data;
-
-						dnet_setup_id(&id, 0, io->id);
-						id.type = io->type;
-
-						err = dnet_verify_checksum_io(n, &id, NULL, NULL);
-						if (err && (err != -ENODATA))
-							break;
-					}
-				}
-
 				if (n->flags & DNET_CFG_NO_CSUM)
 					a->flags |= DNET_ATTR_NOCSUM;
 
@@ -3213,6 +3198,69 @@ int dnet_verify_checksum_io(struct dnet_node *n, struct dnet_id *id, unsigned ch
 err_out_exit:
 	if (err)
 		dnet_log(n, DNET_LOG_ERROR, "%s: CSUM: verification: failed: %d: %s\n", dnet_dump_id_str(id->id), err, strerror(-err));
+	return err;
+}
+
+int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info, int fd, uint64_t offset, uint64_t size)
+{
+	struct dnet_meta *m;
+	struct dnet_meta_update *mu;
+	struct dnet_meta_container mc;
+	struct dnet_raw_id raw;
+	int err;
+
+	memcpy(raw.id, id->id, DNET_ID_SIZE);
+
+	err = n->cb->meta_read(n->cb->command_private, &raw, &mc.data);
+	if (err < 0) {
+		goto err_out_exit;
+	}
+	mc.size = err;
+
+	m = dnet_meta_search(n, &mc, DNET_META_CHECKSUM);
+	if (!m) {
+		err = -ENOENT;
+		goto err_out_free;
+	}
+
+	if (m->size != sizeof(struct dnet_meta_checksum)) {
+		err = -EINVAL;
+		goto err_out_free;
+	}
+
+	memcpy(info->checksum, m->data, sizeof(struct dnet_meta_checksum));
+
+	m = dnet_meta_search(n, &mc, DNET_META_UPDATE);
+	if (!m) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: dnet_read_file_info_verify_csum: no DNET_META_UPDATE tag in metadata\n",
+				dnet_dump_id(id));
+		err = -ENODATA;
+		goto err_out_free;
+	}
+
+	mu = (struct dnet_meta_update *)m->data;
+	dnet_convert_meta_update(mu);
+
+	info->ctime = info->mtime = mu->tm;
+	err = 0;
+
+	if (fd != -1) {
+		unsigned char csum[DNET_CSUM_SIZE];
+		int csize = sizeof(csum);
+
+		err = dnet_checksum_fd(n, csum, &csize, fd, offset, size);
+		if (err)
+			goto err_out_free;
+
+		if (memcmp(info->checksum, csum, csize)) {
+			err = -EBADFD;
+			goto err_out_free;
+		}
+	}
+
+err_out_free:
+	free(mc.data);
+err_out_exit:
 	return err;
 }
 
