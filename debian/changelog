@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.1.14) unstable; urgency=low
+
+  * Use realloc() to stack multiple write replies one after another
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 11 Aug 2011 02:53:55 +0400
+
 elliptics-2.10 (2.10.1.13) unstable; urgency=low
 
   * Send dnet_file_info structure in write reply. Fixed csum copy in
