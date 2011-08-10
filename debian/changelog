@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.1.12) unstable; urgency=low
+
+  * Depend on 0.10.0 eblob and higher
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 10 Aug 2011 06:13:33 +0400
+
 elliptics-2.10 (2.10.1.11) unstable; urgency=low
 
   * Always request dnet_file_info structure in ->file_info() callback
