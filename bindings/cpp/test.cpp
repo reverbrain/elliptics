@@ -235,12 +235,15 @@ int main()
 
 		std::string key = "some-key-1";
 
+		std::string data0 = "some-compressed-data-in-column-0";
 		std::string data1 = "some-data-in-column-2";
 		std::string data2 = "some-data-in-column-3";
 
+		n.write_data_wait(key, data0, 0, 0, DNET_IO_FLAGS_COMPRESS, 0);
 		n.write_data_wait(key, data1, 0, 0, 0, 2);
 		n.write_data_wait(key, data2, 0, 0, 0, 3);
 
+		std::cout << "read-column-0: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 0) << std::endl;
 		/* columns should be read without checksums, since we do not update metadata for them */
 		std::cout << "read-column-2: " << key << " : " << n.read_data_wait(key, 0, 0, DNET_ATTR_NOCSUM, 0, 2) << std::endl;
 		std::cout << "read-column-3: " << key << " : " << n.read_data_wait(key, 0, 0, DNET_ATTR_NOCSUM, 0, 3) << std::endl;
