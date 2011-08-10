@@ -115,7 +115,8 @@ static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 	uint64_t offset = 0;
 	uint64_t total_size_to_reserve = 1024;
 
-	unsigned int aflags = 0;
+	/* we did not write metadata, so do not try to read checksums */
+	unsigned int aflags = DNET_ATTR_NOCSUM;
 	unsigned int ioflags = 0;
 
 	int column = 0;
@@ -240,8 +241,9 @@ int main()
 		n.write_data_wait(key, data1, 0, 0, 0, 2);
 		n.write_data_wait(key, data2, 0, 0, 0, 3);
 
-		std::cout << "read-column-2: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 2) << std::endl;
-		std::cout << "read-column-3: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 3) << std::endl;
+		/* columns should be read without checksums, since we do not update metadata for them */
+		std::cout << "read-column-2: " << key << " : " << n.read_data_wait(key, 0, 0, DNET_ATTR_NOCSUM, 0, 2) << std::endl;
+		std::cout << "read-column-3: " << key << " : " << n.read_data_wait(key, 0, 0, DNET_ATTR_NOCSUM, 0, 3) << std::endl;
 
 		test_prepare_commit(n, 0, 0);
 		test_prepare_commit(n, 1, 0);
