@@ -54,7 +54,7 @@ static void dnet_usage(char *p)
 			" -a                   - request stats from all connected nodes\n"
 			" -U status            - update server status: 1 - elliptics exits, 2 - goes RO\n"
 			" -R file              - read given file from the network into the local storage\n"
-			" -I id                - transaction id\n"
+			" -I id                - transaction id (used to read data)\n"
 			" -g groups            - group IDs to connect\n"
 			" -c cmd               - execute given command on the remote node\n"
 			" -L file              - lookup a storage which hosts given file\n"
@@ -69,6 +69,8 @@ static void dnet_usage(char *p)
 			" -S size              - read/write transaction size\n"
 			" -u file              - unlink file\n"
 			" -N namespace         - use this namespace for operations\n"
+			" -D object            - read latest data for given object, if -I id is specified, this field is unused\n"
+			" -A flags             - attribute flags (4 - no checksum, 2 - read modification time from metadata)\n"
 			, p);
 }
 
@@ -87,6 +89,7 @@ int main(int argc, char *argv[])
 	FILE *log = NULL;
 	uint64_t offset, size;
 	int *groups = NULL, group_num = 0;
+	unsigned int aflags = DNET_ATTR_NOCSUM;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -104,8 +107,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
+			case 'A':
+				aflags = strtoul(optarg, NULL, 0);
+				break;
 			case 'F':
 				node_status.nflags = strtol(optarg, NULL, 0);
 				update_status = 1;
@@ -224,7 +230,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, 0, 0, 0);
+		err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, aflags, 0, 0);
 		if (err)
 			return err;
 	}
@@ -241,7 +247,13 @@ int main(int argc, char *argv[])
 		struct dnet_id raw;
 		struct dnet_io_attr io;
 
-		dnet_transform(n, read_data, strlen(read_data), &raw);
+		if (!id) {
+			dnet_transform(n, read_data, strlen(read_data), &raw);
+		} else {
+			memcpy(&raw.id, id, DNET_ID_SIZE);
+		}
+		raw.type = 0;
+		raw.group_id = 0; /* unused */
 
 		memset(&io, 0, sizeof(io));
 		memcpy(io.id, raw.id, DNET_ID_SIZE);
@@ -250,7 +262,7 @@ int main(int argc, char *argv[])
 		/* number of copies to check to find the latest data */
 		io.num = group_num;
 
-		err = dnet_read_latest(n, &raw, &io, 0, &data);
+		err = dnet_read_latest(n, &raw, &io, aflags, &data);
 		if (err)
 			return err;
 
