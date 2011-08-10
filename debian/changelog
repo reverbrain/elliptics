@@ -1,3 +1,11 @@
+elliptics-2.10 (2.10.1.11) unstable; urgency=low
+
+  * Always request dnet_file_info structure in ->file_info() callback
+  * Do not request checksums in reads, which do not have metadata in test
+    utils
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 10 Aug 2011 05:50:41 +0400
+
 elliptics-2.10 (2.10.1.10) unstable; urgency=low
 
   * Removed dnet_verify_checksum_io() and dnet_meta_read_checksum()
