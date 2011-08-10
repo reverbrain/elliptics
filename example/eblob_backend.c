@@ -59,8 +59,11 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 {
 	int err;
 	struct dnet_io_attr *io = data;
+	struct eblob_write_control wc;
 	struct eblob_key key;
-	uint64_t flags = BLOB_DISK_CTL_NOCSUM;
+	uint64_t flags = BLOB_DISK_CTL_NOCSUM | BLOB_DISK_CTL_WRITE_RETURN;
+
+	memset(&wc, 0, sizeof(struct eblob_write_control));
 
 	dnet_convert_io_attr(io);
 
@@ -79,9 +82,6 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 	}
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
-		struct eblob_write_control wc;
-
-		memset(&wc, 0, sizeof(wc));
 		wc.offset = 0;
 		wc.size = io->num;
 		wc.flags = flags;
@@ -102,6 +102,18 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 		err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, io->type);
 	} else {
 		err = eblob_write(c->eblob, &key, data, io->offset, io->size, flags, io->type);
+		if (!err) {
+			if (io->size >= sizeof(struct eblob_write_control)) {
+				memcpy(&wc, data, sizeof(struct eblob_write_control));
+			} else {
+				err = eblob_read(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, io->type);
+				if (err < 0) {
+					dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: size: %llu: type: %d: %s %d\n",
+						dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
+					goto err_out_exit;
+				}
+			}
+		}
 	}
 
 	if (err) {
@@ -114,9 +126,6 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->type);
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
-		struct eblob_write_control wc;
-
-		memset(&wc, 0, sizeof(wc));
 		wc.offset = 0;
 		wc.size = io->num;
 		wc.flags = flags;
@@ -131,9 +140,17 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: type: %d: Ok\n",
 			dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type);
-	}	
+	}
 
-	return 0;
+	attr->flags |= DNET_ATTR_NOCSUM;
+	err = dnet_send_file_info(state, cmd, attr, wc.data_fd, wc.offset, wc.size);
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: dnet_send_file_info: "
+				"fd: %d, offset: %llu, size: %llu: type: %d: %s %d\n",
+			dnet_dump_id_str(io->id), wc.data_fd,(unsigned long long)wc.offset,
+			(unsigned long long)wc.size, io->type, strerror(-err), err);
+		goto err_out_exit;
+	}
 
 err_out_exit:
 	return err;
@@ -383,107 +400,23 @@ err_out_exit:
 	return err;
 }
 
-int eblob_readlink(int fd, char **datap)
-{
-	char *dst, src[64];
-	int dsize = 4096;
-	int err;
-
-	snprintf(src, sizeof(src), "/proc/self/fd/%d", fd);
-
-	dst = malloc(dsize);
-	if (!dst) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	err = readlink(src, dst, dsize);
-	if (err < 0)
-		goto err_out_free;
-
-	dst[err] = '\0';
-	*datap = dst;
-
-	return err + 1; /* including 0-byte */
-
-err_out_free:
-	free(dst);
-err_out_exit:
-	return err;
-}
-
 static int blob_file_info(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
-	struct dnet_node *n = dnet_get_node_from_state(state);
 	struct eblob_backend *b = c->eblob;
-	struct dnet_file_info *info;
-	struct dnet_addr_attr *a;
 	struct eblob_key key;
 	uint64_t offset, size;
-	int fd, flen, err, csum_fd = -1;
-	char *file;
-	struct stat st;
+	int fd, err;
 
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
-	err = eblob_read(b, &key, &fd, &offset, &size, EBLOB_TYPE_DATA);
+	err = eblob_read(b, &key, &fd, &offset, &size, cmd->id.type);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-file-info: info-read: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, strerror(-err));
 		goto err_out_exit;
 	}
 
-	err = eblob_readlink(fd, &file);
-	if (err < 0)
-		goto err_out_exit;
+	err = dnet_send_file_info(state, cmd, attr, fd, offset, size);
 
-	flen = err;
-
-	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen);
-	if (!a) {
-		err = -ENOMEM;
-		goto err_out_free_file;
-	}
-	info = (struct dnet_file_info *)(a + 1);
-
-	dnet_fill_addr_attr(n, a);
-
-	err = fstat(fd, &st);
-	if (err) {
-		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: %s: info-stat: %d: %s.\n",
-				dnet_dump_id(&cmd->id), file, err, strerror(-err));
-		goto err_out_free;
-	}
-
-	dnet_info_from_stat(info, &st);
-	/* this is not valid data from raw blob file stat */
-	info->ctime.tsec = info->mtime.tsec = 0;
-
-	if (!(attr->flags & DNET_ATTR_NOCSUM) || (attr->flags & DNET_ATTR_META_TIMES)) {
-		if (!(attr->flags & DNET_ATTR_NOCSUM) && size)
-			csum_fd = fd;
-
-		err = dnet_read_file_info(n, &cmd->id, info, csum_fd, offset, size);
-		if ((err == -ENOENT) && (attr->flags & DNET_ATTR_META_TIMES))
-			err = 0;
-		if (err && (err != -ENODATA))
-			goto err_out_free;
-	}
-
-	info->size = size;
-	info->offset = offset;
-
-	info->flen = flen;
-	memcpy(info + 1, file, flen);
-
-	dnet_convert_file_info(info);
-
-	err = dnet_send_reply(state, cmd, attr, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen, 0);
-
-err_out_free:
-	free(a);
-err_out_free_file:
-	free(file);
 err_out_exit:
 	return err;
 }

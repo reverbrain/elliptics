@@ -163,11 +163,35 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 	}
 }
 
+static void test_lookup_parse(const std::string &key, const std::string &lret)
+{
+	struct dnet_addr *addr = (struct dnet_addr *)lret.data();
+	struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
+	struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
+	struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+
+	dnet_convert_addr_attr(a);
+	std::cout << key << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
+
+	if (attr->size > sizeof(struct dnet_addr_attr)) {
+		struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
+
+		dnet_convert_file_info(info);
+		std::cout << ": mode: " << std::oct << info->mode << std::dec;
+		std::cout << ", offset: " << (unsigned long long)info->offset;
+		std::cout << ", size: " << (unsigned long long)info->size;
+		std::cout << ", file: " << (char *)(info + 1);
+	}
+	std::cout << std::endl;
+}
+
 static void test_lookup(elliptics_node &n, std::vector<int> &groups)
 {
 	std::string key = "2.xml";
 	std::string data = "lookup data";
-	n.write_data_wait(key, data, 0, 0, 0, 0);
+
+	std::string lret = n.write_data_wait(key, data, 0, 0, 0, 0);
+	test_lookup_parse(key, lret);
 
 	struct dnet_id id;
 	n.transform(key, id);
@@ -178,30 +202,11 @@ static void test_lookup(elliptics_node &n, std::vector<int> &groups)
 	n.write_metadata(id, key, groups, ts);
 
 	try {
-		std::string lret = n.lookup(key);
-
-		struct dnet_addr *addr = (struct dnet_addr *)lret.data();
-		struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-		struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
-		struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
-
-		dnet_convert_addr_attr(a);
-		std::cout << key << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
-
-		if (attr->size > sizeof(struct dnet_addr_attr)) {
-			struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
-
-			dnet_convert_file_info(info);
-			std::cout << ": mode: " << std::oct << info->mode << std::dec;
-			std::cout << ", offset: " << (unsigned long long)info->offset;
-			std::cout << ", size: " << (unsigned long long)info->size;
-			std::cout << ", file: " << (char *)(info + 1);
-		}
-		std::cout << std::endl;
+		lret = n.lookup(key);
+		test_lookup_parse(key, lret);
 	} catch (const std::exception &e) {
 		std::cerr << key << ": LOOKUP failed" << std::endl;
 	}
-
 }
 
 int main()

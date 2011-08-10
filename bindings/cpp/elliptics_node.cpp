@@ -252,7 +252,7 @@ std::string elliptics_node::read_latest(const std::string &remote, uint64_t offs
 	return read_latest(id, size, offset, aflags, ioflags);
 }
 
-int elliptics_node::write_data_wait(struct dnet_id &id, const std::string &str,
+std::string elliptics_node::write_data_wait(struct dnet_id &id, const std::string &str,
 		uint64_t remote_offset, unsigned int aflags, unsigned int ioflags)
 {
 	struct dnet_io_control ctl;
@@ -277,10 +277,14 @@ int elliptics_node::write_data_wait(struct dnet_id &id, const std::string &str,
 		string << dnet_dump_id(&id) << ": WRITE: size: " << str.size() << ", err: " << err;
 		throw std::runtime_error(string.str());
 	}
-	return err;
+
+	std::string ret((const char *)ctl.adata, ctl.asize);
+	free(ctl.adata);
+
+	return ret;
 }
 
-int elliptics_node::write_data_wait(const std::string &remote, const std::string &str,
+std::string elliptics_node::write_data_wait(const std::string &remote, const std::string &str,
 		uint64_t remote_offset, unsigned int aflags, unsigned int ioflags, int type)
 {
 	struct dnet_id id;

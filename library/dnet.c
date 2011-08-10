@@ -1095,15 +1095,31 @@ err_out_reconnect:
 	return err;
 }
 
+struct dnet_write_completion {
+	void			*reply;
+	int			size;
+	struct dnet_wait	*wait;
+};
+
+static void dnet_write_complete_free(struct dnet_write_completion *wc)
+{
+	if (atomic_dec_and_test(&wc->wait->refcnt)) {
+		dnet_wait_destroy(wc->wait);
+		free(wc->reply);
+		free(wc);
+	}
+}
+
 static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_attr *attr, void *priv)
 {
 	int err = -EINVAL;
-	struct dnet_wait *w = priv;
+	struct dnet_write_completion *wc = priv;
+	struct dnet_wait *w = wc->wait;
 
 	if (is_trans_destroyed(st, cmd, attr)) {
 		dnet_wakeup(w, w->cond++);
-		dnet_wait_put(w);
+		dnet_write_complete_free(wc);
 		return 0;
 	}
 
@@ -1112,6 +1128,22 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		dnet_dump_id(&cmd->id), (unsigned long long)(cmd->trans & ~DNET_TRANS_REPLY),
 		cmd->status);
 
+	if (!err && st && attr && (attr->size > sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info))) {
+		free(wc->reply);
+
+		wc->size = cmd->size + sizeof(struct dnet_cmd) + sizeof(struct dnet_addr);
+		wc->reply = malloc(wc->size);
+		if (!wc->reply) {
+			err = -ENOMEM;
+			goto err_out_exit;
+		}
+
+		memcpy(wc->reply, &st->addr, sizeof(struct dnet_addr));
+		memcpy(wc->reply + sizeof(struct dnet_addr), cmd, sizeof(struct dnet_cmd));
+		memcpy(wc->reply + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd), attr, cmd->size);
+	}
+
+err_out_exit:
 	pthread_mutex_lock(&w->wait_lock);
 	if (w->status < 0)
 		w->status = err;
@@ -1293,13 +1325,24 @@ static int dnet_write_file_id_raw(struct dnet_node *n, const char *file, struct 
 	struct stat stat;
 	struct dnet_wait *w;
 	struct dnet_io_control ctl;
+	struct dnet_write_completion *wc;
+
+	wc = malloc(sizeof(struct dnet_write_completion));
+	if (!wc) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	memset(wc, 0, sizeof(struct dnet_write_completion));
 
 	w = dnet_wait_alloc(0);
 	if (!w) {
+		free(wc);
 		err = -ENOMEM;
 		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate read waiting structure.\n");
 		goto err_out_exit;
 	}
+
+	wc->wait = w;
 
 	fd = open(file, O_RDONLY | O_LARGEFILE);
 	if (fd < 0) {
@@ -1333,7 +1376,7 @@ static int dnet_write_file_id_raw(struct dnet_node *n, const char *file, struct 
 
 	w->status = -ENOENT;
 	ctl.complete = dnet_write_complete;
-	ctl.priv = w;
+	ctl.priv = wc;
 
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 	ctl.cmd = DNET_CMD_WRITE;
@@ -1378,14 +1421,14 @@ static int dnet_write_file_id_raw(struct dnet_node *n, const char *file, struct 
 			file, (unsigned long long)size);
 
 	close(fd);
-	dnet_wait_put(w);
+	dnet_write_complete_free(wc);
 
 	return 0;
 
 err_out_close:
 	close(fd);
 err_out_put:
-	dnet_wait_put(w);
+	dnet_write_complete_free(wc);
 err_out_exit:
 	return err;
 }
@@ -2718,15 +2761,25 @@ int dnet_write_data_wait(struct dnet_node *n, struct dnet_io_control *ctl)
 {
 	int err, trans_num = 0;
 	struct dnet_wait *w;
+	struct dnet_write_completion *wc;
+
+	wc = malloc(sizeof(struct dnet_write_completion));
+	if (!wc) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	memset(wc, 0, sizeof(struct dnet_write_completion));
 
 	w = dnet_wait_alloc(0);
 	if (!w) {
 		err = -ENOMEM;
+		free(wc);
 		goto err_out_exit;
 	}
+	wc->wait = w;
 
 	w->status = -ENOENT;
-	ctl->priv = w;
+	ctl->priv = wc;
 	ctl->complete = dnet_write_complete;
 
 	ctl->cmd = DNET_CMD_WRITE;
@@ -2761,12 +2814,17 @@ int dnet_write_data_wait(struct dnet_node *n, struct dnet_io_control *ctl)
 	}
 
 	if (trans_num)
-		dnet_log(n, DNET_LOG_NOTICE, "%s: successfully wrote %llu bytes into the storage.\n",
-				dnet_dump_id(&ctl->id), (unsigned long long)ctl->io.size);
+		dnet_log(n, DNET_LOG_NOTICE, "%s: successfully wrote %llu bytes into the storage, reply size: %d.\n",
+				dnet_dump_id(&ctl->id), (unsigned long long)ctl->io.size, wc->size);
 	err = trans_num;
 
+	ctl->adata = wc->reply;
+	ctl->asize = wc->size;
+
+	wc->reply = NULL;
+
 err_out_put:
-	dnet_wait_get(w);
+	dnet_write_complete_free(wc);
 err_out_exit:
 	return err;
 }
@@ -3157,6 +3215,7 @@ int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_fil
 {
 	struct dnet_meta *m;
 	struct dnet_meta_update *mu;
+	struct dnet_meta_checksum *mcsum;
 	struct dnet_meta_container mc;
 	struct dnet_raw_id raw;
 	int err;
@@ -3179,8 +3238,9 @@ int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_fil
 		err = -EINVAL;
 		goto err_out_free;
 	}
+	mcsum = (struct dnet_meta_checksum *)m->data;
 
-	memcpy(info->checksum, m->data, sizeof(struct dnet_meta_checksum));
+	memcpy(info->checksum, mcsum->checksum, DNET_CSUM_SIZE);
 
 	m = dnet_meta_search(n, &mc, DNET_META_UPDATE);
 	if (!m) {
@@ -3478,3 +3538,101 @@ err_out_free:
 err_out_exit:
 	return err;
 }
+
+static int dnet_fd_readlink(int fd, char **datap)
+{
+	char *dst, src[64];
+	int dsize = 4096;
+	int err;
+
+	snprintf(src, sizeof(src), "/proc/self/fd/%d", fd);
+
+	dst = malloc(dsize);
+	if (!dst) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	err = readlink(src, dst, dsize);
+	if (err < 0)
+		goto err_out_free;
+
+	dst[err] = '\0';
+	*datap = dst;
+
+	return err + 1; /* including 0-byte */
+
+err_out_free:
+	free(dst);
+err_out_exit:
+	return err;
+}
+
+int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
+		int fd, uint64_t offset, uint64_t size)
+{
+	struct dnet_node *n = dnet_get_node_from_state(state);
+	struct dnet_file_info *info;
+	struct dnet_addr_attr *a;
+	int flen, err, csum_fd = -1;
+	char *file;
+	struct stat st;
+
+	err = dnet_fd_readlink(fd, &file);
+	if (err < 0)
+		goto err_out_exit;
+
+	flen = err;
+
+	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen);
+	if (!a) {
+		err = -ENOMEM;
+		goto err_out_free_file;
+	}
+	info = (struct dnet_file_info *)(a + 1);
+
+	dnet_fill_addr_attr(n, a);
+
+	err = fstat(fd, &st);
+	if (err) {
+		err = -errno;
+		dnet_log(n, DNET_LOG_ERROR, "%s: EBLOB: %s: info-stat: %d: %s.\n",
+				dnet_dump_id(&cmd->id), file, err, strerror(-err));
+		goto err_out_free;
+	}
+
+	dnet_info_from_stat(info, &st);
+	/* this is not valid data from raw blob file stat */
+	info->ctime.tsec = info->mtime.tsec = 0;
+
+	if (!(attr->flags & DNET_ATTR_NOCSUM) || (attr->flags & DNET_ATTR_META_TIMES)) {
+		if (!(attr->flags & DNET_ATTR_NOCSUM) && size)
+			csum_fd = fd;
+
+		err = dnet_read_file_info(n, &cmd->id, info, csum_fd, offset, size);
+		if ((err == -ENOENT) && (attr->flags & DNET_ATTR_META_TIMES))
+			err = 0;
+		if (err && (err != -ENODATA))
+			goto err_out_free;
+	}
+
+	if (size)
+		info->size = size;
+	if (offset)
+		info->offset = offset;
+
+	info->flen = flen;
+	memcpy(info + 1, file, flen);
+
+	dnet_convert_file_info(info);
+
+	err = dnet_send_reply(state, cmd, attr, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen, 0);
+
+err_out_free:
+	free(a);
+err_out_free_file:
+	free(file);
+err_out_exit:
+	return err;
+}
+

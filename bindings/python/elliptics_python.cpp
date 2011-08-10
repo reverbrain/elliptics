@@ -282,14 +282,14 @@ class elliptics_node_python : public elliptics_node {
 			return elliptics_node::read_latest(remote, offset, size, aflags, ioflags, type);
 		}
 
-		int write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset,
+		std::string write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset,
 				unsigned int aflags, unsigned int ioflags) {
 			struct dnet_id raw;
 			elliptics_extract_id(id, raw);
 			return elliptics_node::write_data_wait(raw, data, remote_offset, aflags, ioflags);
 		}
 
-		int write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset,
+		std::string write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset,
 				unsigned int aflags, unsigned int ioflags, int type) {
 			return elliptics_node::write_data_wait(remote, data, remote_offset, aflags, ioflags, type);
 		}

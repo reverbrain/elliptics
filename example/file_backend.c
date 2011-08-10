@@ -139,9 +139,8 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 
 	if (!r->sync)
 		fsync(fd);
-	close(fd);
 
-	return 0;
+	return fd;
 
 err_out_close:
 	dnet_remove_file_if_empty_raw(file);
@@ -153,7 +152,7 @@ err_out_exit:
 static int file_write(struct file_backend_root *r, void *state __unused, struct dnet_cmd *cmd,
 		struct dnet_attr *attr __unused, void *data)
 {
-	int err;
+	int err, fd;
 	char dir[2*DNET_ID_SIZE+1];
 	struct dnet_io_attr *io = data;
 
@@ -174,14 +173,24 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	}
 
 	err = file_write_raw(r, io);
-	if (err)
+	if (err < 0)
 		goto err_out_check_remove;
+
+	fd = err;
 
 	dnet_backend_log(DNET_LOG_INFO, "%s: FILE: %s: WRITE: Ok: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&cmd->id), dir, (unsigned long long)io->offset, (unsigned long long)io->size);
+	attr->flags |= DNET_ATTR_NOCSUM;
+	err = dnet_send_file_info(state, cmd, attr, fd, 0, 0);
+	if (err)
+		goto err_out_close;
+
+	close(fd);
 
 	return 0;
 
+err_out_close:
+	close(fd);
 err_out_check_remove:
 	dnet_remove_file_if_empty(r, io);
 err_out_exit:
@@ -276,74 +285,33 @@ static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id
 
 static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
-	struct dnet_node *n = dnet_get_node_from_state(state);
-	int len = strlen(r->root) + 2; /* final slash and null-byte */
 	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
 	char dir[2*DNET_ID_SIZE+1];
 	char id[2*DNET_ID_SIZE+1];
-	struct dnet_file_info *info;
-	struct dnet_addr_attr *a;
-	struct stat st;
-	int err, csum_fd = -1;
+	int fd, err;
 
 	file_backend_get_dir(cmd->id.id, r->bit_num, dir);
 
 	snprintf(file, sizeof(file), "%s/%s",
 		dir, dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id));
 
-	err = stat(file, &st);
-	if (err) {
+	err = open(file, O_RDONLY);
+	if (err < 0) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: info-stat: %d: %s.\n",
-				dnet_dump_id(&cmd->id), file, err, strerror(-err));
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: info-stat-open-csum: %d: %s.\n",
+			dnet_dump_id(&cmd->id), file, err, strerror(-err));
 		goto err_out_exit;
 	}
+	fd = err;
 
-	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + sizeof(file) + len);
-	if (!a) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-	info = (struct dnet_file_info *)(a + 1);
+	err = dnet_send_file_info(state, cmd, attr, fd, 0, 0);
+	if (err)
+		goto err_out_close;
+	
+	err = 0;
 
-	dnet_fill_addr_attr(n, a);
-
-	info->flen = snprintf((char *)(info + 1), len + sizeof(file), "%s/%s", r->root, file) + 1;
-	len = info->flen;
-
-	dnet_info_from_stat(info, &st);
-
-	if (!(attr->flags & DNET_ATTR_NOCSUM) || (attr->flags & DNET_ATTR_META_TIMES)) {
-		if (!(attr->flags & DNET_ATTR_NOCSUM)) {
-			err = open(file, O_RDONLY);
-			if (err < 0) {
-				err = -errno;
-				dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: info-stat-open-csum: %d: %s.\n",
-					dnet_dump_id(&cmd->id), file, err, strerror(-err));
-				goto err_out_free;
-			}
-
-			csum_fd = err;
-		}
-
-		err = dnet_read_file_info(n, &cmd->id, info, csum_fd, 0, st.st_size);
-
-		close(csum_fd);
-
-		if ((err == -ENOENT) && (attr->flags & DNET_ATTR_META_TIMES))
-			err = 0;
-
-		if (err && (err != -ENODATA))
-			goto err_out_free;
-	}
-
-	dnet_convert_addr_attr(a);
-	dnet_convert_file_info(info);
-
-	err = dnet_send_reply(state, cmd, attr, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + len, 0);
-
-err_out_free:
-	free(a);
+err_out_close:
+	close(fd);
 err_out_exit:
 	return err;
 }

@@ -941,6 +941,9 @@ int dnet_db_iterate(struct eblob_backend *b, unsigned int flags,
 		struct eblob_iterate_callbacks *iterate_cb,
 		void *callback_private);
 
+int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
+		int fd, uint64_t offset, uint64_t size);
+
 #ifdef __cplusplus
 }
 #endif
