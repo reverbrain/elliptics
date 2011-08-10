@@ -1,3 +1,15 @@
+elliptics-2.10 (2.10.1.13) unstable; urgency=low
+
+  * Send dnet_file_info structure in write reply. Fixed csum copy in
+    dnet_send_file_info()
+  * ->file_info() callback should dig into metadata only for checksum and
+    meta_update calls. In case of meta_update do not fail, if there is no
+    metadata.
+  * Added aflags into ioclient. Use -I id to read data if available.
+  * Added compressed write test.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 11 Aug 2011 02:36:24 +0400
+
 elliptics-2.10 (2.10.1.12) unstable; urgency=low
 
   * Depend on 0.10.0 eblob and higher
