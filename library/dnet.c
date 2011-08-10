@@ -1129,18 +1129,21 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		cmd->status);
 
 	if (!err && st && attr && (attr->size > sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info))) {
-		free(wc->reply);
+		int old_size = wc->size;
+		void *data;
 
-		wc->size = cmd->size + sizeof(struct dnet_cmd) + sizeof(struct dnet_addr);
-		wc->reply = malloc(wc->size);
+		wc->size += cmd->size + sizeof(struct dnet_cmd) + sizeof(struct dnet_addr);
+		wc->reply = realloc(wc->reply, wc->size);
 		if (!wc->reply) {
 			err = -ENOMEM;
 			goto err_out_exit;
 		}
 
-		memcpy(wc->reply, &st->addr, sizeof(struct dnet_addr));
-		memcpy(wc->reply + sizeof(struct dnet_addr), cmd, sizeof(struct dnet_cmd));
-		memcpy(wc->reply + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd), attr, cmd->size);
+		data = wc->reply + old_size;
+
+		memcpy(data, &st->addr, sizeof(struct dnet_addr));
+		memcpy(data + sizeof(struct dnet_addr), cmd, sizeof(struct dnet_cmd));
+		memcpy(data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd), attr, cmd->size);
 	}
 
 err_out_exit:
