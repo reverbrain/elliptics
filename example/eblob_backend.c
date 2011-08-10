@@ -420,7 +420,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	struct dnet_addr_attr *a;
 	struct eblob_key key;
 	uint64_t offset, size;
-	int fd, flen, err;
+	int fd, flen, err, csum_fd = -1;
 	char *file;
 	struct stat st;
 
@@ -459,15 +459,12 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	/* this is not valid data from raw blob file stat */
 	info->ctime.tsec = info->mtime.tsec = 0;
 
-	if (!(attr->flags & DNET_ATTR_NOCSUM) || (attr->flags & DNET_ATTR_META_TIMES)) {
-		int csum_fd = -1;
-		if (!(attr->flags & DNET_ATTR_NOCSUM) && size)
-			csum_fd = fd;
+	if (!(attr->flags & DNET_ATTR_NOCSUM) && size)
+		csum_fd = fd;
 
-		err = dnet_read_file_info(n, &cmd->id, info, csum_fd, offset, size);
-		if (err && (err != -ENODATA))
-			goto err_out_free;
-	}
+	err = dnet_read_file_info(n, &cmd->id, info, csum_fd, offset, size);
+	if (err && (err != -ENODATA))
+		goto err_out_free;
 
 	info->size = size;
 	info->offset = offset;
