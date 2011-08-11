@@ -208,7 +208,7 @@ std::string elliptics_node::read_data_wait(const std::string &remote, uint64_t o
 	transform(remote, id);
 	id.type = type;
 
-	return read_data_wait(id, size, offset, aflags, ioflags);
+	return read_data_wait(id, offset, size, aflags, ioflags);
 }
 
 std::string elliptics_node::read_latest(struct dnet_id &id, uint64_t offset, uint64_t size,
@@ -249,7 +249,7 @@ std::string elliptics_node::read_latest(const std::string &remote, uint64_t offs
 	transform(remote, id);
 	id.type = type;
 
-	return read_latest(id, size, offset, aflags, ioflags);
+	return read_latest(id, offset, size, aflags, ioflags);
 }
 
 std::string elliptics_node::write_data_wait(struct dnet_id &id, const std::string &str,
