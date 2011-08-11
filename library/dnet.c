@@ -3233,17 +3233,16 @@ int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_fil
 
 	m = dnet_meta_search(n, &mc, DNET_META_CHECKSUM);
 	if (!m) {
-		err = -ENOENT;
-		goto err_out_free;
-	}
+		memset(info->checksum, 0, DNET_CSUM_SIZE);
+	} else {
+		if (m->size != sizeof(struct dnet_meta_checksum)) {
+			err = -EINVAL;
+			goto err_out_free;
+		}
+		mcsum = (struct dnet_meta_checksum *)m->data;
 
-	if (m->size != sizeof(struct dnet_meta_checksum)) {
-		err = -EINVAL;
-		goto err_out_free;
+		memcpy(info->checksum, mcsum->checksum, DNET_CSUM_SIZE);
 	}
-	mcsum = (struct dnet_meta_checksum *)m->data;
-
-	memcpy(info->checksum, mcsum->checksum, DNET_CSUM_SIZE);
 
 	m = dnet_meta_search(n, &mc, DNET_META_UPDATE);
 	if (!m) {
@@ -3263,13 +3262,18 @@ int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_fil
 		unsigned char csum[DNET_CSUM_SIZE];
 		int csize = sizeof(csum);
 
-		err = dnet_checksum_fd(n, csum, &csize, fd, offset, size);
-		if (err)
-			goto err_out_free;
+		memset(csum, 0, csize);
 
+		/* only checksum data if metadata csum is not filled with zeroes */
 		if (memcmp(info->checksum, csum, csize)) {
-			err = -EBADFD;
-			goto err_out_free;
+			err = dnet_checksum_fd(n, csum, &csize, fd, offset, size);
+			if (err)
+				goto err_out_free;
+
+			if (memcmp(info->checksum, csum, csize)) {
+				err = -EBADFD;
+				goto err_out_free;
+			}
 		}
 	}
 
