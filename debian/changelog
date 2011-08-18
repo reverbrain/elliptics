@@ -1,3 +1,11 @@
+elliptics-2.10 (2.10.1.16) unstable; urgency=low
+
+  * Use ctl.local_offset instead of io.offset to send data in eblob_send()
+  * Remove data on DNET_CMD_DEL command no matter how metadata processing
+    finished
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 18 Aug 2011 18:58:45 +0400
+
 elliptics-2.10 (2.10.1.15) unstable; urgency=low
 
   * Fixed size/offset order in cpp binding
