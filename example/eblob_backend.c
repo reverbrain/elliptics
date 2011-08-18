@@ -356,9 +356,11 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 		memset(&ctl, 0, sizeof(ctl));
 
 		ctl.fd = fd;
+		ctl.local_offset = offset;
+
 		memcpy(&ctl.id, id, sizeof(struct dnet_id));
 
-		ctl.io.offset = offset;
+		ctl.io.offset = 0;
 		ctl.io.size = size;
 		ctl.io.type = id->type;
 		ctl.io.flags = 0;
