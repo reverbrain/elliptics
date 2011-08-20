@@ -613,13 +613,13 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	}
 
 	if (!cfg->io_thread_num) {
-		cfg->io_thread_num = 1;
+		cfg->io_thread_num = 3;
 		if (cfg->flags & DNET_CFG_JOIN_NETWORK)
 			cfg->io_thread_num = 20;
 	}
 
 	if (!cfg->net_thread_num) {
-		cfg->net_thread_num = 1;
+		cfg->net_thread_num = 3;
 		if (cfg->flags & DNET_CFG_JOIN_NETWORK)
 			cfg->net_thread_num = 8;
 	}
