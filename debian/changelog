@@ -1,3 +1,12 @@
+elliptics-2.10 (2.10.1.17) unstable; urgency=low
+
+  * Client nodes by default should have more io/net threads, in case some
+    transaction reply takes too long (in particular this happens, when we
+    download route table, try to connect to all nodes, but some of them are
+    hidden behind firewall.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 20 Aug 2011 22:17:43 +0400
+
 elliptics-2.10 (2.10.1.16) unstable; urgency=low
 
   * Use ctl.local_offset instead of io.offset to send data in eblob_send()
