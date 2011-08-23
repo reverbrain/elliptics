@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.1.18) unstable; urgency=low
+
+  * Add "override groups with replicas" option to check copies
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 24 Aug 2011 01:52:55 +0400
+
 elliptics-2.10 (2.10.1.17) unstable; urgency=low
 
   * Client nodes by default should have more io/net threads, in case some
