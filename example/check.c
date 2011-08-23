@@ -60,6 +60,7 @@ static void check_usage(char *p)
 			" -D                   - dry run - do not perform any action, just update counters\n"
 			" -t timestamp         - only check those objects, which were previously checked BEFORE this time\n"
 			"                          format: year-month-day hours:minutes:seconds like \"2011-01-13 23:15:00\"\n"
+			" -g group:group...    - override groups with replicas\n"
 			" -n num               - number of checking threads to start by the server\n"
 			" -f file              - file with list of objects to check\n"
 			" -h                   - this help\n"
@@ -175,9 +176,10 @@ int main(int argc, char *argv[])
 	char *logfile = default_log;
 	int daemonize = 0;
 	FILE *log = NULL;
-	struct dnet_check_request r, *req;
+	struct dnet_check_request r, *req, *req2;
 	struct tm tm;
 	char *file = NULL;
+	int group_num = 0, *groups;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -193,7 +195,7 @@ int main(int argc, char *argv[])
 	memset(&r, 0, sizeof(r));
 
 //	while ((ch = getopt(argc, argv, "DN:f:n:t:FMRm:w:l:r:h")) != -1) {
-	while ((ch = getopt(argc, argv, "DN:f:n:t:MRm:w:l:dr:h")) != -1) {
+	while ((ch = getopt(argc, argv, "DN:f:n:t:MRm:w:l:dr:g:h")) != -1) {
 		switch (ch) {
 			case 'N':
 				cfg.ns = optarg;
@@ -243,6 +245,11 @@ int main(int argc, char *argv[])
 					return err;
 				have_remote = 1;
 				break;
+			case 'g':
+				group_num = dnet_parse_groups(optarg, &groups);
+				if (group_num <= 0)
+					return -1;
+				break;
 			case 'h':
 			default:
 				check_usage(argv[0]);
@@ -288,6 +295,18 @@ int main(int argc, char *argv[])
 		req = dnet_check_gen_request(n, &r, file);
 		if (!req)
 			return -EINVAL;
+	}
+
+	if (group_num > 0) {
+		req2 = malloc(sizeof(struct dnet_check_request) + req->obj_num * sizeof(struct dnet_id) + group_num * sizeof(int));
+		if (!req2)
+			return -ENOMEM;
+
+		memcpy(req2, req, sizeof(struct dnet_check_request) + req->obj_num * sizeof(struct dnet_id));
+		memcpy((char *)req2 + sizeof(struct dnet_check_request) + req->obj_num * sizeof(struct dnet_id), groups, group_num * sizeof(int));
+		req2->group_num = group_num;
+
+		req = req2;
 	}
 
 	return dnet_request_check(n, req);

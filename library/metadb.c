@@ -159,7 +159,7 @@ struct dnet_db_list_control {
 	struct dnet_cmd			*cmd;
 	struct dnet_attr		*attr;
 	struct dnet_check_request	*req;
-	struct dnet_check_temp_db	*db;
+	struct dnet_check_params	params;
 
 	atomic_t			completed;
 	atomic_t			errors;
@@ -348,7 +348,7 @@ static int dnet_db_list_iter_free(struct eblob_iterate_control *iter_ctl, void *
 					i, dnet_server_convert_dnet_addr(&bulk_array->states[i].addr), bulk_array->states[i].num);
 
 			if (bulk_array->states[i].num > 0) {
-				err = dnet_request_bulk_check(n, &bulk_array->states[i], ctl->db);
+				err = dnet_request_bulk_check(n, &bulk_array->states[i], &ctl->params);
 				if (err) {
 					dnet_log(n, DNET_LOG_ERROR, "CHECK: dnet_request_bulk_check failed, state %s, err %d\n",
 							dnet_server_convert_dnet_addr(&bulk_array->states[i].addr), err);
@@ -438,7 +438,7 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 	}
 
 	if (will_check) {
-		err = dnet_check(n, &mc, bulk_array, should_be_merged, ctl->db);
+		err = dnet_check(n, &mc, bulk_array, should_be_merged, &ctl->params);
 
 		if (!err) {
 			atomic_inc(&ctl->completed);
@@ -503,8 +503,8 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	ctl.cmd = cmd;
 	ctl.attr = attr;
 	ctl.req = &req;
-	ctl.db = dnet_check_temp_db_alloc(n, n->temp_meta_env);
-	if (!ctl.db) {
+	ctl.params.db = dnet_check_temp_db_alloc(n, n->temp_meta_env);
+	if (!ctl.params.db) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
@@ -524,6 +524,33 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 			req.thread_num, (unsigned long long)req.obj_num, ctl_time,
 			!!(req.flags & DNET_CHECK_MERGE), !!(req.flags & DNET_CHECK_FULL),
 			!!(req.flags & DNET_CHECK_DRY_RUN));
+
+	if (req.group_num) {
+		int *groups;
+		char str[req.group_num*36+1], *ptr;
+		int rest;
+		uint32_t i;
+
+		groups = (int *)((char *)(r) + sizeof(struct dnet_check_request) + r->obj_num * sizeof(struct dnet_id));
+
+		ptr = str;
+		rest = sizeof(ptr);
+		for (i = 0; i < req.group_num; ++i) {
+			err = snprintf(ptr, rest, "%d:", groups[i]);
+			if (err > rest)
+				break;
+
+			rest -= err;
+			ptr += err;
+		}
+
+		*(--ptr) = '\0';
+			
+		dnet_log(n, DNET_LOG_INFO, "CHECK: groups will be overrided with: %s\n", str);
+
+		ctl.params.group_num = req.group_num;
+		ctl.params.groups = groups;
+	}
 
 	if (req.obj_num > 0) {
 		struct dnet_id *ids = (struct dnet_id *)(r + 1);
@@ -572,7 +599,7 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 
 	dnet_db_send_check_reply(&ctl);
 
-	dnet_check_temp_db_put(ctl.db);
+	dnet_check_temp_db_put(ctl.params.db);
 
 err_out_exit:
 	n->check_in_progress = 0;

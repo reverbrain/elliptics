@@ -892,7 +892,7 @@ struct dnet_check_request {
 	uint32_t		thread_num;
 	uint64_t		timestamp;
 	uint32_t		obj_num;
-	uint32_t		pad;
+	uint32_t		group_num;
 } __attribute__ ((packed));
 
 static inline void dnet_convert_check_request(struct dnet_check_request *r)
