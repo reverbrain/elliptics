@@ -612,14 +612,19 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		goto err_out_exit;
 	}
 
+	/*
+	 * Client must have SINGLE io thread num, since only this can guarantee message order
+	 * Messages are picked in dnet_io_process_pool() by different threads, and it is possible that completion
+	 * callbacks will be executed out of order, which will badly break things.
+	 */
 	if (!cfg->io_thread_num) {
-		cfg->io_thread_num = 3;
+		cfg->io_thread_num = 1;
 		if (cfg->flags & DNET_CFG_JOIN_NETWORK)
 			cfg->io_thread_num = 20;
 	}
 
 	if (!cfg->net_thread_num) {
-		cfg->net_thread_num = 3;
+		cfg->net_thread_num = 1;
 		if (cfg->flags & DNET_CFG_JOIN_NETWORK)
 			cfg->net_thread_num = 8;
 	}
