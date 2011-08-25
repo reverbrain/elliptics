@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.1.19) unstable; urgency=low
+
+  * Client must have SINGLE io thread
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 26 Aug 2011 00:41:12 +0400
+
 elliptics-2.10 (2.10.1.18) unstable; urgency=low
 
   * Add "override groups with replicas" option to check copies
