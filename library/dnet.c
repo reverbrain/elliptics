@@ -545,7 +545,7 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 	dnet_convert_node_status(st);
 
 	if (attr->flags & DNET_ATTR_STATUS_CHANGE) {
-		dnet_log(n, DNET_LOG_INFO, "%s: status-chage: nflags: %x->%x, log_mask: %x->%x, "
+		dnet_log(n, DNET_LOG_INFO, "%s: status-change: nflags: %x->%x, log_mask: %x->%x, "
 				"status_flags: EXIT: %d, RO: %d\n",
 				dnet_dump_id(&cmd->id), n->flags, st->nflags, n->log->log_mask, st->log_mask,
 				!!(st->status_flags & DNET_STATUS_EXIT), !!(st->status_flags & DNET_STATUS_RO));
