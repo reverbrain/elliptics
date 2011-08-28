@@ -329,8 +329,21 @@ int main(int argc, char *argv[])
 		for (i=0; i<have_remote; ++i) {
 			err = dnet_fill_addr(&addr, remotes[i].addr, remotes[i].port,
 						remotes[i].family, remotes[i].sock_type, remotes[i].proto);
+			if (err) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "ioclient: dnet_fill_addr: %s:%s:%d, sock_type: %d, proto: %d: %s %d\n",
+						remotes[i].addr, remotes[i].port,
+						remotes[i].family, remotes[i].sock_type, remotes[i].proto,
+						strerror(-err), err);
+			}
 
 			err = dnet_update_status(n, &addr, NULL, &node_status, update_status > 0);
+			if (err) {
+				dnet_log_raw(n, DNET_LOG_ERROR, "ioclient: dnet_update_status: %s:%s:%d, sock_type: %d, proto: %d: update: %d: "
+						"%s %d\n",
+						remotes[i].addr, remotes[i].port,
+						remotes[i].family, remotes[i].sock_type, remotes[i].proto, update_status,
+						strerror(-err), err);
+			}
 		}
 
 	}
