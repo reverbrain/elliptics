@@ -327,6 +327,9 @@ int main(int argc, char *argv[])
 		struct dnet_addr addr;
 
 		for (i=0; i<have_remote; ++i) {
+			memset(&addr, 0, sizeof(addr));
+			addr.addr_len = sizeof(addr.addr);
+
 			err = dnet_fill_addr(&addr, remotes[i].addr, remotes[i].port,
 						remotes[i].family, remotes[i].sock_type, remotes[i].proto);
 			if (err) {
