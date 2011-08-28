@@ -30,7 +30,7 @@
 
 using namespace zbr;
 
-elliptics_callback::elliptics_callback() : state(NULL), cmd(NULL), attr(NULL), complete(0)
+elliptics_callback::elliptics_callback() : complete(0)
 {
 	pthread_cond_init(&wait_cond, NULL);
 	pthread_mutex_init(&lock, NULL);
@@ -40,7 +40,7 @@ elliptics_callback::~elliptics_callback()
 {
 }
 
-int elliptics_callback::callback()
+int elliptics_callback::callback(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	pthread_mutex_lock(&lock);
 	if (is_trans_destroyed(state, cmd, attr)) {

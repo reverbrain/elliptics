@@ -79,43 +79,17 @@ class elliptics_callback {
 		elliptics_callback();
 		virtual ~elliptics_callback();
 
-		virtual int callback(void);
-
-		bool last(void) {
-			return (!cmd || !(cmd->flags & DNET_FLAGS_MORE));
-		};
-
-		int status(void) {
-			int err = -EINVAL;
-			if (cmd)
-				err = cmd->status;
-
-			return err;
-		};
+		virtual int callback(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr);
 
 		static int elliptics_complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, void *priv) {
 			elliptics_callback *c = reinterpret_cast<elliptics_callback *>(priv);
 
-			c->state = st;
-			c->cmd = cmd;
-			c->attr = a;
-
-			int ret = c->callback();
-
-			c->state = NULL;
-			c->cmd = NULL;
-			c->attr = NULL;
-
-			return ret;
+			return c->callback(st, cmd, a);
 		};
 
 		std::string wait(int completed = 1);
 
 	protected:
-		struct dnet_net_state	*state;
-		struct dnet_cmd		*cmd;
-		struct dnet_attr	*attr;
-
 		std::string		data;
 		pthread_cond_t		wait_cond;
 		pthread_mutex_t		lock;

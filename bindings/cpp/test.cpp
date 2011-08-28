@@ -46,13 +46,13 @@ class elliptics_callback_io : public elliptics_callback {
 		elliptics_callback_io(elliptics_log *l) { log = l; };
 		virtual ~elliptics_callback_io() {};
 
-		virtual int		callback(void);
+		virtual int		callback(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr);
 
 	private:
 		elliptics_log		*log;
 };
 
-int elliptics_callback_io::callback(void)
+int elliptics_callback_io::callback(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	int err;
 	struct dnet_io_attr *io;
