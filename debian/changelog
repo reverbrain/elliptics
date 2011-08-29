@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.1.21) unstable; urgency=low
+
+  * dnet_addr.addr_len must be set prior its usage
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 30 Aug 2011 00:30:15 +0400
+
 elliptics-2.10 (2.10.1.20) unstable; urgency=low
 
   * Added error logs for status update in dnet_ioclient

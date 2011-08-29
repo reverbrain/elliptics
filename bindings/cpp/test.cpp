@@ -52,6 +52,37 @@ class elliptics_callback_io : public elliptics_callback {
 		elliptics_log		*log;
 };
 
+static int dnet_parse_numeric_id(char *value, unsigned char *id)
+{
+	unsigned char ch[5];
+	unsigned int i, len = strlen(value);
+
+	memset(id, 0, DNET_ID_SIZE);
+
+	if (len/2 > DNET_ID_SIZE)
+		len = DNET_ID_SIZE * 2;
+
+	ch[0] = '0';
+	ch[1] = 'x';
+	ch[4] = '\0';
+	for (i=0; i<len / 2; i++) {
+		ch[2] = value[2*i + 0];
+		ch[3] = value[2*i + 1];
+
+		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
+	}
+
+	if (len & 1) {
+		ch[2] = value[2*i + 0];
+		ch[3] = '0';
+
+		id[i] = (unsigned char)strtol((const char *)ch, NULL, 16);
+	}
+
+	return 0;
+}
+
+
 int elliptics_callback_io::callback(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	int err;
@@ -141,9 +172,13 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 
 	memset(&io, 0, sizeof(io));
 
+	dnet_parse_numeric_id("76a046fcd25ebeaaa65a0fa692faf8b8701695c6ba67008b5922ae9f134fc1da7ffffed191edf767000000000000000000000000000000000000000000000000", (unsigned char *)&io.id);
+	dnet_parse_numeric_id("76a046fcd25ebeaaa65a0fa692faf8b8701695c6ba67008b5922ae9f134fc1da7ffffed22220037fffffffffffffffffffffffffffffffffffffffffffffffff", (unsigned char *)&io.parent);
+
+#if 0
 	memset(io.id, 0x00, sizeof(io.id));
 	memset(io.parent, 0xff, sizeof(io.id));
-
+#endif
 	io.start = limit_start;
 	io.num = limit_num;
 
@@ -220,12 +255,12 @@ int main()
 		elliptics_node n(log);
 		n.add_groups(groups);
 
-		int ports[] = {1025, 1026};
+		int ports[] = {1030, };
 		int added = 0;
 
 		for (int i = 0; i < (int)ARRAY_SIZE(ports); ++i) {
 			try {
-				n.add_remote("localhost", ports[i], AF_INET);
+				n.add_remote("elisto19f.dev", ports[i], AF_INET);
 				added++;
 			} catch (...) {
 			}
@@ -233,6 +268,9 @@ int main()
 
 		if (!added)
 			throw std::runtime_error("Could not add remote nodes, exiting");
+
+		test_range_request(n, 0, 0, 0);
+		exit(-1);
 
 		test_lookup(n, groups);
 
