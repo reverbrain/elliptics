@@ -258,7 +258,7 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 	io.size = req->record_size - req->requested_offset;
 	io.offset = req->requested_offset;
 	io.type = req->requested_type;
-	
+
 	memcpy(io.id, req->record_key, DNET_ID_SIZE);
 	memcpy(io.parent, req->end, DNET_ID_SIZE);
 
