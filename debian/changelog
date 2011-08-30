@@ -1,3 +1,14 @@
+elliptics-2.10 (2.10.2.0) unstable; urgency=low
+
+  * Get rid of unused config fields
+  * File backend blob logger should be set to dnet_config one, since they are
+    binary compatible
+  * Added dnet_create_metadata(), use it in cpp binding and eblob generator
+  * Added records_in_blob config parameter and depends on 0.11.0 eblob and
+    higher
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 31 Aug 2011 00:24:56 +0400
+
 elliptics-2.10 (2.10.1.21) unstable; urgency=low
 
   * dnet_addr.addr_len must be set prior its usage
