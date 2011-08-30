@@ -141,10 +141,10 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 
 	memset(&io, 0, sizeof(io));
 
+#if 0
 	dnet_parse_numeric_id("76a046fcd25ebeaaa65a0fa692faf8b8701695c6ba67008b5922ae9f134fc1da7ffffed191edf767000000000000000000000000000000000000000000000000", &io.id);
 	dnet_parse_numeric_id("76a046fcd25ebeaaa65a0fa692faf8b8701695c6ba67008b5922ae9f134fc1da7ffffed22220037fffffffffffffffffffffffffffffffffffffffffffffffff", &io.parent);
-
-#if 0
+#else
 	memset(io.id, 0x00, sizeof(io.id));
 	memset(io.parent, 0xff, sizeof(io.id));
 #endif
@@ -237,9 +237,6 @@ int main()
 
 		if (!added)
 			throw std::runtime_error("Could not add remote nodes, exiting");
-
-		test_range_request(n, 0, 0, 0);
-		exit(-1);
 
 		test_lookup(n, groups);
 
