@@ -467,12 +467,7 @@ static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c,
 	ecfg.file = meta_path;
 	ecfg.sync = r->sync;
 	ecfg.records_in_blob = r->records_in_blob;
-
-	r->log.log = c->log->log;
-	r->log.log_private = c->log->log_private;
-	r->log.log_mask = EBLOB_LOG_ERROR | EBLOB_LOG_INFO | EBLOB_LOG_NOTICE;
-
-	ecfg.log = &r->log;
+	ecfg.log = (struct eblob_log *)c->log;
 
 	r->meta = eblob_init(&ecfg);
 	if (!r->meta) {
