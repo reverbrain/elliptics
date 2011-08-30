@@ -311,9 +311,8 @@ int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, 
 	return 0;
 }
 
-int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl)
+int dnet_create_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl, struct dnet_meta_container *mc)
 {
-	struct dnet_meta_container mc;
 	struct dnet_meta_check_status *c;
 	struct dnet_meta_checksum *csum;
 	struct dnet_meta *m;
@@ -341,15 +340,14 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 		goto err_out_exit;
 	}
 
-	memset(&mc, 0, sizeof(struct dnet_meta_container));
-	mc.data = malloc(size);
-	if (!mc.data) {
+	mc->data = malloc(size);
+	if (!mc->data) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-	memset(mc.data, 0, size);
+	memset(mc->data, 0, size);
 
-	m = (struct dnet_meta *)(mc.data);
+	m = (struct dnet_meta *)(mc->data);
 
 	c = (struct dnet_meta_check_status *)m->data;
 	m->size = sizeof(struct dnet_meta_check_status);
@@ -395,11 +393,30 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 	m->type = DNET_META_CHECKSUM;
 	m = (struct dnet_meta *)(m->data + m->size);
 
-	mc.size = size;
-	memcpy(&mc.id, &ctl->id, sizeof(struct dnet_id));
+	mc->size = size;
+	memcpy(&mc->id, &ctl->id, sizeof(struct dnet_id));
+	err = 0;
+
+err_out_exit:
+	return err;
+}
+
+int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl)
+{
+	struct dnet_meta_container mc;
+	int err;
+
+	memset(&mc, 0, sizeof(struct dnet_meta_container));
+
+	err = dnet_create_metadata(n, ctl, &mc);
+	if (err)
+		goto err_out_exit;
 
 	err = dnet_write_metadata(n, &mc, 1);
+	if (err)
+		goto err_out_free;
 
+err_out_free:
 	free(mc.data);
 err_out_exit:
 	return err;

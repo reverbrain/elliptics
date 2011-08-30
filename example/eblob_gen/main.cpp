@@ -42,8 +42,10 @@ void eblob_processor::process(elliptics_node &node, const std::string &path)
 			if (!have_data)
 				break;
 
+			std::string meta;
+
 			node.transform(name, id);
-			node.write_metadata(id, name, groups_, ts);
+			meta = node.create_metadata(id, name, groups_, ts);
 
 			std::vector<int>::const_iterator end_itr = groups_.end();
 			for (std::vector<int>::const_iterator itr = groups_.begin(); itr != end_itr; ++itr) {
@@ -74,8 +76,10 @@ void eblob_processor::process(elliptics_node &node, const std::string &path)
 						blobs[addr] = e;
 
 						e->write(k, data);
+						e->write(k, meta, 0, 0, EBLOB_TYPE_META);
 					} else {
 						res->second->write(k, data);
+						res->second->write(k, meta, 0, 0, EBLOB_TYPE_META);
 					}
 
 				} catch (std::exception &e) {

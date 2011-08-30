@@ -800,6 +800,7 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl);
 int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, unsigned int remote_len,
 		struct dnet_id *id, struct timespec *ts);
+int dnet_create_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl, struct dnet_meta_container *mc);
 void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc);
 
 int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info, int fd, uint64_t offset, uint64_t size);

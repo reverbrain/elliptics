@@ -324,13 +324,15 @@ std::string elliptics_node::lookup_addr(const struct dnet_id &id)
 	return std::string((const char *)buf, strlen(buf));
 }
 
-
-int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &obj, const std::vector<int> &groups, const struct timespec &ts)
+std::string elliptics_node::create_metadata(const struct dnet_id &id, const std::string &obj,
+		const std::vector<int> &groups, const struct timespec &ts)
 {
-	int err;
 	struct dnet_metadata_control ctl;
+	struct dnet_meta_container mc;
+	int err;
 
-	memset(&ctl, 0, sizeof(ctl));
+	memset(&mc, 0, sizeof(struct dnet_meta_container));
+	memset(&ctl, 0, sizeof(struct dnet_metadata_control));
 
 	ctl.obj = (char *)obj.data();
 	ctl.len = obj.size();
@@ -341,14 +343,46 @@ int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &
 	ctl.ts = ts;
 	ctl.id = id;
 
-	err = dnet_create_write_metadata(node, &ctl);
-	if (err < 0) {
+	err = dnet_create_metadata(node, &ctl, &mc);
+	if (err) {
+		std::ostringstream str;
+		str << "Failed to create metadata: key: " << dnet_dump_id(&id) << ", err: " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	std::string ret;
+
+	try {
+		ret.assign((char *)mc.data, mc.size);
+	} catch (...) {
+		free(mc.data);
+		throw;
+	}
+
+	free(mc.data);
+	return ret;
+}
+
+int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &obj,
+		const std::vector<int> &groups, const struct timespec &ts)
+{
+	int err;
+	std::string meta;
+	struct dnet_meta_container mc;
+
+	meta = create_metadata(id, obj, groups, ts);
+
+	mc.data = (void *)meta.data();
+	mc.size = meta.size();
+
+	err = dnet_write_metadata(node, &mc, 1);
+	if (err) {
 		std::ostringstream str;
 		str << "Failed to write metadata: key: " << dnet_dump_id(&id) << ", err: " << err;
 		throw std::runtime_error(str.str());
 	}
 
-	return err;
+	return 0;
 }
 		
 void elliptics_node::transform(const std::string &data, struct dnet_id &id)
