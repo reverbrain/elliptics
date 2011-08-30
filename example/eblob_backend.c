@@ -535,19 +535,11 @@ static int dnet_blob_set_iterate_thread_num(struct dnet_config_backend *b, char 
 	return 0;
 }
 
-static int dnet_blob_set_hash_size(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_blob_flags(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct eblob_backend_config *c = b->data;
 
-	c->data.hash_size = strtoul(value, NULL, 0);
-	return 0;
-}
-
-static int dnet_blob_set_hash_flags(struct dnet_config_backend *b, char *key __unused, char *value)
-{
-	struct eblob_backend_config *c = b->data;
-
-	c->data.hash_flags = strtoul(value, NULL, 0);
+	c->data.blob_flags = strtoul(value, NULL, 0);
 	return 0;
 }
 
@@ -582,9 +574,6 @@ static void eblob_backend_cleanup(void *priv)
 
 	eblob_cleanup(c->eblob);
 
-	unlink(c->data.mmap_file);
-
-	free(c->data.mmap_file);
 	free(c->data.file);
 }
 
@@ -622,7 +611,6 @@ static int dnet_eblob_db_iterate(void *priv, unsigned int flags,
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)
 {
 	struct eblob_backend_config *c = b->data;
-	char mmap_file[256];
 	int err = 0;
 
 	if (!c->data.file) {
@@ -632,18 +620,11 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	}
 
 	c->data.log = (struct eblob_log *)b->log;
-	snprintf(mmap_file, sizeof(mmap_file), "%s.mmap", c->data.file);
-
-	c->data.mmap_file = strdup(mmap_file);
-	if (!c->data.mmap_file) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
 
 	c->eblob = eblob_init(&c->data);
 	if (!c->eblob) {
 		err = -EINVAL;
-		goto err_out_free;
+		goto err_out_exit;
 	}
 
 	cfg->cb = &b->cb;
@@ -665,8 +646,6 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	return 0;
 
-err_out_free:
-	free(c->data.mmap_file);
 err_out_exit:
 	return err;
 }
@@ -682,8 +661,7 @@ static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"sync", dnet_blob_set_sync},
 	{"data", dnet_blob_set_data},
 	{"data_block_size", dnet_blob_set_block_size},
-	{"data_hash_table_size", dnet_blob_set_hash_size},
-	{"data_hash_table_flags", dnet_blob_set_hash_flags},
+	{"blob_flags", dnet_blob_set_blob_flags},
 	{"iterate_thread_num", dnet_blob_set_iterate_thread_num},
 	{"blob_size", dnet_blob_set_blob_size},
 	{"records_in_blob", dnet_blob_set_records_in_blob},

@@ -212,7 +212,6 @@ struct dnet_check_temp_db * dnet_check_temp_db_alloc(struct dnet_node *n, char *
 	memset(&ecfg, 0, sizeof(struct eblob_config));
 
 	ecfg.file = temp_meta_path;
-	ecfg.hash_size = DNET_BULK_IDS_SIZE * 100;
 
 	db->log.log = n->log->log;
 	db->log.log_private = n->log->log_private;
