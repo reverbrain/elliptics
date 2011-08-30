@@ -518,6 +518,15 @@ static int dnet_blob_set_blob_size(struct dnet_config_backend *b, char *key __un
 	return 0;
 }
 
+static int dnet_blob_set_records_in_blob(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct eblob_backend_config *c = b->data;
+	uint64_t val = strtoul(value, NULL, 0);
+
+	c->data.records_in_blob = val;
+	return 0;
+}
+
 static int dnet_blob_set_iterate_thread_num(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct eblob_backend_config *c = b->data;
@@ -677,6 +686,7 @@ static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"data_hash_table_flags", dnet_blob_set_hash_flags},
 	{"iterate_thread_num", dnet_blob_set_iterate_thread_num},
 	{"blob_size", dnet_blob_set_blob_size},
+	{"records_in_blob", dnet_blob_set_records_in_blob},
 };
 
 static struct dnet_config_backend dnet_eblob_backend = {
