@@ -3074,7 +3074,7 @@ int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp)
 	if (n->flags & DNET_CFG_RANDOMIZE_STATES) {
 		for (i = 0; i < group_num; ++i) {
 			weights[i].weight = rand();
-			weights[i].group_id = id->group_id;
+			weights[i].group_id = groups[i];
 		}
 		num = group_num;
 	} else {
