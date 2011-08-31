@@ -1,3 +1,10 @@
+elliptics-2.10 (2.10.2.1) unstable; urgency=low
+
+  * Added config flag to randomize groups
+  * Use close_on_exit flag instead of duplicating file descriptor
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 31 Aug 2011 21:46:29 +0400
+
 elliptics-2.10 (2.10.2.0) unstable; urgency=low
 
   * Get rid of unused config fields
