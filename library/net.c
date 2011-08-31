@@ -314,8 +314,6 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 
 	return 0;
 
-err_out_free:
-	free(r);
 err_out_exit:
 	return err;
 }
