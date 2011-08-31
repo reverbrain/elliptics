@@ -249,7 +249,10 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	}
 
 	io->size = size;
-	err = dnet_send_read_data(state, cmd, io, NULL, fd, io->offset);
+	err = dnet_send_read_data(state, cmd, io, NULL, fd, io->offset, 1);
+	if (err)
+		goto err_out_close_fd;
+	return 0;
 
 err_out_close_fd:
 	close(fd);

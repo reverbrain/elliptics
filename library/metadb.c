@@ -118,7 +118,7 @@ int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		err = n->cb->meta_read(n->cb->command_private, &id, &data);
 		if (err > 0) {
 			io->size = err;
-			err = dnet_send_read_data(st, cmd, io, data, -1, io->offset);
+			err = dnet_send_read_data(st, cmd, io, data, -1, io->offset, 0);
 			free(data);
 		}
 		break;

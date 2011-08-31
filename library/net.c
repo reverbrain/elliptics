@@ -299,13 +299,8 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	}
 
 	if (orig->fd >= 0 && orig->fsize) {
-		r->fd = dup(orig->fd);
-		if (r->fd < 0) {
-			err = -errno;
-			dnet_log_err(st->n, "%s: failed to duplicate send fd(%d)", dnet_state_dump_addr(st), orig->fd);
-			goto err_out_free;
-		}
-
+		r->fd = orig->fd;
+		r->close_on_exit = orig->close_on_exit;
 		r->local_offset = orig->local_offset;
 		r->fsize = orig->fsize;
 	}
@@ -327,7 +322,7 @@ err_out_exit:
 
 void dnet_io_req_free(struct dnet_io_req *r)
 {
-	if (r->fd >= 0 && r->fsize)
+	if (r->fd >= 0 && r->fsize && r->close_on_exit)
 		close(r->fd);
 	free(r);
 }
@@ -467,7 +462,8 @@ static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t o
 	return err;
 }
 
-ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, int fd, uint64_t offset, uint64_t fsize)
+ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize,
+		int fd, uint64_t offset, uint64_t fsize, int close_on_exit)
 {
 	struct dnet_io_req r;
 
@@ -475,6 +471,7 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize, in
 	r.header = header;
 	r.hsize = hsize;
 	r.fd = fd;
+	r.close_on_exit = close_on_exit;
 	r.local_offset = offset;
 	r.fsize = fsize;
 

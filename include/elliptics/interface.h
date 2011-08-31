@@ -181,7 +181,7 @@ struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr
 		int group_id, uint32_t aflags, int *errp);
 
 int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
-		void *data, int fd, uint64_t offset);
+		void *data, int fd, uint64_t offset, int close_on_exit);
 
 /*
  * Reads given file from the storage. If there are multiple transformation functions,

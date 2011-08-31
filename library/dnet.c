@@ -2948,7 +2948,8 @@ err_out_exit:
 	return err;
 }
 
-int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data, int fd, uint64_t offset)
+int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data,
+		int fd, uint64_t offset, int close_on_exit)
 {
 	struct dnet_net_state *st = state;
 	struct dnet_cmd *c;
@@ -3001,7 +3002,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	if (data)
 		err = dnet_send_data(st, c, hsize, data, io->size);
 	else
-		err = dnet_send_fd(st, c, hsize, fd, offset, io->size);
+		err = dnet_send_fd(st, c, hsize, fd, offset, io->size, close_on_exit);
 
 	free(c);
 

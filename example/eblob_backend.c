@@ -212,7 +212,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	}
 
 	io->size = size;
-	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset);
+	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset, 0);
 
 err_out_free:
 	/* free compressed data */
@@ -263,7 +263,7 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 	memcpy(io.parent, req->end, DNET_ID_SIZE);
 
 	err = dnet_send_read_data(p->state, p->cmd, &io, NULL, req->record_fd,
-			req->record_offset + req->requested_offset);
+			req->record_offset + req->requested_offset, 0);
 	if (!err)
 		req->current_pos++;
 err_out_exit:
@@ -316,7 +316,7 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 		r.num = req.current_pos;
 		r.offset = r.size = 0;
 
-		err = dnet_send_read_data(state, cmd, &r, NULL, -1, 0);
+		err = dnet_send_read_data(state, cmd, &r, NULL, -1, 0, 0);
 	}
 
 err_out_exit:
