@@ -245,6 +245,7 @@ int dnet_write_file(struct dnet_node *n, const char *file, const void *remote, i
 #define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
 #define DNET_CFG_NO_CSUM		(1<<3)		/* globally disable checksum verification and update */
 #define DNET_CFG_NO_META		(1<<4)		/* do not write metadata */
+#define DNET_CFG_RANDOMIZE_STATES	(1<<5)		/* randomize states for read requests */
 
 struct dnet_log {
 	/*

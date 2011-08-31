@@ -3071,24 +3071,32 @@ int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp)
 		return -ENOMEM;
 	}
 
-	if (!(n->flags & DNET_CFG_MIX_STATES)) {
-		*groupsp = groups;
-		return group_num;
-	}
+	if (n->flags & DNET_CFG_RANDOMIZE_STATES) {
+		for (i = 0; i < group_num; ++i) {
+			weights[i].weight = rand();
+			weights[i].group_id = id->group_id;
+		}
+		num = group_num;
+	} else {
+		if (!(n->flags & DNET_CFG_MIX_STATES)) {
+			*groupsp = groups;
+			return group_num;
+		}
 
-	memset(weights, 0, group_num * sizeof(*weights));
+		memset(weights, 0, group_num * sizeof(*weights));
 
-	for (i=0, num=0; i<group_num; ++i) {
-		id->group_id = groups[i];
+		for (i = 0, num = 0; i < group_num; ++i) {
+			id->group_id = groups[i];
 
-		st = dnet_state_get_first(n, id);
-		if (st) {
-			weights[num].weight = (int)st->weight;
-			weights[num].group_id = id->group_id;
+			st = dnet_state_get_first(n, id);
+			if (st) {
+				weights[num].weight = (int)st->weight;
+				weights[num].group_id = id->group_id;
 
-			dnet_state_put(st);
+				dnet_state_put(st);
 
-			num++;
+				num++;
+			}
 		}
 	}
 
@@ -3099,7 +3107,7 @@ int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp)
 		qsort(weights, group_num, sizeof(struct dnet_weight), dnet_weight_compare);
 
 		/* if we have equal weights, add random salt to them and rerun */
-		for (i=1; i<group_num; ++i) {
+		for (i = 1; i < group_num; ++i) {
 			if (weights[i].weight == weights[i - 1].weight) {
 				float r = rand();
 
@@ -3116,7 +3124,7 @@ int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp)
 			qsort(weights, group_num, sizeof(struct dnet_weight), dnet_weight_compare);
 
 		/* weights are sorted in ascending order */
-		for (i=0; i<group_num; ++i) {
+		for (i = 0; i < group_num; ++i) {
 			groups[i] = weights[num - i - 1].group_id;
 		}
 	}
