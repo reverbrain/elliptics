@@ -2991,7 +2991,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 
 	memcpy(rio, io, sizeof(struct dnet_io_attr));
 
-	dnet_log_raw(st->n, DNET_LOG_INFO, "%s: %s: reply: offset: %llu, size: %llu.\n",
+	dnet_log_raw(st->n, DNET_LOG_NOTICE, "%s: %s: reply: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&c->id), dnet_cmd_string(a->cmd),
 			(unsigned long long)io->offset,	(unsigned long long)io->size);
 
