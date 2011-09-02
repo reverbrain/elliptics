@@ -1,3 +1,10 @@
+elliptics-2.10 (2.10.2.3) unstable; urgency=low
+
+  * dnet_write_metadata() requires mc.id to be set
+  * decrease log level in dnet_send_read_data()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 02 Sep 2011 20:07:11 +0400
+
 elliptics-2.10 (2.10.2.2) unstable; urgency=low
 
   * dnet_mix_states() should use selected groups for weights
