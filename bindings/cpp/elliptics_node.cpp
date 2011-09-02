@@ -375,6 +375,8 @@ int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &
 	mc.data = (void *)meta.data();
 	mc.size = meta.size();
 
+	mc.id = id;
+
 	err = dnet_write_metadata(node, &mc, 1);
 	if (err) {
 		std::ostringstream str;
