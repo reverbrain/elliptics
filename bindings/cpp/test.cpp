@@ -213,6 +213,19 @@ static void test_lookup(elliptics_node &n, std::vector<int> &groups)
 	}
 }
 
+static void test_append(elliptics_node &n)
+{
+	std::string key = "append-test";
+	std::string data = "first part of the message";
+
+	n.write_data_wait(key, data, 0, 0, 0, 0);
+
+	data = "| second part of the message";
+	n.write_data_wait(key, data, 0, 0, DNET_IO_FLAGS_APPEND, 0);
+
+	std::cout << key << ": " << n.read_data_wait(key, 0, 0, 0, 0, 0) << std::endl;
+}
+
 int main()
 {
 	int g[] = {1, 2, 3};
@@ -229,7 +242,7 @@ int main()
 
 		for (int i = 0; i < (int)ARRAY_SIZE(ports); ++i) {
 			try {
-				n.add_remote("elisto19f.dev", ports[i], AF_INET);
+				n.add_remote("localhost", ports[i], AF_INET);
 				added++;
 			} catch (...) {
 			}
@@ -266,6 +279,8 @@ int main()
 		test_range_request(n, 0, 0, DNET_ATTR_SORT);
 		test_range_request(n, 1, 0, 0);
 		test_range_request(n, 0, 1, 0);
+
+		test_append(n);
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {
