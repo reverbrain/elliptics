@@ -16,6 +16,7 @@
 #ifndef __DNET_PACKET_H
 #define __DNET_PACKET_H
 
+#ifndef __KERNEL__
 #include <sys/time.h>
 #include <arpa/inet.h>
 #include <sys/stat.h>
@@ -25,6 +26,7 @@
 
 #include <elliptics/typedefs.h>
 #include <elliptics/core.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -146,6 +148,8 @@ struct dnet_cmd
 	uint8_t			data[0];
 } __attribute__ ((packed));
 
+/* kernel (pohmelfs) provides own defines for byteorder changes */
+#ifndef __KERNEL__
 #ifdef WORDS_BIGENDIAN
 
 #define dnet_bswap16(x)		((((x) >> 8) & 0xff) | (((x) & 0xff) << 8))
@@ -167,6 +171,7 @@ struct dnet_cmd
 #define dnet_bswap16(x) (x)
 #define dnet_bswap32(x) (x)
 #define dnet_bswap64(x) (x)
+#endif
 #endif
 
 static inline void dnet_convert_id(struct dnet_id *id)
