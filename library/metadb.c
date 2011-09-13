@@ -242,6 +242,7 @@ int dnet_db_iterate(struct eblob_backend *b, unsigned int flags __unused,
 	memset(&ctl, 0, sizeof(ctl));
 
 	ctl.check_index = 1;
+	ctl.flags |= EBLOB_ITERATE_FLAGS_ALL;
 	ctl.priv = callback_private;
 	memcpy(&ctl.iterator_cb, iterate_cb, sizeof(struct eblob_iterate_callbacks));
 	ctl.start_type = ctl.max_type = EBLOB_TYPE_META;
