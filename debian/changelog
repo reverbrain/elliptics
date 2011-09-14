@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.3.2) unstable; urgency=low
+
+  * Only doing plain write when io->size is not zero
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 15 Sep 2011 03:16:52 +0400
+
 elliptics-2.10 (2.10.3.1) unstable; urgency=low
 
   * Iterate over all blobs inside check copies/merge
