@@ -715,6 +715,35 @@ std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io
 	return ret;
 }
 
+std::vector<struct dnet_io_attr> elliptics_node::remove_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags)
+{
+	struct dnet_io_attr *retp;
+	int ret_num;
+	int err;
+
+	retp = dnet_remove_range(node, &io, group_id, aflags, &ret_num, &err);
+
+	if (!retp && err) {
+		std::ostringstream str;
+		str << "Failed to read range data object: group: " << group_id <<
+			", key: " << dnet_dump_id_str(io.id) <<
+			", size: " << io.size << ": err: " << strerror(-err) << ": " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	std::vector<struct dnet_io_attr> ret;;
+
+	if (retp) {
+		for (int i = 0; i < ret_num; ++i) {
+			ret.push_back(retp[i]);
+		}
+
+		free(retp);
+	}
+
+	return ret;
+}
+
 int elliptics_node::write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
 		uint64_t psize, unsigned int aflags, unsigned int ioflags, int type)
 {

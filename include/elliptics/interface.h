@@ -177,6 +177,9 @@ struct dnet_range_data {
 	void				*data;
 };
 
+struct dnet_io_attr *dnet_remove_range(struct dnet_node *n, struct dnet_io_attr *io,
+		int group_id, uint32_t aflags, int *rep_num, int *errp);
+
 struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr *io,
 		int group_id, uint32_t aflags, int *errp);
 
