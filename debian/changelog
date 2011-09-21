@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.3.3) unstable; urgency=low
+
+  * Depend on 0.12.3 eblob
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 21 Sep 2011 19:40:02 +0400
+
 elliptics-2.10 (2.10.3.2) unstable; urgency=low
 
   * Only doing plain write when io->size is not zero
