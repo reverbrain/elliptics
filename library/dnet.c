@@ -3292,6 +3292,94 @@ err_out_exit:
 	return err;
 }
 
+struct dnet_io_attr *dnet_remove_range(struct dnet_node *n, struct dnet_io_attr *io, int group_id, uint32_t aflags, int *ret_num, int *errp)
+{
+	struct dnet_id id;
+	struct dnet_io_attr *ret, *new_ret;
+	struct dnet_raw_id start, next;
+	struct dnet_raw_id end;
+	uint64_t size = io->size;
+	void *data;
+	int err, need_exit = 0;
+
+	memcpy(end.id, io->parent, DNET_ID_SIZE);
+
+	dnet_setup_id(&id, group_id, io->id);
+	id.type = io->type;
+
+	ret = NULL;
+	*ret_num = 0;
+	while (!need_exit) {
+		err = dnet_search_range(n, &id, &start, &next);
+		if (err)
+			goto err_out_exit;
+
+		if ((dnet_id_cmp_str(id.id, next.id) > 0) ||
+				!memcmp(start.id, next.id, DNET_ID_SIZE) ||
+				(dnet_id_cmp_str(next.id, end.id) > 0)) {
+			memcpy(next.id, end.id, DNET_ID_SIZE);
+			need_exit = 1;
+		}
+
+		if (n->log->log_mask & DNET_LOG_NOTICE) {
+			int len = 6;
+			char start_id[2*len + 1];
+			char next_id[2*len + 1];
+			char end_id[2*len + 1];
+			char id_str[2*len + 1];
+
+			dnet_log(n, DNET_LOG_NOTICE, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d\n",
+					dnet_dump_id_len_raw(id.id, len, id_str),
+					dnet_dump_id_len_raw(start.id, len, start_id),
+					dnet_dump_id_len_raw(next.id, len, next_id),
+					dnet_dump_id_len_raw(end.id, len, end_id),
+					(unsigned long long)size, dnet_id_cmp_str(next.id, end.id));
+		}
+
+		memcpy(io->id, id.id, DNET_ID_SIZE);
+		memcpy(io->parent, next.id, DNET_ID_SIZE);
+
+		io->size = size;
+
+		data = dnet_read_data_wait_raw(n, &id, io, DNET_CMD_DEL_RANGE, aflags, &err);
+		dnet_log(n, DNET_LOG_DSA, "dnet_remove_range: returned %llu bytes of data\n", (unsigned long long)io->size);
+		if (io->size != sizeof(struct dnet_io_attr)) {
+			err = -ENOENT;
+			goto err_out_exit;
+		}
+
+		if (data) {
+			struct dnet_io_attr *rep = (struct dnet_io_attr*)data;
+
+			dnet_convert_io_attr(rep);
+
+			dnet_log(n, DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
+					dnet_dump_id(&id), (unsigned long long)rep->num, (unsigned long long)io->start,
+					(unsigned long long)io->num, (unsigned long long)io->size);
+
+			(*ret_num)++;
+
+			new_ret = realloc(ret, *ret_num * sizeof(struct dnet_io_attr));
+			if (!new_ret) {
+				err = -ENOMEM;
+				goto err_out_exit;
+			}
+
+			ret = new_ret;
+			ret[*ret_num - 1] = *rep;
+
+			free(data);
+		}
+
+		memcpy(id.id, next.id, DNET_ID_SIZE);
+	}
+
+err_out_exit:
+	*errp = err;
+
+	return ret;
+}
+
 struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr *io, int group_id, uint32_t aflags, int *errp)
 {
 	struct dnet_id id;
