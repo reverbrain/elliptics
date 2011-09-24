@@ -481,6 +481,7 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_STAT_COUNT] = "STAT_COUNT",
 	[DNET_CMD_STATUS] = "STATUS",
 	[DNET_CMD_READ_RANGE] = "READ_RANGE",
+	[DNET_CMD_DEL_RANGE] = "DEL_RANGE",
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 
