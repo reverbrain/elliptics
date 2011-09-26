@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.3.5) unstable; urgency=low
+
+  * Added overwrite io flag. Depend on blob 0.12.5+ where it is implemented
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 27 Sep 2011 01:07:33 +0400
+
 elliptics-2.10 (2.10.3.4) unstable; urgency=low
 
   * Added DNET_DEL_RANGE command
