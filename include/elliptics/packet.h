@@ -295,6 +295,9 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 /* Object was removed */
 #define DNET_IO_FLAGS_REMOVED		(1<<6)
 
+/* Overwrite data */
+#define DNET_IO_FLAGS_OVERWRITE		(1<<7)
+
 /*
  * this flag is used when we want backend not to perform any additional actions
  * except than write data at given offset. This is no-op in filesystem backend,
