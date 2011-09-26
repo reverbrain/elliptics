@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.3.4) unstable; urgency=low
+
+  * Added DNET_DEL_RANGE command
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 23 Sep 2011 22:07:55 +0400
+
 elliptics-2.10 (2.10.3.3) unstable; urgency=low
 
   * Depend on 0.12.3 eblob
