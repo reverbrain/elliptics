@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.5.2
+Version:	2.10.3.6
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -12,9 +12,12 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:	db4-devel
 BuildRequires:	fcgi-devel
 BuildRequires:	openssl-devel
-BuildRequires:	python-devel
-BuildRequires:	boost-python
-BuildRequires:	boost-devel
+BuildRequires:	python-devel, libtar-devel
+%if 0%{?rhel} < 6
+BuildRequires:	boost141-python, boost141-devel
+%else
+BuildRequires:  boost-python, boost-devel
+%endif
 BuildRequires:	eblob-devel
 BuildRequires:	automake autoconf libtool
 
@@ -82,7 +85,12 @@ for building C++ applications with elliptics.
 %build
 export LDFLAGS="-Wl,-z,defs"
 ./autogen.sh
-%configure 
+%if 0%{?rhel} < 6
+CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %configure --with-boost-libdir=/usr/lib64/boost141
+%else
+%configure
+%endif
+
 
 make %{?_smp_mflags}
 
