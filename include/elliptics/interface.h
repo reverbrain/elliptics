@@ -558,9 +558,10 @@ static inline char *dnet_dump_id_str(const unsigned char *id)
 }
 
 /*
- * Send a shell command to the remote node for execution.
+ * Send a shell/python command to the remote node for execution.
  */
-int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, char *command);
+int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id,
+		char *cmd, int cmd_size, enum cmd_type type);
 
 /*
  * Lookup a node which hosts given ID.

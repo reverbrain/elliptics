@@ -57,6 +57,10 @@ static void dnet_usage(char *p)
 			" -I id                - transaction id (used to read data)\n"
 			" -g groups            - group IDs to connect\n"
 			" -c cmd               - execute given command on the remote node\n"
+			" -C type              - type of the command to execute on remote node:\n"
+			"                            0 - shell\n"
+			"                            1 - python script name\n"
+			"                            2 - execute this string as python script\n"
 			" -L file              - lookup a storage which hosts given file\n"
 			" -l log               - log file. Default: disabled\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
@@ -90,6 +94,7 @@ int main(int argc, char *argv[])
 	uint64_t offset, size;
 	int *groups = NULL, group_num = 0;
 	unsigned int aflags = DNET_ATTR_NOCSUM;
+	int cmd_type = DNET_EXEC_SHELL;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -107,7 +112,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:C:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
 			case 'A':
 				aflags = strtoul(optarg, NULL, 0);
@@ -160,6 +165,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'c':
 				cmd = optarg;
+				break;
+			case 'C':
+				cmd_type = atoi(optarg);
 				break;
 			case 'I':
 				err = dnet_parse_numeric_id(optarg, trans_id);
@@ -300,7 +308,17 @@ int main(int argc, char *argv[])
 	}
 
 	if (cmd) {
-		err = dnet_send_cmd(n, NULL, cmd);
+		struct dnet_id __did, *did = NULL;
+
+		if (id) {
+			did = &__did;
+
+			dnet_setup_id(did, 0, id);
+			did->type = 0;
+		}
+
+
+		err = dnet_send_cmd(n, did, cmd, strlen(cmd), cmd_type);
 		if (err < 0)
 			return err;
 	}

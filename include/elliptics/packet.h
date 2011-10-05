@@ -624,6 +624,24 @@ static inline void dnet_convert_node_status(struct dnet_node_status *st)
 	st->log_mask = dnet_bswap32(st->log_mask);
 }
 
+enum cmd_type {
+	DNET_EXEC_SHELL = 0,
+	DNET_EXEC_PYTHON_SCRIPT_NAME,
+	DNET_EXEC_PYTHON,
+};
+
+struct dnet_exec {
+	int			type;
+	int			size;
+	char			data[0];
+};
+
+static inline void dnet_convert_exec(struct dnet_exec *e)
+{
+	e->type = dnet_bswap32(e->type);
+	e->size = dnet_bswap32(e->size);
+}
+
 #ifdef __cplusplus
 }
 #endif
