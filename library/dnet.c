@@ -359,10 +359,10 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd,
 			err = dnet_cmd_exec_shell(n, cmd, e->data);
 			break;
 		case DNET_EXEC_PYTHON_SCRIPT_NAME:
-			err = dnet_cmd_exec_python_script(n, cmd, attr, e);
+			err = dnet_cmd_exec_python_script(st, cmd, attr, e);
 			break;
 		case DNET_EXEC_PYTHON:
-			err = dnet_cmd_exec_python(n, cmd, attr, e);
+			err = dnet_cmd_exec_python(st, cmd, attr, e);
 			break;
 	}
 
@@ -1722,6 +1722,7 @@ void dnet_wait_destroy(struct dnet_wait *w)
 {
 	pthread_mutex_destroy(&w->wait_lock);
 	pthread_cond_destroy(&w->wait);
+	free(w->ret);
 	free(w);
 }
 
@@ -1737,8 +1738,24 @@ static int dnet_send_cmd_complete(struct dnet_net_state *st, struct dnet_cmd *cm
 		return 0;
 	}
 
-	err = cmd->status;
-	w->status = err;
+	w->status = cmd->status;
+
+	if (attr && attr->size) {
+		void *old = w->ret;
+		void *data = attr + 1;
+
+		w->ret = realloc(w->ret, w->size + attr->size);
+		if (!w->ret) {
+			w->ret = old;
+			w->status = -ENOMEM;
+		} else {
+			memcpy(w->ret + w->size, data, attr->size);
+			w->size += attr->size;
+		}
+	}
+
+	err = w->status;
+
 	return err;
 }
 
@@ -1782,7 +1799,7 @@ err_out_exit:
 }
 
 int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id,
-		char *cmd, int cmd_size, enum cmd_type type)
+		char *cmd, int cmd_size, enum cmd_type type, void **ret)
 {
 	struct dnet_net_state *st;
 	int err = -ENOENT, num = 0;
@@ -1823,9 +1840,16 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id,
 	if (err)
 		goto err_out_put;
 
+	if (w->ret) {
+		*ret = w->ret;
+		w->ret = NULL;
+
+		err = w->size;
+	}
+
 	dnet_wait_put(w);
 
-	return num;
+	return err;
 
 err_out_put:
 	dnet_wait_put(w);

@@ -309,6 +309,7 @@ int main(int argc, char *argv[])
 
 	if (cmd) {
 		struct dnet_id __did, *did = NULL;
+		char *ret, *old;
 
 		if (id) {
 			did = &__did;
@@ -318,9 +319,22 @@ int main(int argc, char *argv[])
 		}
 
 
-		err = dnet_send_cmd(n, did, cmd, strlen(cmd), cmd_type);
+		err = dnet_send_cmd(n, did, cmd, strlen(cmd), cmd_type, (void **)&ret);
 		if (err < 0)
 			return err;
+
+		if (err > 0) {
+			old = ret;
+
+			ret = realloc(ret, err + 1);
+			if (!ret)
+				ret = old;
+			else
+				ret[err] = '\0';
+
+			printf("result: '%s'", ret);
+			free(ret);
+		}
 	}
 
 	if (lookup) {

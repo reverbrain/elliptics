@@ -45,7 +45,7 @@ int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg)
 				"n = elliptics_node_python(log)\n"
 				"n.add_groups([1,2,3])\n"
 				"n.add_remote('localhost', 1025)\n"
-				"__return_data = None";
+				"__return_data = 'unused'";
 
 	n->srw = srwc_init_python(n->io->thread_num, str, sizeof(str) + 1, NULL);
 	if (!n->srw) {
@@ -62,8 +62,9 @@ void dnet_srw_cleanup(struct dnet_node *n)
 		srwc_cleanup_python(n->srw);
 }
 
-int dnet_cmd_exec_python(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_attr *attr, struct dnet_exec *e)
+int dnet_cmd_exec_python(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, struct dnet_exec *e)
 {
+	struct dnet_node *n = st->n;
 	int err;
 	char *res = NULL;
 
@@ -73,18 +74,18 @@ int dnet_cmd_exec_python(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_
 		goto err_out_exit;
 	}
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: reply %d bytes: '%s'\n", dnet_dump_id(&cmd->id), err, res);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: reply %d bytes: '%s'\n", dnet_dump_id(&cmd->id), err, err ? res : "none");
 
 	if (err > 0) {
+		err = dnet_send_reply(st, cmd, attr, res, err, 0);
 		free(res);
-		err = 0;
 	}
 
 err_out_exit:
 	return err;
 }
 
-int dnet_cmd_exec_python_script(struct dnet_node *n __unused, struct dnet_cmd *cmd __unused,
+int dnet_cmd_exec_python_script(struct dnet_net_state *st __unused, struct dnet_cmd *cmd __unused,
 		struct dnet_attr *attr __unused, struct dnet_exec *e __unused)
 {
 	return -ENOTSUP;
@@ -100,13 +101,13 @@ void dnet_srw_cleanup(struct dnet_node *n __unused)
 {
 }
 
-int dnet_cmd_exec_python(struct dnet_node *n __unused, struct dnet_cmd *cmd __unused,
+int dnet_cmd_exec_python(struct dnet_net_state *st __unused, struct dnet_cmd *cmd __unused,
 		struct dnet_attr *attr __unused, struct dnet_exec *e __unused)
 {
 	return -ENOTSUP;
 }
 
-int dnet_cmd_exec_python_script(struct dnet_node *n __unused, struct dnet_cmd *cmd __unused,
+int dnet_cmd_exec_python_script(struct dnet_net_state *st __unused, struct dnet_cmd *cmd __unused,
 		struct dnet_attr *attr __unused, struct dnet_exec *e __unused)
 {
 	return -ENOTSUP;
