@@ -707,8 +707,11 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		int s;
 
 		err = dnet_srw_init(n, cfg);
-		if (err)
-			goto err_out_io_exit;
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
+			if (err != -ENOTSUP)
+				goto err_out_io_exit;
+		}
 
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
 		if (!ids)

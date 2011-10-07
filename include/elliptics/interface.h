@@ -387,7 +387,12 @@ struct dnet_config
 	/* Temporary metadata for CHECK process directory path */
 	char			temp_meta_env[1024];
 
-	/* Temporary metadata for CHECK process directory path */
+	/*
+	 * This dir hosts:
+	 *  - 'ids' file automatically generated for ID ranges
+	 *  - init.python script used to initialize external python workers
+	 *  - all scripts are hosted here and are chrooted here
+	 */
 	char			history_env[1024];
 
 	/* Namespace */
