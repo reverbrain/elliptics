@@ -1759,12 +1759,9 @@ static int dnet_send_cmd_complete(struct dnet_net_state *st, struct dnet_cmd *cm
 	return err;
 }
 
-static int dnet_send_cmd_single(struct dnet_net_state *st, struct dnet_wait *w,
-		char *command, int cmd_size, enum cmd_type type)
+static int dnet_send_cmd_single(struct dnet_net_state *st, struct dnet_wait *w, struct dnet_exec *e)
 {
 	struct dnet_trans_control ctl;
-	struct dnet_exec *e;
-	int err;
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
@@ -1773,33 +1770,17 @@ static int dnet_send_cmd_single(struct dnet_net_state *st, struct dnet_wait *w,
 	ctl.complete = dnet_send_cmd_complete;
 	ctl.priv = w;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
-	ctl.size = sizeof(struct dnet_exec) + cmd_size + 1; /* null bytes included */
-	ctl.data = command;
-
-	e = malloc(ctl.size);
-	if (!e) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	e->type = type;
-	e->size = cmd_size + 1;
-	sprintf(e->data, command, cmd_size);
+	ctl.size = sizeof(struct dnet_exec) + e->size + e->name_size;
 
 	dnet_convert_exec(e);
 
 	ctl.data = e;
 
-	err = dnet_trans_alloc_send_state(st, &ctl);
-
-	free(e);
-
-err_out_exit:
-	return err;
+	return dnet_trans_alloc_send_state(st, &ctl);
 }
 
 int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id,
-		char *cmd, int cmd_size, enum cmd_type type, void **ret)
+		struct dnet_exec *e, void **ret)
 {
 	struct dnet_net_state *st;
 	int err = -ENOENT, num = 0;
@@ -1816,7 +1797,7 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id,
 		st = dnet_state_get_first(n, id);
 		if (!st)
 			goto err_out_put;
-		err = dnet_send_cmd_single(st, w, cmd, cmd_size, type);
+		err = dnet_send_cmd_single(st, w, e);
 		num = 1;
 	} else {
 		struct dnet_group *g;
@@ -1829,7 +1810,7 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id,
 
 				dnet_wait_get(w);
 
-				err = dnet_send_cmd_single(st, w, cmd, cmd_size, type);
+				err = dnet_send_cmd_single(st, w, e);
 				num++;
 			}
 		}

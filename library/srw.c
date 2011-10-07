@@ -39,23 +39,32 @@
 
 static char srw_init_path[4096];
 
+struct dnet_srw_init_conf {
+	int		len;
+	char		path[0];
+};
+
 static int dnet_srw_init_python(struct dnet_node *n, struct dnet_config *cfg)
 {
-	int fd, err;
+	int fd, err, len = strlen(cfg->history_env);
 	struct dnet_map_fd m;
 	struct stat st;
-	char *srw_base;
+	struct dnet_srw_init_conf *base;
 	char *chroot_path = NULL;
 
 	memset(&m, 0, sizeof(struct dnet_map_fd));
 
 	snprintf(srw_init_path, sizeof(srw_init_path), "%s/init.python", cfg->history_env);
 
-	srw_base = strdup(cfg->history_env);
-	if (!srw_base) {
+	base = malloc(len + sizeof(struct dnet_srw_init_conf) + 1);
+	if (!base) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
+
+	base->len = len;
+
+	sprintf(base->path, "%s", cfg->history_env);
 
 	fd = open(srw_init_path, O_RDONLY);
 	if (fd < 0) {
@@ -83,10 +92,10 @@ static int dnet_srw_init_python(struct dnet_node *n, struct dnet_config *cfg)
 	if (geteuid() == 0) {
 		chroot_path = cfg->history_env;
 	} else {
-		dnet_log(n, DNET_LOG_INFO, "\nsrw: DO NOT CHROOTING because of incufficient privilege !!!\n\n");
+		dnet_log(n, DNET_LOG_INFO, "\n\n!!!  srw: DO NOT CHROOTING because of incufficient privilege  !!!\n\n");
 	}
 
-	n->srw = srwc_init_python(chroot_path, n->io->thread_num, m.data, m.size, srw_base);
+	n->srw = srwc_init_python(chroot_path, n->io->thread_num, m.data, m.size, base);
 	if (!n->srw) {
 		err = -EINVAL;
 		dnet_log(n, DNET_LOG_ERROR, "srw: failed to initialize external python workers\n");
@@ -103,7 +112,7 @@ err_out_unmap:
 err_out_close:
 	close(fd);
 err_out_free:
-	free(srw_base);
+	free(base);
 err_out_exit:
 	return err;
 }
@@ -122,13 +131,13 @@ void dnet_srw_cleanup(struct dnet_node *n)
 	srwc_cleanup_python(n->srw);
 }
 
-int dnet_cmd_exec_python(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, struct dnet_exec *e)
+static int dnet_cmd_exec_python_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, char *data, int size)
 {
 	struct dnet_node *n = st->n;
 	int err;
 	char *res = NULL;
 
-	err = srwc_process(n->srw, e->data, e->size, &res);
+	err = srwc_process(n->srw, data, size, &res);
 	if (err < 0) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: python processing failed: %s %d\n", dnet_dump_id(&cmd->id), strerror(-err), err);
 		goto err_out_exit;
@@ -145,10 +154,123 @@ err_out_exit:
 	return err;
 }
 
-int dnet_cmd_exec_python_script(struct dnet_net_state *st __unused, struct dnet_cmd *cmd __unused,
-		struct dnet_attr *attr __unused, struct dnet_exec *e __unused)
+int dnet_cmd_exec_python(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, struct dnet_exec *e)
 {
-	return -ENOTSUP;
+	struct dnet_node *n = st->n;
+
+	if (e->size + e->name_size + sizeof(struct dnet_exec) != attr->size) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid: name size %d, size %d, must be: %llu\n",
+				dnet_dump_id(&cmd->id), e->name_size, e->size, (unsigned long long)attr->size);
+		return -E2BIG;
+	}
+
+	return dnet_cmd_exec_python_raw(st, cmd, attr, e->data, e->size);
+}
+
+int dnet_cmd_exec_python_script(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_attr *attr, struct dnet_exec *e)
+{
+	struct dnet_node *n = st->n;
+	char *full_path, *name, *script, *ptr;
+	struct dnet_srw_init_conf *base = n->srw->priv;
+	struct dnet_map_fd m;
+	struct stat fst;
+	int err, total, soff, fd;
+
+	if (e->size + e->name_size + sizeof(struct dnet_exec) != attr->size) {
+		err = -E2BIG;
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid: name size %d, size %d, must be: %llu\n",
+				dnet_dump_id(&cmd->id), e->name_size, e->size, (unsigned long long)attr->size);
+		goto err_out_exit;
+	}
+
+	name = malloc(e->name_size + 2);
+	if (!name) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	snprintf(name, e->name_size + 1, "%s", e->data);
+
+	ptr = strrchr(name, '/');
+	if (ptr) {
+		*ptr = '\0';
+		ptr++;
+	} else {
+		ptr = name;
+	}
+
+	if (*ptr == '\0') {
+		err = -EINVAL;
+		goto err_out_free;
+	}
+
+	full_path = malloc(base->len + 2 + strlen(ptr));
+	if (!full_path) {
+		err = -ENOMEM;
+		goto err_out_free;
+	}
+
+	sprintf(full_path, "%s/%s", base->path, ptr);
+
+	fd = open(full_path, O_RDONLY);
+	if (fd < 0) {
+		err = -errno;
+		dnet_log_err(n, "%s: dnet_cmd_exec_python_script: open: %s", dnet_dump_id(&cmd->id), full_path);
+		goto err_out_free_full;
+	}
+
+	err = fstat(fd, &fst);
+	if (err) {
+		err = -errno;
+		dnet_log_err(n, "%s: dnet_cmd_exec_python_script: fstat: %s", dnet_dump_id(&cmd->id), full_path);
+		goto err_out_close;
+	}
+
+	total = fst.st_size + e->size + 3; /* 2 null bytes and \n */
+	script = malloc(total);
+	if (!script) {
+		err = -ENOMEM;
+		goto err_out_close;
+	}
+
+	memset(&m, 0, sizeof(struct dnet_map_fd));
+
+	m.fd = fd;
+	m.size = fst.st_size;
+
+	err = dnet_data_map(&m);
+	if (err) {
+		err = -errno;
+		dnet_log_err(n, "%s: dnet_cmd_exec_python_script: map: %s", dnet_dump_id(&cmd->id), full_path);
+		goto err_out_free_script;
+	}
+
+	if (e->size) {
+		soff = snprintf(script, e->size + 2, "%s\n", e->data + e->name_size);
+	} else {
+		soff = 0;
+	}
+	total = soff + snprintf(script + soff, total - soff, "%s", (char *)m.data);
+
+	err = dnet_cmd_exec_python_raw(st, cmd, attr, script, total);
+	if (err) {
+		dnet_log_err(n, "%s: dnet_cmd_exec_python_script: exec: %s", dnet_dump_id(&cmd->id), full_path);
+		goto err_out_unmap;
+	}
+
+err_out_unmap:
+	dnet_data_unmap(&m);
+err_out_free_script:
+	free(script);
+err_out_close:
+	close(fd);
+err_out_free_full:
+	free(full_path);
+err_out_free:
+	free(name);
+err_out_exit:
+	return err;
 }
 
 #else

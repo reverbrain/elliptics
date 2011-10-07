@@ -61,6 +61,7 @@ static void dnet_usage(char *p)
 			"                            0 - shell\n"
 			"                            1 - python script name\n"
 			"                            2 - execute this string as python script\n"
+			" -n script            - script name to execute\n"
 			" -L file              - lookup a storage which hosts given file\n"
 			" -l log               - log file. Default: disabled\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
@@ -95,6 +96,7 @@ int main(int argc, char *argv[])
 	int *groups = NULL, group_num = 0;
 	unsigned int aflags = DNET_ATTR_NOCSUM;
 	int cmd_type = DNET_EXEC_SHELL;
+	char *script_name = NULL;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -112,7 +114,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:C:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "A:F:M:N:g:u:O:S:m:zsU:aL:w:l:n:c:C:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
 			case 'A':
 				aflags = strtoul(optarg, NULL, 0);
@@ -168,6 +170,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'C':
 				cmd_type = atoi(optarg);
+				break;
+			case 'n':
+				script_name = optarg;
 				break;
 			case 'I':
 				err = dnet_parse_numeric_id(optarg, trans_id);
@@ -309,7 +314,9 @@ int main(int argc, char *argv[])
 
 	if (cmd) {
 		struct dnet_id __did, *did = NULL;
-		char *ret, *old;
+		struct dnet_exec *e;
+		int size;
+		char *ret = NULL;
 
 		if (id) {
 			did = &__did;
@@ -318,13 +325,35 @@ int main(int argc, char *argv[])
 			did->type = 0;
 		}
 
+		size = strlen(cmd);
 
-		err = dnet_send_cmd(n, did, cmd, strlen(cmd), cmd_type, (void **)&ret);
+		if (script_name && cmd_type == DNET_EXEC_PYTHON_SCRIPT_NAME) {
+			size += strlen(script_name);
+		}
+
+		e = malloc(sizeof(struct dnet_exec) + size + 1);
+		if (!e)
+			return -ENOMEM;
+
+		if (script_name && cmd_type == DNET_EXEC_PYTHON_SCRIPT_NAME) {
+			e->name_size = strlen(script_name);
+			sprintf(e->data, "%s%s", script_name, cmd);
+		} else {
+			e->name_size = 0;
+			sprintf(e->data, "%s", cmd);
+		}
+
+		e->size = strlen(cmd) + 1;
+		e->type = cmd_type;
+
+		err = dnet_send_cmd(n, did, e, (void **)&ret);
 		if (err < 0)
 			return err;
 
+		free(e);
+
 		if (err > 0) {
-			old = ret;
+			char *old = ret;
 
 			ret = realloc(ret, err + 1);
 			if (!ret)

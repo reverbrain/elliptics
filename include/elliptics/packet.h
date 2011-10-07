@@ -632,7 +632,7 @@ enum cmd_type {
 
 struct dnet_exec {
 	int			type;
-	int			size;
+	int			size, name_size;
 	char			data[0];
 };
 

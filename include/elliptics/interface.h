@@ -563,12 +563,6 @@ static inline char *dnet_dump_id_str(const unsigned char *id)
 }
 
 /*
- * Send a shell/python command to the remote node for execution.
- */
-int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id,
-		char *cmd, int cmd_size, enum cmd_type type, void **ret);
-
-/*
  * Lookup a node which hosts given ID.
  *
  * dnet_lookup_object() will invoke given callback when lookup reply is received.
@@ -954,6 +948,11 @@ int dnet_db_iterate(struct eblob_backend *b, unsigned int flags,
 
 int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 		int fd, uint64_t offset, uint64_t size);
+
+/*
+ * Send a shell/python command to the remote node for execution.
+ */
+int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, struct dnet_exec *e, void **ret);
 
 #ifdef __cplusplus
 }
