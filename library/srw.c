@@ -45,6 +45,7 @@ static int dnet_srw_init_python(struct dnet_node *n, struct dnet_config *cfg)
 	struct dnet_map_fd m;
 	struct stat st;
 	char *srw_base;
+	char *chroot_path = NULL;
 
 	memset(&m, 0, sizeof(struct dnet_map_fd));
 
@@ -79,7 +80,13 @@ static int dnet_srw_init_python(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_close;
 	}
 
-	n->srw = srwc_init_python(n->io->thread_num, m.data, m.size, srw_base);
+	if (geteuid() == 0) {
+		chroot_path = cfg->history_env;
+	} else {
+		dnet_log(n, DNET_LOG_INFO, "\nsrw: DO NOT CHROOTING because of incufficient privilege !!!\n\n");
+	}
+
+	n->srw = srwc_init_python(chroot_path, n->io->thread_num, m.data, m.size, srw_base);
 	if (!n->srw) {
 		err = -EINVAL;
 		dnet_log(n, DNET_LOG_ERROR, "srw: failed to initialize external python workers\n");
