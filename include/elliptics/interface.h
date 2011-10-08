@@ -390,7 +390,7 @@ struct dnet_config
 	/*
 	 * This dir hosts:
 	 *  - 'ids' file automatically generated for ID ranges
-	 *  - init.python script used to initialize external python workers
+	 *  - python.init script used to initialize external python workers
 	 *  - all scripts are hosted here and are chrooted here
 	 */
 	char			history_env[1024];
