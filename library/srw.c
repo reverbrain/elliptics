@@ -276,7 +276,7 @@ err_out_exit:
 }
 
 #else
-int dnet_srw_init(struct dnet_node *n __unused, struct dnet_config *cfg __unusued)
+int dnet_srw_init(struct dnet_node *n __unused, struct dnet_config *cfg __unused)
 {
 	return 0;
 }
