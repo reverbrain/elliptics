@@ -172,6 +172,9 @@ class elliptics_node {
 
 		std::vector<struct dnet_io_attr> remove_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags = 0);
 
+		std::string		exec(struct dnet_id *id, const std::string &script, int type);
+		std::string		exec_name(struct dnet_id *id, const std::string &name, const std::string &data, int type);
+
 	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,

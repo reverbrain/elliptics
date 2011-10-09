@@ -835,3 +835,54 @@ int elliptics_node::write_plain(const std::string &remote, const std::string &st
 	}
 	return err;
 }
+
+std::string elliptics_node::exec_name(struct dnet_id *id, const std::string &name, const std::string &scr, int type)
+{
+	char *data = NULL;
+	std::string ret_str;
+
+	try {
+		data = new char[name.size() + scr.size() + 1 + sizeof(struct dnet_exec)];
+
+		struct dnet_exec *e = (struct dnet_exec *)data;
+		void *ret = NULL;
+		int err;
+
+		e->size = scr.size() + 1;
+		e->type = type;
+		e->name_size = name.size();
+
+		memcpy(e->data, name.data(), name.size());
+		memcpy(e->data + name.size(), scr.data(), scr.size());
+		e->data[name.size() + scr.size()] = '\0';
+
+		err = dnet_send_cmd(node, id, e, &ret);
+		if (err < 0) {
+			std::ostringstream str;
+
+			str << dnet_dump_id(id) << ": failed to exec script type " << type << ": " << strerror(-err) << " " << err;
+			throw std::runtime_error(str.str());
+		}
+
+		if (ret && err) {
+			try {
+				ret_str.assign((char *)ret, err);
+			} catch (...) {
+				free(ret);
+				throw;
+			}
+			free(ret);
+		}
+	} catch (...) {
+		delete [] data;
+		throw;
+	}
+	return ret_str;
+}
+
+std::string elliptics_node::exec(struct dnet_id *id, const std::string &script, int type)
+{
+	std::string name;
+	return exec_name(id, name, script, type);
+}
+
