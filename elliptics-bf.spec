@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.3.6
+Version:	2.10.3.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -149,6 +149,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Oct 11 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.3.7-1
+- Only set BLOB_DISK_CTL_NOCSUM if DNET_IO_FLAGS_NOCSUM is set
+- Added dnet_get_routes function
+- Added server-side scripting support
+- Example ioserv.conf update
+- Spec update
+
 * Thu Dec 9 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.5.2-1
 - Implemented multiple read in elliptics core and FCGI frontend.
 - Implemented very user-friendly C++/Python interface.
