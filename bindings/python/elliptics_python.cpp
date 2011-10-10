@@ -370,8 +370,7 @@ class elliptics_node_python : public elliptics_node {
 		}
 
 		std::string exec_name(const struct elliptics_id &id, const std::string &name, const std::string &scr, int type) {
-			struct dnet_id raw;
-			elliptics_extract_id(id, raw);
+			struct dnet_id raw = id.to_dnet();
 
 			return elliptics_node::exec_name(&raw, name, scr, type);
 		}
@@ -381,8 +380,7 @@ class elliptics_node_python : public elliptics_node {
 		}
 
 		std::string exec(const struct elliptics_id &id, const std::string &script, int type) {
-			struct dnet_id raw;
-			elliptics_extract_id(id, raw);
+			struct dnet_id raw = id.to_dnet();
 
 			return elliptics_node::exec(&raw, script, type);
 		}
