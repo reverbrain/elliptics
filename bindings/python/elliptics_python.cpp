@@ -368,6 +368,28 @@ class elliptics_node_python : public elliptics_node {
 
 			return res;
 		}
+
+		std::string exec_name(const struct elliptics_id &id, const std::string &name, const std::string &scr, int type) {
+			struct dnet_id raw;
+			elliptics_extract_id(id, raw);
+
+			return elliptics_node::exec_name(&raw, name, scr, type);
+		}
+
+		std::string exec_name_all(const std::string &name, const std::string &scr, int type) {
+			return elliptics_node::exec_name(NULL, name, scr, type);
+		}
+
+		std::string exec(const struct elliptics_id &id, const std::string &script, int type) {
+			struct dnet_id raw;
+			elliptics_extract_id(id, raw);
+
+			return elliptics_node::exec(&raw, script, type);
+		}
+		
+		std::string exec_all(const std::string &script, int type) {
+			return elliptics_node::exec(NULL, script, type);
+		}
 };
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
@@ -444,6 +466,10 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("read_data_range", &elliptics_node_python::read_data_range)
 
 		.def("get_routes", &elliptics_node_python::get_routes)
+		.def("exec", &elliptics_node_python::exec)
+		.def("exec", &elliptics_node_python::exec_all)
+		.def("exec_name", &elliptics_node_python::exec_name)
+		.def("exec_name", &elliptics_node_python::exec_name_all)
 	;
 };
 #endif

@@ -226,6 +226,17 @@ static void test_append(elliptics_node &n)
 	std::cout << key << ": " << n.read_data_wait(key, 0, 0, 0, 0, 0) << std::endl;
 }
 
+static void test_exec_python(elliptics_node &n)
+{
+	std::string script = "from time import time, ctime\n__return_data = 'Current time is ' + ctime(time())";
+	std::cout << "script: " << n.exec(NULL, script, DNET_EXEC_PYTHON) << std::endl;
+
+	script = "local_addr = 'this is local addr string'";
+	std::string name = "script.py";
+
+	std::cout << "name: " << name << n.exec_name(NULL, name, script, DNET_EXEC_PYTHON_SCRIPT_NAME) << std::endl;
+}
+
 int main()
 {
 	int g[] = {1, 2, 3};
@@ -281,6 +292,8 @@ int main()
 		test_range_request(n, 0, 1, 0);
 
 		test_append(n);
+
+		test_exec_python(n);
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {

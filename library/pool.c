@@ -564,6 +564,8 @@ void dnet_io_exit(struct dnet_node *n)
 	struct dnet_io_req *r, *tmp;
 	int i;
 
+	n->need_exit = 1;
+
 	for (i=0; i<io->thread_num; ++i)
 		pthread_join(io->threads[i], NULL);
 
