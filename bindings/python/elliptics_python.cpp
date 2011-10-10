@@ -109,9 +109,42 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 using namespace boost::python;
 using namespace zbr;
 
+static void elliptics_extract_arr(const list &l, unsigned char *dst, int *dlen)
+{
+	int length = len(l);
+
+	if (length > *dlen)
+		length = *dlen;
+
+	memset(dst, 0, *dlen);
+	for (int i = 0; i < length; ++i)
+		dst[i] = extract<unsigned char>(l[i]);
+}
+
 struct elliptics_id {
 	elliptics_id() : group_id(0), type(0) {}
 	elliptics_id(list id_, int group_, int type_) : id(id_), group_id(group_), type(type_) {}
+
+	elliptics_id(struct dnet_id &dnet) {
+		for (unsigned int i = 0; i < sizeof(dnet.id); ++i)
+			id.append(dnet.id[i]);
+
+		group_id = dnet.group_id;
+		type = dnet.type;
+	}
+
+	struct dnet_id to_dnet() const {
+		struct dnet_id dnet;
+		int len = sizeof(dnet.id);
+
+ 		elliptics_extract_arr(id, dnet.id, &len);
+
+		dnet.group_id = group_id;
+		dnet.type = type;
+
+		return dnet;
+	}
+
 	list		id;
 	uint32_t	group_id;
 	uint32_t	type;
@@ -128,28 +161,6 @@ struct elliptics_range {
 	int		group_id;
 	int		type;
 };
-
-static void elliptics_extract_arr(const list &l, unsigned char *dst, int *dlen)
-{
-	int length = len(l);
-
-	if (length > *dlen)
-		length = *dlen;
-
-	memset(dst, 0, *dlen);
-	for (int i = 0; i < length; ++i)
-		dst[i] = extract<unsigned char>(l[i]);
-}
-
-static void elliptics_extract_id(const struct elliptics_id &e, struct dnet_id &id)
-{
-	int len = sizeof(id.id);
-
-	elliptics_extract_arr(e.id, id.id, &len);
-
-	id.group_id = e.group_id;
-	id.type = e.type;
-}
 
 static void elliptics_extract_range(const struct elliptics_range &r, struct dnet_io_attr &io)
 {
@@ -218,12 +229,11 @@ class elliptics_node_python : public elliptics_node {
 			elliptics_node::add_groups(groups);
 		}
 
-		void write_metadata(const struct elliptics_id &id, const std::string &remote, const list &pgroups) {
+		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const list &pgroups) {
 			struct timespec ts;
 			memset(&ts, 0, sizeof(ts));
 
-			struct dnet_id raw;
-			elliptics_extract_id(id, raw);
+			struct dnet_id raw = id.to_dnet();
 
 			std::vector<int> groups;
 
@@ -233,9 +243,20 @@ class elliptics_node_python : public elliptics_node {
 			elliptics_node::write_metadata((const dnet_id&)raw, remote, groups, ts);
 		}
 
-		void read_file_by_id(struct elliptics_id &id, const std::string &file, uint64_t offset, uint64_t size) {
+		void write_metadata_by_data_transform(const std::string &remote) {
+			struct timespec ts;
+			memset(&ts, 0, sizeof(ts));
+
 			struct dnet_id raw;
-			elliptics_extract_id(id, raw);
+
+			transform(remote, raw);
+
+			elliptics_node::write_metadata((const dnet_id&)raw, remote, groups, ts);
+		}
+
+
+		void read_file_by_id(struct elliptics_id &id, const std::string &file, uint64_t offset, uint64_t size) {
+			struct dnet_id raw = id.to_dnet();
 			elliptics_node::read_file(raw, file, offset, size);
 		}
 
@@ -247,8 +268,7 @@ class elliptics_node_python : public elliptics_node {
 		void write_file_by_id(struct elliptics_id &id, const std::string &file,
 				uint64_t local_offset, uint64_t offset, uint64_t size,
 				unsigned int aflags, unsigned int ioflags) {
-			struct dnet_id raw;
-			elliptics_extract_id(id, raw);
+			struct dnet_id raw = id.to_dnet();
 			elliptics_node::write_file(raw, file, local_offset, offset, size, aflags, ioflags);
 		}
 
@@ -260,8 +280,7 @@ class elliptics_node_python : public elliptics_node {
 
 		std::string read_data_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size,
 				unsigned int aflags, unsigned int ioflags) {
-			struct dnet_id raw;
-			elliptics_extract_id(id, raw);
+			struct dnet_id raw = id.to_dnet();
 			return elliptics_node::read_data_wait(raw, offset, size, aflags, ioflags);
 		}
 
@@ -272,8 +291,7 @@ class elliptics_node_python : public elliptics_node {
 
 		std::string read_latest_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size,
 				unsigned int aflags, unsigned int ioflags) {
-			struct dnet_id raw;
-			elliptics_extract_id(id, raw);
+			struct dnet_id raw = id.to_dnet();
 			return elliptics_node::read_latest(raw, offset, size, aflags, ioflags);
 		}
 
@@ -284,8 +302,7 @@ class elliptics_node_python : public elliptics_node {
 
 		std::string write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset,
 				unsigned int aflags, unsigned int ioflags) {
-			struct dnet_id raw;
-			elliptics_extract_id(id, raw);
+			struct dnet_id raw = id.to_dnet();
 			return elliptics_node::write_data_wait(raw, data, remote_offset, aflags, ioflags);
 		}
 
@@ -299,15 +316,13 @@ class elliptics_node_python : public elliptics_node {
 		}
 
 		std::string lookup_addr_by_id(const struct elliptics_id &id) {
-			struct dnet_id raw;
-			elliptics_extract_id(id, raw);
+			struct dnet_id raw = id.to_dnet();
 
 			return elliptics_node::lookup_addr(raw);
 		}
 
 		struct dnet_node_status update_status_by_id(const struct elliptics_id &id, struct dnet_node_status &status, int update) {
-			struct dnet_id raw;
-			elliptics_extract_id(id, raw);
+			struct dnet_id raw = id.to_dnet();
 
 			elliptics_node::update_status(raw, &status, update);
 			return status;
@@ -333,6 +348,25 @@ class elliptics_node_python : public elliptics_node {
 			}
 
 			return l;
+		}
+
+		boost::python::list get_routes() {
+
+			std::vector<std::pair<struct dnet_id, struct dnet_addr> > routes;
+			std::vector<std::pair<struct dnet_id, struct dnet_addr> >::iterator it;
+
+			boost::python::list res;
+
+			routes = elliptics_node::get_routes();
+
+			for (it = routes.begin(); it != routes.end(); it++) {
+				struct elliptics_id id(it->first);
+				std::string address(dnet_server_convert_dnet_addr(&(it->second)));
+
+				res.append(make_tuple(id, address));
+			}
+
+			return res;
 		}
 };
 
@@ -401,12 +435,15 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_data_transform)
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_id)
 
-		.def("write_metadata", &elliptics_node_python::write_metadata)
+		.def("write_metadata", &elliptics_node_python::write_metadata_by_id)
+		.def("write_metadata", &elliptics_node_python::write_metadata_by_data_transform)
 
 		.def("update_status", &elliptics_node_python::update_status_by_id)
 		.def("update_status", &elliptics_node_python::update_status_by_string)
 
 		.def("read_data_range", &elliptics_node_python::read_data_range)
+
+		.def("get_routes", &elliptics_node_python::get_routes)
 	;
 };
 #endif

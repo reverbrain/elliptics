@@ -172,6 +172,8 @@ class elliptics_node {
 
 		std::vector<struct dnet_io_attr> remove_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags = 0);
 
+		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
+
 	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,
