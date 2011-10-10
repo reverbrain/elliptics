@@ -3791,3 +3791,57 @@ err_out_exit:
 	return err;
 }
 
+int dnet_get_routes(struct dnet_node *n, struct dnet_id **ids, struct dnet_addr **addrs) {
+
+	struct dnet_net_state *st;
+	struct dnet_group *g;
+	struct dnet_addr *tmp_addrs;
+	struct dnet_id *tmp_ids;
+	int size = 0, count = 0;
+	int i;
+
+	*ids = NULL;
+	*addrs = NULL;
+
+	pthread_mutex_lock(&n->state_lock);
+	list_for_each_entry(g, &n->group_list, group_entry) {
+		list_for_each_entry(st, &g->state_list, state_entry) {
+
+			size += st->idc->id_num;
+
+			tmp_ids = (struct dnet_id *)realloc(*ids, size * sizeof(struct dnet_id));
+			if (!tmp_ids) {
+				count = -ENOMEM;
+				goto err_out_free;
+			}
+			*ids = tmp_ids;
+
+			tmp_addrs = (struct dnet_addr *)realloc(*addrs, size * sizeof(struct dnet_addr));
+			if (!tmp_addrs) {
+				count = -ENOMEM;
+				goto err_out_free;
+			}
+			*addrs = tmp_addrs;
+
+			for (i = 0; i < st->idc->id_num; ++i) {
+				dnet_setup_id(&(*ids)[count], g->group_id, st->idc->ids[i].raw.id);
+				memcpy(&(*addrs)[count], dnet_state_addr(st), sizeof(struct dnet_addr));
+				count++;
+				//fprintf(stderr, "%d: %s -> %s\n", g->group_id, dnet_dump_id_str(st->idc->ids[i].raw.id), dnet_state_dump_addr(st));
+			}
+		}
+	}
+	pthread_mutex_unlock(&n->state_lock);
+
+	return count;
+
+err_out_free:
+	if (ids)
+		free(*ids);
+	if (addrs)
+		free(*addrs);
+
+	return count;
+
+}
+

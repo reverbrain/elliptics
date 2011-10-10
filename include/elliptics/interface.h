@@ -949,6 +949,7 @@ int dnet_db_iterate(struct eblob_backend *b, unsigned int flags,
 int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 		int fd, uint64_t offset, uint64_t size);
 
+int dnet_get_routes(struct dnet_node *n, struct dnet_id **ids, struct dnet_addr **addrs);
 /*
  * Send a shell/python command to the remote node for execution.
  */

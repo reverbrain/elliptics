@@ -836,6 +836,31 @@ int elliptics_node::write_plain(const std::string &remote, const std::string &st
 	return err;
 }
 
+std::vector<std::pair<struct dnet_id, struct dnet_addr> > elliptics_node::get_routes()
+{
+	std::vector<std::pair<struct dnet_id, struct dnet_addr> > res;
+	struct dnet_id *ids = NULL;
+	struct dnet_addr *addrs = NULL;
+
+	int count = 0;
+
+	count = dnet_get_routes(node, &ids, &addrs);
+
+	if (count > 0) {
+		for (int i = 0; i < count; ++i) {
+			res.push_back(std::make_pair(ids[i], addrs[i]));
+		}
+	}
+
+	if (ids)
+		free(ids);
+
+	if (addrs)
+		free(addrs);
+
+	return res;
+}
+
 std::string elliptics_node::exec_name(struct dnet_id *id, const std::string &name, const std::string &scr, int type)
 {
 	char *data = NULL;
