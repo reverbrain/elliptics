@@ -54,6 +54,7 @@ enum dnet_commands {
 	DNET_CMD_STATUS,			/* Change elliptics node status */
 	DNET_CMD_READ_RANGE,			/* Read range of objects */
 	DNET_CMD_DEL_RANGE,			/* Remove range of objects */
+	DNET_CMD_AUTH,				/* Authentification cookie check */
 
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
@@ -643,6 +644,19 @@ static inline void dnet_convert_exec(struct dnet_exec *e)
 	e->type = dnet_bswap32(e->type);
 	e->size = dnet_bswap32(e->size);
 	e->flags = dnet_bswap32(e->flags);
+}
+
+#define DNET_AUTH_COOKIE_SIZE	32
+
+struct dnet_auth {
+	char			cookie[DNET_AUTH_COOKIE_SIZE];
+	uint64_t		flags;
+	uint64_t		unused[3];
+};
+
+static inline void dnet_convert_auth(struct dnet_auth *a)
+{
+	a->flags = dnet_bswap64(a->flags);
 }
 
 #ifdef __cplusplus

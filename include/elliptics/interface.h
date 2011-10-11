@@ -403,6 +403,8 @@ struct dnet_config
 	int			bg_ionice_class;
 	int			bg_ionice_prio;
 	int			removal_delay;
+
+	char			cookie[DNET_AUTH_COOKIE_SIZE];
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);

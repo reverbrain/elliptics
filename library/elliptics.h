@@ -400,6 +400,8 @@ struct dnet_node
 	int			bg_ionice_prio;
 	int			removal_delay;
 
+	char			cookie[DNET_AUTH_COOKIE_SIZE];
+
 #ifdef HAVE_SRW_SUPPORT
 	struct srwc		*srw;
 #endif

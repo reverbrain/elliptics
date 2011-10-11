@@ -90,6 +90,8 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	INIT_LIST_HEAD(&n->check_entry);
 
+	memcpy(n->cookie, cfg->cookie, DNET_AUTH_COOKIE_SIZE);
+
 	return n;
 
 err_out_destroy_group_lock:

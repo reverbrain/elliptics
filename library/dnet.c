@@ -504,6 +504,7 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_STATUS] = "STATUS",
 	[DNET_CMD_READ_RANGE] = "READ_RANGE",
 	[DNET_CMD_DEL_RANGE] = "DEL_RANGE",
+	[DNET_CMD_AUTH] = "AUTH",
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 
@@ -611,6 +612,29 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 	return dnet_send_reply(orig, cmd, &ca, st, sizeof(struct dnet_node_status), 1);
 }
 
+static int dnet_cmd_auth(struct dnet_net_state *orig, struct dnet_cmd *cmd __unused, struct dnet_attr *attr, void *data)
+{
+	struct dnet_node *n = orig->n;
+	struct dnet_auth *a = data;
+	int err = 0;
+
+	if (attr->size != sizeof(struct dnet_auth)) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	dnet_convert_auth(a);
+	if (memcmp(n->cookie, a->cookie, DNET_AUTH_COOKIE_SIZE)) {
+		err = -EPERM;
+		dnet_log(n, DNET_LOG_ERROR, "%s: auth cookies do not match\n", dnet_state_dump_addr(orig));
+	} else {
+		dnet_log(n, DNET_LOG_INFO, "%s: authentification succeeded\n", dnet_state_dump_addr(orig));
+	}
+
+err_out_exit:
+	return err;
+}
+
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	int err = 0;
@@ -648,6 +672,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		}
 
 		switch (a->cmd) {
+			case DNET_CMD_AUTH:
+				err = dnet_cmd_auth(st, cmd, a, data);
+				break;
 			case DNET_CMD_STATUS:
 				err = dnet_cmd_status(st, cmd, a, data);
 				break;
