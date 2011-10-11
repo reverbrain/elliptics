@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.3.7
+Version:	2.10.3.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -149,6 +149,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jun 7 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.3.8-1
+- Added authentification support
+
 * Tue Oct 11 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.3.7-1
 - Only set BLOB_DISK_CTL_NOCSUM if DNET_IO_FLAGS_NOCSUM is set
 - Added dnet_get_routes function

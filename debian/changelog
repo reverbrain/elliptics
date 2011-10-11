@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.3.8) unstable; urgency=low
+
+  * Added authentification support
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 12 Oct 2011 00:52:54 +0400
+
 elliptics-2.10 (2.10.3.7) unstable; urgency=low
 
   * Only set BLOB_DISK_CTL_NOCSUM if DNET_IO_FLAGS_NOCSUM is set
