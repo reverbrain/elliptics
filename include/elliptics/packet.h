@@ -632,14 +632,17 @@ enum cmd_type {
 
 struct dnet_exec {
 	int			type;
+	int			flags;
 	int			size, name_size;
+	uint64_t		reserved[2];
 	char			data[0];
-};
+} __attribute__((packed));
 
 static inline void dnet_convert_exec(struct dnet_exec *e)
 {
 	e->type = dnet_bswap32(e->type);
 	e->size = dnet_bswap32(e->size);
+	e->flags = dnet_bswap32(e->flags);
 }
 
 #ifdef __cplusplus
