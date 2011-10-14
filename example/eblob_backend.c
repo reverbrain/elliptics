@@ -295,7 +295,7 @@ static int blob_del_range_callback(struct eblob_range_request *req)
 	dnet_dump_id_len_raw(req->end, len, end_id);
 	dnet_dump_id_len_raw(req->record_key, len, cur_id);
 
-	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-del-range: READ: limit: %llu [%llu, %llu]: "
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-del-range: DEL: limit: %llu [%llu, %llu]: "
 			"start: %s, end: %s: io record/requested: offset: %llu/%llu, size: %llu/%llu, type: %d\n",
 			cur_id,
 			(unsigned long long)req->current_pos,
@@ -323,7 +323,7 @@ dnet_backend_log(DNET_LOG_DSA, "allocating memory\n");
 
 	if (p->keys_size == p->keys_cnt) {
 dnet_backend_log(DNET_LOG_DSA, "reallocating memory, keys_size = %lu\n", (unsigned long)p->keys_size);
-		p->keys = (struct eblob_key*)realloc(p->keys, p->keys_size * 2);
+		p->keys = (struct eblob_key*)realloc(p->keys, sizeof(struct eblob_key) * p->keys_size * 2);
 		if (!(p->keys)) {
 			err = -ENOMEM;
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del-range: can't re-allocate memory, new size: %u\n",
