@@ -841,6 +841,50 @@ err_out_unschedule:
 	return err;
 }
 
+static int dnet_auth_complete(struct dnet_net_state *state, struct dnet_cmd *cmd,
+		struct dnet_attr *attr __unused, void *priv __unused)
+{
+	struct dnet_node *n;
+
+	if (!state || !cmd)
+		return -EPERM;
+
+	n = state->n;
+	if (cmd->status == 0) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: authentification request suceeded\n", dnet_state_dump_addr(state));
+		return 0;
+	}
+
+	dnet_log(n, DNET_LOG_ERROR, "%s: authentification request failed: %d\n", dnet_state_dump_addr(state), cmd->status);
+
+	state->__join_state = 0;
+	dnet_state_reset(state);
+	return cmd->status;
+}
+
+static int dnet_auth_send(struct dnet_net_state *st)
+{
+	struct dnet_node *n = st->n;
+	struct dnet_trans_control ctl;
+	struct dnet_auth a;
+
+	memset(&a, 0, sizeof(struct dnet_auth));
+
+	memcpy(a.cookie, n->cookie, DNET_AUTH_COOKIE_SIZE);
+	dnet_convert_auth(&a);
+
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+
+	ctl.cmd = DNET_CMD_AUTH;
+	ctl.cflags = DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK;
+	ctl.size = sizeof(struct dnet_auth);
+	ctl.data = &a;
+
+	ctl.complete = dnet_auth_complete;
+
+	return dnet_trans_alloc_send_state(st, &ctl);
+}
+
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
 		struct dnet_addr *addr, int s, int *errp, int join,
@@ -925,6 +969,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 			pthread_mutex_lock(&n->state_lock);
 			err = dnet_state_join_nolock(st);
 			pthread_mutex_unlock(&n->state_lock);
+
+			err = dnet_auth_send(st);
 		}
 	} else {
 		pthread_mutex_lock(&n->state_lock);

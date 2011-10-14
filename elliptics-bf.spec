@@ -1,20 +1,23 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.9.5.2
+Version:	2.10.3.8
 Release:	1%{?dist}
 
 License:	GPLv2+
 Group:		System Environment/Libraries
 URL:		http://www.ioremap.net/projects/elliptics
-Source0:	%{name}-%{version}.tar.gz
+Source0:	%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:	db4-devel
 BuildRequires:	fcgi-devel
 BuildRequires:	openssl-devel
-BuildRequires:	python-devel
-BuildRequires:	boost-python
-BuildRequires:	boost-devel
+BuildRequires:	python-devel, libtar-devel
+%if 0%{?rhel} < 6
+BuildRequires:	boost141-python, boost141-devel
+%else
+BuildRequires:  boost-python, boost-devel
+%endif
 BuildRequires:	eblob-devel
 BuildRequires:	automake autoconf libtool
 
@@ -82,7 +85,12 @@ for building C++ applications with elliptics.
 %build
 export LDFLAGS="-Wl,-z,defs"
 ./autogen.sh
-%configure 
+%if 0%{?rhel} < 6
+CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %configure --with-boost-libdir=/usr/lib64/boost141
+%else
+%configure
+%endif
+
 
 make %{?_smp_mflags}
 
@@ -141,6 +149,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jun 7 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.3.8-1
+- Added authentification support
+
+* Tue Oct 11 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.3.7-1
+- Only set BLOB_DISK_CTL_NOCSUM if DNET_IO_FLAGS_NOCSUM is set
+- Added dnet_get_routes function
+- Added server-side scripting support
+- Example ioserv.conf update
+- Spec update
+
 * Thu Dec 9 2010 Evgeniy Polyakov <zbr@ioremap.net> - 2.9.5.2-1
 - Implemented multiple read in elliptics core and FCGI frontend.
 - Implemented very user-friendly C++/Python interface.

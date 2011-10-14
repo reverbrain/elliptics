@@ -1,3 +1,25 @@
+elliptics-2.10 (2.10.3.8) unstable; urgency=low
+
+  * Added authentification support
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 12 Oct 2011 00:52:54 +0400
+
+elliptics-2.10 (2.10.3.7) unstable; urgency=low
+
+  * Only set BLOB_DISK_CTL_NOCSUM if DNET_IO_FLAGS_NOCSUM is set
+  * Added dnet_get_routes function
+  * Added server-side scripting support
+  * Example ioserv.conf update
+  * Spec update
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 11 Oct 2011 01:23:36 +0400
+
+elliptics-2.10 (2.10.3.6) unstable; urgency=low
+
+  * Fixed dnet_cmd_bulk_check
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 28 Sep 2011 19:22:43 +0400
+
 elliptics-2.10 (2.10.3.5) unstable; urgency=low
 
   * Added overwrite io flag. Depend on blob 0.12.5+ where it is implemented

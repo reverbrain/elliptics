@@ -207,6 +207,9 @@ struct dnet_wait
 	int			cond;
 	int			status;
 
+	void			*ret;
+	int			size;
+
 	atomic_t		refcnt;
 };
 
@@ -396,6 +399,12 @@ struct dnet_node
 	int			bg_ionice_class;
 	int			bg_ionice_prio;
 	int			removal_delay;
+
+	char			cookie[DNET_AUTH_COOKIE_SIZE];
+
+#ifdef HAVE_SRW_SUPPORT
+	struct srwc		*srw;
+#endif
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)
@@ -666,6 +675,11 @@ void dnet_data_unmap(struct dnet_map_fd *map);
 
 void *dnet_read_data_wait_raw(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io,
 		int cmd, uint32_t aflags, int *errp);
+
+int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg);
+void dnet_srw_cleanup(struct dnet_node *n);
+int dnet_cmd_exec_python(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, struct dnet_exec *e);
+int dnet_cmd_exec_python_script(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, struct dnet_exec *e);
 
 #ifdef __cplusplus
 }

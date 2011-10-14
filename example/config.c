@@ -138,6 +138,12 @@ static int dnet_set_malloc_options(struct dnet_config_backend *b __unused, char 
 	return 0;
 }
 
+static int dnet_set_auth_cookie(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	snprintf(dnet_cfg_state.cookie, DNET_AUTH_COOKIE_SIZE, "%s", value);
+	return 0;
+}
+
 static int dnet_set_backend(struct dnet_config_backend *b, char *key __unused, char *value);
 	
 static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
@@ -199,6 +205,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"bg_ionice_class", dnet_simple_set},
 	{"bg_ionice_prio", dnet_simple_set},
 	{"removal_delay", dnet_simple_set},
+	{"auth_cookie", dnet_set_auth_cookie},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;

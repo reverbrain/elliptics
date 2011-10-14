@@ -90,6 +90,8 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	INIT_LIST_HEAD(&n->check_entry);
 
+	memcpy(n->cookie, cfg->cookie, DNET_AUTH_COOKIE_SIZE);
+
 	return n;
 
 err_out_destroy_group_lock:
@@ -706,9 +708,16 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
 		int s;
 
+		err = dnet_srw_init(n, cfg);
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
+			if (err != -ENOTSUP)
+				goto err_out_io_exit;
+		}
+
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
 		if (!ids)
-			goto err_out_io_exit;
+			goto err_out_srw_cleanup;
 
 		n->addr.addr_len = sizeof(n->addr.addr);
 		err = dnet_socket_create(n, cfg, &n->addr, 1);
@@ -740,6 +749,8 @@ err_out_state_destroy:
 	dnet_state_put(n->st);
 err_out_ids_cleanup:
 	free(ids);
+err_out_srw_cleanup:
+	dnet_srw_cleanup(n);
 err_out_io_exit:
 	dnet_io_exit(n);
 err_out_monitor_exit:
@@ -777,6 +788,8 @@ void dnet_node_destroy(struct dnet_node *n)
 	dnet_check_thread_stop(n);
 
 	dnet_io_exit(n);
+
+	dnet_srw_cleanup(n);
 
 	dnet_notify_exit(n);
 

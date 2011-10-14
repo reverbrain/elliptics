@@ -224,6 +224,7 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 
 			dnet_log(orig->n, DNET_LOG_DSA, "BULK: processing ID %s\n", dnet_dump_id_str(ids[i].id.id));
 			mc.data = NULL;
+			dnet_setup_id(&mc.id, 0, ids[i].id.id);
 			err = orig->n->cb->meta_read(orig->n->cb->command_private, &ids[i].id, &mc.data);
 			if (mc.data) {
 				mc.size = err;

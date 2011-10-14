@@ -61,7 +61,7 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 	struct dnet_io_attr *io = data;
 	struct eblob_write_control wc;
 	struct eblob_key key;
-	uint64_t flags = BLOB_DISK_CTL_NOCSUM | BLOB_DISK_CTL_WRITE_RETURN;
+	uint64_t flags = BLOB_DISK_CTL_WRITE_RETURN;
 
 	memset(&wc, 0, sizeof(struct eblob_write_control));
 
@@ -77,6 +77,9 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 
 	if (io->flags & DNET_IO_FLAGS_OVERWRITE)
 		flags |= BLOB_DISK_CTL_OVERWRITE;
+
+	if (io->flags & DNET_IO_FLAGS_NOCSUM)
+		flags |= BLOB_DISK_CTL_NOCSUM;
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 

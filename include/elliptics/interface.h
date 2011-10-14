@@ -387,7 +387,12 @@ struct dnet_config
 	/* Temporary metadata for CHECK process directory path */
 	char			temp_meta_env[1024];
 
-	/* Temporary metadata for CHECK process directory path */
+	/*
+	 * This dir hosts:
+	 *  - 'ids' file automatically generated for ID ranges
+	 *  - python.init script used to initialize external python workers
+	 *  - all scripts are hosted here and are chrooted here
+	 */
 	char			history_env[1024];
 
 	/* Namespace */
@@ -398,6 +403,8 @@ struct dnet_config
 	int			bg_ionice_class;
 	int			bg_ionice_prio;
 	int			removal_delay;
+
+	char			cookie[DNET_AUTH_COOKIE_SIZE];
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);
@@ -556,11 +563,6 @@ static inline char *dnet_dump_id_str(const unsigned char *id)
 	static char __dnet_dump_id_str[2 * DNET_ID_SIZE + 1];
 	return dnet_dump_id_len_raw(id, DNET_DUMP_NUM, __dnet_dump_id_str);
 }
-
-/*
- * Send a shell command to the remote node for execution.
- */
-int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, char *command);
 
 /*
  * Lookup a node which hosts given ID.
@@ -948,6 +950,12 @@ int dnet_db_iterate(struct eblob_backend *b, unsigned int flags,
 
 int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 		int fd, uint64_t offset, uint64_t size);
+
+int dnet_get_routes(struct dnet_node *n, struct dnet_id **ids, struct dnet_addr **addrs);
+/*
+ * Send a shell/python command to the remote node for execution.
+ */
+int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, struct dnet_exec *e, void **ret);
 
 #ifdef __cplusplus
 }
