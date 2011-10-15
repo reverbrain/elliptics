@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.3.8
+Version:	2.10.3.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -149,6 +149,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Oct 15 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.3.9-1
+- Fixed memory allocation in range-delete
+
 * Tue Jun 7 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.3.8-1
 - Added authentification support
 
