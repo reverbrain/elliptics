@@ -98,6 +98,10 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_cfg_state.bg_ionice_prio = value;
 	else if (!strcmp(key, "removal_delay"))
 		dnet_cfg_state.removal_delay = value;
+	else if (!strcmp(key, "server_net_prio"))
+		dnet_cfg_state.server_prio = value;
+	else if (!strcmp(key, "client_net_prio"))
+		dnet_cfg_state.client_prio = value;
 	else
 		return -1;
 

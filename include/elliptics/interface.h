@@ -405,6 +405,10 @@ struct dnet_config
 	int			removal_delay;
 
 	char			cookie[DNET_AUTH_COOKIE_SIZE];
+
+	/* man 7 socket for IP_PRIORITY - priorities are set for joined (server) and others (client) connections */
+	int			server_prio;
+	int			client_prio;
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);

@@ -954,6 +954,22 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	dnet_schedule_command(st);
 	st->__join_state = join;
 
+	if (n->client_prio) {
+		err = setsockopt(st->read_s, SOL_SOCKET, SO_PRIORITY, &n->client_prio, 4);
+		if (err) {
+			err = -errno;
+			dnet_log_err(n, "could not set read client prio %d", n->client_prio);
+		}
+		err = setsockopt(st->write_s, SOL_SOCKET, SO_PRIORITY, &n->client_prio, 4);
+		if (err) {
+			err = -errno;
+			dnet_log_err(n, "could not set write client prio %d", n->client_prio);
+		}
+		if (!err) {
+			dnet_log(n, DNET_LOG_INFO, "Client net priority set to %d\n", n->client_prio);
+		}
+	}
+
 	/*
 	 * it is possible that state can be removed after inserted into route table,
 	 * so we should grab a reference here and drop it after we are done
