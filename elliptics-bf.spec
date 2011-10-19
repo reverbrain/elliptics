@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.3.9
+Version:	2.10.4.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -149,6 +149,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Oct 19 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.0-1
+- Added ioprio call inside check
+- More example ioserv.conf comments
+- Added client/server network priorities (man 7 socket -> IP_PRIORITY)
+
 * Sat Oct 15 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.3.9-1
 - Fixed memory allocation in range-delete
 

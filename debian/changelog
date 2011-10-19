@@ -1,3 +1,11 @@
+elliptics-2.10 (2.10.4.0) unstable; urgency=low
+
+  * Added ioprio call inside check
+  * More example ioserv.conf comments
+  * Added client/server network priorities (man 7 socket -> IP_PRIORITY)
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 19 Oct 2011 23:22:19 +0400
+
 elliptics-2.10 (2.10.3.9) unstable; urgency=low
 
   * Fixed memory allocation in range-delete
