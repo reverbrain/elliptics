@@ -552,6 +552,8 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		ctl.params.groups = groups;
 	}
 
+	dnet_ioprio_set(dnet_get_id(), n->bg_ionice_class, n->bg_ionice_prio);
+
 	if (req.obj_num > 0) {
 		struct dnet_id *ids = (struct dnet_id *)(r + 1);
 		struct eblob_iterate_control iter_ctl;
