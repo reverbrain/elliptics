@@ -210,6 +210,8 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"bg_ionice_prio", dnet_simple_set},
 	{"removal_delay", dnet_simple_set},
 	{"auth_cookie", dnet_set_auth_cookie},
+	{"server_net_prio", dnet_simple_set},
+	{"client_net_prio", dnet_simple_set},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;
