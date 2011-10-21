@@ -741,10 +741,17 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				if (n->flags & DNET_CFG_NO_CSUM)
 					a->flags |= DNET_ATTR_NOCSUM;
 
+				/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command 
+				   to eliminate double reply packets 
+				   (the first one with dnet_file_info structure,
+				   the second to destroy transaction on client side) */
 				if (a->cmd == DNET_CMD_WRITE) {
 					cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 				}
 				err = n->cb->command_handler(st, n->cb->command_private, cmd, a, data);
+
+				/* If there was error in WRITE command - send empty reply
+				   to notify client with error code and destroy transaction */
 				if (err && (a->cmd == DNET_CMD_WRITE)) {
 					cmd->flags |= DNET_FLAGS_NEED_ACK;
 				}

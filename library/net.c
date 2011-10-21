@@ -1132,6 +1132,7 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 	int err = 0;
 	size_t offset = st->send_offset;
 
+	/* Use TCP_CORK to send headers and packet body in one piece */
 	cork = 1;
 	setsockopt(st->write_s, IPPROTO_TCP, TCP_CORK, &cork, 4);
 
