@@ -1128,8 +1128,12 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 
 int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 {
+	int cork;
 	int err = 0;
 	size_t offset = st->send_offset;
+
+	cork = 1;
+	setsockopt(st->write_s, IPPROTO_TCP, TCP_CORK, &cork, 4);
 
 	if (r->hsize && r->header && st->send_offset < r->hsize) {
 		err = dnet_send_nolock(st, r->header + offset, r->hsize - offset);
@@ -1169,6 +1173,9 @@ err_out_exit:
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: setting send need_exit to %d\n", dnet_state_dump_addr(st), err);
 		st->need_exit = err;
 	}
+
+	cork = 0;
+	setsockopt(st->write_s, IPPROTO_TCP, TCP_CORK, &cork, 4);
 
 	return err;
 }
