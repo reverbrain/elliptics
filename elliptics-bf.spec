@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.0
+Version:	2.10.4.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -149,6 +149,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Oct 19 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.1-1
+- Decreased WRITE latency
+- Use CORK for write blocks
+
 * Wed Oct 19 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.0-1
 - Added ioprio call inside check
 - More example ioserv.conf comments
