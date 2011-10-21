@@ -1,3 +1,10 @@
+elliptics-2.10 (2.10.4.1) unstable; urgency=low
+
+  * Decreased WRITE latency
+  * Use CORK for write blocks
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 21 Oct 2011 19:20:18 +0400
+
 elliptics-2.10 (2.10.4.0) unstable; urgency=low
 
   * Added ioprio call inside check
