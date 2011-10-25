@@ -728,8 +728,17 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					break;
 				}
 
-				io = data;
-				dnet_convert_io_attr(io);
+				io = NULL;
+				if ((a->cmd == DNET_CMD_READ) || (a->cmd == DNET_CMD_WRITE)) {
+					if (size < sizeof(struct dnet_io_attr)) {
+						dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid size: cmd: %u, rest_size: %llu\n",
+							dnet_dump_id(&cmd->id), a->cmd, size);
+						err = -EINVAL;
+						break;
+					}
+					io = data;
+					dnet_convert_io_attr(io);
+				}
 
 				if (a->cmd == DNET_CMD_DEL || io->flags & DNET_IO_FLAGS_META) {
 					err = dnet_process_meta(st, cmd, a, data);
