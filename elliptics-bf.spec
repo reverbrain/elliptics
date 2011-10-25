@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.1
+Version:	2.10.4.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -149,6 +149,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Oct 25 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.2-1
+- Added srw dependency
+- Do not call dnet_convert_io_attr for DNET_CMD_DEL command
+
 * Wed Oct 19 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.1-1
 - Decreased WRITE latency
 - Use CORK for write blocks

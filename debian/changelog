@@ -1,3 +1,10 @@
+elliptics-2.10 (2.10.4.2) unstable; urgency=low
+
+  * Do not call dnet_convert_io_attr for DNET_CMD_DEL command
+  * Added srw dependency
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 25 Oct 2011 21:29:49 +0400
+
 elliptics-2.10 (2.10.4.1) unstable; urgency=low
 
   * Decreased WRITE latency
