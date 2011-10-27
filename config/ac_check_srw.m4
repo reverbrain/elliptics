@@ -18,7 +18,7 @@ LIBS="$SRW_LIBS $LIBS"
 CFLAGS="$SRW_CFLAGS $CFLAGS"
 
 AC_TRY_LINK([#include <srw/srwc.h>],
-	[struct srwc *c = srwc_init_python(5, "qwe", 3, NULL);],
+	[struct srwc *c = srwc_init_python("", "", 5, "qwe", 3, NULL);],
 	[
 		AC_DEFINE(HAVE_SRW_SUPPORT, 1, [Define this if libsrw is installed])
 		ac_have_srw="yes"
@@ -32,5 +32,6 @@ AC_TRY_LINK([#include <srw/srwc.h>],
 AC_SUBST(SRW_LIBS)
 AC_SUBST(SRW_CFLAGS)
 LIBS="$saved_LIBS"
+CFLAGS="$saved_CFLAGS"
 AM_CONDITIONAL(HAVE_SRW, [test "f$ac_have_srw" = "fyes"])
 ])
