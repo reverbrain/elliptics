@@ -123,6 +123,11 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 						dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
 					goto err_out_exit;
 				}
+
+				/* data is compressed, but we only care about header */
+				if (err == 1) {
+					err = 0;
+				}
 			}
 		}
 	}
