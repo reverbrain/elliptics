@@ -11,7 +11,6 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:	db4-devel
 BuildRequires:	fcgi-devel
-BuildRequires:	openssl-devel
 BuildRequires:	python-devel, libtar-devel
 %if 0%{?rhel} < 6
 BuildRequires:	boost141-python, boost141-devel
