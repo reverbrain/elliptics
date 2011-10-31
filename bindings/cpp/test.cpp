@@ -262,6 +262,10 @@ int main()
 		if (!added)
 			throw std::runtime_error("Could not add remote nodes, exiting");
 
+		test_prepare_commit(n, 0, 0);
+		test_prepare_commit(n, 1, 0);
+		exit(1);
+
 		test_lookup(n, groups);
 
 		n.stat_log();

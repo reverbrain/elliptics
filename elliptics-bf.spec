@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.2
+Version:	2.10.4.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -148,6 +148,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Oct 31 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.3-1
+- blob_send modified to send all columns if id.type == -1
+- Do not depend elliptics build on libssl
+- eblob/srw autoconf updates
+- Do not return 1 from blob_write when data was compressed, return 0, since
+	there was no error
+
 * Tue Oct 25 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.2-1
 - Added srw dependency
 - Do not call dnet_convert_io_attr for DNET_CMD_DEL command

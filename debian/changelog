@@ -1,3 +1,13 @@
+elliptics-2.10 (2.10.4.3) unstable; urgency=low
+
+  * blob_send modified to send all columns if id.type == -1
+  * Do not depend elliptics build on libssl
+  * eblob/srw autoconf updates
+  * Do not return 1 from blob_write when data was compressed, return 0, since
+    there was no error
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 31 Oct 2011 22:04:10 +0400
+
 elliptics-2.10 (2.10.4.2) unstable; urgency=low
 
   * Do not call dnet_convert_io_attr for DNET_CMD_DEL command
