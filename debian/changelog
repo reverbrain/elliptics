@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.4.4) unstable; urgency=low
+
+  * Do not fail node initialization if srw is not initialized
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 01 Nov 2011 03:13:04 +0400
+
 elliptics-2.10 (2.10.4.3) unstable; urgency=low
 
   * blob_send modified to send all columns if id.type == -1
