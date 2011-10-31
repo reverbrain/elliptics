@@ -449,32 +449,59 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 	struct eblob_backend *b = c->eblob;
 	uint64_t offset, size;
 	struct eblob_key key;
-	int err, fd;
+	int *types, types_num, i;
+	int err, fd, ret;
 
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-	err = eblob_read(b, &key, &fd, &offset, &size, id->type);
-	if (err >= 0) {
-		struct dnet_io_control ctl;
 
-		memset(&ctl, 0, sizeof(ctl));
-
-		ctl.fd = fd;
-		ctl.local_offset = offset;
-
-		memcpy(&ctl.id, id, sizeof(struct dnet_id));
-
-		ctl.io.offset = 0;
-		ctl.io.size = size;
-		ctl.io.type = id->type;
-		ctl.io.flags = 0;
-
-		err = dnet_write_data_wait(n, &ctl);
-		if (err < 0) {
+dnet_backend_log(DNET_LOG_DSA, "types = 0x%x, &types = 0x%x\n", types, &types);
+	if (id->type == -1) {
+		types_num = eblob_get_types(b, &types);
+		if (types_num < 0) {
+			err = types_num;
 			goto err_out_exit;
 		}
-		err = 0;
+	} else {
+		types_num = 1;
+		types = &id->type;
 	}
 
+dnet_backend_log(DNET_LOG_DSA, "types = 0x%x, &types = 0x%x\n", types, &types);
+dnet_backend_log(DNET_LOG_DSA, "types_num = %d\n", types_num);
+	err = -ENOENT;
+	for (i = 0; i < types_num; ++i) {
+		if (types[i] == EBLOB_TYPE_META)
+			continue;
+
+dnet_backend_log(DNET_LOG_DSA, "trying to send type %d\n", types[i]);
+		ret = eblob_read(b, &key, &fd, &offset, &size, types[i]);
+		if (ret >= 0) {
+			struct dnet_io_control ctl;
+
+			memset(&ctl, 0, sizeof(ctl));
+
+			ctl.fd = fd;
+			ctl.local_offset = offset;
+
+			memcpy(&ctl.id, id, sizeof(struct dnet_id));
+			ctl.id.type = types[i];
+
+			ctl.io.offset = 0;
+			ctl.io.size = size;
+			ctl.io.type = types[i];
+			ctl.io.flags = 0;
+
+			err = dnet_write_data_wait(n, &ctl);
+			if (err < 0) {
+				goto err_out_free;
+			}
+			err = 0;
+		}
+	}
+
+err_out_free:
+	if (id->type == -1)
+		free(types);
 err_out_exit:
 	return err;
 }
