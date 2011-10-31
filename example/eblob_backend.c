@@ -454,7 +454,6 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
 
-dnet_backend_log(DNET_LOG_DSA, "types = 0x%x, &types = 0x%x\n", types, &types);
 	if (id->type == -1) {
 		types_num = eblob_get_types(b, &types);
 		if (types_num < 0) {
@@ -466,14 +465,12 @@ dnet_backend_log(DNET_LOG_DSA, "types = 0x%x, &types = 0x%x\n", types, &types);
 		types = &id->type;
 	}
 
-dnet_backend_log(DNET_LOG_DSA, "types = 0x%x, &types = 0x%x\n", types, &types);
-dnet_backend_log(DNET_LOG_DSA, "types_num = %d\n", types_num);
 	err = -ENOENT;
 	for (i = 0; i < types_num; ++i) {
 		if (types[i] == EBLOB_TYPE_META)
 			continue;
 
-dnet_backend_log(DNET_LOG_DSA, "trying to send type %d\n", types[i]);
+		dnet_backend_log(DNET_LOG_DSA, "trying to send type %d\n", types[i]);
 		ret = eblob_read(b, &key, &fd, &offset, &size, types[i]);
 		if (ret >= 0) {
 			struct dnet_io_control ctl;
