@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.3
+Version:	2.10.4.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -148,6 +148,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Nov 1 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.4-1
+- Do not fail node initialization if srw is not initialized
+
 * Mon Oct 31 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.3-1
 - blob_send modified to send all columns if id.type == -1
 - Do not depend elliptics build on libssl
