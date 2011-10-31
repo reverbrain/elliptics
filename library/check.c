@@ -468,7 +468,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 			continue;
 
 		dnet_setup_id(&id, mu[i].group_id, ids->id.id);
-		id.type = EBLOB_TYPE_DATA;
+		id.type = -1;
 
 		if (mu[lastest].flags & DNET_IO_FLAGS_REMOVED) {
 			if (removed_in_all) {

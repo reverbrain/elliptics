@@ -123,7 +123,7 @@ enum dnet_counters {
 struct dnet_id {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		group_id;
-	uint32_t		type;
+	int			type;
 } __attribute__ ((packed));
 
 struct dnet_raw_id {
