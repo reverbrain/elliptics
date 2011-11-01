@@ -1840,6 +1840,7 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id,
 	struct dnet_net_state *st;
 	int err = -ENOENT, num = 0;
 	struct dnet_wait *w;
+	struct dnet_group *g;
 
 	w = dnet_wait_alloc(0);
 	if (!w) {
@@ -1847,16 +1848,32 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id,
 		goto err_out_exit;
 	}
 
-	if (id) {
+	if (id && id->group_id != 0) {
 		dnet_wait_get(w);
 		st = dnet_state_get_first(n, id);
 		if (!st)
 			goto err_out_put;
 		err = dnet_send_cmd_single(st, w, e);
+		dnet_state_put(st);
 		num = 1;
-	} else {
-		struct dnet_group *g;
+	} else if (id && id->group_id == 0) {
+		pthread_mutex_lock(&n->state_lock);
+		list_for_each_entry(g, &n->group_list, group_entry) {
+			dnet_wait_get(w);
 
+			id->group_id = g->group_id;
+
+			st = dnet_state_search_nolock(n, id);
+			if (st) {
+				if (st != n->st) {
+					err = dnet_send_cmd_single(st, w, e);
+					num++;
+				}
+				dnet_state_put(st);
+			}
+		}
+		pthread_mutex_unlock(&n->state_lock);
+	} else {
 		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(g, &n->group_list, group_entry) {
 			list_for_each_entry(st, &g->state_list, state_entry) {
