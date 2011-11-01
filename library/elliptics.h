@@ -405,6 +405,9 @@ struct dnet_node
 #ifdef HAVE_SRW_SUPPORT
 	struct srwc		*srw;
 #endif
+
+	int			server_prio;
+	int			client_prio;
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)

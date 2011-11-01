@@ -1,6 +1,6 @@
 bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check dnet_ids dnet_meta dnet_meta_update_groups dnet_find
 noinst_LIBRARIES = libcommon.a libbackend.a
-noinst_HEADERS = backends.h common.h hash.h
+noinst_HEADERS = backends.h common.h
 SUBDIRS = . eblob_gen
 
 CC = @PTHREAD_CC@
@@ -14,7 +14,7 @@ AM_LDFLAGS = @PTHREAD_LIBS@ @EBLOB_LIBS@
 EXAMPLE_COMMON_LIBS = ../library/libelliptics.la libcommon.a
 EXAMPLE_BACKEND_LIBS = libbackend.a 
 
-libcommon_a_SOURCES = common.c hash.c
+libcommon_a_SOURCES = common.c
 libbackend_a_SOURCES = file_backend.c backends.c eblob_backend.c
 
 dnet_ioserv_SOURCES = ioserv.c config.c

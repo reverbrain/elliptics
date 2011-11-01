@@ -32,5 +32,6 @@ AC_TRY_LINK([#include <eblob/blob.h>],
 AC_SUBST(EBLOB_LIBS)
 AC_SUBST(EBLOB_CFLAGS)
 LIBS="$saved_LIBS"
+CFLAGS="$saved_CFLAGS"
 AM_CONDITIONAL(HAVE_EBLOB, [test "f$ac_have_eblob" = "fyes"])
 ])

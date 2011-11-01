@@ -123,6 +123,11 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 						dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
 					goto err_out_exit;
 				}
+
+				/* data is compressed, but we only care about header */
+				if (err == 1) {
+					err = 0;
+				}
 			}
 		}
 	}
@@ -295,7 +300,7 @@ static int blob_del_range_callback(struct eblob_range_request *req)
 	dnet_dump_id_len_raw(req->end, len, end_id);
 	dnet_dump_id_len_raw(req->record_key, len, cur_id);
 
-	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-del-range: READ: limit: %llu [%llu, %llu]: "
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-del-range: DEL: limit: %llu [%llu, %llu]: "
 			"start: %s, end: %s: io record/requested: offset: %llu/%llu, size: %llu/%llu, type: %d\n",
 			cur_id,
 			(unsigned long long)req->current_pos,
@@ -323,7 +328,7 @@ dnet_backend_log(DNET_LOG_DSA, "allocating memory\n");
 
 	if (p->keys_size == p->keys_cnt) {
 dnet_backend_log(DNET_LOG_DSA, "reallocating memory, keys_size = %lu\n", (unsigned long)p->keys_size);
-		p->keys = (struct eblob_key*)realloc(p->keys, p->keys_size * 2);
+		p->keys = (struct eblob_key*)realloc(p->keys, sizeof(struct eblob_key) * p->keys_size * 2);
 		if (!(p->keys)) {
 			err = -ENOMEM;
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del-range: can't re-allocate memory, new size: %u\n",
@@ -449,32 +454,56 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 	struct eblob_backend *b = c->eblob;
 	uint64_t offset, size;
 	struct eblob_key key;
-	int err, fd;
+	int *types, types_num, i;
+	int err, fd, ret;
 
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-	err = eblob_read(b, &key, &fd, &offset, &size, id->type);
-	if (err >= 0) {
-		struct dnet_io_control ctl;
 
-		memset(&ctl, 0, sizeof(ctl));
-
-		ctl.fd = fd;
-		ctl.local_offset = offset;
-
-		memcpy(&ctl.id, id, sizeof(struct dnet_id));
-
-		ctl.io.offset = 0;
-		ctl.io.size = size;
-		ctl.io.type = id->type;
-		ctl.io.flags = 0;
-
-		err = dnet_write_data_wait(n, &ctl);
-		if (err < 0) {
+	if (id->type == -1) {
+		types_num = eblob_get_types(b, &types);
+		if (types_num < 0) {
+			err = types_num;
 			goto err_out_exit;
 		}
-		err = 0;
+	} else {
+		types_num = 1;
+		types = &id->type;
 	}
 
+	err = -ENOENT;
+	for (i = 0; i < types_num; ++i) {
+		if (types[i] == EBLOB_TYPE_META)
+			continue;
+
+		dnet_backend_log(DNET_LOG_DSA, "trying to send type %d\n", types[i]);
+		ret = eblob_read(b, &key, &fd, &offset, &size, types[i]);
+		if (ret >= 0) {
+			struct dnet_io_control ctl;
+
+			memset(&ctl, 0, sizeof(ctl));
+
+			ctl.fd = fd;
+			ctl.local_offset = offset;
+
+			memcpy(&ctl.id, id, sizeof(struct dnet_id));
+			ctl.id.type = types[i];
+
+			ctl.io.offset = 0;
+			ctl.io.size = size;
+			ctl.io.type = types[i];
+			ctl.io.flags = 0;
+
+			err = dnet_write_data_wait(n, &ctl);
+			if (err < 0) {
+				goto err_out_free;
+			}
+			err = 0;
+		}
+	}
+
+err_out_free:
+	if (id->type == -1)
+		free(types);
 err_out_exit:
 	return err;
 }

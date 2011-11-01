@@ -954,6 +954,22 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	dnet_schedule_command(st);
 	st->__join_state = join;
 
+	if (n->client_prio) {
+		err = setsockopt(st->read_s, SOL_SOCKET, SO_PRIORITY, &n->client_prio, 4);
+		if (err) {
+			err = -errno;
+			dnet_log_err(n, "could not set read client prio %d", n->client_prio);
+		}
+		err = setsockopt(st->write_s, SOL_SOCKET, SO_PRIORITY, &n->client_prio, 4);
+		if (err) {
+			err = -errno;
+			dnet_log_err(n, "could not set write client prio %d", n->client_prio);
+		}
+		if (!err) {
+			dnet_log(n, DNET_LOG_INFO, "Client net priority set to %d\n", n->client_prio);
+		}
+	}
+
 	/*
 	 * it is possible that state can be removed after inserted into route table,
 	 * so we should grab a reference here and drop it after we are done
@@ -1112,8 +1128,13 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 
 int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 {
+	int cork;
 	int err = 0;
 	size_t offset = st->send_offset;
+
+	/* Use TCP_CORK to send headers and packet body in one piece */
+	cork = 1;
+	setsockopt(st->write_s, IPPROTO_TCP, TCP_CORK, &cork, 4);
 
 	if (r->hsize && r->header && st->send_offset < r->hsize) {
 		err = dnet_send_nolock(st, r->header + offset, r->hsize - offset);
@@ -1153,6 +1174,9 @@ err_out_exit:
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: setting send need_exit to %d\n", dnet_state_dump_addr(st), err);
 		st->need_exit = err;
 	}
+
+	cork = 0;
+	setsockopt(st->write_s, IPPROTO_TCP, TCP_CORK, &cork, 4);
 
 	return err;
 }

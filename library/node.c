@@ -261,7 +261,25 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 
-	dnet_log(n, DNET_LOG_NOTICE, "Initialized group: %d, total ids: %d, added ids: %d out of %d: %ld usecs.\n", g->group_id, g->id_num, num, id_num, diff);
+	dnet_log(n, DNET_LOG_NOTICE, "Initialized group: %d, total ids: %d, added ids: %d out of %d: %ld usecs.\n",
+			g->group_id, g->id_num, num, id_num, diff);
+
+	if (n->server_prio) {
+		err = setsockopt(st->read_s, SOL_SOCKET, SO_PRIORITY, &n->server_prio, 4);
+		if (err) {
+			err = -errno;
+			dnet_log_err(n, "could not set read server prio %d", n->server_prio);
+		}
+		err = setsockopt(st->write_s, SOL_SOCKET, SO_PRIORITY, &n->server_prio, 4);
+		if (err) {
+			err = -errno;
+			dnet_log_err(n, "could not set write server prio %d", n->server_prio);
+		}
+
+		if (!err) {
+			dnet_log(n, DNET_LOG_INFO, "Server net priority set to %d\n", n->server_prio);
+		}
+	}
 
 	return 0;
 
@@ -689,6 +707,9 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 				n->notify_hash_size);
 	}
 
+	n->client_prio = cfg->client_prio;
+	n->server_prio = cfg->server_prio;
+
 	err = dnet_crypto_init(n, cfg->ns, cfg->nsize);
 	if (err)
 		goto err_out_free;
@@ -711,8 +732,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		err = dnet_srw_init(n, cfg);
 		if (err) {
 			dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
-			if (err != -ENOTSUP)
-				goto err_out_io_exit;
 		}
 
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
@@ -751,7 +770,7 @@ err_out_ids_cleanup:
 	free(ids);
 err_out_srw_cleanup:
 	dnet_srw_cleanup(n);
-err_out_io_exit:
+//err_out_io_exit:
 	dnet_io_exit(n);
 err_out_monitor_exit:
 	dnet_monitor_exit(n);

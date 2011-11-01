@@ -375,6 +375,15 @@ class elliptics_node_python : public elliptics_node {
 			return elliptics_node::exec_name(&raw, name, scr, type);
 		}
 
+		std::string exec_name_by_name(const std::string &remote, const std::string &name, const std::string &scr, int type) {
+			struct dnet_id raw;
+			transform(remote, raw);
+			raw.type = 0;
+			raw.group_id = 0;
+
+			return elliptics_node::exec_name(&raw, name, scr, type);
+		}
+
 		std::string exec_name_all(const std::string &name, const std::string &scr, int type) {
 			return elliptics_node::exec_name(NULL, name, scr, type);
 		}
@@ -387,6 +396,15 @@ class elliptics_node_python : public elliptics_node {
 		
 		std::string exec_all(const std::string &script, int type) {
 			return elliptics_node::exec(NULL, script, type);
+		}
+
+		std::string exec_by_name(const std::string &remote, const std::string &script, int type) {
+			struct dnet_id raw;
+			transform(remote, raw);
+			raw.type = 0;
+			raw.group_id = 0;
+
+			return elliptics_node::exec(&raw, script, type);
 		}
 };
 
@@ -464,10 +482,13 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("read_data_range", &elliptics_node_python::read_data_range)
 
 		.def("get_routes", &elliptics_node_python::get_routes)
+
 		.def("exec", &elliptics_node_python::exec)
 		.def("exec", &elliptics_node_python::exec_all)
+		.def("exec", &elliptics_node_python::exec_by_name)
 		.def("exec_name", &elliptics_node_python::exec_name)
 		.def("exec_name", &elliptics_node_python::exec_name_all)
+		.def("exec_name", &elliptics_node_python::exec_name_by_name)
 	;
 };
 #endif

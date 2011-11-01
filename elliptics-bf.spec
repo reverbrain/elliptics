@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.3.8
+Version:	2.10.4.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -11,7 +11,6 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 BuildRequires:	db4-devel
 BuildRequires:	fcgi-devel
-BuildRequires:	openssl-devel
 BuildRequires:	python-devel, libtar-devel
 %if 0%{?rhel} < 6
 BuildRequires:	boost141-python, boost141-devel
@@ -149,8 +148,31 @@ rm -rf %{buildroot}
 
 
 %changelog
-* Tue Jun 7 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.3.8-1
-- Added authentification support
+* Tue Nov 1 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.4-1
+- Do not fail node initialization if srw is not initialized
+
+* Mon Oct 31 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.3-1
+- blob_send modified to send all columns if id.type == -1
+- Do not depend elliptics build on libssl
+- eblob/srw autoconf updates
+- Do not return 1 from blob_write when data was compressed, return 0, since
+	there was no error
+
+* Tue Oct 25 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.2-1
+- Added srw dependency
+- Do not call dnet_convert_io_attr for DNET_CMD_DEL command
+
+* Wed Oct 19 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.1-1
+- Decreased WRITE latency
+- Use CORK for write blocks
+
+* Wed Oct 19 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.0-1
+- Added ioprio call inside check
+- More example ioserv.conf comments
+- Added client/server network priorities (man 7 socket -> IP_PRIORITY)
+
+* Sat Oct 15 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.3.9-1
+- Fixed memory allocation in range-delete
 
 * Tue Oct 11 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.3.7-1
 - Only set BLOB_DISK_CTL_NOCSUM if DNET_IO_FLAGS_NOCSUM is set

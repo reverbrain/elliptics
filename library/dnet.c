@@ -728,8 +728,17 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					break;
 				}
 
-				io = data;
-				dnet_convert_io_attr(io);
+				io = NULL;
+				if ((a->cmd == DNET_CMD_READ) || (a->cmd == DNET_CMD_WRITE)) {
+					if (size < sizeof(struct dnet_io_attr)) {
+						dnet_log(st->n, DNET_LOG_ERROR, "%s: invalid size: cmd: %u, rest_size: %llu\n",
+							dnet_dump_id(&cmd->id), a->cmd, size);
+						err = -EINVAL;
+						break;
+					}
+					io = data;
+					dnet_convert_io_attr(io);
+				}
 
 				if (a->cmd == DNET_CMD_DEL || io->flags & DNET_IO_FLAGS_META) {
 					err = dnet_process_meta(st, cmd, a, data);
@@ -741,7 +750,20 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				if (n->flags & DNET_CFG_NO_CSUM)
 					a->flags |= DNET_ATTR_NOCSUM;
 
+				/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command 
+				   to eliminate double reply packets 
+				   (the first one with dnet_file_info structure,
+				   the second to destroy transaction on client side) */
+				if (a->cmd == DNET_CMD_WRITE) {
+					cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+				}
 				err = n->cb->command_handler(st, n->cb->command_private, cmd, a, data);
+
+				/* If there was error in WRITE command - send empty reply
+				   to notify client with error code and destroy transaction */
+				if (err && (a->cmd == DNET_CMD_WRITE)) {
+					cmd->flags |= DNET_FLAGS_NEED_ACK;
+				}
 				if (err || (a->cmd != DNET_CMD_WRITE))
 					break;
 #if 0
@@ -1167,7 +1189,7 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_write_completion *wc = priv;
 	struct dnet_wait *w = wc->wait;
 
-	if (is_trans_destroyed(st, cmd, attr)) {
+	if (!st || !cmd) {
 		dnet_wakeup(w, w->cond++);
 		dnet_write_complete_free(wc);
 		return 0;
@@ -1201,6 +1223,12 @@ err_out_exit:
 	if (w->status < 0)
 		w->status = err;
 	pthread_mutex_unlock(&w->wait_lock);
+
+	if (is_trans_destroyed(st, cmd, attr)) {
+		dnet_wakeup(w, w->cond++);
+		dnet_write_complete_free(wc);
+		return 0;
+	}
 
 	return 0;
 }
@@ -1812,6 +1840,7 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id,
 	struct dnet_net_state *st;
 	int err = -ENOENT, num = 0;
 	struct dnet_wait *w;
+	struct dnet_group *g;
 
 	w = dnet_wait_alloc(0);
 	if (!w) {
@@ -1819,16 +1848,32 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id,
 		goto err_out_exit;
 	}
 
-	if (id) {
+	if (id && id->group_id != 0) {
 		dnet_wait_get(w);
 		st = dnet_state_get_first(n, id);
 		if (!st)
 			goto err_out_put;
 		err = dnet_send_cmd_single(st, w, e);
+		dnet_state_put(st);
 		num = 1;
-	} else {
-		struct dnet_group *g;
+	} else if (id && id->group_id == 0) {
+		pthread_mutex_lock(&n->state_lock);
+		list_for_each_entry(g, &n->group_list, group_entry) {
+			dnet_wait_get(w);
 
+			id->group_id = g->group_id;
+
+			st = dnet_state_search_nolock(n, id);
+			if (st) {
+				if (st != n->st) {
+					err = dnet_send_cmd_single(st, w, e);
+					num++;
+				}
+				dnet_state_put(st);
+			}
+		}
+		pthread_mutex_unlock(&n->state_lock);
+	} else {
 		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(g, &n->group_list, group_entry) {
 			list_for_each_entry(st, &g->state_list, state_entry) {

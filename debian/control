@@ -2,13 +2,13 @@ Source: elliptics-2.10
 Section: net
 Priority: optional
 Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
-Build-Depends: debhelper (>= 7), autotools-dev, libssl-dev, eblob (>= 0.12.7), libboost-dev, libboost-program-options-dev, libboost-filesystem-dev, libtar-dev
+Build-Depends: debhelper (>= 7), autotools-dev, eblob (>= 0.12.17), libboost-dev, libboost-program-options-dev, libboost-filesystem-dev, libtar-dev, srw
 Standards-Version: 3.8.0
 Homepage: http://www.ioremap.net/projects/elliptics
 
 Package: elliptics-2.10
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.12.7)
+Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.12.17)
 Replaces: elliptics
 Provides: elliptics
 Description: Distributed hash table storage
@@ -16,7 +16,7 @@ Description: Distributed hash table storage
 
 Package: elliptics-dbg-2.10
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends},  eblob-dbg (>= 0.12.7)
+Depends: ${shlibs:Depends}, ${misc:Depends},  eblob-dbg (>= 0.12.17)
 Replaces: elliptics-dbg
 Provides: elliptics-dbg
 Description: Distributed hash table storage

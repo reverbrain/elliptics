@@ -98,6 +98,10 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_cfg_state.bg_ionice_prio = value;
 	else if (!strcmp(key, "removal_delay"))
 		dnet_cfg_state.removal_delay = value;
+	else if (!strcmp(key, "server_net_prio"))
+		dnet_cfg_state.server_prio = value;
+	else if (!strcmp(key, "client_net_prio"))
+		dnet_cfg_state.client_prio = value;
 	else
 		return -1;
 
@@ -206,6 +210,8 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"bg_ionice_prio", dnet_simple_set},
 	{"removal_delay", dnet_simple_set},
 	{"auth_cookie", dnet_set_auth_cookie},
+	{"server_net_prio", dnet_simple_set},
+	{"client_net_prio", dnet_simple_set},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;
