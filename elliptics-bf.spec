@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.4
+Version:	2.10.4.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -148,6 +148,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Nov 3 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.5-1
+- Added binary data support in srw
+
 * Tue Nov 1 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.4-1
 - Do not fail node initialization if srw is not initialized
 
