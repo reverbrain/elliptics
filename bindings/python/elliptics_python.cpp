@@ -369,42 +369,44 @@ class elliptics_node_python : public elliptics_node {
 			return res;
 		}
 
-		std::string exec_name(const struct elliptics_id &id, const std::string &name, const std::string &scr, int type) {
+		std::string exec_name(const struct elliptics_id &id, const std::string &name,
+				const std::string &script, const std::string &binary, int type) {
 			struct dnet_id raw = id.to_dnet();
 
-			return elliptics_node::exec_name(&raw, name, scr, type);
+			return elliptics_node::exec_name(&raw, name, script, binary, type);
 		}
 
-		std::string exec_name_by_name(const std::string &remote, const std::string &name, const std::string &scr, int type) {
+		std::string exec_name_by_name(const std::string &remote, const std::string &name,
+				const std::string &script, const std::string &binary, int type) {
 			struct dnet_id raw;
 			transform(remote, raw);
 			raw.type = 0;
 			raw.group_id = 0;
 
-			return elliptics_node::exec_name(&raw, name, scr, type);
+			return elliptics_node::exec_name(&raw, name, script, binary, type);
 		}
 
-		std::string exec_name_all(const std::string &name, const std::string &scr, int type) {
-			return elliptics_node::exec_name(NULL, name, scr, type);
+		std::string exec_name_all(const std::string &name, const std::string &script, const std::string &binary, int type) {
+			return elliptics_node::exec_name(NULL, name, script, binary, type);
 		}
 
-		std::string exec(const struct elliptics_id &id, const std::string &script, int type) {
+		std::string exec(const struct elliptics_id &id, const std::string &script, const std::string &binary, int type) {
 			struct dnet_id raw = id.to_dnet();
 
-			return elliptics_node::exec(&raw, script, type);
+			return elliptics_node::exec(&raw, script, binary, type);
 		}
 		
-		std::string exec_all(const std::string &script, int type) {
-			return elliptics_node::exec(NULL, script, type);
+		std::string exec_all(const std::string &script, const std::string &binary, int type) {
+			return elliptics_node::exec(NULL, script, binary, type);
 		}
 
-		std::string exec_by_name(const std::string &remote, const std::string &script, int type) {
+		std::string exec_by_name(const std::string &remote, const std::string &script, const std::string &binary, int type) {
 			struct dnet_id raw;
 			transform(remote, raw);
 			raw.type = 0;
 			raw.group_id = 0;
 
-			return elliptics_node::exec(&raw, script, type);
+			return elliptics_node::exec(&raw, script, binary, type);
 		}
 };
 

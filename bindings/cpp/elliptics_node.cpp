@@ -861,25 +861,27 @@ std::vector<std::pair<struct dnet_id, struct dnet_addr> > elliptics_node::get_ro
 	return res;
 }
 
-std::string elliptics_node::exec_name(struct dnet_id *id, const std::string &name, const std::string &scr, int type)
+std::string elliptics_node::exec_name(struct dnet_id *id, const std::string &name,
+		const std::string &script, const std::string &binary, int type)
 {
 	char *data = NULL;
 	std::string ret_str;
 
 	try {
-		data = new char[name.size() + scr.size() + 1 + sizeof(struct dnet_exec)];
+		data = new char[name.size() + script.size() + binary.size() + sizeof(struct dnet_exec)];
 
 		struct dnet_exec *e = (struct dnet_exec *)data;
 		void *ret = NULL;
 		int err;
 
-		e->size = scr.size() + 1;
 		e->type = type;
+		e->script_size = script.size();
 		e->name_size = name.size();
+		e->binary_size = binary.size();
 
 		memcpy(e->data, name.data(), name.size());
-		memcpy(e->data + name.size(), scr.data(), scr.size());
-		e->data[name.size() + scr.size()] = '\0';
+		memcpy(e->data + name.size(), script.data(), script.size());
+		memcpy(e->data + name.size() + script.size(), binary.data(), binary.size());
 
 		err = dnet_send_cmd(node, id, e, &ret);
 		if (err < 0) {
@@ -902,12 +904,13 @@ std::string elliptics_node::exec_name(struct dnet_id *id, const std::string &nam
 		delete [] data;
 		throw;
 	}
+	delete [] data;
 	return ret_str;
 }
 
-std::string elliptics_node::exec(struct dnet_id *id, const std::string &script, int type)
+std::string elliptics_node::exec(struct dnet_id *id, const std::string &script, const std::string &binary, int type)
 {
 	std::string name;
-	return exec_name(id, name, script, type);
+	return exec_name(id, name, script, binary, type);
 }
 

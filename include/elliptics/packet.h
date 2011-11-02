@@ -634,15 +634,22 @@ enum cmd_type {
 struct dnet_exec {
 	int			type;
 	int			flags;
-	int			size, name_size;
+	uint64_t		script_size, name_size, binary_size;
 	uint64_t		reserved[2];
+
+	/*
+	 * we pack script name first, then user's script content and then binary data,
+	 * which will be pushed into server's object
+	 */
 	char			data[0];
 } __attribute__((packed));
 
 static inline void dnet_convert_exec(struct dnet_exec *e)
 {
 	e->type = dnet_bswap32(e->type);
-	e->size = dnet_bswap32(e->size);
+	e->script_size = dnet_bswap64(e->script_size);
+	e->name_size = dnet_bswap64(e->name_size);
+	e->binary_size = dnet_bswap64(e->binary_size);
 	e->flags = dnet_bswap32(e->flags);
 }
 

@@ -343,7 +343,8 @@ int main(int argc, char *argv[])
 			sprintf(e->data, "%s", cmd);
 		}
 
-		e->size = strlen(cmd) + 1;
+		e->binary_size = 0;
+		e->script_size = strlen(cmd) + 1;
 		e->type = cmd_type;
 
 		err = dnet_send_cmd(n, did, e, (void **)&ret);

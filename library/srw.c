@@ -133,23 +133,32 @@ void dnet_srw_cleanup(struct dnet_node *n)
 	srwc_cleanup_python(n->srw);
 }
 
-static int dnet_cmd_exec_python_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, char *data, int size)
+static int dnet_cmd_exec_python_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr,
+		char *data, uint64_t size, void *binary, uint64_t bsize)
 {
 	struct dnet_node *n = st->n;
 	int err;
-	char *res = NULL;
+	struct srwc_ctl ctl;
 
-	err = srwc_process(n->srw, data, size, &res);
+	memset(&ctl, 0, sizeof(struct srwc_ctl));
+
+	ctl.cmd = data;
+	ctl.cmd_size = size;
+	ctl.binary = binary;
+	ctl.binary_size = bsize;
+
+	err = srwc_process(n->srw, &ctl);
 	if (err < 0) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: python processing failed: %s %d\n", dnet_dump_id(&cmd->id), strerror(-err), err);
 		goto err_out_exit;
 	}
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: reply %d bytes: '%s'\n", dnet_dump_id(&cmd->id), err, err ? res : "none");
+	dnet_log(n, DNET_LOG_DSA, "%s: reply %llu bytes: '%s'\n",
+			dnet_dump_id(&cmd->id), (unsigned long long)ctl.res_size, ctl.res_size ? ctl.result : "none");
 
-	if (err > 0) {
-		err = dnet_send_reply(st, cmd, attr, res, err, 0);
-		free(res);
+	if (ctl.res_size) {
+		err = dnet_send_reply(st, cmd, attr, ctl.result, ctl.res_size, 0);
+		free(ctl.result);
 	}
 
 err_out_exit:
@@ -158,15 +167,11 @@ err_out_exit:
 
 int dnet_cmd_exec_python(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, struct dnet_exec *e)
 {
-	struct dnet_node *n = st->n;
+	void *binary = NULL;
+	if (e->binary_size)
+		binary = e->data + e->script_size + e->name_size;
 
-	if (e->size + e->name_size + sizeof(struct dnet_exec) != attr->size) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: invalid: name size %d, size %d, must be: %llu\n",
-				dnet_dump_id(&cmd->id), e->name_size, e->size, (unsigned long long)attr->size);
-		return -E2BIG;
-	}
-
-	return dnet_cmd_exec_python_raw(st, cmd, attr, e->data, e->size);
+	return dnet_cmd_exec_python_raw(st, cmd, attr, e->data, e->script_size, binary, e->binary_size);
 }
 
 int dnet_cmd_exec_python_script(struct dnet_net_state *st, struct dnet_cmd *cmd,
@@ -177,22 +182,21 @@ int dnet_cmd_exec_python_script(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_srw_init_conf *base = n->srw->priv;
 	struct dnet_map_fd m;
 	struct stat fst;
-	int err, total, soff, fd;
+	int err, total, fd;
+	void *binary = NULL;
 
-	if (e->size + e->name_size + sizeof(struct dnet_exec) != attr->size) {
-		err = -E2BIG;
-		dnet_log(n, DNET_LOG_ERROR, "%s: invalid: name size %d, size %d, must be: %llu\n",
-				dnet_dump_id(&cmd->id), e->name_size, e->size, (unsigned long long)attr->size);
-		goto err_out_exit;
+	if (e->binary_size) {
+		binary = e->data + e->name_size + e->script_size;
 	}
 
-	name = malloc(e->name_size + 2);
+	name = malloc(e->name_size + 1);
 	if (!name) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
-	snprintf(name, e->name_size + 1, "%s", e->data);
+	memcpy(name, e->data, e->name_size);
+	name[e->name_size] = '\0';
 
 	ptr = strrchr(name, '/');
 	if (ptr) {
@@ -229,7 +233,7 @@ int dnet_cmd_exec_python_script(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_close;
 	}
 
-	total = fst.st_size + e->size + 3; /* 2 null bytes and \n */
+	total = fst.st_size + e->script_size + 3; /* \n + null byte and null byte on the next string */
 	script = malloc(total);
 	if (!script) {
 		err = -ENOMEM;
@@ -248,14 +252,19 @@ int dnet_cmd_exec_python_script(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_free_script;
 	}
 
-	if (e->size) {
-		soff = snprintf(script, e->size + 2, "%s\n", e->data + e->name_size);
+	if (e->script_size) {
+		memcpy(script, e->data + e->name_size, e->script_size);
+		script[e->script_size] = '\n';
+		memcpy(script + e->script_size + 1, m.data, m.size);
+		script[e->script_size + 1 + m.size] = '\0';
+		total = e->script_size + 1 + m.size + 1;
 	} else {
-		soff = 0;
+		memcpy(script, m.data, m.size);
+		script[m.size] = '\0';
+		total = m.size + 1;
 	}
-	total = soff + snprintf(script + soff, total - soff, "%s", (char *)m.data);
 
-	err = dnet_cmd_exec_python_raw(st, cmd, attr, script, total);
+	err = dnet_cmd_exec_python_raw(st, cmd, attr, script, total, binary, e->binary_size);
 	if (err) {
 		dnet_log_err(n, "%s: dnet_cmd_exec_python_script: exec: %s", dnet_dump_id(&cmd->id), full_path);
 		goto err_out_unmap;

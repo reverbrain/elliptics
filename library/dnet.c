@@ -303,16 +303,26 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_exec_shell(struct dnet_node *n, struct dnet_cmd *cmd, char *command)
+static int dnet_cmd_exec_shell(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_exec *e)
 {
 	pid_t pid;
 	int err;
+	char *command;
+
+	command = malloc(e->script_size + 1);
+	if (!command) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memcpy(command, e->data, e->script_size);
+	command[e->script_size] = '\0';
 
 	pid = fork();
 	if (pid < 0) {
 		err = -errno;
 		dnet_log_err(n, "%s: failed to fork a child process", dnet_dump_id(&cmd->id));
-		goto err_out_exit;
+		goto err_out_free;
 	}
 
 	if (pid == 0) {
@@ -335,6 +345,8 @@ static int dnet_cmd_exec_shell(struct dnet_node *n, struct dnet_cmd *cmd, char *
 			err = -EPIPE;
 	}
 
+err_out_free:
+	free(command);
 err_out_exit:
 	return err;
 }
@@ -351,12 +363,24 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	dnet_convert_exec(e);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: type: %d, command: '%s'.\n",
+	dnet_log(n, DNET_LOG_DSA, "%s: type: %d, command: '%s'.\n",
 			dnet_dump_id(&cmd->id), e->type, e->data);
+
+	if (e->script_size + e->name_size + e->binary_size + sizeof(struct dnet_exec) != attr->size) {
+		err = -E2BIG;
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid: name size %llu, script size %llu, binary size %llu must be: %llu\n",
+				dnet_dump_id(&cmd->id),
+				(unsigned long long)e->name_size,
+				(unsigned long long)e->script_size,
+				(unsigned long long)e->binary_size,
+				(unsigned long long)attr->size);
+		goto err_out_exit;
+	}
+
 
 	switch (e->type) {
 		case DNET_EXEC_SHELL:
-			err = dnet_cmd_exec_shell(n, cmd, e->data);
+			err = dnet_cmd_exec_shell(n, cmd, e);
 			break;
 		case DNET_EXEC_PYTHON_SCRIPT_NAME:
 			err = dnet_cmd_exec_python_script(st, cmd, attr, e);
@@ -366,6 +390,7 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd,
 			break;
 	}
 
+err_out_exit:
 	return err;
 }
 
@@ -1825,7 +1850,7 @@ static int dnet_send_cmd_single(struct dnet_net_state *st, struct dnet_wait *w, 
 	ctl.complete = dnet_send_cmd_complete;
 	ctl.priv = w;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
-	ctl.size = sizeof(struct dnet_exec) + e->size + e->name_size;
+	ctl.size = sizeof(struct dnet_exec) + e->script_size + e->name_size + e->binary_size;
 
 	dnet_convert_exec(e);
 

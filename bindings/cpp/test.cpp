@@ -228,13 +228,22 @@ static void test_append(elliptics_node &n)
 
 static void test_exec_python(elliptics_node &n)
 {
-	std::string script = "from time import time, ctime\n__return_data = 'Current time is ' + ctime(time())";
-	std::cout << "script: " << n.exec(NULL, script, DNET_EXEC_PYTHON) << std::endl;
+	std::string binary = "binary data";
+	std::string script = "from time import time, ctime\n"
+		"__return_data = 'Current time is ' + ctime(time()) + '"
+			"|received binary data: ' + __input_binary_data_tuple[0].decode('utf-8')";
 
-	script = "local_addr = 'this is local addr string'";
-	std::string name = "script.py";
+	std::string ret;
 
-	std::cout << "name: " << name << n.exec_name(NULL, name, script, DNET_EXEC_PYTHON_SCRIPT_NAME) << std::endl;
+	ret = n.exec(NULL, script, binary, DNET_EXEC_PYTHON);
+
+	std::cout << "sent script: " << ret << std::endl;
+
+	script = "local_addr_string = 'this is local addr string' + "
+			"'|received binary data: ' + __input_binary_data_tuple[0].decode('utf-8')";
+	std::string name = "test_script.py";
+
+	std::cout << "remote script: " << name << ": " << n.exec_name(NULL, name, script, binary, DNET_EXEC_PYTHON_SCRIPT_NAME) << std::endl;
 }
 
 int main()
@@ -261,10 +270,6 @@ int main()
 
 		if (!added)
 			throw std::runtime_error("Could not add remote nodes, exiting");
-
-		test_prepare_commit(n, 0, 0);
-		test_prepare_commit(n, 1, 0);
-		exit(1);
 
 		test_lookup(n, groups);
 

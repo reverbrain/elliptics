@@ -1,4 +1,4 @@
-bin_PROGRAMS = dnet_cpp_test
+noinst_PROGRAMS = dnet_cpp_test
 lib_LTLIBRARIES = libelliptics_cpp.la
 
 libelliptics_cpp_la_SOURCES = elliptics_log.cpp elliptics_node.cpp elliptics_callback.cpp
