@@ -9,15 +9,13 @@ URL:		http://www.ioremap.net/projects/elliptics
 Source0:	%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-BuildRequires:	db4-devel
-BuildRequires:	fcgi-devel
-BuildRequires:	python-devel, libtar-devel
+BuildRequires:	libtar-devel
 %if 0%{?rhel} < 6
-BuildRequires:	boost141-python, boost141-devel
+BuildRequires:	python26-devel, boost141-python, boost141-devel
 %else
-BuildRequires:  boost-python, boost-devel
+BuildRequires:  python-devel, boost-python, boost-devel
 %endif
-BuildRequires:	eblob-devel
+BuildRequires:	eblob-devel srw-devel >= 0.2.1
 BuildRequires:	automake autoconf libtool
 
 %description
@@ -85,6 +83,7 @@ for building C++ applications with elliptics.
 export LDFLAGS="-Wl,-z,defs"
 ./autogen.sh
 %if 0%{?rhel} < 6
+export PYTHON=/usr/bin/python26
 CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %configure --with-boost-libdir=/usr/lib64/boost141
 %else
 %configure
