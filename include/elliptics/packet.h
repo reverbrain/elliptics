@@ -299,14 +299,15 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 /* Overwrite data */
 #define DNET_IO_FLAGS_OVERWRITE		(1<<7)
 
+/* Do not checksum data */
+#define DNET_IO_FLAGS_NOCSUM		(1<<8)
+
 /*
  * this flag is used when we want backend not to perform any additional actions
  * except than write data at given offset. This is no-op in filesystem backend,
  * but eblob one should disable prepare/commit operations.
  */
-#define DNET_IO_FLAGS_PLAIN_WRITE	(1<<7)
-
-#define DNET_IO_FLAGS_NOCSUM		(1<<8)
+#define DNET_IO_FLAGS_PLAIN_WRITE	(1<<9)
 
 struct dnet_io_attr
 {
