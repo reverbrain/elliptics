@@ -265,19 +265,20 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 			g->group_id, g->id_num, num, id_num, diff);
 
 	if (n->server_prio) {
-		err = setsockopt(st->read_s, SOL_SOCKET, SO_PRIORITY, &n->server_prio, 4);
+		err = setsockopt(st->read_s, IPPROTO_IP, IP_TOS, &n->server_prio, 4);
 		if (err) {
 			err = -errno;
 			dnet_log_err(n, "could not set read server prio %d", n->server_prio);
 		}
-		err = setsockopt(st->write_s, SOL_SOCKET, SO_PRIORITY, &n->server_prio, 4);
+		err = setsockopt(st->write_s, IPPROTO_IP, IP_TOS, &n->server_prio, 4);
 		if (err) {
 			err = -errno;
 			dnet_log_err(n, "could not set write server prio %d", n->server_prio);
 		}
 
 		if (!err) {
-			dnet_log(n, DNET_LOG_INFO, "Server net priority set to %d\n", n->server_prio);
+			dnet_log(n, DNET_LOG_INFO, "%s: server net TOS value set to %d\n",
+					dnet_server_convert_dnet_addr(&st->addr), n->server_prio);
 		}
 	}
 
