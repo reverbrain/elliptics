@@ -289,6 +289,7 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 			req->current_pos++;
 	} else {
 		req->current_pos++;
+		err = 0;
 	}
 
 err_out_exit:
@@ -406,8 +407,6 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 
 	if (attr->cmd == DNET_CMD_DEL_RANGE) {
 		uint32_t i;
-
-		(unsigned long)p.keys_cnt, (unsigned long)req.current_pos);
 
 		for (i = 0; i < p.keys_cnt; ++i) {
 			dnet_backend_log(DNET_LOG_DSA, "%s: EBLOB: blob-read-range: DEL\n",dnet_dump_id_str(p.keys[i].id));
