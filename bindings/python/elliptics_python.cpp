@@ -147,7 +147,7 @@ struct elliptics_id {
 
 	list		id;
 	uint32_t	group_id;
-	uint32_t	type;
+	int		type;
 };
 
 struct elliptics_range {
@@ -408,6 +408,19 @@ class elliptics_node_python : public elliptics_node {
 
 			return elliptics_node::exec(&raw, script, binary, type);
 		}
+
+		void remove_by_id(const struct elliptics_id &id) {
+			std::cout << "start " << id.group_id << std::endl;
+			struct dnet_id raw = id.to_dnet();
+			std::cout << "convert" << std::endl;
+
+			elliptics_node::remove(raw);
+			std::cout << "remove" << std::endl;
+		}
+
+		void remove_by_name(const std::string &remote, int type) {
+			elliptics_node::remove(remote, type);
+		}
 };
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
@@ -491,6 +504,9 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("exec_name", &elliptics_node_python::exec_name)
 		.def("exec_name", &elliptics_node_python::exec_name_all)
 		.def("exec_name", &elliptics_node_python::exec_name_by_name)
+
+		.def("remove", &elliptics_node_python::remove_by_id)
+		.def("remove", &elliptics_node_python::remove_by_name)
 	;
 };
 #endif

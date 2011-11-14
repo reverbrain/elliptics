@@ -11,7 +11,7 @@ try:
 	n = elliptics_node_python(log)
 
 	n.add_groups([1,2,3])
-	n.add_remote("localhost", 1025)
+	n.add_remote("172.16.239.1", 1025)
 
 	group = 1
 	try:
@@ -34,6 +34,14 @@ try:
 	except Exception as e:
 		print "Failed to write data by id:", e
 
+	try:
+		s = n.read_data(id, 0, 0, 0, 0)
+		print " READ:", s
+	except Exception as e:
+		print "Failed to read data by id:", e
+
+	id.type = -1
+	n.remove(id)
 	try:
 		s = n.read_data(id, 0, 0, 0, 0)
 		print " READ:", s
