@@ -103,7 +103,7 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 			goto err_out_exit;
 		}
 
-		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_prepare: size: %llu: type: %d: Ok\n",
+		dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: eblob_write_prepare: size: %llu: type: %d: Ok\n",
 			dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type);
 	}
 
@@ -441,7 +441,12 @@ static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 	int err;
 
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
-	err = eblob_remove(c->eblob, &key, cmd->id.type);
+
+	if (cmd->id.type != -1) {
+		err = eblob_remove(c->eblob, &key, cmd->id.type);
+	} else {
+		err = eblob_remove_all(c->eblob, &key);
+	}
 
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del: REMOVE: type: %d: %d: %s\n",
