@@ -311,6 +311,9 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 
 /* Do not really send data in range request.
  * Send only statistics instead.
+ *
+ * -- we do not care if it matches above DNET_IO_FLAGS_PLAIN_WRITE,
+ *  since using plain write and nodata (read) is useless anyway
  */
 #define DNET_IO_FLAGS_NODATA		(1<<9)
 

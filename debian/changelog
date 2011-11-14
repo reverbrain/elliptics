@@ -1,3 +1,14 @@
+elliptics-2.10 (2.10.4.7) unstable; urgency=low
+
+  * Moved some objects from interface.h to packet.h
+  * Added range counters
+  * DNET_IO_FLAGS_PLAIN_WRITE must differ from DNET_IO_FLAGS_NOCSUM
+  * Use IP_TOS instead of SO_PRIORITY to set tos bits
+  * srw is called libsrw in rhel builds
+  * Depend on 0.12.18 eblob and 0.2.2 srw
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 14 Nov 2011 16:20:29 +0400
+
 elliptics-2.10 (2.10.4.6) unstable; urgency=low
 
   * Depend on 0.2.1 srw and higher

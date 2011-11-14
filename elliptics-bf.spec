@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.6
+Version:	2.10.4.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Nov 14 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.7-1
+- Moved some objects from interface.h to packet.h
+- Added range counters
+- DNET_IO_FLAGS_PLAIN_WRITE must differ from DNET_IO_FLAGS_NOCSUM
+- Use IP_TOS instead of SO_PRIORITY to set tos bits
+- srw is called libsrw in rhel builds
+- Depend on 0.12.18 eblob and 0.2.2 srw
+
 * Thu Nov 3 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.6-1
 - Depend on 0.2.1 srw and higher
 
