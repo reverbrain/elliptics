@@ -739,32 +739,6 @@ int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, unsigned int aflag
 			void *priv),
 	void *priv);
 
-enum dnet_meta_types {
-	DNET_META_PARENT_OBJECT = 1,	/* parent object name */
-	DNET_META_GROUPS,		/* this object has copies in given groups */
-	DNET_META_CHECK_STATUS,		/* last checking status: timestamp and so on */
-	DNET_META_NAMESPACE,		/* namespace where given object lives */
-	DNET_META_UPDATE,		/* last update information (timestamp, flags) */
-	DNET_META_CHECKSUM,		/* checksum (sha512) of the whole data object calculated on server */
-	__DNET_META_MAX,
-};
-
-struct dnet_meta
-{
-	uint32_t			type;
-	uint32_t			size;
-	uint64_t			common;
-	uint8_t				tmp[16];
-	uint8_t				data[0];
-} __attribute__ ((packed));
-
-static inline void dnet_convert_meta(struct dnet_meta *m)
-{
-	m->type = dnet_bswap32(m->type);
-	m->size = dnet_bswap32(m->size);
-	m->common = dnet_bswap64(m->common);
-}
-
 struct dnet_meta_container {
 	struct dnet_id			id;
 	unsigned int			size;
@@ -848,43 +822,6 @@ static inline void dnet_convert_check_reply(struct dnet_check_reply *r)
 	r->total = dnet_bswap32(r->total);
 	r->completed = dnet_bswap32(r->completed);
 	r->errors = dnet_bswap32(r->errors);
-}
-
-struct dnet_meta_update {
-	int			unused_gap;
-	int			group_id;
-	uint64_t		flags;
-	struct dnet_time	tm;
-	uint64_t		reserved[4];
-} __attribute__((packed));
-
-static inline void dnet_convert_meta_update(struct dnet_meta_update *m)
-{
-	dnet_convert_time(&m->tm);
-	m->flags = dnet_bswap64(m->flags);
-}
-
-struct dnet_meta_check_status {
-	int			status;
-	int			pad;
-	struct dnet_time	tm;
-	uint64_t		reserved[4];
-} __attribute__ ((packed));
-
-static inline void dnet_convert_meta_check_status(struct dnet_meta_check_status *c)
-{
-	c->status = dnet_bswap32(c->status);
-	dnet_convert_time(&c->tm);
-}
-
-struct dnet_meta_checksum {
-	uint8_t			checksum[DNET_CSUM_SIZE];
-	struct dnet_time	tm;
-} __attribute__ ((packed));
-
-static inline void dnet_convert_meta_checksum(struct dnet_meta_checksum *c)
-{
-	dnet_convert_time(&c->tm);
 }
 
 /* Set by dnet_check when we only want to merge transaction

@@ -667,6 +667,69 @@ static inline void dnet_convert_auth(struct dnet_auth *a)
 	a->flags = dnet_bswap64(a->flags);
 }
 
+enum dnet_meta_types {
+	DNET_META_PARENT_OBJECT = 1,	/* parent object name */
+	DNET_META_GROUPS,		/* this object has copies in given groups */
+	DNET_META_CHECK_STATUS,		/* last checking status: timestamp and so on */
+	DNET_META_NAMESPACE,		/* namespace where given object lives */
+	DNET_META_UPDATE,		/* last update information (timestamp, flags) */
+	DNET_META_CHECKSUM,		/* checksum (sha512) of the whole data object calculated on server */
+	__DNET_META_MAX,
+};
+
+struct dnet_meta
+{
+	uint32_t			type;
+	uint32_t			size;
+	uint64_t			common;
+	uint8_t				tmp[16];
+	uint8_t				data[0];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_meta(struct dnet_meta *m)
+{
+	m->type = dnet_bswap32(m->type);
+	m->size = dnet_bswap32(m->size);
+	m->common = dnet_bswap64(m->common);
+}
+
+struct dnet_meta_update {
+	int			unused_gap;
+	int			group_id;
+	uint64_t		flags;
+	struct dnet_time	tm;
+	uint64_t		reserved[4];
+} __attribute__((packed));
+
+static inline void dnet_convert_meta_update(struct dnet_meta_update *m)
+{
+	dnet_convert_time(&m->tm);
+	m->flags = dnet_bswap64(m->flags);
+}
+
+struct dnet_meta_check_status {
+	int			status;
+	int			pad;
+	struct dnet_time	tm;
+	uint64_t		reserved[4];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_meta_check_status(struct dnet_meta_check_status *c)
+{
+	c->status = dnet_bswap32(c->status);
+	dnet_convert_time(&c->tm);
+}
+
+struct dnet_meta_checksum {
+	uint8_t			checksum[DNET_CSUM_SIZE];
+	struct dnet_time	tm;
+} __attribute__ ((packed));
+
+static inline void dnet_convert_meta_checksum(struct dnet_meta_checksum *c)
+{
+	dnet_convert_time(&c->tm);
+}
+
 #ifdef __cplusplus
 }
 #endif
