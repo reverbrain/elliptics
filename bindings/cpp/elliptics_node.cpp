@@ -500,7 +500,15 @@ std::string elliptics_node::lookup(const std::string &data)
 
 void elliptics_node::remove(struct dnet_id &id)
 {
-	int err = dnet_remove_object_now(node, &id, 0);
+	int err = -ENOENT;
+	std::vector<int> g = groups;
+
+	for (int i=0; i<(int)g.size(); ++i) {
+		id.group_id = g[i];
+
+		if (!dnet_remove_object_now(node, &id, 0))
+			err = 0;
+	}
 
 	if (err) {
 		std::ostringstream str;
@@ -512,29 +520,11 @@ void elliptics_node::remove(struct dnet_id &id)
 void elliptics_node::remove(const std::string &data, int type)
 {
 	struct dnet_id id;
-	int err = -ENOENT, i;
-	std::vector<int> g = groups;
 
 	transform(data, id);
 	id.type = type;
 
-	for (i=0; i<(int)g.size(); ++i) {
-		id.group_id = g[i];
-
-		try {
-			remove(id);
-		} catch (const std::exception &e) {
-			continue;
-		}
-
-		err = 0;
-	}
-
-	if (err) {
-		std::ostringstream str;
-		str << dnet_dump_id(&id) << ": REMOVE: " << data << err;
-		throw std::runtime_error(str.str());
-	}
+	remove(id);
 }
 
 std::string elliptics_node::stat_log()
