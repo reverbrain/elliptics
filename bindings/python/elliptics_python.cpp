@@ -410,12 +410,9 @@ class elliptics_node_python : public elliptics_node {
 		}
 
 		void remove_by_id(const struct elliptics_id &id) {
-			std::cout << "start " << id.group_id << std::endl;
 			struct dnet_id raw = id.to_dnet();
-			std::cout << "convert" << std::endl;
 
 			elliptics_node::remove(raw);
-			std::cout << "remove" << std::endl;
 		}
 
 		void remove_by_name(const std::string &remote, int type) {
