@@ -15,7 +15,7 @@ BuildRequires:	python26-devel, boost141-python, boost141-devel
 %else
 BuildRequires:  python-devel, boost-python, boost-devel
 %endif
-BuildRequires:	eblob-devel libsrw-devel >= 0.2.1
+BuildRequires:	eblob-devel >= 0.12.18 libsrw-devel >= 0.2.2
 BuildRequires:	automake autoconf libtool
 
 %description
