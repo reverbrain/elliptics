@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.4
+Version:	2.10.4.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -9,15 +9,13 @@ URL:		http://www.ioremap.net/projects/elliptics
 Source0:	%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-BuildRequires:	db4-devel
-BuildRequires:	fcgi-devel
-BuildRequires:	python-devel, libtar-devel
+BuildRequires:	libtar-devel
 %if 0%{?rhel} < 6
-BuildRequires:	boost141-python, boost141-devel
+BuildRequires:	python26-devel, boost141-python, boost141-devel
 %else
-BuildRequires:  boost-python, boost-devel
+BuildRequires:  python-devel, boost-python, boost-devel
 %endif
-BuildRequires:	eblob-devel
+BuildRequires:	eblob-devel >= 0.12.18 libsrw-devel >= 0.2.2
 BuildRequires:	automake autoconf libtool
 
 %description
@@ -85,6 +83,7 @@ for building C++ applications with elliptics.
 export LDFLAGS="-Wl,-z,defs"
 ./autogen.sh
 %if 0%{?rhel} < 6
+export PYTHON=/usr/bin/python26
 CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %configure --with-boost-libdir=/usr/lib64/boost141
 %else
 %configure
@@ -148,6 +147,20 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Nov 14 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.7-1
+- Moved some objects from interface.h to packet.h
+- Added range counters
+- DNET_IO_FLAGS_PLAIN_WRITE must differ from DNET_IO_FLAGS_NOCSUM
+- Use IP_TOS instead of SO_PRIORITY to set tos bits
+- srw is called libsrw in rhel builds
+- Depend on 0.12.18 eblob and 0.2.2 srw
+
+* Thu Nov 3 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.6-1
+- Depend on 0.2.1 srw and higher
+
+* Thu Nov 3 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.5-1
+- Added binary data support in srw
+
 * Tue Nov 1 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.4-1
 - Do not fail node initialization if srw is not initialized
 

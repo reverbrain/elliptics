@@ -955,18 +955,20 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	st->__join_state = join;
 
 	if (n->client_prio) {
-		err = setsockopt(st->read_s, SOL_SOCKET, SO_PRIORITY, &n->client_prio, 4);
+		err = setsockopt(st->read_s, IPPROTO_IP, IP_TOS, &n->client_prio, 4);
 		if (err) {
 			err = -errno;
 			dnet_log_err(n, "could not set read client prio %d", n->client_prio);
 		}
-		err = setsockopt(st->write_s, SOL_SOCKET, SO_PRIORITY, &n->client_prio, 4);
+		err = setsockopt(st->write_s, IPPROTO_IP, IP_TOS, &n->client_prio, 4);
 		if (err) {
 			err = -errno;
 			dnet_log_err(n, "could not set write client prio %d", n->client_prio);
 		}
+		
 		if (!err) {
-			dnet_log(n, DNET_LOG_INFO, "Client net priority set to %d\n", n->client_prio);
+			dnet_log(n, DNET_LOG_INFO, "%s: client net TOS value set to %d\n",
+					dnet_server_convert_dnet_addr(addr), n->client_prio);
 		}
 	}
 
@@ -1159,7 +1161,6 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 err_out_exit:
 	dnet_log(st->n, DNET_LOG_DSA, "%s: sent: send_offset: %zu, hsize: %zu, dsize: %zu, fsize: %zu, err: %d\n",
 			dnet_state_dump_addr(st), st->send_offset, r->hsize, r->dsize, r->fsize, err);
-
 
 	if (st->send_offset == (r->dsize + r->hsize + r->fsize)) {
 		pthread_mutex_lock(&st->send_lock);
