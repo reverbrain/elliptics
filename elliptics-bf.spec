@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.7
+Version:	2.10.4.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Nov 15 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.8-1
+- Fixed range counters
+- Added ::remove() methods into python binding
+- Remove all types if -1 as id->type is specified
+- RHEL build must depend on eblob-devel >= 0.12.18 libsrw-devel >= 0.2.2
+
 * Mon Nov 14 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.7-1
 - Moved some objects from interface.h to packet.h
 - Added range counters
