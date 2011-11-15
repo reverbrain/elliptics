@@ -3582,7 +3582,9 @@ struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr
 		if (data) {
 			struct dnet_io_attr *rep = data + io->size - sizeof(struct dnet_io_attr);
 
-			io->size -= sizeof(struct dnet_io_attr);
+			/* If DNET_IO_FLAGS_NODATA is set do not decrement size as 'rep' is the only structure in output */
+			if (!(io->flags & DNET_IO_FLAGS_NODATA))
+				io->size -= sizeof(struct dnet_io_attr);
 			dnet_convert_io_attr(rep);
 
 			dnet_log(n, DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
@@ -3594,7 +3596,7 @@ struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr
 				io->start = 0;
 				io->num -= rep->num;
 
-				if (!io->size) {
+				if (!io->size && !(io->flags & DNET_IO_FLAGS_NODATA)) {
 					free(data);
 				} else {
 					struct dnet_range_data *new_ret;

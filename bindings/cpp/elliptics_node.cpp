@@ -656,6 +656,8 @@ struct range_sort_compare {
 std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags)
 {
 	struct dnet_range_data *data;
+	uint64_t num = 0;
+	uint32_t ioflags = io.flags;
 	int err;
 
 	data = dnet_read_range(node, &io, group_id, aflags, &err);
@@ -674,23 +676,34 @@ std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io
 			struct dnet_range_data *d = &data[i];
 			char *data = (char *)d->data;
 
-			while (d->size) {
-				struct dnet_io_attr *io = (struct dnet_io_attr *)data;
+			if (!(ioflags & DNET_IO_FLAGS_NODATA)) {
+				while (d->size) {
+					struct dnet_io_attr *io = (struct dnet_io_attr *)data;
 
-				dnet_convert_io_attr(io);
+					dnet_convert_io_attr(io);
 
-				uint64_t size = dnet_bswap64(io->size);
+					uint64_t size = dnet_bswap64(io->size);
 
-				std::string str;
+					std::string str;
 
-				str.append((char *)io->id, DNET_ID_SIZE);
-				str.append((char *)&size, 8);
-				str.append((const char *)(io + 1), io->size);
+					str.append((char *)io->id, DNET_ID_SIZE);
+					str.append((char *)&size, 8);
+					str.append((const char *)(io + 1), io->size);
 
-				ret.push_back(str);
+					ret.push_back(str);
 
-				data += sizeof(struct dnet_io_attr) + io->size;
-				d->size -= sizeof(struct dnet_io_attr) + io->size;
+					data += sizeof(struct dnet_io_attr) + io->size;
+					d->size -= sizeof(struct dnet_io_attr) + io->size;
+				}
+			} else {
+				if (d->size != sizeof(struct dnet_io_attr)) {
+					std::ostringstream str;
+					str << "Incorrect data size: d->size = " << d->size <<
+						"sizeof = " << sizeof(struct dnet_io_attr);
+					throw std::runtime_error(str.str());
+				}
+				struct dnet_io_attr *rep = (struct dnet_io_attr *)data;
+				num += rep->num;
 			}
 
 			free(d->data);
@@ -700,6 +713,12 @@ std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io
 
 		if (aflags & DNET_ATTR_SORT)
 			std::sort(ret.begin(), ret.end(), range_sort_compare());
+
+		if (ioflags & DNET_IO_FLAGS_NODATA) {
+			std::ostringstream str;
+			str << num;
+			ret.push_back(str.str());
+		}
 	}
 
 	return ret;
