@@ -82,6 +82,8 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_cfg_state.wait_timeout = value;
 	else if (!strcmp(key, "check_timeout"))
 		dnet_cfg_state.check_timeout = value;
+	else if (!strcmp(key, "stall_count"))
+		dnet_cfg_state.stall_count = value;
 	else if (!strcmp(key, "join"))
 		dnet_cfg_state.flags |= value ? DNET_CFG_JOIN_NETWORK : 0;
 	else if (!strcmp(key, "flags"))
@@ -194,6 +196,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"log_mask", dnet_simple_set},
 	{"wait_timeout", dnet_simple_set},
 	{"check_timeout", dnet_simple_set},
+	{"stall_count", dnet_simple_set},
 	{"group", dnet_set_group},
 	{"addr", dnet_set_addr},
 	{"remote", dnet_set_remote_addrs},

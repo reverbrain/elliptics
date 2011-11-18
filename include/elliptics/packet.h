@@ -55,6 +55,7 @@ enum dnet_commands {
 	DNET_CMD_READ_RANGE,			/* Read range of objects */
 	DNET_CMD_DEL_RANGE,			/* Remove range of objects */
 	DNET_CMD_AUTH,				/* Authentification cookie check */
+	DNET_CMD_BULK_READ,			/* Read a number of ids at one time */
 
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,

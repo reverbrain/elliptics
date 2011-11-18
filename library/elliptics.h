@@ -379,6 +379,7 @@ struct dnet_node
 	int			check_in_progress;
 	long			check_timeout;
 	pthread_t		check_tid;
+	long			stall_count;
 
 	pthread_t		monitor_tid;
 	int			monitor_fd;

@@ -923,3 +923,68 @@ std::string elliptics_node::exec(struct dnet_id *id, const std::string &script, 
 	return exec_name(id, name, script, binary, type);
 }
 
+std::vector<std::string> elliptics_node::bulk_read(std::vector<struct dnet_io_attr> &ios, int group_id, uint32_t aflags)
+{
+	struct dnet_range_data *data;
+	int err;
+
+	data = dnet_bulk_read(node, (struct dnet_io_attr*)(&ios[0]), ios.size(), group_id, aflags, &err);
+	if (!data && err) {
+		std::ostringstream str;
+		str << "Failed to read bulk data: group: " << group_id <<
+			": err: " << strerror(-err) << ": " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	std::vector<std::string> ret;
+
+	if (data) {
+		for (int i = 0; i < err; ++i) {
+			struct dnet_range_data *d = &data[i];
+			char *data = (char *)d->data;
+
+			while (d->size) {
+				struct dnet_io_attr *io = (struct dnet_io_attr *)data;
+
+				dnet_convert_io_attr(io);
+
+				uint64_t size = dnet_bswap64(io->size);
+
+				std::string str;
+
+				str.append((char *)io->id, DNET_ID_SIZE);
+				str.append((char *)&size, 8);
+				str.append((const char *)(io + 1), io->size);
+
+				ret.push_back(str);
+
+				data += sizeof(struct dnet_io_attr) + io->size;
+				d->size -= sizeof(struct dnet_io_attr) + io->size;
+			}
+
+			free(d->data);
+		}
+
+		free(data);
+	}
+
+	return ret;
+}
+
+std::vector<std::string> elliptics_node::bulk_read(std::vector<std::string> &keys, int group_id, uint32_t aflags)
+{
+	std::vector<struct dnet_io_attr> ios;
+	struct dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+
+	ios.resize(keys.size());
+
+	for (size_t i = 0; i < keys.size(); ++i) {
+		int dsize = DNET_ID_SIZE;
+		dnet_checksum_data(node, io.id, &dsize, keys[i].c_str(), keys[i].size());
+		ios.push_back(io);
+	}
+
+	return bulk_read(ios, group_id, aflags);
+}
+

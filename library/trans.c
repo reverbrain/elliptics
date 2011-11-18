@@ -315,7 +315,7 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d, weight: %f\n",
 				dnet_state_dump_addr(st), trans_timeout, st->stall, st->weight);
-		if (st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
+		if (st->stall >= st->n->stall_count) {
 			shutdown(st->read_s, 2);
 			shutdown(st->write_s, 2);
 

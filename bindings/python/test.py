@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, "/usr/lib/")
 sys.path.insert(0, "./.libs/")
 from libelliptics_python import *
+import binascii
 
 try:
 	log = elliptics_log_file("/dev/stderr", 8)
@@ -71,6 +72,14 @@ try:
 		print n.read_latest("test.txt", 0, 0, 0, 0, 0);
 	except Exception as e:
 		print "Failed to read latest data by string:", e
+
+	# bulk read of keys by name
+	try:
+		files =  n.bulk_read(["test1", "test2", "test3", "test4", "test5"], 1, 0)
+		for f in files:
+			print binascii.hexlify(f[:6]), ":", f[68:]
+	except Exception as e:
+		print "Failed to read bulk:", e
 
 	routes = n.get_routes()
 	for route in routes:
