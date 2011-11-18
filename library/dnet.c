@@ -530,6 +530,7 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_READ_RANGE] = "READ_RANGE",
 	[DNET_CMD_DEL_RANGE] = "DEL_RANGE",
 	[DNET_CMD_AUTH] = "AUTH",
+	[DNET_CMD_BULK_READ] = "BULK_READ",
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 
@@ -3942,5 +3943,194 @@ err_out_free:
 
 	return count;
 
+}
+
+void *dnet_bulk_read_wait_raw(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *ios,
+		uint32_t io_num, int cmd, uint32_t aflags, int *errp)
+{
+	struct dnet_io_control ctl;
+	struct dnet_io_attr io;
+	struct dnet_wait *w;
+	struct dnet_read_data_completion *c;
+	void *data = NULL;
+	int err;
+
+	w = dnet_wait_alloc(0);
+	if (!w) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	c = malloc(sizeof(*c));
+	if (!c) {
+		err = -ENOMEM;
+		goto err_out_put;
+	}
+
+	c->w = w;
+	c->size = 0;
+	c->data = NULL;
+	/* one for completion callback, another for this function */
+	atomic_init(&c->refcnt, 2);
+
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
+
+	ctl.fd = -1;
+
+	ctl.priv = c;
+	ctl.complete = dnet_read_data_complete;
+
+	ctl.cmd = cmd;
+	ctl.cflags = DNET_FLAGS_NEED_ACK;
+
+	ctl.aflags = aflags;
+
+	memcpy(&ctl.id, id, sizeof(struct dnet_id));
+
+	memset(&ctl.io, 0, sizeof(struct dnet_io_attr));
+
+	memcpy(io.id, id->id, DNET_ID_SIZE);
+	memcpy(io.parent, id->id, DNET_ID_SIZE);
+
+	ctl.io.size = io_num * sizeof(struct dnet_io_attr);
+	ctl.data = ios;
+
+	dnet_wait_get(w);
+	err = dnet_read_object(n, &ctl);
+	if (err)
+		goto err_out_put_complete;
+
+	err = dnet_wait_event(w, w->cond, &n->wait_ts);
+	if (err || w->status) {
+		char id_str[2*DNET_ID_SIZE + 1];
+		if (!err)
+			err = w->status;
+		if ((cmd != DNET_CMD_READ_RANGE) || (err != -ENOENT))
+			dnet_log(n, DNET_LOG_ERROR, "%d:%s : failed to read data: %d\n",
+				ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str), err);
+		goto err_out_put_complete;
+	}
+	err = c->size;
+	data = c->data;
+
+err_out_put_complete:
+	if (atomic_dec_and_test(&c->refcnt))
+		free(c);
+err_out_put:
+	dnet_wait_put(w);
+err_out_exit:
+	*errp = err;
+	return data;
+}
+
+
+static int dnet_io_attr_cmp(const void *d1, const void *d2)
+{
+	const struct dnet_io_attr *io1 = d1;
+	const struct dnet_io_attr *io2 = d2;
+
+	return memcmp(io1->id, io2->id, DNET_ID_SIZE);
+} 
+
+struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr *ios, uint32_t io_num, int group_id, uint32_t aflags, int *errp)
+{
+	struct dnet_id id, next_id;
+	int ret_num;
+	struct dnet_range_data *ret;
+	struct dnet_net_state *cur, *next = NULL;
+	uint64_t size = 0;
+	void *data;
+	int err, need_exit = 0;
+	uint32_t i, start = -1;
+
+	if (io_num <= 0) {
+		return 0;
+	}
+
+	qsort(ios, io_num, sizeof(struct dnet_io_attr), dnet_io_attr_cmp);
+
+	ret = NULL;
+	ret_num = 0;
+	size = ios[0].size;
+
+	dnet_setup_id(&id, group_id, ios[0].id);
+	id.type = ios[0].type;
+
+	cur = dnet_state_get_first(n, &id);
+	if (!cur) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: Can't get state for id\n", dnet_dump_id(&id));
+		err = -ENOENT;
+		goto err_out_exit;
+	}
+	dnet_log(n, DNET_LOG_DSA, "%s: addr = %s\n", dnet_dump_id(&id), dnet_state_dump_addr(cur));
+
+	for (i = 1; i < io_num; i++) {
+		dnet_setup_id(&next_id, group_id, ios[i].id);
+		next_id.type = ios[i].type;
+
+		next = dnet_state_get_first(n, &next_id);
+		if (!next) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: Can't get state for id\n", dnet_dump_id(&next_id));
+			err = -ENOENT;
+			goto err_out_put;
+		}
+		dnet_log(n, DNET_LOG_DSA, "%s: addr = %s\n", dnet_dump_id(&next_id), dnet_state_dump_addr(next));
+
+		/* Send command only if state changes or it's a last id */
+		if ((cur == next) && (i < io_num-1)) {
+			dnet_state_put(next);
+			next = NULL;
+			continue;
+		}
+
+		dnet_log(n, DNET_LOG_NOTICE, "start: %s: end: %s, count: %llu, addr: %s\n",
+					dnet_dump_id(&id),
+					dnet_dump_id(&next_id),
+					(unsigned long long)(i - start),
+					dnet_state_dump_addr(cur));
+
+		data = dnet_bulk_read_wait_raw(n, &id, ios, i - start, DNET_CMD_BULK_READ, aflags, &err);
+		if (data) {
+			size = err;
+			err = 0;
+
+				if (!size) {
+					free(data);
+				} else {
+					struct dnet_range_data *new_ret;
+
+					ret_num++;
+
+					new_ret = realloc(ret, ret_num * sizeof(struct dnet_range_data));
+					if (!new_ret) {
+						goto err_out_put;
+					}
+
+					ret = new_ret;
+
+					ret[ret_num - 1].data = data;
+					ret[ret_num - 1].size = size;
+				}
+
+				err = 0;
+		}
+
+		dnet_state_put(cur);
+		cur = next;
+		next = NULL;
+		memcpy(&id, &next_id, sizeof(struct dnet_id));
+	}
+
+err_out_put:
+	if (next)
+		dnet_state_put(next);
+	dnet_state_put(cur);
+err_out_exit:
+	if (ret) {
+		*errp = ret_num;
+	} else {
+		*errp = err;
+	}
+	return ret;
 }
 
