@@ -418,6 +418,25 @@ class elliptics_node_python : public elliptics_node {
 		void remove_by_name(const std::string &remote, int type) {
 			elliptics_node::remove(remote, type);
 		}
+
+		list bulk_read_by_name(const list &keys, int group_id, uint32_t aflags = 0) {
+			unsigned int length = len(keys);
+
+			std::vector<std::string> k;
+			k.resize(length);
+
+			for (unsigned int i = 0; i < length; ++i)
+				k[i] = extract<std::string>(keys[i]);
+
+			std::vector<std::string> ret =  elliptics_node::bulk_read(k, group_id, aflags);
+
+			list py_ret;
+			for (size_t i = 0; i < ret.size(); ++i) {
+				py_ret.append(ret[i]);
+			}
+
+			return py_ret;
+		}
 };
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
@@ -504,6 +523,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 
 		.def("remove", &elliptics_node_python::remove_by_id)
 		.def("remove", &elliptics_node_python::remove_by_name)
+
+		.def("bulk_read", &elliptics_node_python::bulk_read_by_name)
 	;
 };
 #endif
