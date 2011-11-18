@@ -167,9 +167,13 @@ err_out_exit:
 
 int dnet_cmd_exec_python(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, struct dnet_exec *e)
 {
+	struct dnet_node *n = st->n;
 	void *binary = NULL;
 	if (e->binary_size)
 		binary = e->data + e->script_size + e->name_size;
+
+	if (!n->srw)
+		return -ENOTSUP;
 
 	return dnet_cmd_exec_python_raw(st, cmd, attr, e->data, e->script_size, binary, e->binary_size);
 }
@@ -179,12 +183,16 @@ int dnet_cmd_exec_python_script(struct dnet_net_state *st, struct dnet_cmd *cmd,
 {
 	struct dnet_node *n = st->n;
 	char *full_path, *name, *script, *ptr;
-	struct dnet_srw_init_conf *base = n->srw->priv;
+	struct dnet_srw_init_conf *base;
 	struct dnet_map_fd m;
 	struct stat fst;
 	int err, total, fd;
 	void *binary = NULL;
 
+	if (!n->srw)
+		return -ENOTSUP;
+
+	base = n->srw->priv;
 	if (e->binary_size) {
 		binary = e->data + e->name_size + e->script_size;
 	}
