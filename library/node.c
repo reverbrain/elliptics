@@ -675,6 +675,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 	n->notify_hash_size = cfg->hash_size;
 	n->check_timeout = cfg->check_timeout;
+	n->stall_count = cfg->stall_count;
 	n->id.group_id = cfg->group_id;
 	n->bg_ionice_class = cfg->bg_ionice_class;
 	n->bg_ionice_prio = cfg->bg_ionice_prio;
@@ -700,6 +701,12 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		n->check_timeout = DNET_DEFAULT_CHECK_TIMEOUT_SEC;
 		dnet_log(n, DNET_LOG_NOTICE, "Using default check timeout (%ld seconds).\n",
 				n->check_timeout);
+	}
+
+	if (!n->stall_count) {
+		n->stall_count = DNET_DEFAULT_STALL_TRANSACTIONS;
+		dnet_log(n, DNET_LOG_NOTICE, "Using default stall count (%ld transactions).\n",
+				n->stall_count);
 	}
 
 	if (!n->notify_hash_size) {

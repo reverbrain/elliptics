@@ -372,6 +372,11 @@ struct dnet_config
 	long			check_timeout;
 
 	/*
+	 * Destroy state if stall_count transactions stalled.
+	 */
+	long			stall_count;
+
+	/*
 	 * Number of IO threads in processing pool
 	 */
 	int			io_thread_num;
