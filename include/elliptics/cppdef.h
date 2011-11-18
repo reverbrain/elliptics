@@ -178,6 +178,9 @@ class elliptics_node {
 		std::string		exec_name(struct dnet_id *id, const std::string &name, const std::string &script,
 						const std::string &binary, int type);
 
+		std::vector<std::string>	bulk_read(std::vector<struct dnet_io_attr> &ios, int group_id, uint32_t aflags = 0);
+		std::vector<std::string>	bulk_read(std::vector<std::string> &keys, int group_id, uint32_t aflags= 0);
+
 	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,
