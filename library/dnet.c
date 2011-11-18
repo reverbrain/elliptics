@@ -1144,8 +1144,6 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	}
 	free(ids);
 
-	st->__join_state = DNET_WANT_RECONNECT;
-
 	return st;
 
 err_out_free:
