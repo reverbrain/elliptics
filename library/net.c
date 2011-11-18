@@ -849,16 +849,21 @@ static int dnet_auth_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 	if (!state || !cmd)
 		return -EPERM;
 
-	n = state->n;
-	if (cmd->status == 0) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: authentification request suceeded\n", dnet_state_dump_addr(state));
-		return 0;
+	/* this means this callback at least has state and cmd */
+	if (!is_trans_destroyed(state, cmd, attr)) {
+		n = state->n;
+
+		if (cmd->status == 0) {
+			dnet_log(n, DNET_LOG_INFO, "%s: authentification request suceeded\n", dnet_state_dump_addr(state));
+			return 0;
+		}
+
+		dnet_log(n, DNET_LOG_ERROR, "%s: authentification request failed: %d\n", dnet_state_dump_addr(state), cmd->status);
+
+		state->__join_state = 0;
+		dnet_state_reset(state);
 	}
 
-	dnet_log(n, DNET_LOG_ERROR, "%s: authentification request failed: %d\n", dnet_state_dump_addr(state), cmd->status);
-
-	state->__join_state = 0;
-	dnet_state_reset(state);
 	return cmd->status;
 }
 
