@@ -898,6 +898,8 @@ int dnet_get_routes(struct dnet_node *n, struct dnet_id **ids, struct dnet_addr 
  */
 int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, struct dnet_exec *e, void **ret);
 
+struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr *ios, uint32_t io_num, int group_id, uint32_t aflags, int *errp);
+
 #ifdef __cplusplus
 }
 #endif

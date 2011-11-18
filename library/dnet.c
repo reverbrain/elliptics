@@ -4040,7 +4040,7 @@ struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr 
 	struct dnet_net_state *cur, *next = NULL;
 	uint64_t size = 0;
 	void *data;
-	int err, need_exit = 0;
+	int err;
 	uint32_t i, start = -1;
 
 	if (io_num <= 0) {
