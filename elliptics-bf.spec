@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.8
+Version:	2.10.4.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Nov 19 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.9-1
+- cpp tests update
+- Return -ENOTSUP if srw is not initialized
+- Do not reset join state to RECONNECT after it has been created
+- Added stall_count as a configurable parameter
+- Added BULK_READ command
+
 * Tue Nov 15 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.8-1
 - Fixed range counters
 - Added ::remove() methods into python binding
