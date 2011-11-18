@@ -191,59 +191,69 @@ static void test_lookup_parse(const std::string &key, const std::string &lret)
 
 static void test_lookup(elliptics_node &n, std::vector<int> &groups)
 {
-	std::string key = "2.xml";
-	std::string data = "lookup data";
-
-	std::string lret = n.write_data_wait(key, data, 0, 0, 0, 0);
-	test_lookup_parse(key, lret);
-
-	struct dnet_id id;
-	n.transform(key, id);
-	id.group_id = 0;
-	id.type = 0;
-
-	struct timespec ts = {0, 0};
-	n.write_metadata(id, key, groups, ts);
-
 	try {
+		std::string key = "2.xml";
+		std::string data = "lookup data";
+
+		std::string lret = n.write_data_wait(key, data, 0, 0, 0, 0);
+		test_lookup_parse(key, lret);
+
+		struct dnet_id id;
+		n.transform(key, id);
+		id.group_id = 0;
+		id.type = 0;
+
+		struct timespec ts = {0, 0};
+		n.write_metadata(id, key, groups, ts);
+
 		lret = n.lookup(key);
 		test_lookup_parse(key, lret);
 	} catch (const std::exception &e) {
-		std::cerr << key << ": LOOKUP failed" << std::endl;
+		std::cerr << "LOOKUP test failed: " << e.what() << std::endl;
 	}
 }
 
 static void test_append(elliptics_node &n)
 {
-	std::string key = "append-test";
-	std::string data = "first part of the message";
+	try {
+		std::string key = "append-test";
+		std::string data = "first part of the message";
 
-	n.write_data_wait(key, data, 0, 0, 0, 0);
+		n.write_data_wait(key, data, 0, 0, 0, 0);
 
-	data = "| second part of the message";
-	n.write_data_wait(key, data, 0, 0, DNET_IO_FLAGS_APPEND, 0);
+		data = "| second part of the message";
+		n.write_data_wait(key, data, 0, 0, DNET_IO_FLAGS_APPEND, 0);
 
-	std::cout << key << ": " << n.read_data_wait(key, 0, 0, 0, 0, 0) << std::endl;
+		/* read without checksums since we did not write metadata */
+		std::cout << key << ": " << n.read_data_wait(key, 0, 0, DNET_ATTR_NOCSUM, 0, 0) << std::endl;
+	} catch (const std::exception &e) {
+		std::cerr << "APPEND test failed: " << e.what() << std::endl;
+	}
 }
 
 static void test_exec_python(elliptics_node &n)
 {
-	std::string binary = "binary data";
-	std::string script = "from time import time, ctime\n"
-		"__return_data = 'Current time is ' + ctime(time()) + '"
-			"|received binary data: ' + __input_binary_data_tuple[0].decode('utf-8')";
+	try {
+		std::string binary = "binary data";
+		std::string script = "from time import time, ctime\n"
+			"__return_data = 'Current time is ' + ctime(time()) + '"
+				"|received binary data: ' + __input_binary_data_tuple[0].decode('utf-8')";
 
-	std::string ret;
+		std::string ret;
 
-	ret = n.exec(NULL, script, binary, DNET_EXEC_PYTHON);
+		ret = n.exec(NULL, script, binary, DNET_EXEC_PYTHON);
 
-	std::cout << "sent script: " << ret << std::endl;
+		std::cout << "sent script: " << ret << std::endl;
 
-	script = "local_addr_string = 'this is local addr string' + "
-			"'|received binary data: ' + __input_binary_data_tuple[0].decode('utf-8')";
-	std::string name = "test_script.py";
+		script = "local_addr_string = 'this is local addr string' + "
+				"'|received binary data: ' + __input_binary_data_tuple[0].decode('utf-8')";
+		std::string name = "test_script.py";
 
-	std::cout << "remote script: " << name << ": " << n.exec_name(NULL, name, script, binary, DNET_EXEC_PYTHON_SCRIPT_NAME) << std::endl;
+		std::cout << "remote script: " << name << ": " <<
+			n.exec_name(NULL, name, script, binary, DNET_EXEC_PYTHON_SCRIPT_NAME) << std::endl;
+	} catch (const std::exception &e) {
+		std::cerr << "PYTHON exec test failed: " << e.what() << std::endl;
+	}
 }
 
 int main()
