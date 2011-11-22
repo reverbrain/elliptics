@@ -737,14 +737,9 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
 		int s;
 
-		err = dnet_srw_init(n, cfg);
-		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
-		}
-
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
 		if (!ids)
-			goto err_out_srw_cleanup;
+			goto err_out_io_exit;
 
 		n->addr.addr_len = sizeof(n->addr.addr);
 		err = dnet_socket_create(n, cfg, &n->addr, 1);
@@ -762,6 +757,11 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 
 		free(ids);
 		ids = NULL;
+
+		err = dnet_srw_init(n, cfg);
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
+		}
 	}
 
 	err = dnet_check_thread_start(n);
@@ -773,12 +773,11 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	return n;
 
 err_out_state_destroy:
+	dnet_srw_cleanup(n);
 	dnet_state_put(n->st);
 err_out_ids_cleanup:
 	free(ids);
-err_out_srw_cleanup:
-	dnet_srw_cleanup(n);
-//err_out_io_exit:
+err_out_io_exit:
 	dnet_io_exit(n);
 err_out_monitor_exit:
 	dnet_monitor_exit(n);
@@ -814,9 +813,9 @@ void dnet_node_destroy(struct dnet_node *n)
 	n->need_exit = 1;
 	dnet_check_thread_stop(n);
 
-	dnet_io_exit(n);
-
 	dnet_srw_cleanup(n);
+
+	dnet_io_exit(n);
 
 	dnet_notify_exit(n);
 
