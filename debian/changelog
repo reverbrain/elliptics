@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.4.11) unstable; urgency=low
+
+  * Do not chroot into history environment, since it is most likely incomplete
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Nov 2011 05:42:32 +0400
+
 elliptics-2.10 (2.10.4.10) unstable; urgency=low
 
   * Do not csum read when DNET_IO_FLAGS_NOCSUM ioflag is set
