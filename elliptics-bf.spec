@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.9
+Version:	2.10.4.10
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Nov 22 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.10-1
+- Do not csum read when DNET_IO_FLAGS_NOCSUM ioflag is set
+- When doing partial read, checksum whole file
+
 * Sat Nov 19 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.9-1
 - cpp tests update
 - Return -ENOTSUP if srw is not initialized

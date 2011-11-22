@@ -1,3 +1,10 @@
+elliptics-2.10 (2.10.4.10) unstable; urgency=low
+
+  * Do not csum read when DNET_IO_FLAGS_NOCSUM ioflag is set
+  * When doing partial read, checksum whole file
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 22 Nov 2011 04:55:37 +0400
+
 elliptics-2.10 (2.10.4.9) unstable; urgency=low
 
   * cpp tests update
