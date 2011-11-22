@@ -90,9 +90,10 @@ static int dnet_srw_init_python(struct dnet_node *n, struct dnet_config *cfg)
 	}
 
 	if (geteuid() == 0) {
-		chroot_path = cfg->history_env;
+		//chroot_path = cfg->history_env;
+		dnet_log(n, DNET_LOG_INFO, "\n\n!!!  srw: DO NOT CHROOTING because of incomplete install/implementation  !!!\n\n");
 	} else {
-		dnet_log(n, DNET_LOG_INFO, "\n\n!!!  srw: DO NOT CHROOTING because of incufficient privilege  !!!\n\n");
+		dnet_log(n, DNET_LOG_INFO, "\n\n!!!  srw: DO NOT CHROOTING because of insufficient privilege  !!!\n\n");
 	}
 
 	snprintf(srw_init_path, sizeof(srw_init_path), "%s/python.log", cfg->history_env);
