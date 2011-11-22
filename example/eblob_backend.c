@@ -201,6 +201,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 			goto err_out_exit;
 		}
 
+		offset = 0; /* to shut up compiler - offset is not used when there is data */
 		fd = -1;
 	} else {
 		if (io->offset >= orig_size) {
@@ -215,7 +216,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 			size = io->size;
 	}
 
-	if (!(attr->flags & DNET_ATTR_NOCSUM) && fd != -1 && orig_size) {
+	if (!(attr->flags & DNET_ATTR_NOCSUM) && !(io->flags & DNET_IO_FLAGS_NOCSUM) && fd != -1 && orig_size) {
 		struct dnet_file_info info;
 		struct dnet_id id;
 
