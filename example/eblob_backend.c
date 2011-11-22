@@ -177,7 +177,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 {
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->eblob;
-	uint64_t offset, size;
+	uint64_t offset, size, orig_offset, orig_size;
 	struct eblob_key key;
 	char *read_data = NULL;
 	int fd, err;
@@ -186,7 +186,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
-	err = eblob_read(b, &key, &fd, &offset, &size, io->type);
+	err = eblob_read(b, &key, &fd, &orig_offset, &orig_size, io->type);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-fd: READ: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
@@ -203,26 +203,26 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 		fd = -1;
 	} else {
-		if (io->offset >= size) {
+		if (io->offset >= orig_size) {
 			err = -E2BIG;
 			goto err_out_exit;
 		}
 
-		offset += io->offset;
-		size -= io->offset;
+		offset = orig_offset + io->offset;
+		size = orig_size - io->offset;
 
 		if (io->size && size > io->size)
 			size = io->size;
 	}
 
-	if (!(attr->flags & DNET_ATTR_NOCSUM) && fd != -1 && size) {
+	if (!(attr->flags & DNET_ATTR_NOCSUM) && fd != -1 && orig_size) {
 		struct dnet_file_info info;
 		struct dnet_id id;
 
 		dnet_setup_id(&id, cmd->id.group_id, io->id);
 		id.type = io->type;
 
-		err = dnet_read_file_info(dnet_get_node_from_state(state), &id, &info, fd, offset, size);
+		err = dnet_read_file_info(dnet_get_node_from_state(state), &id, &info, fd, orig_offset, orig_size);
 		if (err && (err != -ENODATA))
 			goto err_out_free;
 	}
