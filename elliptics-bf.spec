@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.13
+Version:	2.11.0.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Nov 23 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.1-1
+- Added operations locks. Now all commands are processed with single-machine-atomicity
+- Added server-side scripts
+
 * Wed Nov 23 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.13-1
 - Only perform blob write if io->size is not zero
 
