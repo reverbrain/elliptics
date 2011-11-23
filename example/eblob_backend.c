@@ -107,39 +107,41 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 			dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type);
 	}
 
-	if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
-		if (io->size) {
-			err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, io->type);
-		}
-	} else {
-		err = eblob_write(c->eblob, &key, data, io->offset, io->size, flags, io->type);
-		if (!err) {
-			if (io->size >= sizeof(struct eblob_write_control)) {
-				memcpy(&wc, data, sizeof(struct eblob_write_control));
-			} else {
-				err = eblob_read(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, io->type);
-				if (err < 0) {
-					dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: size: %llu: type: %d: %s %d\n",
-						dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
-					goto err_out_exit;
-				}
+	if (io->size) {
+		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
+			if (io->size) {
+				err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, io->type);
+			}
+		} else {
+			err = eblob_write(c->eblob, &key, data, io->offset, io->size, flags, io->type);
+			if (!err) {
+				if (io->size >= sizeof(struct eblob_write_control)) {
+					memcpy(&wc, data, sizeof(struct eblob_write_control));
+				} else {
+					err = eblob_read(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, io->type);
+					if (err < 0) {
+						dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: size: %llu: type: %d: %s %d\n",
+							dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
+						goto err_out_exit;
+					}
 
-				/* data is compressed, but we only care about header */
-				if (err == 1) {
-					err = 0;
+					/* data is compressed, but we only care about header */
+					if (err == 1) {
+						err = 0;
+					}
 				}
 			}
 		}
-	}
 
-	if (err) {
-		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: WRITE: %d: %s\n",
-			dnet_dump_id_str(io->id), err, strerror(-err));
-		goto err_out_exit;
-	}
+		if (err) {
+			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: WRITE: %d: %s\n",
+				dnet_dump_id_str(io->id), err, strerror(-err));
+			goto err_out_exit;
+		}
 
-	dnet_backend_log(DNET_LOG_INFO, "%s: EBLOB: blob-write: WRITE: Ok: offset: %llu, size: %llu, type: %d.\n",
-		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->type);
+		dnet_backend_log(DNET_LOG_INFO, "%s: EBLOB: blob-write: WRITE: Ok: offset: %llu, size: %llu, type: %d.\n",
+			dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->type);
+	}
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
 		wc.offset = 0;
