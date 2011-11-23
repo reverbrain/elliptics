@@ -720,15 +720,15 @@ int dnet_remove_object(struct dnet_node *n, struct dnet_id *id,
 			struct dnet_attr *attr,
 			void *priv),
 	void *priv,
-	int direct);
+	int direct, int aflags);
 
 /* Remove object with @id from the storage immediately */
-int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, int direct);
+int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, int direct, int aflags);
 
 /*
  * Remove given file (identified by name or ID) from the storage.
  */
-int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id);
+int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, int aflags);
 
 /*
  * Transformation helper, which uses *ppos as an index for transformation function.

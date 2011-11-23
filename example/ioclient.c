@@ -301,13 +301,13 @@ int main(int argc, char *argv[])
 
 			for (i=0; i<group_num; ++i) {
 				dnet_setup_id(&raw, groups[i], id);
-				dnet_remove_object_now(n, &raw, 0);
+				dnet_remove_object_now(n, &raw, 0, aflags);
 			}
 
 			return 0;
 		}
 
-		err = dnet_remove_file(n, removef, strlen(removef), NULL);
+		err = dnet_remove_file(n, removef, strlen(removef), NULL, aflags);
 		if (err)
 			return err;
 	}

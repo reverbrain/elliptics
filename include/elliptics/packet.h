@@ -118,8 +118,8 @@ enum dnet_counters {
 /* Do not forward requst to antoher node even if given ID does not belong to our range */
 #define DNET_FLAGS_DIRECT		(1<<3)
 
-/* Do not perform local transformation of the received transaction */
-#define DNET_FLAGS_NO_LOCAL_TRANSFORM	(1<<4)
+/* Do not locks operations - must be set for script callers or recursive operations */
+#define DNET_FLAGS_NOLOCK		(1<<4)
 
 struct dnet_id {
 	uint8_t			id[DNET_ID_SIZE];
@@ -212,6 +212,12 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
  * c++ bindings only
  */
 #define DNET_ATTR_SORT				(1<<3)
+
+/*
+ * This flag will force its parent CMD not to lock operation
+ * Flag will be propagated to cmd->flags
+ */
+#define DNET_ATTR_NOLOCK			(1<<4)
 
 struct dnet_attr
 {

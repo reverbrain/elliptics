@@ -332,6 +332,16 @@ void dnet_io_exit(struct dnet_node *n);
 
 void dnet_io_req_free(struct dnet_io_req *r);
 
+struct dnet_locks {
+	int			num;
+	pthread_mutex_t		lock[0];
+};
+
+void dnet_locks_destroy(struct dnet_node *n);
+int dnet_locks_init(struct dnet_node *n, int num);
+void dnet_oplock(struct dnet_node *n, struct dnet_id *key);
+void dnet_opunlock(struct dnet_node *n, struct dnet_id *key);
+
 struct dnet_node
 {
 	struct list_head	check_entry;
@@ -409,6 +419,8 @@ struct dnet_node
 
 	int			server_prio;
 	int			client_prio;
+
+	struct dnet_locks	*locks;
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)

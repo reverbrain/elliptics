@@ -235,6 +235,8 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 	a->cmd = t->command = ctl->cmd;
 	a->size = ctl->size;
 	a->flags = ctl->aflags;
+	if (ctl->aflags & DNET_ATTR_NOLOCK)
+		cmd->flags |= DNET_FLAGS_NOLOCK;
 
 	if (ctl->size && ctl->data)
 		memcpy(a + 1, ctl->data, ctl->size);

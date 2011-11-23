@@ -409,14 +409,14 @@ class elliptics_node_python : public elliptics_node {
 			return elliptics_node::exec(&raw, script, binary, type);
 		}
 
-		void remove_by_id(const struct elliptics_id &id) {
+		void remove_by_id(const struct elliptics_id &id, int aflags) {
 			struct dnet_id raw = id.to_dnet();
 
-			elliptics_node::remove(raw);
+			elliptics_node::remove_raw(raw, aflags);
 		}
 
-		void remove_by_name(const std::string &remote, int type) {
-			elliptics_node::remove(remote, type);
+		void remove_by_name(const std::string &remote, int type, int aflags) {
+			elliptics_node::remove_raw(remote, type, aflags);
 		}
 
 		list bulk_read_by_name(const list &keys, int group_id, uint32_t aflags = 0) {
