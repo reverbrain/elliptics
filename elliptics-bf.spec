@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.10.4.12
+Version:	2.10.4.13
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Nov 23 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.13-1
+- Only perform blob write if io->size is not zero
+
 * Tue Nov 22 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.10.4.12-1
 - Initialize srw after node
 

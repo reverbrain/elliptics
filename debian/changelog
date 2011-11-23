@@ -1,3 +1,9 @@
+elliptics-2.10 (2.10.4.13) unstable; urgency=low
+
+  * Only perform blob write if io->size is not zero
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 23 Nov 2011 04:19:15 +0400
+
 elliptics-2.10 (2.10.4.12) unstable; urgency=low
 
   * Initialize srw after node
