@@ -1,0 +1,22 @@
+import sys
+sys.path.append('/tmp/dnet/lib')
+sys.path.append('/tmp/test/history.2')
+from libelliptics_python import *
+
+# groups used in metadata write
+pohmelfs_groups = [1, 2, 3]
+pohmelfs_log_file = '/tmp/test/history.2/python.log'
+
+log = elliptics_log_file(pohmelfs_log_file, 10)
+n = elliptics_node_python(log)
+# we should only add own local group, since we do not want all updates to be repeated for all groups
+n.add_groups([2])
+n.add_remote('172.16.239.1', 1025)
+
+__return_data = 'unused'
+
+from sstable2 import sstable
+
+import logging
+FORMAT = "%(asctime)-15s %(process)d %(script)s %(dentry_name)s %(message)s"
+logging.basicConfig(filename=pohmelfs_log_file, level=logging.DEBUG, format=FORMAT)
