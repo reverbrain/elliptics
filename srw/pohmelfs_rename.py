@@ -49,7 +49,7 @@ try:
 	pohmelfs_write(old_dir_id, content)
 
 	__return_data = 'ok'
-	logging.info("renamed -> %s", new_name, extra=d)
+	logging.info("renamed -> %s: %s", new_name, parse(content), extra=d)
 except KeyError as e:
 	logging.error("key error: %s", e.__str__(), extra=d)
 	__return_data = 'key error: ' + e.__str__()

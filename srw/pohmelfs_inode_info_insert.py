@@ -16,7 +16,7 @@ try:
 	content = str(s.save())
 
 	pohmelfs_write(parent_id, content)
-	logging.info("inserted", extra=d)
+	logging.info("inserted: %s", parse(content), extra=d)
 	__return_data = 'ok'
 except KeyError as e:
 	logging.error("key error: %s", e.__str__(), extra=d)
