@@ -414,6 +414,9 @@ struct dnet_config
 	/* man 7 socket for IP_PRIORITY - priorities are set for joined (server) and others (client) connections */
 	int			server_prio;
 	int			client_prio;
+
+	/* table of operation locks */
+	int			oplock_num;
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);

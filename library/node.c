@@ -666,6 +666,9 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!cfg->removal_delay)
 		cfg->removal_delay = 10; /* Store removed files 10 days by default */
 
+	if (!cfg->oplock_num)
+		cfg->oplock_num = 1024;
+
 	n->proto = cfg->proto;
 	n->sock_type = cfg->sock_type;
 	n->family = cfg->family;
@@ -737,7 +740,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
 		int s;
 
-		err = dnet_locks_init(n, 1024);
+		err = dnet_locks_init(n, cfg->oplock_num);
 		if (err)
 			goto err_out_io_exit;
 
