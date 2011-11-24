@@ -29,12 +29,14 @@ void dnet_locks_destroy(struct dnet_node *n)
 {
 	int i;
 
-	for (i = 0; i < n->locks->num; ++i) {
-		pthread_mutex_destroy(&n->locks->lock[i]);
-	}
+	if (n->locks) {
+		for (i = 0; i < n->locks->num; ++i) {
+			pthread_mutex_destroy(&n->locks->lock[i]);
+		}
 
-	free(n->locks);
-	n->locks = NULL;
+		free(n->locks);
+		n->locks = NULL;
+	}
 }
 
 int dnet_locks_init(struct dnet_node *n, int num)
