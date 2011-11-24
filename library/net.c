@@ -674,7 +674,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 
 int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 {
-	int err;
+	int err = 0;
 	struct dnet_trans *t = NULL;
 	struct dnet_node *n = st->n;
 	struct dnet_net_state *forward_state;
@@ -717,7 +717,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 			(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {
 		dnet_state_put(forward_state);
 
-		dnet_process_cmd_raw(st, cmd, r->data);
+		err = dnet_process_cmd_raw(st, cmd, r->data);
 		goto out;
 	}
 
@@ -733,10 +733,10 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 
 	dnet_state_put(forward_state);
 #else
-	dnet_process_cmd_raw(st, cmd, r->data);
+	err = dnet_process_cmd_raw(st, cmd, r->data);
 #endif
 out:
-	return 0;
+	return err;
 
 err_out_destroy:
 	dnet_trans_put(t);

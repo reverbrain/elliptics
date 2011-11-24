@@ -341,6 +341,7 @@ void dnet_locks_destroy(struct dnet_node *n);
 int dnet_locks_init(struct dnet_node *n, int num);
 void dnet_oplock(struct dnet_node *n, struct dnet_id *key);
 void dnet_opunlock(struct dnet_node *n, struct dnet_id *key);
+int dnet_optrylock(struct dnet_node *n, struct dnet_id *key);
 
 struct dnet_node
 {
