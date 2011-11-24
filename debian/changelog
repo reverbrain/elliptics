@@ -1,3 +1,9 @@
+elliptics-2.10 (2.11.0.2) unstable; urgency=low
+
+  * Aflags/lock cleanups
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Nov 2011 05:39:46 +0400
+
 elliptics-2.10 (2.11.0.1) unstable; urgency=low
 
   * Added operations locks. Now all commands are processed with
