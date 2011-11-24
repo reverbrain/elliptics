@@ -677,7 +677,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
 		err = -dnet_optrylock(n, &cmd->id);
 		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: can't lock mutex: err: %d\n",
+			dnet_log(n, DNET_LOG_DSA, "%s: can't lock mutex: err: %d\n",
 					dnet_dump_id(&cmd->id), err);
 			return err;
 		}
