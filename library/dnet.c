@@ -674,8 +674,14 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	dnet_log(n, DNET_LOG_DSA, "%s: %s: trans: %llu, lock: %d, size: %llu\n",
 			dnet_dump_id(&cmd->id), dnet_state_dump_addr(st),
 			tid, !(cmd->flags & DNET_FLAGS_NOLOCK), (unsigned long long)cmd->size);
-	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
-		dnet_oplock(n, &cmd->id);
+	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
+		err = -dnet_optrylock(n, &cmd->id);
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: can't lock mutex: err: %d\n",
+					dnet_dump_id(&cmd->id), err);
+			return err;
+		}
+	}
 
 	while (size) {
 		struct dnet_attr *a = data;

@@ -456,8 +456,15 @@ static void *dnet_io_process_pool(void *data_)
 				dnet_state_dump_addr(st), dnet_dump_id(r->header), r, r->hsize, r->dsize);
 
 		err = dnet_process_recv(st, r);
-
-		dnet_io_req_free(r);
+		/* Check if operation was failed because another thread has already locked mutex */
+		if (err = -EBUSY) {
+			/* In such case add it again at the tail of the queue */
+			pthread_mutex_lock(&io->recv_lock);
+			list_add_tail(&r->req_entry, &io->recv_list);
+			pthread_mutex_unlock(&io->recv_lock);
+		} else {
+			dnet_io_req_free(r);
+		}
 
 		dnet_state_put(st);
 	}
