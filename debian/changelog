@@ -1,3 +1,9 @@
+elliptics-2.10 (2.11.0.4) unstable; urgency=low
+
+  * Added nolocking IO thread
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Nov 2011 22:38:03 +0400
+
 elliptics-2.10 (2.11.0.3) unstable; urgency=low
 
   * Added oplock_num config parameter
