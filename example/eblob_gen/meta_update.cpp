@@ -263,7 +263,7 @@ class remote_update {
 				std::string name;
 				struct timespec ts = {0, 0};
 
-				n->write_metadata(id, name, groups_, ts);
+				n->write_metadata(id, name, groups_, ts, aflags_);
 			}
 		}
 

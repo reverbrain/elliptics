@@ -364,7 +364,7 @@ std::string elliptics_node::create_metadata(const struct dnet_id &id, const std:
 }
 
 int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &obj,
-		const std::vector<int> &groups, const struct timespec &ts)
+		const std::vector<int> &groups, const struct timespec &ts, int aflags)
 {
 	int err;
 	std::string meta;
@@ -377,7 +377,7 @@ int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &
 
 	mc.id = id;
 
-	err = dnet_write_metadata(node, &mc, 1);
+	err = dnet_write_metadata(node, &mc, 1, aflags);
 	if (err) {
 		std::ostringstream str;
 		str << "Failed to write metadata: key: " << dnet_dump_id(&id) << ", err: " << err;

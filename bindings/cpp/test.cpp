@@ -203,8 +203,10 @@ static void test_lookup(elliptics_node &n, std::vector<int> &groups)
 		id.group_id = 0;
 		id.type = 0;
 
+		int aflags = 0;
+
 		struct timespec ts = {0, 0};
-		n.write_metadata(id, key, groups, ts);
+		n.write_metadata(id, key, groups, ts, aflags);
 
 		lret = n.lookup(key);
 		test_lookup_parse(key, lret);

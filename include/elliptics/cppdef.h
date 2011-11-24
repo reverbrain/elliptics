@@ -147,7 +147,7 @@ class elliptics_node {
 		std::string		create_metadata(const struct dnet_id &id, const std::string &obj,
 							const std::vector<int> &groups, const struct timespec &ts);
 		int			write_metadata(const struct dnet_id &id, const std::string &obj,
-							const std::vector<int> &groups, const struct timespec &ts);
+							const std::vector<int> &groups, const struct timespec &ts, int aflags);
 
 		void			lookup(const std::string &data, const elliptics_callback &c);
 		void			lookup(const struct dnet_id &id, const elliptics_callback &c);

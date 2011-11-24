@@ -20,3 +20,18 @@ from sstable2 import sstable
 import logging
 FORMAT = "%(asctime)-15s %(process)d %(script)s %(dentry_name)s %(message)s"
 logging.basicConfig(filename=pohmelfs_log_file, level=logging.DEBUG, format=FORMAT)
+
+pohmelfs_offset = 0
+pohmelfs_size = 0
+# do not check csum
+#pohmelfs_ioflags_read = 256
+pohmelfs_ioflags_read = 0
+pohmelfs_ioflags_write = 0
+# do not lock operation, since we are 'inside' DNET_CMD_EXEC command already
+pohmelfs_aflags = 16
+pohmelfs_column = 0
+pohmelfs_group_id = 0
+
+def pohmelfs_write(parent_id, content):
+	n.write_data(parent_id, content, pohmelfs_offset, pohmelfs_aflags, pohmelfs_ioflags_write)
+	n.write_metadata(parent_id, '', pohmelfs_groups, pohmelfs_aflags)

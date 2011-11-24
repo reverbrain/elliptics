@@ -498,7 +498,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 					goto err_out_cont2;
 
 				memcpy(&mc.id, &id, sizeof(struct dnet_id));
-				err = dnet_write_metadata(state->n, &mc, 0);
+				err = dnet_write_metadata(state->n, &mc, 0, aflags);
 				dnet_log(state->n, DNET_LOG_DSA, "BULK: dnet_write_metadata %s in group %d, err=%d\n",
 						dnet_dump_id(&id), my_group, err);
 
@@ -817,6 +817,7 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc)
 {
 	struct dnet_net_state *base;
+	int aflags = 0;
 	int err;
 
 	dnet_log(n, DNET_LOG_DSA, "in dnet_merge_direct mc->size = %u\n", mc->size);
@@ -832,7 +833,7 @@ static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc
 		goto err_out_put;
 
 	dnet_log(n, DNET_LOG_DSA, "in dnet_merge_direct2 mc->size = %u\n", mc->size);
-	err = dnet_write_metadata(n, mc, 0);
+	err = dnet_write_metadata(n, mc, 0, aflags);
 	if (err <= 0)
 		goto err_out_put;
 

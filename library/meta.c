@@ -244,7 +244,7 @@ static void dnet_convert_metadata(struct dnet_node *n __unused, void *data, int 
 	}
 }
 
-int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert)
+int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert, int aflags)
 {
 	struct dnet_io_control ctl;
 	int err;
@@ -260,6 +260,10 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 	ctl.io.size = mc->size;
 	ctl.io.flags = DNET_IO_FLAGS_META;
 
+	ctl.aflags = aflags;
+	if (aflags & DNET_ATTR_NOLOCK)
+		ctl.cflags |= DNET_FLAGS_NOLOCK;
+
 	memcpy(&ctl.id, &mc->id, sizeof(struct dnet_id));
 	ctl.id.type = ctl.io.type = EBLOB_TYPE_META;
 
@@ -272,7 +276,7 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 }
 
 int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, unsigned int remote_len,
-		struct dnet_id *id, struct timespec *ts)
+		struct dnet_id *id, struct timespec *ts, int aflags)
 {
 	struct dnet_metadata_control mc;
 	int *groups = NULL;
@@ -292,6 +296,7 @@ int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, 
 	mc.groups = groups;
 	mc.group_num = group_num;
 	mc.id = *id;
+	mc.aflags = aflags;
 
 	if (ts) {
 		mc.ts = *ts;
@@ -412,7 +417,7 @@ int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control
 	if (err)
 		goto err_out_exit;
 
-	err = dnet_write_metadata(n, &mc, 1);
+	err = dnet_write_metadata(n, &mc, 1, ctl->aflags);
 	if (err)
 		goto err_out_free;
 

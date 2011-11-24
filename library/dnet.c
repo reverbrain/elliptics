@@ -363,8 +363,8 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	dnet_convert_exec(e);
 
-	dnet_log(n, DNET_LOG_DSA, "%s: type: %d, command: '%s'.\n",
-			dnet_dump_id(&cmd->id), e->type, e->data);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: type: %d, command: '%.*s'.\n",
+			dnet_dump_id(&cmd->id), e->type, (int)e->script_size + (int)e->name_size, e->data);
 
 	if (e->script_size + e->name_size + e->binary_size + sizeof(struct dnet_exec) != attr->size) {
 		err = -E2BIG;
@@ -671,6 +671,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	struct timeval start, end;
 	long diff;
 
+	dnet_log(n, DNET_LOG_DSA, "%s: %s: trans: %llu, lock: %d, size: %llu\n",
+			dnet_dump_id(&cmd->id), dnet_state_dump_addr(st),
+			tid, !(cmd->flags & DNET_FLAGS_NOLOCK), (unsigned long long)cmd->size);
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
 		dnet_oplock(n, &cmd->id);
 
@@ -853,6 +856,8 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		err = dnet_send(st, &ack, sizeof(struct dnet_cmd));
 	}
 
+	dnet_log(n, DNET_LOG_DSA, "%s: unlock: %d, size: %llu\n",
+			dnet_dump_id(&cmd->id), !(cmd->flags & DNET_FLAGS_NOLOCK), (unsigned long long)cmd->size);
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
 		dnet_opunlock(n, &cmd->id);
 
@@ -1356,19 +1361,21 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 	}
 
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
-	dnet_convert_cmd(cmd);
-	dnet_convert_attr(a);
-	dnet_convert_io_attr(io);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, size: %llu, offset: %llu, "
+	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: %x, size: %llu, offset: %llu, "
 			"fd: %d, local_offset: %llu -> %s weight: %f, mrt: %ld.\n",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
-			dnet_cmd_string(ctl->cmd),
+			dnet_cmd_string(ctl->cmd), cmd->flags,
 			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
 			ctl->fd,
 			(unsigned long long)ctl->local_offset,
 			dnet_server_convert_dnet_addr(&t->st->addr), t->st->weight, t->st->median_read_time);
+
+	dnet_convert_cmd(cmd);
+	dnet_convert_attr(a);
+	dnet_convert_io_attr(io);
+
 
 	memset(&req, 0, sizeof(req));
 	req.st = t->st;
@@ -1554,7 +1561,7 @@ int dnet_write_file_id(struct dnet_node *n, const char *file, struct dnet_id *id
 	int err = dnet_write_file_id_raw(n, file, id, local_offset, remote_offset, size, aflags, ioflags);
 
 	if (!err)
-		err = dnet_create_write_metadata_strings(n, NULL, 0, id, NULL);
+		err = dnet_create_write_metadata_strings(n, NULL, 0, id, NULL, aflags);
 
 	return err;
 }
@@ -1571,7 +1578,7 @@ int dnet_write_file(struct dnet_node *n, const char *file, const void *remote, i
 
 	err = dnet_write_file_id_raw(n, file, &id, local_offset, remote_offset, size, aflags, ioflags);
 	if (!err)
-		err = dnet_create_write_metadata_strings(n, remote, remote_len, &id, NULL);
+		err = dnet_create_write_metadata_strings(n, remote, remote_len, &id, NULL, aflags);
 
 	return err;
 }
@@ -2957,6 +2964,8 @@ int dnet_write_data_wait(struct dnet_node *n, struct dnet_io_control *ctl)
 
 	ctl->cmd = DNET_CMD_WRITE;
 	ctl->cflags = DNET_FLAGS_NEED_ACK;
+	if (ctl->aflags & DNET_ATTR_NOLOCK)
+		ctl->cflags |= DNET_FLAGS_NOLOCK;
 
 	memcpy(ctl->io.id, ctl->id.id, DNET_ID_SIZE);
 	memcpy(ctl->io.parent, ctl->id.id, DNET_ID_SIZE);

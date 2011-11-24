@@ -85,7 +85,9 @@ void dnet_oplock(struct dnet_node *n, struct dnet_id *key)
 {
 	unsigned int idx = dnet_ophash_index(n, key);
 
+	dnet_log(n, DNET_LOG_DSA, "locking idx: %d\n", idx);
 	pthread_mutex_lock(&n->locks->lock[idx]);
+	dnet_log(n, DNET_LOG_DSA, "locked idx: %d\n", idx);
 }
 
 void dnet_opunlock(struct dnet_node *n, struct dnet_id *key)
@@ -93,5 +95,6 @@ void dnet_opunlock(struct dnet_node *n, struct dnet_id *key)
 	unsigned int idx = dnet_ophash_index(n, key);
 
 	pthread_mutex_unlock(&n->locks->lock[idx]);
+	dnet_log(n, DNET_LOG_DSA, "unlocked idx: %d\n", idx);
 }
 
