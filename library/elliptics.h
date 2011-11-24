@@ -311,6 +311,11 @@ struct dnet_net_io {
 	struct dnet_node	*n;
 };
 
+struct dnet_work_io {
+	int			thread_index;
+	struct dnet_node	*n;
+};
+
 struct dnet_io {
 	int			need_exit;
 
@@ -323,6 +328,7 @@ struct dnet_io {
 
 	int			thread_num;
 	pthread_t		*threads;
+	struct dnet_work_io	*wio;
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
