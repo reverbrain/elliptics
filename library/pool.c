@@ -418,7 +418,7 @@ static void *dnet_io_process_pool(void *data_)
 	struct dnet_io *io = n->io;
 	struct timespec ts;
 	struct timeval tv;
-	struct dnet_io_req *r;
+	struct dnet_io_req *r, *first_blocked_r = NULL;
 	int err = 0;
 
 	dnet_log(n, DNET_LOG_NOTICE, "Starting IO processing thread.\n");
@@ -461,12 +461,29 @@ static void *dnet_io_process_pool(void *data_)
 			/* In such case add it again at the tail of the queue */
 			pthread_mutex_lock(&io->recv_lock);
 			list_add_tail(&r->req_entry, &io->recv_list);
+
+			/* If all requests in queue are blocked sleep 1ms
+			 * or wait if we get new requests
+			 */
+			if (first_blocked_r == r) {
+				gettimeofday(&tv, NULL);
+				ts.tv_sec = tv.tv_sec;
+				ts.tv_nsec = (tv.tv_usec + 10000) * 1000;
+
+				err = pthread_cond_timedwait(&io->recv_wait, &io->recv_lock, &ts);
+			}
+
+			if (!first_blocked_r)
+				first_blocked_r = r;
 			pthread_mutex_unlock(&io->recv_lock);
+				
 		} else {
 			dnet_io_req_free(r);
-		}
 
-		dnet_state_put(st);
+			dnet_state_put(st);
+
+			first_blocked_r = NULL;
+		}
 	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "Exiting IO processing thread: need_exit: %d, err: %d.\n", n->need_exit, err);
