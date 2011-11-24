@@ -411,14 +411,21 @@ static void dnet_io_cleanup_states(struct dnet_node *n)
 	}
 }
 
+struct dnet_io_process_data {
+	struct dnet_node *n;
+	int thread_number;
+};
+
 static void *dnet_io_process_pool(void *data_)
 {
-	struct dnet_node *n = data_;
+	struct dnet_work_io *wio = data_;
+	struct dnet_node *n = wio->n;
 	struct dnet_net_state *st;
 	struct dnet_io *io = n->io;
 	struct timespec ts;
 	struct timeval tv;
 	struct dnet_io_req *r, *first_blocked_r = NULL;
+	struct dnet_cmd *cmd;
 	int err = 0;
 
 	dnet_log(n, DNET_LOG_NOTICE, "Starting IO processing thread.\n");
@@ -451,6 +458,17 @@ static void *dnet_io_process_pool(void *data_)
 			continue;
 
 		st = r->st;
+
+		cmd = (struct dnet_cmd *)r->header;
+		/* Do not process locking commands by first thread */
+		if (wio->thread_index == 0 && io->thread_num > 1
+		    && cmd->flags & DNET_FLAGS_NOLOCK) {
+			pthread_mutex_lock(&io->recv_lock);
+			list_add_tail(&r->req_entry, &io->recv_list);
+			pthread_mutex_unlock(&io->recv_lock);
+
+			continue;
+		}
 
 		dnet_log(n, DNET_LOG_DSA, "%s: %s: got IO event: %p: hsize: %zu, dsize: %zu\n",
 				dnet_state_dump_addr(st), dnet_dump_id(r->header), r, r->hsize, r->dsize);
@@ -497,7 +515,8 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 
 	io = malloc(sizeof(struct dnet_io) +
 			sizeof(pthread_t) * cfg->io_thread_num +
-			sizeof(struct dnet_net_io) * cfg->net_thread_num);
+			sizeof(struct dnet_net_io) * cfg->net_thread_num +
+			sizeof(struct dnet_work_io) * cfg->net_thread_num);
 	if (!io) {
 		err = -ENOMEM;
 		goto err_out_exit;
@@ -551,8 +570,14 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		}
 	}
 
+	io->wio = (struct dnet_work_io *)(io->net + cfg->io_thread_num);
+
 	for (i=0; i<io->thread_num; ++i) {
-		err = pthread_create(&io->threads[i], NULL, dnet_io_process_pool, n);
+		struct dnet_work_io *wio = &io->wio[i];
+		wio->n = n;
+		wio->thread_index = i;
+
+		err = pthread_create(&io->threads[i], NULL, dnet_io_process_pool, wio);
 		if (err) {
 			err = -err;
 			io->thread_num = i;
