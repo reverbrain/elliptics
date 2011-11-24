@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.0.2
+Version:	2.11.0.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Nov 23 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.3-1
+- Added oplock_num config parameter
+- Added non-blocking thread checks
+
 * Wed Nov 23 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.2-1
 - Aflags/lock cleanups
 

@@ -1,3 +1,10 @@
+elliptics-2.10 (2.11.0.3) unstable; urgency=low
+
+  * Added oplock_num config parameter
+  * Added non-blocking thread checks
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Nov 2011 21:18:13 +0400
+
 elliptics-2.10 (2.11.0.2) unstable; urgency=low
 
   * Aflags/lock cleanups
