@@ -28,7 +28,7 @@ try:
 	new_name = str(binary_data[132:])
 
 	s = sstable()
-	dir_content = n.read_data(old_dir_id, offset, size, aflags, ioflags_read)
+	dir_content = n.read_data(old_dir_id, pohmelfs_offset, pohmelfs_size, pohmelfs_aflags, pohmelfs_ioflags_read)
 	s.load(dir_content)
 
 	ret = s.search(pohmelfs_dentry_name)
