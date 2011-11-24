@@ -98,7 +98,7 @@ static int dnet_srw_init_python(struct dnet_node *n, struct dnet_config *cfg)
 
 	snprintf(srw_init_path, sizeof(srw_init_path), "%s/python.log", cfg->history_env);
 
-	n->srw = srwc_init_python(srw_init_path, chroot_path, n->io->thread_num, m.data, m.size, base);
+	n->srw = srwc_init_python(srw_init_path, chroot_path, n->io->thread_num / 3 + 1, m.data, m.size, base);
 	if (!n->srw) {
 		err = -EINVAL;
 		dnet_log(n, DNET_LOG_ERROR, "srw: failed to initialize external python workers\n");
