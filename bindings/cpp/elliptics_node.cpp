@@ -998,3 +998,47 @@ std::vector<std::string> elliptics_node::bulk_read(std::vector<std::string> &key
 	return bulk_read(ios, group_id, aflags);
 }
 
+std::string elliptics_node::bulk_write(std::vector<struct dnet_io_attr> &ios, std::vector<std::string> &data, uint32_t aflags)
+{
+	std::vector<struct dnet_io_control> ctls;
+	unsigned int i;
+	int err;
+
+	if (ios.size() != data.size()) {
+		std::ostringstream string;
+		string << "BULK_WRITE: ios doesn't meet data: io.size: " << ios.size() << ", data.size: " << data.size();
+		throw std::runtime_error(string.str());
+	}
+
+	ctls.resize(ios.size());
+
+	for(i = 0; i < ios.size(); ++i) {
+		struct dnet_io_control ctl;
+		memset(&ctl, 0, sizeof(ctl));
+
+		ctl.aflags = aflags;
+		ctl.data = data[i].data();
+
+		ctl.io = ios[i];
+
+		dnet_setup_id(&ctl.id, 0, ios[i].id);
+		ctl.id.type = ios[i].type;
+
+		ctl.fd = -1;
+
+		ctls.push_back(ctl);
+	}
+
+	struct dnet_range_data ret = dnet_bulk_write(node, &ctls[0], ctls.size(), &err);
+	if (err < 0) {
+		std::ostringstream string;
+		string << "BULK_WRITE: size: " << ret.size << ", err: " << err;
+		throw std::runtime_error(string.str());
+	}
+
+	std::string ret_str((const char *)ret.data, ret.size);
+	free(ret.data);
+
+	return ret_str;
+}
+
