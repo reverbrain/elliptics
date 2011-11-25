@@ -10,6 +10,8 @@ try:
 		dir_content = n.read_data(parent_id, pohmelfs_offset, pohmelfs_size, pohmelfs_aflags, pohmelfs_ioflags_read)
 		s.load(dir_content)
 	except Exception as e:
+		if not 'No such file or directory' in str(e):
+			raise
 		s.init(256 + len(inode_info) + 8)
 
 	s.insert(pohmelfs_dentry_name, inode_info, True)
