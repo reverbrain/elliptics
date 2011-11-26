@@ -514,7 +514,7 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 	io = malloc(sizeof(struct dnet_io) +
 			sizeof(pthread_t) * cfg->io_thread_num +
 			sizeof(struct dnet_net_io) * cfg->net_thread_num +
-			sizeof(struct dnet_work_io) * cfg->net_thread_num);
+			sizeof(struct dnet_work_io) * cfg->io_thread_num);
 	if (!io) {
 		err = -ENOMEM;
 		goto err_out_exit;
@@ -568,10 +568,11 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		}
 	}
 
-	io->wio = (struct dnet_work_io *)(io->net + cfg->io_thread_num);
+	io->wio = (struct dnet_work_io *)(io->net + cfg->net_thread_num);
 
 	for (i=0; i<io->thread_num; ++i) {
 		struct dnet_work_io *wio = &io->wio[i];
+
 		wio->n = n;
 		wio->thread_index = i;
 
