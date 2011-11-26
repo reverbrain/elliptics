@@ -101,37 +101,53 @@ err_out_exit:
 
 static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 {
-	std::string key = "prepare-commit-test";
+	std::string written, ret;
+	try {
+		std::string key = "prepare-commit-test";
 
-	std::string prepare_data = "prepare data|";
-	std::string commit_data = "commit data";
-	std::string plain_data[3] = {"plain data0|", "plain data1|", "plain data2|"};
+		std::string prepare_data = "prepare data|";
+		std::string commit_data = "commit data";
+		std::string plain_data[3] = {"plain data0|", "plain data1|", "plain data2|"};
 
-	if (psize)
-		prepare_data.clear();
-	if (csize)
-		commit_data.clear();
+		if (psize)
+			prepare_data.clear();
+		if (csize)
+			commit_data.clear();
 
-	uint64_t offset = 0;
-	uint64_t total_size_to_reserve = 1024;
+		uint64_t offset = 0;
+		uint64_t total_size_to_reserve = 1024;
 
-	/* we did not write metadata, so do not try to read checksums */
-	unsigned int aflags = DNET_ATTR_NOCSUM;
-	unsigned int ioflags = 0;
+		unsigned int aflags = 0;
+		unsigned int ioflags = 0;
 
-	int column = 0;
+		int column = 0;
 
-	n.write_prepare(key, prepare_data, offset, total_size_to_reserve, aflags, ioflags, column);
-	offset += prepare_data.size();
+		n.write_prepare(key, prepare_data, offset, total_size_to_reserve, aflags, ioflags, column);
+		offset += prepare_data.size();
 
-	for (int i = 0; i < 3; ++i) {
-		n.write_plain(key, plain_data[i], offset, aflags, ioflags, column);
-		offset += plain_data[i].size();
+		written += prepare_data;
+
+		for (int i = 0; i < 3; ++i) {
+			n.write_plain(key, plain_data[i], offset, aflags, ioflags, column);
+			offset += plain_data[i].size();
+
+			written += plain_data[i];
+		}
+
+		n.write_commit(key, commit_data, offset, 0, aflags, ioflags, column);
+		written += commit_data;
+
+		ret = n.read_data_wait(key, 0, 0, aflags, ioflags, column);
+		std::cout << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
+	} catch (const std::exception &e) {
+		std::cerr << "PREPARE/COMMIT test failed: " << e.what() << std::endl;
+		throw;
 	}
 
-	n.write_commit(key, commit_data, offset, 0, aflags, ioflags, column);
-
-	std::cout << "prepare/commit read: " << n.read_data_wait(key, 0, 0, aflags, ioflags, column) << std::endl;
+	if (ret != written) {
+		std::cerr << "PREPARE/COMMIT test failed: read mismatch" << std::endl;
+		throw std::runtime_error("PREPARE/COMMIT test failed: read mismatch");
+	}
 }
 
 static void test_range_request(elliptics_node &n, int limit_start, int limit_num, unsigned int aflags)
@@ -226,8 +242,7 @@ static void test_append(elliptics_node &n)
 		data = "| second part of the message";
 		n.write_data_wait(key, data, 0, 0, DNET_IO_FLAGS_APPEND, 0);
 
-		/* read without checksums since we did not write metadata */
-		std::cout << key << ": " << n.read_data_wait(key, 0, 0, DNET_ATTR_NOCSUM, 0, 0) << std::endl;
+		std::cout << key << ": " << n.read_data_wait(key, 0, 0, 0, 0, 0) << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "APPEND test failed: " << e.what() << std::endl;
 	}
@@ -258,10 +273,48 @@ static void test_exec_python(elliptics_node &n)
 	}
 }
 
-int main()
+
+static void read_column_raw(elliptics_node &n, const std::string &key, const std::string &data, int column)
+{
+	std::string ret;
+	try {
+		ret = n.read_data_wait(key, 0, 0, 0, 0, column);
+	} catch (const std::exception &e) {
+		std::cerr << "COLUMN-" << column << " read test failed: " << e.what() << std::endl;
+		throw;
+	}
+
+	std::cout << "read-column-" << column << ": " << key << " : " << ret << std::endl;
+	if (ret != data) {
+		throw std::runtime_error("column test failed");
+	}
+}
+
+static void column_test(elliptics_node &n)
+{
+	std::string key = "some-key-1";
+
+	std::string data0 = "some-compressed-data-in-column-0";
+	std::string data1 = "some-data-in-column-2";
+	std::string data2 = "some-data-in-column-3";
+
+	n.write_data_wait(key, data0, 0, 0, DNET_IO_FLAGS_COMPRESS, 0);
+	n.write_data_wait(key, data1, 0, 0, 0, 2);
+	n.write_data_wait(key, data2, 0, 0, 0, 3);
+
+	read_column_raw(n, key, data0, 0);
+	read_column_raw(n, key, data1, 2);
+	read_column_raw(n, key, data2, 3);
+}
+
+int main(int argc, char *argv[])
 {
 	int g[] = {1, 2, 3};
 	std::vector<int> groups(g, g+ARRAY_SIZE(g));
+	char *host = (char *)"localhost";
+
+	if (argc > 1)
+		host = argv[1];
 
 	try {
 		elliptics_log_file log("/dev/stderr", DNET_LOG_ERROR | DNET_LOG_DATA);
@@ -274,7 +327,7 @@ int main()
 
 		for (int i = 0; i < (int)ARRAY_SIZE(ports); ++i) {
 			try {
-				n.add_remote("localhost", ports[i], AF_INET);
+				n.add_remote(host, ports[i], AF_INET);
 				added++;
 			} catch (...) {
 			}
@@ -287,20 +340,7 @@ int main()
 
 		n.stat_log();
 
-		std::string key = "some-key-1";
-
-		std::string data0 = "some-compressed-data-in-column-0";
-		std::string data1 = "some-data-in-column-2";
-		std::string data2 = "some-data-in-column-3";
-
-		n.write_data_wait(key, data0, 0, 0, DNET_IO_FLAGS_COMPRESS, 0);
-		n.write_data_wait(key, data1, 0, 0, 0, 2);
-		n.write_data_wait(key, data2, 0, 0, 0, 3);
-
-		std::cout << "read-column-0: " << key << " : " << n.read_data_wait(key, 0, 0, 0, 0, 0) << std::endl;
-		/* columns should be read without checksums, since we do not update metadata for them */
-		std::cout << "read-column-2: " << key << " : " << n.read_data_wait(key, 0, 0, DNET_ATTR_NOCSUM, 0, 2) << std::endl;
-		std::cout << "read-column-3: " << key << " : " << n.read_data_wait(key, 0, 0, DNET_ATTR_NOCSUM, 0, 3) << std::endl;
+		column_test(n);
 
 		test_prepare_commit(n, 0, 0);
 		test_prepare_commit(n, 1, 0);
