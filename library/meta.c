@@ -319,7 +319,6 @@ int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, 
 int dnet_create_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl, struct dnet_meta_container *mc)
 {
 	struct dnet_meta_check_status *c;
-	struct dnet_meta_checksum *csum;
 	struct dnet_meta *m;
 	int size = 0, err, nsize = 0;
 	void *ns;
@@ -331,8 +330,6 @@ int dnet_create_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl,
 
 	if (ctl->groups && ctl->group_num)
 		size += ctl->group_num * sizeof(int) + sizeof(struct dnet_meta);
-
-	size += sizeof(struct dnet_meta_checksum) + sizeof(struct dnet_meta);
 
 	size += sizeof(struct dnet_meta_update) + sizeof(struct dnet_meta);
 
@@ -389,14 +386,6 @@ int dnet_create_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl,
 
 		m = (struct dnet_meta *)(m->data + m->size);
 	}
-
-	csum = (struct dnet_meta_checksum *)m->data;
-	csum->tm.tsec = ctl->ts.tv_sec;
-	csum->tm.tnsec = ctl->ts.tv_nsec;
-	dnet_convert_meta_checksum(csum);
-	m->size = sizeof(struct dnet_meta_checksum);
-	m->type = DNET_META_CHECKSUM;
-	m = (struct dnet_meta *)(m->data + m->size);
 
 	mc->size = size;
 	memcpy(&mc->id, &ctl->id, sizeof(struct dnet_id));
@@ -541,56 +530,6 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 		data += m->size + sizeof(*m);
 		size -= m->size + sizeof(*m);
 	}
-}
-
-int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_id *id)
-{
-	struct dnet_meta *m;
-	struct dnet_meta_container mc;
-	struct dnet_meta_checksum *csum = NULL;
-	struct dnet_raw_id raw;
-	char csum_str[2*DNET_CSUM_SIZE+1];
-	int err, csize;
-
-	memcpy(raw.id, id->id, DNET_ID_SIZE);
-
-	err = n->cb->meta_read(n->cb->command_private, &raw, &mc.data);
-	if (err < 0) {
-		goto err_out_exit;
-	}
-	mc.size = err;
-
-	m = dnet_meta_search(n, &mc, DNET_META_CHECKSUM);
-	if (!m) {
-		mc.data = realloc(mc.data, mc.size + sizeof(struct dnet_meta) + sizeof(struct dnet_meta_checksum));
-		if (!mc.data) {
-			err = -ENOMEM;
-			goto err_out_free;
-		}
-
-		m = mc.data + mc.size;
-		mc.size += sizeof(struct dnet_meta) + sizeof(struct dnet_meta_checksum);
-
-		m->type = DNET_META_CHECKSUM;
-		m->size = sizeof(struct dnet_meta_checksum);
-		dnet_convert_meta(m);
-	}
-
-	csum = (struct dnet_meta_checksum *)m->data;
-	csize = sizeof(csum->checksum);
-	err = n->cb->checksum(n, n->cb->command_private, id, csum->checksum, &csize);
-	if (err)
-		goto err_out_free;
-
-	dnet_dump_id_len_raw(csum->checksum, DNET_CSUM_SIZE, csum_str);
-	err = n->cb->meta_write(n->cb->command_private, &raw, mc.data, mc.size);
-
-err_out_free:
-	free(mc.data);
-err_out_exit:
-	dnet_log(n, DNET_LOG_INFO, "%s: meta: CHECKSUM: csum: %s, err: %d\n",
-			dnet_dump_id_str(id->id), (csum && !err) ? csum_str : "none", err);
-	return err;
 }
 
 int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc,

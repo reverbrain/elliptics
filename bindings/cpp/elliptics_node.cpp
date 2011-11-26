@@ -990,8 +990,10 @@ std::vector<std::string> elliptics_node::bulk_read(std::vector<std::string> &key
 	ios.resize(keys.size());
 
 	for (size_t i = 0; i < keys.size(); ++i) {
-		int dsize = DNET_ID_SIZE;
-		dnet_checksum_data(node, io.id, &dsize, keys[i].c_str(), keys[i].size());
+		struct dnet_id id;
+
+		transform(keys[i], id);
+		memcpy(io.id, id.id, sizeof(io.id));
 		ios.push_back(io);
 	}
 

@@ -195,7 +195,8 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 		goto err_out_exit;
 	} else if (err > 0) {
 		/* data is compressed */
-		
+
+		size = 0;
 		err = eblob_read_data(b, &key, io->offset, &read_data, &size, io->type);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-data: READ: %d: %s\n",
@@ -218,22 +219,9 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 			size = io->size;
 	}
 
-	if (!(attr->flags & DNET_ATTR_NOCSUM) && !(io->flags & DNET_IO_FLAGS_NOCSUM) && fd != -1 && orig_size) {
-		struct dnet_file_info info;
-		struct dnet_id id;
-
-		dnet_setup_id(&id, cmd->id.group_id, io->id);
-		id.type = io->type;
-
-		err = dnet_read_file_info(dnet_get_node_from_state(state), &id, &info, fd, orig_offset, orig_size);
-		if (err && (err != -ENODATA))
-			goto err_out_free;
-	}
-
 	io->size = size;
 	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset, 0);
 
-err_out_free:
 	/* free compressed data */
 	free(read_data);
 err_out_exit:
@@ -520,32 +508,6 @@ err_out_exit:
 	return err;
 }
 
-static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
-{
-	struct eblob_backend_config *c = priv;
-	struct eblob_backend *b = c->eblob;
-	uint64_t offset, size;
-	struct eblob_key key;
-	int fd, err;
-
-	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-	err = eblob_read(b, &key, &fd, &offset, &size, EBLOB_TYPE_DATA);
-	if (err < 0) {
-		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read: type: %d: %d: %s.\n",
-				dnet_dump_id_str(id->id), id->type, err, strerror(-err));
-		goto err_out_exit;
-	}
-
-	err = 0;
-	if (!size)
-		memset(csum, 0, *csize);
-	else
-		err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
-
-err_out_exit:
-	return err;
-}
-
 static int blob_file_info(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
 {
 	struct eblob_backend *b = c->eblob;
@@ -802,7 +764,6 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	cfg->storage_size = b->storage_size;
 	cfg->storage_free = b->storage_free;
 	b->cb.storage_stat = eblob_backend_storage_stat;
-	b->cb.checksum = eblob_backend_checksum;
 
 	b->cb.command_private = c;
 	b->cb.command_handler = eblob_backend_command_handler;

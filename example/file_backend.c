@@ -236,18 +236,6 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 		goto err_out_close_fd;
 	}
 
-	if (!(attr->flags & DNET_ATTR_NOCSUM)) {
-		struct dnet_file_info info;
-		struct dnet_id id;
-
-		dnet_setup_id(&id, cmd->id.group_id, io->id);
-		id.type = io->type;
-
-		err = dnet_read_file_info(dnet_get_node_from_state(state), &id, &info, fd, 0, size);
-		if (err && (err != -ENODATA))
-			goto err_out_close_fd;
-	}
-
 	io->size = size;
 	err = dnet_send_read_data(state, cmd, io, NULL, fd, io->offset, 1);
 	if (err)
@@ -274,16 +262,6 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 	remove(file);
 
 	return 0;
-}
-
-static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
-{
-	struct file_backend_root *r = priv;
-	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
-
-	file_backend_setup_file(r, file, sizeof(file), id->id);
-
-	return dnet_checksum_file(n, csum, csize, file, 0, 0);
 }
 
 static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
@@ -558,7 +536,6 @@ static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	b->cb.command_handler = file_backend_command_handler;
 	b->cb.send = file_backend_send;
-	b->cb.checksum = file_backend_checksum;
 
 	c->storage_size = b->storage_size;
 	c->storage_free = b->storage_free;

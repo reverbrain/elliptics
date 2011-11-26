@@ -131,13 +131,6 @@ int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		data = io + 1;
 
 		err = n->cb->meta_write(n->cb->command_private, &id, data, io->size);
-		if (!err && !(a->flags & DNET_ATTR_NOCSUM) && !(n->flags & DNET_CFG_NO_CSUM)) {
-			struct dnet_id did;
-			dnet_setup_id(&did, cmd->id.group_id, id.id);
-			did.type = io->type;
-
-			err = dnet_meta_update_checksum(n, &did);
-		}
 		break;
 	case DNET_CMD_DEL:
 		memcpy(id.id, cmd->id.id, DNET_ID_SIZE);

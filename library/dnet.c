@@ -33,18 +33,13 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, const void *data, uint64_t size)
-{
-	struct dnet_transform *t = &n->transform;
-
-	return t->transform(t->priv, data, size, csum, (unsigned int *)csize, 0);
-}
 
 int dnet_transform(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id)
 {
-	int dsize = sizeof(id->id);
+	struct dnet_transform *t = &n->transform;
+	unsigned int csize = sizeof(id->id);
 
-	return dnet_checksum_data(n, id->id, &dsize, src, size);
+	return t->transform(t->priv, src, size, id->id, &csize, 0);
 }
 
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
@@ -3355,64 +3350,10 @@ void dnet_data_unmap(struct dnet_map_fd *map)
 	munmap(map->mapped_data, map->mapped_size);
 }
 
-int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size)
-{
-	int err;
-	struct dnet_map_fd m;
-
-	if (!size) {
-		struct stat st;
-
-		err = fstat(fd, &st);
-		if (err < 0) {
-			err = -errno;
-			dnet_log_err(n, "CSUM: fd: %d", fd);
-			goto err_out_exit;
-		}
-
-		size = st.st_size;
-	}
-
-	m.fd = fd;
-	m.size = size;
-	m.offset = offset;
-
-	err = dnet_data_map(&m);
-	if (err)
-		goto err_out_exit;
-
-	err = dnet_checksum_data(n, csum, csize, m.data, size);
-	dnet_data_unmap(&m);
-
-err_out_exit:
-	return err;
-}
-
-int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size)
-{
-	int fd, err;
-
-	err = open(file, O_RDONLY);
-	if (err < 0) {
-		err = -errno;
-		dnet_log_err(n, "failed to open to be csummed file '%s'", file);
-		goto err_out_exit;
-	}
-	fd = err;
-
-	err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
-
-	close(fd);
-
-err_out_exit:
-	return err;
-}
-
-int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info, int fd, uint64_t offset, uint64_t size)
+int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info)
 {
 	struct dnet_meta *m;
 	struct dnet_meta_update *mu;
-	struct dnet_meta_checksum *mcsum;
 	struct dnet_meta_container mc;
 	struct dnet_raw_id raw;
 	int err;
@@ -3424,19 +3365,6 @@ int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_fil
 		goto err_out_exit;
 	}
 	mc.size = err;
-
-	m = dnet_meta_search(n, &mc, DNET_META_CHECKSUM);
-	if (!m) {
-		memset(info->checksum, 0, DNET_CSUM_SIZE);
-	} else {
-		if (m->size != sizeof(struct dnet_meta_checksum)) {
-			err = -EINVAL;
-			goto err_out_free;
-		}
-		mcsum = (struct dnet_meta_checksum *)m->data;
-
-		memcpy(info->checksum, mcsum->checksum, DNET_CSUM_SIZE);
-	}
 
 	m = dnet_meta_search(n, &mc, DNET_META_UPDATE);
 	if (!m) {
@@ -3451,25 +3379,6 @@ int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_fil
 
 	info->ctime = info->mtime = mu->tm;
 	err = 0;
-
-	if (fd != -1) {
-		unsigned char csum[DNET_CSUM_SIZE];
-		int csize = sizeof(csum);
-
-		memset(csum, 0, csize);
-
-		/* only checksum data if metadata csum is not filled with zeroes */
-		if (memcmp(info->checksum, csum, csize)) {
-			err = dnet_checksum_fd(n, csum, &csize, fd, offset, size);
-			if (err)
-				goto err_out_free;
-
-			if (memcmp(info->checksum, csum, csize)) {
-				err = -EBADFD;
-				goto err_out_free;
-			}
-		}
-	}
 
 err_out_free:
 	free(mc.data);
@@ -3900,7 +3809,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *att
 		if (!(attr->flags & DNET_ATTR_NOCSUM) && size)
 			csum_fd = fd;
 
-		err = dnet_read_file_info(n, &cmd->id, info, csum_fd, offset, size);
+		err = dnet_read_file_info(n, &cmd->id, info);
 		if ((err == -ENOENT) && (attr->flags & DNET_ATTR_META_TIMES))
 			err = 0;
 		if (err && (err != -ENODATA))

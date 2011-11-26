@@ -273,13 +273,6 @@ struct dnet_backend_callbacks {
 	/* sends object with given ID to specified @state */
 	int			(* send)(void *state, void *priv, struct dnet_id *id);
 
-	/*
-	 * calculates checksum and writes (no more than *@csize bytes) it into @csum,
-	 * @csize must be set to actual @csum size
-	 */
-	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id,
-			void *csum, int *csize);
-
 	/* fills storage statistics */
 	int			(* storage_stat)(void *priv, struct dnet_stat *st);
 
@@ -797,7 +790,7 @@ int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, 
 int dnet_create_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl, struct dnet_meta_container *mc);
 void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc);
 
-int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info, int fd, uint64_t offset, uint64_t size);
+int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info);
 int dnet_meta_update_check_status_raw(struct dnet_node *n, struct dnet_meta_container *mc);
 int dnet_meta_update_check_status(struct dnet_node *n, struct dnet_meta_container *mc);
 
@@ -885,12 +878,6 @@ static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd 
 int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp);
 
 char *dnet_cmd_string(int cmd);
-
-int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, const void *data, uint64_t size);
-int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size);
-int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size);
-
-int dnet_meta_update_checksum(struct dnet_node *n, struct dnet_id *id);
 
 ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void **datap);
 int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *data, unsigned int size);
