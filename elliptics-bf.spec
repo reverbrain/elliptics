@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.0.4
+Version:	2.11.0.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Nov 28 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.5-1
+- Implemented pool of non-blocking threads for recursive commands.
+- Dropped metadata csum support in favour of eblob embedded checksums.
+- Added bulk_write operation.
+- Added sstable parser into python module
+
 * Thu Nov 23 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.4-1
 - Added nolocking IO thread
 
