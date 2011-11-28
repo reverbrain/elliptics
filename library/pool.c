@@ -427,6 +427,7 @@ static void *dnet_io_process_pool(void *data_)
 	struct dnet_io_req *r, *first_blocked_r = NULL;
 	struct dnet_cmd *cmd;
 	int err = 0;
+	int step;
 
 	dnet_log(n, DNET_LOG_NOTICE, "Starting IO processing thread.\n");
 	dnet_set_name("io_pool");
@@ -459,9 +460,13 @@ static void *dnet_io_process_pool(void *data_)
 
 		st = r->st;
 
+		step = 1;
+		if (io->thread_num > 100)
+			step = 10;
+
 		cmd = (struct dnet_cmd *)r->header;
 		/* Do not process locking commands by first thread */
-		if ((wio->thread_index < io->thread_num/3 + 1) && (io->thread_num > 1) && (cmd->flags & DNET_FLAGS_NOLOCK)) {
+		if ((wio->thread_index < step) && (io->thread_num > step) && (cmd->flags & DNET_FLAGS_NOLOCK)) {
 			pthread_mutex_lock(&io->recv_lock);
 			list_add_tail(&r->req_entry, &io->recv_list);
 			pthread_mutex_unlock(&io->recv_lock);
