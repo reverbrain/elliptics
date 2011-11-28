@@ -375,6 +375,12 @@ struct dnet_config
 	int			io_thread_num;
 
 	/*
+	 * Number of IO threads in processing pool dedicated to non-blocking operations
+	 * Those operations are started from recursive commands like from DNET_CMD_EXEC handler
+	 */
+	int			nonblocking_io_thread_num;
+
+	/*
 	 * Number of threads in network processing pool
 	 */
 	int			net_thread_num;

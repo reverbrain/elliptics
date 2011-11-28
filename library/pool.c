@@ -29,12 +29,18 @@
 static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 {
 	struct dnet_io *io = n->io;
+	struct dnet_cmd *cmd = r->header;
+	int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
 
-	dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: queueing IO event: %p: hsize: %zu, dsize: %zu\n",
-			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), r, r->hsize, r->dsize);
+	dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: queueing IO event: %p: hsize: %zu, dsize: %zu, nonblocking: %d\n",
+			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), r, r->hsize, r->dsize, nonblocking);
 
 	pthread_mutex_lock(&io->recv_lock);
-	list_add_tail(&r->req_entry, &io->recv_list);
+
+	if (nonblocking)
+		list_add_tail(&r->req_entry, &io->nonblocking_recv_list);
+	else
+		list_add_tail(&r->req_entry, &io->recv_list);
 
 	pthread_cond_broadcast(&io->recv_wait);
 	pthread_mutex_unlock(&io->recv_lock);
@@ -424,12 +430,11 @@ static void *dnet_io_process_pool(void *data_)
 	struct dnet_io *io = n->io;
 	struct timespec ts;
 	struct timeval tv;
-	struct dnet_io_req *r, *first_blocked_r = NULL;
-	struct dnet_cmd *cmd;
+	struct dnet_io_req *r;
+	struct list_head *head;
 	int err = 0;
-	int step;
 
-	dnet_log(n, DNET_LOG_NOTICE, "Starting IO processing thread.\n");
+	dnet_log(n, DNET_LOG_NOTICE, "Starting %s IO processing thread.\n", wio->nonblocking ? "nonblocking" : "blocking");
 	dnet_set_name("io_pool");
 
 	while (!n->need_exit) {
@@ -441,12 +446,17 @@ static void *dnet_io_process_pool(void *data_)
 		ts.tv_nsec = tv.tv_usec * 1000;
 
 		pthread_mutex_lock(&io->recv_lock);
-		if (!list_empty(&io->recv_list)) {
-			r = list_first_entry(&io->recv_list, struct dnet_io_req, req_entry);
+		head = &io->recv_list;
+
+		if (wio->nonblocking)
+			head = &io->nonblocking_recv_list;
+
+		if (!list_empty(head)) {
+			r = list_first_entry(head, struct dnet_io_req, req_entry);
 		} else {
 			err = pthread_cond_timedwait(&io->recv_wait, &io->recv_lock, &ts);
-			if (!list_empty(&io->recv_list)) {
-				r = list_first_entry(&io->recv_list, struct dnet_io_req, req_entry);
+			if (!list_empty(head)) {
+				r = list_first_entry(head, struct dnet_io_req, req_entry);
 				err = 0;
 			}
 		}
@@ -460,51 +470,13 @@ static void *dnet_io_process_pool(void *data_)
 
 		st = r->st;
 
-		step = 1;
-		if (io->thread_num > 100)
-			step = 10;
-
-		cmd = (struct dnet_cmd *)r->header;
-		/* Do not process locking commands by first thread */
-		if ((wio->thread_index < step) && (io->thread_num > step) && (cmd->flags & DNET_FLAGS_NOLOCK)) {
-			pthread_mutex_lock(&io->recv_lock);
-			list_add_tail(&r->req_entry, &io->recv_list);
-			pthread_mutex_unlock(&io->recv_lock);
-
-			continue;
-		}
-
-		dnet_log(n, DNET_LOG_DSA, "%s: %s: got IO event: %p: hsize: %zu, dsize: %zu\n",
-				dnet_state_dump_addr(st), dnet_dump_id(r->header), r, r->hsize, r->dsize);
+		dnet_log(n, DNET_LOG_DSA, "%s: %s: got IO event: %p: hsize: %zu, dsize: %zu, nonblocking: %d\n",
+				dnet_state_dump_addr(st), dnet_dump_id(r->header), r, r->hsize, r->dsize, wio->nonblocking);
 
 		err = dnet_process_recv(st, r);
-		/* Check if operation was failed because another thread has already locked mutex */
-		if (err == -EBUSY) {
-			/* In such case add it again at the tail of the queue */
-			pthread_mutex_lock(&io->recv_lock);
-			list_add_tail(&r->req_entry, &io->recv_list);
 
-			/* If all requests in queue are blocked sleep 10ms
-			 * or wait if we get new requests
-			 */
-			if (first_blocked_r == r) {
-				gettimeofday(&tv, NULL);
-				ts.tv_sec = tv.tv_sec;
-				ts.tv_nsec = (tv.tv_usec + 10000) * 1000;
-
-				err = pthread_cond_timedwait(&io->recv_wait, &io->recv_lock, &ts);
-			}
-
-			if (!first_blocked_r)
-				first_blocked_r = r;
-			pthread_mutex_unlock(&io->recv_lock);
-		} else {
-			dnet_io_req_free(r);
-
-			dnet_state_put(st);
-
-			first_blocked_r = NULL;
-		}
+		dnet_io_req_free(r);
+		dnet_state_put(st);
 	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "Exiting IO processing thread: need_exit: %d, err: %d.\n", n->need_exit, err);
@@ -517,9 +489,8 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 	struct dnet_io *io;
 
 	io = malloc(sizeof(struct dnet_io) +
-			sizeof(pthread_t) * cfg->io_thread_num +
 			sizeof(struct dnet_net_io) * cfg->net_thread_num +
-			sizeof(struct dnet_work_io) * cfg->io_thread_num);
+			sizeof(struct dnet_work_io) * (cfg->io_thread_num + cfg->nonblocking_io_thread_num));
 	if (!io) {
 		err = -ENOMEM;
 		goto err_out_exit;
@@ -527,13 +498,15 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 
 	memset(io, 0, sizeof(struct dnet_io));
 
+	io->nonblocking_thread_num = cfg->nonblocking_io_thread_num;
 	io->thread_num = cfg->io_thread_num;
 	io->net_thread_num = cfg->net_thread_num;
 
-	io->threads = (pthread_t *)(io + 1);
-	io->net = (struct dnet_net_io *)(io->threads + cfg->io_thread_num);
+	io->net = (struct dnet_net_io *)(io + 1);
+	io->wio = (struct dnet_work_io *)(io->net + cfg->net_thread_num);
 
 	INIT_LIST_HEAD(&io->recv_list);
+	INIT_LIST_HEAD(&io->nonblocking_recv_list);
 	n->io = io;
 
 	err = pthread_cond_init(&io->recv_wait, NULL);
@@ -559,7 +532,6 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		if (nio->epoll_fd < 0) {
 			err = -errno;
 			dnet_log_err(n, "Failed to create epoll fd");
-			io->net_thread_num = i;
 			goto err_out_net_destroy;
 		}
 
@@ -568,23 +540,22 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 			close(nio->epoll_fd);
 			err = -err;
 			dnet_log(n, DNET_LOG_ERROR, "Failed to create network processing thread: %d\n", err);
-			io->net_thread_num = i;
 			goto err_out_net_destroy;
 		}
 	}
 
-	io->wio = (struct dnet_work_io *)(io->net + cfg->net_thread_num);
-
-	for (i=0; i<io->thread_num; ++i) {
+	for (i=0; i<io->thread_num + io->nonblocking_thread_num; ++i) {
 		struct dnet_work_io *wio = &io->wio[i];
 
 		wio->n = n;
 		wio->thread_index = i;
 
-		err = pthread_create(&io->threads[i], NULL, dnet_io_process_pool, wio);
+		if (i >= io->thread_num)
+			wio->nonblocking = 1;
+
+		err = pthread_create(&wio->tid, NULL, dnet_io_process_pool, wio);
 		if (err) {
 			err = -err;
-			io->thread_num = i;
 			dnet_log(n, DNET_LOG_ERROR, "Failed to create IO thread: %d\n", err);
 			goto err_out_io_threads;
 		}
@@ -593,11 +564,12 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 	return 0;
 
 err_out_io_threads:
-	for (i=0; i<io->thread_num; ++i)
-		pthread_join(io->threads[i], NULL);
+	while (--i >= 0)
+		pthread_join(io->wio[i].tid, NULL);
 
+	i = io->net_thread_num;
 err_out_net_destroy:
-	for (i=0; i<io->net_thread_num; ++i) {
+	while (--i >= 0) {
 		pthread_join(io->net[i].tid, NULL);
 		close(io->net[i].epoll_fd);
 	}
@@ -619,8 +591,8 @@ void dnet_io_exit(struct dnet_node *n)
 
 	n->need_exit = 1;
 
-	for (i=0; i<io->thread_num; ++i)
-		pthread_join(io->threads[i], NULL);
+	for (i=0; i<io->thread_num + io->nonblocking_thread_num; ++i)
+		pthread_join(io->wio[i].tid, NULL);
 
 	for (i=0; i<io->net_thread_num; ++i) {
 		pthread_join(io->net[i].tid, NULL);
@@ -630,6 +602,11 @@ void dnet_io_exit(struct dnet_node *n)
 	dnet_io_cleanup_states(n);
 
 	list_for_each_entry_safe(r, tmp, &io->recv_list, req_entry) {
+		list_del(&r->req_entry);
+		dnet_io_req_free(r);
+	}
+
+	list_for_each_entry_safe(r, tmp, &io->nonblocking_recv_list, req_entry) {
 		list_del(&r->req_entry);
 		dnet_io_req_free(r);
 	}

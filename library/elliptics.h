@@ -313,6 +313,8 @@ struct dnet_net_io {
 
 struct dnet_work_io {
 	int			thread_index;
+	int			nonblocking;
+	pthread_t		tid;
 	struct dnet_node	*n;
 };
 
@@ -323,11 +325,12 @@ struct dnet_io {
 	struct dnet_net_io	*net;
 
 	pthread_mutex_t		recv_lock;
+	struct list_head	nonblocking_recv_list;
 	struct list_head	recv_list;
 	pthread_cond_t		recv_wait;
 
 	int			thread_num;
-	pthread_t		*threads;
+	int			nonblocking_thread_num;
 	struct dnet_work_io	*wio;
 };
 

@@ -644,6 +644,15 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 			cfg->io_thread_num = 20;
 	}
 
+	if (!cfg->nonblocking_io_thread_num) {
+		cfg->nonblocking_io_thread_num = 1;
+
+		if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
+			if (cfg->io_thread_num > 100)
+				cfg->nonblocking_io_thread_num = 10;
+		}
+	}
+
 	if (!cfg->net_thread_num) {
 		cfg->net_thread_num = 1;
 		if (cfg->flags & DNET_CFG_JOIN_NETWORK)
