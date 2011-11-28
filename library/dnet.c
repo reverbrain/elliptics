@@ -4076,3 +4076,86 @@ err_out_exit:
 	return ret;
 }
 
+struct dnet_range_data dnet_bulk_write(struct dnet_node *n, struct dnet_io_control *ctl, int ctl_num, int *errp)
+{
+	int err, i, trans_num = 0, local_trans_num;
+	struct dnet_wait *w;
+	struct dnet_write_completion *wc;
+	struct dnet_range_data ret;
+
+	memset(&ret, 0, sizeof(ret));
+
+	wc = malloc(sizeof(struct dnet_write_completion));
+	if (!wc) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	memset(wc, 0, sizeof(struct dnet_write_completion));
+
+	w = dnet_wait_alloc(0);
+	if (!w) {
+		err = -ENOMEM;
+		free(wc);
+		goto err_out_exit;
+	}
+	wc->wait = w;
+
+	atomic_set(&w->refcnt, INT_MAX);
+	w->status = -ENOENT;
+
+	for (i = 0; i < ctl_num; ++i) {
+		ctl[i].priv = wc;
+		ctl[i].complete = dnet_write_complete;
+	
+		ctl[i].cmd = DNET_CMD_WRITE;
+		ctl[i].cflags = DNET_FLAGS_NEED_ACK;
+		if (ctl[i].aflags & DNET_ATTR_NOLOCK)
+			ctl[i].cflags |= DNET_FLAGS_NOLOCK;
+	
+		memcpy(ctl[i].io.id, ctl[i].id.id, DNET_ID_SIZE);
+		memcpy(ctl[i].io.parent, ctl[i].id.id, DNET_ID_SIZE);
+	
+		local_trans_num = dnet_write_object(n, &ctl[i]);
+		if (local_trans_num < 0)
+			local_trans_num = 0;
+
+		trans_num += local_trans_num;
+	}
+
+	/*
+	 * 1 - the first reference counter we grabbed at allocation time
+	 */
+	atomic_sub(&w->refcnt, INT_MAX - trans_num - 1);
+
+	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
+	if (err || w->status) {
+		if (!err)
+			err = w->status;
+		dnet_log(n, DNET_LOG_NOTICE, "%s: failed to wait for IO write completion, err: %d, status: %d.\n",
+				dnet_dump_id(&ctl->id), err, w->status);
+	}
+
+	if (err || !trans_num) {
+		if (!err)
+			err = -EINVAL;
+		dnet_log(n, DNET_LOG_ERROR, "Failed to write data into the storage, err: %d, trans_num: %d.\n", err, trans_num);
+		goto err_out_put;
+	}
+
+	if (trans_num)
+		dnet_log(n, DNET_LOG_NOTICE, "%s: successfully wrote %llu bytes into the storage, reply size: %d.\n",
+				dnet_dump_id(&ctl->id), (unsigned long long)ctl->io.size, wc->size);
+	err = trans_num;
+
+	ret.data = wc->reply;
+	ret.size = wc->size;
+
+	wc->reply = NULL;
+
+err_out_put:
+	dnet_write_complete_free(wc);
+err_out_exit:
+	*errp = err;
+	return ret;
+}
+

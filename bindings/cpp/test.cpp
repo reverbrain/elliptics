@@ -19,6 +19,7 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include <sstream>
 #include <fstream>
 
 #include "elliptics/cppdef.h"
@@ -273,7 +274,6 @@ static void test_exec_python(elliptics_node &n)
 	}
 }
 
-
 static void read_column_raw(elliptics_node &n, const std::string &key, const std::string &data, int column)
 {
 	std::string ret;
@@ -305,6 +305,48 @@ static void column_test(elliptics_node &n)
 	read_column_raw(n, key, data0, 0);
 	read_column_raw(n, key, data1, 2);
 	read_column_raw(n, key, data2, 3);
+}
+
+static void test_bulk_write(elliptics_node &n)
+{
+	try {
+		std::vector<struct dnet_io_attr> ios;
+		std::vector<std::string> data;
+
+		int i;
+
+		for (i = 0; i < 3; ++i) {
+			std::ostringstream os;
+			struct dnet_io_attr io;
+			struct dnet_id id;
+
+			os << "bulk_write" << i;
+
+			memset(&io, 0, sizeof(io));
+
+			n.transform(os.str(), id);
+			memcpy(io.id, id.id, DNET_ID_SIZE);
+			io.type = id.type;
+			io.size = os.str().size();
+
+			ios.push_back(io);
+			data.push_back(os.str());
+		}
+
+		std::string ret = n.bulk_write(ios, data, 0);
+
+		std::cout << "ret size = " << ret.size() << std::endl;
+
+		/* read without checksums since we did not write metadata */
+		for (i = 0; i < 3; ++i) {
+			std::ostringstream os;
+
+			os << "bulk_write" << i;
+			std::cout << os.str() << ": " << n.read_data_wait(os.str(), 0, 0, DNET_ATTR_NOCSUM, 0, 0) << std::endl;
+		}
+	} catch (const std::exception &e) {
+		std::cerr << "BULK WRITE test failed: " << e.what() << std::endl;
+	}
 }
 
 int main(int argc, char *argv[])
@@ -355,6 +397,9 @@ int main(int argc, char *argv[])
 		test_append(n);
 
 		test_exec_python(n);
+
+		test_bulk_write(n);
+
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {
