@@ -987,7 +987,7 @@ std::vector<std::string> elliptics_node::bulk_read(std::vector<std::string> &key
 	struct dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
 
-	ios.resize(keys.size());
+	ios.reserve(keys.size());
 
 	for (size_t i = 0; i < keys.size(); ++i) {
 		struct dnet_id id;
@@ -1012,7 +1012,7 @@ std::string elliptics_node::bulk_write(std::vector<struct dnet_io_attr> &ios, st
 		throw std::runtime_error(string.str());
 	}
 
-	ctls.resize(ios.size());
+	ctls.reserve(ios.size());
 
 	for(i = 0; i < ios.size(); ++i) {
 		struct dnet_io_control ctl;

@@ -3993,7 +3993,7 @@ struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr 
 
 	ret = NULL;
 	ret_num = 0;
-	size = ios[0].size;
+	size = 0;
 
 	dnet_setup_id(&id, group_id, ios[0].id);
 	id.type = ios[0].type;
@@ -4006,23 +4006,25 @@ struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr 
 	}
 	dnet_log(n, DNET_LOG_DSA, "%s: addr = %s\n", dnet_dump_id(&id), dnet_state_dump_addr(cur));
 
-	for (i = 1; i < io_num; i++) {
-		dnet_setup_id(&next_id, group_id, ios[i].id);
-		next_id.type = ios[i].type;
+	for (i = 0; i < io_num; ++i) {
+		if ((i + 1) < io_num) {
+			dnet_setup_id(&next_id, group_id, ios[i+1].id);
+			next_id.type = ios[i+1].type;
 
-		next = dnet_state_get_first(n, &next_id);
-		if (!next) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: Can't get state for id\n", dnet_dump_id(&next_id));
-			err = -ENOENT;
-			goto err_out_put;
-		}
-		dnet_log(n, DNET_LOG_DSA, "%s: addr = %s\n", dnet_dump_id(&next_id), dnet_state_dump_addr(next));
+			next = dnet_state_get_first(n, &next_id);
+			if (!next) {
+				dnet_log(n, DNET_LOG_ERROR, "%s: Can't get state for id\n", dnet_dump_id(&next_id));
+				err = -ENOENT;
+				goto err_out_put;
+			}
+			dnet_log(n, DNET_LOG_DSA, "%s: addr = %s\n", dnet_dump_id(&next_id), dnet_state_dump_addr(next));
 
-		/* Send command only if state changes or it's a last id */
-		if ((cur == next) && (i < io_num-1)) {
-			dnet_state_put(next);
-			next = NULL;
-			continue;
+			/* Send command only if state changes or it's a last id */
+			if ((cur == next)) {
+				dnet_state_put(next);
+				next = NULL;
+				continue;
+			}
 		}
 
 		dnet_log(n, DNET_LOG_NOTICE, "start: %s: end: %s, count: %llu, addr: %s\n",
