@@ -544,6 +544,7 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		}
 	}
 
+	dnet_log(n, DNET_LOG_DSA, "Starting %d blocking threads and %d nonblocking threads\n", io->thread_num, io->nonblocking_thread_num);
 	for (i=0; i<io->thread_num + io->nonblocking_thread_num; ++i) {
 		struct dnet_work_io *wio = &io->wio[i];
 
