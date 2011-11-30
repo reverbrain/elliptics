@@ -1,6 +1,6 @@
 import struct
 
-d = {'script' : 'insert', 'dentry_name' : pohmelfs_dentry_name}
+d = {'script' : 'rename', 'dentry_name' : pohmelfs_dentry_name}
 
 def pohmelfs_upload_dentry(new_dir_id, new_name, inode_info):
 	s = sstable()
@@ -40,9 +40,9 @@ try:
 	inode_info[84:88] = binary_data[128:132]
 
 	if binary_data[0:64] != binary_data[64:128]:
-		pohmelfs_upload_dentry(new_dir_id, new_name, inode_info)
+		pohmelfs_upload_dentry(new_dir_id, new_name, str(inode_info))
 	else:
-		s.insert(new_name, inode_info, True)
+		s.insert(new_name, str(inode_info), True)
 
 	s.delete(pohmelfs_dentry_name)
 	content = str(s.save())
