@@ -116,13 +116,10 @@ void dnet_trans_remove(struct dnet_trans *t)
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n __unused, uint64_t size)
 {
 	struct dnet_trans *t;
-	int err;
 
 	t = malloc(sizeof(struct dnet_trans) + size);
-	if (!t) {
-		err = -ENOMEM;
+	if (!t)
 		goto err_out_exit;
-	}
 
 	memset(t, 0, sizeof(struct dnet_trans) + size);
 
