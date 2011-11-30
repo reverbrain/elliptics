@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.0.5
+Version:	2.11.0.6
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 1 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.6-1
+- Cleanup unused variables
+- Fixed reply cmd->flags initialization
+- Use boost::filesystem v2
+- Fixes in bulk_read and bulk_write
+
 * Mon Nov 28 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.5-1
 - Implemented pool of non-blocking threads for recursive commands.
 - Dropped metadata csum support in favour of eblob embedded checksums.
