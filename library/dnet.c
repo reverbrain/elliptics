@@ -965,7 +965,6 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 {
 	struct dnet_wait *w = priv;
 	struct dnet_addr_attr *a;
-	struct dnet_node *n;
 	long size;
 	int err;
 
@@ -980,7 +979,6 @@ static int dnet_recv_route_list_complete(struct dnet_net_state *st, struct dnet_
 		goto err_out_exit;
 	}
 
-	n = st->n;
 
 	err = cmd->status;
 	if (!cmd->size || err || !attr)
@@ -1077,7 +1075,6 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	char buf[sizeof(struct dnet_addr_cmd)];
 	struct dnet_cmd *cmd;
 	struct dnet_attr *a;
-	struct dnet_addr_attr *aa;
 	int err, num, i, size;
 	struct dnet_raw_id *ids;
 
@@ -1117,7 +1114,6 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	cmd = (struct dnet_cmd *)(buf);
 	a = (struct dnet_attr *)(cmd + 1);
-	aa = (struct dnet_addr_attr *)(a + 1);
 
 	dnet_convert_addr_cmd((struct dnet_addr_cmd *)buf);
 
@@ -1408,20 +1404,19 @@ err_out_destroy:
 
 int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl)
 {
-	struct dnet_trans *t;
 	int num = 0, i, err;
 
 	pthread_mutex_lock(&n->group_lock);
 	for (i=0; i<n->group_num; ++i) {
 		ctl->id.group_id = n->groups[i];
 
-		t = dnet_io_trans_create(n, ctl, &err);
+		dnet_io_trans_create(n, ctl, &err);
 		num++;
 	}
 	pthread_mutex_unlock(&n->group_lock);
 
 	if (!num) {
-		t = dnet_io_trans_create(n, ctl, &err);
+		dnet_io_trans_create(n, ctl, &err);
 		num++;
 	}
 
@@ -2773,7 +2768,6 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 {
 	struct dnet_read_data_completion *c = priv;
 	struct dnet_wait *w = c->w;
-	int last = (!cmd || !(cmd->flags & DNET_FLAGS_MORE));
 	int err = -EINVAL;
 
 	if (is_trans_destroyed(st, cmd, attr)) {
@@ -2809,9 +2803,9 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	}
 
 err_out_exit:
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: object read completed: trans: %llu, status: %d, last: %d, err: %d.\n",
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: object read completed: trans: %llu, status: %d, err: %d.\n",
 		dnet_dump_id(&cmd->id), (unsigned long long)(cmd->trans & ~DNET_TRANS_REPLY),
-		cmd->status, last, err);
+		cmd->status, err);
 
 	return err;
 }
@@ -3153,8 +3147,9 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 
 	dnet_setup_id(&c->id, cmd->id.group_id, io->id);
 
+	c->flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
 	if (cmd->flags & DNET_FLAGS_NEED_ACK)
-		c->flags = DNET_FLAGS_MORE;
+		c->flags |= DNET_FLAGS_MORE;
 
 	c->status = 0;
 	c->size = sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr) + io->size;
@@ -3769,7 +3764,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *att
 	struct dnet_node *n = dnet_get_node_from_state(state);
 	struct dnet_file_info *info;
 	struct dnet_addr_attr *a;
-	int flen, err, csum_fd = -1;
+	int flen, err;
 	char *file;
 	struct stat st;
 
@@ -3800,14 +3795,11 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *att
 	/* this is not valid data from raw blob file stat */
 	info->ctime.tsec = info->mtime.tsec = 0;
 
-	if (!(attr->flags & DNET_ATTR_NOCSUM) || (attr->flags & DNET_ATTR_META_TIMES)) {
-		if (!(attr->flags & DNET_ATTR_NOCSUM) && size)
-			csum_fd = fd;
-
+	if (attr->flags & DNET_ATTR_META_TIMES) {
 		err = dnet_read_file_info(n, &cmd->id, info);
 		if ((err == -ENOENT) && (attr->flags & DNET_ATTR_META_TIMES))
 			err = 0;
-		if (err && (err != -ENODATA))
+		if (err)
 			goto err_out_free;
 	}
 
