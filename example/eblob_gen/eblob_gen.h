@@ -58,6 +58,8 @@ class eblob_data_source {
 				std::string &name, std::string &data) = 0;
 };
 
+#define BOOST_FILESYSTEM_VERSION 2
+
 #include <boost/filesystem/operations.hpp>
 namespace fs = boost::filesystem;
 

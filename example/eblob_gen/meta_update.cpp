@@ -16,6 +16,8 @@
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
 #include <boost/lexical_cast.hpp>
+
+#define BOOST_FILESYSTEM_VERSION 2
 #include <boost/filesystem.hpp>
 namespace fs = boost::filesystem;
 
