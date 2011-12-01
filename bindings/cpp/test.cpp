@@ -349,6 +349,36 @@ static void test_bulk_write(elliptics_node &n)
 	}
 }
 
+static void test_bulk_read(elliptics_node &n)
+{
+	try {
+		std::vector<std::string> keys;
+
+		int i;
+
+		for (i = 0; i < 3; ++i) {
+			std::ostringstream os;
+			os << "bulk_write" << i;
+			keys.push_back(os.str());
+		}
+
+		int group_id = 2;
+		std::vector<std::string> ret = n.bulk_read(keys, group_id, 0);
+
+		std::cout << "ret size = " << ret.size() << std::endl;
+
+		/* read without checksums since we did not write metadata */
+		for (i = 0; i < 3; ++i) {
+			std::ostringstream os;
+
+			os << "bulk_read" << i;
+			std::cout << os.str() << ": " << ret[i].substr(DNET_ID_SIZE + 8) << std::endl;
+		}
+	} catch (const std::exception &e) {
+		std::cerr << "BULK READ test failed: " << e.what() << std::endl;
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int g[] = {1, 2, 3};
@@ -399,6 +429,7 @@ int main(int argc, char *argv[])
 		test_exec_python(n);
 
 		test_bulk_write(n);
+		test_bulk_read(n);
 
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
