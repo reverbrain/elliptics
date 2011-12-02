@@ -188,7 +188,12 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
-	err = eblob_read(b, &key, &fd, &orig_offset, &orig_size, io->type);
+	if (io->flags & DNET_IO_FLAGS_NOCSUM) {
+		err = eblob_read_nocsum(b, &key, &fd, &orig_offset, &orig_size, io->type);
+	} else {
+		err = eblob_read(b, &key, &fd, &orig_offset, &orig_size, io->type);
+	}
+
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-fd: READ: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
