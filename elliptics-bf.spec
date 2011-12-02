@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.0.6
+Version:	2.11.0.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,7 +15,7 @@ BuildRequires:	python26-devel, boost141-python, boost141-devel
 %else
 BuildRequires:  python-devel, boost-python, boost-devel
 %endif
-BuildRequires:	eblob-devel >= 0.12.18 libsrw-devel >= 0.2.2
+BuildRequires:	eblob-devel >= 0.12.23 libsrw-devel >= 0.2.2
 BuildRequires:	automake autoconf libtool
 
 %description
@@ -147,6 +147,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Dec 2 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.7-1
+- Use eblob_read_nocsum() if DNET_IO_FLAGS_NOCSUM is set
+
 * Thu Dec 1 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.6-1
 - Cleanup unused variables
 - Fixed reply cmd->flags initialization
