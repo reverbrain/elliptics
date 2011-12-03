@@ -906,7 +906,7 @@ std::string elliptics_node::exec_name(struct dnet_id *id, const std::string &nam
 		if (err < 0) {
 			std::ostringstream str;
 
-			str << dnet_dump_id(id) << ": failed to exec script type " << type << ": " << strerror(-err) << " " << err;
+			str << (id ? dnet_dump_id(id) : "no-id-given") << ": failed to exec script type " << type << ": " << strerror(-err) << " " << err;
 			throw std::runtime_error(str.str());
 		}
 
