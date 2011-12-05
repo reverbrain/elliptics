@@ -15,6 +15,9 @@
 
 #include "config.h"
 
+#include <sys/time.h>
+#include <sys/resource.h>
+
 #include <errno.h>
 #include <stdarg.h>
 #include <string.h>
@@ -57,7 +60,6 @@ int elliptics_callback_io::callback(struct dnet_net_state *state, struct dnet_cm
 {
 	int err;
 	struct dnet_io_attr *io;
-	void *data;
 
 	if (is_trans_destroyed(state, cmd, attr)) {
 		err = -EINVAL;
@@ -86,7 +88,6 @@ int elliptics_callback_io::callback(struct dnet_net_state *state, struct dnet_cm
 	}
 
 	io = (struct dnet_io_attr *)(attr + 1);
-	data = io + 1;
 
 	dnet_convert_io_attr(io);
 	err = 0;
@@ -173,14 +174,17 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 	std::vector<std::string> ret;
 	ret = n.read_data_range(io, group_id, aflags);
 
+	std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
 	for (size_t i = 0; i < ret.size(); ++i) {
 		const char *data = ret[i].data();
 		const unsigned char *id = (const unsigned char *)data;
 		uint64_t size = dnet_bswap64(*(uint64_t *)(data + DNET_ID_SIZE));
 		char *str = (char *)(data + DNET_ID_SIZE + 8);
 
+#if 0
 		std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " <<
 			dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str) << ": size: " << size << ": " << str << std::endl;
+#endif
 	}
 }
 
@@ -377,6 +381,86 @@ static void test_bulk_read(elliptics_node &n)
 	} catch (const std::exception &e) {
 		std::cerr << "BULK READ test failed: " << e.what() << std::endl;
 	}
+
+static void memory_test_io(elliptics_node &n, int num)
+{
+	int ids[16];
+
+	for (int i = 0; i < num; ++i) {
+		std::string data;
+
+		data.resize(rand() % 102400 + 100);
+
+		for (int j = 0; j < (int)ARRAY_SIZE(ids); ++j)
+			ids[j] = rand();
+
+		std::string id((char *)ids, sizeof(ids));
+		std::string written;
+
+		try {
+			written = n.write_data_wait(id, data, 0, 0, 0, 0);
+			std::string res = n.read_data_wait(id, 0, 0, 0, 0, 0);
+		} catch (const std::exception &e) {
+			std::cerr << "could not perform read/write: " << e.what() << std::endl;
+			if (written.size() > 0) {
+				std::cerr << "but written successfully\n";
+				test_lookup_parse(id, written);
+			}
+		}
+	}
+
+}
+
+static void memory_test_script(elliptics_node &n, int num)
+{
+	int ids[16];
+
+	for (int i = 0; i < num; ++i) {
+		std::string data;
+
+		data.resize(rand() % 102400 + 100);
+
+		for (int j = 0; j < (int)ARRAY_SIZE(ids); ++j)
+			ids[j] = rand();
+
+		std::string id((char *)ids, sizeof(ids));
+		id.resize(DNET_ID_SIZE);
+		id.append(data);
+
+		std::string written;
+
+		try {
+			std::string script = "binary = str(__input_binary_data_tuple[0])\n"
+				"n.write_data(binary[0:64], binary[64:], 0, 0, 0, 0)\n"
+				"__return_data = n.read_data(binary[0:64], 0, 0, 0, 0, 0)";
+
+			written = n.exec(NULL, script, id, DNET_EXEC_PYTHON);
+		} catch (const std::exception &e) {
+			std::cerr << "could not perform read/write: " << e.what() << std::endl;
+			if (written.size() > 0) {
+				std::cerr << "but written successfully\n";
+				test_lookup_parse(id, written);
+			}
+		}
+	}
+
+}
+
+static void memory_test(elliptics_node &n)
+{
+	struct rusage start, end;
+
+	getrusage(RUSAGE_SELF, &start);
+	memory_test_script(n, 1000);
+	getrusage(RUSAGE_SELF, &end);
+
+	std::cout << "script leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
+
+	getrusage(RUSAGE_SELF, &start);
+	memory_test_io(n, 1000);
+	getrusage(RUSAGE_SELF, &end);
+
+	std::cout << "IO leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
 }
 
 int main(int argc, char *argv[])
@@ -431,6 +515,7 @@ int main(int argc, char *argv[])
 		test_bulk_write(n);
 		test_bulk_read(n);
 
+		memory_test(n);
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {
