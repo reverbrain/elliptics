@@ -13,6 +13,15 @@ try:
 	if not ret:
 		raise KeyError("no entry")
 	__return_data = str(ret[1])
+
+	s = None
+	dir_content = None
+	ret = None
+
+	gc.collect()
+
+	logging.error("found: %s", pohmelfs_dentry_name, extra=d)
+
 except KeyError as e:
 	logging.error("key error: %s", e.__str__(), extra=d)
 	__return_data = 'key error: ' + e.__str__()
