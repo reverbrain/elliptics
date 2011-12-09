@@ -1,3 +1,13 @@
+elliptics-2.10 (2.11.0.8) unstable; urgency=low
+
+  * Set DNET_FLAGS_NOLOCK for route/reverse lookup request/reply commands
+  * Added memory_test_pohmelfs() autotest
+  * Added gc calls into pohmelfs methods
+  * Fixed exception string generation for null ids
+  * Added small memory/leak test
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 9 Dec 2011 21:15:59 +0400
+
 elliptics-2.10 (2.11.0.7) unstable; urgency=low
 
   * Use eblob_read_nocsum() if DNET_IO_FLAGS_NOCSUM is set
