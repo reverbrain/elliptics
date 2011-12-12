@@ -68,6 +68,8 @@ static char *dnet_skip_line(char *line)
 }
 
 static struct dnet_log dnet_backend_logger;
+char *dnet_logger_value;
+
 static struct dnet_config dnet_cfg_state;
 static char *dnet_cfg_remotes;
 static int dnet_daemon_mode;
@@ -156,27 +158,44 @@ static int dnet_set_auth_cookie(struct dnet_config_backend *b __unused, char *ke
 
 static int dnet_set_backend(struct dnet_config_backend *b, char *key __unused, char *value);
 	
-static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
-	if (!strcmp(value, "syslog")) {
+	char *tmp;
+
+	tmp = strdup(value);
+	if (!tmp)
+		return -ENOMEM;
+
+	if (dnet_logger_value)
+		free(dnet_logger_value);
+
+	dnet_logger_value = tmp;
+
+	if (!strcmp(dnet_logger_value, "syslog")) {
 		openlog("elliptics", 0, LOG_USER);
 
 		dnet_backend_logger.log_private = NULL;
 		dnet_backend_logger.log = dnet_syslog;
 	} else {
-		FILE *log;
+		FILE *log, *old = dnet_backend_logger.log_private;
 		int err;
 
-		log = fopen(value, "a");
+		log = fopen(dnet_logger_value, "a");
 		if (!log) {
 			err = -errno;
-			fprintf(stderr, "cnf: failed to open log file '%s': %s.\n", value, strerror(errno));
+			fprintf(stderr, "cnf: failed to open log file '%s': %s.\n", dnet_logger_value, strerror(errno));
 			return err;
 		}
 
 		dnet_backend_logger.log_private = log;
 		dnet_backend_logger.log = dnet_common_log;
-		dnet_cfg_state.log = &dnet_backend_logger;
+
+		dnet_common_log(log, 0xff, "Reopened log file\n");
+
+		if (old) {
+			dnet_common_log(old, 0xff, "Reopened log file\n");
+			fclose(old);
+		}
 	}
 
 	dnet_cfg_state.log = &dnet_backend_logger;
