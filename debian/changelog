@@ -1,3 +1,9 @@
+elliptics-2.10 (2.11.0.9) unstable; urgency=low
+
+  * Reopen log file on sighup
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 12 Dec 2011 20:36:59 +0400
+
 elliptics-2.10 (2.11.0.8) unstable; urgency=low
 
   * Set DNET_FLAGS_NOLOCK for route/reverse lookup request/reply commands
