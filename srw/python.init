@@ -16,6 +16,8 @@ n.add_remote('172.16.239.1', 1025)
 
 __return_data = 'unused'
 
+import gc
+
 import struct
 from sstable2 import sstable
 

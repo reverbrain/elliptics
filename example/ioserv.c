@@ -82,6 +82,15 @@ static void ioserv_destroy_handler(int sig __unused, siginfo_t *si __unused, voi
 	dnet_set_need_exit(global_n);
 }
 
+extern char *dnet_logger_value;
+struct dnet_config_backend;
+extern int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value);
+
+static void ioserv_reload_handler(int sig __unused, siginfo_t *si __unused, void *uc __unused)
+{
+	dnet_set_log(NULL, NULL, dnet_logger_value);
+}
+
 static int ioserv_setup_signals(void)
 {
 	struct sigaction sa;
@@ -93,6 +102,11 @@ static int ioserv_setup_signals(void)
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGINT, &sa, NULL);
 
+	sa.sa_flags = SA_SIGINFO;
+	sa.sa_sigaction = ioserv_reload_handler;
+	sigemptyset(&sa.sa_mask);
+	sigaction(SIGHUP, &sa, NULL);
+
 	return 0;
 }
 
@@ -103,6 +117,7 @@ static void ioserv_cleanup_signals(void)
 	sigemptyset(&sig);
 	sigaddset(&sig, SIGTERM);
 	sigaddset(&sig, SIGINT);
+	sigaddset(&sig, SIGHUP);
 	sigprocmask(SIG_BLOCK, &sig, NULL);
 }
 

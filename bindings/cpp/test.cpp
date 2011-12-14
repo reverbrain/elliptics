@@ -411,6 +411,36 @@ static void memory_test_io(elliptics_node &n, int num)
 
 }
 
+static void memory_test_pohmelfs(elliptics_node &n, int num)
+{
+	struct dnet_raw_id id;
+
+	memset(&id, 0, sizeof(struct dnet_raw_id));
+
+	for (int i = 0; i < num; ++i) {
+		std::string data;
+
+		data.assign((char *)(&id), sizeof(struct dnet_id));
+		data.resize(rand() % 1024 + 100);
+
+		std::string written;
+
+		try {
+			std::ostringstream script;
+
+			script << "pohmelfs_dentry_name = '" << std::hex << rand() << rand() << rand() << rand() << "'\n";
+			written = n.exec_name(NULL, "pohmelfs_inode_info_insert.py", script.str(), data, DNET_EXEC_PYTHON_SCRIPT_NAME);
+		} catch (const std::exception &e) {
+			std::cerr << "could not perform read/write: " << e.what() << std::endl;
+			if (written.size() > 0) {
+				std::cerr << "but written successfully\n";
+				test_lookup_parse(data, written);
+			}
+		}
+	}
+
+}
+
 static void memory_test_script(elliptics_node &n, int num)
 {
 	int ids[16];
@@ -451,16 +481,20 @@ static void memory_test(elliptics_node &n)
 	struct rusage start, end;
 
 	getrusage(RUSAGE_SELF, &start);
+	memory_test_pohmelfs(n, 1000);
+	getrusage(RUSAGE_SELF, &end);
+	std::cout << "named scipt leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
+
+	getrusage(RUSAGE_SELF, &start);
 	memory_test_script(n, 1000);
 	getrusage(RUSAGE_SELF, &end);
-
 	std::cout << "script leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
 
 	getrusage(RUSAGE_SELF, &start);
 	memory_test_io(n, 1000);
 	getrusage(RUSAGE_SELF, &end);
-
 	std::cout << "IO leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
+
 }
 
 int main(int argc, char *argv[])

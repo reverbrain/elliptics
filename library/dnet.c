@@ -118,6 +118,7 @@ static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
 	cmd->size = size - sizeof(struct dnet_cmd);
 	cmd->trans = trans;
 
+	cmd->flags = DNET_FLAGS_NOLOCK;
 	if (more)
 		cmd->flags |= DNET_FLAGS_MORE;
 	if (direct)
@@ -1028,7 +1029,7 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 	a = (struct dnet_attr *)(cmd + 1);
 
 	cmd->size = sizeof(struct dnet_attr);
-	cmd->flags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT;
+	cmd->flags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_DIRECT | DNET_FLAGS_NOLOCK;
 	cmd->status = 0;
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
@@ -1083,7 +1084,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	cmd = (struct dnet_cmd *)(buf);
 	a = (struct dnet_attr *)(cmd + 1);
 
-	cmd->flags = DNET_FLAGS_DIRECT;
+	cmd->flags = DNET_FLAGS_DIRECT | DNET_FLAGS_NOLOCK;
 	cmd->size = sizeof(struct dnet_attr);
 	a->cmd = DNET_CMD_REVERSE_LOOKUP;
 
@@ -4152,4 +4153,3 @@ err_out_exit:
 	*errp = err;
 	return ret;
 }
-

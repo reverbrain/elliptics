@@ -25,6 +25,11 @@ try:
 
 	logging.info("removed", extra=d)
 
+	s = None
+	dir_content = None
+
+	gc.collect()
+
 except KeyError as e:
 	logging.error("key error: %s", e.__str__(), extra=d)
 	__return_data = 'key error: ' + e.__str__()

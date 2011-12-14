@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.0.7
+Version:	2.11.0.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Dec 12 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.9-1
+- Reopen log file on sighup
+
+* Fri Dec 9 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.8-1
+- Set DNET_FLAGS_NOLOCK for route/reverse lookup request/reply commands
+- Added memory_test_pohmelfs() autotest
+- Added gc calls into pohmelfs methods
+- Fixed exception string generation for null ids
+- Added small memory/leak test
+
 * Fri Dec 2 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.7-1
 - Use eblob_read_nocsum() if DNET_IO_FLAGS_NOCSUM is set
 
