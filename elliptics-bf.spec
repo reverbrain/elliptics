@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.0.9
+Version:	2.11.0.10
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 15 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.10-1
+- Added configurable two-queue cache for read data by Anton Kortunov <toshic.toshic@gmail.com>
+
 * Mon Dec 12 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.9-1
 - Reopen log file on sighup
 

@@ -1,3 +1,9 @@
+elliptics-2.10 (2.11.0.10) unstable; urgency=low
+
+  * Added configurable two-queue cache for read data by Anton Kortunov <toshic.toshic@gmail.com>
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 15 Dec 2011 22:00:13 +0400
+
 elliptics-2.10 (2.11.0.9) unstable; urgency=low
 
   * Reopen log file on sighup
