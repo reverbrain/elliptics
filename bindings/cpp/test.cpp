@@ -382,6 +382,8 @@ static void test_bulk_read(elliptics_node &n)
 		std::cerr << "BULK READ test failed: " << e.what() << std::endl;
 	}
 
+}
+
 static void memory_test_io(elliptics_node &n, int num)
 {
 	int ids[16];
