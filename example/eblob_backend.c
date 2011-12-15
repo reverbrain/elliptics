@@ -665,6 +665,14 @@ static int dnet_blob_set_records_in_blob(struct dnet_config_backend *b, char *ke
 	return 0;
 }
 
+static int dnet_blob_set_blob_cache_size(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct eblob_backend_config *c = b->data;
+
+	c->data.cache_size = strtoul(value, NULL, 0);
+	return 0;
+}
+
 static int dnet_blob_set_iterate_thread_num(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct eblob_backend_config *c = b->data;
@@ -758,6 +766,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	}
 
 	c->data.log = (struct eblob_log *)b->log;
+	c->data.cache_size = 5;
 
 	c->eblob = eblob_init(&c->data);
 	if (!c->eblob) {
@@ -802,6 +811,7 @@ static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"iterate_thread_num", dnet_blob_set_iterate_thread_num},
 	{"blob_size", dnet_blob_set_blob_size},
 	{"records_in_blob", dnet_blob_set_records_in_blob},
+	{"blob_cache_size", dnet_blob_set_blob_cache_size},
 };
 
 static struct dnet_config_backend dnet_eblob_backend = {
