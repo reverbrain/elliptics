@@ -136,8 +136,10 @@ static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 			written += plain_data[i];
 		}
 
-		n.write_commit(key, commit_data, offset, 0, aflags, ioflags, column);
+		/* append data first so that subsequent written.size() call returned real size of the written data */
 		written += commit_data;
+
+		n.write_commit(key, commit_data, offset, written.size(), aflags, ioflags, column);
 
 		ret = n.read_data_wait(key, 0, 0, aflags, ioflags, column);
 		std::cout << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
@@ -250,6 +252,7 @@ static void test_append(elliptics_node &n)
 		std::cout << key << ": " << n.read_data_wait(key, 0, 0, 0, 0, 0) << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "APPEND test failed: " << e.what() << std::endl;
+		throw std::runtime_error("APPEND test failed");
 	}
 }
 
