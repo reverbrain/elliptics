@@ -587,10 +587,11 @@ static void memory_test(elliptics_node &n)
 void usage(char *p)
 {
 	fprintf(stderr, "Usage: %s <options>\n"
-			"  -r host		- remote host name\n"
-			"  -p port		- remote port\n"
-			"  -g group_id		- group_id for range request and bulk write\n"
-			"  -w			- write cache before read\n"
+			"  -r host              - remote host name\n"
+			"  -p port              - remote port\n"
+			"  -g group_id          - group_id for range request and bulk write\n"
+			"  -w                   - write cache before read\n"
+			"  -m                   - start client's memory leak test (rather long - several minutes, and space consuming)\n"
 			, p);
 	exit(-1);
 }
@@ -602,9 +603,10 @@ int main(int argc, char *argv[])
 	char *host = (char *)"localhost";
 	int port = 1025;
 	int ch, write_cache = 0;
+	int mem_check = 0;
 	int group_id = 2;
 
-	while ((ch = getopt(argc, argv, "r:p:g:wh")) != -1) {
+	while ((ch = getopt(argc, argv, "mr:p:g:wh")) != -1) {
 		switch (ch) {
 			case 'r':
 				host = optarg;
@@ -617,6 +619,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'w':
 				write_cache = 1;
+				break;
+			case 'm':
+				mem_check = 1;
 				break;
 			case 'h':
 			default:
@@ -660,7 +665,8 @@ int main(int argc, char *argv[])
 		test_bulk_write(n);
 		test_bulk_read(n, group_id);
 
-		//memory_test(n);
+		if (mem_check)
+			memory_test(n);
 
 		if (write_cache)
 			test_cache_write(n, 1000);
