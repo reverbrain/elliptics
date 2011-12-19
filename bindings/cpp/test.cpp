@@ -157,7 +157,6 @@ static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 static void test_range_request(elliptics_node &n, int limit_start, int limit_num, unsigned int aflags)
 {
 	struct dnet_io_attr io;
-	char id_str[DNET_ID_SIZE * 2 + 1];
 
 	memset(&io, 0, sizeof(io));
 
@@ -178,12 +177,13 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 
 	std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
 	for (size_t i = 0; i < ret.size(); ++i) {
+#if 0
+		char id_str[DNET_ID_SIZE * 2 + 1];
 		const char *data = ret[i].data();
 		const unsigned char *id = (const unsigned char *)data;
 		uint64_t size = dnet_bswap64(*(uint64_t *)(data + DNET_ID_SIZE));
 		char *str = (char *)(data + DNET_ID_SIZE + 8);
 
-#if 0
 		std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " <<
 			dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str) << ": size: " << size << ": " << str << std::endl;
 #endif
