@@ -176,7 +176,6 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 	std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
 #if 0
 	for (size_t i = 0; i < ret.size(); ++i) {
-#if 0
 		char id_str[DNET_ID_SIZE * 2 + 1];
 		const char *data = ret[i].data();
 		const unsigned char *id = (const unsigned char *)data;
