@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.0.10
+Version:	2.11.0.11
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Dec 20 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.11-1
+- Implemented check for start/stop update timestamp
+- Added cache tests in test.cpp
+
 * Thu Dec 15 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.10-1
 - Added configurable two-queue cache for read data by Anton Kortunov <toshic.toshic@gmail.com>
 

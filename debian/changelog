@@ -1,3 +1,10 @@
+elliptics-2.10 (2.11.0.11) unstable; urgency=low
+
+  * Implemented check for start/stop update timestamp
+  * Added cache tests in test.cpp
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 20 Dec 2011 01:15:13 +0400
+
 elliptics-2.10 (2.11.0.10) unstable; urgency=low
 
   * Added configurable two-queue cache for read data by Anton Kortunov <toshic.toshic@gmail.com>
