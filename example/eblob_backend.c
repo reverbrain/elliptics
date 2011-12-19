@@ -766,7 +766,6 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	}
 
 	c->data.log = (struct eblob_log *)b->log;
-	c->data.cache_size = 5;
 
 	c->eblob = eblob_init(&c->data);
 	if (!c->eblob) {
