@@ -367,10 +367,8 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 	struct dnet_meta_container mc;
 	struct dnet_net_state *tmp;
 	struct dnet_bulk_array *bulk_array;
-	struct dnet_meta_update mu;
-	long long ts, edge = ctl->req->timestamp;
-	long long updatestamp = ctl->req->updatestamp;
-	char time_buf[64], ctl_time[64], ctl_time2[64];
+	long long check_ts, check_edge_ts = ctl->req->timestamp, update_ts;
+	char check_time[64], check_edge_time[64], update_start[64], update_stop[64], update_time[64];
 	struct tm tm;
 	int will_check, should_be_merged;
 	int send_check_reply = 1;
@@ -385,19 +383,24 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 	mc.data = data;
 	mc.size = rc->size;
 
-	if (edge) {
-		localtime_r((time_t *)&edge, &tm);
-		strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
+	if (check_edge_ts) {
+		localtime_r((time_t *)&check_edge_ts, &tm);
+		strftime(check_edge_time, sizeof(check_edge_time), "%F %R:%S %Z", &tm);
 	} else {
-		snprintf(ctl_time, sizeof(ctl_time), "all records");
+		snprintf(check_edge_time, sizeof(check_edge_time), "no-check-edge");
 	}
 
-	if (updatestamp) {
-		localtime_r((time_t *)&updatestamp, &tm);
-		strftime(ctl_time2, sizeof(ctl_time2), "%F %R:%S %Z", &tm);
+	if (ctl->req->updatestamp_start) {
+		localtime_r((time_t *)&ctl->req->updatestamp_start, &tm);
+		strftime(update_start, sizeof(update_start), "%F %R:%S %Z", &tm);
 	} else {
-		snprintf(ctl_time2, sizeof(ctl_time2), "all records");
+		snprintf(update_start, sizeof(update_start), "all");
 	}
+	if (!ctl->req->updatestamp_stop)
+		ctl->req->updatestamp_stop = time(NULL);
+	localtime_r((time_t *)&ctl->req->updatestamp_stop, &tm);
+	strftime(update_stop, sizeof(update_stop), "%F %R:%S %Z", &tm);
+
 
 	dnet_setup_id(&mc.id, n->id.group_id, dc->key.id);
 
@@ -418,50 +421,68 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 	* If timestamp is specified check should be performed only to files
 	* that was not checked since that timestamp
 	*/
-	ts = dnet_meta_get_ts(n, &mc);
-	will_check = !(edge && (ts > edge));
+	check_ts = dnet_meta_get_ts(n, &mc);
+	will_check = !(check_edge_ts && (check_ts > check_edge_ts));
 
 	/*
-	 * If update stamp is specified check should be performed only to files
-	 * that was created after that update stamp
+	 * If start/stop update stamp is specified check should be performed only to files
+	 * that were created in that interval (inclusive)
 	 */
+	update_ts = 0;
 	if (will_check) {
-		dnet_get_meta_update(n, &mc, &mu);
-		will_check = !(updatestamp && (mu.tm.tsec < updatestamp));
+		struct dnet_meta_update mu;
+
+		/* only try to check creation/update timestamp if it is really present in database */
+		if (dnet_get_meta_update(n, &mc, &mu)) {
+			update_ts = mu.tm.tsec;
+
+			will_check = 0;
+			if ((mu.tm.tsec >= ctl->req->updatestamp_start) && (mu.tm.tsec <= ctl->req->updatestamp_stop))
+				will_check = 1;
+		}
 	}
 
-	if (!should_be_merged && (ctl->req->flags & DNET_CHECK_MERGE)) {
-		will_check = 0;
-	}
-
-	if (should_be_merged && (ctl->req->flags & DNET_CHECK_FULL)) {
+	if (will_check && !should_be_merged && (ctl->req->flags & DNET_CHECK_MERGE)) {
 		will_check = 0;
 	}
 
 	if (n->log->log_mask & DNET_LOG_NOTICE) {
-		localtime_r((time_t *)&ts, &tm);
-		strftime(time_buf, sizeof(time_buf), "%F %R:%S %Z", &tm);
+		localtime_r((time_t *)&check_ts, &tm);
+		strftime(check_time, sizeof(check_time), "%F %R:%S %Z", &tm);
 
-		dnet_log_raw(n, DNET_LOG_NOTICE, "CHECK: start key: %s, timestamp: %lld [%s], check before: %lld [%s], "
-						"check updated after: %lld [%s], will check: %d, should_be_merged: %d, "
-						"dry: %d, flags: %x, size: %u.\n",
-				dnet_dump_id(&mc.id), ts, time_buf, edge, ctl_time,
-				updatestamp, ctl_time2, will_check, should_be_merged,
+		localtime_r((time_t *)&update_ts, &tm);
+		strftime(update_time, sizeof(update_time), "%F %R:%S %Z", &tm);
+
+		dnet_log_raw(n, DNET_LOG_NOTICE, "CHECK: start key: %s, "
+				"last check: %lld [%s], "
+				"last check before: %lld [%s], "
+				"created/updated: %lld [%s], "
+				"updated between: %lld [%s] - %lld [%s], "
+				"will check: %d, should_be_merged: %d, dry: %d, flags: %x, size: %u.\n",
+				dnet_dump_id(&mc.id),
+				check_ts, check_time,
+				check_edge_ts, check_edge_time,
+				update_ts, update_time,
+				(unsigned long long)ctl->req->updatestamp_start, update_start,
+				(unsigned long long)ctl->req->updatestamp_stop, update_stop,
+				will_check, should_be_merged,
 				!!(ctl->req->flags & DNET_CHECK_DRY_RUN), ctl->req->flags, mc.size);
 	}
 
 	if (will_check) {
-		err = dnet_check(n, &mc, bulk_array, should_be_merged, &ctl->params);
+		err = 0;
+		if (!(ctl->req->flags & DNET_CHECK_DRY_RUN)) {
+			err = dnet_check(n, &mc, bulk_array, should_be_merged, &ctl->params);
+
+			dnet_log_raw(n, DNET_LOG_NOTICE, "CHECK: complete key: %s, merge: %d, err: %d\n",
+					dnet_dump_id(&mc.id), should_be_merged, err);
+		}
 
 		if (!err) {
 			atomic_inc(&ctl->completed);
 		} else {
 			atomic_inc(&ctl->errors);
 		}
-
-		dnet_log_raw(n, DNET_LOG_NOTICE, "CHECK: complete key: %s, timestamp: %lld [%s], err: %d\n",
-				dnet_dump_id(&mc.id), ts, time_buf, err);
-
 	}
 
 	if ((atomic_inc(&ctl->total) % 30000) == 0) {

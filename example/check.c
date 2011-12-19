@@ -55,12 +55,12 @@ static void check_usage(char *p)
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" -m mask              - log events mask\n"
 			" -M                   - do not check copies in other groups, run only merge check\n"
-//			" -F                   - check not only history logs, but also try to read data object when checking number of copies\n"
 			" -R                   - only delete objects marked as REMOVED\n"
 			" -D                   - dry run - do not perform any action, just update counters\n"
 			" -t timestamp         - only check those objects, which were previously checked BEFORE this time\n"
 			"                          format: year-month-day hours:minutes:seconds like \"2011-01-13 23:15:00\"\n"
-			" -T timestamp         - only check those objects, which were created after this time, format as above\n"
+			" -u timestamp         - only check those objects, which were created after this time, format as above\n"
+			" -U timestamp         - only check those objects, which were created before this time, format as above\n"
 			" -g group:group...    - override groups with replicas\n"
 			" -n num               - number of checking threads to start by the server\n"
 			" -f file              - file with list of objects to check\n"
@@ -195,8 +195,7 @@ int main(int argc, char *argv[])
 
 	memset(&r, 0, sizeof(r));
 
-//	while ((ch = getopt(argc, argv, "DN:f:n:t:FMRm:w:l:r:h")) != -1) {
-	while ((ch = getopt(argc, argv, "DN:f:n:t:T:MRm:w:l:dr:g:h")) != -1) {
+	while ((ch = getopt(argc, argv, "DN:f:n:t:u:U:MRm:w:l:dr:g:h")) != -1) {
 		switch (ch) {
 			case 'N':
 				cfg.ns = optarg;
@@ -216,13 +215,21 @@ int main(int argc, char *argv[])
 				}
 				r.timestamp = mktime(&tm);
 				break;
-			case 'T':
+			case 'u':
 				if (!strptime(optarg, "%F %T", &tm)) {
-					fprintf(stderr, "Invalid timestamp string in -T\n");
+					fprintf(stderr, "Invalid timestamp string in -u\n");
 					check_usage(argv[0]);
 					return -EINVAL;
 				}
-				r.updatestamp = mktime(&tm);
+				r.updatestamp_start = mktime(&tm);
+				break;
+			case 'U':
+				if (!strptime(optarg, "%F %T", &tm)) {
+					fprintf(stderr, "Invalid timestamp string in -U\n");
+					check_usage(argv[0]);
+					return -EINVAL;
+				}
+				r.updatestamp_stop = mktime(&tm);
 				break;
 			case 'D':
 				r.flags |= DNET_CHECK_DRY_RUN;

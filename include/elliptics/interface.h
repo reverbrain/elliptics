@@ -848,17 +848,21 @@ struct dnet_check_request {
 	uint32_t		flags;
 	uint32_t		thread_num;
 	uint64_t		timestamp;
-	uint64_t		updatestamp;
+	uint64_t		updatestamp_start;
+	uint64_t		updatestamp_stop;
 	uint32_t		obj_num;
 	uint32_t		group_num;
 } __attribute__ ((packed));
 
 static inline void dnet_convert_check_request(struct dnet_check_request *r)
 {
-	r->timestamp = dnet_bswap64(r->timestamp);
 	r->flags = dnet_bswap32(r->flags);
 	r->thread_num = dnet_bswap32(r->thread_num);
+	r->timestamp = dnet_bswap64(r->timestamp);
+	r->updatestamp_start = dnet_bswap64(r->updatestamp_start);
+	r->updatestamp_stop = dnet_bswap64(r->updatestamp_stop);
 	r->obj_num = dnet_bswap32(r->obj_num);
+	r->group_num = dnet_bswap32(r->group_num);
 }
 
 int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r);
