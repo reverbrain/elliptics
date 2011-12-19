@@ -60,6 +60,7 @@ static void check_usage(char *p)
 			" -D                   - dry run - do not perform any action, just update counters\n"
 			" -t timestamp         - only check those objects, which were previously checked BEFORE this time\n"
 			"                          format: year-month-day hours:minutes:seconds like \"2011-01-13 23:15:00\"\n"
+			" -T timestamp         - only check those objects, which were created after this time, format as above\n"
 			" -g group:group...    - override groups with replicas\n"
 			" -n num               - number of checking threads to start by the server\n"
 			" -f file              - file with list of objects to check\n"
@@ -195,7 +196,7 @@ int main(int argc, char *argv[])
 	memset(&r, 0, sizeof(r));
 
 //	while ((ch = getopt(argc, argv, "DN:f:n:t:FMRm:w:l:r:h")) != -1) {
-	while ((ch = getopt(argc, argv, "DN:f:n:t:MRm:w:l:dr:g:h")) != -1) {
+	while ((ch = getopt(argc, argv, "DN:f:n:t:T:MRm:w:l:dr:g:h")) != -1) {
 		switch (ch) {
 			case 'N':
 				cfg.ns = optarg;
@@ -209,11 +210,19 @@ int main(int argc, char *argv[])
 				break;
 			case 't':
 				if (!strptime(optarg, "%F %T", &tm)) {
-					fprintf(stderr, "Invalid timestamp string\n");
+					fprintf(stderr, "Invalid timestamp string in -t\n");
 					check_usage(argv[0]);
 					return -EINVAL;
 				}
 				r.timestamp = mktime(&tm);
+				break;
+			case 'T':
+				if (!strptime(optarg, "%F %T", &tm)) {
+					fprintf(stderr, "Invalid timestamp string in -T\n");
+					check_usage(argv[0]);
+					return -EINVAL;
+				}
+				r.updatestamp = mktime(&tm);
 				break;
 			case 'D':
 				r.flags |= DNET_CHECK_DRY_RUN;

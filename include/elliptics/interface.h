@@ -848,6 +848,7 @@ struct dnet_check_request {
 	uint32_t		flags;
 	uint32_t		thread_num;
 	uint64_t		timestamp;
+	uint64_t		updatestamp;
 	uint32_t		obj_num;
 	uint32_t		group_num;
 } __attribute__ ((packed));
