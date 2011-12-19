@@ -367,8 +367,10 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 	struct dnet_meta_container mc;
 	struct dnet_net_state *tmp;
 	struct dnet_bulk_array *bulk_array;
+	struct dnet_meta_update mu;
 	long long ts, edge = ctl->req->timestamp;
-	char time_buf[64], ctl_time[64];
+	long long updatestamp = ctl->req->updatestamp;
+	char time_buf[64], ctl_time[64], ctl_time2[64];
 	struct tm tm;
 	int will_check, should_be_merged;
 	int send_check_reply = 1;
@@ -388,6 +390,13 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 		strftime(ctl_time, sizeof(ctl_time), "%F %R:%S %Z", &tm);
 	} else {
 		snprintf(ctl_time, sizeof(ctl_time), "all records");
+	}
+
+	if (updatestamp) {
+		localtime_r((time_t *)&updatestamp, &tm);
+		strftime(ctl_time2, sizeof(ctl_time2), "%F %R:%S %Z", &tm);
+	} else {
+		snprintf(ctl_time2, sizeof(ctl_time2), "all records");
 	}
 
 	dnet_setup_id(&mc.id, n->id.group_id, dc->key.id);
@@ -412,6 +421,15 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 	ts = dnet_meta_get_ts(n, &mc);
 	will_check = !(edge && (ts > edge));
 
+	/*
+	 * If update stamp is specified check should be performed only to files
+	 * that was created after that update stamp
+	 */
+	if (will_check) {
+		dnet_get_meta_update(n, &mc, &mu);
+		will_check = !(updatestamp && (mu.tm.tsec < updatestamp));
+	}
+
 	if (!should_be_merged && (ctl->req->flags & DNET_CHECK_MERGE)) {
 		will_check = 0;
 	}
@@ -425,9 +443,11 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 		strftime(time_buf, sizeof(time_buf), "%F %R:%S %Z", &tm);
 
 		dnet_log_raw(n, DNET_LOG_NOTICE, "CHECK: start key: %s, timestamp: %lld [%s], check before: %lld [%s], "
-						"will check: %d, should_be_merged: %d, dry: %d, flags: %x, size: %u.\n",
+						"check updated after: %lld [%s], will check: %d, should_be_merged: %d, "
+						"dry: %d, flags: %x, size: %u.\n",
 				dnet_dump_id(&mc.id), ts, time_buf, edge, ctl_time,
-				will_check, should_be_merged, !!(ctl->req->flags & DNET_CHECK_DRY_RUN), ctl->req->flags, mc.size);
+				updatestamp, ctl_time2, will_check, should_be_merged,
+				!!(ctl->req->flags & DNET_CHECK_DRY_RUN), ctl->req->flags, mc.size);
 	}
 
 	if (will_check) {
