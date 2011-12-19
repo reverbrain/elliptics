@@ -154,7 +154,7 @@ static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 	}
 }
 
-static void test_range_request(elliptics_node &n, int limit_start, int limit_num, unsigned int aflags)
+static void test_range_request(elliptics_node &n, int limit_start, int limit_num, unsigned int aflags, int group_id)
 {
 	struct dnet_io_attr io;
 	char id_str[DNET_ID_SIZE * 2 + 1];
@@ -171,23 +171,21 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 	io.start = limit_start;
 	io.num = limit_num;
 
-	int group_id = 2;
-
 	std::vector<std::string> ret;
 	ret = n.read_data_range(io, group_id, aflags);
 
 	std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
+#if 0
 	for (size_t i = 0; i < ret.size(); ++i) {
 		const char *data = ret[i].data();
 		const unsigned char *id = (const unsigned char *)data;
 		uint64_t size = dnet_bswap64(*(uint64_t *)(data + DNET_ID_SIZE));
 		char *str = (char *)(data + DNET_ID_SIZE + 8);
 
-#if 0
 		std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " <<
 			dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str) << ": size: " << size << ": " << str << std::endl;
-#endif
 	}
+#endif
 }
 
 static void test_lookup_parse(const std::string &key, const std::string &lret)
@@ -330,6 +328,7 @@ static void test_bulk_write(elliptics_node &n)
 			os << "bulk_write" << i;
 
 			memset(&io, 0, sizeof(io));
+			memset(&id, 0, sizeof(id));
 
 			n.transform(os.str(), id);
 			memcpy(io.id, id.id, DNET_ID_SIZE);
@@ -356,7 +355,7 @@ static void test_bulk_write(elliptics_node &n)
 	}
 }
 
-static void test_bulk_read(elliptics_node &n)
+static void test_bulk_read(elliptics_node &n, int group_id)
 {
 	try {
 		std::vector<std::string> keys;
@@ -369,7 +368,6 @@ static void test_bulk_read(elliptics_node &n)
 			keys.push_back(os.str());
 		}
 
-		int group_id = 2;
 		std::vector<std::string> ret = n.bulk_read(keys, group_id, 0);
 
 		std::cout << "ret size = " << ret.size() << std::endl;
@@ -449,6 +447,7 @@ static void memory_test_pohmelfs(elliptics_node &n, int num)
 static void memory_test_script(elliptics_node &n, int num)
 {
 	int ids[16];
+	memset(ids, 42, sizeof(ids));
 
 	for (int i = 0; i < num; ++i) {
 		std::string data;
@@ -481,6 +480,89 @@ static void memory_test_script(elliptics_node &n, int num)
 
 }
 
+static void test_cache_write(elliptics_node &n, int num)
+{
+	try {
+		std::vector<struct dnet_io_attr> ios;
+		std::vector<std::string> data;
+
+		int i;
+
+		for (i = 0; i < num; ++i) {
+			std::ostringstream os;
+			struct dnet_io_attr io;
+			struct dnet_id id;
+
+			os << "test_cache" << i;
+
+			memset(&io, 0, sizeof(io));
+			memset(&id, 0, sizeof(id));
+
+			n.transform(os.str(), id);
+			memcpy(io.id, id.id, DNET_ID_SIZE);
+			io.type = id.type;
+			io.size = os.str().size();
+
+			ios.push_back(io);
+			data.push_back(os.str());
+		}
+
+		n.bulk_write(ios, data, 0);
+	} catch (const std::exception &e) {
+		std::cerr << "cache write test failed: " << e.what() << std::endl;
+	}
+	std::cout << "Cache entries writted: " << num << std::endl;
+}
+static void test_cache_read(elliptics_node &n, int num)
+{
+	int count = 0;
+
+	/* Read random 20% of records written by test_cache_write() */
+	for (int i = 0; i < num; ++i) {
+		if ((rand() % 100) > 20)
+			continue;
+
+		std::ostringstream os;
+
+		os << "test_cache" << i;
+
+		std::string id(os.str());
+
+		try {
+			n.read_data_wait(id, 0, 0, DNET_ATTR_NOCSUM, 0, 0);
+		} catch (const std::exception &e) {
+			std::cerr << "could not perform read : " << e.what() << std::endl;
+		}
+		count++;
+	}
+	std::cout << "Cache entries read: " << count << std::endl;
+}
+
+static void test_cache_delete(elliptics_node &n, int num)
+{
+	int count = 0;
+
+	/* Read random 20% of records written by test_cache_write() */
+	for (int i = 0; i < num; ++i) {
+		if ((rand() % 100) > 20)
+			continue;
+
+		std::ostringstream os;
+
+		os << "test_cache" << i;
+
+		std::string id(os.str());
+
+		try {
+			n.remove(id, 0);
+		} catch (const std::exception &e) {
+			std::cerr << "could not perform remove: " << e.what() << std::endl;
+		}
+		count++;
+	}
+	std::cout << "Cache entries deleted: " << count << std::endl;
+}
+
 static void memory_test(elliptics_node &n)
 {
 	struct rusage start, end;
@@ -502,14 +584,46 @@ static void memory_test(elliptics_node &n)
 
 }
 
+void usage(char *p)
+{
+	fprintf(stderr, "Usage: %s <options>\n"
+			"  -r host		- remote host name\n"
+			"  -p port		- remote port\n"
+			"  -g group_id		- group_id for range request and bulk write\n"
+			"  -w			- write cache before read\n"
+			, p);
+	exit(-1);
+}
+
 int main(int argc, char *argv[])
 {
 	int g[] = {1, 2, 3};
 	std::vector<int> groups(g, g+ARRAY_SIZE(g));
 	char *host = (char *)"localhost";
+	int port = 1025;
+	int ch, write_cache = 0;
+	int group_id = 2;
 
-	if (argc > 1)
-		host = argv[1];
+	while ((ch = getopt(argc, argv, "r:p:g:wh")) != -1) {
+		switch (ch) {
+			case 'r':
+				host = optarg;
+				break;
+			case 'p':
+				port = atoi(optarg);
+				break;
+			case 'g':
+				group_id = atoi(optarg);
+				break;
+			case 'w':
+				write_cache = 1;
+				break;
+			case 'h':
+			default:
+				usage(argv[0]);
+		}
+	}
+
 
 	try {
 		elliptics_log_file log("/dev/stderr", DNET_LOG_ERROR | DNET_LOG_DATA);
@@ -517,19 +631,11 @@ int main(int argc, char *argv[])
 		elliptics_node n(log);
 		n.add_groups(groups);
 
-		int ports[] = {1025, 1026};
-		int added = 0;
-
-		for (int i = 0; i < (int)ARRAY_SIZE(ports); ++i) {
-			try {
-				n.add_remote(host, ports[i], AF_INET);
-				added++;
-			} catch (...) {
-			}
-		}
-
-		if (!added)
+		try {
+			n.add_remote(host, port, AF_INET);
+		} catch (...) {
 			throw std::runtime_error("Could not add remote nodes, exiting");
+		}
 
 		test_lookup(n, groups);
 
@@ -542,19 +648,27 @@ int main(int argc, char *argv[])
 		test_prepare_commit(n, 0, 1);
 		test_prepare_commit(n, 1, 1);
 
-		test_range_request(n, 0, 0, 0);
-		test_range_request(n, 0, 0, DNET_ATTR_SORT);
-		test_range_request(n, 1, 0, 0);
-		test_range_request(n, 0, 1, 0);
+		test_range_request(n, 0, 0, 0, group_id);
+		test_range_request(n, 0, 0, DNET_ATTR_SORT, group_id);
+		test_range_request(n, 1, 0, 0, group_id);
+		test_range_request(n, 0, 1, 0, group_id);
 
 		test_append(n);
 
 		test_exec_python(n);
 
 		test_bulk_write(n);
-		test_bulk_read(n);
+		test_bulk_read(n, group_id);
 
 		//memory_test(n);
+
+		if (write_cache)
+			test_cache_write(n, 1000);
+
+		test_cache_read(n, 1000);
+		test_cache_delete(n, 1000);
+		test_cache_write(n, 1000);
+
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {
