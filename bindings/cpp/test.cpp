@@ -554,7 +554,7 @@ int main(int argc, char *argv[])
 		test_bulk_write(n);
 		test_bulk_read(n);
 
-		memory_test(n);
+		//memory_test(n);
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;
 	} catch (int err) {
