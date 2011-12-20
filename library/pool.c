@@ -487,16 +487,17 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 {
 	int err, i;
 	struct dnet_io *io;
-
-	io = malloc(sizeof(struct dnet_io) +
+	int io_size = sizeof(struct dnet_io) +
 			sizeof(struct dnet_net_io) * cfg->net_thread_num +
-			sizeof(struct dnet_work_io) * (cfg->io_thread_num + cfg->nonblocking_io_thread_num));
+			sizeof(struct dnet_work_io) * (cfg->io_thread_num + cfg->nonblocking_io_thread_num);
+
+	io = malloc(io_size);
 	if (!io) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
-	memset(io, 0, sizeof(struct dnet_io));
+	memset(io, 0, io_size);
 
 	io->nonblocking_thread_num = cfg->nonblocking_io_thread_num;
 	io->thread_num = cfg->io_thread_num;
