@@ -15,6 +15,7 @@
 
 #include <boost/python.hpp>
 #include <boost/python/list.hpp>
+#include <boost/python/dict.hpp>
 
 #if 0
 
@@ -437,6 +438,72 @@ class elliptics_node_python : public elliptics_node {
 
 			return py_ret;
 		}
+
+		list stat_log() {
+			list statistics;
+			elliptics_callback c;
+			std::string ret;
+			int err;
+			int i;
+
+			err = dnet_request_stat(node, NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL,
+				elliptics_callback::elliptics_complete_callback, (void *)&c);
+			if (err < 0) {
+				std::ostringstream str;
+				str << "Failed to request statistics: " << err;
+				throw std::runtime_error(str.str());
+			}
+
+			ret = c.wait(err);
+
+			const void *data = ret.data();
+			int size = ret.size();
+
+			while (size > 0) {
+				dict node_stat, storage_commands, proxy_commands, counters;
+				struct dnet_addr *addr = (struct dnet_addr *)data;
+				struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
+				if (cmd->size <= sizeof (struct dnet_attr) + sizeof (struct dnet_addr_stat)) {
+					size -= cmd->size + sizeof (struct dnet_addr) + sizeof (struct dnet_cmd);
+					data = (char *)data + cmd->size + sizeof (struct dnet_addr) + sizeof (struct dnet_cmd);
+					continue;
+				}
+
+				struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
+				struct dnet_addr_stat *as = (struct dnet_addr_stat *)(attr + 1);
+
+				dnet_convert_addr_stat(as, 0);
+				std::string address(dnet_server_convert_dnet_addr(addr));
+				node_stat[std::string("addr")] = address;
+				node_stat[std::string("group_id")] = cmd->id.group_id;
+
+				for (i = 0; i < as->num; ++i) {
+					if (i < as->cmd_num) {
+						storage_commands[std::string(dnet_counter_string(i, as->cmd_num))] = 
+							make_tuple((unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
+					} else if (i < (as->cmd_num * 2)) {
+						proxy_commands[std::string(dnet_counter_string(i, as->cmd_num))] = 
+							make_tuple((unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
+					} else {
+						counters[std::string(dnet_counter_string(i, as->cmd_num))] = 
+							make_tuple((unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
+					}
+				}
+
+				node_stat["storage_commands"] = storage_commands;
+				node_stat["proxy_commands"] = proxy_commands;
+				node_stat["counters"] = counters;
+
+				statistics.append(node_stat);
+
+				int sz = sizeof(*addr) + sizeof(*cmd) + sizeof(*attr) + attr->size;
+				size -= sz;
+				data = (char *)data + sz;
+			}
+
+			return statistics;
+		}
+
 };
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
@@ -513,6 +580,7 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("read_data_range", &elliptics_node_python::read_data_range)
 
 		.def("get_routes", &elliptics_node_python::get_routes)
+		.def("stat_log", &elliptics_node_python::stat_log)
 
 		.def("exec", &elliptics_node_python::exec)
 		.def("exec", &elliptics_node_python::exec_all)

@@ -6,13 +6,14 @@ sys.path.insert(0, "/usr/lib/")
 sys.path.insert(0, "./.libs/")
 from libelliptics_python import *
 import binascii
+from pprint import pprint
 
 try:
 	log = elliptics_log_file("/dev/stderr", 8)
 	n = elliptics_node_python(log)
 
 	n.add_groups([1,2,3])
-	n.add_remote("172.16.239.1", 1025)
+	n.add_remote("localhost", 1025)
 
 	group = 1
 	try:
@@ -30,7 +31,7 @@ try:
 		data = '1234567890qwertyuio'
 		n.write_data(id, data, 0, 0, 0)
 		print "WRITE:", data
-		n.write_metadata(id, "", [1])
+		n.write_metadata(id, "", [1], 0)
 		print "Write metadata"
 	except Exception as e:
 		print "Failed to write data by id:", e
@@ -42,7 +43,7 @@ try:
 		print "Failed to read data by id:", e
 
 	id.type = -1
-	n.remove(id)
+	n.remove(id, 0)
 	try:
 		s = n.read_data(id, 0, 0, 0, 0)
 		print " READ:", s
@@ -56,7 +57,7 @@ try:
 		data = '1234567890qwertyuio'
 		n.write_data(key, data, 0, 0, 0, 0)
 		print "WRITE:", key, ":", data
-		n.write_metadata(key)
+		n.write_metadata(key, 0)
 		print "Write metadata"
 	except Exception as e:
 		print "Failed to write data by string:", e
@@ -84,6 +85,9 @@ try:
 	routes = n.get_routes()
 	for route in routes:
 		print route[0].group_id, route[0].id, route[1]
+
+	print "Requesting stat_log"
+	pprint(n.stat_log())
 
 except:
 	print "Unexpected error:", sys.exc_info()

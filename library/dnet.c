@@ -562,15 +562,15 @@ static char *dnet_counter_strings[] = {
 
 char *dnet_cmd_string(int cmd)
 {
-	if (cmd == 0 || cmd >= __DNET_CMD_MAX)
+	if (cmd <= 0 || cmd >= __DNET_CMD_MAX)
 		cmd = DNET_CMD_UNKNOWN;
 
 	return dnet_cmd_strings[cmd];
 }
 
-static char *dnet_counter_string(int cntr, int cmd_num)
+char *dnet_counter_string(int cntr, int cmd_num)
 {
-	if (cntr == 0 || cntr >= __DNET_CNTR_MAX)
+	if (cntr <= 0 || cntr >= __DNET_CNTR_MAX)
 		cntr = DNET_CNTR_UNKNOWN;
 
 	if (cntr < cmd_num)

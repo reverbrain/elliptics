@@ -889,6 +889,7 @@ static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd 
 int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp);
 
 char *dnet_cmd_string(int cmd);
+char *dnet_counter_string(int cntr, int cmd_num);
 
 ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void **datap);
 int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *data, unsigned int size);
