@@ -22,7 +22,7 @@ dnet_check_SOURCES = check.c
 dnet_check_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_find_SOURCES = find.cpp
-dnet_find_LDADD = $(EXAMPLE_COMMON_LIBS)
+dnet_find_LDADD = $(EXAMPLE_COMMON_LIBS) ../bindings/cpp/libelliptics_cpp.la
 
 dnet_meta_SOURCES = meta.c
 dnet_meta_LDADD = $(EXAMPLE_COMMON_LIBS)
