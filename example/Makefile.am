@@ -1,7 +1,7 @@
 bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check dnet_ids dnet_meta dnet_meta_update_groups dnet_find
-noinst_LIBRARIES = libcommon.a libbackend.a
+noinst_LIBRARIES = libcommon.a
 noinst_HEADERS = backends.h common.h
-SUBDIRS = . eblob_gen
+SUBDIRS = .
 
 CC = @PTHREAD_CC@
 
@@ -11,14 +11,12 @@ AM_CXXFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
 AM_LDFLAGS = @PTHREAD_LIBS@ @EBLOB_LIBS@
 
 
-EXAMPLE_COMMON_LIBS = ../library/libelliptics.la libcommon.a
-EXAMPLE_BACKEND_LIBS = libbackend.a 
+EXAMPLE_COMMON_LIBS =  libcommon.a ../library/libelliptics.la
 
 libcommon_a_SOURCES = common.c
-libbackend_a_SOURCES = file_backend.c backends.c eblob_backend.c
 
-dnet_ioserv_SOURCES = ioserv.c config.c
-dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) $(EXAMPLE_BACKEND_LIBS)
+dnet_ioserv_SOURCES = ioserv.c config.c file_backend.c backends.c eblob_backend.c
+dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) @EBLOB_LIBS@
 
 dnet_check_SOURCES = check.c
 dnet_check_LDADD = $(EXAMPLE_COMMON_LIBS)

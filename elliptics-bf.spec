@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.0.11
+Version:	2.11.0.12
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Dec 21 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.12-1
+- Trying to address new binutils issues
+- Fill with zeroes all io threads structures
+- Set io.num to content size+offset in write_data_wait() - it allows to use prepare/commit flags
+
 * Tue Dec 20 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.11-1
 - Implemented check for start/stop update timestamp
 - Added cache tests in test.cpp

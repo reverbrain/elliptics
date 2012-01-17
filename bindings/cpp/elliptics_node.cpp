@@ -266,6 +266,7 @@ std::string elliptics_node::write_data_wait(struct dnet_id &id, const std::strin
 	ctl.io.offset = remote_offset;
 	ctl.io.size = str.size();
 	ctl.io.type = id.type;
+	ctl.io.num = str.size() + remote_offset;
 
 	memcpy(&ctl.id, &id, sizeof(struct dnet_id));
 

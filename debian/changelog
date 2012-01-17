@@ -1,3 +1,11 @@
+elliptics-2.10 (2.11.0.12) unstable; urgency=low
+
+  * Trying to address new binutils issues
+  * Fill with zeroes all io threads structures
+  * Set io.num to content size+offset in write_data_wait() - it allows to use prepare/commit flags
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 21 Dec 2011 04:31:13 +0400
+
 elliptics-2.10 (2.11.0.11) unstable; urgency=low
 
   * Implemented check for start/stop update timestamp
