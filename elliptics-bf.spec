@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.0.12
+Version:	2.11.0.13
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jan 17 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.13-1
+- Sort keys on server side in range requests
+- Disable eblob_gen for now
+- Address new binutils issues (gcc 4.6 compilation fixes)
+
 * Wed Dec 21 2011 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.12-1
 - Trying to address new binutils issues
 - Fill with zeroes all io threads structures

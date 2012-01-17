@@ -1,3 +1,11 @@
+elliptics-2.10 (2.11.0.13) unstable; urgency=low
+
+  * Sort keys on server side in range requests
+  * Disable eblob_gen for now
+  * Address new binutils issues (gcc 4.6 compilation fixes)
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 17 Jan 2012 21:08:13 +0400
+
 elliptics-2.10 (2.11.0.12) unstable; urgency=low
 
   * Trying to address new binutils issues
