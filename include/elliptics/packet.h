@@ -209,7 +209,6 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 
 /*
  * ascending sort data before returning range request to user
- * c++ bindings only
  */
 #define DNET_ATTR_SORT				(1<<3)
 
