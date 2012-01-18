@@ -237,8 +237,8 @@ struct eblob_read_range_priv {
 	void			*state;
 	struct dnet_cmd		*cmd;
 	struct eblob_range_request	*keys;
-	uint32_t		keys_size;
-	uint32_t		keys_cnt;
+	uint64_t		keys_size;
+	uint64_t		keys_cnt;
 	uint32_t		flags;
 };
 
@@ -336,8 +336,8 @@ static int blob_range_callback(struct eblob_range_request *req)
 		p->keys = (struct eblob_range_request*)realloc(p->keys, sizeof(struct eblob_range_request) * p->keys_size * 2);
 		if (!(p->keys)) {
 			err = -ENOMEM;
-			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del-range: can't re-allocate memory, new size: %u\n",
-					cur_id, p->keys_size * 2);
+			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del-range: can't re-allocate memory, new size: %llu\n",
+					cur_id, (unsigned long long)(p->keys_size * 2));
 			goto err_out_exit;
 		}
 		p->keys_size *= 2;
@@ -345,7 +345,7 @@ static int blob_range_callback(struct eblob_range_request *req)
 
 	memcpy(&p->keys[p->keys_cnt], req, sizeof(struct eblob_range_request));
 	dnet_dump_id_len_raw(p->keys[p->keys_cnt].record_key, len, cur_id);
-	dnet_backend_log(DNET_LOG_DSA, "%s: count: %u\n", cur_id, p->keys_cnt);
+	dnet_backend_log(DNET_LOG_DSA, "%s: count: %llu\n", cur_id, (unsigned long long)(p->keys_cnt));
 	p->keys_cnt++;
 
 	if (!err)
@@ -361,6 +361,7 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->eblob;
 	struct eblob_range_request req;
+	uint64_t i, start_from = 0;
 	int err;
 
 	memset(&p, 0, sizeof(p));
@@ -380,12 +381,9 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 	memcpy(req.end, io->parent, EBLOB_ID_SIZE);
 	req.requested_offset = io->offset;
 	req.requested_size = io->size;
-	req.requested_limit_start = io->start;
-	req.requested_limit_num = io->num;
+	req.requested_limit_start = 0;
+	req.requested_limit_num = ~0ULL;
 	req.requested_type = io->type;
-
-	if (!req.requested_limit_num)
-		req.requested_limit_num = ~0ULL;
 
 	req.callback = blob_range_callback;
 	req.back = b;
@@ -393,7 +391,7 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 
 	err = eblob_read_range(&req);
 	if (err) {
-		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-range: READ: %d: %s\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-range: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
 		goto err_out_exit;
 	}
@@ -403,10 +401,15 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 		qsort(p.keys, p.keys_cnt, sizeof(struct eblob_range_request), &blob_cmp_range_request);
 	}
 
-	uint32_t i;
-	for (i = 0; i < p.keys_cnt; ++i) {
+	if (attr->cmd == DNET_CMD_READ_RANGE) {
+		start_from = io->start;
+	}
+		
+	for (i = start_from; i < p.keys_cnt; ++i) {
 		switch(attr->cmd) {
 			case DNET_CMD_READ_RANGE:
+				if (i >= (io->num + start_from))
+					break;
 				dnet_backend_log(DNET_LOG_DSA, "%s: EBLOB: blob-read-range: READ\n",dnet_dump_id_str(p.keys[i].record_key));
 				err = blob_read_range_callback(&p.keys[i]);
 				break;
@@ -417,7 +420,7 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 		}
 
 		if (err) {
-			dnet_backend_log(DNET_LOG_DSA, "%s: EBLOB: blob-read-range: DEL: err: %d\n",dnet_dump_id_str(p.keys[i].record_key), err);
+			dnet_backend_log(DNET_LOG_DSA, "%s: EBLOB: blob-read-range: err: %d\n",dnet_dump_id_str(p.keys[i].record_key), err);
 			goto err_out_exit;
 		}
 	}
@@ -426,7 +429,7 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 		struct dnet_io_attr r;
 
 		memcpy(&r, io, sizeof(struct dnet_io_attr));
-		r.num = req.current_pos;
+		r.num = req.current_pos - start_from;
 		r.offset = r.size = 0;
 
 		err = dnet_send_read_data(state, cmd, &r, NULL, -1, 0, 0);
