@@ -722,8 +722,11 @@ std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io
 
 		free(data);
 
+		/* Sorting was already done in storage */
+		/*
 		if (aflags & DNET_ATTR_SORT)
 			std::sort(ret.begin(), ret.end(), range_sort_compare());
+		*/
 
 		if (ioflags & DNET_IO_FLAGS_NODATA) {
 			std::ostringstream str;
