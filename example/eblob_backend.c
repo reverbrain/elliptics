@@ -408,7 +408,7 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 	for (i = start_from; i < p.keys_cnt; ++i) {
 		switch(attr->cmd) {
 			case DNET_CMD_READ_RANGE:
-				if (i >= (io->num + start_from))
+				if ((io->num > 0) && (i >= (io->num + start_from)))
 					break;
 				dnet_backend_log(DNET_LOG_DSA, "%s: EBLOB: blob-read-range: READ\n",dnet_dump_id_str(p.keys[i].record_key));
 				err = blob_read_range_callback(&p.keys[i]);
