@@ -1109,7 +1109,7 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 	*c = *cmd;
 
 	if ((cmd->flags & DNET_FLAGS_NEED_ACK) || more)
-		c->flags = DNET_FLAGS_MORE;
+		c->flags |= DNET_FLAGS_MORE;
 
 	c->size = sizeof(struct dnet_attr) + size;
 	c->trans |= DNET_TRANS_REPLY;
