@@ -1,7 +1,7 @@
 noinst_PROGRAMS = dnet_cpp_test
 lib_LTLIBRARIES = libelliptics_cpp.la
 
-libelliptics_cpp_la_SOURCES = elliptics_log.cpp elliptics_node.cpp elliptics_callback.cpp
+libelliptics_cpp_la_SOURCES = log.cpp node.cpp callback.cpp
 libelliptics_cpp_la_LIBADD = ../../library/libelliptics.la @VERSION_INFO@
 
 dnet_cpp_test_SOURCES = test.cpp
