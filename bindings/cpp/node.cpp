@@ -211,6 +211,55 @@ std::string elliptics_node::read_data_wait(const std::string &remote, uint64_t o
 	return read_data_wait(id, offset, size, aflags, ioflags);
 }
 
+void elliptics_node::prepare_latest(struct dnet_id &id, uint32_t aflags, std::vector<int> &groups)
+{
+	struct dnet_read_latest_prepare pr;
+	int err;
+
+	memset(&pr, 0, sizeof(struct dnet_read_latest_prepare));
+
+	pr.n = node;
+	pr.id = id;
+	pr.aflags = aflags;
+
+	pr.group = (int *)malloc(groups.size() * sizeof(int));
+	if (!pr.group) {
+		std::ostringstream str;
+
+		str << dnet_dump_id(&id) << ": prepare_latest: allocation failure: group num: " << groups.size();
+		throw std::runtime_error(str.str());
+	}
+	pr.group_num = groups.size();
+
+	for (unsigned i = 0; i < groups.size(); ++i)
+		pr.group[i] = groups[i];
+
+	err = dnet_read_latest_prepare(&pr);
+	if (!err) {
+		try {
+			groups.clear();
+
+			for (int i = 0; i < pr.group_num; ++i)
+				groups.push_back(pr.group[i]);
+		} catch (...) {
+			free(pr.group);
+			throw;
+		}
+	}
+
+	free(pr.group);
+
+	if (!groups.size())
+		err = -ENOENT;
+
+	if (err) {
+		std::ostringstream str;
+
+		str << dnet_dump_id(&id) << ": prepare_latest: groups: " << groups.size() << ": err: " << strerror(-err) << ": " << err;
+		throw std::runtime_error(str.str());
+	}
+}
+
 std::string elliptics_node::read_latest(struct dnet_id &id, uint64_t offset, uint64_t size,
 		uint32_t aflags, uint32_t ioflags)
 {

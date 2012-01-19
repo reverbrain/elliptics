@@ -167,6 +167,19 @@ void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id,
 int dnet_read_latest(struct dnet_node *n, struct dnet_id *id,
 		struct dnet_io_attr *io, uint32_t aflags, void **datap);
 
+struct dnet_read_latest_prepare {
+	struct dnet_node		*n;
+
+	struct dnet_id			id;
+
+	uint32_t			aflags;
+
+	int				*group;
+	int				group_num;
+};
+int dnet_read_latest_prepare(struct dnet_read_latest_prepare *pr);
+
+
 /*
  * Read data from range of keys [io->id, io->parent)
  * Other parameters are treated the same as in dnet_read_data_wait()

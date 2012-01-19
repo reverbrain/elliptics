@@ -3652,10 +3652,78 @@ static int dnet_file_read_latest_cmp(const void *p1, const void *p2)
 	return ret;
 }
 
+int dnet_read_latest_prepare(struct dnet_read_latest_prepare *pr)
+{
+	struct dnet_read_latest_ctl *ctl;
+	int group_id = pr->id.group_id;
+	int err, i;
+
+	ctl = malloc(sizeof(struct dnet_read_latest_ctl) + sizeof(struct dnet_read_latest_id) * pr->group_num);
+	if (!ctl) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	memset(ctl, 0, sizeof(struct dnet_read_latest_ctl));
+
+	ctl->w = dnet_wait_alloc(0);
+	if (!ctl->w) {
+		err = -ENOMEM;
+		goto err_out_free;
+	}
+
+	err = pthread_mutex_init(&ctl->lock, NULL);
+	if (err)
+		goto err_out_put_wait;
+
+	ctl->num = pr->group_num;
+	ctl->pos = 0;
+
+	for (i = 0; i < pr->group_num; ++i) {
+		pr->id.group_id = pr->group[i];
+
+		dnet_wait_get(ctl->w);
+		dnet_lookup_object(pr->n, &pr->id, DNET_ATTR_META_TIMES | pr->aflags, dnet_read_latest_complete, ctl);
+	}
+
+	err = dnet_wait_event(ctl->w, ctl->w->cond == pr->group_num, &pr->n->wait_ts);
+	if (err)
+		goto err_out_put;
+
+	pr->group_num = ctl->pos;
+
+	qsort(ctl->ids, pr->group_num, sizeof(struct dnet_read_latest_id), dnet_file_read_latest_cmp);
+
+	for (i = 0; i < pr->group_num; ++i) {
+		pr->group[i] = ctl->ids[i].id.group_id;
+
+		if (group_id == pr->group[i]) {
+			const struct dnet_read_latest_id *id0 = &ctl->ids[0];
+			const struct dnet_read_latest_id *id1 = &ctl->ids[i];
+
+			if (!dnet_file_read_latest_cmp(id0, id1)) {
+				int tmp_group = pr->group[0];
+				pr->group[0] = pr->group[i];
+				pr->group[i] = tmp_group;
+			}
+		}
+	}
+
+err_out_put:
+	dnet_read_latest_ctl_put(ctl);
+	goto err_out_exit;
+
+err_out_put_wait:
+	dnet_wait_put(ctl->w);
+err_out_free:
+	free(ctl);
+err_out_exit:
+	return err;
+}
+
 int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io, uint32_t aflags, void **datap)
 {
+	struct dnet_read_latest_prepare pr;
 	int *g, num, err, i;
-	struct dnet_read_latest_ctl *ctl;
 
 	if ((int)io->num > n->group_num) {
 		err = -E2BIG;
@@ -3673,57 +3741,31 @@ int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, struct dnet_io_att
 		goto err_out_free;
 	}
 
-	ctl = malloc(sizeof(struct dnet_read_latest_ctl) + sizeof(struct dnet_read_latest_id) * num);
-	if (!ctl) {
-		err = -ENOMEM;
+	memset(&pr, 0, sizeof(struct dnet_read_latest_prepare));
+
+	pr.n = n;
+	pr.id = *id;
+	pr.group = g;
+	pr.group_num = num;
+	pr.aflags = aflags;
+
+	err = dnet_read_latest_prepare(&pr);
+	if (err)
 		goto err_out_free;
-	}
-	memset(ctl, 0, sizeof(struct dnet_read_latest_ctl));
 
-	ctl->w = dnet_wait_alloc(0);
-	if (!ctl->w) {
-		err = -ENOMEM;
-		goto err_out_free_ctl;
-	}
-
-	err = pthread_mutex_init(&ctl->lock, NULL);
-	if (err)
-		goto err_out_put;
-
-	ctl->num = num;
-	ctl->pos = 0;
-
-	for (i = 0; i < num; ++i) {
-		id->group_id = g[i];
-
-		dnet_wait_get(ctl->w);
-		dnet_lookup_object(n, id, DNET_ATTR_META_TIMES | aflags, dnet_read_latest_complete, ctl);
-	}
-
-	err = dnet_wait_event(ctl->w, ctl->w->cond == num, &n->wait_ts);
-	if (err)
-		goto err_out_put;
-
-	num = ctl->pos;
-
-	qsort(ctl->ids, num, sizeof(struct dnet_read_latest_id), dnet_file_read_latest_cmp);
-	for (i = 0; i < num; ++i) {
-		void *data = dnet_read_data_wait_raw(n, &ctl->ids[i].id, io, DNET_CMD_READ, aflags, &err);
+	err = -ENODATA;
+	for (i = 0; i < pr.group_num; ++i) {
+		void *data;
+		
+		id->group_id = pr.group[i];
+		data = dnet_read_data_wait_raw(n, id, io, DNET_CMD_READ, aflags, &err);
 		if (data) {
 			*datap = data;
 			err = 0;
-			goto err_out_put;
+			break;
 		}
 	}
 
-	err = -ENODATA;
-
-err_out_put:
-	dnet_read_latest_ctl_put(ctl);
-	goto err_out_free;
-
-err_out_free_ctl:
-	free(ctl);
 err_out_free:
 	free(g);
 err_out_exit:

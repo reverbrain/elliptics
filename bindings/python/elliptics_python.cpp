@@ -290,6 +290,44 @@ class elliptics_node_python : public elliptics_node {
 			return elliptics_node::read_data_wait(remote, offset, size, aflags, ioflags, type);
 		}
 
+		list prepare_latest_by_id(const struct elliptics_id &id, unsigned int aflags, list gl) {
+			struct dnet_id raw = id.to_dnet();
+
+			std::vector<int> groups;
+			for (int i = 0; i < len(gl); ++i)
+				groups.push_back(extract<int>(gl[i]));
+
+			prepare_latest(raw, aflags, groups);
+
+			list l;
+			for (unsigned i = 0; i < groups.size(); ++i)
+				l.append(groups[i]);
+
+			return l;
+		}
+
+		struct __prepare_data {
+			struct dnet_id			id;
+			uint64_t			offset, size;
+			uint32_t			aflags, ioflags;
+		} __attribute__ ((packed));
+
+		list prepare_latest_raw(std::string &raw_data, list gl) {
+			struct __prepare_data *p = (struct __prepare_data *)raw_data.data();
+
+			if (raw_data.size() != sizeof(struct __prepare_data)) {
+				std::ostringstream str;
+
+				str << "prepare latest: invalid raw data size " << raw_data.size() <<
+					", must be " << sizeof(struct __prepare_data);
+				throw std::runtime_error(str.str());
+			}
+
+			elliptics_id id(p->id);
+
+			return prepare_latest_by_id(id, p->aflags, gl);
+		}
+
 		std::string read_latest_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size,
 				unsigned int aflags, unsigned int ioflags) {
 			struct dnet_id raw = id.to_dnet();
@@ -561,6 +599,9 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 
 		.def("read_data", &elliptics_node_python::read_data_by_id)
 		.def("read_data", &elliptics_node_python::read_data_by_data_transform)
+
+		.def("prepare_latest", &elliptics_node_python::prepare_latest_by_id)
+		.def("prepare_latest", &elliptics_node_python::prepare_latest_raw)
 
 		.def("read_latest", &elliptics_node_python::read_latest_by_id)
 		.def("read_latest", &elliptics_node_python::read_latest_by_data_transform)
