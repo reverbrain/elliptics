@@ -17,6 +17,9 @@ try:
 	s.insert(pohmelfs_dentry_name, inode_info, True)
 	content = str(s.save())
 
+	if len(content) > len(dir_content):
+		content += ' '*len(content)
+
 	pohmelfs_write(parent_id, content)
 	#logging.info("inserted: %s", parse(content), extra=d)
 	logging.info("inserted", extra=d)
