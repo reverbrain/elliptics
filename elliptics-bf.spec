@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.0.13
+Version:	2.11.0.14
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jan 24 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.14-1
+- Reserve some space for directory content
+- Added pohmelfs_read_latest_groups.py script
+- Implemented prepare-latest helper, which returns timestamp sorted groups which contain requested id
+- If we have more data to send, set only DNET_FLAGS_MORE flag, not erase others
+- Rename cpp bindings
+- Fixed range requests without limits
+
 * Tue Jan 17 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.13-1
 - Sort keys on server side in range requests
 - Disable eblob_gen for now

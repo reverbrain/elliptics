@@ -1,3 +1,14 @@
+elliptics-2.10 (2.11.0.14) unstable; urgency=low
+
+  * Reserve some space for directory content
+  * Added pohmelfs_read_latest_groups.py script
+  * Implemented prepare-latest helper, which returns timestamp sorted groups which contain requested id
+  * If we have more data to send, set only DNET_FLAGS_MORE flag, not erase others
+  * Rename cpp bindings
+  * Fixed range requests without limits
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 24 Jan 2012 00:28:13 +0400
+
 elliptics-2.10 (2.11.0.13) unstable; urgency=low
 
   * Sort keys on server side in range requests
