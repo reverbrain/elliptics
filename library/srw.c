@@ -272,6 +272,7 @@ int dnet_cmd_exec_python_script(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		script[m.size] = '\0';
 		total = m.size + 1;
 	}
+	dnet_log(n, DNET_LOG_NOTICE, "%s: dnet_cmd_exec_python_script: '%s'\n", dnet_dump_id(&cmd->id), full_path);
 
 	err = dnet_cmd_exec_python_raw(st, cmd, attr, script, total, binary, e->binary_size);
 	if (err) {
