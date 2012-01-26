@@ -52,11 +52,9 @@ static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id, int 
 	if (!full_process)
 		attr->flags = DNET_ATTR_DELETE_HISTORY;
 
-	dnet_convert_attr(attr);
-
 	base = dnet_node_state(n);
 	if (base) {
-		err = dnet_process_cmd_raw(base, cmd, attr);
+		err = dnet_process_meta(base, cmd, attr, NULL);
 		dnet_state_put(base);
 	}
 
