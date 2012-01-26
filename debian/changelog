@@ -1,3 +1,11 @@
+elliptics-2.10 (2.11.0.15) unstable; urgency=low
+
+  * Added readdir script
+  * Dropped content length manipulation from srw/pohmelfs_inode_info_insert.py
+  * Use dnet_process_meta instead of dnet_process_cmd_raw to prevent deadlocks
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 26 Jan 2012 23:11:13 +0400
+
 elliptics-2.10 (2.11.0.14) unstable; urgency=low
 
   * Reserve some space for directory content
