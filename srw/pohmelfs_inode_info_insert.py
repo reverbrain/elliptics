@@ -6,6 +6,7 @@ try:
 	inode_info = str(binary_data[64:])
 
 	s = sstable()
+	dir_content = ''
 	try:
 		dir_content = n.read_data(parent_id, pohmelfs_offset, pohmelfs_size, pohmelfs_aflags, pohmelfs_ioflags_read)
 		s.load(dir_content)
