@@ -1,3 +1,10 @@
+elliptics-2.10 (2.11.1.1) unstable; urgency=low
+
+  * Added start/num parameters to iterate over selected number of blobs.
+  * Depend on 0.14.1 blob and higher where it is implemented.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 1 Feb 2012 00:58:13 +0400
+
 elliptics-2.10 (2.11.0.15) unstable; urgency=low
 
   * Added readdir script

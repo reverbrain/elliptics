@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.0.15
+Version:	2.11.1.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,7 +15,7 @@ BuildRequires:	python26-devel, boost141-python, boost141-devel
 %else
 BuildRequires:  python-devel, boost-python, boost-devel
 %endif
-BuildRequires:	eblob-devel >= 0.13.0 libsrw-devel >= 0.2.2
+BuildRequires:	eblob-devel >= 0.14.1 libsrw-devel >= 0.2.2
 BuildRequires:	automake autoconf libtool
 
 %description
@@ -147,6 +147,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Feb 1 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.1-1
+- Added start/num parameters to iterate over selected number of blobs.
+- Depend on 0.14.1 blob and higher where it is implemented.
+
 * Thu Jan 26 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.0.15-1
 - Added readdir script
 - Dropped content length manipulation from srw/pohmelfs_inode_info_insert.py
