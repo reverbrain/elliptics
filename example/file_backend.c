@@ -517,12 +517,10 @@ static long long dnet_file_db_total_elements(void *priv)
 	return eblob_total_elements(r->meta);
 }
 
-static int dnet_file_db_iterate(void *priv, unsigned int flags,
-		struct eblob_iterate_callbacks *iterate_cb,
-		void *callback_private)
+static int dnet_file_db_iterate(struct dnet_iterate_ctl *ctl)
 {
-	struct file_backend_root *r = priv;
-	return dnet_db_iterate(r->meta, flags, iterate_cb, callback_private);
+	struct file_backend_root *r = ctl->iterate_private;
+	return dnet_db_iterate(r->meta, ctl);
 }
 
 static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_config *c)

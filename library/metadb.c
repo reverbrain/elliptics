@@ -226,19 +226,19 @@ err_out_free:
 	return NULL;
 }
 
-int dnet_db_iterate(struct eblob_backend *b, unsigned int flags __unused,
-		struct eblob_iterate_callbacks *iterate_cb,
-		void *callback_private)
+int dnet_db_iterate(struct eblob_backend *b, struct dnet_iterate_ctl *dctl)
 {
 	struct eblob_iterate_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
 	ctl.check_index = 1;
-	ctl.flags |= EBLOB_ITERATE_FLAGS_ALL;
-	ctl.priv = callback_private;
-	memcpy(&ctl.iterator_cb, iterate_cb, sizeof(struct eblob_iterate_callbacks));
+	ctl.flags = dctl->flags | EBLOB_ITERATE_FLAGS_ALL;
+	ctl.priv = dctl->callback_private;
+	ctl.iterator_cb = dctl->iterate_cb;
 	ctl.start_type = ctl.max_type = EBLOB_TYPE_META;
+	ctl.blob_start = dctl->blob_start;
+	ctl.blob_num = dctl->blob_num;
 
 	return eblob_iterate(b, &ctl);
 }
@@ -618,14 +618,22 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 		dnet_db_list_iter_free(&iter_ctl, &priv);
 
 	} else {
-		struct eblob_iterate_callbacks cb;
+		struct dnet_iterate_ctl dctl;
 
-		cb.iterator = dnet_db_list_iter;
-		cb.iterator_init = dnet_db_list_iter_init;
-		cb.iterator_free = dnet_db_list_iter_free;
-		cb.thread_num = req.thread_num;
+		memset(&dctl, 0, sizeof(struct dnet_iterate_ctl));
 
-		err = n->cb->meta_iterate(n->cb->command_private, 0, &cb, &ctl);
+		dctl.iterate_private = n->cb->command_private;
+		dctl.flags = 0;
+		dctl.blob_start = req.blob_start;
+		dctl.blob_num = req.blob_num;
+		dctl.callback_private = &ctl;
+
+		dctl.iterate_cb.iterator = dnet_db_list_iter;
+		dctl.iterate_cb.iterator_init = dnet_db_list_iter_init;
+		dctl.iterate_cb.iterator_free = dnet_db_list_iter_free;
+		dctl.iterate_cb.thread_num = req.thread_num;
+
+		err = n->cb->meta_iterate(&dctl);
 	}
 
 	if(r->flags & DNET_CHECK_MERGE) {

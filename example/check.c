@@ -64,6 +64,8 @@ static void check_usage(char *p)
 			" -g group:group...    - override groups with replicas\n"
 			" -n num               - number of checking threads to start by the server\n"
 			" -f file              - file with list of objects to check\n"
+			" -b num               - start checking for data in blob number <num>\n"
+			" -B num               - number of blobs to check objects in\n"
 			" -h                   - this help\n"
 	       , p);
 }
@@ -195,8 +197,14 @@ int main(int argc, char *argv[])
 
 	memset(&r, 0, sizeof(r));
 
-	while ((ch = getopt(argc, argv, "DN:f:n:t:u:U:MRm:w:l:dr:g:h")) != -1) {
+	while ((ch = getopt(argc, argv, "b:B:DN:f:n:t:u:U:MRm:w:l:dr:g:h")) != -1) {
 		switch (ch) {
+			case 'b':
+				r.blob_start = atoi(optarg);
+				break;
+			case 'B':
+				r.blob_num = atoi(optarg);
+				break;
 			case 'N':
 				cfg.ns = optarg;
 				cfg.nsize = strlen(optarg);

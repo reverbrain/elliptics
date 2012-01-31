@@ -758,11 +758,10 @@ static long long dnet_eblob_db_total_elements(void *priv)
 	return eblob_total_elements(c->eblob);
 }
 
-static int dnet_eblob_db_iterate(void *priv, unsigned int flags,
-		struct eblob_iterate_callbacks *iterate_cb, void *callback_private)
+static int dnet_eblob_db_iterate(struct dnet_iterate_ctl *ctl)
 {
-	struct eblob_backend_config *c = priv;
-	return dnet_db_iterate(c->eblob, flags, iterate_cb, callback_private);
+	struct eblob_backend_config *c = ctl->iterate_private;
+	return dnet_db_iterate(c->eblob, ctl);
 }
 
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)

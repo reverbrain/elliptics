@@ -275,6 +275,17 @@ struct dnet_log {
 	void 			(* log)(void *priv, uint32_t mask, const char *msg);
 };
 
+struct dnet_iterate_ctl {
+	void				*iterate_private;
+
+	unsigned int			flags;
+	int				blob_start;
+	int				blob_num;
+
+	struct eblob_iterate_callbacks	iterate_cb;
+	void				*callback_private;
+};
+
 struct dnet_backend_callbacks {
 	/* command handler processes DNET_CMD_* commands */
 	int			(* command_handler)(void *state, void *priv,
@@ -303,9 +314,7 @@ struct dnet_backend_callbacks {
 	 * if it returns negative error value, iteration stops
 	 * @callback_private will be accessible in @callback as argument @p
 	 */
-	int			(* meta_iterate)(void *priv, unsigned int flags,
-					struct eblob_iterate_callbacks *iterate_cb,
-					void *callback_private);
+	int			(* meta_iterate)(struct dnet_iterate_ctl *ctl);
 
 	/* returns number of metadata elements */
 	long long		(* meta_total_elements)(void *priv);
@@ -865,6 +874,9 @@ struct dnet_check_request {
 	uint64_t		updatestamp_stop;
 	uint32_t		obj_num;
 	uint32_t		group_num;
+	int			blob_start;
+	int			blob_num;
+	uint64_t		reserved;
 } __attribute__ ((packed));
 
 static inline void dnet_convert_check_request(struct dnet_check_request *r)
@@ -876,6 +888,8 @@ static inline void dnet_convert_check_request(struct dnet_check_request *r)
 	r->updatestamp_stop = dnet_bswap64(r->updatestamp_stop);
 	r->obj_num = dnet_bswap32(r->obj_num);
 	r->group_num = dnet_bswap32(r->group_num);
+	r->blob_start = dnet_bswap32(r->blob_start);
+	r->blob_num = dnet_bswap32(r->blob_num);
 }
 
 int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r);
@@ -907,9 +921,7 @@ char *dnet_counter_string(int cntr, int cmd_num);
 ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void **datap);
 int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *data, unsigned int size);
 int dnet_db_remove_raw(struct eblob_backend *b, struct dnet_raw_id *id, int real_del);
-int dnet_db_iterate(struct eblob_backend *b, unsigned int flags,
-		struct eblob_iterate_callbacks *iterate_cb,
-		void *callback_private);
+int dnet_db_iterate(struct eblob_backend *b, struct dnet_iterate_ctl *ctl);
 
 int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
 		int fd, uint64_t offset, uint64_t size);
