@@ -233,11 +233,13 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 					dnet_convert_meta_update(&ids[i].last_update);
 					dnet_log(orig->n, DNET_LOG_DSA, "BULK: mu.tsec=%lu, mu.tnsec=%lu, mu.flags=%02lx\n",
 							(unsigned long)mu.tm.tsec, (unsigned long)mu.tm.tnsec, (unsigned long)mu.flags);
-					dnet_log(orig->n, DNET_LOG_DSA, "BULK: last_update.tsec=%lu, last_update.tnsec=%lu, last_update.flags=%02lx\n",
-							(unsigned long)ids[i].last_update.tm.tsec, (unsigned long)ids[i].last_update.tm.tnsec, (unsigned long)ids[i].last_update.flags);
+					dnet_log(orig->n, DNET_LOG_DSA,
+							"BULK: last_update.tsec=%lu, last_update.tnsec=%lu, last_update.flags=%02lx\n",
+							(unsigned long)ids[i].last_update.tm.tsec, (unsigned long)ids[i].last_update.tm.tnsec,
+							(unsigned long)ids[i].last_update.flags);
 
 					if ((mu.flags & DNET_IO_FLAGS_REMOVED) || (mu.tm.tsec < ids[i].last_update.tm.tsec) || 
-							((mu.tm.tnsec < ids[i].last_update.tm.tnsec) && (mu.tm.tsec == ids[i].last_update.tm.tsec))) {
+						((mu.tm.tnsec < ids[i].last_update.tm.tnsec) && (mu.tm.tsec == ids[i].last_update.tm.tsec))) {
 						err = 0;
 					} else {
 						/* File is not needed to be updated */
@@ -250,7 +252,8 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, struc
 						} else {
 							err = dnet_meta_update_check_status(orig->n, &mc);
 							if (err) {
-								dnet_log(orig->n, DNET_LOG_ERROR, "BULK: %s: couldn't update meta CHECK_STATUS err: %d\n",
+								dnet_log(orig->n, DNET_LOG_ERROR,
+										"BULK: %s: couldn't update meta CHECK_STATUS err: %d\n",
 										dnet_dump_id_str(ids[i].id.id), err);
 							}
 						}
@@ -664,7 +667,8 @@ int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state, 
 	dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
 	dnet_wait_get(p->w);
 
-	dnet_log(n, DNET_LOG_DSA, "BULK: sending %u bytes of data to %s (%s)\n", ctl.size, dnet_dump_id(&ctl.id), dnet_server_convert_dnet_addr(&state->addr));
+	dnet_log(n, DNET_LOG_DSA, "BULK: sending %u bytes of data to %s (%s)\n",
+			ctl.size, dnet_dump_id(&ctl.id), dnet_server_convert_dnet_addr(&state->addr));
 	err = dnet_trans_alloc_send_state(st, &ctl);
 	dnet_state_put(st);
 
@@ -790,7 +794,8 @@ static int dnet_check_number_of_copies(struct dnet_node *n, struct dnet_meta_con
 	return error;
 }
 
-static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_bulk_array *bulk_array, struct dnet_check_params *params)
+static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc,
+		struct dnet_bulk_array *bulk_array, struct dnet_check_params *params)
 {
 	int err;
 	int *groups = NULL;
@@ -914,7 +919,8 @@ static int dnet_check_merge(struct dnet_node *n, struct dnet_meta_container *mc)
 	err = dnet_read_meta(n, &remote_mc, NULL, 0, &mc->id);
 	if (err) {
 		if (err != -ENOENT) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n", dnet_dump_id(&mc->id), err);
+			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n",
+					dnet_dump_id(&mc->id), err);
 			goto err_out_exit;
 		}
 
