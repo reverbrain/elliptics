@@ -79,7 +79,6 @@ static int monitor_complete(struct dnet_net_state *state,
 			void *priv __unused)
 {
 	struct dnet_node *n = dnet_get_node_from_state(state);
-	struct dnet_stat *st;
 	int err = 0;
 
 	if (is_trans_destroyed(state, cmd, attr)) {
@@ -89,8 +88,6 @@ static int monitor_complete(struct dnet_net_state *state,
 
 	if (!attr || attr->size != sizeof(struct dnet_stat))
 		return cmd->status;
-
-	st = (struct dnet_stat *)(attr + 1);
 
 	pthread_mutex_lock(&monitor_wait_lock);
 	monitor_current_ids = realloc(monitor_current_ids, (monitor_current_num + 1) * sizeof(struct monitor_id));
