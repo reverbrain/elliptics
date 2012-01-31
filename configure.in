@@ -1,4 +1,4 @@
-AC_INIT([elliptics], [2.11.0], [zbr@ioremap.net])
+AC_INIT([elliptics], [2.11.1], [zbr@ioremap.net])
 AM_INIT_AUTOMAKE(1.9)
 
 AC_GNU_SOURCE
