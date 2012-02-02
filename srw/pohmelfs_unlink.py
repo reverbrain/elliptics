@@ -6,24 +6,15 @@ try:
 
 	s = sstable()
 	dir_content = n.read_data(parent_id, pohmelfs_offset, pohmelfs_size, pohmelfs_aflags, pohmelfs_ioflags_read)
+
 	s.load(dir_content)
-
-	ret = s.search(pohmelfs_dentry_name)
-	if not ret:
-		raise KeyError("no entry")
-
-	payload = ret[1]
-	obj_id = elliptics_id(list(bytearray(payload[0:64])), pohmelfs_group_id, -1)
-
-	n.remove(obj_id, pohmelfs_aflags)
-
 	s.delete(pohmelfs_dentry_name)
 	content = str(s.save())
 
 	pohmelfs_write(parent_id, content)
 	__return_data = 'ok'
 
-	logging.info("removed", extra=d)
+	logging.info("done", extra=d)
 
 	s = None
 	dir_content = None

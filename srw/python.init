@@ -34,6 +34,7 @@ pohmelfs_ioflags_write = 0
 # do not lock operation, since we are 'inside' DNET_CMD_EXEC command already
 pohmelfs_aflags = 16
 pohmelfs_column = 0
+pohmelfs_link_number_column = 2
 pohmelfs_group_id = 0
 
 def pohmelfs_write(parent_id, content):
