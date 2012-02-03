@@ -10,7 +10,7 @@ def pohmelfs_upload_dentry(new_dir_id, new_name, inode_info):
 	except:
 		if not 'No such file or directory' in str(e):
 			raise
-		s.init(256 + len(inode_info) + 8)
+		s.init(len(inode_info))
 
 	s.insert(new_name, inode_info, True)
 	content = str(s.save())
@@ -23,10 +23,11 @@ try:
 	binary_data = __input_binary_data_tuple[0]
 	old_dir_id = elliptics_id(list(binary_data[0:64]), pohmelfs_group_id, pohmelfs_column)
 	new_dir_id = elliptics_id(list(binary_data[64:128]), pohmelfs_group_id, pohmelfs_column)
+	inode_info = binary_data[128:]
 
 	len_buf = struct.unpack_from("<I", buffer(binary_data), 128);
 	new_name_len = int(len_buf[0])
-	new_name = str(binary_data[132:])
+	new_name = str(binary_data[128+80:])
 
 	s = sstable()
 	dir_content = n.read_data(old_dir_id, pohmelfs_offset, pohmelfs_size, pohmelfs_aflags, pohmelfs_ioflags_read)
@@ -35,9 +36,6 @@ try:
 	ret = s.search(pohmelfs_dentry_name)
 	if not ret:
 		raise KeyError("no entry")
-
-	inode_info = bytearray(ret[1])
-	inode_info[84:88] = binary_data[128:132]
 
 	if binary_data[0:64] != binary_data[64:128]:
 		pohmelfs_upload_dentry(new_dir_id, new_name, str(inode_info))
