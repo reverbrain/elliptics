@@ -85,14 +85,10 @@ try:
 	dirs = readdir_parse(dir_content)
 	for dir in dirs:
 		key = dir[0]
-		bd = dir[1]
+		dentry = dir[1]
 
 		pos += 1
 		if pos > fpos:
-			mode = struct.unpack_from("<I", buffer(bd), 64)[0]
-			ino = struct.unpack_from("<Q", buffer(bd), 88)[0]
-
-			dentry = struct.pack('<QBBHI', ino, (mode >> 12) & 15, len(key), 0, 0)
 			if len(ret) + len(dentry) + len(key) <= max_size:
 				ret += str(dentry) + key
 			else:

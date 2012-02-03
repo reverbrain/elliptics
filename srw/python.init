@@ -35,6 +35,7 @@ pohmelfs_ioflags_write = 0
 pohmelfs_aflags = 16
 pohmelfs_column = 0
 pohmelfs_link_number_column = 2
+pohmelfs_inode_info_column = 3
 pohmelfs_group_id = 0
 
 def pohmelfs_write(parent_id, content):

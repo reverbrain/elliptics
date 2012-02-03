@@ -12,11 +12,15 @@ try:
 	ret = s.search(pohmelfs_dentry_name)
 	if not ret:
 		raise KeyError("no entry")
-	__return_data = str(ret[1])
+
+	id_data = bytearray(ret[1])
+	obj_id = elliptics_id(list(id_data[0:64]), pohmelfs_group_id, pohmelfs_inode_info_column)
+	__return_data = n.read_data(obj_id, pohmelfs_offset, pohmelfs_size, pohmelfs_aflags, pohmelfs_ioflags_read)
 
 	s = None
 	dir_content = None
 	ret = None
+	s = None
 
 	gc.collect()
 
@@ -24,7 +28,7 @@ try:
 
 except KeyError as e:
 	logging.error("key error: %s", e.__str__(), extra=d)
-	__return_data = 'key error: ' + e.__str__()
+	__return_data = ''
 except Exception as e:
 	logging.error("generic error: %s", e.__str__(), extra=d)
-	__return_data = 'error: ' + e.__str__()
+	__return_data = ''

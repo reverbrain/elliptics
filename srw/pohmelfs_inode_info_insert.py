@@ -13,13 +13,12 @@ try:
 	except Exception as e:
 		if not 'No such file or directory' in str(e):
 			raise
-		s.init(256 + len(inode_info) + 8)
+		s.init(len(inode_info))
 
 	s.insert(pohmelfs_dentry_name, inode_info, True)
 	content = str(s.save())
 
 	pohmelfs_write(parent_id, content)
-	#logging.info("inserted: %s, len: %d, dirlen: %d", parse(content), len(content), len(dir_content), extra=d)
 	logging.info("inserted", extra=d)
 
 	s = None
