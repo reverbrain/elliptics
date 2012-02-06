@@ -175,7 +175,7 @@ err_out_exit:
 }
 
 static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *data)
+		struct dnet_attr *attr, void *data)
 {
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->eblob;
@@ -188,7 +188,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
-	if (io->flags & DNET_IO_FLAGS_NOCSUM) {
+	if ((io->flags & DNET_IO_FLAGS_NOCSUM) || (attr->flags & DNET_ATTR_NOCSUM)) {
 		err = eblob_read_nocsum(b, &key, &fd, &orig_offset, &orig_size, io->type);
 	} else {
 		err = eblob_read(b, &key, &fd, &orig_offset, &orig_size, io->type);
