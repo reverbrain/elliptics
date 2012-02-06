@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.1.1
+Version:	2.11.1.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Feb 6 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.2-1
+- Process checksum flags according to aflags and ioflags
+
 * Wed Feb 1 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.1-1
 - Added start/num parameters to iterate over selected number of blobs.
 - Depend on 0.14.1 blob and higher where it is implemented.

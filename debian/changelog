@@ -1,3 +1,9 @@
+elliptics-2.10 (2.11.1.2) unstable; urgency=low
+
+  * Process checksum flags according to aflags and ioflags
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 6 Feb 2012 23:55:13 +0400
+
 elliptics-2.10 (2.11.1.1) unstable; urgency=low
 
   * Added start/num parameters to iterate over selected number of blobs.
