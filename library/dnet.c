@@ -767,6 +767,14 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					}
 					io = data;
 					dnet_convert_io_attr(io);
+
+					if (io->flags & DNET_IO_FLAGS_NOCSUM)
+						a->flags |= DNET_ATTR_NOCSUM;
+
+					if ((n->flags & DNET_CFG_NO_CSUM) || (a->flags & DNET_ATTR_NOCSUM)) {
+						io->flags |= DNET_IO_FLAGS_NOCSUM;
+						a->flags |= DNET_ATTR_NOCSUM;
+					}
 				}
 
 				if (a->cmd == DNET_CMD_DEL || io->flags & DNET_IO_FLAGS_META) {
