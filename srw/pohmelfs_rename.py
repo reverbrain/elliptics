@@ -23,10 +23,8 @@ try:
 	binary_data = __input_binary_data_tuple[0]
 	old_dir_id = elliptics_id(list(binary_data[0:64]), pohmelfs_group_id, pohmelfs_column)
 	new_dir_id = elliptics_id(list(binary_data[64:128]), pohmelfs_group_id, pohmelfs_column)
-	inode_info = binary_data[128:]
 
-	len_buf = struct.unpack_from("<I", buffer(binary_data), 128);
-	new_name_len = int(len_buf[0])
+	inode_info = binary_data[128:128+80]
 	new_name = str(binary_data[128+80:])
 
 	s = sstable()
