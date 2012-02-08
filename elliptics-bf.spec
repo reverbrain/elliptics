@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.1.2
+Version:	2.11.1.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Feb 8 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.3-1
+- Set id.type to 0 where appropriate
+- Request statistics with DNET_ATTR_NOLOCK flag set
+- Fixed pohmelfs_rename.py
+
 * Mon Feb 6 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.2-1
 - Process checksum flags according to aflags and ioflags
 
