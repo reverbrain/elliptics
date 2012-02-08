@@ -138,6 +138,7 @@ void elliptics_node::read_file(const std::string &remote, const std::string &fil
 	if (err) {
 		struct dnet_id id;
 		transform(remote, id);
+		id.type = 0;
 
 		std::ostringstream str;
 		str << dnet_dump_id(&id) << ": READ: " << file << ": offset: " << offset << ", size: " << size << ": " << err;
@@ -164,6 +165,7 @@ void elliptics_node::write_file(const std::string &remote, const std::string &fi
 	if (err) {
 		struct dnet_id id;
 		transform(remote, id);
+		id.type = 0;
 
 		std::ostringstream str;
 		str << dnet_dump_id(&id) << ": WRITE: " << file << ", local_offset: " << local_offset <<
@@ -461,6 +463,7 @@ void elliptics_node::lookup(const std::string &data, const elliptics_callback &c
 	int error = -ENOENT, i, num, *g;
 
 	transform(data, id);
+	id.type = 0;
 
 	num = dnet_mix_states(node, &id, &g);
 	if (num < 0)
@@ -495,6 +498,7 @@ std::string elliptics_node::lookup(const std::string &data)
 	std::string ret;
 
 	transform(data, id);
+	id.type = 0;
 
 	num = dnet_mix_states(node, &id, &g);
 	if (num < 0)
