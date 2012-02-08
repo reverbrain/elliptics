@@ -2295,10 +2295,8 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id,
 	ctl.cmd = cmd;
 	ctl.complete = complete;
 	ctl.priv = priv;
-	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_ATTR_NOLOCK;
 	ctl.aflags = aflags;
-	if (ctl.aflags & DNET_ATTR_NOLOCK)
-		ctl.cflags |= DNET_FLAGS_NOLOCK;
 
 	if (id) {
 		if (w)
