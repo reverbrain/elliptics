@@ -573,6 +573,7 @@ static int eblob_backend_command_handler(void *state, void *priv,
 {
 	int err;
 	struct eblob_backend_config *c = priv;
+	char *path, *p;
 
 	switch (attr->cmd) {
 		case DNET_CMD_LOOKUP:
@@ -589,7 +590,22 @@ static int eblob_backend_command_handler(void *state, void *priv,
 			err = blob_read_range(c, state, cmd, attr, data);
 			break;
 		case DNET_CMD_STAT:
-			err = backend_stat(state, NULL, cmd, attr);
+			path = strdup(c->data.file);
+			if (!path) {
+				err = -ENOMEM;
+				break;
+			}
+
+			p = strrchr(path, '/');
+			if (p) {
+				*p = '\0';
+			} else {
+				free(path);
+				path = NULL;
+			}
+
+			err = backend_stat(state, path, cmd, attr);
+			free(path);
 			break;
 		case DNET_CMD_DEL:
 			err = blob_del(c, cmd);
