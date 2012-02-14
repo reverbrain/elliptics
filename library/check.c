@@ -653,7 +653,7 @@ int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state, 
 	ctl.cmd = DNET_CMD_LIST;
 	ctl.complete = dnet_bulk_check_complete;
 	ctl.priv = p;
-	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK;
 	ctl.aflags = DNET_ATTR_BULK_CHECK;
 
 	ctl.data = state->ids;
@@ -999,7 +999,7 @@ static int dnet_send_check_request(struct dnet_net_state *st, struct dnet_id *id
 	ctl.cmd = DNET_CMD_LIST;
 	ctl.complete = dnet_check_complete;
 	ctl.priv = w;
-	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK;
 	ctl.aflags = 0;
 
 	if (r->timestamp) {
