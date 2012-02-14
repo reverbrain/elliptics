@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.1.4
+Version:	2.11.1.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Feb 14 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.5-1
+- Execute CHECK commands with NOLOCK flag
+
 * Sat Feb 11 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.4-1
 - Use correct eblob path for statvfs() request
 

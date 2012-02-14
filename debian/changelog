@@ -1,3 +1,9 @@
+elliptics-2.10 (2.11.1.5) unstable; urgency=low
+
+  * Execute CHECK commands with NOLOCK flag
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 14 Feb 2012 21:34:13 +0400
+
 elliptics-2.10 (2.11.1.4) unstable; urgency=low
 
   * Use correct eblob path for statvfs() request
