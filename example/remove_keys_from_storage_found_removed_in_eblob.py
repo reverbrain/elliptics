@@ -97,7 +97,8 @@ class remover:
 					eid.group_id = g
 					self.n.remove(eid, 0)
 
-				print self.sid(eid, count=64)
+				print "%s: flags: %x, position: %d, data_size: %d" % \
+					(self.sid(eid, count=64), b.flags, b.position, b.data_size)
 
 
 if __name__ == '__main__':
