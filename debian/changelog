@@ -1,3 +1,11 @@
+elliptics-2.10 (2.11.1.6) unstable; urgency=low
+
+  * Added possibility to read metadata from file and dump to log
+  * Added remove_keys_from_storage_found_removed_in_eblob.py
+  * Added local merge iterator written in python. Is not optimal, but quite fast.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 16 Feb 2012 22:52:13 +0400
+
 elliptics-2.10 (2.11.1.5) unstable; urgency=low
 
   * Execute CHECK commands with NOLOCK flag

@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.1.5
+Version:	2.11.1.6
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Feb 16 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.6-1
+- Added possibility to read metadata from file and dump to log
+- Added remove_keys_from_storage_found_removed_in_eblob.py
+- Added local merge iterator written in python. Is not optimal, but quite fast.
+
 * Tue Feb 14 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.5-1
 - Execute CHECK commands with NOLOCK flag
 
