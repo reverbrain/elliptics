@@ -36,6 +36,15 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
+/*
+ *
+ * THIS IS REALLY BAD IDEA !!11
+ * DO NOT DO THIS
+ *
+ */
+#include "../library/elliptics.h"
+
+
 #include "backends.h"
 #include "common.h"
 
@@ -55,13 +64,14 @@ static void meta_usage(char *p)
 			"  -r addr:port:family    - connect to this remote node\n"
 			"  -m mask                - log mask\n"
 			"  -l log                 - log file\n"
+			"  -f file                - read metadata from file\n"
 			, p);
 	exit(-1);
 }
 
 int main(int argc, char *argv[])
 {
-	int ch, err;
+	int ch, err, fd = -1;
 	char *logfile = "/dev/stderr";
 	char *name = NULL;
 	FILE *log;
@@ -82,8 +92,14 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "N:g:w:I:n:r:m:l:h")) != -1) {
+	while ((ch = getopt(argc, argv, "f:N:g:w:I:n:r:m:l:h")) != -1) {
 		switch (ch) {
+			case 'f':
+				fd = open(optarg, O_RDONLY);
+				if (fd < 0) {
+					fprintf(stderr, "Could not open file '%s': %s\n", optarg, strerror(errno));
+					return -errno;
+				}
 			case 'N':
 				cfg.ns = optarg;
 				cfg.nsize = strlen(optarg);
@@ -150,27 +166,52 @@ int main(int argc, char *argv[])
 		goto err_out_exit;
 	}
 
-	err = dnet_add_state(n, &rem);
-	if (err)
-		goto err_out_destroy;
+	if (fd == -1) {
+		err = dnet_add_state(n, &rem);
+		if (err)
+			goto err_out_destroy;
 
-	dnet_node_set_groups(n, groups, group_num);
+		dnet_node_set_groups(n, groups, group_num);
 
-	if (id) {
-		int i;
+		if (id) {
+			int i;
 
-		for (i=0; i<group_num; ++i) {
-			dnet_setup_id(&raw, groups[i], id);
-			err = dnet_read_meta(n, &mc, NULL, 0, &raw);
+			for (i=0; i<group_num; ++i) {
+				dnet_setup_id(&raw, groups[i], id);
+				err = dnet_read_meta(n, &mc, NULL, 0, &raw);
+				if (!err)
+					dnet_meta_print(n, &mc);
+				else
+					dnet_log_raw(n, DNET_LOG_ERROR, "%s: could not read metadata\n", dnet_dump_id(&raw));
+			}
+		} else {
+			err = dnet_read_meta(n, &mc, name, strlen(name), NULL);
 			if (!err)
 				dnet_meta_print(n, &mc);
-			else
-				dnet_log_raw(n, DNET_LOG_ERROR, "%s: could not read metadata\n", dnet_dump_id(&raw));
 		}
 	} else {
-		err = dnet_read_meta(n, &mc, name, strlen(name), NULL);
-		if (!err)
-			dnet_meta_print(n, &mc);
+		struct stat st;
+		struct dnet_map_fd m;
+
+		fstat(fd, &st);
+
+		memset(&m, 0, sizeof(m));
+		m.size = st.st_size - 96;
+		m.offset = 96;
+		m.fd = fd;
+
+		err = dnet_data_map(&m);
+		if (err) {
+			dnet_log_raw(n, DNET_LOG_ERROR, "Could not map metadata: %s\n", strerror(-err));
+			goto err_out_destroy;
+		}
+
+		mc.size = m.size;
+		mc.data = m.data;
+
+		dnet_meta_print(n, &mc);
+
+		dnet_data_unmap(&m);
 	}
 
 err_out_destroy:
