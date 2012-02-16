@@ -32,7 +32,7 @@ class blob:
 			raise NameError('Finished index')
 
 		self.id, self.flags, self.data_size, self.disk_size, self.position = struct.unpack(self.format, idata)
-		self.eid = elliptics_id([int(binascii.hexlify(x), 16) for x in self.id], 0, 0)
+		self.eid = elliptics_id(list(bytearray(self.id)), 0, 0)
 	
 	def removed(self):
 		return self.flags & self.FLAGS_REMOVED
@@ -79,11 +79,15 @@ class merge:
 			except:
 				pass
 
+		self.own_group = group
 		self.own = own
 		self.routes = []
 		for r in self.n.get_routes():
 			if r[0].group_id == group:
 				self.routes.append(r)
+
+		if len(self.routes) == 0:
+			raise NameError("Route table for group " + str(group) + " is empty")
 
 		self.routes.sort(key = lambda x: x[0].id)
 
@@ -119,6 +123,10 @@ class merge:
 
 		for eid in input.iterate(want_removed=False):
 			d = self.destination(eid)
+
+			#eid.group_id = self.own_group
+			#print self.sid(eid), self.sid(d[0]), d[1], self.n.lookup_addr(eid)
+
 			if d[1] != self.own:
 				b = outb[d[1]]
 
@@ -138,14 +146,12 @@ class merge:
 				input.mark_removed()
 				input.update()
 
-				#print self.sid(eid), self.sid(d[0]), outpath + '-' + d[1]
-
 if __name__ == '__main__':
 	# list of tuples of remote addresses to connect and grab route table
 	remotes = [('elisto19f.dev', 1025)]
 
 	# when doing merge, only select addresses from this group
-	want_group = 8
+	want_group = 2
 
 	# when doing merge, do NOT get IDs which belong to this address
 	# it must be IPv4 address:port
@@ -165,5 +171,8 @@ if __name__ == '__main__':
 	outpath='/tmp/blob.test'
 
 
-	m = merge(remotes=remotes, group=want_group, own=except_addr)
-	m.merge(inpath=inpath, outpath=outpath)
+	try:
+		m = merge(remotes=remotes, group=want_group, own=except_addr)
+		m.merge(inpath=inpath, outpath=outpath)
+	except NameError as e:
+		print "Processes completed:", e
