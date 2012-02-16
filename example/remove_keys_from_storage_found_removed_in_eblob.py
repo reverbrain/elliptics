@@ -101,6 +101,9 @@ class remover:
 
 
 if __name__ == '__main__':
+
+	# this script runs over index for given blob, finds all removed entries and removes them from the storage
+
 	# list of tuples of remote addresses to connect and grab route table
 	remotes = [('elisto19f.dev', 1025)]
 
