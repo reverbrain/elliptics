@@ -7,7 +7,7 @@ sys.path.insert(0, "./.libs/")
 sys.path.insert(0, "bindings/python/.libs/")
 from libelliptics_python import *
 
-import struct, binascii, os
+import struct, os
 
 class blob:
 	format = '<64sQQQQ'
