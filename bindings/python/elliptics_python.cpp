@@ -616,9 +616,9 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("get_routes", &elliptics_node_python::get_routes)
 		.def("stat_log", &elliptics_node_python::stat_log)
 
-		.def("exec", &elliptics_node_python::exec)
-		.def("exec", &elliptics_node_python::exec_all)
-		.def("exec", &elliptics_node_python::exec_by_name)
+		.def("exec_script", &elliptics_node_python::exec)
+		.def("exec_script", &elliptics_node_python::exec_all)
+		.def("exec_script", &elliptics_node_python::exec_by_name)
 		.def("exec_name", &elliptics_node_python::exec_name)
 		.def("exec_name", &elliptics_node_python::exec_name_all)
 		.def("exec_name", &elliptics_node_python::exec_name_by_name)
