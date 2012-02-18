@@ -52,6 +52,6 @@ AC_CONFIG_FILES([Makefile include/Makefile include/elliptics/Makefile
 		 library/Makefile example/Makefile
 		 doc/Makefile debian/Makefile
 		 bindings/Makefile bindings/cpp/Makefile
-		 bindings/python/Makefile example/eblob_gen/Makefile])
+		 bindings/python/Makefile])
 
 AC_OUTPUT
