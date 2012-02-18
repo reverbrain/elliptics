@@ -7,66 +7,7 @@ sys.path.insert(0, "./.libs/")
 sys.path.insert(0, "bindings/python/.libs/")
 from libelliptics_python import *
 
-import struct, os
-
-class blob:
-	format = '<64sQQQQ'
-	index_size = struct.calcsize(format)
-
-	FLAGS_REMOVED = 1
-
-	def __init__(self, path, mode='r+b'):
-		self.dataf = open(path, mode)
-		self.index = open(path + '.index', mode)
-
-		self.position = 0
-		self.id = ''
-		self.data_size = 0
-		self.disk_size = 0
-		self.flags = 0
-		self.data = ''
-
-	def read_index(self):
-		idata = self.index.read(self.index_size)
-		if len(idata) != self.index_size:
-			raise NameError('Finished index')
-
-		self.id, self.flags, self.data_size, self.disk_size, self.position = struct.unpack(self.format, idata)
-		self.eid = elliptics_id(list(bytearray(self.id)), 0, 0)
-	
-	def removed(self):
-		return self.flags & self.FLAGS_REMOVED
-
-	def mark_removed(self):
-		self.flags |= self.FLAGS_REMOVED
-
-	def read_data(self):
-		self.dataf.seek(self.position)
-		self.data = self.dataf.read(self.disk_size)
-
-		if len(self.data) != self.disk_size:
-			raise NameError('Finished data')
-
-	def update(self):
-		idata = struct.pack(self.format, self.id, self.flags, self.data_size, self.disk_size, self.position)
-		self.index.seek(-self.index_size, os.SEEK_CUR)
-		self.index.write(idata)
-
-		self.dataf.seek(self.position)
-		self.dataf.write(idata)
-
-	def get_data(self):
-		idata = struct.pack(self.format, self.id, self.flags, self.data_size, self.disk_size, self.position)
-		return idata, self.data
-
-	def iterate(self, want_removed=False):
-		while True:
-			self.read_index()
-			if want_removed:
-				yield self.eid
-
-			if not self.removed():
-				yield self.eid
+import eblob
 
 class merge:
 	def __init__(self, remotes=[], group=0, log='/dev/stdout', mask=8, own=''):
@@ -104,28 +45,17 @@ class merge:
 
 		return ret
 
-	def sid(self, eid, count=6):
-		ba = bytearray(eid.id[0:count])
-		ret = ''
-		for i in range(count):
-			ret += '%02x' % ba[i]
-
-		return ret
-
 	def merge(self, inpath='', outpath=''):
-		input = blob(inpath)
+		input = eblob.blob(inpath)
 
 		outb = {}
 		for r in self.routes:
 			if r[1] != self.own:
 				if not r[1] in outb:
-					outb[r[1]] = blob(outpath + '-' + r[1], 'ab')
+					outb[r[1]] = eblob.blob(outpath + '-' + r[1], data_mode='ab', index_mode='ab')
 
-		for eid in input.iterate(want_removed=False):
-			d = self.destination(eid)
-
-			#eid.group_id = self.own_group
-			#print self.sid(eid), self.sid(d[0]), d[1], self.n.lookup_addr(eid)
+		for id in input.iterate(want_removed=False):
+			d = self.destination(elliptics_id(list(bytearray(id)), self.own_group, -1))
 
 			if d[1] != self.own:
 				b = outb[d[1]]
@@ -140,7 +70,7 @@ class merge:
 
 				b.index.write(idata)
 				b.dataf.write(idata)
-				b.dataf.write(input.data[blob.index_size:])
+				b.dataf.write(input.data[eblob.blob.index_size:])
 
 				input.position = old_pos
 				input.mark_removed()
@@ -170,9 +100,17 @@ if __name__ == '__main__':
 	# files with this prefix only and described above suffix
 	outpath='/tmp/blob.test'
 
+	# please note that after merge process completed you should remove sorted index
+	# for appropriate blob, since it is not updated during merge iteration process,
+	# so it will continue to 'think' that some records are not removed
+	# reading will fail, since it checks data and index headers,
+	# but still it is a performance issue
+
 
 	try:
 		m = merge(remotes=remotes, group=want_group, own=except_addr)
 		m.merge(inpath=inpath, outpath=outpath)
 	except NameError as e:
 		print "Processes completed:", e
+		print "Please remove %s now and restart elliptics (it will regenerate sorted index if needed)\n" %\
+				(inpath + '.index.sorted')
