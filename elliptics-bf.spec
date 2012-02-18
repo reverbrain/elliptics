@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.11.1.6
+Version:	2.11.1.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,7 +15,7 @@ BuildRequires:	python26-devel, boost141-python, boost141-devel
 %else
 BuildRequires:  python-devel, boost-python, boost-devel
 %endif
-BuildRequires:	eblob-devel >= 0.14.1 libsrw-devel >= 0.2.2
+BuildRequires:	eblob-devel >= 0.14.4 libsrw-devel >= 0.2.2
 BuildRequires:	automake autoconf libtool
 
 %description
@@ -147,6 +147,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Feb 19 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.7-1
+- Get rid of virtually unused and unneded eblob generation tools. It can be replaced by trivial python scripts
+- Updated python scripts to use new eblob class
+- exec is reserved name in python, use exec_script for execution method name
+
 * Thu Feb 16 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.11.1.6-1
 - Added possibility to read metadata from file and dump to log
 - Added remove_keys_from_storage_found_removed_in_eblob.py

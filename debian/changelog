@@ -1,3 +1,11 @@
+elliptics-2.10 (2.11.1.7) unstable; urgency=low
+
+  * Get rid of virtually unused and unneded eblob generation tools. It can be replaced by trivial python scripts
+  * Updated python scripts to use new eblob class
+  * exec is reserved name in python, use exec_script for execution method name
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 19 Feb 2012 00:13:13 +0400
+
 elliptics-2.10 (2.11.1.6) unstable; urgency=low
 
   * Added possibility to read metadata from file and dump to log
