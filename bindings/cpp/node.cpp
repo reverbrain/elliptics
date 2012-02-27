@@ -820,7 +820,7 @@ std::vector<struct dnet_io_attr> elliptics_node::remove_data_range(struct dnet_i
 	return ret;
 }
 
-int elliptics_node::write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
+std::string elliptics_node::write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
 		uint64_t psize, unsigned int aflags, unsigned int ioflags, int type)
 {
 	struct dnet_io_control ctl;
@@ -848,10 +848,14 @@ int elliptics_node::write_prepare(const std::string &remote, const std::string &
 		string << dnet_dump_id(&ctl.id) << ": " << remote << ": write_prepare: size: " << str.size() << ", err: " << err;
 		throw std::runtime_error(string.str());
 	}
-	return err;
+
+	std::string ret((const char *)ctl.adata, ctl.asize);
+	free(ctl.adata);
+
+	return ret;
 }
 
-int elliptics_node::write_commit(const std::string &remote, const std::string &str, uint64_t remote_offset, uint64_t csize,
+std::string elliptics_node::write_commit(const std::string &remote, const std::string &str, uint64_t remote_offset, uint64_t csize,
 		unsigned int aflags, unsigned int ioflags, int type)
 {
 	struct dnet_io_control ctl;
@@ -879,10 +883,14 @@ int elliptics_node::write_commit(const std::string &remote, const std::string &s
 		string << dnet_dump_id(&ctl.id) << ": " << remote << ": write_commit: size: " << str.size() << ", err: " << err;
 		throw std::runtime_error(string.str());
 	}
-	return err;
+
+	std::string ret((const char *)ctl.adata, ctl.asize);
+	free(ctl.adata);
+
+	return ret;
 }
 
-int elliptics_node::write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
+std::string elliptics_node::write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
 		unsigned int aflags, unsigned int ioflags, int type)
 {
 	struct dnet_io_control ctl;
@@ -909,7 +917,11 @@ int elliptics_node::write_plain(const std::string &remote, const std::string &st
 		string << dnet_dump_id(&ctl.id) << ": " << remote << ": write_plain: size: " << str.size() << ", err: " << err;
 		throw std::runtime_error(string.str());
 	}
-	return err;
+
+	std::string ret((const char *)ctl.adata, ctl.asize);
+	free(ctl.adata);
+
+	return ret;
 }
 
 std::vector<std::pair<struct dnet_id, struct dnet_addr> > elliptics_node::get_routes()
