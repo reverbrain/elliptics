@@ -271,9 +271,6 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	int offset = 0;
 	int err;
 
-	dnet_log(st->n, DNET_LOG_DSA, "%s: send queue: hsize: %zu, dsize: %zu, fsize: %zu\n",
-			dnet_state_dump_addr(st), orig->hsize, orig->dsize, orig->fsize);
-
 	buf = r = malloc(sizeof(struct dnet_io_req) + orig->dsize + orig->hsize);
 	if (!r) {
 		err = -ENOMEM;
@@ -436,8 +433,6 @@ ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, 
 static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t offset, uint64_t dsize)
 {
 	ssize_t err;
-	unsigned long long orig_dsize = dsize;
-	unsigned long long orig_offset = offset;
 
 	while (dsize) {
 		err = dnet_sendfile(st, fd, &offset, dsize);
@@ -454,8 +449,6 @@ static ssize_t dnet_send_fd_nolock(struct dnet_net_state *st, int fd, uint64_t o
 		st->send_offset += err;
 		err = 0;
 	}
-	dnet_log(st->n, DNET_LOG_DSA, "Sent %llu data bytes from fd %d, offset %llu -> %llu.\n",
-			orig_dsize, fd, orig_offset, (unsigned long long)offset);
 
 	return err;
 }
@@ -1163,10 +1156,17 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 			goto err_out_exit;
 	}
 
-err_out_exit:
-	dnet_log(st->n, DNET_LOG_DSA, "%s: sent: send_offset: %zu, hsize: %zu, dsize: %zu, fsize: %zu, err: %d\n",
-			dnet_state_dump_addr(st), st->send_offset, r->hsize, r->dsize, r->fsize, err);
+	if (r->hsize > sizeof(struct dnet_cmd)) {
+		struct dnet_cmd *cmd = r->header;
+		int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
+		struct dnet_attr *attr = r->header + sizeof(struct dnet_cmd);
 
+		dnet_log(st->n, DNET_LOG_DSA, "%s: %s: SENT nonblocking cmd: %s: cmd-size: %llu, nonblocking: %d\n",
+			dnet_state_dump_addr(st), dnet_dump_id(r->header), dnet_cmd_string(attr->cmd),
+			(unsigned long long)cmd->size, nonblocking);
+	}
+
+err_out_exit:
 	if (st->send_offset == (r->dsize + r->hsize + r->fsize)) {
 		pthread_mutex_lock(&st->send_lock);
 		list_del(&r->req_entry);

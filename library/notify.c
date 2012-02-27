@@ -87,8 +87,6 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	a.size = 0;
 	a.flags = 0;
 
-	dnet_log(n, DNET_LOG_DSA, "%s: notification hash: %x.\n", dnet_dump_id(&cmd->id), hash);
-
 	pthread_rwlock_rdlock(&b->notify_lock);
 	list_for_each_entry(nt, &b->notify_list, notify_entry) {
 		if (dnet_id_cmp(&cmd->id, &nt->cmd.id))

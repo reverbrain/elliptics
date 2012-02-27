@@ -154,8 +154,8 @@ static int dnet_cmd_exec_python_raw(struct dnet_net_state *st, struct dnet_cmd *
 		goto err_out_exit;
 	}
 
-	dnet_log(n, DNET_LOG_DSA, "%s: reply %llu bytes: '%s'\n",
-			dnet_dump_id(&cmd->id), (unsigned long long)ctl.res_size, ctl.res_size ? ctl.result : "none");
+	dnet_log(n, DNET_LOG_DSA, "%s: reply %llu bytes: '%.*s'\n",
+			dnet_dump_id(&cmd->id), (unsigned long long)ctl.res_size, (int)ctl.res_size, ctl.result);
 
 	if (ctl.res_size) {
 		err = dnet_send_reply(st, cmd, attr, ctl.result, ctl.res_size, 0);
