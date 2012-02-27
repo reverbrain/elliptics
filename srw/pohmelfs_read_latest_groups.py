@@ -11,6 +11,7 @@ try:
 	id = elliptics_id(list(binary_data[0:64]), group_id, type)
 
 	__return_data = n.prepare_latest_str(id, pohmelfs_aflags, pohmelfs_groups)
+	logging.error("read latest", extra=d)
 
 	gc.collect()
 

@@ -8,7 +8,7 @@ def pohmelfs_upload_dentry(new_dir_id, new_name, inode_info):
 		dir_content = n.read_data(new_dir_id, pohmelfs_offset, pohmelfs_size, pohmelfs_aflags, pohmelfs_ioflags_read)
 		s.load(dir_content)
 	except:
-		if not 'No such file or directory' in str(e):
+		if not ': -2' in str(e):
 			raise
 		s.init(len(inode_info))
 

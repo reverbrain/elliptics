@@ -11,7 +11,7 @@ try:
 		dir_content = n.read_data(parent_id, pohmelfs_offset, pohmelfs_size, pohmelfs_aflags, pohmelfs_ioflags_read)
 		s.load(dir_content)
 	except Exception as e:
-		if not 'No such file or directory' in str(e):
+		if not ': -2' in str(e):
 			raise
 		s.init(len(inode_info))
 
@@ -32,5 +32,18 @@ except KeyError as e:
 	logging.error("key error: %s", e.__str__(), extra=d)
 	__return_data = 'key error: ' + e.__str__()
 except Exception as e:
-	logging.error("generic error: %s", e.__str__(), extra=d)
-	__return_data = 'error: ' + e.__str__()
+	if 'Incorrect header magic' in str(e):
+		parent_id.type = -1
+		n.remove(parent_id, pohmelfs_aflags)
+
+		s = sstable()
+		s.init(len(inode_info))
+		s.insert(pohmelfs_dentry_name, inode_info, True)
+		content = str(s.save())
+
+		pohmelfs_write(parent_id, content)
+		logging.info("inserted", extra=d)
+		__return_data = 'ok'
+	else:
+		logging.error("generic error: %s", e.__str__(), extra=d)
+		__return_data = 'error: ' + e.__str__()
