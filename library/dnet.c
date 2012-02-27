@@ -70,6 +70,7 @@ int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 
 	memcpy(&cmd->id, id, sizeof(struct dnet_id));
 	cmd->size = cmd_size - sizeof(struct dnet_cmd);
+	cmd->flags = DNET_FLAGS_NOLOCK;
 
 	attr->size = cmd->size - sizeof(struct dnet_attr);
 	attr->cmd = DNET_CMD_READ;
@@ -80,9 +81,6 @@ int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 
 	memcpy(io->parent, id->id, DNET_ID_SIZE);
 	memcpy(io->id, id->id, DNET_ID_SIZE);
-
-	dnet_log(n, DNET_LOG_INFO, "%s: local stat: reading %llu byte(s).\n",
-			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 
 	dnet_convert_io_attr(io);
 
