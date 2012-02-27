@@ -9,7 +9,11 @@ pohmelfs_groups = [1, 2, 3]
 pohmelfs_log_file = '/tmp/test/history.2/python.log'
 
 log = elliptics_log_file(pohmelfs_log_file, 10)
-n = elliptics_node_python(log)
+cfg = elliptics_config()
+cfg.wait_timeout = 30
+cfg.check_timeout = 120
+
+n = elliptics_node_python(log, cfg)
 # we should only add own local group, since we do not want all updates to be repeated for all groups
 n.add_groups([2])
 n.add_remote('172.16.239.1', 1025)
