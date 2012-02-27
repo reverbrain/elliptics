@@ -217,9 +217,34 @@ class elliptics_log_file_wrap : public elliptics_log_file, public wrapper<ellipt
 		unsigned long default_clone(void) { return this->elliptics_log_file::clone(); }
 };
 
+class elliptics_config {
+	public:
+		elliptics_config() {
+			memset(&config, 0, sizeof(struct dnet_config));
+		}
+
+		std::string cookie_get(void) const {
+			std::string ret;
+			ret.assign(config.cookie, sizeof(config.cookie));
+			return ret;
+		}
+
+		void cookie_set(const std::string &cookie) {
+			size_t sz = sizeof(config.cookie);
+			if (cookie.size() + 1 < sz)
+				sz = cookie.size() + 1;
+			memset(config.cookie, 0, sizeof(config.cookie));
+			snprintf(config.cookie, sz, "%s", (char *)cookie.data());
+		}
+
+		struct dnet_config		config;
+};
+
 class elliptics_node_python : public elliptics_node {
 	public:
 		elliptics_node_python(elliptics_log &l) : elliptics_node(l) {}
+
+		elliptics_node_python(elliptics_log &l, elliptics_config &cfg) : elliptics_node(l, cfg.config) {}
 
 		void add_groups(const list &pgroups) {
 			std::vector<int> groups;
@@ -580,7 +605,23 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("add_remote", &elliptics_node::add_remote, add_remote_overloads())
 	;
 
+	class_<dnet_config>("dnet_config", init<>())
+		.def_readwrite("wait_timeout", &dnet_config::wait_timeout)
+		.def_readwrite("flags", &dnet_config::flags)
+		.def_readwrite("check_timeout", &dnet_config::check_timeout)
+		.def_readwrite("io_thread_num", &dnet_config::io_thread_num)
+		.def_readwrite("nonblocking_io_thread_num", &dnet_config::nonblocking_io_thread_num)
+		.def_readwrite("net_thread_num", &dnet_config::net_thread_num)
+		.def_readwrite("client_prio", &dnet_config::client_prio)
+	;
+	
+	class_<elliptics_config>("elliptics_config", init<>())
+		.def_readwrite("config", &elliptics_config::config)
+		.add_property("cookie", &elliptics_config::cookie_get, &elliptics_config::cookie_set)
+	;
+
 	class_<elliptics_node_python, bases<elliptics_node> >("elliptics_node_python", init<elliptics_log &>())
+		.def(init<elliptics_log &, elliptics_config &>())
 		.def("add_remote", &elliptics_node::add_remote, add_remote_overloads())
 
 		.def("add_groups", &elliptics_node_python::add_groups)
