@@ -31,9 +31,11 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	struct dnet_io *io = n->io;
 	struct dnet_cmd *cmd = r->header;
 	int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
+	struct dnet_attr *attr = r->header + sizeof(struct dnet_cmd);
 
-	dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: queueing IO event: %p: hsize: %zu, dsize: %zu, nonblocking: %d\n",
-			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), r, r->hsize, r->dsize, nonblocking);
+	dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d\n",
+		dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(attr->cmd),
+		(unsigned long long)cmd->size, nonblocking);
 
 	pthread_mutex_lock(&io->recv_lock);
 
@@ -106,12 +108,6 @@ again:
 
 		st->rcv_offset += err;
 	}
-
-	dnet_log(n, DNET_LOG_DSA, "%s: rcv_offset: %llu, rcv_end: %llu, rcv_flags: %x\n",
-			dnet_state_dump_addr(st),
-			(unsigned long long)st->rcv_offset,
-			(unsigned long long)st->rcv_end,
-			st->rcv_flags);
 
 	if (st->rcv_offset != st->rcv_end)
 		goto again;
@@ -286,8 +282,6 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 		}
 	}
 
-	dnet_log(st->n, DNET_LOG_DSA, "%s: scheduled %s event\n", dnet_state_dump_addr(st), send ? "SEND" : "RECV");
-
 	return err;
 }
 
@@ -305,19 +299,22 @@ int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev)
 {
 	int err = -ECONNRESET;
 
-	dnet_log(st->n, DNET_LOG_DSA, "%s: net process, event: %x\n", dnet_state_dump_addr(st), ev->events);
-
 	if (ev->events & EPOLLIN) {
 		err = dnet_process_recv_single(st);
-	} else if (ev->events & EPOLLOUT) {
+		if (err && (err != -EAGAIN))
+			goto err_out_exit;
+	}
+	if (ev->events & EPOLLOUT) {
 		err = dnet_process_send_single(st);
+		if (err && (err != -EAGAIN))
+			goto err_out_exit;
 	}
 
 	if (ev->events & (EPOLLHUP | EPOLLERR)) {
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask %x\n", dnet_state_dump_addr(st), ev->events);
 		err = -ECONNRESET;
 	}
-
+err_out_exit:
 	return err;
 }
 
@@ -471,7 +468,7 @@ static void *dnet_io_process_pool(void *data_)
 		st = r->st;
 
 		dnet_log(n, DNET_LOG_DSA, "%s: %s: got IO event: %p: hsize: %zu, dsize: %zu, nonblocking: %d\n",
-				dnet_state_dump_addr(st), dnet_dump_id(r->header), r, r->hsize, r->dsize, wio->nonblocking);
+			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, r->hsize, r->dsize, wio->nonblocking);
 
 		err = dnet_process_recv(st, r);
 
@@ -479,7 +476,7 @@ static void *dnet_io_process_pool(void *data_)
 		dnet_state_put(st);
 	}
 
-	dnet_log(n, DNET_LOG_NOTICE, "Exiting IO processing thread: need_exit: %d, err: %d.\n", n->need_exit, err);
+	dnet_log(n, DNET_LOG_DSA, "Exiting IO processing thread: need_exit: %d, err: %d.\n", n->need_exit, err);
 	return NULL;
 }
 
@@ -545,7 +542,7 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		}
 	}
 
-	dnet_log(n, DNET_LOG_DSA, "Starting %d blocking threads and %d nonblocking threads\n", io->thread_num, io->nonblocking_thread_num);
+	dnet_log(n, DNET_LOG_INFO, "Starting %d blocking threads and %d nonblocking threads\n", io->thread_num, io->nonblocking_thread_num);
 	for (i=0; i<io->thread_num + io->nonblocking_thread_num; ++i) {
 		struct dnet_work_io *wio = &io->wio[i];
 
