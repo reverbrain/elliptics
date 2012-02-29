@@ -267,7 +267,6 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 	memcpy(&ctl.id, &mc->id, sizeof(struct dnet_id));
 	ctl.id.type = ctl.io.type = EBLOB_TYPE_META;
 
-	dnet_log(n, DNET_LOG_DSA, "%s: writing metadata (%u bytes)\n", dnet_dump_id(&mc->id), mc->size);
 	err = dnet_write_data_wait(n, &ctl);
 	if (err < 0)
 		return err;

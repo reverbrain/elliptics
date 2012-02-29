@@ -2,15 +2,18 @@
 # -*- coding: utf-8 -*-
 
 import sys
-sys.path.insert(0, "/usr/lib/")
-sys.path.insert(0, "./.libs/")
+sys.path.insert(0, "bindings/python/.libs/")
 from libelliptics_python import *
 import binascii
 from pprint import pprint
 
 try:
-	log = elliptics_log_file("/dev/stderr", 8)
-	n = elliptics_node_python(log)
+	log = elliptics_log_file("/dev/stderr", 31)
+	cfg = elliptics_config()
+	cfg.cookie = "0123456789012345678901234567890123456789"
+	cfg.config.wait_timeout = 60
+
+	n = elliptics_node_python(log, cfg)
 
 	n.add_groups([1,2,3])
 	n.add_remote("localhost", 1025)

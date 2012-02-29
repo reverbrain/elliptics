@@ -338,8 +338,6 @@ out:
 	if (i == -1)
 		i = g->id_num - 1;
 
-	dnet_log(g->ids[0].idc->st->n, DNET_LOG_DSA, "%s: found idc pos: %d\n", dnet_dump_id(id), i);
-
 	return i;
 }
 
@@ -571,9 +569,6 @@ again:
 	}
 
 	num = st.st_size / sizeof(struct dnet_raw_id);
-
-	dnet_log(n, DNET_LOG_DSA, "Reading ids file: %d ids found.\n", num);
-
 	if (!num) {
 		dnet_log(n, DNET_LOG_ERROR, "No ids read, exiting.\n");
 		err = -EINVAL;
@@ -610,7 +605,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 {
 	struct dnet_node *n;
 	struct dnet_raw_id *ids = NULL;
-	int id_num;
+	int id_num = 0;
 	int err = -ENOMEM;
 	sigset_t sig;
 
@@ -784,8 +779,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_state_destroy;
 
-	dnet_log(n, DNET_LOG_DSA, "New node has been created at %s, id_size: %u.\n",
-			dnet_dump_node(n), DNET_ID_SIZE);
+	dnet_log(n, DNET_LOG_DSA, "New node has been created at %s, ids: %d.\n",
+			dnet_dump_node(n), id_num);
 	return n;
 
 err_out_state_destroy:
