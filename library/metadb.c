@@ -67,10 +67,24 @@ err_out_exit:
 
 int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *data, unsigned int size)
 {
+	struct eblob_write_control wc;
 	struct eblob_key key;
+	int err;
 
+	memset(&wc, 0, sizeof(struct eblob_write_control));
 	memcpy(key.id, id->id, DNET_ID_SIZE);
-	return eblob_write(b, &key, data, 0, size, BLOB_DISK_CTL_NOCSUM, EBLOB_TYPE_META);
+	err = eblob_write(b, &key, data, 0, size, BLOB_DISK_CTL_NOCSUM, EBLOB_TYPE_META);
+	if (err)
+		goto err_out_exit;
+
+	wc.offset = 0;
+	wc.size = size;
+	wc.flags = BLOB_DISK_CTL_NOCSUM;
+	wc.type = EBLOB_TYPE_META;
+	err = eblob_write_commit(b, &key, NULL, 0, &wc);
+
+err_out_exit:
+	return err;
 }
 
 static int dnet_db_remove_direct(struct eblob_backend *b, struct dnet_raw_id *id)
