@@ -678,6 +678,7 @@ struct dnet_meta_update * dnet_get_meta_update(struct dnet_node *n, struct dnet_
 int dnet_update_ts_metadata(struct eblob_backend *b, struct dnet_raw_id *id, uint64_t flags_set, uint64_t flags_clear);
 
 int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, struct dnet_io_attr *io);
+void dnet_convert_metadata(struct dnet_node *n __unused, void *data, int size);
 
 void dnet_monitor_exit(struct dnet_node *n);
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);

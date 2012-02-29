@@ -4085,6 +4085,12 @@ struct dnet_range_data dnet_bulk_write(struct dnet_node *n, struct dnet_io_contr
 	struct dnet_wait *w;
 	struct dnet_write_completion *wc;
 	struct dnet_range_data ret;
+	struct dnet_metadata_control mcl;
+	struct dnet_meta_container mc;
+	struct dnet_io_control meta_ctl;
+	struct timeval tv;
+	int *groups = NULL;
+	int group_num = 0;
 
 	memset(&ret, 0, sizeof(ret));
 
@@ -4123,6 +4129,59 @@ struct dnet_range_data dnet_bulk_write(struct dnet_node *n, struct dnet_io_contr
 			local_trans_num = 0;
 
 		trans_num += local_trans_num;
+
+		/* Prepare and send metadata */
+		memset(&mcl, 0, sizeof(mcl));
+
+		pthread_mutex_lock(&n->group_lock);
+		group_num = n->group_num;
+		groups = alloca(group_num * sizeof(int));
+
+		memcpy(groups, n->groups, group_num * sizeof(int));
+		pthread_mutex_unlock(&n->group_lock);
+
+		mcl.groups = groups;
+		mcl.group_num = group_num;
+		mcl.id = ctl[i].id;
+		mcl.aflags = ctl[i].aflags;
+
+		gettimeofday(&tv, NULL);
+		mcl.ts.tv_sec = tv.tv_sec;
+		mcl.ts.tv_nsec = tv.tv_usec * 1000;
+
+		memset(&mc, 0, sizeof(mc));
+
+		err = dnet_create_metadata(n, &mcl, &mc);
+		dnet_log(n, DNET_LOG_DSA, "Creating metadata: err: %d", err);
+		if (!err) {
+			dnet_convert_metadata(n, mc.data, mc.size);
+
+			memset(&meta_ctl, 0, sizeof(struct dnet_io_control));
+
+			meta_ctl.priv = wc;
+			meta_ctl.complete = dnet_write_complete;
+			meta_ctl.cmd = DNET_CMD_WRITE;
+			meta_ctl.fd = -1;
+
+			meta_ctl.aflags = ctl[i].aflags;
+			meta_ctl.cflags = ctl[i].cflags;
+
+			memcpy(&meta_ctl.id, &ctl[i].id, sizeof(struct dnet_id));
+			memcpy(meta_ctl.io.id, ctl[i].id.id, DNET_ID_SIZE);
+			memcpy(meta_ctl.io.parent, ctl[i].id.id, DNET_ID_SIZE);
+			meta_ctl.id.type = meta_ctl.io.type = EBLOB_TYPE_META;
+		
+			meta_ctl.io.flags |= DNET_IO_FLAGS_META;
+			meta_ctl.io.offset = 0;
+			meta_ctl.io.size = mc.size;
+			meta_ctl.data = mc.data;
+
+			local_trans_num = dnet_write_object(n, &meta_ctl);
+			if (local_trans_num < 0)
+				local_trans_num = 0;
+
+			trans_num += local_trans_num;
+		}
 	}
 
 	/*

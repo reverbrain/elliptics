@@ -229,7 +229,7 @@ struct dnet_meta *dnet_meta_search(struct dnet_node *n, struct dnet_meta_contain
 	return found;
 }
 
-static void dnet_convert_metadata(struct dnet_node *n __unused, void *data, int size)
+void dnet_convert_metadata(struct dnet_node *n __unused, void *data, int size)
 {
 	void *ptr = data;
 	struct dnet_meta *m;
