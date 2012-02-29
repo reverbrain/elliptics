@@ -700,6 +700,22 @@ static int dnet_blob_set_blob_cache_size(struct dnet_config_backend *b, char *ke
 	return 0;
 }
 
+static int dnet_blob_set_defrag_timeout(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct eblob_backend_config *c = b->data;
+
+	c->data.defrag_timeout = strtoul(value, NULL, 0);
+	return 0;
+}
+
+static int dnet_blob_set_defrag_percentage(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct eblob_backend_config *c = b->data;
+
+	c->data.defrag_percentage = strtoul(value, NULL, 0);
+	return 0;
+}
+
 static int dnet_blob_set_iterate_thread_num(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct eblob_backend_config *c = b->data;
@@ -837,6 +853,8 @@ static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"blob_size", dnet_blob_set_blob_size},
 	{"records_in_blob", dnet_blob_set_records_in_blob},
 	{"blob_cache_size", dnet_blob_set_blob_cache_size},
+	{"defrag_timeout", dnet_blob_set_defrag_timeout},
+	{"defrag_percentage", dnet_blob_set_defrag_percentage},
 };
 
 static struct dnet_config_backend dnet_eblob_backend = {
