@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import sys
-sys.path.insert(0, "/usr/lib/")
-sys.path.insert(0, "./.libs/")
-sys.path.insert(0, "bindings/python/.libs/")
-from libelliptics_python import *
+import glob
+import os
+import re
 
+sys.path.insert(0, "/usr/lib/")
+sys.path.insert(0, "/lib/python2.6/site-packages/")
+from libelliptics_python import *
 import eblob
 
 class merge:
@@ -81,14 +83,19 @@ if __name__ == '__main__':
 	remotes = [('elisto19f.dev', 1025)]
 
 	# when doing merge, only select addresses from this group
-	want_group = 2
+	want_group = 1
 
 	# when doing merge, do NOT get IDs which belong to this address
 	# it must be IPv4 address:port
-	except_addr = '95.108.228.167:1025'
+	# when setting it to obscure string, we force merge process to spread all IDs
+	# so that no single key will belong to the host of the input blob
+	# localhost is kind of such 'obscure string' - if remote nodes are not on the localhost,
+	# then there is no way we may have localaddr in route table (remember, this address
+	# is announced when node joins network, so remote nodes connect to it)
+	except_addr = '127.0.0.1:1025'
 
 	# Path to blob to get objects from. Index file must be near with .index suffix
-	inpath='/opt/elliptics/eblob.2/data.0'
+	indir='/srv/data'
 
 	# output path - real output files will have '-addr:port' suffix added
 	# you may want to copy them to appropriate elliptics nodes
@@ -98,19 +105,50 @@ if __name__ == '__main__':
 	# Be careful with different columns - blobs with names like 'data-1'
 	# This tool does not know what column this data has, it will create output
 	# files with this prefix only and described above suffix
-	outpath='/tmp/blob.test'
+	outdir='/srv/data/new'
 
 	# please note that after merge process completed you should remove sorted index
 	# for appropriate blob, since it is not updated during merge iteration process,
-	# so it will continue to 'think' that some records are not removed
+	# so local node will continue to 'think' that some records are not removed
 	# reading will fail, since it checks data and index headers,
 	# but still it is a performance issue
 
+	# maximum output blob size in bytes
+	blobsize = 40*1024*1024*1024
 
-	try:
-		m = merge(remotes=remotes, group=want_group, own=except_addr)
-		m.merge(inpath=inpath, outpath=outpath)
-	except NameError as e:
-		print "Processes completed:", e
-		print "Please remove %s now and restart elliptics (it will regenerate sorted index if needed)\n" %\
-				(inpath + '.index.sorted')
+	for blobtype in ['data', 'data-1']:
+		# list of blobtype blobs
+		inlist = map(os.path.basename, glob.glob(indir + '/' + blobtype + '.*'))
+		# filter .index, data.stat, etc files
+		inlist = filter(lambda x: re.match('^data(-[0-9]+)?\.[0-9]+$', x), inlist)
+		# sort by blob id
+		inlist = sorted(inlist, key=lambda x: int(x.rsplit('.', 1)[1]))
+
+		# output blob id
+		outblobnum = 0
+		for inblob in inlist:
+			inpath = indir + '/' + inblob
+
+			while True:
+				# output path for blob
+				outpath = outdir + '/' + blobtype + '.' + str(outblobnum)
+				# list of already merged blogs
+				outlist = glob.glob(outpath + '-*')
+				# filter .index files
+				outlist = filter(lambda x: not x.endswith('.index'), outlist)
+
+				# ok if blobs not found or all blob sizes less than blobsize
+				if len(outlist) < 1 or max(map(os.path.getsize, outlist)) < blobsize:
+					break
+
+				i += 1
+
+			try:
+				print "Doing merge from %s to %s" % (inpath, outpath)
+				m = merge(remotes=remotes, group=want_group, own=except_addr)
+				m.merge(inpath=inpath, outpath=outpath)
+			except NameError as e:
+				del m
+				print "Processes completed:", e
+				print "Please remove %s now and restart elliptics (it will regenerate sorted index if needed)\n" %\
+						(inpath + '.index.sorted')
