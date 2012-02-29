@@ -136,11 +136,11 @@ class elliptics_node {
 		std::string		write_data_wait(const std::string &remote, const std::string &str,
 						uint64_t remote_offset, unsigned int aflags, unsigned int ioflags, int type);
 
-		int			write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
+		std::string		write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
 						uint64_t psize, unsigned int aflags, unsigned int ioflags, int type);
-		int			write_commit(const std::string &remote, const std::string &str, uint64_t remote_offset,
+		std::string		write_commit(const std::string &remote, const std::string &str, uint64_t remote_offset,
 						uint64_t csize, unsigned int aflags, unsigned int ioflags, int type);
-		int			write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
+		std::string		write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
 						unsigned int aflags, unsigned int ioflags, int type);
 
 		std::string		lookup_addr(const std::string &remote, const int group_id);
