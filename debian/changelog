@@ -1,3 +1,10 @@
+elliptics-2.10 (2.12.0.1) unstable; urgency=low
+
+  * Depend on 0.15 eblob: added new defragmentation parameters into config
+  * Propagate prepare_write() and friends return values back to callers - changed API
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 29 Feb 2012 22:19:13 +0400
+
 elliptics-2.10 (2.11.1.7) unstable; urgency=low
 
   * Get rid of virtually unused and unneded eblob generation tools. It can be replaced by trivial python scripts

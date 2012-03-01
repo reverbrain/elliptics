@@ -438,6 +438,9 @@ struct dnet_config
 
 	/* table of operation locks */
 	int			oplock_num;
+
+	/* so that we do not change major version frequently */
+	int			reserved_for_future_use[12];
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);
