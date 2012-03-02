@@ -76,6 +76,8 @@ def readdir_parse(buffer):
 try:
 	binary_data = __input_binary_data_tuple[0]
 	parent_id = elliptics_id(list(binary_data[0:64]), pohmelfs_group_id, pohmelfs_column)
+	d['object'] = 'parent: ' + dump_id(parent_id)
+
 	max_size, fpos = struct.unpack_from('<II', buffer(binary_data), 64)
 
 	dir_content = n.read_data(parent_id, pohmelfs_offset, pohmelfs_size, pohmelfs_aflags, pohmelfs_ioflags_read)

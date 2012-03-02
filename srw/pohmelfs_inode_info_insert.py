@@ -4,6 +4,7 @@ try:
 	binary_data = __input_binary_data_tuple[0]
 	parent_id = elliptics_id(list(binary_data[0:64]), pohmelfs_group_id, pohmelfs_column)
 	inode_info = str(binary_data[64:])
+	d['object'] = 'parent: ' + dump_id(parent_id)
 
 	s = sstable()
 	dir_content = ''

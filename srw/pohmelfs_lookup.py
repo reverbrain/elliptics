@@ -3,6 +3,7 @@ d = {'script' : 'lookup', 'dentry_name' : pohmelfs_dentry_name}
 try:
 	binary_data = __input_binary_data_tuple[0]
 	parent_id = elliptics_id(list(binary_data[0:64]), pohmelfs_group_id, pohmelfs_column)
+	d['object'] = 'parent: ' + dump_id(parent_id)
 
 	s = sstable()
 
