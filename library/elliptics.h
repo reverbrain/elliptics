@@ -342,7 +342,7 @@ void dnet_io_exit(struct dnet_node *n);
 void dnet_io_req_free(struct dnet_io_req *r);
 
 struct dnet_locks {
-	int			num;
+	int			bit_num;
 	pthread_mutex_t		lock[0];
 };
 

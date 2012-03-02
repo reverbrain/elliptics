@@ -108,8 +108,8 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_cfg_state.server_prio = value;
 	else if (!strcmp(key, "client_net_prio"))
 		dnet_cfg_state.client_prio = value;
-	else if (!strcmp(key, "oplock_num"))
-		dnet_cfg_state.oplock_num = value;
+	else if (!strcmp(key, "oplock_num_bits"))
+		dnet_cfg_state.oplock_num_bits = value;
 	else
 		return -1;
 

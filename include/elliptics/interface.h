@@ -436,8 +436,8 @@ struct dnet_config
 	int			server_prio;
 	int			client_prio;
 
-	/* table of operation locks */
-	int			oplock_num;
+	/* table of operation locks - 1<<oplock_num_bits equals to the size of the table */
+	int			oplock_num_bits;
 
 	/* so that we do not change major version frequently */
 	int			reserved_for_future_use[12];
