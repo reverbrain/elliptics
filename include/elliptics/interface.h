@@ -407,9 +407,6 @@ struct dnet_config
 	 */
 	int			net_thread_num;
 
-	/* Monitor unix socket */
-	char			monitor_path[128];
-
 	/* Temporary metadata for CHECK process directory path */
 	char			temp_meta_env[1024];
 
@@ -438,6 +435,12 @@ struct dnet_config
 
 	/* table of operation locks - 1<<oplock_num_bits equals to the size of the table */
 	int			oplock_num_bits;
+
+	/* srw log path - initialized to the same config string as for 'log' by default */
+	char			*srw_log;
+
+	/* path to srw_worker binary - it is used to spawn script workers */
+	char			*srw_binary;
 
 	/* so that we do not change major version frequently */
 	int			reserved_for_future_use[12];

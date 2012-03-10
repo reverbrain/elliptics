@@ -1,4 +1,4 @@
-SUBDIRS = include library doc bindings example debian
+SUBDIRS = include srw library doc bindings example debian
 
 ACLOCAL_AMFLAGS = -I config
 AUTOMAKE_OPTIONS = 1.9 foreign
@@ -16,5 +16,4 @@ EXTRA_DIST = autogen.sh AUTHORS README .gitignore \
 	config/ax_boost_base.m4 \
 	config/ax_boost_program_options.m4 config/ax_boost_filesystem.m4 \
 	config/ac_check_ioprio.m4 \
-	config/ac_set_releaseinfo_versioninfo.m4 \
-	config/ac_check_srw.m4
+	config/ac_set_releaseinfo_versioninfo.m4

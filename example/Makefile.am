@@ -1,4 +1,4 @@
-bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_monitor dnet_check dnet_ids dnet_meta dnet_meta_update_groups dnet_find
+bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet_check dnet_ids dnet_meta dnet_meta_update_groups dnet_find
 noinst_LIBRARIES = libcommon.a
 noinst_HEADERS = backends.h common.h
 SUBDIRS = .
@@ -35,9 +35,6 @@ dnet_hparser_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_stat_SOURCES = stat.c
 dnet_stat_LDADD = $(EXAMPLE_COMMON_LIBS)
-
-dnet_monitor_SOURCES = monitor.c
-dnet_monitor_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_notify_SOURCES = notify.c
 dnet_notify_LDADD = $(EXAMPLE_COMMON_LIBS)

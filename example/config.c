@@ -136,6 +136,28 @@ static int dnet_set_remote_addrs(struct dnet_config_backend *b __unused, char *k
 	return 0;
 }
 
+static int dnet_set_srw_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	free(dnet_cfg_state.srw_log);
+
+	dnet_cfg_state.srw_log = strdup(value);
+	if (!dnet_cfg_state.srw_log)
+		return -ENOMEM;
+
+	return 0;
+}
+
+static int dnet_set_srw_binary(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	free(dnet_cfg_state.srw_binary);
+
+	dnet_cfg_state.srw_binary = strdup(value);
+	if (!dnet_cfg_state.srw_binary)
+		return -ENOMEM;
+
+	return 0;
+}
+
 static int dnet_set_malloc_options(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
 	int err, thr = atoi(value);
@@ -183,7 +205,7 @@ int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, cha
 		log = fopen(dnet_logger_value, "a");
 		if (!log) {
 			err = -errno;
-			fprintf(stderr, "cnf: failed to open log file '%s': %s.\n", dnet_logger_value, strerror(errno));
+			fprintf(stderr, "cnf: failed to open log file '%s': %s\n", dnet_logger_value, strerror(errno));
 			return err;
 		}
 
@@ -195,6 +217,14 @@ int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, cha
 		if (old) {
 			dnet_common_log(old, 0xff, "Reopened log file\n");
 			fclose(old);
+			free(dnet_cfg_state.srw_log);
+		}
+
+		dnet_cfg_state.srw_log = strdup(dnet_logger_value);
+		if (!dnet_cfg_state.srw_log) {
+			err = -ENOMEM;
+			fprintf(stderr, "cnf: failed to duplicate log string '%s': %s\n", dnet_logger_value, strerror(errno));
+			return err;
 		}
 	}
 
@@ -205,12 +235,6 @@ int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, cha
 static int dnet_set_history_env(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
 	snprintf(dnet_cfg_state.history_env, sizeof(dnet_cfg_state.history_env), "%s", value);
-	return 0;
-}
-
-static int dnet_set_monitor_path(struct dnet_config_backend *b __unused, char *key __unused, char *value)
-{
-	snprintf(dnet_cfg_state.monitor_path, sizeof(dnet_cfg_state.monitor_path), "%s", value);
 	return 0;
 }
 
@@ -229,7 +253,6 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"daemon", dnet_simple_set},
 	{"log", dnet_set_log},
 	{"history", dnet_set_history_env},
-	{"monitor_path", dnet_set_monitor_path},
 	{"io_thread_num", dnet_simple_set},
 	{"nonblocking_io_thread_num", dnet_simple_set},
 	{"net_thread_num", dnet_simple_set},
@@ -240,6 +263,8 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"server_net_prio", dnet_simple_set},
 	{"client_net_prio", dnet_simple_set},
 	{"oplock_num", dnet_simple_set},
+	{"srw_log", dnet_set_srw_log},
+	{"srw_binary", dnet_set_srw_binary},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;
