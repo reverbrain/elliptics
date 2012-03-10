@@ -78,7 +78,7 @@ class python {
 			PyObject* main_dict_copy = PyDict_Copy((PyObject *)main_dict);
 			PyObject *tuple = NULL;
 
-			log << "inside python processing callback (data size: " << data.size() <<
+			log << getpid() << ": inside python processing callback (data size: " << data.size() <<
 				", binary size: " << binary.size() << ")" << std::endl;
 
 			if (binary.size()) {
@@ -86,7 +86,7 @@ class python {
 
 				tuple = PyTuple_New(1);
 				if (!tuple) {
-					log << "Could not create new tuple object" << std::endl;
+					log << getpid() << ": could not create new tuple object" << std::endl;
 					Py_XDECREF(main_dict_copy);
 					throw std::bad_alloc();
 				}
@@ -97,7 +97,8 @@ class python {
 				bin = PyByteArray_FromStringAndSize(binary.data(), binary.size());
 #endif
 				if (!bin) {
-					log << "Could not create new binary storage object of " << binary.size() << "elements" << std::endl;
+					log << getpid() << ": could not create new binary storage object of " <<
+						binary.size() << "elements" << std::endl;
 
 					Py_XDECREF(tuple);
 					Py_XDECREF(main_dict_copy);
@@ -109,7 +110,7 @@ class python {
 
 				if (PyDict_SetItemString(main_dict_copy, "__input_binary_data_tuple", tuple)) {
 					PyErr_Print();
-					log << "Could not add input binary tuple into main dict" << std::endl;
+					log << getpid() << ": could not add input binary tuple into main dict" << std::endl;
 
 					Py_XDECREF(tuple);
 					Py_XDECREF(main_dict_copy);
@@ -136,7 +137,7 @@ class python {
 
 				if (PyArg_Parse(ret, "s#", &cstr, &size)) {
 					ret_str.assign(cstr, size);
-					log << "__return_data: " << size << " bytes" << std::endl;
+					log << getpid() << ": __return_data: " << size << " bytes" << std::endl;
 				}
 			}
 			Py_XDECREF(ret);
@@ -253,7 +254,7 @@ template <class S>
 class worker {
 	public:
 		worker(const std::string &lpath, const std::string &ppath, const std::string &init) :
-			log(lpath.c_str(), std::ios_base::out | std::ios_base::app), p(ppath, true) {
+			log(lpath.c_str(), std::ios_base::app), p(ppath, true) {
 			s = boost::shared_ptr<S>(new S(lpath, init));
 		}
 		virtual ~worker() {
@@ -263,17 +264,18 @@ class worker {
 			while (true) {
 				std::string data, binary, ret;
 
-				log << getpid() << ": going to read new data" << std::endl;
+				log << getpid() << ": worker: going to read new data" << std::endl;
 				p.read(data, binary);
+				log << getpid() << ": worker: read " << data.size() << " " << binary.size() << std::endl;
 				try {
 					ret = s->process_data(data, binary);
 				} catch (const std::exception &e) {
-					log << getpid() << ": exception: " << e.what() << std::endl;
+					log << getpid() << ": worker: exception: " << e.what() << std::endl;
 					p.write(-EINVAL);
 					continue;
 				}
 
-				log << getpid() << ": processing completed: " << ret.size() << " bytes" << std::endl;
+				log << getpid() << ": worker: processing completed: " << ret.size() << " bytes" << std::endl;
 				p.write(0, ret);
 			}
 		}
@@ -290,6 +292,12 @@ class spawn {
 		spawn(const std::string &bin, const std::string &log, const std::string &pipe_base, const std::string &init, int type) {
 			int err;
 
+			std::string pstr = pipe_base + ".w2c";
+			unlink(pstr.c_str());
+
+			pstr = pipe_base + ".c2w";
+			unlink(pstr.c_str());
+
 			pid = fork();
 			if (pid < 0) {
 				err = -errno;
@@ -303,7 +311,7 @@ class spawn {
 				std::ostringstream type_str;
 				type_str << type;
 
-				err = execl(bin.c_str(), "-l", log.c_str(), "-p", pipe_base.c_str(),
+				err = execl(bin.c_str(), bin.c_str(), "-l", log.c_str(), "-p", pipe_base.c_str(),
 						"-i", init.c_str(), "-t", type_str.str().c_str(), NULL);
 
 				std::ofstream l(log.c_str(), std::ios::app);

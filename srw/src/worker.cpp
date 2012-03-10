@@ -24,14 +24,19 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	switch (type) {
-		case SRW_TYPE_PYTHON: {
-			ioremap::srw::worker<ioremap::srw::python> w(log, pipe, init);
-			w.process();
-			break;
+	try {
+		switch (type) {
+			case SRW_TYPE_PYTHON: {
+				ioremap::srw::worker<ioremap::srw::python> w(log, pipe, init);
+				w.process();
+				break;
+			}
+			default:
+				exit(-1);
 		}
-		default:
-			exit(-1);
+	} catch (const std::exception &e) {
+		std::ofstream l(log.c_str(), std::ios::app);
+		l << getpid() << ": worker exception: " << e.what() << std::endl;
 	}
 
 	return 0;
