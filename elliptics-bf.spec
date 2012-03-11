@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.12.0.1
+Version:	2.13.0.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -147,6 +147,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Mar 11 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.1-1
+- Added srw
+
 * Wed Feb 29 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.12.0.1-1
 - Depend on 0.15 eblob: added new defragmentation parameters into config
 - Propagate prepare_write() and friends return values back to callers - changed API

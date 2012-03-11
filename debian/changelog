@@ -1,3 +1,9 @@
+elliptics-2.10 (2.13.0.1) unstable; urgency=low
+
+  * Added srw
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 11 Mar 2012 21:19:13 +0400
+
 elliptics-2.10 (2.12.0.1) unstable; urgency=low
 
   * Depend on 0.15 eblob: added new defragmentation parameters into config
