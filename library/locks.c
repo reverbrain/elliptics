@@ -27,10 +27,10 @@
 
 void dnet_locks_destroy(struct dnet_node *n)
 {
-	if (n->locks) {
-		int i, num = 1 << n->locks->bit_num;
+	int i;
 
-		for (i = 0; i < num; ++i) {
+	if (n->locks) {
+		for (i = 0; i < n->locks->num; ++i) {
 			pthread_mutex_destroy(&n->locks->lock[i]);
 		}
 
@@ -39,10 +39,9 @@ void dnet_locks_destroy(struct dnet_node *n)
 	}
 }
 
-int dnet_locks_init(struct dnet_node *n, int bit_num)
+int dnet_locks_init(struct dnet_node *n, int num)
 {
 	int err, i;
-	int num = 1 << bit_num;
 
 	n->locks = malloc(sizeof(struct dnet_locks) + num * sizeof(pthread_mutex_t));
 	if (!n->locks) {
@@ -50,7 +49,7 @@ int dnet_locks_init(struct dnet_node *n, int bit_num)
 		goto err_out_exit;
 	}
 
-	n->locks->bit_num = bit_num;
+	n->locks->num = num;
 
 	for (i = 0; i < num; ++i) {
 		err = pthread_mutex_init(&n->locks->lock[i], NULL);
@@ -58,6 +57,7 @@ int dnet_locks_init(struct dnet_node *n, int bit_num)
 			err = -err;
 			dnet_log(n, DNET_LOG_ERROR, "Could not create lock %d/%d: %s [%d]\n", i, num, strerror(-err), err);
 
+			n->locks->num = i;
 			goto err_out_destroy;
 		}
 	}
@@ -65,28 +65,22 @@ int dnet_locks_init(struct dnet_node *n, int bit_num)
 	return 0;
 
 err_out_destroy:
-	while (--i >= 0)
-		pthread_mutex_destroy(&n->locks->lock[i]);
-	free(n->locks);
+	dnet_locks_destroy(n);
 err_out_exit:
 	return err;
 }
 
 static unsigned int dnet_ophash_index(struct dnet_node *n, struct dnet_id *key)
 {
+	unsigned int *ptr = (unsigned int *)key->id;
 	unsigned int h = 0;
+	unsigned int i;
 
-	h |= key->id[0];
-	h <<= 8;
-	h |= key->id[1];
-	h <<= 8;
-	h |= key->id[2];
-	h <<= 8;
-	h |= key->id[3];
+	for (i = 0; i < sizeof(key->id) / sizeof(unsigned int); ++i) {
+		h ^= ptr[i];
+	}
 
-	h >>= 32 - n->locks->bit_num;
-
-	return h;
+	return h % n->locks->num;
 }
 
 void dnet_oplock(struct dnet_node *n, struct dnet_id *key)

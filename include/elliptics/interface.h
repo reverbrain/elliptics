@@ -433,8 +433,8 @@ struct dnet_config
 	int			server_prio;
 	int			client_prio;
 
-	/* table of operation locks - 1<<oplock_num_bits equals to the size of the table */
-	int			oplock_num_bits;
+	/* table of operation locks */
+	int			oplock_num;
 
 	/* srw log path - initialized to the same config string as for 'log' by default */
 	char			*srw_log;
