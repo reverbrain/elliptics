@@ -58,3 +58,13 @@ int srwc_process(struct srwc *s, struct srwc_ctl *ctl)
 		return -EINVAL;
 	}
 }
+
+int srwc_drop(struct srwc *s, int pid) {
+	try {
+		ioremap::srw::pool *srw = (ioremap::srw::pool *)s->handler;
+		srw->drop(pid);
+		return 0;
+	} catch (...) {
+		return -EINVAL;
+	}
+}

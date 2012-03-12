@@ -28,6 +28,7 @@ struct srwc_ctl {
 };
 
 int srwc_process(struct srwc *s, struct srwc_ctl *ctl);
+int srwc_drop(struct srwc *s, int pid);
 
 #ifdef __cplusplus
 }

@@ -347,7 +347,6 @@ class spawn {
 		}
 
 		boost::shared_ptr<pipe> p;
-	private:
 		int pid;
 };
 
@@ -365,6 +364,20 @@ class pool {
 		}
 
 		virtual ~pool() {
+		}
+
+		void drop(int pid) {
+			boost::mutex::scoped_lock guard(lock);
+			shared_proc_t sp;
+
+			for (std::vector<shared_proc_t>::iterator it = vec.begin(); it < vec.end(); ++it) {
+				sp = *it;
+
+				if (sp->pid == pid) {
+					vec.erase(it);
+					break;
+				}
+			}
 		}
 
 		std::string process(const std::string &data, const std::string &binary) {
@@ -398,6 +411,14 @@ class pool {
 					log << getpid() << ": read reply data: " << ret.size() << " bytes" << std::endl;
 				} catch (const std::exception &e) {
 					log << getpid() << ": processing exception: " << e.what() << std::endl;
+
+					boost::mutex::scoped_lock guard(lock);
+					vec.push_back(sp);
+					guard.unlock();
+
+					cond.notify_one();
+
+					throw;
 				}
 
 				boost::mutex::scoped_lock guard(lock);

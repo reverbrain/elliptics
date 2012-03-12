@@ -251,3 +251,8 @@ err_out_free:
 err_out_exit:
 	return err;
 }
+
+int dnet_srw_update(struct dnet_node *n, int pid)
+{
+	return srwc_drop(n->srw, pid);
+}
