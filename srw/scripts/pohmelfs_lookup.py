@@ -31,5 +31,10 @@ except KeyError as e:
 	logging.error("key error: %s", e.__str__(), extra=d)
 	__return_data = ''
 except Exception as e:
-	logging.error("generic error: %s", e.__str__(), extra=d)
-	__return_data = ''
+	if 'Incorrect header magic' in str(e):
+		parent_id.type = -1
+		n.remove(parent_id, pohmelfs_aflags)
+		raise KeyError("no entry")
+	else:
+		logging.error("generic error: %s", e.__str__(), extra=d)
+		__return_data = 'error: ' + e.__str__()
