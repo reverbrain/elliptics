@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.13.0.1
+Version:	2.13.0.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Mar 13 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.2-1
+- Use exactly specified in config socket family
+- Obsolete srw by ellipitcs
+- Revert "Use X bits from operation key to find a lock instead of random hashing"
+- Added proper sigchild handling
+- spec update - added libsrw.so* files
+- Dropped srw dependancy
+
 * Sun Mar 11 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.1-1
 - Added srw
 

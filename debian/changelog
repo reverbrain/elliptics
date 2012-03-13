@@ -1,3 +1,14 @@
+elliptics-2.10 (2.13.0.2) unstable; urgency=low
+
+  * Use exactly specified in config socket family
+  * Obsolete srw by ellipitcs
+  * Revert "Use X bits from operation key to find a lock instead of random hashing"
+  * Added proper sigchild handling
+  * spec update - added libsrw.so* files
+  * Dropped srw dependancy
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 13 Mar 2012 20:06:13 +0400
+
 elliptics-2.10 (2.13.0.1) unstable; urgency=low
 
   * Added srw
