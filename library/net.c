@@ -194,9 +194,6 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 	int s, err = -EINVAL;
 	struct dnet_net_state *st;
 
-
-	if (cfg->family != n->family)
-		cfg->family = n->family;
 	if (cfg->sock_type != n->sock_type)
 		cfg->sock_type = n->sock_type;
 	if (cfg->proto != n->proto)
