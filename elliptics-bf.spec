@@ -18,6 +18,8 @@ BuildRequires:  python-devel, boost-python, boost-devel
 BuildRequires:	eblob-devel >= 0.15.0
 BuildRequires:	automake autoconf libtool
 
+Obsoletes: srw
+
 %description
 Elliptics network is a fault tolerant distributed hash table
 object storage.
