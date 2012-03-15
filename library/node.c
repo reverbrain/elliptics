@@ -609,8 +609,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	int err = -ENOMEM;
 	sigset_t sig;
 
-	dnet_set_name("main");
-
 	srand(time(NULL));
 
 	sigemptyset(&sig);
