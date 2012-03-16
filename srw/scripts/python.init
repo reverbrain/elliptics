@@ -46,6 +46,10 @@ def dump_id(id, count=10):
 
 	return ret
 
-def pohmelfs_write(parent_id, content):
+def pohmelfs_write_name(parent_id, content, name):
 	n.write_data(parent_id, content, pohmelfs_offset, pohmelfs_aflags, pohmelfs_ioflags_write)
-	n.write_metadata(parent_id, '', pohmelfs_groups, pohmelfs_aflags)
+	n.write_metadata(parent_id, name, pohmelfs_groups, pohmelfs_aflags)
+
+def pohmelfs_write(parent_id, content):
+	pohmelfs_write_name(parent_id, content, '')
+
