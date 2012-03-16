@@ -311,7 +311,10 @@ class spawn {
 				std::ostringstream type_str;
 				type_str << type;
 
-				err = execl(bin.c_str(), bin.c_str(), "-l", log.c_str(), "-p", pipe_base.c_str(),
+				std::ostringstream pipe_path;
+				pipe_path << pipe_base << "-" << getpid();
+
+				err = execl(bin.c_str(), bin.c_str(), "-l", log.c_str(), "-p", pipe_path.str().c_str(),
 						"-i", init.c_str(), "-t", type_str.str().c_str(), NULL);
 
 				std::ofstream l(log.c_str(), std::ios::app);
@@ -338,7 +341,9 @@ class spawn {
 				throw std::runtime_error(str.str());
 			}
 
-			p = boost::shared_ptr<pipe>(new pipe(pipe_base, false));
+			std::ostringstream pipe_path;
+			pipe_path << pipe_base << "-" << pid;
+			p = boost::shared_ptr<pipe>(new pipe(pipe_path.str(), false));
 		}
 
 		virtual ~spawn() {
