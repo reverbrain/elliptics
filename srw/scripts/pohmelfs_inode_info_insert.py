@@ -3,8 +3,9 @@ d = {'script' : 'insert', 'dentry_name' : pohmelfs_dentry_name}
 try:
 	binary_data = __input_binary_data_tuple[0]
 	parent_id = elliptics_id(list(binary_data[0:64]), pohmelfs_group_id, pohmelfs_column)
+	obj_id = elliptics_id(list(binary_data[64:128]), pohmelfs_group_id, pohmelfs_column)
 	inode_info = str(binary_data[64:])
-	d['object'] = 'parent: ' + dump_id(parent_id)
+	d['object'] = 'parent: ' + dump_id(parent_id) + ', object: ' + dump_id(obj_id)
 
 	s = sstable()
 	dir_content = ''
@@ -14,7 +15,8 @@ try:
 	except Exception as e:
 		if not ': -2' in str(e):
 			raise
-		s.init(len(inode_info))
+		# size of pohmelfs_dentry_disk structure
+		s.init(80)
 
 	s.insert(pohmelfs_dentry_name, inode_info, True)
 	content = str(s.save())
