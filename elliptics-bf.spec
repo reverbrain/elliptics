@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.13.0.2
+Version:	2.13.0.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Mar 19 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.3-1
+- Allow ioclient to read/write data in different columns
+- Hardlink script should overwrite data
+- Fixed file read/write with different column
+- Use correct pipe path, which includes pid
+- Use correct structure size for dentries and extended logging
+- Do not set name for main process
+
 * Sun Mar 13 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.2-1
 - Use exactly specified in config socket family
 - Obsolete srw by ellipitcs

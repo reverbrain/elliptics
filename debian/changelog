@@ -1,3 +1,14 @@
+elliptics-2.10 (2.13.0.3) unstable; urgency=low
+
+  * Allow ioclient to read/write data in different columns
+  * Hardlink script should overwrite data
+  * Fixed file read/write with different column
+  * Use correct pipe path, which includes pid
+  * Use correct structure size for dentries and extended logging
+  * Do not set name for main process
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 19 Mar 2012 01:03:13 +0400
+
 elliptics-2.10 (2.13.0.2) unstable; urgency=low
 
   * Use exactly specified in config socket family
