@@ -12,7 +12,8 @@ try:
 	except:
 		pass
 
-	n.write_data(obj_id, str(count), pohmelfs_offset, pohmelfs_aflags, pohmelfs_ioflags_write)
+	# turn on overwrite bit
+	n.write_data(obj_id, str(count), pohmelfs_offset, pohmelfs_aflags, pohmelfs_ioflags_write | 128)
 
 	__return_data = 'ok'
 	logging.info("created: count: %d", count, extra=d)
