@@ -76,6 +76,7 @@ static void dnet_usage(char *p)
 			" -N namespace         - use this namespace for operations\n"
 			" -D object            - read latest data for given object, if -I id is specified, this field is unused\n"
 			" -A flags             - attribute flags (4 - no checksum, 2 - read modification time from metadata)\n"
+			" -t column            - column ID to read or write\n"
 			, p);
 }
 
@@ -97,6 +98,7 @@ int main(int argc, char *argv[])
 	unsigned int aflags = DNET_ATTR_NOCSUM;
 	int cmd_type = DNET_EXEC_SHELL;
 	char *script_name = NULL;
+	int type = EBLOB_TYPE_DATA;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -114,8 +116,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "A:F:M:N:g:u:O:S:m:zsU:aL:w:l:n:c:C:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:n:c:C:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
+			case 't':
+				type = atoi(optarg);
+				break;
 			case 'A':
 				aflags = strtoul(optarg, NULL, 0);
 				break;
@@ -243,14 +248,22 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, aflags, 0, 0);
+		err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, aflags, 0, type);
 		if (err)
 			return err;
 	}
 
 	if (readf) {
-		err = dnet_read_file(n, readf, readf, strlen(readf), offset, size, 0);
+		if (id) {
+			struct dnet_id raw;
 
+			dnet_setup_id(&raw, 0, id);
+			raw.type = type;
+
+			err = dnet_read_file_id(n, readf, &raw, offset, size);
+		} else {
+			err = dnet_read_file(n, readf, readf, strlen(readf), offset, size, type);
+		}
 		if (err)
 			return err;
 	}
@@ -265,10 +278,11 @@ int main(int argc, char *argv[])
 		} else {
 			memcpy(&raw.id, id, DNET_ID_SIZE);
 		}
-		raw.type = 0;
+		raw.type = type;
 		raw.group_id = 0; /* unused */
 
 		memset(&io, 0, sizeof(io));
+		io.type = type;
 		memcpy(io.id, raw.id, DNET_ID_SIZE);
 		memcpy(io.parent, raw.id, DNET_ID_SIZE);
 
@@ -301,6 +315,7 @@ int main(int argc, char *argv[])
 
 			for (i=0; i<group_num; ++i) {
 				dnet_setup_id(&raw, groups[i], id);
+				raw.type = type;
 				dnet_remove_object_now(n, &raw, 0, aflags);
 			}
 
@@ -322,7 +337,7 @@ int main(int argc, char *argv[])
 			did = &__did;
 
 			dnet_setup_id(did, 0, id);
-			did->type = 0;
+			did->type = type;
 		}
 
 		size = strlen(cmd);
