@@ -1487,6 +1487,7 @@ static int dnet_write_file_id_raw(struct dnet_node *n, const char *file, struct 
 	ctl.io.flags = ioflags;
 	ctl.io.size = size;
 	ctl.io.offset = remote_offset;
+	ctl.io.type = id->type;
 
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
 
@@ -1651,6 +1652,8 @@ static int dnet_read_file_raw_exec(struct dnet_node *n, const char *file, unsign
 
 	ctl.io.size = io_size;
 	ctl.io.offset = io_offset;
+
+	ctl.io.type = id->type;
 
 	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
 	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
