@@ -1,0 +1,55 @@
+import sys, gc, struct, logging
+
+sys.path.append('/tmp/dnet/lib')
+sys.path.append('/opt/elliptics/history.2')
+
+from libelliptics_python import *
+from sstable2 import sstable
+
+# groups used in metadata write
+pohmelfs_groups = [1, 2, 3]
+pohmelfs_log_file = '/opt/elliptics/history.2/python.log'
+
+log = elliptics_log_file(pohmelfs_log_file, 10)
+cfg = elliptics_config()
+cfg.wait_timeout = 30
+cfg.check_timeout = 120
+
+n = elliptics_node_python(log, cfg)
+# we should only add own local group, since we do not want all updates to be repeated for all groups
+n.add_groups([2])
+n.add_remote('172.16.136.1', 1025)
+
+__return_data = 'unused'
+
+FORMAT = "%(asctime)-15s %(process)d: script: '%(script)s', object: '%(object)s', dentry: '%(dentry_name)s': %(message)s"
+logging.basicConfig(filename=pohmelfs_log_file, level=logging.DEBUG, format=FORMAT)
+
+pohmelfs_offset = 0
+pohmelfs_size = 0
+# do not check csum
+#pohmelfs_ioflags_read = 256
+pohmelfs_ioflags_read = 0
+pohmelfs_ioflags_write = 0
+# do not lock operation, since we are 'inside' DNET_CMD_EXEC command already
+pohmelfs_aflags = 16
+pohmelfs_column = 0
+pohmelfs_link_number_column = 2
+pohmelfs_inode_info_column = 3
+pohmelfs_group_id = 0
+
+def dump_id(id, count=10):
+	ba = bytearray(id.id[0:count])
+	ret = ''
+	for i in range(count):
+		ret += '%02x' % ba[i]
+
+	return ret
+
+def pohmelfs_write_name(parent_id, content, name):
+	n.write_data(parent_id, content, pohmelfs_offset, pohmelfs_aflags, pohmelfs_ioflags_write)
+	n.write_metadata(parent_id, name, pohmelfs_groups, pohmelfs_aflags)
+
+def pohmelfs_write(parent_id, content):
+	pohmelfs_write_name(parent_id, content, '')
+

@@ -9,6 +9,7 @@ try:
 	group_id, type, offset, size = struct.unpack("<iiQQ", str(binary_data[64:]))
 
 	id = elliptics_id(list(binary_data[0:64]), group_id, type)
+	d['object'] = dump_id(id)
 
 	__return_data = n.prepare_latest_str(id, pohmelfs_aflags, pohmelfs_groups)
 	logging.error("read latest", extra=d)

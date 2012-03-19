@@ -423,9 +423,7 @@ struct dnet_node
 
 	char			cookie[DNET_AUTH_COOKIE_SIZE];
 
-#ifdef HAVE_SRW_SUPPORT
 	struct srwc		*srw;
-#endif
 
 	int			server_prio;
 	int			client_prio;

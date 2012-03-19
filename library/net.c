@@ -194,9 +194,6 @@ int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
 	int s, err = -EINVAL;
 	struct dnet_net_state *st;
 
-
-	if (cfg->family != n->family)
-		cfg->family = n->family;
 	if (cfg->sock_type != n->sock_type)
 		cfg->sock_type = n->sock_type;
 	if (cfg->proto != n->proto)
@@ -633,7 +630,6 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 {
 	struct dnet_cmd *cmd = r->header;
 	struct dnet_attr *attr = r->data;
-	char orig_addr[128];
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
@@ -656,11 +652,16 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 
 	r->st = forward;
 
-	dnet_server_convert_dnet_addr_raw(&orig->addr, orig_addr, sizeof(orig_addr));
-	dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding %s trans: %s -> %s, trans: %llu -> %llu\n",
-			dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->command),
-			orig_addr, dnet_state_dump_addr(forward),
-			(unsigned long long)t->rcv_trans, (unsigned long long)t->trans);
+	{
+		char saddr[128];
+		char daddr[128];
+
+		dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding %s trans: %s -> %s, trans: %llu -> %llu\n",
+				dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->command),
+				dnet_server_convert_dnet_addr_raw(&orig->addr, saddr, sizeof(saddr)),
+				dnet_server_convert_dnet_addr_raw(&forward->addr, daddr, sizeof(daddr)),
+				(unsigned long long)t->rcv_trans, (unsigned long long)t->trans);
+	}
 
 	return dnet_trans_send(t, r);
 }

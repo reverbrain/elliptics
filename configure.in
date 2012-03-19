@@ -1,4 +1,4 @@
-AC_INIT([elliptics], [2.12.0], [zbr@ioremap.net])
+AC_INIT([elliptics], [2.13.0], [zbr@ioremap.net])
 AM_INIT_AUTOMAKE(1.9)
 
 AC_GNU_SOURCE
@@ -43,8 +43,6 @@ AX_BOOST_IOSTREAMS
 AX_BOOST_THREAD
 AX_BOOST_PYTHON
 
-AC_CHECK_SRW
-
 AC_CHECK_HEADER(dlfcn.h)
 AC_CHECK_LIB(dl,dlopen)
 
@@ -52,6 +50,7 @@ AC_CONFIG_FILES([Makefile include/Makefile include/elliptics/Makefile
 		 library/Makefile example/Makefile
 		 doc/Makefile debian/Makefile
 		 bindings/Makefile bindings/cpp/Makefile
-		 bindings/python/Makefile])
+		 bindings/python/Makefile
+		 srw/Makefile srw/src/Makefile])
 
 AC_OUTPUT

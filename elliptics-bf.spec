@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.12.0.1
+Version:	2.13.0.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,8 +15,10 @@ BuildRequires:	python26-devel, boost141-python, boost141-devel
 %else
 BuildRequires:  python-devel, boost-python, boost-devel
 %endif
-BuildRequires:	eblob-devel >= 0.15.0 libsrw-devel >= 0.2.2
+BuildRequires:	eblob-devel >= 0.15.0
 BuildRequires:	automake autoconf libtool
+
+Obsoletes: srw
 
 %description
 Elliptics network is a fault tolerant distributed hash table
@@ -119,12 +121,14 @@ rm -rf %{buildroot}
 %doc AUTHORS AUTHORS COPYING README
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
+%{_libdir}/libsrw.so.*
 
 
 %files devel
 %defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/libelliptics.so
+%{_libdir}/libsrw.so
 
 %files python
 %defattr(-,root,root,-)
@@ -147,6 +151,25 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Mar 19 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.3-1
+- Allow ioclient to read/write data in different columns
+- Hardlink script should overwrite data
+- Fixed file read/write with different column
+- Use correct pipe path, which includes pid
+- Use correct structure size for dentries and extended logging
+- Do not set name for main process
+
+* Sun Mar 13 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.2-1
+- Use exactly specified in config socket family
+- Obsolete srw by ellipitcs
+- Revert "Use X bits from operation key to find a lock instead of random hashing"
+- Added proper sigchild handling
+- spec update - added libsrw.so* files
+- Dropped srw dependancy
+
+* Sun Mar 11 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.1-1
+- Added srw
+
 * Wed Feb 29 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.12.0.1-1
 - Depend on 0.15 eblob: added new defragmentation parameters into config
 - Propagate prepare_write() and friends return values back to callers - changed API

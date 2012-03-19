@@ -609,8 +609,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	int err = -ENOMEM;
 	sigset_t sig;
 
-	dnet_set_name("main");
-
 	srand(time(NULL));
 
 	sigemptyset(&sig);
@@ -733,13 +731,9 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_crypto_cleanup;
 
-	err = dnet_monitor_init(n, cfg);
-	if (err)
-		goto err_out_notify_exit;
-
 	err = dnet_io_init(n, cfg);
 	if (err)
-		goto err_out_monitor_exit;
+		goto err_out_notify_exit;
 
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
 		int s;
@@ -792,8 +786,6 @@ err_out_locks_destroy:
 	dnet_locks_destroy(n);
 err_out_io_exit:
 	dnet_io_exit(n);
-err_out_monitor_exit:
-	dnet_monitor_exit(n);
 err_out_notify_exit:
 	dnet_notify_exit(n);
 err_out_crypto_cleanup:

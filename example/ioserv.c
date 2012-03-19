@@ -91,6 +91,17 @@ static void ioserv_reload_handler(int sig __unused, siginfo_t *si __unused, void
 	dnet_set_log(NULL, NULL, dnet_logger_value);
 }
 
+static void ioserv_sigchild_handler(int sig __unused, siginfo_t *si __unused, void *uc __unused)
+{
+	int status, pid;
+
+	while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+		dnet_log_raw(global_n, DNET_LOG_INFO, "child %d exited: %d\n", pid, WEXITSTATUS(status));
+
+		dnet_srw_update(global_n, pid);
+	}
+}
+
 static int ioserv_setup_signals(void)
 {
 	struct sigaction sa;
@@ -106,6 +117,11 @@ static int ioserv_setup_signals(void)
 	sa.sa_sigaction = ioserv_reload_handler;
 	sigemptyset(&sa.sa_mask);
 	sigaction(SIGHUP, &sa, NULL);
+
+	sa.sa_flags = SA_SIGINFO;
+	sa.sa_sigaction = ioserv_sigchild_handler;
+	sigemptyset(&sa.sa_mask);
+	sigaction(SIGCHLD, &sa, NULL);
 
 	return 0;
 }

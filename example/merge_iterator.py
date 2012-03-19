@@ -141,7 +141,7 @@ if __name__ == '__main__':
 				if len(outlist) < 1 or max(map(os.path.getsize, outlist)) < blobsize:
 					break
 
-				i += 1
+				outblobnum += 1
 
 			try:
 				print "Doing merge from %s to %s" % (inpath, outpath)
