@@ -49,6 +49,7 @@ struct file_backend_root
 	int			bit_num;
 
 	uint64_t		records_in_blob;
+	uint64_t		blob_size;
 
 	struct eblob_log	log;
 	struct eblob_backend	*meta;
@@ -371,6 +372,24 @@ static int dnet_file_set_records_in_blob(struct dnet_config_backend *b, char *ke
 	return 0;
 }
 
+static int dnet_file_set_blob_size(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct file_backend_root *r = b->data;
+	uint64_t val = strtoul(value, NULL, 0);
+
+	if (strchr(value, 'T'))
+		val *= 1024*1024*1024*1024ULL;
+	else if (strchr(value, 'G'))
+		val *= 1024*1024*1024ULL;
+	else if (strchr(value, 'M'))
+		val *= 1024*1024;
+	else if (strchr(value, 'K'))
+		val *= 1024;
+
+	r->blob_size = val;
+	return 0;
+}
+
 static int dnet_file_set_sync(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct file_backend_root *r = b->data;
@@ -473,6 +492,7 @@ static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c,
 	ecfg.file = meta_path;
 	ecfg.sync = r->sync;
 	ecfg.records_in_blob = r->records_in_blob;
+	ecfg.blob_size = r->blob_size;
 	ecfg.log = (struct eblob_log *)c->log;
 
 	r->meta = eblob_init(&ecfg);
@@ -567,6 +587,7 @@ static struct dnet_config_entry dnet_cfg_entries_filesystem[] = {
 	{"sync", dnet_file_set_sync},
 	{"root", dnet_file_set_root},
 	{"records_in_blob", dnet_file_set_records_in_blob},
+	{"blob_size", dnet_file_set_blob_size},
 };
 
 static struct dnet_config_backend dnet_file_backend = {
