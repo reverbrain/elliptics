@@ -50,6 +50,8 @@ struct file_backend_root
 
 	uint64_t		records_in_blob;
 	uint64_t		blob_size;
+	int			defrag_percentage;
+	int			defrag_timeout;
 
 	struct eblob_log	log;
 	struct eblob_backend	*meta;
@@ -390,6 +392,22 @@ static int dnet_file_set_blob_size(struct dnet_config_backend *b, char *key __un
 	return 0;
 }
 
+static int dnet_file_set_defrag_timeout(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct file_backend_root *r = b->data;
+
+	r->defrag_timeout = strtoul(value, NULL, 0);
+	return 0;
+}
+
+static int dnet_file_set_defrag_percentage(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct file_backend_root *r = b->data;
+
+	r->defrag_percentage = strtoul(value, NULL, 0);
+	return 0;
+}
+
 static int dnet_file_set_sync(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct file_backend_root *r = b->data;
@@ -493,6 +511,8 @@ static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c,
 	ecfg.sync = r->sync;
 	ecfg.records_in_blob = r->records_in_blob;
 	ecfg.blob_size = r->blob_size;
+	ecfg.defrag_percentage = r->defrag_percentage;
+	ecfg.defrag_timeout = r->defrag_timeout;
 	ecfg.log = (struct eblob_log *)c->log;
 
 	r->meta = eblob_init(&ecfg);
@@ -588,6 +608,8 @@ static struct dnet_config_entry dnet_cfg_entries_filesystem[] = {
 	{"root", dnet_file_set_root},
 	{"records_in_blob", dnet_file_set_records_in_blob},
 	{"blob_size", dnet_file_set_blob_size},
+	{"defrag_timeout", dnet_file_set_defrag_timeout},
+	{"defrag_percentage", dnet_file_set_defrag_percentage},
 };
 
 static struct dnet_config_backend dnet_file_backend = {
