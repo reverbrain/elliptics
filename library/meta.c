@@ -249,6 +249,9 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 	struct dnet_io_control ctl;
 	int err;
 
+	if (n->flags & DNET_CFG_NO_META)
+		return 0;
+
 	if (convert)
 		dnet_convert_metadata(n, mc->data, mc->size);
 
