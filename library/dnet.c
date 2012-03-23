@@ -1714,6 +1714,7 @@ static int dnet_read_file_raw(struct dnet_node *n, const char *file, struct dnet
 {
 	int err = -ENOENT, len = strlen(file), i;
 	struct dnet_wait *w;
+	int *g, num;
 
 	w = dnet_wait_alloc(~0);
 	if (!w) {
@@ -1725,9 +1726,14 @@ static int dnet_read_file_raw(struct dnet_node *n, const char *file, struct dnet
 	if (!size)
 		size = ~0ULL;
 
-	pthread_mutex_lock(&n->group_lock);
-	for (i=0; i<n->group_num; ++i) {
-		id->group_id = n->groups[i];
+	num = dnet_mix_states(n, id, &g);
+	if (num < 0) {
+		err = num;
+		goto err_out_exit;
+	}
+
+	for (i=0; i<num; ++i) {
+		id->group_id = g[i];
 
 		err = dnet_read_file_raw_exec(n, file, len, direct, 0, offset, size, id, w);
 		if (err)
@@ -1735,9 +1741,9 @@ static int dnet_read_file_raw(struct dnet_node *n, const char *file, struct dnet
 
 		break;
 	}
-	pthread_mutex_unlock(&n->group_lock);
 
 	dnet_wait_put(w);
+	free(g);
 
 err_out_exit:
 	return err;
@@ -3187,7 +3193,28 @@ static int dnet_weight_compare(const void *v1, const void *v2)
 	const struct dnet_weight *w1 = v1;
 	const struct dnet_weight *w2 = v2;
 
-	return w1->weight - w2->weight;
+	return w2->weight - w1->weight;
+}
+
+static int dnet_weight_get_winner(struct dnet_weight *w, int num)
+{
+	long sum = 0, pos;
+	float r;
+	int i;
+
+	for (i = 0; i < num; ++i)
+		sum += w[i].weight;
+
+	r = (float)rand() / (float)RAND_MAX;
+	pos = r * sum;
+
+	for (i = 0; i < num; ++i) {
+		pos -= w[i].weight;
+		if (pos <= 0)
+			return i;
+	}
+
+	return num - 1;
 }
 
 int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp)
@@ -3245,30 +3272,14 @@ int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp)
 
 	group_num = num;
 	if (group_num) {
-		int have_equal = 0;
-
 		qsort(weights, group_num, sizeof(struct dnet_weight), dnet_weight_compare);
 
-		/* if we have equal weights, add random salt to them and rerun */
-		for (i = 1; i < group_num; ++i) {
-			if (weights[i].weight == weights[i - 1].weight) {
-				float r = rand();
-
-				r /= (float)RAND_MAX;
-
-				weights[i].weight += (r > 0.5) ? +r : -r;
-				weights[i - 1].weight -= (r > 0.5) ? +r : -r;
-
-				have_equal = 1;
-			}
-		}
-
-		if (have_equal)
-			qsort(weights, group_num, sizeof(struct dnet_weight), dnet_weight_compare);
-
-		/* weights are sorted in ascending order */
 		for (i = 0; i < group_num; ++i) {
-			groups[i] = weights[num - i - 1].group_id;
+			int pos = dnet_weight_get_winner(weights, group_num - i);
+			groups[i] = weights[pos].group_id;
+
+			if (pos < group_num - 1)
+				memmove(&weights[pos], &weights[pos + 1], (group_num - 1 - pos) * sizeof(struct dnet_weight));
 		}
 	}
 
