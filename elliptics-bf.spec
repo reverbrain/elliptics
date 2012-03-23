@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.13.0.3
+Version:	2.13.0.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Mar 23 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.4-1
+- Updated state mixing algorithm
+- Added defrag_timeout, defrag_percentage and blob_size options to file backend
+
 * Mon Mar 19 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.3-1
 - Allow ioclient to read/write data in different columns
 - Hardlink script should overwrite data
