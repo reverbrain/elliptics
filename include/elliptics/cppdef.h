@@ -19,8 +19,8 @@
 #include <errno.h>
 #include <stdint.h>
 
-#include "elliptics/packet.h"
-#include "elliptics/interface.h"
+#include <elliptics/packet.h>
+#include <elliptics/interface.h>
 
 #include <iostream>
 #include <fstream>
