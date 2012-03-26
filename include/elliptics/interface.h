@@ -941,6 +941,8 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, struct dnet_exec *e, 
 struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr *ios, uint32_t io_num, int group_id, uint32_t aflags, int *errp);
 struct dnet_range_data dnet_bulk_write(struct dnet_node *n, struct dnet_io_control *ctl, int ctl_num, int *errp);
 
+int dnet_flags(struct dnet_node *n);
+
 #ifdef __cplusplus
 }
 #endif

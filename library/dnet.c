@@ -4234,3 +4234,8 @@ err_out_exit:
 	*errp = err;
 	return ret;
 }
+
+int dnet_flags(struct dnet_node *n)
+{
+	return n->flags;
+}

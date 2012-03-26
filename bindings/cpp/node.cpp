@@ -422,7 +422,7 @@ int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &
 	std::string meta;
 	struct dnet_meta_container mc;
 
-	if (n->flags & DNET_CFG_NO_META)
+	if (dnet_flags(node) & DNET_CFG_NO_META)
 		return 0;
 
 	meta = create_metadata(id, obj, groups, ts);
