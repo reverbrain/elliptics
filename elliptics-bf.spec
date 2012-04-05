@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.13.0.4
+Version:	2.13.0.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 6 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.5-1
+- Build dependencies update
+- Do not write metadata when appropirate bit is set in node->flags
+- Update documentation about blob flags
+
 * Fri Mar 23 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.4-1
 - Updated state mixing algorithm
 - Added defrag_timeout, defrag_percentage and blob_size options to file backend

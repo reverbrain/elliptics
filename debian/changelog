@@ -1,3 +1,11 @@
+elliptics-2.10 (2.13.0.5) unstable; urgency=low
+
+  * Build dependencies update
+  * Do not write metadata when appropirate bit is set in node->flags
+  * Update documentation about blob flags
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 6 Apr 2012 00:41:13 +0400
+
 elliptics-2.10 (2.13.0.4) unstable; urgency=low
 
   * Updated state mixing algorithm
