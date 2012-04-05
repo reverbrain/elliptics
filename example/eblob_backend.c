@@ -63,6 +63,9 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 	struct eblob_key key;
 	uint64_t flags = BLOB_DISK_CTL_WRITE_RETURN;
 
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: %x, type: %d.\n",
+		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags, io->type);
+
 	memset(&wc, 0, sizeof(struct eblob_write_control));
 
 	dnet_convert_io_attr(io);
@@ -118,9 +121,10 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 				if (io->size >= sizeof(struct eblob_write_control)) {
 					memcpy(&wc, data, sizeof(struct eblob_write_control));
 				} else {
-					err = eblob_read(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, io->type);
+					err = eblob_read_nocsum(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, io->type);
 					if (err < 0) {
-						dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: size: %llu: type: %d: %s %d\n",
+						dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: "
+								"size: %llu: type: %d: %s %d\n",
 							dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
 						goto err_out_exit;
 					}
@@ -139,7 +143,7 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 			goto err_out_exit;
 		}
 
-		dnet_backend_log(DNET_LOG_INFO, "%s: EBLOB: blob-write: WRITE: Ok: offset: %llu, size: %llu, type: %d.\n",
+		dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: Ok: offset: %llu, size: %llu, type: %d.\n",
 			dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->type);
 	}
 
