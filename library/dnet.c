@@ -761,7 +761,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					}
 				}
 
-				if (a->cmd == DNET_CMD_DEL || io->flags & DNET_IO_FLAGS_META) {
+				if ((a->cmd == DNET_CMD_DEL) || (io->flags & DNET_IO_FLAGS_META)) {
 					err = dnet_process_meta(st, cmd, a, data);
 					break;
 				}
