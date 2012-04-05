@@ -9,11 +9,11 @@ URL:		http://www.ioremap.net/projects/elliptics
 Source0:	%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-BuildRequires:	libtar-devel
 %if 0%{?rhel} < 6
 BuildRequires:	python26-devel, boost141-python, boost141-devel
+BuildRequires:  boost141-iostreams, boost141-filesystem, boost141-thread, boost141-python, boost141-system
 %else
-BuildRequires:  python-devel, boost-python, boost-devel
+BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-filesystem, boost-thread, boost-python, boost-system
 %endif
 BuildRequires:	eblob-devel >= 0.15.0
 BuildRequires:	automake autoconf libtool
