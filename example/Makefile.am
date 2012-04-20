@@ -17,6 +17,11 @@ libcommon_a_SOURCES = common.c
 
 dnet_ioserv_SOURCES = ioserv.c config.c file_backend.c backends.c eblob_backend.c
 dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) @EBLOB_LIBS@
+if HAVE_SMACK
+AM_CFLAGS += @SMACK_CFLAGS@
+dnet_ioserv_SOURCES += smack_backend.c
+dnet_ioserv_LDADD += @SMACK_LIBS@
+endif
 
 dnet_check_SOURCES = check.c
 dnet_check_LDADD = $(EXAMPLE_COMMON_LIBS)

@@ -39,6 +39,11 @@
 #include "common.h"
 #include "backends.h"
 
+#ifdef HAVE_SMACK_SUPPORT
+int dnet_smack_backend_init(void);
+void dnet_smack_backend_exit(void);
+#endif
+
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
@@ -348,6 +353,11 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	if (err)
 		goto err_out_file_exit;
 
+#ifdef HAVE_SMACK_SUPPORT
+	err = dnet_smack_backend_init();
+	if (err)
+		goto err_out_eblob_exit;
+#endif
 	while (1) {
 		ptr = fgets(buf, buf_size, f);
 		if (!ptr) {
@@ -467,6 +477,10 @@ err_out_node_destroy:
 err_out_free:
 	free(dnet_cfg_remotes);
 
+#ifdef HAVE_SMACK_SUPPORT
+	dnet_smack_backend_exit();
+err_out_eblob_exit:
+#endif
 	dnet_eblob_backend_exit();
 err_out_file_exit:
 	dnet_file_backend_exit();
