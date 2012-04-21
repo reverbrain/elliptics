@@ -248,7 +248,17 @@ int main(int argc, char *argv[])
 	}
 
 	if (writef) {
-		err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, aflags, 0, type);
+		if (id) {
+			struct dnet_id raw;
+
+			dnet_setup_id(&raw, 0, id);
+			raw.type = type;
+
+			err = dnet_write_file_id(n, writef, &raw, offset, offset, size, aflags, 0);
+		} else {
+			err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, aflags, 0, type);
+		}
+
 		if (err)
 			return err;
 	}
