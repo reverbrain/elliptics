@@ -127,11 +127,22 @@ static int smack_backend_write(struct smack_backend *s, void *state, struct dnet
 	err = smack_write(s->smack, &idx, data);
 	if (err < 0)
 		goto err_out_exit;
-
+#if 0
 	err = smack_backend_lookup_raw(s, &idx, state, cmd, attr);
 	if (err)
 		goto err_out_exit;
+#else
+	if (!(cmd->flags & DNET_FLAGS_NEED_ACK)) {
+		char reply[1024];
+		char id_str[DNET_ID_SIZE * 2 + 1];
 
+		snprintf(reply, sizeof(reply), "<elliptics id=\"%s\" offset=%lld size=%lld />",
+				dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id_str),
+				(unsigned long long)io->offset, (unsigned long long)io->size);
+
+		err = dnet_send_reply(state, cmd, attr, reply, 256, 0);
+	}
+#endif
 	dnet_backend_log(DNET_LOG_INFO, "%s: SMACK: : WRITE: Ok: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&cmd->id), (unsigned long long)io->offset, (unsigned long long)io->size);
 
