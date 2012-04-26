@@ -787,7 +787,7 @@ void dnet_sock_close(int s)
 void dnet_set_sockopt(int s)
 {
 	struct linger l;
-	int opt;
+	int opt, flags;
 
 	opt = 1;
 	setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &opt, 4);
@@ -804,7 +804,8 @@ void dnet_set_sockopt(int s)
 
 	setsockopt(s, SOL_SOCKET, SO_LINGER, &l, sizeof(l));
 
-	fcntl(s, F_SETFL, O_NONBLOCK);
+	fcntl(s, F_GETFD, &flags);
+	fcntl(s, F_SETFL, flags | O_NONBLOCK | O_CLOEXEC);
 }
 
 int dnet_setup_control_nolock(struct dnet_net_state *st)

@@ -176,11 +176,12 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	int err, cs;
 	struct dnet_addr addr;
 	struct dnet_net_state *st;
+	int flags;
 
 	memset(&addr, 0, sizeof(addr));
 
 	addr.addr_len = sizeof(addr.addr);
-	cs = accept4(orig->read_s, (struct sockaddr *)&addr.addr, &addr.addr_len, O_CLOEXEC);
+	cs = accept(orig->read_s, (struct sockaddr *)&addr.addr, &addr.addr_len);
 	if (cs <= 0) {
 		err = -errno;
 		if (err != -EAGAIN)
@@ -523,15 +524,19 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 
 	for (i=0; i<io->net_thread_num; ++i) {
 		struct dnet_net_io *nio = &io->net[i];
+		int flags;
 
 		nio->n = n;
 
-		nio->epoll_fd = epoll_create1(O_CLOEXEC);
+		nio->epoll_fd = epoll_create(10000);
 		if (nio->epoll_fd < 0) {
 			err = -errno;
 			dnet_log_err(n, "Failed to create epoll fd");
 			goto err_out_net_destroy;
 		}
+
+		fcntl(nio->epoll_fd, F_GETFD, &flags);
+		fcntl(nio->epoll_fd, F_SETFL, flags | O_NONBLOCK | O_CLOEXEC);
 
 		err = pthread_create(&nio->tid, NULL, dnet_io_process, nio);
 		if (err) {
