@@ -47,6 +47,10 @@ typedef unsigned short u_short;
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
+#ifndef O_CLOEXEC
+#define O_CLOEXEC	02000000
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
