@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.13.0.5
+Version:	2.13.0.6
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 27 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.6-1
+- Added srw config options
+- Added O_CLOEXEC flags
+- Added new configs (for nginx and fastcgi frontend) and python example
+- Return sub data from smack_write() call - this is needed for fastcgi frontend
+- Let dnet_ioclient write file by ID
+- Added smack backend wrapper
+
 * Fri Apr 6 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.5-1
 - Build dependencies update
 - Do not write metadata when appropirate bit is set in node->flags

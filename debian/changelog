@@ -1,3 +1,14 @@
+elliptics-2.10 (2.13.0.6) unstable; urgency=low
+
+  * Added srw config options
+  * Added O_CLOEXEC flags
+  * Added new configs (for nginx and fastcgi frontend) and python example
+  * Return sub data from smack_write() call - this is needed for fastcgi frontend
+  * Let dnet_ioclient write file by ID
+  * Added smack backend wrapper
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 27 Apr 2012 00:39:13 +0400
+
 elliptics-2.10 (2.13.0.5) unstable; urgency=low
 
   * Build dependencies update
