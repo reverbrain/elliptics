@@ -110,7 +110,7 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 {
 	/* null byte + maximum directory length (32 bits in hex) + '/' directory prefix */
 	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2];
-	int oflags = O_RDWR | O_CREAT | O_LARGEFILE;
+	int oflags = O_RDWR | O_CREAT | O_LARGEFILE | O_CLOEXEC;
 	void *data = io + 1;
 	int fd;
 	ssize_t err;
@@ -215,7 +215,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 
 	file_backend_setup_file(r, file, sizeof(file), io->id);
 
-	fd = open(file, O_RDONLY, 0644);
+	fd = open(file, O_RDONLY | O_CLOEXEC, 0644);
 	if (fd < 0) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: READ: %d: %s.\n",
@@ -279,7 +279,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	snprintf(file, sizeof(file), "%s/%s",
 		dir, dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id));
 
-	err = open(file, O_RDONLY);
+	err = open(file, O_RDONLY | O_CLOEXEC);
 	if (err < 0) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: info-stat-open-csum: %d: %s.\n",
@@ -431,7 +431,7 @@ static int dnet_file_set_root(struct dnet_config_backend *b, char *key __unused,
 		goto err_out_exit;
 	}
 
-	r->rootfd = open(r->root, O_RDONLY);
+	r->rootfd = open(r->root, O_RDONLY | O_CLOEXEC);
 	if (r->rootfd < 0) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "Failed to open root '%s': %s.\n", root, strerror(-err));

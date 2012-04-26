@@ -492,7 +492,7 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 
 	srand(time(NULL) + (unsigned long)n + (unsigned long)file + (unsigned long)&buf);
 
-	fd = open(file, O_RDWR | O_CREAT | O_TRUNC | O_APPEND, 0644);
+	fd = open(file, O_RDWR | O_CREAT | O_TRUNC | O_APPEND | O_CLOEXEC, 0644);
 	if (fd < 0) {
 		err = -errno;
 		dnet_log_err(n, "failed to open/create ids file '%s'", file);
@@ -543,7 +543,7 @@ static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, 
 	snprintf(path, sizeof(path), "%s/%s", hdir, file);
 
 again:
-	fd = open(path, O_RDONLY);
+	fd = open(path, O_RDONLY | O_CLOEXEC);
 	if (fd < 0) {
 		err = -errno;
 		if (err == -ENOENT) {

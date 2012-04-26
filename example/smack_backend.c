@@ -74,7 +74,7 @@ static int smack_backend_lookup_raw(struct smack_backend *s, struct index *idx, 
 	if (err < 0)
 		goto err_out_exit;
 
-	fd = open(path, O_RDONLY);
+	fd = open(path, O_RDONLY | O_CLOEXEC);
 	if (fd < 0) {
 		err = -errno;
 		dnet_backend_log(DNET_LOG_ERROR, "%s: SMACK: %s: lookup-open: offset: %llu, size: %llu: %s %d.\n",

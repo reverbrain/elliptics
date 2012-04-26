@@ -1441,7 +1441,7 @@ static int dnet_write_file_id_raw(struct dnet_node *n, const char *file, struct 
 
 	wc->wait = w;
 
-	fd = open(file, O_RDONLY | O_LARGEFILE);
+	fd = open(file, O_RDONLY | O_LARGEFILE | O_CLOEXEC);
 	if (fd < 0) {
 		err = -errno;
 		dnet_log_err(n, "Failed to open to be written file '%s'", file);
@@ -1598,7 +1598,7 @@ static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, s
 
 	dnet_convert_io_attr(io);
 
-	fd = open(c->file, O_RDWR | O_CREAT, 0644);
+	fd = open(c->file, O_RDWR | O_CREAT | O_CLOEXEC, 0644);
 	if (fd < 0) {
 		err = -errno;
 		dnet_log_err(n, "%s: failed to open read completion file '%s'", dnet_dump_id(&cmd->id), c->file);

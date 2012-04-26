@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
@@ -46,13 +47,14 @@ struct sph {
 
 class python {
 	public:
-		python(const std::string &log_, const std::string &init_path) : log(log_.c_str(), std::ios_base::out | std::ios_base::app) {
+		python(const std::string &log_, const std::string &init_path) : log(log_.c_str(), std::ios_base::out | std::ios_base::app),
+       			fp(NULL) {
 			Py_Initialize();
 
 			main_module = (void *)PyImport_AddModule("__main__");
 			main_dict = (void *)PyModule_GetDict((PyObject *)main_module);
 
-			FILE *fp = fopen(init_path.c_str(), "r");
+			fp = fopen(init_path.c_str(), "r");
 			if (!fp) {
 				std::ostringstream str;
 				str << "could not open init file '" << init_path << "'";
@@ -60,9 +62,11 @@ class python {
 			}
 
 			PyObject *ret;
-			ret = PyRun_FileExFlags(fp, init_path.c_str(), Py_file_input, (PyObject *)main_dict, (PyObject *)main_dict, true, NULL);
+			ret = PyRun_FileExFlags(fp, init_path.c_str(), Py_file_input,
+					(PyObject *)main_dict, (PyObject *)main_dict, true, NULL);
 			if (!ret) {
 				PyErr_Print();
+				fclose(fp);
 				throw std::runtime_error("Failed to initalize python client");
 			}
 			Py_XDECREF(ret);
@@ -71,6 +75,7 @@ class python {
 		}
 
 		virtual ~python() {
+			fclose(fp);
 			Py_Finalize();
 		}
 
@@ -151,6 +156,7 @@ class python {
 		std::ofstream log;
 		void	*main_module;
 		void	*main_dict;
+		FILE	*fp;
 };
 
 class pipe {
@@ -366,6 +372,14 @@ class pool {
 				boost::mutex::scoped_lock guard(lock);
 				vec.push_back(sp);
 			}
+
+			/*
+			 * std::fstream does not have filebuf with fd access anymore (at least with libstdc++ which comes with 3+ gcc)
+			 * so we can not set O_CLOEXEC file like this
+			 * 	fcntl(log.rdbuf()->fd(), F_GETFD, &flags);
+			 * 	fcntl(log.rdbuf()->fd(), F_SETFD, flags | O_CLOEXEC);
+			 * thus spawned workers will have a bunch of opened log files
+			 */
 		}
 
 		virtual ~pool() {

@@ -460,6 +460,9 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	if (err)
 		goto err_out_free;
 
+	fclose(f);
+	f = NULL;
+
 	n = dnet_node_create(&dnet_cfg_state);
 	if (!n) {
 		dnet_cfg_current_backend->cleanup(dnet_cfg_current_backend);
@@ -487,7 +490,8 @@ err_out_file_exit:
 err_out_free_buf:
 	free(buf);
 err_out_close:
-	fclose(f);
+	if (f)
+		fclose(f);
 err_out_exit:
 	return NULL;
 }

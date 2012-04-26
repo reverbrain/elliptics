@@ -35,7 +35,7 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 {
 	int err;
 
-	fcntl(s, F_SETFL, O_NONBLOCK);
+	fcntl(s, F_SETFL, O_NONBLOCK | O_CLOEXEC);
 
 	err = connect(s, sa, salen);
 	if (err) {
@@ -908,7 +908,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	memset(st, 0, sizeof(struct dnet_net_state));
 
 	st->read_s = s;
-	st->write_s = dup(s);
+	st->write_s = fcntl(s, F_DUPFD_CLOEXEC, 0);
 	if (st->write_s < 0) {
 		err = -errno;
 		dnet_log_err(n, "%s: failed to duplicate socket", dnet_server_convert_dnet_addr(addr));

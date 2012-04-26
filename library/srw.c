@@ -186,7 +186,7 @@ int dnet_cmd_exec_python_script(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	sprintf(full_path, "%s/%s", base->path, ptr);
 
-	fd = open(full_path, O_RDONLY);
+	fd = open(full_path, O_RDONLY | O_CLOEXEC);
 	if (fd < 0) {
 		err = -errno;
 		dnet_log_err(n, "%s: dnet_cmd_exec_python_script: open: %s", dnet_dump_id(&cmd->id), full_path);

@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
 	while ((ch = getopt(argc, argv, "f:N:g:w:I:n:r:m:l:h")) != -1) {
 		switch (ch) {
 			case 'f':
-				fd = open(optarg, O_RDONLY);
+				fd = open(optarg, O_RDONLY | O_CLOEXEC);
 				if (fd < 0) {
 					fprintf(stderr, "Could not open file '%s': %s\n", optarg, strerror(errno));
 					return -errno;

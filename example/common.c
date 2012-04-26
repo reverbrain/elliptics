@@ -299,7 +299,7 @@ int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *m
 	int err;
 	struct stat st;
 
-	map->fd = open(file, O_RDWR);
+	map->fd = open(file, O_RDWR | O_CLOEXEC);
 	if (map->fd < 0) {
 		err = -errno;
 		dnet_map_log(n, DNET_LOG_ERROR, "Failed to open history file '%s': %s [%d].\n",

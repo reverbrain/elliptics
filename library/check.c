@@ -69,7 +69,7 @@ static int dnet_dump_meta_container(struct dnet_node *n, struct dnet_meta_contai
 
 	snprintf(file, sizeof(file), "%s/%s.meta", dnet_check_tmp_dir, dnet_dump_id_len_raw(mc->id.id, DNET_ID_SIZE, id_str));
 
-	fd = open(file, O_RDWR | O_TRUNC | O_CREAT, 0644);
+	fd = open(file, O_RDWR | O_TRUNC | O_CREAT | O_CLOEXEC, 0644);
 	if (fd < 0) {
 		err = -errno;
 		dnet_log_raw(n, DNET_LOG_ERROR, "Failed to open meta container file '%s': %s\n",
