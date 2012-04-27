@@ -1,3 +1,10 @@
+elliptics-2.10 (2.13.0.8) unstable; urgency=low
+
+  * Added new lookup() methods to c++/python bindings. Patch by Anton Kortunov <toshik@yandex-team.ru>
+  * If we fail to open log file, dup2() stdout/stderr to /dev/null in spawned worker process
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 28 Apr 2012 01:01:13 +0400
+
 elliptics-2.10 (2.13.0.7) unstable; urgency=low
 
   * More mess with 012 file descriptors - dup them to /dev/null when going background, reopen to log file in srw worker

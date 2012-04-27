@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.13.0.7
+Version:	2.13.0.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Apr 27 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.8-1
+- Added new lookup() methods to c++/python bindings. Patch by Anton Kortunov <toshik@yandex-team.ru>
+- If we fail to open log file, dup2() stdout/stderr to /dev/null in spawned worker process
+
 * Fri Apr 27 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.7-1
 - More mess with 012 file descriptors - dup them to /dev/null when going background, reopen to log file in srw worker
 - Use correct F_SETFD/FD_CLOEXEC
