@@ -39,10 +39,6 @@ extern "C" {
 #define O_CLOEXEC	02000000
 #endif
 
-#ifndef F_DUPFD_CLOEXEC
-#define F_DUPFD_CLOEXEC	1030
-#endif
-
 #ifndef FD_CLOEXEC
 #define FD_CLOEXEC	1
 #endif
