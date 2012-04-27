@@ -389,6 +389,7 @@ struct dnet_meta * dnet_meta_search_cust(struct dnet_meta_container *mc, uint32_
 int dnet_background(void)
 {
 	pid_t pid;
+	int fd;
 
 	pid = fork();
 	if (pid == -1) {
@@ -406,6 +407,17 @@ int dnet_background(void)
 	close(0);
 	close(1);
 	close(2);
+
+	fd = open("/dev/null", O_RDWR);
+	if (fd < 0) {
+		fd = -errno;
+		fprintf(stderr, "Can not open /dev/null: %d\n", fd);
+		exit(fd);
+	}
+
+	dup2(fd, 0);
+	dup2(fd, 1);
+	dup2(fd, 2);
 
 	return 0;
 }

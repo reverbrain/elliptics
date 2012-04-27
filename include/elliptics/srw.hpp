@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -48,7 +49,7 @@ struct sph {
 class python {
 	public:
 		python(const std::string &log_, const std::string &init_path) : log(log_.c_str(), std::ios_base::out | std::ios_base::app),
-       			fp(NULL) {
+       			fp(NULL), python_log_file(NULL) {
 			Py_Initialize();
 
 			main_module = (void *)PyImport_AddModule("__main__");
@@ -61,12 +62,43 @@ class python {
 				throw std::runtime_error(str.str());
 			}
 
+			python_log_file = PyFile_FromString((char *)log_.c_str(), (char *)"a");
+			if (!python_log_file) {
+				fclose(fp);
+				std::ostringstream str;
+				str << "could not open log file '" << log_ << "'";
+				throw std::runtime_error(str.str());
+			}
+
+			int err;
+
+			err = PySys_SetObject((char *)"stdout", python_log_file);
+			if (err) {
+				fclose(fp);
+				Py_XDECREF(python_log_file);
+				std::ostringstream str;
+				str << "could set stdout to '" << log_ << "'";
+				throw std::runtime_error(str.str());
+			}
+
+			err = PySys_SetObject((char *)"stderr", python_log_file);
+			if (err) {
+				fclose(fp);
+				Py_XDECREF(python_log_file);
+				std::ostringstream str;
+				str << "could set stderr to '" << log_ << "'";
+				throw std::runtime_error(str.str());
+			}
+
+			PySys_WriteStdout("%d: this is a python stdout test\n", getpid());
+
 			PyObject *ret;
 			ret = PyRun_FileExFlags(fp, init_path.c_str(), Py_file_input,
 					(PyObject *)main_dict, (PyObject *)main_dict, true, NULL);
 			if (!ret) {
 				PyErr_Print();
 				fclose(fp);
+				Py_XDECREF(python_log_file);
 				throw std::runtime_error("Failed to initalize python client");
 			}
 			Py_XDECREF(ret);
@@ -76,6 +108,7 @@ class python {
 
 		virtual ~python() {
 			fclose(fp);
+			Py_XDECREF(python_log_file);
 			Py_Finalize();
 		}
 
@@ -157,6 +190,7 @@ class python {
 		void	*main_module;
 		void	*main_dict;
 		FILE	*fp;
+		PyObject	*python_log_file;
 };
 
 class pipe {
