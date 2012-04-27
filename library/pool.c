@@ -176,7 +176,6 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	int err, cs;
 	struct dnet_addr addr;
 	struct dnet_net_state *st;
-	int flags;
 
 	memset(&addr, 0, sizeof(addr));
 
@@ -536,7 +535,7 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		}
 
 		fcntl(nio->epoll_fd, F_GETFD, &flags);
-		fcntl(nio->epoll_fd, F_SETFL, flags | O_NONBLOCK | O_CLOEXEC);
+		fcntl(nio->epoll_fd, F_SETFD, flags | FD_CLOEXEC);
 
 		err = pthread_create(&nio->tid, NULL, dnet_io_process, nio);
 		if (err) {

@@ -35,7 +35,7 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 {
 	int err;
 
-	fcntl(s, F_SETFL, O_NONBLOCK | O_CLOEXEC);
+	fcntl(s, F_SETFD, FD_CLOEXEC);
 
 	err = connect(s, sa, salen);
 	if (err) {
@@ -805,7 +805,8 @@ void dnet_set_sockopt(int s)
 	setsockopt(s, SOL_SOCKET, SO_LINGER, &l, sizeof(l));
 
 	fcntl(s, F_GETFD, &flags);
-	fcntl(s, F_SETFL, flags | O_NONBLOCK | O_CLOEXEC);
+	fcntl(s, F_SETFD, FD_CLOEXEC);
+	fcntl(s, F_SETFL, O_NONBLOCK);
 }
 
 int dnet_setup_control_nolock(struct dnet_net_state *st)
