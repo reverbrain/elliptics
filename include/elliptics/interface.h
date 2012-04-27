@@ -43,6 +43,10 @@ extern "C" {
 #define F_DUPFD_CLOEXEC	1030
 #endif
 
+#ifndef FD_CLOEXEC
+#define FD_CLOEXEC	1
+#endif
+
 struct dnet_net_state;
 struct dnet_node;
 
