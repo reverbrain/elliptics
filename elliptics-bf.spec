@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.13.0.6
+Version:	2.13.0.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 27 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.7-1
+- More mess with 012 file descriptors - dup them to /dev/null when going background, reopen to log file in srw worker
+- Use correct F_SETFD/FD_CLOEXEC
+- Use old-school fcntl() instead of accept4() and epoll_create1()
+- Allow script execution without cmd-line
+
 * Fri Apr 27 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.6-1
 - Added srw config options
 - Added O_CLOEXEC flags

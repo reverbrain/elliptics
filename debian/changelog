@@ -1,3 +1,12 @@
+elliptics-2.10 (2.13.0.7) unstable; urgency=low
+
+  * More mess with 012 file descriptors - dup them to /dev/null when going background, reopen to log file in srw worker
+  * Use correct F_SETFD/FD_CLOEXEC
+  * Use old-school fcntl() instead of accept4() and epoll_create1()
+  * Allow script execution without cmd-line
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 27 Apr 2012 21:18:13 +0400
+
 elliptics-2.10 (2.13.0.6) unstable; urgency=low
 
   * Added srw config options
