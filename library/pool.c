@@ -176,7 +176,6 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	int err, cs;
 	struct dnet_addr addr;
 	struct dnet_net_state *st;
-	int flags;
 
 	memset(&addr, 0, sizeof(addr));
 
