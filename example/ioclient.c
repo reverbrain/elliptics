@@ -337,10 +337,10 @@ int main(int argc, char *argv[])
 			return err;
 	}
 
-	if (cmd) {
+	if (cmd || (cmd_type == DNET_EXEC_PYTHON_SCRIPT_NAME && script_name)) {
 		struct dnet_id __did, *did = NULL;
 		struct dnet_exec *e;
-		int size;
+		int size = 0;
 		char *ret = NULL;
 
 		if (id) {
@@ -350,7 +350,9 @@ int main(int argc, char *argv[])
 			did->type = type;
 		}
 
-		size = strlen(cmd);
+		if (cmd) {
+			size = strlen(cmd);
+		}
 
 		if (script_name && cmd_type == DNET_EXEC_PYTHON_SCRIPT_NAME) {
 			size += strlen(script_name);
@@ -360,6 +362,16 @@ int main(int argc, char *argv[])
 		if (!e)
 			return -ENOMEM;
 
+		e->binary_size = 0;
+		e->type = cmd_type;
+
+		if (cmd) {
+			e->script_size = strlen(cmd) + 1;
+		} else {
+			e->script_size = 0;
+			cmd = "";
+		}
+
 		if (script_name && cmd_type == DNET_EXEC_PYTHON_SCRIPT_NAME) {
 			e->name_size = strlen(script_name);
 			sprintf(e->data, "%s%s", script_name, cmd);
@@ -367,10 +379,6 @@ int main(int argc, char *argv[])
 			e->name_size = 0;
 			sprintf(e->data, "%s", cmd);
 		}
-
-		e->binary_size = 0;
-		e->script_size = strlen(cmd) + 1;
-		e->type = cmd_type;
 
 		err = dnet_send_cmd(n, did, e, (void **)&ret);
 		if (err < 0)
