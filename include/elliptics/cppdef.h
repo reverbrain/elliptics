@@ -154,6 +154,7 @@ class elliptics_node {
 		void			lookup(const std::string &data, const elliptics_callback &c);
 		void			lookup(const struct dnet_id &id, const elliptics_callback &c);
 		std::string		lookup(const std::string &data);
+		std::string		lookup(const struct dnet_id &id);
 
 		void 			remove_raw(struct dnet_id &id, int aflags);
 		void			remove_raw(const std::string &data, int type, int aflags);

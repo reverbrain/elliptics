@@ -13,6 +13,7 @@
  * GNU General Public License for more details.
  */
 
+#include <netdb.h>
 #include <boost/python.hpp>
 #include <boost/python/list.hpp>
 #include <boost/python/dict.hpp>
@@ -378,6 +379,32 @@ class elliptics_node_python : public elliptics_node {
 			return elliptics_node::lookup_addr(raw);
 		}
 
+		boost::python::tuple parse_lookup(const std::string &lookup) {
+			const void *data = lookup.data();
+
+			struct dnet_addr *addr = (struct dnet_addr *)data;
+			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
+			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
+			struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+			struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
+			dnet_convert_file_info(info);
+
+			std::string address(dnet_server_convert_dnet_addr(addr));
+			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
+
+			return make_tuple(address, port, info->size);
+		}
+
+		boost::python::tuple lookup_by_data_transform(const std::string &remote) {
+			return parse_lookup(elliptics_node::lookup(remote));
+		}
+
+		boost::python::tuple lookup_by_id(const struct elliptics_id &id) {
+			struct dnet_id raw = id.to_dnet();
+
+			return parse_lookup(elliptics_node::lookup(raw));
+		}
+
 		struct dnet_node_status update_status_by_id(const struct elliptics_id &id, struct dnet_node_status &status, int update) {
 			struct dnet_id raw = id.to_dnet();
 
@@ -645,6 +672,9 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_data_transform)
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_id)
+
+		.def("lookup", &elliptics_node_python::lookup_by_data_transform)
+		.def("lookup", &elliptics_node_python::lookup_by_id)
 
 		.def("write_metadata", &elliptics_node_python::write_metadata_by_id)
 		.def("write_metadata", &elliptics_node_python::write_metadata_by_data_transform)
