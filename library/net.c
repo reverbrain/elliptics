@@ -35,10 +35,7 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 {
 	int err;
 
-<<<<<<< HEAD
 	fcntl(s, F_SETFL, O_NONBLOCK);
-=======
->>>>>>> 00c356fa39937ec6fadc9dafc75e50184dc7a43e
 	fcntl(s, F_SETFD, FD_CLOEXEC);
 
 	err = connect(s, sa, salen);
