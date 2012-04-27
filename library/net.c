@@ -35,7 +35,8 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 {
 	int err;
 
-	fcntl(s, F_SETFL, O_NONBLOCK | O_CLOEXEC);
+	fcntl(s, F_SETFL, O_NONBLOCK);
+	fcntl(s, F_SETFD, FD_CLOEXEC);
 
 	err = connect(s, sa, salen);
 	if (err) {
@@ -144,6 +145,7 @@ int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int f
 				dnet_server_convert_port(sa, salen));
 
 		fcntl(s, F_SETFL, O_NONBLOCK);
+		fcntl(s, F_SETFD, FD_CLOEXEC);
 	} else {
 		err = dnet_socket_connect(n, s, sa, salen);
 		if (err)
@@ -787,7 +789,7 @@ void dnet_sock_close(int s)
 void dnet_set_sockopt(int s)
 {
 	struct linger l;
-	int opt, flags;
+	int opt;
 
 	opt = 1;
 	setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &opt, 4);
@@ -804,8 +806,8 @@ void dnet_set_sockopt(int s)
 
 	setsockopt(s, SOL_SOCKET, SO_LINGER, &l, sizeof(l));
 
-	fcntl(s, F_GETFD, &flags);
-	fcntl(s, F_SETFL, flags | O_NONBLOCK | O_CLOEXEC);
+	fcntl(s, F_SETFD, FD_CLOEXEC);
+	fcntl(s, F_SETFL, O_NONBLOCK);
 }
 
 int dnet_setup_control_nolock(struct dnet_net_state *st)
@@ -909,12 +911,14 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	memset(st, 0, sizeof(struct dnet_net_state));
 
 	st->read_s = s;
-	st->write_s = fcntl(s, F_DUPFD_CLOEXEC, 0);
+	st->write_s = dup(s);
 	if (st->write_s < 0) {
 		err = -errno;
 		dnet_log_err(n, "%s: failed to duplicate socket", dnet_server_convert_dnet_addr(addr));
 		goto err_out_free;
 	}
+
+	fcntl(st->write_s, F_SETFD, FD_CLOEXEC);
 
 	st->n = n;
 

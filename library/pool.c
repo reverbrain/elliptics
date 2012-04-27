@@ -524,7 +524,6 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 
 	for (i=0; i<io->net_thread_num; ++i) {
 		struct dnet_net_io *nio = &io->net[i];
-		int flags;
 
 		nio->n = n;
 
@@ -535,8 +534,8 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 			goto err_out_net_destroy;
 		}
 
-		fcntl(nio->epoll_fd, F_GETFD, &flags);
-		fcntl(nio->epoll_fd, F_SETFL, flags | O_NONBLOCK | O_CLOEXEC);
+		fcntl(nio->epoll_fd, F_SETFD, FD_CLOEXEC);
+		fcntl(nio->epoll_fd, F_SETFL, O_NONBLOCK);
 
 		err = pthread_create(&nio->tid, NULL, dnet_io_process, nio);
 		if (err) {
