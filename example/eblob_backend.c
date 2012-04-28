@@ -543,6 +543,13 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 		goto err_out_exit;
 	}
 
+	if (size == 0) {
+		err = -ENOENT;
+		dnet_backend_log(DNET_LOG_INFO, "%s: EBLOB: blob-file-info: info-read: ZERO-SIZE-FILE.\n",
+				dnet_dump_id(&cmd->id));
+		goto err_out_exit;
+	}
+
 	err = dnet_send_file_info(state, cmd, attr, fd, offset, size);
 
 err_out_exit:
