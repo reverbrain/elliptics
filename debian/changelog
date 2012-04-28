@@ -1,3 +1,10 @@
+elliptics-2.10 (2.13.0.9) unstable; urgency=low
+
+  * Do not allow zero-sized reads
+  * Do not double-close python init file
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 29 Apr 2012 01:10:13 +0400
+
 elliptics-2.10 (2.13.0.8) unstable; urgency=low
 
   * Added new lookup() methods to c++/python bindings. Patch by Anton Kortunov <toshik@yandex-team.ru>

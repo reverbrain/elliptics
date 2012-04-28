@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.13.0.8
+Version:	2.13.0.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Apr 28 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.9-1
+- Do not allow zero-sized reads
+- Do not double-close python init file
+
 * Sat Apr 27 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.8-1
 - Added new lookup() methods to c++/python bindings. Patch by Anton Kortunov <toshik@yandex-team.ru>
 - If we fail to open log file, dup2() stdout/stderr to /dev/null in spawned worker process
