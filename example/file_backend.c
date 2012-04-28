@@ -184,7 +184,7 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	dnet_backend_log(DNET_LOG_INFO, "%s: FILE: %s: WRITE: Ok: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&cmd->id), dir, (unsigned long long)io->offset, (unsigned long long)io->size);
 	attr->flags |= DNET_ATTR_NOCSUM;
-	err = dnet_send_file_info(state, cmd, attr, fd, 0, 0);
+	err = dnet_send_file_info(state, cmd, attr, fd, 0, -1);
 	if (err)
 		goto err_out_close;
 
@@ -288,7 +288,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	}
 	fd = err;
 
-	err = dnet_send_file_info(state, cmd, attr, fd, 0, 0);
+	err = dnet_send_file_info(state, cmd, attr, fd, 0, -1);
 	if (err)
 		goto err_out_close;
 	

@@ -3784,7 +3784,7 @@ err_out_exit:
 }
 
 int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
-		int fd, uint64_t offset, uint64_t size)
+		int fd, uint64_t offset, int64_t size)
 {
 	struct dnet_node *n = dnet_get_node_from_state(state);
 	struct dnet_file_info *info;
@@ -3828,10 +3828,17 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *att
 			goto err_out_free;
 	}
 
-	if (size)
+	if (size >= 0)
 		info->size = size;
 	if (offset)
 		info->offset = offset;
+
+	if (info->size == 0) {
+		err = -ENOENT;
+		dnet_log(n, DNET_LOG_NOTICE, "%s: EBLOB: %s: info-stat: ZERO-FILE-SIZE.\n",
+				dnet_dump_id(&cmd->id), file);
+		goto err_out_free;
+	}
 
 	info->flen = flen;
 	memcpy(info + 1, file, flen);
