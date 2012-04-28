@@ -97,7 +97,6 @@ class python {
 					(PyObject *)main_dict, (PyObject *)main_dict, true, NULL);
 			if (!ret) {
 				PyErr_Print();
-				fclose(fp);
 				Py_XDECREF(python_log_file);
 				throw std::runtime_error("Failed to initalize python client");
 			}
@@ -107,7 +106,6 @@ class python {
 		}
 
 		virtual ~python() {
-			fclose(fp);
 			Py_XDECREF(python_log_file);
 			Py_Finalize();
 		}
