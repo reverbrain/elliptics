@@ -1,4 +1,4 @@
-#include <elliptics/srw.hpp>
+#include <elliptics/srw/srw.hpp>
 
 static void kill_all_fds(const char *log)
 {
@@ -27,13 +27,28 @@ static void kill_all_fds(const char *log)
 	dup2(fd, STDOUT_FILENO);
 }
 
+static void worker_usage(char *arg)
+{
+	std::cerr << "Usage: " << arg << " <options>\n" <<
+		" -i init-file             - init file for appropriate worker type (python init context or path to shared lib)\n" <<
+		" -c config-file           - config file for appropriate worker type\n" <<
+		" -l log-file              - log file for worker\n" <<
+		" -p pipe-base             - pipe base for worker: it will write to @pipe-base.w2c and read from @pipe-base.c2w\n" <<
+		" -t type                  - worker type (0 - python, 1 - generic shared library)\n" <<
+		" -h                       - this help\n";
+	exit(-1);
+}
+
 int main(int argc, char *argv[])
 {
 	int ch, type = -1;
-	std::string log("/dev/stdout"), pipe("/tmp/test-pipe"), init;
+	std::string log("/dev/stdout"), pipe("/tmp/test-pipe"), init, conf;
 
-	while ((ch = getopt(argc, argv, "i:l:p:t:")) != -1) {
+	while ((ch = getopt(argc, argv, "c:i:l:p:t:h")) != -1) {
 		switch (ch) {
+			case 'c':
+				conf.assign(optarg);
+				break;
 			case 'i':
 				init.assign(optarg);
 				break;
@@ -46,8 +61,9 @@ int main(int argc, char *argv[])
 			case 't':
 				type = atoi(optarg);
 				break;
+			case 'h':
 			default:
-				exit(-1);
+				worker_usage(argv[0]);
 		}
 	}
 
@@ -56,7 +72,12 @@ int main(int argc, char *argv[])
 	try {
 		switch (type) {
 			case SRW_TYPE_PYTHON: {
-				ioremap::srw::worker<ioremap::srw::python> w(log, pipe, init);
+				ioremap::srw::worker<ioremap::srw::python> w(log, pipe, init, conf);
+				w.process();
+				break;
+			}
+			case SRW_TYPE_SHARED: {
+				ioremap::srw::worker<ioremap::srw::shared> w(log, pipe, init, conf);
 				w.process();
 				break;
 			}

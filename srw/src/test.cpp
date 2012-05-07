@@ -1,4 +1,4 @@
-#include <elliptics/srw.hpp>
+#include <elliptics/srw/srw.hpp>
 
 using namespace ioremap::srw;
 

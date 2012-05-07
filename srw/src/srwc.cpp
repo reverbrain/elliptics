@@ -1,7 +1,7 @@
 #include <iostream>
 
-#include <elliptics/srw.hpp>
-#include <elliptics/srwc.h>
+#include <elliptics/srw/srw.hpp>
+#include <elliptics/srw/srwc.h>
 
 struct srwc *srwc_init_python(char *bin_path, char *log_path, char *pipe_base, char *init_path, int num, void *priv)
 {

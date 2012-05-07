@@ -30,10 +30,10 @@
 
 #include "elliptics.h"
 
-#include "elliptics/packet.h"
-#include "elliptics/interface.h"
+#include <elliptics/packet.h>
+#include <elliptics/interface.h>
 
-#include "elliptics/srwc.h"
+#include <elliptics/srw/srwc.h>
 
 static char srw_init_path[4096];
 static char srw_pipe_path[4096];
