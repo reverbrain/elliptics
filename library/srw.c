@@ -35,35 +35,49 @@
 
 #include <elliptics/srw/srwc.h>
 
-static char srw_init_path[4096];
-static char srw_pipe_path[4096];
-
 struct dnet_srw_init_conf {
 	int			len;
-	char			path[0];
+	char			name[0];
 };
 
-static int dnet_srw_init_python(struct dnet_node *n, struct dnet_config *cfg)
+int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg)
 {
+	int err = 0;
 	struct dnet_srw_init_conf *base;
-	int num = n->io->thread_num / 3 + 1;
-	int err;
+	char *rev;
 
-	base = malloc(sizeof(struct dnet_srw_init_conf) + strlen(cfg->history_env) + 1);
+	if (!cfg->srw.config)
+		cfg->srw.config = cfg->addr;
+
+	dnet_log(n, DNET_LOG_INFO, "srw: binary: '%s', log: '%s', pipe: '%s', init: '%s', config: '%s', threads: %d, type: %d\n",
+			cfg->srw.binary, cfg->srw.log, cfg->srw.pipe, cfg->srw.init, cfg->srw.config, cfg->srw.num, cfg->srw.type);
+
+	if (!cfg->srw.init || cfg->srw.num <= 0 ||
+			cfg->srw.type >= __SRW_TYPE_MAX || cfg->srw.type < 0 ||
+			!cfg->srw.binary || !cfg->srw.pipe) {
+		err = 0;
+		dnet_log(n, DNET_LOG_INFO, "srw: do not initialize - insufficient parameters in config\n");
+		goto err_out_exit;
+	}
+
+	base = malloc(sizeof(struct dnet_srw_init_conf) + strlen(cfg->srw.init) + 1);
 	if (!base) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
-	base->len = strlen(cfg->history_env);
-	sprintf(base->path, "%s", cfg->history_env);
+	sprintf(base->name, "%s", cfg->srw.init);
 
-	snprintf(srw_init_path, sizeof(srw_init_path), "%s/python.init", cfg->history_env);
-	snprintf(srw_pipe_path, sizeof(srw_pipe_path), "%s/python-pipe", cfg->history_env);
+	rev = strrchr(base->name, '/');
+	if (rev) {
+		*rev = '\0';
+	}
 
-	dnet_log(n, DNET_LOG_INFO, "srw: binary: '%s', log: '%s', base: '%s', threads: %d\n",
-			cfg->srw_binary, cfg->srw_log, base->path, num);
-	n->srw = srwc_init_python(cfg->srw_binary, cfg->srw_log, srw_pipe_path, srw_init_path, num, base);
+	base->len = strlen(base->name);
+
+	cfg->srw.priv = base;
+
+	n->srw = srwc_init(&cfg->srw);
 	if (!n->srw) {
 		err = -EINVAL;
 		dnet_log(n, DNET_LOG_ERROR, "srw: failed to initialize external python workers\n");
@@ -78,18 +92,12 @@ err_out_exit:
 	return err;
 }
 
-int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg)
-{
-	return dnet_srw_init_python(n, cfg);
-}
-
 void dnet_srw_cleanup(struct dnet_node *n)
 {
-	if (!n->srw)
-		return;
-
-	free(n->srw->priv);
-	srwc_cleanup_python(n->srw);
+	if (n->srw) {
+		free(n->srw->priv);
+		srwc_cleanup(n->srw);
+	}
 }
 
 static int dnet_cmd_exec_python_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr,
@@ -184,7 +192,7 @@ int dnet_cmd_exec_python_script(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_free;
 	}
 
-	sprintf(full_path, "%s/%s", base->path, ptr);
+	sprintf(full_path, "%s/%s", base->name, ptr);
 
 	fd = open(full_path, O_RDONLY | O_CLOEXEC);
 	if (fd < 0) {

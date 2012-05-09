@@ -3,22 +3,17 @@
 #include <elliptics/srw/srw.hpp>
 #include <elliptics/srw/srwc.h>
 
-struct srwc *srwc_init_python(char *bin_path, char *log_path, char *pipe_base, char *init_path, int num, void *priv)
+struct srwc *srwc_init(struct srw_init_ctl *ctl)
 {
 	struct srwc *s = NULL;
 
 	try {
-		std::string bin(bin_path);
-		std::string log(log_path);
-		std::string pipe(pipe_base);
-		std::string init(init_path);
-
 		s = (struct srwc *)malloc(sizeof(struct srwc));
 		if (!s)
 			return NULL;
 
-		s->handler = new ioremap::srw::pool(bin, log, pipe, init, SRW_TYPE_PYTHON, num);
-		s->priv = priv;
+		s->handler = new ioremap::srw::pool(ctl);
+		s->priv = ctl->priv;
 	} catch (const std::exception &e) {
 		free(s);
 		return NULL;
@@ -27,7 +22,7 @@ struct srwc *srwc_init_python(char *bin_path, char *log_path, char *pipe_base, c
 	return s;
 }
 
-void srwc_cleanup_python(struct srwc *s)
+void srwc_cleanup(struct srwc *s)
 {
 	ioremap::srw::pool *srw = (ioremap::srw::pool *)s->handler;
 	delete srw;

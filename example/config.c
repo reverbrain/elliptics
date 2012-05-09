@@ -141,24 +141,31 @@ static int dnet_set_remote_addrs(struct dnet_config_backend *b __unused, char *k
 	return 0;
 }
 
-static int dnet_set_srw_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+static int dnet_set_srw(struct dnet_config_backend *b __unused, char *key, char *value)
 {
-	free(dnet_cfg_state.srw_log);
+	char **ptr = NULL;
 
-	dnet_cfg_state.srw_log = strdup(value);
-	if (!dnet_cfg_state.srw_log)
-		return -ENOMEM;
+	if (!strcmp(key, "srw_binary"))
+		ptr = &dnet_cfg_state.srw.binary;
+	else if (!strcmp(key, "srw_log"))
+		ptr = &dnet_cfg_state.srw.log;
+	else if (!strcmp(key, "srw_pipe"))
+		ptr = &dnet_cfg_state.srw.pipe;
+	else if (!strcmp(key, "srw_init"))
+		ptr = &dnet_cfg_state.srw.init;
+	else if (!strcmp(key, "srw_config"))
+		ptr = &dnet_cfg_state.srw.config;
+	else if (!strcmp(key, "srw_num"))
+		dnet_cfg_state.srw.num = atoi(value);
+	else if (!strcmp(key, "srw_type"))
+		dnet_cfg_state.srw.type = atoi(value);
 
-	return 0;
-}
-
-static int dnet_set_srw_binary(struct dnet_config_backend *b __unused, char *key __unused, char *value)
-{
-	free(dnet_cfg_state.srw_binary);
-
-	dnet_cfg_state.srw_binary = strdup(value);
-	if (!dnet_cfg_state.srw_binary)
-		return -ENOMEM;
+	if (ptr) {
+		free(*ptr);
+		*ptr = strdup(value);
+		if (!*ptr)
+			return -ENOMEM;
+	}
 
 	return 0;
 }
@@ -222,11 +229,11 @@ int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, cha
 		if (old) {
 			dnet_common_log(old, 0xff, "Reopened log file\n");
 			fclose(old);
-			free(dnet_cfg_state.srw_log);
+			free(dnet_cfg_state.srw.log);
 		}
 
-		dnet_cfg_state.srw_log = strdup(dnet_logger_value);
-		if (!dnet_cfg_state.srw_log) {
+		dnet_cfg_state.srw.log = strdup(dnet_logger_value);
+		if (!dnet_cfg_state.srw.log) {
 			err = -ENOMEM;
 			fprintf(stderr, "cnf: failed to duplicate log string '%s': %s\n", dnet_logger_value, strerror(errno));
 			return err;
@@ -268,8 +275,13 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"server_net_prio", dnet_simple_set},
 	{"client_net_prio", dnet_simple_set},
 	{"oplock_num", dnet_simple_set},
-	{"srw_log", dnet_set_srw_log},
-	{"srw_binary", dnet_set_srw_binary},
+	{"srw_binary", dnet_set_srw},
+	{"srw_log", dnet_set_srw},
+	{"srw_pipe", dnet_set_srw},
+	{"srw_init", dnet_set_srw},
+	{"srw_config", dnet_set_srw},
+	{"srw_type", dnet_set_srw},
+	{"srw_num", dnet_set_srw},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;

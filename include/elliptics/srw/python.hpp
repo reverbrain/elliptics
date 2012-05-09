@@ -1,7 +1,15 @@
 #ifndef __ELLIPTICS_SRW_PYTHON_HPP
 #define __ELLIPTICS_SRW_PYTHON_HPP
 
-#include <elliptics/srw/base.hpp>
+#include <elliptics/srw/pipe.hpp>
+
+#ifdef _POSIX_C_SOURCE
+#undef _POSIX_C_SOURCE
+#endif
+
+#ifdef _XOPEN_SOURCE
+#undef _XOPEN_SOURCE
+#endif
 
 #include <Python.h>
 

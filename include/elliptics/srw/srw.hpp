@@ -26,10 +26,9 @@ namespace srw {
 typedef boost::shared_ptr<spawn> shared_proc_t;
 class pool {
 	public:
-		pool(const std::string &bin, const std::string &log_file,
-				const std::string &pipe_base, const std::string &init, int type, int num) : m_log(log_file.c_str(), std::ios::app) {
-			for (int i = 0; i < num; ++i) {
-				shared_proc_t sp(new spawn(bin, log_file, pipe_base, init, type));
+		pool(struct srw_init_ctl *ctl) : m_log(ctl->log, std::ios::app) {
+			for (int i = 0; i < ctl->num; ++i) {
+				shared_proc_t sp(new spawn(ctl));
 
 				boost::mutex::scoped_lock guard(m_lock);
 				m_vec.push_back(sp);

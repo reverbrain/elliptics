@@ -4,7 +4,7 @@ static void kill_all_fds(const char *log)
 {
 	int fd, null_fd;
 
-	for (int i = 0; i < 1024 * 1024; ++i) {
+	for (int i = 3; i < 1024; ++i) {
 		close(i);
 	}
 
@@ -20,8 +20,9 @@ static void kill_all_fds(const char *log)
 	dup2(fd, STDIN_FILENO);
 
 	fd = open(log, O_RDWR | O_APPEND);
-	if (fd < 0)
+	if (fd < 0) {
 		fd = null_fd;
+	}
 
 	dup2(fd, STDERR_FILENO);
 	dup2(fd, STDOUT_FILENO);

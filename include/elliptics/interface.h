@@ -28,8 +28,8 @@
 #include <arpa/inet.h>
 
 #include <eblob/blob.h>
-
-#include "elliptics/packet.h"
+#include <elliptics/srw/base.h>
+#include <elliptics/packet.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -444,11 +444,7 @@ struct dnet_config
 	/* table of operation locks */
 	int			oplock_num;
 
-	/* srw log path - initialized to the same config string as for 'log' by default */
-	char			*srw_log;
-
-	/* path to srw_worker binary - it is used to spawn script workers */
-	char			*srw_binary;
+	struct srw_init_ctl	srw;
 
 	/* so that we do not change major version frequently */
 	int			reserved_for_future_use[12];

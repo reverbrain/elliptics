@@ -13,7 +13,7 @@ class worker {
 	public:
 		worker(const std::string &lpath, const std::string &ppath, const std::string &init, const std::string &config) :
 			m_log(lpath.c_str(), std::ios_base::app), m_p(ppath, true) {
-			m_s = boost::shared_ptr<S>(new S(lpath, init, config));
+			m_s.reset(new S(lpath, init, config));
 		}
 		virtual ~worker() {
 		}
@@ -41,14 +41,16 @@ class worker {
 	private:
 		std::ofstream m_log;
 		pipe m_p;
-		boost::shared_ptr<S> m_s;
+		std::auto_ptr<S> m_s;
 
 };
 
 class spawn {
 	public:
-		spawn(const std::string &bin, const std::string &m_log, const std::string &pipe_base, const std::string &init, int type) {
+		spawn(struct srw_init_ctl *ctl) {
 			int err;
+
+			std::string pipe_base = ctl->pipe;
 
 			std::string pstr = pipe_base + ".w2c";
 			unlink(pstr.c_str());
@@ -67,15 +69,15 @@ class spawn {
 
 			if (m_pid == 0) {
 				std::ostringstream type_str;
-				type_str << type;
+				type_str << ctl->type;
 
 				std::ostringstream pipe_path;
 				pipe_path << pipe_base << "-" << getpid();
 
-				err = execl(bin.c_str(), bin.c_str(), "-l", m_log.c_str(), "-m_p", pipe_path.str().c_str(),
-						"-i", init.c_str(), "-t", type_str.str().c_str(), NULL);
+				err = execl(ctl->binary, ctl->binary, "-l", ctl->log, "-p", pipe_path.str().c_str(),
+						"-i", ctl->init, "-t", type_str.str().c_str(), "-c", ctl->config, NULL);
 
-				std::ofstream l(m_log.c_str(), std::ios::app);
+				std::ofstream l(ctl->log, std::ios::app);
 				err = -errno;
 				l << getpid() << ": execl() returned " << err;
 				exit(err);

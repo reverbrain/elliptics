@@ -1,7 +1,17 @@
 #ifndef __ELLIPTICS_SRW_PIPE_HPP
 #define __ELLIPTICS_SRW_PIPE_HPP
 
-#include <elliptics/srw/base.hpp>
+#include <iostream>
+#include <fstream>
+#include <stdexcept>
+#include <sstream>
+
+#include <boost/thread/mutex.hpp>
+#include <boost/shared_array.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/thread/condition.hpp>
+
+#include <elliptics/srw/base.h>
 
 namespace ioremap {
 namespace srw {

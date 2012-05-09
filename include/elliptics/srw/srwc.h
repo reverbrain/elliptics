@@ -8,13 +8,15 @@ extern "C" {
 #include <stdio.h>
 #include <stdint.h>
 
+#include <elliptics/srw/base.h>
+
 struct srwc {
 	void		*handler;
 	void		*priv;
 };
 
-struct srwc *srwc_init_python(char *bin_path, char *log_path, char *pipe_base, char *init_path, int num, void *priv);
-void srwc_cleanup_python(struct srwc *s);
+struct srwc *srwc_init(struct srw_init_ctl *ctl);
+void srwc_cleanup(struct srwc *s);
 
 struct srwc_ctl {
 	char		*cmd;
