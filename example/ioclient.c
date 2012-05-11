@@ -56,12 +56,7 @@ static void dnet_usage(char *p)
 			" -R file              - read given file from the network into the local storage\n"
 			" -I id                - transaction id (used to read data)\n"
 			" -g groups            - group IDs to connect\n"
-			" -c cmd               - execute given command on the remote node\n"
-			" -C type              - type of the command to execute on remote node:\n"
-			"                            0 - shell\n"
-			"                            1 - python script name\n"
-			"                            2 - execute this string as python script\n"
-			" -n script            - script name to execute\n"
+			" -c cmd-event         - execute command with given event on the remote node\n"
 			" -L file              - lookup a storage which hosts given file\n"
 			" -l log               - log file. Default: disabled\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
@@ -96,8 +91,6 @@ int main(int argc, char *argv[])
 	uint64_t offset, size;
 	int *groups = NULL, group_num = 0;
 	unsigned int aflags = DNET_ATTR_NOCSUM;
-	int cmd_type = DNET_EXEC_SHELL;
-	char *script_name = NULL;
 	int type = EBLOB_TYPE_DATA;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
@@ -116,7 +109,7 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:n:c:C:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
 			case 't':
 				type = atoi(optarg);
@@ -172,12 +165,6 @@ int main(int argc, char *argv[])
 				break;
 			case 'c':
 				cmd = optarg;
-				break;
-			case 'C':
-				cmd_type = atoi(optarg);
-				break;
-			case 'n':
-				script_name = optarg;
 				break;
 			case 'I':
 				err = dnet_parse_numeric_id(optarg, trans_id);
@@ -337,10 +324,10 @@ int main(int argc, char *argv[])
 			return err;
 	}
 
-	if (cmd || (cmd_type == DNET_EXEC_PYTHON_SCRIPT_NAME && script_name)) {
+	if (cmd) {
 		struct dnet_id __did, *did = NULL;
-		struct dnet_exec *e;
-		int size = 0;
+		struct sph *e;
+		int event_size = strlen(cmd);
 		char *ret = NULL;
 
 		if (id) {
@@ -350,35 +337,15 @@ int main(int argc, char *argv[])
 			did->type = type;
 		}
 
-		if (cmd) {
-			size = strlen(cmd);
-		}
-
-		if (script_name && cmd_type == DNET_EXEC_PYTHON_SCRIPT_NAME) {
-			size += strlen(script_name);
-		}
-
-		e = malloc(sizeof(struct dnet_exec) + size + 1);
+		e = malloc(sizeof(struct sph) + event_size + 1);
 		if (!e)
 			return -ENOMEM;
 
 		e->binary_size = 0;
-		e->type = cmd_type;
+		e->data_size = 0;
+		e->event_size = event_size;
 
-		if (cmd) {
-			e->script_size = strlen(cmd) + 1;
-		} else {
-			e->script_size = 0;
-			cmd = "";
-		}
-
-		if (script_name && cmd_type == DNET_EXEC_PYTHON_SCRIPT_NAME) {
-			e->name_size = strlen(script_name);
-			sprintf(e->data, "%s%s", script_name, cmd);
-		} else {
-			e->name_size = 0;
-			sprintf(e->data, "%s", cmd);
-		}
+		sprintf(e->data, "%s", cmd);
 
 		err = dnet_send_cmd(n, did, e, (void **)&ret);
 		if (err < 0)
@@ -395,7 +362,7 @@ int main(int argc, char *argv[])
 			else
 				ret[err] = '\0';
 
-			printf("result: '%s'", ret);
+			printf("%s: '%s'", cmd, ret);
 			free(ret);
 		}
 	}

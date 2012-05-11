@@ -986,58 +986,48 @@ std::vector<std::pair<struct dnet_id, struct dnet_addr> > elliptics_node::get_ro
 	return res;
 }
 
-std::string elliptics_node::exec_name(struct dnet_id *id, const std::string &name,
-		const std::string &script, const std::string &binary, int type)
+std::string elliptics_node::exec(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
 {
-	char *data = NULL;
+	std::vector<char> vec(event.size() + data.size() + binary.size() + sizeof(struct sph));
 	std::string ret_str;
 
-	try {
-		data = new char[name.size() + script.size() + binary.size() + sizeof(struct dnet_exec)];
+	struct sph *e = (struct sph *)&vec[0];
+	void *ret = NULL;
+	int err;
 
-		struct dnet_exec *e = (struct dnet_exec *)data;
-		void *ret = NULL;
-		int err;
+	memset(e, 0, sizeof(struct sph));
 
-		e->type = type;
-		e->script_size = script.size();
-		e->name_size = name.size();
-		e->binary_size = binary.size();
+	e->data_size = data.size();
+	e->binary_size = binary.size();
+	e->event_size = event.size();
 
-		memcpy(e->data, name.data(), name.size());
-		memcpy(e->data + name.size(), script.data(), script.size());
-		memcpy(e->data + name.size() + script.size(), binary.data(), binary.size());
+	memcpy(e->data, event.data(), event.size());
+	memcpy(e->data + event.size(), data.data(), data.size());
+	memcpy(e->data + event.size() + data.size(), binary.data(), binary.size());
 
-		err = dnet_send_cmd(node, id, e, &ret);
-		if (err < 0) {
-			std::ostringstream str;
+	err = dnet_send_cmd(node, id, e, &ret);
+	if (err < 0) {
+		std::ostringstream str;
 
-			str << (id ? dnet_dump_id(id) : "no-id-given") << ": failed to exec script type " <<
-				type << ": " << strerror(-err) << " " << err;
-			throw std::runtime_error(str.str());
-		}
-
-		if (ret && err) {
-			try {
-				ret_str.assign((char *)ret, err);
-			} catch (...) {
-				free(ret);
-				throw;
-			}
-			free(ret);
-		}
-	} catch (...) {
-		delete [] data;
-		throw;
+		str << (id ? dnet_dump_id(id) : "no-id-given") << ": failed to exec: " <<
+			"event: " << event <<
+			"data-size: " << data.size() <<
+			"binary-size: " << binary.size() <<
+			": " << strerror(-err) << " " << err;
+		throw std::runtime_error(str.str());
 	}
-	delete [] data;
-	return ret_str;
-}
 
-std::string elliptics_node::exec(struct dnet_id *id, const std::string &script, const std::string &binary, int type)
-{
-	std::string name;
-	return exec_name(id, name, script, binary, type);
+	if (ret && err) {
+		try {
+			ret_str.assign((char *)ret, err);
+		} catch (...) {
+			free(ret);
+			throw;
+		}
+		free(ret);
+	}
+
+	return ret_str;
 }
 
 std::vector<std::string> elliptics_node::bulk_read(std::vector<struct dnet_io_attr> &ios, int group_id, uint32_t aflags)

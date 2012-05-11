@@ -453,44 +453,25 @@ class elliptics_node_python : public elliptics_node {
 			return res;
 		}
 
-		std::string exec_name(const struct elliptics_id &id, const std::string &name,
-				const std::string &script, const std::string &binary, int type) {
+		std::string exec_name(const struct elliptics_id &id, const std::string &event,
+				const std::string &data, const std::string &binary) {
 			struct dnet_id raw = id.to_dnet();
 
-			return elliptics_node::exec_name(&raw, name, script, binary, type);
+			return elliptics_node::exec(&raw, event, data, binary);
 		}
 
-		std::string exec_name_by_name(const std::string &remote, const std::string &name,
-				const std::string &script, const std::string &binary, int type) {
+		std::string exec_name_by_name(const std::string &remote, const std::string &event,
+				const std::string &data, const std::string &binary) {
 			struct dnet_id raw;
 			transform(remote, raw);
 			raw.type = 0;
 			raw.group_id = 0;
 
-			return elliptics_node::exec_name(&raw, name, script, binary, type);
+			return elliptics_node::exec(&raw, event, data, binary);
 		}
 
-		std::string exec_name_all(const std::string &name, const std::string &script, const std::string &binary, int type) {
-			return elliptics_node::exec_name(NULL, name, script, binary, type);
-		}
-
-		std::string exec(const struct elliptics_id &id, const std::string &script, const std::string &binary, int type) {
-			struct dnet_id raw = id.to_dnet();
-
-			return elliptics_node::exec(&raw, script, binary, type);
-		}
-		
-		std::string exec_all(const std::string &script, const std::string &binary, int type) {
-			return elliptics_node::exec(NULL, script, binary, type);
-		}
-
-		std::string exec_by_name(const std::string &remote, const std::string &script, const std::string &binary, int type) {
-			struct dnet_id raw;
-			transform(remote, raw);
-			raw.type = 0;
-			raw.group_id = 0;
-
-			return elliptics_node::exec(&raw, script, binary, type);
+		std::string exec_name_all(const std::string &event, const std::string &data, const std::string &binary) {
+			return elliptics_node::exec(NULL, event, data, binary);
 		}
 
 		void remove_by_id(const struct elliptics_id &id, int aflags) {
@@ -687,12 +668,9 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("get_routes", &elliptics_node_python::get_routes)
 		.def("stat_log", &elliptics_node_python::stat_log)
 
-		.def("exec_script", &elliptics_node_python::exec)
-		.def("exec_script", &elliptics_node_python::exec_all)
-		.def("exec_script", &elliptics_node_python::exec_by_name)
-		.def("exec_name", &elliptics_node_python::exec_name)
-		.def("exec_name", &elliptics_node_python::exec_name_all)
-		.def("exec_name", &elliptics_node_python::exec_name_by_name)
+		.def("exec_event", &elliptics_node_python::exec_name)
+		.def("exec_event", &elliptics_node_python::exec_name_by_name)
+		.def("exec_event", &elliptics_node_python::exec_name_all)
 
 		.def("remove", &elliptics_node_python::remove_by_id)
 		.def("remove", &elliptics_node_python::remove_by_name)

@@ -263,17 +263,18 @@ static void test_exec_python(elliptics_node &n)
 				"|received binary data: ' + __input_binary_data_tuple[0].decode('utf-8')";
 
 		std::string ret;
+		std::string event = "python/eventXXX";
 
-		ret = n.exec(NULL, script, binary, DNET_EXEC_PYTHON);
+		ret = n.exec(NULL, "python/eventXXX", script, binary);
 
-		std::cout << "sent script: " << ret << std::endl;
+		std::cout << event << ": " << ret << std::endl;
 
+		event = "python/test_script.py";
 		script = "local_addr_string = 'this is local addr string' + "
 				"'|received binary data: ' + __input_binary_data_tuple[0].decode('utf-8')";
-		std::string name = "test_script.py";
+		ret = n.exec(NULL, "python/eventXXX", script, binary);
+		std::cout << event << ": " << ret << std::endl;
 
-		std::cout << "remote script: " << name << ": " <<
-			n.exec_name(NULL, name, script, binary, DNET_EXEC_PYTHON_SCRIPT_NAME) << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "PYTHON exec test failed: " << e.what() << std::endl;
 	}
@@ -414,72 +415,6 @@ static void memory_test_io(elliptics_node &n, int num)
 
 }
 
-static void memory_test_pohmelfs(elliptics_node &n, int num)
-{
-	struct dnet_raw_id id;
-
-	memset(&id, 0, sizeof(struct dnet_raw_id));
-
-	for (int i = 0; i < num; ++i) {
-		std::string data;
-
-		data.assign((char *)(&id), sizeof(struct dnet_id));
-		data.resize(rand() % 1024 + 100);
-
-		std::string written;
-
-		try {
-			std::ostringstream script;
-
-			script << "pohmelfs_dentry_name = '" << std::hex << rand() << rand() << rand() << rand() << "'\n";
-			written = n.exec_name(NULL, "pohmelfs_inode_info_insert.py", script.str(), data, DNET_EXEC_PYTHON_SCRIPT_NAME);
-		} catch (const std::exception &e) {
-			std::cerr << "could not perform read/write: " << e.what() << std::endl;
-			if (written.size() > 0) {
-				std::cerr << "but written successfully\n";
-				test_lookup_parse(data, written);
-			}
-		}
-	}
-
-}
-
-static void memory_test_script(elliptics_node &n, int num)
-{
-	int ids[16];
-	memset(ids, 42, sizeof(ids));
-
-	for (int i = 0; i < num; ++i) {
-		std::string data;
-
-		data.resize(rand() % 102400 + 100);
-
-		for (int j = 0; j < (int)ARRAY_SIZE(ids); ++j)
-			ids[j] = rand();
-
-		std::string id((char *)ids, sizeof(ids));
-		id.resize(DNET_ID_SIZE);
-		id.append(data);
-
-		std::string written;
-
-		try {
-			std::string script = "binary = str(__input_binary_data_tuple[0])\n"
-				"n.write_data(binary[0:64], binary[64:], 0, 0, 0, 0)\n"
-				"__return_data = n.read_data(binary[0:64], 0, 0, 0, 0, 0)";
-
-			written = n.exec(NULL, script, id, DNET_EXEC_PYTHON);
-		} catch (const std::exception &e) {
-			std::cerr << "could not perform read/write: " << e.what() << std::endl;
-			if (written.size() > 0) {
-				std::cerr << "but written successfully\n";
-				test_lookup_parse(id, written);
-			}
-		}
-	}
-
-}
-
 static void test_cache_write(elliptics_node &n, int num)
 {
 	try {
@@ -568,20 +503,9 @@ static void memory_test(elliptics_node &n)
 	struct rusage start, end;
 
 	getrusage(RUSAGE_SELF, &start);
-	memory_test_pohmelfs(n, 1000);
-	getrusage(RUSAGE_SELF, &end);
-	std::cout << "named scipt leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
-
-	getrusage(RUSAGE_SELF, &start);
-	memory_test_script(n, 1000);
-	getrusage(RUSAGE_SELF, &end);
-	std::cout << "script leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
-
-	getrusage(RUSAGE_SELF, &start);
 	memory_test_io(n, 1000);
 	getrusage(RUSAGE_SELF, &end);
 	std::cout << "IO leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
-
 }
 
 void usage(char *p)

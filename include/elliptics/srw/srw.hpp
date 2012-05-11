@@ -23,6 +23,13 @@
 namespace ioremap {
 namespace srw {
 
+class process_t {
+	public:
+		virtual void process(struct sph &header, const char *data) = 0;
+};
+
+typedef boost::shared_ptr<process_t> sprocess_t;
+
 typedef boost::shared_ptr<spawn> shared_proc_t;
 class pool {
 	public:
@@ -30,8 +37,7 @@ class pool {
 			for (int i = 0; i < ctl->num; ++i) {
 				shared_proc_t sp(new spawn(ctl));
 
-				boost::mutex::scoped_lock guard(m_lock);
-				m_vec.push_back(sp);
+				m_workers.insert(std::make_pair(sp->pid(), sp));
 			}
 
 			/*
@@ -50,72 +56,54 @@ class pool {
 			boost::mutex::scoped_lock guard(m_lock);
 			shared_proc_t sp;
 
-			for (std::vector<shared_proc_t>::iterator it = m_vec.begin(); it < m_vec.end(); ++it) {
-				sp = *it;
-
-				if (sp->m_pid == pid) {
-					m_vec.erase(it);
-					break;
-				}
-			}
+			m_workers.erase(pid);
 		}
 
-		std::string process(const std::string &data, const std::string &binary) {
-			std::string ret;
-			shared_proc_t sp;
-			bool have_worker = false;
-
-			m_log << getpid() << ": going to process new data" << std::endl;
-			{
-				boost::mutex::scoped_lock guard(m_lock);
-
-				while (m_vec.empty()) {
-					m_cond.wait(guard);
-				}
-
-
-				sp = m_vec.front();
-
-				m_vec.erase(m_vec.begin());
-				have_worker = true;
-			}
-
-			if (have_worker) {
-				try {
-					m_log << getpid() << ": writing new data: " << data.size() << " " << binary.size() << std::endl;
-					sp->m_p->write(0, data, binary);
-
-					m_log << getpid() << ": reading reply data" << std::endl;
-					std::string tmp;
-					sp->m_p->read(ret, tmp);
-					m_log << getpid() << ": read reply data: " << ret.size() << " bytes" << std::endl;
-				} catch (const std::exception &e) {
-					m_log << getpid() << ": processing exception: " << e.what() << std::endl;
-
-					boost::mutex::scoped_lock guard(m_lock);
-					m_vec.push_back(sp);
-					guard.unlock();
-
-					m_cond.notify_one();
-
-					throw;
-				}
-
-				boost::mutex::scoped_lock guard(m_lock);
-				m_vec.push_back(sp);
-				guard.unlock();
-
-				m_cond.notify_one();
-			}
-
-			return ret;
+		std::string process(struct sph &header, const char *data) {
+			return select_worker(header, data);
 		}
 
 	private:
 		std::ofstream m_log;
 		boost::mutex m_lock;
 		boost::condition m_cond;
-		std::vector<shared_proc_t> m_vec;
+		std::map<int, shared_proc_t> m_workers;
+		std::map<std::string, std::vector<int> > m_process;
+
+		std::string select_worker(struct sph &header, const char *data) {
+			std::string event;
+			event.assign(data, header.event_size);
+			std::map<std::string, std::vector<int> >::iterator it = m_process.find(event);
+
+			if (it == m_process.end()) {
+				std::ostringstream str;
+				str << event << ": could not find handler";
+				header.status = -ENOENT;
+				throw std::runtime_error(str.str());
+			}
+
+			std::vector<int> pids = it->second;
+
+			return worker_process(pids, header, data);
+		}
+
+		std::string worker_process(std::vector<int> &pids, struct sph &header, const char *data) {
+			int pid_pos = header.key % pids.size();
+			int pid = pids[pid_pos];
+
+			std::map<int, shared_proc_t>::iterator it = m_workers.find(pid);
+			if (it == m_workers.end()) {
+				std::string event;
+				event.assign(data, header.event_size);
+
+				std::ostringstream str;
+				str << event << ": worker with pid (" << pid << ") is dead";
+				header.status = -ENOENT;
+				throw std::runtime_error(str.str());
+			}
+
+			return it->second->process(header, data);
+		}
 };
 
 } /* namespace srw */

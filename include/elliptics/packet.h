@@ -26,6 +26,8 @@
 
 #include <elliptics/typedefs.h>
 #include <elliptics/core.h>
+#include <elliptics/srw/base.h>
+
 #endif
 
 #ifdef __cplusplus
@@ -640,32 +642,14 @@ static inline void dnet_convert_node_status(struct dnet_node_status *st)
 	st->log_mask = dnet_bswap32(st->log_mask);
 }
 
-enum cmd_type {
-	DNET_EXEC_SHELL = 0,
-	DNET_EXEC_PYTHON_SCRIPT_NAME,
-	DNET_EXEC_PYTHON,
-};
-
-struct dnet_exec {
-	int			type;
-	int			flags;
-	uint64_t		script_size, name_size, binary_size;
-	uint64_t		reserved[2];
-
-	/*
-	 * we pack script name first, then user's script content and then binary data,
-	 * which will be pushed into server's object
-	 */
-	char			data[0];
-} __attribute__((packed));
-
-static inline void dnet_convert_exec(struct dnet_exec *e)
+static inline void dnet_convert_sph(struct sph *e)
 {
-	e->type = dnet_bswap32(e->type);
-	e->script_size = dnet_bswap64(e->script_size);
-	e->name_size = dnet_bswap64(e->name_size);
+	e->data_size = dnet_bswap64(e->data_size);
 	e->binary_size = dnet_bswap64(e->binary_size);
-	e->flags = dnet_bswap32(e->flags);
+	e->flags = dnet_bswap64(e->flags);
+	e->event_size = dnet_bswap32(e->event_size);
+	e->status = dnet_bswap32(e->status);
+	e->key = dnet_bswap32(e->key);
 }
 
 #define DNET_AUTH_COOKIE_SIZE	32

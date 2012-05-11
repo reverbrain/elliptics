@@ -157,8 +157,6 @@ static int dnet_set_srw(struct dnet_config_backend *b __unused, char *key, char 
 		ptr = &dnet_cfg_state.srw.config;
 	else if (!strcmp(key, "srw_num"))
 		dnet_cfg_state.srw.num = atoi(value);
-	else if (!strcmp(key, "srw_type"))
-		dnet_cfg_state.srw.type = atoi(value);
 
 	if (ptr) {
 		free(*ptr);
@@ -280,7 +278,6 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"srw_pipe", dnet_set_srw},
 	{"srw_init", dnet_set_srw},
 	{"srw_config", dnet_set_srw},
-	{"srw_type", dnet_set_srw},
 	{"srw_num", dnet_set_srw},
 };
 

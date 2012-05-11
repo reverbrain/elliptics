@@ -30,50 +30,29 @@ class pipe {
 			unlink(m_p.c_str());
 		}
 
-		void read(std::string &data, std::string &binary) {
-			struct sph header;
+		void read(struct sph &header, std::string &data) {
 			rpipe.read((char *)&header, sizeof(struct sph));
 
-			char *buf = new char[header.size + header.binary_size];
-			try {
-				rpipe.read(buf, header.size + header.binary_size);
-				data.assign(buf, header.size);
-				binary.assign(buf + header.size, header.binary_size);
-			} catch (...) {
-				delete [] buf;
-				throw;
-			}
-
-			delete [] buf;
+			data.resize(hsize(header));
+			rpipe.read((char *)data.data(), hsize(header));
 		}
 
-		void write(int status, const std::string &data, const std::string &binary) {
-			struct sph header;
-
-			memset(&header, 0, sizeof(struct sph));
-			header.size = data.size();
-			header.binary_size = binary.size();
-			header.status = status;
-
+		void write(struct sph &header, const char *data) {
 			wpipe.write((char *)&header, sizeof(struct sph));
-			wpipe.write(data.data(), data.size());
-			wpipe.write(binary.data(), binary.size());
+
+			if (header.data_size && data)
+				wpipe.write(data, hsize(header));
+
 			wpipe.flush();
-		}
-
-		void write(int status, const std::string &data) {
-			std::string tmp;
-			write(status, data, tmp);
-		}
-
-		void write(int status) {
-			std::string tmp1, tmp2;
-			write(status, tmp1, tmp2);
 		}
 
 	private:
 		std::string base;
 		std::fstream rpipe, wpipe;
+
+		size_t hsize(struct sph &header) {
+			return header.data_size + header.binary_size + header.event_size;
+		}
 
 		void create_fifo(const std::string &path) {
 			int err;

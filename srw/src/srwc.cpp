@@ -30,15 +30,15 @@ void srwc_cleanup(struct srwc *s)
 	free(s);
 }
 
-int srwc_process(struct srwc *s, struct srwc_ctl *ctl)
+int srwc_process(struct srwc *s, struct srwc_ctl *ctl, const char *data)
 {
 	try {
-		std::string bin((char *)ctl->binary, ctl->binary_size);
-		std::string data(ctl->cmd, ctl->cmd_size);
 		std::string res;
 
 		ioremap::srw::pool *srw = (ioremap::srw::pool *)s->handler;
-		res = srw->process(data, bin);
+		res = srw->process(ctl->header, data);
+		if (ctl->header.status != 0)
+			return ctl->header.status;
 
 		ctl->result = (char *)malloc(res.size() + 1);
 		if (!ctl->result)

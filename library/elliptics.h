@@ -703,8 +703,8 @@ void *dnet_read_data_wait_raw(struct dnet_node *n, struct dnet_id *id, struct dn
 
 int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_srw_cleanup(struct dnet_node *n);
-int dnet_cmd_exec_python(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, struct dnet_exec *e);
-int dnet_cmd_exec_python_script(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr, struct dnet_exec *e);
+int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr,
+		struct sph *header, const void *data);
 
 #ifdef __cplusplus
 }

@@ -81,34 +81,37 @@ class python {
 			Py_Finalize();
 		}
 
-		std::string process_data(const std::string &data, const std::string &binary) {
+		std::string process_data(struct sph &header, const std::string &data) {
 			PyObject* m_main_dict_copy = PyDict_Copy((PyObject *)m_main_dict);
 			PyObject *tuple = NULL;
 
-			m_log << getpid() << ": inside python processing callback (data size: " << data.size() <<
-				", binary size: " << binary.size() << ")" << std::endl;
+			m_log << getpid() << ": inside python processing callback (data size: " << header.data_size <<
+				", binary size: " << header.binary_size << ")" << std::endl;
 
-			if (binary.size()) {
+			if (header.binary_size) {
+				const char *binary = (char *)data.data() + header.data_size;
 				PyObject *bin;
 
 				tuple = PyTuple_New(1);
 				if (!tuple) {
 					m_log << getpid() << ": could not create new tuple object" << std::endl;
 					Py_XDECREF(m_main_dict_copy);
+					header.status = -ENOMEM;
 					throw std::bad_alloc();
 				}
 
 #if (PY_VERSION_HEX < 0x02060000)
-				bin = PyBuffer_FromMemory((void *)binary.data(), binary.size());
+				bin = PyBuffer_FromMemory(binary, header.binary_size);
 #else
-				bin = PyByteArray_FromStringAndSize(binary.data(), binary.size());
+				bin = PyByteArray_FromStringAndSize(binary, header.binary_size);
 #endif
 				if (!bin) {
 					m_log << getpid() << ": could not create new binary storage object of " <<
-						binary.size() << "elements" << std::endl;
+						header.binary_size << "elements" << std::endl;
 
 					Py_XDECREF(tuple);
 					Py_XDECREF(m_main_dict_copy);
+					header.status = -ENOMEM;
 					throw std::bad_alloc();
 				}
 
@@ -121,6 +124,7 @@ class python {
 
 					Py_XDECREF(tuple);
 					Py_XDECREF(m_main_dict_copy);
+					header.status = -ENOMEM;
 					throw std::runtime_error("Could not add input binary tuple into main dict");
 				}
 			}
@@ -131,6 +135,7 @@ class python {
 			ret = PyRun_String(data.c_str(), Py_file_input, m_main_dict_copy, m_main_dict_copy);
 			if (!ret) {
 				PyErr_Print();
+				header.status = -EINVAL;
 			}
 
 			Py_XDECREF(ret);
@@ -144,7 +149,6 @@ class python {
 
 				if (PyArg_Parse(ret, "s#", &cstr, &size)) {
 					ret_str.assign(cstr, size);
-					m_log << getpid() << ": __return_data: " << size << " bytes" << std::endl;
 				}
 			}
 			Py_XDECREF(ret);

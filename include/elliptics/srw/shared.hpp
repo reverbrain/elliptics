@@ -41,9 +41,10 @@ class shared {
 				init(*this, config_path);
 		}
 
-		std::string process_data(const std::string &data, const std::string &binary) {
-			return data + binary;
+		std::string process_data(struct sph &, const std::string &data) {
+			return data;
 		}
+
 	private:
 		std::ofstream m_log;
 };
