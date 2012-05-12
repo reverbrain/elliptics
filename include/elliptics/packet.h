@@ -724,7 +724,7 @@ struct sph {
 	int			event_size;		/* size of the event string - it is located first in @data */
 	int			status;			/* processing status - negative errno code or zero on success */
 	int			key;			/* meta-key - used to map header to particular worker, see pool::worker_process() */
-	int			pad;
+	int			num;			/* used in 'new-task' event - common for all handlers - @num specifies number of workers for new app */
 	char			data[0];
 } __attribute__ ((packed));
 
@@ -748,18 +748,6 @@ struct srw_init_ctl {
 	int			pad;			/* srw worker type */
 	int			num;			/* number of workers */
 } __attribute__ ((packed));
-
-struct srw_load_ctl {
-	int			len;			/* length of the binary-object-name string */
-	int			wnum;			/* number of workers for this binary */
-	char			name[0];
-} __attribute__ ((packed));
-
-static inline void srw_convert_load_ctl(struct srw_load_ctl *ctl)
-{
-	ctl->len = dnet_bswap32(ctl->len);
-	ctl->wnum = dnet_bswap32(ctl->wnum);
-}
 
 #ifdef __cplusplus
 }

@@ -111,21 +111,20 @@ class pool {
 		}
 
 		void new_task(struct sph &header, const char *data, const std::string &name) {
-			struct srw_load_ctl *ctl = (struct srw_load_ctl *)(data + header.event_size);
-
-			srw_convert_load_ctl(ctl);
+			if (header.num == 0)
+				header.num = 1;
 
 			boost::mutex::scoped_lock guard(m_workers_lock);
-			if ((int)m_workers_idle.size() < ctl->wnum) {
+			if ((int)m_workers_idle.size() < header.num) {
 				std::ostringstream str;
-				str << get_event(header, data) << ": can not get " << ctl->wnum << " idle workers, have only " <<
+				str << get_event(header, data) << ": can not get " << header.num << " idle workers, have only " <<
 					m_workers_idle.size();
 				header.status = -ENOENT;
 				throw std::runtime_error(str.str());
 			}
 
 			std::vector<int> pids;
-			for (int i = 0; i < ctl->wnum; ++i) {
+			for (int i = 0; i < header.num; ++i) {
 				shared_proc_t worker = m_workers_idle.begin()->second;
 
 				pids.push_back(worker->pid());
