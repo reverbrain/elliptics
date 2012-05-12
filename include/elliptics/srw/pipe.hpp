@@ -11,10 +11,17 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/thread/condition.hpp>
 
-#include <elliptics/srw/base.h>
+#include <elliptics/packet.h>
 
 namespace ioremap {
 namespace srw {
+
+static inline std::string get_event(const struct sph &header, const char *data) {
+	std::string event;
+	event.assign(data, header.event_size);
+
+	return event;
+}
 
 class pipe {
 	public:

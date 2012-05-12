@@ -25,11 +25,21 @@
 #include <iostream>
 #include <fstream>
 #include <exception>
+#include <list>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace zbr {
+
+struct elliptics_addr_tuple {
+	elliptics_addr_tuple(const std::string &l_host, const int l_port, const int l_family = AF_INET) :
+		host(l_host), port(l_port), family(l_family) {}
+
+	std::string		host;
+	int			port;
+	int			family;
+};
 
 class elliptics_log {
 	public:
@@ -101,7 +111,12 @@ class elliptics_node {
 		/* we shold use elliptics_log and proper copy constructor here, but not this time */
 		elliptics_node(elliptics_log &l);
 		elliptics_node(elliptics_log &l, struct dnet_config &cfg);
+		elliptics_node(elliptics_log &l, const std::string &config_path);
 		virtual ~elliptics_node();
+
+		void			parse_config(const std::string &path, struct dnet_config &cfg,
+						std::list<elliptics_addr_tuple> &remotes,
+						std::vector<int> &groups);
 
 		void			transform(const std::string &data, struct dnet_id &id);
 

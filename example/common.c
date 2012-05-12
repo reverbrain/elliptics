@@ -41,42 +41,7 @@
 
 #define DNET_CONF_COMMENT	'#'
 #define DNET_CONF_DELIM		'='
-#define DNET_CONF_ADDR_DELIM	':'
 #define DNET_CONF_TIME_DELIM	'.'
-
-int dnet_parse_addr(char *addr, struct dnet_config *cfg)
-{
-	char *fam, *port;
-
-	fam = strrchr(addr, DNET_CONF_ADDR_DELIM);
-	if (!fam)
-		goto err_out_print_wrong_param;
-	*fam++ = 0;
-	if (!fam)
-		goto err_out_print_wrong_param;
-
-	cfg->family = atoi(fam);
-
-	port = strrchr(addr, DNET_CONF_ADDR_DELIM);
-	if (!port)
-		goto err_out_print_wrong_param;
-	*port++ = 0;
-	if (!port)
-		goto err_out_print_wrong_param;
-
-	memset(cfg->addr, 0, sizeof(cfg->addr));
-	memset(cfg->port, 0, sizeof(cfg->port));
-
-	snprintf(cfg->addr, sizeof(cfg->addr), "%s", addr);
-	snprintf(cfg->port, sizeof(cfg->port), "%s", port);
-
-	return 0;
-
-err_out_print_wrong_param:
-	fprintf(stderr, "Wrong address parameter '%s', should be 'addr%cport%cfamily'.\n",
-				addr, DNET_CONF_ADDR_DELIM, DNET_CONF_ADDR_DELIM);
-	return -EINVAL;
-}
 
 int dnet_parse_groups(char *value, int **groupsp)
 {

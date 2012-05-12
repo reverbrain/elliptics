@@ -28,7 +28,6 @@
 #include <arpa/inet.h>
 
 #include <eblob/blob.h>
-#include <elliptics/srw/base.h>
 #include <elliptics/packet.h>
 
 #ifdef __cplusplus
@@ -946,6 +945,9 @@ struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr 
 struct dnet_range_data dnet_bulk_write(struct dnet_node *n, struct dnet_io_control *ctl, int ctl_num, int *errp);
 
 int dnet_flags(struct dnet_node *n);
+
+#define DNET_CONF_ADDR_DELIM	':'
+int dnet_parse_addr(char *addr, struct dnet_config *cfg);
 
 #ifdef __cplusplus
 }

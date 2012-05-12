@@ -32,7 +32,7 @@ static void worker_usage(char *arg)
 {
 	std::cerr << "Usage: " << arg << " <options>\n" <<
 		" -i init-file             - shared library path to load worker code from\n" <<
-		" -c config-file           - config file for appropriate worker type\n" <<
+		" -c config-file           - config file for worker\n" <<
 		" -l log-file              - log file for worker\n" <<
 		" -p pipe-base             - pipe base for worker: it will write to @pipe-base.w2c and read from @pipe-base.c2w\n" <<
 		" -h                       - this help\n";
@@ -41,7 +41,7 @@ static void worker_usage(char *arg)
 
 int main(int argc, char *argv[])
 {
-	int ch, type = -1;
+	int ch;
 	std::string log("/dev/stdout"), pipe("/tmp/test-pipe"), init, conf;
 
 	while ((ch = getopt(argc, argv, "c:i:l:p:h")) != -1) {

@@ -8,7 +8,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdint.h>
 
-#include <elliptics/srw/base.h>
+#include <elliptics/packet.h>
 
 struct srwc {
 	void		*handler;

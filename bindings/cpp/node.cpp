@@ -40,7 +40,8 @@
 #include <sstream>
 #include <vector>
 
-#include "elliptics/cppdef.h"
+#include <boost/algorithm/string.hpp>
+#include <elliptics/cppdef.h>
 
 using namespace zbr;
 
@@ -86,10 +87,108 @@ elliptics_node::elliptics_node(elliptics_log &l, struct dnet_config &cfg) : node
 	}
 }
 
+elliptics_node::elliptics_node(elliptics_log &l, const std::string &config_path) : node(NULL), log(NULL)
+{
+	struct dnet_config cfg;
+	memset(&cfg, 0, sizeof(struct dnet_config));
+
+	std::list<elliptics_addr_tuple> remotes;
+	std::vector<int> groups;
+
+	parse_config(config_path, cfg, remotes, groups);
+
+	cfg.sock_type = SOCK_STREAM;
+	cfg.proto = IPPROTO_TCP;
+
+	log = reinterpret_cast<elliptics_log *>(l.clone());
+	cfg.log = log->get_dnet_log();
+
+	node = dnet_node_create(&cfg);
+	if (!node) {
+		delete log;
+		throw std::bad_alloc();
+	}
+
+	add_groups(groups);
+	for (std::list<elliptics_addr_tuple>::iterator it = remotes.begin(); it != remotes.end(); ++it) {
+		add_remote(it->host.c_str(), it->port, it->family);
+	}
+}
+
 elliptics_node::~elliptics_node()
 {
 	dnet_node_destroy(node);
 	delete log;
+}
+
+void elliptics_node::parse_config(const std::string &path, struct dnet_config &cfg,
+		std::list<elliptics_addr_tuple> &remotes,
+		std::vector<int> &groups)
+{
+	std::ifstream in(path.c_str());
+	std::string line;
+
+	while (!in.eof() && in.good()) {
+		line.resize(1024);
+
+		in.getline((char *)line.data(), line.size());
+		size_t len = in.gcount();
+
+		line.resize(len);
+
+		if (in.eof() || !in.good())
+			break;
+
+		boost::trim(line);
+
+		std::vector<std::string> strs;
+		boost::split(strs, line, boost::is_any_of("="));
+
+		std::string key = strs[0];
+		boost::trim(key);
+
+		if (strs.size() != 3) {
+			std::ostringstream str;
+			str << path << ": invalid elliptics config: '" << key << "' string is broken";
+			throw std::runtime_error(str.str());
+		}
+		std::string value = strs[3];
+		boost::trim(value);
+
+		if (key == "remotes") {
+			std::vector<std::string> rem;
+			boost::split(rem, value, boost::is_any_of(" "));
+
+			for (std::vector<std::string>::iterator it = rem.begin(); it != rem.end(); ++it) {
+				std::string addr_str = *it;
+				if (dnet_parse_addr((char *)addr_str.c_str(), &cfg)) {
+					std::ostringstream str;
+					str << path << ": invalid elliptics config: '" << key << "' remote addr is invalid";
+					throw std::runtime_error(str.str());
+				}
+
+				elliptics_addr_tuple addr(cfg.addr, atoi(cfg.port), cfg.family);
+				remotes.push_back(addr);
+			}
+		}
+
+		if (key == "groups") {
+			std::vector<std::string> gr;
+			boost::split(gr, value, boost::is_any_of(":"));
+
+			for (std::vector<std::string>::iterator it = gr.begin(); it != gr.end(); ++it) {
+				int group = atoi(it->c_str());
+
+				if (group != 0)
+					groups.push_back(group);
+			}
+		}
+
+		if (key == "check_timeout")
+			cfg.check_timeout = strtoul(value.c_str(), NULL, 0);
+		if (key == "wait_timeout")
+			cfg.wait_timeout = strtoul(value.c_str(), NULL, 0);
+	}
 }
 
 void elliptics_node::add_groups(std::vector<int> &groups)
