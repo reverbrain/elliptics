@@ -19,7 +19,6 @@ struct event_handler_t {
 };
 
 typedef void (* shared_init_t)(class shared *sh);
-typedef boost::shared_ptr<event_handler_t> sevent_handler_t;
 
 class shared {
 	public:
@@ -40,9 +39,7 @@ class shared {
 			if (strs[0] == "new-task")
 				event = "new-task";
 
-			boost::lock_guard<boost::mutex> guard(m_handlers_lock);
-
-			std::map<std::string, sevent_handler_t>::iterator it = m_handlers.find(event);
+			std::map<std::string, event_handler_t *>::iterator it = m_handlers.find(event);
 
 			if (it == m_handlers.end()) {
 				std::ostringstream str;
@@ -55,7 +52,7 @@ class shared {
 				throw std::runtime_error(str.str());
 			}
 
-			m_log << "shared-process: " << event << ": key: " << header.key <<
+			m_log << getpid() << ": shared-process: " << event << ": key: " << header.key <<
 				", data-size: " << header.data_size <<
 				", binary-size: " << header.binary_size <<
 				std::endl;
@@ -63,10 +60,10 @@ class shared {
 			return it->second->handle(header, data);
 		}
 
-		void add_handler(const std::string &event, sevent_handler_t handler) {
+		void add_handler(const std::string &event, event_handler_t *handler) {
 			boost::lock_guard<boost::mutex> guard(m_handlers_lock);
 
-			std::pair<std::map<std::string, sevent_handler_t>::iterator, bool>
+			std::pair<std::map<std::string, event_handler_t *>::iterator, bool>
 				ret = m_handlers.insert(std::make_pair(event, handler));
 			if (ret.second == false) {
 				m_handlers.erase(ret.first);
@@ -89,7 +86,7 @@ class shared {
 		std::string m_log_file;
 		std::ofstream m_log;
 		boost::mutex m_handlers_lock;
-		std::map<std::string, sevent_handler_t> m_handlers;
+		std::map<std::string, event_handler_t *> m_handlers;
 
 		void load_from_file(const std::string &path) {
 			void *handle;

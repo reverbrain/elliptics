@@ -49,7 +49,7 @@ class worker {
 				}
 
 				m_log << getpid() << ": worker: processing completed: data-size: " << header.data_size <<
-					", status: " << header.status << ", data: " << ret_data << std::endl;
+					", status: " << header.status << std::endl;
 
 				m_p.write(header, ret_data);
 			}
