@@ -83,7 +83,7 @@ int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 
 	err = srwc_process(n->srw, &ctl, data);
 	if (err < 0) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: python processing failed: %s %d\n", dnet_dump_id(&cmd->id), strerror(-err), err);
+		dnet_log(n, DNET_LOG_ERROR, "%s: processing failed: %s %d\n", dnet_dump_id(&cmd->id), strerror(-err), err);
 		goto err_out_exit;
 	}
 

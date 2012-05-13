@@ -18,13 +18,14 @@ struct event_handler_t {
 	virtual std::string		handle(struct sph &, const std::string &) = 0;
 };
 
-typedef void (* shared_init_t)(class shared &sh);
+typedef void (* shared_init_t)(class shared *sh);
 typedef boost::shared_ptr<event_handler_t> sevent_handler_t;
 
 class shared {
 	public:
 		shared(const std::string &log, const std::string &init_path, const std::string &config_path) :
 		m_config(config_path),
+		m_log_file(log),
        		m_log(log.c_str(), std::ios::app) {
 			load_from_file(init_path);
 		}
@@ -33,23 +34,31 @@ class shared {
 			std::string event = get_event(header, data.data());
 			std::string ret;
 
+			std::vector<std::string> strs;
+			boost::split(strs, event, boost::is_any_of("/"));
+
+			if (strs[0] == "new-task")
+				event = "new-task";
+
 			boost::lock_guard<boost::mutex> guard(m_handlers_lock);
 
 			std::map<std::string, sevent_handler_t>::iterator it = m_handlers.find(event);
 
-			const char *have_handler = (it == m_handlers.end()) ? "true" : "false";
-			m_log << event << ": key: " << header.key <<
+			if (it == m_handlers.end()) {
+				std::ostringstream str;
+
+				str << getpid() << ": shared-process: " << event << ": key: " << header.key <<
 				", data-size: " << header.data_size <<
 				", binary-size: " << header.binary_size <<
-				", have-handler: " << have_handler <<
-				std::endl;
-
-			if (it == m_handlers.end()) {
+				": no handler";
 				header.status = -ENOENT;
-				header.event_size = header.data_size = header.binary_size = 0;
-				ret.assign((char *)&header, sizeof(struct sph));
-				return ret;
+				throw std::runtime_error(str.str());
 			}
+
+			m_log << "shared-process: " << event << ": key: " << header.key <<
+				", data-size: " << header.data_size <<
+				", binary-size: " << header.binary_size <<
+				std::endl;
 
 			return it->second->handle(header, data);
 		}
@@ -63,10 +72,21 @@ class shared {
 				m_handlers.erase(ret.first);
 				m_handlers.insert(std::make_pair(event, handler));
 			}
+
+			m_log << getpid() << ": " << event << ": added new handler" << std::endl;
+		}
+
+		const std::string &get_config(void) const {
+			return m_config;
+		}
+
+		const std::string &get_log(void) const {
+			return m_log_file;
 		}
 
 	private:
 		std::string m_config;
+		std::string m_log_file;
 		std::ofstream m_log;
 		boost::mutex m_handlers_lock;
 		std::map<std::string, sevent_handler_t> m_handlers;
@@ -92,7 +112,7 @@ class shared {
 				throw std::runtime_error(str.str());
 			}
 
-			init(*this);
+			init(this);
 			dlclose(handle);
 		}
 };

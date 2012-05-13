@@ -10,6 +10,7 @@
 #include <boost/shared_array.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/thread/condition.hpp>
+#include <boost/algorithm/string.hpp>
 
 #include <elliptics/packet.h>
 
@@ -21,6 +22,16 @@ static inline std::string get_event(const struct sph &header, const char *data) 
 	event.assign(data, header.event_size);
 
 	return event;
+}
+
+static inline std::string get_app(const struct sph &header, const char *data) {
+	std::string event;
+	event.assign(data, header.event_size);
+
+	std::vector<std::string> strs;
+	boost::split(strs, event, boost::is_any_of("/"));
+
+	return strs[0];
 }
 
 class pipe {
@@ -41,13 +52,14 @@ class pipe {
 			rpipe.read((char *)&header, sizeof(struct sph));
 
 			data.resize(hsize(header));
-			rpipe.read((char *)data.data(), hsize(header));
+			if (hsize(header))
+				rpipe.read((char *)data.data(), hsize(header));
 		}
 
 		void write(struct sph &header, const char *data) {
 			wpipe.write((char *)&header, sizeof(struct sph));
 
-			if (header.data_size && data)
+			if (hsize(header) && data)
 				wpipe.write(data, hsize(header));
 
 			wpipe.flush();

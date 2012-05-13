@@ -86,20 +86,25 @@ class pool {
 			if (strs.size() != 2) {
 				std::ostringstream str;
 				str << event << ": event must be '$app/$event' or 'new-task/$name'";
+				m_log << str.str() << std::endl;
 				header.status = -EINVAL;
 				throw std::runtime_error(str.str());
 			}
 
+			std::string app = strs[0];
+
 			if (strs[0] == "new-task") {
 				new_task(header, data, strs[1]);
+				app = strs[1];
 			}
 
 			boost::mutex::scoped_lock guard(m_apps_lock);
-			std::map<std::string, std::vector<int> >::iterator it = m_apps.find(strs[0]);
+			std::map<std::string, std::vector<int> >::iterator it = m_apps.find(app);
 
 			if (it == m_apps.end()) {
 				std::ostringstream str;
 				str << event << ": could not find handler";
+				m_log << str.str() << std::endl;
 				header.status = -ENOENT;
 				throw std::runtime_error(str.str());
 			}
@@ -114,11 +119,17 @@ class pool {
 			if (header.num == 0)
 				header.num = 1;
 
+			/*
+			 * -1 means broadcast to all workers
+			 */
+			header.key = -1;
+
 			boost::mutex::scoped_lock guard(m_workers_lock);
 			if ((int)m_workers_idle.size() < header.num) {
 				std::ostringstream str;
 				str << get_event(header, data) << ": can not get " << header.num << " idle workers, have only " <<
 					m_workers_idle.size();
+				m_log << str.str() << std::endl;
 				header.status = -ENOENT;
 				throw std::runtime_error(str.str());
 			}
@@ -165,20 +176,24 @@ class pool {
 				std::map<int, shared_proc_t>::iterator it = m_workers.find(pid);
 				if (it == m_workers.end()) {
 					std::ostringstream str;
-					str << get_event(header, data) << ": worker with pid (" << pid << ") is dead";
+					m_log << pid << ": " << get_event(header, data) << ": worker is dead";
+					m_log << str.str() << std::endl;
 					header.status = -ENOENT;
 					throw std::runtime_error(str.str());
 				}
 
 				guard.unlock();
 
-				m_log << get_event(header, data) << ": pid: " << pid <<
-					", key: " << header.key <<
-					", data-size: " << header.data_size <<
-					", binary-size: " << header.binary_size << std::endl;
-
 				try {
 					ret = it->second->process(header, data);
+
+					m_log << getpid() << ": worker_process: " << get_event(header, data) << ": pid: " << pid <<
+						", key: " << header.key <<
+						", data-size: " << header.data_size <<
+						", binary-size: " << header.binary_size <<
+						", reply-size: " << ret.size() <<
+						std::endl;
+
 					if (header.key == -1) {
 						pids.erase(pids.begin());
 						continue;
@@ -186,7 +201,7 @@ class pool {
 
 					break;
 				} catch (const std::exception &e) {
-					m_log << get_event(header, data) << ": worker with pid (" << pid << ") threw exception: " <<
+					m_log << pid << ": " << get_event(header, data) << ": exception: " <<
 						e.what() << std::endl;
 
 					pids.erase(pids.begin() + pid_pos);

@@ -53,6 +53,6 @@ AC_CONFIG_FILES([Makefile include/Makefile include/elliptics/Makefile
 		 doc/Makefile debian/Makefile
 		 bindings/Makefile bindings/cpp/Makefile
 		 bindings/python/Makefile
-		 srw/Makefile srw/src/Makefile include/elliptics/srw/Makefile])
+		 srw/Makefile srw/src/Makefile])
 
 AC_OUTPUT

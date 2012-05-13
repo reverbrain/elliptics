@@ -341,6 +341,10 @@ int main(int argc, char *argv[])
 		if (!e)
 			return -ENOMEM;
 
+		memset(e, 0, sizeof(struct sph));
+
+		e->key = -1;
+		e->num = 2;
 		e->binary_size = 0;
 		e->data_size = 0;
 		e->event_size = event_size;
