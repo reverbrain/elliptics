@@ -45,7 +45,7 @@ class worker {
 					m_log << getpid() << ": worker: exception: " << e.what() << std::endl;
 					if (header.status == 0)
 						header.status = -EINVAL;
-					header.data_size = header.binary_size = 0;
+					header.data_size = header.event_size = header.binary_size = 0;
 				}
 
 				m_log << getpid() << ": worker: processing completed: data-size: " << header.data_size <<

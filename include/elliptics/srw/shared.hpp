@@ -26,7 +26,7 @@ class shared {
 		m_config(config_path),
 		m_log_file(log),
        		m_log(log.c_str(), std::ios::app) {
-			load_from_file(init_path);
+			load(init_path);
 		}
 
 		std::string process_data(struct sph &header, const std::string &data) {
@@ -81,14 +81,7 @@ class shared {
 			return m_log_file;
 		}
 
-	private:
-		std::string m_config;
-		std::string m_log_file;
-		std::ofstream m_log;
-		boost::mutex m_handlers_lock;
-		std::map<std::string, event_handler_t *> m_handlers;
-
-		void load_from_file(const std::string &path) {
+		void load(const std::string &path) {
 			void *handle;
 			char *error;
 
@@ -112,6 +105,13 @@ class shared {
 			init(this);
 			dlclose(handle);
 		}
+
+	private:
+		std::string m_config;
+		std::string m_log_file;
+		std::ofstream m_log;
+		boost::mutex m_handlers_lock;
+		std::map<std::string, event_handler_t *> m_handlers;
 };
 
 }}

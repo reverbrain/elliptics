@@ -111,7 +111,11 @@ elliptics_node::elliptics_node(elliptics_log &l, const std::string &config_path)
 
 	add_groups(groups);
 	for (std::list<elliptics_addr_tuple>::iterator it = remotes.begin(); it != remotes.end(); ++it) {
-		add_remote(it->host.c_str(), it->port, it->family);
+		try {
+			add_remote(it->host.c_str(), it->port, it->family);
+		} catch (...) {
+			continue;
+		}
 	}
 }
 
@@ -147,15 +151,15 @@ void elliptics_node::parse_config(const std::string &path, struct dnet_config &c
 		std::string key = strs[0];
 		boost::trim(key);
 
-		if (strs.size() != 3) {
+		if (strs.size() != 2) {
 			std::ostringstream str;
-			str << path << ": invalid elliptics config: '" << key << "' string is broken";
+			str << path << ": invalid elliptics config: '" << key << "' string is broken: size: " << strs.size();
 			throw std::runtime_error(str.str());
 		}
-		std::string value = strs[3];
+		std::string value = strs[1];
 		boost::trim(value);
 
-		if (key == "remotes") {
+		if (key == "remote") {
 			std::vector<std::string> rem;
 			boost::split(rem, value, boost::is_any_of(" "));
 
