@@ -131,6 +131,7 @@ void elliptics_node::parse_config(const std::string &path, struct dnet_config &c
 {
 	std::ifstream in(path.c_str());
 	std::string line;
+	int line_num = 0;
 
 	while (!in.eof() && in.good()) {
 		line.resize(1024);
@@ -144,6 +145,10 @@ void elliptics_node::parse_config(const std::string &path, struct dnet_config &c
 			break;
 
 		boost::trim(line);
+		line_num++;
+
+		if (line.size() < 3 || line.data()[0] == '#')
+			continue;
 
 		std::vector<std::string> strs;
 		boost::split(strs, line, boost::is_any_of("="));
@@ -153,7 +158,8 @@ void elliptics_node::parse_config(const std::string &path, struct dnet_config &c
 
 		if (strs.size() != 2) {
 			std::ostringstream str;
-			str << path << ": invalid elliptics config: '" << key << "' string is broken: size: " << strs.size();
+			str << path << ": invalid elliptics config: line: " << line_num <<
+				", key: " << key << "': string is broken: size: " << strs.size();
 			throw std::runtime_error(str.str());
 		}
 		std::string value = strs[1];
@@ -167,7 +173,9 @@ void elliptics_node::parse_config(const std::string &path, struct dnet_config &c
 				std::string addr_str = *it;
 				if (dnet_parse_addr((char *)addr_str.c_str(), &cfg)) {
 					std::ostringstream str;
-					str << path << ": invalid elliptics config: '" << key << "' remote addr is invalid";
+					str << path << ": invalid elliptics config: '" << key << "' ";
+					str << path << ": invalid elliptics config: line: " << line_num <<
+						", key: '" << key << "': remote addr is invalid";
 					throw std::runtime_error(str.str());
 				}
 
