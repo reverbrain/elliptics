@@ -152,8 +152,15 @@ class pool {
 			while (pids.size()) {
 				boost::mutex::scoped_lock guard(m_workers_lock);
 
-				int pid_pos = header.key % pids.size();
-				int pid = pids[pid_pos];
+				int pid_pos, pid;
+
+				if (header.key == -1) {
+					pid_pos = 0;
+					pid = pids[0];
+				} else {
+					pid_pos = header.key % pids.size();
+					pid = pids[pid_pos];
+				}
 
 				std::map<int, shared_proc_t>::iterator it = m_workers.find(pid);
 				if (it == m_workers.end()) {
@@ -166,11 +173,17 @@ class pool {
 				guard.unlock();
 
 				m_log << get_event(header, data) << ": pid: " << pid <<
+					", key: " << header.key <<
 					", data-size: " << header.data_size <<
 					", binary-size: " << header.binary_size << std::endl;
 
 				try {
 					ret = it->second->process(header, data);
+					if (header.key == -1) {
+						pids.erase(pids.begin());
+						continue;
+					}
+
 					break;
 				} catch (const std::exception &e) {
 					m_log << get_event(header, data) << ": worker with pid (" << pid << ") threw exception: " <<
