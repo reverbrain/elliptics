@@ -12,7 +12,7 @@
 #include <boost/thread/condition.hpp>
 #include <boost/algorithm/string.hpp>
 
-#include <elliptics/packet.h>
+#include <elliptics/srw/base.h>
 
 namespace ioremap {
 namespace srw {

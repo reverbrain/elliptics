@@ -152,32 +152,6 @@ struct dnet_cmd
 	uint8_t			data[0];
 } __attribute__ ((packed));
 
-/* kernel (pohmelfs) provides own defines for byteorder changes */
-#ifndef __KERNEL__
-#ifdef WORDS_BIGENDIAN
-
-#define dnet_bswap16(x)		((((x) >> 8) & 0xff) | (((x) & 0xff) << 8))
-
-#define dnet_bswap32(x) \
-     ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >>  8) |		      \
-      (((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24))
-
-#define dnet_bswap64(x) \
-     ((((x) & 0xff00000000000000ull) >> 56)				      \
-      | (((x) & 0x00ff000000000000ull) >> 40)				      \
-      | (((x) & 0x0000ff0000000000ull) >> 24)				      \
-      | (((x) & 0x000000ff00000000ull) >> 8)				      \
-      | (((x) & 0x00000000ff000000ull) << 8)				      \
-      | (((x) & 0x0000000000ff0000ull) << 24)				      \
-      | (((x) & 0x000000000000ff00ull) << 40)				      \
-      | (((x) & 0x00000000000000ffull) << 56))
-#else
-#define dnet_bswap16(x) (x)
-#define dnet_bswap32(x) (x)
-#define dnet_bswap64(x) (x)
-#endif
-#endif
-
 static inline void dnet_convert_id(struct dnet_id *id)
 {
 	id->group_id = dnet_bswap32(id->group_id);
@@ -716,38 +690,6 @@ static inline void dnet_convert_meta_checksum(struct dnet_meta_checksum *c)
 {
 	dnet_convert_time(&c->tm);
 }
-
-struct sph {
-	uint64_t		data_size;		/* size of text data in @data - located after even string */
-	uint64_t		binary_size;		/* size of binary data in @data - located after text data */
-	uint64_t		flags;
-	int			event_size;		/* size of the event string - it is located first in @data */
-	int			status;			/* processing status - negative errno code or zero on success */
-	int			key;			/* meta-key - used to map header to particular worker, see pool::worker_process() */
-	int			num;			/* used in 'new-task' event - common for all handlers - @num specifies number of workers for new app */
-	char			data[0];
-} __attribute__ ((packed));
-
-static inline void dnet_convert_sph(struct sph *e)
-{
-	e->data_size = dnet_bswap64(e->data_size);
-	e->binary_size = dnet_bswap64(e->binary_size);
-	e->flags = dnet_bswap64(e->flags);
-	e->event_size = dnet_bswap32(e->event_size);
-	e->status = dnet_bswap32(e->status);
-	e->key = dnet_bswap32(e->key);
-}
-
-struct srw_init_ctl {
-	char			*binary;		/* path to srw_worker binary - it is used to spawn script workers */
-	char			*log;			/* srw log path - initialized to the same config string as for 'log' by default */
-	char			*pipe;			/* pipe base - elliptics will talk to workers via @pipe.c2w and @pipe.w2c */
-	char			*init;			/* path to initialization object */
-	char			*config;		/* path to config object */
-	void			*priv;			/* opaque private data */
-	int			pad;			/* srw worker type */
-	int			num;			/* number of workers */
-} __attribute__ ((packed));
 
 #ifdef __cplusplus
 }

@@ -29,6 +29,7 @@
 
 #include <eblob/blob.h>
 #include <elliptics/packet.h>
+#include <elliptics/srw/base.h>
 
 #ifdef __cplusplus
 extern "C" {
