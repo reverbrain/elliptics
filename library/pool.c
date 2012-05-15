@@ -31,11 +31,23 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	struct dnet_io *io = n->io;
 	struct dnet_cmd *cmd = r->header;
 	int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
-	struct dnet_attr *attr = r->header + sizeof(struct dnet_cmd);
 
-	dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d\n",
-		dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(attr->cmd),
-		(unsigned long long)cmd->size, nonblocking);
+	if (cmd->size >= sizeof(struct dnet_attr)) {
+		struct dnet_attr *attr = r->header + sizeof(struct dnet_cmd);
+		dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d\n",
+			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(attr->cmd),
+			(unsigned long long)cmd->size, nonblocking);
+	} else if ((cmd->size == 0) && !(cmd->flags & DNET_FLAGS_MORE) && (cmd->trans & DNET_TRANS_REPLY)) {
+		dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: RECV ACK: nonblocking: %d\n",
+			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), nonblocking);
+	} else {
+		unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
+		int reply = !!(cmd->trans & DNET_TRANS_REPLY);
+
+		dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: RECV: nonblocking: %d, cmd-size: %llu, cmd-flags: %x, cmd-trans: %lld, reply: %d\n",
+			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), nonblocking,
+			(unsigned long long)cmd->size, cmd->flags, tid, reply);
+	}
 
 	pthread_mutex_lock(&io->recv_lock);
 
