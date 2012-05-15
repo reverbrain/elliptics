@@ -85,7 +85,7 @@ class shared {
 			void *handle;
 			char *error;
 
-			handle = dlopen(path.c_str(), RTLD_NOW);
+			handle = dlopen(path.c_str(), RTLD_NOW | RTLD_NODELETE);
 			if (!handle) {
 				std::ostringstream str;
 				str << "Could not open shared library " << path << ": " << dlerror();

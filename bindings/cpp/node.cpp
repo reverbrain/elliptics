@@ -1120,11 +1120,53 @@ std::string elliptics_node::exec(struct dnet_id *id, const std::string &event, c
 	if (err < 0) {
 		std::ostringstream str;
 
-		str << (id ? dnet_dump_id(id) : "no-id-given") << ": failed to exec: " <<
-			"event: " << event <<
-			"data-size: " << data.size() <<
-			"binary-size: " << binary.size() <<
-			": " << strerror(-err) << " " << err;
+		str << (id ? dnet_dump_id(id) : "no-id-given") << ": failed to exec: event: " << event <<
+			", data-size: " << data.size() <<
+			", binary-size: " << binary.size() <<
+			": " << strerror(-err) << ": " << err;
+		throw std::runtime_error(str.str());
+	}
+
+	if (ret && err) {
+		try {
+			ret_str.assign((char *)ret, err);
+		} catch (...) {
+			free(ret);
+			throw;
+		}
+		free(ret);
+	}
+
+	return ret_str;
+}
+
+std::string elliptics_node::push(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
+{
+	std::vector<char> vec(event.size() + data.size() + binary.size() + sizeof(struct sph));
+	std::string ret_str;
+
+	struct sph *e = (struct sph *)&vec[0];
+	void *ret = NULL;
+	int err;
+
+	memset(e, 0, sizeof(struct sph));
+
+	e->data_size = data.size();
+	e->binary_size = binary.size();
+	e->event_size = event.size();
+
+	memcpy(e->data, event.data(), event.size());
+	memcpy(e->data + event.size(), data.data(), data.size());
+	memcpy(e->data + event.size() + data.size(), binary.data(), binary.size());
+
+	err = dnet_send_cmd_nolock(node, id, e, &ret);
+	if (err < 0) {
+		std::ostringstream str;
+
+		str << (id ? dnet_dump_id(id) : "no-id-given") << ": failed to push: event: " << event <<
+			", data-size: " << data.size() <<
+			", binary-size: " << binary.size() <<
+			": " << strerror(-err) << ": " << err;
 		throw std::runtime_error(str.str());
 	}
 

@@ -65,7 +65,7 @@ class pool {
 			}
 		}
 
-		std::string process(struct sph &header, const char *data) {
+		std::string process(const struct sph &header, const char *data) {
 			return select_worker(header, data);
 		}
 
@@ -77,7 +77,7 @@ class pool {
 		std::map<int, shared_proc_t> m_workers_idle, m_workers;
 		std::map<std::string, std::vector<int> > m_apps;
 
-		std::string select_worker(struct sph &header, const char *data) {
+		std::string select_worker(const struct sph &header, const char *data) {
 			std::string event = get_event(header, data);
 
 			std::vector<std::string> strs;
@@ -87,7 +87,6 @@ class pool {
 				std::ostringstream str;
 				str << event << ": event must be '$app/$event' or 'new-task/$name'";
 				m_log << str.str() << std::endl;
-				header.status = -EINVAL;
 				throw std::runtime_error(str.str());
 			}
 
@@ -105,7 +104,6 @@ class pool {
 				std::ostringstream str;
 				str << event << ": could not find handler";
 				m_log << str.str() << std::endl;
-				header.status = -ENOENT;
 				throw std::runtime_error(str.str());
 			}
 
@@ -115,22 +113,13 @@ class pool {
 			return worker_process(pids, header, data);
 		}
 
-		void new_task(struct sph &header, const char *data, const std::string &name) {
-			if (header.num == 0)
-				header.num = 1;
-
-			/*
-			 * -1 means broadcast to all workers
-			 */
-			header.key = -1;
-
+		void new_task(const struct sph &header, const char *data, const std::string &name) {
 			boost::mutex::scoped_lock guard(m_workers_lock);
 			if ((int)m_workers_idle.size() < header.num) {
 				std::ostringstream str;
 				str << get_event(header, data) << ": can not get " << header.num << " idle workers, have only " <<
 					m_workers_idle.size();
 				m_log << str.str() << std::endl;
-				header.status = -ENOENT;
 				throw std::runtime_error(str.str());
 			}
 
@@ -158,7 +147,7 @@ class pool {
 			m_log << std::endl;
 		}
 
-		std::string worker_process(std::vector<int> &pids, struct sph &header, const char *data) {
+		std::string worker_process(std::vector<int> &pids, const struct sph &header, const char *data) {
 			std::string ret;
 			while (pids.size()) {
 				boost::mutex::scoped_lock guard(m_workers_lock);
@@ -178,7 +167,6 @@ class pool {
 					std::ostringstream str;
 					m_log << pid << ": " << get_event(header, data) << ": worker is dead";
 					m_log << str.str() << std::endl;
-					header.status = -ENOENT;
 					throw std::runtime_error(str.str());
 				}
 
@@ -189,6 +177,7 @@ class pool {
 
 					m_log << getpid() << ": worker_process: " << get_event(header, data) << ": pid: " << pid <<
 						", key: " << header.key <<
+						", event-size: " << header.event_size <<
 						", data-size: " << header.data_size <<
 						", binary-size: " << header.binary_size <<
 						", reply-size: " << ret.size() <<
@@ -214,7 +203,7 @@ class pool {
 			return ret;
 		}
 
-		void register_worker(const std::string &event, std::vector<int> pids) {
+		void register_worker(const std::string &event, const std::vector<int> pids) {
 			boost::mutex::scoped_lock guard(m_apps_lock);
 
 			std::pair<std::map<std::string, std::vector<int> >::iterator, bool> ret = m_apps.insert(std::make_pair(event, pids));

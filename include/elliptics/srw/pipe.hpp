@@ -56,7 +56,7 @@ class pipe {
 				rpipe.read((char *)data.data(), hsize(header));
 		}
 
-		void write(struct sph &header, const char *data) {
+		void write(const struct sph &header, const char *data) {
 			wpipe.write((char *)&header, sizeof(struct sph));
 
 			if (hsize(header) && data)
@@ -69,7 +69,7 @@ class pipe {
 		std::string base;
 		std::fstream rpipe, wpipe;
 
-		size_t hsize(struct sph &header) {
+		size_t hsize(const struct sph &header) const {
 			return header.data_size + header.binary_size + header.event_size;
 		}
 

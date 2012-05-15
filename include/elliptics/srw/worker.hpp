@@ -30,12 +30,16 @@ class worker {
 				try {
 					m_p.read(header, data);
 
-					m_log << getpid() << ": worker: processing started: data-size: " << header.data_size <<
+					m_log << getpid() << ": worker: processing started: " <<
+						"event-size: " << header.event_size <<
+						", data-size: " << header.data_size <<
 						", binary-size: " << header.binary_size <<
 						", status: " << header.status << std::endl;
 
 					ret = m_s.process_data(header, data);
+
 					header.data_size = ret.size();
+					header.event_size = 0;
 					header.binary_size = 0;
 					header.status = 0;
 
@@ -124,12 +128,15 @@ class spawn {
 			wait(NULL);
 		}
 
-		std::string process(struct sph &header, const char *data) {
+		std::string process(const struct sph &header, const char *data) {
 			boost::lock_guard<boost::mutex> guard(m_lock);
+
+			struct sph rep;
+			memset(&rep, 0, sizeof(struct sph));
 
 			m_p->write(header, data);
 			std::string ret;
-			m_p->read(header, ret);
+			m_p->read(rep, ret);
 
 			return ret;
 		}

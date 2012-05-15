@@ -194,7 +194,11 @@ class elliptics_node {
 
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
+		/* locked execution */
 		std::string		exec(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary);
+
+		/* unlocked execution */
+		std::string		push(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary);
 
 		std::vector<std::string>	bulk_read(std::vector<struct dnet_io_attr> &ios, int group_id, uint32_t aflags = 0);
 		std::vector<std::string>	bulk_read(std::vector<std::string> &keys, int group_id, uint32_t aflags= 0);
