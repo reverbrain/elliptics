@@ -92,16 +92,16 @@ elliptics_node::elliptics_node(elliptics_log &l, const std::string &config_path)
 	struct dnet_config cfg;
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
-	std::list<elliptics_addr_tuple> remotes;
-	std::vector<int> groups;
-
-	parse_config(config_path, cfg, remotes, groups);
-
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 
 	log = reinterpret_cast<elliptics_log *>(l.clone());
 	cfg.log = log->get_dnet_log();
+
+	std::list<elliptics_addr_tuple> remotes;
+	std::vector<int> groups;
+
+	parse_config(config_path, cfg, remotes, groups, cfg.log->log_mask);
 
 	node = dnet_node_create(&cfg);
 	if (!node) {
@@ -127,7 +127,8 @@ elliptics_node::~elliptics_node()
 
 void elliptics_node::parse_config(const std::string &path, struct dnet_config &cfg,
 		std::list<elliptics_addr_tuple> &remotes,
-		std::vector<int> &groups)
+		std::vector<int> &groups,
+		int log_mask)
 {
 	std::ifstream in(path.c_str());
 	std::string line;
@@ -200,6 +201,8 @@ void elliptics_node::parse_config(const std::string &path, struct dnet_config &c
 			cfg.check_timeout = strtoul(value.c_str(), NULL, 0);
 		if (key == "wait_timeout")
 			cfg.wait_timeout = strtoul(value.c_str(), NULL, 0);
+		if (key == "log_mask")
+			log_mask = strtoul(value.c_str(), NULL, 0);
 	}
 }
 

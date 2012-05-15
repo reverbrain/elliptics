@@ -116,7 +116,8 @@ class elliptics_node {
 
 		void			parse_config(const std::string &path, struct dnet_config &cfg,
 						std::list<elliptics_addr_tuple> &remotes,
-						std::vector<int> &groups);
+						std::vector<int> &groups,
+						int log_mask);
 
 		void			transform(const std::string &data, struct dnet_id &id);
 
