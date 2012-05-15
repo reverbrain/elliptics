@@ -1167,8 +1167,10 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 		int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
 		struct dnet_attr *attr = r->header + sizeof(struct dnet_cmd);
 
-		dnet_log(st->n, DNET_LOG_DSA, "%s: %s: SENT nonblocking cmd: %s: cmd-size: %llu, nonblocking: %d\n",
-			dnet_state_dump_addr(st), dnet_dump_id(r->header), dnet_cmd_string(attr->cmd),
+		dnet_log(st->n, DNET_LOG_DSA, "%s: %s: SENT %s cmd: %s: cmd-size: %llu, nonblocking: %d\n",
+			dnet_state_dump_addr(st), dnet_dump_id(r->header),
+			nonblocking ? "nonblocking" : "blocking",
+			dnet_cmd_string(attr->cmd),
 			(unsigned long long)cmd->size, nonblocking);
 	}
 
