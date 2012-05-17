@@ -101,7 +101,7 @@ class python {
 				}
 
 #if (PY_VERSION_HEX < 0x02060000)
-				bin = PyBuffer_FromMemory(binary, header.binary_size);
+				bin = PyBuffer_FromMemory((void *)binary, header.binary_size);
 #else
 				bin = PyByteArray_FromStringAndSize(binary, header.binary_size);
 #endif

@@ -4,6 +4,7 @@
 #include <dlfcn.h>
 
 #include <fstream>
+#include <map>
 #include <string>
 
 #include <elliptics/cppdef.h>
