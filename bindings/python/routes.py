@@ -20,7 +20,8 @@ def main():
 	group = 1
 
 	n.add_groups([group])
-	remotes = [("squire", 1001), ("squire", 1010), ("squire", 1015)]
+	#remotes = [("squire", 1001), ("squire", 1010), ("squire", 1015)]
+	remotes = [("localhost", 1025), ]
 	for r in remotes:
 		try:
 			n.add_remote(r[0], r[1])

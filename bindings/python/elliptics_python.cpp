@@ -201,20 +201,20 @@ class elliptics_log_file_wrap : public log_file, public wrapper<log_file> {
 
 		void log(const uint32_t mask, const char *msg) {
 			if (override log = this->get_override("log")) {
-				log(mask, msg);
+				log_file::log(mask, msg);
 				return;
 			}
 
-			log(mask, msg);
+			log_file::log(mask, msg);
 		}
 
 		void default_log(uint32_t mask, const char *msg) { this->log(mask, msg); }
 
 		unsigned long clone(void) {
 			if (override clone = this->get_override("clone"))
-				return clone();
+				return log_file::clone();
 
-			return clone();
+			return log_file::clone();
 		}
 
 		unsigned long default_clone(void) { return this->clone(); }
