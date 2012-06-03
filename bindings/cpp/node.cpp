@@ -128,7 +128,7 @@ elliptics_node::~elliptics_node()
 void elliptics_node::parse_config(const std::string &path, struct dnet_config &cfg,
 		std::list<elliptics_addr_tuple> &remotes,
 		std::vector<int> &groups,
-		int log_mask)
+		uint32_t &log_mask)
 {
 	std::ifstream in(path.c_str());
 	std::string line;
@@ -261,9 +261,9 @@ void elliptics_node::read_file(const std::string &remote, const std::string &fil
 }
 
 void elliptics_node::write_file(struct dnet_id &id, const std::string &file, uint64_t local_offset,
-		uint64_t offset, uint64_t size, unsigned int aflags, unsigned int ioflags)
+		uint64_t offset, uint64_t size, uint64_t cflags, unsigned int ioflags)
 {
-	int err = dnet_write_file_id(node, file.c_str(), &id, local_offset, offset, size, aflags, ioflags);
+	int err = dnet_write_file_id(node, file.c_str(), &id, local_offset, offset, size, cflags, ioflags);
 	if (err) {
 		std::ostringstream str;
 		str << dnet_dump_id(&id) << ": WRITE: " << file << ", local_offset: " << local_offset <<
@@ -272,10 +272,10 @@ void elliptics_node::write_file(struct dnet_id &id, const std::string &file, uin
 	}
 }
 void elliptics_node::write_file(const std::string &remote, const std::string &file, uint64_t local_offset, uint64_t offset, uint64_t size,
-		unsigned int aflags, unsigned int ioflags, int type)
+		uint64_t cflags, unsigned int ioflags, int type)
 {
 	int err = dnet_write_file(node, file.c_str(), remote.data(), remote.size(),
-			local_offset, offset, size, aflags, ioflags, type);
+			local_offset, offset, size, cflags, ioflags, type);
 	if (err) {
 		struct dnet_id id;
 		transform(remote, id);
@@ -289,7 +289,7 @@ void elliptics_node::write_file(const std::string &remote, const std::string &fi
 }
 
 std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t offset, uint64_t size,
-		uint32_t aflags, uint32_t ioflags)
+		uint64_t cflags, uint32_t ioflags)
 {
 	struct dnet_io_attr io;
 	int err;
@@ -303,7 +303,7 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t offset, 
 	memcpy(io.id, id.id, DNET_ID_SIZE);
 	memcpy(io.parent, id.id, DNET_ID_SIZE);
 
-	void *data = dnet_read_data_wait(node, &id, &io, aflags, &err);
+	void *data = dnet_read_data_wait(node, &id, &io, cflags, &err);
 	if (!data) {
 		std::ostringstream str;
 		str << dnet_dump_id(&id) << ": READ: size: " << size << ": err: " << strerror(-err) << ": " << err;
@@ -317,17 +317,17 @@ std::string elliptics_node::read_data_wait(struct dnet_id &id, uint64_t offset, 
 }
 
 std::string elliptics_node::read_data_wait(const std::string &remote, uint64_t offset, uint64_t size,
-		uint32_t aflags, uint32_t ioflags, int type)
+		uint64_t cflags, uint32_t ioflags, int type)
 {
 	struct dnet_id id;
 
 	transform(remote, id);
 	id.type = type;
 
-	return read_data_wait(id, offset, size, aflags, ioflags);
+	return read_data_wait(id, offset, size, cflags, ioflags);
 }
 
-void elliptics_node::prepare_latest(struct dnet_id &id, uint32_t aflags, std::vector<int> &groups)
+void elliptics_node::prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<int> &groups)
 {
 	struct dnet_read_latest_prepare pr;
 	int err;
@@ -336,7 +336,7 @@ void elliptics_node::prepare_latest(struct dnet_id &id, uint32_t aflags, std::ve
 
 	pr.n = node;
 	pr.id = id;
-	pr.aflags = aflags;
+	pr.cflags = cflags;
 
 	pr.group = (int *)malloc(groups.size() * sizeof(int));
 	if (!pr.group) {
@@ -377,7 +377,7 @@ void elliptics_node::prepare_latest(struct dnet_id &id, uint32_t aflags, std::ve
 }
 
 std::string elliptics_node::read_latest(struct dnet_id &id, uint64_t offset, uint64_t size,
-		uint32_t aflags, uint32_t ioflags)
+		uint64_t cflags, uint32_t ioflags)
 {
 	struct dnet_io_attr io;
 	void *data;
@@ -393,7 +393,7 @@ std::string elliptics_node::read_latest(struct dnet_id &id, uint64_t offset, uin
 	memcpy(io.id, id.id, DNET_ID_SIZE);
 	memcpy(io.parent, id.id, DNET_ID_SIZE);
 
-	err = dnet_read_latest(node, &id, &io, aflags, &data);
+	err = dnet_read_latest(node, &id, &io, cflags, &data);
 	if (err < 0) {
 		std::ostringstream str;
 		str << dnet_dump_id(&id) << ": READ: size: " << size << ": err: " << strerror(-err) << ": " << err;
@@ -407,24 +407,24 @@ std::string elliptics_node::read_latest(struct dnet_id &id, uint64_t offset, uin
 }
 
 std::string elliptics_node::read_latest(const std::string &remote, uint64_t offset, uint64_t size,
-		uint32_t aflags, uint32_t ioflags, int type)
+		uint64_t cflags, uint32_t ioflags, int type)
 {
 	struct dnet_id id;
 
 	transform(remote, id);
 	id.type = type;
 
-	return read_latest(id, offset, size, aflags, ioflags);
+	return read_latest(id, offset, size, cflags, ioflags);
 }
 
 std::string elliptics_node::write_data_wait(struct dnet_id &id, const std::string &str,
-		uint64_t remote_offset, unsigned int aflags, unsigned int ioflags)
+		uint64_t remote_offset, uint64_t cflags, unsigned int ioflags)
 {
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.aflags = aflags;
+	ctl.cflags = cflags;
 	ctl.data = str.data();
 
 	ctl.io.flags = ioflags;
@@ -437,21 +437,22 @@ std::string elliptics_node::write_data_wait(struct dnet_id &id, const std::strin
 
 	ctl.fd = -1;
 
-	int err = dnet_write_data_wait(node, &ctl);
+	char *result = NULL;
+	int err = dnet_write_data_wait(node, &ctl, (void **)&result);
 	if (err < 0) {
 		std::ostringstream string;
 		string << dnet_dump_id(&id) << ": WRITE: size: " << str.size() << ", err: " << err;
 		throw std::runtime_error(string.str());
 	}
 
-	std::string ret((const char *)ctl.adata, ctl.asize);
-	free(ctl.adata);
+	std::string ret((const char *)result, err);
+	free(result);
 
 	return ret;
 }
 
 std::string elliptics_node::write_data_wait(const std::string &remote, const std::string &str,
-		uint64_t remote_offset, unsigned int aflags, unsigned int ioflags, int type)
+		uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type)
 {
 	struct dnet_id id;
 
@@ -459,7 +460,7 @@ std::string elliptics_node::write_data_wait(const std::string &remote, const std
 	id.type = type;
 	id.group_id = 0;
 
-	return write_data_wait(id, str, remote_offset, aflags, ioflags);
+	return write_data_wait(id, str, remote_offset, cflags, ioflags);
 }
 
 std::string elliptics_node::lookup_addr(const std::string &remote, const int group_id)
@@ -530,7 +531,7 @@ std::string elliptics_node::create_metadata(const struct dnet_id &id, const std:
 }
 
 int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &obj,
-		const std::vector<int> &groups, const struct timespec &ts, int aflags)
+		const std::vector<int> &groups, const struct timespec &ts, uint64_t cflags)
 {
 	int err;
 	std::string meta;
@@ -546,7 +547,7 @@ int elliptics_node::write_metadata(const struct dnet_id &id, const std::string &
 
 	mc.id = id;
 
-	err = dnet_write_metadata(node, &mc, 1, aflags);
+	err = dnet_write_metadata(node, &mc, 1, cflags);
 	if (err) {
 		std::ostringstream str;
 		str << "Failed to write metadata: key: " << dnet_dump_id(&id) << ", err: " << err;
@@ -629,19 +630,19 @@ std::string elliptics_node::lookup(const std::string &data)
 			lookup(id, l);
 			ret = l.wait();
 
-			if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)) {
+			if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd)) {
 				std::stringstream str;
 
 				str << dnet_dump_id(&id) << ": failed to receive lookup request";
 				throw std::runtime_error(str.str());
 			}
+			/* reply parsing examaple */
 #if 0
 			struct dnet_addr *addr = (struct dnet_addr *)ret.data();
 			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
 
-			if (attr->size > sizeof(struct dnet_addr_attr)) {
-				struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+			if (cmd->size > sizeof(struct dnet_addr_attr)) {
+				struct dnet_addr_attr *a = (struct dnet_addr_attr *)(cmd + 1);
 				struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
 
 				dnet_convert_addr_attr(a);
@@ -680,7 +681,7 @@ std::string elliptics_node::lookup(const struct dnet_id &id)
 		lookup(id, l);
 		ret = l.wait();
 
-		if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr)) {
+		if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd)) {
 			std::stringstream str;
 
 			str << dnet_dump_id(&id) << ": failed to receive lookup request";
@@ -703,7 +704,7 @@ std::string elliptics_node::lookup(const struct dnet_id &id)
 	return ret;
 }
 
-void elliptics_node::remove_raw(struct dnet_id &id, int aflags)
+void elliptics_node::remove_raw(struct dnet_id &id, uint64_t cflags)
 {
 	int err = -ENOENT;
 	std::vector<int> g = groups;
@@ -711,7 +712,7 @@ void elliptics_node::remove_raw(struct dnet_id &id, int aflags)
 	for (int i=0; i<(int)g.size(); ++i) {
 		id.group_id = g[i];
 
-		if (!dnet_remove_object_now(node, &id, 0, aflags))
+		if (!dnet_remove_object_now(node, &id, cflags))
 			err = 0;
 	}
 
@@ -727,14 +728,14 @@ void elliptics_node::remove(struct dnet_id &id)
 	remove_raw(id, 0);
 }
 
-void elliptics_node::remove_raw(const std::string &data, int type, int aflags)
+void elliptics_node::remove_raw(const std::string &data, int type, uint64_t cflags)
 {
 	struct dnet_id id;
 
 	transform(data, id);
 	id.type = type;
 
-	remove_raw(id, aflags);
+	remove_raw(id, cflags);
 }
 
 void elliptics_node::remove(const std::string &data, int type)
@@ -757,6 +758,8 @@ std::string elliptics_node::stat_log()
 	}
 
 	ret = c.wait(err);
+
+	/* example reply parsing */
 #if 0
 	float la[3];
 	const void *data = ret.data();
@@ -767,8 +770,7 @@ std::string elliptics_node::stat_log()
 	while (size) {
 		struct dnet_addr *addr = (struct dnet_addr *)data;
 		struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-		struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
-		struct dnet_stat *st = (struct dnet_stat *)(attr + 1);
+		struct dnet_stat *st = (struct dnet_stat *)(cmd + 1);
 
 		dnet_convert_stat(st);
 
@@ -791,14 +793,14 @@ std::string elliptics_node::stat_log()
 				(unsigned long long)st->files, (unsigned long long)st->fsid);
 		printf("\n");
 
-		int sz = sizeof(*addr) + sizeof(*cmd) + sizeof(*attr) + attr->size;
+		int sz = sizeof(*addr) + sizeof(*cmd) + cmd->size;
 
 		size -= sz;
 		data += sz;
 	}
 #endif
 
-	if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + sizeof(struct dnet_stat))
+	if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_stat))
 		throw std::runtime_error("Failed to request statistics: not enough data returned");
 	return ret;
 }
@@ -822,7 +824,7 @@ int elliptics_node::request_cmd(struct dnet_trans_control &ctl)
 	return err;
 }
 
-void elliptics_node::update_status(const char *saddr, const int port, const int family, struct dnet_node_status *status, int update)
+void elliptics_node::update_status(const char *saddr, const int port, const int family, struct dnet_node_status *status)
 {
 	int err;
 	struct dnet_addr addr;
@@ -835,7 +837,7 @@ void elliptics_node::update_status(const char *saddr, const int port, const int 
 
 	err = dnet_fill_addr(&addr, saddr, sport, family, SOCK_STREAM, IPPROTO_TCP);
 	if (!err)
-		err = dnet_update_status(node, &addr, NULL, status, update);
+		err = dnet_update_status(node, &addr, NULL, status);
 
 	if (err < 0) {
 		std::ostringstream str;
@@ -844,11 +846,11 @@ void elliptics_node::update_status(const char *saddr, const int port, const int 
 	}
 }
 
-void elliptics_node::update_status(struct dnet_id &id, struct dnet_node_status *status, int update)
+void elliptics_node::update_status(struct dnet_id &id, struct dnet_node_status *status)
 {
 	int err;
 
-	err = dnet_update_status(node, NULL, &id, status, update);
+	err = dnet_update_status(node, NULL, &id, status);
 	if (err < 0) {
 		std::ostringstream str;
 
@@ -868,14 +870,14 @@ struct range_sort_compare {
 		}
 };
 
-std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags)
+std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io, int group_id, uint64_t cflags)
 {
 	struct dnet_range_data *data;
 	uint64_t num = 0;
 	uint32_t ioflags = io.flags;
 	int err;
 
-	data = dnet_read_range(node, &io, group_id, aflags, &err);
+	data = dnet_read_range(node, &io, group_id, cflags, &err);
 	if (!data && err) {
 		std::ostringstream str;
 		str << "Failed to read range data object: group: " << group_id <<
@@ -926,12 +928,6 @@ std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io
 
 		free(data);
 
-		/* Sorting was already done in storage */
-		/*
-		if (aflags & DNET_ATTR_SORT)
-			std::sort(ret.begin(), ret.end(), range_sort_compare());
-		*/
-
 		if (ioflags & DNET_IO_FLAGS_NODATA) {
 			std::ostringstream str;
 			str << num;
@@ -942,13 +938,13 @@ std::vector<std::string> elliptics_node::read_data_range(struct dnet_io_attr &io
 	return ret;
 }
 
-std::vector<struct dnet_io_attr> elliptics_node::remove_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags)
+std::vector<struct dnet_io_attr> elliptics_node::remove_data_range(struct dnet_io_attr &io, int group_id, uint64_t cflags)
 {
 	struct dnet_io_attr *retp;
 	int ret_num;
 	int err;
 
-	retp = dnet_remove_range(node, &io, group_id, aflags, &ret_num, &err);
+	retp = dnet_remove_range(node, &io, group_id, cflags, &ret_num, &err);
 
 	if (!retp && err) {
 		std::ostringstream str;
@@ -972,13 +968,13 @@ std::vector<struct dnet_io_attr> elliptics_node::remove_data_range(struct dnet_i
 }
 
 std::string elliptics_node::write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
-		uint64_t psize, unsigned int aflags, unsigned int ioflags, int type)
+		uint64_t psize, uint64_t cflags, unsigned int ioflags, int type)
 {
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.aflags = aflags;
+	ctl.cflags = cflags;
 	ctl.data = str.data();
 
 	ctl.io.flags = ioflags | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE;
@@ -993,27 +989,28 @@ std::string elliptics_node::write_prepare(const std::string &remote, const std::
 
 	ctl.fd = -1;
 
-	int err = dnet_write_data_wait(node, &ctl);
+	char *result = NULL;
+	int err = dnet_write_data_wait(node, &ctl, (void **)&result);
 	if (err < 0) {
 		std::ostringstream string;
 		string << dnet_dump_id(&ctl.id) << ": " << remote << ": write_prepare: size: " << str.size() << ", err: " << err;
 		throw std::runtime_error(string.str());
 	}
 
-	std::string ret((const char *)ctl.adata, ctl.asize);
-	free(ctl.adata);
+	std::string ret(result, err);
+	free(result);
 
 	return ret;
 }
 
 std::string elliptics_node::write_commit(const std::string &remote, const std::string &str, uint64_t remote_offset, uint64_t csize,
-		unsigned int aflags, unsigned int ioflags, int type)
+		uint64_t cflags, unsigned int ioflags, int type)
 {
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.aflags = aflags;
+	ctl.cflags = cflags;
 	ctl.data = str.data();
 
 	ctl.io.flags = ioflags | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
@@ -1028,27 +1025,28 @@ std::string elliptics_node::write_commit(const std::string &remote, const std::s
 
 	ctl.fd = -1;
 
-	int err = dnet_write_data_wait(node, &ctl);
+	char *result = NULL;
+	int err = dnet_write_data_wait(node, &ctl, (void **)&result);
 	if (err < 0) {
 		std::ostringstream string;
 		string << dnet_dump_id(&ctl.id) << ": " << remote << ": write_commit: size: " << str.size() << ", err: " << err;
 		throw std::runtime_error(string.str());
 	}
 
-	std::string ret((const char *)ctl.adata, ctl.asize);
-	free(ctl.adata);
+	std::string ret(result, err);
+	free(result);
 
 	return ret;
 }
 
 std::string elliptics_node::write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
-		unsigned int aflags, unsigned int ioflags, int type)
+		uint64_t cflags, unsigned int ioflags, int type)
 {
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.aflags = aflags;
+	ctl.cflags = cflags;
 	ctl.data = str.data();
 
 	ctl.io.flags = ioflags | DNET_IO_FLAGS_PLAIN_WRITE;
@@ -1062,15 +1060,16 @@ std::string elliptics_node::write_plain(const std::string &remote, const std::st
 
 	ctl.fd = -1;
 
-	int err = dnet_write_data_wait(node, &ctl);
+	char *result = NULL;
+	int err = dnet_write_data_wait(node, &ctl, (void **)&result);
 	if (err < 0) {
 		std::ostringstream string;
 		string << dnet_dump_id(&ctl.id) << ": " << remote << ": write_plain: size: " << str.size() << ", err: " << err;
 		throw std::runtime_error(string.str());
 	}
 
-	std::string ret((const char *)ctl.adata, ctl.asize);
-	free(ctl.adata);
+	std::string ret(result, err);
+	free(result);
 
 	return ret;
 }
@@ -1186,12 +1185,12 @@ std::string elliptics_node::push(struct dnet_id *id, const std::string &event, c
 	return ret_str;
 }
 
-std::vector<std::string> elliptics_node::bulk_read(std::vector<struct dnet_io_attr> &ios, int group_id, uint32_t aflags)
+std::vector<std::string> elliptics_node::bulk_read(std::vector<struct dnet_io_attr> &ios, int group_id, uint64_t cflags)
 {
 	struct dnet_range_data *data;
 	int err;
 
-	data = dnet_bulk_read(node, (struct dnet_io_attr*)(&ios[0]), ios.size(), group_id, aflags, &err);
+	data = dnet_bulk_read(node, (struct dnet_io_attr*)(&ios[0]), ios.size(), group_id, cflags, &err);
 	if (!data && err) {
 		std::ostringstream str;
 		str << "Failed to read bulk data: group: " << group_id <<
@@ -1234,7 +1233,7 @@ std::vector<std::string> elliptics_node::bulk_read(std::vector<struct dnet_io_at
 	return ret;
 }
 
-std::vector<std::string> elliptics_node::bulk_read(std::vector<std::string> &keys, int group_id, uint32_t aflags)
+std::vector<std::string> elliptics_node::bulk_read(std::vector<std::string> &keys, int group_id, uint64_t cflags)
 {
 	std::vector<struct dnet_io_attr> ios;
 	struct dnet_io_attr io;
@@ -1250,10 +1249,10 @@ std::vector<std::string> elliptics_node::bulk_read(std::vector<std::string> &key
 		ios.push_back(io);
 	}
 
-	return bulk_read(ios, group_id, aflags);
+	return bulk_read(ios, group_id, cflags);
 }
 
-std::string elliptics_node::bulk_write(std::vector<struct dnet_io_attr> &ios, std::vector<std::string> &data, uint32_t aflags)
+std::string elliptics_node::bulk_write(std::vector<struct dnet_io_attr> &ios, std::vector<std::string> &data, uint64_t cflags)
 {
 	std::vector<struct dnet_io_control> ctls;
 	unsigned int i;
@@ -1271,7 +1270,7 @@ std::string elliptics_node::bulk_write(std::vector<struct dnet_io_attr> &ios, st
 		struct dnet_io_control ctl;
 		memset(&ctl, 0, sizeof(ctl));
 
-		ctl.aflags = aflags;
+		ctl.cflags = cflags;
 		ctl.data = data[i].data();
 
 		ctl.io = ios[i];

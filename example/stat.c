@@ -46,7 +46,6 @@ static int stat_mem, stat_la, stat_fs;
 
 static int stat_complete(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
-			struct dnet_attr *attr,
 			void *priv)
 {
 	float la[3];
@@ -56,10 +55,10 @@ static int stat_complete(struct dnet_net_state *state,
 	struct timeval tv;
 	FILE *stream = priv;
 
-	if (is_trans_destroyed(state, cmd, attr))
+	if (is_trans_destroyed(state, cmd))
 		return 0;
 
-	if (!attr || attr->size != sizeof(struct dnet_stat))
+	if (cmd->size != sizeof(struct dnet_stat))
 		return cmd->status;
 
 	if (!stat_mem && !stat_la && !stat_fs)
@@ -71,7 +70,7 @@ static int stat_complete(struct dnet_net_state *state,
 
 	fprintf(stream, "%s.%06lu :", str, (unsigned long)tv.tv_usec);
 
-	st = (struct dnet_stat *)(attr + 1);
+	st = (struct dnet_stat *)(cmd + 1);
 
 	dnet_convert_stat(st);
 
@@ -135,7 +134,7 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
-	stat_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
+	stat_logger.log_mask = DNET_LOG_ERROR;
 
 	timeout = 1;
 

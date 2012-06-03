@@ -53,7 +53,7 @@ void dnet_set_need_exit(struct dnet_node *n);
  * Callback data structures.
  *
  * [dnet_cmd]
- * [dnet_attr] [attributes]
+ * [attributes]
  *
  * [dnet_cmd] header when present shows number of attached bytes.
  * It should be equal to the al_attr structure at least in the
@@ -96,7 +96,6 @@ struct dnet_io_control {
 	 */
 	int 				(* complete)(struct dnet_net_state *st,
 							struct dnet_cmd *cmd,
-							struct dnet_attr *attr,
 							void *priv);
 
 	/*
@@ -109,23 +108,6 @@ struct dnet_io_control {
 	 * Data to be sent.
 	 */
 	const void			*data;
-
-	/*
-	 * Additional attribute data, which will be copied at the beginning
-	 * of the command (it will be the first attribute).
-	 * Its size has to match attribute srtucture's size, which will be
-	 * dereferenced to be checked.
-	 *
-	 * Thus attribute structure must be present in CPU endian.
-	 */
-	void				*adata;
-	unsigned int			asize;
-
-	/*
-	 * Attribute flag. If present, write transaction will not be split
-	 * into multiple parts, when its size exceeds DNET_MAX_TRANS_SIZE bytes.
-	 */
-	unsigned int			aflags;
 
 	/*
 	 * File descriptor to read data from (for the write transaction).
@@ -147,7 +129,7 @@ struct dnet_io_control {
 	/*
 	 * Command flags (DNET_FLAGS_*)
 	 */
-	unsigned int			cflags;
+	uint64_t			cflags;
 
 	/* Data transaction timestamp */
 	struct timespec			ts;
@@ -165,22 +147,22 @@ int dnet_read_object(struct dnet_node *n, struct dnet_io_control *ctl);
 
 /*
  * Read @io->size bytes (0 means everything) from @io->offset bytes
- * of data associated with key @ID. Use @io->flags and @aflags for control
+ * of data associated with key @ID. Use @io->flags and @cflags for control
  * Returns NULL and set @errp when error happens
  */
 void *dnet_read_data_wait(struct dnet_node *n, struct dnet_id *id,
-		struct dnet_io_attr *io, uint32_t aflags, int *errp);
+		struct dnet_io_attr *io, uint64_t cflags, int *errp);
 
 /* Read latest data according to stored metadata */
 int dnet_read_latest(struct dnet_node *n, struct dnet_id *id,
-		struct dnet_io_attr *io, uint32_t aflags, void **datap);
+		struct dnet_io_attr *io, uint64_t cflags, void **datap);
 
 struct dnet_read_latest_prepare {
 	struct dnet_node		*n;
 
 	struct dnet_id			id;
 
-	uint32_t			aflags;
+	uint64_t			cflags;
 
 	int				*group;
 	int				group_num;
@@ -199,10 +181,10 @@ struct dnet_range_data {
 };
 
 struct dnet_io_attr *dnet_remove_range(struct dnet_node *n, struct dnet_io_attr *io,
-		int group_id, uint32_t aflags, int *rep_num, int *errp);
+		int group_id, uint64_t cflags, int *rep_num, int *errp);
 
 struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr *io,
-		int group_id, uint32_t aflags, int *errp);
+		int group_id, uint64_t cflags, int *errp);
 
 int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
 		void *data, int fd, uint64_t offset, int close_on_exit);
@@ -235,8 +217,8 @@ int dnet_read_file(struct dnet_node *n, const char *file, const void *remote, in
  */
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl);
 
-/* Returns positive number of transactions sent or negative error value */
-int dnet_write_data_wait(struct dnet_node *n, struct dnet_io_control *ctl);
+/* Returns size of the reply or negative error value */
+int dnet_write_data_wait(struct dnet_node *n, struct dnet_io_control *ctl, void **result);
 
 /*
  * Sends given file to the remote nodes and waits until all of them ack the write.
@@ -244,11 +226,11 @@ int dnet_write_data_wait(struct dnet_node *n, struct dnet_io_control *ctl);
  * Returns negative error value in case of error.
  */
 int dnet_write_file_id(struct dnet_node *n, const char *file, struct dnet_id *id, uint64_t local_offset,
-		uint64_t remote_offset, uint64_t size, unsigned int aflags, unsigned int ioflags);
+		uint64_t remote_offset, uint64_t size, uint64_t cflags, unsigned int ioflags);
 
 int dnet_write_file(struct dnet_node *n, const char *file, const void *remote, int remote_len,
 		uint64_t local_offset, uint64_t remote_offset, uint64_t size,
-		unsigned int aflags, unsigned int ioflags, int type);
+		uint64_t cflags, unsigned int ioflags, int type);
 
 /*
  * Log flags.
@@ -296,8 +278,7 @@ struct dnet_iterate_ctl {
 
 struct dnet_backend_callbacks {
 	/* command handler processes DNET_CMD_* commands */
-	int			(* command_handler)(void *state, void *priv,
-			struct dnet_cmd *cmd, struct dnet_attr *attr, void *data);
+	int			(* command_handler)(void *state, void *priv, struct dnet_cmd *cmd, void *data);
 
 	/* this must be provided as @priv argument to all above and below callbacks*/
 	void			*command_private;
@@ -618,12 +599,11 @@ static inline char *dnet_dump_id_str(const unsigned char *id)
  * Effectively dnet_lookup() is a dnet_lookup_object() with dnet_lookup_complete()
  * 	completion function.
  */
-int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, unsigned int aflags,
-	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, struct dnet_attr *, void *),
+int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, uint64_t cflags,
+	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, void *),
 	void *priv);
 int dnet_lookup(struct dnet_node *n, const char *file);
-int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *priv);
+int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv);
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id);
 
 /*
@@ -660,11 +640,10 @@ static inline int dnet_id_cmp(const struct dnet_id *id1, const struct dnet_id *i
  * It will fill transaction, command and ID from the original command and copy given data.
  * It will set DNET_FLAGS_MORE if original command requested acknowledge or @more is set.
  *
- * If attr->cmd is DNET_CMD_SYNC then plain data will be sent back, otherwise transaction
+ * If cmd->cmd is DNET_CMD_SYNC then plain data will be sent back, otherwise transaction
  * reply will be generated. So effectively difference is in DNET_TRANS_REPLY bit presence.
  */
-int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
-		void *odata, unsigned int size, int more);
+int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more);
 
 /*
  * Request statistics from the node corresponding to given ID.
@@ -681,10 +660,9 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
  * still be called.
  */
 int dnet_request_stat(struct dnet_node *n, struct dnet_id *id,
-	unsigned int cmd, unsigned int aflags,
+	unsigned int cmd, uint64_t cflags,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
-			struct dnet_attr *attr,
 			void *priv),
 	void *priv);
 
@@ -698,7 +676,6 @@ int dnet_request_stat(struct dnet_node *n, struct dnet_id *id,
 int dnet_request_notification(struct dnet_node *n, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
-			struct dnet_attr *attr,
 			void *priv),
 	void *priv);
 
@@ -715,16 +692,12 @@ struct dnet_trans_control
 	struct dnet_id		id;
 
 	unsigned int		cmd;
-	unsigned int		cflags;
-	unsigned int		aflags;
+	uint64_t		cflags;
 
 	unsigned int		size;
 	void			*data;
 
-	int			(* complete)(struct dnet_net_state *state,
-					struct dnet_cmd *cmd,
-					struct dnet_attr *attr,
-					void *priv);
+	int			(* complete)(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv);
 	void			*priv;
 };
 
@@ -740,8 +713,7 @@ int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const char *port, 
 		const int sock_type, const int proto);
 
 /* Change node status on given address or ID */
-int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr, struct dnet_id *id,
-			struct dnet_node_status *status, int update);
+int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr, struct dnet_id *id, struct dnet_node_status *status);
 
 /*
  * Remove object by @id
@@ -751,18 +723,17 @@ int dnet_update_status(struct dnet_node *n, struct dnet_addr *addr, struct dnet_
 int dnet_remove_object(struct dnet_node *n, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
-			struct dnet_attr *attr,
 			void *priv),
 	void *priv,
-	int direct, int aflags);
+	uint64_t cflags);
 
 /* Remove object with @id from the storage immediately */
-int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, int direct, int aflags);
+int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, uint64_t cflags);
 
 /*
  * Remove given file (identified by name or ID) from the storage.
  */
-int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, int aflags);
+int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags);
 
 /*
  * Transformation helper, which uses *ppos as an index for transformation function.
@@ -771,10 +742,9 @@ int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct d
  */
 int dnet_transform(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id);
 
-int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, unsigned int aflags,
+int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, uint64_t cflags,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
-			struct dnet_attr *attr,
 			void *priv),
 	void *priv);
 
@@ -800,7 +770,7 @@ struct dnet_metadata_control {
 	uint64_t			update_flags;
 	struct timespec			ts;
 
-	int				aflags;
+	uint64_t			cflags;
 };
 
 /*
@@ -821,10 +791,10 @@ int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc,
 struct dnet_meta *dnet_meta_search(struct dnet_node *n, struct dnet_meta_container *mc, uint32_t type);
 
 void dnet_create_meta_update(struct dnet_meta *m, struct timespec *ts, uint64_t flags_set, uint64_t flags_clear);
-int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert, int aflags);
+int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert, uint64_t cflags);
 int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl);
 int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, unsigned int remote_len,
-		struct dnet_id *id, struct timespec *ts, int aflags);
+		struct dnet_id *id, struct timespec *ts, uint64_t cflags);
 int dnet_create_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl, struct dnet_meta_container *mc);
 void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc);
 
@@ -909,8 +879,7 @@ void dnet_node_set_ns(struct dnet_node *n, void *ns, int nsize);
 
 long dnet_get_id(void);
 
-static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __attribute__ ((unused)))
+static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
 	int ret = 0;
 
@@ -933,8 +902,7 @@ int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *dat
 int dnet_db_remove_raw(struct eblob_backend *b, struct dnet_raw_id *id, int real_del);
 int dnet_db_iterate(struct eblob_backend *b, struct dnet_iterate_ctl *ctl);
 
-int dnet_send_file_info(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
-		int fd, uint64_t offset, int64_t size);
+int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offset, int64_t size);
 
 int dnet_get_routes(struct dnet_node *n, struct dnet_id **ids, struct dnet_addr **addrs);
 /*
@@ -943,7 +911,7 @@ int dnet_get_routes(struct dnet_node *n, struct dnet_id **ids, struct dnet_addr 
 int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, struct sph *h, void **ret);
 int dnet_send_cmd_nolock(struct dnet_node *n, struct dnet_id *id, struct sph *e, void **ret);
 
-struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr *ios, uint32_t io_num, int group_id, uint32_t aflags, int *errp);
+struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr *ios, uint32_t io_num, int group_id, uint64_t cflags, int *errp);
 struct dnet_range_data dnet_bulk_write(struct dnet_node *n, struct dnet_io_control *ctl, int ctl_num, int *errp);
 
 int dnet_flags(struct dnet_node *n);

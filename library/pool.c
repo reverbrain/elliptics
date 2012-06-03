@@ -32,21 +32,20 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	struct dnet_cmd *cmd = r->header;
 	int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
 
-	if (cmd->size >= sizeof(struct dnet_attr)) {
-		struct dnet_attr *attr = r->header + sizeof(struct dnet_cmd);
+	if (cmd->size > 0) {
 		dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d\n",
-			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(attr->cmd),
+			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd),
 			(unsigned long long)cmd->size, nonblocking);
 	} else if ((cmd->size == 0) && !(cmd->flags & DNET_FLAGS_MORE) && (cmd->trans & DNET_TRANS_REPLY)) {
-		dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: RECV ACK: nonblocking: %d\n",
-			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), nonblocking);
+		dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: RECV ACK: %s: nonblocking: %d\n",
+			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd), nonblocking);
 	} else {
 		unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 		int reply = !!(cmd->trans & DNET_TRANS_REPLY);
 
-		dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: RECV: nonblocking: %d, cmd-size: %llu, cmd-flags: %x, cmd-trans: %lld, reply: %d\n",
-			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), nonblocking,
-			(unsigned long long)cmd->size, cmd->flags, tid, reply);
+		dnet_log(r->st->n, DNET_LOG_DSA, "%s: %s: RECV: %s: nonblocking: %d, cmd-size: %llu, cflags: %llx, trans: %lld, reply: %d\n",
+			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd), nonblocking,
+			(unsigned long long)cmd->size, (unsigned long long)cmd->flags, tid, reply);
 	}
 
 	pthread_mutex_lock(&io->recv_lock);
@@ -133,10 +132,10 @@ again:
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
 		dnet_log(n, DNET_LOG_DSA, "%s: received trans: %llu / %llx, "
-				"reply: %d, size: %llu, flags: %x, status: %d.\n",
+				"reply: %d, size: %llu, flags: %llx, status: %d.\n",
 				dnet_dump_id(&c->id), tid, (unsigned long long)c->trans,
 				!!(c->trans & DNET_TRANS_REPLY),
-				(unsigned long long)c->size, c->flags, c->status);
+				(unsigned long long)c->size, (unsigned long long)c->flags, c->status);
 
 		r = malloc(c->size + sizeof(struct dnet_cmd) + sizeof(struct dnet_io_req));
 		if (!r) {
@@ -407,7 +406,7 @@ static void *dnet_io_process(void *data_)
 					dnet_state_dump_addr(st), (unsigned long long)t->trans);
 
 			if (t->complete)
-				t->complete(st, &t->cmd, NULL, t->priv);
+				t->complete(st, &t->cmd, t->priv);
 
 			dnet_trans_put(t);
 		}

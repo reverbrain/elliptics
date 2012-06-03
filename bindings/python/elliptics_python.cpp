@@ -154,12 +154,13 @@ struct elliptics_id {
 
 struct elliptics_range {
 	elliptics_range() : offset(0), size(0),
-		limit_start(0), limit_num(0), ioflags(0), aflags(0), group_id(0), type(0) {}
+		limit_start(0), limit_num(0), cflags(0), ioflags(0), group_id(0), type(0) {}
 
 	list		start, end;
 	uint64_t	offset, size;
 	uint64_t	limit_start, limit_num;
-	uint32_t	ioflags, aflags;
+	uint64_t	cflags;
+	uint32_t	ioflags;
 	int		group_id;
 	int		type;
 };
@@ -256,7 +257,7 @@ class elliptics_node_python : public elliptics_node {
 			elliptics_node::add_groups(groups);
 		}
 
-		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const list &pgroups, int aflags) {
+		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const list &pgroups, uint64_t cflags) {
 			struct timespec ts;
 			memset(&ts, 0, sizeof(ts));
 
@@ -267,10 +268,10 @@ class elliptics_node_python : public elliptics_node {
 			for (int i=0; i<len(pgroups); ++i)
 				groups.push_back(extract<int>(pgroups[i]));
 
-			elliptics_node::write_metadata((const dnet_id&)raw, remote, groups, ts, aflags);
+			elliptics_node::write_metadata((const dnet_id&)raw, remote, groups, ts, cflags);
 		}
 
-		void write_metadata_by_data_transform(const std::string &remote, int aflags) {
+		void write_metadata_by_data_transform(const std::string &remote, uint64_t cflags) {
 			struct timespec ts;
 			memset(&ts, 0, sizeof(ts));
 
@@ -278,7 +279,7 @@ class elliptics_node_python : public elliptics_node {
 
 			transform(remote, raw);
 
-			elliptics_node::write_metadata((const dnet_id&)raw, remote, groups, ts, aflags);
+			elliptics_node::write_metadata((const dnet_id&)raw, remote, groups, ts, cflags);
 		}
 
 
@@ -294,36 +295,36 @@ class elliptics_node_python : public elliptics_node {
 
 		void write_file_by_id(struct elliptics_id &id, const std::string &file,
 				uint64_t local_offset, uint64_t offset, uint64_t size,
-				unsigned int aflags, unsigned int ioflags) {
+				uint64_t cflags, unsigned int ioflags) {
 			struct dnet_id raw = id.to_dnet();
-			elliptics_node::write_file(raw, file, local_offset, offset, size, aflags, ioflags);
+			elliptics_node::write_file(raw, file, local_offset, offset, size, cflags, ioflags);
 		}
 
 		void write_file_by_data_transform(const std::string &remote, const std::string &file,
 				uint64_t local_offset, uint64_t offset, uint64_t size,
-				unsigned int aflags, unsigned int ioflags, int type) {
-			elliptics_node::write_file(remote, file, local_offset, offset, size, aflags, ioflags, type);
+				uint64_t cflags, unsigned int ioflags, int type) {
+			elliptics_node::write_file(remote, file, local_offset, offset, size, cflags, ioflags, type);
 		}
 
 		std::string read_data_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size,
-				unsigned int aflags, unsigned int ioflags) {
+				uint64_t cflags, unsigned int ioflags) {
 			struct dnet_id raw = id.to_dnet();
-			return elliptics_node::read_data_wait(raw, offset, size, aflags, ioflags);
+			return elliptics_node::read_data_wait(raw, offset, size, cflags, ioflags);
 		}
 
 		std::string read_data_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
-				unsigned int aflags, unsigned int ioflags, int type) {
-			return elliptics_node::read_data_wait(remote, offset, size, aflags, ioflags, type);
+				uint64_t cflags, unsigned int ioflags, int type) {
+			return elliptics_node::read_data_wait(remote, offset, size, cflags, ioflags, type);
 		}
 
-		list prepare_latest_by_id(const struct elliptics_id &id, unsigned int aflags, list gl) {
+		list prepare_latest_by_id(const struct elliptics_id &id, uint64_t cflags, list gl) {
 			struct dnet_id raw = id.to_dnet();
 
 			std::vector<int> groups;
 			for (int i = 0; i < len(gl); ++i)
 				groups.push_back(extract<int>(gl[i]));
 
-			prepare_latest(raw, aflags, groups);
+			prepare_latest(raw, cflags, groups);
 
 			list l;
 			for (unsigned i = 0; i < groups.size(); ++i)
@@ -332,14 +333,14 @@ class elliptics_node_python : public elliptics_node {
 			return l;
 		}
 
-		std::string prepare_latest_by_id_str(const struct elliptics_id &id, unsigned int aflags, list gl) {
+		std::string prepare_latest_by_id_str(const struct elliptics_id &id, uint64_t cflags, list gl) {
 			struct dnet_id raw = id.to_dnet();
 
 			std::vector<int> groups;
 			for (int i = 0; i < len(gl); ++i)
 				groups.push_back(extract<int>(gl[i]));
 
-			prepare_latest(raw, aflags, groups);
+			prepare_latest(raw, cflags, groups);
 
 			std::string ret;
 			ret.assign((char *)groups.data(), groups.size() * 4);
@@ -348,25 +349,25 @@ class elliptics_node_python : public elliptics_node {
 		}
 
 		std::string read_latest_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size,
-				unsigned int aflags, unsigned int ioflags) {
+				uint64_t cflags, unsigned int ioflags) {
 			struct dnet_id raw = id.to_dnet();
-			return elliptics_node::read_latest(raw, offset, size, aflags, ioflags);
+			return elliptics_node::read_latest(raw, offset, size, cflags, ioflags);
 		}
 
 		std::string read_latest_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
-				unsigned int aflags, unsigned int ioflags, int type) {
-			return elliptics_node::read_latest(remote, offset, size, aflags, ioflags, type);
+				uint64_t cflags, unsigned int ioflags, int type) {
+			return elliptics_node::read_latest(remote, offset, size, cflags, ioflags, type);
 		}
 
 		std::string write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset,
-				unsigned int aflags, unsigned int ioflags) {
+				uint64_t cflags, unsigned int ioflags) {
 			struct dnet_id raw = id.to_dnet();
-			return elliptics_node::write_data_wait(raw, data, remote_offset, aflags, ioflags);
+			return elliptics_node::write_data_wait(raw, data, remote_offset, cflags, ioflags);
 		}
 
 		std::string write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset,
-				unsigned int aflags, unsigned int ioflags, int type) {
-			return elliptics_node::write_data_wait(remote, data, remote_offset, aflags, ioflags, type);
+				uint64_t cflags, unsigned int ioflags, int type) {
+			return elliptics_node::write_data_wait(remote, data, remote_offset, cflags, ioflags, type);
 		}
 
 		std::string lookup_addr_by_data_transform(const std::string &remote, const int group_id) {
@@ -384,8 +385,7 @@ class elliptics_node_python : public elliptics_node {
 
 			struct dnet_addr *addr = (struct dnet_addr *)data;
 			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
-			struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+			struct dnet_addr_attr *a = (struct dnet_addr_attr *)(cmd + 1);
 			struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
 			dnet_convert_file_info(info);
 
@@ -405,16 +405,16 @@ class elliptics_node_python : public elliptics_node {
 			return parse_lookup(elliptics_node::lookup(raw));
 		}
 
-		struct dnet_node_status update_status_by_id(const struct elliptics_id &id, struct dnet_node_status &status, int update) {
+		struct dnet_node_status update_status_by_id(const struct elliptics_id &id, struct dnet_node_status &status) {
 			struct dnet_id raw = id.to_dnet();
 
-			elliptics_node::update_status(raw, &status, update);
+			elliptics_node::update_status(raw, &status);
 			return status;
 		}
 		
 		struct dnet_node_status update_status_by_string(const std::string &saddr, const int port, const int family,
-									struct dnet_node_status &status, int update) {
-			elliptics_node::update_status(saddr.c_str(), port, family, &status, update);
+									struct dnet_node_status &status) {
+			elliptics_node::update_status(saddr.c_str(), port, family, &status);
 			return status;
 		}
 
@@ -423,7 +423,7 @@ class elliptics_node_python : public elliptics_node {
 			elliptics_extract_range(r, io);
 
 			std::vector<std::string> ret;
-			ret = elliptics_node::read_data_range(io, r.group_id, r.aflags);
+			ret = elliptics_node::read_data_range(io, r.group_id, r.cflags);
 
 			boost::python::list l;
 
@@ -474,17 +474,17 @@ class elliptics_node_python : public elliptics_node {
 			return elliptics_node::exec(NULL, event, data, binary);
 		}
 
-		void remove_by_id(const struct elliptics_id &id, int aflags) {
+		void remove_by_id(const struct elliptics_id &id, uint64_t cflags) {
 			struct dnet_id raw = id.to_dnet();
 
-			elliptics_node::remove_raw(raw, aflags);
+			elliptics_node::remove_raw(raw, cflags);
 		}
 
-		void remove_by_name(const std::string &remote, int type, int aflags) {
-			elliptics_node::remove_raw(remote, type, aflags);
+		void remove_by_name(const std::string &remote, int type, uint64_t cflags) {
+			elliptics_node::remove_raw(remote, type, cflags);
 		}
 
-		list bulk_read_by_name(const list &keys, int group_id, uint32_t aflags = 0) {
+		list bulk_read_by_name(const list &keys, int group_id, uint64_t cflags = 0) {
 			unsigned int length = len(keys);
 
 			std::vector<std::string> k;
@@ -493,7 +493,7 @@ class elliptics_node_python : public elliptics_node {
 			for (unsigned int i = 0; i < length; ++i)
 				k[i] = extract<std::string>(keys[i]);
 
-			std::vector<std::string> ret =  elliptics_node::bulk_read(k, group_id, aflags);
+			std::vector<std::string> ret =  elliptics_node::bulk_read(k, group_id, cflags);
 
 			list py_ret;
 			for (size_t i = 0; i < ret.size(); ++i) {
@@ -527,14 +527,13 @@ class elliptics_node_python : public elliptics_node {
 				dict node_stat, storage_commands, proxy_commands, counters;
 				struct dnet_addr *addr = (struct dnet_addr *)data;
 				struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-				if (cmd->size <= sizeof (struct dnet_attr) + sizeof (struct dnet_addr_stat)) {
-					size -= cmd->size + sizeof (struct dnet_addr) + sizeof (struct dnet_cmd);
-					data = (char *)data + cmd->size + sizeof (struct dnet_addr) + sizeof (struct dnet_cmd);
+				if (cmd->size <= sizeof(struct dnet_addr_stat)) {
+					size -= cmd->size + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd);
+					data = (char *)data + cmd->size + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd);
 					continue;
 				}
 
-				struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
-				struct dnet_addr_stat *as = (struct dnet_addr_stat *)(attr + 1);
+				struct dnet_addr_stat *as = (struct dnet_addr_stat *)(cmd + 1);
 
 				dnet_convert_addr_stat(as, 0);
 				std::string address(dnet_server_convert_dnet_addr(addr));
@@ -560,7 +559,7 @@ class elliptics_node_python : public elliptics_node {
 
 				statistics.append(node_stat);
 
-				int sz = sizeof(*addr) + sizeof(*cmd) + sizeof(*attr) + attr->size;
+				int sz = sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
 				size -= sz;
 				data = (char *)data + sz;
 			}
@@ -586,7 +585,7 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("offset", &elliptics_range::offset)
 		.def_readwrite("size", &elliptics_range::size)
 		.def_readwrite("ioflags", &elliptics_range::ioflags)
-		.def_readwrite("aflags", &elliptics_range::aflags)
+		.def_readwrite("cflags", &elliptics_range::cflags)
 		.def_readwrite("group_id", &elliptics_range::group_id)
 		.def_readwrite("type", &elliptics_range::type)
 		.def_readwrite("limit_start", &elliptics_range::limit_start)

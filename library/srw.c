@@ -70,8 +70,7 @@ void dnet_srw_cleanup(struct dnet_node *n)
 		srwc_cleanup(n->srw);
 }
 
-int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr,
-		struct sph *header, const void *data)
+int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *header, const void *data)
 {
 	struct dnet_node *n = st->n;
 	int err;
@@ -91,7 +90,7 @@ int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 			dnet_dump_id(&cmd->id), (unsigned long long)ctl.res_size, (int)ctl.res_size, ctl.result);
 
 	if (ctl.res_size) {
-		err = dnet_send_reply(st, cmd, attr, ctl.result, ctl.res_size, 0);
+		err = dnet_send_reply(st, cmd, ctl.result, ctl.res_size, 0);
 		free(ctl.result);
 	}
 

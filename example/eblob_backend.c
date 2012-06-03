@@ -54,8 +54,7 @@ struct eblob_backend_config {
 #error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE" 
 #endif
 
-static int blob_write(struct eblob_backend_config *c, void *state __unused, struct dnet_cmd *cmd __unused,
-		struct dnet_attr *attr __unused, void *data)
+static int blob_write(struct eblob_backend_config *c, void *state __unused, struct dnet_cmd *cmd __unused, void *data)
 {
 	int err;
 	struct dnet_io_attr *io = data;
@@ -112,27 +111,26 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 
 	if (io->size) {
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
-			if (io->size) {
-				err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, io->type);
-			}
+			err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, io->type);
 		} else {
 			err = eblob_write(c->eblob, &key, data, io->offset, io->size, flags, io->type);
-			if (!err) {
-				if (io->size >= sizeof(struct eblob_write_control)) {
-					memcpy(&wc, data, sizeof(struct eblob_write_control));
-				} else {
-					err = eblob_read_nocsum(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, io->type);
-					if (err < 0) {
-						dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: "
-								"size: %llu: type: %d: %s %d\n",
-							dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
-						goto err_out_exit;
-					}
+		}
 
-					/* data is compressed, but we only care about header */
-					if (err == 1) {
-						err = 0;
-					}
+		if (!err) {
+			if ((io->size >= sizeof(struct eblob_write_control)) && !(io->flags & DNET_IO_FLAGS_PLAIN_WRITE)) {
+				memcpy(&wc, data, sizeof(struct eblob_write_control));
+			} else {
+				err = eblob_read_nocsum(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, io->type);
+				if (err < 0) {
+					dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: "
+							"size: %llu: type: %d: %s %d\n",
+						dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
+					goto err_out_exit;
+				}
+
+				/* data is compressed, but we only care about header */
+				if (err == 1) {
+					err = 0;
 				}
 			}
 		}
@@ -164,8 +162,7 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 			dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type);
 	}
 
-	attr->flags |= DNET_ATTR_NOCSUM;
-	err = dnet_send_file_info(state, cmd, attr, wc.data_fd, wc.offset, wc.size);
+	err = dnet_send_file_info(state, cmd, wc.data_fd, wc.offset, wc.size);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: dnet_send_file_info: "
 				"fd: %d, offset: %llu, size: %llu: type: %d: %s %d\n",
@@ -178,8 +175,7 @@ err_out_exit:
 	return err;
 }
 
-static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->eblob;
@@ -192,7 +188,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
-	if ((io->flags & DNET_IO_FLAGS_NOCSUM) || (attr->flags & DNET_ATTR_NOCSUM)) {
+	if (io->flags & DNET_IO_FLAGS_NOCSUM) {
 		err = eblob_read_nocsum(b, &key, &fd, &orig_offset, &orig_size, io->type);
 	} else {
 		err = eblob_read(b, &key, &fd, &orig_offset, &orig_size, io->type);
@@ -358,8 +354,7 @@ err_out_exit:
 	return err;
 }
 
-static int blob_read_range(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+static int blob_read_range(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data)
 {
 	struct eblob_read_range_priv p;
 	struct dnet_io_attr *io = data;
@@ -400,17 +395,17 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 		goto err_out_exit;
 	}
 
-	if ((attr->cmd == DNET_CMD_READ_RANGE) && (attr->flags & DNET_ATTR_SORT)) {
+	if ((cmd->cmd == DNET_CMD_READ_RANGE) && (cmd->flags & DNET_ATTR_SORT)) {
 		dnet_backend_log(DNET_LOG_DSA, "Sorting keys before sending\n");
 		qsort(p.keys, p.keys_cnt, sizeof(struct eblob_range_request), &blob_cmp_range_request);
 	}
 
-	if (attr->cmd == DNET_CMD_READ_RANGE) {
+	if (cmd->cmd == DNET_CMD_READ_RANGE) {
 		start_from = io->start;
 	}
 		
 	for (i = start_from; i < p.keys_cnt; ++i) {
-		switch(attr->cmd) {
+		switch(cmd->cmd) {
 			case DNET_CMD_READ_RANGE:
 				if ((io->num > 0) && (i >= (io->num + start_from)))
 					break;
@@ -499,6 +494,7 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 		ret = eblob_read(b, &key, &fd, &offset, &size, types[i]);
 		if (ret >= 0) {
 			struct dnet_io_control ctl;
+			void *result = NULL;
 
 			memset(&ctl, 0, sizeof(ctl));
 
@@ -513,10 +509,11 @@ static int eblob_send(void *state, void *priv, struct dnet_id *id)
 			ctl.io.type = types[i];
 			ctl.io.flags = 0;
 
-			err = dnet_write_data_wait(n, &ctl);
+			err = dnet_write_data_wait(n, &ctl, &result);
 			if (err < 0) {
 				goto err_out_free;
 			}
+			free(result);
 			err = 0;
 		}
 	}
@@ -528,7 +525,7 @@ err_out_exit:
 	return err;
 }
 
-static int blob_file_info(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
+static int blob_file_info(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd)
 {
 	struct eblob_backend *b = c->eblob;
 	struct eblob_key key;
@@ -550,14 +547,13 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 		goto err_out_exit;
 	}
 
-	err = dnet_send_file_info(state, cmd, attr, fd, offset, size);
+	err = dnet_send_file_info(state, cmd, fd, offset, size);
 
 err_out_exit:
 	return err;
 }
 
-static int blob_bulk_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+static int blob_bulk_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data)
 {
 	int err = -1, ret;
 	struct dnet_io_attr *io = data;
@@ -569,7 +565,7 @@ static int blob_bulk_read(struct eblob_backend_config *c, void *state, struct dn
 	count = io->size / sizeof(struct dnet_io_attr);
 
 	for (i = 0; i < count; i++) {
-		ret = blob_read(c, state, cmd, attr, &ios[i]);
+		ret = blob_read(c, state, cmd, &ios[i]);
 		if (!ret)
 			err = 0;
 		else if (err == -1)
@@ -579,26 +575,25 @@ static int blob_bulk_read(struct eblob_backend_config *c, void *state, struct dn
 	return err;
 }
 
-static int eblob_backend_command_handler(void *state, void *priv,
-		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
+static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
 {
 	int err;
 	struct eblob_backend_config *c = priv;
 	char *path, *p;
 
-	switch (attr->cmd) {
+	switch (cmd->cmd) {
 		case DNET_CMD_LOOKUP:
-			err = blob_file_info(c, state, cmd, attr);
+			err = blob_file_info(c, state, cmd);
 			break;
 		case DNET_CMD_WRITE:
-			err = blob_write(c, state, cmd, attr, data);
+			err = blob_write(c, state, cmd, data);
 			break;
 		case DNET_CMD_READ:
-			err = blob_read(c, state, cmd, attr, data);
+			err = blob_read(c, state, cmd, data);
 			break;
 		case DNET_CMD_READ_RANGE:
 		case DNET_CMD_DEL_RANGE:
-			err = blob_read_range(c, state, cmd, attr, data);
+			err = blob_read_range(c, state, cmd, data);
 			break;
 		case DNET_CMD_STAT:
 			path = strdup(c->data.file);
@@ -615,14 +610,14 @@ static int eblob_backend_command_handler(void *state, void *priv,
 				path = NULL;
 			}
 
-			err = backend_stat(state, path, cmd, attr);
+			err = backend_stat(state, path, cmd);
 			free(path);
 			break;
 		case DNET_CMD_DEL:
 			err = blob_del(c, cmd);
 			break;
 		case DNET_CMD_BULK_READ:
-			err = blob_bulk_read(c, state, cmd, attr, data);
+			err = blob_bulk_read(c, state, cmd, data);
 			break;
 		default:
 			err = -EINVAL;

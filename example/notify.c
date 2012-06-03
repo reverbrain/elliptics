@@ -45,7 +45,6 @@ static struct dnet_log notify_logger;
 
 static int notify_complete(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
-			struct dnet_attr *attr,
 			void *priv)
 {
 	struct dnet_io_notification *io;
@@ -54,10 +53,10 @@ static int notify_complete(struct dnet_net_state *state,
 	struct timeval tv;
 	FILE *stream = priv;
 
-	if (is_trans_destroyed(state, cmd, attr))
+	if (is_trans_destroyed(state, cmd))
 		return 0;
 
-	if (attr->size != sizeof(struct dnet_io_notification))
+	if (cmd->size != sizeof(struct dnet_io_notification))
 		return 0;
 
 	gettimeofday(&tv, NULL);
@@ -66,7 +65,7 @@ static int notify_complete(struct dnet_net_state *state,
 
 	fprintf(stream, "%s.%06lu : ", str, (unsigned long)tv.tv_usec);
 
-	io = (struct dnet_io_notification *)(attr + 1);
+	io = (struct dnet_io_notification *)(cmd + 1);
 
 	dnet_convert_io_notification(io);
 

@@ -64,8 +64,7 @@ static inline void smack_setup_idx(struct index *idx, unsigned char *id)
 	idx->data_size = 0;
 }
 
-static int smack_backend_lookup_raw(struct smack_backend *s, struct index *idx, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr)
+static int smack_backend_lookup_raw(struct smack_backend *s, struct index *idx, void *state, struct dnet_cmd *cmd)
 {
 	int err, fd;
 	char *path;
@@ -84,8 +83,7 @@ static int smack_backend_lookup_raw(struct smack_backend *s, struct index *idx, 
 		goto err_out_free;
 	}
 
-	attr->flags |= DNET_ATTR_NOCSUM;
-	err = dnet_send_file_info(state, cmd, attr, fd, idx->data_offset, idx->data_size);
+	err = dnet_send_file_info(state, cmd, fd, idx->data_offset, idx->data_size);
 	if (err)
 		goto err_out_close;
 
@@ -101,16 +99,15 @@ err_out_exit:
 	return err;
 }
 
-static int smack_backend_lookup(struct smack_backend *s, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
+static int smack_backend_lookup(struct smack_backend *s, void *state, struct dnet_cmd *cmd)
 {
 	struct index idx;
 
 	smack_setup_idx(&idx, cmd->id.id);
-	return smack_backend_lookup_raw(s, &idx, state, cmd, attr);
+	return smack_backend_lookup_raw(s, &idx, state, cmd);
 }
 
-static int smack_backend_write(struct smack_backend *s, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+static int smack_backend_write(struct smack_backend *s, void *state, struct dnet_cmd *cmd, void *data)
 {
 	int err;
 	struct index idx;
@@ -128,7 +125,7 @@ static int smack_backend_write(struct smack_backend *s, void *state, struct dnet
 	if (err < 0)
 		goto err_out_exit;
 #if 0
-	err = smack_backend_lookup_raw(s, &idx, state, cmd, attr);
+	err = smack_backend_lookup_raw(s, &idx, state, cmd);
 	if (err)
 		goto err_out_exit;
 #else
@@ -140,7 +137,7 @@ static int smack_backend_write(struct smack_backend *s, void *state, struct dnet
 				dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id_str),
 				(unsigned long long)io->offset, (unsigned long long)io->size);
 
-		err = dnet_send_reply(state, cmd, attr, reply, 256, 0);
+		err = dnet_send_reply(state, cmd, reply, 256, 0);
 	}
 #endif
 	dnet_backend_log(DNET_LOG_INFO, "%s: SMACK: : WRITE: Ok: offset: %llu, size: %llu.\n",
@@ -150,8 +147,7 @@ err_out_exit:
 	return err;
 }
 
-static int smack_backend_read(struct smack_backend *s, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *iodata)
+static int smack_backend_read(struct smack_backend *s, void *state, struct dnet_cmd *cmd, void *iodata)
 {
 	struct dnet_io_attr *io = iodata;
 	char *data;
@@ -179,8 +175,7 @@ err_out_exit:
 	return err;
 }
 
-static int smack_backend_remove(struct smack_backend *s, void *state __unused, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *data __unused)
+static int smack_backend_remove(struct smack_backend *s, void *state __unused, struct dnet_cmd *cmd, void *data __unused)
 {
 	struct index idx;
 
@@ -188,8 +183,7 @@ static int smack_backend_remove(struct smack_backend *s, void *state __unused, s
 	return smack_remove(s->smack, &idx);
 }
 
-static int smack_backend_bulk_read(struct smack_backend *s, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+static int smack_backend_bulk_read(struct smack_backend *s, void *state, struct dnet_cmd *cmd, void *data)
 {
 	int err = -1, ret;
 	struct dnet_io_attr *io = data;
@@ -201,7 +195,7 @@ static int smack_backend_bulk_read(struct smack_backend *s, void *state, struct 
 	count = io->size / sizeof(struct dnet_io_attr);
 
 	for (i = 0; i < count; i++) {
-		ret = smack_backend_read(s, state, cmd, attr, &ios[i]);
+		ret = smack_backend_read(s, state, cmd, &ios[i]);
 		if (!ret)
 			err = 0;
 		else if (err == -1)
@@ -210,30 +204,29 @@ static int smack_backend_bulk_read(struct smack_backend *s, void *state, struct 
 
 	return err;
 }
-static int smack_backend_command_handler(void *state, void *priv,
-		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
+static int smack_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
 {
 	int err;
 	struct smack_backend *s = priv;
 
-	switch (attr->cmd) {
+	switch (cmd->cmd) {
 		case DNET_CMD_LOOKUP:
-			err = smack_backend_lookup(s, state, cmd, attr);
+			err = smack_backend_lookup(s, state, cmd);
 			break;
 		case DNET_CMD_WRITE:
-			err = smack_backend_write(s, state, cmd, attr, data);
+			err = smack_backend_write(s, state, cmd, data);
 			break;
 		case DNET_CMD_READ:
-			err = smack_backend_read(s, state, cmd, attr, data);
+			err = smack_backend_read(s, state, cmd, data);
 			break;
 		case DNET_CMD_STAT:
-			err = backend_stat(state, s->ictl.path, cmd, attr);
+			err = backend_stat(state, s->ictl.path, cmd);
 			break;
 		case DNET_CMD_DEL:
-			err = smack_backend_remove(s, state, cmd, attr, data);
+			err = smack_backend_remove(s, state, cmd, data);
 			break;
 		case DNET_CMD_BULK_READ:
-			err = smack_backend_bulk_read(s, state, cmd, attr, data);
+			err = smack_backend_bulk_read(s, state, cmd, data);
 			break;
 		case DNET_CMD_READ_RANGE:
 			err = -ENOTSUP;
@@ -338,6 +331,7 @@ static int smack_backend_send(void *state, void *priv, struct dnet_id *id)
 	struct dnet_node *n = dnet_get_node_from_state(state);
 	struct smack_backend *s = priv;
 	struct index idx;
+	char *result = NULL;
 	char *data;
 	int err;
 
@@ -361,9 +355,10 @@ static int smack_backend_send(void *state, void *priv, struct dnet_id *id)
 	ctl.io.type = 0;
 	ctl.io.flags = 0;
 
-	err = dnet_write_data_wait(n, &ctl);
+	err = dnet_write_data_wait(n, &ctl, &result);
 	if (err < 0)
 		goto err_out_free;
+	free(result);
 	err = 0;
 
 err_out_free:

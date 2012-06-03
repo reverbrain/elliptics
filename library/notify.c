@@ -53,8 +53,7 @@ static unsigned int dnet_notify_hash(struct dnet_id *id, unsigned int hash_size)
 	return hash;
 }
 
-int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *data)
+int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_node *n = st->n;
 	unsigned int hash = dnet_notify_hash(&cmd->id, n->notify_hash_size);
@@ -62,7 +61,6 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	struct dnet_notify_entry *nt;
 	struct dnet_io_attr *io = data;
 	struct dnet_io_notification not;
-	struct dnet_attr a;
 
 	/*if (io->size == sizeof(struct dnet_history_entry)) {
 		struct dnet_history_entry *h = (struct dnet_history_entry *)(io + 1);
@@ -83,10 +81,6 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	not.addr.family = n->family;
 	not.addr.proto = n->proto;
 
-	a.cmd = DNET_CMD_NOTIFY;
-	a.size = 0;
-	a.flags = 0;
-
 	pthread_rwlock_rdlock(&b->notify_lock);
 	list_for_each_entry(nt, &b->notify_list, notify_entry) {
 		if (dnet_id_cmp(&cmd->id, &nt->cmd.id))
@@ -95,7 +89,7 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		memcpy(&not.addr.addr, &st->addr, sizeof(struct dnet_addr));
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: sending notification.\n", dnet_dump_id(&cmd->id));
-		dnet_send_reply(nt->state, &nt->cmd, &a, &not, sizeof(struct dnet_io_notification), 1);
+		dnet_send_reply(nt->state, &nt->cmd, &not, sizeof(struct dnet_io_notification), 1);
 	}
 	pthread_rwlock_unlock(&b->notify_lock);
 
@@ -131,7 +125,7 @@ int dnet_notify_add(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	return 0;
 }
 
-int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr)
+int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
 	struct dnet_node *n = st->n;
 	struct dnet_notify_entry *e, *tmp;
@@ -145,7 +139,7 @@ int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd, struct d
 			continue;
 
 		e->cmd.flags = 0;
-		err = dnet_send_reply(e->state, &e->cmd, attr, NULL, 0, 0);
+		err = dnet_send_reply(e->state, &e->cmd, NULL, 0, 0);
 
 		list_del(&e->notify_entry);
 		dnet_notify_entry_destroy(e);
@@ -222,12 +216,11 @@ void dnet_notify_exit(struct dnet_node *n)
 	free(n->notify_hash);
 }
 
-static int dnet_request_notification_raw(struct dnet_node *n, struct dnet_id *id, int drop,
+static int dnet_request_notification_raw(struct dnet_node *n, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
-			struct dnet_attr *attr,
 			void *priv),
-	void *priv)
+	void *priv, uint64_t cflags)
 {
 	struct dnet_trans_control ctl;
 
@@ -237,8 +230,7 @@ static int dnet_request_notification_raw(struct dnet_node *n, struct dnet_id *id
 	ctl.cmd = DNET_CMD_NOTIFY;
 	ctl.complete = complete;
 	ctl.priv = priv;
-	ctl.aflags = drop;
-	ctl.cflags = DNET_FLAGS_NEED_ACK;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
 
 	return dnet_trans_alloc_send(n, &ctl);
 }
@@ -246,20 +238,22 @@ static int dnet_request_notification_raw(struct dnet_node *n, struct dnet_id *id
 int dnet_request_notification(struct dnet_node *n, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
-			struct dnet_attr *attr,
 			void *priv),
 	void *priv)
 {
+	uint64_t cflags = 0;
+
 	if (!complete || !id)
 		return -EINVAL;
 
-	return dnet_request_notification_raw(n, id, 0, complete, priv);
+	return dnet_request_notification_raw(n, id, complete, priv, cflags);
 }
 
 int dnet_drop_notification(struct dnet_node *n, struct dnet_id *id)
 {
+	uint64_t cflags = DNET_ATTR_DROP_NOTIFICATION;
 	if (!id)
 		return -EINVAL;
 
-	return dnet_request_notification_raw(n, id, 1, NULL, NULL);
+	return dnet_request_notification_raw(n, id, NULL, NULL, cflags);
 }

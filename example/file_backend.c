@@ -152,8 +152,7 @@ err_out_exit:
 	return err;
 }
 
-static int file_write(struct file_backend_root *r, void *state __unused, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *data)
+static int file_write(struct file_backend_root *r, void *state __unused, struct dnet_cmd *cmd, void *data)
 {
 	int err, fd;
 	char dir[2*DNET_ID_SIZE+1];
@@ -183,8 +182,7 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 
 	dnet_backend_log(DNET_LOG_INFO, "%s: FILE: %s: WRITE: Ok: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&cmd->id), dir, (unsigned long long)io->offset, (unsigned long long)io->size);
-	attr->flags |= DNET_ATTR_NOCSUM;
-	err = dnet_send_file_info(state, cmd, attr, fd, 0, -1);
+	err = dnet_send_file_info(state, cmd, fd, 0, -1);
 	if (err)
 		goto err_out_close;
 
@@ -200,8 +198,7 @@ err_out_exit:
 	return err;
 }
 
-static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *data)
+static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_io_attr *io = data;
 	int fd, err;
@@ -251,8 +248,7 @@ err_out_exit:
 	return err;
 }
 
-static int file_del(struct file_backend_root *r, void *state __unused, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *data __unused)
+static int file_del(struct file_backend_root *r, void *state __unused, struct dnet_cmd *cmd, void *data __unused)
 {
 	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
 	char dir[2*DNET_ID_SIZE+1];
@@ -267,7 +263,7 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 	return 0;
 }
 
-static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
+static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *cmd)
 {
 	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
 	char dir[2*DNET_ID_SIZE+1];
@@ -288,7 +284,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	}
 	fd = err;
 
-	err = dnet_send_file_info(state, cmd, attr, fd, 0, -1);
+	err = dnet_send_file_info(state, cmd, fd, 0, -1);
 	if (err)
 		goto err_out_close;
 	
@@ -300,8 +296,7 @@ err_out_exit:
 	return err;
 }
 
-static int file_bulk_read(struct file_backend_root *r, void *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr, void *data)
+static int file_bulk_read(struct file_backend_root *r, void *state, struct dnet_cmd *cmd, void *data)
 {
 	int err = -1, ret;
 	struct dnet_io_attr *io = data;
@@ -313,7 +308,7 @@ static int file_bulk_read(struct file_backend_root *r, void *state, struct dnet_
 	count = io->size / sizeof(struct dnet_io_attr);
 
 	for (i = 0; i < count; i++) {
-		ret = file_read(r, state, cmd, attr, &ios[i]);
+		ret = file_read(r, state, cmd, &ios[i]);
 		if (!ret)
 			err = 0;
 		else if (err == -1)
@@ -322,30 +317,29 @@ static int file_bulk_read(struct file_backend_root *r, void *state, struct dnet_
 
 	return err;
 }
-static int file_backend_command_handler(void *state, void *priv,
-		struct dnet_cmd *cmd, struct dnet_attr *attr, void *data)
+static int file_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd,void *data)
 {
 	int err;
 	struct file_backend_root *r = priv;
 
-	switch (attr->cmd) {
+	switch (cmd->cmd) {
 		case DNET_CMD_LOOKUP:
-			err = file_info(r, state, cmd, attr);
+			err = file_info(r, state, cmd);
 			break;
 		case DNET_CMD_WRITE:
-			err = file_write(r, state, cmd, attr, data);
+			err = file_write(r, state, cmd, data);
 			break;
 		case DNET_CMD_READ:
-			err = file_read(r, state, cmd, attr, data);
+			err = file_read(r, state, cmd, data);
 			break;
 		case DNET_CMD_STAT:
-			err = backend_stat(state, r->root, cmd, attr);
+			err = backend_stat(state, r->root, cmd);
 			break;
 		case DNET_CMD_DEL:
-			err = file_del(r, state, cmd, attr, data);
+			err = file_del(r, state, cmd, data);
 			break;
 		case DNET_CMD_BULK_READ:
-			err = file_bulk_read(r, state, cmd, attr, data);
+			err = file_bulk_read(r, state, cmd, data);
 			break;
 		case DNET_CMD_READ_RANGE:
 			err = -ENOTSUP;

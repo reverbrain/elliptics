@@ -105,20 +105,19 @@ int dnet_db_remove_raw(struct eblob_backend *b, struct dnet_raw_id *id, int real
 	return dnet_update_ts_metadata(b, id, DNET_IO_FLAGS_REMOVED, 0);
 }
 
-int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, struct dnet_io_attr *io)
+int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io)
 {
 	struct dnet_node *n = st->n;
 	struct dnet_raw_id id;
 	void *data;
 	int err;
 
-	if (a->cmd == DNET_CMD_READ || a->cmd == DNET_CMD_WRITE) {
-
-		if (a->size < sizeof(struct dnet_io_attr)) {
+	if (cmd->cmd == DNET_CMD_READ || cmd->cmd == DNET_CMD_WRITE) {
+		if (cmd->size < sizeof(struct dnet_io_attr)) {
 			dnet_log(n, DNET_LOG_ERROR,
 				"%s: wrong read attribute, size does not match "
 					"IO attribute size: size: %llu, must be: %zu.\n",
-					dnet_dump_id(&cmd->id), (unsigned long long)a->size,
+					dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,
 					sizeof(struct dnet_io_attr));
 			err = -EINVAL;
 			goto err_out_exit;
@@ -127,7 +126,7 @@ int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		memcpy(id.id, io->id, DNET_ID_SIZE);
 	}
 
-	switch (a->cmd) {
+	switch (cmd->cmd) {
 	case DNET_CMD_READ:
 		err = n->cb->meta_read(n->cb->command_private, &id, &data);
 		if (err > 0) {
@@ -148,8 +147,8 @@ int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		break;
 	case DNET_CMD_DEL:
 		memcpy(id.id, cmd->id.id, DNET_ID_SIZE);
-		n->cb->meta_remove(n->cb->command_private, &id, !!(a->flags & DNET_ATTR_DELETE_HISTORY));
-		err = n->cb->command_handler(st, n->cb->command_private, cmd, a, io);
+		n->cb->meta_remove(n->cb->command_private, &id, !!(cmd->flags & DNET_ATTR_DELETE_HISTORY));
+		err = n->cb->command_handler(st, n->cb->command_private, cmd, io);
 		break;
 	default:
 		err = -EINVAL;
@@ -164,7 +163,6 @@ struct dnet_db_list_control {
 	struct dnet_node		*n;
 	struct dnet_net_state		*st;
 	struct dnet_cmd			*cmd;
-	struct dnet_attr		*attr;
 	struct dnet_check_request	*req;
 	struct dnet_check_params	params;
 
@@ -199,7 +197,7 @@ static int dnet_db_send_check_reply(struct dnet_db_list_control *ctl)
 	reply.completed = atomic_read(&ctl->completed);
 
 	dnet_convert_check_reply(&reply);
-	return dnet_send_reply(ctl->st, ctl->cmd, ctl->attr, &reply, sizeof(reply), 1);
+	return dnet_send_reply(ctl->st, ctl->cmd, &reply, sizeof(reply), 1);
 }
 
 struct dnet_check_temp_db * dnet_check_temp_db_alloc(struct dnet_node *n, char *path)
@@ -301,7 +299,7 @@ static int dnet_db_list_iter_init(struct eblob_iterate_control *iter_ctl, void *
 				if (bulk_array->num == bulk_array_tmp_num) {
 					dnet_log(n, DNET_LOG_DSA, "BULK: reallocating space for arrays, num=%d\n", bulk_array_tmp_num);
 					bulk_array_tmp_num += DNET_BULK_STATES_ALLOC_STEP;
-					bulk_array->states = (struct dnet_bulk_state *)realloc(bulk_array->states, sizeof(struct dnet_bulk_state) * bulk_array_tmp_num);
+					bulk_array->states = realloc(bulk_array->states, sizeof(struct dnet_bulk_state) * bulk_array_tmp_num);
 					if (!bulk_array->states) {
 						err = -ENOMEM;
 						dnet_log(n, DNET_LOG_ERROR, "BULK: Failed to reallocate buffer for bulk states array.\n");
@@ -314,7 +312,7 @@ static int dnet_db_list_iter_init(struct eblob_iterate_control *iter_ctl, void *
 				bulk_array->states[bulk_array->num].num = 0;
 				bulk_array->states[bulk_array->num].ids = NULL;
 
-				bulk_array->states[bulk_array->num].ids = (struct dnet_bulk_id *)malloc(sizeof(struct dnet_bulk_id) * DNET_BULK_IDS_SIZE);
+				bulk_array->states[bulk_array->num].ids = malloc(sizeof(struct dnet_bulk_id) * DNET_BULK_IDS_SIZE);
 				if (!bulk_array->states[bulk_array->num].ids) {
 					err = -ENOMEM;
 					dnet_log(n, DNET_LOG_ERROR, "BULK: Failed to reallocate buffer for bulk states array.\n");
@@ -322,7 +320,9 @@ static int dnet_db_list_iter_init(struct eblob_iterate_control *iter_ctl, void *
 					goto err_out_exit;
 				}
 
-				dnet_log(n, DNET_LOG_DSA, "BULK: added state %s (%s)\n", dnet_dump_id_str(st->idc->ids[0].raw.id), dnet_server_convert_dnet_addr(&st->addr));
+				dnet_log(n, DNET_LOG_DSA, "BULK: added state %s (%s)\n",
+						dnet_dump_id_str(st->idc->ids[0].raw.id),
+						dnet_server_convert_dnet_addr(&st->addr));
 				bulk_array->num++;
 			}
 		}
@@ -512,7 +512,7 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 	return err;
 }
 
-int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *attr)
+int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
 	struct dnet_node *n = st->n;
 	struct dnet_db_list_control ctl;
@@ -524,13 +524,13 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	if (n->check_in_progress)
 		return -EINPROGRESS;
 
-	if (attr->size < sizeof(struct dnet_check_request)) {
+	if (cmd->size < sizeof(struct dnet_check_request)) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: CHECK: invalid check request size %llu, must be %zu\n",
-		dnet_dump_id(&cmd->id), (unsigned long long)attr->size, sizeof(struct dnet_check_request));
+		dnet_dump_id(&cmd->id), (unsigned long long)cmd->size, sizeof(struct dnet_check_request));
 		return -EINVAL;
 	}
 
-	r = (struct dnet_check_request *)(attr + 1);
+	r = (struct dnet_check_request *)(cmd + 1);
 	dnet_convert_check_request(r);
 
 	n->check_in_progress = 1;
@@ -549,7 +549,6 @@ int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_at
 	ctl.n = n;
 	ctl.st = st;
 	ctl.cmd = cmd;
-	ctl.attr = attr;
 	ctl.req = &req;
 	ctl.params.db = dnet_check_temp_db_alloc(n, n->temp_meta_env);
 	if (!ctl.params.db) {

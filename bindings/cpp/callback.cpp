@@ -40,17 +40,15 @@ elliptics_callback::~elliptics_callback()
 {
 }
 
-int elliptics_callback::callback(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
+int elliptics_callback::callback(struct dnet_net_state *state, struct dnet_cmd *cmd)
 {
 	pthread_mutex_lock(&lock);
-	if (is_trans_destroyed(state, cmd, attr)) {
+	if (is_trans_destroyed(state, cmd)) {
 		complete++;
 		pthread_cond_broadcast(&wait_cond);
 	} else if (cmd && state) {
 		data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
-		data.append((const char *)cmd, sizeof(*cmd));
-		if (attr && cmd->size)
-			data.append((const char *)attr, sizeof(*attr) + attr->size);
+		data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
 	}
 	pthread_mutex_unlock(&lock);
 

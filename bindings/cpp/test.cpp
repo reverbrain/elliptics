@@ -50,18 +50,18 @@ class elliptics_callback_io : public elliptics_callback {
 		elliptics_callback_io(elliptics_log *l) { log = l; };
 		virtual ~elliptics_callback_io() {};
 
-		virtual int		callback(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr);
+		virtual int		callback(struct dnet_net_state *state, struct dnet_cmd *cmd);
 
 	private:
 		elliptics_log		*log;
 };
 
-int elliptics_callback_io::callback(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr)
+int elliptics_callback_io::callback(struct dnet_net_state *state, struct dnet_cmd *cmd)
 {
 	int err;
 	struct dnet_io_attr *io;
 
-	if (is_trans_destroyed(state, cmd, attr)) {
+	if (is_trans_destroyed(state, cmd)) {
 		err = -EINVAL;
 		goto err_out_exit;
 	}
@@ -71,23 +71,23 @@ int elliptics_callback_io::callback(struct dnet_net_state *state, struct dnet_cm
 		goto err_out_exit;
 	}
 
-	if (cmd->size <= sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr)) {
+	if (cmd->size <= sizeof(struct dnet_io_attr)) {
 		test_log_raw(log, DNET_LOG_ERROR, "%s: read completion error: wrong size: "
 				"cmd_size: %llu, must be more than %zu.\n",
 				dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,
-				sizeof(struct dnet_attr) + sizeof(struct dnet_io_attr));
+				sizeof(struct dnet_io_attr));
 		err = -EINVAL;
 		goto err_out_exit;
 	}
 
-	if (!attr) {
+	if (!cmd->size) {
 		test_log_raw(log, DNET_LOG_ERROR, "%s: no attributes but command size is not null.\n",
 				dnet_dump_id(&cmd->id));
 		err = -EINVAL;
 		goto err_out_exit;
 	}
 
-	io = (struct dnet_io_attr *)(attr + 1);
+	io = (struct dnet_io_attr *)(cmd + 1);
 
 	dnet_convert_io_attr(io);
 	err = 0;
@@ -119,18 +119,18 @@ static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 		uint64_t offset = 0;
 		uint64_t total_size_to_reserve = 1024;
 
-		unsigned int aflags = 0;
+		uint64_t cflags = 0;
 		unsigned int ioflags = 0;
 
 		int column = 0;
 
-		n.write_prepare(key, prepare_data, offset, total_size_to_reserve, aflags, ioflags, column);
+		n.write_prepare(key, prepare_data, offset, total_size_to_reserve, cflags, ioflags, column);
 		offset += prepare_data.size();
 
 		written += prepare_data;
 
 		for (int i = 0; i < 3; ++i) {
-			n.write_plain(key, plain_data[i], offset, aflags, ioflags, column);
+			n.write_plain(key, plain_data[i], offset, cflags, ioflags, column);
 			offset += plain_data[i].size();
 
 			written += plain_data[i];
@@ -139,9 +139,9 @@ static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 		/* append data first so that subsequent written.size() call returned real size of the written data */
 		written += commit_data;
 
-		n.write_commit(key, commit_data, offset, written.size(), aflags, ioflags, column);
+		n.write_commit(key, commit_data, offset, written.size(), cflags, ioflags, column);
 
-		ret = n.read_data_wait(key, 0, 0, aflags, ioflags, column);
+		ret = n.read_data_wait(key, 0, 0, cflags, ioflags, column);
 		std::cout << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "PREPARE/COMMIT test failed: " << e.what() << std::endl;
@@ -154,7 +154,7 @@ static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 	}
 }
 
-static void test_range_request(elliptics_node &n, int limit_start, int limit_num, unsigned int aflags, int group_id)
+static void test_range_request(elliptics_node &n, int limit_start, int limit_num, uint64_t cflags, int group_id)
 {
 	struct dnet_io_attr io;
 
@@ -171,7 +171,7 @@ static void test_range_request(elliptics_node &n, int limit_start, int limit_num
 	io.num = limit_num;
 
 	std::vector<std::string> ret;
-	ret = n.read_data_range(io, group_id, aflags);
+	ret = n.read_data_range(io, group_id, cflags);
 
 	std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
 #if 0
@@ -192,13 +192,12 @@ static void test_lookup_parse(const std::string &key, const std::string &lret)
 {
 	struct dnet_addr *addr = (struct dnet_addr *)lret.data();
 	struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-	struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
-	struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+	struct dnet_addr_attr *a = (struct dnet_addr_attr *)(cmd + 1);
 
 	dnet_convert_addr_attr(a);
 	std::cout << key << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
 
-	if (attr->size > sizeof(struct dnet_addr_attr)) {
+	if (cmd->size > sizeof(struct dnet_addr_attr)) {
 		struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
 
 		dnet_convert_file_info(info);
@@ -224,10 +223,10 @@ static void test_lookup(elliptics_node &n, std::vector<int> &groups)
 		id.group_id = 0;
 		id.type = 0;
 
-		int aflags = 0;
+		uint64_t cflags = 0;
 
 		struct timespec ts = {0, 0};
-		n.write_metadata(id, key, groups, ts, aflags);
+		n.write_metadata(id, key, groups, ts, cflags);
 
 		lret = n.lookup(key);
 		test_lookup_parse(key, lret);
@@ -344,12 +343,19 @@ static void test_bulk_write(elliptics_node &n)
 
 		std::cout << "ret size = " << ret.size() << std::endl;
 
+		uint64_t cflags = 0;
+		int ioflags = DNET_IO_FLAGS_NOCSUM;
+		int type = 0;
+
+		uint64_t offset = 0;
+		uint64_t size = 0;
+
 		/* read without checksums since we did not write metadata */
 		for (i = 0; i < 3; ++i) {
 			std::ostringstream os;
 
 			os << "bulk_write" << i;
-			std::cout << os.str() << ": " << n.read_data_wait(os.str(), 0, 0, DNET_ATTR_NOCSUM, 0, 0) << std::endl;
+			std::cout << os.str() << ": " << n.read_data_wait(os.str(), offset, size, cflags, ioflags, type) << std::endl;
 		}
 	} catch (const std::exception &e) {
 		std::cerr << "BULK WRITE test failed: " << e.what() << std::endl;
@@ -448,6 +454,7 @@ static void test_cache_write(elliptics_node &n, int num)
 	}
 	std::cout << "Cache entries writted: " << num << std::endl;
 }
+
 static void test_cache_read(elliptics_node &n, int num)
 {
 	int count = 0;
@@ -463,8 +470,15 @@ static void test_cache_read(elliptics_node &n, int num)
 
 		std::string id(os.str());
 
+		uint64_t cflags = 0;
+		int ioflags = DNET_IO_FLAGS_NOCSUM;
+		int type = 0;
+
+		uint64_t offset = 0;
+		uint64_t size = 0;
+
 		try {
-			n.read_data_wait(id, 0, 0, DNET_ATTR_NOCSUM, 0, 0);
+			n.read_data_wait(os.str(), offset, size, cflags, ioflags, type);
 		} catch (const std::exception &e) {
 			std::cerr << "could not perform read : " << e.what() << std::endl;
 		}

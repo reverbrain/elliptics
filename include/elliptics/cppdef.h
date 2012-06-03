@@ -89,12 +89,12 @@ class elliptics_callback {
 		elliptics_callback();
 		virtual ~elliptics_callback();
 
-		virtual int callback(struct dnet_net_state *state, struct dnet_cmd *cmd, struct dnet_attr *attr);
+		virtual int callback(struct dnet_net_state *state, struct dnet_cmd *cmd);
 
-		static int elliptics_complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_attr *a, void *priv) {
+		static int elliptics_complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv) {
 			elliptics_callback *c = reinterpret_cast<elliptics_callback *>(priv);
 
-			return c->callback(st, cmd, a);
+			return c->callback(st, cmd);
 		};
 
 		std::string wait(int completed = 1);
@@ -117,7 +117,7 @@ class elliptics_node {
 		void			parse_config(const std::string &path, struct dnet_config &cfg,
 						std::list<elliptics_addr_tuple> &remotes,
 						std::vector<int> &groups,
-						int log_mask);
+						uint32_t &log_mask);
 
 		void			transform(const std::string &data, struct dnet_id &id);
 
@@ -130,34 +130,34 @@ class elliptics_node {
 		void			read_file(const std::string &remote, const std::string &file, uint64_t offset, uint64_t size, int type);
 
 		void			write_file(struct dnet_id &id, const std::string &file, uint64_t local_offset,
-						uint64_t offset, uint64_t size, unsigned int aflags, unsigned int ioflags);
+						uint64_t offset, uint64_t size, uint64_t cflags, unsigned int ioflags);
 		void			write_file(const std::string &remote, const std::string &file,
 						uint64_t local_offset, uint64_t offset, uint64_t size,
-						unsigned int aflags, unsigned int ioflags, int type);
+						uint64_t cflags, unsigned int ioflags, int type);
 
 		std::string		read_data_wait(struct dnet_id &id, uint64_t offset, uint64_t size,
-						uint32_t aflags, uint32_t ioflags);
+						uint64_t cflags, uint32_t ioflags);
 		std::string		read_data_wait(const std::string &remote, uint64_t offset, uint64_t size,
-						uint32_t aflags, uint32_t ioflags, int type);
+						uint64_t cflags, uint32_t ioflags, int type);
 
-		void			prepare_latest(struct dnet_id &id, uint32_t aflags, std::vector<int> &groups);
+		void			prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<int> &groups);
 
 		std::string		read_latest(struct dnet_id &id, uint64_t offset, uint64_t size,
-						uint32_t aflags, uint32_t ioflags);
+						uint64_t cflags, uint32_t ioflags);
 		std::string		read_latest(const std::string &remote, uint64_t offset, uint64_t size,
-						uint32_t aflags, uint32_t ioflags, int type);
+						uint64_t cflags, uint32_t ioflags, int type);
 
 		std::string		write_data_wait(struct dnet_id &id, const std::string &str,
-						uint64_t remote_offset, unsigned int aflags, unsigned int ioflags);
+						uint64_t remote_offset, uint64_t cflags, unsigned int ioflags);
 		std::string		write_data_wait(const std::string &remote, const std::string &str,
-						uint64_t remote_offset, unsigned int aflags, unsigned int ioflags, int type);
+						uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type);
 
 		std::string		write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
-						uint64_t psize, unsigned int aflags, unsigned int ioflags, int type);
+						uint64_t psize, uint64_t cflags, unsigned int ioflags, int type);
 		std::string		write_commit(const std::string &remote, const std::string &str, uint64_t remote_offset,
-						uint64_t csize, unsigned int aflags, unsigned int ioflags, int type);
+						uint64_t csize, uint64_t cflags, unsigned int ioflags, int type);
 		std::string		write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
-						unsigned int aflags, unsigned int ioflags, int type);
+						uint64_t cflags, unsigned int ioflags, int type);
 
 		std::string		lookup_addr(const std::string &remote, const int group_id);
 		std::string		lookup_addr(const struct dnet_id &id);
@@ -165,15 +165,15 @@ class elliptics_node {
 		std::string		create_metadata(const struct dnet_id &id, const std::string &obj,
 							const std::vector<int> &groups, const struct timespec &ts);
 		int			write_metadata(const struct dnet_id &id, const std::string &obj,
-							const std::vector<int> &groups, const struct timespec &ts, int aflags);
+							const std::vector<int> &groups, const struct timespec &ts, uint64_t cflags);
 
 		void			lookup(const std::string &data, const elliptics_callback &c);
 		void			lookup(const struct dnet_id &id, const elliptics_callback &c);
 		std::string		lookup(const std::string &data);
 		std::string		lookup(const struct dnet_id &id);
 
-		void 			remove_raw(struct dnet_id &id, int aflags);
-		void			remove_raw(const std::string &data, int type, int aflags);
+		void 			remove_raw(struct dnet_id &id, uint64_t cflags);
+		void			remove_raw(const std::string &data, int type, uint64_t cflags);
 		void 			remove(struct dnet_id &id);
 		void			remove(const std::string &data, int type = EBLOB_TYPE_DATA);
 
@@ -185,13 +185,12 @@ class elliptics_node {
 
 		std::string		read_metadata(struct dnet_id &id);
 
-		void			update_status(const char *addr, const int port, const int family,
-						struct dnet_node_status *status, int update);
-		void			update_status(struct dnet_id &id, struct dnet_node_status *status, int update);
+		void			update_status(const char *addr, const int port, const int family, struct dnet_node_status *status);
+		void			update_status(struct dnet_id &id, struct dnet_node_status *status);
 
-		std::vector<std::string>	read_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags = 0);
+		std::vector<std::string>	read_data_range(struct dnet_io_attr &io, int group_id, uint64_t cflags = 0);
 
-		std::vector<struct dnet_io_attr> remove_data_range(struct dnet_io_attr &io, int group_id, uint32_t aflags = 0);
+		std::vector<struct dnet_io_attr> remove_data_range(struct dnet_io_attr &io, int group_id, uint64_t cflags = 0);
 
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
@@ -201,15 +200,15 @@ class elliptics_node {
 		/* unlocked execution */
 		std::string		push(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary);
 
-		std::vector<std::string>	bulk_read(std::vector<struct dnet_io_attr> &ios, int group_id, uint32_t aflags = 0);
-		std::vector<std::string>	bulk_read(std::vector<std::string> &keys, int group_id, uint32_t aflags= 0);
+		std::vector<std::string>	bulk_read(std::vector<struct dnet_io_attr> &ios, int group_id, uint64_t cflags = 0);
+		std::vector<std::string>	bulk_read(std::vector<std::string> &keys, int group_id, uint64_t cflags= 0);
 
-		std::string		bulk_write(std::vector<struct dnet_io_attr> &ios, std::vector<std::string> &data, uint32_t aflags);
+		std::string		bulk_write(std::vector<struct dnet_io_attr> &ios, std::vector<std::string> &data, uint64_t cflags);
 
 	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, elliptics_callback &c,
-							unsigned int aflags, unsigned int ioflags, int type);
+							uint64_t cflags, unsigned int ioflags, int type);
 		struct dnet_node	*node;
 		elliptics_log		*log;
 

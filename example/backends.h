@@ -50,7 +50,7 @@ static inline int64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint6
 	return size;
 }
 
-int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr *attr);
+int backend_stat(void *state, char *path, struct dnet_cmd *cmd);
 
 int backend_stat_low_level(const char *path, struct dnet_stat *st);
 
