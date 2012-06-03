@@ -10,7 +10,7 @@
 #include <elliptics/cppdef.h>
 #include <elliptics/srw/pipe.hpp>
 
-using namespace zbr;
+using namespace ioremap::elliptics;
 
 namespace ioremap {
 namespace srw {

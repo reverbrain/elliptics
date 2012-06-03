@@ -28,19 +28,19 @@
 
 #include "elliptics/cppdef.h"
 
-using namespace zbr;
+using namespace ioremap::elliptics;
 
-elliptics_callback::elliptics_callback() : complete(0)
+callback::callback() : complete(0)
 {
 	pthread_cond_init(&wait_cond, NULL);
 	pthread_mutex_init(&lock, NULL);
 }
 
-elliptics_callback::~elliptics_callback()
+callback::~callback()
 {
 }
 
-int elliptics_callback::callback(struct dnet_net_state *state, struct dnet_cmd *cmd)
+int callback::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
 {
 	pthread_mutex_lock(&lock);
 	if (is_trans_destroyed(state, cmd)) {
@@ -55,7 +55,7 @@ int elliptics_callback::callback(struct dnet_net_state *state, struct dnet_cmd *
 	return 0;
 }
 
-std::string elliptics_callback::wait(int completed)
+std::string callback::wait(int completed)
 {
 	pthread_mutex_lock(&lock);
 	while (complete != completed)

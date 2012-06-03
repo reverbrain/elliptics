@@ -25,11 +25,11 @@
 #include <sstream>
 #include <fstream>
 
-#include "elliptics/cppdef.h"
+#include <elliptics/cppdef.h>
 
-using namespace zbr;
+using namespace ioremap::elliptics;
 
-static void test_log_raw(elliptics_log *l, uint32_t mask, const char *format, ...)
+static void test_log_raw(logger *l, uint32_t mask, const char *format, ...)
 {
 	va_list args;
 	char buf[1024];
@@ -45,18 +45,18 @@ static void test_log_raw(elliptics_log *l, uint32_t mask, const char *format, ..
 	va_end(args);
 }
 
-class elliptics_callback_io : public elliptics_callback {
+class callback_io : public callback {
 	public:
-		elliptics_callback_io(elliptics_log *l) { log = l; };
-		virtual ~elliptics_callback_io() {};
+		callback_io(logger *l) { log = l; };
+		virtual ~callback_io() {};
 
-		virtual int		callback(struct dnet_net_state *state, struct dnet_cmd *cmd);
+		virtual int		handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
 
 	private:
-		elliptics_log		*log;
+		logger		*log;
 };
 
-int elliptics_callback_io::callback(struct dnet_net_state *state, struct dnet_cmd *cmd)
+int callback_io::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
 {
 	int err;
 	struct dnet_io_attr *io;
@@ -101,7 +101,7 @@ err_out_exit:
 	return err;
 }
 
-static void test_prepare_commit(elliptics_node &n, int psize, int csize)
+static void test_prepare_commit(node &n, int psize, int csize)
 {
 	std::string written, ret;
 	try {
@@ -154,7 +154,7 @@ static void test_prepare_commit(elliptics_node &n, int psize, int csize)
 	}
 }
 
-static void test_range_request(elliptics_node &n, int limit_start, int limit_num, uint64_t cflags, int group_id)
+static void test_range_request(node &n, int limit_start, int limit_num, uint64_t cflags, int group_id)
 {
 	struct dnet_io_attr io;
 
@@ -209,7 +209,7 @@ static void test_lookup_parse(const std::string &key, const std::string &lret)
 	std::cout << std::endl;
 }
 
-static void test_lookup(elliptics_node &n, std::vector<int> &groups)
+static void test_lookup(node &n, std::vector<int> &groups)
 {
 	try {
 		std::string key = "2.xml";
@@ -235,7 +235,7 @@ static void test_lookup(elliptics_node &n, std::vector<int> &groups)
 	}
 }
 
-static void test_append(elliptics_node &n)
+static void test_append(node &n)
 {
 	try {
 		std::string key = "append-test";
@@ -253,7 +253,7 @@ static void test_append(elliptics_node &n)
 	}
 }
 
-static void test_exec_python(elliptics_node &n)
+static void test_exec_python(node &n)
 {
 	try {
 		std::string binary = "binary data";
@@ -279,7 +279,7 @@ static void test_exec_python(elliptics_node &n)
 	}
 }
 
-static void read_column_raw(elliptics_node &n, const std::string &key, const std::string &data, int column)
+static void read_column_raw(node &n, const std::string &key, const std::string &data, int column)
 {
 	std::string ret;
 	try {
@@ -295,7 +295,7 @@ static void read_column_raw(elliptics_node &n, const std::string &key, const std
 	}
 }
 
-static void column_test(elliptics_node &n)
+static void column_test(node &n)
 {
 	std::string key = "some-key-1";
 
@@ -312,7 +312,7 @@ static void column_test(elliptics_node &n)
 	read_column_raw(n, key, data2, 3);
 }
 
-static void test_bulk_write(elliptics_node &n)
+static void test_bulk_write(node &n)
 {
 	try {
 		std::vector<struct dnet_io_attr> ios;
@@ -362,7 +362,7 @@ static void test_bulk_write(elliptics_node &n)
 	}
 }
 
-static void test_bulk_read(elliptics_node &n, int group_id)
+static void test_bulk_read(node &n, int group_id)
 {
 	try {
 		std::vector<std::string> keys;
@@ -392,7 +392,7 @@ static void test_bulk_read(elliptics_node &n, int group_id)
 
 }
 
-static void memory_test_io(elliptics_node &n, int num)
+static void memory_test_io(node &n, int num)
 {
 	int ids[16];
 
@@ -421,7 +421,7 @@ static void memory_test_io(elliptics_node &n, int num)
 
 }
 
-static void test_cache_write(elliptics_node &n, int num)
+static void test_cache_write(node &n, int num)
 {
 	try {
 		std::vector<struct dnet_io_attr> ios;
@@ -455,7 +455,7 @@ static void test_cache_write(elliptics_node &n, int num)
 	std::cout << "Cache entries writted: " << num << std::endl;
 }
 
-static void test_cache_read(elliptics_node &n, int num)
+static void test_cache_read(node &n, int num)
 {
 	int count = 0;
 
@@ -487,7 +487,7 @@ static void test_cache_read(elliptics_node &n, int num)
 	std::cout << "Cache entries read: " << count << std::endl;
 }
 
-static void test_cache_delete(elliptics_node &n, int num)
+static void test_cache_delete(node &n, int num)
 {
 	int count = 0;
 
@@ -512,7 +512,7 @@ static void test_cache_delete(elliptics_node &n, int num)
 	std::cout << "Cache entries deleted: " << count << std::endl;
 }
 
-static void memory_test(elliptics_node &n)
+static void memory_test(node &n)
 {
 	struct rusage start, end;
 
@@ -569,9 +569,9 @@ int main(int argc, char *argv[])
 
 
 	try {
-		elliptics_log_file log("/dev/stderr", DNET_LOG_ERROR | DNET_LOG_DATA);
+		log_file log("/dev/stderr", DNET_LOG_ERROR | DNET_LOG_DATA);
 
-		elliptics_node n(log);
+		node n(log);
 		n.add_groups(groups);
 
 		try {
