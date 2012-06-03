@@ -292,10 +292,6 @@ static int dnet_smack_set_type(struct dnet_config_backend *b, char *key __unused
 
 	if (!strcmp(value, "zlib"))
 		s->ictl.type = SMACK_STORAGE_ZLIB;
-	else if (!strcmp(value, "mmap"))
-		s->ictl.type = SMACK_STORAGE_MMAP;
-	else if (!strcmp(value, "file"))
-		s->ictl.type = SMACK_STORAGE_FILE;
 	else
 		return -ENOTSUP;
 	return 0;
