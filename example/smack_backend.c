@@ -165,7 +165,7 @@ static int smack_backend_read(struct smack_backend *s, void *state, struct dnet_
 		goto err_out_exit;
 
 	io->size = idx.data_size;
-	err = dnet_send_read_data(state, cmd, io, data, -1, io->offset, 1);
+	err = dnet_send_read_data(state, cmd, io, data, -1, io->offset, 0);
 	if (err)
 		goto err_out_free;
 
