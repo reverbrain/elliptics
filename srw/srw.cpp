@@ -43,17 +43,27 @@
 
 #include "elliptics.h"
 
+static int dnet_log_map[] = {
+	[cocaine::logging::debug] = DNET_LOG_NOTICE,
+	[cocaine::logging::info] = DNET_LOG_INFO,
+	[cocaine::logging::warning] = DNET_LOG_INFO,
+	[cocaine::logging::error] = DNET_LOG_ERROR,
+	[cocaine::logging::ignore] = DNET_LOG_DSA,
+};
+
 class dnet_sink_t: public cocaine::logging::sink_t {
 	public:
 		dnet_sink_t(struct dnet_node *n): cocaine::logging::sink_t(cocaine::logging::debug), m_n(n) {
 		}
 
-		virtual void emit(cocaine::logging::priorities, const std::string& message) const {
-			dnet_log(m_n, DNET_LOG_INFO, "dnet-sink: %s\n", message.c_str());
+		virtual void emit(cocaine::logging::priorities prio, const std::string& message) const {
+			if (prio < sizeof(dnet_log_map) / sizeof(dnet_log_map[0]))
+				dnet_log(m_n, dnet_log_map[prio], "dnet-sink: %s\n", message.c_str());
 		}
 
 	private:
 		struct dnet_node *m_n;
+
 };
 
 class dnet_job_t: public cocaine::engine::job_t
@@ -88,9 +98,12 @@ class srw {
 		}
 
 		~srw() {
+			/* no need to iterate over engines, its destructor automatically stops it */
+#if 0
 			for (eng_map_t::iterator it = m_map.begin(); it != m_map.end(); ++it) {
 				it->second->stop();
 			}
+#endif
 		}
 
 		int process(const struct sph *sph, const char *data) {
@@ -114,6 +127,7 @@ class srw {
 			} if (strs[0] == "stop-task") {
 				boost::mutex::scoped_lock guard(m_lock);
 				eng_map_t::iterator it = m_map.find(strs[1]);
+				/* destructor stops engine */
 				if (it != m_map.end())
 					m_map.erase(it);
 				guard.unlock();
@@ -129,6 +143,7 @@ class srw {
 				guard.unlock();
 
 				it->second->enqueue(boost::make_shared<dnet_job_t>(m_n, strs[1], cocaine::blob_t(data, total_size(sph))));
+				dnet_log(m_n, DNET_LOG_NOTICE, "%s: task queued\n", strs[1].c_str());
 				return 0;
 			}
 		}
