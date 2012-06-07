@@ -45,6 +45,10 @@ AX_BOOST_PYTHON
 
 AC_CHECK_SMACK
 
+AC_CHECK_ZMQ
+AC_CHECK_MSGPACK
+AC_CHECK_COCAINE
+
 AC_CHECK_HEADER(dlfcn.h)
 AC_CHECK_LIB(dl,dlopen)
 
@@ -53,6 +57,7 @@ AC_CONFIG_FILES([Makefile include/Makefile include/elliptics/Makefile
 		 doc/Makefile debian/Makefile
 		 bindings/Makefile bindings/cpp/Makefile
 		 bindings/python/Makefile
-		 srw/Makefile srw/src/Makefile])
+		 srw/Makefile
+		 ])
 
 AC_OUTPUT

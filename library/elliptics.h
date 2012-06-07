@@ -421,7 +421,7 @@ struct dnet_node
 
 	char			cookie[DNET_AUTH_COOKIE_SIZE];
 
-	struct srwc		*srw;
+	void			*srw;
 
 	int			server_prio;
 	int			client_prio;
@@ -626,8 +626,8 @@ struct dnet_bulk_array
 
 static inline int dnet_compare_bulk_state(const void *k1, const void *k2)
 {
-        const struct dnet_bulk_state *st1 = k1;
-        const struct dnet_bulk_state *st2 = k2;
+        const struct dnet_bulk_state *st1 = (const struct dnet_bulk_state *)k1;
+        const struct dnet_bulk_state *st2 = (const struct dnet_bulk_state *)k2;
 
 	if (st1->addr.addr_len > st2->addr.addr_len)
 		return 1;
@@ -679,7 +679,7 @@ void dnet_monitor_exit(struct dnet_node *n);
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 
 int dnet_set_name(char *name);
-int dnet_ioprio_set(long pid, int class, int prio);
+int dnet_ioprio_set(long pid, int class_id, int prio);
 int dnet_ioprio_get(long pid);
 
 struct dnet_map_fd {

@@ -1,5 +1,9 @@
-#ifndef __ELLIPTICS_SRW_BASE_H
-#define __ELLIPTICS_SRW_BASE_H
+#ifndef __ELLIPTICS_SRW_H
+#define __ELLIPTICS_SRW_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <elliptics/core.h>
 
@@ -27,28 +31,15 @@ static inline void dnet_convert_sph(struct sph *e)
 }
 
 struct srw_init_ctl {
-	char			*binary;		/* path to srw_worker binary - it is used to spawn script workers */
-	char			*log;			/* srw log path - initialized to the same config string as for 'log' by default */
-	char			*pipe;			/* pipe base - elliptics will talk to workers via @pipe.c2w and @pipe.w2c */
-	char			*init;			/* path to initialization object */
-	char			*config;		/* path to config object */
-	void			*priv;			/* opaque private data */
-	int			pad;			/* srw worker type */
-	int			num;			/* number of workers */
-} __attribute__ ((packed));
+	char			*config;
+};
 
-struct srw_load_ctl {
-	int			len;			/* length of the binary-object-name string */
-	int			wnum;			/* number of workers for this binary */
-	char			name[0];
-} __attribute__ ((packed));
+struct dnet_node;
+int dnet_srw_update(struct dnet_node *n, int pid);
 
-static inline void srw_convert_load_ctl(struct srw_load_ctl *ctl)
-{
-	ctl->len = dnet_bswap32(ctl->len);
-	ctl->wnum = dnet_bswap32(ctl->wnum);
+#ifdef __cplusplus
 }
+#endif
 
 
-
-#endif /* __ELLIPTICS_SRW_BASE_H */
+#endif /* __ELLIPTICS_SRW_H */

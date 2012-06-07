@@ -327,8 +327,15 @@ int main(int argc, char *argv[])
 	if (cmd) {
 		struct dnet_id __did, *did = NULL;
 		struct sph *e;
-		int event_size = strlen(cmd);
+		int len = strlen(cmd);
+		int event_size = len;
 		char *ret = NULL;
+		char *tmp;
+
+		tmp = strchr(cmd, ' ');
+		if (tmp) {
+			event_size = tmp - cmd;
+		}
 
 		if (id) {
 			did = &__did;
@@ -337,7 +344,7 @@ int main(int argc, char *argv[])
 			did->type = type;
 		}
 
-		e = malloc(sizeof(struct sph) + event_size + 1);
+		e = malloc(sizeof(struct sph) + len + 1);
 		if (!e)
 			return -ENOMEM;
 
@@ -346,7 +353,7 @@ int main(int argc, char *argv[])
 		e->key = -1;
 		e->num = 2;
 		e->binary_size = 0;
-		e->data_size = 0;
+		e->data_size = len - event_size;
 		e->event_size = event_size;
 
 		sprintf(e->data, "%s", cmd);

@@ -24,6 +24,7 @@ AC_TRY_LINK([#include <smack/smack.h>],
 		ac_have_smack="yes"
 		AC_MSG_RESULT([yes])
 	], [
+		ac_have_smack="no"
 		SMACK_LIBS=""
 		SMACK_CFLAGS=""
 		AC_MSG_RESULT([no])
