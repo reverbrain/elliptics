@@ -31,6 +31,7 @@
 #ifdef HAVE_COCAINE_SUPPORT
 
 #include <map>
+#include <vector>
 #include <boost/algorithm/string.hpp>
 
 #include <cocaine/context.hpp>
@@ -57,7 +58,7 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 		}
 
 		virtual void emit(cocaine::logging::priorities prio, const std::string& message) const {
-			if (prio < sizeof(dnet_log_map) / sizeof(dnet_log_map[0]))
+			if (prio < ARRAY_SIZE(dnet_log_map))
 				dnet_log(m_n, dnet_log_map[prio], "dnet-sink: %s\n", message.c_str());
 		}
 
@@ -75,11 +76,12 @@ class dnet_job_t: public cocaine::engine::job_t
 		}
 
 		virtual void react(const cocaine::engine::events::chunk& event) {
-			dnet_log(m_n, DNET_LOG_INFO, "chunk: %.*s\n", (int)event.message.size(), (const char*)event.message.data());
+			dnet_log(m_n, DNET_LOG_INFO, "chunk: %.*s\n", (int)event.message.size(), (char *)event.message.data());
+			m_res.insert(m_res.end(), (char *)event.message.data(), (char *)event.message.data() + event.message.size());
 		}
 
 		virtual void react(const cocaine::engine::events::choke& event) {
-			dnet_log(m_n, DNET_LOG_INFO, "choke\n");
+			dnet_log(m_n, DNET_LOG_INFO, "choke: %.*s\n", (int)m_res.size(), m_res.data());
 		}
 
 		virtual void react(const cocaine::engine::events::error& event) {
@@ -88,6 +90,7 @@ class dnet_job_t: public cocaine::engine::job_t
 
 	private:
 		struct dnet_node *m_n;
+		std::vector<char> m_res;
 };
 
 typedef std::map<std::string, boost::shared_ptr<cocaine::app_t> > eng_map_t;
