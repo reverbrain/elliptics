@@ -67,6 +67,7 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags, io->type);
 
 	memset(&wc, 0, sizeof(struct eblob_write_control));
+	wc.data_fd = -1;
 
 	dnet_convert_io_attr(io);
 
@@ -112,27 +113,12 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 
 	if (io->size) {
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
-			if (io->size) {
-				err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, io->type);
-			}
+			err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, io->type);
 		} else {
 			err = eblob_write(c->eblob, &key, data, io->offset, io->size, flags, io->type);
 			if (!err) {
 				if (io->size >= sizeof(struct eblob_write_control)) {
 					memcpy(&wc, data, sizeof(struct eblob_write_control));
-				} else {
-					err = eblob_read_nocsum(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, io->type);
-					if (err < 0) {
-						dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: "
-								"size: %llu: type: %d: %s %d\n",
-							dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
-						goto err_out_exit;
-					}
-
-					/* data is compressed, but we only care about header */
-					if (err == 1) {
-						err = 0;
-					}
 				}
 			}
 		}
@@ -162,6 +148,21 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 
 		dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: type: %d: Ok\n",
 			dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type);
+	}
+
+	if (!err && wc.data_fd == -1) {
+		err = eblob_read_nocsum(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, io->type);
+		if (err < 0) {
+			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: "
+					"size: %llu: type: %d: %s %d\n",
+				dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
+			goto err_out_exit;
+		}
+
+		/* data is compressed, but we only care about header */
+		if (err == 1) {
+			err = 0;
+		}
 	}
 
 	attr->flags |= DNET_ATTR_NOCSUM;
