@@ -42,6 +42,10 @@ AC_DEFUN([AC_CHECK_COCAINE],[
 		CXXFLAGS="$saved_CXXFLAGS"
 		AM_CONDITIONAL(HAVE_COCAINE, [test "f$ac_have_cocaine" = "fyes"])
 	], [
+		COCAINE_LIBS=""
+		COCAINE_CXXFLAGS=""
+		AC_SUBST(COCAINE_LIBS)
+		AC_SUBST(COCAINE_CXXFLAGS)
 		AM_CONDITIONAL(HAVE_COCAINE, [false])
 		AC_MSG_RESULT([needed ZMQ version is not installed])
 	])

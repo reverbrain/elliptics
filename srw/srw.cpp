@@ -221,6 +221,8 @@ int dnet_srw_update(struct dnet_node *n, int pid)
 	return 0;
 }
 #else
+#include <errno.h>
+
 int dnet_srw_init(struct dnet_node *, struct dnet_config *)
 {
 	return -ENOTSUP;
