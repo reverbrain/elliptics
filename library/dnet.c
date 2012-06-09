@@ -650,20 +650,20 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			   to eliminate double reply packets 
 			   (the first one with dnet_file_info structure,
 			   the second to destroy transaction on client side) */
-			if (cmd->cmd == DNET_CMD_WRITE) {
+			if ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ)) {
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
 			err = n->cb->command_handler(st, n->cb->command_private, cmd, data);
 
 			/* If there was error in WRITE command - send empty reply
 			   to notify client with error code and destroy transaction */
-			if (err && (cmd->cmd == DNET_CMD_WRITE)) {
+			if (err && ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ))) {
 				cmd->flags |= DNET_FLAGS_NEED_ACK;
 			}
-			if (err || (cmd->cmd != DNET_CMD_WRITE))
-				break;
 #if 0
-			dnet_update_notify(st, cmd, a, data);
+			if (!err && (cmd->cmd == DNET_CMD_WRITE)) {
+				dnet_update_notify(st, cmd, a, data);
+			}
 #endif
 			break;
 	}
@@ -1355,7 +1355,7 @@ int dnet_write_file(struct dnet_node *n, const char *file, const void *remote, i
 	return err;
 }
 
-static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv)
+static int dnet_read_file_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv)
 {
 	int fd, err;
 	struct dnet_node *n;
@@ -1365,9 +1365,11 @@ static int dnet_read_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, v
 
 	if (is_trans_destroyed(st, cmd)) {
 		if (c->wait) {
+			int err = 1;
 			if (cmd && cmd->status)
-				c->wait->cond = cmd->status;
-			dnet_wakeup(c->wait, );
+				err = cmd->status;
+
+			dnet_wakeup(c->wait, c->wait->cond = err);
 			dnet_wait_put(c->wait);
 		}
 
@@ -1423,7 +1425,7 @@ err_out_exit:
 			dnet_dump_id(&cmd->id), c->file, (unsigned long long)io->offset,
 			(unsigned long long)io->size, cmd->status, err);
 err_out_exit_no_log:
-	c->wait->cond = err;
+	dnet_wakeup(c->wait, c->wait->cond = err ? err : 1);
 	return err;
 }
 
@@ -1458,7 +1460,7 @@ static int dnet_read_file_raw_exec(struct dnet_node *n, const char *file, unsign
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
 
 	ctl.fd = -1;
-	ctl.complete = dnet_read_complete;
+	ctl.complete = dnet_read_file_complete;
 	ctl.cmd = DNET_CMD_READ;
 	ctl.cflags = DNET_FLAGS_NEED_ACK;
 
@@ -1487,7 +1489,7 @@ static int dnet_read_file_raw_exec(struct dnet_node *n, const char *file, unsign
 		goto err_out_exit;
 
 	err = dnet_wait_event(w, w->cond != wait_init, &n->wait_ts);
-	if (err || (w->cond != 0 && w->cond != wait_init)) {
+	if ((err < 0) || (w->cond < 0)) {
 		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
 			err = w->cond;
