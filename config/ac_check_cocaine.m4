@@ -1,39 +1,48 @@
 AC_DEFUN([AC_CHECK_COCAINE],[
-AC_LANG(C++)
-AC_MSG_CHECKING([whether development version of cocaine ( https://github.com/cocaine/cocaine-core ) engine library is installed])
-COCAINE_LIBS="-lcocaine-core -lcocaine-common"
-ac_have_cocaine="no"
+	AC_LANG(C++)
+	AC_MSG_CHECKING([whether development version of cocaine ( https://github.com/cocaine/cocaine-core ) engine library is installed])
 
-AC_ARG_WITH([cocaine-path],
-	AC_HELP_STRING([--with-cocaine-path=@<:@ARG@:>@],
-		[Build with the different path to cocaine (ARG=string)]),
-	[
-		COCAINE_LIBS="-L$withval/lib -lcocaine-core -lcocaine-common"
-		COCAINE_CXXFLAGS="-I$withval/include"
-	]
-)
+	COCAINE_LIBS="-lcocaine-core -lcocaine-common"
+	ac_have_cocaine="no"
 
-saved_CXXFLAGS="$CXXFLAGS"
-saved_LIBS="$LIBS"
-LIBS="$COCAINE_LIBS $LIBS $BOOST_SYSTEM_LIB"
-CXXFLAGS="$COCAINE_CXXFLAGS $CXXFLAGS"
+	AC_REQUIRE([AC_CHECK_MSGPACK])
+	AC_REQUIRE([AC_CHECK_ZMQ])
 
-AC_TRY_LINK([#include <cocaine/context.hpp>],
-	[cocaine::config_t config("/tmp/test");],
-	[
-		AC_DEFINE(HAVE_COCAINE_SUPPORT, 1, [Define this if cocaine is installed])
-		ac_have_cocaine="yes"
-		AC_MSG_RESULT([yes])
+	AC_ARG_WITH([cocaine-path],
+		AC_HELP_STRING([--with-cocaine-path=@<:@ARG@:>@],
+			[Build with the different path to cocaine (ARG=string)]),
+		[
+			COCAINE_LIBS="-L$withval/lib -lcocaine-core -lcocaine-common"
+			COCAINE_CXXFLAGS="-I$withval/include"
+		]
+	)
+
+	AS_IF([test "f$ac_have_zmq" = "fyes"], [
+		saved_CXXFLAGS="$CXXFLAGS"
+		saved_LIBS="$LIBS"
+		LIBS="$COCAINE_LIBS $LIBS $BOOST_SYSTEM_LIB"
+		CXXFLAGS="$COCAINE_CXXFLAGS $CXXFLAGS"
+
+		AC_TRY_LINK([#include <cocaine/context.hpp>],
+			[cocaine::config_t config("/tmp/test");],
+			[
+				AC_DEFINE(HAVE_COCAINE_SUPPORT, 1, [Define this if cocaine is installed])
+				ac_have_cocaine="yes"
+				AC_MSG_RESULT([yes])
+			], [
+				ac_have_cocaine="no"
+				COCAINE_LIBS=""
+				COCAINE_CFLAGS=""
+				AC_MSG_RESULT([no])
+			])
+
+		AC_SUBST(COCAINE_LIBS)
+		AC_SUBST(COCAINE_CXXFLAGS)
+		LIBS="$saved_LIBS"
+		CXXFLAGS="$saved_CXXFLAGS"
+		AM_CONDITIONAL(HAVE_COCAINE, [test "f$ac_have_cocaine" = "fyes"])
 	], [
-		ac_have_cocaine="no"
-		COCAINE_LIBS=""
-		COCAINE_CFLAGS=""
-		AC_MSG_RESULT([no])
+		AM_CONDITIONAL(HAVE_COCAINE, [false])
+		AC_MSG_RESULT([needed ZMQ version is not installed])
 	])
-
-AC_SUBST(COCAINE_LIBS)
-AC_SUBST(COCAINE_CXXFLAGS)
-LIBS="$saved_LIBS"
-CXXFLAGS="$saved_CXXFLAGS"
-AM_CONDITIONAL(HAVE_COCAINE, [test "f$ac_have_cocaine" = "fyes"])
 ])
