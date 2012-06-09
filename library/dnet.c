@@ -1804,12 +1804,11 @@ int dnet_lookup_object(struct dnet_node *n, struct dnet_id *id, uint64_t cflags,
 	cmd = (struct dnet_cmd *)(t + 1);
 
 	memcpy(&cmd->id, id, sizeof(struct dnet_id));
-	cmd->flags = DNET_FLAGS_NEED_ACK;
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
 	cmd->cmd = t->command = DNET_CMD_LOOKUP;
-	cmd->flags = cflags;
+	cmd->flags = cflags | DNET_FLAGS_NEED_ACK;
 
 	t->st = dnet_state_get_first(n, &cmd->id);
 	if (!t->st) {
