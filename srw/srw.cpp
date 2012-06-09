@@ -223,6 +223,8 @@ int dnet_srw_update(struct dnet_node *n, int pid)
 #else
 #include <errno.h>
 
+#include "elliptics.h"
+
 int dnet_srw_init(struct dnet_node *, struct dnet_config *)
 {
 	return -ENOTSUP;
