@@ -351,7 +351,6 @@ int main(int argc, char *argv[])
 		memset(e, 0, sizeof(struct sph));
 
 		e->key = -1;
-		e->num = 2;
 		e->binary_size = 0;
 		e->data_size = len - event_size;
 		e->event_size = event_size;

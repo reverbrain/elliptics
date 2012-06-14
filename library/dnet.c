@@ -1738,7 +1738,7 @@ int dnet_send_cmd(struct dnet_node *n, struct dnet_id *id, struct sph *e, void *
 
 int dnet_send_cmd_nolock(struct dnet_node *n, struct dnet_id *id, struct sph *e, void **ret)
 {
-	return dnet_send_cmd_raw(n, id, e, ret, 1);
+	return dnet_send_cmd_raw(n, id, e, ret, DNET_FLAGS_NOLOCK);
 }
 
 int dnet_try_reconnect(struct dnet_node *n)

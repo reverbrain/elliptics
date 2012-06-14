@@ -14,9 +14,7 @@ struct sph {
 	int			event_size;		/* size of the event string - it is located first in @data */
 	int			status;			/* processing status - negative errno code or zero on success */
 	int			key;			/* meta-key - used to map header to particular worker, see pool::worker_process() */
-	int			num;			/* used in 'new-task' event - common for all handlers -
-							 * @num specifies number of workers for new app
-							 */
+	int			pad;
 	char			data[0];
 } __attribute__ ((packed));
 

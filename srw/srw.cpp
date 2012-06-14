@@ -34,6 +34,8 @@
 #include <vector>
 #include <boost/algorithm/string.hpp>
 
+#include <zmq.hpp>
+
 #include <cocaine/context.hpp>
 #include <cocaine/logging.hpp>
 #include <cocaine/app.hpp>
@@ -80,12 +82,12 @@ class dnet_job_t: public cocaine::engine::job_t
 			m_res.insert(m_res.end(), (char *)event.message.data(), (char *)event.message.data() + event.message.size());
 		}
 
-		virtual void react(const cocaine::engine::events::choke& event) {
+		virtual void react(const cocaine::engine::events::choke& ) {
 			dnet_log(m_n, DNET_LOG_INFO, "choke: %.*s\n", (int)m_res.size(), m_res.data());
 		}
 
 		virtual void react(const cocaine::engine::events::error& event) {
-			dnet_log(m_n, DNET_LOG_ERROR, "error\n");
+			dnet_log(m_n, DNET_LOG_ERROR, "error: %s: %d\n", event.message.c_str(), event.code);
 		}
 
 	private:
@@ -109,14 +111,18 @@ class srw {
 #endif
 		}
 
-		int process(const struct sph *sph, const char *data) {
+		int process(const struct sph *sph) {
+			char *data = (char *)(sph + 1);
 			std::string event = dnet_get_event(sph, data);
 
 			std::vector<std::string> strs;
 			boost::split(strs, event, boost::is_any_of("@"));
 
-			if (strs.size() != 2)
+			if (strs.size() != 2) {
+				dnet_log(m_n, DNET_LOG_ERROR, "%s: invalid event name: must be application@event or start-task@name\n",
+						event.c_str());
 				return -EINVAL;
+			}
 
 			if (strs[0] == "start-task") {
 				boost::shared_ptr<cocaine::app_t> eng(new cocaine::app_t(m_ctx, strs[1]));
@@ -145,7 +151,8 @@ class srw {
 
 				guard.unlock();
 
-				it->second->enqueue(boost::make_shared<dnet_job_t>(m_n, strs[1], cocaine::blob_t(data, total_size(sph))));
+				it->second->enqueue(boost::make_shared<dnet_job_t>(m_n, strs[1],
+							cocaine::blob_t((const char *)sph, total_size(sph) + sizeof(struct sph))));
 				dnet_log(m_n, DNET_LOG_NOTICE, "%s: task queued\n", strs[1].c_str());
 				return 0;
 			}
@@ -205,7 +212,7 @@ int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sp
 	srw *s = (srw *)n->srw;
 
 	try {
-		return s->process(header, (const char *)data);
+		return s->process(header);
 	} catch (const std::exception &e) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: srw-processing: event: %.*s, data-size: %lld, binary-size: %lld, exception: %s\n",
 				dnet_dump_id(&cmd->id), header->event_size, (const char *)data,
@@ -216,7 +223,7 @@ int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sp
 	return -EINVAL;
 }
 
-int dnet_srw_update(struct dnet_node *n, int pid)
+int dnet_srw_update(struct dnet_node *, int )
 {
 	return 0;
 }
