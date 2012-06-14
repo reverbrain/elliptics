@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.13.0.9
+Version:	2.14.0.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -11,11 +11,11 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %if 0%{?rhel} < 6
 BuildRequires:	python26-devel, boost141-python, boost141-devel
-BuildRequires:  boost141-iostreams, boost141-filesystem, boost141-thread, boost141-python, boost141-system
+BuildRequires:  boost141-iostreams, boost141-filesystem, boost141-thread, boost141-python, boost141-system, cocaine-core, cocaine-devel
 %else
 BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-filesystem, boost-thread, boost-python, boost-system
 %endif
-BuildRequires:	eblob-devel >= 0.15.0
+BuildRequires:	eblob-devel >= 0.16.0
 BuildRequires:	automake autoconf libtool
 
 Obsoletes: srw
@@ -151,6 +151,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jun 15 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.0.1-1
+- Use cocaine workers for server-side
+- Drop dnet_attr structure
+- Optimize read (do not send ack if there is data)
+- Use ioremap::elliptics namespace
+- Added ::push() - nonblocking exec
+
 * Sun Apr 28 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.9-1
 - Do not allow zero-sized reads
 - Do not double-close python init file

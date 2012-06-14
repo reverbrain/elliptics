@@ -1,3 +1,13 @@
+elliptics-2.10 (2.14.0.1) unstable; urgency=low
+
+  * Use cocaine workers for server-side
+  * Drop dnet_attr structure
+  * Optimize read (do not send ack if there is data)
+  * Use ioremap::elliptics namespace
+  * Added ::push() - nonblocking exec
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Jun 2012 03:15:13 +0400
+
 elliptics-2.10 (2.13.0.9) unstable; urgency=low
 
   * Do not allow zero-sized reads
