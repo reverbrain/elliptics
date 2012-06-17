@@ -96,8 +96,6 @@ static void ioserv_sigchild_handler(int sig __unused, siginfo_t *si __unused, vo
 	int status, pid;
 
 	while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
-		dnet_log_raw(global_n, DNET_LOG_INFO, "child %d exited: %d\n", pid, WEXITSTATUS(status));
-
 		dnet_srw_update(global_n, pid);
 	}
 }
