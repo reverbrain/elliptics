@@ -46,22 +46,25 @@
 
 #include "elliptics.h"
 
-static int dnet_log_map[] = {
-	[cocaine::logging::debug] = DNET_LOG_NOTICE,
-	[cocaine::logging::info] = DNET_LOG_INFO,
-	[cocaine::logging::warning] = DNET_LOG_INFO,
-	[cocaine::logging::error] = DNET_LOG_ERROR,
-	[cocaine::logging::ignore] = DNET_LOG_DSA,
-};
-
 class dnet_sink_t: public cocaine::logging::sink_t {
 	public:
 		dnet_sink_t(struct dnet_node *n): cocaine::logging::sink_t(cocaine::logging::debug), m_n(n) {
 		}
 
 		virtual void emit(cocaine::logging::priorities prio, const std::string& message) const {
-			if (prio < ARRAY_SIZE(dnet_log_map))
-				dnet_log(m_n, dnet_log_map[prio], "dnet-sink: %s\n", message.c_str());
+			int mask = DNET_LOG_NOTICE;
+			if (prio == cocaine::logging::debug)
+				mask = DNET_LOG_NOTICE;
+			if (prio == cocaine::logging::info)
+				mask = DNET_LOG_INFO;
+			if (prio == cocaine::logging::warning)
+				mask = DNET_LOG_INFO;
+			if (prio == cocaine::logging::error)
+				mask = DNET_LOG_ERROR;
+			if (prio == cocaine::logging::ignore)
+				mask = DNET_LOG_DSA;
+
+			dnet_log(m_n, mask, "dnet-sink: %s\n", message.c_str());
 		}
 
 	private:
