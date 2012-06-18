@@ -41,6 +41,7 @@
 #include <cocaine/app.hpp>
 #include <cocaine/job.hpp>
 
+#include <elliptics/interface.hpp>
 #include <elliptics/cppdef.h>
 #include <elliptics/srw.h>
 
