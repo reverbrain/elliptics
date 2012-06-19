@@ -1,11 +1,6 @@
-SUBDIRS = src
+lib_LTLIBRARIES = libelliptics_cocaine.la
 
-EXTRA_DIST = scripts/pohmelfs_data_unlink.py \
-	     scripts/pohmelfs_hardlink.py \
-	     scripts/pohmelfs_inode_info_insert.py \
-	     scripts/pohmelfs_lookup.py \
-	     scripts/pohmelfs_readdir.py \
-	     scripts/pohmelfs_read_latest_groups.py \
-	     scripts/pohmelfs_rename.py \
-	     scripts/pohmelfs_unlink.py \
-	     scripts/python.init
+libelliptics_cocaine_la_SOURCES = srw.cpp
+
+AM_CXXFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @COCAINE_CXXFLAGS@ @EBLOB_CFLAGS@ @MSGPACK_CXXFLAGS@ @ZMQ_CXXFLAGS@ -I../library
+AM_LDFLAGS = @COCAINE_LIBS@ @MSGPACK_LIBS@ @ZMQ_LIBS@ @BOOST_THREAD_LIB@

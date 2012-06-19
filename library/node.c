@@ -694,7 +694,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!n->log)
 		dnet_log_init(n, cfg->log);
 
-	dnet_log(n, DNET_LOG_INFO, "Elliptics starts, version: %s, changed files: %s\n", ELLIPTICS_GIT_VERSION, ELLIPTICS_HAS_CHANGES);
+	dnet_log(n, DNET_LOG_INFO, "Elliptics starts\n");
 
 	if (!n->wait_ts.tv_sec) {
 		n->wait_ts.tv_sec = 5;

@@ -602,26 +602,20 @@ out_exit:
 	return err;
 }
 
-static int dnet_trans_complete_forward(struct dnet_net_state *state __unused,
-				struct dnet_cmd *cmd,
-				struct dnet_attr *attr,
-				void *priv)
+static int dnet_trans_complete_forward(struct dnet_net_state *state __unused, struct dnet_cmd *cmd, void *priv)
 {
 	struct dnet_trans *t = priv;
 	struct dnet_net_state *orig = t->orig;
 	int err = -EINVAL;
 
-	if (!is_trans_destroyed(state, cmd, attr)) {
+	if (!is_trans_destroyed(state, cmd)) {
 		uint64_t size = cmd->size;
 
 		cmd->trans = t->rcv_trans | DNET_TRANS_REPLY;
 
 		dnet_convert_cmd(cmd);
 
-		if (attr)
-			dnet_convert_attr(attr);
-
-		err = dnet_send_data(orig, cmd, sizeof(struct dnet_cmd), attr, size);
+		err = dnet_send_data(orig, cmd, sizeof(struct dnet_cmd), cmd + 1, size);
 	}
 
 	return err;
@@ -631,7 +625,6 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 		struct dnet_net_state *orig, struct dnet_net_state *forward)
 {
 	struct dnet_cmd *cmd = r->header;
-	struct dnet_attr *attr = r->data;
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
@@ -640,12 +633,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 
 	dnet_convert_cmd(cmd);
 
-	if (attr) {
-		dnet_convert_attr(attr);
-		t->command = attr->cmd;
-		dnet_convert_attr(attr);
-	}
-
+	t->command = cmd->cmd;
 	t->complete = dnet_trans_complete_forward;
 	t->priv = t;
 
@@ -698,7 +686,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 		}
 
 		if (t->complete)
-			t->complete(t->st, cmd, r->data, t->priv);
+			t->complete(t->st, cmd, t->priv);
 
 		dnet_trans_put(t);
 		if (!(cmd->flags & DNET_FLAGS_MORE)) {
@@ -838,8 +826,7 @@ err_out_unschedule:
 	return err;
 }
 
-static int dnet_auth_complete(struct dnet_net_state *state, struct dnet_cmd *cmd,
-		struct dnet_attr *attr __unused, void *priv __unused)
+static int dnet_auth_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv __unused)
 {
 	struct dnet_node *n;
 
@@ -847,7 +834,7 @@ static int dnet_auth_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		return -EPERM;
 
 	/* this means this callback at least has state and cmd */
-	if (!is_trans_destroyed(state, cmd, attr)) {
+	if (!is_trans_destroyed(state, cmd)) {
 		n = state->n;
 
 		if (cmd->status == 0) {
@@ -1087,46 +1074,37 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	free(st);
 }
 
-int dnet_send_reply(void *state, struct dnet_cmd *cmd, struct dnet_attr *attr,
-		void *odata, unsigned int size, int more)
+int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more)
 {
 	struct dnet_net_state *st = state;
 	struct dnet_cmd *c;
-	struct dnet_attr *a;
 	void *data;
 	int err;
 
-	c = malloc(sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
+	c = malloc(sizeof(struct dnet_cmd) + size);
 	if (!c)
 		return -ENOMEM;
 
-	memset(c, 0, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
+	memset(c, 0, sizeof(struct dnet_cmd) + size);
 
-	a = (struct dnet_attr *)(c + 1);
-	data = a + 1;
-
+	data = c + 1;
 	*c = *cmd;
 
 	if ((cmd->flags & DNET_FLAGS_NEED_ACK) || more)
 		c->flags |= DNET_FLAGS_MORE;
 
-	c->size = sizeof(struct dnet_attr) + size;
+	c->size = size;
 	c->trans |= DNET_TRANS_REPLY;
-
-	a->size = size;
-	a->flags = attr->flags;
-	a->cmd = attr->cmd;
 
 	if (size)
 		memcpy(data, odata, size);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply: size: %u, cflags: %x.\n",
-		dnet_dump_id(&cmd->id), dnet_cmd_string(a->cmd), size, c->flags);
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply: size: %u, cflags: %llx.\n",
+		dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), size, (unsigned long long)c->flags);
 
 	dnet_convert_cmd(c);
-	dnet_convert_attr(a);
 
-	err = dnet_send(st, c, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + size);
+	err = dnet_send(st, c, sizeof(struct dnet_cmd) + size);
 	free(c);
 
 	return err;
@@ -1165,12 +1143,11 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 	if (r->hsize > sizeof(struct dnet_cmd)) {
 		struct dnet_cmd *cmd = r->header;
 		int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
-		struct dnet_attr *attr = r->header + sizeof(struct dnet_cmd);
 
 		dnet_log(st->n, DNET_LOG_DSA, "%s: %s: SENT %s cmd: %s: cmd-size: %llu, nonblocking: %d\n",
 			dnet_state_dump_addr(st), dnet_dump_id(r->header),
 			nonblocking ? "nonblocking" : "blocking",
-			dnet_cmd_string(attr->cmd),
+			dnet_cmd_string(cmd->cmd),
 			(unsigned long long)cmd->size, nonblocking);
 	}
 

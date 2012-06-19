@@ -48,5 +48,10 @@ missing
 *.tar.gz
 .*
 *.exp
+*.so
+*.so.*
+*.a.*
+*.o.*
 root/
 tags
+include/elliptics/typedefs.h

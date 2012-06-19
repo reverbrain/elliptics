@@ -70,7 +70,7 @@ static void dnet_usage(char *p)
 			" -u file              - unlink file\n"
 			" -N namespace         - use this namespace for operations\n"
 			" -D object            - read latest data for given object, if -I id is specified, this field is unused\n"
-			" -A flags             - attribute flags (4 - no checksum, 2 - read modification time from metadata)\n"
+			" -C flags             - command flags\n"
 			" -t column            - column ID to read or write\n"
 			, p);
 }
@@ -90,8 +90,8 @@ int main(int argc, char *argv[])
 	FILE *log = NULL;
 	uint64_t offset, size;
 	int *groups = NULL, group_num = 0;
-	unsigned int aflags = DNET_ATTR_NOCSUM;
 	int type = EBLOB_TYPE_DATA;
+	uint64_t cflags = 0;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -109,13 +109,13 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "C:t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
+			case 'C':
+				cflags = strtoull(optarg, NULL, 0);
+				break;
 			case 't':
 				type = atoi(optarg);
-				break;
-			case 'A':
-				aflags = strtoul(optarg, NULL, 0);
 				break;
 			case 'F':
 				node_status.nflags = strtol(optarg, NULL, 0);
@@ -241,9 +241,9 @@ int main(int argc, char *argv[])
 			dnet_setup_id(&raw, 0, id);
 			raw.type = type;
 
-			err = dnet_write_file_id(n, writef, &raw, offset, offset, size, aflags, 0);
+			err = dnet_write_file_id(n, writef, &raw, offset, offset, size, cflags, 0);
 		} else {
-			err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, aflags, 0, type);
+			err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, cflags, 0, type);
 		}
 
 		if (err)
@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
 		/* number of copies to check to find the latest data */
 		io.num = group_num;
 
-		err = dnet_read_latest(n, &raw, &io, aflags, &data);
+		err = dnet_read_latest(n, &raw, &io, cflags, &data);
 		if (err)
 			return err;
 
@@ -313,13 +313,13 @@ int main(int argc, char *argv[])
 			for (i=0; i<group_num; ++i) {
 				dnet_setup_id(&raw, groups[i], id);
 				raw.type = type;
-				dnet_remove_object_now(n, &raw, 0, aflags);
+				dnet_remove_object_now(n, &raw, cflags);
 			}
 
 			return 0;
 		}
 
-		err = dnet_remove_file(n, removef, strlen(removef), NULL, aflags);
+		err = dnet_remove_file(n, removef, strlen(removef), NULL, cflags);
 		if (err)
 			return err;
 	}
@@ -327,8 +327,15 @@ int main(int argc, char *argv[])
 	if (cmd) {
 		struct dnet_id __did, *did = NULL;
 		struct sph *e;
-		int event_size = strlen(cmd);
+		int len = strlen(cmd);
+		int event_size = len;
 		char *ret = NULL;
+		char *tmp;
+
+		tmp = strchr(cmd, ' ');
+		if (tmp) {
+			event_size = tmp - cmd;
+		}
 
 		if (id) {
 			did = &__did;
@@ -337,16 +344,15 @@ int main(int argc, char *argv[])
 			did->type = type;
 		}
 
-		e = malloc(sizeof(struct sph) + event_size + 1);
+		e = malloc(sizeof(struct sph) + len + 1);
 		if (!e)
 			return -ENOMEM;
 
 		memset(e, 0, sizeof(struct sph));
 
 		e->key = -1;
-		e->num = 2;
 		e->binary_size = 0;
-		e->data_size = 0;
+		e->data_size = len - event_size;
 		e->event_size = event_size;
 
 		sprintf(e->data, "%s", cmd);
@@ -405,7 +411,7 @@ int main(int argc, char *argv[])
 						strerror(-err), err);
 			}
 
-			err = dnet_update_status(n, &addr, NULL, &node_status, update_status > 0);
+			err = dnet_update_status(n, &addr, NULL, &node_status);
 			if (err) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "ioclient: dnet_update_status: %s:%s:%d, sock_type: %d, proto: %d: update: %d: "
 						"%s %d\n",

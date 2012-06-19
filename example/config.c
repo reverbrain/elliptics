@@ -145,18 +145,8 @@ static int dnet_set_srw(struct dnet_config_backend *b __unused, char *key, char 
 {
 	char **ptr = NULL;
 
-	if (!strcmp(key, "srw_binary"))
-		ptr = &dnet_cfg_state.srw.binary;
-	else if (!strcmp(key, "srw_log"))
-		ptr = &dnet_cfg_state.srw.log;
-	else if (!strcmp(key, "srw_pipe"))
-		ptr = &dnet_cfg_state.srw.pipe;
-	else if (!strcmp(key, "srw_init"))
-		ptr = &dnet_cfg_state.srw.init;
-	else if (!strcmp(key, "srw_config"))
+	if (!strcmp(key, "srw_config"))
 		ptr = &dnet_cfg_state.srw.config;
-	else if (!strcmp(key, "srw_num"))
-		dnet_cfg_state.srw.num = atoi(value);
 
 	if (ptr) {
 		free(*ptr);
@@ -227,14 +217,6 @@ int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, cha
 		if (old) {
 			dnet_common_log(old, 0xff, "Reopened log file\n");
 			fclose(old);
-			free(dnet_cfg_state.srw.log);
-		}
-
-		dnet_cfg_state.srw.log = strdup(dnet_logger_value);
-		if (!dnet_cfg_state.srw.log) {
-			err = -ENOMEM;
-			fprintf(stderr, "cnf: failed to duplicate log string '%s': %s\n", dnet_logger_value, strerror(errno));
-			return err;
 		}
 	}
 

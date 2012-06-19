@@ -145,8 +145,9 @@ static inline void dnet_setup_id(struct dnet_id *id, unsigned int group_id, unsi
 struct dnet_cmd
 {
 	struct dnet_id		id;
-	uint32_t		flags;
 	int			status;
+	int			cmd;
+	uint64_t		flags;
 	uint64_t		trans;
 	uint64_t		size;
 	uint8_t			data[0];
@@ -161,52 +162,37 @@ static inline void dnet_convert_id(struct dnet_id *id)
 static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 {
 	dnet_convert_id(&cmd->id);
-	cmd->flags = dnet_bswap32(cmd->flags);
+	cmd->flags = dnet_bswap64(cmd->flags);
+	cmd->cmd = dnet_bswap32(cmd->cmd);
 	cmd->status = dnet_bswap32(cmd->status);
 	cmd->size = dnet_bswap64(cmd->size);
 	cmd->trans = dnet_bswap64(cmd->trans);
 }
 
+/*
+ * cmd flags which are not 'common' to all commands
+ * they occupy higher 32 bits
+ */
+
+/* drop notifiction */
+#define DNET_ATTR_DROP_NOTIFICATION		(1ULL<<32)
+
 /* Completely remove object history and metadata */
-#define DNET_ATTR_DELETE_HISTORY		(1<<0)
+#define DNET_ATTR_DELETE_HISTORY		(1ULL<<32)
 
 /* What type of counters to fetch */
-#define DNET_ATTR_CNTR_GLOBAL			(1<<0)
+#define DNET_ATTR_CNTR_GLOBAL			(1ULL<<32)
 
 /* Bulk request for checking files */
-#define DNET_ATTR_BULK_CHECK			(1<<0)
+#define DNET_ATTR_BULK_CHECK			(1ULL<<32)
 
 /* Fill ctime/mtime from metadata when processing DNET_CMD_LOOKUP */
-#define DNET_ATTR_META_TIMES			(1<<1)
-
-/* Do not verify checksum */
-#define DNET_ATTR_NOCSUM			(1<<2)
+#define DNET_ATTR_META_TIMES			(1ULL<<33)
 
 /*
  * ascending sort data before returning range request to user
  */
-#define DNET_ATTR_SORT				(1<<3)
-
-/*
- * This flag will force its parent CMD not to lock operation
- * Flag will be propagated to cmd->flags
- */
-#define DNET_ATTR_NOLOCK			(1<<4)
-
-struct dnet_attr
-{
-	uint64_t		size;
-	uint32_t		cmd;
-	uint32_t		flags;
-	uint32_t		unused[2];
-} __attribute__ ((packed));
-
-static inline void dnet_convert_attr(struct dnet_attr *a)
-{
-	a->size = dnet_bswap64(a->size);
-	a->cmd = dnet_bswap32(a->cmd);
-	a->flags = dnet_bswap32(a->flags);
-}
+#define DNET_ATTR_SORT				(1ULL<<35)
 
 #define DNET_ADDR_SIZE		28
 
@@ -248,14 +234,12 @@ static inline void dnet_convert_addr_attr(struct dnet_addr_attr *a)
 struct dnet_addr_cmd
 {
 	struct dnet_cmd		cmd;
-	struct dnet_attr	a;
 	struct dnet_addr_attr	addr;
 } __attribute__ ((packed));
 
 static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 {
 	dnet_convert_cmd(&l->cmd);
-	dnet_convert_attr(&l->a);
 	dnet_convert_addr_attr(&l->addr);
 }
 

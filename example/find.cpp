@@ -42,13 +42,13 @@
 
 #include "common.h"
 
-using namespace zbr;
+using namespace ioremap::elliptics;
 
-class elliptics_finder : public elliptics_node {
+class finder : public node {
 	public:
-		elliptics_finder(elliptics_log &log) : elliptics_node(log) {};
-		elliptics_finder(elliptics_log &log, struct dnet_config &cfg) : elliptics_node(log, cfg) {};
-		virtual ~elliptics_finder() {};
+		finder(logger &log) : node(log) {};
+		finder(logger &log, struct dnet_config &cfg) : node(log, cfg) {};
+		virtual ~finder() {};
 
 		void add_remote(const char *addr);
 
@@ -56,7 +56,7 @@ class elliptics_finder : public elliptics_node {
 		void parse_meta(const std::string &ret);
 };
 
-void elliptics_finder::add_remote(const char *addr)
+void finder::add_remote(const char *addr)
 {
 	struct dnet_config rem;
 	int err;
@@ -70,10 +70,10 @@ void elliptics_finder::add_remote(const char *addr)
 		throw std::runtime_error(str.str());
 	}
 
-	elliptics_node::add_remote(rem.addr, atoi(rem.port), rem.family);
+	node::add_remote(rem.addr, atoi(rem.port), rem.family);
 }
 
-void elliptics_finder::parse_lookup(const std::string &ret)
+void finder::parse_lookup(const std::string &ret)
 {
 	long size = ret.size();
 	void *data = (void *)ret.data();
@@ -83,14 +83,13 @@ void elliptics_finder::parse_lookup(const std::string &ret)
 		struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
 
 		if (cmd->size) {
-			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
 			struct dnet_file_info *info = NULL;
 			char addr_str[128] = "no-address";
 
-			if (attr->size >= sizeof(struct dnet_addr_attr)) {
-				struct dnet_addr_attr *a = (struct dnet_addr_attr *)(attr + 1);
+			if (cmd->size >= sizeof(struct dnet_addr_attr)) {
+				struct dnet_addr_attr *a = (struct dnet_addr_attr *)(cmd + 1);
 
-				if (attr->size > sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info)) {
+				if (cmd->size > sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info)) {
 					info = (struct dnet_file_info *)(a + 1);
 					dnet_convert_file_info(info);
 				}
@@ -107,17 +106,17 @@ void elliptics_finder::parse_lookup(const std::string &ret)
 			}
 
 			if (!info)
-				dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND object: %s: should live at: %s\n",
+				dnet_log_raw(m_node, DNET_LOG_DATA, "%s: FIND object: %s: should live at: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
 			else
-				dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND-OK object: %s: should live at: %s, "
+				dnet_log_raw(m_node, DNET_LOG_DATA, "%s: FIND-OK object: %s: should live at: %s, "
 						"offset: %llu, size: %llu, mode: %llo, path: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
 					(unsigned long long)info->offset, (unsigned long long)info->size,
 					(unsigned long long)info->mode, (char *)(info + 1));
 		} else {
 			if (cmd->status != 0)
-				dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
+				dnet_log_raw(m_node, DNET_LOG_DATA, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
 		}
 
 		data = (char *)data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
@@ -125,7 +124,7 @@ void elliptics_finder::parse_lookup(const std::string &ret)
 	}
 }
 
-void elliptics_finder::parse_meta(const std::string &ret)
+void finder::parse_meta(const std::string &ret)
 {
 	long size = ret.size();
 	void *data = (void *)ret.data();
@@ -137,31 +136,25 @@ void elliptics_finder::parse_meta(const std::string &ret)
 
 		dnet_server_convert_dnet_addr_raw(addr, addr_str, sizeof(addr_str));
 
-		if (cmd->size) {
-			struct dnet_attr *attr = (struct dnet_attr *)(cmd + 1);
+		if (cmd->size > sizeof(struct dnet_io_attr)) {
+			struct dnet_io_attr *io = (struct dnet_io_attr *)(cmd + 1);
 
+			dnet_convert_io_attr(io);
 
-			if (attr->size > sizeof(struct dnet_io_attr)) {
-				struct dnet_io_attr *io = (struct dnet_io_attr *)(attr + 1);
+			dnet_log_raw(m_node, DNET_LOG_DATA, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
+					dnet_dump_id(&cmd->id), addr_str, dnet_cmd_string(cmd->cmd),
+					(unsigned long long)io->size);
 
-				dnet_convert_io_attr(io);
+			struct dnet_meta_container mc;
+			memset(&mc, 0, sizeof(mc));
+			mc.data = io + 1;
+			mc.size = io->size;
 
-				dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
-						dnet_dump_id(&cmd->id), addr_str, dnet_cmd_string(attr->cmd),
-						(unsigned long long)io->size);
-
-				struct dnet_meta_container mc;
-				memset(&mc, 0, sizeof(mc));
-				mc.data = io + 1;
-				mc.size = io->size;
-
-				memcpy(&mc.id, &cmd->id, sizeof(struct dnet_id));
-				dnet_meta_print(node, &mc);
-			} else {
-			}
+			memcpy(&mc.id, &cmd->id, sizeof(struct dnet_id));
+			dnet_meta_print(m_node, &mc);
 		} else {
 			if (cmd->status != 0)
-				dnet_log_raw(node, DNET_LOG_DATA, "%s: FIND meta: %s: status: %d\n",
+				dnet_log_raw(m_node, DNET_LOG_DATA, "%s: FIND meta: %s: status: %d\n",
 						dnet_dump_id(&cmd->id), addr_str, cmd->status);
 		}
 
@@ -220,23 +213,22 @@ int main(int argc, char *argv[])
 	}
 
 	try {
-		elliptics_log_file log(logfile, log_mask);
-		elliptics_finder find(log);
+		log_file log(logfile, log_mask);
+		finder find(log);
 
 		find.add_remote(remote);
 
 		{
-			elliptics_callback c;
+			callback c;
 
 			memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
 			ctl.priv = (void *)&c;
-			ctl.complete = elliptics_callback::elliptics_complete_callback;
+			ctl.complete = callback::complete_callback;
 
 			dnet_setup_id(&ctl.id, 0, raw.id);
-			ctl.cflags = DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK;
+			ctl.cflags = DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK | DNET_ATTR_META_TIMES;
 			ctl.cmd = DNET_CMD_LOOKUP;
-			ctl.aflags = DNET_ATTR_META_TIMES;
 
 			int num = find.request_cmd(ctl);
 			std::string lookup_ret = c.wait(num);
@@ -246,12 +238,12 @@ int main(int argc, char *argv[])
 
 
 		{
-			elliptics_callback c;
+			callback c;
 
 			memset(&ctl, 0, sizeof(ctl));
 
 			ctl.priv = (void *)&c;
-			ctl.complete = elliptics_callback::elliptics_complete_callback;
+			ctl.complete = callback::complete_callback;
 
 			dnet_setup_id(&ctl.id, 0, raw.id);
 			ctl.cmd = DNET_CMD_READ;

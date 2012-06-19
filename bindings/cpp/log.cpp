@@ -15,19 +15,19 @@
 
 #include "config.h"
 
-#include "elliptics/cppdef.h"
+#include <elliptics/cppdef.h>
 
-using namespace zbr;
+using namespace ioremap::elliptics;
 
-void elliptics_log::logger(void *priv, const uint32_t mask, const char *msg)
+void logger::real_logger(void *priv, const uint32_t mask, const char *msg)
 {
-	elliptics_log *log = reinterpret_cast<elliptics_log *> (priv);
+	logger *log = reinterpret_cast<logger *> (priv);
 
 	log->log(mask, msg);
 }
 
-elliptics_log_file::elliptics_log_file(const char *file, const uint32_t mask) :
-	elliptics_log(mask)
+log_file::log_file(const char *file, const uint32_t mask) :
+	logger(mask)
 {
 	try {
 		this->file = new std::string(file);
@@ -43,18 +43,18 @@ elliptics_log_file::elliptics_log_file(const char *file, const uint32_t mask) :
 	}
 }
 
-unsigned long elliptics_log_file::clone(void)
+unsigned long log_file::clone(void)
 {
-	return reinterpret_cast<unsigned long>(new elliptics_log_file (file->c_str(), get_log_mask()));
+	return reinterpret_cast<unsigned long>(new log_file (file->c_str(), get_log_mask()));
 }
 
-elliptics_log_file::~elliptics_log_file(void)
+log_file::~log_file(void)
 {
 	delete file;
 	delete stream;
 }
 
-void elliptics_log_file::log(uint32_t mask, const char *msg)
+void log_file::log(uint32_t mask, const char *msg)
 {
 	if (mask & ll.log_mask) {
 		char str[64];

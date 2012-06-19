@@ -161,7 +161,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 
 	if (t->complete) {
 		t->cmd.flags |= DNET_FLAGS_DESTROY;
-		t->complete(t->st, &t->cmd, NULL, t->priv);
+		t->complete(t->st, &t->cmd, t->priv);
 	}
 
 	if (st && (t->cmd.status == 0) &&
@@ -205,15 +205,14 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 	struct dnet_io_req req;
 	struct dnet_node *n = st->n;
 	struct dnet_cmd *cmd;
-	struct dnet_attr *a;
 	struct dnet_trans *t;
 	int err;
 
-	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + ctl->size);
+	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd) + ctl->size);
 	if (!t) {
 		err = -ENOMEM;
 		if (ctl->complete)
-			ctl->complete(NULL, NULL, NULL, ctl->priv);
+			ctl->complete(NULL, NULL, ctl->priv);
 		goto err_out_exit;
 	}
 
@@ -221,34 +220,28 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 	t->priv = ctl->priv;
 
 	cmd = (struct dnet_cmd *)(t + 1);
-	a = (struct dnet_attr *)(cmd + 1);
 
 	memcpy(&cmd->id, &ctl->id, sizeof(struct dnet_id));
 	cmd->flags = ctl->cflags;
-	cmd->size = sizeof(struct dnet_attr) + ctl->size;
+	cmd->size = ctl->size;
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
-	a->cmd = t->command = ctl->cmd;
-	a->size = ctl->size;
-	a->flags = ctl->aflags;
-	if (ctl->aflags & DNET_ATTR_NOLOCK)
-		cmd->flags |= DNET_FLAGS_NOLOCK;
+	cmd->cmd = t->command = ctl->cmd;
 
 	if (ctl->size && ctl->data)
-		memcpy(a + 1, ctl->data, ctl->size);
+		memcpy(cmd + 1, ctl->data, ctl->size);
 
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
 	dnet_convert_cmd(cmd);
-	dnet_convert_attr(a);
 
 	t->st = dnet_state_get(st);
 
 	memset(&req, 0, sizeof(req));
 	req.st = st;
 	req.header = cmd;
-	req.hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_attr) + ctl->size;
+	req.hsize = sizeof(struct dnet_cmd) + ctl->size;
 
 	dnet_log(n, DNET_LOG_INFO, "%s: alloc/send %s trans: %llu -> %s %f.\n",
 			dnet_dump_id(&cmd->id),
@@ -277,7 +270,7 @@ int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
 	if (!st) {
 		err = -ENOENT;
 		if (ctl->complete)
-			ctl->complete(NULL, NULL, NULL, ctl->priv);
+			ctl->complete(NULL, NULL, ctl->priv);
 		goto err_out_exit;
 	}
 

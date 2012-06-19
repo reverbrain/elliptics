@@ -193,7 +193,7 @@ int backend_stat_low_level(const char *path, struct dnet_stat *st)
 	return 0;
 }
 
-int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr *attr)
+int backend_stat(void *state, char *path, struct dnet_cmd *cmd)
 {
 	struct dnet_stat st;
 	int err;
@@ -207,7 +207,7 @@ int backend_stat(void *state, char *path, struct dnet_cmd *cmd, struct dnet_attr
 	if (err)
 		return err;
 
-	return dnet_send_reply(state, cmd, attr, &st, sizeof(struct dnet_stat), 0);
+	return dnet_send_reply(state, cmd, &st, sizeof(struct dnet_stat), 0);
 }
 
 int backend_storage_size(struct dnet_config_backend *b, const char *root)
