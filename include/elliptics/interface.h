@@ -443,7 +443,7 @@ int dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num);
  * Initialize private logging system.
  */
 int dnet_log_init(struct dnet_node *n, struct dnet_log *l);
-void dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
+void __attribute__((weak)) dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
 
 #define NIP6(addr) \
 	(addr).s6_addr[0], \

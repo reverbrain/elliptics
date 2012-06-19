@@ -47,9 +47,6 @@
 
 #include "elliptics.h"
 
-void __attribute__((weak)) 
-void dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
-
 class dnet_sink_t: public cocaine::logging::sink_t {
 	public:
 		dnet_sink_t(struct dnet_node *n): cocaine::logging::sink_t(cocaine::logging::debug), m_n(n) {
