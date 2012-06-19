@@ -164,7 +164,6 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 		}
 	}
 
-	attr->flags |= DNET_ATTR_NOCSUM;
 	err = dnet_send_file_info(state, cmd, wc.data_fd, wc.offset, wc.size);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: dnet_send_file_info: "
