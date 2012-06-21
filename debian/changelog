@@ -1,3 +1,11 @@
+elliptics-2.10 (2.14.0.2) unstable; urgency=low
+
+  * Build srw fix (use weak symbol for dnet_log_raw())
+  * Added new eblob bit to config documentation, drop unused parameters
+  * Fixed write response generation
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Jun 2012 18:18:13 +0400
+
 elliptics-2.10 (2.14.0.1) unstable; urgency=low
 
   * Use cocaine workers for server-side

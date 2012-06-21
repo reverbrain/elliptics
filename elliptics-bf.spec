@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.14.0.1
+Version:	2.14.0.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jun 21 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.0.2-1
+- Build srw fix (use weak symbol for dnet_log_raw())
+- Added new eblob bit to config documentation, drop unused parameters
+- Fixed write response generation
+
 * Fri Jun 15 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.0.1-1
 - Use cocaine workers for server-side
 - Drop dnet_attr structure
