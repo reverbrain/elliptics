@@ -1049,7 +1049,7 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, 
 	struct dnet_write_completion *wc = priv;
 	struct dnet_wait *w = wc->wait;
 
-	if (!st || !cmd) {
+	if (is_trans_destroyed(st, cmd)) {
 		dnet_wakeup(w, w->cond++);
 		dnet_write_complete_free(wc);
 		return 0;
@@ -1079,12 +1079,6 @@ err_out_exit:
 	if (w->status < 0)
 		w->status = err;
 	pthread_mutex_unlock(&w->wait_lock);
-
-	if (is_trans_destroyed(st, cmd)) {
-		dnet_wakeup(w, w->cond++);
-		dnet_write_complete_free(wc);
-		return 0;
-	}
 
 	return 0;
 }
