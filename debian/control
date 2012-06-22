@@ -8,7 +8,7 @@ Homepage: http://www.ioremap.net/projects/elliptics
 
 Package: elliptics-2.10
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.16.0), cocaine-generic-slave, libcocaine-plugin-binary, libcocaine-plugin-python, libcocaine-core1
+Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.16.0), cocaine-generic-slave, libcocaine-core1
 Replaces: elliptics, srw
 Provides: elliptics
 Description: Distributed hash table storage
