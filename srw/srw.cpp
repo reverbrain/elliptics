@@ -65,7 +65,10 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 			if (prio == cocaine::logging::ignore)
 				mask = DNET_LOG_DSA;
 
-			dnet_log(m_n, mask, "dnet-sink: %s/%s\n", app.c_str(), message.c_str());
+			dnet_log(m_n, mask, "dnet-sink: %s : %s\n", app.c_str(), message.c_str());
+
+			if (!boost::starts_with(app, "app/"))
+				return;
 
 			struct dnet_io_control ctl;
 
@@ -85,6 +88,12 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 			char *result = NULL;
 			int err = dnet_write_data_wait(m_n, &ctl, (void **)&result);
 			if (err < 0) {
+				/* could not find remote node to send data, saving it locally */
+				if (err == -ENOENT) {
+					log_locally(ctl.id, message + "\n");
+					return;
+				}
+
 				std::ostringstream string;
 				string << dnet_dump_id(&ctl.id) << ": WRITE: log-write-failed: size: " << message.size() << ", err: " << err;
 				throw std::runtime_error(string.str());
@@ -96,6 +105,34 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 
 	private:
 		struct dnet_node *m_n;
+
+		void log_locally(struct dnet_id &id, const std::string &msg) const {
+			std::vector<char> data;
+			struct dnet_cmd *cmd;
+			struct dnet_io_attr *io;
+			char *msg_data;
+
+			data.resize(sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr) + msg.size());
+
+			cmd = (struct dnet_cmd *)data.data();
+			io = (struct dnet_io_attr *)(cmd + 1);
+			msg_data = (char *)(io + 1);
+
+			cmd->id = id;
+			cmd->id.group_id = m_n->id.group_id;
+			cmd->cmd = DNET_CMD_WRITE;
+			cmd->size = data.size() - sizeof(struct dnet_cmd);
+
+			memcpy(io->parent, cmd->id.id, DNET_ID_SIZE);
+			memcpy(io->id, cmd->id.id, DNET_ID_SIZE);
+
+			io->flags = DNET_IO_FLAGS_APPEND | DNET_IO_FLAGS_SKIP_SENDING;
+			io->size = msg.size();
+
+			memcpy(msg_data, msg.data(), msg.size());
+
+			m_n->cb->command_handler(m_n->st, m_n->cb->command_private, cmd, (void *)(cmd + 1));
+		}
 
 };
 
@@ -213,6 +250,7 @@ int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg)
 	}
 
 	try {
+		dnet_node_set_groups(n, (int *)&n->id.group_id, 1);
 		n->srw = (void *)new srw(n, cfg->srw.config);
 		dnet_log(n, DNET_LOG_INFO, "srw: initialized: config: %s\n", cfg->srw.config);
 		return 0;
