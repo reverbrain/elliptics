@@ -70,15 +70,31 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 			if (!boost::starts_with(app, "app/"))
 				return;
 
+			std::string msg_with_date;
+
+			char str[64];
+			struct tm tm;
+			struct timeval tv;
+
+			gettimeofday(&tv, NULL);
+			localtime_r((time_t *)&tv.tv_sec, &tm);
+			strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+			char tmp[128];
+
+			int len = snprintf(tmp, sizeof(tmp), "%s.%06lu %ld/%4d %1x: ", str, tv.tv_usec, dnet_get_id(), getpid(), mask);
+			msg_with_date.assign(tmp, len);
+			msg_with_date += message + "\n";
+
 			struct dnet_io_control ctl;
 
 			memset(&ctl, 0, sizeof(ctl));
 
 			ctl.cflags = 0;
-			ctl.data = message.data();
+			ctl.data = msg_with_date.data();
 
 			ctl.io.flags = DNET_IO_FLAGS_APPEND;
-			ctl.io.size = message.size();
+			ctl.io.size = msg_with_date.size();
 
 			std::string app_log = app + ".log";
 			dnet_transform(m_n, app_log.data(), app_log.size(), &ctl.id);
@@ -90,7 +106,7 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 			if (err < 0) {
 				/* could not find remote node to send data, saving it locally */
 				if (err == -ENOENT) {
-					log_locally(ctl.id, message + "\n");
+					log_locally(ctl.id, msg_with_date);
 					return;
 				}
 
@@ -99,7 +115,6 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 				throw std::runtime_error(string.str());
 			}
 
-			std::string ret((const char *)result, err);
 			free(result);
 		}
 
