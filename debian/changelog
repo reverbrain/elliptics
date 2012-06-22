@@ -1,3 +1,9 @@
+elliptics-2.10 (2.14.0.7) unstable; urgency=low
+
+  * Fixed typo in smack config parser
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Jun 2012 23:45:13 +0400
+
 elliptics-2.10 (2.14.0.6) unstable; urgency=low
 
   * Sink srw log into app + ".log" object in elliptics

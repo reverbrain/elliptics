@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.14.0.6
+Version:	2.14.0.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jun 22 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.0.7-1
+- Fixed typo in smack config parser
+
 * Fri Jun 22 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.0.6-1
 - Sink srw log into app + ".log" object in elliptics
 
