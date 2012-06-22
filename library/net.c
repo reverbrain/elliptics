@@ -1081,6 +1081,9 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int
 	void *data;
 	int err;
 
+	if (st == st->n->st)
+		return 0;
+
 	c = malloc(sizeof(struct dnet_cmd) + size);
 	if (!c)
 		return -ENOMEM;
