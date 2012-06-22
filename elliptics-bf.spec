@@ -121,14 +121,14 @@ rm -rf %{buildroot}
 %doc AUTHORS AUTHORS COPYING README
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
-%{_libdir}/libsrw.so.*
+%{_libdir}/libelliptics_cocaine.so.*
 
 
 %files devel
 %defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/libelliptics.so
-%{_libdir}/libsrw.so
+%{_libdir}/libelliptics_cocaine.so
 
 %files python
 %defattr(-,root,root,-)
