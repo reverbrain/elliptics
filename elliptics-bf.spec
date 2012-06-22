@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.14.0.4
+Version:	2.14.0.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -16,6 +16,7 @@ BuildRequires:  boost141-iostreams, boost141-filesystem, boost141-thread, boost1
 BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-filesystem, boost-thread, boost-python, boost-system
 %endif
 BuildRequires:	eblob-devel >= 0.16.0
+BuildRequires:  smack
 BuildRequires:	automake autoconf libtool
 
 Obsoletes: srw
@@ -151,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jun 22 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.0.5-1
+- Added SMACK backend depends
+
 * Fri Jun 22 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.0.4-1
 - Drop cocaine plugin dependencies
 

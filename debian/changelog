@@ -1,3 +1,9 @@
+elliptics-2.10 (2.14.0.5) unstable; urgency=low
+
+  * Added SMACK backend depends
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Jun 2012 19:54:13 +0400
+
 elliptics-2.10 (2.14.0.4) unstable; urgency=low
 
   * Drop cocaine plugin dependencies
