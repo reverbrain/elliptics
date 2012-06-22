@@ -11,7 +11,7 @@ AM_CXXFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
 AM_LDFLAGS = @PTHREAD_LIBS@ @EBLOB_LIBS@
 
 
-EXAMPLE_COMMON_LIBS =  libcommon.a ../library/libelliptics.la
+EXAMPLE_COMMON_LIBS =  libcommon.a ../library/libelliptics.la ../srw/libelliptics_cocaine.la
 
 libcommon_a_SOURCES = common.c
 
