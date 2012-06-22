@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.14.0.3
+Version:	2.14.0.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jun 22 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.0.4-1
+- Drop cocaine plugin dependencies
+
 * Fri Jun 22 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.0.3-1
 - Added new cocaine debian package deps
 - Drop cocaine deps in RHEL/Fedora build
