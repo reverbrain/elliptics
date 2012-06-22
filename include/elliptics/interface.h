@@ -218,7 +218,7 @@ int dnet_read_file(struct dnet_node *n, const char *file, const void *remote, in
 int dnet_write_object(struct dnet_node *n, struct dnet_io_control *ctl);
 
 /* Returns size of the reply or negative error value */
-int dnet_write_data_wait(struct dnet_node *n, struct dnet_io_control *ctl, void **result);
+int __attribute__((weak)) dnet_write_data_wait(struct dnet_node *n, struct dnet_io_control *ctl, void **result);
 
 /*
  * Sends given file to the remote nodes and waits until all of them ack the write.
@@ -433,7 +433,7 @@ struct dnet_config
 
 struct dnet_node *dnet_get_node_from_state(void *state);
 
-int dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num);
+int __attribute__((weak)) dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num);
 
 /*
  * Logging helpers.
@@ -740,7 +740,7 @@ int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct d
  * @src and @size correspond to to be transformed source data.
  * @dst and @dsize specify destination buffer.
  */
-int dnet_transform(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id);
+int __attribute__((weak)) dnet_transform(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id);
 
 int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, uint64_t cflags,
 	int (* complete)(struct dnet_net_state *state,
@@ -877,7 +877,7 @@ int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r);
 void *dnet_node_get_ns(struct dnet_node *n, int *nsize);
 void dnet_node_set_ns(struct dnet_node *n, void *ns, int nsize);
 
-long dnet_get_id(void);
+long __attribute__((weak)) dnet_get_id(void);
 
 static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd *cmd)
 {
