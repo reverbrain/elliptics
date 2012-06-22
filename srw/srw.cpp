@@ -52,7 +52,7 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 		dnet_sink_t(struct dnet_node *n): cocaine::logging::sink_t(cocaine::logging::debug), m_n(n) {
 		}
 
-		virtual void emit(cocaine::logging::priorities prio, const std::string& message) const {
+		virtual void emit(cocaine::logging::priorities prio, const std::string &app, const std::string& message) const {
 			int mask = DNET_LOG_NOTICE;
 			if (prio == cocaine::logging::debug)
 				mask = DNET_LOG_NOTICE;
@@ -65,7 +65,33 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 			if (prio == cocaine::logging::ignore)
 				mask = DNET_LOG_DSA;
 
-			dnet_log(m_n, mask, "dnet-sink: %s\n", message.c_str());
+			dnet_log(m_n, mask, "dnet-sink: %s/%s\n", app.c_str(), message.c_str());
+
+			struct dnet_io_control ctl;
+
+			memset(&ctl, 0, sizeof(ctl));
+
+			ctl.cflags = 0;
+			ctl.data = message.data();
+
+			ctl.io.flags = DNET_IO_FLAGS_APPEND;
+			ctl.io.size = message.size();
+
+			std::string app_log = app + ".log";
+			dnet_transform(m_n, app_log.data(), app_log.size(), &ctl.id);
+
+			ctl.fd = -1;
+
+			char *result = NULL;
+			int err = dnet_write_data_wait(m_n, &ctl, (void **)&result);
+			if (err < 0) {
+				std::ostringstream string;
+				string << dnet_dump_id(&ctl.id) << ": WRITE: log-write-failed: size: " << message.size() << ", err: " << err;
+				throw std::runtime_error(string.str());
+			}
+
+			std::string ret((const char *)result, err);
+			free(result);
 		}
 
 	private:
