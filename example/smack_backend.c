@@ -60,7 +60,6 @@ struct smack_backend
 static inline void smack_setup_idx(struct index *idx, unsigned char *id)
 {
 	memcpy(idx->id, id, SMACK_KEY_SIZE);
-	idx->data_offset = 0;
 	idx->data_size = 0;
 }
 
@@ -76,20 +75,19 @@ static int smack_backend_lookup_raw(struct smack_backend *s, struct index *idx, 
 	fd = open(path, O_RDONLY | O_CLOEXEC);
 	if (fd < 0) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: SMACK: %s: lookup-open: offset: %llu, size: %llu: %s %d.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: SMACK: %s: lookup-open: size: %llu: %s %d.\n",
 				dnet_dump_id_str(idx->id), path,
-				(unsigned long long)idx->data_offset, (unsigned long long)idx->data_size,
+				(unsigned long long)idx->data_size,
 				strerror(-err), err);
 		goto err_out_free;
 	}
 
-	err = dnet_send_file_info(state, cmd, fd, idx->data_offset, idx->data_size);
+	err = dnet_send_file_info(state, cmd, fd, 0, idx->data_size);
 	if (err)
 		goto err_out_close;
 
-	dnet_backend_log(DNET_LOG_INFO, "%s: SMACK: %s: lookup: offset: %llu, size: %llu.\n",
-			dnet_dump_id(&cmd->id), path,
-			(unsigned long long)idx->data_offset, (unsigned long long)idx->data_size);
+	dnet_backend_log(DNET_LOG_INFO, "%s: SMACK: %s: lookup: size: %llu.\n",
+			dnet_dump_id(&cmd->id), path, (unsigned long long)idx->data_size);
 
 err_out_close:
 	close(fd);
@@ -118,7 +116,6 @@ static int smack_backend_write(struct smack_backend *s, void *state, struct dnet
 	data += sizeof(struct dnet_io_attr);
 
 	smack_setup_idx(&idx, io->id);
-	idx.data_offset = io->offset;
 	idx.data_size = io->size;
 
 	err = smack_write(s->smack, &idx, data);
@@ -157,7 +154,6 @@ static int smack_backend_read(struct smack_backend *s, void *state, struct dnet_
 	dnet_convert_io_attr(io);
 
 	smack_setup_idx(&idx, io->id);
-	idx.data_offset = io->offset;
 	idx.data_size = io->size;
 
 	err = smack_read(s->smack, &idx, &data);
@@ -285,6 +281,10 @@ static int dnet_smack_set_type(struct dnet_config_backend *b, char *key __unused
 
 	if (!strcmp(value, "zlib"))
 		s->ictl.type = SMACK_STORAGE_ZLIB;
+	else if (!strcmp(value, "bzip2"))
+		s->ictl.type = SMACK_STORAGE_BZIP2;
+	if (!strcmp(value, "snappy"))
+		s->ictl.type = SMACK_STORAGE_SNAPPY;
 	else
 		return -ENOTSUP;
 	return 0;
