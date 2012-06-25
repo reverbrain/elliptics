@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <malloc.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -318,6 +319,11 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	int err, i, len;
 	int line_num = 0;
 	struct dnet_node *n;
+
+	sigset_t sig;
+	sigfillset(&sig);
+	pthread_sigmask(SIG_BLOCK, &sig, NULL);
+	sigprocmask(SIG_BLOCK, &sig, NULL);
 
 	f = fopen(file, "r");
 	if (!f) {

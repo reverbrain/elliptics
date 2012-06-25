@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,6 +93,7 @@ int main(int argc, char *argv[])
 	int *groups = NULL, group_num = 0;
 	int type = EBLOB_TYPE_DATA;
 	uint64_t cflags = 0;
+	sigset_t mask;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -217,6 +219,14 @@ int main(int argc, char *argv[])
 	n = dnet_node_create(&cfg);
 	if (!n)
 		return -1;
+
+	sigemptyset(&mask);
+	sigaddset(&mask, SIGTERM);
+	sigaddset(&mask, SIGINT);
+	sigaddset(&mask, SIGHUP);
+	sigaddset(&mask, SIGCHLD);
+	pthread_sigmask(SIG_UNBLOCK, &mask, NULL);
+	sigprocmask(SIG_UNBLOCK, &mask, NULL);
 
 	dnet_node_set_groups(n, groups, group_num);
 
