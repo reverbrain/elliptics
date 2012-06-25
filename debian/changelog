@@ -1,3 +1,12 @@
+elliptics-2.10 (2.14.1.1) unstable; urgency=low
+
+  * Disable signals in library and enable in server and ioclient
+  * Added cocaine library documentation
+  * Added smack configuration
+  * Sync with upstream smack repo
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 25 Jun 2012 14:24:13 +0400
+
 elliptics-2.10 (2.14.0.7) unstable; urgency=low
 
   * Fixed typo in smack config parser

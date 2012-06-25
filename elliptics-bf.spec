@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.14.0.7
+Version:	2.14.1.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jun 25 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.1.1-1
+- Disable signals in library and enable in server and ioclient
+- Added cocaine library documentation
+- Added smack configuration
+- Sync with upstream smack repo
+
 * Fri Jun 22 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.0.7-1
 - Fixed typo in smack config parser
 
