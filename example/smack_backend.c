@@ -279,14 +279,10 @@ static int dnet_smack_set_type(struct dnet_config_backend *b, char *key __unused
 {
 	struct smack_backend *s = b->data;
 
-	if (!strcmp(value, "zlib"))
-		s->ictl.type = SMACK_STORAGE_ZLIB;
-	else if (!strcmp(value, "bzip2"))
-		s->ictl.type = SMACK_STORAGE_BZIP2;
-	else if (!strcmp(value, "snappy"))
-		s->ictl.type = SMACK_STORAGE_SNAPPY;
-	else
-		return -ENOTSUP;
+	if (s->ictl.type)
+		free(s->ictl.type);
+
+	s->ictl.type = strdup(value);
 	return 0;
 }
 
