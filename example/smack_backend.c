@@ -434,16 +434,17 @@ static int dnet_smack_db_remove(void *priv, struct dnet_raw_id *id, int real_del
 	return dnet_db_remove_raw(s->meta, id, real_del);
 }
 
-static long long dnet_smack_db_total_elements(void *priv)
-{
-	struct smack_backend *s = priv;
-	return eblob_total_elements(s->meta);
-}
-
 static int dnet_smack_db_iterate(struct dnet_iterate_ctl *ctl)
 {
 	struct smack_backend *s = ctl->iterate_private;
 	return dnet_db_iterate(s->meta, ctl);
+}
+
+static long long smack_total_elements(void *priv)
+{
+	struct smack_backend *s = priv;
+
+	return smack_total_num(s->smack);
 }
 
 static int dnet_smack_config_init(struct dnet_config_backend *b, struct dnet_config *c)
@@ -467,7 +468,7 @@ static int dnet_smack_config_init(struct dnet_config_backend *b, struct dnet_con
 	b->cb.meta_read = dnet_smack_db_read;
 	b->cb.meta_write = dnet_smack_db_write;
 	b->cb.meta_remove = dnet_smack_db_remove;
-	b->cb.meta_total_elements = dnet_smack_db_total_elements;
+	b->cb.meta_total_elements = smack_total_elements;
 	b->cb.meta_iterate = dnet_smack_db_iterate;
 
 	mkdir("history", 0755);
