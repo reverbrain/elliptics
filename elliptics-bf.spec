@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.14.1.2
+Version:	2.14.1.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -16,7 +16,7 @@ BuildRequires:  boost141-iostreams, boost141-filesystem, boost141-thread, boost1
 BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-filesystem, boost-thread, boost-python, boost-system
 %endif
 BuildRequires:	eblob-devel >= 0.16.0
-BuildRequires:  smack >= 0.2.1
+BuildRequires:  smack >= 0.3.0
 BuildRequires:	automake autoconf libtool
 
 Obsoletes: srw
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jun 27 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.1.3-1
+- Depend on smack 0.3.0 and higher
+
 * Tue Jun 26 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.1.2-1
 - Use smack_total_elements() to get number of records
 
