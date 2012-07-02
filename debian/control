@@ -2,13 +2,13 @@ Source: elliptics-2.10
 Section: net
 Priority: optional
 Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
-Build-Depends: debhelper (>= 7), autotools-dev, eblob (>= 0.16.0), libboost-dev, libboost-program-options-dev, libboost-filesystem-dev, libboost-thread-dev, python-dev, libboost-python-dev, autoconf (>= 2.52), libtool, automake, libcocaine-dev, smack (>= 0.3.0)
+Build-Depends: debhelper (>= 7), autotools-dev, eblob (>= 0.16.0), libboost-dev, libboost-program-options-dev, libboost-filesystem-dev, libboost-thread-dev, python-dev, libboost-python-dev, autoconf (>= 2.52), libtool, automake, libcocaine-dev, smack (>= 0.4.0)
 Standards-Version: 3.8.0
 Homepage: http://www.ioremap.net/projects/elliptics
 
 Package: elliptics-2.10
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.16.0), , smack (>= 0.3.0), cocaine-generic-slave, libcocaine-core1
+Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.16.0), , smack (>= 0.4.0), cocaine-generic-slave, libcocaine-core1
 Replaces: elliptics, srw
 Provides: elliptics
 Description: Distributed hash table storage
