@@ -1,4 +1,4 @@
-elliptics (2.14.1.4) unstable; urgency=low
+elliptics-2.10 (2.14.1.4) unstable; urgency=low
 
   * Log all client job errorrs into app/.log file in elliptics
   * Set nocsum flags in io-attr when it is set in global node's config
