@@ -33,6 +33,7 @@
 #include <map>
 #include <vector>
 #include <boost/algorithm/string.hpp>
+#include <boost/lexical_cast.hpp>
 
 #include <zmq.hpp>
 
@@ -47,27 +48,12 @@
 
 #include "elliptics.h"
 
-class dnet_sink_t: public cocaine::logging::sink_t {
+class srw_log {
 	public:
-		dnet_sink_t(struct dnet_node *n): cocaine::logging::sink_t(cocaine::logging::debug), m_n(n) {
-		}
-
-		virtual void emit(cocaine::logging::priorities prio, const std::string &app, const std::string& message) const {
-			int mask = DNET_LOG_NOTICE;
-			if (prio == cocaine::logging::debug)
-				mask = DNET_LOG_NOTICE;
-			if (prio == cocaine::logging::info)
-				mask = DNET_LOG_INFO;
-			if (prio == cocaine::logging::warning)
-				mask = DNET_LOG_INFO;
-			if (prio == cocaine::logging::error)
-				mask = DNET_LOG_ERROR;
-			if (prio == cocaine::logging::ignore)
-				mask = DNET_LOG_DSA;
-
+		srw_log(struct dnet_node *node, int mask, const std::string &app, const std::string &message) : m_n(node) {
 			dnet_log(m_n, mask, "dnet-sink: %s : %s\n", app.c_str(), message.c_str());
 
-			if (!boost::starts_with(app, "app/"))
+			if (!boost::starts_with(app, "app/") || !(mask & node->log->log_mask))
 				return;
 
 			std::string msg_with_date;
@@ -148,7 +134,31 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 
 			m_n->cb->command_handler(m_n->st, m_n->cb->command_private, cmd, (void *)(cmd + 1));
 		}
+};
 
+class dnet_sink_t: public cocaine::logging::sink_t {
+	public:
+		dnet_sink_t(struct dnet_node *n): cocaine::logging::sink_t(cocaine::logging::debug), m_n(n) {
+		}
+
+		virtual void emit(cocaine::logging::priorities prio, const std::string &app, const std::string& message) const {
+			int mask = DNET_LOG_NOTICE;
+			if (prio == cocaine::logging::debug)
+				mask = DNET_LOG_NOTICE;
+			if (prio == cocaine::logging::info)
+				mask = DNET_LOG_INFO;
+			if (prio == cocaine::logging::warning)
+				mask = DNET_LOG_INFO;
+			if (prio == cocaine::logging::error)
+				mask = DNET_LOG_ERROR;
+			if (prio == cocaine::logging::ignore)
+				mask = DNET_LOG_DSA;
+
+			srw_log log(m_n, mask, app, message);
+		}
+
+	private:
+		struct dnet_node *m_n;
 };
 
 class dnet_job_t: public cocaine::engine::job_t
@@ -156,6 +166,7 @@ class dnet_job_t: public cocaine::engine::job_t
 	public:
 		dnet_job_t(struct dnet_node *n, const std::string& event, const cocaine::blob_t& blob):
 		cocaine::engine::job_t(event, blob),
+		m_name(event),
        		m_n(n) {
 		}
 
@@ -165,14 +176,15 @@ class dnet_job_t: public cocaine::engine::job_t
 		}
 
 		virtual void react(const cocaine::engine::events::choke& ) {
-			dnet_log(m_n, DNET_LOG_INFO, "choke: %.*s\n", (int)m_res.size(), m_res.data());
+			srw_log log(m_n, DNET_LOG_NOTICE, "app/" + m_name, "processing completed");
 		}
 
 		virtual void react(const cocaine::engine::events::error& event) {
-			dnet_log(m_n, DNET_LOG_ERROR, "error: %s: %d\n", event.message.c_str(), event.code);
+			srw_log log(m_n, DNET_LOG_ERROR, "app/" + m_name, event.message + ": " + boost::lexical_cast<std::string>(event.code));
 		}
 
 	private:
+		std::string m_name;
 		struct dnet_node *m_n;
 		std::vector<char> m_res;
 };
