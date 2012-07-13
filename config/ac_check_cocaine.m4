@@ -20,8 +20,8 @@ AC_DEFUN([AC_CHECK_COCAINE],[
 	AS_IF([test "f$ac_have_zmq" = "fyes"], [
 		saved_CXXFLAGS="$CXXFLAGS"
 		saved_LIBS="$LIBS"
-		LIBS="$COCAINE_LIBS $LIBS $BOOST_SYSTEM_LIB"
-		CXXFLAGS="$COCAINE_CXXFLAGS $CXXFLAGS"
+		LIBS="$COCAINE_LIBS $LIBS $BOOST_SYSTEM_LIB $ZMQ_LIBS"
+		CXXFLAGS="$COCAINE_CXXFLAGS $CXXFLAGS $ZMQ_CXXFLAGS"
 
 		AC_TRY_LINK([#include <cocaine/context.hpp>],
 			[cocaine::config_t config("/tmp/test");],
