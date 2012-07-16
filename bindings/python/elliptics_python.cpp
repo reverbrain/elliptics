@@ -485,7 +485,7 @@ class elliptics_node_python : public node {
 			remove_raw(remote, type, cflags);
 		}
 
-		list bulk_read_by_name(const list &keys, int group_id, uint64_t cflags = 0) {
+		list bulk_read_by_name(const list &keys, uint64_t cflags = 0) {
 			unsigned int length = len(keys);
 
 			std::vector<std::string> k;
@@ -494,7 +494,7 @@ class elliptics_node_python : public node {
 			for (unsigned int i = 0; i < length; ++i)
 				k[i] = extract<std::string>(keys[i]);
 
-			std::vector<std::string> ret =  bulk_read(k, group_id, cflags);
+			std::vector<std::string> ret =  bulk_read(k, cflags);
 
 			list py_ret;
 			for (size_t i = 0; i < ret.size(); ++i) {

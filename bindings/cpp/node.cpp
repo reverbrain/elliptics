@@ -1185,55 +1185,94 @@ std::string node::push(struct dnet_id *id, const std::string &event, const std::
 	return ret_str;
 }
 
-std::vector<std::string> node::bulk_read(std::vector<struct dnet_io_attr> &ios, int group_id, uint64_t cflags)
+namespace {
+	bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const struct dnet_io_attr &io2) {
+		int cmp;
+
+		cmp = dnet_id_cmp_str(io1.id, io2.id);
+		return cmp < 0;
+	}
+}
+
+std::vector<std::string> node::bulk_read(std::vector<struct dnet_io_attr> &ios, uint64_t cflags)
 {
 	struct dnet_range_data *data;
-	int err;
+	int num, *g, err;
 
-	data = dnet_bulk_read(m_node, (struct dnet_io_attr*)(&ios[0]), ios.size(), group_id, cflags, &err);
-	if (!data && err) {
-		std::ostringstream str;
-		str << "Failed to read bulk data: group: " << group_id <<
-			": err: " << strerror(-err) << ": " << err;
-		throw std::runtime_error(str.str());
+	num = dnet_mix_states(m_node, NULL, &g);
+	if (num < 0)
+		throw std::runtime_error("could not fetch groups: " + std::string(strerror(num)));
+
+	std::vector<int> groups;
+	try {
+		groups.assign(g, g + num);
+		free(g);
+	} catch (...) {
+		free(g);
+		throw;
 	}
+
+	std::vector<struct dnet_io_attr> tmp_ios = ios;
+	std::sort(tmp_ios.begin(), tmp_ios.end(), dnet_io_attr_compare);
 
 	std::vector<std::string> ret;
 
-	if (data) {
-		for (int i = 0; i < err; ++i) {
-			struct dnet_range_data *d = &data[i];
-			char *data = (char *)d->data;
+	for (std::vector<int>::iterator group = groups.begin(); group != groups.end(); ++group) {
+		if (!tmp_ios.size())
+			break;
 
-			while (d->size) {
-				struct dnet_io_attr *io = (struct dnet_io_attr *)data;
-
-				dnet_convert_io_attr(io);
-
-				uint64_t size = dnet_bswap64(io->size);
-
-				std::string str;
-
-				str.append((char *)io->id, DNET_ID_SIZE);
-				str.append((char *)&size, 8);
-				str.append((const char *)(io + 1), io->size);
-
-				ret.push_back(str);
-
-				data += sizeof(struct dnet_io_attr) + io->size;
-				d->size -= sizeof(struct dnet_io_attr) + io->size;
-			}
-
-			free(d->data);
+		data = dnet_bulk_read(m_node, (struct dnet_io_attr *)(&tmp_ios[0]), tmp_ios.size(), *group, cflags, &err);
+		if (!data && err) {
+			std::ostringstream str;
+			str << "Failed to read bulk data: group: " << *group <<
+				": err: " << strerror(-err) << ": " << err;
+			throw std::runtime_error(str.str());
 		}
 
-		free(data);
+		if (data) {
+			for (int i = 0; i < err; ++i) {
+				struct dnet_range_data *d = &data[i];
+				char *data = (char *)d->data;
+
+				while (d->size) {
+					struct dnet_io_attr *io = (struct dnet_io_attr *)data;
+
+					for (std::vector<struct dnet_io_attr>::iterator it = tmp_ios.begin(); it != tmp_ios.end(); ++it) {
+						int cmp = dnet_id_cmp_str(it->id, io->id);
+
+						if (cmp == 0) {
+							tmp_ios.erase(it);
+							break;
+						}
+					}
+
+					dnet_convert_io_attr(io);
+
+					uint64_t size = dnet_bswap64(io->size);
+
+					std::string str;
+
+					str.append((char *)io->id, DNET_ID_SIZE);
+					str.append((char *)&size, 8);
+					str.append((const char *)(io + 1), io->size);
+
+					ret.push_back(str);
+
+					data += sizeof(struct dnet_io_attr) + io->size;
+					d->size -= sizeof(struct dnet_io_attr) + io->size;
+				}
+
+				free(d->data);
+			}
+
+			free(data);
+		}
 	}
 
 	return ret;
 }
 
-std::vector<std::string> node::bulk_read(std::vector<std::string> &keys, int group_id, uint64_t cflags)
+std::vector<std::string> node::bulk_read(std::vector<std::string> &keys, uint64_t cflags)
 {
 	std::vector<struct dnet_io_attr> ios;
 	struct dnet_io_attr io;
@@ -1249,7 +1288,7 @@ std::vector<std::string> node::bulk_read(std::vector<std::string> &keys, int gro
 		ios.push_back(io);
 	}
 
-	return bulk_read(ios, group_id, cflags);
+	return bulk_read(ios, cflags);
 }
 
 std::string node::bulk_write(std::vector<struct dnet_io_attr> &ios, std::vector<std::string> &data, uint64_t cflags)

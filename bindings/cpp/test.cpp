@@ -362,7 +362,7 @@ static void test_bulk_write(node &n)
 	}
 }
 
-static void test_bulk_read(node &n, int group_id)
+static void test_bulk_read(node &n)
 {
 	try {
 		std::vector<std::string> keys;
@@ -375,7 +375,7 @@ static void test_bulk_read(node &n, int group_id)
 			keys.push_back(os.str());
 		}
 
-		std::vector<std::string> ret = n.bulk_read(keys, group_id, 0);
+		std::vector<std::string> ret = n.bulk_read(keys, 0);
 
 		std::cout << "ret size = " << ret.size() << std::endl;
 
@@ -601,7 +601,7 @@ int main(int argc, char *argv[])
 		test_exec_python(n);
 
 		test_bulk_write(n);
-		test_bulk_read(n, group_id);
+		test_bulk_read(n);
 
 		if (mem_check)
 			memory_test(n);
