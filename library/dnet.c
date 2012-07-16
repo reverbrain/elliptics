@@ -2991,7 +2991,7 @@ int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp)
 		}
 		num = group_num;
 	} else {
-		if (!(n->flags & DNET_CFG_MIX_STATES)) {
+		if (!(n->flags & DNET_CFG_MIX_STATES) || !id) {
 			*groupsp = groups;
 			return group_num;
 		}
