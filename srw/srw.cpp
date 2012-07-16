@@ -213,41 +213,46 @@ class srw {
 			boost::split(strs, event, boost::is_any_of("@"));
 
 			if (strs.size() != 2) {
-				dnet_log(m_n, DNET_LOG_ERROR, "%s: invalid event name: must be application@event or start-task@name\n",
+				dnet_log(m_n, DNET_LOG_ERROR, "%s: invalid event name: must be application@event or application@start-task\n",
 						event.c_str());
 				return -EINVAL;
 			}
 
-			if (strs[0] == "start-task") {
-				boost::shared_ptr<cocaine::app_t> eng(new cocaine::app_t(m_ctx, strs[1]));
+			std::string app = strs[0];
+			std::string ev = strs[1];
+
+			if (ev == "start-task") {
+				boost::shared_ptr<cocaine::app_t> eng(new cocaine::app_t(m_ctx, app));
     				eng->start();
 
 				boost::mutex::scoped_lock guard(m_lock);
-				m_map.insert(std::make_pair(strs[1], eng));
+				m_map.insert(std::make_pair(app, eng));
 
-				dnet_log(m_n, DNET_LOG_NOTICE, "%s: task started: %s\n", event.c_str(), strs[1].c_str());
+				dnet_log(m_n, DNET_LOG_NOTICE, "%s: task started: %s\n", event.c_str(), app.c_str());
 				return 0;
-			} if (strs[0] == "stop-task") {
+			} if (ev == "stop-task") {
 				boost::mutex::scoped_lock guard(m_lock);
-				eng_map_t::iterator it = m_map.find(strs[1]);
+				eng_map_t::iterator it = m_map.find(app);
 				/* destructor stops engine */
 				if (it != m_map.end())
 					m_map.erase(it);
 				guard.unlock();
 
-				dnet_log(m_n, DNET_LOG_NOTICE, "%s: task stopped: %s\n", event.c_str(), strs[1].c_str());
+				dnet_log(m_n, DNET_LOG_NOTICE, "%s: task stopped: %s\n", event.c_str(), app.c_str());
 				return 0;
 			} else {
 				boost::mutex::scoped_lock guard(m_lock);
-				eng_map_t::iterator it = m_map.find(strs[0]);
-				if (it == m_map.end())
+				eng_map_t::iterator it = m_map.find(app);
+				if (it == m_map.end()) {
+					dnet_log(m_n, DNET_LOG_ERROR, "%s: no task '%s' started\n", event.c_str(), app.c_str());
 					return -ENOENT;
+				}
 
 				guard.unlock();
 
-				it->second->enqueue(boost::make_shared<dnet_job_t>(m_n, strs[1],
+				it->second->enqueue(boost::make_shared<dnet_job_t>(m_n, ev,
 							cocaine::blob_t((const char *)sph, total_size(sph) + sizeof(struct sph))));
-				dnet_log(m_n, DNET_LOG_NOTICE, "%s: task queued\n", strs[1].c_str());
+				dnet_log(m_n, DNET_LOG_NOTICE, "%s: task queued, total-data/bin-size: %zd\n", event.c_str(), total_size(sph));
 				return 0;
 			}
 		}
