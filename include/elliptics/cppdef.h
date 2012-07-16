@@ -200,10 +200,11 @@ class node {
 		/* unlocked execution */
 		std::string		push(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary);
 
-		std::vector<std::string>	bulk_read(std::vector<struct dnet_io_attr> &ios, uint64_t cflags = 0);
-		std::vector<std::string>	bulk_read(std::vector<std::string> &keys, uint64_t cflags= 0);
+		std::vector<std::string>	bulk_read(const std::vector<struct dnet_io_attr> &ios, uint64_t cflags = 0);
+		std::vector<std::string>	bulk_read(const std::vector<std::string> &keys, uint64_t cflags = 0);
 
-		std::string		bulk_write(std::vector<struct dnet_io_attr> &ios, std::vector<std::string> &data, uint64_t cflags);
+		std::string		bulk_write(const std::vector<struct dnet_io_attr> &ios,
+						const std::vector<std::string> &data, uint64_t cflags);
 
 	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,

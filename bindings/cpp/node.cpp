@@ -1194,7 +1194,7 @@ namespace {
 	}
 }
 
-std::vector<std::string> node::bulk_read(std::vector<struct dnet_io_attr> &ios, uint64_t cflags)
+std::vector<std::string> node::bulk_read(const std::vector<struct dnet_io_attr> &ios, uint64_t cflags)
 {
 	struct dnet_range_data *data;
 	int num, *g, err;
@@ -1272,7 +1272,7 @@ std::vector<std::string> node::bulk_read(std::vector<struct dnet_io_attr> &ios, 
 	return ret;
 }
 
-std::vector<std::string> node::bulk_read(std::vector<std::string> &keys, uint64_t cflags)
+std::vector<std::string> node::bulk_read(const std::vector<std::string> &keys, uint64_t cflags)
 {
 	std::vector<struct dnet_io_attr> ios;
 	struct dnet_io_attr io;
@@ -1291,7 +1291,7 @@ std::vector<std::string> node::bulk_read(std::vector<std::string> &keys, uint64_
 	return bulk_read(ios, cflags);
 }
 
-std::string node::bulk_write(std::vector<struct dnet_io_attr> &ios, std::vector<std::string> &data, uint64_t cflags)
+std::string node::bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<std::string> &data, uint64_t cflags)
 {
 	std::vector<struct dnet_io_control> ctls;
 	unsigned int i;
@@ -1314,7 +1314,7 @@ std::string node::bulk_write(std::vector<struct dnet_io_attr> &ios, std::vector<
 
 		ctl.io = ios[i];
 
-		dnet_setup_id(&ctl.id, 0, ios[i].id);
+		dnet_setup_id(&ctl.id, 0, (unsigned char *)ios[i].id);
 		ctl.id.type = ios[i].type;
 
 		ctl.fd = -1;
