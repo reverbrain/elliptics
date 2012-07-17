@@ -2,6 +2,7 @@ bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet
 noinst_LIBRARIES = libcommon.a
 noinst_HEADERS = backends.h common.h
 SUBDIRS = .
+EXTRA_DIST = EXAMPLE 00-INDEX ioserv.conf example/library_config.json
 
 CC = @PTHREAD_CC@
 
@@ -48,5 +49,3 @@ dnet_meta_update_groups_SOURCES = meta_update_groups.c
 dnet_meta_update_groups_LDADD = $(EXAMPLE_COMMON_LIBS)
 
 dnet_ids_SOURCES = ids.c
-
-EXTRA_DIST = EXAMPLE 00-INDEX ioserv.conf
