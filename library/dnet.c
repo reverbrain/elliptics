@@ -2540,9 +2540,9 @@ static int dnet_read_data_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	}
 
 err_out_exit:
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: object read completed: trans: %llu, status: %d, err: %d.\n",
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: object read completed: trans: %llu, status: %d, size: %llu/%llu, err: %d.\n",
 		dnet_dump_id(&cmd->id), (unsigned long long)(cmd->trans & ~DNET_TRANS_REPLY),
-		cmd->status, err);
+		cmd->status, (unsigned long long)c->size, (unsigned long long)cmd->size, err);
 
 	return err;
 }
@@ -3778,7 +3778,7 @@ struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr 
 			}
 
 			/* Send command only if state changes or it's a last id */
-			if ((cur == next)) {
+			if (cur == next) {
 				dnet_state_put(next);
 				next = NULL;
 				continue;
@@ -3796,25 +3796,25 @@ struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr 
 			size = err;
 			err = 0;
 
-				if (!size) {
-					free(data);
-				} else {
-					struct dnet_range_data *new_ret;
+			if (!size) {
+				free(data);
+			} else {
+				struct dnet_range_data *new_ret;
 
-					ret_num++;
+				ret_num++;
 
-					new_ret = realloc(ret, ret_num * sizeof(struct dnet_range_data));
-					if (!new_ret) {
-						goto err_out_put;
-					}
-
-					ret = new_ret;
-
-					ret[ret_num - 1].data = data;
-					ret[ret_num - 1].size = size;
+				new_ret = realloc(ret, ret_num * sizeof(struct dnet_range_data));
+				if (!new_ret) {
+					goto err_out_put;
 				}
 
-				err = 0;
+				ret = new_ret;
+
+				ret[ret_num - 1].data = data;
+				ret[ret_num - 1].size = size;
+			}
+
+			err = 0;
 		}
 
 		dnet_state_put(cur);
