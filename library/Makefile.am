@@ -1,4 +1,4 @@
-lib_LTLIBRARIES = libelliptics.la
+lib_LTLIBRARIES = libelliptics.la libelliptics_client.la
 
 CC = @PTHREAD_CC@
 AM_CFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @ATOMIC_CFLAGS@ @EBLOB_CFLAGS@
@@ -10,6 +10,9 @@ libelliptics_la_SOURCES = dnet.c log.c net.c node.c rbtree.c trans.c compat.c \
 			  notify.c meta.c metadb.c crypto.c check.c \
 			  pool.c crypto/sha512.c locks.c
 libelliptics_la_LIBADD = ../srw/libelliptics_cocaine.la
+
+libelliptics_client_la_SOURCES = dnet_common.c log.c net.c node.c rbtree.c trans.c \
+				 compat.c crypto.c pool.c crypto/sha512.c locks.c client_stubs.c
 
 noinst_HEADERS = elliptics.h list.h rbtree.h atomic.h lock.h crypto/u64.h crypto/sha512.h
 
