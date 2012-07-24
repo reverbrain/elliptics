@@ -1,4 +1,4 @@
-Source: elliptics-2.10
+Source: elliptics
 Section: net
 Priority: optional
 Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
@@ -6,18 +6,18 @@ Build-Depends: debhelper (>= 7), autotools-dev, eblob (>= 0.16.0), libboost-dev,
 Standards-Version: 3.8.0
 Homepage: http://www.ioremap.net/projects/elliptics
 
-Package: elliptics-2.10
+Package: elliptics
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.16.0), , smack (>= 0.4.0), cocaine-generic-slave, libcocaine-core1
-Replaces: elliptics, srw
-Provides: elliptics
+Replaces: elliptics-2.10, srw
+Provides: elliptics-2.10
 Description: Distributed hash table storage
  Elliptics network is a fault tolerant distributed hash table object storage.
 
-Package: elliptics-dbg-2.10
-Architecture: any
+Package: elliptics-dbg
+A-rchitecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Replaces: elliptics-dbg, srw-dbg
-Provides: elliptics-dbg
+Replaces: elliptics-dbg-2.10, srw-dbg
+Provides: elliptics-dbg-2.10
 Description: Distributed hash table storage
  Elliptics network is a fault tolerant distributed hash table object storage.

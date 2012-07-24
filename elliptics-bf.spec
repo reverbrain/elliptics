@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.14.1.4
+Version:	2.15.0.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jul 24 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.15.0.1
+- Send correct answer in smack_write
+- New bulk_read()
+- New event string for application invocation
+- Corrected changelog
+- Depend on smack 0.4.0 and higher
+
 * Mon Jul 02 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.14.1.4
 - Log all client job errorrs into app/.log file in elliptics
 - Set nocsum flags in io-attr when it is set in global node's config

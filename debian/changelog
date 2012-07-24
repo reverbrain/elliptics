@@ -1,3 +1,13 @@
+elliptics (2.15.0.1) unstable; urgency=low
+
+  * Send correct answer in smack_write
+  * New bulk_read()
+  * New event string for application invocation
+  * Corrected changelog
+  * Depend on smack 0.4.0 and higher
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 24 Jul 2012 16:45:02 +0400
+
 elliptics-2.10 (2.14.1.4) unstable; urgency=low
 
   * Log all client job errorrs into app/.log file in elliptics
