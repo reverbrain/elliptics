@@ -107,6 +107,7 @@ static int smack_backend_lookup(struct smack_backend *s, void *state, struct dne
 
 static int smack_backend_write(struct smack_backend *s, void *state, struct dnet_cmd *cmd, void *data)
 {
+	struct dnet_node *n = dnet_get_node_from_state(state);
 	int err;
 	struct index idx;
 	struct dnet_io_attr *io = data;
@@ -131,7 +132,7 @@ static int smack_backend_write(struct smack_backend *s, void *state, struct dnet
 	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info));
 	if (!a) {
 		err = -ENOMEM;
-		goto err_out_free_file;
+		goto err_out_exit;
 	}
 	info = (struct dnet_file_info *)(a + 1);
 
