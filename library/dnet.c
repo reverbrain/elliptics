@@ -1704,18 +1704,15 @@ static int dnet_send_cmd_raw(struct dnet_node *n, struct dnet_id *id,
 		pthread_mutex_unlock(&n->state_lock);
 	}
 
-	/* looks like nolock flag abuse - it is supposed not to lock command on the server */
-	if (!(cflags & DNET_FLAGS_NOLOCK)) {
-		err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
-		if (err)
-			goto err_out_put;
+	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
+	if (err)
+		goto err_out_put;
 
-		if (w->ret) {
-			*ret = w->ret;
-			w->ret = NULL;
+	if (w->ret) {
+		*ret = w->ret;
+		w->ret = NULL;
 
-			err = w->size;
-		}
+		err = w->size;
 	}
 
 	dnet_wait_put(w);
