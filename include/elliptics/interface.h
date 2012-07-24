@@ -915,6 +915,7 @@ struct dnet_range_data *dnet_bulk_read(struct dnet_node *n, struct dnet_io_attr 
 struct dnet_range_data dnet_bulk_write(struct dnet_node *n, struct dnet_io_control *ctl, int ctl_num, int *errp);
 
 int dnet_flags(struct dnet_node *n);
+void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout);
 
 #define DNET_CONF_ADDR_DELIM	':'
 int dnet_parse_addr(char *addr, struct dnet_config *cfg);

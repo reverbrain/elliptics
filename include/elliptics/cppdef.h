@@ -124,6 +124,8 @@ class node {
 		void			add_groups(std::vector<int> &groups);
 		std::vector<int>	get_groups() {return groups;};
 
+		void			set_timeouts(const int wait_timeout, const int check_timeout);
+
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 
 		void			read_file(struct dnet_id &id, const std::string &file, uint64_t offset, uint64_t size);

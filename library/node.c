@@ -871,3 +871,9 @@ int dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num)
 
 	return 0;
 }
+
+void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)
+{
+	n->wait_ts.tv_sec = wait_timeout;
+	n->check_timeout = check_timeout;
+}

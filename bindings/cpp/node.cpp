@@ -1335,3 +1335,7 @@ std::string node::bulk_write(const std::vector<struct dnet_io_attr> &ios, const 
 	return ret_str;
 }
 
+void node::set_timeouts(const int wait_timeout, const int check_timeout)
+{
+	dnet_set_timeouts(m_node, wait_timeout, check_timeout);
+}
