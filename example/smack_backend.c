@@ -110,6 +110,8 @@ static int smack_backend_write(struct smack_backend *s, void *state, struct dnet
 	int err;
 	struct index idx;
 	struct dnet_io_attr *io = data;
+	struct dnet_file_info *info;
+	struct dnet_addr_attr *a;
 
 	dnet_convert_io_attr(io);
 	
@@ -126,16 +128,20 @@ static int smack_backend_write(struct smack_backend *s, void *state, struct dnet
 	if (err)
 		goto err_out_exit;
 #else
-	if (!(cmd->flags & DNET_FLAGS_NEED_ACK)) {
-		char reply[1024];
-		char id_str[DNET_ID_SIZE * 2 + 1];
-
-		snprintf(reply, sizeof(reply), "<elliptics id=\"%s\" offset=%lld size=%lld />",
-				dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id_str),
-				(unsigned long long)io->offset, (unsigned long long)io->size);
-
-		err = dnet_send_reply(state, cmd, reply, 256, 0);
+	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info));
+	if (!a) {
+		err = -ENOMEM;
+		goto err_out_free_file;
 	}
+	info = (struct dnet_file_info *)(a + 1);
+
+	dnet_fill_addr_attr(n, a);
+	dnet_convert_addr_attr(a);
+
+	memset(info, 0, sizeof(struct dnet_file_info));
+	dnet_convert_file_info(info);
+
+	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info), 0);
 #endif
 	dnet_backend_log(DNET_LOG_INFO, "%s: SMACK: : WRITE: Ok: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&cmd->id), (unsigned long long)io->offset, (unsigned long long)io->size);
