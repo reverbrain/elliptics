@@ -52,7 +52,6 @@ class srw_log {
 	public:
 		srw_log(struct dnet_node *node, int mask, const std::string &app, const std::string &message) : m_n(node) {
 			dnet_log(m_n, mask, "dnet-sink: %s : %s\n", app.c_str(), message.c_str());
-			return;
 
 			if (!boost::starts_with(app, "app/") || !(mask & node->log->log_mask))
 				return;
@@ -181,7 +180,7 @@ class dnet_job_t: public cocaine::engine::job_t
 		}
 
 		virtual void react(const cocaine::engine::events::error& event) {
-			//srw_log log(m_n, DNET_LOG_ERROR, "app/" + m_name, event.message + ": " + boost::lexical_cast<std::string>(event.code));
+			srw_log log(m_n, DNET_LOG_ERROR, "app/" + m_name, event.message + ": " + boost::lexical_cast<std::string>(event.code));
 		}
 
 	private:
@@ -255,11 +254,12 @@ class srw {
 							cocaine::blob_t((const char *)sph, total_size(sph) + sizeof(struct sph))));
 				dnet_log(m_n, DNET_LOG_NOTICE, "%s: task queued, total-data/bin-size: %zd\n", event.c_str(), total_size(sph));
 
+				/* that's a pure informational hack */
 				static int __count;
 
 				if (__count == 1000) {
 					std::string s = Json::FastWriter().write(it->second->info());
-					dnet_log(m_n, DNET_LOG_ERROR, "app engine: %s\n", s.c_str());
+					dnet_log(m_n, DNET_LOG_INFO, "app engine: %s\n", s.c_str());
 					__count = 0;
 				}
 
