@@ -138,7 +138,7 @@ class srw_log {
 
 class dnet_sink_t: public cocaine::logging::sink_t {
 	public:
-		dnet_sink_t(struct dnet_node *n): cocaine::logging::sink_t(cocaine::logging::error), m_n(n) {
+		dnet_sink_t(struct dnet_node *n, cocaine::logging::priorities prio): cocaine::logging::sink_t(prio), m_n(n) {
 		}
 
 		virtual void emit(cocaine::logging::priorities prio, const std::string &app, const std::string& message) const {
@@ -191,9 +191,24 @@ class dnet_job_t: public cocaine::engine::job_t
 
 typedef std::map<std::string, boost::shared_ptr<cocaine::app_t> > eng_map_t;
 
+namespace {
+	cocaine::logging::priorities dnet_log_mask_to_prio(int log_mask) {
+		cocaine::logging::priorities prio = cocaine::logging::ignore;
+		if (log_mask & DNET_LOG_NOTICE)
+			prio = cocaine::logging::debug;
+		else if (log_mask & DNET_LOG_INFO)
+			prio = cocaine::logging::info;
+		else if (log_mask & DNET_LOG_ERROR)
+			prio = cocaine::logging::error;
+
+		return prio;
+	}
+}
+
 class srw {
 	public:
-		srw(struct dnet_node *n, const std::string &config) : m_n(n), m_ctx(config, boost::make_shared<dnet_sink_t>(n)) {
+		srw(struct dnet_node *n, const std::string &config) : m_n(n),
+		m_ctx(config, boost::make_shared<dnet_sink_t>(n, dnet_log_mask_to_prio(m_n->log->log_mask))) {
 		}
 
 		~srw() {
