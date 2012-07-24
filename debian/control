@@ -15,7 +15,7 @@ Description: Distributed hash table storage
  Elliptics network is a fault tolerant distributed hash table object storage.
 
 Package: elliptics-dbg
-A-rchitecture: any
+Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Replaces: elliptics-dbg-2.10, srw-dbg
 Provides: elliptics-dbg-2.10
