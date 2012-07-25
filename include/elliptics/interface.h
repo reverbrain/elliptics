@@ -537,6 +537,11 @@ static inline char *dnet_state_dump_addr_only(struct dnet_addr *a)
 struct dnet_node *dnet_node_create(struct dnet_config *);
 void dnet_node_destroy(struct dnet_node *n);
 
+/* Server node creation/destruction.
+ */
+struct dnet_node *dnet_server_node_create(struct dnet_config *);
+void dnet_server_node_destroy(struct dnet_node *n);
+
 /*
  * dnet_add_state() is used to add a node into the route list, the more
  * routes are added the less network lookups will be performed to send/receive

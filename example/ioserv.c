@@ -158,7 +158,7 @@ static int ioserv_start(char *conf, int mon)
 		sleep(1);
 
 	ioserv_cleanup_signals();
-	dnet_node_destroy(n);
+	dnet_server_node_destroy(n);
 	return 0;
 }
 
