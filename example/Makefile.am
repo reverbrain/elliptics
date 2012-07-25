@@ -12,12 +12,12 @@ AM_CXXFLAGS = -I../include -I../config @PTHREAD_CFLAGS@ @EBLOB_CFLAGS@
 AM_LDFLAGS = @PTHREAD_LIBS@ @EBLOB_LIBS@
 
 
-EXAMPLE_COMMON_LIBS =  libcommon.a ../library/libelliptics.la ../srw/libelliptics_cocaine.la
+EXAMPLE_COMMON_LIBS =  libcommon.a ../library/libelliptics_client.la
 
 libcommon_a_SOURCES = common.c
 
 dnet_ioserv_SOURCES = ioserv.c config.c file_backend.c backends.c eblob_backend.c
-dnet_ioserv_LDADD = $(EXAMPLE_COMMON_LIBS) @EBLOB_LIBS@
+dnet_ioserv_LDADD = libcommon.a ../library/libelliptics.la ../srw/libelliptics_cocaine.la @EBLOB_LIBS@
 if HAVE_SMACK
 AM_CFLAGS += @SMACK_CFLAGS@
 dnet_ioserv_SOURCES += smack_backend.c
