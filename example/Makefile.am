@@ -2,7 +2,7 @@ bin_PROGRAMS = dnet_ioserv dnet_hparser dnet_stat dnet_notify dnet_ioclient dnet
 noinst_LIBRARIES = libcommon.a
 noinst_HEADERS = backends.h common.h
 SUBDIRS = .
-EXTRA_DIST = EXAMPLE 00-INDEX ioserv.conf example/library_config.json
+EXTRA_DIST = EXAMPLE 00-INDEX ioserv.conf library_config.json
 
 CC = @PTHREAD_CC@
 
