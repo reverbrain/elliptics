@@ -34,6 +34,8 @@
 #include <vector>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/thread.hpp>
+#include <boost/thread/condition.hpp>
 
 #include <zmq.hpp>
 
@@ -52,6 +54,7 @@ class srw_log {
 	public:
 		srw_log(struct dnet_node *node, int mask, const std::string &app, const std::string &message) : m_n(node) {
 			dnet_log(m_n, mask, "dnet-sink: %s : %s\n", app.c_str(), message.c_str());
+			return;
 
 			if (!boost::starts_with(app, "app/") || !(mask & node->log->log_mask))
 				return;
@@ -189,7 +192,69 @@ class dnet_job_t: public cocaine::engine::job_t
 		std::vector<char> m_res;
 };
 
-typedef std::map<std::string, boost::shared_ptr<cocaine::app_t> > eng_map_t;
+typedef boost::shared_ptr<dnet_job_t> dnet_shared_job_t;
+
+class app_watcher {
+	public:
+		app_watcher(cocaine::context_t &ctx, const std::string &app) :
+		m_need_exit(false),
+		m_thread(boost::bind(&app_watcher::process, this)) {
+			m_app.reset(new cocaine::app_t(ctx, app));
+			m_app->start();
+		}
+
+		~app_watcher() {
+			boost::mutex::scoped_lock guard(m_lock);
+			m_need_exit = true;
+			m_cond.notify_one();
+			guard.unlock();
+
+			m_thread.join();
+		}
+
+		void push(dnet_shared_job_t job) {
+			boost::mutex::scoped_lock guard(m_lock);
+
+			m_jobs.push_back(job);
+			m_cond.notify_one();
+		}
+
+		std::string info() {
+			return Json::FastWriter().write(m_app->info());
+		}
+
+	private:
+		bool m_need_exit;
+		boost::condition m_cond;
+		boost::mutex m_lock;
+		std::deque<dnet_shared_job_t> m_jobs;
+		boost::thread m_thread;
+		std::auto_ptr<cocaine::app_t> m_app;
+
+		void process() {
+			while (!m_need_exit) {
+
+				boost::mutex::scoped_lock guard(m_lock);
+				if (m_jobs.empty()) {
+					m_cond.wait(guard);
+				}
+
+				if (m_need_exit)
+					break;
+
+				if (!m_jobs.empty()) {
+					dnet_shared_job_t job = m_jobs.front();
+					m_jobs.pop_front();
+					guard.unlock();
+
+					m_app->enqueue(job, cocaine::engine::mode::blocking);
+				}
+			}
+		}
+
+};
+
+typedef std::map<std::string, boost::shared_ptr<app_watcher> > eng_map_t;
 
 namespace {
 	cocaine::logging::priorities dnet_log_mask_to_prio(int log_mask) {
@@ -237,8 +302,7 @@ class srw {
 			std::string ev = strs[1];
 
 			if (ev == "start-task") {
-				boost::shared_ptr<cocaine::app_t> eng(new cocaine::app_t(m_ctx, app));
-    				eng->start();
+				boost::shared_ptr<app_watcher> eng(new app_watcher(m_ctx, app));
 
 				boost::mutex::scoped_lock guard(m_lock);
 				m_map.insert(std::make_pair(app, eng));
@@ -265,15 +329,16 @@ class srw {
 
 				guard.unlock();
 
-				it->second->enqueue(boost::make_shared<dnet_job_t>(m_n, ev,
+				dnet_shared_job_t job(boost::make_shared<dnet_job_t>(m_n, ev,
 							cocaine::blob_t((const char *)sph, total_size(sph) + sizeof(struct sph))));
+				it->second->push(job);
 				dnet_log(m_n, DNET_LOG_NOTICE, "%s: task queued, total-data/bin-size: %zd\n", event.c_str(), total_size(sph));
 
 				/* that's a pure informational hack */
 				static int __count;
 
 				if (__count == 1000) {
-					std::string s = Json::FastWriter().write(it->second->info());
+					std::string s = it->second->info();
 					dnet_log(m_n, DNET_LOG_INFO, "app engine: %s\n", s.c_str());
 					__count = 0;
 				}
