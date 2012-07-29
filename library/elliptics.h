@@ -309,11 +309,26 @@ struct dnet_net_io {
 	struct dnet_node	*n;
 };
 
+enum dnet_work_io_mode {
+	DNET_WORK_IO_MODE_BLOCKING = 0,
+	DNET_WORK_IO_MODE_NONBLOCKING,
+};
+
+struct dnet_work_pool;
 struct dnet_work_io {
 	int			thread_index;
-	int			nonblocking;
 	pthread_t		tid;
+	struct dnet_work_pool	*pool;
+};
+
+struct dnet_work_pool {
 	struct dnet_node	*n;
+	int			mode;
+	int			num;
+	struct list_head	list;
+	pthread_mutex_t		lock;
+	pthread_cond_t		wait;
+	struct dnet_work_io	wio[0];
 };
 
 struct dnet_io {
@@ -322,14 +337,8 @@ struct dnet_io {
 	int			net_thread_num, net_thread_pos;
 	struct dnet_net_io	*net;
 
-	pthread_mutex_t		recv_lock;
-	struct list_head	nonblocking_recv_list;
-	struct list_head	recv_list;
-	pthread_cond_t		recv_wait;
-
-	int			thread_num;
-	int			nonblocking_thread_num;
-	struct dnet_work_io	*wio;
+	struct dnet_work_pool	*recv_pool;
+	struct dnet_work_pool	*recv_pool_nb;
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
