@@ -166,7 +166,6 @@ int main(int argc, char *argv[])
 {
 	int ch, mon = 0, err;
 	char *conf = NULL;
-	sigset_t sig;
 
 	while ((ch = getopt(argc, argv, "mc:h")) != -1) {
 		switch (ch) {
