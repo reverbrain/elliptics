@@ -1099,33 +1099,26 @@ std::vector<std::pair<struct dnet_id, struct dnet_addr> > node::get_routes()
 	return res;
 }
 
-std::string node::exec(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
+std::string node::request(struct sph *sph, bool lock)
 {
-	std::vector<char> vec(event.size() + data.size() + binary.size() + sizeof(struct sph));
 	std::string ret_str;
 
-	struct sph *e = (struct sph *)&vec[0];
 	void *ret = NULL;
 	int err;
 
-	memset(e, 0, sizeof(struct sph));
+	struct dnet_id id;
+	dnet_setup_id(&id, 0, sph->src.id);
+	id.type = 0;
 
-	e->data_size = data.size();
-	e->binary_size = binary.size();
-	e->event_size = event.size();
+	if (lock)
+		err = dnet_send_cmd(m_node, &id, sph, &ret);
+	else
+		err = dnet_send_cmd_nolock(m_node, &id, sph, &ret);
 
-	memcpy(e->data, event.data(), event.size());
-	memcpy(e->data + event.size(), data.data(), data.size());
-	memcpy(e->data + event.size() + data.size(), binary.data(), binary.size());
-
-	err = dnet_send_cmd(m_node, id, e, &ret);
 	if (err < 0) {
 		std::ostringstream str;
 
-		str << (id ? dnet_dump_id(id) : "no-id-given") << ": failed to exec: event: " << event <<
-			", data-size: " << data.size() <<
-			", binary-size: " << binary.size() <<
-			": " << strerror(-err) << ": " << err;
+		str << dnet_dump_id(&id) << ": failed to send request: " << strerror(-err) << ": " << err;
 		throw std::runtime_error(str.str());
 	}
 
@@ -1142,16 +1135,46 @@ std::string node::exec(struct dnet_id *id, const std::string &event, const std::
 	return ret_str;
 }
 
+std::string node::raw_exec(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary, bool lock)
+{
+	std::vector<char> vec(event.size() + data.size() + binary.size() + sizeof(struct sph));
+	std::string ret_str;
+
+	struct sph *sph = (struct sph *)&vec[0];
+
+	memset(sph, 0, sizeof(struct sph));
+
+	sph->data_size = data.size();
+	sph->binary_size = binary.size();
+	sph->event_size = event.size();
+
+	memcpy(sph->src.id, id->id, sizeof(sph->src.id));
+
+	memcpy(sph->data, event.data(), event.size());
+	memcpy(sph->data + event.size(), data.data(), data.size());
+	memcpy(sph->data + event.size() + data.size(), binary.data(), binary.size());
+
+	return request(sph, lock);
+}
+
+std::string node::exec(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
+{
+	return raw_exec(id, event, data, binary, true);
+}
+
 std::string node::push(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
+{
+	return raw_exec(id, event, data, binary, false);
+}
+
+void node::reply(struct sph *sph, const std::string &event, const std::string &data, const std::string &binary)
 {
 	std::vector<char> vec(event.size() + data.size() + binary.size() + sizeof(struct sph));
 	std::string ret_str;
 
 	struct sph *e = (struct sph *)&vec[0];
-	void *ret = NULL;
-	int err;
 
-	memset(e, 0, sizeof(struct sph));
+	*e = *sph;
 
 	e->data_size = data.size();
 	e->binary_size = binary.size();
@@ -1161,28 +1184,7 @@ std::string node::push(struct dnet_id *id, const std::string &event, const std::
 	memcpy(e->data + event.size(), data.data(), data.size());
 	memcpy(e->data + event.size() + data.size(), binary.data(), binary.size());
 
-	err = dnet_send_cmd_nolock(m_node, id, e, &ret);
-	if (err < 0) {
-		std::ostringstream str;
-
-		str << (id ? dnet_dump_id(id) : "no-id-given") << ": failed to push: event: " << event <<
-			", data-size: " << data.size() <<
-			", binary-size: " << binary.size() <<
-			": " << strerror(-err) << ": " << err;
-		throw std::runtime_error(str.str());
-	}
-
-	if (ret && err) {
-		try {
-			ret_str.assign((char *)ret, err);
-		} catch (...) {
-			free(ret);
-			throw;
-		}
-		free(ret);
-	}
-
-	return ret_str;
+	request(e, false);
 }
 
 namespace {

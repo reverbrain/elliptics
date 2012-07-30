@@ -65,6 +65,11 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 
 	if (nonblocking)
 		pool = io->recv_pool_nb;
+	if ((cmd->cmd == DNET_CMD_EXEC) && (cmd->size >= sizeof(struct sph))) {
+		struct sph *sph = (struct sph *)r->data;
+		if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK)
+			pool = io->recv_pool_eblock;
+	}
 
 	pthread_mutex_lock(&pool->lock);
 	list_add_tail(&r->req_entry, &pool->list);
@@ -606,6 +611,12 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_free_recv_pool;
 	}
 
+	io->recv_pool_eblock = dnet_work_pool_alloc(n, cfg->nonblocking_io_thread_num, DNET_WORK_IO_MODE_EXEC_BLOCKING, dnet_io_process);
+	if (!io->recv_pool_nb) {
+		err = -ENOMEM;
+		goto err_out_free_recv_pool_nb;
+	}
+
 	for (i=0; i<io->net_thread_num; ++i) {
 		struct dnet_net_io *nio = &io->net[i];
 
@@ -638,6 +649,9 @@ err_out_net_destroy:
 		pthread_join(io->net[i].tid, NULL);
 		close(io->net[i].epoll_fd);
 	}
+
+	dnet_work_pool_cleanup(io->recv_pool_eblock);
+err_out_free_recv_pool_nb:
 	dnet_work_pool_cleanup(io->recv_pool_nb);
 err_out_free_recv_pool:
 	dnet_work_pool_cleanup(io->recv_pool);
@@ -660,6 +674,7 @@ void dnet_io_exit(struct dnet_node *n)
 		close(io->net[i].epoll_fd);
 	}
 
+	dnet_work_pool_cleanup(io->recv_pool_eblock);
 	dnet_work_pool_cleanup(io->recv_pool_nb);
 	dnet_work_pool_cleanup(io->recv_pool);
 

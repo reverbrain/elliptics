@@ -312,6 +312,7 @@ struct dnet_net_io {
 enum dnet_work_io_mode {
 	DNET_WORK_IO_MODE_BLOCKING = 0,
 	DNET_WORK_IO_MODE_NONBLOCKING,
+	DNET_WORK_IO_MODE_EXEC_BLOCKING,
 };
 
 struct dnet_work_pool;
@@ -339,6 +340,7 @@ struct dnet_io {
 
 	struct dnet_work_pool	*recv_pool;
 	struct dnet_work_pool	*recv_pool_nb;
+	struct dnet_work_pool	*recv_pool_eblock;
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
