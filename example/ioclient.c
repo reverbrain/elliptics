@@ -336,7 +336,7 @@ int main(int argc, char *argv[])
 
 	if (cmd) {
 		struct dnet_id __did, *did = NULL;
-		struct sph *e;
+		struct sph *sph;
 		int len = strlen(cmd);
 		int event_size = len;
 		char *ret = NULL;
@@ -354,24 +354,25 @@ int main(int argc, char *argv[])
 			did->type = type;
 		}
 
-		e = malloc(sizeof(struct sph) + len + 1);
-		if (!e)
+		sph = malloc(sizeof(struct sph) + len + 1);
+		if (!sph)
 			return -ENOMEM;
 
-		memset(e, 0, sizeof(struct sph));
+		memset(sph, 0, sizeof(struct sph));
 
-		e->key = -1;
-		e->binary_size = 0;
-		e->data_size = len - event_size;
-		e->event_size = event_size;
+		sph->flags = DNET_SPH_FLAGS_SRC_BLOCK;
+		sph->key = -1;
+		sph->binary_size = 0;
+		sph->data_size = len - event_size;
+		sph->event_size = event_size;
 
-		sprintf(e->data, "%s", cmd);
+		sprintf(sph->data, "%s", cmd);
 
-		err = dnet_send_cmd(n, did, e, (void **)&ret);
+		err = dnet_send_cmd(n, did, sph, (void **)&ret);
 		if (err < 0)
 			return err;
 
-		free(e);
+		free(sph);
 
 		if (err > 0) {
 			char *old = ret;
