@@ -17,7 +17,6 @@
 #define __DNET_INTERFACE_H
 
 #include <elliptics/core.h>
-#include <elliptics/typedefs.h>
 
 #include <stdio.h>
 #include <unistd.h>
