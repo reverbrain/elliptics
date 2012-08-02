@@ -29,6 +29,10 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
+#ifndef POLLRDHUP
+#define POLLRDHUP 0x2000
+#endif
+
 static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, unsigned int salen)
 {
 	int err;

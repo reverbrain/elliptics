@@ -13,6 +13,7 @@ include(CheckAtomic)
 include(CheckSendfile)
 include(CheckIoprio)
 include(TestBigEndian)
+include(CheckProcStats)
 
 # Set id_size
 if (NOT ID_SIZE)
@@ -24,8 +25,9 @@ add_definitions(-DCONFIG_ID_SIZE=${ID_SIZE})
 test_big_endian(HAVE_BIG_ENDIAN)
 if(HAVE_BIG_ENDIAN)
     add_definitions(-DBYTEORDER=4321)
+    add_definitions(-DWORDS_BIGENDIAN=1)
 else()
-    add_definitions(-BYTEORDER=1234)
+    add_definitions(-DBYTEORDER=1234)
 endif()
 
 if (UNIX OR MINGW)
