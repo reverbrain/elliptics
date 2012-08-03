@@ -462,7 +462,7 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 
 	n = dnet_server_node_create(&dnet_cfg_state);
 	if (!n) {
-		dnet_cfg_current_backend->cleanup(dnet_cfg_current_backend);
+		/* backend cleanup is already called */
 		goto err_out_free;
 	}
 
