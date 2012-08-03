@@ -1201,6 +1201,17 @@ int dnet_parse_addr(char *addr, struct dnet_config *cfg)
 	snprintf(cfg->addr, sizeof(cfg->addr), "%s", addr);
 	snprintf(cfg->port, sizeof(cfg->port), "%s", port);
 
+	if (!strcmp(addr, "hostname")) {
+		int err;
+
+		err = gethostname(cfg->addr, sizeof(cfg->addr));
+		if (err) {
+			err = -errno;
+			fprintf(stderr, "Could not get hostname: %s %d\n", strerror(-err), err);
+			goto err_out_print_wrong_param;
+		}
+	}
+
 	return 0;
 
 err_out_print_wrong_param:
