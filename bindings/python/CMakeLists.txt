@@ -6,7 +6,7 @@ include_directories(..)
 include_directories(${PYTHON_INCLUDE_PATH})
 include_directories(${PYTHON_INCLUDE_DIRS})
 add_library(elliptics_python SHARED elliptics_python.cpp)
-target_link_libraries(elliptics_python ${ELLIPTICS_LIBRARIES} elliptics_cpp elliptics)
+target_link_libraries(elliptics_python ${ELLIPTICS_LIBRARIES} ${PYTHON_LIBRARIES} elliptics_cpp elliptics)
 
 install(TARGETS elliptics_python
     LIBRARY DESTINATION lib${LIB_SUFFIX}
