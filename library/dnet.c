@@ -545,7 +545,7 @@ static int dnet_cmd_auth(struct dnet_net_state *orig, struct dnet_cmd *cmd __unu
 		err = -EPERM;
 		dnet_log(n, DNET_LOG_ERROR, "%s: auth cookies do not match\n", dnet_state_dump_addr(orig));
 	} else {
-		dnet_log(n, DNET_LOG_INFO, "%s: authentification succeeded\n", dnet_state_dump_addr(orig));
+		dnet_log(n, DNET_LOG_INFO, "%s: authentication succeeded\n", dnet_state_dump_addr(orig));
 	}
 
 err_out_exit:
