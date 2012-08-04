@@ -1,52 +1,31 @@
-This package was debianized by:
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: elliptics
+Upstream-Contact: Evgeniy Polyakov <zbr@ioremap.net>
+Source: https://github.com/ioremap/elliptics
 
-    Evgeniy Polyakov <zbr@ioremap.net> on Wed, 18 Nov 2009 16:14:14 +0300
+Files: *
+Copyright: (C) 2009-2012 Evgeniy Polyakov <zbr@ioremap.net>
+License: GPL-2+
+ The full text of the GPL is distributed in
+ /usr/share/common-licenses/GPL-2 on Debian systems.
 
-It was downloaded from:
+Files: ./library/crypto/sha512.c
+       ./library/crypto/sha512.h
+       ./library/crypto/u64.h
+Copyright: 2005-2006, 2008-2010, Free Software Foundation, Inc
+License: GPL-3+
+ The full text of the GPL is distributed in
+ /usr/share/common-licenses/GPL-3 on Debian systems.
 
-    <url://example.com>
+Files: ./library/rbtree.h
+Copyright: 1999, Andrea Arcangeli <andrea@suse.de>
+License: GPL-2+
+ The full text of the GPL is distributed in
+ /usr/share/common-licenses/GPL-2 on Debian systems.
 
-Upstream Author(s):
-
-    <put author's name and email here>
-    <likewise for another author>
-
-Copyright:
-
-    <Copyright (C) YYYY Firtname Lastname>
-    <likewise for another author>
-
-License:
-
-### SELECT: ###
-    This package is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-### OR ###
-   This package is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License version 2 as
-   published by the Free Software Foundation.
-##########
-
-    This package is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this package; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
-
-On Debian systems, the complete text of the GNU General
-Public License can be found in `/usr/share/common-licenses/GPL'.
-
-The Debian packaging is:
-
-    Copyright C) 2009, Evgeniy Polyakov <zbr@ioremap.net>
-
-and is licensed under the GPL, see above.
-
-
-# Please also look if there are files or directories which have a
-# different copyright/license attached and list them here.
+Files: ./library/rbtree.c
+Copyright: 1999, Andrea Arcangeli <andrea@suse.de>
+           2002, David Woodhouse <dwmw2@infradead.org>
+License: GPL-2+
+ The full text of the GPL is distributed in
+ /usr/share/common-licenses/GPL-2 on Debian systems.

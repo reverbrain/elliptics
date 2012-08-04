@@ -11,13 +11,13 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %if 0%{?rhel} < 6
 BuildRequires:	python26-devel, boost141-python, boost141-devel
-BuildRequires:  boost141-iostreams, boost141-filesystem, boost141-thread, boost141-python, boost141-system
+BuildRequires:	boost141-iostreams, boost141-filesystem, boost141-thread, boost141-python, boost141-system
 %else
-BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-filesystem, boost-thread, boost-python, boost-system
+BuildRequires:	python-devel, boost-python, boost-devel, boost-iostreams, boost-filesystem, boost-thread, boost-python, boost-system
 %endif
 BuildRequires:	eblob-devel >= 0.16.0
-BuildRequires:  smack >= 0.4.0
-BuildRequires:	automake autoconf libtool
+BuildRequires:	smack >= 0.4.0
+BuildRequires:	cmake
 
 Obsoletes: srw
 
@@ -84,20 +84,17 @@ for building C++ applications with elliptics.
 
 %build
 export LDFLAGS="-Wl,-z,defs"
-./autogen.sh
+export DESTDIR="%{buildroot}"
 %if 0%{?rhel} < 6
 export PYTHON=/usr/bin/python26
-CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %configure --with-boost-libdir=/usr/lib64/boost141
+CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %{cmake} -DBoost_DIR=/usr/lib64/boost141 .
 %else
-%configure
+%{cmake} .
 %endif
-
-
 make %{?_smp_mflags}
 
 %install
 rm -rf %{buildroot}
-
 make install DESTDIR=%{buildroot}
 rm -f %{buildroot}%{_libdir}/*.a
 rm -f %{buildroot}%{_libdir}/*.la
@@ -105,21 +102,18 @@ rm -f %{buildroot}%{_libdir}/*.la
 %post -p /sbin/ldconfig
 %postun -p /sbin/ldconfig
 
-
 %post python -p /sbin/ldconfig
 %postun python -p /sbin/ldconfig
 
-
 %post c++ -p /sbin/ldconfig
 %postun c++ -p /sbin/ldconfig
-
 
 %clean
 rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root,-)
-%doc AUTHORS AUTHORS COPYING README
+%doc README doc/design_notes.txt doc/io_storage_backend.txt
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
 %{_libdir}/libelliptics_cocaine.so.*
