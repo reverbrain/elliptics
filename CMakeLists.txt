@@ -67,14 +67,27 @@ include_directories(${EBLOB_INCLUDE_DIRS})
 find_package(Msgpack REQUIRED)
 include_directories(${MSGPACK_INCLUDE_DIRS})
 
+# Find smack
+find_package(Smack REQUIRED)
+include_directories(${SMACK_INCLUDE_DIRS})
+
 # Collect all libraries together
-set(ELLIPTICS_LIBRARIES ${MSGPACK_LIBRARIES} ${SENDFILE_LIBRARIES} ${Boost_LIBRARIES} ${EBLOB_LIBRARIES} ${ZMQ_LIBRARIES} ${COCAINE_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+set(ELLIPTICS_LIBRARIES
+    ${MSGPACK_LIBRARIES}
+    ${SENDFILE_LIBRARIES}
+    ${Boost_LIBRARIES}
+    ${SMACK_LIBRARIES}
+    ${EBLOB_LIBRARIES}
+    ${ZMQ_LIBRARIES}
+    ${COCAINE_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+    )
 
 # Build parts
 add_subdirectory(srw)
-#add_subdirectory(example)
-#add_subdirectory(bindings)
 add_subdirectory(library)
+add_subdirectory(bindings)
+add_subdirectory(example)
 
 install(FILES
         include/elliptics/core.h

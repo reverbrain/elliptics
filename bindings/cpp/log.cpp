@@ -13,8 +13,6 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-
 #include <elliptics/cppdef.h>
 
 using namespace ioremap::elliptics;
