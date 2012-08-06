@@ -15,6 +15,7 @@ include(CheckSendfile)
 include(CheckIoprio)
 include(TestBigEndian)
 include(CheckProcStats)
+include_directories(${ATOMIC_INCLUDE_DIRS})
 
 # Set id_size
 if (NOT ID_SIZE)
