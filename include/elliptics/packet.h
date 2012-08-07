@@ -22,8 +22,8 @@
 #include <sys/stat.h>
 
 #include <string.h>
-#include <stdint.h>
 
+#include <elliptics/typedefs.h>
 #include <elliptics/core.h>
 
 #endif

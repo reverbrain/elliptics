@@ -15,6 +15,10 @@ include(CheckSendfile)
 include(CheckIoprio)
 include(TestBigEndian)
 include(CheckProcStats)
+include(CreateStdint)
+
+create_stdint(${CMAKE_BINARY_DIR}/include/elliptics/typedefs.h)
+include_directories(${CMAKE_BINARY_DIR}/include/)
 
 # Set id_size
 if (NOT ID_SIZE)
@@ -96,5 +100,6 @@ install(FILES
         include/elliptics/interface.h
         include/elliptics/packet.h
         include/elliptics/srw.h
+        ${CMAKE_BINARY_DIR}/include/elliptics/typedefs.h
     DESTINATION include/elliptics/
     )
