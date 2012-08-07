@@ -572,5 +572,6 @@ typedef           long   intptr_t;
 #endif
 ")
     endif()
+    file(APPEND "${FILENAME}" "\n") # Prevent compiler messages about newlines
     message(STATUS "stdint header was generated in ${FILENAME}")
 endmacro()
