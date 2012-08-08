@@ -577,6 +577,11 @@ static int blob_bulk_read(struct eblob_backend_config *c, void *state, struct dn
 	return err;
 }
 
+static int blob_start_defrag(struct eblob_backend_config *c)
+{
+	return eblob_start_defrag(c->eblob);
+}
+
 static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
 {
 	int err;
@@ -620,6 +625,9 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 			break;
 		case DNET_CMD_BULK_READ:
 			err = blob_bulk_read(c, state, cmd, data);
+			break;
+		case DNET_CMD_DEFRAG:
+			err = blob_start_defrag(c);
 			break;
 		default:
 			err = -EINVAL;

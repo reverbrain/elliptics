@@ -73,6 +73,7 @@ static void dnet_usage(char *p)
 			" -D object            - read latest data for given object, if -I id is specified, this field is unused\n"
 			" -C flags             - command flags\n"
 			" -t column            - column ID to read or write\n"
+			" -d                   - start defragmentation\n"
 			, p);
 }
 
@@ -93,6 +94,7 @@ int main(int argc, char *argv[])
 	int *groups = NULL, group_num = 0;
 	int type = EBLOB_TYPE_DATA;
 	uint64_t cflags = 0;
+	int defrag = 0;
 	sigset_t mask;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
@@ -111,8 +113,11 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "C:t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "dC:t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
+			case 'd':
+				defrag = 1;
+				break;
 			case 'C':
 				cflags = strtoull(optarg, NULL, 0);
 				break;
@@ -243,6 +248,9 @@ int main(int argc, char *argv[])
 		if (error)
 			return error;
 	}
+
+	if (defrag)
+		return dnet_start_defrag(n, cflags);
 
 	if (writef) {
 		if (id) {
