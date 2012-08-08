@@ -1,3 +1,16 @@
+elliptics (2.16.0.1) unstable; urgency=low
+
+  * Added possibility to start defragmentation on demand
+  * Added reserved 'hostname' word for local address
+  * Added cleanup call into node destruction path, which fixes double free error in config error path
+  * Implemented blocking exec commands
+  * Refactor pools of workers
+  * Set cocaine log level based on elliptics log mask
+  * Completely created client library
+  * Fixed json example path
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 08 Aug 2012 12:12:48 +0400
+
 elliptics (2.15.0.1) unstable; urgency=low
 
   * Send correct answer in smack_write

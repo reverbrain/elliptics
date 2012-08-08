@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.15.0.1
+Version:	2.16.0.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 08 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.16.0.1
+- Added possibility to start defragmentation on demand
+- Added reserved 'hostname' word for local address
+- Added cleanup call into node destruction path, which fixes double free error in config error path
+- Implemented blocking exec commands
+- Refactor pools of workers
+- Set cocaine log level based on elliptics log mask
+- Completely created client library
+- Fixed json example path
+
 * Tue Jul 24 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.15.0.1
 - Send correct answer in smack_write
 - New bulk_read()
