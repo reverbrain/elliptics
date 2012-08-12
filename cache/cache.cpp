@@ -127,12 +127,16 @@ class cache_t {
 		data_t &read(const unsigned char *id) {
 			boost::mutex::scoped_lock guard(m_lock);
 
-			key_t key(id);
-			hmap_t::iterator it = m_hmap.find(key);
+			hmap_t::iterator it = m_hmap.find(id);
 			if (it == m_hmap.end())
 				throw std::runtime_error("no record");
 
 			return it->second;
+		}
+
+		void remove(const unsigned char *id) {
+			boost::mutex::scoped_lock guard(m_lock);
+			m_hmap.erase(id);
 		}
 
 	private:
