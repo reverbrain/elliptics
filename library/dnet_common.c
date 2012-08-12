@@ -2755,6 +2755,9 @@ int dnet_read_latest_prepare(struct dnet_read_latest_prepare *pr)
 	if (err)
 		goto err_out_put;
 
+	if (ctl->pos == 0)
+		goto err_out_put;
+
 	pr->group_num = ctl->pos;
 
 	qsort(ctl->ids, pr->group_num, sizeof(struct dnet_read_latest_id), dnet_file_read_latest_cmp);
