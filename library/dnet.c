@@ -645,10 +645,27 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
 
-			err = dnet_cmd_cache_io(st, cmd, data);
-			if (err > 0)
-				break;
+			/*
+			 * Only allow cache for column 0
+			 * In the next life (2012 I really expect) there will be no columns at all
+			 */
+			if (io->type == 0) {
+				/*
+				 * Always check cache when reading!
+				 */
+				if ((io->flags & DNET_IO_FLAGS_CACHE) || (cmd->cmd == DNET_CMD_READ)) {
+					err = dnet_cmd_cache_io(st, cmd, data);
 
+					if (io->flags & DNET_IO_FLAGS_CACHE_ONLY)
+						break;
+
+					/*
+					 * We successfully read data from cache, do not sink to disk for it
+					 */
+					if ((cmd->cmd == DNET_CMD_READ) && !err)
+						break;
+				}
+			}
 			dnet_convert_io_attr(io);
 		default:
 			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command 
@@ -3380,6 +3397,9 @@ int dnet_read_latest_prepare(struct dnet_read_latest_prepare *pr)
 
 	err = dnet_wait_event(ctl->w, ctl->w->cond == pr->group_num, &pr->n->wait_ts);
 	if (err)
+		goto err_out_put;
+
+	if (ctl->pos == 0)
 		goto err_out_put;
 
 	pr->group_num = ctl->pos;

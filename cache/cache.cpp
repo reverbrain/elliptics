@@ -17,6 +17,7 @@
 #include <vector>
 
 #include <boost/unordered_map.hpp>
+#include <boost/shared_array.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/make_shared.hpp>
 #include <boost/thread.hpp>
@@ -64,16 +65,16 @@ struct equal_to {
 class raw_data_t {
 	public:
 		raw_data_t(const char *data, size_t size) {
-			m_data = data;
+			m_data.reset(new char[size]);
+			memcpy(m_data.get(), data, size);
 			m_size = size;
 		}
 
 		~raw_data_t() {
-			free((char *)m_data);
 		}
 
 		const char *data(void) const {
-			return m_data;
+			return m_data.get();
 		}
 
 		size_t size(void) const {
@@ -81,7 +82,7 @@ class raw_data_t {
 		}
 
 	private:
-		const char *m_data;
+		boost::shared_array<char> m_data;
 		size_t m_size;
 };
 
@@ -164,13 +165,10 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *dat
 	cache_t *cache = (cache_t *)n->cache;
 
 	try {
-		struct dnet_io_attr *io = NULL;
+		struct dnet_io_attr *io = (struct dnet_io_attr *)data;
 		data_t d;
 
-		if ((cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_WRITE)) {
-			io = (struct dnet_io_attr *)data;
-			data += sizeof(struct dnet_io_attr);
-		}
+		data += sizeof(struct dnet_io_attr);
 
 		switch (cmd->cmd) {
 			case DNET_CMD_WRITE:
