@@ -76,6 +76,10 @@ class raw_data_t {
 			return m_data;
 		}
 
+		size_t size(void) const {
+			return m_size;
+		}
+
 	private:
 		const char *m_data;
 		size_t m_size;
@@ -149,10 +153,56 @@ class cache_t {
 
 using namespace ioremap::cache;
 
-int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *data)
 {
 	struct dnet_node *n = st->n;
-	return -1;
+	int err = -ENOTSUP;
+
+	if (!n->cache)
+		return -ENOTSUP;
+
+	cache_t *cache = (cache_t *)n->cache;
+
+	try {
+		struct dnet_io_attr *io = NULL;
+		data_t d;
+
+		if ((cmd->cmd == DNET_CMD_READ) || (cmd->cmd == DNET_CMD_WRITE)) {
+			io = (struct dnet_io_attr *)data;
+			data += sizeof(struct dnet_io_attr);
+		}
+
+		switch (cmd->cmd) {
+			case DNET_CMD_WRITE:
+				cache->write(io->id, data, io->size);
+				err = 0;
+				break;
+			case DNET_CMD_READ:
+				d = cache->read(io->id);
+				if (io->offset + io->size > d->size()) {
+					dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache: invalid offset/size: "
+							"offset: %llu, size: %llu, cached-size: %zd\n",
+							dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd),
+							(unsigned long long)io->offset, (unsigned long long)io->size,
+							d->size());
+					err = -EINVAL;
+					break;
+				}
+
+				io->size = d->size();
+				err = dnet_send_read_data(st, cmd, io, (char *)d->data() + io->offset, -1, io->offset, 0);
+				break;
+			case DNET_CMD_DEL:
+				cache->remove(cmd->id.id);
+				break;
+		}
+	} catch (const std::exception &e) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
+				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
+		err = -ENOENT;
+	}
+
+	return err;
 }
 
 int dnet_cache_init(struct dnet_node *n)

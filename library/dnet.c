@@ -647,6 +647,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
 
+			err = dnet_cmd_cache_io(st, cmd, data);
+			if (err > 0)
+				break;
+
 			dnet_convert_io_attr(io);
 		default:
 			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command 
