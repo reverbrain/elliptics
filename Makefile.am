@@ -1,4 +1,4 @@
-SUBDIRS = include srw library doc bindings example debian
+SUBDIRS = include srw cache library doc bindings example debian
 
 ACLOCAL_AMFLAGS = -I config
 AUTOMAKE_OPTIONS = 1.9 foreign

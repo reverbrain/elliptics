@@ -438,6 +438,8 @@ struct dnet_node
 	int			client_prio;
 
 	struct dnet_locks	*locks;
+
+	void			*cache;
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)
@@ -712,6 +714,10 @@ void *dnet_read_data_wait_raw(struct dnet_node *n, struct dnet_id *id, struct dn
 int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_srw_cleanup(struct dnet_node *n);
 int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *header, const void *data);
+
+int dnet_cache_init(struct dnet_node *n);
+void dnet_cache_cleanup(struct dnet_node *n);
+int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *data);
 
 #ifdef __cplusplus
 }

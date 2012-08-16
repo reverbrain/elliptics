@@ -168,12 +168,16 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 				n->notify_hash_size);
 	}
 
+	err = dnet_cache_init(n);
+	if (err)
+		goto err_out_notify_exit;
+
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
 		int s;
 
 		err = dnet_locks_init(n, cfg->oplock_num);
 		if (err)
-			goto err_out_notify_exit;
+			goto err_out_cache_cleanup;
 
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
 		if (!ids)
@@ -214,6 +218,8 @@ err_out_ids_cleanup:
 	free(ids);
 err_out_locks_destroy:
 	dnet_locks_destroy(n);
+err_out_cache_cleanup:
+	dnet_cache_cleanup(n);
 err_out_notify_exit:
 	dnet_notify_exit(n);
 err_out_node_destroy:

@@ -9,7 +9,7 @@ libelliptics_la_SOURCES = dnet.c log.c net.c server.c node.c rbtree.c trans.c co
 			  notify.c notify_common.c meta.c metadb.c crypto.c check.c check_common.c \
 			  pool.c crypto/sha512.c locks.c
 
-libelliptics_la_LIBADD = ../srw/libelliptics_cocaine.la @EBLOB_LIBS@ \
+libelliptics_la_LIBADD = ../srw/libelliptics_cocaine.la ../cache/libelliptics_cache.la @EBLOB_LIBS@ \
 			@COCAINE_LIBS@ @MSGPACK_LIBS@ @ZMQ_LIBS@
 
 libelliptics_client_la_SOURCES = meta.c notify_common.c check_common.c dnet_common.c log.c \

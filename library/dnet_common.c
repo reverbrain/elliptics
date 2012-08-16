@@ -1677,18 +1677,23 @@ static int dnet_remove_object_raw(struct dnet_node *n, struct dnet_id *id,
 			void *priv),
 	void *priv, uint64_t cflags)
 {
-	struct dnet_trans_control ctl;
+	struct dnet_io_control ctl;
 
-	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
+
+	memcpy(&ctl.io.id, id->id, DNET_ID_SIZE);
+	memcpy(&ctl.io.parent, id->id, DNET_ID_SIZE);
+
+	ctl.fd = -1;
 
 	ctl.cmd = DNET_CMD_DEL;
 	ctl.complete = complete;
 	ctl.priv = priv;
 	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
 
-	return dnet_trans_alloc_send(n, &ctl);
+	return dnet_trans_create_send_all(n, &ctl);
 }
 
 static int dnet_remove_complete(struct dnet_net_state *state,
@@ -1731,11 +1736,11 @@ int dnet_remove_object(struct dnet_node *n, struct dnet_id *id,
 	}
 
 	err = dnet_remove_object_raw(n, id, complete, priv, cflags);
-	if (err)
+	if (err < 0)
 		goto err_out_put;
 
 	if (w) {
-		err = dnet_wait_event(w, w->cond != 0, &n->wait_ts);
+		err = dnet_wait_event(w, w->cond != err, &n->wait_ts);
 		if (err)
 			goto err_out_put;
 
@@ -1750,46 +1755,10 @@ err_out_exit:
 	return err;
 }
 
-int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, uint64_t cflags)
-{
-	struct dnet_wait *w = NULL;
-	struct dnet_trans_control ctl;
-	int err;
-
-	w = dnet_wait_alloc(0);
-	if (!w) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	dnet_wait_get(w);
-
-	memset(&ctl, 0, sizeof(struct dnet_trans_control));
-
-	memcpy(&ctl.id, id, sizeof(struct dnet_id));
-	ctl.cmd = DNET_CMD_DEL;
-	ctl.complete = dnet_remove_complete;
-	ctl.priv = w;
-	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags | DNET_ATTR_DELETE_HISTORY;
-
-	err = dnet_trans_alloc_send(n, &ctl);
-	if (err)
-		goto err_out_put;
-
-	err = dnet_wait_event(w, w->cond != 0, &n->wait_ts);
-	if (err)
-		goto err_out_put;
-
-err_out_put:
-	dnet_wait_put(w);
-err_out_exit:
-	return err;
-}
-
 static int dnet_remove_file_raw(struct dnet_node *n, struct dnet_id *id, uint64_t cflags)
 {
 	struct dnet_wait *w;
-	int err;
+	int err, num;
 
 	w = dnet_wait_alloc(0);
 	if (!w) {
@@ -1797,12 +1766,17 @@ static int dnet_remove_file_raw(struct dnet_node *n, struct dnet_id *id, uint64_
 		goto err_out_exit;
 	}
 
-	dnet_wait_get(w);
+	atomic_add(&w->refcnt, 1024);
 	err = dnet_remove_object_raw(n, id, dnet_remove_complete, w, cflags);
-	if (err)
+	if (err < 0) {
+		atomic_sub(&w->refcnt, 1024);
 		goto err_out_put;
+	}
 
-	err = dnet_wait_event(w, w->cond == 1, &n->wait_ts);
+	num = err;
+	atomic_sub(&w->refcnt, 1024 - num);
+
+	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
 	if (err)
 		goto err_out_put;
 
@@ -1816,26 +1790,22 @@ err_out_exit:
 	return err;
 }
 
+int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, uint64_t cflags)
+{
+	return dnet_remove_file_raw(n, id, cflags | DNET_FLAGS_NEED_ACK | DNET_ATTR_DELETE_HISTORY);
+}
+
 int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags)
 {
 	struct dnet_id raw;
-	int err, error = 0, i;
 
-	if (id)
-		 return dnet_remove_file_raw(n, id, cflags);
-
-	dnet_transform(n, remote, remote_len, &raw);
-
-	pthread_mutex_lock(&n->group_lock);
-	for (i=0; i<n->group_num; ++i) {
-		raw.group_id = n->groups[i];
-		err = dnet_remove_file_raw(n, &raw, cflags);
-		if (err)
-			error = err;
+	if (!id) {
+		dnet_transform(n, remote, remote_len, &raw);
+		raw.group_id = 0;
+		id = &raw;
 	}
-	pthread_mutex_unlock(&n->group_lock);
 
-	return error;
+	return dnet_remove_file_raw(n, id, cflags);
 }
 
 int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, uint64_t cflags,
@@ -2785,6 +2755,9 @@ int dnet_read_latest_prepare(struct dnet_read_latest_prepare *pr)
 	if (err)
 		goto err_out_put;
 
+	if (ctl->pos == 0)
+		goto err_out_put;
+
 	pr->group_num = ctl->pos;
 
 	qsort(ctl->ids, pr->group_num, sizeof(struct dnet_read_latest_id), dnet_file_read_latest_cmp);
@@ -3352,3 +3325,66 @@ int dnet_flags(struct dnet_node *n)
 	return n->flags;
 }
 
+static int dnet_start_defrag_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
+{
+	struct dnet_wait *w = priv;
+
+	if (is_trans_destroyed(state, cmd)) {
+		dnet_wakeup(w, w->cond++);
+		dnet_wait_put(w);
+		return 0;
+	}
+
+	return 0;
+}
+
+static int dnet_start_defrag_single(struct dnet_net_state *st, void *priv, uint64_t cflags)
+{
+	struct dnet_trans_control ctl;
+
+	memset(&ctl, 0, sizeof(struct dnet_trans_control));
+
+	dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
+	ctl.cmd = DNET_CMD_DEFRAG;
+	ctl.complete = dnet_start_defrag_complete;
+	ctl.priv = priv;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
+
+	return dnet_trans_alloc_send_state(st, &ctl);
+}
+
+int dnet_start_defrag(struct dnet_node *n, uint64_t cflags)
+{
+	struct dnet_net_state *st;
+	struct dnet_wait *w;
+	struct dnet_group *g;
+	int num = 0;
+	int err;
+
+	w = dnet_wait_alloc(0);
+	if (!w) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	pthread_mutex_lock(&n->state_lock);
+	list_for_each_entry(g, &n->group_list, group_entry) {
+		list_for_each_entry(st, &g->state_list, state_entry) {
+			if (st == n->st)
+				continue;
+
+			if (w)
+				dnet_wait_get(w);
+
+			dnet_start_defrag_single(st, w, cflags);
+			num++;
+		}
+	}
+	pthread_mutex_unlock(&n->state_lock);
+
+	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
+	dnet_wait_put(w);
+
+err_out_exit:
+	return err;
+}

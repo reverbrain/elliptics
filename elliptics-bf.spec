@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.15.0.1
+Version:	2.16.0.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,7 +15,7 @@ BuildRequires:  boost141-iostreams, boost141-filesystem, boost141-thread, boost1
 %else
 BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-filesystem, boost-thread, boost-python, boost-system
 %endif
-BuildRequires:	eblob-devel >= 0.16.0
+BuildRequires:	eblob-devel >= 0.16.10
 BuildRequires:  smack >= 0.4.0
 BuildRequires:	automake autoconf libtool
 
@@ -122,6 +122,7 @@ rm -rf %{buildroot}
 %doc AUTHORS AUTHORS COPYING README
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
+%{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cocaine.so.*
 
 
@@ -129,6 +130,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/libelliptics.so
+%{_libdir}/libelliptics_client.so
 %{_libdir}/libelliptics_cocaine.so
 
 %files python
@@ -152,6 +154,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 08 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.16.0.1
+- Added possibility to start defragmentation on demand
+- Added reserved 'hostname' word for local address
+- Added cleanup call into node destruction path, which fixes double free error in config error path
+- Implemented blocking exec commands
+- Refactor pools of workers
+- Set cocaine log level based on elliptics log mask
+- Completely created client library
+- Fixed json example path
+
 * Tue Jul 24 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.15.0.1
 - Send correct answer in smack_write
 - New bulk_read()

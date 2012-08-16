@@ -618,6 +618,9 @@ err_out_free:
 err_out_exit:
 	if (cfg->log && cfg->log->log)
 		cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Error during node creation.\n");
+
+	if (cfg->cb && cfg->cb->backend_cleanup)
+		cfg->cb->backend_cleanup(cfg->cb->command_private);
 	return NULL;
 }
 
