@@ -186,7 +186,7 @@ struct dnet_io_attr *dnet_remove_range(struct dnet_node *n, struct dnet_io_attr 
 struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr *io,
 		int group_id, uint64_t cflags, int *errp);
 
-int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
+int __attribute__((weak)) dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
 		void *data, int fd, uint64_t offset, int close_on_exit);
 
 /*
@@ -899,7 +899,7 @@ static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd 
 
 int dnet_mix_states(struct dnet_node *n, struct dnet_id *id, int **groupsp);
 
-char *dnet_cmd_string(int cmd);
+char * __attribute__((weak)) dnet_cmd_string(int cmd);
 char *dnet_counter_string(int cntr, int cmd_num);
 
 ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void **datap);
