@@ -4,7 +4,7 @@ set(CMAKE_SKIP_RPATH TRUE)
 
 project (elliptics)
 set(ELLIPTICS_VERSION_ABI "2")
-set(ELLIPTICS_VERSION_MINOR "14.1")
+set(ELLIPTICS_VERSION_MINOR "15.0")
 
 option(WITH_PYTHON "Build python bindings" ON)
 option(WITH_COCAINE "Build with cocaine support" ON)
@@ -93,6 +93,7 @@ set(ELLIPTICS_LIBRARIES
 
 # Build parts
 add_subdirectory(srw)
+add_subdirectory(cache)
 add_subdirectory(library)
 add_subdirectory(bindings)
 if(WITH_EXAMPLES)

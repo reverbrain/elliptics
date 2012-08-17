@@ -71,6 +71,8 @@ static void dnet_usage(char *p)
 			" -D object            - read latest data for given object, if -I id is specified, this field is unused\n"
 			" -C flags             - command flags\n"
 			" -t column            - column ID to read or write\n"
+			" -d                   - start defragmentation\n"
+			" -i flags             - IO flags (see DNET_IO_FLAGS_* in include/elliptics/packet.h\n"
 			, p);
 }
 
@@ -91,6 +93,8 @@ int main(int argc, char *argv[])
 	int *groups = NULL, group_num = 0;
 	int type = EBLOB_TYPE_DATA;
 	uint64_t cflags = 0;
+	uint64_t ioflags = 0;
+	int defrag = 0;
 	sigset_t mask;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
@@ -109,8 +113,14 @@ int main(int argc, char *argv[])
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
-	while ((ch = getopt(argc, argv, "C:t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "i:dC:t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
+			case 'i':
+				ioflags = strtoull(optarg, NULL, 0);
+				break;
+			case 'd':
+				defrag = 1;
+				break;
 			case 'C':
 				cflags = strtoull(optarg, NULL, 0);
 				break;
@@ -242,6 +252,9 @@ int main(int argc, char *argv[])
 			return error;
 	}
 
+	if (defrag)
+		return dnet_start_defrag(n, cflags);
+
 	if (writef) {
 		if (id) {
 			struct dnet_id raw;
@@ -249,9 +262,9 @@ int main(int argc, char *argv[])
 			dnet_setup_id(&raw, 0, id);
 			raw.type = type;
 
-			err = dnet_write_file_id(n, writef, &raw, offset, offset, size, cflags, 0);
+			err = dnet_write_file_id(n, writef, &raw, offset, offset, size, cflags, ioflags);
 		} else {
-			err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, cflags, 0, type);
+			err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, cflags, ioflags, type);
 		}
 
 		if (err)
@@ -288,6 +301,7 @@ int main(int argc, char *argv[])
 
 		memset(&io, 0, sizeof(io));
 		io.type = type;
+		io.flags = ioflags;
 		memcpy(io.id, raw.id, DNET_ID_SIZE);
 		memcpy(io.parent, raw.id, DNET_ID_SIZE);
 
@@ -318,23 +332,21 @@ int main(int argc, char *argv[])
 		if (id) {
 			struct dnet_id raw;
 
-			for (i=0; i<group_num; ++i) {
-				dnet_setup_id(&raw, groups[i], id);
-				raw.type = type;
-				dnet_remove_object_now(n, &raw, cflags);
-			}
+			dnet_setup_id(&raw, 0, id);
+			raw.type = type;
+			dnet_remove_object_now(n, &raw, cflags, ioflags);
 
 			return 0;
 		}
 
-		err = dnet_remove_file(n, removef, strlen(removef), NULL, cflags);
+		err = dnet_remove_file(n, removef, strlen(removef), NULL, cflags, ioflags);
 		if (err)
 			return err;
 	}
 
 	if (cmd) {
 		struct dnet_id __did, *did = NULL;
-		struct sph *e;
+		struct sph *sph;
 		int len = strlen(cmd);
 		int event_size = len;
 		char *ret = NULL;
@@ -352,24 +364,25 @@ int main(int argc, char *argv[])
 			did->type = type;
 		}
 
-		e = malloc(sizeof(struct sph) + len + 1);
-		if (!e)
+		sph = malloc(sizeof(struct sph) + len + 1);
+		if (!sph)
 			return -ENOMEM;
 
-		memset(e, 0, sizeof(struct sph));
+		memset(sph, 0, sizeof(struct sph));
 
-		e->key = -1;
-		e->binary_size = 0;
-		e->data_size = len - event_size;
-		e->event_size = event_size;
+		sph->flags = DNET_SPH_FLAGS_SRC_BLOCK;
+		sph->key = -1;
+		sph->binary_size = 0;
+		sph->data_size = len - event_size;
+		sph->event_size = event_size;
 
-		sprintf(e->data, "%s", cmd);
+		sprintf(sph->data, "%s", cmd);
 
-		err = dnet_send_cmd(n, did, e, (void **)&ret);
+		err = dnet_send_cmd(n, did, sph, (void **)&ret);
 		if (err < 0)
 			return err;
 
-		free(e);
+		free(sph);
 
 		if (err > 0) {
 			char *old = ret;

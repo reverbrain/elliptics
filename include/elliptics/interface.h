@@ -536,6 +536,11 @@ static inline char *dnet_state_dump_addr_only(struct dnet_addr *a)
 struct dnet_node *dnet_node_create(struct dnet_config *);
 void dnet_node_destroy(struct dnet_node *n);
 
+/* Server node creation/destruction.
+ */
+struct dnet_node *dnet_server_node_create(struct dnet_config *);
+void dnet_server_node_destroy(struct dnet_node *n);
+
 /*
  * dnet_add_state() is used to add a node into the route list, the more
  * routes are added the less network lookups will be performed to send/receive
@@ -642,7 +647,7 @@ static inline int dnet_id_cmp(const struct dnet_id *id1, const struct dnet_id *i
  * If cmd->cmd is DNET_CMD_SYNC then plain data will be sent back, otherwise transaction
  * reply will be generated. So effectively difference is in DNET_TRANS_REPLY bit presence.
  */
-int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more);
+int __attribute__((weak)) dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more);
 
 /*
  * Request statistics from the node corresponding to given ID.
@@ -724,15 +729,15 @@ int dnet_remove_object(struct dnet_node *n, struct dnet_id *id,
 			struct dnet_cmd *cmd,
 			void *priv),
 	void *priv,
-	uint64_t cflags);
+	uint64_t cflags, uint64_t ioflags);
 
 /* Remove object with @id from the storage immediately */
-int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, uint64_t cflags);
+int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, uint64_t cflags, uint64_t ioflags);
 
 /*
  * Remove given file (identified by name or ID) from the storage.
  */
-int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags);
+int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags, uint64_t ioflags);
 
 /*
  * Transformation helper, which uses *ppos as an index for transformation function.
@@ -918,6 +923,8 @@ void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)
 
 #define DNET_CONF_ADDR_DELIM	':'
 int dnet_parse_addr(char *addr, struct dnet_config *cfg);
+
+int dnet_start_defrag(struct dnet_node *n, uint64_t cflags);
 
 #ifdef __cplusplus
 }

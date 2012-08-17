@@ -156,7 +156,7 @@ static int ioserv_start(char *conf, int mon)
 		sleep(1);
 
 	ioserv_cleanup_signals();
-	dnet_node_destroy(n);
+	dnet_server_node_destroy(n);
 	return 0;
 }
 
@@ -164,7 +164,6 @@ int main(int argc, char *argv[])
 {
 	int ch, mon = 0, err;
 	char *conf = NULL;
-	sigset_t sig;
 
 	while ((ch = getopt(argc, argv, "mc:h")) != -1) {
 		switch (ch) {

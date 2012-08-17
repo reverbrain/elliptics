@@ -103,6 +103,60 @@ int dnet_db_remove_raw(struct eblob_backend *b, struct dnet_raw_id *id, int real
 	return dnet_update_ts_metadata(b, id, DNET_IO_FLAGS_REMOVED, 0);
 }
 
+int dnet_update_ts_metadata(struct eblob_backend *b, struct dnet_raw_id *id, uint64_t flags_set, uint64_t flags_clear)
+{
+	int err = 0;
+	struct dnet_meta_container mc;
+	struct dnet_meta *m;
+
+	memset(&mc, 0, sizeof(struct dnet_meta_container));
+
+	err = dnet_db_read_raw(b, id, &mc.data);
+	if (err < 0) {
+		m = malloc(sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update));
+		if (!m) {
+			err = -ENOMEM;
+			goto err_out_exit;
+		}
+		dnet_create_meta_update(m, NULL, flags_set, flags_clear);
+
+		mc.data = m;
+		mc.size = sizeof(struct dnet_meta_update) + sizeof(struct dnet_meta);
+	} else {
+		err = dnet_update_ts_metadata_raw(&mc, flags_set, flags_clear);
+		if (err) {
+			/* broken metadata, rewrite it */
+			if (err != -ENOENT) {
+				free(mc.data);
+
+				mc.data = NULL;
+				mc.size = 0;
+			}
+
+			mc.data = realloc(mc.data, mc.size + sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update));
+			if (!mc.data) {
+				err = -ENOMEM;
+				goto err_out_exit;
+			}
+
+			m = mc.data + mc.size;
+			mc.size += sizeof(struct dnet_meta) + sizeof(struct dnet_meta_update);
+
+			dnet_create_meta_update(m, NULL, flags_set, flags_clear);
+		}
+	}
+
+	err = dnet_db_write_raw(b, id, mc.data, mc.size);
+	if (err) {
+		goto err_out_free;
+	}
+
+err_out_free:
+	free(mc.data);
+err_out_exit:
+       return err;
+}
+
 int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io)
 {
 	struct dnet_node *n = st->n;

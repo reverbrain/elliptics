@@ -56,6 +56,7 @@ enum dnet_commands {
 	DNET_CMD_DEL_RANGE,			/* Remove range of objects */
 	DNET_CMD_AUTH,				/* Authentification cookie check */
 	DNET_CMD_BULK_READ,			/* Read a number of ids at one time */
+	DNET_CMD_DEFRAG,			/* Start defragmentation process if backend supports it */
 
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
@@ -280,6 +281,17 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
  *  since using plain write and nodata (read) is useless anyway
  */
 #define DNET_IO_FLAGS_NODATA		(1<<9)
+
+/*
+ * Cache flags
+ * DNET_IO_FLAGS_CACHE says we should first check cache: read/write or delete
+ * DNET_IO_FLAGS_CACHE_ONLY means we do not want to sink to disk, just return whatever cache processing returned (even error)
+ *
+ * Please note, that READ command always goes into the cache, and if cache read succeeds, we return cached data
+ * without going down to disk
+ */
+#define DNET_IO_FLAGS_CACHE		(1<<10)
+#define DNET_IO_FLAGS_CACHE_ONLY	(1<<11)
 
 struct dnet_io_attr
 {

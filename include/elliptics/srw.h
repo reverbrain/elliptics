@@ -21,15 +21,21 @@ extern "C" {
 #endif
 
 #include <elliptics/core.h>
+#include <elliptics/packet.h>
+
+#define DNET_SPH_FLAGS_SRC_BLOCK	(1<<0)		/* when set data in @src is valid ID and can be used to send reply data, caller blocks */
+#define DNET_SPH_FLAGS_REPLY		(1<<1)		/* this packet is a reply to the blocked request with ID stored in @src */
+#define DNET_SPH_FLAGS_FINISH		(1<<2)		/* complete request with ID stored in @src, this packet will unblock client */
 
 struct sph {
+	struct dnet_raw_id	src;			/* reply has to be sent to this id */
 	uint64_t		data_size;		/* size of text data in @data - located after even string */
 	uint64_t		binary_size;		/* size of binary data in @data - located after text data */
 	uint64_t		flags;
 	int			event_size;		/* size of the event string - it is located first in @data */
 	int			status;			/* processing status - negative errno code or zero on success */
 	int			key;			/* meta-key - used to map header to particular worker, see pool::worker_process() */
-	int			pad;
+	int			src_key;		/* blocked client generates this key and waits for it to complete */
 	char			data[0];
 } __attribute__ ((packed));
 
@@ -41,6 +47,7 @@ static inline void dnet_convert_sph(struct sph *e)
 	e->event_size = dnet_bswap32(e->event_size);
 	e->status = dnet_bswap32(e->status);
 	e->key = dnet_bswap32(e->key);
+	e->src_key = dnet_bswap32(e->src_key);
 }
 
 struct srw_init_ctl {

@@ -309,11 +309,27 @@ struct dnet_net_io {
 	struct dnet_node	*n;
 };
 
+enum dnet_work_io_mode {
+	DNET_WORK_IO_MODE_BLOCKING = 0,
+	DNET_WORK_IO_MODE_NONBLOCKING,
+	DNET_WORK_IO_MODE_EXEC_BLOCKING,
+};
+
+struct dnet_work_pool;
 struct dnet_work_io {
 	int			thread_index;
-	int			nonblocking;
 	pthread_t		tid;
+	struct dnet_work_pool	*pool;
+};
+
+struct dnet_work_pool {
 	struct dnet_node	*n;
+	int			mode;
+	int			num;
+	struct list_head	list;
+	pthread_mutex_t		lock;
+	pthread_cond_t		wait;
+	struct dnet_work_io	wio[0];
 };
 
 struct dnet_io {
@@ -322,14 +338,9 @@ struct dnet_io {
 	int			net_thread_num, net_thread_pos;
 	struct dnet_net_io	*net;
 
-	pthread_mutex_t		recv_lock;
-	struct list_head	nonblocking_recv_list;
-	struct list_head	recv_list;
-	pthread_cond_t		recv_wait;
-
-	int			thread_num;
-	int			nonblocking_thread_num;
-	struct dnet_work_io	*wio;
+	struct dnet_work_pool	*recv_pool;
+	struct dnet_work_pool	*recv_pool_nb;
+	struct dnet_work_pool	*recv_pool_eblock;
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
@@ -427,6 +438,8 @@ struct dnet_node
 	int			client_prio;
 
 	struct dnet_locks	*locks;
+
+	void			*cache;
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)
@@ -671,6 +684,7 @@ struct dnet_meta_update * dnet_get_meta_update(struct dnet_node *n, struct dnet_
 		struct dnet_meta_update *meta_update);
 
 int dnet_update_ts_metadata(struct eblob_backend *b, struct dnet_raw_id *id, uint64_t flags_set, uint64_t flags_clear);
+int dnet_update_ts_metadata_raw(struct dnet_meta_container *mc, uint64_t flags_set, uint64_t flags_clear);
 
 int dnet_process_meta(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io);
 void dnet_convert_metadata(struct dnet_node *n __unused, void *data, int size);
@@ -700,6 +714,10 @@ void *dnet_read_data_wait_raw(struct dnet_node *n, struct dnet_id *id, struct dn
 int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_srw_cleanup(struct dnet_node *n);
 int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *header, const void *data);
+
+int dnet_cache_init(struct dnet_node *n);
+void dnet_cache_cleanup(struct dnet_node *n);
+int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *data);
 
 #ifdef __cplusplus
 }

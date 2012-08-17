@@ -458,9 +458,9 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	fclose(f);
 	f = NULL;
 
-	n = dnet_node_create(&dnet_cfg_state);
+	n = dnet_server_node_create(&dnet_cfg_state);
 	if (!n) {
-		dnet_cfg_current_backend->cleanup(dnet_cfg_current_backend);
+		/* backend cleanup is already called */
 		goto err_out_free;
 	}
 
@@ -471,7 +471,7 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	return n;
 
 err_out_node_destroy:
-	dnet_node_destroy(n);
+	dnet_server_node_destroy(n);
 err_out_free:
 	free(dnet_cfg_remotes);
 

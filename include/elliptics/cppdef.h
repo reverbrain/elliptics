@@ -174,8 +174,8 @@ class node {
 		std::string		lookup(const std::string &data);
 		std::string		lookup(const struct dnet_id &id);
 
-		void 			remove_raw(struct dnet_id &id, uint64_t cflags);
-		void			remove_raw(const std::string &data, int type, uint64_t cflags);
+		void 			remove_raw(struct dnet_id &id, uint64_t cflags, uint64_t ioflags);
+		void			remove_raw(const std::string &data, int type, uint64_t cflags, uint64_t ioflags);
 		void 			remove(struct dnet_id &id);
 		void			remove(const std::string &data, int type = EBLOB_TYPE_DATA);
 
@@ -202,6 +202,10 @@ class node {
 		/* unlocked execution */
 		std::string		push(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary);
 
+		/* send reply back to blocked exec client */
+		std::string		request(struct sph *sph, bool lock);
+		void			reply(struct sph *sph, const std::string &event, const std::string &data, const std::string &binary);
+
 		std::vector<std::string>	bulk_read(const std::vector<struct dnet_io_attr> &ios, uint64_t cflags = 0);
 		std::vector<std::string>	bulk_read(const std::vector<std::string> &keys, uint64_t cflags = 0);
 
@@ -216,6 +220,13 @@ class node {
 		logger			*m_log;
 
 		std::vector<int>	groups;
+
+
+		std::string		raw_exec(struct dnet_id *id,
+						const std::string &event,
+						const std::string &data,
+						const std::string &binary,
+						bool lock);
 };
 
 }}; /* namespace ioremap::elliptics */
