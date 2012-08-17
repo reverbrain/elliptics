@@ -1,0 +1,4 @@
+usr/lib/libelliptics_client.so.*
+usr/lib/libelliptics_cpp.so.*
+usr/lib/libelliptics_python.so.*
+usr/bin/*
