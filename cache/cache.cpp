@@ -102,8 +102,16 @@ class cache_t {
 		void write(const unsigned char *id, const char *data, size_t size) {
 			boost::mutex::scoped_lock guard(m_lock);
 			data_t raw(new raw_data_t(data, size));
-			m_hmap[id] = raw;
-			m_lru.push_back(*raw);
+
+			hmap_t::iterator it = m_hmap.find(id);
+			if (it == m_hmap.end()) {
+				m_hmap[id] = raw;
+				m_lru.push_back(*raw);
+			} else {
+				m_lru.erase(m_lru.iterator_to(*it->second));
+				it->second = raw;
+				m_lru.push_back(*raw);
+			}
 		}
 
 		data_t &read(const unsigned char *id) {
@@ -113,6 +121,8 @@ class cache_t {
 			if (it == m_hmap.end())
 				throw std::runtime_error("no record");
 
+			m_lru.erase(m_lru.iterator_to(*it->second));
+			m_lru.push_back(*it->second);
 			return it->second;
 		}
 
