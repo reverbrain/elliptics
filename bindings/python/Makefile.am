@@ -1,4 +1,5 @@
 lib_LTLIBRARIES = libelliptics_python.la
+SUBDIRS = . elliptics
 
 libelliptics_python_la_SOURCES = elliptics_python.cpp
 libelliptics_python_la_LIBADD =  @top_srcdir@/library/.libs/libelliptics.la \

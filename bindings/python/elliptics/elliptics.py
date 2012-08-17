@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
-#sys.path.insert(0, "/usr/lib/")
-#sys.path.insert(0, "./.libs/")
+sys.path.append(0, "/usr/lib/")
+sys.path.append(0, "./.libs/")
 import libelliptics_python
 
 class elliptics_node_status(libelliptics_python.dnet_node_status):
@@ -28,7 +28,7 @@ class elliptics_range(libelliptics_python.elliptics_range):
 	Structure that describes range request
 	start, end - IDs of the start and the end of the range
 	offset, size - offset to read from and size of bytes to read, applied for each key
-	aflags - command attributes flags (default is 0)
+	cflags - command flags like locking, checksum and so on (default is 0)
 	ioflags - command IO flags (default is 0)
 	group - group ID of the object
 	type - column
@@ -428,13 +428,14 @@ class elliptics_node(libelliptics_python.elliptics_node_python):
 		Remove key by name/ID
 		signatures:
 			remove(key, aflags, type)
-			remove(id, aflags)
+			remove(id, aflags, ioflags)
 
 		key - remote key name
 		type - column type (default is 0, 1 is reserved for metadata)
 		id - object of elliptics_id class
 
 		aflags - command attributes flags (default is 0)
+		ioflags - IO flags (like cache)
 		"""
 		kwargs["key"] = args[0]
 

@@ -29,5 +29,6 @@ setup(name='elliptics',
       author='Anton Kortunov',
       author_email='toshic.toshic@gmail.com',
       url='http://www.ioremap.net/projects/elliptics',
-      py_modules=['elliptics']
+      py_modules=['elliptics'],
+      license = 'GPLv2',
      )
