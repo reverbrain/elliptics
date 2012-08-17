@@ -637,14 +637,21 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			io = data;
 			dnet_convert_io_attr(io);
 
-			dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: %llx, cflags: %llx, node-flags: %x\n",
+			dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: %llx, cflags: %llx, "
+					"node-flags: %x, type: %d\n",
 					dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
 					(unsigned long long)io->offset, (unsigned long long)io->size,
 					(unsigned long long)io->flags, (unsigned long long)cmd->flags,
-					n->flags);
+					n->flags, io->type);
 
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
+
+			/* do not write metadata for cache-only writes */
+			if ((io->flags & DNET_IO_FLAGS_CACHE_ONLY) && (io->type == EBLOB_TYPE_META)) {
+				err = -EINVAL;
+				break;
+			}
 
 			/*
 			 * Only allow cache for column 0
