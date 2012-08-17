@@ -439,6 +439,7 @@ struct dnet_node
 
 	struct dnet_locks	*locks;
 
+	size_t			cache_size;
 	void			*cache;
 };
 

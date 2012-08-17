@@ -22,6 +22,7 @@
 #include <boost/make_shared.hpp>
 #include <boost/thread.hpp>
 #include <boost/intrusive/list.hpp>
+#include <boost/intrusive/set.hpp>
 
 #include "config.h"
 
@@ -63,77 +64,134 @@ struct equal_to {
 	}
 };
 
-struct raw_data_lru_tag_t;
-typedef boost::intrusive::list_base_hook<boost::intrusive::tag<raw_data_lru_tag_t>,
-					 boost::intrusive::link_mode<boost::intrusive::safe_link>
-					> lru_list_base_hook_t;
-
-class raw_data_t : public lru_list_base_hook_t {
+class raw_data_t {
 	public:
 		raw_data_t(const char *data, size_t size) {
-			m_data.reset(new char[size]);
-			memcpy(m_data.get(), data, size);
-			m_size = size;
+			m_data.reserve(size);
+			m_data.insert(m_data.begin(), data, data + size);
 		}
 
-		~raw_data_t() {
+		std::vector<char> &data(void) {
+			return m_data;
 		}
 
-		const char *data(void) const {
-			return m_data.get();
-		}
-
-		size_t size(void) const {
-			return m_size;
+		size_t size(void) {
+			return m_data.size();
 		}
 
 	private:
-		boost::shared_array<char> m_data;
-		size_t m_size;
+		std::vector<char> m_data;
 };
 
-typedef boost::intrusive::list<raw_data_t, boost::intrusive::base_hook<lru_list_base_hook_t> > lru_list_t;
+struct data_lru_tag_t;
+typedef boost::intrusive::list_base_hook<boost::intrusive::tag<data_lru_tag_t>,
+					 boost::intrusive::link_mode<boost::intrusive::safe_link>
+					> lru_list_base_hook_t;
+struct data_set_tag_t;
+typedef boost::intrusive::set_base_hook<boost::intrusive::tag<data_set_tag_t>,
+					 boost::intrusive::link_mode<boost::intrusive::safe_link>
+					> set_base_hook_t;
 
-typedef boost::shared_ptr<raw_data_t> data_t;
-typedef boost::unordered_map<key_t, data_t, hash_t, equal_to> hmap_t;
+class data_t : public lru_list_base_hook_t, public set_base_hook_t {
+	public:
+		data_t(const unsigned char *id) {
+			memcpy(m_id.id, id, DNET_ID_SIZE);
+		}
+
+		data_t(const unsigned char *id, const char *data, size_t size) {
+			memcpy(m_id.id, id, DNET_ID_SIZE);
+
+			m_data.reset(new raw_data_t(data, size));
+		}
+
+		~data_t() {
+		}
+
+		const struct dnet_raw_id &id(void) const {
+			return m_id;
+		}
+
+		boost::shared_ptr<raw_data_t> data(void) const {
+			return m_data;
+		}
+
+		size_t size(void) const {
+			return m_data->size();
+		}
+
+		friend bool operator< (const data_t &a, const data_t &b) {
+			return dnet_id_cmp_str(a.id().id, b.id().id) < 0;
+		}
+
+		friend bool operator> (const data_t &a, const data_t &b) {
+			return dnet_id_cmp_str(a.id().id, b.id().id) > 0;
+		}
+
+		friend bool operator== (const data_t &a, const data_t &b) {
+			return dnet_id_cmp_str(a.id().id, b.id().id) == 0;
+		}
+	private:
+		struct dnet_raw_id m_id;
+		boost::shared_ptr<raw_data_t> m_data;
+};
+
+typedef boost::intrusive::list<data_t, boost::intrusive::base_hook<lru_list_base_hook_t> > lru_list_t;
+typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<set_base_hook_t>,
+					  boost::intrusive::compare<std::greater<data_t> >
+			     > iset_t;
 
 class cache_t {
 	public:
-		void write(const unsigned char *id, const char *data, size_t size) {
-			boost::mutex::scoped_lock guard(m_lock);
-			data_t raw(new raw_data_t(data, size));
+		cache_t(size_t cache_size) : m_cache_size(0), m_max_cache_size(cache_size) {
+		}
 
-			hmap_t::iterator it = m_hmap.find(id);
-			if (it == m_hmap.end()) {
-				m_hmap[id] = raw;
-				m_lru.push_back(*raw);
-			} else {
-				m_lru.erase(m_lru.iterator_to(*it->second));
-				it->second = raw;
-				m_lru.push_back(*raw);
+		~cache_t() {
+			while (!m_lru.empty()) {
+				data_t raw = m_lru.front();
+				erase_element(&raw);
 			}
 		}
 
-		data_t &read(const unsigned char *id) {
+		void write(const unsigned char *id, const char *data, size_t size) {
 			boost::mutex::scoped_lock guard(m_lock);
 
-			hmap_t::iterator it = m_hmap.find(id);
-			if (it == m_hmap.end())
+			iset_t::iterator it = m_set.find(id);
+			if (it != m_set.end())
+				erase_element(&(*it));
+
+			if (size + m_cache_size > m_max_cache_size)
+				resize(size * 2);
+
+			/*
+			 * nothing throws exception below this 'new' operator, so there is no try/catch block
+			 */
+			data_t *raw = new data_t(id, data, size);
+
+			m_set.insert(*raw);
+			m_lru.push_back(*raw);
+
+			m_cache_size += size;
+		}
+
+		boost::shared_ptr<raw_data_t> read(const unsigned char *id) {
+			boost::mutex::scoped_lock guard(m_lock);
+
+			iset_t::iterator it = m_set.find(id);
+			if (it == m_set.end())
 				throw std::runtime_error("no record");
 
-			m_lru.erase(m_lru.iterator_to(*it->second));
-			m_lru.push_back(*it->second);
-			return it->second;
+			m_lru.erase(m_lru.iterator_to(*it));
+			m_lru.push_back(*it);
+			return it->data();
 		}
 
 		bool remove(const unsigned char *id) {
 			bool removed = false;
 
 			boost::mutex::scoped_lock guard(m_lock);
-			hmap_t::iterator it = m_hmap.find(id);
-			if (it != m_hmap.end()) {
-				m_lru.erase(m_lru.iterator_to(*it->second));
-				m_hmap.erase(it);
+			iset_t::iterator it = m_set.find(id);
+			if (it != m_set.end()) {
+				erase_element(&(*it));
 				removed = true;
 			}
 
@@ -141,9 +199,32 @@ class cache_t {
 		}
 
 	private:
-		hmap_t m_hmap;
+		size_t m_cache_size, m_max_cache_size;
+		iset_t m_set;
 		lru_list_t m_lru;
 		boost::mutex m_lock;
+
+		void resize(size_t reserve) {
+			while (!m_lru.empty()) {
+				data_t *raw = &m_lru.front();
+
+				erase_element(raw);
+
+
+				/* break early if free space in cache more than requested reserve */
+				if (m_max_cache_size - m_cache_size > reserve)
+					break;
+			}
+		}
+
+		void erase_element(data_t *obj) {
+			m_lru.erase(m_lru.iterator_to(*obj));
+			m_set.erase(m_set.iterator_to(*obj));
+
+			m_cache_size -= obj->size();
+
+			delete obj;
+		}
 };
 
 }}
@@ -162,7 +243,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *dat
 
 	try {
 		struct dnet_io_attr *io = (struct dnet_io_attr *)data;
-		data_t d;
+		boost::shared_ptr<raw_data_t> d;
 
 		data += sizeof(struct dnet_io_attr);
 
@@ -184,7 +265,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *dat
 				}
 
 				io->size = d->size();
-				err = dnet_send_read_data(st, cmd, io, (char *)d->data() + io->offset, -1, io->offset, 0);
+				err = dnet_send_read_data(st, cmd, io, (char *)d->data().data() + io->offset, -1, io->offset, 0);
 				break;
 			case DNET_CMD_DEL:
 				err = -ENOENT;
@@ -203,8 +284,11 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *dat
 
 int dnet_cache_init(struct dnet_node *n)
 {
+	if (!n->cache_size)
+		return 0;
+
 	try {
-		n->cache = (void *)(new cache_t);
+		n->cache = (void *)(new cache_t(n->cache_size));
 	} catch (const std::exception &e) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Could not create cache: %s\n", e.what());
 		return -ENOMEM;

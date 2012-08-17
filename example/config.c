@@ -231,6 +231,12 @@ static int dnet_set_history_env(struct dnet_config_backend *b __unused, char *ke
 	return 0;
 }
 
+static int dnet_set_cache_size(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	dnet_cfg_state.cache_size = strtoull(value, NULL, 0);
+	return 0;
+}
+
 static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"mallopt_mmap_threshold", dnet_set_malloc_options},
 	{"log_mask", dnet_simple_set},
@@ -256,12 +262,8 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"server_net_prio", dnet_simple_set},
 	{"client_net_prio", dnet_simple_set},
 	{"oplock_num", dnet_simple_set},
-	{"srw_binary", dnet_set_srw},
-	{"srw_log", dnet_set_srw},
-	{"srw_pipe", dnet_set_srw},
-	{"srw_init", dnet_set_srw},
 	{"srw_config", dnet_set_srw},
-	{"srw_num", dnet_set_srw},
+	{"cache_size", dnet_set_cache_size},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;
