@@ -1354,8 +1354,7 @@ int dnet_write_file_id(struct dnet_node *n, const char *file, struct dnet_id *id
 		uint64_t remote_offset, uint64_t size, uint64_t cflags, unsigned int ioflags)
 {
 	int err = dnet_write_file_id_raw(n, file, id, local_offset, remote_offset, size, cflags, ioflags);
-
-	if (!err)
+	if (!err && !(ioflags & DNET_IO_FLAGS_CACHE_ONLY))
 		err = dnet_create_write_metadata_strings(n, NULL, 0, id, NULL, cflags);
 
 	return err;
@@ -1372,7 +1371,7 @@ int dnet_write_file(struct dnet_node *n, const char *file, const void *remote, i
 	id.type = type;
 
 	err = dnet_write_file_id_raw(n, file, &id, local_offset, remote_offset, size, cflags, ioflags);
-	if (!err)
+	if (!err && !(ioflags & DNET_IO_FLAGS_CACHE_ONLY))
 		err = dnet_create_write_metadata_strings(n, remote, remote_len, &id, NULL, cflags);
 
 	return err;
