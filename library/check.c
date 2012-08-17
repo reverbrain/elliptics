@@ -303,6 +303,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 	int removed_in_all = 1, updated = 0;
 	int lastest = 0;
 	uint64_t cflags = 0;
+	uint64_t ioflags = 0;
 
 	my_group = state->n->id.group_id;
 
@@ -469,10 +470,10 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 			if (removed_in_all) {
 				dnet_log(state->n, DNET_LOG_DSA, "BULK: dnet_remove_object_now %s in group %d, err=%d\n",
 						dnet_dump_id(&id), mu[i].group_id, err);
-				err = dnet_remove_object_now(state->n, &id, cflags);
+				err = dnet_remove_object_now(state->n, &id, cflags, ioflags);
 			} else {
 				if (!(mu[i].flags & DNET_IO_FLAGS_REMOVED)) {
-					err = dnet_remove_object(state->n, &id, NULL, NULL, cflags);
+					err = dnet_remove_object(state->n, &id, NULL, NULL, cflags, ioflags);
 					dnet_log(state->n, DNET_LOG_DSA, "BULK: dnet_remove_object %s in group %d err=%d\n",
 							dnet_dump_id(&id), mu[i].group_id, err);
 				}
@@ -868,6 +869,7 @@ static int dnet_merge_common(struct dnet_node *n, struct dnet_meta_container *re
 	int err = 0;
 	struct dnet_meta_update local, remote;
 	uint64_t cflags = 0;
+	uint64_t ioflags = 0;
 
 	dnet_log(n, DNET_LOG_DSA, "in dnet_merge_common mc->size = %d\n", mc->size);
 	if (!dnet_get_meta_update(n, mc, &local)) {
@@ -885,7 +887,7 @@ static int dnet_merge_common(struct dnet_node *n, struct dnet_meta_container *re
 
 	if ((local.tm.tsec > remote.tm.tsec) || (local.tm.tsec == remote.tm.tsec && local.tm.tnsec > remote.tm.tnsec)) {
 		if (local.flags & DNET_IO_FLAGS_REMOVED) {
-			err = dnet_remove_object_now(n, &mc->id, cflags);
+			err = dnet_remove_object_now(n, &mc->id, cflags, ioflags);
 		} else {
 			err = dnet_merge_direct(n, mc);
 		}

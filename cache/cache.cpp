@@ -21,6 +21,7 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/make_shared.hpp>
 #include <boost/thread.hpp>
+#include <boost/intrusive/list.hpp>
 
 #include "config.h"
 
@@ -62,7 +63,12 @@ struct equal_to {
 	}
 };
 
-class raw_data_t {
+struct raw_data_lru_tag_t;
+typedef boost::intrusive::list_base_hook<boost::intrusive::tag<raw_data_lru_tag_t>,
+					 boost::intrusive::link_mode<boost::intrusive::safe_link>
+					> lru_list_base_hook_t;
+
+class raw_data_t : public lru_list_base_hook_t {
 	public:
 		raw_data_t(const char *data, size_t size) {
 			m_data.reset(new char[size]);
@@ -86,47 +92,26 @@ class raw_data_t {
 		size_t m_size;
 };
 
+typedef boost::intrusive::list<raw_data_t, boost::intrusive::base_hook<lru_list_base_hook_t> > lru_list_t;
+
 typedef boost::shared_ptr<raw_data_t> data_t;
 typedef boost::unordered_map<key_t, data_t, hash_t, equal_to> hmap_t;
-#if 0
-/*
- * we can not create vector of mutexes since they are not movable
- */
-class cache_t {
-	public:
-		cache_t(int num) {
-			m_locks.resize(std::max(num, 1));
-		}
-		~cache_t();
 
-		void write(const unsigned char *id, const char *data, size_t size) {
-			int idx = hash(id) % m_locks.size();
-			boost::mutex::scoped_lock guard(m_locks[idx]);
-
-			m_hmap[id] = boost::make_shared<raw_data_t>(data, size);
-		}
-
-		data_t &read(const unsigned char *id) {
-			int idx = hash(id) % m_locks.size();
-			boost::mutex::scoped_lock guard(m_locks[idx]);
-
-			hmap_t::iterator it = m_hmap.find(id);
-			if (it == m_hmap.end())
-				throw std::runtime_error("no record");
-
-			return it->second;
-		}
-
-	private:
-		hmap_t m_hmap;
-		std::vector<boost::mutex> m_locks;
-};
-#else
 class cache_t {
 	public:
 		void write(const unsigned char *id, const char *data, size_t size) {
 			boost::mutex::scoped_lock guard(m_lock);
-			m_hmap[id] = boost::make_shared<raw_data_t>(data, size);
+			data_t raw(new raw_data_t(data, size));
+
+			hmap_t::iterator it = m_hmap.find(id);
+			if (it == m_hmap.end()) {
+				m_hmap[id] = raw;
+				m_lru.push_back(*raw);
+			} else {
+				m_lru.erase(m_lru.iterator_to(*it->second));
+				it->second = raw;
+				m_lru.push_back(*raw);
+			}
 		}
 
 		data_t &read(const unsigned char *id) {
@@ -136,19 +121,30 @@ class cache_t {
 			if (it == m_hmap.end())
 				throw std::runtime_error("no record");
 
+			m_lru.erase(m_lru.iterator_to(*it->second));
+			m_lru.push_back(*it->second);
 			return it->second;
 		}
 
-		void remove(const unsigned char *id) {
+		bool remove(const unsigned char *id) {
+			bool removed = false;
+
 			boost::mutex::scoped_lock guard(m_lock);
-			m_hmap.erase(id);
+			hmap_t::iterator it = m_hmap.find(id);
+			if (it != m_hmap.end()) {
+				m_lru.erase(m_lru.iterator_to(*it->second));
+				m_hmap.erase(it);
+				removed = true;
+			}
+
+			return removed;
 		}
 
 	private:
 		hmap_t m_hmap;
+		lru_list_t m_lru;
 		boost::mutex m_lock;
 };
-#endif
 
 }}
 
@@ -191,7 +187,9 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *dat
 				err = dnet_send_read_data(st, cmd, io, (char *)d->data() + io->offset, -1, io->offset, 0);
 				break;
 			case DNET_CMD_DEL:
-				cache->remove(cmd->id.id);
+				err = -ENOENT;
+				if (cache->remove(cmd->id.id))
+					err = 0;
 				break;
 		}
 	} catch (const std::exception &e) {

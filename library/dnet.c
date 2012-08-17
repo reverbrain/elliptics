@@ -637,13 +637,21 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			io = data;
 			dnet_convert_io_attr(io);
 
-			if ((cmd->cmd == DNET_CMD_DEL) || (io->flags & DNET_IO_FLAGS_META)) {
-				err = dnet_process_meta(st, cmd, data);
-				break;
-			}
+			dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: %llx, cflags: %llx, "
+					"node-flags: %x, type: %d\n",
+					dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
+					(unsigned long long)io->offset, (unsigned long long)io->size,
+					(unsigned long long)io->flags, (unsigned long long)cmd->flags,
+					n->flags, io->type);
 
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
+
+			/* do not write metadata for cache-only writes */
+			if ((io->flags & DNET_IO_FLAGS_CACHE_ONLY) && (io->type == EBLOB_TYPE_META)) {
+				err = -EINVAL;
+				break;
+			}
 
 			/*
 			 * Only allow cache for column 0
@@ -653,7 +661,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				/*
 				 * Always check cache when reading!
 				 */
-				if ((io->flags & DNET_IO_FLAGS_CACHE) || (cmd->cmd == DNET_CMD_READ)) {
+				if ((io->flags & DNET_IO_FLAGS_CACHE) || (cmd->cmd != DNET_CMD_WRITE)) {
 					err = dnet_cmd_cache_io(st, cmd, data);
 
 					if (io->flags & DNET_IO_FLAGS_CACHE_ONLY)
@@ -666,6 +674,12 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 						break;
 				}
 			}
+
+			if ((cmd->cmd == DNET_CMD_DEL) || (io->flags & DNET_IO_FLAGS_META)) {
+				err = dnet_process_meta(st, cmd, data);
+				break;
+			}
+
 			dnet_convert_io_attr(io);
 		default:
 			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command 
@@ -1347,8 +1361,7 @@ int dnet_write_file_id(struct dnet_node *n, const char *file, struct dnet_id *id
 		uint64_t remote_offset, uint64_t size, uint64_t cflags, unsigned int ioflags)
 {
 	int err = dnet_write_file_id_raw(n, file, id, local_offset, remote_offset, size, cflags, ioflags);
-
-	if (!err)
+	if (!err && !(ioflags & DNET_IO_FLAGS_CACHE_ONLY))
 		err = dnet_create_write_metadata_strings(n, NULL, 0, id, NULL, cflags);
 
 	return err;
@@ -1365,7 +1378,7 @@ int dnet_write_file(struct dnet_node *n, const char *file, const void *remote, i
 	id.type = type;
 
 	err = dnet_write_file_id_raw(n, file, &id, local_offset, remote_offset, size, cflags, ioflags);
-	if (!err)
+	if (!err && !(ioflags & DNET_IO_FLAGS_CACHE_ONLY))
 		err = dnet_create_write_metadata_strings(n, remote, remote_len, &id, NULL, cflags);
 
 	return err;
@@ -2319,7 +2332,7 @@ static int dnet_remove_object_raw(struct dnet_node *n, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
-	void *priv, uint64_t cflags)
+	void *priv, uint64_t ioflags, uint64_t cflags)
 {
 	struct dnet_io_control ctl;
 
@@ -2329,6 +2342,7 @@ static int dnet_remove_object_raw(struct dnet_node *n, struct dnet_id *id,
 
 	memcpy(&ctl.io.id, id->id, DNET_ID_SIZE);
 	memcpy(&ctl.io.parent, id->id, DNET_ID_SIZE);
+	ctl.io.flags = ioflags;
 
 	ctl.fd = -1;
 
@@ -2362,7 +2376,7 @@ int dnet_remove_object(struct dnet_node *n, struct dnet_id *id,
 			struct dnet_cmd *cmd,
 			void *priv),
 	void *priv,
-	uint64_t cflags)
+	uint64_t cflags, uint64_t ioflags)
 {
 	struct dnet_wait *w = NULL;
 	int err;
@@ -2379,7 +2393,7 @@ int dnet_remove_object(struct dnet_node *n, struct dnet_id *id,
 		dnet_wait_get(w);
 	}
 
-	err = dnet_remove_object_raw(n, id, complete, priv, cflags);
+	err = dnet_remove_object_raw(n, id, complete, priv, cflags, ioflags);
 	if (err)
 		goto err_out_put;
 
@@ -2399,7 +2413,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_remove_file_raw(struct dnet_node *n, struct dnet_id *id, uint64_t cflags)
+static int dnet_remove_file_raw(struct dnet_node *n, struct dnet_id *id, uint64_t cflags, uint64_t ioflags)
 {
 	struct dnet_wait *w;
 	int err, num;
@@ -2411,7 +2425,7 @@ static int dnet_remove_file_raw(struct dnet_node *n, struct dnet_id *id, uint64_
 	}
 
 	atomic_add(&w->refcnt, 1024);
-	err = dnet_remove_object_raw(n, id, dnet_remove_complete, w, cflags);
+	err = dnet_remove_object_raw(n, id, dnet_remove_complete, w, cflags, ioflags);
 	if (err < 0) {
 		atomic_sub(&w->refcnt, 1024);
 		goto err_out_put;
@@ -2434,12 +2448,12 @@ err_out_exit:
 	return err;
 }
 
-int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, uint64_t cflags)
+int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, uint64_t cflags, uint64_t ioflags)
 {
-	return dnet_remove_file_raw(n, id, cflags | DNET_FLAGS_NEED_ACK | DNET_ATTR_DELETE_HISTORY);
+	return dnet_remove_file_raw(n, id, cflags | DNET_FLAGS_NEED_ACK | DNET_ATTR_DELETE_HISTORY, ioflags);
 }
 
-int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags)
+int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags, uint64_t ioflags)
 {
 	struct dnet_id raw;
 
@@ -2449,7 +2463,7 @@ int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct d
 		id = &raw;
 	}
 
-	return dnet_remove_file_raw(n, id, cflags);
+	return dnet_remove_file_raw(n, id, ioflags, cflags);
 }
 
 int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, uint64_t cflags,
