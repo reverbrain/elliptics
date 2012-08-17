@@ -9,6 +9,7 @@ set(ELLIPTICS_VERSION_MINOR "14.1")
 option(WITH_PYTHON "Build python bindings" ON)
 option(WITH_COCAINE "Build with cocaine support" ON)
 option(WITH_EXAMPLES "Build example applications" ON)
+option(WITH_SMACK "Build ioserv with smack backend" ON)
 
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
 
@@ -74,15 +75,16 @@ include_directories(${ZMQ_INCLUDE_DIRS})
 find_package(Eblob REQUIRED)
 include_directories(${EBLOB_INCLUDE_DIRS})
 
-# Find smack
-find_package(Smack REQUIRED)
-include_directories(${SMACK_INCLUDE_DIRS})
+if(WITH_SMACK)
+    # Find smack
+    find_package(Smack REQUIRED)
+    include_directories(${SMACK_INCLUDE_DIRS})
+endif()
 
 # Collect all libraries together
 set(ELLIPTICS_LIBRARIES
     ${SENDFILE_LIBRARIES}
     ${Boost_LIBRARIES}
-    ${SMACK_LIBRARIES}
     ${EBLOB_LIBRARIES}
     ${ZMQ_LIBRARIES}
     ${COCAINE_LIBRARIES}
