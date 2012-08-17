@@ -427,6 +427,8 @@ struct dnet_config
 
 	struct srw_init_ctl	srw;
 
+	uint64_t		cache_size;
+
 	/* so that we do not change major version frequently */
 	int			reserved_for_future_use[12];
 };
