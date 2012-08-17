@@ -704,7 +704,7 @@ std::string node::lookup(const struct dnet_id &id)
 	return ret;
 }
 
-void node::remove_raw(struct dnet_id &id, uint64_t cflags)
+void node::remove_raw(struct dnet_id &id, uint64_t cflags, uint64_t ioflags)
 {
 	int err = -ENOENT;
 	std::vector<int> g = groups;
@@ -712,7 +712,7 @@ void node::remove_raw(struct dnet_id &id, uint64_t cflags)
 	for (int i=0; i<(int)g.size(); ++i) {
 		id.group_id = g[i];
 
-		if (!dnet_remove_object_now(m_node, &id, cflags))
+		if (!dnet_remove_object_now(m_node, &id, cflags, ioflags))
 			err = 0;
 	}
 
@@ -725,22 +725,22 @@ void node::remove_raw(struct dnet_id &id, uint64_t cflags)
 
 void node::remove(struct dnet_id &id)
 {
-	remove_raw(id, 0);
+	remove_raw(id, 0, 0);
 }
 
-void node::remove_raw(const std::string &data, int type, uint64_t cflags)
+void node::remove_raw(const std::string &data, int type, uint64_t cflags, uint64_t ioflags)
 {
 	struct dnet_id id;
 
 	transform(data, id);
 	id.type = type;
 
-	remove_raw(id, cflags);
+	remove_raw(id, cflags, ioflags);
 }
 
 void node::remove(const std::string &data, int type)
 {
-	remove_raw(data, type, 0);
+	remove_raw(data, type, 0, 0);
 }
 
 std::string node::stat_log()

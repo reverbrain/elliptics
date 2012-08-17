@@ -730,15 +730,15 @@ int dnet_remove_object(struct dnet_node *n, struct dnet_id *id,
 			struct dnet_cmd *cmd,
 			void *priv),
 	void *priv,
-	uint64_t cflags);
+	uint64_t cflags, uint64_t ioflags);
 
 /* Remove object with @id from the storage immediately */
-int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, uint64_t cflags);
+int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, uint64_t cflags, uint64_t ioflags);
 
 /*
  * Remove given file (identified by name or ID) from the storage.
  */
-int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags);
+int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags, uint64_t ioflags);
 
 /*
  * Transformation helper, which uses *ppos as an index for transformation function.

@@ -1675,7 +1675,7 @@ static int dnet_remove_object_raw(struct dnet_node *n, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
-	void *priv, uint64_t cflags)
+	void *priv, uint64_t cflags, uint64_t ioflags)
 {
 	struct dnet_io_control ctl;
 
@@ -1685,6 +1685,7 @@ static int dnet_remove_object_raw(struct dnet_node *n, struct dnet_id *id,
 
 	memcpy(&ctl.io.id, id->id, DNET_ID_SIZE);
 	memcpy(&ctl.io.parent, id->id, DNET_ID_SIZE);
+	ctl.io.flags = ioflags;
 
 	ctl.fd = -1;
 
@@ -1718,7 +1719,7 @@ int dnet_remove_object(struct dnet_node *n, struct dnet_id *id,
 			struct dnet_cmd *cmd,
 			void *priv),
 	void *priv,
-	uint64_t cflags)
+	uint64_t cflags, uint64_t ioflags)
 {
 	struct dnet_wait *w = NULL;
 	int err;
@@ -1735,7 +1736,7 @@ int dnet_remove_object(struct dnet_node *n, struct dnet_id *id,
 		dnet_wait_get(w);
 	}
 
-	err = dnet_remove_object_raw(n, id, complete, priv, cflags);
+	err = dnet_remove_object_raw(n, id, complete, priv, cflags, ioflags);
 	if (err < 0)
 		goto err_out_put;
 
@@ -1755,7 +1756,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_remove_file_raw(struct dnet_node *n, struct dnet_id *id, uint64_t cflags)
+static int dnet_remove_file_raw(struct dnet_node *n, struct dnet_id *id, uint64_t cflags, uint64_t ioflags)
 {
 	struct dnet_wait *w;
 	int err, num;
@@ -1767,7 +1768,7 @@ static int dnet_remove_file_raw(struct dnet_node *n, struct dnet_id *id, uint64_
 	}
 
 	atomic_add(&w->refcnt, 1024);
-	err = dnet_remove_object_raw(n, id, dnet_remove_complete, w, cflags);
+	err = dnet_remove_object_raw(n, id, dnet_remove_complete, w, cflags, ioflags);
 	if (err < 0) {
 		atomic_sub(&w->refcnt, 1024);
 		goto err_out_put;
@@ -1790,12 +1791,12 @@ err_out_exit:
 	return err;
 }
 
-int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, uint64_t cflags)
+int dnet_remove_object_now(struct dnet_node *n, struct dnet_id *id, uint64_t cflags, uint64_t ioflags)
 {
-	return dnet_remove_file_raw(n, id, cflags | DNET_FLAGS_NEED_ACK | DNET_ATTR_DELETE_HISTORY);
+	return dnet_remove_file_raw(n, id, cflags | DNET_FLAGS_NEED_ACK | DNET_ATTR_DELETE_HISTORY, ioflags);
 }
 
-int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags)
+int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags, uint64_t ioflags)
 {
 	struct dnet_id raw;
 
@@ -1805,7 +1806,7 @@ int dnet_remove_file(struct dnet_node *n, char *remote, int remote_len, struct d
 		id = &raw;
 	}
 
-	return dnet_remove_file_raw(n, id, cflags);
+	return dnet_remove_file_raw(n, id, cflags, ioflags);
 }
 
 int dnet_request_ids(struct dnet_node *n, struct dnet_id *id, uint64_t cflags,

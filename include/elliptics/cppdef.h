@@ -174,8 +174,8 @@ class node {
 		std::string		lookup(const std::string &data);
 		std::string		lookup(const struct dnet_id &id);
 
-		void 			remove_raw(struct dnet_id &id, uint64_t cflags);
-		void			remove_raw(const std::string &data, int type, uint64_t cflags);
+		void 			remove_raw(struct dnet_id &id, uint64_t cflags, uint64_t ioflags);
+		void			remove_raw(const std::string &data, int type, uint64_t cflags, uint64_t ioflags);
 		void 			remove(struct dnet_id &id);
 		void			remove(const std::string &data, int type = EBLOB_TYPE_DATA);
 

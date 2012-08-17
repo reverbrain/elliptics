@@ -336,12 +336,12 @@ int main(int argc, char *argv[])
 
 			dnet_setup_id(&raw, 0, id);
 			raw.type = type;
-			dnet_remove_object_now(n, &raw, cflags);
+			dnet_remove_object_now(n, &raw, cflags, ioflags);
 
 			return 0;
 		}
 
-		err = dnet_remove_file(n, removef, strlen(removef), NULL, cflags);
+		err = dnet_remove_file(n, removef, strlen(removef), NULL, cflags, ioflags);
 		if (err)
 			return err;
 	}
