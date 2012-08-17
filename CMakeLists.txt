@@ -6,6 +6,10 @@ project (elliptics)
 set(ELLIPTICS_VERSION_ABI "2")
 set(ELLIPTICS_VERSION_MINOR "14.1")
 
+option(WITH_PYTHON "Build python bindings" ON)
+option(WITH_COCAINE "Build with cocaine support" ON)
+option(WITH_EXAMPLES "Build example applications" ON)
+
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
@@ -52,13 +56,15 @@ find_package(Threads REQUIRED)
 # Check for boost
 #set(Boost_USE_STATIC_LIBS ON)
 #set(Boost_USE_STLPORT ON)
-find_package(Boost REQUIRED COMPONENTS iostreams thread regex python program_options system filesystem)
+find_package(Boost REQUIRED COMPONENTS iostreams thread regex python program_options system)
 include_directories(${Boost_INCLUDE_DIRS})
 
-# Find some cocaine
-find_package(Cocaine REQUIRED)
-include_directories(${COCAINE_INCLUDE_DIRS})
-add_definitions(${COCAINE_CFLAGS})
+if(WITH_COCAINE)
+    # Find some cocaine
+    find_package(Cocaine REQUIRED)
+    include_directories(${COCAINE_INCLUDE_DIRS})
+    add_definitions(${COCAINE_CFLAGS})
+endif()
 
 # Find ømq
 find_package(ZMQ REQUIRED)
@@ -68,17 +74,12 @@ include_directories(${ZMQ_INCLUDE_DIRS})
 find_package(Eblob REQUIRED)
 include_directories(${EBLOB_INCLUDE_DIRS})
 
-# Find msgpack
-find_package(Msgpack REQUIRED)
-include_directories(${MSGPACK_INCLUDE_DIRS})
-
 # Find smack
 find_package(Smack REQUIRED)
 include_directories(${SMACK_INCLUDE_DIRS})
 
 # Collect all libraries together
 set(ELLIPTICS_LIBRARIES
-    ${MSGPACK_LIBRARIES}
     ${SENDFILE_LIBRARIES}
     ${Boost_LIBRARIES}
     ${SMACK_LIBRARIES}
@@ -92,7 +93,9 @@ set(ELLIPTICS_LIBRARIES
 add_subdirectory(srw)
 add_subdirectory(library)
 add_subdirectory(bindings)
-add_subdirectory(example)
+if(WITH_EXAMPLES)
+    add_subdirectory(example)
+endif()
 
 install(FILES
         include/elliptics/core.h
@@ -101,5 +104,5 @@ install(FILES
         include/elliptics/packet.h
         include/elliptics/srw.h
         ${CMAKE_BINARY_DIR}/include/elliptics/typedefs.h
-    DESTINATION include/elliptics/
-    )
+        DESTINATION include/elliptics/
+        )
