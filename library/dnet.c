@@ -564,11 +564,11 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			io = data;
 			dnet_convert_io_attr(io);
 
-			dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: %llx, cflags: %llx, "
+			dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: %x, cflags: %llx, "
 					"node-flags: %x, type: %d\n",
 					dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
 					(unsigned long long)io->offset, (unsigned long long)io->size,
-					(unsigned long long)io->flags, (unsigned long long)cmd->flags,
+					io->flags, (unsigned long long)cmd->flags,
 					n->flags, io->type);
 
 			if (n->flags & DNET_CFG_NO_CSUM)
