@@ -304,6 +304,9 @@ struct dnet_io_attr
 	 *
 	 * write prepare request uses @num is used as a placeholder
 	 * for number of bytes to reserve on disk
+	 *
+	 * @start is used in cache writes: it is treated as object lifetime in seconds, if zero, object is never removed.
+	 * When object's lifetime is over, it is removed from cache, but not from disk.
 	 */
 	uint64_t		start, num;
 	int			type;

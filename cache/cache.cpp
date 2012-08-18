@@ -92,14 +92,22 @@ typedef boost::intrusive::set_base_hook<boost::intrusive::tag<data_set_tag_t>,
 					 boost::intrusive::link_mode<boost::intrusive::safe_link>
 					> set_base_hook_t;
 
-class data_t : public lru_list_base_hook_t, public set_base_hook_t {
+struct time_set_tag_t;
+typedef boost::intrusive::set_base_hook<boost::intrusive::tag<time_set_tag_t>,
+					 boost::intrusive::link_mode<boost::intrusive::safe_link>
+					> time_set_base_hook_t;
+
+class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_set_base_hook_t {
 	public:
-		data_t(const unsigned char *id) {
+		data_t(const unsigned char *id) : m_lifetime(0) {
 			memcpy(m_id.id, id, DNET_ID_SIZE);
 		}
 
-		data_t(const unsigned char *id, const char *data, size_t size) {
+		data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size) : m_lifetime(0) {
 			memcpy(m_id.id, id, DNET_ID_SIZE);
+
+			if (lifetime)
+				m_lifetime = lifetime + time(NULL);
 
 			m_data.reset(new raw_data_t(data, size));
 		}
@@ -113,6 +121,10 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t {
 
 		boost::shared_ptr<raw_data_t> data(void) const {
 			return m_data;
+		}
+
+		size_t lifetime(void) const {
+			return m_lifetime;
 		}
 
 		size_t size(void) const {
@@ -130,29 +142,45 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t {
 		friend bool operator== (const data_t &a, const data_t &b) {
 			return dnet_id_cmp_str(a.id().id, b.id().id) == 0;
 		}
+
 	private:
+		size_t m_lifetime;
 		struct dnet_raw_id m_id;
 		boost::shared_ptr<raw_data_t> m_data;
 };
 
 typedef boost::intrusive::list<data_t, boost::intrusive::base_hook<lru_list_base_hook_t> > lru_list_t;
 typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<set_base_hook_t>,
-					  boost::intrusive::compare<std::greater<data_t> >
+					  boost::intrusive::compare<std::less<data_t> >
 			     > iset_t;
+
+struct lifetime_less {
+	bool operator() (const data_t &x, const data_t &y) const {
+		return x.lifetime() < y.lifetime();
+	}
+};
+
+typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<time_set_base_hook_t>,
+					  boost::intrusive::compare<lifetime_less>
+			     > life_set_t;
 
 class cache_t {
 	public:
-		cache_t(size_t cache_size) : m_cache_size(0), m_max_cache_size(cache_size) {
+		cache_t(size_t cache_size) : m_need_exit(false), m_cache_size(0), m_max_cache_size(cache_size) {
+			m_lifecheck = boost::thread(boost::bind(&cache_t::life_check, this));
 		}
 
 		~cache_t() {
+			m_need_exit = true;
+			m_lifecheck.join();
+
 			while (!m_lru.empty()) {
 				data_t raw = m_lru.front();
 				erase_element(&raw);
 			}
 		}
 
-		void write(const unsigned char *id, const char *data, size_t size) {
+		void write(const unsigned char *id, size_t lifetime, const char *data, size_t size) {
 			boost::mutex::scoped_lock guard(m_lock);
 
 			iset_t::iterator it = m_set.find(id);
@@ -165,10 +193,12 @@ class cache_t {
 			/*
 			 * nothing throws exception below this 'new' operator, so there is no try/catch block
 			 */
-			data_t *raw = new data_t(id, data, size);
+			data_t *raw = new data_t(id, lifetime, data, size);
 
 			m_set.insert(*raw);
 			m_lru.push_back(*raw);
+			if (lifetime)
+				m_lifeset.insert(*raw);
 
 			m_cache_size += size;
 		}
@@ -199,10 +229,13 @@ class cache_t {
 		}
 
 	private:
+		bool m_need_exit;
 		size_t m_cache_size, m_max_cache_size;
+		boost::mutex m_lock;
 		iset_t m_set;
 		lru_list_t m_lru;
-		boost::mutex m_lock;
+		life_set_t m_lifeset;
+		boost::thread m_lifecheck;
 
 		void resize(size_t reserve) {
 			while (!m_lru.empty()) {
@@ -220,10 +253,33 @@ class cache_t {
 		void erase_element(data_t *obj) {
 			m_lru.erase(m_lru.iterator_to(*obj));
 			m_set.erase(m_set.iterator_to(*obj));
+			if (obj->lifetime())
+				m_lifeset.erase(m_lifeset.iterator_to(*obj));
 
 			m_cache_size -= obj->size();
 
 			delete obj;
+		}
+
+		void life_check(void) {
+			while (!m_need_exit) {
+				while (!m_need_exit && !m_lifeset.empty()) {
+					size_t time = ::time(NULL);
+
+					boost::mutex::scoped_lock guard(m_lock);
+
+					if (m_lifeset.empty())
+						break;
+
+					life_set_t::iterator it = m_lifeset.begin();
+					if (it->lifetime() > time)
+						break;
+
+					erase_element(&(*it));
+				}
+
+				sleep(1);
+			}
 		}
 };
 
@@ -249,7 +305,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *dat
 
 		switch (cmd->cmd) {
 			case DNET_CMD_WRITE:
-				cache->write(io->id, data, io->size);
+				cache->write(io->id, io->start, data, io->size);
 				err = 0;
 				break;
 			case DNET_CMD_READ:
