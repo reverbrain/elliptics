@@ -245,10 +245,11 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 
 	st->idc = idc;
 
-	if (n->log->log_mask & DNET_LOG_DSA) {
+	if (n->log->log_level > DNET_LOG_DEBUG) {
 		for (i=0; i<g->id_num; ++i) {
 			struct dnet_state_id *id = &g->ids[i];
-			dnet_log(n, DNET_LOG_DSA, "%d: %s -> %s\n", g->group_id, dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st));
+			dnet_log(n, DNET_LOG_DEBUG, "%d: %s -> %s\n", g->group_id,
+				dnet_dump_id_str(id->raw.id), dnet_state_dump_addr(id->idc->st));
 		}
 	}
 
@@ -607,7 +608,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_io_exit;
 
-	dnet_log(n, DNET_LOG_DSA, "New node has been created at %s.\n",
+	dnet_log(n, DNET_LOG_DEBUG, "New node has been created at %s.\n",
 			dnet_dump_node(n));
 	return n;
 
@@ -640,7 +641,7 @@ void dnet_node_destroy(struct dnet_node *n)
 {
 	struct dnet_addr_storage *it, *atmp;
 
-	dnet_log(n, DNET_LOG_DSA, "Destroying node at %s, st: %p.\n",
+	dnet_log(n, DNET_LOG_DEBUG, "Destroying node at %s, st: %p.\n",
 			dnet_dump_node(n), n->st);
 
 	n->need_exit = 1;

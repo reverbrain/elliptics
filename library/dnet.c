@@ -201,7 +201,7 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	dnet_convert_addr_attr(a);
 
-	dnet_log(n, DNET_LOG_DSA, "%s: accepted joining client (%s), requesting statistics.\n",
+	dnet_log(n, DNET_LOG_DEBUG, "%s: accepted joining client (%s), requesting statistics.\n",
 			dnet_dump_id(&cmd->id), dnet_server_convert_dnet_addr(&a->addr));
 	err = dnet_check_connection(n, a);
 	if (err) {
@@ -420,9 +420,9 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 
 	dnet_convert_node_status(st);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: status-change: nflags: %x->%x, log_mask: %x->%x, "
+	dnet_log(n, DNET_LOG_INFO, "%s: status-change: nflags: %x->%x, log_level: %d->%d, "
 			"status_flags: EXIT: %d, RO: %d\n",
-			dnet_dump_id(&cmd->id), n->flags, st->nflags, n->log->log_mask, st->log_mask,
+			dnet_dump_id(&cmd->id), n->flags, st->nflags, n->log->log_level, st->log_level,
 			!!(st->status_flags & DNET_STATUS_EXIT), !!(st->status_flags & DNET_STATUS_RO));
 
 	if (st->status_flags != -1) {
@@ -440,11 +440,11 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 	if (st->nflags != -1)
 		n->flags = st->nflags;
 
-	if (st->log_mask != ~0U)
-		n->log->log_mask = st->log_mask;
+	if (st->log_level != ~0U)
+		n->log->log_level = st->log_level;
 
 	st->nflags = n->flags;
-	st->log_mask = n->log->log_mask;
+	st->log_level = n->log->log_level;
 	st->status_flags = 0;
 
 	if (n->need_exit)
@@ -654,7 +654,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
 		ack.status = err;
 
-		dnet_log(n, DNET_LOG_DSA, "%s: ack trans: %llu, flags: %llx, status: %d.\n",
+		dnet_log(n, DNET_LOG_DEBUG, "%s: ack trans: %llu, flags: %llx, status: %d.\n",
 				dnet_dump_id(&cmd->id), tid, (unsigned long long)ack.flags, err);
 
 		dnet_convert_cmd(&ack);

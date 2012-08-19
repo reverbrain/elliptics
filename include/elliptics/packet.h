@@ -604,14 +604,14 @@ static inline void dnet_info_from_stat(struct dnet_file_info *info, struct stat 
 struct dnet_node_status {
 	int nflags;
 	int status_flags;  /* DNET_STATUS_EXIT, DNET_STATUS_RO should be specified here */
-	uint32_t log_mask;
+	uint32_t log_level;
 };
 
 static inline void dnet_convert_node_status(struct dnet_node_status *st)
 {
 	st->nflags = dnet_bswap32(st->nflags);
 	st->status_flags = dnet_bswap32(st->status_flags);
-	st->log_mask = dnet_bswap32(st->log_mask);
+	st->log_level = dnet_bswap32(st->log_level);
 }
 
 #define DNET_AUTH_COOKIE_SIZE	32

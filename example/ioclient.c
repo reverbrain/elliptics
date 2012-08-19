@@ -63,8 +63,8 @@ static void dnet_usage(char *p)
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
 			" ...                  - parameters can be repeated multiple times\n"
 			"                        each time they correspond to the last added node\n"
-			" -m mask              - log events mask\n"
-			" -M mask              - set new log mask\n"
+			" -m level             - log level\n"
+			" -M level             - set new log level\n"
 			" -F flags             - change node flags (see @cfg->flags comments in include/elliptics/interface.h)\n"
 			" -O offset            - read/write offset in the file\n"
 			" -S size              - read/write transaction size\n"
@@ -104,14 +104,14 @@ int main(int argc, char *argv[])
 
 	node_status.nflags = -1;
 	node_status.status_flags = -1;
-	node_status.log_mask = ~0U;
+	node_status.log_level = ~0U;
 
 	size = offset = 0;
 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60;
-	ioclient_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_DATA;
+	ioclient_logger.log_level = DNET_LOG_ERROR;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 				update_status = 1;
 				break;
 			case 'M':
-				node_status.log_mask = strtol(optarg, NULL, 0);
+				node_status.log_level = atoi(optarg);
 				update_status = 1;
 				break;
 			case 'N':
@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
 				size = strtoull(optarg, NULL, 0);
 				break;
 			case 'm':
-				ioclient_logger.log_mask = strtoul(optarg, NULL, 0);
+				ioclient_logger.log_level = atoi(optarg);
 				break;
 			case 's':
 				io_counter_stat = 1;

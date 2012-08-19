@@ -128,7 +128,7 @@ int dnet_parse_numeric_id(char *value, unsigned char *id)
 	return 0;
 }
 
-void dnet_common_log(void *priv, uint32_t mask, const char *msg)
+void dnet_common_log(void *priv, int level, const char *msg)
 {
 	char str[64];
 	struct tm tm;
@@ -142,27 +142,27 @@ void dnet_common_log(void *priv, uint32_t mask, const char *msg)
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	fprintf(stream, "%s.%06lu %ld/%4d %1x: %s", str, tv.tv_usec, dnet_get_id(), getpid(), mask, msg);
+	fprintf(stream, "%s.%06lu %ld/%4d %1d: %s", str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
 	fflush(stream);
 }
 
-void dnet_syslog(void *priv __attribute__ ((unused)), uint32_t mask, const char *msg)
+void dnet_syslog(void *priv __attribute__ ((unused)), int level, const char *msg)
 {
 	int prio = LOG_DEBUG;
 	char str[64];
 	struct tm tm;
 	struct timeval tv;
 
-	if (mask & DNET_LOG_ERROR)
+	if (level == DNET_LOG_ERROR)
 		prio = LOG_ERR;
-	if (mask & DNET_LOG_INFO)
+	if (level == DNET_LOG_INFO)
 		prio = LOG_INFO;
 
 	gettimeofday(&tv, NULL);
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	syslog(prio, "%s.%06lu %ld/%4d %1x: %s", str, tv.tv_usec, dnet_get_id(), getpid(), mask, msg);
+	syslog(prio, "%s.%06lu %ld/%4d %1x: %s", str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
 }
 
 int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cfg, char *orig_addr)
@@ -257,7 +257,7 @@ int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int 
 	return 0;
 }
 
-#define dnet_map_log(n, mask, fmt, a...) do { if ((n)) dnet_log_raw((n), mask, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
+#define dnet_map_log(n, level, fmt, a...) do { if ((n)) dnet_log_raw((n), level, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
 
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map)
 {

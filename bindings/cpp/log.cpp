@@ -19,15 +19,15 @@
 
 using namespace ioremap::elliptics;
 
-void logger::real_logger(void *priv, const uint32_t mask, const char *msg)
+void logger::real_logger(void *priv, const int level, const char *msg)
 {
 	logger *log = reinterpret_cast<logger *> (priv);
 
-	log->log(mask, msg);
+	log->log(level, msg);
 }
 
-log_file::log_file(const char *file, const uint32_t mask) :
-	logger(mask)
+log_file::log_file(const char *file, const int level) :
+	logger(level)
 {
 	try {
 		this->file = new std::string(file);
@@ -45,7 +45,7 @@ log_file::log_file(const char *file, const uint32_t mask) :
 
 unsigned long log_file::clone(void)
 {
-	return reinterpret_cast<unsigned long>(new log_file (file->c_str(), get_log_mask()));
+	return reinterpret_cast<unsigned long>(new log_file (file->c_str(), get_log_level()));
 }
 
 log_file::~log_file(void)
@@ -54,9 +54,9 @@ log_file::~log_file(void)
 	delete stream;
 }
 
-void log_file::log(uint32_t mask, const char *msg)
+void log_file::log(int level, const char *msg)
 {
-	if (mask & ll.log_mask) {
+	if (level < ll.log_level) {
 		char str[64];
 		struct tm tm;
 		struct timeval tv;

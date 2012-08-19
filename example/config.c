@@ -84,8 +84,8 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 {
 	unsigned long value = strtoul(str, NULL, 0);
 
-	if (!strcmp(key, "log_mask"))
-		dnet_backend_logger.log_mask = value;
+	if (!strcmp(key, "log_level"))
+		dnet_backend_logger.log_level = value;
 	else if (!strcmp(key, "wait_timeout"))
 		dnet_cfg_state.wait_timeout = value;
 	else if (!strcmp(key, "check_timeout"))
@@ -239,7 +239,7 @@ static int dnet_set_cache_size(struct dnet_config_backend *b __unused, char *key
 
 static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"mallopt_mmap_threshold", dnet_set_malloc_options},
-	{"log_mask", dnet_simple_set},
+	{"log_level", dnet_simple_set},
 	{"wait_timeout", dnet_simple_set},
 	{"check_timeout", dnet_simple_set},
 	{"stall_count", dnet_simple_set},
@@ -340,7 +340,7 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 		goto err_out_close;
 	}
 
-	dnet_backend_logger.log_mask = DNET_LOG_ERROR;
+	dnet_backend_logger.log_level = DNET_LOG_ERROR;
 	dnet_backend_logger.log = dnet_common_log;
 	dnet_cfg_state.log = &dnet_backend_logger;
 
@@ -495,26 +495,26 @@ err_out_exit:
 	return NULL;
 }
 
-int dnet_backend_check_log_mask(uint32_t mask)
+int dnet_backend_check_log_level(int level)
 {
 	struct dnet_log *l = dnet_cfg_state.log;
 
-	return (l->log && (l->log_mask & mask));
+	return (l->log && (l->log_level >= level));
 }
 
-void dnet_backend_log_raw(uint32_t mask, const char *format, ...)
+void dnet_backend_log_raw(int level, const char *format, ...)
 {
 	va_list args;
 	char buf[1024];
 	struct dnet_log *l = dnet_cfg_state.log;
 	int buflen = sizeof(buf);
 
-	if (!l->log || !(l->log_mask & mask))
+	if (!l->log || !(l->log_level < level))
 		return;
 
 	va_start(args, format);
 	vsnprintf(buf, buflen, format, args);
 	buf[buflen-1] = '\0';
-	l->log(l->log_private, mask, buf);
+	l->log(l->log_private, level, buf);
 	va_end(args);
 }

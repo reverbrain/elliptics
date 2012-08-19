@@ -206,7 +206,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 		}
 	}
 
-	dnet_log(n, DNET_LOG_DSA, "New server node has been created at %s, ids: %d.\n",
+	dnet_log(n, DNET_LOG_DEBUG, "New server node has been created at %s, ids: %d.\n",
 			dnet_dump_node(n), id_num);
 
 	return n;
@@ -230,7 +230,7 @@ err_out_exit:
 
 void dnet_server_node_destroy(struct dnet_node *n)
 {
-	dnet_log(n, DNET_LOG_DSA, "Destroying server node at %s, st: %p.\n",
+	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node at %s, st: %p.\n",
 			dnet_dump_node(n), n->st);
 
 	n->need_exit = 1;

@@ -53,7 +53,7 @@ static void check_usage(char *p)
 			" -l log               - log file. Default: disabled\n"
 			" -d                   - work as daemon\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
-			" -m mask              - log events mask\n"
+			" -m level             - log events level\n"
 			" -M                   - do not check copies in other groups, run only merge check\n"
 			" -R                   - only delete objects marked as REMOVED\n"
 			" -D                   - dry run - do not perform any action, just update counters\n"
@@ -189,7 +189,7 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
-	check_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
+	check_logger.log_level = DNET_LOG_INFO;
 	cfg.check_timeout = 60;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
 				r.flags |= DNET_CHECK_DELETE;
 				break;
 			case 'm':
-				check_logger.log_mask = strtoul(optarg, NULL, 0);
+				check_logger.log_level = strtoul(optarg, NULL, 0);
 				break;
 			case 'w':
 				cfg.check_timeout = cfg.wait_timeout = atoi(optarg);

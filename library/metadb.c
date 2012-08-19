@@ -274,7 +274,7 @@ struct dnet_check_temp_db * dnet_check_temp_db_alloc(struct dnet_node *n, char *
 
 	db->log.log = n->log->log;
 	db->log.log_private = n->log->log_private;
-	db->log.log_mask = EBLOB_LOG_ERROR | EBLOB_LOG_INFO | EBLOB_LOG_NOTICE;
+	db->log.log_level = EBLOB_LOG_NOTICE;
 	ecfg.log = &db->log;
 
 	db->b = eblob_init(&ecfg);
@@ -320,7 +320,7 @@ static int dnet_db_list_iter_init(struct eblob_iterate_control *iter_ctl, void *
 	int bulk_array_tmp_num;
 	int err = 0;
 
-	dnet_log(n, DNET_LOG_DSA, "BULK: only_merge=%d\n", only_merge);
+	dnet_log(n, DNET_LOG_DEBUG, "BULK: only_merge=%d\n", only_merge);
 	if (!only_merge) {
 		bulk_array = malloc(sizeof(struct dnet_bulk_array));
 		if (!bulk_array) {
@@ -332,7 +332,7 @@ static int dnet_db_list_iter_init(struct eblob_iterate_control *iter_ctl, void *
 		bulk_array_tmp_num = DNET_BULK_STATES_ALLOC_STEP;
 		bulk_array->num = 0;
 		bulk_array->states = NULL;
-		dnet_log(n, DNET_LOG_DSA, "BULK: allocating space for arrays, num=%d\n", bulk_array_tmp_num);
+		dnet_log(n, DNET_LOG_DEBUG, "BULK: allocating space for arrays, num=%d\n", bulk_array_tmp_num);
 
 		bulk_array->states = (struct dnet_bulk_state *)malloc(sizeof(struct dnet_bulk_state) * bulk_array_tmp_num);
 		if (!bulk_array->states) {
@@ -351,7 +351,7 @@ static int dnet_db_list_iter_init(struct eblob_iterate_control *iter_ctl, void *
 					continue;
 
 				if (bulk_array->num == bulk_array_tmp_num) {
-					dnet_log(n, DNET_LOG_DSA, "BULK: reallocating space for arrays, num=%d\n", bulk_array_tmp_num);
+					dnet_log(n, DNET_LOG_DEBUG, "BULK: reallocating space for arrays, num=%d\n", bulk_array_tmp_num);
 					bulk_array_tmp_num += DNET_BULK_STATES_ALLOC_STEP;
 					bulk_array->states = realloc(bulk_array->states, sizeof(struct dnet_bulk_state) * bulk_array_tmp_num);
 					if (!bulk_array->states) {
@@ -374,7 +374,7 @@ static int dnet_db_list_iter_init(struct eblob_iterate_control *iter_ctl, void *
 					goto err_out_exit;
 				}
 
-				dnet_log(n, DNET_LOG_DSA, "BULK: added state %s (%s)\n",
+				dnet_log(n, DNET_LOG_DEBUG, "BULK: added state %s (%s)\n",
 						dnet_dump_id_str(st->idc->ids[0].raw.id),
 						dnet_server_convert_dnet_addr(&st->addr));
 				bulk_array->num++;
@@ -405,7 +405,7 @@ static int dnet_db_list_iter_free(struct eblob_iterate_control *iter_ctl, void *
 			sleep(1);
 
 		for (i = 0; i < bulk_array->num; ++i) {
-			dnet_log(n, DNET_LOG_DSA, "CHECK: free: processing state %d %s: %d ids in this state\n",
+			dnet_log(n, DNET_LOG_DEBUG, "CHECK: free: processing state %d %s: %d ids in this state\n",
 					i, dnet_server_convert_dnet_addr(&bulk_array->states[i].addr), bulk_array->states[i].num);
 
 			if (bulk_array->states[i].num > 0) {
@@ -514,7 +514,7 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 		will_check = 0;
 	}
 
-	if (n->log->log_mask & DNET_LOG_NOTICE) {
+	if (n->log->log_level > DNET_LOG_NOTICE) {
 		localtime_r((time_t *)&check_ts, &tm);
 		strftime(check_time, sizeof(check_time), "%F %R:%S %Z", &tm);
 

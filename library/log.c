@@ -44,19 +44,19 @@ int dnet_log_init(struct dnet_node *n, struct dnet_log *l)
 	return 0;
 }
 
-void dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...)
+void dnet_log_raw(struct dnet_node *n, int level, const char *format, ...)
 {
 	va_list args;
 	char buf[1024];
 	struct dnet_log *l = n->log;
 	int buflen = sizeof(buf);
 
-	if (!l->log || !(l->log_mask & mask))
+	if (!l->log || (l->log_level < level))
 		return;
 
 	va_start(args, format);
 	vsnprintf(buf, buflen, format, args);
 	buf[buflen-1] = '\0';
-	l->log(l->log_private, mask, buf);
+	l->log(l->log_private, level, buf);
 	va_end(args);
 }

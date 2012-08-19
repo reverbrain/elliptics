@@ -86,7 +86,7 @@ static void notify_usage(char *p)
 			" -l log               - log file. Default: disabled\n"
 			" -L log               - notifications log. Default: stdout\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
-			" -m mask              - log events mask\n"
+			" -m level             - log level\n"
 			" -g group_id          - group ID to connect\n"
 			" -I id                - request notifications for given ID\n"
 	       , p);
@@ -107,14 +107,14 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
-	notify_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_INFO;
+	notify_logger.log_level = DNET_LOG_INFO;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
 	while ((ch = getopt(argc, argv, "g:m:w:l:I:a:r:h")) != -1) {
 		switch (ch) {
 			case 'm':
-				notify_logger.log_mask = strtoul(optarg, NULL, 0);
+				notify_logger.log_level = strtoul(optarg, NULL, 0);
 				break;
 			case 'w':
 				cfg.wait_timeout = atoi(optarg);

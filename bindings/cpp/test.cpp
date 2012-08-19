@@ -29,19 +29,19 @@
 
 using namespace ioremap::elliptics;
 
-static void test_log_raw(logger *l, uint32_t mask, const char *format, ...)
+static void test_log_raw(logger *l, int level, const char *format, ...)
 {
 	va_list args;
 	char buf[1024];
 	int buflen = sizeof(buf);
 
-	if (!(l->get_log_mask() & mask))
+	if (l->get_log_level() < level)
 		return;
 
 	va_start(args, format);
 	vsnprintf(buf, buflen, format, args);
 	buf[buflen-1] = '\0';
-	l->log(mask, buf);
+	l->log(level, buf);
 	va_end(args);
 }
 
@@ -569,7 +569,7 @@ int main(int argc, char *argv[])
 
 
 	try {
-		log_file log("/dev/stderr", DNET_LOG_ERROR | DNET_LOG_DATA);
+		log_file log("/dev/stderr", DNET_LOG_ERROR);
 
 		node n(log);
 		n.add_groups(groups);

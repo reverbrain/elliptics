@@ -33,7 +33,7 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-#define dnet_map_log(n, mask, fmt, a...) do { if ((n)) dnet_log((n), mask, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
+#define dnet_map_log(n, level, fmt, a...) do { if ((n)) dnet_log((n), level, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
 
 int dnet_update_ts_metadata_raw(struct dnet_meta_container *mc, uint64_t flags_set, uint64_t flags_clear)
 {

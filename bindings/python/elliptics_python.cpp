@@ -18,95 +18,6 @@
 #include <boost/python/list.hpp>
 #include <boost/python/dict.hpp>
 
-#if 0
-
-using namespace boost::python;
-
-#include <iostream>
-#include <fstream>
-
-class test_class_base {
-	public:
-		test_class_base(int mask = 0xff) : mask(mask) {};
-		virtual ~test_class_base() {};
-		
-		virtual void log(const char *msg) = 0;
-
-		int get_mask(void) {return mask;};
-	private:
-		int mask;
-};
-
-class test_class : public test_class_base {
-	public:
-		test_class(const char *path);
-		virtual ~test_class();
-
-		virtual void log(const char *msg);
-		unsigned char test(unsigned long lptr) { unsigned char *ptr = (unsigned char *)lptr; return ptr[0]; };
-	private:
-		std::ofstream *stream;
-};
-
-test_class::test_class(const char *path)
-{
-	stream = new std::ofstream(path);
-}
-
-test_class::~test_class()
-{
-	delete stream;
-}
-
-void test_class::log(const char *msg)
-{
-	(*stream) << std::hex << get_mask() << ": " << msg;
-	//(*stream) << msg;
-	stream->flush();
-}
-
-class test_class_base_wrap : public test_class_base, public wrapper<test_class_base> {
-	public:
-		test_class_base_wrap(int mask) : test_class_base(mask) {};
-		virtual ~test_class_base_wrap() {};
-
-		void log(const char *msg) {
-			this->get_override("log")(msg);
-		}
-};
-
-class test_class_wrap : public test_class, public wrapper<test_class> {
-	public:
-		test_class_wrap(const char *msg) : test_class(msg) {};
-		virtual ~test_class_wrap() {} ;
-
-		void log(const char *msg) {
-			if (override log = this->get_override("log")) {
-				log(msg); // *note*
-				return;
-			}
-
-			test_class::log(msg);
-		}
-
-		void default_log(const char *msg) { this->test_class::log(msg); }
-};
-
-
-BOOST_PYTHON_MODULE(libelliptics_python) {
-	class_<test_class_base_wrap, boost::noncopyable>("test_class_base", init<int>())
-		.def("get_mask", &test_class_base::get_mask)
-		.def("log", pure_virtual(&test_class_base::log))
-	;
-
-	class_<test_class_wrap, boost::noncopyable, bases<test_class_base> >("test_class", init<const char *>())
-		.def("log", &test_class::log, &test_class_wrap::default_log)
-		.def("test", &test_class::test)
-	;
-};
-
-#else
-
 #include <elliptics/cppdef.h>
 
 using namespace boost::python;
@@ -183,10 +94,10 @@ static void elliptics_extract_range(const struct elliptics_range &r, struct dnet
 
 class elliptics_log_wrap : public logger, public wrapper<logger> {
 	public:
-		elliptics_log_wrap(const uint32_t mask = DNET_LOG_ERROR | DNET_LOG_INFO) : logger(mask) {};
+		elliptics_log_wrap(const int level = DNET_LOG_INFO) : logger(level) {};
 
-		void log(const uint32_t mask, const char *msg) {
-			this->get_override("log")(mask, msg);
+		void log(const int level, const char *msg) {
+			this->get_override("log")(level, msg);
 		}
 
 		unsigned long clone(void) {
@@ -196,19 +107,19 @@ class elliptics_log_wrap : public logger, public wrapper<logger> {
 
 class elliptics_log_file_wrap : public log_file, public wrapper<log_file> {
 	public:
-		elliptics_log_file_wrap(const char *file, const uint32_t mask = DNET_LOG_ERROR | DNET_LOG_INFO) :
-			log_file(file, mask) {};
+		elliptics_log_file_wrap(const char *file, const int level = DNET_LOG_INFO) :
+			log_file(file, level) {};
 
-		void log(const uint32_t mask, const char *msg) {
+		void log(const int level, const char *msg) {
 			if (override log = this->get_override("log")) {
-				log_file::log(mask, msg);
+				log_file::log(level, msg);
 				return;
 			}
 
-			log_file::log(mask, msg);
+			log_file::log(level, msg);
 		}
 
-		void default_log(uint32_t mask, const char *msg) { this->log(mask, msg); }
+		void default_log(const int level, const char *msg) { this->log(level, msg); }
 
 		unsigned long clone(void) {
 			if (override clone = this->get_override("clone"))
@@ -606,7 +517,7 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 	class_<dnet_node_status>("dnet_node_status", init<>())
 		.def_readwrite("nflags", &dnet_node_status::nflags)
 		.def_readwrite("status_flags", &dnet_node_status::status_flags)
-		.def_readwrite("log_mask", &dnet_node_status::log_mask)
+		.def_readwrite("log_level", &dnet_node_status::log_level)
 	;
 
 	class_<node>("elliptics_node", init<logger &>())
@@ -678,4 +589,3 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("bulk_read", &elliptics_node_python::bulk_read_by_name)
 	;
 };
-#endif

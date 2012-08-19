@@ -168,7 +168,7 @@ static __attribute__ ((noreturn)) void efinder_usage(const char *p)
 	fprintf(stderr, "Usage: %s <options>\n"
 			"  -r addr:port:family            - remote node to connect\n"
 			"  -l log                         - log file\n"
-			"  -m mask                        - log mask\n"
+			"  -m level                       - log level\n"
 			"  -I id                          - object ID\n"
 			"  -h                             - this help\n"
 			, p);
@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
 {
 	int ch, err;
 	char *logfile = (char *)"/dev/stderr";
-	int log_mask = DNET_LOG_ERROR | DNET_LOG_DATA;
+	int log_level = DNET_LOG_ERROR;
 	char *remote = NULL;
 	struct dnet_id raw;
 	struct dnet_trans_control ctl;
@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
 				logfile = optarg;
 				break;
 			case 'm':
-				log_mask = strtoul(optarg, NULL, 0);
+				log_level = strtoul(optarg, NULL, 0);
 				break;
 			case 'I':
 				err = dnet_parse_numeric_id(optarg, raw.id);
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
 	}
 
 	try {
-		log_file log(logfile, log_mask);
+		log_file log(logfile, log_level);
 		finder find(log);
 
 		find.add_remote(remote);

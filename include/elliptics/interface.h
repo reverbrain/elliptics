@@ -232,15 +232,13 @@ int dnet_write_file(struct dnet_node *n, const char *file, const void *remote, i
 		uint64_t local_offset, uint64_t remote_offset, uint64_t size,
 		uint64_t cflags, unsigned int ioflags, int type);
 
-/*
- * Log flags.
- */
-#define DNET_LOG_NOTICE			(1<<0)
-#define DNET_LOG_INFO			(1<<1)
-#define DNET_LOG_TRANS			(1<<2)
-#define DNET_LOG_ERROR			(1<<3)
-#define DNET_LOG_DSA			(1<<4)
-#define DNET_LOG_DATA			(1<<5)
+enum dnet_log_level {
+	DNET_LOG_DATA = 0,
+	DNET_LOG_ERROR,
+	DNET_LOG_INFO,
+	DNET_LOG_NOTICE,
+	DNET_LOG_DEBUG,
+};
 
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
@@ -260,9 +258,9 @@ struct dnet_log {
 	 * Private data is used in the log function to get access to whatever
 	 * user pointed to.
 	 */
-	uint32_t		log_mask;
+	int			log_level;
 	void			*log_private;
-	void 			(* log)(void *priv, uint32_t mask, const char *msg);
+	void 			(* log)(void *priv, int level, const char *msg);
 };
 
 struct dnet_iterate_ctl {
@@ -445,7 +443,7 @@ int __attribute__((weak)) dnet_node_set_groups(struct dnet_node *n, int *groups,
  * Initialize private logging system.
  */
 int dnet_log_init(struct dnet_node *n, struct dnet_log *l);
-void __attribute__((weak)) dnet_log_raw(struct dnet_node *n, uint32_t mask, const char *format, ...) DNET_LOG_CHECK;
+void __attribute__((weak)) dnet_log_raw(struct dnet_node *n, int level, const char *format, ...) DNET_LOG_CHECK;
 
 #define NIP6(addr) \
 	(addr).s6_addr[0], \

@@ -170,7 +170,7 @@ static int dnet_process_addr_attr(struct dnet_net_state *st, struct dnet_addr_at
 		dnet_convert_raw_id(&ids[0]);
 
 	err = dnet_add_received_state(n, a, group_id, ids, num);
-	dnet_log(n, DNET_LOG_DSA, "%s: route list: %d entries: %d.\n", dnet_server_convert_dnet_addr(&a->addr), num, err);
+	dnet_log(n, DNET_LOG_DEBUG, "%s: route list: %d entries: %d.\n", dnet_server_convert_dnet_addr(&a->addr), num, err);
 
 	return err;
 }
@@ -257,7 +257,7 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 
 	dnet_convert_cmd(cmd);
 
-	dnet_log(n, DNET_LOG_DSA, "%s: list route request to %s.\n", dnet_dump_id(&cmd->id),
+	dnet_log(n, DNET_LOG_DEBUG, "%s: list route request to %s.\n", dnet_dump_id(&cmd->id),
 		dnet_server_convert_dnet_addr(&st->addr));
 
 	memset(&req, 0, sizeof(req));
@@ -329,7 +329,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	size = cmd->size - sizeof(struct dnet_addr_attr);
 	num = size / sizeof(struct dnet_raw_id);
 
-	dnet_log(n, DNET_LOG_DSA, "%s: waiting for %d ids\n", dnet_dump_id(&cmd->id), num);
+	dnet_log(n, DNET_LOG_DEBUG, "%s: waiting for %d ids\n", dnet_dump_id(&cmd->id), num);
 
 	ids = malloc(size);
 	if (!ids) {
@@ -2259,7 +2259,7 @@ struct dnet_io_attr *dnet_remove_range(struct dnet_node *n, struct dnet_io_attr 
 			need_exit = 1;
 		}
 
-		if (n->log->log_mask & DNET_LOG_NOTICE) {
+		if (n->log->log_level > DNET_LOG_NOTICE) {
 			int len = 6;
 			char start_id[2*len + 1];
 			char next_id[2*len + 1];
@@ -2347,7 +2347,7 @@ struct dnet_range_data *dnet_read_range(struct dnet_node *n, struct dnet_io_attr
 			need_exit = 1;
 		}
 
-		if (n->log->log_mask & DNET_LOG_NOTICE) {
+		if (n->log->log_level > DNET_LOG_NOTICE) {
 			int len = 6;
 			char start_id[2*len + 1];
 			char next_id[2*len + 1];
@@ -2937,7 +2937,7 @@ struct dnet_range_data dnet_bulk_write(struct dnet_node *n, struct dnet_io_contr
 		memset(&mc, 0, sizeof(mc));
 
 		err = dnet_create_metadata(n, &mcl, &mc);
-		dnet_log(n, DNET_LOG_DSA, "Creating metadata: err: %d", err);
+		dnet_log(n, DNET_LOG_DEBUG, "Creating metadata: err: %d", err);
 		if (!err) {
 			dnet_convert_metadata(n, mc.data, mc.size);
 

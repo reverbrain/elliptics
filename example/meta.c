@@ -62,7 +62,7 @@ static void meta_usage(char *p)
 			"  -g group:group...      - groups to get matadata from\n"
 			"  -w timeout             - wait timeout in seconds\n"
 			"  -r addr:port:family    - connect to this remote node\n"
-			"  -m mask                - log mask\n"
+			"  -m level               - log level\n"
 			"  -l log                 - log file\n"
 			"  -f file                - read metadata from file\n"
 			, p);
@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 10;
-	meta_logger.log_mask = DNET_LOG_ERROR | DNET_LOG_DATA;
+	meta_logger.log_level = DNET_LOG_ERROR;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
 				logfile = optarg;
 				break;
 			case 'm':
-				meta_logger.log_mask = strtoul(optarg, NULL, 0);
+				meta_logger.log_level = strtoul(optarg, NULL, 0);
 				break;
 			case 'I':
 				err = dnet_parse_numeric_id(optarg, trans_id);

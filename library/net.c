@@ -349,7 +349,7 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 	}
 
 	if (pfd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
-		dnet_log(st->n, DNET_LOG_DSA, "Connection reset by peer: sock: %d, revents: %x.\n",
+		dnet_log(st->n, DNET_LOG_DEBUG, "Connection reset by peer: sock: %d, revents: %x.\n",
 			st->read_s, pfd.revents);
 		err = -ECONNRESET;
 		goto out_exit;
@@ -1147,7 +1147,7 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 		struct dnet_cmd *cmd = r->header;
 		int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
 
-		dnet_log(st->n, DNET_LOG_DSA, "%s: %s: SENT %s cmd: %s: cmd-size: %llu, nonblocking: %d\n",
+		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: SENT %s cmd: %s: cmd-size: %llu, nonblocking: %d\n",
 			dnet_state_dump_addr(st), dnet_dump_id(r->header),
 			nonblocking ? "nonblocking" : "blocking",
 			dnet_cmd_string(cmd->cmd),

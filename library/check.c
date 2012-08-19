@@ -113,7 +113,7 @@ static int dnet_check_find_groups(struct dnet_node *n, struct dnet_meta_containe
 	num = m->size / sizeof(int32_t);
 
 	for (i=0; i<num; ++i) {
-		dnet_log_raw(n, DNET_LOG_DSA, "%s: group: %d\n", dnet_dump_id(&mc->id), groups[i]);
+		dnet_log_raw(n, DNET_LOG_DEBUG, "%s: group: %d\n", dnet_dump_id(&mc->id), groups[i]);
 	}
 
 	*groupsp = groups;
@@ -204,7 +204,7 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, void 
 	if (!(cmd->size % sizeof(struct dnet_bulk_id))) {
 		num = cmd->size / sizeof(struct dnet_bulk_id);
 
-		dnet_log(orig->n, DNET_LOG_DSA, "BULK: received %d entries\n", num);
+		dnet_log(orig->n, DNET_LOG_DEBUG, "BULK: received %d entries\n", num);
 
 		for (i = 0; i < num; ++i) {
 
@@ -213,20 +213,20 @@ int dnet_cmd_bulk_check(struct dnet_net_state *orig, struct dnet_cmd *cmd, void 
 				dnet_send_reply(orig, cmd, NULL, 0, 1);
 			}
 
-			dnet_log(orig->n, DNET_LOG_DSA, "BULK: processing ID %s\n", dnet_dump_id_str(ids[i].id.id));
+			dnet_log(orig->n, DNET_LOG_DEBUG, "BULK: processing ID %s\n", dnet_dump_id_str(ids[i].id.id));
 			mc.data = NULL;
 			dnet_setup_id(&mc.id, 0, ids[i].id.id);
 			err = orig->n->cb->meta_read(orig->n->cb->command_private, &ids[i].id, &mc.data);
 			if (mc.data) {
 				mc.size = err;
-				dnet_log(orig->n, DNET_LOG_DSA, "BULK: %d bytes of metadata found, searching for META_UPDATE group_id=%d\n",
+				dnet_log(orig->n, DNET_LOG_DEBUG, "BULK: %d bytes of metadata found, searching for META_UPDATE group_id=%d\n",
 						mc.size, orig->n->st->idc->group->group_id);
 				if (dnet_get_meta_update(orig->n, &mc, &mu))
 				{
 					dnet_convert_meta_update(&ids[i].last_update);
-					dnet_log(orig->n, DNET_LOG_DSA, "BULK: mu.tsec=%lu, mu.tnsec=%lu, mu.flags=%02lx\n",
+					dnet_log(orig->n, DNET_LOG_DEBUG, "BULK: mu.tsec=%lu, mu.tnsec=%lu, mu.flags=%02lx\n",
 							(unsigned long)mu.tm.tsec, (unsigned long)mu.tm.tnsec, (unsigned long)mu.flags);
-					dnet_log(orig->n, DNET_LOG_DSA,
+					dnet_log(orig->n, DNET_LOG_DEBUG,
 							"BULK: last_update.tsec=%lu, last_update.tnsec=%lu, last_update.flags=%02lx\n",
 							(unsigned long)ids[i].last_update.tm.tsec, (unsigned long)ids[i].last_update.tm.tnsec,
 							(unsigned long)ids[i].last_update.flags);
@@ -307,7 +307,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 
 	my_group = state->n->id.group_id;
 
-	dnet_log(state->n, DNET_LOG_DSA, "BULK: checking ID %s\n", dnet_dump_id_str(ids->id.id));
+	dnet_log(state->n, DNET_LOG_DEBUG, "BULK: checking ID %s\n", dnet_dump_id_str(ids->id.id));
 	err = -ENOENT;
 	error = 0;
 
@@ -452,7 +452,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 	 * Yep, we should read it locally and send it to other groups too
 	 */
 	if ((lastest_group != my_group) && !(mu[lastest].flags & DNET_IO_FLAGS_REMOVED)) {
-		dnet_log(state->n, DNET_LOG_DSA, "BULK: %s: File on remote group %d is newer, skipping this file\n",
+		dnet_log(state->n, DNET_LOG_DEBUG, "BULK: %s: File on remote group %d is newer, skipping this file\n",
 				dnet_dump_id_str(ids->id.id), lastest_group);
 		err = 0;
 		goto err_out_free;
@@ -468,13 +468,13 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 
 		if (mu[lastest].flags & DNET_IO_FLAGS_REMOVED) {
 			if (removed_in_all) {
-				dnet_log(state->n, DNET_LOG_DSA, "BULK: dnet_remove_object_now %s in group %d, err=%d\n",
+				dnet_log(state->n, DNET_LOG_DEBUG, "BULK: dnet_remove_object_now %s in group %d, err=%d\n",
 						dnet_dump_id(&id), mu[i].group_id, err);
 				err = dnet_remove_object_now(state->n, &id, cflags, ioflags);
 			} else {
 				if (!(mu[i].flags & DNET_IO_FLAGS_REMOVED)) {
 					err = dnet_remove_object(state->n, &id, NULL, NULL, cflags, ioflags);
-					dnet_log(state->n, DNET_LOG_DSA, "BULK: dnet_remove_object %s in group %d err=%d\n",
+					dnet_log(state->n, DNET_LOG_DEBUG, "BULK: dnet_remove_object %s in group %d err=%d\n",
 							dnet_dump_id(&id), mu[i].group_id, err);
 				}
 			}
@@ -494,7 +494,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 
 				memcpy(&mc.id, &id, sizeof(struct dnet_id));
 				err = dnet_write_metadata(state->n, &mc, 1, cflags);
-				dnet_log(state->n, DNET_LOG_DSA, "BULK: dnet_write_metadata %s in group %d, err=%d\n",
+				dnet_log(state->n, DNET_LOG_DEBUG, "BULK: dnet_write_metadata %s in group %d, err=%d\n",
 						dnet_dump_id(&id), my_group, err);
 
 				if (err < 0)
@@ -577,7 +577,7 @@ static int dnet_bulk_check_complete(struct dnet_net_state *state, struct dnet_cm
 		struct dnet_bulk_id *ids = (struct dnet_bulk_id *)(cmd + 1);
 		int num = cmd->size / sizeof(struct dnet_bulk_id);
 
-		dnet_log(state->n, DNET_LOG_DSA, "BULK: received %d entries\n", num);
+		dnet_log(state->n, DNET_LOG_DEBUG, "BULK: received %d entries\n", num);
 
 		//dnet_db_ptr_get(&state->n->temp_meta);
 		//ret = kcdbbegintran(state->n->temp_meta.db, 0);
@@ -656,7 +656,7 @@ int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state, 
 	dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
 	dnet_wait_get(p->w);
 
-	dnet_log(n, DNET_LOG_DSA, "BULK: sending %u bytes of data to %s (%s)\n",
+	dnet_log(n, DNET_LOG_DEBUG, "BULK: sending %u bytes of data to %s (%s)\n",
 			ctl.size, dnet_dump_id(&ctl.id), dnet_server_convert_dnet_addr(&state->addr));
 	err = dnet_trans_alloc_send_state(st, &ctl);
 	dnet_state_put(st);
@@ -705,14 +705,14 @@ static int dnet_bulk_add_id(struct dnet_node *n, struct dnet_bulk_array *bulk_ar
 	struct dnet_bulk_id *bulk_id;
 	struct dnet_meta_update mu;
 
-	dnet_log(n, DNET_LOG_DSA, "BULK: adding ID %s to array\n", dnet_dump_id(id));
+	dnet_log(n, DNET_LOG_DEBUG, "BULK: adding ID %s to array\n", dnet_dump_id(id));
 	if (!st)
 		return -1;
 
 	memcpy(&tmp.addr, &st->addr, sizeof(struct dnet_addr));
 	dnet_state_put(st);
 
-	dnet_log(n, DNET_LOG_DSA, "BULK: Searching state in states array\n");
+	dnet_log(n, DNET_LOG_DEBUG, "BULK: Searching state in states array\n");
 	state = bsearch(&tmp, bulk_array->states, bulk_array->num, sizeof(struct dnet_bulk_state), dnet_compare_bulk_state);
 	if (!state)
 		return -1;
@@ -720,7 +720,7 @@ static int dnet_bulk_add_id(struct dnet_node *n, struct dnet_bulk_array *bulk_ar
 	if (!dnet_get_meta_update(n, mc, &mu))
 		return -ENOENT;
 
-	dnet_log(n, DNET_LOG_DSA, "BULK: addr = %s state->num = %d\n", dnet_server_convert_dnet_addr(&state->addr), state->num);
+	dnet_log(n, DNET_LOG_DEBUG, "BULK: addr = %s state->num = %d\n", dnet_server_convert_dnet_addr(&state->addr), state->num);
 	//pthread_mutex_lock(&state->state_lock);
 	if (state->num >= DNET_BULK_IDS_SIZE || state->num < 0)
 		goto err_out_unlock;
@@ -730,7 +730,7 @@ static int dnet_bulk_add_id(struct dnet_node *n, struct dnet_bulk_array *bulk_ar
 
 	memcpy(&bulk_id->id, &id->id, DNET_ID_SIZE);
 
-	dnet_log(n, DNET_LOG_DSA, "BULK: ID: %s, last_update->tsec=%llu, last_update->tnsec=%llu, flags=%02llx\n", 
+	dnet_log(n, DNET_LOG_DEBUG, "BULK: ID: %s, last_update->tsec=%llu, last_update->tnsec=%llu, flags=%02llx\n", 
 			dnet_dump_id_str(bulk_id->id.id), (unsigned long long)mu.tm.tsec, (unsigned long long)mu.tm.tnsec,
 			(unsigned long long)mu.flags);
 
@@ -740,7 +740,7 @@ static int dnet_bulk_add_id(struct dnet_node *n, struct dnet_bulk_array *bulk_ar
 
 	state->num++;
 
-	dnet_log(n, DNET_LOG_DSA, "BULK: addr = %s state->num = %d\n", dnet_server_convert_dnet_addr(&state->addr), state->num);
+	dnet_log(n, DNET_LOG_DEBUG, "BULK: addr = %s state->num = %d\n", dnet_server_convert_dnet_addr(&state->addr), state->num);
 	if (state->num == DNET_BULK_IDS_SIZE) {
 		err = dnet_request_bulk_check(n, state, params);
 		state->num = 0;
@@ -812,7 +812,7 @@ static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc
 	int cflags = 0;
 	int err;
 
-	dnet_log(n, DNET_LOG_DSA, "in dnet_merge_direct mc->size = %u\n", mc->size);
+	dnet_log(n, DNET_LOG_DEBUG, "in dnet_merge_direct mc->size = %u\n", mc->size);
 	base = dnet_node_state(n);
 	if (!base) {
 		err = -ENOENT;
@@ -820,11 +820,11 @@ static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc
 	}
 
 	err = n->cb->send(base, n->cb->command_private, &mc->id);
-	dnet_log(n, DNET_LOG_DSA, "in dnet_merge_direct after n->cb->send err = %d\n\n", err);
+	dnet_log(n, DNET_LOG_DEBUG, "in dnet_merge_direct after n->cb->send err = %d\n\n", err);
 	if (err < 0)
 		goto err_out_put;
 
-	dnet_log(n, DNET_LOG_DSA, "in dnet_merge_direct2 mc->size = %u\n", mc->size);
+	dnet_log(n, DNET_LOG_DEBUG, "in dnet_merge_direct2 mc->size = %u\n", mc->size);
 	err = dnet_write_metadata(n, mc, 0, cflags);
 	if (err <= 0)
 		goto err_out_put;
@@ -871,7 +871,7 @@ static int dnet_merge_common(struct dnet_node *n, struct dnet_meta_container *re
 	uint64_t cflags = 0;
 	uint64_t ioflags = 0;
 
-	dnet_log(n, DNET_LOG_DSA, "in dnet_merge_common mc->size = %d\n", mc->size);
+	dnet_log(n, DNET_LOG_DEBUG, "in dnet_merge_common mc->size = %d\n", mc->size);
 	if (!dnet_get_meta_update(n, mc, &local)) {
 		err = -ENOENT;
 		dnet_log(n, DNET_LOG_ERROR, "%s: META_UPDATE not found in local meta\n", dnet_dump_id(&mc->id));
@@ -903,7 +903,7 @@ static int dnet_check_merge(struct dnet_node *n, struct dnet_meta_container *mc)
 	int err;
 	struct dnet_meta_container remote_mc;
 
-	dnet_log(n, DNET_LOG_DSA, "in dnet_check_merge mc->size = %d\n", mc->size);
+	dnet_log(n, DNET_LOG_DEBUG, "in dnet_check_merge mc->size = %d\n", mc->size);
 	memset(&remote_mc, 0, sizeof(struct dnet_meta_container));
 
 	err = dnet_read_meta(n, &remote_mc, NULL, 0, &mc->id);
@@ -936,10 +936,10 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_
 {
 	int err = 0;
 
-	dnet_log(n, DNET_LOG_DSA, "need_merge = %d, mc.size = %d\n", need_merge, mc->size);
+	dnet_log(n, DNET_LOG_DEBUG, "need_merge = %d, mc.size = %d\n", need_merge, mc->size);
 	if (need_merge) {
 		err = dnet_check_merge(n, mc);
-		dnet_log(n, DNET_LOG_DSA, "err=%d\n", err);
+		dnet_log(n, DNET_LOG_DEBUG, "err=%d\n", err);
 		if (!err)
 			dnet_merge_remove_local(n, &mc->id, 0);
 	} else {

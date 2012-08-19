@@ -30,8 +30,8 @@ int dnet_parse_addr(char *addr, struct dnet_config *cfg);
 
 int dnet_parse_numeric_id(char *value, unsigned char *id);
 
-void dnet_common_log(void *priv, uint32_t mask, const char *msg);
-void dnet_syslog(void *priv, uint32_t mask, const char *msg);
+void dnet_common_log(void *priv, int level, const char *msg);
+void dnet_syslog(void *priv, int level, const char *msg);
 
 int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cfg, char *orig_addr);
 

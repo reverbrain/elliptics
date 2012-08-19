@@ -59,7 +59,7 @@ struct dnet_node;
 struct dnet_group;
 struct dnet_net_state;
 
-#define dnet_log(n, mask, format, a...) do { if (n->log && (n->log->log_mask & mask)) dnet_log_raw(n, mask, format, ##a); } while (0)
+#define dnet_log(n, level, format, a...) do { if (n->log && (n->log->log_level >= level)) dnet_log_raw(n, level, format, ##a); } while (0)
 #define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
 
 struct dnet_io_req {
@@ -466,7 +466,7 @@ static inline void dnet_counter_inc(struct dnet_node *n, int counter, int err)
 		n->counters[counter].err++;
 	dnet_lock_unlock(&n->counters_lock);
 
-	dnet_log(n, DNET_LOG_DSA, "Incrementing counter: %d, err: %d, value is: %llu %llu.\n",
+	dnet_log(n, DNET_LOG_DEBUG, "Incrementing counter: %d, err: %d, value is: %llu %llu.\n",
 				counter, err,
 				(unsigned long long)n->counters[counter].count,
 				(unsigned long long)n->counters[counter].err);

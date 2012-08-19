@@ -101,7 +101,7 @@ node::node(logger &l, const std::string &config_path) : m_node(NULL), m_log(NULL
 	std::list<addr_tuple> remotes;
 	std::vector<int> groups;
 
-	parse_config(config_path, cfg, remotes, groups, cfg.log->log_mask);
+	parse_config(config_path, cfg, remotes, groups, cfg.log->log_level);
 
 	m_node = dnet_node_create(&cfg);
 	if (!m_node) {
@@ -128,7 +128,7 @@ node::~node()
 void node::parse_config(const std::string &path, struct dnet_config &cfg,
 		std::list<addr_tuple> &remotes,
 		std::vector<int> &groups,
-		uint32_t &log_mask)
+		int &log_level)
 {
 	std::ifstream in(path.c_str());
 	std::string line;
@@ -201,8 +201,8 @@ void node::parse_config(const std::string &path, struct dnet_config &cfg,
 			cfg.check_timeout = strtoul(value.c_str(), NULL, 0);
 		if (key == "wait_timeout")
 			cfg.wait_timeout = strtoul(value.c_str(), NULL, 0);
-		if (key == "log_mask")
-			log_mask = strtoul(value.c_str(), NULL, 0);
+		if (key == "log_level")
+			log_level = strtoul(value.c_str(), NULL, 0);
 	}
 }
 
@@ -649,7 +649,7 @@ std::string node::lookup(const std::string &data)
 				dnet_convert_file_info(info);
 			}
 #endif
-			dnet_log_raw(m_node, DNET_LOG_DSA, "%s: %s: %zu bytes\n", dnet_dump_id(&id), data.c_str(), ret.size());
+			dnet_log_raw(m_node, DNET_LOG_DEBUG, "%s: %s: %zu bytes\n", dnet_dump_id(&id), data.c_str(), ret.size());
 			error = 0;
 			break;
 		} catch (const std::exception &e) {
@@ -688,7 +688,7 @@ std::string node::lookup(const struct dnet_id &id)
 			throw std::runtime_error(str.str());
 		}
 
-		dnet_log_raw(m_node, DNET_LOG_DSA, "%s: %zu bytes\n", dnet_dump_id(&id), ret.size());
+		dnet_log_raw(m_node, DNET_LOG_DEBUG, "%s: %zu bytes\n", dnet_dump_id(&id), ret.size());
 		error = 0;
 	} catch (const std::exception &e) {
 		dnet_log_raw(m_node, DNET_LOG_ERROR, "%s: %s\n", dnet_dump_id(&id), e.what());

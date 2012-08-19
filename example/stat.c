@@ -109,7 +109,7 @@ static void stat_usage(char *p)
 			" -l log               - log file. Default: disabled\n"
 			" -L log               - statistics log. Default: stdout\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
-			" -m mask              - log events mask\n"
+			" -m level             - log level\n"
 			" -I id                - request statistics from node which handles given id\n"
 			" -t timeout           - timeout in seconds to repeatedly request statistics\n"
 			" -M                   - show memory usage statistics\n"
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
-	stat_logger.log_mask = DNET_LOG_ERROR;
+	stat_logger.log_level = DNET_LOG_ERROR;
 
 	timeout = 1;
 
@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
 				timeout = atoi(optarg);
 				break;
 			case 'm':
-				stat_logger.log_mask = strtoul(optarg, NULL, 0);
+				stat_logger.log_level = strtoul(optarg, NULL, 0);
 				break;
 			case 'w':
 				cfg.wait_timeout = atoi(optarg);

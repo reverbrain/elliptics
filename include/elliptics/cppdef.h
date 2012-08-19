@@ -43,14 +43,14 @@ struct addr_tuple {
 
 class logger {
 	public:
-		logger(const uint32_t mask = DNET_LOG_ERROR | DNET_LOG_INFO) {
-			ll.log_mask = mask;
+		logger(const int level = DNET_LOG_INFO) {
+			ll.log_level = level;
 			ll.log = logger::real_logger;
 			ll.log_private = this;
 		};
 		virtual ~logger() {};
 
-		virtual void 		log(const uint32_t mask, const char *msg) = 0;
+		virtual void 		log(const int level, const char *msg) = 0;
 
 		/*
 		 * Clone is used instead of 'virtual' copy constructor, since we have to
@@ -60,8 +60,8 @@ class logger {
 		 */
 		virtual unsigned long	clone(void) = 0;
 
-		static void		real_logger(void *priv, const uint32_t mask, const char *msg);
-		uint32_t		get_log_mask(void) { return ll.log_mask; };
+		static void		real_logger(void *priv, const int level, const char *msg);
+		int			get_log_level(void) { return ll.log_level; };
 		struct dnet_log		*get_dnet_log(void) { return &ll; };
 	protected:
 		struct dnet_log		ll;
@@ -69,11 +69,11 @@ class logger {
 
 class log_file : public logger {
 	public:
-		log_file(const char *file, const uint32_t mask = DNET_LOG_ERROR | DNET_LOG_INFO);
+		log_file(const char *file, const int level = DNET_LOG_INFO);
 		virtual ~log_file();
 
 		virtual unsigned long	clone(void);
-		virtual void 		log(const uint32_t mask, const char *msg);
+		virtual void 		log(const int level, const char *msg);
 
 		std::string		*file;
 	private:
@@ -117,7 +117,7 @@ class node {
 		void			parse_config(const std::string &path, struct dnet_config &cfg,
 						std::list<addr_tuple> &remotes,
 						std::vector<int> &groups,
-						uint32_t &log_mask);
+						int &log_level);
 
 		void			transform(const std::string &data, struct dnet_id &id);
 
@@ -129,7 +129,8 @@ class node {
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 
 		void			read_file(struct dnet_id &id, const std::string &file, uint64_t offset, uint64_t size);
-		void			read_file(const std::string &remote, const std::string &file, uint64_t offset, uint64_t size, int type);
+		void			read_file(const std::string &remote, const std::string &file,
+						uint64_t offset, uint64_t size, int type);
 
 		void			write_file(struct dnet_id &id, const std::string &file, uint64_t local_offset,
 						uint64_t offset, uint64_t size, uint64_t cflags, unsigned int ioflags);
@@ -197,14 +198,17 @@ class node {
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
 		/* locked execution */
-		std::string		exec(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary);
+		std::string		exec(struct dnet_id *id, const std::string &event, const std::string &data,
+						const std::string &binary);
 
 		/* unlocked execution */
-		std::string		push(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary);
+		std::string		push(struct dnet_id *id, const std::string &event, const std::string &data,
+						const std::string &binary);
 
 		/* send reply back to blocked exec client */
 		std::string		request(struct sph *sph, bool lock);
-		void			reply(struct sph *sph, const std::string &event, const std::string &data, const std::string &binary);
+		void			reply(struct sph *sph, const std::string &event, const std::string &data,
+						const std::string &binary);
 
 		std::vector<std::string>	bulk_read(const std::vector<struct dnet_io_attr> &ios, uint64_t cflags = 0);
 		std::vector<std::string>	bulk_read(const std::vector<std::string> &keys, uint64_t cflags = 0);
