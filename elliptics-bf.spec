@@ -15,7 +15,7 @@ BuildRequires:  boost141-iostreams, boost141-thread, boost141-python, boost141-s
 %else
 BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-thread, boost-python, boost-system
 %endif
-BuildRequires:	eblob-devel >= 0.16.10
+BuildRequires:	eblob-devel >= 0.17.0
 BuildRequires:  smack >= 0.4.0
 BuildRequires:	automake autoconf libtool
 
