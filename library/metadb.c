@@ -298,7 +298,6 @@ int dnet_db_iterate(struct eblob_backend *b, struct dnet_iterate_ctl *dctl)
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.check_index = 1;
 	ctl.flags = dctl->flags | EBLOB_ITERATE_FLAGS_ALL;
 	ctl.priv = dctl->callback_private;
 	ctl.iterator_cb = dctl->iterate_cb;
