@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.16.0.1
+Version:	2.17.0.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -154,6 +154,19 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Aug 20 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.17.0.1
+- Depend on eblob 0.17.1 and higher
+- Use log level instead of log mask
+- Depend on smack 0.5.0 and higher
+- Added cdbs dep
+- Added in-memory (optionally disk-backed) LRU cache
+- Get rid of boost-filesystem
+- Split code (and debian package) to client/server libs
+- New unlink interfaces
+- Added ioflags to ioclient
+- If lookup returned error, proceed read-latest with default order
+- Let DNET_CMD_DEL use dnet_io_attr structure too
+
 * Wed Aug 08 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.16.0.1
 - Added possibility to start defragmentation on demand
 - Added reserved 'hostname' word for local address
