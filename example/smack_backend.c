@@ -483,7 +483,7 @@ static int dnet_smack_config_init(struct dnet_config_backend *b, struct dnet_con
 	if (err)
 		goto err_out_exit;
 
-	s->ictl.log_mask = c->log->log_mask;
+	s->ictl.log_level = c->log->log_level;
 	s->smack = smack_init(&s->ictl, &err);
 	if (!s->smack)
 		goto err_out_cleanup;
