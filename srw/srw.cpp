@@ -51,11 +51,11 @@
 
 class srw_log {
 	public:
-		srw_log(struct dnet_node *node, int mask, const std::string &app, const std::string &message) : m_n(node) {
-			dnet_log(m_n, mask, "dnet-sink: %s : %s\n", app.c_str(), message.c_str());
+		srw_log(struct dnet_node *node, int level, const std::string &app, const std::string &message) : m_n(node) {
+			dnet_log(m_n, level, "dnet-sink: %s : %s\n", app.c_str(), message.c_str());
 			return;
 
-			if (!boost::starts_with(app, "app/") || !(mask & node->log->log_mask))
+			if (!boost::starts_with(app, "app/") || (level > node->log->log_level))
 				return;
 
 			std::string msg_with_date;
@@ -70,7 +70,7 @@ class srw_log {
 
 			char tmp[128];
 
-			int len = snprintf(tmp, sizeof(tmp), "%s.%06lu %ld/%4d %1x: ", str, tv.tv_usec, dnet_get_id(), getpid(), mask);
+			int len = snprintf(tmp, sizeof(tmp), "%s.%06lu %ld/%4d %1d: ", str, tv.tv_usec, dnet_get_id(), getpid(), level);
 			msg_with_date.assign(tmp, len);
 			msg_with_date += message + "\n";
 
@@ -144,19 +144,20 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 		}
 
 		virtual void emit(cocaine::logging::priorities prio, const std::string &app, const std::string& message) const {
-			int mask = DNET_LOG_NOTICE;
+			int level = DNET_LOG_NOTICE;
 			if (prio == cocaine::logging::debug)
-				mask = DNET_LOG_NOTICE;
+				level = DNET_LOG_DEBUG;
 			if (prio == cocaine::logging::info)
-				mask = DNET_LOG_INFO;
+				level = DNET_LOG_INFO;
 			if (prio == cocaine::logging::warning)
-				mask = DNET_LOG_INFO;
+				level = DNET_LOG_INFO;
 			if (prio == cocaine::logging::error)
-				mask = DNET_LOG_ERROR;
+				level = DNET_LOG_ERROR;
 			if (prio == cocaine::logging::ignore)
-				mask = DNET_LOG_DSA;
+				level = -1;
 
-			srw_log log(m_n, mask, app, message);
+			if (level != -1)
+				srw_log log(m_n, level, app, message);
 		}
 
 	private:
@@ -287,13 +288,15 @@ typedef std::map<std::string, boost::shared_ptr<app_watcher> > eng_map_t;
 typedef std::map<int, dnet_shared_job_t> jobs_map_t;
 
 namespace {
-	cocaine::logging::priorities dnet_log_mask_to_prio(int log_mask) {
+	cocaine::logging::priorities dnet_log_level_to_prio(int level) {
 		cocaine::logging::priorities prio = cocaine::logging::ignore;
-		if (log_mask & DNET_LOG_NOTICE)
+		if (level == DNET_LOG_DEBUG)
 			prio = cocaine::logging::debug;
-		else if (log_mask & DNET_LOG_INFO)
+		else if (level == DNET_LOG_INFO)
 			prio = cocaine::logging::info;
-		else if (log_mask & DNET_LOG_ERROR)
+		else if (level == DNET_LOG_NOTICE)
+			prio = cocaine::logging::info;
+		else if (level == DNET_LOG_ERROR)
 			prio = cocaine::logging::error;
 
 		return prio;
@@ -303,7 +306,7 @@ namespace {
 class srw {
 	public:
 		srw(struct dnet_node *n, const std::string &config) : m_n(n),
-		m_ctx(config, boost::make_shared<dnet_sink_t>(n, dnet_log_mask_to_prio(m_n->log->log_mask))) {
+		m_ctx(config, boost::make_shared<dnet_sink_t>(n, dnet_log_level_to_prio(m_n->log->log_level))) {
 		}
 
 		~srw() {
