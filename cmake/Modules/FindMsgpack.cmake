@@ -4,7 +4,7 @@
 include(CheckCXXSourceCompiles)
 
 if (NOT MSGPACK_LIBRARIES)
-    find_library(MSGPACK_LIBRARIES NAMES msgpack HINTS ${MSGPACK_LIBRARY_DIR})
+	find_library(MSGPACK_LIBRARIES NAMES msgpack HINTS ${MSGPACK_LIBRARY_DIRS})
 endif()
 if (NOT MSGPACK_INCLUDE_DIRS)
     find_path(MSGPACK_INCLUDE_DIRS NAMES msgpack.hpp)

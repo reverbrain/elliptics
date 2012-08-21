@@ -10,7 +10,7 @@ if (NOT ZMQ_INCLUDE_DIRS)
 endif()
 
 if (NOT ZMQ_LIBRARIES)
-    find_library(ZMQ_LIBRARIES NAMES zmq libzmq)
+	find_library(ZMQ_LIBRARIES NAMES zmq libzmq PATHS ${ZMQ_LIBRARY_DIRS})
 endif()
 
 include(FindPackageHandleStandardArgs)

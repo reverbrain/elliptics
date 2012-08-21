@@ -11,7 +11,7 @@ if (NOT EBLOB_INCLUDE_DIRS)
 endif()
 
 if (NOT EBLOB_LIBRARIES)
-    find_library(EBLOB_LIBRARIES NAMES eblob)
+	find_library(EBLOB_LIBRARIES NAMES eblob PATHS ${EBLOB_LIBRARY_DIRS})
 endif()
 
 if (NOT EBLOB_CFLAGS)

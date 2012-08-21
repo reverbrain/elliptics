@@ -8,7 +8,7 @@
 if (SMACK_INCLUDE_DIRS AND SMACK_LIBRARIES)
     set (SMACK_FOUND TRUE)
 else()
-    find_library(SMACK_LIBRARIES NAMES smack PATHS)
+	find_library(SMACK_LIBRARIES NAMES smack PATHS ${SMACK_LIBRARY_DIRS})
     find_path(SMACK_INCLUDE_DIRS NAMES smack/smack.h PATHS)
 endif()
 include(FindPackageHandleStandardArgs)
