@@ -32,6 +32,27 @@
 
 namespace ioremap { namespace elliptics {
 
+class elliptics_error : public std::runtime_error {
+public:
+	explicit elliptics_error(int err);
+	int error_code() const;
+private:
+	static std::string convert(int err);
+	int errno_;
+};
+
+class not_found_error : public elliptics_error {
+public:
+	explicit not_found_error();
+};
+
+class timeout_error : public elliptics_error {
+public:
+	explicit timeout_error();
+};
+
+void throw_exception(int err);
+
 struct addr_tuple {
 	addr_tuple(const std::string &l_host, const int l_port, const int l_family = AF_INET) :
 		host(l_host), port(l_port), family(l_family) {}
