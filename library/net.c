@@ -13,8 +13,6 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -30,6 +28,10 @@
 #include "elliptics.h"
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
+
+#ifndef POLLRDHUP
+#define POLLRDHUP 0x2000
+#endif
 
 static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, unsigned int salen)
 {
@@ -838,11 +840,11 @@ static int dnet_auth_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		n = state->n;
 
 		if (cmd->status == 0) {
-			dnet_log(n, DNET_LOG_INFO, "%s: authentification request suceeded\n", dnet_state_dump_addr(state));
+			dnet_log(n, DNET_LOG_INFO, "%s: authentication request suceeded\n", dnet_state_dump_addr(state));
 			return 0;
 		}
 
-		dnet_log(n, DNET_LOG_ERROR, "%s: authentification request failed: %d\n", dnet_state_dump_addr(state), cmd->status);
+		dnet_log(n, DNET_LOG_ERROR, "%s: authentication request failed: %d\n", dnet_state_dump_addr(state), cmd->status);
 
 		state->__join_state = 0;
 		dnet_state_reset(state);

@@ -18,7 +18,6 @@
 
 #include <sys/mman.h>
 
-#include "config.h"
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 

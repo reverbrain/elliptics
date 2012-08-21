@@ -16,8 +16,6 @@
 #ifndef __DNET_CORE_H
 #define __DNET_CORE_H
 
-#include <elliptics/typedefs.h>
-
 #define DNET_HISTORY_SUFFIX	".history"
 #define DNET_META_SUFFIX	"\0meta"
 
