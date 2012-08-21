@@ -17,8 +17,8 @@
 #define __EDEF_H
 
 #include <errno.h>
-#include <stdint.h>
 
+#include <elliptics/typedefs.h>
 #include <elliptics/packet.h>
 #include <elliptics/interface.h>
 

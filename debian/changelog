@@ -1025,7 +1025,7 @@ elliptics (2.9.6.161) unstable; urgency=low
 
   * Extended reconnection logs. Added tid/pid into elliptics_log_file::log()
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 05 May 2011 11:02:05 +0400
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 05 May 2011 11:02:05 +0400
 
 elliptics (2.9.6.160) unstable; urgency=low
 
@@ -1240,33 +1240,33 @@ elliptics (2.9.6.132) unstable; urgency=low
 
   * Return -ECONNRESET on EPOLLHUP/EPOLLERR
 
- -- Evgeniy Polyakov <zbr@gavana>  Sun, 10 Apr 2011 03:51:54 +0400
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 10 Apr 2011 03:51:54 +0400
 
 elliptics (2.9.6.131) unstable; urgency=low
 
   * Do not exit from IO thread handler on non-critical errors.
 
- -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 16:32:36 +0400
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 16:32:36 +0400
 
 elliptics (2.9.6.130) unstable; urgency=low
 
   * Added start/stop IO thread debug
 
- -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 16:27:48 +0400
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 16:27:48 +0400
 
 elliptics (2.9.6.129) unstable; urgency=low
 
   * Do not break epoll loop on interrupts and eagain
   * Dropped counter debug
 
- -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 16:14:59 +0400
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 16:14:59 +0400
 
 elliptics (2.9.6.128) unstable; urgency=low
 
   * Fixed storage_state_list iterator
   * Use 1 IO thread for client and 20 for server by default
 
- -- Evgeniy Polyakov <zbr@gavana>  Sat, 09 Apr 2011 15:37:37 +0400
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 09 Apr 2011 15:37:37 +0400
 
 elliptics (2.9.6.127) unstable; urgency=low
 
@@ -1417,27 +1417,27 @@ elliptics (2.9.6.107) unstable; urgency=low
   * forwarding fix
   * initialize error to zero prior reading key from cursor
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 06:03:56 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 25 Mar 2011 06:03:56 +0300
 
 elliptics (2.9.6.106) unstable; urgency=low
 
   * Only remove local object if dnet_db_read_raw() returned negative or zero
     error value. Positive is data size.
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 05:03:16 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 25 Mar 2011 05:03:16 +0300
 
 elliptics (2.9.6.105) unstable; urgency=low
 
   * Really fixed checker
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 04:41:31 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 25 Mar 2011 04:41:31 +0300
 
 elliptics (2.9.6.104) unstable; urgency=low
 
   * Since dnet_state_get_first() now returns NULL for own main state, check
     iterator should take that into account.
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 25 Mar 2011 04:30:40 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 25 Mar 2011 04:30:40 +0300
 
 elliptics (2.9.6.103) unstable; urgency=low
 
@@ -1456,7 +1456,7 @@ elliptics (2.9.6.101) unstable; urgency=low
 
   * Do not sync null databases.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Mar 2011 15:21:28 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Mar 2011 15:21:28 +0300
 
 elliptics (2.9.6.100) unstable; urgency=low
 
@@ -1541,7 +1541,7 @@ elliptics (2.9.6.89) unstable; urgency=low
 
   * Use trans_lock to protect transaction tree instead of send_lock.
 
- -- Evgeniy Polyakov <zbr@gavana>  Wed, 16 Mar 2011 06:10:42 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 16 Mar 2011 06:10:42 +0300
 
 elliptics (2.9.6.88) unstable; urgency=low
 
@@ -1699,7 +1699,7 @@ elliptics (2.9.6.64) unstable; urgency=low
 
   * Abandon POSIX timers for stall transaction/state detection.
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 11 Mar 2011 07:48:50 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 11 Mar 2011 07:48:50 +0300
 
 elliptics (2.9.6.63) unstable; urgency=low
 
@@ -1812,7 +1812,7 @@ elliptics (2.9.6.47) unstable; urgency=low
 
   * Do not remove object from storage when we failed to read its local copy.
 
- -- Evgeniy Polyakov <zbr@gavana>  Wed, 09 Mar 2011 11:29:59 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 09 Mar 2011 11:29:59 +0300
 
 elliptics (2.9.6.46) unstable; urgency=low
 
@@ -1839,14 +1839,14 @@ elliptics (2.9.6.43) unstable; urgency=low
   * Added 0-byte at the end of namespace string to guard it against complex
     object names.
 
- -- Evgeniy Polyakov <zbr@gavana>  Sat, 05 Mar 2011 14:46:09 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 05 Mar 2011 14:46:09 +0300
 
 elliptics (2.9.6.42) unstable; urgency=low
 
   * Use mutex instead of rwlock for state lock. RW lock may lead to starvation
     of new client connections.
 
- -- Evgeniy Polyakov <zbr@gavana>  Sat, 05 Mar 2011 05:17:24 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 05 Mar 2011 05:17:24 +0300
 
 elliptics (2.9.6.41) unstable; urgency=low
 
@@ -1912,68 +1912,68 @@ elliptics (2.9.6.32) unstable; urgency=low
   * Disable FCGI refcnt debug
   * Invoke completion callback even when error happened.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 21:16:12 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Feb 2011 21:16:12 +0300
 
 elliptics (2.9.6.31) unstable; urgency=low
 
   * Added temporal FCGI refcnt debug.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 21:05:35 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Feb 2011 21:05:35 +0300
 
 elliptics (2.9.6.30) unstable; urgency=low
 
   * Fixed FCGI reference counter leak.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 20:52:09 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Feb 2011 20:52:09 +0300
 
 elliptics (2.9.6.29) unstable; urgency=low
 
   * Added temporal FCGI refcnt debug.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 20:27:21 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Feb 2011 20:27:21 +0300
 
 elliptics (2.9.6.28) unstable; urgency=low
 
   * Additional error check in fcgi refcnt wait.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 20:09:06 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Feb 2011 20:09:06 +0300
 
 elliptics (2.9.6.27) unstable; urgency=low
 
   * Use absolute timeout in fcgi refcnt waiter.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 20:02:12 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Feb 2011 20:02:12 +0300
 
 elliptics (2.9.6.26) unstable; urgency=low
 
   * Implemented 'reference counter' for fcgi connection handler.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 19:18:32 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Feb 2011 19:18:32 +0300
 
 elliptics (2.9.6.25) unstable; urgency=low
 
   * Fixed endless error loop in db iterator.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 17:32:44 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Feb 2011 17:32:44 +0300
 
 elliptics (2.9.6.24) unstable; urgency=low
 
   * Fake dnet_check() for testing.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 17:21:54 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Feb 2011 17:21:54 +0300
 
 elliptics (2.9.6.23) unstable; urgency=low
 
   * Dnet wait misc fixes.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 17:13:08 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Feb 2011 17:13:08 +0300
 
 elliptics (2.9.6.22) unstable; urgency=low
 
   * Fixed dnet_wait leak.
   * Disable object removal if read failed during check.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 24 Feb 2011 16:30:29 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 24 Feb 2011 16:30:29 +0300
 
 elliptics (2.9.6.21) unstable; urgency=low
 
@@ -3166,25 +3166,25 @@ elliptics (2.6.4.5) unstable; urgency=low
 
   * Request remote route table when node adds remote address.
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 19 Feb 2010 19:50:03 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 19 Feb 2010 19:50:03 +0300
 
 elliptics (2.6.4.4) unstable; urgency=low
 
   * Fixed multiple log lines processing in checker.
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 19 Feb 2010 17:38:50 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 19 Feb 2010 17:38:50 +0300
 
 elliptics (2.6.4.3) unstable; urgency=low
 
   * Minor cleanups.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 18 Feb 2010 00:58:54 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 18 Feb 2010 00:58:54 +0300
 
 elliptics (2.6.4.2) unstable; urgency=low
 
   * Implemented full fsck checker.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 18 Feb 2010 00:20:08 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 18 Feb 2010 00:20:08 +0300
 
 elliptics (2.6.4.1) unstable; urgency=low
 
@@ -3196,13 +3196,13 @@ elliptics (2.6.4.1) unstable; urgency=low
     client, but it will only happen when we exit early on timeout, which
     should be noticed in logs, and timeouts changed appropriately.
 
- -- Evgeniy Polyakov <zbr@gavana>  Wed, 17 Feb 2010 17:40:17 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 17 Feb 2010 17:40:17 +0300
 
 elliptics (2.6.4) unstable; urgency=low
 
   * Version 2.6.4
 
- -- Evgeniy Polyakov <zbr@gavana>  Sun, 14 Feb 2010 19:54:47 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 14 Feb 2010 19:54:47 +0300
 
 elliptics (2.6.3-42) unstable; urgency=low
 
@@ -3210,26 +3210,26 @@ elliptics (2.6.3-42) unstable; urgency=low
     wait lock. This fixes race in statistics request when multiple
     thread update completion counter.
 
- -- Evgeniy Polyakov <zbr@gavana>  Sat, 13 Feb 2010 18:58:35 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 13 Feb 2010 18:58:35 +0300
 
 elliptics (2.6.3-41) unstable; urgency=low
 
   * Added dbg package option.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 11 Feb 2010 18:41:14 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 11 Feb 2010 18:41:14 +0300
 
 elliptics (2.6.3-40) unstable; urgency=low
 
   * Added timeouts into FCGI waits
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 11 Feb 2010 14:54:54 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 11 Feb 2010 14:54:54 +0300
 
 elliptics (2.6.3-39) unstable; urgency=low
 
   * Check if state was already added when reconnection establishes
     connection, but can not create state.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 11 Feb 2010 14:28:04 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 11 Feb 2010 14:28:04 +0300
 
 elliptics (2.6.3-38) unstable; urgency=low
 
@@ -3238,68 +3238,68 @@ elliptics (2.6.3-38) unstable; urgency=low
     simultaneous addres/id conversions though, but it is not used in
     critical parts.
 
- -- Evgeniy Polyakov <zbr@gavana>  Tue, 09 Feb 2010 20:48:13 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Feb 2010 20:48:13 +0300
 
 elliptics (2.6.3-37) unstable; urgency=low
 
   * Perform vsnprintf() parsing unside locked section to protect
     dnet_fcgi_tmp_buf content.
 
- -- Evgeniy Polyakov <zbr@gavana>  Tue, 09 Feb 2010 18:39:32 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Feb 2010 18:39:32 +0300
 
 elliptics (2.6.3-36) unstable; urgency=low
 
   * Fixed off-by-one cookie truncation.
 
- -- Evgeniy Polyakov <zbr@gavana>  Tue, 09 Feb 2010 16:45:43 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Feb 2010 16:45:43 +0300
 
 elliptics (2.6.3-35) unstable; urgency=low
 
   * Added permanent headers, which are added on every request.
 
- -- Evgeniy Polyakov <zbr@gavana>  Tue, 09 Feb 2010 00:29:54 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Feb 2010 00:29:54 +0300
 
 elliptics (2.6.3-34) unstable; urgency=low
 
   * Added client reconnection logic.
 
- -- Evgeniy Polyakov <zbr@gavana>  Mon, 08 Feb 2010 21:45:49 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 08 Feb 2010 21:45:49 +0300
 
 elliptics (2.6.3-33) unstable; urgency=low
 
   * Fixed fcgi module to properly use dnet_fcgi_output() printing helper
 
- -- Evgeniy Polyakov <zbr@gavana>  Sat, 06 Feb 2010 02:47:00 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 06 Feb 2010 02:47:00 +0300
 
 elliptics (2.6.3-32) unstable; urgency=low
 
   * Debian changelog update
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 05 Feb 2010 05:41:16 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 05 Feb 2010 05:41:16 +0300
 
 elliptics (2.6.3-31) unstable; urgency=low
 
   * Fixed printf warning
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 05 Feb 2010 05:40:29 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 05 Feb 2010 05:40:29 +0300
 
 elliptics (2.6.3-30) unstable; urgency=low
 
   * Greatly simplified network/reconnection logic.
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 05 Feb 2010 04:33:09 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 05 Feb 2010 04:33:09 +0300
 
 elliptics (2.6.3-27) unstable; urgency=low
 
   * Force dnet_fcgi_output() to return 0 when nothing was printed out.
 
- -- Evgeniy Polyakov <zbr@gavana>  Fri, 05 Feb 2010 01:46:05 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 05 Feb 2010 01:46:05 +0300
 
 elliptics (2.6.3-26) unstable; urgency=low
 
   * Debian changelog update.
 
- -- Evgeniy Polyakov <zbr@gavana>  Thu, 04 Feb 2010 21:16:09 +0300
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 04 Feb 2010 21:16:09 +0300
 
 elliptics (2.6.3-25) unstable; urgency=low
 

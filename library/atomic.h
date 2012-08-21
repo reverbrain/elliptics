@@ -16,8 +16,6 @@
 #ifndef __DNET_ATOMIC_H
 #define __DNET_ATOMIC_H
 
-#include "config.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

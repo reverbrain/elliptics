@@ -13,8 +13,6 @@
  * GNU General Public License for more details.
  */
 
-#include "config.h"
-
 #include <sys/time.h>
 #include <sys/resource.h>
 

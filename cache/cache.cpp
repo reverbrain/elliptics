@@ -24,8 +24,6 @@
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/set.hpp>
 
-#include "config.h"
-
 #include "../library/elliptics.h"
 
 #include "elliptics/packet.h"
