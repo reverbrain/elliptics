@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.17.0.1
+Version:	2.17.0.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 22 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.17.0.2
+- Switch to cmake from autoconf
+
 * Mon Aug 20 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.17.0.1
 - Depend on eblob 0.17.1 and higher
 - Use log level instead of log mask

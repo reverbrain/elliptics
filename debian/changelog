@@ -1,3 +1,9 @@
+elliptics (2.17.0.2) unstable; urgency=low
+
+  * Switch to cmake from autoconf
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 22 Aug 2012 20:16:11 +0400
+
 elliptics (2.17.0.1) unstable; urgency=low
 
   * Depend on eblob 0.17.1 and higher
