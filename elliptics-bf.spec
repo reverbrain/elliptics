@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.17.0.2
+Version:	2.17.0.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 30 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.17.0.3
+- Added python-support to dep list
+- Use correct package name in shlibs
+
 * Wed Aug 22 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.17.0.2
 - Switch to cmake from autoconf
 
