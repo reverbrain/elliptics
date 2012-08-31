@@ -29,6 +29,7 @@ Description: Distributed hash table storage
 Package: elliptics-client
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Replaces: elliptics-2.10
 Description: Distributed hash table storage (includes)
  Elliptics network is a fault tolerant distributed hash table object storage.
 
