@@ -1,3 +1,22 @@
+elliptics (2.17.0.4) unstable; urgency=low
+
+  * elliptics-client must replace old-school elliptics-2.10
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 31 Aug 2012 20:35:34 +0400
+
+elliptics (2.17.0.3) unstable; urgency=low
+
+  * Added python-support to dep list
+  * Use correct package name in shlibs
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 30 Aug 2012 21:02:46 +0400
+
+elliptics (2.17.0.2) unstable; urgency=low
+
+  * Switch to cmake from autoconf
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 22 Aug 2012 20:16:11 +0400
+
 elliptics (2.17.0.1) unstable; urgency=low
 
   * Depend on eblob 0.17.1 and higher

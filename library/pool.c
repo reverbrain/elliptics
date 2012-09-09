@@ -481,7 +481,7 @@ static void *dnet_io_process(void *data_)
 			list_del_init(&r->req_entry);
 		pthread_mutex_unlock(&pool->lock);
 
-		if (!r)
+		if (!r || err)
 			continue;
 
 		st = r->st;
