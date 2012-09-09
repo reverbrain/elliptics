@@ -55,15 +55,14 @@ set(CMAKE_THREAD_PREFER_PTHREAD ON)
 find_package(Threads REQUIRED)
 
 if(WITH_COCAINE)
+    find_package(ZMQ REQUIRED)
+    include_directories(${ZMQ_INCLUDE_DIRS})
+
     # Find some cocaine
     find_package(Cocaine REQUIRED)
     include_directories(${COCAINE_INCLUDE_DIRS})
     add_definitions(${COCAINE_CFLAGS})
 endif()
-
-# Find ømq
-find_package(ZMQ REQUIRED)
-include_directories(${ZMQ_INCLUDE_DIRS})
 
 # Find eblob
 find_package(Eblob REQUIRED)
