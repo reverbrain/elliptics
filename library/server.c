@@ -231,14 +231,16 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node at %s, st: %p.\n",
 			dnet_dump_node(n), n->st);
 
-	n->need_exit = 1;
+
+	dnet_node_cleanup_common_resources(n);
+
+	if (n->cb && n->cb->backend_cleanup)
+		n->cb->backend_cleanup(n->cb->command_private);
 
 	dnet_srw_cleanup(n);
-
 	dnet_locks_destroy(n);
-
 	dnet_notify_exit(n);
 
-	dnet_node_destroy(n);
+	free(n);
 }
 

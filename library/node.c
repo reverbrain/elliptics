@@ -635,12 +635,9 @@ void dnet_set_need_exit(struct dnet_node *n)
 	n->need_exit = 1;
 }
 
-void dnet_node_destroy(struct dnet_node *n)
+void dnet_node_cleanup_common_resources(struct dnet_node *n)
 {
 	struct dnet_addr_storage *it, *atmp;
-
-	dnet_log(n, DNET_LOG_DEBUG, "Destroying node at %s, st: %p.\n",
-			dnet_dump_node(n), n->st);
 
 	n->need_exit = 1;
 	dnet_check_thread_stop(n);
@@ -663,9 +660,14 @@ void dnet_node_destroy(struct dnet_node *n)
 	dnet_wait_put(n->wait);
 
 	free(n->groups);
+}
 
-	if (n->cb && n->cb->backend_cleanup)
-		n->cb->backend_cleanup(n->cb->command_private);
+void dnet_node_destroy(struct dnet_node *n)
+{
+	dnet_log(n, DNET_LOG_DEBUG, "Destroying node at %s, st: %p.\n",
+			dnet_dump_node(n), n->st);
+
+	dnet_node_cleanup_common_resources(n);
 
 	free(n);
 }
