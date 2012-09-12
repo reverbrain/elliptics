@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.17.0.4
+Version:	2.18.0.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,18 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 13 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.0.1
+- New interface for execution, reply and chaining
+- Do not strip rpath
+- Fixed server node cleanup bug when it destroyed locks first while IO threads could still use them
+- dnet_send_cmd_raw() must always wait for ack
+- Fixed thread creation bug in app_watcher when application does not exist
+- Added -g flag to elliptics build
+- Use weak symbols instead of stubs in client lib, since server also links to it and in Fedora it ends up using stubs from client lib
+- Search for 0mq only of cocaine is enabled
+- Update debian packaging
+- Fixed build-depends
+
 * Fri Aug 31 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.17.0.4
 - elliptics-client must replace old-school elliptics-2.10
 

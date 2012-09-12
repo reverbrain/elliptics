@@ -1,3 +1,18 @@
+elliptics (2.18.0.1) unstable; urgency=low
+
+  * New interface for execution, reply and chaining
+  * Do not strip rpath
+  * Fixed server node cleanup bug when it destroyed locks first while IO threads could still use them
+  * dnet_send_cmd_raw() must always wait for ack
+  * Fixed thread creation bug in app_watcher when application does not exist
+  * Added -g flag to elliptics build
+  * Use weak symbols instead of stubs in client lib, since server also links to it and in Fedora it ends up using stubs from client lib
+  * Search for 0mq only of cocaine is enabled
+  * Update debian packaging
+  * Fixed build-depends
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 13 Sep 2012 03:58:37 +0400
+
 elliptics (2.17.0.4) unstable; urgency=low
 
   * elliptics-client must replace old-school elliptics-2.10
