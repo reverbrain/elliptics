@@ -32,7 +32,6 @@ set(ELLIPTICS_CLIENT_SRCS
     crypto.c
     pool.c
     crypto/sha512.c
-    client_stubs.c
     )
 
 include_directories(../include)

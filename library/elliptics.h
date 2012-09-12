@@ -493,7 +493,7 @@ static inline char *dnet_dump_node(struct dnet_node *n)
 }
 
 struct dnet_trans;
-int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
+int __attribute__((weak)) dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
 int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r);
 
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
@@ -514,7 +514,7 @@ enum dnet_join_state {
 	DNET_WANT_RECONNECT,		/* State must be reconnected, when remote peer failed */
 };
 
-int dnet_state_join_nolock(struct dnet_net_state *st);
+int __attribute__((weak)) dnet_state_join_nolock(struct dnet_net_state *st);
 
 struct dnet_trans
 {
