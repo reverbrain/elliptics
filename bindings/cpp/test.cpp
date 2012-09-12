@@ -251,32 +251,6 @@ static void test_append(node &n)
 	}
 }
 
-static void test_exec_python(node &n)
-{
-	try {
-		std::string binary = "binary data";
-		std::string script = "from time import time, ctime\n"
-			"__return_data = 'Current time is ' + ctime(time()) + '"
-				"|received binary data: ' + __input_binary_data_tuple[0].decode('utf-8')";
-
-		std::string ret;
-		std::string event = "python/eventXXX";
-
-		ret = n.exec(NULL, "python/eventXXX", script, binary);
-
-		std::cout << event << ": " << ret << std::endl;
-
-		event = "python/test_script.py";
-		script = "local_addr_string = 'this is local addr string' + "
-				"'|received binary data: ' + __input_binary_data_tuple[0].decode('utf-8')";
-		ret = n.exec(NULL, "python/eventXXX", script, binary);
-		std::cout << event << ": " << ret << std::endl;
-
-	} catch (const std::exception &e) {
-		std::cerr << "PYTHON exec test failed: " << e.what() << std::endl;
-	}
-}
-
 static void read_column_raw(node &n, const std::string &key, const std::string &data, int column)
 {
 	std::string ret;
@@ -595,8 +569,6 @@ int main(int argc, char *argv[])
 		test_range_request(n, 0, 1, 0, group_id);
 
 		test_append(n);
-
-		test_exec_python(n);
 
 		test_bulk_write(n);
 		test_bulk_read(n);
