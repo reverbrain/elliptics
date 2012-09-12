@@ -1142,6 +1142,7 @@ std::string node::raw_exec(struct dnet_id *id, const std::string &event, const s
 
 	memset(sph, 0, sizeof(struct sph));
 
+	sph->flags = DNET_SPH_FLAGS_SRC_BLOCK;
 	sph->data_size = data.size();
 	sph->binary_size = binary.size();
 	sph->event_size = event.size();

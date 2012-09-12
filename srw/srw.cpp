@@ -181,6 +181,7 @@ class dnet_job_t: public cocaine::engine::job_t
 
 		virtual void react(const cocaine::engine::events::choke& ) {
 			srw_log log(m_n, DNET_LOG_NOTICE, "app/" + m_name, "processing completed");
+			reply(true, NULL, 0);
 		}
 
 		virtual void react(const cocaine::engine::events::error& event) {
@@ -379,6 +380,7 @@ class srw {
 
 				if (final)
 					m_jobs.erase(it);
+
 				return 0;
 			} else {
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
