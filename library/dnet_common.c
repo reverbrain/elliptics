@@ -968,7 +968,6 @@ void dnet_wait_destroy(struct dnet_wait *w)
 
 static int dnet_send_cmd_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv)
 {
-	int err;
 	struct dnet_wait *w = priv;
 
 	if (is_trans_destroyed(st, cmd)) {
@@ -993,9 +992,7 @@ static int dnet_send_cmd_complete(struct dnet_net_state *st, struct dnet_cmd *cm
 		}
 	}
 
-	err = w->status;
-
-	return err;
+	return w->status;
 }
 
 static int dnet_send_cmd_single(struct dnet_net_state *st, struct dnet_wait *w, struct sph *e, uint64_t cflags)
@@ -1073,18 +1070,16 @@ static int dnet_send_cmd_raw(struct dnet_node *n, struct dnet_id *id,
 		pthread_mutex_unlock(&n->state_lock);
 	}
 
-	/* looks like nolock flag abuse - it is supposed not to lock command on the server */
-	if (!(cflags & DNET_FLAGS_NOLOCK)) {
-		err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
-		if (err)
-			goto err_out_put;
+	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
+	if (err)
+		goto err_out_put;
 
-		if (w->ret) {
-			*ret = w->ret;
-			w->ret = NULL;
+	dnet_log(n, DNET_LOG_INFO, "%s: return data: %p, size: %d\n", dnet_dump_id_str(e->src.id), w->ret, w->size);
+	if (w->ret) {
+		*ret = w->ret;
+		w->ret = NULL;
 
-			err = w->size;
-		}
+		err = w->size;
 	}
 
 	dnet_wait_put(w);
