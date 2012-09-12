@@ -1097,26 +1097,22 @@ std::vector<std::pair<struct dnet_id, struct dnet_addr> > node::get_routes()
 	return res;
 }
 
-std::string node::request(struct sph *sph, bool lock)
+std::string node::request(struct dnet_id *id, struct sph *sph, bool lock)
 {
 	std::string ret_str;
 
 	void *ret = NULL;
 	int err;
 
-	struct dnet_id id;
-	dnet_setup_id(&id, 0, sph->src.id);
-	id.type = 0;
-
 	if (lock)
-		err = dnet_send_cmd(m_node, &id, sph, &ret);
+		err = dnet_send_cmd(m_node, id, sph, &ret);
 	else
-		err = dnet_send_cmd_nolock(m_node, &id, sph, &ret);
+		err = dnet_send_cmd_nolock(m_node, id, sph, &ret);
 
 	if (err < 0) {
 		std::ostringstream str;
 
-		str << dnet_dump_id(&id) << ": failed to send request: " << strerror(-err) << ": " << err;
+		str << dnet_dump_id(id) << ": failed to send request: " << strerror(-err) << ": " << err;
 		throw std::runtime_error(str.str());
 	}
 
@@ -1133,7 +1129,8 @@ std::string node::request(struct sph *sph, bool lock)
 	return ret_str;
 }
 
-std::string node::raw_exec(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary, bool lock)
+std::string node::raw_exec(struct dnet_id *id, const struct sph *orig_sph,
+		const std::string &event, const std::string &data, const std::string &binary, bool lock)
 {
 	std::vector<char> vec(event.size() + data.size() + binary.size() + sizeof(struct sph));
 	std::string ret_str;
@@ -1141,49 +1138,69 @@ std::string node::raw_exec(struct dnet_id *id, const std::string &event, const s
 	struct sph *sph = (struct sph *)&vec[0];
 
 	memset(sph, 0, sizeof(struct sph));
+	if (orig_sph) {
+		*sph = *orig_sph;
+		sph->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
+	} else if (id) {
+		sph->flags = DNET_SPH_FLAGS_SRC_BLOCK;
+		memcpy(sph->src.id, id->id, sizeof(sph->src.id));
+	}
 
-	sph->flags = DNET_SPH_FLAGS_SRC_BLOCK;
 	sph->data_size = data.size();
 	sph->binary_size = binary.size();
 	sph->event_size = event.size();
-
-	memcpy(sph->src.id, id->id, sizeof(sph->src.id));
 
 	memcpy(sph->data, event.data(), event.size());
 	memcpy(sph->data + event.size(), data.data(), data.size());
 	memcpy(sph->data + event.size() + data.size(), binary.data(), binary.size());
 
-	return request(sph, lock);
+	return request(id, sph, lock);
 }
 
-std::string node::exec(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
+std::string node::exec_locked(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
 {
-	return raw_exec(id, event, data, binary, true);
+	return raw_exec(id, NULL, event, data, binary, true);
 }
 
-std::string node::push(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
+std::string node::exec_unlocked(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
 {
-	return raw_exec(id, event, data, binary, false);
+	return raw_exec(id, NULL, event, data, binary, false);
 }
 
-void node::reply(struct sph *sph, const std::string &event, const std::string &data, const std::string &binary)
+std::string node::push_locked(struct dnet_id *id, const struct sph &sph, const std::string &event,
+		const std::string &data, const std::string &binary)
+{
+	return raw_exec(id, &sph, event, data, binary, true);
+}
+
+std::string node::push_unlocked(struct dnet_id *id, const struct sph &sph, const std::string &event,
+		const std::string &data, const std::string &binary)
+{
+	return raw_exec(id, &sph, event, data, binary, false);
+}
+
+void node::reply(const struct sph &orig_sph, const std::string &event, const std::string &data, const std::string &binary)
 {
 	std::vector<char> vec(event.size() + data.size() + binary.size() + sizeof(struct sph));
 	std::string ret_str;
 
-	struct sph *e = (struct sph *)&vec[0];
+	struct sph *sph = (struct sph *)&vec[0];
 
-	*e = *sph;
+	*sph = orig_sph;
 
-	e->data_size = data.size();
-	e->binary_size = binary.size();
-	e->event_size = event.size();
+	sph->data_size = data.size();
+	sph->binary_size = binary.size();
+	sph->event_size = event.size();
 
-	memcpy(e->data, event.data(), event.size());
-	memcpy(e->data + event.size(), data.data(), data.size());
-	memcpy(e->data + event.size() + data.size(), binary.data(), binary.size());
+	memcpy(sph->data, event.data(), event.size());
+	memcpy(sph->data + event.size(), data.data(), data.size());
+	memcpy(sph->data + event.size() + data.size(), binary.data(), binary.size());
 
-	request(e, false);
+	struct dnet_id id;
+	dnet_setup_id(&id, 0, sph->src.id);
+	id.type = 0;
+
+	request(&id, sph, false);
 }
 
 namespace {

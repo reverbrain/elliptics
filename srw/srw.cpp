@@ -193,8 +193,10 @@ class dnet_job_t: public cocaine::engine::job_t
 
 		void reply(bool completed, const char *reply, size_t size) {
 			boost::mutex::scoped_lock guard(m_lock);
+
 			if (reply && size)
 				m_res.insert(m_res.end(), reply, reply + size);
+
 			m_completed = completed;
 			m_cond.notify_all();
 		}
@@ -377,7 +379,7 @@ class srw {
 				}
 
 				bool final = sph->flags & DNET_SPH_FLAGS_FINISH;
-				it->second->reply(final, (char *)sph, total_size(sph) + sizeof(struct sph));
+				it->second->reply(final, (char *)(sph + 1) + sph->event_size, sph->data_size + sph->event_size);
 				dnet_log(m_n, DNET_LOG_INFO, "%s: task completed(%x), total-data-size: %zd, finish: %d\n",
 						event.c_str(), sph->src_key, total_size(sph), final);
 

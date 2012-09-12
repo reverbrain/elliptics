@@ -369,7 +369,7 @@ class elliptics_node_python : public node {
 				const std::string &data, const std::string &binary) {
 			struct dnet_id raw = id.to_dnet();
 
-			return exec(&raw, event, data, binary);
+			return exec_locked(&raw, event, data, binary);
 		}
 
 		std::string exec_name_by_name(const std::string &remote, const std::string &event,
@@ -379,11 +379,11 @@ class elliptics_node_python : public node {
 			raw.type = 0;
 			raw.group_id = 0;
 
-			return exec(&raw, event, data, binary);
+			return exec_locked(&raw, event, data, binary);
 		}
 
 		std::string exec_name_all(const std::string &event, const std::string &data, const std::string &binary) {
-			return exec(NULL, event, data, binary);
+			return exec_locked(NULL, event, data, binary);
 		}
 
 		void remove_by_id(const struct elliptics_id &id, uint64_t cflags, uint64_t ioflags) {

@@ -385,15 +385,7 @@ int main(int argc, char *argv[])
 		free(sph);
 
 		if (err > 0) {
-			char *old = ret;
-
-			ret = realloc(ret, err + 1);
-			if (!ret)
-				ret = old;
-			else
-				ret[err] = '\0';
-
-			printf("%s: '%s'", cmd, ret);
+			printf("%.*s\n", err, ret);
 			free(ret);
 		}
 	}

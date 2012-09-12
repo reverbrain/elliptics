@@ -218,17 +218,24 @@ class node {
 
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
-		/* locked execution */
-		std::string		exec(struct dnet_id *id, const std::string &event, const std::string &data,
+		/*
+		 * start execution of the given event
+		 */
+		std::string		exec_locked(struct dnet_id *id, const std::string &event, const std::string &data,
+						const std::string &binary);
+		std::string		exec_unlocked(struct dnet_id *id, const std::string &event, const std::string &data,
 						const std::string &binary);
 
-		/* unlocked execution */
-		std::string		push(struct dnet_id *id, const std::string &event, const std::string &data,
-						const std::string &binary);
+		/*
+		 * execution with saving ID of the original (blocked) caller
+		 */
+		std::string		push_locked(struct dnet_id *id, const struct sph &sph,
+				const std::string &event, const std::string &data, const std::string &binary);
+		std::string		push_unlocked(struct dnet_id *id, const struct sph &sph,
+				const std::string &event, const std::string &data, const std::string &binary);
 
-		/* send reply back to blocked exec client */
-		std::string		request(struct sph *sph, bool lock);
-		void			reply(struct sph *sph, const std::string &event, const std::string &data,
+		/* send reply back to blocked execution client */
+		void			reply(const struct sph &sph, const std::string &event, const std::string &data,
 						const std::string &binary);
 
 		std::vector<std::string>	bulk_read(const std::vector<struct dnet_io_attr> &ios, uint64_t cflags = 0);
@@ -248,10 +255,12 @@ class node {
 
 
 		std::string		raw_exec(struct dnet_id *id,
+						const struct sph *sph,
 						const std::string &event,
 						const std::string &data,
 						const std::string &binary,
 						bool lock);
+		std::string		request(struct dnet_id *id, struct sph *sph, bool lock);
 };
 
 }}; /* namespace ioremap::elliptics */
