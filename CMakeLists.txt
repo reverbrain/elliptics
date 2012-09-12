@@ -43,7 +43,7 @@ else()
 endif()
 
 if (UNIX OR MINGW)
-    add_definitions(-W -Wall -Wextra -fstack-protector-all -fno-strict-aliasing)
+    add_definitions(-W -Wall -Wextra -fstack-protector-all -fno-strict-aliasing -g)
 endif()
 
 # Check for threads
