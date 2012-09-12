@@ -180,8 +180,11 @@ class dnet_job_t: public cocaine::engine::job_t
 		}
 
 		virtual void react(const cocaine::engine::events::choke& ) {
-			srw_log log(m_n, DNET_LOG_NOTICE, "app/" + m_name, "processing completed");
-			reply(true, NULL, 0);
+			srw_log log(m_n, DNET_LOG_NOTICE, "app/" + m_name, "processing completed, data size: " +
+					boost::lexical_cast<std::string>(m_res.size()));
+
+			if (m_res.size())
+				reply(true, NULL, 0);
 		}
 
 		virtual void react(const cocaine::engine::events::error& event) {
@@ -417,6 +420,9 @@ class srw {
 					if (res.size()) {
 						err = dnet_send_reply(st, cmd, res.data(), res.size(), 0);
 					}
+
+					dnet_log(m_n, DNET_LOG_NOTICE, "%s: %s: blocked task reply: %zd bytes\n",
+							event.c_str(), dnet_dump_id_str(sph->src.id), res.size());
 				}
 
 				return err;
