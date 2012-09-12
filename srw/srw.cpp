@@ -225,10 +225,11 @@ typedef boost::shared_ptr<dnet_job_t> dnet_shared_job_t;
 class app_watcher {
 	public:
 		app_watcher(cocaine::context_t &ctx, const std::string &app) :
-		m_need_exit(false),
-		m_thread(boost::bind(&app_watcher::process, this)) {
+		m_need_exit(false) {
 			m_app.reset(new cocaine::app_t(ctx, app));
 			m_app->start();
+
+			m_thread = boost::thread(&app_watcher::process, this);
 		}
 
 		~app_watcher() {
