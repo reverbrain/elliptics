@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.18.0.1
+Version:	2.18.1.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Sep 14 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.1.1
+- Update version num
+
 * Thu Sep 13 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.0.1
 - New interface for execution, reply and chaining
 - Do not strip rpath

@@ -1,3 +1,9 @@
+elliptics (2.18.1.1) unstable; urgency=low
+
+  * Update version num
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 14 Sep 2012 15:02:59 +0400
+
 elliptics (2.18.0.1) unstable; urgency=low
 
   * New interface for execution, reply and chaining
