@@ -507,7 +507,7 @@ void dnet_backend_log_raw(int level, const char *format, ...)
 	struct dnet_log *l = dnet_cfg_state.log;
 	int buflen = sizeof(buf);
 
-	if (!l->log || !(l->log_level < level))
+	if (!dnet_backend_check_log_level(level))
 		return;
 
 	va_start(args, format);
