@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.18.1.1
+Version:	2.18.1.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Sep 17 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.1.2
+- dnet_backend_log_raw() should use dnet_backend_check_log_level() to check log level
+- Added startup stack size check
+- Cocaine job has to be created only when it can be queued
+
 * Fri Sep 14 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.1.1
 - Update version num
 

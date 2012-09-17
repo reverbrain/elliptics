@@ -1,3 +1,11 @@
+elliptics (2.18.1.2) unstable; urgency=low
+
+  * dnet_backend_log_raw() should use dnet_backend_check_log_level() to check log level
+  * Added startup stack size check
+  * Cocaine job has to be created only when it can be queued
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 17 Sep 2012 23:40:39 +0400
+
 elliptics (2.18.1.1) unstable; urgency=low
 
   * Update version num
