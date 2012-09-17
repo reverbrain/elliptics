@@ -143,6 +143,30 @@ err_out_exit:
 	return NULL;
 }
 
+static int dnet_node_check_stack(struct dnet_node *n)
+{
+	size_t stack_size;
+	int err;
+
+	err = pthread_attr_getstacksize(&n->attr, &stack_size);
+	if (err) {
+		err = -err;
+		dnet_log_err(n, "Failed to get stack size: %d", err);
+		goto err_out_exit;
+	}
+
+	if (stack_size <= 1024 * 1024) {
+		dnet_log(n, DNET_LOG_ERROR, "Stack size (%zd bytes) is too small, exiting\n", stack_size);
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	dnet_log(n, DNET_LOG_NOTICE, "Stack size: %zd bytes\n", stack_size);
+
+err_out_exit:
+	return err;
+}
+
 struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 {
 	struct dnet_node *n;
@@ -151,16 +175,19 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 	int err = -ENOMEM;
 
 	n = dnet_node_create(cfg);
-	if (!n) {
+	if (!n)
 		goto err_out_exit;
-	}
+
+	err = dnet_node_check_stack(n);
+	if (err)
+		goto err_out_node_destroy;
 
 	if (!n->notify_hash_size) {
 		n->notify_hash_size = DNET_DEFAULT_NOTIFY_HASH_SIZE;
 
-	err = dnet_notify_init(n);
-	if (err)
-		goto err_out_node_destroy;
+		err = dnet_notify_init(n);
+		if (err)
+			goto err_out_node_destroy;
 
 		dnet_log(n, DNET_LOG_NOTICE, "No notify hash size provided, using default %d.\n",
 				n->notify_hash_size);
