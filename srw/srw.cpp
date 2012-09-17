@@ -393,15 +393,15 @@ class srw {
 					memcpy(sph->src.id, cmd->id.id, sizeof(sph->src.id));
 				}
 
-				dnet_shared_job_t job(boost::make_shared<dnet_job_t>(m_n, ev,
-						cocaine::blob_t((const char *)sph, total_size(sph) + sizeof(struct sph))));
-
 				boost::mutex::scoped_lock guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
 					dnet_log(m_n, DNET_LOG_ERROR, "%s: no task '%s' started\n", event.c_str(), app.c_str());
 					return -ENOENT;
 				}
+
+				dnet_shared_job_t job(boost::make_shared<dnet_job_t>(m_n, ev,
+						cocaine::blob_t((const char *)sph, total_size(sph) + sizeof(struct sph))));
 
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK)
 					m_jobs.insert(std::make_pair(sph->src_key, job));
