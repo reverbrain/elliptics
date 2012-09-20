@@ -194,7 +194,6 @@ class elliptics_node_python : public node {
 			write_metadata((const dnet_id&)raw, remote, groups, ts, cflags);
 		}
 
-
 		void read_file_by_id(struct elliptics_id &id, const std::string &file, uint64_t offset, uint64_t size) {
 			struct dnet_id raw = id.to_dnet();
 			read_file(raw, file, offset, size);
@@ -280,6 +279,18 @@ class elliptics_node_python : public node {
 		std::string write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset,
 				uint64_t cflags, unsigned int ioflags, int type) {
 			return write_data_wait(remote, data, remote_offset, cflags, ioflags, type);
+		}
+
+		std::string write_cache_by_id(const struct elliptics_id &id, const std::string &data,
+				uint64_t cflags, unsigned int ioflags, long timeout) {
+			struct dnet_id raw = id.to_dnet();
+			raw.type = 0;
+			return write_cache(raw, data, cflags, ioflags, timeout);
+		}
+
+		std::string write_cache_by_data_transform(const std::string &remote, const std::string &data,
+				uint64_t cflags, unsigned int ioflags, long timeout) {
+			return write_cache(remote, data, cflags, ioflags, timeout);
 		}
 
 		std::string lookup_addr_by_data_transform(const std::string &remote, const int group_id) {
@@ -562,14 +573,17 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("write_data", &elliptics_node_python::write_data_by_id)
 		.def("write_data", &elliptics_node_python::write_data_by_data_transform)
 
+		.def("write_metadata", &elliptics_node_python::write_metadata_by_id)
+		.def("write_metadata", &elliptics_node_python::write_metadata_by_data_transform)
+
+		.def("write_cache", &elliptics_node_python::write_cache_by_id)
+		.def("write_cache", &elliptics_node_python::write_cache_by_data_transform)
+
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_data_transform)
 		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_id)
 
 		.def("lookup", &elliptics_node_python::lookup_by_data_transform)
 		.def("lookup", &elliptics_node_python::lookup_by_id)
-
-		.def("write_metadata", &elliptics_node_python::write_metadata_by_id)
-		.def("write_metadata", &elliptics_node_python::write_metadata_by_data_transform)
 
 		.def("update_status", &elliptics_node_python::update_status_by_id)
 		.def("update_status", &elliptics_node_python::update_status_by_string)

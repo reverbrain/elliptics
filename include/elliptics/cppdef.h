@@ -183,6 +183,11 @@ class node {
 		std::string		write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
 						uint64_t cflags, unsigned int ioflags, int type);
 
+		std::string		write_cache(struct dnet_id &id, const std::string &str,
+						uint64_t cflags, unsigned int ioflags, long timeout);
+		std::string		write_cache(const std::string &key, const std::string &str,
+						uint64_t cflags, unsigned int ioflags, long timeout);
+
 		std::string		lookup_addr(const std::string &remote, const int group_id);
 		std::string		lookup_addr(const struct dnet_id &id);
 

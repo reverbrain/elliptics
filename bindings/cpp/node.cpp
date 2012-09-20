@@ -415,6 +415,52 @@ std::string node::read_latest(const std::string &remote, uint64_t offset, uint64
 	return read_latest(id, offset, size, cflags, ioflags);
 }
 
+std::string node::write_cache(struct dnet_id &id, const std::string &str,
+		uint64_t cflags, unsigned int ioflags, long timeout)
+{
+	struct dnet_io_control ctl;
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.cflags = cflags;
+	ctl.data = str.data();
+
+	ctl.io.flags = ioflags | DNET_IO_FLAGS_CACHE;
+	ctl.io.start = timeout;
+	ctl.io.size = str.size();
+	ctl.io.type = id.type;
+	ctl.io.num = str.size();
+
+	memcpy(&ctl.id, &id, sizeof(struct dnet_id));
+
+	ctl.fd = -1;
+
+	char *result = NULL;
+	int err = dnet_write_data_wait(m_node, &ctl, (void **)&result);
+	if (err < 0) {
+		std::ostringstream string;
+		string << dnet_dump_id(&id) << ": WRITE: size: " << str.size() << ", err: " << err;
+		throw std::runtime_error(string.str());
+	}
+
+	std::string ret((const char *)result, err);
+	free(result);
+
+	return ret;
+}
+
+std::string node::write_cache(const std::string &key, const std::string &str,
+		uint64_t cflags, unsigned int ioflags, long timeout)
+{
+	struct dnet_id id;
+
+	transform(key, id);
+	id.type = 0;
+	id.group_id = 0;
+
+	return write_cache(id, str, cflags, ioflags, timeout);
+}
+
 std::string node::write_data_wait(struct dnet_id &id, const std::string &str,
 		uint64_t remote_offset, uint64_t cflags, unsigned int ioflags)
 {
