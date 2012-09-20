@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.18.1.2
+Version:	2.18.2.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 20 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.2.1
+- Added c++/python bindings for cache write operations (including timeout)
+- Added remove-from-disk cache operation: when such flag is set (at write time)"
+-     if object is removed from cache, it is also removed from disk
+- Increase example number of non-blocking io threads
+- Added 'overwrite commits write' comment
+
 * Mon Sep 17 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.1.2
 - dnet_backend_log_raw() should use dnet_backend_check_log_level() to check log level
 - Added startup stack size check

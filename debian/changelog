@@ -1,3 +1,13 @@
+elliptics (2.18.2.1) unstable; urgency=low
+
+  * Added c++/python bindings for cache write operations (including timeout)
+  * Added remove-from-disk cache operation: when such flag is set (at write time)"
+  *     if object is removed from cache, it is also removed from disk
+  * Increase example number of non-blocking io threads
+  * Added 'overwrite commits write' comment
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 20 Sep 2012 23:47:29 +0400
+
 elliptics (2.18.1.2) unstable; urgency=low
 
   * dnet_backend_log_raw() should use dnet_backend_check_log_level() to check log level
