@@ -86,6 +86,49 @@ err_out_exit:
 	return err;
 }
 
+int dnet_remove_local(struct dnet_node *n, struct dnet_id *id)
+{
+	int cmd_size;
+	struct dnet_cmd *cmd;
+	struct dnet_io_attr *io;
+	int err;
+
+	cmd_size = sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr);
+
+	cmd = malloc(cmd_size);
+	if (!cmd) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate %d bytes for local remove.\n",
+				dnet_dump_id(id), cmd_size);
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memset(cmd, 0, cmd_size);
+
+	io = (struct dnet_io_attr *)(cmd + 1);
+
+	cmd->id = *id;
+	cmd->size = cmd_size - sizeof(struct dnet_cmd);
+	cmd->flags = DNET_FLAGS_NOLOCK;
+	cmd->cmd = DNET_CMD_DEL;
+
+	io->flags = DNET_IO_FLAGS_SKIP_SENDING;
+
+	memcpy(io->parent, id->id, DNET_ID_SIZE);
+	memcpy(io->id, id->id, DNET_ID_SIZE);
+
+	dnet_convert_io_attr(io);
+
+	err = n->cb->command_handler(n->st, n->cb->command_private, cmd, io);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: local remove: err: %d.\n", dnet_dump_id(&cmd->id), err);
+
+	free(cmd);
+
+err_out_exit:
+	return err;
+
+}
+
 static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
 		struct dnet_id *id, uint64_t trans, unsigned int command, int reply, int direct, int more)
 {

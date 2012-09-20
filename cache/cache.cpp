@@ -101,7 +101,8 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 			memcpy(m_id.id, id, DNET_ID_SIZE);
 		}
 
-		data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size) : m_lifetime(0) {
+		data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
+		m_lifetime(0), m_remove_from_disk(remove_from_disk) {
 			memcpy(m_id.id, id, DNET_ID_SIZE);
 
 			if (lifetime)
@@ -125,6 +126,10 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 			return m_lifetime;
 		}
 
+		bool remove_from_disk() const {
+			return m_remove_from_disk;
+		}
+
 		size_t size(void) const {
 			return m_data->size();
 		}
@@ -143,6 +148,7 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 
 	private:
 		size_t m_lifetime;
+		bool m_remove_from_disk;
 		struct dnet_raw_id m_id;
 		boost::shared_ptr<raw_data_t> m_data;
 };
@@ -164,7 +170,7 @@ typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<time_set_base_
 
 class cache_t {
 	public:
-		cache_t(size_t cache_size) : m_need_exit(false), m_cache_size(0), m_max_cache_size(cache_size) {
+		cache_t(struct dnet_node *n) : m_need_exit(false), m_node(n), m_cache_size(0), m_max_cache_size(n->cache_size) {
 			m_lifecheck = boost::thread(boost::bind(&cache_t::life_check, this));
 		}
 
@@ -178,7 +184,7 @@ class cache_t {
 			}
 		}
 
-		void write(const unsigned char *id, size_t lifetime, const char *data, size_t size) {
+		void write(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) {
 			boost::mutex::scoped_lock guard(m_lock);
 
 			iset_t::iterator it = m_set.find(id);
@@ -191,7 +197,7 @@ class cache_t {
 			/*
 			 * nothing throws exception below this 'new' operator, so there is no try/catch block
 			 */
-			data_t *raw = new data_t(id, lifetime, data, size);
+			data_t *raw = new data_t(id, lifetime, data, size, remove_from_disk);
 
 			m_set.insert(*raw);
 			m_lru.push_back(*raw);
@@ -215,12 +221,25 @@ class cache_t {
 
 		bool remove(const unsigned char *id) {
 			bool removed = false;
+			bool remove_from_disk = false;
 
 			boost::mutex::scoped_lock guard(m_lock);
 			iset_t::iterator it = m_set.find(id);
 			if (it != m_set.end()) {
+				remove_from_disk = it->remove_from_disk();
 				erase_element(&(*it));
 				removed = true;
+			}
+
+			guard.unlock();
+
+			if (remove_from_disk) {
+				struct dnet_id raw;
+
+				dnet_setup_id(&raw, 0, (unsigned char *)id);
+				raw.type = -1;
+
+				dnet_remove_local(m_node, &raw);
 			}
 
 			return removed;
@@ -228,6 +247,7 @@ class cache_t {
 
 	private:
 		bool m_need_exit;
+		struct dnet_node *m_node;
 		size_t m_cache_size, m_max_cache_size;
 		boost::mutex m_lock;
 		iset_t m_set;
@@ -261,6 +281,8 @@ class cache_t {
 
 		void life_check(void) {
 			while (!m_need_exit) {
+				std::deque<struct dnet_id> remove;
+
 				while (!m_need_exit && !m_lifeset.empty()) {
 					size_t time = ::time(NULL);
 
@@ -273,7 +295,20 @@ class cache_t {
 					if (it->lifetime() > time)
 						break;
 
+					if (it->remove_from_disk()) {
+						struct dnet_id id;
+
+						dnet_setup_id(&id, 0, (unsigned char *)it->id().id);
+						id.type = -1;
+
+						remove.push_back(id);
+					}
+
 					erase_element(&(*it));
+				}
+
+				for (std::deque<struct dnet_id>::iterator it = remove.begin(); it != remove.end(); ++it) {
+					dnet_remove_local(m_node, &(*it));
 				}
 
 				sleep(1);
@@ -303,7 +338,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *dat
 
 		switch (cmd->cmd) {
 			case DNET_CMD_WRITE:
-				cache->write(io->id, io->start, data, io->size);
+				cache->write(io->id, io->start, data, io->size, !!(io->flags & DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK));
 				err = 0;
 				break;
 			case DNET_CMD_READ:
@@ -342,7 +377,7 @@ int dnet_cache_init(struct dnet_node *n)
 		return 0;
 
 	try {
-		n->cache = (void *)(new cache_t(n->cache_size));
+		n->cache = (void *)(new cache_t(n));
 	} catch (const std::exception &e) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Could not create cache: %s\n", e.what());
 		return -ENOMEM;

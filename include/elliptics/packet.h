@@ -292,6 +292,7 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
  */
 #define DNET_IO_FLAGS_CACHE		(1<<10)
 #define DNET_IO_FLAGS_CACHE_ONLY	(1<<11)
+#define DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK	(1<<12)
 
 struct dnet_io_attr
 {
