@@ -32,8 +32,8 @@ class Range(libelliptics_python.elliptics_range):
      Structure that describes range request
      start, end - IDs of the start and the end of the range
      offset, size - offset to read from and size of bytes to read, applied for each key
-     cflags - command flags like locking, checksum and so on (default is 0)
-     ioflags - command IO flags (default is 0)
+     cflags - command flags like locking so on (default is 0, see cflags class for defenitions)
+     ioflags - command IO flags (default is 0, see ioflags class for definitions)
      group - group ID of the object
      type - column
     """
@@ -44,36 +44,30 @@ class Logger(libelliptics_python.elliptics_log_file):
     """
      Logger, that needed in Node constructor
      Constructor takes 2 arguments: log file name (default is "/dev/stderr")
-     and log mask (default is 40)
+     and log level (default is log_level.error, see log_level class for definitions)
     """
     log_file_name = ""
-    log_mask = ""
+    llevel = log_level.error
 
-    def __init__(self, log_file_name="/dev/stderr", log_mask=40):
+    def __init__(self, log_file_name = "/dev/stderr", llevel = log_level.error):
         """
           log_file_name - name of the log file, default value is "/dev/stderr"
-          log_mask - logging mask, default value is 40. Log mask bits:
-              0 - NOTICE
-              1 - INFO
-              2 - TRANSACTIONS
-              3 - ERROR
-              4 - DEBUG
-              5 - DATA
+          log_level - logging level, see log_level class for definitions
         """
         self.log_file_name = log_file_name
-        self.log_mask = log_mask
-        super(Logger, self).__init__(log_file_name, log_mask)
+        self.llevel = llevel
+        super(Logger, self).__init__(log_file_name, llevel)
 
-    def log(self, message, mask=16):
+    def log(self, message, level):
         """
           log some message into elliptics log file
           message - text message
-          mask - log mask, default is DEBUG (see __init__ docstring for log mask bits)
+          level - log level, default is log_level.error (see log_level class for definitions)
         """
-        super(Logger, self).log(mask, message)
+        super(Logger, self).log(level, message)
 
     def __repr__(self):
-        return "<Logger log_file_name:\"%s\" log_mask:%x>" % (self.log_file_name, self.log_mask)
+        return "<Logger log_file_name:\"%s\" log_level:%d>" % (self.log_file_name, self.llevel)
 
 
 class Node(libelliptics_python.elliptics_node_python):
@@ -90,6 +84,8 @@ class Node(libelliptics_python.elliptics_node_python):
     def add_remote(self, addr, port, family=2):
         """
           Add address of elliptics storage node and connect to it
+	  Usually you do not want to exit if client failed to connect to remote node, so catch up exceptions
+	  But if no remote nodes were successfully added (check get_routes()) then client should not continue
           addr - storage address
           port - storage port
           family - IP protocol family: 2 for IPv4 (default value) and 10 for IPv6
@@ -137,15 +133,15 @@ class Node(libelliptics_python.elliptics_node_python):
         """
         return super(Node, self).lookup_addr(*args, **{})
 
-    def read_file(self, key, filename, offset=0, size=0, type_=0):
+    def read_file(self, key, filename, offset = 0, size = 0, column = 0):
         """
           Read file from elliptics by name/ID
           signatures:
-              read_file(key, filename, offset, size, type)
+              read_file(key, filename, offset, size, column)
               read_file(id, filename, offset, size)
 
           key - remote key name
-          type - column type (default is 0, 1 is reserved for metadata)
+          column - column type (default is 0, 1 is reserved for metadata)
           id - object of Id class
 
           filename - name of local file where data will be saved
@@ -153,132 +149,133 @@ class Node(libelliptics_python.elliptics_node_python):
           size - number of bytes to read, 0 means whole file (default is 0)
         """
         if isinstance(key, basestring):
-            new_args = [str(key), filename, offset, size, type_]
+            new_args = [str(key), filename, offset, size, column]
         else:
             new_args = [key, filename, offset, size]
 
         super(Node, self).read_file(*new_args)
 
-    def write_file(self, key, filename, local_offset=0, offset=0, size=0, aflags=0, ioflags=0, type_=0):
+    def write_file(self, key, filename, local_offset = 0, offset = 0, size = 0, \
+		    cflags = command_flags.default, ioflags = io_flags.default, column = 0):
         """
           Write file into elliptics by name/ID
           signatures:
-              write_file(key, filename, local_offset, offset, size, aflags, ioflags, type)
-              write_file(id, filename, local_offset, offset, size, aflags, ioflags)
+              write_file(key, filename, local_offset, offset, size, cflags, ioflags, column)
+              write_file(id, filename, local_offset, offset, size, cflags, ioflags)
 
           key - remote key name
-          type - column type (default is 0, 1 is reserved for metadata)
+          column - column type (default is 0, 1 is reserved for metadata)
           id - object of Id class
 
           filename - name of local file
           local_offset - read local file from this offset (default 0)
           offset - write file from this offset (default 0)
           size - number of bytes to write, 0 means whole file (default is 0)
-          aflags - command attributes flags (default is 0)
-          ioflags - command IO flags (default is 0)
+          cflags - command flags (default is 0, see command_flags class for definitions)
+          ioflags - command IO flags (default is 0, see io_flags class for definitions)
         """
         if isinstance(key, basestring):
-            new_args = [str(key), filename, local_offset, offset, size, aflags, ioflags, type_]
+            new_args = [str(key), filename, local_offset, offset, size, cflags, ioflags, column]
         else:
-            new_args = [key, filename, local_offset, offset, size, aflags, ioflags]
+            new_args = [key, filename, local_offset, offset, size, cflags, ioflags]
 
         super(Node, self).read_file(*new_args)
 
-    def _create_read_args(self, key, offset=0, size=0, aflags=0, ioflags=0, type_=0):
+    def _create_read_args(self, key, offset = 0, size = 0, cflags = command_flags.default, ioflags = io_flags.default, column = 0):
         if isinstance(key, basestring):
-            return [str(key), offset, size, aflags, ioflags, type_]
+            return [str(key), offset, size, cflags, ioflags, column]
         else:
-            return [key, offset, size, aflags, ioflags]
+            return [key, offset, size, cflags, ioflags]
 
-    def read_data(self, key, offset=0, size=0, aflags=0, ioflags=0, type_=0):
+    def read_data(self, key, offset = 0, size = 0, cflags = command_flags.default, ioflags = io_flags.default, column = 0):
         """
           Read data from elliptics by name/ID
           signatures:
-              read_data(key, offset, size, aflags, ioflags, type)
-              read_data(id, offset, size, aflags, ioflags)
+              read_data(key, offset, size, cflags, ioflags, column)
+              read_data(id, offset, size, cflags, ioflags)
 
           key - remote key name
-          type - column type (default is 0, 1 is reserved for metadata)
+          column - column type (default is 0, 1 is reserved for metadata)
           id - object of Id class
 
           offset - read file from this offset (default 0)
           size - number of bytes to read, 0 means whole file (default is 0)
-          aflags - command attributes flags (default is 0)
-          ioflags - command IO flags (default is 0)
+          cflags - command flags (default is 0, see command_flags class for definitions)
+          ioflags - command IO flags (default is 0, see io_flags class for definitions)
 
           return value:
           string - key value content
         """
-        return super(Node, self).read_data(*self._create_read_args(key, offset, size, aflags, ioflags, type_))
+        return super(Node, self).read_data(*self._create_read_args(key, offset, size, cflags, ioflags, column))
 
     read = read_data
 
-    def read_latest(self, key, offset=0, size=0, aflags=0, ioflags=0, type_=0):
+    def read_latest(self, key, offset = 0, size = 0, cflags = command_flags.default, ioflags = io_flags.default, column = 0):
         """
           Read data from elliptics by name/ID with the latest update_date in metadata
           signatures:
-              read_latest(key, offset, size, aflags, ioflags, type)
-              read_latest(id, offset, size, aflags, ioflags)
+              read_latest(key, offset, size, cflags, ioflags, column)
+              read_latest(id, offset, size, cflags, ioflags)
 
           key - remote key name
-          type - column type (default is 0, 1 is reserved for metadata)
+          column - column type (default is 0, 1 is reserved for metadata)
           id - object of Id class
 
           offset - read file from this offset (default 0)
           size - number of bytes to read, 0 means whole file (default is 0)
-          aflags - command attributes flags (default is 0)
-          ioflags - command IO flags (default is 0)
+          cflags - command flags flags (default is 0, see command_flags class for definitions)
+          ioflags - command IO flags (default is 0, see io_flags class for definitions)
 
           return value:
           string - key value content
         """
-        return super(Node, self).read_latest(*self._create_read_args(key, offset, size, aflags, ioflags, type_))
+        return super(Node, self).read_latest(*self._create_read_args(key, offset, size, cflags, ioflags, column))
 
-    def create_write_args(self, key, data, offset, ioflags, aflags, type_):
+    def create_write_args(self, key, data, offset, ioflags, cflags, column):
         if isinstance(key, basestring):
-            return [str(key), data, offset, aflags, ioflags, type_]
+            return [str(key), data, offset, cflags, ioflags, column]
         else:
-            return [key, data, offset, aflags, ioflags]
+            return [key, data, offset, cflags, ioflags]
 
-    def write_data(self, key, data, offset=0, aflags=0, ioflags=0, type_=0):
+    def write_data(self, key, data, offset = 0, cflags = command_flags.default, ioflags = io_flags.default, column = 0):
         """
          Write data into elliptics by name/ID
          signatures:
-             write_data(key, data, offset, aflags, ioflags, type)
-             write_data(id, data, offset, aflags, ioflags)
+             write_data(key, data, offset, cflags, ioflags, column)
+             write_data(id, data, offset, cflags, ioflags)
 
          key - remote key name
-         type - column type (default is 0, 1 is reserved for metadata)
+         column - column type (default is 0, 1 is reserved for metadata)
          id - object of Id class
 
          data - data to be written
          offset - write data in remote from this offset (default 0)
-         aflags - command attributes flags (default is 0)
-         ioflags - command IO flags (default is 0)
+         cflags - command flags flags (default is 0, see command_flags class for definitions)
+         ioflags - command IO flags (default is 0, see io_flags class for definitions)
 
          return value:
          string - nodes and paths where data was stored
          """
-        return super(Node, self).write_data(*self.create_write_args(key, data, offset, ioflags, aflags, type_))
+        return super(Node, self).write_data(*self.create_write_args(key, data, offset, ioflags, cflags, column))
 
-    def write_metadata(self, key, aflags=0, name=None, groups=None):
+    def write_metadata(self, key, cflags = command_flags.default, name = None, groups = None):
         """
          Write metadata into elliptics by name/ID
          signatures:
-             write_metadata(key, aflags)
-             write_metadata(id, name, groups, aflags)
+             write_metadata(key, cflags)
+             write_metadata(id, name, groups, cflags)
 
          key - remote key name
          id - object of Id class
 
          name - key name
          groups - groups where data was stored
-         aflags - command attributes flags (default is 0)
+         cflags - command flags (default is 0, see command_flags class for definitions)
         """
         if isinstance(key, basestring):
-            new_args = [str(key), aflags]
+            new_args = [str(key), cflags]
         else:
-            new_args = [key, name, groups, aflags]
+            new_args = [key, name, groups, cflags]
 
         super(Node, self).write_metadata(*new_args)
 
@@ -289,24 +286,24 @@ class Node(libelliptics_python.elliptics_node_python):
         self.write_data(key, data)
         self.write_metadata(key)
 
-    def remove(self, key, aflags=0, ioflags=0, type_=0, ):
+    def remove(self, key, cflags = command_flags.default, ioflags = io_flags.default, column = 0):
         """
              Remove key by name/ID
              signatures:
-                 remove(key, aflags, type)
-                 remove(id, aflags, ioflags)
+                 remove(key, cflags, ioflags, column)
+                 remove(id, cflags, ioflags)
 
              key - remote key name
-             type - column type (default is 0, 1 is reserved for metadata)
+             column - column type (default is 0, 1 is reserved for metadata)
              id - object of Id class
 
-             aflags - command attributes flags (default is 0)
-             ioflags - IO flags (like cache)
+             cflags - command flags flags (default is 0, see command_flags class for definitions)
+             ioflags - command IO flags (default is 0, see io_flags class for definitions)
         """
         if isinstance(key, basestring):
-            new_args = [str(key), aflags, type_]
+            new_args = [str(key), cflags, ioflags, column]
         else:
-            new_args = [key, aflags]
+            new_args = [key, cflags, ioflags]
 
         super(Node, self).remove(*new_args)
 
@@ -314,52 +311,26 @@ class Node(libelliptics_python.elliptics_node_python):
         """
              Execite server-side script
              signatures:
-                 exec(id, script, binary, type)
-                 exec(script, binary, type)
-                 exec(key, script, binary, type)
+                 exec(id, event, data, binary)
+                 exec(key, event, data, binary)
+                 exec(event, data, binary)
 
              key - remote key name
              id - object of Id class
 
-             script - server-side script
-             binary - data for server-side script
-             type - type of execution
+             event - server-side event name
+	     data - data for given event
+             binary - binary data (its logical meaning is the same as for data, it was added for convenience)
 
-             If execute() is called with 3 arguments script will be runned on all storage nodes.
-             If id or key is specified script will be runned on one node according to key/id.
+             If execute() is called with 3 arguments script will be started on all storage nodes.
+             If id or key is specified script will be started on the node which hosts given key/id.
 
              return value:
              string - result of the script execution
         """
         return super(Node, self).execute(*args, **{})
 
-
-    def exec_name(self, *args, **kwargs):
-        """
-             Execite server-side script by name
-             signatures:
-                 exec_name(id, name, script, binary, type)
-                 exec_name(name, script, binary, type)
-                 exec_name(key, name, script, binary, type)
-
-             key - remote key name
-             id - object of Id class
-
-             name - server-side script name
-             script - server-side script
-             binary - data for server-side script
-             type - type of execution
-
-             If exec_name() is called with 3 arguments script will be runned on all storage nodes.
-             If id or key is specified script will be runned on one node according to key/id.
-
-             return value:
-             string - result of the script execution
-        """
-        return super(Node, self).exec_name(*args, **{})
-
-
-    def update_status(self, key, status=None, update=0):
+    def update_status(self, key, status = None, update = 0):
         """
              Update elliptics status and log mask
              signatures:
@@ -390,18 +361,16 @@ class Node(libelliptics_python.elliptics_node_python):
         ret.__class__ = NodeStatus
         return ret
 
-
-    def bulk_read(self, keys, group_id, aflags=0):
+    def bulk_read(self, keys, cflags = command_flags.default):
         """
              Bulk read keys from elliptics
              keys - list of keys by name
-             group_id - group ID
-             aflags - command attributes flags (default is 0)
+             cflags - command flags (default is 0, see command_flags class for definitions)
 
              return value:
              list - list of strings, each string consists of 64 byte key, 8 byte data length and data itself
         """
-        return super(Node, self).bulk_read(keys, group_id, aflags)
+        return super(Node, self).bulk_read(keys, cflags)
 
 
     def read_data_range(self, read_range):

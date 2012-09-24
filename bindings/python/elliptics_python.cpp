@@ -23,6 +23,35 @@
 using namespace boost::python;
 using namespace ioremap::elliptics;
 
+enum elliptics_cflags {
+	cflags_default = 0,
+	cflags_direct = DNET_FLAGS_DIRECT,
+	cflags_nolock = DNET_FLAGS_NOLOCK,
+};
+
+enum elliptics_ioflags {
+	ioflags_default = 0,
+	ioflags_append = DNET_IO_FLAGS_APPEND,
+	ioflags_compress = DNET_IO_FLAGS_COMPRESS,
+	ioflags_meta = DNET_IO_FLAGS_META,
+	ioflags_prepare = DNET_IO_FLAGS_PREPARE,
+	ioflags_commit = DNET_IO_FLAGS_COMMIT,
+	ioflags_overwrite = DNET_IO_FLAGS_OVERWRITE,
+	ioflags_nocsum = DNET_IO_FLAGS_NOCSUM,
+	ioflags_plain_write = DNET_IO_FLAGS_PLAIN_WRITE,
+	ioflags_cache = DNET_IO_FLAGS_CACHE,
+	ioflags_cache_only = DNET_IO_FLAGS_CACHE_ONLY,
+	ioflags_cache_remove_from_disk = DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK,
+};
+
+enum elliptics_log_level {
+	log_level_data = DNET_LOG_DATA,
+	log_level_error = DNET_LOG_ERROR,
+	log_level_info = DNET_LOG_INFO,
+	log_level_notice = DNET_LOG_NOTICE,
+	log_level_debug = DNET_LOG_DEBUG,
+};
+
 static void elliptics_extract_arr(const list &l, unsigned char *dst, int *dlen)
 {
 	int length = len(l);
@@ -403,8 +432,8 @@ class elliptics_node_python : public node {
 			remove_raw(raw, cflags, ioflags);
 		}
 
-		void remove_by_name(const std::string &remote, int type, uint64_t cflags, uint64_t ioflags) {
-			remove_raw(remote, type, cflags, ioflags);
+		void remove_by_name(const std::string &remote, uint64_t cflags, uint64_t ioflags, int type) {
+			remove_raw(remote, cflags, ioflags, type);
 		}
 
 		list bulk_read_by_name(const list &keys, uint64_t cflags = 0) {
@@ -601,5 +630,35 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("remove", &elliptics_node_python::remove_by_name)
 
 		.def("bulk_read", &elliptics_node_python::bulk_read_by_name)
+	;
+
+	enum_<elliptics_cflags>("command_flags")
+		.value("default", cflags_default)
+		.value("direct", cflags_direct)
+		.value("nolock", cflags_nolock)
+	;
+
+	enum_<elliptics_ioflags>("io_flags")
+		.value("default", ioflags_default)
+		.value("append", ioflags_append)
+		.value("compress", ioflags_compress)
+		.value("meta", ioflags_meta)
+		.value("prepare", ioflags_prepare)
+		.value("commit", ioflags_commit)
+		.value("overwrite", ioflags_overwrite)
+		.value("nocsum", ioflags_nocsum)
+		.value("plain_write", ioflags_plain_write)
+		.value("nodata", ioflags_plain_write)
+		.value("cache", ioflags_cache)
+		.value("cache_only", ioflags_cache_only)
+		.value("cache_remove_from_disk", ioflags_cache_remove_from_disk)
+	;
+
+	enum_<elliptics_log_level>("log_level")
+		.value("data", log_level_data)
+		.value("error", log_level_error)
+		.value("info", log_level_info)
+		.value("notice", log_level_notice)
+		.value("debug", log_level_debug)
 	;
 };
