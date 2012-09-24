@@ -720,7 +720,7 @@ int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sp
 
 int dnet_cache_init(struct dnet_node *n);
 void dnet_cache_cleanup(struct dnet_node *n);
-int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *data);
+int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data);
 
 int __attribute__((weak)) dnet_remove_local(struct dnet_node *n, struct dnet_id *id);
 

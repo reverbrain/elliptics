@@ -320,7 +320,7 @@ class cache_t {
 
 using namespace ioremap::cache;
 
-int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *data)
+int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data)
 {
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
@@ -331,10 +331,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, char *dat
 	cache_t *cache = (cache_t *)n->cache;
 
 	try {
-		struct dnet_io_attr *io = (struct dnet_io_attr *)data;
 		boost::shared_ptr<raw_data_t> d;
-
-		data += sizeof(struct dnet_io_attr);
 
 		switch (cmd->cmd) {
 			case DNET_CMD_WRITE:

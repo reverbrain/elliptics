@@ -630,7 +630,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				 * Always check cache when reading!
 				 */
 				if ((io->flags & DNET_IO_FLAGS_CACHE) || (cmd->cmd != DNET_CMD_WRITE)) {
-					err = dnet_cmd_cache_io(st, cmd, data);
+					err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
 
 					if (io->flags & DNET_IO_FLAGS_CACHE_ONLY)
 						break;
@@ -846,6 +846,47 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_populate_cache(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io_attr *io,
+		void *data, int fd, size_t fd_offset, size_t size)
+{
+	void *orig_data = data;
+	ssize_t err;
+
+	if (!data && fd >= 0) {
+		ssize_t tmp_size = size;
+
+		if (size >= n->cache_size)
+			return -ENOMEM;
+
+		orig_data = data = malloc(size);
+		if (!data)
+			return -ENOMEM;
+
+		while (tmp_size > 0) {
+			err = pread(fd, data, tmp_size, fd_offset);
+			if (err <= 0) {
+				dnet_log_err(n, "%s: failed to populate cache: pread: offset: %zd, size: %zd",
+						dnet_dump_id(&cmd->id), fd_offset, size);
+				goto err_out_free;
+			}
+
+			data += err;
+			tmp_size -= err;
+			fd_offset += err;
+		}
+	}
+
+	cmd->cmd = DNET_CMD_WRITE;
+	err = dnet_cmd_cache_io(n->st, cmd, io, orig_data);
+	cmd->cmd = DNET_CMD_READ;
+
+err_out_free:
+	if (data != orig_data)
+		free(orig_data);
+
+	return err;
+}
+
 int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data,
 		int fd, uint64_t offset, int close_on_exit)
 {
@@ -889,6 +930,11 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	dnet_log_raw(st->n, DNET_LOG_NOTICE, "%s: %s: reply: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
 			(unsigned long long)io->offset,	(unsigned long long)io->size);
+
+	/* only populate data which has zero offset and from column 0 */
+	if ((io->flags & DNET_IO_FLAGS_CACHE) && !io->offset && (io->type == 0)) {
+		err = dnet_populate_cache(st->n, c, rio, data, fd, offset, io->size);
+	}
 
 	dnet_convert_cmd(c);
 	dnet_convert_io_attr(rio);
