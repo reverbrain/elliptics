@@ -486,6 +486,9 @@ int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sp
 	struct dnet_node *n = st->n;
 	srw *s = (srw *)n->srw;
 
+	if (!s)
+		return -ENOTSUP;
+
 	try {
 		return s->process(st, cmd, header);
 	} catch (const std::exception &e) {
