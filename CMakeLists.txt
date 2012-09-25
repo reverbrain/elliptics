@@ -106,12 +106,3 @@ install(FILES
         ${CMAKE_BINARY_DIR}/include/elliptics/typedefs.h
         DESTINATION include/elliptics/
         )
-
-install(CODE "EXECUTE_PROCESS(
-	COMMAND \"touch /tmp/xxxxx\"
-	COMMAND cd ${CMAKE_SOURCE_DIR}/bindings/python/
-	COMMAND ${PYTHON} setup.py install --prefix=${CMAKE_INSTALL_PREFIX}
-	RESULT_VARIABLE rv
-)")
-
-message("rv='${rv}'")

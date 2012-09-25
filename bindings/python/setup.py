@@ -3,6 +3,21 @@
 from distutils.core import setup
 from distutils.core import Extension
 
+from distutils.command.build_ext import build_ext as _build_ext
+from distutils.command.install_lib import install_lib as _install_lib
+
+class build_ext(_build_ext):
+	def run(self):
+		pass
+
+
+class install_lib(_install_lib):
+	def run(self):
+		self.mkpath(self.install_dir)
+		self.copy_file('libelliptics_python.so', self.install_dir)
+
+		_install_lib.run(self)
+
 vstr = '0.0.1'
 try:
 	f = open('../../CMakeLists.txt')
@@ -21,5 +36,6 @@ setup(name='elliptics',
       url='http://www.ioremap.net/projects/elliptics',
       py_modules=['elliptics'],
       license = 'GPLv2',
+      cmdclass={'build_ext': build_ext, 'install_lib' : install_lib},
       ext_modules=[Extension('libelliptics_python', [])],
      )
