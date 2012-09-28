@@ -1,11 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import sys
-
-sys.path.insert(0, "/usr/lib/")
-sys.path.insert(0, "./bindings/python/")
 import libelliptics_python
+from libelliptics_python import log_level, command_flags, io_flags
 
 
 class NodeStatus(libelliptics_python.dnet_node_status):
