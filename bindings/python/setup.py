@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import shutil
+
 from distutils.core import setup
 from distutils.core import Extension
 
@@ -14,7 +16,7 @@ class build_ext(_build_ext):
 class install_lib(_install_lib):
 	def run(self):
 		self.mkpath(self.install_dir)
-		self.copy_file('libelliptics_python.so', self.install_dir)
+		shutil.copy('libelliptics_python.so', self.install_dir)
 
 		_install_lib.run(self)
 
@@ -36,6 +38,5 @@ setup(name='elliptics',
       url='http://www.ioremap.net/projects/elliptics',
       py_modules=['elliptics'],
       license = 'GPLv2',
-      cmdclass={'build_ext': build_ext, 'install_lib' : install_lib},
       ext_modules=[Extension('libelliptics_python', [])],
      )

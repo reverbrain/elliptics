@@ -1,6 +1,7 @@
 find_package(Boost REQUIRED COMPONENTS python)
 find_package(PythonLibs REQUIRED)
 find_package(PythonInterp REQUIRED)
+find_package(PythonExtensionDir REQUIRED)
 message(STATUS "Python includes are situated in (${PYTHON_INCLUDE_PATH}, ${PYTHON_INCLUDE_DIRS})")
 
 include_directories(../../include)
@@ -14,7 +15,13 @@ set_target_properties(elliptics_python PROPERTIES
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     )
 
+install(TARGETS elliptics_python
+    LIBRARY DESTINATION lib${LIB_SUFFIX}
+    ARCHIVE DESTINATION lib${LIB_SUFFIX}
+    BUNDLE DESTINATION library
+    )
+
 install(CODE "EXECUTE_PROCESS(
-	COMMAND ${PYTHON_EXECUTABLE} setup.py install --prefix=${CMAKE_INSTALL_PREFIX}
+COMMAND ${PYTHON_EXECUTABLE} setup.py install --prefix=$ENV{DESTDIR}
 	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/bindings/python/
 )")
