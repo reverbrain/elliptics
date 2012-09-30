@@ -16,12 +16,12 @@ set_target_properties(elliptics_python PROPERTIES
     )
 
 install(TARGETS elliptics_python
-    LIBRARY DESTINATION lib${LIB_SUFFIX}
-    ARCHIVE DESTINATION lib${LIB_SUFFIX}
+    LIBRARY DESTINATION ${PYTHON_EXTENSION_DIR}
+    ARCHIVE DESTINATION ${PYTHON_EXTENSION_DIR}
     BUNDLE DESTINATION library
     )
 
 install(CODE "EXECUTE_PROCESS(
-COMMAND ${PYTHON_EXECUTABLE} setup.py install --prefix=$ENV{DESTDIR}
+	COMMAND ${PYTHON_EXECUTABLE} setup.py install --prefix=${CMAKE_INSTALL_PATH}
 	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/bindings/python/
 )")
