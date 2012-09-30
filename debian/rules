@@ -12,7 +12,6 @@ DEB_COMPRESS_EXCLUDE := .conf
 
 DEB_PYTHON_SYSTEM := pycentral
 
-DEB_PYTHON_SETUP_CMD = $(DEB_BUILDDIR)/bindings/python/setup.py
 DEB_PYTHON_INSTALL_ARGS_ALL = --install-layout=deb --install-lib=`python -c "from distutils import sysconfig; print sysconfig.get_python_lib(),"`
 include /usr/share/cdbs/1/class/python-distutils.mk
 
