@@ -15,6 +15,11 @@ set_target_properties(elliptics_python PROPERTIES
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     )
 
+message("install path: ${CMAKE_INSTALL_PREFIX}")
+if (CMAKE_INSTALL_PREFIX)
+	set(PYTHON_EXTENSION_DIR "${CMAKE_INSTALL_PREFIX}/${PYTHON_EXTENSION_DIR}")
+endif()
+
 install(TARGETS elliptics_python
     LIBRARY DESTINATION ${PYTHON_EXTENSION_DIR}
     ARCHIVE DESTINATION ${PYTHON_EXTENSION_DIR}
@@ -22,6 +27,6 @@ install(TARGETS elliptics_python
     )
 
 install(CODE "EXECUTE_PROCESS(
-	COMMAND ${PYTHON_EXECUTABLE} setup.py install --prefix=${CMAKE_INSTALL_PATH}
+	COMMAND ${PYTHON_EXECUTABLE} setup.py install --prefix=${CMAKE_INSTALL_PREFIX}
 	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/bindings/python/
 )")
