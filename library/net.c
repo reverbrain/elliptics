@@ -1023,7 +1023,7 @@ err_out_close:
 
 err_out_exit:
 	if (err == -EEXIST)
-		dnet_log(n, DNET_LOG_ERROR, "%s: state already exists.\n", dnet_server_convert_dnet_addr(addr));
+		dnet_log(n, DNET_LOG_NOTICE, "%s: state already exists.\n", dnet_server_convert_dnet_addr(addr));
 	*errp = err;
 	return NULL;
 }

@@ -395,6 +395,10 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg)
 	return 0;
 
 err_out_reconnect:
+	/* if state is already exist, it should not be an error */
+	if (err == -EEXIST)
+		err = 0;
+
 	if ((err == -EADDRINUSE) || (err == -ECONNREFUSED) || (err == -ECONNRESET) ||
 			(err == -EINPROGRESS) || (err == -EAGAIN))
 		dnet_add_reconnect_state(n, &addr, join);
