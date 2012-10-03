@@ -163,7 +163,7 @@ static int dnet_discovery_send(struct dnet_node *n)
 	addr->sock_type = n->sock_type;
 	addr->proto = n->proto;
 	addr->family = n->family;
-	addr->addr = n->autodiscovery_addr;
+	addr->addr = n->addr;
 	dnet_convert_addr_attr(addr);
 
 	memcpy(auth->cookie, n->cookie, DNET_AUTH_COOKIE_SIZE);
