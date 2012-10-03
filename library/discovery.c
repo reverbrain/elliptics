@@ -177,6 +177,21 @@ static int dnet_discovery_send(struct dnet_node *n)
 	return err;
 }
 
+static int dnet_discovery_add_state(struct dnet_node *n, struct dnet_addr_attr *addr)
+{
+	struct dnet_config cfg;
+
+	memset(&cfg, 0, sizeof(struct dnet_config));
+
+	dnet_server_convert_addr_raw((struct sockaddr *)&addr->addr, addr->addr.addr_len, cfg.addr, sizeof(cfg.addr));
+	snprintf(cfg.port, sizeof(cfg.port), "%d", dnet_server_convert_port((struct sockaddr *)&addr->addr, addr->addr.addr_len));
+	cfg.family = addr->family;
+	cfg.sock_type = addr->sock_type;
+	cfg.proto = addr->proto;
+
+	return dnet_add_state(n, &cfg);
+}
+
 static int dnet_discovery_recv(struct dnet_node *n)
 {
 	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_auth) + sizeof(struct dnet_addr_attr)];
@@ -184,14 +199,17 @@ static int dnet_discovery_recv(struct dnet_node *n)
 	struct dnet_addr_attr *addr;
 	struct dnet_auth *auth;
 	int err;
+	struct dnet_addr remote;
 	socklen_t len = n->autodiscovery_addr.addr_len;
+
+	remote = n->autodiscovery_addr;
 
 	cmd = (struct dnet_cmd *)buf;
 	addr = (struct dnet_addr_attr *)(cmd + 1);
 	auth = (struct dnet_auth *)(addr + 1);
 
 	while (1) {
-		err = recvfrom(n->autodiscovery_socket, buf, sizeof(buf), MSG_DONTWAIT, (void *)&n->autodiscovery_addr, &len);
+		err = recvfrom(n->autodiscovery_socket, buf, sizeof(buf), MSG_DONTWAIT, (void *)&remote, &len);
 		if (err != sizeof(buf))
 			return -EAGAIN;
 
@@ -201,6 +219,10 @@ static int dnet_discovery_recv(struct dnet_node *n)
 
 		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery recv: %s - %.*s\n", dnet_server_convert_dnet_addr(&addr->addr),
 				(int)sizeof(auth->cookie), auth->cookie);
+
+		if (!memcmp(n->cookie, auth->cookie, DNET_AUTH_COOKIE_SIZE)) {
+			dnet_discovery_add_state(n, addr);
+		}
 	}
 
 	return 0;
