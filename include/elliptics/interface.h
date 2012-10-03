@@ -926,6 +926,8 @@ int dnet_parse_addr(char *addr, struct dnet_config *cfg);
 
 int dnet_start_defrag(struct dnet_node *n, uint64_t cflags);
 
+int dnet_discovery_add(struct dnet_node *n, struct dnet_config *cfg);
+
 #ifdef __cplusplus
 }
 #endif

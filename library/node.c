@@ -81,6 +81,8 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	}
 	pthread_attr_setdetachstate(&n->attr, PTHREAD_CREATE_DETACHED);
 
+	n->autodiscovery_socket = -1;
+
 	INIT_LIST_HEAD(&n->group_list);
 	INIT_LIST_HEAD(&n->empty_state_list);
 	INIT_LIST_HEAD(&n->storage_state_list);
@@ -606,8 +608,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_io_exit;
 
-	dnet_log(n, DNET_LOG_DEBUG, "New node has been created at %s.\n",
-			dnet_dump_node(n));
+	dnet_log(n, DNET_LOG_DEBUG, "New node has been created at %s.\n", dnet_dump_node(n));
 	return n;
 
 err_out_io_exit:
@@ -660,6 +661,8 @@ void dnet_node_cleanup_common_resources(struct dnet_node *n)
 	dnet_wait_put(n->wait);
 
 	free(n->groups);
+
+	close(n->autodiscovery_socket);
 }
 
 void dnet_node_destroy(struct dnet_node *n)

@@ -390,6 +390,8 @@ static void *dnet_check_process(void *data)
 			checks = 0;
 			dnet_check_route_table(n);
 		}
+
+		dnet_discovery(n);
 		gettimeofday(&tv2, NULL);
 
 		timeout = n->check_timeout - (tv2.tv_sec - tv1.tv_sec);

@@ -16,7 +16,9 @@ set(ELLIPTICS_SRCS
     check_common.c
     pool.c
     crypto/sha512.c
-    locks.c)
+    locks.c
+    discovery.c
+    )
 
 set(ELLIPTICS_CLIENT_SRCS
     meta.c
@@ -32,6 +34,7 @@ set(ELLIPTICS_CLIENT_SRCS
     crypto.c
     pool.c
     crypto/sha512.c
+    discovery.c
     )
 
 include_directories(../include)

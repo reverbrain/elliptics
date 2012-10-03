@@ -375,6 +375,9 @@ struct dnet_node
 
 	int			need_exit;
 
+	int			autodiscovery_socket;
+	struct dnet_addr	autodiscovery_addr;
+
 	struct dnet_id		id;
 
 	int			flags;
@@ -723,6 +726,8 @@ void dnet_cache_cleanup(struct dnet_node *n);
 int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data);
 
 int __attribute__((weak)) dnet_remove_local(struct dnet_node *n, struct dnet_id *id);
+
+int dnet_discovery(struct dnet_node *n);
 
 #ifdef __cplusplus
 }
