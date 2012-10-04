@@ -2648,7 +2648,6 @@ int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, struct dnet_io_att
 	if (err)
 		goto err_out_free;
 
-	printf("pr.group_num: %d, group_num: %d\n", pr.group_num, num);
 	err = -ENODATA;
 	for (i = 0; i < pr.group_num; ++i) {
 		void *data;
