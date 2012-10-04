@@ -50,13 +50,6 @@ static int dnet_discovery_add_v4(struct dnet_node *n, struct dnet_addr *addr, in
 		goto err_out_exit;
 	}
 
-	err = bind(s, (struct sockaddr *)addr, sizeof(struct sockaddr_in));
-	if (err) {
-		err = -errno;
-		dnet_log_err(n, "failed to bind to %s", dnet_server_convert_dnet_addr(addr));
-		goto err_out_exit;
-	}
-
 	command.imr_multiaddr = ((struct sockaddr_in *)addr->addr)->sin_addr;
 	command.imr_interface = ((struct sockaddr_in *)n->addr.addr)->sin_addr;
 
@@ -170,9 +163,14 @@ static int dnet_discovery_send(struct dnet_node *n)
 	dnet_convert_auth(auth);
 
 	err = sendto(n->autodiscovery_socket, buf, sizeof(buf), 0, (void *)&n->autodiscovery_addr, n->autodiscovery_addr.addr_len);
-
-	dnet_log(n, DNET_LOG_NOTICE, "autodiscovery sent: %s - %.*s: %d\n", dnet_server_convert_dnet_addr(&addr->addr),
-			(int)sizeof(auth->cookie), auth->cookie, err);
+	if (err < 0) {
+		err = -errno;
+		dnet_log_err(n, "autodiscovery sent: %s - %.*s", dnet_server_convert_dnet_addr(&addr->addr),
+			(int)sizeof(auth->cookie), auth->cookie);
+	} else {
+		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery sent: %s - %.*s\n", dnet_server_convert_dnet_addr(&addr->addr),
+			(int)sizeof(auth->cookie), auth->cookie);
+	}
 
 	return err;
 }
@@ -231,6 +229,9 @@ static int dnet_discovery_recv(struct dnet_node *n)
 int dnet_discovery(struct dnet_node *n)
 {
 	int err;
+
+	if (n->autodiscovery_socket == -1)
+		return -ENOTSUP;
 
 	err = dnet_discovery_recv(n);
 
