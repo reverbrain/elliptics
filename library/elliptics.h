@@ -319,6 +319,7 @@ enum dnet_work_io_mode {
 
 struct dnet_work_pool;
 struct dnet_work_io {
+	struct list_head	wio_entry;
 	int			thread_index;
 	pthread_t		tid;
 	struct dnet_work_pool	*pool;
@@ -331,7 +332,7 @@ struct dnet_work_pool {
 	struct list_head	list;
 	pthread_mutex_t		lock;
 	pthread_cond_t		wait;
-	struct dnet_work_io	wio[0];
+	struct list_head	wio_list;
 };
 
 struct dnet_io {
@@ -342,7 +343,6 @@ struct dnet_io {
 
 	struct dnet_work_pool	*recv_pool;
 	struct dnet_work_pool	*recv_pool_nb;
-	struct dnet_work_pool	*recv_pool_eblock;
 };
 
 int dnet_state_accept_process(struct dnet_net_state *st, struct epoll_event *ev);
