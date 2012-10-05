@@ -153,29 +153,6 @@ err_out_exit:
 }
 
 static void *dnet_io_process(void *data_);
-static int dnet_spawn_on_demand(struct dnet_node *n, struct dnet_io_req *r)
-{
-	struct dnet_io *io = n->io;
-	struct dnet_cmd *cmd = r->header;
-	int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
-	struct dnet_work_pool *pool = io->recv_pool;
-	int empty;
-	int err = 0;
-
-	if (nonblocking)
-		pool = io->recv_pool_nb;
-
-	pthread_mutex_lock(&pool->lock);
-	empty = list_empty(&pool->list);
-	pthread_mutex_unlock(&pool->lock);
-
-	if (!empty && (cmd->cmd == DNET_CMD_EXEC) && (cmd->size >= sizeof(struct sph))) {
-		err = dnet_work_pool_grow(n, pool, pool->num/4+1, dnet_io_process);
-	}
-
-	return err;
-}
-
 static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 {
 	struct dnet_io *io = n->io;
@@ -203,7 +180,12 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	if (nonblocking)
 		pool = io->recv_pool_nb;
 
-	dnet_spawn_on_demand(n, r);
+	if (list_empty(&pool->list) && (cmd->cmd == DNET_CMD_EXEC) && (cmd->size >= sizeof(struct sph))) {
+		struct sph *sph = (struct sph *)r->data;
+		if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
+			dnet_work_pool_grow(n, pool, pool->num/4+1, dnet_io_process);
+		}
+	}
 
 	pthread_mutex_lock(&pool->lock);
 	list_add_tail(&r->req_entry, &pool->list);
