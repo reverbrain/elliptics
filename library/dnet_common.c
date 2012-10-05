@@ -1958,6 +1958,46 @@ err_out_exit:
 	return data;
 }
 
+static int dnet_read_recover(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io, void *data, uint64_t cflags)
+{
+	struct dnet_meta_container mc;
+	struct dnet_io_control ctl;
+	void *result;
+	int err;
+
+	err = dnet_read_meta(n, &mc, NULL, 0, id);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: read-recovery: could read metadata: %d\n", dnet_dump_id(id), err);
+		goto err_out_exit;
+	}
+
+	memset(&ctl, 0, sizeof(struct dnet_io_control));
+
+	ctl.id = *id;
+	ctl.io = *io;
+	ctl.data = data;
+	ctl.fd = -1;
+	ctl.cmd = DNET_CMD_WRITE;
+	ctl.cflags = cflags;
+
+	err = dnet_write_data_wait(n, &ctl, &result);
+	if (err < 0) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: read-recovery: could not write data: %d\n", dnet_dump_id(id), err);
+		goto err_out_free_meta;
+	}
+
+	err = dnet_write_metadata(n, &mc, 0, cflags);
+	if (err < 0)
+		goto err_out_free_result;
+
+err_out_free_result:
+	free(result);
+err_out_free_meta:
+	free(mc.data);
+err_out_exit:
+	return err;
+}
+
 void *dnet_read_data_wait_groups(struct dnet_node *n, struct dnet_id *id, int *groups, int num,
 		struct dnet_io_attr *io, uint64_t cflags, int *errp)
 {
@@ -1969,6 +2009,10 @@ void *dnet_read_data_wait_groups(struct dnet_node *n, struct dnet_id *id, int *g
 
 		data = dnet_read_data_wait_raw(n, id, io, DNET_CMD_READ, cflags, errp);
 		if (data) {
+			if ((i != 0) && (io->type == 0) && (io->offset == 0)) {
+				dnet_read_recover(n, id, io, data, cflags);
+			}
+
 			*errp = 0;
 			return data;
 		}
@@ -2612,6 +2656,10 @@ int dnet_read_latest(struct dnet_node *n, struct dnet_id *id, struct dnet_io_att
 		id->group_id = pr.group[i];
 		data = dnet_read_data_wait_raw(n, id, io, DNET_CMD_READ, cflags, &err);
 		if (data) {
+			if ((pr.group_num != num) || ((i != 0) && (io->type == 0) && (io->offset == 0))) {
+				dnet_read_recover(n, id, io, data, cflags);
+			}
+
 			*datap = data;
 			err = 0;
 			break;
