@@ -59,6 +59,7 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_DEL_RANGE] = "DEL_RANGE",
 	[DNET_CMD_AUTH] = "AUTH",
 	[DNET_CMD_BULK_READ] = "BULK_READ",
+	[DNET_CMD_DEFRAG] = "DEFRAG",
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 
@@ -94,7 +95,7 @@ static char *dnet_counter_strings[] = {
 
 char *dnet_cmd_string(int cmd)
 {
-	if (cmd <= 0 || cmd >= __DNET_CMD_MAX)
+	if (cmd <= 0 || cmd >= __DNET_CMD_MAX || cmd >= DNET_CMD_UNKNOWN)
 		cmd = DNET_CMD_UNKNOWN;
 
 	return dnet_cmd_strings[cmd];
@@ -102,7 +103,7 @@ char *dnet_cmd_string(int cmd)
 
 char *dnet_counter_string(int cntr, int cmd_num)
 {
-	if (cntr <= 0 || cntr >= __DNET_CNTR_MAX)
+	if (cntr <= 0 || cntr >= __DNET_CNTR_MAX || cntr >= DNET_CNTR_UNKNOWN)
 		cntr = DNET_CNTR_UNKNOWN;
 
 	if (cntr < cmd_num)
