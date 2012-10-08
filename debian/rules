@@ -20,6 +20,8 @@ include /usr/share/cdbs/1/class/python-module.mk
 
 binary-install/elliptics-client::
 	cp bindings/python/*.py $(DEB_BUILDDIR)/bindings/python/
+	mv usr/lib/python*/site-packages/* `python -c "from distutils import sysconfig; print sysconfig.get_python_lib(),"`/
+	rm -rf usr/lib/python*/site-packages
 
 binary-post-install/elliptics-client::
 	rm debian/elliptics-client/usr/bin/dnet_ioserv
