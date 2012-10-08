@@ -99,6 +99,10 @@ class Node(libelliptics_python.elliptics_node_python):
         """
         super(Node, self).add_groups(groups)
 
+    @property
+    def groups(self):
+        return super(Node, self).get_groups()
+
     def get_routes(self):
         """
           Get routing table
