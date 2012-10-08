@@ -198,8 +198,15 @@ class elliptics_node_python : public node {
 			node::add_groups(groups);
 		}
 
-		std::vector<int> get_groups(){
-		    return node::get_groups();
+		boost::python::list get_groups(){
+		    std::vector<int> groups = node::get_groups();
+		    boost::python::list res;
+		    for(size_t i=0; i<groups.size(); i++)
+		    {
+                res.append(groups[i]);
+		    }
+
+		    return res;
 		}
 
 		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const list &pgroups, uint64_t cflags) {
