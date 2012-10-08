@@ -66,18 +66,11 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 		goto err_out_destroy_counter;
 	}
 
-	err = pthread_mutex_init(&n->group_lock, NULL);
-	if (err) {
-		err = -err;
-		dnet_log_err(n, "Failed to initialize group lock: err: %d", err);
-		goto err_out_destroy_reconnect_lock;
-	}
-
 	err = pthread_attr_init(&n->attr);
 	if (err) {
 		err = -err;
 		dnet_log_err(n, "Failed to initialize pthread attributes: err: %d", err);
-		goto err_out_destroy_group_lock;
+		goto err_out_destroy_reconnect_lock;
 	}
 	pthread_attr_setdetachstate(&n->attr, PTHREAD_CREATE_DETACHED);
 
@@ -94,8 +87,6 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 
 	return n;
 
-err_out_destroy_group_lock:
-	pthread_mutex_destroy(&n->group_lock);
 err_out_destroy_reconnect_lock:
 	pthread_mutex_destroy(&n->reconnect_lock);
 err_out_destroy_counter:
@@ -656,11 +647,8 @@ void dnet_node_cleanup_common_resources(struct dnet_node *n)
 	}
 	dnet_counter_destroy(n);
 	pthread_mutex_destroy(&n->reconnect_lock);
-	pthread_mutex_destroy(&n->group_lock);
 
 	dnet_wait_put(n->wait);
-
-	free(n->groups);
 
 	close(n->autodiscovery_socket);
 }
@@ -675,7 +663,29 @@ void dnet_node_destroy(struct dnet_node *n)
 	free(n);
 }
 
-int dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num)
+struct dnet_session *dnet_session_create(struct dnet_node *n)
+{
+	struct dnet_session *s;
+
+	s = (struct dnet_session *)malloc(sizeof(struct dnet_session));
+	if (!s) 
+		return NULL;
+
+	s->node = n;
+	s->group_num = 0;
+	s->groups = NULL;
+
+	return s;
+}
+
+void dnet_session_destroy(struct dnet_session *s)
+{
+	dnet_log(s->node, DNET_LOG_DEBUG, "Destroying session at %s, st: %p.\n",
+			dnet_dump_node(s->node), s->node->st);
+	free(s);
+}
+
+int dnet_session_set_groups(struct dnet_session *s, int *groups, int group_num)
 {
 	int *g, i;
 
@@ -691,12 +701,10 @@ int dnet_node_set_groups(struct dnet_node *n, int *groups, int group_num)
 	for (i=0; i<group_num; ++i)
 		g[i] = groups[i];
 
-	pthread_mutex_lock(&n->group_lock);
-	free(n->groups);
+	free(s->groups);
 
-	n->groups = g;
-	n->group_num = group_num;
-	pthread_mutex_unlock(&n->group_lock);
+	s->groups = g;
+	s->group_num = group_num;
 
 	return 0;
 }

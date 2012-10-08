@@ -77,6 +77,7 @@ int main(int argc, char *argv[])
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	struct dnet_config cfg, rem;
 	struct dnet_node *n;
+	struct dnet_session *s;
 	struct dnet_id raw;
 	struct dnet_meta_container mc;
 
@@ -164,28 +165,32 @@ int main(int argc, char *argv[])
 		goto err_out_exit;
 	}
 
+	s = dnet_session_create(n);
+	if (!s)
+		return -ENOMEM;
+
 	if (fd == -1) {
 		err = dnet_add_state(n, &rem);
 		if (err)
 			goto err_out_destroy;
 
-		dnet_node_set_groups(n, groups, group_num);
+		dnet_session_set_groups(s, groups, group_num);
 
 		if (id) {
 			int i;
 
 			for (i=0; i<group_num; ++i) {
 				dnet_setup_id(&raw, groups[i], id);
-				err = dnet_read_meta(n, &mc, NULL, 0, &raw);
+				err = dnet_read_meta(s, &mc, NULL, 0, &raw);
 				if (!err)
-					dnet_meta_print(n, &mc);
+					dnet_meta_print(s, &mc);
 				else
 					dnet_log_raw(n, DNET_LOG_ERROR, "%s: could not read metadata\n", dnet_dump_id(&raw));
 			}
 		} else {
-			err = dnet_read_meta(n, &mc, name, strlen(name), NULL);
+			err = dnet_read_meta(s, &mc, name, strlen(name), NULL);
 			if (!err)
-				dnet_meta_print(n, &mc);
+				dnet_meta_print(s, &mc);
 		}
 	} else {
 		struct stat st;
@@ -207,11 +212,12 @@ int main(int argc, char *argv[])
 		mc.size = m.size;
 		mc.data = m.data;
 
-		dnet_meta_print(n, &mc);
+		dnet_meta_print(s, &mc);
 
 		dnet_data_unmap(&m);
 	}
 
+	dnet_session_destroy(s);
 err_out_destroy:
 	dnet_node_destroy(n);
 err_out_exit:

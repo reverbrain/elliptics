@@ -140,14 +140,29 @@ class node {
 						std::vector<int> &groups,
 						int &log_level);
 
+		void			add_remote(const char *addr, const int port, const int family = AF_INET);
+
+		void			set_timeouts(const int wait_timeout, const int check_timeout);
+
+	protected:
+		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
+							void *data, unsigned int size, callback &c,
+							uint64_t cflags, unsigned int ioflags, int type);
+		struct dnet_node	*m_node;
+		logger			*m_log;
+
+		friend class session;
+};
+
+class session {
+	public:
+		session(node &n);
+		virtual ~session();
+
 		void			transform(const std::string &data, struct dnet_id &id);
 
 		void			add_groups(std::vector<int> &groups);
 		std::vector<int>	get_groups() {return groups;};
-
-		void			set_timeouts(const int wait_timeout, const int check_timeout);
-
-		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 
 		void			read_file(struct dnet_id &id, const std::string &file, uint64_t offset, uint64_t size);
 		void			read_file(const std::string &remote, const std::string &file,
@@ -249,15 +264,13 @@ class node {
 		std::string		bulk_write(const std::vector<struct dnet_io_attr> &ios,
 						const std::vector<std::string> &data, uint64_t cflags);
 
+		struct dnet_node *	get_node();
+
 	protected:
-		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
-							void *data, unsigned int size, callback &c,
-							uint64_t cflags, unsigned int ioflags, int type);
-		struct dnet_node	*m_node;
-		logger			*m_log;
+		struct dnet_session	*m_session;
+		node			m_node;
 
 		std::vector<int>	groups;
-
 
 		std::string		raw_exec(struct dnet_id *id,
 						const struct sph *sph,
@@ -266,6 +279,7 @@ class node {
 						const std::string &binary,
 						bool lock);
 		std::string		request(struct dnet_id *id, struct sph *sph, bool lock);
+
 };
 
 }}; /* namespace ioremap::elliptics */

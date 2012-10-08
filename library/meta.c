@@ -188,8 +188,9 @@ void dnet_convert_metadata(struct dnet_node *n __unused, void *data, int size)
 	}
 }
 
-int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int convert, uint64_t cflags)
+int dnet_write_metadata(struct dnet_session *s, struct dnet_meta_container *mc, int convert, uint64_t cflags)
 {
+	struct dnet_node *n = s->node;
 	struct dnet_io_control ctl;
 	void *result;
 	int err;
@@ -212,7 +213,7 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 	memcpy(&ctl.id, &mc->id, sizeof(struct dnet_id));
 	ctl.id.type = ctl.io.type = EBLOB_TYPE_META;
 
-	err = dnet_write_data_wait(n, &ctl, &result);
+	err = dnet_write_data_wait(s, &ctl, &result);
 	if (err < 0)
 		return err;
 
@@ -221,20 +222,19 @@ int dnet_write_metadata(struct dnet_node *n, struct dnet_meta_container *mc, int
 	return 0;
 }
 
-int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, unsigned int remote_len,
+int dnet_create_write_metadata_strings(struct dnet_session *s, const void *remote, unsigned int remote_len,
 		struct dnet_id *id, struct timespec *ts, uint64_t cflags)
 {
+	struct dnet_node *n = s->node;
 	struct dnet_metadata_control mc;
 	int *groups = NULL;
 	int group_num = 0;
 	int err;
 
-	pthread_mutex_lock(&n->group_lock);
-	group_num = n->group_num;
+	group_num = s->group_num;
 	groups = alloca(group_num * sizeof(int));
 
-	memcpy(groups, n->groups, group_num * sizeof(int));
-	pthread_mutex_unlock(&n->group_lock);
+	memcpy(groups, s->groups, group_num * sizeof(int));
 
 	memset(&mc, 0, sizeof(mc));
 	mc.obj = remote;
@@ -254,7 +254,7 @@ int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, 
 		mc.ts.tv_nsec = tv.tv_usec * 1000;
 	}
 
-	err = dnet_create_write_metadata(n, &mc);
+	err = dnet_create_write_metadata(s, &mc);
 	if (err < 0) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: failed to write metadata: %d\n", dnet_dump_id(id), err);
 	}
@@ -262,8 +262,9 @@ int dnet_create_write_metadata_strings(struct dnet_node *n, const void *remote, 
 	return 0;
 }
 
-int dnet_create_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl, struct dnet_meta_container *mc)
+int dnet_create_metadata(struct dnet_session *s, struct dnet_metadata_control *ctl, struct dnet_meta_container *mc)
 {
+	struct dnet_node *n = s->node;
 	struct dnet_meta_check_status *c;
 	struct dnet_meta *m;
 	int size = 0, err, nsize = 0;
@@ -341,18 +342,18 @@ err_out_exit:
 	return err;
 }
 
-int dnet_create_write_metadata(struct dnet_node *n, struct dnet_metadata_control *ctl)
+int dnet_create_write_metadata(struct dnet_session *s, struct dnet_metadata_control *ctl)
 {
 	struct dnet_meta_container mc;
 	int err;
 
 	memset(&mc, 0, sizeof(struct dnet_meta_container));
 
-	err = dnet_create_metadata(n, ctl, &mc);
+	err = dnet_create_metadata(s, ctl, &mc);
 	if (err)
 		goto err_out_exit;
 
-	err = dnet_write_metadata(n, &mc, 1, ctl->cflags);
+	err = dnet_write_metadata(s, &mc, 1, ctl->cflags);
 	if (err)
 		goto err_out_free;
 
@@ -371,8 +372,9 @@ static char *dnet_meta_types[__DNET_META_MAX] = {
 	[DNET_META_CHECKSUM] = "DNET_META_CHECKSUM",
 };
 
-void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
+void dnet_meta_print(struct dnet_session *s, struct dnet_meta_container *mc)
 {
+	struct dnet_node *n = s->node;
 	void *data;
 	int size, err;
 	struct dnet_meta *m;
@@ -478,9 +480,10 @@ void dnet_meta_print(struct dnet_node *n, struct dnet_meta_container *mc)
 	}
 }
 
-int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc,
+int dnet_read_meta(struct dnet_session *s, struct dnet_meta_container *mc,
 		const void *remote, unsigned int remote_len, struct dnet_id *id)
 {
+	struct dnet_node *n = s->node;
 	struct dnet_io_attr io;
 	struct dnet_id raw;
 	void *data;
@@ -506,14 +509,14 @@ int dnet_read_meta(struct dnet_node *n, struct dnet_meta_container *mc,
 		memcpy(io.id, id->id, DNET_ID_SIZE);
 		memcpy(io.parent, id->id, DNET_ID_SIZE);
 
-		data = dnet_read_data_wait(n, id, &io, 0, &err);
+		data = dnet_read_data_wait(s, id, &io, 0, &err);
 	} else {
 		id->type = 0;
 
 		memcpy(io.id, id->id, DNET_ID_SIZE);
 		memcpy(io.parent, id->id, DNET_ID_SIZE);
 
-		data = dnet_read_data_wait_raw(n, id, &io, DNET_CMD_READ, 0, &err);
+		data = dnet_read_data_wait_raw(s, id, &io, DNET_CMD_READ, 0, &err);
 	}
 
 	if (data) {

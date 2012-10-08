@@ -286,6 +286,7 @@ struct dnet_bulk_check_priv {
 static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct dnet_bulk_id *ids,
 						int remote_group, struct dnet_bulk_check_priv *p)
 {
+	struct dnet_session *s = dnet_session_create(state->n);
 	struct dnet_meta_container mc;
 	struct dnet_meta_container temp_mc;
 	struct dnet_meta_update *mu;
@@ -302,6 +303,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 	int lastest = 0;
 	uint64_t cflags = 0;
 	uint64_t ioflags = 0;
+
 
 	my_group = state->n->id.group_id;
 
@@ -461,6 +463,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 		if (mu[i].group_id == my_group)
 			continue;
 
+		dnet_session_set_groups(s, (int *)&mu[i].group_id, 1);
 		dnet_setup_id(&id, mu[i].group_id, ids->id.id);
 		id.type = -1;
 
@@ -468,10 +471,10 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 			if (removed_in_all) {
 				dnet_log(state->n, DNET_LOG_DEBUG, "BULK: dnet_remove_object_now %s in group %d, err=%d\n",
 						dnet_dump_id(&id), mu[i].group_id, err);
-				err = dnet_remove_object_now(state->n, &id, cflags, ioflags);
+				err = dnet_remove_object_now(s, &id, cflags, ioflags);
 			} else {
 				if (!(mu[i].flags & DNET_IO_FLAGS_REMOVED)) {
-					err = dnet_remove_object(state->n, &id, NULL, NULL, cflags, ioflags);
+					err = dnet_remove_object(s, &id, NULL, NULL, cflags, ioflags);
 					dnet_log(state->n, DNET_LOG_DEBUG, "BULK: dnet_remove_object %s in group %d err=%d\n",
 							dnet_dump_id(&id), mu[i].group_id, err);
 				}
@@ -491,7 +494,7 @@ static int dnet_bulk_check_complete_single(struct dnet_net_state *state, struct 
 					goto err_out_cont2;
 
 				memcpy(&mc.id, &id, sizeof(struct dnet_id));
-				err = dnet_write_metadata(state->n, &mc, 1, cflags);
+				err = dnet_write_metadata(s, &mc, 1, cflags);
 				dnet_log(state->n, DNET_LOG_DEBUG, "BULK: dnet_write_metadata %s in group %d, err=%d\n",
 						dnet_dump_id(&id), my_group, err);
 
@@ -804,8 +807,9 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 	return err;
 }
 
-static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc)
+static int dnet_merge_direct(struct dnet_session *s, struct dnet_meta_container *mc)
 {
+	struct dnet_node *n = s->node;
 	struct dnet_net_state *base;
 	int cflags = 0;
 	int err;
@@ -823,7 +827,7 @@ static int dnet_merge_direct(struct dnet_node *n, struct dnet_meta_container *mc
 		goto err_out_put;
 
 	dnet_log(n, DNET_LOG_DEBUG, "in dnet_merge_direct2 mc->size = %u\n", mc->size);
-	err = dnet_write_metadata(n, mc, 0, cflags);
+	err = dnet_write_metadata(s, mc, 0, cflags);
 	if (err <= 0)
 		goto err_out_put;
 
@@ -862,8 +866,9 @@ err_out_exit:
 }
 */
 
-static int dnet_merge_common(struct dnet_node *n, struct dnet_meta_container *remote_meta, struct dnet_meta_container *mc)
+static int dnet_merge_common(struct dnet_session *s, struct dnet_meta_container *remote_meta, struct dnet_meta_container *mc)
 {
+	struct dnet_node *n = s->node;
 	int err = 0;
 	struct dnet_meta_update local, remote;
 	uint64_t cflags = 0;
@@ -879,15 +884,15 @@ static int dnet_merge_common(struct dnet_node *n, struct dnet_meta_container *re
 	if (!dnet_get_meta_update(n, remote_meta, &remote)) {
 		err = -ENOENT;
 		dnet_log(n, DNET_LOG_ERROR, "%s: META_UPDATE not found in remote meta, perform direct merge\n", dnet_dump_id(&mc->id));
-		err = dnet_merge_direct(n, mc);
+		err = dnet_merge_direct(s, mc);
 		goto err_out_exit;
 	}
 
 	if ((local.tm.tsec > remote.tm.tsec) || (local.tm.tsec == remote.tm.tsec && local.tm.tnsec > remote.tm.tnsec)) {
 		if (local.flags & DNET_IO_FLAGS_REMOVED) {
-			err = dnet_remove_object_now(n, &mc->id, cflags, ioflags);
+			err = dnet_remove_object_now(s, &mc->id, cflags, ioflags);
 		} else {
-			err = dnet_merge_direct(n, mc);
+			err = dnet_merge_direct(s, mc);
 		}
 	}
 
@@ -896,15 +901,16 @@ err_out_exit:
 
 }
 
-static int dnet_check_merge(struct dnet_node *n, struct dnet_meta_container *mc)
+static int dnet_check_merge(struct dnet_session *s, struct dnet_meta_container *mc)
 {
+	struct dnet_node *n = s->node;
 	int err;
 	struct dnet_meta_container remote_mc;
 
 	dnet_log(n, DNET_LOG_DEBUG, "in dnet_check_merge mc->size = %d\n", mc->size);
 	memset(&remote_mc, 0, sizeof(struct dnet_meta_container));
 
-	err = dnet_read_meta(n, &remote_mc, NULL, 0, &mc->id);
+	err = dnet_read_meta(s, &remote_mc, NULL, 0, &mc->id);
 	if (err) {
 		if (err != -ENOENT) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n",
@@ -914,10 +920,10 @@ static int dnet_check_merge(struct dnet_node *n, struct dnet_meta_container *mc)
 
 		dnet_log_raw(n, DNET_LOG_INFO, "%s: there is no meta in the storage to merge with, "
 				"doing direct merge (plain upload).\n", dnet_dump_id(&mc->id));
-		err = dnet_merge_direct(n, mc);
+		err = dnet_merge_direct(s, mc);
 	} else {
 
-		err = dnet_merge_common(n, &remote_mc, mc);
+		err = dnet_merge_common(s, &remote_mc, mc);
 	}
 
 	if (err)
@@ -933,10 +939,12 @@ int dnet_check(struct dnet_node *n, struct dnet_meta_container *mc, struct dnet_
 		int need_merge, struct dnet_check_params *params)
 {
 	int err = 0;
+	struct dnet_session *s = dnet_session_create(n);
+	dnet_session_set_groups(s, (int *)&n->id.group_id, 1);
 
 	dnet_log(n, DNET_LOG_DEBUG, "need_merge = %d, mc.size = %d\n", need_merge, mc->size);
 	if (need_merge) {
-		err = dnet_check_merge(n, mc);
+		err = dnet_check_merge(s, mc);
 		dnet_log(n, DNET_LOG_DEBUG, "err=%d\n", err);
 		if (!err)
 			dnet_merge_remove_local(n, &mc->id, 0);

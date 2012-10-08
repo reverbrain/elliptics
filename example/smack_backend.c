@@ -356,7 +356,10 @@ static int smack_backend_send(void *state, void *priv, struct dnet_id *id)
 	ctl.io.type = 0;
 	ctl.io.flags = 0;
 
-	err = dnet_write_data_wait(n, &ctl, (void **)&result);
+	struct dnet_session *sess = dnet_session_create(n);
+	dnet_session_set_groups(sess, (int *)&id->group_id, 1);
+
+	err = dnet_write_data_wait(sess, &ctl, (void **)&result);
 	if (err < 0)
 		goto err_out_free;
 	free(result);

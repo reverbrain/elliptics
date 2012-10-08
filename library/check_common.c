@@ -86,8 +86,9 @@ static int dnet_send_check_request(struct dnet_net_state *st, struct dnet_id *id
 	return dnet_trans_alloc_send_state(st, &ctl);
 }
 
-int dnet_request_check(struct dnet_node *n, struct dnet_check_request *r)
+int dnet_request_check(struct dnet_session *s, struct dnet_check_request *r)
 {
+	struct dnet_node *n = s->node;
 	struct dnet_wait *w;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
