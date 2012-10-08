@@ -1,3 +1,9 @@
+elliptics (2.18.3.1) unstable; urgency=low
+
+  * When running recovery-on-read do not write io attribute header
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 08 Oct 2012 23:21:48 +0400
+
 elliptics (2.18.3.0) unstable; urgency=low
 
   * Grow IO pools on demand

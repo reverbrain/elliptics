@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.18.3.0
+Version:	2.18.3.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Oct 08 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.3.1
+- When running recovery-on-read do not write io attribute header
+
 * Mon Oct 08 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.3.0
 - Grow IO pools on demand
 - Added automatic recovery on read command:
