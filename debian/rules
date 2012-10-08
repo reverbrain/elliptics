@@ -11,11 +11,11 @@ DEB_DH_MAKESHLIBS_ARGS_elliptics-client := -V "elliptics-client (>= $(shell head
 DEB_COMPRESS_EXCLUDE := .conf
 
 DEB_PYTHON_SYSTEM := pycentral
+DEB_PYTHON_MODULE_PACKAGES := elliptics-client
 
 DEB_PYTHON_INSTALL_ARGS_ALL = --install-layout=deb --install-lib=`python -c "from distutils import sysconfig; print sysconfig.get_python_lib(),"`
 include /usr/share/cdbs/1/class/python-distutils.mk
 
-DEB_PYTHON_MODULE_PACKAGES := elliptics-client
 include /usr/share/cdbs/1/class/python-module.mk
 
 binary-install/elliptics-client::
