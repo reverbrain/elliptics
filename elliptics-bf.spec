@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.18.2.1
+Version:	2.18.3.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,19 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Oct 08 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.3.0
+- Grow IO pools on demand
+- Added automatic recovery on read command:
+-      if object didn't exist in previously read group,
+-      it will be written when read from the next group succeed
+- Documentation update
+- Added multicast autodiscovery
+- If state is already exist, do not fail with error
+- Fixed the ugliest debian python installation
+- Added new python bindings
+- Do not try to run command if srw was not initialized
+- Populate cache on READ command when DNET_IO_FLAGS_CACHE ioflag is set
+
 * Thu Sep 20 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.2.1
 - Added c++/python bindings for cache write operations (including timeout)
 - Added remove-from-disk cache operation: when such flag is set (at write time)"
