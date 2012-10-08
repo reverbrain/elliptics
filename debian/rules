@@ -20,7 +20,7 @@ include /usr/share/cdbs/1/class/python-module.mk
 
 binary-install/elliptics-client::
 	cp bindings/python/*.py $(DEB_BUILDDIR)/bindings/python/
-	mv $(DEB_BUILDDIR)/usr/lib/python*/site-packages/* $(DEB_BUILDDIR)/`python -c "from distutils import sysconfig; print sysconfig.get_python_lib(),"`/; echo -n
+	mv $(cdbs_python_destdir)/usr/lib/python*/site-packages/* $(cdbs_python_destdir)/`python -c "from distutils import sysconfig; print sysconfig.get_python_lib(),"`/; echo -n
 	rm -rf $(DEB_BUILDDIR)/usr/lib/python*/site-packages; echo -n
 
 binary-post-install/elliptics-client::
