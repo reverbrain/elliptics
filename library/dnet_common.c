@@ -112,6 +112,7 @@ char *dnet_counter_string(int cntr, int cmd_num)
 	if (cntr >= cmd_num && cntr < (cmd_num * 2))
 		return dnet_cmd_string(cntr - cmd_num);
 
+	cntr += DNET_CNTR_LA1 - cmd_num * 2;
 	return dnet_counter_strings[cntr];
 }
 
