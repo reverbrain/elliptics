@@ -379,7 +379,7 @@ class srw {
 				}
 
 				bool final = sph->flags & DNET_SPH_FLAGS_FINISH;
-				it->second->reply(final, (char *)(sph + 1) + sph->event_size, sph->data_size + sph->event_size);
+				it->second->reply(final, (char *)(sph + 1) + sph->event_size, sph->data_size + sph->binary_size);
 				dnet_log(m_n, DNET_LOG_INFO, "%s: task completed(%x), total-data-size: %zd, finish: %d\n",
 						event.c_str(), sph->src_key, total_size(sph), final);
 
