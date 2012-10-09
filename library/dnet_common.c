@@ -1982,7 +1982,10 @@ static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct 
 
 	ctl.id = *id;
 	ctl.io = *io;
-	ctl.data = data;
+
+	ctl.data = data + sizeof(struct dnet_io_attr);
+	ctl.io.size -= sizeof(struct dnet_io_attr);
+
 	ctl.fd = -1;
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.cflags = cflags;
@@ -2016,7 +2019,7 @@ void *dnet_read_data_wait_groups(struct dnet_session *s, struct dnet_id *id, int
 
 		data = dnet_read_data_wait_raw(s, id, io, DNET_CMD_READ, cflags, errp);
 		if (data) {
-			if ((i != 0) && (io->type == 0) && (io->offset == 0)) {
+			if ((i != 0) && (io->type == 0) && (io->offset == 0) && (io->size > sizeof(struct dnet_io_attr))) {
 				dnet_read_recover(s, id, io, data, cflags);
 			}
 

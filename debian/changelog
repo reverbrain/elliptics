@@ -1,3 +1,25 @@
+elliptics (2.18.3.1) unstable; urgency=low
+
+  * When running recovery-on-read do not write io attribute header
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 08 Oct 2012 23:21:48 +0400
+
+elliptics (2.18.3.0) unstable; urgency=low
+
+  * Grow IO pools on demand
+  * Added automatic recovery on read command:
+  *      if object didn't exist in previously read group,
+  *      it will be written when read from the next group succeed
+  * Documentation update
+  * Added multicast autodiscovery
+  * If state is already exist, do not fail with error
+  * Fixed the ugliest debian python installation
+  * Added new python bindings
+  * Do not try to run command if srw was not initialized
+  * Populate cache on READ command when DNET_IO_FLAGS_CACHE ioflag is set
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 08 Oct 2012 12:47:00 +0400
+
 elliptics (2.18.2.1) unstable; urgency=low
 
   * Added c++/python bindings for cache write operations (including timeout)

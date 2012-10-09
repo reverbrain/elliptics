@@ -8,7 +8,7 @@ set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
 
 project (elliptics)
 set(ELLIPTICS_VERSION_ABI "2.18")
-set(ELLIPTICS_VERSION_MINOR "1.1")
+set(ELLIPTICS_VERSION_MINOR "3.0")
 
 option(WITH_PYTHON "Build python bindings" ON)
 option(WITH_COCAINE "Build with cocaine support" ON)

@@ -14,6 +14,7 @@
  */
 
 #include <iostream>
+#include <deque>
 #include <vector>
 #include <deque>
 

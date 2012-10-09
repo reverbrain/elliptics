@@ -268,7 +268,7 @@ class session {
 
 	protected:
 		struct dnet_session	*m_session;
-		node			m_node;
+		node			*m_node;
 
 		std::vector<int>	groups;
 

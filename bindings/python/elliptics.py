@@ -89,12 +89,23 @@ class Node(libelliptics_python.elliptics_node_python):
         """
         super(Node, self).add_remote(addr, port, family)
 
+class Session(libelliptics_python.elliptics_session):
+    """
+    Session class. Constructor takes 1 argument: Node object
+    """
+
+    def __init__(self, node=None):
+        """
+            node - None object
+        """
+        super(Session, self).__init__(node)
+
     def add_groups(self, groups):
         """
           Set groups to work with
           groups - list of groups
         """
-        super(Node, self).add_groups(groups)
+        super(Session, self).add_groups(groups)
 
     def get_routes(self):
         """
@@ -103,7 +114,7 @@ class Node(libelliptics_python.elliptics_node_python):
           return value:
           list - list of node addresses
         """
-        return super(Node, self).get_routes()
+        return super(Session, self).get_routes()
 
     def stat_log(self):
         """
@@ -112,7 +123,7 @@ class Node(libelliptics_python.elliptics_node_python):
           return value:
           string - storage nodes statistics
         """
-        return super(Node, self).stat_log()
+        return super(Session, self).stat_log()
 
     def lookup_addr(self, *args, **kwargs):
         """
@@ -128,7 +139,7 @@ class Node(libelliptics_python.elliptics_node_python):
           return value:
           string - node address
         """
-        return super(Node, self).lookup_addr(*args, **{})
+        return super(Session, self).lookup_addr(*args, **{})
 
     def read_file(self, key, filename, offset = 0, size = 0, column = 0):
         """
@@ -150,7 +161,7 @@ class Node(libelliptics_python.elliptics_node_python):
         else:
             new_args = [key, filename, offset, size]
 
-        super(Node, self).read_file(*new_args)
+        super(Session, self).read_file(*new_args)
 
     def write_file(self, key, filename, local_offset = 0, offset = 0, size = 0, \
 		    cflags = command_flags.default, ioflags = io_flags.default, column = 0):
@@ -176,7 +187,7 @@ class Node(libelliptics_python.elliptics_node_python):
         else:
             new_args = [key, filename, local_offset, offset, size, cflags, ioflags]
 
-        super(Node, self).read_file(*new_args)
+        super(Session, self).read_file(*new_args)
 
     def _create_read_args(self, key, offset = 0, size = 0, cflags = command_flags.default, ioflags = io_flags.default, column = 0):
         if isinstance(key, basestring):
@@ -203,7 +214,7 @@ class Node(libelliptics_python.elliptics_node_python):
           return value:
           string - key value content
         """
-        return super(Node, self).read_data(*self._create_read_args(key, offset, size, cflags, ioflags, column))
+        return super(Session, self).read_data(*self._create_read_args(key, offset, size, cflags, ioflags, column))
 
     read = read_data
 
@@ -226,7 +237,7 @@ class Node(libelliptics_python.elliptics_node_python):
           return value:
           string - key value content
         """
-        return super(Node, self).read_latest(*self._create_read_args(key, offset, size, cflags, ioflags, column))
+        return super(Session, self).read_latest(*self._create_read_args(key, offset, size, cflags, ioflags, column))
 
     def create_write_args(self, key, data, offset, ioflags, cflags, column):
         if isinstance(key, basestring):
@@ -253,7 +264,7 @@ class Node(libelliptics_python.elliptics_node_python):
          return value:
          string - nodes and paths where data was stored
          """
-        return super(Node, self).write_data(*self.create_write_args(key, data, offset, ioflags, cflags, column))
+        return super(Session, self).write_data(*self.create_write_args(key, data, offset, ioflags, cflags, column))
 
     def write_metadata(self, key, cflags = command_flags.default, name = None, groups = None):
         """
@@ -274,7 +285,7 @@ class Node(libelliptics_python.elliptics_node_python):
         else:
             new_args = [key, name, groups, cflags]
 
-        super(Node, self).write_metadata(*new_args)
+        super(Session, self).write_metadata(*new_args)
 
     def write(self, key, data):
         """
@@ -302,7 +313,7 @@ class Node(libelliptics_python.elliptics_node_python):
         else:
             new_args = [key, cflags, ioflags]
 
-        super(Node, self).remove(*new_args)
+        super(Session, self).remove(*new_args)
 
     def execute(self, *args, **kwargs):
         """
@@ -325,7 +336,7 @@ class Node(libelliptics_python.elliptics_node_python):
              return value:
              string - result of the script execution
         """
-        return super(Node, self).execute(*args, **{})
+        return super(Session, self).execute(*args, **{})
 
     def update_status(self, key, status = None, update = 0):
         """
@@ -340,22 +351,22 @@ class Node(libelliptics_python.elliptics_node_python):
              addr - storage address
              port - storage port
              family - IP protocol family: 2 for IPv4 (default value) and 10 for IPv6
-             status - new node status, object of NodeStatus class
+             status - new node status, object of SessionStatus class
              update - update status or just return current (default is 0)
 
              If update = 0 status will not be changed
 
              return value:
-             NodeStatus - current node status
+             SessionStatus - current node status
         """
-        status = status or NodeStatus()
+        status = status or SessionStatus()
         if hasattr(key, '__iter__'):
             new_args = (key[0], key[1], key[2], status, update)
         else:
             new_args = (key, status, update)
 
-        ret = super(Node, self).update_status(*new_args)
-        ret.__class__ = NodeStatus
+        ret = super(Session, self).update_status(*new_args)
+        ret.__class__ = SessionStatus
         return ret
 
     def bulk_read(self, keys, cflags = command_flags.default):
@@ -367,7 +378,7 @@ class Node(libelliptics_python.elliptics_node_python):
              return value:
              list - list of strings, each string consists of 64 byte key, 8 byte data length and data itself
         """
-        return super(Node, self).bulk_read(keys, cflags)
+        return super(Session, self).bulk_read(keys, cflags)
 
 
     def read_data_range(self, read_range):
@@ -378,6 +389,6 @@ class Node(libelliptics_python.elliptics_node_python):
              return value:
              list - list of strings, each string consists of 64 byte key, 8 byte data length and data itself
         """
-        return super(Node, self).read_data_range(read_range)
+        return super(Session, self).read_data_range(read_range)
 
 

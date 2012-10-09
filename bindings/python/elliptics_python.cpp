@@ -183,20 +183,22 @@ class elliptics_config {
 		struct dnet_config		config;
 };
 
-class elliptics_node_python : public node {
+class elliptics_node_python : public node, public wrapper<node> {
 	public:
 		elliptics_node_python(logger &l) : node(l) {}
 
 		elliptics_node_python(logger &l, elliptics_config &cfg) : node(l, cfg.config) {}
 
+		elliptics_node_python(const node &n): node(n) {}
+
 
 };
 
-class elliptics_session: public session {
+class elliptics_session: public session, public wrapper<session> {
 	public:
-		elliptics_session(elliptics_node_python &n) : session(n)
-		{
-		}
+		elliptics_session(node &n) : session(n) {}
+
+		elliptics_session(const session &s): session(s) {}
 
 		void add_groups(const list &pgroups) {
 			std::vector<int> groups;
@@ -582,12 +584,12 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.add_property("cookie", &elliptics_config::cookie_get, &elliptics_config::cookie_set)
 	;
 
-	class_<elliptics_node_python, bases<node> >("elliptics_node_python", init<logger &>())
+	class_<elliptics_node_python>("elliptics_node_python", init<logger &>())
 		.def(init<logger &, elliptics_config &>())
 		.def("add_remote", &node::add_remote, add_remote_overloads())
 	;
 
-	class_<elliptics_session, bases<node> >("elliptics_session", init<elliptics_node_python &>())
+	class_<elliptics_session>("elliptics_session", init<node &>())
 		.def("add_groups", &elliptics_session::add_groups)
 
 		.def("read_file", &elliptics_session::read_file_by_id)

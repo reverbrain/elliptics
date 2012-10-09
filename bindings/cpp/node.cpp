@@ -122,9 +122,9 @@ node::~node()
 	delete m_log;
 }
 
-session::session(node &n) : m_node(n)
+session::session(node &n) : m_node(&n)
 {
-	m_session = dnet_session_create(m_node.m_node);
+	m_session = dnet_session_create(m_node->m_node);
 
 	if (!m_session)
 		throw std::bad_alloc();
@@ -597,7 +597,7 @@ int session::write_metadata(const struct dnet_id &id, const std::string &obj,
 	std::string meta;
 	struct dnet_meta_container mc;
 
-	if (dnet_flags(m_node.m_node) & DNET_CFG_NO_META)
+	if (dnet_flags(m_node->m_node) & DNET_CFG_NO_META)
 		return 0;
 
 	meta = create_metadata(id, obj, groups, ts);
@@ -619,7 +619,7 @@ int session::write_metadata(const struct dnet_id &id, const std::string &obj,
 		
 void session::transform(const std::string &data, struct dnet_id &id)
 {
-	dnet_transform(m_node.m_node, (void *)data.data(), data.size(), &id);
+	dnet_transform(m_node->m_node, (void *)data.data(), data.size(), &id);
 }
 
 void session::lookup(const struct dnet_id &id, const callback &c)
@@ -709,11 +709,11 @@ std::string session::lookup(const std::string &data)
 				dnet_convert_file_info(info);
 			}
 #endif
-			dnet_log_raw(m_node.m_node, DNET_LOG_DEBUG, "%s: %s: %zu bytes\n", dnet_dump_id(&id), data.c_str(), ret.size());
+			dnet_log_raw(m_node->m_node, DNET_LOG_DEBUG, "%s: %s: %zu bytes\n", dnet_dump_id(&id), data.c_str(), ret.size());
 			error = 0;
 			break;
 		} catch (const std::exception &e) {
-			dnet_log_raw(m_node.m_node, DNET_LOG_ERROR, "%s: %s : %s\n", dnet_dump_id(&id), e.what(), data.c_str());
+			dnet_log_raw(m_node->m_node, DNET_LOG_ERROR, "%s: %s : %s\n", dnet_dump_id(&id), e.what(), data.c_str());
 			continue;
 		}
 	}
@@ -748,10 +748,10 @@ std::string session::lookup(const struct dnet_id &id)
 			throw std::runtime_error(str.str());
 		}
 
-		dnet_log_raw(m_node.m_node, DNET_LOG_DEBUG, "%s: %zu bytes\n", dnet_dump_id(&id), ret.size());
+		dnet_log_raw(m_node->m_node, DNET_LOG_DEBUG, "%s: %zu bytes\n", dnet_dump_id(&id), ret.size());
 		error = 0;
 	} catch (const std::exception &e) {
-		dnet_log_raw(m_node.m_node, DNET_LOG_ERROR, "%s: %s\n", dnet_dump_id(&id), e.what());
+		dnet_log_raw(m_node->m_node, DNET_LOG_ERROR, "%s: %s\n", dnet_dump_id(&id), e.what());
 	}
 
 	if (error) {
@@ -1417,5 +1417,5 @@ std::string session::bulk_write(const std::vector<struct dnet_io_attr> &ios, con
 
 struct dnet_node * session::get_node()
 {
-	return m_node.m_node;
+	return m_node->m_node;
 }
