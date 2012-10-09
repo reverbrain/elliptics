@@ -16,6 +16,7 @@
 #include <iostream>
 #include <deque>
 #include <vector>
+#include <deque>
 
 #include <boost/unordered_map.hpp>
 #include <boost/shared_array.hpp>

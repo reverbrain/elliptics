@@ -31,7 +31,7 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-static int dnet_request_notification_raw(struct dnet_node *n, struct dnet_id *id,
+static int dnet_request_notification_raw(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
@@ -47,10 +47,10 @@ static int dnet_request_notification_raw(struct dnet_node *n, struct dnet_id *id
 	ctl.priv = priv;
 	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
 
-	return dnet_trans_alloc_send(n, &ctl);
+	return dnet_trans_alloc_send(s, &ctl);
 }
 
-int dnet_request_notification(struct dnet_node *n, struct dnet_id *id,
+int dnet_request_notification(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
@@ -61,15 +61,15 @@ int dnet_request_notification(struct dnet_node *n, struct dnet_id *id,
 	if (!complete || !id)
 		return -EINVAL;
 
-	return dnet_request_notification_raw(n, id, complete, priv, cflags);
+	return dnet_request_notification_raw(s, id, complete, priv, cflags);
 }
 
-int dnet_drop_notification(struct dnet_node *n, struct dnet_id *id)
+int dnet_drop_notification(struct dnet_session *s, struct dnet_id *id)
 {
 	uint64_t cflags = DNET_ATTR_DROP_NOTIFICATION;
 	if (!id)
 		return -EINVAL;
 
-	return dnet_request_notification_raw(n, id, NULL, NULL, cflags);
+	return dnet_request_notification_raw(s, id, NULL, NULL, cflags);
 }
 

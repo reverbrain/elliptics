@@ -369,9 +369,9 @@ struct dnet_node
 
 	struct dnet_transform	transform;
 
-	pthread_mutex_t		group_lock;
-	int			group_num;
-	int			*groups;
+//	pthread_mutex_t		group_lock;
+//	int			group_num;
+//	int			*groups;
 
 	int			need_exit;
 
@@ -446,6 +446,13 @@ struct dnet_node
 
 	size_t			cache_size;
 	void			*cache;
+};
+
+
+struct dnet_session {
+	struct dnet_node *node;
+	int group_num;
+	int *groups;
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)
@@ -567,8 +574,6 @@ void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
 struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
 
 int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req);
-
-int dnet_trans_create_send_all(struct dnet_node *n, struct dnet_io_control *ctl);
 
 int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st);
 
@@ -715,7 +720,7 @@ struct dnet_map_fd {
 int dnet_data_map(struct dnet_map_fd *map);
 void dnet_data_unmap(struct dnet_map_fd *map);
 
-void *dnet_read_data_wait_raw(struct dnet_node *n, struct dnet_id *id, struct dnet_io_attr *io, int cmd, uint64_t cflags, int *errp);
+void *dnet_read_data_wait_raw(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, int cmd, uint64_t cflags, int *errp);
 
 int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_srw_cleanup(struct dnet_node *n);

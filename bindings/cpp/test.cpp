@@ -99,7 +99,7 @@ err_out_exit:
 	return err;
 }
 
-static void test_prepare_commit(node &n, int psize, int csize)
+static void test_prepare_commit(session &s, int psize, int csize)
 {
 	std::string written, ret;
 	try {
@@ -122,13 +122,13 @@ static void test_prepare_commit(node &n, int psize, int csize)
 
 		int column = 0;
 
-		n.write_prepare(key, prepare_data, offset, total_size_to_reserve, cflags, ioflags, column);
+		s.write_prepare(key, prepare_data, offset, total_size_to_reserve, cflags, ioflags, column);
 		offset += prepare_data.size();
 
 		written += prepare_data;
 
 		for (int i = 0; i < 3; ++i) {
-			n.write_plain(key, plain_data[i], offset, cflags, ioflags, column);
+			s.write_plain(key, plain_data[i], offset, cflags, ioflags, column);
 			offset += plain_data[i].size();
 
 			written += plain_data[i];
@@ -137,9 +137,9 @@ static void test_prepare_commit(node &n, int psize, int csize)
 		/* append data first so that subsequent written.size() call returned real size of the written data */
 		written += commit_data;
 
-		n.write_commit(key, commit_data, offset, written.size(), cflags, ioflags, column);
+		s.write_commit(key, commit_data, offset, written.size(), cflags, ioflags, column);
 
-		ret = n.read_data_wait(key, 0, 0, cflags, ioflags, column);
+		ret = s.read_data_wait(key, 0, 0, cflags, ioflags, column);
 		std::cout << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "PREPARE/COMMIT test failed: " << e.what() << std::endl;
@@ -152,7 +152,7 @@ static void test_prepare_commit(node &n, int psize, int csize)
 	}
 }
 
-static void test_range_request(node &n, int limit_start, int limit_num, uint64_t cflags, int group_id)
+static void test_range_request(session &s, int limit_start, int limit_num, uint64_t cflags, int group_id)
 {
 	struct dnet_io_attr io;
 
@@ -169,7 +169,7 @@ static void test_range_request(node &n, int limit_start, int limit_num, uint64_t
 	io.num = limit_num;
 
 	std::vector<std::string> ret;
-	ret = n.read_data_range(io, group_id, cflags);
+	ret = s.read_data_range(io, group_id, cflags);
 
 	std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
 #if 0
@@ -207,55 +207,55 @@ static void test_lookup_parse(const std::string &key, const std::string &lret)
 	std::cout << std::endl;
 }
 
-static void test_lookup(node &n, std::vector<int> &groups)
+static void test_lookup(session &s, std::vector<int> &groups)
 {
 	try {
 		std::string key = "2.xml";
 		std::string data = "lookup data";
 
-		std::string lret = n.write_data_wait(key, data, 0, 0, 0, 0);
+		std::string lret = s.write_data_wait(key, data, 0, 0, 0, 0);
 		test_lookup_parse(key, lret);
 
 		struct dnet_id id;
-		n.transform(key, id);
+		s.transform(key, id);
 		id.group_id = 0;
 		id.type = 0;
 
 		uint64_t cflags = 0;
 
 		struct timespec ts = {0, 0};
-		n.write_metadata(id, key, groups, ts, cflags);
+		s.write_metadata(id, key, groups, ts, cflags);
 
-		lret = n.lookup(key);
+		lret = s.lookup(key);
 		test_lookup_parse(key, lret);
 	} catch (const std::exception &e) {
 		std::cerr << "LOOKUP test failed: " << e.what() << std::endl;
 	}
 }
 
-static void test_append(node &n)
+static void test_append(session &s)
 {
 	try {
 		std::string key = "append-test";
 		std::string data = "first part of the message";
 
-		n.write_data_wait(key, data, 0, 0, 0, 0);
+		s.write_data_wait(key, data, 0, 0, 0, 0);
 
 		data = "| second part of the message";
-		n.write_data_wait(key, data, 0, 0, DNET_IO_FLAGS_APPEND, 0);
+		s.write_data_wait(key, data, 0, 0, DNET_IO_FLAGS_APPEND, 0);
 
-		std::cout << key << ": " << n.read_data_wait(key, 0, 0, 0, 0, 0) << std::endl;
+		std::cout << key << ": " << s.read_data_wait(key, 0, 0, 0, 0, 0) << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "APPEND test failed: " << e.what() << std::endl;
 		throw std::runtime_error("APPEND test failed");
 	}
 }
 
-static void read_column_raw(node &n, const std::string &key, const std::string &data, int column)
+static void read_column_raw(session &s, const std::string &key, const std::string &data, int column)
 {
 	std::string ret;
 	try {
-		ret = n.read_data_wait(key, 0, 0, 0, 0, column);
+		ret = s.read_data_wait(key, 0, 0, 0, 0, column);
 	} catch (const std::exception &e) {
 		std::cerr << "COLUMN-" << column << " read test failed: " << e.what() << std::endl;
 		throw;
@@ -267,7 +267,7 @@ static void read_column_raw(node &n, const std::string &key, const std::string &
 	}
 }
 
-static void column_test(node &n)
+static void column_test(session &s)
 {
 	std::string key = "some-key-1";
 
@@ -275,16 +275,16 @@ static void column_test(node &n)
 	std::string data1 = "some-data-in-column-2";
 	std::string data2 = "some-data-in-column-3";
 
-	n.write_data_wait(key, data0, 0, 0, DNET_IO_FLAGS_COMPRESS, 0);
-	n.write_data_wait(key, data1, 0, 0, 0, 2);
-	n.write_data_wait(key, data2, 0, 0, 0, 3);
+	s.write_data_wait(key, data0, 0, 0, DNET_IO_FLAGS_COMPRESS, 0);
+	s.write_data_wait(key, data1, 0, 0, 0, 2);
+	s.write_data_wait(key, data2, 0, 0, 0, 3);
 
-	read_column_raw(n, key, data0, 0);
-	read_column_raw(n, key, data1, 2);
-	read_column_raw(n, key, data2, 3);
+	read_column_raw(s, key, data0, 0);
+	read_column_raw(s, key, data1, 2);
+	read_column_raw(s, key, data2, 3);
 }
 
-static void test_bulk_write(node &n)
+static void test_bulk_write(session &s)
 {
 	try {
 		std::vector<struct dnet_io_attr> ios;
@@ -302,7 +302,7 @@ static void test_bulk_write(node &n)
 			memset(&io, 0, sizeof(io));
 			memset(&id, 0, sizeof(id));
 
-			n.transform(os.str(), id);
+			s.transform(os.str(), id);
 			memcpy(io.id, id.id, DNET_ID_SIZE);
 			io.type = id.type;
 			io.size = os.str().size();
@@ -311,7 +311,7 @@ static void test_bulk_write(node &n)
 			data.push_back(os.str());
 		}
 
-		std::string ret = n.bulk_write(ios, data, 0);
+		std::string ret = s.bulk_write(ios, data, 0);
 
 		std::cout << "ret size = " << ret.size() << std::endl;
 
@@ -327,14 +327,14 @@ static void test_bulk_write(node &n)
 			std::ostringstream os;
 
 			os << "bulk_write" << i;
-			std::cout << os.str() << ": " << n.read_data_wait(os.str(), offset, size, cflags, ioflags, type) << std::endl;
+			std::cout << os.str() << ": " << s.read_data_wait(os.str(), offset, size, cflags, ioflags, type) << std::endl;
 		}
 	} catch (const std::exception &e) {
 		std::cerr << "BULK WRITE test failed: " << e.what() << std::endl;
 	}
 }
 
-static void test_bulk_read(node &n)
+static void test_bulk_read(session &s)
 {
 	try {
 		std::vector<std::string> keys;
@@ -347,7 +347,7 @@ static void test_bulk_read(node &n)
 			keys.push_back(os.str());
 		}
 
-		std::vector<std::string> ret = n.bulk_read(keys, 0);
+		std::vector<std::string> ret = s.bulk_read(keys, 0);
 
 		std::cout << "ret size = " << ret.size() << std::endl;
 
@@ -364,7 +364,7 @@ static void test_bulk_read(node &n)
 
 }
 
-static void memory_test_io(node &n, int num)
+static void memory_test_io(session &s, int num)
 {
 	int ids[16];
 
@@ -380,8 +380,8 @@ static void memory_test_io(node &n, int num)
 		std::string written;
 
 		try {
-			written = n.write_data_wait(id, data, 0, 0, 0, 0);
-			std::string res = n.read_data_wait(id, 0, 0, 0, 0, 0);
+			written = s.write_data_wait(id, data, 0, 0, 0, 0);
+			std::string res = s.read_data_wait(id, 0, 0, 0, 0, 0);
 		} catch (const std::exception &e) {
 			std::cerr << "could not perform read/write: " << e.what() << std::endl;
 			if (written.size() > 0) {
@@ -393,7 +393,7 @@ static void memory_test_io(node &n, int num)
 
 }
 
-static void test_cache_write(node &n, int num)
+static void test_cache_write(session &s, int num)
 {
 	try {
 		std::vector<struct dnet_io_attr> ios;
@@ -411,7 +411,7 @@ static void test_cache_write(node &n, int num)
 			memset(&io, 0, sizeof(io));
 			memset(&id, 0, sizeof(id));
 
-			n.transform(os.str(), id);
+			s.transform(os.str(), id);
 			memcpy(io.id, id.id, DNET_ID_SIZE);
 			io.type = id.type;
 			io.size = os.str().size();
@@ -420,14 +420,14 @@ static void test_cache_write(node &n, int num)
 			data.push_back(os.str());
 		}
 
-		n.bulk_write(ios, data, 0);
+		s.bulk_write(ios, data, 0);
 	} catch (const std::exception &e) {
 		std::cerr << "cache write test failed: " << e.what() << std::endl;
 	}
 	std::cout << "Cache entries writted: " << num << std::endl;
 }
 
-static void test_cache_read(node &n, int num)
+static void test_cache_read(session &s, int num)
 {
 	int count = 0;
 
@@ -450,7 +450,7 @@ static void test_cache_read(node &n, int num)
 		uint64_t size = 0;
 
 		try {
-			n.read_data_wait(os.str(), offset, size, cflags, ioflags, type);
+			s.read_data_wait(os.str(), offset, size, cflags, ioflags, type);
 		} catch (const std::exception &e) {
 			std::cerr << "could not perform read : " << e.what() << std::endl;
 		}
@@ -459,7 +459,7 @@ static void test_cache_read(node &n, int num)
 	std::cout << "Cache entries read: " << count << std::endl;
 }
 
-static void test_cache_delete(node &n, int num)
+static void test_cache_delete(session &s, int num)
 {
 	int count = 0;
 
@@ -475,7 +475,7 @@ static void test_cache_delete(node &n, int num)
 		std::string id(os.str());
 
 		try {
-			n.remove(id, 0);
+			s.remove(id, 0);
 		} catch (const std::exception &e) {
 			std::cerr << "could not perform remove: " << e.what() << std::endl;
 		}
@@ -484,12 +484,12 @@ static void test_cache_delete(node &n, int num)
 	std::cout << "Cache entries deleted: " << count << std::endl;
 }
 
-static void memory_test(node &n)
+static void memory_test(session &s)
 {
 	struct rusage start, end;
 
 	getrusage(RUSAGE_SELF, &start);
-	memory_test_io(n, 1000);
+	memory_test_io(s, 1000);
 	getrusage(RUSAGE_SELF, &end);
 	std::cout << "IO leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
 }
@@ -541,10 +541,11 @@ int main(int argc, char *argv[])
 
 
 	try {
-		log_file log("/dev/stderr", DNET_LOG_ERROR);
+		log_file log("/dev/stderr", DNET_LOG_DEBUG);
 
 		node n(log);
-		n.add_groups(groups);
+		session s(n);
+		s.add_groups(groups);
 
 		try {
 			n.add_remote(host, port, AF_INET);
@@ -552,36 +553,36 @@ int main(int argc, char *argv[])
 			throw std::runtime_error("Could not add remote nodes, exiting");
 		}
 
-		test_lookup(n, groups);
+		test_lookup(s, groups);
 
-		n.stat_log();
+		s.stat_log();
 
-		column_test(n);
+		column_test(s);
 
-		test_prepare_commit(n, 0, 0);
-		test_prepare_commit(n, 1, 0);
-		test_prepare_commit(n, 0, 1);
-		test_prepare_commit(n, 1, 1);
+		test_prepare_commit(s, 0, 0);
+		test_prepare_commit(s, 1, 0);
+		test_prepare_commit(s, 0, 1);
+		test_prepare_commit(s, 1, 1);
 
-		test_range_request(n, 0, 0, 0, group_id);
-		test_range_request(n, 0, 0, DNET_ATTR_SORT, group_id);
-		test_range_request(n, 1, 0, 0, group_id);
-		test_range_request(n, 0, 1, 0, group_id);
+		test_range_request(s, 0, 0, 0, group_id);
+		test_range_request(s, 0, 0, DNET_ATTR_SORT, group_id);
+		test_range_request(s, 1, 0, 0, group_id);
+		test_range_request(s, 0, 1, 0, group_id);
 
-		test_append(n);
+		test_append(s);
 
-		test_bulk_write(n);
-		test_bulk_read(n);
+		test_bulk_write(s);
+		test_bulk_read(s);
 
 		if (mem_check)
-			memory_test(n);
+			memory_test(s);
 
 		if (write_cache)
-			test_cache_write(n, 1000);
+			test_cache_write(s, 1000);
 
-		test_cache_read(n, 1000);
-		test_cache_delete(n, 1000);
-		test_cache_write(n, 1000);
+		test_cache_read(s, 1000);
+		test_cache_delete(s, 1000);
+		test_cache_write(s, 1000);
 
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;

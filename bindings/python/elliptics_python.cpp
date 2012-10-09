@@ -183,11 +183,22 @@ class elliptics_config {
 		struct dnet_config		config;
 };
 
-class elliptics_node_python : public node {
+class elliptics_node_python : public node, public wrapper<node> {
 	public:
 		elliptics_node_python(logger &l) : node(l) {}
 
 		elliptics_node_python(logger &l, elliptics_config &cfg) : node(l, cfg.config) {}
+
+		elliptics_node_python(const node &n): node(n) {}
+
+
+};
+
+class elliptics_session: public session, public wrapper<session> {
+	public:
+		elliptics_session(node &n) : session(n) {}
+
+		elliptics_session(const session &s): session(s) {}
 
 		void add_groups(const list &pgroups) {
 			std::vector<int> groups;
@@ -195,18 +206,17 @@ class elliptics_node_python : public node {
 			for (int i=0; i<len(pgroups); ++i)
 				groups.push_back(extract<int>(pgroups[i]));
 
-			node::add_groups(groups);
+			session::add_groups(groups);
 		}
 
-		boost::python::list get_groups(){
-		    std::vector<int> groups = node::get_groups();
-		    boost::python::list res;
-		    for(size_t i=0; i<groups.size(); i++)
-		    {
-                res.append(groups[i]);
-		    }
+		boost::python::list get_groups() {
+			std::vector<int> groups = session::get_groups();
+			boost::python::list res;
+			for(size_t i=0; i<groups.size(); i++) {
+				res.append(groups[i]);
+			}
 
-		    return res;
+			return res;
 		}
 
 		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const list &pgroups, uint64_t cflags) {
@@ -386,7 +396,7 @@ class elliptics_node_python : public node {
 			elliptics_extract_range(r, io);
 
 			std::vector<std::string> ret;
-			ret = node::read_data_range(io, r.group_id, r.cflags);
+			ret = session::read_data_range(io, r.group_id, r.cflags);
 
 			boost::python::list l;
 
@@ -404,7 +414,7 @@ class elliptics_node_python : public node {
 
 			boost::python::list res;
 
-			routes = node::get_routes();
+			routes = session::get_routes();
 
 			for (it = routes.begin(); it != routes.end(); it++) {
 				struct elliptics_id id(it->first);
@@ -473,7 +483,7 @@ class elliptics_node_python : public node {
 			int err;
 			int i;
 
-			err = dnet_request_stat(m_node, NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL,
+			err = dnet_request_stat(m_session, NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL,
 				callback::complete_callback, (void *)&c);
 			if (err < 0) {
 				std::ostringstream str;
@@ -529,9 +539,7 @@ class elliptics_node_python : public node {
 
 			return statistics;
 		}
-
 };
-
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
 
 BOOST_PYTHON_MODULE(libelliptics_python) {
@@ -571,10 +579,6 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("log_level", &dnet_node_status::log_level)
 	;
 
-	class_<node>("elliptics_node", init<logger &>())
-		.def("add_remote", &node::add_remote, add_remote_overloads())
-	;
-
 	class_<dnet_config>("dnet_config", init<>())
 		.def_readwrite("wait_timeout", &dnet_config::wait_timeout)
 		.def_readwrite("flags", &dnet_config::flags)
@@ -590,58 +594,60 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.add_property("cookie", &elliptics_config::cookie_get, &elliptics_config::cookie_set)
 	;
 
-	class_<elliptics_node_python, bases<node> >("elliptics_node_python", init<logger &>())
+	class_<elliptics_node_python>("elliptics_node_python", init<logger &>())
 		.def(init<logger &, elliptics_config &>())
 		.def("add_remote", &node::add_remote, add_remote_overloads())
+	;
 
-		.def("add_groups", &elliptics_node_python::add_groups)
-		.def("get_groups", &elliptics_node_python::get_groups)
+	class_<elliptics_session>("elliptics_session", init<node &>())
+		.def("add_groups", &elliptics_session::add_groups)
+		.def("get_groups", &elliptics_session::get_groups)
 
-		.def("read_file", &elliptics_node_python::read_file_by_id)
-		.def("read_file", &elliptics_node_python::read_file_by_data_transform)
-		.def("write_file", &elliptics_node_python::write_file_by_id)
-		.def("write_file", &elliptics_node_python::write_file_by_data_transform)
+		.def("read_file", &elliptics_session::read_file_by_id)
+		.def("read_file", &elliptics_session::read_file_by_data_transform)
+		.def("write_file", &elliptics_session::write_file_by_id)
+		.def("write_file", &elliptics_session::write_file_by_data_transform)
 
-		.def("read_data", &elliptics_node_python::read_data_by_id)
-		.def("read_data", &elliptics_node_python::read_data_by_data_transform)
+		.def("read_data", &elliptics_session::read_data_by_id)
+		.def("read_data", &elliptics_session::read_data_by_data_transform)
 
-		.def("prepare_latest", &elliptics_node_python::prepare_latest_by_id)
-		.def("prepare_latest_str", &elliptics_node_python::prepare_latest_by_id_str)
+		.def("prepare_latest", &elliptics_session::prepare_latest_by_id)
+		.def("prepare_latest_str", &elliptics_session::prepare_latest_by_id_str)
 
-		.def("read_latest", &elliptics_node_python::read_latest_by_id)
-		.def("read_latest", &elliptics_node_python::read_latest_by_data_transform)
+		.def("read_latest", &elliptics_session::read_latest_by_id)
+		.def("read_latest", &elliptics_session::read_latest_by_data_transform)
 
-		.def("write_data", &elliptics_node_python::write_data_by_id)
-		.def("write_data", &elliptics_node_python::write_data_by_data_transform)
+		.def("write_data", &elliptics_session::write_data_by_id)
+		.def("write_data", &elliptics_session::write_data_by_data_transform)
 
-		.def("write_metadata", &elliptics_node_python::write_metadata_by_id)
-		.def("write_metadata", &elliptics_node_python::write_metadata_by_data_transform)
+		.def("write_metadata", &elliptics_session::write_metadata_by_id)
+		.def("write_metadata", &elliptics_session::write_metadata_by_data_transform)
 
-		.def("write_cache", &elliptics_node_python::write_cache_by_id)
-		.def("write_cache", &elliptics_node_python::write_cache_by_data_transform)
+		.def("write_cache", &elliptics_session::write_cache_by_id)
+		.def("write_cache", &elliptics_session::write_cache_by_data_transform)
 
-		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_data_transform)
-		.def("lookup_addr", &elliptics_node_python::lookup_addr_by_id)
+		.def("lookup_addr", &elliptics_session::lookup_addr_by_data_transform)
+		.def("lookup_addr", &elliptics_session::lookup_addr_by_id)
 
-		.def("lookup", &elliptics_node_python::lookup_by_data_transform)
-		.def("lookup", &elliptics_node_python::lookup_by_id)
+		.def("lookup", &elliptics_session::lookup_by_data_transform)
+		.def("lookup", &elliptics_session::lookup_by_id)
 
-		.def("update_status", &elliptics_node_python::update_status_by_id)
-		.def("update_status", &elliptics_node_python::update_status_by_string)
+		.def("update_status", &elliptics_session::update_status_by_id)
+		.def("update_status", &elliptics_session::update_status_by_string)
 
-		.def("read_data_range", &elliptics_node_python::read_data_range)
+		.def("read_data_range", &elliptics_session::read_data_range)
 
-		.def("get_routes", &elliptics_node_python::get_routes)
-		.def("stat_log", &elliptics_node_python::stat_log)
+		.def("get_routes", &elliptics_session::get_routes)
+		.def("stat_log", &elliptics_session::stat_log)
 
-		.def("exec_event", &elliptics_node_python::exec_name)
-		.def("exec_event", &elliptics_node_python::exec_name_by_name)
-		.def("exec_event", &elliptics_node_python::exec_name_all)
+		.def("exec_event", &elliptics_session::exec_name)
+		.def("exec_event", &elliptics_session::exec_name_by_name)
+		.def("exec_event", &elliptics_session::exec_name_all)
 
-		.def("remove", &elliptics_node_python::remove_by_id)
-		.def("remove", &elliptics_node_python::remove_by_name)
+		.def("remove", &elliptics_session::remove_by_id)
+		.def("remove", &elliptics_session::remove_by_name)
 
-		.def("bulk_read", &elliptics_node_python::bulk_read_by_name)
+		.def("bulk_read", &elliptics_session::bulk_read_by_name)
 	;
 
 	enum_<elliptics_cflags>("command_flags")

@@ -745,6 +745,7 @@ err_out_exit:
 	return err;
 }
 
+/*
 int64_t dnet_get_param(struct dnet_node *n, struct dnet_id *id, enum id_params param)
 {
 	struct dnet_net_state *st;
@@ -779,7 +780,8 @@ static int dnet_compare_by_param(const void *id1, const void *id2)
 
 	return l1->param - l2->param;
 }
-
+*/
+/* TODO: remove this function
 int dnet_generate_ids_by_param(struct dnet_node *n, struct dnet_id *id, enum id_params param, struct dnet_id_param **dst)
 {
 	int i, err = 0, group_num = 0;
@@ -845,6 +847,7 @@ err_out_unlock_state:
 err_out_exit:
 	return err;
 }
+*/
 
 static int dnet_populate_cache(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io_attr *io,
 		void *data, int fd, size_t fd_offset, size_t size)

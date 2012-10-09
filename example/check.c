@@ -183,6 +183,7 @@ int main(int argc, char *argv[])
 	struct tm tm;
 	char *file = NULL;
 	int group_num = 0, *groups;
+	struct dnet_session *s;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -333,5 +334,9 @@ int main(int argc, char *argv[])
 		req = req2;
 	}
 
-	return dnet_request_check(n, req);
+	s = dnet_session_create(n);
+	if (!s)
+		return -ENOMEM;
+
+	return dnet_request_check(s, req);
 }

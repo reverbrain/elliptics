@@ -120,6 +120,7 @@ int main(int argc, char *argv[])
 {
 	int ch, err, i, have_remote = 0;
 	struct dnet_node *n = NULL;
+	struct dnet_session *s = NULL;
 	struct dnet_config cfg, rem;
 	int max_id_idx = 1000, id_idx = 0;
 	int timeout;
@@ -212,6 +213,10 @@ int main(int argc, char *argv[])
 	if (!n)
 		return -1;
 
+	s = dnet_session_create(n);
+	if (!s)
+		return -1;
+
 	err = dnet_add_state(n, &rem);
 	if (err)
 		return err;
@@ -220,14 +225,14 @@ int main(int argc, char *argv[])
 		struct dnet_id raw;
 
 		if (!id_idx) {
-			err = dnet_request_stat(n, NULL, DNET_CMD_STAT, 0, stat_complete, stat);
+			err = dnet_request_stat(s, NULL, DNET_CMD_STAT, 0, stat_complete, stat);
 			if (err < 0)
 				return err;
 		}
 
 		for (i=0; i<id_idx; ++i) {
 			dnet_setup_id(&raw, 0, id[i]);
-			err = dnet_request_stat(n, &raw, DNET_CMD_STAT, 0, stat_complete, stat);
+			err = dnet_request_stat(s, &raw, DNET_CMD_STAT, 0, stat_complete, stat);
 			if (err < 0)
 				return err;
 		}

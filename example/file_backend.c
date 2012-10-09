@@ -461,7 +461,9 @@ static int file_backend_send(void *state, void *priv, struct dnet_id *id)
 	file_backend_setup_file(r, file, sizeof(file), id->id);
 
 	if (!access(file, R_OK)) {
-		err = dnet_write_file_id(n, file, id, 0, 0, 0, 0, 0);
+		struct dnet_session *s = dnet_session_create(n);
+		dnet_session_set_groups(s, (int *)&id->group_id, 1);
+		err = dnet_write_file_id(s, file, id, 0, 0, 0, 0, 0);
 		if (err < 0) {
 			goto err_out_exit;
 		}

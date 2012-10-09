@@ -259,8 +259,9 @@ err_out_exit:
 	return err;
 }
 
-int dnet_trans_alloc_send(struct dnet_node *n, struct dnet_trans_control *ctl)
+int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl)
 {
+	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
 	int err;
 
@@ -343,6 +344,8 @@ static void dnet_check_all_states(struct dnet_node *n)
 
 static int dnet_check_route_table(struct dnet_node *n)
 {
+/* TODO: whold work via states list */
+/*
 	int rnd = rand();
 	struct dnet_id id;
 	int *groups, group_num, i;
@@ -364,7 +367,7 @@ static int dnet_check_route_table(struct dnet_node *n)
 			dnet_state_put(st);
 		}
 	}
-
+*/
 	return 0;
 }
 

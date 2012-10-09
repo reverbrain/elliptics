@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
 	struct dnet_node_status node_status;
 	int update_status = 0;
 	struct dnet_node *n = NULL;
+	struct dnet_session *s = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
 	char *logfile = "/dev/stderr", *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
 	char *read_data = NULL;
@@ -236,8 +237,6 @@ int main(int argc, char *argv[])
 	pthread_sigmask(SIG_UNBLOCK, &mask, NULL);
 	sigprocmask(SIG_UNBLOCK, &mask, NULL);
 
-	dnet_node_set_groups(n, groups, group_num);
-
 	if (have_remote) {
 		int error = -ECONNRESET;
 		for (i=0; i<have_remote; ++i) {
@@ -252,8 +251,14 @@ int main(int argc, char *argv[])
 			return error;
 	}
 
+	s = dnet_session_create(n);
+	if (!s)
+		return -1;
+
+	dnet_session_set_groups(s, groups, group_num);
+
 	if (defrag)
-		return dnet_start_defrag(n, cflags);
+		return dnet_start_defrag(s, cflags);
 
 	if (writef) {
 		if (id) {
@@ -262,9 +267,9 @@ int main(int argc, char *argv[])
 			dnet_setup_id(&raw, 0, id);
 			raw.type = type;
 
-			err = dnet_write_file_id(n, writef, &raw, offset, offset, size, cflags, ioflags);
+			err = dnet_write_file_id(s, writef, &raw, offset, offset, size, cflags, ioflags);
 		} else {
-			err = dnet_write_file(n, writef, writef, strlen(writef), offset, offset, size, cflags, ioflags, type);
+			err = dnet_write_file(s, writef, writef, strlen(writef), offset, offset, size, cflags, ioflags, type);
 		}
 
 		if (err)
@@ -278,9 +283,9 @@ int main(int argc, char *argv[])
 			dnet_setup_id(&raw, 0, id);
 			raw.type = type;
 
-			err = dnet_read_file_id(n, readf, &raw, offset, size);
+			err = dnet_read_file_id(s, readf, &raw, offset, size);
 		} else {
-			err = dnet_read_file(n, readf, readf, strlen(readf), offset, size, type);
+			err = dnet_read_file(s, readf, readf, strlen(readf), offset, size, type);
 		}
 		if (err)
 			return err;
@@ -308,7 +313,7 @@ int main(int argc, char *argv[])
 		/* number of copies to check to find the latest data */
 		io.num = group_num;
 
-		err = dnet_read_latest(n, &raw, &io, cflags, &data);
+		err = dnet_read_latest(s, &raw, &io, cflags, &data);
 		if (err)
 			return err;
 
@@ -334,12 +339,12 @@ int main(int argc, char *argv[])
 
 			dnet_setup_id(&raw, 0, id);
 			raw.type = type;
-			dnet_remove_object_now(n, &raw, cflags, ioflags);
+			dnet_remove_object_now(s, &raw, cflags, ioflags);
 
 			return 0;
 		}
 
-		err = dnet_remove_file(n, removef, strlen(removef), NULL, cflags, ioflags);
+		err = dnet_remove_file(s, removef, strlen(removef), NULL, cflags, ioflags);
 		if (err)
 			return err;
 	}
@@ -378,7 +383,7 @@ int main(int argc, char *argv[])
 
 		sprintf(sph->data, "%s", cmd);
 
-		err = dnet_send_cmd(n, did, sph, (void **)&ret);
+		err = dnet_send_cmd(s, did, sph, (void **)&ret);
 		if (err < 0)
 			return err;
 
@@ -391,19 +396,19 @@ int main(int argc, char *argv[])
 	}
 
 	if (lookup) {
-		err = dnet_lookup(n, lookup);
+		err = dnet_lookup(s, lookup);
 		if (err)
 			return err;
 	}
 
 	if (vfs_stat) {
-		err = dnet_request_stat(n, NULL, DNET_CMD_STAT, 0, NULL, NULL);
+		err = dnet_request_stat(s, NULL, DNET_CMD_STAT, 0, NULL, NULL);
 		if (err < 0)
 			return err;
 	}
 
 	if (io_counter_stat) {
-		err = dnet_request_stat(n, NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL, NULL, NULL);
+		err = dnet_request_stat(s, NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL, NULL, NULL);
 		if (err < 0)
 			return err;
 	}
@@ -424,7 +429,7 @@ int main(int argc, char *argv[])
 						strerror(-err), err);
 			}
 
-			err = dnet_update_status(n, &addr, NULL, &node_status);
+			err = dnet_update_status(s, &addr, NULL, &node_status);
 			if (err) {
 				dnet_log_raw(n, DNET_LOG_ERROR, "ioclient: dnet_update_status: %s:%s:%d, sock_type: %d, proto: %d: update: %d: "
 						"%s %d\n",
@@ -436,6 +441,7 @@ int main(int argc, char *argv[])
 
 	}
 
+	dnet_session_destroy(s);
 	dnet_node_destroy(n);
 
 	return 0;

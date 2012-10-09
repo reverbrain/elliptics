@@ -42,10 +42,9 @@
 
 using namespace ioremap::elliptics;
 
-class finder : public node {
+class finder : public session {
 	public:
-		finder(logger &log) : node(log) {};
-		finder(logger &log, struct dnet_config &cfg) : node(log, cfg) {};
+		finder(node &n) : session(n) {};
 		virtual ~finder() {};
 
 		void add_remote(const char *addr);
@@ -68,7 +67,7 @@ void finder::add_remote(const char *addr)
 		throw std::runtime_error(str.str());
 	}
 
-	node::add_remote(rem.addr, atoi(rem.port), rem.family);
+	m_node->add_remote(rem.addr, atoi(rem.port), rem.family);
 }
 
 void finder::parse_lookup(const std::string &ret)
@@ -104,17 +103,17 @@ void finder::parse_lookup(const std::string &ret)
 			}
 
 			if (!info)
-				dnet_log_raw(m_node, DNET_LOG_DATA, "%s: FIND object: %s: should live at: %s\n",
+				dnet_log_raw(get_node(), DNET_LOG_DATA, "%s: FIND object: %s: should live at: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
 			else
-				dnet_log_raw(m_node, DNET_LOG_DATA, "%s: FIND-OK object: %s: should live at: %s, "
+				dnet_log_raw(get_node(), DNET_LOG_DATA, "%s: FIND-OK object: %s: should live at: %s, "
 						"offset: %llu, size: %llu, mode: %llo, path: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
 					(unsigned long long)info->offset, (unsigned long long)info->size,
 					(unsigned long long)info->mode, (char *)(info + 1));
 		} else {
 			if (cmd->status != 0)
-				dnet_log_raw(m_node, DNET_LOG_DATA, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
+				dnet_log_raw(get_node(), DNET_LOG_DATA, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
 		}
 
 		data = (char *)data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
@@ -139,7 +138,7 @@ void finder::parse_meta(const std::string &ret)
 
 			dnet_convert_io_attr(io);
 
-			dnet_log_raw(m_node, DNET_LOG_DATA, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
+			dnet_log_raw(get_node(), DNET_LOG_DATA, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
 					dnet_dump_id(&cmd->id), addr_str, dnet_cmd_string(cmd->cmd),
 					(unsigned long long)io->size);
 
@@ -149,10 +148,10 @@ void finder::parse_meta(const std::string &ret)
 			mc.size = io->size;
 
 			memcpy(&mc.id, &cmd->id, sizeof(struct dnet_id));
-			dnet_meta_print(m_node, &mc);
+			dnet_meta_print(m_session, &mc);
 		} else {
 			if (cmd->status != 0)
-				dnet_log_raw(m_node, DNET_LOG_DATA, "%s: FIND meta: %s: status: %d\n",
+				dnet_log_raw(get_node(), DNET_LOG_DATA, "%s: FIND meta: %s: status: %d\n",
 						dnet_dump_id(&cmd->id), addr_str, cmd->status);
 		}
 
@@ -212,7 +211,8 @@ int main(int argc, char *argv[])
 
 	try {
 		log_file log(logfile, log_level);
-		finder find(log);
+		node n(log);
+		finder find(n);
 
 		find.add_remote(remote);
 

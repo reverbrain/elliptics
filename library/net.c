@@ -1028,8 +1028,9 @@ err_out_exit:
 	return NULL;
 }
 
-int dnet_state_num(struct dnet_node *n)
+int dnet_state_num(struct dnet_session *s)
 {
+	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
 	int num = 0;

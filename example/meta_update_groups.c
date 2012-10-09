@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	struct dnet_config cfg, rem;
 	struct dnet_node *n;
+	struct dnet_session *s;
 	struct dnet_id raw;
 	struct dnet_meta_container mc;
 	struct dnet_metadata_control mctl;
@@ -159,24 +160,28 @@ int main(int argc, char *argv[])
 	if (!n)
 		goto err_out_exit;
 
+	s = dnet_session_create(n);
+	if (!s)
+		goto err_out_destroy_node;
+
 	err = dnet_add_state(n, &rem);
 	if (err)
 		goto err_out_destroy;
 
-	dnet_node_set_groups(n, groups, group_num);
+	dnet_session_set_groups(s, groups, group_num);
 
 	/* Read meta */
 	memset(&raw, 0, sizeof(struct dnet_id));
 	if (!name) {
 		dnet_setup_id(&raw, groups[0], id);
-		err = dnet_read_meta(n, &mc, NULL, 0, &raw);
+		err = dnet_read_meta(s, &mc, NULL, 0, &raw);
 	} else {
 		err = dnet_transform(n, name, strlen(name), &raw);
 		if (err) {
 			fprintf(stderr, "dnet_transform failed, err=%d\n", err);
 			goto err_out_destroy;
 		}
-		err = dnet_read_meta(n, &mc, name, strlen(name), NULL);
+		err = dnet_read_meta(s, &mc, name, strlen(name), NULL);
 	}
 
 	if (err < 0) {
@@ -202,8 +207,8 @@ int main(int argc, char *argv[])
 	dnet_setup_id(&mctl.id, newgroups[0], (unsigned char *)&raw.id);
 
 	/* Write new meta */
-	dnet_node_set_groups(n, newgroups, newgroup_num);
-	err = dnet_create_write_metadata(n, &mctl);
+	dnet_session_set_groups(s, newgroups, newgroup_num);
+	err = dnet_create_write_metadata(s, &mctl);
 	if (err < 0) {
 		fprintf(stderr, "Meta update failed, err=%d\n", err);
 	} else {
@@ -212,6 +217,8 @@ int main(int argc, char *argv[])
 	
 
 err_out_destroy:
+	dnet_session_destroy(s);
+err_out_destroy_node:
 	dnet_node_destroy(n);
 err_out_exit:
 	return err;
