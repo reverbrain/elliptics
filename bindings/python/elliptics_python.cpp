@@ -198,6 +198,17 @@ class elliptics_node_python : public node {
 			node::add_groups(groups);
 		}
 
+		boost::python::list get_groups(){
+		    std::vector<int> groups = node::get_groups();
+		    boost::python::list res;
+		    for(size_t i=0; i<groups.size(); i++)
+		    {
+                res.append(groups[i]);
+		    }
+
+		    return res;
+		}
+
 		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const list &pgroups, uint64_t cflags) {
 			struct timespec ts;
 			memset(&ts, 0, sizeof(ts));
@@ -584,6 +595,7 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("add_remote", &node::add_remote, add_remote_overloads())
 
 		.def("add_groups", &elliptics_node_python::add_groups)
+		.def("get_groups", &elliptics_node_python::get_groups)
 
 		.def("read_file", &elliptics_node_python::read_file_by_id)
 		.def("read_file", &elliptics_node_python::read_file_by_data_transform)
