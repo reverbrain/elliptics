@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.18.3.2
+Version:	2.19.0.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Oct 10 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.0.0
+- Added sessions - this allows to configure and set per-request parameters (like groups)
+
 * Wed Oct 10 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.3.2
 - Fixed reply size calculation
 - Unify srw log rules
