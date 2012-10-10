@@ -1083,7 +1083,6 @@ static int dnet_send_cmd_raw(struct dnet_session *s, struct dnet_id *id,
 	if (err)
 		goto err_out_put;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: return data: %p, size: %d\n", dnet_dump_id_str(e->src.id), w->ret, w->size);
 	if (w->ret) {
 		*ret = w->ret;
 		w->ret = NULL;
