@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.18.3.1
+Version:	2.18.3.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Oct 10 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.3.2
+- Fixed reply size calculation
+- Unify srw log rules
+- Fixed pool growing policy
+- Updated debian package rules
+
 * Mon Oct 08 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.18.3.1
 - When running recovery-on-read do not write io attribute header
 

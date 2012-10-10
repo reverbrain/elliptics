@@ -1,3 +1,12 @@
+elliptics (2.18.3.2) unstable; urgency=low
+
+  * Fixed reply size calculation
+  * Unify srw log rules
+  * Fixed pool growing policy
+  * Updated debian package rules
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 10 Oct 2012 12:12:50 +0400
+
 elliptics (2.18.3.1) unstable; urgency=low
 
   * When running recovery-on-read do not write io attribute header
