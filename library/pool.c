@@ -180,7 +180,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	if (nonblocking)
 		pool = io->recv_pool_nb;
 
-	if (list_empty(&pool->list) && (cmd->cmd == DNET_CMD_EXEC) && (cmd->size >= sizeof(struct sph))) {
+	if (!list_empty(&pool->list) && (cmd->cmd == DNET_CMD_EXEC) && (cmd->size >= sizeof(struct sph)) && !(cmd->trans & DNET_TRANS_REPLY)) {
 		struct sph *sph = (struct sph *)r->data;
 		if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
 			dnet_work_pool_grow(n, pool, pool->num/4+1, dnet_io_process);
