@@ -21,7 +21,7 @@ include /usr/share/cdbs/1/class/python-module.mk
 
 binary-install/elliptics-client::
 	cp bindings/python/*.py $(DEB_BUILDDIR)/bindings/python/
-	mv $(cdbs_python_destdir)/usr/lib/python*/site-packages/* $(cdbs_python_destdir)/`python -c "from distutils import sysconfig; print sysconf
+	mv $(cdbs_python_destdir)/usr/lib/python*/site-packages/* $(cdbs_python_destdir)/`python -c "from distutils import sysconfig; print sysconf.get_python_lib(),"`/; echo -n
 	rm -rf $(cdbs_python_destdir)/usr/lib/python*/site-packages; echo -n
 
 
