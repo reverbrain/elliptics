@@ -19,5 +19,11 @@ include /usr/share/cdbs/1/class/python-distutils.mk
 
 include /usr/share/cdbs/1/class/python-module.mk
 
+binary-install/elliptics-client::
+	cp bindings/python/*.py $(DEB_BUILDDIR)/bindings/python/
+	mv $(cdbs_python_destdir)/usr/lib/python*/site-packages/* $(cdbs_python_destdir)/`python -c "from distutils import sysconfig; print sysconf
+	rm -rf $(cdbs_python_destdir)/usr/lib/python*/site-packages; echo -n
+
+
 binary-post-install/elliptics-client::
 	rm debian/elliptics-client/usr/bin/dnet_ioserv
