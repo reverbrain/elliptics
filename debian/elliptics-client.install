@@ -2,4 +2,3 @@ usr/lib/libelliptics_client.so.*
 usr/lib/libelliptics_cpp.so.*
 usr/bin/*
 usr/lib/python*/dist-packages/*
-usr/lib/python2.6/site-packages/* usr/lib/python2.6/dist-packages
