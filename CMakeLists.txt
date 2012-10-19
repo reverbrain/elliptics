@@ -10,6 +10,14 @@ project (elliptics)
 set(ELLIPTICS_VERSION_ABI "2.19")
 set(ELLIPTICS_VERSION_MINOR "0.1")
 
+FILE (READ "${CMAKE_CURRENT_SOURCE_DIR}/debian/changelog" DEBCHANGELOG)
+
+string(REGEX MATCH "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)" DEBFULLVERSION "${DEBCHANGELOG}")
+STRING (REGEX MATCH "([0-9]+\\.[0-9]+)" ELLIPTICS_VERSION_ABI "${DEBFULLVERSION}")
+STRING (REGEX MATCH "([0-9]+\\.[0-9]+$)" ELLIPTICS_VERSION_MINOR "${DEBFULLVERSION}")
+
+message("version: ${DEBFULLVERSION} ${ELLIPTICS_VERSION_ABI}|${ELLIPTICS_VERSION_MINOR}")
+
 option(WITH_PYTHON "Build python bindings" ON)
 option(WITH_COCAINE "Build with cocaine support" ON)
 option(WITH_EXAMPLES "Build example applications" ON)
