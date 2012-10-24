@@ -40,7 +40,7 @@ Description: Distributed hash table storage (includes)
 
 Package: elliptics-dbg
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends} elliptics
+Depends: ${shlibs:Depends}, ${misc:Depends}, elliptics (>= ${Source-Version})
 Replaces: elliptics-dbg-2.10, srw-dbg
 Provides: elliptics-dbg-2.10
 XB-Python-Version: >= 2.6
