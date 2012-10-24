@@ -49,7 +49,7 @@ Description: Distributed hash table storage (debug files)
 
 Package: elliptics-dev
 Architecture: any
-Depends: elliptics
+Depends: elliptics (>= ${Source-Version})
 XB-Python-Version: >= 2.6
 Description: Distributed hash table storage (includes)
  Elliptics network is a fault tolerant distributed hash table object storage.
