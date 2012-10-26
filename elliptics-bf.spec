@@ -17,6 +17,7 @@ BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-
 %endif
 BuildRequires:	eblob-devel >= 0.17.1
 BuildRequires:  smack >= 0.5.0
+BuildRequires:  leveldb-devel
 BuildRequires:	cmake
 
 Obsoletes: srw
