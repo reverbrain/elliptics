@@ -1,3 +1,9 @@
+elliptics (2.19.2.1) unstable; urgency=low
+
+  * Fixed precise build
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 26 Oct 2012 22:56:02 +0400
+
 elliptics (2.19.2.0) unstable; urgency=low
 
   * When creating new state we should not send auth/join commands to itself

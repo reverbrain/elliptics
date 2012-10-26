@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.19.2.0
+Version:	2.19.2.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Oct 26 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.1
+- Fixed precise build
+
 * Fri Oct 26 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.0
 - When creating new state we should not send auth/join commands to itself
 - Return back periodic route table check
