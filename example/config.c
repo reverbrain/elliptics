@@ -43,6 +43,12 @@ int dnet_smack_backend_init(void);
 void dnet_smack_backend_exit(void);
 #endif
 
+#ifdef HAVE_LEVELDB_SUPPORT
+int dnet_leveldb_backend_init(void);
+void dnet_leveldb_backend_exit(void);
+#endif
+
+
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
@@ -338,7 +344,7 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 		goto err_out_close;
 	}
 
-	dnet_backend_logger.log_level = DNET_LOG_ERROR;
+	dnet_backend_logger.log_level = DNET_LOG_DEBUG;
 	dnet_backend_logger.log = dnet_common_log;
 	dnet_cfg_state.log = &dnet_backend_logger;
 
@@ -354,6 +360,11 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	err = dnet_smack_backend_init();
 	if (err)
 		goto err_out_eblob_exit;
+#endif
+#ifdef HAVE_LEVELDB_SUPPORT
+	err = dnet_leveldb_backend_init();
+	if (err)
+		goto err_out_smack_exit;
 #endif
 	while (1) {
 		ptr = fgets(buf, buf_size, f);
@@ -477,6 +488,10 @@ err_out_node_destroy:
 err_out_free:
 	free(dnet_cfg_remotes);
 
+#ifdef HAVE_LEVELDB_SUPPORT
+	dnet_leveldb_backend_exit();
+err_out_smack_exit:
+#endif
 #ifdef HAVE_SMACK_SUPPORT
 	dnet_smack_backend_exit();
 err_out_eblob_exit:

@@ -5,9 +5,16 @@ set(ECOMMON_LIBRARIES common elliptics_client)
 
 set(DNET_IOSERV_SRCS ioserv.c config.c file_backend.c backends.c eblob_backend.c)
 set(DNET_IOSERV_LIBRARIES ${ECOMMON_LIBRARIES} elliptics elliptics_cocaine ${SMACK_LIBRARIES})
+
 if(HAVE_SMACK_SUPPORT)
     list(APPEND DNET_IOSERV_SRCS smack_backend.c)
 endif()
+
+if(HAVE_LEVELDB_SUPPORT)
+    list(APPEND DNET_IOSERV_SRCS leveldb_backend.c)
+    list(APPEND DNET_IOSERV_LIBRARIES ${LEVELDB_LIBRARIES})
+endif()
+
 add_executable(dnet_ioserv ${DNET_IOSERV_SRCS})
 target_link_libraries(dnet_ioserv ${DNET_IOSERV_LIBRARIES})
 
