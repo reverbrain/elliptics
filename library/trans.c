@@ -344,20 +344,23 @@ static void dnet_check_all_states(struct dnet_node *n)
 
 static int dnet_check_route_table(struct dnet_node *n)
 {
-/* TODO: whold work via states list */
-/*
 	int rnd = rand();
 	struct dnet_id id;
-	int *groups, group_num, i;
+	int groups[128];
+	int group_num = 0, i;
 	struct dnet_net_state *st;
+	struct dnet_group *g;
 
-	pthread_mutex_lock(&n->group_lock);
-	groups = alloca(n->group_num * sizeof(int));
-	group_num = n->group_num;
-	memcpy(groups, n->groups, n->group_num * sizeof(int));
-	pthread_mutex_unlock(&n->group_lock);
+	pthread_mutex_lock(&n->state_lock);
+	list_for_each_entry(g, &n->group_list, group_entry) {
+		groups[group_num++] = g->group_id;
 
-	for (i=0; i<group_num; ++i) {
+		if (group_num > (int)ARRAY_SIZE(groups))
+			break;
+	}
+	pthread_mutex_unlock(&n->state_lock);
+
+	for (i = 0; i < group_num; ++i) {
 		id.group_id = groups[i];
 		memcpy(id.id, &rnd, sizeof(rnd));
 
@@ -367,7 +370,7 @@ static int dnet_check_route_table(struct dnet_node *n)
 			dnet_state_put(st);
 		}
 	}
-*/
+
 	return 0;
 }
 

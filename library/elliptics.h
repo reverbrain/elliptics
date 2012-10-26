@@ -369,10 +369,6 @@ struct dnet_node
 
 	struct dnet_transform	transform;
 
-//	pthread_mutex_t		group_lock;
-//	int			group_num;
-//	int			*groups;
-
 	int			need_exit;
 
 	int			autodiscovery_socket;
