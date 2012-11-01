@@ -175,7 +175,8 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 err_out_free:
 	free(data);
 err_out_exit:
-	dnet_backend_log(DNET_LOG_ERROR, "%s: LEVELDB: READ: error: %s",
+	if (err < 0)
+		dnet_backend_log(DNET_LOG_ERROR, "%s: LEVELDB: READ: error: %s\n",
 			dnet_dump_id(&cmd->id), errp);
 	return err;
 }
