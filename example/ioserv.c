@@ -130,17 +130,6 @@ static int ioserv_setup_signals(void)
 	return 0;
 }
 
-static void ioserv_cleanup_signals(void)
-{
-	sigset_t sig;
-
-	sigemptyset(&sig);
-	sigaddset(&sig, SIGTERM);
-	sigaddset(&sig, SIGINT);
-	sigaddset(&sig, SIGHUP);
-	sigprocmask(SIG_BLOCK, &sig, NULL);
-}
-
 static int ioserv_start(char *conf, int mon)
 {
 	struct dnet_node *n;
@@ -155,7 +144,6 @@ static int ioserv_start(char *conf, int mon)
 	while (!dnet_need_exit(n))
 		sleep(1);
 
-	ioserv_cleanup_signals();
 	dnet_server_node_destroy(n);
 	return 0;
 }

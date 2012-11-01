@@ -478,13 +478,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 {
 	struct dnet_node *n;
 	int err = -ENOMEM;
-	sigset_t sig;
 
 	srand(time(NULL));
-
-	sigfillset(&sig);
-	pthread_sigmask(SIG_BLOCK, &sig, NULL);
-	sigprocmask(SIG_BLOCK, &sig, NULL);
 
 	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->cb)) {
 		err = -EINVAL;
