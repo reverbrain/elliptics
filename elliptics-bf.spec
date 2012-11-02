@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.19.2.1
+Version:	2.19.2.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Nov 02 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.2
+- Fixed python installation in Lucid
+- Remove signal setup in library. Do not block signals on ioserv exit
+- Only write error message when real error occurs in leveldb_backend_read()
+
 * Fri Oct 26 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.1
 - Fixed precise build
 
