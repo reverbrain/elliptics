@@ -180,9 +180,30 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	if (nonblocking)
 		pool = io->recv_pool_nb;
 
-	if (!list_empty(&pool->list) && (cmd->cmd == DNET_CMD_EXEC) && (cmd->size >= sizeof(struct sph)) && !(cmd->trans & DNET_TRANS_REPLY)) {
-		struct sph *sph = (struct sph *)r->data;
-		if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
+#define cmd_is_exec_match(__cmd) (((__cmd)->cmd == DNET_CMD_EXEC) && ((__cmd)->size >= sizeof(struct sph)) && !((__cmd)->trans & DNET_TRANS_REPLY))
+
+	if (!list_empty(&pool->list) && cmd_is_exec_match(cmd)) {
+		int pool_has_blocked_sph = 0;
+		struct dnet_io_req *tmp;
+		struct dnet_cmd *tmp_cmd;
+		struct sph *sph;
+
+		pthread_mutex_lock(&pool->lock);
+		list_for_each_entry(tmp, &pool->list, req_entry) {
+			tmp_cmd = tmp->header;
+
+			if (cmd_is_exec_match(tmp_cmd)) {
+				sph = (struct sph *)tmp->data;
+				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
+					pool_has_blocked_sph = 1;
+					break;
+				}
+			}
+		}
+		pthread_mutex_unlock(&pool->lock);
+
+		sph = (struct sph *)r->data;
+		if ((sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) && pool_has_blocked_sph) {
 			dnet_work_pool_grow(n, pool, pool->num/4+1, dnet_io_process);
 		}
 	}
