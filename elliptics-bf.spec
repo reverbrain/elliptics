@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.19.2.2
+Version:	2.19.2.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Nov 06 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.3
+- Only enlarge non-blocking pool when there is blocking sph in the pool.
+
 * Fri Nov 02 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.2
 - Fixed python installation in Lucid
 - Remove signal setup in library. Do not block signals on ioserv exit
