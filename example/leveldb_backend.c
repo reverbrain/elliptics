@@ -143,7 +143,7 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 
 	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info), 0);
 
-	dnet_backend_log(DNET_LOG_INFO, "%s: LEVELDB: : WRITE: Ok: offset: %llu, size: %llu.\n",
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: LEVELDB: : WRITE: Ok: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&cmd->id), (unsigned long long)io->offset, (unsigned long long)io->size);
 
 	return err;
