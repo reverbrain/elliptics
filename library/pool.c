@@ -185,12 +185,28 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	if (!list_empty(&pool->list) && cmd_is_exec_match(cmd)) {
 		int pool_has_blocked_sph = 0;
 		struct dnet_io_req *tmp;
-		struct dnet_cmd *tmp_cmd;
 		struct sph *sph;
 
 		pthread_mutex_lock(&pool->lock);
 		list_for_each_entry(tmp, &pool->list, req_entry) {
-			tmp_cmd = tmp->header;
+			struct dnet_cmd *tmp_cmd = tmp->header;
+			unsigned long long tid = tmp_cmd->trans & ~DNET_TRANS_REPLY;
+			int reply = !!(tmp_cmd->trans & DNET_TRANS_REPLY);
+			unsigned long long sph_flags = 0;
+			int sph_match = 0;
+
+			if (cmd_is_exec_match(tmp_cmd)) {
+				sph = (struct sph *)tmp->data;
+				sph_flags = sph->flags;
+				sph_match = 1;
+			}
+
+
+			dnet_log(r->st->n, DNET_LOG_NOTICE, "%s: %s: pool-grow: %s: cmd-size: %llu, cflags: %llx, "
+					"trans: %lld, reply: %d, sph-flags: %llx (match: %d)\n",
+				dnet_state_dump_addr(tmp->st), dnet_dump_id(tmp->header), dnet_cmd_string(tmp_cmd->cmd),
+				(unsigned long long)tmp_cmd->size, (unsigned long long)tmp_cmd->flags,
+				tid, reply, sph_flags, sph_match);
 
 			if (cmd_is_exec_match(tmp_cmd)) {
 				sph = (struct sph *)tmp->data;
