@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.19.2.3
+Version:	2.19.2.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Nov 07 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.4
+- Added temoporary debug
+
 * Tue Nov 06 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.3
 - Only enlarge non-blocking pool when there is blocking sph in the pool.
 
