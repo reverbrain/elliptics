@@ -1,3 +1,9 @@
+elliptics (2.19.2.4) unstable; urgency=low
+
+  * Added temoporary debug
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 07 Nov 2012 15:30:38 +0400
+
 elliptics (2.19.2.3) unstable; urgency=low
 
   * Only enlarge non-blocking pool when there is blocking sph in the pool.
