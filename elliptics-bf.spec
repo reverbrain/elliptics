@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Nov 12 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.4
+- Added atomic number of available IO threads, only grow up pool if we have blocked sph and there are no threads available.
+
 * Wed Nov 07 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.4
 - Added temoporary debug
 
