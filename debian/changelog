@@ -1,3 +1,9 @@
+elliptics (2.19.2.5) unstable; urgency=low
+
+  * Added atomic number of available IO threads, only grow up pool if we have blocked sph and there are no threads available.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 12 Nov 2012 02:00:40 +0400
+
 elliptics (2.19.2.4) unstable; urgency=low
 
   * Added atomic number of available IO threads, only grow up pool if we have blocked sph and there are no threads available.

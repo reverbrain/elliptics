@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.19.2.4
+Version:	2.19.2.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Nov 12 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.5
+- Added atomic number of available IO threads, only grow up pool if we have blocked sph and there are no threads available.
+
 * Mon Nov 12 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.4
 - Added atomic number of available IO threads, only grow up pool if we have blocked sph and there are no threads available.
 
