@@ -88,6 +88,7 @@ static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool,
 	dnet_log(n, DNET_LOG_INFO, "Grew %s pool by: %d -> %d IO threads\n",
 			dnet_work_io_mode_str(pool->mode), pool->num, pool->num + num);
 
+	atomic_add(&pool->avail, num);
 	pool->num += num;
 	pthread_mutex_unlock(&pool->lock);
 
@@ -119,6 +120,7 @@ static struct dnet_work_pool *dnet_work_pool_alloc(struct dnet_node *n, int num,
 	memset(pool, 0, sizeof(struct dnet_work_pool));
 
 	pool->num = 0;
+	atomic_set(&pool->avail, 0);
 	pool->mode = mode;
 	pool->n = n;
 	INIT_LIST_HEAD(&pool->list);
@@ -202,11 +204,11 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 			}
 
 
-			dnet_log(r->st->n, DNET_LOG_NOTICE, "%s: %s: pool-grow: %s: cmd-size: %llu, cflags: %llx, "
-					"trans: %lld, reply: %d, sph-flags: %llx (match: %d)\n",
+			dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: pool-grow: %s: cmd-size: %llu, cflags: %llx, "
+					"trans: %lld, reply: %d, sph-flags: %llx (match: %d), avail: %d\n",
 				dnet_state_dump_addr(tmp->st), dnet_dump_id(tmp->header), dnet_cmd_string(tmp_cmd->cmd),
 				(unsigned long long)tmp_cmd->size, (unsigned long long)tmp_cmd->flags,
-				tid, reply, sph_flags, sph_match);
+				tid, reply, sph_flags, sph_match, atomic_read(&pool->avail));
 
 			if (cmd_is_exec_match(tmp_cmd)) {
 				sph = (struct sph *)tmp->data;
@@ -219,7 +221,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 		pthread_mutex_unlock(&pool->lock);
 
 		sph = (struct sph *)r->data;
-		if ((sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) && pool_has_blocked_sph) {
+		if ((sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) && pool_has_blocked_sph && (atomic_read(&pool->avail) == 0)) {
 			dnet_work_pool_grow(n, pool, pool->num/4+1, dnet_io_process);
 		}
 	}
@@ -633,8 +635,10 @@ static void *dnet_io_process(void *data_)
 			}
 		}
 
-		if (r)
+		if (r) {
 			list_del_init(&r->req_entry);
+			atomic_dec(&pool->avail);
+		}
 		pthread_mutex_unlock(&pool->lock);
 
 		if (!r || err)
@@ -649,6 +653,8 @@ static void *dnet_io_process(void *data_)
 
 		dnet_io_req_free(r);
 		dnet_state_put(st);
+
+		atomic_inc(&pool->avail);
 	}
 
 	return NULL;
