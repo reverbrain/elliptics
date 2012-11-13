@@ -337,6 +337,17 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 
 		switch (cmd->cmd) {
 			case DNET_CMD_WRITE:
+				if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
+					d = cache->read(io->id);
+					dnet_id csum;
+					dnet_transform(n, &(d->data().front()), d->data().size(), &csum);
+
+					if (!memcmp(csum.id, io->parent, DNET_ID_SIZE)) {
+						err = -EINVAL;
+						break;
+					}
+				}
+
 				cache->write(io->id, io->start, data, io->size, !!(io->flags & DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK));
 				err = 0;
 				break;

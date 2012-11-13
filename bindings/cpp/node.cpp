@@ -477,6 +477,52 @@ std::string session::write_cache(const std::string &key, const std::string &str,
 	return write_cache(id, str, cflags, ioflags, timeout);
 }
 
+std::string session::write_compare_and_swap(const struct dnet_id &id, const std::string &str,
+		const dnet_id &old_csum, uint64_t remote_offset, uint64_t cflags, unsigned int ioflags) {
+	struct dnet_io_control ctl;
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.cflags = cflags;
+	ctl.data = str.data();
+
+	ctl.io.flags = ioflags | DNET_IO_FLAGS_COMPARE_AND_SWAP;
+	ctl.io.offset = remote_offset;
+	ctl.io.size = str.size();
+	ctl.io.type = id.type;
+	ctl.io.num = str.size() + remote_offset;
+
+	memcpy(&ctl.id, &id, sizeof(struct dnet_id));
+	memcpy(&ctl.io.parent, &old_csum.id, DNET_ID_SIZE);
+
+	ctl.fd = -1;
+
+	char *result = NULL;
+	int err = dnet_write_data_wait(m_session, &ctl, (void **)&result);
+	if (err < 0) {
+		std::ostringstream string;
+		string << dnet_dump_id(&id) << ": WRITE: size: " << str.size() << ", err: " << err;
+		throw std::runtime_error(string.str());
+	}
+
+	std::string ret((const char *)result, err);
+	free(result);
+
+	return ret;
+}
+
+std::string session::write_compare_and_swap(const std::string &remote, const std::string &str, const struct dnet_id &old_csum,
+		uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type)
+{
+	struct dnet_id id;
+
+	transform(remote, id);
+	id.type = type;
+	id.group_id = 0;
+
+	return write_compare_and_swap(id, str, old_csum, remote_offset, cflags, ioflags);
+}
+
 std::string session::write_data_wait(struct dnet_id &id, const std::string &str,
 		uint64_t remote_offset, uint64_t cflags, unsigned int ioflags)
 {

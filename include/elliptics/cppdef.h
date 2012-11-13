@@ -186,6 +186,11 @@ class session {
 		std::string		read_latest(const std::string &remote, uint64_t offset, uint64_t size,
 						uint64_t cflags, uint32_t ioflags, int type);
 
+		std::string		write_compare_and_swap(const struct dnet_id &id, const std::string &str,
+						const struct dnet_id &old_csum, uint64_t remote_offset, uint64_t cflags, unsigned int ioflags);
+		std::string		write_compare_and_swap(const std::string &remote, const std::string &str,
+						const struct dnet_id &old_csum, uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type);
+
 		std::string		write_data_wait(struct dnet_id &id, const std::string &str,
 						uint64_t remote_offset, uint64_t cflags, unsigned int ioflags);
 		std::string		write_data_wait(const std::string &remote, const std::string &str,
@@ -202,6 +207,8 @@ class session {
 						uint64_t cflags, unsigned int ioflags, long timeout);
 		std::string		write_cache(const std::string &key, const std::string &str,
 						uint64_t cflags, unsigned int ioflags, long timeout);
+
+
 
 		std::string		lookup_addr(const std::string &remote, const int group_id);
 		std::string		lookup_addr(const struct dnet_id &id);

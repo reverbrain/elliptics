@@ -578,6 +578,30 @@ static int blob_bulk_read(struct eblob_backend_config *c, void *state, struct dn
 	return err;
 }
 
+static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize) {
+	struct eblob_backend_config *c = priv;
+	struct eblob_backend *b = c->eblob;
+	uint64_t offset, size;
+	struct eblob_key key;
+	int fd, err;
+
+	memcpy(key.id, id->id, EBLOB_ID_SIZE);
+	err = eblob_read(b, &key, &fd, &offset, &size, EBLOB_TYPE_DATA);
+	if (err < 0) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read: type: %d: %d: %s.\n",
+							dnet_dump_id_str(id->id), id->type, err, strerror(-err));
+		goto err_out_exit;
+	}
+	err = 0;
+	if (!size)
+		memset(csum, 0, *csize);
+	else
+		err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
+
+err_out_exit:
+	return err;
+}
+
 static int blob_start_defrag(struct eblob_backend_config *c)
 {
 	return eblob_start_defrag(c->eblob);
@@ -841,6 +865,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	b->cb.command_handler = eblob_backend_command_handler;
 	b->cb.send = eblob_send;
 	b->cb.backend_cleanup = eblob_backend_cleanup;
+	b->cb.checksum = eblob_backend_checksum;
 
 	b->cb.meta_read = dnet_eblob_db_read;
 	b->cb.meta_write = dnet_eblob_db_write;
