@@ -959,12 +959,10 @@ std::vector<std::string> session::read_data_range(struct dnet_io_attr &io, int g
 
 					dnet_convert_io_attr(io);
 
-					uint64_t size = dnet_bswap64(io->size);
-
 					std::string str;
 
 					str.append((char *)io->id, DNET_ID_SIZE);
-					str.append((char *)&size, 8);
+					str.append((char *)&io->size, sizeof(io->size));
 					str.append((const char *)(io + 1), io->size);
 
 					ret.push_back(str);
