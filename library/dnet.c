@@ -646,17 +646,16 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
 				char csum[DNET_ID_SIZE];
 				int csize = DNET_ID_SIZE;
-				err = n->cb->checksum(n, n->cb->command_private, &(cmd->id), csum, &csize);
+
+				err = n->cb->checksum(n, n->cb->command_private, &cmd->id, csum, &csize);
 				if (err < 0) {
-					dnet_log(n, DNET_LOG_INFO, "checksum failed\n");
+					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation failed\n", dnet_dump_id(&cmd->id));
 					err = 0;
 				} else {
 					if (memcmp(csum, io->parent, DNET_ID_SIZE)) {
-						dnet_log(n, DNET_LOG_INFO, "wrong csum\n");
+						dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch\n", dnet_dump_id(&cmd->id));
 						err = -EINVAL;
 						break;
-					} else {
-						dnet_log(n, DNET_LOG_INFO, "csums equals\n");
 					}
 				}
 			}
