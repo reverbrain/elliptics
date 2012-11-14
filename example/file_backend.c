@@ -558,6 +558,16 @@ static int dnet_file_db_iterate(struct dnet_iterate_ctl *ctl)
 	return dnet_db_iterate(r->meta, ctl);
 }
 
+static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
+{
+	struct file_backend_root *r = priv;
+	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2];
+	/* file + dir + suffix + slash + 0-byte */
+
+	file_backend_setup_file(r, file, sizeof(file), id->id);
+	return dnet_checksum_file(n, csum, csize, file, 0, 0);
+}
+
 static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_config *c)
 {
 	struct file_backend_root *r = b->data;
@@ -569,6 +579,7 @@ static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	b->cb.command_handler = file_backend_command_handler;
 	b->cb.send = file_backend_send;
+	b->cb.checksum = file_backend_checksum;
 
 	c->storage_size = b->storage_size;
 	c->storage_free = b->storage_free;

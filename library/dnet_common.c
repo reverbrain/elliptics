@@ -2084,7 +2084,6 @@ int dnet_write_data_wait(struct dnet_session *s, struct dnet_io_control *ctl, vo
 	ctl->cflags |= DNET_FLAGS_NEED_ACK;
 
 	memcpy(ctl->io.id, ctl->id.id, DNET_ID_SIZE);
-	memcpy(ctl->io.parent, ctl->id.id, DNET_ID_SIZE);
 
 	atomic_set(&w->refcnt, INT_MAX);
 	trans_num = dnet_write_object(s, ctl);

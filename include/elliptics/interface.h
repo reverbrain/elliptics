@@ -290,6 +290,14 @@ struct dnet_backend_callbacks {
 	/* cleanups backend at exit */
 	void			(* backend_cleanup)(void *command_private);
 
+	/*
+	 * calculates checksum and writes (no more than *@csize bytes) it
+	 * into @csum,
+	 * @csize must be set to actual @csum size
+	 */
+	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize);
+
+
 	/* metadata read/write/remove commands */
 	ssize_t			(* meta_read)(void *priv, struct dnet_raw_id *id, void **datap);
 	int			(* meta_write)(void *priv, struct dnet_raw_id *id, void *data, size_t size);
@@ -906,6 +914,10 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp);
 
 char * __attribute__((weak)) dnet_cmd_string(int cmd);
 char *dnet_counter_string(int cntr, int cmd_num);
+
+int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size);
+int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size);
+
 
 ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void **datap);
 int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *data, unsigned int size);
