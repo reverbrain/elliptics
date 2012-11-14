@@ -643,6 +643,24 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				}
 			}
 
+			if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
+				char csum[DNET_ID_SIZE];
+				int csize = DNET_ID_SIZE;
+				err = n->cb->checksum(n, n->cb->command_private, &(cmd->id), csum, &csize);
+				if (err < 0) {
+					dnet_log(n, DNET_LOG_INFO, "checksum failed\n");
+					err = 0;
+				} else {
+					if (memcmp(csum, io->parent, DNET_ID_SIZE)) {
+						dnet_log(n, DNET_LOG_INFO, "wrong csum\n");
+						err = -EINVAL;
+						break;
+					} else {
+						dnet_log(n, DNET_LOG_INFO, "csums equals\n");
+					}
+				}
+			}
+
 			if ((cmd->cmd == DNET_CMD_DEL) || (io->flags & DNET_IO_FLAGS_META)) {
 				err = dnet_process_meta(st, cmd, data);
 				break;
@@ -1098,3 +1116,61 @@ err_out_exit:
 	return err;
 }
 
+int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, const void *data, uint64_t size)
+{
+	struct dnet_transform *t = &n->transform;
+
+	return t->transform(t->priv, data, size, csum, (unsigned int *)csize, 0);
+}
+
+int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size)
+{
+	int fd, err;
+
+	err = open(file, O_RDONLY);
+
+	if (err < 0) {
+		err = -errno;
+		dnet_log_err(n, "failed to open to be csummed file '%s'", file);
+		goto err_out_exit;
+	}
+	fd = err;
+	err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
+	close(fd);
+
+err_out_exit:
+	return err;
+}
+
+int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size)
+{
+	int err;
+	struct dnet_map_fd m;
+
+	if (!size) {
+		struct stat st;
+
+		err = fstat(fd, &st);
+		if (err < 0) {
+			err = -errno;
+			dnet_log_err(n, "CSUM: fd: %d", fd);
+			goto err_out_exit;
+		}
+
+		size = st.st_size;
+	}
+
+	m.fd = fd;
+	m.size = size;
+	m.offset = offset;
+
+	err = dnet_data_map(&m);
+	if (err)
+		goto err_out_exit;
+
+	err = dnet_checksum_data(n, csum, csize, m.data, size);
+	dnet_data_unmap(&m);
+
+err_out_exit:
+	return err;
+}
