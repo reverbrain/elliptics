@@ -1754,6 +1754,11 @@ int dnet_remove_object(struct dnet_session *s, struct dnet_id *id,
 		if (err)
 			goto err_out_put;
 
+		if (w->status < 0) {
+			err = w->status;
+			goto err_out_put;
+		}
+
 		dnet_wait_put(w);
 	}
 	return 0;
@@ -1778,9 +1783,7 @@ static int dnet_remove_file_raw(struct dnet_session *s, struct dnet_id *id, uint
 
 	atomic_add(&w->refcnt, 1024);
 	err = dnet_remove_object_raw(s, id, dnet_remove_complete, w, cflags, ioflags);
-	if (err <= 0) {
-
-
+	if (err < 0) {
 		atomic_sub(&w->refcnt, 1024);
 		goto err_out_put;
 	}
@@ -1791,6 +1794,12 @@ static int dnet_remove_file_raw(struct dnet_session *s, struct dnet_id *id, uint
 	err = dnet_wait_event(w, w->cond == num, &s->node->wait_ts);
 	if (err)
 		goto err_out_put;
+
+	if (w->status < 0) {
+		err = w->status;
+		goto err_out_put;
+	}
+
 
 	dnet_wait_put(w);
 
