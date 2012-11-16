@@ -1680,6 +1680,7 @@ static int dnet_remove_object_raw(struct dnet_session *s, struct dnet_id *id,
 	void *priv, uint64_t cflags, uint64_t ioflags)
 {
 	struct dnet_io_control ctl;
+	int err;
 
 	memset(&ctl, 0, sizeof(struct dnet_io_control));
 
@@ -1696,7 +1697,13 @@ static int dnet_remove_object_raw(struct dnet_session *s, struct dnet_id *id,
 	ctl.priv = priv;
 	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
 
-	return dnet_trans_create_send_all(s, &ctl);
+	err = dnet_trans_create_send_all(s, &ctl);
+	if (err == 0)
+		err = -ECONNRESET;
+	if (err > 0)
+		err = 0;
+
+	return err;
 }
 
 static int dnet_remove_complete(struct dnet_net_state *state,
@@ -1771,7 +1778,9 @@ static int dnet_remove_file_raw(struct dnet_session *s, struct dnet_id *id, uint
 
 	atomic_add(&w->refcnt, 1024);
 	err = dnet_remove_object_raw(s, id, dnet_remove_complete, w, cflags, ioflags);
-	if (err < 0) {
+	if (err <= 0) {
+
+
 		atomic_sub(&w->refcnt, 1024);
 		goto err_out_put;
 	}
