@@ -188,6 +188,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 		int pool_has_blocked_sph = 0;
 		struct dnet_io_req *tmp;
 		struct sph *sph;
+		int edge_num = pool->num / 4 + 1;
 
 		pthread_mutex_lock(&pool->lock);
 		list_for_each_entry(tmp, &pool->list, req_entry) {
@@ -221,8 +222,8 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 		pthread_mutex_unlock(&pool->lock);
 
 		sph = (struct sph *)r->data;
-		if ((sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) && pool_has_blocked_sph && (atomic_read(&pool->avail) == 0)) {
-			dnet_work_pool_grow(n, pool, pool->num/4+1, dnet_io_process);
+		if ((sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) && pool_has_blocked_sph && (atomic_read(&pool->avail) < edge_num)) {
+			dnet_work_pool_grow(n, pool, edge_num, dnet_io_process);
 		}
 	}
 
