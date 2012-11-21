@@ -1,3 +1,11 @@
+elliptics (2.19.2.6) unstable; urgency=low
+
+  * Tune nonblocking pool growing policy
+  * All dnet_remove*() functions should return error, if ack returned negative status.
+  * poll() uses msecs as timeout
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 21 Nov 2012 20:35:41 +0400
+
 elliptics (2.19.2.5) unstable; urgency=low
 
   * Added atomic number of available IO threads, only grow up pool if we have blocked sph and there are no threads available.

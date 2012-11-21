@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.19.2.5
+Version:	2.19.2.6
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Nov 21 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.6
+- Tune nonblocking pool growing policy
+- All dnet_remove*() functions should return error, if ack returned negative status.
+- poll() uses msecs as timeout
+
 * Mon Nov 12 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.5
 - Added atomic number of available IO threads, only grow up pool if we have blocked sph and there are no threads available.
 
