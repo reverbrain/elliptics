@@ -2226,7 +2226,7 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
 		return -ENOMEM;
 	}
 
-	if (n->flags & DNET_CFG_RANDOMIZE_STATES) {
+	if ((n->flags & DNET_CFG_RANDOMIZE_STATES) || !id) {
 		for (i = 0; i < group_num; ++i) {
 			weights[i].weight = rand();
 			weights[i].group_id = groups[i];
