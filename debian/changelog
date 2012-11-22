@@ -1,3 +1,9 @@
+elliptics (2.19.2.7) unstable; urgency=low
+
+  * Fixed dnet_mix_states() when ID is null
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 22 Nov 2012 21:06:17 +0400
+
 elliptics (2.19.2.6) unstable; urgency=low
 
   * Tune nonblocking pool growing policy

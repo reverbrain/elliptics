@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.19.2.6
+Version:	2.19.2.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Nov 22 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.7
+- Fixed dnet_mix_states() when ID is null
+
 * Wed Nov 21 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.6
 - Tune nonblocking pool growing policy
 - All dnet_remove*() functions should return error, if ack returned negative status.
