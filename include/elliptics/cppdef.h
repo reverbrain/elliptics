@@ -203,6 +203,13 @@ class session {
 		std::string		write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
 						uint64_t cflags, unsigned int ioflags, int type);
 
+		std::string		write_prepare(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
+						uint64_t psize, uint64_t cflags, unsigned int ioflags);
+		std::string		write_commit(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
+						uint64_t csize, uint64_t cflags, unsigned int ioflags);
+		std::string		write_plain(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
+						uint64_t cflags, unsigned int ioflags);
+
 		std::string		write_cache(struct dnet_id &id, const std::string &str,
 						uint64_t cflags, unsigned int ioflags, long timeout);
 		std::string		write_cache(const std::string &key, const std::string &str,
