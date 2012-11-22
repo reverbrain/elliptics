@@ -995,42 +995,60 @@ std::vector<std::string> session::read_data_range(struct dnet_io_attr &io, int g
 	std::vector<std::string> ret;
 
 	if (data) {
-		for (int i = 0; i < err; ++i) {
-			struct dnet_range_data *d = &data[i];
-			char *data = (char *)d->data;
+		try {
+			for (int i = 0; i < err; ++i) {
+				struct dnet_range_data *d = &data[i];
+				char *data = (char *)d->data;
 
-			if (!(ioflags & DNET_IO_FLAGS_NODATA)) {
-				while (d->size) {
-					struct dnet_io_attr *io = (struct dnet_io_attr *)data;
+				if (!(ioflags & DNET_IO_FLAGS_NODATA)) {
+					while (d->size > sizeof(struct dnet_io_attr)) {
+						struct dnet_io_attr *io = (struct dnet_io_attr *)data;
 
-					dnet_convert_io_attr(io);
+						dnet_convert_io_attr(io);
 
-					std::string str;
+						std::string str;
 
-					str.append((char *)io->id, DNET_ID_SIZE);
-					str.append((char *)&io->size, sizeof(io->size));
-					str.append((const char *)(io + 1), io->size);
+						if (sizeof(struct dnet_io_attr) + io->size > d->size)
+						{
+							std::ostringstream str;
+							str << "read_data_range: incorrect data size: d->size = "
+							    << d->size << " io->size = "
+							    << io->size;
+							throw std::runtime_error(str.str());
+						}
 
-					ret.push_back(str);
+						str.append((char *)io->id, DNET_ID_SIZE);
+						str.append((char *)&io->size, sizeof(io->size));
+						str.append((const char *)(io + 1), io->size);
 
-					data += sizeof(struct dnet_io_attr) + io->size;
-					d->size -= sizeof(struct dnet_io_attr) + io->size;
+						ret.push_back(str);
+
+						data += sizeof(struct dnet_io_attr) + io->size;
+						d->size -= sizeof(struct dnet_io_attr) + io->size;
+					}
+				} else {
+					if (d->size != sizeof(struct dnet_io_attr)) {
+						std::ostringstream str;
+						str << "Incorrect data size: d->size = " << d->size <<
+							"sizeof = " << sizeof(struct dnet_io_attr);
+						throw std::runtime_error(str.str());
+					}
+					struct dnet_io_attr *rep = (struct dnet_io_attr *)data;
+					num += rep->num;
 				}
-			} else {
-				if (d->size != sizeof(struct dnet_io_attr)) {
-					std::ostringstream str;
-					str << "Incorrect data size: d->size = " << d->size <<
-						"sizeof = " << sizeof(struct dnet_io_attr);
-					throw std::runtime_error(str.str());
-				}
-				struct dnet_io_attr *rep = (struct dnet_io_attr *)data;
-				num += rep->num;
 			}
-
-			free(d->data);
+			for (int i = 0; i < err; ++i) {
+				struct dnet_range_data *d = &data[i];
+				free(d->data);
+			}
+			free(data);
+		} catch (const std::exception & e) {
+			for (int i = 0; i < err; ++i) {
+				struct dnet_range_data *d = &data[i];
+				free(d->data);
+			}
+			free(data);
 		}
-
-		free(data);
 
 		if (ioflags & DNET_IO_FLAGS_NODATA) {
 			std::ostringstream str;
