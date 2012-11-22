@@ -54,7 +54,7 @@ log_file::~log_file(void)
 
 void log_file::log(int level, const char *msg)
 {
-	if (level < ll.log_level) {
+	if (level <= ll.log_level) {
 		char str[64];
 		struct tm tm;
 		struct timeval tv;
