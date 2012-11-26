@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.19.2.7
+Version:	2.19.2.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Nov 26 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.8
+- dnet_remove_object_raw() must return positive number of transactions sent
+
 * Thu Nov 22 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.7
 - Fixed dnet_mix_states() when ID is null
 
