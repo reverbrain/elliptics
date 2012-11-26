@@ -1700,8 +1700,6 @@ static int dnet_remove_object_raw(struct dnet_session *s, struct dnet_id *id,
 	err = dnet_trans_create_send_all(s, &ctl);
 	if (err == 0)
 		err = -ECONNRESET;
-	if (err > 0)
-		err = 0;
 
 	return err;
 }
