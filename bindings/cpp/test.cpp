@@ -45,13 +45,13 @@ static void test_log_raw(logger *l, int level, const char *format, ...)
 
 class callback_io : public callback {
 	public:
-		callback_io(logger *l) { log = l; };
-		virtual ~callback_io() {};
+		callback_io(logger *l) { log = l; }
+		virtual ~callback_io() {}
 
 		virtual int		handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
 
 	private:
-		logger		*log;
+		logger			*log;
 };
 
 int callback_io::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)

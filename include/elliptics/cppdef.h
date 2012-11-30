@@ -9,7 +9,7 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
  * GNU General Public License for more details.
  */
 
@@ -22,6 +22,8 @@
 #include <elliptics/packet.h>
 #include <elliptics/interface.h>
 
+#include <boost/shared_ptr.hpp>
+
 #include <iostream>
 #include <fstream>
 #include <exception>
@@ -30,28 +32,33 @@
 #include <string>
 #include <vector>
 
+#define ELLIPTICS_DISABLE_COPY(CLASS) \
+	private: \
+	CLASS(const CLASS &); \
+	CLASS &operator =(const CLASS &);
+
 namespace ioremap { namespace elliptics {
 
 class elliptics_error : public std::runtime_error {
-public:
-	explicit elliptics_error(int err);
-	int error_code() const;
-private:
-	static std::string convert(int err);
-	int errno_;
+	public:
+		explicit elliptics_error(int err);
+		int error_code() const;
+	private:
+		static std::string convert(int err);
+		int errno_;
 };
 
 class not_found_error : public elliptics_error {
-public:
-	explicit not_found_error();
+	public:
+		explicit not_found_error();
 };
 
 class timeout_error : public elliptics_error {
-public:
-	explicit timeout_error();
+	public:
+		explicit timeout_error();
 };
 
-void throw_exception(int err);
+extern void throw_exception(int err);
 
 struct addr_tuple {
 	addr_tuple(const std::string &l_host, const int l_port, const int l_family = AF_INET) :
@@ -62,50 +69,40 @@ struct addr_tuple {
 	int			family;
 };
 
+class logger_interface {
+	public:
+		virtual ~logger_interface() {}
+
+		virtual void log(const int level, const char *msg) = 0;
+};
+
+class logger_data;
+
 class logger {
 	public:
-		logger(const int level = DNET_LOG_INFO) {
-			ll.log_level = level;
-			ll.log = logger::real_logger;
-			ll.log_private = this;
-		};
-		virtual ~logger() {};
+		explicit logger(logger_interface *interface, const int level = DNET_LOG_INFO);
+		logger();
+		logger(const logger &other);
+		~logger();
 
-		virtual void 		log(const int level, const char *msg) = 0;
+		logger &operator =(const logger &other);
 
-		/*
-		 * Clone is used instead of 'virtual' copy constructor, since we have to
-		 * hold a reference to object outside of our scope, namely python created
-		 * logger. This is also a reason we return 'unsigned long' instead of
-		 * 'logger *' - python does not have pointer.
-		 */
-		virtual unsigned long	clone(void) = 0;
+		void 		log(const int level, const char *msg);
+		int			get_log_level();
+		struct dnet_log		*get_dnet_log();
 
-		static void		real_logger(void *priv, const int level, const char *msg);
-		int			get_log_level(void) { return ll.log_level; };
-		struct dnet_log		*get_dnet_log(void) { return &ll; };
 	protected:
-		struct dnet_log		ll;
+		boost::shared_ptr<logger_data> m_data;
 };
 
 class log_file : public logger {
 	public:
-		log_file(const char *file, const int level = DNET_LOG_INFO);
-		virtual ~log_file();
-
-		virtual unsigned long	clone(void);
-		virtual void 		log(const int level, const char *msg);
-
-		std::string		*file;
-	private:
-		/*
-		 * Oh shi, I put pointer here to avoid boost::python compiler issues,
-		 * when it tries to copy stream, which is not allowed
-		 */
-		std::ofstream		*stream;
+		explicit log_file(const char *file, const int level = DNET_LOG_INFO);
+		~log_file();
 };
 
 class callback {
+	ELLIPTICS_DISABLE_COPY(callback)
 	public:
 		callback();
 		virtual ~callback();
@@ -116,7 +113,7 @@ class callback {
 			callback *c = reinterpret_cast<callback *>(priv);
 
 			return c->handle(st, cmd);
-		};
+		}
 
 		std::string wait(int completed = 1);
 
@@ -127,18 +124,22 @@ class callback {
 		int			complete;
 };
 
+class node_data;
+
 class node {
 	public:
-		/* we shold use logger and proper copy constructor here, but not this time */
-		node(logger &l);
-		node(logger &l, struct dnet_config &cfg);
-		node(logger &l, const std::string &config_path);
-		virtual ~node();
+		explicit node(const logger &l);
+		node(const logger &l, struct dnet_config &cfg);
+		node(const logger &l, const std::string &config_path);
+		node(const node &other);
+		~node();
+
+		node &operator =(const node &other);
 
 		void			parse_config(const std::string &path, struct dnet_config &cfg,
-						std::list<addr_tuple> &remotes,
-						std::vector<int> &groups,
-						int &log_level);
+							std::list<addr_tuple> &remotes,
+							std::vector<int> &groups,
+							int &log_level);
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 
@@ -148,72 +149,73 @@ class node {
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
 							void *data, unsigned int size, callback &c,
 							uint64_t cflags, unsigned int ioflags, int type);
-		struct dnet_node	*m_node;
-		logger			*m_log;
+
+		boost::shared_ptr<node_data> m_data;
 
 		friend class session;
 };
 
 class session {
+	ELLIPTICS_DISABLE_COPY(session)
 	public:
-		session(node &n);
+		explicit session(const node &n);
 		virtual ~session();
 
 		void			transform(const std::string &data, struct dnet_id &id);
 
-		void			add_groups(std::vector<int> &groups);
-		std::vector<int>	get_groups() {return groups;};
+		void			add_groups(std::vector<int> &m_groups);
+		std::vector<int>	get_groups() {return m_groups;}
 
 		void			read_file(struct dnet_id &id, const std::string &file, uint64_t offset, uint64_t size);
 		void			read_file(const std::string &remote, const std::string &file,
-						uint64_t offset, uint64_t size, int type);
+							uint64_t offset, uint64_t size, int type);
 
 		void			write_file(struct dnet_id &id, const std::string &file, uint64_t local_offset,
-						uint64_t offset, uint64_t size, uint64_t cflags, unsigned int ioflags);
+							uint64_t offset, uint64_t size, uint64_t cflags, unsigned int ioflags);
 		void			write_file(const std::string &remote, const std::string &file,
-						uint64_t local_offset, uint64_t offset, uint64_t size,
-						uint64_t cflags, unsigned int ioflags, int type);
+							uint64_t local_offset, uint64_t offset, uint64_t size,
+							uint64_t cflags, unsigned int ioflags, int type);
 
 		std::string		read_data_wait(struct dnet_id &id, uint64_t offset, uint64_t size,
-						uint64_t cflags, uint32_t ioflags);
+							uint64_t cflags, uint32_t ioflags);
 		std::string		read_data_wait(const std::string &remote, uint64_t offset, uint64_t size,
-						uint64_t cflags, uint32_t ioflags, int type);
+							uint64_t cflags, uint32_t ioflags, int type);
 
-		void			prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<int> &groups);
+		void			prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<int> &m_groups);
 
 		std::string		read_latest(struct dnet_id &id, uint64_t offset, uint64_t size,
-						uint64_t cflags, uint32_t ioflags);
+							uint64_t cflags, uint32_t ioflags);
 		std::string		read_latest(const std::string &remote, uint64_t offset, uint64_t size,
-						uint64_t cflags, uint32_t ioflags, int type);
+							uint64_t cflags, uint32_t ioflags, int type);
 
 		std::string		write_compare_and_swap(const struct dnet_id &id, const std::string &str,
-						const struct dnet_id &old_csum, uint64_t remote_offset, uint64_t cflags, unsigned int ioflags);
+								const struct dnet_id &old_csum, uint64_t remote_offset, uint64_t cflags, unsigned int ioflags);
 		std::string		write_compare_and_swap(const std::string &remote, const std::string &str,
-						const struct dnet_id &old_csum, uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type);
+								const struct dnet_id &old_csum, uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type);
 
 		std::string		write_data_wait(struct dnet_id &id, const std::string &str,
-						uint64_t remote_offset, uint64_t cflags, unsigned int ioflags);
+							uint64_t remote_offset, uint64_t cflags, unsigned int ioflags);
 		std::string		write_data_wait(const std::string &remote, const std::string &str,
-						uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type);
+							uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type);
 
 		std::string		write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
-						uint64_t psize, uint64_t cflags, unsigned int ioflags, int type);
+							uint64_t psize, uint64_t cflags, unsigned int ioflags, int type);
 		std::string		write_commit(const std::string &remote, const std::string &str, uint64_t remote_offset,
-						uint64_t csize, uint64_t cflags, unsigned int ioflags, int type);
+							uint64_t csize, uint64_t cflags, unsigned int ioflags, int type);
 		std::string		write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
-						uint64_t cflags, unsigned int ioflags, int type);
+							uint64_t cflags, unsigned int ioflags, int type);
 
 		std::string		write_prepare(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
-						uint64_t psize, uint64_t cflags, unsigned int ioflags);
+							uint64_t psize, uint64_t cflags, unsigned int ioflags);
 		std::string		write_commit(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
-						uint64_t csize, uint64_t cflags, unsigned int ioflags);
+							uint64_t csize, uint64_t cflags, unsigned int ioflags);
 		std::string		write_plain(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
-						uint64_t cflags, unsigned int ioflags);
+							uint64_t cflags, unsigned int ioflags);
 
 		std::string		write_cache(struct dnet_id &id, const std::string &str,
-						uint64_t cflags, unsigned int ioflags, long timeout);
+							uint64_t cflags, unsigned int ioflags, long timeout);
 		std::string		write_cache(const std::string &key, const std::string &str,
-						uint64_t cflags, unsigned int ioflags, long timeout);
+							uint64_t cflags, unsigned int ioflags, long timeout);
 
 
 
@@ -221,9 +223,9 @@ class session {
 		std::string		lookup_addr(const struct dnet_id &id);
 
 		std::string		create_metadata(const struct dnet_id &id, const std::string &obj,
-							const std::vector<int> &groups, const struct timespec &ts);
+							const std::vector<int> &m_groups, const struct timespec &ts);
 		int			write_metadata(const struct dnet_id &id, const std::string &obj,
-							const std::vector<int> &groups, const struct timespec &ts, uint64_t cflags);
+							const std::vector<int> &m_groups, const struct timespec &ts, uint64_t cflags);
 
 		void			lookup(const std::string &data, const callback &c);
 		void			lookup(const struct dnet_id &id, const callback &c);
@@ -256,17 +258,17 @@ class session {
 		 * start execution of the given event
 		 */
 		std::string		exec_locked(struct dnet_id *id, const std::string &event, const std::string &data,
-						const std::string &binary);
+							const std::string &binary);
 		std::string		exec_unlocked(struct dnet_id *id, const std::string &event, const std::string &data,
-						const std::string &binary);
+							const std::string &binary);
 
 		/*
 		 * execution with saving ID of the original (blocked) caller
 		 */
 		std::string		push_locked(struct dnet_id *id, const struct sph &sph,
-				const std::string &event, const std::string &data, const std::string &binary);
+							const std::string &event, const std::string &data, const std::string &binary);
 		std::string		push_unlocked(struct dnet_id *id, const struct sph &sph,
-				const std::string &event, const std::string &data, const std::string &binary);
+							const std::string &event, const std::string &data, const std::string &binary);
 
 		/* send reply back to blocked execution client */
 		void			reply(const struct sph &sph, const std::string &event, const std::string &data,
@@ -276,26 +278,26 @@ class session {
 		std::vector<std::string>	bulk_read(const std::vector<std::string> &keys, uint64_t cflags = 0);
 
 		std::string		bulk_write(const std::vector<struct dnet_io_attr> &ios,
-						const std::vector<std::string> &data, uint64_t cflags);
+							const std::vector<std::string> &data, uint64_t cflags);
 
 		struct dnet_node *	get_node();
 
 	protected:
 		struct dnet_session	*m_session;
-		node			*m_node;
+		node			m_node;
 
-		std::vector<int>	groups;
+		std::vector<int>	m_groups;
 
 		std::string		raw_exec(struct dnet_id *id,
-						const struct sph *sph,
-						const std::string &event,
-						const std::string &data,
-						const std::string &binary,
-						bool lock);
+							const struct sph *sph,
+							const std::string &event,
+							const std::string &data,
+							const std::string &binary,
+							bool lock);
 		std::string		request(struct dnet_id *id, struct sph *sph, bool lock);
 
 };
 
-}}; /* namespace ioremap::elliptics */
+}} /* namespace ioremap::elliptics */
 
 #endif /* __EDEF_H */

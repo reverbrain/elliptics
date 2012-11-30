@@ -67,7 +67,7 @@ void finder::add_remote(const char *addr)
 		throw std::runtime_error(str.str());
 	}
 
-	m_node->add_remote(rem.addr, atoi(rem.port), rem.family);
+    m_node.add_remote(rem.addr, atoi(rem.port), rem.family);
 }
 
 void finder::parse_lookup(const std::string &ret)
