@@ -28,37 +28,56 @@
 
 using namespace ioremap::elliptics;
 
-callback::callback() : complete(0)
+class ioremap::elliptics::callback_data
 {
-	pthread_cond_init(&wait_cond, NULL);
-	pthread_mutex_init(&lock, NULL);
+	public:
+		std::string		data;
+		pthread_cond_t		wait_cond;
+		pthread_mutex_t		lock;
+		int			complete;
+};
+
+callback::callback() : m_data(new callback_data)
+{
+	m_data->complete = 0;
+	pthread_cond_init(&m_data->wait_cond, NULL);
+	pthread_mutex_init(&m_data->lock, NULL);
 }
 
 callback::~callback()
 {
+	pthread_cond_destroy(&m_data->wait_cond);
+	pthread_mutex_init(&m_data->lock, NULL);
+	delete m_data;
 }
 
 int callback::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
 {
-	pthread_mutex_lock(&lock);
+	pthread_mutex_lock(&m_data->lock);
 	if (is_trans_destroyed(state, cmd)) {
-		complete++;
-		pthread_cond_broadcast(&wait_cond);
+		m_data->complete++;
+		pthread_cond_broadcast(&m_data->wait_cond);
 	} else if (cmd && state) {
-		data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
-		data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
+		m_data->data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
+		m_data->data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
 	}
-	pthread_mutex_unlock(&lock);
+	pthread_mutex_unlock(&m_data->lock);
 
 	return 0;
 }
 
+int callback::complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv) {
+	callback *c = reinterpret_cast<callback *>(priv);
+
+	return c->handle(st, cmd);
+}
+
 std::string callback::wait(int completed)
 {
-	pthread_mutex_lock(&lock);
-	while (complete != completed)
-		pthread_cond_wait(&wait_cond, &lock);
-	pthread_mutex_unlock(&lock);
+	pthread_mutex_lock(&m_data->lock);
+	while (m_data->complete != completed)
+		pthread_cond_wait(&m_data->wait_cond, &m_data->lock);
+	pthread_mutex_unlock(&m_data->lock);
 
-	return data;
+	return m_data->data;
 }

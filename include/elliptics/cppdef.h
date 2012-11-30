@@ -101,6 +101,8 @@ class log_file : public logger {
 		~log_file();
 };
 
+class callback_data;
+
 class callback {
 	ELLIPTICS_DISABLE_COPY(callback)
 	public:
@@ -109,19 +111,12 @@ class callback {
 
 		virtual int handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
 
-		static int complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv) {
-			callback *c = reinterpret_cast<callback *>(priv);
-
-			return c->handle(st, cmd);
-		}
+		static int complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv);
 
 		std::string wait(int completed = 1);
 
 	protected:
-		std::string		data;
-		pthread_cond_t		wait_cond;
-		pthread_mutex_t		lock;
-		int			complete;
+		callback_data *m_data;
 };
 
 class node_data;
