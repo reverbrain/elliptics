@@ -221,7 +221,8 @@ static int leveldb_backend_bulk_read(struct leveldb_backend *s, void *state, str
 
 static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *data)
 {
-	int err = 0;
+	int err = -ENOENT;
+	char * errp = NULL;
 	struct dnet_io_attr *io = data;
 	struct dnet_io_attr dst_io;
 	unsigned i = 0, j = 0;
@@ -246,17 +247,33 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 		}
 		++j;
 
-		val = leveldb_iter_value(it, &size);
+		err = 0;
+		switch (cmd->cmd) {
+			case DNET_CMD_READ_RANGE: 
+				val = leveldb_iter_value(it, &size);
+				memset(&dst_io, 0, sizeof(dst_io));
+				dst_io.flags  = 0;
+				dst_io.size   = size;
+				dst_io.offset = 0;
+				dst_io.type   = io->type;
+				memcpy(dst_io.id, key, DNET_ID_SIZE);
+				memcpy(dst_io.parent, io->parent, DNET_ID_SIZE);
+				err = dnet_send_read_data(state, cmd, &dst_io, (char*)val, -1, 0, 0);
+				break;
+			case DNET_CMD_DEL_RANGE:
+				leveldb_delete(s->db, s->woptions, key, size, &errp);
+				if (errp) {
+					dnet_backend_log(DNET_LOG_ERROR, "%s: LEVELDB: REMOVE: error: %s",
+					                 dnet_dump_id_str((const unsigned char*)key), errp);
+					err = -ENOENT;
+				}
+				break;
+		}
 
-
-		memset(&dst_io, 0, sizeof(dst_io));
-		dst_io.flags  = 0;
-		dst_io.size   = size;
-		dst_io.offset = 0;
-		dst_io.type   = io->type;
-		memcpy(dst_io.id, key, DNET_ID_SIZE);
-		memcpy(dst_io.parent, io->parent, DNET_ID_SIZE);
-		err = dnet_send_read_data(state, cmd, &dst_io, (char*)val, -1, 0, 0);
+		if (err) {
+			j = 0;
+			break;
+		}
 	}
 
 	if (j) {
@@ -268,7 +285,6 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 
 		err = dnet_send_read_data(state, cmd, &r, NULL, -1, 0, 0);		
 	}
-
 
 	leveldb_iter_destroy(it);
 
@@ -296,6 +312,7 @@ static int leveldb_backend_command_handler(void *state, void *priv, struct dnet_
 		case DNET_CMD_DEL:
 			err = leveldb_backend_remove(s, state, cmd, data);
 			break;
+		case DNET_CMD_DEL_RANGE:
 		case DNET_CMD_READ_RANGE:
 			err = leveldb_backend_range_read(s, state, cmd, data);
 			break;
