@@ -66,7 +66,8 @@ int callback::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
 	return 0;
 }
 
-int callback::complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv) {
+int callback::complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv)
+{
 	callback *c = reinterpret_cast<callback *>(priv);
 
 	return c->handle(st, cmd);

@@ -349,6 +349,10 @@ std::string session::read_data_wait(const std::string &remote, uint64_t offset, 
 
 void session::prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<int> &groups)
 {
+	if (groups.empty()) {
+		return;
+	}
+
 	struct dnet_read_latest_prepare pr;
 	int err;
 
@@ -357,34 +361,11 @@ void session::prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<in
 	pr.s = m_session;
 	pr.id = id;
 	pr.cflags = cflags;
-
-	pr.group = (int *)malloc(groups.size() * sizeof(int));
-	if (!pr.group) {
-		free(pr.group);
-
-		std::ostringstream str;
-		str << dnet_dump_id(&id) << ": prepare_latest: allocation failure: group num: " << groups.size();
-		throw std::runtime_error(str.str());
-	}
+	pr.group = &groups[0];
 	pr.group_num = groups.size();
 
-	for (unsigned i = 0; i < groups.size(); ++i)
-		pr.group[i] = groups[i];
-
 	err = dnet_read_latest_prepare(&pr);
-	if (!err) {
-		try {
-			groups.clear();
-
-			for (int i = 0; i < pr.group_num; ++i)
-				groups.push_back(pr.group[i]);
-		} catch (...) {
-			free(pr.group);
-			throw;
-		}
-	}
-
-	free(pr.group);
+	groups.resize(pr.group_num);
 
 	if (!groups.size())
 		err = -ENOENT;
@@ -423,7 +404,7 @@ std::string session::read_latest(struct dnet_id &id, uint64_t offset, uint64_t s
 	}
 
 	std::string ret = std::string((const char *)data + sizeof(struct dnet_io_attr),
-					     io.size - sizeof(struct dnet_io_attr));
+					io.size - sizeof(struct dnet_io_attr));
 	free(data);
 
 	return ret;
@@ -461,7 +442,7 @@ std::string session::write_cache(struct dnet_id &id, const std::string &str,
 	ctl.fd = -1;
 
 	char *result = NULL;
-	int err = dnet_write_data_wait(m_session, &ctl, (void **)&result);
+	int err = dnet_write_data_wait(m_session, &ctl, reinterpret_cast<void**>(&result));
 	if (err < 0) {
 		std::ostringstream string;
 		string << dnet_dump_id(&id) << ": WRITE: size: " << str.size() << ", err: " << err;
@@ -507,7 +488,7 @@ std::string session::write_compare_and_swap(const struct dnet_id &id, const std:
 	ctl.fd = -1;
 
 	char *result = NULL;
-	int err = dnet_write_data_wait(m_session, &ctl, (void **)&result);
+	int err = dnet_write_data_wait(m_session, &ctl, reinterpret_cast<void**>(&result));
 	if (err < 0) {
 		std::ostringstream string;
 		string << dnet_dump_id(&id) << ": WRITE: size: " << str.size() << ", err: " << err;
@@ -553,7 +534,7 @@ std::string session::write_data_wait(struct dnet_id &id, const std::string &str,
 	ctl.fd = -1;
 
 	char *result = NULL;
-	int err = dnet_write_data_wait(m_session, &ctl, (void **)&result);
+	int err = dnet_write_data_wait(m_session, &ctl, reinterpret_cast<void**>(&result));
 	if (err < 0) {
 		std::ostringstream string;
 		string << dnet_dump_id(&id) << ": WRITE: size: " << str.size() << ", err: " << err;
@@ -603,7 +584,7 @@ std::string session::lookup_addr(const struct dnet_id &id)
 		throw std::runtime_error(str.str());
 	}
 
-	return std::string((const char *)buf, strlen(buf));
+	return std::string(buf, strlen(buf));
 }
 
 std::string session::create_metadata(const struct dnet_id &id, const std::string &obj,
@@ -1119,7 +1100,7 @@ std::string session::write_prepare(const struct dnet_id &id, const std::string &
 	ctl.fd = -1;
 
 	char *result = NULL;
-	int err = dnet_write_data_wait(m_session, &ctl, (void **)&result);
+	int err = dnet_write_data_wait(m_session, &ctl, reinterpret_cast<void**>(&result));
 	if (err < 0) {
 		std::ostringstream string;
 		string << dnet_dump_id(&ctl.id) << ": write_prepare: size: " << str.size() << ", err: " << err;
@@ -1163,7 +1144,7 @@ std::string session::write_commit(const struct dnet_id &id, const std::string &s
 	ctl.fd = -1;
 
 	char *result = NULL;
-	int err = dnet_write_data_wait(m_session, &ctl, (void **)&result);
+	int err = dnet_write_data_wait(m_session, &ctl, reinterpret_cast<void**>(&result));
 	if (err < 0) {
 		std::ostringstream string;
 		string << dnet_dump_id(&ctl.id) << ": write_commit: size: " << str.size() << ", err: " << err;
@@ -1206,7 +1187,7 @@ std::string session::write_plain(const struct dnet_id &id, const std::string &st
 	ctl.fd = -1;
 
 	char *result = NULL;
-	int err = dnet_write_data_wait(m_session, &ctl, (void **)&result);
+	int err = dnet_write_data_wait(m_session, &ctl, reinterpret_cast<void**>(&result));
 	if (err < 0) {
 		std::ostringstream string;
 		string << dnet_dump_id(&ctl.id) << ": write_plain: size: " << str.size() << ", err: " << err;

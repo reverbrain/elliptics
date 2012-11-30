@@ -39,7 +39,8 @@
 
 namespace ioremap { namespace elliptics {
 
-class elliptics_error : public std::runtime_error {
+class elliptics_error : public std::runtime_error
+{
 	public:
 		explicit elliptics_error(int err);
 		int error_code() const;
@@ -48,19 +49,22 @@ class elliptics_error : public std::runtime_error {
 		int errno_;
 };
 
-class not_found_error : public elliptics_error {
+class not_found_error : public elliptics_error
+{
 	public:
 		explicit not_found_error();
 };
 
-class timeout_error : public elliptics_error {
+class timeout_error : public elliptics_error
+{
 	public:
 		explicit timeout_error();
 };
 
 extern void throw_exception(int err);
 
-struct addr_tuple {
+struct addr_tuple
+{
 	addr_tuple(const std::string &l_host, const int l_port, const int l_family = AF_INET) :
 		host(l_host), port(l_port), family(l_family) {}
 
@@ -69,7 +73,8 @@ struct addr_tuple {
 	int			family;
 };
 
-class logger_interface {
+class logger_interface
+{
 	public:
 		virtual ~logger_interface() {}
 
@@ -78,7 +83,8 @@ class logger_interface {
 
 class logger_data;
 
-class logger {
+class logger
+{
 	public:
 		explicit logger(logger_interface *interface, const int level = DNET_LOG_INFO);
 		logger();
@@ -95,7 +101,8 @@ class logger {
 		boost::shared_ptr<logger_data> m_data;
 };
 
-class log_file : public logger {
+class log_file : public logger
+{
 	public:
 		explicit log_file(const char *file, const int level = DNET_LOG_INFO);
 		~log_file();
@@ -103,7 +110,8 @@ class log_file : public logger {
 
 class callback_data;
 
-class callback {
+class callback
+{
 	ELLIPTICS_DISABLE_COPY(callback)
 	public:
 		callback();
@@ -121,7 +129,8 @@ class callback {
 
 class node_data;
 
-class node {
+class node
+{
 	public:
 		explicit node(const logger &l);
 		node(const logger &l, struct dnet_config &cfg);
@@ -150,7 +159,8 @@ class node {
 		friend class session;
 };
 
-class session {
+class session
+{
 	ELLIPTICS_DISABLE_COPY(session)
 	public:
 		explicit session(const node &n);
@@ -218,9 +228,9 @@ class session {
 		std::string		lookup_addr(const struct dnet_id &id);
 
 		std::string		create_metadata(const struct dnet_id &id, const std::string &obj,
-							const std::vector<int> &m_groups, const struct timespec &ts);
+							const std::vector<int> &groups, const struct timespec &ts);
 		int			write_metadata(const struct dnet_id &id, const std::string &obj,
-							const std::vector<int> &m_groups, const struct timespec &ts, uint64_t cflags);
+							const std::vector<int> &groups, const struct timespec &ts, uint64_t cflags);
 
 		void			lookup(const std::string &data, const callback &c);
 		void			lookup(const struct dnet_id &id, const callback &c);
