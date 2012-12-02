@@ -220,6 +220,78 @@ static int leveldb_backend_bulk_read(struct leveldb_backend *s, void *state, str
 }
 */
 
+static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *data)
+{
+	int err = -ENOENT;
+	char * errp = NULL;
+	struct dnet_io_attr *io = data;
+	struct dnet_io_attr dst_io;
+	unsigned i = 0, j = 0;
+	dnet_convert_io_attr(io);
+
+	leveldb_iterator_t * it = leveldb_create_iterator(s->db, s->roptions);
+	if (!it) {
+		return err;
+	}
+
+	for (leveldb_iter_seek(it, (const char*)io->id, DNET_ID_SIZE);
+	     leveldb_iter_valid(it) && j < io->num; leveldb_iter_next(it), i++)
+	{
+		size_t size;
+		const char * key = leveldb_iter_key(it, &size);
+		const char * val = 0;
+		if (memcmp(io->parent, key, DNET_ID_SIZE) < 0) {
+			break;
+		}
+		if (i < io->start) {
+			continue;
+		}
+		++j;
+
+		err = 0;
+		switch (cmd->cmd) {
+			case DNET_CMD_READ_RANGE: 
+				val = leveldb_iter_value(it, &size);
+				memset(&dst_io, 0, sizeof(dst_io));
+				dst_io.flags  = 0;
+				dst_io.size   = size;
+				dst_io.offset = 0;
+				dst_io.type   = io->type;
+				memcpy(dst_io.id, key, DNET_ID_SIZE);
+				memcpy(dst_io.parent, io->parent, DNET_ID_SIZE);
+				err = dnet_send_read_data(state, cmd, &dst_io, (char*)val, -1, 0, 0);
+				break;
+			case DNET_CMD_DEL_RANGE:
+				leveldb_delete(s->db, s->woptions, key, size, &errp);
+				if (errp) {
+					dnet_backend_log(DNET_LOG_ERROR, "%s: LEVELDB: REMOVE: error: %s",
+					                 dnet_dump_id_str((const unsigned char*)key), errp);
+					err = -ENOENT;
+				}
+				break;
+		}
+
+		if (err) {
+			j = 0;
+			break;
+		}
+	}
+
+	if (j) {
+		struct dnet_io_attr r;
+
+		memcpy(&r, io, sizeof(struct dnet_io_attr));
+		r.num    = j - io->start;
+		r.offset = r.size = 0;
+
+		err = dnet_send_read_data(state, cmd, &r, NULL, -1, 0, 0);		
+	}
+
+	leveldb_iter_destroy(it);
+
+	return err;
+}
+
 static int leveldb_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
 {
 	int err;
@@ -241,11 +313,12 @@ static int leveldb_backend_command_handler(void *state, void *priv, struct dnet_
 		case DNET_CMD_DEL:
 			err = leveldb_backend_remove(s, state, cmd, data);
 			break;
+		case DNET_CMD_DEL_RANGE:
+		case DNET_CMD_READ_RANGE:
+			err = leveldb_backend_range_read(s, state, cmd, data);
+			break;
 //		case DNET_CMD_BULK_READ:
 //			err = leveldb_backend_bulk_read(s, state, cmd, data);
-//			break;
-//		case DNET_CMD_READ_RANGE:
-//			err = -ENOTSUP;
 //			break;
 		default:
 			err = -ENOTSUP;
