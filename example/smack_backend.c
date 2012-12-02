@@ -458,7 +458,17 @@ static long long smack_total_elements(void *priv)
 static int dnet_smack_config_init(struct dnet_config_backend *b, struct dnet_config *c)
 {
 	struct smack_backend *s = b->data;
-	int err;
+	char *hpath;
+	int err, hlen;
+
+	hlen = strlen(s->ictl.path) + 128; /* 128 is for '/history' suffix */
+	hpath = alloca(hlen);
+	if (!hpath) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	snprintf(hpath, hlen, "%s/history", s->ictl.path);
 
 	c->cb = &b->cb;
 
@@ -479,8 +489,8 @@ static int dnet_smack_config_init(struct dnet_config_backend *b, struct dnet_con
 	b->cb.meta_total_elements = smack_total_elements;
 	b->cb.meta_iterate = dnet_smack_db_iterate;
 
-	mkdir("history", 0755);
-	err = dnet_smack_db_init(s, c, "history");
+	mkdir(hpath, 0755);
+	err = dnet_smack_db_init(s, c, hpath);
 	if (err)
 		goto err_out_exit;
 
