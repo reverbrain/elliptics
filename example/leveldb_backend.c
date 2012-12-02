@@ -46,6 +46,7 @@ struct leveldb_backend
 	struct eblob_log	elog;
 	struct eblob_backend	*meta;
 
+	size_t			cache_size;
 	size_t			write_buffer_size;
 	size_t			block_size;
 	int			block_restart_interval;
@@ -100,7 +101,7 @@ err_out_exit:
 }
 */
 
-static int leveldb_backend_lookup(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd)
+static int leveldb_backend_lookup(struct leveldb_backend *s __unused, void *state __unused, struct dnet_cmd *cmd __unused)
 {
 /*
 	struct index idx;
@@ -143,12 +144,12 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 
 	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info), 0);
 
-	dnet_backend_log(DNET_LOG_NOTICE, "%s: LEVELDB: : WRITE: Ok: offset: %llu, size: %llu.\n",
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : WRITE: Ok: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&cmd->id), (unsigned long long)io->offset, (unsigned long long)io->size);
 
 	return err;
 err_out_exit:
-	dnet_backend_log(DNET_LOG_ERROR, "%s: LEVELDB: : WRITE: error: %s.\n",
+	dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: : WRITE: error: %s.\n",
 			dnet_dump_id(&cmd->id), errp);
 	return err;
 }
@@ -176,7 +177,7 @@ err_out_free:
 	free(data);
 err_out_exit:
 	if (err < 0)
-		dnet_backend_log(DNET_LOG_ERROR, "%s: LEVELDB: READ: error: %s\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: READ: error: %s\n",
 			dnet_dump_id(&cmd->id), errp);
 	return err;
 }
@@ -187,7 +188,7 @@ static int leveldb_backend_remove(struct leveldb_backend *s, void *state __unuse
 
 	leveldb_delete(s->db, s->woptions, (const char *)cmd->id.id, DNET_ID_SIZE, &errp);
 	if (errp) {
-		dnet_backend_log(DNET_LOG_ERROR, "%s: LEVELDB: REMOVE: error: %s",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: REMOVE: error: %s",
 				dnet_dump_id(&cmd->id), errp);
 		return -2;
 	}
@@ -258,7 +259,7 @@ static int dnet_leveldb_set_cache_size(struct dnet_config_backend *b, char *key 
 {
 	struct leveldb_backend *s = b->data;
 
-	s->cache = leveldb_cache_create_lru(atol(value));
+	s->cache_size = atol(value);
 	return 0;
 }
 
@@ -442,14 +443,15 @@ static void leveldb_backend_cleanup(void *priv)
 	struct leveldb_backend *s = priv;
 
 	leveldb_close(s->db);
-	leveldb_options_destroy(s->options);
-	leveldb_readoptions_destroy(s->roptions);
 	leveldb_writeoptions_destroy(s->woptions);
+	leveldb_readoptions_destroy(s->roptions);
 	leveldb_cache_destroy(s->cache);
+	leveldb_options_destroy(s->options);
 	//leveldb_comparator_destroy(s->cmp);
 	leveldb_env_destroy(s->env);
 
 	dnet_leveldb_db_cleanup(s);
+
 	free(s->path);
 }
 
@@ -489,13 +491,13 @@ static long long smack_total_elements(void *priv)
 		snprintf(propname, sizeof(propname), "leveldb.num-files-at-level%d", level);
 		prop = leveldb_property_value(s->db, propname);
 		if (prop) {
-			dnet_backend_log(DNET_LOG_DEBUG, "LEVELDB: properties: %s -> %s\n", propname, prop);
+			dnet_backend_log(DNET_LOG_DEBUG, "leveldb: properties: %s -> %s\n", propname, prop);
 			count += atoi(prop);
 		}
 		level++;
 	} while (prop);
 
-	dnet_backend_log(DNET_LOG_DEBUG, "LEVELDB: count: %lld\n", count);
+	dnet_backend_log(DNET_LOG_DEBUG, "leveldb: count: %lld\n", count);
 
 	return count;
 }
@@ -505,6 +507,24 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 	struct leveldb_backend *s = b->data;
 	int err;
 	char *errp = NULL;
+	char *hpath;
+	int hlen;
+
+	err = -EINVAL;
+	if (!s->path) {
+		dnet_backend_log(DNET_LOG_ERROR, "leveldb: you must provide root path\n");
+		goto err_out_exit;
+	}
+
+	if (!s->cache_size)
+		s->cache_size = 1024 * 1024;
+
+	hlen = strlen(s->path) + 128; /* 128 is for /history suffix */
+	hpath = alloca(hlen);
+	if (!hpath) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
 
 	c->cb = &b->cb;
 
@@ -525,15 +545,34 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 	b->cb.meta_total_elements = smack_total_elements;
 	b->cb.meta_iterate = dnet_leveldb_db_iterate;
 
-	mkdir("history", 0755);
-	err = dnet_leveldb_db_init(s, c, "history");
-	if (err)
+	snprintf(hpath, hlen, "%s/history", s->path);
+	mkdir(hpath, 0755);
+	err = dnet_leveldb_db_init(s, c, hpath);
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "leveldb: could not initialize history database: %d\n", err);
 		goto err_out_exit;
+	}
+
+	err = -ENOMEM;
 
 	//s->cmp = leveldb_comparator_create(NULL, CmpDestroy, CmpCompare, CmpName);
 	s->env = leveldb_create_default_env();
+	if (!s->env) {
+		dnet_backend_log(DNET_LOG_ERROR, "leveldb: could not create environment\n");
+		goto err_out_cleanup;
+	}
 
 	s->options = leveldb_options_create();
+	if (!s->options) {
+		dnet_backend_log(DNET_LOG_ERROR, "leveldb: could not create options\n");
+		goto err_out_env_cleanup;
+	}
+
+	s->cache = leveldb_cache_create_lru(s->cache_size);
+	if (!s->cache) {
+		dnet_backend_log(DNET_LOG_ERROR, "leveldb: could not create cache, size: %zd\n", s->cache_size);
+		goto err_out_options_cleanup;
+	}
 	//leveldb_options_set_comparator(s->options, s->cmp);
 	leveldb_options_set_create_if_missing(s->options, 1);
 	leveldb_options_set_cache(s->options, s->cache);
@@ -547,18 +586,40 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 	leveldb_options_set_compression(s->options, leveldb_no_compression);
 
 	s->roptions = leveldb_readoptions_create();
+	if (!s->roptions) {
+		dnet_backend_log(DNET_LOG_ERROR, "leveldb: could not create read options\n");
+		goto err_out_cache_cleanup;
+	}
+
 	leveldb_readoptions_set_verify_checksums(s->roptions, 1);
 	leveldb_readoptions_set_fill_cache(s->roptions, 1);
 
 	s->woptions = leveldb_writeoptions_create();
+	if (!s->woptions) {
+		dnet_backend_log(DNET_LOG_ERROR, "leveldb: could not create write options\n");
+		goto err_out_read_options_cleanup;
+	}
+
 	leveldb_writeoptions_set_sync(s->woptions, s->sync);
 
 	s->db = leveldb_open(s->options, s->path, &errp);
 	if (!s->db || errp)
-		goto err_out_cleanup;
+		goto err_out_write_options_cleanup;
 
 	return 0;
 
+	leveldb_close(s->db);
+err_out_write_options_cleanup:
+	leveldb_writeoptions_destroy(s->woptions);
+err_out_read_options_cleanup:
+	leveldb_readoptions_destroy(s->roptions);
+err_out_cache_cleanup:
+	leveldb_cache_destroy(s->cache);
+err_out_options_cleanup:
+	leveldb_options_destroy(s->options);
+	//leveldb_comparator_destroy(s->cmp);
+err_out_env_cleanup:
+	leveldb_env_destroy(s->env);
 err_out_cleanup:
 	dnet_leveldb_db_cleanup(s);
 err_out_exit:
