@@ -435,7 +435,11 @@ static int dnet_write_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, 
 	}
 
 	err = cmd->status;
-	if (!err && st && (cmd->size > sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info))) {
+	/*
+	 * '=' part in '>=' comparison here means backend does not provide information about filename,
+	 * where given object is stored.
+	 */
+	if (!err && st && (cmd->size >= sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info))) {
 		int old_size = wc->size;
 		void *data;
 
