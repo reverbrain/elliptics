@@ -140,6 +140,8 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	dnet_convert_addr_attr(a);
 
 	memset(info, 0, sizeof(struct dnet_file_info));
+
+	info->size = io->size;
 	dnet_convert_file_info(info);
 
 	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info), 0);
