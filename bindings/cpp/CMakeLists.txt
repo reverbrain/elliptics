@@ -3,6 +3,7 @@ include_directories(../../include)
 set(ELLIPTICS_CPP_SRCS
     log.cpp
     node.cpp
+    session.cpp
     callback.cpp
     exception.cpp
     )
