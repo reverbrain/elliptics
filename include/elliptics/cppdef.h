@@ -39,29 +39,46 @@
 
 namespace ioremap { namespace elliptics {
 
-class elliptics_error : public std::runtime_error
+class error : public std::exception
 {
 	public:
-		explicit elliptics_error(int err);
+		// err must be negative value
+		explicit error(int err, const std::string &message) throw();
+		~error() throw() {}
+
 		int error_code() const;
+
+		virtual const char *what() const throw();
+
 	private:
-		static std::string convert(int err);
-		int errno_;
+		int m_errno;
+		std::string m_message;
 };
 
-class not_found_error : public elliptics_error
+class not_found_error : public error
 {
 	public:
-		explicit not_found_error();
+		explicit not_found_error(const std::string &message) throw();
 };
 
-class timeout_error : public elliptics_error
+class timeout_error : public error
 {
 	public:
-		explicit timeout_error();
+		explicit timeout_error(const std::string &message) throw();
 };
 
-extern void throw_exception(int err);
+// err must be negative value
+void throw_error(int err, const char *format, ...)
+	__attribute__ ((format (printf, 2, 3)));
+
+// err must be negative value
+void throw_error(int err, const struct dnet_id &id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
+void throw_error(int err, const uint8_t *id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
 
 struct addr_tuple
 {
@@ -168,8 +185,8 @@ class session
 
 		void			transform(const std::string &data, struct dnet_id &id);
 
-		void			add_groups(std::vector<int> &m_groups);
-		std::vector<int>	get_groups() {return m_groups;}
+		void			add_groups(std::vector<int> &groups);
+		std::vector<int>	get_groups() const { return m_groups; }
 
 		void			read_file(struct dnet_id &id, const std::string &file, uint64_t offset, uint64_t size);
 		void			read_file(const std::string &remote, const std::string &file,

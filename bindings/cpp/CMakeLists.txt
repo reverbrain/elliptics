@@ -4,6 +4,7 @@ set(ELLIPTICS_CPP_SRCS
     log.cpp
     node.cpp
     callback.cpp
+    exception.cpp
     )
 add_library(elliptics_cpp SHARED ${ELLIPTICS_CPP_SRCS})
 set_target_properties(elliptics_cpp PROPERTIES

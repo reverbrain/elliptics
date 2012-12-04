@@ -16,34 +16,87 @@
 
 #include <elliptics/cppdef.h>
 
-using namespace ioremap::elliptics;
+#include <cstdarg>
+#include <cstdio>
+#include <sstream>
 
-elliptics_error::elliptics_error(int code)
-    : std::runtime_error(convert(code)), errno_(code)
+namespace ioremap { namespace elliptics {
+
+error::error(int code, const std::string &message) throw() : m_errno(code), m_message(message)
 {
 }
 
-int elliptics_error::error_code() const
+int error::error_code() const
 {
-    return errno_;
+	return m_errno;
 }
 
-std::string elliptics_error::convert(int err)
+const char *error::what() const throw()
 {
-    return strerror(err);
+	return m_message.c_str();
 }
 
-not_found_error::not_found_error()
-    : elliptics_error(ENOENT)
-{
-}
-
-timeout_error::timeout_error()
-    : elliptics_error(EIO)
+not_found_error::not_found_error(const std::string &message) throw()
+	: error(ENOENT, message)
 {
 }
 
-void throw_exception(int err)
+timeout_error::timeout_error(const std::string &message) throw()
+	: error(EIO, message)
 {
-    throw elliptics_error(err);
 }
+
+static void throw_error_detail(int err, const std::string &message)
+{
+	switch (err) {
+		case ENOENT:
+			throw not_found_error(message);
+			break;
+		case EIO:
+			throw timeout_error(message);
+			break;
+		default:
+			throw error(err, message);
+			break;
+	}
+}
+
+static void throw_error_detail(int err, const char *id, const char *format, va_list args)
+{
+	std::ostringstream message;
+	char buffer[1024];
+	const size_t buffer_size = sizeof(buffer);
+	if (id) {
+		message << id << ": ";
+	}
+	vsnprintf(buffer, buffer_size, format, args);
+	buffer[buffer_size - 1] = '\0';
+	message << buffer << ": " << strerror(-err) << ": " << err;
+	throw_error_detail(err, message.str());
+}
+
+void throw_error(int err, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	throw_error_detail(err, 0, format, args);
+	va_end(args);
+}
+
+void throw_error(int err, const struct dnet_id &id, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	throw_error_detail(err, dnet_dump_id(&id), format, args);
+	va_end(args);
+}
+
+void throw_error(int err, const uint8_t *id, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	throw_error_detail(err, dnet_dump_id_str(id), format, args);
+	va_end(args);
+}
+
+} } // namespace ioremap::elliptics
