@@ -15,53 +15,50 @@
 
 #define _XOPEN_SOURCE 600
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/mman.h>
-#include <sys/wait.h>
+#include "elliptics/cppdef.h"
 
 #include <sstream>
 #include <stdexcept>
 
-#include "elliptics/cppdef.h"
+#include <boost/thread.hpp>
 
-using namespace ioremap::elliptics;
+namespace ioremap { namespace elliptics {
 
-class ioremap::elliptics::callback_data
+class callback_data
 {
 	public:
 		std::string		data;
-		pthread_cond_t		wait_cond;
-		pthread_mutex_t		lock;
+		boost::mutex lock;
+		boost::condition_variable wait_cond;
 		int			complete;
 };
 
 callback::callback() : m_data(new callback_data)
 {
 	m_data->complete = 0;
-	pthread_cond_init(&m_data->wait_cond, NULL);
-	pthread_mutex_init(&m_data->lock, NULL);
 }
 
 callback::~callback()
 {
-	pthread_cond_destroy(&m_data->wait_cond);
-	pthread_mutex_init(&m_data->lock, NULL);
 	delete m_data;
 }
 
 int callback::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
 {
-	pthread_mutex_lock(&m_data->lock);
-	if (is_trans_destroyed(state, cmd)) {
-		m_data->complete++;
-		pthread_cond_broadcast(&m_data->wait_cond);
-	} else if (cmd && state) {
-		m_data->data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
-		m_data->data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
+	bool notify = false;
+	{
+		boost::mutex::scoped_lock locker(m_data->lock);
+
+		if (is_trans_destroyed(state, cmd)) {
+			m_data->complete++;
+			notify = true;
+		} else if (cmd && state) {
+			m_data->data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
+			m_data->data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
+		}
 	}
-	pthread_mutex_unlock(&m_data->lock);
+	if (notify)
+		m_data->wait_cond.notify_all();
 
 	return 0;
 }
@@ -75,10 +72,12 @@ int callback::complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 std::string callback::wait(int completed)
 {
-	pthread_mutex_lock(&m_data->lock);
+	boost::mutex::scoped_lock locker(m_data->lock);
+
 	while (m_data->complete != completed)
-		pthread_cond_wait(&m_data->wait_cond, &m_data->lock);
-	pthread_mutex_unlock(&m_data->lock);
+		m_data->wait_cond.wait(locker);
 
 	return m_data->data;
 }
+
+} } // namespace ioremap::elliptics
