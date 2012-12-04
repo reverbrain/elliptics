@@ -195,13 +195,13 @@ class elliptics_session: public session, public wrapper<session> {
 	public:
 		elliptics_session(const node &n) : session(n) {}
 
-		void add_groups(const list &pgroups) {
+		void set_groups(const list &pgroups) {
 			std::vector<int> groups;
 
 			for (int i=0; i<len(pgroups); ++i)
 				groups.push_back(extract<int>(pgroups[i]));
 
-			session::add_groups(groups);
+			session::set_groups(groups);
 		}
 
 		boost::python::list get_groups() {
@@ -473,7 +473,7 @@ class elliptics_session: public session, public wrapper<session> {
 
 		list stat_log() {
 			list statistics;
-			callback c;
+			callback_any c;
 			std::string ret;
 			int err;
 			int i;
@@ -593,7 +593,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 	;
 
 	class_<elliptics_session, boost::noncopyable>("elliptics_session", init<node &>())
-		.def("add_groups", &elliptics_session::add_groups)
+		.def("add_groups", &elliptics_session::set_groups)
+		.def("set_groups", &elliptics_session::set_groups)
 		.def("get_groups", &elliptics_session::get_groups)
 
 		.def("read_file", &elliptics_session::read_file_by_id)

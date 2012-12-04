@@ -267,14 +267,14 @@ session::~session()
 	delete m_data;
 }
 
-void session::add_groups(std::vector<int> &groups)
+void session::set_groups(const std::vector<int> &groups)
 {
-	if (dnet_session_set_groups(m_data->session_ptr, const_cast<int*>(&groups[0]), groups.size()))
+	m_data->groups = groups;
+	if (dnet_session_set_groups(m_data->session_ptr, &m_data->groups[0], groups.size()))
 		throw std::bad_alloc();
-	this->m_data->groups = groups;
 }
 
-std::vector<int> session::get_groups() const
+const std::vector<int> &session::get_groups() const
 {
 	return m_data->groups;
 }
@@ -286,8 +286,8 @@ void session::read_file(struct dnet_id &id, const std::string &file, uint64_t of
 	err = dnet_read_file_id(m_data->session_ptr, file.c_str(), &id, offset, size);
 	if (err) {
 		throw_error(err, id, "READ: %s: offset: %llu, size: %llu",
-			file.c_str(), static_cast<unsigned long long int>(offset),
-			static_cast<unsigned long long int>(size));
+			file.c_str(), static_cast<unsigned long long>(offset),
+			static_cast<unsigned long long>(size));
 	}
 }
 
@@ -302,8 +302,8 @@ void session::read_file(const std::string &remote, const std::string &file, uint
 		id.type = 0;
 
 		throw_error(err, id, "READ: %s: offset: %llu, size: %llu",
-			file.c_str(), static_cast<unsigned long long int>(offset),
-			static_cast<unsigned long long int>(size));
+			file.c_str(), static_cast<unsigned long long>(offset),
+			static_cast<unsigned long long>(size));
 	}
 }
 
@@ -314,9 +314,9 @@ void session::write_file(struct dnet_id &id, const std::string &file, uint64_t l
 	if (err) {
 		throw_error(err, id, "WRITE: %s, local_offset: %llu, "
 			"offset: %llu, size: %llu",
-			file.c_str(), static_cast<unsigned long long int>(local_offset),
-			static_cast<unsigned long long int>(offset),
-			static_cast<unsigned long long int>(size));
+			file.c_str(), static_cast<unsigned long long>(local_offset),
+			static_cast<unsigned long long>(offset),
+			static_cast<unsigned long long>(size));
 	}
 }
 void session::write_file(const std::string &remote, const std::string &file, uint64_t local_offset, uint64_t offset, uint64_t size,
@@ -331,9 +331,9 @@ void session::write_file(const std::string &remote, const std::string &file, uin
 
 		throw_error(err, id, "WRITE: %s, local_offset: %llu, "
 		"offset: %llu, size: %llu",
-			file.c_str(), static_cast<unsigned long long int>(local_offset),
-			static_cast<unsigned long long int>(offset),
-			static_cast<unsigned long long int>(size));
+			file.c_str(), static_cast<unsigned long long>(local_offset),
+			static_cast<unsigned long long>(offset),
+			static_cast<unsigned long long>(size));
 	}
 }
 
@@ -355,7 +355,7 @@ std::string session::read_data_wait(struct dnet_id &id, uint64_t offset, uint64_
 	void *data = dnet_read_data_wait(m_data->session_ptr, &id, &io, cflags, &err);
 	if (!data) {
 		throw_error(err, id, "READ: size: %llu",
-			static_cast<unsigned long long int>(size));
+			static_cast<unsigned long long>(size));
 	}
 
 	std::string ret = std::string((const char *)data + sizeof(struct dnet_io_attr), io.size - sizeof(struct dnet_io_attr));
@@ -726,7 +726,7 @@ std::string session::lookup(const std::string &data)
 
 	for (i=0; i<num; ++i) {
 		try {
-			callback l;
+			callback_any l;
 			id.group_id = g[i];
 
 			lookup(id, l);
@@ -772,7 +772,7 @@ std::string session::lookup(const struct dnet_id &id)
 	std::string ret;
 
 	try {
-		callback l;
+		callback_any l;
 
 		lookup(id, l);
 		ret = l.wait();
@@ -833,7 +833,7 @@ void session::remove(const std::string &data, int type)
 
 std::string session::stat_log()
 {
-	callback c;
+	callback_any c;
 	std::string ret;
 	int err;
 
@@ -891,7 +891,7 @@ std::string session::stat_log()
 	return ret;
 }
 
-int session::states_count(void)
+int session::state_num(void)
 {
 	return dnet_state_num(m_data->session_ptr);
 }

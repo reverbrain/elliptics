@@ -28,9 +28,10 @@ class callback_data
 {
 	public:
 		std::string		data;
-		boost::mutex lock;
+		boost::mutex		lock;
 		boost::condition_variable wait_cond;
 		int			complete;
+		std::vector<int>	statuses;
 };
 
 callback::callback() : m_data(new callback_data)
@@ -43,31 +44,34 @@ callback::~callback()
 	delete m_data;
 }
 
-int callback::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
+void callback::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
 {
+	m_data->data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
+	m_data->data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
+}
+
+int callback::complete_callback(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
+{
+	callback *that = reinterpret_cast<callback *>(priv);
+
 	bool notify = false;
 	{
-		boost::mutex::scoped_lock locker(m_data->lock);
+		boost::mutex::scoped_lock locker(that->m_data->lock);
+
+		if (cmd)
+			that->m_data->statuses.push_back(cmd->status);
 
 		if (is_trans_destroyed(state, cmd)) {
-			m_data->complete++;
+			that->m_data->complete++;
 			notify = true;
 		} else if (cmd && state) {
-			m_data->data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
-			m_data->data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
+			that->handle(state, cmd);
 		}
 	}
 	if (notify)
-		m_data->wait_cond.notify_all();
+		that->m_data->wait_cond.notify_all();
 
 	return 0;
-}
-
-int callback::complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv)
-{
-	callback *c = reinterpret_cast<callback *>(priv);
-
-	return c->handle(st, cmd);
 }
 
 std::string callback::wait(int completed)
@@ -78,6 +82,38 @@ std::string callback::wait(int completed)
 		m_data->wait_cond.wait(locker);
 
 	return m_data->data;
+}
+
+callback_any::callback_any()
+{
+}
+
+callback_any::~callback_any()
+{
+}
+
+bool callback_any::check_states(const std::vector<int> &statuses)
+{
+	bool ok = false;
+	for (size_t i = 0; i < statuses.size(); ++i)
+		ok |= (statuses[i] != 0);
+	return ok;
+}
+
+callback_all::callback_all()
+{
+}
+
+callback_all::~callback_all()
+{
+}
+
+bool callback_all::check_states(const std::vector<int> &statuses)
+{
+	bool ok = !statuses.empty();
+	for (size_t i = 0; i < statuses.size(); ++i)
+		ok &= (statuses[i] != 0);
+	return ok;
 }
 
 } } // namespace ioremap::elliptics

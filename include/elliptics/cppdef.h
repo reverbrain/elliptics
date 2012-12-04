@@ -134,14 +134,33 @@ class callback
 		callback();
 		virtual ~callback();
 
-		virtual int handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
-
-		static int complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv);
+		virtual void handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
+		virtual bool check_states(const std::vector<int> &statuses) = 0;
 
 		std::string wait(int completed = 1);
 
-	protected:
+		static int complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv);
+
+	private:
 		callback_data *m_data;
+};
+
+class callback_any : public callback
+{
+	public:
+		callback_any();
+		~callback_any();
+
+		virtual bool check_states(const std::vector<int> &statuses);
+};
+
+class callback_all : public callback
+{
+	public:
+		callback_all();
+		~callback_all();
+
+		virtual bool check_states(const std::vector<int> &statuses);
 };
 
 class node_data;
@@ -189,8 +208,8 @@ class session
 
 		void			transform(const std::string &data, struct dnet_id &id);
 
-		void			add_groups(std::vector<int> &groups);
-		std::vector<int>	get_groups() const;
+		void			set_groups(const std::vector<int> &groups);
+		const std::vector<int> &get_groups() const;
 
 		void			read_file(struct dnet_id &id, const std::string &file, uint64_t offset, uint64_t size);
 		void			read_file(const std::string &remote, const std::string &file,
@@ -265,7 +284,7 @@ class session
 
 		std::string		stat_log();
 
-		int			states_count();
+		int			state_num();
 		
 		int			request_cmd(struct dnet_trans_control &ctl);
 

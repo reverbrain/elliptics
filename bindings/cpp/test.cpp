@@ -48,13 +48,13 @@ class callback_io : public callback {
 		callback_io(logger *l) { log = l; }
 		virtual ~callback_io() {}
 
-		virtual int		handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
+		virtual void		handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
 
 	private:
 		logger			*log;
 };
 
-int callback_io::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
+void callback_io::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
 {
 	int err;
 	struct dnet_io_attr *io;
@@ -96,7 +96,7 @@ int callback_io::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
 err_out_exit:
 	if (!cmd || !(cmd->flags & DNET_FLAGS_MORE))
 		test_log_raw(log, DNET_LOG_INFO, "%s: io completed: %d.\n", cmd ? dnet_dump_id(&cmd->id) : "nil", err);
-	return err;
+//	return err;
 }
 
 static void test_prepare_commit(session &s, int psize, int csize)
@@ -545,7 +545,7 @@ int main(int argc, char *argv[])
 
 		node n(log);
 		session s(n);
-		s.add_groups(groups);
+		s.set_groups(groups);
 
 		try {
 			n.add_remote(host, port, AF_INET);

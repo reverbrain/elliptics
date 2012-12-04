@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
 		find.add_remote(remote);
 
 		{
-			callback c;
+			callback_any c;
 
 			memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
 
 
 		{
-			callback c;
+			callback_any c;
 
 			memset(&ctl, 0, sizeof(ctl));
 
