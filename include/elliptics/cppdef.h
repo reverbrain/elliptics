@@ -80,10 +80,10 @@ void throw_error(int err, const uint8_t *id, const char *format, ...)
 	__attribute__ ((format (printf, 3, 4)));
 
 
-struct addr_tuple
+struct address
 {
-	addr_tuple(const std::string &l_host, const int l_port, const int l_family = AF_INET) :
-		host(l_host), port(l_port), family(l_family) {}
+	address(const std::string &l_host, const int l_port, const int l_family = AF_INET)
+		: host(l_host), port(l_port), family(l_family) {}
 
 	std::string		host;
 	int			port;
@@ -118,11 +118,11 @@ class logger
 		boost::shared_ptr<logger_data> m_data;
 };
 
-class log_file : public logger
+class file_logger : public logger
 {
 	public:
-		explicit log_file(const char *file, const int level = DNET_LOG_INFO);
-		~log_file();
+		explicit file_logger(const char *file, const int level = DNET_LOG_INFO);
+		~file_logger();
 };
 
 class callback_data;
@@ -145,6 +145,7 @@ class callback
 };
 
 class node_data;
+class session_data;
 
 class node
 {
@@ -158,13 +159,15 @@ class node
 		node &operator =(const node &other);
 
 		void			parse_config(const std::string &path, struct dnet_config &cfg,
-							std::list<addr_tuple> &remotes,
+							std::list<address> &remotes,
 							std::vector<int> &groups,
 							int &log_level);
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 
 		void			set_timeouts(const int wait_timeout, const int check_timeout);
+
+		struct dnet_node *	get_native();
 
 	protected:
 		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
@@ -174,6 +177,7 @@ class node
 		boost::shared_ptr<node_data> m_data;
 
 		friend class session;
+		friend class session_data;
 };
 
 class session
@@ -186,7 +190,7 @@ class session
 		void			transform(const std::string &data, struct dnet_id &id);
 
 		void			add_groups(std::vector<int> &groups);
-		std::vector<int>	get_groups() const { return m_groups; }
+		std::vector<int>	get_groups() const;
 
 		void			read_file(struct dnet_id &id, const std::string &file, uint64_t offset, uint64_t size);
 		void			read_file(const std::string &remote, const std::string &file,
@@ -203,7 +207,7 @@ class session
 		std::string		read_data_wait(const std::string &remote, uint64_t offset, uint64_t size,
 							uint64_t cflags, uint32_t ioflags, int type);
 
-		void			prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<int> &m_groups);
+		void			prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<int> &groups);
 
 		std::string		read_latest(struct dnet_id &id, uint64_t offset, uint64_t size,
 							uint64_t cflags, uint32_t ioflags);
@@ -241,8 +245,8 @@ class session
 
 
 
-		std::string		lookup_addr(const std::string &remote, const int group_id);
-		std::string		lookup_addr(const struct dnet_id &id);
+		std::string		lookup_address(const std::string &remote, const int group_id);
+		std::string		lookup_address(const struct dnet_id &id);
 
 		std::string		create_metadata(const struct dnet_id &id, const std::string &obj,
 							const std::vector<int> &groups, const struct timespec &ts);
@@ -261,7 +265,7 @@ class session
 
 		std::string		stat_log();
 
-		int			state_num();
+		int			states_count();
 		
 		int			request_cmd(struct dnet_trans_control &ctl);
 
@@ -302,13 +306,12 @@ class session
 		std::string		bulk_write(const std::vector<struct dnet_io_attr> &ios,
 							const std::vector<std::string> &data, uint64_t cflags);
 
-		struct dnet_node *	get_node();
+		node	&get_node();
+		const node	&get_node() const;
+		struct dnet_session *	get_native();
 
 	protected:
-		struct dnet_session	*m_session;
-		node			m_node;
-
-		std::vector<int>	m_groups;
+		session_data		*m_data;
 
 		std::string		raw_exec(struct dnet_id *id,
 							const struct sph *sph,

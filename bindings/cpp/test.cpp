@@ -541,7 +541,7 @@ int main(int argc, char *argv[])
 
 
 	try {
-		log_file log("/dev/stderr", DNET_LOG_DEBUG);
+		file_logger log("/dev/stderr", DNET_LOG_DEBUG);
 
 		node n(log);
 		session s(n);

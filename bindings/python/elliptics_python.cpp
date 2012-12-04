@@ -236,7 +236,7 @@ class elliptics_session: public session, public wrapper<session> {
 
 			transform(remote, raw);
 
-			write_metadata((const dnet_id&)raw, remote, m_groups, ts, cflags);
+			write_metadata((const dnet_id&)raw, remote, session::get_groups(), ts, cflags);
 		}
 
 		void read_file_by_id(struct elliptics_id &id, const std::string &file, uint64_t offset, uint64_t size) {
@@ -339,13 +339,13 @@ class elliptics_session: public session, public wrapper<session> {
 		}
 
 		std::string lookup_addr_by_data_transform(const std::string &remote, const int group_id) {
-			return lookup_addr(remote, group_id);
+			return lookup_address(remote, group_id);
 		}
 
 		std::string lookup_addr_by_id(const struct elliptics_id &id) {
 			struct dnet_id raw = id.to_dnet();
 
-			return lookup_addr(raw);
+			return lookup_address(raw);
 		}
 
 		boost::python::tuple parse_lookup(const std::string &lookup) {
@@ -478,7 +478,7 @@ class elliptics_session: public session, public wrapper<session> {
 			int err;
 			int i;
 
-			err = dnet_request_stat(m_session, NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL,
+			err = dnet_request_stat(get_native(), NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL,
 						callback::complete_callback, (void *)&c);
 			if (err < 0) {
 				std::ostringstream str;
@@ -562,8 +562,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("log", pure_virtual(&python_logger::log))
 	;
 
-	class_<log_file>("elliptics_log_file", init<const char *, const uint32_t>())
-		.def("log", &log_file::log)
+	class_<file_logger>("elliptics_log_file", init<const char *, const uint32_t>())
+		.def("log", &file_logger::log)
 	;
 
 	class_<dnet_node_status>("dnet_node_status", init<>())

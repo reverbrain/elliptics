@@ -105,11 +105,11 @@ class file_logger_interface : public logger_interface {
 		std::ofstream	m_stream;
 };
 
-log_file::log_file(const char *file, const int level) :
+file_logger::file_logger(const char *file, const int level) :
 	logger(new file_logger_interface(file), level)
 {
 }
 
-log_file::~log_file(void)
+file_logger::~file_logger()
 {
 }
