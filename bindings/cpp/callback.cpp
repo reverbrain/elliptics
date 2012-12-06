@@ -51,7 +51,7 @@ void callback::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
 	m_data->data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
 }
 
-int callback::complete_callback(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
+int callback::handler(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
 {
 	callback *that = reinterpret_cast<callback *>(priv);
 
@@ -83,6 +83,11 @@ std::string callback::wait(int completed)
 		m_data->wait_cond.wait(locker);
 
 	return m_data->data;
+}
+
+void *callback::data() const
+{
+	return const_cast<callback *>(this);
 }
 
 callback_any::callback_any()

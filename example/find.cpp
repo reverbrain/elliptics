@@ -221,8 +221,8 @@ int main(int argc, char *argv[])
 
 			memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
-			ctl.priv = (void *)&c;
-			ctl.complete = callback::complete_callback;
+			ctl.priv = &c;
+			ctl.complete = callback::handler;
 
 			dnet_setup_id(&ctl.id, 0, raw.id);
 			ctl.cflags = DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK | DNET_ATTR_META_TIMES;
@@ -240,8 +240,8 @@ int main(int argc, char *argv[])
 
 			memset(&ctl, 0, sizeof(ctl));
 
-			ctl.priv = (void *)&c;
-			ctl.complete = callback::complete_callback;
+			ctl.priv = &c;
+			ctl.complete = callback::handler;
 
 			dnet_setup_id(&ctl.id, 0, raw.id);
 			ctl.cmd = DNET_CMD_READ;

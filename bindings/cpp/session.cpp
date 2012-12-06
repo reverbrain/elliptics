@@ -23,7 +23,7 @@ namespace ioremap { namespace elliptics {
 class session_data
 {
 	public:
-		session_data(const node &n) : node_guard(n)
+		session_data(const node &n) : node_guard(n), cflags(0)
 		{
 			session_ptr = dnet_session_create(node_guard.get_native());
 			if (!session_ptr)
@@ -41,6 +41,7 @@ class session_data
 		node			node_guard;
 
 		std::vector<int>	groups;
+		uint64_t		cflags;
 };
 
 session::session(const node &n) : m_data(new session_data(n))
@@ -62,6 +63,16 @@ void session::set_groups(const std::vector<int> &groups)
 const std::vector<int> &session::get_groups() const
 {
 	return m_data->groups;
+}
+
+void session::set_cflags(uint64_t cflags)
+{
+	m_data->cflags = cflags;
+}
+
+uint64_t session::get_cflags() const
+{
+	return m_data->cflags;
 }
 
 void session::read_file(struct dnet_id &id, const std::string &file, uint64_t offset, uint64_t size)
@@ -93,9 +104,9 @@ void session::read_file(const std::string &remote, const std::string &file, uint
 }
 
 void session::write_file(struct dnet_id &id, const std::string &file, uint64_t local_offset,
-				uint64_t offset, uint64_t size, uint64_t cflags, unsigned int ioflags)
+				uint64_t offset, uint64_t size, unsigned int ioflags)
 {
-	int err = dnet_write_file_id(m_data->session_ptr, file.c_str(), &id, local_offset, offset, size, cflags, ioflags);
+	int err = dnet_write_file_id(m_data->session_ptr, file.c_str(), &id, local_offset, offset, size, m_data->cflags, ioflags);
 	if (err) {
 		throw_error(err, id, "WRITE: %s, local_offset: %llu, "
 			"offset: %llu, size: %llu",
@@ -105,10 +116,10 @@ void session::write_file(struct dnet_id &id, const std::string &file, uint64_t l
 	}
 }
 void session::write_file(const std::string &remote, const std::string &file, uint64_t local_offset, uint64_t offset, uint64_t size,
-				uint64_t cflags, unsigned int ioflags, int type)
+				unsigned int ioflags, int type)
 {
 	int err = dnet_write_file(m_data->session_ptr, file.c_str(), remote.data(), remote.size(),
-					 local_offset, offset, size, cflags, ioflags, type);
+					 local_offset, offset, size, m_data->cflags, ioflags, type);
 	if (err) {
 		struct dnet_id id;
 		transform(remote, id);
@@ -123,7 +134,7 @@ void session::write_file(const std::string &remote, const std::string &file, uin
 }
 
 std::string session::read_data_wait(struct dnet_id &id, uint64_t offset, uint64_t size,
-					   uint64_t cflags, uint32_t ioflags)
+					   uint32_t ioflags)
 {
 	struct dnet_io_attr io;
 	int err;
@@ -137,7 +148,7 @@ std::string session::read_data_wait(struct dnet_id &id, uint64_t offset, uint64_
 	memcpy(io.id, id.id, DNET_ID_SIZE);
 	memcpy(io.parent, id.id, DNET_ID_SIZE);
 
-	void *data = dnet_read_data_wait(m_data->session_ptr, &id, &io, cflags, &err);
+	void *data = dnet_read_data_wait(m_data->session_ptr, &id, &io, m_data->cflags, &err);
 	if (!data) {
 		throw_error(err, id, "READ: size: %llu",
 			static_cast<unsigned long long>(size));
@@ -150,17 +161,17 @@ std::string session::read_data_wait(struct dnet_id &id, uint64_t offset, uint64_
 }
 
 std::string session::read_data_wait(const std::string &remote, uint64_t offset, uint64_t size,
-					   uint64_t cflags, uint32_t ioflags, int type)
+					   uint32_t ioflags, int type)
 {
 	struct dnet_id id;
 
 	transform(remote, id);
 	id.type = type;
 
-	return read_data_wait(id, offset, size, cflags, ioflags);
+	return read_data_wait(id, offset, size, ioflags);
 }
 
-void session::prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<int> &groups)
+void session::prepare_latest(struct dnet_id &id, std::vector<int> &groups)
 {
 	if (groups.empty()) {
 		return;
@@ -173,7 +184,7 @@ void session::prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<in
 
 	pr.s = m_data->session_ptr;
 	pr.id = id;
-	pr.cflags = cflags;
+	pr.cflags = m_data->cflags;
 	pr.group = &groups[0];
 	pr.group_num = groups.size();
 
@@ -189,7 +200,7 @@ void session::prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<in
 }
 
 std::string session::read_latest(struct dnet_id &id, uint64_t offset, uint64_t size,
-					uint64_t cflags, uint32_t ioflags)
+					uint32_t ioflags)
 {
 	struct dnet_io_attr io;
 	void *data;
@@ -205,7 +216,7 @@ std::string session::read_latest(struct dnet_id &id, uint64_t offset, uint64_t s
 	memcpy(io.id, id.id, DNET_ID_SIZE);
 	memcpy(io.parent, id.id, DNET_ID_SIZE);
 
-	err = dnet_read_latest(m_data->session_ptr, &id, &io, cflags, &data);
+	err = dnet_read_latest(m_data->session_ptr, &id, &io, m_data->cflags, &data);
 	if (err < 0) {
 		throw_error(err, id, "READ: size: %llu", static_cast<unsigned long long>(size));
 	}
@@ -218,24 +229,24 @@ std::string session::read_latest(struct dnet_id &id, uint64_t offset, uint64_t s
 }
 
 std::string session::read_latest(const std::string &remote, uint64_t offset, uint64_t size,
-					uint64_t cflags, uint32_t ioflags, int type)
+					uint32_t ioflags, int type)
 {
 	struct dnet_id id;
 
 	transform(remote, id);
 	id.type = type;
 
-	return read_latest(id, offset, size, cflags, ioflags);
+	return read_latest(id, offset, size, ioflags);
 }
 
 std::string session::write_cache(struct dnet_id &id, const std::string &str,
-					uint64_t cflags, unsigned int ioflags, long timeout)
+					unsigned int ioflags, long timeout)
 {
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = cflags;
+	ctl.cflags = m_data->cflags;
 	ctl.data = str.data();
 
 	ctl.io.flags = ioflags | DNET_IO_FLAGS_CACHE;
@@ -261,7 +272,7 @@ std::string session::write_cache(struct dnet_id &id, const std::string &str,
 }
 
 std::string session::write_cache(const std::string &key, const std::string &str,
-					uint64_t cflags, unsigned int ioflags, long timeout)
+					unsigned int ioflags, long timeout)
 {
 	struct dnet_id id;
 
@@ -269,16 +280,16 @@ std::string session::write_cache(const std::string &key, const std::string &str,
 	id.type = 0;
 	id.group_id = 0;
 
-	return write_cache(id, str, cflags, ioflags, timeout);
+	return write_cache(id, str, ioflags, timeout);
 }
 
 std::string session::write_compare_and_swap(const struct dnet_id &id, const std::string &str,
-						   const dnet_id &old_csum, uint64_t remote_offset, uint64_t cflags, unsigned int ioflags) {
+						   const dnet_id &old_csum, uint64_t remote_offset, unsigned int ioflags) {
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = cflags;
+	ctl.cflags = m_data->cflags;
 	ctl.data = str.data();
 
 	ctl.io.flags = ioflags | DNET_IO_FLAGS_COMPARE_AND_SWAP;
@@ -305,7 +316,7 @@ std::string session::write_compare_and_swap(const struct dnet_id &id, const std:
 }
 
 std::string session::write_compare_and_swap(const std::string &remote, const std::string &str, const struct dnet_id &old_csum,
-						   uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type)
+						   uint64_t remote_offset, unsigned int ioflags, int type)
 {
 	struct dnet_id id;
 
@@ -313,17 +324,17 @@ std::string session::write_compare_and_swap(const std::string &remote, const std
 	id.type = type;
 	id.group_id = 0;
 
-	return write_compare_and_swap(id, str, old_csum, remote_offset, cflags, ioflags);
+	return write_compare_and_swap(id, str, old_csum, remote_offset, ioflags);
 }
 
 std::string session::write_data_wait(struct dnet_id &id, const std::string &str,
-					    uint64_t remote_offset, uint64_t cflags, unsigned int ioflags)
+					    uint64_t remote_offset, unsigned int ioflags)
 {
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = cflags;
+	ctl.cflags = m_data->cflags;
 	ctl.data = str.data();
 
 	ctl.io.flags = ioflags;
@@ -349,7 +360,7 @@ std::string session::write_data_wait(struct dnet_id &id, const std::string &str,
 }
 
 std::string session::write_data_wait(const std::string &remote, const std::string &str,
-					    uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type)
+					    uint64_t remote_offset, unsigned int ioflags, int type)
 {
 	struct dnet_id id;
 
@@ -357,7 +368,7 @@ std::string session::write_data_wait(const std::string &remote, const std::strin
 	id.type = type;
 	id.group_id = 0;
 
-	return write_data_wait(id, str, remote_offset, cflags, ioflags);
+	return write_data_wait(id, str, remote_offset, ioflags);
 }
 
 std::string session::lookup_address(const std::string &remote, const int group_id)
@@ -424,7 +435,7 @@ std::string session::create_metadata(const struct dnet_id &id, const std::string
 }
 
 int session::write_metadata(const struct dnet_id &id, const std::string &obj,
-				   const std::vector<int> &groups, const struct timespec &ts, uint64_t cflags)
+				   const std::vector<int> &groups, const struct timespec &ts)
 {
 	int err;
 	std::string meta;
@@ -440,7 +451,7 @@ int session::write_metadata(const struct dnet_id &id, const std::string &obj,
 
 	mc.id = id;
 
-	err = dnet_write_metadata(m_data->session_ptr, &mc, 1, cflags);
+	err = dnet_write_metadata(m_data->session_ptr, &mc, 1, m_data->cflags);
 	if (err) {
 		throw_error(err, id, "Failed to write metadata");
 	}
@@ -456,8 +467,7 @@ void session::transform(const std::string &data, struct dnet_id &id)
 void session::lookup(const struct dnet_id &id, const callback &c)
 {
 	int err = dnet_lookup_object(m_data->session_ptr, (struct dnet_id *)&id, 0,
-					    callback::complete_callback,
-					    (void *)&c);
+					    callback::handler, c.data());
 
 	if (err) {
 		throw_error(err, id, "Failed to lookup ID");
@@ -579,7 +589,7 @@ std::string session::lookup(const struct dnet_id &id)
 	return ret;
 }
 
-void session::remove_raw(struct dnet_id &id, uint64_t cflags, uint64_t ioflags)
+void session::remove_raw(struct dnet_id &id, uint64_t ioflags)
 {
 	int err = -ENOENT;
 	std::vector<int> g = m_data->groups;
@@ -587,7 +597,7 @@ void session::remove_raw(struct dnet_id &id, uint64_t cflags, uint64_t ioflags)
 	for (int i=0; i<(int)g.size(); ++i) {
 		id.group_id = g[i];
 
-		if (!dnet_remove_object_now(m_data->session_ptr, &id, cflags, ioflags))
+		if (!dnet_remove_object_now(m_data->session_ptr, &id, m_data->cflags, ioflags))
 			err = 0;
 	}
 
@@ -598,22 +608,22 @@ void session::remove_raw(struct dnet_id &id, uint64_t cflags, uint64_t ioflags)
 
 void session::remove(struct dnet_id &id)
 {
-	remove_raw(id, 0, 0);
+	remove_raw(id, 0);
 }
 
-void session::remove_raw(const std::string &data, int type, uint64_t cflags, uint64_t ioflags)
+void session::remove_raw(const std::string &data, int type, uint64_t ioflags)
 {
 	struct dnet_id id;
 
 	transform(data, id);
 	id.type = type;
 
-	remove_raw(id, cflags, ioflags);
+	remove_raw(id, ioflags);
 }
 
 void session::remove(const std::string &data, int type)
 {
-	remove_raw(data, type, 0, 0);
+	remove_raw(data, type, 0);
 }
 
 std::string session::stat_log()
@@ -623,7 +633,7 @@ std::string session::stat_log()
 	int err;
 
 	err = dnet_request_stat(m_data->session_ptr, NULL, DNET_CMD_STAT, 0,
-				callback::complete_callback, (void *)&c);
+				callback::handler, &c);
 	if (err < 0) {
 		throw_error(err, "Failed to request statistics");
 	}
@@ -734,14 +744,14 @@ struct range_sort_compare {
 		}
 };
 
-std::vector<std::string> session::read_data_range(struct dnet_io_attr &io, int group_id, uint64_t cflags)
+std::vector<std::string> session::read_data_range(struct dnet_io_attr &io, int group_id)
 {
 	struct dnet_range_data *data;
 	uint64_t num = 0;
 	uint32_t ioflags = io.flags;
 	int err;
 
-	data = dnet_read_range(m_data->session_ptr, &io, group_id, cflags, &err);
+	data = dnet_read_range(m_data->session_ptr, &io, group_id, m_data->cflags, &err);
 	if (!data && err) {
 		throw_error(err, io.id, "Failed to read range data object: group: %d, size: %llu",
 			group_id, static_cast<unsigned long long>(io.size));
@@ -811,13 +821,13 @@ std::vector<std::string> session::read_data_range(struct dnet_io_attr &io, int g
 	return ret;
 }
 
-std::vector<struct dnet_io_attr> session::remove_data_range(struct dnet_io_attr &io, int group_id, uint64_t cflags)
+std::vector<struct dnet_io_attr> session::remove_data_range(struct dnet_io_attr &io, int group_id)
 {
 	struct dnet_io_attr *retp;
 	int ret_num;
 	int err;
 
-	retp = dnet_remove_range(m_data->session_ptr, &io, group_id, cflags, &ret_num, &err);
+	retp = dnet_remove_range(m_data->session_ptr, &io, group_id, m_data->cflags, &ret_num, &err);
 
 	if (!retp && err) {
 		throw_error(err, io.id, "Failed to read range data object: group: %d, size: %llu",
@@ -838,13 +848,13 @@ std::vector<struct dnet_io_attr> session::remove_data_range(struct dnet_io_attr 
 }
 
 std::string session::write_prepare(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
-					  uint64_t psize, uint64_t cflags, unsigned int ioflags)
+					  uint64_t psize, unsigned int ioflags)
 {
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = cflags;
+	ctl.cflags = m_data->cflags;
 	ctl.data = str.data();
 
 	ctl.io.flags = ioflags | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE;
@@ -870,23 +880,23 @@ std::string session::write_prepare(const struct dnet_id &id, const std::string &
 }
 
 std::string session::write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
-					  uint64_t psize, uint64_t cflags, unsigned int ioflags, int type)
+					  uint64_t psize, unsigned int ioflags, int type)
 {
 	struct dnet_id id;
 	memset(&id, 0, sizeof(id));
 	transform(remote, id);
 	id.type = type;
-	return write_prepare(id, str, remote_offset, psize, cflags, ioflags);
+	return write_prepare(id, str, remote_offset, psize, ioflags);
 }
 
 std::string session::write_commit(const struct dnet_id &id, const std::string &str, uint64_t remote_offset, uint64_t csize,
-					 uint64_t cflags, unsigned int ioflags)
+					 unsigned int ioflags)
 {
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = cflags;
+	ctl.cflags = m_data->cflags;
 	ctl.data = str.data();
 
 	ctl.io.flags = ioflags | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
@@ -912,23 +922,23 @@ std::string session::write_commit(const struct dnet_id &id, const std::string &s
 }
 
 std::string session::write_commit(const std::string &remote, const std::string &str, uint64_t remote_offset, uint64_t csize,
-					 uint64_t cflags, unsigned int ioflags, int type)
+					 unsigned int ioflags, int type)
 {
 	struct dnet_id id;
 	memset(&id, 0, sizeof(id));
 	transform(remote, id);
 	id.type = type;
-	return write_commit(id, str, remote_offset, csize, cflags, ioflags);
+	return write_commit(id, str, remote_offset, csize, ioflags);
 }
 
 std::string session::write_plain(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
-					uint64_t cflags, unsigned int ioflags)
+					unsigned int ioflags)
 {
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = cflags;
+	ctl.cflags = m_data->cflags;
 	ctl.data = str.data();
 
 	ctl.io.flags = ioflags | DNET_IO_FLAGS_PLAIN_WRITE;
@@ -953,13 +963,13 @@ std::string session::write_plain(const struct dnet_id &id, const std::string &st
 }
 
 std::string session::write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
-					uint64_t cflags, unsigned int ioflags, int type)
+					unsigned int ioflags, int type)
 {
 	struct dnet_id id;
 	memset(&id, 0, sizeof(id));
 	transform(remote, id);
 	id.type = type;
-	return write_plain(id, str, remote_offset, cflags, ioflags);
+	return write_plain(id, str, remote_offset, ioflags);
 }
 
 std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
@@ -1099,7 +1109,7 @@ bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const struct dnet_io_a
 }
 }
 
-std::vector<std::string> session::bulk_read(const std::vector<struct dnet_io_attr> &ios, uint64_t cflags)
+std::vector<std::string> session::bulk_read(const std::vector<struct dnet_io_attr> &ios)
 {
 	struct dnet_range_data *data;
 	int num, *g, err;
@@ -1126,7 +1136,7 @@ std::vector<std::string> session::bulk_read(const std::vector<struct dnet_io_att
 		if (!tmp_ios.size())
 			break;
 
-		data = dnet_bulk_read(m_data->session_ptr, (struct dnet_io_attr *)(&tmp_ios[0]), tmp_ios.size(), *group, cflags, &err);
+		data = dnet_bulk_read(m_data->session_ptr, (struct dnet_io_attr *)(&tmp_ios[0]), tmp_ios.size(), *group, m_data->cflags, &err);
 		if (!data && err) {
 			throw_error(err, "Failed to read bulk data: group: %d", *group);
 		}
@@ -1174,7 +1184,7 @@ std::vector<std::string> session::bulk_read(const std::vector<struct dnet_io_att
 	return ret;
 }
 
-std::vector<std::string> session::bulk_read(const std::vector<std::string> &keys, uint64_t cflags)
+std::vector<std::string> session::bulk_read(const std::vector<std::string> &keys)
 {
 	std::vector<struct dnet_io_attr> ios;
 	struct dnet_io_attr io;
@@ -1190,10 +1200,10 @@ std::vector<std::string> session::bulk_read(const std::vector<std::string> &keys
 		ios.push_back(io);
 	}
 
-	return bulk_read(ios, cflags);
+	return bulk_read(ios);
 }
 
-std::string session::bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<std::string> &data, uint64_t cflags)
+std::string session::bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<std::string> &data)
 {
 	std::vector<struct dnet_io_control> ctls;
 	unsigned int i;
@@ -1210,7 +1220,7 @@ std::string session::bulk_write(const std::vector<struct dnet_io_attr> &ios, con
 		struct dnet_io_control ctl;
 		memset(&ctl, 0, sizeof(ctl));
 
-		ctl.cflags = cflags;
+		ctl.cflags = m_data->cflags;
 		ctl.data = data[i].data();
 
 		ctl.io = ios[i];

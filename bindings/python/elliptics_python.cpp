@@ -96,12 +96,11 @@ struct elliptics_id {
 
 struct elliptics_range {
 	elliptics_range() : offset(0), size(0),
-		limit_start(0), limit_num(0), cflags(0), ioflags(0), group_id(0), type(0) {}
+		limit_start(0), limit_num(0), ioflags(0), group_id(0), type(0) {}
 
 	list		start, end;
 	uint64_t	offset, size;
 	uint64_t	limit_start, limit_num;
-	uint64_t	cflags;
 	uint32_t	ioflags;
 	int		group_id;
 	int		type;
@@ -214,7 +213,7 @@ class elliptics_session: public session, public wrapper<session> {
 			return res;
 		}
 
-		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const list &pgroups, uint64_t cflags) {
+		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const list &pgroups) {
 			struct timespec ts;
 			memset(&ts, 0, sizeof(ts));
 
@@ -225,10 +224,10 @@ class elliptics_session: public session, public wrapper<session> {
 			for (int i=0; i<len(pgroups); ++i)
 				groups.push_back(extract<int>(pgroups[i]));
 
-			write_metadata((const dnet_id&)raw, remote, groups, ts, cflags);
+			write_metadata((const dnet_id&)raw, remote, groups, ts);
 		}
 
-		void write_metadata_by_data_transform(const std::string &remote, uint64_t cflags) {
+		void write_metadata_by_data_transform(const std::string &remote) {
 			struct timespec ts;
 			memset(&ts, 0, sizeof(ts));
 
@@ -236,7 +235,7 @@ class elliptics_session: public session, public wrapper<session> {
 
 			transform(remote, raw);
 
-			write_metadata((const dnet_id&)raw, remote, session::get_groups(), ts, cflags);
+			write_metadata((const dnet_id&)raw, remote, session::get_groups(), ts);
 		}
 
 		void read_file_by_id(struct elliptics_id &id, const std::string &file, uint64_t offset, uint64_t size) {
@@ -251,36 +250,36 @@ class elliptics_session: public session, public wrapper<session> {
 
 		void write_file_by_id(struct elliptics_id &id, const std::string &file,
 						    uint64_t local_offset, uint64_t offset, uint64_t size,
-						    uint64_t cflags, unsigned int ioflags) {
+						    unsigned int ioflags) {
 			struct dnet_id raw = id.to_dnet();
-			write_file(raw, file, local_offset, offset, size, cflags, ioflags);
+			write_file(raw, file, local_offset, offset, size, ioflags);
 		}
 
 		void write_file_by_data_transform(const std::string &remote, const std::string &file,
 								uint64_t local_offset, uint64_t offset, uint64_t size,
-								uint64_t cflags, unsigned int ioflags, int type) {
-			write_file(remote, file, local_offset, offset, size, cflags, ioflags, type);
+								unsigned int ioflags, int type) {
+			write_file(remote, file, local_offset, offset, size, ioflags, type);
 		}
 
 		std::string read_data_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size,
-							  uint64_t cflags, unsigned int ioflags) {
+							  unsigned int ioflags) {
 			struct dnet_id raw = id.to_dnet();
-			return read_data_wait(raw, offset, size, cflags, ioflags);
+			return read_data_wait(raw, offset, size, ioflags);
 		}
 
 		std::string read_data_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
-							uint64_t cflags, unsigned int ioflags, int type) {
-			return read_data_wait(remote, offset, size, cflags, ioflags, type);
+							unsigned int ioflags, int type) {
+			return read_data_wait(remote, offset, size, ioflags, type);
 		}
 
-		list prepare_latest_by_id(const struct elliptics_id &id, uint64_t cflags, list gl) {
+		list prepare_latest_by_id(const struct elliptics_id &id, list gl) {
 			struct dnet_id raw = id.to_dnet();
 
 			std::vector<int> groups;
 			for (int i = 0; i < len(gl); ++i)
 				groups.push_back(extract<int>(gl[i]));
 
-			prepare_latest(raw, cflags, groups);
+			prepare_latest(raw, groups);
 
 			list l;
 			for (unsigned i = 0; i < groups.size(); ++i)
@@ -289,14 +288,14 @@ class elliptics_session: public session, public wrapper<session> {
 			return l;
 		}
 
-		std::string prepare_latest_by_id_str(const struct elliptics_id &id, uint64_t cflags, list gl) {
+		std::string prepare_latest_by_id_str(const struct elliptics_id &id, list gl) {
 			struct dnet_id raw = id.to_dnet();
 
 			std::vector<int> groups;
 			for (int i = 0; i < len(gl); ++i)
 				groups.push_back(extract<int>(gl[i]));
 
-			prepare_latest(raw, cflags, groups);
+			prepare_latest(raw, groups);
 
 			std::string ret;
 			ret.assign((char *)groups.data(), groups.size() * 4);
@@ -305,37 +304,37 @@ class elliptics_session: public session, public wrapper<session> {
 		}
 
 		std::string read_latest_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size,
-							    uint64_t cflags, unsigned int ioflags) {
+							    unsigned int ioflags) {
 			struct dnet_id raw = id.to_dnet();
-			return read_latest(raw, offset, size, cflags, ioflags);
+			return read_latest(raw, offset, size, ioflags);
 		}
 
 		std::string read_latest_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
-									uint64_t cflags, unsigned int ioflags, int type) {
-			return read_latest(remote, offset, size, cflags, ioflags, type);
+									unsigned int ioflags, int type) {
+			return read_latest(remote, offset, size, ioflags, type);
 		}
 
 		std::string write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset,
-							   uint64_t cflags, unsigned int ioflags) {
+							   unsigned int ioflags) {
 			struct dnet_id raw = id.to_dnet();
-			return write_data_wait(raw, data, remote_offset, cflags, ioflags);
+			return write_data_wait(raw, data, remote_offset, ioflags);
 		}
 
 		std::string write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset,
-								uint64_t cflags, unsigned int ioflags, int type) {
-			return write_data_wait(remote, data, remote_offset, cflags, ioflags, type);
+								unsigned int ioflags, int type) {
+			return write_data_wait(remote, data, remote_offset, ioflags, type);
 		}
 
 		std::string write_cache_by_id(const struct elliptics_id &id, const std::string &data,
-							    uint64_t cflags, unsigned int ioflags, long timeout) {
+							    unsigned int ioflags, long timeout) {
 			struct dnet_id raw = id.to_dnet();
 			raw.type = 0;
-			return write_cache(raw, data, cflags, ioflags, timeout);
+			return write_cache(raw, data, ioflags, timeout);
 		}
 
 		std::string write_cache_by_data_transform(const std::string &remote, const std::string &data,
-									uint64_t cflags, unsigned int ioflags, long timeout) {
-			return write_cache(remote, data, cflags, ioflags, timeout);
+									unsigned int ioflags, long timeout) {
+			return write_cache(remote, data, ioflags, timeout);
 		}
 
 		std::string lookup_addr_by_data_transform(const std::string &remote, const int group_id) {
@@ -391,7 +390,7 @@ class elliptics_session: public session, public wrapper<session> {
 			elliptics_extract_range(r, io);
 
 			std::vector<std::string> ret;
-			ret = session::read_data_range(io, r.group_id, r.cflags);
+			ret = session::read_data_range(io, r.group_id);
 
 			boost::python::list l;
 
@@ -442,17 +441,17 @@ class elliptics_session: public session, public wrapper<session> {
 			return exec_locked(NULL, event, data, binary);
 		}
 
-		void remove_by_id(const struct elliptics_id &id, uint64_t cflags, uint64_t ioflags) {
+		void remove_by_id(const struct elliptics_id &id, uint64_t ioflags) {
 			struct dnet_id raw = id.to_dnet();
 
-			remove_raw(raw, cflags, ioflags);
+			remove_raw(raw, ioflags);
 		}
 
-		void remove_by_name(const std::string &remote, uint64_t cflags, uint64_t ioflags, int type) {
-			remove_raw(remote, cflags, ioflags, type);
+		void remove_by_name(const std::string &remote, uint64_t ioflags, int type) {
+			remove_raw(remote, ioflags, type);
 		}
 
-		list bulk_read_by_name(const list &keys, uint64_t cflags = 0) {
+		list bulk_read_by_name(const list &keys) {
 			unsigned int length = len(keys);
 
 			std::vector<std::string> k;
@@ -461,7 +460,7 @@ class elliptics_session: public session, public wrapper<session> {
 			for (unsigned int i = 0; i < length; ++i)
 				k[i] = extract<std::string>(keys[i]);
 
-			std::vector<std::string> ret =  bulk_read(k, cflags);
+			std::vector<std::string> ret =  bulk_read(k);
 
 			list py_ret;
 			for (size_t i = 0; i < ret.size(); ++i) {
@@ -479,7 +478,7 @@ class elliptics_session: public session, public wrapper<session> {
 			int i;
 
 			err = dnet_request_stat(get_native(), NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL,
-						callback::complete_callback, (void *)&c);
+						callback::handler, &c);
 			if (err < 0) {
 				std::ostringstream str;
 				str << "Failed to request statistics: " << err;
@@ -551,7 +550,6 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("offset", &elliptics_range::offset)
 		.def_readwrite("size", &elliptics_range::size)
 		.def_readwrite("ioflags", &elliptics_range::ioflags)
-		.def_readwrite("cflags", &elliptics_range::cflags)
 		.def_readwrite("group_id", &elliptics_range::group_id)
 		.def_readwrite("type", &elliptics_range::type)
 		.def_readwrite("limit_start", &elliptics_range::limit_start)
@@ -593,9 +591,16 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 	;
 
 	class_<elliptics_session, boost::noncopyable>("elliptics_session", init<node &>())
+		.add_property("groups", &elliptics_session::get_groups,
+			&elliptics_session::set_groups)
 		.def("add_groups", &elliptics_session::set_groups)
 		.def("set_groups", &elliptics_session::set_groups)
 		.def("get_groups", &elliptics_session::get_groups)
+
+		.add_property("cflags", &elliptics_session::get_cflags,
+			&elliptics_session::set_cflags)
+		.def("set_cflags", &elliptics_session::set_cflags)
+		.def("get_cflags", &elliptics_session::get_cflags)
 
 		.def("read_file", &elliptics_session::read_file_by_id)
 		.def("read_file", &elliptics_session::read_file_by_data_transform)
