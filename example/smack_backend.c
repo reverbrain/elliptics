@@ -205,6 +205,27 @@ static int smack_backend_bulk_read(struct smack_backend *s, void *state, struct 
 
 	return err;
 }
+
+static int smack_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize) {
+	char *data;
+	struct index idx;
+	int err;
+
+	smack_setup_idx(&idx, id->id);
+	idx.data_size = 0;
+
+	err = smack_read(((struct smack_backend*)priv)->smack, &idx, &data);
+	if (err < 0)
+		goto err_out_exit;
+
+	err = dnet_checksum_data(n, csum, csize, data, idx.data_size);
+
+err_out_free:
+	free(data);
+err_out_exit:
+	return err;
+}
+
 static int smack_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
 {
 	int err;
@@ -482,6 +503,7 @@ static int dnet_smack_config_init(struct dnet_config_backend *b, struct dnet_con
 
 	b->cb.storage_stat = smack_backend_storage_stat;
 	b->cb.backend_cleanup = smack_backend_cleanup;
+	b->cb.checksum = smack_backend_checksum;
 
 	b->cb.meta_read = dnet_smack_db_read;
 	b->cb.meta_write = dnet_smack_db_write;
