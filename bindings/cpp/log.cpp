@@ -17,56 +17,99 @@
 
 using namespace ioremap::elliptics;
 
-void logger::real_logger(void *priv, const int level, const char *msg)
+static void	real_logger(void *priv, const int level, const char *msg)
 {
 	logger *log = reinterpret_cast<logger *> (priv);
 
 	log->log(level, msg);
 }
 
-log_file::log_file(const char *file, const int level) :
-	logger(level)
-{
-	try {
-		this->file = new std::string(file);
-	} catch (...) {
-		throw -ENOMEM;
-	}
+class ioremap::elliptics::logger_data {
+	public:
+		logger_data(logger *that, logger_interface *interface, int level) : impl(interface) {
+			log.log_level = level;
+			log.log = real_logger;
+			log.log_private = that;
+		}
+		~logger_data() {
+			delete impl;
+		}
 
-	try {
-		stream = new std::ofstream(file, std::ios_base::app);
-	} catch (...) {
-		delete this->file;
-		throw -errno;
+		dnet_log log;
+		logger_interface *impl;
+};
+
+logger::logger(logger_interface *interface, const int level)
+	: m_data(new logger_data(this, interface, level)) {
+}
+
+logger::logger() : m_data(new logger_data(this, NULL, DNET_LOG_INFO)) {
+}
+
+logger::logger(const logger &other) : m_data(other.m_data) {
+}
+
+logger::~logger() {
+}
+
+logger &logger::operator =(const logger &other) {
+	m_data = other.m_data;
+	return *this;
+}
+
+void logger::log(const int level, const char *msg)
+{
+	if (level <= m_data->log.log_level && m_data->impl) {
+		m_data->impl->log(level, msg);
 	}
 }
 
-unsigned long log_file::clone(void)
+int logger::get_log_level()
 {
-	return reinterpret_cast<unsigned long>(new log_file (file->c_str(), get_log_level()));
+	return m_data->log.log_level;
 }
 
-log_file::~log_file(void)
+dnet_log *logger::get_dnet_log()
 {
-	delete file;
-	delete stream;
+	return &m_data->log;
 }
 
-void log_file::log(int level, const char *msg)
+class file_logger_interface : public logger_interface {
+	public:
+		file_logger_interface(const char *file) {
+			m_stream.exceptions(std::ofstream::failbit);
+			m_stream.open(file, std::ios_base::app);
+		}
+		~file_logger_interface() {
+		}
+
+		void log(int level, const char *msg)
+		{
+			(void) level;
+			char str[64];
+			struct tm tm;
+			struct timeval tv;
+			char usecs_and_id[64];
+
+			gettimeofday(&tv, NULL);
+			localtime_r((time_t *)&tv.tv_sec, &tm);
+			strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+			snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %ld/%d : ", tv.tv_usec, dnet_get_id(), getpid());
+
+			m_stream << str << usecs_and_id << msg;
+			m_stream.flush();
+		}
+
+	private:
+		std::ofstream	m_stream;
+};
+
+file_logger::file_logger(const char *file, const int level) :
+	logger(new file_logger_interface(file), level)
 {
-	if (level <= ll.log_level) {
-		char str[64];
-		struct tm tm;
-		struct timeval tv;
-		char usecs_and_id[64];
+}
 
-		gettimeofday(&tv, NULL);
-		localtime_r((time_t *)&tv.tv_sec, &tm);
-		strftime(str, sizeof(str), "%F %R:%S", &tm);
-
-		snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %ld/%d : ", tv.tv_usec, dnet_get_id(), getpid());
-
-		(*stream) << str << usecs_and_id << msg;
-		stream->flush();
-	}
+file_logger::~file_logger()
+{
 }

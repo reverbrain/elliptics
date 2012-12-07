@@ -1,5 +1,6 @@
 /*
  * 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
+ * 2012+ Copyright (c) Ruslan Nigmatullin <euroelessar@yandex.ru>
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -15,50 +16,113 @@
 
 #define _XOPEN_SOURCE 600
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/mman.h>
-#include <sys/wait.h>
+#include "elliptics/cppdef.h"
 
 #include <sstream>
 #include <stdexcept>
 
-#include "elliptics/cppdef.h"
+#include <boost/thread.hpp>
 
-using namespace ioremap::elliptics;
+namespace ioremap { namespace elliptics {
 
-callback::callback() : complete(0)
+class callback_data
 {
-	pthread_cond_init(&wait_cond, NULL);
-	pthread_mutex_init(&lock, NULL);
+	public:
+		std::string		data;
+		boost::mutex		lock;
+		boost::condition_variable wait_cond;
+		int			complete;
+		std::vector<int>	statuses;
+};
+
+callback::callback() : m_data(new callback_data)
+{
+	m_data->complete = 0;
 }
 
 callback::~callback()
 {
+	delete m_data;
 }
 
-int callback::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
+void callback::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
 {
-	pthread_mutex_lock(&lock);
-	if (is_trans_destroyed(state, cmd)) {
-		complete++;
-		pthread_cond_broadcast(&wait_cond);
-	} else if (cmd && state) {
-		data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
-		data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
+	m_data->data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
+	m_data->data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
+}
+
+int callback::handler(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
+{
+	callback *that = reinterpret_cast<callback *>(priv);
+
+	bool notify = false;
+	{
+		boost::mutex::scoped_lock locker(that->m_data->lock);
+
+		if (cmd)
+			that->m_data->statuses.push_back(cmd->status);
+
+		if (is_trans_destroyed(state, cmd)) {
+			that->m_data->complete++;
+			notify = true;
+		} else if (cmd && state) {
+			that->handle(state, cmd);
+		}
 	}
-	pthread_mutex_unlock(&lock);
+	if (notify)
+		that->m_data->wait_cond.notify_all();
 
 	return 0;
 }
 
 std::string callback::wait(int completed)
 {
-	pthread_mutex_lock(&lock);
-	while (complete != completed)
-		pthread_cond_wait(&wait_cond, &lock);
-	pthread_mutex_unlock(&lock);
+	boost::mutex::scoped_lock locker(m_data->lock);
 
-	return data;
+	while (m_data->complete != completed)
+		m_data->wait_cond.wait(locker);
+
+	if (!check_states(m_data->statuses))
+		throw_error(-EIO, "failed to request");
+
+	return m_data->data;
 }
+
+void *callback::data() const
+{
+	return const_cast<callback *>(this);
+}
+
+callback_any::callback_any()
+{
+}
+
+callback_any::~callback_any()
+{
+}
+
+bool callback_any::check_states(const std::vector<int> &statuses)
+{
+	bool ok = false;
+	for (size_t i = 0; i < statuses.size(); ++i)
+		ok |= (statuses[i] == 0);
+	return ok;
+}
+
+callback_all::callback_all()
+{
+}
+
+callback_all::~callback_all()
+{
+}
+
+bool callback_all::check_states(const std::vector<int> &statuses)
+{
+	bool ok = !statuses.empty();
+	for (size_t i = 0; i < statuses.size(); ++i)
+		ok &= (statuses[i] == 0);
+	return ok;
+}
+
+} } // namespace ioremap::elliptics

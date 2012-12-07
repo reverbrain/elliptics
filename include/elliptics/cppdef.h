@@ -9,7 +9,7 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
  * GNU General Public License for more details.
  */
 
@@ -22,6 +22,8 @@
 #include <elliptics/packet.h>
 #include <elliptics/interface.h>
 
+#include <boost/shared_ptr.hpp>
+
 #include <iostream>
 #include <fstream>
 #include <exception>
@@ -30,210 +32,259 @@
 #include <string>
 #include <vector>
 
+#define ELLIPTICS_DISABLE_COPY(CLASS) \
+	private: \
+	CLASS(const CLASS &); \
+	CLASS &operator =(const CLASS &);
+
 namespace ioremap { namespace elliptics {
 
-class elliptics_error : public std::runtime_error {
-public:
-	explicit elliptics_error(int err);
-	int error_code() const;
-private:
-	static std::string convert(int err);
-	int errno_;
+class error : public std::exception
+{
+	public:
+		// err must be negative value
+		explicit error(int err, const std::string &message) throw();
+		~error() throw() {}
+
+		int error_code() const;
+
+		virtual const char *what() const throw();
+
+	private:
+		int m_errno;
+		std::string m_message;
 };
 
-class not_found_error : public elliptics_error {
-public:
-	explicit not_found_error();
+class not_found_error : public error
+{
+	public:
+		explicit not_found_error(const std::string &message) throw();
 };
 
-class timeout_error : public elliptics_error {
-public:
-	explicit timeout_error();
+class timeout_error : public error
+{
+	public:
+		explicit timeout_error(const std::string &message) throw();
 };
 
-void throw_exception(int err);
+// err must be negative value
+void throw_error(int err, const char *format, ...)
+	__attribute__ ((format (printf, 2, 3)));
 
-struct addr_tuple {
-	addr_tuple(const std::string &l_host, const int l_port, const int l_family = AF_INET) :
-		host(l_host), port(l_port), family(l_family) {}
+// err must be negative value
+void throw_error(int err, const struct dnet_id &id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
+void throw_error(int err, const uint8_t *id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+
+struct address
+{
+	address(const std::string &l_host, const int l_port, const int l_family = AF_INET)
+		: host(l_host), port(l_port), family(l_family) {}
 
 	std::string		host;
 	int			port;
 	int			family;
 };
 
-class logger {
+class logger_interface
+{
 	public:
-		logger(const int level = DNET_LOG_INFO) {
-			ll.log_level = level;
-			ll.log = logger::real_logger;
-			ll.log_private = this;
-		};
-		virtual ~logger() {};
+		virtual ~logger_interface() {}
 
-		virtual void 		log(const int level, const char *msg) = 0;
+		virtual void log(const int level, const char *msg) = 0;
+};
 
-		/*
-		 * Clone is used instead of 'virtual' copy constructor, since we have to
-		 * hold a reference to object outside of our scope, namely python created
-		 * logger. This is also a reason we return 'unsigned long' instead of
-		 * 'logger *' - python does not have pointer.
-		 */
-		virtual unsigned long	clone(void) = 0;
+class logger_data;
 
-		static void		real_logger(void *priv, const int level, const char *msg);
-		int			get_log_level(void) { return ll.log_level; };
-		struct dnet_log		*get_dnet_log(void) { return &ll; };
+class logger
+{
+	public:
+		explicit logger(logger_interface *interface, const int level = DNET_LOG_INFO);
+		logger();
+		logger(const logger &other);
+		~logger();
+
+		logger &operator =(const logger &other);
+
+		void 		log(const int level, const char *msg);
+		int			get_log_level();
+		struct dnet_log		*get_dnet_log();
+
 	protected:
-		struct dnet_log		ll;
+		boost::shared_ptr<logger_data> m_data;
 };
 
-class log_file : public logger {
+class file_logger : public logger
+{
 	public:
-		log_file(const char *file, const int level = DNET_LOG_INFO);
-		virtual ~log_file();
-
-		virtual unsigned long	clone(void);
-		virtual void 		log(const int level, const char *msg);
-
-		std::string		*file;
-	private:
-		/*
-		 * Oh shi, I put pointer here to avoid boost::python compiler issues,
-		 * when it tries to copy stream, which is not allowed
-		 */
-		std::ofstream		*stream;
+		explicit file_logger(const char *file, const int level = DNET_LOG_INFO);
+		~file_logger();
 };
 
-class callback {
+class callback_data;
+
+class callback
+{
+	ELLIPTICS_DISABLE_COPY(callback)
 	public:
 		callback();
 		virtual ~callback();
 
-		virtual int handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
-
-		static int complete_callback(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv) {
-			callback *c = reinterpret_cast<callback *>(priv);
-
-			return c->handle(st, cmd);
-		};
+		virtual void handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
+		virtual bool check_states(const std::vector<int> &statuses) = 0;
 
 		std::string wait(int completed = 1);
 
-	protected:
-		std::string		data;
-		pthread_cond_t		wait_cond;
-		pthread_mutex_t		lock;
-		int			complete;
+		void *data() const;
+
+		static int handler(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv);
+
+	private:
+		callback_data *m_data;
 };
 
-class node {
+class callback_any : public callback
+{
 	public:
-		/* we shold use logger and proper copy constructor here, but not this time */
-		node(logger &l);
-		node(logger &l, struct dnet_config &cfg);
-		node(logger &l, const std::string &config_path);
-		virtual ~node();
+		callback_any();
+		~callback_any();
+
+		virtual bool check_states(const std::vector<int> &statuses);
+};
+
+class callback_all : public callback
+{
+	public:
+		callback_all();
+		~callback_all();
+
+		virtual bool check_states(const std::vector<int> &statuses);
+};
+
+class node_data;
+class session_data;
+
+class node
+{
+	public:
+		explicit node(const logger &l);
+		node(const logger &l, struct dnet_config &cfg);
+		node(const logger &l, const std::string &config_path);
+		node(const node &other);
+		~node();
+
+		node &operator =(const node &other);
 
 		void			parse_config(const std::string &path, struct dnet_config &cfg,
-						std::list<addr_tuple> &remotes,
-						std::vector<int> &groups,
-						int &log_level);
+							std::list<address> &remotes,
+							std::vector<int> &groups,
+							int &log_level);
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 
 		void			set_timeouts(const int wait_timeout, const int check_timeout);
 
+		struct dnet_node *	get_native();
+
 	protected:
-		int			write_data_ll(struct dnet_id *id, void *remote, unsigned int remote_len,
-							void *data, unsigned int size, callback &c,
-							uint64_t cflags, unsigned int ioflags, int type);
-		struct dnet_node	*m_node;
-		logger			*m_log;
+		boost::shared_ptr<node_data> m_data;
 
 		friend class session;
+		friend class session_data;
 };
 
-class session {
+class session;
+
+class key
+{
 	public:
-		session(node &n);
+		key();
+		key(const std::string &remote, int type = 0);
+		key(const struct dnet_id &id);
+		key(const key &other);
+		key &operator = (const key &other);
+		~key();
+
+		bool operator==(const key &other) const;
+		bool operator <(const key &other) const;
+
+		bool by_id() const;
+		const std::string &remote() const;
+		int type() const;
+		const struct dnet_id &id() const;
+		std::string to_string() const;
+
+		void transform(session &sess);
+
+	private:
+		bool m_by_id;
+		std::string m_remote;
+		int m_type;
+		struct dnet_id m_id;
+};
+
+class session
+{
+	ELLIPTICS_DISABLE_COPY(session)
+	public:
+		explicit session(const node &n);
 		virtual ~session();
 
 		void			transform(const std::string &data, struct dnet_id &id);
+		void			transform(const key &id);
 
-		void			add_groups(std::vector<int> &groups);
-		std::vector<int>	get_groups() {return groups;};
+		void			set_groups(const std::vector<int> &groups);
+		const std::vector<int> &get_groups() const;
 
-		void			read_file(struct dnet_id &id, const std::string &file, uint64_t offset, uint64_t size);
-		void			read_file(const std::string &remote, const std::string &file,
-						uint64_t offset, uint64_t size, int type);
+		void			set_cflags(uint64_t cflags);
+		uint64_t		get_cflags() const;
 
-		void			write_file(struct dnet_id &id, const std::string &file, uint64_t local_offset,
-						uint64_t offset, uint64_t size, uint64_t cflags, unsigned int ioflags);
-		void			write_file(const std::string &remote, const std::string &file,
-						uint64_t local_offset, uint64_t offset, uint64_t size,
-						uint64_t cflags, unsigned int ioflags, int type);
+		void			set_ioflags(uint32_t ioflags);
+		uint32_t		get_ioflags() const;
 
-		std::string		read_data_wait(struct dnet_id &id, uint64_t offset, uint64_t size,
-						uint64_t cflags, uint32_t ioflags);
-		std::string		read_data_wait(const std::string &remote, uint64_t offset, uint64_t size,
-						uint64_t cflags, uint32_t ioflags, int type);
+		void			read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size);
 
-		void			prepare_latest(struct dnet_id &id, uint64_t cflags, std::vector<int> &groups);
+		void			write_file(const key &id, const std::string &file, uint64_t local_offset,
+							uint64_t offset, uint64_t size);
 
-		std::string		read_latest(struct dnet_id &id, uint64_t offset, uint64_t size,
-						uint64_t cflags, uint32_t ioflags);
-		std::string		read_latest(const std::string &remote, uint64_t offset, uint64_t size,
-						uint64_t cflags, uint32_t ioflags, int type);
+		std::string		read_data_wait(const key &id, uint64_t offset, uint64_t size);
 
-		std::string		write_compare_and_swap(const struct dnet_id &id, const std::string &str,
-						const struct dnet_id &old_csum, uint64_t remote_offset, uint64_t cflags, unsigned int ioflags);
-		std::string		write_compare_and_swap(const std::string &remote, const std::string &str,
-						const struct dnet_id &old_csum, uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type);
+		void			prepare_latest(const key &id, std::vector<int> &groups);
 
-		std::string		write_data_wait(struct dnet_id &id, const std::string &str,
-						uint64_t remote_offset, uint64_t cflags, unsigned int ioflags);
-		std::string		write_data_wait(const std::string &remote, const std::string &str,
-						uint64_t remote_offset, uint64_t cflags, unsigned int ioflags, int type);
+		std::string		read_latest(const key &id, uint64_t offset, uint64_t size);
 
-		std::string		write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
-						uint64_t psize, uint64_t cflags, unsigned int ioflags, int type);
-		std::string		write_commit(const std::string &remote, const std::string &str, uint64_t remote_offset,
-						uint64_t csize, uint64_t cflags, unsigned int ioflags, int type);
-		std::string		write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
-						uint64_t cflags, unsigned int ioflags, int type);
+		std::string		write_compare_and_swap(const key &id, const std::string &str,
+								const struct dnet_id &old_csum, uint64_t remote_offsets);
 
-		std::string		write_prepare(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
-						uint64_t psize, uint64_t cflags, unsigned int ioflags);
-		std::string		write_commit(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
-						uint64_t csize, uint64_t cflags, unsigned int ioflags);
-		std::string		write_plain(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
-						uint64_t cflags, unsigned int ioflags);
+		std::string		write_data_wait(const key &id, const std::string &str,
+							uint64_t remote_offset);
 
-		std::string		write_cache(struct dnet_id &id, const std::string &str,
-						uint64_t cflags, unsigned int ioflags, long timeout);
-		std::string		write_cache(const std::string &key, const std::string &str,
-						uint64_t cflags, unsigned int ioflags, long timeout);
+		std::string		write_prepare(const key &id, const std::string &str, uint64_t remote_offset,
+							uint64_t psize);
+		std::string		write_commit(const key &id, const std::string &str, uint64_t remote_offset,
+							uint64_t csize);
+		std::string		write_plain(const key &id, const std::string &str, uint64_t remote_offset);
+
+		std::string		write_cache(const key &id, const std::string &str, long timeout);
 
 
 
-		std::string		lookup_addr(const std::string &remote, const int group_id);
-		std::string		lookup_addr(const struct dnet_id &id);
+		std::string		lookup_address(const key &id, int group_id = 0);
 
-		std::string		create_metadata(const struct dnet_id &id, const std::string &obj,
+		std::string		create_metadata(const key &id, const std::string &obj,
 							const std::vector<int> &groups, const struct timespec &ts);
-		int			write_metadata(const struct dnet_id &id, const std::string &obj,
-							const std::vector<int> &groups, const struct timespec &ts, uint64_t cflags);
+		int			write_metadata(const key &id, const std::string &obj,
+							const std::vector<int> &groups, const struct timespec &ts);
 
-		void			lookup(const std::string &data, const callback &c);
-		void			lookup(const struct dnet_id &id, const callback &c);
-		std::string		lookup(const std::string &data);
-		std::string		lookup(const struct dnet_id &id);
+		void			lookup(const key &id, const callback &c);
+		std::string		lookup(const key &id);
 
-		void 			remove_raw(struct dnet_id &id, uint64_t cflags, uint64_t ioflags);
-		void			remove_raw(const std::string &data, int type, uint64_t cflags, uint64_t ioflags);
-		void 			remove(struct dnet_id &id);
-		void			remove(const std::string &data, int type = EBLOB_TYPE_DATA);
+		void 			remove_raw(const key &id);
+		void 			remove(const key &id);
 
 		std::string		stat_log();
 
@@ -241,14 +292,14 @@ class session {
 		
 		int			request_cmd(struct dnet_trans_control &ctl);
 
-		std::string		read_metadata(struct dnet_id &id);
+		std::string		read_metadata(const key &id);
 
 		void			update_status(const char *addr, const int port, const int family, struct dnet_node_status *status);
-		void			update_status(struct dnet_id &id, struct dnet_node_status *status);
+		void			update_status(const key &id, struct dnet_node_status *status);
 
-		std::vector<std::string>	read_data_range(struct dnet_io_attr &io, int group_id, uint64_t cflags = 0);
+		std::vector<std::string>	read_data_range(struct dnet_io_attr &io, int group_id);
 
-		std::vector<struct dnet_io_attr> remove_data_range(struct dnet_io_attr &io, int group_id, uint64_t cflags = 0);
+		std::vector<struct dnet_io_attr> remove_data_range(struct dnet_io_attr &io, int group_id);
 
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
@@ -256,46 +307,45 @@ class session {
 		 * start execution of the given event
 		 */
 		std::string		exec_locked(struct dnet_id *id, const std::string &event, const std::string &data,
-						const std::string &binary);
+							const std::string &binary);
 		std::string		exec_unlocked(struct dnet_id *id, const std::string &event, const std::string &data,
-						const std::string &binary);
+							const std::string &binary);
 
 		/*
 		 * execution with saving ID of the original (blocked) caller
 		 */
 		std::string		push_locked(struct dnet_id *id, const struct sph &sph,
-				const std::string &event, const std::string &data, const std::string &binary);
+							const std::string &event, const std::string &data, const std::string &binary);
 		std::string		push_unlocked(struct dnet_id *id, const struct sph &sph,
-				const std::string &event, const std::string &data, const std::string &binary);
+							const std::string &event, const std::string &data, const std::string &binary);
 
 		/* send reply back to blocked execution client */
 		void			reply(const struct sph &sph, const std::string &event, const std::string &data,
 						const std::string &binary);
 
-		std::vector<std::string>	bulk_read(const std::vector<struct dnet_io_attr> &ios, uint64_t cflags = 0);
-		std::vector<std::string>	bulk_read(const std::vector<std::string> &keys, uint64_t cflags = 0);
+		std::vector<std::string>	bulk_read(const std::vector<struct dnet_io_attr> &ios);
+		std::vector<std::string>	bulk_read(const std::vector<std::string> &keys);
 
 		std::string		bulk_write(const std::vector<struct dnet_io_attr> &ios,
-						const std::vector<std::string> &data, uint64_t cflags);
+							const std::vector<std::string> &data);
 
-		struct dnet_node *	get_node();
+		node	&get_node();
+		const node	&get_node() const;
+		struct dnet_session *	get_native();
 
 	protected:
-		struct dnet_session	*m_session;
-		node			*m_node;
-
-		std::vector<int>	groups;
+		session_data		*m_data;
 
 		std::string		raw_exec(struct dnet_id *id,
-						const struct sph *sph,
-						const std::string &event,
-						const std::string &data,
-						const std::string &binary,
-						bool lock);
+							const struct sph *sph,
+							const std::string &event,
+							const std::string &data,
+							const std::string &binary,
+							bool lock);
 		std::string		request(struct dnet_id *id, struct sph *sph, bool lock);
 
 };
 
-}}; /* namespace ioremap::elliptics */
+}} /* namespace ioremap::elliptics */
 
 #endif /* __EDEF_H */

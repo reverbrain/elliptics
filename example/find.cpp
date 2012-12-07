@@ -67,7 +67,7 @@ void finder::add_remote(const char *addr)
 		throw std::runtime_error(str.str());
 	}
 
-	m_node->add_remote(rem.addr, atoi(rem.port), rem.family);
+    get_node().add_remote(rem.addr, atoi(rem.port), rem.family);
 }
 
 void finder::parse_lookup(const std::string &ret)
@@ -98,22 +98,22 @@ void finder::parse_lookup(const std::string &ret)
 			std::string route_addr = "failed to get route table";
 
 			try {
-				route_addr = lookup_addr(cmd->id);
+				route_addr = lookup_address(cmd->id);
 			} catch (const std::exception &e) {
 			}
 
 			if (!info)
-				dnet_log_raw(get_node(), DNET_LOG_DATA, "%s: FIND object: %s: should live at: %s\n",
+				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND object: %s: should live at: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
 			else
-				dnet_log_raw(get_node(), DNET_LOG_DATA, "%s: FIND-OK object: %s: should live at: %s, "
+				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND-OK object: %s: should live at: %s, "
 						"offset: %llu, size: %llu, mode: %llo, path: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
 					(unsigned long long)info->offset, (unsigned long long)info->size,
 					(unsigned long long)info->mode, (char *)(info + 1));
 		} else {
 			if (cmd->status != 0)
-				dnet_log_raw(get_node(), DNET_LOG_DATA, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
+				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
 		}
 
 		data = (char *)data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
@@ -138,7 +138,7 @@ void finder::parse_meta(const std::string &ret)
 
 			dnet_convert_io_attr(io);
 
-			dnet_log_raw(get_node(), DNET_LOG_DATA, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
+			dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
 					dnet_dump_id(&cmd->id), addr_str, dnet_cmd_string(cmd->cmd),
 					(unsigned long long)io->size);
 
@@ -148,10 +148,10 @@ void finder::parse_meta(const std::string &ret)
 			mc.size = io->size;
 
 			memcpy(&mc.id, &cmd->id, sizeof(struct dnet_id));
-			dnet_meta_print(m_session, &mc);
+			dnet_meta_print(get_native(), &mc);
 		} else {
 			if (cmd->status != 0)
-				dnet_log_raw(get_node(), DNET_LOG_DATA, "%s: FIND meta: %s: status: %d\n",
+				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND meta: %s: status: %d\n",
 						dnet_dump_id(&cmd->id), addr_str, cmd->status);
 		}
 
@@ -210,19 +210,19 @@ int main(int argc, char *argv[])
 	}
 
 	try {
-		log_file log(logfile, log_level);
+		file_logger log(logfile, log_level);
 		node n(log);
 		finder find(n);
 
 		find.add_remote(remote);
 
 		{
-			callback c;
+			callback_any c;
 
 			memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
-			ctl.priv = (void *)&c;
-			ctl.complete = callback::complete_callback;
+			ctl.priv = &c;
+			ctl.complete = callback::handler;
 
 			dnet_setup_id(&ctl.id, 0, raw.id);
 			ctl.cflags = DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK | DNET_ATTR_META_TIMES;
@@ -236,12 +236,12 @@ int main(int argc, char *argv[])
 
 
 		{
-			callback c;
+			callback_any c;
 
 			memset(&ctl, 0, sizeof(ctl));
 
-			ctl.priv = (void *)&c;
-			ctl.complete = callback::complete_callback;
+			ctl.priv = &c;
+			ctl.complete = callback::handler;
 
 			dnet_setup_id(&ctl.id, 0, raw.id);
 			ctl.cmd = DNET_CMD_READ;
