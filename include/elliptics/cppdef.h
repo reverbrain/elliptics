@@ -258,7 +258,7 @@ class session
 		std::string		read_latest(const key &id, uint64_t offset, uint64_t size);
 
 		std::string		write_cas(const key &id, const std::string &str,
-							const struct dnet_id &old_csum, uint64_t remote_offsets);
+							const struct dnet_id &old_csum, uint64_t remote_offset);
 
 		std::string		write_data_wait(const key &id, const std::string &str,
 							uint64_t remote_offset);
