@@ -197,6 +197,36 @@ class node
 		friend class session_data;
 };
 
+class session;
+
+class key
+{
+	public:
+		key();
+		key(const std::string &remote, int type = 0);
+		key(const struct dnet_id &id);
+		key(const key &other);
+		key &operator = (const key &other);
+		~key();
+
+		bool operator==(const key &other) const;
+		bool operator <(const key &other) const;
+
+		bool by_id() const;
+		const std::string &remote() const;
+		int type() const;
+		const struct dnet_id &id() const;
+		std::string to_string() const;
+
+		void transform(session &sess);
+
+	private:
+		bool m_by_id;
+		std::string m_remote;
+		int m_type;
+		struct dnet_id m_id;
+};
+
 class session
 {
 	ELLIPTICS_DISABLE_COPY(session)
@@ -205,6 +235,7 @@ class session
 		virtual ~session();
 
 		void			transform(const std::string &data, struct dnet_id &id);
+		void			transform(const key &id);
 
 		void			set_groups(const std::vector<int> &groups);
 		const std::vector<int> &get_groups() const;
@@ -212,76 +243,48 @@ class session
 		void			set_cflags(uint64_t cflags);
 		uint64_t		get_cflags() const;
 
-		void			read_file(struct dnet_id &id, const std::string &file, uint64_t offset, uint64_t size);
-		void			read_file(const std::string &remote, const std::string &file,
-							uint64_t offset, uint64_t size, int type);
+		void			set_ioflags(uint32_t ioflags);
+		uint32_t		get_ioflags() const;
 
-		void			write_file(struct dnet_id &id, const std::string &file, uint64_t local_offset,
-							uint64_t offset, uint64_t size, unsigned int ioflags);
-		void			write_file(const std::string &remote, const std::string &file,
-							uint64_t local_offset, uint64_t offset, uint64_t size,
-							unsigned int ioflags, int type);
+		void			read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size);
 
-		std::string		read_data_wait(struct dnet_id &id, uint64_t offset, uint64_t size,
-							uint32_t ioflags);
-		std::string		read_data_wait(const std::string &remote, uint64_t offset, uint64_t size,
-							uint32_t ioflags, int type);
+		void			write_file(const key &id, const std::string &file, uint64_t local_offset,
+							uint64_t offset, uint64_t size);
 
-		void			prepare_latest(struct dnet_id &id, std::vector<int> &groups);
+		std::string		read_data_wait(const key &id, uint64_t offset, uint64_t size);
 
-		std::string		read_latest(struct dnet_id &id, uint64_t offset, uint64_t size,
-							uint32_t ioflags);
-		std::string		read_latest(const std::string &remote, uint64_t offset, uint64_t size,
-							uint32_t ioflags, int type);
+		void			prepare_latest(const key &id, std::vector<int> &groups);
 
-		std::string		write_compare_and_swap(const struct dnet_id &id, const std::string &str,
-								const struct dnet_id &old_csum, uint64_t remote_offset, unsigned int ioflags);
-		std::string		write_compare_and_swap(const std::string &remote, const std::string &str,
-								const struct dnet_id &old_csum, uint64_t remote_offset, unsigned int ioflags, int type);
+		std::string		read_latest(const key &id, uint64_t offset, uint64_t size);
 
-		std::string		write_data_wait(struct dnet_id &id, const std::string &str,
-							uint64_t remote_offset, unsigned int ioflags);
-		std::string		write_data_wait(const std::string &remote, const std::string &str,
-							uint64_t remote_offset, unsigned int ioflags, int type);
+		std::string		write_compare_and_swap(const key &id, const std::string &str,
+								const struct dnet_id &old_csum, uint64_t remote_offsets);
 
-		std::string		write_prepare(const std::string &remote, const std::string &str, uint64_t remote_offset,
-							uint64_t psize, unsigned int ioflags, int type);
-		std::string		write_commit(const std::string &remote, const std::string &str, uint64_t remote_offset,
-							uint64_t csize, unsigned int ioflags, int type);
-		std::string		write_plain(const std::string &remote, const std::string &str, uint64_t remote_offset,
-							unsigned int ioflags, int type);
+		std::string		write_data_wait(const key &id, const std::string &str,
+							uint64_t remote_offset);
 
-		std::string		write_prepare(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
-							uint64_t psize, unsigned int ioflags);
-		std::string		write_commit(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
-							uint64_t csize, unsigned int ioflags);
-		std::string		write_plain(const struct dnet_id &id, const std::string &str, uint64_t remote_offset,
-							unsigned int ioflags);
+		std::string		write_prepare(const key &id, const std::string &str, uint64_t remote_offset,
+							uint64_t psize);
+		std::string		write_commit(const key &id, const std::string &str, uint64_t remote_offset,
+							uint64_t csize);
+		std::string		write_plain(const key &id, const std::string &str, uint64_t remote_offset);
 
-		std::string		write_cache(struct dnet_id &id, const std::string &str,
-							unsigned int ioflags, long timeout);
-		std::string		write_cache(const std::string &key, const std::string &str,
-							unsigned int ioflags, long timeout);
+		std::string		write_cache(const key &id, const std::string &str, long timeout);
 
 
 
-		std::string		lookup_address(const std::string &remote, const int group_id);
-		std::string		lookup_address(const struct dnet_id &id);
+		std::string		lookup_address(const key &id, int group_id = 0);
 
-		std::string		create_metadata(const struct dnet_id &id, const std::string &obj,
+		std::string		create_metadata(const key &id, const std::string &obj,
 							const std::vector<int> &groups, const struct timespec &ts);
-		int			write_metadata(const struct dnet_id &id, const std::string &obj,
+		int			write_metadata(const key &id, const std::string &obj,
 							const std::vector<int> &groups, const struct timespec &ts);
 
-		void			lookup(const std::string &data, const callback &c);
-		void			lookup(const struct dnet_id &id, const callback &c);
-		std::string		lookup(const std::string &data);
-		std::string		lookup(const struct dnet_id &id);
+		void			lookup(const key &id, const callback &c);
+		std::string		lookup(const key &id);
 
-		void 			remove_raw(struct dnet_id &id, uint64_t ioflags);
-		void			remove_raw(const std::string &data, int type, uint64_t ioflags);
-		void 			remove(struct dnet_id &id);
-		void			remove(const std::string &data, int type = EBLOB_TYPE_DATA);
+		void 			remove_raw(const key &id);
+		void 			remove(const key &id);
 
 		std::string		stat_log();
 
@@ -289,10 +292,10 @@ class session
 		
 		int			request_cmd(struct dnet_trans_control &ctl);
 
-		std::string		read_metadata(struct dnet_id &id);
+		std::string		read_metadata(const key &id);
 
 		void			update_status(const char *addr, const int port, const int family, struct dnet_node_status *status);
-		void			update_status(struct dnet_id &id, struct dnet_node_status *status);
+		void			update_status(const key &id, struct dnet_node_status *status);
 
 		std::vector<std::string>	read_data_range(struct dnet_io_attr &io, int group_id);
 

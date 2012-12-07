@@ -105,7 +105,7 @@ bool callback_any::check_states(const std::vector<int> &statuses)
 {
 	bool ok = false;
 	for (size_t i = 0; i < statuses.size(); ++i)
-		ok |= (statuses[i] != 0);
+		ok |= (statuses[i] == 0);
 	return ok;
 }
 
@@ -121,7 +121,7 @@ bool callback_all::check_states(const std::vector<int> &statuses)
 {
 	bool ok = !statuses.empty();
 	for (size_t i = 0; i < statuses.size(); ++i)
-		ok &= (statuses[i] != 0);
+		ok &= (statuses[i] == 0);
 	return ok;
 }
 

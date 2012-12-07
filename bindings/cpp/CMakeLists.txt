@@ -6,6 +6,7 @@ set(ELLIPTICS_CPP_SRCS
     session.cpp
     callback.cpp
     exception.cpp
+    key.cpp
     )
 add_library(elliptics_cpp SHARED ${ELLIPTICS_CPP_SRCS})
 set_target_properties(elliptics_cpp PROPERTIES
