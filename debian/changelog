@@ -1,3 +1,18 @@
+elliptics (2.20.0.0) unstable; urgency=low
+
+  * Moved cflags, ioflags and typo into session from API
+  * Added compare-and-swap write
+  * Moved elliptics::session to separate file
+  * Callbacks redesign in cpp binding
+  * Use boost::thread instead of plain pthreads
+  * Added proper exceptions
+  * Logger and node redesign in C++ binding
+  * Fixed leveld initialization
+  * leveldb backend: DNET_CMD_DEL_RANGE
+  * leveldb backend: range read support
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 07 Dec 2012 23:17:27 +0400
+
 elliptics (2.19.2.8) unstable; urgency=low
 
   * dnet_remove_object_raw() must return positive number of transactions sent

@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.19.2.8
+Version:	2.20.0.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,18 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Dec 07 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.0.0
+- Moved cflags, ioflags and typo into session from API
+- Added compare-and-swap write
+- Moved elliptics::session to separate file
+- Callbacks redesign in cpp binding
+- Use boost::thread instead of plain pthreads
+- Added proper exceptions
+- Logger and node redesign in C++ binding
+- Fixed leveld initialization
+- leveldb backend: DNET_CMD_DEL_RANGE
+- leveldb backend: range read support
+
 * Mon Nov 26 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.19.2.8
 - dnet_remove_object_raw() must return positive number of transactions sent
 
