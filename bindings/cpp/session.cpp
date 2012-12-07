@@ -255,8 +255,7 @@ std::string session::write_cache(const key &id, const std::string &str, long tim
 	return ret;
 }
 
-std::string session::write_compare_and_swap(const key &id, const std::string &str,
-						   const dnet_id &old_csum, uint64_t remote_offset)
+std::string session::write_cas(const key &id, const std::string &str, const dnet_id &old_csum, uint64_t remote_offset)
 {
 	transform(id);
 	dnet_id raw = id.id();
