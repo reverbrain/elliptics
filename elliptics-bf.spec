@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.0.0
+Version:	2.20.0.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Dec 11 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.0.1
+- Async 'blocking' exec command.
+- Export dnet_send_ack()
+- More debug logs when sending reply
+- Recover README
+
 * Fri Dec 07 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.0.0
 - Moved cflags, ioflags and typo into session from API
 - Added compare-and-swap write
