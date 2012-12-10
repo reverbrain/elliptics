@@ -510,6 +510,8 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t 
 
 int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r);
 
+int __attribute__((weak)) dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err);
+
 struct dnet_config;
 int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg, struct dnet_addr *addr, int listening);
 int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int family,

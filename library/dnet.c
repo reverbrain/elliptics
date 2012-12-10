@@ -522,6 +522,31 @@ err_out_exit:
 	return err;
 }
 
+int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err)
+{
+	if (st && cmd && (cmd->flags & DNET_FLAGS_NEED_ACK)) {
+		struct dnet_node *n = st->n;
+		unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
+		struct dnet_cmd ack;
+
+		memcpy(&ack.id, &cmd->id, sizeof(struct dnet_id));
+		ack.cmd = cmd->cmd;
+		ack.trans = cmd->trans | DNET_TRANS_REPLY;
+		ack.size = 0;
+		ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
+		ack.status = err;
+
+		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: ack -> %s: trans: %llu, flags: %llx, status: %d.\n",
+				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
+				tid, (unsigned long long)ack.flags, err);
+
+		dnet_convert_cmd(&ack);
+		err = dnet_send(st, &ack, sizeof(struct dnet_cmd));
+	}
+
+	return err;
+}
+
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	int err = 0;
@@ -702,22 +727,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), tid,
 			(unsigned long long)cmd->flags, diff, err);
 
-	if (cmd->flags & DNET_FLAGS_NEED_ACK) {
-		struct dnet_cmd ack;
-
-		memcpy(&ack.id, &cmd->id, sizeof(struct dnet_id));
-		ack.cmd = cmd->cmd;
-		ack.trans = cmd->trans | DNET_TRANS_REPLY;
-		ack.size = 0;
-		ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
-		ack.status = err;
-
-		dnet_log(n, DNET_LOG_DEBUG, "%s: ack trans: %llu, flags: %llx, status: %d.\n",
-				dnet_dump_id(&cmd->id), tid, (unsigned long long)ack.flags, err);
-
-		dnet_convert_cmd(&ack);
-		err = dnet_send(st, &ack, sizeof(struct dnet_cmd));
-	}
+	err = dnet_send_ack(st, cmd, err);
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
 		dnet_opunlock(n, &cmd->id);
