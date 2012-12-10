@@ -1105,8 +1105,10 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int
 	if (size)
 		memcpy(data, odata, size);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply: size: %u, cflags: %llx.\n",
-		dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), size, (unsigned long long)c->flags);
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply -> %s: trans: %lld, size: %u, cflags: %llx.\n",
+		dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
+		(unsigned long long)(c->trans &~ DNET_TRANS_REPLY),
+		size, (unsigned long long)c->flags);
 
 	dnet_convert_cmd(c);
 
