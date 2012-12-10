@@ -165,11 +165,24 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 class dnet_job_t: public cocaine::engine::job_t
 {
 	public:
-		dnet_job_t(struct dnet_session *session, const std::string &app, const std::string& event, const cocaine::blob_t& blob):
+		dnet_job_t(struct dnet_session *session, struct dnet_net_state *state, struct dnet_cmd *cmd,
+				const std::string &app, const std::string& event, const cocaine::blob_t& blob):
 		cocaine::engine::job_t(event, blob),
 		m_completed(false),
 		m_name(app + "/" + event),
-       		m_s(session) {
+       		m_s(session),
+       		m_state(dnet_state_get(state)),
+       		m_cmd(*cmd),
+       		m_error(0) {
+		}
+
+		~dnet_job_t() {
+			int err = dnet_send_reply(m_state, &m_cmd, m_res.data(), m_res.size(), 1);
+			if (!err) {
+				m_cmd.flags |= DNET_FLAGS_NEED_ACK;
+				dnet_send_ack(m_state, &m_cmd, m_error);
+			}
+			dnet_state_put(m_state);
 		}
 
 		virtual void react(const cocaine::engine::events::chunk& event) {
@@ -192,6 +205,7 @@ class dnet_job_t: public cocaine::engine::job_t
 		}
 
 		virtual void react(const cocaine::engine::events::error& event) {
+			m_error = -event.code;
 			srw_log log(m_s, DNET_LOG_ERROR, "app/" + m_name, event.message + ": " + boost::lexical_cast<std::string>(event.code));
 		}
 
@@ -228,6 +242,9 @@ class dnet_job_t: public cocaine::engine::job_t
 		std::vector<char> m_res;
 		boost::mutex m_lock;
 		boost::condition m_cond;
+		struct dnet_net_state *m_state;
+		struct dnet_cmd m_cmd;
+		int m_error;
 };
 
 typedef boost::shared_ptr<dnet_job_t> dnet_shared_job_t;
@@ -405,7 +422,7 @@ class srw {
 					return -ENOENT;
 				}
 
-				dnet_shared_job_t job(boost::make_shared<dnet_job_t>(m_s, app, ev,
+				dnet_shared_job_t job(boost::make_shared<dnet_job_t>(m_s, st, cmd, app, ev,
 						cocaine::blob_t((const char *)sph, total_size(sph) + sizeof(struct sph))));
 
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK)
@@ -416,7 +433,7 @@ class srw {
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "srw: %s: started: task: %x, total-data-size: %zd, block: %d\n",
 						app.c_str(), sph->src_key, total_size(sph), !!(sph->flags & DNET_SPH_FLAGS_SRC_BLOCK));
-
+#if 0
 				int err = 0;
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
 					bool success = job->wait(m_s->node->wait_ts.tv_sec);
@@ -431,8 +448,12 @@ class srw {
 					dnet_log(m_s->node, DNET_LOG_NOTICE, "srw: %s: %s: completed blocked task: %zd bytes\n",
 							app.c_str(), dnet_dump_id_str(sph->src.id), res.size());
 				}
-
-				return err;
+#else
+				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
+					cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+				}
+#endif
+				return 0;
 			}
 		}
 
