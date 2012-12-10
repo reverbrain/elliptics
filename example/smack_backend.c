@@ -220,7 +220,6 @@ static int smack_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 
 	err = dnet_checksum_data(n, csum, csize, data, idx.data_size);
 
-err_out_free:
 	free(data);
 err_out_exit:
 	return err;

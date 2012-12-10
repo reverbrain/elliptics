@@ -915,8 +915,10 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp);
 char * __attribute__((weak)) dnet_cmd_string(int cmd);
 char *dnet_counter_string(int cntr, int cmd_num);
 
+
 int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size);
 int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size);
+int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, const void *data, uint64_t size);
 
 
 ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void **datap);
