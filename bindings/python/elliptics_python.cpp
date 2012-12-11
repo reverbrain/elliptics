@@ -530,9 +530,78 @@ class elliptics_session: public session, public wrapper<session> {
 			return statistics;
 		}
 };
+
+class elliptics_error_translator
+{
+	public:
+		elliptics_error_translator()
+		{
+		}
+
+		void operator() (const error &err) const
+		{
+			api::object exception(err);
+			api::object type = m_type;
+			for (size_t i = 0; i < m_types.size(); ++i) {
+				if (m_types[i].first == err.error_code()) {
+					type = m_types[i].second;
+					break;
+				}
+			}
+			PyErr_SetObject(type.ptr(), exception.ptr());
+		}
+
+		void initialize()
+		{
+			m_type = new_exception("elliptics_error");
+			register_type(-ENOENT, "elliptics_not_found_error");
+			register_type(-ETIMEDOUT, "elliptics_timeout_error");
+		}
+
+		void register_type(int code, const char *name)
+		{
+			register_type(code, new_exception(name, m_type.ptr()));
+		}
+
+		void register_type(int code, const api::object &type)
+		{
+			m_types.push_back(std::make_pair(code, type));
+		}
+
+	private:
+		api::object new_exception(const char *name, PyObject *parent = NULL)
+		{
+			std::string scopeName = extract<std::string>(scope().attr("__name__"));
+			std::string qualifiedName = scopeName + "." + name;
+
+			PyObject *type = PyErr_NewException(&qualifiedName[0], parent, 0);
+			if (!type)
+				throw_error_already_set();
+			api::object type_object = api::object(handle<>(type));
+			scope().attr(name) = type_object;
+			return type_object;
+		}
+
+		api::object m_type;
+		std::vector<std::pair<int, api::object> > m_types;
+};
+
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
 
 BOOST_PYTHON_MODULE(libelliptics_python) {
+	class_<error> error_class("elliptics_error_impl",
+		init<int, std::string>());
+	error_class.def("__str__", &error::error_message);
+	error_class.add_property("message", &error::error_message);
+	error_class.add_property("code", &error::error_code);
+	elliptics_error_translator error_translator;
+	error_translator.initialize();
+
+
+	register_exception_translator<timeout_error>(error_translator);
+	register_exception_translator<not_found_error>(error_translator);
+	register_exception_translator<error>(error_translator);
+
 	class_<elliptics_id>("elliptics_id", init<>())
 		.def(init<list, int, int>())
 		.def_readwrite("id", &elliptics_id::id)
