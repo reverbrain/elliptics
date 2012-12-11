@@ -625,7 +625,7 @@ std::string session::stat_log()
 #endif
 
 	if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_stat))
-		throw_error(-EIO, "Failed to request statistics: not enough data returned");
+		throw_error(-ENOENT, "Failed to request statistics: not enough data returned");
 	return ret;
 }
 

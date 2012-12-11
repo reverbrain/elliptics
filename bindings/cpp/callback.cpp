@@ -83,7 +83,7 @@ std::string callback::wait(int completed)
 		m_data->wait_cond.wait(locker);
 
 	if (!check_states(m_data->statuses))
-		throw_error(-EIO, "failed to request");
+		throw_error(-ENOENT, "failed to request");
 
 	return m_data->data;
 }
