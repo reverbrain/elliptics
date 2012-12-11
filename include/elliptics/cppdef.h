@@ -50,6 +50,8 @@ class error : public std::exception
 
 		virtual const char *what() const throw();
 
+		std::string error_message() const throw();
+
 	private:
 		int m_errno;
 		std::string m_message;

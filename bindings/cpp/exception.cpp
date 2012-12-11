@@ -20,6 +20,8 @@
 #include <cstdio>
 #include <sstream>
 
+#include <errno.h>
+
 namespace ioremap { namespace elliptics {
 
 error::error(int code, const std::string &message) throw() : m_errno(code), m_message(message)
@@ -36,23 +38,28 @@ const char *error::what() const throw()
 	return m_message.c_str();
 }
 
+std::string error::error_message() const throw()
+{
+	return m_message;
+}
+
 not_found_error::not_found_error(const std::string &message) throw()
-	: error(ENOENT, message)
+	: error(-ENOENT, message)
 {
 }
 
 timeout_error::timeout_error(const std::string &message) throw()
-	: error(EIO, message)
+	: error(-ETIMEDOUT, message)
 {
 }
 
 static void throw_error_detail(int err, const std::string &message)
 {
 	switch (err) {
-		case ENOENT:
+		case -ENOENT:
 			throw not_found_error(message);
 			break;
-		case EIO:
+		case -ETIMEDOUT:
 			throw timeout_error(message);
 			break;
 		default:
