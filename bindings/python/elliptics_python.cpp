@@ -121,39 +121,6 @@ static void elliptics_extract_range(const struct elliptics_range &r, struct dnet
 	io.type = r.type;
 }
 
-class python_logger : public logger_interface, public wrapper<logger_interface> {
-	public:
-		python_logger(const int level = DNET_LOG_INFO) : m_level(level) {
-		}
-
-		virtual void log(const int level, const char *msg) {
-			this->get_override("log")(level, msg);
-		}
-
-		static logger create(const api::object &logger_object) {
-			python_logger *log = extract<python_logger*>(logger_object);
-			return logger(new wrapper(log, logger_object), log->m_level);
-		}
-
-		class wrapper : public logger_interface {
-			public:
-				wrapper(python_logger *impl, const api::object &holder)
-					: m_impl(impl), m_holder(holder) {
-				}
-
-				virtual void log(const int level, const char *msg) {
-					m_impl->log(level, msg);
-				}
-
-			private:
-				python_logger *m_impl;
-				api::object m_holder;
-		};
-
-	private:
-		int m_level;
-};
-
 class elliptics_config {
 	public:
 		elliptics_config() {
@@ -179,15 +146,13 @@ class elliptics_config {
 
 class elliptics_node_python : public node, public wrapper<node> {
 	public:
-		elliptics_node_python(const api::object &l)
-			: node(python_logger::create(l)) {}
+		elliptics_node_python(const logger &l)
+			: node(l) {}
 
-		elliptics_node_python(const api::object &l, elliptics_config &cfg)
-			: node(python_logger::create(l), cfg.config) {}
+		elliptics_node_python(const logger &l, elliptics_config &cfg)
+			: node(l, cfg.config) {}
 
 		elliptics_node_python(const node &n): node(n) {}
-
-
 };
 
 class elliptics_session: public session, public wrapper<session> {
@@ -621,13 +586,12 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("limit_num", &elliptics_range::limit_num)
 	;
 
-	class_<python_logger, boost::noncopyable>("elliptics_log", init<const uint32_t>())
-		.def("log", pure_virtual(&python_logger::log))
+	class_<logger, boost::noncopyable>("elliptics_log", no_init)
+		.def("log", &logger::log)
 	;
 
-	class_<file_logger>("elliptics_log_file", init<const char *, const uint32_t>())
-		.def("log", &file_logger::log)
-	;
+	class_<file_logger, bases<logger> > file_logger_class(
+		"elliptics_log_file", init<const char *, const uint32_t>());
 
 	class_<dnet_node_status>("dnet_node_status", init<>())
 		.def_readwrite("nflags", &dnet_node_status::nflags)
@@ -650,8 +614,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.add_property("cookie", &elliptics_config::cookie_get, &elliptics_config::cookie_set)
 	;
 
-	class_<elliptics_node_python>("elliptics_node_python", init<api::object>())
-		.def(init<api::object, elliptics_config &>())
+	class_<elliptics_node_python>("elliptics_node_python", init<logger>())
+		.def(init<logger, elliptics_config &>())
 		.def("add_remote", &node::add_remote, add_remote_overloads())
 	;
 
