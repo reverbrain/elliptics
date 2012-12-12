@@ -551,6 +551,11 @@ class elliptics_error_translator
 		std::vector<std::pair<int, api::object> > m_types;
 };
 
+void ios_base_failure_translator(const std::ios_base::failure &exc)
+{
+	PyErr_SetString(PyExc_IOError, exc.what());
+}
+
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
 
 BOOST_PYTHON_MODULE(libelliptics_python) {
@@ -566,6 +571,7 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 	register_exception_translator<timeout_error>(error_translator);
 	register_exception_translator<not_found_error>(error_translator);
 	register_exception_translator<error>(error_translator);
+	register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
 
 	class_<elliptics_id>("elliptics_id", init<>())
 		.def(init<list, int, int>())
