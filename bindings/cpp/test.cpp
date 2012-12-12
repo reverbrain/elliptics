@@ -185,13 +185,9 @@ static void test_range_request(session &s, int limit_start, int limit_num, uint6
 #endif
 }
 
-static void test_lookup_parse(const std::string &key, const std::string &lret)
+static void test_lookup_parse(const std::string &key,
+	struct dnet_cmd *cmd, struct dnet_addr_attr *a, const char *path)
 {
-	struct dnet_addr *addr = (struct dnet_addr *)lret.data();
-	struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-	struct dnet_addr_attr *a = (struct dnet_addr_attr *)(cmd + 1);
-
-	dnet_convert_addr_attr(a);
 	std::cout << key << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
 
 	if (cmd->size > sizeof(struct dnet_addr_attr)) {
@@ -201,9 +197,33 @@ static void test_lookup_parse(const std::string &key, const std::string &lret)
 		std::cout << ": mode: " << std::oct << info->mode << std::dec;
 		std::cout << ", offset: " << (unsigned long long)info->offset;
 		std::cout << ", size: " << (unsigned long long)info->size;
-		std::cout << ", file: " << (char *)(info + 1);
+		std::cout << ", file: " << path;
 	}
 	std::cout << std::endl;
+}
+
+static void test_lookup_parse(const std::string &key, const std::string &lret)
+{
+	struct dnet_addr *addr = (struct dnet_addr *)lret.data();
+	struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
+	struct dnet_addr_attr *a = (struct dnet_addr_attr *)(cmd + 1);
+	struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
+	const char *path = reinterpret_cast<char *>(info + 1);
+
+	if (cmd->size <= sizeof(struct dnet_addr_attr)) {
+		a = NULL;
+		info = NULL;
+		path = NULL;
+	}
+
+	dnet_convert_addr_attr(a);
+
+	test_lookup_parse(key, cmd, a, path);
+}
+
+static void test_lookup_parse(const std::string &key, const lookup_result &lret)
+{
+	test_lookup_parse(key, lret.command(), lret.address_attribute(), lret.file_path());
 }
 
 static void test_lookup(session &s, std::vector<int> &groups)
@@ -223,8 +243,8 @@ static void test_lookup(session &s, std::vector<int> &groups)
 		struct timespec ts = {0, 0};
 		s.write_metadata(id, key, groups, ts);
 
-		lret = s.lookup(key);
-		test_lookup_parse(key, lret);
+		lookup_result lret2 = s.lookup(key);
+		test_lookup_parse(key, lret2);
 	} catch (const std::exception &e) {
 		std::cerr << "LOOKUP test failed: " << e.what() << std::endl;
 	}

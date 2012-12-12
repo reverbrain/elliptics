@@ -229,7 +229,8 @@ int main(int argc, char *argv[])
 			ctl.cmd = DNET_CMD_LOOKUP;
 
 			int num = find.request_cmd(ctl);
-			std::string lookup_ret = c.wait(num);
+			c.wait(num);
+			std::string lookup_ret = c.any_result().raw_data();
 			find.parse_lookup(lookup_ret);
 		}
 
@@ -256,7 +257,8 @@ int main(int argc, char *argv[])
 			ctl.size = sizeof(io);
 
 			int num = find.request_cmd(ctl);
-			std::string meta_ret = c.wait(num);
+			c.wait(num);
+			std::string meta_ret = c.any_result().raw_data();
 			find.parse_meta(meta_ret);
 		}
 	} catch (const std::exception &e) {

@@ -15,10 +15,37 @@
  */
 
 #include <elliptics/cppdef.h>
+#include "callback_p.h"
+
+#include <boost/make_shared.hpp>
 
 #include <sstream>
 
 namespace ioremap { namespace elliptics {
+
+template <typename T>
+class cstyle_scoped_pointer
+{
+	ELLIPTICS_DISABLE_COPY(cstyle_scoped_pointer)
+	public:
+		cstyle_scoped_pointer() : m_data(NULL)
+		{
+		}
+
+		~cstyle_scoped_pointer()
+		{
+			if (m_data)
+				free(m_data);
+		}
+
+		T * &data()
+		{
+			return m_data;
+		}
+
+	private:
+		T *m_data;
+};
 
 class session_data
 {
@@ -45,13 +72,22 @@ class session_data
 		uint32_t		ioflags;
 };
 
-session::session(const node &n) : m_data(new session_data(n))
+session::session(const node &n) : m_data(boost::make_shared<session_data>(n))
+{
+}
+
+session::session(const session &other) : m_data(other.m_data)
 {
 }
 
 session::~session()
 {
-	delete m_data;
+}
+
+session &session::operator =(const session &other)
+{
+	m_data = other.m_data;
+	return *this;
 }
 
 void session::set_groups(const std::vector<int> &groups)
@@ -419,126 +455,32 @@ void session::transform(const key &id)
 	const_cast<key&>(id).transform(*this);
 }
 
-void session::lookup(const key &id, const callback &c)
+void session::lookup(const key &id, const boost::function<void (const lookup_result &)> &handler)
 {
 	transform(id);
-	dnet_id raw = id.id();
-	int err = -ENOENT, *groups = NULL;
+	cstyle_scoped_pointer<int> groups_ptr;
+
+	lookup_callback::ptr cb = boost::make_shared<lookup_callback>(*this);
+	cb->handler = handler;
+	cb->kid = id;
 
 	if (id.by_id()) {
-		err = dnet_lookup_object(m_data->session_ptr, &raw,
-			0, callback::handler, c.data());
-
-		if (err) {
-			throw_error(err, id.id(), "Failed to lookup ID");
-		}
+		cb->groups.push_back(cb->id.group_id);
 	} else {
-		int num = dnet_mix_states(m_data->session_ptr, &raw, &groups);
+		int num = dnet_mix_states(m_data->session_ptr, &cb->id, &groups_ptr.data());
 		if (num < 0)
 			throw std::bad_alloc();
-
-		for (int i = 0; i < num; ++i) {
-			raw.group_id = groups[i];
-
-			try {
-				lookup(raw, c);
-			} catch (...) {
-				continue;
-			}
-
-			err = 0;
-			break;
-		}
-
-		free(groups);
-
-		if (err) {
-			throw_error(err, id.id(), "Failed to lookup data object");
-		}
+		cb->groups.assign(groups_ptr.data(), groups_ptr.data() + num);
 	}
+
+	dnet_style_handler<lookup_callback>::start(cb);
 }
 
-std::string session::lookup(const key &id)
+lookup_result session::lookup(const key &id)
 {
-	transform(id);
-
-	if (id.by_id()) {
-		int error = -ENOENT;
-		std::string ret;
-
-		try {
-			callback_any l;
-
-			lookup(id, l);
-			ret = l.wait();
-
-			if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd)) {
-				throw_error(error, id.id(), "failed to receive lookup request");
-			}
-
-			dnet_log_raw(m_data->node_guard.get_native(), DNET_LOG_DEBUG, "%s: %zu bytes\n", dnet_dump_id(&id.id()), ret.size());
-			error = 0;
-		} catch (const std::exception &e) {
-			dnet_log_raw(m_data->node_guard.get_native(), DNET_LOG_ERROR, "%s: %s\n", dnet_dump_id(&id.id()), e.what());
-		}
-
-		if (error) {
-			throw_error(error, id.id(), "could not find object");
-		}
-
-		return ret;
-	} else {
-		const std::string &data = id.remote();
-
-		struct dnet_id raw = id.id();
-		int error = -ENOENT, i, num, *g;
-		std::string ret;
-
-		num = dnet_mix_states(m_data->session_ptr, &raw, &g);
-		if (num < 0)
-			throw std::bad_alloc();
-
-		for (i=0; i<num; ++i) {
-			try {
-				callback_any l;
-				raw.group_id = g[i];
-
-				lookup(raw, l);
-				ret = l.wait();
-
-				if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd)) {
-					throw_error(-EIO, raw, "failed to receive lookup request");
-				}
-				/* reply parsing examaple */
-#if 0
-				struct dnet_addr *addr = (struct dnet_addr *)ret.data();
-				struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-
-				if (cmd->size > sizeof(struct dnet_addr_attr)) {
-					struct dnet_addr_attr *a = (struct dnet_addr_attr *)(cmd + 1);
-					struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
-
-					dnet_convert_addr_attr(a);
-					dnet_convert_file_info(info);
-				}
-#endif
-				dnet_log_raw(m_data->node_guard.get_native(), DNET_LOG_DEBUG, "%s: %s: %zu bytes\n", dnet_dump_id(&raw), data.c_str(), ret.size());
-				error = 0;
-				break;
-			} catch (const std::exception &e) {
-				dnet_log_raw(m_data->node_guard.get_native(), DNET_LOG_ERROR, "%s: %s : %s\n", dnet_dump_id(&raw), e.what(), data.c_str());
-				continue;
-			}
-		}
-
-		free(g);
-
-		if (error) {
-			throw_error(error, "%s: could not find object", data.c_str());
-		}
-
-		return ret;
-	}
+	waiter<lookup_result> w;
+	lookup(id, w.handler());
+	return w.result();
 }
 
 void session::remove_raw(const key &id)
@@ -569,6 +511,21 @@ void session::remove(const key &id)
 	m_data->ioflags = ioflags;
 }
 
+void session::stat_log(const boost::function<void (const std::vector<stat_result> &)> &handler)
+{
+	stat_callback::ptr cb = boost::make_shared<stat_callback>(*this);
+	cb->handler = handler;
+
+	dnet_style_handler<stat_callback>::start(cb);
+
+	callback_any c;
+	int err = dnet_request_stat(m_data->session_ptr, NULL, DNET_CMD_STAT, 0,
+				callback::handler, &c);
+	if (err < 0) {
+		throw_error(err, "Failed to request statistics");
+	}
+}
+
 std::string session::stat_log()
 {
 	callback_any c;
@@ -581,7 +538,8 @@ std::string session::stat_log()
 		throw_error(err, "Failed to request statistics");
 	}
 
-	ret = c.wait(err);
+	c.wait(err);
+	ret = c.any_result().raw_data();
 
 	/* example reply parsing */
 #if 0

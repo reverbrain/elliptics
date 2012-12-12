@@ -326,14 +326,10 @@ class elliptics_session: public session, public wrapper<session> {
 			return lookup_address(raw, raw.group_id);
 		}
 
-		boost::python::tuple parse_lookup(const std::string &lookup) {
-			const void *data = lookup.data();
-
-			struct dnet_addr *addr = (struct dnet_addr *)data;
-			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-			struct dnet_addr_attr *a = (struct dnet_addr_attr *)(cmd + 1);
-			struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
-			dnet_convert_file_info(info);
+		boost::python::tuple parse_lookup(const lookup_result &lookup) {
+			struct dnet_addr *addr = lookup.address();
+			struct dnet_addr_attr *a = lookup.address_attribute();
+			struct dnet_file_info *info = lookup.file_info();
 
 			std::string address(dnet_server_convert_dnet_addr(addr));
 			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
@@ -486,7 +482,8 @@ class elliptics_session: public session, public wrapper<session> {
 				throw std::runtime_error(str.str());
 			}
 
-			ret = c.wait(err);
+			c.wait(err);
+			ret = c.any_result().raw_data();
 
 			const void *data = ret.data();
 			int size = ret.size();

@@ -1,5 +1,6 @@
 /*
  * 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
+ * 2012+ Copyright (c) Ruslan Nigmatullin <euroelessar@yandex.ru>
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -9,7 +10,7 @@
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
 
@@ -23,6 +24,8 @@
 #include <elliptics/interface.h>
 
 #include <boost/shared_ptr.hpp>
+#include <boost/exception_ptr.hpp>
+#include <boost/function.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -33,9 +36,9 @@
 #include <vector>
 
 #define ELLIPTICS_DISABLE_COPY(CLASS) \
-	private: \
-	CLASS(const CLASS &); \
-	CLASS &operator =(const CLASS &);
+private: \
+		CLASS(const CLASS &); \
+		CLASS &operator =(const CLASS &);
 
 namespace ioremap { namespace elliptics {
 
@@ -69,6 +72,8 @@ class timeout_error : public error
 		explicit timeout_error(const std::string &message) throw();
 };
 
+class key;
+
 // err must be negative value
 void throw_error(int err, const char *format, ...)
 	__attribute__ ((format (printf, 2, 3)));
@@ -78,8 +83,113 @@ void throw_error(int err, const struct dnet_id &id, const char *format, ...)
 	__attribute__ ((format (printf, 3, 4)));
 
 // err must be negative value
+void throw_error(int err, const key &id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
 void throw_error(int err, const uint8_t *id, const char *format, ...)
 	__attribute__ ((format (printf, 3, 4)));
+
+class default_callback;
+class callback_data;
+class callback_result_data;
+
+class callback_result
+{
+	public:
+		callback_result();
+		callback_result(const callback_result &other);
+		callback_result(const boost::shared_ptr<callback_result_data> &data);
+		~callback_result();
+
+		callback_result &operator =(const callback_result &other);
+
+		bool is_valid() const;
+		std::string raw_data() const;
+		uint32_t		group() const;
+		struct dnet_addr	*address() const;
+		struct dnet_cmd		*command() const;
+		void			*data() const;
+		uint64_t		size() const;
+		template <typename T>
+		inline const T		*data() const
+		{ return reinterpret_cast<const T*>(data()); }
+
+		boost::exception_ptr	exception() const;
+		void			set_exception(const boost::exception_ptr &exc);
+
+	protected:
+		boost::shared_ptr<callback_result_data> m_data;
+
+		friend class callback;
+		friend class default_callback;
+};
+
+class lookup_result : public callback_result
+{
+	public:
+		lookup_result();
+		lookup_result(const lookup_result &other);
+		~lookup_result();
+
+		lookup_result &operator =(const lookup_result &other);
+
+		struct dnet_addr_attr *address_attribute() const;
+		struct dnet_file_info *file_info() const;
+		const char *file_path() const;
+};
+
+class stat_result : public callback_result
+{
+	public:
+		stat_result();
+		stat_result(const stat_result &other);
+		~stat_result();
+
+		stat_result &operator =(const stat_result &other);
+};
+
+class callback
+{
+	ELLIPTICS_DISABLE_COPY(callback)
+	public:
+		callback();
+		virtual ~callback();
+
+		virtual void handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
+		virtual bool check_states(const std::vector<int> &statuses) = 0;
+		void set_count(int count);
+
+		void wait(int completed = 1);
+		const std::vector<callback_result> &results() const;
+
+		void *data() const;
+
+		static int handler(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv);
+
+	protected:
+		callback_data *m_data;
+};
+
+class callback_any : public callback
+{
+	public:
+		callback_any();
+		~callback_any();
+
+		callback_result any_result() const;
+
+		virtual bool check_states(const std::vector<int> &statuses);
+};
+
+class callback_all : public callback
+{
+	public:
+		callback_all();
+		~callback_all();
+
+		virtual bool check_states(const std::vector<int> &statuses);
+};
 
 
 struct address
@@ -125,46 +235,6 @@ class file_logger : public logger
 	public:
 		explicit file_logger(const char *file, const int level = DNET_LOG_INFO);
 		~file_logger();
-};
-
-class callback_data;
-
-class callback
-{
-	ELLIPTICS_DISABLE_COPY(callback)
-	public:
-		callback();
-		virtual ~callback();
-
-		virtual void handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
-		virtual bool check_states(const std::vector<int> &statuses) = 0;
-
-		std::string wait(int completed = 1);
-
-		void *data() const;
-
-		static int handler(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv);
-
-	private:
-		callback_data *m_data;
-};
-
-class callback_any : public callback
-{
-	public:
-		callback_any();
-		~callback_any();
-
-		virtual bool check_states(const std::vector<int> &statuses);
-};
-
-class callback_all : public callback
-{
-	public:
-		callback_all();
-		~callback_all();
-
-		virtual bool check_states(const std::vector<int> &statuses);
 };
 
 class node_data;
@@ -231,10 +301,12 @@ class key
 
 class session
 {
-	ELLIPTICS_DISABLE_COPY(session)
 	public:
 		explicit session(const node &n);
+		session(const session &other);
 		virtual ~session();
+
+		session &operator =(const session &other);
 
 		void			transform(const std::string &data, struct dnet_id &id);
 		void			transform(const key &id);
@@ -282,12 +354,13 @@ class session
 		int			write_metadata(const key &id, const std::string &obj,
 							const std::vector<int> &groups, const struct timespec &ts);
 
-		void			lookup(const key &id, const callback &c);
-		std::string		lookup(const key &id);
+		void			lookup(const key &id, const boost::function<void (const lookup_result &)> &handler);
+		lookup_result		lookup(const key &id);
 
 		void 			remove_raw(const key &id);
 		void 			remove(const key &id);
 
+		void			stat_log(const boost::function<void (const std::vector<stat_result> &)> &handler);
 		std::string		stat_log();
 
 		int			state_num();
@@ -336,7 +409,7 @@ class session
 		struct dnet_session *	get_native();
 
 	protected:
-		session_data		*m_data;
+		boost::shared_ptr<session_data>		m_data;
 
 		std::string		raw_exec(struct dnet_id *id,
 							const struct sph *sph,
