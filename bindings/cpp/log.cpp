@@ -77,8 +77,14 @@ dnet_log *logger::get_dnet_log()
 class file_logger_interface : public logger_interface {
 	public:
 		file_logger_interface(const char *file) {
-			m_stream.exceptions(std::ofstream::failbit);
 			m_stream.open(file, std::ios_base::app);
+			if (!m_stream) {
+				std::string message = "Can not open file: \"";
+				message += file;
+				message += "\"";
+				throw std::ios_base::failure(message);
+			}
+			m_stream.exceptions(std::ofstream::failbit);
 		}
 		~file_logger_interface() {
 		}

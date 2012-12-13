@@ -121,39 +121,6 @@ static void elliptics_extract_range(const struct elliptics_range &r, struct dnet
 	io.type = r.type;
 }
 
-class python_logger : public logger_interface, public wrapper<logger_interface> {
-	public:
-		python_logger(const int level = DNET_LOG_INFO) : m_level(level) {
-		}
-
-		virtual void log(const int level, const char *msg) {
-			this->get_override("log")(level, msg);
-		}
-
-		static logger create(const api::object &logger_object) {
-			python_logger *log = extract<python_logger*>(logger_object);
-			return logger(new wrapper(log, logger_object), log->m_level);
-		}
-
-		class wrapper : public logger_interface {
-			public:
-				wrapper(python_logger *impl, const api::object &holder)
-					: m_impl(impl), m_holder(holder) {
-				}
-
-				virtual void log(const int level, const char *msg) {
-					m_impl->log(level, msg);
-				}
-
-			private:
-				python_logger *m_impl;
-				api::object m_holder;
-		};
-
-	private:
-		int m_level;
-};
-
 class elliptics_config {
 	public:
 		elliptics_config() {
@@ -179,15 +146,13 @@ class elliptics_config {
 
 class elliptics_node_python : public node, public wrapper<node> {
 	public:
-		elliptics_node_python(const api::object &l)
-			: node(python_logger::create(l)) {}
+		elliptics_node_python(const logger &l)
+			: node(l) {}
 
-		elliptics_node_python(const api::object &l, elliptics_config &cfg)
-			: node(python_logger::create(l), cfg.config) {}
+		elliptics_node_python(const logger &l, elliptics_config &cfg)
+			: node(l, cfg.config) {}
 
 		elliptics_node_python(const node &n): node(n) {}
-
-
 };
 
 class elliptics_session: public session, public wrapper<session> {
@@ -530,9 +495,84 @@ class elliptics_session: public session, public wrapper<session> {
 			return statistics;
 		}
 };
+
+class elliptics_error_translator
+{
+	public:
+		elliptics_error_translator()
+		{
+		}
+
+		void operator() (const error &err) const
+		{
+			api::object exception(err);
+			api::object type = m_type;
+			for (size_t i = 0; i < m_types.size(); ++i) {
+				if (m_types[i].first == err.error_code()) {
+					type = m_types[i].second;
+					break;
+				}
+			}
+			PyErr_SetObject(type.ptr(), exception.ptr());
+		}
+
+		void initialize()
+		{
+			m_type = new_exception("elliptics_error");
+			register_type(-ENOENT, "elliptics_not_found_error");
+			register_type(-ETIMEDOUT, "elliptics_timeout_error");
+		}
+
+		void register_type(int code, const char *name)
+		{
+			register_type(code, new_exception(name, m_type.ptr()));
+		}
+
+		void register_type(int code, const api::object &type)
+		{
+			m_types.push_back(std::make_pair(code, type));
+		}
+
+	private:
+		api::object new_exception(const char *name, PyObject *parent = NULL)
+		{
+			std::string scopeName = extract<std::string>(scope().attr("__name__"));
+			std::string qualifiedName = scopeName + "." + name;
+
+			PyObject *type = PyErr_NewException(&qualifiedName[0], parent, 0);
+			if (!type)
+				throw_error_already_set();
+			api::object type_object = api::object(handle<>(type));
+			scope().attr(name) = type_object;
+			return type_object;
+		}
+
+		api::object m_type;
+		std::vector<std::pair<int, api::object> > m_types;
+};
+
+void ios_base_failure_translator(const std::ios_base::failure &exc)
+{
+	PyErr_SetString(PyExc_IOError, exc.what());
+}
+
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
 
 BOOST_PYTHON_MODULE(libelliptics_python) {
+	class_<error> error_class("elliptics_error_impl",
+		init<int, std::string>());
+	error_class.def("__str__", &error::error_message);
+	error_class.add_property("message", &error::error_message);
+	error_class.add_property("code", &error::error_code);
+	elliptics_error_translator error_translator;
+	error_translator.initialize();
+
+
+	register_exception_translator<timeout_error>(error_translator);
+	register_exception_translator<not_found_error>(error_translator);
+	register_exception_translator<error>(error_translator);
+	register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
+
 	class_<elliptics_id>("elliptics_id", init<>())
 		.def(init<list, int, int>())
 		.def_readwrite("id", &elliptics_id::id)
@@ -552,13 +592,12 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("limit_num", &elliptics_range::limit_num)
 	;
 
-	class_<python_logger, boost::noncopyable>("elliptics_log", init<const uint32_t>())
-		.def("log", pure_virtual(&python_logger::log))
+	class_<logger, boost::noncopyable>("elliptics_log", no_init)
+		.def("log", &logger::log)
 	;
 
-	class_<file_logger>("elliptics_log_file", init<const char *, const uint32_t>())
-		.def("log", &file_logger::log)
-	;
+	class_<file_logger, bases<logger> > file_logger_class(
+		"elliptics_log_file", init<const char *, const uint32_t>());
 
 	class_<dnet_node_status>("dnet_node_status", init<>())
 		.def_readwrite("nflags", &dnet_node_status::nflags)
@@ -581,8 +620,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.add_property("cookie", &elliptics_config::cookie_get, &elliptics_config::cookie_set)
 	;
 
-	class_<elliptics_node_python>("elliptics_node_python", init<api::object>())
-		.def(init<api::object, elliptics_config &>())
+	class_<elliptics_node_python>("elliptics_node_python", init<logger>())
+		.def(init<logger, elliptics_config &>())
 		.def("add_remote", &node::add_remote, add_remote_overloads())
 	;
 

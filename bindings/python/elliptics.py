@@ -26,6 +26,9 @@ class Id(libelliptics_python.elliptics_id):
     """
     pass
 
+class Config(libelliptics_python.elliptics_config):
+    pass
+
 
 class Range(libelliptics_python.elliptics_range):
     """
@@ -75,11 +78,11 @@ class Node(libelliptics_python.elliptics_node_python):
      Main client class. Constructor takes 1 argument: Logger object
      """
 
-    def __init__(self, log=None):
+    def __init__(self, log=Logger(), *args, **kwargs):
         """
           log - Logger object
-        """
-        super(Node, self).__init__(log or Logger())
+	"""
+	return super(Node, self).__init__(log, *args, **kwargs)
 
     def add_remote(self, addr, port, family=2):
         """
@@ -171,12 +174,12 @@ class Session(libelliptics_python.elliptics_session):
         super(Session, self).read_file(*new_args)
 
     def write_file(self, key, filename, local_offset = 0, offset = 0, size = 0, \
-		    cflags = command_flags.default, ioflags = io_flags.default, column = 0):
+		    column = 0):
         """
           Write file into elliptics by name/ID
           signatures:
-              write_file(key, filename, local_offset, offset, size, cflags, ioflags, column)
-              write_file(id, filename, local_offset, offset, size, cflags, ioflags)
+	      write_file(key, filename, local_offset, offset, size, column)
+	      write_file(id, filename, local_offset, offset, size)
 
           key - remote key name
           column - column type (default is 0, 1 is reserved for metadata)
@@ -190,24 +193,24 @@ class Session(libelliptics_python.elliptics_session):
           ioflags - command IO flags (default is 0, see io_flags class for definitions)
         """
         if isinstance(key, basestring):
-            new_args = [str(key), filename, local_offset, offset, size, cflags, ioflags, column]
+	    new_args = [str(key), filename, local_offset, offset, size, column]
         else:
-            new_args = [key, filename, local_offset, offset, size, cflags, ioflags]
+	    new_args = [key, filename, local_offset, offset, size]
 
         super(Session, self).read_file(*new_args)
 
-    def _create_read_args(self, key, offset = 0, size = 0, cflags = command_flags.default, ioflags = io_flags.default, column = 0):
+    def _create_read_args(self, key, offset = 0, size = 0, column = 0):
         if isinstance(key, basestring):
-            return [str(key), offset, size, cflags, ioflags, column]
+	    return [str(key), offset, size, column]
         else:
-            return [key, offset, size, cflags, ioflags]
+	    return [key, offset, size]
 
-    def read_data(self, key, offset = 0, size = 0, cflags = command_flags.default, ioflags = io_flags.default, column = 0):
+    def read_data(self, key, offset = 0, size = 0, column = 0):
         """
           Read data from elliptics by name/ID
           signatures:
-              read_data(key, offset, size, cflags, ioflags, column)
-              read_data(id, offset, size, cflags, ioflags)
+	      read_data(key, offset, size, column)
+	      read_data(id, offset, size)
 
           key - remote key name
           column - column type (default is 0, 1 is reserved for metadata)
@@ -221,16 +224,16 @@ class Session(libelliptics_python.elliptics_session):
           return value:
           string - key value content
         """
-        return super(Session, self).read_data(*self._create_read_args(key, offset, size, cflags, ioflags, column))
+	return super(Session, self).read_data(*self._create_read_args(key, offset, size, column))
 
     read = read_data
 
-    def read_latest(self, key, offset = 0, size = 0, cflags = command_flags.default, ioflags = io_flags.default, column = 0):
+    def read_latest(self, key, offset = 0, size = 0, column = 0):
         """
           Read data from elliptics by name/ID with the latest update_date in metadata
           signatures:
-              read_latest(key, offset, size, cflags, ioflags, column)
-              read_latest(id, offset, size, cflags, ioflags)
+	      read_latest(key, offset, size, column)
+	      read_latest(id, offset, size)
 
           key - remote key name
           column - column type (default is 0, 1 is reserved for metadata)
@@ -244,20 +247,20 @@ class Session(libelliptics_python.elliptics_session):
           return value:
           string - key value content
         """
-        return super(Session, self).read_latest(*self._create_read_args(key, offset, size, cflags, ioflags, column))
+	return super(Session, self).read_latest(*self._create_read_args(key, offset, size, column))
 
-    def create_write_args(self, key, data, offset, ioflags, cflags, column):
+    def create_write_args(self, key, data, offset, column):
         if isinstance(key, basestring):
-            return [str(key), data, offset, cflags, ioflags, column]
+	    return [str(key), data, offset, column]
         else:
-            return [key, data, offset, cflags, ioflags]
+	    return [key, data, offset]
 
-    def write_data(self, key, data, offset = 0, cflags = command_flags.default, ioflags = io_flags.default, column = 0):
+    def write_data(self, key, data, offset = 0, column = 0):
         """
          Write data into elliptics by name/ID
          signatures:
-             write_data(key, data, offset, cflags, ioflags, column)
-             write_data(id, data, offset, cflags, ioflags)
+	     write_data(key, data, offset, column)
+	     write_data(id, data, offset)
 
          key - remote key name
          column - column type (default is 0, 1 is reserved for metadata)
@@ -271,14 +274,14 @@ class Session(libelliptics_python.elliptics_session):
          return value:
          string - nodes and paths where data was stored
          """
-        return super(Session, self).write_data(*self.create_write_args(key, data, offset, ioflags, cflags, column))
+	return super(Session, self).write_data(*self.create_write_args(key, data, offset, column))
 
-    def write_metadata(self, key, cflags = command_flags.default, name = None, groups = None):
+    def write_metadata(self, key, name = None, groups = None):
         """
          Write metadata into elliptics by name/ID
          signatures:
-             write_metadata(key, cflags)
-             write_metadata(id, name, groups, cflags)
+	     write_metadata(key)
+	     write_metadata(id, name, groups)
 
          key - remote key name
          id - object of Id class
@@ -288,9 +291,9 @@ class Session(libelliptics_python.elliptics_session):
          cflags - command flags (default is 0, see command_flags class for definitions)
         """
         if isinstance(key, basestring):
-            new_args = [str(key), cflags]
+	    new_args = [str(key)]
         else:
-            new_args = [key, name, groups, cflags]
+	    new_args = [key, name, groups]
 
         super(Session, self).write_metadata(*new_args)
 
@@ -301,12 +304,12 @@ class Session(libelliptics_python.elliptics_session):
         self.write_data(key, data)
         self.write_metadata(key)
 
-    def remove(self, key, cflags = command_flags.default, ioflags = io_flags.default, column = 0):
+    def remove(self, key, column = 0):
         """
              Remove key by name/ID
              signatures:
-                 remove(key, cflags, ioflags, column)
-                 remove(id, cflags, ioflags)
+		 remove(key, column)
+		 remove(id)
 
              key - remote key name
              column - column type (default is 0, 1 is reserved for metadata)
@@ -316,9 +319,9 @@ class Session(libelliptics_python.elliptics_session):
              ioflags - command IO flags (default is 0, see io_flags class for definitions)
         """
         if isinstance(key, basestring):
-            new_args = [str(key), cflags, ioflags, column]
+	    new_args = [str(key), column]
         else:
-            new_args = [key, cflags, ioflags]
+	    new_args = [key]
 
         super(Session, self).remove(*new_args)
 
@@ -376,7 +379,7 @@ class Session(libelliptics_python.elliptics_session):
         ret.__class__ = SessionStatus
         return ret
 
-    def bulk_read(self, keys, cflags = command_flags.default, raw=False):
+    def bulk_read(self, keys, raw=False):
         """
          Bulk read keys from elliptics
          keys - list of keys by name
@@ -389,7 +392,7 @@ class Session(libelliptics_python.elliptics_session):
         if type(keys) in set([tuple, list, set, dict]):
             keys = list(keys)
 
-        rv = super(Session, self).bulk_read(keys, cflags)
+	rv = super(Session, self).bulk_read(keys)
 
         if raw:
             return rv
