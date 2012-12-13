@@ -4,16 +4,14 @@ from distutils.core import setup
 
 vstr = '0.0.1'
 try:
-	f = open('CMakeLists.txt')
-	
-	for qstr in f:
-		if 'ELLIPTICS_VERSION_ABI' in qstr:
-			vstr = qstr.split()[1].split(')')[0].strip('"')
-			break
+	f = open('debian/changelog')
+	qstr = f.readline()
+	vstr = '.'.join(qstr.split()[1].strip("()").split(".")[:2])
 	f.close()
 except:
 	pass
 
+print vstr
 setup(name='elliptics',
       version=vstr,
       description='Elliptics - client library for distributed storage system',
