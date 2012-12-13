@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.0.1
+Version:	2.20.1.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 13 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.0
+- Added index_block_bloom_length and index_block_size eblob config parameters
+- Added blob_size_limit eblob parameter
+- Depend on 0.17.7 eblob and higher
+- Detect correct elliptics version in setup.py
+- Added more informative IO errors to python binding
+- Python binding update to new API
+- Added exception transformation for python
+- Fixed exception code for Item not found
+
 * Tue Dec 11 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.0.1
 - Async 'blocking' exec command.
 - Export dnet_send_ack()
