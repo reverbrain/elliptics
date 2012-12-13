@@ -706,7 +706,7 @@ static int dnet_blob_set_block_size(struct dnet_config_backend *b, char *key __u
 	return 0;
 }
 
-static int dnet_blob_set_blob_size(struct dnet_config_backend *b, char *key __unused, char *value)
+static int dnet_blob_set_blob_size(struct dnet_config_backend *b, char *key, char *value)
 {
 	struct eblob_backend_config *c = b->data;
 	uint64_t val = strtoul(value, NULL, 0);
@@ -720,7 +720,11 @@ static int dnet_blob_set_blob_size(struct dnet_config_backend *b, char *key __un
 	else if (strchr(value, 'K'))
 		val *= 1024;
 
-	c->data.blob_size = val;
+	if (!strcmp(key, "blob_size"))
+		c->data.blob_size = val;
+	else if (!strcmp(key, "blob_size_limit"))
+		c->data.blob_size_limit = val;
+
 	return 0;
 }
 
@@ -897,6 +901,7 @@ static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"blob_cache_size", dnet_blob_set_blob_cache_size},
 	{"defrag_timeout", dnet_blob_set_defrag_timeout},
 	{"defrag_percentage", dnet_blob_set_defrag_percentage},
+	{"blob_size_limit", dnet_blob_set_blob_size},
 };
 
 static struct dnet_config_backend dnet_eblob_backend = {
