@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
 Build-Depends: debhelper (>= 7.0.50~),
                cdbs,
-               eblob (>= 0.17.1),
+               eblob (>= 0.17.7),
                libboost-dev,
                libboost-program-options-dev,
                libboost-iostreams-dev,
