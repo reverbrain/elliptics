@@ -728,6 +728,22 @@ static int dnet_blob_set_blob_size(struct dnet_config_backend *b, char *key, cha
 	return 0;
 }
 
+static int dnet_blob_set_index_block_size(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct eblob_backend_config *c = b->data;
+
+	c->data.index_block_size = strtoul(value, NULL, 0);
+	return 0;
+}
+
+static int dnet_blob_set_index_block_bloom_length(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct eblob_backend_config *c = b->data;
+
+	c->data.index_block_bloom_length = strtoul(value, NULL, 0);
+	return 0;
+}
+
 static int dnet_blob_set_records_in_blob(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct eblob_backend_config *c = b->data;
@@ -902,6 +918,8 @@ static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"defrag_timeout", dnet_blob_set_defrag_timeout},
 	{"defrag_percentage", dnet_blob_set_defrag_percentage},
 	{"blob_size_limit", dnet_blob_set_blob_size},
+	{"index_block_size", dnet_blob_set_index_block_size},
+	{"index_block_bloom_length", dnet_blob_set_index_block_bloom_length},
 };
 
 static struct dnet_config_backend dnet_eblob_backend = {
