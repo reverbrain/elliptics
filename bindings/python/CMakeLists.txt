@@ -11,6 +11,8 @@ include_directories(${PYTHON_INCLUDE_DIRS})
 add_library(elliptics_python SHARED elliptics_python.cpp)
 target_link_libraries(elliptics_python ${Boost_LIBRARIES} ${PYTHON_LIBRARIES} elliptics_cpp)
 set_target_properties(elliptics_python PROPERTIES
+    PREFIX ""
+    OUTPUT_NAME "elliptics"
     VERSION ${ELLIPTICS_VERSION}
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     )

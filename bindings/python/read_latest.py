@@ -36,15 +36,15 @@ def write(n, id, aflags, groups):
 
 def main():
 	try:
-		log = elliptics_log_file("/dev/stderr", 8)
-		n = elliptics_node_python(log)
+		log = Logger("/dev/stderr", 8)
+		n = Node(log)
 
 		groups = [1, 2, 3]
 
 		n.add_groups(groups)
 		add_remotes(n)
 
-		id = elliptics_id([1, 2, 3, 4], 3, 0)
+		id = Id([1, 2, 3, 4], 3, 0)
 
 		aflags = 16 # no locks
 

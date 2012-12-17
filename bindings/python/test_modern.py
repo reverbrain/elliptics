@@ -13,7 +13,7 @@ try:
 	cfg.cookie = "0123456789012345678901234567890123456789"
 	cfg.config.wait_timeout = 60
 
-	n = elliptics.Node() #log) #, cfg)
+	n = elliptics.Node(log, cfg)
 	
 	n.add_remote("localhost", 1025)
 

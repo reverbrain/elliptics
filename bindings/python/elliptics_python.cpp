@@ -21,8 +21,11 @@
 
 #include <elliptics/cppdef.h>
 
+#include <map>
+
 using namespace boost::python;
-using namespace ioremap::elliptics;
+
+namespace ioremap { namespace elliptics {
 
 enum elliptics_cflags {
 	cflags_default = 0,
@@ -142,6 +145,27 @@ class elliptics_config {
 		}
 
 		struct dnet_config		config;
+};
+
+class elliptics_status : public dnet_node_status
+{
+	public:
+		elliptics_status()
+		{
+			nflags = 0;
+			status_flags = 0;
+			log_level = 0;
+		}
+
+		elliptics_status(const dnet_node_status &other) : dnet_node_status(other)
+		{
+		}
+
+		elliptics_status &operator =(const dnet_node_status &other)
+		{
+			dnet_node_status::operator =(other);
+			return *this;
+		}
 };
 
 class elliptics_node_python : public node, public wrapper<node> {
@@ -333,15 +357,15 @@ class elliptics_session: public session, public wrapper<session> {
 			return parse_lookup(lookup(raw));
 		}
 
-		struct dnet_node_status update_status_by_id(const struct elliptics_id &id, struct dnet_node_status &status) {
+		elliptics_status update_status_by_id(const struct elliptics_id &id, elliptics_status &status) {
 			struct dnet_id raw = id.to_dnet();
 
 			update_status(raw, &status);
 			return status;
 		}
 		
-		struct dnet_node_status update_status_by_string(const std::string &saddr, const int port, const int family,
-								struct dnet_node_status &status) {
+		elliptics_status update_status_by_string(const std::string &saddr, const int port, const int family,
+								elliptics_status &status) {
 			update_status(saddr.c_str(), port, family, &status);
 			return status;
 		}
@@ -412,23 +436,51 @@ class elliptics_session: public session, public wrapper<session> {
 			remove_raw(key(remote, type));
 		}
 
-		list bulk_read_by_name(const list &keys) {
-			unsigned int length = len(keys);
-
-			std::vector<std::string> k;
-			k.resize(length);
-
-			for (unsigned int i = 0; i < length; ++i)
-				k[i] = extract<std::string>(keys[i]);
-
-			std::vector<std::string> ret =  bulk_read(k);
-
-			list py_ret;
-			for (size_t i = 0; i < ret.size(); ++i) {
-				py_ret.append(ret[i]);
+		struct dnet_id_comparator
+		{
+			bool operator() (const struct dnet_id &first, const struct dnet_id &second)
+			{
+				return memcmp(first.id, second.id, sizeof(first.id)) < 0;
 			}
+		};
 
-			return py_ret;
+		api::object bulk_read_by_name(const list &keys, bool raw) {
+			size_t length = len(keys);
+
+			std::vector<std::string> std_keys;
+			std_keys.resize(length);
+
+			for (size_t i = 0; i < length; ++i)
+				std_keys[i] = extract<std::string>(keys[i]);
+
+			const std::vector<std::string> ret =  bulk_read(std_keys);
+
+			if (raw) {
+				list result;
+				for (size_t i = 0; i < ret.size(); ++i)
+					result.append(ret[i]);
+
+				return result;
+			} else {
+				boost::python::dict result;
+
+				std::map<struct dnet_id, std::string, dnet_id_comparator> keys_map;
+				for (size_t i = 0; i < length; ++i) {
+					key k(std_keys[i]);
+					transform(k);
+					keys_map.insert(std::make_pair(k.id(), std_keys[i]));
+				}
+
+				for (size_t i = 0; i < ret.size(); ++i) {
+					const std::string &line = ret[i];
+					const struct dnet_id &id = *reinterpret_cast<const struct dnet_id*>(line.c_str());
+					const uint64_t size = *reinterpret_cast<const uint64_t*>(line.c_str() + DNET_ID_SIZE);
+					const char *data = line.c_str() + DNET_ID_SIZE + sizeof(uint64_t);
+					result[keys_map[id]] = std::string(data, size);
+				}
+
+				return result;
+			}
 		}
 
 		list stat_log() {
@@ -518,9 +570,9 @@ class elliptics_error_translator
 
 		void initialize()
 		{
-			m_type = new_exception("elliptics_error");
-			register_type(-ENOENT, "elliptics_not_found_error");
-			register_type(-ETIMEDOUT, "elliptics_timeout_error");
+			m_type = new_exception("Error");
+			register_type(-ENOENT, "NotFoundError");
+			register_type(-ETIMEDOUT, "TimeoutError");
 		}
 
 		void register_type(int code, const char *name)
@@ -558,8 +610,24 @@ void ios_base_failure_translator(const std::ios_base::failure &exc)
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
 
-BOOST_PYTHON_MODULE(libelliptics_python) {
-	class_<error> error_class("elliptics_error_impl",
+std::string dnet_node_status_repr(const dnet_node_status &status)
+{
+	char buffer[128];
+	const size_t buffer_size = sizeof(buffer);
+	snprintf(buffer, buffer_size,
+		"<SessionStatus nflags:%x, status_flags:%x, log_mask:%x>",
+		status.nflags, status.status_flags, status.log_level);
+	buffer[buffer_size - 1] = '\0';
+	return buffer;
+}
+
+void logger_log(logger &log, const char *msg, int level)
+{
+	log.log(level, msg);
+}
+
+BOOST_PYTHON_MODULE(elliptics) {
+	class_<error> error_class("ErrorInfo",
 		init<int, std::string>());
 	error_class.def("__str__", &error::error_message);
 	error_class.add_property("message", &error::error_message);
@@ -573,14 +641,14 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 	register_exception_translator<error>(error_translator);
 	register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
 
-	class_<elliptics_id>("elliptics_id", init<>())
+	class_<elliptics_id>("Id", init<>())
 		.def(init<list, int, int>())
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_readwrite("type", &elliptics_id::type)
 	;
 
-	class_<elliptics_range>("elliptics_range", init<>())
+	class_<elliptics_range>("Range", init<>())
 		.def_readwrite("start", &elliptics_range::start)
 		.def_readwrite("end", &elliptics_range::end)
 		.def_readwrite("offset", &elliptics_range::offset)
@@ -592,20 +660,21 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("limit_num", &elliptics_range::limit_num)
 	;
 
-	class_<logger, boost::noncopyable>("elliptics_log", no_init)
+	class_<logger, boost::noncopyable>("AbstractLogger", no_init)
 		.def("log", &logger::log)
 	;
 
 	class_<file_logger, bases<logger> > file_logger_class(
-		"elliptics_log_file", init<const char *, const uint32_t>());
+		"Logger", init<const char *, const uint32_t>());
 
-	class_<dnet_node_status>("dnet_node_status", init<>())
+	class_<elliptics_status>("SessionStatus", init<>())
 		.def_readwrite("nflags", &dnet_node_status::nflags)
 		.def_readwrite("status_flags", &dnet_node_status::status_flags)
 		.def_readwrite("log_level", &dnet_node_status::log_level)
+		.def("__repr__", dnet_node_status_repr)
 	;
 
-	class_<dnet_config>("dnet_config", init<>())
+	class_<dnet_config>("dnet_config", no_init)
 		.def_readwrite("wait_timeout", &dnet_config::wait_timeout)
 		.def_readwrite("flags", &dnet_config::flags)
 		.def_readwrite("check_timeout", &dnet_config::check_timeout)
@@ -615,17 +684,18 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("client_prio", &dnet_config::client_prio)
 	;
 	
-	class_<elliptics_config>("elliptics_config", init<>())
+	class_<elliptics_config>("Config", init<>())
 		.def_readwrite("config", &elliptics_config::config)
 		.add_property("cookie", &elliptics_config::cookie_get, &elliptics_config::cookie_set)
 	;
 
-	class_<elliptics_node_python>("elliptics_node_python", init<logger>())
+	class_<elliptics_node_python>("Node", init<logger>())
 		.def(init<logger, elliptics_config &>())
-		.def("add_remote", &node::add_remote, add_remote_overloads())
+		.def("add_remote", &node::add_remote,
+			(arg("addr"), arg("port"), arg("family") = AF_INET))
 	;
 
-	class_<elliptics_session, boost::noncopyable>("elliptics_session", init<node &>())
+	class_<elliptics_session, boost::noncopyable>("Session", init<node &>())
 		.add_property("groups", &elliptics_session::get_groups,
 			&elliptics_session::set_groups)
 		.def("add_groups", &elliptics_session::set_groups)
@@ -642,22 +712,32 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("set_ioflags", &elliptics_session::set_ioflags)
 		.def("get_ioflags", &elliptics_session::get_ioflags)
 
-		.def("read_file", &elliptics_session::read_file_by_id)
-		.def("read_file", &elliptics_session::read_file_by_data_transform)
-		.def("write_file", &elliptics_session::write_file_by_id)
-		.def("write_file", &elliptics_session::write_file_by_data_transform)
+		.def("read_file", &elliptics_session::read_file_by_id,
+			(arg("key"), arg("filename"), arg("offset") = 0, arg("size") = 0))
+		.def("read_file", &elliptics_session::read_file_by_data_transform,
+			(arg("key"), arg("filename"), arg("offset") = 0, arg("size") = 0, arg("column") = 0))
+		.def("write_file", &elliptics_session::write_file_by_id,
+			(arg("key"), arg("filename"), arg("offset") = 0, arg("local_offset") = 0, arg("size") = 0))
+		.def("write_file", &elliptics_session::write_file_by_data_transform,
+			(arg("key"), arg("filename"), arg("offset") = 0, arg("local_offset") = 0, arg("size") = 0, arg("column") = 0))
 
-		.def("read_data", &elliptics_session::read_data_by_id)
-		.def("read_data", &elliptics_session::read_data_by_data_transform)
+		.def("read_data", &elliptics_session::read_data_by_id,
+			(arg("key"), arg("offset") = 0, arg("size") = 0))
+		.def("read_data", &elliptics_session::read_data_by_data_transform,
+			(arg("key"), arg("offset") = 0, arg("size") = 0, arg("column") = 0))
 
 		.def("prepare_latest", &elliptics_session::prepare_latest_by_id)
 		.def("prepare_latest_str", &elliptics_session::prepare_latest_by_id_str)
 
-		.def("read_latest", &elliptics_session::read_latest_by_id)
-		.def("read_latest", &elliptics_session::read_latest_by_data_transform)
+		.def("read_latest", &elliptics_session::read_latest_by_id,
+			(arg("key"), arg("offset") = 0, arg("size") = 0))
+		.def("read_latest", &elliptics_session::read_latest_by_data_transform,
+			(arg("key"), arg("offset") = 0, arg("size") = 0, arg("column") = 0))
 
-		.def("write_data", &elliptics_session::write_data_by_id)
-		.def("write_data", &elliptics_session::write_data_by_data_transform)
+		.def("write_data", &elliptics_session::write_data_by_id,
+			(arg("key"), arg("data"), arg("offset") = 0))
+		.def("write_data", &elliptics_session::write_data_by_data_transform,
+			(arg("key"), arg("data"), arg("offset") = 0, arg("column") = 0))
 
 		.def("write_metadata", &elliptics_session::write_metadata_by_id)
 		.def("write_metadata", &elliptics_session::write_metadata_by_data_transform)
@@ -686,7 +766,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("remove", &elliptics_session::remove_by_id)
 		.def("remove", &elliptics_session::remove_by_name)
 
-		.def("bulk_read", &elliptics_session::bulk_read_by_name)
+		.def("bulk_read", &elliptics_session::bulk_read_by_name,
+			(arg("keys"), arg("raw") = false))
 	;
 
 	enum_<elliptics_cflags>("command_flags")
@@ -719,3 +800,5 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.value("debug", log_level_debug)
 	;
 };
+
+} } // namespace ioremap::elliptics

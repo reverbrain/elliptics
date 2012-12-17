@@ -13,12 +13,12 @@ def upload_file(node, filename):
 	node.exec_name(filename, "script.py", content, 1)
 
 try:
-	cfg = elliptics_config()
+	cfg = Config()
 	cfg.config.wait_timeout = 30
 	cfg.config.check_timeout = 120
 
-	log = elliptics_log_file("/dev/stderr", 8)
-	n = elliptics_node_python(log, cfg)
+	log = Logger("/dev/stderr", 8)
+	n = Node(log, cfg)
 
 	n.add_groups([1,2,3])
 	remotes = [("172.16.136.1", 1025)]

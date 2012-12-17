@@ -3,15 +3,15 @@
 
 from libelliptics_python import *
 
-log = elliptics_log_file("/dev/stderr", 8)
-n = elliptics_node_python(log)
+log = Logger("/dev/stderr", 8)
+n = Node(log)
 
 group = 2
 
 n.add_groups([group])
 n.add_remote("localhost", 1025)
 
-r = elliptics_range()
+r = Range()
 r.start = [0, 0, 0, 0]
 r.end = [0xff, 0xdd]
 r.group_id = group

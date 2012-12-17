@@ -14,8 +14,8 @@ def sid(id, count=6):
 	return ret
 
 def main():
-	log = elliptics_log_file("/dev/stderr", 8)
-	n = elliptics_node_python(log)
+	log = Logger("/dev/stderr", 8)
+	n = Node(log)
 
 	group = 1
 
