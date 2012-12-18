@@ -1120,13 +1120,25 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int
 
 int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 {
+#if 0
 	int cork;
+#endif
 	int err = 0;
 	size_t offset = st->send_offset;
 
+#if 0
 	/* Use TCP_CORK to send headers and packet body in one piece */
 	cork = 1;
 	setsockopt(st->write_s, IPPROTO_TCP, TCP_CORK, &cork, 4);
+#endif
+	if (1) {
+		struct dnet_cmd *cmd = r->header;
+		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: %llx, start-sent: %zd/%zd.\n",
+			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
+			(unsigned long long)(cmd->trans &~ DNET_TRANS_REPLY),
+			(unsigned long long)cmd->size, (unsigned long long)cmd->flags,
+			st->send_offset, r->dsize + r->hsize + r->fsize);
+	}
 
 	if (r->hsize && r->header && st->send_offset < r->hsize) {
 		err = dnet_send_nolock(st, r->header + offset, r->hsize - offset);
@@ -1160,6 +1172,16 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 	}
 
 err_out_exit:
+
+	if (1) {
+		struct dnet_cmd *cmd = r->header;
+		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: %llx, finish-sent: %zd/%zd.\n",
+			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
+			(unsigned long long)(cmd->trans &~ DNET_TRANS_REPLY),
+			(unsigned long long)cmd->size, (unsigned long long)cmd->flags,
+			st->send_offset, r->dsize + r->hsize + r->fsize);
+	}
+
 	if (st->send_offset == (r->dsize + r->hsize + r->fsize)) {
 		pthread_mutex_lock(&st->send_lock);
 		list_del(&r->req_entry);
@@ -1173,10 +1195,10 @@ err_out_exit:
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: setting send need_exit to %d\n", dnet_state_dump_addr(st), err);
 		st->need_exit = err;
 	}
-
+#if 0
 	cork = 0;
 	setsockopt(st->write_s, IPPROTO_TCP, TCP_CORK, &cork, 4);
-
+#endif
 	return err;
 }
 
