@@ -1,3 +1,11 @@
+elliptics (2.20.1.1) unstable; urgency=low
+
+  * Greatly reduce ACK latencies
+  * Fixed smack's sync-to-disk interval commit
+  * Added leveldb into default config
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 18 Dec 2012 23:23:35 +0400
+
 elliptics (2.20.1.0) unstable; urgency=low
 
   * Added index_block_bloom_length and index_block_size eblob config parameters

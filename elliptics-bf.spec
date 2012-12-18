@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.1.0
+Version:	2.20.1.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Dec 18 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.1
+- Greatly reduce ACK latencies
+- Fixed smack's sync-to-disk interval commit
+- Added leveldb into default config
+
 * Thu Dec 13 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.0
 - Added index_block_bloom_length and index_block_size eblob config parameters
 - Added blob_size_limit eblob parameter
