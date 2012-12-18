@@ -18,6 +18,7 @@
 #include <boost/python/object.hpp>
 #include <boost/python/list.hpp>
 #include <boost/python/dict.hpp>
+#include <boost/python/stl_iterator.hpp>
 
 #include <elliptics/cppdef.h>
 
@@ -179,17 +180,19 @@ class elliptics_node_python : public node, public wrapper<node> {
 		elliptics_node_python(const node &n): node(n) {}
 };
 
+template <typename T>
+static std::vector<T> convert_to_vector(const api::object &list)
+{
+	stl_input_iterator<T> begin(list), end;
+	return std::vector<T>(begin, end);
+}
+
 class elliptics_session: public session, public wrapper<session> {
 	public:
 		elliptics_session(const node &n) : session(n) {}
 
-		void set_groups(const list &pgroups) {
-			std::vector<int> groups;
-
-			for (int i=0; i<len(pgroups); ++i)
-				groups.push_back(extract<int>(pgroups[i]));
-
-			session::set_groups(groups);
+		void set_groups(const api::object &groups) {
+			session::set_groups(convert_to_vector<int>(groups));
 		}
 
 		boost::python::list get_groups() {
@@ -202,18 +205,13 @@ class elliptics_session: public session, public wrapper<session> {
 			return res;
 		}
 
-		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const list &pgroups) {
+		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const api::object &groups) {
 			struct timespec ts;
 			memset(&ts, 0, sizeof(ts));
 
 			struct dnet_id raw = id.to_dnet();
 
-			std::vector<int> groups;
-
-			for (int i=0; i<len(pgroups); ++i)
-				groups.push_back(extract<int>(pgroups[i]));
-
-			write_metadata((const dnet_id&)raw, remote, groups, ts);
+			write_metadata((const dnet_id&)raw, remote, convert_to_vector<int>(groups), ts);
 		}
 
 		void write_metadata_by_data_transform(const std::string &remote) {
@@ -259,12 +257,10 @@ class elliptics_session: public session, public wrapper<session> {
 			return read_data_wait(key(remote, type), offset, size);
 		}
 
-		list prepare_latest_by_id(const struct elliptics_id &id, list gl) {
+		list prepare_latest_by_id(const struct elliptics_id &id, const api::object &gl) {
 			struct dnet_id raw = id.to_dnet();
 
-			std::vector<int> groups;
-			for (int i = 0; i < len(gl); ++i)
-				groups.push_back(extract<int>(gl[i]));
+			std::vector<int> groups = convert_to_vector<int>(gl);
 
 			prepare_latest(raw, groups);
 
@@ -275,12 +271,10 @@ class elliptics_session: public session, public wrapper<session> {
 			return l;
 		}
 
-		std::string prepare_latest_by_id_str(const struct elliptics_id &id, list gl) {
+		std::string prepare_latest_by_id_str(const struct elliptics_id &id, const api::object &gl) {
 			struct dnet_id raw = id.to_dnet();
 
-			std::vector<int> groups;
-			for (int i = 0; i < len(gl); ++i)
-				groups.push_back(extract<int>(gl[i]));
+			std::vector<int> groups = convert_to_vector<int>(gl);
 
 			prepare_latest(raw, groups);
 
@@ -444,14 +438,8 @@ class elliptics_session: public session, public wrapper<session> {
 			}
 		};
 
-		api::object bulk_read_by_name(const list &keys, bool raw) {
-			size_t length = len(keys);
-
-			std::vector<std::string> std_keys;
-			std_keys.resize(length);
-
-			for (size_t i = 0; i < length; ++i)
-				std_keys[i] = extract<std::string>(keys[i]);
+		api::object bulk_read_by_name(const api::object &keys, bool raw) {
+			std::vector<std::string> std_keys = convert_to_vector<std::string>(keys);
 
 			const std::vector<std::string> ret =  bulk_read(std_keys);
 
@@ -465,7 +453,7 @@ class elliptics_session: public session, public wrapper<session> {
 				boost::python::dict result;
 
 				std::map<struct dnet_id, std::string, dnet_id_comparator> keys_map;
-				for (size_t i = 0; i < length; ++i) {
+				for (size_t i = 0; i < std_keys.size(); ++i) {
 					key k(std_keys[i]);
 					transform(k);
 					keys_map.insert(std::make_pair(k.id(), std_keys[i]));
@@ -624,6 +612,11 @@ std::string dnet_node_status_repr(const dnet_node_status &status)
 void logger_log(logger &log, const char *msg, int level)
 {
 	log.log(level, msg);
+}
+
+void next_impl(api::object &value, const api::object &next)
+{
+	value = next();
 }
 
 BOOST_PYTHON_MODULE(elliptics) {
