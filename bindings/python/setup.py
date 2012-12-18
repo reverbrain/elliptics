@@ -16,7 +16,6 @@ setup(name='elliptics',
       version=vstr,
       description='Elliptics - client library for distributed storage system',
       url='http://www.ioremap.net/projects/elliptics',
-      package_dir = {'': 'bindings/python'},
       py_modules=['elliptics'],
       license = 'GPLv2',
      )
