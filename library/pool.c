@@ -435,6 +435,15 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 		}
 
 		err = dnet_send_request(st, r);
+		if (st->send_offset == (r->dsize + r->hsize + r->fsize)) {
+			pthread_mutex_lock(&st->send_lock);
+			list_del(&r->req_entry);
+			pthread_mutex_unlock(&st->send_lock);
+
+			dnet_io_req_free(r);
+			st->send_offset = 0;
+		}
+
 		if (err)
 			goto err_out_exit;
 	}

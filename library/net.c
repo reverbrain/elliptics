@@ -304,10 +304,25 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	}
 
 	pthread_mutex_lock(&st->send_lock);
-	list_add_tail(&r->req_entry, &st->send_list);
+	if (!list_empty(&st->send_list)) {
 
-	if (!st->need_exit)
-		dnet_schedule_send(st);
+		list_add_tail(&r->req_entry, &st->send_list);
+
+		if (!st->need_exit)
+			dnet_schedule_send(st);
+	} else {
+		dnet_send_request(st, r);
+		if (st->send_offset == (r->dsize + r->hsize + r->fsize)) {
+			dnet_io_req_free(r);
+			st->send_offset = 0;
+		} else {
+			list_add_tail(&r->req_entry, &st->send_list);
+
+			if (!st->need_exit)
+				dnet_schedule_send(st);
+		}
+	}
+
 	pthread_mutex_unlock(&st->send_lock);
 
 	return 0;
@@ -1120,17 +1135,17 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int
 
 int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 {
-#if 0
 	int cork;
-#endif
 	int err = 0;
 	size_t offset = st->send_offset;
+	size_t total_size = r->dsize + r->hsize + r->fsize;
 
-#if 0
-	/* Use TCP_CORK to send headers and packet body in one piece */
-	cork = 1;
-	setsockopt(st->write_s, IPPROTO_TCP, TCP_CORK, &cork, 4);
-#endif
+	if (total_size > sizeof(struct dnet_cmd)) {
+		/* Use TCP_CORK to send headers and packet body in one piece */
+		cork = 1;
+		setsockopt(st->write_s, IPPROTO_TCP, TCP_CORK, &cork, 4);
+	}
+
 	if (1) {
 		struct dnet_cmd *cmd = r->header;
 		if (!cmd)
@@ -1186,23 +1201,24 @@ err_out_exit:
 			st->send_offset, r->dsize + r->hsize + r->fsize);
 	}
 
-	if (st->send_offset == (r->dsize + r->hsize + r->fsize)) {
-		pthread_mutex_lock(&st->send_lock);
-		list_del(&r->req_entry);
-		pthread_mutex_unlock(&st->send_lock);
-
-		dnet_io_req_free(r);
-		st->send_offset = 0;
-	}
-
 	if (err && err != -EAGAIN) {
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: setting send need_exit to %d\n", dnet_state_dump_addr(st), err);
 		st->need_exit = err;
 	}
-#if 0
-	cork = 0;
-	setsockopt(st->write_s, IPPROTO_TCP, TCP_CORK, &cork, 4);
-#endif
+
+	if (total_size > sizeof(struct dnet_cmd)) {
+		cork = 0;
+		setsockopt(st->write_s, IPPROTO_TCP, TCP_CORK, &cork, 4);
+	}
+
+	/*
+	 * Flush TCP output pipeline if we've sent whole request.
+	 */
+	if (st->send_offset == r->dsize + r->hsize + r->fsize) {
+		int nodelay = 1;
+		setsockopt(st->write_s, IPPROTO_TCP, TCP_NODELAY, &nodelay, 4);
+	}
+
 	return err;
 }
 
