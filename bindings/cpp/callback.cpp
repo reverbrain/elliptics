@@ -198,6 +198,40 @@ stat_result &stat_result::operator =(const stat_result &other)
 	return *this;
 }
 
+dnet_stat *stat_result::statistics() const
+{
+	return data_skiper(m_data->data)
+		.skip<struct dnet_addr>()
+		.skip<struct dnet_cmd>()
+		.data<struct dnet_stat>();
+}
+
+stat_count_result::stat_count_result()
+{
+}
+
+stat_count_result::stat_count_result(const stat_count_result &other) : callback_result(other)
+{
+}
+
+stat_count_result::~stat_count_result()
+{
+}
+
+stat_count_result &stat_count_result::operator =(const stat_count_result &other)
+{
+	callback_result::operator =(other);
+	return *this;
+}
+
+struct dnet_addr_stat *stat_count_result::statistics() const
+{
+	return data_skiper(m_data->data)
+		.skip<struct dnet_addr>()
+		.skip<struct dnet_cmd>()
+		.data<struct dnet_addr_stat>();
+}
+
 class callback_data
 {
 	public:

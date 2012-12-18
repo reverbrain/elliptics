@@ -517,74 +517,28 @@ void session::stat_log(const boost::function<void (const std::vector<stat_result
 	cb->handler = handler;
 
 	dnet_style_handler<stat_callback>::start(cb);
-
-	callback_any c;
-	int err = dnet_request_stat(m_data->session_ptr, NULL, DNET_CMD_STAT, 0,
-				callback::handler, &c);
-	if (err < 0) {
-		throw_error(err, "Failed to request statistics");
-	}
 }
 
-std::string session::stat_log()
+std::vector<stat_result> session::stat_log()
 {
-	callback_any c;
-	std::string ret;
-	int err;
+	waiter<std::vector<stat_result> > w;
+	stat_log(w.handler());
+	return w.result();
+}
 
-	err = dnet_request_stat(m_data->session_ptr, NULL, DNET_CMD_STAT, 0,
-				callback::handler, &c);
-	if (err < 0) {
-		throw_error(err, "Failed to request statistics");
-	}
+void session::stat_log_count(const boost::function<void (const std::vector<stat_count_result> &)> &handler)
+{
+	stat_count_callback::ptr cb = boost::make_shared<stat_count_callback>(*this);
+	cb->handler = handler;
 
-	c.wait(err);
-	ret = c.any_result().raw_data();
+	dnet_style_handler<stat_count_callback>::start(cb);
+}
 
-	/* example reply parsing */
-#if 0
-	float la[3];
-	const void *data = ret.data();
-	int size = ret.size();
-	char id_str[DNET_ID_SIZE*2 + 1];
-	char addr_str[128];
-
-	while (size) {
-		struct dnet_addr *addr = (struct dnet_addr *)data;
-		struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-		struct dnet_stat *st = (struct dnet_stat *)(cmd + 1);
-
-		dnet_convert_stat(st);
-
-		la[0] = (float)st->la[0] / 100.0;
-		la[1] = (float)st->la[1] / 100.0;
-		la[2] = (float)st->la[2] / 100.0;
-
-		printf(	"<stat addr=\"%s\" id=\"%s\"><la>%.2f %.2f %.2f</la>"
-			"<memtotal>%llu KB</memtotal><memfree>%llu KB</memfree><memcached>%llu KB</memcached>"
-			"<storage_size>%llu MB</storage_size><available_size>%llu MB</available_size>"
-			"<files>%llu</files><fsid>0x%llx</fsid></stat>",
-			dnet_server_convert_dnet_addr_raw(addr, addr_str, sizeof(addr_str)),
-			dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id_str),
-			la[0], la[1], la[2],
-			(unsigned long long)st->vm_total,
-			(unsigned long long)st->vm_free,
-			(unsigned long long)st->vm_cached,
-			(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
-			(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),
-			(unsigned long long)st->files, (unsigned long long)st->fsid);
-		printf("\n");
-
-		int sz = sizeof(*addr) + sizeof(*cmd) + cmd->size;
-
-		size -= sz;
-		data += sz;
-	}
-#endif
-
-	if (ret.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + sizeof(struct dnet_stat))
-		throw_error(-ENOENT, "Failed to request statistics: not enough data returned");
-	return ret;
+std::vector<stat_count_result> session::stat_log_count()
+{
+	waiter<std::vector<stat_count_result> > w;
+	stat_log_count(w.handler());
+	return w.result();
 }
 
 int session::state_num(void)

@@ -67,7 +67,7 @@ class default_callback
 			m_count = count;
 		}
 
-		bool handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
+		bool handle(struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func, void *)
 		{
 			if (is_trans_destroyed(state, cmd)) {
 				++m_complete;
@@ -120,19 +120,18 @@ class default_callback
 		size_t m_complete;
 };
 
-class stat_callback : public default_callback
+template <typename Result, dnet_commands Command>
+class base_stat_callback : public default_callback
 {
 	public:
-		typedef boost::shared_ptr<stat_callback> ptr;
-
-		stat_callback(const session &sess) : sess(sess)
+		base_stat_callback(const session &sess) : sess(sess)
 		{
 		}
 
 		void start(complete_func func, void *priv)
 		{
-			int err = dnet_request_stat(m_data->session_ptr, NULL, DNET_CMD_STAT, 0,
-						func, priv);
+			int err = dnet_request_stat(sess.get_native(),
+				NULL, Command, 0, func, priv);
 			if (err < 0) {
 				throw_error(err, "Failed to request statistics");
 			}
@@ -140,7 +139,7 @@ class stat_callback : public default_callback
 
 		void finish(boost::exception_ptr exc)
 		{
-			std::vector<stat_result> res;
+			std::vector<Result> res;
 			if (exc) {
 				res.resize(1);
 				res[0].set_exception(exc);
@@ -148,15 +147,49 @@ class stat_callback : public default_callback
 				res.reserve(results().size());
 
 				for (size_t i = 0; i < results().size(); ++i) {
-					res.push_back(result_at<stat_result>(i));
-					stat_result &result = res[i];
+					res.push_back(result_at<Result>(i));
+					convert(res[i]);
 				}
 			}
 			handler(res);
 		}
 
+		virtual void convert(Result &result) = 0;
+
+		dnet_commands command;
 		session sess;
-		boost::function<void (const std::vector<stat_result> &)> handler;
+		boost::recursive_mutex mutex;
+		boost::function<void (const std::vector<Result> &)> handler;
+};
+
+class stat_callback : public base_stat_callback<stat_result, DNET_CMD_STAT>
+{
+	public:
+		typedef boost::shared_ptr<stat_callback> ptr;
+
+		stat_callback(const session &sess) : base_stat_callback(sess)
+		{
+		}
+
+		void convert(stat_result &result)
+		{
+			dnet_convert_stat(result.statistics());
+		}
+};
+
+class stat_count_callback : public base_stat_callback<stat_count_result, DNET_CMD_STAT_COUNT>
+{
+	public:
+		typedef boost::shared_ptr<stat_count_callback> ptr;
+
+		stat_count_callback(const session &sess) : base_stat_callback(sess)
+		{
+		}
+
+		void convert(stat_count_result &result)
+		{
+			dnet_convert_addr_stat(result.statistics(), 0);
+		}
 };
 
 class lookup_callback
@@ -170,7 +203,7 @@ class lookup_callback
 
 		bool handle(struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
 		{
-			if (cb.handle(state, cmd)) {
+			if (cb.handle(state, cmd, func, priv)) {
 				// cb has ended it's work
 				if (cb.is_valid()) {
 					// correct answer is found
@@ -258,6 +291,22 @@ class lookup_callback
 };
 
 template <typename T>
+void check_for_exception(const T &result)
+{
+	if (result.exception())
+		boost::rethrow_exception(result.exception());
+}
+
+template <typename T>
+void check_for_exception(const std::vector<T> &result)
+{
+	if (result.empty())
+		throw_error(-ENOENT, "No data available");
+	else if (result[0].exception())
+		boost::rethrow_exception(result[0].exception());
+}
+
+template <typename T>
 class waiter
 {
 	ELLIPTICS_DISABLE_COPY(waiter)
@@ -285,8 +334,7 @@ class waiter
 		const T &result()
 		{
 			wait();
-			if (m_result.exception())
-				boost::rethrow_exception(m_result.exception());
+			check_for_exception(m_result);
 			return m_result;
 		}
 
@@ -346,7 +394,7 @@ struct dnet_style_handler
 
 	static void start(const boost::shared_ptr<T> &cb)
 	{
-		lookup_callback::ptr *cb_ptr = new lookup_callback::ptr(cb);
+		boost::shared_ptr<T> *cb_ptr = new boost::shared_ptr<T>(cb);
 		cb->start(handler, cb_ptr);
 	}
 };

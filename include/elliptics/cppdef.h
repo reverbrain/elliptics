@@ -147,6 +147,20 @@ class stat_result : public callback_result
 		~stat_result();
 
 		stat_result &operator =(const stat_result &other);
+
+		struct dnet_stat *statistics() const;
+};
+
+class stat_count_result : public callback_result
+{
+	public:
+		stat_count_result();
+		stat_count_result(const stat_count_result &other);
+		~stat_count_result();
+
+		stat_count_result &operator =(const stat_count_result &other);
+
+		struct dnet_addr_stat *statistics() const;
 };
 
 class callback
@@ -191,6 +205,20 @@ class callback_all : public callback
 		virtual bool check_states(const std::vector<int> &statuses);
 };
 
+class transport_control
+{
+	public:
+		transport_control();
+		transport_control(const key &id, unsigned int cmd, uint64_t cflags = 0);
+
+		void set_key(const key &id);
+		void set_command(unsigned int cmd);
+		void set_cflags(uint64_t cflags);
+		struct dnet_trans_control get_native() const;
+
+	private:
+		struct dnet_trans_control m_data;
+};
 
 struct address
 {
@@ -361,7 +389,10 @@ class session
 		void 			remove(const key &id);
 
 		void			stat_log(const boost::function<void (const std::vector<stat_result> &)> &handler);
-		std::string		stat_log();
+		std::vector<stat_result>	stat_log();
+
+		void			stat_log_count(const boost::function<void (const std::vector<stat_count_result> &)> &handler);
+		std::vector<stat_count_result>	stat_log_count();
 
 		int			state_num();
 		

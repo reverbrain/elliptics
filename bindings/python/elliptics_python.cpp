@@ -467,40 +467,23 @@ class elliptics_session: public session, public wrapper<session> {
 			}
 		}
 
-		list stat_log() {
+		list stat_log_count() {
 			list statistics;
-			callback_any c;
-			std::string ret;
-			int err;
-			int i;
 
-			err = dnet_request_stat(get_native(), NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL,
-						callback::handler, &c);
-			if (err < 0) {
-				std::ostringstream str;
-				str << "Failed to request statistics: " << err;
-				throw std::runtime_error(str.str());
-			}
+			const std::vector<stat_count_result> result = session::stat_log_count();
 
-			c.wait(err);
-			ret = c.any_result().raw_data();
+			for (size_t i = 0; i < result.size(); ++i) {
+				const stat_count_result &data = result[i];
 
-			const void *data = ret.data();
-			int size = ret.size();
-
-			while (size > 0) {
-				dict node_stat, storage_commands, proxy_commands, counters;
-				struct dnet_addr *addr = (struct dnet_addr *)data;
-				struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-				if (cmd->size <= sizeof(struct dnet_addr_stat)) {
-					size -= cmd->size + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd);
-					data = (char *)data + cmd->size + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd);
+				if (data.size() <= sizeof(struct dnet_addr_stat))
 					continue;
-				}
 
-				struct dnet_addr_stat *as = (struct dnet_addr_stat *)(cmd + 1);
+				dict node_stat, storage_commands, proxy_commands, counters;
+				struct dnet_addr *addr = data.address();
+				struct dnet_cmd *cmd = data.command();
 
-				dnet_convert_addr_stat(as, 0);
+				struct dnet_addr_stat *as = data.statistics();
+
 				std::string address(dnet_server_convert_dnet_addr(addr));
 				node_stat[std::string("addr")] = address;
 				node_stat[std::string("group_id")] = cmd->id.group_id;
@@ -523,10 +506,6 @@ class elliptics_session: public session, public wrapper<session> {
 				node_stat["counters"] = counters;
 
 				statistics.append(node_stat);
-
-				int sz = sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
-				size -= sz;
-				data = (char *)data + sz;
 			}
 
 			return statistics;
@@ -747,7 +726,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("read_data_range", &elliptics_session::read_data_range)
 
 		.def("get_routes", &elliptics_session::get_routes)
-		.def("stat_log", &elliptics_session::stat_log)
+		.def("stat_log", &elliptics_session::stat_log_count)
 
 		.def("exec_event", &elliptics_session::exec_name)
 		.def("exec_event", &elliptics_session::exec_name_by_name)
