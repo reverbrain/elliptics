@@ -1213,6 +1213,11 @@ err_out_exit:
 
 	/*
 	 * Flush TCP output pipeline if we've sent whole request.
+	 *
+	 * We do not destroy request here, it is postponed to caller.
+	 * Function can be called without lock - default call path from network processing thread and dnet_process_send_single()
+	 * or under st->send_lock, if queue was empty and dnet_send*() caller directly invoked this function from dnet_io_req_queue()
+	 * instead of queueing.
 	 */
 	if (st->send_offset == r->dsize + r->hsize + r->fsize) {
 		int nodelay = 1;
