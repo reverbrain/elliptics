@@ -270,7 +270,7 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	void *buf;
 	struct dnet_io_req *r;
 	int offset = 0;
-	int err;
+	int err = 0;
 
 	buf = r = malloc(sizeof(struct dnet_io_req) + orig->dsize + orig->hsize);
 	if (!r) {
@@ -311,7 +311,7 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 		if (!st->need_exit)
 			dnet_schedule_send(st);
 	} else {
-		dnet_send_request(st, r);
+		err = dnet_send_request(st, r);
 		if (st->send_offset == (r->dsize + r->hsize + r->fsize)) {
 			dnet_io_req_free(r);
 			st->send_offset = 0;
@@ -324,8 +324,6 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	}
 
 	pthread_mutex_unlock(&st->send_lock);
-
-	return 0;
 
 err_out_exit:
 	return err;
