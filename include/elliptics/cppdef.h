@@ -112,8 +112,8 @@ class callback_result
 		void			*data() const;
 		uint64_t		size() const;
 		template <typename T>
-		inline const T		*data() const
-		{ return reinterpret_cast<const T*>(data()); }
+		inline T		*data() const
+		{ return reinterpret_cast<T *>(data()); }
 
 		boost::exception_ptr	exception() const;
 		void			set_exception(const boost::exception_ptr &exc);
@@ -163,57 +163,17 @@ class stat_count_result : public callback_result
 		struct dnet_addr_stat *statistics() const;
 };
 
-class callback
-{
-	ELLIPTICS_DISABLE_COPY(callback)
-	public:
-		callback();
-		virtual ~callback();
-
-		virtual void handle(struct dnet_net_state *state, struct dnet_cmd *cmd);
-		virtual bool check_states(const std::vector<int> &statuses) = 0;
-		void set_count(int count);
-
-		void wait(int completed = 1);
-		const std::vector<callback_result> &results() const;
-
-		void *data() const;
-
-		static int handler(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv);
-
-	protected:
-		callback_data *m_data;
-};
-
-class callback_any : public callback
-{
-	public:
-		callback_any();
-		~callback_any();
-
-		callback_result any_result() const;
-
-		virtual bool check_states(const std::vector<int> &statuses);
-};
-
-class callback_all : public callback
-{
-	public:
-		callback_all();
-		~callback_all();
-
-		virtual bool check_states(const std::vector<int> &statuses);
-};
-
 class transport_control
 {
 	public:
 		transport_control();
-		transport_control(const key &id, unsigned int cmd, uint64_t cflags = 0);
+		transport_control(const struct dnet_id &id, unsigned int cmd, uint64_t cflags = 0);
 
-		void set_key(const key &id);
+		void set_key(const struct dnet_id &id);
 		void set_command(unsigned int cmd);
 		void set_cflags(uint64_t cflags);
+		void set_data(void *data, unsigned int size);
+
 		struct dnet_trans_control get_native() const;
 
 	private:
@@ -395,8 +355,9 @@ class session
 		std::vector<stat_count_result>	stat_log_count();
 
 		int			state_num();
-		
-		int			request_cmd(struct dnet_trans_control &ctl);
+
+		std::vector<callback_result>	request_cmd(const transport_control &ctl);
+		void				request_cmd(const transport_control &ctl, const boost::function<void (const std::vector<callback_result> &)> &handler);
 
 		std::string		read_metadata(const key &id);
 

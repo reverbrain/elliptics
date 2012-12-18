@@ -488,16 +488,16 @@ class elliptics_session: public session, public wrapper<session> {
 				node_stat[std::string("addr")] = address;
 				node_stat[std::string("group_id")] = cmd->id.group_id;
 
-				for (i = 0; i < as->num; ++i) {
-					if (i < as->cmd_num) {
-						storage_commands[std::string(dnet_counter_string(i, as->cmd_num))] =
-								make_tuple((unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
-					} else if (i < (as->cmd_num * 2)) {
-						proxy_commands[std::string(dnet_counter_string(i, as->cmd_num))] =
-								make_tuple((unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
+				for (int j = 0; j < as->num; ++j) {
+					if (j < as->cmd_num) {
+						storage_commands[std::string(dnet_counter_string(j, as->cmd_num))] =
+								make_tuple((unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
+					} else if (j < (as->cmd_num * 2)) {
+						proxy_commands[std::string(dnet_counter_string(j, as->cmd_num))] =
+								make_tuple((unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
 					} else {
-						counters[std::string(dnet_counter_string(i, as->cmd_num))] =
-								make_tuple((unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
+						counters[std::string(dnet_counter_string(j, as->cmd_num))] =
+								make_tuple((unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
 					}
 				}
 

@@ -47,6 +47,45 @@ class cstyle_scoped_pointer
 		T *m_data;
 };
 
+transport_control::transport_control()
+{
+	memset(&m_data, 0, sizeof(m_data));
+}
+
+transport_control::transport_control(const struct dnet_id &id, unsigned int cmd, uint64_t cflags)
+{
+	memset(&m_data, 0, sizeof(m_data));
+	memcpy(&m_data.id, &id, sizeof(id));
+	m_data.cmd = cmd;
+	m_data.cflags = cflags;
+}
+
+void transport_control::set_key(const struct dnet_id &id)
+{
+	memcpy(&m_data.id, &id, sizeof(id));
+}
+
+void transport_control::set_command(unsigned int cmd)
+{
+	m_data.cmd = cmd;
+}
+
+void transport_control::set_cflags(uint64_t cflags)
+{
+	m_data.cflags = cflags;
+}
+
+void transport_control::set_data(void *data, unsigned int size)
+{
+	m_data.data = data;
+	m_data.size = size;
+}
+
+struct dnet_trans_control transport_control::get_native() const
+{
+	return m_data;
+}
+
 class session_data
 {
 	public:
@@ -546,16 +585,19 @@ int session::state_num(void)
 	return dnet_state_num(m_data->session_ptr);
 }
 
-int session::request_cmd(struct dnet_trans_control &ctl)
+std::vector<callback_result> session::request_cmd(const transport_control &ctl)
 {
-	int err;
+	waiter<std::vector<callback_result> > w;
+	request_cmd(ctl, w.handler());
+	return w.result();
+}
 
-	err = dnet_request_cmd(m_data->session_ptr, &ctl);
-	if (err < 0) {
-		throw_error(err, "failed to request cmd: %s", dnet_cmd_string(ctl.cmd));
-	}
+void session::request_cmd(const transport_control &ctl, const boost::function<void (const std::vector<callback_result> &)> &handler)
+{
+	cmd_callback::ptr cb = boost::make_shared<cmd_callback>(*this, ctl);
+	cb->handler = handler;
 
-	return err;
+	dnet_style_handler<cmd_callback>::start(cb);
 }
 
 void session::update_status(const char *saddr, const int port, const int family, struct dnet_node_status *status)

@@ -147,14 +147,24 @@ class base_stat_callback : public default_callback
 				res.reserve(results().size());
 
 				for (size_t i = 0; i < results().size(); ++i) {
-					res.push_back(result_at<Result>(i));
-					convert(res[i]);
+					Result result = result_at<Result>(i);
+					if (convert(result))
+						res.push_back(result);
 				}
+			}
+			if (res.empty()) {
+				res.resize(1);
+				try {
+					throw_error(-ENOENT, "Failed to request statistics");
+				} catch (std::exception &e) {
+					exc = boost::copy_exception(e);
+				}
+				res[0].set_exception(exc);
 			}
 			handler(res);
 		}
 
-		virtual void convert(Result &result) = 0;
+		virtual bool convert(Result &result) = 0;
 
 		dnet_commands command;
 		session sess;
@@ -171,9 +181,12 @@ class stat_callback : public base_stat_callback<stat_result, DNET_CMD_STAT>
 		{
 		}
 
-		void convert(stat_result &result)
+		bool convert(stat_result &result)
 		{
+			if (result.size() < sizeof(struct dnet_stat))
+				return false;
 			dnet_convert_stat(result.statistics());
+			return true;
 		}
 };
 
@@ -186,9 +199,12 @@ class stat_count_callback : public base_stat_callback<stat_count_result, DNET_CM
 		{
 		}
 
-		void convert(stat_count_result &result)
+		bool convert(stat_count_result &result)
 		{
+			if (result.size() <= sizeof(struct dnet_addr_stat))
+				return false;
 			dnet_convert_addr_stat(result.statistics(), 0);
+			return true;
 		}
 };
 
@@ -248,6 +264,7 @@ class lookup_callback
 					}
 				}
 			}
+			typedef boost::shared_ptr<lookup_callback> ptr;
 			at_iterator = false;
 			// there is no success :(
 			throw_error(-ENOENT, kid, "Failed to lookup ID");
@@ -288,6 +305,43 @@ class lookup_callback
 		std::vector<int> groups;
 		boost::recursive_mutex mutex;
 		boost::function<void (const lookup_result &)> handler;
+};
+
+class cmd_callback : public default_callback
+{
+	public:
+		typedef boost::shared_ptr<cmd_callback> ptr;
+
+		cmd_callback(const session &sess, const transport_control &ctl) : sess(sess), ctl(ctl.get_native())
+		{
+		}
+
+		void start(complete_func func, void *priv)
+		{
+			ctl.complete = func;
+			ctl.priv = priv;
+
+			int err = dnet_request_cmd(sess.get_native(), &ctl);
+			if (err < 0) {
+				throw_error(err, "failed to request cmd: %s", dnet_cmd_string(ctl.cmd));
+			}
+			set_count(err);
+		}
+
+		void finish(boost::exception_ptr exc)
+		{
+			std::vector<callback_result> res;
+			if (exc) {
+				res.resize(1);
+				res[0].set_exception(exc);
+			}
+			handler(res);
+		}
+
+		session sess;
+		dnet_trans_control ctl;
+		boost::recursive_mutex mutex;
+		boost::function<void (const std::vector<callback_result> &)> handler;
 };
 
 template <typename T>
