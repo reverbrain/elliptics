@@ -35,15 +35,20 @@ class callback_result_data
 
 		callback_result_data(struct dnet_net_state *state, struct dnet_cmd *cmd)
 		{
-			data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
-			data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
+			const size_t size = sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
+			void *allocated = malloc(size);
+			if (!allocated)
+				throw std::bad_alloc();
+			data = data_pointer(allocated, size);
+			memcpy(data.data(), dnet_state_addr(state), sizeof(struct dnet_addr));
+			memcpy(data.data(), cmd, sizeof(struct dnet_cmd) + cmd->size);
 		}
 
 		~callback_result_data()
 		{
 		}
 
-		std::string data;
+		data_pointer data;
 		boost::exception_ptr exc;
 
 	private:

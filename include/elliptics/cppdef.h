@@ -94,6 +94,49 @@ class default_callback;
 class callback_data;
 class callback_result_data;
 
+class data_pointer
+{
+	public:
+		data_pointer() : m_index(0), m_size(0) {}
+
+		data_pointer(void *data, size_t size) : m_data(data, deleter), m_index(0), m_size(size)
+		{
+		}
+
+		template <typename T>
+		data_pointer skip()
+		{
+			data_pointer tmp(*this);
+			tmp.m_index += sizeof(T);
+			return tmp;
+		}
+
+		void *data()
+		{
+			if (m_index >= m_size)
+				throw not_found_error("null pointer exception");
+			return reinterpret_cast<char*>(m_data.get()) + m_index;
+		}
+
+		template <typename T>
+		T *data()
+		{
+			if (m_index + sizeof(T) > m_size)
+				throw not_found_error("null pointer exception");
+			return reinterpret_cast<T *>(data());
+		}
+
+		size_t size() const { return m_size; }
+		bool empty() const { return m_index < m_size; }
+
+	private:
+		static void deleter(void *data) { free(data); }
+
+		boost::shared_ptr<void> m_data;
+		size_t m_index;
+		size_t m_size;
+};
+
 class callback_result
 {
 	public:
@@ -105,15 +148,14 @@ class callback_result
 		callback_result &operator =(const callback_result &other);
 
 		bool is_valid() const;
-		std::string raw_data() const;
 		uint32_t		group() const;
 		struct dnet_addr	*address() const;
 		struct dnet_cmd		*command() const;
-		void			*data() const;
+		data_pointer		data() const;
 		uint64_t		size() const;
 		template <typename T>
 		inline T		*data() const
-		{ return reinterpret_cast<T *>(data()); }
+		{ return data().data<T>(); }
 
 		boost::exception_ptr	exception() const;
 		void			set_exception(const boost::exception_ptr &exc);

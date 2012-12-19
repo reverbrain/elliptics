@@ -28,43 +28,6 @@
 
 namespace ioremap { namespace elliptics {
 
-struct data_skiper
-{
-	public:
-		data_skiper(char *data, size_t size) : m_data(data), m_size(size)
-		{
-		}
-
-		data_skiper(std::string &data) : m_data(&data[0]), m_size(data.length())
-		{
-		}
-
-		template <typename T>
-		data_skiper &skip()
-		{
-			if (m_size < sizeof(T)) {
-				m_size = 0;
-				m_data = NULL;
-			} else {
-				m_data += sizeof(T);
-				m_size -= sizeof(T);
-			}
-			return *this;
-		}
-
-		template <typename T>
-		T *data()
-		{
-			if (m_size == 0)
-				throw not_found_error("null pointer exception");
-			return reinterpret_cast<T *>(m_size > 0 ? m_data : NULL);
-		}
-
-	private:
-		char *m_data;
-		size_t m_size;
-};
-
 callback_result::callback_result() : m_data(boost::make_shared<callback_result_data>())
 {
 }
@@ -92,30 +55,24 @@ bool callback_result::is_valid() const
 	return !m_data->data.empty();
 }
 
-std::string callback_result::raw_data() const
-{
-	return m_data->data;
-}
-
 struct dnet_addr *callback_result::address() const
 {
-	return data_skiper(m_data->data)
+	return m_data->data
 		.data<struct dnet_addr>();
 }
 
 struct dnet_cmd *callback_result::command() const
 {
-	return data_skiper(m_data->data)
+	return m_data->data
 		.skip<struct dnet_addr>()
 		.data<struct dnet_cmd>();
 }
 
-void *callback_result::data() const
+data_pointer callback_result::data() const
 {
-	return data_skiper(m_data->data)
+	return m_data->data
 		.skip<struct dnet_addr>()
-		.skip<struct dnet_cmd>()
-		.data<void>();
+		.skip<struct dnet_cmd>();
 }
 
 uint64_t callback_result::size() const
@@ -155,7 +112,7 @@ lookup_result &lookup_result::operator =(const lookup_result &other)
 
 struct dnet_addr_attr *lookup_result::address_attribute() const
 {
-	return data_skiper(m_data->data)
+	return m_data->data
 		.skip<struct dnet_addr>()
 		.skip<struct dnet_cmd>()
 		.data<struct dnet_addr_attr>();
@@ -163,7 +120,7 @@ struct dnet_addr_attr *lookup_result::address_attribute() const
 
 struct dnet_file_info *lookup_result::file_info() const
 {
-	return data_skiper(m_data->data)
+	return m_data->data
 		.skip<struct dnet_addr>()
 		.skip<struct dnet_cmd>()
 		.skip<struct dnet_addr_attr>()
@@ -172,7 +129,7 @@ struct dnet_file_info *lookup_result::file_info() const
 
 const char *lookup_result::file_path() const
 {
-	return data_skiper(m_data->data)
+	return m_data->data
 		.skip<struct dnet_addr>()
 		.skip<struct dnet_cmd>()
 		.skip<struct dnet_addr_attr>()
@@ -200,7 +157,7 @@ stat_result &stat_result::operator =(const stat_result &other)
 
 dnet_stat *stat_result::statistics() const
 {
-	return data_skiper(m_data->data)
+	return m_data->data
 		.skip<struct dnet_addr>()
 		.skip<struct dnet_cmd>()
 		.data<struct dnet_stat>();
@@ -226,7 +183,7 @@ stat_count_result &stat_count_result::operator =(const stat_count_result &other)
 
 struct dnet_addr_stat *stat_count_result::statistics() const
 {
-	return data_skiper(m_data->data)
+	return m_data->data
 		.skip<struct dnet_addr>()
 		.skip<struct dnet_cmd>()
 		.data<struct dnet_addr_stat>();
