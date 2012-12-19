@@ -28,89 +28,79 @@
 
 namespace ioremap { namespace elliptics {
 
-callback_result::callback_result() : m_data(boost::make_shared<callback_result_data>())
+callback_result_entry::callback_result_entry() : m_data(boost::make_shared<callback_result_data>())
 {
 }
 
-callback_result::callback_result(const callback_result &other) : m_data(other.m_data)
+callback_result_entry::callback_result_entry(const callback_result_entry &other) : m_data(other.m_data)
 {
 }
 
-callback_result::callback_result(const boost::shared_ptr<callback_result_data> &data) : m_data(data)
+callback_result_entry::callback_result_entry(const boost::shared_ptr<callback_result_data> &data) : m_data(data)
 {
 }
 
-callback_result::~callback_result()
+callback_result_entry::~callback_result_entry()
 {
 }
 
-callback_result &callback_result::operator =(const callback_result &other)
+callback_result_entry &callback_result_entry::operator =(const callback_result_entry &other)
 {
 	m_data = other.m_data;
 	return *this;
 }
 
-bool callback_result::is_valid() const
+bool callback_result_entry::is_valid() const
 {
 	return !m_data->data.empty();
 }
 
-struct dnet_addr *callback_result::address() const
+struct dnet_addr *callback_result_entry::address() const
 {
 	return m_data->data
 		.data<struct dnet_addr>();
 }
 
-struct dnet_cmd *callback_result::command() const
+struct dnet_cmd *callback_result_entry::command() const
 {
 	return m_data->data
 		.skip<struct dnet_addr>()
 		.data<struct dnet_cmd>();
 }
 
-data_pointer callback_result::data() const
+data_pointer callback_result_entry::data() const
 {
 	return m_data->data
 		.skip<struct dnet_addr>()
 		.skip<struct dnet_cmd>();
 }
 
-uint64_t callback_result::size() const
+uint64_t callback_result_entry::size() const
 {
 	return (m_data->data.size() <= (sizeof(struct dnet_addr) + sizeof(struct dnet_cmd *)))
 		? (0)
 	: (m_data->data.size() - (sizeof(struct dnet_addr) + sizeof(struct dnet_cmd *)));
 }
 
-boost::exception_ptr callback_result::exception() const
-{
-	return m_data->exc;
-}
-
-void callback_result::set_exception(const boost::exception_ptr &exc)
-{
-	m_data->exc = exc;
-}
-
-lookup_result::lookup_result()
+lookup_result_entry::lookup_result_entry()
 {
 }
 
-lookup_result::lookup_result(const lookup_result &other) : callback_result(other)
+lookup_result_entry::lookup_result_entry(const lookup_result_entry &other) : callback_result_entry(other)
 {
 }
 
-lookup_result::~lookup_result()
+lookup_result_entry::~lookup_result_entry()
 {
 }
 
-lookup_result &lookup_result::operator =(const lookup_result &other)
+lookup_result_entry &lookup_result_entry::operator =(const lookup_result_entry &other)
 {
-	callback_result::operator =(other);
+	callback_result_entry::operator =(other);
 	return *this;
 }
 
-struct dnet_addr_attr *lookup_result::address_attribute() const
+struct dnet_addr_attr *lookup_result_entry::address_attribute() const
 {
 	return m_data->data
 		.skip<struct dnet_addr>()
@@ -118,7 +108,7 @@ struct dnet_addr_attr *lookup_result::address_attribute() const
 		.data<struct dnet_addr_attr>();
 }
 
-struct dnet_file_info *lookup_result::file_info() const
+struct dnet_file_info *lookup_result_entry::file_info() const
 {
 	return m_data->data
 		.skip<struct dnet_addr>()
@@ -127,7 +117,7 @@ struct dnet_file_info *lookup_result::file_info() const
 		.data<struct dnet_file_info>();
 }
 
-const char *lookup_result::file_path() const
+const char *lookup_result_entry::file_path() const
 {
 	return m_data->data
 		.skip<struct dnet_addr>()
@@ -137,25 +127,25 @@ const char *lookup_result::file_path() const
 		.data<char>();
 }
 
-stat_result::stat_result()
+stat_result_entry::stat_result_entry()
 {
 }
 
-stat_result::stat_result(const stat_result &other) : callback_result(other)
+stat_result_entry::stat_result_entry(const stat_result_entry &other) : callback_result_entry(other)
 {
 }
 
-stat_result::~stat_result()
+stat_result_entry::~stat_result_entry()
 {
 }
 
-stat_result &stat_result::operator =(const stat_result &other)
+stat_result_entry &stat_result_entry::operator =(const stat_result_entry &other)
 {
-	callback_result::operator =(other);
+	callback_result_entry::operator =(other);
 	return *this;
 }
 
-dnet_stat *stat_result::statistics() const
+dnet_stat *stat_result_entry::statistics() const
 {
 	return m_data->data
 		.skip<struct dnet_addr>()
@@ -163,25 +153,25 @@ dnet_stat *stat_result::statistics() const
 		.data<struct dnet_stat>();
 }
 
-stat_count_result::stat_count_result()
+stat_count_result_entry::stat_count_result_entry()
 {
 }
 
-stat_count_result::stat_count_result(const stat_count_result &other) : callback_result(other)
+stat_count_result_entry::stat_count_result_entry(const stat_count_result_entry &other) : callback_result_entry(other)
 {
 }
 
-stat_count_result::~stat_count_result()
+stat_count_result_entry::~stat_count_result_entry()
 {
 }
 
-stat_count_result &stat_count_result::operator =(const stat_count_result &other)
+stat_count_result_entry &stat_count_result_entry::operator =(const stat_count_result_entry &other)
 {
-	callback_result::operator =(other);
+	callback_result_entry::operator =(other);
 	return *this;
 }
 
-struct dnet_addr_stat *stat_count_result::statistics() const
+struct dnet_addr_stat *stat_count_result_entry::statistics() const
 {
 	return m_data->data
 		.skip<struct dnet_addr>()

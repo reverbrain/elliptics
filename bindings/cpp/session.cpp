@@ -550,7 +550,7 @@ void session::remove(const key &id)
 	m_data->ioflags = ioflags;
 }
 
-void session::stat_log(const boost::function<void (const std::vector<stat_result> &)> &handler)
+void session::stat_log(const boost::function<void (const stat_result &)> &handler)
 {
 	stat_callback::ptr cb = boost::make_shared<stat_callback>(*this);
 	cb->handler = handler;
@@ -558,14 +558,14 @@ void session::stat_log(const boost::function<void (const std::vector<stat_result
 	dnet_style_handler<stat_callback>::start(cb);
 }
 
-std::vector<stat_result> session::stat_log()
+stat_result session::stat_log()
 {
-	waiter<std::vector<stat_result> > w;
+	waiter<stat_result> w;
 	stat_log(w.handler());
 	return w.result();
 }
 
-void session::stat_log_count(const boost::function<void (const std::vector<stat_count_result> &)> &handler)
+void session::stat_log_count(const boost::function<void (const stat_count_result &)> &handler)
 {
 	stat_count_callback::ptr cb = boost::make_shared<stat_count_callback>(*this);
 	cb->handler = handler;
@@ -573,9 +573,9 @@ void session::stat_log_count(const boost::function<void (const std::vector<stat_
 	dnet_style_handler<stat_count_callback>::start(cb);
 }
 
-std::vector<stat_count_result> session::stat_log_count()
+stat_count_result session::stat_log_count()
 {
-	waiter<std::vector<stat_count_result> > w;
+	waiter<stat_count_result> w;
 	stat_log_count(w.handler());
 	return w.result();
 }
@@ -585,14 +585,14 @@ int session::state_num(void)
 	return dnet_state_num(m_data->session_ptr);
 }
 
-std::vector<callback_result> session::request_cmd(const transport_control &ctl)
+callback_result session::request_cmd(const transport_control &ctl)
 {
-	waiter<std::vector<callback_result> > w;
+	waiter<callback_result> w;
 	request_cmd(ctl, w.handler());
 	return w.result();
 }
 
-void session::request_cmd(const transport_control &ctl, const boost::function<void (const std::vector<callback_result> &)> &handler)
+void session::request_cmd(const transport_control &ctl, const boost::function<void (const callback_result &)> &handler)
 {
 	cmd_callback::ptr cb = boost::make_shared<cmd_callback>(*this, ctl);
 	cb->handler = handler;

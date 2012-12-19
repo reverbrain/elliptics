@@ -151,7 +151,7 @@ static void test_lookup_parse(const std::string &key, const std::string &lret)
 
 static void test_lookup_parse(const std::string &key, const lookup_result &lret)
 {
-	test_lookup_parse(key, lret.command(), lret.address_attribute(), lret.file_path());
+	test_lookup_parse(key, lret->command(), lret->address_attribute(), lret->file_path());
 }
 
 static void test_lookup(session &s, std::vector<int> &groups)

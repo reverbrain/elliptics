@@ -49,7 +49,6 @@ class callback_result_data
 		}
 
 		data_pointer data;
-		boost::exception_ptr exc;
 
 	private:
 };
@@ -98,7 +97,7 @@ class default_callback
 			return *static_cast<const T *>(&m_results.at(index));
 		}
 
-		const std::vector<callback_result> &results() const
+		const std::vector<callback_result_entry> &results() const
 		{
 			return m_results;
 		}
@@ -119,7 +118,7 @@ class default_callback
 		}
 
 	private:
-		std::vector<callback_result> m_results;
+		std::vector<callback_result_entry> m_results;
 		std::vector<int> m_statuses;
 		size_t m_count;
 		size_t m_complete;
@@ -144,29 +143,30 @@ class base_stat_callback : public default_callback
 
 		void finish(boost::exception_ptr exc)
 		{
-			std::vector<Result> res;
 			if (exc) {
-				res.resize(1);
-				res[0].set_exception(exc);
-			} else {
-				res.reserve(results().size());
-
-				for (size_t i = 0; i < results().size(); ++i) {
-					Result result = result_at<Result>(i);
-					if (convert(result))
-						res.push_back(result);
-				}
+				handler(exc);
+				return;
 			}
+
+			std::vector<Result> res;
+			res.reserve(results().size());
+
+			for (size_t i = 0; i < results().size(); ++i) {
+				Result result = result_at<Result>(i);
+				if (convert(result))
+					res.push_back(result);
+			}
+
 			if (res.empty()) {
-				res.resize(1);
 				try {
 					throw_error(-ENOENT, "Failed to request statistics");
 				} catch (std::exception &e) {
 					exc = boost::copy_exception(e);
 				}
-				res[0].set_exception(exc);
+				handler(exc);
+			} else {
+				handler(res);
 			}
-			handler(res);
 		}
 
 		virtual bool convert(Result &result) = 0;
@@ -174,10 +174,10 @@ class base_stat_callback : public default_callback
 		dnet_commands command;
 		session sess;
 		boost::recursive_mutex mutex;
-		boost::function<void (const std::vector<Result> &)> handler;
+		boost::function<void (const array_result_holder<Result> &)> handler;
 };
 
-class stat_callback : public base_stat_callback<stat_result, DNET_CMD_STAT>
+class stat_callback : public base_stat_callback<stat_result_entry, DNET_CMD_STAT>
 {
 	public:
 		typedef boost::shared_ptr<stat_callback> ptr;
@@ -186,7 +186,7 @@ class stat_callback : public base_stat_callback<stat_result, DNET_CMD_STAT>
 		{
 		}
 
-		bool convert(stat_result &result)
+		bool convert(stat_result_entry &result)
 		{
 			if (result.size() < sizeof(struct dnet_stat))
 				return false;
@@ -195,7 +195,7 @@ class stat_callback : public base_stat_callback<stat_result, DNET_CMD_STAT>
 		}
 };
 
-class stat_count_callback : public base_stat_callback<stat_count_result, DNET_CMD_STAT_COUNT>
+class stat_count_callback : public base_stat_callback<stat_count_result_entry, DNET_CMD_STAT_COUNT>
 {
 	public:
 		typedef boost::shared_ptr<stat_count_callback> ptr;
@@ -204,7 +204,7 @@ class stat_count_callback : public base_stat_callback<stat_count_result, DNET_CM
 		{
 		}
 
-		bool convert(stat_count_result &result)
+		bool convert(stat_count_result_entry &result)
 		{
 			if (result.size() <= sizeof(struct dnet_addr_stat))
 				return false;
@@ -292,13 +292,14 @@ class lookup_callback
 
 		void finish(boost::exception_ptr exc)
 		{
-			lookup_result result = cb.any_result<lookup_result>();
-			result.set_exception(exc);
-			if (result.is_valid()) {
+			if (exc) {
+				handler(lookup_result(exc));
+			} else {
+				lookup_result_entry result = cb.any_result<lookup_result_entry>();
 				dnet_convert_addr_attr(result.address_attribute());
 				dnet_convert_file_info(result.file_info());
+				handler(result);
 			}
-			handler(result);
 		}
 
 		bool at_iterator;
@@ -335,18 +336,16 @@ class cmd_callback : public default_callback
 
 		void finish(boost::exception_ptr exc)
 		{
-			std::vector<callback_result> res;
-			if (exc) {
-				res.resize(1);
-				res[0].set_exception(exc);
-			}
-			handler(res);
+			if (exc)
+				handler(exc);
+			else
+				handler(results());
 		}
 
 		session sess;
 		dnet_trans_control ctl;
 		boost::recursive_mutex mutex;
-		boost::function<void (const std::vector<callback_result> &)> handler;
+		boost::function<void (const callback_result &)> handler;
 };
 
 template <typename T>
@@ -363,6 +362,18 @@ void check_for_exception(const std::vector<T> &result)
 		throw_error(-ENOENT, "No data available");
 	else if (result[0].exception())
 		boost::rethrow_exception(result[0].exception());
+}
+
+template <typename T>
+void check_for_exception(const result_holder<T> &result)
+{
+	result.check();
+}
+
+template <typename T>
+void check_for_exception(const array_result_holder<T> &result)
+{
+	result.check();
 }
 
 template <typename T>
@@ -445,7 +456,11 @@ struct dnet_style_handler
 		}
 
 		if (finish) {
-			ptr->finish(exc_ptr);
+			try {
+				ptr->finish(exc_ptr);
+			} catch (...) {
+			}
+
 			delete &ptr;
 		}
 		return 0;

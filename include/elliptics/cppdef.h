@@ -137,15 +137,95 @@ class data_pointer
 		size_t m_size;
 };
 
-class callback_result
+class generic_result_holder
+{
+	protected:
+		class generic_data
+		{
+			public:
+				generic_data() {}
+				generic_data(const boost::exception_ptr &exc) : exception(exc) {}
+
+				boost::exception_ptr exception;
+		};
+
+	public:
+		generic_result_holder() {}
+		generic_result_holder(generic_data &data) : m_data(&data) {}
+		~generic_result_holder() {}
+
+		void check() const
+		{
+			if (!m_data)
+				throw not_found_error("no data received");
+			else if (m_data->exception)
+				boost::rethrow_exception(m_data->exception);
+		}
+
+	protected:
+		boost::shared_ptr<generic_data> m_data;
+};
+
+template <typename T>
+class result_holder : public generic_result_holder
 {
 	public:
-		callback_result();
-		callback_result(const callback_result &other);
-		callback_result(const boost::shared_ptr<callback_result_data> &data);
-		~callback_result();
+		result_holder() {}
+		result_holder(const T &result) : generic_result_holder(*new data(result)) {}
+		result_holder(const boost::exception_ptr &exc) : generic_result_holder(*new data(exc)) {}
 
-		callback_result &operator =(const callback_result &other);
+		T *operator-> () { check(); return &d_func()->result; }
+		const T *operator-> () const { check(); return &d_func()->result; }
+
+	private:
+		class data : public generic_data
+		{
+			public:
+				data(const T &result) : result(result) {}
+				data(const boost::exception_ptr &exc) : generic_data(exc) {}
+
+				T result;
+		};
+
+		data *d_func() { return static_cast<data*>(m_data.get()); }
+		const data *d_func() const { return static_cast<data*>(m_data.get()); }
+};
+
+template <typename T>
+class array_result_holder : public generic_result_holder
+{
+	public:
+		array_result_holder() {}
+		array_result_holder(const std::vector<T> &result) : generic_result_holder(*new data(result)) {}
+		array_result_holder(const boost::exception_ptr &exc) : generic_result_holder(*new data(exc)) {}
+
+		T &operator[] (size_t index) { check(); return d_func()->result[index]; }
+		const T &operator[] (size_t index) const { check(); return d_func()->result[index]; }
+		size_t size() const { check(); return d_func()->result.size(); }
+
+	private:
+		class data : public generic_data
+		{
+			public:
+				data(const std::vector<T> &result) : result(result) {}
+				data(const boost::exception_ptr &exc) : generic_data(exc) {}
+
+				std::vector<T> result;
+		};
+
+		data *d_func() { return static_cast<data*>(m_data.get()); }
+		const data *d_func() const { return static_cast<data*>(m_data.get()); }
+};
+
+class callback_result_entry
+{
+	public:
+		callback_result_entry();
+		callback_result_entry(const callback_result_entry &other);
+		callback_result_entry(const boost::shared_ptr<callback_result_data> &data);
+		~callback_result_entry();
+
+		callback_result_entry &operator =(const callback_result_entry &other);
 
 		bool is_valid() const;
 		uint32_t		group() const;
@@ -157,9 +237,6 @@ class callback_result
 		inline T		*data() const
 		{ return data().data<T>(); }
 
-		boost::exception_ptr	exception() const;
-		void			set_exception(const boost::exception_ptr &exc);
-
 	protected:
 		boost::shared_ptr<callback_result_data> m_data;
 
@@ -167,43 +244,48 @@ class callback_result
 		friend class default_callback;
 };
 
-class lookup_result : public callback_result
+class lookup_result_entry : public callback_result_entry
 {
 	public:
-		lookup_result();
-		lookup_result(const lookup_result &other);
-		~lookup_result();
+		lookup_result_entry();
+		lookup_result_entry(const lookup_result_entry &other);
+		~lookup_result_entry();
 
-		lookup_result &operator =(const lookup_result &other);
+		lookup_result_entry &operator =(const lookup_result_entry &other);
 
 		struct dnet_addr_attr *address_attribute() const;
 		struct dnet_file_info *file_info() const;
 		const char *file_path() const;
 };
 
-class stat_result : public callback_result
+class stat_result_entry : public callback_result_entry
 {
 	public:
-		stat_result();
-		stat_result(const stat_result &other);
-		~stat_result();
+		stat_result_entry();
+		stat_result_entry(const stat_result_entry &other);
+		~stat_result_entry();
 
-		stat_result &operator =(const stat_result &other);
+		stat_result_entry &operator =(const stat_result_entry &other);
 
 		struct dnet_stat *statistics() const;
 };
 
-class stat_count_result : public callback_result
+class stat_count_result_entry : public callback_result_entry
 {
 	public:
-		stat_count_result();
-		stat_count_result(const stat_count_result &other);
-		~stat_count_result();
+		stat_count_result_entry();
+		stat_count_result_entry(const stat_count_result_entry &other);
+		~stat_count_result_entry();
 
-		stat_count_result &operator =(const stat_count_result &other);
+		stat_count_result_entry &operator =(const stat_count_result_entry &other);
 
 		struct dnet_addr_stat *statistics() const;
 };
+
+typedef array_result_holder<callback_result_entry> callback_result;
+typedef result_holder<lookup_result_entry> lookup_result;
+typedef array_result_holder<stat_result_entry> stat_result;
+typedef array_result_holder<stat_count_result_entry> stat_count_result;
 
 class transport_control
 {
@@ -390,16 +472,16 @@ class session
 		void 			remove_raw(const key &id);
 		void 			remove(const key &id);
 
-		void			stat_log(const boost::function<void (const std::vector<stat_result> &)> &handler);
-		std::vector<stat_result>	stat_log();
+		void			stat_log(const boost::function<void (const stat_result &)> &handler);
+		stat_result		stat_log();
 
-		void			stat_log_count(const boost::function<void (const std::vector<stat_count_result> &)> &handler);
-		std::vector<stat_count_result>	stat_log_count();
+		void			stat_log_count(const boost::function<void (const stat_count_result &)> &handler);
+		stat_count_result	stat_log_count();
 
 		int			state_num();
 
-		std::vector<callback_result>	request_cmd(const transport_control &ctl);
-		void				request_cmd(const transport_control &ctl, const boost::function<void (const std::vector<callback_result> &)> &handler);
+		callback_result		request_cmd(const transport_control &ctl);
+		void			request_cmd(const transport_control &ctl, const boost::function<void (const callback_result &)> &handler);
 
 		std::string		read_metadata(const key &id);
 
