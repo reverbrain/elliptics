@@ -333,6 +333,7 @@ class srw {
 	public:
 		srw(struct dnet_session *sess, const std::string &config) : m_s(sess),
 		m_ctx(config, boost::make_shared<dnet_sink_t>(m_s, dnet_log_level_to_prio(sess->node->log->log_level))) {
+			atomic_set(&m_src_key, 1);
 		}
 
 		~srw() {
@@ -411,7 +412,7 @@ class srw {
 				return 0;
 			} else {
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
-					sph->src_key = (unsigned long)sph;
+					sph->src_key = atomic_inc(&m_src_key);
 					memcpy(sph->src.id, cmd->id.id, sizeof(sph->src.id));
 				}
 
@@ -463,6 +464,7 @@ class srw {
 		boost::mutex			m_lock;
 		eng_map_t			m_map;
 		jobs_map_t			m_jobs;
+		atomic_t			m_src_key;
 
 		std::string dnet_get_event(const struct sph *sph, const char *data) {
 			return std::string(data, sph->event_size);
