@@ -1013,7 +1013,7 @@ static int dnet_send_cmd_single(struct dnet_net_state *st, struct dnet_wait *w, 
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
-	dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
+	dnet_setup_id(&ctl.id, st->idc->group->group_id, e->src.id);
 	ctl.size = sizeof(struct sph) + e->event_size + e->data_size + e->binary_size;
 	ctl.cmd = DNET_CMD_EXEC;
 	ctl.complete = dnet_send_cmd_complete;
@@ -1076,6 +1076,7 @@ static int dnet_send_cmd_raw(struct dnet_session *s, struct dnet_id *id,
 
 				dnet_wait_get(w);
 
+				memcpy(e->src.id, st->idc->ids[0].raw.id, DNET_ID_SIZE);
 				err = dnet_send_cmd_single(st, w, e, cflags);
 				num++;
 			}
