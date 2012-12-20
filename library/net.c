@@ -304,25 +304,10 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	}
 
 	pthread_mutex_lock(&st->send_lock);
-	if (!list_empty(&st->send_list)) {
+	list_add_tail(&r->req_entry, &st->send_list);
 
-		list_add_tail(&r->req_entry, &st->send_list);
-
-		if (!st->need_exit)
-			dnet_schedule_send(st);
-	} else {
-		err = dnet_send_request(st, r);
-		if (st->send_offset == (r->dsize + r->hsize + r->fsize)) {
-			dnet_io_req_free(r);
-			st->send_offset = 0;
-		} else {
-			list_add_tail(&r->req_entry, &st->send_list);
-
-			if (!st->need_exit)
-				dnet_schedule_send(st);
-		}
-	}
-
+	if (!st->need_exit)
+		dnet_schedule_send(st);
 	pthread_mutex_unlock(&st->send_lock);
 
 err_out_exit:
