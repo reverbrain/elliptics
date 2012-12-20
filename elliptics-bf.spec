@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.1.3
+Version:	2.20.1.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 20 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.4
+- Use atomic_t for sph::src_key
+
 * Thu Dec 20 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.3
 - Use client's provided ID when possible in dnet_send_cmd_single()
 
