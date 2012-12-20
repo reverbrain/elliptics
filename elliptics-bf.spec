@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.1.1
+Version:	2.20.1.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 20 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.2
+- Do not try to send data directly from dnet_io_req_queue() (calling thread context), queue request instead
+- Remove unused package_dir
+- Return error from dnet_send_request() and propagate it back to dnet_send*() calllers.
+
 * Tue Dec 18 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.1
 - Greatly reduce ACK latencies
 - Fixed smack's sync-to-disk interval commit
