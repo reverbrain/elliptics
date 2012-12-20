@@ -1,3 +1,9 @@
+elliptics (2.20.1.3) unstable; urgency=low
+
+  * Use client's provided ID when possible in dnet_send_cmd_single()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 20 Dec 2012 21:23:20 +0400
+
 elliptics (2.20.1.2) unstable; urgency=low
 
   * Do not try to send data directly from dnet_io_req_queue() (calling thread context), queue request instead
