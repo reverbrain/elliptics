@@ -202,97 +202,120 @@ void session::write_file(const key &id, const std::string &file, uint64_t local_
 	}
 }
 
-std::string session::read_data_wait(const key &id, uint64_t offset, uint64_t size)
+void session::read_data(const key &id, const std::vector<int> &groups, const struct dnet_io_attr &io,
+	const boost::function<void (const read_result &)> &handler)
 {
-	struct dnet_io_attr io;
-	int err;
-
 	transform(id);
-	dnet_id raw = id.id();
-	raw.type = id.type();
 
-	memset(&io, 0, sizeof(io));
-	io.size = size;
-	io.offset = offset;
-	io.flags = m_data->ioflags;
-	io.type = raw.type;
+	struct dnet_io_control control;
+	memset(&control, 0, sizeof(control));
 
-	memcpy(io.id, raw.id, DNET_ID_SIZE);
-	memcpy(io.parent, raw.id, DNET_ID_SIZE);
+	control.fd = -1;
+	control.cmd = DNET_CMD_READ;
+	control.cflags = DNET_FLAGS_NEED_ACK | m_data->cflags;
 
-	void *data = dnet_read_data_wait(m_data->session_ptr, &raw, &io, m_data->cflags, &err);
-	if (!data) {
-		throw_error(err, raw, "READ: size: %llu",
-			static_cast<unsigned long long>(size));
-	}
+	memcpy(&control.io, &io, sizeof(struct dnet_io_attr));
 
-	std::string ret = std::string((const char *)data + sizeof(struct dnet_io_attr), io.size - sizeof(struct dnet_io_attr));
-	free(data);
+	read_callback::ptr cb = boost::make_shared<read_callback>(*this, control);
+	cb->handler = handler;
+	cb->kid = id;
+	cb->groups = groups;
 
-	return ret;
+	dnet_style_handler<read_callback>::start(cb);
 }
 
-void session::prepare_latest(const key &id, std::vector<int> &groups)
+void session::read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size,
+	const boost::function<void (const read_result &)> &handler)
+{
+	transform(id);
+
+	struct dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+
+	io.size   = size;
+	io.offset = offset;
+	io.flags  = m_data->ioflags;
+	io.type   = id.type();
+
+	memcpy(io.id, id.id().id, DNET_ID_SIZE);
+	memcpy(io.parent, id.id().id, DNET_ID_SIZE);
+
+	read_data(id, groups, io, handler);
+}
+
+void session::read_data(const key &id, uint64_t offset, uint64_t size, const boost::function<void (const read_result &)> &handler)
+{
+	transform(id);
+
+	read_data(id, mix_states(), offset, size, handler);
+}
+
+read_result session::read_data(const key &id, uint64_t offset, uint64_t size)
+{
+	waiter<read_result> w;
+	read_data(id, offset, size, w.handler());
+	return w.result();
+}
+
+void session::prepare_latest(const key &id, const std::vector<int> &groups, const boost::function<void (const prepare_latest_result &)> &handler)
 {
 	if (groups.empty()) {
+		handler(groups);
 		return;
 	}
 
 	transform(id);
 
-	struct dnet_read_latest_prepare pr;
-	int err;
+	prepare_latest_callback::ptr cb = boost::make_shared<prepare_latest_callback>(*this, groups);
+	cb->handler = handler;
+	cb->id = id;
+	cb->group_id = id.id().group_id;
 
-	memset(&pr, 0, sizeof(struct dnet_read_latest_prepare));
-
-	pr.s = m_data->session_ptr;
-	pr.id = id.id();
-	pr.cflags = m_data->cflags;
-	pr.group = &groups[0];
-	pr.group_num = groups.size();
-
-	err = dnet_read_latest_prepare(&pr);
-	groups.resize(pr.group_num);
-
-	if (!groups.size())
-		err = -ENOENT;
-
-	if (err) {
-		transform(id);
-		throw_error(err, id.id(), "prepare_latest: groups: %zu", groups.size());
-	}
+	dnet_style_handler<prepare_latest_callback>::start(cb);
 }
 
-std::string session::read_latest(const key &id, uint64_t offset, uint64_t size)
+void session::prepare_latest(const key &id, std::vector<int> &groups)
 {
-	transform(id);
-	dnet_id raw = id.id();
-	raw.type = id.type();
+	waiter<prepare_latest_result> w;
+	prepare_latest(id, groups, w.handler());
+	groups = w.result();
+}
 
-	struct dnet_io_attr io;
-	void *data;
-	int err;
+// It could be a lambda functor! :`(
+struct read_latest_callback
+{
+	session sess;
+	key id;
+	uint64_t offset;
+	uint64_t size;
+	boost::function<void (const read_result &)> handler;
 
-	memset(&io, 0, sizeof(io));
-	io.size = size;
-	io.offset = offset;
-	io.flags = m_data->ioflags;
-	io.type = raw.type;
-	io.num = m_data->groups.size();
+	void operator() (const prepare_latest_result &result)
+	{
+		if (result.exception()) {
+			handler(result.exception());
+			return;
+		}
 
-	memcpy(io.id, raw.id, DNET_ID_SIZE);
-	memcpy(io.parent, raw.id, DNET_ID_SIZE);
-
-	err = dnet_read_latest(m_data->session_ptr, &raw, &io, m_data->cflags, &data);
-	if (err < 0) {
-		throw_error(err, raw, "READ: size: %llu", static_cast<unsigned long long>(size));
+		try {
+			sess.read_data(id, result, offset, size, handler);
+		} catch (...) {
+			handler(std::current_exception());
+		}
 	}
+};
 
-	std::string ret = std::string((const char *)data + sizeof(struct dnet_io_attr),
-					io.size - sizeof(struct dnet_io_attr));
-	free(data);
+void session::read_latest(const key &id, uint64_t offset, uint64_t size, const boost::function<void (const read_result &)> &handler)
+{
+	read_latest_callback callback = { *this, id, offset, size, handler };
+	prepare_latest(id, mix_states(), callback);
+}
 
-	return ret;
+read_result session::read_latest(const key &id, uint64_t offset, uint64_t size)
+{
+	waiter<read_result> w;
+	read_latest(id, offset, size, w.handler());
+	return w.result();
 }
 
 std::string session::write_cache(const key &id, const std::string &str, long timeout)
@@ -497,20 +520,12 @@ void session::transform(const key &id)
 void session::lookup(const key &id, const boost::function<void (const lookup_result &)> &handler)
 {
 	transform(id);
-	cstyle_scoped_pointer<int> groups_ptr;
 
 	lookup_callback::ptr cb = boost::make_shared<lookup_callback>(*this);
 	cb->handler = handler;
 	cb->kid = id;
 
-	if (id.by_id()) {
-		cb->groups.push_back(cb->id.group_id);
-	} else {
-		int num = dnet_mix_states(m_data->session_ptr, &cb->id, &groups_ptr.data());
-		if (num < 0)
-			throw std::bad_alloc();
-		cb->groups.assign(groups_ptr.data(), groups_ptr.data() + num);
-	}
+	mix_states(id, cb->groups);
 
 	dnet_style_handler<lookup_callback>::start(cb);
 }
@@ -585,14 +600,14 @@ int session::state_num(void)
 	return dnet_state_num(m_data->session_ptr);
 }
 
-callback_result session::request_cmd(const transport_control &ctl)
+command_result session::request_cmd(const transport_control &ctl)
 {
-	waiter<callback_result> w;
+	waiter<command_result> w;
 	request_cmd(ctl, w.handler());
 	return w.result();
 }
 
-void session::request_cmd(const transport_control &ctl, const boost::function<void (const callback_result &)> &handler)
+void session::request_cmd(const transport_control &ctl, const boost::function<void (const command_result &)> &handler)
 {
 	cmd_callback::ptr cb = boost::make_shared<cmd_callback>(*this, ctl);
 	cb->handler = handler;
@@ -901,6 +916,46 @@ std::string session::request(struct dnet_id *id, struct sph *sph, bool lock)
 	return ret_str;
 }
 
+void session::mix_states(const key &id, std::vector<int> &groups)
+{
+	transform(id);
+	cstyle_scoped_pointer<int> groups_ptr;
+
+	if (id.by_id()) {
+		groups.push_back(id.id().group_id);
+	} else {
+		dnet_id raw = id.id();
+		int num = dnet_mix_states(m_data->session_ptr, &raw, &groups_ptr.data());
+		if (num < 0)
+			throw_error(num, "could not fetch groups");
+		groups.assign(groups_ptr.data(), groups_ptr.data() + num);
+	}
+}
+void session::mix_states(std::vector<int> &groups)
+{
+	cstyle_scoped_pointer<int> groups_ptr;
+
+	int num = dnet_mix_states(m_data->session_ptr, NULL, &groups_ptr.data());
+	if (num < 0)
+		throw std::runtime_error("could not fetch groups: " + std::string(strerror(num)));
+
+	groups.assign(groups_ptr.data(), groups_ptr.data() + num);
+}
+
+std::vector<int> session::mix_states(const key &id)
+{
+	std::vector<int> result;
+	mix_states(id, result);
+	return result;
+}
+
+std::vector<int> session::mix_states()
+{
+	std::vector<int> result;
+	mix_states(result);
+	return result;
+}
+
 std::string session::raw_exec(struct dnet_id *id, const struct sph *orig_sph,
 				     const std::string &event, const std::string &data, const std::string &binary, bool lock)
 {
@@ -987,20 +1042,9 @@ bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const struct dnet_io_a
 std::vector<std::string> session::bulk_read(const std::vector<struct dnet_io_attr> &ios)
 {
 	struct dnet_range_data *data;
-	int num, *g, err;
+	int err;
 
-	num = dnet_mix_states(m_data->session_ptr, NULL, &g);
-	if (num < 0)
-		throw std::runtime_error("could not fetch groups: " + std::string(strerror(num)));
-
-	std::vector<int> groups;
-	try {
-		groups.assign(g, g + num);
-		free(g);
-	} catch (...) {
-		free(g);
-		throw;
-	}
+	std::vector<int> groups = mix_states();
 
 	std::vector<struct dnet_io_attr> tmp_ios = ios;
 	std::sort(tmp_ios.begin(), tmp_ios.end(), dnet_io_attr_compare);

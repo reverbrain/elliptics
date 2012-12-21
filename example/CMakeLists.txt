@@ -23,6 +23,7 @@ add_executable(dnet_check check.c)
 target_link_libraries(dnet_check ${ECOMMON_LIBRARIES})
 
 add_executable(dnet_find find.cpp)
+set_target_properties(dnet_find PROPERTIES COMPILE_FLAGS "-std=c++0x")
 target_link_libraries(dnet_find ${ECOMMON_LIBRARIES} elliptics_cpp)
 
 add_executable(dnet_meta meta.c)

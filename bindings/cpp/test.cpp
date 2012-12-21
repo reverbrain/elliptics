@@ -64,7 +64,7 @@ static void test_prepare_commit(session &s, int psize, int csize)
 
 		s.write_commit(key(remote, column), commit_data, offset, written.size());
 
-		ret = s.read_data_wait(key(remote, column), 0, 0);
+		ret = s.read_data(key(remote, column), 0, 0)->file().to_string();
 		std::cout << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "PREPARE/COMMIT test failed: " << e.what() << std::endl;
@@ -191,7 +191,7 @@ static void test_append(session &s)
 		s.write_data_wait(remote, data, 0);
 		s.set_ioflags(0);
 
-		std::cout << remote << ": " << s.read_data_wait(remote, 0, 0) << std::endl;
+		std::cout << remote << ": " << s.read_data(remote, 0, 0)->file().to_string() << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "APPEND test failed: " << e.what() << std::endl;
 		throw std::runtime_error("APPEND test failed");
@@ -200,16 +200,17 @@ static void test_append(session &s)
 
 static void read_column_raw(session &s, const std::string &remote, const std::string &data, int column)
 {
-	std::string ret;
+	read_result ret;
 	try {
-		ret = s.read_data_wait(key(remote, column), 0, 0);
+		ret = s.read_data(key(remote, column), 0, 0);
 	} catch (const std::exception &e) {
 		std::cerr << "COLUMN-" << column << " read test failed: " << e.what() << std::endl;
 		throw;
 	}
+	std::string ret_str = ret->file().to_string();
 
-	std::cout << "read-column-" << column << ": " << remote << " : " << ret << std::endl;
-	if (ret != data) {
+	std::cout << "read-column-" << column << ": " << remote << " : " << ret_str << std::endl;
+	if (ret_str != data) {
 		throw std::runtime_error("column test failed");
 	}
 }
@@ -276,7 +277,7 @@ static void test_bulk_write(session &s)
 			std::ostringstream os;
 
 			os << "bulk_write" << i;
-			std::cout << os.str() << ": " << s.read_data_wait(key(os.str(), type), offset, size) << std::endl;
+			std::cout << os.str() << ": " << s.read_data(key(os.str(), type), offset, size)->file().to_string() << std::endl;
 		}
 	} catch (const std::exception &e) {
 		std::cerr << "BULK WRITE test failed: " << e.what() << std::endl;
@@ -331,7 +332,7 @@ static void memory_test_io(session &s, int num)
 
 		try {
 			written = s.write_data_wait(id, data, 0);
-			std::string res = s.read_data_wait(id, 0, 0);
+			std::string res = s.read_data(id, 0, 0)->file().to_string();
 		} catch (const std::exception &e) {
 			std::cerr << "could not perform read/write: " << e.what() << std::endl;
 			if (written.size() > 0) {
@@ -399,7 +400,7 @@ static void test_cache_read(session &s, int num)
 
 		s.set_ioflags(DNET_IO_FLAGS_NOCSUM);
 		try {
-			s.read_data_wait(key(id, type), offset, size);
+			s.read_data(key(id, type), offset, size)->file().to_string();
 		} catch (const std::exception &e) {
 			std::cerr << "could not perform read : " << e.what() << std::endl;
 		}
@@ -490,7 +491,7 @@ int main(int argc, char *argv[])
 	}
 
 
-	try {
+//	try {
 		file_logger log("/dev/stderr", DNET_LOG_DEBUG);
 
 		node n(log);
@@ -537,9 +538,9 @@ int main(int argc, char *argv[])
 		test_cache_delete(s, 1000);
 		test_cache_write(s, 1000);
 
-	} catch (const std::exception &e) {
-		std::cerr << "Error occured : " << e.what() << std::endl;
-	} catch (int err) {
-		std::cerr << "Error : " << err << std::endl;
-	}
+//	} catch (const std::exception &e) {
+//		std::cerr << "Error occured : " << e.what() << std::endl;
+//	} catch (int err) {
+//		std::cerr << "Error : " << err << std::endl;
+//	}
 }

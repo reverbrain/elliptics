@@ -249,12 +249,12 @@ class elliptics_session: public session, public wrapper<session> {
 
 		std::string read_data_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size) {
 			struct dnet_id raw = id.to_dnet();
-			return read_data_wait(raw, offset, size);
+			return read_data(raw, offset, size)->file().to_string();
 		}
 
 		std::string read_data_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
 							int type) {
-			return read_data_wait(key(remote, type), offset, size);
+			return read_data(key(remote, type), offset, size)->file().to_string();
 		}
 
 		list prepare_latest_by_id(const struct elliptics_id &id, const api::object &gl) {
@@ -286,12 +286,12 @@ class elliptics_session: public session, public wrapper<session> {
 
 		std::string read_latest_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size) {
 			struct dnet_id raw = id.to_dnet();
-			return read_latest(raw, offset, size);
+			return read_latest(raw, offset, size)->file().to_string();
 		}
 
 		std::string read_latest_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
 									int type) {
-			return read_latest(key(remote, type), offset, size);
+			return read_latest(key(remote, type), offset, size)->file().to_string();
 		}
 
 		std::string write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset) {
@@ -334,7 +334,7 @@ class elliptics_session: public session, public wrapper<session> {
 			std::string address(dnet_server_convert_dnet_addr(addr));
 			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
 
-			return make_tuple(address, port, info->size);
+			return boost::python::make_tuple(address, port, info->size);
 		}
 
 		boost::python::tuple lookup_by_data_transform(const std::string &remote) {

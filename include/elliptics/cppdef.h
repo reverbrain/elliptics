@@ -24,12 +24,12 @@
 #include <elliptics/interface.h>
 
 #include <boost/shared_ptr.hpp>
-#include <boost/exception_ptr.hpp>
 #include <boost/function.hpp>
 
 #include <iostream>
 #include <fstream>
 #include <exception>
+#include <memory>
 #include <list>
 #include <stdexcept>
 #include <string>
@@ -104,14 +104,21 @@ class data_pointer
 		}
 
 		template <typename T>
-		data_pointer skip()
+		data_pointer skip() const
 		{
 			data_pointer tmp(*this);
 			tmp.m_index += sizeof(T);
 			return tmp;
 		}
 
-		void *data()
+		data_pointer skip(size_t size) const
+		{
+			data_pointer tmp(*this);
+			tmp.m_index += size;
+			return tmp;
+		}
+
+		void *data() const
 		{
 			if (m_index >= m_size)
 				throw not_found_error("null pointer exception");
@@ -119,15 +126,16 @@ class data_pointer
 		}
 
 		template <typename T>
-		T *data()
+		T *data() const
 		{
 			if (m_index + sizeof(T) > m_size)
 				throw not_found_error("null pointer exception");
 			return reinterpret_cast<T *>(data());
 		}
 
-		size_t size() const { return m_size; }
-		bool empty() const { return m_index < m_size; }
+		size_t size() const { return m_index >= m_size ? 0 : (m_size - m_index); }
+		bool empty() const { return m_index >= m_size; }
+		std::string to_string() const { return std::string(data<char>(), size()); }
 
 	private:
 		static void deleter(void *data) { free(data); }
@@ -144,9 +152,9 @@ class generic_result_holder
 		{
 			public:
 				generic_data() {}
-				generic_data(const boost::exception_ptr &exc) : exception(exc) {}
+				generic_data(const std::exception_ptr &exc) : exception(exc) {}
 
-				boost::exception_ptr exception;
+				std::exception_ptr exception;
 		};
 
 	public:
@@ -154,12 +162,17 @@ class generic_result_holder
 		generic_result_holder(generic_data &data) : m_data(&data) {}
 		~generic_result_holder() {}
 
+		std::exception_ptr exception() const
+		{
+			return m_data->exception;
+		}
+
 		void check() const
 		{
 			if (!m_data)
 				throw not_found_error("no data received");
 			else if (m_data->exception)
-				boost::rethrow_exception(m_data->exception);
+				std::rethrow_exception(m_data->exception);
 		}
 
 	protected:
@@ -172,7 +185,7 @@ class result_holder : public generic_result_holder
 	public:
 		result_holder() {}
 		result_holder(const T &result) : generic_result_holder(*new data(result)) {}
-		result_holder(const boost::exception_ptr &exc) : generic_result_holder(*new data(exc)) {}
+		result_holder(const std::exception_ptr &exc) : generic_result_holder(*new data(exc)) {}
 
 		T *operator-> () { check(); return &d_func()->result; }
 		const T *operator-> () const { check(); return &d_func()->result; }
@@ -182,7 +195,7 @@ class result_holder : public generic_result_holder
 		{
 			public:
 				data(const T &result) : result(result) {}
-				data(const boost::exception_ptr &exc) : generic_data(exc) {}
+				data(const std::exception_ptr &exc) : generic_data(exc) {}
 
 				T result;
 		};
@@ -197,18 +210,21 @@ class array_result_holder : public generic_result_holder
 	public:
 		array_result_holder() {}
 		array_result_holder(const std::vector<T> &result) : generic_result_holder(*new data(result)) {}
-		array_result_holder(const boost::exception_ptr &exc) : generic_result_holder(*new data(exc)) {}
+		array_result_holder(const std::exception_ptr &exc) : generic_result_holder(*new data(exc)) {}
 
 		T &operator[] (size_t index) { check(); return d_func()->result[index]; }
 		const T &operator[] (size_t index) const { check(); return d_func()->result[index]; }
 		size_t size() const { check(); return d_func()->result.size(); }
+
+		operator std::vector<int> &() { check(); return d_func()->result; }
+		operator const std::vector<int> &() const { check(); return d_func()->result; }
 
 	private:
 		class data : public generic_data
 		{
 			public:
 				data(const std::vector<T> &result) : result(result) {}
-				data(const boost::exception_ptr &exc) : generic_data(exc) {}
+				data(const std::exception_ptr &exc) : generic_data(exc) {}
 
 				std::vector<T> result;
 		};
@@ -242,6 +258,19 @@ class callback_result_entry
 
 		friend class callback;
 		friend class default_callback;
+};
+
+class read_result_entry : public callback_result_entry
+{
+	public:
+		read_result_entry();
+		read_result_entry(const read_result_entry &other);
+		~read_result_entry();
+
+		read_result_entry &operator =(const read_result_entry &other);
+
+		struct dnet_io_attr *io_attribute() const;
+		data_pointer file() const;
 };
 
 class lookup_result_entry : public callback_result_entry
@@ -282,10 +311,12 @@ class stat_count_result_entry : public callback_result_entry
 		struct dnet_addr_stat *statistics() const;
 };
 
-typedef array_result_holder<callback_result_entry> callback_result;
+typedef result_holder<read_result_entry> read_result;
+typedef array_result_holder<callback_result_entry> command_result;
 typedef result_holder<lookup_result_entry> lookup_result;
 typedef array_result_holder<stat_result_entry> stat_result;
 typedef array_result_holder<stat_count_result_entry> stat_count_result;
+typedef array_result_holder<int> prepare_latest_result;
 
 class transport_control
 {
@@ -437,11 +468,18 @@ class session
 		void			write_file(const key &id, const std::string &file, uint64_t local_offset,
 							uint64_t offset, uint64_t size);
 
-		std::string		read_data_wait(const key &id, uint64_t offset, uint64_t size);
+		void			read_data(const key &id, const std::vector<int> &groups,
+			const struct dnet_io_attr &io, const boost::function<void (const read_result &)> &handler);
+		void			read_data(const key &id, const std::vector<int> &groups,
+			uint64_t offset, uint64_t size, const boost::function<void (const read_result &)> &handler);
+		void			read_data(const key &id, uint64_t offset, uint64_t size, const boost::function<void (const read_result &)> &handler);
+		read_result		read_data(const key &id, uint64_t offset, uint64_t size);
 
+		void			prepare_latest(const key &id, const std::vector<int> &groups, const boost::function<void (const prepare_latest_result &)> &handler);
 		void			prepare_latest(const key &id, std::vector<int> &groups);
 
-		std::string		read_latest(const key &id, uint64_t offset, uint64_t size);
+		void			read_latest(const key &id, uint64_t offset, uint64_t size, const boost::function<void (const read_result &)> &handler);
+		read_result		read_latest(const key &id, uint64_t offset, uint64_t size);
 
 		std::string		write_cas(const key &id, const std::string &str,
 							const struct dnet_id &old_csum, uint64_t remote_offset);
@@ -480,8 +518,8 @@ class session
 
 		int			state_num();
 
-		callback_result		request_cmd(const transport_control &ctl);
-		void			request_cmd(const transport_control &ctl, const boost::function<void (const callback_result &)> &handler);
+		command_result		request_cmd(const transport_control &ctl);
+		void			request_cmd(const transport_control &ctl, const boost::function<void (const command_result &)> &handler);
 
 		std::string		read_metadata(const key &id);
 
@@ -534,7 +572,10 @@ class session
 							const std::string &binary,
 							bool lock);
 		std::string		request(struct dnet_id *id, struct sph *sph, bool lock);
-
+		void			mix_states(const key &id, std::vector<int> &groups);
+		void			mix_states(std::vector<int> &groups);
+		std::vector<int>	mix_states(const key &id);
+		std::vector<int>	mix_states();
 };
 
 }} /* namespace ioremap::elliptics */

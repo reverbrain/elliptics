@@ -49,8 +49,8 @@ class finder : public session {
 
 		void add_remote(const char *addr);
 
-		void parse_lookup(const callback_result &ret);
-		void parse_meta(const callback_result &ret);
+		void parse_lookup(const command_result &ret);
+		void parse_meta(const command_result &ret);
 };
 
 void finder::add_remote(const char *addr)
@@ -70,7 +70,7 @@ void finder::add_remote(const char *addr)
     get_node().add_remote(rem.addr, atoi(rem.port), rem.family);
 }
 
-void finder::parse_lookup(const callback_result &ret)
+void finder::parse_lookup(const command_result &ret)
 {
 	for (size_t i = 0; i < ret.size(); ++i) {
 		const callback_result_entry &data = ret[i];
@@ -115,7 +115,7 @@ void finder::parse_lookup(const callback_result &ret)
 	}
 }
 
-void finder::parse_meta(const callback_result &ret)
+void finder::parse_meta(const command_result &ret)
 {
 	for (size_t i = 0; i < ret.size(); ++i) {
 		const callback_result_entry &data = ret[i];
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
 			transport_control ctl(raw, DNET_CMD_LOOKUP,
 				DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK | DNET_ATTR_META_TIMES);
 
-			callback_result results = find.request_cmd(ctl);
+			command_result results = find.request_cmd(ctl);
 			find.parse_lookup(results);
 		}
 
@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
 
 			ctl.set_data(&io, sizeof(io));
 
-			callback_result results = find.request_cmd(ctl);
+			command_result results = find.request_cmd(ctl);
 			find.parse_meta(results);
 		}
 	} catch (const std::exception &e) {

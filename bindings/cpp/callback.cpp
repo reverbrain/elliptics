@@ -82,6 +82,36 @@ uint64_t callback_result_entry::size() const
 	: (m_data->data.size() - (sizeof(struct dnet_addr) + sizeof(struct dnet_cmd *)));
 }
 
+read_result_entry::read_result_entry()
+{
+}
+
+read_result_entry::read_result_entry(const read_result_entry &other) : callback_result_entry(other)
+{
+}
+
+read_result_entry::~read_result_entry()
+{
+}
+
+read_result_entry &read_result_entry::operator =(const read_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+struct dnet_io_attr *read_result_entry::io_attribute() const
+{
+	return data()
+		.data<struct dnet_io_attr>();
+}
+
+data_pointer read_result_entry::file() const
+{
+	return data()
+		.skip<struct dnet_io_attr>();
+}
+
 lookup_result_entry::lookup_result_entry()
 {
 }
@@ -102,26 +132,20 @@ lookup_result_entry &lookup_result_entry::operator =(const lookup_result_entry &
 
 struct dnet_addr_attr *lookup_result_entry::address_attribute() const
 {
-	return m_data->data
-		.skip<struct dnet_addr>()
-		.skip<struct dnet_cmd>()
+	return data()
 		.data<struct dnet_addr_attr>();
 }
 
 struct dnet_file_info *lookup_result_entry::file_info() const
 {
-	return m_data->data
-		.skip<struct dnet_addr>()
-		.skip<struct dnet_cmd>()
+	return data()
 		.skip<struct dnet_addr_attr>()
 		.data<struct dnet_file_info>();
 }
 
 const char *lookup_result_entry::file_path() const
 {
-	return m_data->data
-		.skip<struct dnet_addr>()
-		.skip<struct dnet_cmd>()
+	return data()
 		.skip<struct dnet_addr_attr>()
 		.skip<struct dnet_file_info>()
 		.data<char>();

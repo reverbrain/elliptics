@@ -19,6 +19,8 @@
 
 #include "elliptics/cppdef.h"
 
+#include <exception>
+
 #include <boost/make_shared.hpp>
 #include <boost/thread.hpp>
 
@@ -41,7 +43,7 @@ class callback_result_data
 				throw std::bad_alloc();
 			data = data_pointer(allocated, size);
 			memcpy(data.data(), dnet_state_addr(state), sizeof(struct dnet_addr));
-			memcpy(data.data(), cmd, sizeof(struct dnet_cmd) + cmd->size);
+			memcpy(data.data<char>() + sizeof(struct dnet_addr), cmd, sizeof(struct dnet_cmd) + cmd->size);
 		}
 
 		~callback_result_data()
@@ -49,15 +51,11 @@ class callback_result_data
 		}
 
 		data_pointer data;
-
-	private:
 };
 
 class default_callback
 {
 	public:
-		typedef boost::shared_ptr<default_callback> ptr;
-
 		default_callback() : m_count(1), m_complete(0)
 		{
 		}
@@ -68,11 +66,14 @@ class default_callback
 
 		void set_count(size_t count)
 		{
+			boost::mutex::scoped_lock lock(m_mutex);
 			m_count = count;
 		}
 
 		bool handle(struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func, void *)
 		{
+			boost::mutex::scoped_lock lock(m_mutex);
+
 			if (is_trans_destroyed(state, cmd)) {
 				++m_complete;
 			} else {
@@ -92,7 +93,7 @@ class default_callback
 		}
 
 		template <typename T>
-		T result_at(size_t index) const
+		const T &result_at(size_t index) const
 		{
 			return *static_cast<const T *>(&m_results.at(index));
 		}
@@ -122,6 +123,7 @@ class default_callback
 		std::vector<int> m_statuses;
 		size_t m_count;
 		size_t m_complete;
+		boost::mutex m_mutex;
 };
 
 template <typename Result, dnet_commands Command>
@@ -141,7 +143,7 @@ class base_stat_callback : public default_callback
 			}
 		}
 
-		void finish(boost::exception_ptr exc)
+		void finish(std::exception_ptr exc)
 		{
 			if (exc) {
 				handler(exc);
@@ -160,8 +162,8 @@ class base_stat_callback : public default_callback
 			if (res.empty()) {
 				try {
 					throw_error(-ENOENT, "Failed to request statistics");
-				} catch (std::exception &e) {
-					exc = boost::copy_exception(e);
+				} catch (...) {
+					exc = std::current_exception();
 				}
 				handler(exc);
 			} else {
@@ -173,7 +175,6 @@ class base_stat_callback : public default_callback
 
 		dnet_commands command;
 		session sess;
-		boost::recursive_mutex mutex;
 		boost::function<void (const array_result_holder<Result> &)> handler;
 };
 
@@ -213,12 +214,10 @@ class stat_count_callback : public base_stat_callback<stat_count_result_entry, D
 		}
 };
 
-class lookup_callback
+class multigroup_callback
 {
 	public:
-		typedef boost::shared_ptr<lookup_callback> ptr;
-
-		lookup_callback(const session &sess) : at_iterator(false), sess(sess), index(0)
+		multigroup_callback(const session &sess) : sess(sess), at_iterator(false), index(0)
 		{
 		}
 
@@ -245,6 +244,7 @@ class lookup_callback
 			// try next group
 			while (index < groups.size()) {
 				try {
+					struct dnet_id id = kid.id();
 					id.group_id = groups[index];
 					++index;
 					next_group(id, func, priv);
@@ -257,28 +257,51 @@ class lookup_callback
 						dnet_log_raw(sess.get_node().get_native(),
 							DNET_LOG_ERROR,
 							"%s: %s\n",
-							dnet_dump_id(&id),
+							dnet_dump_id(&kid.id()),
 							e.what());
 					} else {
 						dnet_log_raw(sess.get_node().get_native(),
 							DNET_LOG_ERROR,
 							"%s: %s : %s\n",
-							dnet_dump_id(&id),
+							dnet_dump_id(&kid.id()),
 							e.what(),
 							kid.remote().c_str());
 					}
 				}
 			}
-			typedef boost::shared_ptr<lookup_callback> ptr;
 			at_iterator = false;
 			// there is no success :(
-			throw_error(-ENOENT, kid, "Failed to lookup ID");
+			notify_about_error();
+			throw_error(-ENOENT, kid, "Something happened wrong");
 		}
 
 		void start(complete_func func, void *priv)
 		{
-			boost::recursive_mutex::scoped_lock locker(mutex);
 			iterate_groups(func, priv);
+		}
+
+		virtual bool check_answer() { return true; }
+		virtual void next_group(dnet_id &id, complete_func func, void *priv) = 0;
+		virtual void finish(std::exception_ptr exc) = 0;
+		virtual void notify_about_error() = 0;
+
+		session sess;
+		default_callback cb;
+		key kid;
+		std::vector<int> groups;
+
+	protected:
+		bool at_iterator;
+		size_t index;
+};
+
+class lookup_callback : public multigroup_callback
+{
+	public:
+		typedef boost::shared_ptr<lookup_callback> ptr;
+
+		lookup_callback(const session &sess) : multigroup_callback(sess)
+		{
 		}
 
 		void next_group(dnet_id &id, complete_func func, void *priv)
@@ -290,10 +313,10 @@ class lookup_callback
 			}
 		}
 
-		void finish(boost::exception_ptr exc)
+		void finish(std::exception_ptr exc)
 		{
 			if (exc) {
-				handler(lookup_result(exc));
+				handler(exc);
 			} else {
 				lookup_result_entry result = cb.any_result<lookup_result_entry>();
 				dnet_convert_addr_attr(result.address_attribute());
@@ -302,15 +325,57 @@ class lookup_callback
 			}
 		}
 
-		bool at_iterator;
-		session sess;
-		default_callback cb;
-		size_t index;
-		dnet_id id;
-		key kid;
-		std::vector<int> groups;
-		boost::recursive_mutex mutex;
+		void notify_about_error()
+		{
+			throw_error(-ENOENT, kid, "Failed to lookup ID");
+		}
+
 		boost::function<void (const lookup_result &)> handler;
+};
+
+class read_callback : public multigroup_callback
+{
+	public:
+		typedef boost::shared_ptr<read_callback> ptr;
+
+		read_callback(const session &sess, const struct dnet_io_control &ctl) : multigroup_callback(sess), ctl(ctl)
+		{
+		}
+
+		void next_group(dnet_id &id, complete_func func, void *priv)
+		{
+			cb.clear();
+			memcpy(&ctl.id, &id, sizeof(id));
+			ctl.complete = func;
+			ctl.priv = priv;
+			int err = dnet_read_object(sess.get_native(), &ctl);
+			if (err) {
+				std::cout << "request failed at index " << index << std::endl;
+				throw_error(err, ctl.id, "READ: size: %llu",
+					static_cast<unsigned long long>(ctl.io.size));
+			}
+			std::cout << "result read at index " << index << std::endl;
+		}
+
+		void finish(std::exception_ptr exc)
+		{
+			if (exc) {
+				handler(exc);
+			} else {
+				read_result_entry result = cb.any_result<read_result_entry>();
+				dnet_convert_io_attr(result.io_attribute());
+				handler(result);
+			}
+		}
+
+		void notify_about_error()
+		{
+			throw_error(-ENOENT, ctl.id, "READ: size: %llu",
+				static_cast<unsigned long long>(ctl.io.size));
+		}
+
+		struct dnet_io_control ctl;
+		boost::function<void (const read_result &)> handler;
 };
 
 class cmd_callback : public default_callback
@@ -334,7 +399,7 @@ class cmd_callback : public default_callback
 			set_count(err);
 		}
 
-		void finish(boost::exception_ptr exc)
+		void finish(std::exception_ptr exc)
 		{
 			if (exc)
 				handler(exc);
@@ -344,25 +409,86 @@ class cmd_callback : public default_callback
 
 		session sess;
 		dnet_trans_control ctl;
-		boost::recursive_mutex mutex;
-		boost::function<void (const callback_result &)> handler;
+		boost::function<void (const command_result &)> handler;
 };
 
-template <typename T>
-void check_for_exception(const T &result)
+class prepare_latest_callback : public default_callback
 {
-	if (result.exception())
-		boost::rethrow_exception(result.exception());
-}
+	public:
+		typedef boost::shared_ptr<prepare_latest_callback> ptr;
 
-template <typename T>
-void check_for_exception(const std::vector<T> &result)
-{
-	if (result.empty())
-		throw_error(-ENOENT, "No data available");
-	else if (result[0].exception())
-		boost::rethrow_exception(result[0].exception());
-}
+		class entry
+		{
+			public:
+				struct dnet_id *id;
+				struct dnet_file_info *fi;
+
+				bool operator <(const entry &other) const
+				{
+					return (fi->mtime.tsec < other.fi->mtime.tsec)
+						|| (fi->mtime.tsec == other.fi->mtime.tsec
+							&& (fi->mtime.tnsec < other.fi->mtime.tnsec));
+				}
+
+				bool operator ==(const entry &other) const
+				{
+					return fi->mtime.tsec == other.fi->mtime.tsec
+						&& fi->mtime.tnsec == other.fi->mtime.tnsec;
+				}
+		};
+
+		prepare_latest_callback(const session &sess, const std::vector<int> &groups) : sess(sess), groups(groups)
+		{
+			cflags = DNET_ATTR_META_TIMES | sess.get_cflags();
+		}
+
+		void start(complete_func func, void *priv)
+		{
+			set_count(groups.size());
+			dnet_id raw = id.id();
+			for (size_t i = 0; i < groups.size(); ++i) {
+				raw.group_id = groups[i];
+				dnet_lookup_object(sess.get_native(), &raw, cflags, func, priv);
+			}
+		}
+
+		void finish(std::exception_ptr exc)
+		{
+			if (exc) {
+				handler(exc);
+			}
+
+			std::vector<entry> entries(results().size());
+			for (size_t i = 0; i < entries.size(); ++i) {
+				entry &e = entries[i];
+				const lookup_result_entry &le = result_at<lookup_result_entry>(i);
+				e.fi = le.file_info();
+				e.id = &le.command()->id;
+			}
+
+			std::sort(entries.begin(), entries.end());
+
+			for (size_t i = 1; i < entries.size(); ++i) {
+				if (entries[i].id->group_id == group_id
+					&& entries[i] == entries[0]) {
+					std::swap(entries[i], entries[0]);
+				}
+			}
+
+			std::vector<int> result(entries.size());
+			for (size_t i = 0; i < entries.size(); ++i)
+				result[i] = entries[i].id->group_id;
+
+			handler(result);
+		}
+
+		session sess;
+		const std::vector<int> &groups;
+		key id;
+		uint32_t group_id;
+		uint64_t cflags;
+		boost::function<void (const prepare_latest_result &)> handler;
+};
 
 template <typename T>
 void check_for_exception(const result_holder<T> &result)
@@ -446,12 +572,11 @@ struct dnet_style_handler
 		boost::shared_ptr<T> &ptr = *reinterpret_cast<boost::shared_ptr<T> *>(priv);
 
 		bool finish = false;
-		boost::exception_ptr exc_ptr;
+		std::exception_ptr exc_ptr;
 		try {
-			boost::recursive_mutex::scoped_lock locker(ptr->mutex);
 			finish = ptr->handle(state, cmd, handler, priv);
-		} catch (std::exception &exc) {
-			exc_ptr = boost::copy_exception(exc);
+		} catch (...) {
+			exc_ptr = std::current_exception();
 			finish = true;
 		}
 
