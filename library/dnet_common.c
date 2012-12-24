@@ -21,6 +21,7 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 
+#include <alloca.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <limits.h>
