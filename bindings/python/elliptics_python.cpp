@@ -305,7 +305,7 @@ class elliptics_session: public session, public wrapper<session> {
 		std::string lookup_addr_by_id(const struct elliptics_id &id) {
 			struct dnet_id raw = id.to_dnet();
 
-			return lookup_address(raw);
+			return lookup_address(raw, raw.group_id);
 		}
 
 		boost::python::tuple parse_lookup(const std::string &lookup) {
