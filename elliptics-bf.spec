@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.1.4
+Version:	2.20.1.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Dec 25 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.5
+- Fixed lookup_addr in python
+- Added _XOPEN_SOURCE define to cleanup build on lucid
+
 * Thu Dec 20 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.4
 - Use atomic_t for sph::src_key
 
