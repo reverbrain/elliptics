@@ -2037,13 +2037,17 @@ void *dnet_read_data_wait_groups(struct dnet_session *s, struct dnet_id *id, int
 {
 	int i;
 	void *data;
+	int want_recover = 1;
 
 	for (i = 0; i < num; ++i) {
 		id->group_id = groups[i];
 
 		data = dnet_read_data_wait_raw(s, id, io, DNET_CMD_READ, cflags, errp);
+		if (*errp == -110) {
+			want_recover = 0;
+		}
 		if (data) {
-			if ((i != 0) && (io->type == 0) && (io->offset == 0) && (io->size > sizeof(struct dnet_io_attr))) {
+			if ((i != 0) && (io->type == 0) && (io->offset == 0) && (io->size > sizeof(struct dnet_io_attr)) && want_recover) {
 				dnet_read_recover(s, id, io, data, cflags);
 			}
 
