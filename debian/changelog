@@ -1,3 +1,9 @@
+elliptics (2.20.1.6) unstable; urgency=low
+
+  * Depend on 0.17.8+ eblob
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 27 Dec 2012 20:54:36 +0400
+
 elliptics (2.20.1.5) unstable; urgency=low
 
   * Fixed lookup_addr in python
