@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.1.8
+Version:	2.20.1.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Dec 28 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.9
+- Added snappy dep
+
 * Fri Dec 28 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.8
 - Elliptics must install 0.17.8+ eblob in this version
 

@@ -1,3 +1,9 @@
+elliptics (2.20.1.9) unstable; urgency=low
+
+  * Added snappy dep
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 28 Dec 2012 18:44:23 +0400
+
 elliptics (2.20.1.8) unstable; urgency=low
 
   * Elliptics must install 0.17.8+ eblob in this version
