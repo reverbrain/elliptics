@@ -18,6 +18,7 @@ Build-Depends: debhelper (>= 7.0.50~),
                cmake (>= 2.6),
                libboost-system-dev,
                libltdl-dev,
+               libsnappy-dev,
                libleveldb-dev
 Standards-Version: 3.8.0
 Homepage: http://www.ioremap.net/projects/elliptics
