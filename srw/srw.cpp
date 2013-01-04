@@ -310,14 +310,14 @@ class app_watcher {
 					m_jobs.pop_front();
 					guard.unlock();
 
-					m_app->enqueue(job, cocaine::engine::mode::blocking);
+					//m_app->enqueue(job);
 				}
 			}
 		}
 
 };
 
-typedef std::map<std::string, boost::shared_ptr<app_watcher> > eng_map_t;
+typedef std::map<std::string, boost::shared_ptr<cocaine::app_t> > eng_map_t;
 typedef std::map<int, dnet_shared_job_t> jobs_map_t;
 
 namespace {
@@ -379,7 +379,8 @@ class srw {
 			std::string ev = strs[1];
 
 			if (ev == "start-task") {
-				boost::shared_ptr<app_watcher> eng(new app_watcher(m_ctx, app));
+				boost::shared_ptr<cocaine::app_t> eng(new cocaine::app_t(m_ctx, app));
+				eng->start();
 
 				boost::mutex::scoped_lock guard(m_lock);
 				m_map.insert(std::make_pair(app, eng));
@@ -404,7 +405,7 @@ class srw {
 					return -ENOENT;
 				}
 
-				std::string s = it->second->info();
+				std::string s = Json::FastWriter().write(it->second->info());
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: info: %s\n", id_str, sph_str, event.c_str(), s.c_str());
 				return dnet_send_reply(st, cmd, (void *)s.data(), s.size(), 0);
 			} else if (sph->flags & (DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH)) {
@@ -433,6 +434,9 @@ class srw {
 					memcpy(sph->src.id, cmd->id.id, sizeof(sph->src.id));
 				}
 
+				dnet_shared_job_t job(boost::make_shared<dnet_job_t>(m_s, st, cmd, (long)sph->flags, app, ev,
+						cocaine::blob_t((const char *)sph, total_size(sph) + sizeof(struct sph))));
+
 				boost::mutex::scoped_lock guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
@@ -440,14 +444,12 @@ class srw {
 					return -ENOENT;
 				}
 
-				dnet_shared_job_t job(boost::make_shared<dnet_job_t>(m_s, st, cmd, sph->flags, app, ev,
-						cocaine::blob_t((const char *)sph, total_size(sph) + sizeof(struct sph))));
-
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK)
-					m_jobs.insert(std::make_pair(sph->src_key, job));
+					m_jobs.insert(std::make_pair((int)sph->src_key, job));
 
-				it->second->push(job);
 				guard.unlock();
+
+				it->second->enqueue(job, cocaine::engine::mode::normal);
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started: job: %d, total-size: %zd, block: %d\n",
 						id_str, sph_str, event.c_str(),
