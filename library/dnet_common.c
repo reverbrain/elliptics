@@ -1010,13 +1010,13 @@ static int dnet_send_cmd_complete(struct dnet_net_state *st, struct dnet_cmd *cm
 	return w->status;
 }
 
-static int dnet_send_cmd_single(struct dnet_net_state *st, struct dnet_wait *w, struct sph *e, uint64_t cflags)
+static int dnet_send_cmd_single(struct dnet_net_state *st, struct dnet_id *id, struct dnet_wait *w, struct sph *e, uint64_t cflags)
 {
 	struct dnet_trans_control ctl;
 
 	memset(&ctl, 0, sizeof(struct dnet_trans_control));
 
-	dnet_setup_id(&ctl.id, st->idc->group->group_id, e->src.id);
+	ctl.id = *id;
 	ctl.size = sizeof(struct sph) + e->event_size + e->data_size + e->binary_size;
 	ctl.cmd = DNET_CMD_EXEC;
 	ctl.complete = dnet_send_cmd_complete;
@@ -1050,7 +1050,7 @@ static int dnet_send_cmd_raw(struct dnet_session *s, struct dnet_id *id,
 		st = dnet_state_get_first(n, id);
 		if (!st)
 			goto err_out_put;
-		err = dnet_send_cmd_single(st, w, e, cflags);
+		err = dnet_send_cmd_single(st, id, w, e, cflags);
 		dnet_state_put(st);
 		num = 1;
 	} else if (id && id->group_id == 0) {
@@ -1063,7 +1063,7 @@ static int dnet_send_cmd_raw(struct dnet_session *s, struct dnet_id *id,
 			st = dnet_state_search_nolock(n, id);
 			if (st) {
 				if (st != n->st) {
-					err = dnet_send_cmd_single(st, w, e, cflags);
+					err = dnet_send_cmd_single(st, id, w, e, cflags);
 					num++;
 				}
 				dnet_state_put(st);
@@ -1071,6 +1071,9 @@ static int dnet_send_cmd_raw(struct dnet_session *s, struct dnet_id *id,
 		}
 		pthread_mutex_unlock(&n->state_lock);
 	} else {
+		struct dnet_id tmp_id;
+		tmp_id.type = 0;
+
 		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(g, &n->group_list, group_entry) {
 			list_for_each_entry(st, &g->state_list, state_entry) {
@@ -1079,8 +1082,9 @@ static int dnet_send_cmd_raw(struct dnet_session *s, struct dnet_id *id,
 
 				dnet_wait_get(w);
 
+				dnet_setup_id(&tmp_id, g->group_id, st->idc->ids[0].raw.id);
 				memcpy(e->src.id, st->idc->ids[0].raw.id, DNET_ID_SIZE);
-				err = dnet_send_cmd_single(st, w, e, cflags);
+				err = dnet_send_cmd_single(st, &tmp_id, w, e, cflags);
 				num++;
 			}
 		}
