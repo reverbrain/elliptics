@@ -1045,6 +1045,13 @@ static int dnet_send_cmd_raw(struct dnet_session *s, struct dnet_id *id,
 		goto err_out_exit;
 	}
 
+	/*
+	 * FIXME
+	 * We should iterate not over whole routing table and all groups ever received
+	 * but only on those which are present in provided dnet_session
+	 *
+	 * This also concerns stat request and other broadcasting operations
+	 */
 	if (id && id->group_id != 0) {
 		dnet_wait_get(w);
 		st = dnet_state_get_first(n, id);
