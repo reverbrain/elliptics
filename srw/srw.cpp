@@ -255,68 +255,6 @@ class dnet_job_t: public cocaine::engine::job_t
 };
 
 typedef boost::shared_ptr<dnet_job_t> dnet_shared_job_t;
-
-class app_watcher {
-	public:
-		app_watcher(cocaine::context_t &ctx, const std::string &app) :
-		m_need_exit(false) {
-			m_app.reset(new cocaine::app_t(ctx, app));
-			m_app->start();
-
-			m_thread = boost::thread(&app_watcher::process, this);
-		}
-
-		~app_watcher() {
-			boost::mutex::scoped_lock guard(m_lock);
-			m_need_exit = true;
-			m_cond.notify_one();
-			guard.unlock();
-
-			m_thread.join();
-		}
-
-		void push(dnet_shared_job_t job) {
-			boost::mutex::scoped_lock guard(m_lock);
-
-			m_jobs.push_back(job);
-			m_cond.notify_one();
-		}
-
-		std::string info() {
-			return Json::FastWriter().write(m_app->info());
-		}
-
-	private:
-		bool m_need_exit;
-		boost::condition m_cond;
-		boost::mutex m_lock;
-		std::deque<dnet_shared_job_t> m_jobs;
-		boost::thread m_thread;
-		std::auto_ptr<cocaine::app_t> m_app;
-
-		void process() {
-			while (!m_need_exit) {
-
-				boost::mutex::scoped_lock guard(m_lock);
-				if (m_jobs.empty()) {
-					m_cond.wait(guard);
-				}
-
-				if (m_need_exit)
-					break;
-
-				if (!m_jobs.empty()) {
-					dnet_shared_job_t job = m_jobs.front();
-					m_jobs.pop_front();
-					guard.unlock();
-
-					//m_app->enqueue(job);
-				}
-			}
-		}
-
-};
-
 typedef std::map<std::string, boost::shared_ptr<cocaine::app_t> > eng_map_t;
 typedef std::map<int, dnet_shared_job_t> jobs_map_t;
 
