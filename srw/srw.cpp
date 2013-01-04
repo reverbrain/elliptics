@@ -291,6 +291,7 @@ class srw {
 		}
 
 		int process(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *sph) {
+			int err = 0;
 			char *data = (char *)(sph + 1);
 			std::string event = dnet_get_event(sph, data);
 
@@ -317,14 +318,17 @@ class srw {
 			std::string ev = strs[1];
 
 			if (ev == "start-task") {
-				boost::shared_ptr<cocaine::app_t> eng(new cocaine::app_t(m_ctx, app));
-				eng->start();
-
 				boost::mutex::scoped_lock guard(m_lock);
-				m_map.insert(std::make_pair(app, eng));
+				eng_map_t::iterator it = m_map.find(app);
+				if (it == m_map.end()) {
+					boost::shared_ptr<cocaine::app_t> eng(new cocaine::app_t(m_ctx, app));
+					eng->start();
 
-				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started\n", id_str, sph_str, event.c_str());
-				return 0;
+					m_map.insert(std::make_pair(app, eng));
+					dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started\n", id_str, sph_str, event.c_str());
+				} else {
+					dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: was already started\n", id_str, sph_str, event.c_str());
+				}
 			} else if (ev == "stop-task") {
 				boost::mutex::scoped_lock guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
@@ -334,7 +338,6 @@ class srw {
 				guard.unlock();
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: stopped\n", id_str, sph_str, event.c_str());
-				return 0;
 			} else if (ev == "info") {
 				boost::mutex::scoped_lock guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
@@ -345,7 +348,7 @@ class srw {
 
 				std::string s = Json::FastWriter().write(it->second->info());
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: info: %s\n", id_str, sph_str, event.c_str(), s.c_str());
-				return dnet_send_reply(st, cmd, (void *)s.data(), s.size(), 0);
+				err = dnet_send_reply(st, cmd, (void *)s.data(), s.size(), 0);
 			} else if (sph->flags & (DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH)) {
 				boost::mutex::scoped_lock guard(m_lock);
 
@@ -364,8 +367,6 @@ class srw {
 
 				if (final)
 					m_jobs.erase(it);
-
-				return 0;
 			} else {
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
 					sph->src_key = atomic_inc(&m_src_key);
@@ -397,9 +398,9 @@ class srw {
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
 					cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 				}
-
-				return 0;
 			}
+
+			return err;
 		}
 
 	private:
