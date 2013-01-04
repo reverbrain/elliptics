@@ -393,26 +393,11 @@ class srw {
 						id_str, sph_str, event.c_str(),
 						sph->src_key, total_size(sph),
 						!!(sph->flags & DNET_SPH_FLAGS_SRC_BLOCK));
-#if 0
-				int err = 0;
-				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
-					bool success = job->wait(m_s->node->wait_ts.tv_sec);
-					if (!success)
-						throw std::runtime_error("timeout waiting for exec command to complete");
 
-					std::vector<char> res = job->result();
-					if (res.size()) {
-						err = dnet_send_reply(st, cmd, res.data(), res.size(), 0);
-					}
-
-					dnet_log(m_s->node, DNET_LOG_NOTICE, "srw: %s: %s: completed blocked task: %zd bytes\n",
-							app.c_str(), dnet_dump_id_str(sph->src.id), res.size());
-				}
-#else
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
 					cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 				}
-#endif
+
 				return 0;
 			}
 		}
