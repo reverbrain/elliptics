@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.1.9
+Version:	2.20.2.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Jan 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.2.0
+- Removed app_watcher class
+- Do not use app_watcher blocking helper - enqueue directly.
+- Fixed failure path in pool growing route. Do not grow non-blocking IO pool at all
+- proper srw command split in  dnet_ioclient
+- Better id logs in srw
+- Use correct ID in dnet_send_cmd_single()
+- Do not mess with rpath
+- Fixed bug in leveldb backend.
+
 * Fri Dec 28 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.1.9
 - Added snappy dep
 
