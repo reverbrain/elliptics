@@ -165,7 +165,7 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 class dnet_job_t: public cocaine::engine::job_t
 {
 	public:
-		dnet_job_t(struct dnet_session *session, struct dnet_net_state *state, struct dnet_cmd *cmd,
+		dnet_job_t(struct dnet_session *session, struct dnet_net_state *state, struct dnet_cmd *cmd, uint64_t sph_flags,
 				const std::string &app, const std::string& event, const cocaine::blob_t& blob):
 		cocaine::engine::job_t(event, blob),
 		m_completed(false),
@@ -173,15 +173,21 @@ class dnet_job_t: public cocaine::engine::job_t
        		m_s(session),
        		m_state(dnet_state_get(state)),
        		m_cmd(*cmd),
+		m_sph_flags(sph_flags),
        		m_error(0) {
 		}
 
 		~dnet_job_t() {
-			int err = dnet_send_reply(m_state, &m_cmd, m_res.data(), m_res.size(), 1);
-			if (!err) {
-				m_cmd.flags |= DNET_FLAGS_NEED_ACK;
-				dnet_send_ack(m_state, &m_cmd, m_error);
+			if (m_sph_flags & DNET_SPH_FLAGS_SRC_BLOCK) {
+				if (m_res.size()) {
+					m_cmd.flags &= ~DNET_FLAGS_NEED_ACK;
+					dnet_send_reply(m_state, &m_cmd, m_res.data(), m_res.size(), 0);
+				} else {
+					m_cmd.flags |= DNET_FLAGS_NEED_ACK;
+					dnet_send_ack(m_state, &m_cmd, m_error);
+				}
 			}
+
 			dnet_state_put(m_state);
 		}
 
@@ -244,6 +250,7 @@ class dnet_job_t: public cocaine::engine::job_t
 		boost::condition m_cond;
 		struct dnet_net_state *m_state;
 		struct dnet_cmd m_cmd;
+		uint64_t m_sph_flags;
 		int m_error;
 };
 
@@ -349,12 +356,22 @@ class srw {
 			char *data = (char *)(sph + 1);
 			std::string event = dnet_get_event(sph, data);
 
+			char id_str[DNET_DUMP_NUM * 2 + 1];
+			char sph_str[DNET_DUMP_NUM * 2 + 1];
+
+			dnet_dump_id_len_raw(cmd->id.id, DNET_DUMP_NUM, id_str);
+			dnet_dump_id_len_raw(sph->src.id, DNET_DUMP_NUM, sph_str);
+
+			id_str[2 * DNET_DUMP_NUM] = '\0';
+			sph_str[2 * DNET_DUMP_NUM] = '\0';
+
 			std::vector<std::string> strs;
 			boost::split(strs, event, boost::is_any_of("@"));
 
 			if (strs.size() != 2) {
-				dnet_log(m_s->node, DNET_LOG_ERROR, "%s: invalid event name: must be application@event or application@start-task\n",
-						event.c_str());
+				dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: invalid event name: "
+						"must be application@event or application@start-task\n",
+						id_str, sph_str, event.c_str());
 				return -EINVAL;
 			}
 
@@ -367,7 +384,7 @@ class srw {
 				boost::mutex::scoped_lock guard(m_lock);
 				m_map.insert(std::make_pair(app, eng));
 
-				dnet_log(m_s->node, DNET_LOG_NOTICE, "srw: %s: started\n", app.c_str());
+				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started\n", id_str, sph_str, event.c_str());
 				return 0;
 			} else if (ev == "stop-task") {
 				boost::mutex::scoped_lock guard(m_lock);
@@ -377,34 +394,34 @@ class srw {
 					m_map.erase(it);
 				guard.unlock();
 
-				dnet_log(m_s->node, DNET_LOG_NOTICE, "srw: %s: stopped\n", app.c_str());
+				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: stopped\n", id_str, sph_str, event.c_str());
 				return 0;
 			} else if (ev == "info") {
 				boost::mutex::scoped_lock guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
-					dnet_log(m_s->node, DNET_LOG_ERROR, "srw: %s: no task\n", app.c_str());
+					dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: no task\n", id_str, sph_str, event.c_str());
 					return -ENOENT;
 				}
 
 				std::string s = it->second->info();
-				dnet_log(m_s->node, DNET_LOG_INFO, "srw: %s: info: %s\n", app.c_str(), s.c_str());
+				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: info: %s\n", id_str, sph_str, event.c_str(), s.c_str());
 				return dnet_send_reply(st, cmd, (void *)s.data(), s.size(), 0);
 			} else if (sph->flags & (DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH)) {
 				boost::mutex::scoped_lock guard(m_lock);
 
 				jobs_map_t::iterator it = m_jobs.find(sph->src_key);
 				if (it == m_jobs.end()) {
-					dnet_log(m_s->node, DNET_LOG_ERROR, "srw: %s: %s: no job(%x) to complete\n",
-							app.c_str(), dnet_dump_id(&cmd->id), sph->src_key);
+					dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: no job: %d to complete\n",
+						id_str, sph_str, event.c_str(), sph->src_key);
 					return -ENOENT;
 				}
 
 				bool final = sph->flags & DNET_SPH_FLAGS_FINISH;
 				it->second->reply(final, (char *)(sph + 1) + sph->event_size, sph->data_size + sph->binary_size);
 
-				dnet_log(m_s->node, DNET_LOG_INFO, "srw: %s: completed: task: %x, total-data-size: %zd, finish: %d\n",
-						app.c_str(), sph->src_key, total_size(sph), final);
+				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: completed: job: %d, total-size: %zd, finish: %d\n",
+						id_str, sph_str, event.c_str(), sph->src_key, total_size(sph), final);
 
 				if (final)
 					m_jobs.erase(it);
@@ -419,11 +436,11 @@ class srw {
 				boost::mutex::scoped_lock guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
-					dnet_log(m_s->node, DNET_LOG_ERROR, "srw: %s: no task\n", app.c_str());
+					dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: no task\n", id_str, sph_str, event.c_str());
 					return -ENOENT;
 				}
 
-				dnet_shared_job_t job(boost::make_shared<dnet_job_t>(m_s, st, cmd, app, ev,
+				dnet_shared_job_t job(boost::make_shared<dnet_job_t>(m_s, st, cmd, sph->flags, app, ev,
 						cocaine::blob_t((const char *)sph, total_size(sph) + sizeof(struct sph))));
 
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK)
@@ -432,8 +449,10 @@ class srw {
 				it->second->push(job);
 				guard.unlock();
 
-				dnet_log(m_s->node, DNET_LOG_INFO, "srw: %s: started: task: %x, total-data-size: %zd, block: %d\n",
-						app.c_str(), sph->src_key, total_size(sph), !!(sph->flags & DNET_SPH_FLAGS_SRC_BLOCK));
+				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started: job: %d, total-size: %zd, block: %d\n",
+						id_str, sph_str, event.c_str(),
+						sph->src_key, total_size(sph),
+						!!(sph->flags & DNET_SPH_FLAGS_SRC_BLOCK));
 #if 0
 				int err = 0;
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
