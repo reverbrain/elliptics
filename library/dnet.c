@@ -539,7 +539,7 @@ int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err)
 		ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
 		ack.status = err;
 
-		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: ack -> %s: trans: %llu, flags: %llx, status: %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: %s: ack -> %s: trans: %llu, flags: %llx, status: %d.\n",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 				tid, (unsigned long long)ack.flags, err);
 
