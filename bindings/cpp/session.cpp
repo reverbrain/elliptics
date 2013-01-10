@@ -203,7 +203,13 @@ void session::write_file(const key &id, const std::string &file, uint64_t local_
 }
 
 void session::read_data(const key &id, const std::vector<int> &groups, const struct dnet_io_attr &io,
-	const boost::function<void (const read_result &)> &handler)
+	const boost::function<void (const read_results &)> &handler)
+{
+	read_data(id, groups, io, DNET_CMD_READ, handler);
+}
+
+void session::read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd,
+	const boost::function<void (const read_results &)> &handler)
 {
 	transform(id);
 
@@ -211,7 +217,7 @@ void session::read_data(const key &id, const std::vector<int> &groups, const str
 	memset(&control, 0, sizeof(control));
 
 	control.fd = -1;
-	control.cmd = DNET_CMD_READ;
+	control.cmd = cmd;
 	control.cflags = DNET_FLAGS_NEED_ACK | m_data->cflags;
 
 	memcpy(&control.io, &io, sizeof(struct dnet_io_attr));
@@ -223,6 +229,27 @@ void session::read_data(const key &id, const std::vector<int> &groups, const str
 
 	dnet_style_handler<read_callback>::start(cb);
 }
+
+void session::read_data(const key &id, int group, const dnet_io_attr &io,
+	const boost::function<void (const read_results &)> &handler)
+{
+	const std::vector<int> groups(1, group);
+	read_data(id, groups, io, handler);
+}
+
+struct results_to_result_proxy
+{
+	boost::function<void (const read_result &)> handler;
+
+	void operator() (const read_results &results)
+	{
+		if (results.exception()) {
+			handler(results.exception());
+		} else {
+			handler(results[0]);
+		}
+	}
+};
 
 void session::read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size,
 	const boost::function<void (const read_result &)> &handler)
@@ -240,7 +267,9 @@ void session::read_data(const key &id, const std::vector<int> &groups, uint64_t 
 	memcpy(io.id, id.id().id, DNET_ID_SIZE);
 	memcpy(io.parent, id.id().id, DNET_ID_SIZE);
 
-	read_data(id, groups, io, handler);
+	results_to_result_proxy proxy = { handler };
+
+	read_data(id, groups, io, proxy);
 }
 
 void session::read_data(const key &id, uint64_t offset, uint64_t size, const boost::function<void (const read_result &)> &handler)
@@ -255,6 +284,19 @@ read_result session::read_data(const key &id, uint64_t offset, uint64_t size)
 	waiter<read_result> w;
 	read_data(id, offset, size, w.handler());
 	return w.result();
+}
+
+read_result session::read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size)
+{
+	waiter<read_result> w;
+	read_data(id, groups, offset, size, w.handler());
+	return w.result();
+}
+
+read_result session::read_data(const key &id, int group_id, uint64_t offset, uint64_t size)
+{
+	std::vector<int> groups(1, group_id);
+	return read_data(id, groups, offset, size);
 }
 
 void session::prepare_latest(const key &id, const std::vector<int> &groups, const boost::function<void (const prepare_latest_result &)> &handler)
@@ -648,92 +690,184 @@ void session::update_status(const key &id, struct dnet_node_status *status)
 	}
 }
 
-struct range_sort_compare {
-		bool operator () (const std::string &s1, const std::string &s2) {
-			unsigned char *id1 = (unsigned char *)s1.data();
-			unsigned char *id2 = (unsigned char *)s2.data();
+class read_data_range_callback
+{
+	public:
+		struct scope
+		{
+			scope(const session &sess) : sess(sess) {}
 
-			int cmp = dnet_id_cmp_str(id1, id2);
+			session sess;
+			struct dnet_io_attr io;
+			struct dnet_id id;
+			int group_id;
+			bool need_exit;
+			boost::function<void (const read_range_result &)> handler;
+			struct dnet_raw_id start, next;
+			struct dnet_raw_id end;
+			uint64_t size;
+			std::vector<read_result_entry> result;
+			std::exception_ptr last_exception;
+		};
 
-			return cmp < 0;
+		boost::shared_ptr<scope> data;
+
+		read_data_range_callback(const session &sess,
+			const struct dnet_io_attr &io, int group_id,
+			const boost::function<void (const read_range_result &)> &handler)
+			: data(boost::make_shared<scope>(sess))
+		{
+			scope *d = data.get();
+
+			d->io = io;
+			d->group_id = group_id;
+			d->need_exit = false;
+			d->handler = handler;
+			d->size = io.size;
+
+			memcpy(d->end.id, d->io.parent, DNET_ID_SIZE);
+
+			dnet_setup_id(&d->id, d->group_id, d->io.id);
+			d->id.type = d->io.type;
+		}
+
+
+		void do_next()
+		{
+			scope *d = data.get();
+			struct dnet_node * const node = d->sess.get_node().get_native();
+			try {
+				if (d->need_exit) {
+					if (d->result.empty())
+						d->handler(d->last_exception);
+					else
+						d->handler(d->result);
+					return;
+				}
+				int err = dnet_search_range(node, &d->id, &d->start, &d->next);
+				if (err) {
+					throw_error(err, d->io.id, "Failed to read range data object: group: %d, size: %llu",
+						d->group_id, static_cast<unsigned long long>(d->io.size));
+				}
+
+				if ((dnet_id_cmp_str(d->id.id, d->next.id) > 0) ||
+						!memcmp(d->start.id, d->next.id, DNET_ID_SIZE) ||
+						(dnet_id_cmp_str(d->next.id, d->end.id) > 0)) {
+					memcpy(d->next.id, d->end.id, DNET_ID_SIZE);
+					d->need_exit = true;
+				}
+
+				logger log = d->sess.get_node().get_log();
+
+				if (log.get_log_level() > DNET_LOG_NOTICE) {
+					int len = 6;
+					char start_id[2*len + 1];
+					char next_id[2*len + 1];
+					char end_id[2*len + 1];
+					char id_str[2*len + 1];
+
+					dnet_log_raw(node, DNET_LOG_NOTICE, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d\n",
+							dnet_dump_id_len_raw(d->id.id, len, id_str),
+							dnet_dump_id_len_raw(d->start.id, len, start_id),
+							dnet_dump_id_len_raw(d->next.id, len, next_id),
+							dnet_dump_id_len_raw(d->end.id, len, end_id),
+							(unsigned long long)d->size, dnet_id_cmp_str(d->next.id, d->end.id));
+				}
+
+				memcpy(d->io.id, d->id.id, DNET_ID_SIZE);
+				memcpy(d->io.parent, d->next.id, DNET_ID_SIZE);
+
+				d->io.size = d->size;
+
+				std::vector<int> groups(1, d->group_id);
+				d->sess.read_data(d->id, groups, d->io, DNET_CMD_READ_RANGE, *this);
+			} catch (...) {
+				std::exception_ptr exc = std::current_exception();
+				d->handler(exc);
+			}
+		}
+
+		void operator () (const read_results &result)
+		{
+			scope *d = data.get();
+
+			if (result.exception()) {
+				d->last_exception = result.exception();
+			} else {
+				size_t size = result.size();
+
+				/* If DNET_IO_FLAGS_NODATA is set do not decrement size as 'rep' is the only structure in output */
+				if (!(d->io.flags & DNET_IO_FLAGS_NODATA))
+					--size;
+
+				read_result_entry last_entry = result[result.size() - 1];
+				struct dnet_io_attr *rep = last_entry.io_attribute();
+
+				dnet_log_raw(d->sess.get_node().get_native(),
+					DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
+					dnet_dump_id(&d->id), (unsigned long long)rep->num, (unsigned long long)d->io.start,
+					(unsigned long long)d->io.num, (unsigned long long)d->io.size);
+
+				if (d->io.start < rep->num) {
+					rep->num -= d->io.start;
+					d->io.start = 0;
+					d->io.num -= rep->num;
+
+					for (size_t i = 0; i < size; ++i)
+						d->result.push_back(result[i]);
+
+					d->last_exception = std::exception_ptr();
+
+					if (!d->io.num) {
+						d->handler(d->result);
+						return;
+					}
+				} else {
+					d->io.start -= rep->num;
+				}
+			}
+
+			memcpy(d->id.id, d->next.id, DNET_ID_SIZE);
+
+			do_next();
 		}
 };
 
-std::vector<std::string> session::read_data_range(struct dnet_io_attr &io, int group_id)
+void session::read_data_range(const struct dnet_io_attr &io, int group_id,
+	const boost::function<void (const read_range_result &)> &handler)
 {
-	struct dnet_range_data *data;
+	read_data_range_callback(*this, io, group_id, handler).do_next();
+}
+
+read_range_result session::read_data_range(struct dnet_io_attr &io, int group_id)
+{
+	waiter<read_range_result> w;
+	read_data_range(io, group_id, w.handler());
+	return w.result();
+}
+
+std::vector<std::string> session::read_data_range_raw(dnet_io_attr &io, int group_id)
+{
+	read_range_result range_result = read_data_range(io, group_id);
+	std::vector<std::string> result;
+
 	uint64_t num = 0;
-	uint32_t ioflags = io.flags;
-	int err;
 
-	data = dnet_read_range(m_data->session_ptr, &io, group_id, m_data->cflags, &err);
-	if (!data && err) {
-		throw_error(err, io.id, "Failed to read range data object: group: %d, size: %llu",
-			group_id, static_cast<unsigned long long>(io.size));
+	for (size_t i = 0; i < range_result.size(); ++i) {
+		read_result_entry entry = range_result[i];
+		if (!(io.flags & DNET_IO_FLAGS_NODATA))
+			num += entry.io_attribute()->num;
+		else
+			result.push_back(entry.data().to_string());
 	}
 
-	std::vector<std::string> ret;
-
-	if (data) {
-		try {
-			for (int i = 0; i < err; ++i) {
-				struct dnet_range_data *d = &data[i];
-				char *data = (char *)d->data;
-
-				if (!(ioflags & DNET_IO_FLAGS_NODATA)) {
-					while (d->size > sizeof(struct dnet_io_attr)) {
-						struct dnet_io_attr *io = (struct dnet_io_attr *)data;
-
-						dnet_convert_io_attr(io);
-
-						std::string str;
-
-						if (sizeof(struct dnet_io_attr) + io->size > d->size) {
-							throw_error(-EIO, "read_data_range: incorrect data size: d->size = %llu io->size = %llu",
-								static_cast<unsigned long long>(d->size),
-								static_cast<unsigned long long>(io->size));
-						}
-
-						str.append((char *)io->id, DNET_ID_SIZE);
-						str.append((char *)&io->size, sizeof(io->size));
-						str.append((const char *)(io + 1), io->size);
-
-						ret.push_back(str);
-
-						data += sizeof(struct dnet_io_attr) + io->size;
-						d->size -= sizeof(struct dnet_io_attr) + io->size;
-					}
-				} else {
-					if (d->size != sizeof(struct dnet_io_attr)) {
-						throw_error(-EIO, "Incorrect data size: d->size = %llu sizeof = %zu",
-							static_cast<unsigned long long>(d->size),
-							sizeof(struct dnet_io_attr));
-					}
-					struct dnet_io_attr *rep = (struct dnet_io_attr *)data;
-					num += rep->num;
-				}
-			}
-			for (int i = 0; i < err; ++i) {
-				struct dnet_range_data *d = &data[i];
-				free(d->data);
-			}
-			free(data);
-		} catch (const std::exception & e) {
-			for (int i = 0; i < err; ++i) {
-				struct dnet_range_data *d = &data[i];
-				free(d->data);
-			}
-			free(data);
-		}
-
-		if (ioflags & DNET_IO_FLAGS_NODATA) {
-			std::ostringstream str;
-			str << num;
-			ret.push_back(str.str());
-		}
+	if (io.flags & DNET_IO_FLAGS_NODATA) {
+		std::ostringstream str;
+		str << num;
+		result.push_back(str.str());
 	}
 
-	return ret;
+	return result;
 }
 
 std::vector<struct dnet_io_attr> session::remove_data_range(struct dnet_io_attr &io, int group_id)

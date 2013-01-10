@@ -69,7 +69,7 @@ int logger::get_log_level()
 	return m_data->log.log_level;
 }
 
-dnet_log *logger::get_dnet_log()
+dnet_log *logger::get_native()
 {
 	return &m_data->log;
 }

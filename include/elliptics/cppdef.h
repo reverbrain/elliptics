@@ -312,6 +312,8 @@ class stat_count_result_entry : public callback_result_entry
 };
 
 typedef result_holder<read_result_entry> read_result;
+typedef array_result_holder<read_result_entry> read_results;
+typedef array_result_holder<read_result_entry> read_range_result;
 typedef array_result_holder<callback_result_entry> command_result;
 typedef result_holder<lookup_result_entry> lookup_result;
 typedef array_result_holder<stat_result_entry> stat_result;
@@ -367,7 +369,7 @@ class logger
 
 		void 		log(const int level, const char *msg);
 		int			get_log_level();
-		struct dnet_log		*get_dnet_log();
+		struct dnet_log		*get_native();
 
 	protected:
 		boost::shared_ptr<logger_data> m_data;
@@ -403,6 +405,7 @@ class node
 
 		void			set_timeouts(const int wait_timeout, const int check_timeout);
 
+		logger get_log() const;
 		struct dnet_node *	get_native();
 
 	protected:
@@ -469,11 +472,17 @@ class session
 							uint64_t offset, uint64_t size);
 
 		void			read_data(const key &id, const std::vector<int> &groups,
-			const struct dnet_io_attr &io, const boost::function<void (const read_result &)> &handler);
+			const struct dnet_io_attr &io, const boost::function<void (const read_results &)> &handler);
+		void			read_data(const key &id, const std::vector<int> &groups,
+			const struct dnet_io_attr &io, unsigned int cmd, const boost::function<void (const read_results &)> &handler);
+		void			read_data(const key &id, int group_id,
+			const struct dnet_io_attr &io, const boost::function<void (const read_results &)> &handler);
 		void			read_data(const key &id, const std::vector<int> &groups,
 			uint64_t offset, uint64_t size, const boost::function<void (const read_result &)> &handler);
 		void			read_data(const key &id, uint64_t offset, uint64_t size, const boost::function<void (const read_result &)> &handler);
 		read_result		read_data(const key &id, uint64_t offset, uint64_t size);
+		read_result		read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size);
+		read_result		read_data(const key &id, int group_id, uint64_t offset, uint64_t size);
 
 		void			prepare_latest(const key &id, const std::vector<int> &groups, const boost::function<void (const prepare_latest_result &)> &handler);
 		void			prepare_latest(const key &id, std::vector<int> &groups);
@@ -526,7 +535,9 @@ class session
 		void			update_status(const char *addr, const int port, const int family, struct dnet_node_status *status);
 		void			update_status(const key &id, struct dnet_node_status *status);
 
-		std::vector<std::string>	read_data_range(struct dnet_io_attr &io, int group_id);
+		void			read_data_range(const struct dnet_io_attr &io, int group_id, const boost::function<void (const read_range_result &)> &handler);
+		read_range_result	read_data_range(struct dnet_io_attr &io, int group_id);
+		std::vector<std::string>read_data_range_raw(struct dnet_io_attr &io, int group_id);
 
 		std::vector<struct dnet_io_attr> remove_data_range(struct dnet_io_attr &io, int group_id);
 

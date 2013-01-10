@@ -49,7 +49,7 @@ node::node(const logger &l) : m_data(new node_data)
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 5;
 	cfg.check_timeout = 20;
-	cfg.log = m_data->log.get_dnet_log();
+	cfg.log = m_data->log.get_native();
 
 	snprintf(cfg.addr, sizeof(cfg.addr), "0.0.0.0");
 	snprintf(cfg.port, sizeof(cfg.port), "0");
@@ -66,7 +66,7 @@ node::node(const logger &l, struct dnet_config &cfg) : m_data(new node_data)
 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
-	cfg.log = m_data->log.get_dnet_log();
+	cfg.log = m_data->log.get_native();
 
 	snprintf(cfg.addr, sizeof(cfg.addr), "0.0.0.0");
 	snprintf(cfg.port, sizeof(cfg.port), "0");
@@ -86,7 +86,7 @@ node::node(const logger &l, const std::string &config_path) : m_data(new node_da
 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
-	cfg.log = m_data->log.get_dnet_log();
+	cfg.log = m_data->log.get_native();
 
 	std::list<address> remotes;
 	std::vector<int> groups;
@@ -211,6 +211,11 @@ void node::add_remote(const char *addr, const int port, const int family)
 void node::set_timeouts(const int wait_timeout, const int check_timeout)
 {
 	dnet_set_timeouts(m_data->node_ptr, wait_timeout, check_timeout);
+}
+
+logger node::get_log() const
+{
+	return m_data->log;
 }
 
 dnet_node *node::get_native()

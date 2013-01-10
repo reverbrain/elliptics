@@ -365,7 +365,7 @@ class elliptics_session: public session, public wrapper<session> {
 			elliptics_extract_range(r, io);
 
 			std::vector<std::string> ret;
-			ret = session::read_data_range(io, r.group_id);
+			ret = session::read_data_range_raw(io, r.group_id);
 
 			boost::python::list l;
 

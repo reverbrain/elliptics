@@ -180,6 +180,9 @@ struct dnet_range_data {
 	void				*data;
 };
 
+int dnet_search_range(struct dnet_node *n, struct dnet_id *id,
+		struct dnet_raw_id *start, struct dnet_raw_id *next);
+
 struct dnet_io_attr *dnet_remove_range(struct dnet_session *s, struct dnet_io_attr *io,
 		int group_id, uint64_t cflags, int *rep_num, int *errp);
 

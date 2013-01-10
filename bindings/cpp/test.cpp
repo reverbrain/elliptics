@@ -96,7 +96,7 @@ static void test_range_request(session &s, int limit_start, int limit_num, uint6
 	io.num = limit_num;
 
 	std::vector<std::string> ret;
-	ret = s.read_data_range(io, group_id);
+	ret = s.read_data_range_raw(io, group_id);
 
 	std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
 #if 0
@@ -111,6 +111,61 @@ static void test_range_request(session &s, int limit_start, int limit_num, uint6
 			dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str) << ": size: " << size << ": " << str << std::endl;
 	}
 #endif
+}
+
+static void test_range_request_2(session &s, int limit_start, int limit_num, int group_id)
+{
+	const size_t item_count = 16;
+	const size_t number_index = 5; // DNET_ID_SIZE - 1
+
+	struct dnet_id begin;
+	memset(&begin, 0x13, sizeof(begin));
+	begin.group_id = group_id;
+	begin.type = 0;
+	begin.id[number_index] = 0;
+
+	struct dnet_id end = begin;
+	end.id[number_index] = item_count;
+
+	struct dnet_id id = begin;
+
+	std::vector<std::string> data(item_count);
+
+	for (size_t i = 0; i < data.size(); ++i) {
+		std::string &str = data[i];
+		str.resize(5 + (rand() % 95));
+		std::generate(str.begin(), str.end(), std::rand);
+
+		id.id[number_index] = i;
+		s.write_data_wait(id, data[i], 0);
+		read_result entry = s.read_data(id, group_id, 0, 0);
+		if (entry->file().to_string() != str)
+			throw_error(-EIO, id, "read_data_range_2: Write failed");
+	}
+
+	struct dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	memcpy(io.id, begin.id, sizeof(io.id));
+	memcpy(io.parent, end.id, sizeof(io.id));
+	io.start = limit_start;
+	io.num = limit_num;
+
+	read_range_result result = s.read_data_range(io, group_id);
+
+	std::vector<std::string> result2 = s.read_data_range_raw(io, group_id);
+
+	if (int(result.size()) != std::min(limit_num, int(item_count) - limit_start)) {
+		throw_error(-ENOENT, begin, "read_data_range_2: Received size: %d, old: %d, expected: %d",
+			int(result.size()), int(result2.size()), std::min(limit_num, int(item_count) - limit_start));
+	}
+
+	for (int i = 0; i < std::min(int(item_count) - limit_start, limit_num); ++i) {
+		int index = i + limit_start;
+		if (data[index] != result[i].file().to_string()) {
+			throw_error(-ENOENT, begin, "read_data_range_2: Invalid data at %d of %d",
+				i, limit_num);
+		}
+	}
 }
 
 static void test_lookup_parse(const std::string &key,
@@ -515,6 +570,10 @@ int main(int argc, char *argv[])
 		test_prepare_commit(s, 1, 0);
 		test_prepare_commit(s, 0, 1);
 		test_prepare_commit(s, 1, 1);
+
+		test_range_request_2(s, 0, 255, group_id);
+		test_range_request_2(s, 3, 14, group_id);
+		test_range_request_2(s, 7, 3, group_id);
 
 		const uint64_t cflags = s.get_cflags();
 		test_range_request(s, 0, 0, 0, group_id);

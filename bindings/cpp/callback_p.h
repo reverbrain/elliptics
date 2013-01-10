@@ -103,6 +103,11 @@ class default_callback
 			return m_results;
 		}
 
+		size_t results_size() const
+		{
+			return m_results.size();
+		}
+
 		bool is_valid() const
 		{
 			bool ok = false;
@@ -350,11 +355,9 @@ class read_callback : public multigroup_callback
 			ctl.priv = priv;
 			int err = dnet_read_object(sess.get_native(), &ctl);
 			if (err) {
-				std::cout << "request failed at index " << index << std::endl;
 				throw_error(err, ctl.id, "READ: size: %llu",
 					static_cast<unsigned long long>(ctl.io.size));
 			}
-			std::cout << "result read at index " << index << std::endl;
 		}
 
 		void finish(std::exception_ptr exc)
@@ -362,9 +365,16 @@ class read_callback : public multigroup_callback
 			if (exc) {
 				handler(exc);
 			} else {
-				read_result_entry result = cb.any_result<read_result_entry>();
-				dnet_convert_io_attr(result.io_attribute());
-				handler(result);
+				std::vector<read_result_entry> results;
+				results.reserve(cb.results_size());
+				for (size_t i = 0; i < cb.results_size(); ++i) {
+					read_result_entry result = cb.result_at<read_result_entry>(i);
+					if (result.size() >= sizeof(struct dnet_io_attr)) {
+						dnet_convert_io_attr(result.io_attribute());
+						results.push_back(result);
+					}
+				}
+				handler(results);
 			}
 		}
 
@@ -375,7 +385,7 @@ class read_callback : public multigroup_callback
 		}
 
 		struct dnet_io_control ctl;
-		boost::function<void (const read_result &)> handler;
+		boost::function<void (const read_results &)> handler;
 };
 
 class cmd_callback : public default_callback

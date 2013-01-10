@@ -77,9 +77,9 @@ data_pointer callback_result_entry::data() const
 
 uint64_t callback_result_entry::size() const
 {
-	return (m_data->data.size() <= (sizeof(struct dnet_addr) + sizeof(struct dnet_cmd *)))
+	return (m_data->data.size() <= (sizeof(struct dnet_addr) + sizeof(struct dnet_cmd)))
 		? (0)
-	: (m_data->data.size() - (sizeof(struct dnet_addr) + sizeof(struct dnet_cmd *)));
+	: (m_data->data.size() - (sizeof(struct dnet_addr) + sizeof(struct dnet_cmd)));
 }
 
 read_result_entry::read_result_entry()
