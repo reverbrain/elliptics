@@ -40,7 +40,6 @@
 #include <cocaine/context.hpp>
 #include <cocaine/logging.hpp>
 #include <cocaine/app.hpp>
-#include <cocaine/job.hpp>
 
 #include <elliptics/interface.h>
 #include <elliptics/srw.h>
@@ -136,9 +135,14 @@ class srw_log {
 		}
 };
 
-class dnet_sink_t: public cocaine::logging::sink_t {
+class dnet_sink_t: public cocaine::logging::logger_t {
 	public:
-		dnet_sink_t(struct dnet_session *sess, cocaine::logging::priorities prio): cocaine::logging::sink_t(prio), m_s(sess) {
+		dnet_sink_t(struct dnet_session *sess, cocaine::logging::priorities &prio):
+		m_s(sess), m_prio(prio) {
+		}
+
+		virtual cocaine::logging::priorities verbosity() const {
+			return m_prio;
 		}
 
 		virtual void emit(cocaine::logging::priorities prio, const std::string &app, const std::string& message) const {
@@ -160,23 +164,23 @@ class dnet_sink_t: public cocaine::logging::sink_t {
 
 	private:
 		struct dnet_session *m_s;
+		cocaine::logging::priorities m_prio;
 };
 
-class dnet_job_t: public cocaine::engine::job_t
+class dnet_upstream_t: public cocaine::api::stream_t
 {
 	public:
-		dnet_job_t(struct dnet_session *session, struct dnet_net_state *state, struct dnet_cmd *cmd,
-				const std::string &app, const std::string& event, const cocaine::blob_t& blob):
-		cocaine::engine::job_t(event, blob),
+		dnet_upstream_t(struct dnet_session *session, struct dnet_net_state *state, struct dnet_cmd *cmd,
+				const std::string &event):
 		m_completed(false),
-		m_name(app + "/" + event),
+		m_name(event),
        		m_s(session),
        		m_state(dnet_state_get(state)),
        		m_cmd(*cmd),
        		m_error(0) {
 		}
 
-		~dnet_job_t() {
+		~dnet_upstream_t() {
 			int err = dnet_send_reply(m_state, &m_cmd, m_res.data(), m_res.size(), 1);
 			if (!err) {
 				m_cmd.flags |= DNET_FLAGS_NEED_ACK;
@@ -247,7 +251,7 @@ class dnet_job_t: public cocaine::engine::job_t
 		int m_error;
 };
 
-typedef boost::shared_ptr<dnet_job_t> dnet_shared_job_t;
+typedef boost::shared_ptr<dnet_upstream_t> dnet_shared_upstream_t;
 
 class app_watcher {
 	public:
@@ -332,7 +336,7 @@ namespace {
 class srw {
 	public:
 		srw(struct dnet_session *sess, const std::string &config) : m_s(sess),
-		m_ctx(config, boost::make_shared<dnet_sink_t>(m_s, dnet_log_level_to_prio(sess->node->log->log_level))) {
+		m_ctx(config, new dnet_sink_t(m_s, dnet_log_level_to_prio(sess->node->log->log_level))) {
 			atomic_set(&m_src_key, 1);
 		}
 
@@ -423,13 +427,16 @@ class srw {
 					return -ENOENT;
 				}
 
-				dnet_shared_job_t job(boost::make_shared<dnet_job_t>(m_s, st, cmd, app, ev,
-						cocaine::blob_t((const char *)sph, total_size(sph) + sizeof(struct sph))));
+				dnet_shared_upstream_t upstream(boost::make_shared<dnet_upstream_t>(m_s, st, cmd, event));
+
+				cocaine::api::event_t cevent(event);
+				boost::shared_ptr<cocaine::api::stream_t> stream = it->second->enqueue(cevent, upstream);
+
+				stream->push((const char *)sph, total_size(sph) + sizeof(struct sph));
 
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK)
-					m_jobs.insert(std::make_pair(sph->src_key, job));
+					m_jobs.insert(std::make_pair(sph->src_key, upstream));
 
-				it->second->push(job);
 				guard.unlock();
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "srw: %s: started: task: %x, total-data-size: %zd, block: %d\n",
