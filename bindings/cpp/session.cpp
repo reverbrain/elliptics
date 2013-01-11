@@ -701,8 +701,10 @@ class read_data_range_callback
 			struct dnet_io_attr io;
 			struct dnet_id id;
 			int group_id;
+			unsigned int cmd;
 			bool need_exit;
 			boost::function<void (const read_range_result &)> handler;
+			boost::function<void (const read_results &)> me;
 			struct dnet_raw_id start, next;
 			struct dnet_raw_id end;
 			uint64_t size;
@@ -723,6 +725,8 @@ class read_data_range_callback
 			d->group_id = group_id;
 			d->need_exit = false;
 			d->handler = handler;
+			d->me = *this;
+			d->cmd = DNET_CMD_READ_RANGE;
 			d->size = io.size;
 
 			memcpy(d->end.id, d->io.parent, DNET_ID_SIZE);
@@ -780,7 +784,7 @@ class read_data_range_callback
 				d->io.size = d->size;
 
 				std::vector<int> groups(1, d->group_id);
-				d->sess.read_data(d->id, groups, d->io, DNET_CMD_READ_RANGE, *this);
+				d->sess.read_data(d->id, groups, d->io, d->cmd, d->me);
 			} catch (...) {
 				std::exception_ptr exc = std::current_exception();
 				d->handler(exc);
@@ -833,6 +837,52 @@ class read_data_range_callback
 		}
 };
 
+class remove_data_range_callback : public read_data_range_callback
+{
+	public:
+		remove_data_range_callback(const session &sess,
+			const struct dnet_io_attr &io, int group_id,
+			const boost::function<void (const read_range_result &)> &handler)
+		: read_data_range_callback(sess, io, group_id, handler)
+		{
+			scope *d = data.get();
+
+			d->cmd = DNET_CMD_DEL_RANGE;
+			d->me = *this;
+		}
+
+		void operator () (const read_results &result)
+		{
+			scope *d = data.get();
+
+			if (result.exception()) {
+				d->last_exception = result.exception();
+			} else if (result.size() > 0){
+				struct dnet_io_attr *rep = result[0].io_attribute();
+
+				dnet_log_raw(d->sess.get_node().get_native(), DNET_LOG_NOTICE,
+						"%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
+						dnet_dump_id(&d->id), (unsigned long long)rep->num, (unsigned long long)d->io.start,
+						(unsigned long long)d->io.num, (unsigned long long)d->io.size);
+
+				d->result.push_back(result[0]);
+			} else {
+				try {
+					throw_error(-ENOENT, d->io.id, "Failed to remove range data object: group: %d, size: %llu",
+						d->group_id, static_cast<unsigned long long>(d->io.size));
+				} catch (...) {
+					d->last_exception = std::current_exception();
+				}
+				d->handler(d->last_exception);
+				return;
+			}
+
+			memcpy(d->id.id, d->next.id, DNET_ID_SIZE);
+
+			do_next();
+		}
+};
+
 void session::read_data_range(const struct dnet_io_attr &io, int group_id,
 	const boost::function<void (const read_range_result &)> &handler)
 {
@@ -870,30 +920,16 @@ std::vector<std::string> session::read_data_range_raw(dnet_io_attr &io, int grou
 	return result;
 }
 
-std::vector<struct dnet_io_attr> session::remove_data_range(struct dnet_io_attr &io, int group_id)
+void session::remove_data_range(dnet_io_attr &io, int group_id, const boost::function<void (const remove_range_result &)> &handler)
 {
-	struct dnet_io_attr *retp;
-	int ret_num;
-	int err;
+	remove_data_range_callback(*this, io, group_id, handler).do_next();
+}
 
-	retp = dnet_remove_range(m_data->session_ptr, &io, group_id, m_data->cflags, &ret_num, &err);
-
-	if (!retp && err) {
-		throw_error(err, io.id, "Failed to read range data object: group: %d, size: %llu",
-			group_id, static_cast<unsigned long long>(io.size));
-	}
-
-	std::vector<struct dnet_io_attr> ret;;
-
-	if (retp) {
-		for (int i = 0; i < ret_num; ++i) {
-			ret.push_back(retp[i]);
-		}
-
-		free(retp);
-	}
-
-	return ret;
+remove_range_result session::remove_data_range(struct dnet_io_attr &io, int group_id)
+{
+	waiter<remove_range_result> w;
+	remove_data_range(io, group_id, w.handler());
+	return w.result();
 }
 
 std::string session::write_prepare(const key &id, const std::string &str, uint64_t remote_offset,

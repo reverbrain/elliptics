@@ -214,7 +214,7 @@ class array_result_holder : public generic_result_holder
 
 		T &operator[] (size_t index) { check(); return d_func()->result[index]; }
 		const T &operator[] (size_t index) const { check(); return d_func()->result[index]; }
-		size_t size() const { check(); return d_func()->result.size(); }
+		size_t size() const { if (!d_func()) return 0; check(); return d_func()->result.size(); }
 
 		operator std::vector<int> &() { check(); return d_func()->result; }
 		operator const std::vector<int> &() const { check(); return d_func()->result; }
@@ -314,6 +314,7 @@ class stat_count_result_entry : public callback_result_entry
 typedef result_holder<read_result_entry> read_result;
 typedef array_result_holder<read_result_entry> read_results;
 typedef array_result_holder<read_result_entry> read_range_result;
+typedef array_result_holder<read_result_entry> remove_range_result;
 typedef array_result_holder<callback_result_entry> command_result;
 typedef result_holder<lookup_result_entry> lookup_result;
 typedef array_result_holder<stat_result_entry> stat_result;
@@ -539,7 +540,8 @@ class session
 		read_range_result	read_data_range(struct dnet_io_attr &io, int group_id);
 		std::vector<std::string>read_data_range_raw(struct dnet_io_attr &io, int group_id);
 
-		std::vector<struct dnet_io_attr> remove_data_range(struct dnet_io_attr &io, int group_id);
+		void			remove_data_range(struct dnet_io_attr &io, int group_id, const boost::function<void (const remove_range_result &)> &handler);
+		remove_range_result	remove_data_range(struct dnet_io_attr &io, int group_id);
 
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 

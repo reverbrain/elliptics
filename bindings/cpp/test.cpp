@@ -152,11 +152,9 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 
 	read_range_result result = s.read_data_range(io, group_id);
 
-	std::vector<std::string> result2 = s.read_data_range_raw(io, group_id);
-
 	if (int(result.size()) != std::min(limit_num, int(item_count) - limit_start)) {
-		throw_error(-ENOENT, begin, "read_data_range_2: Received size: %d, old: %d, expected: %d",
-			int(result.size()), int(result2.size()), std::min(limit_num, int(item_count) - limit_start));
+		throw_error(-ENOENT, begin, "read_data_range_2: Received size: %d, expected: %d",
+			int(result.size()), std::min(limit_num, int(item_count) - limit_start));
 	}
 
 	for (int i = 0; i < std::min(int(item_count) - limit_start, limit_num); ++i) {
@@ -165,6 +163,27 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 			throw_error(-ENOENT, begin, "read_data_range_2: Invalid data at %d of %d",
 				i, limit_num);
 		}
+	}
+
+	remove_range_result remove_result = s.remove_data_range(io, group_id);
+	int removed = 0;
+	for (size_t i = 0; i < remove_result.size(); ++i)
+		removed += remove_result[i].io_attribute()->num;
+
+	if (removed != int(item_count)) {
+		throw_error(-EIO, begin, "read_data_range_2: Failed to remove data, expected items: %d, found: %d",
+			int(result.size()), removed);
+	}
+	removed = 0;
+	try {
+		remove_result = s.remove_data_range(io, group_id);
+		for (size_t i = 0; i < remove_result.size(); ++i)
+			removed += remove_result[i].io_attribute()->num;
+	} catch (...) {
+	}
+	if (removed != 0) {
+		throw_error(-EIO, begin, "read_data_range_2: Failed to remove no data, expected items: 0, found: %d",
+			 removed);
 	}
 }
 
@@ -546,7 +565,7 @@ int main(int argc, char *argv[])
 	}
 
 
-//	try {
+	try {
 		file_logger log("/dev/stderr", DNET_LOG_DEBUG);
 
 		node n(log);
@@ -559,6 +578,10 @@ int main(int argc, char *argv[])
 			throw std::runtime_error("Could not add remote nodes, exiting");
 		}
 
+		test_range_request_2(s, 0, 255, group_id);
+		test_range_request_2(s, 3, 14, group_id);
+		test_range_request_2(s, 7, 3, group_id);
+
 		test_lookup(s, groups);
 
 		s.stat_log();
@@ -570,10 +593,6 @@ int main(int argc, char *argv[])
 		test_prepare_commit(s, 1, 0);
 		test_prepare_commit(s, 0, 1);
 		test_prepare_commit(s, 1, 1);
-
-		test_range_request_2(s, 0, 255, group_id);
-		test_range_request_2(s, 3, 14, group_id);
-		test_range_request_2(s, 7, 3, group_id);
 
 		const uint64_t cflags = s.get_cflags();
 		test_range_request(s, 0, 0, 0, group_id);
@@ -597,9 +616,9 @@ int main(int argc, char *argv[])
 		test_cache_delete(s, 1000);
 		test_cache_write(s, 1000);
 
-//	} catch (const std::exception &e) {
-//		std::cerr << "Error occured : " << e.what() << std::endl;
-//	} catch (int err) {
-//		std::cerr << "Error : " << err << std::endl;
-//	}
+	} catch (const std::exception &e) {
+		std::cerr << "Error occured : " << e.what() << std::endl;
+	} catch (int err) {
+		std::cerr << "Error : " << err << std::endl;
+	}
 }
