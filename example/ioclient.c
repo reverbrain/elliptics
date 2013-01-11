@@ -356,10 +356,14 @@ int main(int argc, char *argv[])
 		int event_size = len;
 		char *ret = NULL;
 		char *tmp;
+		char *data = NULL;
 
 		tmp = strchr(cmd, ' ');
 		if (tmp) {
 			event_size = tmp - cmd;
+			*tmp = '\0';
+			len--;
+			data = tmp + 1;
 		}
 
 		if (id) {
@@ -381,18 +385,21 @@ int main(int argc, char *argv[])
 		sph->data_size = len - event_size;
 		sph->event_size = event_size;
 
-		sprintf(sph->data, "%s", cmd);
+		if (data)
+			sprintf(sph->data, "%s%s", cmd, data);
+		else
+			sprintf(sph->data, "%s", cmd);
 
 		err = dnet_send_cmd(s, did, sph, (void **)&ret);
 		if (err < 0)
 			return err;
 
-		free(sph);
-
 		if (err > 0) {
 			printf("%.*s\n", err, ret);
 			free(ret);
 		}
+
+		free(sph);
 	}
 
 	if (lookup) {

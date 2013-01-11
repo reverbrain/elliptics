@@ -75,14 +75,16 @@ static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool,
 
 		wio->thread_index = i;
 		wio->pool = pool;
-		list_add_tail(&wio->wio_entry, &pool->wio_list);
 
 		err = pthread_create(&wio->tid, NULL, process, wio);
 		if (err) {
+			free(wio);
 			err = -err;
 			dnet_log(n, DNET_LOG_ERROR, "Failed to create IO thread: %d\n", err);
 			goto err_out_io_threads;
 		}
+
+		list_add_tail(&wio->wio_entry, &pool->wio_list);
 	}
 
 	dnet_log(n, DNET_LOG_INFO, "Grew %s pool by: %d -> %d IO threads\n",
@@ -223,7 +225,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 
 		sph = (struct sph *)r->data;
 		if ((sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) && pool_has_blocked_sph && (atomic_read(&pool->avail) < edge_num)) {
-			dnet_work_pool_grow(n, pool, edge_num, dnet_io_process);
+			//dnet_work_pool_grow(n, pool, edge_num, dnet_io_process);
 		}
 	}
 
