@@ -313,6 +313,7 @@ class stat_count_result_entry : public callback_result_entry
 
 typedef result_holder<read_result_entry> read_result;
 typedef array_result_holder<read_result_entry> read_results;
+typedef array_result_holder<read_result_entry> bulk_read_result;
 typedef array_result_holder<read_result_entry> read_range_result;
 typedef array_result_holder<read_result_entry> remove_range_result;
 typedef array_result_holder<callback_result_entry> command_result;
@@ -565,8 +566,9 @@ class session
 		void			reply(const struct sph &sph, const std::string &event, const std::string &data,
 						const std::string &binary);
 
-		std::vector<std::string>	bulk_read(const std::vector<struct dnet_io_attr> &ios);
-		std::vector<std::string>	bulk_read(const std::vector<std::string> &keys);
+		void			bulk_read(const std::vector<struct dnet_io_attr> &ios, const boost::function<void (const bulk_read_result &)> &handler);
+		bulk_read_result	bulk_read(const std::vector<struct dnet_io_attr> &ios);
+		bulk_read_result	bulk_read(const std::vector<std::string> &keys);
 
 		std::string		bulk_write(const std::vector<struct dnet_io_attr> &ios,
 							const std::vector<std::string> &data);

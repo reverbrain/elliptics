@@ -573,6 +573,8 @@ int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg);
  */
 
 int dnet_state_num(struct dnet_session *s);
+struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id *id);
+void dnet_state_put(struct dnet_net_state *st);
 
 #define DNET_DUMP_NUM	6
 /*

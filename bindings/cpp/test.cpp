@@ -65,7 +65,7 @@ static void test_prepare_commit(session &s, int psize, int csize)
 		s.write_commit(key(remote, column), commit_data, offset, written.size());
 
 		ret = s.read_data(key(remote, column), 0, 0)->file().to_string();
-		std::cout << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
+		std::cerr << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "PREPARE/COMMIT test failed: " << e.what() << std::endl;
 		throw;
@@ -98,7 +98,7 @@ static void test_range_request(session &s, int limit_start, int limit_num, uint6
 	std::vector<std::string> ret;
 	ret = s.read_data_range_raw(io, group_id);
 
-	std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
+	std::cerr << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
 #if 0
 	for (size_t i = 0; i < ret.size(); ++i) {
 		char id_str[DNET_ID_SIZE * 2 + 1];
@@ -107,7 +107,7 @@ static void test_range_request(session &s, int limit_start, int limit_num, uint6
 		uint64_t size = dnet_bswap64(*(uint64_t *)(data + DNET_ID_SIZE));
 		char *str = (char *)(data + DNET_ID_SIZE + 8);
 
-		std::cout << "range [LIMIT(" << limit_start << ", " << limit_num << "): " <<
+		std::cerr << "range [LIMIT(" << limit_start << ", " << limit_num << "): " <<
 			dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str) << ": size: " << size << ": " << str << std::endl;
 	}
 #endif
@@ -190,18 +190,18 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 static void test_lookup_parse(const std::string &key,
 	struct dnet_cmd *cmd, struct dnet_addr_attr *a, const char *path)
 {
-	std::cout << key << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
+	std::cerr << key << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
 
 	if (cmd->size > sizeof(struct dnet_addr_attr)) {
 		struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
 
 		dnet_convert_file_info(info);
-		std::cout << ": mode: " << std::oct << info->mode << std::dec;
-		std::cout << ", offset: " << (unsigned long long)info->offset;
-		std::cout << ", size: " << (unsigned long long)info->size;
-		std::cout << ", file: " << path;
+		std::cerr << ": mode: " << std::oct << info->mode << std::dec;
+		std::cerr << ", offset: " << (unsigned long long)info->offset;
+		std::cerr << ", size: " << (unsigned long long)info->size;
+		std::cerr << ", file: " << path;
 	}
-	std::cout << std::endl;
+	std::cerr << std::endl;
 }
 
 static void test_lookup_parse(const std::string &key, const std::string &lret)
@@ -249,6 +249,7 @@ static void test_lookup(session &s, std::vector<int> &groups)
 		test_lookup_parse(key, lret2);
 	} catch (const std::exception &e) {
 		std::cerr << "LOOKUP test failed: " << e.what() << std::endl;
+		throw;
 	}
 }
 
@@ -265,7 +266,7 @@ static void test_append(session &s)
 		s.write_data_wait(remote, data, 0);
 		s.set_ioflags(0);
 
-		std::cout << remote << ": " << s.read_data(remote, 0, 0)->file().to_string() << std::endl;
+		std::cerr << remote << ": " << s.read_data(remote, 0, 0)->file().to_string() << std::endl;
 	} catch (const std::exception &e) {
 		std::cerr << "APPEND test failed: " << e.what() << std::endl;
 		throw std::runtime_error("APPEND test failed");
@@ -283,7 +284,7 @@ static void read_column_raw(session &s, const std::string &remote, const std::st
 	}
 	std::string ret_str = ret->file().to_string();
 
-	std::cout << "read-column-" << column << ": " << remote << " : " << ret_str << std::endl;
+	std::cerr << "read-column-" << column << ": " << remote << " : " << ret_str << std::endl;
 	if (ret_str != data) {
 		throw std::runtime_error("column test failed");
 	}
@@ -309,6 +310,8 @@ static void column_test(session &s)
 	read_column_raw(s, remote, data2, 3);
 }
 
+enum { BulkTestCount = 10 };
+
 static void test_bulk_write(session &s)
 {
 	try {
@@ -317,7 +320,7 @@ static void test_bulk_write(session &s)
 
 		int i;
 
-		for (i = 0; i < 3; ++i) {
+		for (i = 0; i < BulkTestCount; ++i) {
 			std::ostringstream os;
 			struct dnet_io_attr io;
 			struct dnet_id id;
@@ -338,7 +341,8 @@ static void test_bulk_write(session &s)
 
 		std::string ret = s.bulk_write(ios, data);
 
-		std::cout << "ret size = " << ret.size() << std::endl;
+		std::cerr << "BULK WRITE:" << std::endl;
+		std::cerr << "ret size = " << ret.size() << std::endl;
 
 		s.set_ioflags(DNET_IO_FLAGS_NOCSUM);
 		int type = 0;
@@ -347,14 +351,15 @@ static void test_bulk_write(session &s)
 		uint64_t size = 0;
 
 		/* read without checksums since we did not write metadata */
-		for (i = 0; i < 3; ++i) {
+		for (i = 0; i < BulkTestCount; ++i) {
 			std::ostringstream os;
 
 			os << "bulk_write" << i;
-			std::cout << os.str() << ": " << s.read_data(key(os.str(), type), offset, size)->file().to_string() << std::endl;
+			std::cerr << os.str() << ": " << s.read_data(key(os.str(), type), offset, size)->file().to_string() << std::endl;
 		}
 	} catch (const std::exception &e) {
 		std::cerr << "BULK WRITE test failed: " << e.what() << std::endl;
+		throw;
 	}
 	s.set_ioflags(0);
 }
@@ -366,25 +371,32 @@ static void test_bulk_read(session &s)
 
 		int i;
 
-		for (i = 0; i < 3; ++i) {
+		for (i = 0; i < BulkTestCount; ++i) {
 			std::ostringstream os;
 			os << "bulk_write" << i;
 			keys.push_back(os.str());
 		}
 
-		std::vector<std::string> ret = s.bulk_read(keys);
+		bulk_read_result ret = s.bulk_read(keys);
 
-		std::cout << "ret size = " << ret.size() << std::endl;
+		std::cerr << "BULK READ:" << std::endl;
+		std::cerr << "ret size = " << ret.size() << std::endl;
+
+		if (ret.size() != BulkTestCount) {
+			throw_error(-ENOENT, "BULK READ test failed, expected count: %d, received: %d",
+				int(BulkTestCount), int(ret.size()));
+		}
 
 		/* read without checksums since we did not write metadata */
-		for (i = 0; i < 3; ++i) {
+		for (i = 0; i < ret.size(); ++i) {
 			std::ostringstream os;
 
 			os << "bulk_read" << i;
-			std::cout << os.str() << ": " << ret[i].substr(DNET_ID_SIZE + 8) << std::endl;
+			std::cerr << os.str() << ": " << ret[i].file().to_string() << std::endl;
 		}
 	} catch (const std::exception &e) {
 		std::cerr << "BULK READ test failed: " << e.what() << std::endl;
+		throw;
 	}
 
 }
@@ -413,6 +425,7 @@ static void memory_test_io(session &s, int num)
 				std::cerr << "but written successfully\n";
 				test_lookup_parse(id, written);
 			}
+			throw;
 		}
 	}
 
@@ -448,8 +461,9 @@ static void test_cache_write(session &s, int num)
 		s.bulk_write(ios, data);
 	} catch (const std::exception &e) {
 		std::cerr << "cache write test failed: " << e.what() << std::endl;
+		throw;
 	}
-	std::cout << "Cache entries writted: " << num << std::endl;
+	std::cerr << "Cache entries writted: " << num << std::endl;
 }
 
 static void test_cache_read(session &s, int num)
@@ -476,12 +490,13 @@ static void test_cache_read(session &s, int num)
 		try {
 			s.read_data(key(id, type), offset, size)->file().to_string();
 		} catch (const std::exception &e) {
-			std::cerr << "could not perform read : " << e.what() << std::endl;
+			std::cerr << "could not perform read : " << id << ": " << e.what() << std::endl;
+			throw;
 		}
 		s.set_ioflags(0);
 		count++;
 	}
-	std::cout << "Cache entries read: " << count << std::endl;
+	std::cerr << "Cache entries read: " << count << std::endl;
 }
 
 static void test_cache_delete(session &s, int num)
@@ -503,10 +518,11 @@ static void test_cache_delete(session &s, int num)
 			s.remove(id);
 		} catch (const std::exception &e) {
 			std::cerr << "could not perform remove: " << e.what() << std::endl;
+			throw;
 		}
 		count++;
 	}
-	std::cout << "Cache entries deleted: " << count << std::endl;
+	std::cerr << "Cache entries deleted: " << count << std::endl;
 }
 
 static void memory_test(session &s)
@@ -516,7 +532,7 @@ static void memory_test(session &s)
 	getrusage(RUSAGE_SELF, &start);
 	memory_test_io(s, 1000);
 	getrusage(RUSAGE_SELF, &end);
-	std::cout << "IO leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
+	std::cerr << "IO leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
 }
 
 void usage(char *p)
@@ -612,9 +628,9 @@ int main(int argc, char *argv[])
 		if (write_cache)
 			test_cache_write(s, 1000);
 
+		test_cache_write(s, 1000);
 		test_cache_read(s, 1000);
 		test_cache_delete(s, 1000);
-		test_cache_write(s, 1000);
 
 	} catch (const std::exception &e) {
 		std::cerr << "Error occured : " << e.what() << std::endl;

@@ -1200,6 +1200,27 @@ void session::reply(const struct sph &orig_sph, const std::string &event, const 
 	request(&id, sph, false);
 }
 
+void session::bulk_read(const std::vector<struct dnet_io_attr> &ios_vector, const boost::function<void (const bulk_read_result &)> &handler)
+{
+	io_attr_set ios(ios_vector.begin(), ios_vector.end());
+
+	struct dnet_io_control control;
+	memset(&control, 0, sizeof(control));
+
+	control.fd = -1;
+
+	control.cmd = DNET_CMD_BULK_READ;
+	control.cflags = DNET_FLAGS_NEED_ACK | m_data->cflags;
+
+	memset(&control.io, 0, sizeof(struct dnet_io_attr));
+
+	read_bulk_callback::ptr cb = boost::make_shared<read_bulk_callback>(*this, ios, control);
+	cb->handler = handler;
+	cb->groups = mix_states();
+
+	dnet_style_handler<read_bulk_callback>::start(cb);
+}
+
 namespace {
 bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const struct dnet_io_attr &io2) {
 	int cmp;
@@ -1209,71 +1230,14 @@ bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const struct dnet_io_a
 }
 }
 
-std::vector<std::string> session::bulk_read(const std::vector<struct dnet_io_attr> &ios)
+bulk_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios)
 {
-	struct dnet_range_data *data;
-	int err;
-
-	std::vector<int> groups = mix_states();
-
-	std::vector<struct dnet_io_attr> tmp_ios = ios;
-	std::sort(tmp_ios.begin(), tmp_ios.end(), dnet_io_attr_compare);
-
-	std::vector<std::string> ret;
-
-	for (std::vector<int>::iterator group = groups.begin(); group != groups.end(); ++group) {
-		if (!tmp_ios.size())
-			break;
-
-		data = dnet_bulk_read(m_data->session_ptr, (struct dnet_io_attr *)(&tmp_ios[0]), tmp_ios.size(), *group, m_data->cflags, &err);
-		if (!data && err) {
-			throw_error(err, "Failed to read bulk data: group: %d", *group);
-		}
-
-		if (data) {
-			for (int i = 0; i < err; ++i) {
-				struct dnet_range_data *d = &data[i];
-				char *data = (char *)d->data;
-
-				while (d->size) {
-					struct dnet_io_attr *io = (struct dnet_io_attr *)data;
-
-					for (std::vector<struct dnet_io_attr>::iterator it = tmp_ios.begin(); it != tmp_ios.end(); ++it) {
-						int cmp = dnet_id_cmp_str(it->id, io->id);
-
-						if (cmp == 0) {
-							tmp_ios.erase(it);
-							break;
-						}
-					}
-
-					dnet_convert_io_attr(io);
-
-					uint64_t size = dnet_bswap64(io->size);
-
-					std::string str;
-
-					str.append((char *)io->id, DNET_ID_SIZE);
-					str.append((char *)&size, 8);
-					str.append((const char *)(io + 1), io->size);
-
-					ret.push_back(str);
-
-					data += sizeof(struct dnet_io_attr) + io->size;
-					d->size -= sizeof(struct dnet_io_attr) + io->size;
-				}
-
-				free(d->data);
-			}
-
-			free(data);
-		}
-	}
-
-	return ret;
+	waiter<bulk_read_result> w;
+	bulk_read(ios, w.handler());
+	return w.result();
 }
 
-std::vector<std::string> session::bulk_read(const std::vector<std::string> &keys)
+bulk_read_result session::bulk_read(const std::vector<std::string> &keys)
 {
 	std::vector<struct dnet_io_attr> ios;
 	struct dnet_io_attr io;
@@ -1324,7 +1288,7 @@ std::string session::bulk_write(const std::vector<struct dnet_io_attr> &ios, con
 
 	struct dnet_range_data ret = dnet_bulk_write(m_data->session_ptr, &ctls[0], ctls.size(), &err);
 	if (err < 0) {
-		throw_error(-EIO, "BULK_WRITE: size: %lld",
+		throw_error(err, "BULK_WRITE: size: %lld",
 			static_cast<unsigned long long>(ret.size));
 	}
 

@@ -193,14 +193,6 @@ static inline struct dnet_net_state *dnet_state_get(struct dnet_net_state *st)
 	atomic_inc(&st->refcnt);
 	return st;
 }
-static inline void dnet_state_put(struct dnet_net_state *st)
-{
-	/*
-	 * State can be NULL here when we just want to kick IO thread.
-	 */
-	if (st && atomic_dec_and_test(&st->refcnt))
-		dnet_state_destroy(st);
-}
 
 struct dnet_wait
 {

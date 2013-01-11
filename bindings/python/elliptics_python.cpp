@@ -437,12 +437,19 @@ class elliptics_session: public session, public wrapper<session> {
 		api::object bulk_read_by_name(const api::object &keys, bool raw) {
 			std::vector<std::string> std_keys = convert_to_vector<std::string>(keys);
 
-			const std::vector<std::string> ret =  bulk_read(std_keys);
+			const bulk_read_result ret =  bulk_read(std_keys);
 
 			if (raw) {
 				list result;
-				for (size_t i = 0; i < ret.size(); ++i)
-					result.append(ret[i]);
+				for (size_t i = 0; i < ret.size(); ++i) {
+					const read_result_entry entry = ret[i];
+					const uint64_t size = entry.file().size();
+					std::string line;
+					line.append(reinterpret_cast<char*>(entry.io_attribute()->id), DNET_ID_SIZE);
+					line.append(reinterpret_cast<const char*>(&size), sizeof(uint64_t));
+					line.append(reinterpret_cast<char*>(entry.file().data()), size);
+					result.append(line);
+				}
 
 				return result;
 			} else {
@@ -456,11 +463,9 @@ class elliptics_session: public session, public wrapper<session> {
 				}
 
 				for (size_t i = 0; i < ret.size(); ++i) {
-					const std::string &line = ret[i];
-					const struct dnet_id &id = *reinterpret_cast<const struct dnet_id*>(line.c_str());
-					const uint64_t size = *reinterpret_cast<const uint64_t*>(line.c_str() + DNET_ID_SIZE);
-					const char *data = line.c_str() + DNET_ID_SIZE + sizeof(uint64_t);
-					result[keys_map[id]] = std::string(data, size);
+					const read_result_entry entry = ret[i];
+					const dnet_id &id = entry.command()->id;
+					result[keys_map[id]] = entry.file().to_string();
 				}
 
 				return result;

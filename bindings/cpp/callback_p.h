@@ -20,6 +20,7 @@
 #include "elliptics/cppdef.h"
 
 #include <exception>
+#include <set>
 
 #include <boost/make_shared.hpp>
 #include <boost/thread.hpp>
@@ -81,6 +82,12 @@ class default_callback
 					m_statuses.push_back(cmd->status);
 				m_results.push_back(boost::make_shared<callback_result_data>(state, cmd));
 			}
+			return (m_count == m_complete);
+		}
+
+		bool is_ready()
+		{
+			boost::mutex::scoped_lock lock(m_mutex);
 			return (m_count == m_complete);
 		}
 
@@ -230,21 +237,20 @@ class multigroup_callback
 		{
 			if (cb.handle(state, cmd, func, priv)) {
 				// cb has ended it's work
-				if (cb.is_valid()) {
+				if (check_answer()) {
 					// correct answer is found
 					return true;
 				} else {
-					iterate_groups(func, priv);
-					return false;
+					return iterate_groups(func, priv);
 				}
 			}
 			return false;
 		}
 
-		void iterate_groups(complete_func func, void *priv)
+		bool iterate_groups(complete_func func, void *priv)
 		{
 			if (at_iterator)
-				return;
+				return false;
 			at_iterator = true;
 			// try next group
 			while (index < groups.size()) {
@@ -255,7 +261,7 @@ class multigroup_callback
 					next_group(id, func, priv);
 					at_iterator = false;
 					// request is sent, wait results
-					return;
+					return check_answer();
 				} catch (std::exception &e) {
 					// some exception, log and try next group
 					if (kid.by_id()) {
@@ -278,6 +284,7 @@ class multigroup_callback
 			// there is no success :(
 			notify_about_error();
 			throw_error(-ENOENT, kid, "Something happened wrong");
+			return false;
 		}
 
 		void start(complete_func func, void *priv)
@@ -285,7 +292,10 @@ class multigroup_callback
 			iterate_groups(func, priv);
 		}
 
-		virtual bool check_answer() { return true; }
+		virtual bool check_answer()
+		{
+			return cb.is_valid();
+		}
 		virtual void next_group(dnet_id &id, complete_func func, void *priv) = 0;
 		virtual void finish(std::exception_ptr exc) = 0;
 		virtual void notify_about_error() = 0;
@@ -343,7 +353,8 @@ class read_callback : public multigroup_callback
 	public:
 		typedef boost::shared_ptr<read_callback> ptr;
 
-		read_callback(const session &sess, const struct dnet_io_control &ctl) : multigroup_callback(sess), ctl(ctl)
+		read_callback(const session &sess, const dnet_io_control &ctl)
+			: multigroup_callback(sess), ctl(ctl)
 		{
 		}
 
@@ -386,6 +397,140 @@ class read_callback : public multigroup_callback
 
 		struct dnet_io_control ctl;
 		boost::function<void (const read_results &)> handler;
+};
+
+struct io_attr_comparator
+{
+	bool operator() (const dnet_io_attr &io1, const dnet_io_attr &io2)
+	{
+		return memcmp(io1.id, io2.id, DNET_ID_SIZE) < 0;
+	}
+};
+
+typedef std::set<dnet_io_attr, io_attr_comparator> io_attr_set;
+
+class read_bulk_callback : public read_callback
+{
+	public:
+		typedef boost::shared_ptr<read_bulk_callback> ptr;
+
+		read_bulk_callback(const session &sess, const io_attr_set &ios, const dnet_io_control &ctl)
+			: read_callback(sess, ctl), ios_set(ios)
+		{
+		}
+
+		void next_group(dnet_id &id, complete_func func, void *priv)
+		{
+			try {
+				ios_cache.assign(ios_set.begin(), ios_set.end());
+				const size_t io_num = ios_cache.size();
+				dnet_io_attr *ios = ios_cache.data();
+
+				dnet_node *node = sess.get_node().get_native();
+				dnet_net_state *cur, *next = NULL;
+				dnet_id next_id = id;
+				const int group_id = id.group_id;
+				int start = 0;
+
+				dnet_setup_id(&id, group_id, ios[0].id);
+				id.type = ios[0].type;
+				int count = 0;
+
+				cb.set_count(0);
+
+				cur = dnet_state_get_first(node, &id);
+				if (!cur)
+					throw_error(-ENOENT, id, "Can't get state for id");
+
+				for (size_t i = 0; i < io_num; ++i) {
+					if ((i + 1) < io_num) {
+						dnet_setup_id(&next_id, group_id, ios[i + 1].id);
+						next_id.type = ios[i + 1].type;
+
+						next = dnet_state_get_first(node, &next_id);
+						if (!next)
+							throw_error(-ENOENT, next_id, "Can't get state for id");
+
+						/* Send command only if state changes or it's a last id */
+						if ((cur == next)) {
+							dnet_state_put(next);
+							next = NULL;
+							continue;
+						}
+					}
+
+					dnet_log_raw(sess.get_node().get_native(),
+						DNET_LOG_NOTICE, "start: %s: end: %s, count: %llu, addr: %s\n",
+						dnet_dump_id(&id),
+						dnet_dump_id(&next_id),
+						(unsigned long long)(i - start),
+						dnet_state_dump_addr(cur));
+
+					ctl.io.size = (i - start + 1) * sizeof(struct dnet_io_attr);
+					ctl.data = ios + start;
+
+					memcpy(&ctl.id, &id, sizeof(id));
+					ctl.complete = func;
+					ctl.priv = priv;
+
+					bool last_id = ((i + 1) == io_num);
+					++count;
+
+					cb.set_count(count + !last_id);
+
+					int err = dnet_read_object(sess.get_native(), &ctl);
+					// ingore the error, we must continue :)
+					(void) err;
+
+					cb.set_count(count);
+
+					start = i + 1;
+					dnet_state_put(cur);
+					cur = next;
+					next = NULL;
+					memcpy(&id, &next_id, sizeof(struct dnet_id));
+				}
+			} catch (...) {
+				if (cb.is_ready())
+					throw;
+			}
+			if (cb.is_ready())
+				throw_error(-ENOENT, id, "bulk_read: can't read data from group %d", id.group_id);
+		}
+
+		bool check_answer()
+		{
+			if (!cb.is_ready())
+				return false;
+			if (cb.is_valid()) {
+				for (size_t i = 0; i < cb.results_size(); ++i) {
+					read_result_entry entry = cb.result_at<read_result_entry>(i);
+					if (entry.size() < sizeof(struct dnet_io_attr))
+						continue;
+					result.push_back(entry);
+					ios_set.erase(*entry.io_attribute());
+				}
+			}
+			return ios_set.empty() || (index == groups.size());
+		}
+
+		void finish(std::exception_ptr exc)
+		{
+			if (!result.empty()) {
+				handler(result);
+			} else {
+				handler(exc);
+			}
+		}
+
+		void notify_about_error()
+		{
+			throw_error(-ENOENT, "bulk_read: can't read data");
+		}
+
+		io_attr_set ios_set;
+		std::vector<dnet_io_attr> ios_cache;
+		std::vector<read_result_entry> result;
 };
 
 class cmd_callback : public default_callback
