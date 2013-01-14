@@ -320,7 +320,7 @@ static void test_bulk_write(session &s)
 			data.push_back(os.str());
 		}
 
-		std::string ret = s.bulk_write(ios, data);
+		write_result ret = s.bulk_write(ios, data);
 
 		std::cerr << "BULK WRITE:" << std::endl;
 		std::cerr << "ret size = " << ret.size() << std::endl;

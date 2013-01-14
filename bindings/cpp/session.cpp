@@ -1265,20 +1265,64 @@ bulk_read_result session::bulk_read(const std::vector<std::string> &keys)
 	return bulk_read(ios);
 }
 
-std::string session::bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<std::string> &data)
+class bulk_write_callback
 {
-	std::vector<struct dnet_io_control> ctls;
-	unsigned int i;
-	int err;
+	public:
+		class scope
+		{
+			public:
+				int condition;
+				int count;
+				boost::mutex mutex;
+				std::vector<write_result_entry> entries;
+				std::exception_ptr exc;
+				boost::function<void (const write_result &)> handler;
+		};
 
+		boost::shared_ptr<scope> d;
+
+		bulk_write_callback(const boost::function<void (const write_result &)> &handler, int count)
+		{
+			d = boost::make_shared<scope>();
+			d->handler = handler;
+			d->condition = count;
+			d->count = 0;
+		}
+
+		void operator() (const write_result &result)
+		{
+			boost::mutex::scoped_lock lock(d->mutex);
+			++d->count;
+
+			if (result.exception()) {
+				d->exc = result.exception();
+			} else {
+				for (size_t i = 0; i < result.size(); ++i)
+					d->entries.push_back(result[i]);
+			}
+
+			if (d->condition == d->count) {
+				if (d->entries.empty())
+					d->handler(d->exc);
+				else
+					d->handler(d->entries);
+			}
+		}
+};
+
+void session::bulk_write(const boost::function<void (const write_result &)> &handler,
+	const std::vector<struct dnet_io_attr> &ios,
+	const std::vector<std::string> &data)
+{
 	if (ios.size() != data.size()) {
 		throw_error(-EIO, "BULK_WRITE: ios doesn't meet data: io.size: %zd, data.size: %zd",
 			ios.size(), data.size());
 	}
 
-	ctls.reserve(ios.size());
+	boost::function<void (const write_result &)> callback
+		= bulk_write_callback(handler, ios.size());
 
-	for(i = 0; i < ios.size(); ++i) {
+	for(size_t i = 0; i < ios.size(); ++i) {
 		struct dnet_io_control ctl;
 		memset(&ctl, 0, sizeof(ctl));
 
@@ -1292,19 +1336,15 @@ std::string session::bulk_write(const std::vector<struct dnet_io_attr> &ios, con
 
 		ctl.fd = -1;
 
-		ctls.push_back(ctl);
+		write_data(callback, ctl);
 	}
+}
 
-	struct dnet_range_data ret = dnet_bulk_write(m_data->session_ptr, &ctls[0], ctls.size(), &err);
-	if (err < 0) {
-		throw_error(err, "BULK_WRITE: size: %lld",
-			static_cast<unsigned long long>(ret.size));
-	}
-
-	std::string ret_str((const char *)ret.data, ret.size);
-	free(ret.data);
-
-	return ret_str;
+write_result session::bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<std::string> &data)
+{
+	waiter<write_result> w;
+	bulk_write(w.handler(), ios, data);
+	return w.result();
 }
 
 node &session::get_node()

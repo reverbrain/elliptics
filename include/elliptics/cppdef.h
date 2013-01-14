@@ -588,7 +588,10 @@ class session
 		bulk_read_result	bulk_read(const std::vector<struct dnet_io_attr> &ios);
 		bulk_read_result	bulk_read(const std::vector<std::string> &keys);
 
-		std::string		bulk_write(const std::vector<struct dnet_io_attr> &ios,
+		void			bulk_write(const boost::function<void (const write_result &)> &handler,
+						const std::vector<struct dnet_io_attr> &ios,
+						const std::vector<std::string> &data);
+		write_result		bulk_write(const std::vector<struct dnet_io_attr> &ios,
 							const std::vector<std::string> &data);
 
 		node	&get_node();
