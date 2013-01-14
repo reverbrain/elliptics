@@ -560,7 +560,7 @@ int main(int argc, char *argv[])
 	}
 
 
-//	try {
+	try {
 		file_logger log("/dev/stderr", DNET_LOG_DEBUG);
 
 		node n(log);
@@ -611,9 +611,12 @@ int main(int argc, char *argv[])
 		test_cache_read(s, 1000);
 		test_cache_delete(s, 1000);
 
-//	} catch (const std::exception &e) {
-//		std::cerr << "Error occured : " << e.what() << std::endl;
-//	} catch (int err) {
-//		std::cerr << "Error : " << err << std::endl;
-//	}
+	} catch (const std::exception &e) {
+		std::cerr << "Error occured : " << e.what() << std::endl;
+		return 1;
+	} catch (int err) {
+		std::cerr << "Error : " << err << std::endl;
+		return 1;
+	}
+	return 0;
 }

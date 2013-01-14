@@ -744,6 +744,10 @@ int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dn
  * Remove object by @id
  * If callback is provided, it will be invoked on completion, otherwise
  * function will block until server returns an acknowledge.
+ *
+ * Returnes negative number on error, zero on success
+ * and positive number is count of objects which will be provided
+ * to complete function.
  */
 int dnet_remove_object(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,

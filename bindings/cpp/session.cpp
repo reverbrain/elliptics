@@ -690,30 +690,24 @@ lookup_result session::lookup(const key &id)
 
 void session::remove_raw(const key &id)
 {
+	remove(id);
+}
+
+void session::remove(const boost::function<void (const std::exception_ptr &)> &handler, const key &id)
+{
 	transform(id);
-	dnet_id raw = id.id();
 
-	int err = -ENOENT;
-	std::vector<int> g = m_data->groups;
+	remove_callback::ptr cb = boost::make_shared<remove_callback>(*this, id.id());
+	cb->handler = handler;
 
-	for (int i=0; i<(int)g.size(); ++i) {
-		raw.group_id = g[i];
-
-		if (!dnet_remove_object_now(m_data->session_ptr, &raw, m_data->cflags, m_data->ioflags))
-			err = 0;
-	}
-
-	if (err) {
-		throw_error(err, id.id(), "REMOVE");
-	}
+	dnet_style_handler<remove_callback>::start(cb);
 }
 
 void session::remove(const key &id)
 {
-	uint32_t ioflags = m_data->ioflags;
-	m_data->ioflags = 0;
-	remove_raw(id);
-	m_data->ioflags = ioflags;
+	waiter<std::exception_ptr> w;
+	remove(w.handler(), id);
+	w.result();
 }
 
 void session::stat_log(const boost::function<void (const stat_result &)> &handler)

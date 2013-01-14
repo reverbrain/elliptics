@@ -1778,7 +1778,7 @@ int dnet_remove_object(struct dnet_session *s, struct dnet_id *id,
 
 		dnet_wait_put(w);
 	}
-	return 0;
+	return err;
 
 err_out_put:
 	if (w)

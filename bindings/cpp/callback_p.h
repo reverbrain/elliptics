@@ -105,9 +105,19 @@ class default_callback
 			return *static_cast<const T *>(&m_results.at(index));
 		}
 
+		const callback_result_entry &result_at(size_t index) const
+		{
+			return m_results.at(index);
+		}
+
 		const std::vector<callback_result_entry> &results() const
 		{
 			return m_results;
+		}
+
+		const std::vector<int> &statuses() const
+		{
+			return m_statuses;
 		}
 
 		size_t results_size() const
@@ -694,6 +704,79 @@ class write_callback : public default_callback
 		dnet_io_control ctl;
 		boost::function<void (const write_result &)> handler;
 };
+
+class remove_callback : public default_callback
+{
+	public:
+		typedef boost::shared_ptr<remove_callback> ptr;
+
+		remove_callback(const session &sess, const dnet_id &id)
+			: sess(sess), id(id)
+		{
+		}
+
+		void start(complete_func func, void *priv)
+		{
+			set_count(0);
+			int count = 0;
+			int err = -ENOENT;
+
+			const std::vector<int> &groups = sess.get_groups();
+
+			for (size_t i = 0; i < groups.size(); ++i) {
+				id.group_id = groups[i];
+
+				int num = dnet_remove_object(sess.get_native(), &id, func, priv,
+					sess.get_cflags(), sess.get_ioflags());
+
+				if (num >= 0) {
+					this->groups.insert(groups[i]);
+					count += num;
+					err = 0;
+				}
+			}
+
+			if (err < 0)
+				throw_error(err, id, "REMOVE");
+			else
+				set_count(count);
+		}
+
+		void finish(std::exception_ptr exc)
+		{
+			if (exc) {
+				handler(exc);
+				return;
+			}
+
+			for (size_t i = 0; i < results_size(); ++i) {
+				const callback_result_entry &entry = result_at(i);
+				dnet_cmd *cmd = entry.command();
+				if (cmd->status < 0)
+					groups.erase(cmd->id.group_id);
+			}
+			if (groups.empty()) {
+				try {
+					throw_error(-ENOENT, id, "REMOVE");
+				} catch (...) {
+					handler(std::current_exception());
+					return;
+				}
+			}
+			handler(exc);
+		}
+
+		session sess;
+		std::set<int> groups;
+		dnet_id id;
+		boost::function<void (const std::exception_ptr &)> handler;
+};
+
+inline void check_for_exception(const std::exception_ptr &result)
+{
+	if (result)
+		std::rethrow_exception(result);
+}
 
 template <typename T>
 void check_for_exception(const result_holder<T> &result)

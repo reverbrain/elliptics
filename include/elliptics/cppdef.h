@@ -539,6 +539,7 @@ class session
 		lookup_result		lookup(const key &id);
 
 		void 			remove_raw(const key &id);
+		void 			remove(const boost::function<void (const std::exception_ptr &)> &handler, const key &id);
 		void 			remove(const key &id);
 
 		void			stat_log(const boost::function<void (const stat_result &)> &handler);
