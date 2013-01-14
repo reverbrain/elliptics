@@ -645,6 +645,56 @@ class prepare_latest_callback : public default_callback
 		boost::function<void (const prepare_latest_result &)> handler;
 };
 
+class write_callback : public default_callback
+{
+	public:
+		typedef boost::shared_ptr<write_callback> ptr;
+
+		write_callback(const session &sess, const dnet_io_control &ctl) : sess(sess), ctl(ctl)
+		{
+		}
+
+		void start(complete_func func, void *priv)
+		{
+			ctl.complete = func;
+			ctl.priv = priv;
+			set_count(0);
+			int err = dnet_write_object(sess.get_native(), &ctl);
+			if (err < 0)
+				throw_error(err, "Failed to write data");
+			else
+				set_count(err);
+		}
+
+		void finish(std::exception_ptr exc)
+		{
+			if (exc) {
+				handler(exc);
+				return;
+			}
+
+			std::vector<write_result_entry> results;
+			results.reserve(results_size());
+			for (size_t i = 0; i < results_size(); ++i) {
+				write_result_entry result = result_at<write_result_entry>(i);
+				/*
+				 * '=' part in '>=' comparison here means backend does not provide information about filename,
+				 * where given object is stored.
+				 */
+				if (result.size() >= sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info)) {
+					dnet_convert_addr_attr(result.address_attribute());
+					dnet_convert_file_info(result.file_info());
+					results.push_back(result);
+				}
+			}
+			handler(results);
+		}
+
+		session sess;
+		dnet_io_control ctl;
+		boost::function<void (const write_result &)> handler;
+};
+
 template <typename T>
 void check_for_exception(const result_holder<T> &result)
 {
@@ -749,7 +799,12 @@ struct dnet_style_handler
 	static void start(const boost::shared_ptr<T> &cb)
 	{
 		boost::shared_ptr<T> *cb_ptr = new boost::shared_ptr<T>(cb);
-		cb->start(handler, cb_ptr);
+		try {
+			cb->start(handler, cb_ptr);
+		} catch (...) {
+			cb->finish(std::current_exception());
+			delete cb_ptr;
+		}
 	}
 };
 

@@ -55,6 +55,11 @@ bool callback_result_entry::is_valid() const
 	return !m_data->data.empty();
 }
 
+data_pointer callback_result_entry::raw_data() const
+{
+	return m_data->data;
+}
+
 struct dnet_addr *callback_result_entry::address() const
 {
 	return m_data->data

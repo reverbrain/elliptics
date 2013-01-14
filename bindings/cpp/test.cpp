@@ -137,7 +137,7 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 		std::generate(str.begin(), str.end(), std::rand);
 
 		id.id[number_index] = i;
-		s.write_data_wait(id, data[i], 0);
+		s.write_data(id, data[i], 0);
 		read_result entry = s.read_data(id, group_id, 0, 0);
 		if (entry->file().to_string() != str)
 			throw_error(-EIO, id, "read_data_range_2: Write failed");
@@ -204,25 +204,6 @@ static void test_lookup_parse(const std::string &key,
 	std::cerr << std::endl;
 }
 
-static void test_lookup_parse(const std::string &key, const std::string &lret)
-{
-	struct dnet_addr *addr = (struct dnet_addr *)lret.data();
-	struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-	struct dnet_addr_attr *a = (struct dnet_addr_attr *)(cmd + 1);
-	struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
-	const char *path = reinterpret_cast<char *>(info + 1);
-
-	if (cmd->size <= sizeof(struct dnet_addr_attr)) {
-		a = NULL;
-		info = NULL;
-		path = NULL;
-	}
-
-	dnet_convert_addr_attr(a);
-
-	test_lookup_parse(key, cmd, a, path);
-}
-
 static void test_lookup_parse(const std::string &key, const lookup_result &lret)
 {
 	test_lookup_parse(key, lret->command(), lret->address_attribute(), lret->file_path());
@@ -234,8 +215,8 @@ static void test_lookup(session &s, std::vector<int> &groups)
 		std::string key = "2.xml";
 		std::string data = "lookup data";
 
-		std::string lret = s.write_data_wait(key, data, 0);
-		test_lookup_parse(key, lret);
+		write_result lret = s.write_data(key, data, 0);
+		test_lookup_parse(key, lret[0]);
 
 		struct dnet_id id;
 		s.transform(key, id);
@@ -259,11 +240,11 @@ static void test_append(session &s)
 		std::string remote = "append-test";
 		std::string data = "first part of the message";
 
-		s.write_data_wait(remote, data, 0);
+		s.write_data(remote, data, 0);
 
 		data = "| second part of the message";
 		s.set_ioflags(DNET_IO_FLAGS_APPEND);
-		s.write_data_wait(remote, data, 0);
+		s.write_data(remote, data, 0);
 		s.set_ioflags(0);
 
 		std::cerr << remote << ": " << s.read_data(remote, 0, 0)->file().to_string() << std::endl;
@@ -299,11 +280,11 @@ static void column_test(session &s)
 	std::string data2 = "some-data-in-column-3";
 
 	s.set_ioflags(DNET_IO_FLAGS_COMPRESS);
-	s.write_data_wait(key(remote, 0), data0, 0);
+	s.write_data(key(remote, 0), data0, 0);
 	s.set_ioflags(0);
 
-	s.write_data_wait(key(remote, 2), data1, 0);
-	s.write_data_wait(key(remote, 3), data2, 0);
+	s.write_data(key(remote, 2), data1, 0);
+	s.write_data(key(remote, 3), data2, 0);
 
 	read_column_raw(s, remote, data0, 0);
 	read_column_raw(s, remote, data1, 2);
@@ -369,9 +350,7 @@ static void test_bulk_read(session &s)
 	try {
 		std::vector<std::string> keys;
 
-		int i;
-
-		for (i = 0; i < BulkTestCount; ++i) {
+		for (size_t i = 0; i < BulkTestCount; ++i) {
 			std::ostringstream os;
 			os << "bulk_write" << i;
 			keys.push_back(os.str());
@@ -388,7 +367,7 @@ static void test_bulk_read(session &s)
 		}
 
 		/* read without checksums since we did not write metadata */
-		for (i = 0; i < ret.size(); ++i) {
+		for (size_t i = 0; i < ret.size(); ++i) {
 			std::ostringstream os;
 
 			os << "bulk_read" << i;
@@ -414,16 +393,16 @@ static void memory_test_io(session &s, int num)
 			ids[j] = rand();
 
 		std::string id((char *)ids, sizeof(ids));
-		std::string written;
+		write_result written;
 
 		try {
-			written = s.write_data_wait(id, data, 0);
+			written = s.write_data(id, data, 0);
 			std::string res = s.read_data(id, 0, 0)->file().to_string();
 		} catch (const std::exception &e) {
 			std::cerr << "could not perform read/write: " << e.what() << std::endl;
-			if (written.size() > 0) {
+			if (!written.exception()) {
 				std::cerr << "but written successfully\n";
-				test_lookup_parse(id, written);
+				test_lookup_parse(id, written[0]);
 			}
 			throw;
 		}
@@ -581,7 +560,7 @@ int main(int argc, char *argv[])
 	}
 
 
-	try {
+//	try {
 		file_logger log("/dev/stderr", DNET_LOG_DEBUG);
 
 		node n(log);
@@ -632,9 +611,9 @@ int main(int argc, char *argv[])
 		test_cache_read(s, 1000);
 		test_cache_delete(s, 1000);
 
-	} catch (const std::exception &e) {
-		std::cerr << "Error occured : " << e.what() << std::endl;
-	} catch (int err) {
-		std::cerr << "Error : " << err << std::endl;
-	}
+//	} catch (const std::exception &e) {
+//		std::cerr << "Error occured : " << e.what() << std::endl;
+//	} catch (int err) {
+//		std::cerr << "Error : " << err << std::endl;
+//	}
 }

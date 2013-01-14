@@ -202,14 +202,14 @@ void session::write_file(const key &id, const std::string &file, uint64_t local_
 	}
 }
 
-void session::read_data(const key &id, const std::vector<int> &groups, const struct dnet_io_attr &io,
-	const boost::function<void (const read_results &)> &handler)
+void session::read_data(const boost::function<void (const read_results &)> &handler,
+	const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 {
-	read_data(id, groups, io, DNET_CMD_READ, handler);
+	read_data(handler, id, groups, io, DNET_CMD_READ);
 }
 
-void session::read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd,
-	const boost::function<void (const read_results &)> &handler)
+void session::read_data(const boost::function<void (const read_results &)> &handler,
+	const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd)
 {
 	transform(id);
 
@@ -230,11 +230,11 @@ void session::read_data(const key &id, const std::vector<int> &groups, const dne
 	dnet_style_handler<read_callback>::start(cb);
 }
 
-void session::read_data(const key &id, int group, const dnet_io_attr &io,
-	const boost::function<void (const read_results &)> &handler)
+void session::read_data(const boost::function<void (const read_results &)> &handler,
+	const key &id, int group, const dnet_io_attr &io)
 {
 	const std::vector<int> groups(1, group);
-	read_data(id, groups, io, handler);
+	read_data(handler, id, groups, io);
 }
 
 struct results_to_result_proxy
@@ -251,8 +251,8 @@ struct results_to_result_proxy
 	}
 };
 
-void session::read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size,
-	const boost::function<void (const read_result &)> &handler)
+void session::read_data(const boost::function<void (const read_result &)> &handler,
+	const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size)
 {
 	transform(id);
 
@@ -269,27 +269,28 @@ void session::read_data(const key &id, const std::vector<int> &groups, uint64_t 
 
 	results_to_result_proxy proxy = { handler };
 
-	read_data(id, groups, io, proxy);
+	read_data(proxy, id, groups, io);
 }
 
-void session::read_data(const key &id, uint64_t offset, uint64_t size, const boost::function<void (const read_result &)> &handler)
+void session::read_data(const boost::function<void (const read_result &)> &handler,
+	const key &id, uint64_t offset, uint64_t size)
 {
 	transform(id);
 
-	read_data(id, mix_states(), offset, size, handler);
+	read_data(handler, id, mix_states(), offset, size);
 }
 
 read_result session::read_data(const key &id, uint64_t offset, uint64_t size)
 {
 	waiter<read_result> w;
-	read_data(id, offset, size, w.handler());
+	read_data(w.handler(), id, offset, size);
 	return w.result();
 }
 
 read_result session::read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size)
 {
 	waiter<read_result> w;
-	read_data(id, groups, offset, size, w.handler());
+	read_data(w.handler(), id, groups, offset, size);
 	return w.result();
 }
 
@@ -299,7 +300,8 @@ read_result session::read_data(const key &id, int group_id, uint64_t offset, uin
 	return read_data(id, groups, offset, size);
 }
 
-void session::prepare_latest(const key &id, const std::vector<int> &groups, const boost::function<void (const prepare_latest_result &)> &handler)
+void session::prepare_latest(const boost::function<void (const prepare_latest_result &)> &handler,
+	const key &id, const std::vector<int> &groups)
 {
 	if (groups.empty()) {
 		handler(groups);
@@ -319,7 +321,7 @@ void session::prepare_latest(const key &id, const std::vector<int> &groups, cons
 void session::prepare_latest(const key &id, std::vector<int> &groups)
 {
 	waiter<prepare_latest_result> w;
-	prepare_latest(id, groups, w.handler());
+	prepare_latest(w.handler(), id, groups);
 	groups = w.result();
 }
 
@@ -340,62 +342,76 @@ struct read_latest_callback
 		}
 
 		try {
-			sess.read_data(id, result, offset, size, handler);
+			sess.read_data(handler, id, result, offset, size);
 		} catch (...) {
 			handler(std::current_exception());
 		}
 	}
 };
 
-void session::read_latest(const key &id, uint64_t offset, uint64_t size, const boost::function<void (const read_result &)> &handler)
+void session::read_latest(const boost::function<void (const read_result &)> &handler,
+	const key &id, uint64_t offset, uint64_t size)
 {
 	read_latest_callback callback = { *this, id, offset, size, handler };
-	prepare_latest(id, mix_states(), callback);
+	prepare_latest(callback, id, mix_states());
 }
 
 read_result session::read_latest(const key &id, uint64_t offset, uint64_t size)
 {
 	waiter<read_result> w;
-	read_latest(id, offset, size, w.handler());
+	read_latest(w.handler(), id, offset, size);
 	return w.result();
 }
 
-std::string session::write_cache(const key &id, const std::string &str, long timeout)
+void session::write_data(const boost::function<void (const write_result &)> &handler, const dnet_io_control &ctl)
+{
+	write_callback::ptr cb = boost::make_shared<write_callback>(*this, ctl);
+
+	cb->ctl.cmd = DNET_CMD_WRITE;
+	cb->ctl.cflags |= DNET_FLAGS_NEED_ACK;
+
+	memcpy(cb->ctl.io.id, cb->ctl.id.id, DNET_ID_SIZE);
+
+	cb->handler = handler;
+
+	dnet_style_handler<write_callback>::start(cb);
+}
+
+void session::write_data(const boost::function<void (const write_result &)> &handler,
+	const key &id, const data_pointer &file, uint64_t remote_offset)
 {
 	transform(id);
 	dnet_id raw = id.id();
-	raw.type = id.type();
 
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
 
 	ctl.cflags = m_data->cflags;
-	ctl.data = str.data();
+	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_CACHE;
-	ctl.io.start = timeout;
-	ctl.io.size = str.size();
+	ctl.io.flags = m_data->ioflags;
+	ctl.io.offset = remote_offset;
+	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
-	ctl.io.num = str.size();
+	ctl.io.num = file.size() + remote_offset;
 
 	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
 
 	ctl.fd = -1;
 
-	char *result = NULL;
-	int err = dnet_write_data_wait(m_data->session_ptr, &ctl, reinterpret_cast<void**>(&result));
-	if (err < 0) {
-		throw_error(err, raw, "WRITE: size: %zu", str.size());
-	}
-
-	std::string ret((const char *)result, err);
-	free(result);
-
-	return ret;
+	write_data(handler, ctl);
 }
 
-std::string session::write_cas(const key &id, const std::string &str, const dnet_id &old_csum, uint64_t remote_offset)
+write_result session::write_data(const key &id, const std::string &str, uint64_t remote_offset)
+{
+	waiter<write_result> w;
+	write_data(w.handler(), id, str, remote_offset);
+	return w.result();
+}
+
+void session::write_cas(const boost::function<void (const write_result &)> &handler,
+	const key &id, const std::string &str, const dnet_id &old_csum, uint64_t remote_offset)
 {
 	transform(id);
 	dnet_id raw = id.id();
@@ -419,20 +435,82 @@ std::string session::write_cas(const key &id, const std::string &str, const dnet
 
 	ctl.fd = -1;
 
-	char *result = NULL;
-	int err = dnet_write_data_wait(m_data->session_ptr, &ctl, reinterpret_cast<void**>(&result));
-	if (err < 0) {
-		throw_error(err, raw, "WRITE: size: %zu", str.size());
-	}
-
-	std::string ret((const char *)result, err);
-	free(result);
-
-	return ret;
+	write_data(handler, ctl);
 }
 
-std::string session::write_data_wait(const key &id, const std::string &str,
-					    uint64_t remote_offset)
+write_result session::write_cas(const key &id, const std::string &str, const dnet_id &old_csum, uint64_t remote_offset)
+{
+	waiter<write_result> w;
+	write_cas(w.handler(), id, str, old_csum, remote_offset);
+	return w.result();
+}
+
+void session::write_prepare(const boost::function<void (const write_result &)> &handler,
+	const key &id, const std::string &str, uint64_t remote_offset, uint64_t psize)
+{
+	transform(id);
+
+	struct dnet_io_control ctl;
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.cflags = m_data->cflags;
+	ctl.data = str.data();
+
+	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.offset = remote_offset;
+	ctl.io.size = str.size();
+	ctl.io.type = id.id().type;
+	ctl.io.num = psize;
+
+	memcpy(&ctl.id, &id.id(), sizeof(ctl.id));
+
+	ctl.fd = -1;
+
+	write_data(handler, ctl);
+}
+
+write_result session::write_prepare(const key &id, const std::string &str, uint64_t remote_offset, uint64_t psize)
+{
+	waiter<write_result> w;
+	write_prepare(w.handler(), id, str, remote_offset, psize);
+	return w.result();
+}
+
+void session::write_commit(const boost::function<void (const write_result &)> &handler,
+	const key &id, const std::string &str, uint64_t remote_offset, uint64_t csize)
+{
+	transform(id);
+
+	struct dnet_io_control ctl;
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.cflags = m_data->cflags;
+	ctl.data = str.data();
+
+	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.offset = remote_offset;
+	ctl.io.size = str.size();
+	ctl.io.type = id.id().type;
+	ctl.io.num = csize;
+
+	memcpy(&ctl.id, &id.id(), sizeof(ctl.id));
+
+	ctl.fd = -1;
+
+	write_data(handler, ctl);
+}
+
+write_result session::write_commit(const key &id, const std::string &str, uint64_t remote_offset, uint64_t csize)
+{
+	waiter<write_result> w;
+	write_commit(w.handler(), id, str, remote_offset, csize);
+	return w.result();
+}
+
+void session::write_plain(const boost::function<void (const write_result &)> &handler,
+	const key &id, const std::string &str, uint64_t remote_offset)
 {
 	transform(id);
 	dnet_id raw = id.id();
@@ -444,26 +522,57 @@ std::string session::write_data_wait(const key &id, const std::string &str,
 	ctl.cflags = m_data->cflags;
 	ctl.data = str.data();
 
-	ctl.io.flags = m_data->ioflags;
+	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_PLAIN_WRITE;
 	ctl.io.offset = remote_offset;
 	ctl.io.size = str.size();
 	ctl.io.type = raw.type;
-	ctl.io.num = str.size() + remote_offset;
+
+	memcpy(&ctl.id, &raw, sizeof(id));
+
+	ctl.fd = -1;
+
+	write_data(handler, ctl);
+}
+
+write_result session::write_plain(const key &id, const std::string &str, uint64_t remote_offset)
+{
+	waiter<write_result> w;
+	write_plain(w.handler(), id, str, remote_offset);
+	return w.result();
+}
+
+void session::write_cache(const boost::function<void (const write_result &)> &handler,
+	const key &id, const std::string &str, long timeout)
+{
+	transform(id);
+	dnet_id raw = id.id();
+	raw.type = id.type();
+
+	struct dnet_io_control ctl;
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.cflags = m_data->cflags;
+	ctl.data = str.data();
+
+	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_CACHE;
+	ctl.io.start = timeout;
+	ctl.io.size = str.size();
+	ctl.io.type = raw.type;
+	ctl.io.num = str.size();
 
 	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
 
 	ctl.fd = -1;
 
-	char *result = NULL;
-	int err = dnet_write_data_wait(m_data->session_ptr, &ctl, reinterpret_cast<void**>(&result));
-	if (err < 0) {
-		throw_error(err, raw, "WRITE: size: %zu", str.size());
-	}
+	write_data(handler, ctl);
+}
 
-	std::string ret((const char *)result, err);
-	free(result);
-
-	return ret;
+write_result session::write_cache(const key &id, const std::string &str, long timeout)
+{
+	waiter<write_result> w;
+	write_cache(w.handler(), id, str, timeout);
+	return w.result();
 }
 
 std::string session::lookup_address(const key &id, int group_id)
@@ -559,7 +668,7 @@ void session::transform(const key &id)
 	const_cast<key&>(id).transform(*this);
 }
 
-void session::lookup(const key &id, const boost::function<void (const lookup_result &)> &handler)
+void session::lookup(const boost::function<void (const lookup_result &)> &handler, const key &id)
 {
 	transform(id);
 
@@ -575,7 +684,7 @@ void session::lookup(const key &id, const boost::function<void (const lookup_res
 lookup_result session::lookup(const key &id)
 {
 	waiter<lookup_result> w;
-	lookup(id, w.handler());
+	lookup(w.handler(), id);
 	return w.result();
 }
 
@@ -645,11 +754,11 @@ int session::state_num(void)
 command_result session::request_cmd(const transport_control &ctl)
 {
 	waiter<command_result> w;
-	request_cmd(ctl, w.handler());
+	request_cmd(w.handler(), ctl);
 	return w.result();
 }
 
-void session::request_cmd(const transport_control &ctl, const boost::function<void (const command_result &)> &handler)
+void session::request_cmd(const boost::function<void (const command_result &)> &handler, const transport_control &ctl)
 {
 	cmd_callback::ptr cb = boost::make_shared<cmd_callback>(*this, ctl);
 	cb->handler = handler;
@@ -784,7 +893,7 @@ class read_data_range_callback
 				d->io.size = d->size;
 
 				std::vector<int> groups(1, d->group_id);
-				d->sess.read_data(d->id, groups, d->io, d->cmd, d->me);
+				d->sess.read_data(d->me, d->id, groups, d->io, d->cmd);
 			} catch (...) {
 				std::exception_ptr exc = std::current_exception();
 				d->handler(exc);
@@ -883,8 +992,8 @@ class remove_data_range_callback : public read_data_range_callback
 		}
 };
 
-void session::read_data_range(const struct dnet_io_attr &io, int group_id,
-	const boost::function<void (const read_range_result &)> &handler)
+void session::read_data_range(const boost::function<void (const read_range_result &)> &handler,
+	const struct dnet_io_attr &io, int group_id)
 {
 	read_data_range_callback(*this, io, group_id, handler).do_next();
 }
@@ -892,7 +1001,7 @@ void session::read_data_range(const struct dnet_io_attr &io, int group_id,
 read_range_result session::read_data_range(struct dnet_io_attr &io, int group_id)
 {
 	waiter<read_range_result> w;
-	read_data_range(io, group_id, w.handler());
+	read_data_range(w.handler(), io, group_id);
 	return w.result();
 }
 
@@ -920,7 +1029,7 @@ std::vector<std::string> session::read_data_range_raw(dnet_io_attr &io, int grou
 	return result;
 }
 
-void session::remove_data_range(dnet_io_attr &io, int group_id, const boost::function<void (const remove_range_result &)> &handler)
+void session::remove_data_range(const boost::function<void (const remove_range_result &)> &handler, dnet_io_attr &io, int group_id)
 {
 	remove_data_range_callback(*this, io, group_id, handler).do_next();
 }
@@ -928,108 +1037,8 @@ void session::remove_data_range(dnet_io_attr &io, int group_id, const boost::fun
 remove_range_result session::remove_data_range(struct dnet_io_attr &io, int group_id)
 {
 	waiter<remove_range_result> w;
-	remove_data_range(io, group_id, w.handler());
+	remove_data_range(w.handler(), io, group_id);
 	return w.result();
-}
-
-std::string session::write_prepare(const key &id, const std::string &str, uint64_t remote_offset,
-					  uint64_t psize)
-{
-	transform(id);
-
-	struct dnet_io_control ctl;
-
-	memset(&ctl, 0, sizeof(ctl));
-
-	ctl.cflags = m_data->cflags;
-	ctl.data = str.data();
-
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE;
-	ctl.io.offset = remote_offset;
-	ctl.io.size = str.size();
-	ctl.io.type = id.id().type;
-	ctl.io.num = psize;
-
-	memcpy(&ctl.id, &id.id(), sizeof(ctl.id));
-
-	ctl.fd = -1;
-
-	char *result = NULL;
-	int err = dnet_write_data_wait(m_data->session_ptr, &ctl, reinterpret_cast<void**>(&result));
-	if (err < 0) {
-		throw_error(err, ctl.id, "write_prepare: size: %zd", str.size());
-	}
-
-	std::string ret(result, err);
-	free(result);
-
-	return ret;
-}
-
-std::string session::write_commit(const key &id, const std::string &str, uint64_t remote_offset, uint64_t csize)
-{
-	transform(id);
-
-	struct dnet_io_control ctl;
-
-	memset(&ctl, 0, sizeof(ctl));
-
-	ctl.cflags = m_data->cflags;
-	ctl.data = str.data();
-
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
-	ctl.io.offset = remote_offset;
-	ctl.io.size = str.size();
-	ctl.io.type = id.id().type;
-	ctl.io.num = csize;
-
-	memcpy(&ctl.id, &id.id(), sizeof(ctl.id));
-
-	ctl.fd = -1;
-
-	char *result = NULL;
-	int err = dnet_write_data_wait(m_data->session_ptr, &ctl, reinterpret_cast<void**>(&result));
-	if (err < 0) {
-		throw_error(err, ctl.id, "write_commit: size: %zd", str.size());
-	}
-
-	std::string ret(result, err);
-	free(result);
-
-	return ret;
-}
-
-std::string session::write_plain(const key &id, const std::string &str, uint64_t remote_offset)
-{
-	transform(id);
-	dnet_id raw = id.id();
-
-	struct dnet_io_control ctl;
-
-	memset(&ctl, 0, sizeof(ctl));
-
-	ctl.cflags = m_data->cflags;
-	ctl.data = str.data();
-
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_PLAIN_WRITE;
-	ctl.io.offset = remote_offset;
-	ctl.io.size = str.size();
-	ctl.io.type = raw.type;
-
-	memcpy(&ctl.id, &raw, sizeof(id));
-
-	ctl.fd = -1;
-
-	char *result = NULL;
-	int err = dnet_write_data_wait(m_data->session_ptr, &ctl, reinterpret_cast<void**>(&result));
-	if (err < 0) {
-		throw_error(err, ctl.id, "write_plain: size: %zd", str.size());
-	}
-
-	std::string ret(result, err);
-	free(result);
-
-	return ret;
 }
 
 std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
@@ -1200,7 +1209,7 @@ void session::reply(const struct sph &orig_sph, const std::string &event, const 
 	request(&id, sph, false);
 }
 
-void session::bulk_read(const std::vector<struct dnet_io_attr> &ios_vector, const boost::function<void (const bulk_read_result &)> &handler)
+void session::bulk_read(const boost::function<void (const bulk_read_result &)> &handler, const std::vector<struct dnet_io_attr> &ios_vector)
 {
 	io_attr_set ios(ios_vector.begin(), ios_vector.end());
 
@@ -1233,7 +1242,7 @@ bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const struct dnet_io_a
 bulk_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios)
 {
 	waiter<bulk_read_result> w;
-	bulk_read(ios, w.handler());
+	bulk_read(w.handler(), ios);
 	return w.result();
 }
 

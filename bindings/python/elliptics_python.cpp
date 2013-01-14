@@ -294,26 +294,38 @@ class elliptics_session: public session, public wrapper<session> {
 			return read_latest(key(remote, type), offset, size)->file().to_string();
 		}
 
+		std::string convert_to_string(const write_result &result)
+		{
+			std::string str;
+
+			for (size_t i = 0; i < result.size(); ++i) {
+				write_result_entry entry = result[i];
+				str += entry.raw_data().to_string();
+			}
+
+			return str;
+		}
+
 		std::string write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset) {
 			struct dnet_id raw = id.to_dnet();
-			return write_data_wait(raw, data, remote_offset);
+			return convert_to_string(write_data(raw, data, remote_offset));
 		}
 
 		std::string write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset,
 								int type) {
-			return write_data_wait(key(remote, type), data, remote_offset);
+			return convert_to_string(write_data(key(remote, type), data, remote_offset));
 		}
 
 		std::string write_cache_by_id(const struct elliptics_id &id, const std::string &data,
 							    long timeout) {
 			struct dnet_id raw = id.to_dnet();
 			raw.type = 0;
-			return write_cache(raw, data, timeout);
+			return convert_to_string(write_cache(raw, data, timeout));
 		}
 
 		std::string write_cache_by_data_transform(const std::string &remote, const std::string &data,
 									long timeout) {
-			return write_cache(remote, data, timeout);
+			return convert_to_string(write_cache(remote, data, timeout));
 		}
 
 		std::string lookup_addr_by_data_transform(const std::string &remote, const int group_id) {
