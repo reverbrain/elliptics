@@ -571,7 +571,9 @@ class session
 		void 			remove(const key &id);
 
 		void			stat_log(const std::function<void (const stat_result &)> &handler);
+		void			stat_log(const std::function<void (const stat_result &)> &handler, const key &id);
 		stat_result		stat_log();
+		stat_result		stat_log(const key &id);
 
 		void			stat_log_count(const std::function<void (const stat_count_result &)> &handler);
 		stat_count_result	stat_log_count();

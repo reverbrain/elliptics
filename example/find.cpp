@@ -161,7 +161,7 @@ static __attribute__ ((noreturn)) void efinder_usage(const char *p)
 int main(int argc, char *argv[])
 {
 	int ch, err;
-	char *logfile = (char *)"/dev/stderr";
+	const char *logfile = "/dev/stderr";
 	int log_level = DNET_LOG_ERROR;
 	char *remote = NULL;
 	struct dnet_id raw;

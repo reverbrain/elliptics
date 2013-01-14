@@ -153,14 +153,14 @@ template <typename Result, dnet_commands Command>
 class base_stat_callback : public default_callback
 {
 	public:
-		base_stat_callback(const session &sess) : sess(sess)
+		base_stat_callback(const session &sess) : sess(sess), has_id(false)
 		{
 		}
 
 		void start(complete_func func, void *priv)
 		{
 			int err = dnet_request_stat(sess.get_native(),
-				NULL, Command, 0, func, priv);
+				has_id ? &id : NULL, Command, 0, func, priv);
 			if (err < 0) {
 				throw_error(err, "Failed to request statistics");
 			}
@@ -184,7 +184,10 @@ class base_stat_callback : public default_callback
 
 			if (res.empty()) {
 				try {
-					throw_error(-ENOENT, "Failed to request statistics");
+					if (has_id)
+						throw_error(-ENOENT, id, "Failed to request statistics");
+					else
+						throw_error(-ENOENT, "Failed to request statistics");
 				} catch (...) {
 					exc = std::current_exception();
 				}
@@ -199,6 +202,8 @@ class base_stat_callback : public default_callback
 		dnet_commands command;
 		session sess;
 		std::function<void (const array_result_holder<Result> &)> handler;
+		dnet_id id;
+		bool has_id;
 };
 
 class stat_callback : public base_stat_callback<stat_result_entry, DNET_CMD_STAT>

@@ -49,7 +49,7 @@ static int notify_complete(struct dnet_net_state *state,
 	char str[64];
 	struct tm tm;
 	struct timeval tv;
-	FILE *stream = priv;
+	FILE *stream = reinterpret_cast<FILE*>(priv);
 
 	if (is_trans_destroyed(state, cmd))
 		return 0;

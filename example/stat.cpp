@@ -30,10 +30,11 @@
 
 #include <netinet/in.h>
 
-#include "elliptics/packet.h"
-#include "elliptics/interface.h"
+#include "elliptics/cppdef.h"
 
 #include "common.h"
+
+using namespace ioremap::elliptics;
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
@@ -41,26 +42,20 @@
 
 static struct dnet_log stat_logger;
 static int stat_mem, stat_la, stat_fs;
+static FILE *stream = NULL;
 
-static int stat_complete(struct dnet_net_state *state,
-			struct dnet_cmd *cmd,
-			void *priv)
+static void print_stat(const stat_result_entry &result)
 {
+	dnet_cmd *cmd = result.command();
+	dnet_stat *st = result.statistics();
+
 	float la[3];
-	struct dnet_stat *st;
 	char str[64];
 	struct tm tm;
 	struct timeval tv;
-	FILE *stream = priv;
-
-	if (is_trans_destroyed(state, cmd))
-		return 0;
-
-	if (cmd->size != sizeof(struct dnet_stat))
-		return cmd->status;
 
 	if (!stat_mem && !stat_la && !stat_fs)
-		return 0;
+		return;
 
 	gettimeofday(&tv, NULL);
 	localtime_r((time_t *)&tv.tv_sec, &tm);
@@ -77,7 +72,8 @@ static int stat_complete(struct dnet_net_state *state,
 	la[2] = (float)st->la[2] / 100.0;
 
 
-	fprintf(stream, "%s: %s: ", dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
+	fprintf(stream, "%s: %s: ", dnet_dump_id(&cmd->id),
+		dnet_server_convert_dnet_addr(result.address()));
 
 	if (stat_la)
 		fprintf(stream, "la: %3.2f %3.2f %3.2f ", la[0], la[1], la[2]);
@@ -96,8 +92,16 @@ static int stat_complete(struct dnet_net_state *state,
 
 	fprintf(stream, "\n");
 	fflush(stream);
+}
 
-	return 0;
+static void stat_handler(const stat_result &result)
+{
+	for (size_t i = 0; i < result.size(); ++i) {
+		try {
+			print_stat(result[i]);
+		} catch (...) {
+		}
+	}
 }
 
 static void stat_usage(char *p)
@@ -119,21 +123,18 @@ static void stat_usage(char *p)
 int main(int argc, char *argv[])
 {
 	int ch, err, i, have_remote = 0;
-	struct dnet_node *n = NULL;
-	struct dnet_session *s = NULL;
 	struct dnet_config cfg, rem;
 	int max_id_idx = 1000, id_idx = 0;
 	int timeout;
 	unsigned char id[max_id_idx][DNET_ID_SIZE];
-	char *logfile = "/dev/stderr", *statfile = "/dev/stdout";
-	FILE *log = NULL, *stat;
+	const char *logfile = "/dev/stderr";
+	const char *statfile = "/dev/stdout";
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
-	stat_logger.log_level = DNET_LOG_ERROR;
 
 	timeout = 1;
 
@@ -191,53 +192,35 @@ int main(int argc, char *argv[])
 		return -ENOENT;
 	}
 
-	log = fopen(logfile, "a");
-	if (!log) {
-		err = -errno;
-		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
-		return err;
-	}
-
-	stat_logger.log_private = log;
-	stat_logger.log = dnet_common_log;
-	cfg.log = &stat_logger;
-
-	stat = fopen(statfile, "a");
-	if (!stat) {
+	stream = fopen(statfile, "a");
+	if (!stream) {
 		err = -errno;
 		fprintf(stderr, "Failed to open stat file %s: %s.\n", statfile, strerror(errno));
 		return err;
 	}
 
-	n = dnet_node_create(&cfg);
-	if (!n)
-		return -1;
+	try {
+		file_logger log(logfile, DNET_LOG_ERROR);
+		node n(log, cfg);
+		session sess(n);
 
-	s = dnet_session_create(n);
-	if (!s)
-		return -1;
+		n.add_remote(rem.addr, atoi(rem.port), rem.family);
 
-	err = dnet_add_state(n, &rem);
-	if (err)
-		return err;
+		for (;;) {
+			struct dnet_id raw;
 
-	while (1) {
-		struct dnet_id raw;
+			if (!id_idx)
+				sess.stat_log(stat_handler);
 
-		if (!id_idx) {
-			err = dnet_request_stat(s, NULL, DNET_CMD_STAT, 0, stat_complete, stat);
-			if (err < 0)
-				return err;
+			for (i = 0; i < id_idx; ++i) {
+				dnet_setup_id(&raw, 0, id[i]);
+				sess.stat_log(stat_handler, raw);
+			}
+
+			sleep(timeout);
 		}
-
-		for (i=0; i<id_idx; ++i) {
-			dnet_setup_id(&raw, 0, id[i]);
-			err = dnet_request_stat(s, &raw, DNET_CMD_STAT, 0, stat_complete, stat);
-			if (err < 0)
-				return err;
-		}
-
-		sleep(timeout);
+	} catch (const std::exception &e) {
+		std::cerr << e.what() << std::endl;
 	}
 
 	return 0;

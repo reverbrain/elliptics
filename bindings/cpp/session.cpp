@@ -716,10 +716,29 @@ void session::stat_log(const std::function<void (const stat_result &)> &handler)
 	dnet_style_handler<stat_callback>::start(cb);
 }
 
+void session::stat_log(const std::function<void (const stat_result &)> &handler, const key &id)
+{
+	transform(id);
+
+	stat_callback::ptr cb = std::make_shared<stat_callback>(*this);
+	cb->handler = handler;
+	cb->id = id.id();
+	cb->has_id = true;
+
+	dnet_style_handler<stat_callback>::start(cb);
+}
+
 stat_result session::stat_log()
 {
 	waiter<stat_result> w;
 	stat_log(w.handler());
+	return w.result();
+}
+
+stat_result session::stat_log(const key &id)
+{
+	waiter<stat_result> w;
+	stat_log(w.handler(), id);
 	return w.result();
 }
 

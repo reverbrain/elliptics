@@ -19,30 +19,37 @@ endif()
 add_executable(dnet_ioserv ${DNET_IOSERV_SRCS})
 target_link_libraries(dnet_ioserv ${DNET_IOSERV_LIBRARIES})
 
+# remove NOW
+add_executable(dnet_hparser hparser.c)
+target_link_libraries(dnet_hparser ${ECOMMON_LIBRARIES})
+
+# remove
 add_executable(dnet_check check.c)
 target_link_libraries(dnet_check ${ECOMMON_LIBRARIES})
+
+# remove
+add_executable(dnet_meta meta.c)
+target_link_libraries(dnet_meta ${ECOMMON_LIBRARIES})
+
+# remove
+add_executable(dnet_meta_update_groups meta_update_groups.c)
+target_link_libraries(dnet_meta_update_groups ${ECOMMON_LIBRARIES})
 
 add_executable(dnet_find find.cpp)
 set_target_properties(dnet_find PROPERTIES COMPILE_FLAGS "-std=c++0x")
 target_link_libraries(dnet_find ${ECOMMON_LIBRARIES} elliptics_cpp)
 
-add_executable(dnet_meta meta.c)
-target_link_libraries(dnet_meta ${ECOMMON_LIBRARIES})
+add_executable(dnet_ioclient ioclient.cpp)
+set_target_properties(dnet_ioclient PROPERTIES COMPILE_FLAGS "-std=c++0x")
+target_link_libraries(dnet_ioclient ${ECOMMON_LIBRARIES} elliptics_cpp)
 
-add_executable(dnet_ioclient ioclient.c)
-target_link_libraries(dnet_ioclient ${ECOMMON_LIBRARIES})
+add_executable(dnet_stat stat.cpp)
+set_target_properties(dnet_stat PROPERTIES COMPILE_FLAGS "-std=c++0x")
+target_link_libraries(dnet_stat ${ECOMMON_LIBRARIES} elliptics_cpp)
 
-add_executable(dnet_hparser hparser.c)
-target_link_libraries(dnet_hparser ${ECOMMON_LIBRARIES})
-
-add_executable(dnet_stat stat.c)
-target_link_libraries(dnet_stat ${ECOMMON_LIBRARIES})
-
-add_executable(dnet_notify notify.c)
-target_link_libraries(dnet_notify ${ECOMMON_LIBRARIES})
-
-add_executable(dnet_meta_update_groups meta_update_groups.c)
-target_link_libraries(dnet_meta_update_groups ${ECOMMON_LIBRARIES})
+add_executable(dnet_notify notify.cpp)
+set_target_properties(dnet_notify PROPERTIES COMPILE_FLAGS "-std=c++0x")
+target_link_libraries(dnet_notify ${ECOMMON_LIBRARIES} elliptics_cpp)
 
 add_executable(dnet_ids ids.c)
 target_link_libraries(dnet_ids "")

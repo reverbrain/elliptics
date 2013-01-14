@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 	struct dnet_node *n = NULL;
 	struct dnet_session *s = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
-	char *logfile = "/dev/stderr", *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
+	const char *logfile = "/dev/stderr", *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
 	char *read_data = NULL;
 	char *removef = NULL;
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
@@ -193,7 +193,8 @@ int main(int argc, char *argv[])
 				if (err)
 					return err;
 				have_remote++;
-				remotes = realloc(remotes, sizeof(rem) * have_remote);
+				remotes = reinterpret_cast<dnet_config*>(
+					realloc(remotes, sizeof(rem) * have_remote));
 				if (!remotes)
 					return -ENOMEM;
 				memcpy(&remotes[have_remote - 1], &rem, sizeof(rem));
@@ -317,7 +318,7 @@ int main(int argc, char *argv[])
 		if (err)
 			return err;
 
-		data += sizeof(struct dnet_io_attr);
+		reinterpret_cast<char * &>(data) += sizeof(struct dnet_io_attr);
 		io.size -= sizeof(struct dnet_io_attr);
 
 		while (io.size) {
@@ -355,7 +356,7 @@ int main(int argc, char *argv[])
 		int len = strlen(cmd);
 		int event_size = len;
 		char *ret = NULL;
-		char *tmp;
+		const char *tmp;
 		char *data = NULL;
 
 		tmp = strchr(cmd, ' ');
@@ -373,7 +374,7 @@ int main(int argc, char *argv[])
 			did->type = type;
 		}
 
-		sph = malloc(sizeof(struct sph) + len + 1);
+		sph = reinterpret_cast<struct sph*>(malloc(sizeof(struct sph) + len + 1));
 		if (!sph)
 			return -ENOMEM;
 

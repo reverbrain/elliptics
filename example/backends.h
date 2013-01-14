@@ -56,7 +56,7 @@ int backend_stat_low_level(const char *path, struct dnet_stat *st);
 
 static inline char *file_backend_get_dir(const unsigned char *id, uint64_t bit_num, char *dst)
 {
-	char *res = dnet_dump_id_len_raw(id, ALIGN(bit_num, 8) / 8, dst);
+	char *res = dnet_dump_id_len_raw(id, (bit_num + 7) / 8, dst);
 
 	if (res)
 		res[bit_num / 4] = '\0';
