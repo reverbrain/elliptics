@@ -17,8 +17,6 @@
 #include <elliptics/cppdef.h>
 #include "callback_p.h"
 
-#include <boost/make_shared.hpp>
-
 #include <sstream>
 
 namespace ioremap { namespace elliptics {
@@ -111,7 +109,7 @@ class session_data
 		uint32_t		ioflags;
 };
 
-session::session(const node &n) : m_data(boost::make_shared<session_data>(n))
+session::session(const node &n) : m_data(std::make_shared<session_data>(n))
 {
 }
 
@@ -202,13 +200,13 @@ void session::write_file(const key &id, const std::string &file, uint64_t local_
 	}
 }
 
-void session::read_data(const boost::function<void (const read_results &)> &handler,
+void session::read_data(const std::function<void (const read_results &)> &handler,
 	const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 {
 	read_data(handler, id, groups, io, DNET_CMD_READ);
 }
 
-void session::read_data(const boost::function<void (const read_results &)> &handler,
+void session::read_data(const std::function<void (const read_results &)> &handler,
 	const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd)
 {
 	transform(id);
@@ -222,7 +220,7 @@ void session::read_data(const boost::function<void (const read_results &)> &hand
 
 	memcpy(&control.io, &io, sizeof(struct dnet_io_attr));
 
-	read_callback::ptr cb = boost::make_shared<read_callback>(*this, control);
+	read_callback::ptr cb = std::make_shared<read_callback>(*this, control);
 	cb->handler = handler;
 	cb->kid = id;
 	cb->groups = groups;
@@ -230,7 +228,7 @@ void session::read_data(const boost::function<void (const read_results &)> &hand
 	dnet_style_handler<read_callback>::start(cb);
 }
 
-void session::read_data(const boost::function<void (const read_results &)> &handler,
+void session::read_data(const std::function<void (const read_results &)> &handler,
 	const key &id, int group, const dnet_io_attr &io)
 {
 	const std::vector<int> groups(1, group);
@@ -239,7 +237,7 @@ void session::read_data(const boost::function<void (const read_results &)> &hand
 
 struct results_to_result_proxy
 {
-	boost::function<void (const read_result &)> handler;
+	std::function<void (const read_result &)> handler;
 
 	void operator() (const read_results &results)
 	{
@@ -251,7 +249,7 @@ struct results_to_result_proxy
 	}
 };
 
-void session::read_data(const boost::function<void (const read_result &)> &handler,
+void session::read_data(const std::function<void (const read_result &)> &handler,
 	const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size)
 {
 	transform(id);
@@ -272,7 +270,7 @@ void session::read_data(const boost::function<void (const read_result &)> &handl
 	read_data(proxy, id, groups, io);
 }
 
-void session::read_data(const boost::function<void (const read_result &)> &handler,
+void session::read_data(const std::function<void (const read_result &)> &handler,
 	const key &id, uint64_t offset, uint64_t size)
 {
 	transform(id);
@@ -300,7 +298,7 @@ read_result session::read_data(const key &id, int group_id, uint64_t offset, uin
 	return read_data(id, groups, offset, size);
 }
 
-void session::prepare_latest(const boost::function<void (const prepare_latest_result &)> &handler,
+void session::prepare_latest(const std::function<void (const prepare_latest_result &)> &handler,
 	const key &id, const std::vector<int> &groups)
 {
 	if (groups.empty()) {
@@ -310,7 +308,7 @@ void session::prepare_latest(const boost::function<void (const prepare_latest_re
 
 	transform(id);
 
-	prepare_latest_callback::ptr cb = boost::make_shared<prepare_latest_callback>(*this, groups);
+	prepare_latest_callback::ptr cb = std::make_shared<prepare_latest_callback>(*this, groups);
 	cb->handler = handler;
 	cb->id = id;
 	cb->group_id = id.id().group_id;
@@ -332,7 +330,7 @@ struct read_latest_callback
 	key id;
 	uint64_t offset;
 	uint64_t size;
-	boost::function<void (const read_result &)> handler;
+	std::function<void (const read_result &)> handler;
 
 	void operator() (const prepare_latest_result &result)
 	{
@@ -349,7 +347,7 @@ struct read_latest_callback
 	}
 };
 
-void session::read_latest(const boost::function<void (const read_result &)> &handler,
+void session::read_latest(const std::function<void (const read_result &)> &handler,
 	const key &id, uint64_t offset, uint64_t size)
 {
 	read_latest_callback callback = { *this, id, offset, size, handler };
@@ -363,9 +361,9 @@ read_result session::read_latest(const key &id, uint64_t offset, uint64_t size)
 	return w.result();
 }
 
-void session::write_data(const boost::function<void (const write_result &)> &handler, const dnet_io_control &ctl)
+void session::write_data(const std::function<void (const write_result &)> &handler, const dnet_io_control &ctl)
 {
-	write_callback::ptr cb = boost::make_shared<write_callback>(*this, ctl);
+	write_callback::ptr cb = std::make_shared<write_callback>(*this, ctl);
 
 	cb->ctl.cmd = DNET_CMD_WRITE;
 	cb->ctl.cflags |= DNET_FLAGS_NEED_ACK;
@@ -377,7 +375,7 @@ void session::write_data(const boost::function<void (const write_result &)> &han
 	dnet_style_handler<write_callback>::start(cb);
 }
 
-void session::write_data(const boost::function<void (const write_result &)> &handler,
+void session::write_data(const std::function<void (const write_result &)> &handler,
 	const key &id, const data_pointer &file, uint64_t remote_offset)
 {
 	transform(id);
@@ -410,7 +408,7 @@ write_result session::write_data(const key &id, const std::string &str, uint64_t
 	return w.result();
 }
 
-void session::write_cas(const boost::function<void (const write_result &)> &handler,
+void session::write_cas(const std::function<void (const write_result &)> &handler,
 	const key &id, const std::string &str, const dnet_id &old_csum, uint64_t remote_offset)
 {
 	transform(id);
@@ -445,7 +443,7 @@ write_result session::write_cas(const key &id, const std::string &str, const dne
 	return w.result();
 }
 
-void session::write_prepare(const boost::function<void (const write_result &)> &handler,
+void session::write_prepare(const std::function<void (const write_result &)> &handler,
 	const key &id, const std::string &str, uint64_t remote_offset, uint64_t psize)
 {
 	transform(id);
@@ -477,7 +475,7 @@ write_result session::write_prepare(const key &id, const std::string &str, uint6
 	return w.result();
 }
 
-void session::write_commit(const boost::function<void (const write_result &)> &handler,
+void session::write_commit(const std::function<void (const write_result &)> &handler,
 	const key &id, const std::string &str, uint64_t remote_offset, uint64_t csize)
 {
 	transform(id);
@@ -509,7 +507,7 @@ write_result session::write_commit(const key &id, const std::string &str, uint64
 	return w.result();
 }
 
-void session::write_plain(const boost::function<void (const write_result &)> &handler,
+void session::write_plain(const std::function<void (const write_result &)> &handler,
 	const key &id, const std::string &str, uint64_t remote_offset)
 {
 	transform(id);
@@ -541,7 +539,7 @@ write_result session::write_plain(const key &id, const std::string &str, uint64_
 	return w.result();
 }
 
-void session::write_cache(const boost::function<void (const write_result &)> &handler,
+void session::write_cache(const std::function<void (const write_result &)> &handler,
 	const key &id, const std::string &str, long timeout)
 {
 	transform(id);
@@ -668,11 +666,11 @@ void session::transform(const key &id)
 	const_cast<key&>(id).transform(*this);
 }
 
-void session::lookup(const boost::function<void (const lookup_result &)> &handler, const key &id)
+void session::lookup(const std::function<void (const lookup_result &)> &handler, const key &id)
 {
 	transform(id);
 
-	lookup_callback::ptr cb = boost::make_shared<lookup_callback>(*this);
+	lookup_callback::ptr cb = std::make_shared<lookup_callback>(*this);
 	cb->handler = handler;
 	cb->kid = id;
 
@@ -693,11 +691,11 @@ void session::remove_raw(const key &id)
 	remove(id);
 }
 
-void session::remove(const boost::function<void (const std::exception_ptr &)> &handler, const key &id)
+void session::remove(const std::function<void (const std::exception_ptr &)> &handler, const key &id)
 {
 	transform(id);
 
-	remove_callback::ptr cb = boost::make_shared<remove_callback>(*this, id.id());
+	remove_callback::ptr cb = std::make_shared<remove_callback>(*this, id.id());
 	cb->handler = handler;
 
 	dnet_style_handler<remove_callback>::start(cb);
@@ -710,9 +708,9 @@ void session::remove(const key &id)
 	w.result();
 }
 
-void session::stat_log(const boost::function<void (const stat_result &)> &handler)
+void session::stat_log(const std::function<void (const stat_result &)> &handler)
 {
-	stat_callback::ptr cb = boost::make_shared<stat_callback>(*this);
+	stat_callback::ptr cb = std::make_shared<stat_callback>(*this);
 	cb->handler = handler;
 
 	dnet_style_handler<stat_callback>::start(cb);
@@ -725,9 +723,9 @@ stat_result session::stat_log()
 	return w.result();
 }
 
-void session::stat_log_count(const boost::function<void (const stat_count_result &)> &handler)
+void session::stat_log_count(const std::function<void (const stat_count_result &)> &handler)
 {
-	stat_count_callback::ptr cb = boost::make_shared<stat_count_callback>(*this);
+	stat_count_callback::ptr cb = std::make_shared<stat_count_callback>(*this);
 	cb->handler = handler;
 
 	dnet_style_handler<stat_count_callback>::start(cb);
@@ -752,9 +750,9 @@ command_result session::request_cmd(const transport_control &ctl)
 	return w.result();
 }
 
-void session::request_cmd(const boost::function<void (const command_result &)> &handler, const transport_control &ctl)
+void session::request_cmd(const std::function<void (const command_result &)> &handler, const transport_control &ctl)
 {
-	cmd_callback::ptr cb = boost::make_shared<cmd_callback>(*this, ctl);
+	cmd_callback::ptr cb = std::make_shared<cmd_callback>(*this, ctl);
 	cb->handler = handler;
 
 	dnet_style_handler<cmd_callback>::start(cb);
@@ -806,8 +804,8 @@ class read_data_range_callback
 			int group_id;
 			unsigned int cmd;
 			bool need_exit;
-			boost::function<void (const read_range_result &)> handler;
-			boost::function<void (const read_results &)> me;
+			std::function<void (const read_range_result &)> handler;
+			std::function<void (const read_results &)> me;
 			struct dnet_raw_id start, next;
 			struct dnet_raw_id end;
 			uint64_t size;
@@ -815,12 +813,12 @@ class read_data_range_callback
 			std::exception_ptr last_exception;
 		};
 
-		boost::shared_ptr<scope> data;
+		std::shared_ptr<scope> data;
 
 		read_data_range_callback(const session &sess,
 			const struct dnet_io_attr &io, int group_id,
-			const boost::function<void (const read_range_result &)> &handler)
-			: data(boost::make_shared<scope>(sess))
+			const std::function<void (const read_range_result &)> &handler)
+			: data(std::make_shared<scope>(sess))
 		{
 			scope *d = data.get();
 
@@ -945,7 +943,7 @@ class remove_data_range_callback : public read_data_range_callback
 	public:
 		remove_data_range_callback(const session &sess,
 			const struct dnet_io_attr &io, int group_id,
-			const boost::function<void (const read_range_result &)> &handler)
+			const std::function<void (const read_range_result &)> &handler)
 		: read_data_range_callback(sess, io, group_id, handler)
 		{
 			scope *d = data.get();
@@ -986,7 +984,7 @@ class remove_data_range_callback : public read_data_range_callback
 		}
 };
 
-void session::read_data_range(const boost::function<void (const read_range_result &)> &handler,
+void session::read_data_range(const std::function<void (const read_range_result &)> &handler,
 	const struct dnet_io_attr &io, int group_id)
 {
 	read_data_range_callback(*this, io, group_id, handler).do_next();
@@ -1023,7 +1021,7 @@ std::vector<std::string> session::read_data_range_raw(dnet_io_attr &io, int grou
 	return result;
 }
 
-void session::remove_data_range(const boost::function<void (const remove_range_result &)> &handler, dnet_io_attr &io, int group_id)
+void session::remove_data_range(const std::function<void (const remove_range_result &)> &handler, dnet_io_attr &io, int group_id)
 {
 	remove_data_range_callback(*this, io, group_id, handler).do_next();
 }
@@ -1203,7 +1201,7 @@ void session::reply(const struct sph &orig_sph, const std::string &event, const 
 	request(&id, sph, false);
 }
 
-void session::bulk_read(const boost::function<void (const bulk_read_result &)> &handler, const std::vector<struct dnet_io_attr> &ios_vector)
+void session::bulk_read(const std::function<void (const bulk_read_result &)> &handler, const std::vector<struct dnet_io_attr> &ios_vector)
 {
 	io_attr_set ios(ios_vector.begin(), ios_vector.end());
 
@@ -1217,7 +1215,7 @@ void session::bulk_read(const boost::function<void (const bulk_read_result &)> &
 
 	memset(&control.io, 0, sizeof(struct dnet_io_attr));
 
-	read_bulk_callback::ptr cb = boost::make_shared<read_bulk_callback>(*this, ios, control);
+	read_bulk_callback::ptr cb = std::make_shared<read_bulk_callback>(*this, ios, control);
 	cb->handler = handler;
 	cb->groups = mix_states();
 
@@ -1267,17 +1265,17 @@ class bulk_write_callback
 			public:
 				int condition;
 				int count;
-				boost::mutex mutex;
+				std::mutex mutex;
 				std::vector<write_result_entry> entries;
 				std::exception_ptr exc;
-				boost::function<void (const write_result &)> handler;
+				std::function<void (const write_result &)> handler;
 		};
 
-		boost::shared_ptr<scope> d;
+		std::shared_ptr<scope> d;
 
-		bulk_write_callback(const boost::function<void (const write_result &)> &handler, int count)
+		bulk_write_callback(const std::function<void (const write_result &)> &handler, int count)
 		{
-			d = boost::make_shared<scope>();
+			d = std::make_shared<scope>();
 			d->handler = handler;
 			d->condition = count;
 			d->count = 0;
@@ -1285,7 +1283,7 @@ class bulk_write_callback
 
 		void operator() (const write_result &result)
 		{
-			boost::mutex::scoped_lock lock(d->mutex);
+			std::lock_guard<std::mutex> lock(d->mutex);
 			++d->count;
 
 			if (result.exception()) {
@@ -1304,7 +1302,7 @@ class bulk_write_callback
 		}
 };
 
-void session::bulk_write(const boost::function<void (const write_result &)> &handler,
+void session::bulk_write(const std::function<void (const write_result &)> &handler,
 	const std::vector<struct dnet_io_attr> &ios,
 	const std::vector<std::string> &data)
 {
@@ -1313,7 +1311,7 @@ void session::bulk_write(const boost::function<void (const write_result &)> &han
 			ios.size(), data.size());
 	}
 
-	boost::function<void (const write_result &)> callback
+	std::function<void (const write_result &)> callback
 		= bulk_write_callback(handler, ios.size());
 
 	for(size_t i = 0; i < ios.size(); ++i) {

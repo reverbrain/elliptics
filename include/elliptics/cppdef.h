@@ -23,9 +23,6 @@
 #include <elliptics/packet.h>
 #include <elliptics/interface.h>
 
-#include <boost/shared_ptr.hpp>
-#include <boost/make_shared.hpp>
-#include <boost/function.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -35,6 +32,8 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <memory>
+#include <functional>
 
 #define ELLIPTICS_DISABLE_COPY(CLASS) \
 private: \
@@ -101,12 +100,13 @@ class data_pointer
 		data_pointer() : m_index(0), m_size(0) {}
 
 		data_pointer(void *data, size_t size)
-			: m_data(boost::make_shared<wrapper>(data)), m_index(0), m_size(size)
+			: m_data(std::make_shared<wrapper>(data)), m_index(0), m_size(size)
 		{
 		}
 
 		data_pointer(const std::string &str)
-			: m_data(boost::make_shared<wrapper>(const_cast<char*>(str.c_str()), false)), m_index(0), m_size(str.size())
+			: m_data(std::make_shared<wrapper>(const_cast<char*>(str.c_str()), false)),
+			m_index(0), m_size(str.size())
 		{
 		}
 
@@ -158,7 +158,7 @@ class data_pointer
 				bool owner;
 		};
 
-		boost::shared_ptr<wrapper> m_data;
+		std::shared_ptr<wrapper> m_data;
 		size_t m_index;
 		size_t m_size;
 };
@@ -194,7 +194,7 @@ class generic_result_holder
 		}
 
 	protected:
-		boost::shared_ptr<generic_data> m_data;
+		std::shared_ptr<generic_data> m_data;
 };
 
 template <typename T>
@@ -256,7 +256,7 @@ class callback_result_entry
 	public:
 		callback_result_entry();
 		callback_result_entry(const callback_result_entry &other);
-		callback_result_entry(const boost::shared_ptr<callback_result_data> &data);
+		callback_result_entry(const std::shared_ptr<callback_result_data> &data);
 		~callback_result_entry();
 
 		callback_result_entry &operator =(const callback_result_entry &other);
@@ -272,7 +272,7 @@ class callback_result_entry
 		{ return data().data<T>(); }
 
 	protected:
-		boost::shared_ptr<callback_result_data> m_data;
+		std::shared_ptr<callback_result_data> m_data;
 
 		friend class callback;
 		friend class default_callback;
@@ -395,7 +395,7 @@ class logger
 		struct dnet_log		*get_native();
 
 	protected:
-		boost::shared_ptr<logger_data> m_data;
+		std::shared_ptr<logger_data> m_data;
 };
 
 class file_logger : public logger
@@ -432,7 +432,7 @@ class node
 		struct dnet_node *	get_native();
 
 	protected:
-		boost::shared_ptr<node_data> m_data;
+		std::shared_ptr<node_data> m_data;
 
 		friend class session;
 		friend class session_data;
@@ -494,36 +494,62 @@ class session
 		void			write_file(const key &id, const std::string &file, uint64_t local_offset,
 							uint64_t offset, uint64_t size);
 
-		void			read_data(const boost::function<void (const read_results &)> &handler, const key &id, const std::vector<int> &groups, const struct dnet_io_attr &io);
-		void			read_data(const boost::function<void (const read_results &)> &handler, const key &id, const std::vector<int> &groups, const struct dnet_io_attr &io, unsigned int cmd);
-		void			read_data(const boost::function<void (const read_results &)> &handler, const key &id, int group_id, const struct dnet_io_attr &io);
-		void			read_data(const boost::function<void (const read_result  &)> &handler, const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size);
-		void			read_data(const boost::function<void (const read_result &)> &handler, const key &id, uint64_t offset, uint64_t size);
+		void			read_data(const std::function<void (const read_results &)> &handler,
+						const key &id, const std::vector<int> &groups,
+						const struct dnet_io_attr &io);
+		void			read_data(const std::function<void (const read_results &)> &handler,
+						const key &id, const std::vector<int> &groups,
+						const struct dnet_io_attr &io, unsigned int cmd);
+		void			read_data(const std::function<void (const read_results &)> &handler,
+						const key &id, int group_id, const struct dnet_io_attr &io);
+		void			read_data(const std::function<void (const read_result  &)> &handler,
+						const key &id, const std::vector<int> &groups,
+						uint64_t offset, uint64_t size);
+		void			read_data(const std::function<void (const read_result &)> &handler,
+						const key &id, uint64_t offset, uint64_t size);
 		read_result		read_data(const key &id, uint64_t offset, uint64_t size);
-		read_result		read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size);
+		read_result		read_data(const key &id, const std::vector<int> &groups,
+						uint64_t offset, uint64_t size);
 		read_result		read_data(const key &id, int group_id, uint64_t offset, uint64_t size);
 
-		void			prepare_latest(const boost::function<void (const prepare_latest_result &)> &handler, const key &id, const std::vector<int> &groups);
+		void			prepare_latest(const std::function<void (const prepare_latest_result &)> &handler,
+						const key &id, const std::vector<int> &groups);
 		void			prepare_latest(const key &id, std::vector<int> &groups);
 
-		void			read_latest(const boost::function<void (const read_result &)> &handler, const key &id, uint64_t offset, uint64_t size);
+		void			read_latest(const std::function<void (const read_result &)> &handler,
+						const key &id, uint64_t offset, uint64_t size);
 		read_result		read_latest(const key &id, uint64_t offset, uint64_t size);
 
-		void			write_data(const boost::function<void (const write_result &)> &handler, const dnet_io_control &ctl);
-		void			write_data(const boost::function<void (const write_result &)> &handler, const key &id, const data_pointer &file, uint64_t remote_offset);
+		void			write_data(const std::function<void (const write_result &)> &handler,
+						const dnet_io_control &ctl);
+		void			write_data(const std::function<void (const write_result &)> &handler,
+						const key &id, const data_pointer &file, uint64_t remote_offset);
 		write_result		write_data(const key &id, const std::string &str, uint64_t remote_offset);
 
-		void			write_cas(const boost::function<void (const write_result &)> &handler, const key &id, const std::string &str, const struct dnet_id &old_csum, uint64_t remote_offset);
-		write_result		write_cas(const key &id, const std::string &str, const struct dnet_id &old_csum, uint64_t remote_offset);
+		void			write_cas(const std::function<void (const write_result &)> &handler,
+						const key &id, const std::string &str,
+						const struct dnet_id &old_csum, uint64_t remote_offset);
+		write_result		write_cas(const key &id, const std::string &str,
+						const struct dnet_id &old_csum, uint64_t remote_offset);
 
-		void			write_prepare(const boost::function<void (const write_result &)> &handler, const key &id, const std::string &str, uint64_t remote_offset, uint64_t psize);
-		write_result		write_prepare(const key &id, const std::string &str, uint64_t remote_offset, uint64_t psize);
-		void			write_commit(const boost::function<void (const write_result &)> &handler, const key &id, const std::string &str, uint64_t remote_offset, uint64_t csize);
-		write_result		write_commit(const key &id, const std::string &str, uint64_t remote_offset, uint64_t csize);
-		void			write_plain(const boost::function<void (const write_result &)> &handler, const key &id, const std::string &str, uint64_t remote_offset);
+		void			write_prepare(const std::function<void (const write_result &)> &handler,
+						const key &id, const std::string &str,
+						uint64_t remote_offset, uint64_t psize);
+		write_result		write_prepare(const key &id, const std::string &str,
+						uint64_t remote_offset, uint64_t psize);
+
+		void			write_commit(const std::function<void (const write_result &)> &handler,
+						const key &id, const std::string &str,
+						uint64_t remote_offset, uint64_t csize);
+		write_result		write_commit(const key &id, const std::string &str,
+						uint64_t remote_offset, uint64_t csize);
+
+		void			write_plain(const std::function<void (const write_result &)> &handler,
+						const key &id, const std::string &str, uint64_t remote_offset);
 		write_result		write_plain(const key &id, const std::string &str, uint64_t remote_offset);
 
-		void			write_cache(const boost::function<void (const write_result &)> &handler, const key &id, const std::string &str, long timeout);
+		void			write_cache(const std::function<void (const write_result &)> &handler,
+						const key &id, const std::string &str, long timeout);
 		write_result		write_cache(const key &id, const std::string &str, long timeout);
 
 
@@ -535,32 +561,37 @@ class session
 		int			write_metadata(const key &id, const std::string &obj,
 							const std::vector<int> &groups, const struct timespec &ts);
 
-		void			lookup(const boost::function<void (const lookup_result &)> &handler, const key &id);
+		void			lookup(const std::function<void (const lookup_result &)> &handler,
+						const key &id);
 		lookup_result		lookup(const key &id);
 
 		void 			remove_raw(const key &id);
-		void 			remove(const boost::function<void (const std::exception_ptr &)> &handler, const key &id);
+		void 			remove(const std::function<void (const std::exception_ptr &)> &handler,
+						const key &id);
 		void 			remove(const key &id);
 
-		void			stat_log(const boost::function<void (const stat_result &)> &handler);
+		void			stat_log(const std::function<void (const stat_result &)> &handler);
 		stat_result		stat_log();
 
-		void			stat_log_count(const boost::function<void (const stat_count_result &)> &handler);
+		void			stat_log_count(const std::function<void (const stat_count_result &)> &handler);
 		stat_count_result	stat_log_count();
 
 		int			state_num();
 
 		command_result		request_cmd(const transport_control &ctl);
-		void			request_cmd(const boost::function<void (const command_result &)> &handler, const transport_control &ctl);
+		void			request_cmd(const std::function<void (const command_result &)> &handler,
+						const transport_control &ctl);
 
 		void			update_status(const char *addr, const int port, const int family, struct dnet_node_status *status);
 		void			update_status(const key &id, struct dnet_node_status *status);
 
-		void			read_data_range(const boost::function<void (const read_range_result &)> &handler, const struct dnet_io_attr &io, int group_id);
+		void			read_data_range(const std::function<void (const read_range_result &)> &handler,
+						const struct dnet_io_attr &io, int group_id);
 		read_range_result	read_data_range(struct dnet_io_attr &io, int group_id);
 		std::vector<std::string>read_data_range_raw(struct dnet_io_attr &io, int group_id);
 
-		void			remove_data_range(const boost::function<void (const remove_range_result &)> &handler, struct dnet_io_attr &io, int group_id);
+		void			remove_data_range(const std::function<void (const remove_range_result &)> &handler,
+						struct dnet_io_attr &io, int group_id);
 		remove_range_result	remove_data_range(struct dnet_io_attr &io, int group_id);
 
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
@@ -585,11 +616,12 @@ class session
 		void			reply(const struct sph &sph, const std::string &event, const std::string &data,
 						const std::string &binary);
 
-		void			bulk_read(const boost::function<void (const bulk_read_result &)> &handler, const std::vector<struct dnet_io_attr> &ios);
+		void			bulk_read(const std::function<void (const bulk_read_result &)> &handler,
+						const std::vector<struct dnet_io_attr> &ios);
 		bulk_read_result	bulk_read(const std::vector<struct dnet_io_attr> &ios);
 		bulk_read_result	bulk_read(const std::vector<std::string> &keys);
 
-		void			bulk_write(const boost::function<void (const write_result &)> &handler,
+		void			bulk_write(const std::function<void (const write_result &)> &handler,
 						const std::vector<struct dnet_io_attr> &ios,
 						const std::vector<std::string> &data);
 		write_result		bulk_write(const std::vector<struct dnet_io_attr> &ios,
@@ -600,7 +632,7 @@ class session
 		struct dnet_session *	get_native();
 
 	protected:
-		boost::shared_ptr<session_data>		m_data;
+		std::shared_ptr<session_data>		m_data;
 
 		std::string		raw_exec(struct dnet_id *id,
 							const struct sph *sph,

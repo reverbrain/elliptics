@@ -23,12 +23,9 @@
 #include <sstream>
 #include <stdexcept>
 
-#include <boost/thread.hpp>
-#include <boost/make_shared.hpp>
-
 namespace ioremap { namespace elliptics {
 
-callback_result_entry::callback_result_entry() : m_data(boost::make_shared<callback_result_data>())
+callback_result_entry::callback_result_entry() : m_data(std::make_shared<callback_result_data>())
 {
 }
 
@@ -36,7 +33,7 @@ callback_result_entry::callback_result_entry(const callback_result_entry &other)
 {
 }
 
-callback_result_entry::callback_result_entry(const boost::shared_ptr<callback_result_data> &data) : m_data(data)
+callback_result_entry::callback_result_entry(const std::shared_ptr<callback_result_data> &data) : m_data(data)
 {
 }
 

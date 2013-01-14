@@ -25,6 +25,8 @@
 
 #include <elliptics/cppdef.h>
 
+#include <algorithm>
+
 using namespace ioremap::elliptics;
 
 static void test_prepare_commit(session &s, int psize, int csize)

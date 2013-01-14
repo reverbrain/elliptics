@@ -21,9 +21,10 @@
 
 #include <exception>
 #include <set>
-
-#include <boost/make_shared.hpp>
-#include <boost/thread.hpp>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <algorithm>
 
 namespace ioremap { namespace elliptics {
 
@@ -67,27 +68,27 @@ class default_callback
 
 		void set_count(size_t count)
 		{
-			boost::mutex::scoped_lock lock(m_mutex);
+			std::lock_guard<std::mutex> lock(m_mutex);
 			m_count = count;
 		}
 
 		bool handle(struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func, void *)
 		{
-			boost::mutex::scoped_lock lock(m_mutex);
+			std::lock_guard<std::mutex> lock(m_mutex);
 
 			if (is_trans_destroyed(state, cmd)) {
 				++m_complete;
 			} else {
 				if (!(cmd->flags & DNET_FLAGS_MORE))
 					m_statuses.push_back(cmd->status);
-				m_results.push_back(boost::make_shared<callback_result_data>(state, cmd));
+				m_results.push_back(std::make_shared<callback_result_data>(state, cmd));
 			}
 			return (m_count == m_complete);
 		}
 
 		bool is_ready()
 		{
-			boost::mutex::scoped_lock lock(m_mutex);
+			std::lock_guard<std::mutex> lock(m_mutex);
 			return (m_count == m_complete);
 		}
 
@@ -145,7 +146,7 @@ class default_callback
 		std::vector<int> m_statuses;
 		size_t m_count;
 		size_t m_complete;
-		boost::mutex m_mutex;
+		std::mutex m_mutex;
 };
 
 template <typename Result, dnet_commands Command>
@@ -197,13 +198,13 @@ class base_stat_callback : public default_callback
 
 		dnet_commands command;
 		session sess;
-		boost::function<void (const array_result_holder<Result> &)> handler;
+		std::function<void (const array_result_holder<Result> &)> handler;
 };
 
 class stat_callback : public base_stat_callback<stat_result_entry, DNET_CMD_STAT>
 {
 	public:
-		typedef boost::shared_ptr<stat_callback> ptr;
+		typedef std::shared_ptr<stat_callback> ptr;
 
 		stat_callback(const session &sess) : base_stat_callback(sess)
 		{
@@ -221,7 +222,7 @@ class stat_callback : public base_stat_callback<stat_result_entry, DNET_CMD_STAT
 class stat_count_callback : public base_stat_callback<stat_count_result_entry, DNET_CMD_STAT_COUNT>
 {
 	public:
-		typedef boost::shared_ptr<stat_count_callback> ptr;
+		typedef std::shared_ptr<stat_count_callback> ptr;
 
 		stat_count_callback(const session &sess) : base_stat_callback(sess)
 		{
@@ -323,7 +324,7 @@ class multigroup_callback
 class lookup_callback : public multigroup_callback
 {
 	public:
-		typedef boost::shared_ptr<lookup_callback> ptr;
+		typedef std::shared_ptr<lookup_callback> ptr;
 
 		lookup_callback(const session &sess) : multigroup_callback(sess)
 		{
@@ -355,13 +356,13 @@ class lookup_callback : public multigroup_callback
 			throw_error(-ENOENT, kid, "Failed to lookup ID");
 		}
 
-		boost::function<void (const lookup_result &)> handler;
+		std::function<void (const lookup_result &)> handler;
 };
 
 class read_callback : public multigroup_callback
 {
 	public:
-		typedef boost::shared_ptr<read_callback> ptr;
+		typedef std::shared_ptr<read_callback> ptr;
 
 		read_callback(const session &sess, const dnet_io_control &ctl)
 			: multigroup_callback(sess), ctl(ctl)
@@ -406,7 +407,7 @@ class read_callback : public multigroup_callback
 		}
 
 		struct dnet_io_control ctl;
-		boost::function<void (const read_results &)> handler;
+		std::function<void (const read_results &)> handler;
 };
 
 struct io_attr_comparator
@@ -422,7 +423,7 @@ typedef std::set<dnet_io_attr, io_attr_comparator> io_attr_set;
 class read_bulk_callback : public read_callback
 {
 	public:
-		typedef boost::shared_ptr<read_bulk_callback> ptr;
+		typedef std::shared_ptr<read_bulk_callback> ptr;
 
 		read_bulk_callback(const session &sess, const io_attr_set &ios, const dnet_io_control &ctl)
 			: read_callback(sess, ctl), ios_set(ios)
@@ -546,7 +547,7 @@ class read_bulk_callback : public read_callback
 class cmd_callback : public default_callback
 {
 	public:
-		typedef boost::shared_ptr<cmd_callback> ptr;
+		typedef std::shared_ptr<cmd_callback> ptr;
 
 		cmd_callback(const session &sess, const transport_control &ctl) : sess(sess), ctl(ctl.get_native())
 		{
@@ -574,13 +575,13 @@ class cmd_callback : public default_callback
 
 		session sess;
 		dnet_trans_control ctl;
-		boost::function<void (const command_result &)> handler;
+		std::function<void (const command_result &)> handler;
 };
 
 class prepare_latest_callback : public default_callback
 {
 	public:
-		typedef boost::shared_ptr<prepare_latest_callback> ptr;
+		typedef std::shared_ptr<prepare_latest_callback> ptr;
 
 		class entry
 		{
@@ -652,13 +653,13 @@ class prepare_latest_callback : public default_callback
 		key id;
 		uint32_t group_id;
 		uint64_t cflags;
-		boost::function<void (const prepare_latest_result &)> handler;
+		std::function<void (const prepare_latest_result &)> handler;
 };
 
 class write_callback : public default_callback
 {
 	public:
-		typedef boost::shared_ptr<write_callback> ptr;
+		typedef std::shared_ptr<write_callback> ptr;
 
 		write_callback(const session &sess, const dnet_io_control &ctl) : sess(sess), ctl(ctl)
 		{
@@ -702,13 +703,13 @@ class write_callback : public default_callback
 
 		session sess;
 		dnet_io_control ctl;
-		boost::function<void (const write_result &)> handler;
+		std::function<void (const write_result &)> handler;
 };
 
 class remove_callback : public default_callback
 {
 	public:
-		typedef boost::shared_ptr<remove_callback> ptr;
+		typedef std::shared_ptr<remove_callback> ptr;
 
 		remove_callback(const session &sess, const dnet_id &id)
 			: sess(sess), id(id)
@@ -769,7 +770,7 @@ class remove_callback : public default_callback
 		session sess;
 		std::set<int> groups;
 		dnet_id id;
-		boost::function<void (const std::exception_ptr &)> handler;
+		std::function<void (const std::exception_ptr &)> handler;
 };
 
 inline void check_for_exception(const std::exception_ptr &result)
@@ -830,7 +831,7 @@ class waiter
 		void handle_result(const T &result)
 		{
 			{
-				boost::mutex::scoped_lock locker(m_mutex);
+				std::lock_guard<std::mutex> locker(m_mutex);
 				m_result = result;
 				m_result_ready = true;
 			}
@@ -839,15 +840,15 @@ class waiter
 
 		void wait()
 		{
-			boost::mutex::scoped_lock locker(m_mutex);
+			std::unique_lock<std::mutex> locker(m_mutex);
 
 			while (!m_result_ready)
 				m_condition.wait(locker);
 		}
 
 	private:
-		boost::mutex			m_mutex;
-		boost::condition_variable	m_condition;
+		std::mutex			m_mutex;
+		std::condition_variable	m_condition;
 		T				m_result;
 		bool				m_result_ready;
 };
@@ -857,7 +858,7 @@ struct dnet_style_handler
 {
 	static int handler(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
 	{
-		boost::shared_ptr<T> &ptr = *reinterpret_cast<boost::shared_ptr<T> *>(priv);
+		std::shared_ptr<T> &ptr = *reinterpret_cast<std::shared_ptr<T> *>(priv);
 
 		bool finish = false;
 		std::exception_ptr exc_ptr;
@@ -879,9 +880,9 @@ struct dnet_style_handler
 		return 0;
 	}
 
-	static void start(const boost::shared_ptr<T> &cb)
+	static void start(const std::shared_ptr<T> &cb)
 	{
-		boost::shared_ptr<T> *cb_ptr = new boost::shared_ptr<T>(cb);
+		std::shared_ptr<T> *cb_ptr = new std::shared_ptr<T>(cb);
 		try {
 			cb->start(handler, cb_ptr);
 		} catch (...) {
