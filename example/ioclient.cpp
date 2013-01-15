@@ -294,21 +294,26 @@ int main(int argc, char *argv[])
 			dnet_id did_tmp, *did = NULL;
 			std::string event, data, binary;
 
-			if (id) {
+			if (const char *tmp = strchr(cmd, ' ')) {
+				event.assign(cmd, tmp);
+				data.assign(tmp + 1);
+			} else {
+				event.assign(cmd);
+			}
+
+			if (id || data.size()) {
 				did = &did_tmp;
 
-				dnet_setup_id(did, 0, id);
+				if (id) {
+					dnet_setup_id(did, 0, id);
+				} else {
+					s.transform(data, did_tmp);
+				}
+
 				did->type = type;
 			}
 
-			if (const char *tmp = strchr(cmd, ' ')) {
-				event.assign(cmd, tmp);
-				data.assign(tmp);
-			} else {
-				data.assign(cmd);
-			}
-
-			s.exec_locked(did, event, data, binary);
+			std::cout << s.exec_unlocked(did, event, data, binary);
 		}
 
 		if (lookup)
