@@ -153,41 +153,8 @@ int dnet_read_object(struct dnet_session *s, struct dnet_io_control *ctl);
 void *dnet_read_data_wait(struct dnet_session *s, struct dnet_id *id,
 		struct dnet_io_attr *io, uint64_t cflags, int *errp);
 
-/* Read latest data according to stored metadata */
-int dnet_read_latest(struct dnet_session *s, struct dnet_id *id,
-		struct dnet_io_attr *io, uint64_t cflags, void **datap);
-
-struct dnet_read_latest_prepare {
-	struct dnet_session		*s;
-
-	struct dnet_id			id;
-
-	uint64_t			cflags;
-
-	int				*group;
-	int				group_num;
-};
-int dnet_read_latest_prepare(struct dnet_read_latest_prepare *pr);
-
-
-/*
- * Read data from range of keys [io->id, io->parent)
- * Other parameters are treated the same as in dnet_read_data_wait()
- * On success @errp will point to number of dnet_range_data structures.
- */
-struct dnet_range_data {
-	uint64_t			size;
-	void				*data;
-};
-
 int dnet_search_range(struct dnet_node *n, struct dnet_id *id,
 		struct dnet_raw_id *start, struct dnet_raw_id *next);
-
-struct dnet_io_attr *dnet_remove_range(struct dnet_session *s, struct dnet_io_attr *io,
-		int group_id, uint64_t cflags, int *rep_num, int *errp);
-
-struct dnet_range_data *dnet_read_range(struct dnet_session *s, struct dnet_io_attr *io,
-		int group_id, uint64_t cflags, int *errp);
 
 int __attribute__((weak)) dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
 		void *data, int fd, uint64_t offset, int close_on_exit);
@@ -627,8 +594,7 @@ static inline char *dnet_dump_id_str(const unsigned char *id)
 int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id, uint64_t cflags,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, void *),
 	void *priv);
-int dnet_lookup(struct dnet_session *s, const char *file);
-int dnet_lookup_complete(struct dnet_net_state *st, struct dnet_cmd *cmd, void *priv);
+
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id);
 
 /*
@@ -943,9 +909,6 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_ad
  */
 int dnet_send_cmd(struct dnet_session *s, struct dnet_id *id, struct sph *h, void **ret);
 int dnet_send_cmd_nolock(struct dnet_session *s, struct dnet_id *id, struct sph *e, void **ret);
-
-struct dnet_range_data *dnet_bulk_read(struct dnet_session *s, struct dnet_io_attr *ios, uint32_t io_num, int group_id, uint64_t cflags, int *errp);
-struct dnet_range_data dnet_bulk_write(struct dnet_session *s, struct dnet_io_control *ctl, int ctl_num, int *errp);
 
 int dnet_flags(struct dnet_node *n);
 void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout);
