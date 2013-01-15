@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
 					throw_error(err, "%s: can not write data to stdout", read_data);
 					return err;
 				}
-				file.skip(err);
+				file = file.skip(err);
 			}
 		}
 
@@ -291,49 +291,24 @@ int main(int argc, char *argv[])
 			s.remove(create_id(id, removef, type));
 
 		if (cmd) {
-			struct dnet_id __did, *did = NULL;
-			struct sph *sph;
-			int len = strlen(cmd);
-			int event_size = len;
-			char *ret = NULL;
-			const char *tmp;
-
-			tmp = strchr(cmd, ' ');
-			if (tmp) {
-				event_size = tmp - cmd;
-			}
+			dnet_id did_tmp, *did = NULL;
+			std::string event, data, binary;
 
 			if (id) {
-				did = &__did;
+				did = &did_tmp;
 
 				dnet_setup_id(did, 0, id);
 				did->type = type;
 			}
 
-			sph = reinterpret_cast<struct sph*>(malloc(sizeof(struct sph) + len + 1));
-			if (!sph)
-				return -ENOMEM;
-
-			memset(sph, 0, sizeof(struct sph));
-
-			sph->flags = DNET_SPH_FLAGS_SRC_BLOCK;
-			sph->key = -1;
-			sph->binary_size = 0;
-			sph->data_size = len - event_size;
-			sph->event_size = event_size;
-
-			sprintf(sph->data, "%s", cmd);
-
-			err = dnet_send_cmd(s.get_native(), did, sph, (void **)&ret);
-			if (err < 0)
-				return err;
-
-			free(sph);
-
-			if (err > 0) {
-				printf("%.*s\n", err, ret);
-				free(ret);
+			if (const char *tmp = strchr(cmd, ' ')) {
+				event.assign(cmd, tmp);
+				data.assign(tmp);
+			} else {
+				data.assign(cmd);
 			}
+
+			s.exec_locked(did, event, data, binary);
 		}
 
 		if (lookup)
@@ -346,29 +321,11 @@ int main(int argc, char *argv[])
 			s.stat_log_count();
 
 		if (update_status) {
-			struct dnet_addr addr;
-
-			for (i=0; i<have_remote; ++i) {
-				memset(&addr, 0, sizeof(addr));
-				addr.addr_len = sizeof(addr.addr);
-
-				err = dnet_fill_addr(&addr, remotes[i].addr, remotes[i].port,
-							remotes[i].family, remotes[i].sock_type, remotes[i].proto);
-				if (err) {
-					dnet_log_raw(n.get_native(), DNET_LOG_ERROR, "ioclient: dnet_fill_addr: %s:%s:%d, sock_type: %d, proto: %d: %s %d\n",
-							remotes[i].addr, remotes[i].port,
-							remotes[i].family, remotes[i].sock_type, remotes[i].proto,
-							strerror(-err), err);
-				}
-
-				err = dnet_update_status(s.get_native(), &addr, NULL, &node_status);
-				if (err) {
-					dnet_log_raw(n.get_native(), DNET_LOG_ERROR, "ioclient: dnet_update_status: %s:%s:%d, sock_type: %d, proto: %d: update: %d: "
-							"%s %d\n",
-							remotes[i].addr, remotes[i].port,
-							remotes[i].family, remotes[i].sock_type, remotes[i].proto, update_status,
-							strerror(-err), err);
-				}
+			for (i = 0; i < have_remote; ++i) {
+				s.update_status(remotes[i].addr,
+					atoi(remotes[i].port),
+					remotes[i].family,
+					&node_status);
 			}
 
 		}
