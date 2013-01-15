@@ -475,38 +475,6 @@ write_result session::write_prepare(const key &id, const data_pointer &file, uin
 	return w.result();
 }
 
-void session::write_commit(const std::function<void (const write_result &)> &handler,
-	const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize)
-{
-	transform(id);
-
-	struct dnet_io_control ctl;
-
-	memset(&ctl, 0, sizeof(ctl));
-
-	ctl.cflags = m_data->cflags;
-	ctl.data = file.data();
-
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
-	ctl.io.offset = remote_offset;
-	ctl.io.size = file.size();
-	ctl.io.type = id.id().type;
-	ctl.io.num = csize;
-
-	memcpy(&ctl.id, &id.id(), sizeof(ctl.id));
-
-	ctl.fd = -1;
-
-	write_data(handler, ctl);
-}
-
-write_result session::write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize)
-{
-	waiter<write_result> w;
-	write_commit(w.handler(), id, file, remote_offset, csize);
-	return w.result();
-}
-
 void session::write_plain(const std::function<void (const write_result &)> &handler,
 	const key &id, const data_pointer &file, uint64_t remote_offset)
 {
@@ -536,6 +504,38 @@ write_result session::write_plain(const key &id, const data_pointer &file, uint6
 {
 	waiter<write_result> w;
 	write_plain(w.handler(), id, file, remote_offset);
+	return w.result();
+}
+
+void session::write_commit(const std::function<void (const write_result &)> &handler,
+	const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize)
+{
+	transform(id);
+
+	struct dnet_io_control ctl;
+
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.cflags = m_data->cflags;
+	ctl.data = file.data();
+
+	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.offset = remote_offset;
+	ctl.io.size = file.size();
+	ctl.io.type = id.id().type;
+	ctl.io.num = csize;
+
+	memcpy(&ctl.id, &id.id(), sizeof(ctl.id));
+
+	ctl.fd = -1;
+
+	write_data(handler, ctl);
+}
+
+write_result session::write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize)
+{
+	waiter<write_result> w;
+	write_commit(w.handler(), id, file, remote_offset, csize);
 	return w.result();
 }
 

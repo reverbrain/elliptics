@@ -618,6 +618,9 @@ class session
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
 		 *
 		 * Result is returned to \a handler.
+		 *
+		 * \note Calling this method is equal to consecutive calling
+		 * of write_prepare(), write_plain() and write_commit().
 		 */
 		void			write_data(const std::function<void (const write_result &)> &handler,
 						const key &id, const data_pointer &file,
@@ -647,23 +650,57 @@ class session
 		write_result		write_cas(const key &id, const data_pointer &file,
 						const struct dnet_id &old_csum, uint64_t remote_offset);
 
+		/*!
+		 * Prepares place to write data \a file by the key \a id and
+		 * remote offset \a remote_offset.
+		 *
+		 * Result is returned to \a handler.
+		 *
+		 * \note No data is really written.
+		 */
 		void			write_prepare(const std::function<void (const write_result &)> &handler,
 						const key &id, const data_pointer &file,
 						uint64_t remote_offset, uint64_t psize);
+		/*!
+		 * \overload write_prepare()
+		 * Synchronous overload.
+		 */
 		write_result		write_prepare(const key &id, const data_pointer &file,
 						uint64_t remote_offset, uint64_t psize);
 
-		void			write_commit(const std::function<void (const write_result &)> &handler,
-						const key &id, const data_pointer &file,
-						uint64_t remote_offset, uint64_t csize);
-		write_result		write_commit(const key &id, const data_pointer &file,
-						uint64_t remote_offset, uint64_t csize);
-
+		/*!
+		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
+		 *
+		 * Result is returned to \a handler.
+		 *
+		 * \note Indexes are not updated. Data is not accessable for reading.
+		 */
 		void			write_plain(const std::function<void (const write_result &)> &handler,
 						const key &id, const data_pointer &file,
 						uint64_t remote_offset);
+		/*!
+		 * \overload write_plain()
+		 * Synchronous overload.
+		 */
 		write_result		write_plain(const key &id, const data_pointer &file,
 						uint64_t remote_offset);
+
+		/*!
+		 * Commites data \a file by the key \a id and remote offset \a remote_offset.
+		 *
+		 * Result is returned to \a handler.
+		 *
+		 * \note Indexes are updated. Data becomes accessable for reading.
+		 */
+		void			write_commit(const std::function<void (const write_result &)> &handler,
+						const key &id, const data_pointer &file,
+						uint64_t remote_offset, uint64_t csize);
+		/*!
+		 * \overload write_commit()
+		 * Synchronous overload.
+		 */
+		write_result		write_commit(const key &id, const data_pointer &file,
+						uint64_t remote_offset, uint64_t csize);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
