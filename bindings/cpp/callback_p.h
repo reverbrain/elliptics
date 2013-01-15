@@ -808,7 +808,6 @@ class waiter
 
 				void operator() (const T &result)
 				{
-					std::cerr << "result!" << std::endl;
 					m_parent->handle_result(result);
 				}
 
