@@ -477,171 +477,446 @@ class session
 
 		session &operator =(const session &other);
 
+		/*!
+		 * Converts string \a data to dnet_id \a id.
+		 */
 		void			transform(const std::string &data, struct dnet_id &id);
+		/*!
+		 * Makes dnet_id be accessable by key::id() in the key \a id.
+		 */
 		void			transform(const key &id);
 
+		/*!
+		 * Sets \a groups to the session.
+		 */
 		void			set_groups(const std::vector<int> &groups);
+		/*!
+		 * Gets groups of the session.
+		 */
 		const std::vector<int> &get_groups() const;
 
+		/*!
+		 * Sets command flags \a cflags to the session.
+		 */
 		void			set_cflags(uint64_t cflags);
+		/*!
+		 * Gets command flags of the session.
+		 */
 		uint64_t		get_cflags() const;
 
+		/*!
+		 * Sets i/o flags \a ioflags to the session.
+		 */
 		void			set_ioflags(uint32_t ioflags);
+		/*!
+		 * Gets i/o flags of the session.
+		 */
 		uint32_t		get_ioflags() const;
 
+		/*!
+		 * Read file by key \a id to \a file by \a offset and \a size.
+		 */
 		void			read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size);
-
+		/*!
+		 * Write file from \a file to server by key \a id, \a offset and \a size.
+		 */
 		void			write_file(const key &id, const std::string &file, uint64_t local_offset,
 							uint64_t offset, uint64_t size);
 
+		/*!
+		 * Reads data from server by \a key id and dnet_io_attr \io.
+		 * Data is requested iteratively to \a groups until the first success
+		 * or groups are ended.
+		 * Command is sent to server is DNET_CMD_READ.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			read_data(const std::function<void (const read_results &)> &handler,
 						const key &id, const std::vector<int> &groups,
 						const struct dnet_io_attr &io);
+		/*!
+		 * \overload read_data()
+		 * Allows to specify the command \a cmd.
+		 */
 		void			read_data(const std::function<void (const read_results &)> &handler,
 						const key &id, const std::vector<int> &groups,
 						const struct dnet_io_attr &io, unsigned int cmd);
+		/*!
+		 * \overload read_data()
+		 * Allows to specify the single \a group.
+		 */
 		void			read_data(const std::function<void (const read_results &)> &handler,
 						const key &id, int group_id, const struct dnet_io_attr &io);
+		/*!
+		 * \overload read_data()
+		 * Allows to specify the \a offset and the \a size.
+		 */
 		void			read_data(const std::function<void (const read_result  &)> &handler,
 						const key &id, const std::vector<int> &groups,
 						uint64_t offset, uint64_t size);
+		/*!
+		 * \overload read_data()
+		 * Allows to specify the \a offset and the \a size.
+		 * Groups are generated automatically by session::mix_states().
+		 */
 		void			read_data(const std::function<void (const read_result &)> &handler,
 						const key &id, uint64_t offset, uint64_t size);
+		/*!
+		 * \overload read_data()
+		 * Synchronous overload.
+		 */
 		read_result		read_data(const key &id, uint64_t offset, uint64_t size);
+		/*!
+		 * \overload read_data()
+		 * Synchronous overload.
+		 */
 		read_result		read_data(const key &id, const std::vector<int> &groups,
 						uint64_t offset, uint64_t size);
+		/*!
+		 * \overload read_data()
+		 * Synchronous overload.
+		 */
 		read_result		read_data(const key &id, int group_id, uint64_t offset, uint64_t size);
 
+		/*!
+		 * Filters the list \a groups and leaves only ones with the latest
+		 * data at key \a id.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			prepare_latest(const std::function<void (const prepare_latest_result &)> &handler,
 						const key &id, const std::vector<int> &groups);
+		/*!
+		 * \overload prepare_latest()
+		 * Synchronous overload.
+		 *
+		 * Results overrides the \a groups argument.
+		 */
 		void			prepare_latest(const key &id, std::vector<int> &groups);
 
+		/*!
+		 * Reads the latest data from server by the key \a id, \a offset and \a size.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			read_latest(const std::function<void (const read_result &)> &handler,
 						const key &id, uint64_t offset, uint64_t size);
+		/*!
+		 * \overload read_latest()
+		 * Synchronous overload.
+		 */
 		read_result		read_latest(const key &id, uint64_t offset, uint64_t size);
 
+		/*!
+		 * Writes data to server by the dnet_io_control \a ctl.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			write_data(const std::function<void (const write_result &)> &handler,
 						const dnet_io_control &ctl);
+		/*!
+		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			write_data(const std::function<void (const write_result &)> &handler,
-						const key &id, const data_pointer &file, uint64_t remote_offset);
-		write_result		write_data(const key &id, const std::string &str, uint64_t remote_offset);
+						const key &id, const data_pointer &file,
+						uint64_t remote_offset);
+		/*!
+		 * \overload write_data()
+		 * Synchronous overload.
+		 */
+		write_result		write_data(const key &id, const data_pointer &file,
+						uint64_t remote_offset);
 
+		/*!
+		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
+		 *
+		 * Writing is refused if check sum of server data is not equal
+		 * to \a old_csum. elliptics::error with -EINVAL is thrown at this case.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			write_cas(const std::function<void (const write_result &)> &handler,
-						const key &id, const std::string &str,
+						const key &id, const data_pointer &file,
 						const struct dnet_id &old_csum, uint64_t remote_offset);
-		write_result		write_cas(const key &id, const std::string &str,
+		/*!
+		 * \overload write_cas()
+		 * Synchronous overload.
+		 */
+		write_result		write_cas(const key &id, const data_pointer &file,
 						const struct dnet_id &old_csum, uint64_t remote_offset);
 
 		void			write_prepare(const std::function<void (const write_result &)> &handler,
-						const key &id, const std::string &str,
+						const key &id, const data_pointer &file,
 						uint64_t remote_offset, uint64_t psize);
-		write_result		write_prepare(const key &id, const std::string &str,
+		write_result		write_prepare(const key &id, const data_pointer &file,
 						uint64_t remote_offset, uint64_t psize);
 
 		void			write_commit(const std::function<void (const write_result &)> &handler,
-						const key &id, const std::string &str,
+						const key &id, const data_pointer &file,
 						uint64_t remote_offset, uint64_t csize);
-		write_result		write_commit(const key &id, const std::string &str,
+		write_result		write_commit(const key &id, const data_pointer &file,
 						uint64_t remote_offset, uint64_t csize);
 
 		void			write_plain(const std::function<void (const write_result &)> &handler,
-						const key &id, const std::string &str, uint64_t remote_offset);
-		write_result		write_plain(const key &id, const std::string &str, uint64_t remote_offset);
+						const key &id, const data_pointer &file,
+						uint64_t remote_offset);
+		write_result		write_plain(const key &id, const data_pointer &file,
+						uint64_t remote_offset);
 
+		/*!
+		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
+		 * Also writes data to the server cache.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			write_cache(const std::function<void (const write_result &)> &handler,
-						const key &id, const std::string &str, long timeout);
-		write_result		write_cache(const key &id, const std::string &str, long timeout);
+						const key &id, const data_pointer &file, long timeout);
+		/*!
+		 * \overload write_cache()
+		 * Synchronous overload.
+		 */
+		write_result		write_cache(const key &id, const data_pointer &file, long timeout);
 
-
-
+		/*!
+		 * Returnes address (ip and port pair) of remote node where
+		 * data with key \a id may be in group \a group_id.
+		 */
 		std::string		lookup_address(const key &id, int group_id = 0);
 
+		/*!
+		 * Creates meta data \a obj with timestamp \a ts for key \a id at \a groups.
+		 *
+		 * \note This method is left only for compatibility.
+		 */
 		std::string		create_metadata(const key &id, const std::string &obj,
-							const std::vector<int> &groups, const struct timespec &ts);
+							const std::vector<int> &groups,
+							const struct timespec &ts);
+		/*!
+		 * Writes meta data \a obj with timestamp \a ts for key \a id at \a groups.
+		 *
+		 * \note This method is left only for compatibility.
+		 */
 		int			write_metadata(const key &id, const std::string &obj,
-							const std::vector<int> &groups, const struct timespec &ts);
+							const std::vector<int> &groups,
+							const struct timespec &ts);
 
+		/*!
+		 * Lookups information for key \a id.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			lookup(const std::function<void (const lookup_result &)> &handler,
 						const key &id);
+		/*!
+		 * \overload lookup()
+		 * Synchronous overload.
+		 */
 		lookup_result		lookup(const key &id);
 
 		void 			remove_raw(const key &id);
+		/*!
+		 * Removes all the entries of key \a id at server nodes.
+		 *
+		 * Returnes exception if no entry is removed.
+		 * Result is returned to \a handler.
+		 */
 		void 			remove(const std::function<void (const std::exception_ptr &)> &handler,
 						const key &id);
+		/*!
+		 * \overload remove()
+		 * Synchronous overload.
+		 */
 		void 			remove(const key &id);
 
+		/*!
+		 * Queries statistics information from the server nodes.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			stat_log(const std::function<void (const stat_result &)> &handler);
-		void			stat_log(const std::function<void (const stat_result &)> &handler, const key &id);
+		/*!
+		 * \overload stat_log()
+		 * Allows to specify the key \a id.
+		 */
+		void			stat_log(const std::function<void (const stat_result &)> &handler,
+						const key &id);
+		/*!
+		 * \overload stat_log()
+		 * Synchronous overload.
+		 */
 		stat_result		stat_log();
+		/*!
+		 * \overload stat_log()
+		 * Synchronous overload.
+		 */
 		stat_result		stat_log(const key &id);
 
+		/*!
+		 * Queries statistics information from the server nodes.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			stat_log_count(const std::function<void (const stat_count_result &)> &handler);
+		/*!
+		 * \overload stat_log_count()
+		 * Synchronous overload.
+		 */
 		stat_count_result	stat_log_count();
 
+		/*!
+		 * Returnes the number of session states.
+		 */
 		int			state_num();
 
-		command_result		request_cmd(const transport_control &ctl);
+		/*!
+		 * Requests execution of custom command at server.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			request_cmd(const std::function<void (const command_result &)> &handler,
 						const transport_control &ctl);
+		/*!
+		 * \overload request_cmd()
+		 * Synchronous overload.
+		 */
+		command_result		request_cmd(const transport_control &ctl);
 
-		void			update_status(const char *addr, const int port, const int family, struct dnet_node_status *status);
+		/*!
+		 * Changes node \a status on given \a address, \a port and network \a family.
+		 */
+		void			update_status(const char *addr, const int port,
+						const int family, struct dnet_node_status *status);
+		/*!
+		 * Changes node \a status on key \a id.
+		 */
 		void			update_status(const key &id, struct dnet_node_status *status);
 
+		/*!
+		 * Reads data in range specified in \a io at group \a group_id.
+		 * Exception is thrown if no entry is read.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			read_data_range(const std::function<void (const read_range_result &)> &handler,
 						const struct dnet_io_attr &io, int group_id);
+		/*!
+		 * \overload read_data_range()
+		 * Synchronous overload.
+		 */
 		read_range_result	read_data_range(struct dnet_io_attr &io, int group_id);
+		/*!
+		 * \internal
+		 * \overload read_data_range()
+		 * Synchronous overload.
+		 *
+		 * \note This method is left only for compatibility.
+		 */
 		std::vector<std::string>read_data_range_raw(struct dnet_io_attr &io, int group_id);
 
+		/*!
+		 * Removes data in range specified in \a io at group \a group_id.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			remove_data_range(const std::function<void (const remove_range_result &)> &handler,
 						struct dnet_io_attr &io, int group_id);
+		/*!
+		 * \overload remove_data_range()
+		 * Synchronous overload.
+		 */
 		remove_range_result	remove_data_range(struct dnet_io_attr &io, int group_id);
 
+		/*!
+		 * Returnes the list of network routes.
+		 */
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
-		/*
-		 * start execution of the given event
+		/*!
+		 * Starts execution for \a id of the given \a event with \a data and \a binary.
 		 */
-		std::string		exec_locked(struct dnet_id *id, const std::string &event, const std::string &data,
-							const std::string &binary);
-		std::string		exec_unlocked(struct dnet_id *id, const std::string &event, const std::string &data,
-							const std::string &binary);
+		std::string		exec_locked(struct dnet_id *id, const std::string &event,
+						const std::string &data,
+						const std::string &binary);
+		std::string		exec_unlocked(struct dnet_id *id, const std::string &event,
+						const std::string &data,
+						const std::string &binary);
 
 		/*
 		 * execution with saving ID of the original (blocked) caller
 		 */
 		std::string		push_locked(struct dnet_id *id, const struct sph &sph,
-							const std::string &event, const std::string &data, const std::string &binary);
+						const std::string &event, const std::string &data,
+						const std::string &binary);
 		std::string		push_unlocked(struct dnet_id *id, const struct sph &sph,
-							const std::string &event, const std::string &data, const std::string &binary);
-
-		/* send reply back to blocked execution client */
-		void			reply(const struct sph &sph, const std::string &event, const std::string &data,
+						const std::string &event, const std::string &data,
 						const std::string &binary);
 
+		/* send reply back to blocked execution client */
+		void			reply(const struct sph &sph, const std::string &event,
+						const std::string &data,
+						const std::string &binary);
+
+		/*!
+		 * Reads all data from server nodes by the list \a ios.
+		 * Exception is thrown if no entry is read successfully.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			bulk_read(const std::function<void (const bulk_read_result &)> &handler,
 						const std::vector<struct dnet_io_attr> &ios);
+		/*!
+		 * \overload bulk_read()
+		 * Synchronous overload.
+		 */
 		bulk_read_result	bulk_read(const std::vector<struct dnet_io_attr> &ios);
+		/*!
+		 * \overload bulk_read()
+		 * Synchronous overload.
+		 *
+		 * Allows to specify the list of string \a keys.
+		 */
 		bulk_read_result	bulk_read(const std::vector<std::string> &keys);
 
+		/*!
+		 * Writes all data \a data to server nodes by the list \a ios.
+		 * Exception is thrown if no entry is written successfully.
+		 *
+		 * Result is returned to \a handler.
+		 */
 		void			bulk_write(const std::function<void (const write_result &)> &handler,
 						const std::vector<struct dnet_io_attr> &ios,
 						const std::vector<std::string> &data);
+		/*!
+		 * \overload bulk_write()
+		 * Synchronous overload.
+		 */
 		write_result		bulk_write(const std::vector<struct dnet_io_attr> &ios,
 							const std::vector<std::string> &data);
 
+		/*!
+		 * Returnes reference to parent node.
+		 */
 		node	&get_node();
+		/*!
+		 * \overload get_node()
+		 */
 		const node	&get_node() const;
+		/*!
+		 * Returnes pointer to dnet_session.
+		 */
 		struct dnet_session *	get_native();
 
 	protected:
 		std::shared_ptr<session_data>		m_data;
 
 		std::string		raw_exec(struct dnet_id *id,
-							const struct sph *sph,
-							const std::string &event,
-							const std::string &data,
-							const std::string &binary,
-							bool lock);
+						const struct sph *sph,
+						const std::string &event,
+						const std::string &data,
+						const std::string &binary,
+						bool lock);
 		std::string		request(struct dnet_id *id, struct sph *sph, bool lock);
 		void			mix_states(const key &id, std::vector<int> &groups);
 		void			mix_states(std::vector<int> &groups);

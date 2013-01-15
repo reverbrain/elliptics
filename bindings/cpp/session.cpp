@@ -401,15 +401,15 @@ void session::write_data(const std::function<void (const write_result &)> &handl
 	write_data(handler, ctl);
 }
 
-write_result session::write_data(const key &id, const std::string &str, uint64_t remote_offset)
+write_result session::write_data(const key &id, const data_pointer &file, uint64_t remote_offset)
 {
 	waiter<write_result> w;
-	write_data(w.handler(), id, str, remote_offset);
+	write_data(w.handler(), id, file, remote_offset);
 	return w.result();
 }
 
 void session::write_cas(const std::function<void (const write_result &)> &handler,
-	const key &id, const std::string &str, const dnet_id &old_csum, uint64_t remote_offset)
+	const key &id, const data_pointer &file, const dnet_id &old_csum, uint64_t remote_offset)
 {
 	transform(id);
 	dnet_id raw = id.id();
@@ -420,13 +420,13 @@ void session::write_cas(const std::function<void (const write_result &)> &handle
 	memset(&ctl, 0, sizeof(ctl));
 
 	ctl.cflags = m_data->cflags;
-	ctl.data = str.data();
+	ctl.data = file.data();
 
 	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_COMPARE_AND_SWAP;
 	ctl.io.offset = remote_offset;
-	ctl.io.size = str.size();
+	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
-	ctl.io.num = str.size() + remote_offset;
+	ctl.io.num = file.size() + remote_offset;
 
 	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
 	memcpy(&ctl.io.parent, &old_csum.id, DNET_ID_SIZE);
@@ -436,15 +436,15 @@ void session::write_cas(const std::function<void (const write_result &)> &handle
 	write_data(handler, ctl);
 }
 
-write_result session::write_cas(const key &id, const std::string &str, const dnet_id &old_csum, uint64_t remote_offset)
+write_result session::write_cas(const key &id, const data_pointer &file, const dnet_id &old_csum, uint64_t remote_offset)
 {
 	waiter<write_result> w;
-	write_cas(w.handler(), id, str, old_csum, remote_offset);
+	write_cas(w.handler(), id, file, old_csum, remote_offset);
 	return w.result();
 }
 
 void session::write_prepare(const std::function<void (const write_result &)> &handler,
-	const key &id, const std::string &str, uint64_t remote_offset, uint64_t psize)
+	const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t psize)
 {
 	transform(id);
 
@@ -453,11 +453,11 @@ void session::write_prepare(const std::function<void (const write_result &)> &ha
 	memset(&ctl, 0, sizeof(ctl));
 
 	ctl.cflags = m_data->cflags;
-	ctl.data = str.data();
+	ctl.data = file.data();
 
 	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE;
 	ctl.io.offset = remote_offset;
-	ctl.io.size = str.size();
+	ctl.io.size = file.size();
 	ctl.io.type = id.id().type;
 	ctl.io.num = psize;
 
@@ -468,15 +468,15 @@ void session::write_prepare(const std::function<void (const write_result &)> &ha
 	write_data(handler, ctl);
 }
 
-write_result session::write_prepare(const key &id, const std::string &str, uint64_t remote_offset, uint64_t psize)
+write_result session::write_prepare(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t psize)
 {
 	waiter<write_result> w;
-	write_prepare(w.handler(), id, str, remote_offset, psize);
+	write_prepare(w.handler(), id, file, remote_offset, psize);
 	return w.result();
 }
 
 void session::write_commit(const std::function<void (const write_result &)> &handler,
-	const key &id, const std::string &str, uint64_t remote_offset, uint64_t csize)
+	const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize)
 {
 	transform(id);
 
@@ -485,11 +485,11 @@ void session::write_commit(const std::function<void (const write_result &)> &han
 	memset(&ctl, 0, sizeof(ctl));
 
 	ctl.cflags = m_data->cflags;
-	ctl.data = str.data();
+	ctl.data = file.data();
 
 	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
 	ctl.io.offset = remote_offset;
-	ctl.io.size = str.size();
+	ctl.io.size = file.size();
 	ctl.io.type = id.id().type;
 	ctl.io.num = csize;
 
@@ -500,15 +500,15 @@ void session::write_commit(const std::function<void (const write_result &)> &han
 	write_data(handler, ctl);
 }
 
-write_result session::write_commit(const key &id, const std::string &str, uint64_t remote_offset, uint64_t csize)
+write_result session::write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize)
 {
 	waiter<write_result> w;
-	write_commit(w.handler(), id, str, remote_offset, csize);
+	write_commit(w.handler(), id, file, remote_offset, csize);
 	return w.result();
 }
 
 void session::write_plain(const std::function<void (const write_result &)> &handler,
-	const key &id, const std::string &str, uint64_t remote_offset)
+	const key &id, const data_pointer &file, uint64_t remote_offset)
 {
 	transform(id);
 	dnet_id raw = id.id();
@@ -518,11 +518,11 @@ void session::write_plain(const std::function<void (const write_result &)> &hand
 	memset(&ctl, 0, sizeof(ctl));
 
 	ctl.cflags = m_data->cflags;
-	ctl.data = str.data();
+	ctl.data = file.data();
 
 	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_PLAIN_WRITE;
 	ctl.io.offset = remote_offset;
-	ctl.io.size = str.size();
+	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
 
 	memcpy(&ctl.id, &raw, sizeof(id));
@@ -532,15 +532,15 @@ void session::write_plain(const std::function<void (const write_result &)> &hand
 	write_data(handler, ctl);
 }
 
-write_result session::write_plain(const key &id, const std::string &str, uint64_t remote_offset)
+write_result session::write_plain(const key &id, const data_pointer &file, uint64_t remote_offset)
 {
 	waiter<write_result> w;
-	write_plain(w.handler(), id, str, remote_offset);
+	write_plain(w.handler(), id, file, remote_offset);
 	return w.result();
 }
 
 void session::write_cache(const std::function<void (const write_result &)> &handler,
-	const key &id, const std::string &str, long timeout)
+	const key &id, const data_pointer &file, long timeout)
 {
 	transform(id);
 	dnet_id raw = id.id();
@@ -551,13 +551,13 @@ void session::write_cache(const std::function<void (const write_result &)> &hand
 	memset(&ctl, 0, sizeof(ctl));
 
 	ctl.cflags = m_data->cflags;
-	ctl.data = str.data();
+	ctl.data = file.data();
 
 	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_CACHE;
 	ctl.io.start = timeout;
-	ctl.io.size = str.size();
+	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
-	ctl.io.num = str.size();
+	ctl.io.num = file.size();
 
 	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
 
@@ -566,10 +566,10 @@ void session::write_cache(const std::function<void (const write_result &)> &hand
 	write_data(handler, ctl);
 }
 
-write_result session::write_cache(const key &id, const std::string &str, long timeout)
+write_result session::write_cache(const key &id, const data_pointer &file, long timeout)
 {
 	waiter<write_result> w;
-	write_cache(w.handler(), id, str, timeout);
+	write_cache(w.handler(), id, file, timeout);
 	return w.result();
 }
 
@@ -762,19 +762,18 @@ int session::state_num(void)
 	return dnet_state_num(m_data->session_ptr);
 }
 
-command_result session::request_cmd(const transport_control &ctl)
-{
-	waiter<command_result> w;
-	request_cmd(w.handler(), ctl);
-	return w.result();
-}
-
 void session::request_cmd(const std::function<void (const command_result &)> &handler, const transport_control &ctl)
 {
 	cmd_callback::ptr cb = std::make_shared<cmd_callback>(*this, ctl);
 	cb->handler = handler;
 
 	dnet_style_handler<cmd_callback>::start(cb);
+}
+command_result session::request_cmd(const transport_control &ctl)
+{
+	waiter<command_result> w;
+	request_cmd(w.handler(), ctl);
+	return w.result();
 }
 
 void session::update_status(const char *saddr, const int port, const int family, struct dnet_node_status *status)
