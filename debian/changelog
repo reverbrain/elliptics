@@ -1,3 +1,13 @@
+elliptics (2.21.0.0) unstable; urgency=low
+
+  * Added asynchronous client API to C++ binding
+  * Introduced high-level result types in C++ binding
+  * Removed synchronous client API from C core
+  * Moved to C++ binding to C++11
+  * Use std classes instead of boost one where possible
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Tue, 15 Jan 2013 21:12:13 +0400
+
 elliptics (2.20.2.0) unstable; urgency=low
 
   * Removed app_watcher class
