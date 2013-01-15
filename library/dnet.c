@@ -709,11 +709,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if (err && ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ))) {
 				cmd->flags |= DNET_FLAGS_NEED_ACK;
 			}
-#if 0
+
 			if (!err && (cmd->cmd == DNET_CMD_WRITE)) {
-				dnet_update_notify(st, cmd, a, data);
+				dnet_update_notify(st, cmd, data);
 			}
-#endif
 			break;
 	}
 

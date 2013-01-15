@@ -141,6 +141,7 @@ class data_pointer
 		}
 
 		size_t size() const { return m_index >= m_size ? 0 : (m_size - m_index); }
+		size_t offset() const { return m_index; }
 		bool empty() const { return m_index >= m_size; }
 		std::string to_string() const { return std::string(data<char>(), size()); }
 
