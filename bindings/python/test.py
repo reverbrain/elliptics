@@ -3,21 +3,21 @@
 
 import sys
 sys.path.insert(0, "bindings/python/.libs/")
-from libelliptics_python import *
+from elliptics import *
 import binascii
 from pprint import pprint
 
 try:
-	log = elliptics_log_file("/dev/stderr", 31)
-	cfg = elliptics_config()
+	log = Logger("/dev/stderr", 31)
+	cfg = Config()
 	cfg.cookie = "0123456789012345678901234567890123456789"
 	cfg.config.wait_timeout = 60
 
-	n = elliptics_node_python(log, cfg)
+	n = Node(log, cfg)
 	
 	n.add_remote("localhost", 1025)
 
-	s = elliptics_session(n)
+	s = Session(n)
 
 	s.add_groups([1,2,3])
 
@@ -29,7 +29,7 @@ try:
 	except Exception as e:
 		print "Failed to lookup in group", group, ":", e
 
-	id = elliptics_id([1, 2, 3, 4], 1, 0)
+	id = Id([1, 2, 3, 4], 1, 0)
 
 	# write data by ID into specified group (# 2)
 	# read data from the same group (# 2)

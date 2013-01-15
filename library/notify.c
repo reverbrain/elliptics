@@ -58,36 +58,24 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd, void *da
 	struct dnet_notify_bucket *b = &n->notify_hash[hash];
 	struct dnet_notify_entry *nt;
 	struct dnet_io_attr *io = data;
-	struct dnet_io_notification not;
+	struct dnet_io_notification notif;
 
-	/*if (io->size == sizeof(struct dnet_history_entry)) {
-		struct dnet_history_entry *h = (struct dnet_history_entry *)(io + 1);
+	memcpy(&notif.io, io, sizeof(struct dnet_io_attr));
+	dnet_convert_io_attr(&notif.io);
 
-		memcpy(&not.io.id, h->id, DNET_ID_SIZE);
-		memcpy(&not.io.parent, io->parent, DNET_ID_SIZE);
-		not.io.size = h->size;
-		not.io.offset = h->offset;
-		not.io.flags = io->flags;
-
-		dnet_convert_io_attr(&not.io);
-	} else {*/
-		memcpy(&not.io, io, sizeof(struct dnet_io_attr));
-		dnet_convert_io_attr(&not.io);
-	//}
-
-	not.addr.sock_type = n->sock_type;
-	not.addr.family = n->family;
-	not.addr.proto = n->proto;
+	notif.addr.sock_type = n->sock_type;
+	notif.addr.family = n->family;
+	notif.addr.proto = n->proto;
 
 	pthread_rwlock_rdlock(&b->notify_lock);
 	list_for_each_entry(nt, &b->notify_list, notify_entry) {
 		if (dnet_id_cmp(&cmd->id, &nt->cmd.id))
 			continue;
 
-		memcpy(&not.addr.addr, &st->addr, sizeof(struct dnet_addr));
+		memcpy(&notif.addr.addr, &st->addr, sizeof(struct dnet_addr));
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: sending notification.\n", dnet_dump_id(&cmd->id));
-		dnet_send_reply(nt->state, &nt->cmd, &not, sizeof(struct dnet_io_notification), 1);
+		dnet_send_reply(nt->state, &nt->cmd, &notif, sizeof(struct dnet_io_notification), 1);
 	}
 	pthread_rwlock_unlock(&b->notify_lock);
 

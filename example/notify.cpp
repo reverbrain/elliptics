@@ -30,10 +30,11 @@
 
 #include <netinet/in.h>
 
-#include "elliptics/packet.h"
-#include "elliptics/interface.h"
+#include "elliptics/cppdef.h"
 
 #include "common.h"
+
+using namespace ioremap::elliptics;
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
@@ -49,7 +50,7 @@ static int notify_complete(struct dnet_net_state *state,
 	char str[64];
 	struct tm tm;
 	struct timeval tv;
-	FILE *stream = priv;
+	FILE *stream = reinterpret_cast<FILE*>(priv);
 
 	if (is_trans_destroyed(state, cmd))
 		return 0;
@@ -93,13 +94,12 @@ static void notify_usage(char *p)
 int main(int argc, char *argv[])
 {
 	int ch, err, have_remote = 0, i;
-	struct dnet_node *n = NULL;
-	struct dnet_session *s = NULL;
 	struct dnet_config cfg, rem;
-	int max_id_idx = 1000, id_idx = 0, group_id = 0;
+	int max_id_idx = 1000, id_idx = 0;
 	unsigned char id[max_id_idx][DNET_ID_SIZE];
-	char *logfile = "/dev/stderr", *notify_file = "/dev/stdout";
-	FILE *log = NULL, *notify;
+	const char *logfile = "/dev/stderr", *notify_file = "/dev/stdout";
+	FILE *notify;
+	std::vector<int> groups;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -132,9 +132,15 @@ int main(int argc, char *argv[])
 					id_idx++;
 				}
 				break;
-			case 'g':
-				group_id = atoi(optarg);
+			case 'g': {
+				int *groups_tmp = NULL, group_num = 0;
+				group_num = dnet_parse_groups(optarg, &groups_tmp);
+				if (group_num <= 0)
+					return -1;
+				groups.assign(groups_tmp, groups_tmp + group_num);
+				free(groups_tmp);
 				break;
+			}
 			case 'a':
 				err = dnet_parse_addr(optarg, &cfg);
 				if (err)
@@ -163,44 +169,39 @@ int main(int argc, char *argv[])
 		return -ENOENT;
 	}
 
-	log = fopen(logfile, "a");
-	if (!log) {
-		err = -errno;
-		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
-		return err;
-	}
+	try {
+		file_logger log(logfile, DNET_LOG_INFO);
 
-	notify_logger.log_private = log;
-	notify_logger.log = dnet_common_log;
-	cfg.log = &notify_logger;
+		node n(log, cfg);
+		n.add_remote(rem.addr, atoi(rem.port), rem.family);
 
-	notify = fopen(notify_file, "a");
-	if (!notify) {
-		err = -errno;
-		fprintf(stderr, "Failed to open notify file %s: %s.\n", notify_file, strerror(errno));
-		return err;
-	}
+		session s(n);
 
-	n = dnet_node_create(&cfg);
-	if (!n)
-		return -1;
+		s.set_groups(groups);
 
-	s = dnet_session_create(n);
-	if (!s)
-		return -1;
+		notify = fopen(notify_file, "a");
+		if (!notify) {
+			err = -errno;
+			fprintf(stderr, "Failed to open notify file %s: %s.\n", notify_file, strerror(errno));
+			return err;
+		}
 
-	err = dnet_add_state(n, &rem);
-	if (err)
-		return err;
+		for (i = 0; i < id_idx; ++i) {
+			for (size_t j = 0; j < groups.size(); ++j) {
+				struct dnet_id raw;
+				dnet_setup_id(&raw, groups[j], id[i]);
+				err = dnet_request_notification(s.get_native(), &raw,
+					notify_complete, notify);
+				if (err)
+					fprintf(stderr, "Failed to request notification: %d %s.\n", err, strerror(-err));
+			}
+		}
 
-	for (i=0; i<id_idx; ++i) {
-		struct dnet_id raw;
-		dnet_setup_id(&raw, group_id, id[i]);
-		err = dnet_request_notification(s, &raw, notify_complete, notify);
-	}
-
-	while (1) {
-		sleep(1);
+		while (1) {
+			sleep(1);
+		}
+	} catch (const std::exception &e) {
+		std::cerr << e.what() << std::endl;
 	}
 
 	return 0;

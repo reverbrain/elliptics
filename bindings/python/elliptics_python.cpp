@@ -18,11 +18,15 @@
 #include <boost/python/object.hpp>
 #include <boost/python/list.hpp>
 #include <boost/python/dict.hpp>
+#include <boost/python/stl_iterator.hpp>
 
 #include <elliptics/cppdef.h>
 
+#include <map>
+
 using namespace boost::python;
-using namespace ioremap::elliptics;
+
+namespace ioremap { namespace elliptics {
 
 enum elliptics_cflags {
 	cflags_default = 0,
@@ -144,6 +148,27 @@ class elliptics_config {
 		struct dnet_config		config;
 };
 
+class elliptics_status : public dnet_node_status
+{
+	public:
+		elliptics_status()
+		{
+			nflags = 0;
+			status_flags = 0;
+			log_level = 0;
+		}
+
+		elliptics_status(const dnet_node_status &other) : dnet_node_status(other)
+		{
+		}
+
+		elliptics_status &operator =(const dnet_node_status &other)
+		{
+			dnet_node_status::operator =(other);
+			return *this;
+		}
+};
+
 class elliptics_node_python : public node, public wrapper<node> {
 	public:
 		elliptics_node_python(const logger &l)
@@ -155,17 +180,19 @@ class elliptics_node_python : public node, public wrapper<node> {
 		elliptics_node_python(const node &n): node(n) {}
 };
 
+template <typename T>
+static std::vector<T> convert_to_vector(const api::object &list)
+{
+	stl_input_iterator<T> begin(list), end;
+	return std::vector<T>(begin, end);
+}
+
 class elliptics_session: public session, public wrapper<session> {
 	public:
 		elliptics_session(const node &n) : session(n) {}
 
-		void set_groups(const list &pgroups) {
-			std::vector<int> groups;
-
-			for (int i=0; i<len(pgroups); ++i)
-				groups.push_back(extract<int>(pgroups[i]));
-
-			session::set_groups(groups);
+		void set_groups(const api::object &groups) {
+			session::set_groups(convert_to_vector<int>(groups));
 		}
 
 		boost::python::list get_groups() {
@@ -178,18 +205,13 @@ class elliptics_session: public session, public wrapper<session> {
 			return res;
 		}
 
-		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const list &pgroups) {
+		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const api::object &groups) {
 			struct timespec ts;
 			memset(&ts, 0, sizeof(ts));
 
 			struct dnet_id raw = id.to_dnet();
 
-			std::vector<int> groups;
-
-			for (int i=0; i<len(pgroups); ++i)
-				groups.push_back(extract<int>(pgroups[i]));
-
-			write_metadata((const dnet_id&)raw, remote, groups, ts);
+			write_metadata((const dnet_id&)raw, remote, convert_to_vector<int>(groups), ts);
 		}
 
 		void write_metadata_by_data_transform(const std::string &remote) {
@@ -227,20 +249,18 @@ class elliptics_session: public session, public wrapper<session> {
 
 		std::string read_data_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size) {
 			struct dnet_id raw = id.to_dnet();
-			return read_data_wait(raw, offset, size);
+			return read_data(raw, offset, size)->file().to_string();
 		}
 
 		std::string read_data_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
 							int type) {
-			return read_data_wait(key(remote, type), offset, size);
+			return read_data(key(remote, type), offset, size)->file().to_string();
 		}
 
-		list prepare_latest_by_id(const struct elliptics_id &id, list gl) {
+		list prepare_latest_by_id(const struct elliptics_id &id, const api::object &gl) {
 			struct dnet_id raw = id.to_dnet();
 
-			std::vector<int> groups;
-			for (int i = 0; i < len(gl); ++i)
-				groups.push_back(extract<int>(gl[i]));
+			std::vector<int> groups = convert_to_vector<int>(gl);
 
 			prepare_latest(raw, groups);
 
@@ -251,12 +271,10 @@ class elliptics_session: public session, public wrapper<session> {
 			return l;
 		}
 
-		std::string prepare_latest_by_id_str(const struct elliptics_id &id, list gl) {
+		std::string prepare_latest_by_id_str(const struct elliptics_id &id, const api::object &gl) {
 			struct dnet_id raw = id.to_dnet();
 
-			std::vector<int> groups;
-			for (int i = 0; i < len(gl); ++i)
-				groups.push_back(extract<int>(gl[i]));
+			std::vector<int> groups = convert_to_vector<int>(gl);
 
 			prepare_latest(raw, groups);
 
@@ -268,34 +286,46 @@ class elliptics_session: public session, public wrapper<session> {
 
 		std::string read_latest_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size) {
 			struct dnet_id raw = id.to_dnet();
-			return read_latest(raw, offset, size);
+			return read_latest(raw, offset, size)->file().to_string();
 		}
 
 		std::string read_latest_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
 									int type) {
-			return read_latest(key(remote, type), offset, size);
+			return read_latest(key(remote, type), offset, size)->file().to_string();
+		}
+
+		std::string convert_to_string(const write_result &result)
+		{
+			std::string str;
+
+			for (size_t i = 0; i < result.size(); ++i) {
+				write_result_entry entry = result[i];
+				str += entry.raw_data().to_string();
+			}
+
+			return str;
 		}
 
 		std::string write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset) {
 			struct dnet_id raw = id.to_dnet();
-			return write_data_wait(raw, data, remote_offset);
+			return convert_to_string(write_data(raw, data, remote_offset));
 		}
 
 		std::string write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset,
 								int type) {
-			return write_data_wait(key(remote, type), data, remote_offset);
+			return convert_to_string(write_data(key(remote, type), data, remote_offset));
 		}
 
 		std::string write_cache_by_id(const struct elliptics_id &id, const std::string &data,
 							    long timeout) {
 			struct dnet_id raw = id.to_dnet();
 			raw.type = 0;
-			return write_cache(raw, data, timeout);
+			return convert_to_string(write_cache(raw, data, timeout));
 		}
 
 		std::string write_cache_by_data_transform(const std::string &remote, const std::string &data,
 									long timeout) {
-			return write_cache(remote, data, timeout);
+			return convert_to_string(write_cache(remote, data, timeout));
 		}
 
 		std::string lookup_addr_by_data_transform(const std::string &remote, const int group_id) {
@@ -308,19 +338,15 @@ class elliptics_session: public session, public wrapper<session> {
 			return lookup_address(raw, raw.group_id);
 		}
 
-		boost::python::tuple parse_lookup(const std::string &lookup) {
-			const void *data = lookup.data();
-
-			struct dnet_addr *addr = (struct dnet_addr *)data;
-			struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-			struct dnet_addr_attr *a = (struct dnet_addr_attr *)(cmd + 1);
-			struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
-			dnet_convert_file_info(info);
+		boost::python::tuple parse_lookup(const lookup_result &lookup) {
+			struct dnet_addr *addr = lookup->address();
+			struct dnet_addr_attr *a = lookup->address_attribute();
+			struct dnet_file_info *info = lookup->file_info();
 
 			std::string address(dnet_server_convert_dnet_addr(addr));
 			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
 
-			return make_tuple(address, port, info->size);
+			return boost::python::make_tuple(address, port, info->size);
 		}
 
 		boost::python::tuple lookup_by_data_transform(const std::string &remote) {
@@ -333,15 +359,15 @@ class elliptics_session: public session, public wrapper<session> {
 			return parse_lookup(lookup(raw));
 		}
 
-		struct dnet_node_status update_status_by_id(const struct elliptics_id &id, struct dnet_node_status &status) {
+		elliptics_status update_status_by_id(const struct elliptics_id &id, elliptics_status &status) {
 			struct dnet_id raw = id.to_dnet();
 
 			update_status(raw, &status);
 			return status;
 		}
 		
-		struct dnet_node_status update_status_by_string(const std::string &saddr, const int port, const int family,
-								struct dnet_node_status &status) {
+		elliptics_status update_status_by_string(const std::string &saddr, const int port, const int family,
+								elliptics_status &status) {
 			update_status(saddr.c_str(), port, family, &status);
 			return status;
 		}
@@ -351,7 +377,7 @@ class elliptics_session: public session, public wrapper<session> {
 			elliptics_extract_range(r, io);
 
 			std::vector<std::string> ret;
-			ret = session::read_data_range(io, r.group_id);
+			ret = session::read_data_range_raw(io, r.group_id);
 
 			boost::python::list l;
 
@@ -412,72 +438,83 @@ class elliptics_session: public session, public wrapper<session> {
 			remove_raw(key(remote, type));
 		}
 
-		list bulk_read_by_name(const list &keys) {
-			unsigned int length = len(keys);
-
-			std::vector<std::string> k;
-			k.resize(length);
-
-			for (unsigned int i = 0; i < length; ++i)
-				k[i] = extract<std::string>(keys[i]);
-
-			std::vector<std::string> ret =  bulk_read(k);
-
-			list py_ret;
-			for (size_t i = 0; i < ret.size(); ++i) {
-				py_ret.append(ret[i]);
+		struct dnet_id_comparator
+		{
+			bool operator() (const struct dnet_id &first, const struct dnet_id &second)
+			{
+				return memcmp(first.id, second.id, sizeof(first.id)) < 0;
 			}
+		};
 
-			return py_ret;
-		}
+		api::object bulk_read_by_name(const api::object &keys, bool raw) {
+			std::vector<std::string> std_keys = convert_to_vector<std::string>(keys);
 
-		list stat_log() {
-			list statistics;
-			callback_any c;
-			std::string ret;
-			int err;
-			int i;
+			const bulk_read_result ret =  bulk_read(std_keys);
 
-			err = dnet_request_stat(get_native(), NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL,
-						callback::handler, &c);
-			if (err < 0) {
-				std::ostringstream str;
-				str << "Failed to request statistics: " << err;
-				throw std::runtime_error(str.str());
-			}
-
-			ret = c.wait(err);
-
-			const void *data = ret.data();
-			int size = ret.size();
-
-			while (size > 0) {
-				dict node_stat, storage_commands, proxy_commands, counters;
-				struct dnet_addr *addr = (struct dnet_addr *)data;
-				struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-				if (cmd->size <= sizeof(struct dnet_addr_stat)) {
-					size -= cmd->size + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd);
-					data = (char *)data + cmd->size + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd);
-					continue;
+			if (raw) {
+				list result;
+				for (size_t i = 0; i < ret.size(); ++i) {
+					const read_result_entry entry = ret[i];
+					const uint64_t size = entry.file().size();
+					std::string line;
+					line.append(reinterpret_cast<char*>(entry.io_attribute()->id), DNET_ID_SIZE);
+					line.append(reinterpret_cast<const char*>(&size), sizeof(uint64_t));
+					line.append(reinterpret_cast<char*>(entry.file().data()), size);
+					result.append(line);
 				}
 
-				struct dnet_addr_stat *as = (struct dnet_addr_stat *)(cmd + 1);
+				return result;
+			} else {
+				boost::python::dict result;
 
-				dnet_convert_addr_stat(as, 0);
+				std::map<struct dnet_id, std::string, dnet_id_comparator> keys_map;
+				for (size_t i = 0; i < std_keys.size(); ++i) {
+					key k(std_keys[i]);
+					transform(k);
+					keys_map.insert(std::make_pair(k.id(), std_keys[i]));
+				}
+
+				for (size_t i = 0; i < ret.size(); ++i) {
+					const read_result_entry entry = ret[i];
+					const dnet_id &id = entry.command()->id;
+					result[keys_map[id]] = entry.file().to_string();
+				}
+
+				return result;
+			}
+		}
+
+		list stat_log_count() {
+			list statistics;
+
+			const stat_count_result result = session::stat_log_count();
+
+			for (size_t i = 0; i < result.size(); ++i) {
+				const stat_count_result_entry &data = result[i];
+
+				if (data.size() <= sizeof(struct dnet_addr_stat))
+					continue;
+
+				dict node_stat, storage_commands, proxy_commands, counters;
+				struct dnet_addr *addr = data.address();
+				struct dnet_cmd *cmd = data.command();
+
+				struct dnet_addr_stat *as = data.statistics();
+
 				std::string address(dnet_server_convert_dnet_addr(addr));
 				node_stat[std::string("addr")] = address;
 				node_stat[std::string("group_id")] = cmd->id.group_id;
 
-				for (i = 0; i < as->num; ++i) {
-					if (i < as->cmd_num) {
-						storage_commands[std::string(dnet_counter_string(i, as->cmd_num))] =
-								make_tuple((unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
-					} else if (i < (as->cmd_num * 2)) {
-						proxy_commands[std::string(dnet_counter_string(i, as->cmd_num))] =
-								make_tuple((unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
+				for (int j = 0; j < as->num; ++j) {
+					if (j < as->cmd_num) {
+						storage_commands[std::string(dnet_counter_string(j, as->cmd_num))] =
+								make_tuple((unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
+					} else if (j < (as->cmd_num * 2)) {
+						proxy_commands[std::string(dnet_counter_string(j, as->cmd_num))] =
+								make_tuple((unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
 					} else {
-						counters[std::string(dnet_counter_string(i, as->cmd_num))] =
-								make_tuple((unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);
+						counters[std::string(dnet_counter_string(j, as->cmd_num))] =
+								make_tuple((unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
 					}
 				}
 
@@ -486,10 +523,6 @@ class elliptics_session: public session, public wrapper<session> {
 				node_stat["counters"] = counters;
 
 				statistics.append(node_stat);
-
-				int sz = sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
-				size -= sz;
-				data = (char *)data + sz;
 			}
 
 			return statistics;
@@ -518,9 +551,9 @@ class elliptics_error_translator
 
 		void initialize()
 		{
-			m_type = new_exception("elliptics_error");
-			register_type(-ENOENT, "elliptics_not_found_error");
-			register_type(-ETIMEDOUT, "elliptics_timeout_error");
+			m_type = new_exception("Error");
+			register_type(-ENOENT, "NotFoundError");
+			register_type(-ETIMEDOUT, "TimeoutError");
 		}
 
 		void register_type(int code, const char *name)
@@ -558,8 +591,29 @@ void ios_base_failure_translator(const std::ios_base::failure &exc)
 
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(add_remote_overloads, add_remote, 2, 3);
 
-BOOST_PYTHON_MODULE(libelliptics_python) {
-	class_<error> error_class("elliptics_error_impl",
+std::string dnet_node_status_repr(const dnet_node_status &status)
+{
+	char buffer[128];
+	const size_t buffer_size = sizeof(buffer);
+	snprintf(buffer, buffer_size,
+		"<SessionStatus nflags:%x, status_flags:%x, log_mask:%x>",
+		status.nflags, status.status_flags, status.log_level);
+	buffer[buffer_size - 1] = '\0';
+	return buffer;
+}
+
+void logger_log(logger &log, const char *msg, int level)
+{
+	log.log(level, msg);
+}
+
+void next_impl(api::object &value, const api::object &next)
+{
+	value = next();
+}
+
+BOOST_PYTHON_MODULE(elliptics) {
+	class_<error> error_class("ErrorInfo",
 		init<int, std::string>());
 	error_class.def("__str__", &error::error_message);
 	error_class.add_property("message", &error::error_message);
@@ -573,14 +627,14 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 	register_exception_translator<error>(error_translator);
 	register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
 
-	class_<elliptics_id>("elliptics_id", init<>())
+	class_<elliptics_id>("Id", init<>())
 		.def(init<list, int, int>())
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_readwrite("type", &elliptics_id::type)
 	;
 
-	class_<elliptics_range>("elliptics_range", init<>())
+	class_<elliptics_range>("Range", init<>())
 		.def_readwrite("start", &elliptics_range::start)
 		.def_readwrite("end", &elliptics_range::end)
 		.def_readwrite("offset", &elliptics_range::offset)
@@ -592,20 +646,21 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("limit_num", &elliptics_range::limit_num)
 	;
 
-	class_<logger, boost::noncopyable>("elliptics_log", no_init)
+	class_<logger, boost::noncopyable>("AbstractLogger", no_init)
 		.def("log", &logger::log)
 	;
 
 	class_<file_logger, bases<logger> > file_logger_class(
-		"elliptics_log_file", init<const char *, const uint32_t>());
+		"Logger", init<const char *, const uint32_t>());
 
-	class_<dnet_node_status>("dnet_node_status", init<>())
+	class_<elliptics_status>("SessionStatus", init<>())
 		.def_readwrite("nflags", &dnet_node_status::nflags)
 		.def_readwrite("status_flags", &dnet_node_status::status_flags)
 		.def_readwrite("log_level", &dnet_node_status::log_level)
+		.def("__repr__", dnet_node_status_repr)
 	;
 
-	class_<dnet_config>("dnet_config", init<>())
+	class_<dnet_config>("dnet_config", no_init)
 		.def_readwrite("wait_timeout", &dnet_config::wait_timeout)
 		.def_readwrite("flags", &dnet_config::flags)
 		.def_readwrite("check_timeout", &dnet_config::check_timeout)
@@ -615,17 +670,18 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def_readwrite("client_prio", &dnet_config::client_prio)
 	;
 	
-	class_<elliptics_config>("elliptics_config", init<>())
+	class_<elliptics_config>("Config", init<>())
 		.def_readwrite("config", &elliptics_config::config)
 		.add_property("cookie", &elliptics_config::cookie_get, &elliptics_config::cookie_set)
 	;
 
-	class_<elliptics_node_python>("elliptics_node_python", init<logger>())
+	class_<elliptics_node_python>("Node", init<logger>())
 		.def(init<logger, elliptics_config &>())
-		.def("add_remote", &node::add_remote, add_remote_overloads())
+		.def("add_remote", &node::add_remote,
+			(arg("addr"), arg("port"), arg("family") = AF_INET))
 	;
 
-	class_<elliptics_session, boost::noncopyable>("elliptics_session", init<node &>())
+	class_<elliptics_session, boost::noncopyable>("Session", init<node &>())
 		.add_property("groups", &elliptics_session::get_groups,
 			&elliptics_session::set_groups)
 		.def("add_groups", &elliptics_session::set_groups)
@@ -642,22 +698,32 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("set_ioflags", &elliptics_session::set_ioflags)
 		.def("get_ioflags", &elliptics_session::get_ioflags)
 
-		.def("read_file", &elliptics_session::read_file_by_id)
-		.def("read_file", &elliptics_session::read_file_by_data_transform)
-		.def("write_file", &elliptics_session::write_file_by_id)
-		.def("write_file", &elliptics_session::write_file_by_data_transform)
+		.def("read_file", &elliptics_session::read_file_by_id,
+			(arg("key"), arg("filename"), arg("offset") = 0, arg("size") = 0))
+		.def("read_file", &elliptics_session::read_file_by_data_transform,
+			(arg("key"), arg("filename"), arg("offset") = 0, arg("size") = 0, arg("column") = 0))
+		.def("write_file", &elliptics_session::write_file_by_id,
+			(arg("key"), arg("filename"), arg("offset") = 0, arg("local_offset") = 0, arg("size") = 0))
+		.def("write_file", &elliptics_session::write_file_by_data_transform,
+			(arg("key"), arg("filename"), arg("offset") = 0, arg("local_offset") = 0, arg("size") = 0, arg("column") = 0))
 
-		.def("read_data", &elliptics_session::read_data_by_id)
-		.def("read_data", &elliptics_session::read_data_by_data_transform)
+		.def("read_data", &elliptics_session::read_data_by_id,
+			(arg("key"), arg("offset") = 0, arg("size") = 0))
+		.def("read_data", &elliptics_session::read_data_by_data_transform,
+			(arg("key"), arg("offset") = 0, arg("size") = 0, arg("column") = 0))
 
 		.def("prepare_latest", &elliptics_session::prepare_latest_by_id)
 		.def("prepare_latest_str", &elliptics_session::prepare_latest_by_id_str)
 
-		.def("read_latest", &elliptics_session::read_latest_by_id)
-		.def("read_latest", &elliptics_session::read_latest_by_data_transform)
+		.def("read_latest", &elliptics_session::read_latest_by_id,
+			(arg("key"), arg("offset") = 0, arg("size") = 0))
+		.def("read_latest", &elliptics_session::read_latest_by_data_transform,
+			(arg("key"), arg("offset") = 0, arg("size") = 0, arg("column") = 0))
 
-		.def("write_data", &elliptics_session::write_data_by_id)
-		.def("write_data", &elliptics_session::write_data_by_data_transform)
+		.def("write_data", &elliptics_session::write_data_by_id,
+			(arg("key"), arg("data"), arg("offset") = 0))
+		.def("write_data", &elliptics_session::write_data_by_data_transform,
+			(arg("key"), arg("data"), arg("offset") = 0, arg("column") = 0))
 
 		.def("write_metadata", &elliptics_session::write_metadata_by_id)
 		.def("write_metadata", &elliptics_session::write_metadata_by_data_transform)
@@ -677,7 +743,7 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("read_data_range", &elliptics_session::read_data_range)
 
 		.def("get_routes", &elliptics_session::get_routes)
-		.def("stat_log", &elliptics_session::stat_log)
+		.def("stat_log", &elliptics_session::stat_log_count)
 
 		.def("exec_event", &elliptics_session::exec_name)
 		.def("exec_event", &elliptics_session::exec_name_by_name)
@@ -686,7 +752,8 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.def("remove", &elliptics_session::remove_by_id)
 		.def("remove", &elliptics_session::remove_by_name)
 
-		.def("bulk_read", &elliptics_session::bulk_read_by_name)
+		.def("bulk_read", &elliptics_session::bulk_read_by_name,
+			(arg("keys"), arg("raw") = false))
 	;
 
 	enum_<elliptics_cflags>("command_flags")
@@ -719,3 +786,5 @@ BOOST_PYTHON_MODULE(libelliptics_python) {
 		.value("debug", log_level_debug)
 	;
 };
+
+} } // namespace ioremap::elliptics

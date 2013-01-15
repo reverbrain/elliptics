@@ -18,111 +18,191 @@
 
 #include "elliptics/cppdef.h"
 
+#include "callback_p.h"
+
 #include <sstream>
 #include <stdexcept>
 
-#include <boost/thread.hpp>
-
 namespace ioremap { namespace elliptics {
 
-class callback_data
+callback_result_entry::callback_result_entry() : m_data(std::make_shared<callback_result_data>())
 {
-	public:
-		std::string		data;
-		boost::mutex		lock;
-		boost::condition_variable wait_cond;
-		int			complete;
-		std::vector<int>	statuses;
-};
-
-callback::callback() : m_data(new callback_data)
-{
-	m_data->complete = 0;
 }
 
-callback::~callback()
+callback_result_entry::callback_result_entry(const callback_result_entry &other) : m_data(other.m_data)
 {
-	delete m_data;
 }
 
-void callback::handle(struct dnet_net_state *state, struct dnet_cmd *cmd)
+callback_result_entry::callback_result_entry(const std::shared_ptr<callback_result_data> &data) : m_data(data)
 {
-	m_data->data.append((const char *)dnet_state_addr(state), sizeof(struct dnet_addr));
-	m_data->data.append((const char *)cmd, sizeof(struct dnet_cmd) + cmd->size);
 }
 
-int callback::handler(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
+callback_result_entry::~callback_result_entry()
 {
-	callback *that = reinterpret_cast<callback *>(priv);
-
-	bool notify = false;
-	{
-		boost::mutex::scoped_lock locker(that->m_data->lock);
-
-		if (cmd)
-			that->m_data->statuses.push_back(cmd->status);
-
-		if (is_trans_destroyed(state, cmd)) {
-			that->m_data->complete++;
-			notify = true;
-		} else if (cmd && state) {
-			that->handle(state, cmd);
-		}
-	}
-	if (notify)
-		that->m_data->wait_cond.notify_all();
-
-	return 0;
 }
 
-std::string callback::wait(int completed)
+callback_result_entry &callback_result_entry::operator =(const callback_result_entry &other)
 {
-	boost::mutex::scoped_lock locker(m_data->lock);
+	m_data = other.m_data;
+	return *this;
+}
 
-	while (m_data->complete != completed)
-		m_data->wait_cond.wait(locker);
+bool callback_result_entry::is_valid() const
+{
+	return !m_data->data.empty();
+}
 
-	if (!check_states(m_data->statuses))
-		throw_error(-ENOENT, "failed to request");
-
+data_pointer callback_result_entry::raw_data() const
+{
 	return m_data->data;
 }
 
-void *callback::data() const
+struct dnet_addr *callback_result_entry::address() const
 {
-	return const_cast<callback *>(this);
+	return m_data->data
+		.data<struct dnet_addr>();
 }
 
-callback_any::callback_any()
+struct dnet_cmd *callback_result_entry::command() const
+{
+	return m_data->data
+		.skip<struct dnet_addr>()
+		.data<struct dnet_cmd>();
+}
+
+data_pointer callback_result_entry::data() const
+{
+	return m_data->data
+		.skip<struct dnet_addr>()
+		.skip<struct dnet_cmd>();
+}
+
+uint64_t callback_result_entry::size() const
+{
+	return (m_data->data.size() <= (sizeof(struct dnet_addr) + sizeof(struct dnet_cmd)))
+		? (0)
+	: (m_data->data.size() - (sizeof(struct dnet_addr) + sizeof(struct dnet_cmd)));
+}
+
+read_result_entry::read_result_entry()
 {
 }
 
-callback_any::~callback_any()
+read_result_entry::read_result_entry(const read_result_entry &other) : callback_result_entry(other)
 {
 }
 
-bool callback_any::check_states(const std::vector<int> &statuses)
-{
-	bool ok = false;
-	for (size_t i = 0; i < statuses.size(); ++i)
-		ok |= (statuses[i] == 0);
-	return ok;
-}
-
-callback_all::callback_all()
+read_result_entry::~read_result_entry()
 {
 }
 
-callback_all::~callback_all()
+read_result_entry &read_result_entry::operator =(const read_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+struct dnet_io_attr *read_result_entry::io_attribute() const
+{
+	return data()
+		.data<struct dnet_io_attr>();
+}
+
+data_pointer read_result_entry::file() const
+{
+	return data()
+		.skip<struct dnet_io_attr>();
+}
+
+lookup_result_entry::lookup_result_entry()
 {
 }
 
-bool callback_all::check_states(const std::vector<int> &statuses)
+lookup_result_entry::lookup_result_entry(const lookup_result_entry &other) : callback_result_entry(other)
 {
-	bool ok = !statuses.empty();
-	for (size_t i = 0; i < statuses.size(); ++i)
-		ok &= (statuses[i] == 0);
-	return ok;
+}
+
+lookup_result_entry::~lookup_result_entry()
+{
+}
+
+lookup_result_entry &lookup_result_entry::operator =(const lookup_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+struct dnet_addr_attr *lookup_result_entry::address_attribute() const
+{
+	return data()
+		.data<struct dnet_addr_attr>();
+}
+
+struct dnet_file_info *lookup_result_entry::file_info() const
+{
+	return data()
+		.skip<struct dnet_addr_attr>()
+		.data<struct dnet_file_info>();
+}
+
+const char *lookup_result_entry::file_path() const
+{
+	return data()
+		.skip<struct dnet_addr_attr>()
+		.skip<struct dnet_file_info>()
+		.data<char>();
+}
+
+stat_result_entry::stat_result_entry()
+{
+}
+
+stat_result_entry::stat_result_entry(const stat_result_entry &other) : callback_result_entry(other)
+{
+}
+
+stat_result_entry::~stat_result_entry()
+{
+}
+
+stat_result_entry &stat_result_entry::operator =(const stat_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+dnet_stat *stat_result_entry::statistics() const
+{
+	return m_data->data
+		.skip<struct dnet_addr>()
+		.skip<struct dnet_cmd>()
+		.data<struct dnet_stat>();
+}
+
+stat_count_result_entry::stat_count_result_entry()
+{
+}
+
+stat_count_result_entry::stat_count_result_entry(const stat_count_result_entry &other) : callback_result_entry(other)
+{
+}
+
+stat_count_result_entry::~stat_count_result_entry()
+{
+}
+
+stat_count_result_entry &stat_count_result_entry::operator =(const stat_count_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+struct dnet_addr_stat *stat_count_result_entry::statistics() const
+{
+	return m_data->data
+		.skip<struct dnet_addr>()
+		.skip<struct dnet_cmd>()
+		.data<struct dnet_addr_stat>();
 }
 
 } } // namespace ioremap::elliptics

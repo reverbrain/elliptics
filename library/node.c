@@ -458,6 +458,14 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id 
 
 	return found;
 }
+void dnet_state_put(struct dnet_net_state *st)
+{
+	/*
+	 * State can be NULL here when we just want to kick IO thread.
+	 */
+	if (st && atomic_dec_and_test(&st->refcnt))
+		dnet_state_destroy(st);
+}
 
 /*
  * We do not blindly return n->st, since it will go away eventually,

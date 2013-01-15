@@ -44,13 +44,13 @@ using namespace ioremap::elliptics;
 
 class finder : public session {
 	public:
-		finder(node &n) : session(n) {};
-		virtual ~finder() {};
+		finder(node &n) : session(n) {}
+		virtual ~finder() {}
 
 		void add_remote(const char *addr);
 
-		void parse_lookup(const std::string &ret);
-		void parse_meta(const std::string &ret);
+		void parse_lookup(const command_result &ret);
+		void parse_meta(const command_result &ret);
 };
 
 void finder::add_remote(const char *addr)
@@ -70,21 +70,18 @@ void finder::add_remote(const char *addr)
     get_node().add_remote(rem.addr, atoi(rem.port), rem.family);
 }
 
-void finder::parse_lookup(const std::string &ret)
+void finder::parse_lookup(const command_result &ret)
 {
-	long size = ret.size();
-	void *data = (void *)ret.data();
+	for (size_t i = 0; i < ret.size(); ++i) {
+		const callback_result_entry &data = ret[i];
+		struct dnet_cmd *cmd = data.command();
 
-	while (size) {
-		struct dnet_addr *addr = (struct dnet_addr *)data;
-		struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
-
-		if (cmd->size) {
+		if (data.size()) {
 			struct dnet_file_info *info = NULL;
 			char addr_str[128] = "no-address";
 
-			if (cmd->size >= sizeof(struct dnet_addr_attr)) {
-				struct dnet_addr_attr *a = (struct dnet_addr_attr *)(cmd + 1);
+			if (data.size() >= sizeof(struct dnet_addr_attr)) {
+				struct dnet_addr_attr *a = data.data<struct dnet_addr_attr>();
 
 				if (cmd->size > sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info)) {
 					info = (struct dnet_file_info *)(a + 1);
@@ -115,26 +112,18 @@ void finder::parse_lookup(const std::string &ret)
 			if (cmd->status != 0)
 				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
 		}
-
-		data = (char *)data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
-		size -= sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
 	}
 }
 
-void finder::parse_meta(const std::string &ret)
+void finder::parse_meta(const command_result &ret)
 {
-	long size = ret.size();
-	void *data = (void *)ret.data();
-
-	while (size) {
-		struct dnet_addr *addr = (struct dnet_addr *)data;
-		struct dnet_cmd *cmd = (struct dnet_cmd *)(addr + 1);
+	for (size_t i = 0; i < ret.size(); ++i) {
+		const callback_result_entry &data = ret[i];
+		struct dnet_cmd *cmd = data.command();
 		char addr_str[128];
 
-		dnet_server_convert_dnet_addr_raw(addr, addr_str, sizeof(addr_str));
-
-		if (cmd->size > sizeof(struct dnet_io_attr)) {
-			struct dnet_io_attr *io = (struct dnet_io_attr *)(cmd + 1);
+		if (data.size() > sizeof(struct dnet_io_attr)) {
+			struct dnet_io_attr *io = data.data<struct dnet_io_attr>();
 
 			dnet_convert_io_attr(io);
 
@@ -154,9 +143,6 @@ void finder::parse_meta(const std::string &ret)
 				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND meta: %s: status: %d\n",
 						dnet_dump_id(&cmd->id), addr_str, cmd->status);
 		}
-
-		data = (char *)data + sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
-		size -= sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
 	}
 }
 
@@ -175,11 +161,10 @@ static __attribute__ ((noreturn)) void efinder_usage(const char *p)
 int main(int argc, char *argv[])
 {
 	int ch, err;
-	char *logfile = (char *)"/dev/stderr";
+	const char *logfile = "/dev/stderr";
 	int log_level = DNET_LOG_ERROR;
 	char *remote = NULL;
 	struct dnet_id raw;
-	struct dnet_trans_control ctl;
 
 	while ((ch = getopt(argc, argv, "r:l:m:I:h")) != -1) {
 		switch (ch) {
@@ -217,47 +202,29 @@ int main(int argc, char *argv[])
 		find.add_remote(remote);
 
 		{
-			callback_any c;
+			transport_control ctl(raw, DNET_CMD_LOOKUP,
+				DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK | DNET_ATTR_META_TIMES);
 
-			memset(&ctl, 0, sizeof(struct dnet_trans_control));
-
-			ctl.priv = &c;
-			ctl.complete = callback::handler;
-
-			dnet_setup_id(&ctl.id, 0, raw.id);
-			ctl.cflags = DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK | DNET_ATTR_META_TIMES;
-			ctl.cmd = DNET_CMD_LOOKUP;
-
-			int num = find.request_cmd(ctl);
-			std::string lookup_ret = c.wait(num);
-			find.parse_lookup(lookup_ret);
+			command_result results = find.request_cmd(ctl);
+			find.parse_lookup(results);
 		}
 
 
 
 		{
-			callback_any c;
-
-			memset(&ctl, 0, sizeof(ctl));
-
-			ctl.priv = &c;
-			ctl.complete = callback::handler;
-
-			dnet_setup_id(&ctl.id, 0, raw.id);
-			ctl.cmd = DNET_CMD_READ;
-			ctl.cflags = DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK;
+			transport_control ctl(raw, DNET_CMD_READ,
+				DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK);
 
 			struct dnet_io_attr io;
 			memset(&io, 0, sizeof(io));
 			io.flags = DNET_IO_FLAGS_META;
-			memcpy(io.id, ctl.id.id, DNET_ID_SIZE);
-			memcpy(io.parent, ctl.id.id, DNET_ID_SIZE);
-			ctl.data = &io;
-			ctl.size = sizeof(io);
+			memcpy(io.id, raw.id, DNET_ID_SIZE);
+			memcpy(io.parent, raw.id, DNET_ID_SIZE);
 
-			int num = find.request_cmd(ctl);
-			std::string meta_ret = c.wait(num);
-			find.parse_meta(meta_ret);
+			ctl.set_data(&io, sizeof(io));
+
+			command_result results = find.request_cmd(ctl);
+			find.parse_meta(results);
 		}
 	} catch (const std::exception &e) {
 		std::cerr << e.what() << std::endl;

@@ -98,6 +98,15 @@ void throw_error(int err, const struct dnet_id &id, const char *format, ...)
 	va_end(args);
 }
 
+void throw_error(int err, const key &id, const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	const char *id_str = id.by_id() ? dnet_dump_id(&id.id()) : id.remote().c_str();
+	throw_error_detail(err, id_str, format, args);
+	va_end(args);
+}
+
 void throw_error(int err, const uint8_t *id, const char *format, ...)
 {
 	va_list args;

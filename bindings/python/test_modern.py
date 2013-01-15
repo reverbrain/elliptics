@@ -13,7 +13,7 @@ try:
 	cfg.cookie = "0123456789012345678901234567890123456789"
 	cfg.config.wait_timeout = 60
 
-	n = elliptics.Node() #log) #, cfg)
+	n = elliptics.Node(log, cfg)
 	
 	n.add_remote("localhost", 1025)
 
@@ -37,7 +37,7 @@ try:
 		data = '1234567890qwertyuio'
 		s.write_data(id, data, 0)
 		print "WRITE:", data
-		s.write_metadata(id, "", [1], 0)
+		s.write_metadata(id, "", [1])
 		print "Write metadata"
 	except Exception as e:
 		print "Failed to write data by id:", e
@@ -63,7 +63,7 @@ try:
 		data = '1234567890qwertyuio'
 		s.write_data(key, data, 0, 0)
 		print "WRITE:", key, ":", data
-		s.write_metadata(key, 0)
+		s.write_metadata(key)
 		print "Write metadata"
 	except Exception as e:
 		print "Failed to write data by string:", e
@@ -82,7 +82,7 @@ try:
 
 	# bulk read of keys by name
 	try:
-		files =  s.bulk_read(["test1", "test2", "test3", "test4", "test5"], 1, 0)
+		files =  s.bulk_read(["test1", "test2", "test3", "test4", "test5"])
 		for f in files:
 			print binascii.hexlify(f[:6]), ":", f[68:]
 	except Exception as e:

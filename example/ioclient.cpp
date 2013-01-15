@@ -31,17 +31,16 @@
 
 #include <netinet/in.h>
 
-#include "elliptics/packet.h"
-#include "elliptics/interface.h"
+#include "elliptics/cppdef.h"
 
 #include "backends.h"
 #include "common.h"
 
+using namespace ioremap::elliptics;
+
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
-
-static struct dnet_log ioclient_logger;
 
 static void dnet_usage(char *p)
 {
@@ -76,22 +75,33 @@ static void dnet_usage(char *p)
 			, p);
 }
 
+key create_id(unsigned char *id, const char *file_name, int type)
+{
+	if (id) {
+		struct dnet_id raw;
+
+		dnet_setup_id(&raw, 0, id);
+		raw.type = type;
+
+		return raw;
+	} else {
+		return key(file_name, type);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int ch, err, i, have_remote = 0;
 	int io_counter_stat = 0, vfs_stat = 0, single_node_stat = 1;
 	struct dnet_node_status node_status;
 	int update_status = 0;
-	struct dnet_node *n = NULL;
-	struct dnet_session *s = NULL;
 	struct dnet_config cfg, rem, *remotes = NULL;
-	char *logfile = "/dev/stderr", *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
-	char *read_data = NULL;
+	const char *logfile = "/dev/stderr", *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
+	const char *read_data = NULL;
 	char *removef = NULL;
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
-	FILE *log = NULL;
 	uint64_t offset, size;
-	int *groups = NULL, group_num = 0;
+	std::vector<int> groups;
 	int type = EBLOB_TYPE_DATA;
 	uint64_t cflags = 0;
 	uint64_t ioflags = 0;
@@ -110,7 +120,7 @@ int main(int argc, char *argv[])
 	cfg.sock_type = SOCK_STREAM;
 	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60;
-	ioclient_logger.log_level = DNET_LOG_ERROR;
+	int log_level = DNET_LOG_ERROR;
 
 	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
@@ -150,7 +160,7 @@ int main(int argc, char *argv[])
 				size = strtoull(optarg, NULL, 0);
 				break;
 			case 'm':
-				ioclient_logger.log_level = atoi(optarg);
+				log_level = atoi(optarg);
 				break;
 			case 's':
 				io_counter_stat = 1;
@@ -183,17 +193,22 @@ int main(int argc, char *argv[])
 					return err;
 				id = trans_id;
 				break;
-			case 'g':
-				group_num = dnet_parse_groups(optarg, &groups);
+			case 'g': {
+				int *groups_tmp = NULL, group_num = 0;
+				group_num = dnet_parse_groups(optarg, &groups_tmp);
 				if (group_num <= 0)
 					return -1;
+				groups.assign(groups_tmp, groups_tmp + group_num);
+				free(groups_tmp);
 				break;
+			}
 			case 'r':
 				err = dnet_parse_addr(optarg, &rem);
 				if (err)
 					return err;
 				have_remote++;
-				remotes = realloc(remotes, sizeof(rem) * have_remote);
+				remotes = reinterpret_cast<dnet_config*>(
+					realloc(remotes, sizeof(rem) * have_remote));
 				if (!remotes)
 					return -ENOMEM;
 				memcpy(&remotes[have_remote - 1], &rem, sizeof(rem));
@@ -213,243 +228,110 @@ int main(int argc, char *argv[])
 				return -1;
 		}
 	}
-	
-	log = fopen(logfile, "a");
-	if (!log) {
-		err = -errno;
-		fprintf(stderr, "Failed to open log file %s: %s.\n", logfile, strerror(errno));
-		return err;
-	}
 
-	ioclient_logger.log_private = log;
-	ioclient_logger.log = dnet_common_log;
-	cfg.log = &ioclient_logger;
+	try {
+		file_logger log(logfile, log_level);
 
-	n = dnet_node_create(&cfg);
-	if (!n)
-		return -1;
+		node n(log, cfg);
+		session s(n);
 
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGTERM);
-	sigaddset(&mask, SIGINT);
-	sigaddset(&mask, SIGHUP);
-	sigaddset(&mask, SIGCHLD);
-	pthread_sigmask(SIG_UNBLOCK, &mask, NULL);
-	sigprocmask(SIG_UNBLOCK, &mask, NULL);
+		s.set_cflags(cflags);
+		s.set_ioflags(ioflags);
 
-	if (have_remote) {
-		int error = -ECONNRESET;
-		for (i=0; i<have_remote; ++i) {
-			if (single_node_stat && (vfs_stat || io_counter_stat))
-				remotes[i].flags = DNET_CFG_NO_ROUTE_LIST;
-			err = dnet_add_state(n, &remotes[i]);
-			if (!err)
-				error = 0;
-		}
+		sigemptyset(&mask);
+		sigaddset(&mask, SIGTERM);
+		sigaddset(&mask, SIGINT);
+		sigaddset(&mask, SIGHUP);
+		sigaddset(&mask, SIGCHLD);
+		pthread_sigmask(SIG_UNBLOCK, &mask, NULL);
+		sigprocmask(SIG_UNBLOCK, &mask, NULL);
 
-		if (error)
-			return error;
-	}
-
-	s = dnet_session_create(n);
-	if (!s)
-		return -1;
-
-	dnet_session_set_groups(s, groups, group_num);
-
-	if (defrag)
-		return dnet_start_defrag(s, cflags);
-
-	if (writef) {
-		if (id) {
-			struct dnet_id raw;
-
-			dnet_setup_id(&raw, 0, id);
-			raw.type = type;
-
-			err = dnet_write_file_id(s, writef, &raw, offset, offset, size, cflags, ioflags);
-		} else {
-			err = dnet_write_file(s, writef, writef, strlen(writef), offset, offset, size, cflags, ioflags, type);
-		}
-
-		if (err)
-			return err;
-	}
-
-	if (readf) {
-		if (id) {
-			struct dnet_id raw;
-
-			dnet_setup_id(&raw, 0, id);
-			raw.type = type;
-
-			err = dnet_read_file_id(s, readf, &raw, offset, size);
-		} else {
-			err = dnet_read_file(s, readf, readf, strlen(readf), offset, size, type);
-		}
-		if (err)
-			return err;
-	}
-	
-	if (read_data) {
-		void *data;
-		struct dnet_id raw;
-		struct dnet_io_attr io;
-
-		if (!id) {
-			dnet_transform(n, read_data, strlen(read_data), &raw);
-		} else {
-			memcpy(&raw.id, id, DNET_ID_SIZE);
-		}
-		raw.type = type;
-		raw.group_id = 0; /* unused */
-
-		memset(&io, 0, sizeof(io));
-		io.type = type;
-		io.flags = ioflags;
-		memcpy(io.id, raw.id, DNET_ID_SIZE);
-		memcpy(io.parent, raw.id, DNET_ID_SIZE);
-
-		/* number of copies to check to find the latest data */
-		io.num = group_num;
-
-		err = dnet_read_latest(s, &raw, &io, cflags, &data);
-		if (err)
-			return err;
-
-		data += sizeof(struct dnet_io_attr);
-		io.size -= sizeof(struct dnet_io_attr);
-
-		while (io.size) {
-			err = write(1, data, io.size);
-			if (err <= 0) {
-				err = -errno;
-				dnet_log_raw(n, DNET_LOG_ERROR, "%s: can not write data to stdout: %d %s",
-						read_data, err, strerror(-err));
-				return err;
+		if (have_remote) {
+			int error = -ECONNRESET;
+			for (i = 0; i < have_remote; ++i) {
+				if (single_node_stat && (vfs_stat || io_counter_stat))
+					remotes[i].flags = DNET_CFG_NO_ROUTE_LIST;
+				err = dnet_add_state(n.get_native(), &remotes[i]);
+				if (!err)
+					error = 0;
 			}
 
-			io.size -= err;
-		}
-	}
-
-	if (removef) {
-		if (id) {
-			struct dnet_id raw;
-
-			dnet_setup_id(&raw, 0, id);
-			raw.type = type;
-			dnet_remove_object_now(s, &raw, cflags, ioflags);
-
-			return 0;
+			if (error)
+				return error;
 		}
 
-		err = dnet_remove_file(s, removef, strlen(removef), NULL, cflags, ioflags);
-		if (err)
-			return err;
-	}
+		s.set_groups(groups);
 
-	if (cmd) {
-		struct dnet_id __did, *did = NULL;
-		struct sph *sph;
-		int len = strlen(cmd);
-		int event_size = len;
-		char *ret = NULL;
-		char *tmp;
-		char *data = NULL;
+		if (defrag)
+			return dnet_start_defrag(s.get_native(), cflags);
 
-		tmp = strchr(cmd, ' ');
-		if (tmp) {
-			event_size = tmp - cmd;
-			*tmp = '\0';
-			len--;
-			data = tmp + 1;
-		}
+		if (writef)
+			s.write_file(create_id(id, writef, type), writef, offset, offset, size);
 
-		if (id) {
-			did = &__did;
+		if (readf)
+			s.read_file(create_id(id, readf, type), readf, offset, size);
 
-			dnet_setup_id(did, 0, id);
-			did->type = type;
-		}
+		if (read_data) {
+			read_result result = s.read_latest(create_id(id, read_data, type), offset, 0);
 
-		sph = malloc(sizeof(struct sph) + len + 1);
-		if (!sph)
-			return -ENOMEM;
+			data_pointer file = result->file();
 
-		memset(sph, 0, sizeof(struct sph));
-
-		sph->flags = DNET_SPH_FLAGS_SRC_BLOCK;
-		sph->key = -1;
-		sph->binary_size = 0;
-		sph->data_size = len - event_size;
-		sph->event_size = event_size;
-
-		if (data)
-			sprintf(sph->data, "%s%s", cmd, data);
-		else
-			sprintf(sph->data, "%s", cmd);
-
-		err = dnet_send_cmd(s, did, sph, (void **)&ret);
-		if (err < 0)
-			return err;
-
-		if (err > 0) {
-			printf("%.*s\n", err, ret);
-			free(ret);
-		}
-
-		free(sph);
-	}
-
-	if (lookup) {
-		err = dnet_lookup(s, lookup);
-		if (err)
-			return err;
-	}
-
-	if (vfs_stat) {
-		err = dnet_request_stat(s, NULL, DNET_CMD_STAT, 0, NULL, NULL);
-		if (err < 0)
-			return err;
-	}
-
-	if (io_counter_stat) {
-		err = dnet_request_stat(s, NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL, NULL, NULL);
-		if (err < 0)
-			return err;
-	}
-
-	if (update_status) {
-		struct dnet_addr addr;
-
-		for (i=0; i<have_remote; ++i) {
-			memset(&addr, 0, sizeof(addr));
-			addr.addr_len = sizeof(addr.addr);
-
-			err = dnet_fill_addr(&addr, remotes[i].addr, remotes[i].port,
-						remotes[i].family, remotes[i].sock_type, remotes[i].proto);
-			if (err) {
-				dnet_log_raw(n, DNET_LOG_ERROR, "ioclient: dnet_fill_addr: %s:%s:%d, sock_type: %d, proto: %d: %s %d\n",
-						remotes[i].addr, remotes[i].port,
-						remotes[i].family, remotes[i].sock_type, remotes[i].proto,
-						strerror(-err), err);
-			}
-
-			err = dnet_update_status(s, &addr, NULL, &node_status);
-			if (err) {
-				dnet_log_raw(n, DNET_LOG_ERROR, "ioclient: dnet_update_status: %s:%s:%d, sock_type: %d, proto: %d: update: %d: "
-						"%s %d\n",
-						remotes[i].addr, remotes[i].port,
-						remotes[i].family, remotes[i].sock_type, remotes[i].proto, update_status,
-						strerror(-err), err);
+			while (!file.empty()) {
+				err = write(1, file.data(), file.size());
+				if (err <= 0) {
+					err = -errno;
+					throw_error(err, "%s: can not write data to stdout", read_data);
+					return err;
+				}
+				file = file.skip(err);
 			}
 		}
 
-	}
+		if (removef)
+			s.remove(create_id(id, removef, type));
 
-	dnet_session_destroy(s);
-	dnet_node_destroy(n);
+		if (cmd) {
+			dnet_id did_tmp, *did = NULL;
+			std::string event, data, binary;
+
+			if (id) {
+				did = &did_tmp;
+
+				dnet_setup_id(did, 0, id);
+				did->type = type;
+			}
+
+			if (const char *tmp = strchr(cmd, ' ')) {
+				event.assign(cmd, tmp);
+				data.assign(tmp);
+			} else {
+				data.assign(cmd);
+			}
+
+			s.exec_locked(did, event, data, binary);
+		}
+
+		if (lookup)
+			s.lookup(std::string(lookup));
+
+		if (vfs_stat)
+			s.stat_log();
+
+		if (io_counter_stat)
+			s.stat_log_count();
+
+		if (update_status) {
+			for (i = 0; i < have_remote; ++i) {
+				s.update_status(remotes[i].addr,
+					atoi(remotes[i].port),
+					remotes[i].family,
+					&node_status);
+			}
+
+		}
+	} catch (const std::exception &e) {
+		std::cerr << e.what() << std::endl;
+	}
 
 	return 0;
 }

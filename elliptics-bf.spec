@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.2.0
+Version:	2.21.0.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jan 15 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.21.0.0
+- Added asynchronous client API to C++ binding
+- Introduced high-level result types in C++ binding
+- Removed synchronous client API from C core
+- Moved to C++ binding to C++11
+- Use std classes instead of boost one where possible
+
 * Sat Jan 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.2.0
 - Removed app_watcher class
 - Do not use app_watcher blocking helper - enqueue directly.
