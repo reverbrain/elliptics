@@ -127,9 +127,12 @@ class data_pointer
 
 		void *data() const
 		{
-			if (m_index >= m_size)
+			if (m_index > m_size)
 				throw not_found_error("null pointer exception");
-			return reinterpret_cast<char*>(m_data->get()) + m_index;
+			else if (m_index == m_size)
+				return NULL;
+			else
+				return reinterpret_cast<char*>(m_data->get()) + m_index;
 		}
 
 		template <typename T>

@@ -25,6 +25,18 @@
 
 namespace ioremap { namespace elliptics {
 
+std::set<void*> &assertion_callback_set()
+{
+	static std::set<void*> set;
+	return set;
+}
+
+std::mutex &assertion_callback_mutex()
+{
+	static std::mutex mutex;
+	return mutex;
+}
+
 callback_result_entry::callback_result_entry() : m_data(std::make_shared<callback_result_data>())
 {
 }

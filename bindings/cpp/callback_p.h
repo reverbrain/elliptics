@@ -25,6 +25,13 @@
 #include <mutex>
 #include <condition_variable>
 #include <algorithm>
+#include <cassert>
+
+#ifdef DEVELOPER_BUILD
+#  define elliptics_assert(expr) assert(expr)
+#else
+#  define elliptics_assert(expr)
+#endif
 
 namespace ioremap { namespace elliptics {
 
@@ -55,6 +62,8 @@ class callback_result_data
 		data_pointer data;
 };
 
+enum special_count { unlimited };
+
 class default_callback
 {
 	public:
@@ -66,10 +75,17 @@ class default_callback
 		{
 		}
 
-		void set_count(size_t count)
+		bool set_count(size_t count)
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
 			m_count = count;
+			return m_count == m_complete;
+		}
+
+		void set_count(special_count)
+		{
+			std::lock_guard<std::mutex> lock(m_mutex);
+			m_count = static_cast<size_t>(-1);
 		}
 
 		bool handle(struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func, void *)
@@ -157,13 +173,17 @@ class base_stat_callback : public default_callback
 		{
 		}
 
-		void start(complete_func func, void *priv)
+		bool start(complete_func func, void *priv)
 		{
+			set_count(unlimited);
+
 			int err = dnet_request_stat(sess.get_native(),
 				has_id ? &id : NULL, Command, 0, func, priv);
 			if (err < 0) {
 				throw_error(err, "Failed to request statistics");
 			}
+
+			return set_count(1);
 		}
 
 		void finish(std::exception_ptr exc)
@@ -274,10 +294,16 @@ class multigroup_callback
 					struct dnet_id id = kid.id();
 					id.group_id = groups[index];
 					++index;
-					next_group(id, func, priv);
+					if (next_group(id, func, priv)) {
+						// all replies are received
+						if (check_answer()) {
+							// and information is ready
+							return true;
+						}
+					}
 					at_iterator = false;
 					// request is sent, wait results
-					return check_answer();
+					return false;
 				} catch (std::exception &e) {
 					// some exception, log and try next group
 					if (kid.by_id()) {
@@ -303,16 +329,16 @@ class multigroup_callback
 			return false;
 		}
 
-		void start(complete_func func, void *priv)
+		bool start(complete_func func, void *priv)
 		{
-			iterate_groups(func, priv);
+			return iterate_groups(func, priv);
 		}
 
 		virtual bool check_answer()
 		{
 			return cb.is_valid();
 		}
-		virtual void next_group(dnet_id &id, complete_func func, void *priv) = 0;
+		virtual bool next_group(dnet_id &id, complete_func func, void *priv) = 0;
 		virtual void finish(std::exception_ptr exc) = 0;
 		virtual void notify_about_error() = 0;
 
@@ -335,13 +361,17 @@ class lookup_callback : public multigroup_callback
 		{
 		}
 
-		void next_group(dnet_id &id, complete_func func, void *priv)
+		bool next_group(dnet_id &id, complete_func func, void *priv)
 		{
 			cb.clear();
+			cb.set_count(unlimited);
+
 			int err = dnet_lookup_object(sess.get_native(), &id, 0, func, priv);
 			if (err) {
 				throw_error(err, kid, "Failed to lookup ID");
 			}
+
+			return cb.set_count(1);
 		}
 
 		void finish(std::exception_ptr exc)
@@ -374,9 +404,11 @@ class read_callback : public multigroup_callback
 		{
 		}
 
-		void next_group(dnet_id &id, complete_func func, void *priv)
+		bool next_group(dnet_id &id, complete_func func, void *priv)
 		{
 			cb.clear();
+			cb.set_count(unlimited);
+
 			memcpy(&ctl.id, &id, sizeof(id));
 			ctl.complete = func;
 			ctl.priv = priv;
@@ -385,6 +417,8 @@ class read_callback : public multigroup_callback
 				throw_error(err, ctl.id, "READ: size: %llu",
 					static_cast<unsigned long long>(ctl.io.size));
 			}
+
+			return cb.set_count(1);
 		}
 
 		void finish(std::exception_ptr exc)
@@ -435,8 +469,10 @@ class read_bulk_callback : public read_callback
 		{
 		}
 
-		void next_group(dnet_id &id, complete_func func, void *priv)
+		bool next_group(dnet_id &id, complete_func func, void *priv)
 		{
+			int count = 0;
+
 			try {
 				ios_cache.assign(ios_set.begin(), ios_set.end());
 				const size_t io_num = ios_cache.size();
@@ -450,9 +486,8 @@ class read_bulk_callback : public read_callback
 
 				dnet_setup_id(&id, group_id, ios[0].id);
 				id.type = ios[0].type;
-				int count = 0;
 
-				cb.set_count(0);
+				cb.set_count(unlimited);
 
 				cur = dnet_state_get_first(node, &id);
 				if (!cur)
@@ -489,16 +524,11 @@ class read_bulk_callback : public read_callback
 					ctl.complete = func;
 					ctl.priv = priv;
 
-					bool last_id = ((i + 1) == io_num);
 					++count;
-
-					cb.set_count(count + !last_id);
 
 					int err = dnet_read_object(sess.get_native(), &ctl);
 					// ingore the error, we must continue :)
 					(void) err;
-
-					cb.set_count(count);
 
 					start = i + 1;
 					dnet_state_put(cur);
@@ -507,17 +537,17 @@ class read_bulk_callback : public read_callback
 					memcpy(&id, &next_id, sizeof(struct dnet_id));
 				}
 			} catch (...) {
-				if (cb.is_ready())
+				if (cb.set_count(count))
 					throw;
 			}
-			if (cb.is_ready())
-				throw_error(-ENOENT, id, "bulk_read: can't read data from group %d", id.group_id);
+
+			return cb.set_count(count);
 		}
 
 		bool check_answer()
 		{
-			if (!cb.is_ready())
-				return false;
+			elliptics_assert(cb.is_ready());
+
 			if (cb.is_valid()) {
 				for (size_t i = 0; i < cb.results_size(); ++i) {
 					read_result_entry entry = cb.result_at<read_result_entry>(i);
@@ -527,6 +557,8 @@ class read_bulk_callback : public read_callback
 					ios_set.erase(*entry.io_attribute());
 				}
 			}
+
+			// all results are found or all groups are iterated
 			return ios_set.empty() || (index == groups.size());
 		}
 
@@ -558,8 +590,9 @@ class cmd_callback : public default_callback
 		{
 		}
 
-		void start(complete_func func, void *priv)
+		bool start(complete_func func, void *priv)
 		{
+			set_count(unlimited);
 			ctl.complete = func;
 			ctl.priv = priv;
 
@@ -567,7 +600,8 @@ class cmd_callback : public default_callback
 			if (err < 0) {
 				throw_error(err, "failed to request cmd: %s", dnet_cmd_string(ctl.cmd));
 			}
-			set_count(err);
+
+			return set_count(err);
 		}
 
 		void finish(std::exception_ptr exc)
@@ -613,14 +647,17 @@ class prepare_latest_callback : public default_callback
 			cflags = DNET_ATTR_META_TIMES | sess.get_cflags();
 		}
 
-		void start(complete_func func, void *priv)
+		bool start(complete_func func, void *priv)
 		{
-			set_count(groups.size());
+			set_count(unlimited);
+
 			dnet_id raw = id.id();
 			for (size_t i = 0; i < groups.size(); ++i) {
 				raw.group_id = groups[i];
 				dnet_lookup_object(sess.get_native(), &raw, cflags, func, priv);
 			}
+
+			return set_count(groups.size());
 		}
 
 		void finish(std::exception_ptr exc)
@@ -670,16 +707,19 @@ class write_callback : public default_callback
 		{
 		}
 
-		void start(complete_func func, void *priv)
+		bool start(complete_func func, void *priv)
 		{
 			ctl.complete = func;
 			ctl.priv = priv;
-			set_count(0);
+			set_count(unlimited);
+
 			int err = dnet_write_object(sess.get_native(), &ctl);
-			if (err < 0)
+			if (err < 0) {
 				throw_error(err, "Failed to write data");
-			else
-				set_count(err);
+				return false;
+			} else {
+				return set_count(err);
+			}
 		}
 
 		void finish(std::exception_ptr exc)
@@ -721,9 +761,9 @@ class remove_callback : public default_callback
 		{
 		}
 
-		void start(complete_func func, void *priv)
+		bool start(complete_func func, void *priv)
 		{
-			set_count(0);
+			set_count(unlimited);
 			int count = 0;
 			int err = -ENOENT;
 
@@ -742,10 +782,14 @@ class remove_callback : public default_callback
 				}
 			}
 
-			if (err < 0)
+			if (err < 0) {
+				elliptics_assert(count == 0);
 				throw_error(err, id, "REMOVE");
-			else
-				set_count(count);
+				return false;
+			} else {
+				elliptics_assert(count > 0);
+				return set_count(count);
+			}
 		}
 
 		void finish(std::exception_ptr exc)
@@ -857,44 +901,99 @@ class waiter
 		bool				m_result_ready;
 };
 
+extern std::set<void*> &assertion_callback_set();
+extern std::mutex &assertion_callback_mutex();
+
+template <typename T>
+inline bool assertion_callback_insert(std::shared_ptr<T> *cb)
+{
+	fprintf(stderr, "START: %p, %s\n", cb, __ASSERT_FUNCTION);
+	fflush(stderr);
+	assertion_callback_mutex().lock();
+	bool result = assertion_callback_set().insert(cb).second;
+	assertion_callback_mutex().unlock();
+	return result;
+}
+
+template <typename T>
+inline bool assertion_callback_remove(std::shared_ptr<T> *cb)
+{
+	fprintf(stderr, "REMOVE: %p, %s\n", cb, __ASSERT_FUNCTION);
+	fflush(stderr);
+	assertion_callback_mutex().lock();
+	bool result = (assertion_callback_set().erase(cb) == 1);
+	assertion_callback_mutex().unlock();
+	return result;
+}
+
 template <typename T>
 struct dnet_style_handler
 {
+	static std::set<std::shared_ptr<T> *> privs;
+
 	static int handler(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
 	{
 		std::shared_ptr<T> &ptr = *reinterpret_cast<std::shared_ptr<T> *>(priv);
 
-		bool finish = false;
+		bool isFinished = false;
 		std::exception_ptr exc_ptr;
 		try {
-			finish = ptr->handle(state, cmd, handler, priv);
+			isFinished = ptr->handle(state, cmd, handler, priv);
 		} catch (...) {
 			exc_ptr = std::current_exception();
-			finish = true;
+			isFinished = true;
 		}
 
-		if (finish) {
-			try {
-				ptr->finish(exc_ptr);
-			} catch (...) {
-			}
-
-			delete &ptr;
-		}
+		if (isFinished)
+			finish(ptr, exc_ptr);
 		return 0;
 	}
 
 	static void start(const std::shared_ptr<T> &cb)
 	{
 		std::shared_ptr<T> *cb_ptr = new std::shared_ptr<T>(cb);
+
+		elliptics_assert(assertion_callback_insert(cb_ptr));
+
+		bool result = false;
+
 		try {
-			cb->start(handler, cb_ptr);
+			result = cb->start(handler, cb_ptr);
 		} catch (...) {
-			cb->finish(std::current_exception());
-			delete cb_ptr;
+			finish(*cb_ptr, std::current_exception());
 		}
+
+		if (result)
+			finish(*cb_ptr, std::exception_ptr());
+	}
+
+	static void finish(std::shared_ptr<T> &cb, const std::exception_ptr &exc)
+	{
+		elliptics_assert(assertion_callback_remove(&cb));
+
+		try {
+			cb->finish(exc);
+		} catch (const std::exception &exc) {
+			dnet_log_raw(cb->sess.get_node().get_native(),
+				DNET_LOG_ERROR,
+				"UNCAUGHT ASYNC EXCEPTION: %s",
+				exc.what());
+			abort();
+		} catch (...) {
+			dnet_log_raw(cb->sess.get_node().get_native(),
+				DNET_LOG_ERROR,
+				"UNCAUGHT ASYNC EXCEPTION");
+			abort();
+		}
+		delete &cb;
 	}
 };
+
+template <typename T>
+static inline void startCallback(const std::shared_ptr<T> &cb)
+{
+	dnet_style_handler<T>::start(cb);
+}
 
 } } // namespace ioremap::elliptics
 
