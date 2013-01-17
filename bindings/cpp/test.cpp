@@ -16,12 +16,14 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
-#include <errno.h>
-#include <stdarg.h>
-#include <string.h>
+#include <cerrno>
+#include <cstdarg>
+#include <cstring>
+#include <cassert>
 
 #include <sstream>
 #include <fstream>
+#include <set>
 
 #include <elliptics/cppdef.h>
 
@@ -32,7 +34,7 @@ using namespace ioremap::elliptics;
 static void test_prepare_commit(session &s, int psize, int csize)
 {
 	std::string written, ret;
-	try {
+//	try {
 		std::string remote = "prepare-commit-test";
 
 		std::string prepare_data = "prepare data|";
@@ -68,10 +70,10 @@ static void test_prepare_commit(session &s, int psize, int csize)
 
 		ret = s.read_data(key(remote, column), 0, 0)->file().to_string();
 		std::cerr << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
-	} catch (const std::exception &e) {
-		std::cerr << "PREPARE/COMMIT test failed: " << e.what() << std::endl;
-		throw;
-	}
+//	} catch (const std::exception &e) {
+//		std::cerr << "PREPARE/COMMIT test failed: " << e.what() << std::endl;
+//		throw;
+//	}
 
 	if (ret != written) {
 		std::cerr << "PREPARE/COMMIT test failed: read mismatch" << std::endl;
