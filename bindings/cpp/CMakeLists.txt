@@ -1,5 +1,11 @@
 include_directories(../../include)
 
+option(DEVELOPER_BUILD "Enables developer asserts" OFF)
+
+if(DEVELOPER_BUILD)
+    add_definitions(-DDEVELOPER_BUILD)
+endif(DEVELOPER_BUILD)
+
 set(ELLIPTICS_CPP_SRCS
     log.cpp
     node.cpp

@@ -17,22 +17,27 @@
 
 using namespace ioremap::elliptics;
 
-static void	real_logger(void *priv, const int level, const char *msg)
-{
-	logger *log = reinterpret_cast<logger *> (priv);
-
-	log->log(level, msg);
-}
-
 class ioremap::elliptics::logger_data {
 	public:
-		logger_data(logger *that, logger_interface *interface, int level) : impl(interface) {
+		logger_data(logger_interface *interface, int level) : impl(interface) {
 			log.log_level = level;
 			log.log = real_logger;
-			log.log_private = that;
+			log.log_private = interface ? this : NULL;
 		}
 		~logger_data() {
 			delete impl;
+		}
+
+		static void real_logger(void *priv, const int level, const char *msg)
+		{
+			if (logger_data *log = reinterpret_cast<logger_data *>(priv))
+				log->push_log(level, msg);
+		}
+
+		void push_log(const int level, const char *msg)
+		{
+			if (level <= log.log_level && impl)
+				impl->log(level, msg);
 		}
 
 		dnet_log log;
@@ -40,10 +45,10 @@ class ioremap::elliptics::logger_data {
 };
 
 logger::logger(logger_interface *interface, const int level)
-	: m_data(new logger_data(this, interface, level)) {
+	: m_data(new logger_data(interface, level)) {
 }
 
-logger::logger() : m_data(new logger_data(this, NULL, DNET_LOG_INFO)) {
+logger::logger() : m_data(new logger_data(NULL, DNET_LOG_INFO)) {
 }
 
 logger::logger(const logger &other) : m_data(other.m_data) {
@@ -59,9 +64,7 @@ logger &logger::operator =(const logger &other) {
 
 void logger::log(const int level, const char *msg)
 {
-	if (level <= m_data->log.log_level && m_data->impl) {
-		m_data->impl->log(level, msg);
-	}
+	m_data->push_log(level, msg);
 }
 
 int logger::get_log_level()

@@ -225,7 +225,7 @@ void session::read_data(const std::function<void (const read_results &)> &handle
 	cb->kid = id;
 	cb->groups = groups;
 
-	dnet_style_handler<read_callback>::start(cb);
+	startCallback(cb);
 }
 
 void session::read_data(const std::function<void (const read_results &)> &handler,
@@ -313,7 +313,7 @@ void session::prepare_latest(const std::function<void (const prepare_latest_resu
 	cb->id = id;
 	cb->group_id = id.id().group_id;
 
-	dnet_style_handler<prepare_latest_callback>::start(cb);
+	startCallback(cb);
 }
 
 void session::prepare_latest(const key &id, std::vector<int> &groups)
@@ -372,7 +372,7 @@ void session::write_data(const std::function<void (const write_result &)> &handl
 
 	cb->handler = handler;
 
-	dnet_style_handler<write_callback>::start(cb);
+	startCallback(cb);
 }
 
 void session::write_data(const std::function<void (const write_result &)> &handler,
@@ -676,7 +676,7 @@ void session::lookup(const std::function<void (const lookup_result &)> &handler,
 
 	mix_states(id, cb->groups);
 
-	dnet_style_handler<lookup_callback>::start(cb);
+	startCallback(cb);
 }
 
 lookup_result session::lookup(const key &id)
@@ -698,7 +698,7 @@ void session::remove(const std::function<void (const std::exception_ptr &)> &han
 	remove_callback::ptr cb = std::make_shared<remove_callback>(*this, id.id());
 	cb->handler = handler;
 
-	dnet_style_handler<remove_callback>::start(cb);
+	startCallback(cb);
 }
 
 void session::remove(const key &id)
@@ -713,7 +713,7 @@ void session::stat_log(const std::function<void (const stat_result &)> &handler)
 	stat_callback::ptr cb = std::make_shared<stat_callback>(*this);
 	cb->handler = handler;
 
-	dnet_style_handler<stat_callback>::start(cb);
+	startCallback(cb);
 }
 
 void session::stat_log(const std::function<void (const stat_result &)> &handler, const key &id)
@@ -725,7 +725,7 @@ void session::stat_log(const std::function<void (const stat_result &)> &handler,
 	cb->id = id.id();
 	cb->has_id = true;
 
-	dnet_style_handler<stat_callback>::start(cb);
+	startCallback(cb);
 }
 
 stat_result session::stat_log()
@@ -747,7 +747,7 @@ void session::stat_log_count(const std::function<void (const stat_count_result &
 	stat_count_callback::ptr cb = std::make_shared<stat_count_callback>(*this);
 	cb->handler = handler;
 
-	dnet_style_handler<stat_count_callback>::start(cb);
+	startCallback(cb);
 }
 
 stat_count_result session::stat_log_count()
@@ -767,7 +767,7 @@ void session::request_cmd(const std::function<void (const command_result &)> &ha
 	cmd_callback::ptr cb = std::make_shared<cmd_callback>(*this, ctl);
 	cb->handler = handler;
 
-	dnet_style_handler<cmd_callback>::start(cb);
+	startCallback(cb);
 }
 command_result session::request_cmd(const transport_control &ctl)
 {
@@ -1237,7 +1237,7 @@ void session::bulk_read(const std::function<void (const bulk_read_result &)> &ha
 	cb->handler = handler;
 	cb->groups = mix_states();
 
-	dnet_style_handler<read_bulk_callback>::start(cb);
+	startCallback(cb);
 }
 
 namespace {
