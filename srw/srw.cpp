@@ -359,6 +359,8 @@ class srw {
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: info: %s\n", id_str, sph_str, event.c_str(), s.c_str());
 				err = dnet_send_reply(st, cmd, (void *)s.data(), s.size(), 0);
 			} else if (sph->flags & (DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH)) {
+				bool final = sph->flags & DNET_SPH_FLAGS_FINISH;
+
 				boost::mutex::scoped_lock guard(m_lock);
 
 				jobs_map_t::iterator it = m_jobs.find(sph->src_key);
@@ -368,14 +370,15 @@ class srw {
 					return -ENOENT;
 				}
 
-				bool final = sph->flags & DNET_SPH_FLAGS_FINISH;
 				it->second->reply(final, (char *)(sph + 1) + sph->event_size, sph->data_size + sph->binary_size);
+				if (final)
+					m_jobs.erase(it);
+
+				guard.unlock();
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: completed: job: %d, total-size: %zd, finish: %d\n",
 						id_str, sph_str, event.c_str(), sph->src_key, total_size(sph), final);
 
-				if (final)
-					m_jobs.erase(it);
 			} else {
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
 					sph->src_key = atomic_inc(&m_src_key);
@@ -392,13 +395,12 @@ class srw {
 					return -ENOENT;
 				}
 
-				boost::shared_ptr<cocaine::api::stream_t> stream = it->second->enqueue(cevent, upstream);
-
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK)
 					m_jobs.insert(std::make_pair((int)sph->src_key, upstream));
 
 				guard.unlock();
 
+				boost::shared_ptr<cocaine::api::stream_t> stream = it->second->enqueue(cevent, upstream);
 				stream->push((const char *)sph, total_size(sph) + sizeof(struct sph));
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started: job: %d, total-size: %zd, block: %d\n",
