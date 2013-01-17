@@ -30,8 +30,6 @@
 
 #include <map>
 #include <vector>
-#include <boost/algorithm/string.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
 #include <boost/thread/condition.hpp>
 
@@ -56,7 +54,7 @@ class srw_log {
 			dnet_log(session->node, level, "srw: %s : %s\n", app.c_str(), message.c_str());
 			return;
 
-			if (!boost::starts_with(app, "app/") || (level > m_s->node->log->log_level))
+			if (!strncmp(app.data(), "app/", 4) || (level > m_s->node->log->log_level))
 				return;
 
 			std::string msg_with_date;
@@ -210,39 +208,45 @@ class dnet_upstream_t: public cocaine::api::stream_t
 			srw_log log(m_s, DNET_LOG_NOTICE, "app/" + m_name, msg.str());
 		}
 
+		static std::string lexical_cast(size_t value) {
+			if (value == 0) {
+				return std::string("0");
+			}
+			std::string result;
+			size_t length = 0;
+			size_t calculated = value;
+			while (calculated) {
+				calculated /= 10;
+				++length;
+			}
+			result.resize(length);
+			while (value) {
+				--length;
+				result[length] = '0' + (value % 10);
+				value /= 10;
+			}
+			return result;
+		}
+
 		virtual void close(void) {
 			srw_log log(m_s, DNET_LOG_NOTICE, "app/" + m_name, "job completed, data size: " +
-					boost::lexical_cast<std::string>(m_res.size()));
-
-			if (m_res.size())
-				reply(true, NULL, 0);
+					lexical_cast(m_res.size()));
 		}
 
 		virtual void error(cocaine::error_code code, const std::string &message) {
 			m_error = -code;
-			srw_log log(m_s, DNET_LOG_ERROR, "app/" + m_name, message + ": " + boost::lexical_cast<std::string>(code));
+			srw_log log(m_s, DNET_LOG_ERROR, "app/" + m_name, message + ": " + lexical_cast(code));
 		}
 
 		void reply(bool completed, const char *reply, size_t size) {
-			boost::mutex::scoped_lock guard(m_lock);
-
-			if (reply && size)
-				m_res.insert(m_res.end(), reply, reply + size);
-
-			m_completed = completed;
-			m_cond.notify_all();
-		}
-
-		bool wait(long timeout) {
-			boost::system_time const abs_time = boost::get_system_time()+ boost::posix_time::seconds(timeout);
-
-			while (!m_completed) {
+			if (reply && size) {
 				boost::mutex::scoped_lock guard(m_lock);
-				if (!m_cond.timed_wait(guard, abs_time))
-					return false;
+				m_res.insert(m_res.end(), reply, reply + size);
 			}
 
-			return true;
+			if (completed) {
+				boost::mutex::scoped_lock guard(m_lock);
+			}
 		}
 
 		std::vector<char> &result(void) {
@@ -255,7 +259,6 @@ class dnet_upstream_t: public cocaine::api::stream_t
 		struct dnet_session *m_s;
 		std::vector<char> m_res;
 		boost::mutex m_lock;
-		boost::condition m_cond;
 		struct dnet_net_state *m_state;
 		struct dnet_cmd m_cmd;
 		uint64_t m_sph_flags;
@@ -308,18 +311,16 @@ class srw {
 			id_str[2 * DNET_DUMP_NUM] = '\0';
 			sph_str[2 * DNET_DUMP_NUM] = '\0';
 
-			std::vector<std::string> strs;
-			boost::split(strs, event, boost::is_any_of("@"));
-
-			if (strs.size() != 2) {
+			char *ptr = strchr((char *)event.c_str(), '@');
+			if (!ptr) {
 				dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: invalid event name: "
 						"must be application@event or application@start-task\n",
 						id_str, sph_str, event.c_str());
 				return -EINVAL;
 			}
 
-			std::string app = strs[0];
-			std::string ev = strs[1];
+			std::string app(event.c_str(), ptr - event.c_str());
+			std::string ev(ptr+1);
 
 			if (ev == "start-task") {
 				boost::mutex::scoped_lock guard(m_lock);

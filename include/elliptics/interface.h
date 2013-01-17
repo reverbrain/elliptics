@@ -549,13 +549,17 @@ void dnet_state_put(struct dnet_net_state *st);
  */
 static inline char *dnet_dump_id_len_raw(const unsigned char *id, unsigned int len, char *dst)
 {
+	static const char hex[] = "0123456789abcdef";
+
 	unsigned int i;
 
 	if (len > DNET_ID_SIZE)
 		len = DNET_ID_SIZE;
 
-	for (i=0; i<len; ++i)
-		sprintf(&dst[2*i], "%02x", id[i]);
+	for (i=0; i<len; ++i) {
+		dst[2*i  ] = hex[id[i] >>  4];
+		dst[2*i+1] = hex[id[i] & 0xf];
+	}
 	return dst;
 }
 
