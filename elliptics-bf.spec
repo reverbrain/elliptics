@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.21.0.0
+Version:	2.21.1.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jan 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.1.0
+- Send reply back to blocked client not from upstream destructor, but when final reply message is received.
+- Optimize string split and digit-to-string conversion
+- Fixed segfault at Logger delete
+- Bugfixes, removed random freeze on remove request
+- ioclient must setup ID if it wants blocked request
+- Removed unneeded debug
+
 * Tue Jan 15 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.21.0.0
 - Added asynchronous client API to C++ binding
 - Introduced high-level result types in C++ binding

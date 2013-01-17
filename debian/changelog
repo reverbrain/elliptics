@@ -1,3 +1,14 @@
+elliptics (2.21.1.0) unstable; urgency=low
+
+  * Send reply back to blocked client not from upstream destructor, but when final reply message is received.
+  * Optimize string split and digit-to-string conversion
+  * Fixed segfault at Logger delete
+  * Bugfixes, removed random freeze on remove request
+  * ioclient must setup ID if it wants blocked request
+  * Removed unneeded debug
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 18 Jan 2013 00:45:43 +0400
+
 elliptics (2.21.0.0) unstable; urgency=low
 
   * Added asynchronous client API to C++ binding
