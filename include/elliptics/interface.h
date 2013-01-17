@@ -560,6 +560,7 @@ static inline char *dnet_dump_id_len_raw(const unsigned char *id, unsigned int l
 		dst[2*i  ] = hex[id[i] >>  4];
 		dst[2*i+1] = hex[id[i] & 0xf];
 	}
+	dst[len] = '\0';
 	return dst;
 }
 
