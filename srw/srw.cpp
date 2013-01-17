@@ -184,17 +184,7 @@ class dnet_upstream_t: public cocaine::api::stream_t
 		}
 
 		~dnet_upstream_t() {
-			if (m_sph_flags & DNET_SPH_FLAGS_SRC_BLOCK) {
-				if (m_res.size()) {
-					m_cmd.flags &= ~DNET_FLAGS_NEED_ACK;
-					dnet_send_reply(m_state, &m_cmd, m_res.data(), m_res.size(), 0);
-				} else {
-					m_cmd.flags |= DNET_FLAGS_NEED_ACK;
-					dnet_send_ack(m_state, &m_cmd, m_error);
-				}
-			}
-
-			dnet_state_put(m_state);
+			reply(true, NULL, 0);
 		}
 
 		virtual void push(const char *chunk, size_t size) {
@@ -244,8 +234,21 @@ class dnet_upstream_t: public cocaine::api::stream_t
 				m_res.insert(m_res.end(), reply, reply + size);
 			}
 
-			if (completed) {
+			if (completed && m_state) {
 				boost::mutex::scoped_lock guard(m_lock);
+				if (m_state && (m_sph_flags & DNET_SPH_FLAGS_SRC_BLOCK)) {
+					if (m_res.size()) {
+						m_cmd.flags &= ~DNET_FLAGS_NEED_ACK;
+						dnet_send_reply(m_state, &m_cmd, m_res.data(), m_res.size(), 0);
+					} else {
+						m_cmd.flags |= DNET_FLAGS_NEED_ACK;
+						dnet_send_ack(m_state, &m_cmd, m_error);
+					}
+				}
+
+				dnet_state_put(m_state);
+				m_state = NULL;
+				m_res.clear();
 			}
 		}
 
