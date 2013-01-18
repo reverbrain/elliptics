@@ -370,11 +370,13 @@ class srw {
 					return -ENOENT;
 				}
 
-				it->second->reply(final, (char *)(sph + 1) + sph->event_size, sph->data_size + sph->binary_size);
+				dnet_shared_upstream_t upstream = it->second;
 				if (final)
 					m_jobs.erase(it);
 
 				guard.unlock();
+
+				upstream->reply(final, (char *)(sph + 1) + sph->event_size, sph->data_size + sph->binary_size);
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: completed: job: %d, total-size: %zd, finish: %d\n",
 						id_str, sph_str, event.c_str(), sph->src_key, total_size(sph), final);
@@ -398,9 +400,10 @@ class srw {
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK)
 					m_jobs.insert(std::make_pair((int)sph->src_key, upstream));
 
+				boost::shared_ptr<cocaine::app_t> app = it->second;
 				guard.unlock();
 
-				boost::shared_ptr<cocaine::api::stream_t> stream = it->second->enqueue(cevent, upstream);
+				boost::shared_ptr<cocaine::api::stream_t> stream = app->enqueue(cevent, upstream);
 				stream->push((const char *)sph, total_size(sph) + sizeof(struct sph));
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started: job: %d, total-size: %zd, block: %d\n",
