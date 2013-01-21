@@ -429,6 +429,7 @@ class node
 							int &log_level);
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
+		void			add_remote(const char *addr);
 
 		void			set_timeouts(const int wait_timeout, const int check_timeout);
 

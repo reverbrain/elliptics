@@ -677,7 +677,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 
 	class_<elliptics_node_python>("Node", init<logger>())
 		.def(init<logger, elliptics_config &>())
-		.def("add_remote", &node::add_remote,
+		.def("add_remote", static_cast<void (node::*)(const char*, int, int)>(&node::add_remote),
 			(arg("addr"), arg("port"), arg("family") = AF_INET))
 	;
 
