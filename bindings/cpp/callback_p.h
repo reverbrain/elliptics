@@ -896,7 +896,7 @@ class waiter
 
 	private:
 		std::mutex			m_mutex;
-		std::condition_variable	m_condition;
+		std::condition_variable		m_condition;
 		T				m_result;
 		bool				m_result_ready;
 };
