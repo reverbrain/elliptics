@@ -267,7 +267,7 @@ class stat_count_callback : public base_stat_callback<stat_count_result_entry, D
 class multigroup_callback
 {
 	public:
-		multigroup_callback(const session &sess) : sess(sess), m_at_iterator(false), m_group_index(0)
+		multigroup_callback(const session &sess) : sess(sess), m_group_index(0)
 		{
 		}
 
