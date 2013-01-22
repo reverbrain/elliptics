@@ -267,10 +267,17 @@ class stat_count_callback : public base_stat_callback<stat_count_result_entry, D
 class multigroup_callback
 {
 	public:
-		multigroup_callback(const session &sess) : sess(sess), at_iterator(false), index(0)
+		multigroup_callback(const session &sess) : sess(sess), m_at_iterator(false), m_group_index(0)
 		{
 		}
 
+		/*
+		 * Method is called by several ways:
+		 * 1. From the same thread as iterate_groups, in that case it's guaranteed
+		 * cb.handle to return false as cb::count is set to unlimited.
+		 * 2. From the i/o thread, then guaranteed that it's different from
+		 * iterate_groups's thread, so lock can't be dead one.
+		 */
 		bool handle(struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
 		{
 			if (cb.handle(state, cmd, func, priv)) {
@@ -285,17 +292,19 @@ class multigroup_callback
 			return false;
 		}
 
+		/*
+		 * Iterates through groups, it must be guaranteed that each thread
+		 * doesn't invoke this method recursivly.
+		 */
 		bool iterate_groups(complete_func func, void *priv)
 		{
-			if (at_iterator)
-				return false;
-			at_iterator = true;
+			std::lock_guard<std::mutex> lock(m_mutex);
 			// try next group
-			while (index < groups.size()) {
+			while (m_group_index < groups.size()) {
 				try {
 					struct dnet_id id = kid.id();
-					id.group_id = groups[index];
-					++index;
+					id.group_id = groups[m_group_index];
+					++m_group_index;
 					if (next_group(id, func, priv)) {
 						// all replies are received
 						if (check_answer()) {
@@ -306,7 +315,6 @@ class multigroup_callback
 							continue;
 						}
 					}
-					at_iterator = false;
 					// request is sent, wait results
 					return false;
 				} catch (std::exception &e) {
@@ -327,7 +335,6 @@ class multigroup_callback
 					}
 				}
 			}
-			at_iterator = false;
 			// there is no success :(
 			notify_about_error();
 			throw_error(-ENOENT, kid, "Something happened wrong");
@@ -343,8 +350,16 @@ class multigroup_callback
 		{
 			return cb.is_valid();
 		}
+
+		/*
+		 * Sends requests for current id.
+		 *
+		 * Returnes true, if all requests are completed, returnes false otherwise.
+		 */
 		virtual bool next_group(dnet_id &id, complete_func func, void *priv) = 0;
+
 		virtual void finish(std::exception_ptr exc) = 0;
+
 		virtual void notify_about_error() = 0;
 
 		session sess;
@@ -353,8 +368,8 @@ class multigroup_callback
 		std::vector<int> groups;
 
 	protected:
-		bool at_iterator;
-		size_t index;
+		std::mutex m_mutex;
+		size_t m_group_index;
 };
 
 class lookup_callback : public multigroup_callback
@@ -564,7 +579,7 @@ class read_bulk_callback : public read_callback
 			}
 
 			// all results are found or all groups are iterated
-			return ios_set.empty() || (index == groups.size());
+			return ios_set.empty() || (m_group_index == groups.size());
 		}
 
 		void finish(std::exception_ptr exc)
