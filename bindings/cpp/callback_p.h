@@ -188,7 +188,7 @@ class base_stat_callback : public default_callback
 
 		void finish(std::exception_ptr exc)
 		{
-			if (exc) {
+			if (exc != std::exception_ptr()) {
 				handler(exc);
 				return;
 			}
@@ -231,7 +231,8 @@ class stat_callback : public base_stat_callback<stat_result_entry, DNET_CMD_STAT
 	public:
 		typedef std::shared_ptr<stat_callback> ptr;
 
-		stat_callback(const session &sess) : base_stat_callback(sess)
+		stat_callback(const session &sess)
+		: base_stat_callback<stat_result_entry, DNET_CMD_STAT>(sess)
 		{
 		}
 
@@ -249,7 +250,8 @@ class stat_count_callback : public base_stat_callback<stat_count_result_entry, D
 	public:
 		typedef std::shared_ptr<stat_count_callback> ptr;
 
-		stat_count_callback(const session &sess) : base_stat_callback(sess)
+		stat_count_callback(const session &sess)
+		: base_stat_callback<stat_count_result_entry, DNET_CMD_STAT_COUNT>(sess)
 		{
 		}
 
@@ -376,7 +378,7 @@ class lookup_callback : public multigroup_callback
 
 		void finish(std::exception_ptr exc)
 		{
-			if (exc) {
+			if (exc != std::exception_ptr()) {
 				handler(exc);
 			} else {
 				lookup_result_entry result = cb.any_result<lookup_result_entry>();
@@ -423,7 +425,7 @@ class read_callback : public multigroup_callback
 
 		void finish(std::exception_ptr exc)
 		{
-			if (exc) {
+			if (exc != std::exception_ptr()) {
 				handler(exc);
 			} else {
 				std::vector<read_result_entry> results;
@@ -606,7 +608,7 @@ class cmd_callback : public default_callback
 
 		void finish(std::exception_ptr exc)
 		{
-			if (exc)
+			if (exc != std::exception_ptr())
 				handler(exc);
 			else
 				handler(results());
@@ -662,7 +664,7 @@ class prepare_latest_callback : public default_callback
 
 		void finish(std::exception_ptr exc)
 		{
-			if (exc) {
+			if (exc != std::exception_ptr()) {
 				handler(exc);
 			}
 
@@ -724,7 +726,7 @@ class write_callback : public default_callback
 
 		void finish(std::exception_ptr exc)
 		{
-			if (exc) {
+			if (exc != std::exception_ptr()) {
 				handler(exc);
 				return;
 			}
@@ -794,7 +796,7 @@ class remove_callback : public default_callback
 
 		void finish(std::exception_ptr exc)
 		{
-			if (exc) {
+			if (exc != std::exception_ptr()) {
 				handler(exc);
 				return;
 			}
@@ -824,7 +826,7 @@ class remove_callback : public default_callback
 
 inline void check_for_exception(const std::exception_ptr &result)
 {
-	if (result)
+	if (result != std::exception_ptr())
 		std::rethrow_exception(result);
 }
 
