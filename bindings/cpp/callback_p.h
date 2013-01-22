@@ -301,6 +301,9 @@ class multigroup_callback
 						if (check_answer()) {
 							// and information is ready
 							return true;
+						} else {
+							// but we need more data
+							continue;
 						}
 					}
 					at_iterator = false;
@@ -880,11 +883,9 @@ class waiter
 
 		void handle_result(const T &result)
 		{
-			{
-				std::lock_guard<std::mutex> locker(m_mutex);
-				m_result = result;
-				m_result_ready = true;
-			}
+			std::lock_guard<std::mutex> locker(m_mutex);
+			m_result = result;
+			m_result_ready = true;
 			m_condition.notify_all();
 		}
 
