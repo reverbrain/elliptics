@@ -193,7 +193,7 @@ class generic_result_holder
 		{
 			if (!m_data)
 				throw not_found_error("no data received");
-			else if (m_data->exception)
+			else if (m_data->exception != std::exception_ptr())
 				std::rethrow_exception(m_data->exception);
 		}
 

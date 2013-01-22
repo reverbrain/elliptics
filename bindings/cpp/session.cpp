@@ -241,7 +241,7 @@ struct results_to_result_proxy
 
 	void operator() (const read_results &results)
 	{
-		if (results.exception()) {
+		if (results.exception() != std::exception_ptr()) {
 			handler(results.exception());
 		} else {
 			handler(results[0]);
@@ -334,7 +334,7 @@ struct read_latest_callback
 
 	void operator() (const prepare_latest_result &result)
 	{
-		if (result.exception()) {
+		if (result.exception() != std::exception_ptr()) {
 			handler(result.exception());
 			return;
 		}
@@ -914,7 +914,7 @@ class read_data_range_callback
 		{
 			scope *d = data.get();
 
-			if (result.exception()) {
+			if (result.exception() != std::exception_ptr()) {
 				d->last_exception = result.exception();
 			} else {
 				size_t size = result.size();
@@ -974,7 +974,7 @@ class remove_data_range_callback : public read_data_range_callback
 		{
 			scope *d = data.get();
 
-			if (result.exception()) {
+			if (result.exception() != std::exception_ptr()) {
 				d->last_exception = result.exception();
 			} else if (result.size() > 0){
 				struct dnet_io_attr *rep = result[0].io_attribute();
@@ -1304,7 +1304,7 @@ class bulk_write_callback
 			std::lock_guard<std::mutex> lock(d->mutex);
 			++d->count;
 
-			if (result.exception()) {
+			if (result.exception() != std::exception_ptr()) {
 				d->exc = result.exception();
 			} else {
 				for (size_t i = 0; i < result.size(); ++i)
