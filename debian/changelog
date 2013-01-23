@@ -1,3 +1,14 @@
+elliptics (2.21.2.0) unstable; urgency=low
+
+  * Speed up read commands - use 1 data packet instead of data + ack
+  * Fixed multigroup callback
+  * Fixed groups iterating in cpp binding
+  * Added overload for node::add_remote
+  * Put reply/enqueue outside of the lock and use shared_ptr instead of iterator->shared_ptr
+  * Fixed 0-byte position in dnet_dump_id_len_raw()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 23 Jan 2013 21:51:39 +0400
+
 elliptics (2.21.1.0) unstable; urgency=low
 
   * Send reply back to blocked client not from upstream destructor, but when final reply message is received.

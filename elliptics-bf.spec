@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.21.1.0
+Version:	2.21.2.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jan 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.2.0
+- Speed up read commands - use 1 data packet instead of data + ack
+- Fixed multigroup callback
+- Fixed groups iterating in cpp binding
+- Added overload for node::add_remote
+- Put reply/enqueue outside of the lock and use shared_ptr instead of iterator->shared_ptr
+- Fixed 0-byte position in dnet_dump_id_len_raw()
+
 * Fri Jan 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.1.0
 - Send reply back to blocked client not from upstream destructor, but when final reply message is received.
 - Optimize string split and digit-to-string conversion
