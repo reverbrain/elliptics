@@ -404,7 +404,7 @@ static void memory_test_io(session &s, int num)
 			std::string res = s.read_data(id, 0, 0)->file().to_string();
 		} catch (const std::exception &e) {
 			std::cerr << "could not perform read/write: " << e.what() << std::endl;
-			if (!written.exception()) {
+			if (written.exception() == std::exception_ptr()) {
 				std::cerr << "but written successfully\n";
 				test_lookup_parse(id, written[0]);
 			}
