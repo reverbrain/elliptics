@@ -225,6 +225,8 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	}
 
 	io->size = size;
+	if (size)
+		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset, 0);
 
 	/* free compressed data */

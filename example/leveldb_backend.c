@@ -171,6 +171,8 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 		goto err_out_exit;
 
 	io->size = data_size;
+	if (data_size && data)
+		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	err = dnet_send_read_data(state, cmd, io, data, -1, io->offset, 0);
 	if (err)
 		goto err_out_free;
