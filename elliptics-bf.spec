@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.21.2.0
+Version:	2.20.2.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Jan 26 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.2.1
+- New eblob dependency
+
 * Wed Jan 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.2.0
 - Speed up read commands - use 1 data packet instead of data + ack
 - Fixed multigroup callback
