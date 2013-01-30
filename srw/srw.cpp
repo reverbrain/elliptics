@@ -185,17 +185,12 @@ class dnet_upstream_t: public cocaine::api::stream_t
 
 		~dnet_upstream_t() {
 			reply(true, NULL, 0);
+
+			dnet_state_put(m_state);
 		}
 
 		virtual void push(const char *chunk, size_t size) {
-			boost::mutex::scoped_lock guard(m_lock);
-			m_res.insert(m_res.end(), chunk, chunk + size);
-
-			std::ostringstream msg;
-			msg << "received reply chunk: size: " << size << ", data: '" << chunk << "', " <<
-				"accumulated-reply-size: " << m_res.size() << std::endl;
-
-			srw_log log(m_s, DNET_LOG_NOTICE, "app/" + m_name, msg.str());
+			reply(false, chunk, size);
 		}
 
 		static std::string lexical_cast(size_t value) {
@@ -219,8 +214,7 @@ class dnet_upstream_t: public cocaine::api::stream_t
 		}
 
 		virtual void close(void) {
-			srw_log log(m_s, DNET_LOG_NOTICE, "app/" + m_name, "job completed, data size: " +
-					lexical_cast(m_res.size()));
+			srw_log log(m_s, DNET_LOG_NOTICE, "app/" + m_name, "job completed");
 		}
 
 		virtual void error(cocaine::error_code code, const std::string &message) {
@@ -229,38 +223,28 @@ class dnet_upstream_t: public cocaine::api::stream_t
 		}
 
 		void reply(bool completed, const char *reply, size_t size) {
-			if (reply && size) {
-				boost::mutex::scoped_lock guard(m_lock);
-				m_res.insert(m_res.end(), reply, reply + size);
-			}
+			boost::mutex::scoped_lock guard(m_lock);
+			if (m_completed)
+				return;
 
-			if (completed && m_state) {
-				boost::mutex::scoped_lock guard(m_lock);
-				if (m_state && (m_sph_flags & DNET_SPH_FLAGS_SRC_BLOCK)) {
-					if (m_res.size()) {
+			m_completed = completed;
+
+			if ((m_sph_flags & DNET_SPH_FLAGS_SRC_BLOCK) || (reply && size)) {
+				if (reply && size) {
+					if (completed)
 						m_cmd.flags &= ~DNET_FLAGS_NEED_ACK;
-						dnet_send_reply(m_state, &m_cmd, m_res.data(), m_res.size(), 0);
-					} else {
-						m_cmd.flags |= DNET_FLAGS_NEED_ACK;
-						dnet_send_ack(m_state, &m_cmd, m_error);
-					}
+					dnet_send_reply(m_state, &m_cmd, (void *)reply, size, !completed);
+				} else if (completed) {
+					m_cmd.flags |= DNET_FLAGS_NEED_ACK;
+					dnet_send_ack(m_state, &m_cmd, m_error);
 				}
-
-				dnet_state_put(m_state);
-				m_state = NULL;
-				m_res.clear();
 			}
-		}
-
-		std::vector<char> &result(void) {
-			return m_res;
 		}
 
 	private:
 		bool m_completed;
 		std::string m_name;
 		struct dnet_session *m_s;
-		std::vector<char> m_res;
 		boost::mutex m_lock;
 		struct dnet_net_state *m_state;
 		struct dnet_cmd m_cmd;
@@ -359,7 +343,7 @@ class srw {
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: info: %s\n", id_str, sph_str, event.c_str(), s.c_str());
 				err = dnet_send_reply(st, cmd, (void *)s.data(), s.size(), 0);
 			} else if (sph->flags & (DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH)) {
-				bool final = sph->flags & DNET_SPH_FLAGS_FINISH;
+				bool final = !!(sph->flags & DNET_SPH_FLAGS_FINISH);
 
 				boost::mutex::scoped_lock guard(m_lock);
 
