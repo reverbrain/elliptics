@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.21.2.1
+Version:	2.21.2.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jan 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.2.2
+- Added signal blockers per threads
+- Do not collect reply messages in srw, send reply to client as soon as it was received by server.
+- Depend on 0.18.1+ eblob
+
 * Sat Jan 26 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.2.1
 - New eblob dependency
 - Do not build older elliptics versions

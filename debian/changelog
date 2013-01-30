@@ -1,3 +1,11 @@
+elliptics (2.21.2.2) unstable; urgency=low
+
+  * Added signal blockers per threads
+  * Do not collect reply messages in srw, send reply to client as soon as it was received by server.
+  * Depend on 0.18.1+ eblob
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 30 Jan 2013 23:53:30 +0400
+
 elliptics (2.21.2.1) unstable; urgency=low
 
   * New eblob dependency
