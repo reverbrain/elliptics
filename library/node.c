@@ -487,6 +487,15 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	struct dnet_node *n;
 	int err = -ENOMEM;
 
+	sigset_t previous_sigset;
+	sigset_t sigset;
+	sigemptyset(&sigset);
+	sigaddset(&sigset, SIGINT);
+	sigaddset(&sigset, SIGTERM);
+	sigaddset(&sigset, SIGALRM);
+	sigaddset(&sigset, SIGQUIT);
+	pthread_sigmask(SIG_BLOCK, &sigset, &previous_sigset);
+
 	srand(time(NULL));
 
 	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->cb)) {
@@ -603,6 +612,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		goto err_out_io_exit;
 
 	dnet_log(n, DNET_LOG_DEBUG, "New node has been created at %s.\n", dnet_dump_node(n));
+	pthread_sigmask(SIG_BLOCK, &previous_sigset, NULL);
 	return n;
 
 err_out_io_exit:
@@ -612,6 +622,8 @@ err_out_crypto_cleanup:
 err_out_free:
 	free(n);
 err_out_exit:
+	pthread_sigmask(SIG_BLOCK, &previous_sigset, NULL);
+
 	if (cfg->log && cfg->log->log)
 		cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Error during node creation.\n");
 
