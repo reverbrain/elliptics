@@ -174,6 +174,15 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 	int id_num = 0;
 	int err = -ENOMEM;
 
+	sigset_t previous_sigset;
+	sigset_t sigset;
+	sigemptyset(&sigset);
+	sigaddset(&sigset, SIGINT);
+	sigaddset(&sigset, SIGTERM);
+	sigaddset(&sigset, SIGALRM);
+	sigaddset(&sigset, SIGQUIT);
+	pthread_sigmask(SIG_BLOCK, &sigset, &previous_sigset);
+
 	n = dnet_node_create(cfg);
 	if (!n)
 		goto err_out_exit;
@@ -234,6 +243,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 	dnet_log(n, DNET_LOG_DEBUG, "New server node has been created at %s, ids: %d.\n",
 			dnet_dump_node(n), id_num);
 
+	pthread_sigmask(SIG_BLOCK, &previous_sigset, NULL);
 	return n;
 
 err_out_state_destroy:
@@ -250,6 +260,7 @@ err_out_notify_exit:
 err_out_node_destroy:
 	dnet_node_destroy(n);
 err_out_exit:
+	pthread_sigmask(SIG_BLOCK, &previous_sigset, NULL);
 	return NULL;
 }
 
