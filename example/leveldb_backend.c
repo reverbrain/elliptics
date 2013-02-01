@@ -167,8 +167,11 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 	dnet_convert_io_attr(io);
 
 	data = leveldb_get(s->db, s->roptions, (const char *)io->id, DNET_ID_SIZE, &data_size, &errp);
-	if (errp || !data)
+	if (errp || !data) {
+		if (!data)
+			*errp = -ENOENT;
 		goto err_out_exit;
+	}
 
 	io->size = data_size;
 	if (data_size && data)
