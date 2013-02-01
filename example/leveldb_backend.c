@@ -115,18 +115,22 @@ static int leveldb_backend_lookup(struct leveldb_backend *s __unused, void *stat
 static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_node *n = dnet_get_node_from_state(state);
-	int err = -2;
-	char *errp = NULL;
+	int err = -EINVAL;
+	char *error_string = NULL;
 	struct dnet_io_attr *io = data;
 	struct dnet_file_info *info;
 	struct dnet_addr_attr *a;
 
 	dnet_convert_io_attr(io);
+	if (io->offset) {
+		err = -ERANGE;
+		goto err_out_exit;
+	}
 	
 	data += sizeof(struct dnet_io_attr);
 
-	leveldb_put(s->db, s->woptions, (const char *)cmd->id.id, DNET_ID_SIZE, data, io->size, &errp);
-	if (errp)
+	leveldb_put(s->db, s->woptions, (const char *)cmd->id.id, DNET_ID_SIZE, data, io->size, &error_string);
+	if (error_string)
 		goto err_out_exit;
 
 	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info));
@@ -145,14 +149,17 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	dnet_convert_file_info(info);
 
 	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info), 0);
+	if (err < 0)
+		goto err_out_exit;
 
-	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : WRITE: Ok: offset: %llu, size: %llu.\n",
-			dnet_dump_id(&cmd->id), (unsigned long long)io->offset, (unsigned long long)io->size);
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : WRITE: Ok: size: %llu.\n",
+			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 
-	return err;
 err_out_exit:
-	dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: : WRITE: error: %s.\n",
-			dnet_dump_id(&cmd->id), errp);
+	if (err < 0)
+		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: : WRITE: error: %s: %d.\n",
+			dnet_dump_id(&cmd->id), error_string, err);
+	free(error_string);
 	return err;
 }
 
@@ -161,15 +168,19 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 	struct dnet_io_attr *io = iodata;
 	char *data;
 	size_t data_size;
-	int err = -1;
-	char *errp = NULL;
+	int err = -EINVAL;
+	char *error_string = NULL;
 
 	dnet_convert_io_attr(io);
+	if (io->size || io->offset) {
+		err = -ERANGE;
+		goto err_out_exit;
+	}
 
-	data = leveldb_get(s->db, s->roptions, (const char *)io->id, DNET_ID_SIZE, &data_size, &errp);
-	if (errp || !data) {
+	data = leveldb_get(s->db, s->roptions, (const char *)io->id, DNET_ID_SIZE, &data_size, &error_string);
+	if (error_string || !data) {
 		if (!data)
-			*errp = -ENOENT;
+			err = -ENOENT;
 		goto err_out_exit;
 	}
 
@@ -177,36 +188,41 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 	if (data_size && data)
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	err = dnet_send_read_data(state, cmd, io, data, -1, io->offset, 0);
-	if (err)
+	if (err < 0)
 		goto err_out_free;
+
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : READ: Ok: size: %llu.\n",
+			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 
 err_out_free:
 	free(data);
 err_out_exit:
 	if (err < 0)
-		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: READ: error: %s\n",
-			dnet_dump_id(&cmd->id), errp);
+		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: READ: error: %s: %d\n",
+			dnet_dump_id(&cmd->id), error_string, err);
+
+	free(error_string);
 	return err;
 }
 
 static int leveldb_backend_remove(struct leveldb_backend *s, void *state __unused, struct dnet_cmd *cmd, void *data __unused)
 {
-	char *errp = NULL;
+	char *error_string = NULL;
 
-	leveldb_delete(s->db, s->woptions, (const char *)cmd->id.id, DNET_ID_SIZE, &errp);
-	if (errp) {
-		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: REMOVE: error: %s",
-				dnet_dump_id(&cmd->id), errp);
-		return -2;
+	leveldb_delete(s->db, s->woptions, (const char *)cmd->id.id, DNET_ID_SIZE, &error_string);
+	if (error_string) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: REMOVE: error: %s\n",
+				dnet_dump_id(&cmd->id), error_string);
+		free(error_string);
+		return -ENOENT;
 	}
 
 	return 0;
 }
 
-/*
 static int leveldb_backend_bulk_read(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *data)
 {
-	int err = -1, ret;
+	int err = -ENOENT, ret;
 	struct dnet_io_attr *io = data;
 	struct dnet_io_attr *ios = io+1;
 	uint64_t count = 0;
@@ -219,18 +235,17 @@ static int leveldb_backend_bulk_read(struct leveldb_backend *s, void *state, str
 		ret = leveldb_backend_read(s, state, cmd, &ios[i]);
 		if (!ret)
 			err = 0;
-		else if (err == -1)
+		else if (err == -ENOENT)
 			err = ret;
 	}
 
 	return err;
 }
-*/
 
 static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *data)
 {
 	int err = -ENOENT;
-	char * errp = NULL;
+	char * error_string = NULL;
 	struct dnet_io_attr *io = data;
 	struct dnet_io_attr dst_io;
 	unsigned i = 0, j = 0;
@@ -269,11 +284,12 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 				err = dnet_send_read_data(state, cmd, &dst_io, (char*)val, -1, 0, 0);
 				break;
 			case DNET_CMD_DEL_RANGE:
-				leveldb_delete(s->db, s->woptions, key, size, &errp);
-				if (errp) {
+				leveldb_delete(s->db, s->woptions, key, size, &error_string);
+				if (error_string) {
 					dnet_backend_log(DNET_LOG_ERROR, "%s: LEVELDB: REMOVE: error: %s",
-					                 dnet_dump_id_str((const unsigned char*)key), errp);
+					                 dnet_dump_id_str((const unsigned char*)key), error_string);
 					err = -ENOENT;
+					free(error_string);
 				}
 				break;
 		}
@@ -324,9 +340,9 @@ static int leveldb_backend_command_handler(void *state, void *priv, struct dnet_
 		case DNET_CMD_READ_RANGE:
 			err = leveldb_backend_range_read(s, state, cmd, data);
 			break;
-//		case DNET_CMD_BULK_READ:
-//			err = leveldb_backend_bulk_read(s, state, cmd, data);
-//			break;
+		case DNET_CMD_BULK_READ:
+			err = leveldb_backend_bulk_read(s, state, cmd, data);
+			break;
 		default:
 			err = -ENOTSUP;
 			break;
@@ -586,7 +602,7 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 {
 	struct leveldb_backend *s = b->data;
 	int err;
-	char *errp = NULL;
+	char *error_string = NULL;
 	char *hpath;
 	int hlen;
 
@@ -682,14 +698,17 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 
 	leveldb_writeoptions_set_sync(s->woptions, s->sync);
 
-	s->db = leveldb_open(s->options, s->path, &errp);
-	if (!s->db || errp)
+	s->db = leveldb_open(s->options, s->path, &error_string);
+	if (!s->db || error_string) {
+		dnet_backend_log(DNET_LOG_ERROR, "leveldb: failed to open leveldb: %s\n", error_string);
 		goto err_out_write_options_cleanup;
+	}
 
 	return 0;
 
 	leveldb_close(s->db);
 err_out_write_options_cleanup:
+	free(error_string);
 	leveldb_writeoptions_destroy(s->woptions);
 err_out_read_options_cleanup:
 	leveldb_readoptions_destroy(s->roptions);
