@@ -16,7 +16,6 @@ STRING (REGEX MATCH "([0-9]+\\.[0-9]+$)" ELLIPTICS_VERSION_MINOR "${DEBFULLVERSI
 option(WITH_PYTHON "Build python bindings" ON)
 option(WITH_COCAINE "Build with cocaine support" ON)
 option(WITH_EXAMPLES "Build example applications" ON)
-option(WITH_SMACK "Build ioserv with smack backend" ON)
 option(WITH_LEVELDB "Build ioserv with LevelDB backend" ON)
 
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
@@ -75,12 +74,6 @@ endif()
 # Find eblob
 find_package(Eblob REQUIRED)
 include_directories(${EBLOB_INCLUDE_DIRS})
-
-if(WITH_SMACK)
-    # Find smack
-    find_package(Smack REQUIRED)
-    include_directories(${SMACK_INCLUDE_DIRS})
-endif()
 
 if(WITH_LEVELDB)
     # Find LevelDB
