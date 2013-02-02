@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.21.2.2
+Version:	2.21.3.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Feb 02 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.3.0
+- Sync error codes used in other backends.
+- elliptics-dev/dbg must depend on elliptics with the same version
+- Get rid of smack backend in favour of leveldb
+- Updated leveldb backend config
+
 * Wed Jan 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.2.2
 - Added signal blockers per threads
 - Do not collect reply messages in srw, send reply to client as soon as it was received by server.

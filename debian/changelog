@@ -1,3 +1,12 @@
+elliptics (2.21.3.0) unstable; urgency=low
+
+  * Sync error codes used in other backends.
+  * elliptics-dev/dbg must depend on elliptics with the same version
+  * Get rid of smack backend in favour of leveldb
+  * Updated leveldb backend config
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 02 Feb 2013 20:38:38 +0400
+
 elliptics (2.21.2.2) unstable; urgency=low
 
   * Added signal blockers per threads
