@@ -697,9 +697,9 @@ class prepare_latest_callback : public default_callback
 			std::sort(entries.begin(), entries.end());
 
 			for (size_t i = 1; i < entries.size(); ++i) {
-				if (entries[i].id->group_id == group_id
-					&& entries[i] == entries[0]) {
+				if (entries[i].id->group_id == group_id	&& entries[i] == entries[0]) {
 					std::swap(entries[i], entries[0]);
+					break;
 				}
 			}
 
