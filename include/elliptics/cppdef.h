@@ -238,8 +238,8 @@ class array_result_holder : public generic_result_holder
 		const T &operator[] (size_t index) const { check(); return d_func()->result[index]; }
 		size_t size() const { if (!d_func()) return 0; check(); return d_func()->result.size(); }
 
-		operator std::vector<int> &() { check(); return d_func()->result; }
-		operator const std::vector<int> &() const { check(); return d_func()->result; }
+		operator std::vector<T> &() { check(); return d_func()->result; }
+		operator const std::vector<T> &() const { check(); return d_func()->result; }
 
 	private:
 		class data : public generic_data
