@@ -17,7 +17,7 @@
 #ifndef CALLBACK_P_H
 #define CALLBACK_P_H
 
-#include "elliptics/cppdef.h"
+#include "../../include/elliptics/cppdef.h"
 
 #include <exception>
 #include <set>
@@ -183,7 +183,7 @@ class base_stat_callback : public default_callback
 				throw_error(err, "Failed to request statistics");
 			}
 
-			return set_count(1);
+			return set_count(err);
 		}
 
 		void finish(std::exception_ptr exc)
