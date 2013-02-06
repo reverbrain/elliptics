@@ -1,3 +1,11 @@
+elliptics (2.21.3.1) unstable; urgency=low
+
+  * Fixed statistics behaviour in cpp module
+  * array_result_holder should return vector of templated types, not ints
+  * prepare_latest_callback() should break after it found entry in sorted array with dnet_id->group_id and swapped it with the first one
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 06 Feb 2013 21:00:28 +0400
+
 elliptics (2.21.3.0) unstable; urgency=low
 
   * Sync error codes used in other backends.

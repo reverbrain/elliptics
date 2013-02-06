@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.21.3.0
+Version:	2.21.3.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Feb 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.3.1
+- Fixed statistics behaviour in cpp module
+- array_result_holder should return vector of templated types, not ints
+- prepare_latest_callback() should break after it found entry in sorted array with dnet_id->group_id and swapped it with the first one
+
 * Sat Feb 02 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.3.0
 - Sync error codes used in other backends.
 - elliptics-dev/dbg must depend on elliptics with the same version
