@@ -75,7 +75,7 @@ static void dnet_usage(char *p)
 			, p);
 }
 
-key create_id(unsigned char *id, const char *file_name, int type)
+static key create_id(unsigned char *id, const char *file_name, int type)
 {
 	if (id) {
 		struct dnet_id raw;
@@ -319,11 +319,66 @@ int main(int argc, char *argv[])
 		if (lookup)
 			s.lookup(std::string(lookup));
 
-		if (vfs_stat)
-			s.stat_log();
+		if (vfs_stat) {
+			float la[3];
+			stat_result results = s.stat_log();
 
-		if (io_counter_stat)
-			s.stat_log_count();
+			for (size_t i = 0; i < results.size(); ++i) {
+				const stat_result_entry &result = results[i];
+				dnet_cmd *cmd = result.command();
+				dnet_addr *addr = result.address();
+				dnet_stat *st = result.statistics();
+
+				la[0] = (float)st->la[0] / 100.0;
+				la[1] = (float)st->la[1] / 100.0;
+				la[2] = (float)st->la[2] / 100.0;
+
+				dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: la: %.2f %.2f %.2f.\n",
+						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
+						la[0], la[1], la[2]);
+				dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: mem: "
+						"total: %llu kB, free: %llu kB, cache: %llu kB.\n",
+						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
+						(unsigned long long)st->vm_total,
+						(unsigned long long)st->vm_free,
+						(unsigned long long)st->vm_cached);
+				dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: fs: "
+						"total: %llu mB, avail: %llu mB, files: %llu, fsid: %llx.\n",
+						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
+						(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
+						(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),
+						(unsigned long long)st->files, (unsigned long long)st->fsid);
+			}
+		}
+
+		if (io_counter_stat) {
+			stat_count_result results = s.stat_log_count();
+
+			for (size_t i = 0; i < results.size(); ++i) {
+				const stat_count_result_entry &result = results[i];
+				dnet_cmd *cmd = result.command();
+				dnet_addr *addr = result.address();
+				dnet_addr_stat *as = result.statistics();
+
+				for (int j = 0; j < as->num; ++j) {
+					if (as->num > as->cmd_num) {
+						if (j == 0)
+							dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Storage commands\n",
+								dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
+						if (j == as->cmd_num)
+							dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Proxy commands\n",
+								dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
+						if (j == as->cmd_num * 2)
+							dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Counters\n",
+								dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
+					}
+					dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s:    cmd: %s, count: %llu, err: %llu\n",
+							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
+							dnet_counter_string(j, as->cmd_num),
+							(unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
+				}
+			}
+		}
 
 		if (update_status) {
 			for (i = 0; i < have_remote; ++i) {
