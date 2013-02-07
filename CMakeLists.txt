@@ -29,6 +29,13 @@ include(TestBigEndian)
 include(CheckProcStats)
 include(CreateStdint)
 
+configure_file(cmake/EllipticsConfig.cmake.in
+                "${PROJECT_BINARY_DIR}/cmake/EllipticsConfig.cmake"
+                @ONLY)
+configure_file(cmake/EllipticsConfigVersion.cmake.in
+                "${PROJECT_BINARY_DIR}/cmake/EllipticsConfigVersion.cmake"
+                @ONLY)
+
 create_stdint(${CMAKE_BINARY_DIR}/include/elliptics/typedefs.h)
 include_directories(${CMAKE_BINARY_DIR}/include/)
 
@@ -117,4 +124,10 @@ install(FILES
         include/elliptics/srw.h
         ${CMAKE_BINARY_DIR}/include/elliptics/typedefs.h
         DESTINATION include/elliptics/
+        )
+
+install(FILES
+        ${PROJECT_BINARY_DIR}/cmake/EllipticsConfig.cmake
+        ${PROJECT_BINARY_DIR}/cmake/EllipticsConfigVersion.cmake
+        DESTINATION lib/CMake/Elliptics/ COMPONENT dev
         )

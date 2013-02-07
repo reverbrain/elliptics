@@ -1,0 +1,2 @@
+set(Elliptics_INCLUDE_DIRS ${PREFIX}/include)
+set(Elliptics_LIBRARIES ${PREFIX}/lib/libelliptics_client.so.@ELLIPTICS_VERSION_ABI@)
