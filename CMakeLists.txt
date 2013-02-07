@@ -129,5 +129,5 @@ install(FILES
 install(FILES
         ${PROJECT_BINARY_DIR}/cmake/EllipticsConfig.cmake
         ${PROJECT_BINARY_DIR}/cmake/EllipticsConfigVersion.cmake
-        DESTINATION lib/CMake/Elliptics/ COMPONENT dev
+        DESTINATION lib/cmake/Elliptics/ COMPONENT dev
         )
