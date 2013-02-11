@@ -650,9 +650,9 @@ class prepare_latest_callback : public default_callback
 
 				bool operator <(const entry &other) const
 				{
-					return (fi->mtime.tsec < other.fi->mtime.tsec)
+					return (fi->mtime.tsec > other.fi->mtime.tsec)
 						|| (fi->mtime.tsec == other.fi->mtime.tsec
-							&& (fi->mtime.tnsec < other.fi->mtime.tnsec));
+							&& (fi->mtime.tnsec > other.fi->mtime.tnsec));
 				}
 
 				bool operator ==(const entry &other) const
