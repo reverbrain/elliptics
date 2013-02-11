@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.21.3.1
+Version:	2.21.3.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Feb 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.3.2
+- Fixed read_latest method
+- Added wireshark dissector
+- Fixed cmake package config directory name
+- Fixed packages depends
+- Install cmake package config with elliptics-dev package
+- Create cmake package config
+
 * Wed Feb 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.3.1
 - Fixed statistics behaviour in cpp module
 - array_result_holder should return vector of templated types, not ints
