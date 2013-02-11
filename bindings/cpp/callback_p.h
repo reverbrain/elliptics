@@ -650,9 +650,9 @@ class prepare_latest_callback : public default_callback
 
 				bool operator <(const entry &other) const
 				{
-					return (fi->mtime.tsec < other.fi->mtime.tsec)
+					return (fi->mtime.tsec > other.fi->mtime.tsec)
 						|| (fi->mtime.tsec == other.fi->mtime.tsec
-							&& (fi->mtime.tnsec < other.fi->mtime.tnsec));
+							&& (fi->mtime.tnsec > other.fi->mtime.tnsec));
 				}
 
 				bool operator ==(const entry &other) const
@@ -686,12 +686,13 @@ class prepare_latest_callback : public default_callback
 				handler(exc);
 			}
 
-			std::vector<entry> entries(results().size());
-			for (size_t i = 0; i < entries.size(); ++i) {
-				entry &e = entries[i];
+			std::vector<entry> entries;
+			for (size_t i = 0; i < results_size(); ++i) {
 				const lookup_result_entry &le = result_at<lookup_result_entry>(i);
-				e.fi = le.file_info();
-				e.id = &le.command()->id;
+				if (le.size() < sizeof(dnet_addr_attr) + sizeof(dnet_file_info))
+					continue;
+				entry e = { &le.command()->id, le.file_info() };
+				entries.push_back(e);
 			}
 
 			std::sort(entries.begin(), entries.end());
