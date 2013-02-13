@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.2.0
+Version:	2.20.3.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Feb 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.3.0
+- Depend on eblob 0.18.2+, dev/dbg packets should only depend on client package
+
 * Sat Jan 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.2.0
 - Removed app_watcher class
 - Do not use app_watcher blocking helper - enqueue directly.

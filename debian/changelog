@@ -1,3 +1,9 @@
+elliptics (2.20.3.0) unstable; urgency=low
+
+  * Depend on eblob 0.18.2+, dev/dbg packets should only depend on client package
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Feb 2013 17:36:25 +0400
+
 elliptics (2.20.2.0) unstable; urgency=low
 
   * Removed app_watcher class
