@@ -44,7 +44,6 @@ struct leveldb_backend
 {
 	int			sync;
 	struct eblob_log	elog;
-	struct eblob_backend	*meta;
 
 	size_t			cache_size;
 	size_t			write_buffer_size;
@@ -505,33 +504,11 @@ int leveldb_backend_storage_stat(void *priv, struct dnet_stat *st)
 
 static void dnet_leveldb_db_cleanup(struct leveldb_backend *s)
 {
-	eblob_cleanup(s->meta);
 }
 
 static int dnet_leveldb_db_init(struct leveldb_backend *s, struct dnet_config *c, const char *path)
 {
-	static char meta_path[300];
-	struct eblob_config ecfg;
-	int err = 0;
-
-	snprintf(meta_path, sizeof(meta_path), "%s/meta", path);
-
-	memset(&ecfg, 0, sizeof(ecfg));
-	ecfg.file = meta_path;
-	ecfg.sync = 300;
-	ecfg.blob_flags = EBLOB_RESERVE_10_PERCENTS | EBLOB_TRY_OVERWRITE | EBLOB_NO_FOOTER;
-	ecfg.blob_size = 10LLU*1024*1024;
-	ecfg.defrag_percentage = 25;
-	ecfg.defrag_timeout = 3600;
-	ecfg.log = (struct eblob_log *)c->log;
-
-	s->meta = eblob_init(&ecfg);
-	if (!s->meta) {
-		err = -EINVAL;
-		dnet_backend_log(DNET_LOG_ERROR, "Failed to initialize metadata eblob\n");
-	}
-
-	return err;
+	return 0;
 }
 
 static void leveldb_backend_cleanup(void *priv)
@@ -553,29 +530,25 @@ static void leveldb_backend_cleanup(void *priv)
 
 static ssize_t dnet_leveldb_db_read(void *priv, struct dnet_raw_id *id, void **datap)
 {
-	struct leveldb_backend *s = priv;
-	return dnet_db_read_raw(s->meta, id, datap);
+	return -ENOTSUP;
 }
 
 static int dnet_leveldb_db_write(void *priv, struct dnet_raw_id *id, void *data, size_t size)
 {
-	struct leveldb_backend *s = priv;
-	return dnet_db_write_raw(s->meta, id, data, size);
+	return -ENOTSUP;
 }
 
 static int dnet_leveldb_db_remove(void *priv, struct dnet_raw_id *id, int real_del)
 {
-	struct leveldb_backend *s = priv;
-	return dnet_db_remove_raw(s->meta, id, real_del);
+	return -ENOTSUP;
 }
 
 static int dnet_leveldb_db_iterate(struct dnet_iterate_ctl *ctl)
 {
-	struct leveldb_backend *s = ctl->iterate_private;
-	return dnet_db_iterate(s->meta, ctl);
+	return -ENOTSUP;
 }
 
-static long long smack_total_elements(void *priv)
+static long long dnet_leveldb_total_elements(void *priv)
 {
 	struct leveldb_backend *s = priv;
 	char *prop;
@@ -638,7 +611,7 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 	b->cb.meta_read = dnet_leveldb_db_read;
 	b->cb.meta_write = dnet_leveldb_db_write;
 	b->cb.meta_remove = dnet_leveldb_db_remove;
-	b->cb.meta_total_elements = smack_total_elements;
+	b->cb.meta_total_elements = dnet_leveldb_total_elements;
 	b->cb.meta_iterate = dnet_leveldb_db_iterate;
 
 	snprintf(hpath, hlen, "%s/history", s->path);
