@@ -45,14 +45,9 @@ node::node(const logger &l) : m_data(new node_data)
 
 	memset(&cfg, 0, sizeof(cfg));
 
-	cfg.sock_type = SOCK_STREAM;
-	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 5;
 	cfg.check_timeout = 20;
 	cfg.log = m_data->log.get_native();
-
-	snprintf(cfg.addr, sizeof(cfg.addr), "0.0.0.0");
-	snprintf(cfg.port, sizeof(cfg.port), "0");
 
 	m_data->node_ptr = dnet_node_create(&cfg);
 	if (!m_data->node_ptr) {
@@ -64,12 +59,7 @@ node::node(const logger &l, struct dnet_config &cfg) : m_data(new node_data)
 {
 	m_data->log = l;
 
-	cfg.sock_type = SOCK_STREAM;
-	cfg.proto = IPPROTO_TCP;
 	cfg.log = m_data->log.get_native();
-
-	snprintf(cfg.addr, sizeof(cfg.addr), "0.0.0.0");
-	snprintf(cfg.port, sizeof(cfg.port), "0");
 
 	m_data->node_ptr = dnet_node_create(&cfg);
 	if (!m_data->node_ptr) {
@@ -84,8 +74,6 @@ node::node(const logger &l, const std::string &config_path) : m_data(new node_da
 	struct dnet_config cfg;
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
-	cfg.sock_type = SOCK_STREAM;
-	cfg.proto = IPPROTO_TCP;
 	cfg.log = m_data->log.get_native();
 
 	std::list<address> remotes;
@@ -156,8 +144,12 @@ void node::parse_config(const std::string &path, struct dnet_config &cfg,
 			boost::split(rem, value, boost::is_any_of(" "));
 
 			for (std::vector<std::string>::iterator it = rem.begin(); it != rem.end(); ++it) {
+				int remote_port, remote_family;
+
 				std::string addr_str = *it;
-				if (dnet_parse_addr((char *)addr_str.c_str(), &cfg)) {
+
+				/* XXX: modifies addr_str's content in place */
+				if (dnet_parse_addr((char *)addr_str.c_str(), &remote_port, &remote_family)) {
 					throw_error(-EIO, "%s: invalid elliptics config: '%s' "
 						"%s: invalid elliptics config: line: %d, "
 						"key: '%s': remote addr is invalid",
@@ -165,7 +157,7 @@ void node::parse_config(const std::string &path, struct dnet_config &cfg,
 						line_num, key.c_str());
 				}
 
-				address addr(cfg.addr, atoi(cfg.port), cfg.family);
+				address addr((char *)addr_str.c_str(), remote_port, remote_family);
 				remotes.push_back(addr);
 			}
 		}
@@ -193,16 +185,9 @@ void node::parse_config(const std::string &path, struct dnet_config &cfg,
 
 void node::add_remote(const char *addr, const int port, const int family)
 {
-	struct dnet_config cfg;
 	int err;
 
-	memset(&cfg, 0, sizeof(cfg));
-
-	cfg.family = family;
-	snprintf(cfg.addr, sizeof(cfg.addr), "%s", addr);
-	snprintf(cfg.port, sizeof(cfg.port), "%d", port);
-
-	err = dnet_add_state(m_data->node_ptr, &cfg);
+	err = dnet_add_state(m_data->node_ptr, (char *)addr, port, family, 0);
 	if (err) {
 		throw_error(err, "Failed to add remote addr %s:%d", addr, port);
 	}
@@ -210,14 +195,13 @@ void node::add_remote(const char *addr, const int port, const int family)
 
 void node::add_remote(const char *addr)
 {
-	struct dnet_config cfg;
-	memset(&cfg, 0, sizeof(cfg));
+	int port, family;
 
-	int err = dnet_parse_addr(const_cast<char*>(addr), &cfg);
+	int err = dnet_parse_addr(const_cast<char*>(addr), &port, &family);
 	if (err)
 		throw_error(err, "Failed to parse remote addr %s", addr);
 
-	err = dnet_add_state(m_data->node_ptr, &cfg);
+	err = dnet_add_state(m_data->node_ptr, const_cast<char *>(addr), port, family, 0);
 	if (err)
 		throw_error(err, "Failed to add remote addr %s", addr);
 }

@@ -199,7 +199,8 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 struct dnet_addr
 {
 	uint8_t			addr[DNET_ADDR_SIZE];
-	uint32_t		addr_len;
+	uint16_t		addr_len;
+	uint16_t		family;
 } __attribute__ ((packed));
 
 struct dnet_list
@@ -215,32 +216,22 @@ static inline void dnet_convert_list(struct dnet_list *l)
 	l->size = dnet_bswap32(l->size);
 }
 
-struct dnet_addr_attr
+static inline void dnet_convert_addr(struct dnet_addr *addr)
 {
-	uint16_t		sock_type;
-	uint16_t		family;
-	uint32_t		proto;
-	struct dnet_addr	addr;
-} __attribute__ ((packed));
-
-static inline void dnet_convert_addr_attr(struct dnet_addr_attr *a)
-{
-	a->addr.addr_len = dnet_bswap32(a->addr.addr_len);
-	a->proto = dnet_bswap32(a->proto);
-	a->sock_type = dnet_bswap16(a->sock_type);
-	a->family = dnet_bswap16(a->family);
+	addr->addr_len = dnet_bswap16(addr->addr_len);
+	addr->family = dnet_bswap16(addr->family);
 }
 
 struct dnet_addr_cmd
 {
 	struct dnet_cmd		cmd;
-	struct dnet_addr_attr	addr;
+	struct dnet_addr	addr;
 } __attribute__ ((packed));
 
 static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 {
 	dnet_convert_cmd(&l->cmd);
-	dnet_convert_addr_attr(&l->addr);
+	dnet_convert_addr(&l->addr);
 }
 
 /* Do not update history for given transaction */
@@ -456,13 +447,13 @@ static inline void dnet_convert_stat(struct dnet_stat *st)
 
 struct dnet_io_notification
 {
-	struct dnet_addr_attr		addr;
+	struct dnet_addr		addr;
 	struct dnet_io_attr		io;
 };
 
 static inline void dnet_convert_io_notification(struct dnet_io_notification *n)
 {
-	dnet_convert_addr_attr(&n->addr);
+	dnet_convert_addr(&n->addr);
 	dnet_convert_io_attr(&n->io);
 }
 

@@ -291,20 +291,16 @@ struct dnet_backend_callbacks {
 struct dnet_config
 {
 	/*
-	 * Socket type (SOCK_STREAM, SOCK_DGRAM and so on),
-	 * a protocol (IPPROTO_TCP for example) and
-	 * a family (AF_INET, AF_INET6 and so on)
-	 * of the appropriate socket. These parameters are
-	 * sent in the lookup replies so that remote nodes
+	 * Family (AF_INET, AF_INET6) of the appropriate socket.
+	 * These parameters are sent in the lookup replies so that remote nodes
 	 * could know how to connect to this one.
 	 */
-	int			sock_type, proto, family;
+	int			family;
 
 	/*
-	 * Socket address/port suitable for the getaddrinfo().
+	 * Socket port.
 	 */
-	char			addr[DNET_MAX_ADDRLEN];
-	char			port[DNET_MAX_PORTLEN];
+	int			port;
 
 	/*
 	 * Wait timeout in seconds used for example to wait
@@ -476,17 +472,15 @@ static inline int dnet_server_convert_port(struct sockaddr *sa, unsigned int len
 	return 0;
 }
 
-static inline char *dnet_server_convert_dnet_addr_raw(struct dnet_addr *sa, char *inet_addr, int inet_size)
+static inline char *dnet_server_convert_dnet_addr_raw(struct dnet_addr *addr, char *inet_addr, int inet_size)
 {
 	memset(inet_addr, 0, inet_size);
-	if (sa->addr_len == sizeof(struct sockaddr_in)) {
-		struct sockaddr_in *in = (struct sockaddr_in *)sa->addr;
-		snprintf(inet_addr, inet_size, "%s:%d", inet_ntoa(in->sin_addr),
-				ntohs(in->sin_port));
-	} else if (sa->addr_len == sizeof(struct sockaddr_in6)) {
-		struct sockaddr_in6 *in = (struct sockaddr_in6 *)sa->addr;
-		snprintf(inet_addr, inet_size, NIP6_FMT":%d", NIP6(in->sin6_addr),
-				ntohs(in->sin6_port));
+	if (addr->family == AF_INET) {
+		struct sockaddr_in *in = (struct sockaddr_in *)addr->addr;
+		snprintf(inet_addr, inet_size, "%s:%d", inet_ntoa(in->sin_addr), ntohs(in->sin_port));
+	} else if (addr->family == AF_INET6) {
+		struct sockaddr_in6 *in = (struct sockaddr_in6 *)addr->addr;
+		snprintf(inet_addr, inet_size, NIP6_FMT":%d", NIP6(in->sin6_addr), ntohs(in->sin6_port));
 	}
 	return inet_addr;
 }
@@ -532,7 +526,7 @@ void dnet_server_node_destroy(struct dnet_node *s);
  * routes are added the less network lookups will be performed to send/receive
  * data requests.
  */
-int dnet_add_state(struct dnet_node *n, struct dnet_config *cfg);
+int dnet_add_state(struct dnet_node *n, char *addr_str, int port, int family, int flags);
 
 /*
  * Returns number of states we are connected to.
@@ -705,8 +699,7 @@ int dnet_trans_create_send_all(struct dnet_session *s, struct dnet_io_control *c
 
 int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl);
 
-int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const char *port, const int family,
-		const int sock_type, const int proto);
+int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const int port, const int sock_type, const int proto);
 
 /* Change node status on given address or ID */
 int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dnet_id *id, struct dnet_node_status *status);
@@ -803,7 +796,7 @@ int dnet_meta_update_check_status_raw(struct dnet_node *n, struct dnet_meta_cont
 int dnet_meta_update_check_status(struct dnet_node *n, struct dnet_meta_container *mc);
 
 int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen);
-void dnet_fill_addr_attr(struct dnet_node *n, struct dnet_addr_attr *attr);
+void dnet_fill_state_addr(void *state, struct dnet_addr *addr);
 
 struct dnet_id_param {
 	unsigned int		group_id;
@@ -919,11 +912,11 @@ int dnet_flags(struct dnet_node *n);
 void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout);
 
 #define DNET_CONF_ADDR_DELIM	':'
-int dnet_parse_addr(char *addr, struct dnet_config *cfg);
+int dnet_parse_addr(char *addr, int *portp, int *familyp);
 
 int dnet_start_defrag(struct dnet_session *s, uint64_t cflags);
 
-int dnet_discovery_add(struct dnet_node *n, struct dnet_config *cfg);
+int dnet_discovery_add(struct dnet_node *n, char *remote_addr, int remote_port, int remote_family);
 
 #ifdef __cplusplus
 }

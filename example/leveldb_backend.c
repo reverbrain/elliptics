@@ -113,12 +113,11 @@ static int leveldb_backend_lookup(struct leveldb_backend *s __unused, void *stat
 
 static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *data)
 {
-	struct dnet_node *n = dnet_get_node_from_state(state);
 	int err = -EINVAL;
 	char *error_string = NULL;
 	struct dnet_io_attr *io = data;
 	struct dnet_file_info *info;
-	struct dnet_addr_attr *a;
+	struct dnet_addr *addr;
 
 	dnet_convert_io_attr(io);
 	if (io->offset) {
@@ -132,28 +131,30 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	if (error_string)
 		goto err_out_exit;
 
-	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info));
-	if (!a) {
+	addr = malloc(sizeof(struct dnet_addr) + sizeof(struct dnet_file_info));
+	if (!addr) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-	info = (struct dnet_file_info *)(a + 1);
+	info = (struct dnet_file_info *)(addr + 1);
 
-	dnet_fill_addr_attr(n, a);
-	dnet_convert_addr_attr(a);
+	dnet_fill_state_addr(state, addr);
+	dnet_convert_addr(addr);
 
 	memset(info, 0, sizeof(struct dnet_file_info));
 
 	info->size = io->size;
 	dnet_convert_file_info(info);
 
-	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info), 0);
+	err = dnet_send_reply(state, cmd, addr, sizeof(struct dnet_addr) + sizeof(struct dnet_file_info), 0);
 	if (err < 0)
-		goto err_out_exit;
+		goto err_out_free;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : WRITE: Ok: size: %llu.\n",
 			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 
+err_out_free:
+	free(addr);
 err_out_exit:
 	if (err < 0)
 		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: : WRITE: error: %s: %d.\n",

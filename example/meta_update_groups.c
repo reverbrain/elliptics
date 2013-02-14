@@ -67,7 +67,9 @@ int main(int argc, char *argv[])
 	int *groups, group_num = 0;
 	int *newgroups, newgroup_num = 0;
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
-	struct dnet_config cfg, rem;
+	struct dnet_config cfg;
+	char *remote_addr = NULL;
+	int remote_port, remote_family;
 	struct dnet_node *n;
 	struct dnet_session *s;
 	struct dnet_id raw;
@@ -77,12 +79,8 @@ int main(int argc, char *argv[])
 
 	memset(&cfg, 0, sizeof(cfg));
 
-	cfg.sock_type = SOCK_STREAM;
-	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 10;
 	meta_logger.log_level = DNET_LOG_INFO;
-
-	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
 	while ((ch = getopt(argc, argv, "N:g:G:w:I:n:r:m:l:h")) != -1) {
 		switch (ch) {
@@ -91,9 +89,10 @@ int main(int argc, char *argv[])
 				cfg.nsize = strlen(optarg);
 				break;
 			case 'r':
-				err = dnet_parse_addr(optarg, &rem);
+				err = dnet_parse_addr(optarg, &remote_port, &remote_family);
 				if (err)
 					return err;
+				remote_addr = optarg;
 				break;
 			case 'w':
 				cfg.wait_timeout = atoi(optarg);
@@ -164,7 +163,7 @@ int main(int argc, char *argv[])
 	if (!s)
 		goto err_out_destroy_node;
 
-	err = dnet_add_state(n, &rem);
+	err = dnet_add_state(n, remote_addr, remote_port, remote_family, 0);
 	if (err)
 		goto err_out_destroy;
 

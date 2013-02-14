@@ -780,14 +780,12 @@ void session::update_status(const char *saddr, const int port, const int family,
 {
 	int err;
 	struct dnet_addr addr;
-	char sport[16];
 
 	memset(&addr, 0, sizeof(addr));
 	addr.addr_len = sizeof(addr.addr);
+	addr.family = family;
 
-	snprintf(sport, sizeof(sport), "%d", port);
-
-	err = dnet_fill_addr(&addr, saddr, sport, family, SOCK_STREAM, IPPROTO_TCP);
+	err = dnet_fill_addr(&addr, saddr, port, SOCK_STREAM, IPPROTO_TCP);
 	if (!err)
 		err = dnet_update_status(m_data->session_ptr, &addr, NULL, status);
 

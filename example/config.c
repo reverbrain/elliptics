@@ -134,7 +134,7 @@ static int dnet_set_group(struct dnet_config_backend *b __unused, char *key __un
 
 static int dnet_set_addr(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
-	return dnet_parse_addr(value, &dnet_cfg_state);
+	return dnet_parse_addr(value, &dnet_cfg_state.port, &dnet_cfg_state.family);
 }
 
 static int dnet_set_remote_addrs(struct dnet_config_backend *b __unused, char *key __unused, char *value)

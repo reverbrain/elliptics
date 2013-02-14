@@ -36,6 +36,8 @@ static int dnet_discovery_add_v4(struct dnet_node *n, struct dnet_addr *addr, in
 	int err;
 	struct ip_mreq command;
 
+	memset(&command, 0, sizeof(struct ip_mreq));
+
 	err = setsockopt(s, IPPROTO_IP, IP_MULTICAST_LOOP, &dnet_discover_loop, sizeof(dnet_discover_loop));
 	if (err < 0) {
 		err = -errno;
@@ -51,7 +53,7 @@ static int dnet_discovery_add_v4(struct dnet_node *n, struct dnet_addr *addr, in
 	}
 
 	command.imr_multiaddr = ((struct sockaddr_in *)addr->addr)->sin_addr;
-	command.imr_interface = ((struct sockaddr_in *)n->addr.addr)->sin_addr;
+	command.imr_interface = ((struct sockaddr_in *)n->st->addr.addr)->sin_addr;
 
 	err = setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, &command, sizeof(command));
 	if (err < 0) {
@@ -86,9 +88,10 @@ err_out_exit:
 	return err;
 }
 
-int dnet_discovery_add(struct dnet_node *n, struct dnet_config *cfg)
+int dnet_discovery_add(struct dnet_node *n, char *remote_addr, int remote_port, int remote_family)
 {
 	struct dnet_addr addr;
+	int proto, sock_type;
 	int err = -EEXIST;
 	int s;
 
@@ -97,27 +100,28 @@ int dnet_discovery_add(struct dnet_node *n, struct dnet_config *cfg)
 
 	memset(&addr, 0, sizeof(struct dnet_addr));
 
-	cfg->sock_type = SOCK_DGRAM;
-	cfg->proto = IPPROTO_IP;
-	if (cfg->family == AF_INET6)
-		cfg->proto = IPPROTO_IPV6;
+	sock_type = SOCK_DGRAM;
+	proto = IPPROTO_IP;
+	if (remote_family == AF_INET6)
+		proto = IPPROTO_IPV6;
 	addr.addr_len = sizeof(addr.addr);
+	addr.family = remote_family;
 
-	err = dnet_fill_addr(&addr, cfg->addr, cfg->port, cfg->family, cfg->sock_type, cfg->proto);
+	err = dnet_fill_addr(&addr, remote_addr, remote_port, sock_type, proto);
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%s, family: %d, err: %d: %s.\n",
-				cfg->addr, cfg->port, cfg->family, err, strerror(-err));
+		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
+				remote_addr, remote_port, remote_family, err, strerror(-err));
 		goto err_out_exit;
 	}
 
-	s = socket(cfg->family, cfg->sock_type, 0);
+	s = socket(remote_family, sock_type, 0);
 	if (s < 0) {
 		err = -errno;
 		dnet_log_err(n, "failed to create multicast socket");
 		goto err_out_exit;
 	}
 
-	if (cfg->family == AF_INET6)
+	if (remote_family == AF_INET6)
 		err = dnet_discovery_add_v6(n, &addr, s);
 	else
 		err = dnet_discovery_add_v4(n, &addr, s);
@@ -137,27 +141,24 @@ err_out_exit:
 
 static int dnet_discovery_send(struct dnet_node *n)
 {
-	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_auth) + sizeof(struct dnet_addr_attr)];
+	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_auth) + sizeof(struct dnet_addr)];
 	struct dnet_cmd *cmd;
-	struct dnet_addr_attr *addr;
+	struct dnet_addr *addr;
 	struct dnet_auth *auth;
 	int err;
 
 	memset(buf, 0, sizeof(buf));
 
 	cmd = (struct dnet_cmd *)buf;
-	addr = (struct dnet_addr_attr *)(cmd + 1);
+	addr = (struct dnet_addr *)(cmd + 1);
 	auth = (struct dnet_auth *)(addr + 1);
 
 	cmd->id = n->id;
-	cmd->size = sizeof(struct dnet_addr_attr) + sizeof(struct dnet_auth);
+	cmd->size = sizeof(struct dnet_addr) + sizeof(struct dnet_auth);
 	dnet_convert_cmd(cmd);
 
-	addr->sock_type = n->sock_type;
-	addr->proto = n->proto;
-	addr->family = n->family;
-	addr->addr = n->addr;
-	dnet_convert_addr_attr(addr);
+	*addr = n->st->addr;
+	dnet_convert_addr(addr);
 
 	memcpy(auth->cookie, n->cookie, DNET_AUTH_COOKIE_SIZE);
 	dnet_convert_auth(auth);
@@ -165,36 +166,32 @@ static int dnet_discovery_send(struct dnet_node *n)
 	err = sendto(n->autodiscovery_socket, buf, sizeof(buf), 0, (void *)&n->autodiscovery_addr, n->autodiscovery_addr.addr_len);
 	if (err < 0) {
 		err = -errno;
-		dnet_log_err(n, "autodiscovery sent: %s - %.*s", dnet_server_convert_dnet_addr(&addr->addr),
+		dnet_log_err(n, "autodiscovery sent: %s - %.*s", dnet_server_convert_dnet_addr(addr),
 			(int)sizeof(auth->cookie), auth->cookie);
 	} else {
-		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery sent: %s - %.*s\n", dnet_server_convert_dnet_addr(&addr->addr),
+		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery sent: %s - %.*s\n", dnet_server_convert_dnet_addr(addr),
 			(int)sizeof(auth->cookie), auth->cookie);
 	}
 
 	return err;
 }
 
-static int dnet_discovery_add_state(struct dnet_node *n, struct dnet_addr_attr *addr)
+static int dnet_discovery_add_state(struct dnet_node *n, struct dnet_addr *addr)
 {
-	struct dnet_config cfg;
+	char addr_str[128];
+	int port;
 
-	memset(&cfg, 0, sizeof(struct dnet_config));
+	dnet_server_convert_addr_raw((struct sockaddr *)addr->addr, addr->addr_len, addr_str, sizeof(addr_str));
+	port = dnet_server_convert_port((struct sockaddr *)addr->addr, addr->addr_len);
 
-	dnet_server_convert_addr_raw((struct sockaddr *)&addr->addr, addr->addr.addr_len, cfg.addr, sizeof(cfg.addr));
-	snprintf(cfg.port, sizeof(cfg.port), "%d", dnet_server_convert_port((struct sockaddr *)&addr->addr, addr->addr.addr_len));
-	cfg.family = addr->family;
-	cfg.sock_type = addr->sock_type;
-	cfg.proto = addr->proto;
-
-	return dnet_add_state(n, &cfg);
+	return dnet_add_state(n, addr_str, port, addr->family, 0);
 }
 
 static int dnet_discovery_recv(struct dnet_node *n)
 {
-	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_auth) + sizeof(struct dnet_addr_attr)];
+	char buf[sizeof(struct dnet_cmd) + sizeof(struct dnet_auth) + sizeof(struct dnet_addr)];
 	struct dnet_cmd *cmd;
-	struct dnet_addr_attr *addr;
+	struct dnet_addr *addr;
 	struct dnet_auth *auth;
 	int err;
 	struct dnet_addr remote;
@@ -203,7 +200,7 @@ static int dnet_discovery_recv(struct dnet_node *n)
 	remote = n->autodiscovery_addr;
 
 	cmd = (struct dnet_cmd *)buf;
-	addr = (struct dnet_addr_attr *)(cmd + 1);
+	addr = (struct dnet_addr *)(cmd + 1);
 	auth = (struct dnet_auth *)(addr + 1);
 
 	while (1) {
@@ -212,10 +209,10 @@ static int dnet_discovery_recv(struct dnet_node *n)
 			return -EAGAIN;
 
 		dnet_convert_cmd(cmd);
-		dnet_convert_addr_attr(addr);
+		dnet_convert_addr(addr);
 		dnet_convert_auth(auth);
 
-		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery recv: %s - %.*s\n", dnet_server_convert_dnet_addr(&addr->addr),
+		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery recv: %s - %.*s\n", dnet_server_convert_dnet_addr(addr),
 				(int)sizeof(auth->cookie), auth->cookie);
 
 		if (!memcmp(n->cookie, auth->cookie, DNET_AUTH_COOKIE_SIZE)) {

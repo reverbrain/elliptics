@@ -173,9 +173,12 @@ err_out_exit:
 
 int main(int argc, char *argv[])
 {
-	int ch, err, have_remote = 0;
+	int ch, err;
 	struct dnet_node *n = NULL;
-	struct dnet_config cfg, rem;
+	struct dnet_config cfg;
+	char *remote_addr = NULL;
+	int remote_port = -1;
+	int remote_family = -1;
 	char *logfile = default_log;
 	int daemonize = 0;
 	FILE *log = NULL;
@@ -187,13 +190,10 @@ int main(int argc, char *argv[])
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
-	cfg.sock_type = SOCK_STREAM;
-	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
 	check_logger.log_level = DNET_LOG_INFO;
 	cfg.check_timeout = 60;
 
-	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 	memset(&tm, 0, sizeof(tm));
 
 	memset(&r, 0, sizeof(r));
@@ -265,10 +265,10 @@ int main(int argc, char *argv[])
 				daemonize = 1;
 				break;
 			case 'r':
-				err = dnet_parse_addr(optarg, &rem);
+				err = dnet_parse_addr(optarg, &remote_port, &remote_family);
 				if (err)
 					return err;
-				have_remote = 1;
+				remote_addr = optarg;
 				break;
 			case 'g':
 				group_num = dnet_parse_groups(optarg, &groups);
@@ -282,7 +282,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (!have_remote) {
+	if (!remote_addr) {
 		fprintf(stderr, "No remote node specified to route requests.\n");
 		return -ENOENT;
 	}
@@ -310,8 +310,7 @@ int main(int argc, char *argv[])
 	if (!n)
 		return -1;
 
-	rem.flags = DNET_CFG_NO_ROUTE_LIST;
-	err = dnet_add_state(n, &rem);
+	err = dnet_add_state(n, remote_addr, remote_port, remote_family, DNET_CFG_NO_ROUTE_LIST);
 	if (err)
 		return err;
 
@@ -328,7 +327,8 @@ int main(int argc, char *argv[])
 			return -ENOMEM;
 
 		memcpy(req2, req, sizeof(struct dnet_check_request) + req->obj_num * sizeof(struct dnet_id));
-		memcpy((char *)req2 + sizeof(struct dnet_check_request) + req->obj_num * sizeof(struct dnet_id), groups, group_num * sizeof(int));
+		memcpy((char *)req2 + sizeof(struct dnet_check_request) + req->obj_num * sizeof(struct dnet_id), groups,
+				group_num * sizeof(int));
 		req2->group_num = group_num;
 
 		req = req2;

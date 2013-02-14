@@ -374,9 +374,6 @@ struct dnet_node
 
 	pthread_attr_t		attr;
 
-	struct dnet_addr	addr;
-	int			sock_type, proto, family;
-
 	pthread_mutex_t		state_lock;
 	struct list_head	group_list;
 
@@ -486,13 +483,6 @@ static inline void dnet_counter_set(struct dnet_node *n, int counter, int err, i
 	dnet_lock_unlock(&n->counters_lock);
 }
 
-static inline char *dnet_dump_node(struct dnet_node *n)
-{
-	static char buf[128];
-
-	return dnet_server_convert_dnet_addr_raw(&n->addr, buf, sizeof(buf));
-}
-
 struct dnet_trans;
 int __attribute__((weak)) dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
 int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r);
@@ -505,9 +495,8 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r);
 int __attribute__((weak)) dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err);
 
 struct dnet_config;
-int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg, struct dnet_addr *addr, int listening);
-int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int family,
-		struct sockaddr *sa, unsigned int salen, int listening);
+int dnet_socket_create(struct dnet_node *n, char *addr_str, int port, struct dnet_addr *addr, int listening);
+int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr *addr, int listening);
 
 void dnet_set_sockopt(int s);
 void dnet_sock_close(int s);

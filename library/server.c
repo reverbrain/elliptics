@@ -50,8 +50,7 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 	num = storage_free / q + 1;
 	for (i=0; i<num; ++i) {
 		int r = rand();
-		memcpy(buf, &n->addr, sizeof(struct dnet_addr));
-		memcpy(buf + sizeof(struct dnet_addr), &r, sizeof(r));
+		memcpy(buf, &r, sizeof(r));
 
 		dnet_transform(n, buf, size, &id);
 		memcpy(&raw, id.id, sizeof(struct dnet_raw_id));
@@ -207,6 +206,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 		goto err_out_notify_exit;
 
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
+		struct dnet_addr la;
 		int s;
 
 		err = dnet_locks_init(n, cfg->oplock_num);
@@ -217,15 +217,18 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 		if (!ids)
 			goto err_out_locks_destroy;
 
-		n->addr.addr_len = sizeof(n->addr.addr);
-		err = dnet_socket_create(n, cfg, &n->addr, 1);
+		memset(&la, 0, sizeof(struct dnet_addr));
+		la.addr_len = sizeof(la.addr);
+		la.family = cfg->family;
+
+		err = dnet_socket_create(n, "0.0.0.0", cfg->port, &la, 1);
 		if (err < 0)
 			goto err_out_ids_cleanup;
 
 		s = err;
 		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
 
-		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, s, &err, DNET_JOIN, dnet_state_accept_process);
+		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &la, s, &err, DNET_JOIN, dnet_state_accept_process);
 		if (!n->st) {
 			close(s);
 			goto err_out_state_destroy;
@@ -240,8 +243,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 		}
 	}
 
-	dnet_log(n, DNET_LOG_DEBUG, "New server node has been created at %s, ids: %d.\n",
-			dnet_dump_node(n), id_num);
+	dnet_log(n, DNET_LOG_DEBUG, "New server node has been created at port %d, ids: %d.\n", cfg->port, id_num);
 
 	pthread_sigmask(SIG_BLOCK, &previous_sigset, NULL);
 	return n;
@@ -266,8 +268,7 @@ err_out_exit:
 
 void dnet_server_node_destroy(struct dnet_node *n)
 {
-	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node at %s, st: %p.\n",
-			dnet_dump_node(n), n->st);
+	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node.\n");
 
 	dnet_srw_cleanup(n);
 

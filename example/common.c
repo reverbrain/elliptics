@@ -168,9 +168,9 @@ int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cf
 	char *a;
 	char *addr, *p;
 	int added = 0, err;
-	struct dnet_config cfg;
 	char auto_str[] = "autodiscovery:";
 	int auto_len = strlen(auto_str);
+	int remote_port, remote_family;
 
 	if (!orig_addr)
 		return 0;
@@ -190,26 +190,24 @@ int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cf
 		if (p)
 			*p++ = '\0';
 
-		memcpy(&cfg, main_cfg, sizeof(struct dnet_config));
-
 		if (!strncmp(addr, auto_str, auto_len)) {
 			addr[auto_len - 1] = '\0';
 			addr += auto_len;
 			autodescovery = 1;
 		}
 
-		err = dnet_parse_addr(addr, &cfg);
+		err = dnet_parse_addr(addr, &remote_port, &remote_family);
 		if (err) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to parse addr '%s': %d.\n", addr, err);
 			goto next;
 		}
 
 		if (autodescovery) {
-			err = dnet_discovery_add(n, &cfg);
+			err = dnet_discovery_add(n, addr, remote_port, remote_family);
 			if (err)
 				goto next;
 		} else {
-			err = dnet_add_state(n, &cfg);
+			err = dnet_add_state(n, addr, remote_port, remote_family, 0);
 			if (err)
 				goto next;
 		}

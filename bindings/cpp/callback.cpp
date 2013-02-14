@@ -144,23 +144,23 @@ lookup_result_entry &lookup_result_entry::operator =(const lookup_result_entry &
 	return *this;
 }
 
-struct dnet_addr_attr *lookup_result_entry::address_attribute() const
+struct dnet_addr *lookup_result_entry::address() const
 {
 	return data()
-		.data<struct dnet_addr_attr>();
+		.data<struct dnet_addr>();
 }
 
 struct dnet_file_info *lookup_result_entry::file_info() const
 {
 	return data()
-		.skip<struct dnet_addr_attr>()
+		.skip<struct dnet_addr>()
 		.data<struct dnet_file_info>();
 }
 
 const char *lookup_result_entry::file_path() const
 {
 	return data()
-		.skip<struct dnet_addr_attr>()
+		.skip<struct dnet_addr>()
 		.skip<struct dnet_file_info>()
 		.data<char>();
 }

@@ -47,27 +47,25 @@ class finder : public session {
 		finder(node &n) : session(n) {}
 		virtual ~finder() {}
 
-		void add_remote(const char *addr);
+		void add_remote(char *addr);
 
 		void parse_lookup(const command_result &ret);
 		void parse_meta(const command_result &ret);
 };
 
-void finder::add_remote(const char *addr)
+void finder::add_remote(char *addr)
 {
-	struct dnet_config rem;
+	int remote_port, remote_family;
 	int err;
 
-	memset(&rem, 0, sizeof(rem));
-
-	err = dnet_parse_addr((char *)addr, &rem);
+	err = dnet_parse_addr(addr, &remote_port, &remote_family);
 	if (err < 0) {
 		std::ostringstream str;
 		str << "Failed to parse addr: " << addr;
 		throw std::runtime_error(str.str());
 	}
 
-    get_node().add_remote(rem.addr, atoi(rem.port), rem.family);
+    get_node().add_remote(addr, remote_port, remote_family);
 }
 
 void finder::parse_lookup(const command_result &ret)
@@ -80,16 +78,16 @@ void finder::parse_lookup(const command_result &ret)
 			struct dnet_file_info *info = NULL;
 			char addr_str[128] = "no-address";
 
-			if (data.size() >= sizeof(struct dnet_addr_attr)) {
-				struct dnet_addr_attr *a = data.data<struct dnet_addr_attr>();
+			if (data.size() >= sizeof(struct dnet_addr)) {
+				struct dnet_addr *addr = data.data<struct dnet_addr>();
 
-				if (cmd->size > sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info)) {
-					info = (struct dnet_file_info *)(a + 1);
+				if (cmd->size > sizeof(struct dnet_addr) + sizeof(struct dnet_file_info)) {
+					info = (struct dnet_file_info *)(addr + 1);
 					dnet_convert_file_info(info);
 				}
 
-				dnet_convert_addr_attr(a);
-				dnet_server_convert_dnet_addr_raw(&a->addr, addr_str, sizeof(addr_str));
+				dnet_convert_addr(addr);
+				dnet_server_convert_dnet_addr_raw(addr, addr_str, sizeof(addr_str));
 			}
 
 			std::string route_addr = "failed to get route table";
@@ -110,7 +108,8 @@ void finder::parse_lookup(const command_result &ret)
 					(unsigned long long)info->mode, (char *)(info + 1));
 		} else {
 			if (cmd->status != 0)
-				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND object: status: %d\n", dnet_dump_id(&cmd->id), cmd->status);
+				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND object: status: %d\n",
+						dnet_dump_id(&cmd->id), cmd->status);
 		}
 	}
 }

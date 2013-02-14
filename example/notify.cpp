@@ -69,7 +69,7 @@ static int notify_complete(struct dnet_net_state *state,
 	dnet_convert_io_notification(io);
 
 	fprintf(stream, "%s: client: %s, size: %llu, offset: %llu, flags: %x\n",
-			dnet_dump_id_str(io->io.id), dnet_server_convert_dnet_addr(&io->addr.addr),
+			dnet_dump_id_str(io->io.id), dnet_server_convert_dnet_addr(&io->addr),
 			(unsigned long long)io->io.size,
 			(unsigned long long)io->io.offset, io->io.flags);
 	fflush(stream);
@@ -80,7 +80,6 @@ static int notify_complete(struct dnet_net_state *state,
 static void notify_usage(char *p)
 {
 	fprintf(stderr, "Usage: %s\n"
-			" -a addr:port:family  - creates a node with given network address\n"
 			" -r addr:port:family  - adds a route to the given node\n"
 			" -l log               - log file. Default: disabled\n"
 			" -L log               - notifications log. Default: stdout\n"
@@ -93,8 +92,10 @@ static void notify_usage(char *p)
 
 int main(int argc, char *argv[])
 {
-	int ch, err, have_remote = 0, i;
-	struct dnet_config cfg, rem;
+	int ch, err, i;
+	struct dnet_config cfg;
+	char *remote_addr = NULL;
+	int remote_port, remote_family;
 	int max_id_idx = 1000, id_idx = 0;
 	unsigned char id[max_id_idx][DNET_ID_SIZE];
 	const char *logfile = "/dev/stderr", *notify_file = "/dev/stdout";
@@ -103,12 +104,8 @@ int main(int argc, char *argv[])
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
-	cfg.sock_type = SOCK_STREAM;
-	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
 	notify_logger.log_level = DNET_LOG_INFO;
-
-	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
 	while ((ch = getopt(argc, argv, "g:m:w:l:I:a:r:h")) != -1) {
 		switch (ch) {
@@ -141,16 +138,11 @@ int main(int argc, char *argv[])
 				free(groups_tmp);
 				break;
 			}
-			case 'a':
-				err = dnet_parse_addr(optarg, &cfg);
-				if (err)
-					return err;
-				break;
 			case 'r':
-				err = dnet_parse_addr(optarg, &rem);
+				err = dnet_parse_addr(optarg, &remote_port, &remote_family);
 				if (err)
 					return err;
-				have_remote = 1;
+				remote_addr = optarg;
 				break;
 			case 'h':
 			default:
@@ -164,7 +156,7 @@ int main(int argc, char *argv[])
 		return -EINVAL;
 	}
 
-	if (!have_remote) {
+	if (!remote_addr) {
 		fprintf(stderr, "No remote node specified to route requests.\n");
 		return -ENOENT;
 	}
@@ -173,7 +165,7 @@ int main(int argc, char *argv[])
 		file_logger log(logfile, DNET_LOG_INFO);
 
 		node n(log, cfg);
-		n.add_remote(rem.addr, atoi(rem.port), rem.family);
+		n.add_remote(remote_addr, remote_port, remote_family);
 
 		session s(n);
 
@@ -190,8 +182,7 @@ int main(int argc, char *argv[])
 			for (size_t j = 0; j < groups.size(); ++j) {
 				struct dnet_id raw;
 				dnet_setup_id(&raw, groups[j], id[i]);
-				err = dnet_request_notification(s.get_native(), &raw,
-					notify_complete, notify);
+				err = dnet_request_notification(s.get_native(), &raw, notify_complete, notify);
 				if (err)
 					fprintf(stderr, "Failed to request notification: %d %s.\n", err, strerror(-err));
 			}

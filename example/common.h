@@ -25,8 +25,6 @@
 extern "C" {
 #endif
 
-int dnet_parse_addr(char *addr, struct dnet_config *cfg);
-
 int dnet_parse_numeric_id(char *value, unsigned char *id);
 
 void dnet_common_log(void *priv, int level, const char *msg);

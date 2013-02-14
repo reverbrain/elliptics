@@ -400,7 +400,7 @@ class lookup_callback : public multigroup_callback
 				handler(exc);
 			} else {
 				lookup_result_entry result = cb.any_result<lookup_result_entry>();
-				dnet_convert_addr_attr(result.address_attribute());
+				dnet_convert_addr(result.address());
 				dnet_convert_file_info(result.file_info());
 				handler(result);
 			}
@@ -689,7 +689,7 @@ class prepare_latest_callback : public default_callback
 			std::vector<entry> entries;
 			for (size_t i = 0; i < results_size(); ++i) {
 				const lookup_result_entry &le = result_at<lookup_result_entry>(i);
-				if (le.size() < sizeof(dnet_addr_attr) + sizeof(dnet_file_info))
+				if (le.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_file_info))
 					continue;
 				entry e = { &le.command()->id, le.file_info() };
 				entries.push_back(e);
@@ -758,8 +758,8 @@ class write_callback : public default_callback
 				 * '=' part in '>=' comparison here means backend does not provide information about filename,
 				 * where given object is stored.
 				 */
-				if (result.size() >= sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info)) {
-					dnet_convert_addr_attr(result.address_attribute());
+				if (result.size() >= sizeof(struct dnet_addr) + sizeof(struct dnet_file_info)) {
+					dnet_convert_addr(result.address());
 					dnet_convert_file_info(result.file_info());
 					results.push_back(result);
 				}

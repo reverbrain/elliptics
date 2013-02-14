@@ -364,17 +364,20 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	int err, cs;
 	struct dnet_addr addr;
 	struct dnet_net_state *st;
+	socklen_t salen;
 
 	memset(&addr, 0, sizeof(addr));
 
-	addr.addr_len = sizeof(addr.addr);
-	cs = accept(orig->read_s, (struct sockaddr *)&addr.addr, &addr.addr_len);
+	salen = addr.addr_len = sizeof(addr.addr);
+	cs = accept(orig->read_s, (struct sockaddr *)&addr.addr, &salen);
 	if (cs <= 0) {
 		err = -errno;
 		if (err != -EAGAIN)
 			dnet_log_err(n, "failed to accept new client at %s", dnet_state_dump_addr(orig));
 		goto err_out_exit;
 	}
+	addr.family = orig->addr.family;
+	addr.addr_len = salen;
 
 	dnet_set_sockopt(cs);
 

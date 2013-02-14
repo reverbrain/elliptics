@@ -103,20 +103,21 @@ err_out_exit:
 	return err;
 }
 
-int dnet_socket_create_addr(struct dnet_node *n, int sock_type, int proto, int family,
-		struct sockaddr *sa, unsigned int salen, int listening)
+int dnet_socket_create_addr(struct dnet_node *n, struct dnet_addr *addr, int listening)
 {
+	int salen = addr->addr_len;
+	struct sockaddr *sa = (struct sockaddr *)addr->addr;
 	int s, err = -1;
 
-	sa->sa_family = family;
-	s = socket(family, sock_type, proto);
+	sa->sa_family = addr->family;
+
+	s = socket(addr->family, SOCK_STREAM, IPPROTO_TCP);
 	if (s < 0) {
 		err = -errno;
-		dnet_log_err(n, "Failed to create socket for %s:%d: "
-				"family: %d, sock_type: %d, proto: %d",
+		dnet_log_err(n, "Failed to create socket for %s:%d: family: %d",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen),
-				sa->sa_family, sock_type, proto);
+				addr->family);
 		goto err_out_exit;
 	}
 
@@ -162,28 +163,33 @@ err_out_exit:
 	return err;
 }
 
-int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const char *port, const int family,
-		const int sock_type, const int proto)
+int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const int port, const int sock_type, const int proto)
 {
 	struct addrinfo *ai = NULL, hint;
 	int err;
+	char port_str[16];
+
+	snprintf(port_str, sizeof(port_str), "%d", port);
 
 	memset(&hint, 0, sizeof(struct addrinfo));
 
-	hint.ai_family = family;
+	hint.ai_family = addr->family;
 	hint.ai_socktype = sock_type;
 	hint.ai_protocol = proto;
 
-	err = getaddrinfo(saddr, port, &hint, &ai);
-	if (err || ai == NULL)
+	err = getaddrinfo(saddr, port_str, &hint, &ai);
+	if (err || ai == NULL) {
+		if (!err)
+			err = -ENOENT;
 		goto err_out_exit;
+	}
 
-	if (addr->addr_len >= ai->ai_addrlen)
-		addr->addr_len = ai->ai_addrlen;
-	else {
+	if (addr->addr_len < ai->ai_addrlen) {
 		err = -ENOBUFS;
 		goto err_out_free;
 	}
+
+	addr->addr_len = ai->ai_addrlen;
 	memcpy(addr->addr, ai->ai_addr, addr->addr_len);
 
 err_out_free:
@@ -192,34 +198,27 @@ err_out_exit:
 	return err;
 }
 
-int dnet_socket_create(struct dnet_node *n, struct dnet_config *cfg,
-		struct dnet_addr *addr, int listening)
+int dnet_socket_create(struct dnet_node *n, char *addr_str, int port, struct dnet_addr *addr, int listening)
 {
 	int s, err = -EINVAL;
 	struct dnet_net_state *st;
 
-	if (cfg->sock_type != n->sock_type)
-		cfg->sock_type = n->sock_type;
-	if (cfg->proto != n->proto)
-		cfg->proto = n->proto;
-
-	err = dnet_fill_addr(addr, cfg->addr, cfg->port, cfg->family, cfg->sock_type, cfg->proto);
+	err = dnet_fill_addr(addr, addr_str, port, SOCK_STREAM, IPPROTO_TCP);
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%s, family: %d, err: %d: %s.\n",
-				cfg->addr, cfg->port, cfg->family, err, strerror(-err));
+		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
+				addr_str, port, addr->family, err, strerror(-err));
 		goto err_out_exit;
 	}
 
 	st = dnet_state_search_by_addr(n, addr);
 	if (st) {
-		dnet_log(n, DNET_LOG_ERROR, "Address %s:%s already exists in route table\n", cfg->addr, cfg->port);
+		dnet_log(n, DNET_LOG_ERROR, "Address %s:%d already exists in route table\n", addr_str, port);
 		err = -EEXIST;
 		dnet_state_put(st);
 		goto err_out_exit;
 	}
 
-	s = dnet_socket_create_addr(n, cfg->sock_type, cfg->proto, cfg->family,
-			(struct sockaddr *)addr->addr, addr->addr_len, listening);
+	s = dnet_socket_create_addr(n, addr, listening);
 	if (s < 0) {
 		err = s;
 		goto err_out_exit;
@@ -974,7 +973,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		if (err)
 			goto err_out_send_destroy;
 
-		if ((st->__join_state == DNET_JOIN) && (addr != &n->addr)) {
+		if ((st->__join_state == DNET_JOIN) && (process != dnet_state_accept_process)) {
 			pthread_mutex_lock(&n->state_lock);
 			err = dnet_state_join_nolock(st);
 			pthread_mutex_unlock(&n->state_lock);
@@ -1210,7 +1209,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_parse_addr(char *addr, struct dnet_config *cfg)
+int dnet_parse_addr(char *addr, int *portp, int *familyp)
 {
 	char *fam, *port;
 
@@ -1221,8 +1220,6 @@ int dnet_parse_addr(char *addr, struct dnet_config *cfg)
 	if (!fam)
 		goto err_out_print_wrong_param;
 
-	cfg->family = atoi(fam);
-
 	port = strrchr(addr, DNET_CONF_ADDR_DELIM);
 	if (!port)
 		goto err_out_print_wrong_param;
@@ -1230,22 +1227,8 @@ int dnet_parse_addr(char *addr, struct dnet_config *cfg)
 	if (!port)
 		goto err_out_print_wrong_param;
 
-	memset(cfg->addr, 0, sizeof(cfg->addr));
-	memset(cfg->port, 0, sizeof(cfg->port));
-
-	snprintf(cfg->addr, sizeof(cfg->addr), "%s", addr);
-	snprintf(cfg->port, sizeof(cfg->port), "%s", port);
-
-	if (!strcmp(addr, "hostname")) {
-		int err;
-
-		err = gethostname(cfg->addr, sizeof(cfg->addr));
-		if (err) {
-			err = -errno;
-			fprintf(stderr, "Could not get hostname: %s %d\n", strerror(-err), err);
-			goto err_out_print_wrong_param;
-		}
-	}
+	*familyp = atoi(fam);
+	*portp = atoi(port);
 
 	return 0;
 

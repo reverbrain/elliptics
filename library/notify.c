@@ -63,16 +63,12 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd, void *da
 	memcpy(&notif.io, io, sizeof(struct dnet_io_attr));
 	dnet_convert_io_attr(&notif.io);
 
-	notif.addr.sock_type = n->sock_type;
-	notif.addr.family = n->family;
-	notif.addr.proto = n->proto;
-
 	pthread_rwlock_rdlock(&b->notify_lock);
 	list_for_each_entry(nt, &b->notify_list, notify_entry) {
 		if (dnet_id_cmp(&cmd->id, &nt->cmd.id))
 			continue;
 
-		memcpy(&notif.addr.addr, &st->addr, sizeof(struct dnet_addr));
+		memcpy(&notif.addr, &st->addr, sizeof(struct dnet_addr));
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: sending notification.\n", dnet_dump_id(&cmd->id));
 		dnet_send_reply(nt->state, &nt->cmd, &notif, sizeof(struct dnet_io_notification), 1);

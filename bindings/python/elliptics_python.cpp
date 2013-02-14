@@ -340,11 +340,10 @@ class elliptics_session: public session, public wrapper<session> {
 
 		boost::python::tuple parse_lookup(const lookup_result &lookup) {
 			struct dnet_addr *addr = lookup->address();
-			struct dnet_addr_attr *a = lookup->address_attribute();
 			struct dnet_file_info *info = lookup->file_info();
 
 			std::string address(dnet_server_convert_dnet_addr(addr));
-			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
+			int port = dnet_server_convert_port((struct sockaddr *)addr->addr, addr->addr_len);
 
 			return boost::python::make_tuple(address, port, info->size);
 		}
