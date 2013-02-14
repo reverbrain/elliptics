@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.21.3.2
+Version:	2.21.3.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Feb 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.3.3
+- Depend on 0.10.0-rc1 cocaine and 0.18.2 eblob
+- Get rid of eblob metadata from leveldb
+
 * Mon Feb 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.3.2
 - Fixed read_latest method
 - Added wireshark dissector
