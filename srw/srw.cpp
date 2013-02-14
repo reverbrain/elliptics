@@ -252,8 +252,8 @@ class dnet_upstream_t: public cocaine::api::stream_t
 		int m_error;
 };
 
-typedef boost::shared_ptr<dnet_upstream_t> dnet_shared_upstream_t;
-typedef std::map<std::string, boost::shared_ptr<cocaine::app_t> > eng_map_t;
+typedef std::shared_ptr<dnet_upstream_t> dnet_shared_upstream_t;
+typedef std::map<std::string, std::shared_ptr<cocaine::app_t> > eng_map_t;
 typedef std::map<int, dnet_shared_upstream_t> jobs_map_t;
 
 namespace {
@@ -313,7 +313,7 @@ class srw {
 				boost::mutex::scoped_lock guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
-					boost::shared_ptr<cocaine::app_t> eng(new cocaine::app_t(m_ctx, app, app));
+					std::shared_ptr<cocaine::app_t> eng(new cocaine::app_t(m_ctx, app, app));
 					eng->start();
 
 					m_map.insert(std::make_pair(app, eng));
@@ -372,7 +372,7 @@ class srw {
 				}
 
 				cocaine::api::event_t cevent(event);
-				dnet_shared_upstream_t upstream(boost::make_shared<dnet_upstream_t>(m_s, st, cmd, event, (uint64_t)sph->flags));
+				dnet_shared_upstream_t upstream(std::make_shared<dnet_upstream_t>(m_s, st, cmd, event, (uint64_t)sph->flags));
 
 				boost::mutex::scoped_lock guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
@@ -384,10 +384,10 @@ class srw {
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK)
 					m_jobs.insert(std::make_pair((int)sph->src_key, upstream));
 
-				boost::shared_ptr<cocaine::app_t> app = it->second;
+				std::shared_ptr<cocaine::app_t> app = it->second;
 				guard.unlock();
 
-				boost::shared_ptr<cocaine::api::stream_t> stream = app->enqueue(cevent, upstream);
+				std::shared_ptr<cocaine::api::stream_t> stream = app->enqueue(cevent, upstream);
 				stream->push((const char *)sph, total_size(sph) + sizeof(struct sph));
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started: job: %d, total-size: %zd, block: %d\n",
