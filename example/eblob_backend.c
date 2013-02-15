@@ -52,7 +52,8 @@ struct eblob_backend_config {
 #error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE" 
 #endif
 
-static int blob_write(struct eblob_backend_config *c, void *state __unused, struct dnet_cmd *cmd __unused, void *data)
+static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
+		struct dnet_cmd *cmd __unused, void *data, struct dnet_ext_list *elist)
 {
 	int err;
 	struct dnet_io_attr *io = data;
@@ -90,6 +91,10 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 		err = -EPERM;
 		goto err_out_exit;
 	}
+
+	/*
+	 * XXX: Combine data with extensions for write
+	 */
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
 		wc.offset = 0;
@@ -175,7 +180,41 @@ err_out_exit:
 	return err;
 }
 
-static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data)
+__attribute__((deprecated))
+static int blob_write(struct eblob_backend_config *c, void *state,
+		struct dnet_cmd *cmd, void *data)
+{
+	return blob_write_ll(c, state, cmd, data, NULL);
+}
+
+/*!
+ * Write data along with timestamp extension
+ */
+static int blob_write_timestamp(struct eblob_backend_config *c, void *state,
+		struct dnet_cmd *cmd, void *data)
+{
+	struct dnet_ext_list *elist;
+	int err;
+
+	if ((elist = dnet_ext_list_create()) == NULL) {
+		err = -ENOMEM;
+		goto err;
+	}
+
+	/*
+	 * XXX: Make extension from ts
+	 */
+
+	err = blob_write_ll(c, state, cmd, data, elist);
+
+err_free_list:
+	dnet_ext_list_destroy(elist);
+err:
+	return err;
+}
+
+static int blob_read_ll(struct eblob_backend_config *c, void *state,
+		struct dnet_cmd *cmd, void *data, struct dnet_ext_list *elist)
 {
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->eblob;
@@ -224,6 +263,10 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 			size = io->size;
 	}
 
+	/*
+	 * XXX: Extract extensions from record
+	 */
+
 	io->size = size;
 	if (size)
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
@@ -233,6 +276,39 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	free(read_data);
 err_out_exit:
 	return err;
+}
+
+/*!
+ * Read data along with ts
+ */
+static int blob_read_timestamp(struct eblob_backend_config *c, void *state,
+		struct dnet_cmd *cmd, void *data)
+{
+	struct dnet_ext_list *elist;
+	int err;
+
+	if ((elist = dnet_ext_list_create()) == NULL) {
+		err = -ENOMEM;
+		goto err;
+	}
+
+	err = blob_read_ll(c, state, cmd, data, elist);
+
+	/*
+	 * XXX: Parse extension list and put ts into io_attr
+	 */
+
+err_free_list:
+	dnet_ext_list_destroy(elist);
+err:
+	return err;
+}
+
+__attribute__((deprecated))
+static int blob_read(struct eblob_backend_config *c, void *state,
+		struct dnet_cmd *cmd, void *data)
+{
+	return blob_read_ll(c, state, cmd, data, NULL);
 }
 
 struct eblob_read_range_priv {
@@ -284,7 +360,6 @@ err_out_exit:
 
 static int blob_del_range_callback(struct eblob_backend_config *c, struct dnet_io_attr *io, struct eblob_range_request *req)
 {
-	//struct eblob_read_range_priv *p = req->priv;
 	struct eblob_key key;
 	int err;
 
@@ -323,6 +398,11 @@ static int blob_range_callback(struct eblob_range_request *req)
 		err = 0;
 		goto err_out_exit;
 	}
+
+	/*
+	 * TODO: realloc acts as malloc if 1st argument is NULL, therefore
+	 * following code can be simplified.
+	 */
 
 	if (!(p->keys)) {
 		p->keys = (struct eblob_range_request*)malloc(sizeof(struct eblob_range_request) * 1000);

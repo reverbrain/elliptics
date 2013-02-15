@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include <strings.h>
+#include <inttypes.h>
 
 #include "elliptics/core.h"
 #include "elliptics/packet.h"
@@ -86,6 +87,66 @@ struct dnet_config_backend {
 
 	struct dnet_backend_callbacks	cb;
 };
+
+/*! On disk extension header */
+struct dnet_ext {
+	uint32_t		etype;		/* Extension type */
+	uint32_t		size;		/* Size of data (excluding header) */
+	uint32_t		__pad[2];	/* For future use (should be NULLed ) */
+	unsigned char		data[0];	/* Data itself */
+};
+
+/*! Info extension on-disk structure */
+struct dnet_ext_info {
+	struct dnet_ext		hdr;		/* Header for information extension */
+	uint32_t		size;		/* Size of all extensions */
+	uint32_t		count;		/* Number of extensions in record */
+	uint64_t		__pad[2];	/* For future use (should be NULLed) */
+};
+
+/*! Extensions container */
+struct dnet_ext_list {
+	uint32_t		size;		/* Total size of extensions */
+	uint32_t		count;		/* Number of entries in list */
+	struct dnet_ext_hdr	*exts;		/* Pointer to array of extensions */
+	uint64_t		__pad[2];	/* For future use (should be NULLed ) */
+};
+
+/*! Types of extensions */
+enum {
+	DNET_EXTENSION_FIRST,		/* Assert */
+	DNET_EXTENSION_INFO,		/* Extensions information */
+	DNET_EXTENSION_TS,		/* Timestamp */
+	DNET_EXTENSION_USERDATA,	/* User-provided metadata */
+	DNET_EXTENSION_LAST		/* Assert */
+};
+
+/*
+ * Extension list manipulation functions
+ * TODO: dnet_ext_list_remove / dnet_ext_list_replace
+ */
+
+/*! Create list of extensions that can be placed in record's footer */
+struct dnet_ext_list *dnet_ext_list_create();
+/*! Initialize already allocated list */
+void dnet_ext_list_init(struct dnet_ext_list *elist);
+/*! Frees memory used by extension list and all extensions in it */
+void dnet_ext_list_destroy(struct dnet_ext_list *elist);
+/* Create extension from type, size and data and append it to \a elist */
+int dnet_ext_list_append(struct dnet_ext_list *elist, int etype, uint64_t size, const void *data);
+
+/*
+ * Extension manipulation functions
+ */
+
+/*! Get pointer to extension of given \a etype in \a elist */
+struct dnet_ext *dnet_ext_get(const struct dnet_ext_list *elist, int etype);
+/*! Return size of extension */
+uint32_t dnet_ext_get_size(const struct dnet_ext *ext);
+/*! Return pointer to data from extension */
+void *dnet_ext_get_data(const struct dnet_ext *ext);
+/*! Free memory occupied by an extension */
+void dnet_ext_put(struct dnet_ext *ext);
 
 int dnet_backend_register(struct dnet_config_backend *b);
 

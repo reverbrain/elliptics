@@ -227,3 +227,28 @@ int backend_storage_size(struct dnet_config_backend *b, const char *root)
 	return 0;
 }
 
+/*!
+ * Initialize allocated extension list
+ */
+void dnet_ext_list_init(struct dnet_ext_list *elist)
+{
+	if (elist == NULL)
+		return;
+	memset(elist, 0, sizeof(struct dnet_ext_list));
+}
+
+/*!
+ * Allocates and returns new extension list
+ */
+struct dnet_ext_list *dnet_ext_list_create()
+{
+	return calloc(0, sizeof(struct dnet_ext_list));
+}
+
+/*!
+ * XXX: Destroy extension list
+ */
+void dnet_ext_list_destroy(struct dnet_ext_list *elist)
+{
+	/* XXX: */
+}
