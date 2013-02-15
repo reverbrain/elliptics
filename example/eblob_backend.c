@@ -39,6 +39,9 @@
 #include "backends.h"
 #include "common.h"
 
+/*
+ * FIXME: __unused is used internally by glibc, so it may cause conflicts.
+ */
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
@@ -49,7 +52,7 @@ struct eblob_backend_config {
 };
 
 #if EBLOB_ID_SIZE != DNET_ID_SIZE
-#error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE" 
+#error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE"
 #endif
 
 static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
@@ -485,7 +488,7 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 	if (cmd->cmd == DNET_CMD_READ_RANGE) {
 		start_from = io->start;
 	}
-		
+
 	for (i = start_from; i < p.keys_cnt; ++i) {
 		switch(cmd->cmd) {
 			case DNET_CMD_READ_RANGE:
