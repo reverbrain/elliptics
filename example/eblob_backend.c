@@ -175,7 +175,7 @@ err_out_exit:
 	return err;
 }
 
-static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data)
+static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data, int last)
 {
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->eblob;
@@ -225,7 +225,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	}
 
 	io->size = size;
-	if (size)
+	if (size && last)
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset, 0);
 
@@ -570,7 +570,7 @@ static int blob_bulk_read(struct eblob_backend_config *c, void *state, struct dn
 	count = io->size / sizeof(struct dnet_io_attr);
 
 	for (i = 0; i < count; i++) {
-		ret = blob_read(c, state, cmd, &ios[i]);
+		ret = blob_read(c, state, cmd, &ios[i], i + 1 == count);
 		if (!ret)
 			err = 0;
 		else if (err == -1)
@@ -623,7 +623,7 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 			err = blob_write(c, state, cmd, data);
 			break;
 		case DNET_CMD_READ:
-			err = blob_read(c, state, cmd, data);
+			err = blob_read(c, state, cmd, data, 1);
 			break;
 		case DNET_CMD_READ_RANGE:
 		case DNET_CMD_DEL_RANGE:
