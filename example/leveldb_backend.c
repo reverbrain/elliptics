@@ -163,7 +163,7 @@ err_out_exit:
 	return err;
 }
 
-static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *iodata)
+static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *iodata, int last)
 {
 	struct dnet_io_attr *io = iodata;
 	char *data;
@@ -185,7 +185,7 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 	}
 
 	io->size = data_size;
-	if (data_size && data)
+	if (data_size && data && last)
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	err = dnet_send_read_data(state, cmd, io, data, -1, io->offset, 0);
 	if (err < 0)
@@ -232,7 +232,7 @@ static int leveldb_backend_bulk_read(struct leveldb_backend *s, void *state, str
 	count = io->size / sizeof(struct dnet_io_attr);
 
 	for (i = 0; i < count; i++) {
-		ret = leveldb_backend_read(s, state, cmd, &ios[i]);
+		ret = leveldb_backend_read(s, state, cmd, &ios[i], i + 1 == count);
 		if (!ret)
 			err = 0;
 		else if (err == -ENOENT)
@@ -328,7 +328,7 @@ static int leveldb_backend_command_handler(void *state, void *priv, struct dnet_
 			err = leveldb_backend_write(s, state, cmd, data);
 			break;
 		case DNET_CMD_READ:
-			err = leveldb_backend_read(s, state, cmd, data);
+			err = leveldb_backend_read(s, state, cmd, data, 1);
 			break;
 		case DNET_CMD_STAT:
 			err = backend_stat(state, s->path, cmd);
