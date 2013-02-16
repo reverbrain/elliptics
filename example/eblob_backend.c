@@ -406,8 +406,8 @@ static int blob_range_callback(struct eblob_range_request *req)
 	if (p->keys_size == p->keys_cnt) {
 		/* On first pass allocate 1000, otherwise double allocation size */
 		p->keys_size = p->keys_size ? p->keys_size * 2 : 1000;
-		p->keys = (struct eblob_range_request*)realloc(p->keys, sizeof(struct eblob_range_request) * p->keys_size);
-		if (!(p->keys)) {
+		p->keys = realloc(p->keys, sizeof(struct eblob_range_request) * p->keys_size);
+		if (p->keys == NULL) {
 			err = -ENOMEM;
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del-range: can't (re-)allocate memory, "
 					"new size: %" PRIu64 "\n", cur_id, p->keys_size);
