@@ -21,10 +21,11 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 
-#include <errno.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -402,30 +403,16 @@ static int blob_range_callback(struct eblob_range_request *req)
 		goto err_out_exit;
 	}
 
-	/*
-	 * TODO: realloc acts as malloc if 1st argument is NULL, therefore
-	 * following code can be simplified.
-	 */
-
-	if (!(p->keys)) {
-		p->keys = (struct eblob_range_request*)malloc(sizeof(struct eblob_range_request) * 1000);
-		if (!(p->keys)) {
-			err = -ENOMEM;
-			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del-range: can't allocate memory\n", cur_id);
-			goto err_out_exit;
-		}
-		p->keys_size = 1000;
-	}
-
 	if (p->keys_size == p->keys_cnt) {
-		p->keys = (struct eblob_range_request*)realloc(p->keys, sizeof(struct eblob_range_request) * p->keys_size * 2);
+		/* On first pass allocate 1000, otherwise double allocation size */
+		p->keys_size = p->keys_size ? p->keys_size * 2 : 1000;
+		p->keys = (struct eblob_range_request*)realloc(p->keys, sizeof(struct eblob_range_request) * p->keys_size);
 		if (!(p->keys)) {
 			err = -ENOMEM;
-			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del-range: can't re-allocate memory, new size: %llu\n",
-					cur_id, (unsigned long long)(p->keys_size * 2));
+			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del-range: can't (re-)allocate memory, "
+					"new size: %" PRIu64 "\n", cur_id, p->keys_size);
 			goto err_out_exit;
 		}
-		p->keys_size *= 2;
 	}
 
 	memcpy(&p->keys[p->keys_cnt], req, sizeof(struct eblob_range_request));
