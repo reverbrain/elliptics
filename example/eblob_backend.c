@@ -102,8 +102,8 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
 		wc.offset = 0;
-		wc.size = io->num;
-		wc.flags = flags;
+		wc.size = io->num;	/* XXX: Include extensions */
+		wc.flags = flags;	/* XXX: Include BLOB_DISK_CTL_USR1 flag */
 		wc.type = io->type;
 
 		err = eblob_write_prepare(c->eblob, &key, &wc);
@@ -118,6 +118,7 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 	}
 
 	if (io->size) {
+		/* XXX: Write extensions, then data */
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
 			err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, io->type);
 		} else {
@@ -141,8 +142,8 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
 		wc.offset = 0;
-		wc.size = io->num;
-		wc.flags = flags;
+		wc.size = io->num;	/* XXX: Include extensions */
+		wc.flags = flags;	/* XXX: Include BLOB_DISK_CTL_USR1 flag */
 		wc.type = io->type;
 
 		err = eblob_write_commit(c->eblob, &key, NULL, 0, &wc);
@@ -156,6 +157,11 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 			dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type);
 	}
 
+	/*
+	 * This read is needed for case when
+	 *	io->size < sizeof(struct eblob_write_control)
+	 * so we can obtain info from header
+	 */
 	if (!err && wc.data_fd == -1) {
 		err = eblob_read_nocsum(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, io->type);
 		if (err < 0) {
