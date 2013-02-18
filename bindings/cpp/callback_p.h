@@ -780,6 +780,7 @@ class remove_callback : public default_callback
 		remove_callback(const session &sess, const dnet_id &id)
 			: sess(sess), id(id)
 		{
+			cflags = sess.get_cflags() | DNET_FLAGS_NEED_ACK | DNET_ATTR_DELETE_HISTORY;
 		}
 
 		bool start(complete_func func, void *priv)
@@ -794,7 +795,7 @@ class remove_callback : public default_callback
 				id.group_id = groups[i];
 
 				int num = dnet_remove_object(sess.get_native(), &id, func, priv,
-					sess.get_cflags(), sess.get_ioflags());
+					cflags, sess.get_ioflags());
 
 				if (num >= 0) {
 					this->groups.insert(groups[i]);
@@ -823,7 +824,7 @@ class remove_callback : public default_callback
 			for (size_t i = 0; i < results_size(); ++i) {
 				const callback_result_entry &entry = result_at(i);
 				dnet_cmd *cmd = entry.command();
-				if (cmd->status < 0)
+				if (cmd->status > 0)
 					groups.erase(cmd->id.group_id);
 			}
 			if (groups.empty()) {
@@ -839,6 +840,7 @@ class remove_callback : public default_callback
 
 		session sess;
 		std::set<int> groups;
+		uint64_t cflags;
 		dnet_id id;
 		std::function<void (const std::exception_ptr &)> handler;
 };
