@@ -287,6 +287,8 @@ int main(int argc, char *argv[])
 			dnet_id did_tmp, *did = NULL;
 			std::string event, data, binary;
 
+			memset(&did_tmp, 0, sizeof(struct dnet_id));
+
 			if (const char *tmp = strchr(cmd, ' ')) {
 				event.assign(cmd, tmp);
 				data.assign(tmp + 1);
