@@ -63,6 +63,7 @@ class callback_result_data
 };
 
 enum special_count { unlimited };
+enum status_request { all_ok, any_ok };
 
 class default_callback
 {
@@ -148,6 +149,22 @@ class default_callback
 			for (size_t i = 0; i < m_statuses.size(); ++i)
 				ok |= (m_statuses[i] == 0);
 			return ok;
+		}
+
+		bool is_valid(status_request request) const
+		{
+			if (request == any_ok) {
+				bool ok = false;
+				for (size_t i = 0; i < m_statuses.size(); ++i)
+					ok |= (m_statuses[i] == 0);
+				return ok;
+			} else if (request == all_ok) {
+				bool ok = !m_statuses.empty();
+				for (size_t i = 0; i < m_statuses.size(); ++i)
+					ok &= (m_statuses[i] == 0);
+				return ok;
+			}
+			abort();
 		}
 
 		void clear()
@@ -786,31 +803,19 @@ class remove_callback : public default_callback
 		bool start(complete_func func, void *priv)
 		{
 			set_count(unlimited);
-			int count = 0;
-			int err = -ENOENT;
 
-			const std::vector<int> &groups = sess.get_groups();
+			const auto &sess_groups = sess.get_groups();
+			std::copy(sess_groups.begin(), sess_groups.end(),
+				std::inserter(groups, groups.begin()));
 
-			for (size_t i = 0; i < groups.size(); ++i) {
-				id.group_id = groups[i];
-
-				int num = dnet_remove_object(sess.get_native(), &id, func, priv,
-					cflags, sess.get_ioflags());
-
-				if (num >= 0) {
-					this->groups.insert(groups[i]);
-					count += num;
-					err = 0;
-				}
-			}
+			int err = dnet_remove_object(sess.get_native(), &id,
+				func, priv, cflags, sess.get_ioflags());
 
 			if (err < 0) {
-				elliptics_assert(count == 0);
 				throw_error(err, id, "REMOVE");
 				return false;
 			} else {
-				elliptics_assert(count > 0);
-				return set_count(count);
+				return set_count(err);
 			}
 		}
 
@@ -824,9 +829,10 @@ class remove_callback : public default_callback
 			for (size_t i = 0; i < results_size(); ++i) {
 				const callback_result_entry &entry = result_at(i);
 				dnet_cmd *cmd = entry.command();
-				if (cmd->status > 0)
+				if (cmd->status < 0)
 					groups.erase(cmd->id.group_id);
 			}
+
 			if (groups.empty()) {
 				try {
 					throw_error(-ENOENT, id, "REMOVE");
