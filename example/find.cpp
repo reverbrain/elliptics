@@ -98,7 +98,7 @@ void finder::parse_lookup(const std::string &ret)
 			std::string route_addr = "failed to get route table";
 
 			try {
-				route_addr = lookup_address(cmd->id);
+				route_addr = lookup_address(cmd->id, cmd->id.group_id);
 			} catch (const std::exception &e) {
 			}
 
@@ -180,6 +180,7 @@ int main(int argc, char *argv[])
 	char *remote = NULL;
 	struct dnet_id raw;
 	struct dnet_trans_control ctl;
+	memset(&raw, 0, sizeof(struct dnet_id));
 
 	while ((ch = getopt(argc, argv, "r:l:m:I:h")) != -1) {
 		switch (ch) {
