@@ -100,7 +100,7 @@ struct dnet_ext {
 struct dnet_ext_hdr {
 	uint32_t		size;		/* Size of all extensions */
 	uint32_t		count;		/* Number of extensions in record */
-	uint64_t		timestamp[2];	/* Time stamp of record */
+	struct dnet_time	timestamp;	/* Time stamp of record */
 	uint64_t		__pad[3];	/* For future use (should be NULLed) */
 };
 

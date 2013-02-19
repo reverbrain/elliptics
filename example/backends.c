@@ -258,15 +258,18 @@ void dnet_ext_list_destroy(struct dnet_ext_list *elist)
 }
 
 /*!
- * Extracts \a elist from data, replaces \a datap pointer and fixes \a sizep
- * TODO: endian conversions.
+ * Extracts \a elist from \a datap, replaces \a datap pointer and adjusts \a sizep
+ *
+ * TODO: Endian conversions.
  */
-int dnet_ext_list_extract(void **datap, uint64_t *sizep, struct dnet_ext_list *elist)
+int dnet_ext_list_extract(void **datap, uint64_t *sizep,
+		struct dnet_ext_list *elist)
 {
 	struct dnet_ext_hdr *hdr;	/* Extensions header */
 	uint64_t new_size;		/* Size of data without extensions */
 	void *new_data;			/* Data without extensions */
-	static const size_t hdr_size = sizeof(struct dnet_ext_hdr); /* Shortcut */
+	/* Shortcut */
+	static const size_t hdr_size = sizeof(struct dnet_ext_hdr);
 
 	/* Parameter checks */
 	if (datap == NULL || *datap == NULL)
@@ -281,7 +284,7 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep, struct dnet_ext_list *e
 	/*
 	 * Shortcut
 	 *
-	 * TODO: For now we account only for headers size, but when we'll
+	 * TODO: For now we account only for headers size, but when we
 	 * support additional extensions we should account for
 	 * hdr_size + hdr->size
 	 */
@@ -295,19 +298,20 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep, struct dnet_ext_list *e
 
 	/* Extract header */
 	memset(elist, 0, sizeof(struct dnet_ext_list));
-	/* TODO: static_assert on sizeof(uint64_t * 2) == sizeof(struct dnet_time) */
-	memcpy(&elist->timestamp, &hdr->timestamp, sizeof(struct dnet_time));
+	elist->timestamp = hdr->timestamp;
 	elist->count = hdr->count;
 	elist->size = hdr->size;
 
 	/*
-	 * Currently we do not support any extensions beyond extension header
+	 * Currently we do not support any extensions beyond header itself
 	 * so assert on any extensions.
 	 *
 	 * TODO: Extract all extensions
 	 */
-	if (elist->size != 0 || elist->count != 0)
+	if (elist->size != 0 || elist->count != 0) {
+		free(new_data);
 		return -ENOTSUP;
+	}
 
 	/* Free old data */
 	free(*datap);
@@ -321,14 +325,18 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep, struct dnet_ext_list *e
 
 /*!
  * Combines \a datap with \a elist and fixes \a sizep
+ *
  * NB! It does not free memory pointed by \a datap
+ * TODO: Endian conversions.
  */
-int dnet_ext_list_combine(void **datap, uint64_t *sizep, const struct dnet_ext_list *elist)
+int dnet_ext_list_combine(void **datap, uint64_t *sizep,
+		const struct dnet_ext_list *elist)
 {
 	struct dnet_ext_hdr *hdr;	/* Extensions header */
 	uint64_t new_size;		/* Size of data without extensions */
 	void *new_data;			/* Data without extensions */
-	static const size_t hdr_size = sizeof(struct dnet_ext_hdr); /* Shortcut */
+	/* Shortcut */
+	static const size_t hdr_size = sizeof(struct dnet_ext_hdr);
 
 	/* Parameter checks */
 	if (datap == NULL || *datap == NULL)
@@ -339,7 +347,7 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep, const struct dnet_ext_l
 	/*
 	 * Shortcut
 	 *
-	 * TODO: For now we account only for headers size, but when we'll
+	 * TODO: For now we account only for headers size, but when we
 	 * support additional extensions we should account for
 	 * hdr_size + hdr->size
 	 */
@@ -348,23 +356,24 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep, const struct dnet_ext_l
 	/* Extract data, copy it, swap it, adjust size */
 	if ((new_data = malloc(new_size)) == NULL)
 		return -ENOMEM;
-
 	memcpy((unsigned char *)new_data + hdr_size, *datap, *sizep);
+
 	hdr = (struct dnet_ext_hdr *)new_data;
 	memset(hdr, 0, sizeof(struct dnet_ext_hdr));
 	hdr->size = elist->size;
 	hdr->count = elist->count;
-	/* TODO: static_assert on sizeof(uint64_t * 2) == sizeof(struct dnet_time) */
-	memcpy(&hdr->timestamp, &elist->timestamp, sizeof(struct dnet_time));
+	hdr->timestamp = elist->timestamp;
 
 	/*
-	 * Currently we do not support any extensions beyond extension header
+	 * Currently we do not support any extensions beyond header itself
 	 * so assert on any extensions.
 	 *
 	 * TODO: Combine all extensions
 	 */
-	if (elist->size != 0 || elist->count != 0)
+	if (elist->size != 0 || elist->count != 0) {
+		free(new_data);
 		return -ENOTSUP;
+	}
 
 	*datap = new_data;
 	*sizep = new_size;
