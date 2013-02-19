@@ -88,19 +88,19 @@ struct dnet_config_backend {
 	struct dnet_backend_callbacks	cb;
 };
 
-/*! On disk extension header */
+/*! Extension */
 struct dnet_ext {
 	uint32_t		etype;		/* Extension type */
 	uint32_t		size;		/* Size of data (excluding header) */
 	uint32_t		__pad[2];	/* For future use (should be NULLed ) */
-	unsigned char		data[0];	/* Data itself */
+	unsigned char		data[0];	/* Extension's payload */
 };
 
-/*! Info extension on-disk structure */
-struct dnet_ext_info {
-	struct dnet_ext		hdr;		/* Header for information extension */
+/*! On-disk header for extension list */
+struct dnet_ext_hdr {
 	uint32_t		size;		/* Size of all extensions */
 	uint32_t		count;		/* Number of extensions in record */
+	uint64_t		timestamp;	/* Time stamp of record */
 	uint64_t		__pad[2];	/* For future use (should be NULLed) */
 };
 
@@ -108,16 +108,12 @@ struct dnet_ext_info {
 struct dnet_ext_list {
 	uint32_t		size;		/* Total size of extensions */
 	uint32_t		count;		/* Number of entries in list */
-	struct dnet_ext_hdr	*exts;		/* Pointer to array of extensions */
-	uint64_t		__pad[2];	/* For future use (should be NULLed ) */
+	struct dnet_ext		*exts;		/* Pointer to array of extensions */
 };
 
 /*! Types of extensions */
 enum {
 	DNET_EXTENSION_FIRST,		/* Assert */
-	DNET_EXTENSION_INFO,		/* Extensions information */
-	DNET_EXTENSION_TS,		/* Timestamp */
-	DNET_EXTENSION_USERDATA,	/* User-provided metadata */
 	DNET_EXTENSION_LAST		/* Assert */
 };
 
