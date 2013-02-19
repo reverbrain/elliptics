@@ -113,12 +113,9 @@ static int leveldb_backend_lookup(struct leveldb_backend *s __unused, void *stat
 
 static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *data)
 {
-	struct dnet_node *n = dnet_get_node_from_state(state);
 	int err = -EINVAL;
 	char *error_string = NULL;
 	struct dnet_io_attr *io = data;
-	struct dnet_file_info *info;
-	struct dnet_addr_attr *a;
 
 	dnet_convert_io_attr(io);
 	if (io->offset) {
@@ -132,22 +129,7 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	if (error_string)
 		goto err_out_exit;
 
-	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info));
-	if (!a) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-	info = (struct dnet_file_info *)(a + 1);
-
-	dnet_fill_addr_attr(n, a);
-	dnet_convert_addr_attr(a);
-
-	memset(info, 0, sizeof(struct dnet_file_info));
-
-	info->size = io->size;
-	dnet_convert_file_info(info);
-
-	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info), 0);
+	err = dnet_send_file_info_without_fd(state, cmd, 0, io->size);
 	if (err < 0)
 		goto err_out_exit;
 
