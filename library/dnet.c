@@ -655,8 +655,12 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				if ((io->flags & DNET_IO_FLAGS_CACHE) || (cmd->cmd != DNET_CMD_WRITE)) {
 					err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
 
-					if (io->flags & DNET_IO_FLAGS_CACHE_ONLY)
+					if (io->flags & DNET_IO_FLAGS_CACHE_ONLY) {
+						if ((cmd->cmd == DNET_CMD_WRITE) && !err) {
+							err = dnet_send_file_info_without_fd(st, cmd, 0, io->size);
+						}
 						break;
+					}
 
 					/*
 					 * We successfully read data from cache, do not sink to disk for it
@@ -1117,6 +1121,45 @@ err_out_free:
 	free(addr);
 err_out_free_file:
 	free(file);
+err_out_exit:
+	return err;
+}
+
+int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, uint64_t offset, int64_t size)
+{
+	struct dnet_node *n = dnet_get_node_from_state(state);
+	struct dnet_file_info *info;
+	struct dnet_addr_attr *a;
+	int err;
+	const char file[] = "";
+	const size_t flen = sizeof(file) - 1;
+
+	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen);
+	if (!a) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+	info = (struct dnet_file_info *)(a + 1);
+
+	dnet_fill_addr_attr(n, a);
+	dnet_convert_addr_attr(a);
+
+	memset(info, 0, sizeof(struct dnet_file_info));
+
+	if (size >= 0)
+		info->size = size;
+	info->offset = offset;
+
+	if (flen > 0) {
+		info->flen = flen;
+		memcpy(info + 1, file, flen);
+	}
+
+	dnet_convert_file_info(info);
+
+	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen, 0);
+
+	free(a);
 err_out_exit:
 	return err;
 }
