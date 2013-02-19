@@ -265,11 +265,11 @@ void dnet_ext_list_destroy(struct dnet_ext_list *elist)
 int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 		struct dnet_ext_list *elist)
 {
-	struct dnet_ext_hdr *hdr;	/* Extensions header */
+	struct dnet_ext_list_hdr *hdr;	/* Extensions header */
 	uint64_t new_size;		/* Size of data without extensions */
 	void *new_data;			/* Data without extensions */
 	/* Shortcut */
-	static const size_t hdr_size = sizeof(struct dnet_ext_hdr);
+	static const size_t hdr_size = sizeof(struct dnet_ext_list_hdr);
 
 	/* Parameter checks */
 	if (datap == NULL || *datap == NULL)
@@ -289,7 +289,7 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	 * hdr_size + hdr->size
 	 */
 	new_size = *sizep - hdr_size;
-	hdr = *datap;
+	hdr = (struct dnet_ext_list_hdr *)*datap;
 
 	/* Extract payload from \a datap */
 	if ((new_data = malloc(new_size)) == NULL)
@@ -332,11 +332,11 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 		const struct dnet_ext_list *elist)
 {
-	struct dnet_ext_hdr *hdr;	/* Extensions header */
+	struct dnet_ext_list_hdr *hdr;	/* Extensions header */
 	uint64_t new_size;		/* Size of data without extensions */
 	void *new_data;			/* Data without extensions */
 	/* Shortcut */
-	static const size_t hdr_size = sizeof(struct dnet_ext_hdr);
+	static const size_t hdr_size = sizeof(struct dnet_ext_list_hdr);
 
 	/* Parameter checks */
 	if (datap == NULL || *datap == NULL)
@@ -358,8 +358,8 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 		return -ENOMEM;
 	memcpy((unsigned char *)new_data + hdr_size, *datap, *sizep);
 
-	hdr = (struct dnet_ext_hdr *)new_data;
-	memset(hdr, 0, sizeof(struct dnet_ext_hdr));
+	hdr = (struct dnet_ext_list_hdr *)new_data;
+	memset(hdr, 0, sizeof(struct dnet_ext_list_hdr));
 	hdr->size = elist->size;
 	hdr->count = elist->count;
 	hdr->timestamp = elist->timestamp;
