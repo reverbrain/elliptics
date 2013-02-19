@@ -121,6 +121,8 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	struct dnet_file_info *info;
 	struct dnet_addr_attr *a;
 
+	dnet_ext_list_init(&elist);
+
 	dnet_convert_io_attr(io);
 	if (io->offset) {
 		err = -ERANGE;
@@ -129,8 +131,7 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	
 	data += sizeof(struct dnet_io_attr);
 
-	/* Extensions setup */
-	dnet_ext_list_init(&elist);
+	/* Combine data and empty extension list with timestamp */
 	dnet_current_time(&elist.timestamp);
 	err = dnet_ext_list_combine(&data, &io->size, &elist);
 	if (err != 0)
@@ -180,6 +181,8 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 	int err = -EINVAL;
 	char *error_string = NULL;
 
+	dnet_ext_list_init(&elist);
+
 	dnet_convert_io_attr(io);
 	if (io->size || io->offset) {
 		err = -ERANGE;
@@ -193,8 +196,7 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 		goto err_out_exit;
 	}
 
-	/* Parse extensions header */
-	dnet_ext_list_init(&elist);
+	/* Extract original data and extension list form data */
 	err = dnet_ext_list_extract((void *)&data, (uint64_t *)&data_size, &elist);
 	if (err != 0)
 		goto err_out_free;
@@ -213,6 +215,7 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 err_out_free:
 	free(data);
 err_out_exit:
+	dnet_ext_list_destroy(&elist);
 	if (err < 0)
 		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: READ: error: %s: %d\n",
 			dnet_dump_id(&cmd->id), error_string, err);
@@ -287,13 +290,14 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 		}
 		++j;
 
+		dnet_ext_list_init(&elist);
+
 		err = 0;
 		switch (cmd->cmd) {
 			case DNET_CMD_READ_RANGE: 
 				val = leveldb_iter_value(it, &size);
 
 				/* Extensions */
-				dnet_ext_list_init(&elist);
 				err = dnet_ext_list_extract((void *)&val, (uint64_t *)&size, &elist);
 				if (err != 0)
 					break;
@@ -319,6 +323,7 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 				break;
 		}
 
+		dnet_ext_list_destroy(&elist);
 		if (err) {
 			j = 0;
 			break;
