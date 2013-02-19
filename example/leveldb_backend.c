@@ -276,6 +276,7 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 	     leveldb_iter_valid(it) && j < io->num; leveldb_iter_next(it), i++)
 	{
 		size_t size;
+		struct dnet_ext_list elist;
 		const char * key = leveldb_iter_key(it, &size);
 		const char * val = 0;
 		if (memcmp(io->parent, key, DNET_ID_SIZE) < 0) {
@@ -290,14 +291,19 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 		switch (cmd->cmd) {
 			case DNET_CMD_READ_RANGE: 
 				val = leveldb_iter_value(it, &size);
-				/*
-				 * XXX: Extract header
-				 */
+
+				/* Extensions */
+				dnet_ext_list_init(&elist);
+				err = dnet_ext_list_extract((void *)&val, (uint64_t *)&size, &elist);
+				if (err != 0)
+					break;
+
 				memset(&dst_io, 0, sizeof(dst_io));
 				dst_io.flags  = 0;
 				dst_io.size   = size;
 				dst_io.offset = 0;
 				dst_io.type   = io->type;
+				dst_io.timestamp = elist.timestamp;
 				memcpy(dst_io.id, key, DNET_ID_SIZE);
 				memcpy(dst_io.parent, io->parent, DNET_ID_SIZE);
 				err = dnet_send_read_data(state, cmd, &dst_io, (char*)val, -1, 0, 0);
