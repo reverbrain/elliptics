@@ -662,6 +662,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 					if (io->flags & DNET_IO_FLAGS_CACHE_ONLY) {
 						if ((cmd->cmd == DNET_CMD_WRITE) && !err) {
+							cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 							err = dnet_send_file_info_without_fd(st, cmd, 0, io->size);
 						}
 						break;
