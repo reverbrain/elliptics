@@ -128,7 +128,7 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 		err = -ERANGE;
 		goto err_out_exit;
 	}
-	
+
 	data += sizeof(struct dnet_io_attr);
 
 	/* Combine data and empty extension list with timestamp */
@@ -294,7 +294,7 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 
 		err = 0;
 		switch (cmd->cmd) {
-			case DNET_CMD_READ_RANGE: 
+			case DNET_CMD_READ_RANGE:
 				val = leveldb_iter_value(it, &size);
 
 				/* Extensions */
@@ -337,7 +337,7 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 		r.num    = j - io->start;
 		r.offset = r.size = 0;
 
-		err = dnet_send_read_data(state, cmd, &r, NULL, -1, 0, 0);		
+		err = dnet_send_read_data(state, cmd, &r, NULL, -1, 0, 0);
 	}
 
 	leveldb_iter_destroy(it);
