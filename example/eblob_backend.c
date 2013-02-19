@@ -203,22 +203,15 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 static int blob_write_timestamp(struct eblob_backend_config *c, void *state,
 		struct dnet_cmd *cmd, void *data)
 {
-	struct dnet_ext_list *elist;
+	struct dnet_ext_list elist;
 	int err;
 
-	if ((elist = dnet_ext_list_create()) == NULL) {
-		err = -ENOMEM;
-		goto err;
-	}
-
-	/*
-	 * XXX: Make extension from ts
-	 */
-
-	err = blob_write_ll(c, state, cmd, data, elist);
+	dnet_ext_list_create(&elist);
+	dnet_current_time(&elist.timestamp);
+	err = blob_write_ll(c, state, cmd, data, &elist);
 
 err_free_list:
-	dnet_ext_list_destroy(elist);
+	dnet_ext_list_destroy(&elist);
 err:
 	return err;
 }
@@ -294,22 +287,16 @@ err_out_exit:
 static int blob_read_timestamp(struct eblob_backend_config *c, void *state,
 		struct dnet_cmd *cmd, void *data, int last)
 {
-	struct dnet_ext_list *elist;
+	struct dnet_ext_list elist;
+	struct dnet_io_attr *io = data;
 	int err;
 
-	if ((elist = dnet_ext_list_create()) == NULL) {
-		err = -ENOMEM;
-		goto err;
-	}
-
-	err = blob_read_ll(c, state, cmd, data, last, elist);
-
-	/*
-	 * XXX: Parse extension list and put ts into io_attr
-	 */
+	dnet_ext_list_init(&elist);
+	err = blob_read_ll(c, state, cmd, data, last, &elist);
+	io->timestamp = elist.timestamp;
 
 err_free_list:
-	dnet_ext_list_destroy(elist);
+	dnet_ext_list_destroy(&elist);
 err:
 	return err;
 }
