@@ -304,6 +304,9 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
  */
 #define DNET_IO_FLAGS_COMPARE_AND_SWAP (1<<13)
 
+struct dnet_time {
+	uint64_t		tsec, tnsec;
+};
 
 struct dnet_io_attr
 {
@@ -311,15 +314,22 @@ struct dnet_io_attr
 	uint8_t			id[DNET_ID_SIZE];
 
 	/*
-	 * used in range request as start and number for LIMIT(start, num) 
+	 * used in range request as start and number for LIMIT(start, num)
 	 *
 	 * write prepare request uses @num is used as a placeholder
 	 * for number of bytes to reserve on disk
 	 *
 	 * @start is used in cache writes: it is treated as object lifetime in seconds, if zero, object is never removed.
 	 * When object's lifetime is over, it is removed from cache, but not from disk.
+	 *
+	 * @timestamp used in new data format on read requests.
 	 */
-	uint64_t		start, num;
+	union {
+		struct {
+			uint64_t	start, num;
+		};
+		struct dnet_time	timestamp;
+	};
 	int			type;
 	uint32_t		flags;
 	uint64_t		offset;
@@ -511,10 +521,6 @@ static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)
 	else
 		st[cmd].err++;
 }
-
-struct dnet_time {
-	uint64_t		tsec, tnsec;
-};
 
 static inline void dnet_convert_time(struct dnet_time *tm)
 {

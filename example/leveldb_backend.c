@@ -114,6 +114,7 @@ static int leveldb_backend_lookup(struct leveldb_backend *s __unused, void *stat
 static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_node *n = dnet_get_node_from_state(state);
+	struct dnet_ext_list elist;
 	int err = -EINVAL;
 	char *error_string = NULL;
 	struct dnet_io_attr *io = data;
@@ -127,6 +128,13 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	}
 	
 	data += sizeof(struct dnet_io_attr);
+
+	/* Extensions setup */
+	dnet_ext_list_init(&elist);
+	dnet_current_time(&elist.timestamp);
+	err = dnet_ext_list_combine(&data, &io->size, &elist);
+	if (err != 0)
+		goto err_out_exit;
 
 	leveldb_put(s->db, s->woptions, (const char *)cmd->id.id, DNET_ID_SIZE, data, io->size, &error_string);
 	if (error_string)
@@ -155,6 +163,7 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 
 err_out_exit:
+	dnet_ext_list_destroy(&elist);
 	if (err < 0)
 		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: : WRITE: error: %s: %d.\n",
 			dnet_dump_id(&cmd->id), error_string, err);
@@ -165,6 +174,7 @@ err_out_exit:
 static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *iodata, int last)
 {
 	struct dnet_io_attr *io = iodata;
+	struct dnet_ext_list elist;
 	char *data;
 	size_t data_size;
 	int err = -EINVAL;
@@ -182,6 +192,13 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 			err = -ENOENT;
 		goto err_out_exit;
 	}
+
+	/* Parse extensions header */
+	dnet_ext_list_init(&elist);
+	err = dnet_ext_list_extract((void *)&data, (uint64_t *)&data_size, &elist);
+	if (err != 0)
+		goto err_out_free;
+	io->timestamp = elist.timestamp;
 
 	io->size = data_size;
 	if (data_size && data && last)
@@ -273,6 +290,9 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 		switch (cmd->cmd) {
 			case DNET_CMD_READ_RANGE: 
 				val = leveldb_iter_value(it, &size);
+				/*
+				 * XXX: Extract header
+				 */
 				memset(&dst_io, 0, sizeof(dst_io));
 				dst_io.flags  = 0;
 				dst_io.size   = size;
