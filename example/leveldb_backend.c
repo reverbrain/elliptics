@@ -64,50 +64,8 @@ struct leveldb_backend
 	leveldb_t		*db;
 };
 
-/*
-static int leveldb_backend_lookup_raw(struct leveldb_backend *s, struct index *idx, void *state, struct dnet_cmd *cmd)
-{
-	int err, fd;
-	char *path;
-
-	err = smack_lookup(s->smack, idx, &path);
-	if (err < 0)
-		goto err_out_exit;
-
-	fd = open(path, O_RDONLY | O_CLOEXEC);
-	if (fd < 0) {
-		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: SMACK: %s: lookup-open: size: %llu: %s %d.\n",
-				dnet_dump_id_str(idx->id), path,
-				(unsigned long long)idx->data_size,
-				strerror(-err), err);
-		goto err_out_free;
-	}
-
-	err = dnet_send_file_info(state, cmd, fd, 0, idx->data_size);
-	if (err)
-		goto err_out_close;
-
-	dnet_backend_log(DNET_LOG_INFO, "%s: SMACK: %s: lookup: size: %llu.\n",
-			dnet_dump_id(&cmd->id), path, (unsigned long long)idx->data_size);
-
-err_out_close:
-	close(fd);
-err_out_free:
-	free(path);
-err_out_exit:
-	return err;
-}
-*/
-
 static int leveldb_backend_lookup(struct leveldb_backend *s __unused, void *state __unused, struct dnet_cmd *cmd __unused)
 {
-/*
-	struct index idx;
-
-	smack_setup_idx(&idx, cmd->id.id);
-	return leveldb_backend_lookup_raw(s, &idx, state, cmd);
-*/
 	return 0;
 }
 
@@ -475,50 +433,6 @@ err_out_exit:
 	return err;
 }
 
-/*
-static int leveldb_backend_send(void *state, void *priv, struct dnet_id *id)
-{
-	struct dnet_node *n = dnet_get_node_from_state(state);
-	struct leveldb_backend *s = priv;
-	char *result = NULL;
-	char *data;
-	int err;
-
-	smack_setup_idx(&idx, id->id);
-	err = smack_read(s->smack, &idx, &data);
-	if (err)
-		goto err_out_exit;
-
-	struct dnet_io_control ctl;
-
-	memset(&ctl, 0, sizeof(ctl));
-
-	ctl.fd = -1;
-
-	ctl.data = data;
-
-	memcpy(&ctl.id, id, sizeof(struct dnet_id));
-
-	ctl.io.offset = 0;
-	ctl.io.size = idx.data_size;
-	ctl.io.type = 0;
-	ctl.io.flags = 0;
-
-	struct dnet_session *sess = dnet_session_create(n);
-	dnet_session_set_groups(sess, (int *)&id->group_id, 1);
-
-	err = dnet_write_data_wait(sess, &ctl, (void **)&result);
-	if (err < 0)
-		goto err_out_free;
-	free(result);
-	err = 0;
-
-err_out_free:
-	free(data);
-err_out_exit:
-	return err;
-}
-*/
 int leveldb_backend_storage_stat(void *priv, struct dnet_stat *st)
 {
 	int err;
@@ -631,7 +545,6 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 	b->cb.command_private = s;
 
 	b->cb.command_handler = leveldb_backend_command_handler;
-	//b->cb.send = leveldb_backend_send;
 
 	c->storage_size = b->storage_size;
 	c->storage_free = b->storage_free;
