@@ -196,7 +196,7 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 		goto err_out_exit;
 	}
 
-	/* Extract original data and extension list form data */
+	/* Extract original data and extension list from &data */
 	err = dnet_ext_list_extract((void *)&data, (uint64_t *)&data_size, &elist);
 	if (err != 0)
 		goto err_out_free;

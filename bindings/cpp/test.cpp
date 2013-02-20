@@ -616,7 +616,7 @@ int main(int argc, char *argv[])
 		test_cache_delete(s, 1000);
 
 	} catch (const std::exception &e) {
-		std::cerr << "Error occured : " << e.what() << std::endl;
+		std::cerr << "Error occurred : " << e.what() << std::endl;
 		return 1;
 	} catch (int err) {
 		std::cerr << "Error : " << err << std::endl;

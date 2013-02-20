@@ -487,7 +487,7 @@ class session
 		 */
 		void			transform(const std::string &data, struct dnet_id &id);
 		/*!
-		 * Makes dnet_id be accessable by key::id() in the key \a id.
+		 * Makes dnet_id be accessible by key::id() in the key \a id.
 		 */
 		void			transform(const key &id);
 
@@ -678,7 +678,7 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 *
-		 * \note Indexes are not updated. Data is not accessable for reading.
+		 * \note Indexes are not updated. Data is not accessible for reading.
 		 */
 		void			write_plain(const std::function<void (const write_result &)> &handler,
 						const key &id, const data_pointer &file,
@@ -695,7 +695,7 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 *
-		 * \note Indexes are updated. Data becomes accessable for reading.
+		 * \note Indexes are updated. Data becomes accessible for reading.
 		 */
 		void			write_commit(const std::function<void (const write_result &)> &handler,
 						const key &id, const data_pointer &file,
