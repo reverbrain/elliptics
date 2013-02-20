@@ -258,12 +258,12 @@ void dnet_ext_list_destroy(struct dnet_ext_list *elist)
 }
 
 /*!
- * Extracts \a elist from \a datap, replaces \a datap pointer and adjusts \a sizep
- *
+ * Extracts \a elist from \a datap, replaces \a datap pointer and adjusts \a
+ * sizep. In case \a free_data is set then data pointed by \a *datap is free'd.
  * TODO: Endian conversions.
  */
 int dnet_ext_list_extract(void **datap, uint64_t *sizep,
-		struct dnet_ext_list *elist)
+		struct dnet_ext_list *elist, int free_data)
 {
 	struct dnet_ext_list_hdr *hdr;	/* Extensions header */
 	uint64_t new_size;		/* Size of data without extensions */
@@ -314,7 +314,8 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	}
 
 	/* Free old data */
-	free(*datap);
+	if (free_data != 0)
+		free(*datap);
 
 	/* Swap data, adjust size */
 	*datap = new_data;

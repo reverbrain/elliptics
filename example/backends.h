@@ -130,7 +130,7 @@ enum {
  * "Master" functions
  */
 /*! Extracts \a elist from data, replaces \a datap pointer and fixes \a sizep */
-int dnet_ext_list_extract(void **datap, uint64_t *sizep, struct dnet_ext_list *elist);
+int dnet_ext_list_extract(void **datap, uint64_t *sizep, struct dnet_ext_list *elist, int free_data);
 /*! Combines \a datap with \a elist and fixes \a sizep */
 int dnet_ext_list_combine(void **datap, uint64_t *sizep, const struct dnet_ext_list *elist);
 
