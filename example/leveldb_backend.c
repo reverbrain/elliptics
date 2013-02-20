@@ -97,15 +97,17 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 
 	leveldb_put(s->db, s->woptions, (const char *)cmd->id.id, DNET_ID_SIZE, data, io->size, &error_string);
 	if (error_string)
-		goto err_out_exit;
+		goto err_out_free;
 
 	err = dnet_send_file_info_without_fd(state, cmd, 0, io->size);
 	if (err < 0)
-		goto err_out_exit;
+		goto err_out_free;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : WRITE: Ok: size: %llu.\n",
 			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 
+err_out_free:
+	free(data);
 err_out_exit:
 	dnet_ext_list_destroy(&elist);
 	if (err < 0)
