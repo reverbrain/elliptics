@@ -1,3 +1,12 @@
+elliptics (2.21.4.0) unstable; urgency=low
+
+  * Temporarily depend elliptics-dev on eblob-dev
+  * Fixed dnet_find
+  * Fixed remove method
+  * Fixed bulk_read
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Feb 2013 20:30:55 +0400
+
 elliptics (2.21.3.3) unstable; urgency=low
 
   * Depend on 0.10.0-rc1 cocaine and 0.18.2 eblob
