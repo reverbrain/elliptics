@@ -36,6 +36,9 @@
 
 #include <leveldb/c.h>
 
+/*
+ * FIXME: __unused is used (pun intended) internally by (e)glibc
+ */
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
