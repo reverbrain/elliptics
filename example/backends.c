@@ -285,9 +285,9 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	/*
 	 * Shortcut
 	 *
-	 * TODO: For now we account only for headers size, but when we
-	 * support additional extensions we should account for
-	 * hdr_size + hdr->size
+	 * TODO: For now we account only for header size, but when we add
+	 * support additional extensions we should account for hdr_size +
+	 * hdr->size
 	 */
 	new_size = *sizep - hdr_size;
 	hdr = (struct dnet_ext_list_hdr *)*datap;
@@ -345,9 +345,9 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 	/*
 	 * Shortcut
 	 *
-	 * TODO: For now we account only for headers size, but when we
-	 * support additional extensions we should account for
-	 * hdr_size + hdr->size
+	 * TODO: For now we account only for header size, but when we add
+	 * support additional extensions we should account for hdr_size +
+	 * hdr->size
 	 */
 	new_size = *sizep + hdr_size;
 
