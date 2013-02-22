@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.21.4.1
+Version:	2.21.4.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Feb 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.4.2
+- Depend on 0.10.0-rc3+ cocaine
+
 * Sat Feb 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.4.1
 - Depend on 0.10.0-rc2+ cocaine
 - elliptics-dev should depend on eblob - there is no eblob-dev package
