@@ -254,7 +254,8 @@ struct dnet_ext_list *dnet_ext_list_create()
  */
 void dnet_ext_list_destroy(struct dnet_ext_list *elist)
 {
-	/* TODO: Recursively destroy all extensions */
+	if (elist->data != NULL)
+		free(elist->data);
 }
 
 /*!
@@ -311,6 +312,9 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 		return -ENOTSUP;
 	}
 
+	/* Save original pointer to data */
+	elist->data = *datap;
+
 	/* Swap data, adjust size */
 	*datap = new_data;
 	*sizep = new_size;
@@ -348,7 +352,7 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 	 */
 	new_size = *sizep + hdr_size;
 
-	/* Extract data, copy it, swap it, adjust size */
+	/* Allocate space, copy data, prepend header */
 	if ((new_data = malloc(new_size)) == NULL)
 		return -ENOMEM;
 	memcpy((unsigned char *)new_data + hdr_size, *datap, *sizep);
@@ -370,6 +374,7 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 		return -ENOTSUP;
 	}
 
+	/* Swap data, adjust size */
 	*datap = new_data;
 	*sizep = new_size;
 

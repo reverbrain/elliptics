@@ -117,6 +117,7 @@ struct dnet_ext_list {
 	uint32_t		count;		/* Number of entries in list */
 	struct dnet_time	timestamp;	/* TS of header */
 	struct dnet_ext		**exts;		/* Array of pointers to extensions */
+	void			*data;		/* Pointer to original data before extraction */
 };
 
 /*! Types of extensions */
