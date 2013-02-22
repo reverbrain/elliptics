@@ -1,3 +1,9 @@
+elliptics (2.21.4.2) unstable; urgency=low
+
+  * Depend on 0.10.0-rc3+ cocaine
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Feb 2013 01:38:40 +0400
+
 elliptics (2.21.4.1) unstable; urgency=low
 
   * Depend on 0.10.0-rc2+ cocaine
