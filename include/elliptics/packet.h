@@ -243,7 +243,7 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 	dnet_convert_addr_attr(&l->addr);
 }
 
-/* Do not update history for given transaction */
+/* Internal flag, used when we want to skip data sending */
 #define DNET_IO_FLAGS_SKIP_SENDING	(1<<0)
 
 /* Append given data at the end of the object */
@@ -258,7 +258,7 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 #define DNET_IO_FLAGS_PREPARE		(1<<4)
 #define DNET_IO_FLAGS_COMMIT		(1<<5)
 
-/* Object was removed */
+/* Object has to be removed during check procedure */
 #define DNET_IO_FLAGS_REMOVED		(1<<6)
 
 /* Overwrite data */
@@ -270,7 +270,7 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 /*
  * this flag is used when we want backend not to perform any additional actions
  * except than write data at given offset. This is no-op in filesystem backend,
- * but eblob one should disable prepare/commit operations.
+ * but eblob should disable prepare/commit operations.
  */
 #define DNET_IO_FLAGS_PLAIN_WRITE	(1<<9)
 
@@ -289,6 +289,8 @@ static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
  *
  * Please note, that READ command always goes into the cache, and if cache read succeeds, we return cached data
  * without going down to disk
+ *
+ * When DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK is set and object is being removed from cache, then remove object from disk too.
  */
 #define DNET_IO_FLAGS_CACHE		(1<<10)
 #define DNET_IO_FLAGS_CACHE_ONLY	(1<<11)
