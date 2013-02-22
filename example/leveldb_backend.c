@@ -142,9 +142,9 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 	}
 
 	/* Extract original data and extension list from &data */
-	err = dnet_ext_list_extract((void *)&data, (uint64_t *)&data_size, &elist, 1);
+	err = dnet_ext_list_extract((void *)&data, (uint64_t *)&data_size, &elist);
 	if (err != 0)
-		goto err_out_free;
+		goto err_out_exit;
 	io->timestamp = elist.timestamp;
 
 	io->size = data_size;
@@ -152,13 +152,11 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	err = dnet_send_read_data(state, cmd, io, data, -1, io->offset, 0);
 	if (err < 0)
-		goto err_out_free;
+		goto err_out_exit;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : READ: Ok: size: %llu.\n",
 			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 
-err_out_free:
-	free(data);
 err_out_exit:
 	dnet_ext_list_destroy(&elist);
 	if (err < 0)
@@ -243,7 +241,7 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 				val = leveldb_iter_value(it, &size);
 
 				/* Extensions */
-				err = dnet_ext_list_extract((void *)&val, (uint64_t *)&size, &elist, 0);
+				err = dnet_ext_list_extract((void *)&val, (uint64_t *)&size, &elist);
 				if (err != 0)
 					break;
 

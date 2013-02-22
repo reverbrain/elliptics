@@ -263,7 +263,7 @@ void dnet_ext_list_destroy(struct dnet_ext_list *elist)
  * TODO: Endian conversions.
  */
 int dnet_ext_list_extract(void **datap, uint64_t *sizep,
-		struct dnet_ext_list *elist, int free_data)
+		struct dnet_ext_list *elist)
 {
 	struct dnet_ext_list_hdr *hdr;	/* Extensions header */
 	uint64_t new_size;		/* Size of data without extensions */
@@ -292,9 +292,7 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	hdr = (struct dnet_ext_list_hdr *)*datap;
 
 	/* Extract payload from \a datap */
-	if ((new_data = malloc(new_size)) == NULL)
-		return -ENOMEM;
-	memcpy(new_data, (unsigned char *)*datap + hdr_size, new_size);
+	new_data = (unsigned char *)*datap + hdr_size;
 
 	/* Extract header */
 	memset(elist, 0, sizeof(struct dnet_ext_list));
@@ -312,10 +310,6 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 		free(new_data);
 		return -ENOTSUP;
 	}
-
-	/* Free old data */
-	if (free_data != 0)
-		free(*datap);
 
 	/* Swap data, adjust size */
 	*datap = new_data;
