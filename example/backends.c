@@ -307,10 +307,8 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	 *
 	 * TODO: Extract all extensions
 	 */
-	if (elist->size != 0 || elist->count != 0) {
-		free(new_data);
+	if (elist->size != 0 || elist->count != 0)
 		return -ENOTSUP;
-	}
 
 	/* Save original pointer to data */
 	elist->data = *datap;
