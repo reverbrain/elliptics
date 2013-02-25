@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.21.4.2
+Version:	2.21.4.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Feb 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.4.3
+- Use poll() in autodiscovery. Socket must be bound to recv data.
+- Python test files update
+- Added leveldb metadata write() error description
+
 * Sat Feb 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.4.2
 - Depend on 0.10.0-rc3+ cocaine
 
