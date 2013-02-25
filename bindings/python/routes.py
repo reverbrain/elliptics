@@ -3,7 +3,7 @@
 
 import sys
 sys.path.append('bindings/python/')
-from elliptics import *
+import elliptics
 
 def sid(id, count=6):
 	ba = bytearray(id[0:count])
@@ -14,13 +14,12 @@ def sid(id, count=6):
 	return ret
 
 def main():
-	log = Logger("/dev/stderr", 2)
-	n = Node(log)
+	log = elliptics.Logger("/dev/stderr", 2)
+	n = elliptics.Node(log)
 
-	group = 1
+	s = elliptics.Session(n)
+	s.add_groups([1])
 
-	n.add_groups([group])
-	#remotes = [("squire", 1001), ("squire", 1010), ("squire", 1015)]
 	remotes = [("localhost", 1025), ]
 	for r in remotes:
 		try:
@@ -28,9 +27,9 @@ def main():
 		except Exception as e:
 			pass
 
-	routes = n.get_routes()
-	for r in routes:
-		print sid(r[0].id, count=10), r[1]
+	routes = s.get_routes()
+	for r in sorted(routes, key=lambda eid_tuple: eid_tuple[0].id):
+		print r[0].group_id, sid(r[0].id), r[1]
 
 if __name__ == '__main__':
 	main()
