@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
-sys.path.append('bindings/python/.libs')
-from libelliptics_python import *
+sys.path.append('bindings/python/')
+from elliptics import *
 
 def sid(id, count=6):
 	ba = bytearray(id[0:count])
@@ -14,7 +14,7 @@ def sid(id, count=6):
 	return ret
 
 def main():
-	log = Logger("/dev/stderr", 8)
+	log = Logger("/dev/stderr", 2)
 	n = Node(log)
 
 	group = 1

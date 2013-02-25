@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import sys
-#sys.path.insert(0, "/usr/lib/")
-sys.path.insert(0, "/tmp/dnet/lib/")
-from libelliptics_python import *
+sys.path.append("bindings/python")
+from elliptics import *
 
 from time import time, ctime
 
@@ -36,7 +35,7 @@ def write(n, id, aflags, groups):
 
 def main():
 	try:
-		log = Logger("/dev/stderr", 8)
+		log = Logger("/dev/stderr", 2)
 		n = Node(log)
 
 		groups = [1, 2, 3]
