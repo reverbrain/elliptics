@@ -389,6 +389,8 @@ static void *dnet_check_process(void *data)
 	dnet_log(n, DNET_LOG_INFO, "Started checking thread. Timeout: %lu seconds.\n",
 			n->check_timeout);
 
+	dnet_discovery(n);
+
 	while (!n->need_exit) {
 		gettimeofday(&tv1, NULL);
 		dnet_try_reconnect(n);
