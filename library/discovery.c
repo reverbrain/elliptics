@@ -20,6 +20,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -117,6 +118,17 @@ int dnet_discovery_add(struct dnet_node *n, struct dnet_config *cfg)
 		goto err_out_exit;
 	}
 
+	err = 1;
+	setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &err, 4);
+
+	err = bind(s, (struct sockaddr *)addr.addr, addr.addr_len);
+	if (err) {
+		err = -errno;
+		dnet_log_err(n, "Failed to bind to %s",
+				dnet_server_convert_dnet_addr(&addr));
+		goto err_out_close;
+	}
+
 	if (cfg->family == AF_INET6)
 		err = dnet_discovery_add_v6(n, &addr, s);
 	else
@@ -207,7 +219,29 @@ static int dnet_discovery_recv(struct dnet_node *n)
 	auth = (struct dnet_auth *)(addr + 1);
 
 	while (1) {
-		err = recvfrom(n->autodiscovery_socket, buf, sizeof(buf), MSG_DONTWAIT, (void *)&remote, &len);
+		struct pollfd pfd;
+
+		pfd.fd = n->autodiscovery_socket;
+		pfd.events = POLLIN;
+		pfd.revents = 0;
+
+		err = poll(&pfd, 1, 100);
+		if (err < 0) {
+			err = -errno;
+			dnet_log(n, DNET_LOG_ERROR, "autodiscovery-recv: poll: %s [%d]\n", strerror(-err), err);
+		}
+
+		if (err == 0) {
+			dnet_log(n, DNET_LOG_DEBUG, "autodiscovery-recv: poll: no data\n");
+			return -EAGAIN;
+		}
+
+		err = recvfrom(n->autodiscovery_socket, buf, sizeof(buf), 0, (void *)&remote, &len);
+		if (err == -1) {
+			err = -errno;
+			dnet_log(n, DNET_LOG_ERROR, "audodiscovery recv: %d, want: %zd: %s [%d]\n", err, sizeof(buf), strerror(-err), err);
+		}
+
 		if (err != sizeof(buf))
 			return -EAGAIN;
 
