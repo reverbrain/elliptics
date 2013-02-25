@@ -350,6 +350,8 @@ std::string session::lookup_address(const key &id, int group_id)
 std::string session::create_metadata(const key &id, const std::string &obj,
 					    const std::vector<int> &groups, const struct timespec &ts)
 {
+	transform(id);
+
 	struct dnet_metadata_control ctl;
 	struct dnet_meta_container mc;
 	int err;
@@ -387,6 +389,8 @@ std::string session::create_metadata(const key &id, const std::string &obj,
 int session::write_metadata(const key &id, const std::string &obj,
 				   const std::vector<int> &groups, const struct timespec &ts)
 {
+	transform(id);
+
 	int err;
 	std::string meta;
 	struct dnet_meta_container mc;
