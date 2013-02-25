@@ -1,9 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-from libelliptics_python import *
+from elliptics import *
 
-log = Logger("/dev/stderr", 8)
+log = Logger("/dev/stderr", 2)
 n = Node(log)
 
 group = 2
