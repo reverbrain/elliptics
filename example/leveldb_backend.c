@@ -519,6 +519,10 @@ static ssize_t dnet_leveldb_db_read(void *priv, struct dnet_raw_id *id, void **d
 
 static int dnet_leveldb_db_write(void *priv, struct dnet_raw_id *id, void *data, size_t size)
 {
+	char tmp[24];
+	dnet_backend_log(DNET_LOG_ERROR, "%s: metadata operation is not supported, it will be removed soon. \n"
+			"Please add flags = 16 to your server config, this will disable metadata updates\n",
+			dnet_dump_id_len_raw(id->id, sizeof(tmp), tmp));
 	return -ENOTSUP;
 }
 
