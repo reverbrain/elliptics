@@ -166,7 +166,31 @@ err_out_exit:
 	return err;
 }
 
-struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
+static void dnet_local_addr_cleanup(struct dnet_node *n)
+{
+	free(n->addrs);
+	n->addrs = NULL;
+	n->addr_num = 0;
+}
+
+static int dnet_local_addr_add(struct dnet_node *n, struct dnet_addr *addrs, int addr_num)
+{
+	int err = 0;
+
+	n->addrs = malloc(sizeof(struct dnet_addr) * addr_num);
+	if (!n->addrs) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memcpy(n->addrs, addrs, addr_num * sizeof(struct dnet_addr));
+	n->addr_num = addr_num;
+
+err_out_exit:
+	return err;
+}
+
+struct dnet_node *dnet_server_node_create(struct dnet_config *cfg, struct dnet_addr *addrs, int addr_num)
 {
 	struct dnet_node *n;
 	struct dnet_raw_id *ids = NULL;
@@ -205,13 +229,17 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_notify_exit;
 
+	err = dnet_local_addr_add(n, addrs, addr_num);
+	if (err)
+		goto err_out_cache_cleanup;
+
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
 		struct dnet_addr la;
 		int s;
 
 		err = dnet_locks_init(n, cfg->oplock_num);
 		if (err)
-			goto err_out_cache_cleanup;
+			goto err_out_addr_cleanup;
 
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
 		if (!ids)
@@ -261,6 +289,8 @@ err_out_ids_cleanup:
 	free(ids);
 err_out_locks_destroy:
 	dnet_locks_destroy(n);
+err_out_addr_cleanup:
+	dnet_local_addr_cleanup(n);
 err_out_cache_cleanup:
 	dnet_cache_cleanup(n);
 err_out_notify_exit:
@@ -285,6 +315,7 @@ void dnet_server_node_destroy(struct dnet_node *n)
 
 	dnet_locks_destroy(n);
 	dnet_notify_exit(n);
+	dnet_local_addr_cleanup(n);
 
 	free(n);
 }

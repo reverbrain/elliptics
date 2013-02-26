@@ -203,19 +203,6 @@ struct dnet_addr
 	uint16_t		family;
 } __attribute__ ((packed));
 
-struct dnet_list
-{
-	struct dnet_id		id;
-	uint32_t		size;
-	uint8_t			data[0];
-} __attribute__ ((packed));
-
-static inline void dnet_convert_list(struct dnet_list *l)
-{
-	dnet_convert_id(&l->id);
-	l->size = dnet_bswap32(l->size);
-}
-
 static inline void dnet_convert_addr(struct dnet_addr *addr)
 {
 	addr->addr_len = dnet_bswap16(addr->addr_len);
@@ -230,8 +217,33 @@ struct dnet_addr_cmd
 
 static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
 {
-	dnet_convert_cmd(&l->cmd);
 	dnet_convert_addr(&l->addr);
+	dnet_convert_cmd(&l->cmd);
+}
+
+static inline int dnet_addr_equal(struct dnet_addr *a1, struct dnet_addr *a2)
+{
+	if (a1->family != a2->family)
+		return 0;
+	if (a1->addr_len != a2->addr_len)
+		return 0;
+	if (memcmp(a1->addr, a2->addr, a1->addr_len))
+		return 0;
+
+	return 1;
+}
+
+struct dnet_list
+{
+	struct dnet_id		id;
+	uint32_t		size;
+	uint8_t			data[0];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_list(struct dnet_list *l)
+{
+	dnet_convert_id(&l->id);
+	l->size = dnet_bswap32(l->size);
 }
 
 /* Internal flag, used when we want to skip data sending */

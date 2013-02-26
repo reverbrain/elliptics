@@ -518,7 +518,7 @@ void dnet_session_destroy(struct dnet_session *s);
 
 /* Server node creation/destruction.
  */
-struct dnet_node *dnet_server_node_create(struct dnet_config *);
+struct dnet_node *dnet_server_node_create(struct dnet_config *cfg, struct dnet_addr *addrs, int addr_num);
 void dnet_server_node_destroy(struct dnet_node *s);
 
 /*

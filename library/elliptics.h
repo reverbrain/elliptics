@@ -374,6 +374,9 @@ struct dnet_node
 
 	pthread_attr_t		attr;
 
+	int			addr_num;
+	struct dnet_addr	*addrs;
+
 	pthread_mutex_t		state_lock;
 	struct list_head	group_list;
 

@@ -358,13 +358,40 @@ out:
 	return err;
 }
 
+static int dnet_socket_local_addr(int s, struct dnet_addr *addr)
+{
+	int err;
+
+	addr->addr_len = sizeof(addr->addr);
+
+	err = getsockname(s, (struct sockaddr *)addr->addr, (socklen_t *)&addr->addr_len);
+	if (err < 0)
+		err = -errno;
+
+	addr->family = ((struct sockaddr *)addr->addr)->sa_family;
+	return err;
+}
+
+static int dnet_local_addr_index(struct dnet_node *n, struct dnet_addr *addr)
+{
+	int i;
+
+	for (i = 0; i < n->addr_num; ++i) {
+		if (dnet_addr_equal(addr, &n->addrs[i]))
+			return i;
+	}
+
+	return -1;
+}
+
 int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *ev __unused)
 {
 	struct dnet_node *n = orig->n;
-	int err, cs;
-	struct dnet_addr addr;
+	int err, cs, idx;
+	struct dnet_addr addr, saddr;
 	struct dnet_net_state *st;
 	socklen_t salen;
+	char client_addr[128], server_addr[128];
 
 	memset(&addr, 0, sizeof(addr));
 
@@ -384,16 +411,30 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, 0, dnet_state_net_process);
 	if (!st) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]\n",
-				dnet_server_convert_dnet_addr(&addr), strerror(-err), -err);
+				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
 		err = -EAGAIN;
+
+		/* We do not close socket, since it is closed in dnet_state_create() */
 		goto err_out_exit;
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d.\n",
-			dnet_server_convert_dnet_addr(&addr), cs);
+	err = dnet_socket_local_addr(cs, &saddr);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to resolve server addr for connected client: %s [%d]\n",
+				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
+		goto err_out_put;
+	}
+
+	idx = dnet_local_addr_index(n, &saddr);
+
+	dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d, server address: %s, idx: %d.\n",
+			dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), cs,
+			dnet_server_convert_dnet_addr_raw(&saddr, server_addr, sizeof(server_addr)), idx);
 
 	return 0;
-	/* socket is closed in dnet_state_create() */
+
+err_out_put:
+	dnet_state_put(st);
 err_out_exit:
 	return err;
 }
