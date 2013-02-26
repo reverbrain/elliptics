@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.3.0
+Version:	2.20.3.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Feb 26 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.3.1
+- Fixed write_metadata/create_metadata methods
+
 * Wed Feb 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.3.0
 - Depend on eblob 0.18.2+, dev/dbg packets should only depend on client package
 

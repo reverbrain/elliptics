@@ -1,3 +1,9 @@
+elliptics (2.20.3.1) unstable; urgency=low
+
+  * Fixed write_metadata/create_metadata methods
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 26 Feb 2013 16:26:09 +0400
+
 elliptics (2.20.3.0) unstable; urgency=low
 
   * Depend on eblob 0.18.2+, dev/dbg packets should only depend on client package
