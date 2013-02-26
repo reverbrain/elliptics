@@ -1128,22 +1128,21 @@ err_out_exit:
 
 int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, uint64_t offset, int64_t size)
 {
-	struct dnet_node *n = dnet_get_node_from_state(state);
 	struct dnet_file_info *info;
-	struct dnet_addr_attr *a;
+	struct dnet_addr *a;
 	int err;
 	const char file[] = "";
 	const size_t flen = sizeof(file) - 1;
 
-	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen);
+	a = malloc(sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen);
 	if (!a) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 	info = (struct dnet_file_info *)(a + 1);
 
-	dnet_fill_addr_attr(n, a);
-	dnet_convert_addr_attr(a);
+	dnet_fill_state_addr(state, a);
+	dnet_convert_addr(a);
 
 	memset(info, 0, sizeof(struct dnet_file_info));
 
@@ -1158,7 +1157,7 @@ int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, uint64_t o
 
 	dnet_convert_file_info(info);
 
-	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen, 0);
+	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen, 0);
 
 	free(a);
 err_out_exit:

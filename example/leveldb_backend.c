@@ -131,13 +131,11 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 
 	err = dnet_send_file_info_without_fd(state, cmd, 0, io->size);
 	if (err < 0)
-		goto err_out_free;
+		goto err_out_exit;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : WRITE: Ok: size: %llu.\n",
 			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 
-err_out_free:
-	free(addr);
 err_out_exit:
 	if (err < 0)
 		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: : WRITE: error: %s: %d.\n",

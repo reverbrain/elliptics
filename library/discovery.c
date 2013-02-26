@@ -133,7 +133,7 @@ int dnet_discovery_add(struct dnet_node *n, char *remote_addr, int remote_port, 
 		goto err_out_close;
 	}
 
-	if (cfg->family == AF_INET6)
+	if (remote_family == AF_INET6)
 		err = dnet_discovery_add_v6(n, &addr, s);
 	else
 		err = dnet_discovery_add_v4(n, &addr, s);
