@@ -237,9 +237,15 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 		free(ids);
 		ids = NULL;
 
-		err = dnet_srw_init(n, cfg);
-		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
+		if (!cfg->srw.config) {
+			dnet_log(n, DNET_LOG_INFO, "srw: no config\n");
+			n->srw = NULL;
+		} else {
+			err = dnet_srw_init(n, cfg);
+			if (err) {
+				dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
+				goto err_out_state_destroy;
+			}
 		}
 	}
 
@@ -248,8 +254,8 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 	pthread_sigmask(SIG_BLOCK, &previous_sigset, NULL);
 	return n;
 
-err_out_state_destroy:
 	dnet_srw_cleanup(n);
+err_out_state_destroy:
 	dnet_state_put(n->st);
 err_out_ids_cleanup:
 	free(ids);

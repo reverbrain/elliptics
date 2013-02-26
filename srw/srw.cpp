@@ -425,11 +425,6 @@ int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg)
 {
 	int err = 0;
 
-	if (!cfg->srw.config) {
-		dnet_log(n, DNET_LOG_ERROR, "srw: no config\n");
-		return -ENOTSUP;
-	}
-
 	try {
 		dnet_session *s = dnet_session_create(n);
 		dnet_session_set_groups(s, (int *)&n->id.group_id, 1);
