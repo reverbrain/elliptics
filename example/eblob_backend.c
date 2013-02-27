@@ -215,7 +215,7 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->eblob;
 	struct eblob_key key;
-	struct eblob_write_control wc = {};
+	struct eblob_write_control wc;
 	uint64_t offset, size = 0;
 	char *read_data = NULL;
 	int csum, err, fd;
