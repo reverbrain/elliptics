@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import sys, os
-sys.path.insert(0, "/home/zbr/awork/tmp/dnet/bindings/python/.libs/")
-from libelliptics_python import *
+sys.path.insert(0, "bindings/python")
+from elliptics import *
 
 def upload_file(node, filename):
 	f = open(filename, 'r')
@@ -17,7 +17,7 @@ try:
 	cfg.config.wait_timeout = 30
 	cfg.config.check_timeout = 120
 
-	log = Logger("/dev/stderr", 8)
+	log = Logger("/dev/stderr", 2)
 	n = Node(log, cfg)
 
 	n.add_groups([1,2,3])

@@ -1,3 +1,11 @@
+elliptics (2.21.4.3) unstable; urgency=low
+
+  * Use poll() in autodiscovery. Socket must be bound to recv data.
+  * Python test files update
+  * Added leveldb metadata write() error description
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 25 Feb 2013 23:24:57 +0400
+
 elliptics (2.21.4.2) unstable; urgency=low
 
   * Depend on 0.10.0-rc3+ cocaine

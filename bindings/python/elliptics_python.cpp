@@ -24,7 +24,7 @@
 
 #include <map>
 
-using namespace boost::python;
+namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics {
 
@@ -57,21 +57,21 @@ enum elliptics_log_level {
 	log_level_debug = DNET_LOG_DEBUG,
 };
 
-static void elliptics_extract_arr(const list &l, unsigned char *dst, int *dlen)
+static void elliptics_extract_arr(const bp::list &l, unsigned char *dst, int *dlen)
 {
-	int length = len(l);
+	int length = bp::len(l);
 
 	if (length > *dlen)
 		length = *dlen;
 
 	memset(dst, 0, *dlen);
 	for (int i = 0; i < length; ++i)
-		dst[i] = extract<unsigned char>(l[i]);
+		dst[i] = bp::extract<unsigned char>(l[i]);
 }
 
 struct elliptics_id {
 	elliptics_id() : group_id(0), type(0) {}
-	elliptics_id(list id_, int group_, int type_) : id(id_), group_id(group_), type(type_) {}
+	elliptics_id(bp::list id_, int group_, int type_) : id(id_), group_id(group_), type(type_) {}
 
 	elliptics_id(struct dnet_id &dnet) {
 		for (unsigned int i = 0; i < sizeof(dnet.id); ++i)
@@ -93,7 +93,7 @@ struct elliptics_id {
 		return dnet;
 	}
 
-	list		id;
+	bp::list	id;
 	uint32_t	group_id;
 	int		type;
 };
@@ -102,7 +102,7 @@ struct elliptics_range {
 	elliptics_range() : offset(0), size(0),
 		limit_start(0), limit_num(0), ioflags(0), group_id(0), type(0) {}
 
-	list		start, end;
+	bp::list	start, end;
 	uint64_t	offset, size;
 	uint64_t	limit_start, limit_num;
 	uint32_t	ioflags;
@@ -169,7 +169,7 @@ class elliptics_status : public dnet_node_status
 		}
 };
 
-class elliptics_node_python : public node, public wrapper<node> {
+class elliptics_node_python : public node, public bp::wrapper<node> {
 	public:
 		elliptics_node_python(const logger &l)
 			: node(l) {}
@@ -181,23 +181,23 @@ class elliptics_node_python : public node, public wrapper<node> {
 };
 
 template <typename T>
-static std::vector<T> convert_to_vector(const api::object &list)
+static std::vector<T> convert_to_vector(const bp::api::object &list)
 {
-	stl_input_iterator<T> begin(list), end;
+	bp::stl_input_iterator<T> begin(list), end;
 	return std::vector<T>(begin, end);
 }
 
-class elliptics_session: public session, public wrapper<session> {
+class elliptics_session: public session, public bp::wrapper<session> {
 	public:
 		elliptics_session(const node &n) : session(n) {}
 
-		void set_groups(const api::object &groups) {
+		void set_groups(const bp::api::object &groups) {
 			session::set_groups(convert_to_vector<int>(groups));
 		}
 
-		boost::python::list get_groups() {
+		bp::list get_groups() {
 			std::vector<int> groups = session::get_groups();
-			boost::python::list res;
+			bp::list res;
 			for(size_t i=0; i<groups.size(); i++) {
 				res.append(groups[i]);
 			}
@@ -205,7 +205,7 @@ class elliptics_session: public session, public wrapper<session> {
 			return res;
 		}
 
-		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const api::object &groups) {
+		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const bp::api::object &groups) {
 			struct timespec ts;
 			memset(&ts, 0, sizeof(ts));
 
@@ -257,21 +257,21 @@ class elliptics_session: public session, public wrapper<session> {
 			return read_data(key(remote, type), offset, size)->file().to_string();
 		}
 
-		list prepare_latest_by_id(const struct elliptics_id &id, const api::object &gl) {
+		bp::list prepare_latest_by_id(const struct elliptics_id &id, const bp::api::object &gl) {
 			struct dnet_id raw = id.to_dnet();
 
 			std::vector<int> groups = convert_to_vector<int>(gl);
 
 			prepare_latest(raw, groups);
 
-			list l;
+			bp::list l;
 			for (unsigned i = 0; i < groups.size(); ++i)
 				l.append(groups[i]);
 
 			return l;
 		}
 
-		std::string prepare_latest_by_id_str(const struct elliptics_id &id, const api::object &gl) {
+		std::string prepare_latest_by_id_str(const struct elliptics_id &id, const bp::api::object &gl) {
 			struct dnet_id raw = id.to_dnet();
 
 			std::vector<int> groups = convert_to_vector<int>(gl);
@@ -401,7 +401,7 @@ class elliptics_session: public session, public wrapper<session> {
 				struct elliptics_id id(it->first);
 				std::string address(dnet_server_convert_dnet_addr(&(it->second)));
 
-				res.append(make_tuple(id, address));
+				res.append(boost::python::make_tuple(id, address));
 			}
 
 			return res;
@@ -446,13 +446,13 @@ class elliptics_session: public session, public wrapper<session> {
 			}
 		};
 
-		api::object bulk_read_by_name(const api::object &keys, bool raw) {
+		bp::api::object bulk_read_by_name(const bp::api::object &keys, bool raw) {
 			std::vector<std::string> std_keys = convert_to_vector<std::string>(keys);
 
 			const bulk_read_result ret =  bulk_read(std_keys);
 
 			if (raw) {
-				list result;
+				bp::list result;
 				for (size_t i = 0; i < ret.size(); ++i) {
 					const read_result_entry entry = ret[i];
 					const uint64_t size = entry.file().size();
@@ -465,7 +465,7 @@ class elliptics_session: public session, public wrapper<session> {
 
 				return result;
 			} else {
-				boost::python::dict result;
+				bp::dict result;
 
 				std::map<struct dnet_id, std::string, dnet_id_comparator> keys_map;
 				for (size_t i = 0; i < std_keys.size(); ++i) {
@@ -484,8 +484,8 @@ class elliptics_session: public session, public wrapper<session> {
 			}
 		}
 
-		list stat_log_count() {
-			list statistics;
+		bp::list stat_log_count() {
+			bp::list statistics;
 
 			const stat_count_result result = session::stat_log_count();
 
@@ -495,7 +495,7 @@ class elliptics_session: public session, public wrapper<session> {
 				if (data.size() <= sizeof(struct dnet_addr_stat))
 					continue;
 
-				dict node_stat, storage_commands, proxy_commands, counters;
+				bp::dict node_stat, storage_commands, proxy_commands, counters;
 				struct dnet_addr *addr = data.address();
 				struct dnet_cmd *cmd = data.command();
 
@@ -508,13 +508,16 @@ class elliptics_session: public session, public wrapper<session> {
 				for (int j = 0; j < as->num; ++j) {
 					if (j < as->cmd_num) {
 						storage_commands[std::string(dnet_counter_string(j, as->cmd_num))] =
-								make_tuple((unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
+								bp::make_tuple((unsigned long long)as->count[j].count,
+										(unsigned long long)as->count[j].err);
 					} else if (j < (as->cmd_num * 2)) {
 						proxy_commands[std::string(dnet_counter_string(j, as->cmd_num))] =
-								make_tuple((unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
+								bp::make_tuple((unsigned long long)as->count[j].count,
+										(unsigned long long)as->count[j].err);
 					} else {
 						counters[std::string(dnet_counter_string(j, as->cmd_num))] =
-								make_tuple((unsigned long long)as->count[j].count, (unsigned long long)as->count[j].err);
+								bp::make_tuple((unsigned long long)as->count[j].count,
+										(unsigned long long)as->count[j].err);
 					}
 				}
 
@@ -538,8 +541,8 @@ class elliptics_error_translator
 
 		void operator() (const error &err) const
 		{
-			api::object exception(err);
-			api::object type = m_type;
+			bp::api::object exception(err);
+			bp::api::object type = m_type;
 			for (size_t i = 0; i < m_types.size(); ++i) {
 				if (m_types[i].first == err.error_code()) {
 					type = m_types[i].second;
@@ -561,27 +564,27 @@ class elliptics_error_translator
 			register_type(code, new_exception(name, m_type.ptr()));
 		}
 
-		void register_type(int code, const api::object &type)
+		void register_type(int code, const bp::api::object &type)
 		{
 			m_types.push_back(std::make_pair(code, type));
 		}
 
 	private:
-		api::object new_exception(const char *name, PyObject *parent = NULL)
+		bp::api::object new_exception(const char *name, PyObject *parent = NULL)
 		{
-			std::string scopeName = extract<std::string>(scope().attr("__name__"));
+			std::string scopeName = bp::extract<std::string>(bp::scope().attr("__name__"));
 			std::string qualifiedName = scopeName + "." + name;
 
 			PyObject *type = PyErr_NewException(&qualifiedName[0], parent, 0);
 			if (!type)
-				throw_error_already_set();
-			api::object type_object = api::object(handle<>(type));
-			scope().attr(name) = type_object;
+				bp::throw_error_already_set();
+			bp::api::object type_object = bp::api::object(bp::handle<>(type));
+			bp::scope().attr(name) = type_object;
 			return type_object;
 		}
 
-		api::object m_type;
-		std::vector<std::pair<int, api::object> > m_types;
+		bp::api::object m_type;
+		std::vector<std::pair<int, bp::api::object> > m_types;
 };
 
 void ios_base_failure_translator(const std::ios_base::failure &exc)
@@ -607,14 +610,13 @@ void logger_log(logger &log, const char *msg, int level)
 	log.log(level, msg);
 }
 
-void next_impl(api::object &value, const api::object &next)
+void next_impl(bp::api::object &value, const bp::api::object &next)
 {
 	value = next();
 }
 
 BOOST_PYTHON_MODULE(elliptics) {
-	class_<error> error_class("ErrorInfo",
-		init<int, std::string>());
+	bp::class_<error> error_class("ErrorInfo", bp::init<int, std::string>());
 	error_class.def("__str__", &error::error_message);
 	error_class.add_property("message", &error::error_message);
 	error_class.add_property("code", &error::error_code);
@@ -622,19 +624,19 @@ BOOST_PYTHON_MODULE(elliptics) {
 	error_translator.initialize();
 
 
-	register_exception_translator<timeout_error>(error_translator);
-	register_exception_translator<not_found_error>(error_translator);
-	register_exception_translator<error>(error_translator);
-	register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
+	bp::register_exception_translator<timeout_error>(error_translator);
+	bp::register_exception_translator<not_found_error>(error_translator);
+	bp::register_exception_translator<error>(error_translator);
+	bp::register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
 
-	class_<elliptics_id>("Id", init<>())
-		.def(init<list, int, int>())
+	bp::class_<elliptics_id>("Id", bp::init<>())
+		.def(bp::init<bp::list, int, int>())
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_readwrite("type", &elliptics_id::type)
 	;
 
-	class_<elliptics_range>("Range", init<>())
+	bp::class_<elliptics_range>("Range", bp::init<>())
 		.def_readwrite("start", &elliptics_range::start)
 		.def_readwrite("end", &elliptics_range::end)
 		.def_readwrite("offset", &elliptics_range::offset)
@@ -646,21 +648,21 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def_readwrite("limit_num", &elliptics_range::limit_num)
 	;
 
-	class_<logger, boost::noncopyable>("AbstractLogger", no_init)
+	bp::class_<logger, boost::noncopyable>("AbstractLogger", bp::no_init)
 		.def("log", &logger::log)
 	;
 
-	class_<file_logger, bases<logger> > file_logger_class(
-		"Logger", init<const char *, const uint32_t>());
+	bp::class_<file_logger, bp::bases<logger> > file_logger_class(
+		"Logger", bp::init<const char *, const uint32_t>());
 
-	class_<elliptics_status>("SessionStatus", init<>())
+	bp::class_<elliptics_status>("SessionStatus", bp::init<>())
 		.def_readwrite("nflags", &dnet_node_status::nflags)
 		.def_readwrite("status_flags", &dnet_node_status::status_flags)
 		.def_readwrite("log_level", &dnet_node_status::log_level)
 		.def("__repr__", dnet_node_status_repr)
 	;
 
-	class_<dnet_config>("dnet_config", no_init)
+	bp::class_<dnet_config>("dnet_config", bp::no_init)
 		.def_readwrite("wait_timeout", &dnet_config::wait_timeout)
 		.def_readwrite("flags", &dnet_config::flags)
 		.def_readwrite("check_timeout", &dnet_config::check_timeout)
@@ -670,18 +672,18 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def_readwrite("client_prio", &dnet_config::client_prio)
 	;
 	
-	class_<elliptics_config>("Config", init<>())
+	bp::class_<elliptics_config>("Config", bp::init<>())
 		.def_readwrite("config", &elliptics_config::config)
 		.add_property("cookie", &elliptics_config::cookie_get, &elliptics_config::cookie_set)
 	;
 
-	class_<elliptics_node_python>("Node", init<logger>())
-		.def(init<logger, elliptics_config &>())
+	bp::class_<elliptics_node_python>("Node", bp::init<logger>())
+		.def(bp::init<logger, elliptics_config &>())
 		.def("add_remote", static_cast<void (node::*)(const char*, int, int)>(&node::add_remote),
-			(arg("addr"), arg("port"), arg("family") = AF_INET))
+			(bp::arg("addr"), bp::arg("port"), bp::arg("family") = AF_INET))
 	;
 
-	class_<elliptics_session, boost::noncopyable>("Session", init<node &>())
+	bp::class_<elliptics_session, boost::noncopyable>("Session", bp::init<node &>())
 		.add_property("groups", &elliptics_session::get_groups,
 			&elliptics_session::set_groups)
 		.def("add_groups", &elliptics_session::set_groups)
@@ -699,31 +701,31 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("get_ioflags", &elliptics_session::get_ioflags)
 
 		.def("read_file", &elliptics_session::read_file_by_id,
-			(arg("key"), arg("filename"), arg("offset") = 0, arg("size") = 0))
+			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("read_file", &elliptics_session::read_file_by_data_transform,
-			(arg("key"), arg("filename"), arg("offset") = 0, arg("size") = 0, arg("column") = 0))
+			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0, bp::arg("column") = 0))
 		.def("write_file", &elliptics_session::write_file_by_id,
-			(arg("key"), arg("filename"), arg("offset") = 0, arg("local_offset") = 0, arg("size") = 0))
+			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("local_offset") = 0, bp::arg("size") = 0))
 		.def("write_file", &elliptics_session::write_file_by_data_transform,
-			(arg("key"), arg("filename"), arg("offset") = 0, arg("local_offset") = 0, arg("size") = 0, arg("column") = 0))
+			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("local_offset") = 0, bp::arg("size") = 0, bp::arg("column") = 0))
 
 		.def("read_data", &elliptics_session::read_data_by_id,
-			(arg("key"), arg("offset") = 0, arg("size") = 0))
+			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("read_data", &elliptics_session::read_data_by_data_transform,
-			(arg("key"), arg("offset") = 0, arg("size") = 0, arg("column") = 0))
+			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0, bp::arg("column") = 0))
 
 		.def("prepare_latest", &elliptics_session::prepare_latest_by_id)
 		.def("prepare_latest_str", &elliptics_session::prepare_latest_by_id_str)
 
 		.def("read_latest", &elliptics_session::read_latest_by_id,
-			(arg("key"), arg("offset") = 0, arg("size") = 0))
+			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("read_latest", &elliptics_session::read_latest_by_data_transform,
-			(arg("key"), arg("offset") = 0, arg("size") = 0, arg("column") = 0))
+			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0, bp::arg("column") = 0))
 
 		.def("write_data", &elliptics_session::write_data_by_id,
-			(arg("key"), arg("data"), arg("offset") = 0))
+			(bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0))
 		.def("write_data", &elliptics_session::write_data_by_data_transform,
-			(arg("key"), arg("data"), arg("offset") = 0, arg("column") = 0))
+			(bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0, bp::arg("column") = 0))
 
 		.def("write_metadata", &elliptics_session::write_metadata_by_id)
 		.def("write_metadata", &elliptics_session::write_metadata_by_data_transform)
@@ -753,16 +755,16 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("remove", &elliptics_session::remove_by_name)
 
 		.def("bulk_read", &elliptics_session::bulk_read_by_name,
-			(arg("keys"), arg("raw") = false))
+			(bp::arg("keys"), bp::arg("raw") = false))
 	;
 
-	enum_<elliptics_cflags>("command_flags")
+	bp::enum_<elliptics_cflags>("command_flags")
 		.value("default", cflags_default)
 		.value("direct", cflags_direct)
 		.value("nolock", cflags_nolock)
 	;
 
-	enum_<elliptics_ioflags>("io_flags")
+	bp::enum_<elliptics_ioflags>("io_flags")
 		.value("default", ioflags_default)
 		.value("append", ioflags_append)
 		.value("compress", ioflags_compress)
@@ -778,7 +780,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.value("cache_remove_from_disk", ioflags_cache_remove_from_disk)
 	;
 
-	enum_<elliptics_log_level>("log_level")
+	bp::enum_<elliptics_log_level>("log_level")
 		.value("data", log_level_data)
 		.value("error", log_level_error)
 		.value("info", log_level_info)

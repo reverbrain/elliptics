@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
-sys.path.insert(0, "bindings/python/.libs/")
+sys.path.insert(0, "bindings/python/")
 from elliptics import *
 import binascii
 from pprint import pprint
