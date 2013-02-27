@@ -288,10 +288,12 @@ err_out_exit:
 static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct dnet_addr *addr, int s, int *errp, int join)
 {
 	struct dnet_net_state *st, dummy;
-	char buf[sizeof(struct dnet_addr_cmd)];
+	char buf[sizeof(struct dnet_cmd)];
 	struct dnet_cmd *cmd;
+	struct dnet_addr_container *cnt;
 	int err, num, i, size;
 	struct dnet_raw_id *ids;
+	void *data;
 
 	memset(buf, 0, sizeof(buf));
 
@@ -316,37 +318,40 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		goto err_out_exit;
 	}
 
-	err = dnet_recv(st, buf, sizeof(buf));
+	err = dnet_recv(st, buf, sizeof(struct dnet_cmd));
 	if (err) {
 		dnet_log(n, DNET_LOG_ERROR, "Failed to receive reverse "
-				"lookup headers from %s, err: %d.\n",
+				"lookup command header from %s, err: %d.\n",
 				dnet_server_convert_dnet_addr(addr), err);
 		goto err_out_exit;
 	}
 
-	cmd = (struct dnet_cmd *)(buf);
+	cmd = (struct dnet_cmd *)buf;
+	dnet_convert_cmd(cmd);
 
-	dnet_convert_addr_cmd((struct dnet_addr_cmd *)buf);
+	data = malloc(cmd->size);
+	if (!data) {
+		err = -ENOMEM;
+		dnet_log(n, DNET_LOG_ERROR, "Failed to allocate %llu bytes for reverse lookup data from %s.\n",
+				(unsigned long long)cmd->size, dnet_server_convert_dnet_addr(addr));
+		goto err_out_exit;
+	}
 
-	size = cmd->size - sizeof(struct dnet_addr);
+	err = dnet_recv(st, data, cmd->size);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "Failed to receive reverse "
+				"lookup data from %s, err: %d.\n",
+				dnet_server_convert_dnet_addr(addr), err);
+		goto err_out_free;
+	}
+
+	cnt = (struct dnet_addr_container *)data;
+	dnet_convert_addr_container(cnt);
+
+	size = cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container);
 	num = size / sizeof(struct dnet_raw_id);
 
-	dnet_log(n, DNET_LOG_DEBUG, "%s: waiting for %d ids\n", dnet_dump_id(&cmd->id), num);
-
-	ids = malloc(size);
-	if (!ids) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	err = dnet_recv(st, ids, size);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to receive reverse "
-				"lookup body (%llu bytes) from %s, err: %d.\n",
-				(unsigned long long)cmd->size,
-				dnet_server_convert_dnet_addr(addr), err);
-		goto err_out_exit;
-	}
+	ids = data + sizeof(struct dnet_addr) * cnt->addr_num + sizeof(struct dnet_addr_container);
 
 	for (i=0; i<num; ++i)
 		dnet_convert_raw_id(&ids[i]);
@@ -357,12 +362,14 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		s = -1;
 		goto err_out_free;
 	}
-	free(ids);
+	dnet_log(n, DNET_LOG_NOTICE, "%s: connected: id-num: %d, addr-num: %d.\n",
+			dnet_server_convert_dnet_addr(addr), num, cnt->addr_num);
+	free(data);
 
 	return st;
 
 err_out_free:
-	free(ids);
+	free(data);
 err_out_exit:
 	*errp = err;
 	if (s >= 0)

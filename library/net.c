@@ -979,6 +979,15 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 			pthread_mutex_unlock(&n->state_lock);
 
 			err = dnet_auth_send(st);
+		} else {
+			st->addrs = malloc(sizeof(struct dnet_addr) * n->addr_num);
+			if (!st->addrs) {
+				err = -ENOMEM;
+				goto err_out_send_destroy;
+			}
+
+			memcpy(st->addrs, n->addrs, sizeof(struct dnet_addr) * n->addr_num);
+			st->addr_num = n->addr_num;
 		}
 	} else {
 		pthread_mutex_lock(&n->state_lock);
@@ -1068,9 +1077,10 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	pthread_mutex_destroy(&st->send_lock);
 	pthread_mutex_destroy(&st->trans_lock);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "Freeing state %s, socket: %d/%d.\n",
-		dnet_server_convert_dnet_addr(&st->addr), st->read_s, st->write_s);
+	dnet_log(st->n, DNET_LOG_NOTICE, "Freeing state %s, socket: %d/%d, addr-num: %d.\n",
+		dnet_server_convert_dnet_addr(&st->addr), st->read_s, st->write_s, st->addr_num);
 
+	free(st->addrs);
 	free(st);
 }
 

@@ -108,6 +108,11 @@ struct dnet_net_state
 
 	int			__join_state;
 
+	/* all address of the given node */
+	int			addr_num;
+	struct dnet_addr	*addrs;
+
+	/* address used to connect to cluster */
 	struct dnet_addr	addr;
 
 	int			(* process)(struct dnet_net_state *st, struct epoll_event *ev);
@@ -137,6 +142,9 @@ struct dnet_net_state
 
 	struct dnet_stat_count	stat[__DNET_CMD_MAX];
 };
+
+int dnet_socket_local_addr(int s, struct dnet_addr *addr);
+int dnet_local_addr_index(struct dnet_node *n, struct dnet_addr *addr);
 
 struct dnet_idc;
 struct dnet_state_id {

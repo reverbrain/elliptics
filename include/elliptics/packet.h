@@ -209,16 +209,31 @@ static inline void dnet_convert_addr(struct dnet_addr *addr)
 	addr->family = dnet_bswap16(addr->family);
 }
 
-struct dnet_addr_cmd
-{
-	struct dnet_cmd		cmd;
-	struct dnet_addr	addr;
+struct dnet_addr_container {
+	int			addr_num;
+	struct dnet_addr	addrs[0];
 } __attribute__ ((packed));
 
-static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
+static inline void dnet_convert_addr_container(struct dnet_addr_container *cnt)
 {
-	dnet_convert_addr(&l->addr);
-	dnet_convert_cmd(&l->cmd);
+	int i;
+
+	for (i = 0; i < cnt->addr_num; ++i)
+		dnet_convert_addr(&cnt->addrs[i]);
+
+	cnt->addr_num = dnet_bswap32(cnt->addr_num);
+}
+
+struct dnet_addr_cmd
+{
+	struct dnet_cmd			cmd;
+	struct dnet_addr_container	cnt;
+} __attribute__ ((packed));
+
+static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *acmd)
+{
+	dnet_convert_addr_container(&acmd->cnt);
+	dnet_convert_cmd(&acmd->cmd);
 }
 
 static inline int dnet_addr_equal(struct dnet_addr *a1, struct dnet_addr *a2)

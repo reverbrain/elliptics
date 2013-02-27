@@ -358,7 +358,7 @@ out:
 	return err;
 }
 
-static int dnet_socket_local_addr(int s, struct dnet_addr *addr)
+int dnet_socket_local_addr(int s, struct dnet_addr *addr)
 {
 	int err;
 
@@ -372,7 +372,7 @@ static int dnet_socket_local_addr(int s, struct dnet_addr *addr)
 	return err;
 }
 
-static int dnet_local_addr_index(struct dnet_node *n, struct dnet_addr *addr)
+int dnet_local_addr_index(struct dnet_node *n, struct dnet_addr *addr)
 {
 	int i;
 

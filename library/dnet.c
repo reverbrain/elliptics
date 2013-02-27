@@ -135,16 +135,16 @@ err_out_exit:
 static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
 		struct dnet_id *id, uint64_t trans, unsigned int command, int reply, int direct, int more)
 {
-	struct dnet_cmd *cmd;
+	struct dnet_node *n = st->n;
+	struct dnet_addr_cmd *acmd = buf;
+	struct dnet_cmd *cmd = &acmd->cmd;
 	struct dnet_raw_id *sid;
-	struct dnet_addr *addr;
 	int i;
 
-	memset(buf, 0, sizeof(*cmd) + sizeof(*addr));
+	acmd->cnt.addr_num = n->addr_num;
+	memcpy(acmd->cnt.addrs, n->addrs, n->addr_num * sizeof(struct dnet_addr));
 
-	cmd = buf;
-	addr = (struct dnet_addr *)(cmd + 1);
-	sid = (struct dnet_raw_id *)(addr + 1);
+	sid = (struct dnet_raw_id *)(buf + sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr));
 
 	memcpy(&cmd->id, id, sizeof(struct dnet_id));
 	cmd->size = size - sizeof(struct dnet_cmd);
@@ -160,23 +160,23 @@ static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
 
 	cmd->cmd = command;
 
-	memcpy(&addr->addr, &st->addr, sizeof(struct dnet_addr));
-
 	for (i=0; i<st->idc->id_num; ++i) {
 		memcpy(&sid[i], &st->idc->ids[i].raw, sizeof(struct dnet_raw_id));
 		dnet_convert_raw_id(&sid[i]);
 	}
 
-	dnet_convert_addr_cmd(buf);
+	dnet_convert_addr_cmd(acmd);
 }
 
-static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *send, struct dnet_id *id, uint64_t trans,
+static int dnet_send_idc(struct dnet_net_state *lstate, struct dnet_net_state *send, struct dnet_id *id, uint64_t trans,
 		unsigned int command, int reply, int direct, int more)
 {
-	struct dnet_node *n = orig->n;
-	int size = sizeof(struct dnet_addr_cmd) + orig->idc->id_num * sizeof(struct dnet_raw_id);
+	struct dnet_node *n = lstate->n;
+	int size = sizeof(struct dnet_addr_cmd) + sizeof(struct dnet_addr) * n->addr_num + lstate->idc->id_num * sizeof(struct dnet_raw_id);
 	void *buf;
 	int err;
+	struct dnet_addr laddr;
+	char server_addr[128], client_addr[128];
 	struct timeval start, end;
 	long diff;
 
@@ -189,11 +189,16 @@ static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *sen
 	}
 	memset(buf, 0, sizeof(struct dnet_addr_cmd));
 
-	dnet_send_idc_fill(orig, buf, size, id, trans, command, reply, direct, more);
+	dnet_send_idc_fill(lstate, buf, size, id, trans, command, reply, direct, more);
+	err = dnet_socket_local_addr(send->read_s, &laddr);
 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-	dnet_log(n, DNET_LOG_INFO, "%s: sending address %s: %ld\n", dnet_dump_id(id), dnet_state_dump_addr(orig), diff);
+	dnet_log(n, DNET_LOG_INFO, "%s: sending address %s -> %s, addr_num: %d, time-took: %ld\n",
+			dnet_dump_id(id),
+			dnet_server_convert_dnet_addr_raw(&laddr, server_addr, sizeof(server_addr)),
+			dnet_server_convert_dnet_addr_raw(dnet_state_addr(send), client_addr, sizeof(client_addr)),
+			n->addr_num, diff);
 
 	err = dnet_send(send, buf, size);
 
@@ -234,37 +239,68 @@ static int dnet_check_connection(struct dnet_node *n, struct dnet_addr *addr)
 static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_node *n = st->n;
-	struct dnet_addr *addr = data;
+	struct dnet_addr_container *cnt = data;
+	struct dnet_addr laddr;
 	struct dnet_raw_id *ids;
-	int num, i, err;
+	char client_addr[128], server_addr[128];
+	int ids_num, i, err, idx;
 
-	dnet_convert_addr(addr);
+	dnet_convert_addr_container(cnt);
 
-	dnet_log(n, DNET_LOG_DEBUG, "%s: accepted joining client (%s), requesting statistics.\n",
-			dnet_dump_id(&cmd->id), dnet_server_convert_dnet_addr(addr));
-	err = dnet_check_connection(n, addr);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to request statistics from joining client (%s), dropping connection.\n",
-				dnet_dump_id(&cmd->id), dnet_server_convert_dnet_addr(addr));
-		return err;
+	dnet_socket_local_addr(st->read_s, &laddr);
+	idx = dnet_local_addr_index(n, &laddr);
+
+	dnet_server_convert_dnet_addr_raw(&st->addr, client_addr, sizeof(client_addr));
+	dnet_server_convert_dnet_addr_raw(&laddr, server_addr, sizeof(server_addr));
+
+	ids_num = (cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container)) / sizeof(struct dnet_raw_id);
+
+	if (idx < 0 || idx >= cnt->addr_num || cnt->addr_num != n->addr_num) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
+				"address idx: %d, received addr-num: %d, local addr-num: %d, ids-num: %d\n",
+				dnet_dump_id(&cmd->id), client_addr, server_addr,
+				idx, cnt->addr_num, n->addr_num, ids_num);
+		err = -EINVAL;
+		goto err_out_exit;
 	}
 
-	num = (cmd->size - sizeof(struct dnet_addr)) / sizeof(struct dnet_raw_id);
-	ids = (struct dnet_raw_id *)(addr + 1);
-	for (i = 0; i < num; ++i)
+	dnet_log(n, DNET_LOG_NOTICE, "%s: join request: client: %s -> %s, "
+			"address idx: %d, received addr-num: %d, local addr-num: %d, ids-num: %d\n",
+			dnet_dump_id(&cmd->id), client_addr, server_addr,
+			idx, cnt->addr_num, n->addr_num, ids_num);
+
+	err = dnet_check_connection(n, &cnt->addrs[idx]);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to request statistics from joining client (%s), dropping connection.\n",
+				dnet_dump_id(&cmd->id), dnet_server_convert_dnet_addr(&cnt->addrs[idx]));
+		goto err_out_exit;
+	}
+
+	ids = (struct dnet_raw_id *)(data + sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr));
+	for (i = 0; i < ids_num; ++i)
 		dnet_convert_raw_id(&ids[0]);
 
-	pthread_mutex_lock(&n->state_lock);
 	list_del_init(&st->state_entry);
 	list_del_init(&st->storage_state_entry);
-	pthread_mutex_unlock(&n->state_lock);
 
-	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
-	err = dnet_idc_create(st, cmd->id.group_id, ids, num);
+	st->addrs = malloc(sizeof(struct dnet_addr) * cnt->addr_num);
+	if (!st->addrs) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
 
-	dnet_log(n, DNET_LOG_INFO, "%s: accepted join request from state %s: %d.\n", dnet_dump_id(&cmd->id),
-		dnet_server_convert_dnet_addr(addr), err);
+	st->addr_num = cnt->addr_num;
+	memcpy(st->addrs, cnt->addrs, cnt->addr_num * sizeof(struct dnet_addr));
 
+	memcpy(&st->addr, &cnt->addrs[idx], sizeof(struct dnet_addr));
+	err = dnet_idc_create(st, cmd->id.group_id, ids, ids_num);
+
+	dnet_log(n, DNET_LOG_INFO, "%s: join request completed: client: %s -> %s, "
+			"address idx: %d, received addr-num: %d, local addr-num: %d, ids-num: %d, err: %d\n",
+			dnet_dump_id(&cmd->id), client_addr, server_addr,
+			idx, cnt->addr_num, n->addr_num, ids_num, err);
+
+err_out_exit:
 	return err;
 }
 
