@@ -115,18 +115,16 @@ struct dnet_ext {
 /*! On-disk extension list header */
 struct dnet_ext_list_hdr {
 	uint32_t		size;		/* Size of all extensions */
-	uint32_t		count;		/* Number of extensions in record */
+	uint32_t		flags;		/* Custom flags for this record */
 	struct dnet_time	timestamp;	/* Time stamp of record */
-	uint64_t		flags;		/* Custom flags for this record */
 	uint64_t		__pad[2];	/* For future use (should be NULLed) */
 };
 
 /*! In-memory extension conatiner */
 struct dnet_ext_list {
 	uint32_t		size;		/* Total size of extensions */
-	uint32_t		count;		/* Number of entries in list */
+	uint32_t		flags;		/* Custom flags for this record */
 	struct dnet_time	timestamp;	/* TS of header */
-	uint64_t		flags;		/* Custom flags for this record */
 	struct dnet_ext		**exts;		/* Array of pointers to extensions */
 	void			*data;		/* Pointer to original data before extraction */
 };

@@ -298,7 +298,6 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	/* Extract header */
 	memset(elist, 0, sizeof(struct dnet_ext_list));
 	elist->timestamp = hdr->timestamp;
-	elist->count = hdr->count;
 	elist->size = hdr->size;
 
 	/*
@@ -307,7 +306,7 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	 *
 	 * TODO: Extract all extensions
 	 */
-	if (elist->size != 0 || elist->count != 0)
+	if (elist->size != 0)
 		return -ENOTSUP;
 
 	/* Save original pointer to data */
@@ -359,7 +358,6 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 	hdr = (struct dnet_ext_list_hdr *)new_data;
 	memset(hdr, 0, sizeof(struct dnet_ext_list_hdr));
 	hdr->size = elist->size;
-	hdr->count = elist->count;
 	hdr->timestamp = elist->timestamp;
 
 	/*
@@ -368,7 +366,7 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 	 *
 	 * TODO: Combine all extensions
 	 */
-	if (elist->size != 0 || elist->count != 0) {
+	if (elist->size != 0) {
 		free(new_data);
 		return -ENOTSUP;
 	}
