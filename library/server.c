@@ -256,7 +256,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg, struct dnet_a
 		s = err;
 		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
 
-		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &la, s, &err, DNET_JOIN, dnet_state_accept_process);
+		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &la, s, &err, DNET_JOIN, -1, dnet_state_accept_process);
 		if (!n->st) {
 			close(s);
 			goto err_out_state_destroy;

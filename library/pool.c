@@ -408,7 +408,16 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 
 	dnet_set_sockopt(cs);
 
-	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, 0, dnet_state_net_process);
+	err = dnet_socket_local_addr(cs, &saddr);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to resolve server addr for connected client: %s [%d]\n",
+				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
+		goto err_out_exit;
+	}
+
+	idx = dnet_local_addr_index(n, &saddr);
+
+	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, 0, idx, dnet_state_net_process);
 	if (!st) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]\n",
 				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
@@ -418,23 +427,12 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 		goto err_out_exit;
 	}
 
-	err = dnet_socket_local_addr(cs, &saddr);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to resolve server addr for connected client: %s [%d]\n",
-				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
-		goto err_out_put;
-	}
-
-	idx = dnet_local_addr_index(n, &saddr);
-
 	dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d, server address: %s, idx: %d.\n",
 			dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), cs,
 			dnet_server_convert_dnet_addr_raw(&saddr, server_addr, sizeof(server_addr)), idx);
 
 	return 0;
 
-err_out_put:
-	dnet_state_put(st);
 err_out_exit:
 	return err;
 }

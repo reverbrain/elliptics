@@ -112,6 +112,9 @@ struct dnet_net_state
 	int			addr_num;
 	struct dnet_addr	*addrs;
 
+	/* index of the connected address in array of all addresses of given node */
+	int			idx;
+
 	/* address used to connect to cluster */
 	struct dnet_addr	addr;
 
@@ -164,7 +167,7 @@ void dnet_idc_destroy_nolock(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
-		struct dnet_addr *addr, int s, int *errp, int join,
+		struct dnet_addr *addr, int s, int *errp, int join, int idx,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
 void dnet_state_reset(struct dnet_net_state *st);

@@ -132,22 +132,24 @@ err_out_exit:
 
 }
 
-static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
+static void dnet_send_idc_fill(struct dnet_net_state *st, struct dnet_addr_cmd *acmd, int total_size,
 		struct dnet_id *id, uint64_t trans, unsigned int command, int reply, int direct, int more)
 {
 	struct dnet_node *n = st->n;
-	struct dnet_addr_cmd *acmd = buf;
 	struct dnet_cmd *cmd = &acmd->cmd;
 	struct dnet_raw_id *sid;
 	int i;
 
 	acmd->cnt.addr_num = n->addr_num;
-	memcpy(acmd->cnt.addrs, n->addrs, n->addr_num * sizeof(struct dnet_addr));
+	if (!st->addrs)
+		memcpy(acmd->cnt.addrs, n->addrs, n->addr_num * sizeof(struct dnet_addr));
+	else
+		memcpy(acmd->cnt.addrs, st->addrs, n->addr_num * sizeof(struct dnet_addr));
 
-	sid = (struct dnet_raw_id *)(buf + sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr));
+	sid = (struct dnet_raw_id *)(acmd->cnt.addrs + n->addr_num);
 
 	memcpy(&cmd->id, id, sizeof(struct dnet_id));
-	cmd->size = size - sizeof(struct dnet_cmd);
+	cmd->size = total_size - sizeof(struct dnet_cmd);
 	cmd->trans = trans;
 
 	cmd->flags = DNET_FLAGS_NOLOCK;
@@ -160,7 +162,7 @@ static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
 
 	cmd->cmd = command;
 
-	for (i=0; i<st->idc->id_num; ++i) {
+	for (i = 0; i < st->idc->id_num; ++i) {
 		memcpy(&sid[i], &st->idc->ids[i].raw, sizeof(struct dnet_raw_id));
 		dnet_convert_raw_id(&sid[i]);
 	}
@@ -187,10 +189,10 @@ static int dnet_send_idc(struct dnet_net_state *lstate, struct dnet_net_state *s
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-	memset(buf, 0, sizeof(struct dnet_addr_cmd));
+	memset(buf, 0, size);
 
 	dnet_send_idc_fill(lstate, buf, size, id, trans, command, reply, direct, more);
-	err = dnet_socket_local_addr(send->read_s, &laddr);
+	dnet_socket_local_addr(send->read_s, &laddr);
 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
@@ -245,13 +247,32 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	char client_addr[128], server_addr[128];
 	int ids_num, i, err, idx;
 
-	dnet_convert_addr_container(cnt);
-
 	dnet_socket_local_addr(st->read_s, &laddr);
 	idx = dnet_local_addr_index(n, &laddr);
 
 	dnet_server_convert_dnet_addr_raw(&st->addr, client_addr, sizeof(client_addr));
 	dnet_server_convert_dnet_addr_raw(&laddr, server_addr, sizeof(server_addr));
+
+	if (cmd->size < sizeof(struct dnet_addr_container)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
+				"cmd-size: %llu, must be more than addr_container: %zd\n",
+				dnet_dump_id(&cmd->id), client_addr, server_addr,
+				(unsigned long long)cmd->size, sizeof(struct dnet_addr_container));
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	dnet_convert_addr_container(cnt);
+
+	if (cmd->size < sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
+				"cmd-size: %llu, must be more than addr_container+addrs: %zd, addr_num: %d\n",
+				dnet_dump_id(&cmd->id), client_addr, server_addr,
+				(unsigned long long)cmd->size, sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr),
+				cnt->addr_num);
+		err = -EINVAL;
+		goto err_out_exit;
+	}
 
 	ids_num = (cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container)) / sizeof(struct dnet_raw_id);
 
@@ -319,7 +340,8 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
 				continue;
 
-			size += st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd);
+			size += st->idc->id_num * sizeof(struct dnet_raw_id) +
+				sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr);
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
@@ -336,7 +358,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
 				continue;
 
-			sz = st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd);
+			sz = st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr);
 			if (sz <= size) {
 				cmd->id.group_id = g->group_id;
 				dnet_send_idc_fill(st, buf, sz, &cmd->id, cmd->trans, DNET_CMD_ROUTE_LIST, 1, 0, 1);

@@ -875,7 +875,7 @@ static int dnet_auth_send(struct dnet_net_state *st)
 
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
-		struct dnet_addr *addr, int s, int *errp, int join,
+		struct dnet_addr *addr, int s, int *errp, int join, int idx,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev))
 {
 	int err = -ENOMEM;
@@ -896,6 +896,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	memset(st, 0, sizeof(struct dnet_net_state));
 
+	st->idx = idx;
 	st->read_s = s;
 	st->write_s = dup(s);
 	if (st->write_s < 0) {
@@ -978,7 +979,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 			err = dnet_state_join_nolock(st);
 			pthread_mutex_unlock(&n->state_lock);
 
-			err = dnet_auth_send(st);
+			//err = dnet_auth_send(st);
 		} else {
 			st->addrs = malloc(sizeof(struct dnet_addr) * n->addr_num);
 			if (!st->addrs) {
