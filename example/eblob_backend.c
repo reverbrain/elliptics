@@ -244,7 +244,8 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 	}
 
 	if (elist != NULL && wc.flags & BLOB_DISK_CTL_USR1) {
-		err = dnet_ext_list_extract((void *)&read_data, (uint64_t *)&size, elist, 1);
+		err = dnet_ext_list_extract((void *)&read_data, (uint64_t *)&size,
+				elist, DNET_EXT_FREE_ON_DESTROY);
 		if (err != 0)
 			goto err_out_free;
 	}

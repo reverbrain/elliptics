@@ -88,6 +88,15 @@ struct dnet_config_backend {
 	struct dnet_backend_callbacks	cb;
 };
 
+/*!
+ * Flag used by dnet_ext_list_extract() to indicate that we need to free old
+ * data pointer on dnet_ext_list_destroy()
+ */
+enum dnet_ext_free_data {
+	DNET_EXT_DONT_FREE_ON_DESTROY,
+	DNET_EXT_FREE_ON_DESTROY
+};
+
 /*! On-disk extensions header */
 struct dnet_ext_hdr {
 	uint32_t		etype;		/* Extension type */
@@ -133,9 +142,11 @@ enum {
  * "Master" functions
  */
 /*! Extracts \a elist from data, replaces \a datap pointer and fixes \a sizep */
-int dnet_ext_list_extract(void **datap, uint64_t *sizep, struct dnet_ext_list *elist, char free_data);
+int dnet_ext_list_extract(void **datap, uint64_t *sizep,
+		struct dnet_ext_list *elist, enum dnet_ext_free_data free_data);
 /*! Combines \a datap with \a elist and fixes \a sizep */
-int dnet_ext_list_combine(void **datap, uint64_t *sizep, const struct dnet_ext_list *elist);
+int dnet_ext_list_combine(void **datap, uint64_t *sizep,
+		const struct dnet_ext_list *elist);
 
 /*
  * Extension list manipulation functions
