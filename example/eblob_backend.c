@@ -63,7 +63,7 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 	struct dnet_io_attr *io = data;
 	struct eblob_write_control wc;
 	struct eblob_key key;
-	uint64_t flags = BLOB_DISK_CTL_WRITE_RETURN;
+	uint64_t flags = 0;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: %x, type: %d.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags, io->type);
@@ -87,6 +87,13 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 	if (io->flags & DNET_IO_FLAGS_NOCSUM)
 		flags |= BLOB_DISK_CTL_NOCSUM;
 
+	if (elist != NULL && io->offset == 0) {
+		flags |= BLOB_DISK_CTL_USR1;
+		/*
+		 * XXX: Combine with extension list
+		 */
+	}
+
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
 	if ((io->type == EBLOB_TYPE_META) && !(io->flags & DNET_IO_FLAGS_META)) {
@@ -96,14 +103,10 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 		goto err_out_exit;
 	}
 
-	/*
-	 * XXX: Combine data with extensions for write
-	 */
-
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
 		wc.offset = 0;
-		wc.size = io->num;	/* XXX: Include extensions */
-		wc.flags = flags;	/* XXX: Include BLOB_DISK_CTL_USR1 flag */
+		wc.size = io->num;
+		wc.flags = flags;
 		wc.type = io->type;
 
 		err = eblob_write_prepare(c->eblob, &key, &wc);
@@ -118,16 +121,10 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 	}
 
 	if (io->size) {
-		/* XXX: Write extensions, then data */
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
 			err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, io->type);
 		} else {
-			err = eblob_write(c->eblob, &key, data, io->offset, io->size, flags, io->type);
-			if (!err) {
-				if (io->size >= sizeof(struct eblob_write_control)) {
-					memcpy(&wc, data, sizeof(struct eblob_write_control));
-				}
-			}
+			err = eblob_write_return(c->eblob, &key, data, io->offset, io->size, flags, io->type, &wc);
 		}
 
 		if (err) {
@@ -142,8 +139,8 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
 		wc.offset = 0;
-		wc.size = io->num;	/* XXX: Include extensions */
-		wc.flags = flags;	/* XXX: Include BLOB_DISK_CTL_USR1 flag */
+		wc.size = io->num;
+		wc.flags = flags;
 		wc.type = io->type;
 
 		err = eblob_write_commit(c->eblob, &key, NULL, 0, &wc);
@@ -210,9 +207,7 @@ static int blob_write_timestamp(struct eblob_backend_config *c, void *state,
 	dnet_current_time(&elist.timestamp);
 	err = blob_write_ll(c, state, cmd, data, &elist);
 
-err_free_list:
 	dnet_ext_list_destroy(&elist);
-err:
 	return err;
 }
 
@@ -221,21 +216,18 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 {
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->eblob;
-	uint64_t offset, size, orig_offset, orig_size;
 	struct eblob_key key;
+	struct eblob_write_control wc;
+	uint64_t offset, size;
 	char *read_data = NULL;
-	int fd, err;
+	int csum, err, fd;
 
 	dnet_convert_io_attr(io);
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
-	if (io->flags & DNET_IO_FLAGS_NOCSUM) {
-		err = eblob_read_nocsum(b, &key, &fd, &orig_offset, &orig_size, io->type);
-	} else {
-		err = eblob_read(b, &key, &fd, &orig_offset, &orig_size, io->type);
-	}
-
+	csum = !(io->flags & DNET_IO_FLAGS_NOCSUM);
+	err = eblob_read_return(b, &key, io->type, csum, &wc);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-fd: READ: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
@@ -254,21 +246,24 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 		offset = 0; /* to shut up compiler - offset is not used when there is data */
 		fd = -1;
 	} else {
-		if (io->offset >= orig_size) {
+		if (io->offset >= wc.total_data_size) {
 			err = -E2BIG;
 			goto err_out_exit;
 		}
 
-		offset = orig_offset + io->offset;
-		size = orig_size - io->offset;
+		offset = wc.data_offset + io->offset;
+		size = wc.total_data_size - io->offset;
+		fd = wc.data_fd;
 
 		if (io->size && size > io->size)
 			size = io->size;
 	}
 
-	/*
-	 * XXX: Extract extensions from record
-	 */
+	if (elist != NULL && wc.flags & BLOB_DISK_CTL_USR1) {
+		/*
+		 * XXX: Extract extensions from record
+		 */
+	}
 
 	io->size = size;
 	if (size && last)
@@ -295,9 +290,7 @@ static int blob_read_timestamp(struct eblob_backend_config *c, void *state,
 	err = blob_read_ll(c, state, cmd, data, last, &elist);
 	io->timestamp = elist.timestamp;
 
-err_free_list:
 	dnet_ext_list_destroy(&elist);
-err:
 	return err;
 }
 
