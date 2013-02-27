@@ -159,21 +159,20 @@ struct dnet_ext_list *dnet_ext_list_create();
 void dnet_ext_list_init(struct dnet_ext_list *elist);
 /*! Frees memory used by extension list and all extensions in it */
 void dnet_ext_list_destroy(struct dnet_ext_list *elist);
-/* Create extension from type, size and data and append it to \a elist */
-int dnet_ext_list_append(struct dnet_ext_list *elist, int etype, uint64_t size, const void *data);
 
 /*
  * TODO: Extension manipulation functions
  */
 
+/*! Create extension from type, size and data and append it to \a elist */
+/*
+ * int dnet_ext_list_append(struct dnet_ext_list *elist, int etype,
+ *	uint64_t size, const void *data);
+ */
 /*! Get pointer to extension of given \a etype in \a elist */
-struct dnet_ext *dnet_ext_get(const struct dnet_ext_list *elist, int etype);
-/*! Return size of extension */
-uint32_t dnet_ext_get_size(const struct dnet_ext *ext);
-/*! Return pointer to data from extension */
-void *dnet_ext_get_data(const struct dnet_ext *ext);
+/* struct dnet_ext *dnet_ext_get(const struct dnet_ext_list *elist, int etype); */
 /*! Free memory occupied by an extension */
-void dnet_ext_put(struct dnet_ext *ext);
+/* void dnet_ext_put(struct dnet_ext *ext); */
 
 int dnet_backend_register(struct dnet_config_backend *b);
 
