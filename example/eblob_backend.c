@@ -61,15 +61,13 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 {
 	int err;
 	struct dnet_io_attr *io = data;
-	struct eblob_write_control wc;
+	struct eblob_write_control wc = { .data_fd = -1 };
 	struct eblob_key key;
 	uint64_t flags = 0;
+	int combined = 0;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: %x, type: %d.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags, io->type);
-
-	memset(&wc, 0, sizeof(struct eblob_write_control));
-	wc.data_fd = -1;
 
 	dnet_convert_io_attr(io);
 
@@ -89,9 +87,11 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 
 	if (elist != NULL && io->offset == 0) {
 		flags |= BLOB_DISK_CTL_USR1;
-		/*
-		 * XXX: Combine with extension list
-		 */
+
+		err = dnet_ext_list_combine(&data, &io->size, elist);
+		if (err != 0)
+			goto err_out_exit;
+		combined = 1;
 	}
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
@@ -100,7 +100,7 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: meta-check: COLUMN %d IS RESERVED FOR METADATA\n",
 			dnet_dump_id_str(io->id), io->type);
 		err = -EPERM;
-		goto err_out_exit;
+		goto err_out_free;
 	}
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
@@ -113,7 +113,7 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_prepare: size: %llu: type: %d: %s %d\n",
 				dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
-			goto err_out_exit;
+			goto err_out_free;
 		}
 
 		dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: eblob_write_prepare: size: %llu: type: %d: Ok\n",
@@ -130,7 +130,7 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: WRITE: %d: %s\n",
 				dnet_dump_id_str(io->id), err, strerror(-err));
-			goto err_out_exit;
+			goto err_out_free;
 		}
 
 		dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: Ok: offset: %llu, size: %llu, type: %d.\n",
@@ -147,25 +147,20 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: type: %d: %s %d\n",
 				dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
-			goto err_out_exit;
+			goto err_out_free;
 		}
 
 		dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: type: %d: Ok\n",
 			dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type);
 	}
 
-	/*
-	 * This read is needed for case when
-	 *	io->size < sizeof(struct eblob_write_control)
-	 * so we can obtain info from header
-	 */
 	if (!err && wc.data_fd == -1) {
 		err = eblob_read_nocsum(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, io->type);
 		if (err < 0) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: "
 					"size: %llu: type: %d: %s %d\n",
 				dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
-			goto err_out_exit;
+			goto err_out_free;
 		}
 
 		/* data is compressed, but we only care about header */
@@ -180,9 +175,12 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 				"fd: %d, offset: %llu, size: %llu: type: %d: %s %d\n",
 			dnet_dump_id_str(io->id), wc.data_fd,(unsigned long long)wc.offset,
 			(unsigned long long)wc.size, io->type, strerror(-err), err);
-		goto err_out_exit;
+		goto err_out_free;
 	}
 
+err_out_free:
+	if (combined != 0)
+		free(data);
 err_out_exit:
 	return err;
 }
@@ -217,8 +215,8 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->eblob;
 	struct eblob_key key;
-	struct eblob_write_control wc;
-	uint64_t offset, size;
+	struct eblob_write_control wc = {};
+	uint64_t offset, size = 0;
 	char *read_data = NULL;
 	int csum, err, fd;
 
@@ -232,10 +230,8 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-fd: READ: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
 		goto err_out_exit;
-	} else if (err > 0) {
-		/* data is compressed */
-
-		size = 0;
+	} else {
+		/* FIXME: Can be speeded up by introducing eblob_read_data_return() */
 		err = eblob_read_data(b, &key, io->offset, &read_data, &size, io->type);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-data: READ: %d: %s\n",
@@ -245,24 +241,12 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 
 		offset = 0; /* to shut up compiler - offset is not used when there is data */
 		fd = -1;
-	} else {
-		if (io->offset >= wc.total_data_size) {
-			err = -E2BIG;
-			goto err_out_exit;
-		}
-
-		offset = wc.data_offset + io->offset;
-		size = wc.total_data_size - io->offset;
-		fd = wc.data_fd;
-
-		if (io->size && size > io->size)
-			size = io->size;
 	}
 
 	if (elist != NULL && wc.flags & BLOB_DISK_CTL_USR1) {
-		/*
-		 * XXX: Extract extensions from record
-		 */
+		err = dnet_ext_list_extract((void *)&read_data, (uint64_t *)&size, elist, 1);
+		if (err != 0)
+			goto err_out_free;
 	}
 
 	io->size = size;
@@ -270,7 +254,7 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset, 0);
 
-	/* free compressed data */
+err_out_free:
 	free(read_data);
 err_out_exit:
 	return err;
