@@ -218,7 +218,7 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 	struct eblob_write_control wc;
 	uint64_t offset, size = 0;
 	char *read_data = NULL;
-	int csum, err, fd;
+	int csum, err, fd, free_data = 1;
 
 	dnet_convert_io_attr(io);
 
@@ -243,11 +243,13 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 		fd = -1;
 	}
 
-	if (elist != NULL && wc.flags & BLOB_DISK_CTL_USR1) {
+	if (elist != NULL && (wc.flags & BLOB_DISK_CTL_USR1) != 0) {
 		err = dnet_ext_list_extract((void *)&read_data, (uint64_t *)&size,
 				elist, DNET_EXT_FREE_ON_DESTROY);
 		if (err != 0)
 			goto err_out_free;
+		/* It will be done by dnet_ext_list_destroy */
+		free_data = 0;
 	}
 
 	io->size = size;
@@ -256,7 +258,8 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset, 0);
 
 err_out_free:
-	free(read_data);
+	if (free_data)
+		free(read_data);
 err_out_exit:
 	return err;
 }
