@@ -243,14 +243,6 @@ void dnet_ext_list_init(struct dnet_ext_list *elist)
 }
 
 /*!
- * Allocates and returns new extension list
- */
-struct dnet_ext_list *dnet_ext_list_create()
-{
-	return calloc(1, sizeof(struct dnet_ext_list));
-}
-
-/*!
  * Destroy extension list
  */
 void dnet_ext_list_destroy(struct dnet_ext_list *elist)

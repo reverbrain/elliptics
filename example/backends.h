@@ -138,8 +138,6 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
  * Extension list manipulation functions
  */
 
-/*! Create list of extensions that can be placed in record's footer */
-struct dnet_ext_list *dnet_ext_list_create();
 /*! Initialize already allocated list */
 void dnet_ext_list_init(struct dnet_ext_list *elist);
 /*! Frees memory used by extension list and all extensions in it */
