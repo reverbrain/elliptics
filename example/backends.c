@@ -26,6 +26,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "elliptics/core.h"
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
@@ -260,7 +261,6 @@ void dnet_ext_list_destroy(struct dnet_ext_list *elist)
 /*!
  * Extracts \a elist from \a datap, replaces \a datap pointer and adjusts \a
  * sizep. In case \a free_data is set then data pointed by \a *datap is free'd.
- * TODO: Endian conversions.
  */
 int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 		struct dnet_ext_list *elist, enum dnet_ext_free_data free_data)
@@ -294,11 +294,12 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	/* Extract payload from \a datap */
 	new_data = (unsigned char *)*datap + hdr_size;
 
-	/* Extract header */
+	/* TODO: Move hdr-elist conversion to separate API call */
 	memset(elist, 0, sizeof(struct dnet_ext_list));
-	elist->timestamp = hdr->timestamp;
-	elist->size = hdr->size;
-	elist->flags = hdr->flags;
+	elist->timestamp.tsec = dnet_bswap64(hdr->timestamp.tsec);
+	elist->timestamp.tnsec = dnet_bswap64(hdr->timestamp.tnsec);
+	elist->size = dnet_bswap32(hdr->size);
+	elist->flags = dnet_bswap32(hdr->flags);
 
 	/*
 	 * Currently we do not support any extensions beyond header itself
@@ -324,7 +325,6 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
  * Combines \a datap with \a elist and fixes \a sizep
  *
  * NB! It does not free memory pointed by \a datap
- * TODO: Endian conversions.
  */
 int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 		const struct dnet_ext_list *elist)
@@ -357,9 +357,12 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 
 	hdr = (struct dnet_ext_list_hdr *)new_data;
 	memset(hdr, 0, sizeof(struct dnet_ext_list_hdr));
-	hdr->size = elist->size;
-	hdr->flags = elist->flags;
-	hdr->timestamp = elist->timestamp;
+
+	/* TODO: Move elist-hdr conversion to separate API call */
+	hdr->size = dnet_bswap32(elist->size);
+	hdr->flags = dnet_bswap32(elist->flags);
+	hdr->timestamp.tsec = dnet_bswap64(elist->timestamp.tsec);
+	hdr->timestamp.tnsec = dnet_bswap64(elist->timestamp.tnsec);
 
 	/*
 	 * Currently we do not support any extensions beyond header itself
