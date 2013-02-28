@@ -254,8 +254,7 @@ struct dnet_ext_list *dnet_ext_list_create()
  */
 void dnet_ext_list_destroy(struct dnet_ext_list *elist)
 {
-	if (elist->data != NULL)
-		free(elist->data);
+	free(elist->data);
 }
 
 /*!

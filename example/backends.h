@@ -97,20 +97,8 @@ enum dnet_ext_free_data {
 	DNET_EXT_FREE_ON_DESTROY
 };
 
-/*! On-disk extensions header */
-struct dnet_ext_hdr {
-	uint32_t		etype;		/* Extension type */
-	uint32_t		size;		/* Size of data (excluding header) */
-	uint32_t		__pad[2];	/* For future use (should be NULLed) */
-	unsigned char		data[0];	/* Extension's payload */
-};
-
-/*! In-memory extensions */
-struct dnet_ext {
-	uint32_t		etype;		/* Extension type */
-	uint32_t		size;		/* Size of data (excluding header) */
-	void			*data;		/* Extension's payload */
-};
+/*! In-memory extension header */
+struct dnet_ext;
 
 /*! On-disk extension list header */
 struct dnet_ext_list_hdr {
