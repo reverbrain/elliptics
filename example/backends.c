@@ -298,6 +298,7 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	memset(elist, 0, sizeof(struct dnet_ext_list));
 	elist->timestamp = hdr->timestamp;
 	elist->size = hdr->size;
+	elist->flags = hdr->flags;
 
 	/*
 	 * Currently we do not support any extensions beyond header itself
@@ -357,6 +358,7 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 	hdr = (struct dnet_ext_list_hdr *)new_data;
 	memset(hdr, 0, sizeof(struct dnet_ext_list_hdr));
 	hdr->size = elist->size;
+	hdr->flags = elist->flags;
 	hdr->timestamp = elist->timestamp;
 
 	/*
