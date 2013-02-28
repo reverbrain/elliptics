@@ -311,7 +311,7 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 		return -ENOTSUP;
 
 	/* Save original pointer to data */
-	if (free_data)
+	if (free_data == DNET_EXT_FREE_ON_DESTROY)
 		elist->data = *datap;
 
 	/* Swap data, adjust size */
