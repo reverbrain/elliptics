@@ -85,7 +85,8 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 	if (io->flags & DNET_IO_FLAGS_NOCSUM)
 		flags |= BLOB_DISK_CTL_NOCSUM;
 
-	if (elist != NULL && io->offset == 0) {
+	if (elist != NULL && io->offset == 0
+			&& (io->flags & DNET_IO_FLAGS_APPEND) == 0) {
 		flags |= BLOB_DISK_CTL_USR1;
 
 		err = dnet_ext_list_combine(&data, &io->size, elist);
