@@ -107,6 +107,11 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 			/* TODO: We should increase this also by hdr->size */
 			io->offset += sizeof(struct dnet_ext_list_hdr);
 		}
+
+		/* Increase overall size on commit */
+		if (io->flags & DNET_IO_FLAGS_COMMIT) {
+			io->num += sizeof(struct dnet_ext_list_hdr);
+		}
 	}
 
 	if ((io->type == EBLOB_TYPE_META) && !(io->flags & DNET_IO_FLAGS_META)) {
