@@ -61,7 +61,7 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 {
 	int err;
 	struct dnet_io_attr *io = data;
-	struct eblob_write_control wc = { .data_fd = -1 };
+	struct eblob_write_control wc = { .data_fd = -1 }, wc2;
 	struct eblob_key key;
 	uint64_t flags = 0;
 	int combined = 0;
@@ -85,17 +85,29 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 	if (io->flags & DNET_IO_FLAGS_NOCSUM)
 		flags |= BLOB_DISK_CTL_NOCSUM;
 
-	if (elist != NULL && io->offset == 0
-			&& (io->flags & DNET_IO_FLAGS_APPEND) == 0) {
+	memcpy(key.id, io->id, EBLOB_ID_SIZE);
+
+	/*
+	 * Read key and check if entry is in new format or non-existent
+	 * FIXME: Read on each write is slow.
+	 */
+	err = eblob_read_return(c->eblob, &key, io->type, EBLOB_READ_NOCSUM, &wc2);
+	if ((err == 0 && (wc2.flags & BLOB_DISK_CTL_USR1))
+			|| err == -ENOENT) {
 		flags |= BLOB_DISK_CTL_USR1;
 
-		err = dnet_ext_list_combine(&data, &io->size, elist);
-		if (err != 0)
-			goto err_out_exit;
-		combined = 1;
-	}
+		if (elist != NULL && io->offset == 0
+				&& (io->flags & DNET_IO_FLAGS_APPEND) == 0) {
 
-	memcpy(key.id, io->id, EBLOB_ID_SIZE);
+			err = dnet_ext_list_combine(&data, &io->size, elist);
+			if (err != 0)
+				goto err_out_exit;
+			combined = 1;
+		} else {
+			/* TODO: We should increase this also by hdr->size */
+			io->offset += sizeof(struct dnet_ext_list_hdr);
+		}
+	}
 
 	if ((io->type == EBLOB_TYPE_META) && !(io->flags & DNET_IO_FLAGS_META)) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: meta-check: COLUMN %d IS RESERVED FOR METADATA\n",
