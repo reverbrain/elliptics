@@ -251,6 +251,19 @@ void dnet_ext_list_destroy(struct dnet_ext_list *elist)
 }
 
 /*!
+ * Reads extension header from given fd and offset
+ */
+int dnet_ext_hdr_read(struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset)
+{
+	int err;
+
+	err = pread(fd, ehdr, sizeof(struct dnet_ext_list_hdr), offset);
+	if (err != sizeof(struct dnet_ext_list_hdr))
+		return (err == -1) ? -errno : -EINTR;
+	return 0;
+}
+
+/*!
  * Extracts \a elist from \a datap, replaces \a datap pointer and adjusts \a
  * sizep. In case \a free_data is set then data pointed by \a *datap is free'd.
  */
