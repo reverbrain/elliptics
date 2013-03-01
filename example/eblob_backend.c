@@ -333,16 +333,39 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 	}
 
 	if (!(p->flags & DNET_IO_FLAGS_NODATA)) {
+		struct eblob_write_control wc;
+
 		io.flags = 0;
 		io.size = req->record_size - req->requested_offset;
 		io.offset = req->requested_offset;
 		io.type = req->requested_type;
 
+		/* FIXME: This is slow! */
+		err = eblob_read_return(req->back, (struct eblob_key *)req->record_key, io.type,
+				EBLOB_READ_NOCSUM, &wc);
+		if (err)
+			goto err_out_exit;
+
+		if (wc.flags & BLOB_DISK_CTL_USR1) {
+			struct dnet_ext_list ehdr;
+			struct dnet_ext_list_hdr elist;
+
+			err = dnet_ext_hdr_read(&ehdr, req->record_fd, req->record_offset);
+			if (err != 0)
+				goto err_out_exit;
+
+			dnet_ext_hdr_to_list(&ehdr, &elist);
+			dnet_ext_list_to_io(&elist, &io);
+
+			io.offset += sizeof(struct dnet_ext_list_hdr);
+			io.size -= sizeof(struct dnet_ext_list_hdr);
+		}
+
 		memcpy(io.id, req->record_key, DNET_ID_SIZE);
 		memcpy(io.parent, req->end, DNET_ID_SIZE);
 
 		err = dnet_send_read_data(p->state, p->cmd, &io, NULL, req->record_fd,
-				req->record_offset + req->requested_offset, 0);
+				req->record_offset + io.offset, 0);
 		if (!err)
 			req->current_pos++;
 	} else {
