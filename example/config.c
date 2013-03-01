@@ -130,17 +130,50 @@ static int dnet_set_group(struct dnet_config_backend *b __unused, char *key __un
 	return 0;
 }
 
+struct dnet_addr_wrap {
+	struct dnet_addr	addr;
+	int			addr_group;
+};
+
+static int dnet_addr_wrap_compare(const void *a1, const void *a2)
+{
+	const struct dnet_addr_wrap *w1 = a1;
+	const struct dnet_addr_wrap *w2 = a2;
+
+	return w1->addr_group - w2->addr_group;
+}
+
 static int dnet_set_addr(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
+	struct dnet_addr_wrap *wrap = NULL;
+	int wrap_num = 0;
 	struct dnet_addr addr;
-	int err;
+	int err = -EINVAL, i;
 
 	while (value) {
-		char *ptr;
+		char *ptr, *addr_group_ptr;
+		int addr_group = -1;
+
+		while (value && *value) {
+			if (isalnum(*value))
+				break;
+
+			value++;
+		}
+
+		if (!value || !*value)
+			break;
 
 		ptr = strchr(value, ' ');
 		if (ptr)
 			*ptr++ = '\0';
+
+		addr_group_ptr = strrchr(value, '-');
+		if (addr_group_ptr) {
+			*addr_group_ptr++ = '\0';
+
+			addr_group = atoi(addr_group_ptr);
+		}
 
 		err = dnet_parse_addr(value, &dnet_cfg_state.port, &dnet_cfg_state.family);
 		if (!err) {
@@ -150,21 +183,47 @@ static int dnet_set_addr(struct dnet_config_backend *b __unused, char *key __unu
 			if (err) {
 				dnet_backend_log(DNET_LOG_ERROR, "backend: %s: could not parse addr: %s [%d]\n", value, strerror(-err), err);
 			} else {
-				dnet_backend_log(DNET_LOG_INFO, "backend: parsed addr: %s\n", dnet_server_convert_dnet_addr(&addr));
+				dnet_backend_log(DNET_LOG_INFO, "backend: parsed addr: %s, addr-group: %d\n",
+						dnet_server_convert_dnet_addr(&addr), addr_group);
 
-				dnet_cfg_addrs = realloc(dnet_cfg_addrs, (dnet_cfg_addr_num + 1) * sizeof(struct dnet_addr));
-				if (!dnet_cfg_addrs)
-					return -ENOMEM;
+				wrap = realloc(wrap, (wrap_num + 1) * sizeof(struct dnet_addr_wrap));
+				if (!wrap) {
+					err = -ENOMEM;
+					goto err_out_exit;
+				}
 
-				dnet_cfg_addrs[dnet_cfg_addr_num] = addr;
-				dnet_cfg_addr_num++;
+				wrap[wrap_num].addr = addr;
+				wrap[wrap_num].addr_group = addr_group;
+				wrap_num++;
 			}
+
+			if (addr_group == -1)
+				break;
 		}
 
 		value = ptr;
 	}
 
-	return 0;
+	if (wrap_num) {
+		qsort(wrap, wrap_num, sizeof(struct dnet_addr_wrap), dnet_addr_wrap_compare);
+
+		dnet_cfg_addrs = malloc(sizeof(struct dnet_addr) * wrap_num);
+		if (!dnet_cfg_addrs) {
+			err = -ENOMEM;
+			goto err_out_free;
+		}
+
+		for (i = 0; i < wrap_num; ++i)
+			dnet_cfg_addrs[i] = wrap[i].addr;
+		dnet_cfg_addr_num = wrap_num;
+
+		err = 0;
+	}
+
+err_out_free:
+	free(wrap);
+err_out_exit:
+	return err;
 }
 
 static int dnet_set_remote_addrs(struct dnet_config_backend *b __unused, char *key __unused, char *value)

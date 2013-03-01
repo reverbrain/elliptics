@@ -236,7 +236,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 
 	st->idc = idc;
 
-	if (n->log->log_level > DNET_LOG_DEBUG) {
+	if (n->log->log_level >= DNET_LOG_DEBUG) {
 		for (i=0; i<g->id_num; ++i) {
 			struct dnet_state_id *id = &g->ids[i];
 			dnet_log(n, DNET_LOG_DEBUG, "%d: %s -> %s\n", g->group_id,
@@ -407,8 +407,7 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (st->addr.addr_len == addr->addr_len &&
-					!memcmp(addr, &st->addr, st->addr.addr_len)) {
+			if (dnet_addr_equal(&st->addr, addr)) {
 				found = st;
 				break;
 			}

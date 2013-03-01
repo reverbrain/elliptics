@@ -14,7 +14,7 @@ def sid(id, count=6):
 	return ret
 
 def main():
-	log = elliptics.Logger("/dev/stderr", 2)
+	log = elliptics.Logger("/dev/stderr", 1)
 	n = elliptics.Node(log)
 
 	s = elliptics.Session(n)

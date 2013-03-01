@@ -304,16 +304,12 @@ static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	list_del_init(&st->state_entry);
 	list_del_init(&st->storage_state_entry);
 
-	st->addrs = malloc(sizeof(struct dnet_addr) * cnt->addr_num);
-	if (!st->addrs) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	st->addr_num = cnt->addr_num;
-	memcpy(st->addrs, cnt->addrs, cnt->addr_num * sizeof(struct dnet_addr));
-
 	memcpy(&st->addr, &cnt->addrs[idx], sizeof(struct dnet_addr));
+
+	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
+	if (err)
+		goto err_out_exit;
+
 	err = dnet_idc_create(st, cmd->id.group_id, ids, ids_num);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: join request completed: client: %s -> %s, "
@@ -337,7 +333,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
+			if (dnet_addr_equal(&st->addr, &orig->addr))
 				continue;
 
 			size += st->idc->id_num * sizeof(struct dnet_raw_id) +
@@ -355,8 +351,11 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
+			if (dnet_addr_equal(&st->addr, &orig->addr))
 				continue;
+
+			dnet_log(n, DNET_LOG_INFO, "%s: %d %s\n",
+					dnet_server_convert_dnet_addr(&st->addrs[0]), g->group_id, dnet_dump_id_str(st->idc->ids[0].raw.id));
 
 			sz = st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr);
 			if (sz <= size) {

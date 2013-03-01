@@ -149,6 +149,8 @@ struct dnet_net_state
 int dnet_socket_local_addr(int s, struct dnet_addr *addr);
 int dnet_local_addr_index(struct dnet_node *n, struct dnet_addr *addr);
 
+int dnet_copy_addrs(struct dnet_net_state *nst, struct dnet_addr *addrs, int addr_num);
+
 struct dnet_idc;
 struct dnet_state_id {
 	struct dnet_raw_id	raw;

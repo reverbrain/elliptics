@@ -979,16 +979,11 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 			err = dnet_state_join_nolock(st);
 			pthread_mutex_unlock(&n->state_lock);
 
-			//err = dnet_auth_send(st);
-		} else {
-			st->addrs = malloc(sizeof(struct dnet_addr) * n->addr_num);
-			if (!st->addrs) {
-				err = -ENOMEM;
+			err = dnet_auth_send(st);
+		} else if (process == dnet_state_accept_process) {
+			err = dnet_copy_addrs(st, n->addrs, n->addr_num);
+			if (err)
 				goto err_out_send_destroy;
-			}
-
-			memcpy(st->addrs, n->addrs, sizeof(struct dnet_addr) * n->addr_num);
-			st->addr_num = n->addr_num;
 		}
 	} else {
 		pthread_mutex_lock(&n->state_lock);

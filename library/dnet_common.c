@@ -119,11 +119,52 @@ char *dnet_counter_string(int cntr, int cmd_num)
 	return dnet_counter_strings[cntr];
 }
 
-static int dnet_add_received_state(struct dnet_net_state *connected_state, struct dnet_addr *addr,
+int dnet_copy_addrs(struct dnet_net_state *nst, struct dnet_addr *addrs, int addr_num)
+{
+	char addr_str[128];
+	struct dnet_node *n = nst->n;
+	int err = 0, i;
+
+	if (nst->addrs) {
+		dnet_log(n, DNET_LOG_NOTICE, "%s: do not copy %d addrs, already have %d, idx: %d\n",
+				dnet_server_convert_dnet_addr(&nst->addrs[nst->idx]),
+				addr_num, nst->addr_num, nst->idx);
+		goto err_out_exit;
+	}
+	pthread_mutex_lock(&n->state_lock);
+
+	nst->addrs = malloc(sizeof(struct dnet_addr) * addr_num);
+	if (!nst->addrs) {
+		pthread_mutex_unlock(&n->state_lock);
+
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	nst->addr_num = addr_num;
+	memcpy(nst->addrs, addrs, addr_num * sizeof(struct dnet_addr));
+
+	pthread_mutex_unlock(&n->state_lock);
+
+	dnet_server_convert_dnet_addr_raw(dnet_state_addr(nst), addr_str, sizeof(addr_str));
+	for (i = 0; i < addr_num; ++i) {
+		dnet_log(n, DNET_LOG_NOTICE, "%s: copy addr: %s, idx: %d\n",
+				addr_str,
+				dnet_server_convert_dnet_addr(&nst->addrs[i]),
+				nst->idx);
+	}
+
+err_out_exit:
+	return err;
+}
+
+static int dnet_add_received_state(struct dnet_net_state *connected_state,
+		struct dnet_addr_container *cnt,
 		int group_id, struct dnet_raw_id *ids, int id_num)
 {
 	struct dnet_node *n = connected_state->n;
 	int s, err = 0;
+	struct dnet_addr *addr = &cnt->addrs[connected_state->idx];
 	struct dnet_net_state *nst;
 	struct dnet_id raw;
 	int join;
@@ -132,6 +173,7 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state, struc
 
 	nst = dnet_state_search_by_addr(n, addr);
 	if (nst) {
+		dnet_copy_addrs(nst, cnt->addrs, cnt->addr_num);
 		err = -EEXIST;
 		dnet_state_put(nst);
 		goto err_out_exit;
@@ -147,14 +189,23 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state, struc
 	if (n->flags & DNET_CFG_JOIN_NETWORK)
 		join = DNET_JOIN;
 
-	nst = dnet_state_create(n, group_id, ids, id_num, addr, s, &err, join, connected_state->idx, dnet_state_net_process);
+	nst = dnet_state_create(n, group_id, ids, id_num, addr,	s, &err, join, connected_state->idx, dnet_state_net_process);
 	if (!nst)
 		goto err_out_close;
+
+	dnet_copy_addrs(nst, cnt->addrs, cnt->addr_num);
+	if (err)
+		goto err_out_put;
 
 	dnet_log(n, DNET_LOG_NOTICE, "%d: added received state %s.\n",
 			group_id, dnet_state_dump_addr(nst));
 
 	return 0;
+
+err_out_put:
+	/* this will close socket */
+	dnet_state_put(nst);
+	return err;
 
 err_out_close:
 	dnet_sock_close(s);
@@ -166,10 +217,11 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 {
 	struct dnet_node *n = st->n;
 	struct dnet_raw_id *ids;
-	char server_addr[128];
+	char server_addr[128], rem_addr[128];
 	int i, err;
 
 	dnet_server_convert_dnet_addr_raw(&st->addr, server_addr, sizeof(server_addr));
+	dnet_server_convert_dnet_addr_raw(&cnt->addrs[0], rem_addr, sizeof(rem_addr));
 
 	/* only compare addr-num if we are server, i.e. joined node, clients do not have local addresses at all */
 	if (n->addr_num && (cnt->addr_num != n->addr_num)) {
@@ -180,8 +232,13 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 	}
 
 	ids = (struct dnet_raw_id *)(cnt->addrs + cnt->addr_num);
-	for (i = 0; i < ids_num; ++i)
+	for (i = 0; i < ids_num; ++i) {
 		dnet_convert_raw_id(&ids[i]);
+
+		if (n->log && (n->log->log_level >= DNET_LOG_DEBUG)) {
+			dnet_log(n, DNET_LOG_DEBUG, "%s: %d %s\n", rem_addr, group_id, dnet_dump_id_str(ids[i].id));
+		}
+	}
 
 	for (i = 0; i < cnt->addr_num; ++i) {
 		char tmp[128];
@@ -189,7 +246,7 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 				server_addr, dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], tmp, sizeof(tmp)));
 	}
 
-	err = dnet_add_received_state(st, &cnt->addrs[st->idx], group_id, ids, ids_num);
+	err = dnet_add_received_state(st, cnt, group_id, ids, ids_num);
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: route reply: recv-addr-num: %d, local-addr-num: %d, idx: %d, err: %d\n",
 			server_addr, cnt->addr_num, n->addr_num, st->idx, err);
@@ -2297,6 +2354,7 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_ad
 				memcpy(&(*addrs)[count], dnet_state_addr(st), sizeof(struct dnet_addr));
 				count++;
 			}
+			dnet_log(n, DNET_LOG_INFO, "%s: %s\n", dnet_state_dump_addr(st), dnet_dump_id_str(st->idc->ids[0].raw.id));
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
