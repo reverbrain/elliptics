@@ -302,6 +302,18 @@ int dnet_ext_list_to_hdr(const struct dnet_ext_list *elist,
 }
 
 /*!
+ * Fills needed fields in \a io with data from given \a elist
+ */
+int dnet_ext_list_to_io(const struct dnet_ext_list *elist, struct dnet_io_attr *io)
+{
+	if (elist == NULL || io == NULL)
+		return -EINVAL;
+
+	io->timestamp = elist->timestamp;
+	/* FIXME: add user flags */
+}
+
+/*!
  * Extracts \a elist from \a datap, replaces \a datap pointer and adjusts \a
  * sizep. In case \a free_data is set then data pointed by \a *datap is free'd.
  */
