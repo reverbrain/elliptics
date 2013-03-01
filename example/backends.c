@@ -264,6 +264,44 @@ int dnet_ext_hdr_read(struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset)
 }
 
 /*!
+ * Converts representation from host-independed on-disk to host-depended
+ * in-memory.
+ */
+int dnet_ext_hdr_to_list(const struct dnet_ext_list_hdr *ehdr,
+		struct dnet_ext_list *elist)
+{
+	if (ehdr == NULL || elist == NULL)
+		return -EINVAL;
+
+	memset(elist, 0, sizeof(struct dnet_ext_list));
+	elist->timestamp.tsec = dnet_bswap64(ehdr->timestamp.tsec);
+	elist->timestamp.tnsec = dnet_bswap64(ehdr->timestamp.tnsec);
+	elist->size = dnet_bswap32(ehdr->size);
+	elist->flags = dnet_bswap32(ehdr->flags);
+
+	return 0;
+}
+
+/*!
+ * Converts representation from host-depended in-memory to host-independed
+ * on-disk.
+ */
+int dnet_ext_list_to_hdr(const struct dnet_ext_list *elist,
+		struct dnet_ext_list_hdr *ehdr)
+{
+	if (ehdr == NULL || elist == NULL)
+		return -EINVAL;
+
+	memset(ehdr, 0, sizeof(struct dnet_ext_list_hdr));
+	ehdr->size = dnet_bswap32(elist->size);
+	ehdr->flags = dnet_bswap32(elist->flags);
+	ehdr->timestamp.tsec = dnet_bswap64(elist->timestamp.tsec);
+	ehdr->timestamp.tnsec = dnet_bswap64(elist->timestamp.tnsec);
+
+	return 0;
+}
+
+/*!
  * Extracts \a elist from \a datap, replaces \a datap pointer and adjusts \a
  * sizep. In case \a free_data is set then data pointed by \a *datap is free'd.
  */
@@ -298,13 +336,7 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 
 	/* Extract payload from \a datap */
 	new_data = (unsigned char *)*datap + hdr_size;
-
-	/* TODO: Move hdr-elist conversion to separate API call */
-	memset(elist, 0, sizeof(struct dnet_ext_list));
-	elist->timestamp.tsec = dnet_bswap64(hdr->timestamp.tsec);
-	elist->timestamp.tnsec = dnet_bswap64(hdr->timestamp.tnsec);
-	elist->size = dnet_bswap32(hdr->size);
-	elist->flags = dnet_bswap32(hdr->flags);
+	dnet_ext_hdr_to_list(hdr, elist);
 
 	/*
 	 * Currently we do not support any extensions beyond header itself
@@ -361,13 +393,7 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 	memcpy((unsigned char *)new_data + hdr_size, *datap, *sizep);
 
 	hdr = (struct dnet_ext_list_hdr *)new_data;
-	memset(hdr, 0, sizeof(struct dnet_ext_list_hdr));
-
-	/* TODO: Move elist-hdr conversion to separate API call */
-	hdr->size = dnet_bswap32(elist->size);
-	hdr->flags = dnet_bswap32(elist->flags);
-	hdr->timestamp.tsec = dnet_bswap64(elist->timestamp.tsec);
-	hdr->timestamp.tnsec = dnet_bswap64(elist->timestamp.tnsec);
+	dnet_ext_list_to_hdr(elist, hdr);
 
 	/*
 	 * Currently we do not support any extensions beyond header itself
