@@ -143,6 +143,17 @@ void dnet_ext_list_init(struct dnet_ext_list *elist);
 /*! Frees memory used by extension list and all extensions in it */
 void dnet_ext_list_destroy(struct dnet_ext_list *elist);
 
+/* Conversion functions */
+int dnet_ext_list_to_hdr(const struct dnet_ext_list *elist,
+		struct dnet_ext_list_hdr *ehdr);
+int dnet_ext_hdr_to_list(const struct dnet_ext_list_hdr *ehdr,
+		struct dnet_ext_list *elist);
+int dnet_ext_list_to_io(const struct dnet_ext_list *elist,
+		struct dnet_io_attr *io);
+
+/*! Reads \a ehdr from specified \a offset in given \a fd */
+int dnet_ext_hdr_read(struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset);
+
 int dnet_backend_register(struct dnet_config_backend *b);
 
 int dnet_file_backend_init(void);
