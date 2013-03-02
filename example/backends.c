@@ -310,7 +310,7 @@ int dnet_ext_list_to_io(const struct dnet_ext_list *elist, struct dnet_io_attr *
 		return -EINVAL;
 
 	io->timestamp = elist->timestamp;
-	/* FIXME: add user flags */
+	io->user_flags = elist->flags;
 }
 
 /*!
