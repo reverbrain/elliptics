@@ -332,7 +332,10 @@ struct dnet_io_attr
 		};
 		struct dnet_time	timestamp;
 	};
-	int			type;
+	union {
+		int		type;
+		uint32_t	user_flags;
+	};
 	uint32_t		flags;
 	uint64_t		offset;
 	uint64_t		size;
