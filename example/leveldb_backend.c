@@ -89,7 +89,7 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 
 	data += sizeof(struct dnet_io_attr);
 
-	/* Combine data and empty extension list with timestamp */
+	/* Combine data with empty extension list header */
 	dnet_current_time(&elist.timestamp);
 	err = dnet_ext_list_combine(&data, &io->size, &elist);
 	if (err != 0)
@@ -146,7 +146,7 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 			&elist, DNET_EXT_FREE_ON_DESTROY);
 	if (err != 0)
 		goto err_out_exit;
-	io->timestamp = elist.timestamp;
+	dnet_ext_list_to_io(&elist, io);
 
 	io->size = data_size;
 	if (data_size && data && last)
@@ -252,7 +252,7 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 				dst_io.size   = size;
 				dst_io.offset = 0;
 				dst_io.type   = io->type;
-				dst_io.timestamp = elist.timestamp;
+				dnet_ext_list_to_io(&elist, &dst_io);
 				memcpy(dst_io.id, key, DNET_ID_SIZE);
 				memcpy(dst_io.parent, io->parent, DNET_ID_SIZE);
 				err = dnet_send_read_data(state, cmd, &dst_io, (char*)val, -1, 0, 0);

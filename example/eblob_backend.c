@@ -222,8 +222,8 @@ static int blob_write_timestamp(struct eblob_backend_config *c, void *state,
 	dnet_ext_list_init(&elist);
 	dnet_current_time(&elist.timestamp);
 	err = blob_write_ll(c, state, cmd, data, &elist);
-
 	dnet_ext_list_destroy(&elist);
+
 	return err;
 }
 
@@ -294,7 +294,7 @@ static int blob_read_timestamp(struct eblob_backend_config *c, void *state,
 
 	dnet_ext_list_init(&elist);
 	err = blob_read_ll(c, state, cmd, data, last, &elist);
-	io->timestamp = elist.timestamp;
+	dnet_ext_list_to_io(&elist, io);
 
 	dnet_ext_list_destroy(&elist);
 	return err;
