@@ -150,6 +150,8 @@ int dnet_ext_hdr_to_list(const struct dnet_ext_list_hdr *ehdr,
 		struct dnet_ext_list *elist);
 int dnet_ext_list_to_io(const struct dnet_ext_list *elist,
 		struct dnet_io_attr *io);
+int dnet_ext_io_to_list(const struct dnet_io_attr *io,
+		struct dnet_ext_list *elist);
 
 /*! Reads \a ehdr from specified \a offset in given \a fd */
 int dnet_ext_hdr_read(struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset);

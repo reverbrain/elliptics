@@ -324,6 +324,22 @@ int dnet_ext_list_to_io(const struct dnet_ext_list *elist, struct dnet_io_attr *
 
 	io->timestamp = elist->timestamp;
 	io->user_flags = elist->flags;
+
+	return 0;
+}
+
+/*!
+ * Fills needed fields in \a elist with data from given \a io
+ */
+int dnet_ext_io_to_list(const struct dnet_io_attr *io, struct dnet_ext_list *elist)
+{
+	if (elist == NULL || io == NULL)
+		return -EINVAL;
+
+	elist->timestamp = io->timestamp;
+	elist->flags = io->user_flags;
+
+	return 0;
 }
 
 /*!
