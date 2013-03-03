@@ -220,7 +220,6 @@ static int blob_write_timestamp(struct eblob_backend_config *c, void *state,
 	int err;
 
 	dnet_ext_list_init(&elist);
-	dnet_current_time(&elist.timestamp);
 	err = blob_write_ll(c, state, cmd, data, &elist);
 	dnet_ext_list_destroy(&elist);
 

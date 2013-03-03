@@ -90,7 +90,6 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	data += sizeof(struct dnet_io_attr);
 
 	/* Combine data with empty extension list header */
-	dnet_current_time(&elist.timestamp);
 	err = dnet_ext_list_combine(&data, &io->size, &elist);
 	if (err != 0)
 		goto err_out_exit;
