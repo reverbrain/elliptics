@@ -251,7 +251,6 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 				dst_io.flags  = 0;
 				dst_io.size   = size;
 				dst_io.offset = 0;
-				dst_io.type   = io->type;
 				dnet_ext_list_to_io(&elist, &dst_io);
 				memcpy(dst_io.id, key, DNET_ID_SIZE);
 				memcpy(dst_io.parent, io->parent, DNET_ID_SIZE);
