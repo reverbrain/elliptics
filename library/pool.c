@@ -56,6 +56,7 @@ static void dnet_work_pool_cleanup(struct dnet_work_pool *pool)
 
 	pthread_cond_destroy(&pool->wait);
 	pthread_mutex_destroy(&pool->lock);
+	free(pool->trans);
 	free(pool);
 }
 
@@ -66,6 +67,8 @@ static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool,
 
 	pthread_mutex_lock(&pool->lock);
 
+	pool->trans = realloc(pool->trans, sizeof(uint64_t) * (pool->num + num));
+
 	for (i = 0; i < num; ++i) {
 		wio = malloc(sizeof(struct dnet_work_io));
 		if (!wio) {
@@ -75,6 +78,8 @@ static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool,
 
 		wio->thread_index = i;
 		wio->pool = pool;
+
+		pool->trans[pool->num + i] = -1;
 
 		err = pthread_create(&wio->tid, NULL, process, wio);
 		if (err) {
@@ -656,6 +661,35 @@ struct dnet_io_process_data {
 	int thread_number;
 };
 
+static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_index)
+{
+	struct dnet_io_req *it = NULL;
+	struct dnet_cmd *cmd;
+	uint64_t tid;
+	int i;
+	int ok;
+
+	list_for_each_entry(it, &pool->list, req_entry) {
+		cmd = it->header;
+		tid = cmd->trans & ~DNET_TRANS_REPLY;
+		ok = 1;
+
+		for (i = 0; i < pool->num; ++i) {
+			if (pool->trans[i] == tid) {
+				ok = 0;
+				break;
+			}
+		}
+
+		if (ok) {
+			pool->trans[thread_index] = tid;
+			return it;
+		}
+	}
+
+	return NULL;
+}
+
 static void *dnet_io_process(void *data_)
 {
 	struct dnet_work_io *wio = data_;
@@ -679,14 +713,12 @@ static void *dnet_io_process(void *data_)
 
 		pthread_mutex_lock(&pool->lock);
 
-		if (!list_empty(&pool->list)) {
-			r = list_first_entry(&pool->list, struct dnet_io_req, req_entry);
-		} else {
+		pool->trans[wio->thread_index] = -1;
+
+		if (!(r = take_request(pool, wio->thread_index))) {
 			err = pthread_cond_timedwait(&pool->wait, &pool->lock, &ts);
-			if (!list_empty(&pool->list)) {
-				r = list_first_entry(&pool->list, struct dnet_io_req, req_entry);
+			if ((r = take_request(pool, wio->thread_index)))
 				err = 0;
-			}
 		}
 
 		if (r) {

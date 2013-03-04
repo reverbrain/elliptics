@@ -496,6 +496,8 @@ struct io_attr_comparator
 
 typedef std::set<dnet_io_attr, io_attr_comparator> io_attr_set;
 
+#define debug(DATA) if (1) {} else std::cerr << __PRETTY_FUNCTION__ << ":" << __LINE__ << " " << DATA << std::endl
+
 class read_bulk_callback : public read_callback
 {
 	public:
@@ -508,6 +510,10 @@ class read_bulk_callback : public read_callback
 
 		bool next_group(dnet_id &id, complete_func func, void *priv)
 		{
+			cb.clear();
+			cb.set_count(unlimited);
+
+			debug(m_group_index);
 			int count = 0;
 
 			try {
@@ -524,13 +530,14 @@ class read_bulk_callback : public read_callback
 				dnet_setup_id(&id, group_id, ios[0].id);
 				id.type = ios[0].type;
 
-				cb.set_count(unlimited);
+				debug("");
 
 				cur = dnet_state_get_first(node, &id);
 				if (!cur)
 					throw_error(-ENOENT, id, "Can't get state for id");
 
 				for (size_t i = 0; i < io_num; ++i) {
+					debug("i = " << i);
 					if ((i + 1) < io_num) {
 						dnet_setup_id(&next_id, group_id, ios[i + 1].id);
 						next_id.type = ios[i + 1].type;
@@ -546,6 +553,7 @@ class read_bulk_callback : public read_callback
 							continue;
 						}
 					}
+					debug("");
 
 					dnet_log_raw(sess.get_node().get_native(),
 						DNET_LOG_NOTICE, "start: %s: end: %s, count: %llu, addr: %s\n",
@@ -566,6 +574,7 @@ class read_bulk_callback : public read_callback
 					int err = dnet_read_object(sess.get_native(), &ctl);
 					// ingore the error, we must continue :)
 					(void) err;
+					debug("err = " << err);
 
 					start = i + 1;
 					dnet_state_put(cur);
@@ -573,19 +582,30 @@ class read_bulk_callback : public read_callback
 					next = NULL;
 					memcpy(&id, &next_id, sizeof(struct dnet_id));
 				}
+			} catch (error &e) {
+				debug("exception: " << e.what());
+				debug("count: " << count);
+				if (cb.set_count(count))
+					throw;
 			} catch (...) {
+				debug("unknown exception");
+				debug("count: " << count);
 				if (cb.set_count(count))
 					throw;
 			}
 
+			debug("count: " << count);
 			return cb.set_count(count);
 		}
 
 		bool check_answer()
 		{
 			elliptics_assert(cb.is_ready());
+			debug("cb.is_valid() " << cb.is_valid());
 
 			if (cb.is_valid()) {
+				debug("cb.results_size() " << cb.results_size());
+				debug("before: ios_set.size() " << ios_set.size());
 				for (size_t i = 0; i < cb.results_size(); ++i) {
 					read_result_entry entry = cb.result_at<read_result_entry>(i);
 					if (entry.size() < sizeof(struct dnet_io_attr))
@@ -593,14 +613,18 @@ class read_bulk_callback : public read_callback
 					result.push_back(entry);
 					ios_set.erase(*entry.io_attribute());
 				}
+				debug("after: ios_set.size() " << ios_set.size());
 			}
 
+			debug("ios_set.empty() " << ios_set.empty());
+			debug("m_group_index == groups.size() " << (m_group_index == groups.size()));
 			// all results are found or all groups are iterated
 			return ios_set.empty() || (m_group_index == groups.size());
 		}
 
 		void finish(std::exception_ptr exc)
 		{
+			debug("finish");
 			if (!result.empty()) {
 				handler(result);
 			} else {

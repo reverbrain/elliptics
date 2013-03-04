@@ -408,6 +408,100 @@ write_result session::write_data(const key &id, const data_pointer &file, uint64
 	return w.result();
 }
 
+struct cas_data
+{
+	typedef std::shared_ptr<cas_data> ptr;
+
+	session sess;
+	std::function<void (const write_result &)> handler;
+	std::function<data_pointer (const data_pointer &)> converter;
+	key id;
+	uint64_t remote_offset;
+	int index;
+	int count;
+
+	struct functor
+	{
+		ptr scope;
+
+		void next_iteration()
+		{
+			scope->sess.read_latest(*this, scope->id, scope->remote_offset, 0);
+		}
+
+		void operator () (const read_result &result)
+		{
+			data_pointer data;
+			try {
+				data = result->file();
+			} catch (error &e) {
+				if (e.error_code() != -ENOENT) {
+					scope->handler(std::exception_ptr());
+					return;
+				}
+			} catch (...) {
+				scope->handler(std::exception_ptr());
+				return;
+			}
+
+			try {
+				data_pointer write_data = scope->converter(data);
+
+				if (write_data.size() == data.size()
+					&& ((write_data.empty() && data.empty())
+						|| write_data.data() == data.data())) {
+					scope->handler(std::exception_ptr());
+					return;
+				}
+
+				dnet_id csum;
+				memset(&csum, 0, sizeof(csum));
+				scope->sess.transform(data, csum);
+
+				scope->sess.write_cas(*this, scope->id, write_data, csum, scope->remote_offset);
+			} catch (...) {
+				scope->handler(std::current_exception());
+			}
+		}
+
+		void operator () (const write_result &result)
+		{
+			try {
+				result.check();
+				scope->handler(result);
+			} catch (error &e) {
+				if (e.error_code() == -EINVAL) {
+					// mismatched checksum
+					++scope->index;
+					if (scope->index < scope->count)
+						next_iteration();
+				}
+				scope->handler(std::current_exception());
+				return;
+			} catch (...) {
+				scope->handler(std::current_exception());
+				return;
+			}
+		}
+	};
+};
+
+void session::write_cas(const std::function<void (const write_result &)> &handler, const key &id,
+	const std::function<data_pointer (const data_pointer &)> &converter, uint64_t remote_offset, int count)
+{
+	cas_data scope = { *this, handler, converter, id, remote_offset, 0, count };
+	cas_data::functor cas_handler = { std::make_shared<cas_data>(scope) };
+	cas_handler.next_iteration();
+}
+
+write_result session::write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
+	uint64_t remote_offset, int count)
+{
+	waiter<write_result> w;
+	write_cas(w.handler(), id, converter, remote_offset, count);
+	return w.result();
+}
+
 void session::write_cas(const std::function<void (const write_result &)> &handler,
 	const key &id, const data_pointer &file, const dnet_id &old_csum, uint64_t remote_offset)
 {
@@ -663,6 +757,11 @@ int session::write_metadata(const key &id, const std::string &obj,
 void session::transform(const std::string &data, struct dnet_id &id)
 {
 	dnet_transform(m_data->node_guard.get_native(), (void *)data.data(), data.size(), &id);
+}
+
+void session::transform(const data_pointer &data, dnet_id &id)
+{
+	dnet_transform(m_data->node_guard.get_native(), data.data(), data.size(), &id);
 }
 
 void session::transform(const key &id)

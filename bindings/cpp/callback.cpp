@@ -16,8 +16,6 @@
 
 #define _XOPEN_SOURCE 600
 
-#include "elliptics/cppdef.h"
-
 #include "callback_p.h"
 
 #include <sstream>

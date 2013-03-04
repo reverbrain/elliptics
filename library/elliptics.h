@@ -339,6 +339,7 @@ struct dnet_work_pool {
 	pthread_mutex_t		lock;
 	pthread_cond_t		wait;
 	struct list_head	wio_list;
+	uint64_t			*trans;
 };
 
 struct dnet_io {
