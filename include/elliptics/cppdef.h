@@ -72,6 +72,25 @@ class timeout_error : public error
 		explicit timeout_error(const std::string &message) throw();
 };
 
+class error_info
+{
+	public:
+		inline error_info() : m_code(0) {}
+		inline error_info(int code, const std::string &&message)
+			: m_code(code), m_message(message) {}
+		inline error_info(int code, const std::string &message)
+			: m_code(code), m_message(message) {}
+		inline ~error_info() {}
+
+		inline int code() const { return m_code; }
+		inline const std::string &message() const { return m_message; }
+
+		void throw_error() const;
+	private:
+		int m_code;
+		std::string m_message;
+};
+
 class key;
 
 // err must be negative value
@@ -88,6 +107,22 @@ void throw_error(int err, const key &id, const char *format, ...)
 
 // err must be negative value
 void throw_error(int err, const uint8_t *id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
+error_info create_error(int err, const char *format, ...)
+	__attribute__ ((format (printf, 2, 3)));
+
+// err must be negative value
+error_info create_error(int err, const struct dnet_id &id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
+error_info create_error(int err, const key &id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
+error_info create_error(int err, const uint8_t *id, const char *format, ...)
 	__attribute__ ((format (printf, 3, 4)));
 
 class default_callback;
