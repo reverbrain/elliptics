@@ -225,6 +225,8 @@ class generic_result_holder
 				generic_data() {}
 				generic_data(const std::exception_ptr &exc) : exception(exc) {}
 
+				virtual ~generic_data() {}
+
 				std::exception_ptr exception;
 		};
 
