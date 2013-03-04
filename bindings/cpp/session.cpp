@@ -665,6 +665,11 @@ void session::transform(const std::string &data, struct dnet_id &id)
 	dnet_transform(m_data->node_guard.get_native(), (void *)data.data(), data.size(), &id);
 }
 
+void session::transform(const data_pointer &data, dnet_id &id)
+{
+	dnet_transform(m_data->node_guard.get_native(), data.data(), data.size(), &id);
+}
+
 void session::transform(const key &id)
 {
 	const_cast<key&>(id).transform(*this);

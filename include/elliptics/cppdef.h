@@ -110,6 +110,20 @@ class data_pointer
 		{
 		}
 
+		static data_pointer from_raw(void *data, size_t size)
+		{
+			data_pointer pointer;
+			pointer.m_index = 0;
+			pointer.m_size = size;
+			pointer.m_data =  std::make_shared<wrapper>(data, false);
+			return pointer;
+		}
+
+		static data_pointer from_raw(const std::string &str)
+		{
+			return from_raw(const_cast<char*>(str.c_str()), str.size());
+		}
+
 		template <typename T>
 		data_pointer skip() const
 		{
@@ -486,6 +500,10 @@ class session
 		 * Converts string \a data to dnet_id \a id.
 		 */
 		void			transform(const std::string &data, struct dnet_id &id);
+		/*!
+		 * \overload transform()
+		 */
+		void			transform(const data_pointer &data, struct dnet_id &id);
 		/*!
 		 * Makes dnet_id be accessable by key::id() in the key \a id.
 		 */
