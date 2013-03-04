@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  */
 
-#include <elliptics/cppdef.h>
+#include "../../include/elliptics/cppdef.h"
 
 #include <cstdarg>
 #include <cstdio>
