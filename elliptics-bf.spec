@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.21.4.3
+Version:	2.22.0.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,18 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Mar 04 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.0.0
+- Added high-level write_cas method
+- Fixed memory leak
+- Started exception refactoring
+- Added convience methods for data_pointer
+- Fixed bulk_read
+- Added support for several io threads for client
+- Added logical route groups to support multiple addresses in config.
+- Do not try to initialize srw if no config specified. Otherwise fail whole node initialization if srw init failed.
+- Send discovery at startup
+- Use bp=boost::python namespace 
+
 * Mon Feb 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.4.3
 - Use poll() in autodiscovery. Socket must be bound to recv data.
 - Python test files update
