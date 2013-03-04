@@ -692,6 +692,12 @@ class session
 		write_result		write_data(const key &id, const data_pointer &file,
 						uint64_t remote_offset);
 
+
+		void write_cas(const std::function<void (const write_result &)> &handler, const key &id,
+			const std::function<data_pointer (const data_pointer &)> &converter, uint64_t remote_offset, int count = 3);
+		write_result write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
+			uint64_t remote_offset, int count = 3);
+
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
 		 *
