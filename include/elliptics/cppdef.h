@@ -72,6 +72,25 @@ class timeout_error : public error
 		explicit timeout_error(const std::string &message) throw();
 };
 
+class error_info
+{
+	public:
+		inline error_info() : m_code(0) {}
+		inline error_info(int code, const std::string &&message)
+			: m_code(code), m_message(message) {}
+		inline error_info(int code, const std::string &message)
+			: m_code(code), m_message(message) {}
+		inline ~error_info() {}
+
+		inline int code() const { return m_code; }
+		inline const std::string &message() const { return m_message; }
+
+		void throw_error() const;
+	private:
+		int m_code;
+		std::string m_message;
+};
+
 class key;
 
 // err must be negative value
@@ -88,6 +107,22 @@ void throw_error(int err, const key &id, const char *format, ...)
 
 // err must be negative value
 void throw_error(int err, const uint8_t *id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
+error_info create_error(int err, const char *format, ...)
+	__attribute__ ((format (printf, 2, 3)));
+
+// err must be negative value
+error_info create_error(int err, const struct dnet_id &id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
+error_info create_error(int err, const key &id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
+error_info create_error(int err, const uint8_t *id, const char *format, ...)
 	__attribute__ ((format (printf, 3, 4)));
 
 class default_callback;
@@ -108,6 +143,20 @@ class data_pointer
 			: m_data(std::make_shared<wrapper>(const_cast<char*>(str.c_str()), false)),
 			m_index(0), m_size(str.size())
 		{
+		}
+
+		static data_pointer from_raw(void *data, size_t size)
+		{
+			data_pointer pointer;
+			pointer.m_index = 0;
+			pointer.m_size = size;
+			pointer.m_data =  std::make_shared<wrapper>(data, false);
+			return pointer;
+		}
+
+		static data_pointer from_raw(const std::string &str)
+		{
+			return from_raw(const_cast<char*>(str.c_str()), str.size());
 		}
 
 		template <typename T>
@@ -175,6 +224,8 @@ class generic_result_holder
 			public:
 				generic_data() {}
 				generic_data(const std::exception_ptr &exc) : exception(exc) {}
+
+				virtual ~generic_data() {}
 
 				std::exception_ptr exception;
 		};
@@ -487,6 +538,10 @@ class session
 		 */
 		void			transform(const std::string &data, struct dnet_id &id);
 		/*!
+		 * \overload transform()
+		 */
+		void			transform(const data_pointer &data, struct dnet_id &id);
+		/*!
 		 * Makes dnet_id be accessable by key::id() in the key \a id.
 		 */
 		void			transform(const key &id);
@@ -636,6 +691,12 @@ class session
 		 */
 		write_result		write_data(const key &id, const data_pointer &file,
 						uint64_t remote_offset);
+
+
+		void write_cas(const std::function<void (const write_result &)> &handler, const key &id,
+			const std::function<data_pointer (const data_pointer &)> &converter, uint64_t remote_offset, int count = 3);
+		write_result write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
+			uint64_t remote_offset, int count = 3);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
