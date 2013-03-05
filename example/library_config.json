@@ -9,7 +9,7 @@
         "logging": {
             "type": "logging",
             "args": {
-                "listen": ["/opt/elliptics/build/tmp/cocaine/ipc/services/logging"]
+		"port": 12501
             }   
         }
     },
