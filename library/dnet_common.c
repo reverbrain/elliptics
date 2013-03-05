@@ -429,6 +429,14 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	}
 
 	cnt = (struct dnet_addr_container *)data;
+
+	if (cmd->size != sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr)) {
+		err = -EINVAL;
+		dnet_log(n, DNET_LOG_ERROR, "Received dnet_addr_container is invalid, err: %d.\n", err);
+		goto err_out_free;
+	}
+
+	// This anyway doesn't work
 	dnet_convert_addr_container(cnt);
 
 	idx = -1;
