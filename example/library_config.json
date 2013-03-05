@@ -1,9 +1,17 @@
 {
-    "version": 1,
+    "version": 2,
     "paths": {
-        "plugins": "/tmp/cocaine/lib/cocaine",
-        "ipc": "/tmp/cocaine/ipc",
-        "spool": "/tmp/cocaine/spool"
+        "plugins": "/opt/elliptics/build/lib/cocaine",
+        "runtime": "/opt/elliptics/build/tmp/cocaine/ipc",
+        "spool": "/opt/elliptics/build/tmp/cocaine/spool"
+    },  
+    "services": {
+        "logging": {
+            "type": "logging",
+            "args": {
+                "listen": ["/opt/elliptics/build/tmp/cocaine/ipc/services/logging"]
+            }   
+        }
     },
     "storages": {
         "core": {
@@ -12,15 +20,36 @@
                 "nodes": {
                     "localhost": 1025
                 },
-                "groups": [1, 2],
-                "verbosity": 10
+                "groups": [2],
+                "verbosity": 2
             }
-        },
-        "core:cache": {
+        },  
+        "cache": {
             "type": "files",
             "args": {
-                "path": "/tmp/cocaine/cache"
-            }
-        }
+                "path": "/opt/elliptics/build/tmp/cocaine/cache"
+            }   
+        }   
+    },  
+    "loggers": {
+        "core": {
+            "type": "files",
+            "args": {
+		"path": "/tmp/cocaine.log",
+		"verbosity": "error"
+            }   
+        },
+        "slave": {
+            "type": "remote",
+            "args": {
+	        "verbosity": "error"
+	    }
+        },
+	"tools": {
+		"type": "stdout"
+	}
+    },
+    "port-mapper": {
+        "range": [5100, 5200]
     }
 }
