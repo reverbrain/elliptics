@@ -1258,9 +1258,11 @@ std::string session::raw_exec(struct dnet_id *id, const struct sph *orig_sph,
 	if (orig_sph) {
 		*sph = *orig_sph;
 		sph->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
-	} else if (id) {
+	} else {
 		sph->flags = DNET_SPH_FLAGS_SRC_BLOCK;
-		memcpy(sph->src.id, id->id, sizeof(sph->src.id));
+
+		if (id)
+			memcpy(sph->src.id, id->id, sizeof(sph->src.id));
 	}
 
 	sph->data_size = data.size();
