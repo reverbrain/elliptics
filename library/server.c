@@ -50,8 +50,7 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 	num = storage_free / q + 1;
 	for (i=0; i<num; ++i) {
 		int r = rand();
-		memcpy(buf, &n->addr, sizeof(struct dnet_addr));
-		memcpy(buf + sizeof(struct dnet_addr), &r, sizeof(r));
+		memcpy(buf, &r, sizeof(r));
 
 		dnet_transform(n, buf, size, &id);
 		memcpy(&raw, id.id, sizeof(struct dnet_raw_id));
@@ -167,7 +166,31 @@ err_out_exit:
 	return err;
 }
 
-struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
+static void dnet_local_addr_cleanup(struct dnet_node *n)
+{
+	free(n->addrs);
+	n->addrs = NULL;
+	n->addr_num = 0;
+}
+
+static int dnet_local_addr_add(struct dnet_node *n, struct dnet_addr *addrs, int addr_num)
+{
+	int err = 0;
+
+	n->addrs = malloc(sizeof(struct dnet_addr) * addr_num);
+	if (!n->addrs) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memcpy(n->addrs, addrs, addr_num * sizeof(struct dnet_addr));
+	n->addr_num = addr_num;
+
+err_out_exit:
+	return err;
+}
+
+struct dnet_node *dnet_server_node_create(struct dnet_config *cfg, struct dnet_addr *addrs, int addr_num)
 {
 	struct dnet_node *n;
 	struct dnet_raw_id *ids = NULL;
@@ -206,26 +229,34 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_notify_exit;
 
+	err = dnet_local_addr_add(n, addrs, addr_num);
+	if (err)
+		goto err_out_cache_cleanup;
+
 	if (cfg->flags & DNET_CFG_JOIN_NETWORK) {
+		struct dnet_addr la;
 		int s;
 
 		err = dnet_locks_init(n, cfg->oplock_num);
 		if (err)
-			goto err_out_cache_cleanup;
+			goto err_out_addr_cleanup;
 
 		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
 		if (!ids)
 			goto err_out_locks_destroy;
 
-		n->addr.addr_len = sizeof(n->addr.addr);
-		err = dnet_socket_create(n, cfg, &n->addr, 1);
+		memset(&la, 0, sizeof(struct dnet_addr));
+		la.addr_len = sizeof(la.addr);
+		la.family = cfg->family;
+
+		err = dnet_socket_create(n, "0.0.0.0", cfg->port, &la, 1);
 		if (err < 0)
 			goto err_out_ids_cleanup;
 
 		s = err;
 		dnet_setup_id(&n->id, cfg->group_id, ids[0].id);
 
-		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &n->addr, s, &err, DNET_JOIN, dnet_state_accept_process);
+		n->st = dnet_state_create(n, cfg->group_id, ids, id_num, &la, s, &err, DNET_JOIN, -1, dnet_state_accept_process);
 		if (!n->st) {
 			close(s);
 			goto err_out_state_destroy;
@@ -234,25 +265,32 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg)
 		free(ids);
 		ids = NULL;
 
-		err = dnet_srw_init(n, cfg);
-		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
+		if (!cfg->srw.config) {
+			dnet_log(n, DNET_LOG_INFO, "srw: no config\n");
+			n->srw = NULL;
+		} else {
+			err = dnet_srw_init(n, cfg);
+			if (err) {
+				dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
+				goto err_out_state_destroy;
+			}
 		}
 	}
 
-	dnet_log(n, DNET_LOG_DEBUG, "New server node has been created at %s, ids: %d.\n",
-			dnet_dump_node(n), id_num);
+	dnet_log(n, DNET_LOG_DEBUG, "New server node has been created at port %d, ids: %d.\n", cfg->port, id_num);
 
 	pthread_sigmask(SIG_BLOCK, &previous_sigset, NULL);
 	return n;
 
-err_out_state_destroy:
 	dnet_srw_cleanup(n);
+err_out_state_destroy:
 	dnet_state_put(n->st);
 err_out_ids_cleanup:
 	free(ids);
 err_out_locks_destroy:
 	dnet_locks_destroy(n);
+err_out_addr_cleanup:
+	dnet_local_addr_cleanup(n);
 err_out_cache_cleanup:
 	dnet_cache_cleanup(n);
 err_out_notify_exit:
@@ -266,8 +304,7 @@ err_out_exit:
 
 void dnet_server_node_destroy(struct dnet_node *n)
 {
-	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node at %s, st: %p.\n",
-			dnet_dump_node(n), n->st);
+	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node.\n");
 
 	dnet_srw_cleanup(n);
 
@@ -278,6 +315,7 @@ void dnet_server_node_destroy(struct dnet_node *n)
 
 	dnet_locks_destroy(n);
 	dnet_notify_exit(n);
+	dnet_local_addr_cleanup(n);
 
 	free(n);
 }

@@ -156,12 +156,12 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 }
 
 static void test_lookup_parse(const std::string &key,
-	struct dnet_cmd *cmd, struct dnet_addr_attr *a, const char *path)
+	struct dnet_cmd *cmd, struct dnet_addr *addr, const char *path)
 {
-	std::cerr << key << ": lives on addr: " << dnet_server_convert_dnet_addr(&a->addr);
+	std::cerr << key << ": lives on addr: " << dnet_server_convert_dnet_addr(addr);
 
-	if (cmd->size > sizeof(struct dnet_addr_attr)) {
-		struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
+	if (cmd->size > sizeof(struct dnet_addr)) {
+		struct dnet_file_info *info = (struct dnet_file_info *)(addr + 1);
 
 		dnet_convert_file_info(info);
 		std::cerr << ": mode: " << std::oct << info->mode << std::dec;
@@ -174,7 +174,7 @@ static void test_lookup_parse(const std::string &key,
 
 static void test_lookup_parse(const std::string &key, const lookup_result &lret)
 {
-	test_lookup_parse(key, lret->command(), lret->address_attribute(), lret->file_path());
+	test_lookup_parse(key, lret->command(), lret->address(), lret->file_path());
 }
 
 static void test_lookup(session &s, std::vector<int> &groups)

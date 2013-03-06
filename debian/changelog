@@ -1,3 +1,18 @@
+elliptics (2.22.0.0) unstable; urgency=low
+
+  * Added high-level write_cas method
+  * Fixed memory leak
+  * Started exception refactoring
+  * Added convience methods for data_pointer
+  * Fixed bulk_read
+  * Added support for several io threads for client
+  * Added logical route groups to support multiple addresses in config.
+  * Do not try to initialize srw if no config specified. Otherwise fail whole node initialization if srw init failed.
+  * Send discovery at startup
+  * Use bp=boost::python namespace 
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 04 Mar 2013 21:49:27 +0400
+
 elliptics (2.21.4.3) unstable; urgency=low
 
   * Use poll() in autodiscovery. Socket must be bound to recv data.

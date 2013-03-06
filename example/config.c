@@ -38,11 +38,6 @@
 #include "common.h"
 #include "backends.h"
 
-#ifdef HAVE_SMACK_SUPPORT
-int dnet_smack_backend_init(void);
-void dnet_smack_backend_exit(void);
-#endif
-
 #ifdef HAVE_LEVELDB_SUPPORT
 int dnet_leveldb_backend_init(void);
 void dnet_leveldb_backend_exit(void);
@@ -79,6 +74,9 @@ static char *dnet_skip_line(char *line)
 
 static struct dnet_log dnet_backend_logger;
 char *dnet_logger_value;
+
+static int dnet_cfg_addr_num;
+static struct dnet_addr *dnet_cfg_addrs;
 
 static struct dnet_config dnet_cfg_state;
 static char *dnet_cfg_remotes;
@@ -132,9 +130,100 @@ static int dnet_set_group(struct dnet_config_backend *b __unused, char *key __un
 	return 0;
 }
 
+struct dnet_addr_wrap {
+	struct dnet_addr	addr;
+	int			addr_group;
+};
+
+static int dnet_addr_wrap_compare(const void *a1, const void *a2)
+{
+	const struct dnet_addr_wrap *w1 = a1;
+	const struct dnet_addr_wrap *w2 = a2;
+
+	return w1->addr_group - w2->addr_group;
+}
+
 static int dnet_set_addr(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
-	return dnet_parse_addr(value, &dnet_cfg_state);
+	struct dnet_addr_wrap *wrap = NULL;
+	int wrap_num = 0;
+	struct dnet_addr addr;
+	int err = -EINVAL, i;
+
+	while (value) {
+		char *ptr, *addr_group_ptr;
+		int addr_group = -1;
+
+		while (value && *value) {
+			if (isalnum(*value))
+				break;
+
+			value++;
+		}
+
+		if (!value || !*value)
+			break;
+
+		ptr = strchr(value, ' ');
+		if (ptr)
+			*ptr++ = '\0';
+
+		addr_group_ptr = strrchr(value, '-');
+		if (addr_group_ptr) {
+			*addr_group_ptr++ = '\0';
+
+			addr_group = atoi(addr_group_ptr);
+		}
+
+		err = dnet_parse_addr(value, &dnet_cfg_state.port, &dnet_cfg_state.family);
+		if (!err) {
+			addr.addr_len = sizeof(addr.addr);
+			addr.family = dnet_cfg_state.family;
+			err = dnet_fill_addr(&addr, value, dnet_cfg_state.port, SOCK_STREAM, IPPROTO_TCP);
+			if (err) {
+				dnet_backend_log(DNET_LOG_ERROR, "backend: %s: could not parse addr: %s [%d]\n", value, strerror(-err), err);
+			} else {
+				dnet_backend_log(DNET_LOG_INFO, "backend: parsed addr: %s, addr-group: %d\n",
+						dnet_server_convert_dnet_addr(&addr), addr_group);
+
+				wrap = realloc(wrap, (wrap_num + 1) * sizeof(struct dnet_addr_wrap));
+				if (!wrap) {
+					err = -ENOMEM;
+					goto err_out_exit;
+				}
+
+				wrap[wrap_num].addr = addr;
+				wrap[wrap_num].addr_group = addr_group;
+				wrap_num++;
+			}
+
+			if (addr_group == -1)
+				break;
+		}
+
+		value = ptr;
+	}
+
+	if (wrap_num) {
+		qsort(wrap, wrap_num, sizeof(struct dnet_addr_wrap), dnet_addr_wrap_compare);
+
+		dnet_cfg_addrs = malloc(sizeof(struct dnet_addr) * wrap_num);
+		if (!dnet_cfg_addrs) {
+			err = -ENOMEM;
+			goto err_out_free;
+		}
+
+		for (i = 0; i < wrap_num; ++i)
+			dnet_cfg_addrs[i] = wrap[i].addr;
+		dnet_cfg_addr_num = wrap_num;
+
+		err = 0;
+	}
+
+err_out_free:
+	free(wrap);
+err_out_exit:
+	return err;
 }
 
 static int dnet_set_remote_addrs(struct dnet_config_backend *b __unused, char *key __unused, char *value)
@@ -356,11 +445,6 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	if (err)
 		goto err_out_file_exit;
 
-#ifdef HAVE_SMACK_SUPPORT
-	err = dnet_smack_backend_init();
-	if (err)
-		goto err_out_eblob_exit;
-#endif
 #ifdef HAVE_LEVELDB_SUPPORT
 	err = dnet_leveldb_backend_init();
 	if (err)
@@ -471,7 +555,12 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	fclose(f);
 	f = NULL;
 
-	n = dnet_server_node_create(&dnet_cfg_state);
+	if (!dnet_cfg_addr_num) {
+		dnet_backend_log(DNET_LOG_ERROR, "No local address specified, exiting.\n");
+		goto err_out_free;
+	}
+
+	n = dnet_server_node_create(&dnet_cfg_state, dnet_cfg_addrs, dnet_cfg_addr_num);
 	if (!n) {
 		/* backend cleanup is already called */
 		goto err_out_free;
@@ -491,10 +580,6 @@ err_out_free:
 #ifdef HAVE_LEVELDB_SUPPORT
 	dnet_leveldb_backend_exit();
 err_out_smack_exit:
-#endif
-#ifdef HAVE_SMACK_SUPPORT
-	dnet_smack_backend_exit();
-err_out_eblob_exit:
 #endif
 	dnet_eblob_backend_exit();
 err_out_file_exit:

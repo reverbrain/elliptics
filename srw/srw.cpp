@@ -360,7 +360,7 @@ class srw {
 
 				guard.unlock();
 
-				upstream->reply(final, (char *)(sph + 1) + sph->event_size, sph->data_size + sph->binary_size);
+				upstream->reply(final, (char *)sph, sizeof(struct sph) + sph->event_size + sph->data_size);
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: completed: job: %d, total-size: %zd, finish: %d\n",
 						id_str, sph_str, event.c_str(), sph->src_key, total_size(sph), final);
@@ -417,18 +417,13 @@ class srw {
 		}
 
 		size_t total_size(const struct sph *sph) {
-			return sph->event_size + sph->data_size + sph->binary_size;
+			return sph->event_size + sph->data_size;
 		}
 };
 
 int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg)
 {
 	int err = 0;
-
-	if (!cfg->srw.config) {
-		dnet_log(n, DNET_LOG_ERROR, "srw: no config\n");
-		return -ENOTSUP;
-	}
 
 	try {
 		dnet_session *s = dnet_session_create(n);
@@ -467,9 +462,9 @@ int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sp
 	try {
 		return s->process(st, cmd, header);
 	} catch (const std::exception &e) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: srw-processing: event: %.*s, data-size: %lld, binary-size: %lld, exception: %s\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: srw-processing: event: %.*s, data-size: %lld, exception: %s\n",
 				dnet_dump_id(&cmd->id), header->event_size, (const char *)data,
-				(unsigned long long)header->data_size, (unsigned long long)header->binary_size,
+				(unsigned long long)header->data_size,
 				e.what());
 	}
 

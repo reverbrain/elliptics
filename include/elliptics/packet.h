@@ -199,8 +199,54 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 struct dnet_addr
 {
 	uint8_t			addr[DNET_ADDR_SIZE];
-	uint32_t		addr_len;
+	uint16_t		addr_len;
+	uint16_t		family;
 } __attribute__ ((packed));
+
+static inline void dnet_convert_addr(struct dnet_addr *addr)
+{
+	addr->addr_len = dnet_bswap16(addr->addr_len);
+	addr->family = dnet_bswap16(addr->family);
+}
+
+struct dnet_addr_container {
+	int			addr_num;
+	struct dnet_addr	addrs[0];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_addr_container(struct dnet_addr_container *cnt)
+{
+	int i;
+
+	for (i = 0; i < cnt->addr_num; ++i)
+		dnet_convert_addr(&cnt->addrs[i]);
+
+	cnt->addr_num = dnet_bswap32(cnt->addr_num);
+}
+
+struct dnet_addr_cmd
+{
+	struct dnet_cmd			cmd;
+	struct dnet_addr_container	cnt;
+} __attribute__ ((packed));
+
+static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *acmd)
+{
+	dnet_convert_addr_container(&acmd->cnt);
+	dnet_convert_cmd(&acmd->cmd);
+}
+
+static inline int dnet_addr_equal(struct dnet_addr *a1, struct dnet_addr *a2)
+{
+	if (a1->family != a2->family)
+		return 0;
+	if (a1->addr_len != a2->addr_len)
+		return 0;
+	if (memcmp(a1->addr, a2->addr, a1->addr_len))
+		return 0;
+
+	return 1;
+}
 
 struct dnet_list
 {
@@ -213,34 +259,6 @@ static inline void dnet_convert_list(struct dnet_list *l)
 {
 	dnet_convert_id(&l->id);
 	l->size = dnet_bswap32(l->size);
-}
-
-struct dnet_addr_attr
-{
-	uint16_t		sock_type;
-	uint16_t		family;
-	uint32_t		proto;
-	struct dnet_addr	addr;
-} __attribute__ ((packed));
-
-static inline void dnet_convert_addr_attr(struct dnet_addr_attr *a)
-{
-	a->addr.addr_len = dnet_bswap32(a->addr.addr_len);
-	a->proto = dnet_bswap32(a->proto);
-	a->sock_type = dnet_bswap16(a->sock_type);
-	a->family = dnet_bswap16(a->family);
-}
-
-struct dnet_addr_cmd
-{
-	struct dnet_cmd		cmd;
-	struct dnet_addr_attr	addr;
-} __attribute__ ((packed));
-
-static inline void dnet_convert_addr_cmd(struct dnet_addr_cmd *l)
-{
-	dnet_convert_cmd(&l->cmd);
-	dnet_convert_addr_attr(&l->addr);
 }
 
 /* Internal flag, used when we want to skip data sending */
@@ -471,13 +489,13 @@ static inline void dnet_convert_stat(struct dnet_stat *st)
 
 struct dnet_io_notification
 {
-	struct dnet_addr_attr		addr;
+	struct dnet_addr		addr;
 	struct dnet_io_attr		io;
 };
 
 static inline void dnet_convert_io_notification(struct dnet_io_notification *n)
 {
-	dnet_convert_addr_attr(&n->addr);
+	dnet_convert_addr(&n->addr);
 	dnet_convert_io_attr(&n->io);
 }
 

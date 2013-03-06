@@ -122,8 +122,10 @@ static void stat_usage(char *p)
 
 int main(int argc, char *argv[])
 {
-	int ch, err, i, have_remote = 0;
-	struct dnet_config cfg, rem;
+	int ch, err, i;
+	struct dnet_config cfg;
+	char *remote_addr = NULL;
+	int remote_port, remote_family;
 	int max_id_idx = 1000, id_idx = 0;
 	int timeout;
 	unsigned char id[max_id_idx][DNET_ID_SIZE];
@@ -132,13 +134,9 @@ int main(int argc, char *argv[])
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
-	cfg.sock_type = SOCK_STREAM;
-	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60*60;
 
 	timeout = 1;
-
-	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
 	while ((ch = getopt(argc, argv, "MFAt:m:w:l:I:r:h")) != -1) {
 		switch (ch) {
@@ -175,10 +173,10 @@ int main(int argc, char *argv[])
 				}
 				break;
 			case 'r':
-				err = dnet_parse_addr(optarg, &rem);
+				err = dnet_parse_addr(optarg, &remote_port, &remote_family);
 				if (err)
 					return err;
-				have_remote = 1;
+				remote_addr = optarg;
 				break;
 			case 'h':
 			default:
@@ -187,7 +185,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (!have_remote) {
+	if (!remote_addr) {
 		fprintf(stderr, "No remote node specified to route requests.\n");
 		return -ENOENT;
 	}
@@ -204,7 +202,7 @@ int main(int argc, char *argv[])
 		node n(log, cfg);
 		session sess(n);
 
-		n.add_remote(rem.addr, atoi(rem.port), rem.family);
+		n.add_remote(remote_addr, remote_port, remote_family);
 
 		for (;;) {
 			struct dnet_id raw;

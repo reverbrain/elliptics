@@ -91,11 +91,15 @@ static key create_id(unsigned char *id, const char *file_name, int type)
 
 int main(int argc, char *argv[])
 {
-	int ch, err, i, have_remote = 0;
+	int ch, err;
 	int io_counter_stat = 0, vfs_stat = 0, single_node_stat = 1;
 	struct dnet_node_status node_status;
 	int update_status = 0;
-	struct dnet_config cfg, rem, *remotes = NULL;
+	struct dnet_config cfg;
+	char *remote_addr = NULL;
+	int port = -1;
+	int family = -1;
+	int remote_flags = 0;
 	const char *logfile = "/dev/stderr", *readf = NULL, *writef = NULL, *cmd = NULL, *lookup = NULL;
 	const char *read_data = NULL;
 	char *removef = NULL;
@@ -117,12 +121,8 @@ int main(int argc, char *argv[])
 
 	size = offset = 0;
 
-	cfg.sock_type = SOCK_STREAM;
-	cfg.proto = IPPROTO_TCP;
 	cfg.wait_timeout = 60;
 	int log_level = DNET_LOG_ERROR;
-
-	memcpy(&rem, &cfg, sizeof(struct dnet_config));
 
 	while ((ch = getopt(argc, argv, "i:dC:t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
@@ -203,15 +203,10 @@ int main(int argc, char *argv[])
 				break;
 			}
 			case 'r':
-				err = dnet_parse_addr(optarg, &rem);
+				err = dnet_parse_addr(optarg, &port, &family);
 				if (err)
 					return err;
-				have_remote++;
-				remotes = reinterpret_cast<dnet_config*>(
-					realloc(remotes, sizeof(rem) * have_remote));
-				if (!remotes)
-					return -ENOMEM;
-				memcpy(&remotes[have_remote - 1], &rem, sizeof(rem));
+				remote_addr = optarg;
 				break;
 			case 'W':
 				writef = optarg;
@@ -246,19 +241,17 @@ int main(int argc, char *argv[])
 		pthread_sigmask(SIG_UNBLOCK, &mask, NULL);
 		sigprocmask(SIG_UNBLOCK, &mask, NULL);
 
-		if (have_remote) {
-			int error = -ECONNRESET;
-			for (i = 0; i < have_remote; ++i) {
-				if (single_node_stat && (vfs_stat || io_counter_stat))
-					remotes[i].flags = DNET_CFG_NO_ROUTE_LIST;
-				err = dnet_add_state(n.get_native(), &remotes[i]);
-				if (!err)
-					error = 0;
-			}
-
-			if (error)
-				return error;
+		if (!remote_addr) {
+			fprintf(stderr, "You must specify remote address");
+			return -EINVAL;
 		}
+
+		if (single_node_stat && (vfs_stat || io_counter_stat))
+			remote_flags = DNET_CFG_NO_ROUTE_LIST;
+
+		err = dnet_add_state(n.get_native(), remote_addr, port, family, remote_flags);
+		if (err)
+			return err;
 
 		s.set_groups(groups);
 
@@ -292,7 +285,7 @@ int main(int argc, char *argv[])
 
 		if (cmd) {
 			dnet_id did_tmp, *did = NULL;
-			std::string event, data, binary;
+			std::string event, data;
 
 			memset(&did_tmp, 0, sizeof(struct dnet_id));
 
@@ -315,7 +308,13 @@ int main(int argc, char *argv[])
 				did->type = type;
 			}
 
-			std::cout << s.exec_unlocked(did, event, data, binary);
+			const std::vector<exec_context> results = s.exec(did, event, data);
+			for (size_t i = 0; i < results.size(); ++i) {
+				exec_context result = results[i];
+				std::cout << dnet_server_convert_dnet_addr(result.address())
+					<< ": " << result.event()
+					<< " \"" << result.data().to_string() << "\"" << std::endl;
+			}
 		}
 
 		if (lookup)
@@ -383,13 +382,7 @@ int main(int argc, char *argv[])
 		}
 
 		if (update_status) {
-			for (i = 0; i < have_remote; ++i) {
-				s.update_status(remotes[i].addr,
-					atoi(remotes[i].port),
-					remotes[i].family,
-					&node_status);
-			}
-
+			s.update_status(remote_addr, port, family, &node_status);
 		}
 	} catch (const std::exception &e) {
 		std::cerr << e.what() << std::endl;

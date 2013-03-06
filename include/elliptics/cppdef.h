@@ -72,7 +72,27 @@ class timeout_error : public error
 		explicit timeout_error(const std::string &message) throw();
 };
 
+class error_info
+{
+	public:
+		inline error_info() : m_code(0) {}
+		inline error_info(int code, const std::string &&message)
+			: m_code(code), m_message(message) {}
+		inline error_info(int code, const std::string &message)
+			: m_code(code), m_message(message) {}
+		inline ~error_info() {}
+
+		inline int code() const { return m_code; }
+		inline const std::string &message() const { return m_message; }
+
+		void throw_error() const;
+	private:
+		int m_code;
+		std::string m_message;
+};
+
 class key;
+class session;
 
 // err must be negative value
 void throw_error(int err, const char *format, ...)
@@ -88,6 +108,22 @@ void throw_error(int err, const key &id, const char *format, ...)
 
 // err must be negative value
 void throw_error(int err, const uint8_t *id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
+error_info create_error(int err, const char *format, ...)
+	__attribute__ ((format (printf, 2, 3)));
+
+// err must be negative value
+error_info create_error(int err, const struct dnet_id &id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
+error_info create_error(int err, const key &id, const char *format, ...)
+	__attribute__ ((format (printf, 3, 4)));
+
+// err must be negative value
+error_info create_error(int err, const uint8_t *id, const char *format, ...)
 	__attribute__ ((format (printf, 3, 4)));
 
 class default_callback;
@@ -108,6 +144,40 @@ class data_pointer
 			: m_data(std::make_shared<wrapper>(const_cast<char*>(str.c_str()), false)),
 			m_index(0), m_size(str.size())
 		{
+		}
+
+		static data_pointer copy(void *data, size_t size)
+		{
+			data_pointer that = allocate(size);
+			memcpy(that.data(), data, size);
+			return that;
+		}
+
+		static data_pointer copy(const data_pointer &other)
+		{
+			return copy(other.data(), other.size());
+		}
+
+		static data_pointer allocate(size_t size)
+		{
+			void *data = malloc(size);
+			if (!data)
+				throw std::bad_alloc();
+			return data_pointer(data, size);
+		}
+
+		static data_pointer from_raw(void *data, size_t size)
+		{
+			data_pointer pointer;
+			pointer.m_index = 0;
+			pointer.m_size = size;
+			pointer.m_data =  std::make_shared<wrapper>(data, false);
+			return pointer;
+		}
+
+		static data_pointer from_raw(const std::string &str)
+		{
+			return from_raw(const_cast<char*>(str.c_str()), str.size());
 		}
 
 		template <typename T>
@@ -146,7 +216,7 @@ class data_pointer
 		size_t size() const { return m_index >= m_size ? 0 : (m_size - m_index); }
 		size_t offset() const { return m_index; }
 		bool empty() const { return m_index >= m_size; }
-		std::string to_string() const { return std::string(data<char>(), size()); }
+		std::string to_string() const { return std::string(reinterpret_cast<char*>(data()), size()); }
 
 	private:
 		class wrapper
@@ -175,6 +245,8 @@ class generic_result_holder
 			public:
 				generic_data() {}
 				generic_data(const std::exception_ptr &exc) : exception(exc) {}
+
+				virtual ~generic_data() {}
 
 				std::exception_ptr exception;
 		};
@@ -211,6 +283,8 @@ class result_holder : public generic_result_holder
 
 		T *operator-> () { check(); return &d_func()->result; }
 		const T *operator-> () const { check(); return &d_func()->result; }
+		T &operator *() { check(); return d_func()->result; }
+		const T &operator *() const { check(); return d_func()->result; }
 
 	private:
 		class data : public generic_data
@@ -304,7 +378,7 @@ class lookup_result_entry : public callback_result_entry
 
 		lookup_result_entry &operator =(const lookup_result_entry &other);
 
-		struct dnet_addr_attr *address_attribute() const;
+		struct dnet_addr *address() const;
 		struct dnet_file_info *file_info() const;
 		const char *file_path() const;
 };
@@ -333,8 +407,9 @@ class stat_count_result_entry : public callback_result_entry
 		struct dnet_addr_stat *statistics() const;
 };
 
-typedef lookup_result_entry write_result_entry;
+class exec_context;
 
+typedef lookup_result_entry write_result_entry;
 typedef result_holder<read_result_entry> read_result;
 typedef array_result_holder<write_result_entry> write_result;
 typedef array_result_holder<read_result_entry> read_results;
@@ -346,6 +421,35 @@ typedef result_holder<lookup_result_entry> lookup_result;
 typedef array_result_holder<stat_result_entry> stat_result;
 typedef array_result_holder<stat_count_result_entry> stat_count_result;
 typedef array_result_holder<int> prepare_latest_result;
+typedef array_result_holder<exec_context> exec_result;
+typedef std::exception_ptr push_result;
+typedef std::exception_ptr reply_result;
+
+class exec_context_data;
+
+class exec_context
+{
+	public:
+		enum final_state { progressive, final };
+
+		exec_context();
+		exec_context(const data_pointer &data);
+		exec_context(const std::shared_ptr<exec_context_data> &data);
+		exec_context(const exec_context &other);
+		exec_context &operator =(const exec_context &other);
+		~exec_context();
+
+		static exec_context from_raw(const void *data, size_t size);
+
+		std::string event() const;
+		data_pointer data() const;
+		dnet_addr *address() const;
+
+	private:
+		friend class session;
+		friend class exec_context_data;
+		std::shared_ptr<exec_context_data> m_data;
+};
 
 class transport_control
 {
@@ -486,6 +590,10 @@ class session
 		 * Converts string \a data to dnet_id \a id.
 		 */
 		void			transform(const std::string &data, struct dnet_id &id);
+		/*!
+		 * \overload transform()
+		 */
+		void			transform(const data_pointer &data, struct dnet_id &id);
 		/*!
 		 * Makes dnet_id be accessible by key::id() in the key \a id.
 		 */
@@ -636,6 +744,12 @@ class session
 		 */
 		write_result		write_data(const key &id, const data_pointer &file,
 						uint64_t remote_offset);
+
+
+		void write_cas(const std::function<void (const write_result &)> &handler, const key &id,
+			const std::function<data_pointer (const data_pointer &)> &converter, uint64_t remote_offset, int count = 3);
+		write_result write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
+			uint64_t remote_offset, int count = 3);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
@@ -875,6 +989,17 @@ class session
 		 */
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
+		void exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data);
+		exec_result exec(dnet_id *id, const std::string &event, const data_pointer &data);
+
+		void push(const std::function<void (const push_result &)> &handler, dnet_id *id,
+				const exec_context &context, const std::string &event, const data_pointer &data);
+		void push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data);
+
+		void reply(const std::function<void (const reply_result &)> &handler, const exec_context &context,
+				const data_pointer &data, exec_context::final_state state);
+		void reply(const exec_context &context, const data_pointer &data, exec_context::final_state state);
+
 		/*!
 		 * Starts execution for \a id of the given \a event with \a data and \a binary.
 		 */
@@ -953,13 +1078,8 @@ class session
 	protected:
 		std::shared_ptr<session_data>		m_data;
 
-		std::string		raw_exec(struct dnet_id *id,
-						const struct sph *sph,
-						const std::string &event,
-						const std::string &data,
-						const std::string &binary,
-						bool lock);
-		std::string		request(struct dnet_id *id, struct sph *sph, bool lock);
+		void request(const std::function<void (const exec_result &)> &handler,
+				dnet_id *id, const exec_context &context);
 		void			mix_states(const key &id, std::vector<int> &groups);
 		void			mix_states(std::vector<int> &groups);
 		std::vector<int>	mix_states(const key &id);

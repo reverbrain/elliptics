@@ -132,23 +132,24 @@ err_out_exit:
 
 }
 
-static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
+static void dnet_send_idc_fill(struct dnet_net_state *st, struct dnet_addr_cmd *acmd, int total_size,
 		struct dnet_id *id, uint64_t trans, unsigned int command, int reply, int direct, int more)
 {
 	struct dnet_node *n = st->n;
-	struct dnet_cmd *cmd;
+	struct dnet_cmd *cmd = &acmd->cmd;
 	struct dnet_raw_id *sid;
-	struct dnet_addr_attr *addr;
 	int i;
 
-	memset(buf, 0, sizeof(*cmd) + sizeof(*addr));
+	acmd->cnt.addr_num = n->addr_num;
+	if (!st->addrs)
+		memcpy(acmd->cnt.addrs, n->addrs, n->addr_num * sizeof(struct dnet_addr));
+	else
+		memcpy(acmd->cnt.addrs, st->addrs, n->addr_num * sizeof(struct dnet_addr));
 
-	cmd = buf;
-	addr = (struct dnet_addr_attr *)(cmd + 1);
-	sid = (struct dnet_raw_id *)(addr + 1);
+	sid = (struct dnet_raw_id *)(acmd->cnt.addrs + n->addr_num);
 
 	memcpy(&cmd->id, id, sizeof(struct dnet_id));
-	cmd->size = size - sizeof(struct dnet_cmd);
+	cmd->size = total_size - sizeof(struct dnet_cmd);
 	cmd->trans = trans;
 
 	cmd->flags = DNET_FLAGS_NOLOCK;
@@ -161,26 +162,23 @@ static void dnet_send_idc_fill(struct dnet_net_state *st, void *buf, int size,
 
 	cmd->cmd = command;
 
-	addr->sock_type = n->sock_type;
-	addr->family = n->family;
-	addr->proto = n->proto;
-	memcpy(&addr->addr, &st->addr, sizeof(struct dnet_addr));
-
-	for (i=0; i<st->idc->id_num; ++i) {
+	for (i = 0; i < st->idc->id_num; ++i) {
 		memcpy(&sid[i], &st->idc->ids[i].raw, sizeof(struct dnet_raw_id));
 		dnet_convert_raw_id(&sid[i]);
 	}
 
-	dnet_convert_addr_cmd(buf);
+	dnet_convert_addr_cmd(acmd);
 }
 
-static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *send, struct dnet_id *id, uint64_t trans,
+static int dnet_send_idc(struct dnet_net_state *lstate, struct dnet_net_state *send, struct dnet_id *id, uint64_t trans,
 		unsigned int command, int reply, int direct, int more)
 {
-	struct dnet_node *n = orig->n;
-	int size = sizeof(struct dnet_addr_cmd) + orig->idc->id_num * sizeof(struct dnet_raw_id);
+	struct dnet_node *n = lstate->n;
+	int size = sizeof(struct dnet_addr_cmd) + sizeof(struct dnet_addr) * n->addr_num + lstate->idc->id_num * sizeof(struct dnet_raw_id);
 	void *buf;
 	int err;
+	struct dnet_addr laddr;
+	char server_addr[128], client_addr[128];
 	struct timeval start, end;
 	long diff;
 
@@ -191,13 +189,18 @@ static int dnet_send_idc(struct dnet_net_state *orig, struct dnet_net_state *sen
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
-	memset(buf, 0, sizeof(struct dnet_addr_cmd));
+	memset(buf, 0, size);
 
-	dnet_send_idc_fill(orig, buf, size, id, trans, command, reply, direct, more);
+	dnet_send_idc_fill(lstate, buf, size, id, trans, command, reply, direct, more);
+	dnet_socket_local_addr(send->read_s, &laddr);
 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
-	dnet_log(n, DNET_LOG_INFO, "%s: sending address %s: %ld\n", dnet_dump_id(id), dnet_state_dump_addr(orig), diff);
+	dnet_log(n, DNET_LOG_INFO, "%s: sending address %s -> %s, addr_num: %d, time-took: %ld\n",
+			dnet_dump_id(id),
+			dnet_server_convert_dnet_addr_raw(&laddr, server_addr, sizeof(server_addr)),
+			dnet_server_convert_dnet_addr_raw(dnet_state_addr(send), client_addr, sizeof(client_addr)),
+			n->addr_num, diff);
 
 	err = dnet_send(send, buf, size);
 
@@ -223,12 +226,11 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 	return err;
 }
 
-static int dnet_check_connection(struct dnet_node *n, struct dnet_addr_attr *a)
+static int dnet_check_connection(struct dnet_node *n, struct dnet_addr *addr)
 {
 	int s;
 
-	s = dnet_socket_create_addr(n, a->sock_type, a->proto, a->family,
-			(struct sockaddr *)a->addr.addr, a->addr.addr_len, 0);
+	s = dnet_socket_create_addr(n, addr, 0);
 	if (s < 0)
 		return s;
 
@@ -239,37 +241,83 @@ static int dnet_check_connection(struct dnet_node *n, struct dnet_addr_attr *a)
 static int dnet_cmd_join_client(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_node *n = st->n;
-	struct dnet_addr_attr *a = data;
+	struct dnet_addr_container *cnt = data;
+	struct dnet_addr laddr;
 	struct dnet_raw_id *ids;
-	int num, i, err;
+	char client_addr[128], server_addr[128];
+	int ids_num, i, err, idx;
 
-	dnet_convert_addr_attr(a);
+	dnet_socket_local_addr(st->read_s, &laddr);
+	idx = dnet_local_addr_index(n, &laddr);
 
-	dnet_log(n, DNET_LOG_DEBUG, "%s: accepted joining client (%s), requesting statistics.\n",
-			dnet_dump_id(&cmd->id), dnet_server_convert_dnet_addr(&a->addr));
-	err = dnet_check_connection(n, a);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to request statistics from joining client (%s), dropping connection.\n",
-				dnet_dump_id(&cmd->id), dnet_server_convert_dnet_addr(&a->addr));
-		return err;
+	dnet_server_convert_dnet_addr_raw(&st->addr, client_addr, sizeof(client_addr));
+	dnet_server_convert_dnet_addr_raw(&laddr, server_addr, sizeof(server_addr));
+
+	if (cmd->size < sizeof(struct dnet_addr_container)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
+				"cmd-size: %llu, must be more than addr_container: %zd\n",
+				dnet_dump_id(&cmd->id), client_addr, server_addr,
+				(unsigned long long)cmd->size, sizeof(struct dnet_addr_container));
+		err = -EINVAL;
+		goto err_out_exit;
 	}
 
-	num = (cmd->size - sizeof(struct dnet_addr_attr)) / sizeof(struct dnet_raw_id);
-	ids = (struct dnet_raw_id *)(a + 1);
-	for (i=0; i<num; ++i)
+	dnet_convert_addr_container(cnt);
+
+	if (cmd->size < sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr)) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
+				"cmd-size: %llu, must be more than addr_container+addrs: %zd, addr_num: %d\n",
+				dnet_dump_id(&cmd->id), client_addr, server_addr,
+				(unsigned long long)cmd->size, sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr),
+				cnt->addr_num);
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	ids_num = (cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container)) / sizeof(struct dnet_raw_id);
+
+	if (idx < 0 || idx >= cnt->addr_num || cnt->addr_num != n->addr_num) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid join request: client: %s -> %s, "
+				"address idx: %d, received addr-num: %d, local addr-num: %d, ids-num: %d\n",
+				dnet_dump_id(&cmd->id), client_addr, server_addr,
+				idx, cnt->addr_num, n->addr_num, ids_num);
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+	dnet_log(n, DNET_LOG_NOTICE, "%s: join request: client: %s -> %s, "
+			"address idx: %d, received addr-num: %d, local addr-num: %d, ids-num: %d\n",
+			dnet_dump_id(&cmd->id), client_addr, server_addr,
+			idx, cnt->addr_num, n->addr_num, ids_num);
+
+	err = dnet_check_connection(n, &cnt->addrs[idx]);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to request statistics from joining client (%s), dropping connection.\n",
+				dnet_dump_id(&cmd->id), dnet_server_convert_dnet_addr(&cnt->addrs[idx]));
+		goto err_out_exit;
+	}
+
+	ids = (struct dnet_raw_id *)(data + sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr));
+	for (i = 0; i < ids_num; ++i)
 		dnet_convert_raw_id(&ids[0]);
 
-	pthread_mutex_lock(&n->state_lock);
 	list_del_init(&st->state_entry);
 	list_del_init(&st->storage_state_entry);
-	pthread_mutex_unlock(&n->state_lock);
 
-	memcpy(&st->addr, &a->addr, sizeof(struct dnet_addr));
-	err = dnet_idc_create(st, cmd->id.group_id, ids, num);
+	memcpy(&st->addr, &cnt->addrs[idx], sizeof(struct dnet_addr));
 
-	dnet_log(n, DNET_LOG_INFO, "%s: accepted join request from state %s: %d.\n", dnet_dump_id(&cmd->id),
-		dnet_server_convert_dnet_addr(&a->addr), err);
+	err = dnet_copy_addrs(st, cnt->addrs, cnt->addr_num);
+	if (err)
+		goto err_out_exit;
 
+	err = dnet_idc_create(st, cmd->id.group_id, ids, ids_num);
+
+	dnet_log(n, DNET_LOG_INFO, "%s: join request completed: client: %s -> %s, "
+			"address idx: %d, received addr-num: %d, local addr-num: %d, ids-num: %d, err: %d\n",
+			dnet_dump_id(&cmd->id), client_addr, server_addr,
+			idx, cnt->addr_num, n->addr_num, ids_num, err);
+
+err_out_exit:
 	return err;
 }
 
@@ -285,10 +333,11 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
+			if (dnet_addr_equal(&st->addr, &orig->addr))
 				continue;
 
-			size += st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd);
+			size += st->idc->id_num * sizeof(struct dnet_raw_id) +
+				sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr);
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
@@ -302,10 +351,13 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
+			if (dnet_addr_equal(&st->addr, &orig->addr))
 				continue;
 
-			sz = st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd);
+			dnet_log(n, DNET_LOG_INFO, "%s: %d %s\n",
+					dnet_server_convert_dnet_addr(&st->addrs[0]), g->group_id, dnet_dump_id_str(st->idc->ids[0].raw.id));
+
+			sz = st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr);
 			if (sz <= size) {
 				cmd->id.group_id = g->group_id;
 				dnet_send_idc_fill(st, buf, sz, &cmd->id, cmd->trans, DNET_CMD_ROUTE_LIST, 1, 0, 1);
@@ -339,13 +391,12 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 	dnet_convert_sph(e);
 
-	if (e->event_size + e->data_size + e->binary_size + sizeof(struct sph) != cmd->size) {
+	if (e->event_size + e->data_size + sizeof(struct sph) != cmd->size) {
 		err = -E2BIG;
-		dnet_log(n, DNET_LOG_ERROR, "%s: invalid size: event-size %d, data-size %llu, binary-size %llu must be: %llu\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid size: event-size %d, data-size %llu must be: %llu\n",
 				dnet_dump_id(&cmd->id),
 				e->event_size,
 				(unsigned long long)e->data_size,
-				(unsigned long long)e->binary_size,
 				(unsigned long long)cmd->size);
 		goto err_out_exit;
 	}
@@ -383,7 +434,7 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 
 	cmd->cmd = DNET_CMD_STAT_COUNT;
 
-	memcpy(&as->addr, &n->addr, sizeof(struct dnet_addr));
+	memcpy(&as->addr, &orig->addr, sizeof(struct dnet_addr));
 	as->num = __DNET_CNTR_MAX;
 	as->cmd_num = __DNET_CMD_MAX;
 
@@ -987,13 +1038,11 @@ err_out_exit:
 	return err;
 }
 
-void dnet_fill_addr_attr(struct dnet_node *n, struct dnet_addr_attr *attr)
+void dnet_fill_state_addr(void *state, struct dnet_addr *addr)
 {
-	memcpy(&attr->addr, &n->addr, sizeof(struct dnet_addr));
+	struct dnet_net_state *st = state;
 
-	attr->sock_type = n->sock_type;
-	attr->family = n->family;
-	attr->proto = n->proto;
+	memcpy(addr, &st->addr, sizeof(struct dnet_addr));
 }
 
 int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info)
@@ -1065,7 +1114,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 {
 	struct dnet_node *n = dnet_get_node_from_state(state);
 	struct dnet_file_info *info;
-	struct dnet_addr_attr *a;
+	struct dnet_addr *addr;
 	int flen, err;
 	char *file;
 	struct stat st;
@@ -1076,14 +1125,15 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 
 	flen = err;
 
-	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen);
-	if (!a) {
+	addr = malloc(sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen);
+	if (!addr) {
 		err = -ENOMEM;
 		goto err_out_free_file;
 	}
-	info = (struct dnet_file_info *)(a + 1);
+	info = (struct dnet_file_info *)(addr + 1);
 
-	dnet_fill_addr_attr(n, a);
+	dnet_fill_state_addr(state, addr);
+	dnet_convert_addr(addr);
 
 	err = fstat(fd, &st);
 	if (err) {
@@ -1122,10 +1172,10 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 
 	dnet_convert_file_info(info);
 
-	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen, 0);
+	err = dnet_send_reply(state, cmd, addr, sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen, 0);
 
 err_out_free:
-	free(a);
+	free(addr);
 err_out_free_file:
 	free(file);
 err_out_exit:
@@ -1134,22 +1184,21 @@ err_out_exit:
 
 int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, uint64_t offset, int64_t size)
 {
-	struct dnet_node *n = dnet_get_node_from_state(state);
 	struct dnet_file_info *info;
-	struct dnet_addr_attr *a;
+	struct dnet_addr *a;
 	int err;
 	const char file[] = "";
 	const size_t flen = sizeof(file) - 1;
 
-	a = malloc(sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen);
+	a = malloc(sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen);
 	if (!a) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 	info = (struct dnet_file_info *)(a + 1);
 
-	dnet_fill_addr_attr(n, a);
-	dnet_convert_addr_attr(a);
+	dnet_fill_state_addr(state, a);
+	dnet_convert_addr(a);
 
 	memset(info, 0, sizeof(struct dnet_file_info));
 
@@ -1164,7 +1213,7 @@ int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, uint64_t o
 
 	dnet_convert_file_info(info);
 
-	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info) + flen, 0);
+	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen, 0);
 
 	free(a);
 err_out_exit:

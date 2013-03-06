@@ -236,7 +236,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 
 	st->idc = idc;
 
-	if (n->log->log_level > DNET_LOG_DEBUG) {
+	if (n->log->log_level >= DNET_LOG_DEBUG) {
 		for (i=0; i<g->id_num; ++i) {
 			struct dnet_state_id *id = &g->ids[i];
 			dnet_log(n, DNET_LOG_DEBUG, "%d: %s -> %s\n", g->group_id,
@@ -253,7 +253,7 @@ int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
 
-	dnet_log(n, DNET_LOG_NOTICE, "Initialized group: %d, total ids: %d, added ids: %d out of %d: %ld usecs.\n",
+	dnet_log(n, DNET_LOG_NOTICE, "Initialized group: %d, total ids: %d, added ids: %d, received ids: %d, time-took: %ld usecs.\n",
 			g->group_id, g->id_num, num, id_num, diff);
 
 	if (n->server_prio) {
@@ -407,8 +407,7 @@ struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dne
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (st->addr.addr_len == addr->addr_len &&
-					!memcmp(addr, &st->addr, st->addr.addr_len)) {
+			if (dnet_addr_equal(&st->addr, addr)) {
 				found = st;
 				break;
 			}
@@ -538,10 +537,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		goto err_out_exit;
 	}
 
-	if (!cfg->sock_type)
-		cfg->sock_type = SOCK_STREAM;
-	if (!cfg->proto)
-		cfg->proto = IPPROTO_TCP;
 	if (!cfg->family)
 		cfg->family = AF_INET;
 
@@ -551,9 +546,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!cfg->oplock_num)
 		cfg->oplock_num = 1024;
 
-	n->proto = cfg->proto;
-	n->sock_type = cfg->sock_type;
-	n->family = cfg->family;
 	n->wait_ts.tv_sec = cfg->wait_timeout;
 
 	n->cb = cfg->cb;
@@ -611,7 +603,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (err)
 		goto err_out_io_exit;
 
-	dnet_log(n, DNET_LOG_DEBUG, "New node has been created at %s.\n", dnet_dump_node(n));
+	dnet_log(n, DNET_LOG_DEBUG, "New node has been created.\n");
 	pthread_sigmask(SIG_BLOCK, &previous_sigset, NULL);
 	return n;
 
@@ -670,8 +662,7 @@ void dnet_node_cleanup_common_resources(struct dnet_node *n)
 
 void dnet_node_destroy(struct dnet_node *n)
 {
-	dnet_log(n, DNET_LOG_DEBUG, "Destroying node at %s, st: %p.\n",
-			dnet_dump_node(n), n->st);
+	dnet_log(n, DNET_LOG_DEBUG, "Destroying node.\n");
 
 	dnet_node_cleanup_common_resources(n);
 
@@ -695,8 +686,7 @@ struct dnet_session *dnet_session_create(struct dnet_node *n)
 
 void dnet_session_destroy(struct dnet_session *s)
 {
-	dnet_log(s->node, DNET_LOG_DEBUG, "Destroying session at %s, st: %p.\n",
-			dnet_dump_node(s->node), s->node->st);
+	dnet_log(s->node, DNET_LOG_DEBUG, "Destroying session.\n");
 	free(s);
 }
 

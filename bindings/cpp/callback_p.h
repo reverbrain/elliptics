@@ -417,7 +417,7 @@ class lookup_callback : public multigroup_callback
 				handler(exc);
 			} else {
 				lookup_result_entry result = cb.any_result<lookup_result_entry>();
-				dnet_convert_addr_attr(result.address_attribute());
+				dnet_convert_addr(result.address());
 				dnet_convert_file_info(result.file_info());
 				handler(result);
 			}
@@ -496,6 +496,8 @@ struct io_attr_comparator
 
 typedef std::set<dnet_io_attr, io_attr_comparator> io_attr_set;
 
+#define debug(DATA) if (1) {} else std::cerr << __PRETTY_FUNCTION__ << ":" << __LINE__ << " " << DATA << std::endl
+
 class read_bulk_callback : public read_callback
 {
 	public:
@@ -508,6 +510,10 @@ class read_bulk_callback : public read_callback
 
 		bool next_group(dnet_id &id, complete_func func, void *priv)
 		{
+			cb.clear();
+			cb.set_count(unlimited);
+
+			debug(m_group_index);
 			int count = 0;
 
 			try {
@@ -524,13 +530,14 @@ class read_bulk_callback : public read_callback
 				dnet_setup_id(&id, group_id, ios[0].id);
 				id.type = ios[0].type;
 
-				cb.set_count(unlimited);
+				debug("");
 
 				cur = dnet_state_get_first(node, &id);
 				if (!cur)
 					throw_error(-ENOENT, id, "Can't get state for id");
 
 				for (size_t i = 0; i < io_num; ++i) {
+					debug("i = " << i);
 					if ((i + 1) < io_num) {
 						dnet_setup_id(&next_id, group_id, ios[i + 1].id);
 						next_id.type = ios[i + 1].type;
@@ -546,6 +553,7 @@ class read_bulk_callback : public read_callback
 							continue;
 						}
 					}
+					debug("");
 
 					dnet_log_raw(sess.get_node().get_native(),
 						DNET_LOG_NOTICE, "start: %s: end: %s, count: %llu, addr: %s\n",
@@ -566,6 +574,7 @@ class read_bulk_callback : public read_callback
 					int err = dnet_read_object(sess.get_native(), &ctl);
 					// ingore the error, we must continue :)
 					(void) err;
+					debug("err = " << err);
 
 					start = i + 1;
 					dnet_state_put(cur);
@@ -573,19 +582,30 @@ class read_bulk_callback : public read_callback
 					next = NULL;
 					memcpy(&id, &next_id, sizeof(struct dnet_id));
 				}
+			} catch (error &e) {
+				debug("exception: " << e.what());
+				debug("count: " << count);
+				if (cb.set_count(count))
+					throw;
 			} catch (...) {
+				debug("unknown exception");
+				debug("count: " << count);
 				if (cb.set_count(count))
 					throw;
 			}
 
+			debug("count: " << count);
 			return cb.set_count(count);
 		}
 
 		bool check_answer()
 		{
 			elliptics_assert(cb.is_ready());
+			debug("cb.is_valid() " << cb.is_valid());
 
 			if (cb.is_valid()) {
+				debug("cb.results_size() " << cb.results_size());
+				debug("before: ios_set.size() " << ios_set.size());
 				for (size_t i = 0; i < cb.results_size(); ++i) {
 					read_result_entry entry = cb.result_at<read_result_entry>(i);
 					if (entry.size() < sizeof(struct dnet_io_attr))
@@ -593,14 +613,18 @@ class read_bulk_callback : public read_callback
 					result.push_back(entry);
 					ios_set.erase(*entry.io_attribute());
 				}
+				debug("after: ios_set.size() " << ios_set.size());
 			}
 
+			debug("ios_set.empty() " << ios_set.empty());
+			debug("m_group_index == groups.size() " << (m_group_index == groups.size()));
 			// all results are found or all groups are iterated
 			return ios_set.empty() || (m_group_index == groups.size());
 		}
 
 		void finish(std::exception_ptr exc)
 		{
+			debug("finish");
 			if (!result.empty()) {
 				handler(result);
 			} else {
@@ -706,7 +730,7 @@ class prepare_latest_callback : public default_callback
 			std::vector<entry> entries;
 			for (size_t i = 0; i < results_size(); ++i) {
 				const lookup_result_entry &le = result_at<lookup_result_entry>(i);
-				if (le.size() < sizeof(dnet_addr_attr) + sizeof(dnet_file_info))
+				if (le.size() < sizeof(struct dnet_addr) + sizeof(struct dnet_file_info))
 					continue;
 				entry e = { &le.command()->id, le.file_info() };
 				entries.push_back(e);
@@ -775,8 +799,8 @@ class write_callback : public default_callback
 				 * '=' part in '>=' comparison here means backend does not provide information about filename,
 				 * where given object is stored.
 				 */
-				if (result.size() >= sizeof(struct dnet_addr_attr) + sizeof(struct dnet_file_info)) {
-					dnet_convert_addr_attr(result.address_attribute());
+				if (result.size() >= sizeof(struct dnet_addr) + sizeof(struct dnet_file_info)) {
+					dnet_convert_addr(result.address());
 					dnet_convert_file_info(result.file_info());
 					results.push_back(result);
 				}
@@ -849,6 +873,51 @@ class remove_callback : public default_callback
 		uint64_t cflags;
 		dnet_id id;
 		std::function<void (const std::exception_ptr &)> handler;
+};
+
+class exec_callback : public default_callback
+{
+	public:
+		typedef std::shared_ptr<exec_callback> ptr;
+
+		exec_callback(const session &sess) : sess(sess), id(NULL), sph(NULL)
+		{
+		}
+
+		bool start(complete_func func, void *priv)
+		{
+			set_count(unlimited);
+
+			int err = dnet_send_cmd(sess.get_native(), id, func, priv, sph, sess.get_cflags());
+			if (err < 0) {
+				char buffer[64];
+				strncpy(buffer, sph->data, std::min<size_t>(sizeof(buffer), sph->event_size));
+				buffer[sizeof(buffer) - 1] = '\0';
+				throw_error(err, "failed to execute cmd: %s", buffer);
+			}
+
+			return set_count(err);
+		}
+
+		void finish(std::exception_ptr exc)
+		{
+			if (exc != std::exception_ptr()) {
+				handler(exc);
+			} else {
+				std::vector<exec_context> result;
+				for (size_t i = 0; i < results_size(); ++i) {
+					const callback_result_entry &entry = result_at(i);
+					if (entry.size() > sizeof(struct sph))
+						result.push_back(exec_context(entry.data()));
+				}
+				handler(result);
+			}
+		}
+
+		session sess;
+		struct dnet_id *id;
+		struct sph *sph;
+		std::function<void (const exec_result &)> handler;
 };
 
 inline void check_for_exception(const std::exception_ptr &result)

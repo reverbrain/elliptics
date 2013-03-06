@@ -56,6 +56,7 @@ static void dnet_work_pool_cleanup(struct dnet_work_pool *pool)
 
 	pthread_cond_destroy(&pool->wait);
 	pthread_mutex_destroy(&pool->lock);
+	free(pool->trans);
 	free(pool);
 }
 
@@ -66,6 +67,8 @@ static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool,
 
 	pthread_mutex_lock(&pool->lock);
 
+	pool->trans = realloc(pool->trans, sizeof(uint64_t) * (pool->num + num));
+
 	for (i = 0; i < num; ++i) {
 		wio = malloc(sizeof(struct dnet_work_io));
 		if (!wio) {
@@ -75,6 +78,8 @@ static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool,
 
 		wio->thread_index = i;
 		wio->pool = pool;
+
+		pool->trans[pool->num + i] = -1;
 
 		err = pthread_create(&wio->tid, NULL, process, wio);
 		if (err) {
@@ -358,39 +363,81 @@ out:
 	return err;
 }
 
+int dnet_socket_local_addr(int s, struct dnet_addr *addr)
+{
+	int err;
+
+	addr->addr_len = sizeof(addr->addr);
+
+	err = getsockname(s, (struct sockaddr *)addr->addr, (socklen_t *)&addr->addr_len);
+	if (err < 0)
+		err = -errno;
+
+	addr->family = ((struct sockaddr *)addr->addr)->sa_family;
+	return err;
+}
+
+int dnet_local_addr_index(struct dnet_node *n, struct dnet_addr *addr)
+{
+	int i;
+
+	for (i = 0; i < n->addr_num; ++i) {
+		if (dnet_addr_equal(addr, &n->addrs[i]))
+			return i;
+	}
+
+	return -1;
+}
+
 int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *ev __unused)
 {
 	struct dnet_node *n = orig->n;
-	int err, cs;
-	struct dnet_addr addr;
+	int err, cs, idx;
+	struct dnet_addr addr, saddr;
 	struct dnet_net_state *st;
+	socklen_t salen;
+	char client_addr[128], server_addr[128];
 
 	memset(&addr, 0, sizeof(addr));
 
-	addr.addr_len = sizeof(addr.addr);
-	cs = accept(orig->read_s, (struct sockaddr *)&addr.addr, &addr.addr_len);
+	salen = addr.addr_len = sizeof(addr.addr);
+	cs = accept(orig->read_s, (struct sockaddr *)&addr.addr, &salen);
 	if (cs <= 0) {
 		err = -errno;
 		if (err != -EAGAIN)
 			dnet_log_err(n, "failed to accept new client at %s", dnet_state_dump_addr(orig));
 		goto err_out_exit;
 	}
+	addr.family = orig->addr.family;
+	addr.addr_len = salen;
 
 	dnet_set_sockopt(cs);
 
-	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, 0, dnet_state_net_process);
-	if (!st) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]\n",
-				dnet_server_convert_dnet_addr(&addr), strerror(-err), -err);
-		err = -EAGAIN;
+	err = dnet_socket_local_addr(cs, &saddr);
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: failed to resolve server addr for connected client: %s [%d]\n",
+				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
 		goto err_out_exit;
 	}
 
-	dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d.\n",
-			dnet_server_convert_dnet_addr(&addr), cs);
+	idx = dnet_local_addr_index(n, &saddr);
+
+	st = dnet_state_create(n, 0, NULL, 0, &addr, cs, &err, 0, idx, dnet_state_net_process);
+	if (!st) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: Failed to create state for accepted client: %s [%d]\n",
+				dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), strerror(-err), -err);
+		err = -EAGAIN;
+
+		/* We do not close socket, since it is closed in dnet_state_create() */
+		goto err_out_exit;
+	}
+
+	dnet_log(n, DNET_LOG_INFO, "Accepted client %s, socket: %d, server address: %s, idx: %d.\n",
+			dnet_server_convert_dnet_addr_raw(&addr, client_addr, sizeof(client_addr)), cs,
+			dnet_server_convert_dnet_addr_raw(&saddr, server_addr, sizeof(server_addr)), idx);
 
 	return 0;
-	/* socket is closed in dnet_state_create() */
+
 err_out_exit:
 	return err;
 }
@@ -614,6 +661,35 @@ struct dnet_io_process_data {
 	int thread_number;
 };
 
+static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_index)
+{
+	struct dnet_io_req *it = NULL;
+	struct dnet_cmd *cmd;
+	uint64_t tid;
+	int i;
+	int ok;
+
+	list_for_each_entry(it, &pool->list, req_entry) {
+		cmd = it->header;
+		tid = cmd->trans & ~DNET_TRANS_REPLY;
+		ok = 1;
+
+		for (i = 0; i < pool->num; ++i) {
+			if (pool->trans[i] == tid) {
+				ok = 0;
+				break;
+			}
+		}
+
+		if (ok) {
+			pool->trans[thread_index] = tid;
+			return it;
+		}
+	}
+
+	return NULL;
+}
+
 static void *dnet_io_process(void *data_)
 {
 	struct dnet_work_io *wio = data_;
@@ -637,14 +713,12 @@ static void *dnet_io_process(void *data_)
 
 		pthread_mutex_lock(&pool->lock);
 
-		if (!list_empty(&pool->list)) {
-			r = list_first_entry(&pool->list, struct dnet_io_req, req_entry);
-		} else {
+		pool->trans[wio->thread_index] = -1;
+
+		if (!(r = take_request(pool, wio->thread_index))) {
 			err = pthread_cond_timedwait(&pool->wait, &pool->lock, &ts);
-			if (!list_empty(&pool->list)) {
-				r = list_first_entry(&pool->list, struct dnet_io_req, req_entry);
+			if ((r = take_request(pool, wio->thread_index)))
 				err = 0;
-			}
 		}
 
 		if (r) {
