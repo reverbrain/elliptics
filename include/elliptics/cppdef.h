@@ -424,6 +424,9 @@ typedef array_result_holder<int> prepare_latest_result;
 typedef array_result_holder<exec_context> exec_result;
 typedef std::exception_ptr push_result;
 typedef std::exception_ptr reply_result;
+typedef std::exception_ptr update_indexes_result;
+typedef array_result_holder<dnet_raw_id> find_indexes_result;
+typedef array_result_holder<dnet_raw_id> check_indexes_result;
 
 class exec_context_data;
 
@@ -1061,6 +1064,17 @@ class session
 		 */
 		write_result		bulk_write(const std::vector<struct dnet_io_attr> &ios,
 							const std::vector<std::string> &data);
+
+		void update_indexes(const std::function<void (const update_indexes_result &)> &handler, const key &id, const std::vector<dnet_raw_id> &indexes);
+		void update_indexes(const key &id, const std::vector<dnet_raw_id> &indexes);
+		void update_indexes(const key &id, const std::vector<std::string> &indexes);
+
+		void find_indexes(const std::function<void (const find_indexes_result &)> &handler, const std::vector<dnet_raw_id> &indexes);
+		find_indexes_result find_indexes(const std::vector<dnet_raw_id> &indexes);
+		find_indexes_result find_indexes(const std::vector<std::string> &indexes);
+
+		void check_indexes(const std::function<void (const check_indexes_result &)> &handler, const key &id);
+		check_indexes_result check_indexes(const key &id);
 
 		/*!
 		 * Returnes reference to parent node.
