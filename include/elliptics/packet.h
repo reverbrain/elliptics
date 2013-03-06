@@ -342,7 +342,7 @@ struct dnet_io_attr
 	 * @start is used in cache writes: it is treated as object lifetime in seconds, if zero, object is never removed.
 	 * When object's lifetime is over, it is removed from cache, but not from disk.
 	 *
-	 * @timestamp used in new data format on read requests.
+	 * @timestamp and @user_flags is used in extended headers in metadata writes.
 	 */
 	union {
 		struct {
