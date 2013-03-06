@@ -357,8 +357,8 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 			goto err_out_exit;
 
 		if (wc.flags & BLOB_DISK_CTL_USR1) {
-			struct dnet_ext_list ehdr;
-			struct dnet_ext_list_hdr elist;
+			struct dnet_ext_list_hdr ehdr;
+			struct dnet_ext_list elist;
 
 			err = dnet_ext_hdr_read(&ehdr, req->record_fd, req->record_offset);
 			if (err != 0)
