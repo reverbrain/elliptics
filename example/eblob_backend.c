@@ -56,6 +56,12 @@ struct eblob_backend_config {
 #error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE"
 #endif
 
+/* Eblob-specific data/metadata iterator */
+static int blob_iterate(struct eblob_backend *b, struct dnet_iterator_ctl *ictl)
+{
+	return -ENOTSUP;
+}
+
 static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 		struct dnet_cmd *cmd __unused, void *data, struct dnet_ext_list *elist)
 {
@@ -952,6 +958,12 @@ static int dnet_eblob_db_iterate(struct dnet_iterate_ctl *ctl)
 	return dnet_db_iterate(c->eblob, ctl);
 }
 
+static int dnet_eblob_iterator(struct dnet_iterator_ctl *ictl)
+{
+	struct eblob_backend_config *c = ictl->iterate_private;
+	return blob_iterate(c->eblob, ictl);
+}
+
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)
 {
 	struct eblob_backend_config *c = b->data;
@@ -987,6 +999,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	b->cb.meta_remove = dnet_eblob_db_remove;
 	b->cb.meta_total_elements = dnet_eblob_db_total_elements;
 	b->cb.meta_iterate = dnet_eblob_db_iterate;
+	b->cb.iterator = dnet_eblob_iterator;
 
 	return 0;
 
