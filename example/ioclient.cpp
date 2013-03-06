@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
 
 		if (cmd) {
 			dnet_id did_tmp, *did = NULL;
-			std::string event, data, binary;
+			std::string event, data;
 
 			memset(&did_tmp, 0, sizeof(struct dnet_id));
 
@@ -308,7 +308,13 @@ int main(int argc, char *argv[])
 				did->type = type;
 			}
 
-			std::cout << s.exec_unlocked(did, event, data, binary);
+			const std::vector<exec_context> results = s.exec(did, event, data);
+			for (size_t i = 0; i < results.size(); ++i) {
+				exec_context result = results[i];
+				std::cout << dnet_server_convert_dnet_addr(result.address())
+					<< ": " << result.event()
+					<< " \"" << result.data().to_string() << "\"" << std::endl;
+			}
 		}
 
 		if (lookup)
