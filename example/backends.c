@@ -264,6 +264,19 @@ int dnet_ext_hdr_read(struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset)
 }
 
 /*!
+ * Reads extension header from given fd and offset
+ */
+int dnet_ext_hdr_write(const struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset)
+{
+	int err;
+
+	err = pwrite(fd, ehdr, sizeof(struct dnet_ext_list_hdr), offset);
+	if (err != sizeof(struct dnet_ext_list_hdr))
+		return (err == -1) ? -errno : -EINTR;
+	return 0;
+}
+
+/*!
  * Converts representation from host-independed on-disk to host-depended
  * in-memory.
  */

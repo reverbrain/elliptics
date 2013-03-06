@@ -153,6 +153,8 @@ int dnet_ext_list_to_io(const struct dnet_ext_list *elist,
 
 /*! Reads \a ehdr from specified \a offset in given \a fd */
 int dnet_ext_hdr_read(struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset);
+/*! Writes \a ehdr to specified \a offset in given \a fd */
+int dnet_ext_hdr_write(const struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset);
 
 int dnet_backend_register(struct dnet_config_backend *b);
 
