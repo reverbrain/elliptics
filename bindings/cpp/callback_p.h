@@ -195,7 +195,7 @@ class base_stat_callback : public default_callback
 			set_count(unlimited);
 
 			int err = dnet_request_stat(sess.get_native(),
-				has_id ? &id : NULL, Command, 0, func, priv);
+				has_id ? &id : NULL, Command, DNET_ATTR_CNTR_GLOBAL, func, priv);
 			if (err < 0) {
 				throw_error(err, "Failed to request statistics");
 			}

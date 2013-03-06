@@ -355,18 +355,17 @@ int main(int argc, char *argv[])
 				dnet_addr *addr = result.address();
 				dnet_addr_stat *as = result.statistics();
 
-				for (int j = 0; j < as->num; ++j) {
-					if (as->num > as->cmd_num) {
-						if (j == 0)
-							dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Storage commands\n",
-								dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
-						if (j == as->cmd_num)
-							dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Proxy commands\n",
-								dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
-						if (j == as->cmd_num * 2)
-							dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Counters\n",
-								dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
-					}
+				for (int j = 0; j < (cmd->size - sizeof(struct dnet_addr_stat)) / sizeof(struct dnet_stat_count); ++j) {
+					if (j == 0)
+						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: storage-to-storage commands\n",
+							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
+					if (j == as->cmd_num)
+						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: client-to-storage commands\n",
+							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
+					if (j == as->cmd_num * 2)
+						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Global stat counters\n",
+							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
+
 					dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s:    cmd: %s, count: %llu, err: %llu\n",
 							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
 							dnet_counter_string(j, as->cmd_num),
