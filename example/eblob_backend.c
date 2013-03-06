@@ -88,10 +88,6 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
-	if (elist != NULL)
-		if (io->flags & DNET_IO_FLAGS_COMMIT)
-			io->num += sizeof(struct dnet_ext_list_hdr);
-
 	/*
 	 * Use extended format for new writes and keys already in new format.
 	 */
@@ -107,6 +103,8 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 			dnet_ext_hdr_write(&ehdr, wc2.data_fd, wc2.offset);
 			/* Move offset past extended header */
 			io->offset += ehdr_size;
+			if (io->flags & DNET_IO_FLAGS_COMMIT)
+				io->num += sizeof(struct dnet_ext_list_hdr);
 		}
 	} else if (err == -ENOENT) { /* New record */
 		flags |= BLOB_DISK_CTL_USR1;
