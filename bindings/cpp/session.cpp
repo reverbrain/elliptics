@@ -152,7 +152,7 @@ exec_context::exec_context(const data_pointer &data)
 	m_data = std::make_shared<exec_context_data>();
 	m_data->sph = data;
 	m_data->event.assign(event, event + s->event_size);
-	m_data->data = data_pointer::from_raw(event + s->event_size, s->data_size);
+	m_data->data = data.skip<sph>().skip(s->event_size);
 }
 
 exec_context::exec_context(const std::shared_ptr<exec_context_data> &data) : m_data(data)
@@ -187,6 +187,11 @@ std::string exec_context::event() const
 data_pointer exec_context::data() const
 {
 	return m_data ? m_data->data : data_pointer();
+}
+
+dnet_addr *exec_context::address() const
+{
+	return m_data ? &m_data->sph.data<sph>()->addr : NULL;
 }
 
 class session_data
