@@ -38,6 +38,10 @@ add_executable(dnet_ioclient ioclient.cpp)
 set_target_properties(dnet_ioclient PROPERTIES COMPILE_FLAGS "-std=c++0x")
 target_link_libraries(dnet_ioclient ${ECOMMON_LIBRARIES} elliptics_cpp)
 
+add_executable(dnet_index index.cpp)
+set_target_properties(dnet_index PROPERTIES COMPILE_FLAGS "-std=c++0x")
+target_link_libraries(dnet_index ${ECOMMON_LIBRARIES} elliptics_cpp)
+
 add_executable(dnet_stat stat.cpp)
 set_target_properties(dnet_stat PROPERTIES COMPILE_FLAGS "-std=c++0x")
 target_link_libraries(dnet_stat ${ECOMMON_LIBRARIES} elliptics_cpp)
@@ -53,8 +57,9 @@ install(TARGETS
         dnet_ioserv
         dnet_check
         dnet_find
-        dnet_meta
-        dnet_ioclient
+	dnet_meta
+	dnet_ioclient
+	dnet_index
         dnet_hparser
         dnet_stat
         dnet_notify
