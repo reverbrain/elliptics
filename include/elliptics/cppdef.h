@@ -92,6 +92,7 @@ class error_info
 };
 
 class key;
+class session;
 
 // err must be negative value
 void throw_error(int err, const char *format, ...)
@@ -145,6 +146,26 @@ class data_pointer
 		{
 		}
 
+		static data_pointer copy(void *data, size_t size)
+		{
+			data_pointer that = allocate(size);
+			memcpy(that.data(), data, size);
+			return that;
+		}
+
+		static data_pointer copy(const data_pointer &other)
+		{
+			return copy(other.data(), other.size());
+		}
+
+		static data_pointer allocate(size_t size)
+		{
+			void *data = malloc(size);
+			if (!data)
+				throw std::bad_alloc();
+			return data_pointer(data, size);
+		}
+
 		static data_pointer from_raw(void *data, size_t size)
 		{
 			data_pointer pointer;
@@ -195,7 +216,7 @@ class data_pointer
 		size_t size() const { return m_index >= m_size ? 0 : (m_size - m_index); }
 		size_t offset() const { return m_index; }
 		bool empty() const { return m_index >= m_size; }
-		std::string to_string() const { return std::string(data<char>(), size()); }
+		std::string to_string() const { return std::string(reinterpret_cast<char*>(data()), size()); }
 
 	private:
 		class wrapper
@@ -262,6 +283,8 @@ class result_holder : public generic_result_holder
 
 		T *operator-> () { check(); return &d_func()->result; }
 		const T *operator-> () const { check(); return &d_func()->result; }
+		T &operator *() { check(); return d_func()->result; }
+		const T &operator *() const { check(); return d_func()->result; }
 
 	private:
 		class data : public generic_data
@@ -384,8 +407,9 @@ class stat_count_result_entry : public callback_result_entry
 		struct dnet_addr_stat *statistics() const;
 };
 
-typedef lookup_result_entry write_result_entry;
+class exec_context;
 
+typedef lookup_result_entry write_result_entry;
 typedef result_holder<read_result_entry> read_result;
 typedef array_result_holder<write_result_entry> write_result;
 typedef array_result_holder<read_result_entry> read_results;
@@ -397,6 +421,35 @@ typedef result_holder<lookup_result_entry> lookup_result;
 typedef array_result_holder<stat_result_entry> stat_result;
 typedef array_result_holder<stat_count_result_entry> stat_count_result;
 typedef array_result_holder<int> prepare_latest_result;
+typedef array_result_holder<exec_context> exec_result;
+typedef std::exception_ptr push_result;
+typedef std::exception_ptr reply_result;
+
+class exec_context_data;
+
+class exec_context
+{
+	public:
+		enum final_state { progressive, final };
+
+		exec_context();
+		exec_context(const data_pointer &data);
+		exec_context(const std::shared_ptr<exec_context_data> &data);
+		exec_context(const exec_context &other);
+		exec_context &operator =(const exec_context &other);
+		~exec_context();
+
+		static exec_context from_raw(const void *data, size_t size);
+
+		std::string event() const;
+		data_pointer data() const;
+		dnet_addr *address() const;
+
+	private:
+		friend class session;
+		friend class exec_context_data;
+		std::shared_ptr<exec_context_data> m_data;
+};
 
 class transport_control
 {
@@ -936,6 +989,17 @@ class session
 		 */
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
+		void exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data);
+		exec_result exec(dnet_id *id, const std::string &event, const data_pointer &data);
+
+		void push(const std::function<void (const push_result &)> &handler, dnet_id *id,
+				const exec_context &context, const std::string &event, const data_pointer &data);
+		void push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data);
+
+		void reply(const std::function<void (const reply_result &)> &handler, const exec_context &context,
+				const data_pointer &data, exec_context::final_state state);
+		void reply(const exec_context &context, const data_pointer &data, exec_context::final_state state);
+
 		/*!
 		 * Starts execution for \a id of the given \a event with \a data and \a binary.
 		 */
@@ -1014,13 +1078,8 @@ class session
 	protected:
 		std::shared_ptr<session_data>		m_data;
 
-		std::string		raw_exec(struct dnet_id *id,
-						const struct sph *sph,
-						const std::string &event,
-						const std::string &data,
-						const std::string &binary,
-						bool lock);
-		std::string		request(struct dnet_id *id, struct sph *sph, bool lock);
+		void request(const std::function<void (const exec_result &)> &handler,
+				dnet_id *id, const exec_context &context);
 		void			mix_states(const key &id, std::vector<int> &groups);
 		void			mix_states(std::vector<int> &groups);
 		std::vector<int>	mix_states(const key &id);

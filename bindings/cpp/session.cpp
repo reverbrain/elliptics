@@ -84,6 +84,116 @@ struct dnet_trans_control transport_control::get_native() const
 	return m_data;
 }
 
+struct exec_context_data
+{
+	data_pointer sph;
+	std::string event;
+	data_pointer data;
+
+	static exec_context create_raw(const exec_context *other, const std::string &event, const data_pointer &data)
+	{
+		std::shared_ptr<exec_context_data> p = std::make_shared<exec_context_data>();
+
+		p->sph = data_pointer::allocate(sizeof(struct sph) + event.size() + data.size());
+
+		struct sph *raw_sph = p->sph.data<struct sph>();
+		if (other)
+			memcpy(p->sph.data<struct sph>(), other->m_data->sph.data<struct sph>(), sizeof(struct sph));
+		else
+			memset(raw_sph, 0, sizeof(struct sph));
+		char *raw_event = reinterpret_cast<char *>(raw_sph + 1);
+		memcpy(raw_event, event.data(), event.size());
+		char *raw_data = raw_event + event.size();
+		memcpy(raw_data, data.data(), data.size());
+
+		raw_sph->event_size = event.size();
+		raw_sph->data_size = data.size();
+
+		p->event = event;
+		p->data = data_pointer::from_raw(raw_data, raw_sph->data_size);
+
+		return exec_context(p);
+	}
+
+	static exec_context create(const std::string &event, const data_pointer &data)
+	{
+		return create_raw(NULL, event, data);
+	}
+
+	static exec_context copy(const exec_context &other, const std::string &event, const data_pointer &data)
+	{
+		return create_raw(&other, event, data);
+	}
+
+	static exec_context copy(const struct sph &other, const std::string &event, const data_pointer &data)
+	{
+		struct sph tmp = other;
+		tmp.event_size = 0;
+		tmp.data_size = 0;
+		return copy(exec_context::from_raw(&tmp, sizeof(tmp)), event, data);
+	}
+};
+
+exec_context::exec_context()
+{
+}
+
+exec_context::exec_context(const data_pointer &data)
+{
+	if (data.size() < sizeof(sph))
+		throw_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
+
+	sph *s = data.data<sph>();
+	if (data.size() != sizeof(sph) + s->event_size + s->data_size)
+		throw_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
+
+	char *event = reinterpret_cast<char *>(s + 1);
+
+	m_data = std::make_shared<exec_context_data>();
+	m_data->sph = data;
+	m_data->event.assign(event, event + s->event_size);
+	m_data->data = data.skip<sph>().skip(s->event_size);
+}
+
+exec_context::exec_context(const std::shared_ptr<exec_context_data> &data) : m_data(data)
+{
+}
+
+exec_context::exec_context(const exec_context &other) : m_data(other.m_data)
+{
+}
+
+exec_context &exec_context::operator =(const exec_context &other)
+{
+	m_data = other.m_data;
+	return *this;
+}
+
+exec_context::~exec_context()
+{
+}
+
+exec_context exec_context::from_raw(const void *const_data, size_t size)
+{
+	data_pointer data = data_pointer::from_raw(const_cast<void*>(const_data), size);
+	return exec_context(data);
+}
+
+std::string exec_context::event() const
+{
+	return m_data ? m_data->event : std::string();
+}
+
+data_pointer exec_context::data() const
+{
+	return m_data ? m_data->data : data_pointer();
+}
+
+dnet_addr *exec_context::address() const
+{
+	return m_data ? &m_data->sph.data<sph>()->addr : NULL;
+}
+
 class session_data
 {
 	public:
@@ -1177,33 +1287,15 @@ std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
 	return res;
 }
 
-std::string session::request(struct dnet_id *id, struct sph *sph, bool lock)
+void session::request(const std::function<void (const exec_result &)> &handler,
+		dnet_id *id, const exec_context &context)
 {
-	std::string ret_str;
+	exec_callback::ptr cb = std::make_shared<exec_callback>(*this);
+	cb->id = id;
+	cb->sph = context.m_data->sph.data<sph>();
+	cb->handler = handler;
 
-	void *ret = NULL;
-	int err;
-
-	if (lock)
-		err = dnet_send_cmd(m_data->session_ptr, id, sph, &ret);
-	else
-		err = dnet_send_cmd_nolock(m_data->session_ptr, id, sph, &ret);
-
-	if (err < 0) {
-		throw_error(err, *id, "failed to send request");
-	}
-
-	if (ret && err) {
-		try {
-			ret_str.assign((char *)ret, err);
-		} catch (...) {
-			free(ret);
-			throw;
-		}
-		free(ret);
-	}
-
-	return ret_str;
+	startCallback(cb);
 }
 
 void session::mix_states(const key &id, std::vector<int> &groups)
@@ -1246,80 +1338,123 @@ std::vector<int> session::mix_states()
 	return result;
 }
 
-std::string session::raw_exec(struct dnet_id *id, const struct sph *orig_sph,
-				     const std::string &event, const std::string &data, const std::string &binary, bool lock)
+void session::exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data)
 {
-	std::vector<char> vec(event.size() + data.size() + binary.size() + sizeof(struct sph));
-	std::string ret_str;
+	exec_context context = exec_context_data::create(event, data);
 
-	struct sph *sph = (struct sph *)&vec[0];
+	sph *s = context.m_data->sph.data<sph>();
+	s->flags = DNET_SPH_FLAGS_SRC_BLOCK;
 
-	memset(sph, 0, sizeof(struct sph));
-	if (orig_sph) {
-		*sph = *orig_sph;
-		sph->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
-	} else {
-		sph->flags = DNET_SPH_FLAGS_SRC_BLOCK;
+	if (id)
+		memcpy(s->src.id, id->id, sizeof(s->src.id));
 
-		if (id)
-			memcpy(sph->src.id, id->id, sizeof(sph->src.id));
-	}
-
-	sph->data_size = data.size();
-	sph->binary_size = binary.size();
-	sph->event_size = event.size();
-
-	memcpy(sph->data, event.data(), event.size());
-	memcpy(sph->data + event.size(), data.data(), data.size());
-	memcpy(sph->data + event.size() + data.size(), binary.data(), binary.size());
-
-	return request(id, sph, lock);
+	request(handler, id, context);
 }
 
-std::string session::exec_locked(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
+exec_result session::exec(dnet_id *id, const std::string &event, const data_pointer &data)
 {
-	return raw_exec(id, NULL, event, data, binary, true);
+	waiter<exec_result> w;
+	exec(w.handler(), id, event, data);
+	return w.result();
+}
+
+struct push_converter
+{
+	std::function<void (const push_result &)> handler;
+
+	void operator() (const exec_result &result) const
+	{
+		handler(result.exception());
+	}
+};
+
+void session::push(const std::function<void (const push_result &)> &handler, dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
+{
+	exec_context context = exec_context_data::copy(tmp_context, event, data);
+
+	sph *s = context.m_data->sph.data<sph>();
+	s->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
+
+	push_converter functor = { handler };
+	request(functor, id, context);
+}
+
+void session::push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data)
+{
+	waiter<push_result> w;
+	push(w.handler(), id, context, event, data);
+	w.result();
+}
+
+void session::reply(const std::function<void (const reply_result &)> &handler, const exec_context &tmp_context, const data_pointer &data, exec_context::final_state state)
+{
+	exec_context context = exec_context_data::copy(tmp_context, tmp_context.event(), data);
+
+	sph *s = context.m_data->sph.data<sph>();
+
+	s->flags |= DNET_SPH_FLAGS_REPLY;
+	s->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
+
+	if (state == exec_context::final)
+		s->flags |= DNET_SPH_FLAGS_FINISH;
+	else
+		s->flags &= ~DNET_SPH_FLAGS_FINISH;
+
+	struct dnet_id id;
+	dnet_setup_id(&id, 0, s->src.id);
+	id.type = 0;
+
+	push_converter functor = { handler };
+	request(functor, &id, context);
+}
+
+void session::reply(const exec_context &context, const data_pointer &data, exec_context::final_state state)
+{
+	waiter<reply_result> w;
+	reply(w.handler(), context, data, state);
+	w.result();
+}
+
+std::string session::exec_locked(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &)
+{
+	std::string result;
+	std::vector<exec_context> results = exec(id, event, data);
+	for (size_t i = 0; i < results.size(); ++i)
+		result += results[i].data().to_string();
+	return result;
 }
 
 std::string session::exec_unlocked(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
 {
-	return raw_exec(id, NULL, event, data, binary, false);
+	uint64_t cflags = get_cflags();
+	set_cflags(cflags | DNET_FLAGS_NOLOCK);
+	std::string result = exec_locked(id, event, data, binary);
+	set_cflags(cflags);
+	return result;
 }
 
 std::string session::push_locked(struct dnet_id *id, const struct sph &sph, const std::string &event,
-					const std::string &data, const std::string &binary)
+					const std::string &data, const std::string &)
 {
-	return raw_exec(id, &sph, event, data, binary, true);
+	exec_context context = exec_context_data::copy(sph, event, data);
+	push(id, context, event, data);
+	return std::string();
 }
 
 std::string session::push_unlocked(struct dnet_id *id, const struct sph &sph, const std::string &event,
 					  const std::string &data, const std::string &binary)
 {
-	return raw_exec(id, &sph, event, data, binary, false);
+	uint64_t cflags = get_cflags();
+	set_cflags(cflags | DNET_FLAGS_NOLOCK);
+	push_locked(id, sph, event, data, binary);
+	set_cflags(cflags);
+	return std::string();
 }
 
-void session::reply(const struct sph &orig_sph, const std::string &event, const std::string &data, const std::string &binary)
+void session::reply(const struct sph &sph, const std::string &event, const std::string &data, const std::string &)
 {
-	std::vector<char> vec(event.size() + data.size() + binary.size() + sizeof(struct sph));
-	std::string ret_str;
-
-	struct sph *sph = (struct sph *)&vec[0];
-
-	*sph = orig_sph;
-
-	sph->data_size = data.size();
-	sph->binary_size = binary.size();
-	sph->event_size = event.size();
-
-	memcpy(sph->data, event.data(), event.size());
-	memcpy(sph->data + event.size(), data.data(), data.size());
-	memcpy(sph->data + event.size() + data.size(), binary.data(), binary.size());
-
-	struct dnet_id id;
-	dnet_setup_id(&id, 0, sph->src.id);
-	id.type = 0;
-
-	request(&id, sph, false);
+	exec_context context = exec_context_data::copy(sph, event, data);
+	reply(context, data, (sph.flags & DNET_SPH_FLAGS_FINISH) ? exec_context::final : exec_context::progressive);
 }
 
 void session::bulk_read(const std::function<void (const bulk_read_result &)> &handler, const std::vector<struct dnet_io_attr> &ios_vector)

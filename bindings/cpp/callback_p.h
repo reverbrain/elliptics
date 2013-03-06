@@ -875,6 +875,51 @@ class remove_callback : public default_callback
 		std::function<void (const std::exception_ptr &)> handler;
 };
 
+class exec_callback : public default_callback
+{
+	public:
+		typedef std::shared_ptr<exec_callback> ptr;
+
+		exec_callback(const session &sess) : sess(sess), id(NULL), sph(NULL)
+		{
+		}
+
+		bool start(complete_func func, void *priv)
+		{
+			set_count(unlimited);
+
+			int err = dnet_send_cmd(sess.get_native(), id, func, priv, sph, sess.get_cflags());
+			if (err < 0) {
+				char buffer[64];
+				strncpy(buffer, sph->data, std::min<size_t>(sizeof(buffer), sph->event_size));
+				buffer[sizeof(buffer) - 1] = '\0';
+				throw_error(err, "failed to execute cmd: %s", buffer);
+			}
+
+			return set_count(err);
+		}
+
+		void finish(std::exception_ptr exc)
+		{
+			if (exc != std::exception_ptr()) {
+				handler(exc);
+			} else {
+				std::vector<exec_context> result;
+				for (size_t i = 0; i < results_size(); ++i) {
+					const callback_result_entry &entry = result_at(i);
+					if (entry.size() > sizeof(struct sph))
+						result.push_back(exec_context(entry.data()));
+				}
+				handler(result);
+			}
+		}
+
+		session sess;
+		struct dnet_id *id;
+		struct sph *sph;
+		std::function<void (const exec_result &)> handler;
+};
+
 inline void check_for_exception(const std::exception_ptr &result)
 {
 	if (result != std::exception_ptr())
