@@ -906,8 +906,14 @@ int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_ad
 /*
  * Send a shell/python command to the remote node for execution.
  */
-int dnet_send_cmd(struct dnet_session *s, struct dnet_id *id, struct sph *h, void **ret);
-int dnet_send_cmd_nolock(struct dnet_session *s, struct dnet_id *id, struct sph *e, void **ret);
+int dnet_send_cmd(struct dnet_session *s,
+	struct dnet_id *id,
+	int (* complete)(struct dnet_net_state *state,
+			struct dnet_cmd *cmd,
+			void *priv),
+	void *priv,
+	struct sph *e,
+	uint64_t cflags);
 
 int dnet_flags(struct dnet_node *n);
 void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout);

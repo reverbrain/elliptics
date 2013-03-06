@@ -391,13 +391,12 @@ static int dnet_cmd_exec(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 	dnet_convert_sph(e);
 
-	if (e->event_size + e->data_size + e->binary_size + sizeof(struct sph) != cmd->size) {
+	if (e->event_size + e->data_size + sizeof(struct sph) != cmd->size) {
 		err = -E2BIG;
-		dnet_log(n, DNET_LOG_ERROR, "%s: invalid size: event-size %d, data-size %llu, binary-size %llu must be: %llu\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: invalid size: event-size %d, data-size %llu must be: %llu\n",
 				dnet_dump_id(&cmd->id),
 				e->event_size,
 				(unsigned long long)e->data_size,
-				(unsigned long long)e->binary_size,
 				(unsigned long long)cmd->size);
 		goto err_out_exit;
 	}
