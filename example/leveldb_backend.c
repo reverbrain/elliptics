@@ -482,6 +482,11 @@ static int dnet_leveldb_db_iterate(struct dnet_iterate_ctl *ctl)
 	return -ENOTSUP;
 }
 
+static int dnet_leveldb_iterator(struct dnet_iterate_ctl *ictl)
+{
+	return -ENOTSUP;
+}
+
 static long long dnet_leveldb_total_elements(void *priv)
 {
 	struct leveldb_backend *s = priv;
@@ -546,6 +551,7 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 	b->cb.meta_remove = dnet_leveldb_db_remove;
 	b->cb.meta_total_elements = dnet_leveldb_total_elements;
 	b->cb.meta_iterate = dnet_leveldb_db_iterate;
+	b->cb.iterator = dnet_leveldb_iterator;
 
 	snprintf(hpath, hlen, "%s/history", s->path);
 	mkdir(hpath, 0755);
