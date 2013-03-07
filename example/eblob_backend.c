@@ -21,6 +21,7 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 
+#include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -56,10 +57,32 @@ struct eblob_backend_config {
 #error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE"
 #endif
 
-/* Eblob-specific data/metadata iterator */
-static int blob_iterate(struct eblob_backend *b, struct dnet_iterator_ctl *ictl)
+/* Pre-callback that formats arguments and calls ictl->callback */
+static void eblob_blob_iterate(void)
 {
-	return -ENOTSUP;
+	return;
+}
+
+/* Eblob-specific data/metadata iterator */
+static int blob_iterate(struct eblob_backend_config *c, struct dnet_iterator_ctl *ictl)
+{
+	/* Sanity */
+	assert(c != NULL);
+	assert(ictl != NULL);
+
+	/* Init iterator config */
+	struct eblob_backend *b = c->eblob;
+	struct eblob_iterate_control eictl = {
+		.priv = ictl,
+		.b = b,
+		.log = c->data.log,
+		.flags = EBLOB_ITERATE_FLAGS_ALL | EBLOB_ITERATE_READONLY,
+		.iterator_cb = {
+			.iterator = blob_iterate_callback,
+		},
+	};
+
+	return eblob_iterate(b, &eictl);
 }
 
 static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
@@ -961,7 +984,7 @@ static int dnet_eblob_db_iterate(struct dnet_iterate_ctl *ctl)
 static int dnet_eblob_iterator(struct dnet_iterator_ctl *ictl)
 {
 	struct eblob_backend_config *c = ictl->iterate_private;
-	return blob_iterate(c->eblob, ictl);
+	return blob_iterate(c, ictl);
 }
 
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)
