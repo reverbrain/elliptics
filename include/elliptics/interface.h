@@ -251,7 +251,8 @@ struct dnet_iterator_ctl {
 	void				*iterate_private;
 	unsigned int			flags;
 	void				*callback_private;
-	int				(* callback)(void *priv, void *data, uint64_t size, struct dnet_ext_list *elist);
+	int				(* callback)(void *priv, void *key, uint64_t ksize,
+			void *data, uint64_t dsize, struct dnet_ext_list *elist);
 };
 
 struct dnet_backend_callbacks {

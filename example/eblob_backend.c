@@ -81,7 +81,8 @@ static int blob_iterate_callback(struct eblob_disk_control *dc,
 		if (err != 0)
 			goto err;
 	}
-	err = ictl->callback(ictl->callback_private, data, size, &elist);
+	err = ictl->callback(ictl->callback_private, &dc->key, sizeof(struct eblob_key),
+			data, size, &elist);
 
 err:
 	dnet_ext_list_destroy(&elist);
