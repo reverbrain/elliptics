@@ -1634,7 +1634,7 @@ class bulk_write_callback
 
 void session::bulk_write(const std::function<void (const write_result &)> &handler,
 	const std::vector<struct dnet_io_attr> &ios,
-	const std::vector<std::string> &data)
+	const std::vector<data_pointer> &data)
 {
 	if (ios.size() != data.size()) {
 		throw_error(-EIO, "BULK_WRITE: ios doesn't meet data: io.size: %zd, data.size: %zd",
@@ -1662,7 +1662,22 @@ void session::bulk_write(const std::function<void (const write_result &)> &handl
 	}
 }
 
+void session::bulk_write(const std::function<void (const write_result &)> &handler,
+	const std::vector<struct dnet_io_attr> &ios,
+	const std::vector<std::string> &data)
+{
+	std::vector<data_pointer> pointer_data(data.begin(), data.end());
+	bulk_write(handler, ios, pointer_data);
+}
+
 write_result session::bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<std::string> &data)
+{
+	waiter<write_result> w;
+	bulk_write(w.handler(), ios, data);
+	return w.result();
+}
+
+write_result session::bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<data_pointer> &data)
 {
 	waiter<write_result> w;
 	bulk_write(w.handler(), ios, data);

@@ -1057,6 +1057,9 @@ class session
 		 */
 		void			bulk_write(const std::function<void (const write_result &)> &handler,
 						const std::vector<struct dnet_io_attr> &ios,
+						const std::vector<data_pointer> &data);
+		void			bulk_write(const std::function<void (const write_result &)> &handler,
+						const std::vector<struct dnet_io_attr> &ios,
 						const std::vector<std::string> &data);
 		/*!
 		 * \overload bulk_write()
@@ -1064,6 +1067,12 @@ class session
 		 */
 		write_result		bulk_write(const std::vector<struct dnet_io_attr> &ios,
 							const std::vector<std::string> &data);
+		/*!
+		 * \overload bulk_write()
+		 * Synchronous overload.
+		 */
+		write_result		bulk_write(const std::vector<struct dnet_io_attr> &ios,
+							const std::vector<data_pointer> &data);
 
 		void update_indexes(const std::function<void (const update_indexes_result &)> &handler, const key &id, const std::vector<dnet_raw_id> &indexes);
 		void update_indexes(const key &id, const std::vector<dnet_raw_id> &indexes);
