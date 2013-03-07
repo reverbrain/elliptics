@@ -472,7 +472,16 @@ class read_callback : public multigroup_callback
 						results.push_back(result);
 					}
 				}
-				handler(results);
+				if (results.empty()) {
+					try {
+						notify_about_error();
+					} catch (...) {
+						exc = std::current_exception();
+					}
+					handler(exc);
+				} else {
+					handler(results);
+				}
 			}
 		}
 
