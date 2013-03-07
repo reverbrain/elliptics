@@ -482,9 +482,45 @@ static int dnet_leveldb_db_iterate(struct dnet_iterate_ctl *ctl)
 	return -ENOTSUP;
 }
 
-static int dnet_leveldb_iterator(struct dnet_iterate_ctl *ictl)
+static int dnet_leveldb_iterator(struct dnet_iterator_ctl *ictl)
 {
-	return -ENOTSUP;
+	struct leveldb_backend *s = ictl->iterate_private;
+	leveldb_iterator_t * it;
+	size_t ksize, vsize;
+	struct dnet_ext_list elist;
+	char *key, *val;
+	int err = 0;
+
+	it = leveldb_create_iterator(s->db, s->roptions);
+	if (!it) {
+		err = -EIO;
+		goto err;
+	}
+
+	for (leveldb_iter_seek_to_first(it); leveldb_iter_valid(it); leveldb_iter_next(it)) {
+		key = (char *)leveldb_iter_key(it, &ksize);
+		val = (char *)leveldb_iter_value(it, &vsize);
+
+		/* Extract extensions */
+		dnet_ext_list_init(&elist);
+		err = dnet_ext_list_extract((void *)&val, (uint64_t *)&vsize,
+				&elist, DNET_EXT_DONT_FREE_ON_DESTROY);
+		if (err != 0)
+			goto err_destroy;
+
+		err = ictl->callback(ictl->callback_private, val, vsize, &elist);
+		if (err != 0) {
+			dnet_backend_log(DNET_LOG_DEBUG, "leveldb: ictl->callback: FAILED: %d", err);
+			dnet_ext_list_destroy(&elist);
+			goto err_destroy;
+		}
+		dnet_ext_list_destroy(&elist);
+	}
+
+err_destroy:
+	leveldb_iter_destroy(it);
+err:
+	return err;
 }
 
 static long long dnet_leveldb_total_elements(void *priv)
