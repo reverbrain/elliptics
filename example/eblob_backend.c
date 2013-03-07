@@ -58,9 +58,34 @@ struct eblob_backend_config {
 #endif
 
 /* Pre-callback that formats arguments and calls ictl->callback */
-static void eblob_blob_iterate(void)
+static int blob_iterate_callback(struct eblob_disk_control *dc,
+		struct eblob_ram_control *rctl __unused,
+		void *data, void *priv, void *thread_priv __unused)
 {
-	return;
+	struct dnet_iterator_ctl *ictl = priv;
+	struct dnet_ext_list elist;
+	uint64_t size;
+	int err;
+
+	assert(dc != NULL);
+	assert(data != NULL);
+
+	size = dc->data_size;
+	dnet_ext_list_init(&elist);
+
+	/* If it's an extended record - extract header, move data pointer */
+	if (dc->flags & BLOB_DISK_CTL_USR1) {
+		/* Extract */
+		err = dnet_ext_list_extract((void *)&data, &size, &elist,
+				DNET_EXT_FREE_ON_DESTROY);
+		if (err != 0)
+			goto err;
+	}
+	err = ictl->callback(ictl->callback_private, data, size, &elist);
+
+err:
+	dnet_ext_list_destroy(&elist);
+	return err;
 }
 
 /* Eblob-specific data/metadata iterator */
