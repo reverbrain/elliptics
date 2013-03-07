@@ -89,42 +89,6 @@ struct dnet_config_backend {
 };
 
 /*!
- * Flag used by dnet_ext_list_extract() to indicate that we need to free old
- * data pointer on dnet_ext_list_destroy()
- */
-enum dnet_ext_free_data {
-	DNET_EXT_DONT_FREE_ON_DESTROY,
-	DNET_EXT_FREE_ON_DESTROY
-};
-
-/*! In-memory extension header */
-struct dnet_ext;
-
-/*! On-disk extension list header */
-struct dnet_ext_list_hdr {
-	uint32_t		size;		/* Size of all extensions */
-	uint32_t		flags;		/* Custom flags for this record */
-	struct dnet_time	timestamp;	/* Time stamp of record */
-	uint64_t		__pad[2];	/* For future use (should be NULLed) */
-};
-
-/*! In-memory extension conatiner */
-struct dnet_ext_list {
-	uint32_t		size;		/* Total size of extensions */
-	uint32_t		flags;		/* Custom flags for this record */
-	struct dnet_time	timestamp;	/* TS of header */
-	struct dnet_ext		**exts;		/* Array of pointers to extensions */
-	void			*data;		/* Pointer to original data before extraction */
-};
-
-/*! Types of extensions */
-enum {
-	DNET_EXTENSION_FIRST,		/* Assert */
-	/* DNET_EXTENSION_USER_DATA, */
-	DNET_EXTENSION_LAST		/* Assert */
-};
-
-/*!
  * "Master" functions
  */
 /*! Extracts \a elist from data, replaces \a datap pointer and fixes \a sizep */
