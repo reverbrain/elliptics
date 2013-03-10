@@ -117,7 +117,7 @@ void test_1(session &sess)
 			std::cerr << i << " find: " << sorted(object_tags) << std::endl;
 
 			std::vector<dnet_raw_id> results;
-			int result;
+			int result = 0;
 			try {
 				results = sess.find_indexes(object_tags);
 			} catch (error &e) {
