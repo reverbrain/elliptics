@@ -163,7 +163,7 @@ void dnet_syslog(void *priv __attribute__ ((unused)), int level, const char *msg
 	syslog(prio, "%s.%06lu %ld/%4d %1x: %s", str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
 }
 
-int dnet_common_add_remote_addr(struct dnet_node *n, struct dnet_config *main_cfg, char *orig_addr)
+int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
 {
 	char *a;
 	char *addr, *p;
