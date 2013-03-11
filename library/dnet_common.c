@@ -193,7 +193,7 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state,
 	if (!nst)
 		goto err_out_close;
 
-	dnet_copy_addrs(nst, cnt->addrs, cnt->addr_num);
+	err = dnet_copy_addrs(nst, cnt->addrs, cnt->addr_num);
 	if (err)
 		goto err_out_put;
 
@@ -242,8 +242,8 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 
 	for (i = 0; i < cnt->addr_num; ++i) {
 		char tmp[128];
-		dnet_log(n, DNET_LOG_NOTICE, "%s: route reply: %s\n",
-				server_addr, dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], tmp, sizeof(tmp)));
+		dnet_log(n, DNET_LOG_NOTICE, "%s: route reply: %s, ids-num: %d\n",
+				server_addr, dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], tmp, sizeof(tmp)), ids_num);
 	}
 
 	err = dnet_add_received_state(st, cnt, group_id, ids, ids_num);
