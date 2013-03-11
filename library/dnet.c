@@ -326,8 +326,8 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
-	void *buf, *orig_buf;
-	size_t size = 0, send_size = 0, sz;
+	void *buf = NULL;
+	size_t size, orig_size = 0;
 	int err;
 
 	pthread_mutex_lock(&n->state_lock);
@@ -336,48 +336,35 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 			if (dnet_addr_equal(&st->addr, &orig->addr))
 				continue;
 
-			size += st->idc->id_num * sizeof(struct dnet_raw_id) +
+			size = st->idc->id_num * sizeof(struct dnet_raw_id) +
 				sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr);
-		}
-	}
-	pthread_mutex_unlock(&n->state_lock);
 
-	orig_buf = buf = malloc(size);
-	if (!buf) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (dnet_addr_equal(&st->addr, &orig->addr))
-				continue;
-
-			dnet_log(n, DNET_LOG_INFO, "%s: %d %s\n",
-					dnet_server_convert_dnet_addr(&st->addrs[0]), g->group_id, dnet_dump_id_str(st->idc->ids[0].raw.id));
-
-			sz = st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr);
-			if (sz <= size) {
-				cmd->id.group_id = g->group_id;
-				dnet_send_idc_fill(st, buf, sz, &cmd->id, cmd->trans, DNET_CMD_ROUTE_LIST, 1, 0, 1);
-
-				size -= sz;
-				buf += sz;
-
-				send_size += sz;
+			if (size > orig_size) {
+				buf = realloc(buf, orig_size);
+				if (!buf) {
+					err = -ENOMEM;
+					goto err_out_unlock;
+				}
 			}
+
+			dnet_log(n, DNET_LOG_INFO, "%s: %d %s, id_num: %d, addr_num: %d\n",
+					dnet_server_convert_dnet_addr(&st->addrs[0]), g->group_id, dnet_dump_id_str(st->idc->ids[0].raw.id),
+					st->idc->id_num, n->addr_num);
+
+			cmd->id.group_id = g->group_id;
+			dnet_send_idc_fill(st, buf, size, &cmd->id, cmd->trans, DNET_CMD_ROUTE_LIST, 1, 0, 1);
+
+			err = dnet_send(orig, buf, size);
+			if (err)
+				goto err_out_unlock;
 		}
 	}
+
+	err = 0;
+
+err_out_unlock:
 	pthread_mutex_unlock(&n->state_lock);
-
-	err = dnet_send(orig, orig_buf, send_size);
-	if (err)
-		goto err_out_free;
-
-err_out_free:
-	free(orig_buf);
-err_out_exit:
+	free(buf);
 	return err;
 }
 
