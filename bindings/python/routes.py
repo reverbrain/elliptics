@@ -13,7 +13,7 @@ def sid(id, count=6):
 
 	return ret
 
-def main():
+def main(remote = None):
 	log = elliptics.Logger("/dev/stderr", 1)
 	n = elliptics.Node(log)
 
@@ -21,6 +21,12 @@ def main():
 	s.add_groups([1])
 
 	remotes = [("localhost", 1025), ]
+	if remote:
+		remotes = []
+		for r in remote:
+			spl = r.split(":")
+			remotes.append((spl[0], int(spl[1])))
+
 	for r in remotes:
 		try:
 			n.add_remote(r[0], r[1])
@@ -32,4 +38,8 @@ def main():
 		print r[0].group_id, sid(r[0].id), r[1]
 
 if __name__ == '__main__':
-	main()
+	remote = None
+	if len(sys.argv) > 1:
+		remote = sys.argv[1:]
+
+	main(remote)
