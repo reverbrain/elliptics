@@ -63,6 +63,7 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_AUTH] = "AUTH",
 	[DNET_CMD_BULK_READ] = "BULK_READ",
 	[DNET_CMD_DEFRAG] = "DEFRAG",
+	[DNET_CMD_ITERATE] = "ITERATE",
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 

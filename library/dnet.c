@@ -22,6 +22,7 @@
 #include <sys/wait.h>
 
 #include <alloca.h>
+#include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -576,6 +577,22 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_cmd_iterator(struct dnet_net_state *orig, struct dnet_cmd *cmd, void *data)
+{
+	struct dnet_node *n;
+
+	assert(orig != NULL);
+	assert(cmd != NULL);
+	assert(data != NULL);
+
+	/* Shortcut */
+	n = orig->n;
+
+	/* XXX: n->cb->iterator */
+
+	return 0;
+}
+
 int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err)
 {
 	if (st && cmd && (cmd->flags & DNET_FLAGS_NEED_ACK)) {
@@ -638,6 +655,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			break;
 		case DNET_CMD_STAT_COUNT:
 			err = dnet_cmd_stat_count(st, cmd, data);
+			break;
+		case DNET_CMD_ITERATE:
+			err = dnet_cmd_iterator(st, cmd, data);
 			break;
 		case DNET_CMD_NOTIFY:
 			if (!(cmd->flags & DNET_ATTR_DROP_NOTIFICATION)) {
