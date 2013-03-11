@@ -290,7 +290,7 @@ int dnet_ext_hdr_to_list(const struct dnet_ext_list_hdr *ehdr,
 	elist->timestamp.tsec = dnet_bswap64(ehdr->timestamp.tsec);
 	elist->timestamp.tnsec = dnet_bswap64(ehdr->timestamp.tnsec);
 	elist->size = dnet_bswap32(ehdr->size);
-	elist->flags = dnet_bswap32(ehdr->flags);
+	elist->flags = dnet_bswap64(ehdr->flags);
 
 	return 0;
 }
@@ -307,7 +307,7 @@ int dnet_ext_list_to_hdr(const struct dnet_ext_list *elist,
 
 	memset(ehdr, 0, sizeof(struct dnet_ext_list_hdr));
 	ehdr->size = dnet_bswap32(elist->size);
-	ehdr->flags = dnet_bswap32(elist->flags);
+	ehdr->flags = dnet_bswap64(elist->flags);
 	ehdr->timestamp.tsec = dnet_bswap64(elist->timestamp.tsec);
 	ehdr->timestamp.tnsec = dnet_bswap64(elist->timestamp.tnsec);
 
@@ -323,7 +323,7 @@ int dnet_ext_list_to_io(const struct dnet_ext_list *elist, struct dnet_io_attr *
 		return -EINVAL;
 
 	io->timestamp = elist->timestamp;
-	/* XXX: io->user_flags = elist->flags; */
+	io->user_flags = elist->flags;
 
 	return 0;
 }
@@ -337,7 +337,7 @@ int dnet_ext_io_to_list(const struct dnet_io_attr *io, struct dnet_ext_list *eli
 		return -EINVAL;
 
 	elist->timestamp = io->timestamp;
-	/* XXX: elist->flags = io->user_flags; */
+	elist->flags = io->user_flags;
 
 	return 0;
 }
