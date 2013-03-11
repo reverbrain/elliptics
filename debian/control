@@ -2,25 +2,25 @@ Source: elliptics
 Section: net
 Priority: optional
 Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
-Build-Depends: debhelper (>= 7.0.50~),
-               cdbs,
+Build-Depends: cdbs,
+               cmake (>= 2.6),
+               debhelper (>= 7.0.50~),
                eblob (>= 0.18.2),
                libboost-dev,
-               libboost-program-options-dev,
                libboost-iostreams-dev,
-               libboost-thread-dev,
-               python-dev (>= 2.6),
-               python-central,
+               libboost-program-options-dev,
                libboost-python-dev,
+               libboost-system-dev,
+               libboost-thread-dev,
                libcocaine-core2,
                libcocaine-dev (>= 0.10.0-rc3),
-               libzmq-dev,
-               cmake (>= 2.6),
-               libboost-system-dev,
-               libltdl-dev,
-               libsnappy-dev,
                libleveldb-dev,
+               libltdl-dev,
                libmsgpack-dev
+               libsnappy-dev,
+               libzmq-dev,
+               python-central,
+               python-dev (>= 2.6),
 Standards-Version: 3.8.0
 Homepage: http://www.ioremap.net/projects/elliptics
 XS-Python-Version: >= 2.6
