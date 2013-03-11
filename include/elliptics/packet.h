@@ -340,6 +340,7 @@ struct dnet_io_attr
 	 * When object's lifetime is over, it is removed from cache, but not from disk.
 	 */
 	uint64_t		start, num;
+	uint64_t		user_flags;
 	int			type;
 	uint32_t		flags;
 	uint64_t		offset;

@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
 		if (find) {
 			timer t("find");
 			std::vector<dnet_raw_id> results;
-			int result;
+			int result = 0;
 			try {
 				results = s.find_indexes(indexes);
 			} catch (error &e) {
