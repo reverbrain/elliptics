@@ -566,7 +566,7 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 		goto err_out_free;
 	}
 
-	err = dnet_common_add_remote_addr(n, &dnet_cfg_state, dnet_cfg_remotes);
+	err = dnet_common_add_remote_addr(n, dnet_cfg_remotes);
 	if (err)
 		goto err_out_node_destroy;
 
