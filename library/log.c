@@ -49,7 +49,7 @@ void dnet_log_raw(struct dnet_node *n, int level, const char *format, ...)
 	struct dnet_log *l = n->log;
 	int buflen = sizeof(buf);
 
-	if (!l->log || (l->log_level <= level))
+	if (!l->log || (l->log_level < level))
 		return;
 
 	va_start(args, format);
