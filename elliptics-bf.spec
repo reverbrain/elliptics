@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.1.1
+Version:	2.22.1.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Mar 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.1.2
+- Skip route table entries without addr list
+
 * Tue Mar 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.1.1
 - Simplify dnet_cmd_route_list() - allocate and send under state_lock route replies
 - If log levels match, log it

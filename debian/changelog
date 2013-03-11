@@ -1,3 +1,9 @@
+elliptics (2.22.1.2) unstable; urgency=low
+
+  * Skip route table entries without addr list
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 12 Mar 2013 01:29:45 +0400
+
 elliptics (2.22.1.1) unstable; urgency=low
 
   * Simplify dnet_cmd_route_list() - allocate and send under state_lock route replies
