@@ -340,17 +340,20 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 				sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr);
 
 			if (size > orig_size) {
-				buf = realloc(buf, orig_size);
+				buf = realloc(buf, size);
 				if (!buf) {
 					err = -ENOMEM;
 					goto err_out_unlock;
 				}
+
+				orig_size = size;
 			}
 
 			dnet_log(n, DNET_LOG_INFO, "%s: %d %s, id_num: %d, addr_num: %d\n",
 					dnet_server_convert_dnet_addr(&st->addrs[0]), g->group_id, dnet_dump_id_str(st->idc->ids[0].raw.id),
 					st->idc->id_num, n->addr_num);
 
+			memset(buf, 0, size);
 			cmd->id.group_id = g->group_id;
 			dnet_send_idc_fill(st, buf, size, &cmd->id, cmd->trans, DNET_CMD_ROUTE_LIST, 1, 0, 1);
 
