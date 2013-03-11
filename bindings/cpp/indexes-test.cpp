@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
 	for (size_t i = 0; i < TAGS_COUNT; ++i)
 		tags.push_back("tag_" + int_to_string(i + 1));
 
-	for (const std::string &str : objects) {
+	for (auto str : objects) {
 		key tmp = str;
 		tmp.transform(sess);
 		dnet_raw_id id;
