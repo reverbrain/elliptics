@@ -1794,7 +1794,7 @@ struct update_indexes_data
 			std::lock_guard<std::mutex> lock(scope->mutex);
 			++scope->finished;
 
-			if (result.exception()) {
+			if (result.exception() != std::exception_ptr()) {
 				on_fail(result.exception());
 				return;
 			}
@@ -1859,7 +1859,7 @@ struct update_indexes_data
 			std::lock_guard<std::mutex> lock(scope->mutex);
 			++scope->finished;
 
-			if (result.exception()) {
+			if (result.exception() != std::exception_ptr()) {
 				on_fail(result.exception());
 				return;
 			}
@@ -1880,7 +1880,7 @@ struct update_indexes_data
 
 		void operator() (const write_result &result)
 		{
-			if (result.exception()) {
+			if (result.exception() != std::exception_ptr()) {
 				scope->handler(result.exception());
 				return;
 			}
@@ -1984,7 +1984,7 @@ struct find_indexes_handler
 
 	void operator() (const bulk_read_result &bulk_result)
 	{
-		if (bulk_result.exception()) {
+		if (bulk_result.exception() != std::exception_ptr()) {
 			handler(bulk_result.exception());
 			return;
 		}
@@ -2070,7 +2070,7 @@ struct check_indexes_handler
 
 	void operator() (const read_result &read_result)
 	{
-		if (read_result.exception()) {
+		if (read_result.exception() != std::exception_ptr()) {
 			handler(read_result.exception());
 			return;
 		}
