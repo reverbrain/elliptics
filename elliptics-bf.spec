@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.1.0
+Version:	2.22.1.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Mar 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.1.1
+- Simplify dnet_cmd_route_list() - allocate and send under state_lock route replies
+- If log levels match, log it
+- Do not use modern for (type &var : container) loop, use old-school iterators, since the former is not supported in gcc 4.4
+- Use std::exeption_ptr() check instead of NULL cast, which is not supported in gcc 4.4
+
 * Mon Mar 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.1.0
 - Always request stats with DNET_ATTR_CNTR_GLOBAL flag set to grab global node's counters
 - dnet_log_raw() should use <= for log-level comparison
