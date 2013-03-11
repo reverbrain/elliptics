@@ -343,6 +343,11 @@ uint32_t session::get_ioflags() const
 	return m_data->ioflags;
 }
 
+void session::set_timeout(unsigned int timeout)
+{
+	dnet_session_set_timeout(m_data->session_ptr, timeout);
+}
+
 void session::read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size)
 {
 	int err;

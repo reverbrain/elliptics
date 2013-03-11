@@ -456,7 +456,10 @@ struct dnet_session {
 	struct dnet_node *node;
 	int group_num;
 	int *groups;
+	struct timespec wait_ts;
 };
+
+struct timespec *dnet_session_get_timeout(struct dnet_session *s);
 
 static inline int dnet_counter_init(struct dnet_node *n)
 {
@@ -531,6 +534,7 @@ struct dnet_trans
 	struct list_head		trans_list_entry;
 
 	struct timeval			time, start;
+	struct timespec			wait_ts;
 
 	struct dnet_net_state		*orig; /* only for forward */
 

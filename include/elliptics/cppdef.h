@@ -629,6 +629,8 @@ class session
 		 */
 		uint32_t		get_ioflags() const;
 
+		void			set_timeout(unsigned int timeout);
+
 		/*!
 		 * Read file by key \a id to \a file by \a offset and \a size.
 		 */

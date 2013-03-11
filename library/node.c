@@ -680,6 +680,8 @@ struct dnet_session *dnet_session_create(struct dnet_node *n)
 	s->node = n;
 	s->group_num = 0;
 	s->groups = NULL;
+	s->wait_ts.tv_sec = 0;
+	s->wait_ts.tv_nsec = 0;
 
 	return s;
 }
@@ -712,6 +714,16 @@ int dnet_session_set_groups(struct dnet_session *s, int *groups, int group_num)
 	s->group_num = group_num;
 
 	return 0;
+}
+
+void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout)
+{
+	s->wait_ts.tv_sec = wait_timeout;
+}
+
+struct timespec *dnet_session_get_timeout(struct dnet_session *s)
+{
+	return s->wait_ts.tv_sec ? &s->wait_ts : &s->node->wait_ts;
 }
 
 void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)

@@ -584,8 +584,9 @@ err_out_exit:
 	return 0;
 }
 
-static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_io_control *ctl, int *errp)
+static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dnet_io_control *ctl, int *errp)
 {
+	struct dnet_node *n = s->node;
 	struct dnet_io_req req;
 	struct dnet_trans *t = NULL;
 	struct dnet_io_attr *io;
@@ -601,6 +602,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 		tsize += size;
 
 	t = dnet_trans_alloc(n, tsize);
+	t->wait_ts = *dnet_session_get_timeout(s);
 	if (!t) {
 		err = -ENOMEM;
 		goto err_out_complete;
@@ -685,18 +687,17 @@ err_out_destroy:
 
 int dnet_trans_create_send_all(struct dnet_session *s, struct dnet_io_control *ctl)
 {
-	struct dnet_node *n = s->node;
 	int num = 0, i, err;
 
 	for (i=0; i<s->group_num; ++i) {
 		ctl->id.group_id = s->groups[i];
 
-		dnet_io_trans_create(n, ctl, &err);
+		dnet_io_trans_create(s, ctl, &err);
 		num++;
 	}
 
 	if (!num) {
-		dnet_io_trans_create(n, ctl, &err);
+		dnet_io_trans_create(s, ctl, &err);
 		num++;
 	}
 
@@ -792,7 +793,7 @@ static int dnet_write_file_id_raw(struct dnet_session *s, const char *file, stru
 	 */
 	atomic_sub(&w->refcnt, INT_MAX - trans_num - 1);
 
-	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == trans_num, dnet_session_get_timeout(s));
 	if (err || w->status) {
 		if (!err)
 			err = w->status;
@@ -927,7 +928,7 @@ int dnet_read_object(struct dnet_session *s, struct dnet_io_control *ctl)
 {
 	int err;
 
-	if (!dnet_io_trans_create(s->node, ctl, &err))
+	if (!dnet_io_trans_create(s, ctl, &err))
 		return err;
 
 	return 0;
@@ -983,7 +984,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 	if (err)
 		goto err_out_exit;
 
-	err = dnet_wait_event(w, w->cond != wait_init, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond != wait_init, dnet_session_get_timeout(s));
 	if ((err < 0) || (w->cond < 0)) {
 		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
@@ -1258,6 +1259,7 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id, uint64_t cfla
 	int err;
 
 	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd));
+	t->wait_ts = *dnet_session_get_timeout(s);
 	if (!t) {
 		err = -ENOMEM;
 		goto err_out_complete;
@@ -1457,7 +1459,7 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
 		return num;
 	}
 
-	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
@@ -1550,7 +1552,7 @@ int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl)
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
@@ -1646,7 +1648,7 @@ int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dn
 	dnet_wait_get(priv->w);
 	dnet_request_cmd_single(s, NULL, &ctl);
 
-	err = dnet_wait_event(priv->w, priv->w->cond == 1, &s->node->wait_ts);
+	err = dnet_wait_event(priv->w, priv->w->cond == 1, dnet_session_get_timeout(s));
 	dnet_wait_put(priv->w);
 	if (!err && priv) {
 		memcpy(status, &priv->status, sizeof(struct dnet_node_status));
@@ -1733,7 +1735,7 @@ int dnet_remove_object(struct dnet_session *s, struct dnet_id *id,
 		goto err_out_put;
 
 	if (w) {
-		err = dnet_wait_event(w, w->cond != err, &s->node->wait_ts);
+		err = dnet_wait_event(w, w->cond != err, dnet_session_get_timeout(s));
 		if (err)
 			goto err_out_put;
 
@@ -1774,7 +1776,7 @@ static int dnet_remove_file_raw(struct dnet_session *s, struct dnet_id *id, uint
 	num = err;
 	atomic_sub(&w->refcnt, 1024 - num);
 
-	err = dnet_wait_event(w, w->cond == num, &s->node->wait_ts);
+	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
 	if (err)
 		goto err_out_put;
 
@@ -1941,7 +1943,7 @@ void *dnet_read_data_wait_raw(struct dnet_session *s, struct dnet_id *id, struct
 	if (err)
 		goto err_out_put_complete;
 
-	err = dnet_wait_event(w, w->cond, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond, dnet_session_get_timeout(s));
 	if (err || w->status) {
 		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
@@ -2100,7 +2102,7 @@ int dnet_write_data_wait(struct dnet_session *s, struct dnet_io_control *ctl, vo
 	 */
 	atomic_sub(&w->refcnt, INT_MAX - trans_num - 1);
 
-	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == trans_num, dnet_session_get_timeout(s));
 	if (err || w->status) {
 		if (!err)
 			err = w->status;
@@ -2407,7 +2409,7 @@ int dnet_start_defrag(struct dnet_session *s, uint64_t cflags)
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
 	if (!err)
 		err = w->status;
 

@@ -117,7 +117,7 @@ int dnet_request_check(struct dnet_session *s, struct dnet_check_request *r)
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
 	if (err)
 		goto err_out_put;
 

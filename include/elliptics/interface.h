@@ -408,6 +408,7 @@ struct dnet_config
 struct dnet_node *dnet_get_node_from_state(void *state);
 
 int __attribute__((weak)) dnet_session_set_groups(struct dnet_session *s, int *groups, int group_num);
+void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout);
 
 /*
  * Logging helpers.
