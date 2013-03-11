@@ -290,7 +290,7 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	if (orig->data && orig->dsize) {
 		r->data = buf + sizeof(struct dnet_io_req) + offset;
 		r->dsize = orig->dsize;
-		
+
 		offset += r->dsize;
 		memcpy(r->data, orig->data, r->dsize);
 	}
