@@ -176,19 +176,19 @@ int main(int argc, char *argv[])
 	for (size_t i = 0; i < TAGS_COUNT; ++i)
 		tags.push_back("tag_" + int_to_string(i + 1));
 
-	for (auto str : objects) {
-		key tmp = str;
+	for (auto it = objects.begin(); it != objects.end(); ++it) {
+		key tmp = *it;
 		tmp.transform(sess);
 		dnet_raw_id id;
 		memcpy(id.id, tmp.id().id, sizeof(id.id));
-		hash[id] = str;
+		hash[id] = *it;
 	}
-	for (const std::string &str : tags) {
-		key tmp = str;
+	for (auto it = tags.begin(); it != tags.end(); ++it) {
+		key tmp = *it;
 		tmp.transform(sess);
 		dnet_raw_id id;
 		memcpy(id.id, tmp.id().id, sizeof(id.id));
-		hash[id] = str;
+		hash[id] = *it;
 	}
 
 	clear(sess);
