@@ -508,6 +508,12 @@ static int dnet_leveldb_iterator(struct dnet_iterator_ctl *ictl)
 		if (err != 0)
 			goto err_destroy;
 
+		/* Set val to NULL in case it's not requested */
+		if (!(ictl->flags & DNET_ITERATOR_DATA)) {
+			val = NULL;
+			vsize = 0;
+		}
+
 		err = ictl->callback(ictl->callback_private, key, ksize, val, vsize, &elist);
 		if (err != 0) {
 			dnet_backend_log(DNET_LOG_DEBUG, "leveldb: ictl->callback: FAILED: %d", err);

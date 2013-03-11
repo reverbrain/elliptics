@@ -244,6 +244,10 @@ struct dnet_iterate_ctl {
 	void				*callback_private;
 };
 
+enum dnet_iterator_flags {
+	DNET_ITERATOR_DATA = 1,
+};
+
 /*
  * New-style iterator control
  */
