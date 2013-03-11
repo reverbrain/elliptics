@@ -348,7 +348,7 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 	}
 
 	if (pfd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
-		dnet_log(st->n, DNET_LOG_DEBUG, "Connection reset by peer: sock: %d, revents: %x.\n",
+		dnet_log(st->n, DNET_LOG_ERROR, "Connection reset by peer: sock: %d, revents: %x.\n",
 			st->read_s, pfd.revents);
 		err = -ECONNRESET;
 		goto out_exit;
@@ -521,7 +521,7 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 			return err;
 		}
 
-		err = recv(st->read_s, data, size, 0);
+		err = recv(st->read_s, data, size, MSG_DONTWAIT);
 		if (err < 0) {
 			dnet_log_err(st->n, "Failed to recv packet: size: %u", size);
 			return err;

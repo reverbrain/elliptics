@@ -1,3 +1,18 @@
+elliptics (2.22.1.0) unstable; urgency=low
+
+  * Always request stats with DNET_ATTR_CNTR_GLOBAL flag set to grab global node's counters
+  * dnet_log_raw() should use <= for log-level comparison
+  * Added secondary indexes
+  * Added msgpack dependency
+  * Moved dnet_ioclient to new exec API
+  * Added new client exec API
+  * Fixed connection to 2.22 servers
+  * Let's all exec commands block if they do not have sph
+  * Updated cocaine config
+  * Fixed segfault at connection to elder servers
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 11 Mar 2013 22:18:49 +0400
+
 elliptics (2.22.0.0) unstable; urgency=low
 
   * Added high-level write_cas method

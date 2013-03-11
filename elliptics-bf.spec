@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.0.0
+Version:	2.22.1.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,18 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Mar 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.1.0
+- Always request stats with DNET_ATTR_CNTR_GLOBAL flag set to grab global node's counters
+- dnet_log_raw() should use <= for log-level comparison
+- Added secondary indexes
+- Added msgpack dependency
+- Moved dnet_ioclient to new exec API
+- Added new client exec API
+- Fixed connection to 2.22 servers
+- Let's all exec commands block if they do not have sph
+- Updated cocaine config
+- Fixed segfault at connection to elder servers
+
 * Mon Mar 04 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.0.0
 - Added high-level write_cas method
 - Fixed memory leak
