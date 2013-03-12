@@ -2353,6 +2353,8 @@ static int dnet_start_defrag_complete(struct dnet_net_state *state, struct dnet_
 
 	if (is_trans_destroyed(state, cmd)) {
 		dnet_wakeup(w, w->cond++);
+		if (cmd)
+			w->status = cmd->status;
 		dnet_wait_put(w);
 		return 0;
 	}
@@ -2406,8 +2408,14 @@ int dnet_start_defrag(struct dnet_session *s, uint64_t cflags)
 	pthread_mutex_unlock(&n->state_lock);
 
 	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
+	if (!err)
+		err = w->status;
+
 	dnet_wait_put(w);
 
 err_out_exit:
+	if (err) {
+		dnet_log(n, DNET_LOG_ERROR, "Defragmentation didn't start: %s [%d]\n", strerror(-err), err);
+	}
 	return err;
 }
