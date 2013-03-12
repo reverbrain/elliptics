@@ -374,7 +374,7 @@ int main(int argc, char *argv[])
 				dnet_addr *addr = result.address();
 				dnet_addr_stat *as = result.statistics();
 
-				for (int j = 0; j < (cmd->size - sizeof(struct dnet_addr_stat)) / sizeof(struct dnet_stat_count); ++j) {
+				for (int j = 0; j < (int)((cmd->size - sizeof(struct dnet_addr_stat)) / sizeof(struct dnet_stat_count)); ++j) {
 					if (j == 0)
 						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: storage-to-storage commands\n",
 							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
