@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.1.2
+Version:	2.22.2.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Mar 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.2.0
+- Return status of defragmentation request
+- Return node's address, not client's one.
+- Added leveldb->lookup()
+- finder::parse_lookup() should not drop dnet_file_info if no filename provided
+- Changed exec async API
+- Moved groups to dnet_session
+- Moved cflags/ioflags to dnet_session
+- Added wait timeout to session
+
 * Tue Mar 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.1.2
 - Skip route table entries without addr list
 

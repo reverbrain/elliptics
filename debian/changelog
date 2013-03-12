@@ -1,3 +1,16 @@
+elliptics (2.22.2.0) unstable; urgency=low
+
+  * Return status of defragmentation request
+  * Return node's address, not client's one.
+  * Added leveldb->lookup()
+  * finder::parse_lookup() should not drop dnet_file_info if no filename provided
+  * Changed exec async API
+  * Moved groups to dnet_session
+  * Moved cflags/ioflags to dnet_session
+  * Added wait timeout to session
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Mar 2013 00:10:25 +0400
+
 elliptics (2.22.1.2) unstable; urgency=low
 
   * Skip route table entries without addr list
