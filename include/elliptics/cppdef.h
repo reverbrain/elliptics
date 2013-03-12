@@ -84,6 +84,8 @@ class error_info
 
 		inline int code() const { return m_code; }
 		inline const std::string &message() const { return m_message; }
+		inline operator bool() const { return m_code != 0; }
+		inline bool operator !() const { return !operator bool(); }
 
 		void throw_error() const;
 	private:
@@ -408,6 +410,22 @@ class stat_count_result_entry : public callback_result_entry
 };
 
 class exec_context;
+class exec_result_data;
+
+class exec_result_entry : public callback_result_entry
+{
+	public:
+		exec_result_entry();
+		exec_result_entry(const std::shared_ptr<exec_result_data> &data);
+		exec_result_entry(const exec_result_entry &other);
+		~exec_result_entry();
+
+		exec_result_entry &operator =(const exec_result_entry &other);
+
+		error_info error() const;
+
+		exec_context context() const;
+};
 
 typedef lookup_result_entry write_result_entry;
 typedef result_holder<read_result_entry> read_result;
@@ -421,9 +439,12 @@ typedef result_holder<lookup_result_entry> lookup_result;
 typedef array_result_holder<stat_result_entry> stat_result;
 typedef array_result_holder<stat_count_result_entry> stat_count_result;
 typedef array_result_holder<int> prepare_latest_result;
-typedef array_result_holder<exec_context> exec_result;
-typedef std::exception_ptr push_result;
-typedef std::exception_ptr reply_result;
+
+typedef exec_result_entry exec_result;
+typedef std::vector<exec_result> exec_results;
+typedef exec_result_entry push_result;
+typedef exec_result_entry reply_result;
+
 typedef std::exception_ptr update_indexes_result;
 typedef array_result_holder<dnet_raw_id> find_indexes_result;
 typedef array_result_holder<dnet_raw_id> check_indexes_result;
@@ -447,6 +468,7 @@ class exec_context
 		std::string event() const;
 		data_pointer data() const;
 		dnet_addr *address() const;
+		bool is_final() const;
 
 	private:
 		friend class session;
@@ -994,8 +1016,10 @@ class session
 		 */
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
+		void exec(const std::function<void (const exec_result &)> &handler, const std::function<void ()> &complete_handler,
+			dnet_id *id, const std::string &event, const data_pointer &data);
 		void exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data);
-		exec_result exec(dnet_id *id, const std::string &event, const data_pointer &data);
+		exec_results exec(dnet_id *id, const std::string &event, const data_pointer &data);
 
 		void push(const std::function<void (const push_result &)> &handler, dnet_id *id,
 				const exec_context &context, const std::string &event, const data_pointer &data);
@@ -1104,6 +1128,7 @@ class session
 		std::shared_ptr<session_data>		m_data;
 
 		void request(const std::function<void (const exec_result &)> &handler,
+				const std::function<void ()> &complete_handler,
 				dnet_id *id, const exec_context &context);
 		void			mix_states(const key &id, std::vector<int> &groups);
 		void			mix_states(std::vector<int> &groups);

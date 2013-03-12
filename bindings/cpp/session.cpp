@@ -195,6 +195,11 @@ dnet_addr *exec_context::address() const
 	return m_data ? &m_data->sph.data<sph>()->addr : NULL;
 }
 
+bool exec_context::is_final() const
+{
+	return m_data ? (m_data->sph.data<sph>()->flags & DNET_SPH_FLAGS_FINISH) : false;
+}
+
 struct dnet_indexes
 {
 	std::vector<dnet_raw_id> indexes;
@@ -1364,12 +1369,14 @@ std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
 }
 
 void session::request(const std::function<void (const exec_result &)> &handler,
+		const std::function<void ()> &complete_handler,
 		dnet_id *id, const exec_context &context)
 {
 	exec_callback::ptr cb = std::make_shared<exec_callback>(*this);
 	cb->id = id;
 	cb->sph = context.m_data->sph.data<sph>();
 	cb->handler = handler;
+	cb->complete_handler = complete_handler;
 
 	startCallback(cb);
 }
@@ -1414,7 +1421,8 @@ std::vector<int> session::mix_states()
 	return result;
 }
 
-void session::exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data)
+void session::exec(const std::function<void (const exec_result &)> &handler, const std::function<void ()> &complete_handler,
+	dnet_id *id, const std::string &event, const data_pointer &data)
 {
 	exec_context context = exec_context_data::create(event, data);
 
@@ -1424,25 +1432,36 @@ void session::exec(const std::function<void (const exec_result &)> &handler, dne
 	if (id)
 		memcpy(s->src.id, id->id, sizeof(s->src.id));
 
-	request(handler, id, context);
+	request(handler, complete_handler, id, context);
 }
 
-exec_result session::exec(dnet_id *id, const std::string &event, const data_pointer &data)
+void session::exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data)
 {
-	waiter<exec_result> w;
-	exec(w.handler(), id, event, data);
-	return w.result();
+	exec(handler, std::function<void ()>(), id, event, data);
 }
 
-struct push_converter
+struct exec_results_aggregator
 {
-	std::function<void (const push_result &)> handler;
+	std::mutex &mutex;
+	exec_results &results;
 
-	void operator() (const exec_result &result) const
+	void operator() (const exec_result &result)
 	{
-		handler(result.exception());
+		std::lock_guard<std::mutex> locker(mutex);
+		results.push_back(result);
 	}
 };
+
+exec_results session::exec(dnet_id *id, const std::string &event, const data_pointer &data)
+{
+	std::mutex mutex;
+	exec_results results;
+	exec_results_aggregator functor = { mutex, results };
+	waiter<void> w;
+	exec(functor, w.handler(), id, event, data);
+	w.wait();
+	return results;
+}
 
 void session::push(const std::function<void (const push_result &)> &handler, dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
 {
@@ -1451,8 +1470,7 @@ void session::push(const std::function<void (const push_result &)> &handler, dne
 	sph *s = context.m_data->sph.data<sph>();
 	s->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
 
-	push_converter functor = { handler };
-	request(functor, id, context);
+	request(handler, std::function<void ()>(), id, context);
 }
 
 void session::push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data)
@@ -1480,8 +1498,7 @@ void session::reply(const std::function<void (const reply_result &)> &handler, c
 	dnet_setup_id(&id, 0, s->src.id);
 	id.type = 0;
 
-	push_converter functor = { handler };
-	request(functor, &id, context);
+	request(handler, std::function<void ()>(), &id, context);
 }
 
 void session::reply(const exec_context &context, const data_pointer &data, exec_context::final_state state)
@@ -1494,9 +1511,9 @@ void session::reply(const exec_context &context, const data_pointer &data, exec_
 std::string session::exec_locked(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &)
 {
 	std::string result;
-	std::vector<exec_context> results = exec(id, event, data);
+	exec_results results = exec(id, event, data);
 	for (size_t i = 0; i < results.size(); ++i)
-		result += results[i].data().to_string();
+		result += results[i].context().data().to_string();
 	return result;
 }
 

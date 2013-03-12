@@ -55,7 +55,7 @@ class callback_result_data
 			memcpy(data.data<char>() + sizeof(struct dnet_addr), cmd, sizeof(struct dnet_cmd) + cmd->size);
 		}
 
-		~callback_result_data()
+		virtual ~callback_result_data()
 		{
 		}
 
@@ -96,11 +96,16 @@ class default_callback
 			if (is_trans_destroyed(state, cmd)) {
 				++m_complete;
 			} else {
-				if (!(cmd->flags & DNET_FLAGS_MORE))
-					m_statuses.push_back(cmd->status);
-				m_results.push_back(std::make_shared<callback_result_data>(state, cmd));
+				process(cmd, callback_result_data(state, cmd));
 			}
 			return (m_count == m_complete);
+		}
+
+		virtual void process(struct dnet_cmd *cmd, const callback_result_data &data)
+		{
+			if (!(cmd->flags & DNET_FLAGS_MORE))
+				m_statuses.push_back(cmd->status);
+			m_results.push_back(std::make_shared<callback_result_data>(data));
 		}
 
 		bool is_ready()
@@ -174,7 +179,7 @@ class default_callback
 			m_complete = 0;
 		}
 
-	private:
+	protected:
 		std::vector<callback_result_entry> m_results;
 		std::vector<int> m_statuses;
 		size_t m_count;
@@ -890,12 +895,19 @@ class remove_callback : public default_callback
 		std::function<void (const std::exception_ptr &)> handler;
 };
 
+class exec_result_data : public callback_result_data
+{
+	public:
+		error_info error;
+		exec_context context;
+};
+
 class exec_callback : public default_callback
 {
 	public:
 		typedef std::shared_ptr<exec_callback> ptr;
 
-		exec_callback(const session &sess) : sess(sess), id(NULL), sph(NULL)
+		exec_callback(const session &sess) : sess(sess), id(NULL), sph(NULL), complete(0)
 		{
 		}
 
@@ -905,34 +917,48 @@ class exec_callback : public default_callback
 
 			int err = dnet_send_cmd(sess.get_native(), id, func, priv, sph);
 			if (err < 0) {
-				char buffer[64];
+				if (complete_handler)
+					complete_handler();
+				char buffer[128];
 				strncpy(buffer, sph->data, std::min<size_t>(sizeof(buffer), sph->event_size));
 				buffer[sizeof(buffer) - 1] = '\0';
 				throw_error(err, "failed to execute cmd: %s", buffer);
 			}
 
-			return set_count(err);
+			bool finished = set_count(err);
+			if (finished && complete_handler)
+				complete_handler();
+			return finished;
+		}
+
+
+		virtual void process(struct dnet_cmd *cmd, const callback_result_data &generic_data)
+		{
+			// this method is run only inside mutex lock
+			auto data = std::make_shared<exec_result_data>();
+			data->data = generic_data.data;
+			if (cmd->status) {
+				data->error = create_error(cmd->status, cmd->id, "Failed to process execution request");
+			} else {
+				data->context = exec_context(data->data);
+			}
+			handler(exec_result_entry(data));
+			++complete;
+			if (complete_handler && data->context.is_final() && m_count == complete)
+				complete_handler();
 		}
 
 		void finish(std::exception_ptr exc)
 		{
-			if (exc != std::exception_ptr()) {
-				handler(exc);
-			} else {
-				std::vector<exec_context> result;
-				for (size_t i = 0; i < results_size(); ++i) {
-					const callback_result_entry &entry = result_at(i);
-					if (entry.size() > sizeof(struct sph))
-						result.push_back(exec_context(entry.data()));
-				}
-				handler(result);
-			}
+			(void) exc;
 		}
 
 		session sess;
 		struct dnet_id *id;
 		struct sph *sph;
+		size_t complete;
 		std::function<void (const exec_result &)> handler;
+		std::function<void ()> complete_handler;
 };
 
 inline void check_for_exception(const std::exception_ptr &result)
@@ -953,8 +979,43 @@ void check_for_exception(const array_result_holder<T> &result)
 	result.check();
 }
 
+inline void check_for_exception(const exec_result_entry &result)
+{
+	if (result.error())
+		result.error().throw_error();
+}
+
+class generic_waiter
+{
+	ELLIPTICS_DISABLE_COPY(generic_waiter)
+	public:
+		generic_waiter() : m_result_ready(false)
+		{
+		}
+
+		void finished()
+		{
+			std::lock_guard<std::mutex> locker(m_mutex);
+			m_result_ready = true;
+			m_condition.notify_all();
+		}
+
+		void wait()
+		{
+			std::unique_lock<std::mutex> locker(m_mutex);
+
+			while (!m_result_ready)
+				m_condition.wait(locker);
+		}
+
+	private:
+		std::mutex			m_mutex;
+		std::condition_variable		m_condition;
+		bool				m_result_ready;
+};
+
 template <typename T>
-class waiter
+class waiter : public generic_waiter
 {
 	ELLIPTICS_DISABLE_COPY(waiter)
 	public:
@@ -973,7 +1034,7 @@ class waiter
 
 		};
 
-		waiter() : m_result_ready(false)
+		waiter()
 		{
 		}
 
@@ -991,25 +1052,42 @@ class waiter
 
 		void handle_result(const T &result)
 		{
-			std::lock_guard<std::mutex> locker(m_mutex);
 			m_result = result;
-			m_result_ready = true;
-			m_condition.notify_all();
-		}
-
-		void wait()
-		{
-			std::unique_lock<std::mutex> locker(m_mutex);
-
-			while (!m_result_ready)
-				m_condition.wait(locker);
+			finished();
 		}
 
 	private:
-		std::mutex			m_mutex;
-		std::condition_variable		m_condition;
-		T				m_result;
-		bool				m_result_ready;
+		T	m_result;
+};
+
+template <>
+class waiter<void> : public generic_waiter
+{
+	ELLIPTICS_DISABLE_COPY(waiter)
+	public:
+		class handler_impl
+		{
+			public:
+				explicit handler_impl(waiter *parent) : m_parent(parent) {}
+
+				void operator() ()
+				{
+					m_parent->finished();
+				}
+
+			private:
+				waiter *m_parent;
+
+		};
+
+		waiter()
+		{
+		}
+
+		handler_impl handler()
+		{
+			return handler_impl(this);
+		}
 };
 
 extern std::set<void*> &assertion_callback_set();

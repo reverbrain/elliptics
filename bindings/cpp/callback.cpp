@@ -215,4 +215,41 @@ struct dnet_addr_stat *stat_count_result_entry::statistics() const
 		.data<struct dnet_addr_stat>();
 }
 
+exec_result_entry::exec_result_entry()
+{
+}
+
+exec_result_entry::exec_result_entry(const std::shared_ptr<exec_result_data> &data)
+	: callback_result_entry(std::static_pointer_cast<callback_result_data>(data))
+{
+}
+
+exec_result_entry::exec_result_entry(const exec_result_entry &other) : callback_result_entry(other)
+{
+}
+
+exec_result_entry::~exec_result_entry()
+{
+}
+
+exec_result_entry &exec_result_entry::operator =(const exec_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+error_info exec_result_entry::error() const
+{
+	auto data = static_cast<exec_result_data*>(m_data.get());
+	return data->error;
+}
+
+exec_context exec_result_entry::context() const
+{
+	auto data = static_cast<exec_result_data*>(m_data.get());
+	if (data->error)
+		data->error.throw_error();
+	return static_cast<exec_result_data*>(m_data.get())->context;
+}
+
 } } // namespace ioremap::elliptics
