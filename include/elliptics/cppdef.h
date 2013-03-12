@@ -609,7 +609,7 @@ class session
 		/*!
 		 * Gets groups of the session.
 		 */
-		const std::vector<int> &get_groups() const;
+		std::vector<int>	get_groups() const;
 
 		/*!
 		 * Sets command flags \a cflags to the session.

@@ -406,7 +406,8 @@ struct dnet_config
 
 struct dnet_node *dnet_get_node_from_state(void *state);
 
-int __attribute__((weak)) dnet_session_set_groups(struct dnet_session *s, int *groups, int group_num);
+int __attribute__((weak)) dnet_session_set_groups(struct dnet_session *s, const int *groups, int group_num);
+int *dnet_session_get_groups(struct dnet_session *s, int *count);
 void dnet_session_set_ioflags(struct dnet_session *s, uint32_t ioflags);
 uint32_t dnet_session_get_ioflags(struct dnet_session *s);
 void dnet_session_set_cflags(struct dnet_session *s, uint64_t cflags);

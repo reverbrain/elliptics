@@ -287,8 +287,6 @@ class session_data
 
 		struct dnet_session	*session_ptr;
 		node			node_guard;
-
-		std::vector<int>	groups;
 };
 
 session::session(const node &n) : m_data(std::make_shared<session_data>(n))
@@ -311,14 +309,15 @@ session &session::operator =(const session &other)
 
 void session::set_groups(const std::vector<int> &groups)
 {
-	m_data->groups = groups;
-	if (dnet_session_set_groups(m_data->session_ptr, &m_data->groups[0], groups.size()))
+	if (dnet_session_set_groups(m_data->session_ptr, groups.data(), groups.size()))
 		throw std::bad_alloc();
 }
 
-const std::vector<int> &session::get_groups() const
+std::vector<int> session::get_groups() const
 {
-	return m_data->groups;
+	int count = 0;
+	int *groups = dnet_session_get_groups(m_data->session_ptr, &count);
+	return std::vector<int>(groups, groups + count);
 }
 
 void session::set_cflags(uint64_t cflags)

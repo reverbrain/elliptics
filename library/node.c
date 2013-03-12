@@ -689,7 +689,7 @@ void dnet_session_destroy(struct dnet_session *s)
 	free(s);
 }
 
-int dnet_session_set_groups(struct dnet_session *s, int *groups, int group_num)
+int dnet_session_set_groups(struct dnet_session *s, const int *groups, int group_num)
 {
 	int *g, i;
 
@@ -711,6 +711,12 @@ int dnet_session_set_groups(struct dnet_session *s, int *groups, int group_num)
 	s->group_num = group_num;
 
 	return 0;
+}
+
+int *dnet_session_get_groups(struct dnet_session *s, int *count)
+{
+	*count = s->group_num;
+	return s->groups;
 }
 
 void dnet_session_set_ioflags(struct dnet_session *s, uint32_t ioflags)
