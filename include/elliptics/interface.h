@@ -151,7 +151,7 @@ int dnet_read_object(struct dnet_session *s, struct dnet_io_control *ctl);
  * Returns NULL and set @errp when error happens
  */
 void *dnet_read_data_wait(struct dnet_session *s, struct dnet_id *id,
-		struct dnet_io_attr *io, uint64_t cflags, int *errp);
+		struct dnet_io_attr *io, int *errp);
 
 int dnet_search_range(struct dnet_node *n, struct dnet_id *id,
 		struct dnet_raw_id *start, struct dnet_raw_id *next);
@@ -196,11 +196,10 @@ int __attribute__((weak)) dnet_write_data_wait(struct dnet_session *s, struct dn
  * Returns negative error value in case of error.
  */
 int dnet_write_file_id(struct dnet_session *s, const char *file, struct dnet_id *id, uint64_t local_offset,
-		uint64_t remote_offset, uint64_t size, uint64_t cflags, unsigned int ioflags);
+		uint64_t remote_offset, uint64_t size);
 
 int dnet_write_file(struct dnet_session *s, const char *file, const void *remote, int remote_len,
-		uint64_t local_offset, uint64_t remote_offset, uint64_t size,
-		uint64_t cflags, unsigned int ioflags, int type);
+		uint64_t local_offset, uint64_t remote_offset, uint64_t size, int type);
 
 enum dnet_log_level {
 	DNET_LOG_DATA = 0,
@@ -408,6 +407,10 @@ struct dnet_config
 struct dnet_node *dnet_get_node_from_state(void *state);
 
 int __attribute__((weak)) dnet_session_set_groups(struct dnet_session *s, int *groups, int group_num);
+void dnet_session_set_ioflags(struct dnet_session *s, uint32_t ioflags);
+uint32_t dnet_session_get_ioflags(struct dnet_session *s);
+void dnet_session_set_cflags(struct dnet_session *s, uint64_t cflags);
+uint64_t dnet_session_get_cflags(struct dnet_session *s);
 void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout);
 
 /*
@@ -591,7 +594,7 @@ static inline char *dnet_dump_id_str(const unsigned char *id)
  * Effectively dnet_lookup() is a dnet_lookup_object() with dnet_lookup_complete()
  * 	completion function.
  */
-int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id, uint64_t cflags,
+int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, void *),
 	void *priv);
 
@@ -651,7 +654,7 @@ int __attribute__((weak)) dnet_send_reply(void *state, struct dnet_cmd *cmd, voi
  * still be called.
  */
 int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
-	unsigned int cmd, uint64_t cflags,
+	unsigned int cmd,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
@@ -718,16 +721,15 @@ int dnet_remove_object(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
-	void *priv,
-	uint64_t cflags, uint64_t ioflags);
+	void *priv);
 
 /* Remove object with @id from the storage immediately */
-int dnet_remove_object_now(struct dnet_session *s, struct dnet_id *id, uint64_t cflags, uint64_t ioflags);
+int dnet_remove_object_now(struct dnet_session *s, struct dnet_id *id);
 
 /*
  * Remove given file (identified by name or ID) from the storage.
  */
-int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags, uint64_t ioflags);
+int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struct dnet_id *id);
 
 /*
  * Transformation helper, which uses *ppos as an index for transformation function.
@@ -736,7 +738,7 @@ int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struc
  */
 int __attribute__((weak)) dnet_transform(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id);
 
-int dnet_request_ids(struct dnet_session *s, struct dnet_id *id, uint64_t cflags,
+int dnet_request_ids(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
@@ -785,10 +787,10 @@ int dnet_read_meta(struct dnet_session *s, struct dnet_meta_container *mc,
 struct dnet_meta *dnet_meta_search(struct dnet_node *n, struct dnet_meta_container *mc, uint32_t type);
 
 void dnet_create_meta_update(struct dnet_meta *m, struct timespec *ts, uint64_t flags_set, uint64_t flags_clear);
-int dnet_write_metadata(struct dnet_session *s, struct dnet_meta_container *mc, int convert, uint64_t cflags);
+int dnet_write_metadata(struct dnet_session *s, struct dnet_meta_container *mc, int convert);
 int dnet_create_write_metadata(struct dnet_session *s, struct dnet_metadata_control *ctl);
 int dnet_create_write_metadata_strings(struct dnet_session *s, const void *remote, unsigned int remote_len,
-		struct dnet_id *id, struct timespec *ts, uint64_t cflags);
+		struct dnet_id *id, struct timespec *ts);
 int dnet_create_metadata(struct dnet_session *s, struct dnet_metadata_control *ctl, struct dnet_meta_container *mc);
 void dnet_meta_print(struct dnet_session *s, struct dnet_meta_container *mc);
 
@@ -912,8 +914,7 @@ int dnet_send_cmd(struct dnet_session *s,
 			struct dnet_cmd *cmd,
 			void *priv),
 	void *priv,
-	struct sph *e,
-	uint64_t cflags);
+	struct sph *e);
 
 int dnet_flags(struct dnet_node *n);
 void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout);
@@ -921,7 +922,7 @@ void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)
 #define DNET_CONF_ADDR_DELIM	':'
 int dnet_parse_addr(char *addr, int *portp, int *familyp);
 
-int dnet_start_defrag(struct dnet_session *s, uint64_t cflags);
+int dnet_start_defrag(struct dnet_session *s);
 
 int dnet_discovery_add(struct dnet_node *n, char *remote_addr, int remote_port, int remote_family);
 

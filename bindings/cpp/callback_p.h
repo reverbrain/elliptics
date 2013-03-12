@@ -194,8 +194,11 @@ class base_stat_callback : public default_callback
 		{
 			set_count(unlimited);
 
+			uint64_t cflags_pop = sess.get_cflags();
+			sess.set_cflags(cflags_pop | DNET_ATTR_CNTR_GLOBAL);
 			int err = dnet_request_stat(sess.get_native(),
-				has_id ? &id : NULL, Command, DNET_ATTR_CNTR_GLOBAL, func, priv);
+				has_id ? &id : NULL, Command, func, priv);
+			sess.set_cflags(cflags_pop);
 			if (err < 0) {
 				throw_error(err, "Failed to request statistics");
 			}
@@ -403,7 +406,7 @@ class lookup_callback : public multigroup_callback
 			cb.clear();
 			cb.set_count(unlimited);
 
-			int err = dnet_lookup_object(sess.get_native(), &id, 0, func, priv);
+			int err = dnet_lookup_object(sess.get_native(), &id, func, priv);
 			if (err) {
 				throw_error(err, kid, "Failed to lookup ID");
 			}
@@ -714,19 +717,22 @@ class prepare_latest_callback : public default_callback
 
 		prepare_latest_callback(const session &sess, const std::vector<int> &groups) : sess(sess), groups(groups)
 		{
-			cflags = DNET_ATTR_META_TIMES | sess.get_cflags();
 		}
 
 		bool start(complete_func func, void *priv)
 		{
 			set_count(unlimited);
 
+			uint64_t cflags_pop = sess.get_cflags();
+			sess.set_cflags(sess.get_cflags() | DNET_ATTR_META_TIMES);
+
 			dnet_id raw = id.id();
 			for (size_t i = 0; i < groups.size(); ++i) {
 				raw.group_id = groups[i];
-				dnet_lookup_object(sess.get_native(), &raw, cflags, func, priv);
+				dnet_lookup_object(sess.get_native(), &raw, func, priv);
 			}
 
+			sess.set_cflags(cflags_pop);
 			return set_count(groups.size());
 		}
 
@@ -765,7 +771,6 @@ class prepare_latest_callback : public default_callback
 		const std::vector<int> &groups;
 		key id;
 		uint32_t group_id;
-		uint64_t cflags;
 		std::function<void (const prepare_latest_result &)> handler;
 };
 
@@ -830,7 +835,6 @@ class remove_callback : public default_callback
 		remove_callback(const session &sess, const dnet_id &id)
 			: sess(sess), id(id)
 		{
-			cflags = sess.get_cflags() | DNET_FLAGS_NEED_ACK | DNET_ATTR_DELETE_HISTORY;
 		}
 
 		bool start(complete_func func, void *priv)
@@ -841,8 +845,11 @@ class remove_callback : public default_callback
 			std::copy(sess_groups.begin(), sess_groups.end(),
 				std::inserter(groups, groups.begin()));
 
+			uint64_t cflags_pop = sess.get_cflags();
+			sess.set_cflags(cflags_pop | DNET_ATTR_DELETE_HISTORY);
 			int err = dnet_remove_object(sess.get_native(), &id,
-				func, priv, cflags, sess.get_ioflags());
+				func, priv);
+			sess.set_cflags(cflags_pop);
 
 			if (err < 0) {
 				throw_error(err, id, "REMOVE");
@@ -879,7 +886,6 @@ class remove_callback : public default_callback
 
 		session sess;
 		std::set<int> groups;
-		uint64_t cflags;
 		dnet_id id;
 		std::function<void (const std::exception_ptr &)> handler;
 };
@@ -897,7 +903,7 @@ class exec_callback : public default_callback
 		{
 			set_count(unlimited);
 
-			int err = dnet_send_cmd(sess.get_native(), id, func, priv, sph, sess.get_cflags());
+			int err = dnet_send_cmd(sess.get_native(), id, func, priv, sph);
 			if (err < 0) {
 				char buffer[64];
 				strncpy(buffer, sph->data, std::min<size_t>(sizeof(buffer), sph->event_size));

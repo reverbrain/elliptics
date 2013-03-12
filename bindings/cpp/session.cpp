@@ -271,7 +271,7 @@ namespace ioremap { namespace elliptics {
 class session_data
 {
 	public:
-		session_data(const node &n) : node_guard(n), cflags(0), ioflags(0)
+		session_data(const node &n) : node_guard(n)
 		{
 			session_ptr = dnet_session_create(node_guard.get_native());
 			if (!session_ptr)
@@ -289,8 +289,6 @@ class session_data
 		node			node_guard;
 
 		std::vector<int>	groups;
-		uint64_t		cflags;
-		uint32_t		ioflags;
 };
 
 session::session(const node &n) : m_data(std::make_shared<session_data>(n))
@@ -325,22 +323,22 @@ const std::vector<int> &session::get_groups() const
 
 void session::set_cflags(uint64_t cflags)
 {
-	m_data->cflags = cflags;
+	dnet_session_set_cflags(m_data->session_ptr, cflags);
 }
 
 uint64_t session::get_cflags() const
 {
-	return m_data->cflags;
+	return dnet_session_get_cflags(m_data->session_ptr);
 }
 
 void session::set_ioflags(uint32_t ioflags)
 {
-	m_data->ioflags = ioflags;
+	dnet_session_set_ioflags(m_data->session_ptr, ioflags);
 }
 
 uint32_t session::get_ioflags() const
 {
-	return m_data->ioflags;
+	return dnet_session_get_ioflags(m_data->session_ptr);
 }
 
 void session::set_timeout(unsigned int timeout)
@@ -374,10 +372,10 @@ void session::write_file(const key &id, const std::string &file, uint64_t local_
 
 	if (id.by_id()) {
 		dnet_id raw = id.id();
-		err = dnet_write_file_id(m_data->session_ptr, file.c_str(), &raw, local_offset, offset, size, m_data->cflags, m_data->cflags);
+		err = dnet_write_file_id(m_data->session_ptr, file.c_str(), &raw, local_offset, offset, size);
 	} else {
 		err = dnet_write_file(m_data->session_ptr, file.c_str(), id.remote().c_str(), id.remote().size(),
-							 local_offset, offset, size, m_data->cflags, m_data->cflags, id.type());
+							 local_offset, offset, size, id.type());
 	}
 	if (err) {
 		transform(id);
@@ -405,7 +403,7 @@ void session::read_data(const std::function<void (const read_results &)> &handle
 
 	control.fd = -1;
 	control.cmd = cmd;
-	control.cflags = DNET_FLAGS_NEED_ACK | m_data->cflags;
+	control.cflags = DNET_FLAGS_NEED_ACK | get_cflags();
 
 	memcpy(&control.io, &io, sizeof(struct dnet_io_attr));
 
@@ -448,7 +446,7 @@ void session::read_data(const std::function<void (const read_result &)> &handler
 
 	io.size   = size;
 	io.offset = offset;
-	io.flags  = m_data->ioflags;
+	io.flags  = get_ioflags();
 	io.type   = id.type();
 
 	memcpy(io.id, id.id().id, DNET_ID_SIZE);
@@ -574,10 +572,10 @@ void session::write_data(const std::function<void (const write_result &)> &handl
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags;
+	ctl.io.flags = get_ioflags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
@@ -702,10 +700,10 @@ void session::write_cas(const std::function<void (const write_result &)> &handle
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_COMPARE_AND_SWAP;
+	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_COMPARE_AND_SWAP;
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
@@ -735,10 +733,10 @@ void session::write_prepare(const std::function<void (const write_result &)> &ha
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE;
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = id.id().type;
@@ -768,10 +766,10 @@ void session::write_plain(const std::function<void (const write_result &)> &hand
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_PLAIN_WRITE;
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
@@ -799,10 +797,10 @@ void session::write_commit(const std::function<void (const write_result &)> &han
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = id.id().type;
@@ -833,10 +831,10 @@ void session::write_cache(const std::function<void (const write_result &)> &hand
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_CACHE;
+	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_CACHE;
 	ctl.io.start = timeout;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
@@ -935,7 +933,7 @@ int session::write_metadata(const key &id, const std::string &obj,
 
 	mc.id = id.id();
 
-	err = dnet_write_metadata(m_data->session_ptr, &mc, 1, m_data->cflags);
+	err = dnet_write_metadata(m_data->session_ptr, &mc, 1);
 	if (err) {
 		throw_error(err, id.id(), "Failed to write metadata");
 	}
@@ -1546,7 +1544,7 @@ void session::bulk_read(const std::function<void (const bulk_read_result &)> &ha
 	control.fd = -1;
 
 	control.cmd = DNET_CMD_BULK_READ;
-	control.cflags = DNET_FLAGS_NEED_ACK | m_data->cflags;
+	control.cflags = DNET_FLAGS_NEED_ACK | get_cflags();
 
 	memset(&control.io, 0, sizeof(struct dnet_io_attr));
 
@@ -1653,7 +1651,7 @@ void session::bulk_write(const std::function<void (const write_result &)> &handl
 		struct dnet_io_control ctl;
 		memset(&ctl, 0, sizeof(ctl));
 
-		ctl.cflags = m_data->cflags;
+		ctl.cflags = get_cflags();
 		ctl.data = data[i].data();
 
 		ctl.io = ios[i];

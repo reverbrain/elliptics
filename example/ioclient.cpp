@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
 		s.set_groups(groups);
 
 		if (defrag)
-			return dnet_start_defrag(s.get_native(), cflags);
+			return dnet_start_defrag(s.get_native());
 
 		if (writef)
 			s.write_file(create_id(id, writef, type), writef, offset, offset, size);
