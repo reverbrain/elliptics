@@ -425,7 +425,7 @@ class lookup_callback : public multigroup_callback
 				handler(exc);
 			} else {
 				lookup_result_entry result = cb.any_result<lookup_result_entry>();
-				dnet_convert_addr(result.address());
+				dnet_convert_addr(result.storage_address());
 				dnet_convert_file_info(result.file_info());
 				handler(result);
 			}
@@ -819,7 +819,7 @@ class write_callback : public default_callback
 				 * where given object is stored.
 				 */
 				if (result.size() >= sizeof(struct dnet_addr) + sizeof(struct dnet_file_info)) {
-					dnet_convert_addr(result.address());
+					dnet_convert_addr(result.storage_address());
 					dnet_convert_file_info(result.file_info());
 					results.push_back(result);
 				}

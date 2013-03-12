@@ -380,7 +380,7 @@ class lookup_result_entry : public callback_result_entry
 
 		lookup_result_entry &operator =(const lookup_result_entry &other);
 
-		struct dnet_addr *address() const;
+		struct dnet_addr *storage_address() const;
 		struct dnet_file_info *file_info() const;
 		const char *file_path() const;
 };

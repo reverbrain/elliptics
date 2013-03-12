@@ -142,7 +142,7 @@ lookup_result_entry &lookup_result_entry::operator =(const lookup_result_entry &
 	return *this;
 }
 
-struct dnet_addr *lookup_result_entry::address() const
+struct dnet_addr *lookup_result_entry::storage_address() const
 {
 	return data()
 		.data<struct dnet_addr>();

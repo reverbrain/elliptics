@@ -2256,8 +2256,6 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
 		}
 	}
 
-	dnet_session_set_groups(s, groups, group_num);
-
 	*groupsp = groups;
 	return group_num;
 }

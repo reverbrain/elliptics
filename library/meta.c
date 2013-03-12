@@ -242,7 +242,6 @@ int dnet_create_write_metadata_strings(struct dnet_session *s, const void *remot
 	mc.groups = groups;
 	mc.group_num = group_num;
 	mc.id = *id;
-	mc.cflags = dnet_session_get_cflags(s);
 
 	if (ts) {
 		mc.ts = *ts;
@@ -353,9 +352,7 @@ int dnet_create_write_metadata(struct dnet_session *s, struct dnet_metadata_cont
 	if (err)
 		goto err_out_exit;
 
-	uint64_t cflags_pop = dnet_session_get_cflags(s);
 	err = dnet_write_metadata(s, &mc, 1);
-	dnet_session_set_cflags(s, cflags_pop);
 	if (err)
 		goto err_out_free;
 

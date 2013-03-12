@@ -766,8 +766,6 @@ struct dnet_metadata_control {
 
 	uint64_t			update_flags;
 	struct timespec			ts;
-
-	uint64_t			cflags;
 };
 
 /*
