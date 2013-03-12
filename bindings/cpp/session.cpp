@@ -141,19 +141,11 @@ exec_context::exec_context()
 
 exec_context::exec_context(const data_pointer &data)
 {
-	if (data.size() < sizeof(sph))
-		throw_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
-
-	sph *s = data.data<sph>();
-	if (data.size() != sizeof(sph) + s->event_size + s->data_size)
-		throw_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
-
-	char *event = reinterpret_cast<char *>(s + 1);
-
-	m_data = std::make_shared<exec_context_data>();
-	m_data->sph = data;
-	m_data->event.assign(event, event + s->event_size);
-	m_data->data = data.skip<sph>().skip(s->event_size);
+	error_info error;
+	exec_context tmp = parse(data, &error);
+	if (error)
+		error.throw_error();
+	m_data = tmp.m_data;
 }
 
 exec_context::exec_context(const std::shared_ptr<exec_context_data> &data) : m_data(data)
@@ -180,6 +172,28 @@ exec_context exec_context::from_raw(const void *const_data, size_t size)
 	return exec_context(data);
 }
 
+exec_context exec_context::parse(const data_pointer &data, error_info *error)
+{
+	if (data.size() < sizeof(sph)) {
+		*error = create_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
+		return exec_context();
+	}
+
+	sph *s = data.data<sph>();
+	if (data.size() != sizeof(sph) + s->event_size + s->data_size) {
+		*error = create_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
+		return exec_context();
+	}
+
+	char *event = reinterpret_cast<char *>(s + 1);
+
+	auto priv = std::make_shared<exec_context_data>();
+	priv->sph = data;
+	priv->event.assign(event, event + s->event_size);
+	priv->data = data.skip<sph>().skip(s->event_size);
+	return exec_context(priv);
+}
+
 std::string exec_context::event() const
 {
 	return m_data ? m_data->event : std::string();
@@ -198,6 +212,11 @@ dnet_addr *exec_context::address() const
 bool exec_context::is_final() const
 {
 	return m_data ? (m_data->sph.data<sph>()->flags & DNET_SPH_FLAGS_FINISH) : false;
+}
+
+bool exec_context::is_null() const
+{
+	return !m_data;
 }
 
 struct dnet_indexes
@@ -1369,7 +1388,7 @@ std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
 }
 
 void session::request(const std::function<void (const exec_result &)> &handler,
-		const std::function<void ()> &complete_handler,
+		const std::function<void (const std::exception_ptr &)> &complete_handler,
 		dnet_id *id, const exec_context &context)
 {
 	exec_callback::ptr cb = std::make_shared<exec_callback>(*this);
@@ -1421,7 +1440,8 @@ std::vector<int> session::mix_states()
 	return result;
 }
 
-void session::exec(const std::function<void (const exec_result &)> &handler, const std::function<void ()> &complete_handler,
+void session::exec(const std::function<void (const exec_result &)> &handler,
+	const std::function<void (const std::exception_ptr &)> &complete_handler,
 	dnet_id *id, const std::string &event, const data_pointer &data)
 {
 	exec_context context = exec_context_data::create(event, data);
@@ -1437,7 +1457,7 @@ void session::exec(const std::function<void (const exec_result &)> &handler, con
 
 void session::exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data)
 {
-	exec(handler, std::function<void ()>(), id, event, data);
+	exec(handler, std::function<void (const std::exception_ptr &)>(), id, event, data);
 }
 
 struct exec_results_aggregator
@@ -1457,30 +1477,43 @@ exec_results session::exec(dnet_id *id, const std::string &event, const data_poi
 	std::mutex mutex;
 	exec_results results;
 	exec_results_aggregator functor = { mutex, results };
-	waiter<void> w;
+	waiter<std::exception_ptr> w;
 	exec(functor, w.handler(), id, event, data);
-	w.wait();
+	w.result();
 	return results;
 }
 
-void session::push(const std::function<void (const push_result &)> &handler, dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
+void session::push(const std::function<void (const push_result &)> &handler,
+		const std::function<void (const std::exception_ptr &)> &complete_handler,
+		dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
 {
 	exec_context context = exec_context_data::copy(tmp_context, event, data);
 
 	sph *s = context.m_data->sph.data<sph>();
 	s->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
 
-	request(handler, std::function<void ()>(), id, context);
+	request(handler, complete_handler, id, context);
 }
 
-void session::push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data)
+void session::push(const std::function<void (const push_result &)> &handler, dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
 {
-	waiter<push_result> w;
-	push(w.handler(), id, context, event, data);
-	w.result();
+	push(handler, std::function<void (const std::exception_ptr &)>(), id, tmp_context, event, data);
 }
 
-void session::reply(const std::function<void (const reply_result &)> &handler, const exec_context &tmp_context, const data_pointer &data, exec_context::final_state state)
+push_results session::push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data)
+{
+	std::mutex mutex;
+	exec_results results;
+	exec_results_aggregator functor = { mutex, results };
+	waiter<std::exception_ptr> w;
+	push(functor, w.handler(), id, context, event, data);
+	w.result();
+	return results;
+}
+
+void session::reply(const std::function<void (const reply_result &)> &handler,
+		const std::function<void (const std::exception_ptr &)> &complete_handler,
+		const exec_context &tmp_context, const data_pointer &data, exec_context::final_state state)
 {
 	exec_context context = exec_context_data::copy(tmp_context, tmp_context.event(), data);
 
@@ -1498,14 +1531,23 @@ void session::reply(const std::function<void (const reply_result &)> &handler, c
 	dnet_setup_id(&id, 0, s->src.id);
 	id.type = 0;
 
-	request(handler, std::function<void ()>(), &id, context);
+	request(handler, complete_handler, &id, context);
 }
 
-void session::reply(const exec_context &context, const data_pointer &data, exec_context::final_state state)
+void session::reply(const std::function<void (const reply_result &)> &handler, const exec_context &context, const data_pointer &data, exec_context::final_state state)
 {
-	waiter<reply_result> w;
-	reply(w.handler(), context, data, state);
+	reply(handler, std::function<void (const std::exception_ptr &)>(), context, data, state);
+}
+
+reply_results session::reply(const exec_context &context, const data_pointer &data, exec_context::final_state state)
+{
+	std::mutex mutex;
+	exec_results results;
+	exec_results_aggregator functor = { mutex, results };
+	waiter<std::exception_ptr> w;
+	reply(functor, w.handler(), context, data, state);
 	w.result();
+	return results;
 }
 
 std::string session::exec_locked(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &)

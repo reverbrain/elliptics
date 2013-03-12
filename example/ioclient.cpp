@@ -308,17 +308,24 @@ int main(int argc, char *argv[])
 				did->type = type;
 			}
 
+			s.set_cflags(cflags | DNET_FLAGS_NOLOCK);
 			const exec_results results = s.exec(did, event, data);
+			s.set_cflags(cflags);
 			for (size_t i = 0; i < results.size(); ++i) {
 				if (results[i].error()) {
 					error_info error = results[i].error();
 					std::cout << dnet_server_convert_dnet_addr(results[i].address())
-					<< ": failed to process: \"" << error.message() << "\": " << error.code() << std::endl;
+						<< ": failed to process: \"" << error.message() << "\": " << error.code() << std::endl;
 				} else {
 					exec_context result = results[i].context();
-					std::cout << dnet_server_convert_dnet_addr(result.address())
-						<< ": " << result.event()
-						<< " \"" << result.data().to_string() << "\"" << std::endl;
+					if (result.is_null()) {
+						std::cout << dnet_server_convert_dnet_addr(results[i].address())
+							<< ": acknowledge" << std::endl;
+					} else {
+						std::cout << dnet_server_convert_dnet_addr(result.address())
+							<< ": " << result.event()
+							<< " \"" << result.data().to_string() << "\"" << std::endl;
+					}
 				}
 			}
 		}

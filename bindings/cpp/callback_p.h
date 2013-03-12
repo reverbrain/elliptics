@@ -179,7 +179,7 @@ class default_callback
 			m_complete = 0;
 		}
 
-	protected:
+	private:
 		std::vector<callback_result_entry> m_results;
 		std::vector<int> m_statuses;
 		size_t m_count;
@@ -907,7 +907,7 @@ class exec_callback : public default_callback
 	public:
 		typedef std::shared_ptr<exec_callback> ptr;
 
-		exec_callback(const session &sess) : sess(sess), id(NULL), sph(NULL), complete(0)
+		exec_callback(const session &sess) : sess(sess), id(NULL), sph(NULL)
 		{
 		}
 
@@ -917,18 +917,13 @@ class exec_callback : public default_callback
 
 			int err = dnet_send_cmd(sess.get_native(), id, func, priv, sph);
 			if (err < 0) {
-				if (complete_handler)
-					complete_handler();
 				char buffer[128];
 				strncpy(buffer, sph->data, std::min<size_t>(sizeof(buffer), sph->event_size));
 				buffer[sizeof(buffer) - 1] = '\0';
 				throw_error(err, "failed to execute cmd: %s", buffer);
 			}
 
-			bool finished = set_count(err);
-			if (finished && complete_handler)
-				complete_handler();
-			return finished;
+			return set_count(err);
 		}
 
 
@@ -936,29 +931,44 @@ class exec_callback : public default_callback
 		{
 			// this method is run only inside mutex lock
 			auto data = std::make_shared<exec_result_data>();
+			exec_result_entry entry(data);
 			data->data = generic_data.data;
 			if (cmd->status) {
 				data->error = create_error(cmd->status, cmd->id, "Failed to process execution request");
 			} else {
-				data->context = exec_context(data->data);
+				if (!entry.data().empty())
+					data->context = exec_context::parse(entry.data(), &data->error);
 			}
-			handler(exec_result_entry(data));
-			++complete;
-			if (complete_handler && data->context.is_final() && m_count == complete)
-				complete_handler();
+
+			// TODO: Remove exception handling from internal callbacks
+			// If there is no try/catch block we get memory corruption instead of abort in case of exception
+			try {
+				handler(exec_result_entry(data));
+			} catch (const std::exception &exc) {
+				dnet_log_raw(sess.get_node().get_native(),
+					DNET_LOG_ERROR,
+					"UNCAUGHT ASYNC EXCEPTION: %s",
+					exc.what());
+				abort();
+			} catch (...) {
+				dnet_log_raw(sess.get_node().get_native(),
+					DNET_LOG_ERROR,
+					"UNCAUGHT ASYNC EXCEPTION");
+				abort();
+			}
 		}
 
 		void finish(std::exception_ptr exc)
 		{
-			(void) exc;
+			if (complete_handler)
+				complete_handler(exc);
 		}
 
 		session sess;
 		struct dnet_id *id;
 		struct sph *sph;
-		size_t complete;
 		std::function<void (const exec_result &)> handler;
-		std::function<void ()> complete_handler;
+		std::function<void (const std::exception_ptr &)> complete_handler;
 };
 
 inline void check_for_exception(const std::exception_ptr &result)
@@ -985,37 +995,8 @@ inline void check_for_exception(const exec_result_entry &result)
 		result.error().throw_error();
 }
 
-class generic_waiter
-{
-	ELLIPTICS_DISABLE_COPY(generic_waiter)
-	public:
-		generic_waiter() : m_result_ready(false)
-		{
-		}
-
-		void finished()
-		{
-			std::lock_guard<std::mutex> locker(m_mutex);
-			m_result_ready = true;
-			m_condition.notify_all();
-		}
-
-		void wait()
-		{
-			std::unique_lock<std::mutex> locker(m_mutex);
-
-			while (!m_result_ready)
-				m_condition.wait(locker);
-		}
-
-	private:
-		std::mutex			m_mutex;
-		std::condition_variable		m_condition;
-		bool				m_result_ready;
-};
-
 template <typename T>
-class waiter : public generic_waiter
+class waiter
 {
 	ELLIPTICS_DISABLE_COPY(waiter)
 	public:
@@ -1034,7 +1015,7 @@ class waiter : public generic_waiter
 
 		};
 
-		waiter()
+		waiter() : m_result_ready(false)
 		{
 		}
 
@@ -1052,42 +1033,25 @@ class waiter : public generic_waiter
 
 		void handle_result(const T &result)
 		{
+			std::lock_guard<std::mutex> locker(m_mutex);
 			m_result = result;
-			finished();
+			m_result_ready = true;
+			m_condition.notify_all();
+		}
+
+		void wait()
+		{
+			std::unique_lock<std::mutex> locker(m_mutex);
+
+			while (!m_result_ready)
+				m_condition.wait(locker);
 		}
 
 	private:
-		T	m_result;
-};
-
-template <>
-class waiter<void> : public generic_waiter
-{
-	ELLIPTICS_DISABLE_COPY(waiter)
-	public:
-		class handler_impl
-		{
-			public:
-				explicit handler_impl(waiter *parent) : m_parent(parent) {}
-
-				void operator() ()
-				{
-					m_parent->finished();
-				}
-
-			private:
-				waiter *m_parent;
-
-		};
-
-		waiter()
-		{
-		}
-
-		handler_impl handler()
-		{
-			return handler_impl(this);
-		}
+		T				m_result;
+		std::mutex			m_mutex;
+		std::condition_variable		m_condition;
+		bool				m_result_ready;
 };
 
 extern std::set<void*> &assertion_callback_set();
@@ -1100,6 +1064,17 @@ inline bool assertion_callback_insert(std::shared_ptr<T> *cb)
 	fflush(stderr);
 	assertion_callback_mutex().lock();
 	bool result = assertion_callback_set().insert(cb).second;
+	assertion_callback_mutex().unlock();
+	return result;
+}
+
+template <typename T>
+inline bool assertion_callback_find(std::shared_ptr<T> *cb)
+{
+	fprintf(stderr, "FIND: %p, %s\n", cb, __ASSERT_FUNCTION);
+	fflush(stderr);
+	assertion_callback_mutex().lock();
+	bool result = assertion_callback_set().find(cb) != assertion_callback_set().end();
 	assertion_callback_mutex().unlock();
 	return result;
 }
@@ -1123,6 +1098,7 @@ struct dnet_style_handler
 	static int handler(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
 	{
 		std::shared_ptr<T> &ptr = *reinterpret_cast<std::shared_ptr<T> *>(priv);
+		elliptics_assert(assertion_callback_find(&ptr));
 
 		bool isFinished = false;
 		std::exception_ptr exc_ptr;
