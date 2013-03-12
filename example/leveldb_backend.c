@@ -43,7 +43,6 @@
 struct leveldb_backend
 {
 	int			sync;
-	struct eblob_log	elog;
 
 	size_t			cache_size;
 	size_t			write_buffer_size;
@@ -64,51 +63,29 @@ struct leveldb_backend
 	leveldb_t		*db;
 };
 
-/*
-static int leveldb_backend_lookup_raw(struct leveldb_backend *s, struct index *idx, void *state, struct dnet_cmd *cmd)
+static int leveldb_backend_lookup(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd)
 {
-	int err, fd;
-	char *path;
+	char *data = NULL;
+	size_t data_size;
+	int err = -EINVAL;
+	char *error_string = NULL;
 
-	err = smack_lookup(s->smack, idx, &path);
-	if (err < 0)
+	data = leveldb_get(s->db, s->roptions, (const char *)cmd->id.id, DNET_ID_SIZE, &data_size, &error_string);
+	if (error_string || !data) {
+		if (!data)
+			err = -ENOENT;
 		goto err_out_exit;
-
-	fd = open(path, O_RDONLY | O_CLOEXEC);
-	if (fd < 0) {
-		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, "%s: SMACK: %s: lookup-open: size: %llu: %s %d.\n",
-				dnet_dump_id_str(idx->id), path,
-				(unsigned long long)idx->data_size,
-				strerror(-err), err);
-		goto err_out_free;
 	}
 
-	err = dnet_send_file_info(state, cmd, fd, 0, idx->data_size);
-	if (err)
-		goto err_out_close;
+	err = dnet_send_file_info_without_fd(state, cmd, 0, data_size);
+	if (err < 0)
+		goto err_out_free;
 
-	dnet_backend_log(DNET_LOG_INFO, "%s: SMACK: %s: lookup: size: %llu.\n",
-			dnet_dump_id(&cmd->id), path, (unsigned long long)idx->data_size);
-
-err_out_close:
-	close(fd);
 err_out_free:
-	free(path);
+	free(data);
 err_out_exit:
+	free(error_string);
 	return err;
-}
-*/
-
-static int leveldb_backend_lookup(struct leveldb_backend *s __unused, void *state __unused, struct dnet_cmd *cmd __unused)
-{
-/*
-	struct index idx;
-
-	smack_setup_idx(&idx, cmd->id.id);
-	return leveldb_backend_lookup_raw(s, &idx, state, cmd);
-*/
-	return 0;
 }
 
 static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *data)
