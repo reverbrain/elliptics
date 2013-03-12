@@ -470,7 +470,9 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize,
 static void dnet_trans_timestamp(struct dnet_net_state *st, struct dnet_trans *t)
 {
 	gettimeofday(&t->time, NULL);
-	t->time.tv_sec += st->n->wait_ts.tv_sec;
+	struct timespec *wait_ts = t->wait_ts.tv_sec ? &t->wait_ts : &st->n->wait_ts;
+	t->time.tv_sec += wait_ts->tv_sec;
+	t->time.tv_usec += wait_ts->tv_nsec / 1000;
 
 	list_move_tail(&t->trans_list_entry, &st->trans_list);
 }

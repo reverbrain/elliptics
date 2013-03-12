@@ -456,7 +456,12 @@ struct dnet_session {
 	struct dnet_node *node;
 	int group_num;
 	int *groups;
+	struct timespec wait_ts;
+	uint64_t cflags;
+	uint32_t ioflags;
 };
+
+struct timespec *dnet_session_get_timeout(struct dnet_session *s);
 
 static inline int dnet_counter_init(struct dnet_node *n)
 {
@@ -531,6 +536,7 @@ struct dnet_trans
 	struct list_head		trans_list_entry;
 
 	struct timeval			time, start;
+	struct timespec			wait_ts;
 
 	struct dnet_net_state		*orig; /* only for forward */
 
@@ -717,7 +723,7 @@ struct dnet_map_fd {
 int dnet_data_map(struct dnet_map_fd *map);
 void dnet_data_unmap(struct dnet_map_fd *map);
 
-void *dnet_read_data_wait_raw(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, int cmd, uint64_t cflags, int *errp);
+void *dnet_read_data_wait_raw(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, int cmd, int *errp);
 
 int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_srw_cleanup(struct dnet_node *n);

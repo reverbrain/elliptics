@@ -141,19 +141,11 @@ exec_context::exec_context()
 
 exec_context::exec_context(const data_pointer &data)
 {
-	if (data.size() < sizeof(sph))
-		throw_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
-
-	sph *s = data.data<sph>();
-	if (data.size() != sizeof(sph) + s->event_size + s->data_size)
-		throw_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
-
-	char *event = reinterpret_cast<char *>(s + 1);
-
-	m_data = std::make_shared<exec_context_data>();
-	m_data->sph = data;
-	m_data->event.assign(event, event + s->event_size);
-	m_data->data = data.skip<sph>().skip(s->event_size);
+	error_info error;
+	exec_context tmp = parse(data, &error);
+	if (error)
+		error.throw_error();
+	m_data = tmp.m_data;
 }
 
 exec_context::exec_context(const std::shared_ptr<exec_context_data> &data) : m_data(data)
@@ -180,6 +172,28 @@ exec_context exec_context::from_raw(const void *const_data, size_t size)
 	return exec_context(data);
 }
 
+exec_context exec_context::parse(const data_pointer &data, error_info *error)
+{
+	if (data.size() < sizeof(sph)) {
+		*error = create_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
+		return exec_context();
+	}
+
+	sph *s = data.data<sph>();
+	if (data.size() != sizeof(sph) + s->event_size + s->data_size) {
+		*error = create_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
+		return exec_context();
+	}
+
+	char *event = reinterpret_cast<char *>(s + 1);
+
+	auto priv = std::make_shared<exec_context_data>();
+	priv->sph = data;
+	priv->event.assign(event, event + s->event_size);
+	priv->data = data.skip<sph>().skip(s->event_size);
+	return exec_context(priv);
+}
+
 std::string exec_context::event() const
 {
 	return m_data ? m_data->event : std::string();
@@ -193,6 +207,16 @@ data_pointer exec_context::data() const
 dnet_addr *exec_context::address() const
 {
 	return m_data ? &m_data->sph.data<sph>()->addr : NULL;
+}
+
+bool exec_context::is_final() const
+{
+	return m_data ? (m_data->sph.data<sph>()->flags & DNET_SPH_FLAGS_FINISH) : false;
+}
+
+bool exec_context::is_null() const
+{
+	return !m_data;
 }
 
 struct dnet_indexes
@@ -271,7 +295,7 @@ namespace ioremap { namespace elliptics {
 class session_data
 {
 	public:
-		session_data(const node &n) : node_guard(n), cflags(0), ioflags(0)
+		session_data(const node &n) : node_guard(n)
 		{
 			session_ptr = dnet_session_create(node_guard.get_native());
 			if (!session_ptr)
@@ -287,10 +311,6 @@ class session_data
 
 		struct dnet_session	*session_ptr;
 		node			node_guard;
-
-		std::vector<int>	groups;
-		uint64_t		cflags;
-		uint32_t		ioflags;
 };
 
 session::session(const node &n) : m_data(std::make_shared<session_data>(n))
@@ -313,34 +333,40 @@ session &session::operator =(const session &other)
 
 void session::set_groups(const std::vector<int> &groups)
 {
-	m_data->groups = groups;
-	if (dnet_session_set_groups(m_data->session_ptr, &m_data->groups[0], groups.size()))
+	if (dnet_session_set_groups(m_data->session_ptr, groups.data(), groups.size()))
 		throw std::bad_alloc();
 }
 
-const std::vector<int> &session::get_groups() const
+std::vector<int> session::get_groups() const
 {
-	return m_data->groups;
+	int count = 0;
+	int *groups = dnet_session_get_groups(m_data->session_ptr, &count);
+	return std::vector<int>(groups, groups + count);
 }
 
 void session::set_cflags(uint64_t cflags)
 {
-	m_data->cflags = cflags;
+	dnet_session_set_cflags(m_data->session_ptr, cflags);
 }
 
 uint64_t session::get_cflags() const
 {
-	return m_data->cflags;
+	return dnet_session_get_cflags(m_data->session_ptr);
 }
 
 void session::set_ioflags(uint32_t ioflags)
 {
-	m_data->ioflags = ioflags;
+	dnet_session_set_ioflags(m_data->session_ptr, ioflags);
 }
 
 uint32_t session::get_ioflags() const
 {
-	return m_data->ioflags;
+	return dnet_session_get_ioflags(m_data->session_ptr);
+}
+
+void session::set_timeout(unsigned int timeout)
+{
+	dnet_session_set_timeout(m_data->session_ptr, timeout);
 }
 
 void session::read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size)
@@ -369,10 +395,10 @@ void session::write_file(const key &id, const std::string &file, uint64_t local_
 
 	if (id.by_id()) {
 		dnet_id raw = id.id();
-		err = dnet_write_file_id(m_data->session_ptr, file.c_str(), &raw, local_offset, offset, size, m_data->cflags, m_data->cflags);
+		err = dnet_write_file_id(m_data->session_ptr, file.c_str(), &raw, local_offset, offset, size);
 	} else {
 		err = dnet_write_file(m_data->session_ptr, file.c_str(), id.remote().c_str(), id.remote().size(),
-							 local_offset, offset, size, m_data->cflags, m_data->cflags, id.type());
+							 local_offset, offset, size, id.type());
 	}
 	if (err) {
 		transform(id);
@@ -400,7 +426,7 @@ void session::read_data(const std::function<void (const read_results &)> &handle
 
 	control.fd = -1;
 	control.cmd = cmd;
-	control.cflags = DNET_FLAGS_NEED_ACK | m_data->cflags;
+	control.cflags = DNET_FLAGS_NEED_ACK | get_cflags();
 
 	memcpy(&control.io, &io, sizeof(struct dnet_io_attr));
 
@@ -443,7 +469,7 @@ void session::read_data(const std::function<void (const read_result &)> &handler
 
 	io.size   = size;
 	io.offset = offset;
-	io.flags  = m_data->ioflags;
+	io.flags  = get_ioflags();
 	io.type   = id.type();
 
 	memcpy(io.id, id.id().id, DNET_ID_SIZE);
@@ -569,10 +595,10 @@ void session::write_data(const std::function<void (const write_result &)> &handl
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags;
+	ctl.io.flags = get_ioflags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
@@ -697,10 +723,10 @@ void session::write_cas(const std::function<void (const write_result &)> &handle
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_COMPARE_AND_SWAP;
+	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_COMPARE_AND_SWAP;
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
@@ -730,10 +756,10 @@ void session::write_prepare(const std::function<void (const write_result &)> &ha
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE;
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = id.id().type;
@@ -763,10 +789,10 @@ void session::write_plain(const std::function<void (const write_result &)> &hand
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_PLAIN_WRITE;
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
@@ -794,10 +820,10 @@ void session::write_commit(const std::function<void (const write_result &)> &han
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = id.id().type;
@@ -828,10 +854,10 @@ void session::write_cache(const std::function<void (const write_result &)> &hand
 
 	memset(&ctl, 0, sizeof(ctl));
 
-	ctl.cflags = m_data->cflags;
+	ctl.cflags = get_cflags();
 	ctl.data = file.data();
 
-	ctl.io.flags = m_data->ioflags | DNET_IO_FLAGS_CACHE;
+	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_CACHE;
 	ctl.io.start = timeout;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
@@ -930,7 +956,7 @@ int session::write_metadata(const key &id, const std::string &obj,
 
 	mc.id = id.id();
 
-	err = dnet_write_metadata(m_data->session_ptr, &mc, 1, m_data->cflags);
+	err = dnet_write_metadata(m_data->session_ptr, &mc, 1);
 	if (err) {
 		throw_error(err, id.id(), "Failed to write metadata");
 	}
@@ -1362,12 +1388,14 @@ std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
 }
 
 void session::request(const std::function<void (const exec_result &)> &handler,
+		const std::function<void (const std::exception_ptr &)> &complete_handler,
 		dnet_id *id, const exec_context &context)
 {
 	exec_callback::ptr cb = std::make_shared<exec_callback>(*this);
 	cb->id = id;
 	cb->sph = context.m_data->sph.data<sph>();
 	cb->handler = handler;
+	cb->complete_handler = complete_handler;
 
 	startCallback(cb);
 }
@@ -1412,7 +1440,9 @@ std::vector<int> session::mix_states()
 	return result;
 }
 
-void session::exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data)
+void session::exec(const std::function<void (const exec_result &)> &handler,
+	const std::function<void (const std::exception_ptr &)> &complete_handler,
+	dnet_id *id, const std::string &event, const data_pointer &data)
 {
 	exec_context context = exec_context_data::create(event, data);
 
@@ -1422,45 +1452,68 @@ void session::exec(const std::function<void (const exec_result &)> &handler, dne
 	if (id)
 		memcpy(s->src.id, id->id, sizeof(s->src.id));
 
-	request(handler, id, context);
+	request(handler, complete_handler, id, context);
 }
 
-exec_result session::exec(dnet_id *id, const std::string &event, const data_pointer &data)
+void session::exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data)
 {
-	waiter<exec_result> w;
-	exec(w.handler(), id, event, data);
-	return w.result();
+	exec(handler, std::function<void (const std::exception_ptr &)>(), id, event, data);
 }
 
-struct push_converter
+struct exec_results_aggregator
 {
-	std::function<void (const push_result &)> handler;
+	std::mutex &mutex;
+	exec_results &results;
 
-	void operator() (const exec_result &result) const
+	void operator() (const exec_result &result)
 	{
-		handler(result.exception());
+		std::lock_guard<std::mutex> locker(mutex);
+		results.push_back(result);
 	}
 };
 
-void session::push(const std::function<void (const push_result &)> &handler, dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
+exec_results session::exec(dnet_id *id, const std::string &event, const data_pointer &data)
+{
+	std::mutex mutex;
+	exec_results results;
+	exec_results_aggregator functor = { mutex, results };
+	waiter<std::exception_ptr> w;
+	exec(functor, w.handler(), id, event, data);
+	w.result();
+	return results;
+}
+
+void session::push(const std::function<void (const push_result &)> &handler,
+		const std::function<void (const std::exception_ptr &)> &complete_handler,
+		dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
 {
 	exec_context context = exec_context_data::copy(tmp_context, event, data);
 
 	sph *s = context.m_data->sph.data<sph>();
 	s->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
 
-	push_converter functor = { handler };
-	request(functor, id, context);
+	request(handler, complete_handler, id, context);
 }
 
-void session::push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data)
+void session::push(const std::function<void (const push_result &)> &handler, dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
 {
-	waiter<push_result> w;
-	push(w.handler(), id, context, event, data);
-	w.result();
+	push(handler, std::function<void (const std::exception_ptr &)>(), id, tmp_context, event, data);
 }
 
-void session::reply(const std::function<void (const reply_result &)> &handler, const exec_context &tmp_context, const data_pointer &data, exec_context::final_state state)
+push_results session::push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data)
+{
+	std::mutex mutex;
+	exec_results results;
+	exec_results_aggregator functor = { mutex, results };
+	waiter<std::exception_ptr> w;
+	push(functor, w.handler(), id, context, event, data);
+	w.result();
+	return results;
+}
+
+void session::reply(const std::function<void (const reply_result &)> &handler,
+		const std::function<void (const std::exception_ptr &)> &complete_handler,
+		const exec_context &tmp_context, const data_pointer &data, exec_context::final_state state)
 {
 	exec_context context = exec_context_data::copy(tmp_context, tmp_context.event(), data);
 
@@ -1478,23 +1531,31 @@ void session::reply(const std::function<void (const reply_result &)> &handler, c
 	dnet_setup_id(&id, 0, s->src.id);
 	id.type = 0;
 
-	push_converter functor = { handler };
-	request(functor, &id, context);
+	request(handler, complete_handler, &id, context);
 }
 
-void session::reply(const exec_context &context, const data_pointer &data, exec_context::final_state state)
+void session::reply(const std::function<void (const reply_result &)> &handler, const exec_context &context, const data_pointer &data, exec_context::final_state state)
 {
-	waiter<reply_result> w;
-	reply(w.handler(), context, data, state);
+	reply(handler, std::function<void (const std::exception_ptr &)>(), context, data, state);
+}
+
+reply_results session::reply(const exec_context &context, const data_pointer &data, exec_context::final_state state)
+{
+	std::mutex mutex;
+	exec_results results;
+	exec_results_aggregator functor = { mutex, results };
+	waiter<std::exception_ptr> w;
+	reply(functor, w.handler(), context, data, state);
 	w.result();
+	return results;
 }
 
 std::string session::exec_locked(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &)
 {
 	std::string result;
-	std::vector<exec_context> results = exec(id, event, data);
+	exec_results results = exec(id, event, data);
 	for (size_t i = 0; i < results.size(); ++i)
-		result += results[i].data().to_string();
+		result += results[i].context().data().to_string();
 	return result;
 }
 
@@ -1541,7 +1602,7 @@ void session::bulk_read(const std::function<void (const bulk_read_result &)> &ha
 	control.fd = -1;
 
 	control.cmd = DNET_CMD_BULK_READ;
-	control.cflags = DNET_FLAGS_NEED_ACK | m_data->cflags;
+	control.cflags = DNET_FLAGS_NEED_ACK | get_cflags();
 
 	memset(&control.io, 0, sizeof(struct dnet_io_attr));
 
@@ -1648,7 +1709,7 @@ void session::bulk_write(const std::function<void (const write_result &)> &handl
 		struct dnet_io_control ctl;
 		memset(&ctl, 0, sizeof(ctl));
 
-		ctl.cflags = m_data->cflags;
+		ctl.cflags = get_cflags();
 		ctl.data = data[i].data();
 
 		ctl.io = ios[i];

@@ -584,8 +584,9 @@ err_out_exit:
 	return 0;
 }
 
-static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_io_control *ctl, int *errp)
+static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dnet_io_control *ctl, int *errp)
 {
+	struct dnet_node *n = s->node;
 	struct dnet_io_req req;
 	struct dnet_trans *t = NULL;
 	struct dnet_io_attr *io;
@@ -601,6 +602,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 		tsize += size;
 
 	t = dnet_trans_alloc(n, tsize);
+	t->wait_ts = *dnet_session_get_timeout(s);
 	if (!t) {
 		err = -ENOMEM;
 		goto err_out_complete;
@@ -685,18 +687,17 @@ err_out_destroy:
 
 int dnet_trans_create_send_all(struct dnet_session *s, struct dnet_io_control *ctl)
 {
-	struct dnet_node *n = s->node;
 	int num = 0, i, err;
 
 	for (i=0; i<s->group_num; ++i) {
 		ctl->id.group_id = s->groups[i];
 
-		dnet_io_trans_create(n, ctl, &err);
+		dnet_io_trans_create(s, ctl, &err);
 		num++;
 	}
 
 	if (!num) {
-		dnet_io_trans_create(n, ctl, &err);
+		dnet_io_trans_create(s, ctl, &err);
 		num++;
 	}
 
@@ -709,8 +710,7 @@ int dnet_write_object(struct dnet_session *s, struct dnet_io_control *ctl)
 }
 
 static int dnet_write_file_id_raw(struct dnet_session *s, const char *file, struct dnet_id *id,
-		uint64_t local_offset, uint64_t remote_offset, uint64_t size,
-		uint64_t cflags, unsigned int ioflags)
+		uint64_t local_offset, uint64_t remote_offset, uint64_t size)
 {
 	struct dnet_node *n = s->node;
 	int fd, err, trans_num;
@@ -770,13 +770,13 @@ static int dnet_write_file_id_raw(struct dnet_session *s, const char *file, stru
 	ctl.complete = dnet_write_complete;
 	ctl.priv = wc;
 
-	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | dnet_session_get_cflags(s);
 	ctl.cmd = DNET_CMD_WRITE;
 
 	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
 	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
 
-	ctl.io.flags = ioflags;
+	ctl.io.flags = dnet_session_get_ioflags(s);
 	ctl.io.size = size;
 	ctl.io.offset = remote_offset;
 	ctl.io.type = id->type;
@@ -792,7 +792,7 @@ static int dnet_write_file_id_raw(struct dnet_session *s, const char *file, stru
 	 */
 	atomic_sub(&w->refcnt, INT_MAX - trans_num - 1);
 
-	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == trans_num, dnet_session_get_timeout(s));
 	if (err || w->status) {
 		if (!err)
 			err = w->status;
@@ -823,18 +823,17 @@ err_out_exit:
 }
 
 int dnet_write_file_id(struct dnet_session *s, const char *file, struct dnet_id *id, uint64_t local_offset,
-		uint64_t remote_offset, uint64_t size, uint64_t cflags, unsigned int ioflags)
+		uint64_t remote_offset, uint64_t size)
 {
-	int err = dnet_write_file_id_raw(s, file, id, local_offset, remote_offset, size, cflags, ioflags);
-	if (!err && !(ioflags & DNET_IO_FLAGS_CACHE_ONLY))
-		err = dnet_create_write_metadata_strings(s, NULL, 0, id, NULL, cflags);
+	int err = dnet_write_file_id_raw(s, file, id, local_offset, remote_offset, size);
+	if (!err && !(dnet_session_get_ioflags(s) & DNET_IO_FLAGS_CACHE_ONLY))
+		err = dnet_create_write_metadata_strings(s, NULL, 0, id, NULL);
 
 	return err;
 }
 
 int dnet_write_file(struct dnet_session *s, const char *file, const void *remote, int remote_len,
-		uint64_t local_offset, uint64_t remote_offset, uint64_t size,
-		uint64_t cflags, unsigned int ioflags, int type)
+		uint64_t local_offset, uint64_t remote_offset, uint64_t size, int type)
 {
 	int err;
 	struct dnet_id id;
@@ -842,9 +841,9 @@ int dnet_write_file(struct dnet_session *s, const char *file, const void *remote
 	dnet_transform(s->node, remote, remote_len, &id);
 	id.type = type;
 
-	err = dnet_write_file_id_raw(s, file, &id, local_offset, remote_offset, size, cflags, ioflags);
-	if (!err && !(ioflags & DNET_IO_FLAGS_CACHE_ONLY))
-		err = dnet_create_write_metadata_strings(s, remote, remote_len, &id, NULL, cflags);
+	err = dnet_write_file_id_raw(s, file, &id, local_offset, remote_offset, size);
+	if (!err && !(dnet_session_get_ioflags(s) & DNET_IO_FLAGS_CACHE_ONLY))
+		err = dnet_create_write_metadata_strings(s, remote, remote_len, &id, NULL);
 
 	return err;
 }
@@ -927,7 +926,7 @@ int dnet_read_object(struct dnet_session *s, struct dnet_io_control *ctl)
 {
 	int err;
 
-	if (!dnet_io_trans_create(s->node, ctl, &err))
+	if (!dnet_io_trans_create(s, ctl, &err))
 		return err;
 
 	return 0;
@@ -983,7 +982,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 	if (err)
 		goto err_out_exit;
 
-	err = dnet_wait_event(w, w->cond != wait_init, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond != wait_init, dnet_session_get_timeout(s));
 	if ((err < 0) || (w->cond < 0)) {
 		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
@@ -1131,8 +1130,7 @@ int dnet_send_cmd(struct dnet_session *s,
 			struct dnet_cmd *cmd,
 			void *priv),
 	void *priv,
-	struct sph *e,
-	uint64_t cflags)
+	struct sph *e)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
@@ -1152,7 +1150,7 @@ int dnet_send_cmd(struct dnet_session *s,
 		st = dnet_state_get_first(n, id);
 		if (!st)
 			goto err_out_exit;
-		err = dnet_send_cmd_single(st, id, complete, priv, e, cflags);
+		err = dnet_send_cmd_single(st, id, complete, priv, e, dnet_session_get_cflags(s));
 		dnet_state_put(st);
 		num = 1;
 	} else if (id && id->group_id == 0) {
@@ -1163,7 +1161,7 @@ int dnet_send_cmd(struct dnet_session *s,
 			st = dnet_state_search_nolock(n, id);
 			if (st) {
 				if (st != n->st) {
-					err = dnet_send_cmd_single(st, id, complete, priv, e, cflags);
+					err = dnet_send_cmd_single(st, id, complete, priv, e, dnet_session_get_cflags(s));
 					num++;
 				}
 				dnet_state_put(st);
@@ -1189,7 +1187,7 @@ int dnet_send_cmd(struct dnet_session *s,
 
 				dnet_setup_id(&tmp_id, g->group_id, st->idc->ids[0].raw.id);
 				memcpy(e->src.id, st->idc->ids[0].raw.id, DNET_ID_SIZE);
-				err = dnet_send_cmd_single(st, &tmp_id, complete, priv, e, cflags);
+				err = dnet_send_cmd_single(st, &tmp_id, complete, priv, e, dnet_session_get_cflags(s));
 				num++;
 			}
 		}
@@ -1247,7 +1245,7 @@ out_remove:
 	return 0;
 }
 
-int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id, uint64_t cflags,
+int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *, struct dnet_cmd *, void *),
 	void *priv)
 {
@@ -1258,6 +1256,7 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id, uint64_t cfla
 	int err;
 
 	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd));
+	t->wait_ts = *dnet_session_get_timeout(s);
 	if (!t) {
 		err = -ENOMEM;
 		goto err_out_complete;
@@ -1272,7 +1271,7 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id, uint64_t cfla
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
 	cmd->cmd = t->command = DNET_CMD_LOOKUP;
-	cmd->flags = cflags | DNET_FLAGS_NEED_ACK;
+	cmd->flags = dnet_session_get_cflags(s) | DNET_FLAGS_NEED_ACK;
 
 	t->st = dnet_state_get_first(n, &cmd->id);
 	if (!t->st) {
@@ -1386,7 +1385,7 @@ static int dnet_request_cmd_single(struct dnet_session *s, struct dnet_net_state
 }
 
 int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
-	unsigned int cmd, uint64_t cflags,
+	unsigned int cmd,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
@@ -1417,7 +1416,7 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
 	ctl.cmd = cmd;
 	ctl.complete = complete;
 	ctl.priv = priv;
-	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK | cflags;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK | dnet_session_get_cflags(s);
 
 	if (id) {
 		if (w)
@@ -1457,7 +1456,7 @@ int dnet_request_stat(struct dnet_session *s, struct dnet_id *id,
 		return num;
 	}
 
-	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
@@ -1550,7 +1549,7 @@ int dnet_request_cmd(struct dnet_session *s, struct dnet_trans_control *ctl)
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
 
 	gettimeofday(&end, NULL);
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + end.tv_usec - start.tv_usec;
@@ -1646,7 +1645,7 @@ int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dn
 	dnet_wait_get(priv->w);
 	dnet_request_cmd_single(s, NULL, &ctl);
 
-	err = dnet_wait_event(priv->w, priv->w->cond == 1, &s->node->wait_ts);
+	err = dnet_wait_event(priv->w, priv->w->cond == 1, dnet_session_get_timeout(s));
 	dnet_wait_put(priv->w);
 	if (!err && priv) {
 		memcpy(status, &priv->status, sizeof(struct dnet_node_status));
@@ -1662,7 +1661,7 @@ static int dnet_remove_object_raw(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
-	void *priv, uint64_t cflags, uint64_t ioflags)
+	void *priv)
 {
 	struct dnet_io_control ctl;
 	int err;
@@ -1673,14 +1672,14 @@ static int dnet_remove_object_raw(struct dnet_session *s, struct dnet_id *id,
 
 	memcpy(&ctl.io.id, id->id, DNET_ID_SIZE);
 	memcpy(&ctl.io.parent, id->id, DNET_ID_SIZE);
-	ctl.io.flags = ioflags;
+	ctl.io.flags = dnet_session_get_ioflags(s);
 
 	ctl.fd = -1;
 
 	ctl.cmd = DNET_CMD_DEL;
 	ctl.complete = complete;
 	ctl.priv = priv;
-	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | dnet_session_get_cflags(s);
 
 	err = dnet_trans_create_send_all(s, &ctl);
 	if (err == 0)
@@ -1710,8 +1709,7 @@ int dnet_remove_object(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
-	void *priv,
-	uint64_t cflags, uint64_t ioflags)
+	void *priv)
 {
 	struct dnet_wait *w = NULL;
 	int err;
@@ -1728,12 +1726,12 @@ int dnet_remove_object(struct dnet_session *s, struct dnet_id *id,
 		dnet_wait_get(w);
 	}
 
-	err = dnet_remove_object_raw(s, id, complete, priv, cflags, ioflags);
+	err = dnet_remove_object_raw(s, id, complete, priv);
 	if (err < 0)
 		goto err_out_put;
 
 	if (w) {
-		err = dnet_wait_event(w, w->cond != err, &s->node->wait_ts);
+		err = dnet_wait_event(w, w->cond != err, dnet_session_get_timeout(s));
 		if (err)
 			goto err_out_put;
 
@@ -1753,7 +1751,7 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_remove_file_raw(struct dnet_session *s, struct dnet_id *id, uint64_t cflags, uint64_t ioflags)
+static int dnet_remove_file_raw(struct dnet_session *s, struct dnet_id *id)
 {
 	struct dnet_wait *w;
 	int err, num;
@@ -1765,7 +1763,7 @@ static int dnet_remove_file_raw(struct dnet_session *s, struct dnet_id *id, uint
 	}
 
 	atomic_add(&w->refcnt, 1024);
-	err = dnet_remove_object_raw(s, id, dnet_remove_complete, w, cflags, ioflags);
+	err = dnet_remove_object_raw(s, id, dnet_remove_complete, w);
 	if (err < 0) {
 		atomic_sub(&w->refcnt, 1024);
 		goto err_out_put;
@@ -1774,7 +1772,7 @@ static int dnet_remove_file_raw(struct dnet_session *s, struct dnet_id *id, uint
 	num = err;
 	atomic_sub(&w->refcnt, 1024 - num);
 
-	err = dnet_wait_event(w, w->cond == num, &s->node->wait_ts);
+	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
 	if (err)
 		goto err_out_put;
 
@@ -1794,12 +1792,16 @@ err_out_exit:
 	return err;
 }
 
-int dnet_remove_object_now(struct dnet_session *s, struct dnet_id *id, uint64_t cflags, uint64_t ioflags)
+int dnet_remove_object_now(struct dnet_session *s, struct dnet_id *id)
 {
-	return dnet_remove_file_raw(s, id, cflags | DNET_FLAGS_NEED_ACK | DNET_ATTR_DELETE_HISTORY, ioflags);
+	uint64_t cflags_pop = dnet_session_get_cflags(s);
+	dnet_session_set_cflags(s, cflags_pop | DNET_ATTR_DELETE_HISTORY);
+	int result = dnet_remove_file_raw(s, id);
+	dnet_session_set_cflags(s, cflags_pop);
+	return result;
 }
 
-int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struct dnet_id *id, uint64_t cflags, uint64_t ioflags)
+int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struct dnet_id *id)
 {
 	struct dnet_id raw;
 
@@ -1809,10 +1811,10 @@ int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struc
 		id = &raw;
 	}
 
-	return dnet_remove_file_raw(s, id, cflags, ioflags);
+	return dnet_remove_file_raw(s, id);
 }
 
-int dnet_request_ids(struct dnet_session *s, struct dnet_id *id, uint64_t cflags,
+int dnet_request_ids(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
 			void *priv),
@@ -1829,7 +1831,7 @@ int dnet_request_ids(struct dnet_session *s, struct dnet_id *id, uint64_t cflags
 	ctl.cmd = DNET_CMD_LIST;
 	ctl.complete = complete;
 	ctl.priv = priv;
-	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | dnet_session_get_cflags(s);
 
 	return dnet_trans_alloc_send(s, &ctl);
 }
@@ -1894,7 +1896,7 @@ err_out_exit:
 }
 
 void *dnet_read_data_wait_raw(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io,
-		int cmd, uint64_t cflags, int *errp)
+		int cmd, int *errp)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_io_control ctl;
@@ -1929,7 +1931,7 @@ void *dnet_read_data_wait_raw(struct dnet_session *s, struct dnet_id *id, struct
 	ctl.complete = dnet_read_data_complete;
 
 	ctl.cmd = cmd;
-	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
+	ctl.cflags = DNET_FLAGS_NEED_ACK | dnet_session_get_cflags(s);
 
 	memcpy(&ctl.io, io, sizeof(struct dnet_io_attr));
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
@@ -1941,7 +1943,7 @@ void *dnet_read_data_wait_raw(struct dnet_session *s, struct dnet_id *id, struct
 	if (err)
 		goto err_out_put_complete;
 
-	err = dnet_wait_event(w, w->cond, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond, dnet_session_get_timeout(s));
 	if (err || w->status) {
 		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
@@ -1965,7 +1967,7 @@ err_out_exit:
 	return data;
 }
 
-static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, void *data, uint64_t cflags)
+static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, void *data)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_meta_container mc;
@@ -1989,7 +1991,7 @@ static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct 
 
 	ctl.fd = -1;
 	ctl.cmd = DNET_CMD_WRITE;
-	ctl.cflags = cflags;
+	ctl.cflags = dnet_session_get_cflags(s);
 
 	err = dnet_write_data_wait(s, &ctl, &result);
 	if (err < 0) {
@@ -1997,7 +1999,7 @@ static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct 
 		goto err_out_free_meta;
 	}
 
-	err = dnet_write_metadata(s, &mc, 0, cflags);
+	err = dnet_write_metadata(s, &mc, 0);
 	if (err < 0)
 		goto err_out_free_result;
 
@@ -2010,7 +2012,7 @@ err_out_exit:
 }
 
 void *dnet_read_data_wait_groups(struct dnet_session *s, struct dnet_id *id, int *groups, int num,
-		struct dnet_io_attr *io, uint64_t cflags, int *errp)
+		struct dnet_io_attr *io, int *errp)
 {
 	int i;
 	void *data;
@@ -2019,13 +2021,13 @@ void *dnet_read_data_wait_groups(struct dnet_session *s, struct dnet_id *id, int
 	for (i = 0; i < num; ++i) {
 		id->group_id = groups[i];
 
-		data = dnet_read_data_wait_raw(s, id, io, DNET_CMD_READ, cflags, errp);
+		data = dnet_read_data_wait_raw(s, id, io, DNET_CMD_READ, errp);
 		if (*errp == -110) {
 			want_recover = 0;
 		}
 		if (data) {
 			if ((i != 0) && (io->type == 0) && (io->offset == 0) && (io->size > sizeof(struct dnet_io_attr)) && want_recover) {
-				dnet_read_recover(s, id, io, data, cflags);
+				dnet_read_recover(s, id, io, data);
 			}
 
 			*errp = 0;
@@ -2036,8 +2038,7 @@ void *dnet_read_data_wait_groups(struct dnet_session *s, struct dnet_id *id, int
 	return NULL;
 }
 
-void *dnet_read_data_wait(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io,
-		uint64_t cflags, int *errp)
+void *dnet_read_data_wait(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, int *errp)
 {
 	int num, *g, err;
 	void *data = NULL;
@@ -2048,7 +2049,7 @@ void *dnet_read_data_wait(struct dnet_session *s, struct dnet_id *id, struct dne
 		goto err_out_exit;
 	}
 
-	data = dnet_read_data_wait_groups(s, id, g, num, io, cflags, &err);
+	data = dnet_read_data_wait_groups(s, id, g, num, io, &err);
 	if (!data)
 		goto err_out_free;
 
@@ -2100,7 +2101,7 @@ int dnet_write_data_wait(struct dnet_session *s, struct dnet_io_control *ctl, vo
 	 */
 	atomic_sub(&w->refcnt, INT_MAX - trans_num - 1);
 
-	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == trans_num, dnet_session_get_timeout(s));
 	if (err || w->status) {
 		if (!err)
 			err = w->status;
@@ -2255,8 +2256,6 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
 		}
 	}
 
-	dnet_session_set_groups(s, groups, group_num);
-
 	*groupsp = groups;
 	return group_num;
 }
@@ -2377,7 +2376,7 @@ static int dnet_start_defrag_single(struct dnet_net_state *st, void *priv, uint6
 	return dnet_trans_alloc_send_state(st, &ctl);
 }
 
-int dnet_start_defrag(struct dnet_session *s, uint64_t cflags)
+int dnet_start_defrag(struct dnet_session *s)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
@@ -2401,13 +2400,13 @@ int dnet_start_defrag(struct dnet_session *s, uint64_t cflags)
 			if (w)
 				dnet_wait_get(w);
 
-			dnet_start_defrag_single(st, w, cflags);
+			dnet_start_defrag_single(st, w, dnet_session_get_cflags(s));
 			num++;
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
 
-	err = dnet_wait_event(w, w->cond == num, &n->wait_ts);
+	err = dnet_wait_event(w, w->cond == num, dnet_session_get_timeout(s));
 	if (!err)
 		err = w->status;
 

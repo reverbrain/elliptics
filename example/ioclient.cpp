@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
 		s.set_groups(groups);
 
 		if (defrag)
-			return dnet_start_defrag(s.get_native(), cflags);
+			return dnet_start_defrag(s.get_native());
 
 		if (writef)
 			s.write_file(create_id(id, writef, type), writef, offset, offset, size);
@@ -308,12 +308,25 @@ int main(int argc, char *argv[])
 				did->type = type;
 			}
 
-			const std::vector<exec_context> results = s.exec(did, event, data);
+			s.set_cflags(cflags | DNET_FLAGS_NOLOCK);
+			const exec_results results = s.exec(did, event, data);
+			s.set_cflags(cflags);
 			for (size_t i = 0; i < results.size(); ++i) {
-				exec_context result = results[i];
-				std::cout << dnet_server_convert_dnet_addr(result.address())
-					<< ": " << result.event()
-					<< " \"" << result.data().to_string() << "\"" << std::endl;
+				if (results[i].error()) {
+					error_info error = results[i].error();
+					std::cout << dnet_server_convert_dnet_addr(results[i].address())
+						<< ": failed to process: \"" << error.message() << "\": " << error.code() << std::endl;
+				} else {
+					exec_context result = results[i].context();
+					if (result.is_null()) {
+						std::cout << dnet_server_convert_dnet_addr(results[i].address())
+							<< ": acknowledge" << std::endl;
+					} else {
+						std::cout << dnet_server_convert_dnet_addr(result.address())
+							<< ": " << result.event()
+							<< " \"" << result.data().to_string() << "\"" << std::endl;
+					}
+				}
 			}
 		}
 

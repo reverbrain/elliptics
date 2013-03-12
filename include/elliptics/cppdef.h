@@ -84,6 +84,8 @@ class error_info
 
 		inline int code() const { return m_code; }
 		inline const std::string &message() const { return m_message; }
+		inline operator bool() const { return m_code != 0; }
+		inline bool operator !() const { return !operator bool(); }
 
 		void throw_error() const;
 	private:
@@ -378,7 +380,7 @@ class lookup_result_entry : public callback_result_entry
 
 		lookup_result_entry &operator =(const lookup_result_entry &other);
 
-		struct dnet_addr *address() const;
+		struct dnet_addr *storage_address() const;
 		struct dnet_file_info *file_info() const;
 		const char *file_path() const;
 };
@@ -408,6 +410,22 @@ class stat_count_result_entry : public callback_result_entry
 };
 
 class exec_context;
+class exec_result_data;
+
+class exec_result_entry : public callback_result_entry
+{
+	public:
+		exec_result_entry();
+		exec_result_entry(const std::shared_ptr<exec_result_data> &data);
+		exec_result_entry(const exec_result_entry &other);
+		~exec_result_entry();
+
+		exec_result_entry &operator =(const exec_result_entry &other);
+
+		error_info error() const;
+
+		exec_context context() const;
+};
 
 typedef lookup_result_entry write_result_entry;
 typedef result_holder<read_result_entry> read_result;
@@ -421,32 +439,54 @@ typedef result_holder<lookup_result_entry> lookup_result;
 typedef array_result_holder<stat_result_entry> stat_result;
 typedef array_result_holder<stat_count_result_entry> stat_count_result;
 typedef array_result_holder<int> prepare_latest_result;
-typedef array_result_holder<exec_context> exec_result;
-typedef std::exception_ptr push_result;
-typedef std::exception_ptr reply_result;
+
+typedef exec_result_entry exec_result;
+typedef std::vector<exec_result> exec_results;
+typedef exec_result_entry push_result;
+typedef std::vector<exec_result> push_results;
+typedef exec_result_entry reply_result;
+typedef std::vector<exec_result> reply_results;
+
 typedef std::exception_ptr update_indexes_result;
 typedef array_result_holder<dnet_raw_id> find_indexes_result;
 typedef array_result_holder<dnet_raw_id> check_indexes_result;
 
 class exec_context_data;
 
+
+// exec_context is context for execution requests, it stores
+// internal identification of the process and environmental
+// variables like event name and data
 class exec_context
 {
 	public:
-		enum final_state { progressive, final };
+		// type of reply
+		enum final_state {
+			progressive, // there will be more replies
+			final // final reply
+		};
 
 		exec_context();
+		// construct from data_pointer, may throw exception
 		exec_context(const data_pointer &data);
 		exec_context(const std::shared_ptr<exec_context_data> &data);
 		exec_context(const exec_context &other);
 		exec_context &operator =(const exec_context &other);
 		~exec_context();
 
+		// construct from raw_data
 		static exec_context from_raw(const void *data, size_t size);
+		// construct from data_pointer, in case of error \a error is filled
+		static exec_context parse(const data_pointer &data, error_info *error);
 
+		// event name
 		std::string event() const;
+		// event data
 		data_pointer data() const;
+		// address of the machine emmited the reply
 		dnet_addr *address() const;
+		bool is_final() const;
+		bool is_null() const;
 
 	private:
 		friend class session;
@@ -609,7 +649,7 @@ class session
 		/*!
 		 * Gets groups of the session.
 		 */
-		const std::vector<int> &get_groups() const;
+		std::vector<int>	get_groups() const;
 
 		/*!
 		 * Sets command flags \a cflags to the session.
@@ -628,6 +668,8 @@ class session
 		 * Gets i/o flags of the session.
 		 */
 		uint32_t		get_ioflags() const;
+
+		void			set_timeout(unsigned int timeout);
 
 		/*!
 		 * Read file by key \a id to \a file by \a offset and \a size.
@@ -992,16 +1034,25 @@ class session
 		 */
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
+		void exec(const std::function<void (const exec_result &)> &handler,
+			const std::function<void (const std::exception_ptr &)> &complete_handler,
+			dnet_id *id, const std::string &event, const data_pointer &data);
 		void exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data);
-		exec_result exec(dnet_id *id, const std::string &event, const data_pointer &data);
+		exec_results exec(dnet_id *id, const std::string &event, const data_pointer &data);
 
+		void push(const std::function<void (const push_result &)> &handler,
+				const std::function<void (const std::exception_ptr &)> &complete_handler,
+				dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data);
 		void push(const std::function<void (const push_result &)> &handler, dnet_id *id,
 				const exec_context &context, const std::string &event, const data_pointer &data);
-		void push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data);
+		push_results push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data);
 
+		void reply(const std::function<void (const reply_result &)> &handler,
+				const std::function<void (const std::exception_ptr &)> &complete_handler,
+				const exec_context &context, const data_pointer &data, exec_context::final_state state);
 		void reply(const std::function<void (const reply_result &)> &handler, const exec_context &context,
 				const data_pointer &data, exec_context::final_state state);
-		void reply(const exec_context &context, const data_pointer &data, exec_context::final_state state);
+		reply_results reply(const exec_context &context, const data_pointer &data, exec_context::final_state state);
 
 		/*!
 		 * Starts execution for \a id of the given \a event with \a data and \a binary.
@@ -1102,6 +1153,7 @@ class session
 		std::shared_ptr<session_data>		m_data;
 
 		void request(const std::function<void (const exec_result &)> &handler,
+				const std::function<void (const std::exception_ptr &)> &complete_handler,
 				dnet_id *id, const exec_context &context);
 		void			mix_states(const key &id, std::vector<int> &groups);
 		void			mix_states(std::vector<int> &groups);
