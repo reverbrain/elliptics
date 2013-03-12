@@ -81,7 +81,7 @@ void finder::parse_lookup(const command_result &ret)
 			if (data.size() >= sizeof(struct dnet_addr)) {
 				struct dnet_addr *addr = data.data<struct dnet_addr>();
 
-				if (cmd->size > sizeof(struct dnet_addr) + sizeof(struct dnet_file_info)) {
+				if (cmd->size >= sizeof(struct dnet_addr) + sizeof(struct dnet_file_info)) {
 					info = (struct dnet_file_info *)(addr + 1);
 					dnet_convert_file_info(info);
 				}
