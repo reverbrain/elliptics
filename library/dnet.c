@@ -1029,11 +1029,12 @@ err_out_exit:
 	return err;
 }
 
-void dnet_fill_state_addr(void *state, struct dnet_addr *addr)
+static void dnet_fill_state_addr(void *state, struct dnet_addr *addr)
 {
 	struct dnet_net_state *st = state;
+	struct dnet_node *n = st->n;
 
-	memcpy(addr, &st->addr, sizeof(struct dnet_addr));
+	memcpy(addr, &n->addrs[0], sizeof(struct dnet_addr));
 }
 
 int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info)

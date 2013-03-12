@@ -796,7 +796,6 @@ int dnet_meta_update_check_status_raw(struct dnet_node *n, struct dnet_meta_cont
 int dnet_meta_update_check_status(struct dnet_node *n, struct dnet_meta_container *mc);
 
 int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen);
-void dnet_fill_state_addr(void *state, struct dnet_addr *addr);
 
 struct dnet_id_param {
 	unsigned int		group_id;
