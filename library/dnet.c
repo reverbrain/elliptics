@@ -722,6 +722,13 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				char csum[DNET_ID_SIZE];
 				int csize = DNET_ID_SIZE;
 
+				if (!n->cb->checksum) {
+					err = -ENOTSUP;
+					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation is not supported in backend\n",
+							dnet_dump_id(&cmd->id));
+					break;
+				}
+
 				err = n->cb->checksum(n, n->cb->command_private, &cmd->id, csum, &csize);
 				if (err < 0) {
 					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation failed\n", dnet_dump_id(&cmd->id));
