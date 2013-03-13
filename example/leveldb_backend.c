@@ -63,6 +63,32 @@ struct leveldb_backend
 	leveldb_t		*db;
 };
 
+static int leveldb_backend_checksum(struct dnet_node *n, void *backend_priv, struct dnet_id *id, void *csum, int *csize)
+{
+	struct leveldb_backend *b = backend_priv;
+	char *data = NULL;
+	size_t data_size;
+	int err = -EINVAL;
+	char *error_string = NULL;
+
+	data = leveldb_get(b->db, b->roptions, (const char *)id->id, DNET_ID_SIZE, &data_size, &error_string);
+	if (error_string || !data) {
+		if (!data)
+			err = -ENOENT;
+		goto err_out_exit;
+	}
+
+	err = dnet_checksum_data(n, csum, csize, data, data_size);
+	if (err)
+		goto err_out_free;
+
+err_out_free:
+	free(data);
+err_out_exit:
+	free(error_string);
+	return err;
+}
+
 static int leveldb_backend_lookup(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd)
 {
 	char *data = NULL;
@@ -570,6 +596,7 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 
 	b->cb.storage_stat = leveldb_backend_storage_stat;
 	b->cb.backend_cleanup = leveldb_backend_cleanup;
+	b->cb.checksum = leveldb_backend_checksum;
 
 	b->cb.meta_read = dnet_leveldb_db_read;
 	b->cb.meta_write = dnet_leveldb_db_write;
