@@ -70,7 +70,7 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 		}
 		if ((!(pfd.revents & POLLOUT)) || (pfd.revents & (POLLERR | POLLHUP))) {
 			err = -ECONNREFUSED;
-			dnet_log_err(n, "Connection refused by %s:%d",
+			dnet_log(n, DNET_LOG_ERROR, "Connection refused by %s:%d\n",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
 			goto err_out_exit;
@@ -83,7 +83,7 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 			err = -errno;
 			if (!err)
 				err = -status;
-			dnet_log_err(n, "Failed to connect to %s:%d: %s [%d]",
+			dnet_log(n, DNET_LOG_ERROR, "Failed to connect to %s:%d: %s [%d]\n",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen),
 				strerror(-err), err);
