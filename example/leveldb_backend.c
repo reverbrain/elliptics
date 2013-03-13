@@ -487,11 +487,11 @@ int leveldb_backend_storage_stat(void *priv, struct dnet_stat *st)
 	return 0;
 }
 
-static void dnet_leveldb_db_cleanup(struct leveldb_backend *s)
+static void dnet_leveldb_db_cleanup(struct leveldb_backend *s __unused)
 {
 }
 
-static int dnet_leveldb_db_init(struct leveldb_backend *s, struct dnet_config *c, const char *path)
+static int dnet_leveldb_db_init(struct leveldb_backend *s __unused, struct dnet_config *c __unused, const char *path __unused)
 {
 	return 0;
 }
@@ -513,12 +513,12 @@ static void leveldb_backend_cleanup(void *priv)
 	free(s->path);
 }
 
-static ssize_t dnet_leveldb_db_read(void *priv, struct dnet_raw_id *id, void **datap)
+static ssize_t dnet_leveldb_db_read(void *priv __unused, struct dnet_raw_id *id __unused, void **datap __unused)
 {
 	return -ENOTSUP;
 }
 
-static int dnet_leveldb_db_write(void *priv, struct dnet_raw_id *id, void *data, size_t size)
+static int dnet_leveldb_db_write(void *priv __unused, struct dnet_raw_id *id __unused, void *data __unused, size_t size __unused)
 {
 	char tmp[24];
 	dnet_backend_log(DNET_LOG_ERROR, "%s: metadata operation is not supported, it will be removed soon. \n"
@@ -527,12 +527,12 @@ static int dnet_leveldb_db_write(void *priv, struct dnet_raw_id *id, void *data,
 	return -ENOTSUP;
 }
 
-static int dnet_leveldb_db_remove(void *priv, struct dnet_raw_id *id, int real_del)
+static int dnet_leveldb_db_remove(void *priv __unused, struct dnet_raw_id *id __unused, int real_del __unused)
 {
 	return -ENOTSUP;
 }
 
-static int dnet_leveldb_db_iterate(struct dnet_iterate_ctl *ctl)
+static int dnet_leveldb_db_iterate(struct dnet_iterate_ctl *ctl __unused)
 {
 	return -ENOTSUP;
 }
