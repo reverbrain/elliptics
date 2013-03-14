@@ -1,3 +1,9 @@
+elliptics (2.22.3.1) unstable; urgency=low
+
+  * Guard leveldb's append/offset writes, since they are actually read-modify-write cycles
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Mar 2013 03:01:25 +0400
+
 elliptics (2.22.3.0) unstable; urgency=low
 
   * Added leveldb offset and append write support
