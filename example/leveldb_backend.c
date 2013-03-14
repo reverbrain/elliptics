@@ -119,15 +119,50 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	int err = -EINVAL;
 	char *error_string = NULL;
 	struct dnet_io_attr *io = data;
+	void *read_data = NULL;
 
 	dnet_convert_io_attr(io);
-	if (io->offset) {
-		err = -ERANGE;
-		goto err_out_exit;
-	}
-	
 	data += sizeof(struct dnet_io_attr);
 
+	if (io->offset || (io->flags & DNET_IO_FLAGS_APPEND)) {
+		size_t data_size;
+		size_t offset = io->offset;
+
+		read_data = leveldb_get(s->db, s->roptions, (const char *)io->id, DNET_ID_SIZE, &data_size, &error_string);
+		if (error_string || !read_data) {
+			if (!read_data)
+				err = -ENOENT;
+			goto plain_write;
+		}
+
+		if (io->flags & DNET_IO_FLAGS_APPEND) {
+			io->offset = 0;
+			offset = data_size;
+		}
+
+		if (io->offset > data_size) {
+			err = -ERANGE;
+			goto err_out_exit;
+		}
+
+		if (offset + io->size > data_size) {
+			read_data = realloc(read_data, data_size + io->size);
+			if (!read_data) {
+				err = -ENOMEM;
+				goto err_out_exit;
+			}
+		}
+
+		memcpy(read_data + offset, data, io->size);
+
+		data = read_data;
+		if (offset + io->size > data_size)
+			io->size = offset + io->size;
+		else
+			io->size = data_size;
+	}
+
+plain_write:
 	leveldb_put(s->db, s->woptions, (const char *)cmd->id.id, DNET_ID_SIZE, data, io->size, &error_string);
 	if (error_string)
 		goto err_out_exit;
@@ -143,6 +178,7 @@ err_out_exit:
 	if (err < 0)
 		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: : WRITE: error: %s: %d.\n",
 			dnet_dump_id(&cmd->id), error_string, err);
+	free(read_data);
 	free(error_string);
 	return err;
 }
