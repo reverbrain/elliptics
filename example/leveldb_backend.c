@@ -130,8 +130,8 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 
 		read_data = leveldb_get(s->db, s->roptions, (const char *)io->id, DNET_ID_SIZE, &data_size, &error_string);
 		if (error_string || !read_data) {
-			if (!read_data)
-				err = -ENOENT;
+			free(error_strin);
+			error_string = NULL;
 			goto plain_write;
 		}
 
@@ -171,8 +171,8 @@ plain_write:
 	if (err < 0)
 		goto err_out_exit;
 
-	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : WRITE: Ok: size: %llu.\n",
-			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : WRITE: Ok: offset: %llu, size: %llu, ioflags: %x.\n",
+			dnet_dump_id(&cmd->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags);
 
 err_out_exit:
 	if (err < 0)
