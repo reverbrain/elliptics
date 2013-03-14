@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.2.0
+Version:	2.22.3.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Mar 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.3.0
+- Added leveldb offset and append write support
+- Return error for CAS write if ->checksum() is not supported
+- Added leveldb checksum function
+- Connection refused error message cleanup
+
 * Wed Mar 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.2.0
 - Return status of defragmentation request
 - Return node's address, not client's one.
