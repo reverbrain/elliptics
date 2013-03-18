@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.3.1
+Version:	2.22.4.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Mar 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.4.0
+- Depend on 0.10.0-rc5 cocaine
+
 * Fri Mar 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.3.1
 - Guard leveldb's append/offset writes, since they are actually read-modify-write cycles
 
