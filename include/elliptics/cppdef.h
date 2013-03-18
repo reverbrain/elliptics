@@ -1037,7 +1037,8 @@ class session
 		void exec(const std::function<void (const exec_result &)> &handler,
 			const std::function<void (const std::exception_ptr &)> &complete_handler,
 			dnet_id *id, const std::string &event, const data_pointer &data);
-		void exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data);
+		void exec(const std::function<void (const exec_result &)> &handler, dnet_id *id,
+				const std::string &event, const data_pointer &data);
 		exec_results exec(dnet_id *id, const std::string &event, const data_pointer &data);
 
 		void push(const std::function<void (const push_result &)> &handler,
@@ -1125,7 +1126,8 @@ class session
 		write_result		bulk_write(const std::vector<struct dnet_io_attr> &ios,
 							const std::vector<data_pointer> &data);
 
-		void update_indexes(const std::function<void (const update_indexes_result &)> &handler, const key &id, const std::vector<dnet_raw_id> &indexes);
+		void update_indexes(const std::function<void (const update_indexes_result &)> &handler,
+				const key &id, const std::vector<dnet_raw_id> &indexes);
 		void update_indexes(const key &id, const std::vector<dnet_raw_id> &indexes);
 		void update_indexes(const key &id, const std::vector<std::string> &indexes);
 
