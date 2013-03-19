@@ -60,6 +60,7 @@ class callback_result_data
 		}
 
 		data_pointer data;
+		error_info error;
 };
 
 enum special_count { unlimited };
@@ -898,7 +899,6 @@ class remove_callback : public default_callback
 class exec_result_data : public callback_result_data
 {
 	public:
-		error_info error;
 		exec_context context;
 };
 
@@ -943,7 +943,7 @@ class exec_callback : public default_callback
 			// TODO: Remove exception handling from internal callbacks
 			// If there is no try/catch block we get memory corruption instead of abort in case of exception
 			try {
-				handler(exec_result_entry(data));
+				handler(entry);
 			} catch (const std::exception &exc) {
 				dnet_log_raw(sess.get_node().get_native(),
 					DNET_LOG_ERROR,
@@ -968,6 +968,81 @@ class exec_callback : public default_callback
 		struct dnet_id *id;
 		struct sph *sph;
 		std::function<void (const exec_result &)> handler;
+		std::function<void (const std::exception_ptr &)> complete_handler;
+};
+
+class iterator_callback : public default_callback
+{
+	public:
+		typedef std::shared_ptr<iterator_callback> ptr;
+
+		iterator_callback(const session &sess) : sess(sess)
+		{
+		}
+
+		bool start(complete_func func, void *priv)
+		{
+			set_count(unlimited);
+
+			dnet_trans_control ctl;
+			memset(&ctl, 0, sizeof(ctl));
+			memcpy(&ctl.id, &id, sizeof(id));
+			ctl.cflags = sess.get_cflags();
+			ctl.cmd = DNET_CMD_START_ITERATOR;
+			ctl.complete = func;
+			ctl.priv = priv;
+
+			dnet_convert_iterator_request(&request);
+			ctl.data = &request;
+			ctl.size = sizeof(request);
+
+			int err = dnet_request_cmd(sess.get_native(), &ctl);
+			if (err < 0) {
+				throw_error(err, "failed to start iterator");
+			}
+
+			return set_count(err);
+		}
+
+
+		virtual void process(struct dnet_cmd *cmd, const callback_result_data &generic_data)
+		{
+			// this method is run only inside mutex lock
+			auto data = std::make_shared<callback_result_data>(generic_data);
+			data->data = generic_data.data;
+			if (cmd->status) {
+				data->error = create_error(cmd->status, cmd->id, "Failed to process execution request");
+			}
+
+			// TODO: Remove exception handling from internal callbacks
+			// If there is no try/catch block we get memory corruption instead of abort in case of exception
+			try {
+				callback_result_entry entry(data);
+				handler(*reinterpret_cast<iterator_result_entry*>(&entry));
+			} catch (const std::exception &exc) {
+				dnet_log_raw(sess.get_node().get_native(),
+					DNET_LOG_ERROR,
+					"UNCAUGHT ASYNC EXCEPTION: %s",
+					exc.what());
+				abort();
+			} catch (...) {
+				dnet_log_raw(sess.get_node().get_native(),
+					DNET_LOG_ERROR,
+					"UNCAUGHT ASYNC EXCEPTION");
+				abort();
+			}
+		}
+
+		void finish(std::exception_ptr exc)
+		{
+			if (complete_handler)
+				complete_handler(exc);
+		}
+
+		session sess;
+		struct dnet_id id;
+		dnet_iterator_request request;
+		std::function<void (const iterator_result &)> handler;
 		std::function<void (const std::exception_ptr &)> complete_handler;
 };
 

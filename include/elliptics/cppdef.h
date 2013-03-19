@@ -427,6 +427,18 @@ class exec_result_entry : public callback_result_entry
 		exec_context context() const;
 };
 
+class iterator_result_entry : public callback_result_entry
+{
+	public:
+		iterator_result_entry();
+		iterator_result_entry(const iterator_result_entry &other);
+		~iterator_result_entry();
+
+		iterator_result_entry &operator =(const iterator_result_entry &other);
+
+		error_info error() const;
+};
+
 typedef lookup_result_entry write_result_entry;
 typedef result_holder<read_result_entry> read_result;
 typedef array_result_holder<write_result_entry> write_result;
@@ -439,6 +451,8 @@ typedef result_holder<lookup_result_entry> lookup_result;
 typedef array_result_holder<stat_result_entry> stat_result;
 typedef array_result_holder<stat_count_result_entry> stat_count_result;
 typedef array_result_holder<int> prepare_latest_result;
+
+typedef callback_result_entry iterator_result;
 
 typedef exec_result_entry exec_result;
 typedef std::vector<exec_result> exec_results;
@@ -1033,6 +1047,10 @@ class session
 		 * Returnes the list of network routes.
 		 */
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
+
+		void start_iterator(const std::function<void (const iterator_result &)> &handler,
+			const std::function<void (const std::exception_ptr &)> &complete_handler,
+			const key &id, const dnet_iterator_request &request);
 
 		void exec(const std::function<void (const exec_result &)> &handler,
 			const std::function<void (const std::exception_ptr &)> &complete_handler,
