@@ -1440,6 +1440,20 @@ std::vector<int> session::mix_states()
 	return result;
 }
 
+void session::start_iterator(const std::function<void (const iterator_result &)> &handler,
+	const std::function<void (const std::exception_ptr &)> &complete_handler,
+	const key &id, const dnet_iterator_request &request)
+{
+	transform(id);
+	iterator_callback::ptr cb = std::make_shared<iterator_callback>(*this);
+	cb->id = id.id();
+	cb->request = request;
+	cb->handler = handler;
+	cb->complete_handler = complete_handler;
+
+	startCallback(cb);
+}
+
 void session::exec(const std::function<void (const exec_result &)> &handler,
 	const std::function<void (const std::exception_ptr &)> &complete_handler,
 	dnet_id *id, const std::string &event, const data_pointer &data)
