@@ -342,6 +342,7 @@ class callback_result_entry
 		callback_result_entry &operator =(const callback_result_entry &other);
 
 		bool is_valid() const;
+		int status() const;
 		data_pointer		raw_data() const;
 		struct dnet_addr	*address() const;
 		struct dnet_cmd		*command() const;
@@ -437,6 +438,9 @@ class iterator_result_entry : public callback_result_entry
 		iterator_result_entry &operator =(const iterator_result_entry &other);
 
 		error_info error() const;
+
+		dnet_iterator_request *reply() const;
+		data_pointer reply_data() const;
 };
 
 typedef lookup_result_entry write_result_entry;
@@ -452,7 +456,7 @@ typedef array_result_holder<stat_result_entry> stat_result;
 typedef array_result_holder<stat_count_result_entry> stat_count_result;
 typedef array_result_holder<int> prepare_latest_result;
 
-typedef callback_result_entry iterator_result;
+typedef iterator_result_entry iterator_result;
 
 typedef exec_result_entry exec_result;
 typedef std::vector<exec_result> exec_results;
