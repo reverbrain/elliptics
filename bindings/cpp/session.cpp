@@ -1594,6 +1594,14 @@ void session::reply(const struct sph &sph, const std::string &event, const std::
 
 void session::bulk_read(const std::function<void (const bulk_read_result &)> &handler, const std::vector<struct dnet_io_attr> &ios_vector)
 {
+	if (ios_vector.empty()) {
+		try {
+			throw_error(-ENOENT, "bulk_read failed: ios list is empty");
+		} catch (...) {	
+			handler(std::current_exception());
+		}
+		return;
+	}
 	io_attr_set ios(ios_vector.begin(), ios_vector.end());
 
 	struct dnet_io_control control;
