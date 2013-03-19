@@ -62,6 +62,11 @@ bool callback_result_entry::is_valid() const
 	return !m_data->data.empty();
 }
 
+int callback_result_entry::status() const
+{
+	return command()->status;
+}
+
 data_pointer callback_result_entry::raw_data() const
 {
 	return m_data->data;
@@ -272,6 +277,16 @@ iterator_result_entry &iterator_result_entry::operator =(const iterator_result_e
 error_info iterator_result_entry::error() const
 {
 	return m_data->error;
+}
+
+dnet_iterator_request *iterator_result_entry::reply() const
+{
+	return data<dnet_iterator_request>();
+}
+
+data_pointer iterator_result_entry::reply_data() const
+{
+	return data().skip<dnet_iterator_request>();
 }
 
 } } // namespace ioremap::elliptics

@@ -627,6 +627,24 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		case DNET_CMD_EXEC:
 			err = dnet_cmd_exec(st, cmd, data);
 			break;
+		case DNET_CMD_ITERATOR: {
+			size_t buffer_size = sizeof(struct dnet_iterator_request) + 20;
+			char *buffer = alloca(buffer_size);
+			size_t i;
+			struct dnet_iterator_request *request = (struct dnet_iterator_request *)buffer;
+			memset(buffer, 0, sizeof(struct dnet_iterator_request));
+			memset(buffer + sizeof(struct dnet_iterator_request), ' ', 20);
+
+			for (i = 0; i < 3; ++i) {
+				if (1)
+					sleep(1);
+				request->id = i;
+				memcpy(request->key.id, cmd->id.id, sizeof(cmd->id.id));
+				memset(buffer + sizeof(struct dnet_iterator_request), 'a' + i, 20);
+				dnet_send_reply(st, cmd, buffer, buffer_size, 1);
+			}
+			break;
+		}
 		case DNET_CMD_STAT_COUNT:
 			err = dnet_cmd_stat_count(st, cmd, data);
 			break;

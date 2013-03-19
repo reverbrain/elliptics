@@ -23,6 +23,9 @@
 #include <elliptics/cppdef.h>
 
 #include <map>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
 
 namespace bp = boost::python;
 
@@ -57,16 +60,24 @@ enum elliptics_log_level {
 	log_level_debug = DNET_LOG_DEBUG,
 };
 
-static void elliptics_extract_arr(const bp::list &l, unsigned char *dst, int *dlen)
+static void convert_from_list(const bp::list &l, unsigned char *dst, int dlen)
 {
 	int length = bp::len(l);
 
-	if (length > *dlen)
-		length = *dlen;
+	if (length > dlen)
+		length = dlen;
 
-	memset(dst, 0, *dlen);
+	memset(dst, 0, dlen);
 	for (int i = 0; i < length; ++i)
 		dst[i] = bp::extract<unsigned char>(l[i]);
+}
+
+static bp::list convert_to_list(const unsigned char *src, unsigned int size)
+{
+	bp::list result;
+	for (unsigned int i = 0; i < size; ++i)
+		result.append(src[i]);
+	return result;
 }
 
 struct elliptics_id {
@@ -74,18 +85,14 @@ struct elliptics_id {
 	elliptics_id(bp::list id_, int group_, int type_) : id(id_), group_id(group_), type(type_) {}
 
 	elliptics_id(struct dnet_id &dnet) {
-		for (unsigned int i = 0; i < sizeof(dnet.id); ++i)
-			id.append(dnet.id[i]);
-
+		id = convert_to_list(dnet.id, sizeof(dnet.id));
 		group_id = dnet.group_id;
 		type = dnet.type;
 	}
 
 	struct dnet_id to_dnet() const {
 		struct dnet_id dnet;
-		int len = sizeof(dnet.id);
-
-		elliptics_extract_arr(id, dnet.id, &len);
+		convert_from_list(id, dnet.id, sizeof(dnet.id));
 
 		dnet.group_id = group_id;
 		dnet.type = type;
@@ -112,10 +119,8 @@ struct elliptics_range {
 
 static void elliptics_extract_range(const struct elliptics_range &r, struct dnet_io_attr &io)
 {
-	int len = sizeof(io.id);
-
-	elliptics_extract_arr(r.start, io.id, &len);
-	elliptics_extract_arr(r.end, io.parent, &len);
+	convert_from_list(r.start, io.id, sizeof(io.id));
+	convert_from_list(r.end, io.parent, sizeof(io.parent));
 
 	io.flags = r.ioflags;
 	io.size = r.size;
@@ -186,6 +191,114 @@ static std::vector<T> convert_to_vector(const bp::api::object &list)
 	bp::stl_input_iterator<T> begin(list), end;
 	return std::vector<T>(begin, end);
 }
+
+struct python_iterator_result_data
+{
+	python_iterator_result_data() : finished(false) {}
+
+	void on_result(const iterator_result &result) {
+		if (result.size() == 0 && result.status() == 0) {
+			// Acknowledge
+			return;
+		}
+
+		std::lock_guard<std::mutex> locker(mutex);
+		results.push(result);
+		condition.notify_all();
+	}
+
+	void on_finished(const std::exception_ptr &e) {
+		std::lock_guard<std::mutex> locker(mutex);
+		finished = true;
+		exc = e;
+		condition.notify_all();
+	}
+
+	std::mutex mutex;
+	std::condition_variable condition;
+	std::queue<iterator_result> results;
+	bool finished;
+	std::exception_ptr exc;
+};
+
+class python_iterator_result
+{
+	public:
+		python_iterator_result(session &sess, const key &id, const dnet_iterator_request &request)
+		: d(std::make_shared<python_iterator_result_data>()) {
+			sess.start_iterator(
+				std::bind(&python_iterator_result_data::on_result, d.get(), std::placeholders::_1),
+				std::bind(&python_iterator_result_data::on_finished, d.get(), std::placeholders::_1),
+				id, request);
+		}
+
+		class iterator : public std::iterator<std::input_iterator_tag, const iterator_result>
+		{
+			public:
+				iterator() {}
+				iterator(const std::shared_ptr<python_iterator_result_data> &d) : d(d) {}
+
+				void wait(std::unique_lock<std::mutex> &locker)
+				{
+					while (!d->finished && d->results.empty())
+						d->condition.wait(locker);
+				}
+
+				bool at_end()
+				{
+					if (!d) {
+						return true;
+					}
+					std::unique_lock<std::mutex> locker(d->mutex);
+					wait(locker);
+					return d->finished && d->results.empty();
+				}
+
+				bool operator ==(iterator other) {
+					return at_end() == other.at_end();
+				}
+
+				struct result_container
+				{
+					iterator_result result;
+
+					const iterator_result &operator *() const
+					{
+						return result;
+					}
+				};
+
+				result_container &operator ++(int) {
+					if (!d) {
+						throw_error(-ENOENT, "python::iterator::operator ++(int): dereference of null object");
+					}
+					std::unique_lock<std::mutex> locker(d->mutex);
+					wait(locker);
+					if (d->results.empty()) {
+						throw_error(-ENOENT, "python::iterator::operator ++(int): empty items list");
+					}
+					m_result.result = d->results.front();
+					d->results.pop();
+					return m_result;
+				}
+
+				std::shared_ptr<python_iterator_result_data> d;
+				result_container m_result;
+		};
+
+		iterator begin()
+		{
+			return iterator(d);
+		}
+
+		iterator end()
+		{
+			return iterator();
+		}
+
+	private:
+		std::shared_ptr<python_iterator_result_data> d;
+};
 
 class elliptics_session: public session, public bp::wrapper<session> {
 	public:
@@ -406,6 +519,10 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return res;
 		}
 
+		python_iterator_result start_iterator(const elliptics_id &id, const dnet_iterator_request &request) {
+			return python_iterator_result(*this, id.to_dnet(), request);
+		}
+
 		std::string exec_name(const struct elliptics_id &id, const std::string &event,
 						    const std::string &data, const std::string &binary) {
 			struct dnet_id raw = id.to_dnet();
@@ -614,6 +731,36 @@ void next_impl(bp::api::object &value, const bp::api::object &next)
 	value = next();
 }
 
+bp::list dnet_iterator_request_get_key(const dnet_iterator_request *request)
+{
+	return convert_to_list(request->key.id, sizeof(request->key.id));
+}
+
+void dnet_iterator_request_set_key(dnet_iterator_request *request, const bp::list &list)
+{
+	convert_from_list(list, request->key.id, sizeof(request->key.id));
+}
+
+bp::list dnet_iterator_request_get_end(const dnet_iterator_request *request)
+{
+	return convert_to_list(request->end.id, sizeof(request->end.id));
+}
+
+void dnet_iterator_request_set_end(dnet_iterator_request *request, const bp::list &list)
+{
+	convert_from_list(list, request->end.id, sizeof(request->end.id));
+}
+
+dnet_iterator_request iterator_result_reply(iterator_result result)
+{
+	return *result.reply();
+}
+
+std::string iterator_result_reply_data(iterator_result result)
+{
+	return result.reply_data().to_string();
+}
+
 BOOST_PYTHON_MODULE(elliptics) {
 	bp::class_<error> error_class("ErrorInfo", bp::init<int, std::string>());
 	error_class.def("__str__", &error::error_message);
@@ -633,6 +780,21 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_readwrite("type", &elliptics_id::type)
+	;
+
+	bp::class_<dnet_iterator_request>("IteratorRequest", bp::init<>())
+		.add_property("key", dnet_iterator_request_get_key, dnet_iterator_request_set_key)
+		.add_property("end", dnet_iterator_request_get_end, dnet_iterator_request_set_end)
+		.def_readwrite("flags", &dnet_iterator_request::flags)
+		.def_readwrite("id", &dnet_iterator_request::id)
+		.def_readwrite("itype", &dnet_iterator_request::itype)
+		.def_readwrite("status", &dnet_iterator_request::status)
+	;
+
+	bp::class_<iterator_result>("IteratorResultEntry", bp::init<>())
+		.def("status", &iterator_result::status)
+		.def("reply", iterator_result_reply)
+		.def("reply_data", iterator_result_reply_data)
 	;
 
 	bp::class_<elliptics_range>("Range", bp::init<>())
@@ -669,6 +831,10 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def_readwrite("nonblocking_io_thread_num", &dnet_config::nonblocking_io_thread_num)
 		.def_readwrite("net_thread_num", &dnet_config::net_thread_num)
 		.def_readwrite("client_prio", &dnet_config::client_prio)
+	;
+
+	bp::class_<python_iterator_result>("IteratorResult", bp::no_init)
+		.def("__iter__", bp::iterator<python_iterator_result>())
 	;
 	
 	bp::class_<elliptics_config>("Config", bp::init<>())
@@ -745,6 +911,8 @@ BOOST_PYTHON_MODULE(elliptics) {
 
 		.def("get_routes", &elliptics_session::get_routes)
 		.def("stat_log", &elliptics_session::stat_log_count)
+
+		.def("start_iterator", &elliptics_session::start_iterator)
 
 		.def("exec_event", &elliptics_session::exec_name)
 		.def("exec_event", &elliptics_session::exec_name_by_name)

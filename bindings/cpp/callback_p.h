@@ -987,7 +987,8 @@ class iterator_callback : public default_callback
 			dnet_trans_control ctl;
 			memset(&ctl, 0, sizeof(ctl));
 			memcpy(&ctl.id, &id, sizeof(id));
-			ctl.cflags = sess.get_cflags();
+			ctl.id.group_id = sess.get_groups().front();
+			ctl.cflags = sess.get_cflags() | DNET_FLAGS_NEED_ACK;
 			ctl.cmd = DNET_CMD_ITERATOR;
 			ctl.complete = func;
 			ctl.priv = priv;
@@ -996,12 +997,12 @@ class iterator_callback : public default_callback
 			ctl.data = &request;
 			ctl.size = sizeof(request);
 
-			int err = dnet_request_cmd(sess.get_native(), &ctl);
+			int err = dnet_trans_alloc_send(sess.get_native(), &ctl);
 			if (err < 0) {
 				throw_error(err, "failed to start iterator");
 			}
 
-			return set_count(err);
+			return set_count(1);
 		}
 
 
