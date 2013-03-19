@@ -560,7 +560,12 @@ static int dnet_db_list_iter(struct eblob_disk_control *dc, struct eblob_ram_con
 				atomic_read(&ctl->total), atomic_read(&ctl->completed), atomic_read(&ctl->errors));
 	}
 
-	return err;
+
+	/*
+	 * We do not return check error, since it wil be propagated to all other iterating threads
+	 */
+
+	return 0;
 }
 
 int dnet_db_list(struct dnet_net_state *st, struct dnet_cmd *cmd)
