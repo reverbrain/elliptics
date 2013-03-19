@@ -722,6 +722,19 @@ static inline void dnet_convert_meta_checksum(struct dnet_meta_checksum *c)
 	dnet_convert_time(&c->tm);
 }
 
+/* when set server-side iterator works with data as well as index/metadata,
+ * otherwise only index/metadata is stored/sent to back client/disk
+ */
+#define DNET_IFLAGS_DATA		(1<<0)
+
+enum dnet_iterator_types {
+	DNET_ITYPE_DISK		= 1,	/* iterator saves data chunks (index/metadata + (optionally) data) locally on
+					 * server to $root/iter/$id instead of sending chunks to client
+					 */
+
+	DNET_ITYPE_NETWORK,		/* iterator sends data chunks  to client */
+};
+
 struct dnet_iterator_request
 {
 	struct dnet_raw_id		key;
