@@ -988,7 +988,7 @@ class iterator_callback : public default_callback
 			memset(&ctl, 0, sizeof(ctl));
 			memcpy(&ctl.id, &id, sizeof(id));
 			ctl.cflags = sess.get_cflags();
-			ctl.cmd = DNET_CMD_START_ITERATOR;
+			ctl.cmd = DNET_CMD_ITERATOR;
 			ctl.complete = func;
 			ctl.priv = priv;
 

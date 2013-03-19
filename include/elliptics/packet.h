@@ -57,7 +57,7 @@ enum dnet_commands {
 	DNET_CMD_AUTH,				/* Authentification cookie check */
 	DNET_CMD_BULK_READ,			/* Read a number of ids at one time */
 	DNET_CMD_DEFRAG,			/* Start defragmentation process if backend supports it */
-	DNET_CMD_START_ITERATOR,		/* Start iterator */
+	DNET_CMD_ITERATOR,			/* Start/stop/pause/status for server-side iterator */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };
@@ -722,12 +722,23 @@ static inline void dnet_convert_meta_checksum(struct dnet_meta_checksum *c)
 	dnet_convert_time(&c->tm);
 }
 
-struct dnet_iterator_request {
-};
+struct dnet_iterator_request
+{
+	struct dnet_raw_id		key;
+	struct dnet_raw_id		end;
+	uint64_t			flags;
+	uint64_t			id;
+	int				itype;
+	int				status;
+	uint64_t			reserved[5];
+} __attribute__ ((packed));
 
 static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r)
 {
-	(void) r;
+	r->flags = dnet_bswap64(r->flags);
+	r->id = dnet_bswap64(r->id);
+	r->itype = dnet_bswap32(r->itype);
+	r->status = dnet_bswap32(r->status);
 }
 
 #ifdef __cplusplus
