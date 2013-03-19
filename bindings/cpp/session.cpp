@@ -1440,6 +1440,20 @@ std::vector<int> session::mix_states()
 	return result;
 }
 
+void session::start_iterator(const std::function<void (const iterator_result &)> &handler,
+	const std::function<void (const std::exception_ptr &)> &complete_handler,
+	const key &id, const dnet_iterator_request &request)
+{
+	transform(id);
+	iterator_callback::ptr cb = std::make_shared<iterator_callback>(*this);
+	cb->id = id.id();
+	cb->request = request;
+	cb->handler = handler;
+	cb->complete_handler = complete_handler;
+
+	startCallback(cb);
+}
+
 void session::exec(const std::function<void (const exec_result &)> &handler,
 	const std::function<void (const std::exception_ptr &)> &complete_handler,
 	dnet_id *id, const std::string &event, const data_pointer &data)
@@ -1594,6 +1608,14 @@ void session::reply(const struct sph &sph, const std::string &event, const std::
 
 void session::bulk_read(const std::function<void (const bulk_read_result &)> &handler, const std::vector<struct dnet_io_attr> &ios_vector)
 {
+	if (ios_vector.empty()) {
+		try {
+			throw_error(-ENOENT, "bulk_read failed: ios list is empty");
+		} catch (...) {	
+			handler(std::current_exception());
+		}
+		return;
+	}
 	io_attr_set ios(ios_vector.begin(), ios_vector.end());
 
 	struct dnet_io_control control;

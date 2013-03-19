@@ -240,8 +240,7 @@ exec_result_entry &exec_result_entry::operator =(const exec_result_entry &other)
 
 error_info exec_result_entry::error() const
 {
-	auto data = static_cast<exec_result_data*>(m_data.get());
-	return data->error;
+	return m_data->error;
 }
 
 exec_context exec_result_entry::context() const
@@ -250,6 +249,29 @@ exec_context exec_result_entry::context() const
 	if (data->error)
 		data->error.throw_error();
 	return static_cast<exec_result_data*>(m_data.get())->context;
+}
+
+iterator_result_entry::iterator_result_entry()
+{
+}
+
+iterator_result_entry::iterator_result_entry(const iterator_result_entry &other) : callback_result_entry(other)
+{
+}
+
+iterator_result_entry::~iterator_result_entry()
+{
+}
+
+iterator_result_entry &iterator_result_entry::operator =(const iterator_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+error_info iterator_result_entry::error() const
+{
+	return m_data->error;
 }
 
 } } // namespace ioremap::elliptics
