@@ -1,3 +1,9 @@
+elliptics (2.22.5.1) unstable; urgency=low
+
+  * Fixed read_latest in case of no metadata
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Mar 2013 03:42:05 +0400
+
 elliptics (2.22.5.0) unstable; urgency=low
 
   * Added start_iterator to python binding

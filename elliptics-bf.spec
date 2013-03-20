@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.5.0
+Version:	2.22.5.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Mar 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.5.1
+- Fixed read_latest in case of no metadata
+
 * Wed Mar 20 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.5.0
 - Added start_iterator to python binding
 - Added server-side iterator flags/type defines
