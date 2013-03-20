@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.4.0
+Version:	2.22.5.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Mar 20 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.5.0
+- Added start_iterator to python binding
+- Added server-side iterator flags/type defines
+- Introduce server-side iteration control structure
+- Do not return error from dnet_db_list_iter() - this error will be propagated to all iterating threads and stop them
+- Added start_iterator API
+- Fixed bulk_read for empty request
+
 * Tue Mar 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.4.0
 - Depend on 0.10.0-rc5 cocaine
 

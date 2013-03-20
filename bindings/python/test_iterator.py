@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 
 import sys
-sys.path.insert(0, "bindings/python/.libs/")
+sys.path.insert(0, "bindings/python/")
 import elliptics
 import binascii
 from pprint import pprint
 
 try:
-	log = elliptics.Logger("/dev/stderr", 31)
+	log = elliptics.Logger("/dev/stderr", 1)
 	cfg = elliptics.Config()
 	cfg.cookie = "0123456789012345678901234567890123456789"
 	cfg.config.wait_timeout = 60
@@ -27,9 +27,8 @@ try:
 		request = elliptics.IteratorRequest()
 		request.key = [1, 2, 3, 4]
 		request.end = [4, 3, 2, 1]
-		print request
+
 		iterator = s.start_iterator(id, request)
-		print iterator
 		for result in iterator:
 			try:
 				if result.status() != 0:

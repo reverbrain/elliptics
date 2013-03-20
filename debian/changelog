@@ -1,3 +1,14 @@
+elliptics (2.22.5.0) unstable; urgency=low
+
+  * Added start_iterator to python binding
+  * Added server-side iterator flags/type defines
+  * Introduce server-side iteration control structure
+  * Do not return error from dnet_db_list_iter() - this error will be propagated to all iterating threads and stop them
+  * Added start_iterator API
+  * Fixed bulk_read for empty request
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 20 Mar 2013 04:40:35 +0400
+
 elliptics (2.22.4.0) unstable; urgency=low
 
   * Depend on 0.10.0-rc5 cocaine
