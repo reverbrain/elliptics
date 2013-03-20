@@ -541,16 +541,15 @@ struct read_latest_callback
 	uint64_t offset;
 	uint64_t size;
 	std::function<void (const read_result &)> handler;
+	std::vector<int> groups;
 
 	void operator() (const prepare_latest_result &result)
 	{
-		if (result.exception() != std::exception_ptr()) {
-			handler(result.exception());
-			return;
-		}
+		if (result.exception() == std::exception_ptr() && result.size() > 0)
+			groups = result;
 
 		try {
-			sess.read_data(handler, id, result, offset, size);
+			sess.read_data(handler, id, groups, offset, size);
 		} catch (...) {
 			handler(std::current_exception());
 		}
@@ -560,8 +559,8 @@ struct read_latest_callback
 void session::read_latest(const std::function<void (const read_result &)> &handler,
 	const key &id, uint64_t offset, uint64_t size)
 {
-	read_latest_callback callback = { *this, id, offset, size, handler };
-	prepare_latest(callback, id, mix_states());
+	read_latest_callback callback = { *this, id, offset, size, handler, mix_states() };
+	prepare_latest(callback, id, callback.groups);
 }
 
 read_result session::read_latest(const key &id, uint64_t offset, uint64_t size)
