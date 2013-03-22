@@ -180,7 +180,7 @@ int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const int port, co
 	err = getaddrinfo(saddr, port_str, &hint, &ai);
 	if (err || ai == NULL) {
 		if (!err)
-			err = -ENOENT;
+			err = -ENXIO;
 		goto err_out_exit;
 	}
 

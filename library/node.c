@@ -346,7 +346,7 @@ static int dnet_search_range_nolock(struct dnet_node *n, struct dnet_id *id, str
 
 	group = dnet_group_search(n, id->group_id);
 	if (!group)
-		return -ENOENT;
+		return -ENXIO;
 
 	idc_pos = __dnet_idc_search(group, id);
 	sid = &group->ids[idc_pos];
