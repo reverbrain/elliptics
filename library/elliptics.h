@@ -453,12 +453,15 @@ struct dnet_node
 
 
 struct dnet_session {
-	struct dnet_node *node;
-	int group_num;
-	int *groups;
-	struct timespec wait_ts;
-	uint64_t cflags;
-	uint32_t ioflags;
+	struct dnet_node	*node;
+
+	int			group_num;
+	int			*groups;
+
+	struct timespec		wait_ts;
+
+	uint64_t		cflags;
+	uint32_t		ioflags;
 };
 
 struct timespec *dnet_session_get_timeout(struct dnet_session *s);
