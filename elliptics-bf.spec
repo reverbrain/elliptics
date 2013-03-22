@@ -128,6 +128,7 @@ rm -rf %{buildroot}
 %{_libdir}/libelliptics_client.so
 %{_libdir}/libelliptics_cocaine.so
 %{_libdir}/libelliptics_cache.so
+%{_libdir}/cmake/Elliptics/*
 
 %files python
 %defattr(-,root,root,-)
