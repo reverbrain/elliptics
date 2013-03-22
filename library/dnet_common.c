@@ -515,7 +515,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_node *n, struct dnet_
 
 	t->st = dnet_state_get_first(n, &cmd->id);
 	if (!t->st) {
-		err = -ENOENT;
+		err = -ENXIO;
 		goto err_out_destroy;
 	}
 
@@ -651,7 +651,7 @@ static int dnet_write_file_id_raw(struct dnet_session *s, const char *file, stru
 	ctl.fd = fd;
 	ctl.local_offset = local_offset;
 
-	w->status = -ENOENT;
+	w->status = -ENXIO;
 	ctl.complete = dnet_write_complete;
 	ctl.priv = wc;
 
@@ -888,7 +888,7 @@ err_out_exit:
 static int dnet_read_file_raw(struct dnet_session *s, const char *file, struct dnet_id *id, uint64_t offset, uint64_t size)
 {
 	struct dnet_node *n = s->node;
-	int err = -ENOENT, len = strlen(file), i;
+	int err = -ENXIO, len = strlen(file), i;
 	struct dnet_wait *w;
 	int *g, num;
 
@@ -1035,7 +1035,7 @@ static int dnet_send_cmd_raw(struct dnet_session *s, struct dnet_id *id,
 {
 	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
-	int err = -ENOENT, num = 0;
+	int err = -ENXIO, num = 0;
 	struct dnet_wait *w;
 	struct dnet_group *g;
 
@@ -1203,7 +1203,7 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id, uint64_t cfla
 
 	t->st = dnet_state_get_first(n, &cmd->id);
 	if (!t->st) {
-		err = -ENOENT;
+		err = -ENXIO;
 		goto err_out_destroy;
 	}
 
@@ -1650,7 +1650,7 @@ int dnet_update_status(struct dnet_session *s, struct dnet_addr *addr, struct dn
 
 		st = dnet_state_search_by_addr(s->node, addr);
 		if (!st) {
-			err = -ENOENT;
+			err = -ENXIO;
 			goto err_out_exit;
 		}
 
@@ -1980,7 +1980,7 @@ void *dnet_read_data_wait_raw(struct dnet_session *s, struct dnet_id *id, struct
 		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
 			err = w->status;
-		if ((cmd != DNET_CMD_READ_RANGE) || (err != -ENOENT))
+		if ((cmd != DNET_CMD_READ_RANGE) || (err != -ENOENT) || (err != -ENXIO))
 			dnet_log(n, DNET_LOG_ERROR, "%d:%s : failed to read data: %d\n",
 				ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str), err);
 		goto err_out_put_complete;
@@ -1999,11 +1999,13 @@ err_out_exit:
 	return data;
 }
 
-static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, void *data, uint64_t cflags)
+static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io,
+		void *data, uint64_t cflags, int *groups, int failed_group_num)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_meta_container mc;
 	struct dnet_io_control ctl;
+	int tmp_groups[failed_group_num], *old_groups, old_group_num;
 	void *result;
 	int err;
 
@@ -2025,6 +2027,14 @@ static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct 
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.cflags = cflags;
 
+	memcpy(tmp_groups, groups, failed_group_num * sizeof(int));
+
+	old_groups = s->groups;
+	old_group_num = s->group_num;
+
+	s->groups = tmp_groups;
+	s->group_num = failed_group_num;
+
 	err = dnet_write_data_wait(s, &ctl, &result);
 	if (err < 0) {
 		dnet_log(n, DNET_LOG_ERROR, "%s: read-recovery: could not write data: %d\n", dnet_dump_id(id), err);
@@ -2038,6 +2048,10 @@ static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct 
 err_out_free_result:
 	free(result);
 err_out_free_meta:
+
+	s->groups = old_groups;
+	s->group_num = old_group_num;
+
 	free(mc.data);
 err_out_exit:
 	return err;
@@ -2046,20 +2060,20 @@ err_out_exit:
 void *dnet_read_data_wait_groups(struct dnet_session *s, struct dnet_id *id, int *groups, int num,
 		struct dnet_io_attr *io, uint64_t cflags, int *errp)
 {
-	int i;
+	int i, failed_num = 0;
 	void *data;
-	int want_recover = 1;
 
 	for (i = 0; i < num; ++i) {
 		id->group_id = groups[i];
 
+		*errp = 0;
 		data = dnet_read_data_wait_raw(s, id, io, DNET_CMD_READ, cflags, errp);
-		if (*errp == -110) {
-			want_recover = 0;
-		}
+		if ((*errp == -ENOENT) || (*errp == -EBADFD))
+			failed_num++;
+
 		if (data) {
-			if ((i != 0) && (io->type == 0) && (io->offset == 0) && (io->size > sizeof(struct dnet_io_attr)) && want_recover) {
-				dnet_read_recover(s, id, io, data, cflags);
+			if ((i != 0) && (io->type == 0) && (io->offset == 0) && (io->size > sizeof(struct dnet_io_attr)) && failed_num) {
+				dnet_read_recover(s, id, io, data, cflags, groups, failed_num);
 			}
 
 			*errp = 0;
@@ -2115,7 +2129,7 @@ int dnet_write_data_wait(struct dnet_session *s, struct dnet_io_control *ctl, vo
 	}
 	wc->wait = w;
 
-	w->status = -ENOENT;
+	w->status = -ENXIO;
 	ctl->priv = wc;
 	ctl->complete = dnet_write_complete;
 
@@ -2170,7 +2184,7 @@ int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, struct
 	struct dnet_node *n = s->node;
 	struct dnet_id raw;
 	struct dnet_net_state *st;
-	int err = -ENOENT;
+	int err = -ENXIO;
 
 	if (!id) {
 		dnet_transform(n, remote, len, &raw);
@@ -2233,7 +2247,7 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
 	struct dnet_net_state *st;
 
 	if (!s->group_num)
-		return -ENOENT;
+		return -ENXIO;
 
 	group_num = s->group_num;
 
@@ -2670,7 +2684,7 @@ err_out_exit:
 int dnet_read_latest(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, uint64_t cflags, void **datap)
 {
 	struct dnet_read_latest_prepare pr;
-	int *g, num, err, i;
+	int *g, num, err, i, failed_num;
 
 	if ((int)io->num > s->group_num) {
 		err = -E2BIG;
@@ -2700,15 +2714,19 @@ int dnet_read_latest(struct dnet_session *s, struct dnet_id *id, struct dnet_io_
 	if (err)
 		goto err_out_free;
 
+	failed_num = 0;
 	err = -ENODATA;
 	for (i = 0; i < pr.group_num; ++i) {
 		void *data;
 		
 		id->group_id = pr.group[i];
 		data = dnet_read_data_wait_raw(s, id, io, DNET_CMD_READ, cflags, &err);
+		if ((err == -ENOENT) || (err == -EBADFD))
+			failed_num++;
+
 		if (data) {
-			if ((pr.group_num != num) || ((i != 0) && (io->type == 0) && (io->offset == 0))) {
-				dnet_read_recover(s, id, io, data, cflags);
+			if ((i != 0) && (io->type == 0) && (io->offset == 0) && (io->size > sizeof(struct dnet_io_attr)) && failed_num) {
+				dnet_read_recover(s, id, io, data, cflags, pr.group, failed_num);
 			}
 
 			*datap = data;
