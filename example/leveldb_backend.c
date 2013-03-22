@@ -79,7 +79,7 @@ static int leveldb_backend_checksum(struct dnet_node *n, void *backend_priv, str
 		goto err_out_exit;
 	}
 
-	err = dnet_checksum_data(n, csum, csize, data, data_size);
+	err = dnet_checksum_data(n, data, data_size, csum, *csize);
 	if (err)
 		goto err_out_free;
 

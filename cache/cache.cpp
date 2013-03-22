@@ -340,8 +340,8 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 				if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
 					d = cache->read(io->id);
 
-					dnet_id csum;
-					dnet_transform_node(n, d->data().data(), d->data().size(), &csum);
+					struct dnet_raw_id csum;
+					dnet_transform_node(n, d->data().data(), d->data().size(), csum.id, sizeof(csum.id));
 
 					if (!memcmp(csum.id, io->parent, DNET_ID_SIZE)) {
 						dnet_log(n, DNET_LOG_ERROR, "%s: cas: cache checksum mismatch\n", dnet_dump_id(&cmd->id));

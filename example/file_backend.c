@@ -563,7 +563,7 @@ static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id
 	/* file + dir + suffix + slash + 0-byte */
 
 	file_backend_setup_file(r, file, sizeof(file), id->id);
-	return dnet_checksum_file(n, csum, csize, file, 0, 0);
+	return dnet_checksum_file(n, file, 0, 0, csum, *csize);
 }
 
 static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_config *c)

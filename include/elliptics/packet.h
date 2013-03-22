@@ -324,6 +324,13 @@ static inline void dnet_convert_list(struct dnet_list *l)
  */
 #define DNET_IO_FLAGS_COMPARE_AND_SWAP (1<<13)
 
+/*
+ * DNET_IO_FLAGS_CHECKSUM
+ *
+ * Want data checksum on read
+ * Checksum is returned in io->parent
+ */
+#define DNET_IO_FLAGS_CHECKSUM		(1<<14)
 
 struct dnet_io_attr
 {

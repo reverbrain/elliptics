@@ -34,12 +34,11 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-int dnet_transform_node(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id)
+int dnet_transform_node(struct dnet_node *n, const void *src, uint64_t size, unsigned char *csum, int csize)
 {
 	struct dnet_transform *t = &n->transform;
-	unsigned int csize = sizeof(id->id);
 
-	return t->transform(t->priv, src, size, id->id, &csize, 0);
+	return t->transform(t->priv, src, size, csum, (unsigned int *)&csize, 0);
 }
 
 int dnet_transform(struct dnet_session *s, const void *src, uint64_t size, struct dnet_id *id)

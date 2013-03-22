@@ -995,6 +995,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 		int fd, uint64_t offset, int close_on_exit)
 {
 	struct dnet_net_state *st = state;
+	struct dnet_node *n = st->n;
 	struct dnet_cmd *c;
 	struct dnet_io_attr *rio;
 	int hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr);
@@ -1031,7 +1032,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 
 	memcpy(rio, io, sizeof(struct dnet_io_attr));
 
-	dnet_log_raw(st->n, DNET_LOG_NOTICE, "%s: %s: reply: offset: %llu, size: %llu.\n",
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: %s: reply: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
 			(unsigned long long)io->offset,	(unsigned long long)io->size);
 
@@ -1043,13 +1044,24 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	dnet_convert_cmd(c);
 	dnet_convert_io_attr(rio);
 
+	if (io->flags & DNET_IO_FLAGS_CHECKSUM) {
+		if (data) {
+			err = dnet_checksum_data(n, data, io->size, io->parent, sizeof(io->parent));
+		} else {
+			err = dnet_checksum_fd(n, fd, offset, io->size, io->parent, sizeof(io->parent));
+		}
+
+		if (err)
+			goto err_out_free;
+	}
+
 	if (data)
 		err = dnet_send_data(st, c, hsize, data, io->size);
 	else
 		err = dnet_send_fd(st, c, hsize, fd, offset, io->size, close_on_exit);
 
+err_out_free:
 	free(c);
-
 err_out_exit:
 	return err;
 }
@@ -1237,14 +1249,12 @@ err_out_exit:
 	return err;
 }
 
-int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, const void *data, uint64_t size)
+int dnet_checksum_data(struct dnet_node *n, const void *data, uint64_t size, unsigned char *csum, int csize)
 {
-	struct dnet_transform *t = &n->transform;
-
-	return t->transform(t->priv, data, size, csum, (unsigned int *)csize, 0);
+	return dnet_transform_node(n, data, size, csum, csize);
 }
 
-int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size)
+int dnet_checksum_file(struct dnet_node *n, const char *file, uint64_t offset, uint64_t size, void *csum, int csize)
 {
 	int fd, err;
 
@@ -1256,14 +1266,14 @@ int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *
 		goto err_out_exit;
 	}
 	fd = err;
-	err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
+	err = dnet_checksum_fd(n, fd, offset, size, csum, csize);
 	close(fd);
 
 err_out_exit:
 	return err;
 }
 
-int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size)
+int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size, void *csum, int csize)
 {
 	int err;
 	struct dnet_map_fd m;
@@ -1289,7 +1299,7 @@ int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64
 	if (err)
 		goto err_out_exit;
 
-	err = dnet_checksum_data(n, csum, csize, m.data, size);
+	err = dnet_checksum_data(n, m.data, size, csum, csize);
 	dnet_data_unmap(&m);
 
 err_out_exit:
