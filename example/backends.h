@@ -21,9 +21,11 @@ extern "C" {
 #endif
 
 #include <strings.h>
+#include <errno.h>
 
 #include "elliptics/core.h"
 #include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 static inline int64_t dnet_backend_check_get_size(struct dnet_io_attr *io, uint64_t record_size)
 {

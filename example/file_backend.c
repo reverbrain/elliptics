@@ -19,7 +19,6 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 
-#include <errno.h>
 #include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
@@ -29,7 +28,6 @@
 #include <unistd.h>
 
 #include "elliptics/packet.h"
-#include "elliptics/interface.h"
 
 #include "backends.h"
 #include "common.h"
