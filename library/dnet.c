@@ -748,15 +748,24 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				}
 
 				err = n->cb->checksum(n, n->cb->command_private, &cmd->id, csum, &csize);
-				if (err < 0) {
+				if (err < 0 && err != -ENOENT) {
 					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation failed\n", dnet_dump_id(&cmd->id));
 					break;
 				}
 
-				if (memcmp(csum, io->parent, DNET_ID_SIZE)) {
-					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch\n", dnet_dump_id(&cmd->id));
-					err = -EBADFD;
-					break;
+				/*
+				 * If err == -ENOENT then there is no data to checksum, and CAS should succeed
+				 * This is not 'client-safe' since two or more clients with unlocked CAS write
+				 * may find out that there is no data and try to write their data, but we do not
+				 * case about parallel writes being made without locks.
+				 */
+
+				if (err == 0) {
+					if (memcmp(csum, io->parent, DNET_ID_SIZE)) {
+						dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch\n", dnet_dump_id(&cmd->id));
+						err = -EBADFD;
+						break;
+					}
 				}
 			}
 
