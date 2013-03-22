@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.5.1
+Version:	2.22.6.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,17 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Mar 22 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.6.0
+- Added DNET_IO_FLAGS_CHECKSUM flag - return data checksum from server in io->parent. Refactor checksumming code.
+- Implemented per-session namespaces.
+- Added cmake/Elliptics into devel rpm package
+- ENOENT/ENXIO cleanup, run read recovery only if ENOENT or EBADFD is returned and only in groups which failed
+- ENOENT/ENXIO cleanup - use ENXIO when there is no address in route table.
+- Fix RPATH handling
+- Move headers to corresponding place. Now backends.h can be included as standalone header.
+- Update .gitignore
+- Get rid of leveldb append lock - key should be locked by elliptics here, otherwise we do not care if one write will overwrite another one
+
 * Thu Mar 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.5.1
 - Fixed read_latest in case of no metadata
 
