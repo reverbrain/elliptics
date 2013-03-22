@@ -744,7 +744,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				}
 			}
 
-			if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
+			if ((io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) && (cmd->cmd == DNET_CMD_WRITE)) {
 				char csum[DNET_ID_SIZE];
 				int csize = DNET_ID_SIZE;
 
@@ -758,13 +758,13 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				err = n->cb->checksum(n, n->cb->command_private, &cmd->id, csum, &csize);
 				if (err < 0) {
 					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation failed\n", dnet_dump_id(&cmd->id));
-					err = 0;
-				} else {
-					if (memcmp(csum, io->parent, DNET_ID_SIZE)) {
-						dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch\n", dnet_dump_id(&cmd->id));
-						err = -EINVAL;
-						break;
-					}
+					break;
+				}
+
+				if (memcmp(csum, io->parent, DNET_ID_SIZE)) {
+					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch\n", dnet_dump_id(&cmd->id));
+					err = -EBADFD;
+					break;
 				}
 			}
 
