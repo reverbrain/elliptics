@@ -359,6 +359,17 @@ void session::set_ioflags(uint32_t ioflags)
 	dnet_session_set_ioflags(m_data->session_ptr, ioflags);
 }
 
+void session::set_namespace(const char *ns, int nsize)
+{
+	int err;
+
+	err = dnet_session_set_ns(m_data->session_ptr, ns, nsize);
+	if (err) {
+		std::string tmp(ns, nsize);
+		throw ioremap::elliptics::error(err, "Could not set namespace '" + tmp + "'");
+	}
+}
+
 uint32_t session::get_ioflags() const
 {
 	return dnet_session_get_ioflags(m_data->session_ptr);
@@ -965,12 +976,12 @@ int session::write_metadata(const key &id, const std::string &obj,
 
 void session::transform(const std::string &data, struct dnet_id &id)
 {
-	dnet_transform(m_data->node_guard.get_native(), (void *)data.data(), data.size(), &id);
+	dnet_transform(m_data->session_ptr, (void *)data.data(), data.size(), &id);
 }
 
 void session::transform(const data_pointer &data, dnet_id &id)
 {
-	dnet_transform(m_data->node_guard.get_native(), data.data(), data.size(), &id);
+	dnet_transform(m_data->session_ptr, data.data(), data.size(), &id);
 }
 
 void session::transform(const key &id)

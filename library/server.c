@@ -52,7 +52,7 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 		int r = rand();
 		memcpy(buf, &r, sizeof(r));
 
-		dnet_transform(n, buf, size, &id);
+		dnet_transform_node(n, buf, size, &id);
 		memcpy(&raw, id.id, sizeof(struct dnet_raw_id));
 
 		err = write(fd, &raw, sizeof(struct dnet_raw_id));

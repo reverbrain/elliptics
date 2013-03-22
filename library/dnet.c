@@ -35,14 +35,6 @@
 #include "elliptics/interface.h"
 
 
-int dnet_transform(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id)
-{
-	struct dnet_transform *t = &n->transform;
-	unsigned int csize = sizeof(id->id);
-
-	return t->transform(t->priv, src, size, id->id, &csize, 0);
-}
-
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 {
 	struct dnet_node *n = st->n;

@@ -673,6 +673,14 @@ class session
 		 * Sets command flags \a cflags to the session.
 		 */
 		void			set_cflags(uint64_t cflags);
+
+		/*!
+		 * Sets command flags \a cflags to the session.
+		 */
+		void			set_namespace(const char *ns, int nsize);
+
+
+
 		/*!
 		 * Gets command flags of the session.
 		 */

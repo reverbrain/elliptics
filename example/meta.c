@@ -82,6 +82,8 @@ int main(int argc, char *argv[])
 	struct dnet_session *s;
 	struct dnet_id raw;
 	struct dnet_meta_container mc;
+	char *ns = NULL;
+	int nsize = 0;
 
 	memset(&mc, 0, sizeof(mc));
 	memset(&cfg, 0, sizeof(cfg));
@@ -98,8 +100,8 @@ int main(int argc, char *argv[])
 					return -errno;
 				}
 			case 'N':
-				cfg.ns = optarg;
-				cfg.nsize = strlen(optarg);
+				ns = optarg;
+				nsize = strlen(optarg);
 				break;
 			case 'r':
 				err = dnet_parse_addr(optarg, &remote_port, &remote_family);
@@ -172,6 +174,10 @@ int main(int argc, char *argv[])
 	s = dnet_session_create(n);
 	if (!s)
 		return -ENOMEM;
+
+	err = dnet_session_set_ns(s, ns, nsize);
+	if (err)
+		return err;
 
 	if (fd == -1) {
 		err = dnet_add_state(n, remote_addr, remote_port, remote_family, 0);

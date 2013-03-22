@@ -34,8 +34,7 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-
-int dnet_transform(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id)
+int dnet_transform_node(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id)
 {
 	struct dnet_transform *t = &n->transform;
 	unsigned int csize = sizeof(id->id);
@@ -43,6 +42,36 @@ int dnet_transform(struct dnet_node *n, const void *src, uint64_t size, struct d
 	return t->transform(t->priv, src, size, id->id, &csize, 0);
 }
 
+int dnet_transform(struct dnet_session *s, const void *src, uint64_t size, struct dnet_id *id)
+{
+	struct dnet_node *n = s->node;
+	struct dnet_transform *t = &n->transform;
+	unsigned int csize = sizeof(id->id);
+	struct dnet_raw_id ns;
+	int err;
+
+	if (s->ns && s->nsize) {
+		err = t->transform(t->priv, s->ns, s->nsize, ns.id, &csize, 0);
+		if (err)
+			return err;
+	}
+
+	err = t->transform(t->priv, src, size, id->id, &csize, 0);
+	if (err)
+		return err;
+
+	if (s->ns && s->nsize) {
+		size_t i;
+		long *nsp = (long *)ns.id;
+		long *datap = (long *)id->id;
+
+		for (i = 0; i < csize / sizeof(long); ++i) {
+			*datap++ ^= *nsp++;
+		}
+	}
+
+	return 0;
+}
 
 static char *dnet_cmd_strings[] = {
 	[DNET_CMD_LOOKUP] = "LOOKUP",
@@ -839,7 +868,7 @@ int dnet_write_file(struct dnet_session *s, const char *file, const void *remote
 	int err;
 	struct dnet_id id;
 
-	dnet_transform(s->node, remote, remote_len, &id);
+	dnet_transform(s, remote, remote_len, &id);
 	id.type = type;
 
 	err = dnet_write_file_id_raw(s, file, &id, local_offset, remote_offset, size);
@@ -1050,7 +1079,7 @@ int dnet_read_file(struct dnet_session *s, const char *file, const void *remote,
 {
 	struct dnet_id id;
 
-	dnet_transform(s->node, remote, remote_size, &id);
+	dnet_transform(s, remote, remote_size, &id);
 	id.type = type;
 
 	return dnet_read_file_raw(s, file, &id, offset, size);
@@ -1807,7 +1836,7 @@ int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struc
 	struct dnet_id raw;
 
 	if (!id) {
-		dnet_transform(s->node, remote, remote_len, &raw);
+		dnet_transform(s, remote, remote_len, &raw);
 		raw.group_id = 0;
 		id = &raw;
 	}
@@ -2154,7 +2183,7 @@ int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, struct
 	int err = -ENXIO;
 
 	if (!id) {
-		dnet_transform(n, remote, len, &raw);
+		dnet_transform(s, remote, len, &raw);
 		id = &raw;
 	}
 	id->group_id = group_id;
