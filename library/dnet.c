@@ -211,7 +211,7 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 {
 	struct dnet_node *n = st->n;
 	struct dnet_net_state *base;
-	int err = -ENOENT;
+	int err = -ENXIO;
 
 	cmd->id.group_id = n->id.group_id;
 	base = dnet_node_state(n);
@@ -747,7 +747,7 @@ int dnet_state_join_nolock(struct dnet_net_state *st)
 
 	base = dnet_state_search_nolock(n, &n->id);
 	if (!base) {
-		err = -ENOENT;
+		err = -ENXIO;
 		goto err_out_exit;
 	}
 
@@ -783,7 +783,7 @@ int64_t dnet_get_param(struct dnet_node *n, struct dnet_id *id, enum id_params p
 
 	st = dnet_state_get_first(n, id);
 	if (!st)
-		return -ENOENT;
+		return -ENXIO;
 
 	switch (param) {
 		case DNET_ID_PARAM_LA:
@@ -1095,7 +1095,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 
 	if (cmd->flags & DNET_ATTR_META_TIMES) {
 		err = dnet_read_file_info(n, &cmd->id, info);
-		if ((err == -ENOENT) && (cmd->flags & DNET_ATTR_META_TIMES))
+		if (((err == -ENOENT) || (err == -ENXIO)) && (cmd->flags & DNET_ATTR_META_TIMES))
 			err = 0;
 		if (err)
 			goto err_out_free;
@@ -1107,7 +1107,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 		info->offset = offset;
 
 	if (info->size == 0) {
-		err = -ENOENT;
+		err = -EINVAL;
 		dnet_log(n, DNET_LOG_NOTICE, "%s: EBLOB: %s: info-stat: ZERO-FILE-SIZE, fd: %d.\n",
 				dnet_dump_id(&cmd->id), file, fd);
 		goto err_out_free;

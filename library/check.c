@@ -35,7 +35,7 @@ static int dnet_merge_remove_local(struct dnet_node *n, struct dnet_id *id, int 
 	char buf[sizeof(struct dnet_cmd)];
 	struct dnet_cmd *cmd;
 	struct dnet_net_state *base;
-	int err = -ENOENT;
+	int err = -ENXIO;
 
 	memset(buf, 0, sizeof(buf));
 
@@ -651,7 +651,7 @@ int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state, 
 
 	st = dnet_state_search_by_addr(n, &state->addr);
 	if (!st) {
-		err = -ENOENT;
+		err = -ENXIO;
 		goto err_out_put;
 	}
 	dnet_setup_id(&ctl.id, st->idc->group->group_id, st->idc->ids[0].raw.id);
@@ -796,7 +796,7 @@ static int dnet_check_copies(struct dnet_node *n, struct dnet_meta_container *mc
 	} else {
 		err = dnet_check_find_groups(n, mc, &groups);
 		if (err <= 0)
-			return -ENOENT;
+			return -ENXIO;
 	}
 
 	err = dnet_check_number_of_copies(n, mc, groups, err, bulk_array, params);
@@ -817,7 +817,7 @@ static int dnet_merge_direct(struct dnet_session *s, struct dnet_meta_container 
 	dnet_log(n, DNET_LOG_DEBUG, "in dnet_merge_direct mc->size = %u\n", mc->size);
 	base = dnet_node_state(n);
 	if (!base) {
-		err = -ENOENT;
+		err = -ENXIO;
 		goto err_out_exit;
 	}
 
@@ -847,7 +847,7 @@ static int dnet_merge_upload(struct dnet_node *n, struct dnet_meta_container *mc
 
 	base = dnet_node_state(n);
 	if (!base) {
-		err = -ENOENT;
+		err = -ENXIO;
 		goto err_out_exit;
 	}
 
@@ -912,7 +912,7 @@ static int dnet_check_merge(struct dnet_session *s, struct dnet_meta_container *
 
 	err = dnet_read_meta(s, &remote_mc, NULL, 0, &mc->id);
 	if (err) {
-		if (err != -ENOENT) {
+		if ((err != -ENOENT) && (err != -ENXIO)) {
 			dnet_log_raw(n, DNET_LOG_ERROR, "%s: failed to download object to be merged from storage: %d.\n",
 					dnet_dump_id(&mc->id), err);
 			goto err_out_exit;
