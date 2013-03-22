@@ -1,3 +1,10 @@
+elliptics (2.20.4.0) unstable; urgency=low
+
+  * ENOENT/ENXIO cleanup, run read recovery only if ENOENT or EBADFD is returned and only in groups which failed
+  * ENOENT/ENXIO cleanup - use ENXIO when there is no address in route table.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Mar 2013 19:02:33 +0400
+
 elliptics (2.20.3.1) unstable; urgency=low
 
   * Fixed write_metadata/create_metadata methods

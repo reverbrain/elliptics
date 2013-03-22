@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.3.1
+Version:	2.20.4.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Mar 22 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.4.0
+- ENOENT/ENXIO cleanup, run read recovery only if ENOENT or EBADFD is returned and only in groups which failed
+- ENOENT/ENXIO cleanup - use ENXIO when there is no address in route table.
+
 * Tue Feb 26 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.3.1
 - Fixed write_metadata/create_metadata methods
 
