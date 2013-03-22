@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.6.0
+Version:	2.22.6.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Mar 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.6.1
+- Fixed write CAS for nonexisting records
+
 * Fri Mar 22 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.6.0
 - Added DNET_IO_FLAGS_CHECKSUM flag - return data checksum from server in io->parent. Refactor checksumming code.
 - Implemented per-session namespaces.
