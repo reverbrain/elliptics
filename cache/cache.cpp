@@ -214,7 +214,7 @@ class cache_t {
 
 			iset_t::iterator it = m_set.find(id);
 			if (it == m_set.end())
-				throw sts::runtime_error("no record");
+				throw std::runtime_error("no record");
 
 			m_lru.erase(m_lru.iterator_to(*it));
 			m_lru.push_back(*it);
