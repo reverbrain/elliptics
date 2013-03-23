@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.6.2
+Version:	2.22.6.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -152,6 +152,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Mar 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.6.3
+- Fixed typo
+
 * Sat Mar 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.6.2
 - Fixed cache write CAS for nonexisting records
 
