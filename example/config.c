@@ -151,7 +151,7 @@ static int dnet_set_addr(struct dnet_config_backend *b __unused, char *key __unu
 	int err = -EINVAL, i;
 
 	while (value) {
-		char *ptr, *addr_group_ptr;
+		char *ptr, *addr_group_ptr, *delim_ptr;
 		int addr_group = -1;
 
 		while (value && *value) {
@@ -168,8 +168,12 @@ static int dnet_set_addr(struct dnet_config_backend *b __unused, char *key __unu
 		if (ptr)
 			*ptr++ = '\0';
 
+		delim_ptr = strrchr(value, DNET_CONF_ADDR_DELIM);
+		if (!delim_ptr)
+			break;
+
 		addr_group_ptr = strrchr(value, '-');
-		if (addr_group_ptr) {
+		if (addr_group_ptr && addr_group_ptr > delim_ptr) {
 			*addr_group_ptr++ = '\0';
 
 			addr_group = atoi(addr_group_ptr);
