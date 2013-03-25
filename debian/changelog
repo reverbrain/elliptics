@@ -1,3 +1,78 @@
+elliptics (2.22.5.0) unstable; urgency=low
+
+  * Added start_iterator to python binding
+  * Added server-side iterator flags/type defines
+  * Introduce server-side iteration control structure
+  * Do not return error from dnet_db_list_iter() - this error will be propagated to all iterating threads and stop them
+  * Added start_iterator API
+  * Fixed bulk_read for empty request
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 20 Mar 2013 04:40:35 +0400
+
+elliptics (2.22.4.0) unstable; urgency=low
+
+  * Depend on 0.10.0-rc5 cocaine
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 19 Mar 2013 02:22:48 +0400
+
+elliptics (2.22.3.1) unstable; urgency=low
+
+  * Guard leveldb's append/offset writes, since they are actually read-modify-write cycles
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Mar 2013 03:01:25 +0400
+
+elliptics (2.22.3.0) unstable; urgency=low
+
+  * Added leveldb offset and append write support
+  * Return error for CAS write if ->checksum() is not supported
+  * Added leveldb checksum function
+  * Connection refused error message cleanup
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Mar 2013 02:51:42 +0400
+
+elliptics (2.22.2.0) unstable; urgency=low
+
+  * Return status of defragmentation request
+  * Return node's address, not client's one.
+  * Added leveldb->lookup()
+  * finder::parse_lookup() should not drop dnet_file_info if no filename provided
+  * Changed exec async API
+  * Moved groups to dnet_session
+  * Moved cflags/ioflags to dnet_session
+  * Added wait timeout to session
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Mar 2013 00:10:25 +0400
+
+elliptics (2.22.1.2) unstable; urgency=low
+
+  * Skip route table entries without addr list
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 12 Mar 2013 01:29:45 +0400
+
+elliptics (2.22.1.1) unstable; urgency=low
+
+  * Simplify dnet_cmd_route_list() - allocate and send under state_lock route replies
+  * If log levels match, log it
+  * Do not use modern for (type &var : container) loop, use old-school iterators, since the former is not supported in gcc 4.4
+  * Use std::exeption_ptr() check instead of NULL cast, which is not supported in gcc 4.4
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 12 Mar 2013 01:09:23 +0400
+
+elliptics (2.22.1.0) unstable; urgency=low
+
+  * Always request stats with DNET_ATTR_CNTR_GLOBAL flag set to grab global node's counters
+  * dnet_log_raw() should use <= for log-level comparison
+  * Added secondary indexes
+  * Added msgpack dependency
+  * Moved dnet_ioclient to new exec API
+  * Added new client exec API
+  * Fixed connection to 2.22 servers
+  * Let's all exec commands block if they do not have sph
+  * Updated cocaine config
+  * Fixed segfault at connection to elder servers
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 11 Mar 2013 22:18:49 +0400
+
 elliptics (2.22.0.0) unstable; urgency=low
 
   * Added high-level write_cas method

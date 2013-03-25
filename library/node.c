@@ -677,9 +677,8 @@ struct dnet_session *dnet_session_create(struct dnet_node *n)
 	if (!s) 
 		return NULL;
 
+	memset(s, 0, sizeof(struct dnet_session));
 	s->node = n;
-	s->group_num = 0;
-	s->groups = NULL;
 
 	return s;
 }
@@ -690,7 +689,7 @@ void dnet_session_destroy(struct dnet_session *s)
 	free(s);
 }
 
-int dnet_session_set_groups(struct dnet_session *s, int *groups, int group_num)
+int dnet_session_set_groups(struct dnet_session *s, const int *groups, int group_num)
 {
 	int *g, i;
 
@@ -712,6 +711,42 @@ int dnet_session_set_groups(struct dnet_session *s, int *groups, int group_num)
 	s->group_num = group_num;
 
 	return 0;
+}
+
+int *dnet_session_get_groups(struct dnet_session *s, int *count)
+{
+	*count = s->group_num;
+	return s->groups;
+}
+
+void dnet_session_set_ioflags(struct dnet_session *s, uint32_t ioflags)
+{
+	s->ioflags = ioflags;
+}
+
+uint32_t dnet_session_get_ioflags(struct dnet_session *s)
+{
+	return s->ioflags;
+}
+
+void dnet_session_set_cflags(struct dnet_session *s, uint64_t cflags)
+{
+	s->cflags = cflags;
+}
+
+uint64_t dnet_session_get_cflags(struct dnet_session *s)
+{
+	return s->cflags;
+}
+
+void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout)
+{
+	s->wait_ts.tv_sec = wait_timeout;
+}
+
+struct timespec *dnet_session_get_timeout(struct dnet_session *s)
+{
+	return s->wait_ts.tv_sec ? &s->wait_ts : &s->node->wait_ts;
 }
 
 void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)

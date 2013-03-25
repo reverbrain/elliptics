@@ -191,8 +191,8 @@ int main(int argc, char *argv[])
 			case 'g': {
 				groups = parse_groups(optarg);
 				std::cerr << optarg << " -> {";
-				for (int i : groups) {
-					std::cerr << i << ", ";
+				for (auto it = groups.begin(); it != groups.end(); ++it) {
+					std::cerr << *it << ", ";
 				}
 				std::cerr << "}" << std::endl;
 				break;

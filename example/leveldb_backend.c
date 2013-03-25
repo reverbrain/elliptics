@@ -23,6 +23,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,7 +47,6 @@
 struct leveldb_backend
 {
 	int			sync;
-	struct eblob_log	elog;
 
 	size_t			cache_size;
 	size_t			write_buffer_size;
@@ -56,6 +56,8 @@ struct leveldb_backend
 	int			compression;
 	char			*path;
 	char			*log;
+
+	pthread_mutex_t		append_lock;
 
 	leveldb_env_t		*env;
 	leveldb_cache_t		*cache;
@@ -67,9 +69,55 @@ struct leveldb_backend
 	leveldb_t		*db;
 };
 
-static int leveldb_backend_lookup(struct leveldb_backend *s __unused, void *state __unused, struct dnet_cmd *cmd __unused)
+static int leveldb_backend_checksum(struct dnet_node *n, void *backend_priv, struct dnet_id *id, void *csum, int *csize)
 {
-	return 0;
+	struct leveldb_backend *b = backend_priv;
+	char *data = NULL;
+	size_t data_size;
+	int err = -EINVAL;
+	char *error_string = NULL;
+
+	data = leveldb_get(b->db, b->roptions, (const char *)id->id, DNET_ID_SIZE, &data_size, &error_string);
+	if (error_string || !data) {
+		if (!data)
+			err = -ENOENT;
+		goto err_out_exit;
+	}
+
+	err = dnet_checksum_data(n, csum, csize, data, data_size);
+	if (err)
+		goto err_out_free;
+
+err_out_free:
+	free(data);
+err_out_exit:
+	free(error_string);
+	return err;
+}
+
+static int leveldb_backend_lookup(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd)
+{
+	char *data = NULL;
+	size_t data_size;
+	int err = -EINVAL;
+	char *error_string = NULL;
+
+	data = leveldb_get(s->db, s->roptions, (const char *)cmd->id.id, DNET_ID_SIZE, &data_size, &error_string);
+	if (error_string || !data) {
+		if (!data)
+			err = -ENOENT;
+		goto err_out_exit;
+	}
+
+	err = dnet_send_file_info_without_fd(state, cmd, 0, data_size);
+	if (err < 0)
+		goto err_out_free;
+
+err_out_free:
+	free(data);
+err_out_exit:
+	free(error_string);
+	return err;
 }
 
 static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *data)
@@ -78,14 +126,11 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	int err = -EINVAL;
 	char *error_string = NULL;
 	struct dnet_io_attr *io = data;
+	void *read_data = NULL;
 
 	dnet_ext_list_init(&elist);
 
 	dnet_convert_io_attr(io);
-	if (io->offset) {
-		err = -ERANGE;
-		goto err_out_exit;
-	}
 
 	data += sizeof(struct dnet_io_attr);
 
@@ -94,6 +139,55 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	if (err != 0)
 		goto err_out_exit;
 
+	/*
+	 * we always grab append mutex, since leveldb's append is actually read-modify-write cycle
+	 * in theory we could skip it for non-append or non-offset writes
+	 */
+	pthread_mutex_lock(&s->append_lock);
+
+	if (io->offset || (io->flags & DNET_IO_FLAGS_APPEND)) {
+		size_t data_size;
+		size_t offset = io->offset;
+
+		read_data = leveldb_get(s->db, s->roptions, (const char *)io->id, DNET_ID_SIZE, &data_size, &error_string);
+		if (error_string || !read_data) {
+			free(error_string);
+			error_string = NULL;
+			goto plain_write;
+		}
+
+		if (io->flags & DNET_IO_FLAGS_APPEND) {
+			io->offset = 0;
+			offset = data_size;
+		}
+
+		/*
+		 * XXX: Account for extended header
+		 */
+
+		if (io->offset > data_size) {
+			err = -ERANGE;
+			goto err_out_exit;
+		}
+
+		if (offset + io->size > data_size) {
+			read_data = realloc(read_data, data_size + io->size);
+			if (!read_data) {
+				err = -ENOMEM;
+				goto err_out_exit;
+			}
+		}
+
+		memcpy(read_data + offset, data, io->size);
+
+		data = read_data;
+		if (offset + io->size > data_size)
+			io->size = offset + io->size;
+		else
+			io->size = data_size;
+	}
+
+plain_write:
 	leveldb_put(s->db, s->woptions, (const char *)cmd->id.id, DNET_ID_SIZE, data, io->size, &error_string);
 	if (error_string)
 		goto err_out_free;
@@ -102,16 +196,19 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	if (err < 0)
 		goto err_out_free;
 
-	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : WRITE: Ok: size: %llu.\n",
-			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : WRITE: Ok: offset: %llu, size: %llu, ioflags: %x.\n",
+			dnet_dump_id(&cmd->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags);
 
 err_out_free:
 	free(data);
 err_out_exit:
 	dnet_ext_list_destroy(&elist);
+	pthread_mutex_unlock(&s->append_lock);
+
 	if (err < 0)
 		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: : WRITE: error: %s: %d.\n",
 			dnet_dump_id(&cmd->id), error_string, err);
+	free(read_data);
 	free(error_string);
 	return err;
 }
@@ -432,11 +529,11 @@ int leveldb_backend_storage_stat(void *priv, struct dnet_stat *st)
 	return 0;
 }
 
-static void dnet_leveldb_db_cleanup(struct leveldb_backend *s)
+static void dnet_leveldb_db_cleanup(struct leveldb_backend *s __unused)
 {
 }
 
-static int dnet_leveldb_db_init(struct leveldb_backend *s, struct dnet_config *c, const char *path)
+static int dnet_leveldb_db_init(struct leveldb_backend *s __unused, struct dnet_config *c __unused, const char *path __unused)
 {
 	return 0;
 }
@@ -455,15 +552,17 @@ static void leveldb_backend_cleanup(void *priv)
 
 	dnet_leveldb_db_cleanup(s);
 
+	pthread_mutex_destroy(&s->append_lock);
+
 	free(s->path);
 }
 
-static ssize_t dnet_leveldb_db_read(void *priv, struct dnet_raw_id *id, void **datap)
+static ssize_t dnet_leveldb_db_read(void *priv __unused, struct dnet_raw_id *id __unused, void **datap __unused)
 {
 	return -ENOTSUP;
 }
 
-static int dnet_leveldb_db_write(void *priv, struct dnet_raw_id *id, void *data, size_t size)
+static int dnet_leveldb_db_write(void *priv __unused, struct dnet_raw_id *id __unused, void *data __unused, size_t size __unused)
 {
 	char tmp[24];
 	dnet_backend_log(DNET_LOG_ERROR, "%s: metadata operation is not supported, it will be removed soon. \n"
@@ -472,12 +571,12 @@ static int dnet_leveldb_db_write(void *priv, struct dnet_raw_id *id, void *data,
 	return -ENOTSUP;
 }
 
-static int dnet_leveldb_db_remove(void *priv, struct dnet_raw_id *id, int real_del)
+static int dnet_leveldb_db_remove(void *priv __unused, struct dnet_raw_id *id __unused, int real_del __unused)
 {
 	return -ENOTSUP;
 }
 
-static int dnet_leveldb_db_iterate(struct dnet_iterate_ctl *ctl)
+static int dnet_leveldb_db_iterate(struct dnet_iterate_ctl *ctl __unused)
 {
 	return -ENOTSUP;
 }
@@ -587,6 +686,7 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 
 	b->cb.storage_stat = leveldb_backend_storage_stat;
 	b->cb.backend_cleanup = leveldb_backend_cleanup;
+	b->cb.checksum = leveldb_backend_checksum;
 
 	b->cb.meta_read = dnet_leveldb_db_read;
 	b->cb.meta_write = dnet_leveldb_db_write;
@@ -595,12 +695,19 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 	b->cb.meta_iterate = dnet_leveldb_db_iterate;
 	b->cb.iterator = dnet_leveldb_iterator;
 
+	err = pthread_mutex_init(&s->append_lock, NULL);
+	if (err) {
+		err = -err;
+		dnet_backend_log(DNET_LOG_ERROR, "leveldb: could not initialize append lock: %d\n", err);
+		goto err_out_exit;
+	}
+
 	snprintf(hpath, hlen, "%s/history", s->path);
 	mkdir(hpath, 0755);
 	err = dnet_leveldb_db_init(s, c, hpath);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "leveldb: could not initialize history database: %d\n", err);
-		goto err_out_exit;
+		goto err_out_lock_destroy;
 	}
 
 	err = -ENOMEM;
@@ -675,6 +782,8 @@ err_out_env_cleanup:
 	leveldb_env_destroy(s->env);
 err_out_cleanup:
 	dnet_leveldb_db_cleanup(s);
+err_out_lock_destroy:
+	pthread_mutex_destroy(&s->append_lock);
 err_out_exit:
 	return err;
 }

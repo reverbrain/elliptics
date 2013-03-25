@@ -66,7 +66,7 @@
 			"DNET_CMD_DEFRAG", {}
 		),
 		[19] = elliptics_command(
-			"DNET_CMD_ITERATE", {}
+			"DNET_CMD_ITERATOR", {}
 		)
 	}
 	

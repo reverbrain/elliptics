@@ -327,58 +327,49 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 	struct dnet_node *n = orig->n;
 	struct dnet_net_state *st;
 	struct dnet_group *g;
-	void *buf, *orig_buf;
-	size_t size = 0, send_size = 0, sz;
+	void *buf = NULL;
+	size_t size, orig_size = 0;
 	int err;
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (dnet_addr_equal(&st->addr, &orig->addr))
+			if (dnet_addr_equal(&st->addr, &orig->addr) || !st->addrs)
 				continue;
 
-			size += st->idc->id_num * sizeof(struct dnet_raw_id) +
+			size = st->idc->id_num * sizeof(struct dnet_raw_id) +
 				sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr);
-		}
-	}
-	pthread_mutex_unlock(&n->state_lock);
 
-	orig_buf = buf = malloc(size);
-	if (!buf) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
+			if (size > orig_size) {
+				buf = realloc(buf, size);
+				if (!buf) {
+					err = -ENOMEM;
+					goto err_out_unlock;
+				}
 
-	pthread_mutex_lock(&n->state_lock);
-	list_for_each_entry(g, &n->group_list, group_entry) {
-		list_for_each_entry(st, &g->state_list, state_entry) {
-			if (dnet_addr_equal(&st->addr, &orig->addr))
-				continue;
-
-			dnet_log(n, DNET_LOG_INFO, "%s: %d %s\n",
-					dnet_server_convert_dnet_addr(&st->addrs[0]), g->group_id, dnet_dump_id_str(st->idc->ids[0].raw.id));
-
-			sz = st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd) + n->addr_num * sizeof(struct dnet_addr);
-			if (sz <= size) {
-				cmd->id.group_id = g->group_id;
-				dnet_send_idc_fill(st, buf, sz, &cmd->id, cmd->trans, DNET_CMD_ROUTE_LIST, 1, 0, 1);
-
-				size -= sz;
-				buf += sz;
-
-				send_size += sz;
+				orig_size = size;
 			}
+
+			dnet_log(n, DNET_LOG_INFO, "%s: %d %s, id_num: %d, addr_num: %d\n",
+					dnet_server_convert_dnet_addr(&st->addrs[0]),
+					g->group_id, dnet_dump_id_str(st->idc->ids[0].raw.id),
+					st->idc->id_num, n->addr_num);
+
+			memset(buf, 0, size);
+			cmd->id.group_id = g->group_id;
+			dnet_send_idc_fill(st, buf, size, &cmd->id, cmd->trans, DNET_CMD_ROUTE_LIST, 1, 0, 1);
+
+			err = dnet_send(orig, buf, size);
+			if (err)
+				goto err_out_unlock;
 		}
 	}
+
+	err = 0;
+
+err_out_unlock:
 	pthread_mutex_unlock(&n->state_lock);
-
-	err = dnet_send(orig, orig_buf, send_size);
-	if (err)
-		goto err_out_free;
-
-err_out_free:
-	free(orig_buf);
-err_out_exit:
+	free(buf);
 	return err;
 }
 
@@ -577,22 +568,6 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_cmd_iterator(struct dnet_net_state *orig, struct dnet_cmd *cmd, void *data)
-{
-	struct dnet_node *n;
-
-	assert(orig != NULL);
-	assert(cmd != NULL);
-	assert(data != NULL);
-
-	/* Shortcut */
-	n = orig->n;
-
-	/* XXX: n->cb->iterator */
-
-	return 0;
-}
-
 int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err)
 {
 	if (st && cmd && (cmd->flags & DNET_FLAGS_NEED_ACK)) {
@@ -616,6 +591,35 @@ int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err)
 	}
 
 	return err;
+}
+
+/*
+ * XXX: Fill me!
+ */
+static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data __unused)
+{
+	size_t buffer_size = sizeof(struct dnet_iterator_request) + 20;
+	char *buffer = alloca(buffer_size);
+	size_t i;
+	struct dnet_iterator_request *request = (struct dnet_iterator_request *)buffer;
+
+	assert(st != NULL);
+	assert(cmd != NULL);
+
+	memset(buffer, 0, sizeof(struct dnet_iterator_request));
+	memset(buffer + sizeof(struct dnet_iterator_request), ' ', 20);
+
+	for (i = 0; i < 3; ++i) {
+		if ((i % 2) == 0)
+			sleep(1);
+
+		request->id = i;
+		memcpy(request->key.id, cmd->id.id, sizeof(cmd->id.id));
+		memset(buffer + sizeof(struct dnet_iterator_request), 'a' + i, 20);
+		dnet_send_reply(st, cmd, buffer, buffer_size, 1);
+	}
+
+	return 0;
 }
 
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
@@ -653,11 +657,11 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		case DNET_CMD_EXEC:
 			err = dnet_cmd_exec(st, cmd, data);
 			break;
+		case DNET_CMD_ITERATOR:
+			err = dnet_cmd_iterator(st, cmd, data);
+			break;
 		case DNET_CMD_STAT_COUNT:
 			err = dnet_cmd_stat_count(st, cmd, data);
-			break;
-		case DNET_CMD_ITERATE:
-			err = dnet_cmd_iterator(st, cmd, data);
 			break;
 		case DNET_CMD_NOTIFY:
 			if (!(cmd->flags & DNET_ATTR_DROP_NOTIFICATION)) {
@@ -750,6 +754,13 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
 				char csum[DNET_ID_SIZE];
 				int csize = DNET_ID_SIZE;
+
+				if (!n->cb->checksum) {
+					err = -ENOTSUP;
+					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation is not supported in backend\n",
+							dnet_dump_id(&cmd->id));
+					break;
+				}
 
 				err = n->cb->checksum(n, n->cb->command_private, &cmd->id, csum, &csize);
 				if (err < 0) {
@@ -1058,11 +1069,12 @@ err_out_exit:
 	return err;
 }
 
-void dnet_fill_state_addr(void *state, struct dnet_addr *addr)
+static void dnet_fill_state_addr(void *state, struct dnet_addr *addr)
 {
 	struct dnet_net_state *st = state;
+	struct dnet_node *n = st->n;
 
-	memcpy(addr, &st->addr, sizeof(struct dnet_addr));
+	memcpy(addr, &n->addrs[0], sizeof(struct dnet_addr));
 }
 
 int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info)

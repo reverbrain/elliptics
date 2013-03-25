@@ -55,11 +55,12 @@ class callback_result_data
 			memcpy(data.data<char>() + sizeof(struct dnet_addr), cmd, sizeof(struct dnet_cmd) + cmd->size);
 		}
 
-		~callback_result_data()
+		virtual ~callback_result_data()
 		{
 		}
 
 		data_pointer data;
+		error_info error;
 };
 
 enum special_count { unlimited };
@@ -96,11 +97,16 @@ class default_callback
 			if (is_trans_destroyed(state, cmd)) {
 				++m_complete;
 			} else {
-				if (!(cmd->flags & DNET_FLAGS_MORE))
-					m_statuses.push_back(cmd->status);
-				m_results.push_back(std::make_shared<callback_result_data>(state, cmd));
+				process(cmd, callback_result_data(state, cmd));
 			}
 			return (m_count == m_complete);
+		}
+
+		virtual void process(struct dnet_cmd *cmd, const callback_result_data &data)
+		{
+			if (!(cmd->flags & DNET_FLAGS_MORE))
+				m_statuses.push_back(cmd->status);
+			m_results.push_back(std::make_shared<callback_result_data>(data));
 		}
 
 		bool is_ready()
@@ -194,8 +200,11 @@ class base_stat_callback : public default_callback
 		{
 			set_count(unlimited);
 
+			uint64_t cflags_pop = sess.get_cflags();
+			sess.set_cflags(cflags_pop | DNET_ATTR_CNTR_GLOBAL);
 			int err = dnet_request_stat(sess.get_native(),
-				has_id ? &id : NULL, Command, 0, func, priv);
+				has_id ? &id : NULL, Command, func, priv);
+			sess.set_cflags(cflags_pop);
 			if (err < 0) {
 				throw_error(err, "Failed to request statistics");
 			}
@@ -403,7 +412,7 @@ class lookup_callback : public multigroup_callback
 			cb.clear();
 			cb.set_count(unlimited);
 
-			int err = dnet_lookup_object(sess.get_native(), &id, 0, func, priv);
+			int err = dnet_lookup_object(sess.get_native(), &id, func, priv);
 			if (err) {
 				throw_error(err, kid, "Failed to lookup ID");
 			}
@@ -417,7 +426,7 @@ class lookup_callback : public multigroup_callback
 				handler(exc);
 			} else {
 				lookup_result_entry result = cb.any_result<lookup_result_entry>();
-				dnet_convert_addr(result.address());
+				dnet_convert_addr(result.storage_address());
 				dnet_convert_file_info(result.file_info());
 				handler(result);
 			}
@@ -714,19 +723,22 @@ class prepare_latest_callback : public default_callback
 
 		prepare_latest_callback(const session &sess, const std::vector<int> &groups) : sess(sess), groups(groups)
 		{
-			cflags = DNET_ATTR_META_TIMES | sess.get_cflags();
 		}
 
 		bool start(complete_func func, void *priv)
 		{
 			set_count(unlimited);
 
+			uint64_t cflags_pop = sess.get_cflags();
+			sess.set_cflags(sess.get_cflags() | DNET_ATTR_META_TIMES);
+
 			dnet_id raw = id.id();
 			for (size_t i = 0; i < groups.size(); ++i) {
 				raw.group_id = groups[i];
-				dnet_lookup_object(sess.get_native(), &raw, cflags, func, priv);
+				dnet_lookup_object(sess.get_native(), &raw, func, priv);
 			}
 
+			sess.set_cflags(cflags_pop);
 			return set_count(groups.size());
 		}
 
@@ -765,7 +777,6 @@ class prepare_latest_callback : public default_callback
 		const std::vector<int> &groups;
 		key id;
 		uint32_t group_id;
-		uint64_t cflags;
 		std::function<void (const prepare_latest_result &)> handler;
 };
 
@@ -809,7 +820,7 @@ class write_callback : public default_callback
 				 * where given object is stored.
 				 */
 				if (result.size() >= sizeof(struct dnet_addr) + sizeof(struct dnet_file_info)) {
-					dnet_convert_addr(result.address());
+					dnet_convert_addr(result.storage_address());
 					dnet_convert_file_info(result.file_info());
 					results.push_back(result);
 				}
@@ -830,7 +841,6 @@ class remove_callback : public default_callback
 		remove_callback(const session &sess, const dnet_id &id)
 			: sess(sess), id(id)
 		{
-			cflags = sess.get_cflags() | DNET_FLAGS_NEED_ACK | DNET_ATTR_DELETE_HISTORY;
 		}
 
 		bool start(complete_func func, void *priv)
@@ -841,8 +851,11 @@ class remove_callback : public default_callback
 			std::copy(sess_groups.begin(), sess_groups.end(),
 				std::inserter(groups, groups.begin()));
 
+			uint64_t cflags_pop = sess.get_cflags();
+			sess.set_cflags(cflags_pop | DNET_ATTR_DELETE_HISTORY);
 			int err = dnet_remove_object(sess.get_native(), &id,
-				func, priv, cflags, sess.get_ioflags());
+				func, priv);
+			sess.set_cflags(cflags_pop);
 
 			if (err < 0) {
 				throw_error(err, id, "REMOVE");
@@ -879,9 +892,14 @@ class remove_callback : public default_callback
 
 		session sess;
 		std::set<int> groups;
-		uint64_t cflags;
 		dnet_id id;
 		std::function<void (const std::exception_ptr &)> handler;
+};
+
+class exec_result_data : public callback_result_data
+{
+	public:
+		exec_context context;
 };
 
 class exec_callback : public default_callback
@@ -897,9 +915,9 @@ class exec_callback : public default_callback
 		{
 			set_count(unlimited);
 
-			int err = dnet_send_cmd(sess.get_native(), id, func, priv, sph, sess.get_cflags());
+			int err = dnet_send_cmd(sess.get_native(), id, func, priv, sph);
 			if (err < 0) {
-				char buffer[64];
+				char buffer[128];
 				strncpy(buffer, sph->data, std::min<size_t>(sizeof(buffer), sph->event_size));
 				buffer[sizeof(buffer) - 1] = '\0';
 				throw_error(err, "failed to execute cmd: %s", buffer);
@@ -908,25 +926,125 @@ class exec_callback : public default_callback
 			return set_count(err);
 		}
 
+
+		virtual void process(struct dnet_cmd *cmd, const callback_result_data &generic_data)
+		{
+			// this method is run only inside mutex lock
+			auto data = std::make_shared<exec_result_data>();
+			exec_result_entry entry(data);
+			data->data = generic_data.data;
+			if (cmd->status) {
+				data->error = create_error(cmd->status, cmd->id, "Failed to process execution request");
+			} else {
+				if (!entry.data().empty())
+					data->context = exec_context::parse(entry.data(), &data->error);
+			}
+
+			// TODO: Remove exception handling from internal callbacks
+			// If there is no try/catch block we get memory corruption instead of abort in case of exception
+			try {
+				handler(entry);
+			} catch (const std::exception &exc) {
+				dnet_log_raw(sess.get_node().get_native(),
+					DNET_LOG_ERROR,
+					"UNCAUGHT ASYNC EXCEPTION: %s",
+					exc.what());
+				abort();
+			} catch (...) {
+				dnet_log_raw(sess.get_node().get_native(),
+					DNET_LOG_ERROR,
+					"UNCAUGHT ASYNC EXCEPTION");
+				abort();
+			}
+		}
+
 		void finish(std::exception_ptr exc)
 		{
-			if (exc != std::exception_ptr()) {
-				handler(exc);
-			} else {
-				std::vector<exec_context> result;
-				for (size_t i = 0; i < results_size(); ++i) {
-					const callback_result_entry &entry = result_at(i);
-					if (entry.size() > sizeof(struct sph))
-						result.push_back(exec_context(entry.data()));
-				}
-				handler(result);
-			}
+			if (complete_handler)
+				complete_handler(exc);
 		}
 
 		session sess;
 		struct dnet_id *id;
 		struct sph *sph;
 		std::function<void (const exec_result &)> handler;
+		std::function<void (const std::exception_ptr &)> complete_handler;
+};
+
+class iterator_callback : public default_callback
+{
+	public:
+		typedef std::shared_ptr<iterator_callback> ptr;
+
+		iterator_callback(const session &sess) : sess(sess)
+		{
+		}
+
+		bool start(complete_func func, void *priv)
+		{
+			set_count(unlimited);
+
+			dnet_trans_control ctl;
+			memset(&ctl, 0, sizeof(ctl));
+			memcpy(&ctl.id, &id, sizeof(id));
+			ctl.id.group_id = sess.get_groups().front();
+			ctl.cflags = sess.get_cflags() | DNET_FLAGS_NEED_ACK;
+			ctl.cmd = DNET_CMD_ITERATOR;
+			ctl.complete = func;
+			ctl.priv = priv;
+
+			dnet_convert_iterator_request(&request);
+			ctl.data = &request;
+			ctl.size = sizeof(request);
+
+			int err = dnet_trans_alloc_send(sess.get_native(), &ctl);
+			if (err < 0) {
+				throw_error(err, "failed to start iterator");
+			}
+
+			return set_count(1);
+		}
+
+
+		virtual void process(struct dnet_cmd *cmd, const callback_result_data &generic_data)
+		{
+			// this method is run only inside mutex lock
+			auto data = std::make_shared<callback_result_data>(generic_data);
+			data->data = generic_data.data;
+			if (cmd->status) {
+				data->error = create_error(cmd->status, cmd->id, "Failed to process execution request");
+			}
+
+			// TODO: Remove exception handling from internal callbacks
+			// If there is no try/catch block we get memory corruption instead of abort in case of exception
+			try {
+				callback_result_entry entry(data);
+				handler(*reinterpret_cast<iterator_result_entry*>(&entry));
+			} catch (const std::exception &exc) {
+				dnet_log_raw(sess.get_node().get_native(),
+					DNET_LOG_ERROR,
+					"UNCAUGHT ASYNC EXCEPTION: %s",
+					exc.what());
+				abort();
+			} catch (...) {
+				dnet_log_raw(sess.get_node().get_native(),
+					DNET_LOG_ERROR,
+					"UNCAUGHT ASYNC EXCEPTION");
+				abort();
+			}
+		}
+
+		void finish(std::exception_ptr exc)
+		{
+			if (complete_handler)
+				complete_handler(exc);
+		}
+
+		session sess;
+		struct dnet_id id;
+		dnet_iterator_request request;
+		std::function<void (const iterator_result &)> handler;
+		std::function<void (const std::exception_ptr &)> complete_handler;
 };
 
 inline void check_for_exception(const std::exception_ptr &result)
@@ -945,6 +1063,12 @@ template <typename T>
 void check_for_exception(const array_result_holder<T> &result)
 {
 	result.check();
+}
+
+inline void check_for_exception(const exec_result_entry &result)
+{
+	if (result.error())
+		result.error().throw_error();
 }
 
 template <typename T>
@@ -1000,9 +1124,9 @@ class waiter
 		}
 
 	private:
+		T				m_result;
 		std::mutex			m_mutex;
 		std::condition_variable		m_condition;
-		T				m_result;
 		bool				m_result_ready;
 };
 
@@ -1016,6 +1140,17 @@ inline bool assertion_callback_insert(std::shared_ptr<T> *cb)
 	fflush(stderr);
 	assertion_callback_mutex().lock();
 	bool result = assertion_callback_set().insert(cb).second;
+	assertion_callback_mutex().unlock();
+	return result;
+}
+
+template <typename T>
+inline bool assertion_callback_find(std::shared_ptr<T> *cb)
+{
+	fprintf(stderr, "FIND: %p, %s\n", cb, __ASSERT_FUNCTION);
+	fflush(stderr);
+	assertion_callback_mutex().lock();
+	bool result = assertion_callback_set().find(cb) != assertion_callback_set().end();
 	assertion_callback_mutex().unlock();
 	return result;
 }
@@ -1039,6 +1174,7 @@ struct dnet_style_handler
 	static int handler(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
 	{
 		std::shared_ptr<T> &ptr = *reinterpret_cast<std::shared_ptr<T> *>(priv);
+		elliptics_assert(assertion_callback_find(&ptr));
 
 		bool isFinished = false;
 		std::exception_ptr exc_ptr;

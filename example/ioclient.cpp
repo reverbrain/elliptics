@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
 		s.set_groups(groups);
 
 		if (defrag)
-			return dnet_start_defrag(s.get_native(), cflags);
+			return dnet_start_defrag(s.get_native());
 
 		if (writef)
 			s.write_file(create_id(id, writef, type), writef, offset, offset, size);
@@ -308,12 +308,25 @@ int main(int argc, char *argv[])
 				did->type = type;
 			}
 
-			const std::vector<exec_context> results = s.exec(did, event, data);
+			s.set_cflags(cflags | DNET_FLAGS_NOLOCK);
+			const exec_results results = s.exec(did, event, data);
+			s.set_cflags(cflags);
 			for (size_t i = 0; i < results.size(); ++i) {
-				exec_context result = results[i];
-				std::cout << dnet_server_convert_dnet_addr(result.address())
-					<< ": " << result.event()
-					<< " \"" << result.data().to_string() << "\"" << std::endl;
+				if (results[i].error()) {
+					error_info error = results[i].error();
+					std::cout << dnet_server_convert_dnet_addr(results[i].address())
+						<< ": failed to process: \"" << error.message() << "\": " << error.code() << std::endl;
+				} else {
+					exec_context result = results[i].context();
+					if (result.is_null()) {
+						std::cout << dnet_server_convert_dnet_addr(results[i].address())
+							<< ": acknowledge" << std::endl;
+					} else {
+						std::cout << dnet_server_convert_dnet_addr(result.address())
+							<< ": " << result.event()
+							<< " \"" << result.data().to_string() << "\"" << std::endl;
+					}
+				}
 			}
 		}
 
@@ -361,18 +374,17 @@ int main(int argc, char *argv[])
 				dnet_addr *addr = result.address();
 				dnet_addr_stat *as = result.statistics();
 
-				for (int j = 0; j < as->num; ++j) {
-					if (as->num > as->cmd_num) {
-						if (j == 0)
-							dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Storage commands\n",
-								dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
-						if (j == as->cmd_num)
-							dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Proxy commands\n",
-								dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
-						if (j == as->cmd_num * 2)
-							dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Counters\n",
-								dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
-					}
+				for (int j = 0; j < (int)((cmd->size - sizeof(struct dnet_addr_stat)) / sizeof(struct dnet_stat_count)); ++j) {
+					if (j == 0)
+						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: storage-to-storage commands\n",
+							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
+					if (j == as->cmd_num)
+						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: client-to-storage commands\n",
+							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
+					if (j == as->cmd_num * 2)
+						dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: Global stat counters\n",
+							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr));
+
 					dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s:    cmd: %s, count: %llu, err: %llu\n",
 							dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
 							dnet_counter_string(j, as->cmd_num),

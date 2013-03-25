@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.22.0.0
+Version:	2.22.5.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -151,6 +151,57 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Mar 20 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.5.0
+- Added start_iterator to python binding
+- Added server-side iterator flags/type defines
+- Introduce server-side iteration control structure
+- Do not return error from dnet_db_list_iter() - this error will be propagated to all iterating threads and stop them
+- Added start_iterator API
+- Fixed bulk_read for empty request
+
+* Tue Mar 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.4.0
+- Depend on 0.10.0-rc5 cocaine
+
+* Fri Mar 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.3.1
+- Guard leveldb's append/offset writes, since they are actually read-modify-write cycles
+
+* Fri Mar 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.3.0
+- Added leveldb offset and append write support
+- Return error for CAS write if ->checksum() is not supported
+- Added leveldb checksum function
+- Connection refused error message cleanup
+
+* Wed Mar 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.2.0
+- Return status of defragmentation request
+- Return node's address, not client's one.
+- Added leveldb->lookup()
+- finder::parse_lookup() should not drop dnet_file_info if no filename provided
+- Changed exec async API
+- Moved groups to dnet_session
+- Moved cflags/ioflags to dnet_session
+- Added wait timeout to session
+
+* Tue Mar 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.1.2
+- Skip route table entries without addr list
+
+* Tue Mar 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.1.1
+- Simplify dnet_cmd_route_list() - allocate and send under state_lock route replies
+- If log levels match, log it
+- Do not use modern for (type &var : container) loop, use old-school iterators, since the former is not supported in gcc 4.4
+- Use std::exeption_ptr() check instead of NULL cast, which is not supported in gcc 4.4
+
+* Mon Mar 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.1.0
+- Always request stats with DNET_ATTR_CNTR_GLOBAL flag set to grab global node's counters
+- dnet_log_raw() should use <= for log-level comparison
+- Added secondary indexes
+- Added msgpack dependency
+- Moved dnet_ioclient to new exec API
+- Added new client exec API
+- Fixed connection to 2.22 servers
+- Let's all exec commands block if they do not have sph
+- Updated cocaine config
+- Fixed segfault at connection to elder servers
+
 * Mon Mar 04 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.22.0.0
 - Added high-level write_cas method
 - Fixed memory leak

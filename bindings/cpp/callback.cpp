@@ -62,6 +62,11 @@ bool callback_result_entry::is_valid() const
 	return !m_data->data.empty();
 }
 
+int callback_result_entry::status() const
+{
+	return command()->status;
+}
+
 data_pointer callback_result_entry::raw_data() const
 {
 	return m_data->data;
@@ -142,7 +147,7 @@ lookup_result_entry &lookup_result_entry::operator =(const lookup_result_entry &
 	return *this;
 }
 
-struct dnet_addr *lookup_result_entry::address() const
+struct dnet_addr *lookup_result_entry::storage_address() const
 {
 	return data()
 		.data<struct dnet_addr>();
@@ -213,6 +218,75 @@ struct dnet_addr_stat *stat_count_result_entry::statistics() const
 		.skip<struct dnet_addr>()
 		.skip<struct dnet_cmd>()
 		.data<struct dnet_addr_stat>();
+}
+
+exec_result_entry::exec_result_entry()
+{
+}
+
+exec_result_entry::exec_result_entry(const std::shared_ptr<exec_result_data> &data)
+	: callback_result_entry(std::static_pointer_cast<callback_result_data>(data))
+{
+}
+
+exec_result_entry::exec_result_entry(const exec_result_entry &other) : callback_result_entry(other)
+{
+}
+
+exec_result_entry::~exec_result_entry()
+{
+}
+
+exec_result_entry &exec_result_entry::operator =(const exec_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+error_info exec_result_entry::error() const
+{
+	return m_data->error;
+}
+
+exec_context exec_result_entry::context() const
+{
+	auto data = static_cast<exec_result_data*>(m_data.get());
+	if (data->error)
+		data->error.throw_error();
+	return static_cast<exec_result_data*>(m_data.get())->context;
+}
+
+iterator_result_entry::iterator_result_entry()
+{
+}
+
+iterator_result_entry::iterator_result_entry(const iterator_result_entry &other) : callback_result_entry(other)
+{
+}
+
+iterator_result_entry::~iterator_result_entry()
+{
+}
+
+iterator_result_entry &iterator_result_entry::operator =(const iterator_result_entry &other)
+{
+	callback_result_entry::operator =(other);
+	return *this;
+}
+
+error_info iterator_result_entry::error() const
+{
+	return m_data->error;
+}
+
+dnet_iterator_request *iterator_result_entry::reply() const
+{
+	return data<dnet_iterator_request>();
+}
+
+data_pointer iterator_result_entry::reply_data() const
+{
+	return data().skip<dnet_iterator_request>();
 }
 
 } } // namespace ioremap::elliptics

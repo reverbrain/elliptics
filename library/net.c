@@ -70,7 +70,7 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 		}
 		if ((!(pfd.revents & POLLOUT)) || (pfd.revents & (POLLERR | POLLHUP))) {
 			err = -ECONNREFUSED;
-			dnet_log_err(n, "Connection refused by %s:%d",
+			dnet_log(n, DNET_LOG_ERROR, "Connection refused by %s:%d\n",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen));
 			goto err_out_exit;
@@ -83,7 +83,7 @@ static int dnet_socket_connect(struct dnet_node *n, int s, struct sockaddr *sa, 
 			err = -errno;
 			if (!err)
 				err = -status;
-			dnet_log_err(n, "Failed to connect to %s:%d: %s [%d]",
+			dnet_log(n, DNET_LOG_ERROR, "Failed to connect to %s:%d: %s [%d]\n",
 				dnet_server_convert_addr(sa, salen),
 				dnet_server_convert_port(sa, salen),
 				strerror(-err), err);
@@ -290,7 +290,7 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	if (orig->data && orig->dsize) {
 		r->data = buf + sizeof(struct dnet_io_req) + offset;
 		r->dsize = orig->dsize;
-		
+
 		offset += r->dsize;
 		memcpy(r->data, orig->data, r->dsize);
 	}
@@ -348,7 +348,7 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 	}
 
 	if (pfd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
-		dnet_log(st->n, DNET_LOG_DEBUG, "Connection reset by peer: sock: %d, revents: %x.\n",
+		dnet_log(st->n, DNET_LOG_ERROR, "Connection reset by peer: sock: %d, revents: %x.\n",
 			st->read_s, pfd.revents);
 		err = -ECONNRESET;
 		goto out_exit;
@@ -470,7 +470,9 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize,
 static void dnet_trans_timestamp(struct dnet_net_state *st, struct dnet_trans *t)
 {
 	gettimeofday(&t->time, NULL);
-	t->time.tv_sec += st->n->wait_ts.tv_sec;
+	struct timespec *wait_ts = t->wait_ts.tv_sec ? &t->wait_ts : &st->n->wait_ts;
+	t->time.tv_sec += wait_ts->tv_sec;
+	t->time.tv_usec += wait_ts->tv_nsec / 1000;
 
 	list_move_tail(&t->trans_list_entry, &st->trans_list);
 }
@@ -521,7 +523,7 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 			return err;
 		}
 
-		err = recv(st->read_s, data, size, 0);
+		err = recv(st->read_s, data, size, MSG_DONTWAIT);
 		if (err < 0) {
 			dnet_log_err(st->n, "Failed to recv packet: size: %u", size);
 			return err;
