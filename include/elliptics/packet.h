@@ -564,70 +564,28 @@ struct dnet_file_info {
 	int			flen;		/* filename length, which goes after this structure */
 	unsigned char		checksum[DNET_CSUM_SIZE];
 
-	unsigned int		nlink;
-
-	uint64_t		mode;
-
-	uint64_t		dev;
-	uint64_t		rdev;
-
-	uint64_t		ino;
-
-	uint64_t		uid;
-	uint64_t		gid;
-
-	uint64_t		blksize;
-	uint64_t		blocks;
-
 	uint64_t		size;
 	uint64_t		offset;		/* offset within eblob */
 
-	struct dnet_time	atime;
-	struct dnet_time	ctime;
 	struct dnet_time	mtime;
 };
 
 static inline void dnet_convert_file_info(struct dnet_file_info *info)
 {
 	info->flen = dnet_bswap32(info->flen);
-	info->nlink = dnet_bswap32(info->nlink);
 
-	info->mode = dnet_bswap64(info->mode);
-	info->dev = dnet_bswap64(info->dev);
-	info->ino = dnet_bswap64(info->ino);
-	info->uid = dnet_bswap64(info->uid);
-	info->gid = dnet_bswap64(info->gid);
-	info->blksize = dnet_bswap64(info->blksize);
-	info->blocks = dnet_bswap64(info->blocks);
-	info->rdev = dnet_bswap64(info->rdev);
 	info->size = dnet_bswap64(info->size);
 	info->offset = dnet_bswap64(info->offset);
 
-	dnet_convert_time(&info->atime);
-	dnet_convert_time(&info->ctime);
 	dnet_convert_time(&info->mtime);
 }
 
 static inline void dnet_info_from_stat(struct dnet_file_info *info, struct stat *st)
 {
-	info->nlink = st->st_nlink;
-	info->mode = st->st_mode;
-	info->dev = st->st_dev;
-	info->ino = st->st_ino;
-	info->uid = st->st_uid;
-	info->gid = st->st_gid;
-	info->blksize = st->st_blksize;
-	info->blocks = st->st_blocks;
-	info->rdev = st->st_rdev;
 	info->size = st->st_size;
 	info->offset = 0;
 
-	info->atime.tsec = st->st_atime;
-	info->ctime.tsec = st->st_ctime;
 	info->mtime.tsec = st->st_mtime;
-
-	info->atime.tnsec = 0;
-	info->ctime.tnsec = 0;
 	info->mtime.tnsec = 0;
 }
 

@@ -200,7 +200,6 @@ static void test_lookup_parse(const std::string &key,
 		struct dnet_file_info *info = (struct dnet_file_info *)(addr + 1);
 
 		dnet_convert_file_info(info);
-		std::cerr << ": mode: " << std::oct << info->mode << std::dec;
 		std::cerr << ", offset: " << (unsigned long long)info->offset;
 		std::cerr << ", size: " << (unsigned long long)info->size;
 		std::cerr << ", file: " << path;

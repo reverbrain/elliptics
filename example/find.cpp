@@ -97,15 +97,22 @@ void finder::parse_lookup(const command_result &ret)
 			} catch (const std::exception &e) {
 			}
 
-			if (!info)
+			if (!info) {
 				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND object: %s: should live at: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
-			else
+			} else {
+				char tstr[64];
+				struct tm tm;
+
+				localtime_r((time_t *)&info->mtime.tsec, &tm);
+				strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
+
 				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND-OK object: %s: should live at: %s, "
-						"offset: %llu, size: %llu, mode: %llo, path: %s\n",
+						"offset: %llu, size: %llu, mtime: %s, path: %s\n",
 					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
 					(unsigned long long)info->offset, (unsigned long long)info->size,
-					(unsigned long long)info->mode, (char *)(info + 1));
+					tstr, (char *)(info + 1));
+			}
 		} else {
 			if (cmd->status != 0)
 				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND object: status: %d\n",

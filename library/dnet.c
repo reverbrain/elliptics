@@ -1110,7 +1110,7 @@ int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_fil
 	mu = (struct dnet_meta_update *)m->data;
 	dnet_convert_meta_update(mu);
 
-	info->ctime = info->mtime = mu->tm;
+	info->mtime = mu->tm;
 	err = 0;
 
 err_out_free:
@@ -1183,7 +1183,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 
 	dnet_info_from_stat(info, &st);
 	/* this is not valid data from raw blob file stat */
-	info->ctime.tsec = info->mtime.tsec = 0;
+	info->mtime.tsec = 0;
 
 	if (cmd->flags & DNET_ATTR_META_TIMES) {
 		err = dnet_read_file_info(n, &cmd->id, info);
