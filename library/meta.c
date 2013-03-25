@@ -263,11 +263,9 @@ int dnet_create_write_metadata_strings(struct dnet_session *s, const void *remot
 
 int dnet_create_metadata(struct dnet_session *s, struct dnet_metadata_control *ctl, struct dnet_meta_container *mc)
 {
-	struct dnet_node *n = s->node;
 	struct dnet_meta_check_status *c;
 	struct dnet_meta *m;
-	int size = 0, err, nsize = 0;
-	void *ns;
+	int size = 0, err;
 
 	size += sizeof(struct dnet_meta_check_status) + sizeof(struct dnet_meta);
 
@@ -279,9 +277,8 @@ int dnet_create_metadata(struct dnet_session *s, struct dnet_metadata_control *c
 
 	size += sizeof(struct dnet_meta_update) + sizeof(struct dnet_meta);
 
-	ns = dnet_node_get_ns(n, &nsize);
-	if (ns && nsize)
-		size += nsize + sizeof(struct dnet_meta);
+	if (s->ns && s->nsize)
+		size += s->nsize + sizeof(struct dnet_meta);
 
 	if (!size) {
 		err = -EINVAL;
@@ -325,10 +322,10 @@ int dnet_create_metadata(struct dnet_session *s, struct dnet_metadata_control *c
 		m = (struct dnet_meta *)(m->data + m->size);
 	}
 
-	if (ns && nsize) {
-		m->size = nsize;
+	if (s->ns && s->nsize) {
+		m->size = s->nsize;
 		m->type = DNET_META_NAMESPACE;
-		memcpy(m->data, ns, nsize);
+		memcpy(m->data, s->ns, s->nsize);
 
 		m = (struct dnet_meta *)(m->data + m->size);
 	}
@@ -482,7 +479,6 @@ void dnet_meta_print(struct dnet_session *s, struct dnet_meta_container *mc)
 int dnet_read_meta(struct dnet_session *s, struct dnet_meta_container *mc,
 		const void *remote, unsigned int remote_len, struct dnet_id *id)
 {
-	struct dnet_node *n = s->node;
 	struct dnet_io_attr io;
 	struct dnet_id raw;
 	void *data;
@@ -500,7 +496,7 @@ int dnet_read_meta(struct dnet_session *s, struct dnet_meta_container *mc,
 			goto err_out_exit;
 		}
 
-		dnet_transform(n, remote, remote_len, &raw);
+		dnet_transform(s, remote, remote_len, &raw);
 		id = &raw;
 
 		id->type = 0;

@@ -753,7 +753,7 @@ static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 	if (!size)
 		memset(csum, 0, *csize);
 	else
-		err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
+		err = dnet_checksum_fd(n, fd, offset, size, csum, *csize);
 
 err_out_exit:
 	return err;

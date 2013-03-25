@@ -76,6 +76,8 @@ int main(int argc, char *argv[])
 	struct dnet_meta_container mc;
 	struct dnet_metadata_control mctl;
 	struct dnet_meta *m;
+	char *ns = NULL;
+	int nsize = 0;
 
 	memset(&cfg, 0, sizeof(cfg));
 
@@ -85,8 +87,8 @@ int main(int argc, char *argv[])
 	while ((ch = getopt(argc, argv, "N:g:G:w:I:n:r:m:l:h")) != -1) {
 		switch (ch) {
 			case 'N':
-				cfg.ns = optarg;
-				cfg.nsize = strlen(optarg);
+				ns = optarg;
+				nsize = strlen(optarg);
 				break;
 			case 'r':
 				err = dnet_parse_addr(optarg, &remote_port, &remote_family);
@@ -163,9 +165,13 @@ int main(int argc, char *argv[])
 	if (!s)
 		goto err_out_destroy_node;
 
-	err = dnet_add_state(n, remote_addr, remote_port, remote_family, 0);
+	err = dnet_session_set_ns(s, ns, nsize);
 	if (err)
 		goto err_out_destroy;
+
+	err = dnet_add_state(n, remote_addr, remote_port, remote_family, 0);
+	if (err)
+		goto err_out_free_ns;
 
 	dnet_session_set_groups(s, groups, group_num);
 
@@ -175,17 +181,17 @@ int main(int argc, char *argv[])
 		dnet_setup_id(&raw, groups[0], id);
 		err = dnet_read_meta(s, &mc, NULL, 0, &raw);
 	} else {
-		err = dnet_transform(n, name, strlen(name), &raw);
+		err = dnet_transform(s, name, strlen(name), &raw);
 		if (err) {
 			fprintf(stderr, "dnet_transform failed, err=%d\n", err);
-			goto err_out_destroy;
+			goto err_out_free_ns;
 		}
 		err = dnet_read_meta(s, &mc, name, strlen(name), NULL);
 	}
 
 	if (err < 0) {
 		fprintf(stderr, "Error during reading meta: %d\n", err);
-		goto err_out_destroy;
+		goto err_out_free_ns;
 	}
 
 	/* Prepare control structure for dnet_create_write_metadata */
@@ -215,6 +221,8 @@ int main(int argc, char *argv[])
 	}
 	
 
+err_out_free_ns:
+	free(ns);
 err_out_destroy:
 	dnet_session_destroy(s);
 err_out_destroy_node:

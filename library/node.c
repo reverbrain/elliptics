@@ -346,7 +346,7 @@ static int dnet_search_range_nolock(struct dnet_node *n, struct dnet_id *id, str
 
 	group = dnet_group_search(n, id->group_id);
 	if (!group)
-		return -ENOENT;
+		return -ENXIO;
 
 	idc_pos = __dnet_idc_search(group, id);
 	sid = &group->ids[idc_pos];
@@ -591,7 +591,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->client_prio = cfg->client_prio;
 	n->server_prio = cfg->server_prio;
 
-	err = dnet_crypto_init(n, cfg->ns, cfg->nsize);
+	err = dnet_crypto_init(n);
 	if (err)
 		goto err_out_free;
 
@@ -686,6 +686,9 @@ struct dnet_session *dnet_session_create(struct dnet_node *n)
 void dnet_session_destroy(struct dnet_session *s)
 {
 	dnet_log(s->node, DNET_LOG_DEBUG, "Destroying session.\n");
+
+	free(s->ns);
+	free(s->groups);
 	free(s);
 }
 
@@ -724,6 +727,31 @@ void dnet_session_set_ioflags(struct dnet_session *s, uint32_t ioflags)
 	s->ioflags = ioflags;
 }
 
+int dnet_session_set_ns(struct dnet_session *s, const char *ns, int nsize)
+{
+	char *old = s->ns;
+	int err;
+
+	if (ns && nsize) {
+		s->ns = malloc(nsize);
+		if (!s->ns) {
+			err = -ENOMEM;
+			goto err_out_exit;
+		}
+
+		memcpy(s->ns, ns, nsize);
+		s->nsize = nsize;
+
+		free(old);
+	}
+
+	return 0;
+
+err_out_exit:
+	s->ns = old;
+	return err;
+}
+
 uint32_t dnet_session_get_ioflags(struct dnet_session *s)
 {
 	return s->ioflags;
@@ -753,4 +781,9 @@ void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout)
 {
 	n->wait_ts.tv_sec = wait_timeout;
 	n->check_timeout = check_timeout;
+}
+
+struct dnet_node *dnet_session_get_node(struct dnet_session *s)
+{
+	return s->node;
 }

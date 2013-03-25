@@ -84,7 +84,7 @@ class srw_log {
 			ctl.io.size = msg_with_date.size();
 
 			std::string app_log = app + ".log";
-			dnet_transform(m_s->node, app_log.data(), app_log.size(), &ctl.id);
+			dnet_transform_node(m_s->node, app_log.data(), app_log.size(), ctl.id.id, sizeof(ctl.id.id));
 
 			ctl.fd = -1;
 

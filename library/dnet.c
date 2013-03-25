@@ -36,14 +36,6 @@
 #include "elliptics/interface.h"
 
 
-int dnet_transform(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id)
-{
-	struct dnet_transform *t = &n->transform;
-	unsigned int csize = sizeof(id->id);
-
-	return t->transform(t->priv, src, size, id->id, &csize, 0);
-}
-
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 {
 	struct dnet_node *n = st->n;
@@ -215,7 +207,7 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 {
 	struct dnet_node *n = st->n;
 	struct dnet_net_state *base;
-	int err = -ENOENT;
+	int err = -ENXIO;
 
 	cmd->id.group_id = n->id.group_id;
 	base = dnet_node_state(n);
@@ -751,7 +743,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				}
 			}
 
-			if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
+			if ((io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) && (cmd->cmd == DNET_CMD_WRITE)) {
 				char csum[DNET_ID_SIZE];
 				int csize = DNET_ID_SIZE;
 
@@ -763,13 +755,22 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				}
 
 				err = n->cb->checksum(n, n->cb->command_private, &cmd->id, csum, &csize);
-				if (err < 0) {
+				if (err < 0 && err != -ENOENT) {
 					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation failed\n", dnet_dump_id(&cmd->id));
-					err = 0;
-				} else {
+					break;
+				}
+
+				/*
+				 * If err == -ENOENT then there is no data to checksum, and CAS should succeed
+				 * This is not 'client-safe' since two or more clients with unlocked CAS write
+				 * may find out that there is no data and try to write their data, but we do not
+				 * case about parallel writes being made without locks.
+				 */
+
+				if (err == 0) {
 					if (memcmp(csum, io->parent, DNET_ID_SIZE)) {
 						dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch\n", dnet_dump_id(&cmd->id));
-						err = -EINVAL;
+						err = -EBADFD;
 						break;
 					}
 				}
@@ -833,7 +834,7 @@ int dnet_state_join_nolock(struct dnet_net_state *st)
 
 	base = dnet_state_search_nolock(n, &n->id);
 	if (!base) {
-		err = -ENOENT;
+		err = -ENXIO;
 		goto err_out_exit;
 	}
 
@@ -869,7 +870,7 @@ int64_t dnet_get_param(struct dnet_node *n, struct dnet_id *id, enum id_params p
 
 	st = dnet_state_get_first(n, id);
 	if (!st)
-		return -ENOENT;
+		return -ENXIO;
 
 	switch (param) {
 		case DNET_ID_PARAM_LA:
@@ -1010,6 +1011,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 		int fd, uint64_t offset, int close_on_exit)
 {
 	struct dnet_net_state *st = state;
+	struct dnet_node *n = st->n;
 	struct dnet_cmd *c;
 	struct dnet_io_attr *rio;
 	int hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr);
@@ -1046,7 +1048,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 
 	memcpy(rio, io, sizeof(struct dnet_io_attr));
 
-	dnet_log_raw(st->n, DNET_LOG_NOTICE, "%s: %s: reply: offset: %llu, size: %llu.\n",
+	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: %s: reply: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
 			(unsigned long long)io->offset,	(unsigned long long)io->size);
 
@@ -1058,13 +1060,24 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	dnet_convert_cmd(c);
 	dnet_convert_io_attr(rio);
 
+	if (io->flags & DNET_IO_FLAGS_CHECKSUM) {
+		if (data) {
+			err = dnet_checksum_data(n, data, io->size, io->parent, sizeof(io->parent));
+		} else {
+			err = dnet_checksum_fd(n, fd, offset, io->size, io->parent, sizeof(io->parent));
+		}
+
+		if (err)
+			goto err_out_free;
+	}
+
 	if (data)
 		err = dnet_send_data(st, c, hsize, data, io->size);
 	else
 		err = dnet_send_fd(st, c, hsize, fd, offset, io->size, close_on_exit);
 
+err_out_free:
 	free(c);
-
 err_out_exit:
 	return err;
 }
@@ -1181,7 +1194,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 
 	if (cmd->flags & DNET_ATTR_META_TIMES) {
 		err = dnet_read_file_info(n, &cmd->id, info);
-		if ((err == -ENOENT) && (cmd->flags & DNET_ATTR_META_TIMES))
+		if (((err == -ENOENT) || (err == -ENXIO)) && (cmd->flags & DNET_ATTR_META_TIMES))
 			err = 0;
 		if (err)
 			goto err_out_free;
@@ -1193,7 +1206,7 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 		info->offset = offset;
 
 	if (info->size == 0) {
-		err = -ENOENT;
+		err = -EINVAL;
 		dnet_log(n, DNET_LOG_NOTICE, "%s: EBLOB: %s: info-stat: ZERO-FILE-SIZE, fd: %d.\n",
 				dnet_dump_id(&cmd->id), file, fd);
 		goto err_out_free;
@@ -1252,14 +1265,12 @@ err_out_exit:
 	return err;
 }
 
-int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, const void *data, uint64_t size)
+int dnet_checksum_data(struct dnet_node *n, const void *data, uint64_t size, unsigned char *csum, int csize)
 {
-	struct dnet_transform *t = &n->transform;
-
-	return t->transform(t->priv, data, size, csum, (unsigned int *)csize, 0);
+	return dnet_transform_node(n, data, size, csum, csize);
 }
 
-int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size)
+int dnet_checksum_file(struct dnet_node *n, const char *file, uint64_t offset, uint64_t size, void *csum, int csize)
 {
 	int fd, err;
 
@@ -1271,14 +1282,14 @@ int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *
 		goto err_out_exit;
 	}
 	fd = err;
-	err = dnet_checksum_fd(n, csum, csize, fd, offset, size);
+	err = dnet_checksum_fd(n, fd, offset, size, csum, csize);
 	close(fd);
 
 err_out_exit:
 	return err;
 }
 
-int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size)
+int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size, void *csum, int csize)
 {
 	int err;
 	struct dnet_map_fd m;
@@ -1304,7 +1315,7 @@ int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64
 	if (err)
 		goto err_out_exit;
 
-	err = dnet_checksum_data(n, csum, csize, m.data, size);
+	err = dnet_checksum_data(n, m.data, size, csum, csize);
 	dnet_data_unmap(&m);
 
 err_out_exit:

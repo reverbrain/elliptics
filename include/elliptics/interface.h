@@ -395,10 +395,6 @@ struct dnet_config
 	 */
 	char			history_env[1024];
 
-	/* Namespace */
-	char			*ns;
-	int			nsize;
-
 	/* IO nice parameters for background operations */
 	int			bg_ionice_class;
 	int			bg_ionice_prio;
@@ -430,6 +426,9 @@ uint32_t dnet_session_get_ioflags(struct dnet_session *s);
 void dnet_session_set_cflags(struct dnet_session *s, uint64_t cflags);
 uint64_t dnet_session_get_cflags(struct dnet_session *s);
 void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout);
+int dnet_session_set_ns(struct dnet_session *s, const char *ns, int nsize);
+
+struct dnet_node *dnet_session_get_node(struct dnet_session *s);
 
 /*
  * Logging helpers.
@@ -754,7 +753,9 @@ int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struc
  * @src and @size correspond to to be transformed source data.
  * @dst and @dsize specify destination buffer.
  */
-int __attribute__((weak)) dnet_transform(struct dnet_node *n, const void *src, uint64_t size, struct dnet_id *id);
+int dnet_transform(struct dnet_session *s, const void *src, uint64_t size, struct dnet_id *id);
+int __attribute__((weak)) dnet_transform_node(struct dnet_node *n, const void *src, uint64_t size,
+		unsigned char *csum, int csize);
 
 int dnet_request_ids(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
@@ -883,9 +884,6 @@ static inline void dnet_convert_check_request(struct dnet_check_request *r)
 
 int dnet_request_check(struct dnet_session *s, struct dnet_check_request *r);
 
-void *dnet_node_get_ns(struct dnet_node *n, int *nsize);
-void dnet_node_set_ns(struct dnet_node *n, void *ns, int nsize);
-
 long __attribute__((weak)) dnet_get_id(void);
 
 static inline int is_trans_destroyed(struct dnet_net_state *st, struct dnet_cmd *cmd)
@@ -906,11 +904,9 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp);
 char * __attribute__((weak)) dnet_cmd_string(int cmd);
 char *dnet_counter_string(int cntr, int cmd_num);
 
-
-int dnet_checksum_file(struct dnet_node *n, void *csum, int *csize, const char *file, uint64_t offset, uint64_t size);
-int dnet_checksum_fd(struct dnet_node *n, void *csum, int *csize, int fd, uint64_t offset, uint64_t size);
-int dnet_checksum_data(struct dnet_node *n, void *csum, int *csize, const void *data, uint64_t size);
-
+int dnet_checksum_file(struct dnet_node *n, const char *file, uint64_t offset, uint64_t size, void *csum, int csize);
+int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size, void *csum, int csize);
+int dnet_checksum_data(struct dnet_node *n, const void *data, uint64_t size, unsigned char *csum, int csize);
 
 ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void **datap);
 int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *data, unsigned int size);

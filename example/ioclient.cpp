@@ -111,6 +111,8 @@ int main(int argc, char *argv[])
 	uint64_t ioflags = 0;
 	int defrag = 0;
 	sigset_t mask;
+	char *ns = NULL;
+	int nsize = 0;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -147,8 +149,8 @@ int main(int argc, char *argv[])
 				update_status = 1;
 				break;
 			case 'N':
-				cfg.ns = optarg;
-				cfg.nsize = strlen(optarg);
+				ns = optarg;
+				nsize = strlen(optarg);
 				break;
 			case 'u':
 				removef = optarg;
@@ -254,6 +256,7 @@ int main(int argc, char *argv[])
 			return err;
 
 		s.set_groups(groups);
+		s.set_namespace(ns, nsize);
 
 		if (defrag)
 			return dnet_start_defrag(s.get_native());

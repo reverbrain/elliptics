@@ -28,6 +28,7 @@ include(CheckIoprio)
 include(TestBigEndian)
 include(CheckProcStats)
 include(CreateStdint)
+include(FixRpath)
 
 configure_file(cmake/EllipticsConfig.cmake.in
                 "${PROJECT_BINARY_DIR}/cmake/EllipticsConfig.cmake"

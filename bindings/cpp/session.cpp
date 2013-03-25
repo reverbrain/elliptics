@@ -359,6 +359,17 @@ void session::set_ioflags(uint32_t ioflags)
 	dnet_session_set_ioflags(m_data->session_ptr, ioflags);
 }
 
+void session::set_namespace(const char *ns, int nsize)
+{
+	int err;
+
+	err = dnet_session_set_ns(m_data->session_ptr, ns, nsize);
+	if (err) {
+		std::string tmp(ns, nsize);
+		throw ioremap::elliptics::error(err, "Could not set namespace '" + tmp + "'");
+	}
+}
+
 uint32_t session::get_ioflags() const
 {
 	return dnet_session_get_ioflags(m_data->session_ptr);
@@ -541,16 +552,15 @@ struct read_latest_callback
 	uint64_t offset;
 	uint64_t size;
 	std::function<void (const read_result &)> handler;
+	std::vector<int> groups;
 
 	void operator() (const prepare_latest_result &result)
 	{
-		if (result.exception() != std::exception_ptr()) {
-			handler(result.exception());
-			return;
-		}
+		if (result.exception() == std::exception_ptr() && result.size() > 0)
+			groups = result;
 
 		try {
-			sess.read_data(handler, id, result, offset, size);
+			sess.read_data(handler, id, groups, offset, size);
 		} catch (...) {
 			handler(std::current_exception());
 		}
@@ -560,8 +570,8 @@ struct read_latest_callback
 void session::read_latest(const std::function<void (const read_result &)> &handler,
 	const key &id, uint64_t offset, uint64_t size)
 {
-	read_latest_callback callback = { *this, id, offset, size, handler };
-	prepare_latest(callback, id, mix_states());
+	read_latest_callback callback = { *this, id, offset, size, handler, mix_states() };
+	prepare_latest(callback, id, callback.groups);
 }
 
 read_result session::read_latest(const key &id, uint64_t offset, uint64_t size)
@@ -966,12 +976,12 @@ int session::write_metadata(const key &id, const std::string &obj,
 
 void session::transform(const std::string &data, struct dnet_id &id)
 {
-	dnet_transform(m_data->node_guard.get_native(), (void *)data.data(), data.size(), &id);
+	dnet_transform(m_data->session_ptr, (void *)data.data(), data.size(), &id);
 }
 
 void session::transform(const data_pointer &data, dnet_id &id)
 {
-	dnet_transform(m_data->node_guard.get_native(), data.data(), data.size(), &id);
+	dnet_transform(m_data->session_ptr, data.data(), data.size(), &id);
 }
 
 void session::transform(const key &id)

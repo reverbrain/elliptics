@@ -113,7 +113,7 @@ int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	struct dnet_notify_entry *e, *tmp;
 	unsigned int hash = dnet_notify_hash(&cmd->id, n->notify_hash_size);
 	struct dnet_notify_bucket *b = &n->notify_hash[hash];
-	int err = -ENOENT;
+	int err = -ENXIO;
 
 	pthread_rwlock_wrlock(&b->notify_lock);
 	list_for_each_entry_safe(e, tmp, &b->notify_list, notify_entry) {

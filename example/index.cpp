@@ -152,6 +152,8 @@ int main(int argc, char *argv[])
 	char *update = NULL;
 	bool find = false;
 	std::vector<std::string> indexes;
+	char *ns = NULL;
+	int nsize = 0;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -170,8 +172,8 @@ int main(int argc, char *argv[])
 				cflags = strtoull(optarg, NULL, 0);
 				break;
 			case 'N':
-				cfg.ns = optarg;
-				cfg.nsize = strlen(optarg);
+				ns = optarg;
+				nsize = strlen(optarg);
 				break;
 			case 'm':
 				log_level = atoi(optarg);
@@ -235,6 +237,7 @@ int main(int argc, char *argv[])
 			n.add_remote(remotes[i]);
 
 		s.set_groups(groups);
+		s.set_namespace(ns, nsize);
 
 		if (update) {
 			timer t("update");

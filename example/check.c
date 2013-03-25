@@ -70,8 +70,9 @@ static void check_usage(char *p)
 	       , p);
 }
 
-static int dnet_check_fill(struct dnet_node *n, struct dnet_check_request *r, char *data, int num)
+static int dnet_check_fill(struct dnet_session *s, struct dnet_check_request *r, char *data, int num)
 {
+	struct dnet_node *n = dnet_session_get_node(s);
 	int i;
 	char *cur;
 	struct dnet_id id;
@@ -84,7 +85,7 @@ static int dnet_check_fill(struct dnet_node *n, struct dnet_check_request *r, ch
 		if (!cur || !*cur)
 			break;
 
-		dnet_transform(n, data, cur - data, &id);
+		dnet_transform(s, data, cur - data, &id);
 
 		rid[i] = id;
 		dnet_convert_id(&rid[i]);
@@ -97,8 +98,9 @@ static int dnet_check_fill(struct dnet_node *n, struct dnet_check_request *r, ch
 	return 0;
 }
 
-static struct dnet_check_request *dnet_check_gen_request(struct dnet_node *n, struct dnet_check_request *base, char *file)
+static struct dnet_check_request *dnet_check_gen_request(struct dnet_session *s, struct dnet_check_request *base, char *file)
 {
+	struct dnet_node *n = dnet_session_get_node(s);
 	struct dnet_check_request *r;
 	char *data, *cur;
 	int fd, err, num = 0;
@@ -152,7 +154,7 @@ static struct dnet_check_request *dnet_check_gen_request(struct dnet_node *n, st
 	memcpy(r, base, sizeof(*r));
 	r->obj_num = num;
 
-	err = dnet_check_fill(n, r, data, num);
+	err = dnet_check_fill(s, r, data, num);
 	if (err)
 		goto err_out_free;
 
@@ -186,6 +188,8 @@ int main(int argc, char *argv[])
 	struct tm tm;
 	char *file = NULL;
 	int group_num = 0, *groups;
+	char *ns = NULL;
+	int nsize = 0;
 	struct dnet_session *s;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -207,8 +211,8 @@ int main(int argc, char *argv[])
 				r.blob_num = atoi(optarg);
 				break;
 			case 'N':
-				cfg.ns = optarg;
-				cfg.nsize = strlen(optarg);
+				ns = optarg;
+				nsize = strlen(optarg);
 				break;
 			case 'f':
 				file = optarg;
@@ -314,9 +318,17 @@ int main(int argc, char *argv[])
 	if (err)
 		return err;
 
+	s = dnet_session_create(n);
+	if (!s)
+		return -ENOMEM;
+
+	err = dnet_session_set_ns(s, ns, nsize);
+	if (err)
+		return err;
+
 	req = &r;
 	if (file) {
-		req = dnet_check_gen_request(n, &r, file);
+		req = dnet_check_gen_request(s, &r, file);
 		if (!req)
 			return -EINVAL;
 	}
@@ -333,10 +345,6 @@ int main(int argc, char *argv[])
 
 		req = req2;
 	}
-
-	s = dnet_session_create(n);
-	if (!s)
-		return -ENOMEM;
 
 	return dnet_request_check(s, req);
 }

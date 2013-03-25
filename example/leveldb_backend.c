@@ -57,8 +57,6 @@ struct leveldb_backend
 	char			*path;
 	char			*log;
 
-	pthread_mutex_t		append_lock;
-
 	leveldb_env_t		*env;
 	leveldb_cache_t		*cache;
 	leveldb_options_t	*options;
@@ -84,7 +82,7 @@ static int leveldb_backend_checksum(struct dnet_node *n, void *backend_priv, str
 		goto err_out_exit;
 	}
 
-	err = dnet_checksum_data(n, csum, csize, data, data_size);
+	err = dnet_checksum_data(n, data, data_size, csum, *csize);
 	if (err)
 		goto err_out_free;
 
@@ -140,10 +138,9 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 		goto err_out_exit;
 
 	/*
-	 * we always grab append mutex, since leveldb's append is actually read-modify-write cycle
-	 * in theory we could skip it for non-append or non-offset writes
+	 * key should be locked by elliptics here, so it is safe to run read-modify-write cycle
+	 * if one performs write without lock we do not really care that one write may overwrite another one
 	 */
-	pthread_mutex_lock(&s->append_lock);
 
 	if (io->offset || (io->flags & DNET_IO_FLAGS_APPEND)) {
 		size_t data_size;
@@ -203,7 +200,6 @@ err_out_free:
 	free(data);
 err_out_exit:
 	dnet_ext_list_destroy(&elist);
-	pthread_mutex_unlock(&s->append_lock);
 
 	if (err < 0)
 		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: : WRITE: error: %s: %d.\n",
@@ -552,8 +548,6 @@ static void leveldb_backend_cleanup(void *priv)
 
 	dnet_leveldb_db_cleanup(s);
 
-	pthread_mutex_destroy(&s->append_lock);
-
 	free(s->path);
 }
 
@@ -695,19 +689,12 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 	b->cb.meta_iterate = dnet_leveldb_db_iterate;
 	b->cb.iterator = dnet_leveldb_iterator;
 
-	err = pthread_mutex_init(&s->append_lock, NULL);
-	if (err) {
-		err = -err;
-		dnet_backend_log(DNET_LOG_ERROR, "leveldb: could not initialize append lock: %d\n", err);
-		goto err_out_exit;
-	}
-
 	snprintf(hpath, hlen, "%s/history", s->path);
 	mkdir(hpath, 0755);
 	err = dnet_leveldb_db_init(s, c, hpath);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "leveldb: could not initialize history database: %d\n", err);
-		goto err_out_lock_destroy;
+		goto err_out_exit;
 	}
 
 	err = -ENOMEM;
@@ -782,8 +769,6 @@ err_out_env_cleanup:
 	leveldb_env_destroy(s->env);
 err_out_cleanup:
 	dnet_leveldb_db_cleanup(s);
-err_out_lock_destroy:
-	pthread_mutex_destroy(&s->append_lock);
 err_out_exit:
 	return err;
 }

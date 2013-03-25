@@ -1,3 +1,41 @@
+elliptics (2.22.6.3) unstable; urgency=low
+
+  * Fixed typo
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Mar 2013 06:48:42 +0400
+
+elliptics (2.22.6.2) unstable; urgency=low
+
+  * Fixed cache write CAS for nonexisting records
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Mar 2013 06:43:42 +0400
+
+elliptics (2.22.6.1) unstable; urgency=low
+
+  * Fixed write CAS for nonexisting records
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Mar 2013 00:58:53 +0400
+
+elliptics (2.22.6.0) unstable; urgency=low
+
+  * Added DNET_IO_FLAGS_CHECKSUM flag - return data checksum from server in io->parent. Refactor checksumming code.
+  * Implemented per-session namespaces.
+  * Added cmake/Elliptics into devel rpm package
+  * ENOENT/ENXIO cleanup, run read recovery only if ENOENT or EBADFD is returned and only in groups which failed
+  * ENOENT/ENXIO cleanup - use ENXIO when there is no address in route table.
+  * Fix RPATH handling
+  * Move headers to corresponding place. Now backends.h can be included as standalone header.
+  * Update .gitignore
+  * Get rid of leveldb append lock - key should be locked by elliptics here, otherwise we do not care if one write will overwrite another one
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 22 Mar 2013 22:38:54 +0400
+
+elliptics (2.22.5.1) unstable; urgency=low
+
+  * Fixed read_latest in case of no metadata
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 21 Mar 2013 03:42:05 +0400
+
 elliptics (2.22.5.0) unstable; urgency=low
 
   * Added start_iterator to python binding
