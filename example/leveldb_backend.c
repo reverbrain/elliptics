@@ -608,7 +608,7 @@ static int dnet_leveldb_iterator(struct dnet_iterator_ctl *ictl)
 			goto err_destroy;
 
 		/* Set val to NULL in case it's not requested */
-		if (!(ictl->flags & DNET_ITERATOR_DATA)) {
+		if (!(ictl->flags & DNET_IFLAGS_DATA)) {
 			val = NULL;
 			vsize = 0;
 		}

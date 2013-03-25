@@ -83,7 +83,7 @@ static int blob_iterate_callback(struct eblob_disk_control *dc,
 	}
 
 	/* Set data to NULL in case it's not requested */
-	if (!(ictl->flags & DNET_ITERATOR_DATA)) {
+	if (!(ictl->flags & DNET_IFLAGS_DATA)) {
 		data = NULL;
 		size = 0;
 	}
