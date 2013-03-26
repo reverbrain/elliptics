@@ -35,6 +35,11 @@
 #include <memory>
 #include <functional>
 
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+
+
 #define ELLIPTICS_DISABLE_COPY(CLASS) \
 private: \
 		CLASS(const CLASS &); \
@@ -1191,6 +1196,88 @@ class session
 		void			mix_states(std::vector<int> &groups);
 		std::vector<int>	mix_states(const key &id);
 		std::vector<int>	mix_states();
+};
+
+namespace detail {
+inline void check_for_exception(const std::exception_ptr &result)
+{
+	if (result != std::exception_ptr())
+		std::rethrow_exception(result);
+}
+
+template <typename T>
+inline void check_for_exception(const result_holder<T> &result)
+{
+	result.check();
+}
+
+template <typename T>
+inline void check_for_exception(const array_result_holder<T> &result)
+{
+	result.check();
+}
+
+inline void check_for_exception(const exec_result_entry &result)
+{
+	if (result.error())
+		result.error().throw_error();
+}
+
+} // namespace detail
+
+template <typename T>
+class waiter
+{
+	struct info {
+		info ()
+			: m_result_ready (false)
+		{}
+
+		T m_result;
+		std::mutex m_mutex;
+		std::condition_variable m_condition;
+		bool m_result_ready;
+	};
+
+public:
+	waiter ()
+		: m_info(std::make_shared<info>())
+	{}
+
+	const T &result()
+	{
+		wait();
+		detail::check_for_exception(m_info->m_result);
+		return m_info->m_result;
+	}
+
+	void wait()
+	{
+		std::unique_lock<std::mutex> locker(m_info->m_mutex);
+
+		while (!m_info->m_result_ready)
+			m_info->m_condition.wait(locker);
+	}
+
+	std::function<void (const T &)> handler()
+	{
+		return std::bind(&waiter<T>::handle_result,
+						 static_cast<std::weak_ptr<info> >(m_info),
+						 std::placeholders::_1);
+	}
+
+private:
+	static void handle_result(std::weak_ptr<info> info, const T &result)
+	{
+		if (auto sp = info.lock()) {
+			std::lock_guard<std::mutex> locker(sp->m_mutex);
+			sp->m_result = result;
+			sp->m_result_ready = true;
+			sp->m_condition.notify_all();
+		}
+	}
+
+	std::shared_ptr<info> m_info;
 };
 
 }} /* namespace ioremap::elliptics */
