@@ -75,20 +75,13 @@ static int blob_iterate_callback(struct eblob_disk_control *dc,
 
 	/* If it's an extended record - extract header, move data pointer */
 	if (dc->flags & BLOB_DISK_CTL_USR1) {
-		/* Extract */
 		err = dnet_ext_list_extract((void *)&data, &size, &elist,
-				DNET_EXT_FREE_ON_DESTROY);
+				DNET_EXT_DONT_FREE_ON_DESTROY);
 		if (err != 0)
 			goto err;
 	}
 
-	/* Set data to NULL in case it's not requested */
-	if (!(ictl->flags & DNET_IFLAGS_DATA)) {
-		data = NULL;
-		size = 0;
-	}
-
-	err = ictl->callback(ictl->callback_private, &dc->key, sizeof(struct eblob_key),
+	err = ictl->callback(ictl->callback_private, (struct dnet_raw_id *)&dc->key,
 			data, size, &elist);
 
 err:

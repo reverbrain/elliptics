@@ -585,33 +585,140 @@ int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err)
 	return err;
 }
 
-/*
- * XXX: Fill me!
+/*!
+ * Internal callback that writes result to \a fd opened in append mode
  */
-static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data __unused)
+static int dnet_iterator_callback_file(void *priv, void *data, uint64_t dsize)
 {
-	size_t buffer_size = sizeof(struct dnet_iterator_request) + 20;
-	char *buffer = alloca(buffer_size);
-	size_t i;
-	struct dnet_iterator_request *request = (struct dnet_iterator_request *)buffer;
+	struct dnet_iterator_file_private *file = priv;
+	ssize_t err;
 
-	assert(st != NULL);
-	assert(cmd != NULL);
+	err = write(file->fd, data, dsize);
+	if (err == -1)
+		return -errno;
+	if (err != (ssize_t)dsize)
+		return -EINTR;
+	return 0;
+}
 
-	memset(buffer, 0, sizeof(struct dnet_iterator_request));
-	memset(buffer + sizeof(struct dnet_iterator_request), ' ', 20);
+/*!
+ * Internal callback that sends result to state \a st
+ * TODO: Send data in chunks.
+ */
+static int dnet_iterator_callback_send(void *priv, void *data, uint64_t dsize)
+{
+	struct dnet_iterator_send_private *send = priv;
 
-	for (i = 0; i < 3; ++i) {
-		if ((i % 2) == 0)
-			sleep(1);
+	return dnet_send_reply(send->st, send->cmd, data, dsize, 1);
+}
 
-		request->id = i;
-		memcpy(request->key.id, cmd->id.id, sizeof(cmd->id.id));
-		memset(buffer + sizeof(struct dnet_iterator_request), 'a' + i, 20);
-		dnet_send_reply(st, cmd, buffer, buffer_size, 1);
+static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
+		void *data, uint64_t dsize, struct dnet_ext_list *elist)
+{
+	struct dnet_iterator_common_private *ipriv = priv;
+	struct dnet_iterator_request *request;
+	uint64_t size;
+	int err = 0;
+	unsigned char *combined, *position;
+
+	/* Skip keys not in range */
+	if (dnet_id_cmp_str(key->id, ipriv->req->key.id) < 0
+			|| dnet_id_cmp_str(key->id, ipriv->req->end.id) > 0)
+		goto err_out_exit;
+
+	/* Set data to NULL in case it's not requested */
+	if (!(ipriv->req->flags & DNET_IFLAGS_DATA)) {
+		data = NULL;
+		dsize = 0;
+	}
+	size = sizeof(struct dnet_iterator_request) +
+		sizeof(struct dnet_ext_list_hdr) + dsize;
+
+	/*
+	 * Prepare combined buffer
+	 * XXX: Remove memcpy
+	 */
+	position = combined = malloc(size);
+	if (combined == NULL) {
+		err = -ENOMEM;
+		goto err_out_exit;
 	}
 
-	return 0;
+	/* Request */
+	request = (struct dnet_iterator_request *)combined;
+	memset(request, 0, sizeof(struct dnet_iterator_request));
+	request->key = *key;
+	position += sizeof(struct dnet_iterator_request);
+
+	/* XXX: Header */
+
+	/* Data */
+	if (data)
+		memcpy(position, data, dsize);
+
+	/* Finnaly run next callback */
+	err = ipriv->next_callback(ipriv->next_private, combined, size);
+
+	/* Pass to next callback */
+	free(combined);
+
+err_out_exit:
+	return err;
+}
+
+/*!
+ * Starts low-level backend iterator and passes data to network or file
+ */
+static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+{
+	struct dnet_iterator_request *ireq = data;
+	struct dnet_iterator_common_private cpriv = {
+		.req = ireq,
+	};
+	struct dnet_iterator_ctl ictl = {
+		.iterate_private = st->n->cb->command_private,
+		.callback = dnet_iterator_callback_common,
+		.callback_private = &cpriv,
+	};
+	struct dnet_iterator_send_private spriv;
+	struct dnet_iterator_file_private fpriv;
+	static const int mode = O_WRONLY|O_APPEND|O_CLOEXEC|O_CREAT|O_TRUNC;
+	char iter_path[PATH_MAX];
+
+	/* Sanity */
+	if (ireq == NULL || st == NULL || cmd == NULL)
+		return -EINVAL;
+
+	switch (ireq->itype) {
+	case DNET_ITYPE_NETWORK:
+		memset(&spriv, 0, sizeof(struct dnet_iterator_send_private));
+
+		spriv.st = st;
+		spriv.cmd = cmd;
+
+		cpriv.next_callback = dnet_iterator_callback_send;
+		cpriv.next_private = &spriv;
+		break;
+		;;
+	case DNET_ITYPE_DISK:
+		memset(&fpriv, 0, sizeof(struct dnet_iterator_file_private));
+
+		/* XXX: Use history */
+		snprintf(iter_path, PATH_MAX, "iter/%s", dnet_dump_id(&cmd->id));
+		if ((fpriv.fd = open(iter_path, mode, 0644)) == -1)
+			return -errno;
+
+		cpriv.next_callback = dnet_iterator_callback_file;
+		cpriv.next_private = &fpriv;
+		break;
+		;;
+	default:
+		/* Unknown type */
+		return -EINVAL;
+		;;
+	}
+
+	return st->n->cb->iterator(&ictl);
 }
 
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)

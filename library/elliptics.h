@@ -745,6 +745,31 @@ int __attribute__((weak)) dnet_remove_local(struct dnet_node *n, struct dnet_id 
 
 int dnet_discovery(struct dnet_node *n);
 
+/*
+ * Common private data:
+ * Request + next callback and it's argument.
+ */
+struct dnet_iterator_common_private {
+	struct dnet_iterator_request	*req;		/* Original request */
+	int				(*next_callback)(void *priv, void *data, uint64_t dsize);
+	void				*next_private;	/* One of predefined callbacks */
+};
+
+/*
+ * Send over network callback private.
+ */
+struct dnet_iterator_send_private {
+	struct dnet_net_state		*st;		/* State to send data to */
+	struct dnet_cmd			*cmd;		/* Command */
+};
+
+/*
+ * Save to file callback private.
+ */
+struct dnet_iterator_file_private {
+	int				fd;		/* Append mode file descriptor */
+};
+
 #ifdef __cplusplus
 }
 #endif

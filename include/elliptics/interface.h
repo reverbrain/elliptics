@@ -248,9 +248,8 @@ struct dnet_iterate_ctl {
  */
 struct dnet_iterator_ctl {
 	void				*iterate_private;
-	unsigned int			flags;
 	void				*callback_private;
-	int				(* callback)(void *priv, void *key, uint64_t ksize,
+	int				(* callback)(void *priv, struct dnet_raw_id *key,
 			void *data, uint64_t dsize, struct dnet_ext_list *elist);
 };
 

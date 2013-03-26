@@ -783,7 +783,7 @@ enum dnet_iterator_types {
 					 * server to $root/iter/$id instead of sending chunks to client
 					 */
 
-	DNET_ITYPE_NETWORK,		/* iterator sends data chunks  to client */
+	DNET_ITYPE_NETWORK,		/* iterator sends data chunks to client */
 };
 
 struct dnet_iterator_request
