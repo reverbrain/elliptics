@@ -119,7 +119,6 @@ rm -rf %{buildroot}
 %{_libdir}/libelliptics.so.*
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cocaine.so.*
-%{_libdir}/libelliptics_cache.so.*
 
 
 %files devel
@@ -128,7 +127,6 @@ rm -rf %{buildroot}
 %{_libdir}/libelliptics.so
 %{_libdir}/libelliptics_client.so
 %{_libdir}/libelliptics_cocaine.so
-%{_libdir}/libelliptics_cache.so
 
 %files python
 %defattr(-,root,root,-)
