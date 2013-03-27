@@ -1,41 +1,29 @@
-set(ELLIPTICS_SRCS
-    dnet.c
-    log.c
-    net.c
-    server.c
-    node.c
-    rbtree.c
-    trans.c
-    compat.c
-    notify.c
-    notify_common.c
-    meta.c
-    metadb.c
-    crypto.c
-    check.c
-    check_common.c
-    pool.c
-    crypto/sha512.c
-    locks.c
-    discovery.c
-    )
-
 set(ELLIPTICS_CLIENT_SRCS
-    meta.c
-    notify_common.c
     check_common.c
+    compat.c
+    crypto.c
+    crypto/sha512.c
+    discovery.c
     dnet_common.c
     log.c
+    meta.c
     net.c
     node.c
+    notify_common.c
+    pool.c
     rbtree.c
     trans.c
-    compat.c
-    crypto.c
-    pool.c
-    crypto/sha512.c
-    discovery.c
     )
+set(ELLIPTICS_SRCS
+    ${ELLIPTICS_CLIENT_SRCS}
+    check.c
+    dnet.c
+    locks.c
+    metadb.c
+    notify.c
+    server.c
+    )
+
 
 include_directories(../include)
 add_library(elliptics SHARED ${ELLIPTICS_SRCS})
