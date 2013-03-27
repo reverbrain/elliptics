@@ -719,6 +719,28 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 	r->status = dnet_bswap32(r->status);
 }
 
+/*
+ * Defragmentation control structure
+ */
+
+/* when status flag is set, do not start defrag, just return its status */
+#define DNET_DEFRAG_FLAGS_STATUS	(1<<0)
+
+struct dnet_defrag_ctl {
+	uint64_t	flags;
+	int		status;		/* positive number means defragmentation is in progress, negative - some error (errno) */
+	int		pad;
+	uint64_t	total;
+	uint64_t	res[3];
+};
+
+static inline void dnet_convert_defrag_ctl(struct dnet_defrag_ctl *ctl)
+{
+	ctl->flags = dnet_bswap64(ctl->flags);
+	ctl->status = dnet_bswap32(ctl->status);
+	ctl->total = dnet_bswap64(ctl->total);
+}
+
 #ifdef __cplusplus
 }
 #endif

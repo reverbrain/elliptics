@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
 Build-Depends: debhelper (>= 7.0.50~),
                cdbs,
-               eblob (>= 0.18.2),
+               eblob (>= 0.18.3),
                libboost-dev,
                libboost-program-options-dev,
                libboost-iostreams-dev,
@@ -27,7 +27,7 @@ XS-Python-Version: >= 2.6
 
 Package: elliptics
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.18.2), elliptics-client (= ${Source-Version}), cocaine-worker-generic, libcocaine-core2
+Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.18.3), elliptics-client (= ${Source-Version}), cocaine-worker-generic, libcocaine-core2
 Replaces: elliptics-2.10, srw
 Provides: elliptics-2.10
 XB-Python-Version: >= 2.6

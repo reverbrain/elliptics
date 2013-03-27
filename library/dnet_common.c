@@ -2403,7 +2403,7 @@ static int dnet_start_defrag_complete(struct dnet_net_state *state, struct dnet_
 	return 0;
 }
 
-static int dnet_start_defrag_single(struct dnet_net_state *st, void *priv, uint64_t cflags)
+static int dnet_start_defrag_single(struct dnet_net_state *st, void *priv, uint64_t cflags, struct dnet_defrag_ctl *dctl)
 {
 	struct dnet_trans_control ctl;
 
@@ -2414,11 +2414,13 @@ static int dnet_start_defrag_single(struct dnet_net_state *st, void *priv, uint6
 	ctl.complete = dnet_start_defrag_complete;
 	ctl.priv = priv;
 	ctl.cflags = DNET_FLAGS_NEED_ACK | cflags;
+	ctl.data = dctl;
+	ctl.size = sizeof(struct dnet_defrag_ctl);
 
 	return dnet_trans_alloc_send_state(st, &ctl);
 }
 
-int dnet_start_defrag(struct dnet_session *s)
+int dnet_start_defrag(struct dnet_session *s, struct dnet_defrag_ctl *ctl)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_net_state *st;
@@ -2433,7 +2435,8 @@ int dnet_start_defrag(struct dnet_session *s)
 		goto err_out_exit;
 	}
 
-	pthread_mutex_lock(&n->state_lock);
+	dnet_convert_defrag_ctl(ctl);
+
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
 			if (st == n->st)
@@ -2442,7 +2445,7 @@ int dnet_start_defrag(struct dnet_session *s)
 			if (w)
 				dnet_wait_get(w);
 
-			dnet_start_defrag_single(st, w, dnet_session_get_cflags(s));
+			dnet_start_defrag_single(st, w, dnet_session_get_cflags(s), ctl);
 			num++;
 		}
 	}
@@ -2455,7 +2458,7 @@ int dnet_start_defrag(struct dnet_session *s)
 	dnet_wait_put(w);
 
 err_out_exit:
-	if (err) {
+	if (err < 0) {
 		dnet_log(n, DNET_LOG_ERROR, "Defragmentation didn't start: %s [%d]\n", strerror(-err), err);
 	}
 	return err;

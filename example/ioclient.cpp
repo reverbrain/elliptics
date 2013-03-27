@@ -70,7 +70,7 @@ static void dnet_usage(char *p)
 			" -D object            - read latest data for given object, if -I id is specified, this field is unused\n"
 			" -C flags             - command flags\n"
 			" -t column            - column ID to read or write\n"
-			" -d                   - start defragmentation\n"
+			" -d request_string    - defragmentation request: 'start' - start defragmentation, 'status' - request current status\n"
 			" -i flags             - IO flags (see DNET_IO_FLAGS_* in include/elliptics/packet.h\n"
 			, p);
 }
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 	int type = EBLOB_TYPE_DATA;
 	uint64_t cflags = 0;
 	uint64_t ioflags = 0;
-	int defrag = 0;
+	char *defrag = NULL;
 	sigset_t mask;
 	char *ns = NULL;
 	int nsize = 0;
@@ -126,13 +126,13 @@ int main(int argc, char *argv[])
 	cfg.wait_timeout = 60;
 	int log_level = DNET_LOG_ERROR;
 
-	while ((ch = getopt(argc, argv, "i:dC:t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "i:d:C:t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
 		switch (ch) {
 			case 'i':
 				ioflags = strtoull(optarg, NULL, 0);
 				break;
 			case 'd':
-				defrag = 1;
+				defrag = optarg;
 				break;
 			case 'C':
 				cflags = strtoull(optarg, NULL, 0);
@@ -248,7 +248,10 @@ int main(int argc, char *argv[])
 			return -EINVAL;
 		}
 
-		if (single_node_stat && (vfs_stat || io_counter_stat))
+		/*
+		 * Only request stats or start defrag on the single node
+		 */
+		if (single_node_stat && (vfs_stat || io_counter_stat || defrag))
 			remote_flags = DNET_CFG_NO_ROUTE_LIST;
 
 		err = dnet_add_state(n.get_native(), remote_addr, port, family, remote_flags);
@@ -258,8 +261,37 @@ int main(int argc, char *argv[])
 		s.set_groups(groups);
 		s.set_namespace(ns, nsize);
 
-		if (defrag)
-			return dnet_start_defrag(s.get_native());
+		if (defrag) {
+			struct dnet_defrag_ctl ctl;
+
+			memset(&ctl, 0, sizeof(struct dnet_defrag_ctl));
+
+			if (!strcmp(defrag, "status"))
+				ctl.flags = DNET_DEFRAG_FLAGS_STATUS;
+
+			err = dnet_start_defrag(s.get_native(), &ctl);
+
+			std::string str_status("Ok");
+
+			if (err < 0) {
+				str_status = strerror(-err);
+			} else {
+				if (!strcmp(defrag, "status")) {
+					if (err > 0)
+						str_status = "defragmentation is in progress";
+					else
+						str_status = "defragmentation is not running";
+				} else {
+					if (err == 0)
+						str_status = "started successfully";
+					else if (err > 0)
+						str_status = "unknown positive status";
+				}
+			}
+
+			fprintf(stdout, "DEFRAG: %s: %s [%d]\n", defrag, str_status.c_str(), err);
+			return err;
+		}
 
 		if (writef)
 			s.write_file(create_id(id, writef, type), writef, offset, offset, size);
