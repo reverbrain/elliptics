@@ -608,6 +608,28 @@ struct dnet_addr_storage
 	unsigned int			__join_state;
 };
 
+/*!
+ * Compares two dnet_time structs
+ * Returns
+ *	< 0 if t1 < t2
+ *	> 0 if t1 > t2
+ *	= 0 if t1 == t2
+ */
+static inline int dnet_time_cmp(struct dnet_time *t1, struct dnet_time *t2)
+{
+	if (t1->tsec < t2->tsec)
+		return -1;
+	else if (t1->tsec > t2->tsec)
+		return 1;
+
+	if (t1->tnsec < t2->tnsec)
+		return -1;
+	else if (t1->tnsec > t2->tnsec)
+		return 1;
+
+	return 0;
+}
+
 /*
  * Returns true if t1 is before than t2.
  */

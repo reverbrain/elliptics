@@ -20,13 +20,13 @@ try:
     s.add_groups([2])
 
     request = elliptics.IteratorRequest()
-    request.itype = 2                # Network
-    request.flags = 1                # With data
-    request.begin = [0]*8
-    request.end = [255]*8
+    request.itype = 2                                   # Network
+    request.flags = 1                                   # With data
+    #request.begin = [0] * 64
+    #request.end = [255] * 64
 
     try:
-        eid = elliptics.Id([random.randrange(0, 256)] * 8, 2, 0)
+        eid = elliptics.Id([random.randrange(0, 256)] * 64, 2, 0)
         iterator = s.start_iterator(eid, request)
         for result in iterator:
             try:

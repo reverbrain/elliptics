@@ -617,20 +617,24 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 {
 	struct dnet_iterator_common_private *ipriv = priv;
 	struct dnet_iterator_response *response;
-	struct dnet_raw_id zero_key = { 0 };
 	static const uint64_t response_size = sizeof(struct dnet_iterator_response);
 	uint64_t size;
-	int err = 0;
 	unsigned char *combined, *position;
+	int err = 0;
 
-	/*
-	 * Skip keys not in range
-	 */
-	if (memcmp(&zero_key, &ipriv->req->begin, sizeof(struct dnet_raw_id))
-			|| memcmp(&zero_key, &ipriv->req->end, sizeof(struct dnet_raw_id)))
-		if (dnet_id_cmp_str(key->id, ipriv->req->begin.id) < 0
-				|| dnet_id_cmp_str(key->id, ipriv->req->end.id) > 0)
-			goto err_out_exit;
+	/* If DNET_IFLAGS_KEY_RANGE is set... */
+	if (ipriv->req->flags & DNET_IFLAGS_KEY_RANGE)
+		/* ...skip keys not in key range */
+			if (dnet_id_cmp_str(key->id, ipriv->req->key_begin.id) < 0
+					|| dnet_id_cmp_str(key->id, ipriv->req->key_end.id) > 0)
+				goto err_out_exit;
+
+	/* If DNET_IFLAGS_TS_RANGE is set... */
+	if (ipriv->req->flags & DNET_IFLAGS_TS_RANGE)
+		/* ...skip ts not in ts range */
+			if (dnet_time_cmp(&elist->timestamp, &ipriv->req->time_begin) < 0
+					|| dnet_time_cmp(&elist->timestamp, &ipriv->req->time_end) > 0)
+				goto err_out_exit;
 
 	/* Set data to NULL in case it's not requested */
 	if (!(ipriv->req->flags & DNET_IFLAGS_DATA)) {
@@ -690,11 +694,74 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	struct dnet_iterator_send_private spriv;
 	struct dnet_iterator_file_private fpriv;
 	static const int mode = O_WRONLY|O_APPEND|O_CLOEXEC|O_CREAT|O_TRUNC;
+	int err = 0;
 	char iter_path[PATH_MAX];
 
-	/* Sanity */
+	/*
+	 * Sanity
+	 */
+
 	if (ireq == NULL || st == NULL || cmd == NULL)
 		return -EINVAL;
+
+	dnet_convert_iterator_request(ireq);
+	/* Those two are mutually exclusive */
+	if ((ireq->flags & DNET_IFLAGS_KEY_RANGE)
+			&& (ireq->flags & DNET_IFLAGS_TS_RANGE)) {
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+	/* Check for rouge flags */
+	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
+		err = -ENOTSUP;
+		goto err_out_exit;
+	}
+	/* Check for valid callback */
+	if (ireq->itype <= DNET_ITYPE_FIRST || ireq->itype >= DNET_ITYPE_LAST) {
+		err = -ENOTSUP;
+		goto err_out_exit;
+	}
+
+	/*
+	 * Range checks
+	 */
+
+	if (ireq->flags & DNET_IFLAGS_KEY_RANGE) {
+		struct dnet_raw_id empty_key;
+		memset(&empty_key, 0, sizeof(struct dnet_raw_id));
+		/* Unset DNET_IFLAGS_KEY_RANGE if both keys are empty */
+		if (memcmp(&empty_key, &ireq->key_begin, sizeof(struct dnet_raw_id)) == 0
+				&& memcmp(&empty_key, &ireq->key_end, sizeof(struct dnet_raw_id)) == 0) {
+			dnet_log(st->n, DNET_LOG_NOTICE, "%s: both keys are zero: cmd: %u\n",
+				dnet_dump_id(&cmd->id), cmd->cmd);
+			ireq->flags &= ~DNET_IFLAGS_KEY_RANGE;
+		}
+		/* Check that range is valid */
+		if (dnet_id_cmp_str(ireq->key_begin.id, ireq->key_end.id) > 0) {
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: key_start > key_begin: cmd: %u\n",
+				dnet_dump_id(&cmd->id), cmd->cmd);
+			err = -ERANGE;
+			goto err_out_exit;
+		}
+	}
+	if (ireq->flags & DNET_IFLAGS_TS_RANGE) {
+		struct dnet_time empty_time;
+		memset(&empty_time, 0, sizeof(struct dnet_time));
+		/* Unset DNET_IFLAGS_KEY_RANGE if both times are empty */
+		if (memcmp(&empty_time, &ireq->time_begin, sizeof(struct dnet_time)) == 0
+				&& memcmp(&empty_time, &ireq->time_end, sizeof(struct dnet_time) == 0)) {
+			dnet_log(st->n, DNET_LOG_NOTICE, "%s: both times are zero: cmd: %u\n",
+				dnet_dump_id(&cmd->id), cmd->cmd);
+			ireq->flags &= ~DNET_IFLAGS_TS_RANGE;
+		}
+		/* Check that range is valid */
+		if (dnet_time_cmp(&ireq->time_begin, &ireq->time_end) > 0) {
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: time_begin > time_begin: cmd: %u\n",
+				dnet_dump_id(&cmd->id), cmd->cmd);
+			err = -ERANGE;
+			goto err_out_exit;
+		}
+	}
 
 	switch (ireq->itype) {
 	case DNET_ITYPE_NETWORK:
@@ -712,20 +779,29 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 
 		/* XXX: Use history */
 		snprintf(iter_path, PATH_MAX, "iter/%s", dnet_dump_id(&cmd->id));
-		if ((fpriv.fd = open(iter_path, mode, 0644)) == -1)
-			return -errno;
+		if ((fpriv.fd = open(iter_path, mode, 0644)) == -1) {
+			dnet_log(st->n, DNET_LOG_INFO, "%s: cmd: %u, can't open: %s: err: %d\n",
+				dnet_dump_id(&cmd->id), cmd->cmd, iter_path, err);
+			err = -errno;
+			goto err_out_exit;
+		}
 
 		cpriv.next_callback = dnet_iterator_callback_file;
 		cpriv.next_private = &fpriv;
 		break;
 		;;
 	default:
-		/* Unknown type */
-		return -EINVAL;
+		/* Should not happen */
+		assert(0);
 		;;
 	}
 
-	return st->n->cb->iterator(&ictl);
+	err = st->n->cb->iterator(&ictl);
+
+err_out_exit:
+	dnet_log(st->n, DNET_LOG_INFO, "%s: iteration finished: cmd: %u, err: %d\n",
+		dnet_dump_id(&cmd->id), cmd->cmd, err);
+	return err;
 }
 
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)

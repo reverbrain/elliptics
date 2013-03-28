@@ -298,6 +298,11 @@ struct dnet_backend_callbacks {
 	 * Invokes callback on each record's data and metadata.
 	 */
 	int			(* iterator)(struct dnet_iterator_ctl *ictl);
+
+	/*
+	 * Returns dir used by backend
+	 */
+	char *			(* dir)(void);
 };
 
 /*

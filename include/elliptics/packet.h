@@ -773,16 +773,29 @@ enum {
 	DNET_EXTENSION_LAST		/* Assert */
 };
 
-/* when set server-side iterator works with data as well as index/metadata,
+/*
+ * When set server-side iterator works with data as well as index/metadata,
  * otherwise only index/metadata is stored/sent to back client/disk
  */
 #define DNET_IFLAGS_DATA		(1<<0)
+/* When set key range is used */
+#define DNET_IFLAGS_KEY_RANGE		(1<<1)
+/* When set timestamp range is used */
+#define DNET_IFLAGS_TS_RANGE		(1<<2)
+/* Sanity */
+#define DNET_IFLAGS_ALL			(DNET_IFLAGS_DATA	\
+		| DNET_IFLAGS_KEY_RANGE | DNET_IFLAGS_TS_RANGE)
 
 enum dnet_iterator_types {
-	DNET_ITYPE_DISK		= 1,	/* iterator saves data chunks (index/metadata + (optionally) data) locally on
-					 * server to $root/iter/$id instead of sending chunks to client
+	DNET_ITYPE_FIRST,		/* Sanity */
+	DNET_ITYPE_DISK,		/*
+					 * Iterator saves data chunks
+					 * (index/metadata + (optionally) data)
+					 * locally on server to $root/iter/$id
+					 * instead of sending chunks to client
 					 */
 	DNET_ITYPE_NETWORK,		/* iterator sends data chunks to client */
+	DNET_ITYPE_LAST,		/* Sanity */
 };
 
 /*
@@ -791,8 +804,10 @@ enum dnet_iterator_types {
 struct dnet_iterator_request
 {
 	int				action;		/* Action: start/pause/cont */
-	struct dnet_raw_id		begin;		/* First key */
-	struct dnet_raw_id		end;		/* Last key */
+	struct dnet_raw_id		key_begin;	/* Start key */
+	struct dnet_raw_id		key_end;	/* End key */
+	struct dnet_time		time_begin;	/* Start time */
+	struct dnet_time		time_end;	/* End time */
 	int				itype;		/* Which callback to use? Net/File/etc */
 	uint64_t			flags;		/* DNET_IFLAGS_* */
 	uint64_t			id;		/* Command ID */
@@ -805,6 +820,8 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 	r->id = dnet_bswap64(r->id);
 	r->itype = dnet_bswap32(r->itype);
 	r->action = dnet_bswap32(r->action);
+	dnet_convert_time(&r->time_begin);
+	dnet_convert_time(&r->time_end);
 }
 
 /*
