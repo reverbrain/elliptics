@@ -279,14 +279,19 @@ error_info iterator_result_entry::error() const
 	return m_data->error;
 }
 
-dnet_iterator_request *iterator_result_entry::reply() const
+dnet_iterator_response *iterator_result_entry::response() const
 {
-	return data<dnet_iterator_request>();
+	return data<dnet_iterator_response>();
 }
 
-data_pointer iterator_result_entry::reply_data() const
+uint64_t iterator_result_entry::user_flags() const
 {
-	return data().skip<dnet_iterator_request>();
+	return response()->user_flags;
+}
+
+data_pointer iterator_result_entry::response_data() const
+{
+	return data().skip<dnet_iterator_response>();
 }
 
 } } // namespace ioremap::elliptics

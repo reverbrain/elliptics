@@ -24,16 +24,17 @@
 #include <elliptics/interface.h>
 
 
-#include <iostream>
-#include <fstream>
+#include <cinttypes>
 #include <exception>
-#include <memory>
+#include <fstream>
+#include <functional>
+#include <iostream>
 #include <list>
+#include <memory>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <memory>
-#include <functional>
 
 #define ELLIPTICS_DISABLE_COPY(CLASS) \
 private: \
@@ -439,8 +440,9 @@ class iterator_result_entry : public callback_result_entry
 
 		error_info error() const;
 
-		dnet_iterator_request *reply() const;
-		data_pointer reply_data() const;
+		dnet_iterator_response *response() const;
+		data_pointer response_data() const;
+		uint64_t user_flags() const;
 };
 
 typedef lookup_result_entry write_result_entry;

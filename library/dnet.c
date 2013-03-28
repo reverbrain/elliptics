@@ -616,27 +616,32 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 		void *data, uint64_t dsize, struct dnet_ext_list *elist)
 {
 	struct dnet_iterator_common_private *ipriv = priv;
-	struct dnet_iterator_request *request;
+	struct dnet_iterator_response *response;
+	struct dnet_raw_id zero_key = { 0 };
+	static const uint64_t response_size = sizeof(struct dnet_iterator_response);
 	uint64_t size;
 	int err = 0;
 	unsigned char *combined, *position;
 
-	/* Skip keys not in range */
-	if (dnet_id_cmp_str(key->id, ipriv->req->key.id) < 0
-			|| dnet_id_cmp_str(key->id, ipriv->req->end.id) > 0)
-		goto err_out_exit;
+	/*
+	 * Skip keys not in range
+	 */
+	if (memcmp(&zero_key, &ipriv->req->begin, sizeof(struct dnet_raw_id))
+			|| memcmp(&zero_key, &ipriv->req->end, sizeof(struct dnet_raw_id)))
+		if (dnet_id_cmp_str(key->id, ipriv->req->begin.id) < 0
+				|| dnet_id_cmp_str(key->id, ipriv->req->end.id) > 0)
+			goto err_out_exit;
 
 	/* Set data to NULL in case it's not requested */
 	if (!(ipriv->req->flags & DNET_IFLAGS_DATA)) {
 		data = NULL;
 		dsize = 0;
 	}
-	size = sizeof(struct dnet_iterator_request) +
-		sizeof(struct dnet_ext_list_hdr) + dsize;
+	size = response_size + dsize;
 
 	/*
-	 * Prepare combined buffer
-	 * XXX: Remove memcpy
+	 * Prepare combined buffer.
+	 * XXX: Remove memcpy.
 	 */
 	position = combined = malloc(size);
 	if (combined == NULL) {
@@ -644,17 +649,19 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 		goto err_out_exit;
 	}
 
-	/* Request */
-	request = (struct dnet_iterator_request *)combined;
-	memset(request, 0, sizeof(struct dnet_iterator_request));
-	request->key = *key;
-	position += sizeof(struct dnet_iterator_request);
-
-	/* XXX: Header */
+	/* Response */
+	response = (struct dnet_iterator_response *)combined;
+	memset(response, 0, response_size);
+	response->key = *key;
+	response->timestamp = elist->timestamp;
+	response->user_flags = elist->flags;
+	dnet_convert_iterator_response(response);
 
 	/* Data */
-	if (data)
+	if (data) {
+		position += response_size;
 		memcpy(position, data, dsize);
+	}
 
 	/* Finnaly run next callback */
 	err = ipriv->next_callback(ipriv->next_private, combined, size);

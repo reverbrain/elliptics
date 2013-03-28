@@ -782,18 +782,20 @@ enum dnet_iterator_types {
 	DNET_ITYPE_DISK		= 1,	/* iterator saves data chunks (index/metadata + (optionally) data) locally on
 					 * server to $root/iter/$id instead of sending chunks to client
 					 */
-
 	DNET_ITYPE_NETWORK,		/* iterator sends data chunks to client */
 };
 
+/*
+ * Iteration request
+ */
 struct dnet_iterator_request
 {
-	struct dnet_raw_id		key;
-	struct dnet_raw_id		end;
-	uint64_t			flags;
-	uint64_t			id;
-	int				itype;
-	int				status;
+	int				action;		/* Action: start/pause/cont */
+	struct dnet_raw_id		begin;		/* First key */
+	struct dnet_raw_id		end;		/* Last key */
+	int				itype;		/* Which callback to use? Net/File/etc */
+	uint64_t			flags;		/* DNET_IFLAGS_* */
+	uint64_t			id;		/* Command ID */
 	uint64_t			reserved[5];
 } __attribute__ ((packed));
 
@@ -802,7 +804,27 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 	r->flags = dnet_bswap64(r->flags);
 	r->id = dnet_bswap64(r->id);
 	r->itype = dnet_bswap32(r->itype);
+	r->action = dnet_bswap32(r->action);
+}
+
+/*
+ * Iterator response
+ * TODO: Maybe it's better to include whole ehdr into response
+ */
+struct dnet_iterator_response
+{
+	struct dnet_raw_id		key;		/* Response key */
+	int				status;		/* Response status */
+	struct dnet_time		timestamp;	/* Timestamp from extended header */
+	uint64_t			user_flags;	/* User flags set in extended header */
+	uint64_t			reserved[5];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_iterator_response(struct dnet_iterator_response *r)
+{
 	r->status = dnet_bswap32(r->status);
+	r->user_flags = dnet_bswap32(r->user_flags);
+	dnet_convert_time(&r->timestamp);
 }
 
 #ifdef __cplusplus

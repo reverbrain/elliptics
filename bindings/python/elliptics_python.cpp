@@ -90,6 +90,12 @@ struct elliptics_id {
 		type = dnet.type;
 	}
 
+	elliptics_id(struct dnet_raw_id &dnet) {
+		id = convert_to_list(dnet.id, sizeof(dnet.id));
+		group_id = 0;
+		type = 0;
+	}
+
 	struct dnet_id to_dnet() const {
 		struct dnet_id dnet;
 		convert_from_list(id, dnet.id, sizeof(dnet.id));
@@ -103,6 +109,19 @@ struct elliptics_id {
 	bp::list	id;
 	uint32_t	group_id;
 	int		type;
+};
+
+struct elliptics_time {
+	elliptics_time() : m_tsec(0), m_tnsec(0) {}
+	elliptics_time(uint64_t tsec, uint64_t tnsec) : m_tsec(tsec), m_tnsec(tnsec) {}
+
+	elliptics_time(struct dnet_time timestamp) {
+		m_tsec = timestamp.tsec;
+		m_tnsec = timestamp.tnsec;
+	}
+
+	uint64_t	m_tsec;
+	uint64_t	m_tnsec;
 };
 
 struct elliptics_range {
@@ -731,14 +750,14 @@ void next_impl(bp::api::object &value, const bp::api::object &next)
 	value = next();
 }
 
-bp::list dnet_iterator_request_get_key(const dnet_iterator_request *request)
+bp::list dnet_iterator_request_get_begin(const dnet_iterator_request *request)
 {
-	return convert_to_list(request->key.id, sizeof(request->key.id));
+	return convert_to_list(request->begin.id, sizeof(request->begin.id));
 }
 
-void dnet_iterator_request_set_key(dnet_iterator_request *request, const bp::list &list)
+void dnet_iterator_request_set_begin(dnet_iterator_request *request, const bp::list &list)
 {
-	convert_from_list(list, request->key.id, sizeof(request->key.id));
+	convert_from_list(list, request->begin.id, sizeof(request->begin.id));
 }
 
 bp::list dnet_iterator_request_get_end(const dnet_iterator_request *request)
@@ -751,14 +770,24 @@ void dnet_iterator_request_set_end(dnet_iterator_request *request, const bp::lis
 	convert_from_list(list, request->end.id, sizeof(request->end.id));
 }
 
-dnet_iterator_request iterator_result_reply(iterator_result result)
+dnet_iterator_response iterator_result_response(iterator_result result)
 {
-	return *result.reply();
+	return *result.response();
 }
 
-std::string iterator_result_reply_data(iterator_result result)
+std::string iterator_result_response_data(iterator_result result)
 {
-	return result.reply_data().to_string();
+	return result.response_data().to_string();
+}
+
+elliptics_id iterator_result_get_key(iterator_result *result)
+{
+	return elliptics_id(result->response()->key);
+}
+
+elliptics_time iterator_result_get_timestamp(iterator_result *result)
+{
+	return elliptics_time(result->response()->timestamp);
 }
 
 BOOST_PYTHON_MODULE(elliptics) {
@@ -782,19 +811,27 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def_readwrite("type", &elliptics_id::type)
 	;
 
+	bp::class_<elliptics_time>("Time", bp::init<>())
+		.def(bp::init<uint64_t, uint64_t>())
+		.def_readwrite("tsec", &elliptics_time::m_tsec)
+		.def_readwrite("tnsec", &elliptics_time::m_tnsec)
+	;
+
 	bp::class_<dnet_iterator_request>("IteratorRequest", bp::init<>())
-		.add_property("key", dnet_iterator_request_get_key, dnet_iterator_request_set_key)
+		.add_property("begin", dnet_iterator_request_get_begin, dnet_iterator_request_set_begin)
 		.add_property("end", dnet_iterator_request_get_end, dnet_iterator_request_set_end)
 		.def_readwrite("flags", &dnet_iterator_request::flags)
 		.def_readwrite("id", &dnet_iterator_request::id)
 		.def_readwrite("itype", &dnet_iterator_request::itype)
-		.def_readwrite("status", &dnet_iterator_request::status)
 	;
 
 	bp::class_<iterator_result>("IteratorResultEntry", bp::init<>())
-		.def("status", &iterator_result::status)
-		.def("reply", iterator_result_reply)
-		.def("reply_data", iterator_result_reply_data)
+		.add_property("status", &iterator_result::status)
+		.add_property("key", iterator_result_get_key)
+		.add_property("timestamp", iterator_result_get_timestamp)
+		.add_property("user_flags", &iterator_result::user_flags)
+		.def("response", iterator_result_response)
+		.def("response_data", iterator_result_response_data)
 	;
 
 	bp::class_<elliptics_range>("Range", bp::init<>())
