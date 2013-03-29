@@ -12,6 +12,7 @@ set(ELLIPTICS_CPP_SRCS
     log.cpp
     node.cpp
     session.cpp
+    session_indexes.cpp
     callback.cpp
     exception.cpp
     key.cpp
