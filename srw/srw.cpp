@@ -137,7 +137,7 @@ class srw_log {
 		}
 };
 
-class dnet_sink_t: public cocaine::logging::logger_t {
+class dnet_sink_t: public cocaine::logging::logger_concept_t {
 	public:
 		dnet_sink_t(struct dnet_session *sess, cocaine::logging::priorities prio):
 		m_s(sess), m_prio(prio) {
@@ -189,7 +189,7 @@ class dnet_upstream_t: public cocaine::api::stream_t
 			dnet_state_put(m_state);
 		}
 
-		virtual void push(const char *chunk, size_t size) {
+		virtual void write(const char *chunk, size_t size) {
 			reply(false, chunk, size);
 		}
 
@@ -267,15 +267,10 @@ class srw {
 	public:
 		srw(struct dnet_session *sess, const std::string &config) : m_s(sess),
 		m_ctx(config, std::unique_ptr<dnet_sink_t>(new dnet_sink_t(m_s, dnet_log_level_to_prio(sess->node->log->log_level)))) {
-		//m_ctx(config, "core") {
 			atomic_set(&m_src_key, 1);
-
-			m_cocaine_logger = cocaine::api::service(m_ctx, "logging");
-			m_cocaine_logger->run();
 		}
 
 		~srw() {
-			m_cocaine_logger->terminate();
 			/* no need to iterate over engines, its destructor automatically stops it */
 #if 0
 			for (eng_map_t::iterator it = m_map.begin(); it != m_map.end(); ++it) {
@@ -388,7 +383,7 @@ class srw {
 				guard.unlock();
 
 				std::shared_ptr<cocaine::api::stream_t> stream = app->enqueue(cevent, upstream);
-				stream->push((const char *)sph, total_size(sph) + sizeof(struct sph));
+				stream->write((const char *)sph, total_size(sph) + sizeof(struct sph));
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started: job: %d, total-size: %zd, block: %d\n",
 						id_str, sph_str, event.c_str(),
@@ -410,7 +405,6 @@ class srw {
 		eng_map_t			m_map;
 		jobs_map_t			m_jobs;
 		atomic_t			m_src_key;
-		cocaine::api::category_traits<cocaine::api::service_t>::ptr_type m_cocaine_logger;
 
 		std::string dnet_get_event(const struct sph *sph, const char *data) {
 			return std::string(data, sph->event_size);
