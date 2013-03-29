@@ -279,7 +279,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg, struct dnet_a
 
 	dnet_log(n, DNET_LOG_DEBUG, "New server node has been created at port %d, ids: %d.\n", cfg->port, id_num);
 
-	pthread_sigmask(SIG_BLOCK, &previous_sigset, NULL);
+	pthread_sigmask(SIG_SETMASK, &previous_sigset, NULL);
 	return n;
 
 	dnet_srw_cleanup(n);
@@ -298,7 +298,7 @@ err_out_notify_exit:
 err_out_node_destroy:
 	dnet_node_destroy(n);
 err_out_exit:
-	pthread_sigmask(SIG_BLOCK, &previous_sigset, NULL);
+	pthread_sigmask(SIG_SETMASK, &previous_sigset, NULL);
 	return NULL;
 }
 
