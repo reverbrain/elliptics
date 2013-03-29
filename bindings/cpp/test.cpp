@@ -570,6 +570,15 @@ int main(int argc, char *argv[])
 		session s(n);
 		s.set_groups(groups);
 
+
+//		s.set_filter(all());
+//		s.set_policy(session::at_least(5));
+
+////		s.write_data(id, data, 0).connect(handler);
+//		for (auto entry : s.write_data(id, data, 0)) {
+//			...
+//		}
+
 		try {
 			n.add_remote(host, port, AF_INET);
 		} catch (...) {

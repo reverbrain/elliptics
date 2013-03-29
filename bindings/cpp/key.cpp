@@ -97,9 +97,14 @@ int key::type() const
 	return m_by_id ? m_id.type : m_type;
 }
 
-const struct dnet_id &key::id() const
+const dnet_id &key::id() const
 {
 	return m_id;
+}
+
+const dnet_raw_id &key::raw_id() const
+{
+	return *reinterpret_cast<const dnet_raw_id *>(&m_id);
 }
 
 std::string key::to_string() const

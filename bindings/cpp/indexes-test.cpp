@@ -7,16 +7,37 @@
 
 using namespace ioremap::elliptics;
 
-static inline bool operator <(const dnet_raw_id &a, const dnet_raw_id &b)
+struct index_comparator
 {
-	return memcmp(a.id, b.id, sizeof(a.id)) < 0;
-}
+	inline bool operator() (const dnet_raw_id &a, const dnet_raw_id &b) const
+	{
+		return memcmp(a.id, b.id, sizeof(a.id)) < 0;
+	}
+
+	inline bool operator() (const index_entry &a, const index_entry &b) const
+	{
+		ssize_t cmp = memcmp(b.index.id, a.index.id, sizeof(b.index.id));
+		if (cmp == 0) {
+			cmp = a.data.size() - b.data.size();
+			if (cmp == 0) {
+				cmp = memcmp(a.data.data(), b.data.data(), a.data.size());
+			}
+		}
+		return cmp < 0;
+	}
+
+	template <typename T>
+	inline bool operator() (const T &a, const T &b) const
+	{
+		return a < b;
+	}
+};
 
 template <typename Container>
 Container sorted(const Container &c)
 {
 	Container tmp(c.begin(), c.end());
-	std::sort(tmp.begin(), tmp.end());
+	std::sort(tmp.begin(), tmp.end(), index_comparator());
 	return tmp;
 }
 
@@ -36,7 +57,7 @@ namespace index_test {
 
 static std::vector<std::string> objects;
 static std::vector<std::string> tags;
-static std::map<dnet_raw_id, std::string> hash;
+static std::map<dnet_raw_id, std::string, index_comparator> hash;
 
 void clear(session &sess)
 {
@@ -64,6 +85,12 @@ std::ostream &operator <<(std::ostream &out, const dnet_raw_id &v)
 		out << dnet_dump_id_str(v.id);
 	else
 		out << it->second;
+	return out;
+}
+
+std::ostream &operator <<(std::ostream &out, const index_entry &v)
+{
+	out << "(" << v.index << ",\"" << v.data.to_string() << "\")";
 	return out;
 }
 
@@ -116,7 +143,7 @@ void test_1(session &sess)
 
 			std::cerr << i << " find: " << sorted(object_tags) << std::endl;
 
-			std::vector<dnet_raw_id> results;
+			std::vector<index_entry> results;
 			int result = 0;
 			try {
 				results = sess.find_indexes(object_tags);

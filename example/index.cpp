@@ -255,7 +255,7 @@ int main(int argc, char *argv[])
 
 		if (find) {
 			timer t("find");
-			std::vector<dnet_raw_id> results;
+			std::vector<index_entry> results;
 			int result = 0;
 			try {
 				results = s.find_indexes(indexes);
@@ -269,7 +269,8 @@ int main(int argc, char *argv[])
 			std::cerr << "find: found: " << results.size() << std::endl;
 			for (size_t i = 0; i < results.size(); ++i) {
 				std::cerr << "find: "
-					<< i << " " << dnet_dump_id_str(results[i].id)
+					<< i << " " << dnet_dump_id_str(results[i].index.id)
+					<< " \"" << results[i].data.to_string() << "\""
 					<< std::endl;
 			}
 		}

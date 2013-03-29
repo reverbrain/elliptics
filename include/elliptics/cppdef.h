@@ -153,7 +153,7 @@ class data_pointer
 		{
 		}
 
-		static data_pointer copy(void *data, size_t size)
+		static data_pointer copy(const void *data, size_t size)
 		{
 			data_pointer that = allocate(size);
 			memcpy(that.data(), data, size);
@@ -448,6 +448,12 @@ class iterator_result_entry : public callback_result_entry
 		data_pointer reply_data() const;
 };
 
+struct index_entry
+{
+	dnet_raw_id index;
+	data_pointer data;
+};
+
 typedef lookup_result_entry write_result_entry;
 typedef result_holder<read_result_entry> read_result;
 typedef array_result_holder<write_result_entry> write_result;
@@ -471,8 +477,8 @@ typedef exec_result_entry reply_result;
 typedef std::vector<exec_result> reply_results;
 
 typedef std::exception_ptr update_indexes_result;
-typedef array_result_holder<dnet_raw_id> find_indexes_result;
-typedef array_result_holder<dnet_raw_id> check_indexes_result;
+typedef array_result_holder<index_entry> find_indexes_result;
+typedef array_result_holder<index_entry> check_indexes_result;
 
 class exec_context_data;
 
@@ -631,7 +637,8 @@ class key
 		bool by_id() const;
 		const std::string &remote() const;
 		int type() const;
-		const struct dnet_id &id() const;
+		const dnet_id &id() const;
+		const dnet_raw_id &raw_id() const;
 		std::string to_string() const;
 
 		void transform(session &sess);
@@ -1162,8 +1169,8 @@ class session
 							const std::vector<data_pointer> &data);
 
 		void update_indexes(const std::function<void (const update_indexes_result &)> &handler,
-				const key &id, const std::vector<dnet_raw_id> &indexes);
-		void update_indexes(const key &id, const std::vector<dnet_raw_id> &indexes);
+				const key &id, const std::vector<index_entry> &indexes);
+		void update_indexes(const key &id, const std::vector<index_entry> &indexes);
 		void update_indexes(const key &id, const std::vector<std::string> &indexes);
 
 		void find_indexes(const std::function<void (const find_indexes_result &)> &handler, const std::vector<dnet_raw_id> &indexes);
