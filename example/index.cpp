@@ -152,6 +152,7 @@ int main(int argc, char *argv[])
 	char *update = NULL;
 	bool find = false;
 	std::vector<std::string> indexes;
+	std::vector<data_pointer> datas;
 	char *ns = NULL;
 	int nsize = 0;
 
@@ -243,7 +244,8 @@ int main(int argc, char *argv[])
 			timer t("update");
 			int result = 0;
 			try {
-				s.update_indexes(create_id(id, update, 0), indexes);
+				datas.resize(indexes.size());
+				s.update_indexes(create_id(id, update, 0), indexes, datas);
 			} catch (error &e) {
 				result = e.error_code();
 			} catch (std::bad_alloc &e) {
@@ -255,7 +257,7 @@ int main(int argc, char *argv[])
 
 		if (find) {
 			timer t("find");
-			std::vector<index_entry> results;
+			std::vector<find_indexes_result_entry> results;
 			int result = 0;
 			try {
 				results = s.find_indexes(indexes);
@@ -269,8 +271,8 @@ int main(int argc, char *argv[])
 			std::cerr << "find: found: " << results.size() << std::endl;
 			for (size_t i = 0; i < results.size(); ++i) {
 				std::cerr << "find: "
-					<< i << " " << dnet_dump_id_str(results[i].index.id)
-					<< " \"" << results[i].data.to_string() << "\""
+					<< i << " " << dnet_dump_id_str(results[i].id.id)
+//					<< " \"" << results[i].data.to_string() << "\""
 					<< std::endl;
 			}
 		}

@@ -21,6 +21,11 @@ static inline bool operator ==(const ioremap::elliptics::index_entry &a, const d
 	return memcmp(b.id, a.index.id, sizeof(b.id)) == 0;
 }
 
+static inline bool operator ==(const ioremap::elliptics::data_pointer &a, const ioremap::elliptics::data_pointer &b)
+{
+	return a.size() == b.size() && memcmp(a.data(), b.data(), a.size()) == 0;
+}
+
 static inline bool operator ==(const ioremap::elliptics::index_entry &a, const ioremap::elliptics::index_entry &b)
 {
 	return a.data.size() == b.data.size()
@@ -30,6 +35,9 @@ static inline bool operator ==(const ioremap::elliptics::index_entry &a, const i
 
 namespace ioremap { namespace elliptics {
 
+enum { skip_data = 0, compare_data = 1 };
+
+template <int CompareData = compare_data>
 struct dnet_raw_id_less_than
 {
 	inline bool operator() (const dnet_raw_id &a, const dnet_raw_id &b) const
@@ -46,14 +54,22 @@ struct dnet_raw_id_less_than
 	}
 	inline bool operator() (const index_entry &a, const index_entry &b) const
 	{
-		ssize_t cmp = memcmp(b.index.id, a.index.id, sizeof(b.index.id));
-		if (cmp == 0) {
+		ssize_t cmp = memcmp(a.index.id, b.index.id, sizeof(b.index.id));
+		if (CompareData && cmp == 0) {
 			cmp = a.data.size() - b.data.size();
 			if (cmp == 0) {
 				cmp = memcmp(a.data.data(), b.data.data(), a.data.size());
 			}
 		}
 		return cmp < 0;
+	}
+	inline bool operator() (const index_entry &a, const find_indexes_result_entry &b) const
+	{
+		return operator() (a.index, b.id);
+	}
+	inline bool operator() (const find_indexes_result_entry &a, const index_entry &b) const
+	{
+		return operator() (a.id, b.index);
 	}
 };
 
@@ -166,6 +182,67 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const dn
 }
 }
 
+
+
+std::ostream &operator <<(std::ostream &out, const dnet_raw_id &v)
+{
+	out << dnet_dump_id_str(v.id);
+	return out;
+}
+
+std::ostream &operator <<(std::ostream &out, const ioremap::elliptics::index_entry &v)
+{
+	out << "(" << v.index << ",\"" << v.data.to_string() << "\")";
+	return out;
+}
+
+std::ostream &operator <<(std::ostream &out, const ioremap::elliptics::data_pointer &v)
+{
+	out << v.to_string();
+	return out;
+}
+
+template <typename T>
+std::ostream &operator <<(std::ostream &out, const std::vector<T> &v)
+{
+	out << "{";
+	for (size_t i = 0; i < v.size(); ++i) {
+		if (i)
+			out << ",";
+		out << v[i];
+	}
+	out << "}";
+	return out;
+}
+
+template <typename K, typename V>
+std::ostream &operator <<(std::ostream &out, const std::map<K, V> &v)
+{
+	out << "{";
+	for (auto it = v.begin(); it != v.end(); ++it) {
+		if (it != v.begin())
+			out << ",";
+		out << *it;
+	}
+	out << "}";
+	return out;
+}
+
+template <typename K, typename V>
+std::ostream &operator <<(std::ostream &out, const std::pair<K, V> &v)
+{
+	out << "(" << v.first << "," << v.second << ")";
+	return out;
+}
+
+std::ostream &operator <<(std::ostream &out, const ioremap::elliptics::find_indexes_result_entry &v)
+{
+	out << "(" << v.id << "," << v.indexes << ")";
+	return out;
+}
+
+
+
 namespace ioremap { namespace elliptics {
 
 static dnet_id indexes_generate_id(session &sess, const dnet_id &data_id)
@@ -195,11 +272,15 @@ struct update_indexes_data
 	std::function<void (const std::exception_ptr &)> handler;
 	key request_id;
 	data_pointer request_data;
+	// indexes to set
 	dnet_indexes indexes;
 	dnet_id id;
 
 	msgpack::sbuffer buffer;
+	// currently set indexes
 	dnet_indexes remote_indexes;
+	std::mutex previous_data_mutex;
+	std::map<dnet_raw_id, data_pointer, dnet_raw_id_less_than<>> previous_data;
 	std::vector<index_entry> inserted_ids;
 	std::vector<index_entry> removed_ids;
 	std::vector<dnet_raw_id> success_inserted_ids;
@@ -208,11 +289,13 @@ struct update_indexes_data
 	size_t finished;
 	std::exception_ptr exception;
 
+	// basic functor which is able to update secondary index for object
 	struct update_functor
 	{
 		ptr scope;
 		bool insert;
 		dnet_raw_id id;
+		data_pointer index_data;
 
 		data_pointer operator() (const data_pointer &data)
 		{
@@ -220,22 +303,36 @@ struct update_indexes_data
 			if (!data.empty())
 				indexes_unpack(data, &indexes);
 
+			// Construct index entry
 			index_entry request_id;
 			request_id.index = scope->request_id.raw_id();
-			request_id.data = scope->request_data;
+			request_id.data = index_data;
 
 			auto it = std::lower_bound(indexes.indexes.begin(), indexes.indexes.end(),
-				request_id, dnet_raw_id_less_than());
-			if (it != indexes.indexes.end() && *it == request_id) {
+				request_id, dnet_raw_id_less_than<skip_data>());
+			if (it != indexes.indexes.end() && it->index == request_id.index) {
+				// It's already there
 				if (insert) {
-					return data;
+					if (it->data == request_id.data) {
+						// All's ok, keep it untouched
+						return data;
+					} else {
+						// Data is not correct, remember current value due to possible rollback
+						std::lock_guard<std::mutex> lock(scope->previous_data_mutex);
+						scope->previous_data[it->index] = it->data;
+						it->data = request_id.data;
+					}
 				} else {
+					// Anyway, destroy it
 					indexes.indexes.erase(it);
 				}
 			} else {
+				// Index is not created yet
 				if (insert) {
+					// Just insert it
 					indexes.indexes.insert(it, 1, request_id);
 				} else {
+					// All's ok, keep it untouched
 					return data;
 				}
 			}
@@ -319,6 +416,7 @@ struct update_indexes_data
 				for (size_t i = 0; i < scope->success_removed_ids.size(); ++i) {
 					memcpy(id.id, scope->success_removed_ids[i].id, sizeof(id.id));
 					functor.id = scope->success_removed_ids[i];
+					functor.index_data = scope->previous_data[functor.id];
 					scope->sess.write_cas(functor, id, functor, 0);
 				}
 			} else {
@@ -361,12 +459,14 @@ struct update_indexes_data
 			}
 
 			try {
+				// We "insert" items also to update their data
 				std::set_difference(scope->indexes.indexes.begin(), scope->indexes.indexes.end(),
 					scope->remote_indexes.indexes.begin(), scope->remote_indexes.indexes.end(),
-					std::back_inserter(scope->inserted_ids), dnet_raw_id_less_than());
+					std::back_inserter(scope->inserted_ids), dnet_raw_id_less_than<>());
+				// Remove only absolutly another items
 				std::set_difference(scope->remote_indexes.indexes.begin(), scope->remote_indexes.indexes.end(),
 					scope->indexes.indexes.begin(), scope->indexes.indexes.end(),
-					std::back_inserter(scope->removed_ids), dnet_raw_id_less_than());
+					std::back_inserter(scope->removed_ids), dnet_raw_id_less_than<skip_data>());
 
 				if (scope->inserted_ids.empty() && scope->removed_ids.empty()) {
 					scope->handler(std::exception_ptr());
@@ -384,6 +484,7 @@ struct update_indexes_data
 				for (size_t i = 0; i < scope->inserted_ids.size(); ++i) {
 					memcpy(id.id, scope->inserted_ids[i].index.id, sizeof(id.id));
 					functor.id = scope->inserted_ids[i].index;
+					functor.index_data = scope->inserted_ids[i].data;
 					scope->sess.write_cas(functor, id, functor, 0);
 				}
 
@@ -424,7 +525,7 @@ void session::update_indexes(const std::function<void (const update_indexes_resu
 	scope->handler = handler;
 	scope->request_id = request_id;
 	scope->indexes.indexes = indexes;
-	std::sort(scope->indexes.indexes.begin(), scope->indexes.indexes.end(), dnet_raw_id_less_than());
+	std::sort(scope->indexes.indexes.begin(), scope->indexes.indexes.end(), dnet_raw_id_less_than<>());
 	// Generate id for storing the entire indexes
 	scope->id = indexes_generate_id(*this, request_id.id());
 	scope->finished = 0;
@@ -443,8 +544,10 @@ void session::update_indexes(const key &request_id, const std::vector<index_entr
 	w.result();
 }
 
-void session::update_indexes(const key &id, const std::vector<std::string> &indexes)
+void session::update_indexes(const key &id, const std::vector<std::string> &indexes, const std::vector<data_pointer> &datas)
 {
+	if (datas.size() != indexes.size())
+		throw_error(-EINVAL, id, "session::update_indexes: indexes and datas sizes mismtach");
 	dnet_id tmp;
 	std::vector<index_entry> raw_indexes;
 	raw_indexes.resize(indexes.size());
@@ -452,6 +555,7 @@ void session::update_indexes(const key &id, const std::vector<std::string> &inde
 	for (size_t i = 0; i < indexes.size(); ++i) {
 		transform(indexes[i], tmp);
 		memcpy(raw_indexes[i].index.id, tmp.id, sizeof(tmp.id));
+		raw_indexes[i].data = datas[i];
 	}
 
 	update_indexes(id, raw_indexes);
@@ -479,20 +583,37 @@ struct find_indexes_handler
 		}
 
 		try {
-			dnet_indexes result, tmp;
-			indexes_unpack(bulk_result[0].file(), &result);
+			std::vector<find_indexes_result_entry> result;
+			dnet_indexes tmp;
+			indexes_unpack(bulk_result[0].file(), &tmp);
+			result.resize(tmp.indexes.size());
+			for (size_t i = 0; i < tmp.indexes.size(); ++i) {
+				find_indexes_result_entry &entry = result[i];
+				entry.id = tmp.indexes[i].index;
+				entry.indexes.push_back(std::make_pair(
+					reinterpret_cast<dnet_raw_id&>(bulk_result[0].command()->id),
+					tmp.indexes[i].data));
+			}
 
-			for (size_t i = 1; i < bulk_result.size() && !result.indexes.empty(); ++i) {
+			for (size_t i = 1; i < bulk_result.size() && !result.empty(); ++i) {
+				auto raw = reinterpret_cast<dnet_raw_id&>(bulk_result[i].command()->id);
 				tmp.indexes.resize(0);
 				indexes_unpack(bulk_result[i].file(), &tmp);
-				auto it = std::set_intersection(result.indexes.begin(), result.indexes.end(),
+				auto it = std::set_intersection(result.begin(), result.end(),
 					tmp.indexes.begin(), tmp.indexes.end(),
-					result.indexes.begin(), dnet_raw_id_less_than());
-				result.indexes.resize(it - result.indexes.begin());
+					result.begin(), dnet_raw_id_less_than<skip_data>());
+				result.resize(it - result.begin());
+				std::set_intersection(tmp.indexes.begin(), tmp.indexes.end(),
+					result.begin(), result.end(),
+					tmp.indexes.begin(), dnet_raw_id_less_than<skip_data>());
+				auto jt = tmp.indexes.begin();
+				for (auto kt = result.begin(); kt != result.end(); ++kt, ++jt) {
+					kt->indexes.push_back(std::make_pair(raw, jt->data));
+				}
 			}
 
 			try {
-				handler(result.indexes);
+				handler(result);
 			} catch (...) {
 			}
 		} catch (...) {
@@ -505,7 +626,7 @@ struct find_indexes_handler
 void session::find_indexes(const std::function<void (const find_indexes_result &)> &handler, const std::vector<dnet_raw_id> &indexes)
 {
 	if (indexes.size() == 0) {
-		std::vector<index_entry> results;
+		std::vector<find_indexes_result_entry> results;
 		handler(results);
 		return;
 	}

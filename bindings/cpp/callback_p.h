@@ -27,11 +27,11 @@
 #include <algorithm>
 #include <cassert>
 
-#ifdef DEVELOPER_BUILD
-#  define elliptics_assert(expr) assert(expr)
-#else
+//#ifdef DEVELOPER_BUILD
+//#  define elliptics_assert(expr) assert(expr)
+//#else
 #  define elliptics_assert(expr)
-#endif
+//#endif
 
 namespace ioremap { namespace elliptics {
 

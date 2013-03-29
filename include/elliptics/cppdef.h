@@ -476,8 +476,14 @@ typedef std::vector<exec_result> push_results;
 typedef exec_result_entry reply_result;
 typedef std::vector<exec_result> reply_results;
 
+struct find_indexes_result_entry
+{
+	dnet_raw_id id;
+	std::vector<std::pair<dnet_raw_id, data_pointer> > indexes;
+};
+
 typedef std::exception_ptr update_indexes_result;
-typedef array_result_holder<index_entry> find_indexes_result;
+typedef array_result_holder<find_indexes_result_entry> find_indexes_result;
 typedef array_result_holder<index_entry> check_indexes_result;
 
 class exec_context_data;
@@ -1171,7 +1177,7 @@ class session
 		void update_indexes(const std::function<void (const update_indexes_result &)> &handler,
 				const key &id, const std::vector<index_entry> &indexes);
 		void update_indexes(const key &id, const std::vector<index_entry> &indexes);
-		void update_indexes(const key &id, const std::vector<std::string> &indexes);
+		void update_indexes(const key &id, const std::vector<std::string> &indexes, const std::vector<data_pointer> &data);
 
 		void find_indexes(const std::function<void (const find_indexes_result &)> &handler, const std::vector<dnet_raw_id> &indexes);
 		find_indexes_result find_indexes(const std::vector<dnet_raw_id> &indexes);
