@@ -43,14 +43,45 @@
 #define __unused	__attribute__ ((unused))
 #endif
 
-struct eblob_backend_config {
-	struct eblob_config		data;
-	struct eblob_backend		*eblob;
-};
-
 #if EBLOB_ID_SIZE != DNET_ID_SIZE
 #error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE" 
 #endif
+
+
+struct eblob_read_params {
+	int			fd;
+	int			pad;
+	uint64_t		offset;
+};
+
+static int eblob_read_params_compare(const void *p1, const void *p2)
+{
+	const struct eblob_read_params *r1 = p1;
+	const struct eblob_read_params *r2 = p2;
+	int ret;
+
+	ret = r1->fd - r2->fd;
+	if (ret != 0)
+		return ret;
+
+	if (r1->offset > r2->offset)
+		return 1;
+	if (r1->offset < r2->offset)
+		return -1;
+
+	return 0;
+}
+
+struct eblob_backend_config {
+	struct eblob_config		data;
+	struct eblob_backend		*eblob;
+
+	pthread_mutex_t			last_read_lock;
+	int64_t				vm_total;		/* squared in bytes */
+	int				random_access;
+	int				last_read_index;
+	struct eblob_read_params	last_reads[100];
+};
 
 static int blob_write(struct eblob_backend_config *c, void *state __unused, struct dnet_cmd *cmd __unused, void *data)
 {
@@ -182,7 +213,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	uint64_t offset, size, orig_offset, orig_size;
 	struct eblob_key key;
 	char *read_data = NULL;
-	int fd, err;
+	int fd, err, on_close = 0;
 
 	dnet_convert_io_attr(io);
 
@@ -227,7 +258,80 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	io->size = size;
 	if (size && last)
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset, 0);
+
+	if (fd >= 0) {
+		struct eblob_read_params *p, *prev;
+		int i;
+
+		pthread_mutex_lock(&c->last_read_lock);
+		p = &c->last_reads[c->last_read_index];
+
+		if (++c->last_read_index >= (int)ARRAY_SIZE(c->last_reads)) {
+			int64_t tmp;
+			int64_t mult = 1;
+			int64_t mean = 0;
+			int old_ra;
+
+			qsort(c->last_reads, ARRAY_SIZE(c->last_reads), sizeof(struct eblob_read_params), eblob_read_params_compare);
+
+			prev = &c->last_reads[0];
+			tmp = prev->offset;
+
+			for (i = 1; i < (int)ARRAY_SIZE(c->last_reads); ++i) {
+				p = &c->last_reads[i];
+
+				if (p->fd != prev->fd)
+					mult++;
+
+				tmp += p->offset * mult;
+				prev = p;
+			}
+
+			/* found mean offset */
+			mean = tmp / ARRAY_SIZE(c->last_reads);
+
+			/* calculating mean squared error */
+			tmp = 0;
+			for (i = 0; i < (int)ARRAY_SIZE(c->last_reads); ++i) {
+				p = &c->last_reads[i];
+
+				tmp += ((int64_t)p->offset - mean) * ((int64_t)p->offset - mean);
+			}
+			tmp /= ARRAY_SIZE(c->last_reads);
+
+			/*
+			 * tmp and vm_total are squared, so if this check is true,
+			 * mean offset difference (error) is more than 25% of RAM
+			 */
+			old_ra = c->random_access;
+			if (tmp > c->vm_total / 16)
+				c->random_access = 1;
+			else
+				c->random_access = 0;
+
+			if (old_ra != c->random_access) {
+				dnet_backend_log(DNET_LOG_ERROR, "EBLOB: switch RA %d -> %d, offset MSE: %llu, squared VM total: %llu\n",
+						old_ra, c->random_access, (unsigned long long)tmp, (unsigned long long)c->vm_total);
+			}
+
+			if (c->random_access) {
+				for (i = 0; i < (int)ARRAY_SIZE(c->last_reads); ++i) {
+					p = &c->last_reads[i];
+					posix_fadvise(p->fd, 0, 0, POSIX_FADV_DONTNEED);
+				}
+			}
+
+			c->last_read_index = 0;
+		}
+
+		p->fd = fd;
+		p->offset = offset;
+		pthread_mutex_unlock(&c->last_read_lock);
+	}
+
+	if (c->random_access)
+		on_close = DNET_IO_REQ_FLAGS_CACHE_FORGET;
+	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset, on_close);
 
 	/* free compressed data */
 	free(read_data);
@@ -850,6 +954,7 @@ static void eblob_backend_cleanup(void *priv)
 
 	eblob_cleanup(c->eblob);
 
+	pthread_mutex_destroy(&c->last_read_lock);
 	free(c->data.file);
 }
 
@@ -886,6 +991,7 @@ static int dnet_eblob_db_iterate(struct dnet_iterate_ctl *ctl)
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)
 {
 	struct eblob_backend_config *c = b->data;
+	struct dnet_stat st;
 	int err = 0;
 
 	if (!c->data.file) {
@@ -896,10 +1002,24 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	c->data.log = (struct eblob_log *)b->log;
 
+	err = pthread_mutex_init(&c->last_read_lock, NULL);
+	if (err) {
+		err = -err;
+		dnet_backend_log(DNET_LOG_ERROR, "blob: could not create last-read lock: %d.\n", err);
+		goto err_out_exit;
+	}
+
+	memset(&st, 0, sizeof(struct dnet_stat));
+	err = eblob_backend_storage_stat(c, &st);
+	if (err)
+		goto err_out_last_read_lock_destroy;
+
+	c->vm_total = st.vm_total * st.vm_total * 1024 * 1024;
+
 	c->eblob = eblob_init(&c->data);
 	if (!c->eblob) {
 		err = -EINVAL;
-		goto err_out_exit;
+		goto err_out_last_read_lock_destroy;
 	}
 
 	cfg->cb = &b->cb;
@@ -921,6 +1041,8 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	return 0;
 
+err_out_last_read_lock_destroy:
+	pthread_mutex_destroy(&c->last_read_lock);
 err_out_exit:
 	return err;
 }
