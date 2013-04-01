@@ -197,7 +197,7 @@ void node::add_remote(const char *addr)
 {
 	int port, family;
 
-	int err = dnet_parse_addr(const_cast<char*>(addr), &port, &family);
+	int err = dnet_parse_addr(addr, &port, &family);
 	if (err)
 		throw_error(err, "Failed to parse remote addr %s", addr);
 

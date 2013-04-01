@@ -922,7 +922,7 @@ int dnet_flags(struct dnet_node *n);
 void dnet_set_timeouts(struct dnet_node *n, int wait_timeout, int check_timeout);
 
 #define DNET_CONF_ADDR_DELIM	':'
-int dnet_parse_addr(char *addr, int *portp, int *familyp);
+int dnet_parse_addr(const char *addr, int *portp, int *familyp);
 
 int dnet_start_defrag(struct dnet_session *s, struct dnet_defrag_ctl *ctl);
 
