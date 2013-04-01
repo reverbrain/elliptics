@@ -21,9 +21,11 @@ try:
 
     request = elliptics.IteratorRequest()
     request.itype = 2                                   # Network
-    request.flags = 1                                   # With data
-    #request.begin = [0] * 64
-    #request.end = [255] * 64
+    request.flags = 5                                   # With data and time ranges
+    #request.key_begin = [0] * 64
+    #request.key_end = [255] * 64
+    request.time_begin = elliptics.Time(0, 0)
+    request.time_end = elliptics.Time(2**64-1, 2**64-1)
 
     try:
         eid = elliptics.Id([random.randrange(0, 256)] * 64, 2, 0)
