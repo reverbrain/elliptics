@@ -803,12 +803,12 @@ enum dnet_iterator_types {
  */
 struct dnet_iterator_request
 {
-	int				action;		/* Action: start/pause/cont */
+	uint32_t			action;		/* Action: start/pause/cont */
 	struct dnet_raw_id		key_begin;	/* Start key */
 	struct dnet_raw_id		key_end;	/* End key */
 	struct dnet_time		time_begin;	/* Start time */
 	struct dnet_time		time_end;	/* End time */
-	int				itype;		/* Which callback to use? Net/File/etc */
+	uint32_t			itype;		/* Which callback to use? Net/File/etc */
 	uint64_t			flags;		/* DNET_IFLAGS_* */
 	uint64_t			id;		/* Command ID */
 	uint64_t			reserved[5];
