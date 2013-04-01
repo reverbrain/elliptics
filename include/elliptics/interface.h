@@ -156,8 +156,15 @@ void *dnet_read_data_wait(struct dnet_session *s, struct dnet_id *id,
 int dnet_search_range(struct dnet_node *n, struct dnet_id *id,
 		struct dnet_raw_id *start, struct dnet_raw_id *next);
 
+
+/*
+ * Operations to perform on request's data when request is about to be destroyed
+ */
+#define DNET_IO_REQ_FLAGS_CLOSE			(1<<0)	/* close fd */
+#define DNET_IO_REQ_FLAGS_CACHE_FORGET		(1<<1)	/* try to remove read data from page cache using fadvice */
+
 int __attribute__((weak)) dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io,
-		void *data, int fd, uint64_t offset, int close_on_exit);
+		void *data, int fd, uint64_t offset, int on_exit);
 
 /*
  * Reads given file from the storage. If there are multiple transformation functions,

@@ -73,7 +73,7 @@ struct dnet_io_req {
 	void			*data;
 	size_t			dsize;
 
-	int			close_on_exit;
+	int			on_exit;
 	int			fd;
 	off_t			local_offset;
 	size_t			fsize;
@@ -588,7 +588,7 @@ int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req);
 int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st);
 
 ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize,
-		int fd, uint64_t offset, uint64_t dsize, int close_on_exit);
+		int fd, uint64_t offset, uint64_t dsize, int on_exit);
 ssize_t dnet_send_data(struct dnet_net_state *st, void *header, uint64_t hsize, void *data, uint64_t dsize);
 ssize_t dnet_send(struct dnet_net_state *st, void *data, uint64_t size);
 ssize_t dnet_send_nolock(struct dnet_net_state *st, void *data, uint64_t size);
