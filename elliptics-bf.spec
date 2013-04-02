@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.4.0
+Version:	2.20.5.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Apr 02 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.5.0
+- Do not return error from dnet_db_list_iter() - this error will be propagated to all iterating threads and stop them
+- Get rid of libelliptics_cache.so from rpm build, since it is built statically
+
 * Fri Mar 22 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.4.0
 - ENOENT/ENXIO cleanup, run read recovery only if ENOENT or EBADFD is returned and only in groups which failed
 - ENOENT/ENXIO cleanup - use ENXIO when there is no address in route table.

@@ -1,3 +1,10 @@
+elliptics (2.20.5.0) unstable; urgency=low
+
+  * Do not return error from dnet_db_list_iter() - this error will be propagated to all iterating threads and stop them
+  * Get rid of libelliptics_cache.so from rpm build, since it is built statically
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 02 Apr 2013 17:38:03 +0400
+
 elliptics (2.20.4.0) unstable; urgency=low
 
   * ENOENT/ENXIO cleanup, run read recovery only if ENOENT or EBADFD is returned and only in groups which failed
