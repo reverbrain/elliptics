@@ -1063,7 +1063,8 @@ std::vector<std::string> session::bulk_read(const std::vector<struct dnet_io_att
 
 		data = dnet_bulk_read(m_data->session_ptr, (struct dnet_io_attr *)(&tmp_ios[0]), tmp_ios.size(), *group, m_data->cflags, &err);
 		if (!data && err) {
-			throw_error(err, "Failed to read bulk data: group: %d", *group);
+			//throw_error(err, "Failed to read bulk data: group: %d", *group);
+			continue;
 		}
 
 		if (data) {
@@ -1104,6 +1105,10 @@ std::vector<std::string> session::bulk_read(const std::vector<struct dnet_io_att
 
 			free(data);
 		}
+	}
+
+	if (err && ret.empty()) {
+		throw_error(err, "Failed to read bulk data");
 	}
 
 	return ret;
