@@ -193,17 +193,22 @@ void node::add_remote(const char *addr, const int port, const int family)
 	}
 }
 
-void node::add_remote(const char *addr)
+void node::add_remote(const char *orig_addr)
 {
 	int port, family;
 
-	int err = dnet_parse_addr(addr, &port, &family);
-	if (err)
-		throw_error(err, "Failed to parse remote addr %s", addr);
+	/*
+	 * addr will be modified, so use this ugly hack
+	 */
+	std::string addr(orig_addr);
 
-	err = dnet_add_state(m_data->node_ptr, const_cast<char *>(addr), port, family, 0);
+	int err = dnet_parse_addr(const_cast<char *>(addr.c_str()), &port, &family);
 	if (err)
-		throw_error(err, "Failed to add remote addr %s", addr);
+		throw_error(err, "Failed to parse remote addr %s", addr.c_str());
+
+	err = dnet_add_state(m_data->node_ptr, const_cast<char *>(addr.c_str()), port, family, 0);
+	if (err)
+		throw_error(err, "Failed to add remote addr %s", addr.c_str());
 }
 
 void node::set_timeouts(const int wait_timeout, const int check_timeout)

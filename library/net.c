@@ -1221,12 +1221,9 @@ err_out_exit:
 	return err;
 }
 
-int dnet_parse_addr(const char *orig_addr, int *portp, int *familyp)
+int dnet_parse_addr(char *addr, int *portp, int *familyp)
 {
 	char *fam, *port;
-	char *addr = strdup(orig_addr);
-	if (!addr)
-		return -ENOMEM;
 
 	fam = strrchr(addr, DNET_CONF_ADDR_DELIM);
 	if (!fam)
@@ -1244,8 +1241,6 @@ int dnet_parse_addr(const char *orig_addr, int *portp, int *familyp)
 
 	*familyp = atoi(fam);
 	*portp = atoi(port);
-
-	free(addr);
 
 	return 0;
 
