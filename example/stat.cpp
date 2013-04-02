@@ -131,6 +131,7 @@ int main(int argc, char *argv[])
 	unsigned char id[max_id_idx][DNET_ID_SIZE];
 	const char *logfile = "/dev/stderr";
 	const char *statfile = "/dev/stdout";
+	int group = -1;
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
@@ -138,8 +139,11 @@ int main(int argc, char *argv[])
 
 	timeout = 1;
 
-	while ((ch = getopt(argc, argv, "MFAt:m:w:l:I:r:h")) != -1) {
+	while ((ch = getopt(argc, argv, "g:MFAt:m:w:l:I:r:h")) != -1) {
 		switch (ch) {
+			case 'g':
+				group = atoi(optarg);
+				break;
 			case 'M':
 				stat_mem = 1;
 				break;
@@ -209,10 +213,16 @@ int main(int argc, char *argv[])
 
 			if (!id_idx)
 				sess.stat_log(stat_handler);
-
-			for (i = 0; i < id_idx; ++i) {
-				dnet_setup_id(&raw, 0, id[i]);
-				sess.stat_log(stat_handler, raw);
+			else {
+				if (group != -1) {
+					for (i = 0; i < id_idx; ++i) {
+						dnet_setup_id(&raw, group, id[i]);
+						sess.stat_log(stat_handler, raw);
+					}
+				} else {
+					std::cerr << "If you provide list of IDs you have to specify group number" << std::endl;
+					return -1;
+				}
 			}
 
 			sleep(timeout);
