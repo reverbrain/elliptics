@@ -1,3 +1,9 @@
+elliptics (2.20.5.1) unstable; urgency=low
+
+  * Iterate over all groups if dnet_bulk_read fails
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 02 Apr 2013 21:56:08 +0400
+
 elliptics (2.20.5.0) unstable; urgency=low
 
   * Do not return error from dnet_db_list_iter() - this error will be propagated to all iterating threads and stop them
