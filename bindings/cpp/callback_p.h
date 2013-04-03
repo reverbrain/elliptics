@@ -17,7 +17,7 @@
 #ifndef CALLBACK_P_H
 #define CALLBACK_P_H
 
-#include "../../include/elliptics/cppdef.h"
+#include "elliptics/cppdef.h"
 
 #include <exception>
 #include <set>
