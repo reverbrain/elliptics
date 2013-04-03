@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
 Build-Depends: debhelper (>= 7.0.50~),
                cdbs,
-               eblob (>= 0.18.3),
+               eblob (>= 0.18.5),
                libboost-dev,
                libboost-program-options-dev,
                libboost-iostreams-dev,
@@ -13,21 +13,21 @@ Build-Depends: debhelper (>= 7.0.50~),
                python-central,
                libboost-python-dev,
                libcocaine-core2,
-               libcocaine-dev (>= 0.10.0-rc5),
+               libcocaine-dev (>= 0.10.0-rc8),
                libzmq-dev,
                cmake (>= 2.6),
                libboost-system-dev,
                libltdl-dev,
                libsnappy-dev,
                libleveldb-dev,
-			   libmsgpack-dev
+		libmsgpack-dev
 Standards-Version: 3.8.0
 Homepage: http://www.ioremap.net/projects/elliptics
 XS-Python-Version: >= 2.6
 
 Package: elliptics
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.18.3), elliptics-client (= ${Source-Version}), libcocaine-core2
+Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.18.5), elliptics-client (= ${Source-Version}), libcocaine-core2
 Replaces: elliptics-2.10, srw
 Provides: elliptics-2.10
 XB-Python-Version: >= 2.6
