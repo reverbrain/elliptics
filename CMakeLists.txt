@@ -38,7 +38,7 @@ configure_file(cmake/EllipticsConfigVersion.cmake.in
                 @ONLY)
 
 create_stdint(${CMAKE_BINARY_DIR}/include/elliptics/typedefs.h)
-include_directories(${CMAKE_BINARY_DIR}/include/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 
 # Set id_size
 if (NOT ID_SIZE)

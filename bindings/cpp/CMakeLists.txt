@@ -1,5 +1,3 @@
-include_directories(../../include)
-
 option(DEVELOPER_BUILD "Enables developer asserts" OFF)
 
 if(DEVELOPER_BUILD)

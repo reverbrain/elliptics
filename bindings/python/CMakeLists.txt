@@ -4,8 +4,6 @@ find_package(PythonInterp REQUIRED)
 find_package(PythonExtensionDir REQUIRED)
 message(STATUS "Python includes are situated in (${PYTHON_INCLUDE_PATH}, ${PYTHON_INCLUDE_DIRS})")
 
-include_directories(../../include)
-include_directories(..)
 include_directories(${PYTHON_INCLUDE_PATH})
 include_directories(${PYTHON_INCLUDE_DIRS})
 add_library(elliptics_python SHARED elliptics_python.cpp)
