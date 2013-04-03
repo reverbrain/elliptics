@@ -37,7 +37,7 @@ configure_file(cmake/EllipticsConfigVersion.cmake.in
                 "${PROJECT_BINARY_DIR}/cmake/EllipticsConfigVersion.cmake"
                 @ONLY)
 
-create_stdint(${CMAKE_BINARY_DIR}/include/elliptics/typedefs.h)
+create_stdint(${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 
 # Set id_size
@@ -126,7 +126,7 @@ install(FILES
         include/elliptics/interface.h
         include/elliptics/packet.h
         include/elliptics/srw.h
-        ${CMAKE_BINARY_DIR}/include/elliptics/typedefs.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h
         DESTINATION include/elliptics/
         )
 
