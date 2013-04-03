@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.23.0.0-rc1
+Version:	2.23.1.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,26 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Apr 04 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.1.0
+- Added cocaine-extension package
+- Some bulletproof default parameters for recovery tool
+- Changed API (Introduced async_result, iterators and more flexible callbacks)
+- Added verbosity to exec of ioclient
+- dnet_stat must use correct group ID when ids are specified in command line
+- Fixed dnet_parse_addr() back - it modifies provided address string for purpose
+- Get rid of cocaine-worker-generic
+- Implemented random read detection. Drop cache via posix_fadvice() and set appropriate dnet_io_req flag if random access is detected.
+- Allow to set various flags for dnet_io_req structure, which may affect its cleanup behaviour
+- Added ability to hold data in secondary indexes
+- Recover old signal mask in main thread, block all signals in spawned threads
+- Fixed cache write-cas
+- Added defragmentation status. Depend on eblob 0.18.3+
+- Do not include statically build cache into rpm
+- Use correct sources in ELLIPTICS_CLIENT_SRCS/ELLIPTICS_CLIENT_SRCS
+- New waiter implementation. Moved to public
+- '-' route table ID delimiter must be placed after reverse-first (last) ':' family/port/addr delimiter
+- Get rid of heavy unused part of dnet_file_info structure
+
 * Wed Apr 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.0.0-rc1
 - dnet_stat must use correct group ID when ids are specified in command line
 - Fixed dnet_parse_addr() back - it modifies provided address string for purpose
