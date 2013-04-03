@@ -11,9 +11,9 @@ find_package(Msgpack REQUIRED)
 set(ELLIPTICS_CPP_SRCS
     log.cpp
     node.cpp
+    callback.cpp
     session.cpp
     session_indexes.cpp
-    callback.cpp
     exception.cpp
     key.cpp
     )

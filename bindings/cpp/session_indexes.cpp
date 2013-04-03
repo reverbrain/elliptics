@@ -361,13 +361,17 @@ struct update_indexes_data
 
 		using update_functor::operator();
 
-		void operator() (const write_result &result)
+		void operator() (const sync_write_result &, const error_info &err)
 		{
 			std::lock_guard<std::mutex> lock(scope->mutex);
 			++scope->finished;
 
-			if (result.exception() != std::exception_ptr()) {
-				on_fail(result.exception());
+			if (err) {
+				try {
+					err.throw_error();
+				} catch (...) {
+					on_fail(std::current_exception());
+				}
 				return;
 			}
 
@@ -408,7 +412,7 @@ struct update_indexes_data
 				for (size_t i = 0; i < scope->success_inserted_ids.size(); ++i) {
 					memcpy(id.id, scope->success_inserted_ids[i].id, sizeof(id.id));
 					functor.id = scope->success_inserted_ids[i];
-					scope->sess.write_cas(functor, id, functor, 0);
+					scope->sess.write_cas(id, functor, 0).connect(functor);
 				}
 
 				functor.insert = true;
@@ -417,7 +421,7 @@ struct update_indexes_data
 					memcpy(id.id, scope->success_removed_ids[i].id, sizeof(id.id));
 					functor.id = scope->success_removed_ids[i];
 					functor.index_data = scope->previous_data[functor.id];
-					scope->sess.write_cas(functor, id, functor, 0);
+					scope->sess.write_cas(id, functor, 0).connect(functor);
 				}
 			} else {
 				scope->handler(std::exception_ptr());
@@ -427,23 +431,22 @@ struct update_indexes_data
 
 		using update_functor::operator();
 
-		void operator() (const write_result &result)
+		void operator() (const sync_write_result &, const error_info &err)
 		{
 			std::lock_guard<std::mutex> lock(scope->mutex);
 			++scope->finished;
 
-			if (result.exception() != std::exception_ptr()) {
-				on_fail(result.exception());
+			if (err) {
+				try {
+					err.throw_error();
+				} catch (...) {
+					on_fail(std::current_exception());
+				}
 				return;
 			}
 
-			try {
-				(insert ? scope->success_inserted_ids : scope->success_removed_ids).push_back(id);
-				check_finish();
-			} catch (...) {
-				on_fail(result.exception());
-				return;
-			}
+			(insert ? scope->success_inserted_ids : scope->success_removed_ids).push_back(id);
+			check_finish();
 		}
 	};
 
@@ -451,10 +454,14 @@ struct update_indexes_data
 	{
 		ptr scope;
 
-		void operator() (const write_result &result)
+		void operator() (const sync_write_result &, const error_info &err)
 		{
-			if (result.exception() != std::exception_ptr()) {
-				scope->handler(result.exception());
+			if (err) {
+				try {
+					err.throw_error();
+				} catch (...) {
+					scope->handler(std::current_exception());
+				}
 				return;
 			}
 
@@ -485,7 +492,7 @@ struct update_indexes_data
 					memcpy(id.id, scope->inserted_ids[i].index.id, sizeof(id.id));
 					functor.id = scope->inserted_ids[i].index;
 					functor.index_data = scope->inserted_ids[i].data;
-					scope->sess.write_cas(functor, id, functor, 0);
+					scope->sess.write_cas(id, functor, 0).connect(functor);
 				}
 
 				functor.insert = false;
@@ -493,7 +500,7 @@ struct update_indexes_data
 				for (size_t i = 0; i < scope->removed_ids.size(); ++i) {
 					memcpy(id.id, scope->removed_ids[i].index.id, sizeof(id.id));
 					functor.id = scope->removed_ids[i].index;
-					scope->sess.write_cas(functor, id, functor, 0);
+					scope->sess.write_cas(id, functor, 0).connect(functor);
 				}
 			} catch (...) {
 				scope->handler(std::current_exception());
@@ -532,7 +539,7 @@ void session::update_indexes(const std::function<void (const update_indexes_resu
 
 	msgpack::pack(scope->buffer, scope->indexes);
 	update_indexes_data::main_functor functor = { scope };
-	write_cas(functor, scope->id, functor, 0);
+	write_cas(scope->id, functor, 0).connect(functor);
 }
 
 void session::update_indexes(const key &request_id, const std::vector<index_entry> &indexes)
@@ -566,10 +573,14 @@ struct find_indexes_handler
 	std::function<void (const find_indexes_result &)> handler;
 	size_t ios_size;
 
-	void operator() (const bulk_read_result &bulk_result)
+	void operator() (const sync_read_result &bulk_result, const error_info &err)
 	{
-		if (bulk_result.exception() != std::exception_ptr()) {
-			handler(bulk_result.exception());
+		if (err) {
+			try {
+				err.throw_error();
+			} catch (...) {
+				handler(std::current_exception());
+			}
 			return;
 		}
 
@@ -641,7 +652,7 @@ void session::find_indexes(const std::function<void (const find_indexes_result &
 	}
 
 	find_indexes_handler functor = { handler, ios.size() };
-	bulk_read(functor, ios);
+	bulk_read(ios).connect(functor);
 }
 
 find_indexes_result session::find_indexes(const std::vector<dnet_raw_id> &indexes)
@@ -669,16 +680,20 @@ struct check_indexes_handler
 {
 	std::function<void (const check_indexes_result &)> handler;
 
-	void operator() (const read_result &read_result)
+	void operator() (const sync_read_result &read_result, const error_info &err)
 	{
-		if (read_result.exception() != std::exception_ptr()) {
-			handler(read_result.exception());
+		if (err) {
+			try {
+				err.throw_error();
+			} catch (...) {
+				handler(std::current_exception());
+			}
 			return;
 		}
 
 		try {
 			dnet_indexes result;
-			indexes_unpack(read_result->file(), &result);
+			indexes_unpack(read_result[0].file(), &result);
 
 			try {
 				handler(result.indexes);
@@ -696,7 +711,7 @@ void session::check_indexes(const std::function<void (const check_indexes_result
 	dnet_id id = indexes_generate_id(*this, request_id.id());
 
 	check_indexes_handler functor = { handler };
-	read_latest(functor, id, 0, 0);
+	read_latest(id, 0, 0).connect(functor);
 }
 
 check_indexes_result session::check_indexes(const key &id)

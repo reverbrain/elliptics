@@ -53,6 +53,11 @@ timeout_error::timeout_error(const std::string &message) throw()
 {
 }
 
+no_such_address_error::no_such_address_error(const std::string &message) throw()
+	: error(-ENXIO, message)
+{
+}
+
 void error_info::throw_error() const
 {
 	switch (m_code) {
@@ -64,6 +69,9 @@ void error_info::throw_error() const
 			break;
 		case -ENOMEM:
 			throw std::bad_alloc();
+			break;
+		case -ENXIO:
+			throw no_such_address_error(m_message);
 			break;
 		case 0:
 			// Do nothing, it's not an error
@@ -163,6 +171,11 @@ error_info create_error(int err, const uint8_t *id, const char *format, ...)
 	error_info error = create_info(err, dnet_dump_id_str(id), format, args);
 	va_end(args);
 	return error;
+}
+
+error_info create_error(const dnet_cmd &cmd)
+{
+	return create_error(cmd.status, cmd.id, "Failed to process command %d", cmd.cmd);
 }
 
 } } // namespace ioremap::elliptics

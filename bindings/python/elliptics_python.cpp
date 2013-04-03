@@ -192,113 +192,32 @@ static std::vector<T> convert_to_vector(const bp::api::object &list)
 	return std::vector<T>(begin, end);
 }
 
-struct python_iterator_result_data
+template <typename T>
+struct python_result
 {
-	python_iterator_result_data() : finished(false) {}
+	typedef typename T::iterator iterator;
 
-	void on_result(const iterator_result &result) {
-		if (result.size() == 0 && result.status() == 0) {
-			// Acknowledge
-			return;
-		}
+	std::shared_ptr<T> scope;
 
-		std::lock_guard<std::mutex> locker(mutex);
-		results.push(result);
-		condition.notify_all();
+	iterator begin()
+	{
+		return scope->begin();
 	}
 
-	void on_finished(const std::exception_ptr &e) {
-		std::lock_guard<std::mutex> locker(mutex);
-		finished = true;
-		exc = e;
-		condition.notify_all();
+	iterator end()
+	{
+		return scope->end();
 	}
-
-	std::mutex mutex;
-	std::condition_variable condition;
-	std::queue<iterator_result> results;
-	bool finished;
-	std::exception_ptr exc;
 };
 
-class python_iterator_result
+template <typename T>
+python_result<T> create_result(T &&result)
 {
-	public:
-		python_iterator_result(session &sess, const key &id, const dnet_iterator_request &request)
-		: d(std::make_shared<python_iterator_result_data>()) {
-			sess.start_iterator(
-				std::bind(&python_iterator_result_data::on_result, d.get(), std::placeholders::_1),
-				std::bind(&python_iterator_result_data::on_finished, d.get(), std::placeholders::_1),
-				id, request);
-		}
+	python_result<T> pyresult = { std::make_shared<T>(std::move(result)) };
+	return pyresult;
+}
 
-		class iterator : public std::iterator<std::input_iterator_tag, const iterator_result>
-		{
-			public:
-				iterator() {}
-				iterator(const std::shared_ptr<python_iterator_result_data> &d) : d(d) {}
-
-				void wait(std::unique_lock<std::mutex> &locker)
-				{
-					while (!d->finished && d->results.empty())
-						d->condition.wait(locker);
-				}
-
-				bool at_end()
-				{
-					if (!d) {
-						return true;
-					}
-					std::unique_lock<std::mutex> locker(d->mutex);
-					wait(locker);
-					return d->finished && d->results.empty();
-				}
-
-				bool operator ==(iterator other) {
-					return at_end() == other.at_end();
-				}
-
-				struct result_container
-				{
-					iterator_result result;
-
-					const iterator_result &operator *() const
-					{
-						return result;
-					}
-				};
-
-				result_container &operator ++(int) {
-					if (!d) {
-						throw_error(-ENOENT, "python::iterator::operator ++(int): dereference of null object");
-					}
-					std::unique_lock<std::mutex> locker(d->mutex);
-					wait(locker);
-					if (d->results.empty()) {
-						throw_error(-ENOENT, "python::iterator::operator ++(int): empty items list");
-					}
-					m_result.result = d->results.front();
-					d->results.pop();
-					return m_result;
-				}
-
-				std::shared_ptr<python_iterator_result_data> d;
-				result_container m_result;
-		};
-
-		iterator begin()
-		{
-			return iterator(d);
-		}
-
-		iterator end()
-		{
-			return iterator();
-		}
-
-	private:
-		std::shared_ptr<python_iterator_result_data> d;
-};
+typedef python_result<async_iterator_result> python_iterator_result;
 
 class elliptics_session: public session, public bp::wrapper<session> {
 	public:
@@ -362,12 +281,12 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		std::string read_data_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size) {
 			struct dnet_id raw = id.to_dnet();
-			return read_data(raw, offset, size)->file().to_string();
+			return read_data(raw, offset, size).get()[0].file().to_string();
 		}
 
 		std::string read_data_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
 							int type) {
-			return read_data(key(remote, type), offset, size)->file().to_string();
+			return read_data(key(remote, type), offset, size).get()[0].file().to_string();
 		}
 
 		bp::list prepare_latest_by_id(const struct elliptics_id &id, const bp::api::object &gl) {
@@ -399,15 +318,15 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		std::string read_latest_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size) {
 			struct dnet_id raw = id.to_dnet();
-			return read_latest(raw, offset, size)->file().to_string();
+			return read_latest(raw, offset, size).get()[0].file().to_string();
 		}
 
 		std::string read_latest_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
 									int type) {
-			return read_latest(key(remote, type), offset, size)->file().to_string();
+			return read_latest(key(remote, type), offset, size).get()[0].file().to_string();
 		}
 
-		std::string convert_to_string(const write_result &result)
+		std::string convert_to_string(const sync_write_result &result)
 		{
 			std::string str;
 
@@ -451,9 +370,9 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return lookup_address(raw, raw.group_id);
 		}
 
-		boost::python::tuple parse_lookup(const lookup_result &lookup) {
-			struct dnet_addr *addr = lookup->address();
-			struct dnet_file_info *info = lookup->file_info();
+		boost::python::tuple parse_lookup(const lookup_result_entry &lookup) {
+			struct dnet_addr *addr = lookup.address();
+			struct dnet_file_info *info = lookup.file_info();
 
 			std::string address(dnet_server_convert_dnet_addr(addr));
 			int port = dnet_server_convert_port((struct sockaddr *)addr->addr, addr->addr_len);
@@ -462,13 +381,13 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		}
 
 		boost::python::tuple lookup_by_data_transform(const std::string &remote) {
-			return parse_lookup(lookup(remote));
+			return parse_lookup(lookup(remote).get()[0]);
 		}
 
 		boost::python::tuple lookup_by_id(const struct elliptics_id &id) {
 			struct dnet_id raw = id.to_dnet();
 
-			return parse_lookup(lookup(raw));
+			return parse_lookup(lookup(raw).get()[0]);
 		}
 
 		elliptics_status update_status_by_id(const struct elliptics_id &id, elliptics_status &status) {
@@ -520,7 +439,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		}
 
 		python_iterator_result start_iterator(const elliptics_id &id, const dnet_iterator_request &request) {
-			return python_iterator_result(*this, id.to_dnet(), request);
+			return create_result(std::move(session::start_iterator(id.to_dnet(), request)));
 		}
 
 		std::string exec_name(const struct elliptics_id &id, const std::string &event,
@@ -547,11 +466,11 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		void remove_by_id(const struct elliptics_id &id) {
 			struct dnet_id raw = id.to_dnet();
 
-			remove_raw(raw);
+			remove(raw).wait();
 		}
 
 		void remove_by_name(const std::string &remote, int type) {
-			remove_raw(key(remote, type));
+			remove(key(remote, type)).wait();
 		}
 
 		struct dnet_id_comparator
@@ -565,7 +484,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		bp::api::object bulk_read_by_name(const bp::api::object &keys, bool raw) {
 			std::vector<std::string> std_keys = convert_to_vector<std::string>(keys);
 
-			const bulk_read_result ret =  bulk_read(std_keys);
+			const sync_read_result ret =  bulk_read(std_keys);
 
 			if (raw) {
 				bp::list result;
@@ -603,7 +522,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		bp::list stat_log_count() {
 			bp::list statistics;
 
-			const stat_count_result result = session::stat_log_count();
+			const sync_stat_count_result result = session::stat_log_count();
 
 			for (size_t i = 0; i < result.size(); ++i) {
 				const stat_count_result_entry &data = result[i];
@@ -751,12 +670,12 @@ void dnet_iterator_request_set_end(dnet_iterator_request *request, const bp::lis
 	convert_from_list(list, request->end.id, sizeof(request->end.id));
 }
 
-dnet_iterator_request iterator_result_reply(iterator_result result)
+dnet_iterator_request iterator_result_reply(iterator_result_entry result)
 {
 	return *result.reply();
 }
 
-std::string iterator_result_reply_data(iterator_result result)
+std::string iterator_result_reply_data(iterator_result_entry result)
 {
 	return result.reply_data().to_string();
 }
@@ -791,8 +710,8 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def_readwrite("status", &dnet_iterator_request::status)
 	;
 
-	bp::class_<iterator_result>("IteratorResultEntry", bp::init<>())
-		.def("status", &iterator_result::status)
+	bp::class_<iterator_result_entry>("IteratorResultEntry", bp::init<>())
+		.def("status", &iterator_result_entry::status)
 		.def("reply", iterator_result_reply)
 		.def("reply_data", iterator_result_reply_data)
 	;

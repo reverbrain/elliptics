@@ -34,6 +34,8 @@
 
 #include "common.h"
 
+#include <algorithm>
+
 using namespace ioremap::elliptics;
 
 #ifndef __unused
@@ -92,16 +94,6 @@ static void print_stat(const stat_result_entry &result)
 
 	fprintf(stream, "\n");
 	fflush(stream);
-}
-
-static void stat_handler(const stat_result &result)
-{
-	for (size_t i = 0; i < result.size(); ++i) {
-		try {
-			print_stat(result[i]);
-		} catch (...) {
-		}
-	}
 }
 
 static void stat_usage(char *p)
@@ -205,19 +197,21 @@ int main(int argc, char *argv[])
 		file_logger log(logfile, DNET_LOG_ERROR);
 		node n(log, cfg);
 		session sess(n);
+		sess.set_timeout(timeout);
 
 		n.add_remote(remote_addr, remote_port, remote_family);
 
 		for (;;) {
 			struct dnet_id raw;
 
-			if (!id_idx)
-				sess.stat_log(stat_handler);
-			else {
+			if (!id_idx) {
+				auto result = sess.stat_log();
+				std::for_each(result.begin(), result.end(), print_stat);
+			} else {
 				if (group != -1) {
 					for (i = 0; i < id_idx; ++i) {
 						dnet_setup_id(&raw, group, id[i]);
-						sess.stat_log(stat_handler, raw);
+						sess.stat_log(raw).connect(print_stat, async_stat_result::final_function());
 					}
 				} else {
 					std::cerr << "If you provide list of IDs you have to specify group number" << std::endl;
