@@ -116,6 +116,9 @@ add_subdirectory(bindings)
 if(WITH_EXAMPLES)
     add_subdirectory(example)
 endif()
+if(WITH_COCAINE)
+    add_subdirectory(cocaine/plugins)
+endif()
 
 install(FILES
         include/elliptics/core.h
