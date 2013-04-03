@@ -33,5 +33,8 @@ include/elliptics/typedefs.h
 *.so.*
 *.a.*
 *.o.*
+*.in
+*.lo
+*.la
 root/
 tags
