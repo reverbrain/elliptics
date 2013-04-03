@@ -25,7 +25,6 @@ set(ELLIPTICS_SRCS
     )
 
 
-include_directories(../include)
 add_library(elliptics SHARED ${ELLIPTICS_SRCS})
 set_target_properties(elliptics PROPERTIES
     VERSION ${ELLIPTICS_VERSION}

@@ -1,5 +1,3 @@
-include_directories(../include)
-
 add_library(common STATIC common.c)
 set(ECOMMON_LIBRARIES common elliptics_client)
 

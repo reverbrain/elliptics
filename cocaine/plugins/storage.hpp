@@ -23,7 +23,7 @@
 
 #include <cocaine/api/storage.hpp>
 
-#include <elliptics/cppdef.h>
+#include "elliptics/cppdef.h"
 
 namespace cocaine { namespace storage {
 

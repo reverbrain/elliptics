@@ -1,4 +1,3 @@
-include_directories(../include)
 include_directories(../library)
 
 add_definitions("-std=c++0x")
