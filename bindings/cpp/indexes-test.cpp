@@ -82,8 +82,8 @@ Container sorted(const Container &c)
 {
 	Container tmp(c.begin(), c.end());
 	std::sort(tmp.begin(), tmp.end(), index_comparator<1>());
-	for (auto &entry : tmp)
-		entry = sorted(entry);
+	for (auto it = tmp.begin(); it != tmp.end(); ++it)
+		*it = sorted(*it);
 	return tmp;
 }
 
