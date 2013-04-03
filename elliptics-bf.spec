@@ -17,7 +17,7 @@ BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-
 %endif
 BuildRequires:	eblob-devel >= 0.18.1
 BuildRequires:  leveldb-devel
-BuildRequires:	cmake
+BuildRequires:	cmake zeromq3-devel
 
 Obsoletes: srw
 
