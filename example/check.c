@@ -25,6 +25,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -194,13 +195,15 @@ int main(int argc, char *argv[])
 
 	memset(&cfg, 0, sizeof(struct dnet_config));
 
-	cfg.wait_timeout = 60*60;
+	cfg.wait_timeout = INT_MAX;
 	check_logger.log_level = DNET_LOG_INFO;
 	cfg.check_timeout = 60;
 
 	memset(&tm, 0, sizeof(tm));
 
 	memset(&r, 0, sizeof(r));
+
+	r.thread_num = 1;
 
 	while ((ch = getopt(argc, argv, "b:B:DN:f:n:t:u:U:MRm:w:l:dr:g:h")) != -1) {
 		switch (ch) {
@@ -219,6 +222,9 @@ int main(int argc, char *argv[])
 				break;
 			case 'n':
 				r.thread_num = atoi(optarg);
+				if (r.thread_num > 1)
+					fprintf(stderr, "You are going to run your recovery process with %d threads, "
+							"this can heavily screw up your system performance.\n", r.thread_num);
 				break;
 			case 't':
 				if (!strptime(optarg, "%F %T", &tm)) {
