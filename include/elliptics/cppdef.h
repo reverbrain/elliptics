@@ -34,6 +34,7 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include <queue>
 
 #include <thread>
 #include <mutex>
@@ -75,6 +76,12 @@ class timeout_error : public error
 {
 	public:
 		explicit timeout_error(const std::string &message) throw();
+};
+
+class no_such_address_error : public error
+{
+	public:
+		explicit no_such_address_error(const std::string &message) throw();
 };
 
 class error_info
@@ -133,7 +140,8 @@ error_info create_error(int err, const key &id, const char *format, ...)
 error_info create_error(int err, const uint8_t *id, const char *format, ...)
 	__attribute__ ((format (printf, 3, 4)));
 
-class default_callback;
+error_info create_error(const dnet_cmd &cmd);
+
 class callback_data;
 class callback_result_data;
 
@@ -336,6 +344,28 @@ class array_result_holder : public generic_result_holder
 		const data *d_func() const { return static_cast<data*>(m_data.get()); }
 };
 
+class callback_result_entry;
+template <typename T> class async_result_handler;
+
+typedef std::function<bool (const callback_result_entry &)> result_filter;
+typedef std::function<bool (const std::vector<dnet_cmd> &, size_t)> result_checker;
+
+namespace filters
+{
+bool positive(const callback_result_entry &entry);
+bool negative(const callback_result_entry &entry);
+bool all(const callback_result_entry &entry);
+bool all_with_ack(const callback_result_entry &entry);
+}
+
+namespace checkers
+{
+bool no_check(const std::vector<dnet_cmd> &statuses, size_t total);
+bool at_least_one(const std::vector<dnet_cmd> &statuses, size_t total);
+bool all(const std::vector<dnet_cmd> &statuses, size_t total);
+bool quorum(const std::vector<dnet_cmd> &statuses, size_t total);
+}
+
 class callback_result_entry
 {
 	public:
@@ -347,7 +377,9 @@ class callback_result_entry
 		callback_result_entry &operator =(const callback_result_entry &other);
 
 		bool is_valid() const;
+		bool is_ack() const;
 		int status() const;
+		error_info error() const;
 		data_pointer		raw_data() const;
 		struct dnet_addr	*address() const;
 		struct dnet_cmd		*command() const;
@@ -359,9 +391,6 @@ class callback_result_entry
 
 	protected:
 		std::shared_ptr<callback_result_data> m_data;
-
-		friend class callback;
-		friend class default_callback;
 };
 
 class read_result_entry : public callback_result_entry
@@ -416,21 +445,22 @@ class stat_count_result_entry : public callback_result_entry
 };
 
 class exec_context;
-class exec_result_data;
+class exec_callback;
 
 class exec_result_entry : public callback_result_entry
 {
 	public:
 		exec_result_entry();
-		exec_result_entry(const std::shared_ptr<exec_result_data> &data);
+		exec_result_entry(const std::shared_ptr<callback_result_data> &data);
 		exec_result_entry(const exec_result_entry &other);
 		~exec_result_entry();
 
 		exec_result_entry &operator =(const exec_result_entry &other);
 
-		error_info error() const;
-
 		exec_context context() const;
+
+	private:
+		friend class exec_callback;
 };
 
 class iterator_result_entry : public callback_result_entry
@@ -442,8 +472,6 @@ class iterator_result_entry : public callback_result_entry
 
 		iterator_result_entry &operator =(const iterator_result_entry &other);
 
-		error_info error() const;
-
 		dnet_iterator_request *reply() const;
 		data_pointer reply_data() const;
 };
@@ -454,7 +482,38 @@ struct index_entry
 	data_pointer data;
 };
 
+template <typename T> class async_result;
+
 typedef lookup_result_entry write_result_entry;
+
+typedef async_result<callback_result_entry> async_generic_result;
+typedef std::vector<callback_result_entry> sync_generic_result;
+
+typedef async_result<write_result_entry> async_write_result;
+typedef std::vector<write_result_entry> sync_write_result;
+typedef async_result<lookup_result_entry> async_lookup_result;
+typedef std::vector<lookup_result_entry> sync_lookup_result;
+typedef async_result<read_result_entry> async_read_result;
+typedef std::vector<read_result_entry> sync_read_result;
+typedef async_result<callback_result_entry> async_remove_result;
+typedef std::vector<callback_result_entry> sync_remove_result;
+
+typedef async_result<stat_result_entry> async_stat_result;
+typedef std::vector<stat_result_entry> sync_stat_result;
+typedef async_result<stat_count_result_entry> async_stat_count_result;
+typedef std::vector<stat_count_result_entry> sync_stat_count_result;
+
+typedef async_result<iterator_result_entry> async_iterator_result;
+typedef std::vector<iterator_result_entry> sync_iterator_result;
+
+typedef async_result<exec_result_entry> async_exec_result;
+typedef std::vector<exec_result_entry> sync_exec_result;
+typedef async_result<exec_result_entry> async_push_result;
+typedef std::vector<exec_result_entry> sync_push_result;
+typedef async_result<exec_result_entry> async_reply_result;
+typedef std::vector<exec_result_entry> sync_reply_result;
+
+
 typedef result_holder<read_result_entry> read_result;
 typedef array_result_holder<write_result_entry> write_result;
 typedef array_result_holder<read_result_entry> read_results;
@@ -466,15 +525,6 @@ typedef result_holder<lookup_result_entry> lookup_result;
 typedef array_result_holder<stat_result_entry> stat_result;
 typedef array_result_holder<stat_count_result_entry> stat_count_result;
 typedef array_result_holder<int> prepare_latest_result;
-
-typedef iterator_result_entry iterator_result;
-
-typedef exec_result_entry exec_result;
-typedef std::vector<exec_result> exec_results;
-typedef exec_result_entry push_result;
-typedef std::vector<exec_result> push_results;
-typedef exec_result_entry reply_result;
-typedef std::vector<exec_result> reply_results;
 
 struct find_indexes_result_entry
 {
@@ -659,6 +709,15 @@ class key
 class session
 {
 	public:
+		enum exceptions_policy {
+			no_exceptions		= 0x00,
+			throw_at_start		= 0x01,
+			throw_at_wait		= 0x02,
+			throw_at_get		= 0x04,
+			throw_at_iterator_end	= 0x08,
+			default_exceptions	= throw_at_wait | throw_at_get | throw_at_iterator_end
+		};
+
 		explicit session(const node &n);
 		session(const session &other);
 		virtual ~session();
@@ -686,6 +745,15 @@ class session
 		 * Gets groups of the session.
 		 */
 		std::vector<int>	get_groups() const;
+
+		void			set_filter(const result_filter &filter);
+		result_filter		get_filter() const;
+
+		void			set_checker(const result_checker &checker);
+		result_checker		get_checker() const;
+
+		void			set_exceptions_policy(uint32_t policy);
+		uint32_t		get_exceptions_policy() const;
 
 		/*!
 		 * Sets command flags \a cflags to the session.
@@ -733,52 +801,28 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			read_data(const std::function<void (const read_results &)> &handler,
-						const key &id, const std::vector<int> &groups,
-						const struct dnet_io_attr &io);
+		async_read_result read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io);
 		/*!
 		 * \overload read_data()
 		 * Allows to specify the command \a cmd.
 		 */
-		void			read_data(const std::function<void (const read_results &)> &handler,
-						const key &id, const std::vector<int> &groups,
-						const struct dnet_io_attr &io, unsigned int cmd);
+		async_read_result read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd);
 		/*!
 		 * \overload read_data()
 		 * Allows to specify the single \a group.
 		 */
-		void			read_data(const std::function<void (const read_results &)> &handler,
-						const key &id, int group_id, const struct dnet_io_attr &io);
+		async_read_result read_data(const key &id, int group_id, const struct dnet_io_attr &io);
 		/*!
 		 * \overload read_data()
 		 * Allows to specify the \a offset and the \a size.
 		 */
-		void			read_data(const std::function<void (const read_result  &)> &handler,
-						const key &id, const std::vector<int> &groups,
-						uint64_t offset, uint64_t size);
+		async_read_result read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size);
 		/*!
 		 * \overload read_data()
 		 * Allows to specify the \a offset and the \a size.
 		 * Groups are generated automatically by session::mix_states().
 		 */
-		void			read_data(const std::function<void (const read_result &)> &handler,
-						const key &id, uint64_t offset, uint64_t size);
-		/*!
-		 * \overload read_data()
-		 * Synchronous overload.
-		 */
-		read_result		read_data(const key &id, uint64_t offset, uint64_t size);
-		/*!
-		 * \overload read_data()
-		 * Synchronous overload.
-		 */
-		read_result		read_data(const key &id, const std::vector<int> &groups,
-						uint64_t offset, uint64_t size);
-		/*!
-		 * \overload read_data()
-		 * Synchronous overload.
-		 */
-		read_result		read_data(const key &id, int group_id, uint64_t offset, uint64_t size);
+		async_read_result read_data(const key &id, uint64_t offset, uint64_t size);
 
 		/*!
 		 * Filters the list \a groups and leaves only ones with the latest
@@ -786,36 +830,21 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			prepare_latest(const std::function<void (const prepare_latest_result &)> &handler,
-						const key &id, const std::vector<int> &groups);
-		/*!
-		 * \overload prepare_latest()
-		 * Synchronous overload.
-		 *
-		 * Results overrides the \a groups argument.
-		 */
-		void			prepare_latest(const key &id, std::vector<int> &groups);
+		async_lookup_result prepare_latest(const key &id, const std::vector<int> &groups);
 
 		/*!
 		 * Reads the latest data from server by the key \a id, \a offset and \a size.
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			read_latest(const std::function<void (const read_result &)> &handler,
-						const key &id, uint64_t offset, uint64_t size);
-		/*!
-		 * \overload read_latest()
-		 * Synchronous overload.
-		 */
-		read_result		read_latest(const key &id, uint64_t offset, uint64_t size);
+		async_read_result read_latest(const key &id, uint64_t offset, uint64_t size);
 
 		/*!
 		 * Writes data to server by the dnet_io_control \a ctl.
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			write_data(const std::function<void (const write_result &)> &handler,
-						const dnet_io_control &ctl);
+		async_write_result write_data(const dnet_io_control &ctl);
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
 		 *
@@ -824,21 +853,10 @@ class session
 		 * \note Calling this method is equal to consecutive calling
 		 * of write_prepare(), write_plain() and write_commit().
 		 */
-		void			write_data(const std::function<void (const write_result &)> &handler,
-						const key &id, const data_pointer &file,
-						uint64_t remote_offset);
-		/*!
-		 * \overload write_data()
-		 * Synchronous overload.
-		 */
-		write_result		write_data(const key &id, const data_pointer &file,
-						uint64_t remote_offset);
+		async_write_result write_data(const key &id, const data_pointer &file, uint64_t remote_offset);
 
 
-		void write_cas(const std::function<void (const write_result &)> &handler, const key &id,
-			const std::function<data_pointer (const data_pointer &)> &converter, uint64_t remote_offset, int count = 3);
-		write_result write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
-			uint64_t remote_offset, int count = 3);
+		async_write_result write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter, uint64_t remote_offset, int count = 3);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
@@ -848,15 +866,7 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			write_cas(const std::function<void (const write_result &)> &handler,
-						const key &id, const data_pointer &file,
-						const struct dnet_id &old_csum, uint64_t remote_offset);
-		/*!
-		 * \overload write_cas()
-		 * Synchronous overload.
-		 */
-		write_result		write_cas(const key &id, const data_pointer &file,
-						const struct dnet_id &old_csum, uint64_t remote_offset);
+		async_write_result write_cas(const key &id, const data_pointer &file, const struct dnet_id &old_csum, uint64_t remote_offset);
 
 		/*!
 		 * Prepares place to write data \a file by the key \a id and
@@ -866,15 +876,7 @@ class session
 		 *
 		 * \note No data is really written.
 		 */
-		void			write_prepare(const std::function<void (const write_result &)> &handler,
-						const key &id, const data_pointer &file,
-						uint64_t remote_offset, uint64_t psize);
-		/*!
-		 * \overload write_prepare()
-		 * Synchronous overload.
-		 */
-		write_result		write_prepare(const key &id, const data_pointer &file,
-						uint64_t remote_offset, uint64_t psize);
+		async_write_result write_prepare(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t psize);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
@@ -883,15 +885,7 @@ class session
 		 *
 		 * \note Indexes are not updated. Data is not accessable for reading.
 		 */
-		void			write_plain(const std::function<void (const write_result &)> &handler,
-						const key &id, const data_pointer &file,
-						uint64_t remote_offset);
-		/*!
-		 * \overload write_plain()
-		 * Synchronous overload.
-		 */
-		write_result		write_plain(const key &id, const data_pointer &file,
-						uint64_t remote_offset);
+		async_write_result write_plain(const key &id, const data_pointer &file, uint64_t remote_offset);
 
 		/*!
 		 * Commites data \a file by the key \a id and remote offset \a remote_offset.
@@ -900,15 +894,7 @@ class session
 		 *
 		 * \note Indexes are updated. Data becomes accessable for reading.
 		 */
-		void			write_commit(const std::function<void (const write_result &)> &handler,
-						const key &id, const data_pointer &file,
-						uint64_t remote_offset, uint64_t csize);
-		/*!
-		 * \overload write_commit()
-		 * Synchronous overload.
-		 */
-		write_result		write_commit(const key &id, const data_pointer &file,
-						uint64_t remote_offset, uint64_t csize);
+		async_write_result write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
@@ -916,13 +902,7 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			write_cache(const std::function<void (const write_result &)> &handler,
-						const key &id, const data_pointer &file, long timeout);
-		/*!
-		 * \overload write_cache()
-		 * Synchronous overload.
-		 */
-		write_result		write_cache(const key &id, const data_pointer &file, long timeout);
+		async_write_result write_cache(const key &id, const data_pointer &file, long timeout);
 
 		/*!
 		 * Returnes address (ip and port pair) of remote node where
@@ -952,63 +932,34 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			lookup(const std::function<void (const lookup_result &)> &handler,
-						const key &id);
-		/*!
-		 * \overload lookup()
-		 * Synchronous overload.
-		 */
-		lookup_result		lookup(const key &id);
+		async_lookup_result lookup(const key &id);
 
-		void 			remove_raw(const key &id);
 		/*!
 		 * Removes all the entries of key \a id at server nodes.
 		 *
 		 * Returnes exception if no entry is removed.
 		 * Result is returned to \a handler.
 		 */
-		void 			remove(const std::function<void (const std::exception_ptr &)> &handler,
-						const key &id);
-		/*!
-		 * \overload remove()
-		 * Synchronous overload.
-		 */
-		void 			remove(const key &id);
+		async_remove_result remove(const key &id);
 
 		/*!
 		 * Queries statistics information from the server nodes.
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			stat_log(const std::function<void (const stat_result &)> &handler);
+		async_stat_result stat_log();
 		/*!
 		 * \overload stat_log()
 		 * Allows to specify the key \a id.
 		 */
-		void			stat_log(const std::function<void (const stat_result &)> &handler,
-						const key &id);
-		/*!
-		 * \overload stat_log()
-		 * Synchronous overload.
-		 */
-		stat_result		stat_log();
-		/*!
-		 * \overload stat_log()
-		 * Synchronous overload.
-		 */
-		stat_result		stat_log(const key &id);
+		async_stat_result stat_log(const key &id);
 
 		/*!
 		 * Queries statistics information from the server nodes.
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			stat_log_count(const std::function<void (const stat_count_result &)> &handler);
-		/*!
-		 * \overload stat_log_count()
-		 * Synchronous overload.
-		 */
-		stat_count_result	stat_log_count();
+		async_stat_count_result stat_log_count();
 
 		/*!
 		 * Returnes the number of session states.
@@ -1020,13 +971,7 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			request_cmd(const std::function<void (const command_result &)> &handler,
-						const transport_control &ctl);
-		/*!
-		 * \overload request_cmd()
-		 * Synchronous overload.
-		 */
-		command_result		request_cmd(const transport_control &ctl);
+		async_generic_result request_cmd(const transport_control &ctl);
 
 		/*!
 		 * Changes node \a status on given \a address, \a port and network \a family.
@@ -1044,13 +989,7 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			read_data_range(const std::function<void (const read_range_result &)> &handler,
-						const struct dnet_io_attr &io, int group_id);
-		/*!
-		 * \overload read_data_range()
-		 * Synchronous overload.
-		 */
-		read_range_result	read_data_range(struct dnet_io_attr &io, int group_id);
+		async_read_result read_data_range(const struct dnet_io_attr &io, int group_id);
 		/*!
 		 * \internal
 		 * \overload read_data_range()
@@ -1065,43 +1004,18 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			remove_data_range(const std::function<void (const remove_range_result &)> &handler,
-						struct dnet_io_attr &io, int group_id);
-		/*!
-		 * \overload remove_data_range()
-		 * Synchronous overload.
-		 */
-		remove_range_result	remove_data_range(struct dnet_io_attr &io, int group_id);
+		async_read_result			remove_data_range(struct dnet_io_attr &io, int group_id);
 
 		/*!
 		 * Returnes the list of network routes.
 		 */
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
-		void start_iterator(const std::function<void (const iterator_result &)> &handler,
-			const std::function<void (const std::exception_ptr &)> &complete_handler,
-			const key &id, const dnet_iterator_request &request);
+		async_iterator_result start_iterator(const key &id, const dnet_iterator_request &request);
 
-		void exec(const std::function<void (const exec_result &)> &handler,
-			const std::function<void (const std::exception_ptr &)> &complete_handler,
-			dnet_id *id, const std::string &event, const data_pointer &data);
-		void exec(const std::function<void (const exec_result &)> &handler, dnet_id *id,
-				const std::string &event, const data_pointer &data);
-		exec_results exec(dnet_id *id, const std::string &event, const data_pointer &data);
-
-		void push(const std::function<void (const push_result &)> &handler,
-				const std::function<void (const std::exception_ptr &)> &complete_handler,
-				dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data);
-		void push(const std::function<void (const push_result &)> &handler, dnet_id *id,
-				const exec_context &context, const std::string &event, const data_pointer &data);
-		push_results push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data);
-
-		void reply(const std::function<void (const reply_result &)> &handler,
-				const std::function<void (const std::exception_ptr &)> &complete_handler,
-				const exec_context &context, const data_pointer &data, exec_context::final_state state);
-		void reply(const std::function<void (const reply_result &)> &handler, const exec_context &context,
-				const data_pointer &data, exec_context::final_state state);
-		reply_results reply(const exec_context &context, const data_pointer &data, exec_context::final_state state);
+		async_exec_result exec(dnet_id *id, const std::string &event, const data_pointer &data);
+		async_push_result push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data);
+		async_reply_result reply(const exec_context &context, const data_pointer &data, exec_context::final_state state);
 
 		/*!
 		 * Starts execution for \a id of the given \a event with \a data and \a binary.
@@ -1134,20 +1048,13 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			bulk_read(const std::function<void (const bulk_read_result &)> &handler,
-						const std::vector<struct dnet_io_attr> &ios);
+		async_read_result bulk_read(const std::vector<struct dnet_io_attr> &ios);
 		/*!
 		 * \overload bulk_read()
-		 * Synchronous overload.
-		 */
-		bulk_read_result	bulk_read(const std::vector<struct dnet_io_attr> &ios);
-		/*!
-		 * \overload bulk_read()
-		 * Synchronous overload.
 		 *
 		 * Allows to specify the list of string \a keys.
 		 */
-		bulk_read_result	bulk_read(const std::vector<std::string> &keys);
+		async_read_result bulk_read(const std::vector<std::string> &keys);
 
 		/*!
 		 * Writes all data \a data to server nodes by the list \a ios.
@@ -1155,24 +1062,8 @@ class session
 		 *
 		 * Result is returned to \a handler.
 		 */
-		void			bulk_write(const std::function<void (const write_result &)> &handler,
-						const std::vector<struct dnet_io_attr> &ios,
-						const std::vector<data_pointer> &data);
-		void			bulk_write(const std::function<void (const write_result &)> &handler,
-						const std::vector<struct dnet_io_attr> &ios,
-						const std::vector<std::string> &data);
-		/*!
-		 * \overload bulk_write()
-		 * Synchronous overload.
-		 */
-		write_result		bulk_write(const std::vector<struct dnet_io_attr> &ios,
-							const std::vector<std::string> &data);
-		/*!
-		 * \overload bulk_write()
-		 * Synchronous overload.
-		 */
-		write_result		bulk_write(const std::vector<struct dnet_io_attr> &ios,
-							const std::vector<data_pointer> &data);
+		async_write_result bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<data_pointer> &data);
+		async_write_result bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<std::string> &data);
 
 		void update_indexes(const std::function<void (const update_indexes_result &)> &handler,
 				const key &id, const std::vector<index_entry> &indexes);
@@ -1202,9 +1093,7 @@ class session
 	protected:
 		std::shared_ptr<session_data>		m_data;
 
-		void request(const std::function<void (const exec_result &)> &handler,
-				const std::function<void (const std::exception_ptr &)> &complete_handler,
-				dnet_id *id, const exec_context &context);
+		async_exec_result request(dnet_id *id, const exec_context &context);
 		void			mix_states(const key &id, std::vector<int> &groups);
 		void			mix_states(std::vector<int> &groups);
 		std::vector<int>	mix_states(const key &id);
@@ -1291,6 +1180,385 @@ private:
 	}
 
 	std::shared_ptr<info> m_info;
+};
+
+template <typename T>
+class async_result
+{
+	ELLIPTICS_DISABLE_COPY(async_result)
+	public:
+		typedef async_result_handler<T> handler;
+		typedef T entry_type;
+		typedef std::function<void (const T &)> result_function;
+		typedef std::function<void (const std::vector<T> &, const error_info &error)> result_array_function;
+		typedef std::function<void (const error_info &)> final_function;
+
+		explicit async_result(const session &sess) : m_data(std::make_shared<data>())
+		{
+			m_data->filter = sess.get_filter();
+			m_data->checker = sess.get_checker();
+			m_data->policy = sess.get_exceptions_policy();
+		}
+
+		async_result(async_result &&result)
+		{
+			std::swap(result.m_data, m_data);
+		}
+
+		~async_result()
+		{
+		}
+
+		void connect(const result_function &result_handler, const final_function &final_handler)
+		{
+			std::unique_lock<std::mutex> locker(m_data->lock);
+			if (result_handler) {
+				m_data->result_handler = result_handler;
+				if (!m_data->results.empty()) {
+					for (auto it = m_data->results.begin(), end = m_data->results.end(); it != end; ++it) {
+						result_handler(*it);
+					}
+				}
+			}
+			if (final_handler) {
+				m_data->final_handler = final_handler;
+				if (m_data->finished)
+					final_handler(m_data->error);
+			}
+		}
+
+		void connect(const result_array_function &handler)
+		{
+			connect(result_function(), std::bind(aggregator_final_handler, m_data, handler));
+		}
+
+		void connect(const async_result_handler<T> &handler)
+		{
+			connect(std::bind(handler_process, handler, std::placeholders::_1),
+				std::bind(handler_complete, handler, std::placeholders::_1));
+		}
+
+		void wait()
+		{
+			wait(session::throw_at_wait);
+		}
+
+		error_info error() const
+		{
+			return m_data->error;
+		}
+
+		std::vector<T> get()
+		{
+			wait(session::throw_at_get);
+			return m_data->results;
+		}
+
+		bool get(T &entry)
+		{
+			wait(session::throw_at_get);
+			for (auto it = m_data->results.begin(); it != m_data->results.end(); ++it) {
+				if (it->status() == 0 && !it->data().empty()) {
+					entry = *it;
+					return true;
+				}
+			}
+			return false;
+		}
+
+		T get_one()
+		{
+			T result;
+			get(result);
+			return result;
+		}
+
+		inline operator std::vector<T> ()
+		{
+			return get();
+		}
+
+		class iterator : public std::iterator<std::input_iterator_tag, T, std::ptrdiff_t, T*, T>
+		{
+			private:
+				enum data_state {
+					data_waiting,
+					data_ready,
+					data_at_end
+				};
+				class data
+				{
+					public:
+						std::mutex mutex;
+						std::condition_variable condition;
+						std::queue<T> results;
+						uint32_t policy;
+						bool finished;
+						error_info error;
+				};
+
+			public:
+				iterator() : m_state(data_at_end) {}
+				iterator(async_result &result) : d(std::make_shared<data>()), m_state(data_waiting)
+				{
+					d->finished = false;
+					d->policy = result.m_data->policy;
+					result.connect(std::bind(process, d, std::placeholders::_1),
+						std::bind(complete, d, std::placeholders::_1));
+				}
+				iterator (const iterator &other) : d(other.d)
+				{
+					other.ensure_data();
+					m_state = other.m_state;
+					m_result = other.m_result;
+				}
+				~iterator() {}
+
+				iterator &operator =(const iterator &other)
+				{
+					other.ensure_data();
+					m_state = other.m_state;
+					m_result = other.m_result;
+				}
+
+				bool operator ==(const iterator &other) const
+				{
+					return at_end() == other.at_end();
+				}
+
+				bool operator !=(const iterator &other) const
+				{
+					return !operator ==(other);
+				}
+
+				T operator *() const
+				{
+					ensure_data();
+					if (m_state == data_at_end) {
+						throw_error(-ENOENT, "async_result::iterator::operator *(): end iterator");
+					}
+					return m_result;
+				}
+
+				T *operator ->() const
+				{
+					ensure_data();
+					if (m_state == data_at_end) {
+						throw_error(-ENOENT, "async_result::iterator::operator ->(): end iterator");
+					}
+					return &m_result;
+				}
+
+				iterator &operator ++()
+				{
+					ensure_data();
+					if (m_state == data_at_end) {
+						throw_error(-ENOENT, "async_result::iterator::operator ++(): end iterator");
+					}
+					m_state = data_waiting;
+					ensure_data();
+					return *this;
+				}
+
+				iterator operator ++(int)
+				{
+					ensure_data();
+					iterator tmp = *this;
+					++(*this);
+					return tmp;
+				}
+
+			private:
+				bool at_end() const
+				{
+					ensure_data();
+					return m_state == data_at_end;
+				}
+
+				void ensure_data() const
+				{
+					if (m_state == data_waiting) {
+						std::unique_lock<std::mutex> locker(d->mutex);
+						while (!d->finished && d->results.empty())
+							d->condition.wait(locker);
+
+						if (d->results.empty()) {
+							m_state = data_at_end;
+							if (d->policy & session::throw_at_iterator_end)
+								d->error.throw_error();
+						} else {
+							m_state = data_ready;
+							m_result = d->results.front();
+							d->results.pop();
+						}
+					}
+				}
+
+				static void process(const std::weak_ptr<data> &weak_data, const T &result)
+				{
+					if (std::shared_ptr<data> d = weak_data.lock()) {
+						std::unique_lock<std::mutex> locker(d->mutex);
+						d->results.push(result);
+						d->condition.notify_all();
+					}
+				}
+
+				static void complete(const std::weak_ptr<data> &weak_data, const error_info &error)
+				{
+					if (std::shared_ptr<data> d = weak_data.lock()) {
+						std::unique_lock<std::mutex> locker(d->mutex);
+						d->finished = true;
+						d->error = error;
+						d->condition.notify_all();
+					}
+				}
+
+				std::shared_ptr<data> d;
+				mutable data_state m_state;
+				mutable T m_result;
+		};
+
+		iterator begin()
+		{
+			return iterator(*this);
+		}
+
+		iterator end()
+		{
+			return iterator();
+		}
+
+	private:
+		class data
+		{
+			public:
+				data() : total(0), finished(false) {}
+
+				std::mutex lock;
+				std::condition_variable condition;
+
+				result_function result_handler;
+				final_function final_handler;
+
+				result_filter filter;
+				result_checker checker;
+				uint32_t policy;
+
+				std::vector<T> results;
+				error_info error;
+
+				std::vector<dnet_cmd> statuses;
+				size_t total;
+
+				bool finished;
+		};
+
+		void wait(uint32_t policy)
+		{
+			std::unique_lock<std::mutex> locker(m_data->lock);
+			while (!m_data->finished)
+				m_data->condition.wait(locker);
+			if (m_data->policy & policy)
+				m_data->error.throw_error();
+		}
+
+		static void aggregator_final_handler(const std::shared_ptr<data> &d, const result_array_function &handler)
+		{
+			handler(d->results, d->error);
+		}
+
+		static void handler_process(async_result_handler<T> handler, const T &result)
+		{
+			handler.process(result);
+		}
+
+		static void handler_complete(async_result_handler<T> handler, const error_info &error)
+		{
+			handler.complete(error);
+		}
+
+		friend class iterator;
+		template <typename K> friend class async_result_handler;
+		std::shared_ptr<data> m_data;
+};
+
+template <typename T>
+class async_result_handler
+{
+	public:
+		async_result_handler(const async_result<T> &result) : m_data(result.m_data)
+		{
+		}
+
+		void set_total(size_t total)
+		{
+			m_data->total = total;
+		}
+
+		size_t get_total()
+		{
+			return m_data->total;
+		}
+
+		void process(const T &result)
+		{
+			std::unique_lock<std::mutex> locker(m_data->lock);
+			const dnet_cmd *cmd = result.command();
+			if (!(cmd->flags & DNET_FLAGS_MORE))
+				m_data->statuses.push_back(*cmd);
+			if (!m_data->filter(result))
+				return;
+			if (m_data->result_handler) {
+				m_data->result_handler(result);
+			} else {
+				m_data->results.push_back(result);
+			}
+		}
+
+		void complete(const error_info &error)
+		{
+			std::unique_lock<std::mutex> locker(m_data->lock);
+			m_data->finished = true;
+			m_data->error = error;
+			if (!error)
+				check(&m_data->error);
+			if (m_data->final_handler) {
+				m_data->final_handler(error);
+			}
+			m_data->condition.notify_all();
+		}
+
+		bool check(error_info *error)
+		{
+			if (!m_data->checker(m_data->statuses, m_data->total)) {
+				if (error) {
+					size_t success = 0;
+					dnet_cmd command;
+					command.status = 0;
+					for (auto it = m_data->statuses.begin(); it != m_data->statuses.end(); ++it) {
+						if (it->status == 0) {
+							++success;
+						} else if (command.status == 0) {
+							command = *it;
+						}
+					}
+//					if (success == 0 && command.status) {
+//						*error = create_error(command);
+//					} else {
+						*error = create_error(-ENXIO, "insufficiant results count due to checker: %zu of %zu (%zu)",
+							success, m_data->total, m_data->statuses.size());
+//					}
+				}
+				return false;
+			}
+			if (error)
+				*error = error_info();
+			return true;
+		}
+
+	private:
+		typedef typename async_result<T>::data data;
+		std::shared_ptr<data> m_data;
 };
 
 }} /* namespace ioremap::elliptics */

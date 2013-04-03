@@ -23,18 +23,6 @@
 
 namespace ioremap { namespace elliptics {
 
-std::set<void*> &assertion_callback_set()
-{
-	static std::set<void*> set;
-	return set;
-}
-
-std::mutex &assertion_callback_mutex()
-{
-	static std::mutex mutex;
-	return mutex;
-}
-
 callback_result_entry::callback_result_entry() : m_data(std::make_shared<callback_result_data>())
 {
 }
@@ -62,9 +50,19 @@ bool callback_result_entry::is_valid() const
 	return !m_data->data.empty();
 }
 
+bool callback_result_entry::is_ack() const
+{
+	return status() == 0 && data().empty();
+}
+
 int callback_result_entry::status() const
 {
 	return command()->status;
+}
+
+error_info callback_result_entry::error() const
+{
+	return m_data->error;
 }
 
 data_pointer callback_result_entry::raw_data() const
@@ -224,8 +222,8 @@ exec_result_entry::exec_result_entry()
 {
 }
 
-exec_result_entry::exec_result_entry(const std::shared_ptr<exec_result_data> &data)
-	: callback_result_entry(std::static_pointer_cast<callback_result_data>(data))
+exec_result_entry::exec_result_entry(const std::shared_ptr<callback_result_data> &data)
+	: callback_result_entry(data)
 {
 }
 
@@ -243,17 +241,11 @@ exec_result_entry &exec_result_entry::operator =(const exec_result_entry &other)
 	return *this;
 }
 
-error_info exec_result_entry::error() const
-{
-	return m_data->error;
-}
-
 exec_context exec_result_entry::context() const
 {
-	auto data = static_cast<exec_result_data*>(m_data.get());
-	if (data->error)
-		data->error.throw_error();
-	return static_cast<exec_result_data*>(m_data.get())->context;
+	if (m_data->error)
+		m_data->error.throw_error();
+	return m_data->context;
 }
 
 iterator_result_entry::iterator_result_entry()
@@ -272,11 +264,6 @@ iterator_result_entry &iterator_result_entry::operator =(const iterator_result_e
 {
 	callback_result_entry::operator =(other);
 	return *this;
-}
-
-error_info iterator_result_entry::error() const
-{
-	return m_data->error;
 }
 
 dnet_iterator_request *iterator_result_entry::reply() const

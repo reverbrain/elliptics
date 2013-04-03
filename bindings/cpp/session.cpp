@@ -17,6 +17,7 @@
 #include "callback_p.h"
 
 #include <sstream>
+#include <future>
 
 namespace ioremap { namespace elliptics {
 
@@ -217,6 +218,71 @@ bool exec_context::is_null() const
 	return !m_data;
 }
 
+namespace filters {
+bool positive(const callback_result_entry &entry)
+{
+	return entry.status() == 0 && !entry.data().empty();
+}
+
+bool negative(const callback_result_entry &entry)
+{
+	return entry.status() != 0;
+}
+
+bool all(const callback_result_entry &entry)
+{
+	return !entry.data().empty();
+}
+
+bool all_with_ack(const callback_result_entry &entry)
+{
+	(void) entry;
+	return true;
+}
+}
+
+namespace checkers
+{
+bool no_check(const std::vector<dnet_cmd> &statuses, size_t total)
+{
+	(void) statuses;
+	(void) total;
+	return true;
+}
+
+bool at_least_one(const std::vector<dnet_cmd> &statuses, size_t total)
+{
+	(void) total;
+	for (auto it = statuses.begin(); it != statuses.end(); ++it) {
+		if (it->status == 0)
+			return true;
+	}
+	return false;
+}
+
+bool all(const std::vector<dnet_cmd> &statuses, size_t total)
+{
+	size_t success = 0;
+	for (auto it = statuses.begin(); it != statuses.end(); ++it) {
+		if (it->status == 0)
+			++success;
+	}
+
+	return success == total;
+}
+
+bool quorum(const std::vector<dnet_cmd> &statuses, size_t total)
+{
+	size_t success = 0;
+	for (auto it = statuses.begin(); it != statuses.end(); ++it) {
+		if (it->status == 0)
+			++success;
+	}
+
+	return (success > total / 2);
+}
+}
+
 class session_data
 {
 	public:
@@ -225,6 +291,9 @@ class session_data
 			session_ptr = dnet_session_create(node_guard.get_native());
 			if (!session_ptr)
 				throw std::bad_alloc();
+			filter = filters::positive;
+			checker = checkers::at_least_one;
+			policy = session::default_exceptions;
 		}
 
 		~session_data()
@@ -236,6 +305,9 @@ class session_data
 
 		struct dnet_session	*session_ptr;
 		node			node_guard;
+		result_filter		filter;
+		result_checker		checker;
+		uint32_t		policy;
 };
 
 session::session(const node &n) : m_data(std::make_shared<session_data>(n))
@@ -267,6 +339,36 @@ std::vector<int> session::get_groups() const
 	int count = 0;
 	int *groups = dnet_session_get_groups(m_data->session_ptr, &count);
 	return std::vector<int>(groups, groups + count);
+}
+
+void session::set_filter(const result_filter &filter)
+{
+	m_data->filter = filter;
+}
+
+result_filter session::get_filter() const
+{
+	return m_data->filter;
+}
+
+void session::set_checker(const result_checker &checker)
+{
+	m_data->checker = checker;
+}
+
+result_checker session::get_checker() const
+{
+	return m_data->checker;
+}
+
+void session::set_exceptions_policy(uint32_t policy)
+{
+	m_data->policy = policy;
+}
+
+uint32_t session::get_exceptions_policy() const
+{
+	return m_data->policy;
 }
 
 void session::set_cflags(uint64_t cflags)
@@ -346,17 +448,16 @@ void session::write_file(const key &id, const std::string &file, uint64_t local_
 	}
 }
 
-void session::read_data(const std::function<void (const read_results &)> &handler,
-	const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
+async_read_result session::read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io)
 {
-	read_data(handler, id, groups, io, DNET_CMD_READ);
+	return read_data(id, groups, io, DNET_CMD_READ);
 }
 
-void session::read_data(const std::function<void (const read_results &)> &handler,
-	const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd)
+async_read_result session::read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io, unsigned int cmd)
 {
 	transform(id);
 
+	async_read_result result(*this);
 	struct dnet_io_control control;
 	memset(&control, 0, sizeof(control));
 
@@ -366,37 +467,21 @@ void session::read_data(const std::function<void (const read_results &)> &handle
 
 	memcpy(&control.io, &io, sizeof(struct dnet_io_attr));
 
-	read_callback::ptr cb = std::make_shared<read_callback>(*this, control);
-	cb->handler = handler;
+	read_callback::ptr cb = std::make_shared<read_callback>(*this, result, control);
 	cb->kid = id;
 	cb->groups = groups;
 
 	startCallback(cb);
+	return result;
 }
 
-void session::read_data(const std::function<void (const read_results &)> &handler,
-	const key &id, int group, const dnet_io_attr &io)
+async_read_result session::read_data(const key &id, int group, const dnet_io_attr &io)
 {
 	const std::vector<int> groups(1, group);
-	read_data(handler, id, groups, io);
+	return read_data(id, groups, io);
 }
 
-struct results_to_result_proxy
-{
-	std::function<void (const read_result &)> handler;
-
-	void operator() (const read_results &results)
-	{
-		if (results.exception() != std::exception_ptr()) {
-			handler(results.exception());
-		} else {
-			handler(results[0]);
-		}
-	}
-};
-
-void session::read_data(const std::function<void (const read_result &)> &handler,
-	const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size)
+async_read_result session::read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size)
 {
 	transform(id);
 
@@ -411,62 +496,191 @@ void session::read_data(const std::function<void (const read_result &)> &handler
 	memcpy(io.id, id.id().id, DNET_ID_SIZE);
 	memcpy(io.parent, id.id().id, DNET_ID_SIZE);
 
-	results_to_result_proxy proxy = { handler };
-
-	read_data(proxy, id, groups, io);
+	return read_data(id, groups, io);
 }
 
-void session::read_data(const std::function<void (const read_result &)> &handler,
-	const key &id, uint64_t offset, uint64_t size)
+async_read_result session::read_data(const key &id, uint64_t offset, uint64_t size)
 {
 	transform(id);
 
-	read_data(handler, id, mix_states(), offset, size);
+	return read_data(id, mix_states(), offset, size);
 }
 
-read_result session::read_data(const key &id, uint64_t offset, uint64_t size)
+template <typename T>
+struct aggregator_handler
 {
-	waiter<read_result> w;
-	read_data(w.handler(), id, offset, size);
-	return w.result();
-}
+	struct scope
+	{
+		scope(const async_result<T> &result, size_t count)
+		: handler(result), finished(count), has_success(false)
+		{
+		}
 
-read_result session::read_data(const key &id, const std::vector<int> &groups, uint64_t offset, uint64_t size)
-{
-	waiter<read_result> w;
-	read_data(w.handler(), id, groups, offset, size);
-	return w.result();
-}
+		async_result_handler<T> handler;
+		std::mutex mutext;
+		size_t finished;
+		error_info error;
+		std::atomic_bool has_success;
+	};
 
-read_result session::read_data(const key &id, int group_id, uint64_t offset, uint64_t size)
-{
-	std::vector<int> groups(1, group_id);
-	return read_data(id, groups, offset, size);
-}
+	std::shared_ptr<scope> data;
 
-void session::prepare_latest(const std::function<void (const prepare_latest_result &)> &handler,
-	const key &id, const std::vector<int> &groups)
-{
-	if (groups.empty()) {
-		handler(groups);
-		return;
+	void operator() (const T &result)
+	{
+		if (result.status() == 0 && result.is_valid())
+			data->has_success = true;
+		data->handler.process(result);
 	}
 
-	transform(id);
+	void operator() (const error_info &error)
+	{
+		std::lock_guard<std::mutex> lock(data->mutext);
+		if (error)
+			data->error = error;
+		if (--data->finished == 0)
+			data->handler.complete(data->has_success ? error_info() : error);
+	}
+};
 
-	prepare_latest_callback::ptr cb = std::make_shared<prepare_latest_callback>(*this, groups);
-	cb->handler = handler;
-	cb->id = id;
-	cb->group_id = id.id().group_id;
+template <typename iterator>
+typename iterator::value_type aggregated(session &sess, iterator begin, iterator end)
+{
+	typedef typename iterator::value_type async_result_type;
+	typedef typename async_result_type::entry_type entry_type;
+	typedef typename aggregator_handler<entry_type>::scope scope_type;
 
-	startCallback(cb);
+	async_result_type result(sess);
+
+	aggregator_handler<entry_type> handler = {
+		std::make_shared<scope_type>(result, std::distance(begin, end))
+	};
+	for (auto it = begin; it != end; ++it) {
+		it->connect(handler, handler);
+	}
+	return result;
 }
 
-void session::prepare_latest(const key &id, std::vector<int> &groups)
+class session_scope
 {
-	waiter<prepare_latest_result> w;
-	prepare_latest(w.handler(), id, groups);
-	groups = w.result();
+	public:
+		session_scope(session &sess) : m_sess(sess)
+		{
+			m_filter = m_sess.get_filter();
+			m_checker = m_sess.get_checker();
+			m_policy = m_sess.get_exceptions_policy();
+		}
+
+		~session_scope()
+		{
+			m_sess.set_filter(m_filter);
+			m_sess.set_checker(m_checker);
+			m_sess.set_exceptions_policy(m_policy);
+		}
+
+	private:
+		session &m_sess;
+		result_filter m_filter;
+		result_checker m_checker;
+		uint32_t m_policy;
+};
+
+struct prepare_latest_functor
+{
+	async_result_handler<lookup_result_entry> result;
+	uint32_t group_id;
+
+	struct comparator
+	{
+		bool operator() (dnet_file_info *a, dnet_file_info *b) const
+		{
+			return (a->mtime.tsec > b->mtime.tsec)
+				|| (a->mtime.tsec == b->mtime.tsec
+					&& (a->mtime.tnsec > b->mtime.tnsec));
+		}
+
+		int type(const lookup_result_entry &entry) const
+		{
+			const int status = entry.status();
+			// valid positive response
+			if (status == 0 && entry.data().size() > sizeof(dnet_file_info))
+				return 0;
+			// ack response
+			if (status == 0)
+				return 1;
+			// negative response
+			return 2;
+		}
+
+		bool operator() (const lookup_result_entry &a, const lookup_result_entry &b) const
+		{
+			const int type_a = type(a);
+			const int type_b = type(b);
+
+			if (type_a == 0 && type_b == 0) {
+				return operator() (a.file_info(), b.file_info());
+			}
+			return type_a < type_b;
+		}
+	};
+
+	bool is_equal(dnet_file_info *a, dnet_file_info *b)
+	{
+		return a->mtime.tsec == b->mtime.tsec
+			&& a->mtime.tnsec == b->mtime.tnsec;
+	}
+
+	void operator() (std::vector<lookup_result_entry> results, const error_info &error)
+	{
+		comparator cmp;
+		sort(results.begin(), results.end(), cmp);
+		for (auto it = results.begin(); it != results.end(); ++it)
+			result.process(*it);
+
+		// Prefer to use user's group
+		for (size_t i = 1; i < results.size(); ++i) {
+			// We've found answer with interested group
+			if (results[i].command()->id.group_id == group_id) {
+				// Check if it has the same priority as first one
+				if (!cmp(results[i], results[0]) && !cmp(results[0], results[i]))
+					std::swap(results[i], results[0]);
+				break;
+			}
+		}
+		result.complete(error);
+	}
+};
+
+async_lookup_result session::prepare_latest(const key &id, const std::vector<int> &groups)
+{
+	async_lookup_result result(*this);
+	async_result_handler<lookup_result_entry> result_handler(result);
+
+	if (groups.empty()) {
+		result_handler.complete(error_info());
+		return result;
+	}
+	transform(id);
+
+	std::list<async_write_result> results;
+
+	{
+		session_scope scope(*this);
+
+		// Ensure checkers and policy will work only for aggregated request
+		set_checker(checkers::no_check);
+		set_exceptions_policy(no_exceptions);
+
+		dnet_id raw = id.id();
+		for(size_t i = 0; i < groups.size(); ++i) {
+			raw.group_id = groups[i];
+			results.emplace_back(std::move(lookup(raw)));
+		}
+	}
+
+	auto tmp_result = aggregated(*this, results.begin(), results.end());
+	prepare_latest_functor functor = { result_handler, id.id().group_id };
+	tmp_result.connect(functor);
+	return result;
 }
 
 // It could be a lambda functor! :`(
@@ -476,52 +690,55 @@ struct read_latest_callback
 	key id;
 	uint64_t offset;
 	uint64_t size;
-	std::function<void (const read_result &)> handler;
+	async_result_handler<read_result_entry> handler;
 	std::vector<int> groups;
 
-	void operator() (const prepare_latest_result &result)
+	void operator() (const std::vector<lookup_result_entry> &result, const error_info &error)
 	{
-		if (result.exception() == std::exception_ptr() && result.size() > 0)
-			groups = result;
+		if (!error && !result.empty()) {
+			groups.clear();
+			groups.reserve(result.size());
+			for (auto it = result.begin(); it != result.end(); ++it)
+				groups.push_back(it->command()->id.group_id);
+		}
 
-		try {
-			sess.read_data(handler, id, groups, offset, size);
-		} catch (...) {
-			handler(std::current_exception());
+		{
+			session_scope scope(sess);
+			sess.set_exceptions_policy(session::no_exceptions);
+			sess.read_data(id, groups, offset, size).connect(handler);
 		}
 	}
 };
 
-void session::read_latest(const std::function<void (const read_result &)> &handler,
-	const key &id, uint64_t offset, uint64_t size)
+async_read_result session::read_latest(const key &id, uint64_t offset, uint64_t size)
 {
-	read_latest_callback callback = { *this, id, offset, size, handler, mix_states() };
-	prepare_latest(callback, id, callback.groups);
+	async_read_result result(*this);
+	{
+		session_scope scope(*this);
+		set_filter(filters::positive);
+		set_checker(checkers::no_check);
+
+		read_latest_callback callback = { *this, id, offset, size, result, mix_states() };
+		prepare_latest(id, callback.groups).connect(callback);
+	}
+	return result;
 }
 
-read_result session::read_latest(const key &id, uint64_t offset, uint64_t size)
+async_write_result session::write_data(const dnet_io_control &ctl)
 {
-	waiter<read_result> w;
-	read_latest(w.handler(), id, offset, size);
-	return w.result();
-}
-
-void session::write_data(const std::function<void (const write_result &)> &handler, const dnet_io_control &ctl)
-{
-	write_callback::ptr cb = std::make_shared<write_callback>(*this, ctl);
+	async_write_result result(*this);
+	write_callback::ptr cb = std::make_shared<write_callback>(*this, result, ctl);
 
 	cb->ctl.cmd = DNET_CMD_WRITE;
 	cb->ctl.cflags |= DNET_FLAGS_NEED_ACK;
 
 	memcpy(cb->ctl.io.id, cb->ctl.id.id, DNET_ID_SIZE);
 
-	cb->handler = handler;
-
 	startCallback(cb);
+	return result;
 }
 
-void session::write_data(const std::function<void (const write_result &)> &handler,
-	const key &id, const data_pointer &file, uint64_t remote_offset)
+async_write_result session::write_data(const key &id, const data_pointer &file, uint64_t remote_offset)
 {
 	transform(id);
 	dnet_id raw = id.id();
@@ -543,14 +760,7 @@ void session::write_data(const std::function<void (const write_result &)> &handl
 
 	ctl.fd = -1;
 
-	write_data(handler, ctl);
-}
-
-write_result session::write_data(const key &id, const data_pointer &file, uint64_t remote_offset)
-{
-	waiter<write_result> w;
-	write_data(w.handler(), id, file, remote_offset);
-	return w.result();
+	return write_data(ctl);
 }
 
 struct cas_data
@@ -558,7 +768,7 @@ struct cas_data
 	typedef std::shared_ptr<cas_data> ptr;
 
 	session sess;
-	std::function<void (const write_result &)> handler;
+	async_result_handler<write_result_entry> handler;
 	std::function<data_pointer (const data_pointer &)> converter;
 	key id;
 	uint64_t remote_offset;
@@ -571,84 +781,59 @@ struct cas_data
 
 		void next_iteration()
 		{
-			scope->sess.read_latest(*this, scope->id, scope->remote_offset, 0);
+			scope->sess.read_latest(scope->id, scope->remote_offset, 0).connect(*this);
 		}
 
-		void operator () (const read_result &result)
+		void operator () (const sync_read_result &result, const error_info &err)
 		{
-			data_pointer data;
-			try {
-				data = result->file();
-			} catch (error &e) {
-				if (e.error_code() != -ENOENT) {
-					scope->handler(std::exception_ptr());
-					return;
-				}
-			} catch (...) {
-				scope->handler(std::exception_ptr());
+			if (err && err.code() != -ENOENT) {
+				scope->handler.complete(err);
+				return;
+			}
+			data_pointer data = (err.code() == -ENOENT) ? data_pointer() : result[0].file();
+
+			data_pointer write_data = scope->converter(data);
+
+			if (write_data.size() == data.size()
+				&& ((write_data.empty() && data.empty())
+					|| write_data.data() == data.data())) {
+				scope->handler.complete(error_info());
 				return;
 			}
 
-			try {
-				data_pointer write_data = scope->converter(data);
+			dnet_id csum;
+			memset(&csum, 0, sizeof(csum));
+			scope->sess.transform(data, csum);
 
-				if (write_data.size() == data.size()
-					&& ((write_data.empty() && data.empty())
-						|| write_data.data() == data.data())) {
-					scope->handler(std::exception_ptr());
-					return;
-				}
-
-				dnet_id csum;
-				memset(&csum, 0, sizeof(csum));
-				scope->sess.transform(data, csum);
-
-				scope->sess.write_cas(*this, scope->id, write_data, csum, scope->remote_offset);
-			} catch (...) {
-				scope->handler(std::current_exception());
-			}
+			scope->sess.write_cas(scope->id, write_data, csum, scope->remote_offset).connect(*this);
 		}
 
-		void operator () (const write_result &result)
+		void operator () (const sync_write_result &result, const error_info &err)
 		{
-			try {
-				result.check();
-				scope->handler(result);
-			} catch (error &e) {
-				if (e.error_code() == -EINVAL) {
-					// mismatched checksum
-					++scope->index;
-					if (scope->index < scope->count)
-						next_iteration();
-				}
-				scope->handler(std::current_exception());
-				return;
-			} catch (...) {
-				scope->handler(std::current_exception());
+			if (err.code() == -EINVAL) {
+				++scope->index;
+				if (scope->index < scope->count)
+					next_iteration();
 				return;
 			}
+			for (auto it = result.begin(); it != result.end(); ++it)
+				scope->handler.process(*it);
+			scope->handler.complete(err);
 		}
 	};
 };
 
-void session::write_cas(const std::function<void (const write_result &)> &handler, const key &id,
-	const std::function<data_pointer (const data_pointer &)> &converter, uint64_t remote_offset, int count)
+async_write_result session::write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter, uint64_t remote_offset, int count)
 {
+	async_write_result result(*this);
+	async_result_handler<write_result_entry> handler(result);
 	cas_data scope = { *this, handler, converter, id, remote_offset, 0, count };
 	cas_data::functor cas_handler = { std::make_shared<cas_data>(scope) };
 	cas_handler.next_iteration();
+	return result;
 }
 
-write_result session::write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
-	uint64_t remote_offset, int count)
-{
-	waiter<write_result> w;
-	write_cas(w.handler(), id, converter, remote_offset, count);
-	return w.result();
-}
-
-void session::write_cas(const std::function<void (const write_result &)> &handler,
-	const key &id, const data_pointer &file, const dnet_id &old_csum, uint64_t remote_offset)
+async_write_result session::write_cas(const key &id, const data_pointer &file, const dnet_id &old_csum, uint64_t remote_offset)
 {
 	transform(id);
 	dnet_id raw = id.id();
@@ -672,18 +857,10 @@ void session::write_cas(const std::function<void (const write_result &)> &handle
 
 	ctl.fd = -1;
 
-	write_data(handler, ctl);
+	return write_data(ctl);
 }
 
-write_result session::write_cas(const key &id, const data_pointer &file, const dnet_id &old_csum, uint64_t remote_offset)
-{
-	waiter<write_result> w;
-	write_cas(w.handler(), id, file, old_csum, remote_offset);
-	return w.result();
-}
-
-void session::write_prepare(const std::function<void (const write_result &)> &handler,
-	const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t psize)
+async_write_result session::write_prepare(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t psize)
 {
 	transform(id);
 
@@ -704,18 +881,10 @@ void session::write_prepare(const std::function<void (const write_result &)> &ha
 
 	ctl.fd = -1;
 
-	write_data(handler, ctl);
+	return write_data(ctl);
 }
 
-write_result session::write_prepare(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t psize)
-{
-	waiter<write_result> w;
-	write_prepare(w.handler(), id, file, remote_offset, psize);
-	return w.result();
-}
-
-void session::write_plain(const std::function<void (const write_result &)> &handler,
-	const key &id, const data_pointer &file, uint64_t remote_offset)
+async_write_result session::write_plain(const key &id, const data_pointer &file, uint64_t remote_offset)
 {
 	transform(id);
 	dnet_id raw = id.id();
@@ -736,18 +905,10 @@ void session::write_plain(const std::function<void (const write_result &)> &hand
 
 	ctl.fd = -1;
 
-	write_data(handler, ctl);
+	return write_data(ctl);
 }
 
-write_result session::write_plain(const key &id, const data_pointer &file, uint64_t remote_offset)
-{
-	waiter<write_result> w;
-	write_plain(w.handler(), id, file, remote_offset);
-	return w.result();
-}
-
-void session::write_commit(const std::function<void (const write_result &)> &handler,
-	const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize)
+async_write_result session::write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize)
 {
 	transform(id);
 
@@ -768,18 +929,10 @@ void session::write_commit(const std::function<void (const write_result &)> &han
 
 	ctl.fd = -1;
 
-	write_data(handler, ctl);
+	return write_data(ctl);
 }
 
-write_result session::write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize)
-{
-	waiter<write_result> w;
-	write_commit(w.handler(), id, file, remote_offset, csize);
-	return w.result();
-}
-
-void session::write_cache(const std::function<void (const write_result &)> &handler,
-	const key &id, const data_pointer &file, long timeout)
+async_write_result session::write_cache(const key &id, const data_pointer &file, long timeout)
 {
 	transform(id);
 	dnet_id raw = id.id();
@@ -802,14 +955,7 @@ void session::write_cache(const std::function<void (const write_result &)> &hand
 
 	ctl.fd = -1;
 
-	write_data(handler, ctl);
-}
-
-write_result session::write_cache(const key &id, const data_pointer &file, long timeout)
-{
-	waiter<write_result> w;
-	write_cache(w.handler(), id, file, timeout);
-	return w.result();
+	return write_data(ctl);
 }
 
 std::string session::lookup_address(const key &id, int group_id)
@@ -914,95 +1060,60 @@ void session::transform(const key &id)
 	const_cast<key&>(id).transform(*this);
 }
 
-void session::lookup(const std::function<void (const lookup_result &)> &handler, const key &id)
+async_lookup_result session::lookup(const key &id)
 {
 	transform(id);
 
-	lookup_callback::ptr cb = std::make_shared<lookup_callback>(*this);
-	cb->handler = handler;
+	async_lookup_result result(*this);
+	lookup_callback::ptr cb = std::make_shared<lookup_callback>(*this, result);
 	cb->kid = id;
 
 	mix_states(id, cb->groups);
 
 	startCallback(cb);
+	return result;
 }
 
-lookup_result session::lookup(const key &id)
-{
-	waiter<lookup_result> w;
-	lookup(w.handler(), id);
-	return w.result();
-}
-
-void session::remove_raw(const key &id)
-{
-	remove(id);
-}
-
-void session::remove(const std::function<void (const std::exception_ptr &)> &handler, const key &id)
+async_remove_result session::remove(const key &id)
 {
 	transform(id);
 
-	remove_callback::ptr cb = std::make_shared<remove_callback>(*this, id.id());
-	cb->handler = handler;
+	async_remove_result result(*this);
+	remove_callback::ptr cb = std::make_shared<remove_callback>(*this, result, id.id());
 
 	startCallback(cb);
+	return result;
 }
 
-void session::remove(const key &id)
+async_stat_result session::stat_log()
 {
-	waiter<std::exception_ptr> w;
-	remove(w.handler(), id);
-	w.result();
-}
-
-void session::stat_log(const std::function<void (const stat_result &)> &handler)
-{
-	stat_callback::ptr cb = std::make_shared<stat_callback>(*this);
-	cb->handler = handler;
+	async_stat_result result(*this);
+	stat_callback::ptr cb = std::make_shared<stat_callback>(*this, result);
 
 	startCallback(cb);
+	return result;
 }
 
-void session::stat_log(const std::function<void (const stat_result &)> &handler, const key &id)
+async_stat_result session::stat_log(const key &id)
 {
+	async_stat_result result(*this);
 	transform(id);
 
-	stat_callback::ptr cb = std::make_shared<stat_callback>(*this);
-	cb->handler = handler;
+	stat_callback::ptr cb = std::make_shared<stat_callback>(*this, result);
 	cb->id = id.id();
 	cb->has_id = true;
 
 	startCallback(cb);
+	return result;
 }
 
-stat_result session::stat_log()
+async_stat_count_result session::stat_log_count()
 {
-	waiter<stat_result> w;
-	stat_log(w.handler());
-	return w.result();
-}
-
-stat_result session::stat_log(const key &id)
-{
-	waiter<stat_result> w;
-	stat_log(w.handler(), id);
-	return w.result();
-}
-
-void session::stat_log_count(const std::function<void (const stat_count_result &)> &handler)
-{
-	stat_count_callback::ptr cb = std::make_shared<stat_count_callback>(*this);
-	cb->handler = handler;
+	async_stat_count_result result(*this);
+	stat_count_callback::ptr cb = std::make_shared<stat_count_callback>(*this, result);
 
 	startCallback(cb);
-}
-
-stat_count_result session::stat_log_count()
-{
-	waiter<stat_count_result> w;
-	stat_log_count(w.handler());
-	return w.result();
+	return result;
 }
 
 int session::state_num(void)
@@ -1010,18 +1121,13 @@ int session::state_num(void)
 	return dnet_state_num(m_data->session_ptr);
 }
 
-void session::request_cmd(const std::function<void (const command_result &)> &handler, const transport_control &ctl)
+async_generic_result session::request_cmd(const transport_control &ctl)
 {
-	cmd_callback::ptr cb = std::make_shared<cmd_callback>(*this, ctl);
-	cb->handler = handler;
+	async_generic_result result(*this);
+	cmd_callback::ptr cb = std::make_shared<cmd_callback>(*this, result, ctl);
 
 	startCallback(cb);
-}
-command_result session::request_cmd(const transport_control &ctl)
-{
-	waiter<command_result> w;
-	request_cmd(w.handler(), ctl);
-	return w.result();
+	return result;
 }
 
 void session::update_status(const char *saddr, const int port, const int family, struct dnet_node_status *status)
@@ -1060,7 +1166,8 @@ class read_data_range_callback
 	public:
 		struct scope
 		{
-			scope(const session &sess) : sess(sess) {}
+			scope(const session &sess, const async_result_handler<read_result_entry> &handler)
+				: sess(sess), handler(handler) {}
 
 			session sess;
 			struct dnet_io_attr io;
@@ -1068,29 +1175,35 @@ class read_data_range_callback
 			int group_id;
 			unsigned int cmd;
 			bool need_exit;
-			std::function<void (const read_range_result &)> handler;
-			std::function<void (const read_results &)> me;
+
+			bool has_any;
+			dnet_io_attr rep;
+
+			async_result_handler<read_result_entry> handler;
+			std::function<void (const read_result_entry &)> me_entry;
+			std::function<void (const error_info &)> me_final;
 			struct dnet_raw_id start, next;
 			struct dnet_raw_id end;
 			uint64_t size;
 			std::vector<read_result_entry> result;
-			std::exception_ptr last_exception;
+			error_info last_exception;
 		};
 
 		std::shared_ptr<scope> data;
 
 		read_data_range_callback(const session &sess,
 			const struct dnet_io_attr &io, int group_id,
-			const std::function<void (const read_range_result &)> &handler)
-			: data(std::make_shared<scope>(sess))
+			const async_result_handler<read_result_entry> &handler)
+			: data(std::make_shared<scope>(sess, handler))
 		{
 			scope *d = data.get();
 
 			d->io = io;
 			d->group_id = group_id;
 			d->need_exit = false;
-			d->handler = handler;
-			d->me = *this;
+			d->has_any = false;
+			d->me_entry = *this;
+			d->me_final = *this;
 			d->cmd = DNET_CMD_READ_RANGE;
 			d->size = io.size;
 
@@ -1100,77 +1213,85 @@ class read_data_range_callback
 			d->id.type = d->io.type;
 		}
 
-
-		void do_next()
+		void do_next(error_info *error)
 		{
 			scope *d = data.get();
 			struct dnet_node * const node = d->sess.get_node().get_native();
-			try {
-				if (d->need_exit) {
-					if (d->result.empty())
-						d->handler(d->last_exception);
-					else
-						d->handler(d->result);
-					return;
-				}
-				int err = dnet_search_range(node, &d->id, &d->start, &d->next);
-				if (err) {
-					throw_error(err, d->io.id, "Failed to read range data object: group: %d, size: %llu",
-						d->group_id, static_cast<unsigned long long>(d->io.size));
-				}
+			d->has_any = false;
 
-				if ((dnet_id_cmp_str(d->id.id, d->next.id) > 0) ||
-						!memcmp(d->start.id, d->next.id, DNET_ID_SIZE) ||
-						(dnet_id_cmp_str(d->next.id, d->end.id) > 0)) {
-					memcpy(d->next.id, d->end.id, DNET_ID_SIZE);
-					d->need_exit = true;
-				}
+			if (d->need_exit) {
+				if (d->result.empty())
+					d->handler.complete(d->last_exception);
+				else
+					d->handler.complete(error_info());
+				return;
+			}
+			int err = dnet_search_range(node, &d->id, &d->start, &d->next);
+			if (err) {
+				*error = create_error(err, d->io.id, "Failed to read range data object: group: %d, size: %llu",
+					d->group_id, static_cast<unsigned long long>(d->io.size));
+				return;
+			}
 
-				logger log = d->sess.get_node().get_log();
+			if ((dnet_id_cmp_str(d->id.id, d->next.id) > 0) ||
+					!memcmp(d->start.id, d->next.id, DNET_ID_SIZE) ||
+					(dnet_id_cmp_str(d->next.id, d->end.id) > 0)) {
+				memcpy(d->next.id, d->end.id, DNET_ID_SIZE);
+				d->need_exit = true;
+			}
 
-				if (log.get_log_level() > DNET_LOG_NOTICE) {
-					int len = 6;
-					char start_id[2*len + 1];
-					char next_id[2*len + 1];
-					char end_id[2*len + 1];
-					char id_str[2*len + 1];
+			logger log = d->sess.get_node().get_log();
 
-					dnet_log_raw(node, DNET_LOG_NOTICE, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d\n",
-							dnet_dump_id_len_raw(d->id.id, len, id_str),
-							dnet_dump_id_len_raw(d->start.id, len, start_id),
-							dnet_dump_id_len_raw(d->next.id, len, next_id),
-							dnet_dump_id_len_raw(d->end.id, len, end_id),
-							(unsigned long long)d->size, dnet_id_cmp_str(d->next.id, d->end.id));
-				}
+			if (log.get_log_level() > DNET_LOG_NOTICE) {
+				int len = 6;
+				char start_id[2*len + 1];
+				char next_id[2*len + 1];
+				char end_id[2*len + 1];
+				char id_str[2*len + 1];
 
-				memcpy(d->io.id, d->id.id, DNET_ID_SIZE);
-				memcpy(d->io.parent, d->next.id, DNET_ID_SIZE);
+				dnet_log_raw(node, DNET_LOG_NOTICE, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d\n",
+						dnet_dump_id_len_raw(d->id.id, len, id_str),
+						dnet_dump_id_len_raw(d->start.id, len, start_id),
+						dnet_dump_id_len_raw(d->next.id, len, next_id),
+						dnet_dump_id_len_raw(d->end.id, len, end_id),
+						(unsigned long long)d->size, dnet_id_cmp_str(d->next.id, d->end.id));
+			}
 
-				d->io.size = d->size;
+			memcpy(d->io.id, d->id.id, DNET_ID_SIZE);
+			memcpy(d->io.parent, d->next.id, DNET_ID_SIZE);
 
-				std::vector<int> groups(1, d->group_id);
-				d->sess.read_data(d->me, d->id, groups, d->io, d->cmd);
-			} catch (...) {
-				std::exception_ptr exc = std::current_exception();
-				d->handler(exc);
+			d->io.size = d->size;
+
+			std::vector<int> groups(1, d->group_id);
+			{
+				session_scope scope(d->sess);
+				d->sess.set_checker(checkers::no_check);
+				d->sess.set_filter(filters::all_with_ack);
+				d->sess.set_exceptions_policy(session::no_exceptions);
+
+				d->sess.read_data(d->id, groups, d->io, d->cmd).connect(d->me_entry, d->me_final);
 			}
 		}
 
-		void operator () (const read_results &result)
+		void operator() (const read_result_entry &entry)
 		{
 			scope *d = data.get();
 
-			if (result.exception() != std::exception_ptr()) {
-				d->last_exception = result.exception();
+			d->has_any = true;
+			if (entry.status() == 0 && entry.data().size() == sizeof(dnet_io_attr))
+				d->rep = *entry.io_attribute();
+			else
+				d->handler.process(entry);
+		}
+
+		void operator() (const error_info &error)
+		{
+			scope *d = data.get();
+
+			if (error) {
+				d->last_exception = error;
 			} else {
-				size_t size = result.size();
-
-				/* If DNET_IO_FLAGS_NODATA is set do not decrement size as 'rep' is the only structure in output */
-				if (!(d->io.flags & DNET_IO_FLAGS_NODATA))
-					--size;
-
-				read_result_entry last_entry = result[result.size() - 1];
-				struct dnet_io_attr *rep = last_entry.io_attribute();
+				struct dnet_io_attr *rep = &d->rep;
 
 				dnet_log_raw(d->sess.get_node().get_native(),
 					DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
@@ -1182,13 +1303,10 @@ class read_data_range_callback
 					d->io.start = 0;
 					d->io.num -= rep->num;
 
-					for (size_t i = 0; i < size; ++i)
-						d->result.push_back(result[i]);
-
-					d->last_exception = std::exception_ptr();
+					d->last_exception = error_info();
 
 					if (!d->io.num) {
-						d->handler(d->result);
+						d->handler.complete(error_info());
 						return;
 					}
 				} else {
@@ -1198,7 +1316,10 @@ class read_data_range_callback
 
 			memcpy(d->id.id, d->next.id, DNET_ID_SIZE);
 
-			do_next();
+			error_info next_error;
+			do_next(&next_error);
+			if (next_error)
+				d->handler.complete(next_error);
 		}
 };
 
@@ -1207,63 +1328,68 @@ class remove_data_range_callback : public read_data_range_callback
 	public:
 		remove_data_range_callback(const session &sess,
 			const struct dnet_io_attr &io, int group_id,
-			const std::function<void (const read_range_result &)> &handler)
+			const async_result_handler<read_result_entry> &handler)
 		: read_data_range_callback(sess, io, group_id, handler)
 		{
 			scope *d = data.get();
 
 			d->cmd = DNET_CMD_DEL_RANGE;
-			d->me = *this;
+			d->me_entry = *this;
+			d->me_final = *this;
 		}
 
-		void operator () (const read_results &result)
+		void operator() (const read_result_entry &entry)
 		{
 			scope *d = data.get();
 
-			if (result.exception() != std::exception_ptr()) {
-				d->last_exception = result.exception();
-			} else if (result.size() > 0){
-				struct dnet_io_attr *rep = result[0].io_attribute();
+			d->has_any = true;
+			if (entry.status() == 0 && entry.data().size() == sizeof(dnet_io_attr))
+				d->rep = *entry.io_attribute();
+			d->handler.process(entry);
+		}
 
-				dnet_log_raw(d->sess.get_node().get_native(), DNET_LOG_NOTICE,
-						"%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
-						dnet_dump_id(&d->id), (unsigned long long)rep->num, (unsigned long long)d->io.start,
-						(unsigned long long)d->io.num, (unsigned long long)d->io.size);
+		void operator() (const error_info &error)
+		{
+			scope *d = data.get();
 
-				d->result.push_back(result[0]);
+			if (error) {
+				d->last_exception = error;
 			} else {
-				try {
-					throw_error(-ENOENT, d->io.id, "Failed to remove range data object: group: %d, size: %llu",
-						d->group_id, static_cast<unsigned long long>(d->io.size));
-				} catch (...) {
-					d->last_exception = std::current_exception();
+				if (d->has_any) {
+					dnet_log_raw(d->sess.get_node().get_native(), DNET_LOG_NOTICE,
+							"%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
+							dnet_dump_id(&d->id), (unsigned long long)d->rep.num, (unsigned long long)d->io.start,
+							(unsigned long long)d->io.num, (unsigned long long)d->io.size);
+				} else {
+					d->handler.complete(create_error(-ENOENT, d->io.id, "Failed to remove range data object: group: %d, size: %llu",
+						d->group_id, static_cast<unsigned long long>(d->io.size)));
 				}
-				d->handler(d->last_exception);
-				return;
 			}
 
 			memcpy(d->id.id, d->next.id, DNET_ID_SIZE);
 
-			do_next();
+			error_info next_error;
+			do_next(&next_error);
+			if (next_error)
+				d->handler.complete(next_error);
 		}
 };
 
-void session::read_data_range(const std::function<void (const read_range_result &)> &handler,
-	const struct dnet_io_attr &io, int group_id)
+async_read_result session::read_data_range(const struct dnet_io_attr &io, int group_id)
 {
-	read_data_range_callback(*this, io, group_id, handler).do_next();
+	async_read_result result(*this);
+	async_result_handler<read_result_entry> handler(result);
+	error_info error;
+	read_data_range_callback(*this, io, group_id, handler).do_next(&error);
+	if (get_exceptions_policy() & throw_at_start)
+		error.throw_error();
+	return result;
 }
 
-read_range_result session::read_data_range(struct dnet_io_attr &io, int group_id)
-{
-	waiter<read_range_result> w;
-	read_data_range(w.handler(), io, group_id);
-	return w.result();
-}
 
 std::vector<std::string> session::read_data_range_raw(dnet_io_attr &io, int group_id)
 {
-	read_range_result range_result = read_data_range(io, group_id);
+	sync_read_result range_result = read_data_range(io, group_id).get();
 	std::vector<std::string> result;
 
 	uint64_t num = 0;
@@ -1285,16 +1411,15 @@ std::vector<std::string> session::read_data_range_raw(dnet_io_attr &io, int grou
 	return result;
 }
 
-void session::remove_data_range(const std::function<void (const remove_range_result &)> &handler, dnet_io_attr &io, int group_id)
+async_read_result session::remove_data_range(dnet_io_attr &io, int group_id)
 {
-	remove_data_range_callback(*this, io, group_id, handler).do_next();
-}
-
-remove_range_result session::remove_data_range(struct dnet_io_attr &io, int group_id)
-{
-	waiter<remove_range_result> w;
-	remove_data_range(w.handler(), io, group_id);
-	return w.result();
+	async_read_result result(*this);
+	async_result_handler<read_result_entry> handler(result);
+	error_info error;
+	remove_data_range_callback(*this, io, group_id, handler).do_next(&error);
+	if (get_exceptions_policy() & throw_at_start)
+		error.throw_error();
+	return result;
 }
 
 std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
@@ -1322,17 +1447,15 @@ std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
 	return res;
 }
 
-void session::request(const std::function<void (const exec_result &)> &handler,
-		const std::function<void (const std::exception_ptr &)> &complete_handler,
-		dnet_id *id, const exec_context &context)
+async_exec_result session::request(dnet_id *id, const exec_context &context)
 {
-	exec_callback::ptr cb = std::make_shared<exec_callback>(*this);
+	async_exec_result result(*this);
+	exec_callback::ptr cb = std::make_shared<exec_callback>(*this, result);
 	cb->id = id;
 	cb->sph = context.m_data->sph.data<sph>();
-	cb->handler = handler;
-	cb->complete_handler = complete_handler;
 
 	startCallback(cb);
+	return result;
 }
 
 void session::mix_states(const key &id, std::vector<int> &groups)
@@ -1375,23 +1498,19 @@ std::vector<int> session::mix_states()
 	return result;
 }
 
-void session::start_iterator(const std::function<void (const iterator_result &)> &handler,
-	const std::function<void (const std::exception_ptr &)> &complete_handler,
-	const key &id, const dnet_iterator_request &request)
+async_iterator_result session::start_iterator(const key &id, const dnet_iterator_request &request)
 {
 	transform(id);
-	iterator_callback::ptr cb = std::make_shared<iterator_callback>(*this);
+	async_iterator_result result(*this);
+	iterator_callback::ptr cb = std::make_shared<iterator_callback>(*this, result);
 	cb->id = id.id();
 	cb->request = request;
-	cb->handler = handler;
-	cb->complete_handler = complete_handler;
 
 	startCallback(cb);
+	return result;
 }
 
-void session::exec(const std::function<void (const exec_result &)> &handler,
-	const std::function<void (const std::exception_ptr &)> &complete_handler,
-	dnet_id *id, const std::string &event, const data_pointer &data)
+async_exec_result session::exec(dnet_id *id, const std::string &event, const data_pointer &data)
 {
 	exec_context context = exec_context_data::create(event, data);
 
@@ -1401,68 +1520,20 @@ void session::exec(const std::function<void (const exec_result &)> &handler,
 	if (id)
 		memcpy(s->src.id, id->id, sizeof(s->src.id));
 
-	request(handler, complete_handler, id, context);
+	return request(id, context);
 }
 
-void session::exec(const std::function<void (const exec_result &)> &handler, dnet_id *id, const std::string &event, const data_pointer &data)
-{
-	exec(handler, std::function<void (const std::exception_ptr &)>(), id, event, data);
-}
-
-struct exec_results_aggregator
-{
-	std::mutex &mutex;
-	exec_results &results;
-
-	void operator() (const exec_result &result)
-	{
-		std::lock_guard<std::mutex> locker(mutex);
-		results.push_back(result);
-	}
-};
-
-exec_results session::exec(dnet_id *id, const std::string &event, const data_pointer &data)
-{
-	std::mutex mutex;
-	exec_results results;
-	exec_results_aggregator functor = { mutex, results };
-	waiter<std::exception_ptr> w;
-	exec(functor, w.handler(), id, event, data);
-	w.result();
-	return results;
-}
-
-void session::push(const std::function<void (const push_result &)> &handler,
-		const std::function<void (const std::exception_ptr &)> &complete_handler,
-		dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
+async_push_result session::push(dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
 {
 	exec_context context = exec_context_data::copy(tmp_context, event, data);
 
 	sph *s = context.m_data->sph.data<sph>();
 	s->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
 
-	request(handler, complete_handler, id, context);
+	return request(id, context);
 }
 
-void session::push(const std::function<void (const push_result &)> &handler, dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
-{
-	push(handler, std::function<void (const std::exception_ptr &)>(), id, tmp_context, event, data);
-}
-
-push_results session::push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data)
-{
-	std::mutex mutex;
-	exec_results results;
-	exec_results_aggregator functor = { mutex, results };
-	waiter<std::exception_ptr> w;
-	push(functor, w.handler(), id, context, event, data);
-	w.result();
-	return results;
-}
-
-void session::reply(const std::function<void (const reply_result &)> &handler,
-		const std::function<void (const std::exception_ptr &)> &complete_handler,
-		const exec_context &tmp_context, const data_pointer &data, exec_context::final_state state)
+async_reply_result session::reply(const exec_context &tmp_context, const data_pointer &data, exec_context::final_state state)
 {
 	exec_context context = exec_context_data::copy(tmp_context, tmp_context.event(), data);
 
@@ -1480,29 +1551,13 @@ void session::reply(const std::function<void (const reply_result &)> &handler,
 	dnet_setup_id(&id, 0, s->src.id);
 	id.type = 0;
 
-	request(handler, complete_handler, &id, context);
-}
-
-void session::reply(const std::function<void (const reply_result &)> &handler, const exec_context &context, const data_pointer &data, exec_context::final_state state)
-{
-	reply(handler, std::function<void (const std::exception_ptr &)>(), context, data, state);
-}
-
-reply_results session::reply(const exec_context &context, const data_pointer &data, exec_context::final_state state)
-{
-	std::mutex mutex;
-	exec_results results;
-	exec_results_aggregator functor = { mutex, results };
-	waiter<std::exception_ptr> w;
-	reply(functor, w.handler(), context, data, state);
-	w.result();
-	return results;
+	return request(&id, context);
 }
 
 std::string session::exec_locked(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &)
 {
 	std::string result;
-	exec_results results = exec(id, event, data);
+	sync_exec_result results = exec(id, event, data);
 	for (size_t i = 0; i < results.size(); ++i)
 		result += results[i].context().data().to_string();
 	return result;
@@ -1521,7 +1576,7 @@ std::string session::push_locked(struct dnet_id *id, const struct sph &sph, cons
 					const std::string &data, const std::string &)
 {
 	exec_context context = exec_context_data::copy(sph, event, data);
-	push(id, context, event, data);
+	push(id, context, event, data).wait();
 	return std::string();
 }
 
@@ -1538,18 +1593,21 @@ std::string session::push_unlocked(struct dnet_id *id, const struct sph &sph, co
 void session::reply(const struct sph &sph, const std::string &event, const std::string &data, const std::string &)
 {
 	exec_context context = exec_context_data::copy(sph, event, data);
-	reply(context, data, (sph.flags & DNET_SPH_FLAGS_FINISH) ? exec_context::final : exec_context::progressive);
+	reply(context, data, (sph.flags & DNET_SPH_FLAGS_FINISH) ? exec_context::final : exec_context::progressive).wait();
 }
 
-void session::bulk_read(const std::function<void (const bulk_read_result &)> &handler, const std::vector<struct dnet_io_attr> &ios_vector)
+async_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios_vector)
 {
 	if (ios_vector.empty()) {
-		try {
-			throw_error(-ENOENT, "bulk_read failed: ios list is empty");
-		} catch (...) {	
-			handler(std::current_exception());
+		error_info error = create_error(-EINVAL, "bulk_read failed: ios list is empty");
+		if (get_exceptions_policy() & throw_at_start) {
+			error.throw_error();
+		} else {
+			async_read_result result(*this);
+			async_result_handler<read_result_entry> handler(result);
+			handler.complete(error);
+			return result;
 		}
-		return;
 	}
 	io_attr_set ios(ios_vector.begin(), ios_vector.end());
 
@@ -1563,11 +1621,12 @@ void session::bulk_read(const std::function<void (const bulk_read_result &)> &ha
 
 	memset(&control.io, 0, sizeof(struct dnet_io_attr));
 
-	read_bulk_callback::ptr cb = std::make_shared<read_bulk_callback>(*this, ios, control);
-	cb->handler = handler;
+	async_read_result result(*this);
+	read_bulk_callback::ptr cb = std::make_shared<read_bulk_callback>(*this, result, ios, control);
 	cb->groups = mix_states();
 
 	startCallback(cb);
+	return result;
 }
 
 namespace {
@@ -1579,14 +1638,7 @@ bool dnet_io_attr_compare(const struct dnet_io_attr &io1, const struct dnet_io_a
 }
 }
 
-bulk_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios)
-{
-	waiter<bulk_read_result> w;
-	bulk_read(w.handler(), ios);
-	return w.result();
-}
-
-bulk_read_result session::bulk_read(const std::vector<std::string> &keys)
+async_read_result session::bulk_read(const std::vector<std::string> &keys)
 {
 	std::vector<struct dnet_io_attr> ios;
 	struct dnet_io_attr io;
@@ -1605,101 +1657,56 @@ bulk_read_result session::bulk_read(const std::vector<std::string> &keys)
 	return bulk_read(ios);
 }
 
-class bulk_write_callback
-{
-	public:
-		class scope
-		{
-			public:
-				int condition;
-				int count;
-				std::mutex mutex;
-				std::vector<write_result_entry> entries;
-				std::exception_ptr exc;
-				std::function<void (const write_result &)> handler;
-		};
-
-		std::shared_ptr<scope> d;
-
-		bulk_write_callback(const std::function<void (const write_result &)> &handler, int count)
-		{
-			d = std::make_shared<scope>();
-			d->handler = handler;
-			d->condition = count;
-			d->count = 0;
-		}
-
-		void operator() (const write_result &result)
-		{
-			std::lock_guard<std::mutex> lock(d->mutex);
-			++d->count;
-
-			if (result.exception() != std::exception_ptr()) {
-				d->exc = result.exception();
-			} else {
-				for (size_t i = 0; i < result.size(); ++i)
-					d->entries.push_back(result[i]);
-			}
-
-			if (d->condition == d->count) {
-				if (d->entries.empty())
-					d->handler(d->exc);
-				else
-					d->handler(d->entries);
-			}
-		}
-};
-
-void session::bulk_write(const std::function<void (const write_result &)> &handler,
-	const std::vector<struct dnet_io_attr> &ios,
-	const std::vector<data_pointer> &data)
+async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<data_pointer> &data)
 {
 	if (ios.size() != data.size()) {
-		throw_error(-EIO, "BULK_WRITE: ios doesn't meet data: io.size: %zd, data.size: %zd",
+		error_info error = create_error(-EINVAL, "BULK_WRITE: ios doesn't meet data: io.size: %zd, data.size: %zd",
 			ios.size(), data.size());
+		if (get_exceptions_policy() & throw_at_start) {
+			error.throw_error();
+		} else {
+			async_write_result result(*this);
+			async_result_handler<write_result_entry> handler(result);
+			handler.complete(error);
+			return result;
+		}
 	}
 
-	std::function<void (const write_result &)> callback
-		= bulk_write_callback(handler, ios.size());
+	std::list<async_write_result> results;
 
-	for(size_t i = 0; i < ios.size(); ++i) {
-		struct dnet_io_control ctl;
-		memset(&ctl, 0, sizeof(ctl));
+	{
+		session_scope scope(*this);
 
-		ctl.cflags = get_cflags();
-		ctl.data = data[i].data();
+		// Ensure checkers and filters will work only for aggregated request
+		set_filter(filters::all_with_ack);
+		set_checker(checkers::no_check);
+		set_exceptions_policy(no_exceptions);
 
-		ctl.io = ios[i];
+		for(size_t i = 0; i < ios.size(); ++i) {
+			struct dnet_io_control ctl;
+			memset(&ctl, 0, sizeof(ctl));
 
-		dnet_setup_id(&ctl.id, 0, (unsigned char *)ios[i].id);
-		ctl.id.type = ios[i].type;
+			ctl.cflags = get_cflags();
+			ctl.data = data[i].data();
 
-		ctl.fd = -1;
+			ctl.io = ios[i];
 
-		write_data(callback, ctl);
+			dnet_setup_id(&ctl.id, 0, (unsigned char *)ios[i].id);
+			ctl.id.type = ios[i].type;
+
+			ctl.fd = -1;
+
+			results.emplace_back(std::move(write_data(ctl)));
+		}
 	}
+
+	return aggregated(*this, results.begin(), results.end());
 }
 
-void session::bulk_write(const std::function<void (const write_result &)> &handler,
-	const std::vector<struct dnet_io_attr> &ios,
-	const std::vector<std::string> &data)
+async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<std::string> &data)
 {
 	std::vector<data_pointer> pointer_data(data.begin(), data.end());
-	bulk_write(handler, ios, pointer_data);
-}
-
-write_result session::bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<std::string> &data)
-{
-	waiter<write_result> w;
-	bulk_write(w.handler(), ios, data);
-	return w.result();
-}
-
-write_result session::bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<data_pointer> &data)
-{
-	waiter<write_result> w;
-	bulk_write(w.handler(), ios, data);
-	return w.result();
+	return bulk_write(ios, pointer_data);
 }
 
 node &session::get_node()

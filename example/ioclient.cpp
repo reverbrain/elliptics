@@ -300,9 +300,9 @@ int main(int argc, char *argv[])
 			s.read_file(create_id(id, readf, type), readf, offset, size);
 
 		if (read_data) {
-			read_result result = s.read_latest(create_id(id, read_data, type), offset, 0);
+			sync_read_result result = s.read_latest(create_id(id, read_data, type), offset, 0);
 
-			data_pointer file = result->file();
+			data_pointer file = result[0].file();
 
 			while (!file.empty()) {
 				err = write(1, file.data(), file.size());
@@ -323,6 +323,7 @@ int main(int argc, char *argv[])
 			std::string event, data;
 
 			memset(&did_tmp, 0, sizeof(struct dnet_id));
+			s.set_filter(filters::all_with_ack);
 
 			if (const char *tmp = strchr(cmd, ' ')) {
 				event.assign(cmd, tmp);
@@ -344,25 +345,26 @@ int main(int argc, char *argv[])
 			}
 
 			s.set_cflags(cflags | DNET_FLAGS_NOLOCK);
-			const exec_results results = s.exec(did, event, data);
+			auto result = s.exec(did, event, data);
 			s.set_cflags(cflags);
-			for (size_t i = 0; i < results.size(); ++i) {
-				if (results[i].error()) {
-					error_info error = results[i].error();
-					std::cout << dnet_server_convert_dnet_addr(results[i].address())
+			for (auto it = result.begin(); it != result.end(); ++it) {
+				if (it->error()) {
+					error_info error = it->error();
+					std::cout << dnet_server_convert_dnet_addr(it->address())
 						<< ": failed to process: \"" << error.message() << "\": " << error.code() << std::endl;
 				} else {
-					exec_context result = results[i].context();
-					if (result.is_null()) {
-						std::cout << dnet_server_convert_dnet_addr(results[i].address())
+					exec_context context = it->context();
+					if (context.is_null()) {
+						std::cout << dnet_server_convert_dnet_addr(it->address())
 							<< ": acknowledge" << std::endl;
 					} else {
-						std::cout << dnet_server_convert_dnet_addr(result.address())
-							<< ": " << result.event()
-							<< " \"" << result.data().to_string() << "\"" << std::endl;
+						std::cout << dnet_server_convert_dnet_addr(context.address())
+							<< ": " << context.event()
+							<< " \"" << context.data().to_string() << "\"" << std::endl;
 					}
 				}
 			}
+			s.set_filter(filters::positive);
 		}
 
 		if (lookup)
@@ -370,10 +372,9 @@ int main(int argc, char *argv[])
 
 		if (vfs_stat) {
 			float la[3];
-			stat_result results = s.stat_log();
-
-			for (size_t i = 0; i < results.size(); ++i) {
-				const stat_result_entry &result = results[i];
+			auto results = s.stat_log();
+			for (auto it = results.begin(); it != results.end(); ++it) {
+				const stat_result_entry &result = *it;
 				dnet_cmd *cmd = result.command();
 				dnet_addr *addr = result.address();
 				dnet_stat *st = result.statistics();
@@ -401,10 +402,9 @@ int main(int argc, char *argv[])
 		}
 
 		if (io_counter_stat) {
-			stat_count_result results = s.stat_log_count();
-
-			for (size_t i = 0; i < results.size(); ++i) {
-				const stat_count_result_entry &result = results[i];
+			auto results = s.stat_log_count();
+			for (auto it = results.begin(); it != results.end(); ++it) {
+				const stat_count_result_entry &result = *it;
 				dnet_cmd *cmd = result.command();
 				dnet_addr *addr = result.address();
 				dnet_addr_stat *as = result.statistics();
