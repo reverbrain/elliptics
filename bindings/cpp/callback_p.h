@@ -394,7 +394,7 @@ class lookup_callback : public multigroup_callback<lookup_result_entry>
 		typedef std::shared_ptr<lookup_callback> ptr;
 
 		lookup_callback(const session &sess, const async_lookup_result &result)
-			: multigroup_callback(sess, result)
+			: multigroup_callback<lookup_result_entry>(sess, result)
 		{
 			cb.set_total(1);
 		}
@@ -426,7 +426,7 @@ class read_callback : public multigroup_callback<read_result_entry>
 		typedef std::shared_ptr<read_callback> ptr;
 
 		read_callback(const session &sess, const async_read_result &result, const dnet_io_control &ctl)
-			: multigroup_callback(sess, result), ctl(ctl)
+			: multigroup_callback<read_result_entry>(sess, result), ctl(ctl)
 		{
 		}
 
