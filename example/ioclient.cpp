@@ -323,6 +323,7 @@ int main(int argc, char *argv[])
 			std::string event, data;
 
 			memset(&did_tmp, 0, sizeof(struct dnet_id));
+			s.set_filter(filters::all_with_ack);
 
 			if (const char *tmp = strchr(cmd, ' ')) {
 				event.assign(cmd, tmp);
@@ -363,6 +364,7 @@ int main(int argc, char *argv[])
 					}
 				}
 			}
+			s.set_filter(filters::positive);
 		}
 
 		if (lookup)
