@@ -1,6 +1,6 @@
 ADD_LIBRARY(elliptics-extensions MODULE storage module)
 
-TARGET_LINK_LIBRARIES(elliptics-extensions ${ELLIPTICS_LIBRARIES})
+TARGET_LINK_LIBRARIES(elliptics-extensions ${ELLIPTICS_LIBRARIES} elliptics_cpp)
 
 SET_TARGET_PROPERTIES(elliptics-extensions PROPERTIES
 	PREFIX ""
