@@ -2484,3 +2484,78 @@ err_out_exit:
 	}
 	return err;
 }
+
+/*!
+ * Compares responses firt by key, then by timestamp
+ */
+static int dnet_iterator_response_cmp(const void *r1, const void *r2)
+{
+	const struct dnet_iterator_response *a = r1, *b = r2;
+	int diff = dnet_id_cmp_str(a->key.id, b->key.id);
+
+	if (diff != 0)
+		return diff;
+	return dnet_time_cmp(&a->timestamp, &b->timestamp);
+}
+
+/*!
+ * Sort responses using \fn dnet_iterator_response_cmp
+ */
+int dnet_iterator_response_container_sort(int fd, size_t size)
+{
+	struct dnet_map_fd map = { .fd = fd, .size = size };
+	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
+	const size_t nel = size / resp_size;
+	int err;
+
+	/* Sanity */
+	if (fd < 0 || size == 0)
+		return -EINVAL;
+	if (size % resp_size != 0)
+		return -EINVAL;
+
+	if ((err = dnet_data_map(&map)) != 0)
+		goto err;
+	qsort(map.data, nel, resp_size, dnet_iterator_response_cmp);
+	dnet_data_unmap(&map);
+
+err:
+	return err;
+}
+
+/*!
+ * Appends one dnet_iterator_response to fd
+ */
+int dnet_iterator_response_container_append(const struct dnet_iterator_response *response,
+		int fd, uint64_t pos)
+{
+	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
+	struct dnet_iterator_response copy = *response;
+
+	if (pos % resp_size != 0)
+		return -EINVAL;
+
+	dnet_convert_iterator_response(&copy);
+	if (pwrite(fd, &copy, resp_size, pos) != resp_size)
+		return -errno;
+
+	return 0;
+}
+
+/*!
+ * Reads one dnet_iterator_response from fd
+ */
+struct dnet_iterator_response *dnet_iterator_response_container_read(int fd, uint64_t pos)
+{
+	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
+	struct dnet_iterator_response response;
+
+	if (pos % resp_size != 0)
+		return NULL;
+
+	if (pread(fd, &response, resp_size, pos) != resp_size)
+		return NULL;
+	dnet_convert_iterator_response(&response);
+
+	return 0;
+}

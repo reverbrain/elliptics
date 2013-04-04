@@ -842,6 +842,16 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("response_data", iterator_result_response_data)
 	;
 
+	bp::class_<iterator_container>("IteratorResultContainer",
+			bp::init<int>(bp::args("fd")))
+		// TODO:
+		//.add_property("fd", &iterator_container::m_fd)
+		//.def("append", &iterator_container::append)
+		//.def("sort", &iterator_container::sort)
+		//.def("diff", &iterator_container::diff)
+		//.def("__iter__", bp::iterator<python_iterator_result>())
+	;
+
 	bp::class_<elliptics_range>("Range")
 		.def_readwrite("start", &elliptics_range::start)
 		.def_readwrite("end", &elliptics_range::end)

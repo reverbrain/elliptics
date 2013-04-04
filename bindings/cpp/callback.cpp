@@ -18,6 +18,7 @@
 
 #include "callback_p.h"
 
+#include <errno.h>
 #include <sstream>
 #include <stdexcept>
 
@@ -284,6 +285,42 @@ uint64_t iterator_result_entry::id() const
 data_pointer iterator_result_entry::reply_data() const
 {
 	return data().skip<dnet_iterator_response>();
+}
+
+//
+// Iterator container
+//
+
+void iterator_result_container::append(const iterator_result_entry &result)
+{
+	append(result.reply());
+}
+
+void iterator_result_container::append(const dnet_iterator_response *response)
+{
+	static const ssize_t resp_size = sizeof(dnet_iterator_response);
+	int err;
+
+	if (m_sorted)
+		throw_error(-EROFS, "can't append to already sorted container");
+
+	err = dnet_iterator_response_container_append(response, m_fd, m_write_position);
+	if (err != 0)
+		throw_error(err, "dnet_iterator_response_container_append() failed");
+	m_write_position += resp_size;
+}
+
+void iterator_result_container::sort()
+{
+	int err;
+
+	if (m_sorted == true)
+		return;
+
+	err = dnet_iterator_response_container_sort(m_fd, m_write_position);
+	if (err != 0)
+		throw_error(err, "sort failed");
+	m_sorted = true;
 }
 
 } } // namespace ioremap::elliptics

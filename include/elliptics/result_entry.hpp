@@ -180,6 +180,31 @@ class iterator_result_entry : public callback_result_entry
 		uint64_t id() const;
 };
 
+//
+// Container for iterator results
+//
+class iterator_result_container
+{
+	public:
+		iterator_result_container(int fd)
+			: m_fd(fd), m_sorted(false), m_write_position(0) {}
+		// Appends one result to container
+		void append(const iterator_result_entry &result);
+		void append(const dnet_iterator_response *response);
+		// Sorts container
+		void sort();
+		// Returns container that consists of difference between two containers
+		// TODO: Add different diff types (inner/outer, left/right)
+		iterator_result_container &diff(const iterator_result_container &other) const;
+
+	private:
+		int m_fd;
+		bool m_sorted;
+		uint64_t m_write_position;
+};
+
+typedef iterator_result_container iterator_container;
+
 typedef lookup_result_entry write_result_entry;
 
 struct index_entry
