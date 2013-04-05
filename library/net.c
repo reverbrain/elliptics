@@ -1247,6 +1247,5 @@ int dnet_parse_addr(char *addr, int *portp, int *familyp)
 err_out_print_wrong_param:
 	fprintf(stderr, "Wrong address parameter '%s', should be 'addr%cport%cfamily'.\n",
 				addr, DNET_CONF_ADDR_DELIM, DNET_CONF_ADDR_DELIM);
-	free(addr);
 	return -EINVAL;
 }
