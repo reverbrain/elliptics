@@ -326,14 +326,15 @@ class multigroup_callback
 			while (m_group_index < groups.size()) {
 				struct dnet_id id = kid.id();
 				id.group_id = groups[m_group_index];
+
 				++m_group_index;
 				if (next_group(error, id, func, priv)) {
 					if (error->code()) {
 						// some exception, log and try next group
 						dnet_log_raw(sess.get_node().get_native(),
-						DNET_LOG_ERROR,
-						"%s",
-						error->message().c_str());
+							DNET_LOG_NOTICE,
+							"%s\n",
+							error->message().c_str());
 						*error = error_info();
 						continue;
 					}
@@ -438,6 +439,7 @@ class read_callback : public multigroup_callback<read_result_entry>
 			memcpy(&ctl.id, &id, sizeof(id));
 			ctl.complete = func;
 			ctl.priv = priv;
+
 			int err = dnet_read_object(sess.get_native(), &ctl);
 			if (err) {
 				*error = create_error(err, ctl.id, "READ: size: %llu",
