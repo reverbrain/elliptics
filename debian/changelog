@@ -1,3 +1,15 @@
+elliptics (2.23.2.0) unstable; urgency=low
+
+  * Do not spam error log-level with unsuccessful partial reads
+  * Put cocaine plugin into libcocaine-plugin-elliptics package
+  * More cmake cleanups
+  * Added msgpack-devel
+  * Corrected used include pathes
+  * Use instantiated class in constructor
+  * Added zeromq3-devel into spec
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 05 Apr 2013 16:01:46 +0400
+
 elliptics (2.23.1.0) unstable; urgency=low
 
   * Added cocaine-extension package

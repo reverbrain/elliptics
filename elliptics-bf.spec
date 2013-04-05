@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.23.1.0
+Version:	2.23.2.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.2.0
+- Do not spam error log-level with unsuccessful partial reads
+- Put cocaine plugin into libcocaine-plugin-elliptics package
+- More cmake cleanups
+- Added msgpack-devel
+- Corrected used include pathes
+- Use instantiated class in constructor
+- Added zeromq3-devel into spec
+
 * Thu Apr 04 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.1.0
 - Added cocaine-extension package
 - Some bulletproof default parameters for recovery tool
