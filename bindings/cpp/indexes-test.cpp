@@ -231,10 +231,10 @@ void test_1(session &sess)
 			object_datas.resize(count);
 			auto &entry = cache[object];
 			entry.clear();
-			for (size_t i = 0; i < count; ++i) {
+			for (size_t j = 0; j < count; ++j) {
 				std::string data = create_data();
-				entry[object_tags[i]] = data;
-				object_datas[i] = data_pointer::copy(data.c_str(), data.size());
+				entry[object_tags[j]] = data;
+				object_datas[j] = data_pointer::copy(data.c_str(), data.size());
 			}
 
 			std::cerr << i << " update: " << object << " to " << sorted(object_tags) << std::endl;
