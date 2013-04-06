@@ -14,6 +14,7 @@
  */
 
 #define _XOPEN_SOURCE 500
+#define __STDC_FORMAT_MACROS
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -27,6 +28,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <unistd.h>
 
 #include "elliptics.h"
@@ -462,7 +464,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	if (cmd->size < sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr)) {
 		err = -EINVAL;
 		dnet_log(n, DNET_LOG_ERROR, "Received dnet_addr_container "
-				"is invalid, size: %zu, expected at least: %zu, err: %d.\n",
+				"is invalid, size: %" PRIu64 ", expected at least: %zu, err: %d.\n",
 				cmd->size,
 				sizeof(struct dnet_addr_container) + cnt->addr_num * sizeof(struct dnet_addr),
 				err);
