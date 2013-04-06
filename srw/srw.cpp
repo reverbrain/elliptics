@@ -33,8 +33,6 @@
 #include <boost/thread.hpp>
 #include <boost/thread/condition.hpp>
 
-#include <zmq.hpp>
-
 #include <cocaine/context.hpp>
 #include <cocaine/logging.hpp>
 #include <cocaine/app.hpp>
