@@ -705,12 +705,6 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		return -EINVAL;
 
 	dnet_convert_iterator_request(ireq);
-	/* Those two are mutually exclusive */
-	if ((ireq->flags & DNET_IFLAGS_KEY_RANGE)
-			&& (ireq->flags & DNET_IFLAGS_TS_RANGE)) {
-		err = -EINVAL;
-		goto err_out_exit;
-	}
 	/* Check for rouge flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
 		err = -ENOTSUP;
