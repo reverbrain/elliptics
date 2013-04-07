@@ -513,19 +513,6 @@ typedef std::vector<exec_result_entry> sync_push_result;
 typedef async_result<exec_result_entry> async_reply_result;
 typedef std::vector<exec_result_entry> sync_reply_result;
 
-
-typedef result_holder<read_result_entry> read_result;
-typedef array_result_holder<write_result_entry> write_result;
-typedef array_result_holder<read_result_entry> read_results;
-typedef array_result_holder<read_result_entry> bulk_read_result;
-typedef array_result_holder<read_result_entry> read_range_result;
-typedef array_result_holder<read_result_entry> remove_range_result;
-typedef array_result_holder<callback_result_entry> command_result;
-typedef result_holder<lookup_result_entry> lookup_result;
-typedef array_result_holder<stat_result_entry> stat_result;
-typedef array_result_holder<stat_count_result_entry> stat_count_result;
-typedef array_result_holder<int> prepare_latest_result;
-
 struct find_indexes_result_entry
 {
 	dnet_raw_id id;
