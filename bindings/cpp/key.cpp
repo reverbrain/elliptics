@@ -109,10 +109,14 @@ const dnet_raw_id &key::raw_id() const
 
 std::string key::to_string() const
 {
-	if (m_by_id)
-		return dnet_dump_id(&m_id);
-	else
+	if (m_by_id) {
+		char id_str[DNET_DUMP_NUM * 2 + 1];
+
+		dnet_dump_id_len_raw(m_id.id, DNET_DUMP_NUM, id_str);
+		return std::string(id_str, DNET_DUMP_NUM*2);
+	} else {
 		return m_remote;
+	}
 }
 
 void key::transform(session &sess)

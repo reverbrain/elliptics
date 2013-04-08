@@ -815,7 +815,7 @@ struct cas_data
 
 		void operator () (const sync_write_result &result, const error_info &err)
 		{
-			if (err.code() == -EINVAL) {
+			if (err.code() == -EBADFD) {
 				++scope->index;
 				if (scope->index < scope->count)
 					next_iteration();
@@ -828,7 +828,8 @@ struct cas_data
 	};
 };
 
-async_write_result session::write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter, uint64_t remote_offset, int count)
+async_write_result session::write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
+		uint64_t remote_offset, int count)
 {
 	async_write_result result(*this);
 	async_result_handler<write_result_entry> handler(result);

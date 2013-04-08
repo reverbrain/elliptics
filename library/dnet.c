@@ -762,9 +762,21 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 				if (err == 0) {
 					if (memcmp(csum, io->parent, DNET_ID_SIZE)) {
-						dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch\n", dnet_dump_id(&cmd->id));
+						char disk_csum[DNET_ID_SIZE * 2 + 1];
+						char recv_csum[DNET_ID_SIZE * 2 + 1];
+
+						dnet_dump_id_len_raw((const unsigned char *)csum, DNET_ID_SIZE, disk_csum);
+						dnet_dump_id_len_raw(io->parent, DNET_ID_SIZE, recv_csum);
+						dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch: disk-csum: %s, recv-csum: %s\n",
+								dnet_dump_id(&cmd->id), disk_csum, recv_csum);
 						err = -EBADFD;
 						break;
+					} else {
+						char recv_csum[DNET_ID_SIZE * 2 + 1];
+
+						dnet_dump_id_len_raw(io->parent, DNET_ID_SIZE, recv_csum);
+						dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum; %s\n",
+								dnet_dump_id(&cmd->id), recv_csum);
 					}
 				}
 			}
@@ -792,6 +804,21 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			}
 
 			if (!err && (cmd->cmd == DNET_CMD_WRITE)) {
+				char disk_csum[DNET_ID_SIZE * 2 + 1];
+				unsigned char csum[DNET_ID_SIZE];
+				int csize = DNET_ID_SIZE;
+
+				err = n->cb->checksum(n, n->cb->command_private, &cmd->id, csum, &csize);
+				if (err < 0 && err != -ENOENT) {
+					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation failed\n", dnet_dump_id(&cmd->id));
+					break;
+				}
+
+				dnet_dump_id_len_raw(csum, DNET_ID_SIZE, disk_csum);
+				dnet_log(n, DNET_LOG_ERROR, "%s: write completed: disk checksum: %s\n",
+						dnet_dump_id(&cmd->id), disk_csum);
+
+
 				dnet_update_notify(st, cmd, data);
 			}
 			break;

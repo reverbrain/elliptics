@@ -85,9 +85,14 @@ struct dnet_indexes
 
 static inline void indexes_unpack(const data_pointer &file, dnet_indexes *data)
 {
-	msgpack::unpacked msg;
-	msgpack::unpack(&msg, file.data<char>(), file.size());
-	msg.get().convert(data);
+	try {
+		msgpack::unpacked msg;
+		msgpack::unpack(&msg, file.data<char>(), file.size());
+		msg.get().convert(data);
+	} catch (const std::exception &e) {
+		std::cerr << "unpack exception: " << e.what() << ", file-size: " << file.size() << std::endl;
+		exit(-1);
+	}
 }
 
 }} /* namespace ioremap::elliptics */
