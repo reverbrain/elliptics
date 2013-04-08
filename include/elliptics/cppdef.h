@@ -19,11 +19,6 @@
 
 #include <errno.h>
 
-#include <elliptics/typedefs.h>
-#include <elliptics/packet.h>
-#include <elliptics/interface.h>
-
-
 #include <iostream>
 #include <fstream>
 #include <exception>
@@ -40,6 +35,9 @@
 #include <mutex>
 #include <condition_variable>
 
+#include "elliptics/typedefs.h"
+#include "elliptics/packet.h"
+#include "elliptics/interface.h"
 
 #define ELLIPTICS_DISABLE_COPY(CLASS) \
 private: \
@@ -476,12 +474,6 @@ class iterator_result_entry : public callback_result_entry
 		data_pointer reply_data() const;
 };
 
-struct index_entry
-{
-	dnet_raw_id index;
-	data_pointer data;
-};
-
 template <typename T> class async_result;
 
 typedef lookup_result_entry write_result_entry;
@@ -513,6 +505,12 @@ typedef std::vector<exec_result_entry> sync_push_result;
 typedef async_result<exec_result_entry> async_reply_result;
 typedef std::vector<exec_result_entry> sync_reply_result;
 
+struct index_entry
+{
+	dnet_raw_id index;
+	data_pointer data;
+};
+
 struct find_indexes_result_entry
 {
 	dnet_raw_id id;
@@ -523,8 +521,8 @@ typedef std::exception_ptr update_indexes_result;
 typedef array_result_holder<find_indexes_result_entry> find_indexes_result;
 typedef array_result_holder<index_entry> check_indexes_result;
 
-class exec_context_data;
 
+class exec_context_data;
 
 // exec_context is context for execution requests, it stores
 // internal identification of the process and environmental
@@ -843,7 +841,8 @@ class session
 		async_write_result write_data(const key &id, const data_pointer &file, uint64_t remote_offset);
 
 
-		async_write_result write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter, uint64_t remote_offset, int count = 3);
+		async_write_result write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
+				uint64_t remote_offset, int count = 3);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
@@ -1529,12 +1528,15 @@ class async_result_handler
 							command = *it;
 						}
 					}
-//					if (success == 0 && command.status) {
-//						*error = create_error(command);
-//					} else {
-						*error = create_error(-ENXIO, "insufficiant results count due to checker: %zu of %zu (%zu)",
-							success, m_data->total, m_data->statuses.size());
-//					}
+					if (success == 0) {
+						if (command.status) {
+							*error = create_error(command);
+						} else {
+							*error = create_error(-ENXIO, "insufficiant results count due to checker: "
+									"%zu of %zu (%zu)",
+								success, m_data->total, m_data->statuses.size());
+						}
+					}
 				}
 				return false;
 			}
