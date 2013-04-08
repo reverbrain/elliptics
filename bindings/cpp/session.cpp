@@ -808,7 +808,8 @@ struct cas_data
 
 			dnet_id csum;
 			memset(&csum, 0, sizeof(csum));
-			scope->sess.transform(data, csum);
+			dnet_transform_node(scope->sess.get_node().get_native(),
+				data.data(), data.size(), csum.id, sizeof(csum.id));
 
 			scope->sess.write_cas(scope->id, write_data, csum, scope->remote_offset).connect(*this);
 		}

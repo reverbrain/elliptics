@@ -695,11 +695,11 @@ class session
 {
 	public:
 		enum exceptions_policy {
-			no_exceptions		= 0x00,
-			throw_at_start		= 0x01,
-			throw_at_wait		= 0x02,
-			throw_at_get		= 0x04,
-			throw_at_iterator_end	= 0x08,
+			no_exceptions		= 0x00, //! Exceptions are not thrown at any case
+			throw_at_start		= 0x01, //! Exceptions can be thrown at method invoke
+			throw_at_wait		= 0x02, //! Exceptions can be thrown at async_result::wait
+			throw_at_get		= 0x04, //! Exceptions can be thrown at async_result::get
+			throw_at_iterator_end	= 0x08, //! Exceptions can be thrown at any async_result::iterator action
 			default_exceptions	= throw_at_wait | throw_at_get | throw_at_iterator_end
 		};
 
@@ -731,13 +731,37 @@ class session
 		 */
 		std::vector<int>	get_groups() const;
 
+		/*!
+		 * Filter all receiving entries by \a filter.
+		 *
+		 * Default value is filters::positive.
+		 */
 		void			set_filter(const result_filter &filter);
+		/*!
+		 * Returnes filter.
+		 */
 		result_filter		get_filter() const;
 
+		/*!
+		 * Check success of operation by \a checker.
+		 *
+		 * Default value is checkers::at_least_one.
+		 */
 		void			set_checker(const result_checker &checker);
+		/*!
+		 * Returnes checker.
+		 */
 		result_checker		get_checker() const;
 
+		/*!
+		 * Set exception policy \a policies.
+		 *
+		 * Default value is throw_at_wait | throw_at_get | throw_at_iterator_end.
+		 */
 		void			set_exceptions_policy(uint32_t policy);
+		/*!
+		 * Returnes exception policy.
+		 */
 		uint32_t		get_exceptions_policy() const;
 
 		/*!
@@ -784,7 +808,7 @@ class session
 		 * or groups are ended.
 		 * Command is sent to server is DNET_CMD_READ.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_read_result.
 		 */
 		async_read_result read_data(const key &id, const std::vector<int> &groups, const dnet_io_attr &io);
 		/*!
@@ -813,27 +837,29 @@ class session
 		 * Filters the list \a groups and leaves only ones with the latest
 		 * data at key \a id.
 		 *
-		 * Result is returned to \a handler.
+		 *
+		 * Returns sorted async_lookup_result.
 		 */
 		async_lookup_result prepare_latest(const key &id, const std::vector<int> &groups);
 
 		/*!
 		 * Reads the latest data from server by the key \a id, \a offset and \a size.
 		 *
-		 * Result is returned to \a handler.
+		 *
+		 * Returns async_read_result.
 		 */
 		async_read_result read_latest(const key &id, uint64_t offset, uint64_t size);
 
 		/*!
 		 * Writes data to server by the dnet_io_control \a ctl.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_write_result.
 		 */
 		async_write_result write_data(const dnet_io_control &ctl);
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_write_result.
 		 *
 		 * \note Calling this method is equal to consecutive calling
 		 * of write_prepare(), write_plain() and write_commit().
@@ -841,6 +867,16 @@ class session
 		async_write_result write_data(const key &id, const data_pointer &file, uint64_t remote_offset);
 
 
+		/*!
+		 * Reads data by \a id and passes it through \a converter. If converter returnes the same data
+		 * it's threated as data is already up-to-date, othwerwise low-level write-cas with proper
+		 * checksum and \a remote_offset is invoked.
+		 *
+		 * If server returnes -EBADFD data is read and processed again.
+		 * The whole process iterates not more than \a count times.
+		 *
+		 * Returns async_write_result.
+		 */
 		async_write_result write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
 				uint64_t remote_offset, int count = 3);
 
@@ -848,9 +884,9 @@ class session
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
 		 *
 		 * Writing is refused if check sum of server data is not equal
-		 * to \a old_csum. elliptics::error with -EINVAL is thrown at this case.
+		 * to \a old_csum. elliptics::error with -EBADFD is thrown at this case.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_write_result.
 		 */
 		async_write_result write_cas(const key &id, const data_pointer &file, const struct dnet_id &old_csum, uint64_t remote_offset);
 
@@ -858,7 +894,7 @@ class session
 		 * Prepares place to write data \a file by the key \a id and
 		 * remote offset \a remote_offset.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_write_result.
 		 *
 		 * \note No data is really written.
 		 */
@@ -867,7 +903,7 @@ class session
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_write_result.
 		 *
 		 * \note Indexes are not updated. Data is not accessable for reading.
 		 */
@@ -876,7 +912,7 @@ class session
 		/*!
 		 * Commites data \a file by the key \a id and remote offset \a remote_offset.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_write_result.
 		 *
 		 * \note Indexes are updated. Data becomes accessable for reading.
 		 */
@@ -886,7 +922,7 @@ class session
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
 		 * Also writes data to the server cache.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_write_result.
 		 */
 		async_write_result write_cache(const key &id, const data_pointer &file, long timeout);
 
@@ -916,22 +952,21 @@ class session
 		/*!
 		 * Lookups information for key \a id.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_lookup_result.
 		 */
 		async_lookup_result lookup(const key &id);
 
 		/*!
 		 * Removes all the entries of key \a id at server nodes.
 		 *
-		 * Returnes exception if no entry is removed.
-		 * Result is returned to \a handler.
+		 * Returns async_remove_result.
 		 */
 		async_remove_result remove(const key &id);
 
 		/*!
 		 * Queries statistics information from the server nodes.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_stat_result.
 		 */
 		async_stat_result stat_log();
 		/*!
@@ -943,7 +978,7 @@ class session
 		/*!
 		 * Queries statistics information from the server nodes.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_stat_count_result.
 		 */
 		async_stat_count_result stat_log_count();
 
@@ -955,7 +990,7 @@ class session
 		/*!
 		 * Requests execution of custom command at server.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_genetic_result.
 		 */
 		async_generic_result request_cmd(const transport_control &ctl);
 
@@ -971,11 +1006,11 @@ class session
 
 		/*!
 		 * Reads data in range specified in \a io at group \a group_id.
-		 * Exception is thrown if no entry is read.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_read_result.
 		 */
 		async_read_result read_data_range(const struct dnet_io_attr &io, int group_id);
+
 		/*!
 		 * \internal
 		 * \overload read_data_range()
@@ -983,14 +1018,14 @@ class session
 		 *
 		 * \note This method is left only for compatibility.
 		 */
-		std::vector<std::string>read_data_range_raw(struct dnet_io_attr &io, int group_id);
+		std::vector<std::string> read_data_range_raw(struct dnet_io_attr &io, int group_id);
 
 		/*!
 		 * Removes data in range specified in \a io at group \a group_id.
 		 *
-		 * Result is returned to \a handler.
+		 * Returns async_read_result.
 		 */
-		async_read_result			remove_data_range(struct dnet_io_attr &io, int group_id);
+		async_read_result remove_data_range(struct dnet_io_attr &io, int group_id);
 
 		/*!
 		 * Returnes the list of network routes.
@@ -999,12 +1034,39 @@ class session
 
 		async_iterator_result start_iterator(const key &id, const dnet_iterator_request &request);
 
+		/*!
+		 * Starts execution for \a id of the given \a event with \a data.
+		 *
+		 * If \a id is null event is sent to all groups specified in the session.
+		 *
+		 * Returnes async_exec_result.
+		 * Result contains all replies sent by nodes processing this event.
+		 */
 		async_exec_result exec(dnet_id *id, const std::string &event, const data_pointer &data);
+		/*!
+		 * Send an \a event with \a data to \a id continuing the process specified by \a context.
+		 *
+		 * If \a id is null event is sent to all groups specified in the session.
+		 *
+		 * Returnes async_exec_result.
+		 * Result contains only the information about starting of event procession, so there is no
+		 * information if it was finaly processed successfully.
+		 */
 		async_push_result push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data);
+		/*!
+		 * Reply \a data to initial starter of the process specified by \a context.
+		 *
+		 * If \a state is equal to exec_context::final it is the last reply, otherwise there will be more.
+		 *
+		 * Returnes async_reply_result.
+		 * Result contains information if starter received the reply.
+		 */
 		async_reply_result reply(const exec_context &context, const data_pointer &data, exec_context::final_state state);
 
 		/*!
 		 * Starts execution for \a id of the given \a event with \a data and \a binary.
+		 *
+		 * \note Left only for compatibility reasons.
 		 */
 		std::string		exec_locked(struct dnet_id *id, const std::string &event,
 						const std::string &data,
@@ -1013,8 +1075,10 @@ class session
 						const std::string &data,
 						const std::string &binary);
 
-		/*
-		 * execution with saving ID of the original (blocked) caller
+		/*!
+		 * Execution with saving ID of the original (blocked) caller
+		 *
+		 * \note Left only for compatibility reasons.
 		 */
 		std::string		push_locked(struct dnet_id *id, const struct sph &sph,
 						const std::string &event, const std::string &data,
@@ -1023,7 +1087,11 @@ class session
 						const std::string &event, const std::string &data,
 						const std::string &binary);
 
-		/* send reply back to blocked execution client */
+		/*!
+		 * Send reply back to blocked execution client
+		 *
+		 * \note Left only for compatibility reasons.
+		 */
 		void			reply(const struct sph &sph, const std::string &event,
 						const std::string &data,
 						const std::string &binary);
@@ -1032,7 +1100,7 @@ class session
 		 * Reads all data from server nodes by the list \a ios.
 		 * Exception is thrown if no entry is read successfully.
 		 *
-		 * Result is returned to \a handler.
+		 * Returnes async_read_result.
 		 */
 		async_read_result bulk_read(const std::vector<struct dnet_io_attr> &ios);
 		/*!
@@ -1046,9 +1114,14 @@ class session
 		 * Writes all data \a data to server nodes by the list \a ios.
 		 * Exception is thrown if no entry is written successfully.
 		 *
-		 * Result is returned to \a handler.
+		 * Returnes async_write_result.
 		 */
 		async_write_result bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<data_pointer> &data);
+		/*!
+		 * \overload bulk_read()
+		 *
+		 * Allows to pass list of std::string as \a data.
+		 */
 		async_write_result bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<std::string> &data);
 
 		void update_indexes(const std::function<void (const update_indexes_result &)> &handler,
@@ -1168,6 +1241,15 @@ private:
 	std::shared_ptr<info> m_info;
 };
 
+/*!
+ * async_result is a template class that provides result of request processing.
+ *
+ * It provides both synchronious and asynchronious ways of usage.
+ *
+ * Synchronious is provided by wait/get methods and iterator API.
+ *
+ * Asynchronious is provided by connect methods.
+ */
 template <typename T>
 class async_result
 {
@@ -1179,6 +1261,12 @@ class async_result
 		typedef std::function<void (const std::vector<T> &, const error_info &error)> result_array_function;
 		typedef std::function<void (const error_info &)> final_function;
 
+		/*!
+		 * Constructs async_result from session.
+		 *
+		 * At this point such session properties as filter, checker and exception policy
+		 * are inherited from session.
+		 */
 		explicit async_result(const session &sess) : m_data(std::make_shared<data>())
 		{
 			m_data->filter = sess.get_filter();
@@ -1186,15 +1274,28 @@ class async_result
 			m_data->policy = sess.get_exceptions_policy();
 		}
 
-		async_result(async_result &&result)
+		/*!
+		 * Constructs async_result by moving data from \a other.
+		 */
+		async_result(async_result &&other)
 		{
-			std::swap(result.m_data, m_data);
+			std::swap(other.m_data, m_data);
 		}
 
+		/*!
+		 * Destroys async_result.
+		 */
 		~async_result()
 		{
 		}
 
+		/*!
+		 * Connects receiving of data to callbacks.
+		 *
+		 * \a result_handler is invoked at every receiving entry.
+		 * \a final_handler is invoked after the last entry is received, or when it's known
+		 * that there will be no entries after (in case of error like timeout).
+		 */
 		void connect(const result_function &result_handler, const final_function &final_handler)
 		{
 			std::unique_lock<std::mutex> locker(m_data->lock);
@@ -1213,33 +1314,75 @@ class async_result
 			}
 		}
 
+		/*!
+		 * Connects receiving of data to callback.
+		 *
+		 * \a handler after the last entry is received or when it's known
+		 * that there will be no entries after (in case of error like timeout).
+		 *
+		 * The list of all received entries in their receiving order is passed to
+		 * handler as first argument.
+		 * The second argument is error_info structure, which contains the information
+		 * about the error if it is.
+		 */
 		void connect(const result_array_function &handler)
 		{
 			connect(result_function(), std::bind(aggregator_final_handler, m_data, handler));
 		}
 
+		/*!
+		 * Connects receiving of data to callback.
+		 *
+		 * All receiving entries are passed to \a handler as is.
+		 */
 		void connect(const async_result_handler<T> &handler)
 		{
 			connect(std::bind(handler_process, handler, std::placeholders::_1),
 				std::bind(handler_complete, handler, std::placeholders::_1));
 		}
 
+		/*!
+		 * Blocks current thread until all entries are received.
+		 *
+		 * If session::throw_at_wait flag is activated and there were errors
+		 * during procession the request the exception is thrown.
+		 */
 		void wait()
 		{
 			wait(session::throw_at_wait);
 		}
 
+		/*!
+		 * Returnes the information about the error.
+		 */
 		error_info error() const
 		{
 			return m_data->error;
 		}
 
+		/*!
+		 * Blocks current thread until all entries are received, then
+		 * returnes all of them as list.
+		 *
+		 * If session::throw_at_get flag is activated and there were errors
+		 * during procession the request the exception is thrown.
+		 */
 		std::vector<T> get()
 		{
 			wait(session::throw_at_get);
 			return m_data->results;
 		}
 
+
+		/*!
+		 * Blocks current thread until all entries are received, then
+		 * first positive entry is set to \a entry.
+		 *
+		 * Returnes true if there is at least one positive entry.
+		 *
+		 * If session::throw_at_get flag is activated and there were errors
+		 * during procession the request the exception is thrown.
+		 */
 		bool get(T &entry)
 		{
 			wait(session::throw_at_get);
@@ -1252,6 +1395,14 @@ class async_result
 			return false;
 		}
 
+		/*!
+		 * Blocks current thread until all entries are received.
+		 *
+		 * Returnes one positive entry.
+		 *
+		 * If session::throw_at_get flag is activated and there were errors
+		 * during procession the request the exception is thrown.
+		 */
 		T get_one()
 		{
 			T result;
@@ -1259,11 +1410,29 @@ class async_result
 			return result;
 		}
 
+		/*!
+		 * Implicit converstion to std::vector<T>.
+		 *
+		 * It's good practive to use async_result like this:
+		 * \code
+		 * sync_write_result result = sess.write_data(...);
+		 * \endcode
+		 *
+		 * Blocks current thread until all entries are received.
+		 *
+		 * If session::throw_at_get flag is activated and there were errors
+		 * during procession the request the exception is thrown.
+		 */
 		inline operator std::vector<T> ()
 		{
 			return get();
 		}
 
+		/*!
+		 * async_result provides STL-like input iterator.
+		 *
+		 * \note iterator doesn't store already processed data, so make sure to store it itself if needed.
+		 */
 		class iterator : public std::iterator<std::input_iterator_tag, T, std::ptrdiff_t, T*, T>
 		{
 			private:
@@ -1404,11 +1573,19 @@ class async_result
 				mutable T m_result;
 		};
 
+		/*!
+		 * Returns an STL-style iterator pointing to the first \i not \i processed item in the async_result.
+		 *
+		 * \note Iterator doesn't store already processed data, so make sure to store it itself if needed.
+		 */
 		iterator begin()
 		{
 			return iterator(*this);
 		}
 
+		/*!
+		 * Returns an STL-style iterator pointing after the last item in the async_result.
+		 */
 		iterator end()
 		{
 			return iterator();
@@ -1468,6 +1645,11 @@ class async_result
 		std::shared_ptr<data> m_data;
 };
 
+/*!
+ * \internal
+ *
+ * It's used to provide entries to async_result.
+ */
 template <typename T>
 class async_result_handler
 {
