@@ -175,7 +175,7 @@ error_info create_error(int err, const uint8_t *id, const char *format, ...)
 
 error_info create_error(const dnet_cmd &cmd)
 {
-	return create_error(cmd.status, cmd.id, "Failed to process command %d", cmd.cmd);
+	return create_error(cmd.status, cmd.id, "Failed to process %s command", dnet_cmd_string(cmd.cmd));
 }
 
 } } // namespace ioremap::elliptics
