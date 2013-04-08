@@ -122,10 +122,11 @@ endif()
 
 install(FILES
         include/elliptics/core.h
-        include/elliptics/cppdef.h
         include/elliptics/interface.h
         include/elliptics/packet.h
         include/elliptics/srw.h
+        include/elliptics/cppdef.h
+        include/elliptics/session_indexes.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h
         DESTINATION include/elliptics/
         )
