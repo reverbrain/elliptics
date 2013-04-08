@@ -1327,7 +1327,9 @@ class async_result
 		 */
 		void connect(const result_array_function &handler)
 		{
-			connect(result_function(), std::bind(aggregator_final_handler, m_data, handler));
+			auto keeper = std::make_shared<data_keeper>();
+			keeper->data_ptr = m_data;
+			connect(result_function(), std::bind(aggregator_final_handler, keeper, handler));
 		}
 
 		/*!
@@ -1616,6 +1618,13 @@ class async_result
 				bool finished;
 		};
 
+		struct data_keeper
+		{
+			typedef std::shared_ptr<data_keeper> ptr;
+
+			std::shared_ptr<data> data_ptr;
+		};
+
 		void wait(uint32_t policy)
 		{
 			std::unique_lock<std::mutex> locker(m_data->lock);
@@ -1625,8 +1634,10 @@ class async_result
 				m_data->error.throw_error();
 		}
 
-		static void aggregator_final_handler(const std::shared_ptr<data> &d, const result_array_function &handler)
+		static void aggregator_final_handler(const std::shared_ptr<data_keeper> &keeper, const result_array_function &handler)
 		{
+			std::shared_ptr<data> d;
+			std::swap(d, keeper->data_ptr);
 			handler(d->results, d->error);
 		}
 
