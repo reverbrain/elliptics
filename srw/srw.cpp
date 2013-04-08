@@ -365,7 +365,6 @@ class srw {
 				}
 
 				cocaine::api::event_t cevent(event);
-				dnet_shared_upstream_t upstream(std::make_shared<dnet_upstream_t>(m_s, st, cmd, event, (uint64_t)sph->flags));
 
 				boost::mutex::scoped_lock guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
@@ -373,6 +372,8 @@ class srw {
 					dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: no task\n", id_str, sph_str, event.c_str());
 					return -ENOENT;
 				}
+
+				dnet_shared_upstream_t upstream(std::make_shared<dnet_upstream_t>(m_s, st, cmd, event, (uint64_t)sph->flags));
 
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK)
 					m_jobs.insert(std::make_pair((int)sph->src_key, upstream));
