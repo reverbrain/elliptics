@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.23.2.0
+Version:	2.23.3.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,20 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Apr 09 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.3.0
+- Fixed memory leak at async_result aggregator connection
+- postpone upstream creation after we know application exists
+- write-cas should restart when receiving -EBADFD not -EINVAL
+- Added a bit more documentation
+- Use real error reply in async_result_handler::check(). Headers/lines cleanup.
+- Write text command name, not its number
+- Moved namespace/definitions/declarations from cpp file to separate index header.
+- Get rid of unused typedefs
+- use appropriate printf code for uint64_t variable (fixes warnings on 32bit systems)
+- removed unused zmq.hpp include
+- Fixed dnet_parse_addr() - no need to free addr
+- Fixed building with gcc-4.4
+
 * Fri Apr 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.2.0
 - Do not spam error log-level with unsuccessful partial reads
 - Put cocaine plugin into libcocaine-plugin-elliptics package

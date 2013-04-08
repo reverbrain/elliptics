@@ -1,3 +1,20 @@
+elliptics (2.23.3.0) unstable; urgency=low
+
+  * Fixed memory leak at async_result aggregator connection
+  * postpone upstream creation after we know application exists
+  * write-cas should restart when receiving -EBADFD not -EINVAL
+  * Added a bit more documentation
+  * Use real error reply in async_result_handler::check(). Headers/lines cleanup.
+  * Write text command name, not its number
+  * Moved namespace/definitions/declarations from cpp file to separate index header.
+  * Get rid of unused typedefs
+  * use appropriate printf code for uint64_t variable (fixes warnings on 32bit systems)
+  * removed unused zmq.hpp include
+  * Fixed dnet_parse_addr() - no need to free addr
+  * Fixed building with gcc-4.4
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Apr 2013 00:10:16 +0400
+
 elliptics (2.23.2.0) unstable; urgency=low
 
   * Do not spam error log-level with unsuccessful partial reads
