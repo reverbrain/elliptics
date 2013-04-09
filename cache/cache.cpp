@@ -213,12 +213,13 @@ class cache_t {
 			boost::mutex::scoped_lock guard(m_lock);
 
 			iset_t::iterator it = m_set.find(id);
-			if (it == m_set.end())
-				throw std::runtime_error("no record");
+			if (it != m_set.end()) {
+				m_lru.erase(m_lru.iterator_to(*it));
+				m_lru.push_back(*it);
+				return it->data();
+			}
 
-			m_lru.erase(m_lru.iterator_to(*it));
-			m_lru.push_back(*it);
-			return it->data();
+			return boost::shared_ptr<raw_data_t>();
 		}
 
 		bool remove(const unsigned char *id) {
@@ -338,9 +339,8 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		switch (cmd->cmd) {
 			case DNET_CMD_WRITE:
 				if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
-					try {
-						d = cache->read(io->id);
-
+					d = cache->read(io->id);
+					if (d) {
 						struct dnet_raw_id csum;
 						dnet_transform_node(n, d->data().data(), d->data().size(), csum.id, sizeof(csum.id));
 
@@ -349,12 +349,6 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 							err = -EBADFD;
 							break;
 						}
-					} catch (const std::runtime_error &e) {
-						/*
-						 * No cache entry, it is safe to write data
-						 * TODO: replace this generic exception with something more specific
-						 */
-						err = 0;
 					}
 				}
 
@@ -363,6 +357,11 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 				break;
 			case DNET_CMD_READ:
 				d = cache->read(io->id);
+				if (!d) {
+					err = -ENOENT;
+					break;
+				}
+
 				if (io->offset + io->size > d->size()) {
 					dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache: invalid offset/size: "
 							"offset: %llu, size: %llu, cached-size: %zd\n",
