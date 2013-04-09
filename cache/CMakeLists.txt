@@ -1,5 +1,5 @@
 add_library(elliptics_cache STATIC cache.cpp)
 if(UNIX OR MINGW)
-    set_target_properties(elliptics_cache PROPERTIES COMPILE_FLAGS "-fPIC")
+    set_target_properties(elliptics_cache PROPERTIES COMPILE_FLAGS "-fPIC -std=c++11")
 endif()
 target_link_libraries(elliptics_cache "")

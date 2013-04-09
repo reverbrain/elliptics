@@ -17,12 +17,10 @@
 #include <deque>
 #include <vector>
 #include <deque>
+#include <mutex>
+#include <thread>
 
 #include <boost/unordered_map.hpp>
-#include <boost/shared_array.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/make_shared.hpp>
-#include <boost/thread.hpp>
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/set.hpp>
 
@@ -89,7 +87,7 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 			return m_id;
 		}
 
-		boost::shared_ptr<raw_data_t> data(void) const {
+		std::shared_ptr<raw_data_t> data(void) const {
 			return m_data;
 		}
 
@@ -121,7 +119,7 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 		size_t m_lifetime;
 		bool m_remove_from_disk;
 		struct dnet_raw_id m_id;
-		boost::shared_ptr<raw_data_t> m_data;
+		std::shared_ptr<raw_data_t> m_data;
 };
 
 typedef boost::intrusive::list<data_t, boost::intrusive::base_hook<lru_list_base_hook_t> > lru_list_t;
@@ -141,8 +139,12 @@ typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<time_set_base_
 
 class cache_t {
 	public:
-		cache_t(struct dnet_node *n) : m_need_exit(false), m_node(n), m_cache_size(0), m_max_cache_size(n->cache_size) {
-			m_lifecheck = boost::thread(boost::bind(&cache_t::life_check, this));
+		cache_t(struct dnet_node *n, size_t max_size) :
+		m_need_exit(false),
+		m_node(n),
+		m_cache_size(0),
+		m_max_cache_size(max_size) {
+			m_lifecheck = std::thread(std::bind(&cache_t::life_check, this));
 		}
 
 		~cache_t() {
@@ -156,7 +158,7 @@ class cache_t {
 		}
 
 		void write(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) {
-			boost::mutex::scoped_lock guard(m_lock);
+			std::lock_guard<std::mutex> guard(m_lock);
 
 			iset_t::iterator it = m_set.find(id);
 			if (it != m_set.end())
@@ -178,8 +180,8 @@ class cache_t {
 			m_cache_size += size;
 		}
 
-		boost::shared_ptr<raw_data_t> read(const unsigned char *id) {
-			boost::mutex::scoped_lock guard(m_lock);
+		std::shared_ptr<raw_data_t> read(const unsigned char *id) {
+			std::lock_guard<std::mutex> guard(m_lock);
 
 			iset_t::iterator it = m_set.find(id);
 			if (it != m_set.end()) {
@@ -188,14 +190,14 @@ class cache_t {
 				return it->data();
 			}
 
-			return boost::shared_ptr<raw_data_t>();
+			return std::shared_ptr<raw_data_t>();
 		}
 
 		bool remove(const unsigned char *id) {
 			bool removed = false;
 			bool remove_from_disk = false;
 
-			boost::mutex::scoped_lock guard(m_lock);
+			std::unique_lock<std::mutex> guard(m_lock);
 			iset_t::iterator it = m_set.find(id);
 			if (it != m_set.end()) {
 				remove_from_disk = it->remove_from_disk();
@@ -221,11 +223,13 @@ class cache_t {
 		bool m_need_exit;
 		struct dnet_node *m_node;
 		size_t m_cache_size, m_max_cache_size;
-		boost::mutex m_lock;
+		std::mutex m_lock;
 		iset_t m_set;
 		lru_list_t m_lru;
 		life_set_t m_lifeset;
-		boost::thread m_lifecheck;
+		std::thread m_lifecheck;
+
+		cache_t(const cache_t &) = delete;
 
 		void resize(size_t reserve) {
 			while (!m_lru.empty()) {
@@ -258,7 +262,7 @@ class cache_t {
 				while (!m_need_exit && !m_lifeset.empty()) {
 					size_t time = ::time(NULL);
 
-					boost::mutex::scoped_lock guard(m_lock);
+					std::lock_guard<std::mutex> guard(m_lock);
 
 					if (m_lifeset.empty())
 						break;
@@ -288,6 +292,35 @@ class cache_t {
 		}
 };
 
+class cache_manager {
+	public:
+		cache_manager(struct dnet_node *n, int num = 16) {
+			for (int i  = 0; i < num; ++i) {
+				m_caches.emplace_back(std::make_shared<cache_t>(n, n->cache_size / num));
+			}
+		}
+
+		void write(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) {
+			m_caches[idx(id)]->write(id, lifetime, data, size, remove_from_disk);
+		}
+
+		std::shared_ptr<raw_data_t> read(const unsigned char *id) {
+			return m_caches[idx(id)]->read(id);
+		}
+
+		bool remove(const unsigned char *id) {
+			return m_caches[idx(id)]->remove(id);
+		}
+
+	private:
+		std::vector<std::shared_ptr<cache_t>> m_caches;
+
+		int idx(const unsigned char *id) {
+			int i = *(int *)id;
+			return i % m_caches.size();
+		}
+};
+
 }}
 
 using namespace ioremap::cache;
@@ -300,10 +333,10 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 	if (!n->cache)
 		return -ENOTSUP;
 
-	cache_t *cache = (cache_t *)n->cache;
+	cache_manager *cache = (cache_manager *)n->cache;
 
 	try {
-		boost::shared_ptr<raw_data_t> d;
+		std::shared_ptr<raw_data_t> d;
 
 		switch (cmd->cmd) {
 			case DNET_CMD_WRITE:
@@ -366,7 +399,7 @@ int dnet_cache_init(struct dnet_node *n)
 		return 0;
 
 	try {
-		n->cache = (void *)(new cache_t(n));
+		n->cache = (void *)(new cache_manager(n, 16));
 	} catch (const std::exception &e) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Could not create cache: %s\n", e.what());
 		return -ENOMEM;
@@ -378,5 +411,5 @@ int dnet_cache_init(struct dnet_node *n)
 void dnet_cache_cleanup(struct dnet_node *n)
 {
 	if (n->cache)
-		delete (cache_t *)n->cache;
+		delete (cache_manager *)n->cache;
 }
