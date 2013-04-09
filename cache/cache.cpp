@@ -33,37 +33,6 @@
 
 namespace ioremap { namespace cache {
 
-struct key_t {
-	key_t(const unsigned char *id) {
-		memcpy(this->id, id, DNET_ID_SIZE);
-	}
-
-	unsigned char id[DNET_ID_SIZE];
-};
-
-size_t hash(const unsigned char *id) {
-	size_t num = DNET_ID_SIZE / sizeof(size_t);
-
-	size_t *ptr = (size_t *)id;
-	size_t hash = 0x883eaf5a;
-	for (size_t i = 0; i < num; ++i)
-		hash ^= ptr[i];
-
-	return hash;
-}
-
-struct hash_t {
-	std::size_t operator()(const key_t &key) const {
-		return ioremap::cache::hash(key.id);
-	}
-};
-
-struct equal_to {
-	bool operator() (const key_t &x, const key_t &y) const {
-		return memcmp(x.id, y.id, DNET_ID_SIZE) == 0;
-	}
-};
-
 class raw_data_t {
 	public:
 		raw_data_t(const char *data, size_t size) {
