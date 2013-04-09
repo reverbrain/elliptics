@@ -1,5 +1,4 @@
-#include "elliptics/session_indexes.hpp"
-
+#include "session_indexes.hpp"
 #include "callback_p.h"
 
 namespace ioremap { namespace elliptics {
@@ -60,7 +59,7 @@ struct update_indexes_data
 		{
 			dnet_indexes indexes;
 			if (!data.empty())
-				indexes_unpack(data, &indexes);
+				indexes_unpack(data, &indexes, "update_functor");
 
 			// Construct index entry
 			index_entry request_id;
@@ -272,7 +271,7 @@ struct update_indexes_data
 			if (data.empty())
 				scope->remote_indexes.indexes.clear();
 			else
-				indexes_unpack(data, &scope->remote_indexes);
+				indexes_unpack(data, &scope->remote_indexes, "main_functor");
 
 			return data_pointer::from_raw(const_cast<char *>(scope->buffer.data()),
 				scope->buffer.size());
@@ -355,7 +354,7 @@ struct find_indexes_handler
 		try {
 			std::vector<find_indexes_result_entry> result;
 			dnet_indexes tmp;
-			indexes_unpack(bulk_result[0].file(), &tmp);
+			indexes_unpack(bulk_result[0].file(), &tmp, "find_indexes_handler1");
 			result.resize(tmp.indexes.size());
 			for (size_t i = 0; i < tmp.indexes.size(); ++i) {
 				find_indexes_result_entry &entry = result[i];
@@ -368,7 +367,7 @@ struct find_indexes_handler
 			for (size_t i = 1; i < bulk_result.size() && !result.empty(); ++i) {
 				auto raw = reinterpret_cast<dnet_raw_id&>(bulk_result[i].command()->id);
 				tmp.indexes.resize(0);
-				indexes_unpack(bulk_result[i].file(), &tmp);
+				indexes_unpack(bulk_result[i].file(), &tmp, "find_indexes_handler2");
 				auto it = std::set_intersection(result.begin(), result.end(),
 					tmp.indexes.begin(), tmp.indexes.end(),
 					result.begin(), dnet_raw_id_less_than<skip_data>());
@@ -452,7 +451,7 @@ struct check_indexes_handler
 
 		try {
 			dnet_indexes result;
-			indexes_unpack(read_result[0].file(), &result);
+			indexes_unpack(read_result[0].file(), &result, "check_indexes_handler");
 
 			try {
 				handler(result.indexes);
