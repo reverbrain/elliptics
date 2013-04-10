@@ -332,10 +332,15 @@ static inline void dnet_convert_list(struct dnet_list *l)
  *
  * Want data checksum on read
  * Checksum is returned in io->parent
- *
- * Also checksum will be returned, when flag is set in lookup command
  */
 #define DNET_IO_FLAGS_CHECKSUM		(1<<14)
+
+/*
+ * When set, write will not return file info, but only plain ack
+ * Flag value is the same as DNET_IO_FLAGS_CHECKSUM, since logically
+ * both flags can not be set in one command (either read or write)
+ */
+#define DNET_IO_FLAGS_WRITE_NO_FILE_INFO	(1<<14)
 
 struct dnet_io_attr
 {

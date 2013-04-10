@@ -173,6 +173,12 @@ plain_write:
 	if (error_string)
 		goto err_out_exit;
 
+	if (io->flags & DNET_IO_FLAGS_WRITE_NO_FILE_INFO) {
+		cmd->flags |= DNET_FLAGS_NEED_ACK;
+		err = 0;
+		goto err_out_exit;
+	}
+
 	err = dnet_send_file_info_without_fd(state, cmd, 0, io->size);
 	if (err < 0)
 		goto err_out_exit;

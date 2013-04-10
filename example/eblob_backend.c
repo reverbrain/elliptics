@@ -193,6 +193,12 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 		}
 	}
 
+	if (io->flags & DNET_IO_FLAGS_WRITE_NO_FILE_INFO) {
+		cmd->flags |= DNET_FLAGS_NEED_ACK;
+		err = 0;
+		goto err_out_exit;
+	}
+
 	err = dnet_send_file_info(state, cmd, wc.data_fd, wc.offset, wc.size);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: dnet_send_file_info: "
