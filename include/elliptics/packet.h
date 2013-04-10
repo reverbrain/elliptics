@@ -122,6 +122,9 @@ enum dnet_counters {
 /* Do not locks operations - must be set for script callers or recursive operations */
 #define DNET_FLAGS_NOLOCK		(1<<4)
 
+/* Only valid flag for LOOKUP command - when set, return checksum in file_info structure */
+#define DNET_FLAGS_CHECKSUM		(1<<5)
+
 struct dnet_id {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		group_id;
@@ -329,6 +332,8 @@ static inline void dnet_convert_list(struct dnet_list *l)
  *
  * Want data checksum on read
  * Checksum is returned in io->parent
+ *
+ * Also checksum will be returned, when flag is set in lookup command
  */
 #define DNET_IO_FLAGS_CHECKSUM		(1<<14)
 

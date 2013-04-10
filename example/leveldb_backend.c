@@ -104,7 +104,7 @@ static int leveldb_backend_lookup(struct leveldb_backend *s, void *state, struct
 		goto err_out_exit;
 	}
 
-	err = dnet_send_file_info_without_fd(state, cmd, 0, data_size);
+	err = dnet_send_file_info_without_fd(state, cmd, data, data_size);
 	if (err < 0)
 		goto err_out_free;
 

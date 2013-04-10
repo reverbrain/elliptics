@@ -1188,9 +1188,18 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 	err = fstat(fd, &st);
 	if (err) {
 		err = -errno;
-		dnet_log(n, DNET_LOG_ERROR, "%s: EBLOB: %s: info-stat: %d: %s.\n",
+		dnet_log(n, DNET_LOG_ERROR, "%s: file-info: %s: info-stat: %d: %s.\n",
 				dnet_dump_id(&cmd->id), file, err, strerror(-err));
 		goto err_out_free;
+	}
+
+	if (cmd->flags & DNET_FLAGS_CHECKSUM) {
+		err = dnet_checksum_fd(n, fd, offset, size, info->checksum, sizeof(info->checksum));
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: file-info: %s: checksum: %d: %s.\n",
+					dnet_dump_id(&cmd->id), file, err, strerror(-err));
+			goto err_out_free;
+		}
 	}
 
 	dnet_info_from_stat(info, &st);
@@ -1232,8 +1241,9 @@ err_out_exit:
 	return err;
 }
 
-int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, uint64_t offset, int64_t size)
+int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, void *data, int64_t size)
 {
+	struct dnet_net_state *st = state;
 	struct dnet_file_info *info;
 	struct dnet_addr *a;
 	int err;
@@ -1254,12 +1264,14 @@ int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, uint64_t o
 
 	if (size >= 0)
 		info->size = size;
-	info->offset = offset;
 
 	if (flen > 0) {
 		info->flen = flen;
 		memcpy(info + 1, file, flen);
 	}
+
+	if (cmd->flags & DNET_FLAGS_CHECKSUM)
+		dnet_checksum_data(st->n, data, size, info->checksum, sizeof(info->checksum));
 
 	dnet_convert_file_info(info);
 
