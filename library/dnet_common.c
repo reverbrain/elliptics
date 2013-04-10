@@ -2061,6 +2061,7 @@ void *dnet_read_data_wait_groups(struct dnet_session *s, struct dnet_id *id, int
 		struct dnet_io_attr *io, uint64_t cflags, int *errp)
 {
 	int i, failed_num = 0;
+	int recover_groups[num];
 	void *data;
 
 	for (i = 0; i < num; ++i) {
@@ -2068,12 +2069,14 @@ void *dnet_read_data_wait_groups(struct dnet_session *s, struct dnet_id *id, int
 
 		*errp = 0;
 		data = dnet_read_data_wait_raw(s, id, io, DNET_CMD_READ, cflags, errp);
-		if ((*errp == -ENOENT) || (*errp == -EBADFD))
+		if ((*errp == -ENOENT) || (*errp == -EBADFD)) {
+			recover_groups[failed_num] = groups[i];
 			failed_num++;
+		}
 
 		if (data) {
 			if ((i != 0) && (io->type == 0) && (io->offset == 0) && (io->size > sizeof(struct dnet_io_attr)) && failed_num) {
-				dnet_read_recover(s, id, io, data, cflags, groups, failed_num);
+				dnet_read_recover(s, id, io, data, cflags, recover_groups, failed_num);
 			}
 
 			*errp = 0;
