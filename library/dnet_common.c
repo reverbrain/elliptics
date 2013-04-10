@@ -1287,11 +1287,12 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 	int err;
 
 	t = dnet_trans_alloc(n, sizeof(struct dnet_cmd));
-	t->wait_ts = *dnet_session_get_timeout(s);
 	if (!t) {
 		err = -ENOMEM;
 		goto err_out_complete;
 	}
+
+	t->wait_ts = *dnet_session_get_timeout(s);
 	t->complete = complete;
 	t->priv = priv;
 
@@ -1332,6 +1333,7 @@ err_out_complete:
 	return err;
 
 err_out_destroy:
+	t->cmd.status = err;
 	dnet_trans_put(t);
 	return err;
 }
