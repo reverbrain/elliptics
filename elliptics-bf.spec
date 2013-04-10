@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.23.3.0
+Version:	2.23.4.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,17 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Apr 10 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.4.0
+- Added write IO flag, which forces backends not to send file info on write completion
+- Added DNET_FLAGS_CHECKSUM cflag - when set, lookup command will send object checksum
+- Use functor name in indexes_unpack() to debug exceptions
+- session_indexes.hpp cleanup - hide private msgpack kitchen
+- Added cache parallelism
+- Made cache exception-free
+- Changed behaviour of write_cas request.
+- Use stack-allocated local cmd struct holder when calling transaction's complete() handler without creating transaction
+- Fixed potential NULL-pointer dereference in dnet_lookup_object()
+
 * Tue Apr 09 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.3.0
 - Fixed memory leak at async_result aggregator connection
 - postpone upstream creation after we know application exists
