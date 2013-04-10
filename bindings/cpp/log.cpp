@@ -34,9 +34,14 @@ class ioremap::elliptics::logger_data {
 				log->push_log(level, msg);
 		}
 
+        bool check_level(int level)
+        {
+            return (level <= log.log_level && impl);
+        }
+
 		void push_log(const int level, const char *msg)
 		{
-			if (level <= log.log_level && impl)
+			if (check_level(level))
 				impl->log(level, msg);
 		}
 
@@ -64,8 +69,26 @@ logger &logger::operator =(const logger &other) {
 
 void logger::log(const int level, const char *msg)
 {
-	m_data->push_log(level, msg);
+    m_data->push_log(level, msg);
 }
+
+//void logger::log(int level, const char *format, ...)
+//{
+//    if (!m_data->check_level(level))
+//        return;
+
+//    va_list args;
+//	char buffer[1024];
+//	const size_t buffer_size = sizeof(buffer);
+
+//	va_start(args, format);
+
+//	vsnprintf(buffer, buffer_size, format, args);
+//	buffer[buffer_size - 1] = '\0';
+//    m_data->impl->log(level, buffer);
+
+//	va_end(args);
+//}
 
 int logger::get_log_level()
 {

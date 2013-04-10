@@ -227,6 +227,10 @@ class base_stat_callback
 		{
 		}
 
+		virtual ~base_stat_callback()
+		{
+		}
+
 		bool start(error_info *error, complete_func func, void *priv)
 		{
 			cb.set_count(unlimited);
@@ -291,6 +295,10 @@ class multigroup_callback
 	public:
 		multigroup_callback(const session &sess, const async_result<T> &result)
 			: sess(sess), cb(result), m_group_index(0)
+		{
+		}
+
+		virtual ~multigroup_callback()
 		{
 		}
 
@@ -849,62 +857,46 @@ struct dnet_style_handler
 {
 	static int handler(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)
 	{
-		std::shared_ptr<T> &ptr = *reinterpret_cast<std::shared_ptr<T> *>(priv);
+		T *callback = reinterpret_cast<T*>(priv);
 		error_info error;
 
-		try {
-			if (ptr->handle(&error, state, cmd, handler, priv)) {
-				finish(ptr, error);
-			}
-		} catch (const std::exception &exc) {
-			dnet_log_raw(ptr->sess.get_node().get_native(),
-				DNET_LOG_ERROR,
-				"UNCAUGHT ASYNC EXCEPTION: %s",
-				exc.what());
-			abort();
-		} catch (...) {
-			dnet_log_raw(ptr->sess.get_node().get_native(),
-				DNET_LOG_ERROR,
-				"UNCAUGHT ASYNC EXCEPTION");
-			abort();
+		if (callback->handle(&error, state, cmd, handler, priv)) {
+			finish(callback, error);
 		}
 		return 0;
 	}
 
-	static void start(const std::shared_ptr<T> &cb)
+	static void start(std::unique_ptr<T> &callback)
 	{
-		std::shared_ptr<T> *cb_ptr = new std::shared_ptr<T>(cb);
-
 		error_info error;
-		if (cb->start(&error, handler, cb_ptr)) {
-			if (cb->sess.get_exceptions_policy() & session::throw_at_start)
+		if (callback->start(&error, handler, callback.get())) {
+			if (callback->sess.get_exceptions_policy() & session::throw_at_start)
 				error.throw_error();
-			finish(*cb_ptr, error);
+			// Finish is exception-safe, so it's ok to release
+			// the pointer and let finish method to kill it itself
+			finish(callback.release(), error);
+		} else {
+			// Pointer is carried by entire elliptics (it got it through cb->start call)
+			// It will be killed as finished is called, which is guaranteed to be called once
+			callback.release();
 		}
 	}
 
-	static void finish(std::shared_ptr<T> &cb, const error_info &error)
+	static void finish(T *callback, const error_info &error)
 	{
-		try {
-			cb->finish(error);
-		} catch (const std::exception &exc) {
-			dnet_log_raw(cb->sess.get_node().get_native(),
-				DNET_LOG_ERROR,
-				"UNCAUGHT ASYNC EXCEPTION: %s",
-				exc.what());
-			abort();
-		} catch (...) {
-			dnet_log_raw(cb->sess.get_node().get_native(),
-				DNET_LOG_ERROR,
-				"UNCAUGHT ASYNC EXCEPTION");
-			abort();
-		}
-		delete &cb;
+		callback->finish(error);
+		delete callback;
 	}
 };
 
+template <typename T, typename... Args>
+static inline std::unique_ptr<T> createCallback(Args && ...args)
+{
+	return std::unique_ptr<T>(new T(args...));
+}
+
 template <typename T>
-static inline void startCallback(const std::shared_ptr<T> &cb)
+static inline void startCallback(std::unique_ptr<T> &cb)
 {
 	dnet_style_handler<T>::start(cb);
 }
