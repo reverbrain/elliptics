@@ -44,14 +44,14 @@ class callback_result_data
 		{
 		}
 
-		callback_result_data(dnet_net_state *state, dnet_cmd *cmd)
+		callback_result_data(dnet_addr *addr, dnet_cmd *cmd)
 		{
 			const size_t size = sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
 			void *allocated = malloc(size);
 			if (!allocated)
 				throw std::bad_alloc();
 			data = data_pointer(allocated, size);
-			memcpy(data.data(), dnet_state_addr(state), sizeof(struct dnet_addr));
+			memcpy(data.data(), addr, sizeof(struct dnet_addr));
 			memcpy(data.data<char>() + sizeof(struct dnet_addr), cmd, sizeof(struct dnet_cmd) + cmd->size);
 		}
 
@@ -148,7 +148,7 @@ class default_callback
 			} else {
 				if (!(cmd->flags & DNET_FLAGS_MORE))
 					m_statuses.push_back(cmd->status);
-				auto data = std::make_shared<callback_result_data>(state, cmd);
+				auto data = std::make_shared<callback_result_data>(dnet_state_addr(state), cmd);
 				process(cmd, data, data.get());
 			}
 			return (m_count == m_complete);

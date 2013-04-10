@@ -573,7 +573,8 @@ class session_scope
 			m_filter = m_sess.get_filter();
 			m_checker = m_sess.get_checker();
 			m_policy = m_sess.get_exceptions_policy();
-            m_cflags = m_sess.get_cflags();
+			m_cflags = m_sess.get_cflags();
+			m_ioflags = m_sess.get_ioflags();
 		}
 
 		~session_scope()
@@ -581,15 +582,17 @@ class session_scope
 			m_sess.set_filter(m_filter);
 			m_sess.set_checker(m_checker);
 			m_sess.set_exceptions_policy(m_policy);
-            m_sess.set_cflags(m_cflags);
+			m_sess.set_cflags(m_cflags);
+			m_sess.set_ioflags(m_ioflags);
 		}
 
 	private:
 		session &m_sess;
 		result_filter m_filter;
 		result_checker m_checker;
+		uint64_t m_cflags;
+		uint32_t m_ioflags;
 		uint32_t m_policy;
-        uint64_t m_cflags;
 };
 
 struct prepare_latest_functor
@@ -786,54 +789,54 @@ struct cas_data
     std::vector<int> groups;
     std::vector<dnet_id> check_sums;
 
-	struct functor
-	{
-		ptr scope;
+    struct functor
+    {
+		    ptr scope;
 
-		void next_iteration()
-		{
-            session_scope guard(scope->sess);
-            scope->sess.set_exceptions_policy(session::no_exceptions);
-            scope->sess.set_filter(filters::all);
-            scope->sess.set_cflags(scope->sess.get_cflags() | DNET_IO_FLAGS_CHECKSUM);
+		    void next_iteration()
+		    {
+			    session_scope guard(scope->sess);
+			    scope->sess.set_exceptions_policy(session::no_exceptions);
+			    scope->sess.set_filter(filters::all);
+			    scope->sess.set_cflags(scope->sess.get_cflags() | DNET_FLAGS_CHECKSUM);
 
-			scope->sess.prepare_latest(scope->id, scope->groups).connect(*this);
+			    scope->sess.prepare_latest(scope->id, scope->groups).connect(*this);
+		    }
+
+		    void operator () (const sync_lookup_result &result, const error_info &err)
+		    {
+			if (!err && !result.empty()) {
+				scope->groups.clear();
+				scope->check_sums.clear();
+				scope->groups.reserve(result.size());
+				scope->check_sums.reserve(result.size());
+
+				dnet_id checksum;
+
+				for (auto it = result.begin(); it != result.end(); ++it) {
+					const lookup_result_entry &entry = *it;
+					if (entry.is_ack()) {
+						continue;
+					} if (entry.error()) {
+						memset(&checksum, 0, sizeof(checksum));
+					} else {
+						memcpy(checksum.id, entry.file_info()->checksum, sizeof(checksum.id));
+					}
+					scope->groups.push_back(entry.command()->id.group_id);
+					scope->check_sums.push_back(checksum);
+				}
+			} else {
+				dnet_id checksum;
+				memset(&checksum, 0, sizeof(checksum));
+				scope->check_sums.assign(scope->groups.size(), checksum);
+			}
+
+			session_scope guard(scope->sess);
+			scope->sess.set_exceptions_policy(session::no_exceptions);
+			scope->sess.set_ioflags(scope->sess.get_ioflags() | DNET_IO_FLAGS_CHECKSUM);
+
+			scope->sess.read_data(scope->id, scope->remote_offset, 0).connect(*this);
 		}
-
-        void operator () (const sync_lookup_result &result, const error_info &err)
-        {
-            if (!err && !result.empty()) {
-                scope->groups.clear();
-                scope->check_sums.clear();
-                scope->groups.reserve(result.size());
-                scope->check_sums.reserve(result.size());
-
-                dnet_id checksum;
-
-                for (auto it = result.begin(); it != result.end(); ++it) {
-                    const lookup_result_entry &entry = *it;
-                    if (entry.is_ack()) {
-                        continue;
-                    } if (entry.error()) {
-                        memset(&checksum, 0, sizeof(checksum));
-                    } else {
-                        memcpy(checksum.id, entry.file_info()->checksum, sizeof(checksum.id));
-                    }
-                    scope->groups.push_back(entry.command()->id.group_id);
-                    scope->check_sums.push_back(checksum);
-                }
-            } else {
-                dnet_id checksum;
-                memset(&checksum, 0, sizeof(checksum));
-                scope->check_sums.assign(scope->groups.size(), checksum);
-            }
-
-            session_scope guard(scope->sess);
-            scope->sess.set_exceptions_policy(session::no_exceptions);
-            scope->sess.set_cflags(scope->sess.get_cflags() | DNET_IO_FLAGS_CHECKSUM);
-
-            scope->sess.read_data(scope->id, scope->remote_offset, 0).connect(*this);
-        }
 
 		void operator () (const sync_read_result &result, const error_info &err)
 		{
@@ -842,18 +845,33 @@ struct cas_data
 				return;
 			}
 			data_pointer data;
-            uint32_t group_id = 0;
-            if (err.code() != -ENOENT) {
-                const read_result_entry &entry = result[0];
-                data = entry.file();
-                group_id = entry.command()->id.group_id;
-            }
+			uint32_t group_id = 0;
+			const read_result_entry *entry = NULL;
+			if (err.code() != -ENOENT) {
+				entry = &result[0];
+				data = entry->file();
+				group_id = entry->command()->id.group_id;
+			}
 
 			data_pointer write_data = scope->converter(data);
 
 			if (write_data.size() == data.size()
 				&& ((write_data.empty() && data.empty())
 					|| write_data.data() == data.data())) {
+				// Fake users and the system
+				// We gave them a hope that write was successfull,
+				// but really data were already OK.
+
+				dnet_addr addr;
+				memset(&addr, 0, sizeof(addr));
+				dnet_cmd cmd;
+				memset(&cmd, 0, sizeof(cmd));
+				cmd.id = entry->command()->id;
+				cmd.cmd = DNET_CMD_WRITE;
+
+				auto data = std::make_shared<callback_result_data>(&addr, &cmd);
+				callback_result_entry entry = data;
+				scope->handler.process(*static_cast<const write_result_entry *>(&entry));
 				scope->handler.complete(error_info());
 				return;
 			}
@@ -861,55 +879,55 @@ struct cas_data
 			dnet_id csum;
 			memset(&csum, 0, sizeof(csum));
 			dnet_transform_node(scope->sess.get_node().get_native(),
-				data.data(), data.size(), csum.id, sizeof(csum.id));
+			data.data(), data.size(), csum.id, sizeof(csum.id));
 
-            session sess(scope->sess.get_node());
-            sess.set_cflags(scope->sess.get_cflags());
-            sess.set_ioflags(scope->sess.get_ioflags());
-            sess.set_filter(filters::all_with_ack);
-            sess.set_exceptions_policy(session::no_exceptions);
+			session sess(scope->sess.get_node());
+			sess.set_cflags(scope->sess.get_cflags());
+			sess.set_ioflags(scope->sess.get_ioflags());
+			sess.set_filter(filters::all_with_ack);
+			sess.set_exceptions_policy(session::no_exceptions);
 
-            std::list<async_write_result> write_results;
+			std::list<async_write_result> write_results;
 
-            std::vector<int> groups;
-            std::swap(scope->groups, groups);
+			std::vector<int> groups;
+			std::swap(scope->groups, groups);
 
-            dnet_id id = scope->id.id();
-            for (size_t i = 0; i < groups.size(); ++i) {
-                id.group_id = groups[i];
-                if (id.group_id == group_id)
-                    scope->check_sums[i] = csum;
+			dnet_id id = scope->id.id();
+			for (size_t i = 0; i < groups.size(); ++i) {
+				id.group_id = groups[i];
+				if (id.group_id == group_id)
+					scope->check_sums[i] = csum;
 
-                auto result = sess.write_cas(id, write_data,
-                                             scope->check_sums[i],
-                                             scope->remote_offset);
-                write_results.emplace_back(std::move(result));
-            }
+				auto result = sess.write_cas(id, write_data,
+				scope->check_sums[i],
+				scope->remote_offset);
+				write_results.emplace_back(std::move(result));
+			}
 
-            aggregated(sess, write_results.begin(), write_results.end()).connect(*this, *this);
+			aggregated(sess, write_results.begin(), write_results.end()).connect(*this, *this);
 		}
 
-        void operator () (const write_result_entry &result)
-        {
-            scope->handler.process(result);
+	void operator () (const write_result_entry &result)
+	{
+	    scope->handler.process(result);
 
-            if (result.error().code() == -EBADFD)
-                scope->groups.push_back(result.command()->id.group_id);
-        }
+	    if (result.error().code() == -EBADFD)
+		scope->groups.push_back(result.command()->id.group_id);
+	}
 
 		void operator () (const error_info &err)
 		{
-            if (scope->groups.empty()) {
-                scope->handler.complete(err);
-                return;
-            }
+	    if (scope->groups.empty()) {
+		scope->handler.complete(err);
+		return;
+	    }
 
-            ++scope->index;
-            if (scope->index < scope->count) {
-                next_iteration();
-            } else {
-                scope->handler.complete(create_error(-EBADFD, scope->id, "write_cas: too many attemps: %d", scope->count));
-            }
+	    ++scope->index;
+	    if (scope->index < scope->count) {
+		next_iteration();
+	    } else {
+		scope->handler.complete(create_error(-EBADFD, scope->id, "write_cas: too many attemps: %d", scope->count));
+	    }
 		}
 	};
 };
