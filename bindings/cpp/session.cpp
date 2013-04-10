@@ -472,7 +472,7 @@ async_read_result session::read_data(const key &id, const std::vector<int> &grou
 
 	memcpy(&control.io, &io, sizeof(struct dnet_io_attr));
 
-	read_callback::ptr cb = std::make_shared<read_callback>(*this, result, control);
+	auto cb = createCallback<read_callback>(*this, result, control);
 	cb->kid = id;
 	cb->groups = groups;
 
@@ -573,6 +573,7 @@ class session_scope
 			m_filter = m_sess.get_filter();
 			m_checker = m_sess.get_checker();
 			m_policy = m_sess.get_exceptions_policy();
+            m_cflags = m_sess.get_cflags();
 		}
 
 		~session_scope()
@@ -580,6 +581,7 @@ class session_scope
 			m_sess.set_filter(m_filter);
 			m_sess.set_checker(m_checker);
 			m_sess.set_exceptions_policy(m_policy);
+            m_sess.set_cflags(m_cflags);
 		}
 
 	private:
@@ -587,6 +589,7 @@ class session_scope
 		result_filter m_filter;
 		result_checker m_checker;
 		uint32_t m_policy;
+        uint64_t m_cflags;
 };
 
 struct prepare_latest_functor
@@ -732,7 +735,7 @@ async_read_result session::read_latest(const key &id, uint64_t offset, uint64_t 
 async_write_result session::write_data(const dnet_io_control &ctl)
 {
 	async_write_result result(*this);
-	write_callback::ptr cb = std::make_shared<write_callback>(*this, result, ctl);
+	auto cb = createCallback<write_callback>(*this, result, ctl);
 
 	cb->ctl.cmd = DNET_CMD_WRITE;
 	cb->ctl.cflags |= DNET_FLAGS_NEED_ACK;
@@ -780,14 +783,57 @@ struct cas_data
 	int index;
 	int count;
 
+    std::vector<int> groups;
+    std::vector<dnet_id> check_sums;
+
 	struct functor
 	{
 		ptr scope;
 
 		void next_iteration()
 		{
-			scope->sess.read_latest(scope->id, scope->remote_offset, 0).connect(*this);
+            session_scope guard(scope->sess);
+            scope->sess.set_exceptions_policy(session::no_exceptions);
+            scope->sess.set_filter(filters::all);
+            scope->sess.set_cflags(scope->sess.get_cflags() | DNET_IO_FLAGS_CHECKSUM);
+
+			scope->sess.prepare_latest(scope->id, scope->groups).connect(*this);
 		}
+
+        void operator () (const sync_lookup_result &result, const error_info &err)
+        {
+            if (!err && !result.empty()) {
+                scope->groups.clear();
+                scope->check_sums.clear();
+                scope->groups.reserve(result.size());
+                scope->check_sums.reserve(result.size());
+
+                dnet_id checksum;
+
+                for (auto it = result.begin(); it != result.end(); ++it) {
+                    const lookup_result_entry &entry = *it;
+                    if (entry.is_ack()) {
+                        continue;
+                    } if (entry.error()) {
+                        memset(&checksum, 0, sizeof(checksum));
+                    } else {
+                        memcpy(checksum.id, entry.file_info()->checksum, sizeof(checksum.id));
+                    }
+                    scope->groups.push_back(entry.command()->id.group_id);
+                    scope->check_sums.push_back(checksum);
+                }
+            } else {
+                dnet_id checksum;
+                memset(&checksum, 0, sizeof(checksum));
+                scope->check_sums.assign(scope->groups.size(), checksum);
+            }
+
+            session_scope guard(scope->sess);
+            scope->sess.set_exceptions_policy(session::no_exceptions);
+            scope->sess.set_cflags(scope->sess.get_cflags() | DNET_IO_FLAGS_CHECKSUM);
+
+            scope->sess.read_data(scope->id, scope->remote_offset, 0).connect(*this);
+        }
 
 		void operator () (const sync_read_result &result, const error_info &err)
 		{
@@ -795,7 +841,13 @@ struct cas_data
 				scope->handler.complete(err);
 				return;
 			}
-			data_pointer data = (err.code() == -ENOENT) ? data_pointer() : result[0].file();
+			data_pointer data;
+            uint32_t group_id = 0;
+            if (err.code() != -ENOENT) {
+                const read_result_entry &entry = result[0];
+                data = entry.file();
+                group_id = entry.command()->id.group_id;
+            }
 
 			data_pointer write_data = scope->converter(data);
 
@@ -811,20 +863,53 @@ struct cas_data
 			dnet_transform_node(scope->sess.get_node().get_native(),
 				data.data(), data.size(), csum.id, sizeof(csum.id));
 
-			scope->sess.write_cas(scope->id, write_data, csum, scope->remote_offset).connect(*this);
+            session sess(scope->sess.get_node());
+            sess.set_cflags(scope->sess.get_cflags());
+            sess.set_ioflags(scope->sess.get_ioflags());
+            sess.set_filter(filters::all_with_ack);
+            sess.set_exceptions_policy(session::no_exceptions);
+
+            std::list<async_write_result> write_results;
+
+            std::vector<int> groups;
+            std::swap(scope->groups, groups);
+
+            dnet_id id = scope->id.id();
+            for (size_t i = 0; i < groups.size(); ++i) {
+                id.group_id = groups[i];
+                if (id.group_id == group_id)
+                    scope->check_sums[i] = csum;
+
+                auto result = sess.write_cas(id, write_data,
+                                             scope->check_sums[i],
+                                             scope->remote_offset);
+                write_results.emplace_back(std::move(result));
+            }
+
+            aggregated(sess, write_results.begin(), write_results.end()).connect(*this, *this);
 		}
 
-		void operator () (const sync_write_result &result, const error_info &err)
+        void operator () (const write_result_entry &result)
+        {
+            scope->handler.process(result);
+
+            if (result.error().code() == -EBADFD)
+                scope->groups.push_back(result.command()->id.group_id);
+        }
+
+		void operator () (const error_info &err)
 		{
-			if (err.code() == -EBADFD) {
-				++scope->index;
-				if (scope->index < scope->count)
-					next_iteration();
-				return;
-			}
-			for (auto it = result.begin(); it != result.end(); ++it)
-				scope->handler.process(*it);
-			scope->handler.complete(err);
+            if (scope->groups.empty()) {
+                scope->handler.complete(err);
+                return;
+            }
+
+            ++scope->index;
+            if (scope->index < scope->count) {
+                next_iteration();
+            } else {
+                scope->handler.complete(create_error(-EBADFD, scope->id, "write_cas: too many attemps: %d", scope->count));
+            }
 		}
 	};
 };
@@ -832,9 +917,10 @@ struct cas_data
 async_write_result session::write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
 		uint64_t remote_offset, int count)
 {
+    transform(id);
 	async_write_result result(*this);
 	async_result_handler<write_result_entry> handler(result);
-	cas_data scope = { *this, handler, converter, id, remote_offset, 0, count };
+    cas_data scope = { *this, handler, converter, id, remote_offset, 0, count, mix_states(), std::vector<dnet_id>() };
 	cas_data::functor cas_handler = { std::make_shared<cas_data>(scope) };
 	cas_handler.next_iteration();
 	return result;
@@ -1072,7 +1158,7 @@ async_lookup_result session::lookup(const key &id)
 	transform(id);
 
 	async_lookup_result result(*this);
-	lookup_callback::ptr cb = std::make_shared<lookup_callback>(*this, result);
+	auto cb = createCallback<lookup_callback>(*this, result);
 	cb->kid = id;
 
 	mix_states(id, cb->groups);
@@ -1086,7 +1172,7 @@ async_remove_result session::remove(const key &id)
 	transform(id);
 
 	async_remove_result result(*this);
-	remove_callback::ptr cb = std::make_shared<remove_callback>(*this, result, id.id());
+	auto cb = createCallback<remove_callback>(*this, result, id.id());
 
 	startCallback(cb);
 	return result;
@@ -1095,7 +1181,7 @@ async_remove_result session::remove(const key &id)
 async_stat_result session::stat_log()
 {
 	async_stat_result result(*this);
-	stat_callback::ptr cb = std::make_shared<stat_callback>(*this, result);
+	auto cb = createCallback<stat_callback>(*this, result);
 
 	startCallback(cb);
 	return result;
@@ -1106,7 +1192,7 @@ async_stat_result session::stat_log(const key &id)
 	async_stat_result result(*this);
 	transform(id);
 
-	stat_callback::ptr cb = std::make_shared<stat_callback>(*this, result);
+	auto cb = createCallback<stat_callback>(*this, result);
 	cb->id = id.id();
 	cb->has_id = true;
 
@@ -1117,7 +1203,7 @@ async_stat_result session::stat_log(const key &id)
 async_stat_count_result session::stat_log_count()
 {
 	async_stat_count_result result(*this);
-	stat_count_callback::ptr cb = std::make_shared<stat_count_callback>(*this, result);
+	auto cb = createCallback<stat_count_callback>(*this, result);
 
 	startCallback(cb);
 	return result;
@@ -1131,7 +1217,7 @@ int session::state_num(void)
 async_generic_result session::request_cmd(const transport_control &ctl)
 {
 	async_generic_result result(*this);
-	cmd_callback::ptr cb = std::make_shared<cmd_callback>(*this, result, ctl);
+	auto cb = createCallback<cmd_callback>(*this, result, ctl);
 
 	startCallback(cb);
 	return result;
@@ -1457,7 +1543,7 @@ std::vector<std::pair<struct dnet_id, struct dnet_addr> > session::get_routes()
 async_exec_result session::request(dnet_id *id, const exec_context &context)
 {
 	async_exec_result result(*this);
-	exec_callback::ptr cb = std::make_shared<exec_callback>(*this, result);
+	auto cb = createCallback<exec_callback>(*this, result);
 	cb->id = id;
 	cb->sph = context.m_data->sph.data<sph>();
 
@@ -1509,7 +1595,7 @@ async_iterator_result session::start_iterator(const key &id, const dnet_iterator
 {
 	transform(id);
 	async_iterator_result result(*this);
-	iterator_callback::ptr cb = std::make_shared<iterator_callback>(*this, result);
+	auto cb = createCallback<iterator_callback>(*this, result);
 	cb->id = id.id();
 	cb->request = request;
 
@@ -1629,7 +1715,7 @@ async_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios
 	memset(&control.io, 0, sizeof(struct dnet_io_attr));
 
 	async_read_result result(*this);
-	read_bulk_callback::ptr cb = std::make_shared<read_bulk_callback>(*this, result, ios, control);
+	auto cb = createCallback<read_bulk_callback>(*this, result, ios, control);
 	cb->groups = mix_states();
 
 	startCallback(cb);

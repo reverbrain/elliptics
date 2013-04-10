@@ -1,5 +1,9 @@
 #include <elliptics/cppdef.h>
 
+#ifdef NDEBUG
+# undef NDEBUG
+#endif
+
 #include <cassert>
 #include <sstream>
 #include <algorithm>
@@ -243,6 +247,7 @@ void test_1(session &sess)
 			try {
 				sess.update_indexes(object, object_tags, object_datas);
 			} catch (error &e) {
+                std::cerr << e.what() << std::endl;
 				result = e.error_code();
 			} catch (std::bad_alloc &e) {
 				result = -ENOMEM;
