@@ -549,7 +549,7 @@ class read_bulk_callback : public read_callback
 					}
 
 					/* Send command only if state changes or it's a last id */
-					if ((cur == next)) {
+					if (cur == next) {
 						dnet_state_put(next);
 						next = NULL;
 						continue;
