@@ -2009,12 +2009,13 @@ err_out_exit:
 	return data;
 }
 
-static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, void *data, int failed_group_num)
+static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, void *data,
+		int *failed_groups, int failed_group_num)
 {
 	struct dnet_node *n = s->node;
 	struct dnet_meta_container mc;
 	struct dnet_io_control ctl;
-	int tmp_groups[failed_group_num], *old_groups, old_group_num;
+	int *old_groups, old_group_num;
 	void *result;
 	int err;
 
@@ -2036,12 +2037,10 @@ static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct 
 	ctl.cmd = DNET_CMD_WRITE;
 	ctl.cflags = dnet_session_get_cflags(s);
 
-	memcpy(tmp_groups, s->groups, failed_group_num * sizeof(int));
-
 	old_groups = s->groups;
 	old_group_num = s->group_num;
 
-	s->groups = tmp_groups;
+	s->groups = failed_groups;
 	s->group_num = failed_group_num;
 
 	err = dnet_write_data_wait(s, &ctl, &result);
@@ -2070,6 +2069,7 @@ void *dnet_read_data_wait_groups(struct dnet_session *s, struct dnet_id *id, int
 		struct dnet_io_attr *io, int *errp)
 {
 	int i, failed_num = 0;
+	int failed_groups[num];
 	void *data;
 
 	for (i = 0; i < num; ++i) {
@@ -2077,12 +2077,14 @@ void *dnet_read_data_wait_groups(struct dnet_session *s, struct dnet_id *id, int
 
 		*errp = 0;
 		data = dnet_read_data_wait_raw(s, id, io, DNET_CMD_READ, errp);
-		if ((*errp == -ENOENT) || (*errp == -EBADFD))
+		if ((*errp == -ENOENT) || (*errp == -EBADFD)) {
+			failed_groups[failed_num] = groups[i];
 			failed_num++;
+		}
 
 		if (data) {
 			if ((i != 0) && (io->type == 0) && (io->offset == 0) && (io->size > sizeof(struct dnet_io_attr)) && failed_num) {
-				dnet_read_recover(s, id, io, data, failed_num);
+				dnet_read_recover(s, id, io, data, failed_groups, failed_num);
 			}
 
 			*errp = 0;
