@@ -475,7 +475,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		struct dnet_id_comparator
 		{
-			bool operator() (const struct dnet_id &first, const struct dnet_id &second)
+			bool operator() (const struct dnet_id &first, const struct dnet_id &second) const
 			{
 				return memcmp(first.id, second.id, sizeof(first.id)) < 0;
 			}
