@@ -94,6 +94,9 @@ int dnet_backend_register(struct dnet_config_backend *b);
 int dnet_file_backend_init(void);
 void dnet_file_backend_exit(void);
 
+int dnet_module_backend_init(void);
+void dnet_module_backend_exit(void);
+
 int dnet_eblob_backend_init(void);
 void dnet_eblob_backend_exit(void);
 

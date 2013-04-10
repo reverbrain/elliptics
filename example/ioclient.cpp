@@ -72,6 +72,7 @@ static void dnet_usage(char *p)
 			" -t column            - column ID to read or write\n"
 			" -d request_string    - defragmentation request: 'start' - start defragmentation, 'status' - request current status\n"
 			" -i flags             - IO flags (see DNET_IO_FLAGS_* in include/elliptics/packet.h\n"
+			" -H                   - do not hash id, use it as is\n"
 			, p);
 }
 
@@ -113,6 +114,7 @@ int main(int argc, char *argv[])
 	sigset_t mask;
 	char *ns = NULL;
 	int nsize = 0;
+	std::string as_is_key;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -126,7 +128,7 @@ int main(int argc, char *argv[])
 	cfg.wait_timeout = 60;
 	int log_level = DNET_LOG_ERROR;
 
-	while ((ch = getopt(argc, argv, "i:d:C:t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:h")) != -1) {
+	while ((ch = getopt(argc, argv, "i:d:C:t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:hH")) != -1) {
 		switch (ch) {
 			case 'i':
 				ioflags = strtoull(optarg, NULL, 0);
@@ -218,6 +220,10 @@ int main(int argc, char *argv[])
 				break;
 			case 'D':
 				read_data = optarg;
+				break;
+			case 'H':
+				as_is_key=read_data;
+				id=(unsigned char*)(as_is_key.c_str());
 				break;
 			case 'h':
 			default:
