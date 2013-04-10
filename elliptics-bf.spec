@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.23.4.0
+Version:	2.23.4.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Apr 10 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.4.1
+- Fixed write_cas.
+- Fixed reporting about the error if data is already actual
+
 * Wed Apr 10 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.4.0
 - Added write IO flag, which forces backends not to send file info on write completion
 - Added DNET_FLAGS_CHECKSUM cflag - when set, lookup command will send object checksum

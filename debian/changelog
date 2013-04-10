@@ -1,3 +1,10 @@
+elliptics (2.23.4.1) unstable; urgency=low
+
+  * Fixed write_cas.
+  * Fixed reporting about the error if data is already actual
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 10 Apr 2013 23:25:57 +0400
+
 elliptics (2.23.4.0) unstable; urgency=low
 
   * Added write IO flag, which forces backends not to send file info on write completion
