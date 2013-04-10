@@ -137,7 +137,7 @@ void clear(session &sess)
 	memset(io.parent, 0xff, sizeof(io.id));
 
 	try {
-		sess.remove_data_range(io, 2);
+		sess.remove_data_range(io, 2).wait();
 	} catch (...) {
 	}
 
