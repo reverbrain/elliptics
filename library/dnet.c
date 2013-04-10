@@ -1193,15 +1193,6 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 		goto err_out_free;
 	}
 
-	if (cmd->flags & DNET_FLAGS_CHECKSUM) {
-		err = dnet_checksum_fd(n, fd, offset, size, info->checksum, sizeof(info->checksum));
-		if (err) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: file-info: %s: checksum: %d: %s.\n",
-					dnet_dump_id(&cmd->id), file, err, strerror(-err));
-			goto err_out_free;
-		}
-	}
-
 	dnet_info_from_stat(info, &st);
 	/* this is not valid data from raw blob file stat */
 	info->mtime.tsec = 0;
@@ -1218,6 +1209,15 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 		info->size = size;
 	if (offset)
 		info->offset = offset;
+
+	if (cmd->flags & DNET_FLAGS_CHECKSUM) {
+		err = dnet_checksum_fd(n, fd, info->offset, info->size, info->checksum, sizeof(info->checksum));
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: file-info: %s: checksum: %d: %s.\n",
+					dnet_dump_id(&cmd->id), file, err, strerror(-err));
+			goto err_out_free;
+		}
+	}
 
 	if (info->size == 0) {
 		err = -EINVAL;
