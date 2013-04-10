@@ -1,6 +1,8 @@
 #ifndef __ELLIPTICS_SESSION_INDEXES_HPP
 #define __ELLIPTICS_SESSION_INDEXES_HPP
 
+#include <time.h>
+
 #include <iostream>
 
 std::ostream &operator <<(std::ostream &out, const dnet_raw_id &v)
@@ -11,7 +13,7 @@ std::ostream &operator <<(std::ostream &out, const dnet_raw_id &v)
 
 std::ostream &operator <<(std::ostream &out, const ioremap::elliptics::index_entry &v)
 {
-	out << "(" << v.index << ",\"" << v.data.to_string() << "\")";
+	out << "(id: " << v.index << ", data-size: " << v.data.size() << ")";
 	return out;
 }
 
@@ -24,7 +26,7 @@ std::ostream &operator <<(std::ostream &out, const ioremap::elliptics::data_poin
 template <typename T>
 std::ostream &operator <<(std::ostream &out, const std::vector<T> &v)
 {
-	out << "{";
+	out << "v{";
 	for (size_t i = 0; i < v.size(); ++i) {
 		if (i)
 			out << ",";
@@ -37,7 +39,7 @@ std::ostream &operator <<(std::ostream &out, const std::vector<T> &v)
 template <typename K, typename V>
 std::ostream &operator <<(std::ostream &out, const std::map<K, V> &v)
 {
-	out << "{";
+	out << "m{";
 	for (auto it = v.begin(); it != v.end(); ++it) {
 		if (it != v.begin())
 			out << ",";
@@ -50,13 +52,25 @@ std::ostream &operator <<(std::ostream &out, const std::map<K, V> &v)
 template <typename K, typename V>
 std::ostream &operator <<(std::ostream &out, const std::pair<K, V> &v)
 {
-	out << "(" << v.first << "," << v.second << ")";
+	out << "p{" << v.first << "," << v.second << "}";
 	return out;
 }
 
 std::ostream &operator <<(std::ostream &out, const ioremap::elliptics::find_indexes_result_entry &v)
 {
-	out << "(" << v.id << "," << v.indexes << ")";
+	out << "re{" << v.id << "," << v.indexes << "}";
+	return out;
+}
+
+std::ostream &operator <<(std::ostream &out, const dnet_time &tv)
+{
+	char str[64];
+	struct tm tm;
+
+	localtime_r((time_t *)&tv.tsec, &tm);
+	strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+	out << str << "." << tv.tnsec / 1000;
 	return out;
 }
 
