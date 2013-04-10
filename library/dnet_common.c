@@ -1328,8 +1328,16 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 	return 0;
 
 err_out_complete:
-	if (complete)
-		complete(NULL, NULL, priv);
+	if (complete) {
+		struct dnet_cmd lcmd;
+
+		lcmd = *cmd;
+		lcmd.size = 0;
+		lcmd.flags = DNET_TRANS_REPLY;
+		lcmd.status = err;
+
+		complete(NULL, &lcmd, priv);
+	}
 	return err;
 
 err_out_destroy:
