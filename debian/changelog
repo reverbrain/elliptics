@@ -1,3 +1,9 @@
+elliptics (2.20.5.2) unstable; urgency=low
+
+  * Only recover in groups which returned -ENOENT or -EBADFD from read
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 10 Apr 2013 23:47:19 +0400
+
 elliptics (2.20.5.1) unstable; urgency=low
 
   * Iterate over all groups if dnet_bulk_read fails

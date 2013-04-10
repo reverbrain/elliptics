@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.5.1
+Version:	2.20.5.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Apr 10 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.5.2
+- Only recover in groups which returned -ENOENT or -EBADFD from read
+
 * Tue Apr 02 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.5.1
 - Iterate over all groups if dnet_bulk_read fails
 
