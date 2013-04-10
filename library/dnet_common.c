@@ -1331,8 +1331,9 @@ err_out_complete:
 	if (complete) {
 		struct dnet_cmd lcmd;
 
-		lcmd = *cmd;
-		lcmd.size = 0;
+		memset(&lcmd, 0, sizeof(struct dnet_cmd));
+
+		lcmd.id = *id;
 		lcmd.flags = DNET_TRANS_REPLY;
 		lcmd.status = err;
 
