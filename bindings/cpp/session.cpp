@@ -866,7 +866,11 @@ struct cas_data
 				memset(&addr, 0, sizeof(addr));
 				dnet_cmd cmd;
 				memset(&cmd, 0, sizeof(cmd));
-				cmd.id = entry->command()->id;
+				if (entry) {
+					cmd.id = entry->command()->id;
+				} else if (!result.empty()) {
+					cmd.id = result[0].command()->id;
+				}
 				cmd.cmd = DNET_CMD_WRITE;
 
 				auto data = std::make_shared<callback_result_data>(&addr, &cmd);
