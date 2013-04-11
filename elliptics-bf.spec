@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.23.4.1
+Version:	2.23.4.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Apr 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.4.2
+- Revert module-backend
+
 * Wed Apr 10 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.4.1
 - Fixed write_cas.
 - Fixed reporting about the error if data is already actual

@@ -1,3 +1,9 @@
+elliptics (2.23.4.2) unstable; urgency=low
+
+  * Revert module-backend
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 11 Apr 2013 05:52:14 +0400
+
 elliptics (2.23.4.1) unstable; urgency=low
 
   * Fixed write_cas.
