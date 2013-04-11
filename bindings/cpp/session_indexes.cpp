@@ -333,7 +333,12 @@ struct find_indexes_handler
 
 	void operator() (const sync_read_result &bulk_result, const error_info &err)
 	{
-		if (err) {
+		std::vector<find_indexes_result_entry> result;
+
+		if (err == -ENOENT) {
+			handler(result);
+			return;
+		} else if (err) {
 			try {
 				err.throw_error();
 			} catch (...) {
@@ -343,16 +348,11 @@ struct find_indexes_handler
 		}
 
 		if (bulk_result.size() != ios_size) {
-			try {
-				throw_error(-ENOENT, "Received not all results");
-			} catch (...) {
-				handler(std::current_exception());
-				return;
-			}
+			handler(result);
+			return;
 		}
 
 		try {
-			std::vector<find_indexes_result_entry> result;
 			dnet_indexes tmp;
 			indexes_unpack(bulk_result[0].file(), &tmp, "find_indexes_handler1");
 			result.resize(tmp.indexes.size());
