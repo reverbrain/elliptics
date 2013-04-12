@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
 	if (have_remote) {
 		int error = -ECONNRESET;
 		for (i=0; i<have_remote; ++i) {
-			if (single_node_stat && (vfs_stat || io_counter_stat))
+			if (single_node_stat && (vfs_stat || io_counter_stat || defrag))
 				remotes[i].flags = DNET_CFG_NO_ROUTE_LIST;
 			err = dnet_add_state(n, &remotes[i]);
 			if (!err)
