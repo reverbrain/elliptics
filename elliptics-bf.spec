@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.5.2
+Version:	2.20.5.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.5.3
+- Do not request route table when doing defragmentation request.
+- This should end up with defrag being started only on specified node, not on every node in the cluster
+
 * Wed Apr 10 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.5.2
 - Only recover in groups which returned -ENOENT or -EBADFD from read
 
