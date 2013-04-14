@@ -786,25 +786,22 @@ struct cas_data
 	int index;
 	int count;
 
-    std::vector<int> groups;
-    std::vector<dnet_id> check_sums;
+	std::vector<int> groups;
+	std::vector<dnet_id> check_sums;
 
-    struct functor
-    {
-		    ptr scope;
+	struct functor {
+		ptr scope;
 
-		    void next_iteration()
-		    {
-			    session_scope guard(scope->sess);
-			    scope->sess.set_exceptions_policy(session::no_exceptions);
-			    scope->sess.set_filter(filters::all);
-			    scope->sess.set_cflags(scope->sess.get_cflags() | DNET_FLAGS_CHECKSUM);
+		void next_iteration() {
+			session_scope guard(scope->sess);
+			scope->sess.set_exceptions_policy(session::no_exceptions);
+			scope->sess.set_filter(filters::all);
+			scope->sess.set_cflags(scope->sess.get_cflags() | DNET_FLAGS_CHECKSUM);
 
-			    scope->sess.prepare_latest(scope->id, scope->groups).connect(*this);
-		    }
+			scope->sess.prepare_latest(scope->id, scope->groups).connect(*this);
+		}
 
-		    void operator () (const sync_lookup_result &result, const error_info &err)
-		    {
+		void operator () (const sync_lookup_result &result, const error_info &err) {
 			if (!err && !result.empty()) {
 				scope->groups.clear();
 				scope->check_sums.clear();
@@ -838,8 +835,7 @@ struct cas_data
 			scope->sess.read_data(scope->id, scope->remote_offset, 0).connect(*this);
 		}
 
-		void operator () (const sync_read_result &result, const error_info &err)
-		{
+		void operator () (const sync_read_result &result, const error_info &err) {
 			if (err && err.code() != -ENOENT) {
 				scope->handler.complete(err);
 				return;
@@ -911,39 +907,40 @@ struct cas_data
 			aggregated(sess, write_results.begin(), write_results.end()).connect(*this, *this);
 		}
 
-	void operator () (const write_result_entry &result)
-	{
-	    scope->handler.process(result);
+		void operator () (const write_result_entry &result) {
+			scope->handler.process(result);
 
-	    if (result.error().code() == -EBADFD)
-		scope->groups.push_back(result.command()->id.group_id);
-	}
-
-		void operator () (const error_info &err)
-		{
-	    if (scope->groups.empty()) {
-		scope->handler.complete(err);
-		return;
-	    }
-
-	    ++scope->index;
-	    if (scope->index < scope->count) {
-		next_iteration();
-	    } else {
-		scope->handler.complete(create_error(-EBADFD, scope->id, "write_cas: too many attemps: %d", scope->count));
-	    }
+			if (result.error().code() == -EBADFD)
+				scope->groups.push_back(result.command()->id.group_id);
 		}
-	};
-};
+
+		void operator () (const error_info &err) {
+			if (scope->groups.empty()) {
+				scope->handler.complete(err);
+				return;
+			}
+
+			++scope->index;
+			if (scope->index < scope->count) {
+				next_iteration();
+			} else {
+				scope->handler.complete(create_error(-EBADFD, scope->id, "write_cas: too many attemps: %d", scope->count));
+			}
+		}
+	}; /* struct functor */
+}; /* struct write_cas */
 
 async_write_result session::write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
 		uint64_t remote_offset, int count)
 {
-    transform(id);
+	transform(id);
+
 	async_write_result result(*this);
 	async_result_handler<write_result_entry> handler(result);
-    cas_data scope = { *this, handler, converter, id, remote_offset, 0, count, mix_states(), std::vector<dnet_id>() };
+
+	cas_data scope = { *this, handler, converter, id, remote_offset, 0, count, mix_states(), std::vector<dnet_id>() };
 	cas_data::functor cas_handler = { std::make_shared<cas_data>(scope) };
+
 	cas_handler.next_iteration();
 	return result;
 }
@@ -1163,6 +1160,11 @@ int session::write_metadata(const key &id, const std::string &obj,
 void session::transform(const std::string &data, struct dnet_id &id)
 {
 	dnet_transform(m_data->session_ptr, (void *)data.data(), data.size(), &id);
+}
+
+void session::transform(const std::string &data, struct dnet_raw_id &id)
+{
+	dnet_transform_raw(m_data->session_ptr, (void *)data.data(), data.size(), (char *)id.id, sizeof(id.id));
 }
 
 void session::transform(const data_pointer &data, dnet_id &id)

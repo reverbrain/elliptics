@@ -715,6 +715,10 @@ class session
 		 */
 		void			transform(const std::string &data, struct dnet_id &id);
 		/*!
+		 * Converts string \a data to dnet_raw_id \a id.
+		 */
+		void			transform(const std::string &data, struct dnet_raw_id &id);
+		/*!
 		 * \overload transform()
 		 */
 		void			transform(const data_pointer &data, struct dnet_id &id);

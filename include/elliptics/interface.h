@@ -746,6 +746,7 @@ int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struc
 int dnet_transform(struct dnet_session *s, const void *src, uint64_t size, struct dnet_id *id);
 int __attribute__((weak)) dnet_transform_node(struct dnet_node *n, const void *src, uint64_t size,
 		unsigned char *csum, int csize);
+int dnet_transform_raw(struct dnet_session *s, const void *src, uint64_t size, char *csum, unsigned int csize);
 
 int dnet_request_ids(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
