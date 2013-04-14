@@ -4,6 +4,82 @@
 #include <time.h>
 
 #include <iostream>
+#include <map>
+
+namespace ioremap { namespace elliptics {
+
+static inline bool operator <(const dnet_raw_id &a, const dnet_raw_id &b)
+{
+	return memcmp(a.id, b.id, sizeof(a.id)) < 0;
+}
+
+static inline bool operator ==(const dnet_raw_id &a, const dnet_raw_id &b)
+{
+	return memcmp(a.id, b.id, sizeof(a.id)) == 0;
+}
+
+static inline bool operator ==(const dnet_raw_id &a, const ioremap::elliptics::index_entry &b)
+{
+	return memcmp(a.id, b.index.id, sizeof(a.id)) == 0;
+}
+
+static inline bool operator ==(const ioremap::elliptics::index_entry &a, const dnet_raw_id &b)
+{
+	return memcmp(b.id, a.index.id, sizeof(b.id)) == 0;
+}
+
+static inline bool operator ==(const ioremap::elliptics::data_pointer &a, const ioremap::elliptics::data_pointer &b)
+{
+	return a.size() == b.size() && memcmp(a.data(), b.data(), a.size()) == 0;
+}
+
+static inline bool operator ==(const ioremap::elliptics::index_entry &a, const ioremap::elliptics::index_entry &b)
+{
+	return a.data.size() == b.data.size()
+		&& memcmp(b.index.id, a.index.id, sizeof(b.index.id)) == 0
+		&& memcmp(a.data.data(), b.data.data(), a.data.size()) == 0;
+}
+
+enum { skip_data = 0, compare_data = 1 };
+
+template <int CompareData = compare_data>
+struct dnet_raw_id_less_than
+{
+	inline bool operator() (const dnet_raw_id &a, const dnet_raw_id &b) const
+	{
+		return memcmp(a.id, b.id, sizeof(a.id)) < 0;
+	}
+	inline bool operator() (const index_entry &a, const dnet_raw_id &b) const
+	{
+		return operator() (a.index, b);
+	}
+	inline bool operator() (const dnet_raw_id &a, const index_entry &b) const
+	{
+		return operator() (a, b.index);
+	}
+	inline bool operator() (const index_entry &a, const index_entry &b) const
+	{
+		ssize_t cmp = memcmp(a.index.id, b.index.id, sizeof(b.index.id));
+		if (CompareData && cmp == 0) {
+			cmp = a.data.size() - b.data.size();
+			if (cmp == 0) {
+				cmp = memcmp(a.data.data(), b.data.data(), a.data.size());
+			}
+		}
+		return cmp < 0;
+	}
+	inline bool operator() (const index_entry &a, const find_indexes_result_entry &b) const
+	{
+		return operator() (a.index, b.id);
+	}
+	inline bool operator() (const find_indexes_result_entry &a, const index_entry &b) const
+	{
+		return operator() (a.id, b.index);
+	}
+};
+
+}} /* namespace ioremap::elliptics */
+
 
 std::ostream &operator <<(std::ostream &out, const dnet_raw_id &v)
 {
