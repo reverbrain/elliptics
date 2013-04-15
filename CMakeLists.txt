@@ -132,6 +132,19 @@ install(FILES
         )
 
 install(FILES
+        include/elliptics/module_backend/core/module_backend_api_t.h
+        include/elliptics/module_backend/core/module_backend_config_t.h
+        DESTINATION include/elliptics/module_backend/core/
+)
+
+install(FILES
+        include/elliptics/module_backend/cpp/registration.hpp
+        include/elliptics/module_backend/cpp/honest_command_handler.hpp
+        include/elliptics/module_backend/cpp/uncomplicated_handler.hpp
+        DESTINATION include/elliptics/module_backend/cpp/
+)
+
+install(FILES
         ${PROJECT_BINARY_DIR}/cmake/EllipticsConfig.cmake
         ${PROJECT_BINARY_DIR}/cmake/EllipticsConfigVersion.cmake
         DESTINATION lib/cmake/Elliptics/ COMPONENT dev
