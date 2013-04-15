@@ -745,13 +745,23 @@ enum dnet_ext_free_data {
 	DNET_EXT_FREE_ON_DESTROY
 };
 
+/*!
+ * Versions ov extension headers
+ */
+enum dnet_ext_versions {
+	DNET_EXT_VERSION_FIRST,
+	DNET_EXT_VERSION_V0,
+	DNET_EXT_VERSION_LAST,
+};
+
 /*! In-memory extension header */
 struct dnet_ext;
 
 /*! On-disk extension list header */
 struct dnet_ext_list_hdr {
+	uint8_t			version;	/* Extension header version */
+	uint8_t			__pad1[3];	/* For future use (should be NULLed) */
 	uint32_t		size;		/* Size of all extensions */
-	uint32_t		__pad1;		/* For future use (should be NULLed) */
 	struct dnet_time	timestamp;	/* Time stamp of record */
 	uint64_t		flags;		/* Custom flags for this record */
 	uint64_t		__pad2[2];	/* For future use (should be NULLed) */
@@ -759,6 +769,7 @@ struct dnet_ext_list_hdr {
 
 /*! In-memory extension conatiner */
 struct dnet_ext_list {
+	uint8_t			version;	/* Extension header version */
 	uint32_t		size;		/* Total size of extensions */
 	uint64_t		flags;		/* Custom flags for this record */
 	struct dnet_time	timestamp;	/* TS of header */

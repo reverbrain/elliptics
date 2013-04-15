@@ -240,6 +240,7 @@ void dnet_ext_list_init(struct dnet_ext_list *elist)
 	if (elist == NULL)
 		return;
 	memset(elist, 0, sizeof(struct dnet_ext_list));
+	elist->version = DNET_EXT_VERSION_V0;
 }
 
 /*!
@@ -287,6 +288,7 @@ int dnet_ext_hdr_to_list(const struct dnet_ext_list_hdr *ehdr,
 		return -EINVAL;
 
 	memset(elist, 0, sizeof(struct dnet_ext_list));
+	elist->version = ehdr->version;
 	elist->timestamp.tsec = dnet_bswap64(ehdr->timestamp.tsec);
 	elist->timestamp.tnsec = dnet_bswap64(ehdr->timestamp.tnsec);
 	elist->size = dnet_bswap32(ehdr->size);
@@ -306,6 +308,7 @@ int dnet_ext_list_to_hdr(const struct dnet_ext_list *elist,
 		return -EINVAL;
 
 	memset(ehdr, 0, sizeof(struct dnet_ext_list_hdr));
+	ehdr->version = elist->version;
 	ehdr->size = dnet_bswap32(elist->size);
 	ehdr->flags = dnet_bswap64(elist->flags);
 	ehdr->timestamp.tsec = dnet_bswap64(elist->timestamp.tsec);
