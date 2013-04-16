@@ -30,6 +30,7 @@
 #include <memory>
 #include <functional>
 #include <queue>
+#include <type_traits>
 
 #include <thread>
 #include <mutex>
@@ -143,6 +144,90 @@ error_info create_error(const dnet_cmd &cmd);
 class callback_data;
 class callback_result_data;
 
+class data_buffer
+{
+	public:
+		data_buffer(size_t capacity = 0)
+			: m_data(0)
+			, m_size(0)
+			, m_capacity(capacity)
+		{
+		}
+
+		data_buffer(const char *buf, size_t len)
+			: m_data(0)
+			, m_size(len)
+			, m_capacity(len)
+		{
+			m_data = (char *)::malloc(len);
+			if (!m_data)
+				throw std::bad_alloc();
+			::memcpy(m_data, buf, len);
+		}
+
+		template<typename T>
+		void write(T ob, typename std::enable_if<std::is_pod<T>::value >::type* = 0) {
+			write(reinterpret_cast<const char*>(&ob), sizeof(T));
+		}
+
+		void write(const char *buf, size_t len)
+		{
+			check(len);
+			::memcpy(m_data + m_size, buf, len);
+			m_size += len;
+		}
+
+		void *release()
+		{
+			void *res = m_data;
+			m_data = 0;
+			m_size = 0;
+			return res;
+		}
+
+		size_t size()
+		{
+			return m_size;
+		}
+
+		~data_buffer()
+		{
+			::free(m_data);
+		}
+
+	private:
+		data_buffer(const data_buffer &);
+		data_buffer &operator = (const data_buffer &);
+
+		void check(size_t len)
+		{
+			if ((m_size + len) <= m_capacity)
+			{
+				if (!m_data) {
+					m_data = (char *)::malloc(m_capacity);
+					if (!m_data)
+						throw std::bad_alloc();
+				}
+				return;
+			}
+
+			size_t nsize = m_capacity ? m_capacity : 16;
+			while(nsize < (m_size + len))
+				nsize *= 2;
+
+			void *tmp = ::realloc(m_data, nsize);
+			if(!tmp)
+				throw std::bad_alloc();
+
+			m_data = (char *)tmp;
+			m_capacity = nsize;
+		}
+
+		char *m_data;
+		size_t m_size;
+		size_t m_capacity;
+};
+
 class data_pointer
 {
 	public:
@@ -157,6 +242,12 @@ class data_pointer
 			: m_data(std::make_shared<wrapper>(const_cast<char*>(str.c_str()), false)),
 			m_index(0), m_size(str.size())
 		{
+		}
+
+		data_pointer(data_buffer &&buf)
+			: m_index(0), m_size(buf.size())
+		{
+			m_data = std::make_shared<wrapper>(buf.release());
 		}
 
 		static data_pointer copy(const void *data, size_t size)
@@ -205,6 +296,14 @@ class data_pointer
 		{
 			data_pointer tmp(*this);
 			tmp.m_index += size;
+			return tmp;
+		}
+
+		data_pointer slice(size_t offset, size_t size) const
+		{
+			data_pointer tmp(*this);
+			tmp.m_index += offset;
+			tmp.m_size = tmp.m_index + size;
 			return tmp;
 		}
 
