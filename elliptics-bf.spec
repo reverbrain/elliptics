@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.23.4.2
+Version:	2.23.5.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Apr 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.5.0
+- Added data_buffer class that provides possibility to write into data_pointer
+- Moved dnet_raw_id logical operations to public_header
+- Added raw transform interface. Use it in session class to hash dnet_raw_id.
+- Fixed segfault is empty data on cas is OK.
+- Changed behaviour of find_indexes. If no result found don't throw an exception, but provide empty list
+
 * Thu Apr 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.4.2
 - Revert module-backend
 
