@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.5.3
+Version:	2.20.6.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.0
+- Changed write error report logic
+-  Only return wait error (usually -ETIMEOUT/-110) if wait internal
+-  status (assigned in write completion handler) was set to something
+-  except -ENXIO.
+-     
+-  -ENXIO is set by default and means no transactions were sent
+
 * Fri Apr 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.5.3
 - Do not request route table when doing defragmentation request.
 - This should end up with defrag being started only on specified node, not on every node in the cluster
