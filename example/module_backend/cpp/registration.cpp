@@ -1,4 +1,5 @@
 #include <elliptics/module_backend/cpp/registration.hpp>
+#include <elliptics/cppdef.h>
 #include <stdexcept>
 #include <functional>
 #include "honest_command_handler_adaptee.hpp"
@@ -45,15 +46,26 @@ int command_handler_throw(void *state, void *priv, struct dnet_cmd *cmd, void *d
 			backend->file_read(r, state, cmd, data);
 			break;
 		default:
-			throw std::runtime_error("No such command");
+			ell::throw_error(-EINVAL, "No such command");
 			break;
 	}
 	return 0;
 }
 
+int decorate_elliptics_exception(std::function<int()> function)
+{
+	try {
+		return function();
+	} catch (const ell::error& e) {
+		return e.error_code();
+	}
+}
+
 int command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
 {
-	return ell::decorate_exception<int>(std::bind(&command_handler_throw, state, priv, cmd, data), -EINVAL);
+	std::function<int()> handler = std::bind(command_handler_throw, state, priv, cmd, data);
+	std::function<int()> decorated_handler = std::bind(decorate_elliptics_exception, handler);
+	return ell::decorate_exception<int>(decorated_handler, -EINVAL);
 }
 
 int meta_write_handler(void *priv, struct dnet_raw_id *id, void *data, size_t size)
