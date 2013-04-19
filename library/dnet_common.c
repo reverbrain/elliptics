@@ -2153,10 +2153,10 @@ int dnet_write_data_wait(struct dnet_session *s, struct dnet_io_control *ctl, vo
 
 	err = dnet_wait_event(w, w->cond == trans_num, &n->wait_ts);
 	if (err || w->status) {
-		if (!err)
-			err = w->status;
 		dnet_log(n, DNET_LOG_NOTICE, "%s: failed to wait for IO write completion, err: %d, status: %d.\n",
 				dnet_dump_id(&ctl->id), err, w->status);
+		if (w->status != -ENXIO)
+			err = w->status;
 	}
 
 	if (err || !trans_num) {
