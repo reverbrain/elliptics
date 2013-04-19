@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.23.5.0
+Version:	2.23.6.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Apr 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.6.0
+- Changed write error report logic
+-  Only return wait error (usually -ETIMEOUT/-110) if wait internal
+-  status (assigned in write completion handler) was set to something
+-  except -ENXIO.
+-     
+-  -ENXIO is set by default and means no transactions were sent
+- dnet_schedule_io() should wakeup only one thread when new packet has been queued
+
 * Thu Apr 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.5.0
 - Added data_buffer class that provides possibility to write into data_pointer
 - Moved dnet_raw_id logical operations to public_header

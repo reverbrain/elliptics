@@ -1,3 +1,15 @@
+elliptics (2.23.6.0) unstable; urgency=low
+
+  * Changed write error report logic
+  *  Only return wait error (usually -ETIMEOUT/-110) if wait internal
+  *  status (assigned in write completion handler) was set to something
+  *  except -ENXIO.
+  *     
+  *  -ENXIO is set by default and means no transactions were sent
+  * dnet_schedule_io() should wakeup only one thread when new packet has been queued
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 19 Apr 2013 21:56:08 +0400
+
 elliptics (2.23.5.0) unstable; urgency=low
 
   * Added data_buffer class that provides possibility to write into data_pointer
