@@ -28,7 +28,6 @@ err_out_dlsym:
 		dlclose_error=dlclose(dlopen_handle->handle);
 		if (dlclose_error) {
 			dnet_backend_log(DNET_LOG_ERROR, "module_backend: fail to dlclose %s : %s\n", symbol_name, dlerror());
-			err = dlclose_error;
 		}
 
 err_out_exit:
