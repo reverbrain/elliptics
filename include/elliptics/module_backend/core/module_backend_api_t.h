@@ -1,5 +1,5 @@
 #pragma once
-#include <elliptics/packet.h>
+#include "elliptics/packet.h"
 
 #ifdef __cplusplus
 extern "C" {
