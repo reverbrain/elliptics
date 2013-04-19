@@ -236,7 +236,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 
 	pthread_mutex_lock(&pool->lock);
 	list_add_tail(&r->req_entry, &pool->list);
-	pthread_cond_broadcast(&pool->wait);
+	pthread_cond_signal(&pool->wait);
 	pthread_mutex_unlock(&pool->lock);
 }
 
