@@ -1,7 +1,5 @@
 set(SOURCES
-	cpp/honest_command_handler.cpp
 	cpp/honest_command_handler_adaptee.cpp
-	cpp/uncomplicated_handler.cpp
 	cpp/registration.cpp
 )
 add_library(elliptics_module_backend_cpp SHARED ${SOURCES})

@@ -12,13 +12,14 @@ void destroy_module_backend_config(struct module_backend_config_t *module_backen
 int read_config_string(char *value, char **result)
 {
 	int err;
-	char *value_copy=strdup(value);
+	char *value_copy = strdup(value);
 	if (!value_copy) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 	*result = value_copy;
 	return 0;
+
 err_out_exit:
 		return err;
 }
@@ -27,6 +28,7 @@ int read_config_entry(struct dnet_config_backend *b, char *key, char *value)
 {
 	struct module_backend_t *module_backend = b->data;
 	struct module_backend_config_t *backend_config = &module_backend->config;
+
 	if (!strcmp(key, "module_path")) {
 		return read_config_string(value, &backend_config->module_path);
 	} else if (!strcmp(key, "symbol_name")) {
@@ -36,6 +38,7 @@ int read_config_entry(struct dnet_config_backend *b, char *key, char *value)
 	} else {
 		return -EINVAL;
 	}
+	return -EINVAL;
 }
 
 struct dnet_config_entry dnet_cfg_entries_module[] = {

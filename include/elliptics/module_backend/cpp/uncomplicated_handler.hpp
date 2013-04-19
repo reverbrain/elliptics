@@ -15,7 +15,7 @@ public:
      * This function should implement reading data by key
      */
 	virtual std::string read(const std::string &key)=0;
-	virtual ~uncomplicated_handler();
+	virtual ~uncomplicated_handler() {};
 };
 
 }
