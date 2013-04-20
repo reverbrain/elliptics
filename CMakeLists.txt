@@ -128,21 +128,10 @@ install(FILES
         include/elliptics/cppdef.h
         include/elliptics/session_indexes.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h
+        include/elliptics/module_backend.h
+        include/elliptics/module_backend.hpp
         DESTINATION include/elliptics/
         )
-
-install(FILES
-        include/elliptics/module_backend/core/module_backend_api_t.h
-        include/elliptics/module_backend/core/module_backend_config_t.h
-        DESTINATION include/elliptics/module_backend/core/
-)
-
-install(FILES
-        include/elliptics/module_backend/cpp/registration.hpp
-        include/elliptics/module_backend/cpp/honest_command_handler.hpp
-        include/elliptics/module_backend/cpp/uncomplicated_handler.hpp
-        DESTINATION include/elliptics/module_backend/cpp/
-)
 
 install(FILES
         ${PROJECT_BINARY_DIR}/cmake/EllipticsConfig.cmake

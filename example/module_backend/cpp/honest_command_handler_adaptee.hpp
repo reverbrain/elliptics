@@ -1,7 +1,6 @@
 #pragma once
 
-#include <elliptics/module_backend/cpp/honest_command_handler.hpp>
-#include <elliptics/module_backend/cpp/uncomplicated_handler.hpp>
+#include <elliptics/module_backend.hpp>
 #include <memory>
 
 namespace ioremap {

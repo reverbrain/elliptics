@@ -1,4 +1,4 @@
-#include <elliptics/module_backend/cpp/registration.hpp>
+#include <elliptics/module_backend.hpp>
 #include <elliptics/cppdef.h>
 #include <stdexcept>
 #include <functional>

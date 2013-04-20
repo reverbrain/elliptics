@@ -1,4 +1,4 @@
-#include <elliptics/module_backend/core/module_backend_api_t.h>
+#include <elliptics/module_backend.h>
 #include "../../backends.h"
 
 void report_module_backend_error(const char *what)

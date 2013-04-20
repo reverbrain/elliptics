@@ -1,5 +1,5 @@
 #pragma once
-#include <elliptics/module_backend/core/module_backend_config_t.h>
+#include <elliptics/module_backend.h>
 #include "dlopen_handle_t.h"
 
 #ifdef __cplusplus
