@@ -1,5 +1,6 @@
 #include "session_indexes.hpp"
 #include "callback_p.h"
+#include "functional_p.h"
 
 namespace ioremap { namespace elliptics {
 
@@ -20,11 +21,25 @@ static dnet_id indexes_generate_id(session &sess, const dnet_id &data_id)
 	return id;
 }
 
-struct update_indexes_data
+struct update_indexes_functor : public std::enable_shared_from_this<update_indexes_functor>
 {
-	typedef std::shared_ptr<update_indexes_data> ptr;
+	ELLIPTICS_DISABLE_COPY(update_indexes_functor)
 
-	update_indexes_data(session &sess) : sess(sess) {}
+	typedef std::function<void (const std::exception_ptr &)> handler_func;
+
+	enum update_index_action {
+		insert_data,
+		remove_data
+	};
+
+	update_indexes_functor(session &sess, const handler_func &handler, const key &request_id,
+		const std::vector<index_entry> &input_indexes, const dnet_id &id)
+		: sess(sess), handler(handler), request_id(request_id), id(id), finished(0)
+	{
+		indexes.indexes = input_indexes;
+		std::sort(indexes.indexes.begin(), indexes.indexes.end(), dnet_raw_id_less_than<>());
+		msgpack::pack(buffer, indexes);
+	}
 
 	session sess;
 	std::function<void (const std::exception_ptr &)> handler;
@@ -47,236 +62,250 @@ struct update_indexes_data
 	size_t finished;
 	std::exception_ptr exception;
 
-	// basic functor which is able to update secondary index for object
-	struct update_functor
+	/*!
+	 * Update data-object table for secondary certain index.
+	 */
+	template <update_index_action action>
+	data_pointer convert_index_table(const data_pointer &index_data, const data_pointer &data)
 	{
-		ptr scope;
-		bool insert;
-		dnet_raw_id id;
-		data_pointer index_data;
+		dnet_indexes indexes;
+		if (!data.empty())
+			indexes_unpack(data, &indexes, "update_functor");
 
-		data_pointer operator() (const data_pointer &data)
-		{
-			dnet_indexes indexes;
-			if (!data.empty())
-				indexes_unpack(data, &indexes, "update_functor");
+		// Construct index entry
+		index_entry request_index;
+		request_index.index = request_id.raw_id();
+		request_index.data = index_data;
 
-			// Construct index entry
-			index_entry request_id;
-			request_id.index = scope->request_id.raw_id();
-			request_id.data = index_data;
-
-			auto it = std::lower_bound(indexes.indexes.begin(), indexes.indexes.end(),
-				request_id, dnet_raw_id_less_than<skip_data>());
-			if (it != indexes.indexes.end() && it->index == request_id.index) {
-				// It's already there
-				if (insert) {
-					if (it->data == request_id.data) {
-						// All's ok, keep it untouched
-						return data;
-					} else {
-						// Data is not correct, remember current value due to possible rollback
-						std::lock_guard<std::mutex> lock(scope->previous_data_mutex);
-						scope->previous_data[it->index] = it->data;
-						it->data = request_id.data;
-					}
-				} else {
-					// Anyway, destroy it
-					indexes.indexes.erase(it);
-				}
-			} else {
-				// Index is not created yet
-				if (insert) {
-					// Just insert it
-					indexes.indexes.insert(it, 1, request_id);
-				} else {
+		auto it = std::lower_bound(indexes.indexes.begin(), indexes.indexes.end(),
+			request_index, dnet_raw_id_less_than<skip_data>());
+		if (it != indexes.indexes.end() && it->index == request_index.index) {
+			// It's already there
+			if (action == insert_data) {
+				if (it->data == request_index.data) {
 					// All's ok, keep it untouched
 					return data;
-				}
-			}
-
-			msgpack::sbuffer buffer;
-			msgpack::pack(&buffer, indexes);
-			return data_pointer::copy(buffer.data(), buffer.size());
-		}
-	};
-
-	struct revert_functor : public update_functor
-	{
-		void on_fail(const std::exception_ptr &exception)
-		{
-			scope->exception = exception;
-			check_finish();
-		}
-
-		void check_finish()
-		{
-			if (scope->finished != scope->success_inserted_ids.size() + scope->success_removed_ids.size())
-				return;
-
-			scope->handler(scope->exception);
-		}
-
-		using update_functor::operator();
-
-		void operator() (const sync_write_result &, const error_info &err)
-		{
-			std::lock_guard<std::mutex> lock(scope->mutex);
-			++scope->finished;
-
-			if (err) {
-				try {
-					err.throw_error();
-				} catch (...) {
-					on_fail(std::current_exception());
-				}
-				return;
-			}
-
-			check_finish();
-		}
-	};
-
-	struct try_functor : public update_functor
-	{
-		void on_fail(const std::exception_ptr &exception)
-		{
-			scope->exception = exception;
-			check_finish();
-		}
-
-		void check_finish()
-		{
-			if (scope->finished != scope->inserted_ids.size() + scope->removed_ids.size())
-				return;
-
-			scope->finished = 0;
-
-			dnet_id id;
-			memset(&id, 0, sizeof(id));
-
-			if (scope->success_inserted_ids.size() != scope->inserted_ids.size()
-				|| scope->success_removed_ids.size() != scope->removed_ids.size()) {
-
-				if (scope->success_inserted_ids.empty() && scope->success_removed_ids.empty()) {
-					scope->handler(scope->exception);
-					return;
-				}
-
-				revert_functor functor;
-				functor.scope = scope;
-				functor.insert = false;
-
-				for (size_t i = 0; i < scope->success_inserted_ids.size(); ++i) {
-					memcpy(id.id, scope->success_inserted_ids[i].id, sizeof(id.id));
-					functor.id = scope->success_inserted_ids[i];
-					scope->sess.write_cas(id, functor, 0).connect(functor);
-				}
-
-				functor.insert = true;
-
-				for (size_t i = 0; i < scope->success_removed_ids.size(); ++i) {
-					memcpy(id.id, scope->success_removed_ids[i].id, sizeof(id.id));
-					functor.id = scope->success_removed_ids[i];
-					functor.index_data = scope->previous_data[functor.id];
-					scope->sess.write_cas(id, functor, 0).connect(functor);
+				} else {
+					// Data is not correct, remember current value due to possible rollback
+					std::lock_guard<std::mutex> lock(previous_data_mutex);
+					previous_data[it->index] = it->data;
+					it->data = request_index.data;
 				}
 			} else {
-				scope->handler(std::exception_ptr());
-				return;
+				// Anyway, destroy it
+				indexes.indexes.erase(it);
+			}
+		} else {
+			// Index is not created yet
+			if (action == insert_data) {
+				// Just insert it
+				indexes.indexes.insert(it, 1, request_index);
+			} else {
+				// All's ok, keep it untouched
+				return data;
 			}
 		}
 
-		using update_functor::operator();
+		msgpack::sbuffer buffer;
+		msgpack::pack(&buffer, indexes);
+		return data_pointer::copy(buffer.data(), buffer.size());
+	}
 
-		void operator() (const sync_write_result &, const error_info &err)
-		{
-			std::lock_guard<std::mutex> lock(scope->mutex);
-			++scope->finished;
-
-			if (err) {
-				try {
-					err.throw_error();
-				} catch (...) {
-					on_fail(std::current_exception());
-				}
-				return;
-			}
-
-			(insert ? scope->success_inserted_ids : scope->success_removed_ids).push_back(id);
-			check_finish();
-		}
-	};
-
-	struct main_functor
+	/*!
+	 * All changes were reverted - succesfully or not.
+	 * Anyway, notify the user.
+	 */
+	void on_index_table_revert_finished()
 	{
-		ptr scope;
+		if (finished != success_inserted_ids.size() + success_removed_ids.size())
+			return;
 
-		void operator() (const sync_write_result &, const error_info &err)
-		{
-			if (err) {
-				try {
-					err.throw_error();
-				} catch (...) {
-					scope->handler(std::current_exception());
-				}
-				return;
-			}
+		handler(exception);
+	}
 
+	/*!
+	 * Reverting of certain index was finished with error \a err.
+	 */
+	void on_index_table_reverted(const error_info &err)
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		++finished;
+
+		if (err) {
 			try {
-				// We "insert" items also to update their data
-				std::set_difference(scope->indexes.indexes.begin(), scope->indexes.indexes.end(),
-					scope->remote_indexes.indexes.begin(), scope->remote_indexes.indexes.end(),
-					std::back_inserter(scope->inserted_ids), dnet_raw_id_less_than<>());
-				// Remove only absolutly another items
-				std::set_difference(scope->remote_indexes.indexes.begin(), scope->remote_indexes.indexes.end(),
-					scope->indexes.indexes.begin(), scope->indexes.indexes.end(),
-					std::back_inserter(scope->removed_ids), dnet_raw_id_less_than<skip_data>());
-
-				if (scope->inserted_ids.empty() && scope->removed_ids.empty()) {
-					scope->handler(std::exception_ptr());
-					return;
-				}
-
-				try_functor functor;
-				functor.scope = scope;
-				functor.insert = true;
-
-				dnet_id id;
-				id.group_id = 0;
-				id.type = 0;
-
-				for (size_t i = 0; i < scope->inserted_ids.size(); ++i) {
-					memcpy(id.id, scope->inserted_ids[i].index.id, sizeof(id.id));
-					functor.id = scope->inserted_ids[i].index;
-					functor.index_data = scope->inserted_ids[i].data;
-					scope->sess.write_cas(id, functor, 0).connect(functor);
-				}
-
-				functor.insert = false;
-
-				for (size_t i = 0; i < scope->removed_ids.size(); ++i) {
-					memcpy(id.id, scope->removed_ids[i].index.id, sizeof(id.id));
-					functor.id = scope->removed_ids[i].index;
-					scope->sess.write_cas(id, functor, 0).connect(functor);
-				}
+				err.throw_error();
 			} catch (...) {
-				scope->handler(std::current_exception());
-				return;
+				exception = std::current_exception();
 			}
 		}
 
-		data_pointer operator() (const data_pointer &data)
-		{
-			if (data.empty())
-				scope->remote_indexes.indexes.clear();
-			else
-				indexes_unpack(data, &scope->remote_indexes, "main_functor");
+		on_index_table_revert_finished();
+	}
 
-			return data_pointer::from_raw(const_cast<char *>(scope->buffer.data()),
-				scope->buffer.size());
+	/*!
+	 * All indexes are updated, if one of the update is failed,
+	 * all successfull changes must be reverted.
+	 */
+	void on_index_table_update_finished()
+	{
+		if (finished != inserted_ids.size() + removed_ids.size())
+			return;
+
+		finished = 0;
+
+		dnet_id tmp_id;
+		memset(&tmp_id, 0, sizeof(tmp_id));
+
+		if (success_inserted_ids.size() != inserted_ids.size()
+			|| success_removed_ids.size() != removed_ids.size()) {
+
+			if (success_inserted_ids.empty() && success_removed_ids.empty()) {
+				handler(exception);
+				return;
+			}
+
+			for (size_t i = 0; i < success_inserted_ids.size(); ++i) {
+				const auto &remote_id = success_inserted_ids[i];
+				memcpy(tmp_id.id, remote_id.id, sizeof(tmp_id.id));
+				sess.write_cas(tmp_id,
+					std::bind(&update_indexes_functor::convert_index_table<remove_data>,
+						shared_from_this(),
+						data_pointer(),
+						std::placeholders::_1),
+				0).connect(std::bind(&update_indexes_functor::on_index_table_reverted,
+					shared_from_this(),
+					std::placeholders::_2));
+			}
+
+			for (size_t i = 0; i < success_removed_ids.size(); ++i) {
+				const auto &remote_id = success_removed_ids[i];
+				memcpy(tmp_id.id, remote_id.id, sizeof(tmp_id.id));
+				sess.write_cas(tmp_id,
+					std::bind(&update_indexes_functor::convert_index_table<insert_data>,
+						shared_from_this(),
+						previous_data[remote_id],
+						std::placeholders::_1),
+				0).connect(std::bind(&update_indexes_functor::on_index_table_reverted,
+					shared_from_this(),
+					std::placeholders::_2));
+			}
+		} else {
+			handler(std::exception_ptr());
+			return;
 		}
-	};
+	}
+
+	/*!
+	 * Updating of certain index table for \a id is finished with error \a err
+	 */
+	template <update_index_action action>
+	void on_index_table_updated(const dnet_raw_id &id, const error_info &err)
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		++finished;
+
+		if (err) {
+			try {
+				err.throw_error();
+			} catch (...) {
+				exception = std::current_exception();
+			}
+		} else {
+			if (action == insert_data) {
+				success_inserted_ids.push_back(id);
+			} else {
+				success_removed_ids.push_back(id);
+			}
+		}
+		on_index_table_update_finished();
+	}
+
+	/*!
+	 * Replace object's indexes cache by new table.
+	 * Remembers current object's indexes to local variable remote_indexes
+	 */
+	data_pointer convert_object_indexes(const data_pointer &data)
+	{
+		if (data.empty()) {
+			remote_indexes.indexes.clear();
+		} else {
+			indexes_unpack(data, &remote_indexes, "main_functor");
+		}
+
+		return data_pointer::from_raw(const_cast<char *>(buffer.data()), buffer.size());
+	}
+
+	/*!
+	 * Handle result of object indexes' table update
+	 */
+	void on_object_indexes_updated(const sync_write_result &, const error_info &err)
+	{
+		// If there was an error - notify user about this.
+		// At this state there were no changes at the storage yet.
+		if (err) {
+			try {
+				err.throw_error();
+			} catch (...) {
+				handler(std::current_exception());
+			}
+			return;
+		}
+
+		try {
+			// We "insert" items also to update their data
+			std::set_difference(indexes.indexes.begin(), indexes.indexes.end(),
+				remote_indexes.indexes.begin(), remote_indexes.indexes.end(),
+				std::back_inserter(inserted_ids), dnet_raw_id_less_than<>());
+			// Remove only absolutely another items
+			std::set_difference(remote_indexes.indexes.begin(), remote_indexes.indexes.end(),
+				indexes.indexes.begin(), indexes.indexes.end(),
+				std::back_inserter(removed_ids), dnet_raw_id_less_than<skip_data>());
+
+			if (inserted_ids.empty() && removed_ids.empty()) {
+				handler(std::exception_ptr());
+				return;
+			}
+
+			dnet_id tmp_id;
+			tmp_id.group_id = 0;
+			tmp_id.type = 0;
+
+			for (size_t i = 0; i < inserted_ids.size(); ++i) {
+				memcpy(tmp_id.id, inserted_ids[i].index.id, sizeof(tmp_id.id));
+				sess.write_cas(tmp_id,
+					std::bind(&update_indexes_functor::convert_index_table<insert_data>,
+						shared_from_this(),
+						inserted_ids[i].data,
+						std::placeholders::_1),
+					0).connect(std::bind(&update_indexes_functor::on_index_table_updated<insert_data>,
+						shared_from_this(),
+						inserted_ids[i].index,
+						std::placeholders::_2));
+			}
+
+			for (size_t i = 0; i < removed_ids.size(); ++i) {
+				memcpy(tmp_id.id, removed_ids[i].index.id, sizeof(tmp_id.id));
+				sess.write_cas(tmp_id,
+					std::bind(&update_indexes_functor::convert_index_table<remove_data>,
+						shared_from_this(),
+						removed_ids[i].data,
+						std::placeholders::_1),
+					0).connect(std::bind(&update_indexes_functor::on_index_table_updated<remove_data>,
+						shared_from_this(),
+						removed_ids[i].index,
+						std::placeholders::_2));
+			}
+		} catch (...) {
+			handler(std::current_exception());
+			return;
+		}
+	}
+
+	void start()
+	{
+		sess.write_cas(id, bind_method(shared_from_this(), &update_indexes_functor::convert_object_indexes), 0)
+			.connect(bind_method(shared_from_this(), &update_indexes_functor::on_object_indexes_updated));
+	}
 };
 
 // Update \a indexes for \a request_id
@@ -286,18 +315,9 @@ void session::update_indexes(const std::function<void (const update_indexes_resu
 {
 	transform(request_id);
 
-	update_indexes_data::ptr scope = std::make_shared<update_indexes_data>(*this);
-	scope->handler = handler;
-	scope->request_id = request_id;
-	scope->indexes.indexes = indexes;
-	std::sort(scope->indexes.indexes.begin(), scope->indexes.indexes.end(), dnet_raw_id_less_than<>());
-	// Generate id for storing the entire indexes
-	scope->id = indexes_generate_id(*this, request_id.id());
-	scope->finished = 0;
-
-	msgpack::pack(scope->buffer, scope->indexes);
-	update_indexes_data::main_functor functor = { scope };
-	write_cas(scope->id, functor, 0).connect(functor);
+	auto functor = std::make_shared<update_indexes_functor>(
+		*this, handler, request_id, indexes, indexes_generate_id(*this, request_id.id()));
+	functor->start();
 }
 
 void session::update_indexes(const key &request_id, const std::vector<index_entry> &indexes)
