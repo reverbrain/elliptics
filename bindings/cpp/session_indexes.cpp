@@ -45,12 +45,12 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	std::function<void (const std::exception_ptr &)> handler;
 	key request_id;
 	data_pointer request_data;
-	// indexes to set
+	// indexes to update
 	dnet_indexes indexes;
 	dnet_id id;
 
 	msgpack::sbuffer buffer;
-	// currently set indexes
+	// already updated indexes - they are read from storage and changed
 	dnet_indexes remote_indexes;
 	std::mutex previous_data_mutex;
 	std::map<dnet_raw_id, data_pointer, dnet_raw_id_less_than<>> previous_data;
@@ -63,7 +63,9 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	std::exception_ptr exception;
 
 	/*!
-	 * Update data-object table for secondary certain index.
+	 * Update data-object table for certain secondary index.
+	 * update_indexes_functor::request_id holds key ID to add/remove from stored indexes
+	 * update_indexes_functor::id holds key which contains list of all indexes which contain request_id
 	 */
 	template <update_index_action action>
 	data_pointer convert_index_table(const data_pointer &index_data, const data_pointer &data)
