@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.6.0
+Version:	2.20.6.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Apr 22 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.1
+- Fixed dnet_find - it should use correct group and ID
+
 * Fri Apr 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.0
 - Changed write error report logic
 -  Only return wait error (usually -ETIMEOUT/-110) if wait internal
