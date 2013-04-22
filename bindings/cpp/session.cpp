@@ -15,6 +15,7 @@
  */
 
 #include "callback_p.h"
+#include "functional_p.h"
 
 #include <sstream>
 
@@ -514,36 +515,33 @@ async_read_result session::read_data(const key &id, uint64_t offset, uint64_t si
 template <typename T>
 struct aggregator_handler
 {
-	struct scope
-	{
-		scope(const async_result<T> &result, size_t count)
+	ELLIPTICS_DISABLE_COPY(aggregator_handler)
+
+	aggregator_handler(const async_result<T> &result, size_t count)
 		: handler(result), finished(count), has_success(false)
-		{
-		}
-
-		async_result_handler<T> handler;
-		std::mutex mutext;
-		size_t finished;
-		error_info error;
-		std::atomic_bool has_success;
-	};
-
-	std::shared_ptr<scope> data;
-
-	void operator() (const T &result)
 	{
-		if (result.status() == 0 && result.is_valid())
-			data->has_success = true;
-		data->handler.process(result);
 	}
 
-	void operator() (const error_info &error)
+	async_result_handler<T> handler;
+	std::mutex mutext;
+	size_t finished;
+	error_info error;
+	std::atomic_bool has_success;
+
+	void on_entry(const T &result)
 	{
-		std::lock_guard<std::mutex> lock(data->mutext);
-		if (error)
-			data->error = error;
-		if (--data->finished == 0)
-			data->handler.complete(data->has_success ? error_info() : error);
+		if (result.status() == 0 && result.is_valid())
+			has_success = true;
+		handler.process(result);
+	}
+
+	void on_finished(const error_info &reply_error)
+	{
+		std::lock_guard<std::mutex> lock(mutext);
+		if (reply_error)
+			error = reply_error;
+		if (--finished == 0)
+			handler.complete(has_success ? error_info() : error);
 	}
 };
 
@@ -552,16 +550,18 @@ typename iterator::value_type aggregated(session &sess, iterator begin, iterator
 {
 	typedef typename iterator::value_type async_result_type;
 	typedef typename async_result_type::entry_type entry_type;
-	typedef typename aggregator_handler<entry_type>::scope scope_type;
+	typedef aggregator_handler<entry_type> aggregator_type;
 
 	async_result_type result(sess);
 
-	aggregator_handler<entry_type> handler = {
-		std::make_shared<scope_type>(result, std::distance(begin, end))
-	};
+	auto handler = std::make_shared<aggregator_type>(result, std::distance(begin, end));
+	auto on_entry = bind_method(handler, &aggregator_type::on_entry);
+	auto on_finished = bind_method(handler, &aggregator_type::on_finished);
+
 	for (auto it = begin; it != end; ++it) {
-		it->connect(handler, handler);
+		it->connect(on_entry, on_finished);
 	}
+
 	return result;
 }
 
@@ -774,9 +774,31 @@ async_write_result session::write_data(const key &id, const data_pointer &file, 
 	return write_data(ctl);
 }
 
-struct cas_data
+// At every iteration ask items to find the latest one
+// Read it, process and write result to all groups
+struct cas_functor : std::enable_shared_from_this<cas_functor>
 {
-	typedef std::shared_ptr<cas_data> ptr;
+	ELLIPTICS_DISABLE_COPY(cas_functor)
+
+	typedef std::shared_ptr<cas_functor> ptr;
+
+	cas_functor(session &sess,
+		const async_write_result &result,
+		const std::function<data_pointer (const data_pointer &)> &converter,
+		const key &id,
+		uint64_t remote_offset,
+		int count,
+		std::vector<int> &&groups)
+		: sess(sess),
+		handler(result),
+		converter(converter),
+		id(id),
+		remote_offset(remote_offset),
+		index(0),
+		count(count),
+		groups(groups)
+	{
+	}
 
 	session sess;
 	async_result_handler<write_result_entry> handler;
@@ -789,146 +811,144 @@ struct cas_data
 	std::vector<int> groups;
 	std::vector<dnet_id> check_sums;
 
-	struct functor {
-		ptr scope;
+	void next_iteration() {
+		session_scope guard(sess);
+		sess.set_exceptions_policy(session::no_exceptions);
+		sess.set_filter(filters::all);
+		sess.set_cflags(sess.get_cflags() | DNET_FLAGS_CHECKSUM);
 
-		void next_iteration() {
-			session_scope guard(scope->sess);
-			scope->sess.set_exceptions_policy(session::no_exceptions);
-			scope->sess.set_filter(filters::all);
-			scope->sess.set_cflags(scope->sess.get_cflags() | DNET_FLAGS_CHECKSUM);
+		sess.prepare_latest(id, groups)
+			.connect(bind_method(shared_from_this(), &cas_functor::on_prepare_lastest));
+	}
 
-			scope->sess.prepare_latest(scope->id, scope->groups).connect(*this);
-		}
+	void on_prepare_lastest(const sync_lookup_result &result, const error_info &err) {
+		if (!err && !result.empty()) {
+			groups.clear();
+			check_sums.clear();
+			groups.reserve(result.size());
+			check_sums.reserve(result.size());
 
-		void operator () (const sync_lookup_result &result, const error_info &err) {
-			if (!err && !result.empty()) {
-				scope->groups.clear();
-				scope->check_sums.clear();
-				scope->groups.reserve(result.size());
-				scope->check_sums.reserve(result.size());
+			dnet_id checksum;
 
-				dnet_id checksum;
-
-				for (auto it = result.begin(); it != result.end(); ++it) {
-					const lookup_result_entry &entry = *it;
-					if (entry.is_ack()) {
-						continue;
-					} if (entry.error()) {
-						memset(&checksum, 0, sizeof(checksum));
-					} else {
-						memcpy(checksum.id, entry.file_info()->checksum, sizeof(checksum.id));
-					}
-					scope->groups.push_back(entry.command()->id.group_id);
-					scope->check_sums.push_back(checksum);
+			for (auto it = result.begin(); it != result.end(); ++it) {
+				const lookup_result_entry &entry = *it;
+				if (entry.is_ack()) {
+					continue;
+				} if (entry.error()) {
+					memset(&checksum, 0, sizeof(checksum));
+				} else {
+					memcpy(checksum.id, entry.file_info()->checksum, sizeof(checksum.id));
 				}
-			} else {
-				dnet_id checksum;
-				memset(&checksum, 0, sizeof(checksum));
-				scope->check_sums.assign(scope->groups.size(), checksum);
+				groups.push_back(entry.command()->id.group_id);
+				check_sums.push_back(checksum);
 			}
-
-			session_scope guard(scope->sess);
-			scope->sess.set_exceptions_policy(session::no_exceptions);
-			scope->sess.set_ioflags(scope->sess.get_ioflags() | DNET_IO_FLAGS_CHECKSUM);
-
-			scope->sess.read_data(scope->id, scope->remote_offset, 0).connect(*this);
+		} else {
+			dnet_id checksum;
+			memset(&checksum, 0, sizeof(checksum));
+			check_sums.assign(groups.size(), checksum);
 		}
 
-		void operator () (const sync_read_result &result, const error_info &err) {
-			if (err && err.code() != -ENOENT) {
-				scope->handler.complete(err);
-				return;
-			}
-			data_pointer data;
-			uint32_t group_id = 0;
-			const read_result_entry *entry = NULL;
-			if (err.code() != -ENOENT) {
-				entry = &result[0];
-				data = entry->file();
-				group_id = entry->command()->id.group_id;
-			}
+		session_scope guard(sess);
+		sess.set_exceptions_policy(session::no_exceptions);
+		sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CHECKSUM);
 
-			data_pointer write_data = scope->converter(data);
+		sess.read_data(id, remote_offset, 0)
+			.connect(bind_method(shared_from_this(), &cas_functor::on_read));
+	}
 
-			if (write_data.size() == data.size()
-				&& ((write_data.empty() && data.empty())
-					|| write_data.data() == data.data())) {
-				// Fake users and the system
-				// We gave them a hope that write was successfull,
-				// but really data were already OK.
-
-				dnet_addr addr;
-				memset(&addr, 0, sizeof(addr));
-				dnet_cmd cmd;
-				memset(&cmd, 0, sizeof(cmd));
-				if (entry) {
-					cmd.id = entry->command()->id;
-				} else if (!result.empty()) {
-					cmd.id = result[0].command()->id;
-				}
-				cmd.cmd = DNET_CMD_WRITE;
-
-				auto data = std::make_shared<callback_result_data>(&addr, &cmd);
-				callback_result_entry entry = data;
-				scope->handler.process(*static_cast<const write_result_entry *>(&entry));
-				scope->handler.complete(error_info());
-				return;
-			}
-
-			dnet_id csum;
-			memset(&csum, 0, sizeof(csum));
-			dnet_transform_node(scope->sess.get_node().get_native(),
-			data.data(), data.size(), csum.id, sizeof(csum.id));
-
-			session sess(scope->sess.get_node());
-			sess.set_cflags(scope->sess.get_cflags());
-			sess.set_ioflags(scope->sess.get_ioflags());
-			sess.set_filter(filters::all_with_ack);
-			sess.set_exceptions_policy(session::no_exceptions);
-
-			std::list<async_write_result> write_results;
-
-			std::vector<int> groups;
-			std::swap(scope->groups, groups);
-
-			dnet_id id = scope->id.id();
-			for (size_t i = 0; i < groups.size(); ++i) {
-				id.group_id = groups[i];
-				if (id.group_id == group_id)
-					scope->check_sums[i] = csum;
-
-				auto result = sess.write_cas(id, write_data,
-				scope->check_sums[i],
-				scope->remote_offset);
-				write_results.emplace_back(std::move(result));
-			}
-
-			aggregated(sess, write_results.begin(), write_results.end()).connect(*this, *this);
+	void on_read(const sync_read_result &result, const error_info &err) {
+		if (err && err.code() != -ENOENT) {
+			handler.complete(err);
+			return;
+		}
+		data_pointer data;
+		uint32_t group_id = 0;
+		const read_result_entry *entry = NULL;
+		if (err.code() != -ENOENT) {
+			entry = &result[0];
+			data = entry->file();
+			group_id = entry->command()->id.group_id;
 		}
 
-		void operator () (const write_result_entry &result) {
-			scope->handler.process(result);
+		data_pointer write_data = converter(data);
 
-			if (result.error().code() == -EBADFD)
-				scope->groups.push_back(result.command()->id.group_id);
+		if (write_data.size() == data.size()
+			&& ((write_data.empty() && data.empty())
+				|| write_data.data() == data.data())) {
+			// Fake users and the system
+			// We gave them a hope that write was successfull,
+			// but really data were already OK.
+
+			dnet_addr addr;
+			memset(&addr, 0, sizeof(addr));
+			dnet_cmd cmd;
+			memset(&cmd, 0, sizeof(cmd));
+			if (entry) {
+				cmd.id = entry->command()->id;
+			} else if (!result.empty()) {
+				cmd.id = result[0].command()->id;
+			}
+			cmd.cmd = DNET_CMD_WRITE;
+
+			auto data = std::make_shared<callback_result_data>(&addr, &cmd);
+			callback_result_entry entry = data;
+			handler.process(*static_cast<const write_result_entry *>(&entry));
+			handler.complete(error_info());
+			return;
 		}
 
-		void operator () (const error_info &err) {
-			if (scope->groups.empty()) {
-				scope->handler.complete(err);
-				return;
-			}
+		dnet_id csum;
+		memset(&csum, 0, sizeof(csum));
+		dnet_transform_node(sess.get_node().get_native(),
+		data.data(), data.size(), csum.id, sizeof(csum.id));
 
-			++scope->index;
-			if (scope->index < scope->count) {
-				next_iteration();
-			} else {
-				scope->handler.complete(create_error(-EBADFD, scope->id, "write_cas: too many attemps: %d", scope->count));
-			}
+		session write_sess(sess.get_node());
+		write_sess.set_cflags(sess.get_cflags());
+		write_sess.set_ioflags(sess.get_ioflags());
+		write_sess.set_filter(filters::all_with_ack);
+		write_sess.set_exceptions_policy(session::no_exceptions);
+
+		std::list<async_write_result> write_results;
+
+		std::vector<int> write_groups;
+		std::swap(write_groups, groups);
+
+		dnet_id raw_id = id.id();
+		for (size_t i = 0; i < write_groups.size(); ++i) {
+			raw_id.group_id = write_groups[i];
+			if (raw_id.group_id == group_id)
+				check_sums[i] = csum;
+
+			auto result = write_sess.write_cas(raw_id, write_data, check_sums[i], remote_offset);
+			write_results.emplace_back(std::move(result));
 		}
-	}; /* struct functor */
-}; /* struct write_cas */
+
+		aggregated(write_sess, write_results.begin(), write_results.end())
+			.connect(bind_method(shared_from_this(), &cas_functor::on_write_entry),
+				bind_method(shared_from_this(), &cas_functor::on_write_finished));
+	}
+
+	void on_write_entry(const write_result_entry &result) {
+		handler.process(result);
+
+		if (result.error().code() == -EBADFD)
+			groups.push_back(result.command()->id.group_id);
+	}
+
+	void on_write_finished(const error_info &err) {
+		if (groups.empty()) {
+			handler.complete(err);
+			return;
+		}
+
+		++index;
+		if (index < count) {
+			next_iteration();
+		} else {
+			handler.complete(create_error(-EBADFD, id, "write_cas: too many attemps: %d", count));
+		}
+	}
+}; /* struct write_entry */
 
 async_write_result session::write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
 		uint64_t remote_offset, int count)
@@ -936,12 +956,10 @@ async_write_result session::write_cas(const key &id, const std::function<data_po
 	transform(id);
 
 	async_write_result result(*this);
-	async_result_handler<write_result_entry> handler(result);
 
-	cas_data scope = { *this, handler, converter, id, remote_offset, 0, count, mix_states(), std::vector<dnet_id>() };
-	cas_data::functor cas_handler = { std::make_shared<cas_data>(scope) };
+	auto functor = std::make_shared<cas_functor>(*this, result, converter, id, remote_offset, count, mix_states());
+	functor->next_iteration();
 
-	cas_handler.next_iteration();
 	return result;
 }
 

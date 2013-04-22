@@ -41,9 +41,8 @@
 #include "elliptics/interface.h"
 
 #define ELLIPTICS_DISABLE_COPY(CLASS) \
-private: \
-		CLASS(const CLASS &); \
-		CLASS &operator =(const CLASS &);
+		CLASS(const CLASS &) = delete; \
+		CLASS &operator =(const CLASS &) = delete;
 
 namespace ioremap { namespace elliptics {
 
