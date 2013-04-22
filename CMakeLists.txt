@@ -128,6 +128,8 @@ install(FILES
         include/elliptics/cppdef.h
         include/elliptics/session_indexes.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h
+        include/elliptics/module_backend.h
+        include/elliptics/module_backend.hpp
         DESTINATION include/elliptics/
         )
 
