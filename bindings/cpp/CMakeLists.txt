@@ -7,6 +7,7 @@ endif(DEVELOPER_BUILD)
 find_package(Msgpack REQUIRED)
 
 set(ELLIPTICS_CPP_SRCS
+    async_result.cpp
     log.cpp
     node.cpp
     callback.cpp
