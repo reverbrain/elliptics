@@ -8,6 +8,7 @@
 #include <sstream>
 #include <algorithm>
 #include <map>
+#include <iostream>
 
 using namespace ioremap::elliptics;
 
@@ -245,9 +246,9 @@ void test_1(session &sess)
 
 			int result = 0;
 			try {
-				sess.update_indexes(object, object_tags, object_datas);
+				sess.update_indexes(object, object_tags, object_datas).get();
 			} catch (error &e) {
-                std::cerr << e.what() << std::endl;
+				std::cerr << e.what() << std::endl;
 				result = e.error_code();
 			} catch (std::bad_alloc &e) {
 				result = -ENOMEM;

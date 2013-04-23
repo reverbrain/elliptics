@@ -1,5 +1,9 @@
 #include "../../include/elliptics/cppdef.h"
 
+#include <condition_variable>
+#include <mutex>
+#include <queue>
+
 namespace ioremap { namespace elliptics {
 
 template <typename T>
@@ -108,6 +112,28 @@ bool async_result<T>::get(T &entry)
 			entry = *it;
 			return true;
 		}
+	}
+	return false;
+}
+
+template <>
+bool async_result<index_entry>::get(index_entry &entry)
+{
+	wait(session::throw_at_get);
+	if (!m_data->results.empty()) {
+		entry = m_data->results[0];
+		return true;
+	}
+	return false;
+}
+
+template <>
+bool async_result<find_indexes_result_entry>::get(find_indexes_result_entry &entry)
+{
+	wait(session::throw_at_get);
+	if (!m_data->results.empty()) {
+		entry = m_data->results[0];
+		return true;
 	}
 	return false;
 }
@@ -365,6 +391,28 @@ void async_result_handler<T>::process(const T &result)
 	}
 }
 
+template <>
+void async_result_handler<index_entry>::process(const index_entry &result)
+{
+	std::unique_lock<std::mutex> locker(m_data->lock);
+	if (m_data->result_handler) {
+		m_data->result_handler(result);
+	} else {
+		m_data->results.push_back(result);
+	}
+}
+
+template <>
+void async_result_handler<find_indexes_result_entry>::process(const find_indexes_result_entry &result)
+{
+	std::unique_lock<std::mutex> locker(m_data->lock);
+	if (m_data->result_handler) {
+		m_data->result_handler(result);
+	} else {
+		m_data->results.push_back(result);
+	}
+}
+
 template <typename T>
 void async_result_handler<T>::complete(const error_info &error)
 {
@@ -411,6 +459,22 @@ bool async_result_handler<T>::check(error_info *error)
 	return true;
 }
 
+template <>
+bool async_result_handler<index_entry>::check(error_info *error)
+{
+	if (error)
+		*error = error_info();
+	return true;
+}
+
+template <>
+bool async_result_handler<find_indexes_result_entry>::check(error_info *error)
+{
+	if (error)
+		*error = error_info();
+	return true;
+}
+
 template class async_result<callback_result_entry>;
 template class async_result<read_result_entry>;
 template class async_result<lookup_result_entry>;
@@ -418,6 +482,8 @@ template class async_result<stat_result_entry>;
 template class async_result<stat_count_result_entry>;
 template class async_result<exec_result_entry>;
 template class async_result<iterator_result_entry>;
+template class async_result<index_entry>;
+template class async_result<find_indexes_result_entry>;
 
 template class async_result_handler<callback_result_entry>;
 template class async_result_handler<read_result_entry>;
@@ -426,4 +492,6 @@ template class async_result_handler<stat_result_entry>;
 template class async_result_handler<stat_count_result_entry>;
 template class async_result_handler<exec_result_entry>;
 template class async_result_handler<iterator_result_entry>;
+template class async_result_handler<index_entry>;
+template class async_result_handler<find_indexes_result_entry>;
 } }

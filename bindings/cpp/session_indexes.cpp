@@ -1,6 +1,7 @@
 #include "session_indexes.hpp"
 #include "callback_p.h"
 #include "functional_p.h"
+#include "../../include/elliptics/utils.hpp"
 
 namespace ioremap { namespace elliptics {
 
@@ -25,16 +26,14 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 {
 	ELLIPTICS_DISABLE_COPY(update_indexes_functor)
 
-	typedef std::function<void (const std::exception_ptr &)> handler_func;
-
 	enum update_index_action {
 		insert_data,
 		remove_data
 	};
 
-	update_indexes_functor(session &sess, const handler_func &handler, const key &request_id,
+	update_indexes_functor(session &sess, const async_update_indexes_result &result, const key &request_id,
 		const std::vector<index_entry> &input_indexes, const dnet_id &id)
-		: sess(sess), handler(handler), request_id(request_id), id(id), finished(0)
+		: sess(sess), handler(result), request_id(request_id), id(id), finished(0)
 	{
 		indexes.indexes = input_indexes;
 		std::sort(indexes.indexes.begin(), indexes.indexes.end(), dnet_raw_id_less_than<>());
@@ -47,7 +46,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	 */
 
 	session sess;
-	std::function<void (const std::exception_ptr &)> handler;
+	async_result_handler<write_result_entry> handler;
 	key request_id;
 	data_pointer request_data;
 	// indexes to update
@@ -65,7 +64,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	std::vector<dnet_raw_id> success_removed_ids;
 	std::mutex mutex;
 	size_t finished;
-	std::exception_ptr exception;
+	error_info exception;
 
 	/*!
 	 * Update data-object table for certain secondary index.
@@ -131,7 +130,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		if (finished != success_inserted_ids.size() + success_removed_ids.size())
 			return;
 
-		handler(exception);
+		handler.complete(exception);
 	}
 
 	/*!
@@ -143,11 +142,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		++finished;
 
 		if (err) {
-			try {
-				err.throw_error();
-			} catch (...) {
-				exception = std::current_exception();
-			}
+			exception = err;
 		}
 
 		on_index_table_revert_finished();
@@ -171,7 +166,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			|| success_removed_ids.size() != removed_ids.size()) {
 
 			if (success_inserted_ids.empty() && success_removed_ids.empty()) {
-				handler(exception);
+				handler.complete(exception);
 				return;
 			}
 
@@ -204,7 +199,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 					std::placeholders::_2));
 			}
 		} else {
-			handler(std::exception_ptr());
+			handler.complete(error_info());
 			return;
 		}
 	}
@@ -220,11 +215,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		++finished;
 
 		if (err) {
-			try {
-				err.throw_error();
-			} catch (...) {
-				exception = std::current_exception();
-			}
+			exception = err;
 		} else {
 			if (action == insert_data) {
 				success_inserted_ids.push_back(id);
@@ -255,16 +246,14 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	 * Handle result of object indexes' table update
 	 * This method is called when list of indexes for given object has been downloaded
 	 */
-	void on_object_indexes_updated(const sync_write_result &, const error_info &err)
+	void on_object_indexes_updated(const sync_write_result &result, const error_info &err)
 	{
+		for (auto it = result.begin(); it != result.end(); ++it)
+			handler.process(*it);
 		// If there was an error - notify user about this.
 		// At this state there were no changes at the storage yet.
 		if (err) {
-			try {
-				err.throw_error();
-			} catch (...) {
-				handler(std::current_exception());
-			}
+			handler.complete(err);
 			return;
 		}
 
@@ -279,7 +268,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 				std::back_inserter(removed_ids), dnet_raw_id_less_than<skip_data>());
 
 			if (inserted_ids.empty() && removed_ids.empty()) {
-				handler(std::exception_ptr());
+				handler.complete(error_info());
 				return;
 			}
 
@@ -318,13 +307,16 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 						std::placeholders::_2));
 			}
 		} catch (...) {
-			handler(std::current_exception());
+			handler.complete(error_info());
 			return;
 		}
 	}
 
 	void start()
 	{
+		session_scope scope(sess);
+		sess.set_filter(filters::all_with_ack);
+		sess.set_exceptions_policy(session::no_exceptions);
 		sess.write_cas(id, bind_method(shared_from_this(), &update_indexes_functor::convert_object_indexes), 0)
 			.connect(bind_method(shared_from_this(), &update_indexes_functor::on_object_indexes_updated));
 	}
@@ -332,29 +324,23 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 // Update \a indexes for \a request_id
 // Result is pushed to \a handler
-void session::update_indexes(const std::function<void (const update_indexes_result &)> &handler,
-	const key &request_id, const std::vector<index_entry> &indexes)
+async_update_indexes_result session::update_indexes(const key &request_id, const std::vector<index_entry> &indexes)
 {
 	transform(request_id);
+	async_update_indexes_result result(*this);
 
 	auto functor = std::make_shared<update_indexes_functor>(
-		*this, handler, request_id, indexes, indexes_generate_id(*this, request_id.id()));
+		*this, result, request_id, indexes, indexes_generate_id(*this, request_id.id()));
 	functor->start();
+
+	return result;
 }
 
-void session::update_indexes(const key &request_id, const std::vector<index_entry> &indexes)
-{
-	transform(request_id);
-
-	waiter<std::exception_ptr> w;
-	update_indexes(w.handler(), request_id, indexes);
-	w.result();
-}
-
-void session::update_indexes(const key &id, const std::vector<std::string> &indexes, const std::vector<data_pointer> &datas)
+async_update_indexes_result session::update_indexes(const key &id, const std::vector<std::string> &indexes, const std::vector<data_pointer> &datas)
 {
 	if (datas.size() != indexes.size())
 		throw_error(-EINVAL, id, "session::update_indexes: indexes and datas sizes mismtach");
+
 	dnet_id tmp;
 	std::vector<index_entry> raw_indexes;
 	raw_indexes.resize(indexes.size());
@@ -365,12 +351,12 @@ void session::update_indexes(const key &id, const std::vector<std::string> &inde
 		raw_indexes[i].data = datas[i];
 	}
 
-	update_indexes(id, raw_indexes);
+	return update_indexes(id, raw_indexes);
 }
 
 struct find_indexes_handler
 {
-	std::function<void (const find_indexes_result &)> handler;
+	async_result_handler<find_indexes_result_entry> handler;
 	size_t ios_size;
 
 	void operator() (const sync_read_result &bulk_result, const error_info &err)
@@ -378,19 +364,15 @@ struct find_indexes_handler
 		std::vector<find_indexes_result_entry> result;
 
 		if (err == -ENOENT) {
-			handler(result);
+			handler.complete(error_info());
 			return;
 		} else if (err) {
-			try {
-				err.throw_error();
-			} catch (...) {
-				handler(std::current_exception());
-			}
+			handler.complete(err);
 			return;
 		}
 
 		if (bulk_result.size() != ios_size) {
-			handler(result);
+			handler.complete(error_info());
 			return;
 		}
 
@@ -422,24 +404,25 @@ struct find_indexes_handler
 					kt->indexes.push_back(std::make_pair(raw, jt->data));
 				}
 			}
-
-			try {
-				handler(result);
-			} catch (...) {
-			}
-		} catch (...) {
-			handler(std::current_exception());
+		} catch (std::exception &e) {
+			handler.complete(create_error(-EINVAL, "%s", e.what()));
 			return;
 		}
+
+		for (auto it = result.begin(); it != result.end(); ++it)
+			handler.process(*it);
+		handler.complete(error_info());
 	}
 };
 
-void session::find_indexes(const std::function<void (const find_indexes_result &)> &handler, const std::vector<dnet_raw_id> &indexes)
+async_find_indexes_result session::find_indexes(const std::vector<dnet_raw_id> &indexes)
 {
+	async_find_indexes_result result(*this);
+	async_result_handler<find_indexes_result_entry> handler(result);
+
 	if (indexes.size() == 0) {
-		std::vector<find_indexes_result_entry> results;
-		handler(results);
-		return;
+		handler.complete(error_info());
+		return result;
 	}
 
 	std::vector<dnet_io_attr> ios;
@@ -453,16 +436,11 @@ void session::find_indexes(const std::function<void (const find_indexes_result &
 
 	find_indexes_handler functor = { handler, ios.size() };
 	bulk_read(ios).connect(functor);
+
+	return result;
 }
 
-find_indexes_result session::find_indexes(const std::vector<dnet_raw_id> &indexes)
-{
-	waiter<find_indexes_result> w;
-	find_indexes(w.handler(), indexes);
-	return w.result();
-}
-
-find_indexes_result session::find_indexes(const std::vector<std::string> &indexes)
+async_find_indexes_result session::find_indexes(const std::vector<std::string> &indexes)
 {
 	dnet_id tmp;
 	std::vector<dnet_raw_id> raw_indexes;
@@ -478,47 +456,39 @@ find_indexes_result session::find_indexes(const std::vector<std::string> &indexe
 
 struct check_indexes_handler
 {
-	std::function<void (const check_indexes_result &)> handler;
+	key request_id;
+	async_result_handler<index_entry> handler;
 
 	void operator() (const sync_read_result &read_result, const error_info &err)
 	{
 		if (err) {
-			try {
-				err.throw_error();
-			} catch (...) {
-				handler(std::current_exception());
-			}
+			handler.complete(err);
 			return;
 		}
 
+		dnet_indexes result;
 		try {
-			dnet_indexes result;
 			indexes_unpack(read_result[0].file(), &result, "check_indexes_handler");
-
-			try {
-				handler(result.indexes);
-			} catch (...) {
-			}
-		} catch (...) {
-			handler(std::current_exception());
+		} catch (std::exception &e) {
+			handler.complete(create_error(-EINVAL, request_id, "%s", e.what()));
 			return;
 		}
+
+		for (auto it = result.indexes.begin(); it != result.indexes.end(); ++it)
+			handler.process(*it);
+		handler.complete(error_info());
 	}
 };
 
-void session::check_indexes(const std::function<void (const check_indexes_result &)> &handler, const key &request_id)
+async_check_indexes_result session::check_indexes(const key &request_id)
 {
+	async_check_indexes_result result(*this);
 	dnet_id id = indexes_generate_id(*this, request_id.id());
 
-	check_indexes_handler functor = { handler };
+	check_indexes_handler functor = { request_id, result };
 	read_latest(id, 0, 0).connect(functor);
-}
 
-check_indexes_result session::check_indexes(const key &id)
-{
-	waiter<check_indexes_result> w;
-	check_indexes(w.handler(), id);
-	return w.result();
+	return result;
 }
 
 } } // ioremap::elliptics

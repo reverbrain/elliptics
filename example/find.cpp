@@ -33,6 +33,7 @@
 
 #include <sstream>
 #include <stdexcept>
+#include <iostream>
 
 #include "elliptics/interface.h"
 #include "elliptics/packet.h"
