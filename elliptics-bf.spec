@@ -87,6 +87,8 @@ export LDFLAGS="-Wl,-z,defs"
 export DESTDIR="%{buildroot}"
 %if 0%{?rhel} < 6
 export PYTHON=/usr/bin/python26
+export CC=gcc44
+export CXX=g++44
 CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %{cmake} -DBoost_DIR=/usr/lib64/boost141 -DBOOST_INCLUDEDIR=/usr/include/boost141 -DWITH_COCAINE=NO .
 %else
 %{cmake} -DWITH_COCAINE=NO .
