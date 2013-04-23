@@ -133,7 +133,7 @@ static int blob_iterate(struct eblob_backend_config *c, struct dnet_iterator_ctl
 		.priv = ictl,
 		.b = b,
 		.log = c->data.log,
-		.flags = EBLOB_ITERATE_FLAGS_ALL | EBLOB_ITERATE_READONLY,
+		.flags = EBLOB_ITERATE_FLAGS_ALL | EBLOB_ITERATE_FLAGS_READONLY,
 		.iterator_cb = {
 			.iterator = blob_iterate_callback,
 		},
