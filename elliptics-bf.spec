@@ -15,9 +15,9 @@ BuildRequires:  boost141-iostreams, boost141-thread, boost141-python, boost141-s
 %else
 BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-thread, boost-python, boost-system
 %endif
-BuildRequires:	eblob-devel >= 0.18.1
+BuildRequires:	eblob-devel >= 0.19.0
 BuildRequires:  leveldb-devel
-BuildRequires:	cmake zeromq3-devel msgpack-devel
+BuildRequires:	cmake msgpack-devel
 
 Obsoletes: srw
 
