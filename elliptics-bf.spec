@@ -16,7 +16,7 @@ BuildRequires:  boost141-iostreams, boost141-thread, boost141-python, boost141-s
 BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-thread, boost-python, boost-system
 %endif
 BuildRequires:	eblob-devel >= 0.19.0
-BuildRequires:  leveldb-devel
+BuildRequires:  leveldb-devel snappy-devel
 BuildRequires:	cmake msgpack-devel
 
 Obsoletes: srw
@@ -91,7 +91,12 @@ CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %{cm
 %else
 %{cmake} -DWITH_COCAINE=NO .
 %endif
+
+%if 0%{?rhel} < 6
+CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" make %{?_smp_mflags}
+%else
 make %{?_smp_mflags}
+%endif
 
 %install
 rm -rf %{buildroot}
