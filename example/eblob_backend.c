@@ -186,7 +186,9 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 			/* Copy data from elist to ehdr */
 			dnet_ext_list_to_hdr(elist, &ehdr);
 			/* Update extended header */
-			dnet_ext_hdr_write(&ehdr, wc2.data_fd, wc2.offset);
+			if ((err = dnet_ext_hdr_write(&ehdr, wc2.data_fd, wc2.offset)) != 0)
+				goto err_out_exit;
+
 			/* Move offset past extended header */
 			io->offset += ehdr_size;
 			if (io->flags & DNET_IO_FLAGS_COMMIT)
