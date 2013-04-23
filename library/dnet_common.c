@@ -674,14 +674,15 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
 	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: %llx, size: %llu, offset: %llu, "
-			"fd: %d, local_offset: %llu -> %s weight: %f, mrt: %ld.\n",
+			"fd: %d, local_offset: %llu -> %s weight: %f, mrt: %ld, wait-ts: %ld.\n",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
 			dnet_cmd_string(ctl->cmd), (unsigned long long)cmd->flags,
 			(unsigned long long)ctl->io.size, (unsigned long long)ctl->io.offset,
 			ctl->fd,
 			(unsigned long long)ctl->local_offset,
-			dnet_server_convert_dnet_addr(&t->st->addr), t->st->weight, t->st->median_read_time);
+			dnet_server_convert_dnet_addr(&t->st->addr), t->st->weight, t->st->median_read_time,
+			t->wait_ts.tv_sec);
 
 	dnet_convert_cmd(cmd);
 	dnet_convert_io_attr(io);
