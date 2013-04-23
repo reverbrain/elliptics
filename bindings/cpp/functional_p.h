@@ -7,6 +7,12 @@ namespace ioremap { namespace elliptics {
 
 // Helper class for functor duties
 // It's nothing more than implementation detail
+//
+// When usually want to use std::bind() like std::bing(&myobject::myfunction, this, args...),
+// but instead we could use std::mem_fn() and store object pointer ('this') somewhere.
+//
+// This magic class does exactly that - it saves object pointer ('this') in given handler
+// and calls requested function when operator() is invoked
 template <typename Pointer, typename Func, typename ReturnType, typename... Args>
 struct magic_bind_result
 {

@@ -41,6 +41,11 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		msgpack::pack(buffer, indexes);
 	}
 
+	/*
+	 * update_indexes_functor::request_id holds key ID to add/remove from stored indexes
+	 * update_indexes_functor::id holds key which contains list of all indexes which contain request_id
+	 */
+
 	session sess;
 	std::function<void (const std::exception_ptr &)> handler;
 	key request_id;
@@ -64,15 +69,18 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 	/*!
 	 * Update data-object table for certain secondary index.
-	 * update_indexes_functor::request_id holds key ID to add/remove from stored indexes
-	 * update_indexes_functor::id holds key which contains list of all indexes which contain request_id
+	 * This function is called when write-cas() has downloaded index data,
+	 * it updates and returns it
+	 *
+	 * @index_data is what client provided
+	 * @data is what was downloaded from the storage
 	 */
 	template <update_index_action action>
 	data_pointer convert_index_table(const data_pointer &index_data, const data_pointer &data)
 	{
 		dnet_indexes indexes;
 		if (!data.empty())
-			indexes_unpack(data, &indexes, "update_functor");
+			indexes_unpack(data, &indexes, "convert_index_table");
 
 		// Construct index entry
 		index_entry request_index;
@@ -110,6 +118,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 		msgpack::sbuffer buffer;
 		msgpack::pack(&buffer, indexes);
+
 		return data_pointer::copy(buffer.data(), buffer.size());
 	}
 
@@ -145,8 +154,8 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	}
 
 	/*!
-	 * All indexes are updated, if one of the update is failed,
-	 * all successfull changes must be reverted.
+	 * Called for every index being updated.
+	 * When all indexes are updated, check if any update failed, in this case all successfull changes must be reverted.
 	 */
 	void on_index_table_update_finished()
 	{
@@ -166,6 +175,9 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 				return;
 			}
 
+			/*
+			 * Revert all successfully made changes, since something went wrong
+			 */
 			for (size_t i = 0; i < success_inserted_ids.size(); ++i) {
 				const auto &remote_id = success_inserted_ids[i];
 				memcpy(tmp_id.id, remote_id.id, sizeof(tmp_id.id));
@@ -198,7 +210,8 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	}
 
 	/*!
-	 * Updating of certain index table for \a id is finished with error \a err
+	 * Function is called after we updated index table (secondary index) for given id.
+	 * Update status is stored in error_info
 	 */
 	template <update_index_action action>
 	void on_index_table_updated(const dnet_raw_id &id, const error_info &err)
@@ -219,19 +232,20 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 				success_removed_ids.push_back(id);
 			}
 		}
+
 		on_index_table_update_finished();
 	}
 
 	/*!
-	 * Replace object's indexes cache by new table.
-	 * Remembers current object's indexes to local variable remote_indexes
+	 * Replace object's index cache (list of indexes given object is present in) by new table.
+	 * Store them into @remote_indexes
 	 */
 	data_pointer convert_object_indexes(const data_pointer &data)
 	{
 		if (data.empty()) {
 			remote_indexes.indexes.clear();
 		} else {
-			indexes_unpack(data, &remote_indexes, "main_functor");
+			indexes_unpack(data, &remote_indexes, "convert_object_indexes");
 		}
 
 		return data_pointer::from_raw(const_cast<char *>(buffer.data()), buffer.size());
@@ -239,6 +253,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 	/*!
 	 * Handle result of object indexes' table update
+	 * This method is called when list of indexes for given object has been downloaded
 	 */
 	void on_object_indexes_updated(const sync_write_result &, const error_info &err)
 	{
@@ -258,7 +273,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			std::set_difference(indexes.indexes.begin(), indexes.indexes.end(),
 				remote_indexes.indexes.begin(), remote_indexes.indexes.end(),
 				std::back_inserter(inserted_ids), dnet_raw_id_less_than<>());
-			// Remove only absolutely another items
+			// Remove index entries which are not present in the new list of indexes
 			std::set_difference(remote_indexes.indexes.begin(), remote_indexes.indexes.end(),
 				indexes.indexes.begin(), indexes.indexes.end(),
 				std::back_inserter(removed_ids), dnet_raw_id_less_than<skip_data>());
@@ -272,6 +287,11 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			tmp_id.group_id = 0;
 			tmp_id.type = 0;
 
+			/*
+			 * Iterate over all indexes and update those which changed.
+			 * 'Changed' here means we want to either put or remove
+			 * update_indexes_functor::request_id to/from given index
+			 */
 			for (size_t i = 0; i < inserted_ids.size(); ++i) {
 				memcpy(tmp_id.id, inserted_ids[i].index.id, sizeof(tmp_id.id));
 				sess.write_cas(tmp_id,

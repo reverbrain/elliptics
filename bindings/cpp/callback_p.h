@@ -847,7 +847,7 @@ class iterator_callback
 		}
 
 		session sess;
-		struct dnet_id id;
+		struct dnet_id id; /* This ID is used to find out node which will handle iterator request */
 		dnet_iterator_request request;
 		default_callback<iterator_result_entry> cb;
 };
