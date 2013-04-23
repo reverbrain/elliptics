@@ -192,7 +192,7 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 			if (io->flags & DNET_IO_FLAGS_COMMIT)
 				io->num += sizeof(struct dnet_ext_list_hdr);
 		}
-	} else if (err == -ENOENT) { /* New record */
+	} else if (err > 0 || err == -ENOENT) { /* New record or compressed */
 		flags |= BLOB_DISK_CTL_USR1;
 		if (io->offset != 0) {
 			/* TODO: Think of something sophisticated */
