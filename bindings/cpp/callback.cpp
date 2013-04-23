@@ -266,14 +266,19 @@ iterator_result_entry &iterator_result_entry::operator =(const iterator_result_e
 	return *this;
 }
 
-dnet_iterator_request *iterator_result_entry::reply() const
+dnet_iterator_response *iterator_result_entry::reply() const
 {
-	return data<dnet_iterator_request>();
+	return data<dnet_iterator_response>();
+}
+
+uint64_t iterator_result_entry::user_flags() const
+{
+	return reply()->user_flags;
 }
 
 data_pointer iterator_result_entry::reply_data() const
 {
-	return data().skip<dnet_iterator_request>();
+	return data().skip<dnet_iterator_response>();
 }
 
 } } // namespace ioremap::elliptics

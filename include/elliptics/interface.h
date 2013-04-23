@@ -250,6 +250,16 @@ struct dnet_iterate_ctl {
 	void				*callback_private;
 };
 
+/*
+ * New-style iterator control
+ */
+struct dnet_iterator_ctl {
+	void				*iterate_private;
+	void				*callback_private;
+	int				(* callback)(void *priv, struct dnet_raw_id *key,
+			void *data, uint64_t dsize, struct dnet_ext_list *elist);
+};
+
 struct dnet_backend_callbacks {
 	/* command handler processes DNET_CMD_* commands */
 	int			(* command_handler)(void *state, void *priv, struct dnet_cmd *cmd, void *data);
@@ -289,6 +299,17 @@ struct dnet_backend_callbacks {
 
 	/* returns number of metadata elements */
 	long long		(* meta_total_elements)(void *priv);
+
+	/*
+	 * Iterator.
+	 * Invokes callback on each record's data and metadata.
+	 */
+	int			(* iterator)(struct dnet_iterator_ctl *ictl);
+
+	/*
+	 * Returns dir used by backend
+	 */
+	char *			(* dir)(void);
 };
 
 /*

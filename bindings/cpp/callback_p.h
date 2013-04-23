@@ -75,7 +75,7 @@ struct entry_converter
 
 	static void convert(iterator_result_entry &entry, callback_result_data *)
 	{
-		dnet_convert_iterator_request(entry.reply());
+		dnet_convert_iterator_response(entry.reply());
 	}
 
 	static void convert(lookup_result_entry &entry, callback_result_data *)

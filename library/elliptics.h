@@ -608,6 +608,28 @@ struct dnet_addr_storage
 	unsigned int			__join_state;
 };
 
+/*!
+ * Compares two dnet_time structs
+ * Returns
+ *	< 0 if t1 < t2
+ *	> 0 if t1 > t2
+ *	= 0 if t1 == t2
+ */
+static inline int dnet_time_cmp(struct dnet_time *t1, struct dnet_time *t2)
+{
+	if (t1->tsec < t2->tsec)
+		return -1;
+	else if (t1->tsec > t2->tsec)
+		return 1;
+
+	if (t1->tnsec < t2->tnsec)
+		return -1;
+	else if (t1->tnsec > t2->tnsec)
+		return 1;
+
+	return 0;
+}
+
 /*
  * Returns true if t1 is before than t2.
  */
@@ -744,6 +766,31 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 int __attribute__((weak)) dnet_remove_local(struct dnet_node *n, struct dnet_id *id);
 
 int dnet_discovery(struct dnet_node *n);
+
+/*
+ * Common private data:
+ * Request + next callback and it's argument.
+ */
+struct dnet_iterator_common_private {
+	struct dnet_iterator_request	*req;		/* Original request */
+	int				(*next_callback)(void *priv, void *data, uint64_t dsize);
+	void				*next_private;	/* One of predefined callbacks */
+};
+
+/*
+ * Send over network callback private.
+ */
+struct dnet_iterator_send_private {
+	struct dnet_net_state		*st;		/* State to send data to */
+	struct dnet_cmd			*cmd;		/* Command */
+};
+
+/*
+ * Save to file callback private.
+ */
+struct dnet_iterator_file_private {
+	int				fd;		/* Append mode file descriptor */
+};
 
 #ifdef __cplusplus
 }

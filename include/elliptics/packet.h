@@ -342,21 +342,33 @@ static inline void dnet_convert_list(struct dnet_list *l)
  */
 #define DNET_IO_FLAGS_WRITE_NO_FILE_INFO	(1<<14)
 
+
+struct dnet_time {
+	uint64_t		tsec, tnsec;
+};
+
 struct dnet_io_attr
 {
 	uint8_t			parent[DNET_ID_SIZE];
 	uint8_t			id[DNET_ID_SIZE];
 
 	/*
-	 * used in range request as start and number for LIMIT(start, num) 
+	 * used in range request as start and number for LIMIT(start, num)
 	 *
 	 * write prepare request uses @num is used as a placeholder
 	 * for number of bytes to reserve on disk
 	 *
 	 * @start is used in cache writes: it is treated as object lifetime in seconds, if zero, object is never removed.
 	 * When object's lifetime is over, it is removed from cache, but not from disk.
+	 *
+	 * @timestamp and @user_flags is used in extended headers in metadata writes.
 	 */
-	uint64_t		start, num;
+	union {
+		struct {
+			uint64_t	start, num;
+		};
+		struct dnet_time	timestamp;
+	};
 	uint64_t		user_flags;
 	int			type;
 	uint32_t		flags;
@@ -550,10 +562,6 @@ static inline void dnet_stat_inc(struct dnet_stat_count *st, int cmd, int err)
 		st[cmd].err++;
 }
 
-struct dnet_time {
-	uint64_t		tsec, tnsec;
-};
-
 static inline void dnet_convert_time(struct dnet_time *tm)
 {
 	tm->tsec = dnet_bswap64(tm->tsec);
@@ -697,27 +705,92 @@ static inline void dnet_convert_meta_checksum(struct dnet_meta_checksum *c)
 	dnet_convert_time(&c->tm);
 }
 
-/* when set server-side iterator works with data as well as index/metadata,
+/*!
+ * Flag used by dnet_ext_list_extract() to indicate that we need to free old
+ * data pointer on dnet_ext_list_destroy()
+ */
+enum dnet_ext_free_data {
+	DNET_EXT_DONT_FREE_ON_DESTROY,
+	DNET_EXT_FREE_ON_DESTROY
+};
+
+/*!
+ * Versions ov extension headers
+ */
+enum dnet_ext_versions {
+	DNET_EXT_VERSION_FIRST,
+	DNET_EXT_VERSION_V0,
+	DNET_EXT_VERSION_LAST,
+};
+
+/*! In-memory extension header */
+struct dnet_ext;
+
+/*! On-disk extension list header */
+struct dnet_ext_list_hdr {
+	uint8_t			version;	/* Extension header version */
+	uint8_t			__pad1[3];	/* For future use (should be NULLed) */
+	uint32_t		size;		/* Size of all extensions */
+	struct dnet_time	timestamp;	/* Time stamp of record */
+	uint64_t		flags;		/* Custom flags for this record */
+	uint64_t		__pad2[2];	/* For future use (should be NULLed) */
+};
+
+/*! In-memory extension conatiner */
+struct dnet_ext_list {
+	uint8_t			version;	/* Extension header version */
+	uint32_t		size;		/* Total size of extensions */
+	uint64_t		flags;		/* Custom flags for this record */
+	struct dnet_time	timestamp;	/* TS of header */
+	struct dnet_ext		**exts;		/* Array of pointers to extensions */
+	void			*data;		/* Pointer to original data before extraction */
+};
+
+/*! Types of extensions */
+enum {
+	DNET_EXTENSION_FIRST,		/* Assert */
+	/* DNET_EXTENSION_USER_DATA, */
+	DNET_EXTENSION_LAST		/* Assert */
+};
+
+/*
+ * When set server-side iterator works with data as well as index/metadata,
  * otherwise only index/metadata is stored/sent to back client/disk
  */
 #define DNET_IFLAGS_DATA		(1<<0)
+/* When set key range is used */
+#define DNET_IFLAGS_KEY_RANGE		(1<<1)
+/* When set timestamp range is used */
+#define DNET_IFLAGS_TS_RANGE		(1<<2)
+/* Sanity */
+#define DNET_IFLAGS_ALL			(DNET_IFLAGS_DATA	\
+		| DNET_IFLAGS_KEY_RANGE | DNET_IFLAGS_TS_RANGE)
 
 enum dnet_iterator_types {
-	DNET_ITYPE_DISK		= 1,	/* iterator saves data chunks (index/metadata + (optionally) data) locally on
-					 * server to $root/iter/$id instead of sending chunks to client
+	DNET_ITYPE_FIRST,		/* Sanity */
+	DNET_ITYPE_DISK,		/*
+					 * Iterator saves data chunks
+					 * (index/metadata + (optionally) data)
+					 * locally on server to $root/iter/$id
+					 * instead of sending chunks to client
 					 */
-
-	DNET_ITYPE_NETWORK,		/* iterator sends data chunks  to client */
+	DNET_ITYPE_NETWORK,		/* iterator sends data chunks to client */
+	DNET_ITYPE_LAST,		/* Sanity */
 };
 
+/*
+ * Iteration request
+ */
 struct dnet_iterator_request
 {
-	struct dnet_raw_id		key;
-	struct dnet_raw_id		end;
-	uint64_t			flags;
-	uint64_t			id;
-	int				itype;
-	int				status;
+	uint32_t			action;		/* Action: start/pause/cont */
+	struct dnet_raw_id		key_begin;	/* Start key */
+	struct dnet_raw_id		key_end;	/* End key */
+	struct dnet_time		time_begin;	/* Start time */
+	struct dnet_time		time_end;	/* End time */
+	uint32_t			itype;		/* Which callback to use? Net/File/etc */
+	uint64_t			flags;		/* DNET_IFLAGS_* */
+	uint64_t			id;		/* Command ID */
 	uint64_t			reserved[5];
 } __attribute__ ((packed));
 
@@ -726,7 +799,29 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 	r->flags = dnet_bswap64(r->flags);
 	r->id = dnet_bswap64(r->id);
 	r->itype = dnet_bswap32(r->itype);
+	r->action = dnet_bswap32(r->action);
+	dnet_convert_time(&r->time_begin);
+	dnet_convert_time(&r->time_end);
+}
+
+/*
+ * Iterator response
+ * TODO: Maybe it's better to include whole ehdr into response
+ */
+struct dnet_iterator_response
+{
+	struct dnet_raw_id		key;		/* Response key */
+	int				status;		/* Response status */
+	struct dnet_time		timestamp;	/* Timestamp from extended header */
+	uint64_t			user_flags;	/* User flags set in extended header */
+	uint64_t			reserved[5];
+} __attribute__ ((packed));
+
+static inline void dnet_convert_iterator_response(struct dnet_iterator_response *r)
+{
 	r->status = dnet_bswap32(r->status);
+	r->user_flags = dnet_bswap32(r->user_flags);
+	dnet_convert_time(&r->timestamp);
 }
 
 /*

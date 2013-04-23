@@ -846,7 +846,7 @@ static int dnet_auth_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		n = state->n;
 
 		if (cmd->status == 0) {
-			dnet_log(n, DNET_LOG_INFO, "%s: authentication request suceeded\n", dnet_state_dump_addr(state));
+			dnet_log(n, DNET_LOG_INFO, "%s: authentication request succeeded\n", dnet_state_dump_addr(state));
 			return 0;
 		}
 
