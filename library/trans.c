@@ -286,6 +286,8 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 	struct dnet_trans *t;
 	struct timeval tv;
 	int trans_timeout = 0;
+	char str[64];
+	struct tm tm;
 
 	gettimeofday(&tv, NULL);
 
@@ -294,7 +296,13 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 		if (t->time.tv_sec >= tv.tv_sec)
 			break;
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT\n", dnet_state_dump_addr(st), (unsigned long long)t->trans);
+		localtime_r((time_t *)&t->start.tv_sec, &tm);
+		strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT, wait-ts: %ld, started: %s.%06lu\n",
+				dnet_state_dump_addr(st), (unsigned long long)t->trans,
+				(unsigned long)t->wait_ts.tv_sec,
+				str, t->start.tv_usec);
 		trans_timeout++;
 	}
 	pthread_mutex_unlock(&st->trans_lock);
