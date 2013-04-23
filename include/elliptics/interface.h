@@ -547,6 +547,7 @@ void dnet_node_destroy(struct dnet_node *n);
  * Session is not thread safe!
  */
 struct dnet_session *dnet_session_create(struct dnet_node *n);
+struct dnet_session *dnet_session_copy(struct dnet_session *s);
 void dnet_session_destroy(struct dnet_session *s);
 
 /* Server node creation/destruction.

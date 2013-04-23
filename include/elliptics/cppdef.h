@@ -802,9 +802,12 @@ class session
 			default_exceptions	= throw_at_wait | throw_at_get | throw_at_iterator_end
 		};
 
-		explicit session(const node &n);
+        explicit session(const node &n);
+        explicit session(const std::shared_ptr<session_data> &d);
 		session(const session &other);
 		virtual ~session();
+
+        session clone() const;
 
 		session &operator =(const session &other);
 
