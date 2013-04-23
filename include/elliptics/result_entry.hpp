@@ -17,8 +17,8 @@
 #ifndef ELLIPTICS_RESULT_ENTRY_HPP
 #define ELLIPTICS_RESULT_ENTRY_HPP
 
-#include "utils.hpp"
-#include "async_result.hpp"
+#include "elliptics/utils.hpp"
+#include "elliptics/async_result.hpp"
 
 #include <vector>
 
