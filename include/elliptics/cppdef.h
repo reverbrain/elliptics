@@ -19,26 +19,25 @@
 
 #include <errno.h>
 
-#include <iostream>
-#include <fstream>
+#include <elliptics/typedefs.h>
+#include <elliptics/packet.h>
+#include <elliptics/interface.h>
+
+#include <cinttypes>
+#include <condition_variable>
 #include <exception>
-#include <memory>
+#include <fstream>
+#include <functional>
+#include <iostream>
 #include <list>
+#include <memory>
+#include <mutex>
+#include <queue>
 #include <stdexcept>
 #include <string>
-#include <vector>
-#include <memory>
-#include <functional>
-#include <queue>
-#include <type_traits>
-
 #include <thread>
-#include <mutex>
-#include <condition_variable>
-
-#include "elliptics/typedefs.h"
-#include "elliptics/packet.h"
-#include "elliptics/interface.h"
+#include <type_traits>
+#include <vector>
 
 #define ELLIPTICS_DISABLE_COPY(CLASS) \
 private: \
@@ -569,8 +568,9 @@ class iterator_result_entry : public callback_result_entry
 
 		iterator_result_entry &operator =(const iterator_result_entry &other);
 
-		dnet_iterator_request *reply() const;
+		dnet_iterator_response *reply() const;
 		data_pointer reply_data() const;
+		uint64_t user_flags() const;
 };
 
 template <typename T> class async_result;
@@ -822,7 +822,7 @@ class session
 		 */
 		void			transform(const data_pointer &data, struct dnet_id &id);
 		/*!
-		 * Makes dnet_id be accessable by key::id() in the key \a id.
+		 * Makes dnet_id be accessible by key::id() in the key \a id.
 		 */
 		void			transform(const key &id);
 
@@ -1009,7 +1009,7 @@ class session
 		 *
 		 * Returns async_write_result.
 		 *
-		 * \note Indexes are not updated. Data is not accessable for reading.
+		 * \note Indexes are not updated. Data is not accessible for reading.
 		 */
 		async_write_result write_plain(const key &id, const data_pointer &file, uint64_t remote_offset);
 
@@ -1018,7 +1018,7 @@ class session
 		 *
 		 * Returns async_write_result.
 		 *
-		 * \note Indexes are updated. Data becomes accessable for reading.
+		 * \note Indexes are updated. Data becomes accessible for reading.
 		 */
 		async_write_result write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize);
 

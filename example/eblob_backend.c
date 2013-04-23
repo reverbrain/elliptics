@@ -21,10 +21,12 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 
-#include <errno.h>
+#include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,6 +41,9 @@
 #include "backends.h"
 #include "common.h"
 
+/*
+ * FIXME: __unused is used internally by glibc, so it may cause conflicts.
+ */
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
@@ -83,19 +88,73 @@ struct eblob_backend_config {
 	struct eblob_read_params	last_reads[100];
 };
 
-static int blob_write(struct eblob_backend_config *c, void *state __unused, struct dnet_cmd *cmd __unused, void *data)
+/* Pre-callback that formats arguments and calls ictl->callback */
+static int blob_iterate_callback(struct eblob_disk_control *dc,
+		struct eblob_ram_control *rctl __unused,
+		void *data, void *priv, void *thread_priv __unused)
+{
+	struct dnet_iterator_ctl *ictl = priv;
+	struct dnet_ext_list elist;
+	uint64_t size;
+	int err;
+
+	assert(dc != NULL);
+	assert(data != NULL);
+
+	size = dc->data_size;
+	dnet_ext_list_init(&elist);
+
+	/* If it's an extended record - extract header, move data pointer */
+	if (dc->flags & BLOB_DISK_CTL_USR1) {
+		err = dnet_ext_list_extract((void *)&data, &size, &elist,
+				DNET_EXT_DONT_FREE_ON_DESTROY);
+		if (err != 0)
+			goto err;
+	}
+
+	err = ictl->callback(ictl->callback_private, (struct dnet_raw_id *)&dc->key,
+			data, size, &elist);
+
+err:
+	dnet_ext_list_destroy(&elist);
+	return err;
+}
+
+/* Eblob-specific data/metadata iterator */
+static int blob_iterate(struct eblob_backend_config *c, struct dnet_iterator_ctl *ictl)
+{
+	/* Sanity */
+	assert(c != NULL);
+	assert(ictl != NULL);
+
+	/* Init iterator config */
+	struct eblob_backend *b = c->eblob;
+	struct eblob_iterate_control eictl = {
+		.priv = ictl,
+		.b = b,
+		.log = c->data.log,
+		.flags = EBLOB_ITERATE_FLAGS_ALL | EBLOB_ITERATE_READONLY,
+		.iterator_cb = {
+			.iterator = blob_iterate_callback,
+		},
+	};
+
+	return eblob_iterate(b, &eictl);
+}
+
+static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
+		struct dnet_cmd *cmd __unused, void *data, struct dnet_ext_list *elist)
 {
 	int err;
 	struct dnet_io_attr *io = data;
-	struct eblob_write_control wc;
+	struct eblob_write_control wc = { .data_fd = -1 }, wc2;
 	struct eblob_key key;
-	uint64_t flags = BLOB_DISK_CTL_WRITE_RETURN;
+	uint64_t flags = 0;
+	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
+	int combined = 0;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: %x, type: %d.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags, io->type);
-
-	memset(&wc, 0, sizeof(struct eblob_write_control));
-	wc.data_fd = -1;
 
 	dnet_convert_io_attr(io);
 
@@ -114,6 +173,41 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 		flags |= BLOB_DISK_CTL_NOCSUM;
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
+
+	/*
+	 * Use extended format for new writes and keys already in new format.
+	 */
+	err = eblob_read_return(c->eblob, &key, io->type, EBLOB_READ_NOCSUM, &wc2);
+	if (err == 0 && (wc2.flags & BLOB_DISK_CTL_USR1)) { /* Update */
+		flags |= BLOB_DISK_CTL_USR1;
+		if (elist != NULL) {
+			struct dnet_ext_list_hdr ehdr;
+
+			/* Copy data from elist to ehdr */
+			dnet_ext_list_to_hdr(elist, &ehdr);
+			/* Update extended header */
+			dnet_ext_hdr_write(&ehdr, wc2.data_fd, wc2.offset);
+			/* Move offset past extended header */
+			io->offset += ehdr_size;
+			if (io->flags & DNET_IO_FLAGS_COMMIT)
+				io->num += sizeof(struct dnet_ext_list_hdr);
+		}
+	} else if (err == -ENOENT) { /* New record */
+		flags |= BLOB_DISK_CTL_USR1;
+		if (io->offset != 0) {
+			/* TODO: Think of something sophisticated */
+			err = -ERANGE;
+			goto err_out_exit;
+		}
+		if (elist != NULL) {
+			err = dnet_ext_list_combine(&data, &io->size, elist);
+			if (err)
+				goto err_out_exit;
+			combined = 1;
+		}
+	} else { /* Error */
+		goto err_out_exit;
+	}
 
 	if ((io->type == EBLOB_TYPE_META) && !(io->flags & DNET_IO_FLAGS_META)) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: meta-check: COLUMN %d IS RESERVED FOR METADATA\n",
@@ -143,12 +237,7 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
 			err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, io->type);
 		} else {
-			err = eblob_write(c->eblob, &key, data, io->offset, io->size, flags, io->type);
-			if (!err) {
-				if (io->size >= sizeof(struct eblob_write_control)) {
-					memcpy(&wc, data, sizeof(struct eblob_write_control));
-				}
-			}
+			err = eblob_write_return(c->eblob, &key, data, io->offset, io->size, flags, io->type, &wc);
 		}
 
 		if (err) {
@@ -209,36 +298,58 @@ static int blob_write(struct eblob_backend_config *c, void *state __unused, stru
 	}
 
 err_out_exit:
+	if (combined != 0)
+		free(data);
 	return err;
 }
 
-static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data, int last)
+__attribute__((deprecated))
+static int blob_write(struct eblob_backend_config *c, void *state,
+		struct dnet_cmd *cmd, void *data)
+{
+	return blob_write_ll(c, state, cmd, data, NULL);
+}
+
+/*!
+ * Write data along with timestamp extension
+ */
+static int blob_write_timestamp(struct eblob_backend_config *c, void *state,
+		struct dnet_cmd *cmd, void *data)
+{
+	struct dnet_ext_list elist;
+	int err;
+
+	dnet_ext_list_init(&elist);
+	dnet_ext_io_to_list(data, &elist);
+	err = blob_write_ll(c, state, cmd, data, &elist);
+	dnet_ext_list_destroy(&elist);
+
+	return err;
+}
+
+static int blob_read_ll(struct eblob_backend_config *c, void *state,
+		struct dnet_cmd *cmd, void *data, int last, struct dnet_ext_list *elist)
 {
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->eblob;
-	uint64_t offset, size, orig_offset, orig_size;
 	struct eblob_key key;
+	struct eblob_write_control wc;
+	uint64_t offset, size = 0;
 	char *read_data = NULL;
-	int fd, err, on_close = 0;
+	int csum, err, fd, free_data = 1, on_close = 0;
 
 	dnet_convert_io_attr(io);
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
-	if (io->flags & DNET_IO_FLAGS_NOCSUM) {
-		err = eblob_read_nocsum(b, &key, &fd, &orig_offset, &orig_size, io->type);
-	} else {
-		err = eblob_read(b, &key, &fd, &orig_offset, &orig_size, io->type);
-	}
-
+	csum = !(io->flags & DNET_IO_FLAGS_NOCSUM);
+	err = eblob_read_return(b, &key, io->type, csum, &wc);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-fd: READ: %d: %s\n",
 			dnet_dump_id_str(io->id), err, strerror(-err));
 		goto err_out_exit;
-	} else if (err > 0) {
-		/* data is compressed */
-
-		size = 0;
+	} else {
+		/* FIXME: Can be speeded up by introducing eblob_read_data_return() */
 		err = eblob_read_data(b, &key, io->offset, &read_data, &size, io->type);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-data: READ: %d: %s\n",
@@ -248,17 +359,15 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 		offset = 0; /* to shut up compiler - offset is not used when there is data */
 		fd = -1;
-	} else {
-		if (io->offset >= orig_size) {
-			err = -E2BIG;
-			goto err_out_exit;
-		}
+	}
 
-		offset = orig_offset + io->offset;
-		size = orig_size - io->offset;
-
-		if (io->size && size > io->size)
-			size = io->size;
+	if (elist != NULL && (wc.flags & BLOB_DISK_CTL_USR1) != 0) {
+		err = dnet_ext_list_extract((void *)&read_data, (uint64_t *)&size,
+				elist, DNET_EXT_FREE_ON_DESTROY);
+		if (err != 0)
+			goto err_out_free;
+		/* It will be done by dnet_ext_list_destroy */
+		free_data = 0;
 	}
 
 	io->size = size;
@@ -339,10 +448,36 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 		on_close = DNET_IO_REQ_FLAGS_CACHE_FORGET;
 	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset, on_close);
 
-	/* free compressed data */
-	free(read_data);
+err_out_free:
+	if (free_data)
+		free(read_data);
 err_out_exit:
 	return err;
+}
+
+/*!
+ * Read data along with ts
+ */
+static int blob_read_timestamp(struct eblob_backend_config *c, void *state,
+		struct dnet_cmd *cmd, void *data, int last)
+{
+	struct dnet_ext_list elist;
+	struct dnet_io_attr *io = data;
+	int err;
+
+	dnet_ext_list_init(&elist);
+	err = blob_read_ll(c, state, cmd, data, last, &elist);
+	dnet_ext_list_to_io(&elist, io);
+
+	dnet_ext_list_destroy(&elist);
+	return err;
+}
+
+__attribute__((deprecated))
+static int blob_read(struct eblob_backend_config *c, void *state,
+		struct dnet_cmd *cmd, void *data, int last)
+{
+	return blob_read_ll(c, state, cmd, data, last, NULL);
 }
 
 struct eblob_read_range_priv {
@@ -371,16 +506,39 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 	}
 
 	if (!(p->flags & DNET_IO_FLAGS_NODATA)) {
+		struct eblob_write_control wc;
+
 		io.flags = 0;
 		io.size = req->record_size - req->requested_offset;
 		io.offset = req->requested_offset;
 		io.type = req->requested_type;
 
+		/* FIXME: This is slow! */
+		err = eblob_read_return(req->back, (struct eblob_key *)req->record_key, io.type,
+				EBLOB_READ_NOCSUM, &wc);
+		if (err)
+			goto err_out_exit;
+
+		if (wc.flags & BLOB_DISK_CTL_USR1) {
+			struct dnet_ext_list_hdr ehdr;
+			struct dnet_ext_list elist;
+
+			err = dnet_ext_hdr_read(&ehdr, req->record_fd, req->record_offset);
+			if (err != 0)
+				goto err_out_exit;
+
+			dnet_ext_hdr_to_list(&ehdr, &elist);
+			dnet_ext_list_to_io(&elist, &io);
+
+			io.offset += sizeof(struct dnet_ext_list_hdr);
+			io.size -= sizeof(struct dnet_ext_list_hdr);
+		}
+
 		memcpy(io.id, req->record_key, DNET_ID_SIZE);
 		memcpy(io.parent, req->end, DNET_ID_SIZE);
 
 		err = dnet_send_read_data(p->state, p->cmd, &io, NULL, req->record_fd,
-				req->record_offset + req->requested_offset, 0);
+				req->record_offset + io.offset, 0);
 		if (!err)
 			req->current_pos++;
 	} else {
@@ -394,7 +552,6 @@ err_out_exit:
 
 static int blob_del_range_callback(struct eblob_backend_config *c, struct dnet_io_attr *io, struct eblob_range_request *req)
 {
-	//struct eblob_read_range_priv *p = req->priv;
 	struct eblob_key key;
 	int err;
 
@@ -434,25 +591,16 @@ static int blob_range_callback(struct eblob_range_request *req)
 		goto err_out_exit;
 	}
 
-	if (!(p->keys)) {
-		p->keys = (struct eblob_range_request*)malloc(sizeof(struct eblob_range_request) * 1000);
-		if (!(p->keys)) {
-			err = -ENOMEM;
-			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del-range: can't allocate memory\n", cur_id);
-			goto err_out_exit;
-		}
-		p->keys_size = 1000;
-	}
-
 	if (p->keys_size == p->keys_cnt) {
-		p->keys = (struct eblob_range_request*)realloc(p->keys, sizeof(struct eblob_range_request) * p->keys_size * 2);
-		if (!(p->keys)) {
+		/* On first pass allocate 1000, otherwise double allocation size */
+		p->keys_size = p->keys_size ? p->keys_size * 2 : 1000;
+		p->keys = realloc(p->keys, sizeof(struct eblob_range_request) * p->keys_size);
+		if (p->keys == NULL) {
 			err = -ENOMEM;
-			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del-range: can't re-allocate memory, new size: %llu\n",
-					cur_id, (unsigned long long)(p->keys_size * 2));
+			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del-range: can't (re-)allocate memory, "
+					"new size: %" PRIu64 "\n", cur_id, p->keys_size);
 			goto err_out_exit;
 		}
-		p->keys_size *= 2;
 	}
 
 	memcpy(&p->keys[p->keys_cnt], req, sizeof(struct eblob_range_request));
@@ -515,7 +663,7 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 	if (cmd->cmd == DNET_CMD_READ_RANGE) {
 		start_from = io->start;
 	}
-		
+
 	for (i = start_from; i < p.keys_cnt; ++i) {
 		switch(cmd->cmd) {
 			case DNET_CMD_READ_RANGE:
@@ -680,7 +828,7 @@ static int blob_bulk_read(struct eblob_backend_config *c, void *state, struct dn
 	count = io->size / sizeof(struct dnet_io_attr);
 
 	for (i = 0; i < count; i++) {
-		ret = blob_read(c, state, cmd, &ios[i], i + 1 == count);
+		ret = blob_read_timestamp(c, state, cmd, &ios[i], i + 1 == count);
 		if (!ret)
 			err = 0;
 		else if (err == -1)
@@ -754,10 +902,10 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 			err = blob_file_info(c, state, cmd);
 			break;
 		case DNET_CMD_WRITE:
-			err = blob_write(c, state, cmd, data);
+			err = blob_write_timestamp(c, state, cmd, data);
 			break;
 		case DNET_CMD_READ:
-			err = blob_read(c, state, cmd, data, 1);
+			err = blob_read_timestamp(c, state, cmd, data, 1);
 			break;
 		case DNET_CMD_READ_RANGE:
 		case DNET_CMD_DEL_RANGE:
@@ -994,6 +1142,12 @@ static int dnet_eblob_db_iterate(struct dnet_iterate_ctl *ctl)
 	return dnet_db_iterate(c->eblob, ctl);
 }
 
+static int dnet_eblob_iterator(struct dnet_iterator_ctl *ictl)
+{
+	struct eblob_backend_config *c = ictl->iterate_private;
+	return blob_iterate(c, ictl);
+}
+
 static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_config *cfg)
 {
 	struct eblob_backend_config *c = b->data;
@@ -1044,6 +1198,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	b->cb.meta_remove = dnet_eblob_db_remove;
 	b->cb.meta_total_elements = dnet_eblob_db_total_elements;
 	b->cb.meta_iterate = dnet_eblob_db_iterate;
+	b->cb.iterator = dnet_eblob_iterator;
 
 	return 0;
 

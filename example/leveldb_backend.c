@@ -37,6 +37,9 @@
 
 #include <leveldb/c.h>
 
+/*
+ * FIXME: __unused is used (pun intended) internally by (e)glibc
+ */
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
@@ -117,13 +120,22 @@ err_out_exit:
 
 static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *data)
 {
+	struct dnet_ext_list elist;
 	int err = -EINVAL;
 	char *error_string = NULL;
 	struct dnet_io_attr *io = data;
 	void *read_data = NULL;
 
+	dnet_ext_list_init(&elist);
+
 	dnet_convert_io_attr(io);
+
 	data += sizeof(struct dnet_io_attr);
+
+	/* Combine data with empty extension list header */
+	err = dnet_ext_list_combine(&data, &io->size, &elist);
+	if (err != 0)
+		goto err_out_exit;
 
 	/*
 	 * key should be locked by elliptics here, so it is safe to run read-modify-write cycle
@@ -145,6 +157,10 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 			io->offset = 0;
 			offset = data_size;
 		}
+
+		/*
+		 * XXX: Account for extended header
+		 */
 
 		if (io->offset > data_size) {
 			err = -ERANGE;
@@ -171,7 +187,7 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 plain_write:
 	leveldb_put(s->db, s->woptions, (const char *)cmd->id.id, DNET_ID_SIZE, data, io->size, &error_string);
 	if (error_string)
-		goto err_out_exit;
+		goto err_out_free;
 
 	if (io->flags & DNET_IO_FLAGS_WRITE_NO_FILE_INFO) {
 		cmd->flags |= DNET_FLAGS_NEED_ACK;
@@ -181,12 +197,16 @@ plain_write:
 
 	err = dnet_send_file_info_without_fd(state, cmd, 0, io->size);
 	if (err < 0)
-		goto err_out_exit;
+		goto err_out_free;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : WRITE: Ok: offset: %llu, size: %llu, ioflags: %x.\n",
 			dnet_dump_id(&cmd->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags);
 
+err_out_free:
+	free(data);
 err_out_exit:
+	dnet_ext_list_destroy(&elist);
+
 	if (err < 0)
 		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: : WRITE: error: %s: %d.\n",
 			dnet_dump_id(&cmd->id), error_string, err);
@@ -198,10 +218,13 @@ err_out_exit:
 static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct dnet_cmd *cmd, void *iodata, int last)
 {
 	struct dnet_io_attr *io = iodata;
+	struct dnet_ext_list elist;
 	char *data;
 	size_t data_size;
 	int err = -EINVAL;
 	char *error_string = NULL;
+
+	dnet_ext_list_init(&elist);
 
 	dnet_convert_io_attr(io);
 	if (io->size || io->offset) {
@@ -216,19 +239,25 @@ static int leveldb_backend_read(struct leveldb_backend *s, void *state, struct d
 		goto err_out_exit;
 	}
 
+	/* Extract original data and extension list from &data */
+	err = dnet_ext_list_extract((void *)&data, (uint64_t *)&data_size,
+			&elist, DNET_EXT_FREE_ON_DESTROY);
+	if (err != 0)
+		goto err_out_exit;
+	dnet_ext_list_to_io(&elist, io);
+
 	io->size = data_size;
 	if (data_size && data && last)
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	err = dnet_send_read_data(state, cmd, io, data, -1, io->offset, 0);
 	if (err < 0)
-		goto err_out_free;
+		goto err_out_exit;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: leveldb: : READ: Ok: size: %llu.\n",
 			dnet_dump_id(&cmd->id), (unsigned long long)io->size);
 
-err_out_free:
-	free(data);
 err_out_exit:
+	dnet_ext_list_destroy(&elist);
 	if (err < 0)
 		dnet_backend_log(DNET_LOG_ERROR, "%s: leveldb: READ: error: %s: %d\n",
 			dnet_dump_id(&cmd->id), error_string, err);
@@ -292,6 +321,7 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 	     leveldb_iter_valid(it) && j < io->num; leveldb_iter_next(it), i++)
 	{
 		size_t size;
+		struct dnet_ext_list elist;
 		const char * key = leveldb_iter_key(it, &size);
 		const char * val = 0;
 		if (memcmp(io->parent, key, DNET_ID_SIZE) < 0) {
@@ -302,15 +332,24 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 		}
 		++j;
 
+		dnet_ext_list_init(&elist);
+
 		err = 0;
 		switch (cmd->cmd) {
-			case DNET_CMD_READ_RANGE: 
+			case DNET_CMD_READ_RANGE:
 				val = leveldb_iter_value(it, &size);
+
+				/* Extensions */
+				err = dnet_ext_list_extract((void *)&val, (uint64_t *)&size,
+						&elist, DNET_EXT_DONT_FREE_ON_DESTROY);
+				if (err != 0)
+					break;
+
 				memset(&dst_io, 0, sizeof(dst_io));
 				dst_io.flags  = 0;
 				dst_io.size   = size;
 				dst_io.offset = 0;
-				dst_io.type   = io->type;
+				dnet_ext_list_to_io(&elist, &dst_io);
 				memcpy(dst_io.id, key, DNET_ID_SIZE);
 				memcpy(dst_io.parent, io->parent, DNET_ID_SIZE);
 				err = dnet_send_read_data(state, cmd, &dst_io, (char*)val, -1, 0, 0);
@@ -326,6 +365,7 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 				break;
 		}
 
+		dnet_ext_list_destroy(&elist);
 		if (err) {
 			j = 0;
 			break;
@@ -339,7 +379,7 @@ static int leveldb_backend_range_read(struct leveldb_backend *s, void *state, st
 		r.num    = j - io->start;
 		r.offset = r.size = 0;
 
-		err = dnet_send_read_data(state, cmd, &r, NULL, -1, 0, 0);		
+		err = dnet_send_read_data(state, cmd, &r, NULL, -1, 0, 0);
 	}
 
 	leveldb_iter_destroy(it);
@@ -477,50 +517,6 @@ err_out_exit:
 	return err;
 }
 
-/*
-static int leveldb_backend_send(void *state, void *priv, struct dnet_id *id)
-{
-	struct dnet_node *n = dnet_get_node_from_state(state);
-	struct leveldb_backend *s = priv;
-	char *result = NULL;
-	char *data;
-	int err;
-
-	smack_setup_idx(&idx, id->id);
-	err = smack_read(s->smack, &idx, &data);
-	if (err)
-		goto err_out_exit;
-
-	struct dnet_io_control ctl;
-
-	memset(&ctl, 0, sizeof(ctl));
-
-	ctl.fd = -1;
-
-	ctl.data = data;
-
-	memcpy(&ctl.id, id, sizeof(struct dnet_id));
-
-	ctl.io.offset = 0;
-	ctl.io.size = idx.data_size;
-	ctl.io.type = 0;
-	ctl.io.flags = 0;
-
-	struct dnet_session *sess = dnet_session_create(n);
-	dnet_session_set_groups(sess, (int *)&id->group_id, 1);
-
-	err = dnet_write_data_wait(sess, &ctl, (void **)&result);
-	if (err < 0)
-		goto err_out_free;
-	free(result);
-	err = 0;
-
-err_out_free:
-	free(data);
-err_out_exit:
-	return err;
-}
-*/
 int leveldb_backend_storage_stat(void *priv, struct dnet_stat *st)
 {
 	int err;
@@ -585,6 +581,53 @@ static int dnet_leveldb_db_iterate(struct dnet_iterate_ctl *ctl __unused)
 	return -ENOTSUP;
 }
 
+static int dnet_leveldb_iterator(struct dnet_iterator_ctl *ictl)
+{
+	struct leveldb_backend *s = ictl->iterate_private;
+	leveldb_iterator_t * it;
+	size_t ksize, vsize;
+	struct dnet_ext_list elist;
+	char *key, *val;
+	int err = 0;
+
+	it = leveldb_create_iterator(s->db, s->roptions);
+	if (!it) {
+		err = -EIO;
+		goto err;
+	}
+
+	for (leveldb_iter_seek_to_first(it); leveldb_iter_valid(it); leveldb_iter_next(it)) {
+		key = (char *)leveldb_iter_key(it, &ksize);
+		val = (char *)leveldb_iter_value(it, &vsize);
+
+		/* Extract extensions */
+		dnet_ext_list_init(&elist);
+		err = dnet_ext_list_extract((void *)&val, (uint64_t *)&vsize,
+				&elist, DNET_EXT_DONT_FREE_ON_DESTROY);
+		if (err != 0)
+			goto err_destroy;
+
+		if (ksize != DNET_ID_SIZE) {
+			err = -ENOTSUP;
+			goto err_destroy;
+		}
+
+		err = ictl->callback(ictl->callback_private, (struct dnet_raw_id *)&key,
+				val, vsize, &elist);
+		if (err != 0) {
+			dnet_backend_log(DNET_LOG_DEBUG, "leveldb: ictl->callback: FAILED: %d", err);
+			dnet_ext_list_destroy(&elist);
+			goto err_destroy;
+		}
+		dnet_ext_list_destroy(&elist);
+	}
+
+err_destroy:
+	leveldb_iter_destroy(it);
+err:
+	return err;
+}
+
 static long long dnet_leveldb_total_elements(void *priv)
 {
 	struct leveldb_backend *s = priv;
@@ -637,7 +680,6 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 	b->cb.command_private = s;
 
 	b->cb.command_handler = leveldb_backend_command_handler;
-	//b->cb.send = leveldb_backend_send;
 
 	c->storage_size = b->storage_size;
 	c->storage_free = b->storage_free;
@@ -651,6 +693,7 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 	b->cb.meta_remove = dnet_leveldb_db_remove;
 	b->cb.meta_total_elements = dnet_leveldb_total_elements;
 	b->cb.meta_iterate = dnet_leveldb_db_iterate;
+	b->cb.iterator = dnet_leveldb_iterator;
 
 	snprintf(hpath, hlen, "%s/history", s->path);
 	mkdir(hpath, 0755);

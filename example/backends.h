@@ -20,8 +20,9 @@
 extern "C" {
 #endif
 
-#include <strings.h>
 #include <errno.h>
+#include <inttypes.h>
+#include <strings.h>
 
 #include "elliptics/core.h"
 #include "elliptics/packet.h"
@@ -88,6 +89,40 @@ struct dnet_config_backend {
 
 	struct dnet_backend_callbacks	cb;
 };
+
+/*!
+ * "Master" functions
+ */
+/*! Extracts \a elist from data, replaces \a datap pointer and fixes \a sizep */
+int dnet_ext_list_extract(void **datap, uint64_t *sizep,
+		struct dnet_ext_list *elist, enum dnet_ext_free_data free_data);
+/*! Combines \a datap with \a elist and fixes \a sizep */
+int dnet_ext_list_combine(void **datap, uint64_t *sizep,
+		const struct dnet_ext_list *elist);
+
+/*
+ * Extension list manipulation functions
+ */
+
+/*! Initialize already allocated list */
+void dnet_ext_list_init(struct dnet_ext_list *elist);
+/*! Frees memory used by extension list and all extensions in it */
+void dnet_ext_list_destroy(struct dnet_ext_list *elist);
+
+/* Conversion functions */
+int dnet_ext_list_to_hdr(const struct dnet_ext_list *elist,
+		struct dnet_ext_list_hdr *ehdr);
+int dnet_ext_hdr_to_list(const struct dnet_ext_list_hdr *ehdr,
+		struct dnet_ext_list *elist);
+int dnet_ext_list_to_io(const struct dnet_ext_list *elist,
+		struct dnet_io_attr *io);
+int dnet_ext_io_to_list(const struct dnet_io_attr *io,
+		struct dnet_ext_list *elist);
+
+/*! Reads \a ehdr from specified \a offset in given \a fd */
+int dnet_ext_hdr_read(struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset);
+/*! Writes \a ehdr to specified \a offset in given \a fd */
+int dnet_ext_hdr_write(const struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset);
 
 int dnet_backend_register(struct dnet_config_backend *b);
 
