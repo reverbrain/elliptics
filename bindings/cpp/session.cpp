@@ -302,6 +302,17 @@ class session_data
 			policy = session::default_exceptions;
 		}
 
+		session_data(const session_data &other)
+			: node_guard(other.node_guard),
+			filter(other.filter),
+			checker(other.checker),
+			policy(other.policy)
+		{
+			session_ptr = dnet_session_copy(other.session_ptr);
+			if (!session_ptr)
+				throw std::bad_alloc();
+		}
+
 		~session_data()
 		{
 			dnet_session_destroy(session_ptr);
@@ -320,12 +331,21 @@ session::session(const node &n) : m_data(std::make_shared<session_data>(n))
 {
 }
 
+session::session(const std::shared_ptr<session_data> &d) : m_data(d)
+{
+}
+
 session::session(const session &other) : m_data(other.m_data)
 {
 }
 
 session::~session()
 {
+}
+
+session session::clone() const
+{
+	return session(std::make_shared<session_data>(*m_data));
 }
 
 session &session::operator =(const session &other)
@@ -908,12 +928,10 @@ struct cas_functor : std::enable_shared_from_this<cas_functor>
 		dnet_transform_node(sess.get_node().get_native(),
 		data.data(), data.size(), csum.id, sizeof(csum.id));
 
-		session write_sess(sess.get_node());
-		write_sess.set_cflags(sess.get_cflags());
-		write_sess.set_ioflags(sess.get_ioflags());
+		session write_sess = sess.clone();
 		write_sess.set_filter(filters::all_with_ack);
 		write_sess.set_exceptions_policy(session::no_exceptions);
-		write_sess.set_timeout(sess.get_timeout());
+		write_sess.set_groups(std::vector<int>());
 
 		std::list<async_write_result> write_results;
 

@@ -679,6 +679,31 @@ struct dnet_session *dnet_session_create(struct dnet_node *n)
 	return s;
 }
 
+struct dnet_session *dnet_session_copy(struct dnet_session *s)
+{
+	struct dnet_session *new_s = dnet_session_create(s->node);
+	if (!new_s)
+		return NULL;
+
+	new_s->wait_ts = s->wait_ts;
+	new_s->cflags = s->cflags;
+	new_s->ioflags = s->ioflags;
+
+	int err = dnet_session_set_groups(new_s, s->groups, s->group_num);
+	if (err) {
+		dnet_session_destroy(new_s);
+		return NULL;
+	}
+
+	err = dnet_session_set_ns(new_s, s->ns, s->nsize);
+	if (err) {
+		dnet_session_destroy(new_s);
+		return NULL;
+	}
+
+	return new_s;
+}
+
 void dnet_session_destroy(struct dnet_session *s)
 {
 	dnet_log(s->node, DNET_LOG_DEBUG, "Destroying session.\n");
