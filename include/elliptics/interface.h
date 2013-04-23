@@ -416,6 +416,7 @@ uint32_t dnet_session_get_ioflags(struct dnet_session *s);
 void dnet_session_set_cflags(struct dnet_session *s, uint64_t cflags);
 uint64_t dnet_session_get_cflags(struct dnet_session *s);
 void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout);
+struct timespec *dnet_session_get_timeout(struct dnet_session *s);
 int dnet_session_set_ns(struct dnet_session *s, const char *ns, int nsize);
 
 struct dnet_node *dnet_session_get_node(struct dnet_session *s);

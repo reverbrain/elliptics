@@ -893,7 +893,11 @@ class session
 		 */
 		uint32_t		get_ioflags() const;
 
+		/*!
+		 * Set/get transaction timeout
+		 */
 		void			set_timeout(unsigned int timeout);
+		long			get_timeout() const;
 
 		/*!
 		 * Read file by key \a id to \a file by \a offset and \a size.
@@ -981,7 +985,7 @@ class session
 		 * Returns async_write_result.
 		 */
 		async_write_result write_cas(const key &id, const std::function<data_pointer (const data_pointer &)> &converter,
-				uint64_t remote_offset, int count = 3);
+				uint64_t remote_offset, int count = 10);
 
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.

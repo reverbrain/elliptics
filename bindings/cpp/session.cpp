@@ -413,6 +413,12 @@ void session::set_timeout(unsigned int timeout)
 	dnet_session_set_timeout(m_data->session_ptr, timeout);
 }
 
+long session::get_timeout(void) const
+{
+	struct timespec *tm = dnet_session_get_timeout(m_data->session_ptr);
+	return tm->tv_sec;
+}
+
 void session::read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size)
 {
 	int err;
@@ -907,6 +913,7 @@ struct cas_functor : std::enable_shared_from_this<cas_functor>
 		write_sess.set_ioflags(sess.get_ioflags());
 		write_sess.set_filter(filters::all_with_ack);
 		write_sess.set_exceptions_policy(session::no_exceptions);
+		write_sess.set_timeout(sess.get_timeout());
 
 		std::list<async_write_result> write_results;
 
