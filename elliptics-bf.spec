@@ -10,11 +10,11 @@ Source0:	%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %if 0%{?rhel} < 6
-BuildRequires:	python26-devel, boost141-python, boost141-devel
-BuildRequires:  boost141-iostreams, boost141-thread, boost141-python, boost141-system
+BuildRequires:	python26-devel
 %else
-BuildRequires:  python-devel, boost-python, boost-devel, boost-iostreams, boost-thread, boost-python, boost-system
+BuildRequires:  python-devel
 %endif
+BuildRequires:	boost-python, boost-devel, boost-iostreams, boost-thread, boost-python, boost-system
 BuildRequires:	eblob-devel >= 0.19.0
 BuildRequires:  leveldb-devel snappy-devel
 BuildRequires:	cmake msgpack-devel
