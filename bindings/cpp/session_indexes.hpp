@@ -1,10 +1,11 @@
 #ifndef __CPP_SESSION_INDEXES_HPP
 #define __CPP_SESSION_INDEXES_HPP
 
+#include "elliptics/cppdef.h"
+
 #include <msgpack.hpp>
 
-#include "elliptics/cppdef.h"
-#include "elliptics/session_indexes.hpp"
+#include <iostream>
 
 namespace ioremap { namespace elliptics {
 

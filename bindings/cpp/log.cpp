@@ -14,6 +14,7 @@
  */
 
 #include <elliptics/cppdef.h>
+#include <fstream>
 
 using namespace ioremap::elliptics;
 

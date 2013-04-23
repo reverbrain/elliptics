@@ -23,6 +23,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <elliptics/cppdef.h>
+#include <fstream>
 
 namespace ioremap { namespace elliptics {
 

@@ -26,6 +26,7 @@
 #include <condition_variable>
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 
 //#ifdef DEVELOPER_BUILD
 //#  define elliptics_assert(expr) assert(expr)
@@ -34,6 +35,36 @@
 //#endif
 
 namespace ioremap { namespace elliptics {
+
+class session_scope
+{
+	public:
+		session_scope(session &sess) : m_sess(sess)
+		{
+			m_filter = m_sess.get_filter();
+			m_checker = m_sess.get_checker();
+			m_policy = m_sess.get_exceptions_policy();
+			m_cflags = m_sess.get_cflags();
+			m_ioflags = m_sess.get_ioflags();
+		}
+
+		~session_scope()
+		{
+			m_sess.set_filter(m_filter);
+			m_sess.set_checker(m_checker);
+			m_sess.set_exceptions_policy(m_policy);
+			m_sess.set_cflags(m_cflags);
+			m_sess.set_ioflags(m_ioflags);
+		}
+
+	private:
+		session &m_sess;
+		result_filter m_filter;
+		result_checker m_checker;
+		uint64_t m_cflags;
+		uint32_t m_ioflags;
+		uint32_t m_policy;
+};
 
 typedef int (*complete_func)(struct dnet_net_state *, struct dnet_cmd *, void *);
 

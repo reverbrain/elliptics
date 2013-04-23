@@ -24,6 +24,7 @@
 #include <sstream>
 #include <fstream>
 #include <set>
+#include <iostream>
 
 #include "../../include/elliptics/cppdef.h"
 
