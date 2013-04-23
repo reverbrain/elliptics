@@ -46,7 +46,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	 */
 
 	session sess;
-	async_result_handler<write_result_entry> handler;
+	async_result_handler<callback_result_entry> handler;
 	key request_id;
 	data_pointer request_data;
 	// indexes to update

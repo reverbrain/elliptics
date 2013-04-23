@@ -218,8 +218,8 @@ typedef std::vector<exec_result_entry> sync_push_result;
 typedef async_result<exec_result_entry> async_reply_result;
 typedef std::vector<exec_result_entry> sync_reply_result;
 
-typedef async_result<write_result_entry> async_update_indexes_result;
-typedef std::vector<write_result_entry> sync_update_indexes_result;
+typedef async_result<callback_result_entry> async_update_indexes_result;
+typedef std::vector<callback_result_entry> sync_update_indexes_result;
 typedef async_result<find_indexes_result_entry> async_find_indexes_result;
 typedef std::vector<find_indexes_result_entry> sync_find_indexes_result;
 typedef async_result<index_entry> async_check_indexes_result;
