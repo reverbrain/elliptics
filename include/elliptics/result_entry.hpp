@@ -173,8 +173,10 @@ class iterator_result_entry : public callback_result_entry
 
 		iterator_result_entry &operator =(const iterator_result_entry &other);
 
-		dnet_iterator_request *reply() const;
+		dnet_iterator_response *reply() const;
 		data_pointer reply_data() const;
+
+		uint64_t user_flags() const;
 };
 
 typedef lookup_result_entry write_result_entry;
