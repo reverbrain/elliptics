@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.23.6.0
+Version:	2.24.0.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -155,6 +155,19 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Apr 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.0.0
+- Fixed write_cas by adding session::clone()
+- ext: check result of dnet_ext_hdr_write()
+- blob: use new flag name
+- ext: added ext version for future use
+- Changed indexes API, separated header to several files
+- dnet_ioclient -D should honor size
+- Secondary indexes implementation moved from functors to object methods
+- Moved to delete declaration of non-copyable objects
+- Module backend
+- New data iterators
+- No need to set size to 0 in dnet_read_file_raw()
+
 * Fri Apr 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.23.6.0
 - Changed write error report logic
 -  Only return wait error (usually -ETIMEOUT/-110) if wait internal

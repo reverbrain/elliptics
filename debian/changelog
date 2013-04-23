@@ -1,3 +1,19 @@
+elliptics (2.24.0.0) unstable; urgency=low
+
+  * Fixed write_cas by adding session::clone()
+  * ext: check result of dnet_ext_hdr_write()
+  * blob: use new flag name
+  * ext: added ext version for future use
+  * Changed indexes API, separated header to several files
+  * dnet_ioclient -D should honor size
+  * Secondary indexes implementation moved from functors to object methods
+  * Moved to delete declaration of non-copyable objects
+  * Module backend
+  * New data iterators
+  * No need to set size to 0 in dnet_read_file_raw()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 23 Apr 2013 23:54:34 +0400
+
 elliptics (2.23.6.0) unstable; urgency=low
 
   * Changed write error report logic
