@@ -1049,9 +1049,6 @@ static int dnet_read_file_raw(struct dnet_session *s, const char *file, struct d
 		goto err_out_exit;
 	}
 
-	if (!size)
-		size = ~0ULL;
-
 	num = dnet_mix_states(s, id, &g);
 	if (num < 0) {
 		err = num;
