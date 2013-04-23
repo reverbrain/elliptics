@@ -676,7 +676,8 @@ class write_callback
 	public:
 		typedef std::shared_ptr<write_callback> ptr;
 
-		write_callback(const session &sess, const async_write_result &result, const dnet_io_control &ctl) : sess(sess), cb(result), ctl(ctl)
+		write_callback(const session &sess, const async_write_result &result, const dnet_io_control &ctl):
+		sess(sess), cb(result), ctl(ctl)
 		{
 		}
 
