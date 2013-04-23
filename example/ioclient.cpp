@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
 			s.read_file(create_id(id, readf, type), readf, offset, size);
 
 		if (read_data) {
-			sync_read_result result = s.read_latest(create_id(id, read_data, type), offset, 0);
+			sync_read_result result = s.read_latest(create_id(id, read_data, type), offset, size);
 
 			data_pointer file = result[0].file();
 
