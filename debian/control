@@ -16,7 +16,7 @@ Build-Depends: cdbs,
                libcocaine-dev (>= 0.10.0-rc8),
                libleveldb-dev,
                libltdl-dev,
-               libmsgpack-dev
+               libmsgpack-dev,
                libsnappy-dev,
                libzmq-dev,
                python-central,
