@@ -473,8 +473,10 @@ ssize_t dnet_send_fd(struct dnet_net_state *st, void *header, uint64_t hsize,
 
 static void dnet_trans_timestamp(struct dnet_net_state *st, struct dnet_trans *t)
 {
-	gettimeofday(&t->time, NULL);
 	struct timespec *wait_ts = t->wait_ts.tv_sec ? &t->wait_ts : &st->n->wait_ts;
+
+	gettimeofday(&t->time, NULL);
+
 	t->time.tv_sec += wait_ts->tv_sec;
 	t->time.tv_usec += wait_ts->tv_nsec / 1000;
 
@@ -678,8 +680,9 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 			if (!(cmd->flags & DNET_FLAGS_MORE)) {
 				dnet_trans_remove_nolock(&st->trans_root, t);
 				list_del_init(&t->trans_list_entry);
-			} else
+			} else {
 				dnet_trans_timestamp(st, t);
+			}
 		}
 		pthread_mutex_unlock(&st->trans_lock);
 
