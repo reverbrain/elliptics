@@ -240,7 +240,7 @@ void dnet_ext_list_init(struct dnet_ext_list *elist)
 	if (elist == NULL)
 		return;
 	memset(elist, 0, sizeof(struct dnet_ext_list));
-	elist->version = DNET_EXT_VERSION_V0;
+	elist->version = DNET_EXT_VERSION_V1;
 }
 
 /*!
@@ -395,6 +395,9 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	 */
 	if (elist->size != 0)
 		return -ENOTSUP;
+	if (elist->version <= DNET_EXT_VERSION_FIRST
+			|| elist->version >= DNET_EXT_VERSION_LAST)
+		return -ENOTSUP;
 
 	/* Save original pointer to data */
 	if (free_data == DNET_EXT_FREE_ON_DESTROY)
@@ -453,6 +456,11 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 	 * TODO: Combine all extensions
 	 */
 	if (elist->size != 0) {
+		free(new_data);
+		return -ENOTSUP;
+	}
+	if (elist->version <= DNET_EXT_VERSION_FIRST
+			|| elist->version >= DNET_EXT_VERSION_LAST) {
 		free(new_data);
 		return -ENOTSUP;
 	}

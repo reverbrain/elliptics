@@ -719,7 +719,7 @@ enum dnet_ext_free_data {
  */
 enum dnet_ext_versions {
 	DNET_EXT_VERSION_FIRST,
-	DNET_EXT_VERSION_V0,
+	DNET_EXT_VERSION_V1,
 	DNET_EXT_VERSION_LAST,
 };
 
