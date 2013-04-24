@@ -23,18 +23,13 @@ set_target_properties(elliptics_cpp PROPERTIES
     )
 target_link_libraries(elliptics_cpp elliptics_client ${MSGPACK_LIBRARIES} ${Boost_THREAD_LIBRARY})
 
-add_library(elliptics_cpp_static STATIC ${ELLIPTICS_CPP_SRCS})
-set_target_properties(elliptics_cpp_static PROPERTIES
-    OUTPUT_NAME elliptics_cpp
-    )
-
 add_executable(dnet_cpp_test test.cpp)
 target_link_libraries(dnet_cpp_test elliptics_cpp)
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)
 
-install(TARGETS elliptics_cpp elliptics_cpp_static
+install(TARGETS elliptics_cpp
     LIBRARY DESTINATION lib${LIB_SUFFIX}
     ARCHIVE DESTINATION lib${LIB_SUFFIX}
     BUNDLE DESTINATION library

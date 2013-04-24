@@ -8,13 +8,8 @@ set_target_properties(elliptics_cocaine PROPERTIES
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     )
 target_link_libraries(elliptics_cocaine ${ELLIPTICS_LIBRARIES})
-add_library(elliptics_cocaine_static STATIC srw.cpp)
-set_target_properties(elliptics_cocaine_static PROPERTIES
-    OUTPUT_NAME elliptics_cocaine
-    )
-target_link_libraries(elliptics_cocaine_static ${ELLIPTICS_LIBRARIES})
 
-install(TARGETS elliptics_cocaine elliptics_cocaine_static
+install(TARGETS elliptics_cocaine
     LIBRARY DESTINATION lib${LIB_SUFFIX}
     ARCHIVE DESTINATION lib${LIB_SUFFIX}
     BUNDLE DESTINATION library
