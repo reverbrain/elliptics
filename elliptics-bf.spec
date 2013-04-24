@@ -27,6 +27,12 @@ Elliptics network is a fault tolerant distributed hash table
 object storage.
 
 
+%if 0%{?rhel} && 0%{?rhel} <= 5
+%{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
+%{!?python_sitearch: %global python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
+%endif
+
+
 %package devel
 Summary: Development files for %{name}
 Group: Development/Libraries
@@ -116,7 +122,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cpp.so.*
-%{python_sitelib}/elliptics*
+%{python_sitelib}/elliptics.so.*
 
 %files client-devel
 %defattr(-,root,root,-)
