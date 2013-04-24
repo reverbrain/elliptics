@@ -79,11 +79,7 @@ CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %{cm
 %{cmake} -DWITH_COCAINE=NO .
 %endif
 
-%if 0%{?rhel} < 6
-CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" make %{?_smp_mflags}
-%else
 make %{?_smp_mflags}
-%endif
 
 %install
 rm -rf %{buildroot}
