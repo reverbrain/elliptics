@@ -189,7 +189,8 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 			goto err_out_exit;
 
 		/* Move offset past extended header */
-		io->offset += ehdr_size;
+		if (!(io->flags & DNET_IO_FLAGS_APPEND))
+			io->offset += ehdr_size;
 		if (io->flags & DNET_IO_FLAGS_COMMIT)
 			io->num += sizeof(struct dnet_ext_list_hdr);
 	} else if (err > 0 || err == -ENOENT) { /* New record or compressed */
