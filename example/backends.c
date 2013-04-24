@@ -409,8 +409,11 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 
 /*!
  * Combines \a datap with \a elist and fixes \a sizep
- *
  * NB! It does not free memory pointed by \a datap
+ *
+ * XXX: It does heavy weight malloc+memcpy. This can be avoided if either
+ * provided data buffer was prepended with empty space or backend supported
+ * writev(2)-like interface.
  */
 int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 		const struct dnet_ext_list *elist)
@@ -418,7 +421,6 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 	struct dnet_ext_list_hdr *hdr;	/* Extensions header */
 	uint64_t new_size;		/* Size of data without extensions */
 	void *new_data;			/* Data without extensions */
-	/* Shortcut */
 	static const size_t hdr_size = sizeof(struct dnet_ext_list_hdr);
 
 	/* Parameter checks */
