@@ -274,6 +274,46 @@ static void test_append(session &s)
 	}
 }
 
+static void test_cas(session &s)
+{
+	try {
+		std::string key = "cas-test";
+		std::string data1 = "cas data first";
+		std::string data2 = "cas data second";
+
+		// Cleanup previous test reincarnation
+		try {
+			s.remove(key).wait();
+		} catch (const std::exception &e) {}
+
+		// Write data
+		s.write_data(key, data1, 0).wait();
+
+		// Read csum
+		std::string result = s.read_data(key, 0, 0).get()[0].file().to_string();
+		struct dnet_id csum1 = {{}, 0, 0}, csum2 = {{}, 0, 0};
+		s.transform(data1, csum1);
+		s.transform(result, csum2);
+
+		if (memcmp(&csum1, &csum2, sizeof(struct dnet_id)))
+			throw std::runtime_error("CAS: csum does not match");
+
+		// CAS
+		s.write_cas(key, data2, csum1, 0).wait();
+
+		// Read
+		result = s.read_data(key, 0, 0).get()[0].file().to_string();
+		std::cerr << key << ": " << result << std::endl;
+
+		// Check
+		if (result != data2)
+			throw std::runtime_error(data2 + " != " + result);
+	} catch (const std::exception &e) {
+		std::cerr << "CAS test failed: " << e.what() << std::endl;
+		throw std::runtime_error("CAS test failed");
+	}
+}
+
 static void read_column_raw(session &s, const std::string &remote, const std::string &data, int column)
 {
 	read_result_entry ret;
@@ -654,6 +694,7 @@ int main(int argc, char *argv[])
 		s.set_cflags(cflags);
 
 		test_append(s);
+		test_cas(s);
 
 		test_bulk_write(s);
 		test_bulk_read(s);
