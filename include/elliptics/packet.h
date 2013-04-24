@@ -734,7 +734,7 @@ struct dnet_ext_list_hdr {
 	struct dnet_time	timestamp;	/* Time stamp of record */
 	uint64_t		flags;		/* Custom flags for this record */
 	uint64_t		__pad2[2];	/* For future use (should be NULLed) */
-};
+} __attribute__ ((packed));
 
 /*! In-memory extension conatiner */
 struct dnet_ext_list {
