@@ -137,9 +137,3 @@ install(FILES
         include/elliptics/module_backend.hpp
         DESTINATION include/elliptics/
         )
-
-install(FILES
-        ${PROJECT_BINARY_DIR}/cmake/EllipticsConfig.cmake
-        ${PROJECT_BINARY_DIR}/cmake/EllipticsConfigVersion.cmake
-        DESTINATION lib/cmake/Elliptics/ COMPONENT dev
-        )
