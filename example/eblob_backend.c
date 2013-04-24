@@ -824,22 +824,35 @@ static int blob_bulk_read(struct eblob_backend_config *c, void *state, struct dn
 static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize) {
 	struct eblob_backend_config *c = priv;
 	struct eblob_backend *b = c->eblob;
-	uint64_t offset, size;
+	struct eblob_write_control wc;
 	struct eblob_key key;
-	int fd, err;
+	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
+	int err;
 
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-	err = eblob_read(b, &key, &fd, &offset, &size, EBLOB_TYPE_DATA);
+	err = eblob_read_return(b, &key, EBLOB_TYPE_DATA, EBLOB_READ_NOCSUM, &wc);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read: type: %d: %d: %s.\n",
 							dnet_dump_id_str(id->id), id->type, err, strerror(-err));
 		goto err_out_exit;
 	}
 	err = 0;
-	if (!size)
+
+	if (wc.flags & BLOB_DISK_CTL_USR1) {
+		/* Sanity */
+		if (wc.total_data_size < ehdr_size) {
+			err = -EINVAL;
+			goto err_out_exit;
+		}
+		wc.data_offset += ehdr_size;
+		wc.total_data_size -= ehdr_size;
+	}
+
+	if (wc.total_data_size == 0)
 		memset(csum, 0, *csize);
 	else
-		err = dnet_checksum_fd(n, fd, offset, size, csum, *csize);
+		err = dnet_checksum_fd(n, wc.data_fd, wc.data_offset,
+				wc.total_data_size, csum, *csize);
 
 err_out_exit:
 	return err;
