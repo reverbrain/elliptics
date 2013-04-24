@@ -160,6 +160,7 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 
 	data += sizeof(struct dnet_io_attr);
 
+	flags |= BLOB_DISK_CTL_USR1;
 	if (io->flags & DNET_IO_FLAGS_COMPRESS)
 		flags |= BLOB_DISK_CTL_COMPRESS;
 
@@ -179,34 +180,28 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 	 */
 	err = eblob_read_return(c->eblob, &key, io->type, EBLOB_READ_NOCSUM, &wc2);
 	if (err == 0 && (wc2.flags & BLOB_DISK_CTL_USR1)) { /* Update */
-		flags |= BLOB_DISK_CTL_USR1;
-		if (elist != NULL) {
-			struct dnet_ext_list_hdr ehdr;
+		struct dnet_ext_list_hdr ehdr;
 
-			/* Copy data from elist to ehdr */
-			dnet_ext_list_to_hdr(elist, &ehdr);
-			/* Update extended header */
-			if ((err = dnet_ext_hdr_write(&ehdr, wc2.data_fd, wc2.offset)) != 0)
-				goto err_out_exit;
+		/* Copy data from elist to ehdr */
+		dnet_ext_list_to_hdr(elist, &ehdr);
+		/* Update extended header */
+		if ((err = dnet_ext_hdr_write(&ehdr, wc2.data_fd, wc2.offset)) != 0)
+			goto err_out_exit;
 
-			/* Move offset past extended header */
-			io->offset += ehdr_size;
-			if (io->flags & DNET_IO_FLAGS_COMMIT)
-				io->num += sizeof(struct dnet_ext_list_hdr);
-		}
+		/* Move offset past extended header */
+		io->offset += ehdr_size;
+		if (io->flags & DNET_IO_FLAGS_COMMIT)
+			io->num += sizeof(struct dnet_ext_list_hdr);
 	} else if (err > 0 || err == -ENOENT) { /* New record or compressed */
-		flags |= BLOB_DISK_CTL_USR1;
 		if (io->offset != 0) {
 			/* TODO: Think of something sophisticated */
 			err = -ERANGE;
 			goto err_out_exit;
 		}
-		if (elist != NULL) {
-			err = dnet_ext_list_combine(&data, &io->size, elist);
-			if (err)
-				goto err_out_exit;
-			combined = 1;
-		}
+		err = dnet_ext_list_combine(&data, &io->size, elist);
+		if (err)
+			goto err_out_exit;
+		combined = 1;
 	} else { /* Error */
 		goto err_out_exit;
 	}
@@ -355,7 +350,7 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 		fd = -1;
 	}
 
-	if (elist != NULL && (wc.flags & BLOB_DISK_CTL_USR1) != 0) {
+	if ((wc.flags & BLOB_DISK_CTL_USR1) != 0) {
 		err = dnet_ext_list_extract((void *)&read_data, (uint64_t *)&size,
 				elist, DNET_EXT_FREE_ON_DESTROY);
 		if (err != 0)
