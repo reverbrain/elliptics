@@ -40,45 +40,25 @@ object storage.
 This package contains libraries, header files and developer documentation
 needed for developing software which uses the cairo graphics library.
 
-%package python
-Summary:	Elliptics library Python binding
-Group:		Development/Libraries
-Requires:	%{name} = %{version}-%{release}
-
-%description python
-Elliptics Python Language bindings.
-
-
-%package python-devel
-Summary:	Elliptics library Python binding
-Group:		Development/Libraries
-Requires:	elliptics-python = %{version}-%{release}
-
-
-%description python-devel
-Elliptics Python Language bindings development headers and libraries.
-
-
-%package c++
-Summary:	Elliptics library C++ binding
+%package client
+Summary:	Elliptics client library (C++/Python bindings)
 Group:		Development/Libraries
 Requires:	elliptics = %{version}-%{release}
 
 
-%description c++
-Elliptics library C++ language binding.
+%description client
+Elliptics client library (C++/Python bindings)
 
 
-%package c++-devel
+%package client-devel
 Summary:	Elliptics library C++ binding development headers and libraries
 Group:		Development/Libraries
 Requires:	elliptics-devel = %{version}-%{release}
 Requires:	elliptics-c++ = %{version}-%{release}
 
 
-%description c++-devel
-Elliptics library C++ binding development headers and libraries
-for building C++ applications with elliptics.
+%description client-devel
+Elliptics client library (C++/Python bindings), devel files
 
 %prep
 %setup -q
@@ -124,37 +104,28 @@ rm -rf %{buildroot}
 %doc README doc/design_notes.txt doc/io_storage_backend.txt
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
-%{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cocaine.so.*
-
+%{_libdir}/libelliptics_module_backend_cpp.so.*
 
 %files devel
 %defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/libelliptics.so
-%{_libdir}/libelliptics_client.so
 %{_libdir}/libelliptics_cocaine.so
-%{_libdir}/cmake/Elliptics/*
+%{_libdir}/libelliptics_module_backend_cpp.so
 
-%files python
+
+%files client
 %defattr(-,root,root,-)
-%{_libdir}/libelliptics_python.so.*
+%{_libdir}/libelliptics_client.so.*
+%{_libdir}/libelliptics_cpp.so.*
 %{python_sitelib}/elliptics*
 
-
-%files python-devel
+%files client-devel
 %defattr(-,root,root,-)
-%{_libdir}/libelliptics_python.so
-
-
-%files c++
-%defattr(-,root,root,-)
-%{_libdir}/libelliptics_cpp.so.*
-
-
-%files c++-devel
-%defattr(-,root,root,-)
+%{_libdir}/libelliptics_client.so
 %{_libdir}/libelliptics_cpp.so
+%{python_sitelib}/elliptics.so
 
 
 %changelog
