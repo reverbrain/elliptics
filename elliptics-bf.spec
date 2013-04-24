@@ -11,6 +11,7 @@ BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %if 0%{?rhel} < 6
 BuildRequires:	python26-devel
+BuildRequires:	gcc44 gcc44-c++
 %else
 BuildRequires:  python-devel
 %endif
@@ -18,7 +19,6 @@ BuildRequires:	boost-python, boost-devel, boost-iostreams, boost-thread, boost-p
 BuildRequires:	eblob-devel >= 0.19.0
 BuildRequires:  leveldb-devel snappy-devel
 BuildRequires:	cmake msgpack-devel
-BuildRequires:	gcc >= 4.4
 
 Obsoletes: srw
 
