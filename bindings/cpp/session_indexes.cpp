@@ -33,12 +33,17 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 	update_indexes_functor(session &sess, const async_update_indexes_result &result, const key &request_id,
 		const std::vector<index_entry> &input_indexes, const dnet_id &id)
-		: sess(sess), handler(result), request_id(request_id), id(id), finished(0), smap_failed(0)
+		: sess(sess), handler(result), request_id(request_id), id(id), finished(0)
+#ifdef SMAP_DEBUG
+		, smap_failed(0)
+#endif
 	{
 		indexes.indexes = input_indexes;
 		std::sort(indexes.indexes.begin(), indexes.indexes.end(), dnet_raw_id_less_than<>());
 		msgpack::pack(buffer, indexes);
+#ifdef SMAP_DEBUG
 		dnet_current_time(&smap_time);
+#endif
 	}
 
 	/*
@@ -67,11 +72,12 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	size_t finished;
 	error_info exception;
 
+#ifdef SMAP_DEBUG
 	std::mutex smap_lock;
 	std::map<void *, int> smap;
 	int smap_failed;
 	dnet_time smap_time;
-
+#endif
 	/*!
 	 * Update data-object table for certain secondary index.
 	 * This function is called when write-cas() has downloaded index data,
@@ -124,6 +130,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		msgpack::sbuffer buffer;
 		msgpack::pack(&buffer, indexes);
 
+#ifdef SMAP_DEBUG
 		{
 			std::lock_guard<std::mutex> guard(smap_lock);
 			auto it = smap.find((void *)&index_data);
@@ -132,6 +139,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			else
 				smap_failed++;
 		}
+#endif
 
 		return data_pointer::copy(buffer.data(), buffer.size());
 	}
@@ -174,6 +182,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 		finished = 0;
 
+#ifdef SMAP_DEBUG
 		long total_size = 0;
 		for (auto sz : smap)
 			total_size += sz.second;
@@ -197,7 +206,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			", failed: " << smap_failed <<
 			", time: " << tmp.tsec << "." << tmp.tnsec / 1000 <<
 			std::endl;
-
+#endif
 		dnet_id tmp_id;
 		memset(&tmp_id, 0, sizeof(tmp_id));
 
