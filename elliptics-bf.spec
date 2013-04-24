@@ -90,11 +90,8 @@ rm -f %{buildroot}%{_libdir}/*.la
 %post -p /sbin/ldconfig
 %postun -p /sbin/ldconfig
 
-%post python -p /sbin/ldconfig
-%postun python -p /sbin/ldconfig
-
-%post c++ -p /sbin/ldconfig
-%postun c++ -p /sbin/ldconfig
+%post client -p /sbin/ldconfig
+%postun client -p /sbin/ldconfig
 
 %clean
 rm -rf %{buildroot}
