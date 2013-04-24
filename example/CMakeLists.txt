@@ -1,5 +1,5 @@
 add_library(common STATIC common.c)
-set(ECOMMON_LIBRARIES common elliptics_client -lstdc++)
+set(ECOMMON_LIBRARIES common elliptics_client)
 
 set(DNET_IOSERV_SRCS ioserv.c config.c file_backend.c backends.c eblob_backend.c
  module_backend/core/module_backend_t.c
@@ -15,6 +15,9 @@ endif()
 
 add_executable(dnet_ioserv ${DNET_IOSERV_SRCS})
 target_link_libraries(dnet_ioserv ${DNET_IOSERV_LIBRARIES})
+set_target_properties(dnet_ioserv
+	PROPERTIES
+	LINKER_LANGUAGE CXX)
 
 # remove NOW
 add_executable(dnet_hparser hparser.c)
