@@ -22,7 +22,6 @@
 #include <sys/wait.h>
 
 #include <alloca.h>
-#include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -781,8 +780,8 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		cpriv.next_private = &fpriv;
 		break;
 	default:
-		/* Should not happen */
-		assert(0);
+		err = -EINVAL;
+		goto err_out_exit;
 	}
 
 	err = st->n->cb->iterator(&ictl);
