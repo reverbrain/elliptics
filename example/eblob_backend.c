@@ -351,7 +351,6 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 			dnet_dump_id_str(io->id), err, strerror(-err));
 		goto err_out_exit;
 	} else {
-		/* FIXME: Can be speeded up by introducing eblob_read_data_return() */
 		err = eblob_read_data(b, &key, io->offset, &read_data, &size, io->type);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-data: READ: %d: %s\n",
