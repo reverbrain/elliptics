@@ -872,7 +872,7 @@ struct cas_functor : std::enable_shared_from_this<cas_functor>
 			&& ((write_data.empty() && data.empty())
 				|| write_data.data() == data.data())) {
 			// Fake users and the system
-			// We gave them a hope that write was successfull,
+			// We gave them a hope that write was successful,
 			// but really data were already OK.
 
 			dnet_addr addr;

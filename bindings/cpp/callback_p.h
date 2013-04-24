@@ -412,7 +412,7 @@ class multigroup_callback
 		/*
 		 * Sends requests for current id.
 		 *
-		 * Returnes true, if all requests are completed, returnes false otherwise.
+		 * Returns true, if all requests are completed, returns false otherwise.
 		 */
 		virtual bool next_group(error_info *error, dnet_id &id, complete_func func, void *priv) = 0;
 

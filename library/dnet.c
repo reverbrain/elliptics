@@ -666,7 +666,7 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 		memcpy(position, data, dsize);
 	}
 
-	/* Finnaly run next callback */
+	/* Finally run next callback */
 	err = ipriv->next_callback(ipriv->next_private, combined, size);
 
 	/* Pass to next callback */
