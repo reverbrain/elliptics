@@ -303,7 +303,7 @@ err_out_exit:
 /*!
  * Write data along with timestamp extension
  */
-static int blob_write_timestamp(struct eblob_backend_config *c, void *state,
+static int blob_write(struct eblob_backend_config *c, void *state,
 		struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_ext_list elist;
@@ -447,7 +447,7 @@ err_out_exit:
 /*!
  * Read data along with ts
  */
-static int blob_read_timestamp(struct eblob_backend_config *c, void *state,
+static int blob_read(struct eblob_backend_config *c, void *state,
 		struct dnet_cmd *cmd, void *data, int last)
 {
 	struct dnet_ext_list elist;
@@ -810,7 +810,7 @@ static int blob_bulk_read(struct eblob_backend_config *c, void *state, struct dn
 	count = io->size / sizeof(struct dnet_io_attr);
 
 	for (i = 0; i < count; i++) {
-		ret = blob_read_timestamp(c, state, cmd, &ios[i], i + 1 == count);
+		ret = blob_read(c, state, cmd, &ios[i], i + 1 == count);
 		if (!ret)
 			err = 0;
 		else if (err == -1)
@@ -884,10 +884,10 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 			err = blob_file_info(c, state, cmd);
 			break;
 		case DNET_CMD_WRITE:
-			err = blob_write_timestamp(c, state, cmd, data);
+			err = blob_write(c, state, cmd, data);
 			break;
 		case DNET_CMD_READ:
-			err = blob_read_timestamp(c, state, cmd, data, 1);
+			err = blob_read(c, state, cmd, data, 1);
 			break;
 		case DNET_CMD_READ_RANGE:
 		case DNET_CMD_DEL_RANGE:
