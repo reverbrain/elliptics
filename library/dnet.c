@@ -1258,9 +1258,9 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 
 	if (io->flags & DNET_IO_FLAGS_CHECKSUM) {
 		if (data) {
-			err = dnet_checksum_data(n, data, io->size, io->parent, sizeof(io->parent));
+			err = dnet_checksum_data(n, data, rio->size, rio->parent, sizeof(rio->parent));
 		} else {
-			err = dnet_checksum_fd(n, fd, offset, io->size, io->parent, sizeof(io->parent));
+			err = dnet_checksum_fd(n, fd, offset, rio->size, rio->parent, sizeof(rio->parent));
 		}
 
 		if (err)
@@ -1268,9 +1268,9 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	}
 
 	if (data)
-		err = dnet_send_data(st, c, hsize, data, io->size);
+		err = dnet_send_data(st, c, hsize, data, rio->size);
 	else
-		err = dnet_send_fd(st, c, hsize, fd, offset, io->size, on_exit);
+		err = dnet_send_fd(st, c, hsize, fd, offset, rio->size, on_exit);
 
 err_out_free:
 	free(c);
