@@ -56,7 +56,7 @@ class exec_context
 		std::string event() const;
 		// event data
 		data_pointer data() const;
-		// address of the machine emmited the reply
+		// address of the machine emitted the reply
 		dnet_addr *address() const;
 		bool is_final() const;
 		bool is_null() const;

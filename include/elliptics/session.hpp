@@ -210,7 +210,7 @@ class session
 		 */
 		void			transform(const data_pointer &data, struct dnet_id &id);
 		/*!
-		 * Makes dnet_id be accessable by key::id() in the key \a id.
+		 * Makes dnet_id be accessible by key::id() in the key \a id.
 		 */
 		void			transform(const key &id);
 
@@ -230,7 +230,7 @@ class session
 		 */
 		void			set_filter(const result_filter &filter);
 		/*!
-		 * Returnes filter.
+		 * Returns filter.
 		 */
 		result_filter		get_filter() const;
 
@@ -241,7 +241,7 @@ class session
 		 */
 		void			set_checker(const result_checker &checker);
 		/*!
-		 * Returnes checker.
+		 * Returns checker.
 		 */
 		result_checker		get_checker() const;
 
@@ -252,7 +252,7 @@ class session
 		 */
 		void			set_exceptions_policy(uint32_t policy);
 		/*!
-		 * Returnes exception policy.
+		 * Returns exception policy.
 		 */
 		uint32_t		get_exceptions_policy() const;
 
@@ -364,11 +364,11 @@ class session
 
 
 		/*!
-		 * Reads data by \a id and passes it through \a converter. If converter returnes the same data
+		 * Reads data by \a id and passes it through \a converter. If converter returns the same data
 		 * it's threated as data is already up-to-date, othwerwise low-level write-cas with proper
 		 * checksum and \a remote_offset is invoked.
 		 *
-		 * If server returnes -EBADFD data is read and processed again.
+		 * If server returns -EBADFD data is read and processed again.
 		 * The whole process iterates not more than \a count times.
 		 *
 		 * Returns async_write_result.
@@ -401,7 +401,7 @@ class session
 		 *
 		 * Returns async_write_result.
 		 *
-		 * \note Indexes are not updated. Data is not accessable for reading.
+		 * \note Indexes are not updated. Data is not accessible for reading.
 		 */
 		async_write_result write_plain(const key &id, const data_pointer &file, uint64_t remote_offset);
 
@@ -410,7 +410,7 @@ class session
 		 *
 		 * Returns async_write_result.
 		 *
-		 * \note Indexes are updated. Data becomes accessable for reading.
+		 * \note Indexes are updated. Data becomes accessible for reading.
 		 */
 		async_write_result write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize);
 
@@ -423,7 +423,7 @@ class session
 		async_write_result write_cache(const key &id, const data_pointer &file, long timeout);
 
 		/*!
-		 * Returnes address (ip and port pair) of remote node where
+		 * Returns address (ip and port pair) of remote node where
 		 * data with key \a id may be in group \a group_id.
 		 */
 		std::string		lookup_address(const key &id, int group_id = 0);
@@ -479,7 +479,7 @@ class session
 		async_stat_count_result stat_log_count();
 
 		/*!
-		 * Returnes the number of session states.
+		 * Returns the number of session states.
 		 */
 		int			state_num();
 
@@ -524,7 +524,7 @@ class session
 		async_read_result remove_data_range(struct dnet_io_attr &io, int group_id);
 
 		/*!
-		 * Returnes the list of network routes.
+		 * Returns the list of network routes.
 		 */
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
@@ -535,7 +535,7 @@ class session
 		 *
 		 * If \a id is null event is sent to all groups specified in the session.
 		 *
-		 * Returnes async_exec_result.
+		 * Returns async_exec_result.
 		 * Result contains all replies sent by nodes processing this event.
 		 */
 		async_exec_result exec(dnet_id *id, const std::string &event, const data_pointer &data);
@@ -544,9 +544,9 @@ class session
 		 *
 		 * If \a id is null event is sent to all groups specified in the session.
 		 *
-		 * Returnes async_exec_result.
+		 * Returns async_exec_result.
 		 * Result contains only the information about starting of event procession, so there is no
-		 * information if it was finaly processed successfully.
+		 * information if it was finally processed successfully.
 		 */
 		async_push_result push(dnet_id *id, const exec_context &context, const std::string &event, const data_pointer &data);
 		/*!
@@ -554,7 +554,7 @@ class session
 		 *
 		 * If \a state is equal to exec_context::final it is the last reply, otherwise there will be more.
 		 *
-		 * Returnes async_reply_result.
+		 * Returns async_reply_result.
 		 * Result contains information if starter received the reply.
 		 */
 		async_reply_result reply(const exec_context &context, const data_pointer &data, exec_context::final_state state);
@@ -596,7 +596,7 @@ class session
 		 * Reads all data from server nodes by the list \a ios.
 		 * Exception is thrown if no entry is read successfully.
 		 *
-		 * Returnes async_read_result.
+		 * Returns async_read_result.
 		 */
 		async_read_result bulk_read(const std::vector<struct dnet_io_attr> &ios);
 		/*!
@@ -610,7 +610,7 @@ class session
 		 * Writes all data \a data to server nodes by the list \a ios.
 		 * Exception is thrown if no entry is written successfully.
 		 *
-		 * Returnes async_write_result.
+		 * Returns async_write_result.
 		 */
 		async_write_result bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<data_pointer> &data);
 		/*!
@@ -629,7 +629,7 @@ class session
 		async_check_indexes_result check_indexes(const key &id);
 
 		/*!
-		 * Returnes reference to parent node.
+		 * Returns reference to parent node.
 		 */
 		node	&get_node();
 		/*!
@@ -637,7 +637,7 @@ class session
 		 */
 		const node	&get_node() const;
 		/*!
-		 * Returnes pointer to dnet_session.
+		 * Returns pointer to dnet_session.
 		 */
 		struct dnet_session *	get_native();
 

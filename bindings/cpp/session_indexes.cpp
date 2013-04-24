@@ -145,7 +145,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	}
 
 	/*!
-	 * All changes were reverted - succesfully or not.
+	 * All changes were reverted - successfully or not.
 	 * Anyway, notify the user.
 	 */
 	void on_index_table_revert_finished()
@@ -173,7 +173,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 	/*!
 	 * Called for every index being updated.
-	 * When all indexes are updated, check if any update failed, in this case all successfull changes must be reverted.
+	 * When all indexes are updated, check if any update failed, in this case all successful changes must be reverted.
 	 */
 	void on_index_table_update_finished()
 	{
