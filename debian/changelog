@@ -1,3 +1,16 @@
+elliptics (2.24.1.0) unstable; urgency=low
+
+  * Written test for cas.
+  * Fixed checksum calculation for extended format records used by CAS.
+  * Fixed append test - now it vefifies result.
+  * Fixed append of records in extended format.
+  * Re-introduced missed lock in defrag.
+  * Grammar nazzism.
+  * Fixed rhel5 build.
+  * Reworked RPM packages.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 25 Apr 2013 01:44:34 +0400
+
 elliptics (2.24.0.0) unstable; urgency=low
 
   * Fixed write_cas by adding session::clone()

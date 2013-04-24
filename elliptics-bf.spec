@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.0.0
+Version:	2.24.1.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Apr 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.1.0
+- Written test for cas.
+- Fixed checksum calculation for extended format records used by CAS.
+- Fixed append test - now it vefifies result.
+- Fixed append of records in extended format.
+- Re-introduced missed lock in defrag.
+- Grammar nazzism.
+- Fixed rhel5 build.
+- Reworked RPM packages.
+
 * Tue Apr 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.0.0
 - Fixed write_cas by adding session::clone()
 - ext: check result of dnet_ext_hdr_write()
