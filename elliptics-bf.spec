@@ -18,6 +18,7 @@ BuildRequires:	boost-python, boost-devel, boost-iostreams, boost-thread, boost-p
 BuildRequires:	eblob-devel >= 0.19.0
 BuildRequires:  leveldb-devel snappy-devel
 BuildRequires:	cmake msgpack-devel
+BuildRequires:	gcc >= 4.4
 
 Obsoletes: srw
 

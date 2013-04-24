@@ -38,6 +38,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		indexes.indexes = input_indexes;
 		std::sort(indexes.indexes.begin(), indexes.indexes.end(), dnet_raw_id_less_than<>());
 		msgpack::pack(buffer, indexes);
+		dnet_current_time(&smap_time);
 	}
 
 	/*
@@ -65,6 +66,11 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	std::mutex mutex;
 	size_t finished;
 	error_info exception;
+
+	std::mutex smap_lock;
+	std::map<void *, int> smap;
+	int smap_failed = 0;
+	dnet_time smap_time;
 
 	/*!
 	 * Update data-object table for certain secondary index.
@@ -118,6 +124,15 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		msgpack::sbuffer buffer;
 		msgpack::pack(&buffer, indexes);
 
+		{
+			std::lock_guard<std::mutex> guard(smap_lock);
+			auto it = smap.find((void *)&index_data);
+			if (it == smap.end())
+				smap[(void *)&index_data] = buffer.size();
+			else
+				smap_failed++;
+		}
+
 		return data_pointer::copy(buffer.data(), buffer.size());
 	}
 
@@ -158,6 +173,30 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			return;
 
 		finished = 0;
+
+		long total_size = 0;
+		for (auto sz : smap)
+			total_size += sz.second;
+
+		dnet_time tmp;
+		dnet_current_time(&tmp);
+
+		tmp.tsec -= smap_time.tsec;
+		if (tmp.tnsec < smap_time.tnsec) {
+			tmp.tsec--;
+			tmp.tnsec += 1000000000;
+		}
+
+		tmp.tnsec -= smap_time.tnsec;
+
+		std::cout.unsetf(std::ios::floatfield); 
+		std::cout.precision(6);
+		std::cout << "id: " << request_id.to_string() <<
+			", indexes: " << smap.size() <<
+			", total-size: " << total_size <<
+			", failed: " << smap_failed <<
+			", time: " << tmp.tsec << "." << tmp.tnsec / 1000 <<
+			std::endl;
 
 		dnet_id tmp_id;
 		memset(&tmp_id, 0, sizeof(tmp_id));
