@@ -110,7 +110,6 @@ rm -rf %{buildroot}
 
 %files devel
 %defattr(-,root,root,-)
-%{_includedir}/*
 %{_libdir}/libelliptics.so
 %{_libdir}/libelliptics_cocaine.so
 %{_libdir}/libelliptics_module_backend_cpp.so
@@ -124,6 +123,7 @@ rm -rf %{buildroot}
 
 %files client-devel
 %defattr(-,root,root,-)
+%{_includedir}/*
 %{_libdir}/libelliptics_client.so
 %{_libdir}/libelliptics_cpp.so
 %{python_sitelib}/elliptics.so
