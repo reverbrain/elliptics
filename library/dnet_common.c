@@ -2454,6 +2454,7 @@ int dnet_start_defrag(struct dnet_session *s, struct dnet_defrag_ctl *ctl)
 
 	dnet_convert_defrag_ctl(ctl);
 
+	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
 			if (st == n->st)
