@@ -33,7 +33,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 	update_indexes_functor(session &sess, const async_update_indexes_result &result, const key &request_id,
 		const std::vector<index_entry> &input_indexes, const dnet_id &id)
-		: sess(sess), handler(result), request_id(request_id), id(id), finished(0)
+		: sess(sess), handler(result), request_id(request_id), id(id), finished(0), smap_failed(0)
 	{
 		indexes.indexes = input_indexes;
 		std::sort(indexes.indexes.begin(), indexes.indexes.end(), dnet_raw_id_less_than<>());
@@ -69,7 +69,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 	std::mutex smap_lock;
 	std::map<void *, int> smap;
-	int smap_failed = 0;
+	int smap_failed;
 	dnet_time smap_time;
 
 	/*!
