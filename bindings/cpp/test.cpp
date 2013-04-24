@@ -243,17 +243,31 @@ static void test_lookup(session &s, std::vector<int> &groups)
 static void test_append(session &s)
 {
 	try {
-		std::string remote = "append-test";
-		std::string data = "first part of the message";
+		std::string key = "append-test";
+		std::string data1 = "first part of the message";
+		std::string data2 = " | second part of the message";
 
-		s.write_data(remote, data, 0).wait();
+		// Cleanup previous test reincarnation
+		try {
+			s.remove(key).wait();
+		} catch (const std::exception &e) {}
 
-		data = "| second part of the message";
+		// Write data
+		s.write_data(key, data1, 0).wait();
+
+		// Append
 		s.set_ioflags(DNET_IO_FLAGS_APPEND);
-		s.write_data(remote, data, 0).wait();
+		s.write_data(key, data2, 0).wait();
 		s.set_ioflags(0);
 
-		std::cerr << remote << ": " << s.read_data(remote, 0, 0).get()[0].file().to_string() << std::endl;
+		// Read
+		std::string result;
+		result = s.read_data(key, 0, 0).get()[0].file().to_string();
+		std::cerr << key << ": " << result << std::endl;
+
+		// Check
+		if (result != (data1 + data2))
+			throw std::runtime_error(data1 + data2 + " != " + result);
 	} catch (const std::exception &e) {
 		std::cerr << "APPEND test failed: " << e.what() << std::endl;
 		throw std::runtime_error("APPEND test failed");
