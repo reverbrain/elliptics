@@ -700,10 +700,8 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	/*
 	 * Sanity
 	 */
-
 	if (ireq == NULL || st == NULL || cmd == NULL)
 		return -EINVAL;
-
 	dnet_convert_iterator_request(ireq);
 	/* Check for rouge flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
@@ -767,7 +765,6 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		cpriv.next_callback = dnet_iterator_callback_send;
 		cpriv.next_private = &spriv;
 		break;
-		;;
 	case DNET_ITYPE_DISK:
 		memset(&fpriv, 0, sizeof(struct dnet_iterator_file_private));
 
@@ -783,11 +780,9 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		cpriv.next_callback = dnet_iterator_callback_file;
 		cpriv.next_private = &fpriv;
 		break;
-		;;
 	default:
 		/* Should not happen */
 		assert(0);
-		;;
 	}
 
 	err = st->n->cb->iterator(&ictl);
