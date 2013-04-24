@@ -49,7 +49,6 @@ needed for developing software which uses the cairo graphics library.
 %package client
 Summary:	Elliptics client library (C++/Python bindings)
 Group:		Development/Libraries
-Requires:	elliptics = %{version}-%{release}
 
 
 %description client
@@ -59,8 +58,7 @@ Elliptics client library (C++/Python bindings)
 %package client-devel
 Summary:	Elliptics library C++ binding development headers and libraries
 Group:		Development/Libraries
-Requires:	elliptics-devel = %{version}-%{release}
-Requires:	elliptics-c++ = %{version}-%{release}
+Requires:	%{name} = %{version}-%{release}
 
 
 %description client-devel
