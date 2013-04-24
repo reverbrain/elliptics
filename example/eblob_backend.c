@@ -305,13 +305,6 @@ err_out_exit:
 	return err;
 }
 
-__attribute__((deprecated))
-static int blob_write(struct eblob_backend_config *c, void *state,
-		struct dnet_cmd *cmd, void *data)
-{
-	return blob_write_ll(c, state, cmd, data, NULL);
-}
-
 /*!
  * Write data along with timestamp extension
  */
@@ -472,13 +465,6 @@ static int blob_read_timestamp(struct eblob_backend_config *c, void *state,
 
 	dnet_ext_list_destroy(&elist);
 	return err;
-}
-
-__attribute__((deprecated))
-static int blob_read(struct eblob_backend_config *c, void *state,
-		struct dnet_cmd *cmd, void *data, int last)
-{
-	return blob_read_ll(c, state, cmd, data, last, NULL);
 }
 
 struct eblob_read_range_priv {
