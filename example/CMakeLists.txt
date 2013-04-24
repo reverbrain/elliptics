@@ -1,5 +1,5 @@
 add_library(common STATIC common.c)
-set(ECOMMON_LIBRARIES common elliptics_client)
+set(ECOMMON_LIBRARIES common elliptics_client -lstdc++)
 
 set(DNET_IOSERV_SRCS ioserv.c config.c file_backend.c backends.c eblob_backend.c
  module_backend/core/module_backend_t.c
