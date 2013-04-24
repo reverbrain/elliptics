@@ -36,7 +36,7 @@ static int dnet_module_config_init(struct dnet_config_backend *b, struct dnet_co
 	b->cb.command_handler = module_backend->api->command_handler;
 	b->cb.meta_write = module_backend->api->meta_write_handler;
 	b->cb.backend_cleanup = module_backend_cleanup;
-	dnet_backend_log(DNET_LOG_NOTICE, "module_backend: load successfull\n");
+	dnet_backend_log(DNET_LOG_NOTICE, "module_backend: load successful\n");
 	return 0;
 
 err_out_constructor:

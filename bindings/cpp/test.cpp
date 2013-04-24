@@ -243,20 +243,74 @@ static void test_lookup(session &s, std::vector<int> &groups)
 static void test_append(session &s)
 {
 	try {
-		std::string remote = "append-test";
-		std::string data = "first part of the message";
+		std::string key = "append-test";
+		std::string data1 = "first part of the message";
+		std::string data2 = " | second part of the message";
 
-		s.write_data(remote, data, 0).wait();
+		// Cleanup previous test reincarnation
+		try {
+			s.remove(key).wait();
+		} catch (const std::exception &e) {}
 
-		data = "| second part of the message";
+		// Write data
+		s.write_data(key, data1, 0).wait();
+
+		// Append
 		s.set_ioflags(DNET_IO_FLAGS_APPEND);
-		s.write_data(remote, data, 0).wait();
+		s.write_data(key, data2, 0).wait();
 		s.set_ioflags(0);
 
-		std::cerr << remote << ": " << s.read_data(remote, 0, 0).get()[0].file().to_string() << std::endl;
+		// Read
+		std::string result;
+		result = s.read_data(key, 0, 0).get()[0].file().to_string();
+		std::cerr << key << ": " << result << std::endl;
+
+		// Check
+		if (result != (data1 + data2))
+			throw std::runtime_error(data1 + data2 + " != " + result);
 	} catch (const std::exception &e) {
 		std::cerr << "APPEND test failed: " << e.what() << std::endl;
 		throw std::runtime_error("APPEND test failed");
+	}
+}
+
+static void test_cas(session &s)
+{
+	try {
+		std::string key = "cas-test";
+		std::string data1 = "cas data first";
+		std::string data2 = "cas data second";
+
+		// Cleanup previous test reincarnation
+		try {
+			s.remove(key).wait();
+		} catch (const std::exception &e) {}
+
+		// Write data
+		s.write_data(key, data1, 0).wait();
+
+		// Read csum
+		std::string result = s.read_data(key, 0, 0).get()[0].file().to_string();
+		struct dnet_id csum1 = {{}, 0, 0}, csum2 = {{}, 0, 0};
+		s.transform(data1, csum1);
+		s.transform(result, csum2);
+
+		if (memcmp(&csum1, &csum2, sizeof(struct dnet_id)))
+			throw std::runtime_error("CAS: csum does not match");
+
+		// CAS
+		s.write_cas(key, data2, csum1, 0).wait();
+
+		// Read
+		result = s.read_data(key, 0, 0).get()[0].file().to_string();
+		std::cerr << key << ": " << result << std::endl;
+
+		// Check
+		if (result != data2)
+			throw std::runtime_error(data2 + " != " + result);
+	} catch (const std::exception &e) {
+		std::cerr << "CAS test failed: " << e.what() << std::endl;
+		throw std::runtime_error("CAS test failed");
 	}
 }
 
@@ -640,6 +694,7 @@ int main(int argc, char *argv[])
 		s.set_cflags(cflags);
 
 		test_append(s);
+		test_cas(s);
 
 		test_bulk_write(s);
 		test_bulk_read(s);
@@ -655,7 +710,7 @@ int main(int argc, char *argv[])
 		test_cache_delete(s, 1000);
 
 //	} catch (const std::exception &e) {
-//		std::cerr << "Error occured : " << e.what() << std::endl;
+//		std::cerr << "Error occurred : " << e.what() << std::endl;
 //		return 1;
 	} catch (int err) {
 		std::cerr << "Error : " << err << std::endl;

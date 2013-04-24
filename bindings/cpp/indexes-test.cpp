@@ -308,7 +308,7 @@ void test_1(session &sess)
 
 int main(int argc, char *argv[])
 {
-	// Results must be reproducable
+	// Results must be reproducible
 	srand(0xd34db33f);
 
 	using namespace index_test;

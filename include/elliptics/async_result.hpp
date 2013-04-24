@@ -104,13 +104,13 @@ class async_result
 		void wait();
 
 		/*!
-		 * Returnes the information about the error.
+		 * Returns the information about the error.
 		 */
 		error_info error() const;
 
 		/*!
 		 * Blocks current thread until all entries are received, then
-		 * returnes all of them as list.
+		 * returns all of them as list.
 		 *
 		 * If session::throw_at_get flag is activated and there were errors
 		 * during procession the request the exception is thrown.
@@ -122,7 +122,7 @@ class async_result
 		 * Blocks current thread until all entries are received, then
 		 * first positive entry is set to \a entry.
 		 *
-		 * Returnes true if there is at least one positive entry.
+		 * Returns true if there is at least one positive entry.
 		 *
 		 * If session::throw_at_get flag is activated and there were errors
 		 * during procession the request the exception is thrown.
@@ -132,7 +132,7 @@ class async_result
 		/*!
 		 * Blocks current thread until all entries are received.
 		 *
-		 * Returnes one positive entry.
+		 * Returns one positive entry.
 		 *
 		 * If session::throw_at_get flag is activated and there were errors
 		 * during procession the request the exception is thrown.

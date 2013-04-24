@@ -240,7 +240,7 @@ void dnet_ext_list_init(struct dnet_ext_list *elist)
 	if (elist == NULL)
 		return;
 	memset(elist, 0, sizeof(struct dnet_ext_list));
-	elist->version = DNET_EXT_VERSION_V0;
+	elist->version = DNET_EXT_VERSION_V1;
 }
 
 /*!
@@ -258,6 +258,9 @@ int dnet_ext_hdr_read(struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset)
 {
 	int err;
 
+	if (ehdr == NULL || fd < 0)
+		return -EINVAL;
+
 	err = pread(fd, ehdr, sizeof(struct dnet_ext_list_hdr), offset);
 	if (err != sizeof(struct dnet_ext_list_hdr))
 		return (err == -1) ? -errno : -EINTR;
@@ -270,6 +273,9 @@ int dnet_ext_hdr_read(struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset)
 int dnet_ext_hdr_write(const struct dnet_ext_list_hdr *ehdr, int fd, uint64_t offset)
 {
 	int err;
+
+	if (ehdr == NULL || fd < 0)
+		return -EINVAL;
 
 	err = pwrite(fd, ehdr, sizeof(struct dnet_ext_list_hdr), offset);
 	if (err != sizeof(struct dnet_ext_list_hdr))
@@ -355,7 +361,6 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	struct dnet_ext_list_hdr *hdr;	/* Extensions header */
 	uint64_t new_size;		/* Size of data without extensions */
 	void *new_data;			/* Data without extensions */
-	/* Shortcut */
 	static const size_t hdr_size = sizeof(struct dnet_ext_list_hdr);
 
 	/* Parameter checks */
@@ -390,6 +395,9 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 	 */
 	if (elist->size != 0)
 		return -ENOTSUP;
+	if (elist->version <= DNET_EXT_VERSION_FIRST
+			|| elist->version >= DNET_EXT_VERSION_LAST)
+		return -ENOTSUP;
 
 	/* Save original pointer to data */
 	if (free_data == DNET_EXT_FREE_ON_DESTROY)
@@ -404,8 +412,11 @@ int dnet_ext_list_extract(void **datap, uint64_t *sizep,
 
 /*!
  * Combines \a datap with \a elist and fixes \a sizep
- *
  * NB! It does not free memory pointed by \a datap
+ *
+ * XXX: It does heavy weight malloc+memcpy. This can be avoided if either
+ * provided data buffer was prepended with empty space or backend supported
+ * writev(2)-like interface.
  */
 int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 		const struct dnet_ext_list *elist)
@@ -413,7 +424,6 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 	struct dnet_ext_list_hdr *hdr;	/* Extensions header */
 	uint64_t new_size;		/* Size of data without extensions */
 	void *new_data;			/* Data without extensions */
-	/* Shortcut */
 	static const size_t hdr_size = sizeof(struct dnet_ext_list_hdr);
 
 	/* Parameter checks */
@@ -446,6 +456,11 @@ int dnet_ext_list_combine(void **datap, uint64_t *sizep,
 	 * TODO: Combine all extensions
 	 */
 	if (elist->size != 0) {
+		free(new_data);
+		return -ENOTSUP;
+	}
+	if (elist->version <= DNET_EXT_VERSION_FIRST
+			|| elist->version >= DNET_EXT_VERSION_LAST) {
 		free(new_data);
 		return -ENOTSUP;
 	}

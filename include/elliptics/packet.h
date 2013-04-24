@@ -719,7 +719,7 @@ enum dnet_ext_free_data {
  */
 enum dnet_ext_versions {
 	DNET_EXT_VERSION_FIRST,
-	DNET_EXT_VERSION_V0,
+	DNET_EXT_VERSION_V1,
 	DNET_EXT_VERSION_LAST,
 };
 
@@ -734,7 +734,7 @@ struct dnet_ext_list_hdr {
 	struct dnet_time	timestamp;	/* Time stamp of record */
 	uint64_t		flags;		/* Custom flags for this record */
 	uint64_t		__pad2[2];	/* For future use (should be NULLed) */
-};
+} __attribute__ ((packed));
 
 /*! In-memory extension conatiner */
 struct dnet_ext_list {

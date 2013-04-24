@@ -22,7 +22,6 @@
 #include <sys/wait.h>
 
 #include <alloca.h>
-#include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -667,7 +666,7 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 		memcpy(position, data, dsize);
 	}
 
-	/* Finnaly run next callback */
+	/* Finally run next callback */
 	err = ipriv->next_callback(ipriv->next_private, combined, size);
 
 	/* Pass to next callback */
@@ -700,10 +699,8 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	/*
 	 * Sanity
 	 */
-
 	if (ireq == NULL || st == NULL || cmd == NULL)
 		return -EINVAL;
-
 	dnet_convert_iterator_request(ireq);
 	/* Check for rouge flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
@@ -767,7 +764,6 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		cpriv.next_callback = dnet_iterator_callback_send;
 		cpriv.next_private = &spriv;
 		break;
-		;;
 	case DNET_ITYPE_DISK:
 		memset(&fpriv, 0, sizeof(struct dnet_iterator_file_private));
 
@@ -783,11 +779,9 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		cpriv.next_callback = dnet_iterator_callback_file;
 		cpriv.next_private = &fpriv;
 		break;
-		;;
 	default:
-		/* Should not happen */
-		assert(0);
-		;;
+		err = -EINVAL;
+		goto err_out_exit;
 	}
 
 	err = st->n->cb->iterator(&ictl);
