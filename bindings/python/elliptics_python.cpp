@@ -778,10 +778,14 @@ BOOST_PYTHON_MODULE(elliptics) {
 	;
 
 	bp::class_<dnet_iterator_request>("IteratorRequest", bp::init<>())
-		.add_property("key_begin", dnet_iterator_request_get_key_begin, dnet_iterator_request_set_key_begin)
-		.add_property("key_end", dnet_iterator_request_get_key_end, dnet_iterator_request_set_key_end)
-		.add_property("time_begin", dnet_iterator_request_get_time_begin, dnet_iterator_request_set_time_begin)
-		.add_property("time_end", dnet_iterator_request_get_time_end, dnet_iterator_request_set_time_end)
+		.add_property("key_begin", dnet_iterator_request_get_key_begin,
+				dnet_iterator_request_set_key_begin)
+		.add_property("key_end", dnet_iterator_request_get_key_end,
+				dnet_iterator_request_set_key_end)
+		.add_property("time_begin", dnet_iterator_request_get_time_begin,
+				dnet_iterator_request_set_time_begin)
+		.add_property("time_end", dnet_iterator_request_get_time_end,
+				dnet_iterator_request_set_time_end)
 		.def_readwrite("action", &dnet_iterator_request::action)
 		.def_readwrite("id", &dnet_iterator_request::id)
 		.def_readwrite("flags", &dnet_iterator_request::flags)
