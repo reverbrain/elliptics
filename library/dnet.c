@@ -689,13 +689,34 @@ err_out_exit:
 static int dnet_iterator_set_state(struct dnet_node *n,
 		enum dnet_iterator_action action, uint64_t id)
 {
-	/* XXX: Lock list */
-	/* XXX: Lookup */
-	/* XXX: Lock iterator */
-	/* XXX: Change state */
-	/* XXX: Unlock iterator */
-	/* XXX: Unlock list */
+	struct dnet_iterator *it;
+	int err;
+
+	pthread_mutex_lock(&n->iterator_lock);
+
+	it = dnet_iterator_list_lookup_nolock(n, id);
+	if (it == NULL) {
+		err = -ENOENT;
+		goto err_out_unlock;
+	}
+
+	pthread_mutex_lock(&it->lock);
+
+	it->state = action;
+	if (action == DNET_ITERATOR_ACTION_CONT)
+		if ((err = pthread_cond_broadcast(&it->wait)) != 0)
+			goto err_out_unlock_it;
+
+	pthread_mutex_unlock(&it->lock);
+	pthread_mutex_unlock(&n->iterator_lock);
+
 	return 0;
+
+err_out_unlock_it:
+	pthread_mutex_unlock(&it->lock);
+err_out_unlock:
+	pthread_mutex_unlock(&n->iterator_lock);
+	return err;
 }
 
 static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_cmd *cmd,
@@ -807,6 +828,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 
 	/* XXX: Add iterator to the list of running */
 	err = st->n->cb->iterator(&ictl);
+
 	/* XXX: Remove iterator */
 
 err_out_exit:
@@ -831,7 +853,6 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	dnet_convert_iterator_request(ireq);
 
 	/*
-	 * XXX:
 	 * Check iterator action start/pause/cont
 	 * On pause, find in list and mark as stopped
 	 * On cont, find in list and mark as running, broadcast condition variable.
@@ -842,14 +863,7 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		err = dnet_iterator_start(st, cmd, ireq);
 		break;
 	case DNET_ITERATOR_ACTION_PAUSE:
-		err = dnet_iterator_set_state(st->n, ireq->action, ireq->id);
-		break;
 	case DNET_ITERATOR_ACTION_CONT:
-		err = dnet_iterator_set_state(st->n, ireq->action, ireq->id);
-		if (err != 0)
-			goto err_out_exit;
-		/* XXX: signal */
-		break;
 	case DNET_ITERATOR_ACTION_CANCEL:
 		err = dnet_iterator_set_state(st->n, ireq->action, ireq->id);
 		break;
@@ -1639,8 +1653,6 @@ void dnet_iterator_destroy(struct dnet_iterator *it)
 /* Adds iterator to the list of running iterators if it's not already there */
 int dnet_iterator_list_insert_nolock(struct dnet_node *n, struct dnet_iterator *it)
 {
-	struct dnet_iterator *pos;
-
 	/* Sanity */
 	if (n == NULL || it == NULL)
 		return -EINVAL;
@@ -1675,7 +1687,6 @@ struct dnet_iterator *dnet_iterator_list_lookup_nolock(struct dnet_node *n, uint
 /* Find next free id */
 uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n)
 {
-	struct dnet_iterator *it;
 	uint64_t next;
 	char found;
 
