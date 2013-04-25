@@ -668,15 +668,24 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 		memcpy(position, data, dsize);
 	}
 
-	/*
-	 * XXX: Check that we are allowed to run
-	 *
-	 * If state is 'paused' - sleep on condition variable.
-	 * If state is 'canceled' - exit with error.
-	 */
-
 	/* Finally run next callback */
 	err = ipriv->next_callback(ipriv->next_private, combined, size);
+
+	/*
+	 * Check that we are allowed to run
+	 *
+	 * While state is 'paused' - wait on condition variable.
+	 * If state is 'canceled' - exit with error.
+	 */
+	pthread_mutex_lock(&ipriv->it->lock);
+	while (ipriv->it->state == DNET_ITERATOR_ACTION_PAUSE) {
+		err = pthread_cond_wait(&ipriv->it->wait, &ipriv->it->lock);
+		if (ipriv->it->state == DNET_ITERATOR_ACTION_CONT)
+			ipriv->it->state = DNET_ITERATOR_ACTION_START;
+	}
+	if (ipriv->it->state == DNET_ITERATOR_ACTION_CANCEL)
+		err = -ENOEXEC;
+	pthread_mutex_unlock(&ipriv->it->lock);
 
 	/* Pass to next callback */
 	free(combined);
