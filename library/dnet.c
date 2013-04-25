@@ -1684,18 +1684,6 @@ struct dnet_iterator *dnet_iterator_list_lookup_nolock(struct dnet_node *n, uint
 	return NULL;
 }
 
-/* Find next free id */
-uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n)
-{
-	uint64_t next;
-	char found;
-
-	assert(n != NULL);
-	for (next = 0, found = 0; found == 0; ++next, found = 0)
-		if (dnet_iterator_list_lookup_nolock(n, next) == NULL)
-			return next;
-}
-
 /* Removes iterator from list by id */
 int dnet_iterator_list_remove(struct dnet_node *n, uint64_t id)
 {
@@ -1718,4 +1706,17 @@ int dnet_iterator_list_remove(struct dnet_node *n, uint64_t id)
 	pthread_mutex_unlock(&n->iterator_lock);
 
 	return -ENOENT;
+}
+
+/* Find next free id */
+uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n)
+{
+	uint64_t next;
+	char found;
+
+	assert(n != NULL);
+	for (next = 0, found = 0; found == 0; ++next, found = 0)
+		if (dnet_iterator_list_lookup_nolock(n, next) == NULL)
+			return next;
+	assert(0);
 }
