@@ -794,12 +794,12 @@ enum dnet_iterator_action {
 struct dnet_iterator_request
 {
 	uint64_t			id;		/* Iterator ID, for pause/cont/cancel */
-	enum dnet_iterator_action	action;		/* Action: start/pause/cont */
+	uint32_t			action;		/* Action: start/pause/cont, XXX: enum */
 	struct dnet_raw_id		key_begin;	/* Start key */
 	struct dnet_raw_id		key_end;	/* End key */
 	struct dnet_time		time_begin;	/* Start time */
 	struct dnet_time		time_end;	/* End time */
-	uint32_t			itype;		/* Which callback to use? Net/File/etc */
+	uint32_t			itype;		/* Callback to use: Net/File, XXX: enum */
 	uint64_t			flags;		/* DNET_IFLAGS_* */
 	uint64_t			reserved[5];
 } __attribute__ ((packed));
