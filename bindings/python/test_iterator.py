@@ -33,15 +33,18 @@ try:
         for result in iterator:
             try:
                 if result.status != 0:
-                    print "error: {0}".format(result.status)
+                    raise RuntimeError("Wrong status: {0}".format(result.status))
                 else:
                     print "key: {0}, flags: {1}, ts: {2}/{3}, data: {4}".format(result.key,
                             result.user_flags, result.timestamp.tsec, result.timestamp.tnsec,
                             result.response_data())
             except Exception as e:
-                print "Invalid element: {0}".format(e)
+                print "Invalid element"
+                raise e
     except Exception as e:
-        print "Iteration failed: {0}:".format(e)
+        print "Iteration failed"
+        raise e
 
-except Exception:
-    print "Unexpected error:", sys.exc_info()
+except Exception as e:
+    print "Unexpected error"
+    raise e
