@@ -747,6 +747,15 @@ static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_
 			return -ERANGE;
 		}
 	}
+	if (ireq->flags & DNET_IFLAGS_KEY_RANGE) {
+		const short id_len = 6, buf_sz = id_len * 2 + 1;
+		char buf1[buf_sz], buf2[buf_sz];
+
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: using key range: %s...%s\n",
+				dnet_dump_id(&cmd->id),
+				dnet_dump_id_len_raw(ireq->key_begin.id, id_len, buf1),
+				dnet_dump_id_len_raw(ireq->key_end.id, id_len, buf2));
+	}
 	return 0;
 }
 
@@ -769,6 +778,12 @@ static int dnet_iterator_check_ts_range(struct dnet_net_state *st, struct dnet_c
 			return -ERANGE;
 		}
 	}
+	if (ireq->flags & DNET_IFLAGS_TS_RANGE)
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: using ts range: "
+				"%" PRIu64 ":%" PRIu64 "...%" PRIu64 ":%" PRIu64 "\n",
+				dnet_dump_id(&cmd->id),
+				ireq->time_begin.tsec, ireq->time_begin.tnsec,
+				ireq->time_end.tsec, ireq->time_end.tnsec);
 	return 0;
 }
 
