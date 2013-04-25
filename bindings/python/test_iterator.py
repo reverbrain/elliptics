@@ -21,7 +21,8 @@ try:
     request = elliptics.IteratorRequest()
     request.action = elliptics.iterator_actions.start
     request.itype = elliptics.iterator_types.network
-    request.flags = elliptics.iterator_flags.key_range|elliptics.iterator_flags.ts_range
+    request.flags = elliptics.iterator_flags.key_range \
+        | elliptics.iterator_flags.ts_range | elliptics.iterator_flags.data
     request.key_begin = [0] * 64
     request.key_end = [255] * 64
     request.time_begin = elliptics.Time(0, 0)
