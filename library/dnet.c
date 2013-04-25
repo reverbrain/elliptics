@@ -809,7 +809,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	case DNET_ITYPE_DISK:
 		memset(&fpriv, 0, sizeof(struct dnet_iterator_file_private));
 
-		/* XXX: Use history, Use iterator id! */
+		/* XXX: Use mkstemps(3) and proper dir */
 		snprintf(iter_path, PATH_MAX, "iter/%s", dnet_dump_id(&cmd->id));
 		if ((fpriv.fd = open(iter_path, mode, 0644)) == -1) {
 			dnet_log(st->n, DNET_LOG_INFO, "%s: cmd: %u, can't open: %s: err: %d\n",
@@ -826,10 +826,22 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_exit;
 	}
 
-	/* XXX: Add iterator to the list of running */
-	err = st->n->cb->iterator(&ictl);
+	/* Create iterator */
+	cpriv.it = dnet_iterator_create(st->n);
+	if (cpriv.it == NULL) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
 
-	/* XXX: Remove iterator */
+	/* Run iterator */
+	err = st->n->cb->iterator(&ictl);
+	if (err != 0) {
+		dnet_iterator_destroy(st->n, cpriv.it);
+		goto err_out_exit;
+	}
+
+	/* Remove iterator */
+	dnet_iterator_destroy(st->n, cpriv.it);
 
 err_out_exit:
 	dnet_log(st->n, DNET_LOG_NOTICE, "%s: iteration finished: cmd: %u, err: %d\n",
@@ -856,7 +868,7 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	 * Check iterator action start/pause/cont
 	 * On pause, find in list and mark as stopped
 	 * On cont, find in list and mark as running, broadcast condition variable.
-	 * On start, all following code.....
+	 * On start, (surprise!) create and start iterator.
 	 */
 	switch (ireq->action) {
 	case DNET_ITERATOR_ACTION_START:
@@ -1642,7 +1654,7 @@ err_out_exit:
 }
 
 /* Destroy previously allocated iterator */
-void dnet_iterator_destroy(struct dnet_iterator *it)
+void dnet_iterator_free(struct dnet_iterator *it)
 {
 	if (it == NULL)
 		return;
@@ -1719,4 +1731,27 @@ uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n)
 		if (dnet_iterator_list_lookup_nolock(n, next) == NULL)
 			return next;
 	assert(0);
+}
+
+/* Creates iterator and adds it to list */
+struct dnet_iterator *dnet_iterator_create(struct dnet_node *n)
+{
+	struct dnet_iterator *it;
+	uint64_t id;
+
+	pthread_mutex_lock(&n->iterator_lock);
+	id = dnet_iterator_list_next_id_nolock(n);
+	it = dnet_iterator_alloc(id);
+	(void)dnet_iterator_list_insert_nolock(n, it);
+	pthread_mutex_unlock(&n->iterator_lock);
+
+	return it;
+}
+
+/* Remove iterator from list and free resources */
+void dnet_iterator_destroy(struct dnet_node *n, struct dnet_iterator *it)
+{
+	if (dnet_iterator_list_remove(n, it->id) != 0)
+		return; /* We leak iterator here! */
+	dnet_iterator_free(it);
 }

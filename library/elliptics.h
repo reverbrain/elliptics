@@ -790,11 +790,18 @@ struct dnet_iterator {
 /*
  * Public iterator API
  */
+struct dnet_iterator *dnet_iterator_create(struct dnet_node *n);
+void dnet_iterator_destroy(struct dnet_node *n, struct dnet_iterator *it);
+
+/*
+ * Low level iterator API
+ * TODO: make static?
+ */
 
 /* Allocate and init iterator */
 struct dnet_iterator *dnet_iterator_alloc(uint64_t id);
-/* Destroy previously allocated iterator */
-void dnet_iterator_destroy(struct dnet_iterator *it);
+/* Free previously allocated iterator */
+void dnet_iterator_free(struct dnet_iterator *it);
 /* Iterator list management routines */
 int dnet_iterator_list_insert_nolock(struct dnet_node *n, struct dnet_iterator *it);
 struct dnet_iterator *dnet_iterator_list_lookup_nolock(struct dnet_node *n, uint64_t id);
@@ -808,6 +815,7 @@ uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n);
  */
 struct dnet_iterator_common_private {
 	struct dnet_iterator_request	*req;		/* Original request */
+	struct dnet_iterator		*it;		/* Iterator control structure */
 	int				(*next_callback)(void *priv, void *data, uint64_t dsize);
 	void				*next_private;	/* One of predefined callbacks */
 };
