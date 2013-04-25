@@ -796,9 +796,11 @@ struct dnet_iterator *dnet_iterator_alloc(uint64_t id);
 /* Destroy previously allocated iterator */
 void dnet_iterator_destroy(struct dnet_iterator *it);
 /* Iterator list management routines */
-int dnet_iterator_list_insert(struct dnet_node *n, struct dnet_iterator *it);
+int dnet_iterator_list_insert_nolock(struct dnet_node *n, struct dnet_iterator *it);
 struct dnet_iterator *dnet_iterator_list_lookup_nolock(struct dnet_node *n, uint64_t id);
 int dnet_iterator_list_remove(struct dnet_node *n, uint64_t id);
+/* Misc routines */
+uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n);
 
 /*
  * Common private data:

@@ -22,6 +22,7 @@
 #include <sys/wait.h>
 
 #include <alloca.h>
+#include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <inttypes.h>
@@ -1636,7 +1637,7 @@ void dnet_iterator_destroy(struct dnet_iterator *it)
 }
 
 /* Adds iterator to the list of running iterators if it's not already there */
-int dnet_iterator_list_insert(struct dnet_node *n, struct dnet_iterator *it)
+int dnet_iterator_list_insert_nolock(struct dnet_node *n, struct dnet_iterator *it)
 {
 	struct dnet_iterator *pos;
 
@@ -1645,16 +1646,11 @@ int dnet_iterator_list_insert(struct dnet_node *n, struct dnet_iterator *it)
 		return -EINVAL;
 
 	/* Check that iterator not already in list */
-	pthread_mutex_lock(&n->iterator_lock);
-	list_for_each_entry(pos, &n->iterator_list, list) {
-		if (pos->id == it->id) {
-			pthread_mutex_unlock(&n->iterator_lock);
-			return -EEXIST;
-		}
-	}
+	if (dnet_iterator_list_lookup_nolock(n, it->id) != NULL)
+		return -EEXIST;
+
 	/* Add to list */
 	list_add(&it->list, &n->iterator_list);
-	pthread_mutex_unlock(&n->iterator_lock);
 
 	return 0;
 }
@@ -1662,25 +1658,37 @@ int dnet_iterator_list_insert(struct dnet_node *n, struct dnet_iterator *it)
 /* Looks up iterator in list by id */
 struct dnet_iterator *dnet_iterator_list_lookup_nolock(struct dnet_node *n, uint64_t id)
 {
-	struct dnet_iterator *pos;
+	struct dnet_iterator *it;
 
 	/* Sanity */
 	if (n == NULL)
 		return NULL;
 
 	/* Lookup iterator by id and return pointer */
-	list_for_each_entry(pos, &n->iterator_list, list) {
-		if (pos->id == id)
-			return pos;
-	}
+	list_for_each_entry(it, &n->iterator_list, list)
+		if (it->id == id)
+			return it;
 
 	return NULL;
+}
+
+/* Find next free id */
+uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n)
+{
+	struct dnet_iterator *it;
+	uint64_t next;
+	char found;
+
+	assert(n != NULL);
+	for (next = 0, found = 0; found == 0; ++next, found = 0)
+		if (dnet_iterator_list_lookup_nolock(n, next) == NULL)
+			return next;
 }
 
 /* Removes iterator from list by id */
 int dnet_iterator_list_remove(struct dnet_node *n, uint64_t id)
 {
-	struct dnet_iterator *pos;
+	struct dnet_iterator *it;
 
 	/* Sanity */
 	if (n == NULL)
@@ -1688,13 +1696,14 @@ int dnet_iterator_list_remove(struct dnet_node *n, uint64_t id)
 
 	/* Lookup iterator by id and remove */
 	pthread_mutex_lock(&n->iterator_lock);
-	list_for_each_entry(pos, &n->iterator_list, list) {
-		if (pos->id == id) {
-			list_del_init(&pos->list);
-			pthread_mutex_unlock(&n->iterator_lock);
-			return 0;
-		}
+
+	it = dnet_iterator_list_lookup_nolock(n, id);
+	if (it != NULL) {
+		list_del_init(&it->list);
+		pthread_mutex_unlock(&n->iterator_lock);
+		return 0;
 	}
+
 	pthread_mutex_unlock(&n->iterator_lock);
 
 	return -ENOENT;
