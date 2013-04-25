@@ -24,6 +24,7 @@
 #include <alloca.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -667,7 +668,7 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	}
 
 	/*
-	 * XXX: Check that we allowed to run
+	 * XXX: Check that we are allowed to run
 	 *
 	 * If state is 'paused' - sleep on condition variable.
 	 * If state is 'canceled' - exit with error.
@@ -683,12 +684,66 @@ err_out_exit:
 	return err;
 }
 
-/*!
- * Starts low-level backend iterator and passes data to network or file
- */
-static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+/* Sets state of iterator given it's id */
+static int dnet_iterator_set_state(struct dnet_node *n,
+		enum dnet_iterator_action action, uint64_t id)
 {
-	struct dnet_iterator_request *ireq = data;
+	/* XXX: Lock list */
+	/* XXX: Lookup */
+	/* XXX: Lock iterator */
+	/* XXX: Change state */
+	/* XXX: Unlock iterator */
+	/* XXX: Unlock list */
+	return 0;
+}
+
+static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_iterator_request *ireq)
+{
+	if (ireq->flags & DNET_IFLAGS_KEY_RANGE) {
+		struct dnet_raw_id empty_key = { .id = {} };
+		/* Unset DNET_IFLAGS_KEY_RANGE if both keys are empty */
+		if (memcmp(&empty_key, &ireq->key_begin, sizeof(struct dnet_raw_id)) == 0
+				&& memcmp(&empty_key, &ireq->key_end, sizeof(struct dnet_raw_id)) == 0) {
+			dnet_log(st->n, DNET_LOG_NOTICE, "%s: both keys are zero: cmd: %u\n",
+				dnet_dump_id(&cmd->id), cmd->cmd);
+			ireq->flags &= ~DNET_IFLAGS_KEY_RANGE;
+		}
+		/* Check that range is valid */
+		if (dnet_id_cmp_str(ireq->key_begin.id, ireq->key_end.id) > 0) {
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: key_start > key_begin: cmd: %u\n",
+				dnet_dump_id(&cmd->id), cmd->cmd);
+			return -ERANGE;
+		}
+	}
+	return 0;
+}
+
+static int dnet_iterator_check_ts_range(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_iterator_request *ireq)
+{
+	if (ireq->flags & DNET_IFLAGS_TS_RANGE) {
+		struct dnet_time empty_time = {0, 0};
+		/* Unset DNET_IFLAGS_KEY_RANGE if both times are empty */
+		if (memcmp(&empty_time, &ireq->time_begin, sizeof(struct dnet_time)) == 0
+				&& memcmp(&empty_time, &ireq->time_end, sizeof(struct dnet_time) == 0)) {
+			dnet_log(st->n, DNET_LOG_NOTICE, "%s: both times are zero: cmd: %u\n",
+				dnet_dump_id(&cmd->id), cmd->cmd);
+			ireq->flags &= ~DNET_IFLAGS_TS_RANGE;
+		}
+		/* Check that range is valid */
+		if (dnet_time_cmp(&ireq->time_begin, &ireq->time_end) > 0) {
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: time_begin > time_begin: cmd: %u\n",
+				dnet_dump_id(&cmd->id), cmd->cmd);
+			return -ERANGE;
+		}
+	}
+	return 0;
+}
+
+static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_iterator_request *ireq)
+{
 	struct dnet_iterator_common_private cpriv = {
 		.req = ireq,
 	};
@@ -700,23 +755,8 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	struct dnet_iterator_send_private spriv;
 	struct dnet_iterator_file_private fpriv;
 	static const int mode = O_WRONLY|O_APPEND|O_CLOEXEC|O_CREAT|O_TRUNC;
-	int err = 0;
+	int err;
 	char iter_path[PATH_MAX];
-
-	/*
-	 * Sanity
-	 */
-	if (ireq == NULL || st == NULL || cmd == NULL)
-		return -EINVAL;
-	dnet_convert_iterator_request(ireq);
-
-	/*
-	 * XXX:
-	 * Check iterator action start/pause/cont
-	 * On pause, find in list and mark as stopped
-	 * On cont, find in list and mark as running, broadcast condition variable.
-	 * On start, all following code.....
-	 */
 
 	/* Check for rouge flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
@@ -729,46 +769,10 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		goto err_out_exit;
 	}
 
-	/*
-	 * Range checks
-	 */
-
-	if (ireq->flags & DNET_IFLAGS_KEY_RANGE) {
-		struct dnet_raw_id empty_key;
-		memset(&empty_key, 0, sizeof(struct dnet_raw_id));
-		/* Unset DNET_IFLAGS_KEY_RANGE if both keys are empty */
-		if (memcmp(&empty_key, &ireq->key_begin, sizeof(struct dnet_raw_id)) == 0
-				&& memcmp(&empty_key, &ireq->key_end, sizeof(struct dnet_raw_id)) == 0) {
-			dnet_log(st->n, DNET_LOG_NOTICE, "%s: both keys are zero: cmd: %u\n",
-				dnet_dump_id(&cmd->id), cmd->cmd);
-			ireq->flags &= ~DNET_IFLAGS_KEY_RANGE;
-		}
-		/* Check that range is valid */
-		if (dnet_id_cmp_str(ireq->key_begin.id, ireq->key_end.id) > 0) {
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: key_start > key_begin: cmd: %u\n",
-				dnet_dump_id(&cmd->id), cmd->cmd);
-			err = -ERANGE;
-			goto err_out_exit;
-		}
-	}
-	if (ireq->flags & DNET_IFLAGS_TS_RANGE) {
-		struct dnet_time empty_time;
-		memset(&empty_time, 0, sizeof(struct dnet_time));
-		/* Unset DNET_IFLAGS_KEY_RANGE if both times are empty */
-		if (memcmp(&empty_time, &ireq->time_begin, sizeof(struct dnet_time)) == 0
-				&& memcmp(&empty_time, &ireq->time_end, sizeof(struct dnet_time) == 0)) {
-			dnet_log(st->n, DNET_LOG_NOTICE, "%s: both times are zero: cmd: %u\n",
-				dnet_dump_id(&cmd->id), cmd->cmd);
-			ireq->flags &= ~DNET_IFLAGS_TS_RANGE;
-		}
-		/* Check that range is valid */
-		if (dnet_time_cmp(&ireq->time_begin, &ireq->time_end) > 0) {
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: time_begin > time_begin: cmd: %u\n",
-				dnet_dump_id(&cmd->id), cmd->cmd);
-			err = -ERANGE;
-			goto err_out_exit;
-		}
-	}
+	/* Verify ranges */
+	if ((err = dnet_iterator_check_key_range(st, cmd, ireq)) ||
+			(err = dnet_iterator_check_ts_range(st, cmd, ireq)))
+		goto err_out_exit;
 
 	switch (ireq->itype) {
 	case DNET_ITYPE_NETWORK:
@@ -805,8 +809,58 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	/* XXX: Remove iterator */
 
 err_out_exit:
-	dnet_log(st->n, DNET_LOG_INFO, "%s: iteration finished: cmd: %u, err: %d\n",
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: iteration finished: cmd: %u, err: %d\n",
 		dnet_dump_id(&cmd->id), cmd->cmd, err);
+	return err;
+}
+
+/*!
+ * Starts low-level backend iterator and passes data to network or file
+ */
+static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+{
+	struct dnet_iterator_request *ireq = data;
+	int err = 0;
+
+	/*
+	 * Sanity
+	 */
+	if (ireq == NULL || st == NULL || cmd == NULL)
+		return -EINVAL;
+	dnet_convert_iterator_request(ireq);
+
+	/*
+	 * XXX:
+	 * Check iterator action start/pause/cont
+	 * On pause, find in list and mark as stopped
+	 * On cont, find in list and mark as running, broadcast condition variable.
+	 * On start, all following code.....
+	 */
+	switch (ireq->action) {
+	case DNET_ITERATOR_ACTION_START:
+		err = dnet_iterator_start(st, cmd, ireq);
+		break;
+	case DNET_ITERATOR_ACTION_PAUSE:
+		err = dnet_iterator_set_state(st->n, ireq->action, ireq->id);
+		break;
+	case DNET_ITERATOR_ACTION_CONT:
+		err = dnet_iterator_set_state(st->n, ireq->action, ireq->id);
+		if (err != 0)
+			goto err_out_exit;
+		/* XXX: signal */
+		break;
+	case DNET_ITERATOR_ACTION_CANCEL:
+		err = dnet_iterator_set_state(st->n, ireq->action, ireq->id);
+		break;
+	default:
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+err_out_exit:
+	dnet_log(st->n, DNET_LOG_NOTICE,
+			"%s: iteration id: %" PRIu64 ", action: %d, cmd: %u, err: %d\n",
+			dnet_dump_id(&cmd->id), ireq->id, ireq->action, cmd->cmd, err);
 	return err;
 }
 
@@ -1553,7 +1607,7 @@ struct dnet_iterator *dnet_iterator_alloc(uint64_t id)
 		goto err_out_exit;
 
 	it->id = id;
-	it->state = DNET_ITERATOR_CMD_START;
+	it->state = DNET_ITERATOR_ACTION_START;
 	INIT_LIST_HEAD(&it->list);
 	err = pthread_cond_init(&it->wait, NULL);
 	if (err != 0)
@@ -1616,9 +1670,8 @@ struct dnet_iterator *dnet_iterator_list_lookup_nolock(struct dnet_node *n, uint
 
 	/* Lookup iterator by id and return pointer */
 	list_for_each_entry(pos, &n->iterator_list, list) {
-		if (pos->id == id) {
+		if (pos->id == id)
 			return pos;
-		}
 	}
 
 	return NULL;

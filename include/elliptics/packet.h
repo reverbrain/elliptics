@@ -779,13 +779,13 @@ enum dnet_iterator_types {
 };
 
 /* Actions that can be passed to iterator */
-enum dnet_iterator_cmd {
-	DNET_ITERATOR_CMD_FIRST,	/* Sanity */
-	DNET_ITERATOR_CMD_START,	/* Start iterator */
-	DNET_ITERATOR_CMD_PAUSE,	/* Pause iterator */
-	DNET_ITERATOR_CMD_CONT,		/* Continue previously paused iterator */
-	DNET_ITERATOR_CMD_CANCEL,	/* Cancel running or paused iterator */
-	DNET_ITERATOR_CMD_LAST,		/* Sanity */
+enum dnet_iterator_action {
+	DNET_ITERATOR_ACTION_FIRST,	/* Sanity */
+	DNET_ITERATOR_ACTION_START,	/* Start iterator */
+	DNET_ITERATOR_ACTION_PAUSE,	/* Pause iterator */
+	DNET_ITERATOR_ACTION_CONT,	/* Continue previously paused iterator */
+	DNET_ITERATOR_ACTION_CANCEL,	/* Cancel running or paused iterator */
+	DNET_ITERATOR_ACTION_LAST,	/* Sanity */
 };
 
 /*
@@ -794,7 +794,7 @@ enum dnet_iterator_cmd {
 struct dnet_iterator_request
 {
 	uint64_t			id;		/* Iterator ID, for pause/cont/cancel */
-	enum dnet_iterator_cmd		action;		/* Action: start/pause/cont */
+	enum dnet_iterator_action	action;		/* Action: start/pause/cont */
 	struct dnet_raw_id		key_begin;	/* Start key */
 	struct dnet_raw_id		key_end;	/* End key */
 	struct dnet_time		time_begin;	/* Start time */

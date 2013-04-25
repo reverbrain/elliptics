@@ -781,7 +781,7 @@ int dnet_discovery(struct dnet_node *n);
  */
 struct dnet_iterator {
 	uint64_t			id;		/* Iterator's unique id */
-	enum dnet_iterator_cmd		state;		/* Desired state of iterator */
+	enum dnet_iterator_action	state;		/* Desired state of iterator */
 	struct list_head		list;		/* List of all iterators */
 	pthread_mutex_t			lock;		/* Lock for iterator manipulation */
 	pthread_cond_t			wait;		/* We wait here in case we stopped */
