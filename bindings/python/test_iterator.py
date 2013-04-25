@@ -19,10 +19,11 @@ try:
     s.add_groups([2])
 
     request = elliptics.IteratorRequest()
-    request.itype = 2                                   # Network
-    request.flags = 5                                   # With data and time ranges
-    #request.key_begin = [0] * 64
-    #request.key_end = [255] * 64
+    request.action = elliptics.iterator_actions.start
+    request.itype = elliptics.iterator_types.network
+    request.flags = elliptics.iterator_flags.key_range|elliptics.iterator_flags.ts_range
+    request.key_begin = [0] * 64
+    request.key_end = [255] * 64
     request.time_begin = elliptics.Time(0, 0)
     request.time_end = elliptics.Time(2**64-1, 2**64-1)
 

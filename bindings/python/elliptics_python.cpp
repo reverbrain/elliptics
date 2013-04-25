@@ -31,6 +31,25 @@ namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics {
 
+enum elliptics_iterator_actions {
+	action_start = DNET_ITERATOR_ACTION_START,
+	action_pause = DNET_ITERATOR_ACTION_PAUSE,
+	action_cont = DNET_ITERATOR_ACTION_CONT,
+	action_cancel = DNET_ITERATOR_ACTION_CANCEL,
+};
+
+enum elliptics_iterator_types {
+	itype_disk = DNET_ITYPE_DISK,
+	itype_network = DNET_ITYPE_NETWORK,
+};
+
+enum elliptics_iterator_flags {
+	iflag_default = 0,
+	iflag_data = DNET_IFLAGS_DATA,
+	iflag_key_range = DNET_IFLAGS_KEY_RANGE,
+	iflag_ts_range = DNET_IFLAGS_TS_RANGE,
+};
+
 enum elliptics_cflags {
 	cflags_default = 0,
 	cflags_direct = DNET_FLAGS_DIRECT,
@@ -904,6 +923,25 @@ BOOST_PYTHON_MODULE(elliptics) {
 
 		.def("bulk_read", &elliptics_session::bulk_read_by_name,
 			(bp::arg("keys"), bp::arg("raw") = false))
+	;
+
+	bp::enum_<elliptics_iterator_actions>("iterator_actions")
+		.value("start", action_start)
+		.value("pause", action_pause)
+		.value("cont", action_cont)
+		.value("cancel", action_cancel)
+	;
+
+	bp::enum_<elliptics_iterator_flags>("iterator_flags")
+		.value("default", iflag_default)
+		.value("data", iflag_data)
+		.value("key_range", iflag_key_range)
+		.value("ts_range", iflag_ts_range)
+	;
+
+	bp::enum_<elliptics_iterator_types>("iterator_types")
+		.value("disk", itype_disk)
+		.value("network", itype_network)
 	;
 
 	bp::enum_<elliptics_cflags>("command_flags")
