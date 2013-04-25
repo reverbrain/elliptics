@@ -844,8 +844,8 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	dnet_iterator_destroy(st->n, cpriv.it);
 
 err_out_exit:
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: iteration finished: cmd: %u, err: %d\n",
-		dnet_dump_id(&cmd->id), cmd->cmd, err);
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: iteration finished: err: %d\n",
+			__func__, dnet_dump_id(&cmd->id), err);
 	return err;
 }
 
@@ -863,6 +863,10 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	if (ireq == NULL || st == NULL || cmd == NULL)
 		return -EINVAL;
 	dnet_convert_iterator_request(ireq);
+
+	dnet_log(st->n, DNET_LOG_NOTICE,
+			"%s: started: %s: id: %" PRIu64 ", action: %d\n",
+			__func__, dnet_dump_id(&cmd->id), ireq->id, ireq->action);
 
 	/*
 	 * Check iterator action start/pause/cont
@@ -886,8 +890,8 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 
 err_out_exit:
 	dnet_log(st->n, DNET_LOG_NOTICE,
-			"%s: iteration id: %" PRIu64 ", action: %d, cmd: %u, err: %d\n",
-			dnet_dump_id(&cmd->id), ireq->id, ireq->action, cmd->cmd, err);
+			"%s: finished: %s: id: %" PRIu64 ", action: %d, err: %d\n",
+			__func__, dnet_dump_id(&cmd->id), ireq->id, ireq->action, err);
 	return err;
 }
 
