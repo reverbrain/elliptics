@@ -666,6 +666,13 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 		memcpy(position, data, dsize);
 	}
 
+	/*
+	 * XXX: Check that we allowed to run
+	 *
+	 * If state is 'paused' - sleep on condition variable.
+	 * If state is 'canceled' - exit with error.
+	 */
+
 	/* Finally run next callback */
 	err = ipriv->next_callback(ipriv->next_private, combined, size);
 
@@ -702,6 +709,15 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	if (ireq == NULL || st == NULL || cmd == NULL)
 		return -EINVAL;
 	dnet_convert_iterator_request(ireq);
+
+	/*
+	 * XXX:
+	 * Check iterator action start/pause/cont
+	 * On pause, find in list and mark as stopped
+	 * On cont, find in list and mark as running, broadcast condition variable.
+	 * On start, all following code.....
+	 */
+
 	/* Check for rouge flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
 		err = -ENOTSUP;
@@ -767,7 +783,7 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	case DNET_ITYPE_DISK:
 		memset(&fpriv, 0, sizeof(struct dnet_iterator_file_private));
 
-		/* XXX: Use history */
+		/* XXX: Use history, Use iterator id! */
 		snprintf(iter_path, PATH_MAX, "iter/%s", dnet_dump_id(&cmd->id));
 		if ((fpriv.fd = open(iter_path, mode, 0644)) == -1) {
 			dnet_log(st->n, DNET_LOG_INFO, "%s: cmd: %u, can't open: %s: err: %d\n",
@@ -784,7 +800,9 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		goto err_out_exit;
 	}
 
+	/* XXX: Add iterator to the list of running */
 	err = st->n->cb->iterator(&ictl);
+	/* XXX: Remove iterator */
 
 err_out_exit:
 	dnet_log(st->n, DNET_LOG_INFO, "%s: iteration finished: cmd: %u, err: %d\n",
@@ -1522,4 +1540,109 @@ int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size
 
 err_out_exit:
 	return err;
+}
+
+/* Allocate and init iterator */
+struct dnet_iterator *dnet_iterator_alloc(uint64_t id)
+{
+	struct dnet_iterator *it;
+	int err;
+
+	it = calloc(1, sizeof(struct dnet_iterator));
+	if (it == NULL)
+		goto err_out_exit;
+
+	it->id = id;
+	it->state = DNET_ITERATOR_CMD_START;
+	INIT_LIST_HEAD(&it->list);
+	err = pthread_cond_init(&it->wait, NULL);
+	if (err != 0)
+		goto err_out_free;
+	err = pthread_mutex_init(&it->lock, NULL);
+	if (err != 0)
+		goto err_out_destroy_cond;
+
+	return it;
+
+err_out_destroy_cond:
+	pthread_cond_destroy(&it->wait);
+err_out_free:
+	free(it);
+err_out_exit:
+	return NULL;
+}
+
+/* Destroy previously allocated iterator */
+void dnet_iterator_destroy(struct dnet_iterator *it)
+{
+	if (it == NULL)
+		return;
+	pthread_cond_destroy(&it->wait);
+	pthread_mutex_destroy(&it->lock);
+}
+
+/* Adds iterator to the list of running iterators if it's not already there */
+int dnet_iterator_list_insert(struct dnet_node *n, struct dnet_iterator *it)
+{
+	struct dnet_iterator *pos;
+
+	/* Sanity */
+	if (n == NULL || it == NULL)
+		return -EINVAL;
+
+	/* Check that iterator not already in list */
+	pthread_mutex_lock(&n->iterator_lock);
+	list_for_each_entry(pos, &n->iterator_list, list) {
+		if (pos->id == it->id) {
+			pthread_mutex_unlock(&n->iterator_lock);
+			return -EEXIST;
+		}
+	}
+	/* Add to list */
+	list_add(&it->list, &n->iterator_list);
+	pthread_mutex_unlock(&n->iterator_lock);
+
+	return 0;
+}
+
+/* Looks up iterator in list by id */
+struct dnet_iterator *dnet_iterator_list_lookup_nolock(struct dnet_node *n, uint64_t id)
+{
+	struct dnet_iterator *pos;
+
+	/* Sanity */
+	if (n == NULL)
+		return NULL;
+
+	/* Lookup iterator by id and return pointer */
+	list_for_each_entry(pos, &n->iterator_list, list) {
+		if (pos->id == id) {
+			return pos;
+		}
+	}
+
+	return NULL;
+}
+
+/* Removes iterator from list by id */
+int dnet_iterator_list_remove(struct dnet_node *n, uint64_t id)
+{
+	struct dnet_iterator *pos;
+
+	/* Sanity */
+	if (n == NULL)
+		return -EINVAL;
+
+	/* Lookup iterator by id and remove */
+	pthread_mutex_lock(&n->iterator_lock);
+	list_for_each_entry(pos, &n->iterator_list, list) {
+		if (pos->id == id) {
+			list_del_init(&pos->list);
+			pthread_mutex_unlock(&n->iterator_lock);
+			return 0;
+		}
+	}
+	pthread_mutex_unlock(&n->iterator_lock);
+
+	return -ENOENT;
 }
