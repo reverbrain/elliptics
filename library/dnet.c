@@ -911,7 +911,12 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_exit;
 	}
 
-	/* Run iterator */
+	/*
+	 * Run iterator
+	 *
+	 * XXX: Now that we have flow control we need some means to cancel
+	 * stale iterators on connection abort.
+	 */
 	err = st->n->cb->iterator(&ictl);
 	if (err != 0) {
 		dnet_iterator_destroy(st->n, cpriv.it);
