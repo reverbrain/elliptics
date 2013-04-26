@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  */
 
-#define _XOPEN_SOURCE 500
+#define _XOPEN_SOURCE 600
 
 #include <sys/types.h>
 #include <sys/stat.h>
