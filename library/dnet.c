@@ -624,11 +624,8 @@ static int dnet_iterator_flow_control(struct dnet_iterator_common_private *ipriv
 	int err = 0;
 
 	pthread_mutex_lock(&ipriv->it->lock);
-	while (ipriv->it->state == DNET_ITERATOR_ACTION_PAUSE) {
+	while (ipriv->it->state == DNET_ITERATOR_ACTION_PAUSE)
 		err = pthread_cond_wait(&ipriv->it->wait, &ipriv->it->lock);
-		if (ipriv->it->state == DNET_ITERATOR_ACTION_CONT)
-			ipriv->it->state = DNET_ITERATOR_ACTION_START;
-	}
 	if (ipriv->it->state == DNET_ITERATOR_ACTION_CANCEL)
 		err = -ENOEXEC;
 	pthread_mutex_unlock(&ipriv->it->lock);
@@ -715,6 +712,32 @@ err_out_exit:
 	return err;
 }
 
+/* Verify that this state transition is valid */
+static int dnet_iterator_verify_state(enum dnet_iterator_action from,
+		enum dnet_iterator_action to)
+{
+	/*
+	 * Allowed transitions:
+	 *	started	-> paused
+	 *	started -> canceled
+	 *	paused	-> started
+	 *	paused	-> canceled
+	 */
+	if (from == DNET_ITERATOR_ACTION_START &&
+			to == DNET_ITERATOR_ACTION_PAUSE)
+		return 0;
+	if (from == DNET_ITERATOR_ACTION_START &&
+			to == DNET_ITERATOR_ACTION_CANCEL)
+		return 0;
+	if (from == DNET_ITERATOR_ACTION_PAUSE &&
+			to == DNET_ITERATOR_ACTION_START)
+		return 0;
+	if (from == DNET_ITERATOR_ACTION_PAUSE &&
+			to == DNET_ITERATOR_ACTION_CANCEL)
+		return 0;
+	return 1;
+}
+
 /* Sets state of iterator given it's id */
 static int dnet_iterator_set_state(struct dnet_node *n,
 		enum dnet_iterator_action action, uint64_t id)
@@ -732,10 +755,21 @@ static int dnet_iterator_set_state(struct dnet_node *n,
 
 	pthread_mutex_lock(&it->lock);
 
-	it->state = action;
+	/* We don't want to have two different names for the same thing */
 	if (action == DNET_ITERATOR_ACTION_CONT)
+		action = DNET_ITERATOR_ACTION_START;
+
+	/* Check that transition is valid */
+	if ((err = dnet_iterator_verify_state(it->state, action)) != 0)
+		goto err_out_unlock_it;
+
+	/* Wake up iterator thread */
+	if (it->state == DNET_ITERATOR_ACTION_PAUSE)
 		if ((err = pthread_cond_broadcast(&it->wait)) != 0)
 			goto err_out_unlock_it;
+
+	/* Set iterator desired state */
+	it->state = action;
 
 	pthread_mutex_unlock(&it->lock);
 	pthread_mutex_unlock(&n->iterator_lock);
