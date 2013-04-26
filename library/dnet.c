@@ -613,6 +613,29 @@ static int dnet_iterator_callback_send(void *priv, void *data, uint64_t dsize)
 	return dnet_send_reply(send->st, send->cmd, data, dsize, 1);
 }
 
+/*!
+ * This routine decides whenever it's time for iterator to pause/cancel.
+ *
+ * While state is 'paused' - wait on condition variable.
+ * If state is 'canceled' - exit with error.
+ */
+static int dnet_iterator_flow_control(struct dnet_iterator_common_private *ipriv)
+{
+	int err = 0;
+
+	pthread_mutex_lock(&ipriv->it->lock);
+	while (ipriv->it->state == DNET_ITERATOR_ACTION_PAUSE) {
+		err = pthread_cond_wait(&ipriv->it->wait, &ipriv->it->lock);
+		if (ipriv->it->state == DNET_ITERATOR_ACTION_CONT)
+			ipriv->it->state = DNET_ITERATOR_ACTION_START;
+	}
+	if (ipriv->it->state == DNET_ITERATOR_ACTION_CANCEL)
+		err = -ENOEXEC;
+	pthread_mutex_unlock(&ipriv->it->lock);
+
+	return err;
+}
+
 static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 		void *data, uint64_t dsize, struct dnet_ext_list *elist)
 {
@@ -620,7 +643,7 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	struct dnet_iterator_response *response;
 	static const uint64_t response_size = sizeof(struct dnet_iterator_response);
 	uint64_t size;
-	unsigned char *combined, *position;
+	unsigned char *combined = NULL, *position;
 	int err = 0;
 
 	/* If DNET_IFLAGS_KEY_RANGE is set... */
@@ -670,27 +693,14 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 
 	/* Finally run next callback */
 	err = ipriv->next_callback(ipriv->next_private, combined, size);
+	if (err)
+		goto err_out_exit;
 
-	/*
-	 * Check that we are allowed to run
-	 *
-	 * While state is 'paused' - wait on condition variable.
-	 * If state is 'canceled' - exit with error.
-	 */
-	pthread_mutex_lock(&ipriv->it->lock);
-	while (ipriv->it->state == DNET_ITERATOR_ACTION_PAUSE) {
-		err = pthread_cond_wait(&ipriv->it->wait, &ipriv->it->lock);
-		if (ipriv->it->state == DNET_ITERATOR_ACTION_CONT)
-			ipriv->it->state = DNET_ITERATOR_ACTION_START;
-	}
-	if (ipriv->it->state == DNET_ITERATOR_ACTION_CANCEL)
-		err = -ENOEXEC;
-	pthread_mutex_unlock(&ipriv->it->lock);
-
-	/* Pass to next callback */
-	free(combined);
+	/* Check that we are allowed to run */
+	err = dnet_iterator_flow_control(ipriv);
 
 err_out_exit:
+	free(combined);
 	return err;
 }
 
