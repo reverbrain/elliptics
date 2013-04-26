@@ -636,6 +636,13 @@ static int dnet_iterator_flow_control(struct dnet_iterator_common_private *ipriv
 	return err;
 }
 
+/*!
+ * Common callback part that is run by all iterator types.
+ * It's responsible for sanity checks and flow control.
+ *
+ * Also now it "prepares" data for next callback by combining data itself with
+ * fixed-size response header.
+ */
 static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 		void *data, uint64_t dsize, struct dnet_ext_list *elist)
 {
@@ -645,6 +652,10 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	uint64_t size;
 	unsigned char *combined = NULL, *position;
 	int err = 0;
+
+	/* Sainity */
+	if (ipriv == NULL || key == NULL || data == NULL || elist == NULL)
+		return -EINVAL;
 
 	/* If DNET_IFLAGS_KEY_RANGE is set... */
 	if (ipriv->req->flags & DNET_IFLAGS_KEY_RANGE)
