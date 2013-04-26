@@ -45,7 +45,7 @@ static int hparser_region_match(struct dnet_history_entry *e,
 	return 0;
 }
 
-static void hparser_usage(const char *p)
+static void hparser_usage(const char *p, int rc)
 {
 	fprintf(stderr, "Usage: %s args\n", p);
 	fprintf(stderr, " -f file              - history file to parse\n"
@@ -53,7 +53,7 @@ static void hparser_usage(const char *p)
 			" -o offset            - offset of the region to highlight\n"
 			" -s size              - size of the region to highlight\n"
 			" -h                   - this help\n");
-	exit(-1);
+	exit(rc);
 }
 
 static void hparser_dump_history(struct dnet_history_map *m, unsigned long long offset,
@@ -87,7 +87,7 @@ static void hparser_dump_history(struct dnet_history_map *m, unsigned long long 
 int main(int argc, char *argv[])
 {
 	struct dnet_history_map m;
-	int err, ch;
+	int err = 0, ch;
 	char *file = NULL, *database = NULL;
 	unsigned long long offset, size;
 
@@ -108,13 +108,13 @@ int main(int argc, char *argv[])
 				database = optarg;
 				break;
 			case 'h':
-				hparser_usage(argv[0]);
+				hparser_usage(argv[0], 0);
 		}
 	}
 
 	if (!file && !database) {
 		fprintf(stderr, "You have to provide history file or database to parse.\n");
-		hparser_usage(argv[0]);
+		hparser_usage(argv[0], 1);
 	}
 
 	if (file) {
