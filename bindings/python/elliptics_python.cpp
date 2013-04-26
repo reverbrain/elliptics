@@ -764,20 +764,19 @@ BOOST_PYTHON_MODULE(elliptics) {
 	bp::register_exception_translator<error>(error_translator);
 	bp::register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
 
-	bp::class_<elliptics_id>("Id", bp::init<>())
-		.def(bp::init<bp::list, int, int>())
+	bp::class_<elliptics_id>("Id", bp::init<bp::list, int, int>())
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_readwrite("type", &elliptics_id::type)
 	;
 
-	bp::class_<elliptics_time>("Time", bp::init<>())
-		.def(bp::init<uint64_t, uint64_t>())
+	bp::class_<elliptics_time>("Time",
+			bp::init<uint64_t, uint64_t>(bp::args("tsec", "tnsec")))
 		.def_readwrite("tsec", &elliptics_time::m_tsec)
 		.def_readwrite("tnsec", &elliptics_time::m_tnsec)
 	;
 
-	bp::class_<dnet_iterator_request>("IteratorRequest", bp::init<>())
+	bp::class_<dnet_iterator_request>("IteratorRequest")
 		.add_property("key_begin", dnet_iterator_request_get_key_begin,
 				dnet_iterator_request_set_key_begin)
 		.add_property("key_end", dnet_iterator_request_get_key_end,
@@ -792,7 +791,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def_readwrite("itype", &dnet_iterator_request::itype)
 	;
 
-	bp::class_<iterator_result_entry>("IteratorResultEntry", bp::init<>())
+	bp::class_<iterator_result_entry>("IteratorResultEntry")
 		.add_property("id", &iterator_result_entry::id)
 		.add_property("status", &iterator_result_entry::status)
 		.add_property("key", iterator_result_get_key)
@@ -802,7 +801,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("response_data", iterator_result_response_data)
 	;
 
-	bp::class_<elliptics_range>("Range", bp::init<>())
+	bp::class_<elliptics_range>("Range")
 		.def_readwrite("start", &elliptics_range::start)
 		.def_readwrite("end", &elliptics_range::end)
 		.def_readwrite("offset", &elliptics_range::offset)
