@@ -135,38 +135,6 @@ class srw_log {
 		}
 };
 
-class dnet_sink_t: public cocaine::logging::logger_concept_t {
-	public:
-		dnet_sink_t(struct dnet_session *sess, cocaine::logging::priorities prio):
-		m_s(sess), m_prio(prio) {
-		}
-
-		virtual cocaine::logging::priorities verbosity() const {
-			return m_prio;
-		}
-
-		virtual void emit(cocaine::logging::priorities prio, const std::string &app, const std::string& message) {
-			int level = DNET_LOG_NOTICE;
-			if (prio == cocaine::logging::debug)
-				level = DNET_LOG_DEBUG;
-			if (prio == cocaine::logging::info)
-				level = DNET_LOG_INFO;
-			if (prio == cocaine::logging::warning)
-				level = DNET_LOG_INFO;
-			if (prio == cocaine::logging::error)
-				level = DNET_LOG_ERROR;
-			if (prio == cocaine::logging::ignore)
-				level = -1;
-
-			if (level != -1)
-				srw_log log(m_s, level, app, message);
-		}
-
-	private:
-		struct dnet_session *m_s;
-		cocaine::logging::priorities m_prio;
-};
-
 class dnet_upstream_t: public cocaine::api::stream_t
 {
 	public:
@@ -255,11 +223,58 @@ typedef std::map<std::string, std::shared_ptr<cocaine::app_t> > eng_map_t;
 typedef std::map<int, dnet_shared_upstream_t> jobs_map_t;
 
 namespace {
-	cocaine::logging::priorities dnet_log_level_to_prio(int level) {
-		cocaine::logging::priorities prio = (cocaine::logging::priorities)level;
-		return prio;
-	}
+       // INFO level has value 2 in elliptics and value 3 in cocaine,
+       // nevertheless we want to support unified sense of INFO across both systems,
+       // so we need to play with the mapping a bit.
+       //
+       // Specifically:
+       //  1) cocaine warning and info levels are both mapped into eliptics info level
+       //  2) elliptics notice level means cocaine info level
+
+       cocaine::logging::priorities dnet_log_level_to_prio(int level) {
+               cocaine::logging::priorities prio = (cocaine::logging::priorities)level;
+               // elliptics info level becomes cocaine warning level,
+               // so we must to level it up
+               if (prio == cocaine::logging::warning) {
+                       prio = cocaine::logging::info;
+               }
+               return prio;
+       }
+
+       int prio_to_dnet_log_level(cocaine::logging::priorities prio) {
+               int level = DNET_LOG_DATA;
+               if (prio == cocaine::logging::debug)
+                       level = DNET_LOG_DEBUG;
+               if (prio == cocaine::logging::info)
+                       level = DNET_LOG_INFO;
+               if (prio == cocaine::logging::warning)
+                       level = DNET_LOG_INFO;
+               if (prio == cocaine::logging::error)
+                       level = DNET_LOG_ERROR;
+               return level;
+       }
 }
+
+class dnet_sink_t: public cocaine::logging::logger_concept_t {
+	public:
+		dnet_sink_t(struct dnet_session *sess, cocaine::logging::priorities prio):
+		m_s(sess), m_prio(prio) {
+		}
+
+		virtual cocaine::logging::priorities verbosity() const {
+			return m_prio;
+		}
+
+		virtual void emit(cocaine::logging::priorities prio, const std::string &app, const std::string& message) {
+			int level = prio_to_dnet_log_level(prio);
+			if (level > 0)
+				srw_log log(m_s, level, app, message);
+		}
+
+	private:
+		struct dnet_session *m_s;
+		cocaine::logging::priorities m_prio;
+};
 
 class srw {
 	public:
