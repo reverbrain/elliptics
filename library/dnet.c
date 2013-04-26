@@ -825,18 +825,17 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	int err;
 	char iter_path[PATH_MAX];
 
-	/* Check for rouge flags */
+	/* Check flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
 		err = -ENOTSUP;
 		goto err_out_exit;
 	}
-	/* Check for valid callback */
+	/* Check callback type */
 	if (ireq->itype <= DNET_ITYPE_FIRST || ireq->itype >= DNET_ITYPE_LAST) {
 		err = -ENOTSUP;
 		goto err_out_exit;
 	}
-
-	/* Verify ranges */
+	/* Check ranges */
 	if ((err = dnet_iterator_check_key_range(st, cmd, ireq)) ||
 			(err = dnet_iterator_check_ts_range(st, cmd, ireq)))
 		goto err_out_exit;
