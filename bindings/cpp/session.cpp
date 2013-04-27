@@ -1027,7 +1027,7 @@ async_write_result session::write_plain(const key &id, const data_pointer &file,
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
 
-	memcpy(&ctl.id, &raw, sizeof(id));
+	memcpy(&ctl.id, &raw, sizeof(ctl.id));
 
 	ctl.fd = -1;
 

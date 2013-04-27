@@ -177,6 +177,7 @@ class iterator_result_entry : public callback_result_entry
 		data_pointer reply_data() const;
 
 		uint64_t user_flags() const;
+		uint64_t id() const;
 };
 
 typedef lookup_result_entry write_result_entry;

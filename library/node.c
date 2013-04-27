@@ -80,6 +80,7 @@ static struct dnet_node *dnet_node_alloc(struct dnet_config *cfg)
 	INIT_LIST_HEAD(&n->empty_state_list);
 	INIT_LIST_HEAD(&n->storage_state_list);
 	INIT_LIST_HEAD(&n->reconnect_list);
+	INIT_LIST_HEAD(&n->iterator_list);
 
 	INIT_LIST_HEAD(&n->check_entry);
 

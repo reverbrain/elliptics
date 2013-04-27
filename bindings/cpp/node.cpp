@@ -205,11 +205,11 @@ void node::add_remote(const char *orig_addr)
 
 	int err = dnet_parse_addr(const_cast<char *>(addr.c_str()), &port, &family);
 	if (err)
-		throw_error(err, "Failed to parse remote addr %s", addr.c_str());
+		throw_error(err, "Failed to parse remote addr %s", orig_addr);
 
 	err = dnet_add_state(m_data->node_ptr, const_cast<char *>(addr.c_str()), port, family, 0);
 	if (err)
-		throw_error(err, "Failed to add remote addr %s", addr.c_str());
+		throw_error(err, "Failed to add remote addr %s", orig_addr);
 }
 
 void node::set_timeouts(const int wait_timeout, const int check_timeout)

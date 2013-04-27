@@ -446,6 +446,15 @@ struct dnet_node
 	int			client_prio;
 
 	struct dnet_locks	*locks;
+	/*
+	 * List of dnet_iterator.
+	 * Used for iterator management e.g. pause/continue actions.
+	 */
+	struct list_head	iterator_list;
+	/*
+	 * Lock used for list management
+	 */
+	pthread_mutex_t		iterator_lock;
 
 	size_t			cache_size;
 	void			*cache;
@@ -768,11 +777,45 @@ int __attribute__((weak)) dnet_remove_local(struct dnet_node *n, struct dnet_id 
 int dnet_discovery(struct dnet_node *n);
 
 /*
+ * Internal iterator state
+ */
+struct dnet_iterator {
+	uint64_t			id;		/* Iterator's unique id */
+	enum dnet_iterator_action	state;		/* Desired state of iterator */
+	struct list_head		list;		/* List of all iterators */
+	pthread_mutex_t			lock;		/* Lock for iterator manipulation */
+	pthread_cond_t			wait;		/* We wait here in case we stopped */
+};
+
+/*
+ * Public iterator API
+ */
+struct dnet_iterator *dnet_iterator_create(struct dnet_node *n);
+void dnet_iterator_destroy(struct dnet_node *n, struct dnet_iterator *it);
+
+/*
+ * Low level iterator API
+ * TODO: make static?
+ */
+
+/* Allocate and init iterator */
+struct dnet_iterator *dnet_iterator_alloc(uint64_t id);
+/* Free previously allocated iterator */
+void dnet_iterator_free(struct dnet_iterator *it);
+/* Iterator list management routines */
+int dnet_iterator_list_insert_nolock(struct dnet_node *n, struct dnet_iterator *it);
+struct dnet_iterator *dnet_iterator_list_lookup_nolock(struct dnet_node *n, uint64_t id);
+int dnet_iterator_list_remove(struct dnet_node *n, uint64_t id);
+/* Misc routines */
+uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n);
+
+/*
  * Common private data:
  * Request + next callback and it's argument.
  */
 struct dnet_iterator_common_private {
 	struct dnet_iterator_request	*req;		/* Original request */
+	struct dnet_iterator		*it;		/* Iterator control structure */
 	int				(*next_callback)(void *priv, void *data, uint64_t dsize);
 	void				*next_private;	/* One of predefined callbacks */
 };
