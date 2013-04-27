@@ -445,7 +445,9 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	if (err)
 		goto err_out_free_buf;
 
+#ifdef HAVE_MODULE_BACKEND_SUPPORT
 	err = dnet_module_backend_init();
+#endif
 	if (err)
 		goto err_out_file_exit;
  
@@ -455,9 +457,10 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 
 #ifdef HAVE_LEVELDB_SUPPORT
 	err = dnet_leveldb_backend_init();
-	if (err)
-		goto err_out_smack_exit;
 #endif
+	if (err)
+		goto err_out_eblob_exit;
+
 	while (1) {
 		ptr = fgets(buf, buf_size, f);
 		if (!ptr) {
@@ -587,11 +590,13 @@ err_out_free:
 
 #ifdef HAVE_LEVELDB_SUPPORT
 	dnet_leveldb_backend_exit();
-err_out_smack_exit:
 #endif
+err_out_eblob_exit:
 	dnet_eblob_backend_exit();
 err_out_module_exit:
+#ifdef HAVE_MODULE_BACKEND_SUPPORT
 	dnet_module_backend_exit();
+#endif
 err_out_file_exit:
 	dnet_file_backend_exit();
 err_out_free_buf:

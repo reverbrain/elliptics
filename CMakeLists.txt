@@ -17,6 +17,7 @@ option(WITH_PYTHON "Build python bindings" ON)
 option(WITH_COCAINE "Build with cocaine support" ON)
 option(WITH_EXAMPLES "Build example applications" ON)
 option(WITH_LEVELDB "Build ioserv with LevelDB backend" ON)
+option(HAVE_MODULE_BACKEND_SUPPORT "Build ioserv with shared library backend support" OFF)
 
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
 
