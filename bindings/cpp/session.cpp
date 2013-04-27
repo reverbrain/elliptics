@@ -180,13 +180,14 @@ exec_context exec_context::from_raw(const void *const_data, size_t size)
 exec_context exec_context::parse(const data_pointer &data, error_info *error)
 {
 	if (data.size() < sizeof(sph)) {
-		*error = create_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
+		*error = create_error(-EINVAL, "Invalid exec_context size: %zu, must be more than sph: %zu", data.size(), sizeof(sph));
 		return exec_context();
 	}
 
 	sph *s = data.data<sph>();
 	if (data.size() != sizeof(sph) + s->event_size + s->data_size) {
-		*error = create_error(-EINVAL, "Invalid exec_context size: %zu", data.size());
+		*error = create_error(-EINVAL, "Invalid exec_context size: %zu, must be equal to sph+event_size+data_size: %ld",
+				data.size(), sizeof(sph) + s->event_size + s->data_size);
 		return exec_context();
 	}
 
