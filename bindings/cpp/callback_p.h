@@ -849,7 +849,7 @@ class iterator_callback
 			memset(&ctl, 0, sizeof(ctl));
 			memcpy(&ctl.id, &id, sizeof(id));
 			ctl.id.group_id = sess.get_groups().front();
-			ctl.cflags = sess.get_cflags() | DNET_FLAGS_NEED_ACK;
+			ctl.cflags = sess.get_cflags() | DNET_FLAGS_NEED_ACK | DNET_FLAGS_NOLOCK;
 			ctl.cmd = DNET_CMD_ITERATOR;
 			ctl.complete = func;
 			ctl.priv = priv;

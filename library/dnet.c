@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  */
 
-#define _XOPEN_SOURCE 500
+#define _XOPEN_SOURCE 600
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -22,8 +22,10 @@
 #include <sys/wait.h>
 
 #include <alloca.h>
+#include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -611,6 +613,33 @@ static int dnet_iterator_callback_send(void *priv, void *data, uint64_t dsize)
 	return dnet_send_reply(send->st, send->cmd, data, dsize, 1);
 }
 
+/*!
+ * This routine decides whenever it's time for iterator to pause/cancel.
+ *
+ * While state is 'paused' - wait on condition variable.
+ * If state is 'canceled' - exit with error.
+ */
+static int dnet_iterator_flow_control(struct dnet_iterator_common_private *ipriv)
+{
+	int err = 0;
+
+	pthread_mutex_lock(&ipriv->it->lock);
+	while (ipriv->it->state == DNET_ITERATOR_ACTION_PAUSE)
+		err = pthread_cond_wait(&ipriv->it->wait, &ipriv->it->lock);
+	if (ipriv->it->state == DNET_ITERATOR_ACTION_CANCEL)
+		err = -ENOEXEC;
+	pthread_mutex_unlock(&ipriv->it->lock);
+
+	return err;
+}
+
+/*!
+ * Common callback part that is run by all iterator types.
+ * It's responsible for sanity checks and flow control.
+ *
+ * Also now it "prepares" data for next callback by combining data itself with
+ * fixed-size response header.
+ */
 static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 		void *data, uint64_t dsize, struct dnet_ext_list *elist)
 {
@@ -618,8 +647,12 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	struct dnet_iterator_response *response;
 	static const uint64_t response_size = sizeof(struct dnet_iterator_response);
 	uint64_t size;
-	unsigned char *combined, *position;
+	unsigned char *combined = NULL, *position;
 	int err = 0;
+
+	/* Sainity */
+	if (ipriv == NULL || key == NULL || data == NULL || elist == NULL)
+		return -EINVAL;
 
 	/* If DNET_IFLAGS_KEY_RANGE is set... */
 	if (ipriv->req->flags & DNET_IFLAGS_KEY_RANGE)
@@ -668,58 +701,93 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 
 	/* Finally run next callback */
 	err = ipriv->next_callback(ipriv->next_private, combined, size);
+	if (err)
+		goto err_out_exit;
 
-	/* Pass to next callback */
-	free(combined);
+	/* Check that we are allowed to run */
+	err = dnet_iterator_flow_control(ipriv);
 
 err_out_exit:
+	free(combined);
 	return err;
 }
 
-/*!
- * Starts low-level backend iterator and passes data to network or file
- */
-static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+/* Verify that this state transition is valid */
+static int dnet_iterator_verify_state(enum dnet_iterator_action from,
+		enum dnet_iterator_action to)
 {
-	struct dnet_iterator_request *ireq = data;
-	struct dnet_iterator_common_private cpriv = {
-		.req = ireq,
-	};
-	struct dnet_iterator_ctl ictl = {
-		.iterate_private = st->n->cb->command_private,
-		.callback = dnet_iterator_callback_common,
-		.callback_private = &cpriv,
-	};
-	struct dnet_iterator_send_private spriv;
-	struct dnet_iterator_file_private fpriv;
-	static const int mode = O_WRONLY|O_APPEND|O_CLOEXEC|O_CREAT|O_TRUNC;
-	int err = 0;
-	char iter_path[PATH_MAX];
-
 	/*
-	 * Sanity
+	 * Allowed transitions:
+	 *	started	-> paused
+	 *	started -> canceled
+	 *	paused	-> started
+	 *	paused	-> canceled
 	 */
-	if (ireq == NULL || st == NULL || cmd == NULL)
-		return -EINVAL;
-	dnet_convert_iterator_request(ireq);
-	/* Check for rouge flags */
-	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
-		err = -ENOTSUP;
-		goto err_out_exit;
-	}
-	/* Check for valid callback */
-	if (ireq->itype <= DNET_ITYPE_FIRST || ireq->itype >= DNET_ITYPE_LAST) {
-		err = -ENOTSUP;
-		goto err_out_exit;
+	if (from == DNET_ITERATOR_ACTION_START &&
+			to == DNET_ITERATOR_ACTION_PAUSE)
+		return 0;
+	if (from == DNET_ITERATOR_ACTION_START &&
+			to == DNET_ITERATOR_ACTION_CANCEL)
+		return 0;
+	if (from == DNET_ITERATOR_ACTION_PAUSE &&
+			to == DNET_ITERATOR_ACTION_START)
+		return 0;
+	if (from == DNET_ITERATOR_ACTION_PAUSE &&
+			to == DNET_ITERATOR_ACTION_CANCEL)
+		return 0;
+	return 1;
+}
+
+/* Sets state of iterator given it's id */
+static int dnet_iterator_set_state(struct dnet_node *n,
+		enum dnet_iterator_action action, uint64_t id)
+{
+	struct dnet_iterator *it;
+	int err;
+
+	pthread_mutex_lock(&n->iterator_lock);
+
+	it = dnet_iterator_list_lookup_nolock(n, id);
+	if (it == NULL) {
+		err = -ENOENT;
+		goto err_out_unlock;
 	}
 
-	/*
-	 * Range checks
-	 */
+	pthread_mutex_lock(&it->lock);
 
+	/* We don't want to have two different names for the same thing */
+	if (action == DNET_ITERATOR_ACTION_CONT)
+		action = DNET_ITERATOR_ACTION_START;
+
+	/* Check that transition is valid */
+	if ((err = dnet_iterator_verify_state(it->state, action)) != 0)
+		goto err_out_unlock_it;
+
+	/* Wake up iterator thread */
+	if (it->state == DNET_ITERATOR_ACTION_PAUSE)
+		if ((err = pthread_cond_broadcast(&it->wait)) != 0)
+			goto err_out_unlock_it;
+
+	/* Set iterator desired state */
+	it->state = action;
+
+	pthread_mutex_unlock(&it->lock);
+	pthread_mutex_unlock(&n->iterator_lock);
+
+	return 0;
+
+err_out_unlock_it:
+	pthread_mutex_unlock(&it->lock);
+err_out_unlock:
+	pthread_mutex_unlock(&n->iterator_lock);
+	return err;
+}
+
+static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_iterator_request *ireq)
+{
 	if (ireq->flags & DNET_IFLAGS_KEY_RANGE) {
-		struct dnet_raw_id empty_key;
-		memset(&empty_key, 0, sizeof(struct dnet_raw_id));
+		struct dnet_raw_id empty_key = { .id = {} };
 		/* Unset DNET_IFLAGS_KEY_RANGE if both keys are empty */
 		if (memcmp(&empty_key, &ireq->key_begin, sizeof(struct dnet_raw_id)) == 0
 				&& memcmp(&empty_key, &ireq->key_end, sizeof(struct dnet_raw_id)) == 0) {
@@ -731,13 +799,26 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		if (dnet_id_cmp_str(ireq->key_begin.id, ireq->key_end.id) > 0) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: key_start > key_begin: cmd: %u\n",
 				dnet_dump_id(&cmd->id), cmd->cmd);
-			err = -ERANGE;
-			goto err_out_exit;
+			return -ERANGE;
 		}
 	}
+	if (ireq->flags & DNET_IFLAGS_KEY_RANGE) {
+		const short id_len = 6, buf_sz = id_len * 2 + 1;
+		char buf1[buf_sz], buf2[buf_sz];
+
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: using key range: %s...%s\n",
+				dnet_dump_id(&cmd->id),
+				dnet_dump_id_len_raw(ireq->key_begin.id, id_len, buf1),
+				dnet_dump_id_len_raw(ireq->key_end.id, id_len, buf2));
+	}
+	return 0;
+}
+
+static int dnet_iterator_check_ts_range(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_iterator_request *ireq)
+{
 	if (ireq->flags & DNET_IFLAGS_TS_RANGE) {
-		struct dnet_time empty_time;
-		memset(&empty_time, 0, sizeof(struct dnet_time));
+		struct dnet_time empty_time = {0, 0};
 		/* Unset DNET_IFLAGS_KEY_RANGE if both times are empty */
 		if (memcmp(&empty_time, &ireq->time_begin, sizeof(struct dnet_time)) == 0
 				&& memcmp(&empty_time, &ireq->time_end, sizeof(struct dnet_time) == 0)) {
@@ -749,10 +830,49 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		if (dnet_time_cmp(&ireq->time_begin, &ireq->time_end) > 0) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: time_begin > time_begin: cmd: %u\n",
 				dnet_dump_id(&cmd->id), cmd->cmd);
-			err = -ERANGE;
-			goto err_out_exit;
+			return -ERANGE;
 		}
 	}
+	if (ireq->flags & DNET_IFLAGS_TS_RANGE)
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: using ts range: "
+				"%" PRIu64 ":%" PRIu64 "...%" PRIu64 ":%" PRIu64 "\n",
+				dnet_dump_id(&cmd->id),
+				ireq->time_begin.tsec, ireq->time_begin.tnsec,
+				ireq->time_end.tsec, ireq->time_end.tnsec);
+	return 0;
+}
+
+static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
+		struct dnet_iterator_request *ireq)
+{
+	struct dnet_iterator_common_private cpriv = {
+		.req = ireq,
+	};
+	struct dnet_iterator_ctl ictl = {
+		.iterate_private = st->n->cb->command_private,
+		.callback = dnet_iterator_callback_common,
+		.callback_private = &cpriv,
+	};
+	struct dnet_iterator_send_private spriv;
+	struct dnet_iterator_file_private fpriv;
+	static const int mode = O_WRONLY|O_APPEND|O_CLOEXEC|O_CREAT|O_TRUNC;
+	int err;
+	char iter_path[PATH_MAX];
+
+	/* Check flags */
+	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
+		err = -ENOTSUP;
+		goto err_out_exit;
+	}
+	/* Check callback type */
+	if (ireq->itype <= DNET_ITYPE_FIRST || ireq->itype >= DNET_ITYPE_LAST) {
+		err = -ENOTSUP;
+		goto err_out_exit;
+	}
+	/* Check ranges */
+	if ((err = dnet_iterator_check_key_range(st, cmd, ireq)) ||
+			(err = dnet_iterator_check_ts_range(st, cmd, ireq)))
+		goto err_out_exit;
 
 	switch (ireq->itype) {
 	case DNET_ITYPE_NETWORK:
@@ -767,7 +887,7 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	case DNET_ITYPE_DISK:
 		memset(&fpriv, 0, sizeof(struct dnet_iterator_file_private));
 
-		/* XXX: Use history */
+		/* XXX: Use mkstemps(3) and proper dir */
 		snprintf(iter_path, PATH_MAX, "iter/%s", dnet_dump_id(&cmd->id));
 		if ((fpriv.fd = open(iter_path, mode, 0644)) == -1) {
 			dnet_log(st->n, DNET_LOG_INFO, "%s: cmd: %u, can't open: %s: err: %d\n",
@@ -784,11 +904,77 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		goto err_out_exit;
 	}
 
+	/* Create iterator */
+	cpriv.it = dnet_iterator_create(st->n);
+	if (cpriv.it == NULL) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	/*
+	 * Run iterator
+	 *
+	 * XXX: Now that we have flow control we need some means to cancel
+	 * stale iterators on connection abort.
+	 */
 	err = st->n->cb->iterator(&ictl);
+	if (err != 0) {
+		dnet_iterator_destroy(st->n, cpriv.it);
+		goto err_out_exit;
+	}
+
+	/* Remove iterator */
+	dnet_iterator_destroy(st->n, cpriv.it);
 
 err_out_exit:
-	dnet_log(st->n, DNET_LOG_INFO, "%s: iteration finished: cmd: %u, err: %d\n",
-		dnet_dump_id(&cmd->id), cmd->cmd, err);
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: iteration finished: err: %d\n",
+			__func__, dnet_dump_id(&cmd->id), err);
+	return err;
+}
+
+/*!
+ * Starts low-level backend iterator and passes data to network or file
+ */
+static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+{
+	struct dnet_iterator_request *ireq = data;
+	int err = 0;
+
+	/*
+	 * Sanity
+	 */
+	if (ireq == NULL || st == NULL || cmd == NULL)
+		return -EINVAL;
+	dnet_convert_iterator_request(ireq);
+
+	dnet_log(st->n, DNET_LOG_NOTICE,
+			"%s: started: %s: id: %" PRIu64 ", action: %d\n",
+			__func__, dnet_dump_id(&cmd->id), ireq->id, ireq->action);
+
+	/*
+	 * Check iterator action start/pause/cont
+	 * On pause, find in list and mark as stopped
+	 * On cont, find in list and mark as running, broadcast condition variable.
+	 * On start, (surprise!) create and start iterator.
+	 */
+	switch (ireq->action) {
+	case DNET_ITERATOR_ACTION_START:
+		err = dnet_iterator_start(st, cmd, ireq);
+		break;
+	case DNET_ITERATOR_ACTION_PAUSE:
+	case DNET_ITERATOR_ACTION_CONT:
+	case DNET_ITERATOR_ACTION_CANCEL:
+		err = dnet_iterator_set_state(st->n, ireq->action, ireq->id);
+		break;
+	default:
+		err = -EINVAL;
+		goto err_out_exit;
+	}
+
+err_out_exit:
+	dnet_log(st->n, DNET_LOG_NOTICE,
+			"%s: finished: %s: id: %" PRIu64 ", action: %d, err: %d\n",
+			__func__, dnet_dump_id(&cmd->id), ireq->id, ireq->action, err);
 	return err;
 }
 
@@ -1522,4 +1708,137 @@ int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size
 
 err_out_exit:
 	return err;
+}
+
+/* Allocate and init iterator */
+struct dnet_iterator *dnet_iterator_alloc(uint64_t id)
+{
+	struct dnet_iterator *it;
+	int err;
+
+	it = calloc(1, sizeof(struct dnet_iterator));
+	if (it == NULL)
+		goto err_out_exit;
+
+	it->id = id;
+	it->state = DNET_ITERATOR_ACTION_START;
+	INIT_LIST_HEAD(&it->list);
+	err = pthread_cond_init(&it->wait, NULL);
+	if (err != 0)
+		goto err_out_free;
+	err = pthread_mutex_init(&it->lock, NULL);
+	if (err != 0)
+		goto err_out_destroy_cond;
+
+	return it;
+
+err_out_destroy_cond:
+	pthread_cond_destroy(&it->wait);
+err_out_free:
+	free(it);
+err_out_exit:
+	return NULL;
+}
+
+/* Destroy previously allocated iterator */
+void dnet_iterator_free(struct dnet_iterator *it)
+{
+	if (it == NULL)
+		return;
+	pthread_cond_destroy(&it->wait);
+	pthread_mutex_destroy(&it->lock);
+}
+
+/* Adds iterator to the list of running iterators if it's not already there */
+int dnet_iterator_list_insert_nolock(struct dnet_node *n, struct dnet_iterator *it)
+{
+	/* Sanity */
+	if (n == NULL || it == NULL)
+		return -EINVAL;
+
+	/* Check that iterator not already in list */
+	if (dnet_iterator_list_lookup_nolock(n, it->id) != NULL)
+		return -EEXIST;
+
+	/* Add to list */
+	list_add(&it->list, &n->iterator_list);
+
+	return 0;
+}
+
+/* Looks up iterator in list by id */
+struct dnet_iterator *dnet_iterator_list_lookup_nolock(struct dnet_node *n, uint64_t id)
+{
+	struct dnet_iterator *it;
+
+	/* Sanity */
+	if (n == NULL)
+		return NULL;
+
+	/* Lookup iterator by id and return pointer */
+	list_for_each_entry(it, &n->iterator_list, list)
+		if (it->id == id)
+			return it;
+
+	return NULL;
+}
+
+/* Removes iterator from list by id */
+int dnet_iterator_list_remove(struct dnet_node *n, uint64_t id)
+{
+	struct dnet_iterator *it;
+
+	/* Sanity */
+	if (n == NULL)
+		return -EINVAL;
+
+	/* Lookup iterator by id and remove */
+	pthread_mutex_lock(&n->iterator_lock);
+
+	it = dnet_iterator_list_lookup_nolock(n, id);
+	if (it != NULL) {
+		list_del_init(&it->list);
+		pthread_mutex_unlock(&n->iterator_lock);
+		return 0;
+	}
+
+	pthread_mutex_unlock(&n->iterator_lock);
+
+	return -ENOENT;
+}
+
+/* Find next free id */
+uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n)
+{
+	uint64_t next;
+	char found;
+
+	assert(n != NULL);
+	for (next = 0, found = 0; found == 0; ++next, found = 0)
+		if (dnet_iterator_list_lookup_nolock(n, next) == NULL)
+			return next;
+	assert(0);
+}
+
+/* Creates iterator and adds it to list */
+struct dnet_iterator *dnet_iterator_create(struct dnet_node *n)
+{
+	struct dnet_iterator *it;
+	uint64_t id;
+
+	pthread_mutex_lock(&n->iterator_lock);
+	id = dnet_iterator_list_next_id_nolock(n);
+	it = dnet_iterator_alloc(id);
+	(void)dnet_iterator_list_insert_nolock(n, it);
+	pthread_mutex_unlock(&n->iterator_lock);
+
+	return it;
+}
+
+/* Remove iterator from list and free resources */
+void dnet_iterator_destroy(struct dnet_node *n, struct dnet_iterator *it)
+{
+	if (dnet_iterator_list_remove(n, it->id) != 0)
+		return; /* We leak iterator here! */
+	dnet_iterator_free(it);
 }

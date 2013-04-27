@@ -778,19 +778,29 @@ enum dnet_iterator_types {
 	DNET_ITYPE_LAST,		/* Sanity */
 };
 
+/* Actions that can be passed to iterator */
+enum dnet_iterator_action {
+	DNET_ITERATOR_ACTION_FIRST,	/* Sanity */
+	DNET_ITERATOR_ACTION_START,	/* Start iterator */
+	DNET_ITERATOR_ACTION_PAUSE,	/* Pause iterator */
+	DNET_ITERATOR_ACTION_CONT,	/* Continue previously paused iterator */
+	DNET_ITERATOR_ACTION_CANCEL,	/* Cancel running or paused iterator */
+	DNET_ITERATOR_ACTION_LAST,	/* Sanity */
+};
+
 /*
  * Iteration request
  */
 struct dnet_iterator_request
 {
-	uint32_t			action;		/* Action: start/pause/cont */
+	uint64_t			id;		/* Iterator ID, for pause/cont/cancel */
+	uint32_t			action;		/* Action: start/pause/cont, XXX: enum */
 	struct dnet_raw_id		key_begin;	/* Start key */
 	struct dnet_raw_id		key_end;	/* End key */
 	struct dnet_time		time_begin;	/* Start time */
 	struct dnet_time		time_end;	/* End time */
-	uint32_t			itype;		/* Which callback to use? Net/File/etc */
+	uint32_t			itype;		/* Callback to use: Net/File, XXX: enum */
 	uint64_t			flags;		/* DNET_IFLAGS_* */
-	uint64_t			id;		/* Command ID */
 	uint64_t			reserved[5];
 } __attribute__ ((packed));
 
@@ -806,10 +816,11 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 
 /*
  * Iterator response
- * TODO: Maybe it's better to include whole ehdr into response
+ * TODO: Maybe it's better to include whole ehdr in response
  */
 struct dnet_iterator_response
 {
+	uint64_t			id;		/* Iterator ID, for pause/cont/cancel */
 	struct dnet_raw_id		key;		/* Response key */
 	int				status;		/* Response status */
 	struct dnet_time		timestamp;	/* Timestamp from extended header */

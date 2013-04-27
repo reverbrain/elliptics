@@ -13,7 +13,7 @@
  * GNU General Public License for more details.
  */
 
-#define _XOPEN_SOURCE 500
+#define _XOPEN_SOURCE 600
 #define __STDC_FORMAT_MACROS
 
 #include <sys/types.h>

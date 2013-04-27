@@ -31,6 +31,25 @@ namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics {
 
+enum elliptics_iterator_actions {
+	action_start = DNET_ITERATOR_ACTION_START,
+	action_pause = DNET_ITERATOR_ACTION_PAUSE,
+	action_cont = DNET_ITERATOR_ACTION_CONT,
+	action_cancel = DNET_ITERATOR_ACTION_CANCEL,
+};
+
+enum elliptics_iterator_types {
+	itype_disk = DNET_ITYPE_DISK,
+	itype_network = DNET_ITYPE_NETWORK,
+};
+
+enum elliptics_iterator_flags {
+	iflag_default = 0,
+	iflag_data = DNET_IFLAGS_DATA,
+	iflag_key_range = DNET_IFLAGS_KEY_RANGE,
+	iflag_ts_range = DNET_IFLAGS_TS_RANGE,
+};
+
 enum elliptics_cflags {
 	cflags_default = 0,
 	cflags_direct = DNET_FLAGS_DIRECT,
@@ -745,31 +764,35 @@ BOOST_PYTHON_MODULE(elliptics) {
 	bp::register_exception_translator<error>(error_translator);
 	bp::register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
 
-	bp::class_<elliptics_id>("Id", bp::init<>())
-		.def(bp::init<bp::list, int, int>())
+	bp::class_<elliptics_id>("Id", bp::init<bp::list, int, int>())
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_readwrite("type", &elliptics_id::type)
 	;
 
-	bp::class_<elliptics_time>("Time", bp::init<>())
-		.def(bp::init<uint64_t, uint64_t>())
+	bp::class_<elliptics_time>("Time",
+			bp::init<uint64_t, uint64_t>(bp::args("tsec", "tnsec")))
 		.def_readwrite("tsec", &elliptics_time::m_tsec)
 		.def_readwrite("tnsec", &elliptics_time::m_tnsec)
 	;
 
-	bp::class_<dnet_iterator_request>("IteratorRequest", bp::init<>())
-		// FIXME: Remove code duplication
-		.add_property("key_begin", dnet_iterator_request_get_key_begin, dnet_iterator_request_set_key_begin)
-		.add_property("key_end", dnet_iterator_request_get_key_end, dnet_iterator_request_set_key_end)
-		.add_property("time_begin", dnet_iterator_request_get_time_begin, dnet_iterator_request_set_time_begin)
-		.add_property("time_end", dnet_iterator_request_get_time_end, dnet_iterator_request_set_time_end)
-		.def_readwrite("flags", &dnet_iterator_request::flags)
+	bp::class_<dnet_iterator_request>("IteratorRequest")
+		.add_property("key_begin", dnet_iterator_request_get_key_begin,
+				dnet_iterator_request_set_key_begin)
+		.add_property("key_end", dnet_iterator_request_get_key_end,
+				dnet_iterator_request_set_key_end)
+		.add_property("time_begin", dnet_iterator_request_get_time_begin,
+				dnet_iterator_request_set_time_begin)
+		.add_property("time_end", dnet_iterator_request_get_time_end,
+				dnet_iterator_request_set_time_end)
+		.def_readwrite("action", &dnet_iterator_request::action)
 		.def_readwrite("id", &dnet_iterator_request::id)
+		.def_readwrite("flags", &dnet_iterator_request::flags)
 		.def_readwrite("itype", &dnet_iterator_request::itype)
 	;
 
-	bp::class_<iterator_result_entry>("IteratorResultEntry", bp::init<>())
+	bp::class_<iterator_result_entry>("IteratorResultEntry")
+		.add_property("id", &iterator_result_entry::id)
 		.add_property("status", &iterator_result_entry::status)
 		.add_property("key", iterator_result_get_key)
 		.add_property("timestamp", iterator_result_get_timestamp)
@@ -778,7 +801,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("response_data", iterator_result_response_data)
 	;
 
-	bp::class_<elliptics_range>("Range", bp::init<>())
+	bp::class_<elliptics_range>("Range")
 		.def_readwrite("start", &elliptics_range::start)
 		.def_readwrite("end", &elliptics_range::end)
 		.def_readwrite("offset", &elliptics_range::offset)
@@ -904,6 +927,25 @@ BOOST_PYTHON_MODULE(elliptics) {
 
 		.def("bulk_read", &elliptics_session::bulk_read_by_name,
 			(bp::arg("keys"), bp::arg("raw") = false))
+	;
+
+	bp::enum_<elliptics_iterator_actions>("iterator_actions")
+		.value("start", action_start)
+		.value("pause", action_pause)
+		.value("cont", action_cont)
+		.value("cancel", action_cancel)
+	;
+
+	bp::enum_<elliptics_iterator_flags>("iterator_flags")
+		.value("default", iflag_default)
+		.value("data", iflag_data)
+		.value("key_range", iflag_key_range)
+		.value("ts_range", iflag_ts_range)
+	;
+
+	bp::enum_<elliptics_iterator_types>("iterator_types")
+		.value("disk", itype_disk)
+		.value("network", itype_network)
 	;
 
 	bp::enum_<elliptics_cflags>("command_flags")
