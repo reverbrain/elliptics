@@ -779,7 +779,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	int fd, err;
 
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
-	err = eblob_read(b, &key, &fd, &offset, &size, cmd->id.type);
+	err = eblob_read_nocsum(b, &key, &fd, &offset, &size, cmd->id.type);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-file-info: info-read: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, strerror(-err));
