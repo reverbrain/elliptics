@@ -29,8 +29,10 @@ add_library(elliptics SHARED ${ELLIPTICS_SRCS})
 set_target_properties(elliptics PROPERTIES
     VERSION ${ELLIPTICS_VERSION}
     SOVERSION ${ELLIPTICS_VERSION_ABI}
-    )
+    LINKER_LANGUAGE CXX
+)
 target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} elliptics_cocaine elliptics_cache)
+
 
 add_library(elliptics_client SHARED ${ELLIPTICS_CLIENT_SRCS})
 set_target_properties(elliptics_client PROPERTIES
