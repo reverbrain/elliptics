@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.1.0
+Version:	2.24.2.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,40 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Apr 29 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.2.0
+- Link libelliptics like c++ library, since cache and srw are c++
+- Always read data (in lookup call path) without checking csum, instead check it in dnet_send_file_info() if special flag is set
+- Added cmake option to enable/disable external shared lib (module backend) build
+- it: really important note about GC
+- it: verify state transitions
+- cpp: do not lock key on iteration
+- cpp: use proper size on prepare
+- Fixed cocaine-to-elliptics loglevel mapping, info level now unified between two systems
+- it: python: simplified code
+- history: fixed return value handling
+- features: bump _XOPEN_SOURCE to 600
+- Fixed app@info handler.
+- rbtree: clang defines offsetof in stddef.h
+- it: prettify comments
+- it: added sanity and comments
+- it: move flow control to separate subroutine
+- it: improve logging
+- it: allow flow control of iterators
+- test: rework iterator test, added flow control
+- it: improved logging
+- test: set data flag on iteration
+- it: python: formatted IteratorRequest
+- it: python: exported id and action
+- it: python: added symbolic constants
+- it: manage iterator state in elliptics
+- it: init iterator_list at start
+- it: moved dnet_iterator_list_next_id_nolock
+- it: filled dnet_iterator_set_state stub
+- it: simplified list mgmt routines
+- it: added stubs for iterator actions
+- it: added subrotines for iterator state mgmt
+- Get rid of static builds
+
 * Thu Apr 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.1.0
 - Written test for cas.
 - Fixed checksum calculation for extended format records used by CAS.
