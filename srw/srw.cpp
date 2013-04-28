@@ -348,8 +348,21 @@ class srw {
 				}
 
 				std::string s = Json::FastWriter().write(it->second->info());
+
+				struct sph *reply;
+				std::string tmp;
+
+				tmp.resize(sizeof(struct sph));
+				reply = (struct sph *)tmp.data();
+
+				reply->event_size = event.size();
+				reply->data_size = s.size();
+
+				tmp += event;
+				tmp += s;
+
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: info: %s\n", id_str, sph_str, event.c_str(), s.c_str());
-				err = dnet_send_reply(st, cmd, (void *)s.data(), s.size(), 0);
+				err = dnet_send_reply(st, cmd, (void *)tmp.data(), tmp.size(), 0);
 			} else if (sph->flags & (DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH)) {
 				bool final = !!(sph->flags & DNET_SPH_FLAGS_FINISH);
 
