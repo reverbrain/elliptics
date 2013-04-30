@@ -145,7 +145,7 @@ elliptics (2.23.2.0) unstable; urgency=low
   * Put cocaine plugin into libcocaine-plugin-elliptics package
   * More cmake cleanups
   * Added msgpack-devel
-  * Corrected used include pathes
+  * Corrected used include paths
   * Use instantiated class in constructor
   * Added zeromq3-devel into spec
 
@@ -340,7 +340,7 @@ elliptics (2.21.4.1) unstable; urgency=low
   * Depend on 0.10.0-rc2+ cocaine
   * elliptics-dev should depend on eblob - there is no eblob-dev package
   * IO flags comment update
-  * Remove ack flag if write to cache-only is successfull
+  * Remove ack flag if write to cache-only is successful
   * Added file_info reply to cache-only write requests
 
  -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Feb 2013 00:40:54 +0400
@@ -913,7 +913,7 @@ elliptics-2.10 (2.13.0.2) unstable; urgency=low
   * Revert "Use X bits from operation key to find a lock instead of random hashing"
   * Added proper sigchild handling
   * spec update - added libsrw.so* files
-  * Dropped srw dependancy
+  * Dropped srw dependency
 
  -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 13 Mar 2012 20:06:13 +0400
 
@@ -1956,7 +1956,7 @@ elliptics (2.9.6.135) unstable; urgency=low
 elliptics (2.9.6.134) unstable; urgency=low
 
   * Do not double close accepted socket if state creation fails.
-  * Propogate read completion back to caller
+  * Propagate read completion back to caller
   * Use dnet_io_req instead of essentially the same dnet_trans_send_ctl
     structure.
 
@@ -3968,7 +3968,7 @@ elliptics (2.6.3-38) unstable; urgency=low
 
   * Implemented ability to dump address or ID into provided buffer, use
     it in race-critical places in fcgi. Core code will suffer from
-    simultaneous addres/id conversions though, but it is not used in
+    simultaneous address/id conversions though, but it is not used in
     critical parts.
 
  -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Feb 2010 20:48:13 +0300
