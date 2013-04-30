@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.6.1
+Version:	2.20.6.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Apr 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.2
+- Removed read-latest group check.
+-   If number of groups in request and node/session mismatches, then use smaller number (set) of groups
+
 * Mon Apr 22 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.1
 - Fixed dnet_find - it should use correct group and ID
 
