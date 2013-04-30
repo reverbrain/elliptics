@@ -2689,11 +2689,6 @@ int dnet_read_latest(struct dnet_session *s, struct dnet_id *id, struct dnet_io_
 	struct dnet_read_latest_prepare pr;
 	int *g, num, err, i, failed_num;
 
-	if ((int)io->num > s->group_num) {
-		err = -E2BIG;
-		goto err_out_exit;
-	}
-
 	err = dnet_mix_states(s, id, &g);
 	if (err < 0)
 		goto err_out_exit;
@@ -2701,8 +2696,7 @@ int dnet_read_latest(struct dnet_session *s, struct dnet_id *id, struct dnet_io_
 	num = err;
 
 	if ((int)io->num > num) {
-		err = -E2BIG;
-		goto err_out_free;
+		io->num = num;
 	}
 
 	memset(&pr, 0, sizeof(struct dnet_read_latest_prepare));
