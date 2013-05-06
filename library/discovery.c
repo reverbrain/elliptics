@@ -35,9 +35,7 @@ static int dnet_discover_ttl = 3;
 static int dnet_discovery_add_v4(struct dnet_node *n, struct dnet_addr *addr, int s)
 {
 	int err;
-	struct ip_mreq command;
-
-	memset(&command, 0, sizeof(struct ip_mreq));
+	struct group_req command;
 
 	err = setsockopt(s, IPPROTO_IP, IP_MULTICAST_LOOP, &dnet_discover_loop, sizeof(dnet_discover_loop));
 	if (err < 0) {
@@ -53,13 +51,13 @@ static int dnet_discovery_add_v4(struct dnet_node *n, struct dnet_addr *addr, in
 		goto err_out_exit;
 	}
 
-	command.imr_multiaddr = ((struct sockaddr_in *)addr->addr)->sin_addr;
-	command.imr_interface = ((struct sockaddr_in *)n->st->addr.addr)->sin_addr;
+	memset(&command, 0, sizeof(struct group_req));
+	memcpy(&command.gr_group, addr->addr, addr->addr_len);
 
-	err = setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, &command, sizeof(command));
+	err = setsockopt(s, IPPROTO_IP, MCAST_JOIN_GROUP, &command, sizeof(command));
 	if (err < 0) {
 		err = -errno;
-		dnet_log_err(n, "can not add multicast membership: %s", inet_ntoa(command.imr_multiaddr));
+		dnet_log_err(n, "can not add multicast membership: %s", dnet_server_convert_dnet_addr(addr));
 		goto err_out_exit;
 	}
 
