@@ -18,7 +18,7 @@ from itertools import chain, izip
 from collections import defaultdict
 
 from recover.range import IdRange, RecoveryRange
-from recover.routes import RouteList
+from recover.route import RouteList
 from recover.misc import format_id, split_host_port
 from recover.iterator import Iterator
 from recover.time import Time
