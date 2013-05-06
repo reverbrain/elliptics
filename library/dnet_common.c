@@ -2515,11 +2515,9 @@ int dnet_iterator_response_container_sort(int fd, size_t size)
 		return -EINVAL;
 
 	if ((err = dnet_data_map(&map)) != 0)
-		goto err;
+		return err;
 	qsort(map.data, nel, resp_size, dnet_iterator_response_cmp);
 	dnet_data_unmap(&map);
-
-err:
 	return err;
 }
 
