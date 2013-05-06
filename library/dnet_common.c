@@ -2529,15 +2529,16 @@ err:
 int dnet_iterator_response_container_append(const struct dnet_iterator_response *response,
 		int fd, uint64_t pos)
 {
-	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
 	struct dnet_iterator_response copy = *response;
+	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
+	int err;
 
 	if (pos % resp_size != 0)
 		return -EINVAL;
 
 	dnet_convert_iterator_response(&copy);
-	if (pwrite(fd, &copy, resp_size, pos) != resp_size)
-		return -errno;
+	if ((err = pwrite(fd, &copy, resp_size, pos)) != resp_size)
+		return (err == -1) ? -errno : -EINTR;
 
 	return 0;
 }
