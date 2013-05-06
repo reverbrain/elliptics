@@ -65,9 +65,10 @@ err_out_exit:
 	return err;
 }
 
-static int dnet_discovery_add_v6(struct dnet_node *n, struct dnet_addr *addr __unused, int s)
+static int dnet_discovery_add_v6(struct dnet_node *n, struct dnet_addr *addr, int s)
 {
 	int err;
+	struct group_req command;
 
 	err = setsockopt(s, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &dnet_discover_loop, sizeof(dnet_discover_loop));
 	if (err < 0) {
@@ -82,6 +83,17 @@ static int dnet_discovery_add_v6(struct dnet_node *n, struct dnet_addr *addr __u
 		dnet_log_err(n, "unable to set %d hop limit", dnet_discover_ttl);
 		goto err_out_exit;
 	}
+
+	memset(&command, 0, sizeof(struct group_req));
+	memcpy(&command.gr_group, addr->addr, addr->addr_len);
+
+	err = setsockopt(s, IPPROTO_IPV6, MCAST_JOIN_GROUP, &command, sizeof(command));
+	if (err < 0) {
+		err = -errno;
+		dnet_log_err(n, "can not add multicast membership: %s", dnet_server_convert_dnet_addr(addr));
+		goto err_out_exit;
+	}
+
 
 err_out_exit:
 	return err;
