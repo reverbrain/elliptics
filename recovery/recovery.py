@@ -163,7 +163,18 @@ def print_stats(stats):
     """
     from pprint import pprint
     print
-    pprint(stats)
+    print '=' * 80
+    print "Statistics for groups: {0}".format(stats['groups'].keys())
+    print '=' * 80
+    for group in stats['groups']:
+        print "Group {0} stats:".format(group)
+        print '+' * 80
+        for k, v in stats['groups'][group].iteritems():
+            align = 80 - 2 - len(k)
+            if align < 0:
+                align = 0
+            print '{0}: {1:>{2}}'.format(k, v, align)
+        print '+' * 80
     print
 
 def main(node, session, host, groups, timestamp):
