@@ -15,6 +15,7 @@ import sys
 import logging as log
 
 from collections import defaultdict
+from datetime import datetime
 
 from recover.range import IdRange, RecoveryRange
 from recover.route import RouteList
@@ -205,6 +206,7 @@ def main(node, session, host, groups, timestamp):
         group_stats = defaultdict(int)
         stats['groups'][group] = group_stats
 
+        group_stats['time_started'] = datetime.now()
         log.warning("Searching for ranges that '{0}' stole".format(host, group))
         routes = RouteList(session.get_routes())
         log.debug("Total routes: {0}".format(len(routes)))
@@ -243,6 +245,8 @@ def main(node, session, host, groups, timestamp):
         log.warning("Recovering diffs")
         result &= recover(diff_results, group_stats)
         log.warning("Recovery finished, setting result to: {0}".format(result))
+        group_stats['time_finished'] = datetime.now()
+        group_stats['time_taken'] = group_stats['time_finished'] - group_stats['time_started']
     return stats, result
 
 if __name__ == '__main__':
