@@ -15,6 +15,7 @@ import sys
 import logging as log
 
 from itertools import chain, izip
+from collections import defaultdict
 
 from recover.range import IdRange, RecoveryRange
 from recover.routes import RouteList
@@ -50,7 +51,7 @@ def setup_elliptics(log_file, log_level):
     session.add_groups(groups)
     return node, session
 
-def _process_ranges(routes, host, group_id):
+def process_ranges(routes, host, group_id):
     """
     For each record in RouteList create 1 or 2 RecoveryRange(s)
     Returns list of RecoveryRange`s
@@ -129,18 +130,27 @@ def recover(it):
         for i, result in enumerate(remote):
             pass # XXX:
 
+def print_stats(stats):
+    """
+    Output statistics about recovery process.
+    """
+    from pprint import pprint
+    pprint(stats)
+
 def main(node, session, host, groups, timestamp):
     """
-
+    XXX:
     """
+    stats = defaultdict(dict)
     for group in groups:
         log.warning("Processing group: {0}".format(group))
+        stats['groups'][group] = {}
 
         log.warning("Searching for ranges that '{0}' stole".format(host, group))
         routes = RouteList(session.get_routes())
-
         log.debug("Total routes: {0}".format(len(routes)))
-        ranges = _process_ranges(routes, host, group)
+
+        ranges = process_ranges(routes, host, group)
         log.debug("Recovery ranges: {0}".format(len(ranges)))
         if not ranges:
             log.warning("No ranges to recover in group: {0}".format(group))
@@ -162,7 +172,7 @@ def main(node, session, host, groups, timestamp):
 
         log.warning("Computing diff remote vs local and recover")
         recover(izip(remote_results, local_results))
-    return 0
+    return stats, 0
 
 if __name__ == '__main__':
     from optparse import OptionParser
@@ -217,6 +227,7 @@ if __name__ == '__main__':
     log.info("Using elliptics client log level: {0}".format(timestamp))
 
     node, session = setup_elliptics(options.elliptics_log, log_level)
-    exit_code = main(node, session, options.elliptics_remote, groups, timestamp)
+    stats, exit_code = main(node, session, options.elliptics_remote, groups, timestamp)
+    print_stats(stats)
 
     exit(exit_code)
