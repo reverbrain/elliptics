@@ -110,7 +110,8 @@ def run_iterators(node=None, group=None, routes=None, ranges=None, timestamp=Non
             stats['iteration_remote'] += 1
             results.append((local_result, remote_result))
         except Exception as e:
-            log.error("Iteration failed for: {0}: {1}".format(iteration_range, repr(e)))
+            log.error("Iteration failed for: {0}@{1}: {2}".format(
+                iteration_range.id_range, iteration_range.host, repr(e)))
             stats['iteration_failed'] += 1
     return results
 
@@ -122,15 +123,17 @@ def sort(results, stats):
     sorted_results = []
     for local, remote in results:
         stats['sort_total'] += 2
+        if not (local.status and remote.status):
+            log.debug("Sort skipped because local or remote iterator failed")
+            stats['sort_skipped'] += 1
+            continue
         try:
-            if local.status and remote.status:
-                local.container.sort()
-                remote.container.sort()
-                sorted_results.append((local, remote))
-            else:
-                log.debug("Sort skipped because local or remote iterator failed")
+            assert local.id_range == remote.id_range, "Local range must equal remote range"
+            local.container.sort()
+            remote.container.sort()
+            sorted_results.append((local, remote))
         except Exception as e:
-            log.error("Sort failed: {0}".format(e))
+            log.error("Sort of {0} failed: {1}".format(local.id_range, e))
             stats['sort_failed'] += 1
     return sorted_results
 

@@ -16,8 +16,9 @@ class IteratorResult(object):
               Container for iterator results
               Provides status and IteratorResultContainer wrapper.
               """
-    def __init__(self, eid=None, status=False, exception=None, container=None):
+    def __init__(self, eid=None, id_range=IdRange(None, None), status=False, exception=None, container=None):
         self.eid = eid
+        self.id_range = id_range
         self.container = container
         self.status = status
         self.exception = exception
@@ -25,13 +26,13 @@ class IteratorResult(object):
 
     def sort(self):
         """Sorts results"""
-        return self.container.sort()
+        self.container.sort()
 
-    def diff(self, r2):
+    def diff(self, other):
         """
         Computes diff between two sorted results. Returns container that consists of difference.
         """
-        return self.container.diff(r2.container)
+        self.container.diff(other.container)
 
     @classmethod
     def from_filename(cls, filename, **kwargs):
@@ -64,13 +65,11 @@ class Iterator(object):
         self.session.set_groups([group])
 
     def __start(self, eid, request):
-        result = IteratorResult(eid=eid)
+        result = IteratorResult(eid=eid, id_range=IdRange(request.key_begin, request.key_end))
         iterator = self.session.start_iterator(eid, request)
         for record in iterator:
             if record.status != 0:
                 raise RuntimeError("Iteration status check failed: {0}".format(record.status))
-            # Append record to container
-            # This only works for network iterator
             self.container.append(record)
         result.status = True
         return result
@@ -84,6 +83,7 @@ class Iterator(object):
         """
         TODO:
         """
+        assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now"
         try:
             request = elliptics.IteratorRequest()
             request.itype = itype
