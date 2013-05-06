@@ -70,6 +70,7 @@ class Iterator(object):
         for record in iterator:
             if record.status != 0:
                 raise RuntimeError("Iteration status check failed: {0}".format(record.status))
+            # TODO: Here we can add throttling
             self.container.append(record)
         result.status = True
         return result
