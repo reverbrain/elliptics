@@ -2558,3 +2558,32 @@ struct dnet_iterator_response *dnet_iterator_response_container_read(int fd, uin
 
 	return 0;
 }
+
+/*!
+ * Computes difference for two containers and writes it to the new one.
+ * Returns opened fd of new container.
+ *
+ * NB! For now only right outer difference is supported, so returned container
+ * has only items that exist only in right, or exist in both but right one is
+ * newer (w.r.t. timestamp).
+ */
+int dnet_iterator_response_container_diff(int left_fd, uint64_t left_size, int right_fd, uint64_t right_size)
+{
+	struct dnet_map_fd map_left = { .fd = left_fd, .size = left_size };
+	struct dnet_map_fd map_right = { .fd = right_fd, .size = right_size };
+	int err;
+
+	if ((err = dnet_data_map(&map_left)) != 0)
+		goto err;
+	if ((err = dnet_data_map(&map_right)) != 0)
+		goto err_unmap_left;
+
+	// XXX: diff itself
+
+err_unmap_right:
+	dnet_data_unmap(&map_right);
+err_unmap_left:
+	dnet_data_unmap(&map_left);
+err:
+	return err;
+}
