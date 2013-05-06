@@ -178,20 +178,21 @@ def print_stats(stats):
     Output statistics about recovery process.
     TODO: Add different output formats
     """
+    align = 80
+    sep_equals = '=' * align
+    sep_plus = '+' * align
+
     print
-    print '=' * 80
+    print sep_equals
     print "Statistics for groups: {0}".format(stats['groups'].keys())
-    print '=' * 80
+    print sep_equals
     for group in stats['groups']:
         print "Group {0} stats:".format(group)
-        print '+' * 80
+        print sep_plus
         for k, v in stats['groups'][group].iteritems():
-            align = 80 - 2 - len(k)
-            if align < 0:
-                align = 0
-            print '{0}: {1:>{2}}'.format(k, v, align)
-        print '+' * 80
-    print
+            print '{0:<40}{1:>40}'.format(k + ':', str(v))
+        print sep_plus
+        print
 
 def main(node, session, host, groups, timestamp):
     """
