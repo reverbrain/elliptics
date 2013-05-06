@@ -51,7 +51,7 @@ def setup_elliptics(log_file, log_level):
     session.add_groups(groups)
     return node, session
 
-def process_ranges(routes, host, group_id):
+def get_ranges(routes, host, group_id):
     """
     For each record in RouteList create 1 or 2 RecoveryRange(s)
     Returns list of RecoveryRange`s
@@ -81,76 +81,104 @@ def process_ranges(routes, host, group_id):
                 ranges.append(RecoveryRange(IdRange(start, stop), prev_node))
     return ranges
 
-def run_remote_iterators(node, group, ranges, timestamp):
+def run_iterators(node=None, group=None, routes=None, ranges=None, timestamp=None, host=None, stats=None):
     """
-    Runs remote iterator per recovery range
-    TODO: Make it parallel
+    Runs local and remote iterators for each range.
+    TODO: Can be parallel
     """
     results = []
-    for recovery_range in ranges:
-        results.append(Iterator(node, group).start(
-            timestamp_range=(timestamp.to_etime(), Time.time_max().to_etime()),
-            key_range=(recovery_range.id_range.start, recovery_range.id_range.stop),
-        ))
+    for iteration_range in ranges:
+        stats['iteration_total'] += 2
+        try:
+            timestamp_range = timestamp.to_etime(), Time.time_max().to_etime()
+
+            local_key = iteration_range.id_range.start
+            local_eid = elliptics.Id(local_key, 0, 0)
+            local_result = Iterator(node, group).start(
+                eid=local_eid,
+                timestamp_range=timestamp_range,
+                key_range=iteration_range.id_range,
+            )
+            stats['iteration_local'] += 1
+
+            remote_eid = routes.filter_by_host(host)[0].key
+            remote_result = Iterator(node, group).start(
+                eid=remote_eid,
+                timestamp_range=timestamp_range,
+                key_range=iteration_range.id_range,
+            )
+            stats['iteration_remote'] += 1
+            results.append((local_result, remote_result))
+        except Exception as e:
+            log.error("Iteration failed for: {0}: {1}".format(iteration_range, repr(e)))
+            stats['iteration_failed'] += 1
     return results
 
-def run_local_iterators(node, group, ranges, timestamp, host, remote_results):
-    """
-    Runs local iterator for each remote result that succeeded.
-    """
-    local_results = []
-    for recovery_range, result in zip(ranges, remote_results):
-        if not result.status:
-            log.warning("Skipped local iterator for range: {0}".format(recovery_range))
-            continue
-        try:
-            # XXX: For local iterator we must use `disk' itype
-            local_results.append(Iterator(node, group).start(
-                timestamp_range=(timestamp.to_etime(), Time.time_max().to_etime()),
-                key_range=recovery_range.id_range,
-            ))
-        except Exception as e:
-            log.error("Iteration failed for: {0}: {1}".format(recovery_range, repr(e)))
-    return local_results
-
-def sort_results(it):
+def sort(results, stats):
     """
     Runs sort routine for all iterator result
     TODO: Can be parallel
     """
-    for result in it:
-        if result.status == 0:
-            result.container.sort() # XXX: return code
+    sorted_results = []
+    for local, remote in results:
+        stats['sort_total'] += 2
+        try:
+            if local.status and remote.status:
+                local.container.sort()
+                remote.container.sort()
+                sorted_results.append((local, remote))
+            else:
+                log.debug("Sort skipped because local or remote iterator failed")
+        except Exception as e:
+            log.error("Sort failed: {0}".format(e))
+            stats['sort_failed'] += 1
+    return sorted_results
 
-def recover(it):
+def diff(results, stats):
+    """
+    Compute differences between local and remote results.
+    TODO: Can be parallel
+    """
+    results = []
+    # XXX:
+    return results
+
+def recover(diffs, stats):
     """
     Recovers difference between remote and local data.
+    TODO: Can be parallel
     """
-    for remote, local in it:
-        for i, result in enumerate(remote):
+    for diff in diffs:
+        for i, record in enumerate(diff):
             pass # XXX:
+    return True
 
 def print_stats(stats):
     """
     Output statistics about recovery process.
+    TODO: Add different output formats
     """
     from pprint import pprint
+    print
     pprint(stats)
+    print
 
 def main(node, session, host, groups, timestamp):
     """
     XXX:
     """
     stats = defaultdict(dict)
+    result = True
     for group in groups:
         log.warning("Processing group: {0}".format(group))
-        stats['groups'][group] = {}
+        group_stats = defaultdict(int)
+        stats['groups'][group] = group_stats
 
         log.warning("Searching for ranges that '{0}' stole".format(host, group))
         routes = RouteList(session.get_routes())
         log.debug("Total routes: {0}".format(len(routes)))
 
-        ranges = process_ranges(routes, host, group)
+        ranges = get_ranges(routes, host, group)
         log.debug("Recovery ranges: {0}".format(len(ranges)))
         if not ranges:
             log.warning("No ranges to recover in group: {0}".format(group))
@@ -158,21 +186,32 @@ def main(node, session, host, groups, timestamp):
         # We should not run iterators on ourselves
         assert all(node != host for _, node in ranges)
 
-        log.warning("Running remote iterators against: {0} range(s)".format(len(ranges)))
-        remote_results = run_remote_iterators(node, group, ranges, timestamp)
-        assert len(ranges) == len(remote_results)
-        successful = sum(1 for res in remote_results if res.status)
-        log.warning("Finished successfully: {0} range(s)".format(successful))
-
-        log.warning("Running local iterators against: {0} range(s)".format(len(ranges)))
-        local_results = run_local_iterators(node, group, ranges, timestamp, host, remote_results)
+        log.warning("Running iterators against: {0} range(s)".format(len(ranges)))
+        iterator_results = run_iterators(
+            node=node,
+            group=group,
+            routes=routes,
+            ranges=ranges,
+            timestamp=timestamp,
+            host=host,
+            stats=group_stats,
+        )
+        assert len(ranges) >= len(iterator_results)
+        log.warning("Finished iteration of: {0} range(s)".format(len(iterator_results)))
 
         log.warning("Sorting iterators' data")
-        sort_results(chain(remote_results, local_results))
+        sorted_results = sort(iterator_results, group_stats)
+        assert len(iterator_results) >= len(sorted_results)
+        log.warning("Sorted successfully: {0} result(s)".format(len(sorted_results)))
 
-        log.warning("Computing diff remote vs local and recover")
-        recover(izip(remote_results, local_results))
-    return stats, 0
+        log.warning("Computing diff local vs remote")
+        diff_results = diff(sorted_results, group_stats)
+        log.warning("Computed differences: {0} diff(s)".format(len(diff_results)))
+
+        log.warning("Recovering diffs")
+        result &= recover(diff_results, group_stats)
+        log.warning("Recovery finished, setting result to: {0}".format(result))
+    return stats, result
 
 if __name__ == '__main__':
     from optparse import OptionParser
@@ -190,6 +229,7 @@ if __name__ == '__main__':
                       help="Recover keys created/modified since [default: %default]")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
                       help="Enable debug output [default: %default]")
+    # TODO: Add quiet option to not output statistics
     (options, args) = parser.parse_args()
 
     if options.debug:
@@ -227,7 +267,7 @@ if __name__ == '__main__':
     log.info("Using elliptics client log level: {0}".format(timestamp))
 
     node, session = setup_elliptics(options.elliptics_log, log_level)
-    stats, exit_code = main(node, session, options.elliptics_remote, groups, timestamp)
+    stats, result = main(node, session, options.elliptics_remote, groups, timestamp)
     print_stats(stats)
 
-    exit(exit_code)
+    exit(not result)

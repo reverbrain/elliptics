@@ -76,6 +76,7 @@ class Iterator(object):
         return result
 
     def start(self,
+              eid=elliptics.Id([0]*64, 0, 0),
               itype=elliptics.iterator_types.network,
               flags=elliptics.iterator_flags.key_range|elliptics.iterator_flags.ts_range,
               key_range=(IdRange.ID_MIN, IdRange.ID_MAX),
@@ -89,8 +90,6 @@ class Iterator(object):
             request.flags = flags
             request.key_begin, request.key_end = key_range
             request.time_begin, request.time_end = timestamp_range
-
-            eid = elliptics.Id(request.key_begin, 0, 0)
             return self.__start(eid, request)
         except Exception as e:
             self.log.error("Iteration failed: {0}".format(repr(e)))

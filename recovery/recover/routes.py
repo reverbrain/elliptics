@@ -57,6 +57,9 @@ class RouteList(object):
         assert len(self.routes) <= len(unmerged_routes)
         self.log.debug("Routes after merge: {0}".format(len(self.routes)))
 
+    def filter_by_host(self, host):
+        return [ route for route in self.routes if route.node == host ]
+
     def __iter__(self):
         return iter(self.routes)
 
