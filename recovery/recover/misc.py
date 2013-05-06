@@ -16,7 +16,7 @@ def format_id(key_id, count=6):
     """
     Pretty format for key_ids
     """
-    return ''.join( '%02x' % b for b in key_id[:count])
+    return ''.join('%02x' % b for b in key_id[:count])
 
 def split_host_port(string):
     """

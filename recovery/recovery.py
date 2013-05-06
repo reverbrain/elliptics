@@ -14,13 +14,12 @@ New recovery mechanism for elliptics that utilizes new iterators and metadata
 import sys
 import logging as log
 
-from itertools import chain, izip
 from collections import defaultdict
 
 from recover.range import IdRange, RecoveryRange
 from recover.route import RouteList
 from recover.misc import format_id, split_host_port
-from recover.iterator import Iterator
+from recover.iterator import Iterator, IteratorResult
 from recover.time import Time
 
 # TODO: change me before BETA
@@ -81,7 +80,8 @@ def get_ranges(routes, host, group_id):
                 ranges.append(RecoveryRange(IdRange(start, stop), prev_node))
     return ranges
 
-def run_iterators(node=None, group=None, routes=None, ranges=None, timestamp=None, host=None, stats=None):
+def run_iterators(node=None, group=None, routes=None,
+                  ranges=None, timestamp=None, host=None, stats=None):
     """
     Runs local and remote iterators for each range.
     TODO: Can be parallel
@@ -128,9 +128,14 @@ def sort(results, stats):
             stats['sort_skipped'] += 1
             continue
         try:
-            assert local.id_range == remote.id_range, "Local range must equal remote range"
+            assert local.id_range == remote.id_range, \
+                "Local range must equal remote range"
+            log.info("Processing sorting local range: {0}".format(local.id_range))
             local.container.sort()
+            stats['sort_local_finished'] += 1
+            log.info("Processing sorting remote range: {0}".format(local.id_range))
             remote.container.sort()
+            stats['sort_remote_finished'] += 1
             sorted_results.append((local, remote))
         except Exception as e:
             log.error("Sort of {0} failed: {1}".format(local.id_range, e))
@@ -142,17 +147,29 @@ def diff(results, stats):
     Compute differences between local and remote results.
     TODO: Can be parallel
     """
-    results = []
-    # XXX:
-    return results
+    diff_results = []
+    for local, remote in results:
+        stats['diff_total'] += 1
+        log.info("Computing differences for {0}".format(local.id_range))
+        try:
+            result_fd = local.container.diff(remote)
+            diff_results.append(IteratorResult.from_fd(result_fd))
+        except Exception as e:
+            stats['diff_failed'] += 1
+            log.error("Diff of {0} failed: {1}".format(local.id_range, e))
+    return diff_results
 
 def recover(diffs, stats):
     """
     Recovers difference between remote and local data.
     TODO: Can be parallel
     """
-    for diff in diffs:
-        for i, record in enumerate(diff):
+    for host, diff in diffs:
+        for record in diff:
+            # Parse record, get it's key
+            # Read record from old location
+            # Write record to new location
+            # Bump stats
             pass # XXX:
     return True
 
@@ -161,7 +178,6 @@ def print_stats(stats):
     Output statistics about recovery process.
     TODO: Add different output formats
     """
-    from pprint import pprint
     print
     print '=' * 80
     print "Statistics for groups: {0}".format(stats['groups'].keys())
@@ -220,6 +236,7 @@ def main(node, session, host, groups, timestamp):
 
         log.warning("Computing diff local vs remote")
         diff_results = diff(sorted_results, group_stats)
+        assert len(sorted_results) >= len(diff_results)
         log.warning("Computed differences: {0} diff(s)".format(len(diff_results)))
 
         log.warning("Recovering diffs")
@@ -244,6 +261,7 @@ if __name__ == '__main__':
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
                       help="Enable debug output [default: %default]")
     # TODO: Add quiet option to not output statistics
+    # TODO: Add lock file
     (options, args) = parser.parse_args()
 
     if options.debug:
