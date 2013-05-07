@@ -2322,16 +2322,19 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
 	return group_num;
 }
 
-int dnet_data_map(struct dnet_map_fd *map)
+static int dnet_data_map_ll(struct dnet_map_fd *map, int prot)
 {
 	uint64_t off;
 	long page_size = sysconf(_SC_PAGE_SIZE);
 	int err = 0;
 
+	if (map == NULL || prot == 0)
+		return -EINVAL;
+
 	off = map->offset & ~(page_size - 1);
 	map->mapped_size = ALIGN(map->size + map->offset - off, page_size);
 
-	map->mapped_data = mmap(NULL, map->mapped_size, PROT_READ, MAP_SHARED, map->fd, off);
+	map->mapped_data = mmap(NULL, map->mapped_size, prot, MAP_SHARED, map->fd, off);
 	if (map->mapped_data == MAP_FAILED) {
 		err = -errno;
 		goto err_out_exit;
@@ -2341,6 +2344,16 @@ int dnet_data_map(struct dnet_map_fd *map)
 
 err_out_exit:
 	return err;
+}
+
+int dnet_data_map_rw(struct dnet_map_fd *map)
+{
+	return dnet_data_map_ll(map, PROT_READ|PROT_WRITE);
+}
+
+int dnet_data_map(struct dnet_map_fd *map)
+{
+	return dnet_data_map_ll(map, PROT_READ);
 }
 
 void dnet_data_unmap(struct dnet_map_fd *map)

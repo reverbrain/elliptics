@@ -737,7 +737,10 @@ struct dnet_map_fd {
 	void			*mapped_data;
 };
 
+/* Read only mapping wrapper */
 int dnet_data_map(struct dnet_map_fd *map);
+/* Read-write mapping wrapper */
+int dnet_data_map_rw(struct dnet_map_fd *map);
 void dnet_data_unmap(struct dnet_map_fd *map);
 
 void *dnet_read_data_wait_raw(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, int cmd, int *errp);
