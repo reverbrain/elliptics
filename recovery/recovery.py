@@ -21,7 +21,7 @@ from datetime import datetime
 from recover.range import IdRange, RecoveryRange
 from recover.route import RouteList
 from recover.misc import format_id, split_host_port
-from recover.iterator import Iterator, IteratorResult
+from recover.iterator import Iterator
 from recover.time import Time
 
 # XXX: change me before BETA
