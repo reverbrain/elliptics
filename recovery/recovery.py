@@ -62,15 +62,16 @@ def get_ranges(routes, host, group_id):
     """
     ranges = []
     for i, route in enumerate(routes):
-        key, node = routes[i]
-        prev_ekey, prev_node = routes[i - 1]
-        if key.group_id != group_id:
+        ekey, node = routes[i]
+        _, prev_node = routes[i - 1]
+        next_ekey, _ = routes[i + 1]
+        if ekey.group_id != group_id:
             log.debug("Skipped route: {0}, it belongs to group_id: {1}".format(
-                route, key.group_id))
+                route, ekey.group_id))
             continue
         if node == host:
-            start = prev_ekey.id
-            stop = key.id
+            start = ekey.id
+            stop = next_ekey.id
             # If we wrapped around hash ring circle - split route into two distinct ranges
             if (stop < start):
                 log.debug("Splitting range: {0}:{1}".format(
@@ -101,8 +102,7 @@ def run_iterators(node=None, group=None, routes=None,
             )
             stats['iteration_local'] += 1
 
-            remote_key = iteration_range.id_range.start
-            remote_eid = elliptics.Id(remote_key, 0, 0)
+            remote_eid = routes.filter_by_host(iteration_range.host)[0].key
             remote_result = Iterator(node, group).start(
                 eid=remote_eid,
                 timestamp_range=timestamp_range,
