@@ -249,7 +249,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg, struct dnet_a
 		la.addr_len = sizeof(la.addr);
 		la.family = cfg->family;
 
-		err = dnet_socket_create(n, "0.0.0.0", cfg->port, &la, 1);
+		err = dnet_socket_create(n, NULL, cfg->port, &la, 1);
 		if (err < 0)
 			goto err_out_ids_cleanup;
 

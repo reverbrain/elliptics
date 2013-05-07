@@ -203,11 +203,21 @@ int dnet_socket_create(struct dnet_node *n, char *addr_str, int port, struct dne
 	int s, err = -EINVAL;
 	struct dnet_net_state *st;
 
-	err = dnet_fill_addr(addr, addr_str, port, SOCK_STREAM, IPPROTO_TCP);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
-				addr_str, port, addr->family, err, strerror(-err));
-		goto err_out_exit;
+	if (addr_str) {
+		err = dnet_fill_addr(addr, addr_str, port, SOCK_STREAM, IPPROTO_TCP);
+		if (err) {
+			dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
+					addr_str, port, addr->family, err, strerror(-err));
+			goto err_out_exit;
+		}
+	} else {
+		if (addr->family == AF_INET6) {
+			struct sockaddr_in *in = (struct sockaddr_in *)(addr->addr);
+			in->sin_port = htons(port);
+		} else {
+			struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)(addr->addr);
+			in6->sin6_port = htons(port);
+		}
 	}
 
 	st = dnet_state_search_by_addr(n, addr);
