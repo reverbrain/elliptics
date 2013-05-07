@@ -86,7 +86,8 @@ class Iterator(object):
         """
         XXX:
         """
-        assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now"
+        assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now" # TODO:
+        assert flags & elliptics.iterator_flags.data == 0, "Only metadata iterator is supported for now" # TODO:
         try:
             request = elliptics.IteratorRequest()
             request.action = elliptics.iterator_actions.start
