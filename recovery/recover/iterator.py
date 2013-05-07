@@ -87,6 +87,7 @@ class Iterator(object):
         assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now"
         try:
             request = elliptics.IteratorRequest()
+            request.action = elliptics.iterator_actions.start
             request.itype = itype
             request.flags = flags
             request.key_begin, request.key_end = key_range
