@@ -1,4 +1,4 @@
-from .misc import logged_class, format_id
+from .misc import logged_class, mk_container_name
 from .time import Time
 from .range import IdRange
 
@@ -32,7 +32,12 @@ class IteratorResult(object):
         """
         Computes diff between two sorted results. Returns container that consists of difference.
         """
-        return self.from_fd(self.container.diff(other.container))
+        # XXX: Use tmp dir
+        filename = mk_container_name(self.id_range, self.eid, prefix='diff_') + '-' + \
+                   mk_container_name(other.id_range, other.eid, prefix='')
+        diff_container = self.from_filename(filename)
+        self.container.diff(other.container, diff_container.container)
+        return diff_container
 
     @classmethod
     def from_filename(cls, filename, **kwargs):
@@ -66,8 +71,7 @@ class Iterator(object):
 
     def __start(self, eid, request):
         id_range = IdRange(request.key_begin, request.key_end)
-        filename = "iterator_{0}@{1}".format(str(id_range), format_id(eid.id)) # XXX: Specify dir
-        result = IteratorResult.from_filename(filename, eid=eid, id_range=id_range)
+        result = IteratorResult.from_filename(mk_container_name(id_range, eid), eid=eid, id_range=id_range)
         iterator = self.session.start_iterator(eid, request)
         for record in iterator:
             if record.status != 0:

@@ -158,7 +158,7 @@ def diff(results, stats):
         stats['diff_total'] += 1
         log.info("Computing differences for {0}".format(local.id_range))
         try:
-            diff_results.append(local.container.diff(remote))
+            diff_results.append(local.diff(remote))
         except Exception as e:
             stats['diff_failed'] += 1
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))

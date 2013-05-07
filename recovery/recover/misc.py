@@ -24,3 +24,6 @@ def split_host_port(string):
     """
     host, port = string.split(':', 1)
     return host, int(port)
+
+def mk_container_name(id_range, eid, prefix="iterator_"):
+    return "{0}{1}@{2}".format(prefix, str(id_range), format_id(eid.id))
