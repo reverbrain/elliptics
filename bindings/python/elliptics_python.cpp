@@ -791,15 +791,21 @@ elliptics_time iterator_result_get_timestamp(iterator_result_entry *result)
 	return elliptics_time(result->reply()->timestamp);
 }
 
-void iterator_container_append(iterator_container &container,
+void iterator_container_append(iterator_result_container &container,
 		iterator_result_entry &result)
 {
 	container.append(result);
 }
 
-void iterator_container_sort(iterator_container &container)
+void iterator_container_sort(iterator_result_container &container)
 {
 	container.sort();
+}
+
+void iterator_container_diff(iterator_result_container &left,
+		iterator_result_container &right, iterator_result_container &diff)
+{
+	left.diff(right, diff);
 }
 
 BOOST_PYTHON_MODULE(elliptics) {
@@ -853,12 +859,12 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("response_data", iterator_result_response_data)
 	;
 
-	bp::class_<iterator_container>("IteratorResultContainer",
+	bp::class_<iterator_result_container>("IteratorResultContainer",
 			bp::init<int>(bp::args("fd")))
-		.add_property("fd", &iterator_container::get_fd)
+		.add_property("fd", &iterator_result_container::m_fd)
 		.def("append", iterator_container_append)
 		.def("sort", iterator_container_sort)
-		//.def("diff", &iterator_container::diff)
+		.def("diff", iterator_container_diff)
 		//.def("__iter__", bp::iterator<python_iterator_result>())
 	;
 

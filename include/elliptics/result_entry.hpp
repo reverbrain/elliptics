@@ -180,33 +180,25 @@ class iterator_result_entry : public callback_result_entry
 		uint64_t id() const;
 };
 
-//
 // Container for iterator results
-//
 class iterator_result_container
 {
 	public:
-		iterator_result_container(int fd)
-			: m_fd(fd), m_sorted(false), m_write_position(0) {}
-		// Getters
-		int get_fd() const { return m_fd; };
-		int get_sorted() const { return m_sorted; };
+		iterator_result_container(int fd, bool sorted = false, uint64_t write_position = 0)
+			: m_fd(fd), m_sorted(sorted), m_write_position(write_position) {}
 		// Appends one result to container
 		void append(const iterator_result_entry &result);
 		void append(const dnet_iterator_response *response);
 		// Sorts container
 		void sort();
-		// Returns container that consists of difference between two containers
-		// TODO: Add different diff types (inner/outer, left/right)
-		iterator_result_container &diff(const iterator_result_container &other) const;
+		//! Puts difference between \a this and \a other into \a diff
+		void diff(const iterator_result_container &other,
+				iterator_result_container &result) const;
 
-	private:
 		int m_fd;
 		bool m_sorted;
 		uint64_t m_write_position;
 };
-
-typedef iterator_result_container iterator_container;
 
 typedef lookup_result_entry write_result_entry;
 

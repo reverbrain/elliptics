@@ -323,4 +323,18 @@ void iterator_result_container::sort()
 	m_sorted = true;
 }
 
+void iterator_result_container::diff(const iterator_result_container &other,
+		iterator_result_container &result) const
+{
+	int64_t err;
+
+	err = dnet_iterator_response_container_diff(result.m_fd, m_fd, m_write_position,
+			other.m_fd, other.m_write_position);
+	if (err < 0)
+		throw_error(err, "diff failed");
+
+	result.m_write_position = err;
+	result.m_sorted = true;
+}
+
 } } // namespace ioremap::elliptics

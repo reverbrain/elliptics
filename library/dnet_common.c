@@ -2575,30 +2575,75 @@ struct dnet_iterator_response *dnet_iterator_response_container_read(int fd, uin
 }
 
 /*!
- * Computes difference for two containers and writes it to the new one.
- * Returns opened fd of new container.
+ * Computes difference for two containers and writes it to diff_fd.
+ * Returns size of new container.
  *
  * NB! For now only right outer difference is supported, so returned container
  * has only items that exist only in right, or exist in both but right one is
  * newer (w.r.t. timestamp).
  */
-int dnet_iterator_response_container_diff(int left_fd, uint64_t left_size, int right_fd, uint64_t right_size)
+int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t left_size,
+		int right_fd, uint64_t right_size)
 {
-	struct dnet_map_fd map_left = { .fd = left_fd, .size = left_size };
-	struct dnet_map_fd map_right = { .fd = right_fd, .size = right_size };
-	int err;
+	struct dnet_map_fd left_map = { .fd = left_fd, .size = left_size };
+	struct dnet_map_fd right_map = { .fd = right_fd, .size = right_size };
+	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
+	struct dnet_iterator_response *left, *right;
+	uint64_t left_offset = 0, right_offset = 0;
+	int64_t diff_offset = 0, err = 0;
 
-	if ((err = dnet_data_map(&map_left)) != 0)
+	/* Sanity */
+	if (diff_fd < 0 || left_fd < 0 || right_fd < 0)
+		return -EINVAL;
+	if (left_size % resp_size != 0)
+		return -EINVAL;
+	if (right_size % resp_size != 0)
+		return -EINVAL;
+
+	/* mmap both containers */
+	if ((err = dnet_data_map(&left_map)) != 0)
 		goto err;
-	if ((err = dnet_data_map(&map_right)) != 0)
+	if ((err = dnet_data_map(&right_map)) != 0)
 		goto err_unmap_left;
 
-	// XXX: diff itself
+	/*
+	 * Compute difference between two sorted lists.
+	 * - We add elements from right list to diff until they are than
+	 *   current element in left list;
+	 * - We skip elements in left list until they are ge then current
+	 * element in right one;
+	 * - In case elements are equal skip both.
+	 */
+	while (right_offset < right_size) {
+		const uint64_t left_pos = left_offset / resp_size;
+		const uint64_t right_pos = right_offset / resp_size;
+		int cmp;
+
+		left = (struct dnet_iterator_response *)left_map.data + left_pos;
+		right = (struct dnet_iterator_response *)right_map.data + right_pos;
+		cmp = dnet_iterator_response_cmp(left, right);
+
+		if (cmp < 0) {
+			err = dnet_iterator_response_container_append(right, diff_fd, diff_offset);
+			if (err != 0)
+				goto err_unmap_right;
+			diff_offset += resp_size;
+			right_offset += resp_size;
+		} else if (cmp > 0) {
+			if (left_offset < left_size)
+				left_offset += resp_size;
+		} else if (cmp == 0) {
+			if (left_offset < left_size)
+				left_offset += resp_size;
+			right_offset += resp_size;
+		}
+	}
+	/* TODO: Add asserts */
 
 err_unmap_right:
-	dnet_data_unmap(&map_right);
+	dnet_data_unmap(&right_map);
 err_unmap_left:
-	dnet_data_unmap(&map_left);
+	dnet_data_unmap(&left_map);
 err:
-	return err;
+	return err ? err : diff_offset;
 }
