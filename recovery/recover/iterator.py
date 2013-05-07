@@ -65,7 +65,6 @@ class IteratorResult(object):
 @logged_class
 class Iterator(object):
     def __init__(self, node, group):
-        self.log.debug("Creating iterator for node: {0}, group: {1}".format(node, group))
         self.session = elliptics.Session(node)
         self.session.set_groups([group])
 
