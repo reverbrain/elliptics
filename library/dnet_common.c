@@ -2509,10 +2509,14 @@ int dnet_iterator_response_container_sort(int fd, size_t size)
 	int err;
 
 	/* Sanity */
-	if (fd < 0 || size == 0)
+	if (fd < 0)
 		return -EINVAL;
 	if (size % resp_size != 0)
 		return -EINVAL;
+
+	/* If size is zero - it's already sorted */
+	if (size == 0)
+		return 0;
 
 	if ((err = dnet_data_map(&map)) != 0)
 		return err;
