@@ -15,6 +15,7 @@ import sys
 import logging as log
 
 from collections import defaultdict
+from operator import itemgetter
 from datetime import datetime
 
 from recover.range import IdRange, RecoveryRange
@@ -187,10 +188,10 @@ def print_stats(stats):
     print sep_equals
     print "Statistics for groups: {0}".format(stats['groups'].keys())
     print sep_equals
-    for group in stats['groups']:
+    for group in sorted(stats['groups']):
         print "Group {0} stats:".format(group)
         print sep_plus
-        for k, v in stats['groups'][group].iteritems():
+        for k, v in sorted(stats['groups'][group].iteritems(), key=itemgetter(0)):
             print '{0:<40}{1:>40}'.format(k + ':', str(v))
         print sep_plus
         print
@@ -245,8 +246,8 @@ def main(node, session, host, groups, timestamp):
         log.warning("Recovering diffs")
         result &= recover(diff_results, group_stats)
         log.warning("Recovery finished, setting result to: {0}".format(result))
-        group_stats['time_finished'] = datetime.now()
-        group_stats['time_taken'] = group_stats['time_finished'] - group_stats['time_started']
+        group_stats['time_stopped'] = datetime.now()
+        group_stats['time_taken'] = group_stats['time_stopped'] - group_stats['time_started']
     return stats, result
 
 if __name__ == '__main__':
