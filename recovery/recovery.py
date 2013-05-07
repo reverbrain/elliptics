@@ -89,13 +89,12 @@ def run_iterators(node=None, group=None, routes=None,
     TODO: Can be parallel
     """
     results = []
+    local_eid = routes.filter_by_host(host)[0].key
+
     for iteration_range in ranges:
         stats['iteration_total'] += 2
         try:
             timestamp_range = timestamp.to_etime(), Time.time_max().to_etime()
-
-            local_key = iteration_range.id_range.start
-            local_eid = elliptics.Id(local_key, 0, 0)
             local_result = Iterator(node, group).start(
                 eid=local_eid,
                 timestamp_range=timestamp_range,
@@ -103,13 +102,15 @@ def run_iterators(node=None, group=None, routes=None,
             )
             stats['iteration_local'] += 1
 
-            remote_eid = routes.filter_by_host(host)[0].key
+            remote_key = iteration_range.id_range.start
+            remote_eid = elliptics.Id(remote_key, 0, 0)
             remote_result = Iterator(node, group).start(
                 eid=remote_eid,
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
             )
             stats['iteration_remote'] += 1
+
             results.append((local_result, remote_result))
         except Exception as e:
             log.error("Iteration failed for: {0}@{1}: {2}".format(
