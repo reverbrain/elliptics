@@ -166,6 +166,7 @@ def recover(diffs, stats):
     TODO: Can be parallel
     """
     for host, diff in diffs:
+        # XXX: Make bulk
         for record in diff:
             # Parse record, get it's key
             # Read record from old location
