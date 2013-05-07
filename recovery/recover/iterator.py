@@ -84,7 +84,7 @@ class Iterator(object):
               key_range=(IdRange.ID_MIN, IdRange.ID_MAX),
               timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime())):
         """
-        TODO:
+        XXX:
         """
         assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now"
         try:

@@ -39,8 +39,8 @@ class Time(object):
 
     @classmethod
     def from_datetime(cls, dt):
-        pass # TODO:
+        pass # XXX:
 
     @classmethod
     def from_string(cls, etime):
-        pass # TODO
+        pass # XXX

@@ -24,7 +24,7 @@ from recover.misc import format_id, split_host_port
 from recover.iterator import Iterator, IteratorResult
 from recover.time import Time
 
-# TODO: change me before BETA
+# XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
 import elliptics
 
@@ -265,8 +265,8 @@ if __name__ == '__main__':
                       help="Recover keys created/modified since [default: %default]")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
                       help="Enable debug output [default: %default]")
-    # TODO: Add quiet option to not output statistics
-    # TODO: Add lock file
+    # XXX: Add quiet option to not output statistics
+    # XXX: Add lock file
     (options, args) = parser.parse_args()
 
     if options.debug:
