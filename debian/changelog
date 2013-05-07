@@ -1,3 +1,12 @@
+elliptics (2.24.2.1) unstable; urgency=low
+
+  * Fixed IPv6 server addr creation
+  * Added SRW counters statistics
+  * Added ipv6 MCAST_JOIN_GROUP socket option.
+  * Switch multicast autodiscovery from IP_ADD_MEMBERSHIP to MCAST_JOIN_GROUP
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 07 May 2013 21:45:05 +0400
+
 elliptics (2.24.2.0) unstable; urgency=low
 
   * Link libelliptics like c++ library, since cache and srw are c++

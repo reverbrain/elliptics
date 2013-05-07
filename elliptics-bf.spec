@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.2.0
+Version:	2.24.2.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue May 07 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.2.1
+- Fixed IPv6 server addr creation
+- Added SRW counters statistics
+- Added ipv6 MCAST_JOIN_GROUP socket option.
+- Switch multicast autodiscovery from IP_ADD_MEMBERSHIP to MCAST_JOIN_GROUP
+
 * Mon Apr 29 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.2.0
 - Link libelliptics like c++ library, since cache and srw are c++
 - Always read data (in lookup call path) without checking csum, instead check it in dnet_send_file_info() if special flag is set
