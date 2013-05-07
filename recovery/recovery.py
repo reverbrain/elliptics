@@ -4,8 +4,7 @@
 New recovery mechanism for elliptics that utilizes new iterators and metadata
 
  * Find ranges that host stole from neighbours in routing table.
- * Start metadata-only iterator fo each range on remote hosts.
- * Start metadata-only local iterator.
+ * Start metadata-only iterator fo each range on local and remote hosts.
  * Sort iterators' outputs.
  * Computes diff between local and remote iterator.
  * Recover keys provided by diff using bulk API.
@@ -253,6 +252,8 @@ def main(node, session, host, groups, timestamp):
 if __name__ == '__main__':
     from optparse import OptionParser
 
+    available_stats = ['none', 'text']
+
     parser = OptionParser()
     parser.add_option("-l", "--log", dest="elliptics_log", default='/dev/stderr', metavar="FILE",
                       help="use file as log [default %default]")
@@ -266,6 +267,8 @@ if __name__ == '__main__':
                       help="Recover keys created/modified since [default: %default]")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
                       help="Enable debug output [default: %default]")
+    parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
+                      help="Statistics output format: {0} [default: %default]".format("/".join(available_stats)))
     # XXX: Add quiet option to not output statistics
     # XXX: Add lock file
     (options, args) = parser.parse_args()
@@ -304,8 +307,15 @@ if __name__ == '__main__':
             options.log_level, repr(e)))
     log.info("Using elliptics client log level: {0}".format(timestamp))
 
+    if options.stat not in available_stats:
+        raise ValueError("Unknown output format: '{0}'. Available formats are: {1}".format(
+            options.stat, available_stats))
+
+
     node, session = setup_elliptics(options.elliptics_log, log_level)
     stats, result = main(node, session, options.elliptics_remote, groups, timestamp)
-    print_stats(stats)
+
+    if options.stat == 'text':
+        print_stats(stats)
 
     exit(not result)
