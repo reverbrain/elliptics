@@ -219,9 +219,16 @@ class dnet_upstream_t: public cocaine::api::stream_t
 };
 
 struct srw_counters {
-	long			blocked = 0;
-	long			nonblocked = 0;
-	long			reply = 0;
+	long			blocked;
+	long			nonblocked;
+	long			reply;
+
+	srw_counters():
+	blocked(0),
+	nonblocked(0),
+	reply(0)
+	{
+	}
 };
 
 typedef std::map<std::string, srw_counters> cmap_t;
