@@ -1,4 +1,4 @@
-from .misc import logged_class
+from .misc import logged_class, format_id
 from .time import Time
 from .range import IdRange
 
@@ -22,7 +22,7 @@ class IteratorResult(object):
         self.container = container
         self.status = status
         self.exception = exception
-        self.file = None
+        self.__file = None
 
     def sort(self):
         """Sorts results"""
@@ -40,8 +40,8 @@ class IteratorResult(object):
         Creates iterator result from filename
         """
         container_file = open(filename, 'w+')
-        result = cls.from_fd(container_file.fd, **kwargs)
-        result.file = container_file # Save it from python's gc
+        result = cls.from_fd(container_file.fileno(), **kwargs)
+        result.__file = container_file # Save it from python's gc
         return result
 
     @classmethod
@@ -65,13 +65,15 @@ class Iterator(object):
         self.session.set_groups([group])
 
     def __start(self, eid, request):
-        result = IteratorResult(eid=eid, id_range=IdRange(request.key_begin, request.key_end))
+        id_range = IdRange(request.key_begin, request.key_end)
+        filename = "iterator_{0}@{1}".format(str(id_range), format_id(eid.id)) # XXX: Specify dir
+        result = IteratorResult.from_filename(filename, eid=eid, id_range=id_range)
         iterator = self.session.start_iterator(eid, request)
         for record in iterator:
             if record.status != 0:
                 raise RuntimeError("Iteration status check failed: {0}".format(record.status))
             # TODO: Here we can add throttling
-            self.container.append(record)
+            result.container.append(record)
         result.status = True
         return result
 
