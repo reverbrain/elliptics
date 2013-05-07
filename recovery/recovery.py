@@ -124,7 +124,6 @@ def sort(results, stats):
     """
     sorted_results = []
     for local, remote in results:
-        stats['sort_total'] += 2
         if not (local.status and remote.status):
             log.debug("Sort skipped because local or remote iterator failed")
             stats['sort_skipped'] += 1
@@ -132,12 +131,17 @@ def sort(results, stats):
         try:
             assert local.id_range == remote.id_range, \
                 "Local range must equal remote range"
+
             log.info("Processing sorting local range: {0}".format(local.id_range))
+            stats['sort_total'] += 1
             local.container.sort()
             stats['sort_local_finished'] += 1
+
             log.info("Processing sorting remote range: {0}".format(local.id_range))
+            stats['sort_total'] += 1
             remote.container.sort()
             stats['sort_remote_finished'] += 1
+
             sorted_results.append((local, remote))
         except Exception as e:
             log.error("Sort of {0} failed: {1}".format(local.id_range, e))
@@ -168,11 +172,11 @@ def recover(diffs, stats):
     for host, diff in diffs:
         # XXX: Make bulk
         for record in diff:
+            stats['recover_total'] += 1
             # Parse record, get it's key
             # Read record from old location
             # Write record to new location
             # Bump stats
-            pass # XXX:
     return True
 
 def print_stats(stats):
