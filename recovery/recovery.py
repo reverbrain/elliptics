@@ -63,8 +63,8 @@ def get_ranges(routes, host, group_id):
     ranges = []
     for i, route in enumerate(routes):
         ekey, node = routes[i]
-        _, prev_node = routes[i - 1]
-        next_ekey, _ = routes[i + 1]
+        prev_node = routes[i - 1].node
+        next_ekey = routes[i + 1].key
         if ekey.group_id != group_id:
             log.debug("Skipped route: {0}, it belongs to group_id: {1}".format(
                 route, ekey.group_id))
