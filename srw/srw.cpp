@@ -218,8 +218,55 @@ class dnet_upstream_t: public cocaine::api::stream_t
 		int m_error;
 };
 
+struct srw_counters {
+	long			blocked = 0;
+	long			nonblocked = 0;
+	long			reply = 0;
+};
+
+typedef std::map<std::string, srw_counters> cmap_t;
+
+class dnet_app_t : public cocaine::app_t {
+	public:
+        	dnet_app_t(cocaine::context_t& context, const std::string& name, const std::string& profile) :
+			cocaine::app_t(context, name, profile) {
+		}
+
+		Json::Value counters(void) {
+			Json::Value info(Json::objectValue);
+
+			for (auto it = m_counters.begin(); it != m_counters.end(); ++it) {
+				Json::Value obj(Json::objectValue);
+
+				obj["blocked"] = static_cast<Json::Value::Int64>(it->second.blocked);
+				obj["nonblocked"] = static_cast<Json::Value::Int64>(it->second.nonblocked);
+				obj["reply"] = static_cast<Json::Value::Int64>(it->second.reply);
+
+				info[it->first] = obj;
+			}
+
+			return info;
+		}
+
+		void update(const std::string &event, struct sph *sph) {
+			std::unique_lock<std::mutex> guard(m_lock);
+
+			if (sph->flags & (DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH)) {
+				m_counters[event].reply += 1;
+			} else if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
+				m_counters[event].blocked += 1;
+			} else {
+				m_counters[event].nonblocked += 1;
+			}
+		}
+
+	private:
+		std::mutex	m_lock;
+		cmap_t		m_counters;
+};
+
 typedef std::shared_ptr<dnet_upstream_t> dnet_shared_upstream_t;
-typedef std::map<std::string, std::shared_ptr<cocaine::app_t> > eng_map_t;
+typedef std::map<std::string, std::shared_ptr<dnet_app_t> > eng_map_t;
 typedef std::map<int, dnet_shared_upstream_t> jobs_map_t;
 
 namespace {
@@ -321,7 +368,7 @@ class srw {
 				boost::mutex::scoped_lock guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
-					std::shared_ptr<cocaine::app_t> eng(new cocaine::app_t(m_ctx, app, app));
+					std::shared_ptr<dnet_app_t> eng(new dnet_app_t(m_ctx, app, app));
 					eng->start();
 
 					m_map.insert(std::make_pair(app, eng));
@@ -347,7 +394,10 @@ class srw {
 					return -ENOENT;
 				}
 
-				std::string s = Json::FastWriter().write(it->second->info());
+				Json::Value info = it->second->info();
+				info["counters"] = it->second->counters();
+
+				std::string s = Json::FastWriter().write(info);
 
 				struct sph *reply;
 				std::string tmp;
@@ -379,6 +429,10 @@ class srw {
 				if (final)
 					m_jobs.erase(it);
 
+				eng_map_t::iterator appit = m_map.find(app);
+				if (appit != m_map.end())
+					appit->second->update(event, sph);
+
 				guard.unlock();
 
 				upstream->reply(final, (char *)sph, sizeof(struct sph) + sph->event_size + sph->data_size);
@@ -401,12 +455,15 @@ class srw {
 					return -ENOENT;
 				}
 
+				it->second->update(event, sph);
+
 				dnet_shared_upstream_t upstream(std::make_shared<dnet_upstream_t>(m_s, st, cmd, event, (uint64_t)sph->flags));
 
-				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK)
+				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
 					m_jobs.insert(std::make_pair((int)sph->src_key, upstream));
+				}
 
-				std::shared_ptr<cocaine::app_t> app = it->second;
+				std::shared_ptr<dnet_app_t> app = it->second;
 				guard.unlock();
 
 				std::shared_ptr<cocaine::api::stream_t> stream = app->enqueue(cevent, upstream);
