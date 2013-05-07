@@ -32,7 +32,7 @@ class IteratorResult(object):
         """
         Computes diff between two sorted results. Returns container that consists of difference.
         """
-        self.container.diff(other.container)
+        return self.from_fd(self.container.diff(other.container))
 
     @classmethod
     def from_filename(cls, filename, **kwargs):
