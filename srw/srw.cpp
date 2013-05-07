@@ -30,8 +30,7 @@
 
 #include <map>
 #include <vector>
-#include <boost/thread.hpp>
-#include <boost/thread/condition.hpp>
+#include <sstream>
 
 #include <cocaine/context.hpp>
 #include <cocaine/logging.hpp>
@@ -189,7 +188,7 @@ class dnet_upstream_t: public cocaine::api::stream_t
 		}
 
 		void reply(bool completed, const char *reply, size_t size) {
-			boost::mutex::scoped_lock guard(m_lock);
+			std::unique_lock<std::mutex> guard(m_lock);
 			if (m_completed)
 				return;
 
@@ -211,7 +210,7 @@ class dnet_upstream_t: public cocaine::api::stream_t
 		bool m_completed;
 		std::string m_name;
 		struct dnet_session *m_s;
-		boost::mutex m_lock;
+		std::mutex m_lock;
 		struct dnet_net_state *m_state;
 		struct dnet_cmd m_cmd;
 		uint64_t m_sph_flags;
@@ -372,7 +371,7 @@ class srw {
 			std::string ev(ptr+1);
 
 			if (ev == "start-task") {
-				boost::mutex::scoped_lock guard(m_lock);
+				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
 					std::shared_ptr<dnet_app_t> eng(new dnet_app_t(m_ctx, app, app));
@@ -385,7 +384,7 @@ class srw {
 							id_str, sph_str, event.c_str());
 				}
 			} else if (ev == "stop-task") {
-				boost::mutex::scoped_lock guard(m_lock);
+				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				/* destructor stops engine */
 				if (it != m_map.end())
@@ -394,7 +393,7 @@ class srw {
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: stopped\n", id_str, sph_str, event.c_str());
 			} else if (ev == "info") {
-				boost::mutex::scoped_lock guard(m_lock);
+				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
 					dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: no task\n", id_str, sph_str, event.c_str());
@@ -423,7 +422,7 @@ class srw {
 			} else if (sph->flags & (DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH)) {
 				bool final = !!(sph->flags & DNET_SPH_FLAGS_FINISH);
 
-				boost::mutex::scoped_lock guard(m_lock);
+				std::unique_lock<std::mutex> guard(m_lock);
 
 				jobs_map_t::iterator it = m_jobs.find(sph->src_key);
 				if (it == m_jobs.end()) {
@@ -455,7 +454,7 @@ class srw {
 
 				cocaine::api::event_t cevent(event);
 
-				boost::mutex::scoped_lock guard(m_lock);
+				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
 					dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: no task\n", id_str, sph_str, event.c_str());
@@ -492,7 +491,7 @@ class srw {
 	private:
 		struct dnet_session		*m_s;
 		cocaine::context_t		m_ctx;
-		boost::mutex			m_lock;
+		std::mutex			m_lock;
 		eng_map_t			m_map;
 		jobs_map_t			m_jobs;
 		atomic_t			m_src_key;
