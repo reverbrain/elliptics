@@ -343,7 +343,7 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 				orig_size = size;
 			}
 
-			dnet_log(n, DNET_LOG_INFO, "%s: %d %s, id_num: %d, addr_num: %d\n",
+			dnet_log(n, DNET_LOG_NOTICE, "%s: %d %s, id_num: %d, addr_num: %d\n",
 					dnet_server_convert_dnet_addr(&st->addrs[0]),
 					g->group_id, dnet_dump_id_str(st->idc->ids[0].raw.id),
 					st->idc->id_num, n->addr_num);
