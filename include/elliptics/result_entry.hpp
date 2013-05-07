@@ -188,6 +188,9 @@ class iterator_result_container
 	public:
 		iterator_result_container(int fd)
 			: m_fd(fd), m_sorted(false), m_write_position(0) {}
+		// Getters
+		int get_fd() const { return m_fd; };
+		int get_sorted() const { return m_sorted; };
 		// Appends one result to container
 		void append(const iterator_result_entry &result);
 		void append(const dnet_iterator_response *response);
