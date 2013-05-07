@@ -2491,11 +2491,9 @@ err_out_exit:
 static int dnet_iterator_response_cmp(const void *r1, const void *r2)
 {
 	const struct dnet_iterator_response *a = r1, *b = r2;
-	int diff = dnet_id_cmp_str(a->key.id, b->key.id);
+	const int diff = dnet_id_cmp_str(a->key.id, b->key.id);
 
-	if (diff != 0)
-		return diff;
-	return dnet_time_cmp(&a->timestamp, &b->timestamp);
+	return diff ? diff : dnet_time_cmp(&a->timestamp, &b->timestamp);
 }
 
 /*!
