@@ -288,6 +288,7 @@ if __name__ == '__main__':
                       help="Recover keys created/modified since [default: %default]")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
                       help="Enable debug output [default: %default]")
+    # XXX: Add stats API
     parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
                       help="Statistics output format: {0} [default: %default]".format("/".join(available_stats)))
     # XXX: Add quiet option to not output statistics
