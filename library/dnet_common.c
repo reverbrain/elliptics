@@ -1627,8 +1627,10 @@ static int dnet_update_status_complete(struct dnet_net_state *state, struct dnet
 	if (is_trans_destroyed(state, cmd)) {
 		dnet_wakeup(p->w, p->w->cond++);
 		dnet_wait_put(p->w);
-		if (atomic_dec_and_test(&p->refcnt))
+		if (atomic_dec_and_test(&p->refcnt)) {
 			free(p);
+			return -ENOENT;
+		}
 	}
 
 	if (cmd->size == sizeof(struct dnet_node_status)) {
