@@ -2544,7 +2544,7 @@ int dnet_iterator_response_container_append(const struct dnet_iterator_response 
 {
 	struct dnet_iterator_response copy;
 	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
-	int err;
+	ssize_t err;
 
 	/* Sanity */
 	if (pos % resp_size != 0)
@@ -2561,22 +2561,24 @@ int dnet_iterator_response_container_append(const struct dnet_iterator_response 
 }
 
 /*!
- * Reads one dnet_iterator_response from fd
+ * Reads one dnet_iterator_response from \a fd at position \a pos and stores it
+ * in \a response
  */
-struct dnet_iterator_response *dnet_iterator_response_container_read(int fd, uint64_t pos)
+int dnet_iterator_response_container_read(int fd, uint64_t pos,
+		struct dnet_iterator_response *response)
 {
 	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
-	struct dnet_iterator_response response;
+	ssize_t err;
 
 	/* Sanity */
-	if (fd < 0)
-		return NULL;
+	if (fd < 0 || response == NULL)
+		return -EINVAL;
 	if (pos % resp_size != 0)
-		return NULL;
+		return -EINVAL;
 
-	if (pread(fd, &response, resp_size, pos) != resp_size)
-		return NULL;
-	dnet_convert_iterator_response(&response);
+	if ((err = pread(fd, response, resp_size, pos)) != resp_size)
+		return (err == -1) ? -errno : -EINTR;
+	dnet_convert_iterator_response(response);
 
 	return 0;
 }

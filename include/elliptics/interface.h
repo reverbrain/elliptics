@@ -266,7 +266,8 @@ struct dnet_iterator_ctl {
 int dnet_iterator_response_container_sort(int fd, size_t size);
 int dnet_iterator_response_container_append(const struct dnet_iterator_response
 		*response, int fd, uint64_t pos);
-struct dnet_iterator_response *dnet_iterator_response_container_read(int fd, uint64_t pos);
+int dnet_iterator_response_container_read(int fd, uint64_t pos,
+		struct dnet_iterator_response *response);
 int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t left_size,
 		int right_fd, uint64_t right_size);
 
