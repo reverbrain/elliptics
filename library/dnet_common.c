@@ -1116,6 +1116,7 @@ struct dnet_wait *dnet_wait_alloc(int cond)
 
 err_out_destroy:
 	pthread_mutex_destroy(&w->wait_lock);
+	free(w);
 err_out_exit:
 	return NULL;
 }
