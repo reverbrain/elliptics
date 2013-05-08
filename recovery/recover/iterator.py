@@ -24,10 +24,6 @@ class IteratorResult(object):
         self.exception = exception
         self.__file = None
 
-    @property
-    def count(self):
-        return self.container.count()
-
     def append(self, record):
         self.container.append(record)
 
@@ -45,6 +41,9 @@ class IteratorResult(object):
         diff_container = self.from_filename(filename)
         self.container.diff(other.container, diff_container.container)
         return diff_container
+
+    def __len__(self):
+        return self.container.__len__()
 
     @classmethod
     def from_filename(cls, filename, **kwargs):

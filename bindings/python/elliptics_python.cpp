@@ -802,7 +802,7 @@ void iterator_container_sort(iterator_result_container &container)
 	container.sort();
 }
 
-uint64_t iterator_container_count(const iterator_result_container &container)
+uint64_t iterator_container_len(const iterator_result_container &container)
 {
 	return container.m_write_position / sizeof(dnet_iterator_response);
 }
@@ -870,8 +870,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("append", iterator_container_append)
 		.def("sort", iterator_container_sort)
 		.def("diff", iterator_container_diff)
-		.def("count", iterator_container_count)
-		//.def("__iter__", bp::iterator<python_iterator_result>())
+		.def("__len__", iterator_container_len)
 	;
 
 	bp::class_<elliptics_range>("Range")
