@@ -847,6 +847,7 @@ struct cas_functor : std::enable_shared_from_this<cas_functor>
 
 		session_scope guard(sess);
 		sess.set_exceptions_policy(session::no_exceptions);
+		sess.set_filter(filters::positive);
 		sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CHECKSUM);
 
 		sess.read_data(id, remote_offset, 0)
@@ -861,10 +862,16 @@ struct cas_functor : std::enable_shared_from_this<cas_functor>
 		data_pointer data;
 		uint32_t group_id = 0;
 		const read_result_entry *entry = NULL;
+		dnet_id csum;
 		if (err.code() != -ENOENT) {
 			entry = &result[0];
 			data = entry->file();
 			group_id = entry->command()->id.group_id;
+			memcpy(csum.id, entry->io_attribute()->parent, sizeof(csum.id));
+			csum.group_id = 0;
+			csum.type = 0;
+		} else {
+			memset(&csum, 0, sizeof(csum));
 		}
 
 		data_pointer write_data = converter(data);
@@ -893,11 +900,6 @@ struct cas_functor : std::enable_shared_from_this<cas_functor>
 			handler.complete(error_info());
 			return;
 		}
-
-		dnet_id csum;
-		memset(&csum, 0, sizeof(csum));
-		dnet_transform_node(sess.get_node().get_native(),
-		data.data(), data.size(), csum.id, sizeof(csum.id));
 
 		session write_sess = sess.clone();
 		write_sess.set_filter(filters::all_with_ack);
