@@ -19,7 +19,7 @@ from datetime import datetime
 
 from recover.range import IdRange, RecoveryRange
 from recover.route import RouteList
-from recover.misc import format_id, split_host_port
+from recover.misc import format_id, split_host_port, mk_container_name
 from recover.iterator import Iterator
 from recover.time import Time
 
@@ -95,6 +95,9 @@ def run_iterators(node=None, group=None, routes=None,
         stats['iteration_total'] += 2
         try:
             timestamp_range = timestamp.to_etime(), Time.time_max().to_etime()
+
+            log.debug("Running local iterator on: {0}".format(mk_container_name(
+                iteration_range.id_range, local_eid)))
             local_result = Iterator(node, group).start(
                 eid=local_eid,
                 timestamp_range=timestamp_range,
@@ -103,6 +106,8 @@ def run_iterators(node=None, group=None, routes=None,
             stats['iteration_local'] += 1
 
             remote_eid = routes.filter_by_host(iteration_range.host)[0].key
+            log.debug("Running remote iterator on: {0}".format(mk_container_name(
+                iteration_range.id_range, remote_eid)))
             remote_result = Iterator(node, group).start(
                 eid=remote_eid,
                 timestamp_range=timestamp_range,
