@@ -22,12 +22,14 @@ class IteratorResult(object):
         self.container = container
         self.status = status
         self.exception = exception
-        self.count = 0
         self.__file = None
+
+    @property
+    def count(self):
+        return self.container.count()
 
     def append(self, record):
         self.container.append(record)
-        self.count += 1
 
     def sort(self):
         """Sorts results"""
