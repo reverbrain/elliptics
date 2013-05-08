@@ -103,6 +103,8 @@ def run_iterators(node=None, group=None, routes=None,
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
             )
+            log.debug("Local obtained: {0} record(s)".format(local_result.count))
+            stats['iteration_local_records'] += local_result.count
             stats['iteration_local'] += 1
 
             remote_eid = routes.filter_by_host(iteration_range.host)[0].key
@@ -113,6 +115,8 @@ def run_iterators(node=None, group=None, routes=None,
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
             )
+            log.debug("Remote obtained: {0} record(s)".format(remote_result.count))
+            stats['iteration_remote_records'] += remote_result.count
             stats['iteration_remote'] += 1
 
             results.append((local_result, remote_result))

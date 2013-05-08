@@ -22,7 +22,12 @@ class IteratorResult(object):
         self.container = container
         self.status = status
         self.exception = exception
+        self.count = 0
         self.__file = None
+
+    def append(self, record):
+        self.container.append(record)
+        self.count += 1
 
     def sort(self):
         """Sorts results"""
@@ -76,7 +81,7 @@ class Iterator(object):
             if record.status != 0:
                 raise RuntimeError("Iteration status check failed: {0}".format(record.status))
             # TODO: Here we can add throttling
-            result.container.append(record)
+            result.append(record)
         result.status = True
         return result
 
