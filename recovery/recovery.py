@@ -256,9 +256,16 @@ def main(node, session, host, groups, timestamp):
         assert len(sorted_results) >= len(diff_results)
         log.warning("Computed differences: {0} diff(s)".format(len(diff_results)))
 
+        #
+        # XXX: Cleanups
+        #
+
         log.warning("Recovering diffs")
         result &= recover(diff_results, group_stats)
         log.warning("Recovery finished, setting result to: {0}".format(result))
+
+        # XXX: Cleanups
+
         group_stats['time_stopped'] = datetime.now()
         group_stats['time_taken'] = group_stats['time_stopped'] - group_stats['time_started']
     return stats, result
