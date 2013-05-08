@@ -388,6 +388,9 @@ static int dnet_db_list_iter_init(struct eblob_iterate_control *iter_ctl, void *
 	return 0;
 
 err_out_exit:
+	if(bulk_array->states)
+		free(bulk_array->states)
+	free(bulk_array);
 	return err;
 }
 
