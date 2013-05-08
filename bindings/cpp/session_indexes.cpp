@@ -411,7 +411,7 @@ struct find_indexes_handler
 	{
 		std::vector<find_indexes_result_entry> result;
 
-		if (err == -ENOENT) {
+		if (err.code() == -ENOENT) {
 			handler.complete(error_info());
 			return;
 		} else if (err) {
