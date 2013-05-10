@@ -403,7 +403,7 @@ class srw {
 				Json::Value info = it->second->info();
 				info["counters"] = it->second->counters();
 
-				std::string s = Json::FastWriter().write(info);
+				std::string s = Json::StyledWriter().write(info);
 
 				struct sph *reply;
 				std::string tmp;
