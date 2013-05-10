@@ -152,11 +152,14 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 	uint64_t flags = 0;
 	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
 	int combined = 0;
+	uint64_t orig_size;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: %x, type: %d.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags, io->type);
 
 	dnet_convert_io_attr(io);
+
+	orig_size = io->size;
 
 	data += sizeof(struct dnet_io_attr);
 
@@ -200,8 +203,9 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 			goto err_out_exit;
 		}
 		err = dnet_ext_list_combine(&data, &io->size, elist);
-		if (err)
+		if (err) {
 			goto err_out_exit;
+		}
 		combined = 1;
 	} else { /* Error */
 		goto err_out_exit;
@@ -216,7 +220,7 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
 		wc.offset = 0;
-		wc.size = io->num;
+		wc.size = io->num + (io->size - orig_size); /* increase prepared space by the size of external headers */
 		wc.flags = flags;
 		wc.type = io->type;
 
