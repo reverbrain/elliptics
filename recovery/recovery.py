@@ -115,6 +115,7 @@ def run_iterators(node=None, group=None, routes=None,
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
             )
+            remote_result.host = iteration_range.host
             log.debug("Remote obtained: {0} record(s)".format(len(remote_result)))
             stats['iteration_remote_records'] += len(remote_result)
             stats['iteration_remote'] += 1
@@ -167,7 +168,7 @@ def diff(results, stats):
         stats['diff_total'] += 1
         log.info("Computing differences for {0}".format(local.id_range))
         try:
-            diff_results.append(local.diff(remote))
+            diff_results.append((remote.host, local.diff(remote)))
         except Exception as e:
             stats['diff_failed'] += 1
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))

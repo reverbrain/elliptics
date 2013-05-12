@@ -16,9 +16,15 @@ class IteratorResult(object):
               Container for iterator results
               Provides status and IteratorResultContainer wrapper.
               """
-    def __init__(self, eid=None, id_range=IdRange(None, None), status=False, exception=None, container=None):
+    def __init__(self, eid=None,
+                 id_range=IdRange(None, None),
+                 host=None,
+                 status=False,
+                 exception=None,
+                 container=None,):
         self.eid = eid
         self.id_range = id_range
+        self.host = host
         self.container = container
         self.status = status
         self.exception = exception
@@ -43,7 +49,10 @@ class IteratorResult(object):
         return diff_container
 
     def __len__(self):
-        return self.container.__len__()
+        return len(self.container)
+
+    def __iter__(self):
+        return iter(self.container)
 
     @classmethod
     def from_filename(cls, filename, **kwargs):
