@@ -194,6 +194,7 @@ class iterator_result_container
 		//! Puts difference between \a this and \a other into \a diff
 		void diff(const iterator_result_container &other,
 				iterator_result_container &result) const;
+		dnet_iterator_response operator [](size_t n) const;
 
 		int m_fd;
 		bool m_sorted;

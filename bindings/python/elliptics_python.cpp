@@ -807,6 +807,12 @@ uint64_t iterator_container_len(const iterator_result_container &container)
 	return container.m_write_position / sizeof(dnet_iterator_response);
 }
 
+dnet_iterator_response iterator_container_getitem(const iterator_result_container &container,
+		uint64_t n)
+{
+	return container[n];
+}
+
 void iterator_container_diff(iterator_result_container &left,
 		iterator_result_container &right, iterator_result_container &diff)
 {
@@ -871,6 +877,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("sort", iterator_container_sort)
 		.def("diff", iterator_container_diff)
 		.def("__len__", iterator_container_len)
+		.def("__getitem__", &iterator_result_container::operator[])
 	;
 
 	bp::class_<elliptics_range>("Range")

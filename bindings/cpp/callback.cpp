@@ -337,4 +337,17 @@ void iterator_result_container::diff(const iterator_result_container &other,
 	result.m_sorted = true;
 }
 
+dnet_iterator_response iterator_result_container::operator [](size_t n) const
+{
+	dnet_iterator_response response;
+	int err;
+
+	err = dnet_iterator_response_container_read(m_fd,
+			n * sizeof(response), &response);
+	if (err != 0)
+		throw_error(err, "dnet_iterator_response_container_read failed");
+
+	return response;
+}
+
 } } // namespace ioremap::elliptics
