@@ -3,7 +3,9 @@ from .time import Time
 from .range import IdRange
 
 import sys
+import os
 sys.path.insert(0, "bindings/python/") # XXX
+
 import elliptics
 
 __doc__ = \
@@ -11,6 +13,7 @@ __doc__ = \
 XXX:
 """
 
+@logged_class
 class IteratorResult(object):
     __doc__ = """
               Container for iterator results
@@ -29,6 +32,13 @@ class IteratorResult(object):
         self.status = status
         self.exception = exception
         self.__file = None
+
+    def __del__(self):
+        try:
+            if self.__file:
+                os.unlink(self.__file.name)
+        except Exception as e:
+            self.log.error("Can't remove file: {0}: {1}".format(self.__file.name, e))
 
     def append(self, record):
         self.container.append(record)
