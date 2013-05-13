@@ -18,6 +18,12 @@ class Time(object):
     def __init__(self, tsec, tnsec):
         self.time = elliptics.Time(tsec, tnsec)
 
+    def __str__(self):
+        return "{0}:{1}".format(self.time.tsec, self.time.tnsec)
+
+    def __repr__(self):
+        return "Time({0}, {1})".format(self.time.tsec, self.time.tnsec)
+
     @classmethod
     def time_min(cls):
         return cls(0, 0)
