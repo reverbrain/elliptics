@@ -286,6 +286,7 @@ data_pointer iterator_result_entry::reply_data() const
 // Iterator container
 //
 
+//* Append one result to container
 void iterator_result_container::append(const iterator_result_entry &result)
 {
 	append(result.reply());
@@ -306,6 +307,7 @@ void iterator_result_container::append(const dnet_iterator_response *response)
 	m_count++;
 }
 
+//* Sort container by (key, timestamp) tuple
 void iterator_result_container::sort()
 {
 	int err;
@@ -319,6 +321,7 @@ void iterator_result_container::sort()
 	m_sorted = true;
 }
 
+//* Compute diff between `this' and \a other, put it to \a result
 void iterator_result_container::diff(const iterator_result_container &other,
 		iterator_result_container &result) const
 {
@@ -334,6 +337,7 @@ void iterator_result_container::diff(const iterator_result_container &other,
 	result.m_sorted = true;
 }
 
+//* Extract n-th item from container
 dnet_iterator_response iterator_result_container::operator [](size_t n) const
 {
 	dnet_iterator_response response;

@@ -182,12 +182,8 @@ def recover(diffs, stats):
     for diff in diffs:
         log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.host))
         for response in diff:
+            stats['recover_keys_total'] += 1
             log.debug("Recovering key: {0}".format(response.key))
-            stats['recover_total'] += 1
-            # Parse record, get it's key
-            # Read record from old location
-            # Write record to new location
-            # Bump stats
     return True
 
 def print_stats(stats):

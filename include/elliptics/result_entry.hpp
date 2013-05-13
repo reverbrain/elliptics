@@ -184,7 +184,9 @@ class iterator_result_container
 {
 	public:
 		iterator_result_container(int fd, bool sorted = false, uint64_t write_position = 0)
-			: m_fd(fd), m_sorted(sorted), m_write_position(write_position) {}
+			: m_fd(fd), m_sorted(sorted), m_write_position(write_position) {
+				m_count = m_write_position / sizeof(dnet_iterator_response);
+			}
 		// Appends one result to container
 		void append(const iterator_result_entry &result);
 		void append(const dnet_iterator_response *response);
@@ -197,6 +199,7 @@ class iterator_result_container
 
 		int m_fd;
 		bool m_sorted;
+		uint64_t m_count;
 		uint64_t m_write_position;
 };
 
