@@ -16,6 +16,7 @@ import logging as log
 from collections import defaultdict
 from operator import itemgetter
 from datetime import datetime
+from itertools import groupby
 
 from recover.range import IdRange, RecoveryRange
 from recover.route import RouteList
@@ -29,7 +30,7 @@ import elliptics
 
 log.getLogger()
 
-def setup_elliptics(log_file, log_level):
+def setup_elliptics(host=None, port=None, groups=None, elog=None, log_file="/dev/stderr", log_level=1):
     """
     Connects to elliptics cloud
     """
@@ -39,8 +40,11 @@ def setup_elliptics(log_file, log_level):
     cfg = elliptics.Config()
     cfg.config.wait_timeout = 60
 
-    log.debug('Creating logger')
-    elog = elliptics.Logger(log_file, int(log_level))
+    if elog == None:
+        log.debug('Creating logger')
+        elog = elliptics.Logger(log_file, int(log_level))
+    else:
+        log.debug('Using existing logger')
 
     log.debug('Creating node')
     node = elliptics.Node(elog, cfg)
@@ -49,9 +53,9 @@ def setup_elliptics(log_file, log_level):
     log.debug("Creating session")
     session = elliptics.Session(node)
     session.add_groups(groups)
-    return node, session
+    return elog, node, session
 
-def get_ranges(routes, host, group_id):
+def get_ranges(ctx, routes, group_id):
     """
     For each record in RouteList create 1 or 2 RecoveryRange(s)
     Returns list of RecoveryRange`s
@@ -69,7 +73,7 @@ def get_ranges(routes, host, group_id):
             log.debug("Skipped route: {0}, it belongs to group_id: {1}".format(
                 route, ekey.group_id))
             continue
-        if node == host:
+        if node == ctx.hostport:
             start = ekey.id
             stop = next_ekey.id
             # If we wrapped around hash ring circle - split route into two distinct ranges
@@ -82,19 +86,19 @@ def get_ranges(routes, host, group_id):
                 ranges.append(RecoveryRange(IdRange(start, stop), prev_node))
     return ranges
 
-def run_iterators(node=None, group=None, routes=None,
-                  ranges=None, timestamp=None, host=None, stats=None):
+def run_iterators(ctx, node=None, group=None, routes=None,
+                  ranges=None, stats=None):
     """
     Runs local and remote iterators for each range.
     TODO: Can be parallel
     """
     results = []
-    local_eid = routes.filter_by_host(host)[0].key
+    local_eid = routes.filter_by_host(ctx.hostport)[0].key
 
     for iteration_range in ranges:
         stats['iteration_total'] += 2
         try:
-            timestamp_range = timestamp.to_etime(), Time.time_max().to_etime()
+            timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
 
             log.debug("Running local iterator on: {0}".format(mk_container_name(
                 iteration_range.id_range, local_eid)))
@@ -127,7 +131,7 @@ def run_iterators(node=None, group=None, routes=None,
             stats['iteration_failed'] += 1
     return results
 
-def sort(results, stats):
+def sort(ctx, results, stats):
     """
     Runs sort routine for all iterator result
     TODO: Can be parallel
@@ -158,7 +162,7 @@ def sort(results, stats):
             stats['sort_failed'] += 1
     return sorted_results
 
-def diff(results, stats):
+def diff(ctx, results, stats):
     """
     Compute differences between local and remote results.
     TODO: Can be parallel
@@ -174,17 +178,35 @@ def diff(results, stats):
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))
     return diff_results
 
-def recover(diffs, stats):
+def recover(ctx, diffs, stats):
     """
     Recovers difference between remote and local data.
     TODO: Can be parallel
     """
+    result = True
     for diff in diffs:
         log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.host))
-        for response in diff:
-            stats['recover_keys_total'] += 1
-            log.debug("Recovering key: {0}".format(response.key))
-    return True
+        # Here we cleverly splitting responses into RECOVERY_BULK_SIZE batches
+        for group, batch in groupby(enumerate(diff),
+                                        key=lambda x: x[0] / ctx.batch_size):
+            total, failures = recover_keys(ctx, diff.host, [r.key for i, r in batch])
+            stats['recover_keys_failed'] += failures
+            stats['recover_keys_total'] += total
+            result &= (failures == 0)
+            log.debug("Recovered batch: {0} of size: {1}".format(group, total))
+    return result
+
+def recover_keys(ctx, host, keys):
+    """
+    Bulk recover of keys.
+    """
+    log.info("Recovering {0} keys for host: {1}".format(len(keys), host))
+    for key in keys:
+        try:
+            log.debug("Recovering key: {0} for host: {1}".format(key, host))
+        except Exception:
+            log.debug("Recovery of batch failed: {0} for host: {1}".format(key, host))
+    return len(keys), 0
 
 def print_stats(stats):
     """
@@ -207,68 +229,63 @@ def print_stats(stats):
         print sep_plus
         print
 
-def main(node, session, host, groups, timestamp):
+def main(ctx):
     """
     XXX:
     """
-    stats = defaultdict(dict)
     result = True
-    for group in groups:
+    ctx.stats['time_started'] = datetime.now()
+    for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
-        group_stats = defaultdict(int)
-        stats['groups'][group] = group_stats
 
-        group_stats['time_started'] = datetime.now()
-        log.warning("Searching for ranges that '{0}' stole".format(host, group))
+        elog, node, session = setup_elliptics(ctx.host, ctx.port, [group],
+                                              log_file=ctx.log_file, log_level=ctx.log_level)
+        group_stats = ctx.stats['groups'][group] = defaultdict(int)
+
+        log.warning("Searching for ranges that '{0}' stole".format(ctx.host))
         routes = RouteList(session.get_routes())
         log.debug("Total routes: {0}".format(len(routes)))
 
-        ranges = get_ranges(routes, host, group)
+        ranges = get_ranges(ctx, routes, group)
         log.debug("Recovery ranges: {0}".format(len(ranges)))
         if not ranges:
             log.warning("No ranges to recover in group: {0}".format(group))
             continue
         # We should not run iterators on ourselves
-        assert all(node != host for _, node in ranges)
+        assert all(node != ctx.host for _, node in ranges)
 
         log.warning("Running iterators against: {0} range(s)".format(len(ranges)))
         iterator_results = run_iterators(
+            ctx,
             node=node,
             group=group,
             routes=routes,
             ranges=ranges,
-            timestamp=timestamp,
-            host=host,
             stats=group_stats,
         )
         assert len(ranges) >= len(iterator_results)
         log.warning("Finished iteration of: {0} range(s)".format(len(iterator_results)))
 
         log.warning("Sorting iterators' data")
-        sorted_results = sort(iterator_results, group_stats)
+        sorted_results = sort(ctx, iterator_results, group_stats)
         assert len(iterator_results) >= len(sorted_results)
         log.warning("Sorted successfully: {0} result(s)".format(len(sorted_results)))
 
         log.warning("Computing diff local vs remote")
-        diff_results = diff(sorted_results, group_stats)
+        diff_results = diff(ctx, sorted_results, group_stats)
         assert len(sorted_results) >= len(diff_results)
         log.warning("Computed differences: {0} diff(s)".format(len(diff_results)))
 
-        #
-        # XXX: Cleanups
-        #
-
         log.warning("Recovering diffs")
-        result &= recover(diff_results, group_stats)
+        result &= recover(ctx, diff_results, group_stats)
         log.warning("Recovery finished, setting result to: {0}".format(result))
 
-        # XXX: Cleanups
-
-        group_stats['time_stopped'] = datetime.now()
-        group_stats['time_taken'] = group_stats['time_stopped'] - group_stats['time_started']
-    return stats, result
+    ctx.stats['time_stopped'] = datetime.now()
+    ctx.stats['time_taken'] = ctx.stats['time_stopped'] - ctx.stats['time_started']
+    return result
 
 if __name__ == '__main__':
+    from recover.ctx import Ctx
     from optparse import OptionParser
 
     available_stats = ['none', 'text']
@@ -284,11 +301,14 @@ if __name__ == '__main__':
                       help="Comma separated list of groups [default: %default]")
     parser.add_option("-t", "--timestamp", action="store", dest="timestamp", default="0",
                       help="Recover keys created/modified since [default: %default]")
+    parser.add_option("-b", "--batch-size", action="store", dest="batch_size", default="1024",
+                      help="Number of keys in read_bulk/write_bulk batch [default: %default]")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
                       help="Enable debug output [default: %default]")
     # XXX: Add stats API
     parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
                       help="Statistics output format: {0} [default: %default]".format("/".join(available_stats)))
+    # XXX: Add temp dir
     # XXX: Add quiet option to not output statistics
     # XXX: Add lock file
     (options, args) = parser.parse_args()
@@ -299,43 +319,58 @@ if __name__ == '__main__':
     if (args):
         raise RuntimeError("Passed garbage: '{0}'".format(args))
 
+    log.info("Initializing context")
+    ctx = Ctx()
+
+    log.info("Initializing stats")
+    ctx.stats = defaultdict(dict)
+
     try:
-        host, port = split_host_port(options.elliptics_remote)
+        ctx.hostport = options.elliptics_remote
+        ctx.host, ctx.port = split_host_port(options.elliptics_remote)
     except Exception as e:
         raise ValueError("Can't parse host:port: '{0}': {1}".format(
             options.elliptics_remote, repr(e)))
-    log.info("Using host:port: {0}:{1}".format(host, port))
+    log.info("Using host:port: {0}:{1}".format(ctx.host, ctx.port))
 
     try:
-        groups = map(int, options.elliptics_groups.split(','))
+        ctx.groups = map(int, options.elliptics_groups.split(','))
     except Exception as e:
         raise ValueError("Can't parse grouplist: '{0}': {1}".format(
             options.elliptics_groups, repr(e)))
-    log.info("Using grouplist: {0}".format(groups))
+    log.info("Using group list: {0}".format(ctx.groups))
 
     try:
-        timestamp = Time.from_epoch(options.timestamp)
+        ctx.timestamp = Time.from_epoch(options.timestamp)
     except Exception as e:
         raise ValueError("Can't parse timestamp: '{0}': {1}".format(
             options.timestamp, repr(e)))
-    log.info("Using timestamp: {0}".format(timestamp))
+    log.info("Using timestamp: {0}".format(ctx.timestamp))
 
     try:
-        log_level = int(options.elliptics_log_level)
+        ctx.batch_size = int(options.batch_size)
+    except Exception as e:
+        raise ValueError("Can't parse batchsize: '{0}': {1}".format(
+            options.batch_size, repr(e)))
+    log.info("Using batch_size: {0}".format(ctx.batch_size))
+
+    try:
+        ctx.log_file = options.elliptics_log
+        ctx.log_level = int(options.elliptics_log_level)
     except Exception as e:
         raise ValueError("Can't parse log_level: '{0}': {1}".format(
-            options.log_level, repr(e)))
-    log.info("Using elliptics client log level: {0}".format(timestamp))
+            options.elliptics_log_level, repr(e)))
+    log.info("Using elliptics client log level: {0}".format(ctx.log_level))
 
     if options.stat not in available_stats:
         raise ValueError("Unknown output format: '{0}'. Available formats are: {1}".format(
             options.stat, available_stats))
 
+    log.debug("Using following context:\n{0}".format(ctx))
 
-    node, session = setup_elliptics(options.elliptics_log, log_level)
-    stats, result = main(node, session, options.elliptics_remote, groups, timestamp)
+    result = main(ctx)
 
     if options.stat == 'text':
-        print_stats(stats)
+        print_stats(ctx.stats)
 
     exit(not result)
