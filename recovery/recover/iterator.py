@@ -54,7 +54,11 @@ class IteratorResult(object):
         # XXX: Use tmp dir
         filename = mk_container_name(self.id_range, self.eid, prefix='diff_') + '-' + \
                    mk_container_name(other.id_range, other.eid, prefix='')
-        diff_container = self.from_filename(filename)
+        diff_container = self.from_filename(filename,
+                                            eid=other.eid,
+                                            id_range=other.id_range,
+                                            host=other.host,
+                                            )
         self.container.diff(other.container, diff_container.container)
         return diff_container
 

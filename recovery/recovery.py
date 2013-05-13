@@ -168,7 +168,7 @@ def diff(results, stats):
         stats['diff_total'] += 1
         log.info("Computing differences for {0}".format(local.id_range))
         try:
-            diff_results.append((remote.host, local.diff(remote)))
+            diff_results.append(local.diff(remote))
         except Exception as e:
             stats['diff_failed'] += 1
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))
@@ -179,8 +179,10 @@ def recover(diffs, stats):
     Recovers difference between remote and local data.
     TODO: Can be parallel
     """
-    for host, diff in diffs:
-        for record in diff:
+    for diff in diffs:
+        log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.host))
+        for response in diff:
+            log.debug("Recovering key: {0}".format(response.key))
             stats['recover_total'] += 1
             # Parse record, get it's key
             # Read record from old location

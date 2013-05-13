@@ -815,6 +815,10 @@ uint64_t iterator_container_len(const iterator_result_container &container)
 dnet_iterator_response iterator_container_getitem(const iterator_result_container &container,
 		uint64_t n)
 {
+	if (n * sizeof(dnet_iterator_response) >= container.m_write_position) {
+		PyErr_SetString(PyExc_IndexError, "Index out of range");
+		bp::throw_error_already_set();
+	}
 	return container[n];
 }
 
@@ -886,7 +890,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("sort", iterator_container_sort)
 		.def("diff", iterator_container_diff)
 		.def("__len__", iterator_container_len)
-		.def("__getitem__", &iterator_result_container::operator[])
+		.def("__getitem__", iterator_container_getitem)
 	;
 
 	bp::class_<elliptics_range>("Range")
