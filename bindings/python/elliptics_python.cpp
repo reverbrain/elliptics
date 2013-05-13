@@ -807,15 +807,15 @@ void iterator_container_sort(iterator_result_container &container)
 	container.sort();
 }
 
-uint64_t iterator_container_len(const iterator_result_container &container)
+uint64_t iterator_container_get_count(const iterator_result_container &container)
 {
-	return container.m_write_position / sizeof(dnet_iterator_response);
+	return container.m_count;
 }
 
 dnet_iterator_response iterator_container_getitem(const iterator_result_container &container,
 		uint64_t n)
 {
-	if (n * sizeof(dnet_iterator_response) >= container.m_write_position) {
+	if (n >= container.m_count) {
 		PyErr_SetString(PyExc_IndexError, "Index out of range");
 		bp::throw_error_already_set();
 	}
@@ -889,7 +889,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("append", iterator_container_append)
 		.def("sort", iterator_container_sort)
 		.def("diff", iterator_container_diff)
-		.def("__len__", iterator_container_len)
+		.def("__len__", iterator_container_get_count)
 		.def("__getitem__", iterator_container_getitem)
 	;
 

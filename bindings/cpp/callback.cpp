@@ -303,6 +303,7 @@ void iterator_result_container::append(const dnet_iterator_response *response)
 	if (err != 0)
 		throw_error(err, "dnet_iterator_response_container_append() failed");
 	m_write_position += resp_size;
+	m_count++;
 }
 
 void iterator_result_container::sort()
@@ -329,6 +330,7 @@ void iterator_result_container::diff(const iterator_result_container &other,
 		throw_error(err, "diff failed");
 
 	result.m_write_position = err;
+	result.m_count = result.m_write_position / sizeof(dnet_iterator_response);
 	result.m_sorted = true;
 }
 
@@ -337,11 +339,9 @@ dnet_iterator_response iterator_result_container::operator [](size_t n) const
 	dnet_iterator_response response;
 	int err;
 
-	err = dnet_iterator_response_container_read(m_fd,
-			n * sizeof(response), &response);
+	err = dnet_iterator_response_container_read(m_fd, n * sizeof(response), &response);
 	if (err != 0)
 		throw_error(err, "dnet_iterator_response_container_read failed");
-
 	return response;
 }
 
