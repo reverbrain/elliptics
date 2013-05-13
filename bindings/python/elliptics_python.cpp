@@ -873,7 +873,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.add_property("id", &iterator_result_entry::id)
 		.add_property("status", &iterator_result_entry::status)
 		.add_property("response", iterator_result_response)
-		.def("response_data", iterator_result_response_data)
+		.add_property("response_data", iterator_result_response_data)
 	;
 
 	bp::class_<dnet_iterator_response>("IteratorResultResponse",

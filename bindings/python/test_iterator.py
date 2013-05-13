@@ -38,7 +38,7 @@ if __name__ == '__main__':
 			result.response.key,
 			result.response.user_flags,
 			result.response.timestamp.tsec, result.response.timestamp.tnsec,
-			result.response_data())
+			result.response_data)
 
         # Test flow control
         if i % 10 == 0:
