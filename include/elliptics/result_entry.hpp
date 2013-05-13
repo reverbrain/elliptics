@@ -176,7 +176,6 @@ class iterator_result_entry : public callback_result_entry
 		dnet_iterator_response *reply() const;
 		data_pointer reply_data() const;
 
-		uint64_t user_flags() const;
 		uint64_t id() const;
 };
 

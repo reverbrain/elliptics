@@ -781,14 +781,19 @@ std::string iterator_result_response_data(iterator_result_entry result)
 	return result.reply_data().to_string();
 }
 
-bp::list iterator_result_get_key(iterator_result_entry *result)
+bp::list iterator_response_get_key(dnet_iterator_response *response)
 {
-	return convert_to_list(result->reply()->key.id, sizeof(result->reply()->key.id));
+	return convert_to_list(response->key.id, sizeof(response->key.id));
 }
 
-elliptics_time iterator_result_get_timestamp(iterator_result_entry *result)
+elliptics_time iterator_response_get_timestamp(dnet_iterator_response *response)
 {
-	return elliptics_time(result->reply()->timestamp);
+	return elliptics_time(response->timestamp);
+}
+
+uint64_t iterator_response_get_user_flags(dnet_iterator_response *response)
+{
+	return response->user_flags;
 }
 
 void iterator_container_append(iterator_result_container &container,
@@ -863,11 +868,15 @@ BOOST_PYTHON_MODULE(elliptics) {
 	bp::class_<iterator_result_entry>("IteratorResultEntry")
 		.add_property("id", &iterator_result_entry::id)
 		.add_property("status", &iterator_result_entry::status)
-		.add_property("key", iterator_result_get_key)
-		.add_property("timestamp", iterator_result_get_timestamp)
-		.add_property("user_flags", &iterator_result_entry::user_flags)
-		.def("response", iterator_result_response)
+		.add_property("response", iterator_result_response)
 		.def("response_data", iterator_result_response_data)
+	;
+
+	bp::class_<dnet_iterator_response>("IteratorResultResponse",
+			bp::no_init)
+		.add_property("key", iterator_response_get_key)
+		.add_property("timestamp", iterator_response_get_timestamp)
+		.add_property("user_flags", iterator_response_get_user_flags)
 	;
 
 	bp::class_<iterator_result_container>("IteratorResultContainer",

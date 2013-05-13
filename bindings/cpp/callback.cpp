@@ -272,11 +272,6 @@ dnet_iterator_response *iterator_result_entry::reply() const
 	return data<dnet_iterator_response>();
 }
 
-uint64_t iterator_result_entry::user_flags() const
-{
-	return reply()->user_flags;
-}
-
 uint64_t iterator_result_entry::id() const
 {
 	return reply()->id;

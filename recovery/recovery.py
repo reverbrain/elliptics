@@ -180,7 +180,6 @@ def recover(diffs, stats):
     TODO: Can be parallel
     """
     for host, diff in diffs:
-        # XXX: Make bulk
         for record in diff:
             stats['recover_total'] += 1
             # Parse record, get it's key
