@@ -217,15 +217,23 @@ def print_stats(stats):
     sep_equals = '=' * align
     sep_plus = '+' * align
 
+    def format_kv(k,v):
+        return '{0:<40}{1:>40}'.format(k + ':', str(v))
+
+    def sort_dict_by_key(dictionary):
+        return sorted(dictionary.iteritems(), key=itemgetter(0))
+
     print
     print sep_equals
     print "Statistics for groups: {0}".format(stats['groups'].keys())
+    for k, v in sort_dict_by_key(stats['global']):
+        print format_kv(k,v)
     print sep_equals
     for group in sorted(stats['groups']):
         print "Group {0} stats:".format(group)
         print sep_plus
-        for k, v in sorted(stats['groups'][group].iteritems(), key=itemgetter(0)):
-            print '{0:<40}{1:>40}'.format(k + ':', str(v))
+        for k, v in sort_dict_by_key(stats['groups'][group]):
+            print format_kv(k,v)
         print sep_plus
         print
 
@@ -234,13 +242,14 @@ def main(ctx):
     XXX:
     """
     result = True
-    ctx.stats['time_started'] = datetime.now()
+    ctx.stats['global'] = defaultdict(int)
+    ctx.stats['global']['time_started'] = datetime.now()
     for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
+        group_stats = ctx.stats['groups'][group] = defaultdict(int)
 
         elog, node, session = setup_elliptics(ctx.host, ctx.port, [group],
                                               log_file=ctx.log_file, log_level=ctx.log_level)
-        group_stats = ctx.stats['groups'][group] = defaultdict(int)
 
         log.warning("Searching for ranges that '{0}' stole".format(ctx.host))
         routes = RouteList(session.get_routes())
@@ -280,8 +289,9 @@ def main(ctx):
         result &= recover(ctx, diff_results, group_stats)
         log.warning("Recovery finished, setting result to: {0}".format(result))
 
-    ctx.stats['time_stopped'] = datetime.now()
-    ctx.stats['time_taken'] = ctx.stats['time_stopped'] - ctx.stats['time_started']
+    ctx.stats['global']['time_stopped'] = datetime.now()
+    ctx.stats['global']['time_taken'] = ctx.stats['global']['time_stopped']\
+                                        - ctx.stats['global']['time_started']
     return result
 
 if __name__ == '__main__':
@@ -305,7 +315,6 @@ if __name__ == '__main__':
                       help="Number of keys in read_bulk/write_bulk batch [default: %default]")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
                       help="Enable debug output [default: %default]")
-    # XXX: Add stats API
     parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
                       help="Statistics output format: {0} [default: %default]".format("/".join(available_stats)))
     # XXX: Add temp dir
@@ -322,6 +331,7 @@ if __name__ == '__main__':
     log.info("Initializing context")
     ctx = Ctx()
 
+    # XXX: Add proper stats API
     log.info("Initializing stats")
     ctx.stats = defaultdict(dict)
 
