@@ -34,9 +34,11 @@ if __name__ == '__main__':
         if result.status != 0:
             raise AssertionError("Wrong status: {0}".format(result.status))
 
-        print "key: {0}, flags: {1}, ts: {2}/{3}, data: {4}".format(result.key,
-                result.user_flags, result.timestamp.tsec, result.timestamp.tnsec,
-                result.response_data())
+        print "key: {0}, flags: {1}, ts: {2}/{3}, data: {4}".format(
+			result.response.key,
+			result.response.user_flags,
+			result.response.timestamp.tsec, result.response.timestamp.tnsec,
+			result.response_data())
 
         # Test flow control
         if i % 10 == 0:

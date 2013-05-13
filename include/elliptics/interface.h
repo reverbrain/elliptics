@@ -260,6 +260,17 @@ struct dnet_iterator_ctl {
 			void *data, uint64_t dsize, struct dnet_ext_list *elist);
 };
 
+/*
+ * Iterator result container routines
+ */
+int dnet_iterator_response_container_sort(int fd, size_t size);
+int dnet_iterator_response_container_append(const struct dnet_iterator_response
+		*response, int fd, uint64_t pos);
+int dnet_iterator_response_container_read(int fd, uint64_t pos,
+		struct dnet_iterator_response *response);
+int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t left_size,
+		int right_fd, uint64_t right_size);
+
 struct dnet_backend_callbacks {
 	/* command handler processes DNET_CMD_* commands */
 	int			(* command_handler)(void *state, void *priv, struct dnet_cmd *cmd, void *data);
@@ -629,6 +640,28 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 	void *priv);
 
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id);
+
+/*!
+ * Compares two dnet_time structs
+ * Returns
+ *	< 0 if t1 < t2
+ *	> 0 if t1 > t2
+ *	= 0 if t1 == t2
+ */
+static inline int dnet_time_cmp(const struct dnet_time *t1, const struct dnet_time *t2)
+{
+	if (t1->tsec < t2->tsec)
+		return -1;
+	else if (t1->tsec > t2->tsec)
+		return 1;
+
+	if (t1->tnsec < t2->tnsec)
+		return -1;
+	else if (t1->tnsec > t2->tnsec)
+		return 1;
+
+	return 0;
+}
 
 /*
  * Compare two IDs.
