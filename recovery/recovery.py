@@ -16,7 +16,6 @@ import os
 import logging as log
 
 from collections import defaultdict
-from operator import itemgetter
 from datetime import datetime
 from itertools import groupby
 
@@ -24,6 +23,7 @@ from recover.range import IdRange, RecoveryRange
 from recover.route import RouteList
 from recover.iterator import Iterator
 from recover.time import Time
+from recover.stat import Stats
 from recover.utils.lru_cache import lru_cache
 from recover.utils.misc import format_id, split_host_port, mk_container_name
 
@@ -91,7 +91,6 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
     local_eid = routes.filter_by_host(ctx.hostport)[0].key
 
     for iteration_range in ranges:
-        stats['iteration_total'] += 2
         try:
             timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
 
@@ -104,8 +103,9 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
                 tmp_dir=ctx.tmp_dir,
             )
             log.debug("Local obtained: {0} record(s)".format(len(local_result)))
-            stats['iteration_local_records'] += len(local_result)
-            stats['iteration_local'] += 1
+            stats.counter.local_records += len(local_result)
+            stats.counter.local_iterations += 1
+            stats.counter.iterations += 1
 
             remote_eid = routes.filter_by_host(iteration_range.host)[0].key
             log.debug("Running remote iterator on: {0}".format(mk_container_name(
@@ -118,14 +118,15 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
             )
             remote_result.host = iteration_range.host
             log.debug("Remote obtained: {0} record(s)".format(len(remote_result)))
-            stats['iteration_remote_records'] += len(remote_result)
-            stats['iteration_remote'] += 1
+            stats.counter.remote_records += len(remote_result)
+            stats.counter.remote_iterations += 1
 
             results.append((local_result, remote_result))
+            stats.counter.iterations += 2
         except Exception as e:
             log.error("Iteration failed for: {0}@{1}: {2}".format(
                 iteration_range.id_range, iteration_range.host, repr(e)))
-            stats['iteration_failed'] += 1
+            stats.counter.iterations -= 1
     return results
 
 def sort(ctx, results, stats):
@@ -137,26 +138,24 @@ def sort(ctx, results, stats):
     for local, remote in results:
         if not (local.status and remote.status):
             log.debug("Sort skipped because local or remote iterator failed")
-            stats['sort_skipped'] += 1
+            stats.counter.sort_skipped += 1
             continue
         try:
             assert local.id_range == remote.id_range, \
                 "Local range must equal remote range"
 
             log.info("Processing sorting local range: {0}".format(local.id_range))
-            stats['sort_total'] += 1
             local.container.sort()
-            stats['sort_local_finished'] += 1
+            stats.counter.sort_local += 1
 
             log.info("Processing sorting remote range: {0}".format(local.id_range))
-            stats['sort_total'] += 1
             remote.container.sort()
-            stats['sort_remote_finished'] += 1
+            stats.counter.sort_remote += 1
 
             sorted_results.append((local, remote))
         except Exception as e:
             log.error("Sort of {0} failed: {1}".format(local.id_range, e))
-            stats['sort_failed'] += 1
+            stats.counter.sort -= 1
     return sorted_results
 
 def diff(ctx, results, stats):
@@ -166,7 +165,6 @@ def diff(ctx, results, stats):
     """
     diff_results = []
     for local, remote in results:
-        stats['diff_total'] += 1
         try:
             if len(local) >= 0 and len(remote) == 0:
                 log.info("Remote container is empty, skipping range: {0}".format(local.id_range))
@@ -179,8 +177,9 @@ def diff(ctx, results, stats):
             else:
                 log.info("Computing differences for: {0}".format(local.id_range))
                 diff_results.append(local.diff(remote))
+            stats.counter.diff += 1
         except Exception as e:
-            stats['diff_failed'] += 1
+            stats.counter.diff -= 1
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))
     return diff_results
 
@@ -197,11 +196,11 @@ def recover(ctx, diffs, group, stats):
         for batch_id, batch in groupby(enumerate(diff),
                                         key=lambda x: x[0] / ctx.batch_size):
             keys = [elliptics.Id(r.key, group, 0) for _, r in batch]
-            total, failures = recover_keys(ctx, diff.host, group, keys)
-            stats['recover_keys_failed'] += failures
-            stats['recover_keys_total'] += total
+            successes, failures = recover_keys(ctx, diff.host, group, keys)
+            stats.counter.recover_key += successes
+            stats.counter.recover_key -= failures
             result &= (failures == 0)
-            log.debug("Recovered batch: {0} of size: {1}, failed: {2}".format(batch_id, total, failures))
+            log.debug("Recovered batch: {0} of size: {1}/{2}".format(batch_id, successes, failures))
     return result
 
 def recover_keys(ctx, hostport, group, keys):
@@ -223,7 +222,7 @@ def recover_keys(ctx, hostport, group, keys):
         batch = direct_session.bulk_read_by_id(keys)
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
-        return key_num, key_num
+        return 0, key_num
 
     log.debug("Writing {0} keys".format(key_num))
     try:
@@ -231,45 +230,16 @@ def recover_keys(ctx, hostport, group, keys):
         session_normal.bulk_write_by_id(batch.iterkeys(), batch.itervalues())
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
-        return key_num, key_num
+        return 0, key_num
     return key_num, 0
-
-def print_stats(stats):
-    """
-    Output statistics about recovery process.
-    TODO: Add different output formats
-    """
-    align = 80
-    sep_equals = '=' * align
-    sep_plus = '+' * align
-
-    def format_kv(k,v):
-        return '{0:<40}{1:>40}'.format(k + ':', str(v))
-
-    def sort_dict_by_key(dictionary):
-        return sorted(dictionary.iteritems(), key=itemgetter(0))
-
-    print
-    print sep_equals
-    print "Statistics for groups: {0}".format(stats['groups'].keys())
-    for k, v in sort_dict_by_key(stats['global']):
-        print format_kv(k,v)
-    print sep_equals
-    for group in sorted(stats['groups']):
-        print "Group {0} stats:".format(group)
-        print sep_plus
-        for k, v in sort_dict_by_key(stats['groups'][group]):
-            print format_kv(k,v)
-        print sep_plus
-        print
 
 def main(ctx):
     result = True
-    ctx.stats['global'] = defaultdict(int)
-    ctx.stats['global']['time_started'] = datetime.now()
+    ctx.stats.timer.main('started')
     for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
-        group_stats = ctx.stats['groups'][group] = defaultdict(int)
+        group_stats = ctx.stats[group]
+        group_stats.timer.group('started')
 
         log.debug("Creating session for: {0}".format(ctx.hostport))
         session = elliptics_create_session(node=ctx.node, group=group)
@@ -287,6 +257,7 @@ def main(ctx):
         assert all(node != ctx.host for _, node in ranges)
 
         log.warning("Running iterators against: {0} range(s)".format(len(ranges)))
+        group_stats.timer.group('iterators')
         iterator_results = run_iterators(
             ctx,
             group=group,
@@ -298,22 +269,23 @@ def main(ctx):
         log.warning("Finished iteration of: {0} range(s)".format(len(iterator_results)))
 
         log.warning("Sorting iterators' data")
+        group_stats.timer.group('sort')
         sorted_results = sort(ctx, iterator_results, group_stats)
         assert len(iterator_results) >= len(sorted_results)
         log.warning("Sorted successfully: {0} result(s)".format(len(sorted_results)))
 
         log.warning("Computing diff local vs remote")
+        group_stats.timer.group('diff')
         diff_results = diff(ctx, sorted_results, group_stats)
         assert len(sorted_results) >= len(diff_results)
         log.warning("Computed differences: {0} diff(s)".format(len(diff_results)))
 
         log.warning("Recovering diffs")
+        group_stats.timer.group('recover')
         result &= recover(ctx, diff_results, group, group_stats)
         log.warning("Recovery finished, setting result to: {0}".format(result))
-
-    ctx.stats['global']['time_stopped'] = datetime.now()
-    ctx.stats['global']['time_taken'] = ctx.stats['global']['time_stopped']\
-                                        - ctx.stats['global']['time_started']
+        group_stats.timer.group('finished')
+    ctx.stats.timer.main('finished')
     return result
 
 if __name__ == '__main__':
@@ -353,9 +325,8 @@ if __name__ == '__main__':
     log.info("Initializing context")
     ctx = Ctx()
 
-    # XXX: Add proper stats API
     log.info("Initializing stats")
-    ctx.stats = defaultdict(dict)
+    ctx.stats = Stats(name='global')
 
     try:
         ctx.hostport = options.elliptics_remote
@@ -414,6 +385,6 @@ if __name__ == '__main__':
     result = main(ctx)
 
     if options.stat == 'text':
-        print_stats(ctx.stats)
+        print ctx.stats
 
     exit(not result)
