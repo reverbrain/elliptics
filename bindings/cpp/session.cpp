@@ -19,12 +19,6 @@
 
 #include <sstream>
 
-#if __GNUC__ == 4 && __GNUC_MINOR__ < 5
-#  include <cstdatomic>
-#else
-#  include <atomic>
-#endif
-
 namespace ioremap { namespace elliptics {
 
 template <typename T>
@@ -539,59 +533,6 @@ async_read_result session::read_data(const key &id, uint64_t offset, uint64_t si
 	return read_data(id, mix_states(), offset, size);
 }
 
-template <typename T>
-struct aggregator_handler
-{
-	ELLIPTICS_DISABLE_COPY(aggregator_handler)
-
-	aggregator_handler(const async_result<T> &result, size_t count)
-		: handler(result), finished(count), has_success(false)
-	{
-	}
-
-	async_result_handler<T> handler;
-	std::mutex mutext;
-	size_t finished;
-	error_info error;
-	std::atomic_bool has_success;
-
-	void on_entry(const T &result)
-	{
-		if (result.status() == 0 && result.is_valid())
-			has_success = true;
-		handler.process(result);
-	}
-
-	void on_finished(const error_info &reply_error)
-	{
-		std::lock_guard<std::mutex> lock(mutext);
-		if (reply_error)
-			error = reply_error;
-		if (--finished == 0)
-			handler.complete(has_success ? error_info() : error);
-	}
-};
-
-template <typename iterator>
-typename iterator::value_type aggregated(session &sess, iterator begin, iterator end)
-{
-	typedef typename iterator::value_type async_result_type;
-	typedef typename async_result_type::entry_type entry_type;
-	typedef aggregator_handler<entry_type> aggregator_type;
-
-	async_result_type result(sess);
-
-	auto handler = std::make_shared<aggregator_type>(result, std::distance(begin, end));
-	auto on_entry = bind_method(handler, &aggregator_type::on_entry);
-	auto on_finished = bind_method(handler, &aggregator_type::on_finished);
-
-	for (auto it = begin; it != end; ++it) {
-		it->connect(on_entry, on_finished);
-	}
-
-	return result;
-}
-
 struct prepare_latest_functor
 {
 	async_result_handler<lookup_result_entry> result;
@@ -1015,7 +956,6 @@ async_write_result session::write_prepare(const key &id, const data_pointer &fil
 async_write_result session::write_plain(const key &id, const data_pointer &file, uint64_t remote_offset)
 {
 	transform(id);
-	dnet_id raw = id.id();
 
 	struct dnet_io_control ctl;
 
@@ -1027,7 +967,8 @@ async_write_result session::write_plain(const key &id, const data_pointer &file,
 	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_PLAIN_WRITE;
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
-	ctl.io.type = raw.type;
+	ctl.io.type = id.type();
+	ctl.id = id.id();
 
 	memcpy(&ctl.id, &raw, sizeof(ctl.id));
 
@@ -1052,8 +993,7 @@ async_write_result session::write_commit(const key &id, const data_pointer &file
 	ctl.io.size = file.size();
 	ctl.io.type = id.id().type;
 	ctl.io.num = csize;
-
-	memcpy(&ctl.id, &id.id(), sizeof(ctl.id));
+	ctl.id = id.id();
 
 	ctl.fd = -1;
 

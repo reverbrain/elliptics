@@ -118,7 +118,7 @@ data_pointer sorted<data_pointer>(const data_pointer &c)
 }
 
 enum {
-	OBJECT_COUNT = 100,
+	OBJECT_COUNT = 10,
 	TAGS_COUNT = 10
 };
 
@@ -322,7 +322,7 @@ int main(int argc, char *argv[])
 	n.add_remote("localhost", 1025);
 
 	session sess(n);
-	std::vector<int> groups = { 1, 2, 3 };
+	std::vector<int> groups = { 2 };
 	sess.set_groups(groups);
 
 	for (size_t i = 0; i < OBJECT_COUNT; ++i)
@@ -345,7 +345,7 @@ int main(int argc, char *argv[])
 		hash[id] = *it;
 	}
 
-	clear(sess);
+//	clear(sess);
 
 	test_1(sess);
 }
