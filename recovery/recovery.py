@@ -313,7 +313,6 @@ if __name__ == '__main__':
     parser.add_option("-D", "--dir", dest="tmp_dir", default='/var/tmp/', metavar="DIR",
                       help="Temporary directory for iterators' results [default: %default]")
 
-    # XXX: Add lock file
     (options, args) = parser.parse_args()
 
     if options.debug:
