@@ -55,7 +55,6 @@ class IteratorResult(object):
         """
         Computes diff between two sorted results. Returns container that consists of difference.
         """
-        # XXX: Use tmp dir
         filename = mk_container_name(self.id_range, self.eid, prefix='diff_') + '-' + \
                    mk_container_name(other.id_range, other.eid, prefix='')
         diff_container = self.from_filename(filename,

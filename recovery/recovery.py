@@ -166,9 +166,18 @@ def diff(ctx, results, stats):
     diff_results = []
     for local, remote in results:
         stats['diff_total'] += 1
-        log.info("Computing differences for {0}".format(local.id_range))
         try:
-            diff_results.append(local.diff(remote))
+            if len(local) >= 0 and len(remote) == 0:
+                log.info("Remote container is empty, skipping range: {0}".format(local.id_range))
+                continue
+            elif len(local) == 0 and len(remote) > 0:
+                # If local container is empty and remote is not
+                # then difference is whole remote container
+                log.info("Local container is empty, recovering full range: {0}".format(local.id_range))
+                diff_results.append(remote)
+            else:
+                log.info("Computing differences for: {0}".format(local.id_range))
+                diff_results.append(local.diff(remote))
         except Exception as e:
             stats['diff_failed'] += 1
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))
