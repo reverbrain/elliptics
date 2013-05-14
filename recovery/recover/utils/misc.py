@@ -1,9 +1,9 @@
 import logging
 
 __doc__ = \
-"""
-Misc. routines
-"""
+    """
+    Misc. routines
+    """
 
 def logged_class(klass):
     """

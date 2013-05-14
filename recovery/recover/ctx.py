@@ -1,9 +1,9 @@
 from pprint import pformat
 
 __doc__ = \
-"""
-Recovery context is just a configuration of recovery process
-"""
+    """
+    Recovery context is just a configuration of recovery process
+    """
 
 class Ctx(object):
     __doc__ = \

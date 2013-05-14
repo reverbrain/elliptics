@@ -3,9 +3,9 @@ from collections import namedtuple
 from .utils.misc import logged_class, format_id
 
 __doc__ = \
-"""
-Id range routines
-"""
+    """
+    Id range routines
+    """
 
 @logged_class
 class IdRange(object):

@@ -10,9 +10,9 @@ sys.path.insert(0, "bindings/python/") # XXX
 import elliptics
 
 __doc__ = \
-"""
-Wrappers for iterator and it's result container
-"""
+    """
+    Wrappers for iterator and it's result container
+    """
 
 @logged_class
 class IteratorResult(object):
@@ -130,7 +130,7 @@ class Iterator(object):
               tmp_dir='/var/tmp',
     ):
         """
-        XXX:
+        Prepare iterator request structure and pass it to low-level __start() function.
         """
         assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now" # TODO:
         assert flags & elliptics.iterator_flags.data == 0, "Only metadata iterator is supported for now" # TODO:

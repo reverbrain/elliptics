@@ -5,9 +5,9 @@ sys.path.insert(0, "bindings/python/") # XXX
 import elliptics
 
 __doc__ = \
-"""
-Converters from and to elliptics dnet_time format.
-"""
+    """
+    Converters from and to elliptics dnet_time format.
+    """
 
 class Time(object):
     __doc__ = \
@@ -49,5 +49,5 @@ class Time(object):
         pass # XXX:
 
     @classmethod
-    def from_string(cls, etime):
+    def from_string(cls, string):
         pass # XXX

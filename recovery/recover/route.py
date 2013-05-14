@@ -1,12 +1,12 @@
 from .utils.misc import logged_class, format_id
 
 __doc__ = \
-"""
-Route management routines
+    """
+    Route management routines
 
-Vanilla elliptics python bindings are too C'ish.
-We need better abstractions.
-"""
+    Vanilla elliptics python bindings are too C'ish.
+    We need better abstractions.
+    """
 
 @logged_class
 class Route(object):

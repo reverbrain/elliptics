@@ -1,22 +1,21 @@
 #!/usr/bin/env python
 
-"""
-New recovery mechanism for elliptics that utilizes new iterators and metadata.
-NB! For now only "merge" mode is supported e.g. recovery within a group.
+__doc__ = \
+    """
+    New recovery mechanism for elliptics that utilizes new iterators and metadata.
+    NB! For now only "merge" mode is supported e.g. recovery within a group.
 
- * Find ranges that host stole from neighbours in routing table.
- * Start metadata-only iterator fo each range on local and remote hosts.
- * Sort iterators' outputs.
- * Computes diff between local and remote iterator.
- * Recover keys provided by diff using bulk APIs.
-"""
+     * Find ranges that host stole from neighbours in routing table.
+     * Start metadata-only iterator fo each range on local and remote hosts.
+     * Sort iterators' outputs.
+     * Computes diff between local and remote iterator.
+     * Recover keys provided by diff using bulk APIs.
+    """
 
 import sys
 import os
 import logging as log
 
-from collections import defaultdict
-from datetime import datetime
 from itertools import groupby
 
 from recover.range import IdRange, RecoveryRange
@@ -252,6 +251,7 @@ def main(ctx):
         log.debug("Recovery ranges: {0}".format(len(ranges)))
         if not ranges:
             log.warning("No ranges to recover in group: {0}".format(group))
+            group_stats.timer.group('finished')
             continue
         # We should not run iterators on ourselves
         assert all(node != ctx.host for _, node in ranges)

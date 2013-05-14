@@ -117,7 +117,6 @@ class Stats(object):
         result.append("{0:=^80}".format(" " + str(self.name) + " "))
         for _, v in chain(sorted(self.counter), sorted(self.timer), sorted(self.__sub_stats)):
             result.append(str(v))
-        result.append("=" * 80)
         return "\n".join(result)
 
     def __getitem__(self, item):
