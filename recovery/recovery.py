@@ -172,35 +172,57 @@ def diff(ctx, results, stats):
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))
     return diff_results
 
-def recover(ctx, diffs, stats):
+def recover(ctx, diffs, group, stats):
     """
     Recovers difference between remote and local data.
     TODO: Can be parallel
     """
     result = True
+    elliptics_cache = {}
     for diff in diffs:
         log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.host))
+
+        # Cache node with direct connection to one host
+        if diff.host not in elliptics_cache:
+            log.debug("Creating node for: {0}".format(diff.host))
+            host, port = split_host_port(diff.host)
+            node = elliptics_create_node(host=host, port=port, elog=ctx.elog)
+            log.debug("Creating direct session: {0}".format(diff.host))
+            session = elliptics_create_session(node=node, group=group, cflags=elliptics.command_flags.direct)
+            elliptics_cache[diff.host] = {'node': node, 'session': session}
+
         # Here we cleverly splitting responses into ctx.batch_size batches
         for group, batch in groupby(enumerate(diff),
                                         key=lambda x: x[0] / ctx.batch_size):
-            total, failures = recover_keys(ctx, diff.host, [r.key for i, r in batch])
+            keys = [elliptics.Id(r.key, group, 0) for _, r in batch]
+            total, failures = recover_keys(ctx, elliptics_cache[diff.host], group, keys)
             stats['recover_keys_failed'] += failures
             stats['recover_keys_total'] += total
             result &= (failures == 0)
             log.debug("Recovered batch: {0} of size: {1}, failed: {2}".format(group, total, failures))
     return result
 
-def recover_keys(ctx, host, keys):
+def recover_keys(ctx, cache, group, keys):
     """
-    Bulk recover of keys.
+    Bulk recovery of keys.
     """
-    log.info("Recovering {0} keys for host: {1}".format(len(keys), host))
-    for key in keys:
-        try:
-            log.debug("Recovering key: {0} for host: {1}".format(key, host))
-        except Exception:
-            log.debug("Recovery of batch failed: {0} for host: {1}".format(key, host))
-    return len(keys), 0
+    key_num = len(keys)
+
+    log.debug("Reading {0} keys".format(key_num))
+    try:
+        batch = cache['session'].bulk_read_by_id(keys)
+    except Exception as e:
+        log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
+        return key_num, key_num
+
+    log.debug("Writing {0} keys".format(key_num))
+    try:
+        session_normal = elliptics_create_session(node=ctx.node, group=group)
+        session_normal.bulk_write_by_id(batch.iterkeys(), batch.itervalues())
+    except Exception as e:
+        log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
+        return key_num, key_num
+    return key_num, 0
 
 def print_stats(stats):
     """
@@ -279,7 +301,7 @@ def main(ctx):
         log.warning("Computed differences: {0} diff(s)".format(len(diff_results)))
 
         log.warning("Recovering diffs")
-        result &= recover(ctx, diff_results, group_stats)
+        result &= recover(ctx, diff_results, group, group_stats)
         log.warning("Recovery finished, setting result to: {0}".format(result))
 
     ctx.stats['global']['time_stopped'] = datetime.now()
