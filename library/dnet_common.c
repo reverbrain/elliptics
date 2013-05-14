@@ -2641,7 +2641,7 @@ int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t
 		} else if (cmp > 0) {
 			if (left_offset < left_size)
 				left_offset += resp_size;
-		} else if (cmp == 0) {
+		} else {
 			if (left_offset < left_size)
 				left_offset += resp_size;
 			right_offset += resp_size;

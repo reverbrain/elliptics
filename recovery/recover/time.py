@@ -5,18 +5,25 @@ sys.path.insert(0, "bindings/python/") # XXX
 import elliptics
 
 __doc__ = \
-"""
-XXX:
-"""
+    """
+    Converters from and to elliptics dnet_time format.
+    """
 
 class Time(object):
-    __doc__ = """
-                XXX:
-              """
+    __doc__ = \
+        """
+        Wrapper on top of dnet_time
+        """
     __slots__ = ('time')
 
     def __init__(self, tsec, tnsec):
         self.time = elliptics.Time(tsec, tnsec)
+
+    def __str__(self):
+        return "{0}:{1}".format(self.time.tsec, self.time.tnsec)
+
+    def __repr__(self):
+        return "Time({0}, {1})".format(self.time.tsec, self.time.tnsec)
 
     @classmethod
     def time_min(cls):
@@ -42,5 +49,5 @@ class Time(object):
         pass # XXX:
 
     @classmethod
-    def from_string(cls, etime):
+    def from_string(cls, string):
         pass # XXX

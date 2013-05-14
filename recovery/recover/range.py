@@ -1,16 +1,18 @@
 from collections import namedtuple
-from .misc import logged_class, format_id
+
+from .utils.misc import logged_class, format_id
 
 __doc__ = \
-"""
-Id range routines
-"""
+    """
+    Id range routines
+    """
 
 @logged_class
 class IdRange(object):
-    __doc__ = """
-              More python'ish ID ranges
-              """
+    __doc__ = \
+        """
+        More python'ish ID ranges
+        """
     __slots__ = ('start', 'stop')
 
     ID_MIN = [0]*64

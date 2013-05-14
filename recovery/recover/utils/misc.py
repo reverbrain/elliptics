@@ -1,9 +1,9 @@
 import logging
 
 __doc__ = \
-"""
-Misc. routines
-"""
+    """
+    Misc. routines
+    """
 
 def logged_class(klass):
     """
@@ -26,4 +26,7 @@ def split_host_port(string):
     return host, int(port)
 
 def mk_container_name(id_range, eid, prefix="iterator_"):
-    return "{0}{1}@{2}".format(prefix, str(id_range), format_id(eid.id))
+    """
+    Makes filename for iterators' results
+    """
+    return "{0}{1}_@{2}".format(prefix, str(id_range), format_id(eid.id))

@@ -1,36 +1,41 @@
-from .misc import logged_class, mk_container_name
+import sys
+import os
+
+from .utils.misc import logged_class, mk_container_name
 from .time import Time
 from .range import IdRange
 
-import sys
-import os
 sys.path.insert(0, "bindings/python/") # XXX
 
 import elliptics
 
 __doc__ = \
-"""
-XXX:
-"""
+    """
+    Wrappers for iterator and it's result container
+    """
 
 @logged_class
 class IteratorResult(object):
-    __doc__ = """
-              Container for iterator results
-              Provides status and IteratorResultContainer wrapper.
-              """
+    __doc__ = \
+        """
+        Container for iterator results
+        Provides status and IteratorResultContainer wrapper.
+        """
     def __init__(self, eid=None,
                  id_range=IdRange(None, None),
                  host=None,
                  status=False,
                  exception=None,
-                 container=None,):
+                 container=None,
+                 tmp_dir="",
+    ):
         self.eid = eid
         self.id_range = id_range
         self.host = host
         self.container = container
         self.status = status
         self.exception = exception
+        self.tmp_dir = tmp_dir
         self.__file = None
 
     def __del__(self):
@@ -51,13 +56,13 @@ class IteratorResult(object):
         """
         Computes diff between two sorted results. Returns container that consists of difference.
         """
-        # XXX: Use tmp dir
         filename = mk_container_name(self.id_range, self.eid, prefix='diff_') + '-' + \
                    mk_container_name(other.id_range, other.eid, prefix='')
         diff_container = self.from_filename(filename,
                                             eid=other.eid,
                                             id_range=other.id_range,
                                             host=other.host,
+                                            tmp_dir=self.tmp_dir,
                                             )
         self.container.diff(other.container, diff_container.container)
         return diff_container
@@ -69,12 +74,14 @@ class IteratorResult(object):
         return iter(self.container)
 
     @classmethod
-    def from_filename(cls, filename, **kwargs):
+    def from_filename(cls, filename, tmp_dir="", **kwargs):
         """
         Creates iterator result from filename
         """
+        if tmp_dir:
+            filename = os.path.join(tmp_dir, filename)
         container_file = open(filename, 'w+')
-        result = cls.from_fd(container_file.fileno(), **kwargs)
+        result = cls.from_fd(container_file.fileno(), tmp_dir=tmp_dir, **kwargs)
         result.__file = container_file # Save it from python's gc
         return result
 
@@ -93,13 +100,18 @@ class IteratorResult(object):
 
 @logged_class
 class Iterator(object):
+    __doc__ = \
+    """
+    Wrapper on top of elliptics new iterator and it's result container
+    """
     def __init__(self, node, group):
         self.session = elliptics.Session(node)
         self.session.set_groups([group])
 
-    def __start(self, eid, request):
+    def __start(self, eid, request, tmp_dir):
         id_range = IdRange(request.key_begin, request.key_end)
-        result = IteratorResult.from_filename(mk_container_name(id_range, eid), eid=eid, id_range=id_range)
+        filename = os.path.join(tmp_dir, mk_container_name(id_range, eid))
+        result = IteratorResult.from_filename(filename, eid=eid, id_range=id_range, tmp_dir=tmp_dir)
         iterator = self.session.start_iterator(eid, request)
         for record in iterator:
             if record.status != 0:
@@ -114,9 +126,11 @@ class Iterator(object):
               itype=elliptics.iterator_types.network,
               flags=elliptics.iterator_flags.key_range|elliptics.iterator_flags.ts_range,
               key_range=(IdRange.ID_MIN, IdRange.ID_MAX),
-              timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime())):
+              timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime()),
+              tmp_dir='/var/tmp',
+    ):
         """
-        XXX:
+        Prepare iterator request structure and pass it to low-level __start() function.
         """
         assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now" # TODO:
         assert flags & elliptics.iterator_flags.data == 0, "Only metadata iterator is supported for now" # TODO:
@@ -127,7 +141,7 @@ class Iterator(object):
             request.flags = flags
             request.key_begin, request.key_end = key_range
             request.time_begin, request.time_end = timestamp_range
-            return self.__start(eid, request)
+            return self.__start(eid, request, tmp_dir)
         except Exception as e:
             self.log.error("Iteration failed: {0}".format(repr(e)))
             return IteratorResult(exception=e)
