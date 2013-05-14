@@ -24,13 +24,16 @@ class IteratorResult(object):
                  host=None,
                  status=False,
                  exception=None,
-                 container=None,):
+                 container=None,
+                 tmp_dir="",
+    ):
         self.eid = eid
         self.id_range = id_range
         self.host = host
         self.container = container
         self.status = status
         self.exception = exception
+        self.tmp_dir = tmp_dir
         self.__file = None
 
     def __del__(self):
@@ -58,6 +61,7 @@ class IteratorResult(object):
                                             eid=other.eid,
                                             id_range=other.id_range,
                                             host=other.host,
+                                            tmp_dir=self.tmp_dir,
                                             )
         self.container.diff(other.container, diff_container.container)
         return diff_container
@@ -69,12 +73,14 @@ class IteratorResult(object):
         return iter(self.container)
 
     @classmethod
-    def from_filename(cls, filename, **kwargs):
+    def from_filename(cls, filename, tmp_dir="", **kwargs):
         """
         Creates iterator result from filename
         """
+        if tmp_dir:
+            filename = os.path.join(tmp_dir, filename)
         container_file = open(filename, 'w+')
-        result = cls.from_fd(container_file.fileno(), **kwargs)
+        result = cls.from_fd(container_file.fileno(), tmp_dir=tmp_dir, **kwargs)
         result.__file = container_file # Save it from python's gc
         return result
 
@@ -97,9 +103,10 @@ class Iterator(object):
         self.session = elliptics.Session(node)
         self.session.set_groups([group])
 
-    def __start(self, eid, request):
+    def __start(self, eid, request, tmp_dir):
         id_range = IdRange(request.key_begin, request.key_end)
-        result = IteratorResult.from_filename(mk_container_name(id_range, eid), eid=eid, id_range=id_range)
+        filename = os.path.join(tmp_dir, mk_container_name(id_range, eid))
+        result = IteratorResult.from_filename(filename, eid=eid, id_range=id_range, tmp_dir=tmp_dir)
         iterator = self.session.start_iterator(eid, request)
         for record in iterator:
             if record.status != 0:
@@ -114,7 +121,9 @@ class Iterator(object):
               itype=elliptics.iterator_types.network,
               flags=elliptics.iterator_flags.key_range|elliptics.iterator_flags.ts_range,
               key_range=(IdRange.ID_MIN, IdRange.ID_MAX),
-              timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime())):
+              timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime()),
+              tmp_dir='/var/tmp',
+    ):
         """
         XXX:
         """
@@ -127,7 +136,7 @@ class Iterator(object):
             request.flags = flags
             request.key_begin, request.key_end = key_range
             request.time_begin, request.time_end = timestamp_range
-            return self.__start(eid, request)
+            return self.__start(eid, request, tmp_dir)
         except Exception as e:
             self.log.error("Iteration failed: {0}".format(repr(e)))
             return IteratorResult(exception=e)

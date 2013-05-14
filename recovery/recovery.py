@@ -11,6 +11,7 @@ New recovery mechanism for elliptics that utilizes new iterators and metadata
 """
 
 import sys
+import os
 import logging as log
 
 from collections import defaultdict
@@ -101,6 +102,7 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
                 eid=local_eid,
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
+                tmp_dir=ctx.tmp_dir,
             )
             log.debug("Local obtained: {0} record(s)".format(len(local_result)))
             stats['iteration_local_records'] += len(local_result)
@@ -113,6 +115,7 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
                 eid=remote_eid,
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
+                tmp_dir=ctx.tmp_dir,
             )
             remote_result.host = iteration_range.host
             log.debug("Remote obtained: {0} record(s)".format(len(remote_result)))
@@ -296,7 +299,7 @@ if __name__ == '__main__':
 
     parser = OptionParser()
     parser.add_option("-l", "--log", dest="elliptics_log", default='/dev/stderr', metavar="FILE",
-                      help="use file as log [default %default]")
+                      help="Output log messages from library to file [default: %default]")
     parser.add_option("-L", "--log-level", action="store", dest="elliptics_log_level", default="1",
                       help="Elliptics client verbosity [default: %default]")
     parser.add_option("-r", "--remote", action="store", dest="elliptics_remote", default="127.0.0.1:1025",
@@ -311,7 +314,9 @@ if __name__ == '__main__':
                       help="Enable debug output [default: %default]")
     parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
                       help="Statistics output format: {0} [default: %default]".format("/".join(available_stats)))
-    # XXX: Add temp dir
+    parser.add_option("-D", "--dir", dest="tmp_dir", default='/var/tmp/', metavar="DIR",
+                      help="Temporary directory for iterators' results [default: %default]")
+
     # XXX: Add lock file
     (options, args) = parser.parse_args()
 
@@ -365,15 +370,21 @@ if __name__ == '__main__':
             options.elliptics_log_level, repr(e)))
     log.info("Using elliptics client log level: {0}".format(ctx.log_level))
 
+    ctx.tmp_dir = options.tmp_dir
+    if not os.access(ctx.tmp_dir, os.W_OK):
+        raise ValueError("Don't have write access to: {0}".format(options.tmp_dir))
+    log.info("Using tmp directory: {0}".format(ctx.tmp_dir))
+
     if options.stat not in available_stats:
         raise ValueError("Unknown output format: '{0}'. Available formats are: {1}".format(
             options.stat, available_stats))
 
     log.debug("Using following context:\n{0}".format(ctx))
 
-    log.info("Setting up elliptics nodes")
+    log.info("Setting up elliptics client")
     log.debug("Creating logger")
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+    log.debug("Creating node")
     ctx.node = elliptics_create_node(ctx.host, ctx.port, ctx.elog)
 
     result = main(ctx)
