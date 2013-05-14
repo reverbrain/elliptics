@@ -331,7 +331,7 @@ if __name__ == '__main__':
                       help="Elliptics client verbosity [default: %default]")
     parser.add_option("-r", "--remote", action="store", dest="elliptics_remote", default="127.0.0.1:1025",
                       help="Elliptics node address [default: %default]")
-    parser.add_option("-g", "--groups", action="store_const", dest="elliptics_groups", default="2",
+    parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default="2",
                       help="Comma separated list of groups [default: %default]")
     parser.add_option("-t", "--timestamp", action="store", dest="timestamp", default="0",
                       help="Recover keys created/modified since [default: %default]")
