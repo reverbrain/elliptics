@@ -193,14 +193,14 @@ def recover(ctx, diffs, group, stats):
         log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.host))
 
         # Here we cleverly splitting responses into ctx.batch_size batches
-        for group, batch in groupby(enumerate(diff),
+        for batch_id, batch in groupby(enumerate(diff),
                                         key=lambda x: x[0] / ctx.batch_size):
             keys = [elliptics.Id(r.key, group, 0) for _, r in batch]
             total, failures = recover_keys(ctx, diff.host, group, keys)
             stats['recover_keys_failed'] += failures
             stats['recover_keys_total'] += total
             result &= (failures == 0)
-            log.debug("Recovered batch: {0} of size: {1}, failed: {2}".format(group, total, failures))
+            log.debug("Recovered batch: {0} of size: {1}, failed: {2}".format(batch_id, total, failures))
     return result
 
 def recover_keys(ctx, hostport, group, keys):
