@@ -22,78 +22,76 @@
 #define COCAINE_ELLIPTICS_STORAGE_HPP
 
 #include <cocaine/api/storage.hpp>
+#include <cocaine/api/service.hpp>
+#include <cocaine/slot.hpp>
 
 #include "elliptics/cppdef.h"
 
-namespace cocaine { namespace storage {
+namespace cocaine {
 
-class log_adapter_impl_t:
-    public ioremap::elliptics::logger_interface
+class elliptics_service_t;
+
+namespace storage {
+
+class log_adapter_impl_t : public ioremap::elliptics::logger_interface
 {
-    public:
-        log_adapter_impl_t(const std::shared_ptr<logging::log_t>& log);
+	public:
+		log_adapter_impl_t(const std::shared_ptr<logging::log_t> &log);
 
-        virtual void log(const int level, const char *msg);
+		virtual void log(const int level, const char *msg);
 
-    private:
-        std::shared_ptr<logging::log_t> m_log;
+	private:
+		std::shared_ptr<logging::log_t> m_log;
 };
 
-class log_adapter_t:
-    public ioremap::elliptics::logger
+class log_adapter_t : public ioremap::elliptics::logger
 {
-    public:
-        log_adapter_t(const std::shared_ptr<logging::log_t>& log,
-                      const int level);
+	public:
+		log_adapter_t(const std::shared_ptr<logging::log_t> &log,
+		const int level);
 };
 
-class elliptics_storage_t:
-    public api::storage_t
+class elliptics_storage_t : public api::storage_t
 {
-    public:
-        typedef api::storage_t category_type;
+	public:
+		typedef api::storage_t category_type;
+		typedef std::shared_ptr<logging::log_t> log_ptr;
 
-    public:
-        elliptics_storage_t(context_t& context,
-                            const std::string& name,
-                            const Json::Value& args);
+		elliptics_storage_t(context_t &context,
+			const std::string &name,
+			const Json::Value &args);
 
-        virtual
-        std::string
-        read(const std::string& collection,
-             const std::string& key);
+		std::string read(const std::string &collection, const std::string &key);
+		void write(const std::string &collection, const std::string &key, const std::string &blob);
+		std::vector<std::string> list(const std::string &collection);
+		void remove(const std::string &collection, const std::string &key);
 
-        virtual
-        void
-        write(const std::string& collection,
-              const std::string& key,
-              const std::string& blob);
+	protected:
+		ioremap::elliptics::async_read_result async_read(const std::string &collection, const std::string &key);
+		ioremap::elliptics::async_write_result async_write(const std::string &collection, const std::string &key, const std::string &blob);
+		ioremap::elliptics::async_find_indexes_result async_list(const std::string &collection);
+		ioremap::elliptics::async_remove_result async_remove(const std::string &collection, const std::string &key);
 
-        virtual
-        std::vector<std::string>
-        list(const std::string& collection);
+		static std::vector<std::string> convert_list_result(const ioremap::elliptics::sync_find_indexes_result &result);
 
-        virtual
-        void
-        remove(const std::string& collection,
-               const std::string& key);
+	private:
+		std::string id(const std::string &collection,
+		const std::string &key)
+		{
+			return collection + '\0' + key;
+		}
 
-    private:
-        std::string id(const std::string& collection,
-                       const std::string& key)
-        {
-            return collection + '\0' + key;
-        };
+	private:
+		context_t &m_context;
+		log_ptr m_log;
 
-    private:
-        context_t& m_context;
-        std::shared_ptr<logging::log_t> m_log;
+		log_adapter_t m_log_adapter;
+		ioremap::elliptics::node m_node;
+		ioremap::elliptics::session m_session;
 
-        log_adapter_t m_log_adapter;
-        ioremap::elliptics::node m_node;
-        ioremap::elliptics::session m_session;
+		std::vector<int> m_groups;
 
-        std::vector<int> m_groups;
+		friend class cocaine::elliptics_service_t;
 };
 
 }}

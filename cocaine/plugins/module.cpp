@@ -19,14 +19,17 @@
 */
 
 #include "storage.hpp"
+#include "service.hpp"
 
 using namespace cocaine;
 using namespace cocaine::storage;
 
 extern "C" {
-    void
-    initialize(api::repository_t& repository) {
-        repository.insert<elliptics_storage_t>("elliptics");
-    }
+
+void initialize(api::repository_t& repository) {
+	repository.insert<elliptics_storage_t>("elliptics");
+	repository.insert<elliptics_service_t>("elliptics");
+}
+
 }
 
