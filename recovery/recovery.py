@@ -30,30 +30,26 @@ import elliptics
 
 log.getLogger()
 
-def setup_elliptics(host=None, port=None, groups=None, elog=None, log_file="/dev/stderr", log_level=1):
+def elliptics_create_node(host=None, port=None, elog=None, cfg=None):
     """
     Connects to elliptics cloud
     """
-    log.info("Creating node using: log_file: {0}, log_level: {1}".format(log_file, log_level))
-
+    log.info("Creating node using: {0}:{1}".format(host, port))
     log.debug('Creating config')
-    cfg = elliptics.Config()
-    cfg.config.wait_timeout = 60
-
-    if elog == None:
-        log.debug('Creating logger')
-        elog = elliptics.Logger(log_file, int(log_level))
-    else:
-        log.debug('Using existing logger')
-
+    if not cfg:
+        cfg = elliptics.Config()
     log.debug('Creating node')
     node = elliptics.Node(elog, cfg)
     node.add_remote(host, port)
+    return node
 
+def elliptics_create_session(node, group=None, cflags=None):
     log.debug("Creating session")
     session = elliptics.Session(node)
-    session.add_groups(groups)
-    return elog, node, session
+    session.set_groups([group])
+    if cflags:
+        session.set_cflags(cflags)
+    return session
 
 def get_ranges(ctx, routes, group_id):
     """
@@ -86,8 +82,7 @@ def get_ranges(ctx, routes, group_id):
                 ranges.append(RecoveryRange(IdRange(start, stop), prev_node))
     return ranges
 
-def run_iterators(ctx, node=None, group=None, routes=None,
-                  ranges=None, stats=None):
+def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
     """
     Runs local and remote iterators for each range.
     TODO: Can be parallel
@@ -102,7 +97,7 @@ def run_iterators(ctx, node=None, group=None, routes=None,
 
             log.debug("Running local iterator on: {0}".format(mk_container_name(
                 iteration_range.id_range, local_eid)))
-            local_result = Iterator(node, group).start(
+            local_result = Iterator(ctx.node, group).start(
                 eid=local_eid,
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
@@ -114,7 +109,7 @@ def run_iterators(ctx, node=None, group=None, routes=None,
             remote_eid = routes.filter_by_host(iteration_range.host)[0].key
             log.debug("Running remote iterator on: {0}".format(mk_container_name(
                 iteration_range.id_range, remote_eid)))
-            remote_result = Iterator(node, group).start(
+            remote_result = Iterator(ctx.node, group).start(
                 eid=remote_eid,
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
@@ -248,10 +243,10 @@ def main(ctx):
         log.warning("Processing group: {0}".format(group))
         group_stats = ctx.stats['groups'][group] = defaultdict(int)
 
-        elog, node, session = setup_elliptics(ctx.host, ctx.port, [group],
-                                              log_file=ctx.log_file, log_level=ctx.log_level)
+        log.debug("Creating session for: {0}".format(ctx.hostport))
+        session = elliptics_create_session(ctx.node, group)
 
-        log.warning("Searching for ranges that '{0}' stole".format(ctx.host))
+        log.warning("Searching for ranges that {0} stole".format(ctx.hostport))
         routes = RouteList(session.get_routes())
         log.debug("Total routes: {0}".format(len(routes)))
 
@@ -266,7 +261,6 @@ def main(ctx):
         log.warning("Running iterators against: {0} range(s)".format(len(ranges)))
         iterator_results = run_iterators(
             ctx,
-            node=node,
             group=group,
             routes=routes,
             ranges=ranges,
@@ -318,7 +312,6 @@ if __name__ == '__main__':
     parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
                       help="Statistics output format: {0} [default: %default]".format("/".join(available_stats)))
     # XXX: Add temp dir
-    # XXX: Add quiet option to not output statistics
     # XXX: Add lock file
     (options, args) = parser.parse_args()
 
@@ -377,6 +370,11 @@ if __name__ == '__main__':
             options.stat, available_stats))
 
     log.debug("Using following context:\n{0}".format(ctx))
+
+    log.info("Setting up elliptics nodes")
+    log.debug("Creating logger")
+    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+    ctx.node = elliptics_create_node(ctx.host, ctx.port, ctx.elog)
 
     result = main(ctx)
 
