@@ -21,9 +21,10 @@ from itertools import groupby
 
 from recover.range import IdRange, RecoveryRange
 from recover.route import RouteList
-from recover.misc import format_id, split_host_port, mk_container_name
 from recover.iterator import Iterator
 from recover.time import Time
+from recover.utils.lru_cache import lru_cache
+from recover.utils.misc import format_id, split_host_port, mk_container_name
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -31,21 +32,22 @@ import elliptics
 
 log.getLogger()
 
+@lru_cache()
 def elliptics_create_node(host=None, port=None, elog=None, cfg=None):
     """
     Connects to elliptics cloud
     """
     log.info("Creating node using: {0}:{1}".format(host, port))
-    log.debug("Creating config")
     if not cfg:
         cfg = elliptics.Config()
-    log.debug("Creating node")
     node = elliptics.Node(elog, cfg)
     node.add_remote(host, port)
+    log.info("Created node: {0}".format(node))
     return node
 
-def elliptics_create_session(node, group=None, cflags=None):
-    log.debug("Creating session")
+@lru_cache()
+def elliptics_create_session(node=None, group=None, cflags=None):
+    log.debug("Creating session: {0}@{1}.{2}".format(node, group, cflags))
     session = elliptics.Session(node)
     session.set_groups([group])
     if cflags:
@@ -178,31 +180,21 @@ def recover(ctx, diffs, group, stats):
     TODO: Can be parallel
     """
     result = True
-    elliptics_cache = {}
     for diff in diffs:
         log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.host))
-
-        # Cache node with direct connection to one host
-        if diff.host not in elliptics_cache:
-            log.debug("Creating node for: {0}".format(diff.host))
-            host, port = split_host_port(diff.host)
-            node = elliptics_create_node(host=host, port=port, elog=ctx.elog)
-            log.debug("Creating direct session: {0}".format(diff.host))
-            session = elliptics_create_session(node=node, group=group, cflags=elliptics.command_flags.direct)
-            elliptics_cache[diff.host] = {'node': node, 'session': session}
 
         # Here we cleverly splitting responses into ctx.batch_size batches
         for group, batch in groupby(enumerate(diff),
                                         key=lambda x: x[0] / ctx.batch_size):
             keys = [elliptics.Id(r.key, group, 0) for _, r in batch]
-            total, failures = recover_keys(ctx, elliptics_cache[diff.host], group, keys)
+            total, failures = recover_keys(ctx, diff.host, group, keys)
             stats['recover_keys_failed'] += failures
             stats['recover_keys_total'] += total
             result &= (failures == 0)
             log.debug("Recovered batch: {0} of size: {1}, failed: {2}".format(group, total, failures))
     return result
 
-def recover_keys(ctx, cache, group, keys):
+def recover_keys(ctx, hostport, group, keys):
     """
     Bulk recovery of keys.
     """
@@ -210,7 +202,15 @@ def recover_keys(ctx, cache, group, keys):
 
     log.debug("Reading {0} keys".format(key_num))
     try:
-        batch = cache['session'].bulk_read_by_id(keys)
+        log.debug("Creating node for: {0}".format(hostport))
+        host, port = split_host_port(hostport)
+        node = elliptics_create_node(host=host, port=port, elog=ctx.elog)
+        log.debug("Creating direct session: {0}".format(hostport))
+        direct_session = elliptics_create_session(node=node,
+                                                  group=group,
+                                                  cflags=elliptics.command_flags.direct,
+        )
+        batch = direct_session.bulk_read_by_id(keys)
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
         return key_num, key_num
@@ -265,7 +265,7 @@ def main(ctx):
         group_stats = ctx.stats['groups'][group] = defaultdict(int)
 
         log.debug("Creating session for: {0}".format(ctx.hostport))
-        session = elliptics_create_session(ctx.node, group)
+        session = elliptics_create_session(node=ctx.node, group=group)
 
         log.warning("Searching for ranges that {0} stole".format(ctx.hostport))
         routes = RouteList(session.get_routes())
@@ -402,7 +402,7 @@ if __name__ == '__main__':
     log.debug("Creating logger")
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     log.debug("Creating node")
-    ctx.node = elliptics_create_node(ctx.host, ctx.port, ctx.elog)
+    ctx.node = elliptics_create_node(host=ctx.host, port=ctx.port, elog=ctx.elog)
 
     result = main(ctx)
 

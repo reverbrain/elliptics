@@ -1,9 +1,10 @@
-from .misc import logged_class, mk_container_name
+import sys
+import os
+
+from .utils.misc import logged_class, mk_container_name
 from .time import Time
 from .range import IdRange
 
-import sys
-import os
 sys.path.insert(0, "bindings/python/") # XXX
 
 import elliptics

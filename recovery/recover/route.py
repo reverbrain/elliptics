@@ -1,4 +1,4 @@
-from .misc import logged_class, format_id
+from .utils.misc import logged_class, format_id
 
 __doc__ = \
 """
