@@ -180,7 +180,7 @@ def recover(ctx, diffs, stats):
     result = True
     for diff in diffs:
         log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.host))
-        # Here we cleverly splitting responses into RECOVERY_BULK_SIZE batches
+        # Here we cleverly splitting responses into ctx.batch_size batches
         for group, batch in groupby(enumerate(diff),
                                         key=lambda x: x[0] / ctx.batch_size):
             total, failures = recover_keys(ctx, diff.host, [r.key for i, r in batch])
