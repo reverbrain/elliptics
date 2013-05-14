@@ -249,8 +249,8 @@ ell::async_write_result elliptics_storage_t::async_write(const std::string &coll
 	ell::async_result_handler<ell::write_result_entry> handler(result);
 
 	session.set_filter(ioremap::elliptics::filters::all_with_ack);
-	return session.write_data(key, blob, 0);
-//		.connect(std::bind(on_write_finished, m_log, handler, session, key, _1, _2));
+	session.write_data(key, blob, 0)
+		.connect(std::bind(on_write_finished, m_log, handler, session, key, _1, _2));
 
 	return result;
 }
