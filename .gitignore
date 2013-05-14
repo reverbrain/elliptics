@@ -36,5 +36,6 @@ include/elliptics/typedefs.h
 *.in
 *.lo
 *.la
+*.py[co]
 root/
 tags
