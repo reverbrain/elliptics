@@ -557,6 +557,38 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			}
 		}
 
+		bp::api::object bulk_read_by_id(const bp::api::object &keys) {
+			std::vector<elliptics_id> std_keys = convert_to_vector<elliptics_id>(keys);
+			std::vector<dnet_io_attr> ios;
+			dnet_io_attr io;
+			memset(&io, 0, sizeof(io));
+
+			ios.reserve(std_keys.size());
+			for (size_t i = 0; i < std_keys.size(); ++i) {
+				dnet_id id = std_keys[i].to_dnet();
+
+				memcpy(io.id, id.id, sizeof(io.id));
+				ios.push_back(io);
+			}
+
+			const sync_read_result ret =  bulk_read(ios);
+
+			std::map<struct dnet_id, elliptics_id, dnet_id_comparator> keys_map;
+			for (size_t i = 0; i < std_keys.size(); ++i) {
+				const dnet_id id = std_keys[i].to_dnet();
+				keys_map.insert(std::make_pair(id, std_keys[i]));
+			}
+
+			bp::dict result;
+			for (size_t i = 0; i < ret.size(); ++i) {
+				const read_result_entry entry = ret[i];
+				const dnet_id &id = entry.command()->id;
+				result[keys_map[id]] = entry.file().to_string();
+			}
+
+			return result;
+		}
+
 		std::string bulk_write_by_id(const bp::api::object &keys, const bp::api::object &data) {
 			std::vector<elliptics_id> std_keys = convert_to_vector<elliptics_id>(keys);
 			std::vector<std::string> std_data = convert_to_vector<std::string>(data);
@@ -1018,6 +1050,12 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("remove", &elliptics_session::remove_by_name)
 
 		.def("bulk_read", &elliptics_session::bulk_read_by_name,
+			(bp::arg("keys"), bp::arg("raw") = false))
+
+		.def("bulk_read_by_name", &elliptics_session::bulk_read_by_name,
+			(bp::arg("keys"), bp::arg("raw") = false))
+
+		.def("bulk_read_by_id", &elliptics_session::bulk_read_by_id,
 			(bp::arg("keys"), bp::arg("raw") = false))
 
 		.def("bulk_write_by_id", &elliptics_session::bulk_write_by_id,
