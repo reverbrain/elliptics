@@ -6,13 +6,14 @@ import elliptics
 
 __doc__ = \
 """
-XXX:
+Converters from and to elliptics dnet_time format.
 """
 
 class Time(object):
-    __doc__ = """
-                XXX:
-              """
+    __doc__ = \
+        """
+        Wrapper on top of dnet_time
+        """
     __slots__ = ('time')
 
     def __init__(self, tsec, tnsec):

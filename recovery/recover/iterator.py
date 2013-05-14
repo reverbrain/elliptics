@@ -11,15 +11,16 @@ import elliptics
 
 __doc__ = \
 """
-XXX:
+Wrappers for iterator and it's result container
 """
 
 @logged_class
 class IteratorResult(object):
-    __doc__ = """
-              Container for iterator results
-              Provides status and IteratorResultContainer wrapper.
-              """
+    __doc__ = \
+        """
+        Container for iterator results
+        Provides status and IteratorResultContainer wrapper.
+        """
     def __init__(self, eid=None,
                  id_range=IdRange(None, None),
                  host=None,
@@ -99,6 +100,10 @@ class IteratorResult(object):
 
 @logged_class
 class Iterator(object):
+    __doc__ = \
+    """
+    Wrapper on top of elliptics new iterator and it's result container
+    """
     def __init__(self, node, group):
         self.session = elliptics.Session(node)
         self.session.set_groups([group])

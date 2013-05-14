@@ -10,10 +10,11 @@ We need better abstractions.
 
 @logged_class
 class Route(object):
-    __doc__ = """
-              Simple route container.
-              Right now route consists of key and node to which this key belongs
-              """
+    __doc__ = \
+        """
+        Simple route container.
+        Right now route consists of key and node to which this key belongs
+        """
     __slots__ = ('key', 'node')
     def __init__(self, key, node):
         self.key = key
@@ -33,10 +34,11 @@ class Route(object):
 
 @logged_class
 class RouteList(object):
-    __doc__ = """
-              Route list that sorts entries by key and also merges
-              adj. keys that belongs to the same node.
-              """
+    __doc__ = \
+        """
+        Route list that sorts entries by key and also merges
+        adj. keys that belongs to the same node.
+        """
     def __init__(self, routes):
         unmerged_routes = []
         self.log.debug("Routes recv'd: {0}".format(len(routes)))

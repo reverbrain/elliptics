@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 
 """
-New recovery mechanism for elliptics that utilizes new iterators and metadata
+New recovery mechanism for elliptics that utilizes new iterators and metadata.
+NB! For now only "merge" mode is supported e.g. recovery within a group.
 
  * Find ranges that host stole from neighbours in routing table.
  * Start metadata-only iterator fo each range on local and remote hosts.
  * Sort iterators' outputs.
  * Computes diff between local and remote iterator.
- * Recover keys provided by diff using bulk API.
+ * Recover keys provided by diff using bulk APIs.
 """
 
 import sys
@@ -264,9 +265,6 @@ def print_stats(stats):
         print
 
 def main(ctx):
-    """
-    XXX:
-    """
     result = True
     ctx.stats['global'] = defaultdict(int)
     ctx.stats['global']['time_started'] = datetime.now()
