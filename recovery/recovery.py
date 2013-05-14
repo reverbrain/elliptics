@@ -36,10 +36,10 @@ def elliptics_create_node(host=None, port=None, elog=None, cfg=None):
     Connects to elliptics cloud
     """
     log.info("Creating node using: {0}:{1}".format(host, port))
-    log.debug('Creating config')
+    log.debug("Creating config")
     if not cfg:
         cfg = elliptics.Config()
-    log.debug('Creating node')
+    log.debug("Creating node")
     node = elliptics.Node(elog, cfg)
     node.add_remote(host, port)
     return node
@@ -56,10 +56,6 @@ def get_ranges(ctx, routes, group_id):
     """
     For each record in RouteList create 1 or 2 RecoveryRange(s)
     Returns list of RecoveryRange`s
-    TODO: Tests!
-
-    :param routes: RouteList object
-    :param group_id: integer that represents hash ring id
     """
     ranges = []
     for i, route in enumerate(routes):
