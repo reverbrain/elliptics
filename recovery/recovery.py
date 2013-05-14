@@ -187,7 +187,7 @@ def recover(ctx, diffs, stats):
             stats['recover_keys_failed'] += failures
             stats['recover_keys_total'] += total
             result &= (failures == 0)
-            log.debug("Recovered batch: {0} of size: {1}".format(group, total))
+            log.debug("Recovered batch: {0} of size: {1}, failed: {2}".format(group, total, failures))
     return result
 
 def recover_keys(ctx, host, keys):
