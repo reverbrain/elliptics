@@ -48,12 +48,11 @@ def elliptics_create_node(host=None, port=None, elog=None, cfg=None):
     return node
 
 @lru_cache()
-def elliptics_create_session(node=None, group=None, cflags=None):
+def elliptics_create_session(node=None, group=None, cflags=elliptics.command_flags.default):
     log.debug("Creating session: {0}@{1}.{2}".format(node, group, cflags))
     session = elliptics.Session(node)
     session.set_groups([group])
-    if cflags:
-        session.set_cflags(cflags)
+    session.set_cflags(cflags)
     return session
 
 def get_ranges(ctx, routes, group_id):
