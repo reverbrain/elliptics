@@ -88,7 +88,8 @@ def get_ranges(ctx, routes, group_id):
 def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
     """
     Runs local and remote iterators for each range.
-    TODO: Can be parallel
+    TODO: We can group iterators by host and run them in parallel
+    TODO: We can run only one iterator per host if we'll teach iterators to "batch" all key ranges in one request
     """
     results = []
     local_eid = routes.filter_by_host(ctx.hostport)[0].key
@@ -135,7 +136,6 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
 def sort(ctx, results, stats):
     """
     Runs sort routine for all iterator result
-    TODO: Can be parallel
     """
     sorted_results = []
     for local, remote in results:
@@ -164,7 +164,7 @@ def sort(ctx, results, stats):
 def diff(ctx, results, stats):
     """
     Compute differences between local and remote results.
-    TODO: Can be parallel
+    TODO: We can compute up to CPU_NUM diffs at max
     """
     diff_results = []
     for local, remote in results:
@@ -189,7 +189,7 @@ def diff(ctx, results, stats):
 def recover(ctx, diffs, group, stats):
     """
     Recovers difference between remote and local data.
-    TODO: Can be parallel
+    TODO: Group by diffs by host and process each group in parallel
     """
     result = True
     for diff in diffs:
