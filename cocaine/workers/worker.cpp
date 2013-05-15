@@ -489,10 +489,12 @@ void application::on_update_final::update_index(const exec_context &context, con
 		<< ", index: " << dnet_dump_id_len_raw(index.index.id, DNET_DUMP_NUM, index_str)
 		<< std::endl;
 
+	typedef data_pointer (on_update_final::*func_type)(const dnet_id &, const data_pointer            &, const data_pointer &);
+
 	sess.write_cas(tmp_id,
 		std::bind(action == insert_data
-				? &on_update_final::convert_index_table<insert_data>
-				: &on_update_final::convert_index_table<remove_data>,
+				? static_cast<func_type>(&on_update_final::convert_index_table<insert_data>)
+				: static_cast<func_type>(&on_update_final::convert_index_table<remove_data>),
 			shared_from_this(),
 			request_id,
 			index.data,
