@@ -545,7 +545,7 @@ int dnet_add_state(struct dnet_node *n, char *addr_str, int port, int family, in
 	if (!st)
 		goto err_out_reconnect;
 
-	if (!(flags & DNET_CFG_NO_ROUTE_LIST))
+	if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST))
 		dnet_recv_route_list(st);
 
 	return 0;
