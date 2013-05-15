@@ -33,14 +33,13 @@ import elliptics
 log.getLogger()
 
 @lru_cache()
-def elliptics_create_node(host=None, port=None, elog=None, cfg=None):
+def elliptics_create_node(host=None, port=None, elog=None):
     """
     Connects to elliptics cloud
     """
     log.info("Creating node using: {0}:{1}".format(host, port))
-    if not cfg:
-        cfg = elliptics.Config()
-        cfg.config.wait_timeout = 3600
+    cfg = elliptics.Config()
+    cfg.config.wait_timeout = 3600
     node = elliptics.Node(elog, cfg)
     node.add_remote(host, port)
     log.info("Created node: {0}".format(node))
