@@ -23,6 +23,7 @@
 #include <sys/wait.h>
 
 #include <alloca.h>
+#include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -2599,7 +2600,6 @@ int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t
 	struct dnet_map_fd left_map = { .fd = left_fd, .size = left_size };
 	struct dnet_map_fd right_map = { .fd = right_fd, .size = right_size };
 	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
-	struct dnet_iterator_response *left, *right;
 	uint64_t left_offset = 0, right_offset = 0;
 	int64_t diff_offset = 0, err = 0;
 
@@ -2628,28 +2628,29 @@ int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t
 	while (right_offset < right_size) {
 		const uint64_t left_pos = left_offset / resp_size;
 		const uint64_t right_pos = right_offset / resp_size;
+		const struct dnet_iterator_response *left =
+			(struct dnet_iterator_response *)left_map.data + left_pos;
+		const struct dnet_iterator_response *right =
+			(struct dnet_iterator_response *)right_map.data + right_pos;
 		int cmp;
 
-		left = (struct dnet_iterator_response *)left_map.data + left_pos;
-		right = (struct dnet_iterator_response *)right_map.data + right_pos;
 		cmp = dnet_iterator_response_cmp(left, right);
-
 		if (cmp < 0) {
 			err = dnet_iterator_response_container_append(right, diff_fd, diff_offset);
 			if (err != 0)
 				goto err_unmap_right;
 			diff_offset += resp_size;
 			right_offset += resp_size;
-		} else if (cmp > 0) {
-			if (left_offset < left_size)
-				left_offset += resp_size;
 		} else {
 			if (left_offset < left_size)
 				left_offset += resp_size;
-			right_offset += resp_size;
+			if (cmp == 0)
+				right_offset += resp_size;
 		}
+		assert(left_offset <= left_size);
+		assert(diff_offset <= (int64_t)right_size);
 	}
-	/* TODO: Add asserts */
+	assert(right_offset == right_size);
 
 err_unmap_right:
 	dnet_data_unmap(&right_map);
