@@ -423,6 +423,16 @@ uint32_t session::get_ioflags() const
 	return dnet_session_get_ioflags(m_data->session_ptr);
 }
 
+void session::set_user_flags(uint64_t user_flags)
+{
+	dnet_session_set_user_flags(m_data->session_ptr, user_flags);
+}
+
+uint64_t session::get_user_flags() const
+{
+	return dnet_session_get_user_flags(m_data->session_ptr);
+}
+
 void session::set_timeout(unsigned int timeout)
 {
 	dnet_session_set_timeout(m_data->session_ptr, timeout);
@@ -700,6 +710,7 @@ async_write_result session::write_data(const key &id, const data_pointer &file, 
 	ctl.data = file.data();
 
 	ctl.io.flags = get_ioflags();
+	ctl.io.user_flags = get_user_flags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
@@ -916,6 +927,7 @@ async_write_result session::write_cas(const key &id, const data_pointer &file, c
 	ctl.data = file.data();
 
 	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_COMPARE_AND_SWAP;
+	ctl.io.user_flags = get_user_flags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
@@ -941,6 +953,7 @@ async_write_result session::write_prepare(const key &id, const data_pointer &fil
 	ctl.data = file.data();
 
 	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_PREPARE | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.user_flags = get_user_flags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = id.id().type;
@@ -965,6 +978,7 @@ async_write_result session::write_plain(const key &id, const data_pointer &file,
 	ctl.data = file.data();
 
 	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.user_flags = get_user_flags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = id.type();
@@ -989,6 +1003,7 @@ async_write_result session::write_commit(const key &id, const data_pointer &file
 	ctl.data = file.data();
 
 	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_PLAIN_WRITE;
+	ctl.io.user_flags = get_user_flags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = id.id().type;
@@ -1014,6 +1029,7 @@ async_write_result session::write_cache(const key &id, const data_pointer &file,
 	ctl.data = file.data();
 
 	ctl.io.flags = get_ioflags() | DNET_IO_FLAGS_CACHE;
+	ctl.io.user_flags = get_user_flags();
 	ctl.io.start = timeout;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;

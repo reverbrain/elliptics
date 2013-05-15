@@ -689,6 +689,7 @@ struct dnet_session *dnet_session_copy(struct dnet_session *s)
 	new_s->wait_ts = s->wait_ts;
 	new_s->cflags = s->cflags;
 	new_s->ioflags = s->ioflags;
+	new_s->user_flags = s->user_flags;
 
 	int err = dnet_session_set_groups(new_s, s->groups, s->group_num);
 	if (err) {
@@ -787,6 +788,16 @@ void dnet_session_set_cflags(struct dnet_session *s, uint64_t cflags)
 uint64_t dnet_session_get_cflags(struct dnet_session *s)
 {
 	return s->cflags;
+}
+
+void dnet_session_set_user_flags(struct dnet_session *s, uint64_t user_flags)
+{
+	s->user_flags = user_flags;
+}
+
+uint64_t dnet_session_get_user_flags(struct dnet_session *s)
+{
+	return s->user_flags;
 }
 
 void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout)
