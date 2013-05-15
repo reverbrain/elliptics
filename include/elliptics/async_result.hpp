@@ -241,10 +241,10 @@ class async_result_handler
 {
 	public:
 		async_result_handler(const async_result<T> &result);
-        async_result_handler(const async_result_handler &other);
-        ~async_result_handler();
+		async_result_handler(const async_result_handler &other);
+		~async_result_handler();
 
-        async_result_handler &operator =(const async_result_handler &other);
+		async_result_handler &operator =(const async_result_handler &other);
 
 		void set_total(size_t total);
 		size_t get_total();
