@@ -820,3 +820,8 @@ struct dnet_node *dnet_session_get_node(struct dnet_session *s)
 {
 	return s->node;
 }
+
+void dnet_session_set_timestamp(struct dnet_session *s, struct dnet_time *ts)
+{
+	s->ts = *ts;
+}

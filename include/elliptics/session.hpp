@@ -282,10 +282,18 @@ class session
 		 */
 		uint32_t		get_ioflags() const;
 
-        /*!
+        	/*!
 		 * Sets user flags \a user_flags to the session.
 		 */
 		void			set_user_flags(uint64_t user_flags);
+
+        	/*!
+		 * Sets timestamp for given session.
+		 * All write operations will use this timestamp, instead of system time.
+		 * If set to zero (default), system time will be used.
+		 */
+		void			set_timestamp(struct dnet_time *ts);
+
 		/*!
 		 * Gets user flags of the session.
 		 */

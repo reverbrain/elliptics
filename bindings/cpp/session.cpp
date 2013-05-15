@@ -428,6 +428,11 @@ void session::set_user_flags(uint64_t user_flags)
 	dnet_session_set_user_flags(m_data->session_ptr, user_flags);
 }
 
+void session::set_timestamp(struct dnet_time *ts)
+{
+	dnet_session_set_timestamp(m_data->session_ptr, ts);
+}
+
 uint64_t session::get_user_flags() const
 {
 	return dnet_session_get_user_flags(m_data->session_ptr);

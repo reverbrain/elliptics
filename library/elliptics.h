@@ -469,8 +469,10 @@ struct dnet_session {
 
 	struct timespec		wait_ts;
 
+	struct dnet_time	ts;
+
 	uint64_t		cflags;
-    uint64_t        user_flags;
+	uint64_t		user_flags;
 	uint32_t		ioflags;
 
 	/* Namespace */
