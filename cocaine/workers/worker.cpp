@@ -20,7 +20,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	update_indexes_functor(session &sess, const std::shared_ptr<cocaine::framework::upstream_t> &response,
 		const exec_context &context, const key &request_id,
 		const std::vector<index_entry> &input_indexes, const dnet_id &id)
-		: sess(sess), context(context), request_id(request_id), id(id), finished(0)
+		: sess(sess), response(response), context(context), request_id(request_id), id(id), finished(0)
 #ifdef SMAP_DEBUG
 		, smap_failed(0)
 #endif
@@ -424,7 +424,7 @@ void application::on_update_base::on_chunk(const char *chunk, size_t size)
 
 void application::on_update_base::on_error(int code, const std::string &message)
 {
-	debug() << message << std::endl;
+	debug() << "code: " << code << ", message: " << message << std::endl;
 }
 
 void application::on_update_base::on_close()
@@ -465,6 +465,7 @@ void application::on_update_final::on_chunk(const char *chunk, size_t size)
 
 void application::on_update_final::on_error(int code, const std::string &message)
 {
+	debug() << "code: " << code << ", message: " << message << std::endl;
 }
 
 void application::on_update_final::on_close()
