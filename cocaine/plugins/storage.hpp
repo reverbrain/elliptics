@@ -62,14 +62,14 @@ class elliptics_storage_t : public api::storage_t
 			const Json::Value &args);
 
 		std::string read(const std::string &collection, const std::string &key);
-		void write(const std::string &collection, const std::string &key, const std::string &blob);
-		std::vector<std::string> list(const std::string &collection);
+		void write(const std::string &collection, const std::string &key, const std::string &blob, const std::vector<std::string> &tags);
+		std::vector<std::string> find(const std::string &collection, const std::vector<std::string> &tags);
 		void remove(const std::string &collection, const std::string &key);
 
 	protected:
 		ioremap::elliptics::async_read_result async_read(const std::string &collection, const std::string &key);
-		ioremap::elliptics::async_write_result async_write(const std::string &collection, const std::string &key, const std::string &blob);
-		ioremap::elliptics::async_find_indexes_result async_list(const std::string &collection);
+		ioremap::elliptics::async_write_result async_write(const std::string &collection, const std::string &key, const std::string &blob, const std::vector<std::string> &tags);
+		ioremap::elliptics::async_find_indexes_result async_find(const std::string &collection, const std::vector<std::string> &tags);
 		ioremap::elliptics::async_remove_result async_remove(const std::string &collection, const std::string &key);
 
 		static std::vector<std::string> convert_list_result(const ioremap::elliptics::sync_find_indexes_result &result);

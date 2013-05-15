@@ -121,9 +121,10 @@ std::string elliptics_storage_t::read(const std::string &collection, const std::
 
 void elliptics_storage_t::write(const std::string &collection,
 	const std::string &key,
-	const std::string &blob)
+	const std::string &blob,
+	const std::vector<std::string> &tags)
 {
-	auto result = async_write(collection, key, blob);
+	auto result = async_write(collection, key, blob, tags);
 	result.wait();
 
 	COCAINE_LOG_DEBUG(
@@ -137,8 +138,9 @@ void elliptics_storage_t::write(const std::string &collection,
 	}
 }
 
-std::vector<std::string> elliptics_storage_t::list(const std::string &collection) {
-	auto result = async_list(collection);
+std::vector<std::string> elliptics_storage_t::find(const std::string &collection, const std::vector<std::string> &tags)
+{
+	auto result = async_find(collection, tags);
 	result.wait();
 
 	if (result.error()) {
@@ -198,6 +200,7 @@ static void on_write_finished(const elliptics_storage_t::log_ptr &log,
 	ell::async_result_handler<ell::write_result_entry> handler,
 	ell::session session,
 	const std::string &key,
+	const std::vector<std::string> &index_names,
 	const ell::sync_write_result &result,
 	const ell::error_info &err)
 {
@@ -221,17 +224,14 @@ static void on_write_finished(const elliptics_storage_t::log_ptr &log,
 		handler.process(*it);
 	}
 
-	std::vector<std::string> index_names = {
-		std::string("list:collection")
-	};
-	std::vector<ell::data_pointer> index_data = {
-		ell::data_pointer::copy(key.c_str(), key.size())
-	};
+	std::vector<ell::data_pointer> index_data(index_names.size(),
+		ell::data_pointer::copy(key.c_str(), key.size()));
+
 	session.update_indexes(key, index_names, index_data)
 		.connect(std::bind(on_adding_index_finished, log, handler, _2));
 }
 
-ell::async_write_result elliptics_storage_t::async_write(const std::string &collection, const std::string &key, const std::string &blob)
+ell::async_write_result elliptics_storage_t::async_write(const std::string &collection, const std::string &key, const std::string &blob, const std::vector<std::string> &tags)
 {
 	using namespace std::placeholders;
 
@@ -244,18 +244,23 @@ ell::async_write_result elliptics_storage_t::async_write(const std::string &coll
 
 	ell::session session = m_session.clone();
 	session.set_namespace(collection.data(), collection.size());
+	session.set_filter(ioremap::elliptics::filters::all_with_ack);
+
+	auto write_result = session.write_data(key, blob, 0);
+
+	if (tags.empty()) {
+		return write_result;
+	}
 
 	ell::async_write_result result(session);
 	ell::async_result_handler<ell::write_result_entry> handler(result);
 
-	session.set_filter(ioremap::elliptics::filters::all_with_ack);
-	session.write_data(key, blob, 0)
-		.connect(std::bind(on_write_finished, m_log, handler, session, key, _1, _2));
+	write_result.connect(std::bind(on_write_finished, m_log, handler, session, key, tags, _1, _2));
 
 	return result;
 }
 
-ell::async_find_indexes_result elliptics_storage_t::async_list(const std::string &collection)
+ell::async_find_indexes_result elliptics_storage_t::async_find(const std::string &collection, const std::vector<std::string> &tags)
 {
 	COCAINE_LOG_DEBUG(
 		m_log,
@@ -267,7 +272,7 @@ ell::async_find_indexes_result elliptics_storage_t::async_list(const std::string
 	ell::session session = m_session.clone();
 	session.set_namespace(collection.data(), collection.size());
 
-	return session.find_indexes(std::vector<std::string>(1, "list:collection"));
+	return session.find_indexes(tags);
 }
 
 static void on_removing_index_finished(ell::async_result_handler<ell::callback_result_entry> handler,
