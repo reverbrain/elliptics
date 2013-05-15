@@ -228,7 +228,8 @@ def recover_keys(ctx, hostport, group, keys):
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num
 
-    log.debug("Writing {0} keys".format(key_num))
+    size = sum(len(v) for v in batch.itervalues())
+    log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
     try:
         log.debug("Creating direct session: {0}".format(ctx.hostport))
         direct_session = elliptics_create_session(node=ctx.node,
