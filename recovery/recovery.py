@@ -305,11 +305,11 @@ if __name__ == '__main__':
     parser = OptionParser()
     parser.add_option("-l", "--log", dest="elliptics_log", default='/dev/stderr', metavar="FILE",
                       help="Output log messages from library to file [default: %default]")
-    parser.add_option("-L", "--log-level", action="store", dest="elliptics_log_level", default="1",
+    parser.add_option("-L", "--log-level", action="store", dest="elliptics_log_level", default="0",
                       help="Elliptics client verbosity [default: %default]")
     parser.add_option("-r", "--remote", action="store", dest="elliptics_remote", default="127.0.0.1:1025",
                       help="Elliptics node address [default: %default]")
-    parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default="2",
+    parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default="1",
                       help="Comma separated list of groups [default: %default]")
     parser.add_option("-t", "--timestamp", action="store", dest="timestamp", default="0",
                       help="Recover keys created/modified since [default: %default]")
