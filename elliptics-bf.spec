@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.2.1
+Version:	2.24.3.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,21 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed May 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.3.0
+- Fill ctl.io.timeout during write
+- Added user flags property to session
+- Build fix for gcc 4.4
+- Returned tags to ellitics cocaine storage
+- Moved update indexes implementation to serverside
+- Added elliptics service
+- ext: eblob: threat old-format records same as non-existent.
+- recovery: new subsystem
+- Fixed prepare-size with new ext headers
+- Added eblob config flag comment
+- Added bulk_write to python binding
+- Fixed number of bugs found by coverity
+- Replace boost::mutex with std::mutex
+
 * Tue May 07 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.2.1
 - Fixed IPv6 server addr creation
 - Added SRW counters statistics
