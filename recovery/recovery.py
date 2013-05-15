@@ -33,13 +33,14 @@ import elliptics
 log.getLogger()
 
 @lru_cache()
-def elliptics_create_node(host=None, port=None, elog=None):
+def elliptics_create_node(host=None, port=None, elog=None, wait_timeout=3600, flags=0):
     """
     Connects to elliptics cloud
     """
     log.info("Creating node using: {0}:{1}".format(host, port))
     cfg = elliptics.Config()
-    cfg.config.wait_timeout = 3600
+    cfg.config.wait_timeout = wait_timeout
+    cfg.config.flags = flags
     node = elliptics.Node(elog, cfg)
     node.add_remote(host, port)
     log.info("Created node: {0}".format(node))
@@ -220,7 +221,7 @@ def recover_keys(ctx, hostport, group, keys):
     try:
         log.debug("Creating node for: {0}".format(hostport))
         host, port = split_host_port(hostport)
-        node = elliptics_create_node(host=host, port=port, elog=ctx.elog)
+        node = elliptics_create_node(host=host, port=port, elog=ctx.elog, flags=2)
         log.debug("Creating direct session: {0}".format(hostport))
         direct_session = elliptics_create_session(node=node,
                                                   group=group,
@@ -234,8 +235,11 @@ def recover_keys(ctx, hostport, group, keys):
     size = sum(len(v) for v in batch.itervalues())
     log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
     try:
+        log.debug("Creating node for: {0}".format(ctx.hostport))
+        host, port = split_host_port(ctx.hostport)
+        node = elliptics_create_node(host=host, port=port, elog=ctx.elog, flags=2)
         log.debug("Creating direct session: {0}".format(ctx.hostport))
-        direct_session = elliptics_create_session(node=ctx.node,
+        direct_session = elliptics_create_session(node=node,
                                                   group=group,
                                                   cflags=elliptics.command_flags.direct,
         )
