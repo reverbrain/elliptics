@@ -229,8 +229,12 @@ def recover_keys(ctx, hostport, group, keys):
 
     log.debug("Writing {0} keys".format(key_num))
     try:
-        session_normal = elliptics_create_session(node=ctx.node, group=group)
-        session_normal.bulk_write_by_id(batch.iterkeys(), batch.itervalues())
+        log.debug("Creating direct session: {0}".format(ctx.hostport))
+        direct_session = elliptics_create_session(node=ctx.node,
+                                                  group=group,
+                                                  cflags=elliptics.command_flags.direct,
+        )
+        direct_session.bulk_write_by_id(batch.iterkeys(), batch.itervalues())
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num
