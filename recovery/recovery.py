@@ -64,11 +64,12 @@ def get_ranges(ctx, routes, group_id):
         ekey, node = routes[i]
         prev_node = routes[i - 1].node
         next_ekey = routes[i + 1].key
-        if ekey.group_id != group_id:
-            log.debug("Skipped route: {0}, it belongs to group_id: {1}".format(
-                route, ekey.group_id))
-            continue
         if node == ctx.hostport:
+            log.debug("Processing route: {0}, {1}".format(format_id(ekey.id), node))
+            if ekey.group_id != group_id:
+                log.debug("Skipped route: {0}, it belongs to group_id: {1}".format(
+                    route, ekey.group_id))
+                continue
             start = ekey.id
             stop = next_ekey.id
             # If we wrapped around hash ring circle - split route into two distinct ranges
@@ -77,8 +78,12 @@ def get_ranges(ctx, routes, group_id):
                     format_id(start), format_id(stop)))
                 ranges.append(RecoveryRange(IdRange(IdRange.ID_MIN, stop), prev_node))
                 ranges.append(RecoveryRange(IdRange(start, IdRange.ID_MAX), prev_node))
+                created = (1, 2)
             else:
                 ranges.append(RecoveryRange(IdRange(start, stop), prev_node))
+                created = (1,)
+            for i in created:
+                log.debug("Created range: {0}, {1}".format(*ranges[-i]))
     return ranges
 
 def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
