@@ -716,7 +716,8 @@ class write_callback
 		{
 			ctl.complete = func;
 			ctl.priv = priv;
-			dnet_current_time(&ctl.io.timestamp);
+			if ((ctl.io.timestamp.tsec == 0) && (ctl.io.timestamp.tnsec == 0))
+				dnet_current_time(&ctl.io.timestamp);
 			cb.set_count(unlimited);
 
 			int err = dnet_write_object(sess.get_native(), &ctl);
