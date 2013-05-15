@@ -17,8 +17,8 @@ class elliptics_service_t : public api::service_t
 		const Json::Value &args);
 
 		deferred<std::string> read(const std::string &collection, const std::string &key);
-		deferred<void> write(const std::string &collection, const std::string &key, const std::string &blob);
-		deferred<std::vector<std::string> > list(const std::string &collection);
+		deferred<void> write(const std::string &collection, const std::string &key, const std::string &blob, const std::vector<std::string> &tags);
+		deferred<std::vector<std::string> > find(const std::string &collection, const std::vector<std::string> &tags);
 		deferred<void> remove(const std::string &collection, const std::string &key);
 
 	private:
@@ -28,7 +28,7 @@ class elliptics_service_t : public api::service_t
 		static void on_write_completed(deferred<void> promise,
 			const ioremap::elliptics::sync_write_result &result,
 			const ioremap::elliptics::error_info &error);
-		static void on_list_completed(deferred<std::vector<std::string> > promise,
+		static void on_find_completed(deferred<std::vector<std::string> > promise,
 			const ioremap::elliptics::sync_find_indexes_result &result,
 			const ioremap::elliptics::error_info &error);
 		static void on_remove_completed(deferred<void> promise,
