@@ -77,7 +77,7 @@ class error_info
 		inline const std::string &message() const { return m_message; }
 		inline operator bool() const { return m_code != 0; }
 		inline bool operator !() const { return !operator bool(); }
-        operator int() const = delete; // disable implicit cast to int
+		operator int() const = delete; // disable implicit cast to int
 
 		void throw_error() const;
 	private:
