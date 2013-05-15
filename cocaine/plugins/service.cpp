@@ -1,7 +1,8 @@
 #include "service.hpp"
 #include <cocaine/messages.hpp>
 
-#define debug() std::cerr << __PRETTY_FUNCTION__ << ": " << __LINE__ << " "
+#define debug() if (1) {} else std::cerr
+//#define debug() std::cerr << __PRETTY_FUNCTION__ << ": " << __LINE__ << " "
 
 namespace cocaine {
 
@@ -19,9 +20,9 @@ elliptics_service_t::elliptics_service_t(context_t &context, io::reactor_t &reac
 	}
 
 	on<io::storage::read  >("read",   std::bind(&elliptics_service_t::read,   this, _1, _2));
-	on<io::storage::write >("write",  std::bind(&elliptics_service_t::write,  this, _1, _2, _3));
+	on<io::storage::write >("write",  std::bind(&elliptics_service_t::write,  this, _1, _2, _3, _4));
 	on<io::storage::remove>("remove", std::bind(&elliptics_service_t::remove, this, _1, _2));
-	on<io::storage::list  >("list",   std::bind(&elliptics_service_t::list,   this, _1));
+	on<io::storage::find  >("list",   std::bind(&elliptics_service_t::find,   this, _1, _2));
 }
 
 deferred<std::string> elliptics_service_t::read(const std::string &collection, const std::string &key)
@@ -35,23 +36,23 @@ deferred<std::string> elliptics_service_t::read(const std::string &collection, c
 	return promise;
 }
 
-deferred<void> elliptics_service_t::write(const std::string &collection, const std::string &key, const std::string &blob)
+deferred<void> elliptics_service_t::write(const std::string &collection, const std::string &key, const std::string &blob, const std::vector<std::string> &tags)
 {
 	debug() << "write, collection: " << collection << ", key: " << key << std::endl;
 	deferred<void> promise;
 
-	m_elliptics->async_write(collection, key, blob).connect(std::bind(&elliptics_service_t::on_write_completed,
+	m_elliptics->async_write(collection, key, blob, tags).connect(std::bind(&elliptics_service_t::on_write_completed,
 		promise, _1, _2));
 
 	return promise;
 }
 
-deferred<std::vector<std::string> > elliptics_service_t::list(const std::string &collection)
+deferred<std::vector<std::string> > elliptics_service_t::find(const std::string &collection, const std::vector<std::string> &tags)
 {
 	debug() << "lits, collection: " << collection << std::endl;
 	deferred<std::vector<std::string> > promise;
 
-	m_elliptics->async_list(collection).connect(std::bind(&elliptics_service_t::on_list_completed,
+	m_elliptics->async_find(collection, tags).connect(std::bind(&elliptics_service_t::on_find_completed,
 		promise, _1, _2));
 
 	return promise;
@@ -90,7 +91,7 @@ void elliptics_service_t::on_write_completed(deferred<void> promise,
 	}
 }
 
-void elliptics_service_t::on_list_completed(deferred<std::vector<std::string> > promise,
+void elliptics_service_t::on_find_completed(deferred<std::vector<std::string> > promise,
 	const ioremap::elliptics::sync_find_indexes_result &result,
 	const ioremap::elliptics::error_info &error)
 {
