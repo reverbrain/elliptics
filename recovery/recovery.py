@@ -179,11 +179,14 @@ def diff(ctx, results, stats):
                 diff_results.append(remote)
             else:
                 log.info("Computing differences for: {0}".format(local.id_range))
-                diff_results.append(local.diff(remote))
+                result = local.diff(remote)
+                log.info("Computed diff: local: {0}, remote: {1}, diff: {2} record(s)".format(
+                    len(local), len(remote), len(result)))
+                diff_results.append(result)
             stats.counter.diff += 1
         except Exception as e:
-            stats.counter.diff -= 1
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))
+            stats.counter.diff -= 1
     return diff_results
 
 def recover(ctx, diffs, group, stats):
