@@ -1,0 +1,5 @@
+{
+        "slave" : "indexes",
+        "drivers" : {
+        }
+}
