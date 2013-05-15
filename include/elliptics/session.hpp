@@ -282,6 +282,15 @@ class session
 		 */
 		uint32_t		get_ioflags() const;
 
+        /*!
+		 * Sets user flags \a user_flags to the session.
+		 */
+		void			set_user_flags(uint64_t user_flags);
+		/*!
+		 * Gets user flags of the session.
+		 */
+		uint64_t		get_user_flags() const;
+
 		/*!
 		 * Set/get transaction timeout
 		 */
