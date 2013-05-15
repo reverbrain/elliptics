@@ -18,6 +18,7 @@
 
 #include "callback_p.h"
 
+#include <errno.h>
 #include <sstream>
 #include <stdexcept>
 
@@ -271,11 +272,6 @@ dnet_iterator_response *iterator_result_entry::reply() const
 	return data<dnet_iterator_response>();
 }
 
-uint64_t iterator_result_entry::user_flags() const
-{
-	return reply()->user_flags;
-}
-
 uint64_t iterator_result_entry::id() const
 {
 	return reply()->id;
@@ -284,6 +280,73 @@ uint64_t iterator_result_entry::id() const
 data_pointer iterator_result_entry::reply_data() const
 {
 	return data().skip<dnet_iterator_response>();
+}
+
+//
+// Iterator container
+//
+
+//* Append one result to container
+void iterator_result_container::append(const iterator_result_entry &result)
+{
+	append(result.reply());
+}
+
+void iterator_result_container::append(const dnet_iterator_response *response)
+{
+	static const ssize_t resp_size = sizeof(dnet_iterator_response);
+	int err;
+
+	if (m_sorted)
+		throw_error(-EROFS, "can't append to already sorted container");
+
+	err = dnet_iterator_response_container_append(response, m_fd, m_write_position);
+	if (err != 0)
+		throw_error(err, "dnet_iterator_response_container_append() failed");
+	m_write_position += resp_size;
+	m_count++;
+}
+
+//* Sort container by (key, timestamp) tuple
+void iterator_result_container::sort()
+{
+	int err;
+
+	if (m_sorted == true)
+		return;
+
+	err = dnet_iterator_response_container_sort(m_fd, m_write_position);
+	if (err != 0)
+		throw_error(err, "sort failed");
+	m_sorted = true;
+}
+
+//* Compute diff between `this' and \a other, put it to \a result
+void iterator_result_container::diff(const iterator_result_container &other,
+		iterator_result_container &result) const
+{
+	int64_t err;
+
+	err = dnet_iterator_response_container_diff(result.m_fd, m_fd, m_write_position,
+			other.m_fd, other.m_write_position);
+	if (err < 0)
+		throw_error(err, "diff failed");
+
+	result.m_write_position = err;
+	result.m_count = result.m_write_position / sizeof(dnet_iterator_response);
+	result.m_sorted = true;
+}
+
+//* Extract n-th item from container
+dnet_iterator_response iterator_result_container::operator [](size_t n) const
+{
+	dnet_iterator_response response;
+	int err;
+
+	err = dnet_iterator_response_container_read(m_fd, n * sizeof(response), &response);
+	if (err != 0)
+		throw_error(err, "dnet_iterator_response_container_read failed");
+	return response;
 }
 
 } } // namespace ioremap::elliptics

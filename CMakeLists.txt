@@ -47,7 +47,7 @@ if (NOT ID_SIZE)
 endif()
 add_definitions(-DCONFIG_ID_SIZE=${ID_SIZE})
 
-# Test endianess
+# Test endianness
 test_big_endian(HAVE_BIG_ENDIAN)
 if(HAVE_BIG_ENDIAN)
     add_definitions(-DBYTEORDER=4321)
@@ -119,6 +119,7 @@ if(WITH_EXAMPLES)
 endif()
 if(WITH_COCAINE)
     add_subdirectory(cocaine/plugins)
+    add_subdirectory(cocaine/workers)
 endif()
 
 install(FILES

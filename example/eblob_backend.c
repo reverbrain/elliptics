@@ -182,7 +182,8 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 	 * Use extended format for new writes and keys already in new format.
 	 */
 	err = eblob_read_return(c->eblob, &key, io->type, EBLOB_READ_NOCSUM, &wc2);
-	if (err == 0 && (wc2.flags & BLOB_DISK_CTL_USR1)) { /* Update */
+	if (err == 0 && (wc2.flags & BLOB_DISK_CTL_USR1)) {
+		/* Update of new format record */
 		struct dnet_ext_list_hdr ehdr;
 
 		/* Copy data from elist to ehdr */
@@ -196,7 +197,9 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 			io->offset += ehdr_size;
 		if (io->flags & DNET_IO_FLAGS_COMMIT)
 			io->num += sizeof(struct dnet_ext_list_hdr);
-	} else if (err > 0 || err == -ENOENT) { /* New record or compressed */
+	} else if (err > 0 || err == -ENOENT ||
+			(err == 0 && !(wc2.flags & BLOB_DISK_CTL_USR1))) {
+		/* Compressed, new record or old format record */
 		if (io->offset != 0) {
 			/* TODO: Think of something sophisticated */
 			err = -ERANGE;
@@ -207,7 +210,9 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 			goto err_out_exit;
 		}
 		combined = 1;
-	} else { /* Error */
+	} else {
+		/* Error */
+		err = err ? err : -EIO;
 		goto err_out_exit;
 	}
 

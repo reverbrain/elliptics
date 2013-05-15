@@ -1,4 +1,4 @@
-ADD_LIBRARY(elliptics-extensions MODULE storage module)
+ADD_LIBRARY(elliptics-extensions MODULE storage service module)
 
 TARGET_LINK_LIBRARIES(elliptics-extensions ${ELLIPTICS_LIBRARIES} elliptics_cpp)
 

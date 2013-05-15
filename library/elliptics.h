@@ -470,6 +470,7 @@ struct dnet_session {
 	struct timespec		wait_ts;
 
 	uint64_t		cflags;
+    uint64_t        user_flags;
 	uint32_t		ioflags;
 
 	/* Namespace */
@@ -617,28 +618,6 @@ struct dnet_addr_storage
 	unsigned int			__join_state;
 };
 
-/*!
- * Compares two dnet_time structs
- * Returns
- *	< 0 if t1 < t2
- *	> 0 if t1 > t2
- *	= 0 if t1 == t2
- */
-static inline int dnet_time_cmp(struct dnet_time *t1, struct dnet_time *t2)
-{
-	if (t1->tsec < t2->tsec)
-		return -1;
-	else if (t1->tsec > t2->tsec)
-		return 1;
-
-	if (t1->tnsec < t2->tnsec)
-		return -1;
-	else if (t1->tnsec > t2->tnsec)
-		return 1;
-
-	return 0;
-}
-
 /*
  * Returns true if t1 is before than t2.
  */
@@ -759,7 +738,10 @@ struct dnet_map_fd {
 	void			*mapped_data;
 };
 
+/* Read only mapping wrapper */
 int dnet_data_map(struct dnet_map_fd *map);
+/* Read-write mapping wrapper */
+int dnet_data_map_rw(struct dnet_map_fd *map);
 void dnet_data_unmap(struct dnet_map_fd *map);
 
 void *dnet_read_data_wait_raw(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, int cmd, int *errp);

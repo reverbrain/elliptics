@@ -242,7 +242,7 @@ rm -rf %{buildroot}
 - Put cocaine plugin into libcocaine-plugin-elliptics package
 - More cmake cleanups
 - Added msgpack-devel
-- Corrected used include pathes
+- Corrected used include paths
 - Use instantiated class in constructor
 - Added zeromq3-devel into spec
 
@@ -380,7 +380,7 @@ rm -rf %{buildroot}
 - Depend on 0.10.0-rc2+ cocaine
 - elliptics-dev should depend on eblob - there is no eblob-dev package
 - IO flags comment update
-- Remove ack flag if write to cache-only is successfull
+- Remove ack flag if write to cache-only is successful
 - Added file_info reply to cache-only write requests
 
 * Mon Feb 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.21.4.0
@@ -747,7 +747,7 @@ rm -rf %{buildroot}
 - Revert "Use X bits from operation key to find a lock instead of random hashing"
 - Added proper sigchild handling
 - spec update - added libsrw.so* files
-- Dropped srw dependancy
+- Dropped srw dependency
 
 * Sun Mar 11 2012 Evgeniy Polyakov <zbr@ioremap.net> - 2.13.0.1-1
 - Added srw

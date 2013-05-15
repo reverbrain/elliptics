@@ -26,284 +26,298 @@
 using namespace cocaine;
 using namespace cocaine::logging;
 using namespace cocaine::storage;
+namespace ell = ioremap::elliptics;
 
-log_adapter_impl_t::log_adapter_impl_t(const std::shared_ptr<logging::log_t> &log):
-    m_log(log)
+log_adapter_impl_t::log_adapter_impl_t(const std::shared_ptr<logging::log_t> &log ): m_log(log)
 {
 }
 
-void
-log_adapter_impl_t::log(const int level,
-                        const char *message)
+void log_adapter_impl_t::log(const int level, const char *message)
 {
-    switch(level) {
-        case DNET_LOG_DEBUG:
-            COCAINE_LOG_DEBUG(m_log, "%s", message);
-            break;
+	switch(level) {
+		case DNET_LOG_DEBUG:
+			COCAINE_LOG_DEBUG(m_log, "%s", message);
+			break;
 
-        case DNET_LOG_NOTICE:
-            COCAINE_LOG_INFO(m_log, "%s", message);
-            break;
+		case DNET_LOG_NOTICE:
+			COCAINE_LOG_INFO(m_log, "%s", message);
+			break;
 
-        case DNET_LOG_INFO:
-            COCAINE_LOG_INFO(m_log, "%s", message);
-            break;
+		case DNET_LOG_INFO:
+			COCAINE_LOG_INFO(m_log, "%s", message);
+			break;
 
-        case DNET_LOG_ERROR:
-            COCAINE_LOG_ERROR(m_log, "%s", message);
-            break;
+		case DNET_LOG_ERROR:
+			COCAINE_LOG_ERROR(m_log, "%s", message);
+			break;
 
-        default:
-            break;
-    };
+		default:
+			break;
+	};
 }
 
-log_adapter_t::log_adapter_t(const std::shared_ptr<logging::log_t>& log,
-                             const int level):
-    ioremap::elliptics::logger(new log_adapter_impl_t(log), level)
-{ }
-
-namespace {
-    struct digitizer {
-        template<class T>
-        int
-        operator()(const T& value) {
-            return value.asInt();
-        }
-    };
-}
-
-elliptics_storage_t::elliptics_storage_t(context_t& context,
-                                         const std::string& name,
-                                         const Json::Value& args):
-    category_type(context, name, args),
-    m_context(context),
-    m_log(new log_t(context, name)),
-    m_log_adapter(m_log, args.get("verbosity", DNET_LOG_ERROR).asUInt()),
-    m_node(m_log_adapter),
-    m_session(m_node)
+log_adapter_t::log_adapter_t(const std::shared_ptr<logging::log_t> &log, const int level)
+	: ell::logger(new log_adapter_impl_t(log), level)
 {
-    Json::Value nodes(args["nodes"]);
-
-    if(nodes.empty() || !nodes.isObject()) {
-        throw configuration_error_t("no nodes has been specified");
-    }
-
-    Json::Value::Members node_names(nodes.getMemberNames());
-
-    bool have_remotes = false;
-
-    for(Json::Value::Members::const_iterator it = node_names.begin();
-        it != node_names.end();
-        ++it)
-    {
-        try {
-            m_node.add_remote(
-                it->c_str(),
-                nodes[*it].asInt()
-            );
-            have_remotes = true;
-        } catch(const ioremap::elliptics::error& e) {
-            // Do nothing. Yes. Really. We only care if no remote nodes were added at all.
-        }
-    }
-
-    if (!have_remotes) {
-        throw configuration_error_t("can not connect to any remote node");
-    }
-
-    Json::Value groups(args["groups"]);
-
-    if(groups.empty() || !groups.isArray()) {
-        throw configuration_error_t("no groups has been specified");
-    }
-
-    std::transform(
-        groups.begin(),
-        groups.end(),
-        std::back_inserter(m_groups),
-        digitizer()
-    );
-
-    m_session.set_groups(m_groups);
 }
 
-std::string
-elliptics_storage_t::read(const std::string& collection,
-                          const std::string& key)
+elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &name, const Json::Value &args) :
+	category_type(context, name, args),
+	m_context(context),
+	m_log(new log_t(context, name)),
+	m_log_adapter(m_log, args.get("verbosity", DNET_LOG_ERROR).asUInt()),
+	m_node(m_log_adapter),
+	m_session(m_node)
 {
-    std::string blob;
+	Json::Value nodes(args["nodes"]);
 
-    COCAINE_LOG_DEBUG(
-        m_log,
-        "reading the '%s' object, collection: '%s'",
-        key,
-        collection
-    );
+	if(nodes.empty() || !nodes.isObject()) {
+		throw configuration_error_t("no nodes has been specified");
+	}
 
-    try {
-	blob = m_session.read_data(id(collection, key), 0, 0).get_one().file().to_string();
-    } catch(const ioremap::elliptics::error& e) {
-        throw storage_error_t(e.what());
-    }
+	Json::Value::Members node_names(nodes.getMemberNames());
 
-    return blob;
+	bool have_remotes = false;
+
+	for(Json::Value::Members::const_iterator it = node_names.begin();
+		it != node_names.end();
+		++it)
+	{
+		try {
+			m_node.add_remote(it->c_str(), nodes[*it].asInt());
+			have_remotes = true;
+		} catch(const ell::error &) {
+			// Do nothing. Yes. Really. We only care if no remote nodes were added at all.
+		}
+	}
+
+	if (!have_remotes) {
+		throw configuration_error_t("can not connect to any remote node");
+	}
+
+	Json::Value groups(args["groups"]);
+
+	if (groups.empty() || !groups.isArray()) {
+		throw configuration_error_t("no groups has been specified");
+	}
+
+	std::transform(groups.begin(), groups.end(), std::back_inserter(m_groups), std::mem_fn(&Json::Value::asInt));
+
+	m_session.set_groups(m_groups);
+	m_session.set_exceptions_policy(ell::session::no_exceptions);
 }
 
-void
-elliptics_storage_t::write(const std::string& collection,
-                           const std::string& key,
-                           const std::string& blob)
+std::string elliptics_storage_t::read(const std::string &collection, const std::string &key)
 {
-    struct dnet_id dnet_id;
-    struct timespec ts = { 0, 0 };
+	auto result = async_read(collection, key);
+	result.wait();
 
-    // NOTE: Elliptcs does not initialize the contents of the keys.
-    memset(&dnet_id, 0, sizeof(struct dnet_id));
+	if (result.error()) {
+		throw storage_error_t(result.error().message());
+	}
 
-    COCAINE_LOG_DEBUG(
-        m_log,
-        "writing the '%s' object, collection: '%s'",
-        key,
-        collection
-    );
-
-    try {
-        // Generate the key.
-        m_session.transform(
-            id(collection, key),
-            dnet_id
-        );
-
-        // Write the blob.
-        m_session.write_data(dnet_id, blob, 0);
-
-        // Write the blob metadata.
-        m_session.write_metadata(
-            dnet_id,
-            id(collection, key),
-            m_groups,
-            ts
-        );
-
-        // Check if the key already exists in the collection.
-        std::vector<std::string> keylist(
-            list(collection)
-        );
-
-        if(std::find(keylist.begin(), keylist.end(), key) == keylist.end()) {
-            msgpack::sbuffer buffer;
-            std::string object;
-
-            keylist.push_back(key);
-            msgpack::pack(&buffer, keylist);
-
-            object.assign(
-                buffer.data(),
-                buffer.size()
-            );
-
-            // Generate the collection object key.
-            m_session.transform(
-                id("system", "list:" + collection),
-                dnet_id
-            );
-
-            // Update the collection object.
-            m_session.write_data(dnet_id, object, 0);
-
-            // Update the collection object metadata.
-            m_session.write_metadata(
-                dnet_id,
-                id("system", "list:" + collection),
-                m_groups,
-                ts
-            );
-        }
-    } catch(const ioremap::elliptics::error& e) {
-        throw storage_error_t(e.what());
-    }
+	return result.get_one().file().to_string();
 }
 
-std::vector<std::string>
-elliptics_storage_t::list(const std::string& collection) {
-    std::vector<std::string> result;
-    std::string blob;
-
-    try {
-        blob = m_session.read_data(id("system", "list:" + collection), 0, 0).get_one().file().to_string();
-    } catch(const ioremap::elliptics::error& e) {
-        return result;
-    }
-
-    msgpack::unpacked unpacked;
-
-    try {
-        msgpack::unpack(&unpacked, blob.data(), blob.size());
-        unpacked.get().convert(&result);
-    } catch(const msgpack::unpack_error& e) {
-        throw storage_error_t("the collection metadata is corrupted");
-    } catch(const msgpack::type_error& e) {
-        throw storage_error_t("the collection metadata is corrupted");
-    }
-
-    return result;
-}
-
-void
-elliptics_storage_t::remove(const std::string& collection,
-                            const std::string& key)
+void elliptics_storage_t::write(const std::string &collection,
+	const std::string &key,
+	const std::string &blob)
 {
-    struct dnet_id dnet_id;
-    struct timespec ts = { 0, 0 };
+	auto result = async_write(collection, key, blob);
+	result.wait();
 
-    // NOTE: Elliptcs does not initialize the contents of the keys.
-    memset(&dnet_id, 0, sizeof(struct dnet_id));
+	COCAINE_LOG_DEBUG(
+		m_log,
+		"write finised: %s",
+		result.error().message()
+	);
 
-    COCAINE_LOG_DEBUG(
-        m_log,
-        "removing the '%s' object, collection: '%s'",
-        key,
-        collection
-    );
+	if (result.error()) {
+		throw storage_error_t(result.error().message());
+	}
+}
 
-    try {
-        std::vector<std::string> keylist(list(collection)),
-                                 updated;
+std::vector<std::string> elliptics_storage_t::list(const std::string &collection) {
+	auto result = async_list(collection);
+	result.wait();
 
-        std::remove_copy(
-            keylist.begin(),
-            keylist.end(),
-            std::back_inserter(updated),
-            key
-        );
+	if (result.error()) {
+		throw storage_error_t(result.error().message());
+	}
 
-        msgpack::sbuffer buffer;
-        std::string object;
+	return convert_list_result(result.get());
+}
 
-        msgpack::pack(&buffer, updated);
-        object.assign(buffer.data(), buffer.size());
+void elliptics_storage_t::remove(const std::string &collection, const std::string &key)
+{
+	auto result = async_remove(collection, key);
+	result.wait();
 
-        // Generate the collection object key.
-        m_session.transform(
-            id("system", "list:" + collection),
-            dnet_id
-        );
+	if (result.error()) {
+		throw storage_error_t(result.error().message());
+	}
+}
 
-        // Update the collection object.
-        m_session.write_data(dnet_id, object, 0);
+ell::async_read_result elliptics_storage_t::async_read(const std::string &collection, const std::string &key)
+{
+	using namespace std::placeholders;
 
-        // Update the collection object metadata.
-        m_session.write_metadata(
-            dnet_id,
-            id("system", "list:" + collection),
-            m_groups,
-            ts
-        );
+	COCAINE_LOG_DEBUG(
+		m_log,
+		"reading the '%s' object, collection: '%s'",
+		key,
+		collection
+	);
 
-        // Remove the actual key.
-        m_session.remove(id(collection, key));
-    } catch(const ioremap::elliptics::error& e) {
-        throw storage_error_t(e.what());
-    }
+	ell::session session = m_session.clone();
+	session.set_namespace(collection.data(), collection.size());
+
+	return session.read_data(key, 0, 0);
+}
+
+static void on_adding_index_finished(const elliptics_storage_t::log_ptr &log,
+	ell::async_result_handler<ell::write_result_entry> handler,
+	const ell::error_info &err)
+{
+	if (err) {
+		COCAINE_LOG_DEBUG(
+			log,
+			"index adding failed: %s",
+			err.message()
+		);
+	} else {
+		COCAINE_LOG_DEBUG(
+			log,
+			"index adding completed"
+		);
+	}
+	handler.complete(err);
+}
+
+static void on_write_finished(const elliptics_storage_t::log_ptr &log,
+	ell::async_result_handler<ell::write_result_entry> handler,
+	ell::session session,
+	const std::string &key,
+	const ell::sync_write_result &result,
+	const ell::error_info &err)
+{
+	using namespace std::placeholders;
+
+	if (err) {
+		COCAINE_LOG_DEBUG(
+			log,
+			"write failed: %s",
+			err.message()
+		);
+		handler.complete(err);
+		return;
+	}
+	COCAINE_LOG_DEBUG(
+		log,
+		"write partially completed"
+	);
+
+	for (auto it = result.begin(); it != result.end(); ++it) {
+		handler.process(*it);
+	}
+
+	std::vector<std::string> index_names = {
+		std::string("list:collection")
+	};
+	std::vector<ell::data_pointer> index_data = {
+		ell::data_pointer::copy(key.c_str(), key.size())
+	};
+	session.update_indexes(key, index_names, index_data)
+		.connect(std::bind(on_adding_index_finished, log, handler, _2));
+}
+
+ell::async_write_result elliptics_storage_t::async_write(const std::string &collection, const std::string &key, const std::string &blob)
+{
+	using namespace std::placeholders;
+
+	COCAINE_LOG_DEBUG(
+		m_log,
+		"writing the '%s' object, collection: '%s'",
+		key,
+		collection
+	);
+
+	ell::session session = m_session.clone();
+	session.set_namespace(collection.data(), collection.size());
+
+	ell::async_write_result result(session);
+	ell::async_result_handler<ell::write_result_entry> handler(result);
+
+	session.set_filter(ioremap::elliptics::filters::all_with_ack);
+	session.write_data(key, blob, 0)
+		.connect(std::bind(on_write_finished, m_log, handler, session, key, _1, _2));
+
+	return result;
+}
+
+ell::async_find_indexes_result elliptics_storage_t::async_list(const std::string &collection)
+{
+	COCAINE_LOG_DEBUG(
+		m_log,
+		"listing collection: '%s'",
+		collection
+	);
+	using namespace std::placeholders;
+
+	ell::session session = m_session.clone();
+	session.set_namespace(collection.data(), collection.size());
+
+	return session.find_indexes(std::vector<std::string>(1, "list:collection"));
+}
+
+static void on_removing_index_finished(ell::async_result_handler<ell::callback_result_entry> handler,
+	ell::session session,
+	const std::string &key,
+	const ell::sync_update_indexes_result &,
+	const ell::error_info &err)
+{
+	using namespace std::placeholders;
+
+	if (err) {
+		handler.complete(err);
+		return;
+	}
+
+	session.remove(key).connect(handler);
+}
+
+ell::async_remove_result elliptics_storage_t::async_remove(const std::string &collection, const std::string &key)
+{
+	using namespace std::placeholders;
+
+	COCAINE_LOG_DEBUG(
+		m_log,
+		"removing the '%s' object, collection: '%s'",
+		key,
+		collection
+	);
+
+	ell::session session = m_session.clone();
+	session.set_namespace(collection.data(), collection.size());
+
+	ell::async_remove_result result(session);
+	ell::async_result_handler<ell::callback_result_entry> handler(result);
+
+	session.update_indexes(key, std::vector<std::string>(), std::vector<ell::data_pointer>())
+		.connect(std::bind(on_removing_index_finished, handler, session, key, _1, _2));
+
+	return result;
+}
+
+std::vector<std::string> elliptics_storage_t::convert_list_result(const ioremap::elliptics::sync_find_indexes_result &result)
+{
+	std::vector<std::string> promise_result;
+
+	for (auto it = result.begin(); it != result.end(); ++it) {
+		for (auto jt = it->indexes.begin(); jt != it->indexes.end(); ++jt) {
+			promise_result.push_back(jt->second.to_string());
+		}
+	}
+
+	return promise_result;
 }

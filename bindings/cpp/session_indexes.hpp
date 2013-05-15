@@ -15,6 +15,30 @@ struct dnet_indexes
 	std::vector<dnet_raw_id> friends;
 };
 
+struct update_request
+{
+	dnet_id id;
+	std::vector<index_entry> indexes;
+};
+
+struct update_result_entry
+{
+	dnet_raw_id id;
+	int error;
+};
+
+struct update_result
+{
+	std::vector<update_result_entry> indexes;
+};
+
+struct update_index_request
+{
+	dnet_id id;
+	index_entry index;
+	bool remove;
+};
+
 static inline void indexes_unpack(const data_pointer &file, dnet_indexes *data, const char *scope)
 {
 	try {
@@ -27,11 +51,44 @@ static inline void indexes_unpack(const data_pointer &file, dnet_indexes *data, 
 	}
 }
 
+static inline dnet_id indexes_generate_id(session &sess, const dnet_id &data_id)
+{
+	// TODO: Better id for storing the tree?
+	std::string key;
+	key.reserve(sizeof(data_id.id) + 5);
+	key.resize(sizeof(data_id.id));
+	memcpy(&key[0], data_id.id, sizeof(data_id.id));
+	key += "index";
+
+	dnet_id id;
+	sess.transform(key, id);
+	id.group_id = 0;
+	id.type = 0;
+
+	return id;
+}
+
 }} /* namespace ioremap::elliptics */
 
 namespace msgpack
 {
 using namespace ioremap::elliptics;
+
+inline dnet_id &operator >>(msgpack::object o, dnet_id &v)
+{
+	if (o.type != msgpack::type::RAW || o.via.raw.size != sizeof(dnet_id))
+		throw msgpack::type_error();
+	memcpy(&v, o.via.raw.ptr, sizeof(dnet_id));
+	return v;
+}
+
+template <typename Stream>
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const dnet_id &v)
+{
+	o.pack_raw(sizeof(dnet_id));
+	o.pack_raw_body(reinterpret_cast<const char *>(&v), sizeof(v));
+	return o;
+}
 
 inline dnet_raw_id &operator >>(msgpack::object o, dnet_raw_id &v)
 {
@@ -87,6 +144,25 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const in
 	return o;
 }
 
+inline update_result_entry &operator >>(msgpack::object o, update_result_entry &v)
+{
+	if (o.type != msgpack::type::ARRAY || o.via.array.size != 2)
+		throw msgpack::type_error();
+	object *p = o.via.array.ptr;
+	p[0].convert(&v.id);
+	p[1].convert(&v.error);
+	return v;
+}
+
+template <typename Stream>
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const update_result_entry &v)
+{
+	o.pack_array(2);
+	o.pack(v.id);
+	o.pack(v.error);
+	return o;
+}
+
 inline dnet_indexes &operator >>(msgpack::object o, dnet_indexes &v)
 {
 	if (o.type != msgpack::type::ARRAY || o.via.array.size < 1)
@@ -120,6 +196,114 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const dn
 	o.pack(v.indexes);
 	o.pack(v.friends);
 	return o;
+}
+
+template <typename Stream>
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const update_request &request)
+{
+	o.pack_array(3);
+	o.pack(1); // version
+	o.pack(request.id);
+	o.pack(request.indexes);
+	return o;
+}
+
+inline update_request &operator >>(msgpack::object obj, update_request &request)
+{
+	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
+		throw msgpack::type_error();
+
+	object *array = obj.via.array.ptr;
+	const uint32_t size = obj.via.array.size;
+
+	uint16_t version = 0;
+	array[0].convert(&version);
+	switch (version) {
+	case 1: {
+		if (size != 3)
+			throw msgpack::type_error();
+
+		array[1].convert(&request.id);
+		array[2].convert(&request.indexes);
+		break;
+	}
+	default:
+		throw msgpack::type_error();
+	}
+
+	return request;
+}
+
+template <typename Stream>
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const update_index_request &request)
+{
+	o.pack_array(4);
+	o.pack(1); // version
+	o.pack(request.id);
+	o.pack(request.index);
+	o.pack(request.remove);
+	return o;
+}
+
+inline update_index_request &operator >>(msgpack::object obj, update_index_request &request)
+{
+	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
+		throw msgpack::type_error();
+
+	object *array = obj.via.array.ptr;
+	const uint32_t size = obj.via.array.size;
+
+	uint16_t version = 0;
+	array[0].convert(&version);
+	switch (version) {
+	case 1: {
+		if (size != 4)
+			throw msgpack::type_error();
+
+		array[1].convert(&request.id);
+		array[2].convert(&request.index);
+		array[3].convert(&request.remove);
+		break;
+	}
+	default:
+		throw msgpack::type_error();
+	}
+
+	return request;
+}
+
+template <typename Stream>
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const update_result &result)
+{
+	o.pack_array(2);
+	o.pack(1); // version
+	o.pack(result.indexes);
+	return o;
+}
+
+inline update_result &operator >>(msgpack::object obj, update_result &result)
+{
+	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
+		throw msgpack::type_error();
+
+	object *array = obj.via.array.ptr;
+	const uint32_t size = obj.via.array.size;
+
+	uint16_t version = 0;
+	array[0].convert(&version);
+	switch (version) {
+	case 1: {
+		if (size != 2)
+			throw msgpack::type_error();
+
+		array[1].convert(&result.indexes);
+		break;
+	}
+	default:
+		throw msgpack::type_error();
+	}
+
+	return result;
 }
 
 } /* namespace msgpack */

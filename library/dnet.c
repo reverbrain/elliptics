@@ -650,7 +650,7 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	unsigned char *combined = NULL, *position;
 	int err = 0;
 
-	/* Sainity */
+	/* Sanity */
 	if (ipriv == NULL || key == NULL || data == NULL || elist == NULL)
 		return -EINVAL;
 

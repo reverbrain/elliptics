@@ -19,14 +19,14 @@
 
 #include "elliptics/cppdef.h"
 
-#include <exception>
-#include <set>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
 #include <algorithm>
 #include <cassert>
+#include <condition_variable>
+#include <exception>
 #include <iostream>
+#include <mutex>
+#include <set>
+#include <thread>
 
 //#ifdef DEVELOPER_BUILD
 //#  define elliptics_assert(expr) assert(expr)
