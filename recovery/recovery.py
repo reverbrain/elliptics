@@ -243,17 +243,18 @@ def recover_keys(ctx, hostport, group, keys):
 def main(ctx):
     result = True
     ctx.stats.timer.main('started')
+
+    log.debug("Creating session for: {0}".format(ctx.hostport))
+    session = elliptics_create_session(node=ctx.node, group=0)
+
+    log.warning("Searching for ranges that {0} stole".format(ctx.hostport))
+    routes = RouteList(session.get_routes())
+    log.debug("Total routes: {0}".format(len(routes)))
+
     for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
         group_stats = ctx.stats[group]
         group_stats.timer.group('started')
-
-        log.debug("Creating session for: {0}".format(ctx.hostport))
-        session = elliptics_create_session(node=ctx.node, group=group)
-
-        log.warning("Searching for ranges that {0} stole".format(ctx.hostport))
-        routes = RouteList(session.get_routes())
-        log.debug("Total routes: {0}".format(len(routes)))
 
         ranges = get_ranges(ctx, routes, group)
         log.debug("Recovery ranges: {0}".format(len(ranges)))
