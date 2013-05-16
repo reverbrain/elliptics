@@ -291,15 +291,14 @@ static int dnet_cmd_route_list(struct dnet_net_state *orig, struct dnet_cmd *cmd
 			size += st->idc->id_num * sizeof(struct dnet_raw_id) + sizeof(struct dnet_addr_cmd);
 		}
 	}
-	pthread_mutex_unlock(&n->state_lock);
 
 	orig_buf = buf = malloc(size);
 	if (!buf) {
 		err = -ENOMEM;
+		pthread_mutex_unlock(&n->state_lock);
 		goto err_out_exit;
 	}
 
-	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry(g, &n->group_list, group_entry) {
 		list_for_each_entry(st, &g->state_list, state_entry) {
 			if (!memcmp(&st->addr, &orig->addr, sizeof(struct dnet_addr)))
