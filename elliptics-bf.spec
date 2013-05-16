@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.6.2
+Version:	2.20.6.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri May 17 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.3
+- Do not drop state lock between route size calculation and data fill.
+-   There is no race here, but let's try closing potential bug in filling size check.
+
 * Tue Apr 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.2
 - Removed read-latest group check.
 -   If number of groups in request and node/session mismatches, then use smaller number (set) of groups

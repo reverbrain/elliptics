@@ -1,3 +1,10 @@
+elliptics (2.20.6.3) unstable; urgency=low
+
+  * Do not drop state lock between route size calculation and data fill.
+  *   There is no race here, but let's try closing potential bug in filling size check.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 17 May 2013 01:54:23 +0400
+
 elliptics (2.20.6.2) unstable; urgency=low
 
   * Removed read-latest group check.
