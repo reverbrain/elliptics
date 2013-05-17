@@ -2647,8 +2647,13 @@ int dnet_read_latest_prepare(struct dnet_read_latest_prepare *pr)
 	}
 
 	err = dnet_wait_event(ctl->w, ctl->w->cond == pr->group_num, &pr->s->node->wait_ts);
-	if (err)
-		goto err_out_put;
+	if (err) {
+		if (err == -ETIMEDOUT && pr->group_num > 0) {
+			err = 0;
+		} else {
+			goto err_out_put;
+		}
+	}
 
 	if (ctl->pos == 0)
 		goto err_out_put;
