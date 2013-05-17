@@ -443,15 +443,22 @@ struct dnet_node *dnet_get_node_from_state(void *state);
 
 int __attribute__((weak)) dnet_session_set_groups(struct dnet_session *s, const int *groups, int group_num);
 int *dnet_session_get_groups(struct dnet_session *s, int *count);
+
 void dnet_session_set_ioflags(struct dnet_session *s, uint32_t ioflags);
 uint32_t dnet_session_get_ioflags(struct dnet_session *s);
+
 void dnet_session_set_cflags(struct dnet_session *s, uint64_t cflags);
 uint64_t dnet_session_get_cflags(struct dnet_session *s);
-void dnet_session_set_user_flags(struct dnet_session *s, uint64_t user_flags);
+
 void dnet_session_set_timestamp(struct dnet_session *s, struct dnet_time *ts);
+void dnet_session_get_timestamp(struct dnet_session *s, struct dnet_time *ts);
+
+void dnet_session_set_user_flags(struct dnet_session *s, uint64_t user_flags);
 uint64_t dnet_session_get_user_flags(struct dnet_session *s);
+
 void dnet_session_set_timeout(struct dnet_session *s, unsigned int wait_timeout);
 struct timespec *dnet_session_get_timeout(struct dnet_session *s);
+
 int dnet_session_set_ns(struct dnet_session *s, const char *ns, int nsize);
 
 struct dnet_node *dnet_session_get_node(struct dnet_session *s);

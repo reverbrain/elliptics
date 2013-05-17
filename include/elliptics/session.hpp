@@ -293,6 +293,7 @@ class session
 		 * If set to zero (default), system time will be used.
 		 */
 		void			set_timestamp(struct dnet_time *ts);
+		void			get_timestamp(struct dnet_time *ts);
 
 		/*!
 		 * Gets user flags of the session.
