@@ -403,6 +403,8 @@ class srw {
 				Json::Value info = it->second->info();
 				info["counters"] = it->second->counters();
 
+				guard.unlock();
+
 				std::string s = Json::StyledWriter().write(info);
 
 				struct sph *reply;
