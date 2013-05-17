@@ -49,7 +49,7 @@
 #endif
 
 #if EBLOB_ID_SIZE != DNET_ID_SIZE
-#error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE" 
+#error "EBLOB_ID_SIZE must be equal to DNET_ID_SIZE"
 #endif
 
 
@@ -369,7 +369,10 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 		free_data = 0;
 	}
 
-	io->timestamp = elist->timestamp;
+	if(dnet_ext_list_to_io(elist, io)) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: can't copy ext list to io.", dnet_dump_id_str(io->id));
+	}
+
 	io->size = size;
 	if (size && last)
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
