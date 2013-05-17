@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.6.4
+Version:	2.20.6.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri May 17 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.5
+- Depend on less than 0.19 eblob
+
 * Fri May 17 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.4
 - Do not time out whoole transaction if any replies was received in dnet_read_latest_prepare()
 
