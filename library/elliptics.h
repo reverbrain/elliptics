@@ -480,8 +480,6 @@ struct dnet_session {
 	int			nsize;
 };
 
-struct timespec *dnet_session_get_timeout(struct dnet_session *s);
-
 static inline int dnet_counter_init(struct dnet_node *n)
 {
 	memset(&n->counters, 0, __DNET_CNTR_MAX * sizeof(struct dnet_stat_count));

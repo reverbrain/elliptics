@@ -716,8 +716,17 @@ class write_callback
 		{
 			ctl.complete = func;
 			ctl.priv = priv;
-			if ((ctl.io.timestamp.tsec == 0) && (ctl.io.timestamp.tnsec == 0))
-				dnet_current_time(&ctl.io.timestamp);
+
+			if ((ctl.io.timestamp.tsec == 0) && (ctl.io.timestamp.tnsec == 0)) {
+				sess.get_timestamp(&ctl.io.timestamp);
+
+				if ((ctl.io.timestamp.tsec == 0) && (ctl.io.timestamp.tnsec == 0))
+					dnet_current_time(&ctl.io.timestamp);
+			}
+
+			if (ctl.io.user_flags == 0)
+				ctl.io.user_flags = sess.get_user_flags();
+
 			cb.set_count(unlimited);
 
 			int err = dnet_write_object(sess.get_native(), &ctl);

@@ -825,3 +825,8 @@ void dnet_session_set_timestamp(struct dnet_session *s, struct dnet_time *ts)
 {
 	s->ts = *ts;
 }
+
+void dnet_session_get_timestamp(struct dnet_session *s, struct dnet_time *ts)
+{
+	*ts = s->ts;
+}

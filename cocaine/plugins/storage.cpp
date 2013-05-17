@@ -129,7 +129,7 @@ void elliptics_storage_t::write(const std::string &collection,
 
 	COCAINE_LOG_DEBUG(
 		m_log,
-		"write finised: %s",
+		"write finished: %s",
 		result.error().message()
 	);
 
