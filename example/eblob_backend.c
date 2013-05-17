@@ -369,6 +369,7 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 		free_data = 0;
 	}
 
+	io->timestamp = elist->timestamp;
 	io->size = size;
 	if (size && last)
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
