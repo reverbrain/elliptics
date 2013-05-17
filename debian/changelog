@@ -1,3 +1,9 @@
+elliptics (2.20.6.4) unstable; urgency=low
+
+  * Do not time out whoole transaction if any replies was received in dnet_read_latest_prepare()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 17 May 2013 19:39:33 +0400
+
 elliptics (2.20.6.3) unstable; urgency=low
 
   * Do not drop state lock between route size calculation and data fill.
