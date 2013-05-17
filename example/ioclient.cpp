@@ -374,8 +374,19 @@ int main(int argc, char *argv[])
 			s.set_filter(filters::positive);
 		}
 
-		if (lookup)
-			s.lookup(std::string(lookup));
+		if (lookup) {
+			sync_lookup_result res = s.lookup(std::string(lookup));
+			for(auto it = res.begin(), end = res.end(); it != end; ++it) {
+				auto info = it->file_info();
+				auto storage = it->storage_address();
+				std::cout	<< "Storage address: " << (char*)storage->addr << "\n"
+							<< "File path: " << it->file_path() << "\n"
+							<< " File info: " << "\n"
+								<< "\tsize: "	<< info->size << "\n"
+								<< "\toffset: " << info->offset << "\n"
+								<< "\ttime: " << info->mtime.tsec << "/" << info->mtime.tnsec << std::endl;
+			}
+		}
 
 		if (vfs_stat) {
 			float la[3];
