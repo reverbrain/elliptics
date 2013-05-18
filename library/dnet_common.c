@@ -2632,20 +2632,35 @@ int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t
 			(struct dnet_iterator_response *)left_map.data + left_pos;
 		const struct dnet_iterator_response *right =
 			(struct dnet_iterator_response *)right_map.data + right_pos;
-		int cmp;
+		const int cmp_id = dnet_id_cmp_str(left->key.id, right->key.id);
+		const int cmp_ts = dnet_time_cmp(&left->timestamp, &right->timestamp);
 
-		cmp = dnet_iterator_response_cmp(left, right);
-		if (cmp < 0) {
+		if (left_offset < left_size &&
+				(cmp_id < 0 || (cmp_id == 0 && cmp_ts >= 0))) {
+			/*
+			 * If we can move left pointer and left key is less or
+			 * same but with lesser timestamp we skip record.
+			 */
+			left_offset += resp_size;
+
+			/* For same key we move both pointers */
+			if (cmp_id == 0)
+				right_offset += resp_size;
+		} else {
+			/*
+			 * If we can move left pointer or left key is greater
+			 * or same but less timestamp we add record to
+			 * differene because it should be recovered.
+			 */
 			err = dnet_iterator_response_container_append(right, diff_fd, diff_offset);
 			if (err != 0)
 				goto err_unmap_right;
 			diff_offset += resp_size;
 			right_offset += resp_size;
-		} else {
-			if (left_offset < left_size)
+
+			/* For same key we move both pointers */
+			if (cmp_id == 0 && left_offset < left_size)
 				left_offset += resp_size;
-			if (cmp == 0)
-				right_offset += resp_size;
 		}
 		assert(left_offset <= left_size);
 		assert(diff_offset <= (int64_t)right_size);
