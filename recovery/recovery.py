@@ -180,13 +180,14 @@ def diff(ctx, results, stats):
                 # If local container is empty and remote is not
                 # then difference is whole remote container
                 log.info("Local container is empty, recovering full range: {0}".format(local.id_range))
-                diff_results.append(remote)
+                result = remote
             else:
                 log.info("Computing differences for: {0}".format(local.id_range))
                 result = local.diff(remote)
-                log.info("Computed diff: local: {0}, remote: {1}, diff: {2} record(s)".format(
-                    len(local), len(remote), len(result)))
+            if (len(result)):
                 diff_results.append(result)
+            else:
+                log.info("Resulting diff is empty, skipping range: {0}".format(local.id_range))
             stats.counter.diff += 1
         except Exception as e:
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))
