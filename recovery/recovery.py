@@ -144,6 +144,9 @@ def sort(ctx, results, stats):
             log.debug("Sort skipped because local or remote iterator failed")
             stats.counter.sort_skipped += 1
             continue
+        if len(remote) == 0:
+            log.debug("Sort skipped remote iterator results are empty")
+            continue
         try:
             assert local.id_range == remote.id_range, \
                 "Local range must equal remote range"
