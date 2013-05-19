@@ -39,11 +39,38 @@
 #include <cocaine/api/event.hpp>
 #include <cocaine/api/stream.hpp>
 #include <cocaine/api/service.hpp>
+#include <cocaine/api/storage.hpp>
+#include <cocaine/detail/traits/json.hpp>
 
 #include <elliptics/interface.h>
 #include <elliptics/srw.h>
 
 #include "elliptics.h"
+
+namespace {
+	static std::string lexical_cast(size_t value) {
+		if (value == 0) {
+			return std::string("0");
+		}
+
+		std::string result;
+		size_t length = 0;
+		size_t calculated = value;
+		while (calculated) {
+			calculated /= 10;
+			++length;
+		}
+
+		result.resize(length);
+		while (value) {
+			--length;
+			result[length] = '0' + (value % 10);
+			value /= 10;
+		}
+
+		return result;
+	}
+}
 
 class srw_log {
 	public:
@@ -158,26 +185,6 @@ class dnet_upstream_t: public cocaine::api::stream_t
 			reply(false, chunk, size);
 		}
 
-		static std::string lexical_cast(size_t value) {
-			if (value == 0) {
-				return std::string("0");
-			}
-			std::string result;
-			size_t length = 0;
-			size_t calculated = value;
-			while (calculated) {
-				calculated /= 10;
-				++length;
-			}
-			result.resize(length);
-			while (value) {
-				--length;
-				result[length] = '0' + (value % 10);
-				value /= 10;
-			}
-			return result;
-		}
-
 		virtual void close(void) {
 			srw_log log(m_s, DNET_LOG_NOTICE, "app/" + m_name, "job completed");
 		}
@@ -217,6 +224,9 @@ class dnet_upstream_t: public cocaine::api::stream_t
 		int m_error;
 };
 
+typedef std::shared_ptr<dnet_upstream_t> dnet_shared_upstream_t;
+typedef std::map<int, dnet_shared_upstream_t> jobs_map_t;
+
 struct srw_counters {
 	long			blocked;
 	long			nonblocked;
@@ -235,7 +245,8 @@ typedef std::map<std::string, srw_counters> cmap_t;
 class dnet_app_t : public cocaine::app_t {
 	public:
         	dnet_app_t(cocaine::context_t& context, const std::string& name, const std::string& profile) :
-			cocaine::app_t(context, name, profile) {
+		cocaine::app_t(context, name, profile),
+       		m_pool_size(-1) {
 		}
 
 		Json::Value counters(void) {
@@ -266,14 +277,24 @@ class dnet_app_t : public cocaine::app_t {
 			}
 		}
 
+		void set_pool_size(int pool_size) {
+			m_pool_size = pool_size;
+		}
+
+		int get_index(void) {
+			if (m_pool_size == -1)
+				return -1;
+
+			return rand() % m_pool_size;
+		}
+
 	private:
 		std::mutex	m_lock;
 		cmap_t		m_counters;
+		int		m_pool_size;
 };
 
-typedef std::shared_ptr<dnet_upstream_t> dnet_shared_upstream_t;
 typedef std::map<std::string, std::shared_ptr<dnet_app_t> > eng_map_t;
-typedef std::map<int, dnet_shared_upstream_t> jobs_map_t;
 
 namespace {
        // INFO level has value 2 in elliptics and value 3 in cocaine,
@@ -370,12 +391,35 @@ class srw {
 			std::string app(event.c_str(), ptr - event.c_str());
 			std::string ev(ptr+1);
 
-			if (ev == "start-task") {
+			if ((ev == "start-task") || (ev == "start-multiple-task")) {
 				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
 					std::shared_ptr<dnet_app_t> eng(new dnet_app_t(m_ctx, app, app));
 					eng->start();
+
+					if (ev == "start-multiple-task") {
+						auto storage = cocaine::api::storage(m_ctx, "core");
+						Json::Value profile = storage->get<Json::Value>("profiles", app);
+
+						int idle = profile["idle-timeout"].asInt();
+						int pool_limit = profile["pool-limit"].asInt();
+						const int idle_min = 60 * 60 * 24 * 30;
+
+						dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: multiple start: "
+								"idle: %d/%d, workers: %d\n",
+								id_str, sph_str, event.c_str(), idle, idle_min, pool_limit);
+
+						if (idle < idle_min) {
+							dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: multiple start: "
+								"idle must be big enough, we check it to be larger than 30 days (%d seconds), "
+								"current profile value is %d\n",
+								id_str, sph_str, event.c_str(), idle_min, idle);
+							return -EINVAL;
+						}
+
+						eng->set_pool_size(pool_limit);
+					}
 
 					m_map.insert(std::make_pair(app, eng));
 					dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started\n", id_str, sph_str, event.c_str());
@@ -471,14 +515,24 @@ class srw {
 					m_jobs.insert(std::make_pair((int)sph->src_key, upstream));
 				}
 
-				std::shared_ptr<dnet_app_t> app = it->second;
+				std::shared_ptr<dnet_app_t> eng = it->second;
 				guard.unlock();
 
-				std::shared_ptr<cocaine::api::stream_t> stream = app->enqueue(cevent, upstream);
+				int index = eng->get_index();
+				std::shared_ptr<cocaine::api::stream_t> stream;
+
+				if (index == -1) {
+					stream = eng->enqueue(cevent, upstream);
+				} else {
+					app += "-" + lexical_cast(index);
+					stream = eng->enqueue(cevent, upstream, app);
+				}
+
 				stream->write((const char *)sph, total_size(sph) + sizeof(struct sph));
 
-				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started: job: %d, total-size: %zd, block: %d\n",
+				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started: queue: %s, job: %d, total-size: %zd, block: %d\n",
 						id_str, sph_str, event.c_str(),
+						app.c_str(),
 						sph->src_key, total_size(sph),
 						!!(sph->flags & DNET_SPH_FLAGS_SRC_BLOCK));
 
