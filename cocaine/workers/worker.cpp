@@ -331,7 +331,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	}
 };
 
-application::application(std::shared_ptr<cocaine::framework::service_manager_t> service_manager)
+application::application(const std::string &id, std::shared_ptr<cocaine::framework::service_manager_t> service_manager)
 	: cocaine::framework::application<application>(service_manager)
 {
 }

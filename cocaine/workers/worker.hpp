@@ -52,7 +52,7 @@ class application : public cocaine::framework::application<application>
 			data_pointer m_previous_data;
 		};
 
-		application(std::shared_ptr<cocaine::framework::service_manager_t> service_manager);
+		application(const std::string &id, std::shared_ptr<cocaine::framework::service_manager_t> service_manager);
 
 		void initialize();
 
