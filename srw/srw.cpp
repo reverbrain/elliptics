@@ -410,7 +410,7 @@ class srw {
 								"idle: %d/%d, workers: %d\n",
 								id_str, sph_str, event.c_str(), idle, idle_min, pool_limit);
 
-						if (idle < idle_min) {
+						if (idle && idle < idle_min) {
 							dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: multiple start: "
 								"idle must be big enough, we check it to be larger than 30 days (%d seconds), "
 								"current profile value is %d\n",
