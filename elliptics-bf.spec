@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.4.1
+Version:	2.24.4.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun May 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.4.2
+- Depend on cocaine-framework-native-dev (>= 0.10.3~pre1)
+- Sync index application to up-to-date framework
+
 * Sun May 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.4.1
 - Idle 0 means 'never stop' timeout for cocaine workers
 - Use local json-trait helper instead of cocaine/detail/traits/json.hpp, which is private
