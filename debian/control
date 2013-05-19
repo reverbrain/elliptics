@@ -19,7 +19,6 @@ Build-Depends: cdbs,
                libltdl-dev,
                libmsgpack-dev,
                libsnappy-dev,
-               libzmq-dev,
                python-central,
                python-dev (>= 2.6),
 Standards-Version: 3.8.0
