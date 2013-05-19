@@ -1,3 +1,10 @@
+elliptics (2.24.4.1) unstable; urgency=low
+
+  * Idle 0 means 'never stop' timeout for cocaine workers
+  * Use local json-trait helper instead of cocaine/detail/traits/json.hpp, which is private
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 19 May 2013 22:38:08 +0400
+
 elliptics (2.24.4.0) unstable; urgency=low
 
   * Added named workers support
