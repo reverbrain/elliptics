@@ -40,11 +40,11 @@
 #include <cocaine/api/stream.hpp>
 #include <cocaine/api/service.hpp>
 #include <cocaine/api/storage.hpp>
-#include <cocaine/detail/traits/json.hpp>
 
 #include <elliptics/interface.h>
 #include <elliptics/srw.h>
 
+#include "cocaine-json-trait.hpp"
 #include "elliptics.h"
 
 namespace {
