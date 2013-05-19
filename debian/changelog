@@ -1,3 +1,22 @@
+elliptics (2.24.4.0) unstable; urgency=low
+
+  * Added named workers support
+  * Get rid of zeromq
+  * Do not perform json serialization under lock
+  * Fixed timestamp in dnet_write_file_id_raw
+  * Added printing lookup file info in ioclient by parameter -L.
+  * Added timestamp into session (get/set methods). Copy user flags from session, if it was not set in ctl.io
+  * Used common method for copying timestamp and user_flags from elist to io_attr.
+  * Added indexes profile and manifest
+  * Fixed response() assignment and warnings
+  * Added set-timestamp() session method
+  * Added looking for cocaine-framework-native and libev include dirs
+  * Changed cocaine storage api to second version
+  * Only set timestamp if it is zeroed
+  * Depend on cocaine-framework-native-dev
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 19 May 2013 22:17:39 +0400
+
 elliptics (2.24.3.0) unstable; urgency=low
 
   * Fill ctl.io.timeout during write

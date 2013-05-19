@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.3.0
+Version:	2.24.4.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,22 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun May 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.4.0
+- Added named workers support
+- Get rid of zeromq
+- Do not perform json serialization under lock
+- Fixed timestamp in dnet_write_file_id_raw
+- Added printing lookup file info in ioclient by parameter -L.
+- Added timestamp into session (get/set methods). Copy user flags from session, if it was not set in ctl.io
+- Used common method for copying timestamp and user_flags from elist to io_attr.
+- Added indexes profile and manifest
+- Fixed response() assignment and warnings
+- Added set-timestamp() session method
+- Added looking for cocaine-framework-native and libev include dirs
+- Changed cocaine storage api to second version
+- Only set timestamp if it is zeroed
+- Depend on cocaine-framework-native-dev
+
 * Wed May 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.3.0
 - Fill ctl.io.timeout during write
 - Added user flags property to session
