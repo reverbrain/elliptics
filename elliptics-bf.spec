@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.4.2
+Version:	2.24.4.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon May 20 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.4.3
+- Simplify eblob read/write calls. Get rid of unused elist casts
+
 * Sun May 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.4.2
 - Depend on cocaine-framework-native-dev (>= 0.10.3~pre1)
 - Sync index application to up-to-date framework
