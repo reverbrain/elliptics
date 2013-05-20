@@ -1051,12 +1051,10 @@ BOOST_PYTHON_MODULE(elliptics) {
 
 		.def("bulk_read", &elliptics_session::bulk_read_by_name,
 			(bp::arg("keys"), bp::arg("raw") = false))
-
 		.def("bulk_read_by_name", &elliptics_session::bulk_read_by_name,
 			(bp::arg("keys"), bp::arg("raw") = false))
-
 		.def("bulk_read_by_id", &elliptics_session::bulk_read_by_id,
-			(bp::arg("keys"), bp::arg("raw") = false))
+			(bp::arg("keys")))
 
 		.def("bulk_write_by_id", &elliptics_session::bulk_write_by_id,
 			(bp::arg("keys"), bp::arg("data")))

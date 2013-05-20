@@ -46,7 +46,6 @@ class RouteList(object):
         # First pass - sort keys
         for key, node in sorted(routes, key=lambda route: route[0].id):
             unmerged_routes.append(Route(key, node))
-        self.log.debug("Routes after sort: {0}".format(len(unmerged_routes)))
         assert len(routes) == len(unmerged_routes)
 
         # Second pass - merge adj. keys for same node

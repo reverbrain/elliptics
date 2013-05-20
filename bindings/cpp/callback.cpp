@@ -327,6 +327,9 @@ void iterator_result_container::diff(const iterator_result_container &other,
 {
 	int64_t err;
 
+	if (m_sorted == false || other.m_sorted == false)
+		throw_error(-EINVAL, "both containers must be sorted");
+
 	err = dnet_iterator_response_container_diff(result.m_fd, m_fd, m_write_position,
 			other.m_fd, other.m_write_position);
 	if (err < 0)

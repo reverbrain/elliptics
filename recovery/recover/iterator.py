@@ -1,7 +1,7 @@
 import sys
 import os
 
-from .utils.misc import logged_class, mk_container_name
+from .utils.misc import logged_class, mk_container_name, format_id
 from .time import Time
 from .range import IdRange
 
@@ -56,8 +56,8 @@ class IteratorResult(object):
         """
         Computes diff between two sorted results. Returns container that consists of difference.
         """
-        filename = mk_container_name(self.id_range, self.eid, prefix='diff_') + '-' + \
-                   mk_container_name(other.id_range, other.eid, prefix='')
+        filename = 'diff_' + str(self.id_range) + '_' + \
+                   format_id(self.eid.id) + '-' + format_id(other.eid.id)
         diff_container = self.from_filename(filename,
                                             eid=other.eid,
                                             id_range=other.id_range,
