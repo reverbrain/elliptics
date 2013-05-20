@@ -917,6 +917,65 @@ void iterator_container_diff(iterator_result_container &left,
 	left.diff(right, diff);
 }
 
+struct id_pickle : bp::pickle_suite
+{
+	static boost::python::tuple getinitargs(const elliptics_id& id)
+	{
+		return getstate(id);
+	}
+
+	static boost::python::tuple getstate(const elliptics_id& id)
+	{
+		return bp::make_tuple(id.id, id.group_id, id.type);
+	}
+
+	static void setstate(elliptics_id& id, boost::python::tuple state)
+	{
+		using namespace boost::python;
+		if (len(state) != 3)
+		{
+			PyErr_SetObject(PyExc_ValueError,
+				("expected 3-item tuple in call to __setstate__; got %s"
+					% state).ptr()
+				);
+			bp::throw_error_already_set();
+		}
+
+		id.id = bp::extract<bp::list>(state[0]);
+		id.group_id = bp::extract<uint32_t>(state[1]);
+		id.type = bp::extract<int>(state[2]);
+	}
+};
+
+struct time_pickle : bp::pickle_suite
+{
+	static boost::python::tuple getinitargs(const elliptics_time& time)
+	{
+		return getstate(time);
+	}
+
+	static boost::python::tuple getstate(const elliptics_time& time)
+	{
+		return bp::make_tuple(time.m_tsec, time.m_tnsec);
+	}
+
+	static void setstate(elliptics_time& time, boost::python::tuple state)
+	{
+		using namespace boost::python;
+		if (len(state) != 2)
+		{
+			PyErr_SetObject(PyExc_ValueError,
+				("expected 2-item tuple in call to __setstate__; got %s"
+					% state).ptr()
+				);
+			bp::throw_error_already_set();
+		}
+
+		time.m_tsec = bp::extract<uint64_t>(state[0]);
+		time.m_tnsec = bp::extract<uint64_t>(state[1]);
+	}
+};
+
 BOOST_PYTHON_MODULE(elliptics) {
 	bp::class_<error> error_class("ErrorInfo", bp::init<int, std::string>());
 	error_class.def("__str__", &error::error_message);
@@ -935,12 +994,14 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_readwrite("type", &elliptics_id::type)
+		.def_pickle(id_pickle())
 	;
 
 	bp::class_<elliptics_time>("Time",
 			bp::init<uint64_t, uint64_t>(bp::args("tsec", "tnsec")))
 		.def_readwrite("tsec", &elliptics_time::m_tsec)
 		.def_readwrite("tnsec", &elliptics_time::m_tnsec)
+		.def_pickle(time_pickle())
 	;
 
 	bp::class_<dnet_iterator_request>("IteratorRequest")
