@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.4.3
+Version:	2.24.4.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon May 20 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.4.4
+- Fixed timestamp bug - do not assign io.num without need - it prevents timestamp to be set correctly.
+- Use eblob_read_data_nocsum() instead of eblob_read_data(), since if we wanted, we already checked csum in eblob_read_return()
+- Fixed typo
+
 * Mon May 20 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.4.3
 - Simplify eblob read/write calls. Get rid of unused elist casts
 

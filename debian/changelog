@@ -1,3 +1,11 @@
+elliptics (2.24.4.4) unstable; urgency=low
+
+  * Fixed timestamp bug - do not assign io.num without need - it prevents timestamp to be set correctly.
+  * Use eblob_read_data_nocsum() instead of eblob_read_data(), since if we wanted, we already checked csum in eblob_read_return()
+  * Fixed typo
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 20 May 2013 05:15:30 +0400
+
 elliptics (2.24.4.3) unstable; urgency=low
 
   * Simplify eblob read/write calls. Get rid of unused elist casts
