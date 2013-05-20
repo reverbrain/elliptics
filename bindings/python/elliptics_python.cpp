@@ -623,6 +623,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 			std::vector<dnet_io_attr> ios;
 			std::vector<std::string> data_to_write;
+			data_to_write.reserve(std_data.size());
 			dnet_io_attr io;
 			memset(&io, 0, sizeof(io));
 

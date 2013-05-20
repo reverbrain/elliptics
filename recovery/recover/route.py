@@ -3,6 +3,7 @@ from itertools import groupby
 from operator import itemgetter
 
 from .utils.misc import logged_class, format_id
+from .range import IdRange, RecoveryRange
 
 __doc__ = \
     """
@@ -142,6 +143,67 @@ class RouteList(object):
 
     def filter_by_address(self, address):
         return [ route for route in self.routes if route.address == address ]
+
+    def filter_by_group_id(self, group_id):
+        return [ route for route in self.routes if route.key.group_id == group_id ]
+
+    def groups(self):
+        return list(set([ route.key.group_id for route in self.routes ]))
+
+    def get_ranges_by_address(self, address):
+        ranges = []
+        group_id = self.filter_by_address(address)[0].key.group_id
+        keys = dict()
+        include = False
+        for route in self.routes:
+            keys[route.key.group_id] = (route.key, route.address)
+            if route.key.group_id == group_id:
+                include = route.address == address
+
+        if include:
+            ranges.append(RecoveryRange(IdRange(IdRange.ID_MIN, self.routes[0].key.id), keys.copy()))
+
+        for i, route in enumerate(self.routes):
+            keys[route.key.group_id] = (route.key, route.address)
+            if i < len(self.routes) - 1:
+                next = self.routes[i + 1].key.id
+            else:
+                next = IdRange.ID_MAX
+
+            if route.key.group_id != group_id and not include:
+                continue
+
+            if route.address == address:
+                include = True
+                ranges.append(RecoveryRange(IdRange(route.key.id, next), keys.copy()))
+            elif route.key.group_id == group_id:
+                include = False
+            elif include:
+                ranges.append(RecoveryRange(IdRange(route.key.id, next), keys.copy()))
+
+        return ranges
+
+    def get_address_ranges(self, address):
+        ranges = []
+        routes = self.filter_by_group_id(self.filter_by_address(address)[0].key.group_id)
+        len = len(routes)
+        for i, route in enumerate(routes):
+            if(route.address == address):
+                next = routes[(i + 1)% len]
+            if i < len(routes) - 1:
+                ranges.append(RecoveryRange(IdRange(route.key.id, next.key.id), address))
+            else:
+                ranges.append(RecoveryRange(IdRange(route.key.id, IdRange.ID_MAX), address))
+                ranges.insert(0, RecoveryRange(IdRange(IdRange.ID_MIN, next.key.id), address))
+            i = 0
+            while i < len(ranges) - 1:
+                current = ranges[i]
+                next =  ranges[i + 1]
+                if current.id_range.stop == next.id_range.start:
+                    ranges[i] = RecoveryRange(IdRange(current.id_range.start, next.id_range.stop), current.host)
+                    del ranges[i + 1]
+                else:
+                    i += 1
 
     def __iter__(self):
         return iter(self.routes)
