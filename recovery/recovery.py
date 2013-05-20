@@ -23,36 +23,13 @@ from recover.route import RouteList, Address
 from recover.iterator import Iterator
 from recover.time import Time
 from recover.stat import Stats
-from recover.utils.lru_cache import lru_cache
-from recover.utils.misc import format_id, mk_container_name
+from recover.utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
 import elliptics
 
 log.getLogger()
-
-@lru_cache()
-def elliptics_create_node(address=None, elog=None, wait_timeout=3600, flags=0):
-    """
-    Connects to elliptics cloud
-    """
-    log.info("Creating node using: {0}".format(address))
-    cfg = elliptics.Config()
-    cfg.config.wait_timeout = wait_timeout
-    cfg.config.flags = flags
-    node = elliptics.Node(elog, cfg)
-    node.add_remote(addr=address.host, port=address.port, family=address.family)
-    log.info("Created node: {0}".format(node))
-    return node
-
-@lru_cache()
-def elliptics_create_session(node=None, group=None, cflags=elliptics.command_flags.default):
-    log.debug("Creating session: {0}@{1}.{2}".format(node, group, cflags))
-    session = elliptics.Session(node)
-    session.set_groups([group])
-    session.set_cflags(cflags)
-    return session
 
 def get_ranges(ctx, routes, group_id):
     """
@@ -254,19 +231,12 @@ def main(ctx):
     result = True
     ctx.stats.timer.main('started')
 
-    log.debug("Creating session for: {0}".format(ctx.address))
-    session = elliptics_create_session(node=ctx.node, group=0)
-
-    log.warning("Searching for ranges that '{0}' stole".format(ctx.address))
-    routes = RouteList.from_session(session)
-    log.debug("Total routes: {0}".format(len(routes)))
-
     for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
         group_stats = ctx.stats[group]
         group_stats.timer.group('started')
 
-        ranges = get_ranges(ctx, routes, group)
+        ranges = get_ranges(ctx, ctx.routes, group)
         log.debug("Recovery ranges: {0}".format(len(ranges)))
         if not ranges:
             log.warning("No ranges to recover in group: {0}".format(group))
@@ -280,7 +250,7 @@ def main(ctx):
         iterator_results = run_iterators(
             ctx,
             group=group,
-            routes=routes,
+            routes=ctx.routes,
             ranges=ranges,
             stats=group_stats,
         )
@@ -399,6 +369,11 @@ if __name__ == '__main__':
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     log.debug("Creating node")
     ctx.node = elliptics_create_node(address=ctx.address, elog=ctx.elog)
+    log.debug("Creating session for: {0}".format(ctx.address))
+    ctx.session = elliptics_create_session(node=ctx.node, group=0)
+    log.warning("Parsing routing table".format(ctx.address))
+    ctx.routes = RouteList.from_session(ctx.session)
+    log.debug("Total routes: {0}".format(len(ctx.routes)))
 
     result = main(ctx)
 
