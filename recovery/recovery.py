@@ -168,7 +168,7 @@ def sort(ctx, results, stats):
 def diff(ctx, results, stats):
     """
     Compute differences between local and remote results.
-    TODO: We can compute up to CPU_NUM diffs at max
+    TODO: We can compute up to CPU_NUM diffs at max in parallel
     """
     diff_results = []
     for local, remote in results:
