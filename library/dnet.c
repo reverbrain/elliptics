@@ -1073,8 +1073,8 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			localtime_r((time_t *)&io_tv.tv_sec, &io_tm);
 			strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
 
-			dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: %x, cflags: %llx, "
-					"node-flags: %x, type: %d, ts: %ld.%06ld '%s'\n",
+			dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
+					"node-flags: 0x%x, type: %d, ts: %ld.%06ld '%s'\n",
 					dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
 					(unsigned long long)io->offset, (unsigned long long)io->size,
 					io->flags, (unsigned long long)cmd->flags,

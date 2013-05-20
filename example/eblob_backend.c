@@ -142,10 +142,10 @@ static int blob_iterate(struct eblob_backend_config *c, struct dnet_iterator_ctl
 	return eblob_iterate(b, &eictl);
 }
 
-static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
-		struct dnet_cmd *cmd __unused, void *data, struct dnet_ext_list *elist)
+static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data)
 {
 	int err;
+	struct dnet_ext_list elist;
 	struct dnet_io_attr *io = data;
 	struct eblob_write_control wc = { .data_fd = -1 }, wc2;
 	struct eblob_key key;
@@ -158,6 +158,9 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags, io->type);
 
 	dnet_convert_io_attr(io);
+
+	dnet_ext_list_init(&elist);
+	dnet_ext_io_to_list(io, &elist);
 
 	orig_size = io->size;
 
@@ -307,42 +310,32 @@ static int blob_write_ll(struct eblob_backend_config *c, void *state __unused,
 err_out_exit:
 	if (combined != 0)
 		free(data);
+
+	dnet_ext_list_destroy(&elist);
 	return err;
 }
 
-/*!
- * Write data along with timestamp extension
- */
-static int blob_write(struct eblob_backend_config *c, void *state,
-		struct dnet_cmd *cmd, void *data)
+
+static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data, int last)
 {
 	struct dnet_ext_list elist;
-	int err;
-
-	dnet_ext_list_init(&elist);
-	dnet_ext_io_to_list(data, &elist);
-	err = blob_write_ll(c, state, cmd, data, &elist);
-	dnet_ext_list_destroy(&elist);
-
-	return err;
-}
-
-static int blob_read_ll(struct eblob_backend_config *c, void *state,
-		struct dnet_cmd *cmd, void *data, int last, struct dnet_ext_list *elist)
-{
 	struct dnet_io_attr *io = data;
 	struct eblob_backend *b = c->eblob;
 	struct eblob_key key;
 	struct eblob_write_control wc;
 	uint64_t offset, size = 0;
 	char *read_data = NULL;
-	int csum, err, fd, free_data = 1, on_close = 0;
+	enum eblob_read_flavour csum = EBLOB_READ_CSUM;
+	int err, fd, free_data = 1, on_close = 0;
 
+	dnet_ext_list_init(&elist);
 	dnet_convert_io_attr(io);
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
-	csum = !(io->flags & DNET_IO_FLAGS_NOCSUM);
+	if (io->flags & DNET_IO_FLAGS_NOCSUM)
+		csum = EBLOB_READ_NOCSUM;
+
 	err = eblob_read_return(b, &key, io->type, csum, &wc);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-fd: READ: %d: %s\n",
@@ -362,14 +355,14 @@ static int blob_read_ll(struct eblob_backend_config *c, void *state,
 
 	if ((wc.flags & BLOB_DISK_CTL_USR1) != 0) {
 		err = dnet_ext_list_extract((void *)&read_data, (uint64_t *)&size,
-				elist, DNET_EXT_FREE_ON_DESTROY);
+				&elist, DNET_EXT_FREE_ON_DESTROY);
 		if (err != 0)
 			goto err_out_free;
 		/* It will be done by dnet_ext_list_destroy */
 		free_data = 0;
 	}
 
-	if(dnet_ext_list_to_io(elist, io)) {
+	if (dnet_ext_list_to_io(&elist, io)) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: can't copy ext list to io.", dnet_dump_id_str(io->id));
 	}
 
@@ -455,23 +448,6 @@ err_out_free:
 	if (free_data)
 		free(read_data);
 err_out_exit:
-	return err;
-}
-
-/*!
- * Read data along with ts
- */
-static int blob_read(struct eblob_backend_config *c, void *state,
-		struct dnet_cmd *cmd, void *data, int last)
-{
-	struct dnet_ext_list elist;
-	struct dnet_io_attr *io = data;
-	int err;
-
-	dnet_ext_list_init(&elist);
-	err = blob_read_ll(c, state, cmd, data, last, &elist);
-	dnet_ext_list_to_io(&elist, io);
-
 	dnet_ext_list_destroy(&elist);
 	return err;
 }
