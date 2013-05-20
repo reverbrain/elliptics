@@ -724,7 +724,6 @@ async_write_result session::write_data(const key &id, const data_pointer &file, 
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
-	ctl.io.num = file.size() + remote_offset;
 
 	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
 
@@ -993,6 +992,7 @@ async_write_result session::write_plain(const key &id, const data_pointer &file,
 	ctl.io.size = file.size();
 	ctl.io.type = id.type();
 	ctl.id = id.id();
+	ctl.io.num = file.size() + remote_offset;
 
 	memcpy(&ctl.id, &id.id(), sizeof(ctl.id));
 
@@ -1043,7 +1043,6 @@ async_write_result session::write_cache(const key &id, const data_pointer &file,
 	ctl.io.start = timeout;
 	ctl.io.size = file.size();
 	ctl.io.type = raw.type;
-	ctl.io.num = file.size();
 
 	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
 
