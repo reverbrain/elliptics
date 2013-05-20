@@ -1,9 +1,11 @@
 import sys
 import os
 
+import logging as log
+
 from .utils.misc import logged_class, mk_container_name, format_id
 from .time import Time
-from .range import IdRange
+from .range import IdRange, RecoveryRange
 
 sys.path.insert(0, "bindings/python/") # XXX
 import elliptics
@@ -115,6 +117,11 @@ class Iterator(object):
         for record in iterator:
             if record.status != 0:
                 raise RuntimeError("Iteration status check failed: {0}".format(record.status))
+            log.debug("key: {0}, flags: {1}, ts: {2}/{3}, data: {4}".format(
+                format_id(record.response.key),
+                record.response.user_flags,
+                record.response.timestamp.tsec, record.response.timestamp.tnsec,
+                record.response_data))
             # TODO: Here we can add throttling
             result.append(record)
         result.status = True

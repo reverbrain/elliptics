@@ -434,7 +434,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			update_status(raw, &status);
 			return status;
 		}
-		
+
 		elliptics_status update_status_by_string(const std::string &saddr, const int port, const int family,
 								elliptics_status &status) {
 			update_status(saddr.c_str(), port, family, &status);
@@ -522,7 +522,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		bp::api::object bulk_read_by_name(const bp::api::object &keys, bool raw) {
 			std::vector<std::string> std_keys = convert_to_vector<std::string>(keys);
 
-			const sync_read_result ret =  bulk_read(std_keys);
+			const sync_read_result ret =  session::bulk_read(std_keys);
 
 			if (raw) {
 				bp::list result;
@@ -571,7 +571,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 				ios.push_back(io);
 			}
 
-			const sync_read_result ret =  bulk_read(ios);
+			const sync_read_result ret =  session::bulk_read(ios);
 
 			std::map<struct dnet_id, elliptics_id, dnet_id_comparator> keys_map;
 			for (size_t i = 0; i < std_keys.size(); ++i) {
@@ -587,6 +587,63 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			}
 
 			return result;
+		}
+
+		bp::api::object bulk_read(const bp::api::object& keys)
+		{
+			std::vector<elliptics_id> std_keys = convert_to_vector<elliptics_id>(keys);
+			std::vector<dnet_io_attr> ios;
+			dnet_io_attr io;
+			memset(&io, 0, sizeof(io));
+
+			ios.reserve(std_keys.size());
+			std::map<struct dnet_id, elliptics_id, dnet_id_comparator> keys_map;
+			for (auto it = std_keys.begin(), end = std_keys.end(); it != end; ++it) {
+				dnet_id id = it->to_dnet();
+				keys_map.insert(std::make_pair(id, *it));
+
+				memcpy(io.id, id.id, sizeof(io.id));
+				ios.push_back(io);
+			}
+
+			const sync_read_result res = session::bulk_read(ios);
+
+			bp::list result;
+			for (auto it = res.begin(), end = res.end(); it != end; ++it) {
+				const dnet_id &id = it->command()->id;
+				result.append(bp::make_tuple(keys_map[id], it->file().to_string(), it->io_attribute()->timestamp, it->io_attribute()->user_flags));
+			}
+
+			return result;
+		}
+
+		std::string bulk_write(const bp::api::object &data)
+		{
+			std::vector<bp::tuple> std_data = convert_to_vector<bp::tuple>(data);
+
+			std::vector<dnet_io_attr> ios;
+			std::vector<std::string> data_to_write;
+			data_to_write.reserve(std_data.size());
+			dnet_io_attr io;
+			memset(&io, 0, sizeof(io));
+
+			for (auto it = std_data.begin(), end = std_data.end(); it != end; ++it) {
+				elliptics_id& e_id = bp::extract<elliptics_id&>((*it)[0]);
+				dnet_id id = e_id.to_dnet();
+
+				std::string data = bp::extract<std::string>((*it)[1]);
+
+				io.timestamp = bp::extract<dnet_time>((*it)[2]);
+				io.user_flags = bp::extract<uint64_t>((*it)[3]);
+
+				memcpy(io.id, id.id, sizeof(io.id));
+				io.size = data.size();
+				data_to_write.push_back(data);
+
+				ios.push_back(io);
+			}
+
+			return convert_to_string(session::bulk_write(ios, data_to_write));
 		}
 
 		std::string bulk_write_by_id(const bp::api::object &keys, const bp::api::object &data) {
@@ -606,7 +663,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 				ios.push_back(io);
 			}
 
-			return convert_to_string(bulk_write(ios, std_data));
+			return convert_to_string(session::bulk_write(ios, std_data));
 		}
 
 		std::string bulk_write_by_name(const bp::api::object &keys, const bp::api::object &data) {
@@ -627,7 +684,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 				ios.push_back(io);
 			}
 
-			return convert_to_string(bulk_write(ios, std_data));
+			return convert_to_string(session::bulk_write(ios, std_data));
 		}
 
 		bp::list stat_log_count() {
@@ -961,10 +1018,15 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def_readwrite("client_prio", &dnet_config::client_prio)
 	;
 
+	bp::class_<dnet_time>("dnet_time", bp::no_init)
+		.def_readwrite("tsec", &dnet_time::tsec)
+		.def_readwrite("tnsec", &dnet_time::tnsec)
+	;
+
 	bp::class_<python_iterator_result>("IteratorResult", bp::no_init)
 		.def("__iter__", bp::iterator<python_iterator_result>())
 	;
-	
+
 	bp::class_<elliptics_config>("Config", bp::init<>())
 		.def_readwrite("config", &elliptics_config::config)
 		.add_property("cookie", &elliptics_config::cookie_get, &elliptics_config::cookie_set)
@@ -1049,13 +1111,15 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("remove", &elliptics_session::remove_by_id)
 		.def("remove", &elliptics_session::remove_by_name)
 
-		.def("bulk_read", &elliptics_session::bulk_read_by_name,
-			(bp::arg("keys"), bp::arg("raw") = false))
+		.def("bulk_read", &elliptics_session::bulk_read,
+			(bp::arg("keys")))
 		.def("bulk_read_by_name", &elliptics_session::bulk_read_by_name,
 			(bp::arg("keys"), bp::arg("raw") = false))
 		.def("bulk_read_by_id", &elliptics_session::bulk_read_by_id,
 			(bp::arg("keys")))
 
+		.def("bulk_write", &elliptics_session::bulk_write,
+			(bp::arg("datas")))
 		.def("bulk_write_by_id", &elliptics_session::bulk_write_by_id,
 			(bp::arg("keys"), bp::arg("data")))
 		.def("bulk_write_by_name", &elliptics_session::bulk_write_by_name,

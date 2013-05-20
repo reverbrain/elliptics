@@ -41,7 +41,7 @@ if __name__ == '__main__':
                       help="Elliptics client verbosity [default: %default]")
     parser.add_option("-r", "--remote", action="store", dest="elliptics_remote", default="127.0.0.1:1025:2",
                       help="Elliptics node address [default: %default]")
-    parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default="1",
+    parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default=None,
                       help="Comma separated list of groups [default: %default]")
     parser.add_option("-t", "--timestamp", action="store", dest="timestamp", default="0",
                       help="Recover keys created/modified since [default: %default]")
@@ -82,7 +82,10 @@ if __name__ == '__main__':
     log.info("Using host:port:family: {0}".format(ctx.address))
 
     try:
-        ctx.groups = map(int, options.elliptics_groups.split(','))
+        if options.elliptics_groups != None:
+            ctx.groups = map(int, options.elliptics_groups.split(','))
+        else:
+            ctx.groups = []
     except Exception as e:
         raise ValueError("Can't parse grouplist: '{0}': {1}".format(
             options.elliptics_groups, repr(e)))
@@ -122,18 +125,25 @@ if __name__ == '__main__':
     log.debug("Using following context:\n{0}".format(ctx))
 
     log.info("Setting up elliptics client")
+
     log.debug("Creating logger")
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
+
     log.debug("Creating node")
     ctx.node = elliptics_create_node(address=ctx.address, elog=ctx.elog)
+
     log.debug("Creating session for: {0}".format(ctx.address))
     ctx.session = elliptics_create_session(node=ctx.node, group=0)
+
     log.warning("Parsing routing table".format(ctx.address))
     ctx.routes = RouteList.from_session(ctx.session)
     log.debug("Total routes: {0}".format(len(ctx.routes)))
 
     if recovery_type == TYPE_MERGE:
         from recovery_merge import main
+        result = main(ctx)
+    elif recovery_type == TYPE_DC:
+        from dc_recovery import main
         result = main(ctx)
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
