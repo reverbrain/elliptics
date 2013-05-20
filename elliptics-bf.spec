@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.4.4
+Version:	2.24.5.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue May 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.5.0
+- Dump to stderr if logger interface failed to write data
+- Added alpha version of dc recovery
+- Added bulk_read and bulk_write methods which provides timestamp and user_flags.
+- Update of recovery scripts
+- ext: fixed update of extension header
+
 * Mon May 20 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.4.4
 - Fixed timestamp bug - do not assign io.num without need - it prevents timestamp to be set correctly.
 - Use eblob_read_data_nocsum() instead of eblob_read_data(), since if we wanted, we already checked csum in eblob_read_return()

@@ -1,3 +1,13 @@
+elliptics (2.24.5.0) unstable; urgency=low
+
+  * Dump to stderr if logger interface failed to write data
+  * Added alpha version of dc recovery
+  * Added bulk_read and bulk_write methods which provides timestamp and user_flags.
+  * Update of recovery scripts
+  * ext: fixed update of extension header
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 21 May 2013 00:32:08 +0400
+
 elliptics (2.24.4.4) unstable; urgency=low
 
   * Fixed timestamp bug - do not assign io.num without need - it prevents timestamp to be set correctly.
