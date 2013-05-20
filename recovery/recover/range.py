@@ -33,7 +33,10 @@ class IdRange(object):
         return "{0}:{1}".format(format_id(self.start), format_id(self.stop))
 
     def __eq__(self, other):
-        return self.start == other.start and self.stop == other.stop
+        return tuple(self) == tuple(other)
+
+    def __ne__(self, other):
+        return not self == other
 
     def __nonzero__(self):
         return not (self.start == self.stop == self.id_min)
@@ -46,4 +49,4 @@ class IdRange(object):
         return cls(cls.ID_MIN, cls.ID_MAX)
 
 # Data structure for recovery iterators
-RecoveryRange = namedtuple('RecoveryRange', 'id_range host')
+RecoveryRange = namedtuple('RecoveryRange', 'id_range address')

@@ -6,7 +6,6 @@ from .time import Time
 from .range import IdRange
 
 sys.path.insert(0, "bindings/python/") # XXX
-
 import elliptics
 
 __doc__ = \
@@ -23,7 +22,7 @@ class IteratorResult(object):
         """
     def __init__(self, eid=None,
                  id_range=IdRange(None, None),
-                 host=None,
+                 address=None,
                  status=False,
                  exception=None,
                  container=None,
@@ -31,7 +30,7 @@ class IteratorResult(object):
     ):
         self.eid = eid
         self.id_range = id_range
-        self.host = host
+        self.address = address
         self.container = container
         self.status = status
         self.exception = exception
@@ -61,7 +60,7 @@ class IteratorResult(object):
         diff_container = self.from_filename(filename,
                                             eid=other.eid,
                                             id_range=other.id_range,
-                                            host=other.host,
+                                            address=other.address,
                                             tmp_dir=self.tmp_dir,
                                             )
         self.container.diff(other.container, diff_container.container)
@@ -108,10 +107,10 @@ class Iterator(object):
         self.session = elliptics.Session(node)
         self.session.set_groups([group])
 
-    def __start(self, eid, request, tmp_dir):
+    def __start(self, eid, address, request, tmp_dir):
         id_range = IdRange(request.key_begin, request.key_end)
         filename = os.path.join(tmp_dir, mk_container_name(id_range, eid))
-        result = IteratorResult.from_filename(filename, eid=eid, id_range=id_range, tmp_dir=tmp_dir)
+        result = IteratorResult.from_filename(filename, address=address, eid=eid, id_range=id_range, tmp_dir=tmp_dir)
         iterator = self.session.start_iterator(eid, request)
         for record in iterator:
             if record.status != 0:
@@ -128,6 +127,7 @@ class Iterator(object):
               key_range=(IdRange.ID_MIN, IdRange.ID_MAX),
               timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime()),
               tmp_dir='/var/tmp',
+              address=None,
     ):
         """
         Prepare iterator request structure and pass it to low-level __start() function.
@@ -141,7 +141,7 @@ class Iterator(object):
             request.flags = flags
             request.key_begin, request.key_end = key_range
             request.time_begin, request.time_end = timestamp_range
-            return self.__start(eid, request, tmp_dir)
+            return self.__start(eid, address, request, tmp_dir)
         except Exception as e:
             self.log.error("Iteration failed: {0}".format(repr(e)))
             return IteratorResult(exception=e)
