@@ -18,13 +18,6 @@ def format_id(key_id, count=6):
     """
     return ''.join('%02x' % b for b in key_id[:count])
 
-def split_host_port(string):
-    """
-    Return (host, port) tuple from string
-    """
-    host, port = string.split(':', 1)
-    return host, int(port)
-
 def mk_container_name(id_range, eid, prefix="iterator_"):
     """
     Makes filename for iterators' results

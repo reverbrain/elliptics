@@ -46,4 +46,4 @@ class IdRange(object):
         return cls(cls.ID_MIN, cls.ID_MAX)
 
 # Data structure for recovery iterators
-RecoveryRange = namedtuple('RecoveryRange', 'id_range host')
+RecoveryRange = namedtuple('RecoveryRange', 'id_range address')

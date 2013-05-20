@@ -19,12 +19,12 @@ import logging as log
 from itertools import groupby
 
 from recover.range import IdRange, RecoveryRange
-from recover.route import RouteList
+from recover.route import RouteList, Address
 from recover.iterator import Iterator
 from recover.time import Time
 from recover.stat import Stats
 from recover.utils.lru_cache import lru_cache
-from recover.utils.misc import format_id, split_host_port, mk_container_name
+from recover.utils.misc import format_id, mk_container_name
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -33,16 +33,16 @@ import elliptics
 log.getLogger()
 
 @lru_cache()
-def elliptics_create_node(host=None, port=None, elog=None, wait_timeout=3600, flags=0):
+def elliptics_create_node(address=None, elog=None, wait_timeout=3600, flags=0):
     """
     Connects to elliptics cloud
     """
-    log.info("Creating node using: {0}:{1}".format(host, port))
+    log.info("Creating node using: {0}".format(address))
     cfg = elliptics.Config()
     cfg.config.wait_timeout = wait_timeout
     cfg.config.flags = flags
     node = elliptics.Node(elog, cfg)
-    node.add_remote(host, port)
+    node.add_remote(addr=address.host, port=address.port, family=address.family)
     log.info("Created node: {0}".format(node))
     return node
 
@@ -61,11 +61,11 @@ def get_ranges(ctx, routes, group_id):
     """
     ranges = []
     for i, route in enumerate(routes):
-        ekey, node = routes[i]
-        prev_node = routes[i - 1].node
+        ekey, address = routes[i]
+        prev_address = routes[i - 1].address
         next_ekey = routes[i + 1].key
-        if node == ctx.hostport:
-            log.debug("Processing route: {0}, {1}".format(format_id(ekey.id), node))
+        if address == ctx.address:
+            log.debug("Processing route: {0}, {1}".format(format_id(ekey.id), address))
             if ekey.group_id != group_id:
                 log.debug("Skipped route: {0}, it belongs to group_id: {1}".format(
                     route, ekey.group_id))
@@ -76,11 +76,11 @@ def get_ranges(ctx, routes, group_id):
             if (stop < start):
                 log.debug("Splitting range: {0}:{1}".format(
                     format_id(start), format_id(stop)))
-                ranges.append(RecoveryRange(IdRange(IdRange.ID_MIN, stop), prev_node))
-                ranges.append(RecoveryRange(IdRange(start, IdRange.ID_MAX), prev_node))
+                ranges.append(RecoveryRange(IdRange(IdRange.ID_MIN, stop), prev_address))
+                ranges.append(RecoveryRange(IdRange(start, IdRange.ID_MAX), prev_address))
                 created = (1, 2)
             else:
-                ranges.append(RecoveryRange(IdRange(start, stop), prev_node))
+                ranges.append(RecoveryRange(IdRange(start, stop), prev_address))
                 created = (1,)
             for i in created:
                 log.debug("Created range: {0}, {1}".format(*ranges[-i]))
@@ -89,12 +89,11 @@ def get_ranges(ctx, routes, group_id):
 def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
     """
     Runs local and remote iterators for each range.
-    TODO: We can group iterators by host and run them in parallel
-    TODO: We can run only one iterator per host if we'll teach iterators to "batch" all key ranges in one request
+    TODO: We can group iterators by address and run them in parallel
+    TODO: We can run only one iterator per address if we'll teach iterators to "batch" all key ranges in one request
     """
     results = []
-    local_eid = routes.filter_by_host(ctx.hostport)[0].key
-
+    local_eid = routes.filter_by_address(ctx.address)[0].key
     for iteration_range in ranges:
         try:
             timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
@@ -106,13 +105,14 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
                 tmp_dir=ctx.tmp_dir,
+                address=ctx.address,
             )
             log.debug("Local obtained: {0} record(s)".format(len(local_result)))
             stats.counter.local_records += len(local_result)
             stats.counter.local_iterations += 1
             stats.counter.iterations += 1
 
-            remote_eid = routes.filter_by_host(iteration_range.host)[0].key
+            remote_eid = routes.filter_by_address(iteration_range.address)[0].key
             log.debug("Running remote iterator on: {0}".format(mk_container_name(
                 iteration_range.id_range, remote_eid)))
             remote_result = Iterator(ctx.node, group).start(
@@ -120,17 +120,16 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
                 tmp_dir=ctx.tmp_dir,
+                address=iteration_range.address,
             )
-            remote_result.host = iteration_range.host
             log.debug("Remote obtained: {0} record(s)".format(len(remote_result)))
             stats.counter.remote_records += len(remote_result)
             stats.counter.remote_iterations += 1
-
-            results.append((local_result, remote_result))
             stats.counter.iterations += 2
+            results.append((local_result, remote_result))
         except Exception as e:
-            log.error("Iteration failed for: {0}@{1}: {2}".format(
-                iteration_range.id_range, iteration_range.host, repr(e)))
+            log.error("Iteration failed for: {0}: {1}".format(
+                iteration_range.id_range, repr(e)))
             stats.counter.iterations -= 1
     return results
 
@@ -197,17 +196,17 @@ def diff(ctx, results, stats):
 def recover(ctx, diffs, group, stats):
     """
     Recovers difference between remote and local data.
-    TODO: Group by diffs by host and process each group in parallel
+    TODO: Group by diffs by address and process each group in parallel
     """
     result = True
     for diff in diffs:
-        log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.host))
+        log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.address))
 
         # Here we cleverly splitting responses into ctx.batch_size batches
         for batch_id, batch in groupby(enumerate(diff),
                                         key=lambda x: x[0] / ctx.batch_size):
             keys = [elliptics.Id(r.key, group, 0) for _, r in batch]
-            successes, failures = recover_keys(ctx, diff.host, group, keys)
+            successes, failures = recover_keys(ctx, diff.address, group, keys)
             stats.counter.recover_key += successes
             stats.counter.recover_key -= failures
             result &= (failures == 0)
@@ -215,7 +214,7 @@ def recover(ctx, diffs, group, stats):
                 batch_id * ctx.batch_size, len(diff), successes, failures))
     return result
 
-def recover_keys(ctx, hostport, group, keys):
+def recover_keys(ctx, address, group, keys):
     """
     Bulk recovery of keys.
     """
@@ -223,10 +222,9 @@ def recover_keys(ctx, hostport, group, keys):
 
     log.debug("Reading {0} keys".format(key_num))
     try:
-        log.debug("Creating node for: {0}".format(hostport))
-        host, port = split_host_port(hostport)
-        node = elliptics_create_node(host=host, port=port, elog=ctx.elog, flags=2)
-        log.debug("Creating direct session: {0}".format(hostport))
+        log.debug("Creating node for: {0}".format(address))
+        node = elliptics_create_node(address=address, elog=ctx.elog, flags=2)
+        log.debug("Creating direct session: {0}".format(address))
         direct_session = elliptics_create_session(node=node,
                                                   group=group,
                                                   cflags=elliptics.command_flags.direct,
@@ -239,10 +237,9 @@ def recover_keys(ctx, hostport, group, keys):
     size = sum(len(v) for v in batch.itervalues())
     log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
     try:
-        log.debug("Creating node for: {0}".format(ctx.hostport))
-        host, port = split_host_port(ctx.hostport)
-        node = elliptics_create_node(host=host, port=port, elog=ctx.elog, flags=2)
-        log.debug("Creating direct session: {0}".format(ctx.hostport))
+        log.debug("Creating node for: {0}".format(ctx.address))
+        node = elliptics_create_node(address=ctx.address, elog=ctx.elog, flags=2)
+        log.debug("Creating direct session: {0}".format(ctx.address))
         direct_session = elliptics_create_session(node=node,
                                                   group=group,
                                                   cflags=elliptics.command_flags.direct,
@@ -257,11 +254,11 @@ def main(ctx):
     result = True
     ctx.stats.timer.main('started')
 
-    log.debug("Creating session for: {0}".format(ctx.hostport))
+    log.debug("Creating session for: {0}".format(ctx.address))
     session = elliptics_create_session(node=ctx.node, group=0)
 
-    log.warning("Searching for ranges that {0} stole".format(ctx.hostport))
-    routes = RouteList(session.get_routes())
+    log.warning("Searching for ranges that '{0}' stole".format(ctx.address))
+    routes = RouteList.from_session(session)
     log.debug("Total routes: {0}".format(len(routes)))
 
     for group in ctx.groups:
@@ -276,7 +273,7 @@ def main(ctx):
             group_stats.timer.group('finished')
             continue
         # We should not run iterators on ourselves
-        assert all(node != ctx.host for _, node in ranges)
+        assert all(address != ctx.address for _, address in ranges)
 
         log.warning("Running iterators against: {0} range(s)".format(len(ranges)))
         group_stats.timer.group('iterators')
@@ -321,7 +318,7 @@ if __name__ == '__main__':
                       help="Output log messages from library to file [default: %default]")
     parser.add_option("-L", "--log-level", action="store", dest="elliptics_log_level", default="0",
                       help="Elliptics client verbosity [default: %default]")
-    parser.add_option("-r", "--remote", action="store", dest="elliptics_remote", default="127.0.0.1:1025",
+    parser.add_option("-r", "--remote", action="store", dest="elliptics_remote", default="127.0.0.1:1025:2",
                       help="Elliptics node address [default: %default]")
     parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default="1",
                       help="Comma separated list of groups [default: %default]")
@@ -351,12 +348,11 @@ if __name__ == '__main__':
     ctx.stats = Stats(name='global')
 
     try:
-        ctx.hostport = options.elliptics_remote
-        ctx.host, ctx.port = split_host_port(options.elliptics_remote)
+        ctx.address = Address.from_host_port_family(options.elliptics_remote)
     except Exception as e:
-        raise ValueError("Can't parse host:port: '{0}': {1}".format(
+        raise ValueError("Can't parse host:port:family: '{0}': {1}".format(
             options.elliptics_remote, repr(e)))
-    log.info("Using host:port: {0}:{1}".format(ctx.host, ctx.port))
+    log.info("Using host:port:family: {0}".format(ctx.address))
 
     try:
         ctx.groups = map(int, options.elliptics_groups.split(','))
@@ -402,7 +398,7 @@ if __name__ == '__main__':
     log.debug("Creating logger")
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
     log.debug("Creating node")
-    ctx.node = elliptics_create_node(host=ctx.host, port=ctx.port, elog=ctx.elog)
+    ctx.node = elliptics_create_node(address=ctx.address, elog=ctx.elog)
 
     result = main(ctx)
 
