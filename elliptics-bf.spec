@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.6.5
+Version:	2.20.6.6
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon May 20 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.6
+- Release GIL in python binding in stat_log() method
+
 * Fri May 17 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.5
 - Depend on less than 0.19 eblob
 

@@ -1,3 +1,9 @@
+elliptics (2.20.6.6) unstable; urgency=low
+
+  * Release GIL in python binding in stat_log() method
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 20 May 2013 20:52:43 +0400
+
 elliptics (2.20.6.5) unstable; urgency=low
 
   * Depend on less than 0.19 eblob
