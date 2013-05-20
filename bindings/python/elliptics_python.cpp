@@ -438,6 +438,7 @@ class elliptics_session: public session, public wrapper<session> {
 			int err;
 			int i;
 
+			Py_BEGIN_ALLOW_THREADS;
 			err = dnet_request_stat(get_native(), NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL,
 						callback::handler, &c);
 			if (err < 0) {
@@ -447,6 +448,7 @@ class elliptics_session: public session, public wrapper<session> {
 			}
 
 			ret = c.wait(err);
+			Py_END_ALLOW_THREADS;
 
 			const void *data = ret.data();
 			int size = ret.size();
