@@ -132,6 +132,11 @@ class RouteList(object):
             merged_routes.append(list(g)[0])
         assert len(merged_routes) <= len(sorted_routes)
 
+        # Remove first route if it equals the last one
+        if len(merged_routes) > 1:
+            if merged_routes[-1].address == merged_routes[0].address:
+                merged_routes.pop(0)
+
         # Return RouteList from sorted and merged routes
         return cls(merged_routes)
 
