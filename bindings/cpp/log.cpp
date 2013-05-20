@@ -130,8 +130,12 @@ class file_logger_interface : public logger_interface {
 
 			snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %ld/%d : ", tv.tv_usec, dnet_get_id(), getpid());
 
-			m_stream << str << usecs_and_id << msg;
-			m_stream.flush();
+			if (m_stream) {
+				m_stream << str << usecs_and_id << msg;
+				m_stream.flush();
+			} else {
+				std::cerr << str << usecs_and_id << ": could not write log in elliptics file logger" << std::endl;
+			}
 		}
 
 	private:
