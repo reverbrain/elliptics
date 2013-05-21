@@ -693,10 +693,12 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 
 			int result = functor->process(&finished);
 
+			// Mark command as no-lock, so that lock will not be released in dnet_process_cmd_raw()
+			// Lock will be releaseed when indexes are fully updated
 			cmd->flags |= DNET_FLAGS_NOLOCK;
 
 			if (!finished) {
-				// Keep a lock until the request is finally processed
+				// Do not send final ACK, it will be sent when all indexes are fully updated
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
 			return result;
