@@ -1,3 +1,15 @@
+elliptics (2.25.1.0) unstable; urgency=low
+
+  * Fixed write_commit behaviour for eblob
+  * Moved secondary indexes to elliptics-serverside
+  * Fixed "find" method name for cocaine service
+  * Split timestmp/start-num union. This breaks ABI, so we release 2.25
+  * Removed stats from processed methods
+  * Added process pool for processing range.
+  * Extended exec_context
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 21 May 2013 23:03:55 +0400
+
 elliptics (2.24.5.0) unstable; urgency=low
 
   * Dump to stderr if logger interface failed to write data
