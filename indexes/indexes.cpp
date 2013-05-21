@@ -28,7 +28,6 @@ namespace {
 #ifdef debug
 #	undef debug
 #endif
-#define debug() if (1) {} else std::cerr
 
 enum update_index_action {
 	insert_data = 1,
@@ -75,7 +74,6 @@ class local_session
 
 		~local_session()
 		{
-//			debug() << "refcnt: " << atomic_read(&m_state->refcnt) << std::endl;
 			dnet_state_put(m_state);
 			dnet_state_put(m_state);
 		}
@@ -98,7 +96,6 @@ class local_session
 
 			int err = dnet_process_cmd_raw(m_state, &cmd, &io);
 			if (err) {
-				debug() << __LINE__ << std::endl;
 				clear_queue();
 				*errp = err;
 				return data_pointer();
@@ -111,11 +108,11 @@ class local_session
 			size_t total_size = 0;
 
 			list_for_each_entry_safe(r, tmp, &m_state->send_list, req_entry) {
-				debug() << "hsize: " << r->hsize << ", dsize: " << r->dsize << std::endl;
+				dnet_log(m_state->n, DNET_LOG_DEBUG, "hsize: %zu, dsize: %zu", r->hsize, r->dsize);
 
 				dnet_cmd *req_cmd = reinterpret_cast<dnet_cmd *>(r->header ? r->header : r->data);
 
-				debug() << "entry in list, status: " << req_cmd->status << std::endl;
+				dnet_log(m_state->n, DNET_LOG_DEBUG, "entry in list, status: %d", req_cmd->status);
 
 				if (req_cmd->status) {
 					*errp = req_cmd->status;
@@ -142,7 +139,8 @@ class local_session
 
 					total_size += data.size();
 
-					debug() << "entry in list, size: " << req_io->size << std::endl;
+					dnet_log(m_state->n, DNET_LOG_DEBUG, "entry in list, size: %llu",
+						static_cast<unsigned long long>(req_io->size));
 				}
 
 //				list_del(&r->req_entry);
@@ -180,7 +178,7 @@ class local_session
 			buffer.write(io);
 			buffer.write(data, size);
 
-			debug() << "going to write size: " << size << std::endl;
+			dnet_log(m_state->n, DNET_LOG_DEBUG, "going to write size: %zu", size);
 
 			data_pointer datap = std::move(buffer);
 
@@ -280,10 +278,6 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	{
 		this->cmd.flags |= DNET_FLAGS_MORE;
 
-		debug() << "cmd->size: " << cmd->size
-			<< ", request: " << sizeof(dnet_indexes_request)
-			<< ", entry: " << sizeof(dnet_indexes_request_entry) << std::endl;
-
 		request_id = request->id;
 
 		size_t data_offset = 0;
@@ -302,14 +296,11 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 		std::sort(indexes.indexes.begin(), indexes.indexes.end(), dnet_raw_id_less_than<>());
 		msgpack::pack(buffer, indexes);
-
-		debug() << __PRETTY_FUNCTION__ << std::endl;
 	}
 
 	~update_indexes_functor()
 	{
 		dnet_opunlock(state->n, &cmd.id);
-		debug() << __PRETTY_FUNCTION__ << std::endl;
 		dnet_state_put(state);
 	}
 
@@ -341,7 +332,6 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	 */
 	data_pointer convert_object_indexes(const data_pointer &data)
 	{
-		debug() << std::endl;
 		if (data.empty()) {
 			remote_indexes.indexes.clear();
 		} else {
@@ -354,7 +344,6 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	int process(bool *finished)
 	{
 		*finished = false;
-		debug() << "process: " << indexes.indexes << std::endl;
 
 		int err = 0;
 		data_pointer data = sess.read(cmd.id, &err);
@@ -362,10 +351,10 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		data_pointer new_data = convert_object_indexes(data);
 
 		if (data == new_data) {
-			debug() << "update: data the same" << std::endl;
+			dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_UPDATE: data is the same");
 			return complete(0, finished);
 		}
-		debug() << "update: data is different" << std::endl;
+		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_UPDATE: data is different");
 
 		err = sess.write(cmd.id, new_data);
 		if (err) {
@@ -381,11 +370,9 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			indexes.indexes.begin(), indexes.indexes.end(),
 			std::back_inserter(removed_ids), dnet_raw_id_less_than<skip_data>());
 
-		debug() << "insert: " << inserted_ids << ", remove: " << removed_ids << std::endl;
 		if (inserted_ids.empty() && removed_ids.empty()) {
 			return complete(0, finished);
 		}
-		debug() << std::endl;
 
 		dnet_indexes_reply_entry result_entry;
 		memset(&result_entry, 0, sizeof(result_entry));
@@ -457,7 +444,6 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 				return complete(err, finished);
 			}
 		}
-		debug() << std::endl;
 
 		for (size_t i = 0; i < local_removed_ids.size(); ++i) {
 			const index_entry &entry = removed_ids[local_removed_ids[i]];
@@ -530,8 +516,6 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 		int err = dnet_trans_alloc_send(sess, &control);
 
-		debug() << "send_remote: " << err << ", group: " << control.id.group_id << std::endl;
-
 		if (err) {
 			--requests_in_progress;
 		}
@@ -600,7 +584,6 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
  */
 data_pointer convert_index_table(const dnet_id &request_id, const data_pointer &index_data, const data_pointer &data, update_index_action action)
 {
-	debug() << std::endl;
 	dnet_indexes indexes;
 	if (!data.empty())
 		indexes_unpack(data, &indexes, "convert_index_table");
@@ -609,8 +592,6 @@ data_pointer convert_index_table(const dnet_id &request_id, const data_pointer &
 	index_entry request_index;
 	memcpy(request_index.index.id, request_id.id, sizeof(request_index.index.id));
 	request_index.data = index_data;
-
-	debug() << "request_id: " << request_index.index << std::endl;
 
 	auto it = std::lower_bound(indexes.indexes.begin(), indexes.indexes.end(),
 		request_index, dnet_raw_id_less_than<skip_data>());
@@ -656,7 +637,14 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 	dnet_indexes_request_entry &entry = request->entries[0];
 	const data_pointer entry_data = data_pointer::from_raw(entry.data, entry.size);
 
-	debug() << "internal index: " << entry.id << ", object: " << reinterpret_cast<dnet_raw_id&>(request->id) << std::endl;
+	if (state->n->log->log_level >= DNET_LOG_DEBUG) {
+		char index_buffer[DNET_DUMP_NUM * 2 + 1];
+		char object_buffer[DNET_DUMP_NUM * 2 + 1];
+
+		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: index: %s, object: %s",
+			dnet_dump_id_len_raw(entry.id.id, DNET_DUMP_NUM, index_buffer),
+			dnet_dump_id_len_raw(request->id.id, DNET_DUMP_NUM, object_buffer));
+	}
 
 	update_index_action action;
 	if (entry.flags & insert_data) {
@@ -664,7 +652,8 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 	} else if (entry.flags & remove_data) {
 		action = remove_data;
 	} else {
-		debug() << "internal: invalid flags" << std::endl;
+		dnet_log(state->n, DNET_LOG_ERROR, "INDEXES_INTERNAL: invalid flags: 0x%llx",
+			static_cast<unsigned long long>(entry.flags));
 		return -EINVAL;
 	}
 
@@ -673,10 +662,10 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 	data_pointer new_data = convert_index_table(request->id, entry_data, data, action);
 
 	if (data == new_data) {
-		debug() << "internal: data the same" << std::endl;
+		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is the same");
 		return 0;
 	}
-	debug() << "internal: data is different" << std::endl;
+	dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is different");
 
 	return sess.write(cmd->id, new_data);
 }
@@ -696,8 +685,6 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 {
 	dnet_indexes_request *request = static_cast<dnet_indexes_request*>(data);
 
-	debug() << "process: " << dnet_cmd_string(cmd->cmd) << std::endl;
-
 	switch (cmd->cmd) {
 		case DNET_CMD_INDEXES_UPDATE: {
 			auto functor = std::make_shared<update_indexes_functor>(st, cmd, request);
@@ -712,8 +699,6 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 				// Keep a lock until the request is finally processed
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
-
-			debug() << "done" << std::endl;
 			return result;
 		}
 		case DNET_CMD_INDEXES_INTERNAL: {

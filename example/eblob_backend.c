@@ -198,8 +198,6 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 		/* Move offset past extended header */
 		if (!(io->flags & DNET_IO_FLAGS_APPEND))
 			io->offset += ehdr_size;
-		if (io->flags & DNET_IO_FLAGS_COMMIT)
-			io->num += sizeof(struct dnet_ext_list_hdr);
 	} else if (err > 0 || err == -ENOENT ||
 			(err == 0 && !(wc2.flags & BLOB_DISK_CTL_USR1))) {
 		/* Compressed, new record or old format record */
@@ -218,6 +216,9 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 		err = err ? err : -EIO;
 		goto err_out_exit;
 	}
+
+	if (io->flags & DNET_IO_FLAGS_COMMIT)
+		io->num += sizeof(struct dnet_ext_list_hdr);
 
 	if ((io->type == EBLOB_TYPE_META) && !(io->flags & DNET_IO_FLAGS_META)) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: meta-check: COLUMN %d IS RESERVED FOR METADATA\n",
