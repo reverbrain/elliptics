@@ -167,6 +167,9 @@ struct dnet_idc {
 int dnet_idc_create(struct dnet_net_state *st, int group_id, struct dnet_raw_id *ids, int id_num);
 void dnet_idc_destroy_nolock(struct dnet_net_state *st);
 
+int dnet_state_micro_init(struct dnet_net_state *st, struct dnet_node *n, struct dnet_addr *addr, int join,
+		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
+
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
 		struct dnet_addr *addr, int s, int *errp, int join, int idx,

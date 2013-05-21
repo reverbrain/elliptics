@@ -892,6 +892,60 @@ static int dnet_auth_send(struct dnet_net_state *st)
 	return dnet_trans_alloc_send_state(st, &ctl);
 }
 
+int dnet_state_micro_init(struct dnet_net_state *st,
+		struct dnet_node *n, struct dnet_addr *addr, int join,
+		int (* process)(struct dnet_net_state *st, struct epoll_event *ev))
+{
+	int err = 0;
+
+	st->n = n;
+
+	st->process = process;
+
+	st->la = 1;
+	st->weight = DNET_STATE_MAX_WEIGHT / 2;
+	st->median_read_time = 1000; /* useconds for start */
+
+	INIT_LIST_HEAD(&st->state_entry);
+	INIT_LIST_HEAD(&st->storage_state_entry);
+
+	st->trans_root = RB_ROOT;
+	INIT_LIST_HEAD(&st->trans_list);
+
+	st->epoll_fd = -1;
+
+	err = pthread_mutex_init(&st->trans_lock, NULL);
+	if (err) {
+		err = -err;
+		dnet_log_err(n, "Failed to initialize transaction mutex: %d", err);
+		goto err_out;
+	}
+
+	INIT_LIST_HEAD(&st->send_list);
+	err = pthread_mutex_init(&st->send_lock, NULL);
+	if (err) {
+		err = -err;
+		dnet_log_err(n, "Failed to initialize send mutex: %d", err);
+		goto err_out_trans_destroy;
+	}
+
+	atomic_init(&st->refcnt, 1);
+
+	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
+
+	dnet_schedule_command(st);
+	st->__join_state = join;
+
+	return 0;
+
+err_out_trans_destroy:
+	pthread_mutex_destroy(&st->trans_lock);
+err_out:
+	dnet_sock_close(st->write_s);
+
+	return err;
+}
+
 struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int group_id, struct dnet_raw_id *ids, int id_num,
 		struct dnet_addr *addr, int s, int *errp, int join, int idx,
@@ -926,43 +980,9 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 
 	fcntl(st->write_s, F_SETFD, FD_CLOEXEC);
 
-	st->n = n;
-
-	st->process = process;
-
-	st->la = 1;
-	st->weight = DNET_STATE_MAX_WEIGHT / 2;
-	st->median_read_time = 1000; /* useconds for start */
-
-	INIT_LIST_HEAD(&st->state_entry);
-	INIT_LIST_HEAD(&st->storage_state_entry);
-
-	st->trans_root = RB_ROOT;
-	INIT_LIST_HEAD(&st->trans_list);
-
-	st->epoll_fd = -1;
-
-	err = pthread_mutex_init(&st->trans_lock, NULL);
-	if (err) {
-		err = -err;
-		dnet_log_err(n, "Failed to initialize transaction mutex: %d", err);
+	err = dnet_state_micro_init(st, n, addr, join, process);
+	if (err)
 		goto err_out_dup_destroy;
-	}
-
-	INIT_LIST_HEAD(&st->send_list);
-	err = pthread_mutex_init(&st->send_lock, NULL);
-	if (err) {
-		err = -err;
-		dnet_log_err(n, "Failed to initialize send mutex: %d", err);
-		goto err_out_trans_destroy;
-	}
-
-	atomic_init(&st->refcnt, 1);
-
-	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
-
-	dnet_schedule_command(st);
-	st->__join_state = join;
 
 	if (n->client_prio) {
 		err = setsockopt(st->read_s, IPPROTO_IP, IP_TOS, &n->client_prio, 4);
@@ -1033,7 +1053,6 @@ err_out_unlock:
 err_out_send_destroy:
 	dnet_state_put(st);
 	pthread_mutex_destroy(&st->send_lock);
-err_out_trans_destroy:
 	pthread_mutex_destroy(&st->trans_lock);
 err_out_dup_destroy:
 	dnet_sock_close(st->write_s);
