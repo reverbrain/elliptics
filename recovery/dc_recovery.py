@@ -33,7 +33,7 @@ import elliptics
 
 log.getLogger()
 
-def run_iterators(ctx, range=None, stats=None):
+def run_iterators(ctx, range=None):
     """
     Runs local and remote iterators for each range.
     TODO: We can group iterators by host and run them in parallel
@@ -87,15 +87,13 @@ def run_iterators(ctx, range=None, stats=None):
             remote_it += 1
 
         results.append((local_result, remote_result))
-        #stats.counter.iterations += 2
     except Exception as e:
         log.error("Iteration failed for: {0}@{1}: {2}".format(
             range.id_range, range.address, repr(e)))
-        #stats.counter.iterations -= 1
 
     return results, local_records, remote_records, local_it, remote_it
 
-def sort(ctx, results, stats=None):
+def sort(ctx, results):
     """
     Runs sort routine for all iterator result
     """
@@ -131,7 +129,7 @@ def sort(ctx, results, stats=None):
             sort_sort -= 1
     return sorted_results, sort_skipped, sort_local, sort_remote, sort_sort
 
-def diff(ctx, results, stats=None):
+def diff(ctx, results):
     """
     Compute differences between local and remote results.
     TODO: We can compute up to CPU_NUM diffs at max in parallel
@@ -170,13 +168,11 @@ def diff(ctx, results, stats=None):
                             diff_results[format_id(res.key)] = res
                 else:
                     log.info("Resulting diff is empty, skipping range: {0}".format(local.id_range))
-                #stats.counter.diff += 1
             except Exception as e:
                 log.error("Diff of {0} failed: {1}".format(local.id_range, e))
-                #stats.counter.diff -= 1
     return diff_results
 
-def recover(ctx, diffs, stats=None):
+def recover(ctx, diffs):
     """
     Recovers difference between remote and local data.
     TODO: Group by diffs by host and process each group in parallel
@@ -231,12 +227,11 @@ def recover_keys(ctx, address, group, keys):
 
 def process_range(range):
     global g_ctx
-    stats = g_ctx.stats["recovery"]
     g_ctx.elog = elliptics.Logger(g_ctx.log_file, g_ctx.log_level)
-    it_results, local_r, remote_r, local_it, remote_it = run_iterators(g_ctx, range=range, stats=stats)
+    it_results, local_r, remote_r, local_it, remote_it = run_iterators(g_ctx, range=range)
     sorted_results, sort_skipped, sort_local, sort_remote, sort_sort = sort(g_ctx, it_results)
     diff_results = diff(g_ctx, sorted_results)
-    result, successes, failures = recover(g_ctx, diff_results, stats)
+    result, successes, failures = recover(g_ctx, diff_results)
 
     return result, local_r, remote_r, local_it, remote_it, sort_skipped, sort_local, sort_remote, sort_sort, len(diff_results), successes, failures
 
