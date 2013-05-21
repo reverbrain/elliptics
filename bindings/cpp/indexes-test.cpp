@@ -345,7 +345,7 @@ int main(int argc, char *argv[])
 		hash[id] = *it;
 	}
 
-//	clear(sess);
+	clear(sess);
 
 	test_1(sess);
 }

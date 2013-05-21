@@ -18,6 +18,7 @@ option(WITH_COCAINE "Build with cocaine support" ON)
 option(WITH_EXAMPLES "Build example applications" ON)
 option(WITH_LEVELDB "Build ioserv with LevelDB backend" ON)
 option(HAVE_MODULE_BACKEND_SUPPORT "Build ioserv with shared library backend support" OFF)
+#option(WITH_INDEXES "Build with indexes support" ON)
 
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
 
@@ -108,6 +109,7 @@ set(ELLIPTICS_LIBRARIES
 # Build parts
 add_subdirectory(srw)
 add_subdirectory(cache)
+add_subdirectory(indexes)
 add_subdirectory(library)
 add_subdirectory(bindings)
 if(WITH_EXAMPLES)

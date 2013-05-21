@@ -58,6 +58,8 @@ enum dnet_commands {
 	DNET_CMD_BULK_READ,			/* Read a number of ids at one time */
 	DNET_CMD_DEFRAG,			/* Start defragmentation process if backend supports it */
 	DNET_CMD_ITERATOR,			/* Start/stop/pause/status for server-side iterator */
+	DNET_CMD_INDEXES_UPDATE,		/* Update secondary indexes for id */
+	DNET_CMD_INDEXES_INTERNAL,		/* Update identificators table for certain secondary index. Internal usage only */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };
@@ -835,6 +837,49 @@ static inline void dnet_convert_iterator_response(struct dnet_iterator_response 
 	r->user_flags = dnet_bswap32(r->user_flags);
 	dnet_convert_time(&r->timestamp);
 }
+
+/*
+ * Indexes request entry
+ */
+struct dnet_indexes_request_entry
+{
+	struct dnet_raw_id		id;		/* Index ID */
+	uint64_t			flags;		/* Index flags */
+	uint64_t			reserved[2];
+	uint64_t			size;		/* Data size */
+	char				data[0];	/* Index-specific data */
+} __attribute__ ((packed));
+
+/*
+ * Indexes request
+ */
+struct dnet_indexes_request
+{
+	struct dnet_id			id;		/* Index ID with properly set group_id */
+	uint64_t			reserved[5];
+	uint64_t			entries_count;	/* Count of indexes */
+	struct dnet_indexes_request_entry	entries[0];	/* List of indexes to set */
+} __attribute__ ((packed));
+
+/*
+ * Indexes reply entry
+ */
+struct dnet_indexes_reply_entry
+{
+	struct dnet_raw_id		id;		/* Index ID */
+	int				status;		/* Index change status */
+	uint64_t			reserved[2];
+} __attribute__ ((packed));
+
+/*
+ * Indexes reply
+ */
+struct dnet_indexes_reply
+{
+	uint64_t			reserved[5];
+	uint64_t			entries_count;	/* Count of results */
+	struct dnet_indexes_reply_entry	entries[0];	/* List of entries update results */
+} __attribute__ ((packed));
 
 /*
  * Defragmentation control structure
