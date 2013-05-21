@@ -79,6 +79,17 @@ int dnet_transform(struct dnet_session *s, const void *src, uint64_t size, struc
 	return dnet_transform_raw(s, src, size, (char *)id->id, sizeof(id->id));
 }
 
+void dnet_indexes_transform_id(struct dnet_session *sess, const struct dnet_id *src, struct dnet_id *id)
+{
+	const size_t buffer_size = sizeof(src->id) + 5;
+	char buffer[buffer_size];
+
+	memcpy(buffer, src->id, sizeof(src->id));
+	memcpy(buffer + sizeof(src->id), "index", 5);
+
+	dnet_transform(sess, buffer, buffer_size, id);
+}
+
 static char *dnet_cmd_strings[] = {
 	[DNET_CMD_LOOKUP] = "LOOKUP",
 	[DNET_CMD_REVERSE_LOOKUP] = "REVERSE_LOOKUP",
@@ -99,6 +110,8 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_BULK_READ] = "BULK_READ",
 	[DNET_CMD_DEFRAG] = "DEFRAG",
 	[DNET_CMD_ITERATOR] = "ITERATOR",
+	[DNET_CMD_INDEXES_UPDATE] = "INDEXES_UPDATE",
+	[DNET_CMD_INDEXES_INTERNAL] = "INDEXES_INTERNAL",
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 

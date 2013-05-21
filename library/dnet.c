@@ -1019,6 +1019,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		case DNET_CMD_ITERATOR:
 			err = dnet_cmd_iterator(st, cmd, data);
 			break;
+		case DNET_CMD_INDEXES_UPDATE:
+		case DNET_CMD_INDEXES_INTERNAL:
+			err = dnet_process_indexes(st, cmd, data);
+			break;
 		case DNET_CMD_STAT_COUNT:
 			err = dnet_cmd_stat_count(st, cmd, data);
 			break;

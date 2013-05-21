@@ -2,33 +2,34 @@
 #include "callback_p.h"
 #include "functional_p.h"
 #include "../../include/elliptics/utils.hpp"
+#include "../../include/elliptics/debug.hpp"
 
 namespace ioremap { namespace elliptics {
 
 typedef async_result_handler<callback_result_entry> async_update_indexes_handler;
 
-static void on_update_index_entry(async_update_indexes_handler handler, const exec_result_entry &entry)
+#undef debug
+#define debug(DATA) if (1) {} else std::cerr << __PRETTY_FUNCTION__ << ":" << __LINE__ << " " << DATA << std::endl
+
+static void on_update_index_entry(async_update_indexes_handler handler, const callback_result_entry &entry)
 {
-	if (entry.error()) {
-		handler.process(entry);
-	} else if (!entry.data().empty()) {
-		const data_pointer data = entry.context().data();
-		update_result result;
+	debug("on_update_index_entry: status: " << entry.command()->status << ", size: " << entry.command()->size);
 
-		msgpack::unpacked msg;
-		msgpack::unpack(&msg, data.data<char>(), data.size());
-		msg.get().convert(&result);
+	handler.process(entry);
 
-		handler.process(entry);
+	if (!entry.data().empty()) {
+		dnet_indexes_reply *reply = entry.data<dnet_indexes_reply>();
 
-		for (size_t i = 0; i < result.indexes.size(); ++i) {
-			const update_result_entry &index_entry = result.indexes[i];
+		for (size_t i = 0; i < reply->entries_count; ++i) {
+			dnet_indexes_reply_entry &index_entry = reply->entries[i];
 			dnet_addr addr = *entry.address();
 			dnet_cmd cmd = *entry.command();
 
 			memcpy(cmd.id.id, index_entry.id.id, sizeof(cmd.id.id));
-			cmd.status = index_entry.error;
+			cmd.status = index_entry.status;
 			cmd.size = 0;
+
+			debug("generated: index: " << index_entry.id << ", status: " << cmd.status << ", size: " << cmd.size);
 
 			auto data = std::make_shared<callback_result_data>(&addr, &cmd);
 			handler.process(callback_result_entry(data));
@@ -38,6 +39,8 @@ static void on_update_index_entry(async_update_indexes_handler handler, const ex
 
 static void on_update_index_finished(async_update_indexes_handler handler, const error_info &error)
 {
+	debug("on_update_index_finished: status: " << error.code());
+
 	handler.complete(error);
 }
 
@@ -46,14 +49,6 @@ static void on_update_index_finished(async_update_indexes_handler handler, const
 async_update_indexes_result session::update_indexes(const key &request_id, const std::vector<index_entry> &indexes)
 {
 	transform(request_id);
-
-	dnet_id id = request_id.id();
-
-	update_request request;
-	request.id = request_id.id();
-	request.indexes = indexes;
-
-	msgpack::sbuffer buffer;
 
 	std::vector<int> groups(1, 0);
 
@@ -64,18 +59,64 @@ async_update_indexes_result session::update_indexes(const key &request_id, const
 	sess.set_checker(checkers::no_check);
 	sess.set_exceptions_policy(no_exceptions);
 
-	const std::string event = "indexes@update_base";
+	uint64_t data_size = 0;
+	for (size_t i = 0; i < indexes.size(); ++i) {
+		data_size += indexes[i].data.size();
+	}
 
-	std::list<async_exec_result> results;
+	data_buffer buffer(sizeof(dnet_indexes_request) + indexes.size() * sizeof(dnet_indexes_request_entry) + data_size);
+
+	dnet_id indexes_id;
+
+	dnet_indexes_request request;
+	dnet_indexes_request_entry entry;
+	memset(&request, 0, sizeof(request));
+	memset(&entry, 0, sizeof(entry));
+
+	request.id = request_id.id();
+
+	dnet_indexes_transform_id(get_native(), &request_id.id(), &indexes_id);
+	request.entries_count = indexes.size();
+
+	buffer.write(request);
+
+	for (size_t i = 0; i < indexes.size(); ++i) {
+		const index_entry &index = indexes[i];
+		entry.id = index.index;
+		entry.size = index.data.size();
+
+		buffer.write(entry);
+		if (entry.size > 0) {
+			buffer.write(index.data.data<char>(), index.data.size());
+		}
+	}
+
+	data_pointer data(std::move(buffer));
+
+	dnet_id &id = data.data<dnet_indexes_request>()->id;
+
+	std::list<async_generic_result> results;
+
+	transport_control control;
+	control.set_command(DNET_CMD_INDEXES_UPDATE);
+	control.set_data(data.data(), data.size());
+	control.set_cflags(DNET_FLAGS_NEED_ACK);
 
 	for (size_t i = 0; i < known_groups.size(); ++i) {
 		id.group_id = known_groups[i];
-		request.id = id;
+		indexes_id.group_id = id.group_id;
+
 		groups[0] = id.group_id;
 		sess.set_groups(groups);
 
-		msgpack::pack(&buffer, request);
-		results.emplace_back(sess.exec(&id, event, data_pointer::from_raw(buffer.data(), buffer.size())));
+		control.set_key(indexes_id);
+
+		async_generic_result result(sess);
+		auto cb = createCallback<single_cmd_callback>(sess, result, control);
+
+		startCallback(cb);
+
+		results.emplace_back(std::move(result));
 	}
 
 	auto result = aggregated(sess, results.begin(), results.end());

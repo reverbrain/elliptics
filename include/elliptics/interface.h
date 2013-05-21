@@ -814,6 +814,11 @@ int __attribute__((weak)) dnet_transform_node(struct dnet_node *n, const void *s
 		unsigned char *csum, int csize);
 int dnet_transform_raw(struct dnet_session *s, const void *src, uint64_t size, char *csum, unsigned int csize);
 
+/*
+ * Transform source id to id where to store it's secondary indexes table
+ */
+void dnet_indexes_transform_id(struct dnet_session *sess, const struct dnet_id *src, struct dnet_id *id);
+
 int dnet_request_ids(struct dnet_session *s, struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,

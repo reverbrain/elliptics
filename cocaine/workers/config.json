@@ -1,6 +1,0 @@
-{
-    "remotes": [
-        "localhost:1025:2"
-    ],
-    "node-log" : "/tmp/sindex.log",
-}
