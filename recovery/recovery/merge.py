@@ -199,12 +199,12 @@ def recover_keys(ctx, address, group, keys):
                                                   group=group,
                                                   cflags=elliptics.command_flags.direct,
         )
-        batch = direct_session.bulk_read_by_id(keys)
+        batch = direct_session.bulk_read(keys)
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num
 
-    size = sum(len(v) for v in batch.itervalues())
+    size = sum(len(v[1]) for v in batch)
     log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
     try:
         log.debug("Creating node for: {0}".format(ctx.address))
@@ -214,7 +214,7 @@ def recover_keys(ctx, address, group, keys):
                                                   group=group,
                                                   cflags=elliptics.command_flags.direct,
         )
-        direct_session.bulk_write_by_id(batch.iterkeys(), batch.itervalues())
+        direct_session.bulk_write(batch)
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num
