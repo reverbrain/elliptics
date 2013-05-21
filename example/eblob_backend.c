@@ -152,7 +152,6 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	uint64_t flags = 0;
 	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
 	int combined = 0;
-	uint64_t orig_size;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: %x, type: %d.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags, io->type);
@@ -161,8 +160,6 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 
 	dnet_ext_list_init(&elist);
 	dnet_ext_io_to_list(io, &elist);
-
-	orig_size = io->size;
 
 	data += sizeof(struct dnet_io_attr);
 
@@ -217,8 +214,8 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 		goto err_out_exit;
 	}
 
-	if (io->flags & DNET_IO_FLAGS_COMMIT)
-		io->num += sizeof(struct dnet_ext_list_hdr);
+	if ((io->flags & DNET_IO_FLAGS_COMMIT) || (io->flags & DNET_IO_FLAGS_PREPARE))
+		io->num += ehdr_size; /* increase prepared space by the size of external headers */
 
 	if ((io->type == EBLOB_TYPE_META) && !(io->flags & DNET_IO_FLAGS_META)) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: meta-check: COLUMN %d IS RESERVED FOR METADATA\n",
@@ -229,7 +226,7 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
 		wc.offset = 0;
-		wc.size = io->num + (io->size - orig_size); /* increase prepared space by the size of external headers */
+		wc.size = io->num;
 		wc.flags = flags;
 		wc.type = io->type;
 
