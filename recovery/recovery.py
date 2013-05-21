@@ -53,6 +53,8 @@ if __name__ == '__main__':
                       help="Statistics output format: {0} [default: %default]".format("/".join(ALLOWED_STATS)))
     parser.add_option("-D", "--dir", dest="tmp_dir", default='/var/tmp/', metavar="DIR",
                       help="Temporary directory for iterators' results [default: %default]")
+    parser.add_option("-n", "--nprocess", action="store", dest="nprocess", default="1",
+                      help="Number of subprocesses [default %default]")
 
     (options, args) = parser.parse_args()
 
@@ -118,6 +120,12 @@ if __name__ == '__main__':
         raise ValueError("Don't have write access to: {0}".format(options.tmp_dir))
     log.info("Using tmp directory: {0}".format(ctx.tmp_dir))
 
+    try:
+        ctx.nprocess = int(options.nprocess)
+    except Exception as e:
+        raise ValueError("Can't parse nprocess: '{0}': {1}".format(
+            options.nprocess, repr(e)))
+
     if options.stat not in ALLOWED_STATS:
         raise ValueError("Unknown output format: '{0}'. Available formats are: {1}".format(
             options.stat, ALLOWED_STATS))
@@ -130,13 +138,14 @@ if __name__ == '__main__':
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
 
     log.debug("Creating node")
-    ctx.node = elliptics_create_node(address=ctx.address, elog=ctx.elog)
+    node = elliptics_create_node(address=ctx.address, elog=ctx.elog)
 
     log.debug("Creating session for: {0}".format(ctx.address))
-    ctx.session = elliptics_create_session(node=ctx.node, group=0)
+    session = elliptics_create_session(node=node, group=0)
 
     log.warning("Parsing routing table".format(ctx.address))
-    ctx.routes = RouteList.from_session(ctx.session)
+    ctx.routes = RouteList.from_session(session)
+    log.debug(ctx.routes)
     log.debug("Total routes: {0}".format(len(ctx.routes)))
 
     if recovery_type == TYPE_MERGE:
