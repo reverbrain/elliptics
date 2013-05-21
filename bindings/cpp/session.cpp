@@ -209,6 +209,16 @@ dnet_addr *exec_context::address() const
 	return m_data ? &m_data->sph.data<sph>()->addr : NULL;
 }
 
+dnet_raw_id *exec_context::src_id() const
+{
+	return m_data ? &m_data->sph.data<sph>()->src : NULL;
+}
+
+data_pointer exec_context::self() const
+{
+	return m_data ? m_data->sph : data_pointer();	
+} 
+
 bool exec_context::is_final() const
 {
 	return m_data ? (m_data->sph.data<sph>()->flags & DNET_SPH_FLAGS_FINISH) : false;
