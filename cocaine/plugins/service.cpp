@@ -22,7 +22,7 @@ elliptics_service_t::elliptics_service_t(context_t &context, io::reactor_t &reac
 	on<io::storage::read  >("read",   std::bind(&elliptics_service_t::read,   this, _1, _2));
 	on<io::storage::write >("write",  std::bind(&elliptics_service_t::write,  this, _1, _2, _3, _4));
 	on<io::storage::remove>("remove", std::bind(&elliptics_service_t::remove, this, _1, _2));
-	on<io::storage::find  >("list",   std::bind(&elliptics_service_t::find,   this, _1, _2));
+	on<io::storage::find  >("find",   std::bind(&elliptics_service_t::find,   this, _1, _2));
 }
 
 deferred<std::string> elliptics_service_t::read(const std::string &collection, const std::string &key)
