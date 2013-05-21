@@ -117,7 +117,6 @@ if(WITH_EXAMPLES)
 endif()
 if(WITH_COCAINE)
     add_subdirectory(cocaine/plugins)
-    add_subdirectory(cocaine/workers)
 endif()
 
 install(FILES
