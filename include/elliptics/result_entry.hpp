@@ -56,8 +56,18 @@ class exec_context
 		std::string event() const;
 		// event data
 		data_pointer data() const;
-		// address of the machine emitted the reply
+
+		// access to address of the machine emitted the reply
 		dnet_addr *address() const;
+
+		// access to "return id" by which reply is routed back,
+		// allows to augment sph.src with some sub id or change it completely
+		//NOTE: dangerous, use with care
+		dnet_raw_id *src_id() const;
+
+		// get back data block of the entire request
+		data_pointer self() const; 
+
 		bool is_final() const;
 		bool is_null() const;
 

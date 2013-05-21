@@ -87,10 +87,10 @@ class Route(object):
         self.address = address
 
     def __repr__(self):
-        return 'Route({0}, {1})'.format(repr(self.key), repr(self.address))
+        return 'Route({0}, {1}, {2})'.format(repr(self.key), repr(self.address), self.key.group_id)
 
     def __str__(self):
-        return 'Route({0}, {1})'.format(format_id(self.key.id), self.address)
+        return 'Route({0}, {1}, {2})'.format(format_id(self.key.id), self.address, self.key.group_id)
 
     def __iter__(self):
         return iter((self.key, self.address))
