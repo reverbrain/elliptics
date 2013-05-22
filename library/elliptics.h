@@ -588,7 +588,7 @@ struct dnet_trans
 
 void dnet_trans_destroy(struct dnet_trans *t);
 struct dnet_trans *dnet_trans_alloc(struct dnet_node *n, uint64_t size);
-int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_control *ctl);
+int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl);
 int dnet_trans_timer_setup(struct dnet_trans *t);
 
 static inline struct dnet_trans *dnet_trans_get(struct dnet_trans *t)

@@ -199,7 +199,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 	free(t);
 }
 
-int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_control *ctl)
+int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl)
 {
 	struct dnet_io_req req;
 	struct dnet_node *n = st->n;
@@ -217,21 +217,24 @@ int dnet_trans_alloc_send_state(struct dnet_net_state *st, struct dnet_trans_con
 
 	t->complete = ctl->complete;
 	t->priv = ctl->priv;
+	if (s) {
+		t->wait_ts = *dnet_session_get_timeout(s);
+	} else {
+		t->wait_ts = n->wait_ts;
+	}
 
 	cmd = (struct dnet_cmd *)(t + 1);
 
 	memcpy(&cmd->id, &ctl->id, sizeof(struct dnet_id));
 	cmd->flags = ctl->cflags;
-	cmd->size = ctl->size;
+	cmd->size = ctl->size;	
+	cmd->cmd = t->command = ctl->cmd;
+	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
-	cmd->cmd = t->command = ctl->cmd;
-
 	if (ctl->size && ctl->data)
 		memcpy(cmd + 1, ctl->data, ctl->size);
-
-	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
 	dnet_convert_cmd(cmd);
 
@@ -274,7 +277,7 @@ int dnet_trans_alloc_send(struct dnet_session *s, struct dnet_trans_control *ctl
 		goto err_out_exit;
 	}
 
-	err = dnet_trans_alloc_send_state(st, ctl);
+	err = dnet_trans_alloc_send_state(s, st, ctl);
 	dnet_state_put(st);
 
 err_out_exit:
@@ -299,9 +302,10 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT, wait-ts: %ld, started: %s.%06lu\n",
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT, wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
 				dnet_state_dump_addr(st), (unsigned long long)t->trans,
 				(unsigned long)t->wait_ts.tv_sec,
+				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
 		trans_timeout++;
 	}

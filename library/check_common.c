@@ -52,8 +52,8 @@ static int dnet_check_complete(struct dnet_net_state *state, struct dnet_cmd *cm
 	return err;
 }
 
-static int dnet_send_check_request(struct dnet_net_state *st, struct dnet_id *id,
-		struct dnet_wait *w, struct dnet_check_request *r)
+static int dnet_send_check_request(struct dnet_session *s, struct dnet_net_state *st,
+		struct dnet_id *id, struct dnet_wait *w, struct dnet_check_request *r)
 {
 	struct dnet_trans_control ctl;
 	char ctl_time[64];
@@ -83,7 +83,7 @@ static int dnet_send_check_request(struct dnet_net_state *st, struct dnet_id *id
 	ctl.data = r;
 	ctl.size = sizeof(*r) + r->obj_num * sizeof(struct dnet_id) + r->group_num * sizeof(int);
 
-	return dnet_trans_alloc_send_state(st, &ctl);
+	return dnet_trans_alloc_send_state(s, st, &ctl);
 }
 
 int dnet_request_check(struct dnet_session *s, struct dnet_check_request *r)
@@ -111,7 +111,7 @@ int dnet_request_check(struct dnet_session *s, struct dnet_check_request *r)
 			dnet_wait_get(w);
 
 			dnet_setup_id(&raw, st->idc->group->group_id, st->idc->ids[0].raw.id);
-			dnet_send_check_request(st, &raw, w, r);
+			dnet_send_check_request(s, st, &raw, w, r);
 			num++;
 		}
 	}
