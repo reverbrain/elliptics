@@ -1678,40 +1678,24 @@ int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, void *data
 	struct dnet_net_state *st = state;
 	struct dnet_file_info *info;
 	struct dnet_addr *a;
-	int err;
-	const char file[] = "";
-	const size_t flen = sizeof(file) - 1;
+	const size_t a_size = sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + 1;
 
-	a = malloc(sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen);
-	if (!a) {
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
+	a = alloca(a_size);
+	memset(a, 0, a_size);
+
 	info = (struct dnet_file_info *)(a + 1);
 
 	dnet_fill_state_addr(state, a);
 	dnet_convert_addr(a);
 
-	memset(info, 0, sizeof(struct dnet_file_info));
-
 	if (size >= 0)
 		info->size = size;
-
-	if (flen > 0) {
-		info->flen = flen;
-		memcpy(info + 1, file, flen);
-	}
 
 	if (cmd->flags & DNET_FLAGS_CHECKSUM)
 		dnet_checksum_data(st->n, data, size, info->checksum, sizeof(info->checksum));
 
 	dnet_convert_file_info(info);
-
-	err = dnet_send_reply(state, cmd, a, sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen, 0);
-
-	free(a);
-err_out_exit:
-	return err;
+	return dnet_send_reply(state, cmd, a, a_size, 0);
 }
 
 int dnet_checksum_data(struct dnet_node *n, const void *data, uint64_t size, unsigned char *csum, int csize)
