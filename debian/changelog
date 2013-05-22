@@ -1,3 +1,14 @@
+elliptics (2.24.6.0) unstable; urgency=low
+
+  * Revert "v2.25.1.0", please note that this still breaks ABI compatibility with pre-2.24.6 clients
+  * Fixed usage of session's wait timeout
+  * Recovery improvements
+  * ext: lookup now supports extended format
+  * ext: optimized blob_read()
+  * Moved ID locks implementation to RBTree
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 23 May 2013 00:43:11 +0400
+
 elliptics (2.24.5.0) unstable; urgency=low
 
   * Dump to stderr if logger interface failed to write data
