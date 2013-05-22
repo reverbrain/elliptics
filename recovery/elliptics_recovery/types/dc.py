@@ -20,12 +20,12 @@ from itertools import groupby
 
 from multiprocessing import Pool, Manager
 
-from .recover.ctx import Ctx
+from ..ctx import Ctx
 
-from .recover.range import IdRange, RecoveryRange
-from .recover.iterator import Iterator
-from .recover.time import Time
-from .recover.utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
+from ..range import IdRange, RecoveryRange
+from ..iterator import Iterator
+from ..time import Time
+from ..utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
