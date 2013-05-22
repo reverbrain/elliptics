@@ -1,15 +1,16 @@
 #!/usr/bin/env python
+# vim: set ts=4:sw=4:expandtab:
 
 from distutils.core import setup
 
 vstr = '0.0.1'
 try:
-	f = open('debian/changelog')
-	qstr = f.readline()
-	vstr = '.'.join(qstr.split()[1].strip("()").split(".")[:2])
-	f.close()
+    f = open('debian/changelog')
+    qstr = f.readline()
+    vstr = '.'.join(qstr.split()[1].strip("()").split(".")[:2])
+    f.close()
 except:
-	pass
+    pass
 
 print vstr
 setup(name = 'elliptics',
