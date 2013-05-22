@@ -9,10 +9,10 @@ import os
 import sys
 import logging as log
 
-from recover.route import RouteList, Address
-from recover.stat import Stats
-from recover.time import Time
-from recover.utils.misc import elliptics_create_node, elliptics_create_session
+from dnet_recovery.recover.route import RouteList, Address
+from dnet_recovery.recover.stat import Stats
+from dnet_recovery.recover.time import Time
+from dnet_recovery.recover.utils.misc import elliptics_create_node, elliptics_create_session
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -29,7 +29,7 @@ STAT_TEXT = 'text'
 ALLOWED_STATS = (STAT_NONE, STAT_TEXT)
 
 if __name__ == '__main__':
-    from recover.ctx import Ctx
+    from dnet_recovery.recover.ctx import Ctx
     from optparse import OptionParser
 
     parser = OptionParser()
@@ -149,10 +149,10 @@ if __name__ == '__main__':
     log.debug("Total routes: {0}".format(len(ctx.routes)))
 
     if recovery_type == TYPE_MERGE:
-        from recovery_merge import main
+        from dnet_recovery.merge import main
         result = main(ctx)
     elif recovery_type == TYPE_DC:
-        from dc_recovery import main
+        from dnet_recovery.dc import main
         result = main(ctx)
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
