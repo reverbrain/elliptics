@@ -977,6 +977,8 @@ int dnet_db_iterate(struct eblob_backend *b, struct dnet_iterate_ctl *ctl);
 
 int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offset, int64_t size);
 int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd,void *data, int64_t size);
+int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
+		uint64_t offset, int64_t size, struct dnet_time *timestamp);
 
 int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_addr **addrs);
 /*

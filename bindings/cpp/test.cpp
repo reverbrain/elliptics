@@ -274,6 +274,53 @@ static void test_append(session &s)
 	}
 }
 
+// Test manual write with commit flag
+static void test_commit(session &s)
+{
+	try {
+		std::string key = "commit-test";
+		std::string data = "commit-test-data";
+
+		// Cleanup previous test reincarnation
+		try {
+			s.remove(key).wait();
+		} catch (const std::exception &e) {}
+
+		// Manually construct io control
+		struct dnet_io_control ctl;
+		memset(&ctl, 0, sizeof(ctl));
+
+		dnet_id raw;
+		s.transform(key, raw);
+		memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
+
+		ctl.cflags = s.get_cflags();
+		ctl.data = data_pointer(data).data();
+		ctl.io.flags = DNET_IO_FLAGS_COMMIT;
+		ctl.io.user_flags = 0;
+		ctl.io.offset = 0;
+		ctl.io.size = data.size();
+		ctl.io.type = 0;
+		ctl.io.num = data.size();
+		ctl.fd = -1;
+
+		// Write
+		s.write_data(ctl).wait();
+
+		// Read
+		std::string result;
+		result = s.read_data(key, 0, 0).get()[0].file().to_string();
+		std::cerr << key << ": " << result << std::endl;
+
+		// Check
+		if (result != data)
+			throw std::runtime_error(result + " != " + data);
+	} catch (const std::exception &e) {
+		std::cerr << "COMMIT test failed: " << e.what() << std::endl;
+		throw std::runtime_error("COMMIT test failed");
+	}
+}
+
 static void test_cas(session &s)
 {
 	try {
@@ -680,6 +727,8 @@ int main(int argc, char *argv[])
 
 		column_test(s);
 		s.set_ioflags(0);
+
+		test_commit(s);
 
 		test_prepare_commit(s, 0, 0);
 		test_prepare_commit(s, 1, 0);

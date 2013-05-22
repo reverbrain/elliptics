@@ -1,15 +1,16 @@
 #!/usr/bin/env python
+# vim: set ts=4:sw=4:expandtab:
 
 from distutils.core import setup
 
 vstr = '0.0.1'
 try:
-	f = open('debian/changelog')
-	qstr = f.readline()
-	vstr = '.'.join(qstr.split()[1].strip("()").split(".")[:2])
-	f.close()
+    f = open('debian/changelog')
+    qstr = f.readline()
+    vstr = '.'.join(qstr.split()[1].strip("()").split(".")[:2])
+    f.close()
 except:
-	pass
+    pass
 
 print vstr
 setup(name = 'elliptics',
@@ -25,8 +26,12 @@ setup(name = 'elliptics_recovery',
       version = vstr,
       description = 'Elliptics - data center and merge recovery module',
       url = 'http://www.ioremap.net/projects/elliptics',
-      package_dir = {'dnet_recovery':'recovery/recovery', 'dnet_recovery/recover':'recovery/recovery/recover', 'dnet_recovery/recover/utils': 'recovery/recovery/recover/utils'},
-      packages = ['dnet_recovery', 'dnet_recovery/recover', 'dnet_recovery/recover/utils'],
+      package_dir = {
+          'elliptics_recovery': 'recovery/elliptics_recovery',
+          'elliptics_recovery/types': 'recovery/elliptics_recovery/types',
+          'elliptics_recovery/utils': 'recovery/elliptics_recovery/utils',
+          },
+      packages = ['elliptics_recovery', 'elliptics_recovery/types', 'elliptics_recovery/utils'],
       data_files = [('/usr/bin', ['recovery/dnet_recovery'])],
       license = 'GPLv2',
       )
