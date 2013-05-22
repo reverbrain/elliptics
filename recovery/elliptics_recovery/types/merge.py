@@ -15,10 +15,10 @@ import logging as log
 
 from itertools import groupby
 
-from recover.range import IdRange, RecoveryRange
-from recover.iterator import Iterator
-from recover.time import Time
-from recover.utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
+from ..range import IdRange, RecoveryRange
+from ..iterator import Iterator
+from ..time import Time
+from ..utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -64,13 +64,14 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
     """
     results = []
     local_eid = routes.filter_by_address(ctx.address)[0].key
+    local_node = elliptics_create_node(address=ctx.address, elog=ctx.elog)
     for iteration_range in ranges:
         try:
             timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
 
             log.debug("Running local iterator on: {0}".format(mk_container_name(
                 iteration_range.id_range, local_eid)))
-            local_result = Iterator(ctx.node, group).start(
+            local_result = Iterator(local_node, group).start(
                 eid=local_eid,
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
@@ -85,7 +86,7 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
             remote_eid = routes.filter_by_address(iteration_range.address)[0].key
             log.debug("Running remote iterator on: {0}".format(mk_container_name(
                 iteration_range.id_range, remote_eid)))
-            remote_result = Iterator(ctx.node, group).start(
+            remote_result = Iterator(local_node, group).start(
                 eid=remote_eid,
                 timestamp_range=timestamp_range,
                 key_range=iteration_range.id_range,
@@ -199,12 +200,12 @@ def recover_keys(ctx, address, group, keys):
                                                   group=group,
                                                   cflags=elliptics.command_flags.direct,
         )
-        batch = direct_session.bulk_read_by_id(keys)
+        batch = direct_session.bulk_read(keys)
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num
 
-    size = sum(len(v) for v in batch.itervalues())
+    size = sum(len(v[1]) for v in batch)
     log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
     try:
         log.debug("Creating node for: {0}".format(ctx.address))
@@ -214,7 +215,7 @@ def recover_keys(ctx, address, group, keys):
                                                   group=group,
                                                   cflags=elliptics.command_flags.direct,
         )
-        direct_session.bulk_write_by_id(batch.iterkeys(), batch.itervalues())
+        direct_session.bulk_write(batch)
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num

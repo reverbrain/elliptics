@@ -39,7 +39,7 @@ class ResultCounter(object):
     def __str__(self):
         result = []
         for cntr in self.__slots__:
-            if cntr != 'name':
+            if cntr != 'name' and getattr(self, cntr) != 0:
                 result.append(format_kv(self.name + '_' + cntr, getattr(self, cntr)))
         return "\n".join(result)
 

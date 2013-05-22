@@ -13,19 +13,13 @@ __doc__ = \
     """
 
 import sys
-import os
 import logging as log
 
-from itertools import groupby
+from multiprocessing import Pool
 
-from multiprocessing import Pool, Manager
-
-from recover.ctx import Ctx
-
-from recover.range import IdRange, RecoveryRange
-from recover.iterator import Iterator
-from recover.time import Time
-from recover.utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
+from ..iterator import Iterator
+from ..time import Time
+from ..utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -105,7 +99,7 @@ def sort(ctx, results):
     for local, remote in results:
         if not (local.status and all(r.status for r in remote)):
             log.debug("Sort skipped because local or remote iterator failed")
-            skipped += 1
+            sort_skipped += 1
             continue
         if len(remote) == 0:
             log.debug("Sort skipped remote iterator results are empty")
@@ -252,7 +246,7 @@ def main(ctx):
     log.debug("Recovery ranges: %d" % len(ranges))
     if not ranges:
         log.warning("No ranges to recover for address %s" % g_ctx.address)
-        group_stats.timer.main('finished')
+        g_ctx.stats.timer.main('finished')
         return result
 
     async_results = []
