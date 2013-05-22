@@ -889,7 +889,7 @@ static int dnet_auth_send(struct dnet_net_state *st)
 
 	ctl.complete = dnet_auth_complete;
 
-	return dnet_trans_alloc_send_state(st, &ctl);
+	return dnet_trans_alloc_send_state(NULL, st, &ctl);
 }
 
 int dnet_state_micro_init(struct dnet_net_state *st,

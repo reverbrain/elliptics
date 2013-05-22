@@ -1145,7 +1145,8 @@ void dnet_wait_destroy(struct dnet_wait *w)
 	free(w);
 }
 
-static int dnet_send_cmd_single(struct dnet_net_state *st,
+static int dnet_send_cmd_single(struct dnet_session *s,
+	struct dnet_net_state *st,
 	struct dnet_id *id,
 	int (* complete)(struct dnet_net_state *state,
 			struct dnet_cmd *cmd,
@@ -1171,7 +1172,7 @@ static int dnet_send_cmd_single(struct dnet_net_state *st,
 
 	ctl.data = e;
 
-	return dnet_trans_alloc_send_state(st, &ctl);
+	return dnet_trans_alloc_send_state(s, st, &ctl);
 }
 
 int dnet_send_cmd(struct dnet_session *s,
@@ -1200,7 +1201,7 @@ int dnet_send_cmd(struct dnet_session *s,
 		st = dnet_state_get_first(n, id);
 		if (!st)
 			goto err_out_exit;
-		err = dnet_send_cmd_single(st, id, complete, priv, e, dnet_session_get_cflags(s));
+		err = dnet_send_cmd_single(s, st, id, complete, priv, e, dnet_session_get_cflags(s));
 		dnet_state_put(st);
 		num = 1;
 	} else if (id && id->group_id == 0) {
@@ -1211,7 +1212,7 @@ int dnet_send_cmd(struct dnet_session *s,
 			st = dnet_state_search_nolock(n, id);
 			if (st) {
 				if (st != n->st) {
-					err = dnet_send_cmd_single(st, id, complete, priv, e, dnet_session_get_cflags(s));
+					err = dnet_send_cmd_single(s, st, id, complete, priv, e, dnet_session_get_cflags(s));
 					num++;
 				}
 				dnet_state_put(st);
@@ -1237,7 +1238,7 @@ int dnet_send_cmd(struct dnet_session *s,
 
 				dnet_setup_id(&tmp_id, g->group_id, st->idc->ids[0].raw.id);
 				memcpy(e->src.id, st->idc->ids[0].raw.id, DNET_ID_SIZE);
-				err = dnet_send_cmd_single(st, &tmp_id, complete, priv, e, dnet_session_get_cflags(s));
+				err = dnet_send_cmd_single(s, st, &tmp_id, complete, priv, e, dnet_session_get_cflags(s));
 				num++;
 			}
 		}
@@ -1440,7 +1441,7 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 static int dnet_request_cmd_single(struct dnet_session *s, struct dnet_net_state *st, struct dnet_trans_control *ctl)
 {
 	if (st)
-		return dnet_trans_alloc_send_state(st, ctl);
+		return dnet_trans_alloc_send_state(s, st, ctl);
 	else
 		return dnet_trans_alloc_send(s, ctl);
 }
@@ -2452,7 +2453,7 @@ static int dnet_start_defrag_complete(struct dnet_net_state *state, struct dnet_
 	return 0;
 }
 
-static int dnet_start_defrag_single(struct dnet_net_state *st, void *priv, uint64_t cflags, struct dnet_defrag_ctl *dctl)
+static int dnet_start_defrag_single(struct dnet_session *s, struct dnet_net_state *st, void *priv, uint64_t cflags, struct dnet_defrag_ctl *dctl)
 {
 	struct dnet_trans_control ctl;
 
@@ -2466,7 +2467,7 @@ static int dnet_start_defrag_single(struct dnet_net_state *st, void *priv, uint6
 	ctl.data = dctl;
 	ctl.size = sizeof(struct dnet_defrag_ctl);
 
-	return dnet_trans_alloc_send_state(st, &ctl);
+	return dnet_trans_alloc_send_state(s, st, &ctl);
 }
 
 int dnet_start_defrag(struct dnet_session *s, struct dnet_defrag_ctl *ctl)
@@ -2495,7 +2496,7 @@ int dnet_start_defrag(struct dnet_session *s, struct dnet_defrag_ctl *ctl)
 			if (w)
 				dnet_wait_get(w);
 
-			dnet_start_defrag_single(st, w, dnet_session_get_cflags(s), ctl);
+			dnet_start_defrag_single(s, st, w, dnet_session_get_cflags(s), ctl);
 			num++;
 		}
 	}
