@@ -779,15 +779,43 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 {
 	struct eblob_backend *b = c->eblob;
 	struct eblob_key key;
+	struct eblob_write_control wc;
+	struct dnet_ext_list elist;
+	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
 	uint64_t offset, size;
 	int fd, err;
 
+	dnet_ext_list_init(&elist);
+
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
-	err = eblob_read_nocsum(b, &key, &fd, &offset, &size, cmd->id.type);
+	err = eblob_read_return(b, &key, cmd->id.type, EBLOB_READ_NOCSUM, &wc);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-file-info: info-read: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, strerror(-err));
 		goto err_out_exit;
+	}
+
+	offset = wc.data_offset;
+	size = wc.total_data_size;
+	fd = wc.data_fd;
+
+	if ((wc.flags & BLOB_DISK_CTL_USR1) != 0) {
+		struct dnet_ext_list_hdr ehdr;
+
+		/* Sanity */
+		if (size < ehdr_size) {
+			err = -ERANGE;
+			goto err_out_exit;
+		}
+
+		err = dnet_ext_hdr_read(&ehdr, fd, offset);
+		if (err != 0)
+			goto err_out_exit;
+		dnet_ext_hdr_to_list(&ehdr, &elist);
+
+		/* Take into an account extended header's len */
+		size -= ehdr_size;
+		offset += ehdr_size;
 	}
 
 	if (size == 0) {
@@ -797,9 +825,10 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 		goto err_out_exit;
 	}
 
-	err = dnet_send_file_info(state, cmd, fd, offset, size);
+	err = dnet_send_file_info_ts(state, cmd, fd, offset, size, &elist.timestamp);
 
 err_out_exit:
+	dnet_ext_list_destroy(&elist);
 	return err;
 }
 

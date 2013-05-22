@@ -1625,6 +1625,54 @@ err_out_exit:
 	return err;
 }
 
+int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
+		uint64_t offset, int64_t size, struct dnet_time *timestamp)
+{
+	struct dnet_net_state *st = state;
+	struct dnet_file_info *info;
+	struct dnet_addr *a;
+	size_t a_size = 0;
+	int err, flen;
+	char *file;
+
+	/* Sanity */
+	if (state == NULL || cmd == NULL || timestamp == NULL)
+		return -EINVAL;
+	if (size < 0 || fd < 0)
+		return -EINVAL;
+
+	flen = dnet_fd_readlink(fd, &file);
+	if (flen < 0) {
+		err = flen;
+		goto err_out_exit;
+	}
+
+	a_size = sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen;
+	a = calloc(1, a_size);
+	if (a == NULL)
+		goto err_out_exit;
+	info = (struct dnet_file_info *)(a + 1);
+
+	dnet_fill_state_addr(state, a);
+	dnet_convert_addr(a);
+
+	info->offset = offset;
+	info->size = size;
+	info->mtime = *timestamp;
+	info->flen = flen;
+	memcpy(info + 1, file, flen);
+
+	if (cmd->flags & DNET_FLAGS_CHECKSUM)
+		dnet_checksum_fd(st->n, fd, info->offset,
+				info->size, info->checksum, sizeof(info->checksum));
+
+	dnet_convert_file_info(info);
+	err = dnet_send_reply(state, cmd, a, a_size, 0);
+	free(a);
+err_out_exit:
+	return err;
+}
+
 int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, void *data, int64_t size)
 {
 	struct dnet_net_state *st = state;
