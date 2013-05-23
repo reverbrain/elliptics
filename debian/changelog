@@ -1,14 +1,13 @@
-elliptics (2.25.1.0) unstable; urgency=low
+elliptics (2.24.6.0) unstable; urgency=low
 
-  * Fixed write_commit behaviour for eblob
-  * Moved secondary indexes to elliptics-serverside
-  * Fixed "find" method name for cocaine service
-  * Split timestmp/start-num union. This breaks ABI, so we release 2.25
-  * Removed stats from processed methods
-  * Added process pool for processing range.
-  * Extended exec_context
+  * Revert "v2.25.1.0", please note that this still breaks ABI compatibility with pre-2.24.6 clients
+  * Fixed usage of session's wait timeout
+  * Recovery improvements
+  * ext: lookup now supports extended format
+  * ext: optimized blob_read()
+  * Moved ID locks implementation to RBTree
 
- -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 21 May 2013 23:03:55 +0400
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 23 May 2013 00:43:11 +0400
 
 elliptics (2.24.5.0) unstable; urgency=low
 

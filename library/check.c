@@ -657,7 +657,7 @@ int dnet_request_bulk_check(struct dnet_node *n, struct dnet_bulk_state *state, 
 
 	dnet_log(n, DNET_LOG_DEBUG, "BULK: sending %u bytes of data to %s (%s)\n",
 			ctl.size, dnet_dump_id(&ctl.id), dnet_server_convert_dnet_addr(&state->addr));
-	err = dnet_trans_alloc_send_state(st, &ctl);
+	err = dnet_trans_alloc_send_state(NULL, st, &ctl);
 	dnet_state_put(st);
 
 	wait_ts = n->wait_ts;

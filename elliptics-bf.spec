@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.25.1.0
+Version:	2.24.6.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,14 +126,13 @@ rm -rf %{buildroot}
 
 
 %changelog
-* Tue May 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.25.1.0
-- Fixed write_commit behaviour for eblob
-- Moved secondary indexes to elliptics-serverside
-- Fixed "find" method name for cocaine service
-- Split timestmp/start-num union. This breaks ABI, so we release 2.25
-- Removed stats from processed methods
-- Added process pool for processing range.
-- Extended exec_context
+* Thu May 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.6.0
+- Revert "v2.25.1.0", please note that this still breaks ABI compatibility with pre-2.24.6 clients
+- Fixed usage of session's wait timeout
+- Recovery improvements
+- ext: lookup now supports extended format
+- ext: optimized blob_read()
+- Moved ID locks implementation to RBTree
 
 * Tue May 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.5.0
 - Dump to stderr if logger interface failed to write data
