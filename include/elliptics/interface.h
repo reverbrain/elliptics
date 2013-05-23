@@ -428,8 +428,7 @@ struct dnet_config
 	int			server_prio;
 	int			client_prio;
 
-	/* table of operation locks */
-	int			oplock_num;
+	int			__unused;
 
 	struct srw_init_ctl	srw;
 

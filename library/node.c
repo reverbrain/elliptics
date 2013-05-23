@@ -540,9 +540,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if (!cfg->removal_delay)
 		cfg->removal_delay = 10; /* Store removed files 10 days by default */
 
-	if (!cfg->oplock_num)
-		cfg->oplock_num = 1024;
-
 	n->wait_ts.tv_sec = cfg->wait_timeout;
 
 	n->cb = cfg->cb;
