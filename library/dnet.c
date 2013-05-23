@@ -1172,8 +1172,8 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 			dnet_convert_io_attr(io);
 		default:
-			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command 
-			   to eliminate double reply packets 
+			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command
+			   to eliminate double reply packets
 			   (the first one with dnet_file_info structure,
 			   the second to destroy transaction on client side) */
 			if ((cmd->cmd == DNET_CMD_WRITE) || (cmd->cmd == DNET_CMD_READ)) {
@@ -1856,10 +1856,9 @@ int dnet_iterator_list_remove(struct dnet_node *n, uint64_t id)
 uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n)
 {
 	uint64_t next;
-	char found;
 
 	assert(n != NULL);
-	for (next = 0, found = 0; found == 0; ++next, found = 0)
+	for (next = 0;; ++next)
 		if (dnet_iterator_list_lookup_nolock(n, next) == NULL)
 			return next;
 	assert(0);
