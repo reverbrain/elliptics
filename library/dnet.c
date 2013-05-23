@@ -1649,8 +1649,11 @@ int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
 
 	a_size = sizeof(struct dnet_addr) + sizeof(struct dnet_file_info) + flen;
 	a = calloc(1, a_size);
-	if (a == NULL)
+	if (a == NULL) {
+		err = -ENOMEM;
 		goto err_out_exit;
+	}
+
 	info = (struct dnet_file_info *)(a + 1);
 
 	dnet_fill_state_addr(state, a);
