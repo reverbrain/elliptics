@@ -1001,7 +1001,7 @@ int dnet_start_defrag(struct dnet_session *s, struct dnet_defrag_ctl *ctl);
 
 int dnet_discovery_add(struct dnet_node *n, char *remote_addr, int remote_port, int remote_family);
 
-int dnet_parse_numeric_id(char *value, unsigned char *id);
+int dnet_parse_numeric_id(const char *value, unsigned char *id);
 
 #ifdef __cplusplus
 }

@@ -34,6 +34,13 @@ enum update_index_action {
 	remove_data = 2
 };
 
+/* matches above enum, please update synchronously */
+static const char *update_index_action_strings[] = {
+	"empty",
+	"insert",
+	"remove",
+};
+
 using namespace ioremap::elliptics;
 
 #undef list_entry
@@ -85,6 +92,8 @@ class local_session
 
 			memcpy(io.id, id.id, DNET_ID_SIZE);
 			memcpy(io.parent, id.id, DNET_ID_SIZE);
+
+			io.flags = DNET_IO_FLAGS_NOCSUM | DNET_IO_FLAGS_CACHE;
 
 			dnet_cmd cmd;
 			memset(&cmd, 0, sizeof(cmd));
@@ -142,9 +151,6 @@ class local_session
 					dnet_log(m_state->n, DNET_LOG_DEBUG, "entry in list, size: %llu",
 						static_cast<unsigned long long>(req_io->size));
 				}
-
-//				list_del(&r->req_entry);
-//				dnet_io_req_free(r);
 			}
 
 			clear_queue();
@@ -170,9 +176,11 @@ class local_session
 
 			memcpy(io.id, id.id, DNET_ID_SIZE);
 			memcpy(io.parent, id.id, DNET_ID_SIZE);
-			io.flags |= DNET_IO_FLAGS_COMMIT;
+			io.flags |= DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_NOCSUM | DNET_IO_FLAGS_CACHE;
 			io.size = size;
 			io.num = size;
+
+			dnet_current_time(&io.timestamp);
 
 			data_buffer buffer(sizeof(dnet_io_attr) + size);
 			buffer.write(io);
@@ -199,6 +207,10 @@ class local_session
 
 		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const data_pointer &data, update_index_action action)
 		{
+			struct timeval start, end;
+
+			gettimeofday(&start, NULL);
+
 			data_buffer buffer(sizeof(dnet_indexes_request) + sizeof(dnet_indexes_request_entry) + data.size());
 
 			dnet_indexes_request request;
@@ -232,6 +244,19 @@ class local_session
 			int err = dnet_process_cmd_raw(m_state, &cmd, datap.data());
 
 			clear_queue(&err);
+
+			gettimeofday(&end, NULL);
+			long diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
+
+			if (m_state->n->log->log_level >= DNET_LOG_INFO) {
+				char index_str[2*DNET_ID_SIZE+1];
+
+				dnet_dump_id_len_raw(index.id, 8, index_str);
+
+				dnet_log(m_state->n, DNET_LOG_INFO, "%s: updating internal index: %s, data-size: %zd, action: %s, "
+						"time: %ld usecs\n",
+						dnet_dump_id(&id), index_str, data.size(), update_index_action_strings[action], diff);
+			}
 
 			return err;
 		}
@@ -343,7 +368,23 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 	int process(bool *finished)
 	{
+		struct timeval start, end, convert_time, send_remote_time, insert_time, remove_time;
+
+		gettimeofday(&start, NULL);
+
+		convert_time = send_remote_time = insert_time = remove_time = start;
+
 		*finished = false;
+
+		std::vector<size_t> local_inserted_ids;
+		std::vector<size_t> local_removed_ids;
+
+		size_t remote_inserted = 0;
+		size_t remote_removed = 0;
+
+		dnet_session *new_sess = NULL;
+		int group_id = request_id.group_id;
+		dnet_id base_id = request_id;
 
 		int err = 0;
 		data_pointer data = sess.read(cmd.id, &err);
@@ -357,9 +398,10 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_UPDATE: data is different");
 
 		err = sess.write(cmd.id, new_data);
-		if (err) {
-			return complete(err, finished);
-		}
+		if (err)
+			goto err_out_complete;
+
+		gettimeofday(&convert_time, NULL);
 
 		// We "insert" items also to update their data
 		std::set_difference(indexes.indexes.begin(), indexes.indexes.end(),
@@ -377,13 +419,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		dnet_indexes_reply_entry result_entry;
 		memset(&result_entry, 0, sizeof(result_entry));
 
-		dnet_id base_id = request_id;
-
-		std::vector<size_t> local_inserted_ids;
-		std::vector<size_t> local_removed_ids;
-
-		dnet_session *new_sess = dnet_session_create(state->n);
-		int group_id = request_id.group_id;
+		new_sess = dnet_session_create(state->n);
 		dnet_session_set_groups(new_sess, &group_id, 1);
 
 		/*
@@ -398,10 +434,10 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			dnet_net_state *index_state = dnet_state_get_first(state->n, &base_id);
 
 			if (index_state) {
+				remote_inserted++;
 				int err = send_remote(new_sess, entry.index, entry.data, insert_data);
-				if (err) {
-					return complete(err, finished);
-				}
+				if (err)
+					goto err_out_complete;
 			} else {
 				local_inserted_ids.push_back(i);
 			}
@@ -415,15 +451,16 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			dnet_net_state *index_state = dnet_state_get_first(state->n, &base_id);
 
 			if (index_state) {
+				remote_removed++;
 				int err = send_remote(new_sess, entry.index, entry.data, remove_data);
-				if (err) {
-					return complete(err, finished);
-				}
+				if (err)
+					goto err_out_complete;
 			} else {
 				local_removed_ids.push_back(i);
 			}
 		}
 
+		gettimeofday(&send_remote_time, NULL);
 		dnet_session_destroy(new_sess);
 
 		/*
@@ -440,10 +477,10 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			result_entry.id = entry.index;
 			result.push_back(result_entry);
 
-			if (err) {
-				return complete(err, finished);
-			}
+			if (err)
+				goto err_out_complete;
 		}
+		gettimeofday(&insert_time, NULL);
 
 		for (size_t i = 0; i < local_removed_ids.size(); ++i) {
 			const index_entry &entry = removed_ids[local_removed_ids[i]];
@@ -454,12 +491,32 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			result_entry.id = entry.index;
 			result.push_back(result_entry);
 
-			if (err) {
-				return complete(err, finished);
-			}
+			if (err)
+				goto err_out_complete;
 		}
+		gettimeofday(&remove_time, NULL);
 
-		return complete(0, finished);
+err_out_complete:
+		err = complete(err, finished);
+
+		gettimeofday(&end, NULL);
+
+#define DIFF(s, e) (e.tv_sec - s.tv_sec) * 1000000 + (e.tv_usec - s.tv_usec)
+
+		long total_usecs = DIFF(start, end);
+		long convert_usecs = DIFF(start, convert_time);
+		long send_remote_usecs = DIFF(convert_time, send_remote_time);
+		long insert_usecs = DIFF(send_remote_time, insert_time);
+		long remove_usecs = DIFF(insert_time, remove_time);
+
+		dnet_log(state->n, DNET_LOG_INFO, "%s: updated indexes: local-inserted: %zd, local-removed: %zd, "
+				"remote-inserted: %zd, remote-removed: %zd, "
+				"convert-time: %ld, send-remote-time: %ld, insert-time: %ld, remove-time: %ld, total-time: %ld usecs, err: %d\n",
+				dnet_dump_id(&cmd.id), local_inserted_ids.size(), local_removed_ids.size(),
+				remote_inserted, remote_removed,
+				convert_usecs, send_remote_usecs, insert_usecs, remove_usecs, total_usecs, err);
+
+		return err;
 	}
 
 	struct scope_data
