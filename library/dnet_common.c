@@ -2689,7 +2689,7 @@ err:
 	return err ? err : diff_offset;
 }
 
-int dnet_parse_numeric_id(char *value, unsigned char *id)
+int dnet_parse_numeric_id(const char *value, unsigned char *id)
 {
 	unsigned char ch[5];
 	unsigned int i, len = strlen(value);
