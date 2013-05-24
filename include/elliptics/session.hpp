@@ -546,7 +546,10 @@ class session
 		 */
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
-		async_iterator_result start_iterator(const key &id, const dnet_iterator_request &request);
+		async_iterator_result start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges, const dnet_iterator_request& request);
+		async_iterator_result pause_iterator(const key &id, uint64_t iterator_id);
+		async_iterator_result continue_iterator(const key &id, uint64_t iterator_id);
+		async_iterator_result cancel_iterator(const key &id, uint64_t iterator_id);
 
 		/*!
 		 * Starts execution for \a id of the given \a event with \a data.
@@ -663,6 +666,8 @@ class session
 		std::shared_ptr<session_data>		m_data;
 
 		async_exec_result request(dnet_id *id, const exec_context &context);
+		async_iterator_result iterator(const key &id, const data_pointer& request);
+
 		void			mix_states(const key &id, std::vector<int> &groups);
 		void			mix_states(std::vector<int> &groups);
 		std::vector<int>	mix_states(const key &id);

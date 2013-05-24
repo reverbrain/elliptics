@@ -655,11 +655,20 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 		return -EINVAL;
 
 	/* If DNET_IFLAGS_KEY_RANGE is set... */
-	if (ipriv->req->flags & DNET_IFLAGS_KEY_RANGE)
-		/* ...skip keys not in key range */
-			if (dnet_id_cmp_str(key->id, ipriv->req->key_begin.id) < 0
-					|| dnet_id_cmp_str(key->id, ipriv->req->key_end.id) > 0)
-				goto err_out_exit;
+	if (ipriv->req->flags & DNET_IFLAGS_KEY_RANGE) {
+		/* ...skip keys not in key ranges */
+		struct dnet_iterator_range *curr = ipriv->range;
+		struct dnet_iterator_range *end = curr + ipriv->req->range_num;
+		for (; curr < end; ++curr) {
+			if (dnet_id_cmp_str(key->id, curr->key_begin.id) > 0
+					&& dnet_id_cmp_str(key->id, curr->key_end.id) < 0)
+				goto key_range_found;
+		}
+		/* no range contains the key */
+		goto err_out_exit;
+	}
+
+key_range_found:
 
 	/* If DNET_IFLAGS_TS_RANGE is set... */
 	if (ipriv->req->flags & DNET_IFLAGS_TS_RANGE)
@@ -784,32 +793,47 @@ err_out_unlock:
 }
 
 static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_iterator_request *ireq)
+		struct dnet_iterator_request *ireq,
+		struct dnet_iterator_range *irange)
 {
+	struct dnet_iterator_range *i = NULL;
+	struct dnet_iterator_range *end = irange + ireq->range_num;
+
 	if (ireq->flags & DNET_IFLAGS_KEY_RANGE) {
 		struct dnet_raw_id empty_key = { .id = {} };
+
 		/* Unset DNET_IFLAGS_KEY_RANGE if both keys are empty */
-		if (memcmp(&empty_key, &ireq->key_begin, sizeof(struct dnet_raw_id)) == 0
-				&& memcmp(&empty_key, &ireq->key_end, sizeof(struct dnet_raw_id)) == 0) {
-			dnet_log(st->n, DNET_LOG_NOTICE, "%s: both keys are zero: cmd: %u\n",
-				dnet_dump_id(&cmd->id), cmd->cmd);
+		for (i = irange; i < end; ++i) {
+			if (memcmp(&empty_key, &i->key_begin, sizeof(struct dnet_raw_id)) != 0
+					|| memcmp(&empty_key, &i->key_end, sizeof(struct dnet_raw_id)) != 0) {
+				break;
+			}
+		}
+		if(i == end) {
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: all key in ranges is 0\n",
+				dnet_dump_id(&cmd->id));
 			ireq->flags &= ~DNET_IFLAGS_KEY_RANGE;
 		}
+
 		/* Check that range is valid */
-		if (dnet_id_cmp_str(ireq->key_begin.id, ireq->key_end.id) > 0) {
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: key_start > key_begin: cmd: %u\n",
-				dnet_dump_id(&cmd->id), cmd->cmd);
-			return -ERANGE;
+		for (i = irange; i < end; ++i) {
+			if (dnet_id_cmp_str(i->key_begin.id, i->key_end.id) > 0) {
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: %ld key_start > key_begin: cmd: %u\n",
+					dnet_dump_id(&cmd->id), i - irange, cmd->cmd);
+				return -ERANGE;
+			}
 		}
 	}
 	if (ireq->flags & DNET_IFLAGS_KEY_RANGE) {
 		const short id_len = 6, buf_sz = id_len * 2 + 1;
 		char buf1[buf_sz], buf2[buf_sz];
 
-		dnet_log(st->n, DNET_LOG_NOTICE, "%s: using key range: %s...%s\n",
-				dnet_dump_id(&cmd->id),
-				dnet_dump_id_len_raw(ireq->key_begin.id, id_len, buf1),
-				dnet_dump_id_len_raw(ireq->key_end.id, id_len, buf2));
+		for(i = irange; i < end; ++i) {
+			dnet_log(st->n, DNET_LOG_NOTICE, "%s: using key range: %s...%s\n",
+					dnet_dump_id(&cmd->id),
+					dnet_dump_id_len_raw(i->key_begin.id, id_len, buf1),
+					dnet_dump_id_len_raw(i->key_end.id, id_len, buf2));
+		}
 	}
 	return 0;
 }
@@ -843,10 +867,12 @@ static int dnet_iterator_check_ts_range(struct dnet_net_state *st, struct dnet_c
 }
 
 static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
-		struct dnet_iterator_request *ireq)
+		struct dnet_iterator_request *ireq,
+		struct dnet_iterator_range *irange)
 {
 	struct dnet_iterator_common_private cpriv = {
 		.req = ireq,
+		.range = irange,
 	};
 	struct dnet_iterator_ctl ictl = {
 		.iterate_private = st->n->cb->command_private,
@@ -870,7 +896,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_exit;
 	}
 	/* Check ranges */
-	if ((err = dnet_iterator_check_key_range(st, cmd, ireq)) ||
+	if ((err = dnet_iterator_check_key_range(st, cmd, ireq, irange)) ||
 			(err = dnet_iterator_check_ts_range(st, cmd, ireq)))
 		goto err_out_exit;
 
@@ -938,6 +964,7 @@ err_out_exit:
 static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	struct dnet_iterator_request *ireq = data;
+	struct dnet_iterator_range *irange = data + sizeof(struct dnet_iterator_request);
 	int err = 0;
 
 	/*
@@ -959,7 +986,7 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 	 */
 	switch (ireq->action) {
 	case DNET_ITERATOR_ACTION_START:
-		err = dnet_iterator_start(st, cmd, ireq);
+		err = dnet_iterator_start(st, cmd, ireq, irange);
 		break;
 	case DNET_ITERATOR_ACTION_PAUSE:
 	case DNET_ITERATOR_ACTION_CONT:

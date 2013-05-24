@@ -6,6 +6,12 @@ import sys
 sys.path.insert(0, "bindings/python/")
 import elliptics
 
+def range(key_begin, key_end):
+    ret = elliptics.IteratorRange()
+    ret.key_begin = key_begin
+    ret.key_end = key_end
+    return ret
+
 if __name__ == '__main__':
     log = elliptics.Logger("/dev/stderr", 1)
     cfg = elliptics.Config()
@@ -23,13 +29,16 @@ if __name__ == '__main__':
     request.itype = elliptics.iterator_types.network
     request.flags = elliptics.iterator_flags.key_range \
             | elliptics.iterator_flags.ts_range | elliptics.iterator_flags.data
-    request.key_begin = [0] * 64
-    request.key_end = [255] * 64
     request.time_begin = elliptics.Time(0, 0)
     request.time_end = elliptics.Time(2**64-1, 2**64-1)
 
+    ranges = [range([0] * 64, [100] + [255] * 63), range([200] + [0] * 63, [220] + [255] * 63)]
+
+    request.range_num = len(ranges)
+
+
     eid = elliptics.Id([0] * 64, 2, 0)
-    iterator = s.start_iterator(eid, request)
+    iterator = s.start_iterator(eid, ranges, request)
     for i, result in enumerate(iterator):
         if result.status != 0:
             raise AssertionError("Wrong status: {0}".format(result.status))
@@ -43,12 +52,6 @@ if __name__ == '__main__':
         # Test flow control
         if i % 10 == 0:
             print "Pause iterator"
-            pause = elliptics.IteratorRequest()
-            pause.id = result.id
-            pause.action = elliptics.iterator_actions.pause
-            pause_it = s.start_iterator(eid, pause)
+            pause_it = s.pause_iterator(eid, result.id)
             print "Continue iterator"
-            cont = elliptics.IteratorRequest()
-            cont.id = result.id
-            cont.action = elliptics.iterator_actions.cont
-            cont_it = s.start_iterator(eid, cont)
+            cont_it = s.continue_iterator(eid, result.id)

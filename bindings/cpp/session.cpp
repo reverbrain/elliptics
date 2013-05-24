@@ -216,8 +216,8 @@ dnet_raw_id *exec_context::src_id() const
 
 data_pointer exec_context::self() const
 {
-	return m_data ? m_data->sph : data_pointer();	
-} 
+	return m_data ? m_data->sph : data_pointer();
+}
 
 bool exec_context::is_final() const
 {
@@ -1566,6 +1566,18 @@ async_exec_result session::request(dnet_id *id, const exec_context &context)
 	return result;
 }
 
+async_iterator_result session::iterator(const key &id, const data_pointer& request)
+{
+	transform(id);
+	async_iterator_result result(*this);
+	auto cb = createCallback<iterator_callback>(*this, result);
+	cb->id = id.id();
+	cb->request = request;
+
+	startCallback(cb);
+	return result;
+}
+
 void session::mix_states(const key &id, std::vector<int> &groups)
 {
 	transform(id);
@@ -1606,16 +1618,51 @@ std::vector<int> session::mix_states()
 	return result;
 }
 
-async_iterator_result session::start_iterator(const key &id, const dnet_iterator_request &request)
+async_iterator_result session::start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges, const dnet_iterator_request& request)
 {
-	transform(id);
-	async_iterator_result result(*this);
-	auto cb = createCallback<iterator_callback>(*this, result);
-	cb->id = id.id();
-	cb->request = request;
+	auto ranges_size = ranges.size() * sizeof(ranges.front());
+	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request) + ranges_size);
+	auto req = data.data<dnet_iterator_request>();
+	*req = request;
+	req->action = DNET_ITERATOR_ACTION_START;
+	req->range_num = ranges.size();
 
-	startCallback(cb);
-	return result;
+	memcpy(data.skip<dnet_iterator_request>().data(), &ranges.front(), ranges_size);
+
+	return iterator(id, data);
+}
+
+async_iterator_result session::pause_iterator(const key &id, uint64_t iterator_id)
+{
+	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request));
+	auto request = data.data<dnet_iterator_request>();
+	memset(request, 0, sizeof(dnet_iterator_request));
+	request->action = DNET_ITERATOR_ACTION_PAUSE;
+	request->id = iterator_id;
+
+	return iterator(id, data);
+}
+
+async_iterator_result session::continue_iterator(const key &id, uint64_t iterator_id)
+{
+	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request));
+	auto request = data.data<dnet_iterator_request>();
+	memset(request, 0, sizeof(dnet_iterator_request));
+	request->action = DNET_ITERATOR_ACTION_CONT;
+	request->id = iterator_id;
+
+	return iterator(id, data);
+}
+
+async_iterator_result session::cancel_iterator(const key &id, uint64_t iterator_id)
+{
+	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request));
+	auto request = data.data<dnet_iterator_request>();
+	memset(request, 0, sizeof(dnet_iterator_request));
+	request->action = DNET_ITERATOR_ACTION_CANCEL;
+	request->id = iterator_id;
+
+	return iterator(id, data);
 }
 
 async_exec_result session::exec(dnet_id *id, const std::string &event, const data_pointer &data)

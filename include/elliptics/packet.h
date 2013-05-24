@@ -321,7 +321,7 @@ static inline void dnet_convert_list(struct dnet_list *l)
 
 /*
  * DNET_IO_FLAGS_COMPARE_AND_SWAP
- * 
+ *
  * Abort write if checksum of data being overwritten don't match
  * checksum in dnet_io_attr.parent
  *
@@ -791,6 +791,12 @@ enum dnet_iterator_action {
 	DNET_ITERATOR_ACTION_LAST,	/* Sanity */
 };
 
+struct dnet_iterator_range
+{
+	struct dnet_raw_id	key_begin;	/* Start key */
+	struct dnet_raw_id	key_end;	/* End key */
+} __attribute__ ((packed));
+
 /*
  * Iteration request
  */
@@ -798,8 +804,7 @@ struct dnet_iterator_request
 {
 	uint64_t			id;		/* Iterator ID, for pause/cont/cancel */
 	uint32_t			action;		/* Action: start/pause/cont, XXX: enum */
-	struct dnet_raw_id		key_begin;	/* Start key */
-	struct dnet_raw_id		key_end;	/* End key */
+	uint64_t			range_num;	/* Number of ranges for iterating */
 	struct dnet_time		time_begin;	/* Start time */
 	struct dnet_time		time_end;	/* End time */
 	uint32_t			itype;		/* Callback to use: Net/File, XXX: enum */
@@ -813,6 +818,7 @@ static inline void dnet_convert_iterator_request(struct dnet_iterator_request *r
 	r->id = dnet_bswap64(r->id);
 	r->itype = dnet_bswap32(r->itype);
 	r->action = dnet_bswap32(r->action);
+	r->range_num = dnet_bswap64(r->range_num);
 	dnet_convert_time(&r->time_begin);
 	dnet_convert_time(&r->time_end);
 }
