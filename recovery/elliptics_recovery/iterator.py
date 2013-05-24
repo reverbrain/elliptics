@@ -98,6 +98,12 @@ class IteratorResult(object):
     def __nonzero__(self):
         return self.status
 
+def make_range(key_begin, key_end):
+    ret = elliptics.IteratorRange()
+    ret.key_begin = key_begin
+    ret.key_end = key_end
+    return ret
+
 
 @logged_class
 class Iterator(object):
@@ -109,11 +115,11 @@ class Iterator(object):
         self.session = elliptics.Session(node)
         self.session.set_groups([group])
 
-    def __start(self, eid, address, request, tmp_dir):
-        id_range = IdRange(request.key_begin, request.key_end)
+    def __start(self, eid, address, ranges, itype, flags, timestamp_range, tmp_dir):
+        id_range = IdRange(ranges[0].key_begin, ranges[0].key_end)
         filename = os.path.join(tmp_dir, mk_container_name(id_range, eid))
         result = IteratorResult.from_filename(filename, address=address, eid=eid, id_range=id_range, tmp_dir=tmp_dir)
-        iterator = self.session.start_iterator(eid, request)
+        iterator = self.session.start_iterator(eid, ranges, itype, flags, timestamp_range[0], timestamp_range[1])
         for record in iterator:
             if record.status != 0:
                 raise RuntimeError("Iteration status check failed: {0}".format(record.status))
@@ -131,7 +137,7 @@ class Iterator(object):
               eid=elliptics.Id([0]*64, 0, 0),
               itype=elliptics.iterator_types.network,
               flags=elliptics.iterator_flags.key_range|elliptics.iterator_flags.ts_range,
-              key_range=(IdRange.ID_MIN, IdRange.ID_MAX),
+              key_ranges=[IdRange(IdRange.ID_MIN, IdRange.ID_MAX)],
               timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime()),
               tmp_dir='/var/tmp',
               address=None,
@@ -142,13 +148,10 @@ class Iterator(object):
         assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now" # TODO:
         assert flags & elliptics.iterator_flags.data == 0, "Only metadata iterator is supported for now" # TODO:
         try:
-            request = elliptics.IteratorRequest()
-            request.action = elliptics.iterator_actions.start
-            request.itype = itype
-            request.flags = flags
-            request.key_begin, request.key_end = key_range
-            request.time_begin, request.time_end = timestamp_range
-            return self.__start(eid, address, request, tmp_dir)
+            ranges = []
+            for r in key_ranges:
+                ranges.append(make_range(r.start, r.stop))
+            return self.__start(eid, address, ranges, itype, flags, timestamp_range, tmp_dir)
         except Exception as e:
             self.log.error("Iteration failed: {0}".format(repr(e)))
             return IteratorResult(exception=e)
