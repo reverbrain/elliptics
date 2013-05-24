@@ -74,7 +74,7 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
             local_result = Iterator(local_node, group).start(
                 eid=local_eid,
                 timestamp_range=timestamp_range,
-                key_range=iteration_range.id_range,
+                key_range=[iteration_range.id_range],
                 tmp_dir=ctx.tmp_dir,
                 address=ctx.address,
             )
@@ -89,7 +89,7 @@ def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
             remote_result = Iterator(local_node, group).start(
                 eid=remote_eid,
                 timestamp_range=timestamp_range,
-                key_range=iteration_range.id_range,
+                key_range=[iteration_range.id_range],
                 tmp_dir=ctx.tmp_dir,
                 address=iteration_range.address,
             )
