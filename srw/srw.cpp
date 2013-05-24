@@ -189,7 +189,7 @@ class dnet_upstream_t: public cocaine::api::stream_t
 			srw_log log(m_s, DNET_LOG_NOTICE, "app/" + m_name, "job completed");
 		}
 
-		virtual void error(cocaine::error_code code, const std::string &message) {
+		virtual void error(int code, const std::string &message) {
 			m_error = -code;
 			srw_log log(m_s, DNET_LOG_ERROR, "app/" + m_name, message + ": " + lexical_cast(code));
 		}
