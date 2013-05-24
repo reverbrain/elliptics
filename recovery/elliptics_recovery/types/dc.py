@@ -52,7 +52,7 @@ def run_iterators(ctx, range=None):
         local_result = Iterator(node, local_group_id).start(
             eid=local_eid,
             timestamp_range=timestamp_range,
-            key_range=range.id_range,
+            key_ranges=[range.id_range],
             tmp_dir=ctx.tmp_dir,
             address = ctx.address
         )
@@ -70,7 +70,7 @@ def run_iterators(ctx, range=None):
             remote_result.append(Iterator(node, i).start(
                 eid=remote_eid,
                 timestamp_range=timestamp_range,
-                key_range=range.id_range,
+                key_ranges=[range.id_range],
                 tmp_dir=ctx.tmp_dir,
                 address = range.address[i][1]
             ))

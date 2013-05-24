@@ -906,9 +906,9 @@ class iterator_callback
 			ctl.complete = func;
 			ctl.priv = priv;
 
-			dnet_convert_iterator_request(&request);
-			ctl.data = &request;
-			ctl.size = sizeof(request);
+			dnet_convert_iterator_request(request.data<dnet_iterator_request>());
+			ctl.data = request.data();
+			ctl.size = request.size();
 
 			int err = dnet_trans_alloc_send(sess.get_native(), &ctl);
 			if (err < 0) {
@@ -932,7 +932,7 @@ class iterator_callback
 
 		session sess;
 		struct dnet_id id; /* This ID is used to find out node which will handle iterator request */
-		dnet_iterator_request request;
+		data_pointer request;
 		default_callback<iterator_result_entry> cb;
 };
 

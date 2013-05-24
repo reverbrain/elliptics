@@ -66,7 +66,7 @@ class exec_context
 		dnet_raw_id *src_id() const;
 
 		// get back data block of the entire request
-		data_pointer self() const; 
+		data_pointer self() const;
 
 		bool is_final() const;
 		bool is_null() const;

@@ -186,17 +186,17 @@ class RouteList(object):
     def get_address_ranges(self, address):
         ranges = []
         routes = self.filter_by_group_id(self.filter_by_address(address)[0].key.group_id)
-        len = len(routes)
+        count = len(routes)
         for i, route in enumerate(routes):
             if(route.address == address):
-                next = routes[(i + 1)% len]
-            if i < len(routes) - 1:
+                next = routes[(i + 1)% count]
+            if i < count - 1:
                 ranges.append(RecoveryRange(IdRange(route.key.id, next.key.id), address))
             else:
                 ranges.append(RecoveryRange(IdRange(route.key.id, IdRange.ID_MAX), address))
                 ranges.insert(0, RecoveryRange(IdRange(IdRange.ID_MIN, next.key.id), address))
             i = 0
-            while i < len(ranges) - 1:
+            while i < count - 1:
                 current = ranges[i]
                 next =  ranges[i + 1]
                 if current.id_range.stop == next.id_range.start:

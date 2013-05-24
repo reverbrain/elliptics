@@ -640,7 +640,7 @@ static inline int dnet_time_before(struct timespec *t1, struct timespec *t2)
 {
 	if ((long)(t1->tv_sec - t2->tv_sec) < 0)
 		return 1;
-	
+
 	if ((long)(t2->tv_sec - t1->tv_sec) < 0)
 		return 0;
 
@@ -816,6 +816,7 @@ uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n);
  */
 struct dnet_iterator_common_private {
 	struct dnet_iterator_request	*req;		/* Original request */
+	struct dnet_iterator_range		*range;		/* Original ranges */
 	struct dnet_iterator		*it;		/* Iterator control structure */
 	int				(*next_callback)(void *priv, void *data, uint64_t dsize);
 	void				*next_private;	/* One of predefined callbacks */
