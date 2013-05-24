@@ -39,3 +39,4 @@ include/elliptics/typedefs.h
 install_manifest.txt
 root/
 tags
+cocaine/plugins/elliptics-extensions.cocaine-plugin
