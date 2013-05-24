@@ -21,8 +21,10 @@
 
 #include <iostream>
 #include <map>
-#include "packet.h"
-#include "result_entry.hpp"
+
+#include "elliptics/interface.h"
+#include "elliptics/packet.h"
+#include "elliptics/result_entry.hpp"
 
 std::ostream &operator <<(std::ostream &out, const dnet_raw_id &v)
 {

@@ -1,8 +1,11 @@
+#include "elliptics/utils.hpp"
+#include "elliptics/debug.hpp"
+
 #include "session_indexes.hpp"
 #include "callback_p.h"
 #include "functional_p.h"
-#include "../../include/elliptics/utils.hpp"
-#include "../../include/elliptics/debug.hpp"
+
+#include "../../library/elliptics.h"
 
 namespace ioremap { namespace elliptics {
 
@@ -127,6 +130,9 @@ async_update_indexes_result session::update_indexes(const key &request_id, const
 
 	result.connect(std::bind(on_update_index_entry, handler, std::placeholders::_1),
 		std::bind(on_update_index_finished, handler, std::placeholders::_1));
+
+	dnet_log(get_node().get_native(), DNET_LOG_INFO, "%s: key: %s, indexes: %zd\n",
+			dnet_dump_id(&request.id), request_id.to_string().c_str(), indexes.size());
 
 	return final_result;
 }

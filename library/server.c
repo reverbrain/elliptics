@@ -237,7 +237,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg, struct dnet_a
 		struct dnet_addr la;
 		int s;
 
-		err = dnet_locks_init(n, cfg->oplock_num);
+		err = dnet_locks_init(n, 1024);
 		if (err)
 			goto err_out_addr_cleanup;
 

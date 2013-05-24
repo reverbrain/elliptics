@@ -116,8 +116,6 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_cfg_state.server_prio = value;
 	else if (!strcmp(key, "client_net_prio"))
 		dnet_cfg_state.client_prio = value;
-	else if (!strcmp(key, "oplock_num"))
-		dnet_cfg_state.oplock_num = value;
 	else
 		return -1;
 
@@ -358,7 +356,6 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"auth_cookie", dnet_set_auth_cookie},
 	{"server_net_prio", dnet_simple_set},
 	{"client_net_prio", dnet_simple_set},
-	{"oplock_num", dnet_simple_set},
 	{"srw_config", dnet_set_srw},
 	{"cache_size", dnet_set_cache_size},
 };

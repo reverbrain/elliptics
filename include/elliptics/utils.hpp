@@ -22,8 +22,7 @@
 #include <cstring>
 #include <cstdlib>
 
-#include "error.hpp"
-#include "result_entry.hpp"
+#include "elliptics/error.hpp"
 
 namespace ioremap { namespace elliptics {
 
