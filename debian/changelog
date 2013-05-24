@@ -1,3 +1,10 @@
+elliptics (2.24.6.2) unstable; urgency=low
+
+  * Do not track cocaine/plugins/elliptics-extensions.cocaine-plugin
+  * Updated to the latest upstream cocaine version
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 24 May 2013 22:35:09 +0400
+
 elliptics (2.24.6.1) unstable; urgency=low
 
   * Added support of multirange iteration. Updated C++ interface for iterator.

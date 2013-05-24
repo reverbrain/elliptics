@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.6.1
+Version:	2.24.6.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri May 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.6.2
+- Do not track cocaine/plugins/elliptics-extensions.cocaine-plugin
+- Updated to the latest upstream cocaine version
+
 * Fri May 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.6.1
 - Added support of multirange iteration. Updated C++ interface for iterator.
 - Get rid of number of oplocks config variables.
