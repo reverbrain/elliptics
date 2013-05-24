@@ -546,7 +546,10 @@ class session
 		 */
 		std::vector<std::pair<struct dnet_id, struct dnet_addr> > get_routes();
 
-		async_iterator_result start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges, const dnet_iterator_request& request);
+		async_iterator_result start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
+								uint32_t type, uint64_t flags,
+								const dnet_time& time_begin = dnet_time(),
+								const dnet_time& time_end = dnet_time());
 		async_iterator_result pause_iterator(const key &id, uint64_t iterator_id);
 		async_iterator_result continue_iterator(const key &id, uint64_t iterator_id);
 		async_iterator_result cancel_iterator(const key &id, uint64_t iterator_id);

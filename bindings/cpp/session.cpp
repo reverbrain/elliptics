@@ -1618,13 +1618,21 @@ std::vector<int> session::mix_states()
 	return result;
 }
 
-async_iterator_result session::start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges, const dnet_iterator_request& request)
+async_iterator_result session::start_iterator(const key &id, const std::vector<dnet_iterator_range>& ranges,
+								uint32_t type, uint64_t flags,
+								const dnet_time& time_begin, const dnet_time& time_end)
 {
 	auto ranges_size = ranges.size() * sizeof(ranges.front());
+
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request) + ranges_size);
+
 	auto req = data.data<dnet_iterator_request>();
-	*req = request;
+
 	req->action = DNET_ITERATOR_ACTION_START;
+	req->itype = type;
+	req->flags = flags;
+	req->time_begin = time_begin;
+	req->time_end = time_end;
 	req->range_num = ranges.size();
 
 	memcpy(data.skip<dnet_iterator_request>().data(), &ranges.front(), ranges_size);
