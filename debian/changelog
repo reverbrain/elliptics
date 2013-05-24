@@ -1,3 +1,11 @@
+elliptics (2.24.6.1) unstable; urgency=low
+
+  * Added support of multirange iteration. Updated C++ interface for iterator.
+  * Get rid of number of oplocks config variables.
+  * Made dnet_parse_numeric_id() accessible to others
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 24 May 2013 18:09:00 +0400
+
 elliptics (2.24.6.0) unstable; urgency=low
 
   * Revert "v2.25.1.0", please note that this still breaks ABI compatibility with pre-2.24.6 clients

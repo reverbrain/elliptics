@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.6.0
+Version:	2.24.6.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri May 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.6.1
+- Added support of multirange iteration. Updated C++ interface for iterator.
+- Get rid of number of oplocks config variables.
+- Made dnet_parse_numeric_id() accessible to others
+
 * Thu May 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.6.0
 - Revert "v2.25.1.0", please note that this still breaks ABI compatibility with pre-2.24.6 clients
 - Fixed usage of session's wait timeout
