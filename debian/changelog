@@ -1,3 +1,15 @@
+elliptics (2.24.7.0) unstable; urgency=low
+
+  * Use round-robin sph->src_key assignment.
+  * Added new exec() method which assigns sph->src_key from its parameter
+  * Get rid of old/unused exec/push - locked/unlocked, use plain exec/push and lock flag from session.cflags
+  * Save sph->src_key and use it when calculating named worker index, since it will be overwritten for blocked events
+  * Use src_key as index within array or started (via start-multiple-task) named workers
+  * Removed dependency on cocaine-framework-native
+  * Write correctly nulled error string in c++ binding if cmd failed
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 27 May 2013 02:10:19 +0400
+
 elliptics (2.24.6.2) unstable; urgency=low
 
   * Do not track cocaine/plugins/elliptics-extensions.cocaine-plugin

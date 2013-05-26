@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.6.2
+Version:	2.24.7.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon May 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.0
+- Use round-robin sph->src_key assignment.
+- Added new exec() method which assigns sph->src_key from its parameter
+- Get rid of old/unused exec/push - locked/unlocked, use plain exec/push and lock flag from session.cflags
+- Save sph->src_key and use it when calculating named worker index, since it will be overwritten for blocked events
+- Use src_key as index within array or started (via start-multiple-task) named workers
+- Removed dependency on cocaine-framework-native
+- Write correctly nulled error string in c++ binding if cmd failed
+
 * Fri May 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.6.2
 - Do not track cocaine/plugins/elliptics-extensions.cocaine-plugin
 - Updated to the latest upstream cocaine version
