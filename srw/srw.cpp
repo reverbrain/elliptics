@@ -75,7 +75,7 @@ namespace {
 class srw_log {
 	public:
 		srw_log(struct dnet_session *session, int level, const std::string &app, const std::string &message) : m_s(session) {
-			dnet_log(session->node, level, "srw: %s : %s", app.c_str(), message.c_str());
+			dnet_log(session->node, level, "srw: %s : %s\n", app.c_str(), message.c_str());
 			return;
 
 			if (!strncmp(app.data(), "app/", 4) || (level > m_s->node->log->log_level))
@@ -247,6 +247,7 @@ class dnet_app_t : public cocaine::app_t {
         	dnet_app_t(cocaine::context_t& context, const std::string& name, const std::string& profile) :
 		cocaine::app_t(context, name, profile),
        		m_pool_size(-1) {
+			atomic_set(&m_sph_index, 1);
 		}
 
 		Json::Value counters(void) {
@@ -285,8 +286,8 @@ class dnet_app_t : public cocaine::app_t {
 			if (m_pool_size == -1)
 				return -1;
 
-			if (sph_index == 0)
-				return rand() % m_pool_size;
+			if (sph_index == -1)
+				return atomic_inc(&m_sph_index) % m_pool_size;
 
 			return sph_index % m_pool_size;
 		}
@@ -295,6 +296,7 @@ class dnet_app_t : public cocaine::app_t {
 		std::mutex	m_lock;
 		cmap_t		m_counters;
 		int		m_pool_size;
+		atomic_t	m_sph_index;
 };
 
 typedef std::map<std::string, std::shared_ptr<dnet_app_t> > eng_map_t;
