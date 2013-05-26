@@ -281,11 +281,14 @@ class dnet_app_t : public cocaine::app_t {
 			m_pool_size = pool_size;
 		}
 
-		int get_index(void) {
+		int get_index(int sph_index) {
 			if (m_pool_size == -1)
 				return -1;
 
-			return rand() % m_pool_size;
+			if (sph_index == 0)
+				return rand() % m_pool_size;
+
+			return sph_index % m_pool_size;
 		}
 
 	private:
@@ -518,7 +521,7 @@ class srw {
 				std::shared_ptr<dnet_app_t> eng = it->second;
 				guard.unlock();
 
-				int index = eng->get_index();
+				int index = eng->get_index(sph->src_key);
 				std::shared_ptr<cocaine::api::stream_t> stream;
 
 				if (index == -1) {
