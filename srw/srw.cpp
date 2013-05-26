@@ -496,6 +496,13 @@ class srw {
 						id_str, sph_str, event.c_str(), sph->src_key, total_size(sph), final);
 
 			} else {
+				/*
+				 * src_key can be used as index within named workers,
+				 * but src_key is also an index in jobs map, save it here
+				 * and use to find worker name later
+				 */
+				int src_key = sph->src_key;
+
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
 					sph->src_key = atomic_inc(&m_src_key);
 					memcpy(sph->src.id, cmd->id.id, sizeof(sph->src.id));
@@ -521,7 +528,7 @@ class srw {
 				std::shared_ptr<dnet_app_t> eng = it->second;
 				guard.unlock();
 
-				int index = eng->get_index(sph->src_key);
+				int index = eng->get_index(src_key);
 				std::shared_ptr<cocaine::api::stream_t> stream;
 
 				if (index == -1) {
@@ -533,10 +540,11 @@ class srw {
 
 				stream->write((const char *)sph, total_size(sph) + sizeof(struct sph));
 
-				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started: queue: %s, job: %d, total-size: %zd, block: %d\n",
+				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started: queue: %s, src-key-orig: %d, "
+						"job: %d, total-size: %zd, block: %d\n",
 						id_str, sph_str, event.c_str(),
 						app.c_str(),
-						sph->src_key, total_size(sph),
+						src_key, sph->src_key, total_size(sph),
 						!!(sph->flags & DNET_SPH_FLAGS_SRC_BLOCK));
 
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
