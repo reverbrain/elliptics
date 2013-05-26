@@ -97,10 +97,13 @@ struct exec_context_data
 		p->sph = data_pointer::allocate(sizeof(struct sph) + event.size() + data.size());
 
 		struct sph *raw_sph = p->sph.data<struct sph>();
-		if (other)
+		if (other) {
 			memcpy(p->sph.data<struct sph>(), other->m_data->sph.data<struct sph>(), sizeof(struct sph));
-		else
+		} else {
 			memset(raw_sph, 0, sizeof(struct sph));
+			raw_sph->src_key = -1;
+		}
+
 		char *raw_event = reinterpret_cast<char *>(raw_sph + 1);
 		memcpy(raw_event, event.data(), event.size());
 		char *raw_data = raw_event + event.size();
@@ -1672,6 +1675,18 @@ async_iterator_result session::cancel_iterator(const key &id, uint64_t iterator_
 
 	return iterator(id, data);
 }
+
+async_exec_result session::exec(struct dnet_id *id, int src_key, const std::string &event, const data_pointer &data)
+{
+	exec_context context = exec_context_data::create(event, data);
+
+	sph *s = context.m_data->sph.data<sph>();
+	s->flags = DNET_SPH_FLAGS_SRC_BLOCK;
+	s->src_key = src_key;
+
+	return request(id, context);
+}
+
 
 async_exec_result session::exec(dnet_id *id, const std::string &event, const data_pointer &data)
 {

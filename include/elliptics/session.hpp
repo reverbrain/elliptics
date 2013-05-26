@@ -563,6 +563,8 @@ class session
 		 * Result contains all replies sent by nodes processing this event.
 		 */
 		async_exec_result exec(dnet_id *id, const std::string &event, const data_pointer &data);
+		async_exec_result exec(dnet_id *id, int src_key, const std::string &event, const data_pointer &data);
+
 		/*!
 		 * Send an \a event with \a data to \a id continuing the process specified by \a context.
 		 *
