@@ -857,10 +857,8 @@ class exec_callback
 
 			int err = dnet_send_cmd(sess.get_native(), id, func, priv, sph);
 			if (err < 0) {
-				char buffer[128];
-				strncpy(buffer, sph->data, sizeof(buffer));
-				buffer[sizeof(buffer) - 1] = '\0';
-				*error = create_error(err, "failed to execute cmd: %s", buffer);
+				*error = create_error(err, "failed to execute cmd: event: %.*s, data-size: %llu",
+						sph->event_size, sph->data, (unsigned long long)sph->data_size);
 				return true;
 			}
 
