@@ -485,12 +485,13 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		}
 
 		python_iterator_result start_iterator(const elliptics_id &id, const bp::api::object &ranges,
-											uint32_t type, uint64_t flags,
-											const elliptics_time& time_begin = elliptics_time(0, 0),
-											const elliptics_time& time_end = elliptics_time(-1, -1)) {
+							uint32_t type, uint64_t flags,
+							const elliptics_time& time_begin = elliptics_time(0, 0),
+							const elliptics_time& time_end = elliptics_time(-1, -1)) {
 			std::vector<dnet_iterator_range> std_ranges = convert_to_vector<dnet_iterator_range>(ranges);
 
-			return create_result(std::move(session::start_iterator(id.to_dnet(), std_ranges, type, flags, time_begin.to_dnet_time(), time_end.to_dnet_time())));
+			return create_result(std::move(session::start_iterator(id.to_dnet(), std_ranges, type, flags,
+							time_begin.to_dnet_time(), time_end.to_dnet_time())));
 		}
 
 		python_iterator_result pause_iterator(const elliptics_id &id, const uint64_t &iterator_id) {
@@ -505,25 +506,25 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return create_result(std::move(session::cancel_iterator(id.to_dnet(), iterator_id)));
 		}
 
-		std::string exec_name(const struct elliptics_id &id, const std::string &event,
-						    const std::string &data, const std::string &binary) {
+		std::string exec_name(const struct elliptics_id &id, const std::string &event, const std::string &data) {
 			struct dnet_id raw = id.to_dnet();
 
-			return exec_locked(&raw, event, data, binary);
+			std::string result;
+			sync_exec_result results = exec(&raw, event, data);
+			for (size_t i = 0; i < results.size(); ++i)
+				result += results[i].context().data().to_string();
+
+			return result;
+
 		}
 
-		std::string exec_name_by_name(const std::string &remote, const std::string &event,
-							    const std::string &data, const std::string &binary) {
+		std::string exec_name_by_name(const std::string &remote, const std::string &event, const std::string &data) {
 			struct dnet_id raw;
 			transform(remote, raw);
 			raw.type = 0;
 			raw.group_id = 0;
 
-			return exec_locked(&raw, event, data, binary);
-		}
-
-		std::string exec_name_all(const std::string &event, const std::string &data, const std::string &binary) {
-			return exec_locked(NULL, event, data, binary);
+			return exec_name(raw, event, data);
 		}
 
 		void remove_by_id(const struct elliptics_id &id) {
@@ -1165,7 +1166,6 @@ BOOST_PYTHON_MODULE(elliptics) {
 
 		.def("exec_event", &elliptics_session::exec_name)
 		.def("exec_event", &elliptics_session::exec_name_by_name)
-		.def("exec_event", &elliptics_session::exec_name_all)
 
 		.def("remove", &elliptics_session::remove_by_id)
 		.def("remove", &elliptics_session::remove_by_name)

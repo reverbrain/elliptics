@@ -1717,42 +1717,6 @@ async_reply_result session::reply(const exec_context &tmp_context, const data_po
 	return request(&id, context);
 }
 
-std::string session::exec_locked(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &)
-{
-	std::string result;
-	sync_exec_result results = exec(id, event, data);
-	for (size_t i = 0; i < results.size(); ++i)
-		result += results[i].context().data().to_string();
-	return result;
-}
-
-std::string session::exec_unlocked(struct dnet_id *id, const std::string &event, const std::string &data, const std::string &binary)
-{
-	uint64_t cflags = get_cflags();
-	set_cflags(cflags | DNET_FLAGS_NOLOCK);
-	std::string result = exec_locked(id, event, data, binary);
-	set_cflags(cflags);
-	return result;
-}
-
-std::string session::push_locked(struct dnet_id *id, const struct sph &sph, const std::string &event,
-					const std::string &data, const std::string &)
-{
-	exec_context context = exec_context_data::copy(sph, event, data);
-	push(id, context, event, data).wait();
-	return std::string();
-}
-
-std::string session::push_unlocked(struct dnet_id *id, const struct sph &sph, const std::string &event,
-					  const std::string &data, const std::string &binary)
-{
-	uint64_t cflags = get_cflags();
-	set_cflags(cflags | DNET_FLAGS_NOLOCK);
-	push_locked(id, sph, event, data, binary);
-	set_cflags(cflags);
-	return std::string();
-}
-
 void session::reply(const struct sph &sph, const std::string &event, const std::string &data, const std::string &)
 {
 	exec_context context = exec_context_data::copy(sph, event, data);

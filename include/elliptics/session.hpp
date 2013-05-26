@@ -584,30 +584,6 @@ class session
 		async_reply_result reply(const exec_context &context, const data_pointer &data, exec_context::final_state state);
 
 		/*!
-		 * Starts execution for \a id of the given \a event with \a data and \a binary.
-		 *
-		 * \note Left only for compatibility reasons.
-		 */
-		std::string		exec_locked(struct dnet_id *id, const std::string &event,
-						const std::string &data,
-						const std::string &binary);
-		std::string		exec_unlocked(struct dnet_id *id, const std::string &event,
-						const std::string &data,
-						const std::string &binary);
-
-		/*!
-		 * Execution with saving ID of the original (blocked) caller
-		 *
-		 * \note Left only for compatibility reasons.
-		 */
-		std::string		push_locked(struct dnet_id *id, const struct sph &sph,
-						const std::string &event, const std::string &data,
-						const std::string &binary);
-		std::string		push_unlocked(struct dnet_id *id, const struct sph &sph,
-						const std::string &event, const std::string &data,
-						const std::string &binary);
-
-		/*!
 		 * Send reply back to blocked execution client
 		 *
 		 * \note Left only for compatibility reasons.
@@ -645,7 +621,8 @@ class session
 		async_write_result bulk_write(const std::vector<struct dnet_io_attr> &ios, const std::vector<std::string> &data);
 
 		async_update_indexes_result update_indexes(const key &id, const std::vector<index_entry> &indexes);
-		async_update_indexes_result update_indexes(const key &id, const std::vector<std::string> &indexes, const std::vector<data_pointer> &data);
+		async_update_indexes_result update_indexes(const key &id, const std::vector<std::string> &indexes,
+				const std::vector<data_pointer> &data);
 
 		async_find_indexes_result find_indexes(const std::vector<dnet_raw_id> &indexes);
 		async_find_indexes_result find_indexes(const std::vector<std::string> &indexes);
