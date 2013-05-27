@@ -152,11 +152,6 @@ class Iterator(object):
         for record in iterator:
             if record.status != 0:
                 raise RuntimeError("Iteration status check failed: {0}".format(record.status))
-            log.debug("key: {0}, flags: {1}, ts: {2}/{3}, data: {4}".format(
-                format_id(record.response.key),
-                record.response.user_flags,
-                record.response.timestamp.tsec, record.response.timestamp.tnsec,
-                record.response_data))
             # TODO: Here we can add throttling
             f = False
             for r in results:
