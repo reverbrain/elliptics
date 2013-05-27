@@ -171,7 +171,7 @@ class Iterator(object):
               eid=elliptics.Id([0]*64, 0, 0),
               itype=elliptics.iterator_types.network,
               flags=elliptics.iterator_flags.key_range|elliptics.iterator_flags.ts_range,
-              key_ranges=[IdRange(IdRange.ID_MIN, IdRange.ID_MAX)],
+              key_ranges=(IdRange(IdRange.ID_MIN, IdRange.ID_MAX),),
               timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime()),
               tmp_dir='/var/tmp',
               address=None,
