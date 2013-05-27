@@ -1,11 +1,9 @@
 import sys
 import os
 
-import logging as log
-
 from .utils.misc import logged_class, mk_container_name, format_id
 from .time import Time
-from .range import IdRange, RecoveryRange
+from .range import IdRange
 
 sys.path.insert(0, "bindings/python/") # XXX
 import elliptics
