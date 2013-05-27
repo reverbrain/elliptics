@@ -809,7 +809,7 @@ static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_
 				break;
 			}
 		}
-		if(i == end) {
+		if (i == end) {
 			dnet_log(st->n, DNET_LOG_ERROR, "%s: all key in ranges is 0\n",
 				dnet_dump_id(&cmd->id));
 			ireq->flags &= ~DNET_IFLAGS_KEY_RANGE;
@@ -828,7 +828,7 @@ static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_
 		const short id_len = 6, buf_sz = id_len * 2 + 1;
 		char buf1[buf_sz], buf2[buf_sz];
 
-		for(i = irange; i < end; ++i) {
+		for (i = irange; i < end; ++i) {
 			dnet_log(st->n, DNET_LOG_NOTICE, "%s: using key range: %s...%s\n",
 					dnet_dump_id(&cmd->id),
 					dnet_dump_id_len_raw(i->key_begin.id, id_len, buf1),
