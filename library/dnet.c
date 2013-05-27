@@ -802,7 +802,7 @@ static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_
 	if (ireq->flags & DNET_IFLAGS_KEY_RANGE) {
 		struct dnet_raw_id empty_key = { .id = {} };
 
-		/* Unset DNET_IFLAGS_KEY_RANGE if both keys are empty */
+		/* Unset DNET_IFLAGS_KEY_RANGE if all keys are empty */
 		for (i = irange; i < end; ++i) {
 			if (memcmp(&empty_key, &i->key_begin, sizeof(struct dnet_raw_id)) != 0
 					|| memcmp(&empty_key, &i->key_end, sizeof(struct dnet_raw_id)) != 0) {
@@ -810,15 +810,15 @@ static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_
 			}
 		}
 		if (i == end) {
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: all key in ranges is 0\n",
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: all keys in all ranges are 0\n",
 				dnet_dump_id(&cmd->id));
 			ireq->flags &= ~DNET_IFLAGS_KEY_RANGE;
 		}
 
-		/* Check that range is valid */
+		/* Check that each range is valid */
 		for (i = irange; i < end; ++i) {
 			if (dnet_id_cmp_str(i->key_begin.id, i->key_end.id) > 0) {
-				dnet_log(st->n, DNET_LOG_ERROR, "%s: %ld key_start > key_begin: cmd: %u\n",
+				dnet_log(st->n, DNET_LOG_ERROR, "%s: %tu: key_start > key_begin: cmd: %u\n",
 					dnet_dump_id(&cmd->id), i - irange, cmd->cmd);
 				return -ERANGE;
 			}
