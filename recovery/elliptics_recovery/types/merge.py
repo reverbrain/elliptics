@@ -16,6 +16,7 @@ import logging as log
 from itertools import groupby
 
 from ..range import IdRange, RecoveryRange
+from ..route import RouteList
 from ..iterator import Iterator
 from ..time import Time
 from ..utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
@@ -36,10 +37,6 @@ def get_ranges(ctx, routes, group_id):
         next_ekey = routes[i + 1].key
         if address == ctx.address:
             log.debug("Processing route: {0}, {1}".format(format_id(ekey.id), address))
-            if ekey.group_id != group_id:
-                log.debug("Skipped route: {0}, it belongs to group_id: {1}".format(
-                    route, ekey.group_id))
-                continue
             start = ekey.id
             stop = next_ekey.id
             # If we wrapped around hash ring circle - split route into two distinct ranges
@@ -230,7 +227,8 @@ def main(ctx):
         group_stats = ctx.stats[group]
         group_stats.timer.group('started')
 
-        ranges = get_ranges(ctx, ctx.routes, group)
+        routes = RouteList(ctx.routes.filter_by_group_id(group))
+        ranges = get_ranges(ctx, routes, group)
         log.debug("Recovery ranges: {0}".format(len(ranges)))
         if not ranges:
             log.warning("No ranges to recover in group: {0}".format(group))
