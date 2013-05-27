@@ -116,9 +116,11 @@ class Iterator(object):
         self.session.set_groups([group])
 
     def __start(self, eid, address, ranges, itype, flags, timestamp_range, tmp_dir):
-        id_range = IdRange(ranges[0].key_begin, ranges[0].key_end)
-        filename = os.path.join(tmp_dir, mk_container_name(id_range, eid))
-        result = IteratorResult.from_filename(filename, address=address, eid=eid, id_range=id_range, tmp_dir=tmp_dir)
+        results = []
+        for r in ranges:
+            id_range = IdRange(r.key_begin, r.key_end)
+            filename = os.path.join(tmp_dir, mk_container_name(id_range, eid))
+            results.append(IteratorResult.from_filename(filename, address=address, eid=eid, id_range=id_range, tmp_dir=tmp_dir))
         iterator = self.session.start_iterator(eid, ranges, itype, flags, timestamp_range[0], timestamp_range[1])
         for record in iterator:
             if record.status != 0:
@@ -129,9 +131,19 @@ class Iterator(object):
                 record.response.timestamp.tsec, record.response.timestamp.tnsec,
                 record.response_data))
             # TODO: Here we can add throttling
-            result.append(record)
-        result.status = True
-        return result
+            f = False
+            for r in results:
+                if r.id_range.start <= record.response.key and record.response.key <= r.id_range.stop:
+                    f = True
+                    r.append(record)
+                    break
+
+            if not f:
+                log.error("range is not found")
+
+        for r in results:
+            r.status = True
+        return results
 
     def start(self,
               eid=elliptics.Id([0]*64, 0, 0),
