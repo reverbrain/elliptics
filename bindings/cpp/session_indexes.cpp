@@ -230,6 +230,7 @@ async_find_indexes_result session::find_indexes(const std::vector<dnet_raw_id> &
 	struct dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
 
+	io.flags = get_ioflags();
 	for (size_t i = 0; i < indexes.size(); ++i) {
 		memcpy(io.id, indexes[i].id, sizeof(dnet_raw_id));
 		ios.push_back(io);

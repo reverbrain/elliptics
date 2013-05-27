@@ -1762,6 +1762,7 @@ async_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios
 	control.cflags = DNET_FLAGS_NEED_ACK | get_cflags();
 
 	memset(&control.io, 0, sizeof(struct dnet_io_attr));
+	control.io.flags = get_ioflags();
 
 	async_read_result result(*this);
 	auto cb = createCallback<read_bulk_callback>(*this, result, ios, control);
@@ -1785,6 +1786,8 @@ async_read_result session::bulk_read(const std::vector<std::string> &keys)
 	std::vector<struct dnet_io_attr> ios;
 	struct dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
+
+	io.flags = get_ioflags();
 
 	ios.reserve(keys.size());
 
@@ -1832,6 +1835,8 @@ async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, con
 			ctl.data = data[i].data();
 
 			ctl.io = ios[i];
+
+			ctl.io.flags |= get_ioflags();
 
 			dnet_setup_id(&ctl.id, 0, (unsigned char *)ios[i].id);
 			ctl.id.type = ios[i].type;
