@@ -97,10 +97,6 @@ def sort(ctx, results):
     sort_remote = 0
     sort_sort = 0
     for local, remote in results:
-        if not (local.status and all(r.status for r in remote)):
-            log.debug("Sort skipped because local or remote iterator failed")
-            sort_skipped += 1
-            continue
         if len(remote) == 0:
             log.debug("Sort skipped remote iterator results are empty")
             continue

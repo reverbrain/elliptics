@@ -17,14 +17,12 @@ __doc__ = \
 class IteratorResult(object):
     __doc__ = \
         """
-        Container for iterator results
-        Provides status and IteratorResultContainer wrapper.
+        Container for iterator results.
+        Provides IteratorResultContainer wrapper.
         """
     def __init__(self, eid=None,
                  id_range=IdRange(None, None),
                  address=None,
-                 status=False,
-                 exception=None,
                  container=None,
                  tmp_dir="",
                  leave_file=False,
@@ -33,8 +31,6 @@ class IteratorResult(object):
         self.id_range = id_range
         self.address = address
         self.container = container
-        self.status = status
-        self.exception = exception
         self.tmp_dir = tmp_dir
         self.__file = None
         self.leave_file = leave_file
@@ -179,9 +175,7 @@ class Iterator(object):
                         break
                 else:
                     raise RuntimeError("Returned key not in any range: {0}".format(record.key))
-            for result in results:
-                result.status = True
             return results
         except Exception as e:
             self.log.error("Iteration failed: {0}".format(repr(e)))
-            return [IteratorResult(exception=e)] * len(key_ranges)
+            return []
