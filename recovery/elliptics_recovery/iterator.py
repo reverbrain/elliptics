@@ -42,7 +42,6 @@ class IteratorResult(object):
     def __del__(self):
         if self.leave_file:
             return
-
         self.remove()
 
     def remove(self):
@@ -140,31 +139,6 @@ class Iterator(object):
         self.session = elliptics.Session(node)
         self.session.set_groups([group])
 
-    def __start(self, eid, address, ranges, itype, flags, timestamp_range, tmp_dir, leave_file):
-        results = []
-        for r in ranges:
-            id_range = IdRange(r.key_begin, r.key_end)
-            filename = os.path.join(tmp_dir, mk_container_name(id_range, eid))
-            results.append(IteratorResult.from_filename(filename, address=address, eid=eid, id_range=id_range, tmp_dir=tmp_dir, leave_file=leave_file))
-        iterator = self.session.start_iterator(eid, ranges, itype, flags, timestamp_range[0], timestamp_range[1])
-        for record in iterator:
-            if record.status != 0:
-                raise RuntimeError("Iteration status check failed: {0}".format(record.status))
-            # TODO: Here we can add throttling
-            f = False
-            for r in results:
-                if r.id_range.start <= record.response.key and record.response.key <= r.id_range.stop:
-                    f = True
-                    r.append(record)
-                    break
-
-            if not f:
-                log.error("range is not found")
-
-        for r in results:
-            r.status = True
-        return results
-
     def start(self,
               eid=elliptics.Id([0]*64, 0, 0),
               itype=elliptics.iterator_types.network,
@@ -175,16 +149,39 @@ class Iterator(object):
               address=None,
               leave_file=False,
     ):
-        """
-        Prepare iterator request structure and pass it to low-level __start() function.
-        """
-        assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now" # TODO:
-        assert flags & elliptics.iterator_flags.data == 0, "Only metadata iterator is supported for now" # TODO:
+        assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now"
+        assert flags & elliptics.iterator_flags.data == 0, "Only metadata iterator is supported for now"
+        assert len(key_ranges) > 0, "There should be at least one iteration range."
+
         try:
-            ranges = []
-            for r in key_ranges:
-                ranges.append(make_range(r.start, r.stop))
-            return self.__start(eid, address, ranges, itype, flags, timestamp_range, tmp_dir, leave_file)
+            # We are creating one container per range
+            results = []
+            for id_range in key_ranges:
+                filename = os.path.join(tmp_dir, mk_container_name(id_range, eid))
+                results.append(IteratorResult.from_filename(filename,
+                                                            address=address,
+                                                            eid=eid,
+                                                            id_range=id_range,
+                                                            tmp_dir=tmp_dir,
+                                                            leave_file=leave_file,
+                ))
+
+            ranges = [make_range(start, stop) for start, stop in key_ranges]
+            records = self.session.start_iterator(eid, ranges, itype, flags, timestamp_range[0], timestamp_range[1])
+            for record in records:
+                # TODO: Here we can add throttling
+                if record.status != 0:
+                    raise RuntimeError("Iteration status check failed: {0}".format(record.status))
+                # Put range in corresponding container
+                for result in results:
+                    if result.id_range.start <= record.response.key <= result.id_range.stop:
+                        result.append(record)
+                        break
+                else:
+                    raise RuntimeError("Returned key not in any range: {0}".format(record.key))
+            for result in results:
+                result.status = True
+            return results
         except Exception as e:
             self.log.error("Iteration failed: {0}".format(repr(e)))
-            return IteratorResult(exception=e)
+            return [IteratorResult(exception=e)] * len(key_ranges)
