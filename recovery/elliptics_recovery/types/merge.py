@@ -35,7 +35,8 @@ def get_ranges(ctx, routes, group_id):
         ekey, address = routes[i]
         prev_address = routes[i - 1].address
         next_ekey = routes[i + 1].key
-        if address == ctx.address:
+        # For matching address but only in case where there is no wraparound
+        if address == ctx.address and address != prev_address:
             log.debug("Processing route: {0}, {1}".format(format_id(ekey.id), address))
             start = ekey.id
             stop = next_ekey.id
