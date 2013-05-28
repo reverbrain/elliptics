@@ -64,7 +64,6 @@ def run_iterators(ctx, ranges=None):
     except Exception as e:
         log.error("Iteration failed for: {0}@{1}: {2}".format(
             range.id_range, range.address, repr(e)))
-        print e
 
     return results, records, it
 
@@ -120,7 +119,6 @@ def diff(local_results, remote_results):
                 for res in result:
                     res.address = remote.address
                     res.group_id = remote.group_id
-                    print res
                     key = tuple(res.key)
                     if key in diff_results:
                         diff = diff_results[key]
@@ -239,7 +237,6 @@ def main(ctx):
     del ranges[str(g_ctx.address)] # removes local node ranges
 
     for r in ranges:
-        print r
         async_results.append(g_ctx.pool.apply_async(process_range, (ranges[r],)))
 
     local_result, local_records, local_it, local_sort_skipped, local_sort_sort = local_async_result.get()
@@ -281,11 +278,10 @@ def main(ctx):
 
     recover_stats.counter.diff += len(diff_results)
 
-    result, successes, failures = recover(g_ctx, diff_results)
-
-    recover_stats.counter.recover_key += successes
-    recover_stats.counter.recover_key -= failures
-        #result &= res
+    if not g_ctx.test:
+        result, successes, failures = recover(g_ctx, diff_results)
+        recover_stats.counter.recover_key += successes
+        recover_stats.counter.recover_key -= failures
 
     recover_stats.timer.group('finished')
     ctx.stats.timer.main('finished')
