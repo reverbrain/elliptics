@@ -118,13 +118,6 @@ class IteratorResult(object):
     def __nonzero__(self):
         return self.status
 
-def make_range(key_begin, key_end):
-    ret = elliptics.IteratorRange()
-    ret.key_begin = key_begin
-    ret.key_end = key_end
-    return ret
-
-
 @logged_class
 class Iterator(object):
     __doc__ = \
@@ -162,7 +155,7 @@ class Iterator(object):
                                                             leave_file=leave_file,
                 ))
 
-            ranges = [make_range(start, stop) for start, stop in key_ranges]
+            ranges = [IdRange.elliptics_range(start, stop) for start, stop in key_ranges]
             records = self.session.start_iterator(eid, ranges, itype, flags, timestamp_range[0], timestamp_range[1])
             for record in records:
                 # TODO: Here we can add throttling
