@@ -14,11 +14,13 @@ import sys
 import logging as log
 
 from itertools import groupby
+from multiprocessing import Pool
 
 from ..range import IdRange, RecoveryRange
 from ..route import RouteList
 from ..iterator import Iterator
 from ..time import Time
+from ..stat import Stats
 from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session
 
 # XXX: change me before BETA
@@ -185,9 +187,10 @@ def recover_keys(ctx, address, group, keys):
         return 0, key_num
     return key_num, 0
 
-def process_address(group, ranges, group_stats, address):
+def process_address(address, group, ranges):
     """XXX:"""
-    remote_stats = group_stats['remote_{0}'.format(address)]
+    remote_stats_name = 'remote_{0}'.format(address)
+    remote_stats = Stats(remote_stats_name)
     remote_stats.timer.remote('started')
 
     log.warning("Running remote iterators")
@@ -226,11 +229,12 @@ def process_address(group, ranges, group_stats, address):
     result = recover(g_ctx, diff_result, group, remote_stats)
     log.warning("Recovery finished, setting result to: {0}".format(result))
     remote_stats.timer.remote('finished')
-    return result, remote_stats
+    return result
 
 def main(ctx):
     global g_ctx
     global g_sorted_local_results
+    result = True
     g_ctx = ctx
     g_ctx.stats.timer.main('started')
 
@@ -273,10 +277,23 @@ def main(ctx):
         else:
             log.warning("Local results are empty")
 
+        log.info("Creating pool of processes: {0}".format(g_ctx.nprocess))
+        pool = Pool(processes=g_ctx.nprocess)
+
         # For each address in computed recovery ranges run iterators
         # TODO: We should have `full_merge` mode that uses RouteList.addresses()
+        log.info("Submitting work to pool")
+        async_results = []
         addresses = set([r.address for r in ranges])
-        results = map(lambda a: process_address(group, ranges, group_stats, a), addresses)
+        for address in addresses:
+            async_results.append(pool.apply_async(process_address, (address, group, ranges)))
+        log.info("Closing pool, joining threads")
+        pool.close()
+        pool.join()
+
+        log.info("Fetching results")
+        results = [r.get() for r in async_results]
+        result = all(results)
         group_stats.timer.group('finished')
     g_ctx.stats.timer.main('finished')
-    return True
+    return result
