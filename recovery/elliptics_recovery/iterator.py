@@ -47,6 +47,15 @@ class IteratorResult(object):
         except Exception as e:
             self.log.error("Can't remove file: {0}: {1}".format(self.__file.name, e))
 
+    def __len__(self):
+        return len(self.container)
+
+    def __iter__(self):
+        return iter(self.container)
+
+    def __nonzero__(self):
+        return len(self)
+
     def append(self, record):
         self.container.append(record)
 
@@ -68,12 +77,6 @@ class IteratorResult(object):
                                             )
         self.container.diff(other.container, diff_container.container)
         return diff_container
-
-    def __len__(self):
-        return len(self.container)
-
-    def __iter__(self):
-        return iter(self.container)
 
     @classmethod
     def from_filename(cls, filename, tmp_dir="", **kwargs):
@@ -115,8 +118,6 @@ class IteratorResult(object):
         result.container = elliptics.IteratorResultContainer(fd)
         return result
 
-    def __nonzero__(self):
-        return self.status
 
 @logged_class
 class Iterator(object):
