@@ -139,6 +139,8 @@ template <typename T>
 class default_callback
 {
 	public:
+        typedef std::function<void (const T &)> entry_processor_func;
+
 		default_callback(const async_result<T> &result) : m_count(1), m_complete(0), m_result(result)
 		{
 		}
@@ -193,8 +195,22 @@ class default_callback
 			}
 			if (!entry.data().empty())
 				entry_converter::convert(entry, data);
+            process(entry);
+        }
+
+        void process(const T &entry)
+        {
+            if (m_process_entry && entry.status() == 0 && !entry.data().empty()) {
+                m_process_entry(entry);
+            }
+
 			m_result.process(entry);
 		}
+
+        void set_process_entry(const entry_processor_func &process_entry)
+        {
+            m_process_entry = process_entry;
+        }
 
 		bool is_ready()
 		{
@@ -246,6 +262,7 @@ class default_callback
 		size_t m_complete;
 		std::vector<int> m_statuses;
 		std::mutex m_mutex;
+        entry_processor_func m_process_entry;
 		typename async_result<T>::handler m_result;
 };
 
@@ -468,6 +485,7 @@ class read_callback : public multigroup_callback<read_result_entry>
 		read_callback(const session &sess, const async_read_result &result, const dnet_io_control &ctl)
 			: multigroup_callback<read_result_entry>(sess, result), ctl(ctl)
 		{
+            cb.set_process_entry(std::bind(&read_callback::process_entry, this, std::placeholders::_1));
 		}
 
 		bool next_group(error_info *error, dnet_id &id, complete_func func, void *priv)
@@ -489,9 +507,70 @@ class read_callback : public multigroup_callback<read_result_entry>
 			return cb.set_count(1);
 		}
 
+        void process_entry(const read_result_entry &entry)
+        {
+            read_result = entry;
+        }
+
 		void finish(const error_info &error)
 		{
+            dnet_io_attr *io = (read_result.is_valid() ? read_result.io_attribute() : NULL);
+
+            if (!error && !failed_groups.empty()
+                    && io->type == 0
+                    && io->offset == 0) {
+
+                session new_sess = sess.clone();
+                new_sess.set_groups(failed_groups);
+
+                dnet_io_control write_ctl;
+                memcpy(&write_ctl, &ctl, sizeof(write_ctl));
+
+                write_ctl.id = kid.id();
+                write_ctl.io = *io;
+
+                write_ctl.data = read_result.file().data();
+                write_ctl.io.size = read_result.file().size();
+
+                write_ctl.fd = -1;
+                write_ctl.cmd = DNET_CMD_WRITE;
+                write_ctl.cflags = ctl.cflags;
+
+                new_sess.write_data(write_ctl);
+            }
+
 			cb.complete(error);
+		}
+
+        virtual bool check_answer()
+		{
+            const auto &statuses = cb.statuses();
+
+            if (statuses.empty()) {
+                return false;
+            }
+
+            bool has_enoent = false;
+            bool has_other_error = false;
+            bool ok = false;
+
+            for (size_t i = 0; i < statuses.size(); ++i) {
+                const int err = statuses[i];
+
+                if (err == -ENOENT || err == -EBADFD) {
+                    has_enoent = true;
+                } else if (err != 0) {
+                    has_other_error = true;
+                } else if (err == 0) {
+                    ok = true;
+                }
+            }
+
+            if (!ok && has_enoent && !has_other_error) {
+                failed_groups.push_back(groups[m_group_index - 1]);
+            }
+
+			return ok;
 		}
 
 		error_info prepare_error()
@@ -501,6 +580,8 @@ class read_callback : public multigroup_callback<read_result_entry>
 		}
 
 		struct dnet_io_control ctl;
+        std::vector<int> failed_groups;
+        read_result_entry read_result;
 };
 
 struct io_attr_comparator
@@ -523,6 +604,7 @@ class read_bulk_callback : public read_callback
 		read_bulk_callback(const session &sess, const async_read_result &result, const io_attr_set &ios, const dnet_io_control &ctl)
 			: read_callback(sess, result, ctl), ios_set(ios)
 		{
+            cb.set_process_entry(default_callback<read_result_entry>::entry_processor_func());
 		}
 
 		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)

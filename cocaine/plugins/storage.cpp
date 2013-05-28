@@ -308,6 +308,9 @@ ell::async_remove_result elliptics_storage_t::async_remove(const std::string &co
 	ell::async_remove_result result(session);
 	ell::async_result_handler<ell::callback_result_entry> handler(result);
 
+	session.set_checker(ell::checkers::no_check);
+	session.set_filter(ell::filters::all_with_ack);
+
 	session.update_indexes(key, std::vector<std::string>(), std::vector<ell::data_pointer>())
 		.connect(std::bind(on_removing_index_finished, handler, session, key, _1, _2));
 
