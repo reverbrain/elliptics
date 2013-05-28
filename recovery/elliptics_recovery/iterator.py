@@ -43,7 +43,8 @@ class IteratorResult(object):
     def remove(self):
         try:
             if self.__file:
-                os.unlink(self.__file.name)
+                from os import unlink
+                unlink(self.__file.name)
         except Exception as e:
             self.log.error("Can't remove file: {0}: {1}".format(self.__file.name, e))
 
