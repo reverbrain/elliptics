@@ -148,7 +148,7 @@ def diff(ctx, results, stats):
             else:
                 log.info("Computing differences for: {0}".format(local.id_range))
                 result = local.diff(remote)
-            if (len(result)):
+            if len(result) > 0:
                 diff_results.append(result)
             else:
                 log.info("Resulting diff is empty, skipping range: {0}".format(local.id_range))
