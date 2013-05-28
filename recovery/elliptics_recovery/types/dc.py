@@ -55,7 +55,7 @@ def run_iterators(ctx, range=None):
             key_ranges=[range.id_range],
             tmp_dir=ctx.tmp_dir,
             address = ctx.address
-        )[0]
+        )
         local_records = len(local_result)
         local_it += 1
         log.debug("Local obtained: {0} record(s)".format(len(local_result)))
@@ -73,7 +73,7 @@ def run_iterators(ctx, range=None):
                 key_ranges=[range.id_range],
                 tmp_dir=ctx.tmp_dir,
                 address = range.address[i][1]
-            )[0])
+            ))
             remote_result[-1].address = range.address[i][1]
             remote_result[-1].group_id = i
             log.debug("Remote obtained: {0} record(s)".format(len(remote_result[-1])))
