@@ -149,15 +149,15 @@ def diff(ctx, results):
                     for res in result:
                         res.address = r.address
                         res.group_id = r.group_id
-                        frm = format_id(res.key)
-                        if frm in diff_results:
-                            diff = diff_results[frm]
+                        key = tuple(res.key)
+                        if key in diff_results:
+                            diff = diff_results[key]
                             if diff.timestamp.tsec > res.timestamp.tsec:
                                 continue
                             elif diff.timestamp.tsec == res.timestamp.tsec and diff.timestamp.tnsec > res.timestamp.tnsec:
                                 continue
 
-                            diff_results[frm] = res
+                            diff_results[key] = res
                         else:
                             diff_results[format_id(res.key)] = res
                 else:
