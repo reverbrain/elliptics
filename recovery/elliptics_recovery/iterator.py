@@ -29,6 +29,7 @@ class IteratorResult(object):
                  exception=None,
                  container=None,
                  tmp_dir="",
+                 leave_file=False,
     ):
         self.eid = eid
         self.id_range = id_range
@@ -38,8 +39,15 @@ class IteratorResult(object):
         self.exception = exception
         self.tmp_dir = tmp_dir
         self.__file = None
+        self.leave_file = leave_file
 
     def __del__(self):
+        if self.leave_file:
+            return
+
+        self.remove()
+
+    def remove(self):
         try:
             if self.__file:
                 os.unlink(self.__file.name)
@@ -87,6 +95,25 @@ class IteratorResult(object):
         return result
 
     @classmethod
+    def load_filename(cls, filename, sorted, tmp_dir="", **kwargs):
+        """
+        Creates iterator result from filename
+        """
+        if tmp_dir:
+            filename = os.path.join(tmp_dir, filename)
+        container_file = open(filename, 'r+')
+        container_file.seek(0, 2)
+        result = cls.from_info(container_file.fileno(), sorted, container_file.tell(), tmp_dir="", **kwargs)
+        result.__file = container_file # Save it from python's gc
+        return result
+
+    @classmethod
+    def from_info(cls, fd, sorted, position, **kwargs):
+        result = cls(**kwargs)
+        result.container = elliptics.IteratorResultContainer(fd, sorted, position)
+        return result
+
+    @classmethod
     def from_fd(cls, fd, **kwargs):
         """
         Creates iterator result from fd
@@ -115,12 +142,12 @@ class Iterator(object):
         self.session = elliptics.Session(node)
         self.session.set_groups([group])
 
-    def __start(self, eid, address, ranges, itype, flags, timestamp_range, tmp_dir):
+    def __start(self, eid, address, ranges, itype, flags, timestamp_range, tmp_dir, leave_file):
         results = []
         for r in ranges:
             id_range = IdRange(r.key_begin, r.key_end)
             filename = os.path.join(tmp_dir, mk_container_name(id_range, eid))
-            results.append(IteratorResult.from_filename(filename, address=address, eid=eid, id_range=id_range, tmp_dir=tmp_dir))
+            results.append(IteratorResult.from_filename(filename, address=address, eid=eid, id_range=id_range, tmp_dir=tmp_dir, leave_file=leave_file))
         iterator = self.session.start_iterator(eid, ranges, itype, flags, timestamp_range[0], timestamp_range[1])
         for record in iterator:
             if record.status != 0:
@@ -153,6 +180,7 @@ class Iterator(object):
               timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime()),
               tmp_dir='/var/tmp',
               address=None,
+              leave_file=False,
     ):
         """
         Prepare iterator request structure and pass it to low-level __start() function.
@@ -163,7 +191,7 @@ class Iterator(object):
             ranges = []
             for r in key_ranges:
                 ranges.append(make_range(r.start, r.stop))
-            return self.__start(eid, address, ranges, itype, flags, timestamp_range, tmp_dir)
+            return self.__start(eid, address, ranges, itype, flags, timestamp_range, tmp_dir, leave_file)
         except Exception as e:
             self.log.error("Iteration failed: {0}".format(repr(e)))
             return IteratorResult(exception=e)

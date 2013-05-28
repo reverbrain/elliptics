@@ -1032,6 +1032,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 	bp::class_<iterator_result_container>("IteratorResultContainer",
 			bp::init<int>(bp::args("fd")))
 		.add_property("fd", &iterator_result_container::m_fd)
+		.def(bp::init<int, bool, uint64_t>(bp::args("fd", "sorted", "write_position")))
 		.def("append", iterator_container_append)
 		.def("sort", iterator_container_sort)
 		.def("diff", iterator_container_diff)

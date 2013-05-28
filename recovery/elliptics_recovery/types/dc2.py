@@ -17,7 +17,7 @@ import logging as log
 
 from multiprocessing import Pool
 
-from ..iterator import Iterator
+from ..iterator import Iterator, IteratorResult
 from ..time import Time
 from ..utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
 
@@ -48,13 +48,14 @@ def run_iterators(ctx, ranges=None):
         log.debug("Running iterator on: {0} address: {1}".format(', '.join(
                 [mk_container_name(range.id_range, eid) for range in ranges])
             , ranges[0].address[1]))
-        result = Iterator(node, group_id).start(
+        results = Iterator(node, group_id).start(
             eid = eid,
             timestamp_range = timestamp_range,
             key_ranges = [r.id_range for r in ranges],
             tmp_dir = ctx.tmp_dir,
-            address = ranges[0].address[1])
-        for r in result:
+            address = ranges[0].address[1],
+            leave_file=True)
+        for r in results:
             records += len(r)
             r.address = ranges[0].address[1]
             r.group_id = ranges[0].address[2]
@@ -65,7 +66,7 @@ def run_iterators(ctx, ranges=None):
             range.id_range, range.address, repr(e)))
         print e
 
-    return result, records, it
+    return results, records, it
 
 def sort(ctx, results):
     """
@@ -74,17 +75,15 @@ def sort(ctx, results):
     sorted_results = []
     sort_skipped = 0
     sort_sort = 0
-    print("SORTING")
     for r in results:
-        print r
-        print r.status
         if not r.status:
             log.debug("Sort skipped because some iterator failed")
             sort_skipped += 1
+            sorted_results.append(r)
             continue
-        print len(r)
         if len(r) == 0:
             log.debug("Sort skipped iterator results are empty")
+            sorted_results.append(r)
             continue
         try:
             log.info("Processing sorting range: {0}".format(r.id_range))
@@ -97,47 +96,46 @@ def sort(ctx, results):
             sort_sort -= 1
     return sorted_results, sort_skipped, sort_sort
 
-def diff(ctx, results):
-    """
-    Compute differences between local and remote results.
-    TODO: We can compute up to CPU_NUM diffs at max in parallel
-    """
+def diff(local_results, remote_results):
     diff_results = dict()
-    for local, remote in results:
-        for r in remote:
-            try:
-                if len(local) >= 0 and len(r) == 0:
-                    log.info("Remote container is empty, skipping range: {0}".format(local.id_range))
-                    continue
-                elif len(local) == 0 and len(r) > 0:
-                    # If local container is empty and remote is not
-                    # then difference is whole remote container
-                    log.info("Local container is empty, recovering full range: {0}".format(local.id_range))
-                    result = r;
-                else:
-                    log.info("Computing differences for: {0}".format(local.id_range))
-                    result = local.diff(r)
-                    result.address = r.address
-                    result.group_id = r.group_id
-                if len(result) > 0:
-                    for res in result:
-                        res.address = r.address
-                        res.group_id = r.group_id
-                        frm = format_id(res.key)
-                        if frm in diff_results:
-                            diff = diff_results[frm]
-                            if diff.timestamp.tsec > res.timestamp.tsec:
-                                continue
-                            elif diff.timestamp.tsec == res.timestamp.tsec and diff.timestamp.tnsec > res.timestamp.tnsec:
-                                continue
+    for remote in remote_results:
+        try:
+            if len(remote) == 0:
+                log.info("Remote container is empty, skipping range: {0}".format(remote.id_range))
+                continue
 
-                            diff_results[frm] = res
-                        else:
-                            diff_results[format_id(res.key)] = res
-                else:
-                    log.info("Resulting diff is empty, skipping range: {0}".format(local.id_range))
-            except Exception as e:
-                log.error("Diff of {0} failed: {1}".format(local.id_range, e))
+            local = [l for l in local_results if l.id_range == remote.id_range][0]
+
+            if len(local) == 0 and len(remote) > 0:
+                # If local container is empty and remote is not
+                # then difference is whole remote container
+                log.info("Local container is empty, recovering full range: {0}".format(local.id_range))
+                result = remote;
+            else:
+                log.info("Computing differences for: {0}".format(local.id_range))
+                result = local.diff(remote)
+                result.address = remote.address
+                result.group_id = remote.group_id
+            if len(result) > 0:
+                for res in result:
+                    res.address = remote.address
+                    res.group_id = remote.group_id
+                    print res
+                    key = tuple(res.key)
+                    if key in diff_results:
+                        diff = diff_results[key]
+                        if diff.timestamp.tsec > res.timestamp.tsec:
+                            continue
+                        elif diff.timestamp.tsec == res.timestamp.tsec and diff.timestamp.tnsec > res.timestamp.tnsec:
+                            continue
+
+                        diff_results[key] = res
+                    else:
+                        diff_results[format_id(res.key)] = res
+            else:
+                log.info("Resulting diff is empty, skipping range: {0}".format(local.id_range))
+        except Exception as e:
+            log.error("Diff of {0} failed: {1}".format(local.id_range, e))
     return diff_results
 
 def recover(ctx, diffs):
@@ -197,14 +195,9 @@ def process_range(ranges):
     global g_ctx
     g_ctx.elog = elliptics.Logger(g_ctx.log_file, g_ctx.log_level)
     results, records, it = run_iterators(g_ctx, ranges)
-    print(results)
-    print(records)
-    print(it)
-    sorted_results, sort_skipped, sort_sort = sort(g_ctx, results)
-    print(sorted_results)
-    print(sort_skipped)
-    print(sort_sort)
-    return records, it, sort_skipped, sort_sort
+    results, sort_skipped, sort_sort = sort(g_ctx, results)
+    results = [(s.id_range, s.eid, s.address, s.group_id) for s in results]
+    return results, records, it, sort_skipped, sort_sort
     #it_results, local_r, remote_r, local_it, remote_it = run_iterators(g_ctx, ranges=ranges)
     #sorted_results, sort_skipped, sort_local, sort_remote, sort_sort = sort(g_ctx, it_results)
     #diff_results = diff(g_ctx, sorted_results)
@@ -239,25 +232,59 @@ def main(ctx):
     recover_stats = ctx.stats["recover"]
     recover_stats.timer.group('started')
 
+    log.debug("Elliptics nodes: {0}".format(ranges.keys()))
+
+    local_async_result = g_ctx.pool.apply_async(process_range, (ranges[str(g_ctx.address)], ))
+
+    del ranges[str(g_ctx.address)] # removes local node ranges
+
     for r in ranges:
+        print r
         async_results.append(g_ctx.pool.apply_async(process_range, (ranges[r],)))
 
-    for r in async_results:
-        r.wait()
-        #res, local_r, remote_r, local_it, remote_it, sort_skipped, sort_local, sort_remote, sort_sort, diff_count, successes, failures = r.get()
+    local_result, local_records, local_it, local_sort_skipped, local_sort_sort = local_async_result.get()
+    recover_stats.counter.records += local_records
+    recover_stats.counter.local_records += local_records
+    recover_stats.counter.local_iterations += local_it
+    recover_stats.counter.iterations += local_it
+    recover_stats.counter.sort_skipped += local_sort_skipped
+    recover_stats.counter.sorted_records += local_sort_sort
 
-        #recover_stats.counter.local_records     += local_r
-        #recover_stats.counter.remote_records    += remote_r
-        #recover_stats.counter.recover_key       += successes
-        #recover_stats.counter.recover_key       -= failures
-        #recover_stats.counter.local_iterations  += local_it
-        #recover_stats.counter.remote_iterations += remote_it
-        #recover_stats.counter.iterations        += local_it + remote_it
-        #recover_stats.counter.sort_skipped      += sort_skipped
-        #recover_stats.counter.sort_local        += sort_local
-        #recover_stats.counter.sort_remote       += sort_remote
-        #recover_stats.counter.sort_sort         += sort_sort
-        #recover_stats.counter.diff              += diff_count
+    local = []
+
+    def init_it_result(i):
+        id_range, eid, address, group_id = i
+        filename = mk_container_name(id_range, eid)
+        it_result = IteratorResult.load_filename(filename, address=address, eid=eid, sorted=True, id_range=id_range, tmp_dir=g_ctx.tmp_dir, leave_file=False)
+        it_result.address = address
+        it_result.group_id = group_id
+        return it_result
+        local.append(it_result)
+
+    for i in local_result:
+        local.append(init_it_result(i))
+
+    remote = []
+
+    for r in async_results:
+        res, records, it, sort_skipped, sort_sort = r.get()
+        recover_stats.counter.records += records
+        recover_stats.counter.remote_records += records
+        recover_stats.counter.remote_iterations += it
+        recover_stats.counter.iterations += it
+        recover_stats.counter.sort_skipped += sort_skipped
+        recover_stats.counter.sorted_records += sort_sort
+        for i in res:
+            remote.append(init_it_result(i))
+
+    diff_results = diff(local, remote)
+
+    recover_stats.counter.diff += len(diff_results)
+
+    result, successes, failures = recover(g_ctx, diff_results)
+
+    recover_stats.counter.recover_key += successes
+    recover_stats.counter.recover_key -= failures
         #result &= res
 
     recover_stats.timer.group('finished')
