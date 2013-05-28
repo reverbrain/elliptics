@@ -19,7 +19,7 @@ from ..range import IdRange, RecoveryRange
 from ..route import RouteList
 from ..iterator import Iterator
 from ..time import Time
-from ..utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
+from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -54,78 +54,51 @@ def get_ranges(ctx, routes, group_id):
                 log.debug("Created range: {0}, {1}".format(*ranges[-i]))
     return ranges
 
-def run_iterators(ctx, group=None, routes=None, ranges=None, stats=None):
+
+def run_iterator(ctx, group=None, address=None, routes=None, ranges=None, stats=None):
     """
-    Runs local and remote iterators for each range.
+    Runs iterator for all ranges on node specified by address
     TODO: We can group iterators by address and run them in parallel
-    TODO: We can run only one iterator per address if we'll teach iterators to "batch" all key ranges in one request
     """
-    results = []
-    local_eid = routes.filter_by_address(ctx.address)[0].key
-    local_node = elliptics_create_node(address=ctx.address, elog=ctx.elog)
-    for iteration_range in ranges:
-        try:
-            timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
-
-            log.debug("Running local iterator on: {0}".format(mk_container_name(
-                iteration_range.id_range, local_eid)))
-            local_result, = Iterator(local_node, group).start(
-                eid=local_eid,
-                timestamp_range=timestamp_range,
-                key_ranges=[iteration_range.id_range],
-                tmp_dir=ctx.tmp_dir,
-                address=ctx.address,
-            )
-            log.debug("Local obtained: {0} record(s)".format(len(local_result)))
-            stats.counter.local_records += len(local_result)
-            stats.counter.local_iterations += 1
-            stats.counter.iterations += 1
-
-            remote_eid = routes.filter_by_address(iteration_range.address)[0].key
-            log.debug("Running remote iterator on: {0}".format(mk_container_name(
-                iteration_range.id_range, remote_eid)))
-            remote_result, = Iterator(local_node, group).start(
-                eid=remote_eid,
-                timestamp_range=timestamp_range,
-                key_ranges=[iteration_range.id_range],
-                tmp_dir=ctx.tmp_dir,
-                address=iteration_range.address,
-            )
-            log.debug("Remote obtained: {0} record(s)".format(len(remote_result)))
-            stats.counter.remote_records += len(remote_result)
-            stats.counter.remote_iterations += 1
-            stats.counter.iterations += 2
-            results.append((local_result, remote_result))
-        except Exception as e:
-            log.error("Iteration failed for: {0}: {1}".format(
-                iteration_range.id_range, repr(e)))
-            stats.counter.iterations -= 1
-    return results
+    node = elliptics_create_node(address=address, elog=ctx.elog)
+    try:
+        timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
+        eid = routes.filter_by_address(address)[0].key
+        key_ranges = [r.id_range for r in ranges]
+        log.debug("Running iterator on node: {0}".format(address))
+        results = Iterator(node, group).start(
+            eid=eid,
+            timestamp_range=timestamp_range,
+            key_ranges=key_ranges,
+            tmp_dir=ctx.tmp_dir,
+            address=address,
+        )
+        for result in results:
+            log.debug("Iterator {0} obtained: {1} record(s)".format(result.id_range, len(result)))
+        stats.counter.records += len(results)
+        stats.counter.iterations += 1
+        return results
+    except Exception as e:
+        log.error("Iteration failed for: {0}: {1}".format(address, repr(e)))
+        stats.counter.iterations -= 1
+        return []
 
 def sort(ctx, results, stats):
     """
-    Runs sort routine for all iterator result
+    Runs sort routine for all iterator results
     """
     sorted_results = []
-    for local, remote in results:
-        if len(remote) == 0:
-            log.debug("Sort skipped remote iterator results are empty")
+    for result in results:
+        if len(result) == 0:
+            log.debug("Sort skipped iterator results are empty")
             continue
         try:
-            assert local.id_range == remote.id_range, \
-                "Local range must equal remote range"
-
-            log.info("Processing sorting local range: {0}".format(local.id_range))
-            local.container.sort()
-            stats.counter.sort_local += 1
-
-            log.info("Processing sorting remote range: {0}".format(local.id_range))
-            remote.container.sort()
-            stats.counter.sort_remote += 1
-
-            sorted_results.append((local, remote))
+            log.info("Processing sorting range: {0}".format(result.id_range))
+            result.container.sort()
+            sorted_results.append(result)
+            stats.counter.remote += 1
         except Exception as e:
-            log.error("Sort of {0} failed: {1}".format(local.id_range, e))
+            log.error("Sort of {0} failed: {1}".format(result.id_range, e))
             stats.counter.sort -= 1
     return sorted_results
 
@@ -219,9 +192,13 @@ def main(ctx):
     result = True
     ctx.stats.timer.main('started')
 
+    # Run local iterators, sort them
+    # For each host in route table run remote iterators in parallel
+      # Iterate, sort, diff corresponding range, recover diff, return stats
+
     for group in ctx.groups:
         log.warning("Processing group: {0}".format(group))
-        group_stats = ctx.stats[group]
+        group_stats = ctx.stats['group_{0}'.format(group)]
         group_stats.timer.group('started')
 
         routes = RouteList(ctx.routes.filter_by_group_id(group))
@@ -231,37 +208,75 @@ def main(ctx):
             log.warning("No ranges to recover in group: {0}".format(group))
             group_stats.timer.group('finished')
             continue
-        # We should not run iterators on ourselves
         assert all(address != ctx.address for _, address in ranges)
 
-        log.warning("Running iterators against: {0} range(s)".format(len(ranges)))
-        group_stats.timer.group('iterators')
-        iterator_results = run_iterators(
+        log.warning("Running local iterators against: {0} range(s)".format(len(ranges)))
+        group_stats.timer.group('iterator_local')
+        local_results = run_iterator(
             ctx,
             group=group,
+            address=ctx.address,
             routes=ctx.routes,
             ranges=ranges,
             stats=group_stats,
         )
-        assert len(ranges) >= len(iterator_results)
-        log.warning("Finished iteration of: {0} range(s)".format(len(iterator_results)))
+        assert len(ranges) >= len(local_results)
+        log.warning("Finished local iteration of: {0} range(s)".format(len(local_results)))
 
-        log.warning("Sorting iterators' data")
-        group_stats.timer.group('sort')
-        sorted_results = sort(ctx, iterator_results, group_stats)
-        assert len(iterator_results) >= len(sorted_results)
-        log.warning("Sorted successfully: {0} result(s)".format(len(sorted_results)))
+        log.warning("Sorting local iterator results")
+        group_stats.timer.group('sort_local')
+        sorted_local_results = sort(ctx, local_results, group_stats)
+        assert len(local_results) >= len(sorted_local_results)
+        log.warning("Sorted successfully: {0} local result(s)".format(len(sorted_local_results)))
 
-        log.warning("Computing diff local vs remote")
-        group_stats.timer.group('diff')
-        diff_results = diff(ctx, sorted_results, group_stats)
-        assert len(sorted_results) >= len(diff_results)
-        log.warning("Computed differences: {0} diff(s)".format(len(diff_results)))
+        # For each address in computed recovery ranges run iterators
+        # TODO: We should have `full_merge` mode that uses RouteList.addresses()
+        addresses = set([r.address for r in ranges])
+        for address in addresses:
+            remote_stats = group_stats['remote_{0}'.format(address)]
+            remote_stats.timer.remote('started')
 
-        log.warning("Recovering diffs")
-        group_stats.timer.group('recover')
-        result &= recover(ctx, diff_results, group, group_stats)
-        log.warning("Recovery finished, setting result to: {0}".format(result))
+
+            log.warning("Running remote iterators")
+            remote_stats.timer.remote('iterator')
+            # In merge mode we only using ranges that were stolen from `address`
+            remote_ranges = [r for r in ranges if r.address == address]
+            remote_results = run_iterator(
+                ctx,
+                group=group,
+                address=address,
+                routes=ctx.routes,
+                ranges=remote_ranges,
+                stats=remote_stats,
+            )
+
+            log.warning("Sorting remote iterator results")
+            remote_stats.timer.remote('sort')
+            sorted_remote_results = sort(ctx, remote_results, remote_stats)
+            assert len(local_results) >= len(sorted_local_results)
+            log.warning("Sorted successfully: {0} remote result(s)".format(len(sorted_local_results)))
+
+            log.warning("Zipping remote results against local")
+            zipped_results = []
+            for remote_result in sorted_remote_results:
+                try:
+                    local_result, = [l for l in local_results if l.id_range == remote_result.id_range]
+                    zipped_results.append((local_result, remote_result))
+                except Exception as e:
+                    log.error("Can't find local result corresponding to: {0}: {1}".format(remote_result.id_range, e))
+            log.warning("Zipped {0} result(s)".format(len(zipped_results)))
+
+            log.warning("Computing diff local vs remote")
+            remote_stats.timer.remote('diff')
+            diff_results = diff(ctx, zipped_results, remote_stats)
+            assert len(sorted_remote_results) >= len(diff_results)
+            log.warning("Computed differences: {0} diff(s)".format(len(diff_results)))
+
+            log.warning("Recovering diffs")
+            remote_stats.timer.remote('recover')
+            result &= recover(ctx, diff_results, group, remote_stats)
+            log.warning("Recovery finished, setting result to: {0}".format(result))
+            remote_stats.timer.remote('finished')
         group_stats.timer.group('finished')
     ctx.stats.timer.main('finished')
     return result
