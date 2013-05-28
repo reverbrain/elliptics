@@ -253,7 +253,7 @@ def main(ctx):
     g_ctx.pool = Pool(processes=g_ctx.nprocess)
     log.debug("Created pool of processes: %d" % g_ctx.nprocess)
 
-    recover_stats = ctx.stats["recover"]
+    recover_stats = g_ctx.stats["recover"]
     recover_stats.timer.group('started')
     for range in ranges:
         async_results.append(g_ctx.pool.apply_async(process_range, (range, ctx.test,)))
@@ -276,7 +276,7 @@ def main(ctx):
         result &= res
 
     recover_stats.timer.group('finished')
-    ctx.stats.timer.main('finished')
+    g_ctx.stats.timer.main('finished')
     log.debug("Result: %s" % result)
 
     return result
