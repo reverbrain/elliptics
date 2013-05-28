@@ -259,20 +259,24 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	}
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
-		wc.offset = 0;
-		wc.size = io->num;
-		wc.flags = flags;
-		wc.type = io->type;
+		if ((io->flags & DNET_IO_FLAGS_PLAIN_WRITE) ||
+				(io->offset + io->size != io->num) ||
+				!(c->data.blob_flags & EBLOB_OVERWRITE_COMMITS)) {
+			wc.offset = 0;
+			wc.size = io->num;
+			wc.flags = flags;
+			wc.type = io->type;
 
-		err = eblob_write_commit(c->eblob, &key, NULL, 0, &wc);
-		if (err) {
-			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: type: %d: %s %d\n",
-				dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
-			goto err_out_exit;
+			err = eblob_write_commit(c->eblob, &key, NULL, 0, &wc);
+			if (err) {
+				dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: type: %d: %s %d\n",
+					dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type, strerror(-err), err);
+				goto err_out_exit;
+			}
+
+			dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: type: %d: Ok\n",
+				dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type);
 		}
-
-		dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: type: %d: Ok\n",
-			dnet_dump_id_str(io->id), (unsigned long long)io->num, io->type);
 	}
 
 	if (!err && wc.data_fd == -1) {
