@@ -71,7 +71,7 @@ class DurationTimer(object):
         start, stop = self.times[0], self.times[-1]
         result.append(construct_line(start))
         for begin, end in zip(self.times, self.times[1:]):
-            name = str(begin[0]) + "-" + str(end[0])
+            name = str(begin[0]) + "..." + str(end[0])
             time = end[1] - begin[1]
             result.append(construct_line((name, time)))
         if start != stop:
