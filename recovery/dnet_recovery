@@ -61,7 +61,6 @@ if __name__ == '__main__':
     parser.add_option("-N", "--dry-run", action="store_true", dest="dry_run", default=False,
                       help="Enable test mode: only count diffs without recovering [default: %default]")
 
-
     (options, args) = parser.parse_args()
 
     if options.debug:
@@ -165,15 +164,13 @@ if __name__ == '__main__':
 
     if recovery_type == TYPE_MERGE:
         from elliptics_recovery.types.merge import main
-        result = main(ctx)
     elif recovery_type == TYPE_DC:
         from elliptics_recovery.types.dc import main
-        result = main(ctx)
     elif recovery_type == TYPE_DC2:
         from elliptics_recovery.types.dc2 import main
-        result = main(ctx)
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
+    result = main(ctx)
 
     if options.stat == STAT_TEXT:
         print ctx.stats
