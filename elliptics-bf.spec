@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.7.0
+Version:	2.24.7.1.nosrw
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,23 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed May 29 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.1.nosrw
+- Temporarily disable srw build and downgrade cocaine dependency
+- Update honest_command_handler_adaptee.cpp
+- Update honest_command_handler_adaptee.hpp
+- Fixed timeouts in indexes updates
+- Update registration.cpp
+- Fix typo in printf format for session.cpp
+- Fixed remove method in cocaine storage
+- Removed acks replies after transaction is completed
+- Added --fake parameter to run without recovering.
+- Added method for loading iterator results from files. Completed basic logic of dc2 script.
+- Do not commit what was already committed by EBLOB_OVERWRITE_COMMITS bit and when size+offset match what should be committed
+- Use session's ioflags in bulk operations and when calling find_indexes()
+- Updated ioserv config doc. Patch by Sergey Shtykov <bayonet@yandex-team.ru>
+- Added dc2 - another variant of data center recovery.
+- Separated iterator results by ranges
+
 * Mon May 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.0
 - Use round-robin sph->src_key assignment.
 - Added new exec() method which assigns sph->src_key from its parameter
