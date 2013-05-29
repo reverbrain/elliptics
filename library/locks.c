@@ -181,9 +181,6 @@ void dnet_oplock(struct dnet_node *n, struct dnet_id *key)
 
 		--entry->order_length;
 		entry->locked = 1;
-
-		pthread_mutex_lock(&n->locks->lock);
-
 		pthread_mutex_unlock(&entry->lock);
 	} else if (!list_empty(&n->locks->lock_list)) {
 		entry = list_first_entry(&n->locks->lock_list, struct dnet_locks_entry, lock_list_entry);
@@ -193,11 +190,10 @@ void dnet_oplock(struct dnet_node *n, struct dnet_id *key)
 		memcpy(entry->id.id, key->id, DNET_ID_SIZE);
 
 		dnet_oplock_insert(&n->locks->lock_tree, entry);
+		pthread_mutex_unlock(&n->locks->lock);
 	} else {
 		dnet_log(n, DNET_LOG_ERROR, "%s: oplock list is empty.\n", dnet_dump_id(key));
 	}
-
-	pthread_mutex_unlock(&n->locks->lock);
 }
 
 void dnet_opunlock(struct dnet_node *n, struct dnet_id *key)
