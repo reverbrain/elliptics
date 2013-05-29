@@ -26,7 +26,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#ifdef HAVE_COCAINE_SUPPORT__
+#ifdef HAVE_COCAINE_SUPPORT
 
 #include <map>
 #include <vector>
