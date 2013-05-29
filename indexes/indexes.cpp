@@ -757,7 +757,7 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 			// Lock will be releaseed when indexes are fully updated
 			cmd->flags |= DNET_FLAGS_NOLOCK;
 
-			if (finished && !err) {
+			if (!(finished && !err)) {
 				// Do not send final ACK, it will be sent when all indexes are fully updated
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
