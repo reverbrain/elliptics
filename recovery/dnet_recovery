@@ -55,9 +55,10 @@ if __name__ == '__main__':
     parser.add_option("-D", "--dir", dest="tmp_dir", default='/var/tmp/', metavar="DIR",
                       help="Temporary directory for iterators' results [default: %default]")
     parser.add_option("-n", "--nprocess", action="store", dest="nprocess", default="1",
-                      help="Number of subprocesses [default %default]")
+                      help="Number of subprocesses [default: %default]")
     parser.add_option("-f", "--fake", action="store_true", dest="test", default=False,
                       help="Enable test mode: only count diffs without recovering [default: %default]")
+
 
     (options, args) = parser.parse_args()
 
