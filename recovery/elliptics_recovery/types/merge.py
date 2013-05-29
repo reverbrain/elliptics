@@ -226,7 +226,11 @@ def process_address(address, group, ranges):
 
     log.warning("Recovering diffs")
     remote_stats.timer.remote('recover')
-    result = recover(g_ctx, diff_result, group, remote_stats)
+    if not g_ctx.dry_run:
+        result = recover(g_ctx, diff_result, group, remote_stats)
+    else:
+        result = True
+        log.warning("Recovery skipped due to `dry-run`")
     log.warning("Recovery finished, setting result to: {0}".format(result))
     remote_stats.timer.remote('finished')
     return result
