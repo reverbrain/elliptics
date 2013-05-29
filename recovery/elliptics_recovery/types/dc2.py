@@ -278,7 +278,7 @@ def main(ctx):
 
     recover_stats.counter.diff += len(diff_results)
 
-    if not g_ctx.test:
+    if not g_ctx.dry_run:
         result, successes, failures = recover(g_ctx, diff_results)
         recover_stats.counter.recover_key += successes
         recover_stats.counter.recover_key -= failures

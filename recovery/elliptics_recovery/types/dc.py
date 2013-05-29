@@ -215,7 +215,7 @@ def recover_keys(ctx, address, group, keys):
 
 
 
-def process_range(range, test):
+def process_range(range, dry_run):
     global g_ctx
     g_ctx.elog = elliptics.Logger(g_ctx.log_file, g_ctx.log_level)
     it_results, local_r, remote_r, local_it, remote_it = run_iterators(g_ctx, range=range)
@@ -224,7 +224,7 @@ def process_range(range, test):
 
     result, successes, failures = (True, 0, 0)
 
-    if not test:
+    if not dry_run:
         result, successes, failures = recover(g_ctx, diff_results)
 
     return result, local_r, remote_r, local_it, remote_it, sort_skipped, sort_local, sort_remote, sort_sort, len(diff_results), successes, failures
@@ -256,7 +256,7 @@ def main(ctx):
     recover_stats = g_ctx.stats["recover"]
     recover_stats.timer.group('started')
     for range in ranges:
-        async_results.append(g_ctx.pool.apply_async(process_range, (range, ctx.test,)))
+        async_results.append(g_ctx.pool.apply_async(process_range, (range, g_ctx.dry_run,)))
 
     for r in async_results:
         res, local_r, remote_r, local_it, remote_it, sort_skipped, sort_local, sort_remote, sort_sort, diff_count, successes, failures = r.get()
