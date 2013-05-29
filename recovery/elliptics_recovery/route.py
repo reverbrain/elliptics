@@ -183,6 +183,19 @@ class RouteList(object):
 
         return ranges
 
+    def get_local_ranges_by_address(self, address):
+        ranges = self.get_ranges_by_address(address)
+        ret = dict()
+        for r in ranges:
+            for addr in r.address:
+                a = r.address[addr][1]
+                if str(a) in ret:
+                    ret[str(a)].append(RecoveryRange(r.id_range, (r.address[addr][0], r.address[addr][1], addr)))
+                else:
+                    ret[str(a)] = [RecoveryRange(r.id_range, (r.address[addr][0], r.address[addr][1], addr))]
+
+        return ret
+
     def get_address_ranges(self, address):
         ranges = []
         routes = self.filter_by_group_id(self.filter_by_address(address)[0].key.group_id)

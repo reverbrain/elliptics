@@ -626,7 +626,10 @@ err_out_complete:
 
 			*finished = (0 == --requests_in_progress);
 			cmd.status = 0;
-			dnet_send_reply(state, &cmd, data.data(), data.size(), *finished ? 0 : 1);
+
+			bool more = *finished && !err;
+
+			dnet_send_reply(state, &cmd, data.data(), data.size(), more);
 		}
 
 		return err;
@@ -748,17 +751,17 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 
 			bool finished = false;
 
-			int result = functor->process(&finished);
+			int err = functor->process(&finished);
 
 			// Mark command as no-lock, so that lock will not be released in dnet_process_cmd_raw()
 			// Lock will be releaseed when indexes are fully updated
 			cmd->flags |= DNET_FLAGS_NOLOCK;
 
-			if (!finished) {
+			if (!(finished && !err)) {
 				// Do not send final ACK, it will be sent when all indexes are fully updated
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
-			return result;
+			return err;
 		}
 		case DNET_CMD_INDEXES_INTERNAL: {
 			return process_internal_indexes(st, cmd, request);

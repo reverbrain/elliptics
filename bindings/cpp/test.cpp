@@ -611,6 +611,51 @@ static void test_cache_delete(session &s, int num)
 	std::cerr << "Cache entries deleted: " << count << std::endl;
 }
 
+void check_read_recovery_availability(std::stringstream &log, session &s, const std::string &key, int group)
+{
+	auto sess = s.clone();
+	sess.set_groups({ group });
+	sess.set_exceptions_policy(session::no_exceptions);
+
+	auto result = sess.read_data(key, 0, 0);
+	result.wait();
+
+	log << group << ": " << result.error().code() << ", ";
+}
+
+void print_read_recovery_availability(session &s, const std::string &key)
+{
+	std::stringstream log;
+	log << "Data availability: ";
+
+	check_read_recovery_availability(log, s, key, 1);
+	check_read_recovery_availability(log, s, key, 2);
+
+	std::cerr << log.str() << std::endl;
+}
+
+void test_read_recovery(session &s)
+{
+	std::string id = "test-id";
+	std::string data = "test-data";
+
+	auto sess = s.clone();
+
+	sess.set_groups({ 1, 2 });
+
+	sess.write_data(id, data, 0).wait();
+
+	print_read_recovery_availability(s, id);
+
+	s.remove(id).wait();
+
+	print_read_recovery_availability(s, id);
+
+	sess.read_data(id, 0, 0).wait();
+
+	print_read_recovery_availability(s, id);
+}
+
 static void memory_test(session &s)
 {
 	struct rusage start, end;
@@ -688,6 +733,8 @@ int main(int argc, char *argv[])
 		} catch (...) {
 			throw std::runtime_error("Could not add remote nodes, exiting");
 		}
+
+		test_read_recovery(s);
 
 		std::string str;
 		str.assign(300, 'c');

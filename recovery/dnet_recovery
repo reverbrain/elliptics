@@ -22,7 +22,8 @@ log.getLogger()
 
 TYPE_MERGE = 'merge'
 TYPE_DC = 'dc'
-ALLOWED_TYPES = (TYPE_MERGE, TYPE_DC)
+TYPE_DC2 = 'dc2'
+ALLOWED_TYPES = (TYPE_MERGE, TYPE_DC, TYPE_DC2)
 
 STAT_NONE = 'none'
 STAT_TEXT = 'text'
@@ -55,6 +56,8 @@ if __name__ == '__main__':
                       help="Temporary directory for iterators' results [default: %default]")
     parser.add_option("-n", "--nprocess", action="store", dest="nprocess", default="1",
                       help="Number of subprocesses [default %default]")
+    parser.add_option("-f", "--fake", action="store_true", dest="test", default=False,
+                      help="Enable test mode: only count diffs without recovering [default: %default]")
 
     (options, args) = parser.parse_args()
 
@@ -75,6 +78,8 @@ if __name__ == '__main__':
 
     log.info("Initializing stats")
     ctx.stats = Stats(name='global')
+
+    ctx.test = options.test
 
     try:
         ctx.address = Address.from_host_port_family(options.elliptics_remote)
@@ -153,6 +158,9 @@ if __name__ == '__main__':
         result = main(ctx)
     elif recovery_type == TYPE_DC:
         from elliptics_recovery.types.dc import main
+        result = main(ctx)
+    elif recovery_type == TYPE_DC2:
+        from elliptics_recovery.types.dc2 import main
         result = main(ctx)
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))

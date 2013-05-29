@@ -43,3 +43,8 @@ int ell::honest_command_handler_adaptee::file_info(module_backend_t */*r*/, void
 {
 	return dnet_send_file_info_without_fd(state, cmd, 0, -1);
 }
+
+int ell::honest_command_handler_adaptee::file_del(module_backend_t */*r*/, void *state, dnet_cmd *cmd)
+{
+	return dnet_send_file_info_without_fd(state, cmd, 0, -1);
+}
