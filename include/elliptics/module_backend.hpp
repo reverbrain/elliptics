@@ -19,6 +19,7 @@ public:
 	virtual int file_write(module_backend_t *r, void *state, dnet_cmd *cmd, void *data)=0;
 	virtual int file_read(module_backend_t *r, void *state, dnet_cmd *cmd, void *data)=0;
 	virtual int file_info(module_backend_t *r, void *state, dnet_cmd *cmd)=0;
+	virtual int file_del(module_backend_t *r, void *state, dnet_cmd *cmd)=0;
 	virtual ~honest_command_handler() {};
 };
 
