@@ -16,6 +16,7 @@ public:
 	virtual int file_write(module_backend_t *r, void *state, dnet_cmd *cmd, void *data);
 	virtual int file_read(module_backend_t *r, void *state, dnet_cmd *cmd, void *data);
 	virtual int file_info(module_backend_t *r, void *state, dnet_cmd *cmd);
+	virtual int file_del(module_backend_t *r, void *state, dnet_cmd *cmd);
 private:
 	std::unique_ptr<uncomplicated_handler> m_uncomplicated_handler;
 };
