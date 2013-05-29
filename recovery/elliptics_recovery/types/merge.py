@@ -278,6 +278,7 @@ def main(ctx):
             log.warning("Local results are empty")
 
         # For each address in computed recovery ranges run iterator in subprocess
+        group_stats.timer.group('remote')
         async_results = []
         addresses = set([r.address for r in ranges])
         processes = min(g_ctx.nprocess, len(addresses))
