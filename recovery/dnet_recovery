@@ -113,6 +113,8 @@ if __name__ == '__main__':
 
     try:
         ctx.batch_size = int(options.batch_size)
+        if ctx.batch_size <= 0:
+            raise ValueError("Batch size should be positive: {0}".format(ctx.batch_size))
     except Exception as e:
         raise ValueError("Can't parse batchsize: '{0}': {1}".format(
             options.batch_size, repr(e)))
@@ -133,6 +135,8 @@ if __name__ == '__main__':
 
     try:
         ctx.nprocess = int(options.nprocess)
+        if ctx.nprocess <= 0:
+            raise ValueError("Number of processes should be positive: {0}".format(ctx.nprocess))
     except Exception as e:
         raise ValueError("Can't parse nprocess: '{0}': {1}".format(
             options.nprocess, repr(e)))
