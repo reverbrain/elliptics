@@ -48,30 +48,29 @@ int dnet_transform_raw(struct dnet_session *s, const void *src, uint64_t size, c
 {
 	struct dnet_node *n = s->node;
 	struct dnet_transform *t = &n->transform;
-	struct dnet_raw_id ns;
-	int err;
+	char data[2 * sizeof(struct dnet_raw_id)];
+	char *csum_tmp;
+	int err = 0;
 
-	if (s->ns && s->nsize) {
-		err = t->transform(t->priv, s->ns, s->nsize, ns.id, &csize, 0);
-		if (err)
-			return err;
+	if (s->has_ns) {
+		csum_tmp = csum;
+		csum = data + sizeof(struct dnet_raw_id);
+
+		memcpy(data, s->ns.id, sizeof(struct dnet_raw_id));
 	}
 
 	err = t->transform(t->priv, src, size, csum, &csize, 0);
+
 	if (err)
 		return err;
 
-	if (s->ns && s->nsize) {
-		size_t i;
-		long *nsp = (long *)ns.id;
-		long *datap = (long *)csum;
+	if (s->has_ns) {
+		csum = csum_tmp;
 
-		for (i = 0; i < csize / sizeof(long); ++i) {
-			*datap++ ^= *nsp++;
-		}
+		err = t->transform(t->priv, data, sizeof(data), csum, &csize, 0);
 	}
 
-	return 0;
+	return err;
 }
 
 int dnet_transform(struct dnet_session *s, const void *src, uint64_t size, struct dnet_id *id)
