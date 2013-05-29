@@ -277,14 +277,12 @@ def main(ctx):
         else:
             log.warning("Local results are empty")
 
-        log.info("Creating pool of processes: {0}".format(g_ctx.nprocess))
-        pool = Pool(processes=g_ctx.nprocess)
-
-        # For each address in computed recovery ranges run iterators
-        # TODO: We should have `full_merge` mode that uses RouteList.addresses()
-        log.info("Submitting work to pool")
+        # For each address in computed recovery ranges run iterator in subprocess
         async_results = []
         addresses = set([r.address for r in ranges])
+        processes = min(g_ctx.nprocess, len(addresses))
+        log.info("Creating pool of processes: {0}".format(processes))
+        pool = Pool(processes=processes)
         for address in addresses:
             async_results.append(pool.apply_async(process_address, (address, group, ranges)))
         log.info("Closing pool, joining threads")
