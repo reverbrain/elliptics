@@ -1005,6 +1005,53 @@ err_out_exit:
 	return err;
 }
 
+static int dnet_cmd_bulk_read(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+{
+	int err = -1, ret;
+	struct dnet_io_attr *io = data;
+	struct dnet_io_attr *ios = io + 1;
+	uint64_t count = 0;
+	uint64_t i;
+
+	struct dnet_cmd read_cmd = *cmd;
+	read_cmd.size = sizeof(struct dnet_io_attr);
+	read_cmd.cmd = DNET_CMD_READ;
+	read_cmd.flags |= DNET_FLAGS_MORE;
+
+	dnet_convert_io_attr(io);
+	count = io->size / sizeof(struct dnet_io_attr);
+
+	if (count > 0) {
+		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+	}
+
+	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
+		dnet_opunlock(st->n, &cmd->id);
+	}
+
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: starting BULK_READ for %d commands\n",
+		dnet_dump_id(&cmd->id), (int) count);
+
+	for (i = 0; i < count; i++) {
+		if (i + 1 == count)
+			read_cmd.flags &= ~DNET_FLAGS_MORE;
+
+		ret = dnet_process_cmd_raw(st, &read_cmd, &ios[i]);
+		dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing BULK_READ.READ for %d/%d command, err: %d\n",
+			dnet_dump_id(&cmd->id), (int) i, (int) count, ret);
+
+		if (ret && i + 1 == count)
+			cmd->flags |= DNET_FLAGS_NEED_ACK;
+
+		if (!ret)
+			err = 0;
+		else if (err == -1)
+			err = ret;
+	}
+
+	return err;
+}
+
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
 {
 	int err = 0;
@@ -1079,6 +1126,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				else
 					err = dnet_db_list(st, cmd);
 			}
+			break;
+		case DNET_CMD_BULK_READ:
+			err = dnet_cmd_bulk_read(st, cmd, data);
 			break;
 		case DNET_CMD_READ:
 		case DNET_CMD_WRITE:
@@ -1454,7 +1504,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 
 	dnet_setup_id(&c->id, cmd->id.group_id, io->id);
 
-	c->flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
+	c->flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK);
 	if (cmd->flags & DNET_FLAGS_NEED_ACK)
 		c->flags |= DNET_FLAGS_MORE;
 
