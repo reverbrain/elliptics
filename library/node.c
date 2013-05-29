@@ -694,11 +694,8 @@ struct dnet_session *dnet_session_copy(struct dnet_session *s)
 		return NULL;
 	}
 
-	err = dnet_session_set_ns(new_s, s->ns, s->nsize);
-	if (err) {
-		dnet_session_destroy(new_s);
-		return NULL;
-	}
+	new_s->has_ns = s->has_ns;
+	memcpy(new_s->ns.id, s->ns.id, sizeof(struct dnet_raw_id));
 
 	return new_s;
 }
@@ -707,7 +704,6 @@ void dnet_session_destroy(struct dnet_session *s)
 {
 	dnet_log(s->node, DNET_LOG_DEBUG, "Destroying session.\n");
 
-	free(s->ns);
 	free(s->groups);
 	free(s);
 }
@@ -749,26 +745,15 @@ void dnet_session_set_ioflags(struct dnet_session *s, uint32_t ioflags)
 
 int dnet_session_set_ns(struct dnet_session *s, const char *ns, int nsize)
 {
-	char *old = s->ns;
-	int err;
+	int err = 0;
 
 	if (ns && nsize) {
-		s->ns = malloc(nsize);
-		if (!s->ns) {
-			err = -ENOMEM;
-			goto err_out_exit;
-		}
-
-		memcpy(s->ns, ns, nsize);
-		s->nsize = nsize;
-
-		free(old);
+		s->has_ns = 1;
+		err = dnet_transform_node(s->node, ns, nsize, s->ns.id, sizeof(struct dnet_raw_id));
+	} else {
+		s->has_ns = 0;
 	}
 
-	return 0;
-
-err_out_exit:
-	s->ns = old;
 	return err;
 }
 
