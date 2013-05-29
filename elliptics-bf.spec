@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.7.1.nosrw
+Version:	2.24.7.2.nosrw
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed May 29 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.2.nosrw
+- Changed namespace usage
+
 * Wed May 29 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.1.nosrw
 - Temporarily disable srw build and downgrade cocaine dependency
 - Update honest_command_handler_adaptee.cpp

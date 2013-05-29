@@ -1,3 +1,9 @@
+elliptics (2.24.7.2.nosrw) unstable; urgency=low
+
+  * Changed namespace usage
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 29 May 2013 20:46:04 +0400
+
 elliptics (2.24.7.1.nosrw) unstable; urgency=low
 
   * Temporarily disable srw build and downgrade cocaine dependency
