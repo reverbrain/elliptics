@@ -1,7 +1,7 @@
 __doc__ = \
     """
-    New recovery mechanism for elliptics that utilizes new iterators and metadata.
-    NB! For now only "merge" mode is supported e.g. recovery within a group.
+    Merge recovery type - recovers keys in one hash ring (aka group)
+    by placing them to the node where they belong.
 
      * Find ranges that host stole from neighbours in routing table.
      * Start metadata-only iterator fo each range on local and remote hosts.

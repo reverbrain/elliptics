@@ -2,7 +2,7 @@
 
 __doc__ = \
     """
-    XXX:
+    New recovery mechanism for elliptics that utilizes iterators and metadata.
     """
 
 import os
