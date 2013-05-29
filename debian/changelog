@@ -1,3 +1,11 @@
+elliptics (2.24.7.3) unstable; urgency=low
+
+  * Revert "Temporarily disable srw build and downgrade cocaine dependency"
+  * Trying to fix oplock deadlock
+  * Implemented BULK_READ by several READ calls
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 30 May 2013 02:00:02 +0400
+
 elliptics (2.24.7.2.nosrw) unstable; urgency=low
 
   * Changed namespace usage
