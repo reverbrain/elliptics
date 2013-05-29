@@ -44,8 +44,10 @@ if __name__ == '__main__':
                       help="Elliptics node address [default: %default]")
     parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default=None,
                       help="Comma separated list of groups [default: %default]")
-    parser.add_option("-t", "--timestamp", action="store", dest="timestamp", default="0",
-                      help="Recover keys created/modified since [default: %default]")
+    parser.add_option("-t", "--time", action="store", dest="timestamp", default="0",
+                      help="Recover keys modified since `time`. "
+                           "Can be specified as timestamp or as time difference"
+                           "e.g.: `1368940603`, `12h`, `1d`, or `4w` [default: %default]")
     parser.add_option("-b", "--batch-size", action="store", dest="batch_size", default="1024",
                       help="Number of keys in read_bulk/write_bulk batch [default: %default]")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
@@ -101,9 +103,12 @@ if __name__ == '__main__':
 
     try:
         ctx.timestamp = Time.from_epoch(options.timestamp)
-    except Exception as e:
-        raise ValueError("Can't parse timestamp: '{0}': {1}".format(
-            options.timestamp, repr(e)))
+    except Exception:
+        try:
+            ctx.timestamp = Time.from_string(options.timestamp)
+        except Exception as e:
+            raise ValueError("Can't parse timestamp: '{0}': {1}".format(
+                options.timestamp, repr(e)))
     log.info("Using timestamp: {0}".format(ctx.timestamp))
 
     try:
