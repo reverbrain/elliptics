@@ -1,4 +1,6 @@
-from datetime import datetime
+import re
+
+from datetime import datetime, timedelta
 
 import sys
 sys.path.insert(0, "bindings/python/") # XXX
@@ -20,7 +22,7 @@ class Time(object):
         self.time = elliptics.Time(tsec, tnsec)
 
     def __str__(self):
-        return "{0}:{1}".format(self.time.tsec, self.time.tnsec)
+        return datetime.fromtimestamp(self.time.tsec).strftime('%Y-%m-%d %H:%M:%S')
 
     def __repr__(self):
         return "Time({0}, {1})".format(self.time.tsec, self.time.tnsec)
@@ -46,8 +48,23 @@ class Time(object):
 
     @classmethod
     def from_datetime(cls, dt):
-        pass # XXX:
+        epoch = (dt - datetime(1970, 1, 1)).total_seconds()
+        return cls.from_epoch(epoch)
 
     @classmethod
     def from_string(cls, string):
-        pass # XXX
+        """
+        Parses human readable input into time difference from datetime.now()
+
+        >>> Time.from_string("3w")
+        Time(1367989070, 0)
+        >>> Time.from_string("3w 12h 57m")
+        Time(1367942475, 0)
+        """
+        keys = ["weeks", "days", "hours", "minutes"]
+        regex = "".join(["((?P<%s>\d+)%s ?)?" % (k, k[0]) for k in keys])
+        kwargs = {}
+        for k,v in re.match(regex, string).groupdict(default=0).items():
+            kwargs[k] = int(v)
+        dt = datetime.utcnow() - timedelta(**kwargs)
+        return cls.from_datetime(dt)
