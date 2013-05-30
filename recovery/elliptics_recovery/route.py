@@ -1,3 +1,10 @@
+"""
+Route management routines
+
+Vanilla elliptics python bindings are too C'ish.
+We need better abstractions.
+"""
+
 from socket import getaddrinfo, SOL_TCP, AF_INET6, AF_INET
 from itertools import groupby
 from operator import itemgetter
@@ -5,13 +12,6 @@ from operator import itemgetter
 from .utils.misc import logged_class, format_id
 from .range import IdRange, RecoveryRange
 
-__doc__ = \
-    """
-    Route management routines
-
-    Vanilla elliptics python bindings are too C'ish.
-    We need better abstractions.
-    """
 
 @logged_class
 class Address(object):
@@ -55,6 +55,9 @@ class Address(object):
         host, port, family = addr_str.rsplit(':', 2)
         return cls(host=host, port=int(port), family=int(family))
 
+    def __hash__(self):
+        return hash(tuple(self))
+
     def __repr__(self):
         return "Address({0}, {1}, {2})".format(self.host, self.port, self.family)
 
@@ -85,6 +88,9 @@ class Route(object):
     def __init__(self, key, address):
         self.key = key
         self.address = address
+
+    def __hash__(self):
+        return hash(tuple(self))
 
     def __repr__(self):
         return 'Route({0}, {1}, {2})'.format(repr(self.key), repr(self.address), self.key.group_id)
@@ -148,7 +154,10 @@ class RouteList(object):
         return [ route for route in self.routes if route.key.group_id == group_id ]
 
     def groups(self):
-        return list(set([ route.key.group_id for route in self.routes ]))
+        return list(set(route.key.group_id for route in self.routes))
+
+    def addresses(self):
+        return list(set(route.address for route in self.routes))
 
     def get_ranges_by_address(self, address):
         ranges = []

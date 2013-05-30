@@ -1,24 +1,36 @@
+"""
+Stats for humans (c)
+Simple and Python-ish interface to stats.
+Currently we support counters and time measurements.
+"""
+
 from datetime import datetime
 from itertools import chain
 
-__doc__ = \
-    """
-    Stats for humans (c)
-    Simple and Python-ish interface to stats.
-    Currently we support counters and time measurements.
-    """
-
-
 def format_kv(k, v):
+    """Formats one line of test output"""
     return '{0:<40}{1:>40}'.format(k + ':', str(v))
 
 
 class ResultCounter(object):
-    __slots__ = ('name', 'total', 'success', 'failures')
-    __doc__ = \
-        """
-        XXX:
-        """
+    """
+    Counter of successes and failures.
+
+    Use += to increment successes
+    Use -= to increment failures
+    Totals are computed automagically.
+    >>> rc = ResultCounter('Counter')
+    >>> rc += 10
+    >>> rc -= 2
+    >>> print rc
+    Counter_failures:                                                              2
+    Counter_total:                                                                12
+    Counter_success:                                                              10
+
+    Empty counter prints as an empty string
+    >>> str(ResultCounter('Counter')) == ""
+    True
+    """
 
     def __init__(self, name, success=0, failures=0):
         self.name = name
@@ -38,18 +50,28 @@ class ResultCounter(object):
 
     def __str__(self):
         result = []
-        for cntr in self.__slots__:
-            if cntr != 'name' and getattr(self, cntr) != 0:
-                result.append(format_kv(self.name + '_' + cntr, getattr(self, cntr)))
-        return "\n".join(result)
+        for k, v in self.__dict__.iteritems():
+            if k != 'name' and v != 0:
+                result.append(format_kv(self.name + '_' + k, v))
+        if result:
+            return "\n".join(result)
+        return ""
 
 
 class DurationTimer(object):
-    __slots__ = ('name', 'times',)
-    __doc__ = \
-        """
-        XXX:
-        """
+    """
+    Time measurement between events and reporting.
+
+    One can mark different points in program execution with timer
+    >>> dt = DurationTimer('Timer')
+    >>> dt('start')
+    >>> dt('work')
+    >>> dt('stop')
+
+    It also has pretty printing of it's content split by intervals
+    >>> str(dt) != ""
+    True
+    """
 
     def __init__(self, name):
         self.name = name
@@ -71,7 +93,7 @@ class DurationTimer(object):
         start, stop = self.times[0], self.times[-1]
         result.append(construct_line(start))
         for begin, end in zip(self.times, self.times[1:]):
-            name = str(begin[0]) + "-" + str(end[0])
+            name = str(begin[0]) + "..." + str(end[0])
             time = end[1] - begin[1]
             result.append(construct_line((name, time)))
         if start != stop:
@@ -80,10 +102,9 @@ class DurationTimer(object):
 
 
 class Container(object):
-    __doc__ = \
-        """
-        XXX:
-        """
+    """
+    Container class which creates instance of provided `klass` on attribute access.
+    """
 
     def __init__(self, klass, *args, **kwargs):
         self.__klass = klass
@@ -92,19 +113,64 @@ class Container(object):
         self.__container = dict()
 
     def __getattr__(self, item):
+        if item.startswith('_'):
+            raise AttributeError("Attribute not found: {0}".format(item))
         if item not in self.__container:
             self.__container[item] = self.__klass(name=item, *self.__args, **self.__kwargs)
         return self.__container[item]
+
+    def __setattr__(self, key, value):
+        if not key.startswith('_'):
+            self.__container[key] = value
+        else:
+            self.__dict__[key] = value
 
     def __iter__(self):
         return self.__container.iteritems()
 
 
 class Stats(object):
-    __doc__ = \
-        """
-        XXX:
-        """
+    """
+    Very simple statistics with nesting.
+    For now it supports counters and timers.
+
+
+    Each Stat instance has a name:
+    >>> stats = Stats('global')
+
+    Stat instance have built-in counter factory
+    >>> stats.counter.test_local += 1
+
+    Also you can create any number of nested stats on demand
+    >>> stats['sub_stat'].counter.test_nested -= 1
+
+    Stats have pretty-printing of it's content
+    >>> print stats
+    ==================================== global ====================================
+    test_local_total:                                                              1
+    test_local_success:                                                            1
+    =================================== sub_stat ===================================
+    test_nested_failures:                                                          1
+    test_nested_total:                                                             1
+
+    >>> stat_name = 'sub_stat_2'
+    >>> plugin_stat = Stats(stat_name)
+    >>> plugin_stat.counter.failure -= 1
+    >>> stats[stat_name] = plugin_stat
+    >>> print stats
+    ==================================== global ====================================
+    test_local_total:                                                              1
+    test_local_success:                                                            1
+    =================================== sub_stat ===================================
+    test_nested_failures:                                                          1
+    test_nested_total:                                                             1
+    ================================== sub_stat_2 ==================================
+    failure_failures:                                                              1
+    failure_total:                                                                 1
+
+    Also Stat instance has builtin timer factory
+    >>> stats.timer.test('start')
+    """
 
     def __init__(self, name=None):
         self.name = name
@@ -113,11 +179,13 @@ class Stats(object):
         self.__sub_stats = Container(Stats)
 
     def __str__(self):
-        result = []
-        result.append("{0:=^80}".format(" " + str(self.name) + " "))
+        result = ["{0:=^80}".format(" " + str(self.name) + " ")]
         for _, v in chain(sorted(self.counter), sorted(self.timer), sorted(self.__sub_stats)):
             result.append(str(v))
         return "\n".join(result)
 
     def __getitem__(self, item):
         return getattr(self.__sub_stats, str(item))
+
+    def __setitem__(self, key, value):
+        setattr(self.__sub_stats, key, value)

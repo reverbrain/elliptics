@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
-__doc__ = \
-    """
-    XXX:
-    """
+"""
+New recovery mechanism for elliptics that utilizes iterators and metadata.
+
+For now it supports three recovery methods: `merge`, `dc` and `dc2`: `merge` is
+used for recovery within hash ring (aka group) and `dc*` are used for recovery
+between different hash rings.
+"""
 
 import os
 import sys
@@ -18,7 +21,7 @@ from elliptics_recovery.utils.misc import elliptics_create_node, elliptics_creat
 sys.path.insert(0, "bindings/python/")
 import elliptics
 
-log.getLogger()
+log.basicConfig(format='%(asctime)-15s %(levelname)s %(processName)s %(message)s', datefmt='%d %b %y %H:%M:%S')
 
 TYPE_MERGE = 'merge'
 TYPE_DC = 'dc'
@@ -36,28 +39,32 @@ if __name__ == '__main__':
     parser = OptionParser()
     parser.usage = "%prog [options] TYPE"
     parser.description = __doc__
-    parser.add_option("-l", "--log", dest="elliptics_log", default='/dev/stderr', metavar="FILE",
-                      help="Output log messages from library to file [default: %default]")
-    parser.add_option("-L", "--log-level", action="store", dest="elliptics_log_level", default="0",
-                      help="Elliptics client verbosity [default: %default]")
-    parser.add_option("-r", "--remote", action="store", dest="elliptics_remote", default="127.0.0.1:1025:2",
-                      help="Elliptics node address [default: %default]")
-    parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default=None,
-                      help="Comma separated list of groups [default: %default]")
-    parser.add_option("-t", "--timestamp", action="store", dest="timestamp", default="0",
-                      help="Recover keys created/modified since [default: %default]")
     parser.add_option("-b", "--batch-size", action="store", dest="batch_size", default="1024",
                       help="Number of keys in read_bulk/write_bulk batch [default: %default]")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
                       help="Enable debug output [default: %default]")
-    parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
-                      help="Statistics output format: {0} [default: %default]".format("/".join(ALLOWED_STATS)))
     parser.add_option("-D", "--dir", dest="tmp_dir", default='/var/tmp/', metavar="DIR",
                       help="Temporary directory for iterators' results [default: %default]")
+    parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default=None,
+                      help="Comma separated list of groups [default: %default]")
+    parser.add_option("-k", "--lock", dest="lock", default=None, metavar="LOCKFILE",
+                      help="Lock file used for recovery [default: %default]")
+    parser.add_option("-l", "--log", dest="elliptics_log", default='/dev/stderr', metavar="FILE",
+                      help="Output log messages from library to file [default: %default]")
+    parser.add_option("-L", "--log-level", action="store", dest="elliptics_log_level", default="0",
+                      help="Elliptics client verbosity [default: %default]")
     parser.add_option("-n", "--nprocess", action="store", dest="nprocess", default="1",
-                      help="Number of subprocesses [default %default]")
-    parser.add_option("-f", "--fake", action="store_true", dest="test", default=False,
+                      help="Number of subprocesses [default: %default]")
+    parser.add_option("-N", "--dry-run", action="store_true", dest="dry_run", default=False,
                       help="Enable test mode: only count diffs without recovering [default: %default]")
+    parser.add_option("-r", "--remote", action="store", dest="elliptics_remote", default="127.0.0.1:1025:2",
+                      help="Elliptics node address [default: %default]")
+    parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
+                      help="Statistics output format: {0} [default: %default]".format("/".join(ALLOWED_STATS)))
+    parser.add_option("-t", "--time", action="store", dest="timestamp", default="0",
+                      help="Recover keys modified since `time`. "
+                           "Can be specified as timestamp or as time difference"
+                           "e.g.: `1368940603`, `12h`, `1d`, or `4w` [default: %default]")
 
     (options, args) = parser.parse_args()
 
@@ -79,7 +86,7 @@ if __name__ == '__main__':
     log.info("Initializing stats")
     ctx.stats = Stats(name='global')
 
-    ctx.test = options.test
+    ctx.dry_run = options.dry_run
 
     try:
         ctx.address = Address.from_host_port_family(options.elliptics_remote)
@@ -100,13 +107,18 @@ if __name__ == '__main__':
 
     try:
         ctx.timestamp = Time.from_epoch(options.timestamp)
-    except Exception as e:
-        raise ValueError("Can't parse timestamp: '{0}': {1}".format(
-            options.timestamp, repr(e)))
+    except Exception:
+        try:
+            ctx.timestamp = Time.from_string(options.timestamp)
+        except Exception as e:
+            raise ValueError("Can't parse timestamp: '{0}': {1}".format(
+                options.timestamp, repr(e)))
     log.info("Using timestamp: {0}".format(ctx.timestamp))
 
     try:
         ctx.batch_size = int(options.batch_size)
+        if ctx.batch_size <= 0:
+            raise ValueError("Batch size should be positive: {0}".format(ctx.batch_size))
     except Exception as e:
         raise ValueError("Can't parse batchsize: '{0}': {1}".format(
             options.batch_size, repr(e)))
@@ -127,9 +139,22 @@ if __name__ == '__main__':
 
     try:
         ctx.nprocess = int(options.nprocess)
+        if ctx.nprocess <= 0:
+            raise ValueError("Number of processes should be positive: {0}".format(ctx.nprocess))
     except Exception as e:
         raise ValueError("Can't parse nprocess: '{0}': {1}".format(
             options.nprocess, repr(e)))
+
+    try:
+        if options.lock:
+            import fcntl
+            ctx.lockfd = os.open(options.lock, os.O_TRUNC | os.O_CREAT | os.O_RDWR)
+            fcntl.flock(ctx.lockfd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            log.info("Using lock file: {0}".format(options.lock))
+        else:
+            log.info("Not using lock file")
+    except Exception as e:
+        raise RuntimeError("Can't grab lock on: '{0}': {1}".format(options.lock, e))
 
     if options.stat not in ALLOWED_STATS:
         raise ValueError("Unknown output format: '{0}'. Available formats are: {1}".format(
@@ -148,22 +173,20 @@ if __name__ == '__main__':
     log.debug("Creating session for: {0}".format(ctx.address))
     session = elliptics_create_session(node=node, group=0)
 
-    log.warning("Parsing routing table".format(ctx.address))
+    log.warning("Parsing routing table")
     ctx.routes = RouteList.from_session(session)
-    log.debug(ctx.routes)
+    log.debug("Parsed routing table:\n{0}".format(ctx.routes))
     log.debug("Total routes: {0}".format(len(ctx.routes)))
 
     if recovery_type == TYPE_MERGE:
         from elliptics_recovery.types.merge import main
-        result = main(ctx)
     elif recovery_type == TYPE_DC:
         from elliptics_recovery.types.dc import main
-        result = main(ctx)
     elif recovery_type == TYPE_DC2:
         from elliptics_recovery.types.dc2 import main
-        result = main(ctx)
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
+    result = main(ctx)
 
     if options.stat == STAT_TEXT:
         print ctx.stats

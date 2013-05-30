@@ -1,16 +1,6 @@
-#!/usr/bin/env python
-
-__doc__ = \
-    """
-    New recovery mechanism for elliptics that utilizes new iterators and metadata.
-    NB! For now only "merge" mode is supported e.g. recovery within a group.
-
-     * Find ranges that host stole from neighbours in routing table.
-     * Start metadata-only iterator fo each range on local and remote hosts.
-     * Sort iterators' outputs.
-     * Computes diff between local and remote iterator.
-     * Recover keys provided by diff using bulk APIs.
-    """
+"""
+XXX:
+"""
 
 import sys
 import logging as log
@@ -55,7 +45,7 @@ def run_iterators(ctx, range=None):
             key_ranges=[range.id_range],
             tmp_dir=ctx.tmp_dir,
             address = ctx.address
-        )[0]
+        )
         local_records = len(local_result)
         local_it += 1
         log.debug("Local obtained: {0} record(s)".format(len(local_result)))
@@ -73,7 +63,7 @@ def run_iterators(ctx, range=None):
                 key_ranges=[range.id_range],
                 tmp_dir=ctx.tmp_dir,
                 address = range.address[i][1]
-            )[0])
+            ))
             remote_result[-1].address = range.address[i][1]
             remote_result[-1].group_id = i
             log.debug("Remote obtained: {0} record(s)".format(len(remote_result[-1])))
@@ -97,10 +87,6 @@ def sort(ctx, results):
     sort_remote = 0
     sort_sort = 0
     for local, remote in results:
-        if not (local.status and all(r.status for r in remote)):
-            log.debug("Sort skipped because local or remote iterator failed")
-            sort_skipped += 1
-            continue
         if len(remote) == 0:
             log.debug("Sort skipped remote iterator results are empty")
             continue
@@ -219,7 +205,7 @@ def recover_keys(ctx, address, group, keys):
 
 
 
-def process_range(range, test):
+def process_range(range, dry_run):
     global g_ctx
     g_ctx.elog = elliptics.Logger(g_ctx.log_file, g_ctx.log_level)
     it_results, local_r, remote_r, local_it, remote_it = run_iterators(g_ctx, range=range)
@@ -228,7 +214,7 @@ def process_range(range, test):
 
     result, successes, failures = (True, 0, 0)
 
-    if not test:
+    if not dry_run:
         result, successes, failures = recover(g_ctx, diff_results)
 
     return result, local_r, remote_r, local_it, remote_it, sort_skipped, sort_local, sort_remote, sort_sort, len(diff_results), successes, failures
@@ -257,10 +243,10 @@ def main(ctx):
     g_ctx.pool = Pool(processes=g_ctx.nprocess)
     log.debug("Created pool of processes: %d" % g_ctx.nprocess)
 
-    recover_stats = ctx.stats["recover"]
+    recover_stats = g_ctx.stats["recover"]
     recover_stats.timer.group('started')
     for range in ranges:
-        async_results.append(g_ctx.pool.apply_async(process_range, (range, ctx.test,)))
+        async_results.append(g_ctx.pool.apply_async(process_range, (range, g_ctx.dry_run,)))
 
     for r in async_results:
         res, local_r, remote_r, local_it, remote_it, sort_skipped, sort_local, sort_remote, sort_sort, diff_count, successes, failures = r.get()
@@ -280,7 +266,7 @@ def main(ctx):
         result &= res
 
     recover_stats.timer.group('finished')
-    ctx.stats.timer.main('finished')
+    g_ctx.stats.timer.main('finished')
     log.debug("Result: %s" % result)
 
     return result

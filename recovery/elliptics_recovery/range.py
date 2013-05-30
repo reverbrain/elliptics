@@ -1,11 +1,14 @@
+"""
+Key ranges routines
+"""
+
 from collections import namedtuple
 
 from .utils.misc import logged_class, format_id
 
-__doc__ = \
-    """
-    Id range routines
-    """
+import sys
+sys.path.insert(0, "bindings/python/") # XXX
+import elliptics
 
 @logged_class
 class IdRange(object):
@@ -43,6 +46,13 @@ class IdRange(object):
 
     def __hash__(self):
         return hash((tuple(self.start), tuple(self.stop)))
+
+    @staticmethod
+    def elliptics_range(key_begin, key_end):
+        ret = elliptics.IteratorRange()
+        ret.key_begin = key_begin
+        ret.key_end = key_end
+        return ret
 
     @classmethod
     def full_range(cls):

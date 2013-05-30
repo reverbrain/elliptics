@@ -1,3 +1,7 @@
+"""
+@lru_cache decorator backported for python 2.6+
+"""
+
 from collections import namedtuple
 from functools import update_wrapper
 from threading import RLock

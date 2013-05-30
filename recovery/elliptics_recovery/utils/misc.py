@@ -1,3 +1,7 @@
+"""
+Misc. routines
+"""
+
 import logging as log
 import sys
 
@@ -6,11 +10,6 @@ from .lru_cache import lru_cache
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
 import elliptics
-
-__doc__ = \
-    """
-    Misc. routines
-    """
 
 def logged_class(klass):
     """
