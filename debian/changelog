@@ -1,3 +1,19 @@
+elliptics (2.24.7.4) unstable; urgency=low
+
+  * Recovery update:
+  *   recovery: removed statement that have no effect
+  *   recovery: do not automatically cache node and session
+  *   recovery: fixed log message
+  *   recovery: more useful statistics
+  *   recovery: do not use __wrapped__ method of lru_cached objects
+  *   recovery: do not propagate elliptics exceptions from subprocess
+  *   recovery: added dry-run support to merge
+  *   recovery: merge: use many ranges in single iterator
+  * eblob: do not call blocking function under mutex, get rid of whole page cache drop for given fd
+  * Module backend updates
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 31 May 2013 02:36:19 +0400
+
 elliptics (2.24.7.3) unstable; urgency=low
 
   * Revert "Temporarily disable srw build and downgrade cocaine dependency"

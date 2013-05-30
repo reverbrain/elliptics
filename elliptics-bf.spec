@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.7.3
+Version:	2.24.7.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,19 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri May 31 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.4
+- Recovery update:
+-   recovery: removed statement that have no effect
+-   recovery: do not automatically cache node and session
+-   recovery: fixed log message
+-   recovery: more useful statistics
+-   recovery: do not use __wrapped__ method of lru_cached objects
+-   recovery: do not propagate elliptics exceptions from subprocess
+-   recovery: added dry-run support to merge
+-   recovery: merge: use many ranges in single iterator
+- eblob: do not call blocking function under mutex, get rid of whole page cache drop for given fd
+- Module backend updates
+
 * Thu May 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.3
 - Revert "Temporarily disable srw build and downgrade cocaine dependency"
 - Trying to fix oplock deadlock
