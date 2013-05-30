@@ -195,47 +195,51 @@ def process_address(address, group, ranges):
     remote_stats_name = 'remote_{0}'.format(address)
     remote_stats = Stats(remote_stats_name)
     remote_stats.timer.remote('started')
+    result = False
 
-    log.warning("Running remote iterators")
-    remote_stats.timer.remote('iterator')
-    # In merge mode we only using ranges that were stolen from `address`
-    remote_ranges = [r for r in ranges if r.address == address]
-    remote_result = run_iterator(
-        g_ctx,
-        group=group,
-        address=address,
-        routes=g_ctx.routes,
-        ranges=remote_ranges,
-        stats=remote_stats,
-    )
-    if remote_result is None or len(remote_result) == 0:
-        log.warning("Remote iterator results are empty, skipping")
-        return True, remote_stats
+    try:
+        log.warning("Running remote iterators")
+        remote_stats.timer.remote('iterator')
+        # In merge mode we only using ranges that were stolen from `address`
+        remote_ranges = [r for r in ranges if r.address == address]
+        remote_result = run_iterator(
+            g_ctx,
+            group=group,
+            address=address,
+            routes=g_ctx.routes,
+            ranges=remote_ranges,
+            stats=remote_stats,
+        )
+        if remote_result is None or len(remote_result) == 0:
+            log.warning("Remote iterator results are empty, skipping")
+            return True, remote_stats
 
-    log.warning("Sorting remote iterator results")
-    remote_stats.timer.remote('sort')
-    sorted_remote_result = sort(g_ctx, remote_result, remote_stats)
-    assert len(remote_result) >= len(sorted_remote_result)
-    log.warning("Sorted successfully: {0} remote result(s)".format(len(sorted_remote_result)))
+        log.warning("Sorting remote iterator results")
+        remote_stats.timer.remote('sort')
+        sorted_remote_result = sort(g_ctx, remote_result, remote_stats)
+        assert len(remote_result) >= len(sorted_remote_result)
+        log.warning("Sorted successfully: {0} remote result(s)".format(len(sorted_remote_result)))
 
-    log.warning("Computing diff local vs remote")
-    remote_stats.timer.remote('diff')
-    diff_result = diff(g_ctx, g_sorted_local_results, sorted_remote_result, remote_stats)
-    if diff_result is None or len(diff_result) == 0:
-        log.warning("Diff results are empty, skipping")
-        return True, remote_stats
-    assert len(sorted_remote_result) >= len(diff_result)
-    log.warning("Computed differences: {0} diff(s)".format(len(diff_result)))
+        log.warning("Computing diff local vs remote")
+        remote_stats.timer.remote('diff')
+        diff_result = diff(g_ctx, g_sorted_local_results, sorted_remote_result, remote_stats)
+        if diff_result is None or len(diff_result) == 0:
+            log.warning("Diff results are empty, skipping")
+            return True, remote_stats
+        assert len(sorted_remote_result) >= len(diff_result)
+        log.warning("Computed differences: {0} diff(s)".format(len(diff_result)))
 
-    log.warning("Recovering diffs")
-    remote_stats.timer.remote('recover')
-    if not g_ctx.dry_run:
-        result = recover(g_ctx, diff_result, group, remote_stats)
-    else:
-        result = True
-        log.warning("Recovery skipped due to `dry-run`")
-    log.warning("Recovery finished, setting result to: {0}".format(result))
-    remote_stats.timer.remote('finished')
+        log.warning("Recovering diffs")
+        remote_stats.timer.remote('recover')
+        if not g_ctx.dry_run:
+            result = recover(g_ctx, diff_result, group, remote_stats)
+        else:
+            result = True
+            log.warning("Recovery skipped due to `dry-run`")
+        log.warning("Recovery finished, setting result to: {0}".format(result))
+        remote_stats.timer.remote('finished')
+    except Exception as e:
+        log.error("Recovery failed with exception: {0}".format(e))
     return result, remote_stats
 
 def main(ctx):
