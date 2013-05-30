@@ -78,7 +78,7 @@ def run_iterator(ctx, group=None, address=None, routes=None, ranges=None, stats=
         if result is None:
             raise RuntimeError("Iterator result is None")
         log.debug("Iterator {0} obtained: {1} record(s)".format(result.id_range, len(result)))
-        stats.counter.records += len(result)
+        stats.counter.iterated_keys += len(result)
         stats.counter.iterations += 1
         return result
     except Exception as e:
@@ -96,7 +96,7 @@ def sort(ctx, result, stats):
     try:
         log.info("Processing sorting range: {0}".format(result.id_range))
         result.container.sort()
-        stats.counter.remote += 1
+        stats.counter.sort += 1
         return result
     except Exception as e:
         log.error("Sort of {0} failed: {1}".format(result.id_range, e))
@@ -144,8 +144,8 @@ def recover(ctx, diff, group, stats):
                                     key=lambda x: x[0] / ctx.batch_size):
         keys = [elliptics.Id(r.key, group, 0) for _, r in batch]
         successes, failures = recover_keys(ctx, diff.address, group, keys)
-        stats.counter.recover_key += successes
-        stats.counter.recover_key -= failures
+        stats.counter.recovered_keys += successes
+        stats.counter.recovered_keys -= failures
         result &= (failures == 0)
         log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(
             batch_id * ctx.batch_size + len(keys), len(diff), successes, failures))
@@ -207,7 +207,7 @@ def process_address(address, group, ranges):
     )
     if remote_result is None or len(remote_result) == 0:
         log.warning("Remote iterator results are empty, skipping")
-        return True
+        return True, remote_stats
 
     log.warning("Sorting remote iterator results")
     remote_stats.timer.remote('sort')
@@ -220,7 +220,7 @@ def process_address(address, group, ranges):
     diff_result = diff(g_ctx, g_sorted_local_results, sorted_remote_result, remote_stats)
     if diff_result is None or len(diff_result) == 0:
         log.warning("Diff results are empty, skipping")
-        return True
+        return True, remote_stats
     assert len(sorted_remote_result) >= len(diff_result)
     log.warning("Computed differences: {0} diff(s)".format(len(diff_result)))
 
@@ -233,7 +233,7 @@ def process_address(address, group, ranges):
         log.warning("Recovery skipped due to `dry-run`")
     log.warning("Recovery finished, setting result to: {0}".format(result))
     remote_stats.timer.remote('finished')
-    return result
+    return result, remote_stats
 
 def main(ctx):
     global g_ctx
@@ -295,7 +295,10 @@ def main(ctx):
         pool.join()
 
         log.info("Fetching results")
-        results = [r.get() for r in async_results]
+        results = []
+        for result, stats in (r.get() for r in async_results):
+            results.append(result)
+            group_stats[stats.name] = stats
         result = all(results)
         group_stats.timer.group('finished')
     g_ctx.stats.timer.main('finished')
