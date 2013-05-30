@@ -138,19 +138,37 @@ def recover(ctx, diff, group, stats):
     result = True
     log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.address))
 
+    log.debug("Creating remote node for: {0}".format(diff.address))
+    remote_node = elliptics_create_node(address=diff.address, elog=g_ctx.elog, flags=2)
+    log.debug("Creating direct remote session: {0}".format(diff.address))
+    remote_session = elliptics_create_session(node=remote_node,
+                                              group=group,
+                                              cflags=elliptics.command_flags.direct,
+    )
+    log.debug("Creating local node for: {0}".format(g_ctx.address))
+    local_node = elliptics_create_node(address=g_ctx.address, elog=g_ctx.elog, flags=2)
+    log.debug("Creating direct local session: {0}".format(g_ctx.address))
+    local_session = elliptics_create_session(node=local_node,
+                                              group=group,
+                                              cflags=elliptics.command_flags.direct,
+    )
+
     # Here we cleverly splitting responses into ctx.batch_size batches
+    total_successes, total_failures = (0, 0)
     for batch_id, batch in groupby(enumerate(diff),
                                     key=lambda x: x[0] / ctx.batch_size):
         keys = [elliptics.Id(r.key, group, 0) for _, r in batch]
-        successes, failures = recover_keys(ctx, diff.address, group, keys)
-        stats.counter.recovered_keys += successes
-        stats.counter.recovered_keys -= failures
+        successes, failures = recover_keys(ctx, diff.address, group, keys, local_session, remote_session)
+        total_successes += successes
+        total_failures += failures
         result &= (failures == 0)
-        log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(
-            batch_id * ctx.batch_size + len(keys), len(diff), successes, failures))
+        log.debug("Recovered batch: {0}/{1}: stat: {2}/{3}".format(
+            batch_id * ctx.batch_size + len(keys), len(diff), total_successes, total_failures))
+    stats.counter.recovered_keys += total_successes
+    stats.counter.recovered_keys -= total_failures
     return result
 
-def recover_keys(ctx, address, group, keys):
+def recover_keys(ctx, address, group, keys, local_session, remote_session):
     """
     Bulk recovery of keys.
     """
@@ -158,14 +176,7 @@ def recover_keys(ctx, address, group, keys):
 
     log.debug("Reading {0} keys".format(key_num))
     try:
-        log.debug("Creating node for: {0}".format(address))
-        node = elliptics_create_node(address=address, elog=ctx.elog, flags=2)
-        log.debug("Creating direct session: {0}".format(address))
-        direct_session = elliptics_create_session(node=node,
-                                                  group=group,
-                                                  cflags=elliptics.command_flags.direct,
-        )
-        batch = direct_session.bulk_read(keys)
+        batch = remote_session.bulk_read(keys)
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num
@@ -173,65 +184,62 @@ def recover_keys(ctx, address, group, keys):
     size = sum(len(v[1]) for v in batch)
     log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
     try:
-        log.debug("Creating node for: {0}".format(ctx.address))
-        node = elliptics_create_node(address=ctx.address, elog=ctx.elog, flags=2)
-        log.debug("Creating direct session: {0}".format(ctx.address))
-        direct_session = elliptics_create_session(node=node,
-                                                  group=group,
-                                                  cflags=elliptics.command_flags.direct,
-        )
-        direct_session.bulk_write(batch)
+        local_session.bulk_write(batch)
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num
     return key_num, 0
 
 def process_address(address, group, ranges):
-    """XXX:"""
+    """Recover all ranges for an address"""
     remote_stats_name = 'remote_{0}'.format(address)
     remote_stats = Stats(remote_stats_name)
     remote_stats.timer.remote('started')
+    result = False
 
-    log.warning("Running remote iterators")
-    remote_stats.timer.remote('iterator')
-    # In merge mode we only using ranges that were stolen from `address`
-    remote_ranges = [r for r in ranges if r.address == address]
-    remote_result = run_iterator(
-        g_ctx,
-        group=group,
-        address=address,
-        routes=g_ctx.routes,
-        ranges=remote_ranges,
-        stats=remote_stats,
-    )
-    if remote_result is None or len(remote_result) == 0:
-        log.warning("Remote iterator results are empty, skipping")
-        return True, remote_stats
+    try:
+        log.warning("Running remote iterators")
+        remote_stats.timer.remote('iterator')
+        # In merge mode we only using ranges that were stolen from `address`
+        remote_ranges = [r for r in ranges if r.address == address]
+        remote_result = run_iterator(
+            g_ctx,
+            group=group,
+            address=address,
+            routes=g_ctx.routes,
+            ranges=remote_ranges,
+            stats=remote_stats,
+        )
+        if remote_result is None or len(remote_result) == 0:
+            log.warning("Remote iterator results are empty, skipping")
+            return True, remote_stats
 
-    log.warning("Sorting remote iterator results")
-    remote_stats.timer.remote('sort')
-    sorted_remote_result = sort(g_ctx, remote_result, remote_stats)
-    assert len(remote_result) >= len(sorted_remote_result)
-    log.warning("Sorted successfully: {0} remote result(s)".format(len(sorted_remote_result)))
+        log.warning("Sorting remote iterator results")
+        remote_stats.timer.remote('sort')
+        sorted_remote_result = sort(g_ctx, remote_result, remote_stats)
+        assert len(remote_result) >= len(sorted_remote_result)
+        log.warning("Sorted successfully: {0} remote result(s)".format(len(sorted_remote_result)))
 
-    log.warning("Computing diff local vs remote")
-    remote_stats.timer.remote('diff')
-    diff_result = diff(g_ctx, g_sorted_local_results, sorted_remote_result, remote_stats)
-    if diff_result is None or len(diff_result) == 0:
-        log.warning("Diff results are empty, skipping")
-        return True, remote_stats
-    assert len(sorted_remote_result) >= len(diff_result)
-    log.warning("Computed differences: {0} diff(s)".format(len(diff_result)))
+        log.warning("Computing diff local vs remote")
+        remote_stats.timer.remote('diff')
+        diff_result = diff(g_ctx, g_sorted_local_results, sorted_remote_result, remote_stats)
+        if diff_result is None or len(diff_result) == 0:
+            log.warning("Diff results are empty, skipping")
+            return True, remote_stats
+        assert len(sorted_remote_result) >= len(diff_result)
+        log.warning("Computed differences: {0} diff(s)".format(len(diff_result)))
 
-    log.warning("Recovering diffs")
-    remote_stats.timer.remote('recover')
-    if not g_ctx.dry_run:
-        result = recover(g_ctx, diff_result, group, remote_stats)
-    else:
-        result = True
-        log.warning("Recovery skipped due to `dry-run`")
-    log.warning("Recovery finished, setting result to: {0}".format(result))
-    remote_stats.timer.remote('finished')
+        log.warning("Recovering diffs")
+        remote_stats.timer.remote('recover')
+        if not g_ctx.dry_run:
+            result = recover(g_ctx, diff_result, group, remote_stats)
+        else:
+            result = True
+            log.warning("Recovery skipped due to `dry-run`")
+        log.warning("Recovery finished, setting result to: {0}".format(result))
+        remote_stats.timer.remote('finished')
+    except Exception as e:
+        log.error("Recovery failed with exception: {0}".format(e))
     return result, remote_stats
 
 def main(ctx):

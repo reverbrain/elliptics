@@ -444,13 +444,6 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 						old_ra, c->random_access, (unsigned long long)tmp, (unsigned long long)c->vm_total);
 			}
 
-			if (c->random_access) {
-				for (i = 0; i < (int)ARRAY_SIZE(c->last_reads); ++i) {
-					p = &c->last_reads[i];
-					posix_fadvise(p->fd, 0, 0, POSIX_FADV_DONTNEED);
-				}
-			}
-
 			c->last_read_index = 0;
 		}
 

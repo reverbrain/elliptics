@@ -164,8 +164,6 @@ class Iterator(object):
                 if record.status != 0:
                     raise RuntimeError("Iteration status check failed: {0}".format(record.status))
                 result.append(record)
-                # Explicitly delete record
-                del record
             return result
         except Exception as e:
             self.log.error("Iteration failed: {0}".format(repr(e)))
