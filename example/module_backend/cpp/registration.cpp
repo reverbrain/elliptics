@@ -40,24 +40,26 @@ int command_handler_throw(void *state, void *priv, struct dnet_cmd *cmd, void *d
 {
 	ell::honest_command_handler *backend = unwrap_private(priv);
 	struct module_backend_t *r = static_cast<module_backend_t *>(priv);
+	int err = 0;
+	
 	switch (cmd->cmd) {
 		case DNET_CMD_WRITE:
-			backend->file_write(r, state, cmd, data);
+			err = backend->file_write(r, state, cmd, data);
 			break;
 		case DNET_CMD_LOOKUP:
-			backend->file_info(r, state, cmd);
+			err = backend->file_info(r, state, cmd);
 			break;
 		case DNET_CMD_READ:
-			backend->file_read(r, state, cmd, data);
+			err = backend->file_read(r, state, cmd, data);
 			break;
 		case DNET_CMD_DEL:
-			backend->file_del(r, state, cmd);
+			err = backend->file_del(r, state, cmd);
 			break;
 		default:
 			ell::throw_error(-EINVAL, "No such command");
 			break;
 	}
-	return 0;
+	return err;
 }
 
 int decorate_elliptics_exception(std::function<int()> function)
