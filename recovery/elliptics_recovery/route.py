@@ -1,3 +1,10 @@
+"""
+Route management routines
+
+Vanilla elliptics python bindings are too C'ish.
+We need better abstractions.
+"""
+
 from socket import getaddrinfo, SOL_TCP, AF_INET6, AF_INET
 from itertools import groupby
 from operator import itemgetter
@@ -5,13 +12,6 @@ from operator import itemgetter
 from .utils.misc import logged_class, format_id
 from .range import IdRange, RecoveryRange
 
-__doc__ = \
-    """
-    Route management routines
-
-    Vanilla elliptics python bindings are too C'ish.
-    We need better abstractions.
-    """
 
 @logged_class
 class Address(object):

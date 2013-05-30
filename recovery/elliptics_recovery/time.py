@@ -1,15 +1,14 @@
-import re
+"""
+Converters from and to elliptics dnet_time format.
+"""
 
+import re
 from datetime import datetime, timedelta
 
 import sys
 sys.path.insert(0, "bindings/python/") # XXX
 import elliptics
 
-__doc__ = \
-    """
-    Converters from and to elliptics dnet_time format.
-    """
 
 class Time(object):
     __doc__ = \

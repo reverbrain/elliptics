@@ -1,9 +1,6 @@
-#!/usr/bin/env python
-
-__doc__ = \
-    """
-    XXX:
-    """
+"""
+XXX:
+"""
 
 import sys
 import logging as log

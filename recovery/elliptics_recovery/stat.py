@@ -1,13 +1,11 @@
+"""
+Stats for humans (c)
+Simple and Python-ish interface to stats.
+Currently we support counters and time measurements.
+"""
+
 from datetime import datetime
 from itertools import chain
-
-__doc__ = \
-    """
-    Stats for humans (c)
-    Simple and Python-ish interface to stats.
-    Currently we support counters and time measurements.
-    """
-
 
 def format_kv(k, v):
     """Formats one line of test output"""

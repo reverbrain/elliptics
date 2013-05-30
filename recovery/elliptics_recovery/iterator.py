@@ -1,3 +1,7 @@
+"""
+Wrappers for iterator and it's result container
+"""
+
 import sys
 import os
 
@@ -8,10 +12,6 @@ from .range import IdRange
 sys.path.insert(0, "bindings/python/") # XXX
 import elliptics
 
-__doc__ = \
-    """
-    Wrappers for iterator and it's result container
-    """
 
 @logged_class
 class IteratorResult(object):

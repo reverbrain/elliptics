@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
-__doc__ = \
-    """
-    New recovery mechanism for elliptics that utilizes iterators and metadata.
-    """
+"""
+New recovery mechanism for elliptics that utilizes iterators and metadata.
+
+For now it supports three recovery methods: `merge`, `dc` and `dc2`: `merge` is
+used for recovery within hash ring (aka group) and `dc*` are used for recovery
+between different hash rings.
+"""
 
 import os
 import sys

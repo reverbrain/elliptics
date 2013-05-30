@@ -1,16 +1,14 @@
-import sys
+"""
+Key ranges routines
+"""
 
 from collections import namedtuple
 
 from .utils.misc import logged_class, format_id
 
+import sys
 sys.path.insert(0, "bindings/python/") # XXX
 import elliptics
-
-__doc__ = \
-    """
-    Id range routines
-    """
 
 @logged_class
 class IdRange(object):
