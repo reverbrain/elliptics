@@ -161,7 +161,7 @@ def recover(ctx, diff, group, stats):
         stats.counter.recovered_keys += successes
         stats.counter.recovered_keys -= failures
         result &= (failures == 0)
-        log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(
+        log.debug("Recovered batch: {0}/{1}: {2}/{3}".format(
             batch_id * ctx.batch_size + len(keys), len(diff), successes, failures))
     return result
 
