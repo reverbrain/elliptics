@@ -139,16 +139,16 @@ def recover(ctx, diff, group, stats):
     log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.address))
 
     log.debug("Creating remote node for: {0}".format(diff.address))
-    remote_node = elliptics_create_node.__wrapped__(address=diff.address, elog=g_ctx.elog, flags=2)
+    remote_node = elliptics_create_node(address=diff.address, elog=g_ctx.elog, flags=2)
     log.debug("Creating direct remote session: {0}".format(diff.address))
-    remote_session = elliptics_create_session.__wrapped__(node=remote_node,
+    remote_session = elliptics_create_session(node=remote_node,
                                               group=group,
                                               cflags=elliptics.command_flags.direct,
     )
     log.debug("Creating local node for: {0}".format(g_ctx.address))
-    local_node = elliptics_create_node.__wrapped__(address=g_ctx.address, elog=g_ctx.elog, flags=2)
+    local_node = elliptics_create_node(address=g_ctx.address, elog=g_ctx.elog, flags=2)
     log.debug("Creating direct local session: {0}".format(g_ctx.address))
-    local_session = elliptics_create_session.__wrapped__(node=local_node,
+    local_session = elliptics_create_session(node=local_node,
                                               group=group,
                                               cflags=elliptics.command_flags.direct,
     )
