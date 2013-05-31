@@ -26,6 +26,7 @@ class IteratorResult(object):
                  container=None,
                  tmp_dir="",
                  leave_file=False,
+                 filename = ""
     ):
         self.eid = eid
         self.id_range = id_range
@@ -34,6 +35,7 @@ class IteratorResult(object):
         self.tmp_dir = tmp_dir
         self.__file = None
         self.leave_file = leave_file
+        self.filename = filename
 
     def __del__(self):
         if self.leave_file:
@@ -60,6 +62,9 @@ class IteratorResult(object):
     def append(self, record):
         self.container.append(record)
 
+    def append_rr(self, record):
+        self.container.append_rr(record)
+
     def sort(self):
         """Sorts results"""
         self.container.sort()
@@ -70,12 +75,12 @@ class IteratorResult(object):
         """
         filename = 'diff_' + str(self.id_range) + '_' + \
                    format_id(self.eid.id) + '-' + format_id(other.eid.id)
-        diff_container = self.from_filename(filename,
-                                            eid=other.eid,
-                                            id_range=other.id_range,
-                                            address=other.address,
-                                            tmp_dir=self.tmp_dir,
-                                            )
+        diff_container = IteratorResult.from_filename(filename,
+                                                      eid=other.eid,
+                                                      id_range=other.id_range,
+                                                      address=other.address,
+                                                      tmp_dir=self.tmp_dir
+                                                     )
         self.container.diff(other.container, diff_container.container)
         return diff_container
 
@@ -87,7 +92,7 @@ class IteratorResult(object):
         if tmp_dir:
             filename = os.path.join(tmp_dir, filename)
         container_file = open(filename, 'w+')
-        result = cls.from_fd(container_file.fileno(), tmp_dir=tmp_dir, **kwargs)
+        result = cls.from_fd(container_file.fileno(), tmp_dir=tmp_dir, filename=filename, **kwargs)
         result.__file = container_file # Save it from python's gc
         return result
 
@@ -98,9 +103,11 @@ class IteratorResult(object):
         """
         if tmp_dir:
             filename = os.path.join(tmp_dir, filename)
+        if not os.path.exists(filename):
+            return None
         container_file = open(filename, 'r+')
         container_file.seek(0, 2)
-        result = cls.from_info(container_file.fileno(), sorted, container_file.tell(), tmp_dir="", **kwargs)
+        result = cls.from_info(container_file.fileno(), sorted, container_file.tell(), tmp_dir=tmp_dir, filename=filename, **kwargs)
         result.__file = container_file # Save it from python's gc
         return result
 
@@ -131,7 +138,7 @@ class Iterator(object):
         self.session.set_groups([group])
 
     def start(self,
-              eid=elliptics.Id([0]*64, 0, 0),
+              eid=elliptics.Id(IdRange.ID_MIN, 0, 0),
               itype=elliptics.iterator_types.network,
               flags=elliptics.iterator_flags.key_range|elliptics.iterator_flags.ts_range,
               key_ranges=(IdRange(IdRange.ID_MIN, IdRange.ID_MAX),),

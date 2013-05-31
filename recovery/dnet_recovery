@@ -21,7 +21,7 @@ from elliptics_recovery.utils.misc import elliptics_create_node, elliptics_creat
 sys.path.insert(0, "bindings/python/")
 import elliptics
 
-log.basicConfig(format='%(asctime)-15s %(levelname)s %(processName)s %(message)s', datefmt='%d %b %y %H:%M:%S')
+log.basicConfig(format='%(asctime)-15s %(processName)s %(levelname)s %(message)s', datefmt='%d %b %y %H:%M:%S')
 
 TYPE_MERGE = 'merge'
 TYPE_DC = 'dc'
@@ -190,5 +190,7 @@ if __name__ == '__main__':
 
     if options.stat == STAT_TEXT:
         print ctx.stats
+
+    input()
 
     exit(not result)
