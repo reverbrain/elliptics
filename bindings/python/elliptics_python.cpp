@@ -889,6 +889,12 @@ uint64_t iterator_response_get_user_flags(dnet_iterator_response *response)
 	return response->user_flags;
 }
 
+void iterator_container_append_rr(iterator_result_container &container,
+		dnet_iterator_response &response)
+{
+	container.append(&response);
+}
+
 void iterator_container_append(iterator_result_container &container,
 		iterator_result_entry &result)
 {
@@ -1034,6 +1040,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.add_property("fd", &iterator_result_container::m_fd)
 		.def(bp::init<int, bool, uint64_t>(bp::args("fd", "sorted", "write_position")))
 		.def("append", iterator_container_append)
+		.def("append_rr", iterator_container_append_rr)
 		.def("sort", iterator_container_sort)
 		.def("diff", iterator_container_diff)
 		.def("__len__", iterator_container_get_count)

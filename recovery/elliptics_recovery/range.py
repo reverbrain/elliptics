@@ -60,3 +60,4 @@ class IdRange(object):
 
 # Data structure for recovery iterators
 RecoveryRange = namedtuple('RecoveryRange', 'id_range address')
+AddressRanges = namedtuple('AddressRanges', 'address, eid, id_ranges')

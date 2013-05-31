@@ -10,7 +10,7 @@ from itertools import groupby
 from operator import itemgetter
 
 from .utils.misc import logged_class, format_id
-from .range import IdRange, RecoveryRange
+from .range import IdRange, RecoveryRange, AddressRanges
 
 
 @logged_class
@@ -159,6 +159,12 @@ class RouteList(object):
     def addresses(self):
         return list(set(route.address for route in self.routes))
 
+    def get_address_group_id(self, address):
+        return self.filter_by_address(address)[0].key.group_id
+
+    def get_address_eid(self, address):
+        return self.filter_by_address(address)[0].key
+
     def get_ranges_by_address(self, address):
         ranges = []
         group_id = self.filter_by_address(address)[0].key.group_id
@@ -194,16 +200,15 @@ class RouteList(object):
 
     def get_local_ranges_by_address(self, address):
         ranges = self.get_ranges_by_address(address)
-        ret = dict()
-        for r in ranges:
-            for addr in r.address:
-                a = r.address[addr][1]
-                if str(a) in ret:
-                    ret[str(a)].append(RecoveryRange(r.id_range, (r.address[addr][0], r.address[addr][1], addr)))
-                else:
-                    ret[str(a)] = [RecoveryRange(r.id_range, (r.address[addr][0], r.address[addr][1], addr))]
+        result = dict ((address, AddressRanges(address=address, eid=self.get_address_eid(address), id_ranges=[])) for address in self.addresses())
 
-        return ret
+        for r in ranges:
+            for group_id in r.address:
+                address = r.address[group_id][1]
+                assert result[address].eid.group_id == group_id
+                result[address].id_ranges.append(r.id_range)
+
+        return[v for v in result.values() if len(v.id_ranges)]
 
     def get_address_ranges(self, address):
         ranges = []
