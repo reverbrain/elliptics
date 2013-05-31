@@ -107,7 +107,7 @@ def recover(id_range, eid, address):
                                        )
     for batch_id, batch in groupby(enumerate(diff), key=lambda x: x[0] / g_ctx.batch_size):
         keys = [elliptics.Id(r.key, diff.eid.group_id, 0) for _, r in batch]
-        successes, failures = recover_keys(g_ctx, diff.address, diff.eid.group_id, keys)
+        successes, failures = recover_keys(g_ctx, diff.address, diff.eid.group_id, keys, stats)
         stats.counter.recovered_keys += successes
         stats.counter.recovered_keys -= failures
         result &= (failures == 0)
@@ -118,7 +118,7 @@ def recover(id_range, eid, address):
 
     return result, stats
 
-def recover_keys(ctx, address, group_id, keys):
+def recover_keys(ctx, address, group_id, keys, stats):
     """
     Bulk recovery of keys.
     """
@@ -149,7 +149,10 @@ def recover_keys(ctx, address, group_id, keys):
         direct_session.bulk_write(batch)
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
+        stats.counter.recovered_bytes -= size
         return 0, key_num
+
+    stats.counter.recovered_bytes += size
     return key_num, 0
 
 def process_address_ranges(address_ranges, local=False):

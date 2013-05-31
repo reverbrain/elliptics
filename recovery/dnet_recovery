@@ -191,4 +191,6 @@ if __name__ == '__main__':
     if options.stat == STAT_TEXT:
         print ctx.stats
 
+    input()
+
     exit(not result)
