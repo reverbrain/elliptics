@@ -369,7 +369,7 @@ struct dnet_locks_entry {
 	pthread_cond_t		wait;
 	struct dnet_raw_id	id;
 	int			locked;
-	int			order_length;
+	atomic_t		refcnt;
 };
 
 struct dnet_locks {
