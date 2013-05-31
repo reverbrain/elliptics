@@ -1,7 +1,7 @@
 #include "dlopen_handle_t.h"
 #include <dlfcn.h>
 #include <errno.h>
-#include "../../backends.h" /// @todo FIXME this kind of include is dangerous
+#include "elliptics/backends.h"
 
 int create_dlopen_handle(struct dlopen_handle_t *dlopen_handle, const char *path, const char *symbol_name)
 {

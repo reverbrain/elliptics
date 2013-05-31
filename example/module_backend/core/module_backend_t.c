@@ -1,6 +1,6 @@
-#include "../../backends.h"
+#include "elliptics/backends.h"
+#include "elliptics/module_backend.h"
 #include "module_backend_t.h"
-#include <elliptics/module_backend.h>
 
 static void module_backend_cleanup(void *private_data)
 {

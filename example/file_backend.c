@@ -30,8 +30,8 @@
 #include <unistd.h>
 
 #include "elliptics/packet.h"
+#include "elliptics/backends.h"
 
-#include "backends.h"
 #include "common.h"
 
 #ifndef __unused

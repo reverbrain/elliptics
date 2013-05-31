@@ -17,7 +17,7 @@ option(WITH_PYTHON "Build python bindings" ON)
 option(WITH_COCAINE "Build with cocaine support" ON)
 option(WITH_EXAMPLES "Build example applications" ON)
 option(WITH_LEVELDB "Build ioserv with LevelDB backend" ON)
-option(HAVE_MODULE_BACKEND_SUPPORT "Build ioserv with shared library backend support" OFF)
+option(HAVE_MODULE_BACKEND_SUPPORT "Build ioserv with shared library backend support" ON)
 #option(WITH_INDEXES "Build with indexes support" ON)
 
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
@@ -86,6 +86,10 @@ if(WITH_LEVELDB)
     # Find LevelDB
     find_package(LevelDB REQUIRED)
     include_directories(${LEVELDB_INCLUDE_DIRS})
+endif()
+
+if (HAVE_MODULE_BACKEND_SUPPORT)
+    add_definitions(-DHAVE_MODULE_BACKEND_SUPPORT=1) 
 endif()
 
 # GoLD does no overlinking
