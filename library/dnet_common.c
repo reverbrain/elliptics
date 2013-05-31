@@ -49,11 +49,10 @@ int dnet_transform_raw(struct dnet_session *s, const void *src, uint64_t size, c
 	struct dnet_node *n = s->node;
 	struct dnet_transform *t = &n->transform;
 	char data[2 * sizeof(struct dnet_raw_id)];
-	char *csum_tmp;
+	char *csum_tmp = csum;
 	int err = 0;
 
 	if (s->has_ns) {
-		csum_tmp = csum;
 		csum = data + sizeof(struct dnet_raw_id);
 
 		memcpy(data, s->ns.id, sizeof(struct dnet_raw_id));
