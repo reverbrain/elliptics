@@ -34,9 +34,9 @@
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
+#include "elliptics/backends.h"
 
 #include "common.h"
-#include "backends.h"
 
 #ifdef HAVE_LEVELDB_SUPPORT
 int dnet_leveldb_backend_init(void);

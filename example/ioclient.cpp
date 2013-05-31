@@ -33,8 +33,8 @@
 #include <netinet/in.h>
 
 #include "elliptics/cppdef.h"
+#include "elliptics/backends.h"
 
-#include "backends.h"
 #include "common.h"
 
 using namespace ioremap::elliptics;

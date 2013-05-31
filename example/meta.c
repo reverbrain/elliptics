@@ -33,6 +33,7 @@
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
+#include "elliptics/backends.h"
 
 /*
  *
@@ -43,7 +44,6 @@
 #include "../library/elliptics.h"
 
 
-#include "backends.h"
 #include "common.h"
 
 #ifndef __unused

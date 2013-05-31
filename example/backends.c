@@ -31,8 +31,7 @@
 #include "elliptics/core.h"
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
-
-#include "backends.h"
+#include "elliptics/backends.h"
 
 #ifndef __unused
 #define __unused	__attribute__ ((unused))

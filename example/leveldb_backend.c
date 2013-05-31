@@ -31,8 +31,8 @@
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
+#include "elliptics/backends.h"
 
-#include "backends.h"
 #include "common.h"
 
 #include <leveldb/c.h>
