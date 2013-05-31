@@ -1026,6 +1026,7 @@ static int dnet_cmd_bulk_read(struct dnet_net_state *st, struct dnet_cmd *cmd, v
 	}
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
+		cmd->flags |= DNET_FLAGS_NOLOCK;
 		dnet_opunlock(st->n, &cmd->id);
 	}
 
