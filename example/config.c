@@ -578,6 +578,8 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	if (err)
 		goto err_out_node_destroy;
 
+	free(buf);
+
 	return n;
 
 err_out_node_destroy:
