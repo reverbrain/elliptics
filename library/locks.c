@@ -39,6 +39,7 @@ void dnet_locks_destroy(struct dnet_node *n)
 			}
 		}
 
+		free(n->locks);
 		n->locks = NULL;
 	}
 }
