@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.7.5
+Version:	2.24.7.6
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Jun 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.6
+- Fixed several leaks on close/destruction path
+
 * Sat Jun 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.5
 - added elliptics_module_backend_cpp.so to elliptics-dev package
 - moved backends.h to include/elliptics, changed CMakeLists.txt to make module backend function properly
