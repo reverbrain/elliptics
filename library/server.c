@@ -314,8 +314,9 @@ void dnet_server_node_destroy(struct dnet_node *n)
 		n->cb->backend_cleanup(n->cb->command_private);
 
 	dnet_locks_destroy(n);
-	dnet_notify_exit(n);
 	dnet_local_addr_cleanup(n);
+	dnet_cache_cleanup(n);
+	dnet_notify_exit(n);
 
 	free(n);
 }
