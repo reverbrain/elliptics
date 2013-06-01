@@ -185,7 +185,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags, tid, reply);
 	}
 
-
+#if 0
 	if (nonblocking)
 		pool = io->recv_pool_nb;
 
@@ -211,13 +211,6 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 				sph_match = 1;
 			}
 
-
-			dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: pool-grow: %s: cmd-size: %llu, cflags: %llx, "
-					"trans: %lld, reply: %d, sph-flags: %llx (match: %d), avail: %d\n",
-				dnet_state_dump_addr(tmp->st), dnet_dump_id(tmp->header), dnet_cmd_string(tmp_cmd->cmd),
-				(unsigned long long)tmp_cmd->size, (unsigned long long)tmp_cmd->flags,
-				tid, reply, sph_flags, sph_match, atomic_read(&pool->avail));
-
 			if (cmd_is_exec_match(tmp_cmd)) {
 				sph = (struct sph *)tmp->data;
 				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
@@ -233,6 +226,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 			//dnet_work_pool_grow(n, pool, edge_num, dnet_io_process);
 		}
 	}
+#endif
 
 	pthread_mutex_lock(&pool->lock);
 	list_add_tail(&r->req_entry, &pool->list);
