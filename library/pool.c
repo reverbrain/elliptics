@@ -627,16 +627,39 @@ static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_
 		tid = cmd->trans & ~DNET_TRANS_REPLY;
 		ok = 1;
 
+		/* This is not a transaction reply, process it right now */
+		if (!(cmd->trans & DNET_TRANS_REPLY))
+			return it;
+
 		for (i = 0; i < pool->num; ++i) {
+			 /* Someone claimed transaction @tid */
 			if (pool->trans[i] == tid) {
+				 /* Its our transaction, let's handle it */
+				if (i == thread_index) {
+					/* its the last transaction in given set, clear 'claim' flag for current thread */
+					if (!(cmd->flags & DNET_FLAGS_MORE))
+						pool->trans[thread_index] = 0;
+
+					return it;
+				}
+
+				/* we should not touch it */
 				ok = 0;
 				break;
 			}
 		}
 
+		/*
+		 * 'ok' here means no one claimed given transaction, we can process it,
+		 * but only if 'we' do not wait for another transaction already.
+		 */
 		if (ok) {
-			pool->trans[thread_index] = tid;
-			return it;
+			if (pool->trans[thread_index] == 0) {
+				/* only claim this transaction if there will be others */
+				if (cmd->flags & DNET_FLAGS_MORE)
+					pool->trans[thread_index] = tid;
+				return it;
+			}
 		}
 	}
 
