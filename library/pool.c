@@ -95,7 +95,6 @@ static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool,
 	dnet_log(n, DNET_LOG_INFO, "Grew %s pool by: %d -> %d IO threads\n",
 			dnet_work_io_mode_str(pool->mode), pool->num, pool->num + num);
 
-	atomic_add(&pool->avail, num);
 	pool->num += num;
 	pthread_mutex_unlock(&pool->lock);
 
@@ -127,7 +126,6 @@ static struct dnet_work_pool *dnet_work_pool_alloc(struct dnet_node *n, int num,
 	memset(pool, 0, sizeof(struct dnet_work_pool));
 
 	pool->num = 0;
-	atomic_set(&pool->avail, 0);
 	pool->mode = mode;
 	pool->n = n;
 	INIT_LIST_HEAD(&pool->list);
@@ -185,48 +183,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags, tid, reply);
 	}
 
-#if 0
-	if (nonblocking)
-		pool = io->recv_pool_nb;
-
 #define cmd_is_exec_match(__cmd) (((__cmd)->cmd == DNET_CMD_EXEC) && ((__cmd)->size >= sizeof(struct sph)) && !((__cmd)->trans & DNET_TRANS_REPLY))
-
-	if (!list_empty(&pool->list) && cmd_is_exec_match(cmd)) {
-		int pool_has_blocked_sph = 0;
-		struct dnet_io_req *tmp;
-		struct sph *sph;
-		int edge_num = pool->num / 4 + 1;
-
-		pthread_mutex_lock(&pool->lock);
-		list_for_each_entry(tmp, &pool->list, req_entry) {
-			struct dnet_cmd *tmp_cmd = tmp->header;
-			unsigned long long tid = tmp_cmd->trans & ~DNET_TRANS_REPLY;
-			int reply = !!(tmp_cmd->trans & DNET_TRANS_REPLY);
-			unsigned long long sph_flags = 0;
-			int sph_match = 0;
-
-			if (cmd_is_exec_match(tmp_cmd)) {
-				sph = (struct sph *)tmp->data;
-				sph_flags = sph->flags;
-				sph_match = 1;
-			}
-
-			if (cmd_is_exec_match(tmp_cmd)) {
-				sph = (struct sph *)tmp->data;
-				if (sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) {
-					pool_has_blocked_sph = 1;
-					break;
-				}
-			}
-		}
-		pthread_mutex_unlock(&pool->lock);
-
-		sph = (struct sph *)r->data;
-		if ((sph->flags & DNET_SPH_FLAGS_SRC_BLOCK) && pool_has_blocked_sph && (atomic_read(&pool->avail) < edge_num)) {
-			//dnet_work_pool_grow(n, pool, edge_num, dnet_io_process);
-		}
-	}
-#endif
 
 	pthread_mutex_lock(&pool->lock);
 	list_add_tail(&r->req_entry, &pool->list);
@@ -719,7 +676,6 @@ static void *dnet_io_process(void *data_)
 
 		if (r) {
 			list_del_init(&r->req_entry);
-			atomic_dec(&pool->avail);
 		}
 		pthread_mutex_unlock(&pool->lock);
 
@@ -735,8 +691,6 @@ static void *dnet_io_process(void *data_)
 
 		dnet_io_req_free(r);
 		dnet_state_put(st);
-
-		atomic_inc(&pool->avail);
 	}
 
 	return NULL;

@@ -337,12 +337,11 @@ struct dnet_work_pool {
 	struct dnet_node	*n;
 	int			mode;
 	int			num;
-	atomic_t		avail;
 	struct list_head	list;
 	pthread_mutex_t		lock;
 	pthread_cond_t		wait;
 	struct list_head	wio_list;
-	uint64_t			*trans;
+	uint64_t		*trans;
 };
 
 struct dnet_io {
