@@ -366,15 +366,17 @@ out:
 int dnet_socket_local_addr(int s, struct dnet_addr *addr)
 {
 	int err;
+	socklen_t len;
 
-	addr->addr_len = sizeof(addr->addr);
+	len = addr->addr_len = sizeof(addr->addr);
 
-	err = getsockname(s, (struct sockaddr *)addr->addr, (socklen_t *)&addr->addr_len);
+	err = getsockname(s, (struct sockaddr *)addr->addr, &len);
 	if (err < 0)
-		err = -errno;
+		return -errno;
 
+	addr->addr_len = len;
 	addr->family = ((struct sockaddr *)addr->addr)->sa_family;
-	return err;
+	return 0;
 }
 
 int dnet_local_addr_index(struct dnet_node *n, struct dnet_addr *addr)
