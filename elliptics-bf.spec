@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.7.6
+Version:	2.24.7.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Jun 02 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.7
+- Fixed n->io thread control initialization race
+- Fixed IO thread selection logic
+- Get rid of unneeded code and variables
+
 * Sat Jun 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.6
 - Fixed several leaks on close/destruction path
 

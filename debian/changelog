@@ -1,3 +1,11 @@
+elliptics (2.24.7.7) unstable; urgency=low
+
+  * Fixed n->io thread control initialization race
+  * Fixed IO thread selection logic
+  * Get rid of unneeded code and variables
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 02 Jun 2013 01:04:06 +0400
+
 elliptics (2.24.7.6) unstable; urgency=low
 
   * Fixed several leaks on close/destruction path
