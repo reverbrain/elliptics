@@ -363,12 +363,7 @@ class srw {
 		}
 
 		~srw() {
-			/* no need to iterate over engines, its destructor automatically stops it */
-#if 0
-			for (eng_map_t::iterator it = m_map.begin(); it != m_map.end(); ++it) {
-				it->second->stop();
-			}
-#endif
+			dnet_session_destroy(m_s);
 		}
 
 		int process(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *sph) {
