@@ -181,6 +181,9 @@ int dnet_fill_addr(struct dnet_addr *addr, const char *saddr, const int port, co
 	if (err || ai == NULL) {
 		if (!err)
 			err = -ENXIO;
+		if (ai)
+			goto err_out_free;
+
 		goto err_out_exit;
 	}
 
