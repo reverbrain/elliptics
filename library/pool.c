@@ -79,7 +79,7 @@ static int dnet_work_pool_grow(struct dnet_node *n, struct dnet_work_pool *pool,
 		wio->thread_index = i;
 		wio->pool = pool;
 
-		pool->trans[pool->num + i] = -1;
+		pool->trans[pool->num + i] = ~0ULL;
 
 		err = pthread_create(&wio->tid, NULL, process, wio);
 		if (err) {
@@ -638,7 +638,7 @@ static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_
 				if (i == thread_index) {
 					/* its the last transaction in given set, clear 'claim' flag for current thread */
 					if (!(cmd->flags & DNET_FLAGS_MORE))
-						pool->trans[thread_index] = 0;
+						pool->trans[thread_index] = ~0ULL;
 
 					return it;
 				}
@@ -654,7 +654,7 @@ static struct dnet_io_req *take_request(struct dnet_work_pool *pool, int thread_
 		 * but only if 'we' do not wait for another transaction already.
 		 */
 		if (ok) {
-			if (pool->trans[thread_index] == 0) {
+			if (pool->trans[thread_index] == ~0ULL) {
 				/* only claim this transaction if there will be others */
 				if (cmd->flags & DNET_FLAGS_MORE)
 					pool->trans[thread_index] = tid;
