@@ -722,35 +722,34 @@ static void *dnet_io_process(void *data_)
 int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 {
 	int err, i;
-	struct dnet_io *io;
 	int io_size = sizeof(struct dnet_io) + sizeof(struct dnet_net_io) * cfg->net_thread_num;
 
-	io = malloc(io_size);
-	if (!io) {
+	n->io = malloc(io_size);
+	if (!n->io) {
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
-	memset(io, 0, io_size);
+	memset(n->io, 0, io_size);
 
-	io->net_thread_num = cfg->net_thread_num;
-	io->net_thread_pos = 0;
-	io->net = (struct dnet_net_io *)(io + 1);
+	n->io->net_thread_num = cfg->net_thread_num;
+	n->io->net_thread_pos = 0;
+	n->io->net = (struct dnet_net_io *)(n->io + 1);
 
-	io->recv_pool = dnet_work_pool_alloc(n, cfg->io_thread_num, DNET_WORK_IO_MODE_BLOCKING, dnet_io_process);
-	if (!io->recv_pool) {
+	n->io->recv_pool = dnet_work_pool_alloc(n, cfg->io_thread_num, DNET_WORK_IO_MODE_BLOCKING, dnet_io_process);
+	if (!n->io->recv_pool) {
 		err = -ENOMEM;
 		goto err_out_free;
 	}
 
-	io->recv_pool_nb = dnet_work_pool_alloc(n, cfg->nonblocking_io_thread_num, DNET_WORK_IO_MODE_NONBLOCKING, dnet_io_process);
-	if (!io->recv_pool_nb) {
+	n->io->recv_pool_nb = dnet_work_pool_alloc(n, cfg->nonblocking_io_thread_num, DNET_WORK_IO_MODE_NONBLOCKING, dnet_io_process);
+	if (!n->io->recv_pool_nb) {
 		err = -ENOMEM;
 		goto err_out_free_recv_pool;
 	}
 
-	for (i=0; i<io->net_thread_num; ++i) {
-		struct dnet_net_io *nio = &io->net[i];
+	for (i=0; i<n->io->net_thread_num; ++i) {
+		struct dnet_net_io *nio = &n->io->net[i];
 
 		nio->n = n;
 
@@ -773,20 +772,19 @@ int dnet_io_init(struct dnet_node *n, struct dnet_config *cfg)
 		}
 	}
 
-	n->io = io;
 	return 0;
 
 err_out_net_destroy:
 	while (--i >= 0) {
-		pthread_join(io->net[i].tid, NULL);
-		close(io->net[i].epoll_fd);
+		pthread_join(n->io->net[i].tid, NULL);
+		close(n->io->net[i].epoll_fd);
 	}
 
-	dnet_work_pool_cleanup(io->recv_pool_nb);
+	dnet_work_pool_cleanup(n->io->recv_pool_nb);
 err_out_free_recv_pool:
-	dnet_work_pool_cleanup(io->recv_pool);
+	dnet_work_pool_cleanup(n->io->recv_pool);
 err_out_free:
-	free(io);
+	free(n->io);
 err_out_exit:
 	n->io = NULL;
 	return err;
