@@ -62,11 +62,13 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 		}
 	}
 
+	free(buf);
 	close(fd);
 	return 0;
 
 err_out_unlink:
 	unlink(file);
+	free(buf);
 err_out_close:
 	close(fd);
 err_out_exit:
