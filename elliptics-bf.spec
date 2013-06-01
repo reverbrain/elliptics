@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.7.4
+Version:	2.24.7.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Jun 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.5
+- added elliptics_module_backend_cpp.so to elliptics-dev package
+- moved backends.h to include/elliptics, changed CMakeLists.txt to make module backend function properly
+- Added recovered_bytes to dc2 statistics. Added wait at the end of recovering.
+- Added append_rr method to IteratorResultContainer - added response to container. Swapped processName and levelname in recovery logs.
+- Added file name to iterator. Optimized get_local_ranges_by_address(). Fixed dc2 for multi-range single-result-file iteration.
+- Added forgotten adding NOLOCK flag
+- Simplified oplocks implementation
+
 * Fri May 31 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.4
 - Recovery update:
 -   recovery: removed statement that have no effect

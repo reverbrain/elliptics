@@ -1,3 +1,15 @@
+elliptics (2.24.7.5) unstable; urgency=low
+
+  * added elliptics_module_backend_cpp.so to elliptics-dev package
+  * moved backends.h to include/elliptics, changed CMakeLists.txt to make module backend function properly
+  * Added recovered_bytes to dc2 statistics. Added wait at the end of recovering.
+  * Added append_rr method to IteratorResultContainer - added response to container. Swapped processName and levelname in recovery logs.
+  * Added file name to iterator. Optimized get_local_ranges_by_address(). Fixed dc2 for multi-range single-result-file iteration.
+  * Added forgotten adding NOLOCK flag
+  * Simplified oplocks implementation
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 01 Jun 2013 17:17:28 +0400
+
 elliptics (2.24.7.4) unstable; urgency=low
 
   * Recovery update:
