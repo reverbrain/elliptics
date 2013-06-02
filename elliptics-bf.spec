@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.7.7
+Version:	2.24.7.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jun 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.8
+- Speed up server stop, by setting need-exit flag for all cache threads bfore joining them one after another.
+- Fixed state destruction, which happened befor context_t destruction, which in turn calls logger.
+
 * Sun Jun 02 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.7
 - Fixed n->io thread control initialization race
 - Fixed IO thread selection logic

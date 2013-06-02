@@ -1,3 +1,10 @@
+elliptics (2.24.7.8) unstable; urgency=low
+
+  * Speed up server stop, by setting need-exit flag for all cache threads bfore joining them one after another.
+  * Fixed state destruction, which happened befor context_t destruction, which in turn calls logger.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 03 Jun 2013 03:51:08 +0400
+
 elliptics (2.24.7.7) unstable; urgency=low
 
   * Fixed n->io thread control initialization race
