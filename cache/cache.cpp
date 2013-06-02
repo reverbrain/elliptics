@@ -148,13 +148,17 @@ class cache_t {
 		}
 
 		~cache_t() {
-			m_need_exit = true;
+			stop();
 			m_lifecheck.join();
 
 			while (!m_lru.empty()) {
 				data_t raw = m_lru.front();
 				erase_element(&raw);
 			}
+		}
+
+		void stop(void) {
+			m_need_exit = true;
 		}
 
 		void write(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) {
@@ -297,6 +301,12 @@ class cache_manager {
 		cache_manager(struct dnet_node *n, int num = 16) {
 			for (int i  = 0; i < num; ++i) {
 				m_caches.emplace_back(std::make_shared<cache_t>(n, n->cache_size / num));
+			}
+		}
+
+		~cache_manager() {
+			for (auto it = m_caches.begin(); it != m_caches.end(); ++it) {
+				(*it)->stop();
 			}
 		}
 
