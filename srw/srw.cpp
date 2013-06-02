@@ -357,12 +357,16 @@ class dnet_sink_t: public cocaine::logging::logger_concept_t {
 
 class srw {
 	public:
-		srw(struct dnet_session *sess, const std::string &config) : m_s(sess),
-		m_ctx(config, std::unique_ptr<dnet_sink_t>(new dnet_sink_t(m_s, dnet_log_level_to_prio(sess->node->log->log_level)))) {
+		srw(struct dnet_session *sess, const std::string &config) : m_s(sess)
+		{
 			atomic_set(&m_src_key, 1);
+			m_ctx.reset(new cocaine::context_t(config,
+					std::unique_ptr<dnet_sink_t>(new dnet_sink_t(m_s,
+							dnet_log_level_to_prio(sess->node->log->log_level)))));
 		}
 
 		~srw() {
+			m_ctx.reset();
 			dnet_session_destroy(m_s);
 		}
 
@@ -395,11 +399,11 @@ class srw {
 				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
-					std::shared_ptr<dnet_app_t> eng(new dnet_app_t(m_ctx, app, app));
+					std::shared_ptr<dnet_app_t> eng(new dnet_app_t(*m_ctx, app, app));
 					eng->start();
 
 					if (ev == "start-multiple-task") {
-						auto storage = cocaine::api::storage(m_ctx, "core");
+						auto storage = cocaine::api::storage(*m_ctx, "core");
 						Json::Value profile = storage->get<Json::Value>("profiles", app);
 
 						int idle = profile["idle-timeout"].asInt();
@@ -554,7 +558,7 @@ class srw {
 
 	private:
 		struct dnet_session		*m_s;
-		cocaine::context_t		m_ctx;
+		std::unique_ptr<cocaine::context_t> m_ctx;
 		std::mutex			m_lock;
 		eng_map_t			m_map;
 		jobs_map_t			m_jobs;
