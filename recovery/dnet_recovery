@@ -65,6 +65,8 @@ if __name__ == '__main__':
                       help="Recover keys modified since `time`. "
                            "Can be specified as timestamp or as time difference"
                            "e.g.: `1368940603`, `12h`, `1d`, or `4w` [default: %default]")
+    parser.add_option("-e", "--no-exit", action="store_true", dest="no_exit", default=False,
+                      help="Will be waiting for user input at the finish.")
 
     (options, args) = parser.parse_args()
 
@@ -191,6 +193,7 @@ if __name__ == '__main__':
     if options.stat == STAT_TEXT:
         print ctx.stats
 
-    input()
+    if options.no_exit:
+        raw_input("Press Enter to exit!")
 
     exit(not result)

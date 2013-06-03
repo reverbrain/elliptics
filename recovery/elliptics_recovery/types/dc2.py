@@ -105,9 +105,26 @@ def recover(id_range, eid, address):
                                         tmp_dir=g_ctx.tmp_dir,
                                         leave_file=False
                                        )
+    g_ctx.elog = elliptics.Logger(g_ctx.log_file, int(g_ctx.log_level))
+
+    local_node = elliptics_create_node(address=g_ctx.address, elog=g_ctx.elog, flags=2)
+    log.debug("Creating direct session: {0}".format(g_ctx.address))
+    local_session = elliptics_create_session(node=local_node,
+                                             group=g_ctx.group_id,
+                                             cflags=elliptics.command_flags.direct,
+                                            )
+
+    remote_node = elliptics_create_node(address=diff.address, elog=g_ctx.elog, flags=2)
+    log.debug("Creating direct session: {0}".format(diff.address))
+    remote_session = elliptics_create_session(node=remote_node,
+                                              group=diff.eid.group_id,
+                                              cflags=elliptics.command_flags.direct,
+                                             )
+
+
     for batch_id, batch in groupby(enumerate(diff), key=lambda x: x[0] / g_ctx.batch_size):
         keys = [elliptics.Id(r.key, diff.eid.group_id, 0) for _, r in batch]
-        successes, failures = recover_keys(g_ctx, diff.address, diff.eid.group_id, keys, stats)
+        successes, failures = recover_keys(g_ctx, diff.address, diff.eid.group_id, keys, local_session, remote_session, stats)
         stats.counter.recovered_keys += successes
         stats.counter.recovered_keys -= failures
         result &= (failures == 0)
@@ -118,7 +135,7 @@ def recover(id_range, eid, address):
 
     return result, stats
 
-def recover_keys(ctx, address, group_id, keys, stats):
+def recover_keys(ctx, address, group_id, keys, local_session, remote_session, stats):
     """
     Bulk recovery of keys.
     """
@@ -126,34 +143,22 @@ def recover_keys(ctx, address, group_id, keys, stats):
 
     log.debug("Reading {0} keys".format(key_num))
     try:
-        node = elliptics_create_node(address=address, elog=ctx.elog, flags=2)
-        log.debug("Creating direct session: {0}".format(address))
-        direct_session = elliptics_create_session(node=node,
-                                                  group=group_id,
-                                                  cflags=elliptics.command_flags.direct,
-                                                 )
-        batch = direct_session.bulk_read(keys)
+        batch = remote_session.bulk_read(keys)
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num
 
     size = sum(len(v[1]) for v in batch)
     log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
+
     try:
-        node = elliptics_create_node(address=ctx.address, elog=ctx.elog, flags=2)
-        log.debug("Creating direct session: {0}".format(ctx.address))
-        direct_session = elliptics_create_session(node=node,
-                                                  group=ctx.group_id,
-                                                  cflags=elliptics.command_flags.direct,
-                                                 )
-        direct_session.bulk_write(batch)
+        direct_session.remote_session(batch)
+        stats.counter.recovered_bytes += size
+        return key_num, 0
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
         stats.counter.recovered_bytes -= size
         return 0, key_num
-
-    stats.counter.recovered_bytes += size
-    return key_num, 0
 
 def process_address_ranges(address_ranges, local=False):
     """XXX:"""
@@ -347,7 +352,8 @@ def main(ctx):
 
     assert diff_length == sum([len(r) for r in splitted_results])
 
-    async_results = [ pool.apply_async(recover, (r.id_range, r.eid, r.address)) for r in splitted_results if r]
+    if not g_ctx.dry_run:
+        async_results = [ pool.apply_async(recover, (r.id_range, r.eid, r.address)) for r in splitted_results if r]
 
     log.info("Closing pool, joining threads")
     pool.close()
