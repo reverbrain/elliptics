@@ -53,6 +53,30 @@ enum elliptics_log_level {
 	log_level_debug = DNET_LOG_DEBUG,
 };
 
+class py_allow_threads_scoped
+{
+public:
+	py_allow_threads_scoped()
+		: save(PyEval_SaveThread())
+	{}
+
+	void disallow()
+	{
+		PyEval_RestoreThread(save);
+		save = NULL;
+	}
+
+	~py_allow_threads_scoped()
+	{
+		if (save)
+			PyEval_RestoreThread(save);
+	}
+private:
+	PyThreadState* save;
+};
+
+
+
 static void elliptics_extract_arr(const list &l, unsigned char *dst, int *dlen)
 {
 	int length = len(l);
@@ -189,6 +213,7 @@ class elliptics_session: public session, public wrapper<session> {
 			for (int i=0; i<len(pgroups); ++i)
 				groups.push_back(extract<int>(pgroups[i]));
 
+			py_allow_threads_scoped pythr;
 			write_metadata((const dnet_id&)raw, remote, groups, ts);
 		}
 
@@ -200,38 +225,45 @@ class elliptics_session: public session, public wrapper<session> {
 
 			transform(remote, raw);
 
+			py_allow_threads_scoped pythr;
 			write_metadata((const dnet_id&)raw, remote, session::get_groups(), ts);
 		}
 
 		void read_file_by_id(struct elliptics_id &id, const std::string &file, uint64_t offset, uint64_t size) {
 			struct dnet_id raw = id.to_dnet();
+			py_allow_threads_scoped pythr;
 			read_file(raw, file, offset, size);
 		}
 
 		void read_file_by_data_transform(const std::string &remote, const std::string &file,
 							uint64_t offset, uint64_t size,	int type) {
+			py_allow_threads_scoped pythr;
 			read_file(key(remote, type), file, offset, size);
 		}
 
 		void write_file_by_id(struct elliptics_id &id, const std::string &file,
 						    uint64_t local_offset, uint64_t offset, uint64_t size) {
 			struct dnet_id raw = id.to_dnet();
+			py_allow_threads_scoped pythr;
 			write_file(raw, file, local_offset, offset, size);
 		}
 
 		void write_file_by_data_transform(const std::string &remote, const std::string &file,
 								uint64_t local_offset, uint64_t offset, uint64_t size,
 								int type) {
+			py_allow_threads_scoped pythr;
 			write_file(key(remote, type), file, local_offset, offset, size);
 		}
 
 		std::string read_data_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size) {
 			struct dnet_id raw = id.to_dnet();
+			py_allow_threads_scoped pythr;
 			return read_data_wait(raw, offset, size);
 		}
 
 		std::string read_data_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
 							int type) {
+			py_allow_threads_scoped pythr;
 			return read_data_wait(key(remote, type), offset, size);
 		}
 
@@ -242,7 +274,9 @@ class elliptics_session: public session, public wrapper<session> {
 			for (int i = 0; i < len(gl); ++i)
 				groups.push_back(extract<int>(gl[i]));
 
+			py_allow_threads_scoped pythr;
 			prepare_latest(raw, groups);
+			pythr.disallow();
 
 			list l;
 			for (unsigned i = 0; i < groups.size(); ++i)
@@ -258,6 +292,7 @@ class elliptics_session: public session, public wrapper<session> {
 			for (int i = 0; i < len(gl); ++i)
 				groups.push_back(extract<int>(gl[i]));
 
+			py_allow_threads_scoped pythr;
 			prepare_latest(raw, groups);
 
 			std::string ret;
@@ -268,21 +303,25 @@ class elliptics_session: public session, public wrapper<session> {
 
 		std::string read_latest_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size) {
 			struct dnet_id raw = id.to_dnet();
+			py_allow_threads_scoped pythr;
 			return read_latest(raw, offset, size);
 		}
 
 		std::string read_latest_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
 									int type) {
+			py_allow_threads_scoped pythr;
 			return read_latest(key(remote, type), offset, size);
 		}
 
 		std::string write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset) {
 			struct dnet_id raw = id.to_dnet();
+			py_allow_threads_scoped pythr;
 			return write_data_wait(raw, data, remote_offset);
 		}
 
 		std::string write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset,
 								int type) {
+			py_allow_threads_scoped pythr;
 			return write_data_wait(key(remote, type), data, remote_offset);
 		}
 
@@ -290,11 +329,13 @@ class elliptics_session: public session, public wrapper<session> {
 							    long timeout) {
 			struct dnet_id raw = id.to_dnet();
 			raw.type = 0;
+			py_allow_threads_scoped pythr;
 			return write_cache(raw, data, timeout);
 		}
 
 		std::string write_cache_by_data_transform(const std::string &remote, const std::string &data,
 									long timeout) {
+			py_allow_threads_scoped pythr;
 			return write_cache(remote, data, timeout);
 		}
 
@@ -317,31 +358,37 @@ class elliptics_session: public session, public wrapper<session> {
 			struct dnet_file_info *info = (struct dnet_file_info *)(a + 1);
 			dnet_convert_file_info(info);
 
+			py_allow_threads_scoped pythr;
 			std::string address(dnet_server_convert_dnet_addr(addr));
 			int port = dnet_server_convert_port((struct sockaddr *)a->addr.addr, a->addr.addr_len);
+			pythr.disallow();
 
 			return make_tuple(address, port, info->size);
 		}
 
 		boost::python::tuple lookup_by_data_transform(const std::string &remote) {
+			py_allow_threads_scoped pythr;
 			return parse_lookup(lookup(remote));
 		}
 
 		boost::python::tuple lookup_by_id(const struct elliptics_id &id) {
 			struct dnet_id raw = id.to_dnet();
 
+			py_allow_threads_scoped pythr;
 			return parse_lookup(lookup(raw));
 		}
 
 		struct dnet_node_status update_status_by_id(const struct elliptics_id &id, struct dnet_node_status &status) {
 			struct dnet_id raw = id.to_dnet();
 
+			py_allow_threads_scoped pythr;
 			update_status(raw, &status);
 			return status;
 		}
 		
 		struct dnet_node_status update_status_by_string(const std::string &saddr, const int port, const int family,
 								struct dnet_node_status &status) {
+			py_allow_threads_scoped pythr;
 			update_status(saddr.c_str(), port, family, &status);
 			return status;
 		}
@@ -350,8 +397,10 @@ class elliptics_session: public session, public wrapper<session> {
 			struct dnet_io_attr io;
 			elliptics_extract_range(r, io);
 
+			py_allow_threads_scoped pythr;
 			std::vector<std::string> ret;
 			ret = session::read_data_range(io, r.group_id);
+			pythr.disallow();
 
 			boost::python::list l;
 
@@ -385,6 +434,7 @@ class elliptics_session: public session, public wrapper<session> {
 						    const std::string &data, const std::string &binary) {
 			struct dnet_id raw = id.to_dnet();
 
+			py_allow_threads_scoped pythr;
 			return exec_locked(&raw, event, data, binary);
 		}
 
@@ -395,20 +445,24 @@ class elliptics_session: public session, public wrapper<session> {
 			raw.type = 0;
 			raw.group_id = 0;
 
+			py_allow_threads_scoped pythr;
 			return exec_locked(&raw, event, data, binary);
 		}
 
 		std::string exec_name_all(const std::string &event, const std::string &data, const std::string &binary) {
+			py_allow_threads_scoped pythr;
 			return exec_locked(NULL, event, data, binary);
 		}
 
 		void remove_by_id(const struct elliptics_id &id) {
 			struct dnet_id raw = id.to_dnet();
 
+			py_allow_threads_scoped pythr;
 			remove_raw(raw);
 		}
 
 		void remove_by_name(const std::string &remote, int type) {
+			py_allow_threads_scoped pythr;
 			remove_raw(key(remote, type));
 		}
 
@@ -421,7 +475,9 @@ class elliptics_session: public session, public wrapper<session> {
 			for (unsigned int i = 0; i < length; ++i)
 				k[i] = extract<std::string>(keys[i]);
 
+			py_allow_threads_scoped pythr;
 			std::vector<std::string> ret =  bulk_read(k);
+			pythr.disallow();
 
 			list py_ret;
 			for (size_t i = 0; i < ret.size(); ++i) {
@@ -438,7 +494,7 @@ class elliptics_session: public session, public wrapper<session> {
 			int err;
 			int i;
 
-			Py_BEGIN_ALLOW_THREADS;
+			py_allow_threads_scoped pythr;
 			err = dnet_request_stat(get_native(), NULL, DNET_CMD_STAT_COUNT, DNET_ATTR_CNTR_GLOBAL,
 						callback::handler, &c);
 			if (err < 0) {
@@ -448,7 +504,7 @@ class elliptics_session: public session, public wrapper<session> {
 			}
 
 			ret = c.wait(err);
-			Py_END_ALLOW_THREADS;
+			pythr.disallow();
 
 			const void *data = ret.data();
 			int size = ret.size();
