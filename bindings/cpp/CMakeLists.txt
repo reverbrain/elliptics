@@ -10,9 +10,12 @@ set(ELLIPTICS_CPP_SRCS
     async_result.cpp
     log.cpp
     node.cpp
+    callback_p.h
     callback.cpp
+    functional_p.h
     session.cpp
     session_indexes.cpp
+    session_indexes.hpp
     exception.cpp
     key.cpp
     )
