@@ -89,7 +89,7 @@ struct bulk_write {
 
 namespace io {
 template<>
-struct protocol<elliptics_tag> : public protocol<storage_tag>
+struct protocol<elliptics_tag> : public extends<storage_tag>
 {
 	typedef boost::mpl::int_<
 		1
