@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.7.9
+Version:	2.24.8.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jun 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.8.0
+- Added cache and bulk methods to elliptics service
+- Depend on cocaine >= 0.10.5, not counting prereleases
+- Added note about timeout option for write_cache
+- Fixed indentations
+- Optimized dc.py. Added 'no-exit' parameter.
+
 * Mon Jun 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.7.9
 - Fixed srw/ctx destruction issues
 

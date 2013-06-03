@@ -1,3 +1,13 @@
+elliptics (2.24.8.0) unstable; urgency=low
+
+  * Added cache and bulk methods to elliptics service
+  * Depend on cocaine >= 0.10.5, not counting prereleases
+  * Added note about timeout option for write_cache
+  * Fixed indentations
+  * Optimized dc.py. Added 'no-exit' parameter.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 03 Jun 2013 23:35:27 +0400
+
 elliptics (2.24.7.9) unstable; urgency=low
 
   * Fixed srw/ctx destruction issues
