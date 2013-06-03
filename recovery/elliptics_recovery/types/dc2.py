@@ -224,7 +224,7 @@ def process_address_ranges(address_ranges, local=False):
     return True, stats, (diff_result.id_range, diff_result.eid, diff_result.address, diff_result.filename)
 
 def merge_and_split_diffs(ctx, diff_results, stats):
-    log.warning('Computing merge and splittimg by node all remote results')
+    log.warning('Computing merge and splitting by node all remote results')
     stats.timer.main('merge & split')
     splitted_results = dict()
 

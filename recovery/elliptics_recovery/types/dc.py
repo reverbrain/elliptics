@@ -194,7 +194,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         return 0, key_num
 
 def merge_and_split_diffs(ctx, diff_results, stats):
-    log.warning('Computing merge and splittimg by node all remote results')
+    log.warning('Computing merge and splitting by node all remote results')
     stats.timer.main('merge & split')
     splitted_results = dict()
 
