@@ -11,7 +11,8 @@ from multiprocessing import Pool
 from ..iterator import Iterator, IteratorResult
 from ..time import Time
 from ..stat import Stats
-from ..utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
+from ..route import IdRange
+from ..utils.misc import mk_container_name, elliptics_create_node, elliptics_create_session
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -194,7 +195,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         return 0, key_num
 
 def merge_and_split_diffs(ctx, diff_results, stats):
-    log.warning('Computing merge and splittimg by node all remote results')
+    log.warning('Computing merge and splitting by node all remote results')
     stats.timer.main('merge & split')
     splitted_results = dict()
 
@@ -207,7 +208,7 @@ def merge_and_split_diffs(ctx, diff_results, stats):
                                                                       address=diff.address,
                                                                       id_range=diff.id_range,
                                                                       eid=diff.eid,
-                                                                      sorted=True,
+                                                                      is_sorted=True,
                                                                       tmp_dir=ctx.tmp_dir,
                                                                       leave_file=True
                                                                      )
@@ -220,6 +221,7 @@ def merge_and_split_diffs(ctx, diff_results, stats):
                                                                        address=d.address,
                                                                        id_range=d.id_range,
                                                                        eid=d.eid,
+                                                                       is_sorted=True,
                                                                        tmp_dir=ctx.tmp_dir,
                                                                        leave_file=True
                                                                       )
@@ -297,8 +299,6 @@ def main(ctx):
     result = True
     g_ctx.stats.timer.main('started')
 
-    if len(g_ctx.groups) == 0:
-        g_ctx.groups = g_ctx.routes.groups()
     log.debug("Groups: %s" % g_ctx.groups)
 
     g_ctx.group_id = g_ctx.routes.filter_by_address(g_ctx.address)[0].key.group_id
@@ -312,10 +312,9 @@ def main(ctx):
         return result
 
     processes = min(g_ctx.nprocess, len(ranges) - 1)
-    pool = Pool(processes=g_ctx.nprocess)
-    log.debug("Created pool of processes: %d" % g_ctx.nprocess)
+    pool = Pool(processes=processes)
+    log.debug("Created pool of processes: %d" % processes)
 
-    recover_stats = g_ctx.stats["recover"]
     async_results = [ pool.apply_async(process_range, (r, g_ctx.dry_run)) for r in ranges ]
 
     log.info("Closing pool, joining threads")

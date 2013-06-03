@@ -154,18 +154,20 @@ def recover(ctx, diff, group, stats):
     )
 
     # Here we cleverly splitting responses into ctx.batch_size batches
-    total_successes, total_failures = (0, 0)
+    total_successes, total_failures, total_size = 0, 0, 0
     for batch_id, batch in groupby(enumerate(diff),
                                     key=lambda x: x[0] / ctx.batch_size):
         keys = [elliptics.Id(r.key, group, 0) for _, r in batch]
-        successes, failures = recover_keys(ctx, diff.address, group, keys, local_session, remote_session)
+        successes, failures, size = recover_keys(ctx, diff.address, group, keys, local_session, remote_session)
         total_successes += successes
         total_failures += failures
+        total_size += size
         result &= (failures == 0)
         log.debug("Recovered batch: {0}/{1}: stat: {2}/{3}".format(
             batch_id * ctx.batch_size + len(keys), len(diff), total_successes, total_failures))
     stats.counter.recovered_keys += total_successes
     stats.counter.recovered_keys -= total_failures
+    stats.counter.recovered_bytes += total_size
     return result
 
 def recover_keys(ctx, address, group, keys, local_session, remote_session):
@@ -177,21 +179,26 @@ def recover_keys(ctx, address, group, keys, local_session, remote_session):
     log.debug("Reading {0} keys".format(key_num))
     try:
         batch = remote_session.bulk_read(keys)
+        size = sum(len(v[1]) for v in batch)
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
-        return 0, key_num
+        return 0, key_num, 0
 
-    size = sum(len(v[1]) for v in batch)
     log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
     try:
         local_session.bulk_write(batch)
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
-        return 0, key_num
-    return key_num, 0
+        return 0, key_num, 0
+    return key_num, 0, size
 
 def process_address(address, group, ranges):
-    """Recover all ranges for an address"""
+    """
+    Recover all ranges for an address.
+
+    For each range we iterate, sort, diff with corresponding
+    local iterator result, recover diff, return stats.
+    """
     remote_stats_name = 'remote_{0}'.format(address)
     remote_stats = Stats(remote_stats_name)
     remote_stats.timer.remote('started')
@@ -243,15 +250,15 @@ def process_address(address, group, ranges):
     return result, remote_stats
 
 def main(ctx):
+    """
+    Run local iterators, sort them. Then for each host in route
+    table run recovery process.
+    """
     global g_ctx
     global g_sorted_local_results
     result = True
     g_ctx = ctx
     g_ctx.stats.timer.main('started')
-
-    # Run local iterators, sort them
-    # For each host in route table run remote iterators in parallel
-      # Iterate, sort, diff corresponding range, recover diff, return stats
 
     for group in g_ctx.groups:
         log.warning("Processing group: {0}".format(group))

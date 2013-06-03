@@ -181,26 +181,26 @@ class RouteList(object):
         for i, route in enumerate(self.routes):
             keys[route.key.group_id] = (route.key, route.address)
             if i < len(self.routes) - 1:
-                next = self.routes[i + 1].key.id
+                next_route = self.routes[i + 1].key.id
             else:
-                next = IdRange.ID_MAX
+                next_route = IdRange.ID_MAX
 
             if route.key.group_id != group_id and not include:
                 continue
 
             if route.address == address:
                 include = True
-                ranges.append(RecoveryRange(IdRange(route.key.id, next), keys.copy()))
+                ranges.append(RecoveryRange(IdRange(route.key.id, next_route), keys.copy()))
             elif route.key.group_id == group_id:
                 include = False
             elif include:
-                ranges.append(RecoveryRange(IdRange(route.key.id, next), keys.copy()))
+                ranges.append(RecoveryRange(IdRange(route.key.id, next_route), keys.copy()))
 
         return ranges
 
     def get_local_ranges_by_address(self, address):
         ranges = self.get_ranges_by_address(address)
-        result = dict ((address, AddressRanges(address=address, eid=self.get_address_eid(address), id_ranges=[])) for address in self.addresses())
+        result = dict((address, AddressRanges(address=address, eid=self.get_address_eid(address), id_ranges=[])) for address in self.addresses())
 
         for r in ranges:
             for group_id in r.address:
@@ -208,26 +208,27 @@ class RouteList(object):
                 assert result[address].eid.group_id == group_id
                 result[address].id_ranges.append(r.id_range)
 
-        return[v for v in result.values() if len(v.id_ranges)]
+        return [v for v in result.values() if len(v.id_ranges)]
 
     def get_address_ranges(self, address):
         ranges = []
         routes = self.filter_by_group_id(self.filter_by_address(address)[0].key.group_id)
         count = len(routes)
         for i, route in enumerate(routes):
-            if(route.address == address):
-                next = routes[(i + 1)% count]
+            if route.address == address:
+                next_route = routes[(i + 1) % count]
             if i < count - 1:
-                ranges.append(RecoveryRange(IdRange(route.key.id, next.key.id), address))
+                ranges.append(RecoveryRange(IdRange(route.key.id, next_route.key.id), address))
             else:
                 ranges.append(RecoveryRange(IdRange(route.key.id, IdRange.ID_MAX), address))
-                ranges.insert(0, RecoveryRange(IdRange(IdRange.ID_MIN, next.key.id), address))
+                ranges.insert(0, RecoveryRange(IdRange(IdRange.ID_MIN, next_route.key.id), address))
             i = 0
             while i < count - 1:
-                current = ranges[i]
-                next =  ranges[i + 1]
-                if current.id_range.stop == next.id_range.start:
-                    ranges[i] = RecoveryRange(IdRange(current.id_range.start, next.id_range.stop), current.host)
+                current_range = ranges[i]
+                next_range =  ranges[i + 1]
+                if current_range.id_range.stop == next_range.id_range.start:
+                    ranges[i] = RecoveryRange(IdRange(current_range.id_range.start,
+                                                      next_range.id_range.stop), current_range.host)
                     del ranges[i + 1]
                 else:
                     i += 1
