@@ -11,7 +11,8 @@ from multiprocessing import Pool
 from ..iterator import Iterator, IteratorResult
 from ..time import Time
 from ..stat import Stats
-from ..utils.misc import format_id, mk_container_name, elliptics_create_node, elliptics_create_session
+from ..route import IdRange
+from ..utils.misc import mk_container_name, elliptics_create_node, elliptics_create_session
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -311,10 +312,9 @@ def main(ctx):
         return result
 
     processes = min(g_ctx.nprocess, len(ranges) - 1)
-    pool = Pool(processes=g_ctx.nprocess)
-    log.debug("Created pool of processes: %d" % g_ctx.nprocess)
+    pool = Pool(processes=processes)
+    log.debug("Created pool of processes: %d" % processes)
 
-    recover_stats = g_ctx.stats["recover"]
     async_results = [ pool.apply_async(process_range, (r, g_ctx.dry_run)) for r in ranges ]
 
     log.info("Closing pool, joining threads")
