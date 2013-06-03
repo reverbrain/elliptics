@@ -357,17 +357,20 @@ class dnet_sink_t: public cocaine::logging::logger_concept_t {
 
 class srw {
 	public:
-		srw(struct dnet_session *sess, const std::string &config) : m_s(sess)
+		srw(struct dnet_session *sess, const std::string &config) :
+		m_s(sess),
+		m_ctx(config, std::unique_ptr<dnet_sink_t>(new dnet_sink_t(m_s,
+							dnet_log_level_to_prio(sess->node->log->log_level))))
 		{
 			atomic_set(&m_src_key, 1);
-			m_ctx.reset(new cocaine::context_t(config,
-					std::unique_ptr<dnet_sink_t>(new dnet_sink_t(m_s,
-							dnet_log_level_to_prio(sess->node->log->log_level)))));
+
 		}
 
 		~srw() {
-			m_ctx.reset();
-			dnet_session_destroy(m_s);
+		}
+
+		struct dnet_session *session(void) {
+			return m_s;
 		}
 
 		int process(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sph *sph) {
@@ -399,11 +402,11 @@ class srw {
 				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
-					std::shared_ptr<dnet_app_t> eng(new dnet_app_t(*m_ctx, app, app));
+					std::shared_ptr<dnet_app_t> eng(new dnet_app_t(m_ctx, app, app));
 					eng->start();
 
 					if (ev == "start-multiple-task") {
-						auto storage = cocaine::api::storage(*m_ctx, "core");
+						auto storage = cocaine::api::storage(m_ctx, "core");
 						Json::Value profile = storage->get<Json::Value>("profiles", app);
 
 						int idle = profile["idle-timeout"].asInt();
@@ -558,7 +561,7 @@ class srw {
 
 	private:
 		struct dnet_session		*m_s;
-		std::unique_ptr<cocaine::context_t> m_ctx;
+		cocaine::context_t		m_ctx;
 		std::mutex			m_lock;
 		eng_map_t			m_map;
 		jobs_map_t			m_jobs;
@@ -576,14 +579,18 @@ class srw {
 int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg)
 {
 	int err = 0;
+	dnet_session *s = dnet_session_create(n);
+
+	if (!s)
+		return -ENOMEM;
 
 	try {
-		dnet_session *s = dnet_session_create(n);
 		dnet_session_set_groups(s, (int *)&n->id.group_id, 1);
 		n->srw = (void *)new srw(s, cfg->srw.config);
 		dnet_log(n, DNET_LOG_INFO, "srw: initialized: config: %s\n", cfg->srw.config);
 		return 0;
 	} catch (const std::exception &e) {
+		dnet_session_destroy(s);
 		dnet_log(n, DNET_LOG_ERROR, "srw: init failed: config: %s, exception: %s\n", cfg->srw.config, e.what());
 		err = -ENOMEM;
 	}
@@ -595,7 +602,10 @@ void dnet_srw_cleanup(struct dnet_node *n)
 {
 	if (n->srw) {
 		try {
-			delete (srw *)n->srw;
+			srw *sr = (srw *)n->srw;
+			dnet_session *s = sr->session();
+			delete sr;
+			dnet_session_destroy(s);
 		} catch (...) {
 		}
 
