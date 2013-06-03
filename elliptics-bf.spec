@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.8.0
+Version:	2.24.8.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jun 04 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.8.1
+- Correct service protocol must be derived from extension class
+
 * Mon Jun 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.8.0
 - Added cache and bulk methods to elliptics service
 - Depend on cocaine >= 0.10.5, not counting prereleases

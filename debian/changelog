@@ -1,3 +1,9 @@
+elliptics (2.24.8.1) unstable; urgency=low
+
+  * Correct service protocol must be derived from extension class
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 04 Jun 2013 00:25:59 +0400
+
 elliptics (2.24.8.0) unstable; urgency=low
 
   * Added cache and bulk methods to elliptics service
