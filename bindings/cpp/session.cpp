@@ -431,7 +431,7 @@ void session::lookup(const key &id, const callback &c)
 
 	if (id.by_id()) {
 		err = dnet_lookup_object(m_data->session_ptr, &raw,
-			0, callback::handler, c.data());
+			m_data->cflags, callback::handler, c.data());
 
 		if (err) {
 			throw_error(err, id.id(), "Failed to lookup ID");
