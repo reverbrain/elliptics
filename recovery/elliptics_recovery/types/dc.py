@@ -298,8 +298,6 @@ def main(ctx):
     result = True
     g_ctx.stats.timer.main('started')
 
-    if len(g_ctx.groups) == 0:
-        g_ctx.groups = g_ctx.routes.groups()
     log.debug("Groups: %s" % g_ctx.groups)
 
     g_ctx.group_id = g_ctx.routes.filter_by_address(g_ctx.address)[0].key.group_id

@@ -180,6 +180,10 @@ if __name__ == '__main__':
     log.debug("Parsed routing table:\n{0}".format(ctx.routes))
     log.debug("Total routes: {0}".format(len(ctx.routes)))
 
+    if len(ctx.groups) == 0:
+        ctx.groups = ctx.routes.groups()
+        log.info("No groups specified: using all available groups: {0}".format(ctx.groups))
+
     if recovery_type == TYPE_MERGE:
         from elliptics_recovery.types.merge import main
     elif recovery_type == TYPE_DC:
