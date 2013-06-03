@@ -200,7 +200,7 @@ class RouteList(object):
 
     def get_local_ranges_by_address(self, address):
         ranges = self.get_ranges_by_address(address)
-        result = dict ((address, AddressRanges(address=address, eid=self.get_address_eid(address), id_ranges=[])) for address in self.addresses())
+        result = dict((address, AddressRanges(address=address, eid=self.get_address_eid(address), id_ranges=[])) for address in self.addresses())
 
         for r in ranges:
             for group_id in r.address:
@@ -208,7 +208,7 @@ class RouteList(object):
                 assert result[address].eid.group_id == group_id
                 result[address].id_ranges.append(r.id_range)
 
-        return[v for v in result.values() if len(v.id_ranges)]
+        return [v for v in result.values() if len(v.id_ranges)]
 
     def get_address_ranges(self, address):
         ranges = []
