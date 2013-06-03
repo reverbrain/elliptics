@@ -1,3 +1,11 @@
+elliptics (2.20.6.7) unstable; urgency=low
+
+  * Unlock GIL inside synchronous calls in python binding
+  * Depend on libzmq-dev
+  * Pass cflags in session::lookup() to dnet_lookup_object in C++ binding
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 03 Jun 2013 20:02:38 +0400
+
 elliptics (2.20.6.6) unstable; urgency=low
 
   * Release GIL in python binding in stat_log() method

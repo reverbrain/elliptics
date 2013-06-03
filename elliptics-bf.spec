@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.6.6
+Version:	2.20.6.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jun 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.7
+- Unlock GIL inside synchronous calls in python binding
+- Depend on libzmq-dev
+- Pass cflags in session::lookup() to dnet_lookup_object in C++ binding
+
 * Mon May 20 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.6
 - Release GIL in python binding in stat_log() method
 
