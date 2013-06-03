@@ -97,7 +97,7 @@ class IteratorResult(object):
         return result
 
     @classmethod
-    def load_filename(cls, filename, sorted, tmp_dir="", **kwargs):
+    def load_filename(cls, filename, is_sorted, tmp_dir="", **kwargs):
         """
         Creates iterator result from filename
         """
@@ -107,14 +107,14 @@ class IteratorResult(object):
             return None
         container_file = open(filename, 'r+')
         container_file.seek(0, 2)
-        result = cls.from_info(container_file.fileno(), sorted, container_file.tell(), tmp_dir=tmp_dir, filename=filename, **kwargs)
+        result = cls.from_info(container_file.fileno(), is_sorted, container_file.tell(), tmp_dir=tmp_dir, filename=filename, **kwargs)
         result.__file = container_file # Save it from python's gc
         return result
 
     @classmethod
-    def from_info(cls, fd, sorted, position, **kwargs):
+    def from_info(cls, fd, is_sorted, position, **kwargs):
         result = cls(**kwargs)
-        result.container = elliptics.IteratorResultContainer(fd, sorted, position)
+        result.container = elliptics.IteratorResultContainer(fd, is_sorted, position)
         return result
 
     @classmethod

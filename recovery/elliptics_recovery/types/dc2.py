@@ -101,7 +101,7 @@ def recover(id_range, eid, address):
                                         address=address,
                                         id_range=id_range,
                                         eid=eid,
-                                        sorted=True,
+                                        is_sorted=True,
                                         tmp_dir=g_ctx.tmp_dir,
                                         leave_file=False
                                        )
@@ -206,7 +206,7 @@ def process_address_ranges(address_ranges, local=False):
                                                                       address=g_ctx.address,
                                                                       id_range=g_ctx.id_range,
                                                                       eid=g_ctx.eid,
-                                                                      sorted=True,
+                                                                      is_sorted=True,
                                                                       tmp_dir=g_ctx.tmp_dir,
                                                                       leave_file=True
                                                                      )
@@ -237,7 +237,7 @@ def merge_and_split_diffs(ctx, diff_results, stats):
                                                                       address=diff.address,
                                                                       id_range=diff.id_range,
                                                                       eid=diff.eid,
-                                                                      sorted=True,
+                                                                      is_sorted=True,
                                                                       tmp_dir=ctx.tmp_dir,
                                                                       leave_file=True
                                                                      )
@@ -250,6 +250,7 @@ def merge_and_split_diffs(ctx, diff_results, stats):
                                                                        address=d.address,
                                                                        id_range=d.id_range,
                                                                        eid=d.eid,
+                                                                       is_sorted=True,
                                                                        tmp_dir=ctx.tmp_dir,
                                                                        leave_file=True
                                                                       )
@@ -335,7 +336,7 @@ def main(ctx):
             dres = IteratorResult.load_filename(filename,
                                                 address=address,
                                                 eid=eid,
-                                                sorted=True,
+                                                is_sorted=True,
                                                 id_range=id_range,
                                                 tmp_dir=g_ctx.tmp_dir,
                                                )

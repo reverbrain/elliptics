@@ -207,7 +207,7 @@ def merge_and_split_diffs(ctx, diff_results, stats):
                                                                       address=diff.address,
                                                                       id_range=diff.id_range,
                                                                       eid=diff.eid,
-                                                                      sorted=True,
+                                                                      is_sorted=True,
                                                                       tmp_dir=ctx.tmp_dir,
                                                                       leave_file=True
                                                                      )
@@ -220,6 +220,7 @@ def merge_and_split_diffs(ctx, diff_results, stats):
                                                                        address=d.address,
                                                                        id_range=d.id_range,
                                                                        eid=d.eid,
+                                                                       is_sorted=True,
                                                                        tmp_dir=ctx.tmp_dir,
                                                                        leave_file=True
                                                                       )
