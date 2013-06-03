@@ -193,7 +193,12 @@ def recover_keys(ctx, address, group, keys, local_session, remote_session):
     return key_num, 0, size
 
 def process_address(address, group, ranges):
-    """Recover all ranges for an address"""
+    """
+    Recover all ranges for an address.
+
+    For each range we iterate, sort, diff with corresponding
+    local iterator result, recover diff, return stats.
+    """
     remote_stats_name = 'remote_{0}'.format(address)
     remote_stats = Stats(remote_stats_name)
     remote_stats.timer.remote('started')
@@ -245,15 +250,15 @@ def process_address(address, group, ranges):
     return result, remote_stats
 
 def main(ctx):
+    """
+    Run local iterators, sort them. Then for each host in route
+    table run recovery process.
+    """
     global g_ctx
     global g_sorted_local_results
     result = True
     g_ctx = ctx
     g_ctx.stats.timer.main('started')
-
-    # Run local iterators, sort them
-    # For each host in route table run remote iterators in parallel
-      # Iterate, sort, diff corresponding range, recover diff, return stats
 
     for group in g_ctx.groups:
         log.warning("Processing group: {0}".format(group))
