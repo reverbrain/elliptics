@@ -56,6 +56,7 @@ class elliptics_storage_t : public api::storage_t
 	public:
 		typedef api::storage_t category_type;
 		typedef std::shared_ptr<logging::log_t> log_ptr;
+		typedef std::map<dnet_raw_id, std::string, ioremap::elliptics::dnet_raw_id_less_than<> > key_name_map;
 
 		elliptics_storage_t(context_t &context,
 			const std::string &name,
@@ -68,9 +69,16 @@ class elliptics_storage_t : public api::storage_t
 
 	protected:
 		ioremap::elliptics::async_read_result async_read(const std::string &collection, const std::string &key);
-		ioremap::elliptics::async_write_result async_write(const std::string &collection, const std::string &key, const std::string &blob, const std::vector<std::string> &tags);
+		ioremap::elliptics::async_write_result async_write(const std::string &collection, const std::string &key,
+			const std::string &blob, const std::vector<std::string> &tags);
 		ioremap::elliptics::async_find_indexes_result async_find(const std::string &collection, const std::vector<std::string> &tags);
 		ioremap::elliptics::async_remove_result async_remove(const std::string &collection, const std::string &key);
+		ioremap::elliptics::async_read_result async_cache_read(const std::string &collection, const std::string &key);
+		ioremap::elliptics::async_write_result async_cache_write(const std::string &collection, const std::string &key,
+			const std::string &blob, int timeout);
+		std::pair<ioremap::elliptics::async_read_result, key_name_map> async_bulk_read(const std::string &collection, const std::vector<std::string> &keys);
+		ioremap::elliptics::async_write_result async_bulk_write(const std::string &collection, const std::vector<std::string> &keys,
+			const std::vector<std::string> &blobs);
 
 		static std::vector<std::string> convert_list_result(const ioremap::elliptics::sync_find_indexes_result &result);
 

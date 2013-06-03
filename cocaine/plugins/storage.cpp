@@ -317,6 +317,95 @@ ell::async_remove_result elliptics_storage_t::async_remove(const std::string &co
 	return result;
 }
 
+ioremap::elliptics::async_read_result elliptics_storage_t::async_cache_read(const std::string &collection, const std::string &key)
+{
+	COCAINE_LOG_DEBUG(
+		m_log,
+		"cache reading the '%s' object, collection: '%s'",
+		key,
+		collection
+	);
+
+	ell::session session = m_session.clone();
+	session.set_namespace(collection.data(), collection.size());
+	session.set_ioflags(DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY);
+
+	return session.read_data(key, 0, 0);
+}
+
+ioremap::elliptics::async_write_result elliptics_storage_t::async_cache_write(const std::string &collection, const std::string &key,
+	const std::string &blob, int timeout)
+{
+	COCAINE_LOG_DEBUG(
+		m_log,
+		"cache writing the '%s' object, collection: '%s'",
+		key,
+		collection
+	);
+
+	ell::session session = m_session.clone();
+	session.set_namespace(collection.data(), collection.size());
+	session.set_ioflags(DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY);
+
+	return session.write_cache(key, blob, timeout);
+}
+
+std::pair<ioremap::elliptics::async_read_result, elliptics_storage_t::key_name_map> elliptics_storage_t::async_bulk_read(
+	const std::string &collection, const std::vector<std::string> &keys)
+{
+	COCAINE_LOG_DEBUG(
+		m_log,
+		"bulk reading, collection: '%s'",
+		collection
+	);
+
+	ell::session session = m_session.clone();
+	session.set_namespace(collection.data(), collection.size());
+
+	key_name_map keys_map;
+	dnet_raw_id id;
+
+	for (size_t i = 0; i < keys.size(); ++i) {
+		session.transform(keys[i], id);
+		keys_map[id] = keys[i];
+	}
+
+	return std::make_pair(session.bulk_read(keys), std::move(keys_map));
+}
+
+ioremap::elliptics::async_write_result elliptics_storage_t::async_bulk_write(const std::string &collection, const std::vector<std::string> &keys,
+	const std::vector<std::string> &blobs)
+{
+	COCAINE_LOG_DEBUG(
+		m_log,
+		"bulk writing, collection: '%s'",
+		collection
+	);
+
+	ell::session session = m_session.clone();
+	session.set_namespace(collection.data(), collection.size());
+	session.set_filter(ell::filters::all);
+
+	std::vector<dnet_io_attr> ios;
+	ios.reserve(blobs.size());
+
+	dnet_io_attr io;
+	dnet_id id;
+	memset(&io, 0, sizeof(io));
+	memset(&id, 0, sizeof(id));
+
+	for (size_t i = 0; i < blobs.size(); ++i) {
+		session.transform(keys[i], id);
+		memcpy(io.id, id.id, sizeof(io.id));
+
+		io.size = blobs[i].size();
+
+		ios.push_back(io);
+	}
+
+	return session.bulk_write(ios, blobs);
+}
+
 std::vector<std::string> elliptics_storage_t::convert_list_result(const ioremap::elliptics::sync_find_indexes_result &result)
 {
 	std::vector<std::string> promise_result;
