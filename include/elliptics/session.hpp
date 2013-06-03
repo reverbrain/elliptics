@@ -436,6 +436,9 @@ class session
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
 		 * Also writes data to the server cache.
 		 *
+		 * Life-length of the object is set by \a timeout in seconds. If \a timeout is null
+		 * object will live forever until the death of the server.
+		 *
 		 * Returns async_write_result.
 		 */
 		async_write_result write_cache(const key &id, const data_pointer &file, long timeout);
