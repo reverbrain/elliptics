@@ -9,7 +9,7 @@ from .utils.misc import logged_class, mk_container_name, format_id
 from .time import Time
 from .range import IdRange
 
-sys.path.insert(0, "bindings/python/") # XXX
+sys.path.insert(0, "bindings/python/")  # XXX
 import elliptics
 
 
@@ -20,14 +20,15 @@ class IteratorResult(object):
         Container for iterator results.
         Provides IteratorResultContainer wrapper.
         """
+
     def __init__(self, eid=None,
                  id_range=IdRange(None, None),
                  address=None,
                  container=None,
                  tmp_dir="",
                  leave_file=False,
-                 filename = ""
-    ):
+                 filename=""
+                 ):
         self.eid = eid
         self.id_range = id_range
         self.address = address
@@ -80,7 +81,7 @@ class IteratorResult(object):
                                                       id_range=other.id_range,
                                                       address=other.address,
                                                       tmp_dir=self.tmp_dir
-                                                     )
+                                                      )
         self.container.diff(other.container, diff_container.container)
         return diff_container
 
@@ -93,7 +94,7 @@ class IteratorResult(object):
             filename = os.path.join(tmp_dir, filename)
         container_file = open(filename, 'w+')
         result = cls.from_fd(container_file.fileno(), tmp_dir=tmp_dir, filename=filename, **kwargs)
-        result.__file = container_file # Save it from python's gc
+        result.__file = container_file  # Save it from python's gc
         return result
 
     @classmethod
@@ -108,7 +109,7 @@ class IteratorResult(object):
         container_file = open(filename, 'r+')
         container_file.seek(0, 2)
         result = cls.from_info(container_file.fileno(), is_sorted, container_file.tell(), tmp_dir=tmp_dir, filename=filename, **kwargs)
-        result.__file = container_file # Save it from python's gc
+        result.__file = container_file  # Save it from python's gc
         return result
 
     @classmethod
@@ -133,6 +134,7 @@ class Iterator(object):
     """
     Wrapper on top of elliptics new iterator and it's result container
     """
+
     def __init__(self, node, group):
         self.session = elliptics.Session(node)
         self.session.set_groups([group])
@@ -140,13 +142,13 @@ class Iterator(object):
     def start(self,
               eid=elliptics.Id(IdRange.ID_MIN, 0, 0),
               itype=elliptics.iterator_types.network,
-              flags=elliptics.iterator_flags.key_range|elliptics.iterator_flags.ts_range,
+              flags=elliptics.iterator_flags.key_range | elliptics.iterator_flags.ts_range,
               key_ranges=(IdRange(IdRange.ID_MIN, IdRange.ID_MAX),),
               timestamp_range=(Time.time_min().to_etime(), Time.time_max().to_etime()),
               tmp_dir='/var/tmp',
               address=None,
               leave_file=False,
-    ):
+              ):
         assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now"
         assert flags & elliptics.iterator_flags.data == 0, "Only metadata iterator is supported for now"
         assert len(key_ranges) > 0, "There should be at least one iteration range."
@@ -162,7 +164,7 @@ class Iterator(object):
                                                   eid=eid,
                                                   tmp_dir=tmp_dir,
                                                   leave_file=leave_file,
-            )
+                                                  )
 
             ranges = [IdRange.elliptics_range(start, stop) for start, stop in key_ranges]
             records = self.session.start_iterator(eid, ranges, itype, flags, timestamp_range[0], timestamp_range[1])
