@@ -51,3 +51,8 @@ def elliptics_create_session(node=None, group=None, cflags=elliptics.command_fla
     session.set_groups([group])
     session.set_cflags(cflags)
     return session
+
+def worker_init():
+    """Do not catch Ctrl+C in worker"""
+    from signal import signal, SIGINT, SIG_IGN
+    signal(SIGINT, SIG_IGN)

@@ -20,7 +20,7 @@ from ..route import RouteList
 from ..iterator import Iterator
 from ..time import Time
 from ..stat import Stats
-from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session
+from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -301,18 +301,27 @@ def main(ctx):
         addresses = set([r.address for r in ranges])
         processes = min(g_ctx.nprocess, len(addresses))
         log.info("Creating pool of processes: {0}".format(processes))
-        pool = Pool(processes=processes)
+        pool = Pool(processes=processes, initializer=worker_init)
         for address in addresses:
             async_results.append(pool.apply_async(process_address, (address, group, ranges)))
-        log.info("Closing pool, joining threads")
-        pool.close()
-        pool.join()
 
-        log.info("Fetching results")
         results = []
-        for result, stats in (r.get() for r in async_results):
-            results.append(result)
-            group_stats[stats.name] = stats
+        try:
+            log.info("Fetching results")
+            # Use INT_MAX as timeout, so we can catch Ctrl+C
+            timeout = 2147483647
+            for result, stats in (r.get(timeout) for r in async_results):
+                results.append(result)
+                group_stats[stats.name] = stats
+        except KeyboardInterrupt:
+            log.error("Caught Ctrl+C. Terminating.")
+            pool.terminate()
+            pool.join()
+        else:
+            log.info("Closing pool, joining threads.")
+            pool.close()
+            pool.join()
+
         result = all(results)
         group_stats.timer.group('finished')
     g_ctx.stats.timer.main('finished')
