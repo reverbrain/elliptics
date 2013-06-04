@@ -61,6 +61,7 @@ class ResultCounter(object):
 class DurationTimer(object):
     """
     Time measurement between events and reporting.
+    TODO: Add context-manager interface
 
     One can mark different points in program execution with timer
     >>> dt = DurationTimer('Timer')

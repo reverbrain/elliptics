@@ -20,7 +20,7 @@ from ..route import RouteList
 from ..iterator import Iterator
 from ..time import Time
 from ..stat import Stats
-from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session
+from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -154,18 +154,20 @@ def recover(ctx, diff, group, stats):
     )
 
     # Here we cleverly splitting responses into ctx.batch_size batches
-    total_successes, total_failures = (0, 0)
+    total_successes, total_failures, total_size = 0, 0, 0
     for batch_id, batch in groupby(enumerate(diff),
                                     key=lambda x: x[0] / ctx.batch_size):
         keys = [elliptics.Id(r.key, group, 0) for _, r in batch]
-        successes, failures = recover_keys(ctx, diff.address, group, keys, local_session, remote_session)
+        successes, failures, size = recover_keys(ctx, diff.address, group, keys, local_session, remote_session)
         total_successes += successes
         total_failures += failures
+        total_size += size
         result &= (failures == 0)
         log.debug("Recovered batch: {0}/{1}: stat: {2}/{3}".format(
             batch_id * ctx.batch_size + len(keys), len(diff), total_successes, total_failures))
     stats.counter.recovered_keys += total_successes
     stats.counter.recovered_keys -= total_failures
+    stats.counter.recovered_bytes += total_size
     return result
 
 def recover_keys(ctx, address, group, keys, local_session, remote_session):
@@ -177,21 +179,26 @@ def recover_keys(ctx, address, group, keys, local_session, remote_session):
     log.debug("Reading {0} keys".format(key_num))
     try:
         batch = remote_session.bulk_read(keys)
+        size = sum(len(v[1]) for v in batch)
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
-        return 0, key_num
+        return 0, key_num, 0
 
-    size = sum(len(v[1]) for v in batch)
     log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
     try:
         local_session.bulk_write(batch)
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
-        return 0, key_num
-    return key_num, 0
+        return 0, key_num, 0
+    return key_num, 0, size
 
 def process_address(address, group, ranges):
-    """Recover all ranges for an address"""
+    """
+    Recover all ranges for an address.
+
+    For each range we iterate, sort, diff with corresponding
+    local iterator result, recover diff, return stats.
+    """
     remote_stats_name = 'remote_{0}'.format(address)
     remote_stats = Stats(remote_stats_name)
     remote_stats.timer.remote('started')
@@ -243,15 +250,15 @@ def process_address(address, group, ranges):
     return result, remote_stats
 
 def main(ctx):
+    """
+    Run local iterators, sort them. Then for each host in route
+    table run recovery process.
+    """
     global g_ctx
     global g_sorted_local_results
     result = True
     g_ctx = ctx
     g_ctx.stats.timer.main('started')
-
-    # Run local iterators, sort them
-    # For each host in route table run remote iterators in parallel
-      # Iterate, sort, diff corresponding range, recover diff, return stats
 
     for group in g_ctx.groups:
         log.warning("Processing group: {0}".format(group))
@@ -294,18 +301,27 @@ def main(ctx):
         addresses = set([r.address for r in ranges])
         processes = min(g_ctx.nprocess, len(addresses))
         log.info("Creating pool of processes: {0}".format(processes))
-        pool = Pool(processes=processes)
+        pool = Pool(processes=processes, initializer=worker_init)
         for address in addresses:
             async_results.append(pool.apply_async(process_address, (address, group, ranges)))
-        log.info("Closing pool, joining threads")
-        pool.close()
-        pool.join()
 
-        log.info("Fetching results")
         results = []
-        for result, stats in (r.get() for r in async_results):
-            results.append(result)
-            group_stats[stats.name] = stats
+        try:
+            log.info("Fetching results")
+            # Use INT_MAX as timeout, so we can catch Ctrl+C
+            timeout = 2147483647
+            for result, stats in (r.get(timeout) for r in async_results):
+                results.append(result)
+                group_stats[stats.name] = stats
+        except KeyboardInterrupt:
+            log.error("Caught Ctrl+C. Terminating.")
+            pool.terminate()
+            pool.join()
+        else:
+            log.info("Closing pool, joining threads.")
+            pool.close()
+            pool.join()
+
         result = all(results)
         group_stats.timer.group('finished')
     g_ctx.stats.timer.main('finished')
