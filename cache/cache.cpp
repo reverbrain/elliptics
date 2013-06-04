@@ -340,8 +340,10 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 	struct dnet_node *n = st->n;
 	int err = -ENOTSUP;
 
-	if (!n->cache)
+	if (!n->cache) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
 		return -ENOTSUP;
+	}
 
 	cache_manager *cache = (cache_manager *)n->cache;
 
