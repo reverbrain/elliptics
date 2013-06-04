@@ -18,6 +18,7 @@
 #include "functional_p.h"
 
 #include <sstream>
+#include <functional>
 
 namespace ioremap { namespace elliptics {
 
@@ -743,6 +744,77 @@ async_write_result session::write_data(const key &id, const data_pointer &file, 
 	ctl.fd = -1;
 
 	return write_data(ctl);
+}
+
+struct chunk_handler : public std::enable_shared_from_this<chunk_handler> {
+
+	chunk_handler(const async_write_result::handler &handler, const session &sess,
+				  const key &id, const data_pointer &content, const uint64_t &remote_offset, const uint64_t &chunk_size)
+		: handler(handler)
+		, sess(sess.clone())
+		, id (id)
+		, content(content)
+		, remote_offset(remote_offset)
+		, chunk_size(chunk_size)
+	{
+		//this->sess.set_filter(filters::all_with_ack);
+	}
+
+	void write_next(const std::vector<write_result_entry> &entries, const error_info &error) {
+		if (error.code() != 0) {
+			handler.complete(error);
+			return;
+		}
+
+		std::vector<int> groups;
+		for (auto it = entries.begin(); it != entries.end(); ++it) {
+			groups.push_back(it->command()->id.group_id);
+		}
+		sess.set_groups(groups);
+
+		remote_offset += chunk_size;
+		if (remote_offset + chunk_size >= content.size()) {
+			auto write_content = content.slice(remote_offset, content.size() - remote_offset);
+			auto awr = sess.write_commit(id, write_content, remote_offset, content.size());
+			awr.connect(std::bind(&chunk_handler::finish, shared_from_this(), std::placeholders::_1, std::placeholders::_2));
+		} else {
+			auto write_content = content.slice(remote_offset, chunk_size);
+			auto awr = sess.write_plain(id, write_content, remote_offset);
+			awr.connect(std::bind(&chunk_handler::write_next, shared_from_this(), std::placeholders::_1, std::placeholders::_2));
+		}
+	}
+
+	void finish(const std::vector<write_result_entry> &entries, const error_info &error) {
+		for (auto it = entries.begin(); it != entries.end(); ++it)
+			handler.process(*it);
+		handler.complete(error);
+	}
+
+	async_write_result::handler handler;
+	session sess;
+
+	key id;
+	data_pointer content;
+	uint64_t remote_offset;
+	uint64_t chunk_size;
+
+};
+
+async_write_result session::write_data(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t chunk_size)
+{
+	if (file.size() <= chunk_size)
+		return write_data(id, file, remote_offset);
+
+	data_pointer write_content = file.slice(remote_offset, chunk_size);
+	auto awr = write_prepare(id, write_content, remote_offset, file.size());
+
+	async_write_result res(*this);
+	async_write_result::handler handler(res);
+
+	auto ch = std::make_shared<chunk_handler>(handler, *this, id, file, remote_offset, chunk_size);
+	awr.connect(std::bind(&chunk_handler::write_next, ch, std::placeholders::_1, std::placeholders::_2));
+
+	return res;
 }
 
 // At every iteration ask items to find the latest one
