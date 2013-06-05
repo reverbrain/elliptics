@@ -927,11 +927,6 @@ void iterator_container_diff(iterator_result_container &left,
 	left.diff(right, diff);
 }
 
-void iterator_container_merge()
-{
-
-}
-
 struct id_pickle : bp::pickle_suite
 {
 	static boost::python::tuple getinitargs(const elliptics_id& id)
@@ -1048,7 +1043,6 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("append_rr", iterator_container_append_rr)
 		.def("sort", iterator_container_sort)
 		.def("diff", iterator_container_diff)
-		.def("merge", iterator_container_merge)
 		.def("__len__", iterator_container_get_count)
 		.def("__getitem__", iterator_container_getitem)
 	;

@@ -188,7 +188,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         return 0, key_num
 
     size = sum(len(v[1]) for v in batch)
-    log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
+    log.debug("Writing {0} keys: {1} bytes".format(len(batch), size))
 
     try:
         local_session.bulk_write(batch)
