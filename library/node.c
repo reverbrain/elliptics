@@ -812,3 +812,13 @@ void dnet_session_get_timestamp(struct dnet_session *s, struct dnet_time *ts)
 {
 	*ts = s->ts;
 }
+
+struct dnet_id *dnet_session_get_direct_id(struct dnet_session *s)
+{
+	return &s->direct_id;
+}
+
+void dnet_session_set_direct_id(struct dnet_session *s, struct dnet_id *id)
+{
+	s->direct_id = *id;
+}

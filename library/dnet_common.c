@@ -677,7 +677,14 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 	memcpy(io, &ctl->io, sizeof(struct dnet_io_attr));
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
-	t->st = dnet_state_get_first(n, &cmd->id);
+	if ((s->cflags & DNET_FLAGS_DIRECT) == 0) {
+		t->st = dnet_state_get_first(n, &cmd->id);
+	} else {
+		/* We're requested to execute request on perticular node */
+		s->direct_id.group_id = cmd->id.group_id;
+		t->st = dnet_state_get_first(n, &s->direct_id);
+	}
+
 	if (!t->st) {
 		err = -ENXIO;
 		goto err_out_destroy;

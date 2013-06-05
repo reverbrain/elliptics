@@ -273,6 +273,15 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			session::set_groups(convert_to_vector<int>(groups));
 		}
 
+		void set_direct_id(std::string saddr, int port, int family) {
+			session::set_direct_id(saddr.c_str(), port, family);
+		}
+
+		struct elliptics_id get_direct_id() {
+			dnet_id id = session::get_direct_id();
+			return id;
+		}
+
 		bp::list get_groups() {
 			std::vector<int> groups = session::get_groups();
 			bp::list res;
@@ -1119,6 +1128,9 @@ BOOST_PYTHON_MODULE(elliptics) {
 			&elliptics_session::set_ioflags)
 		.def("set_ioflags", &elliptics_session::set_ioflags)
 		.def("get_ioflags", &elliptics_session::get_ioflags)
+
+		.def("set_direct_id", &elliptics_session::set_direct_id)
+		.def("get_direct_id", &elliptics_session::get_direct_id)
 
 		.def("read_file", &elliptics_session::read_file_by_id,
 			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0))

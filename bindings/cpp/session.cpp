@@ -17,6 +17,7 @@
 #include "callback_p.h"
 #include "functional_p.h"
 
+#include <cerrno>
 #include <sstream>
 
 namespace ioremap { namespace elliptics {
@@ -403,6 +404,48 @@ void session::set_exceptions_policy(uint32_t policy)
 uint32_t session::get_exceptions_policy() const
 {
 	return m_data->policy;
+}
+
+dnet_id session::get_direct_id()
+{
+	if ((get_cflags() & DNET_FLAGS_DIRECT) == 0)
+		throw ioremap::elliptics::error(-EINVAL, "DNET_FLAGS_DIRECT was not set");
+
+	return *dnet_session_get_direct_id(get_native());
+}
+
+void session::set_direct_id(dnet_addr remote_addr)
+{
+	std::vector<std::pair<struct dnet_id, struct dnet_addr> > routes = get_routes();
+
+	if (routes.empty())
+		throw ioremap::elliptics::error(-ENOENT, "Route list is empty");
+
+	for (auto it = routes.begin(); it != routes.end(); ++it) {
+		if (dnet_addr_equal(&remote_addr, &it->second)) {
+			dnet_session_set_direct_id(get_native(), &it->first);
+			set_cflags(get_cflags() | DNET_FLAGS_DIRECT);
+			return;
+		}
+	}
+
+	throw ioremap::elliptics::error(-ESRCH, "Route not found");
+}
+
+void session::set_direct_id(const char *saddr, int port, int family)
+{
+	dnet_addr addr;
+	int err;
+
+	memset(&addr, 0, sizeof(addr));
+	addr.addr_len = sizeof(addr.addr);
+	addr.family = family;
+
+	err = dnet_fill_addr(&addr, saddr, port, SOCK_STREAM, IPPROTO_TCP);
+	if (err != 0)
+		throw ioremap::elliptics::error(err, "dnet_fill_addr failed");
+
+	set_direct_id(addr);
 }
 
 void session::set_cflags(uint64_t cflags)
