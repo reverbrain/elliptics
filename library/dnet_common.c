@@ -2606,18 +2606,19 @@ int dnet_iterator_response_container_read(int fd, uint64_t pos,
 /*!
  * Shifts offset and skips response with equal keys.
  */
-static inline void dnet_iterator_response_skip_equal_keys(const struct dnet_iterator_response *resp, uint64_t *offset, uint64_t size)
+static inline void dnet_iterator_response_skip_equal_keys(const struct dnet_iterator_response *resp,
+		uint64_t *offset, uint64_t size)
 {
 	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
 	uint64_t next_offset = *offset + resp_size;
 
-	while(next_offset < size) {
+	while (next_offset < size) {
 		const uint64_t current_pos = *offset / resp_size;
 		const uint64_t next_pos = next_offset / resp_size;
 		const struct dnet_iterator_response *curr = resp + current_pos;
 		const struct dnet_iterator_response *next = resp + next_pos;
 
-		if(dnet_id_cmp_str(curr->key.id, next->key.id))
+		if (dnet_id_cmp_str(curr->key.id, next->key.id))
 			break;
 
 		*offset += resp_size;
