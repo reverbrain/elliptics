@@ -1165,7 +1165,7 @@ std::string session::bulk_write(const std::vector<struct dnet_io_attr> &ios, con
 
 	struct dnet_range_data ret = dnet_bulk_write(m_data->session_ptr, &ctls[0], ctls.size(), &err);
 	if (err < 0) {
-		throw_error(-EIO, "BULK_WRITE: size: %lld",
+		throw_error(err, "BULK_WRITE: size: %lld",
 			static_cast<unsigned long long>(ret.size));
 	}
 
