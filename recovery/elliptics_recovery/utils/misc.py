@@ -31,13 +31,14 @@ def mk_container_name(id_range, eid, prefix="iterator_"):
     return "{0}{1}_@{2}".format(prefix, str(id_range), format_id(eid.id))
 
 @lru_cache()
-def elliptics_create_node(address=None, elog=None, wait_timeout=3600, flags=0):
+def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_timeout=60, flags=0):
     """
     Connects to elliptics cloud
     """
     log.info("Creating node using: {0}".format(address))
     cfg = elliptics.Config()
     cfg.config.wait_timeout = wait_timeout
+    cfg.config.check_timeout = check_timeout
     cfg.config.flags = flags
     node = elliptics.Node(elog, cfg)
     node.add_remote(addr=address.host, port=address.port, family=address.family)

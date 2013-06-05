@@ -139,14 +139,14 @@ def recover(ctx, diff, group, stats):
     log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.address))
 
     log.debug("Creating remote node for: {0}".format(diff.address))
-    remote_node = elliptics_create_node(address=diff.address, elog=g_ctx.elog, flags=2)
+    remote_node = elliptics_create_node(address=diff.address, elog=g_ctx.elog, check_timeout=86400, flags=2)
     log.debug("Creating direct remote session: {0}".format(diff.address))
     remote_session = elliptics_create_session(node=remote_node,
                                               group=group,
                                               cflags=elliptics.command_flags.direct,
     )
     log.debug("Creating local node for: {0}".format(g_ctx.address))
-    local_node = elliptics_create_node(address=g_ctx.address, elog=g_ctx.elog, flags=2)
+    local_node = elliptics_create_node(address=g_ctx.address, elog=g_ctx.elog, check_timeout=86400, flags=2)
     log.debug("Creating direct local session: {0}".format(g_ctx.address))
     local_session = elliptics_create_session(node=local_node,
                                               group=group,
@@ -154,43 +154,40 @@ def recover(ctx, diff, group, stats):
     )
 
     # Here we cleverly splitting responses into ctx.batch_size batches
-    total_successes, total_failures, total_size = 0, 0, 0
     for batch_id, batch in groupby(enumerate(diff),
                                     key=lambda x: x[0] / ctx.batch_size):
         keys = [elliptics.Id(r.key, group, 0) for _, r in batch]
-        successes, failures, size = recover_keys(ctx, diff.address, group, keys, local_session, remote_session)
-        total_successes += successes
-        total_failures += failures
-        total_size += size
+        successes, failures, size, skipped = recover_keys(ctx, diff.address, group, keys, local_session, remote_session)
+        stats.counter.recovered_keys += successes
+        stats.counter.recovered_keys -= failures
+        stats.counter.recovered_bytes += size
+        stats.counter.skipped += skipped
         result &= (failures == 0)
-        log.debug("Recovered batch: {0}/{1}: stat: {2}/{3}".format(
-            batch_id * ctx.batch_size + len(keys), len(diff), total_successes, total_failures))
-    stats.counter.recovered_keys += total_successes
-    stats.counter.recovered_keys -= total_failures
-    stats.counter.recovered_bytes += total_size
+        log.debug("Recovered batch: {0}/{1}".format(batch_id * ctx.batch_size + len(keys), len(diff)))
     return result
 
 def recover_keys(ctx, address, group, keys, local_session, remote_session):
     """
     Bulk recovery of keys.
     """
-    key_num = len(keys)
+    key_len = len(keys)
 
-    log.debug("Reading {0} keys".format(key_num))
+    log.debug("Reading {0} keys".format(key_len))
     try:
         batch = remote_session.bulk_read(keys)
+        batch_len = len(batch)
         size = sum(len(v[1]) for v in batch)
     except Exception as e:
-        log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
-        return 0, key_num, 0
+        log.debug("Bulk read failed: {0} keys: {1}".format(key_len, e))
+        return 0, key_len, 0, 0
 
-    log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
+    log.debug("Writing {0} keys: {1} bytes".format(batch_len, size))
     try:
         local_session.bulk_write(batch)
     except Exception as e:
-        log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
-        return 0, key_num, 0
-    return key_num, 0, size
+        log.debug("Bulk write failed: {0} keys: {1}".format(batch_len, e))
+        return 0, len(batch), 0, key_len - batch_len
+    return len(batch), 0, size, key_len - batch_len
 
 def process_address(address, group, ranges):
     """
