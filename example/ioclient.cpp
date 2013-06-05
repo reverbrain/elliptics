@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
 		sigprocmask(SIG_UNBLOCK, &mask, NULL);
 
 		if (!remote_addr) {
-			fprintf(stderr, "You must specify remote address");
+			fprintf(stderr, "You must specify remote address\n");
 			return -EINVAL;
 		}
 
