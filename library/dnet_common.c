@@ -1413,7 +1413,7 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		int i;
 
 		dnet_convert_addr_stat(as, 0);
-		
+
 		for (i=0; i<as->num; ++i) {
 			if (as->num > as->cmd_num) {
 				if (i == 0)
@@ -1425,7 +1425,7 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 				if (i == as->cmd_num * 2)
 					dnet_log(state->n, DNET_LOG_DATA, "%s: %s: Counters\n",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
-			}	
+			}
 			dnet_log(state->n, DNET_LOG_DATA, "%s: %s:    cmd: %s, count: %llu, err: %llu\n",
 					dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
 					dnet_counter_string(i, as->cmd_num),
@@ -2599,6 +2599,30 @@ int dnet_iterator_response_container_read(int fd, uint64_t pos,
 }
 
 /*!
+ * Shifts offset and skips response with equal keys.
+ */
+static inline void dnet_iterator_response_skip_equal_keys(const struct dnet_iterator_response *resp, uint64_t *offset, uint64_t size)
+{
+	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
+	uint64_t next_offset = *offset + resp_size;
+
+	while(next_offset < size) {
+		const uint64_t current_pos = *offset / resp_size;
+		const uint64_t next_pos = next_offset / resp_size;
+		const struct dnet_iterator_response *curr = resp + current_pos;
+		const struct dnet_iterator_response *next = resp + next_pos;
+
+		if(dnet_id_cmp_str(curr->key.id, next->key.id))
+			break;
+
+		*offset += resp_size;
+		next_offset += resp_size;
+	}
+
+	*offset += resp_size;
+}
+
+/*!
  * Computes difference for two containers and writes it to diff_fd.
  * Returns size of new container.
  *
@@ -2653,7 +2677,7 @@ int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t
 			 * If we can move left pointer and left key is less or
 			 * same but with lesser timestamp we skip record.
 			 */
-			left_offset += resp_size;
+			dnet_iterator_response_skip_equal_keys(left_map.data, &left_offset, left_size);
 
 			/* For same key we move both pointers */
 			if (cmp_id == 0)
@@ -2668,11 +2692,12 @@ int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t
 			if (err != 0)
 				goto err_unmap_right;
 			diff_offset += resp_size;
-			right_offset += resp_size;
+
+			dnet_iterator_response_skip_equal_keys(right_map.data, &right_offset, right_size);
 
 			/* For same key we move both pointers */
 			if (cmp_id == 0 && left_offset < left_size)
-				left_offset += resp_size;
+				dnet_iterator_response_skip_equal_keys(left_map.data, &left_offset, left_size);
 		}
 		assert(left_offset <= left_size);
 		assert(diff_offset <= (int64_t)right_size);

@@ -2,7 +2,8 @@
 XXX:
 """
 
-import sys, os
+import sys
+import os
 import logging as log
 
 from itertools import groupby
@@ -19,6 +20,7 @@ sys.path.insert(0, "bindings/python/")
 import elliptics
 
 log.getLogger()
+
 
 def run_iterators(ctx, range, stats):
     """
@@ -38,8 +40,8 @@ def run_iterators(ctx, range, stats):
                                                           timestamp_range=timestamp_range,
                                                           key_ranges=[range.id_range],
                                                           tmp_dir=ctx.tmp_dir,
-                                                          address = ctx.address
-                                                         )
+                                                          address=ctx.address
+                                                          )
 
         stats.counter.local_records += len(local_result)
         stats.counter.iterated_keys += len(local_result)
@@ -58,8 +60,8 @@ def run_iterators(ctx, range, stats):
                                                 timestamp_range=timestamp_range,
                                                 key_ranges=[range.id_range],
                                                 tmp_dir=ctx.tmp_dir,
-                                                address = range.address[i][1]
-                                               )
+                                                address=range.address[i][1]
+                                                )
 
             if it_result is None or len(it_result) == 0:
                 log.warning("Remote iterator result is empty, skipping")
@@ -72,7 +74,7 @@ def run_iterators(ctx, range, stats):
             log.debug("Remote obtained: {0} record(s)".format(len(remote_result[-1])))
             stats.counter.remote_records += len(remote_result[-1])
             stats.counter.iterated_keys += len(remote_result[-1])
-            stats.counter.iterations +=1
+            stats.counter.iterations += 1
 
         return local_result, remote_result
 
@@ -80,11 +82,11 @@ def run_iterators(ctx, range, stats):
         log.error("Iteration failed for: {0}@{1}: {2}".format(range.id_range, range.address, repr(e)))
         return None, None
 
+
 def sort(ctx, local, remote, stats):
     """
     Runs sort routine for all iterator result
     """
-    sorted_results = []
 
     if remote is None or len(remote) == 0:
         log.debug("Sort skipped remote iterator results are empty")
@@ -108,6 +110,7 @@ def sort(ctx, local, remote, stats):
         stats.counter.sort -= 1
         return None, None
 
+
 def diff(ctx, local, remote, stats):
     """
     Compute differences between local and remote results.
@@ -121,7 +124,7 @@ def diff(ctx, local, remote, stats):
                 continue
             elif local is None or len(local) == 0:
                 log.info("Local container is empty, recovering full range: {0}".format(local.id_range))
-                result = r;
+                result = r
             else:
                 log.info("Computing differences for: {0}".format(local.id_range))
                 result = local.diff(r)
@@ -136,6 +139,7 @@ def diff(ctx, local, remote, stats):
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))
     return diffs
 
+
 def recover(ctx, splitted_results, stats):
     """
     Recovers difference between remote and local data.
@@ -148,26 +152,27 @@ def recover(ctx, splitted_results, stats):
     local_session = elliptics_create_session(node=local_node,
                                              group=ctx.group_id,
                                              cflags=elliptics.command_flags.direct,
-                                            )
+                                             )
 
     for diff in splitted_results:
 
-        remote_node = elliptics_create_node(address=diff.address, elog=g_ctx.elog, flags=2)
+        remote_node = elliptics_create_node(address=diff.address, elog=ctx.elog, flags=2)
         log.debug("Creating direct session: {0}".format(diff.address))
         remote_session = elliptics_create_session(node=remote_node,
                                                   group=diff.eid.group_id,
                                                   cflags=elliptics.command_flags.direct,
-                                                 )
+                                                  )
 
-        for batch_id, batch in groupby(enumerate(diff), key=lambda x: x[0] / g_ctx.batch_size):
+        for batch_id, batch in groupby(enumerate(diff), key=lambda x: x[0] / ctx.batch_size):
             keys = [elliptics.Id(r.key, diff.eid.group_id, 0) for _, r in batch]
             successes, failures = recover_keys(ctx, diff.address, diff.eid.group_id, keys, local_session, remote_session, stats)
             stats.counter.recovered_keys += successes
             stats.counter.recovered_keys -= failures
             result &= (failures == 0)
-            log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(batch_id * g_ctx.batch_size + len(keys), len(diff), successes, failures))
+            log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(batch_id * ctx.batch_size + len(keys), len(diff), successes, failures))
 
     return result
+
 
 def recover_keys(ctx, address, group_id, keys, local_session, remote_session, stats):
     """
@@ -183,7 +188,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         return 0, key_num
 
     size = sum(len(v[1]) for v in batch)
-    log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
+    log.debug("Writing {0} keys: {1} bytes".format(len(batch), size))
 
     try:
         local_session.bulk_write(batch)
@@ -193,6 +198,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
         stats.counter.recovered_bytes -= size
         return 0, key_num
+
 
 def merge_and_split_diffs(ctx, diff_results, stats):
     log.warning('Computing merge and splitting by node all remote results')
@@ -211,7 +217,7 @@ def merge_and_split_diffs(ctx, diff_results, stats):
                                                                       is_sorted=True,
                                                                       tmp_dir=ctx.tmp_dir,
                                                                       leave_file=True
-                                                                     )
+                                                                      )
     elif len(diff_results) != 0:
         its = []
         for d in diff_results:
@@ -224,7 +230,7 @@ def merge_and_split_diffs(ctx, diff_results, stats):
                                                                        is_sorted=True,
                                                                        tmp_dir=ctx.tmp_dir,
                                                                        leave_file=True
-                                                                      )
+                                                                       )
         vals = [i.next() for i in its]
         while len(vals):
             i_min = 0
@@ -250,16 +256,19 @@ def merge_and_split_diffs(ctx, diff_results, stats):
     stats.timer.main('finished')
     return splitted_results.values()
 
+
 def process_range(range, dry_run):
     stats_name = 'range_{0}'.format(range.id_range)
     stats = Stats(stats_name)
     stats.timer.process('started')
 
-    g_ctx.elog = elliptics.Logger(g_ctx.log_file, g_ctx.log_level)
+    ctx = g_ctx
+
+    ctx.elog = elliptics.Logger(ctx.log_file, ctx.log_level)
 
     log.warning("Running iterators")
     stats.timer.process('iterator')
-    it_local, it_remotes = run_iterators(g_ctx, range, stats)
+    it_local, it_remotes = run_iterators(ctx, range, stats)
     stats.timer.process('finished')
 
     if it_remotes is None or len(it_remotes) == 0:
@@ -267,13 +276,13 @@ def process_range(range, dry_run):
         return True, stats
 
     stats.timer.process('sort')
-    sorted_local, sorted_remotes = sort(g_ctx, it_local, it_remotes, stats)
+    sorted_local, sorted_remotes = sort(ctx, it_local, it_remotes, stats)
     stats.timer.process('finished')
     assert len(sorted_remotes) >= len(it_remotes)
 
     log.warning("Computing diff local vs remotes")
     stats.timer.process('diff')
-    diff_results = diff(g_ctx, sorted_local, sorted_remotes, stats)
+    diff_results = diff(ctx, sorted_local, sorted_remotes, stats)
     stats.timer.process('finished')
 
     if diff_results is None or len(diff_results) == 0:
@@ -281,13 +290,13 @@ def process_range(range, dry_run):
         return True, stats
 
     stats.timer.process('merge and split')
-    splitted_results = merge_and_split_diffs(g_ctx, diff_results, stats)
+    splitted_results = merge_and_split_diffs(ctx, diff_results, stats)
     stats.timer.process('finished')
 
     result = True
     stats.timer.process('recover')
     if not dry_run:
-        result = recover(g_ctx, splitted_results, stats)
+        result = recover(ctx, splitted_results, stats)
     stats.timer.process('finished')
 
     return result, stats
@@ -315,13 +324,13 @@ def main(ctx):
     pool = Pool(processes=processes)
     log.debug("Created pool of processes: %d" % processes)
 
-    async_results = [ pool.apply_async(process_range, (r, g_ctx.dry_run)) for r in ranges ]
+    async_results = [pool.apply_async(process_range, (r, g_ctx.dry_run)) for r in ranges]
 
     log.info("Closing pool, joining threads")
     pool.close()
     pool.join()
 
-    results = [ r.get() for r in async_results ]
+    results = [r.get() for r in async_results]
 
     for r, stats in results:
         g_ctx.stats[stats.name] = stats
