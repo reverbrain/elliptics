@@ -490,8 +490,8 @@ struct dnet_session {
 	uint32_t		ioflags;
 
 	/* Namespace */
-	int has_ns;
-	struct dnet_raw_id ns;
+	int			has_ns;
+	struct dnet_raw_id	ns;
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)
