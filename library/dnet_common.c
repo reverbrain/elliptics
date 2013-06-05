@@ -2544,10 +2544,15 @@ int dnet_iterator_response_container_sort(int fd, size_t size)
 	if (size == 0)
 		return 0;
 
+	posix_fadvise(fd, 0, 0, POSIX_FADV_WILLNEED);
+
 	if ((err = dnet_data_map_rw(&map)) != 0)
 		return err;
 	qsort(map.data, nel, resp_size, dnet_iterator_response_cmp);
 	dnet_data_unmap(&map);
+
+	posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
+
 	return 0;
 }
 
