@@ -86,6 +86,63 @@ class IteratorResult(object):
         return diff_container
 
     @classmethod
+    def merge(cls, results, tmp_dir):
+        """
+        Merges diffs and split result by node owner
+        """
+        splitted_results = dict()
+
+        if len(results) == 1:
+            import shutil
+            diff = results[0]
+            filename = os.path.join(tmp_dir, "merge_" + mk_container_name(diff.id_range, diff.eid))
+            shutil.copyfile(diff.filename, filename)
+            splitted_results[diff.address] = IteratorResult.load_filename(filename,
+                                                                          address=diff.address,
+                                                                          id_range=diff.id_range,
+                                                                          eid=diff.eid,
+                                                                          is_sorted=True,
+                                                                          tmp_dir=tmp_dir,
+                                                                          leave_file=True
+                                                                          )
+        elif len(results) != 0:
+            its = []
+            for d in results:
+                its.append(iter(d))
+                filename = os.path.join(tmp_dir, "merge_" + mk_container_name(d.id_range, d.eid))
+                splitted_results[d.address] = IteratorResult.from_filename(filename,
+                                                                           address=d.address,
+                                                                           id_range=d.id_range,
+                                                                           eid=d.eid,
+                                                                           is_sorted=True,
+                                                                           tmp_dir=tmp_dir,
+                                                                           leave_file=True
+                                                                           )
+
+            vals = [i.next() for i in its]
+            while len(vals):
+                i_min = 0
+                k_min = IdRange.ID_MAX
+                t_min = Time.time_max().to_etime()
+                for i, v in enumerate(vals):
+                    key = v.key
+                    time = v.timestamp
+                    if key < k_min or (key == k_min and time > t_min):
+                        k_min = key
+                        t_min = time
+                        i_min = i
+                splitted_results[results[i_min].address].append_rr(vals[i])
+                for i, v in enumerate(vals):
+                    if v.key == k_min:
+                        try:
+                            vals[i] = its[i].next()
+                        except:
+                            del(vals[i])
+                            del(its[i])
+                            del(results[i])
+        return splitted_results.values()
+
+    @classmethod
     def from_filename(cls, filename, tmp_dir="", **kwargs):
         """
         Creates iterator result from filename
@@ -154,9 +211,9 @@ class Iterator(object):
         assert len(key_ranges) > 0, "There should be at least one iteration range."
 
         try:
-            start = min(r.start for r in key_ranges)
-            stop = max(r.stop for r in key_ranges)
-            id_range = IdRange(start, stop)
+            id_start = min(r.start for r in key_ranges)
+            id_stop = max(r.stop for r in key_ranges)
+            id_range = IdRange(id_start, id_stop)
             filename = os.path.join(tmp_dir, mk_container_name(id_range, eid))
             result = IteratorResult.from_filename(filename,
                                                   address=address,
