@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.6.7
+Version:	2.20.6.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,18 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jun 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.8
+- Changed bulk_write error report logic
+-     
+-     Only return wait error (usually -ETIMEOUT/-110) if wait internal
+-     status (assigned in write completion handler) was set to something
+-     except -ENXIO.
+-     
+-     -ENXIO is set by default and means no transactions were sent
+- In C++ bulk_write method return real error code instead of -EIO
+- Depend on zmq < 3.0
+- 
+
 * Mon Jun 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.7
 - Unlock GIL inside synchronous calls in python binding
 - Depend on libzmq-dev

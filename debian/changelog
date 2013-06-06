@@ -1,3 +1,18 @@
+elliptics (2.20.6.8) unstable; urgency=low
+
+  * Changed bulk_write error report logic
+  *     
+  *     Only return wait error (usually -ETIMEOUT/-110) if wait internal
+  *     status (assigned in write completion handler) was set to something
+  *     except -ENXIO.
+  *     
+  *     -ENXIO is set by default and means no transactions were sent
+  * In C++ bulk_write method return real error code instead of -EIO
+  * Depend on zmq < 3.0
+  * 
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 06 Jun 2013 14:15:45 +0400
+
 elliptics (2.20.6.7) unstable; urgency=low
 
   * Unlock GIL inside synchronous calls in python binding
