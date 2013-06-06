@@ -391,6 +391,16 @@ class session
 		 */
 		async_write_result write_data(const key &id, const data_pointer &file, uint64_t remote_offset);
 
+		/*!
+		 * Writes data \a file by the key \a id and remote offset \a remote_offset chunk by chunk with a size \chunk_size.
+		 *
+		 * Returns async_write_result.
+		 *
+		 * \note Calling this method is equal to consecutive calling
+		 * of write_prepare(), write_plain() and write_commit().
+		 */
+		async_write_result write_data(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t chunk_size);
+
 
 		/*!
 		 * Reads data by \a id and passes it through \a converter. If converter returns the same data
