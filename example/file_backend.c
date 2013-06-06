@@ -526,28 +526,6 @@ err_out_exit:
 	return err;
 }
 
-static int file_backend_send(void *state, void *priv, struct dnet_id *id)
-{
-	struct dnet_node *n = dnet_get_node_from_state(state);
-	struct file_backend_root *r = priv;
-	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
-	int err = -ENOENT;
-
-	file_backend_setup_file(r, file, sizeof(file), id->id);
-
-	if (!access(file, R_OK)) {
-		struct dnet_session *s = dnet_session_create(n);
-		dnet_session_set_groups(s, (int *)&id->group_id, 1);
-		err = dnet_write_file_id(s, file, id, 0, 0, 0);
-		if (err < 0) {
-			goto err_out_exit;
-		}
-	}
-
-err_out_exit:
-	return err;
-}
-
 int file_backend_storage_stat(void *priv, struct dnet_stat *st)
 {
 	int err;
@@ -623,7 +601,6 @@ static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_conf
 	b->cb.command_private = r;
 
 	b->cb.command_handler = file_backend_command_handler;
-	b->cb.send = file_backend_send;
 	b->cb.checksum = file_backend_checksum;
 
 	c->storage_size = b->storage_size;
