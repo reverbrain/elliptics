@@ -51,7 +51,6 @@ class finder : public session {
 		void add_remote(char *addr);
 
 		void parse_lookup(const sync_generic_result &ret);
-		void parse_meta(const sync_generic_result &ret);
 };
 
 void finder::add_remote(char *addr)
@@ -122,37 +121,6 @@ void finder::parse_lookup(const sync_generic_result &ret)
 	}
 }
 
-void finder::parse_meta(const sync_generic_result &ret)
-{
-	for (size_t i = 0; i < ret.size(); ++i) {
-		const callback_result_entry &data = ret[i];
-		struct dnet_cmd *cmd = data.command();
-		char addr_str[128];
-
-		if (data.size() > sizeof(struct dnet_io_attr)) {
-			struct dnet_io_attr *io = data.data<struct dnet_io_attr>();
-
-			dnet_convert_io_attr(io);
-
-			dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND-OK meta: %s: cmd: %s, io size: %llu\n",
-					dnet_dump_id(&cmd->id), addr_str, dnet_cmd_string(cmd->cmd),
-					(unsigned long long)io->size);
-
-			struct dnet_meta_container mc;
-			memset(&mc, 0, sizeof(mc));
-			mc.data = io + 1;
-			mc.size = io->size;
-
-			memcpy(&mc.id, &cmd->id, sizeof(struct dnet_id));
-			dnet_meta_print(get_native(), &mc);
-		} else {
-			if (cmd->status != 0)
-				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND meta: %s: status: %d\n",
-						dnet_dump_id(&cmd->id), addr_str, cmd->status);
-		}
-	}
-}
-
 static __attribute__ ((noreturn)) void efinder_usage(const char *p)
 {
 	fprintf(stderr, "Usage: %s <options>\n"
@@ -215,24 +183,6 @@ int main(int argc, char *argv[])
 
 			sync_generic_result results = find.request_cmd(ctl);
 			find.parse_lookup(results);
-		}
-
-
-
-		{
-			transport_control ctl(raw, DNET_CMD_READ,
-				DNET_FLAGS_DIRECT | DNET_FLAGS_NEED_ACK);
-
-			struct dnet_io_attr io;
-			memset(&io, 0, sizeof(io));
-			io.flags = DNET_IO_FLAGS_META;
-			memcpy(io.id, raw.id, DNET_ID_SIZE);
-			memcpy(io.parent, raw.id, DNET_ID_SIZE);
-
-			ctl.set_data(&io, sizeof(io));
-
-			sync_generic_result results = find.request_cmd(ctl);
-			find.parse_meta(results);
 		}
 	} catch (const std::exception &e) {
 		std::cerr << e.what() << std::endl;

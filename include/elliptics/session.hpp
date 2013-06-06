@@ -471,23 +471,6 @@ class session
 		std::string		lookup_address(const key &id, int group_id = 0);
 
 		/*!
-		 * Creates meta data \a obj with timestamp \a ts for key \a id at \a groups.
-		 *
-		 * \note This method is left only for compatibility.
-		 */
-		std::string		create_metadata(const key &id, const std::string &obj,
-							const std::vector<int> &groups,
-							const struct timespec &ts);
-		/*!
-		 * Writes meta data \a obj with timestamp \a ts for key \a id at \a groups.
-		 *
-		 * \note This method is left only for compatibility.
-		 */
-		int			write_metadata(const key &id, const std::string &obj,
-							const std::vector<int> &groups,
-							const struct timespec &ts);
-
-		/*!
 		 * Lookups information for key \a id.
 		 *
 		 * Returns async_lookup_result.

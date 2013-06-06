@@ -94,7 +94,7 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_JOIN] = "JOIN",
 	[DNET_CMD_WRITE] = "WRITE",
 	[DNET_CMD_READ] = "READ",
-	[DNET_CMD_LIST] = "CHECK",
+	[DNET_CMD_LIST_DEPRECATED] = "CHECK",
 	[DNET_CMD_EXEC] = "EXEC",
 	[DNET_CMD_ROUTE_LIST] = "ROUTE_LIST",
 	[DNET_CMD_STAT] = "STAT",
@@ -883,8 +883,6 @@ int dnet_write_file_id(struct dnet_session *s, const char *file, struct dnet_id 
 		uint64_t remote_offset, uint64_t size)
 {
 	int err = dnet_write_file_id_raw(s, file, id, local_offset, remote_offset, size);
-	if (!err && !(dnet_session_get_ioflags(s) & DNET_IO_FLAGS_CACHE_ONLY))
-		err = dnet_create_write_metadata_strings(s, NULL, 0, id, NULL);
 
 	return err;
 }
@@ -899,8 +897,6 @@ int dnet_write_file(struct dnet_session *s, const char *file, const void *remote
 	id.type = type;
 
 	err = dnet_write_file_id_raw(s, file, &id, local_offset, remote_offset, size);
-	if (!err && !(dnet_session_get_ioflags(s) & DNET_IO_FLAGS_CACHE_ONLY))
-		err = dnet_create_write_metadata_strings(s, remote, remote_len, &id, NULL);
 
 	return err;
 }
@@ -1883,28 +1879,6 @@ int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struc
 	return dnet_remove_file_raw(s, id);
 }
 
-int dnet_request_ids(struct dnet_session *s, struct dnet_id *id,
-	int (* complete)(struct dnet_net_state *state,
-			struct dnet_cmd *cmd,
-			void *priv),
-	void *priv)
-{
-	struct dnet_trans_control ctl;
-
-	dnet_log_raw(s->node, DNET_LOG_ERROR, "Temporarily unsupported operation.\n");
-	exit(-1);
-
-	memset(&ctl, 0, sizeof(struct dnet_trans_control));
-
-	memcpy(&ctl.id, id, sizeof(struct dnet_id));
-	ctl.cmd = DNET_CMD_LIST;
-	ctl.complete = complete;
-	ctl.priv = priv;
-	ctl.cflags = DNET_FLAGS_NEED_ACK | dnet_session_get_cflags(s);
-
-	return dnet_trans_alloc_send(s, &ctl);
-}
-
 struct dnet_node *dnet_get_node_from_state(void *state)
 {
 	struct dnet_net_state *st = state;
@@ -2031,114 +2005,6 @@ err_out_put_complete:
 		free(c);
 err_out_put:
 	dnet_wait_put(w);
-err_out_exit:
-	*errp = err;
-	return data;
-}
-
-static int dnet_read_recover(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, void *data,
-		int *failed_groups, int failed_group_num)
-{
-	struct dnet_node *n = s->node;
-	struct dnet_meta_container mc;
-	struct dnet_io_control ctl;
-	int *old_groups, old_group_num;
-	void *result;
-	int err;
-
-	err = dnet_read_meta(s, &mc, NULL, 0, id);
-	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: read-recovery: could read metadata: %d\n", dnet_dump_id(id), err);
-		goto err_out_exit;
-	}
-
-	memset(&ctl, 0, sizeof(struct dnet_io_control));
-
-	ctl.id = *id;
-	ctl.io = *io;
-
-	ctl.data = data + sizeof(struct dnet_io_attr);
-	ctl.io.size -= sizeof(struct dnet_io_attr);
-
-	ctl.fd = -1;
-	ctl.cmd = DNET_CMD_WRITE;
-	ctl.cflags = dnet_session_get_cflags(s);
-
-	old_groups = s->groups;
-	old_group_num = s->group_num;
-
-	s->groups = failed_groups;
-	s->group_num = failed_group_num;
-
-	err = dnet_write_data_wait(s, &ctl, &result);
-	if (err < 0) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: read-recovery: could not write data: %d\n", dnet_dump_id(id), err);
-		goto err_out_free_meta;
-	}
-
-	err = dnet_write_metadata(s, &mc, 0);
-	if (err < 0)
-		goto err_out_free_result;
-
-err_out_free_result:
-	free(result);
-err_out_free_meta:
-
-	s->groups = old_groups;
-	s->group_num = old_group_num;
-
-	free(mc.data);
-err_out_exit:
-	return err;
-}
-
-void *dnet_read_data_wait_groups(struct dnet_session *s, struct dnet_id *id, int *groups, int num,
-		struct dnet_io_attr *io, int *errp)
-{
-	int i, failed_num = 0;
-	int failed_groups[num];
-	void *data;
-
-	for (i = 0; i < num; ++i) {
-		id->group_id = groups[i];
-
-		*errp = 0;
-		data = dnet_read_data_wait_raw(s, id, io, DNET_CMD_READ, errp);
-		if ((*errp == -ENOENT) || (*errp == -EBADFD)) {
-			failed_groups[failed_num] = groups[i];
-			failed_num++;
-		}
-
-		if (data) {
-			if ((i != 0) && (io->type == 0) && (io->offset == 0) && (io->size > sizeof(struct dnet_io_attr)) && failed_num) {
-				dnet_read_recover(s, id, io, data, failed_groups, failed_num);
-			}
-
-			*errp = 0;
-			return data;
-		}
-	}
-
-	return NULL;
-}
-
-void *dnet_read_data_wait(struct dnet_session *s, struct dnet_id *id, struct dnet_io_attr *io, int *errp)
-{
-	int num, *g, err;
-	void *data = NULL;
-
-	num = dnet_mix_states(s, id, &g);
-	if (num < 0) {
-		err = num;
-		goto err_out_exit;
-	}
-
-	data = dnet_read_data_wait_groups(s, id, g, num, io, &err);
-	if (!data)
-		goto err_out_free;
-
-err_out_free:
-	free(g);
 err_out_exit:
 	*errp = err;
 	return data;

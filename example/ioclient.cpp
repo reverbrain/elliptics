@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	uint64_t offset, size;
 	std::vector<int> groups;
-	int type = EBLOB_TYPE_DATA;
+	int type = 0;
 	uint64_t cflags = 0;
 	uint64_t ioflags = 0;
 	char *defrag = NULL;

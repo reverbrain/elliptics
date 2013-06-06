@@ -217,13 +217,6 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	if ((io->flags & DNET_IO_FLAGS_COMMIT) || (io->flags & DNET_IO_FLAGS_PREPARE))
 		io->num += ehdr_size; /* increase prepared space by the size of external headers */
 
-	if ((io->type == EBLOB_TYPE_META) && !(io->flags & DNET_IO_FLAGS_META)) {
-		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: meta-check: COLUMN %d IS RESERVED FOR METADATA\n",
-			dnet_dump_id_str(io->id), io->type);
-		err = -EPERM;
-		goto err_out_exit;
-	}
-
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
 		wc.offset = 0;
 		wc.size = io->num;
@@ -300,7 +293,7 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 		goto err_out_exit;
 	}
 
-	err = dnet_send_file_info(state, cmd, wc.data_fd, wc.offset, wc.size);
+	err = dnet_send_file_info_ts(state, cmd, wc.data_fd, wc.offset, wc.size, &elist.timestamp);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: dnet_send_file_info: "
 				"fd: %d, offset: %llu, size: %llu: type: %d: %s %d\n",
@@ -1138,36 +1131,6 @@ static void eblob_backend_cleanup(void *priv)
 	free(c->data.file);
 }
 
-static ssize_t dnet_eblob_db_read(void *priv, struct dnet_raw_id *id, void **datap)
-{
-	struct eblob_backend_config *c = priv;
-	return dnet_db_read_raw(c->eblob, id, datap);
-}
-
-static int dnet_eblob_db_write(void *priv, struct dnet_raw_id *id, void *data, size_t size)
-{
-	struct eblob_backend_config *c = priv;
-	return dnet_db_write_raw(c->eblob, id, data, size);
-}
-
-static int dnet_eblob_db_remove(void *priv, struct dnet_raw_id *id, int real_del)
-{
-	struct eblob_backend_config *c = priv;
-	return dnet_db_remove_raw(c->eblob, id, real_del);
-}
-
-static long long dnet_eblob_db_total_elements(void *priv)
-{
-	struct eblob_backend_config *c = priv;
-	return eblob_total_elements(c->eblob);
-}
-
-static int dnet_eblob_db_iterate(struct dnet_iterate_ctl *ctl)
-{
-	struct eblob_backend_config *c = ctl->iterate_private;
-	return dnet_db_iterate(c->eblob, ctl);
-}
-
 static int dnet_eblob_iterator(struct dnet_iterator_ctl *ictl)
 {
 	struct eblob_backend_config *c = ictl->iterate_private;
@@ -1219,11 +1182,6 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 	b->cb.backend_cleanup = eblob_backend_cleanup;
 	b->cb.checksum = eblob_backend_checksum;
 
-	b->cb.meta_read = dnet_eblob_db_read;
-	b->cb.meta_write = dnet_eblob_db_write;
-	b->cb.meta_remove = dnet_eblob_db_remove;
-	b->cb.meta_total_elements = dnet_eblob_db_total_elements;
-	b->cb.meta_iterate = dnet_eblob_db_iterate;
 	b->cb.iterator = dnet_eblob_iterator;
 
 	return 0;

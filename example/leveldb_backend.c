@@ -99,6 +99,11 @@ static int leveldb_backend_lookup(struct leveldb_backend *s, void *state, struct
 	size_t data_size;
 	int err = -EINVAL;
 	char *error_string = NULL;
+	struct dnet_ext_list elist;
+	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
+	struct dnet_ext_list_hdr *ehdr = NULL;
+
+	dnet_ext_list_init(&elist);
 
 	data = leveldb_get(s->db, s->roptions, (const char *)cmd->id.id, DNET_ID_SIZE, &data_size, &error_string);
 	if (error_string || !data) {
@@ -107,7 +112,18 @@ static int leveldb_backend_lookup(struct leveldb_backend *s, void *state, struct
 		goto err_out_exit;
 	}
 
-	err = dnet_send_file_info_without_fd(state, cmd, data, data_size);
+	if (data_size < ehdr_size) {
+		err = -ERANGE;
+		goto err_out_exit;
+	}
+
+	ehdr = (struct dnet_ext_list_hdr *)data;
+	dnet_ext_hdr_to_list(ehdr, &elist);
+
+	data_size -= ehdr_size;
+	data += ehdr_size;
+
+	err = dnet_send_file_info_ts_without_fd(state, cmd, data, data_size, &elist.timestamp);
 	if (err < 0)
 		goto err_out_free;
 
@@ -115,6 +131,7 @@ err_out_free:
 	free(data);
 err_out_exit:
 	free(error_string);
+	dnet_ext_list_destroy(&elist);
 	return err;
 }
 
@@ -195,7 +212,7 @@ plain_write:
 		goto err_out_exit;
 	}
 
-	err = dnet_send_file_info_without_fd(state, cmd, 0, io->size);
+	err = dnet_send_file_info_ts_without_fd(state, cmd, 0, io->size, &elist.timestamp);
 	if (err < 0)
 		goto err_out_free;
 
@@ -557,30 +574,6 @@ static void leveldb_backend_cleanup(void *priv)
 	free(s->path);
 }
 
-static ssize_t dnet_leveldb_db_read(void *priv __unused, struct dnet_raw_id *id __unused, void **datap __unused)
-{
-	return -ENOTSUP;
-}
-
-static int dnet_leveldb_db_write(void *priv __unused, struct dnet_raw_id *id __unused, void *data __unused, size_t size __unused)
-{
-	char tmp[24];
-	dnet_backend_log(DNET_LOG_ERROR, "%s: metadata operation is not supported, it will be removed soon. \n"
-			"Please add flags = 16 to your server config, this will disable metadata updates\n",
-			dnet_dump_id_len_raw(id->id, sizeof(tmp), tmp));
-	return -ENOTSUP;
-}
-
-static int dnet_leveldb_db_remove(void *priv __unused, struct dnet_raw_id *id __unused, int real_del __unused)
-{
-	return -ENOTSUP;
-}
-
-static int dnet_leveldb_db_iterate(struct dnet_iterate_ctl *ctl __unused)
-{
-	return -ENOTSUP;
-}
-
 static int dnet_leveldb_iterator(struct dnet_iterator_ctl *ictl)
 {
 	struct leveldb_backend *s = ictl->iterate_private;
@@ -628,29 +621,6 @@ err:
 	return err;
 }
 
-static long long dnet_leveldb_total_elements(void *priv)
-{
-	struct leveldb_backend *s = priv;
-	char *prop;
-	char propname[256];
-	int level = 0;
-	long long count = 0;
-
-	do {
-		snprintf(propname, sizeof(propname), "leveldb.num-files-at-level%d", level);
-		prop = leveldb_property_value(s->db, propname);
-		if (prop) {
-			dnet_backend_log(DNET_LOG_DEBUG, "leveldb: properties: %s -> %s\n", propname, prop);
-			count += atoi(prop);
-		}
-		level++;
-	} while (prop);
-
-	dnet_backend_log(DNET_LOG_DEBUG, "leveldb: count: %lld\n", count);
-
-	return count;
-}
-
 static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_config *c)
 {
 	struct leveldb_backend *s = b->data;
@@ -688,11 +658,6 @@ static int dnet_leveldb_config_init(struct dnet_config_backend *b, struct dnet_c
 	b->cb.backend_cleanup = leveldb_backend_cleanup;
 	b->cb.checksum = leveldb_backend_checksum;
 
-	b->cb.meta_read = dnet_leveldb_db_read;
-	b->cb.meta_write = dnet_leveldb_db_write;
-	b->cb.meta_remove = dnet_leveldb_db_remove;
-	b->cb.meta_total_elements = dnet_leveldb_total_elements;
-	b->cb.meta_iterate = dnet_leveldb_db_iterate;
 	b->cb.iterator = dnet_leveldb_iterator;
 
 	snprintf(hpath, hlen, "%s/history", s->path);

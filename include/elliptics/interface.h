@@ -26,7 +26,6 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include <eblob/blob.h>
 #include <elliptics/packet.h>
 #include <elliptics/srw.h>
 
@@ -145,14 +144,6 @@ struct dnet_io_control {
  */
 int dnet_read_object(struct dnet_session *s, struct dnet_io_control *ctl);
 
-/*
- * Read @io->size bytes (0 means everything) from @io->offset bytes
- * of data associated with key @ID. Use @io->flags and @cflags for control
- * Returns NULL and set @errp when error happens
- */
-void *dnet_read_data_wait(struct dnet_session *s, struct dnet_id *id,
-		struct dnet_io_attr *io, int *errp);
-
 int dnet_search_range(struct dnet_node *n, struct dnet_id *id,
 		struct dnet_raw_id *start, struct dnet_raw_id *next);
 
@@ -224,7 +215,6 @@ enum dnet_log_level {
 #define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */
 #define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
 #define DNET_CFG_NO_CSUM		(1<<3)		/* globally disable checksum verification and update */
-#define DNET_CFG_NO_META		(1<<4)		/* do not write metadata */
 #define DNET_CFG_RANDOMIZE_STATES	(1<<5)		/* randomize states for read requests */
 
 struct dnet_log {
@@ -237,17 +227,6 @@ struct dnet_log {
 	int			log_level;
 	void			*log_private;
 	void 			(* log)(void *priv, int level, const char *msg);
-};
-
-struct dnet_iterate_ctl {
-	void				*iterate_private;
-
-	unsigned int			flags;
-	int				blob_start;
-	int				blob_num;
-
-	struct eblob_iterate_callbacks	iterate_cb;
-	void				*callback_private;
 };
 
 /*
@@ -293,23 +272,6 @@ struct dnet_backend_callbacks {
 	 * @csize must be set to actual @csum size
 	 */
 	int			(* checksum)(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize);
-
-
-	/* metadata read/write/remove commands */
-	ssize_t			(* meta_read)(void *priv, struct dnet_raw_id *id, void **datap);
-	int			(* meta_write)(void *priv, struct dnet_raw_id *id, void *data, size_t size);
-	int			(* meta_remove)(void *priv, struct dnet_raw_id *id, int real_remove);
-
-	/*
-	 * parallel metadata iterator
-	 * given callback will be executed for every not deleted record found,
-	 * if it returns negative error value, iteration stops
-	 * @callback_private will be accessible in @callback as argument @p
-	 */
-	int			(* meta_iterate)(struct dnet_iterate_ctl *ctl);
-
-	/* returns number of metadata elements */
-	long long		(* meta_total_elements)(void *priv);
 
 	/*
 	 * Iterator.
@@ -405,9 +367,6 @@ struct dnet_config
 	 * Number of threads in network processing pool
 	 */
 	int			net_thread_num;
-
-	/* Temporary metadata for CHECK process directory path */
-	char			temp_meta_env[1024];
 
 	/*
 	 * This dir hosts:
@@ -821,64 +780,6 @@ int dnet_transform_raw(struct dnet_session *s, const void *src, uint64_t size, c
  */
 void dnet_indexes_transform_id(struct dnet_session *sess, const struct dnet_id *src, struct dnet_id *id);
 
-int dnet_request_ids(struct dnet_session *s, struct dnet_id *id,
-	int (* complete)(struct dnet_net_state *state,
-			struct dnet_cmd *cmd,
-			void *priv),
-	void *priv);
-
-struct dnet_meta_container {
-	struct dnet_id			id;
-	unsigned int			size;
-	void				*data;
-} __attribute__ ((packed));
-
-static inline void dnet_convert_meta_container(struct dnet_meta_container *m)
-{
-	m->size = dnet_bswap32(m->size);
-}
-
-struct dnet_metadata_control {
-	struct dnet_id			id;
-	const char			*obj;
-	int				len;
-
-	int				*groups;
-	int				group_num;
-
-	uint64_t			update_flags;
-	struct timespec			ts;
-};
-
-/*
- * Reads meta of given file from the storage. If there are multiple transformation functions,
- * they will be tried one after another.
- *
- * If @id is set, it is used as a main object ID, otherwise @remote transformation
- * is used as object ID.
- *
- * Returns negative error value in case of error.
- */
-int dnet_read_meta(struct dnet_session *s, struct dnet_meta_container *mc,
-		const void *remote, unsigned int remote_len, struct dnet_id *id);
-
-/*
- * Modify or search metadata in meta object. Data must be realloc()able.
- */
-struct dnet_meta *dnet_meta_search(struct dnet_node *n, struct dnet_meta_container *mc, uint32_t type);
-
-void dnet_create_meta_update(struct dnet_meta *m, struct timespec *ts, uint64_t flags_set, uint64_t flags_clear);
-int dnet_write_metadata(struct dnet_session *s, struct dnet_meta_container *mc, int convert);
-int dnet_create_write_metadata(struct dnet_session *s, struct dnet_metadata_control *ctl);
-int dnet_create_write_metadata_strings(struct dnet_session *s, const void *remote, unsigned int remote_len,
-		struct dnet_id *id, struct timespec *ts);
-int dnet_create_metadata(struct dnet_session *s, struct dnet_metadata_control *ctl, struct dnet_meta_container *mc);
-void dnet_meta_print(struct dnet_session *s, struct dnet_meta_container *mc);
-
-int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info);
-int dnet_meta_update_check_status_raw(struct dnet_node *n, struct dnet_meta_container *mc);
-int dnet_meta_update_check_status(struct dnet_node *n, struct dnet_meta_container *mc);
-
 int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen);
 
 struct dnet_id_param {
@@ -972,15 +873,11 @@ int dnet_checksum_file(struct dnet_node *n, const char *file, uint64_t offset, u
 int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size, void *csum, int csize);
 int dnet_checksum_data(struct dnet_node *n, const void *data, uint64_t size, unsigned char *csum, int csize);
 
-ssize_t dnet_db_read_raw(struct eblob_backend *b, struct dnet_raw_id *id, void **datap);
-int dnet_db_write_raw(struct eblob_backend *b, struct dnet_raw_id *id, void *data, unsigned int size);
-int dnet_db_remove_raw(struct eblob_backend *b, struct dnet_raw_id *id, int real_del);
-int dnet_db_iterate(struct eblob_backend *b, struct dnet_iterate_ctl *ctl);
-
 int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offset, int64_t size);
 int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd,void *data, int64_t size);
 int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
 		uint64_t offset, int64_t size, struct dnet_time *timestamp);
+int dnet_send_file_info_ts_without_fd(void *state, struct dnet_cmd *cmd, void *data, int64_t size, struct dnet_time *timestamp);
 
 int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_addr **addrs);
 /*

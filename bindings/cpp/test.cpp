@@ -217,6 +217,7 @@ static void test_lookup_parse(const std::string &key, const sync_lookup_result &
 
 static void test_lookup(session &s, std::vector<int> &groups)
 {
+	(void) groups;
 	try {
 		std::string key = "2.xml";
 		std::string data = "lookup data";
@@ -228,9 +229,6 @@ static void test_lookup(session &s, std::vector<int> &groups)
 		s.transform(key, id);
 		id.group_id = 0;
 		id.type = 0;
-
-		struct timespec ts = {0, 0};
-		s.write_metadata(id, key, groups, ts);
 
 		sync_lookup_result lret2 = s.lookup(key);
 		test_lookup_parse(key, lret2);

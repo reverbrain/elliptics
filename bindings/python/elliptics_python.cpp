@@ -60,7 +60,6 @@ enum elliptics_ioflags {
 	ioflags_default = 0,
 	ioflags_append = DNET_IO_FLAGS_APPEND,
 	ioflags_compress = DNET_IO_FLAGS_COMPRESS,
-	ioflags_meta = DNET_IO_FLAGS_META,
 	ioflags_prepare = DNET_IO_FLAGS_PREPARE,
 	ioflags_commit = DNET_IO_FLAGS_COMMIT,
 	ioflags_overwrite = DNET_IO_FLAGS_OVERWRITE,
@@ -290,26 +289,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			}
 
 			return res;
-		}
-
-		void write_metadata_by_id(const struct elliptics_id &id, const std::string &remote, const bp::api::object &groups) {
-			struct timespec ts;
-			memset(&ts, 0, sizeof(ts));
-
-			struct dnet_id raw = id.to_dnet();
-
-			write_metadata((const dnet_id&)raw, remote, convert_to_vector<int>(groups), ts);
-		}
-
-		void write_metadata_by_data_transform(const std::string &remote) {
-			struct timespec ts;
-			memset(&ts, 0, sizeof(ts));
-
-			struct dnet_id raw;
-
-			transform(remote, raw);
-
-			write_metadata((const dnet_id&)raw, remote, session::get_groups(), ts);
 		}
 
 		void read_file_by_id(struct elliptics_id &id, const std::string &file, uint64_t offset, uint64_t size) {
@@ -1159,9 +1138,6 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("write_data", &elliptics_session::write_data_by_data_transform,
 			(bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0, bp::arg("column") = 0))
 
-		.def("write_metadata", &elliptics_session::write_metadata_by_id)
-		.def("write_metadata", &elliptics_session::write_metadata_by_data_transform)
-
 		.def("write_cache", &elliptics_session::write_cache_by_id)
 		.def("write_cache", &elliptics_session::write_cache_by_data_transform)
 
@@ -1234,7 +1210,6 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.value("default", ioflags_default)
 		.value("append", ioflags_append)
 		.value("compress", ioflags_compress)
-		.value("meta", ioflags_meta)
 		.value("prepare", ioflags_prepare)
 		.value("commit", ioflags_commit)
 		.value("overwrite", ioflags_overwrite)
