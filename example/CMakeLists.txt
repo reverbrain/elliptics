@@ -25,10 +25,6 @@ set_target_properties(dnet_ioserv
 	PROPERTIES
 	LINKER_LANGUAGE CXX)
 
-# remove NOW
-add_executable(dnet_hparser hparser.c)
-target_link_libraries(dnet_hparser ${ECOMMON_LIBRARIES})
-
 add_executable(dnet_find find.cpp)
 set_target_properties(dnet_find PROPERTIES COMPILE_FLAGS "-std=c++0x")
 target_link_libraries(dnet_find ${ECOMMON_LIBRARIES} elliptics_cpp)
@@ -57,7 +53,6 @@ install(TARGETS
         dnet_find
 	dnet_ioclient
 	dnet_index
-        dnet_hparser
         dnet_stat
         dnet_notify
         dnet_ids
