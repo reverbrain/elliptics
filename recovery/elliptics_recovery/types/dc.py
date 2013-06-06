@@ -3,7 +3,6 @@ XXX:
 """
 
 import sys
-import os
 import logging as log
 
 from itertools import groupby
@@ -12,8 +11,7 @@ from multiprocessing import Pool
 from ..iterator import Iterator, IteratorResult
 from ..time import Time
 from ..stat import Stats
-from ..route import IdRange
-from ..utils.misc import mk_container_name, elliptics_create_node, elliptics_create_session
+from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -117,6 +115,7 @@ def diff(ctx, local, remote, stats):
     TODO: We can compute up to CPU_NUM diffs at max in parallel
     """
     diffs = []
+    total_diffs = 0
     for r in remote:
         try:
             if r is None or len(r) == 0:
@@ -133,10 +132,12 @@ def diff(ctx, local, remote, stats):
             if len(result) > 0:
                 diffs.append(result)
                 stats.counter.diffs += len(result)
+                total_diffs += len(result)
             else:
                 log.info("Resulting diff is empty, skipping")
         except Exception as e:
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))
+    log.info("Found {0} differences with remote nodes.".format(total_diffs))
     return diffs
 
 
@@ -146,6 +147,8 @@ def recover(ctx, splitted_results, stats):
     TODO: Group by diffs by host and process each group in parallel
     """
     result = True
+
+    log.info("Recovering {0} keys".format(sum(len(d) for d in splitted_results)))
 
     local_node = elliptics_create_node(address=ctx.address, elog=ctx.elog, flags=2)
     log.debug("Creating direct session: {0}".format(ctx.address))
@@ -200,63 +203,6 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         return 0, key_num
 
 
-def merge_and_split_diffs(ctx, diff_results, stats):
-    log.warning('Computing merge and splitting by node all remote results')
-    stats.timer.main('merge & split')
-    splitted_results = dict()
-
-    if len(diff_results) == 1:
-        import shutil
-        diff = diff_results[0]
-        filename = os.path.join(ctx.tmp_dir, "merge_" + mk_container_name(diff.id_range, diff.eid))
-        shutil.copyfile(diff.filename, filename)
-        splitted_results[diff.address] = IteratorResult.load_filename(filename,
-                                                                      address=diff.address,
-                                                                      id_range=diff.id_range,
-                                                                      eid=diff.eid,
-                                                                      is_sorted=True,
-                                                                      tmp_dir=ctx.tmp_dir,
-                                                                      leave_file=True
-                                                                      )
-    elif len(diff_results) != 0:
-        its = []
-        for d in diff_results:
-            its.append(iter(d))
-            filename = os.path.join(ctx.tmp_dir, "merge_" + mk_container_name(d.id_range, d.eid))
-            splitted_results[d.address] = IteratorResult.from_filename(filename,
-                                                                       address=d.address,
-                                                                       id_range=d.id_range,
-                                                                       eid=d.eid,
-                                                                       is_sorted=True,
-                                                                       tmp_dir=ctx.tmp_dir,
-                                                                       leave_file=True
-                                                                       )
-        vals = [i.next() for i in its]
-        while len(vals):
-            i_min = 0
-            k_min = IdRange.ID_MAX
-            t_min = Time.time_max().to_etime()
-            for i, v in enumerate(vals):
-                key = v.key
-                time = v.timestamp
-                if key < k_min or (key == k_min and time > t_min):
-                    k_min = key
-                    t_min = time
-                    i_min = i
-            splitted_results[diff_results[i_min].address].append_rr(vals[i])
-            for i, v in enumerate(vals):
-                if v.key == k_min:
-                    try:
-                        vals[i] = its[i].next()
-                    except:
-                        del(vals[i])
-                        del(its[i])
-                        del(diff_results[i])
-
-    stats.timer.main('finished')
-    return splitted_results.values()
-
-
 def process_range(range, dry_run):
     stats_name = 'range_{0}'.format(range.id_range)
     stats = Stats(stats_name)
@@ -266,7 +212,7 @@ def process_range(range, dry_run):
 
     ctx.elog = elliptics.Logger(ctx.log_file, ctx.log_level)
 
-    log.warning("Running iterators")
+    log.info("Running iterators")
     stats.timer.process('iterator')
     it_local, it_remotes = run_iterators(ctx, range, stats)
     stats.timer.process('finished')
@@ -280,7 +226,7 @@ def process_range(range, dry_run):
     stats.timer.process('finished')
     assert len(sorted_remotes) >= len(it_remotes)
 
-    log.warning("Computing diff local vs remotes")
+    log.info("Computing diff local vs remotes")
     stats.timer.process('diff')
     diff_results = diff(ctx, sorted_local, sorted_remotes, stats)
     stats.timer.process('finished')
@@ -289,8 +235,9 @@ def process_range(range, dry_run):
         log.warning("Diff results are empty, skipping")
         return True, stats
 
+    log.info('Computing merge and splitting by node all remote results')
     stats.timer.process('merge and split')
-    splitted_results = merge_and_split_diffs(ctx, diff_results, stats)
+    splitted_results = IteratorResult.merge(diff_results, ctx.tmp_dir)
     stats.timer.process('finished')
 
     result = True
@@ -312,7 +259,7 @@ def main(ctx):
 
     g_ctx.group_id = g_ctx.routes.filter_by_address(g_ctx.address)[0].key.group_id
 
-    log.warning("Searching for ranges that %s store" % g_ctx.address)
+    log.info("Searching for ranges that %s store" % g_ctx.address)
     ranges = g_ctx.routes.get_ranges_by_address(g_ctx.address)
     log.debug("Recovery ranges: %d" % len(ranges))
     if not ranges:
@@ -321,22 +268,29 @@ def main(ctx):
         return result
 
     processes = min(g_ctx.nprocess, len(ranges) - 1)
-    pool = Pool(processes=processes)
+    pool = Pool(processes=processes, initializer=worker_init)
     log.debug("Created pool of processes: %d" % processes)
 
     async_results = [pool.apply_async(process_range, (r, g_ctx.dry_run)) for r in ranges]
 
-    log.info("Closing pool, joining threads")
-    pool.close()
-    pool.join()
+    try:
+        # Use INT_MAX as timeout, so we can catch Ctrl+C
+        timeout = 2147483647
 
-    results = [r.get() for r in async_results]
+        for r, stats in (r.get(timeout) for r in async_results):
+            g_ctx.stats[stats.name] = stats
+            result &= r
 
-    for r, stats in results:
-        g_ctx.stats[stats.name] = stats
-        result &= r
+    except KeyboardInterrupt:
+        log.error("Caught Ctrl+C. Terminating.")
+        pool.terminate()
+        pool.join()
+        g_ctx.stats.timer.main('finished')
+        return False
+    else:
+        log.info("Closing pool, joining threads.")
+        pool.close()
+        pool.join()
 
     g_ctx.stats.timer.main('finished')
-    log.debug("Result: %s" % result)
-
     return result
