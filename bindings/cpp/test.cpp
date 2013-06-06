@@ -686,7 +686,7 @@ int main(int argc, char *argv[])
 			throw std::runtime_error("Could not add remote nodes, exiting");
 		}
 
-		test_read_recovery(s);
+//		test_read_recovery(s);
 
 		std::string str;
 		str.assign(300, 'c');
