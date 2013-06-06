@@ -24,8 +24,6 @@ struct module_backend_api_t;
 
 typedef void (destroy_handler_t)(struct module_backend_api_t*);
 typedef int (command_handler_t)(void *, void *, struct dnet_cmd *, void *);
-typedef int (meta_write_handler_t)(void *, struct dnet_raw_id *, void *, size_t);
-typedef int (meta_remove_handler_t)(void *, struct dnet_raw_id *, int real_remove);
 
 /**
  * You should provide this structure via @a module_constructor from module.
@@ -35,8 +33,6 @@ typedef int (meta_remove_handler_t)(void *, struct dnet_raw_id *, int real_remov
 struct module_backend_api_t {
 	destroy_handler_t *destroy_handler; ///< destructor for this structure
 	command_handler_t *command_handler;
-	meta_write_handler_t *meta_write_handler;
-	meta_remove_handler_t *meta_remove_handler;
 	void *private_data; ///< your own data
 };
 

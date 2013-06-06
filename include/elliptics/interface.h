@@ -185,9 +185,6 @@ int dnet_read_file(struct dnet_session *s, const char *file, const void *remote,
  */
 int dnet_write_object(struct dnet_session *s, struct dnet_io_control *ctl);
 
-/* Returns size of the reply or negative error value */
-int __attribute__((weak)) dnet_write_data_wait(struct dnet_session *s, struct dnet_io_control *ctl, void **result);
-
 /*
  * Sends given file to the remote nodes and waits until all of them ack the write.
  *
@@ -256,9 +253,6 @@ struct dnet_backend_callbacks {
 
 	/* this must be provided as @priv argument to all above and below callbacks*/
 	void			*command_private;
-
-	/* sends object with given ID to specified @state */
-	int			(* send)(void *state, void *priv, struct dnet_id *id);
 
 	/* fills storage statistics */
 	int			(* storage_stat)(void *priv, struct dnet_stat *st);

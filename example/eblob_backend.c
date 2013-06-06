@@ -694,51 +694,6 @@ static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 	return err;
 }
 
-static int eblob_send(void *state, void *priv, struct dnet_id *id)
-{
-	struct dnet_node *n = dnet_get_node_from_state(state);
-	struct eblob_backend_config *c = priv;
-	struct eblob_backend *b = c->eblob;
-	uint64_t offset, size;
-	struct eblob_key key;
-	int err, fd, ret;
-
-	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-
-	err = -ENOENT;
-
-	dnet_backend_log(DNET_LOG_DEBUG, "trying to send type %d\n", EBLOB_TYPE_DATA);
-	ret = eblob_read(b, &key, &fd, &offset, &size, EBLOB_TYPE_DATA);
-	if (ret >= 0) {
-		struct dnet_io_control ctl;
-		void *result = NULL;
-
-		memset(&ctl, 0, sizeof(ctl));
-
-		ctl.fd = fd;
-		ctl.local_offset = offset;
-
-		memcpy(&ctl.id, id, sizeof(struct dnet_id));
-
-		ctl.io.offset = 0;
-		ctl.io.size = size;
-		ctl.io.flags = 0;
-
-		struct dnet_session *s = dnet_session_create(n);
-		dnet_session_set_groups(s, (int *)&id->group_id, 1);
-
-		err = dnet_write_data_wait(s, &ctl, &result);
-		if (err < 0) {
-			goto err_out_exit;
-		}
-		free(result);
-		err = 0;
-	}
-
-err_out_exit:
-	return err;
-}
-
 static int blob_file_info(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd)
 {
 	struct eblob_backend *b = c->eblob;
@@ -1152,7 +1107,6 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	b->cb.command_private = c;
 	b->cb.command_handler = eblob_backend_command_handler;
-	b->cb.send = eblob_send;
 	b->cb.backend_cleanup = eblob_backend_cleanup;
 	b->cb.checksum = eblob_backend_checksum;
 

@@ -101,8 +101,6 @@ module_backend_api_t* ell::setup_handler(std::unique_ptr<honest_command_handler>
 	std::unique_ptr<module_backend_api_t> module_backend_api(new module_backend_api_t);
 	module_backend_api->destroy_handler = destroy_module_backend;
 	module_backend_api->command_handler = command_handler;
-	module_backend_api->meta_write_handler = meta_write_handler;
-	module_backend_api->meta_remove_handler = meta_remove_handler;
 	module_backend_api->private_data = honest_command_handler.release();
 	return module_backend_api.release();
 }

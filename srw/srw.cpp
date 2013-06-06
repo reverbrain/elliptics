@@ -76,8 +76,8 @@ class srw_log {
 	public:
 		srw_log(struct dnet_session *session, int level, const std::string &app, const std::string &message) : m_s(session) {
 			dnet_log(session->node, level, "srw: %s : %s\n", app.c_str(), message.c_str());
-			return;
 
+#if 0
 			if (!strncmp(app.data(), "app/", 4) || (level > m_s->node->log->log_level))
 				return;
 
@@ -127,6 +127,7 @@ class srw_log {
 			}
 
 			free(result);
+#endif
 		}
 
 	private:
