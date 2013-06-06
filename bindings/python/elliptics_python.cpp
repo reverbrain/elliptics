@@ -914,7 +914,7 @@ struct id_pickle : bp::pickle_suite
 
 	static boost::python::tuple getstate(const elliptics_id& id)
 	{
-		return bp::make_tuple(id.id, id.group_id);
+		return bp::make_tuple(id.id, id.group_id, 0);
 	}
 
 	static void setstate(elliptics_id& id, boost::python::tuple state)
@@ -977,7 +977,8 @@ BOOST_PYTHON_MODULE(elliptics) {
 	bp::register_exception_translator<error>(error_translator);
 	bp::register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
 
-	bp::class_<elliptics_id>("Id", bp::init<bp::list, int, int>())
+	bp::class_<elliptics_id>("Id")
+		.def(bp::init<bp::list, int, int>(bp::args("key", "group_id", "type")))
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_pickle(id_pickle())
