@@ -109,12 +109,10 @@ static int ioserv_setup_signals(void)
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGINT, &sa, NULL);
 
-	sa.sa_flags = SA_SIGINFO;
 	sa.sa_sigaction = ioserv_reload_handler;
 	sigemptyset(&sa.sa_mask);
 	sigaction(SIGHUP, &sa, NULL);
 
-	sa.sa_flags = SA_SIGINFO;
 	sa.sa_sigaction = ioserv_sigchild_handler;
 	sigemptyset(&sa.sa_mask);
 	sigaction(SIGCHLD, &sa, NULL);
