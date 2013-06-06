@@ -262,11 +262,22 @@ class session
 		void			set_cflags(uint64_t cflags);
 
 		/*!
-		 * Sets command flags \a cflags to the session.
+		 * Sets namespace to \a ns, this mangles all keys that written
+		 * in this session so they won't collide with same key in any
+		 * other namespace.
 		 */
 		void			set_namespace(const char *ns, int nsize);
 
+		/*!
+		 * Get id that this session was stuck to.
+		 */
+		dnet_id			get_direct_id();
 
+		/*!
+		 * Stick session to particular remote address.
+		 */
+		void			set_direct_id(dnet_addr remote_addr);
+		void			set_direct_id(const char *saddr, int port, int family);
 
 		/*!
 		 * Gets command flags of the session.

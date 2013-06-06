@@ -489,9 +489,16 @@ struct dnet_session {
 	uint64_t		user_flags;
 	uint32_t		ioflags;
 
+	/*
+	 * If DNET_FLAGS_DIRECT is set then direct_id is used for sticking
+	 * requests to the node which is responsible for a particular
+	 * direct_id.id.
+	 */
+	struct dnet_id		direct_id;
+
 	/* Namespace */
-	int has_ns;
-	struct dnet_raw_id ns;
+	int			has_ns;
+	struct dnet_raw_id	ns;
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)

@@ -5,8 +5,6 @@ Misc. routines
 import logging as log
 import sys
 
-from .lru_cache import lru_cache
-
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
 import elliptics
@@ -30,7 +28,6 @@ def mk_container_name(id_range, eid, prefix="iterator_"):
     """
     return "{0}{1}_@{2}".format(prefix, str(id_range), format_id(eid.id))
 
-@lru_cache()
 def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_timeout=60, flags=0):
     """
     Connects to elliptics cloud
@@ -45,7 +42,6 @@ def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_time
     log.info("Created node: {0}".format(node))
     return node
 
-@lru_cache()
 def elliptics_create_session(node=None, group=None, cflags=elliptics.command_flags.default):
     log.debug("Creating session: {0}@{1}.{2}".format(node, group, cflags))
     session = elliptics.Session(node)

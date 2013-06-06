@@ -677,7 +677,14 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 	memcpy(io, &ctl->io, sizeof(struct dnet_io_attr));
 	memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 
-	t->st = dnet_state_get_first(n, &cmd->id);
+	if ((s->cflags & DNET_FLAGS_DIRECT) == 0) {
+		t->st = dnet_state_get_first(n, &cmd->id);
+	} else {
+		/* We're requested to execute request on perticular node */
+		s->direct_id.group_id = cmd->id.group_id;
+		t->st = dnet_state_get_first(n, &s->direct_id);
+	}
+
 	if (!t->st) {
 		err = -ENXIO;
 		goto err_out_destroy;
@@ -2606,18 +2613,19 @@ int dnet_iterator_response_container_read(int fd, uint64_t pos,
 /*!
  * Shifts offset and skips response with equal keys.
  */
-static inline void dnet_iterator_response_skip_equal_keys(const struct dnet_iterator_response *resp, uint64_t *offset, uint64_t size)
+static inline void dnet_iterator_response_skip_equal_keys(const struct dnet_iterator_response *resp,
+		uint64_t *offset, uint64_t size)
 {
 	const ssize_t resp_size = sizeof(struct dnet_iterator_response);
 	uint64_t next_offset = *offset + resp_size;
 
-	while(next_offset < size) {
+	while (next_offset < size) {
 		const uint64_t current_pos = *offset / resp_size;
 		const uint64_t next_pos = next_offset / resp_size;
 		const struct dnet_iterator_response *curr = resp + current_pos;
 		const struct dnet_iterator_response *next = resp + next_pos;
 
-		if(dnet_id_cmp_str(curr->key.id, next->key.id))
+		if (dnet_id_cmp_str(curr->key.id, next->key.id))
 			break;
 
 		*offset += resp_size;

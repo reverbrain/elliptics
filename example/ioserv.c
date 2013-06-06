@@ -109,21 +109,24 @@ static int ioserv_setup_signals(void)
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGINT, &sa, NULL);
 
-	sa.sa_flags = SA_SIGINFO;
 	sa.sa_sigaction = ioserv_reload_handler;
 	sigemptyset(&sa.sa_mask);
 	sigaction(SIGHUP, &sa, NULL);
 
-	sa.sa_flags = SA_SIGINFO;
 	sa.sa_sigaction = ioserv_sigchild_handler;
 	sigemptyset(&sa.sa_mask);
 	sigaction(SIGCHLD, &sa, NULL);
+
+	signal(SIGTSTP, SIG_DFL);
+	signal(SIGQUIT, SIG_DFL);
 
 	sigemptyset(&sa.sa_mask);
 	sigaddset(&sa.sa_mask, SIGTERM);
 	sigaddset(&sa.sa_mask, SIGINT);
 	sigaddset(&sa.sa_mask, SIGHUP);
 	sigaddset(&sa.sa_mask, SIGCHLD);
+	sigaddset(&sa.sa_mask, SIGTSTP);
+	sigaddset(&sa.sa_mask, SIGQUIT);
 	pthread_sigmask(SIG_UNBLOCK, &sa.sa_mask, NULL);
 	sigprocmask(SIG_UNBLOCK, &sa.sa_mask, NULL);
 
