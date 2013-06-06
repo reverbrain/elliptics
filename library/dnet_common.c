@@ -1859,11 +1859,7 @@ err_out_exit:
 
 int dnet_remove_object_now(struct dnet_session *s, struct dnet_id *id)
 {
-	uint64_t cflags_pop = dnet_session_get_cflags(s);
-	dnet_session_set_cflags(s, cflags_pop | DNET_ATTR_DELETE_HISTORY);
-	int result = dnet_remove_file_raw(s, id);
-	dnet_session_set_cflags(s, cflags_pop);
-	return result;
+	return dnet_remove_file_raw(s, id);
 }
 
 int dnet_remove_file(struct dnet_session *s, char *remote, int remote_len, struct dnet_id *id)

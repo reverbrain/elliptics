@@ -894,11 +894,7 @@ class remove_callback
 			const auto &sess_groups = sess.get_groups();
 			cb.set_total(sess_groups.size());
 
-			uint64_t cflags_pop = sess.get_cflags();
-			sess.set_cflags(cflags_pop | DNET_ATTR_DELETE_HISTORY);
-			int err = dnet_remove_object(sess.get_native(), &id,
-				func, priv);
-			sess.set_cflags(cflags_pop);
+			int err = dnet_remove_object(sess.get_native(), &id, func, priv);
 
 			if (err < 0) {
 				*error = create_error(err, id, "REMOVE");

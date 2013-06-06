@@ -182,17 +182,11 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* drop notifiction */
 #define DNET_ATTR_DROP_NOTIFICATION		(1ULL<<32)
 
-/* Completely remove object history and metadata */
-#define DNET_ATTR_DELETE_HISTORY		(1ULL<<32)
-
 /* What type of counters to fetch */
 #define DNET_ATTR_CNTR_GLOBAL			(1ULL<<32)
 
 /* Bulk request for checking files */
 #define DNET_ATTR_BULK_CHECK			(1ULL<<32)
-
-/* Fill ctime/mtime from metadata when processing DNET_CMD_LOOKUP */
-#define DNET_ATTR_META_TIMES			(1ULL<<33)
 
 /*
  * ascending sort data before returning range request to user
