@@ -151,7 +151,7 @@ class key
 {
 	public:
 		key();
-		key(const std::string &remote, int type = 0);
+		key(const std::string &remote);
 		key(const struct dnet_id &id);
 		key(const key &other);
 		key &operator = (const key &other);
@@ -162,7 +162,6 @@ class key
 
 		bool by_id() const;
 		const std::string &remote() const;
-		int type() const;
 		const dnet_id &id() const;
 		const dnet_raw_id &raw_id() const;
 		std::string to_string() const;
@@ -172,7 +171,7 @@ class key
 	private:
 		bool m_by_id;
 		std::string m_remote;
-		int m_type;
+		int m_reserved;
 		struct dnet_id m_id;
 };
 
@@ -469,23 +468,6 @@ class session
 		 * data with key \a id may be in group \a group_id.
 		 */
 		std::string		lookup_address(const key &id, int group_id = 0);
-
-		/*!
-		 * Creates meta data \a obj with timestamp \a ts for key \a id at \a groups.
-		 *
-		 * \note This method is left only for compatibility.
-		 */
-		std::string		create_metadata(const key &id, const std::string &obj,
-							const std::vector<int> &groups,
-							const struct timespec &ts);
-		/*!
-		 * Writes meta data \a obj with timestamp \a ts for key \a id at \a groups.
-		 *
-		 * \note This method is left only for compatibility.
-		 */
-		int			write_metadata(const key &id, const std::string &obj,
-							const std::vector<int> &groups,
-							const struct timespec &ts);
 
 		/*!
 		 * Lookups information for key \a id.

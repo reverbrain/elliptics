@@ -16,7 +16,7 @@ elliptics_service_t::elliptics_service_t(context_t &context, io::reactor_t &reac
 	debug() << m_elliptics << std::endl;
 
 	if (!m_elliptics) {
-		throw configuration_error_t("To use elliptics service storage must be also ellitips");
+		throw configuration_error_t("To use elliptics service storage must be also elliptics");
 	}
 
 	on<io::storage::read  >("read",   std::bind(&elliptics_service_t::read,   this, _1, _2));

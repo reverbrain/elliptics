@@ -70,24 +70,22 @@ static void dnet_usage(char *p)
 			" -N namespace         - use this namespace for operations\n"
 			" -D object            - read latest data for given object, if -I id is specified, this field is unused\n"
 			" -C flags             - command flags\n"
-			" -t column            - column ID to read or write\n"
 			" -d request_string    - defragmentation request: 'start' - start defragmentation, 'status' - request current status\n"
 			" -i flags             - IO flags (see DNET_IO_FLAGS_* in include/elliptics/packet.h\n"
 			" -H                   - do not hash id, use it as is\n"
 			, p);
 }
 
-static key create_id(unsigned char *id, const char *file_name, int type)
+static key create_id(unsigned char *id, const char *file_name)
 {
 	if (id) {
 		struct dnet_id raw;
 
 		dnet_setup_id(&raw, 0, id);
-		raw.type = type;
 
 		return raw;
 	} else {
-		return key(file_name, type);
+		return key(file_name);
 	}
 }
 
@@ -108,7 +106,6 @@ int main(int argc, char *argv[])
 	unsigned char trans_id[DNET_ID_SIZE], *id = NULL;
 	uint64_t offset, size;
 	std::vector<int> groups;
-	int type = EBLOB_TYPE_DATA;
 	uint64_t cflags = 0;
 	uint64_t ioflags = 0;
 	char *defrag = NULL;
@@ -129,7 +126,7 @@ int main(int argc, char *argv[])
 	cfg.wait_timeout = 60;
 	int log_level = DNET_LOG_ERROR;
 
-	while ((ch = getopt(argc, argv, "i:d:C:t:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:hH")) != -1) {
+	while ((ch = getopt(argc, argv, "i:d:C:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:hH")) != -1) {
 		switch (ch) {
 			case 'i':
 				ioflags = strtoull(optarg, NULL, 0);
@@ -139,9 +136,6 @@ int main(int argc, char *argv[])
 				break;
 			case 'C':
 				cflags = strtoull(optarg, NULL, 0);
-				break;
-			case 't':
-				type = atoi(optarg);
 				break;
 			case 'F':
 				node_status.nflags = strtol(optarg, NULL, 0);
@@ -301,13 +295,13 @@ int main(int argc, char *argv[])
 		}
 
 		if (writef)
-			s.write_file(create_id(id, writef, type), writef, offset, offset, size);
+			s.write_file(create_id(id, writef), writef, offset, offset, size);
 
 		if (readf)
-			s.read_file(create_id(id, readf, type), readf, offset, size);
+			s.read_file(create_id(id, readf), readf, offset, size);
 
 		if (read_data) {
-			sync_read_result result = s.read_latest(create_id(id, read_data, type), offset, size);
+			sync_read_result result = s.read_latest(create_id(id, read_data), offset, size);
 
 			data_pointer file = result[0].file();
 
@@ -323,7 +317,7 @@ int main(int argc, char *argv[])
 		}
 
 		if (removef)
-			s.remove(create_id(id, removef, type));
+			s.remove(create_id(id, removef));
 
 		if (cmd) {
 			dnet_id did_tmp, *did = NULL;
@@ -347,8 +341,6 @@ int main(int argc, char *argv[])
 				} else {
 					s.transform(data, did_tmp);
 				}
-
-				did->type = type;
 			}
 
 			s.set_cflags(cflags | DNET_FLAGS_NOLOCK);

@@ -1,12 +1,10 @@
 set(ELLIPTICS_CLIENT_SRCS
-    check_common.c
     compat.c
     crypto.c
     crypto/sha512.c
     discovery.c
     dnet_common.c
     log.c
-    meta.c
     net.c
     node.c
     notify_common.c
@@ -16,10 +14,8 @@ set(ELLIPTICS_CLIENT_SRCS
     )
 set(ELLIPTICS_SRCS
     ${ELLIPTICS_CLIENT_SRCS}
-    check.c
     dnet.c
     locks.c
-    metadb.c
     notify.c
     server.c
     )

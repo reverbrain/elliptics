@@ -554,11 +554,6 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	n->flags = cfg->flags;
 	n->cache_size = cfg->cache_size;
 
-	if (strlen(cfg->temp_meta_env))
-		n->temp_meta_env = cfg->temp_meta_env;
-	else
-		n->temp_meta_env = cfg->history_env;
-
 	if (!n->log)
 		dnet_log_init(n, cfg->log);
 

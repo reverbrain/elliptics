@@ -60,17 +60,17 @@ static void dnet_usage(char *p)
 			, p);
 }
 
-static key create_id(unsigned char *id, const char *file_name, int type)
+static key create_id(unsigned char *id, const char *file_name)
 {
 	if (id) {
 		struct dnet_id raw;
+		memset(&raw, 0, sizeof(struct dnet_id));
 
 		dnet_setup_id(&raw, 0, id);
-		raw.type = type;
 
 		return raw;
 	} else {
-		return key(file_name, type);
+		return key(file_name);
 	}
 }
 
@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 			int result = 0;
 			try {
 				datas.resize(indexes.size());
-				s.update_indexes(create_id(id, update, 0), indexes, datas).wait();
+				s.update_indexes(create_id(id, update), indexes, datas).wait();
 			} catch (error &e) {
 				result = e.error_code();
 			} catch (std::bad_alloc &e) {

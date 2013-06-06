@@ -449,7 +449,6 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 		as->count[DNET_CNTR_VM_CACHED].count = st.vm_cached;
 		as->count[DNET_CNTR_VM_BUFFERS].count = st.vm_buffers;
 	}
-	as->count[DNET_CNTR_NODE_FILES].count = n->cb->meta_total_elements(n->cb->command_private);
 
 	dnet_convert_addr_stat(as, as->num);
 
@@ -1118,16 +1117,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			} else
 				err = dnet_notify_remove(st, cmd);
 			break;
-		case DNET_CMD_LIST:
-			if (n->ro) {
-				err = -EROFS;
-			} else {
-				if (cmd->flags & DNET_ATTR_BULK_CHECK)
-					err = dnet_cmd_bulk_check(st, cmd, data);
-				else
-					err = dnet_db_list(st, cmd);
-			}
-			break;
 		case DNET_CMD_BULK_READ:
 			err = dnet_cmd_bulk_read(st, cmd, data);
 			break;
@@ -1156,46 +1145,34 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
 
 			dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
-					"node-flags: 0x%x, type: %d, ts: %ld.%06ld '%s'\n",
+					"node-flags: 0x%x, ts: %ld.%06ld '%s'\n",
 					dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
 					(unsigned long long)io->offset, (unsigned long long)io->size,
 					io->flags, (unsigned long long)cmd->flags,
-					n->flags, io->type, io_tv.tv_sec, io_tv.tv_usec, time_str);
+					n->flags, io_tv.tv_sec, io_tv.tv_usec, time_str);
 
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
 
-			/* do not write metadata for cache-only writes */
-			if ((io->flags & DNET_IO_FLAGS_CACHE_ONLY) && (io->type == EBLOB_TYPE_META)) {
-				err = -EINVAL;
-				break;
-			}
-
 			/*
-			 * Only allow cache for column 0
-			 * In the next life (2012 I really expect) there will be no columns at all
+			 * Always check cache when reading!
 			 */
-			if (io->type == 0) {
-				/*
-				 * Always check cache when reading!
-				 */
-				if ((io->flags & DNET_IO_FLAGS_CACHE) || (cmd->cmd != DNET_CMD_WRITE)) {
-					err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
+			if ((io->flags & DNET_IO_FLAGS_CACHE) || (cmd->cmd != DNET_CMD_WRITE)) {
+				err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
 
-					if (io->flags & DNET_IO_FLAGS_CACHE_ONLY) {
-						if ((cmd->cmd == DNET_CMD_WRITE) && !err) {
-							cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-							err = dnet_send_file_info_without_fd(st, cmd, 0, io->size);
-						}
-						break;
+				if (io->flags & DNET_IO_FLAGS_CACHE_ONLY) {
+					if ((cmd->cmd == DNET_CMD_WRITE) && !err) {
+						cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+						err = dnet_send_file_info_without_fd(st, cmd, 0, io->size);
 					}
-
-					/*
-					 * We successfully read data from cache, do not sink to disk for it
-					 */
-					if ((cmd->cmd == DNET_CMD_READ) && !err)
-						break;
+					break;
 				}
+
+				/*
+				 * We successfully read data from cache, do not sink to disk for it
+				 */
+				if ((cmd->cmd == DNET_CMD_READ) && !err)
+					break;
 			}
 
 			if ((io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) && (cmd->cmd == DNET_CMD_WRITE)) {
@@ -1241,11 +1218,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 								dnet_dump_id(&cmd->id), recv_csum);
 					}
 				}
-			}
-
-			if ((cmd->cmd == DNET_CMD_DEL) || (io->flags & DNET_IO_FLAGS_META)) {
-				err = dnet_process_meta(st, cmd, data);
-				break;
 			}
 
 			dnet_convert_io_attr(io);
@@ -1520,7 +1492,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 			(unsigned long long)io->offset,	(unsigned long long)io->size);
 
 	/* only populate data which has zero offset and from column 0 */
-	if ((io->flags & DNET_IO_FLAGS_CACHE) && !io->offset && (io->type == 0)) {
+	if ((io->flags & DNET_IO_FLAGS_CACHE) && !io->offset) {
 		err = dnet_populate_cache(st->n, c, rio, data, fd, offset, io->size);
 	}
 
@@ -1555,42 +1527,6 @@ static void dnet_fill_state_addr(void *state, struct dnet_addr *addr)
 	struct dnet_node *n = st->n;
 
 	memcpy(addr, &n->addrs[0], sizeof(struct dnet_addr));
-}
-
-int dnet_read_file_info(struct dnet_node *n, struct dnet_id *id, struct dnet_file_info *info)
-{
-	struct dnet_meta *m;
-	struct dnet_meta_update *mu;
-	struct dnet_meta_container mc;
-	struct dnet_raw_id raw;
-	int err;
-
-	memcpy(raw.id, id->id, DNET_ID_SIZE);
-
-	err = n->cb->meta_read(n->cb->command_private, &raw, &mc.data);
-	if (err < 0) {
-		goto err_out_exit;
-	}
-	mc.size = err;
-
-	m = dnet_meta_search(n, &mc, DNET_META_UPDATE);
-	if (!m) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: dnet_read_file_info_verify_csum: no DNET_META_UPDATE tag in metadata\n",
-				dnet_dump_id(id));
-		err = -ENODATA;
-		goto err_out_free;
-	}
-
-	mu = (struct dnet_meta_update *)m->data;
-	dnet_convert_meta_update(mu);
-
-	info->mtime = mu->tm;
-	err = 0;
-
-err_out_free:
-	free(mc.data);
-err_out_exit:
-	return err;
 }
 
 static int dnet_fd_readlink(int fd, char **datap)
@@ -1658,14 +1594,6 @@ int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offs
 	dnet_info_from_stat(info, &st);
 	/* this is not valid data from raw blob file stat */
 	info->mtime.tsec = 0;
-
-	if (cmd->flags & DNET_ATTR_META_TIMES) {
-		err = dnet_read_file_info(n, &cmd->id, info);
-		if (((err == -ENOENT) || (err == -ENXIO)) && (cmd->flags & DNET_ATTR_META_TIMES))
-			err = 0;
-		if (err)
-			goto err_out_free;
-	}
 
 	if (size >= 0)
 		info->size = size;
@@ -1756,6 +1684,11 @@ err_out_exit:
 
 int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, void *data, int64_t size)
 {
+	return dnet_send_file_info_ts_without_fd(state, cmd, data, size, NULL);
+}
+
+int dnet_send_file_info_ts_without_fd(void *state, struct dnet_cmd *cmd, void *data, int64_t size, struct dnet_time *timestamp)
+{
 	struct dnet_net_state *st = state;
 	struct dnet_file_info *info;
 	struct dnet_addr *a;
@@ -1774,6 +1707,9 @@ int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, void *data
 
 	if (cmd->flags & DNET_FLAGS_CHECKSUM)
 		dnet_checksum_data(st->n, data, size, info->checksum, sizeof(info->checksum));
+
+	if (timestamp)
+		info->mtime = *timestamp;
 
 	dnet_convert_file_info(info);
 	return dnet_send_reply(state, cmd, a, a_size, 0);

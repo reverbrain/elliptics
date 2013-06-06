@@ -44,7 +44,7 @@ enum dnet_commands {
 						 * IO attribute which will have offset and size
 						 * parameters.
 						 */
-	DNET_CMD_LIST,				/* List all objects for given node ID */
+	DNET_CMD_LIST_DEPRECATED,	/* List all objects for given node ID. Deperacted and forbidden */
 	DNET_CMD_EXEC,				/* Execute given command on the remote node */
 	DNET_CMD_ROUTE_LIST,			/* Receive route table from given node */
 	DNET_CMD_STAT,				/* Gather remote VM, LA and FS statistics */
@@ -130,7 +130,7 @@ enum dnet_counters {
 struct dnet_id {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		group_id;
-	int			type;
+	uint32_t		reserved; // Reserved fo future use
 } __attribute__ ((packed));
 
 struct dnet_raw_id {
@@ -161,7 +161,7 @@ struct dnet_cmd
 static inline void dnet_convert_id(struct dnet_id *id)
 {
 	id->group_id = dnet_bswap32(id->group_id);
-	id->type = dnet_bswap32(id->type);
+	id->reserved = dnet_bswap32(id->reserved);
 }
 
 static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
@@ -182,17 +182,11 @@ static inline void dnet_convert_cmd(struct dnet_cmd *cmd)
 /* drop notifiction */
 #define DNET_ATTR_DROP_NOTIFICATION		(1ULL<<32)
 
-/* Completely remove object history and metadata */
-#define DNET_ATTR_DELETE_HISTORY		(1ULL<<32)
-
 /* What type of counters to fetch */
 #define DNET_ATTR_CNTR_GLOBAL			(1ULL<<32)
 
 /* Bulk request for checking files */
 #define DNET_ATTR_BULK_CHECK			(1ULL<<32)
-
-/* Fill ctime/mtime from metadata when processing DNET_CMD_LOOKUP */
-#define DNET_ATTR_META_TIMES			(1ULL<<33)
 
 /*
  * ascending sort data before returning range request to user
@@ -273,9 +267,6 @@ static inline void dnet_convert_list(struct dnet_list *l)
 #define DNET_IO_FLAGS_APPEND		(1<<1)
 
 #define DNET_IO_FLAGS_COMPRESS		(1<<2)
-
-/* Metada IO request */
-#define DNET_IO_FLAGS_META		(1<<3)
 
 /* eblob prepare/commit phase */
 #define DNET_IO_FLAGS_PREPARE		(1<<4)
@@ -372,8 +363,8 @@ struct dnet_io_attr
 	uint64_t		user_flags;
 
 	uint64_t		reserved[2];
+	uint32_t		reserved2;
 
-	int			type;
 	uint32_t		flags;
 	uint64_t		offset;
 	uint64_t		size;
@@ -643,69 +634,6 @@ struct dnet_auth {
 static inline void dnet_convert_auth(struct dnet_auth *a)
 {
 	a->flags = dnet_bswap64(a->flags);
-}
-
-enum dnet_meta_types {
-	DNET_META_PARENT_OBJECT = 1,	/* parent object name */
-	DNET_META_GROUPS,		/* this object has copies in given groups */
-	DNET_META_CHECK_STATUS,		/* last checking status: timestamp and so on */
-	DNET_META_NAMESPACE,		/* namespace where given object lives */
-	DNET_META_UPDATE,		/* last update information (timestamp, flags) */
-	DNET_META_CHECKSUM,		/* checksum (sha512) of the whole data object calculated on server */
-	__DNET_META_MAX,
-};
-
-struct dnet_meta
-{
-	uint32_t			type;
-	uint32_t			size;
-	uint64_t			common;
-	uint8_t				tmp[16];
-	uint8_t				data[0];
-} __attribute__ ((packed));
-
-static inline void dnet_convert_meta(struct dnet_meta *m)
-{
-	m->type = dnet_bswap32(m->type);
-	m->size = dnet_bswap32(m->size);
-	m->common = dnet_bswap64(m->common);
-}
-
-struct dnet_meta_update {
-	int			unused_gap;
-	int			group_id;
-	uint64_t		flags;
-	struct dnet_time	tm;
-	uint64_t		reserved[4];
-} __attribute__((packed));
-
-static inline void dnet_convert_meta_update(struct dnet_meta_update *m)
-{
-	dnet_convert_time(&m->tm);
-	m->flags = dnet_bswap64(m->flags);
-}
-
-struct dnet_meta_check_status {
-	int			status;
-	int			pad;
-	struct dnet_time	tm;
-	uint64_t		reserved[4];
-} __attribute__ ((packed));
-
-static inline void dnet_convert_meta_check_status(struct dnet_meta_check_status *c)
-{
-	c->status = dnet_bswap32(c->status);
-	dnet_convert_time(&c->tm);
-}
-
-struct dnet_meta_checksum {
-	uint8_t			checksum[DNET_CSUM_SIZE];
-	struct dnet_time	tm;
-} __attribute__ ((packed));
-
-static inline void dnet_convert_meta_checksum(struct dnet_meta_checksum *c)
-{
-	dnet_convert_time(&c->tm);
 }
 
 /*!

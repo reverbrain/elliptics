@@ -29,6 +29,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <eblob/blob.h>
+
 #include "elliptics/packet.h"
 #include "elliptics/backends.h"
 
@@ -104,6 +106,14 @@ static void dnet_remove_file_if_empty(struct file_backend_root *r, struct dnet_i
 	dnet_remove_file_if_empty_raw(file);
 }
 
+static void dnet_remove_file_local(struct file_backend_root *r, struct dnet_io_attr *io)
+{
+	char file[DNET_ID_SIZE * 2 + 8 + 8 + 2];
+
+	file_backend_setup_file(r, file, sizeof(file), io->id);
+	remove(file);
+}
+
 static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 {
 	/* null byte + maximum directory length (32 bits in hex) + '/' directory prefix */
@@ -155,8 +165,17 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	int err, fd;
 	char dir[2*DNET_ID_SIZE+1];
 	struct dnet_io_attr *io = data;
+	struct eblob_key key;
+	struct dnet_ext_list elist;
+	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
+	struct dnet_ext_list_hdr ehdr;
 
 	dnet_convert_io_attr(io);
+
+	dnet_ext_list_init(&elist);
+	dnet_ext_io_to_list(io, &elist);
+
+	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 	
 	data += sizeof(struct dnet_io_attr);
 
@@ -178,6 +197,17 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 
 	fd = err;
 
+	/* Copy data from elist to ehdr */
+	dnet_ext_list_to_hdr(&elist, &ehdr);
+
+	err = eblob_write(r->meta, &key, &ehdr, 0, ehdr_size, BLOB_DISK_CTL_OVERWRITE, 0);
+
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: META WRITE: %d: %s.\n",
+				dnet_dump_id(&cmd->id), dir, err, strerror(-err));
+		goto err_out_remove;
+	}
+
 	dnet_backend_log(DNET_LOG_INFO, "%s: FILE: %s: WRITE: Ok: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&cmd->id), dir, (unsigned long long)io->offset, (unsigned long long)io->size);
 
@@ -195,11 +225,14 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 
 	return 0;
 
+err_out_remove:
+	dnet_remove_file_local(r, io);
 err_out_close:
 	close(fd);
 err_out_check_remove:
 	dnet_remove_file_if_empty(r, io);
 err_out_exit:
+	dnet_ext_list_destroy(&elist);
 	return err;
 }
 
@@ -258,12 +291,16 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 	char file[DNET_ID_SIZE * 2 + 2*DNET_ID_SIZE + 2]; /* file + dir + suffix + slash + 0-byte */
 	char dir[2*DNET_ID_SIZE+1];
 	char id[2*DNET_ID_SIZE+1];
+	struct eblob_key key;
 
 	file_backend_get_dir(cmd->id.id, r->bit_num, dir);
+	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
 
 	snprintf(file, sizeof(file), "%s/%s",
 		dir, dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id));
 	remove(file);
+
+	eblob_remove(r->meta, &key, 0);
 
 	return 0;
 }
@@ -274,6 +311,14 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	char dir[2*DNET_ID_SIZE+1];
 	char id[2*DNET_ID_SIZE+1];
 	int fd, err;
+	struct eblob_write_control wc;
+	struct eblob_key key;
+	struct dnet_ext_list elist;
+	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
+
+	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
+
+	dnet_ext_list_init(&elist);
 
 	file_backend_get_dir(cmd->id.id, r->bit_num, dir);
 
@@ -289,7 +334,29 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	}
 	fd = err;
 
-	err = dnet_send_file_info(state, cmd, fd, 0, -1);
+	err = eblob_read_return(r->meta, &key, 0, EBLOB_READ_NOCSUM, &wc);
+
+	if (!err && wc.total_data_size != ehdr_size) {
+		err = -ERANGE;
+	}
+
+	if (err) {
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: meta-read-return: %d: %s.\n",
+			dnet_dump_id(&cmd->id), file, err, strerror(-err));
+	} else {
+		struct dnet_ext_list_hdr ehdr;
+
+		err = dnet_ext_hdr_read(&ehdr, wc.data_fd, wc.offset);
+
+		if (err) {
+			dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: meta-read-hdr: %d: %s.\n",
+				dnet_dump_id(&cmd->id), file, err, strerror(-err));
+		} else {
+			dnet_ext_hdr_to_list(&ehdr, &elist);
+		}
+	}
+
+	err = dnet_send_file_info_ts(state, cmd, fd, 0, -1, &elist.timestamp);
 	if (err)
 		goto err_out_close;
 	
@@ -298,6 +365,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 err_out_close:
 	close(fd);
 err_out_exit:
+	dnet_ext_list_destroy(&elist);
 	return err;
 }
 
@@ -535,36 +603,6 @@ static void file_backend_cleanup(void *priv)
 	free(r->root);
 }
 
-static ssize_t dnet_file_db_read(void *priv, struct dnet_raw_id *id, void **datap)
-{
-	struct file_backend_root *r = priv;
-	return dnet_db_read_raw(r->meta, id, datap);
-}
-
-static int dnet_file_db_write(void *priv, struct dnet_raw_id *id, void *data, size_t size)
-{
-	struct file_backend_root *r = priv;
-	return dnet_db_write_raw(r->meta, id, data, size);
-}
-
-static int dnet_file_db_remove(void *priv, struct dnet_raw_id *id, int real_del)
-{
-	struct file_backend_root *r = priv;
-	return dnet_db_remove_raw(r->meta, id, real_del);
-}
-
-static long long dnet_file_db_total_elements(void *priv)
-{
-	struct file_backend_root *r = priv;
-	return eblob_total_elements(r->meta);
-}
-
-static int dnet_file_db_iterate(struct dnet_iterate_ctl *ctl)
-{
-	struct file_backend_root *r = ctl->iterate_private;
-	return dnet_db_iterate(r->meta, ctl);
-}
-
 static int file_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize)
 {
 	struct file_backend_root *r = priv;
@@ -593,12 +631,6 @@ static int dnet_file_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	b->cb.storage_stat = file_backend_storage_stat;
 	b->cb.backend_cleanup = file_backend_cleanup;
-
-	b->cb.meta_read = dnet_file_db_read;
-	b->cb.meta_write = dnet_file_db_write;
-	b->cb.meta_remove = dnet_file_db_remove;
-	b->cb.meta_total_elements = dnet_file_db_total_elements;
-	b->cb.meta_iterate = dnet_file_db_iterate;
 
 	mkdir("history", 0755);
 	err = dnet_file_db_init(r, c, "history");

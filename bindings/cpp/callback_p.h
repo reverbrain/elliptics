@@ -517,8 +517,7 @@ class read_callback : public multigroup_callback<read_result_entry>
 			dnet_io_attr *io = (read_result.is_valid() ? read_result.io_attribute() : NULL);
 
 			if (!error && !failed_groups.empty()
-                    && io
-					&& io->type == 0
+					&& io
 					&& io->offset == 0) {
 
 				session new_sess = sess.clone();
@@ -638,7 +637,6 @@ class read_bulk_callback : public read_callback
 			int start = 0;
 
 			dnet_setup_id(&id, group_id, ios[0].id);
-			id.type = ios[0].type;
 
 			debug("");
 
@@ -652,7 +650,6 @@ class read_bulk_callback : public read_callback
 				debug("i = " << i);
 				if ((i + 1) < io_num) {
 					dnet_setup_id(&next_id, group_id, ios[i + 1].id);
-					next_id.type = ios[i + 1].type;
 
 					next = dnet_state_get_first(node, &next_id);
 					if (!next) {
@@ -894,11 +891,7 @@ class remove_callback
 			const auto &sess_groups = sess.get_groups();
 			cb.set_total(sess_groups.size());
 
-			uint64_t cflags_pop = sess.get_cflags();
-			sess.set_cflags(cflags_pop | DNET_ATTR_DELETE_HISTORY);
-			int err = dnet_remove_object(sess.get_native(), &id,
-				func, priv);
-			sess.set_cflags(cflags_pop);
+			int err = dnet_remove_object(sess.get_native(), &id, func, priv);
 
 			if (err < 0) {
 				*error = create_error(err, id, "REMOVE");
