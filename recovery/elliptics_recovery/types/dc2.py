@@ -83,7 +83,9 @@ def diff(ctx, local, remote, stats):
         else:
             log.info("Computing differences for: {0}".format(remote.address))
             result = local.diff(remote)
-        stats.counter.diff += 1
+        diff_len = len(result)
+        stats.counter.diff += diff_len
+        log.info("Found {0} differences".format(diff_len))
         return result
     except Exception as e:
         log.error("Diff for {0} failed: {1}".format(remote.address, e))
@@ -257,8 +259,14 @@ def main(ctx):
 
     results = []
 
-    local_result, local_stats, local_iter_result = process_address_ranges(local_ranges, True)
-    g_ctx.stats[local_stats.name] = local_stats
+    try:
+        local_result, local_stats, local_iter_result = process_address_ranges(local_ranges, True)
+        g_ctx.stats[local_stats.name] = local_stats
+    except KeyboardInterrupt:
+        log.error("Caught Ctrl+C. Terminating")
+        g_ctx.stats.timer.main('finished')
+        return False
+
     results.append(local_result)
 
     if local_iter_result is None:
@@ -279,7 +287,7 @@ def main(ctx):
     try:
         remote_results = [r.get() for r in async_results]
     except KeyboardInterrupt:
-        log.error("Caught Ctr+C. Terminating.")
+        log.error("Caught Ctrl+C. Terminating.")
         pool.terminate()
         pool.join()
         g_ctx.stats.timer.main('finished')

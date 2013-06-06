@@ -11,7 +11,7 @@ from multiprocessing import Pool
 from ..iterator import Iterator, IteratorResult
 from ..time import Time
 from ..stat import Stats
-from ..utils.misc import elliptics_create_node, elliptics_create_session, worker_init
+from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -115,6 +115,7 @@ def diff(ctx, local, remote, stats):
     TODO: We can compute up to CPU_NUM diffs at max in parallel
     """
     diffs = []
+    total_diffs = 0
     for r in remote:
         try:
             if r is None or len(r) == 0:
@@ -131,10 +132,12 @@ def diff(ctx, local, remote, stats):
             if len(result) > 0:
                 diffs.append(result)
                 stats.counter.diffs += len(result)
+                total_diffs += len(result)
             else:
                 log.info("Resulting diff is empty, skipping")
         except Exception as e:
             log.error("Diff of {0} failed: {1}".format(local.id_range, e))
+    log.info("Found {0} differences with remote nodes.".format(total_diffs))
     return diffs
 
 
@@ -144,6 +147,8 @@ def recover(ctx, splitted_results, stats):
     TODO: Group by diffs by host and process each group in parallel
     """
     result = True
+
+    log.info("Recovering {0} keys".format(sum(len(d) for d in splitted_results)))
 
     local_node = elliptics_create_node(address=ctx.address, elog=ctx.elog, flags=2)
     log.debug("Creating direct session: {0}".format(ctx.address))

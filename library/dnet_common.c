@@ -2694,7 +2694,7 @@ int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t
 
 			/* For same key we move both pointers */
 			if (cmp_id == 0)
-				right_offset += resp_size;
+				dnet_iterator_response_skip_equal_keys(right_map.data, &right_offset, right_size);
 		} else {
 			/*
 			 * If we can move left pointer or left key is greater
