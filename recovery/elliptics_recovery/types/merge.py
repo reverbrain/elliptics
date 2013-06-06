@@ -157,7 +157,7 @@ def recover(ctx, diff, group, stats):
     # Here we cleverly splitting responses into ctx.batch_size batches
     for batch_id, batch in groupby(enumerate(diff),
                                     key=lambda x: x[0] / ctx.batch_size):
-        keys = [elliptics.Id(r.key, group, 0) for _, r in batch]
+        keys = [elliptics.Id(r.key, group) for _, r in batch]
         successes, failures, size, skipped = recover_keys(ctx, diff.address, group, keys, local_session, remote_session)
         stats.counter.recovered_keys += successes
         stats.counter.recovered_keys -= failures

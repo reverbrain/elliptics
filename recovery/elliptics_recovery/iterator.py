@@ -197,7 +197,7 @@ class Iterator(object):
         self.session.set_groups([group])
 
     def start(self,
-              eid=elliptics.Id(IdRange.ID_MIN, 0, 0),
+              eid=elliptics.Id(IdRange.ID_MIN, 0),
               itype=elliptics.iterator_types.network,
               flags=elliptics.iterator_flags.key_range | elliptics.iterator_flags.ts_range,
               key_ranges=(IdRange(IdRange.ID_MIN, IdRange.ID_MAX),),
