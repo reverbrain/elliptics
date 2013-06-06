@@ -115,7 +115,6 @@ class IteratorResult(object):
                                                                            address=d.address,
                                                                            id_range=d.id_range,
                                                                            eid=d.eid,
-                                                                           is_sorted=True,
                                                                            tmp_dir=tmp_dir,
                                                                            leave_file=True
                                                                            )
@@ -156,7 +155,7 @@ class IteratorResult(object):
         return result
 
     @classmethod
-    def load_filename(cls, filename, is_sorted, tmp_dir="", **kwargs):
+    def load_filename(cls, filename, is_sorted=False, tmp_dir="", **kwargs):
         """
         Creates iterator result from filename
         """
