@@ -11,7 +11,7 @@ from multiprocessing import Pool
 from ..iterator import Iterator, IteratorResult
 from ..time import Time
 from ..stat import Stats
-from ..utils.misc import elliptics_create_node, elliptics_create_session
+from ..utils.misc import elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -263,22 +263,29 @@ def main(ctx):
         return result
 
     processes = min(g_ctx.nprocess, len(ranges) - 1)
-    pool = Pool(processes=processes)
+    pool = Pool(processes=processes, initializer=worker_init)
     log.debug("Created pool of processes: %d" % processes)
 
     async_results = [pool.apply_async(process_range, (r, g_ctx.dry_run)) for r in ranges]
 
-    log.info("Closing pool, joining threads")
-    pool.close()
-    pool.join()
+    try:
+        # Use INT_MAX as timeout, so we can catch Ctrl+C
+        timeout = 2147483647
 
-    results = [r.get() for r in async_results]
+        for r, stats in (r.get(timeout) for r in async_results):
+            g_ctx.stats[stats.name] = stats
+            result &= r
 
-    for r, stats in results:
-        g_ctx.stats[stats.name] = stats
-        result &= r
+    except KeyboardInterrupt:
+        log.error("Caught Ctrl+C. Terminating.")
+        pool.terminate()
+        pool.join()
+        g_ctx.stats.timer.main('finished')
+        return False
+    else:
+        log.info("Closing pool, joining threads.")
+        pool.close()
+        pool.join()
 
     g_ctx.stats.timer.main('finished')
-    log.debug("Result: %s" % result)
-
     return result

@@ -12,7 +12,7 @@ from multiprocessing import Pool
 from ..iterator import Iterator, IteratorResult
 from ..time import Time
 from ..stat import Stats
-from ..utils.misc import mk_container_name, elliptics_create_node, elliptics_create_session
+from ..utils.misc import mk_container_name, elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -272,11 +272,18 @@ def main(ctx):
 
     processes = min(g_ctx.nprocess, len(all_ranges) - 1)
     log.info("Creating pool of processes: {0}".format(processes))
-    pool = Pool(processes=processes)
+    pool = Pool(processes=processes, initializer=worker_init)
 
     async_results = [pool.apply_async(process_address_ranges, (r, False)) for r in all_ranges if r.address != g_ctx.address]
 
-    remote_results = [r.get() for r in async_results]
+    try:
+        remote_results = [r.get() for r in async_results]
+    except KeyboardInterrupt:
+        log.error("Caught Ctr+C. Terminating.")
+        pool.terminate()
+        pool.join()
+        g_ctx.stats.timer.main('finished')
+        return False
 
     diff_results = []
 
@@ -308,23 +315,32 @@ def main(ctx):
     assert diff_length == sum([len(r) for r in splitted_results])
 
     if not g_ctx.dry_run:
-        async_results = [pool.apply_async(recover, (r.id_range, r.eid, r.address)) for r in splitted_results if r]
+        try:
+            async_results = [pool.apply_async(recover, (r.id_range, r.eid, r.address)) for r in splitted_results if r]
 
-    log.info("Closing pool, joining threads")
-    pool.close()
-    pool.join()
+            # Use INT_MAX as timeout, so we can catch Ctrl+C
+            timeout = 2147483647
+
+            recover_results = [r.get(timeout) for r in async_results]
+            results = []
+            for result, stats in recover_results:
+                results.append(result)
+                g_ctx.stats[stats.name] = stats
+
+        except KeyboardInterrupt:
+            log.error("Caught Ctrl+C. Terminating.")
+            pool.terminate()
+            pool.join()
+            g_ctx.stats.timer.main('finished')
+            return False
+        else:
+            log.info("Closing pool, joining threads")
+            pool.close()
+            pool.join()
+        result &= all(results)
 
     if not (g_ctx.id_range is None or g_ctx.eid is None or g_ctx.id_range is None):
         os.unlink(os.path.join(ctx.tmp_dir, mk_container_name(g_ctx.id_range, g_ctx.eid)))
-
-    if not g_ctx.dry_run:
-        recover_results = [r.get() for r in async_results]
-        results = []
-        for result, stats in recover_results:
-            results.append(result)
-            g_ctx.stats[stats.name] = stats
-
-        result &= all(results)
 
     g_ctx.stats.timer.main('finished')
     log.debug("Result: %s" % result)
