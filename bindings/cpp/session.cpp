@@ -802,7 +802,7 @@ struct chunk_handler : public std::enable_shared_from_this<chunk_handler> {
 
 async_write_result session::write_data(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t chunk_size)
 {
-	if (file.size() <= chunk_size)
+	if (file.size() <= chunk_size || chunk_size == 0)
 		return write_data(id, file, remote_offset);
 
 	data_pointer write_content = file.slice(remote_offset, chunk_size);
