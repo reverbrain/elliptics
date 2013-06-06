@@ -61,9 +61,9 @@ static inline dnet_id indexes_generate_id(session &sess, const dnet_id &data_id)
 	key += "index";
 
 	dnet_id id;
+	memset(&id, 0, sizeof(id));
+
 	sess.transform(key, id);
-	id.group_id = 0;
-	id.type = 0;
 
 	return id;
 }

@@ -175,7 +175,7 @@ int __attribute__((weak)) dnet_send_read_data(void *state, struct dnet_cmd *cmd,
 int dnet_read_file_id(struct dnet_session *s, const char *file, struct dnet_id *id,
 		uint64_t offset, uint64_t size);
 int dnet_read_file(struct dnet_session *s, const char *file, const void *remote, int remote_size,
-		uint64_t offset, uint64_t size, int type);
+		uint64_t offset, uint64_t size);
 
 /*
  * dnet_write_object() returns number of transactions sent. If it is equal to 0,
@@ -197,7 +197,7 @@ int dnet_write_file_id(struct dnet_session *s, const char *file, struct dnet_id 
 		uint64_t remote_offset, uint64_t size);
 
 int dnet_write_file(struct dnet_session *s, const char *file, const void *remote, int remote_len,
-		uint64_t local_offset, uint64_t remote_offset, uint64_t size, int type);
+		uint64_t local_offset, uint64_t remote_offset, uint64_t size);
 
 enum dnet_log_level {
 	DNET_LOG_DATA = 0,

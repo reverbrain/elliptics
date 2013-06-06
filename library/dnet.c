@@ -1145,46 +1145,34 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
 
 			dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
-					"node-flags: 0x%x, type: %d, ts: %ld.%06ld '%s'\n",
+					"node-flags: 0x%x, ts: %ld.%06ld '%s'\n",
 					dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
 					(unsigned long long)io->offset, (unsigned long long)io->size,
 					io->flags, (unsigned long long)cmd->flags,
-					n->flags, io->type, io_tv.tv_sec, io_tv.tv_usec, time_str);
+					n->flags, io_tv.tv_sec, io_tv.tv_usec, time_str);
 
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
 
-			/* do not write metadata for cache-only writes */
-			if ((io->flags & DNET_IO_FLAGS_CACHE_ONLY) && (io->type == EBLOB_TYPE_META)) {
-				err = -EINVAL;
-				break;
-			}
-
 			/*
-			 * Only allow cache for column 0
-			 * In the next life (2012 I really expect) there will be no columns at all
+			 * Always check cache when reading!
 			 */
-			if (io->type == 0) {
-				/*
-				 * Always check cache when reading!
-				 */
-				if ((io->flags & DNET_IO_FLAGS_CACHE) || (cmd->cmd != DNET_CMD_WRITE)) {
-					err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
+			if ((io->flags & DNET_IO_FLAGS_CACHE) || (cmd->cmd != DNET_CMD_WRITE)) {
+				err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
 
-					if (io->flags & DNET_IO_FLAGS_CACHE_ONLY) {
-						if ((cmd->cmd == DNET_CMD_WRITE) && !err) {
-							cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-							err = dnet_send_file_info_without_fd(st, cmd, 0, io->size);
-						}
-						break;
+				if (io->flags & DNET_IO_FLAGS_CACHE_ONLY) {
+					if ((cmd->cmd == DNET_CMD_WRITE) && !err) {
+						cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+						err = dnet_send_file_info_without_fd(st, cmd, 0, io->size);
 					}
-
-					/*
-					 * We successfully read data from cache, do not sink to disk for it
-					 */
-					if ((cmd->cmd == DNET_CMD_READ) && !err)
-						break;
+					break;
 				}
+
+				/*
+				 * We successfully read data from cache, do not sink to disk for it
+				 */
+				if ((cmd->cmd == DNET_CMD_READ) && !err)
+					break;
 			}
 
 			if ((io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) && (cmd->cmd == DNET_CMD_WRITE)) {
@@ -1504,7 +1492,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 			(unsigned long long)io->offset,	(unsigned long long)io->size);
 
 	/* only populate data which has zero offset and from column 0 */
-	if ((io->flags & DNET_IO_FLAGS_CACHE) && !io->offset && (io->type == 0)) {
+	if ((io->flags & DNET_IO_FLAGS_CACHE) && !io->offset) {
 		err = dnet_populate_cache(st->n, c, rio, data, fd, offset, io->size);
 	}
 

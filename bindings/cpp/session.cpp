@@ -519,7 +519,7 @@ void session::read_file(const key &id, const std::string &file, uint64_t offset,
 		dnet_id raw = id.id();
 		err = dnet_read_file_id(m_data->session_ptr, file.c_str(), &raw, offset, size);
 	} else {
-		err = dnet_read_file(m_data->session_ptr, file.c_str(), id.remote().c_str(), id.remote().size(), offset, size, id.type());
+		err = dnet_read_file(m_data->session_ptr, file.c_str(), id.remote().c_str(), id.remote().size(), offset, size);
 	}
 
 	if (err) {
@@ -540,7 +540,7 @@ void session::write_file(const key &id, const std::string &file, uint64_t local_
 		err = dnet_write_file_id(m_data->session_ptr, file.c_str(), &raw, local_offset, offset, size);
 	} else {
 		err = dnet_write_file(m_data->session_ptr, file.c_str(), id.remote().c_str(), id.remote().size(),
-							 local_offset, offset, size, id.type());
+							 local_offset, offset, size);
 	}
 	if (err) {
 		transform(id);
@@ -595,7 +595,6 @@ async_read_result session::read_data(const key &id, const std::vector<int> &grou
 	io.size   = size;
 	io.offset = offset;
 	io.flags  = get_ioflags();
-	io.type   = id.type();
 
 	memcpy(io.id, id.id().id, DNET_ID_SIZE);
 	memcpy(io.parent, id.id().id, DNET_ID_SIZE);
@@ -780,7 +779,6 @@ async_write_result session::write_data(const key &id, const data_pointer &file, 
 	ctl.io.user_flags = get_user_flags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
-	ctl.io.type = raw.type;
 
 	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
 
@@ -958,7 +956,6 @@ struct cas_functor : std::enable_shared_from_this<cas_functor>
 			group_id = entry->command()->id.group_id;
 			memcpy(csum.id, entry->io_attribute()->parent, sizeof(csum.id));
 			csum.group_id = 0;
-			csum.type = 0;
 		} else {
 			memset(&csum, 0, sizeof(csum));
 		}
@@ -1054,7 +1051,6 @@ async_write_result session::write_cas(const key &id, const data_pointer &file, c
 {
 	transform(id);
 	dnet_id raw = id.id();
-	raw.type = id.type();
 
 	struct dnet_io_control ctl;
 
@@ -1067,7 +1063,6 @@ async_write_result session::write_cas(const key &id, const data_pointer &file, c
 	ctl.io.user_flags = get_user_flags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
-	ctl.io.type = raw.type;
 	ctl.io.num = file.size() + remote_offset;
 
 	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
@@ -1093,7 +1088,6 @@ async_write_result session::write_prepare(const key &id, const data_pointer &fil
 	ctl.io.user_flags = get_user_flags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
-	ctl.io.type = id.id().type;
 	ctl.io.num = psize;
 
 	memcpy(&ctl.id, &id.id(), sizeof(ctl.id));
@@ -1118,7 +1112,6 @@ async_write_result session::write_plain(const key &id, const data_pointer &file,
 	ctl.io.user_flags = get_user_flags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
-	ctl.io.type = id.type();
 	ctl.id = id.id();
 	ctl.io.num = file.size() + remote_offset;
 
@@ -1144,7 +1137,6 @@ async_write_result session::write_commit(const key &id, const data_pointer &file
 	ctl.io.user_flags = get_user_flags();
 	ctl.io.offset = remote_offset;
 	ctl.io.size = file.size();
-	ctl.io.type = id.id().type;
 	ctl.io.num = csize;
 	ctl.id = id.id();
 
@@ -1157,7 +1149,6 @@ async_write_result session::write_cache(const key &id, const data_pointer &file,
 {
 	transform(id);
 	dnet_id raw = id.id();
-	raw.type = id.type();
 
 	struct dnet_io_control ctl;
 
@@ -1170,7 +1161,6 @@ async_write_result session::write_cache(const key &id, const data_pointer &file,
 	ctl.io.user_flags = get_user_flags();
 	ctl.io.start = timeout;
 	ctl.io.size = file.size();
-	ctl.io.type = raw.type;
 
 	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
 
@@ -1370,7 +1360,6 @@ class read_data_range_callback
 			memcpy(d->end.id, d->io.parent, DNET_ID_SIZE);
 
 			dnet_setup_id(&d->id, d->group_id, d->io.id);
-			d->id.type = d->io.type;
 		}
 
 		void do_next(error_info *error)
@@ -1776,7 +1765,6 @@ async_reply_result session::reply(const exec_context &tmp_context, const data_po
 
 	struct dnet_id id;
 	dnet_setup_id(&id, 0, s->src.id);
-	id.type = 0;
 
 	return request(&id, context);
 }
@@ -1888,7 +1876,6 @@ async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, con
 			ctl.io.flags |= get_ioflags();
 
 			dnet_setup_id(&ctl.id, 0, (unsigned char *)ios[i].id);
-			ctl.id.type = ios[i].type;
 
 			ctl.fd = -1;
 

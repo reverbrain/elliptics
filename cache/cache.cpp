@@ -213,9 +213,9 @@ class cache_t {
 
 			if (remove_from_disk) {
 				struct dnet_id raw;
+				memset(&raw, 0, sizeof(struct dnet_id));
 
 				dnet_setup_id(&raw, 0, (unsigned char *)id);
-				raw.type = -1;
 
 				dnet_remove_local(m_node, &raw);
 			}
@@ -277,9 +277,9 @@ class cache_t {
 
 					if (it->remove_from_disk()) {
 						struct dnet_id id;
+						memset(&id, 0, sizeof(struct dnet_id));
 
 						dnet_setup_id(&id, 0, (unsigned char *)it->id().id);
-						id.type = -1;
 
 						remove.push_back(id);
 					}

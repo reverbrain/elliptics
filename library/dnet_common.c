@@ -834,7 +834,6 @@ static int dnet_write_file_id_raw(struct dnet_session *s, const char *file, stru
 	ctl.io.flags = dnet_session_get_ioflags(s);
 	ctl.io.size = size;
 	ctl.io.offset = remote_offset;
-	ctl.io.type = id->type;
 	if(ctl.io.timestamp.tsec == 0 && ctl.io.timestamp.tnsec == 0)
 		dnet_current_time(&ctl.io.timestamp);
 
@@ -888,13 +887,13 @@ int dnet_write_file_id(struct dnet_session *s, const char *file, struct dnet_id 
 }
 
 int dnet_write_file(struct dnet_session *s, const char *file, const void *remote, int remote_len,
-		uint64_t local_offset, uint64_t remote_offset, uint64_t size, int type)
+		uint64_t local_offset, uint64_t remote_offset, uint64_t size)
 {
 	int err;
 	struct dnet_id id;
+	memset(&id, 0, sizeof(struct dnet_id));
 
 	dnet_transform(s, remote, remote_len, &id);
-	id.type = type;
 
 	err = dnet_write_file_id_raw(s, file, &id, local_offset, remote_offset, size);
 
@@ -999,8 +998,6 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 	ctl.io.size = io_size;
 	ctl.io.offset = io_offset;
 
-	ctl.io.type = id->type;
-
 	memcpy(ctl.io.parent, id->id, DNET_ID_SIZE);
 	memcpy(ctl.io.id, id->id, DNET_ID_SIZE);
 
@@ -1095,12 +1092,12 @@ int dnet_read_file_id(struct dnet_session *s, const char *file, struct dnet_id *
 }
 
 int dnet_read_file(struct dnet_session *s, const char *file, const void *remote, int remote_size,
-		uint64_t offset, uint64_t size, int type)
+		uint64_t offset, uint64_t size)
 {
 	struct dnet_id id;
+	memset(&id, 0, sizeof(struct dnet_id));
 
 	dnet_transform(s, remote, remote_size, &id);
-	id.type = type;
 
 	return dnet_read_file_raw(s, file, &id, offset, size);
 }
@@ -1222,7 +1219,7 @@ int dnet_send_cmd(struct dnet_session *s,
 		pthread_mutex_unlock(&n->state_lock);
 	} else {
 		struct dnet_id tmp_id;
-		tmp_id.type = 0;
+		memset(&tmp_id, 0, sizeof(struct dnet_id));
 
 		pthread_mutex_lock(&n->state_lock);
 		list_for_each_entry(g, &n->group_list, group_entry) {
@@ -1975,8 +1972,6 @@ void *dnet_read_data_wait_raw(struct dnet_session *s, struct dnet_id *id, struct
 	memcpy(&ctl.io, io, sizeof(struct dnet_io_attr));
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
 
-	ctl.id.type = io->type;
-
 	dnet_wait_get(w);
 	err = dnet_read_object(s, &ctl);
 	if (err)
@@ -2063,8 +2058,8 @@ int dnet_write_data_wait(struct dnet_session *s, struct dnet_io_control *ctl, vo
 	}
 
 	if (trans_num)
-		dnet_log(n, DNET_LOG_NOTICE, "%s: wrote: %llu bytes, type: %d, reply size: %d.\n",
-				dnet_dump_id(&ctl->id), (unsigned long long)ctl->io.size, ctl->io.type, wc->size);
+		dnet_log(n, DNET_LOG_NOTICE, "%s: wrote: %llu bytes, reply size: %d.\n",
+				dnet_dump_id(&ctl->id), (unsigned long long)ctl->io.size, wc->size);
 	err = trans_num;
 
 	*result = wc->reply;

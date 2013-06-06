@@ -99,34 +99,32 @@ static bp::list convert_to_list(const unsigned char *src, unsigned int size)
 }
 
 struct elliptics_id {
-	elliptics_id() : group_id(0), type(0) {}
-	elliptics_id(bp::list id_, int group_, int type_) : id(id_), group_id(group_), type(type_) {}
+	elliptics_id() : group_id(0) {}
+	elliptics_id(bp::list id_, int group_) : id(id_), group_id(group_) {}
+	elliptics_id(bp::list id_, int group_, int) : id(id_), group_id(group_) {}
 
 	elliptics_id(struct dnet_id &dnet) {
 		id = convert_to_list(dnet.id, sizeof(dnet.id));
 		group_id = dnet.group_id;
-		type = dnet.type;
 	}
 
 	elliptics_id(struct dnet_raw_id &dnet) {
 		id = convert_to_list(dnet.id, sizeof(dnet.id));
 		group_id = 0;
-		type = 0;
 	}
 
 	struct dnet_id to_dnet() const {
 		struct dnet_id dnet;
-		convert_from_list(id, dnet.id, sizeof(dnet.id));
+		memset(&dnet, 0, sizeof(struct dnet_id));
 
+		convert_from_list(id, dnet.id, sizeof(dnet.id));
 		dnet.group_id = group_id;
-		dnet.type = type;
 
 		return dnet;
 	}
 
 	bp::list	id;
 	uint32_t	group_id;
-	int		type;
 };
 
 struct elliptics_time {
@@ -152,14 +150,13 @@ struct elliptics_time {
 
 struct elliptics_range {
 	elliptics_range() : offset(0), size(0),
-		limit_start(0), limit_num(0), ioflags(0), group_id(0), type(0) {}
+		limit_start(0), limit_num(0), ioflags(0), group_id(0) {}
 
 	bp::list	start, end;
 	uint64_t	offset, size;
 	uint64_t	limit_start, limit_num;
 	uint32_t	ioflags;
 	int		group_id;
-	int		type;
 };
 
 static void elliptics_extract_range(const struct elliptics_range &r, struct dnet_io_attr &io)
@@ -172,7 +169,6 @@ static void elliptics_extract_range(const struct elliptics_range &r, struct dnet
 	io.offset = r.offset;
 	io.start = r.limit_start;
 	io.num = r.limit_num;
-	io.type = r.type;
 }
 
 class elliptics_config {
@@ -297,8 +293,8 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		}
 
 		void read_file_by_data_transform(const std::string &remote, const std::string &file,
-							uint64_t offset, uint64_t size,	int type) {
-			read_file(key(remote, type), file, offset, size);
+							uint64_t offset, uint64_t size) {
+			read_file(key(remote), file, offset, size);
 		}
 
 		void write_file_by_id(struct elliptics_id &id, const std::string &file,
@@ -308,9 +304,8 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		}
 
 		void write_file_by_data_transform(const std::string &remote, const std::string &file,
-								uint64_t local_offset, uint64_t offset, uint64_t size,
-								int type) {
-			write_file(key(remote, type), file, local_offset, offset, size);
+								uint64_t local_offset, uint64_t offset, uint64_t size) {
+			write_file(key(remote), file, local_offset, offset, size);
 		}
 
 		std::string read_data_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size) {
@@ -318,9 +313,8 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return read_data(raw, offset, size).get()[0].file().to_string();
 		}
 
-		std::string read_data_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
-							int type) {
-			return read_data(key(remote, type), offset, size).get()[0].file().to_string();
+		std::string read_data_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size) {
+			return read_data(key(remote), offset, size).get()[0].file().to_string();
 		}
 
 		bp::list prepare_latest_by_id(const struct elliptics_id &id, const bp::api::object &gl) {
@@ -355,9 +349,8 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return read_latest(raw, offset, size).get()[0].file().to_string();
 		}
 
-		std::string read_latest_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size,
-									int type) {
-			return read_latest(key(remote, type), offset, size).get()[0].file().to_string();
+		std::string read_latest_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size) {
+			return read_latest(key(remote), offset, size).get()[0].file().to_string();
 		}
 
 		std::string convert_to_string(const sync_write_result &result)
@@ -377,15 +370,13 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return convert_to_string(write_data(raw, data, remote_offset));
 		}
 
-		std::string write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset,
-								int type) {
-			return convert_to_string(write_data(key(remote, type), data, remote_offset));
+		std::string write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset) {
+			return convert_to_string(write_data(key(remote), data, remote_offset));
 		}
 
 		std::string write_cache_by_id(const struct elliptics_id &id, const std::string &data,
 							    long timeout) {
 			struct dnet_id raw = id.to_dnet();
-			raw.type = 0;
 			return convert_to_string(write_cache(raw, data, timeout));
 		}
 
@@ -508,9 +499,8 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		std::string exec_name_by_name(const std::string &remote, const std::string &event, const std::string &data) {
 			struct dnet_id raw;
+			memset(&raw, 0, sizeof(struct dnet_id));
 			transform(remote, raw);
-			raw.type = 0;
-			raw.group_id = 0;
 
 			return exec_name(raw, event, data);
 		}
@@ -521,8 +511,8 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			remove(raw).wait();
 		}
 
-		void remove_by_name(const std::string &remote, int type) {
-			remove(key(remote, type)).wait();
+		void remove_by_name(const std::string &remote) {
+			remove(key(remote)).wait();
 		}
 
 		struct dnet_id_comparator
@@ -924,7 +914,7 @@ struct id_pickle : bp::pickle_suite
 
 	static boost::python::tuple getstate(const elliptics_id& id)
 	{
-		return bp::make_tuple(id.id, id.group_id, id.type);
+		return bp::make_tuple(id.id, id.group_id);
 	}
 
 	static void setstate(elliptics_id& id, boost::python::tuple state)
@@ -941,7 +931,6 @@ struct id_pickle : bp::pickle_suite
 
 		id.id = bp::extract<bp::list>(state[0]);
 		id.group_id = bp::extract<uint32_t>(state[1]);
-		id.type = bp::extract<int>(state[2]);
 	}
 };
 
@@ -991,7 +980,6 @@ BOOST_PYTHON_MODULE(elliptics) {
 	bp::class_<elliptics_id>("Id", bp::init<bp::list, int, int>())
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
-		.def_readwrite("type", &elliptics_id::type)
 		.def_pickle(id_pickle())
 	;
 
@@ -1042,7 +1030,6 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def_readwrite("size", &elliptics_range::size)
 		.def_readwrite("ioflags", &elliptics_range::ioflags)
 		.def_readwrite("group_id", &elliptics_range::group_id)
-		.def_readwrite("type", &elliptics_range::type)
 		.def_readwrite("limit_start", &elliptics_range::limit_start)
 		.def_readwrite("limit_num", &elliptics_range::limit_num)
 	;

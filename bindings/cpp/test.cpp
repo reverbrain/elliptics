@@ -50,15 +50,13 @@ static void test_prepare_commit(session &s, int psize, int csize)
 		uint64_t offset = 0;
 		uint64_t total_size_to_reserve = 1024;
 
-		int column = 0;
-
-		s.write_prepare(key(remote, column), prepare_data, offset, total_size_to_reserve).wait();
+		s.write_prepare(key(remote), prepare_data, offset, total_size_to_reserve).wait();
 		offset += prepare_data.size();
 
 		written += prepare_data;
 
 		for (int i = 0; i < 3; ++i) {
-			s.write_plain(key(remote, column), plain_data[i], offset).wait();
+			s.write_plain(key(remote), plain_data[i], offset).wait();
 			offset += plain_data[i].size();
 
 			written += plain_data[i];
@@ -67,9 +65,9 @@ static void test_prepare_commit(session &s, int psize, int csize)
 		/* append data first so that subsequent written.size() call returned real size of the written data */
 		written += commit_data;
 
-		s.write_commit(key(remote, column), commit_data, offset, written.size()).wait();
+		s.write_commit(key(remote), commit_data, offset, written.size()).wait();
 
-		ret = s.read_data(key(remote, column), 0, 0).get()[0].file().to_string();
+		ret = s.read_data(key(remote), 0, 0).get()[0].file().to_string();
 		std::cerr << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
 //	} catch (const std::exception &e) {
 //		std::cerr << "PREPARE/COMMIT test failed: " << e.what() << std::endl;
@@ -126,7 +124,6 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 	struct dnet_id begin;
 	memset(&begin, 0x13, sizeof(begin));
 	begin.group_id = group_id;
-	begin.type = 0;
 	begin.id[number_index] = 0;
 
 	struct dnet_id end = begin;
@@ -226,9 +223,9 @@ static void test_lookup(session &s, std::vector<int> &groups)
 		test_lookup_parse(key, lret);
 
 		struct dnet_id id;
+		memset(&id, 0, sizeof(struct dnet_id));
+
 		s.transform(key, id);
-		id.group_id = 0;
-		id.type = 0;
 
 		sync_lookup_result lret2 = s.lookup(key);
 		test_lookup_parse(key, lret2);
@@ -298,7 +295,6 @@ static void test_commit(session &s)
 		ctl.io.user_flags = 0;
 		ctl.io.offset = 0;
 		ctl.io.size = data.size();
-		ctl.io.type = 0;
 		ctl.io.num = data.size();
 		ctl.fd = -1;
 
@@ -359,43 +355,6 @@ static void test_cas(session &s)
 	}
 }
 
-static void read_column_raw(session &s, const std::string &remote, const std::string &data, int column)
-{
-	read_result_entry ret;
-	try {
-		ret = s.read_data(key(remote, column), 0, 0).get()[0];
-	} catch (const std::exception &e) {
-		std::cerr << "COLUMN-" << column << " read test failed: " << e.what() << std::endl;
-		throw;
-	}
-	std::string ret_str = ret.file().to_string();
-
-	std::cerr << "read-column-" << column << ": " << remote << " : " << ret_str << std::endl;
-	if (ret_str != data) {
-		throw std::runtime_error("column test failed");
-	}
-}
-
-static void column_test(session &s)
-{
-	std::string remote = "some-key-1";
-
-	std::string data0 = "some-compressed-data-in-column-0";
-	std::string data1 = "some-data-in-column-2";
-	std::string data2 = "some-data-in-column-3";
-
-	s.set_ioflags(DNET_IO_FLAGS_COMPRESS);
-	s.write_data(key(remote, 0), data0, 0).wait();
-	s.set_ioflags(0);
-
-	s.write_data(key(remote, 2), data1, 0).wait();
-	s.write_data(key(remote, 3), data2, 0).wait();
-
-	read_column_raw(s, remote, data0, 0);
-	read_column_raw(s, remote, data1, 2);
-	read_column_raw(s, remote, data2, 3);
-}
-
 enum { BulkTestCount = 10 };
 
 static void test_bulk_write(session &s)
@@ -418,7 +377,6 @@ static void test_bulk_write(session &s)
 
 			s.transform(os.str(), id);
 			memcpy(io.id, id.id, DNET_ID_SIZE);
-			io.type = id.type;
 			io.size = os.str().size();
 
 			ios.push_back(io);
@@ -431,7 +389,6 @@ static void test_bulk_write(session &s)
 		std::cerr << "ret size = " << ret.size() << std::endl;
 
 		s.set_ioflags(DNET_IO_FLAGS_NOCSUM);
-		int type = 0;
 
 		uint64_t offset = 0;
 		uint64_t size = 0;
@@ -441,7 +398,7 @@ static void test_bulk_write(session &s)
 			std::ostringstream os;
 
 			os << "bulk_write" << i;
-			std::cerr << os.str() << ": " << s.read_data(key(os.str(), type), offset, size).get()[0].file().to_string() << std::endl;
+			std::cerr << os.str() << ": " << s.read_data(key(os.str()), offset, size).get()[0].file().to_string() << std::endl;
 		}
 	} catch (const std::exception &e) {
 		std::cerr << "BULK WRITE test failed: " << e.what() << std::endl;
@@ -535,7 +492,6 @@ static void test_cache_write(session &s, int num)
 
 			s.transform(os.str(), id);
 			memcpy(io.id, id.id, DNET_ID_SIZE);
-			io.type = id.type;
 			io.size = os.str().size();
 
 			ios.push_back(io);
@@ -565,14 +521,12 @@ static void test_cache_read(session &s, int num)
 
 		const std::string id(os.str());
 
-		int type = 0;
-
 		uint64_t offset = 0;
 		uint64_t size = 0;
 
 		s.set_ioflags(DNET_IO_FLAGS_NOCSUM);
 		try {
-			s.read_data(key(id, type), offset, size).get()[0].file().to_string();
+			s.read_data(key(id), offset, size).get()[0].file().to_string();
 		} catch (const std::exception &e) {
 			std::cerr << "could not perform read : " << id << ": " << e.what() << std::endl;
 			throw;
@@ -770,7 +724,6 @@ int main(int argc, char *argv[])
 
 		s.stat_log();
 
-		column_test(s);
 		s.set_ioflags(0);
 
 		test_commit(s);
