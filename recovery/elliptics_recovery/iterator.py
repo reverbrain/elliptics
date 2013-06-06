@@ -21,7 +21,8 @@ class IteratorResult(object):
         Provides IteratorResultContainer wrapper.
         """
 
-    def __init__(self, eid=None,
+    def __init__(self,
+                 eid=None,
                  id_range=IdRange(None, None),
                  address=None,
                  container=None,
