@@ -919,7 +919,6 @@ struct id_pickle : bp::pickle_suite
 
 	static void setstate(elliptics_id& id, boost::python::tuple state)
 	{
-		using namespace boost::python;
 		if (len(state) != 2)
 		{
 			PyErr_SetObject(PyExc_ValueError,
@@ -948,7 +947,6 @@ struct time_pickle : bp::pickle_suite
 
 	static void setstate(elliptics_time& time, boost::python::tuple state)
 	{
-		using namespace boost::python;
 		if (len(state) != 2)
 		{
 			PyErr_SetObject(PyExc_ValueError,
