@@ -560,7 +560,7 @@ err_out_exit:
 	return err;
 }
 
-int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err)
+int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int recursive)
 {
 	if (st && cmd && (cmd->flags & DNET_FLAGS_NEED_ACK)) {
 		struct dnet_node *n = st->n;
@@ -571,7 +571,11 @@ int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err)
 		ack.cmd = cmd->cmd;
 		ack.trans = cmd->trans | DNET_TRANS_REPLY;
 		ack.size = 0;
-		ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
+		// In recursive mode keep DNET_FLAGS_MORE flag
+		if (recursive)
+			ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK);
+		else
+			ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
 		ack.status = err;
 
 		dnet_log(n, DNET_LOG_NOTICE, "%s: %s: ack -> %s: trans: %llu, flags: %llx, status: %d.\n",
@@ -1036,7 +1040,7 @@ static int dnet_cmd_bulk_read(struct dnet_net_state *st, struct dnet_cmd *cmd, v
 		if (i + 1 == count)
 			read_cmd.flags &= ~DNET_FLAGS_MORE;
 
-		ret = dnet_process_cmd_raw(st, &read_cmd, &ios[i]);
+		ret = dnet_process_cmd_raw(st, &read_cmd, &ios[i], 1);
 		dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing BULK_READ.READ for %d/%d command, err: %d\n",
 			dnet_dump_id(&cmd->id), (int) i, (int) count, ret);
 
@@ -1052,7 +1056,7 @@ static int dnet_cmd_bulk_read(struct dnet_net_state *st, struct dnet_cmd *cmd, v
 	return err;
 }
 
-int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data)
+int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int recursive)
 {
 	int err = 0;
 	unsigned long long size = cmd->size;
@@ -1256,7 +1260,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), tid,
 			(unsigned long long)cmd->flags, diff, err);
 
-	err = dnet_send_ack(st, cmd, err);
+	err = dnet_send_ack(st, cmd, err, recursive);
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK))
 		dnet_opunlock(n, &cmd->id);

@@ -722,7 +722,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 			(st->rcv_cmd.flags & DNET_FLAGS_DIRECT)) {
 		dnet_state_put(forward_state);
 
-		err = dnet_process_cmd_raw(st, cmd, r->data);
+		err = dnet_process_cmd_raw(st, cmd, r->data, 0);
 		goto out;
 	}
 
