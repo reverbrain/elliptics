@@ -395,21 +395,21 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return lookup_address(raw, raw.group_id);
 		}
 
-		boost::python::tuple parse_lookup(const lookup_result_entry &lookup) {
+		bp::tuple parse_lookup(const lookup_result_entry &lookup) {
 			struct dnet_addr *addr = lookup.address();
 			struct dnet_file_info *info = lookup.file_info();
 
 			std::string address(dnet_server_convert_dnet_addr(addr));
 			int port = dnet_server_convert_port((struct sockaddr *)addr->addr, addr->addr_len);
 
-			return boost::python::make_tuple(address, port, info->size);
+			return bp::make_tuple(address, port, info->size);
 		}
 
-		boost::python::tuple lookup_by_data_transform(const std::string &remote) {
+		bp::tuple lookup_by_data_transform(const std::string &remote) {
 			return parse_lookup(lookup(remote).get()[0]);
 		}
 
-		boost::python::tuple lookup_by_id(const struct elliptics_id &id) {
+		bp::tuple lookup_by_id(const struct elliptics_id &id) {
 			struct dnet_id raw = id.to_dnet();
 
 			return parse_lookup(lookup(raw).get()[0]);
@@ -428,14 +428,14 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return status;
 		}
 
-		boost::python::list read_data_range(const struct elliptics_range &r) {
+		bp::list read_data_range(const struct elliptics_range &r) {
 			struct dnet_io_attr io;
 			elliptics_extract_range(r, io);
 
 			std::vector<std::string> ret;
 			ret = session::read_data_range_raw(io, r.group_id);
 
-			boost::python::list l;
+			bp::list l;
 
 			for (size_t i = 0; i < ret.size(); ++i) {
 				l.append(ret[i]);
@@ -444,12 +444,12 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return l;
 		}
 
-		boost::python::list get_routes() {
+		bp::list get_routes() {
 
 			std::vector<std::pair<struct dnet_id, struct dnet_addr> > routes;
 			std::vector<std::pair<struct dnet_id, struct dnet_addr> >::iterator it;
 
-			boost::python::list res;
+			bp::list res;
 
 			routes = session::get_routes();
 
@@ -457,7 +457,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 				struct elliptics_id id(it->first);
 				std::string address(dnet_server_convert_dnet_addr(&(it->second)));
 
-				res.append(boost::python::make_tuple(id, address));
+				res.append(bp::make_tuple(id, address));
 			}
 
 			return res;
@@ -907,17 +907,17 @@ void iterator_container_diff(iterator_result_container &left,
 
 struct id_pickle : bp::pickle_suite
 {
-	static boost::python::tuple getinitargs(const elliptics_id& id)
+	static bp::tuple getinitargs(const elliptics_id& id)
 	{
 		return getstate(id);
 	}
 
-	static boost::python::tuple getstate(const elliptics_id& id)
+	static bp::tuple getstate(const elliptics_id& id)
 	{
 		return bp::make_tuple(id.id, id.group_id);
 	}
 
-	static void setstate(elliptics_id& id, boost::python::tuple state)
+	static void setstate(elliptics_id& id, bp::tuple state)
 	{
 		if (len(state) != 2)
 		{
@@ -935,17 +935,17 @@ struct id_pickle : bp::pickle_suite
 
 struct time_pickle : bp::pickle_suite
 {
-	static boost::python::tuple getinitargs(const elliptics_time& time)
+	static bp::tuple getinitargs(const elliptics_time& time)
 	{
 		return getstate(time);
 	}
 
-	static boost::python::tuple getstate(const elliptics_time& time)
+	static bp::tuple getstate(const elliptics_time& time)
 	{
 		return bp::make_tuple(time.m_tsec, time.m_tnsec);
 	}
 
-	static void setstate(elliptics_time& time, boost::python::tuple state)
+	static void setstate(elliptics_time& time, bp::tuple state)
 	{
 		if (len(state) != 2)
 		{
