@@ -43,7 +43,7 @@ def main():
 		n.add_groups(groups)
 		add_remotes(n)
 
-		id = Id([1, 2, 3, 4], 3, 0)
+		id = Id([1, 2, 3, 4], 3)
 
 		aflags = 16 # no locks
 

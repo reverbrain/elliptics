@@ -26,7 +26,7 @@ if __name__ == '__main__':
 
     ranges = [range([0] * 64, [100] + [255] * 63), range([200] + [0] * 63, [220] + [255] * 63)]
 
-    eid = elliptics.Id([0] * 64, 2, 0)
+    eid = elliptics.Id([0] * 64, 2)
     iterator = s.start_iterator(eid, ranges, \
                                 elliptics.iterator_types.network, \
                                 elliptics.iterator_flags.key_range \

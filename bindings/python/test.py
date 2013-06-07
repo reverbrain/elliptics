@@ -29,7 +29,7 @@ try:
 	except Exception as e:
 		print "Failed to lookup in group", group, ":", e
 
-	id = Id([1, 2, 3, 4], 1, 0)
+	id = Id([1, 2, 3, 4], 1)
 
 	# write data by ID into specified group (# 2)
 	# read data from the same group (# 2)
