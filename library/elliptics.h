@@ -306,7 +306,7 @@ struct dnet_transform
 {
 	void			*priv;
 
-	int 			(* transform)(void *priv, const void *src, uint64_t size,
+	int 			(* transform)(void *priv, struct dnet_session *s, const void *src, uint64_t size,
 					void *dst, unsigned int *dsize, unsigned int flags);
 };
 
@@ -495,8 +495,8 @@ struct dnet_session {
 	struct dnet_id		direct_id;
 
 	/* Namespace */
-	int			has_ns;
-	struct dnet_raw_id	ns;
+	char			*ns;
+	int			nsize;
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)
