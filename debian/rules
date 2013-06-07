@@ -3,25 +3,30 @@
 include /usr/share/cdbs/1/rules/debhelper.mk
 include /usr/share/cdbs/1/class/cmake.mk
 
+ELLIPTICS_VERSION := "$(shell dpkg-parsechangelog | sed -n -r -e 's/^Version: ([^.]+\.[^.]+\.[^.]).*/\1/p')"
+PYTHON_LIB_PATH := "$(shell python -c 'from distutils import sysconfig; print sysconfig.get_python_lib(),')"
+
 DEB_CMAKE_EXTRA_FLAGS := -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 DEB_DH_STRIP_ARGS := --dbg-package=elliptics-dbg
-DEB_DH_MAKESHLIBS_ARGS_elliptics := -V "elliptics (>= $(shell head -n1 debian/changelog |  sed -e 's/.*[(]//' | sed -e 's/[)].*//' | tr -d '\n' | cut -d . -f 1-3))"
-DEB_DH_MAKESHLIBS_ARGS_elliptics-client := -V "elliptics-client (>= $(shell head -n1 debian/changelog |  sed -e 's/.*[(]//' | sed -e 's/[)].*//' | tr -d '\n' | cut -d . -f 1-3))"
+DEB_DH_MAKESHLIBS_ARGS_elliptics := -V "elliptics (>= $(ELLIPTICS_VERSION))"
+DEB_DH_MAKESHLIBS_ARGS_elliptics-client := -V "elliptics-client (>= $(ELLIPTICS_VERSION))"
 DEB_COMPRESS_EXCLUDE := .conf
+
+DEB_BUILD_PARALLEL = yes
+DEB_PARALLEL_JOBS ?= $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)
 
 DEB_PYTHON_SYSTEM := pycentral
 DEB_PYTHON_MODULE_PACKAGES := elliptics-client
 export DH_PYCENTRAL=nomove
 
-DEB_PYTHON_INSTALL_ARGS_ALL = --install-layout=deb --install-lib=`python -c "from distutils import sysconfig; print sysconfig.get_python_lib(),"`
+DEB_PYTHON_INSTALL_ARGS_ALL = --install-layout=deb --install-lib=$(PYTHON_LIB_PATH)
 include /usr/share/cdbs/1/class/python-distutils.mk
-
 include /usr/share/cdbs/1/class/python-module.mk
 
 binary-install/elliptics-client::
 	cp bindings/python/*.py $(DEB_BUILDDIR)/bindings/python/
-	mv $(cdbs_python_destdir)/usr/lib/python*/site-packages/* $(cdbs_python_destdir)/../elliptics-client/`python -c "from distutils import sysconfig; print sysconfig.get_python_lib(),"`/; echo -n
+	mv $(cdbs_python_destdir)/usr/lib/python*/site-packages/* $(cdbs_python_destdir)/../elliptics-client/$(PYTHON_LIB_PATH)/; echo -n
 	rm -rf $(cdbs_python_destdir)/usr/lib/python*/site-packages; echo -n
 
 

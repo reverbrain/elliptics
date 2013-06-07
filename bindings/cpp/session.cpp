@@ -420,7 +420,7 @@ void session::set_direct_id(dnet_addr remote_addr)
 	std::vector<std::pair<struct dnet_id, struct dnet_addr> > routes = get_routes();
 
 	if (routes.empty())
-		throw ioremap::elliptics::error(-ENOENT, "Route list is empty");
+		throw ioremap::elliptics::error(-ENXIO, "Route list is empty");
 
 	for (auto it = routes.begin(); it != routes.end(); ++it) {
 		if (dnet_addr_equal(&remote_addr, &it->second)) {

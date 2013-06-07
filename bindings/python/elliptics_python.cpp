@@ -914,16 +914,16 @@ struct id_pickle : bp::pickle_suite
 
 	static boost::python::tuple getstate(const elliptics_id& id)
 	{
-		return bp::make_tuple(id.id, id.group_id, 0);
+		return bp::make_tuple(id.id, id.group_id);
 	}
 
 	static void setstate(elliptics_id& id, boost::python::tuple state)
 	{
 		using namespace boost::python;
-		if (len(state) != 3)
+		if (len(state) != 2)
 		{
 			PyErr_SetObject(PyExc_ValueError,
-				("expected 3-item tuple in call to __setstate__; got %s"
+				("expected 2-item tuple in call to __setstate__; got %s"
 					% state).ptr()
 				);
 			bp::throw_error_already_set();
@@ -978,7 +978,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 	bp::register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
 
 	bp::class_<elliptics_id>("Id")
-		.def(bp::init<bp::list, int, int>(bp::args("key", "group_id", "type")))
+		.def(bp::init<bp::list, int>(bp::args("key", "group_id")))
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_pickle(id_pickle())

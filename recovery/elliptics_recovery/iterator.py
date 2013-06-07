@@ -21,7 +21,8 @@ class IteratorResult(object):
         Provides IteratorResultContainer wrapper.
         """
 
-    def __init__(self, eid=None,
+    def __init__(self,
+                 eid=None,
                  id_range=IdRange(None, None),
                  address=None,
                  container=None,
@@ -114,7 +115,6 @@ class IteratorResult(object):
                                                                            address=d.address,
                                                                            id_range=d.id_range,
                                                                            eid=d.eid,
-                                                                           is_sorted=True,
                                                                            tmp_dir=tmp_dir,
                                                                            leave_file=True
                                                                            )
@@ -155,7 +155,7 @@ class IteratorResult(object):
         return result
 
     @classmethod
-    def load_filename(cls, filename, is_sorted, tmp_dir="", **kwargs):
+    def load_filename(cls, filename, is_sorted=False, tmp_dir="", **kwargs):
         """
         Creates iterator result from filename
         """
@@ -197,7 +197,7 @@ class Iterator(object):
         self.session.set_groups([group])
 
     def start(self,
-              eid=elliptics.Id(IdRange.ID_MIN, 0, 0),
+              eid=elliptics.Id(IdRange.ID_MIN, 0),
               itype=elliptics.iterator_types.network,
               flags=elliptics.iterator_flags.key_range | elliptics.iterator_flags.ts_range,
               key_ranges=(IdRange(IdRange.ID_MIN, IdRange.ID_MAX),),

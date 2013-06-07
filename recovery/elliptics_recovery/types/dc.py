@@ -150,24 +150,24 @@ def recover(ctx, splitted_results, stats):
 
     log.info("Recovering {0} keys".format(sum(len(d) for d in splitted_results)))
 
-    local_node = elliptics_create_node(address=ctx.address, elog=ctx.elog, flags=2)
+    local_node = elliptics_create_node(address=ctx.address, elog=ctx.elog)
     log.debug("Creating direct session: {0}".format(ctx.address))
     local_session = elliptics_create_session(node=local_node,
                                              group=ctx.group_id,
-                                             cflags=elliptics.command_flags.direct,
                                              )
+    local_session.set_direct_id(*ctx.address)
 
     for diff in splitted_results:
 
-        remote_node = elliptics_create_node(address=diff.address, elog=ctx.elog, flags=2)
+        remote_node = elliptics_create_node(address=diff.address, elog=ctx.elog)
         log.debug("Creating direct session: {0}".format(diff.address))
         remote_session = elliptics_create_session(node=remote_node,
                                                   group=diff.eid.group_id,
-                                                  cflags=elliptics.command_flags.direct,
                                                   )
+        remote_session.set_direct_id(*diff.address)
 
         for batch_id, batch in groupby(enumerate(diff), key=lambda x: x[0] / ctx.batch_size):
-            keys = [elliptics.Id(r.key, diff.eid.group_id, 0) for _, r in batch]
+            keys = [elliptics.Id(r.key, diff.eid.group_id) for _, r in batch]
             successes, failures = recover_keys(ctx, diff.address, diff.eid.group_id, keys, local_session, remote_session, stats)
             stats.counter.recovered_keys += successes
             stats.counter.recovered_keys -= failures
