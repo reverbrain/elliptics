@@ -220,85 +220,147 @@ std::string create_data()
 	return str;
 }
 
+typedef std::map<std::string, std::map<std::string, std::string> > data_cache;
+
+void test_1_update(session &sess, int iteration, data_cache &cache)
+{
+	const std::string &object = objects[rand() % OBJECT_COUNT];
+
+	std::vector<std::string> object_tags = tags;
+	const size_t count = rand() % TAGS_COUNT;
+	std::random_shuffle(object_tags.begin(), object_tags.end());
+	object_tags.resize(count);
+	std::vector<data_pointer> object_datas;
+	object_datas.resize(count);
+	auto &entry = cache[object];
+	entry.clear();
+	for (size_t j = 0; j < count; ++j) {
+		std::string data = create_data();
+		entry[object_tags[j]] = data;
+		object_datas[j] = data_pointer::copy(data.c_str(), data.size());
+	}
+
+	std::cerr << iteration << " update: " << object << " to " << sorted(object_tags) << std::endl;
+
+	int result = 0;
+	try {
+		sess.update_indexes(object, object_tags, object_datas).get();
+	} catch (error &e) {
+		std::cerr << e.what() << std::endl;
+		result = e.error_code();
+	} catch (std::bad_alloc &e) {
+		result = -ENOMEM;
+	}
+
+	assert_perror(result);
+}
+
+void test_1_find_all(session &sess, int iteration, const data_cache &cache)
+{
+	std::vector<std::string> object_tags = tags;
+	const size_t count = rand() % TAGS_COUNT;
+	std::random_shuffle(object_tags.begin(), object_tags.end());
+	object_tags.resize(count);
+
+	std::cerr << iteration << " find all: " << sorted(object_tags) << std::endl;
+
+	std::vector<find_indexes_result_entry> results;
+	int result = 0;
+	try {
+		results = sess.find_all_indexes(object_tags);
+	} catch (error &e) {
+		result = e.error_code();
+	} catch (std::bad_alloc &e) {
+		result = -ENOMEM;
+	}
+
+	if (result != -2)
+		assert_perror(result);
+
+	std::vector<std::pair<std::string, std::vector<std::pair<std::string, std::string> > > > valid_results;
+	for (auto it = cache.begin(); it != cache.end(); ++it) {
+		std::pair<std::string, std::vector<std::pair<std::string, std::string> > > entry;
+		const std::map<std::string, std::string> &tags = it->second;
+		entry.first = it->first;
+		bool ok = !tags.empty() && !object_tags.empty();
+		for (auto jt = object_tags.begin(); jt != object_tags.end(); ++jt) {
+			auto kt = tags.find(*jt);
+			if (kt == tags.end()) {
+				ok = false;
+				break;
+			}
+			entry.second.push_back(std::make_pair(kt->first, kt->second));
+		}
+		if (ok) {
+			valid_results.push_back(std::move(entry));
+		}
+	}
+	std::string valid_results_str = to_string(sorted(valid_results));
+	std::string results_str = to_string(sorted(results));
+	std::cerr << valid_results_str << " vs " << results_str << std::endl;
+	assert(valid_results.size() == results.size());
+	assert(valid_results_str == results_str);
+}
+
+void test_1_find_any(session &sess, int iteration, const data_cache &cache)
+{
+	std::vector<std::string> object_tags = tags;
+	const size_t count = rand() % TAGS_COUNT;
+	std::random_shuffle(object_tags.begin(), object_tags.end());
+	object_tags.resize(count);
+
+	std::cerr << iteration << " find any: " << sorted(object_tags) << std::endl;
+
+	std::vector<find_indexes_result_entry> results;
+	int result = 0;
+	try {
+		results = sess.find_any_indexes(object_tags);
+	} catch (error &e) {
+		result = e.error_code();
+	} catch (std::bad_alloc &e) {
+		result = -ENOMEM;
+	}
+
+	if (result != -2)
+		assert_perror(result);
+
+	std::vector<std::pair<std::string, std::vector<std::pair<std::string, std::string> > > > valid_results;
+	for (auto it = cache.begin(); it != cache.end(); ++it) {
+		std::pair<std::string, std::vector<std::pair<std::string, std::string> > > entry;
+		const std::map<std::string, std::string> &tags = it->second;
+		entry.first = it->first;
+//		bool ok = !tags.empty() && !object_tags.empty();
+		bool ok = false;
+		for (auto jt = object_tags.begin(); jt != object_tags.end(); ++jt) {
+			auto kt = tags.find(*jt);
+			if (kt == tags.end()) {
+//				ok = false;
+				continue;
+			}
+			ok = true;
+			entry.second.push_back(std::make_pair(kt->first, kt->second));
+		}
+		if (ok) {
+			valid_results.push_back(std::move(entry));
+		}
+	}
+	std::string valid_results_str = to_string(sorted(valid_results));
+	std::string results_str = to_string(sorted(results));
+	std::cerr << valid_results_str << " vs " << results_str << std::endl;
+	assert(valid_results.size() == results.size());
+	assert(valid_results_str == results_str);
+}
+
 void test_1(session &sess)
 {
-	std::map<std::string, std::map<std::string, std::string> > cache;
+	data_cache cache;
 	for (size_t i = 0; i < 10000; ++i) {
 		const bool update = (rand() & 1);
 		if (update) {
-			const std::string &object = objects[rand() % OBJECT_COUNT];
-
-			std::vector<std::string> object_tags = tags;
-			const size_t count = rand() % TAGS_COUNT;
-			std::random_shuffle(object_tags.begin(), object_tags.end());
-			object_tags.resize(count);
-			std::vector<data_pointer> object_datas;
-			object_datas.resize(count);
-			auto &entry = cache[object];
-			entry.clear();
-			for (size_t j = 0; j < count; ++j) {
-				std::string data = create_data();
-				entry[object_tags[j]] = data;
-				object_datas[j] = data_pointer::copy(data.c_str(), data.size());
-			}
-
-			std::cerr << i << " update: " << object << " to " << sorted(object_tags) << std::endl;
-
-			int result = 0;
-			try {
-				sess.update_indexes(object, object_tags, object_datas).get();
-			} catch (error &e) {
-				std::cerr << e.what() << std::endl;
-				result = e.error_code();
-			} catch (std::bad_alloc &e) {
-				result = -ENOMEM;
-			}
-
-			assert_perror(result);
+			test_1_update(sess, i, cache);
 		} else { // find
-			std::vector<std::string> object_tags = tags;
-			const size_t count = rand() % TAGS_COUNT;
-			std::random_shuffle(object_tags.begin(), object_tags.end());
-			object_tags.resize(count);
-
-			std::cerr << i << " find: " << sorted(object_tags) << std::endl;
-
-			std::vector<find_indexes_result_entry> results;
-			int result = 0;
-			try {
-				results = sess.find_indexes(object_tags);
-			} catch (error &e) {
-				result = e.error_code();
-			} catch (std::bad_alloc &e) {
-				result = -ENOMEM;
-			}
-
-			if (result != -2)
-				assert_perror(result);
-
-			std::vector<std::pair<std::string, std::vector<std::pair<std::string, std::string> > > > valid_results;
-			for (auto it = cache.begin(); it != cache.end(); ++it) {
-				std::pair<std::string, std::vector<std::pair<std::string, std::string> > > entry;
-				const std::map<std::string, std::string> &tags = it->second;
-				entry.first = it->first;
-				bool ok = !tags.empty() && !object_tags.empty();
-				for (auto jt = object_tags.begin(); jt != object_tags.end(); ++jt) {
-					auto kt = tags.find(*jt);
-					if (kt == tags.end()) {
-						ok = false;
-						break;
-					}
-					entry.second.push_back(std::make_pair(kt->first, kt->second));
-				}
-				if (ok) {
-					valid_results.push_back(entry);
-				}
-			}
-			std::string valid_results_str = to_string(sorted(valid_results));
-			std::string results_str = to_string(sorted(results));
-			std::cerr << valid_results_str << " vs " << results_str << std::endl;
-			assert(valid_results.size() == results.size());
-			assert(valid_results_str == results_str);
+			test_1_find_all(sess, i, cache);
+			test_1_find_any(sess, i, cache);
 		}
 //		std::cerr << "cache: " << cache << std::endl;
 	}

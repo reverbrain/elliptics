@@ -231,7 +231,7 @@ int main(int argc, char *argv[])
 			std::vector<find_indexes_result_entry> results;
 			int result = 0;
 			try {
-				results = s.find_indexes(indexes);
+				results = s.find_all_indexes(indexes);
 			} catch (error &e) {
 				result = e.error_code();
 			} catch (std::bad_alloc &e) {
