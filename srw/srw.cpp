@@ -209,7 +209,7 @@ class dnet_upstream_t: public cocaine::api::stream_t
 					dnet_send_reply(m_state, &m_cmd, (void *)reply, size, !completed);
 				} else if (completed) {
 					m_cmd.flags |= DNET_FLAGS_NEED_ACK;
-					dnet_send_ack(m_state, &m_cmd, m_error);
+					dnet_send_ack(m_state, &m_cmd, m_error, 0);
 				}
 			}
 		}

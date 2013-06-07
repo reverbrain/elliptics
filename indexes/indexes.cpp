@@ -103,7 +103,7 @@ class local_session
 			cmd.flags |= DNET_FLAGS_NOLOCK;
 			cmd.size = sizeof(io);
 
-			int err = dnet_process_cmd_raw(m_state, &cmd, &io);
+			int err = dnet_process_cmd_raw(m_state, &cmd, &io, 0);
 			if (err) {
 				clear_queue();
 				*errp = err;
@@ -198,7 +198,7 @@ class local_session
 			cmd.flags |= DNET_FLAGS_NOLOCK;
 			cmd.size = datap.size();
 
-			int err = dnet_process_cmd_raw(m_state, &cmd, datap.data());
+			int err = dnet_process_cmd_raw(m_state, &cmd, datap.data(), 0);
 
 			clear_queue(&err);
 
@@ -241,7 +241,7 @@ class local_session
 			cmd.cmd = DNET_CMD_INDEXES_INTERNAL;
 			cmd.size = datap.size();
 
-			int err = dnet_process_cmd_raw(m_state, &cmd, datap.data());
+			int err = dnet_process_cmd_raw(m_state, &cmd, datap.data(), 0);
 
 			clear_queue(&err);
 
@@ -588,7 +588,7 @@ err_out_complete:
 			std::lock_guard<std::mutex> lock(scope->functor->requests_order_guard);
 
 			if (0 == --scope->functor->requests_in_progress) {
-				dnet_send_ack(scope->functor->state, &scope->functor->cmd, cmd->status);
+				dnet_send_ack(scope->functor->state, &scope->functor->cmd, cmd->status, 0);
 			}
 
 			delete scope;
