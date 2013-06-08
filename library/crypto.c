@@ -35,7 +35,8 @@ static void dnet_transform_final(void *dst, const void *src, unsigned int *rsize
 	}
 }
 
-static int dnet_local_digest_transform(void *priv __unused, const void *src, uint64_t size,
+static int dnet_local_digest_transform(void *priv __unused, struct dnet_session *s,
+		const void *src, uint64_t size,
 		void *dst, unsigned int *dsize, unsigned int flags __unused)
 {
 	unsigned int rs = *dsize;
@@ -44,6 +45,11 @@ static int dnet_local_digest_transform(void *priv __unused, const void *src, uin
 	struct sha512_ctx ctx;
 
 	sha512_init_ctx(&ctx);
+
+	if (s && s->ns && s->nsize) {
+		sha512_process_bytes(s->ns, s->nsize, &ctx);
+		sha512_process_bytes("\0", 1, &ctx);
+	}
 
 	sha512_process_bytes(src, size, &ctx);
 	sha512_finish_ctx(&ctx, hash);

@@ -306,7 +306,7 @@ struct dnet_transform
 {
 	void			*priv;
 
-	int 			(* transform)(void *priv, const void *src, uint64_t size,
+	int 			(* transform)(void *priv, struct dnet_session *s, const void *src, uint64_t size,
 					void *dst, unsigned int *dsize, unsigned int flags);
 };
 
@@ -495,8 +495,8 @@ struct dnet_session {
 	struct dnet_id		direct_id;
 
 	/* Namespace */
-	int			has_ns;
-	struct dnet_raw_id	ns;
+	char			*ns;
+	int			nsize;
 };
 
 static inline int dnet_counter_init(struct dnet_node *n)
@@ -542,7 +542,7 @@ static inline void dnet_counter_set(struct dnet_node *n, int counter, int err, i
 }
 
 struct dnet_trans;
-int __attribute__((weak)) dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
+int __attribute__((weak)) dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int recursive);
 int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r);
 
 int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size);
@@ -550,7 +550,7 @@ int dnet_sendfile(struct dnet_net_state *st, int fd, uint64_t *offset, uint64_t 
 
 int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r);
 
-int __attribute__((weak)) dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err);
+int __attribute__((weak)) dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int recursive);
 
 struct dnet_config;
 int dnet_socket_create(struct dnet_node *n, char *addr_str, int port, struct dnet_addr *addr, int listening);

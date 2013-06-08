@@ -155,7 +155,7 @@ async_update_indexes_result session::update_indexes(const key &id, const std::ve
 	return update_indexes(id, raw_indexes);
 }
 
-struct find_indexes_handler
+struct find_all_indexes_handler
 {
 	async_result_handler<find_indexes_result_entry> handler;
 	size_t ios_size;
@@ -172,12 +172,14 @@ struct find_indexes_handler
 			return;
 		}
 
+		// If any of indexes is not found - result is empty anyway, so return now
 		if (bulk_result.size() != ios_size) {
 			handler.complete(error_info());
 			return;
 		}
 
 		try {
+			// Fill entire list by first result. All other iterations will only remove elements from it
 			dnet_indexes tmp;
 			indexes_unpack(bulk_result[0].file(), &tmp, "find_indexes_handler1");
 			result.resize(tmp.indexes.size());
@@ -193,13 +195,21 @@ struct find_indexes_handler
 				auto raw = reinterpret_cast<dnet_raw_id&>(bulk_result[i].command()->id);
 				tmp.indexes.resize(0);
 				indexes_unpack(bulk_result[i].file(), &tmp, "find_indexes_handler2");
+
+				// Remove all objects from result, which are not presented for this index
 				auto it = std::set_intersection(result.begin(), result.end(),
 					tmp.indexes.begin(), tmp.indexes.end(),
-					result.begin(), dnet_raw_id_less_than<skip_data>());
+					result.begin(),
+					dnet_raw_id_less_than<skip_data>());
 				result.resize(it - result.begin());
+
+				// Remove all objects from this index, which are not presented in result
 				std::set_intersection(tmp.indexes.begin(), tmp.indexes.end(),
 					result.begin(), result.end(),
-					tmp.indexes.begin(), dnet_raw_id_less_than<skip_data>());
+					tmp.indexes.begin(),
+					dnet_raw_id_less_than<skip_data>());
+
+				// As lists contain othe same objects - it's possible to add index data by one cycle
 				auto jt = tmp.indexes.begin();
 				for (auto kt = result.begin(); kt != result.end(); ++kt, ++jt) {
 					kt->indexes.push_back(std::make_pair(raw, jt->data));
@@ -216,7 +226,61 @@ struct find_indexes_handler
 	}
 };
 
-async_find_indexes_result session::find_indexes(const std::vector<dnet_raw_id> &indexes)
+struct find_any_indexes_handler
+{
+	async_result_handler<find_indexes_result_entry> handler;
+	size_t ios_size;
+
+	void operator() (const sync_read_result &bulk_result, const error_info &err)
+	{
+		if (err.code() == -ENOENT) {
+			handler.complete(error_info());
+			return;
+		} else if (err) {
+			handler.complete(err);
+			return;
+		}
+
+		std::map<dnet_raw_id, std::vector<std::pair<dnet_raw_id, data_pointer> >, dnet_raw_id_less_than<> > result;
+
+		try {
+			dnet_indexes tmp;
+			for (size_t i = 0; i < bulk_result.size(); ++i) {
+				auto raw = reinterpret_cast<dnet_raw_id&>(bulk_result[i].command()->id);
+				indexes_unpack(bulk_result[i].file(), &tmp, "find_indexes_handler3");
+
+				for (size_t j = 0; j < tmp.indexes.size(); ++j) {
+					const index_entry &entry = tmp.indexes[j];
+
+					result[entry.index].push_back(std::make_pair(raw, entry.data));
+				}
+			}
+		} catch (std::exception &e) {
+			handler.complete(create_error(-EINVAL, "%s", e.what()));
+			return;
+		}
+
+		for (auto it = result.begin(); it != result.end(); ++it) {
+			find_indexes_result_entry entry = { it->first, it->second };
+			handler.process(entry);
+		}
+		handler.complete(error_info());
+	}
+};
+
+static std::vector<dnet_raw_id> convert(session &sess, const std::vector<std::string> &indexes)
+{
+	std::vector<dnet_raw_id> raw_indexes;
+	raw_indexes.resize(indexes.size());
+
+	for (size_t i = 0; i < indexes.size(); ++i) {
+		sess.transform(indexes[i], raw_indexes[i]);
+	}
+
+	return std::move(raw_indexes);
+}
+
+async_find_indexes_result session::find_all_indexes(const std::vector<dnet_raw_id> &indexes)
 {
 	async_find_indexes_result result(*this);
 	async_result_handler<find_indexes_result_entry> handler(result);
@@ -236,24 +300,46 @@ async_find_indexes_result session::find_indexes(const std::vector<dnet_raw_id> &
 		ios.push_back(io);
 	}
 
-	find_indexes_handler functor = { handler, ios.size() };
+	find_all_indexes_handler functor = { handler, ios.size() };
 	bulk_read(ios).connect(functor);
 
 	return result;
 }
 
-async_find_indexes_result session::find_indexes(const std::vector<std::string> &indexes)
+async_find_indexes_result session::find_all_indexes(const std::vector<std::string> &indexes)
 {
-	dnet_id tmp;
-	std::vector<dnet_raw_id> raw_indexes;
-	raw_indexes.resize(indexes.size());
+	return find_all_indexes(convert(*this, indexes));
+}
 
-	for (size_t i = 0; i < indexes.size(); ++i) {
-		transform(indexes[i], tmp);
-		memcpy(raw_indexes[i].id, tmp.id, sizeof(tmp.id));
+async_find_indexes_result session::find_any_indexes(const std::vector<dnet_raw_id> &indexes)
+{
+	async_find_indexes_result result(*this);
+	async_result_handler<find_indexes_result_entry> handler(result);
+
+	if (indexes.size() == 0) {
+		handler.complete(error_info());
+		return result;
 	}
 
-	return find_indexes(raw_indexes);
+	std::vector<dnet_io_attr> ios;
+	struct dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+
+	io.flags = get_ioflags();
+	for (size_t i = 0; i < indexes.size(); ++i) {
+		memcpy(io.id, indexes[i].id, sizeof(dnet_raw_id));
+		ios.push_back(io);
+	}
+
+	find_any_indexes_handler functor = { handler, ios.size() };
+	bulk_read(ios).connect(functor);
+
+	return result;
+}
+
+async_find_indexes_result session::find_any_indexes(const std::vector<std::string> &indexes)
+{
+	return find_any_indexes(convert(*this, indexes));
 }
 
 struct check_indexes_handler

@@ -272,7 +272,7 @@ ell::async_find_indexes_result elliptics_storage_t::async_find(const std::string
 	ell::session session = m_session.clone();
 	session.set_namespace(collection.data(), collection.size());
 
-	return session.find_indexes(tags);
+	return session.find_all_indexes(tags);
 }
 
 static void on_removing_index_finished(ell::async_result_handler<ell::callback_result_entry> handler,

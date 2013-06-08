@@ -977,6 +977,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 
 	bp::class_<elliptics_id>("Id")
 		.def(bp::init<bp::list, int, int>((bp::arg("key"), bp::arg("group_id"), bp::arg("type") = 0)))
+		.def(bp::init<bp::list, int>(bp::args("key", "group_id")))
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_pickle(id_pickle())
