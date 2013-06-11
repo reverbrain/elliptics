@@ -55,10 +55,10 @@ int callback::handler(struct dnet_net_state *state, struct dnet_cmd *cmd, void *
 {
 	callback *that = reinterpret_cast<callback *>(priv);
 
+	boost::mutex::scoped_lock locker(that->m_data->lock);
+
 	bool notify = false;
 	{
-		boost::mutex::scoped_lock locker(that->m_data->lock);
-
 		if (cmd)
 			that->m_data->statuses.push_back(cmd->status);
 
