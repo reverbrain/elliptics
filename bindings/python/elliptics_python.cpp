@@ -905,7 +905,7 @@ void iterator_container_diff(iterator_result_container &left,
 	left.diff(right, diff);
 }
 
-void iterator_container_merge(const bp::list& results, bp::dict& splitted_dict)
+void iterator_container_merge(const bp::list& /*results*/, bp::dict& /*splitted_dict*/)
 {
 }
 

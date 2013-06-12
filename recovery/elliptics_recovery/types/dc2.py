@@ -171,70 +171,89 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         return 0, key_num
 
 
-def process_address_ranges(address_ranges, local=False):
-    """XXX:"""
-    stats_name = 'local'
-    if not local:
-        stats_name = 'remote_{0}'.format(address_ranges.address)
-    stats = Stats(stats_name)
-    stats.timer.process('started')
-
+def iterate_node_and_sort(address_ranges):
+    """Iterates node range, sorts it and returns"""
     ctx = g_ctx
 
+    stats_name = 'iterate_node_and_sort_{0}'.format(address_ranges.address)
+    if address_ranges.address == ctx.address:
+        stats_name = 'iterate_local'
+
+    stats = Stats(stats_name)
+    stats.timer.process('started')
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
 
-    log.warning("Running remote iterator")
-    stats.timer.process('iterator')
+    log.info("Running iterator")
+    stats.timer.process('iterate')
     result = run_iterator(ctx=ctx,
                           address=address_ranges.address,
                           eid=address_ranges.eid,
                           ranges=address_ranges.id_ranges,
                           stats=stats
                           )
+
     stats.timer.process('finished')
+
     if result is None or len(result) == 0:
-        log.warning("Iterator results are empty, skipping")
-        return True, stats, None
+        log.warning("Iterator result is empty, skipping")
+        return stats, None
 
     stats.timer.process('sort')
-    sorted_result = sort(ctx, result, stats)
+    sorted_result = sort(ctx=ctx,
+                         result=result,
+                         stats=stats)
     stats.timer.process('finished')
     assert len(result) >= len(sorted_result)
-    log.warning("Sorted successfully: {0} result(s)".format(len(sorted_result)))
 
-    if local:
-        result.leave_file = True
-        return True, stats, (result.id_range, result.eid, result.address)
+    log.info("Sorted successfully: {0} result(s)".format(len(sorted_result)))
 
-    sorted_result.address = address_ranges.address
-    sorted_result.eid = address_ranges.eid
+    if sorted_result is None or len(sorted_result) == 0:
+        log.warning("Sorted results are empty, skipping")
+        return stats, None
 
-    log.warning("Computing diff local vs remote")
-    stats.timer.process('diff')
-
-    if ctx.id_range is None or ctx.eid is None or ctx.id_range is None:
-        local_result = None
-    else:
-        local_result = IteratorResult.load_filename(mk_container_name(ctx.id_range, ctx.eid),
-                                                    address=ctx.address,
-                                                    id_range=ctx.id_range,
-                                                    eid=ctx.eid,
-                                                    is_sorted=True,
-                                                    tmp_dir=ctx.tmp_dir,
-                                                    leave_file=True
-                                                    )
-
-    diff_result = diff(ctx, local_result, sorted_result, stats)
     stats.timer.process('finished')
+    return stats, (sorted_result.id_range, sorted_result.eid, sorted_result.address, sorted_result.filename)
+
+
+def process_diff(local, remote):
+    ctx = g_ctx
+
+    stats_name = 'diff_remote_{0}'.format(remote[2])
+    stats = Stats(stats_name)
+
+    log.debug("Loading local result")
+    local_result = IteratorResult.load_filename(local[3],
+                                                address=ctx.address,
+                                                id_range=local[0],
+                                                eid=local[1],
+                                                is_sorted=True,
+                                                tmp_dir=ctx.tmp_dir,
+                                                leave_file=True
+                                                )
+
+    log.debug("Loading remote result")
+    remote_result = IteratorResult.load_filename(remote[3],
+                                                 address=remote[2],
+                                                 id_range=remote[0],
+                                                 eid=remote[1],
+                                                 is_sorted=True,
+                                                 tmp_dir=ctx.tmp_dir,
+                                                 leave_file=True
+                                                 )
+
+    stats.timer.process('diff')
+    diff_result = diff(ctx, local_result, remote_result, stats)
+    stats.timer.process('finished')
+
     if diff_result is None or len(diff_result) == 0:
-        log.warning("Diff results are empty, skipping")
-        return True, stats, None
-    assert len(sorted_result) >= len(diff_result)
-    log.warning("Computed differences: {0} diff(s)".format(len(diff_result)))
+        log.warning("Diff result is empty, skipping")
+        return stats, None
 
-    diff_result.leave_file = True
+    assert len(remote_result) >= len(diff_result)
 
-    return True, stats, (diff_result.id_range, diff_result.eid, diff_result.address, diff_result.filename)
+    log.info("Computed differences: {0} diff(s)".format(len(diff_result)))
+
+    return stats, diff_result
 
 
 def main(ctx):
@@ -256,39 +275,31 @@ def main(ctx):
 
     log.debug("Processing nodes: {0}".format([str(r.address) for r in all_ranges]))
 
-    local_ranges = [r for r in all_ranges if r.address == g_ctx.address][0]
-
-    results = []
-
-    try:
-        local_result, local_stats, local_iter_result = process_address_ranges(local_ranges, True)
-        g_ctx.stats[local_stats.name] = local_stats
-    except KeyboardInterrupt:
-        log.error("Caught Ctrl+C. Terminating")
-        g_ctx.stats.timer.main('finished')
-        return False
-
-    results.append(local_result)
-
-    if local_iter_result is None:
-        g_ctx.id_range = None
-        g_ctx.eid = None
-    else:
-        g_ctx.id_range = local_iter_result[0]
-        g_ctx.eid = local_iter_result[1]
-
-    result &= local_result
-
-    processes = min(g_ctx.nprocess, len(all_ranges) - 1)
+    processes = min(g_ctx.nprocess, len(all_ranges))
     log.info("Creating pool of processes: {0}".format(processes))
     pool = Pool(processes=processes, initializer=worker_init)
 
-    async_results = [pool.apply_async(process_address_ranges, (r, False)) for r in all_ranges if r.address != g_ctx.address]
+    local_ranges = next((r for r in all_ranges if r.address == g_ctx.address), None)
+    assert local_ranges, 'Local ranges is absent in route table'
+
+    local_async_result = pool.apply_async(iterate_node_and_sort, (local_ranges, ))
+
+    async_results = [pool.apply_async(iterate_node_and_sort, (r, )) for r in all_ranges if r.address != g_ctx.address]
+
+    diff_async_results = []
 
     try:
-        remote_results = [r.get() for r in async_results]
+        local_stats, local_it_result = local_async_result.get()
+        g_ctx.stats[local_stats.name] = local_stats
+
+        for ar in async_results:
+            r_stats, r_it_result = ar.get()
+            g_ctx.stats[r_stats.name] = r_stats
+            if r_it_result and len(r_it_result) > 0:
+                diff_async_results.append(pool.apply_async(process_diff, (local_it_result, r_it_result)))
+
     except KeyboardInterrupt:
-        log.error("Caught Ctrl+C. Terminating.")
+        log.error("Caught Ctrl+C. Terminating")
         pool.terminate()
         pool.join()
         g_ctx.stats.timer.main('finished')
@@ -296,8 +307,27 @@ def main(ctx):
 
     diff_results = []
 
-    for result, stats, diff_result in remote_results:
-        g_ctx.stats[stats.name] = stats
+    try:
+        for ar in diff_async_results:
+            r_stats, r_diff_result = ar.get()
+            g_ctx.stats[r_stats.name] = r_stats
+            if r_diff_result and len(r_diff_result) > 0:
+                diff_results.append(r_diff_result)
+    except KeyboardInterrupt:
+        log.error("Caught Ctrl+C. Terminating")
+        pool.terminate()
+        pool.join()
+        g_ctx.stats.timer.main('finished')
+        return False
+
+    if len(diff_results) == 0:
+        log.warning("Local node has up-to-date data")
+        pool.terminate()
+        pool.join()
+        g_ctx.stats.timer.main('finished')
+        return True
+
+    for diff_result in diff_results:
         if diff_result:
             id_range, eid, address, filename = diff_result
             dres = IteratorResult.load_filename(filename,
@@ -310,16 +340,13 @@ def main(ctx):
             dres.address = address
             dres.group_id = eid.group_id
             diff_results.append(dres)
-        results.append(result)
-
-    result &= all(results)
 
     diff_length = sum([len(r) for r in diff_results])
 
     log.warning('Computing merge and splitting by node all remote results')
-    stats.timer.main('merge & split')
+    g_ctx.stats.timer.main('merge & split')
     splitted_results = IteratorResult.merge(diff_results, g_ctx.tmp_dir)
-    stats.timer.main('finished')
+    g_ctx.stats.timer.main('finished')
 
     assert diff_length == sum([len(r) for r in splitted_results])
 
@@ -347,9 +374,6 @@ def main(ctx):
             pool.close()
             pool.join()
         result &= all(results)
-
-    if not (g_ctx.id_range is None or g_ctx.eid is None or g_ctx.id_range is None):
-        os.unlink(os.path.join(ctx.tmp_dir, mk_container_name(g_ctx.id_range, g_ctx.eid)))
 
     g_ctx.stats.timer.main('finished')
     log.debug("Result: %s" % result)
