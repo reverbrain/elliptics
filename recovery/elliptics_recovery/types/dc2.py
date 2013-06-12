@@ -222,24 +222,28 @@ def process_diff(local, remote):
     stats = Stats(stats_name)
 
     log.debug("Loading local result")
-    local_result = IteratorResult.load_filename(local[3],
-                                                address=ctx.address,
-                                                id_range=local[0],
-                                                eid=local[1],
-                                                is_sorted=True,
-                                                tmp_dir=ctx.tmp_dir,
-                                                leave_file=True
-                                                )
+    local_result = None
+    if local:
+        local_result = IteratorResult.load_filename(local[3],
+                                                    address=ctx.address,
+                                                    id_range=local[0],
+                                                    eid=local[1],
+                                                    is_sorted=True,
+                                                    tmp_dir=ctx.tmp_dir,
+                                                    leave_file=True
+                                                    )
 
     log.debug("Loading remote result")
-    remote_result = IteratorResult.load_filename(remote[3],
-                                                 address=remote[2],
-                                                 id_range=remote[0],
-                                                 eid=remote[1],
-                                                 is_sorted=True,
-                                                 tmp_dir=ctx.tmp_dir,
-                                                 leave_file=True
-                                                 )
+    remote_result = None
+    if remote:
+        remote_result = IteratorResult.load_filename(remote[3],
+                                                     address=remote[2],
+                                                     id_range=remote[0],
+                                                     eid=remote[1],
+                                                     is_sorted=True,
+                                                     tmp_dir=ctx.tmp_dir,
+                                                     leave_file=True
+                                                     )
 
     stats.timer.process('diff')
     diff_result = diff(ctx, local_result, remote_result, stats)
@@ -253,7 +257,7 @@ def process_diff(local, remote):
 
     log.info("Computed differences: {0} diff(s)".format(len(diff_result)))
 
-    return stats, diff_result
+    return stats, (diff_result.id_range, diff_result.eid, diff_result.address, diff_result.filename)
 
 
 def main(ctx):
