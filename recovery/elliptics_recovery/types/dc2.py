@@ -315,8 +315,18 @@ def main(ctx):
         for ar in diff_async_results:
             r_stats, r_diff_result = ar.get()
             g_ctx.stats[r_stats.name] = r_stats
-            if r_diff_result and len(r_diff_result) > 0:
-                diff_results.append(r_diff_result)
+            if r_diff_result:
+                id_range, eid, address, filename = r_diff_result
+                dres = IteratorResult.load_filename(filename,
+                                                    address=address,
+                                                    eid=eid,
+                                                    is_sorted=True,
+                                                    id_range=id_range,
+                                                    tmp_dir=g_ctx.tmp_dir,
+                                                    )
+                dres.address = address
+                dres.group_id = eid.group_id
+                diff_results.append(dres)
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating")
         pool.terminate()
@@ -330,20 +340,6 @@ def main(ctx):
         pool.join()
         g_ctx.stats.timer.main('finished')
         return True
-
-    for diff_result in diff_results:
-        if diff_result:
-            id_range, eid, address, filename = diff_result
-            dres = IteratorResult.load_filename(filename,
-                                                address=address,
-                                                eid=eid,
-                                                is_sorted=True,
-                                                id_range=id_range,
-                                                tmp_dir=g_ctx.tmp_dir,
-                                                )
-            dres.address = address
-            dres.group_id = eid.group_id
-            diff_results.append(dres)
 
     diff_length = sum([len(r) for r in diff_results])
 
