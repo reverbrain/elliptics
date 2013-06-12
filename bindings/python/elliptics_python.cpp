@@ -905,6 +905,10 @@ void iterator_container_diff(iterator_result_container &left,
 	left.diff(right, diff);
 }
 
+void iterator_container_merge(const bp::list& results, bp::dict& splitted_dict)
+{
+}
+
 struct id_pickle : bp::pickle_suite
 {
 	static bp::tuple getinitargs(const elliptics_id& id)
@@ -1021,6 +1025,8 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("diff", iterator_container_diff)
 		.def("__len__", iterator_container_get_count)
 		.def("__getitem__", iterator_container_getitem)
+		.def("merge", &iterator_container_merge)
+		.staticmethod("merge")
 	;
 
 	bp::class_<elliptics_range>("Range")

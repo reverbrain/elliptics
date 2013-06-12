@@ -35,7 +35,8 @@ def run_iterator(ctx, address, eid, ranges, stats):
                                                     timestamp_range=timestamp_range,
                                                     key_ranges=ranges,
                                                     tmp_dir=ctx.tmp_dir,
-                                                    address=address
+                                                    address=address,
+                                                    leave_file=True
                                                     )
 
         if result is None:
