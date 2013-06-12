@@ -94,7 +94,7 @@ def diff(ctx, local, remote, stats):
         return None
 
 
-def recover(id_range, eid, address):
+def recover((id_range, eid, address)):
     """
     Recovers difference between remote and local data.
     """
@@ -215,7 +215,7 @@ def iterate_node_and_sort(address_ranges):
     return stats, (sorted_result.id_range, sorted_result.eid, sorted_result.address, sorted_result.filename)
 
 
-def process_diff(local, remote):
+def process_diff((local, remote)):
     ctx = g_ctx
 
     stats_name = 'diff_remote_{0}'.format(remote[2])
@@ -286,21 +286,22 @@ def main(ctx):
     local_ranges = next((r for r in all_ranges if r.address == g_ctx.address), None)
     assert local_ranges, 'Local ranges is absent in route table'
 
-    local_async_result = pool.apply_async(iterate_node_and_sort, (local_ranges, ))
+    local_iter_result = pool.apply_async(iterate_node_and_sort, (local_ranges, ))
 
-    async_results = [pool.apply_async(iterate_node_and_sort, (r, )) for r in all_ranges if r.address != g_ctx.address]
+    iter_result = pool.imap_unordered(iterate_node_and_sort, (range for range in all_ranges if range.address != g_ctx.address))
 
-    diff_async_results = []
+    diff_async_results = None
+
+    def unpack_iter_result(stats, result):
+        r_stats, r_result = result
+        stats[r_stats.name] = r_stats
+        return r_result
 
     try:
-        local_stats, local_it_result = local_async_result.get()
+        local_stats, local_it_result = local_iter_result.get()
         g_ctx.stats[local_stats.name] = local_stats
 
-        for ar in async_results:
-            r_stats, r_it_result = ar.get()
-            g_ctx.stats[r_stats.name] = r_stats
-            if r_it_result and len(r_it_result) > 0:
-                diff_async_results.append(pool.apply_async(process_diff, (local_it_result, r_it_result)))
+        diff_async_results = pool.imap_unordered(process_diff, ((local_it_result, unpack_iter_result(g_ctx.stats, result)) for result in iter_result if result[1]))
 
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating")
@@ -309,24 +310,25 @@ def main(ctx):
         g_ctx.stats.timer.main('finished')
         return False
 
-    diff_results = []
+    diff_results = None
+
+    def unpack_diff_result(stats, result):
+        r_stats, r_diff_result = result
+        stats[r_stats.name] = r_stats
+        id_range, eid, address, filename = r_diff_result
+        dres = IteratorResult.load_filename(filename,
+                                            address=address,
+                                            eid=eid,
+                                            is_sorted=True,
+                                            id_range=id_range,
+                                            tmp_dir=g_ctx.tmp_dir,
+                                            )
+        dres.address = address
+        dres.group_id = eid.group_id
+        return dres
 
     try:
-        for ar in diff_async_results:
-            r_stats, r_diff_result = ar.get()
-            g_ctx.stats[r_stats.name] = r_stats
-            if r_diff_result:
-                id_range, eid, address, filename = r_diff_result
-                dres = IteratorResult.load_filename(filename,
-                                                    address=address,
-                                                    eid=eid,
-                                                    is_sorted=True,
-                                                    id_range=id_range,
-                                                    tmp_dir=g_ctx.tmp_dir,
-                                                    )
-                dres.address = address
-                dres.group_id = eid.group_id
-                diff_results.append(dres)
+        diff_results = [unpack_diff_result(g_ctx.stats, diff_r) for diff_r in diff_async_results if diff_r[1]]
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating")
         pool.terminate()
@@ -341,23 +343,19 @@ def main(ctx):
         g_ctx.stats.timer.main('finished')
         return True
 
-    diff_length = sum([len(r) for r in diff_results])
+    diff_length = sum([len(diff) for diff in diff_results])
 
     log.warning('Computing merge and splitting by node all remote results')
     g_ctx.stats.timer.main('merge & split')
     splitted_results = IteratorResult.merge(diff_results, g_ctx.tmp_dir)
     g_ctx.stats.timer.main('finished')
 
-    assert diff_length == sum([len(r) for r in splitted_results])
+    assert diff_length == sum([len(spl) for spl in splitted_results])
 
     if not g_ctx.dry_run:
         try:
-            async_results = [pool.apply_async(recover, (r.id_range, r.eid, r.address)) for r in splitted_results if r]
+            recover_results = pool.map(recover, ((r.id_range, r.eid, r.address) for r in splitted_results if r))
 
-            # Use INT_MAX as timeout, so we can catch Ctrl+C
-            timeout = 2147483647
-
-            recover_results = [r.get(timeout) for r in async_results]
             results = []
             for result, stats in recover_results:
                 results.append(result)
