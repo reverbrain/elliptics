@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.6.8
+Version:	2.20.6.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jun 14 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.20.6.9
+- Fixed deadlock in callback.cpp
+
 * Thu Jun 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.8
 - Changed bulk_write error report logic
 -     

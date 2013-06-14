@@ -1,3 +1,9 @@
+elliptics (2.20.6.9) unstable; urgency=low
+
+  * Fixed deadlock in callback.cpp
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Fri, 14 Jun 2013 18:40:18 +0400
+
 elliptics (2.20.6.8) unstable; urgency=low
 
   * Changed bulk_write error report logic
