@@ -169,11 +169,11 @@ class dnet_upstream_t: public cocaine::api::stream_t
 				const std::string &event, uint64_t sph_flags):
 		m_completed(false),
 		m_name(event),
-       		m_s(session),
-       		m_state(dnet_state_get(state)),
-       		m_cmd(*cmd),
+		m_s(session),
+		m_state(dnet_state_get(state)),
+		m_cmd(*cmd),
 		m_sph_flags(sph_flags),
-       		m_error(0) {
+		m_error(0) {
 		}
 
 		~dnet_upstream_t() {
@@ -245,9 +245,9 @@ typedef std::map<std::string, srw_counters> cmap_t;
 
 class dnet_app_t : public cocaine::app_t {
 	public:
-        	dnet_app_t(cocaine::context_t& context, const std::string& name, const std::string& profile) :
-		cocaine::app_t(context, name, profile),
-       		m_pool_size(-1) {
+			dnet_app_t(cocaine::context_t& context, const std::string& name, const std::string& profile) :
+			cocaine::app_t(context, name, profile),
+			m_pool_size(-1) {
 			atomic_set(&m_sph_index, 1);
 		}
 
@@ -303,36 +303,38 @@ class dnet_app_t : public cocaine::app_t {
 typedef std::map<std::string, std::shared_ptr<dnet_app_t> > eng_map_t;
 
 namespace {
-       // INFO level has value 2 in elliptics and value 3 in cocaine,
-       // nevertheless we want to support unified sense of INFO across both systems,
-       // so we need to play with the mapping a bit.
-       //
-       // Specifically:
-       //  1) cocaine warning and info levels are both mapped into eliptics info level
-       //  2) elliptics notice level means cocaine info level
 
-       cocaine::logging::priorities dnet_log_level_to_prio(int level) {
-               cocaine::logging::priorities prio = (cocaine::logging::priorities)level;
-               // elliptics info level becomes cocaine warning level,
-               // so we must to level it up
-               if (prio == cocaine::logging::warning) {
-                       prio = cocaine::logging::info;
-               }
-               return prio;
-       }
+// INFO level has value 2 in elliptics and value 3 in cocaine,
+// nevertheless we want to support unified sense of INFO across both systems,
+// so we need to play with the mapping a bit.
+//
+// Specifically:
+//  1) cocaine warning and info levels are both mapped into eliptics info level
+//  2) elliptics notice level means cocaine info level
 
-       int prio_to_dnet_log_level(cocaine::logging::priorities prio) {
-               int level = DNET_LOG_DATA;
-               if (prio == cocaine::logging::debug)
-                       level = DNET_LOG_DEBUG;
-               if (prio == cocaine::logging::info)
-                       level = DNET_LOG_INFO;
-               if (prio == cocaine::logging::warning)
-                       level = DNET_LOG_INFO;
-               if (prio == cocaine::logging::error)
-                       level = DNET_LOG_ERROR;
-               return level;
-       }
+cocaine::logging::priorities dnet_log_level_to_prio(int level) {
+	cocaine::logging::priorities prio = (cocaine::logging::priorities)level;
+	// elliptics info level becomes cocaine warning level,
+	// so we must to level it up
+	if (prio == cocaine::logging::warning) {
+		prio = cocaine::logging::info;
+	}
+	return prio;
+}
+
+int prio_to_dnet_log_level(cocaine::logging::priorities prio) {
+	int level = DNET_LOG_DATA;
+	if (prio == cocaine::logging::debug)
+			level = DNET_LOG_DEBUG;
+	if (prio == cocaine::logging::info)
+			level = DNET_LOG_INFO;
+	if (prio == cocaine::logging::warning)
+			level = DNET_LOG_INFO;
+	if (prio == cocaine::logging::error)
+			level = DNET_LOG_ERROR;
+	return level;
+}
+
 }
 
 class dnet_sink_t: public cocaine::logging::logger_concept_t {
