@@ -563,13 +563,32 @@ class session
 		/*!
 		 * Starts execution for \a id of the given \a event with \a data.
 		 *
-		 * If \a id is null event is sent to all groups specified in the session.
+		 * If \a id is null, event is sent to all groups specified in the session.
 		 *
 		 * Returns async_exec_result.
 		 * Result contains all replies sent by nodes processing this event.
 		 */
 		async_exec_result exec(dnet_id *id, const std::string &event, const data_pointer &data);
+		/*!
+		 * Starts execution for \a id of the given \a event with \a data.
+		 * \a src_key used as sub-id to snap execution to a distinct worker,
+		 * execs with the same \a id and \a src_key will be processed by the same worker
+		 * (subject to worker execution mode).
+		 *
+		 * If \a id is null, event is sent to all groups specified in the session.
+		 *
+		 * Returns async_exec_result.
+		 * Result contains all replies sent by nodes processing this event.
+		 */
 		async_exec_result exec(dnet_id *id, int src_key, const std::string &event, const data_pointer &data);
+		/*!
+		 * Sends execution request of the given \a event and \a data
+		 * to the party specified by a given \a context.
+		 *
+		 * Returns async_exec_result.
+		 * Result contains all replies sent by nodes processing this event.
+		 */
+		async_exec_result exec(const exec_context &context, const std::string &event, const data_pointer &data);
 
 		/*!
 		 * Send an \a event with \a data to \a id continuing the process specified by \a context.

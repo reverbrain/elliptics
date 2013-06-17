@@ -65,8 +65,14 @@ class exec_context
 		//NOTE: dangerous, use with care
 		dnet_raw_id *src_id() const;
 
-		// get back data block of the entire request
-		data_pointer self() const;
+		// access to "sub id" supplement to src_id 
+		// also allows to change it on the fly
+		//NOTE: dangerous, use with care
+		int src_key() const;
+		void set_src_key(int src_key) const;
+
+		// get back original data block of the entire request
+		data_pointer native_data() const;
 
 		bool is_final() const;
 		bool is_null() const;
