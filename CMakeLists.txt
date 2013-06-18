@@ -135,6 +135,7 @@ install(FILES
 	include/elliptics/result_entry.hpp
 	include/elliptics/session.hpp
 	include/elliptics/utils.hpp
+	include/elliptics/backends.h
         ${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h
         include/elliptics/module_backend.h
         include/elliptics/module_backend.hpp
