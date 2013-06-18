@@ -613,8 +613,12 @@ static int dnet_iterator_callback_send(void *priv, void *data, uint64_t dsize)
 {
 	struct dnet_iterator_send_private *send = priv;
 
-	if (send->st->need_exit)
+	/*if need_exit is set - skips sending reply and return -1 to interrupt execution of current iterator*/
+	if (send->st->need_exit) {
+		dnet_log(send->st->n, DNET_LOG_ERROR, "%s: Interrupting iterator because peer has been disconnected\n",
+				dnet_dump_id(&send->cmd->id));
 		return -1;
+	}
 
 	return dnet_send_reply(send->st, send->cmd, data, dsize, 1);
 }
