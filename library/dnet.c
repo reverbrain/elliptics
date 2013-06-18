@@ -613,6 +613,9 @@ static int dnet_iterator_callback_send(void *priv, void *data, uint64_t dsize)
 {
 	struct dnet_iterator_send_private *send = priv;
 
+	if (send->st->need_exit)
+		return -1;
+
 	return dnet_send_reply(send->st, send->cmd, data, dsize, 1);
 }
 
