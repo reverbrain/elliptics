@@ -88,6 +88,7 @@ def diff(ctx, local, remote, stats):
         else:
             log.info("Computing differences for: {0}".format(remote.address))
             result = local.diff(remote)
+            result.leave_file = True
         diff_len = len(result)
         stats.counter.diff += diff_len
         ctx.monitor.add_counter("diff", diff_len)
@@ -163,25 +164,42 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
     key_num = len(keys)
 
     log.debug("Reading {0} keys".format(key_num))
+    async_write_results = []
+    size = 0
     try:
-        batch = remote_session.bulk_read(keys)
+        batch = remote_session.bulk_read_async(keys)
+        for b in batch:
+            b_data_len = len(b.data)
+            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), b_data_len))
+            size += b_data_len
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num
 
-    size = sum(len(v[1]) for v in batch)
     log.debug("Writing {0} keys: {1} bytes".format(key_num, size))
 
     try:
-        local_session.bulk_write(batch)
-        stats.counter.recovered_bytes += size
-        ctx.monitor.add_counter("recovered_bytes", size)
-        return key_num, 0
+        successes, failures, recovered_size, successes_size, failures_size = (0, 0, 0, 0, 0)
+        for r, bsize in async_write_results:
+            r.wait()
+            recovered_size += bsize
+            if r.successful():
+                successes_size += bsize
+                successes += 1
+            else:
+                failures_size += bsize
+                failures += 1
+
+        stats.counter.recovered_bytes += successes_size
+        ctx.monitor.add_counter("recovered_bytes", successes_size)
+        stats.counter.recovered_bytes -= failures_size
+        ctx.monitor.add_counter("recovered_bytes", successes_size)
+        return successes, failures
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
-        stats.counter.recovered_bytes -= size
-        ctx.monitor.add_counter("recovered_bytes", -size)
-        return 0, key_num
+        stats.counter.recovered_bytes -= (size - recovered_size)
+        ctx.monitor.add_counter("recovered_bytes", -(size - recovered_size))
+        return successes, key_num - successes
 
 
 def iterate_node(address_ranges):
@@ -350,12 +368,11 @@ def main(ctx):
                                             id_range=id_range,
                                             tmp_dir=g_ctx.tmp_dir,
                                             )
-        dres.address = address
-        dres.group_id = eid.group_id
         return dres
 
     try:
         diff_results = [unpack_diff_result(g_ctx.stats, diff_r) for diff_r in diff_async_results if diff_r[1]]
+        diff_results = [diff_r for diff_r in diff_results if diff_r]
     except KeyboardInterrupt:
         log.error("Caught Ctrl+C. Terminating")
         pool.terminate()
