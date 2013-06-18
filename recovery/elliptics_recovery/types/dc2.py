@@ -36,19 +36,21 @@ def run_iterator(ctx, address, eid, ranges, stats):
                                                     key_ranges=ranges,
                                                     tmp_dir=ctx.tmp_dir,
                                                     address=address,
-                                                    leave_file=True
-                                                    )
+                                                    leave_file=True)
 
         if result is None:
             raise RuntimeError("Iterator result is None")
         log.debug("Iterator {0} obtained: {1} record(s)".format(result.id_range, len(result)))
-        stats.counter.iterated_keys += len(result)
+        result_len = len(result)
+        stats.counter.iterated_keys += result_len
+        ctx.monitor.add_counter("iterated_keys", result_len)
         stats.counter.iterations += 1
+        ctx.monitor.add_counter("iterations", 1)
         return result
 
     except Exception as e:
         log.error("Iteration failed for: {0}: {1}".format(address, repr(e)))
-        stats.counter.iterations -= 1
+        ctx.monitor.add_counter("iterations", -1)
         return None
 
 
@@ -63,10 +65,12 @@ def sort(ctx, result, stats):
         log.info("Processing sorting range: {0}".format(result.id_range))
         result.container.sort()
         stats.counter.sort += 1
+        ctx.monitor.add_counter("sort", 1)
         return result
     except Exception as e:
         log.error("Sort of {0} failed: {1}".format(result.id_range, e))
         stats.counter.sort -= 1
+        ctx.monitor.add_counter("sort", -1)
     return None
 
 
@@ -86,11 +90,13 @@ def diff(ctx, local, remote, stats):
             result = local.diff(remote)
         diff_len = len(result)
         stats.counter.diff += diff_len
+        ctx.monitor.add_counter("diff", diff_len)
         log.info("Found {0} differences".format(diff_len))
         return result
     except Exception as e:
         log.error("Diff for {0} failed: {1}".format(remote.address, e))
         stats.counter.diff -= 1
+        ctx.monitor.add_counter("diff", -1)
         return None
 
 
@@ -102,8 +108,10 @@ def recover((id_range, eid, address)):
     ctx = g_ctx
 
     result = True
-    stats = Stats('recover_{0}'.format(address))
+    stats_name = 'recover_{0}'.format(address)
+    stats = Stats(stats_name)
     log.info("Recovering range: {0} for: {1}".format(id_range, address))
+    ctx.monitor.add_timer(stats_name, 'started')
     stats.timer.recover('started')
 
     filename = os.path.join(ctx.tmp_dir, "merge_" + mk_container_name(id_range, eid))
@@ -135,12 +143,15 @@ def recover((id_range, eid, address)):
         keys = [elliptics.Id(r.key, diff.eid.group_id) for _, r in batch]
         successes, failures = recover_keys(ctx, diff.address, diff.eid.group_id, keys, local_session, remote_session, stats)
         stats.counter.recovered_keys += successes
+        ctx.monitor.add_counter("recovered_keys", successes)
         stats.counter.recovered_keys -= failures
+        ctx.monitor.add_counter("recovered_keys", failures)
         result &= (failures == 0)
         log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(
             batch_id * ctx.batch_size + len(keys), len(diff), successes, failures))
 
     stats.timer.recover('finished')
+    ctx.monitor.add_timer(stats_name, 'finished')
 
     return result, stats
 
@@ -164,26 +175,30 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
     try:
         local_session.bulk_write(batch)
         stats.counter.recovered_bytes += size
+        ctx.monitor.add_counter("recovered_bytes", size)
         return key_num, 0
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
         stats.counter.recovered_bytes -= size
+        ctx.monitor.add_counter("recovered_bytes", -size)
         return 0, key_num
 
 
-def iterate_node_and_sort(address_ranges):
+def iterate_node(address_ranges):
     """Iterates node range, sorts it and returns"""
     ctx = g_ctx
 
-    stats_name = 'iterate_node_and_sort_{0}'.format(address_ranges.address)
+    stats_name = 'iterate_{0}'.format(address_ranges.address)
     if address_ranges.address == ctx.address:
         stats_name = 'iterate_local'
 
     stats = Stats(stats_name)
+    ctx.monitor.add_timer(stats_name, 'started')
     stats.timer.process('started')
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
 
     log.info("Running iterator")
+    ctx.monitor.add_timer(stats_name, 'iterate')
     stats.timer.process('iterate')
     result = run_iterator(ctx=ctx,
                           address=address_ranges.address,
@@ -193,16 +208,19 @@ def iterate_node_and_sort(address_ranges):
                           )
 
     stats.timer.process('finished')
+    ctx.monitor.add_timer(stats_name, 'finished')
 
     if result is None or len(result) == 0:
         log.warning("Iterator result is empty, skipping")
         return stats, None
 
+    ctx.monitor.add_timer(stats_name, 'sort')
     stats.timer.process('sort')
     sorted_result = sort(ctx=ctx,
                          result=result,
                          stats=stats)
     stats.timer.process('finished')
+    ctx.monitor.add_timer(stats_name, 'finished')
     assert len(result) >= len(sorted_result)
 
     log.info("Sorted successfully: {0} result(s)".format(len(sorted_result)))
@@ -212,6 +230,7 @@ def iterate_node_and_sort(address_ranges):
         return stats, None
 
     stats.timer.process('finished')
+    ctx.monitor.add_timer(stats_name, 'finished')
     return stats, (sorted_result.id_range, sorted_result.eid, sorted_result.address, sorted_result.filename)
 
 
@@ -222,6 +241,8 @@ def process_diff((local, remote)):
     stats = Stats(stats_name)
 
     log.debug("Loading local result")
+    ctx.monitor.add_timer(stats_name, 'start')
+    stats.timer.process("start")
     local_result = None
     if local:
         local_result = IteratorResult.load_filename(local[3],
@@ -245,9 +266,11 @@ def process_diff((local, remote)):
                                                      leave_file=True
                                                      )
 
+    ctx.monitor.add_timer(stats_name, 'diff')
     stats.timer.process('diff')
     diff_result = diff(ctx, local_result, remote_result, stats)
     stats.timer.process('finished')
+    ctx.monitor.add_timer(stats_name, 'finished')
 
     if diff_result is None or len(diff_result) == 0:
         log.warning("Diff result is empty, skipping")
@@ -264,6 +287,7 @@ def main(ctx):
     global g_ctx
     g_ctx = ctx
     result = True
+    g_ctx.monitor.add_timer("main", "started")
     g_ctx.stats.timer.main('started')
     log.debug("Groups: %s" % g_ctx.groups)
 
@@ -286,9 +310,9 @@ def main(ctx):
     local_ranges = next((r for r in all_ranges if r.address == g_ctx.address), None)
     assert local_ranges, 'Local ranges is absent in route table'
 
-    local_iter_result = pool.apply_async(iterate_node_and_sort, (local_ranges, ))
+    local_iter_result = pool.apply_async(iterate_node, (local_ranges, ))
 
-    iter_result = pool.imap_unordered(iterate_node_and_sort, (range for range in all_ranges if range.address != g_ctx.address))
+    iter_result = pool.imap_unordered(iterate_node, (range for range in all_ranges if range.address != g_ctx.address))
 
     diff_async_results = None
 
@@ -298,7 +322,8 @@ def main(ctx):
         return r_result
 
     try:
-        local_stats, local_it_result = local_iter_result.get()
+        timeout = 2147483647
+        local_stats, local_it_result = local_iter_result.get(timeout)
         g_ctx.stats[local_stats.name] = local_stats
 
         diff_async_results = pool.imap_unordered(process_diff, ((local_it_result, unpack_iter_result(g_ctx.stats, result)) for result in iter_result if result[1]))
@@ -308,6 +333,7 @@ def main(ctx):
         pool.terminate()
         pool.join()
         g_ctx.stats.timer.main('finished')
+        g_ctx.monitor.add_timer("main", "finished")
         return False
 
     diff_results = None
@@ -334,6 +360,7 @@ def main(ctx):
         pool.terminate()
         pool.join()
         g_ctx.stats.timer.main('finished')
+        g_ctx.monitor.add_timer("main", "finished")
         return False
 
     if len(diff_results) == 0:
@@ -341,14 +368,17 @@ def main(ctx):
         pool.terminate()
         pool.join()
         g_ctx.stats.timer.main('finished')
+        g_ctx.monitor.add_timer("main", "finished")
         return True
 
     diff_length = sum([len(diff) for diff in diff_results])
 
     log.warning('Computing merge and splitting by node all remote results')
+    g_ctx.monitor.add_timer("main", "merge & split")
     g_ctx.stats.timer.main('merge & split')
     splitted_results = IteratorResult.merge(diff_results, g_ctx.tmp_dir)
     g_ctx.stats.timer.main('finished')
+    g_ctx.monitor.add_timer("main", "finished")
 
     assert diff_length == sum([len(spl) for spl in splitted_results])
 
@@ -366,6 +396,7 @@ def main(ctx):
             pool.terminate()
             pool.join()
             g_ctx.stats.timer.main('finished')
+            g_ctx.monitor.add_timer("main", "finished")
             return False
         else:
             log.info("Closing pool, joining threads")
@@ -374,6 +405,7 @@ def main(ctx):
         result &= all(results)
 
     g_ctx.stats.timer.main('finished')
+    g_ctx.monitor.add_timer("main", "finished")
     log.debug("Result: %s" % result)
 
     return result
