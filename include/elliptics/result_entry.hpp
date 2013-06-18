@@ -25,7 +25,7 @@
 namespace ioremap { namespace elliptics {
 
 class callback_result_data;
-class exec_context_data;
+struct exec_context_data;
 
 // exec_context is context for execution requests, it stores
 // internal identification of the process and environmental
@@ -65,15 +65,21 @@ class exec_context
 		//NOTE: dangerous, use with care
 		dnet_raw_id *src_id() const;
 
-		// get back data block of the entire request
-		data_pointer self() const;
+		// access to "sub id" supplement to src_id 
+		// also allows to change it on the fly
+		//NOTE: dangerous, use with care
+		int src_key() const;
+		void set_src_key(int src_key) const;
+
+		// get back original data block of the entire request
+		data_pointer native_data() const;
 
 		bool is_final() const;
 		bool is_null() const;
 
 	private:
 		friend class session;
-		friend class exec_context_data;
+		friend struct exec_context_data;
 		std::shared_ptr<exec_context_data> m_data;
 };
 

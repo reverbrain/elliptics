@@ -219,7 +219,19 @@ dnet_raw_id *exec_context::src_id() const
 	return m_data ? &m_data->sph.data<sph>()->src : NULL;
 }
 
-data_pointer exec_context::self() const
+int exec_context::src_key() const
+{
+	return m_data ? m_data->sph.data<sph>()->src_key : 0;
+}
+
+void exec_context::set_src_key(int src_key) const
+{
+	if (m_data) {
+		m_data->sph.data<sph>()->src_key = src_key;
+	}
+}
+
+data_pointer exec_context::native_data() const
 {
 	return m_data ? m_data->sph : data_pointer();
 }
@@ -1714,18 +1726,6 @@ async_iterator_result session::cancel_iterator(const key &id, uint64_t iterator_
 	return iterator(id, data);
 }
 
-async_exec_result session::exec(struct dnet_id *id, int src_key, const std::string &event, const data_pointer &data)
-{
-	exec_context context = exec_context_data::create(event, data);
-
-	sph *s = context.m_data->sph.data<sph>();
-	s->flags = DNET_SPH_FLAGS_SRC_BLOCK;
-	s->src_key = src_key;
-
-	return request(id, context);
-}
-
-
 async_exec_result session::exec(dnet_id *id, const std::string &event, const data_pointer &data)
 {
 	exec_context context = exec_context_data::create(event, data);
@@ -1737,6 +1737,33 @@ async_exec_result session::exec(dnet_id *id, const std::string &event, const dat
 		memcpy(s->src.id, id->id, sizeof(s->src.id));
 
 	return request(id, context);
+}
+
+async_exec_result session::exec(struct dnet_id *id, int src_key, const std::string &event, const data_pointer &data)
+{
+	exec_context context = exec_context_data::create(event, data);
+
+	sph *s = context.m_data->sph.data<sph>();
+	s->flags = DNET_SPH_FLAGS_SRC_BLOCK;
+	s->src_key = src_key;
+
+	if (id)
+		memcpy(s->src.id, id->id, sizeof(s->src.id));
+
+	return request(id, context);
+}
+
+async_exec_result session::exec(const exec_context &tmp_context, const std::string &event, const data_pointer &data)
+{
+	exec_context context = exec_context_data::copy(tmp_context, event, data);
+
+	sph *s = context.m_data->sph.data<sph>();
+	s->flags = DNET_SPH_FLAGS_SRC_BLOCK;
+
+	struct dnet_id id;
+	dnet_setup_id(&id, 0, s->src.id);
+
+	return request(&id, context);
 }
 
 async_push_result session::push(dnet_id *id, const exec_context &tmp_context, const std::string &event, const data_pointer &data)
