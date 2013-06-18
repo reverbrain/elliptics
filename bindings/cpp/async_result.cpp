@@ -422,7 +422,7 @@ void async_result_handler<T>::complete(const error_info &error)
 	if (!error)
 		check(&m_data->error);
 	if (m_data->final_handler) {
-		m_data->final_handler(error);
+		m_data->final_handler(m_data->error);
 	}
 	m_data->condition.notify_all();
 }
