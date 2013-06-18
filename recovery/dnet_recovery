@@ -168,7 +168,7 @@ if __name__ == '__main__':
 
     try:
         if options.monitor_port:
-            ctx.monitor = Monitor(int(options.monitor_port))
+            ctx.monitor = Monitor(int(options.monitor_port), recovery_type)
         else:
             ctx.monitor = EmptyMonitor()
     except Exception as e:

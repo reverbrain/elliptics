@@ -220,7 +220,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         return 0, key_num
 
 
-def process_range(range, dry_run):
+def process_range((range, dry_run)):
     ctx = g_ctx
 
     stats_name = 'range_{0}'.format(range.id_range)
@@ -298,17 +298,12 @@ def main(ctx):
         g_ctx.stats.timer.main('finished')
         return result
 
-    processes = min(g_ctx.nprocess, len(ranges) - 1)
+    processes = min(g_ctx.nprocess, len(ranges))
     pool = Pool(processes=processes, initializer=worker_init)
     log.debug("Created pool of processes: %d" % processes)
 
-    async_results = [pool.apply_async(process_range, (r, g_ctx.dry_run)) for r in ranges]
-
     try:
-        # Use INT_MAX as timeout, so we can catch Ctrl+C
-        timeout = 2147483647
-
-        for r, stats in (r.get(timeout) for r in async_results):
+        for r, stats in pool.imap_unordered(process_range, ((r, g_ctx.dry_run) for r in ranges)):
             g_ctx.stats[stats.name] = stats
             result &= r
 
