@@ -9,7 +9,7 @@ from itertools import chain
 
 def format_kv(k, v):
     """Formats one line of test output"""
-    return '{0:<40}{1:>40}'.format(k + ':', str(v))
+    return '{0:<50}{1:>50}'.format(k + ':', str(v))
 
 
 class ResultCounter(object):
@@ -147,27 +147,27 @@ class Stats(object):
 
     Stats have pretty-printing of it's content
     >>> print stats
-    ==================================== global ====================================
-    test_local_total:                                                              1
-    test_local_success:                                                            1
-    =================================== sub_stat ===================================
-    test_nested_failures:                                                          1
-    test_nested_total:                                                             1
+    ============================================== global ==============================================
+    test_local_total:                                                                                  1
+    test_local_success:                                                                                1
+    ============================================= sub_stat =============================================
+    test_nested_failures:                                                                              1
+    test_nested_total:                                                                                 1
 
     >>> stat_name = 'sub_stat_2'
     >>> plugin_stat = Stats(stat_name)
     >>> plugin_stat.counter.failure -= 1
     >>> stats[stat_name] = plugin_stat
     >>> print stats
-    ==================================== global ====================================
-    test_local_total:                                                              1
-    test_local_success:                                                            1
-    =================================== sub_stat ===================================
-    test_nested_failures:                                                          1
-    test_nested_total:                                                             1
-    ================================== sub_stat_2 ==================================
-    failure_failures:                                                              1
-    failure_total:                                                                 1
+    ============================================== global ==============================================
+    test_local_total:                                                                                  1
+    test_local_success:                                                                                1
+    ============================================= sub_stat =============================================
+    test_nested_failures:                                                                              1
+    test_nested_total:                                                                                 1
+    ============================================ sub_stat_2 ============================================
+    failure_failures:                                                                                  1
+    failure_total:                                                                                     1
 
     Also Stat instance has builtin timer factory
     >>> stats.timer.test('start')
@@ -180,7 +180,7 @@ class Stats(object):
         self.__sub_stats = Container(Stats)
 
     def __str__(self):
-        result = ["{0:=^80}".format(" " + str(self.name) + " ")]
+        result = ["{0:=^100}".format(" " + str(self.name) + " ")]
         for _, v in chain(sorted(self.counter), sorted(self.timer), sorted(self.__sub_stats)):
             result.append(str(v))
         return "\n".join(result)

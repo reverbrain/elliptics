@@ -287,7 +287,8 @@ def main(ctx):
     global g_ctx
     g_ctx = ctx
     result = True
-    g_ctx.monitor.add_timer("main", "started")
+    stats_name = "main"
+    g_ctx.monitor.add_timer(stats_name, "started")
     g_ctx.stats.timer.main('started')
     log.debug("Groups: %s" % g_ctx.groups)
 
@@ -333,7 +334,7 @@ def main(ctx):
         pool.terminate()
         pool.join()
         g_ctx.stats.timer.main('finished')
-        g_ctx.monitor.add_timer("main", "finished")
+        g_ctx.monitor.add_timer(stats_name, "finished")
         return False
 
     diff_results = None
@@ -360,7 +361,7 @@ def main(ctx):
         pool.terminate()
         pool.join()
         g_ctx.stats.timer.main('finished')
-        g_ctx.monitor.add_timer("main", "finished")
+        g_ctx.monitor.add_timer(stats_name, "finished")
         return False
 
     if len(diff_results) == 0:
@@ -368,17 +369,17 @@ def main(ctx):
         pool.terminate()
         pool.join()
         g_ctx.stats.timer.main('finished')
-        g_ctx.monitor.add_timer("main", "finished")
+        g_ctx.monitor.add_timer(stats_name, "finished")
         return True
 
     diff_length = sum([len(diff) for diff in diff_results])
 
     log.warning('Computing merge and splitting by node all remote results')
-    g_ctx.monitor.add_timer("main", "merge & split")
+    g_ctx.monitor.add_timer(stats_name, "merge & split")
     g_ctx.stats.timer.main('merge & split')
     splitted_results = IteratorResult.merge(diff_results, g_ctx.tmp_dir)
     g_ctx.stats.timer.main('finished')
-    g_ctx.monitor.add_timer("main", "finished")
+    g_ctx.monitor.add_timer(stats_name, "finished")
 
     assert diff_length == sum([len(spl) for spl in splitted_results])
 
@@ -396,7 +397,7 @@ def main(ctx):
             pool.terminate()
             pool.join()
             g_ctx.stats.timer.main('finished')
-            g_ctx.monitor.add_timer("main", "finished")
+            g_ctx.monitor.add_timer(stats_name, "finished")
             return False
         else:
             log.info("Closing pool, joining threads")
@@ -405,7 +406,7 @@ def main(ctx):
         result &= all(results)
 
     g_ctx.stats.timer.main('finished')
-    g_ctx.monitor.add_timer("main", "finished")
+    g_ctx.monitor.add_timer(stats_name, "finished")
     log.debug("Result: %s" % result)
 
     return result
