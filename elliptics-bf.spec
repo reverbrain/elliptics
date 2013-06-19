@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.9.1
+Version:	2.24.9.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jun 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.9.2
+- Fixed python_read_result_get
+
 * Wed Jun 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.9.1
 - Get rid of blob_cache_size unsupported config option
 - Get rid of last column/type appearance in elliptics python binding

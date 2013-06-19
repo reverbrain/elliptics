@@ -1,3 +1,9 @@
+elliptics (2.24.9.2) unstable; urgency=low
+
+  * Fixed python_read_result_get
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 19 Jun 2013 21:57:02 +0400
+
 elliptics (2.24.9.1) unstable; urgency=low
 
   * Get rid of blob_cache_size unsupported config option
