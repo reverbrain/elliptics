@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.8.1
+Version:	2.24.9.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,52 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jun 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.9.1
+- Get rid of blob_cache_size unsupported config option
+- Get rid of last column/type appearance in elliptics python binding
+- Added missed monitor.py. Optimized monitor output: leave only important counters and timers.
+- New exec() variant which gets id and src_key from existing exec_context.
+- New method in exec_context to retrieve src_key from underlying sph.
+- Fixed friend and forward declarations of exec_context_data
+- Whitespace cleanup and indentation fixes
+- Added bulk_read_async and write_data_async and added iterating ability to returned results. Fixed bugs
+- Fixed errors handling in async_result_handler::complete
+- Added ready for async_result. Added extra write_data
+- Added recovery type to monitor statistics output. Changed apply_async to imap_unordered.
+- added backends.h to install(FILES ...) in CMakeLists.txt
+- Fixed output for stats: increased width. Added sending monitor info from dc script
+- Added comment and record to log when interrupting iterator.
+- Added generic monitoring and dc2 monitoring impl.
+- Added interrupting iterator execution on server-side if client connection has been closed.
+- Added empty C++ merge method. Fixed run_iterator in dc2
+- python: major update to remove type/column
+- Returned 2.20.*.* namespace behaviour
+- Added session::find_any_indexes
+- Fixed BULK_READ server implementation
+- python: s/boost::python::/bp::/g
+- python: removed unnedded 'using namespace'
+- recovery: cleanup after type removal
+- recovery: dc: dc2: fixed exception on container load
+- dnet: use proper error code on empty route table
+- recovery: use lock by default
+- recovery: dc: dc2: use proper direct API
+- Removed meta methods from module_backend
+- Removed sync read and write methods
+- Removed dnet_id.type. It was legacy
+- Removed DNET_ATTR_DELETE_HISTORY and DNET_ATTR_META_TIMES
+- Removed example/hparser
+- Removed legacy meta/check/recovery/iterate support
+- Fixed typo in cocaine storage service exception
+- Added handling Ctrl+C in dc2
+- ioserv: unblock SIGQUIT and SIGTSTP
+- recovery: remove lru_cache from node and session
+- dnet: fix DNET_FLAGS_DIRECT flag behavior
+- recovery: added posix_fadvise to sort
+- Added skipping equal keys while computing differeneces.
+- Added support for the writing chunk by chunk
+- recovery: properly catch SIGINT
+- recovery: renamed collisions with python builtins
+
 * Tue Jun 04 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.8.1
 - Correct service protocol must be derived from extension class
 
