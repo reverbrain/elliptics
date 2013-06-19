@@ -101,7 +101,6 @@ static bp::list convert_to_list(const unsigned char *src, unsigned int size)
 struct elliptics_id {
 	elliptics_id() : group_id(0) {}
 	elliptics_id(bp::list id_, int group_) : id(id_), group_id(group_) {}
-	elliptics_id(bp::list id_, int group_, int) : id(id_), group_id(group_) {}
 
 	elliptics_id(struct dnet_id &dnet) {
 		id = convert_to_list(dnet.id, sizeof(dnet.id));
@@ -976,7 +975,6 @@ BOOST_PYTHON_MODULE(elliptics) {
 	bp::register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
 
 	bp::class_<elliptics_id>("Id")
-		.def(bp::init<bp::list, int, int>((bp::arg("key"), bp::arg("group_id"), bp::arg("type") = 0)))
 		.def(bp::init<bp::list, int>(bp::args("key", "group_id")))
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
@@ -1079,19 +1077,16 @@ BOOST_PYTHON_MODULE(elliptics) {
 	;
 
 	bp::class_<elliptics_session, boost::noncopyable>("Session", bp::init<node &>())
-		.add_property("groups", &elliptics_session::get_groups,
-			&elliptics_session::set_groups)
+		.add_property("groups", &elliptics_session::get_groups, &elliptics_session::set_groups)
 		.def("add_groups", &elliptics_session::set_groups)
 		.def("set_groups", &elliptics_session::set_groups)
 		.def("get_groups", &elliptics_session::get_groups)
 
-		.add_property("cflags", &elliptics_session::get_cflags,
-			&elliptics_session::set_cflags)
+		.add_property("cflags", &elliptics_session::get_cflags, &elliptics_session::set_cflags)
 		.def("set_cflags", &elliptics_session::set_cflags)
 		.def("get_cflags", &elliptics_session::get_cflags)
 
-		.add_property("ioflags", &elliptics_session::get_ioflags,
-			&elliptics_session::set_ioflags)
+		.add_property("ioflags", &elliptics_session::get_ioflags, &elliptics_session::set_ioflags)
 		.def("set_ioflags", &elliptics_session::set_ioflags)
 		.def("get_ioflags", &elliptics_session::get_ioflags)
 
@@ -1101,16 +1096,16 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("read_file", &elliptics_session::read_file_by_id,
 			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("read_file", &elliptics_session::read_file_by_data_transform,
-			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0, bp::arg("column") = 0))
+			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("write_file", &elliptics_session::write_file_by_id,
 			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("local_offset") = 0, bp::arg("size") = 0))
 		.def("write_file", &elliptics_session::write_file_by_data_transform,
-			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("local_offset") = 0, bp::arg("size") = 0, bp::arg("column") = 0))
+			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("local_offset") = 0, bp::arg("size") = 0))
 
 		.def("read_data", &elliptics_session::read_data_by_id,
 			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("read_data", &elliptics_session::read_data_by_data_transform,
-			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0, bp::arg("column") = 0))
+			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 
 		.def("prepare_latest", &elliptics_session::prepare_latest_by_id)
 		.def("prepare_latest_str", &elliptics_session::prepare_latest_by_id_str)
