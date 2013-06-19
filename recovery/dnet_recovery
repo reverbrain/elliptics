@@ -168,7 +168,7 @@ if __name__ == '__main__':
 
     try:
         if options.monitor_port:
-            ctx.monitor = Monitor(int(options.monitor_port), recovery_type)
+            ctx.monitor = Monitor(int(options.monitor_port), recovery_type, ctx)
         else:
             ctx.monitor = EmptyMonitor()
     except Exception as e:
@@ -205,6 +205,8 @@ if __name__ == '__main__':
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
     result = main(ctx)
+
+    ctx.monitor.set_finished()
 
     if options.stat == STAT_TEXT:
         print ctx.stats
