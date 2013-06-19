@@ -1032,6 +1032,7 @@ void python_write_result_wait(python_write_result &result)
 bool python_write_result_ready(python_write_result &result)
 {
 	return result.scope->ready();
+}
 
 struct id_pickle : bp::pickle_suite
 {
