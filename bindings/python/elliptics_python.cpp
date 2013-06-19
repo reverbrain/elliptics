@@ -946,12 +946,19 @@ void iterator_container_diff(iterator_result_container &left,
 
 void iterator_container_merge(const bp::list& /*results*/, bp::dict& /*splitted_dict*/)
 {
-	py_allow_threads_scoped pythr;
 }
 
-void python_read_result_get(python_read_result &result)
+bp::list python_read_result_get(python_read_result &result)
 {
-	result.scope->get();
+	auto get_result = result.scope->get();
+
+	bp::list res;
+
+	for (auto it = get_result.begin(), end = get_result.end(); it != end; ++it) {
+		res.append(*it);
+	}
+
+	return res;
 }
 
 void python_read_result_wait(python_read_result &result)
