@@ -1029,6 +1029,10 @@ void python_write_result_wait(python_write_result &result)
 	result.scope->wait();
 }
 
+bool python_write_result_ready(python_write_result &result)
+{
+	return result.scope->ready();
+
 struct id_pickle : bp::pickle_suite
 {
 	static bp::tuple getinitargs(const elliptics_id& id)
@@ -1155,6 +1159,10 @@ BOOST_PYTHON_MODULE(elliptics) {
 
 	bp::class_<python_read_result>("ReadResult", bp::no_init)
 		.def("__iter__", bp::iterator<python_read_result>())
+		.def("get", python_read_result_get)
+		.def("wait", python_read_result_wait)
+		.def("successful", python_read_result_successful)
+		.def("ready", python_read_result_ready)
 	;
 
 	bp::class_<read_result_entry>("ReadResultEntry")
@@ -1169,6 +1177,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("get", python_write_result_get)
 		.def("wait", python_write_result_wait)
 		.def("successful", python_write_result_successful)
+		.def("ready", python_write_result_ready)
 	;
 
 	bp::class_<write_result_entry>("WriteResultEntry")
