@@ -947,6 +947,39 @@ void iterator_container_merge(const bp::list& /*results*/, bp::dict& /*splitted_
 {
 }
 
+bp::list python_read_result_get(python_read_result &result)
+{
+	auto get_result = result.scope->get();
+
+	bp::list res;
+
+	for (auto it = get_result.begin(), end = get_result.end(); it != end; ++it) {
+		res.append(*it);
+	}
+
+	return res;
+}
+
+void python_read_result_wait(python_read_result &result)
+{
+	result.scope->wait();
+}
+
+bool python_read_result_successful(python_read_result &result)
+{
+	if (!result.scope->ready()) {
+		PyErr_SetString(PyExc_ValueError, "Async write operation hasn't yet been completed");
+		bp::throw_error_already_set();
+	}
+
+	return !result.scope->error();
+}
+
+bool python_read_result_ready(python_read_result &result)
+{
+	return result.scope->ready();
+}
+
 std::string read_result_get_data(read_result_entry &result)
 {
 	return result.file().to_string();
@@ -993,6 +1026,11 @@ bool python_write_result_successful(const python_write_result &result)
 void python_write_result_wait(python_write_result &result)
 {
 	result.scope->wait();
+}
+
+bool python_write_result_ready(python_write_result &result)
+{
+	return result.scope->ready();
 }
 
 struct id_pickle : bp::pickle_suite
@@ -1120,6 +1158,10 @@ BOOST_PYTHON_MODULE(elliptics) {
 
 	bp::class_<python_read_result>("ReadResult", bp::no_init)
 		.def("__iter__", bp::iterator<python_read_result>())
+		.def("get", python_read_result_get)
+		.def("wait", python_read_result_wait)
+		.def("successful", python_read_result_successful)
+		.def("ready", python_read_result_ready)
 	;
 
 	bp::class_<read_result_entry>("ReadResultEntry")
@@ -1134,6 +1176,7 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("get", python_write_result_get)
 		.def("wait", python_write_result_wait)
 		.def("successful", python_write_result_successful)
+		.def("ready", python_write_result_ready)
 	;
 
 	bp::class_<write_result_entry>("WriteResultEntry")
