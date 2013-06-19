@@ -196,7 +196,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         batch = remote_session.bulk_read_async(keys)
         for b in batch:
             async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data)))
-            return async_write_results
+        return async_write_results
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
         return None

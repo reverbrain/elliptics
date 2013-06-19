@@ -946,6 +946,32 @@ void iterator_container_diff(iterator_result_container &left,
 
 void iterator_container_merge(const bp::list& /*results*/, bp::dict& /*splitted_dict*/)
 {
+	py_allow_threads_scoped pythr;
+}
+
+void python_read_result_get(python_read_result &result)
+{
+	result.scope->get();
+}
+
+void python_read_result_wait(python_read_result &result)
+{
+	result.scope->wait();
+}
+
+bool python_read_result_successful(python_read_result &result)
+{
+	if (!result.scope->ready()) {
+		PyErr_SetString(PyExc_ValueError, "Async write operation hasn't yet been completed");
+		bp::throw_error_already_set();
+	}
+
+	return !result.scope->error();
+}
+
+bool python_read_result_ready(python_read_result &result)
+{
+	return result.scope->ready();
 }
 
 std::string read_result_get_data(read_result_entry &result)
