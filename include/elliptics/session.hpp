@@ -380,6 +380,13 @@ class session
 		 * Returns async_write_result.
 		 */
 		async_write_result write_data(const dnet_io_control &ctl);
+
+		/*!
+		 * Writes data \a file to server by the dnet_io_attr \a io and
+		 *
+		 * Returns async_write_result
+		 */
+		async_write_result write_data(const dnet_io_attr& io, const data_pointer &file);
 		/*!
 		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
 		 *
@@ -653,7 +660,7 @@ class session
 
 		async_find_indexes_result find_all_indexes(const std::vector<dnet_raw_id> &indexes);
 		async_find_indexes_result find_all_indexes(const std::vector<std::string> &indexes);
-        async_find_indexes_result find_any_indexes(const std::vector<dnet_raw_id> &indexes);
+		async_find_indexes_result find_any_indexes(const std::vector<dnet_raw_id> &indexes);
 		async_find_indexes_result find_any_indexes(const std::vector<std::string> &indexes);
 
 		async_check_indexes_result check_indexes(const key &id);

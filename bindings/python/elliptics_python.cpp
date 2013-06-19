@@ -257,7 +257,9 @@ python_result<T> create_result(T &&result)
 	return pyresult;
 }
 
-typedef python_result<async_iterator_result> python_iterator_result;
+typedef python_result<async_iterator_result>	python_iterator_result;
+typedef python_result<async_read_result> 		python_read_result;
+typedef python_result<async_write_result>		python_write_result;
 
 class elliptics_session: public session, public bp::wrapper<session> {
 	public:
@@ -371,6 +373,23 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		std::string write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset) {
 			return convert_to_string(write_data(key(remote), data, remote_offset));
+		}
+
+		python_write_result write_data_async(const bp::tuple &attr, const std::string &data) {
+
+			dnet_io_attr io;
+			memset(&io, 0, sizeof(io));
+
+			elliptics_id& e_id = bp::extract<elliptics_id&>(attr[0]);
+			dnet_id id = e_id.to_dnet();
+			memcpy(io.id, id.id, sizeof(io.id));
+
+			elliptics_time& timestamp = bp::extract<elliptics_time&>(attr[1]);
+			io.timestamp = timestamp.to_dnet_time();
+
+			io.user_flags = bp::extract<uint64_t>(attr[2]);
+
+			return create_result(std::move(session::write_data(io, data)));
 		}
 
 		std::string write_cache_by_id(const struct elliptics_id &id, const std::string &data,
@@ -592,7 +611,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return result;
 		}
 
-		bp::api::object bulk_read(const bp::api::object& keys)
+		bp::api::object bulk_read(const bp::api::object &keys)
 		{
 			std::vector<elliptics_id> std_keys = convert_to_vector<elliptics_id>(keys);
 			std::vector<dnet_io_attr> ios;
@@ -618,6 +637,26 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			}
 
 			return result;
+		}
+
+		python_read_result bulk_read_async(const bp::api::object &keys)
+		{
+			std::vector<elliptics_id> std_keys = convert_to_vector<elliptics_id>(keys);
+			std::vector<dnet_io_attr> ios;
+			dnet_io_attr io;
+			memset(&io, 0, sizeof(io));
+
+			ios.reserve(std_keys.size());
+			std::map<struct dnet_id, elliptics_id, dnet_id_comparator> keys_map;
+			for (auto it = std_keys.begin(), end = std_keys.end(); it != end; ++it) {
+				dnet_id id = it->to_dnet();
+				keys_map.insert(std::make_pair(id, *it));
+
+				memcpy(io.id, id.id, sizeof(io.id));
+				ios.push_back(io);
+			}
+
+			return create_result(std::move(session::bulk_read(ios)));
 		}
 
 		std::string bulk_write(const bp::api::object &data)
@@ -904,6 +943,58 @@ void iterator_container_diff(iterator_result_container &left,
 	left.diff(right, diff);
 }
 
+void iterator_container_merge(const bp::list& /*results*/, bp::dict& /*splitted_dict*/)
+{
+}
+
+std::string read_result_get_data(read_result_entry &result)
+{
+	return result.file().to_string();
+}
+
+elliptics_id read_result_get_id(read_result_entry &result)
+{
+	return elliptics_id(convert_to_list(result.io_attribute()->id, sizeof(result.io_attribute()->id)), 0);
+}
+
+elliptics_time read_result_get_timestamp(read_result_entry &result)
+{
+	return elliptics_time(result.io_attribute()->timestamp);
+}
+
+uint64_t read_result_get_user_flags(read_result_entry &result)
+{
+	return result.io_attribute()->user_flags;
+}
+
+std::string python_write_result_get(const python_write_result &result)
+{
+	sync_write_result res = result.scope->get();
+
+	std::string str;
+
+	for (auto it = res.begin(), end = res.end(); it != end; ++it) {
+		str += it->raw_data().to_string();
+	}
+
+	return str;
+}
+
+bool python_write_result_successful(const python_write_result &result)
+{
+	if (!result.scope->ready()) {
+		PyErr_SetString(PyExc_ValueError, "Async write operation hasn't yet been completed");
+		bp::throw_error_already_set();
+	}
+
+	return !result.scope->error();
+}
+
+void python_write_result_wait(python_write_result &result)
+{
+	result.scope->wait();
+}
+
 struct id_pickle : bp::pickle_suite
 {
 	static bp::tuple getinitargs(const elliptics_id& id)
@@ -995,6 +1086,10 @@ BOOST_PYTHON_MODULE(elliptics) {
 				dnet_iterator_range_set_key_end)
 	;
 
+	bp::class_<python_iterator_result>("IteratorResult", bp::no_init)
+		.def("__iter__", bp::iterator<python_iterator_result>())
+	;
+
 	bp::class_<iterator_result_entry>("IteratorResultEntry")
 		.add_property("id", &iterator_result_entry::id)
 		.add_property("status", &iterator_result_entry::status)
@@ -1019,6 +1114,29 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("diff", iterator_container_diff)
 		.def("__len__", iterator_container_get_count)
 		.def("__getitem__", iterator_container_getitem)
+		.def("merge", &iterator_container_merge)
+		.staticmethod("merge")
+	;
+
+	bp::class_<python_read_result>("ReadResult", bp::no_init)
+		.def("__iter__", bp::iterator<python_read_result>())
+	;
+
+	bp::class_<read_result_entry>("ReadResultEntry")
+		.add_property("data", read_result_get_data)
+		.add_property("id", read_result_get_id)
+		.add_property("timestamp", read_result_get_timestamp)
+		.add_property("user_flags", read_result_get_user_flags)
+	;
+
+	bp::class_<python_write_result>("WriteResult", bp::no_init)
+		.def("__iter__", bp::iterator<python_write_result>())
+		.def("get", python_write_result_get)
+		.def("wait", python_write_result_wait)
+		.def("successful", python_write_result_successful)
+	;
+
+	bp::class_<write_result_entry>("WriteResultEntry")
 	;
 
 	bp::class_<elliptics_range>("Range")
@@ -1059,10 +1177,6 @@ BOOST_PYTHON_MODULE(elliptics) {
 	bp::class_<dnet_time>("dnet_time", bp::no_init)
 		.def_readwrite("tsec", &dnet_time::tsec)
 		.def_readwrite("tnsec", &dnet_time::tnsec)
-	;
-
-	bp::class_<python_iterator_result>("IteratorResult", bp::no_init)
-		.def("__iter__", bp::iterator<python_iterator_result>())
 	;
 
 	bp::class_<elliptics_config>("Config", bp::init<>())
@@ -1119,6 +1233,8 @@ BOOST_PYTHON_MODULE(elliptics) {
 			(bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0))
 		.def("write_data", &elliptics_session::write_data_by_data_transform,
 			(bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0, bp::arg("column") = 0))
+		.def("write_data_async", &elliptics_session::write_data_async,
+			(bp::arg("io_attr"), bp::arg("data")))
 
 		.def("write_cache", &elliptics_session::write_cache_by_id)
 		.def("write_cache", &elliptics_session::write_cache_by_data_transform)
@@ -1149,6 +1265,8 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.def("remove", &elliptics_session::remove_by_name)
 
 		.def("bulk_read", &elliptics_session::bulk_read,
+			(bp::arg("keys")))
+		.def("bulk_read_async", &elliptics_session::bulk_read_async,
 			(bp::arg("keys")))
 		.def("bulk_read_by_name", &elliptics_session::bulk_read_by_name,
 			(bp::arg("keys"), bp::arg("raw") = false))

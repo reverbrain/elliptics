@@ -998,7 +998,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 			err = -errno;
 			dnet_log_err(n, "could not set write client prio %d", n->client_prio);
 		}
-		
+
 		if (!err) {
 			dnet_log(n, DNET_LOG_INFO, "%s: client net TOS value set to %d\n",
 					dnet_server_convert_dnet_addr(addr), n->client_prio);

@@ -663,7 +663,7 @@ struct dnet_session *dnet_session_create(struct dnet_node *n)
 	struct dnet_session *s;
 
 	s = (struct dnet_session *)malloc(sizeof(struct dnet_session));
-	if (!s) 
+	if (!s)
 		return NULL;
 
 	memset(s, 0, sizeof(struct dnet_session));

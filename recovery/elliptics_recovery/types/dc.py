@@ -11,7 +11,8 @@ from multiprocessing import Pool
 from ..iterator import Iterator, IteratorResult
 from ..time import Time
 from ..stat import Stats
-from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session, worker_init
+from ..utils.misc import elliptics_create_node, elliptics_create_session, worker_init
+from ..monitor import Counters
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -41,9 +42,12 @@ def run_iterators(ctx, range, stats):
                                                           address=ctx.address
                                                           )
 
-        stats.counter.local_records += len(local_result)
-        stats.counter.iterated_keys += len(local_result)
+        local_result_len = len(local_result)
+        stats.counter.local_records += local_result_len
+        ctx.monitor.add_counter(Counters.IteratedKeys, local_result_len)
+        stats.counter.iterated_keys += local_result_len
         stats.counter.iterations += 1
+        ctx.monitor.add_counter(Counters.Iterations, 1)
         log.debug("Local iterator obtained: {0} record(s)".format(len(local_result)))
         remote_result = []
 
@@ -69,10 +73,13 @@ def run_iterators(ctx, range, stats):
 
             remote_result[-1].address = range.address[i][1]
             remote_result[-1].group_id = i
-            log.debug("Remote obtained: {0} record(s)".format(len(remote_result[-1])))
-            stats.counter.remote_records += len(remote_result[-1])
-            stats.counter.iterated_keys += len(remote_result[-1])
+            remote_result_len = len(remote_result[-1])
+            log.debug("Remote obtained: {0} record(s)".format(remote_result_len))
+            stats.counter.remote_records += remote_result_len
+            ctx.monitor.add_counter(Counters.IteratedKeys, remote_result_len)
+            stats.counter.iterated_keys += remote_result_len
             stats.counter.iterations += 1
+            ctx.monitor.add_counter(Counters.Iterations, 1)
 
         return local_result, remote_result
 
@@ -131,8 +138,10 @@ def diff(ctx, local, remote, stats):
                 result.group_id = r.group_id
             if len(result) > 0:
                 diffs.append(result)
-                stats.counter.diffs += len(result)
-                total_diffs += len(result)
+                result_len = len(result)
+                stats.counter.diffs += result_len
+                ctx.monitor.add_counter(Counters.Diffs, result_len)
+                total_diffs += result_len
             else:
                 log.info("Resulting diff is empty, skipping")
         except Exception as e:
@@ -150,7 +159,12 @@ def recover(ctx, splitted_results, stats):
 
     log.info("Recovering {0} keys".format(sum(len(d) for d in splitted_results)))
 
-    local_node = elliptics_create_node(address=ctx.address, elog=ctx.elog)
+    local_node = elliptics_create_node(address=ctx.address,
+                                       elog=ctx.elog,
+                                       io_thread_num=4,
+                                       net_thread_num=4,
+                                       nonblocking_io_thread_num=4
+                                       )
     log.debug("Creating direct session: {0}".format(ctx.address))
     local_session = elliptics_create_session(node=local_node,
                                              group=ctx.group_id,
@@ -159,7 +173,12 @@ def recover(ctx, splitted_results, stats):
 
     for diff in splitted_results:
 
-        remote_node = elliptics_create_node(address=diff.address, elog=ctx.elog)
+        remote_node = elliptics_create_node(address=diff.address,
+                                            elog=ctx.elog,
+                                            io_thread_num=4,
+                                            net_thread_num=4,
+                                            nonblocking_io_thread_num=4
+                                            )
         log.debug("Creating direct session: {0}".format(diff.address))
         remote_session = elliptics_create_session(node=remote_node,
                                                   group=diff.eid.group_id,
@@ -170,7 +189,9 @@ def recover(ctx, splitted_results, stats):
             keys = [elliptics.Id(r.key, diff.eid.group_id) for _, r in batch]
             successes, failures = recover_keys(ctx, diff.address, diff.eid.group_id, keys, local_session, remote_session, stats)
             stats.counter.recovered_keys += successes
+            ctx.monitor.add_counter(Counters.RecoveredKeys, successes)
             stats.counter.recovered_keys -= failures
+            ctx.monitor.add_counter(Counters.FailedKeys, failures)
             result &= (failures == 0)
             log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(batch_id * ctx.batch_size + len(keys), len(diff), successes, failures))
 
@@ -182,33 +203,53 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
     Bulk recovery of keys.
     """
     key_num = len(keys)
+    size, read_count = (0, 0)
+    async_write_results = []
 
     log.debug("Reading {0} keys".format(key_num))
     try:
-        batch = remote_session.bulk_read(keys)
+        batch = remote_session.bulk_read_async(keys)
+        for b in batch:
+            b_data_len = len(b.data)
+            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), b_data_len))
+            size += b_data_len
+            read_count += 1
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num
 
-    size = sum(len(v[1]) for v in batch)
-    log.debug("Writing {0} keys: {1} bytes".format(len(batch), size))
+    log.debug("Writing {0} keys: {1} bytes".format(read_count, size))
 
     try:
-        local_session.bulk_write(batch)
-        stats.counter.recovered_bytes += size
-        return key_num, 0
+        successes, failures, successes_size, failures_size = (0, 0, 0, 0)
+        for r, bsize in async_write_results:
+            r.wait()
+            if r.successful():
+                successes_size += bsize
+                successes += 1
+            else:
+                failures_size += bsize
+                failures += 1
+
+        stats.counter.recovered_bytes += successes_size
+        ctx.monitor.add_counter(Counters.RecoveredBytes, successes_size)
+        stats.counter.recovered_bytes -= failures_size
+        ctx.monitor.add_counter(Counters.FailedBytes, failures_size)
+        return successes, failures
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
         stats.counter.recovered_bytes -= size
+        ctx.monitor.add_counter(Counters.FailedBytes, size)
         return 0, key_num
 
 
-def process_range(range, dry_run):
+def process_range((range, dry_run)):
+    ctx = g_ctx
+
     stats_name = 'range_{0}'.format(range.id_range)
     stats = Stats(stats_name)
-    stats.timer.process('started')
 
-    ctx = g_ctx
+    stats.timer.process('started')
 
     ctx.elog = elliptics.Logger(ctx.log_file, ctx.log_level)
 
@@ -236,9 +277,18 @@ def process_range(range, dry_run):
         return True, stats
 
     log.info('Computing merge and splitting by node all remote results')
+
+    diff_length = sum([len(d) for d in diff_results])
+
     stats.timer.process('merge and split')
     splitted_results = IteratorResult.merge(diff_results, ctx.tmp_dir)
     stats.timer.process('finished')
+
+    merged_diff_length = sum([len(spl) for spl in splitted_results])
+
+    assert diff_length >= merged_diff_length
+
+    ctx.monitor.add_counter(Counters.MergedDiffs, merged_diff_length)
 
     result = True
     stats.timer.process('recover')
@@ -267,17 +317,14 @@ def main(ctx):
         g_ctx.stats.timer.main('finished')
         return result
 
-    processes = min(g_ctx.nprocess, len(ranges) - 1)
+    processes = min(g_ctx.nprocess, len(ranges))
     pool = Pool(processes=processes, initializer=worker_init)
     log.debug("Created pool of processes: %d" % processes)
 
-    async_results = [pool.apply_async(process_range, (r, g_ctx.dry_run)) for r in ranges]
+    ctx.monitor.add_counter(Counters.TotalIterations, len(ranges) * len(g_ctx.routes.groups()))
 
     try:
-        # Use INT_MAX as timeout, so we can catch Ctrl+C
-        timeout = 2147483647
-
-        for r, stats in (r.get(timeout) for r in async_results):
+        for r, stats in pool.imap_unordered(process_range, ((r, g_ctx.dry_run) for r in ranges)):
             g_ctx.stats[stats.name] = stats
             result &= r
 

@@ -109,6 +109,11 @@ class async_result
 		error_info error() const;
 
 		/*!
+		 * Returns true if complete and false otherwise
+		 */
+		 bool ready() const;
+
+		/*!
 		 * Blocks current thread until all entries are received, then
 		 * returns all of them as list.
 		 *
