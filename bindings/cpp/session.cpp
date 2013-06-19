@@ -775,6 +775,28 @@ async_write_result session::write_data(const dnet_io_control &ctl)
 	return result;
 }
 
+async_write_result session::write_data(const dnet_io_attr &io, const data_pointer &file)
+{
+	struct dnet_io_control ctl;
+	memset(&ctl, 0, sizeof(ctl));
+
+	ctl.cflags = get_cflags();
+	ctl.data = file.data();
+
+	ctl.io = io;
+
+	ctl.io.size = file.size();
+
+	ctl.io.flags |= get_ioflags();
+
+	dnet_setup_id(&ctl.id, 0, (unsigned char *)io.id);
+
+	ctl.fd = -1;
+
+	return write_data(ctl);
+}
+
+
 async_write_result session::write_data(const key &id, const data_pointer &file, uint64_t remote_offset)
 {
 	transform(id);
@@ -1892,21 +1914,7 @@ async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, con
 		set_exceptions_policy(no_exceptions);
 
 		for(size_t i = 0; i < ios.size(); ++i) {
-			struct dnet_io_control ctl;
-			memset(&ctl, 0, sizeof(ctl));
-
-			ctl.cflags = get_cflags();
-			ctl.data = data[i].data();
-
-			ctl.io = ios[i];
-
-			ctl.io.flags |= get_ioflags();
-
-			dnet_setup_id(&ctl.id, 0, (unsigned char *)ios[i].id);
-
-			ctl.fd = -1;
-
-			results.emplace_back(std::move(write_data(ctl)));
+			results.emplace_back(std::move(write_data(ios[i], data[i])));
 		}
 	}
 

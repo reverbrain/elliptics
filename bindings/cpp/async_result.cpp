@@ -97,6 +97,12 @@ error_info async_result<T>::error() const
 }
 
 template <typename T>
+bool async_result<T>::ready() const
+{
+	return m_data->finished;
+}
+
+template <typename T>
 std::vector<T> async_result<T>::get()
 {
 	wait(session::throw_at_get);

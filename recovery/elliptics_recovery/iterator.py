@@ -119,6 +119,8 @@ class IteratorResult(object):
                                                                            leave_file=True
                                                                            )
 
+            elliptics.IteratorResultContainer.merge(results, splitted_results)
+
             vals = [i.next() for i in its]
             while len(vals):
                 i_min = 0

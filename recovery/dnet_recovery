@@ -16,6 +16,7 @@ from elliptics_recovery.route import RouteList, Address
 from elliptics_recovery.stat import Stats
 from elliptics_recovery.time import Time
 from elliptics_recovery.utils.misc import elliptics_create_node, elliptics_create_session
+from elliptics_recovery.monitor import Monitor, EmptyMonitor
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -31,6 +32,7 @@ ALLOWED_TYPES = (TYPE_MERGE, TYPE_DC, TYPE_DC2)
 STAT_NONE = 'none'
 STAT_TEXT = 'text'
 ALLOWED_STATS = (STAT_NONE, STAT_TEXT)
+
 
 if __name__ == '__main__':
     from elliptics_recovery.ctx import Ctx
@@ -67,6 +69,8 @@ if __name__ == '__main__':
                            "e.g.: `1368940603`, `12h`, `1d`, or `4w` [default: %default]")
     parser.add_option("-e", "--no-exit", action="store_true", dest="no_exit", default=False,
                       help="Will be waiting for user input at the finish.")
+    parser.add_option("-m", "--monitor-port", action="store", dest="monitor_port", default=None,
+                      help="Enable monitoring and set monitor port [default: disabled]")
 
     (options, args) = parser.parse_args()
 
@@ -98,7 +102,7 @@ if __name__ == '__main__':
     log.info("Using host:port:family: {0}".format(ctx.address))
 
     try:
-        if options.elliptics_groups != None:
+        if options.elliptics_groups:
             ctx.groups = map(int, options.elliptics_groups.split(','))
         else:
             ctx.groups = []
@@ -162,6 +166,14 @@ if __name__ == '__main__':
         raise ValueError("Unknown output format: '{0}'. Available formats are: {1}".format(
             options.stat, ALLOWED_STATS))
 
+    try:
+        if options.monitor_port:
+            ctx.monitor = Monitor(int(options.monitor_port), recovery_type, ctx)
+        else:
+            ctx.monitor = EmptyMonitor()
+    except Exception as e:
+        raise ValueError("Can't parse monitor_port: '{0}' : {1}".format(options.monitor_port, repr(e)))
+
     log.debug("Using following context:\n{0}".format(ctx))
 
     log.info("Setting up elliptics client")
@@ -193,6 +205,8 @@ if __name__ == '__main__':
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
     result = main(ctx)
+
+    ctx.monitor.set_finished()
 
     if options.stat == STAT_TEXT:
         print ctx.stats
