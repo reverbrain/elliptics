@@ -1,3 +1,10 @@
+elliptics (2.24.9.3) unstable; urgency=low
+
+  * When using named workers add unique name to them, so that they are cluster-wide unique
+  * Fixed cache destructor
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 21 Jun 2013 03:17:31 +0400
+
 elliptics (2.24.9.2) unstable; urgency=low
 
   * Fixed python_read_result_get

@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.9.2
+Version:	2.24.9.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jun 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.9.3
+- When using named workers add unique name to them, so that they are cluster-wide unique
+- Fixed cache destructor
+
 * Wed Jun 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.9.2
 - Fixed python_read_result_get
 
