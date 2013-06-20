@@ -151,10 +151,7 @@ class cache_t {
 			stop();
 			m_lifecheck.join();
 
-			while (!m_lru.empty()) {
-				data_t raw = m_lru.front();
-				erase_element(&raw);
-			}
+			resize(0);
 		}
 
 		void stop(void) {
