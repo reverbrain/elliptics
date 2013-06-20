@@ -159,7 +159,7 @@ def recover((id_range, eid, address)):
             async_write_results.extend(aresult)
 
     for batch_id, batch in groupby(enumerate(async_write_results), key=lambda x: x[0] / ctx.batch_size):
-        for _, r, bsize in batch:
+        for r, bsize in batch:
             r.wait()
             if r.successful():
                 successes_size += bsize
@@ -196,6 +196,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         batch = remote_session.bulk_read_async(keys)
         for b in batch:
             async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data)))
+        ctx.monitor.add_counter(Counters.ReadedKeys, len(async_write_results))
         return async_write_results
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))

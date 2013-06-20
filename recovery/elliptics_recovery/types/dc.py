@@ -214,6 +214,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
             async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), b_data_len))
             size += b_data_len
             read_count += 1
+        ctx.monitor.add_counter(Counters.ReadKeys, read_count)
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
         return 0, key_num
