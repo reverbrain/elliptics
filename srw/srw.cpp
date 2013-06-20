@@ -245,10 +245,11 @@ typedef std::map<std::string, srw_counters> cmap_t;
 
 class dnet_app_t : public cocaine::app_t {
 	public:
-			dnet_app_t(cocaine::context_t& context, const std::string& name, const std::string& profile) :
-			cocaine::app_t(context, name, profile),
-			m_pool_size(-1) {
-			atomic_set(&m_sph_index, 1);
+		dnet_app_t(cocaine::context_t& context, const std::string& name, const std::string& profile) :
+		cocaine::app_t(context, name, profile),
+		m_pool_size(-1),
+		m_id("default")	{
+		atomic_set(&m_sph_index, 1);
 		}
 
 		Json::Value counters(void) {
@@ -283,6 +284,14 @@ class dnet_app_t : public cocaine::app_t {
 			m_pool_size = pool_size;
 		}
 
+		void set_task_id(const std::string &id) {
+			m_id = id;
+		}
+
+		const std::string &get_task_id(void) const {
+			return m_id;
+		}
+
 		int get_index(int sph_index) {
 			if (m_pool_size == -1)
 				return -1;
@@ -298,6 +307,7 @@ class dnet_app_t : public cocaine::app_t {
 		cmap_t		m_counters;
 		int		m_pool_size;
 		atomic_t	m_sph_index;
+		std::string	m_id;
 };
 
 typedef std::map<std::string, std::shared_ptr<dnet_app_t> > eng_map_t;
@@ -429,6 +439,12 @@ class srw {
 						}
 
 						eng->set_pool_size(pool_limit);
+
+						if (sph->data_size) {
+							std::string task_id(data + sph->event_size, sph->data_size);
+
+							eng->set_task_id(task_id);
+						}
 					}
 
 					m_map.insert(std::make_pair(app, eng));
@@ -541,7 +557,7 @@ class srw {
 				if (index == -1) {
 					stream = eng->enqueue(cevent, upstream);
 				} else {
-					app += "-" + lexical_cast(index);
+					app = eng->get_task_id() + "-" + app + "-" + lexical_cast(index);
 					stream = eng->enqueue(cevent, upstream, app);
 				}
 
