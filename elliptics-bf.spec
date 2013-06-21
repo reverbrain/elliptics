@@ -126,6 +126,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jun 21 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.9.4
+- Added json format to monitor
+- Added generic AsyncResult to python binding
+- Fixed memory leak on write/lookup
+- Fixed dc2. Added skipped keys while reading into monitor statistics
+
 * Fri Jun 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.9.3
 - When using named workers add unique name to them, so that they are cluster-wide unique
 - Fixed cache destructor

@@ -1,3 +1,12 @@
+elliptics (2.24.9.4) unstable; urgency=low
+
+  * Added json format to monitor
+  * Added generic AsyncResult to python binding
+  * Fixed memory leak on write/lookup
+  * Fixed dc2. Added skipped keys while reading into monitor statistics
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Fri, 21 Jun 2013 16:52:54 +0400
+
 elliptics (2.24.9.3) unstable; urgency=low
 
   * When using named workers add unique name to them, so that they are cluster-wide unique
