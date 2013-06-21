@@ -38,11 +38,12 @@ class Counters:
         Diffs,\
         MergedDiffs,\
         ReadKeys,\
+        SkippedReadKeys,\
         RecoveredKeys,\
         RecoveredBytes,\
         FailedIterations,\
         FailedKeys,\
-        FailedBytes = range(12)
+        FailedBytes = range(13)
 
 
 @logged_class
@@ -76,6 +77,7 @@ class Monitor(object):
         self.recovered_keys = 0
         self.recovered_bytes = 0
         self.read_keys = 0
+        self.skipped_read_keys = 0
 
         self.failed_iterations = 0
         self.failed_keys = 0
@@ -107,6 +109,8 @@ class Monitor(object):
                 self.merged_diffs += value
             elif type == Counters.ReadKeys:
                 self.read_keys += value
+            elif type == Counters.SkippedReadKeys:
+                self.skipped_read_keys += value
             elif type == Counters.RecoveredKeys:
                 self.recovered_keys += value
             elif type == Counters.RecoveredBytes:
@@ -147,7 +151,7 @@ class Monitor(object):
             client.close()
 
     def set_finished(self):
-        self.queue.put_nowait(Counters.EndTime, datetime.now())
+        self.queue.put_nowait((Counters.EndTime, datetime.now()))
 
     def add_counter(self, type, value):
         self.queue.put_nowait((type, value))
@@ -171,12 +175,16 @@ class Monitor(object):
             total_keys = self.merged_diffs
 
         if total_keys:
-            ret += "\n{0}".format(format_kv("Read keys", "{0}".format(self.read_keys)))
-            read_part = self.read_keys * 100 / total_keys
+            ret += "\n{0}".format(format_kv("Read keys succ/skipped", "{0}/{1}".format(self.read_keys, self.skipped_read_keys)))
+            read_part = (self.read_keys + self.skipped_read_keys) * 100 / total_keys
             ret += "\n{0}[{1}%]".format("="*read_part + "-"*(100 - read_part), read_part)
-            ret += "\n{0}".format(format_kv("Recovered keys succ/fail/all", "{0}/{1}/{2}".format(self.recovered_keys, self.failed_keys, self.merged_diffs)))
-            recovered_part = self.recovered_keys * 100 / total_keys
-            failed_part = self.failed_keys * 100 / total_keys
+
+        total_keys -= self.skipped_read_keys
+
+        if self.read_keys:
+            ret += "\n{0}".format(format_kv("Recovered keys succ/fail", "{0}/{1}".format(self.recovered_keys, self.failed_keys)))
+            recovered_part = self.recovered_keys * 100 / self.read_keys
+            failed_part = self.failed_keys * 100 / self.read_keys
             rest = 100 - recovered_part - failed_part
             if rest < 0:
                 rest = 0

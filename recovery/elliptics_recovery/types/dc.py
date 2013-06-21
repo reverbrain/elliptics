@@ -203,7 +203,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
     Bulk recovery of keys.
     """
     key_num = len(keys)
-    size, read_count = (0, 0)
+    read_size, read_len = (0, 0)
     async_write_results = []
 
     log.debug("Reading {0} keys".format(key_num))
@@ -212,35 +212,37 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         for b in batch:
             b_data_len = len(b.data)
             async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), b_data_len))
-            size += b_data_len
-            read_count += 1
-        ctx.monitor.add_counter(Counters.ReadKeys, read_count)
+            read_size += b_data_len
+
+        read_len = len(async_write_results)
+        ctx.monitor.add_counter(Counters.ReadKeys, read_len)
+        ctx.monitor.add_counter(Counters.SkippedReadKeys, key_num - read_len)
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
+        ctx.monitor.add_counter(Counters.SkippedReadKeys, key_num)
         return 0, key_num
 
-    log.debug("Writing {0} keys: {1} bytes".format(read_count, size))
+    log.debug("Writing {0} keys: {1} bytes".format(read_len, read_size))
 
     try:
-        successes, failures, successes_size, failures_size = (0, 0, 0, 0)
+        successes, failures, write_size, failures_size = (0, 0, 0, 0)
         for r, bsize in async_write_results:
             r.wait()
             if r.successful():
-                successes_size += bsize
+                write_size += bsize
                 successes += 1
             else:
-                failures_size += bsize
                 failures += 1
 
-        stats.counter.recovered_bytes += successes_size
-        ctx.monitor.add_counter(Counters.RecoveredBytes, successes_size)
-        stats.counter.recovered_bytes -= failures_size
-        ctx.monitor.add_counter(Counters.FailedBytes, failures_size)
+        stats.counter.recovered_bytes += write_size
+        ctx.monitor.add_counter(Counters.RecoveredBytes, write_size)
+        stats.counter.recovered_bytes -= read_size - write_size
+        ctx.monitor.add_counter(Counters.FailedBytes, read_size - write_size)
         return successes, failures
     except Exception as e:
         log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
-        stats.counter.recovered_bytes -= size
-        ctx.monitor.add_counter(Counters.FailedBytes, size)
+        stats.counter.recovered_bytes -= read_size
+        ctx.monitor.add_counter(Counters.FailedBytes, read_size)
         return 0, key_num
 
 
