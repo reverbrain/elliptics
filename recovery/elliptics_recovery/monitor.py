@@ -133,6 +133,8 @@ class Monitor(object):
             response = None
             if request == 'i':
                 response = str(self)
+            elif request == "j":
+                response = self.to_json()
             #elif request == 'p':
             #    response = "Recover is paused\n"
             #elif request == 'c':
@@ -191,3 +193,23 @@ class Monitor(object):
             ret += "\n{0}[{1}%]".format("="*recovered_part + "!"*failed_part + "-"*rest, recovered_part + failed_part)
             ret += "\n{0}".format(format_kv("Recovered bytes succ/fail", "{0}/{1}".format(self.recovered_bytes, self.failed_bytes)))
         return ret
+
+    def to_json(self):
+        import json
+        return json.dumps({"recovery_type": str(self.recovery_type),
+                           "context": str(self.ctx),
+                           "Started": str(self.start_time),
+                           "Finished": str(self.end_time),
+                           "IterationsSucc": self.iterations,
+                           "IterationsFail": self.failed_iterations,
+                           "IterationsTotal": self.total_iterations,
+                           "IteratedKeys": self.iterated_keys,
+                           "Diffs": self.diffs,
+                           "Merged diffs": self.merged_diffs,
+                           "ReadKeys": self.read_keys,
+                           "SkippedReadKeys": self.skipped_read_keys,
+                           "RecoveredKeysSucc": self.recovered_keys,
+                           "RecoveredKeysFail": self.failed_keys,
+                           "RecoveredBytesSucc": self.recovered_bytes,
+                           "RecoveredBytesFail": self.failed_bytes
+                           })
