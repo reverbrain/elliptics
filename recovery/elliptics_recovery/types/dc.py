@@ -171,8 +171,10 @@ def recover(ctx, splitted_results, stats):
                                              )
     local_session.set_direct_id(*ctx.address)
 
-    for diff in splitted_results:
+    async_write_results = []
+    successes, failures, successes_size, failures_size = (0, 0, 0, 0)
 
+    for diff in splitted_results:
         remote_node = elliptics_create_node(address=diff.address,
                                             elog=ctx.elog,
                                             io_thread_num=4,
@@ -187,42 +189,17 @@ def recover(ctx, splitted_results, stats):
 
         for batch_id, batch in groupby(enumerate(diff), key=lambda x: x[0] / ctx.batch_size):
             keys = [elliptics.Id(r.key, diff.eid.group_id) for _, r in batch]
-            successes, failures = recover_keys(ctx, diff.address, diff.eid.group_id, keys, local_session, remote_session, stats)
-            stats.counter.recovered_keys += successes
-            ctx.monitor.add_counter(Counters.RecoveredKeys, successes)
-            stats.counter.recovered_keys -= failures
-            ctx.monitor.add_counter(Counters.FailedKeys, failures)
-            result &= (failures == 0)
-            log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(batch_id * ctx.batch_size + len(keys), len(diff), successes, failures))
+            aresult = recover_keys(ctx, diff.address, diff.eid.group_id, keys, local_session, remote_session, stats)
+            keys_len = len(keys)
+            if not aresult:
+                stats.counter.recovered_keys -= keys_len
+                ctx.monitor.add_counter(Counters.FailedKeys, keys_len)
+            else:
+                async_write_results.extend(aresult)
 
-    return result
-
-
-def recover_keys(ctx, address, group_id, keys, local_session, remote_session, stats):
-    """
-    Bulk recovery of keys.
-    """
-    key_num = len(keys)
-    size, read_count = (0, 0)
-    async_write_results = []
-
-    log.debug("Reading {0} keys".format(key_num))
-    try:
-        batch = remote_session.bulk_read_async(keys)
-        for b in batch:
-            b_data_len = len(b.data)
-            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), b_data_len))
-            size += b_data_len
-            read_count += 1
-    except Exception as e:
-        log.debug("Bulk read failed: {0} keys: {1}".format(key_num, e))
-        return 0, key_num
-
-    log.debug("Writing {0} keys: {1} bytes".format(read_count, size))
-
-    try:
-        successes, failures, successes_size, failures_size = (0, 0, 0, 0)
-        for r, bsize in async_write_results:
+    for batch_id, batch in groupby(enumerate(async_write_results), key=lambda x: x[0] / ctx.batch_size):
+        successes, failures = (0, 0)
+        for _, (r, bsize) in batch:
             r.wait()
             if r.successful():
                 successes_size += bsize
@@ -235,12 +212,36 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         ctx.monitor.add_counter(Counters.RecoveredBytes, successes_size)
         stats.counter.recovered_bytes -= failures_size
         ctx.monitor.add_counter(Counters.FailedBytes, failures_size)
-        return successes, failures
+        stats.counter.recovered_keys += successes
+        ctx.monitor.add_counter(Counters.RecoveredKeys, successes)
+        stats.counter.recovered_keys -= failures
+        ctx.monitor.add_counter(Counters.FailedKeys, failures)
+        log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(successes + failures, len(diff), successes, failures))
+        result &= (failures == 0)
+
+    return result
+
+
+def recover_keys(ctx, address, group_id, keys, local_session, remote_session, stats):
+    """
+    Bulk recovery of keys.
+    """
+    keys_len = len(keys)
+
+    log.debug("Copying {0} keys".format(keys_len))
+    async_write_results = []
+    try:
+        batch = remote_session.bulk_read_async(keys)
+        for b in batch:
+            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data)))
+        read_len = len(async_write_results)
+        ctx.monitor.add_counter(Counters.ReadKeys, read_len)
+        ctx.monitor.add_counter(Counters.SkippedReadKeys, keys_len - read_len)
+        return async_write_results
     except Exception as e:
-        log.debug("Bulk write failed: {0} keys: {1}".format(key_num, e))
-        stats.counter.recovered_bytes -= size
-        ctx.monitor.add_counter(Counters.FailedBytes, size)
-        return 0, key_num
+        log.debug("Bulk read failed: {0} keys: {1}".format(keys_len, e))
+        ctx.monitor.add_counter(Counters.SkippedReadKeys, keys_len)
+        return None
 
 
 def process_range((range, dry_run)):

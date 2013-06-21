@@ -26,12 +26,24 @@ class EmptyMonitor(object):
     def add_counter(self, name, value):
         pass
 
-    def add_timer(self, stat_name, timer_name):
+    def set_finished(self):
         pass
 
 
 class Counters:
-    EndTime, Iterations, TotalIterations, IteratedKeys, Diffs, MergedDiffs, RecoveredKeys, RecoveredBytes, FailedIterations, FailedKeys, FailedBytes = range(11)
+    EndTime,\
+        Iterations,\
+        TotalIterations,\
+        IteratedKeys,\
+        Diffs,\
+        MergedDiffs,\
+        ReadKeys,\
+        SkippedReadKeys,\
+        RecoveredKeys,\
+        RecoveredBytes,\
+        FailedIterations,\
+        FailedKeys,\
+        FailedBytes = range(13)
 
 
 @logged_class
@@ -64,6 +76,8 @@ class Monitor(object):
         self.merged_diffs = None
         self.recovered_keys = 0
         self.recovered_bytes = 0
+        self.read_keys = 0
+        self.skipped_read_keys = 0
 
         self.failed_iterations = 0
         self.failed_keys = 0
@@ -71,7 +85,13 @@ class Monitor(object):
 
     def data_thread(self):
         while True:
-            type, value = self.queue.get(block=True)
+
+            try:
+                type, value = self.queue.get(block=True)
+            except EOFError:
+                return
+            except ValueError:
+                continue
 
             if type == Counters.EndTime:
                 self.end_time = value
@@ -87,6 +107,10 @@ class Monitor(object):
                 if not self.merged_diffs:
                     self.merged_diffs = 0
                 self.merged_diffs += value
+            elif type == Counters.ReadKeys:
+                self.read_keys += value
+            elif type == Counters.SkippedReadKeys:
+                self.skipped_read_keys += value
             elif type == Counters.RecoveredKeys:
                 self.recovered_keys += value
             elif type == Counters.RecoveredBytes:
@@ -127,7 +151,7 @@ class Monitor(object):
             client.close()
 
     def set_finished(self):
-        self.queue.put_nowait(Counters.EndTime, datetime.now())
+        self.queue.put_nowait((Counters.EndTime, datetime.now()))
 
     def add_counter(self, type, value):
         self.queue.put_nowait((type, value))
@@ -145,18 +169,25 @@ class Monitor(object):
         ret += "\n{0}".format(format_kv("Diffs", self.diffs))
         if self.merged_diffs:
             ret += "\n{0}".format(format_kv("Merged diffs", self.merged_diffs))
-        ret += "\n{0}".format(format_kv("Recovered keys succ/fail/all", "{0}/{1}/{2}".format(self.recovered_keys, self.failed_keys, self.merged_diffs)))
 
         total_keys = self.diffs
         if self.merged_diffs:
             total_keys = self.merged_diffs
 
-        if total_keys != 0:
-            recovered_part = self.recovered_keys * 100 / total_keys
-            failed_part = self.failed_keys * 100 / total_keys
+        if total_keys:
+            ret += "\n{0}".format(format_kv("Read keys succ/skipped", "{0}/{1}".format(self.read_keys, self.skipped_read_keys)))
+            read_part = (self.read_keys + self.skipped_read_keys) * 100 / total_keys
+            ret += "\n{0}[{1}%]".format("="*read_part + "-"*(100 - read_part), read_part)
+
+        total_keys -= self.skipped_read_keys
+
+        if self.read_keys:
+            ret += "\n{0}".format(format_kv("Recovered keys succ/fail", "{0}/{1}".format(self.recovered_keys, self.failed_keys)))
+            recovered_part = self.recovered_keys * 100 / self.read_keys
+            failed_part = self.failed_keys * 100 / self.read_keys
             rest = 100 - recovered_part - failed_part
             if rest < 0:
                 rest = 0
             ret += "\n{0}[{1}%]".format("="*recovered_part + "!"*failed_part + "-"*rest, recovered_part + failed_part)
-        ret += "\n{0}".format(format_kv("Recovered bytes succ/fail", "{0}/{1}".format(self.recovered_bytes, self.failed_bytes)))
+            ret += "\n{0}".format(format_kv("Recovered bytes succ/fail", "{0}/{1}".format(self.recovered_bytes, self.failed_bytes)))
         return ret
