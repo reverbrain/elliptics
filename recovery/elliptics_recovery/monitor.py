@@ -26,7 +26,7 @@ class EmptyMonitor(object):
     def add_counter(self, name, value):
         pass
 
-    def add_timer(self, stat_name, timer_name):
+    def set_finished(self):
         pass
 
 

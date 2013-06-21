@@ -233,11 +233,11 @@ static std::vector<T> convert_to_vector(const bp::api::object &list)
 }
 
 template <typename T>
-struct python_result
+struct python_async_result
 {
-	typedef typename T::iterator iterator;
+	typedef typename async_result<T>::iterator iterator;
 
-	std::shared_ptr<T> scope;
+	std::shared_ptr<async_result<T>> scope;
 
 	iterator begin()
 	{
@@ -248,18 +248,77 @@ struct python_result
 	{
 		return scope->end();
 	}
+
+	std::vector<T> get()
+	{
+		return scope->get();
+	}
+
+	void wait()
+	{
+		scope->wait();
+	}
+
+	bool successful()
+	{
+		if (!scope->ready()) {
+			PyErr_SetString(PyExc_ValueError, "Async write operation hasn't yet been completed");
+			bp::throw_error_already_set();
+		}
+
+		return !scope->error();
+	}
+
+	bool ready()
+	{
+		return scope->ready();
+	}
 };
 
 template <typename T>
-python_result<T> create_result(T &&result)
+python_async_result<T> create_result(async_result<T> &&result)
 {
-	python_result<T> pyresult = { std::make_shared<T>(std::move(result)) };
+	python_async_result<T> pyresult = { std::make_shared<async_result<T>>(std::move(result)) };
 	return pyresult;
 }
 
-typedef python_result<async_iterator_result>	python_iterator_result;
-typedef python_result<async_read_result> 		python_read_result;
-typedef python_result<async_write_result>		python_write_result;
+template <typename... Args>
+struct def_async_result;
+
+template <typename T>
+struct def_async_result<T>
+{
+	static void init()
+	{
+		bp::class_<python_async_result<T>>("AsyncResult", bp::no_init)
+			.def("__iter__", bp::iterator<python_async_result<T>>())
+			.def("get", &python_async_result<T>::get)
+			.def("wait", &python_async_result<T>::wait)
+			.def("successful", &python_async_result<T>::successful)
+			.def("ready", &python_async_result<T>::ready)
+		;
+	}
+};
+
+template <>
+struct def_async_result<>
+{
+	static void init() {}
+};
+
+template <typename T, typename... Args>
+struct def_async_result<T, Args...>
+{
+	static void init()
+	{
+		def_async_result<T>::init();
+		def_async_result<Args...>::init();
+	}
+};
+
+typedef python_async_result<iterator_result_entry>	python_iterator_result;
+typedef python_async_result<read_result_entry> 		python_read_result;
+typedef python_async_result<write_result_entry>		python_write_result;
 
 class elliptics_session: public session, public bp::wrapper<session> {
 	public:
@@ -1124,9 +1183,17 @@ BOOST_PYTHON_MODULE(elliptics) {
 				dnet_iterator_range_set_key_end)
 	;
 
-	bp::class_<python_iterator_result>("IteratorResult", bp::no_init)
-		.def("__iter__", bp::iterator<python_iterator_result>())
-	;
+	def_async_result<	callback_result_entry,
+						write_result_entry,
+						lookup_result_entry,
+						read_result_entry,
+						stat_result_entry,
+						stat_count_result_entry,
+						iterator_result_entry,
+						exec_result_entry,
+						find_indexes_result_entry,
+						index_entry
+					>::init();
 
 	bp::class_<iterator_result_entry>("IteratorResultEntry")
 		.add_property("id", &iterator_result_entry::id)
@@ -1156,27 +1223,11 @@ BOOST_PYTHON_MODULE(elliptics) {
 		.staticmethod("merge")
 	;
 
-	bp::class_<python_read_result>("ReadResult", bp::no_init)
-		.def("__iter__", bp::iterator<python_read_result>())
-		.def("get", python_read_result_get)
-		.def("wait", python_read_result_wait)
-		.def("successful", python_read_result_successful)
-		.def("ready", python_read_result_ready)
-	;
-
 	bp::class_<read_result_entry>("ReadResultEntry")
 		.add_property("data", read_result_get_data)
 		.add_property("id", read_result_get_id)
 		.add_property("timestamp", read_result_get_timestamp)
 		.add_property("user_flags", read_result_get_user_flags)
-	;
-
-	bp::class_<python_write_result>("WriteResult", bp::no_init)
-		.def("__iter__", bp::iterator<python_write_result>())
-		.def("get", python_write_result_get)
-		.def("wait", python_write_result_wait)
-		.def("successful", python_write_result_successful)
-		.def("ready", python_write_result_ready)
 	;
 
 	bp::class_<write_result_entry>("WriteResultEntry")
