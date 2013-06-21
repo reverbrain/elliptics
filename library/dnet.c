@@ -1668,7 +1668,7 @@ int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
 	a = calloc(1, a_size);
 	if (a == NULL) {
 		err = -ENOMEM;
-		goto err_out_exit;
+		goto err_out_free_file;
 	}
 
 	info = (struct dnet_file_info *)(a + 1);
@@ -1689,6 +1689,9 @@ int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
 	dnet_convert_file_info(info);
 	err = dnet_send_reply(state, cmd, a, a_size, 0);
 	free(a);
+
+err_out_free_file:
+	free(file);
 err_out_exit:
 	return err;
 }
