@@ -3,6 +3,7 @@ set(SOURCES
 	cpp/registration.cpp
 )
 add_library(elliptics_module_backend_cpp SHARED ${SOURCES})
+target_link_libraries(elliptics_module_backend_cpp elliptics elliptics_cpp)
 set_target_properties(elliptics_module_backend_cpp PROPERTIES COMPILE_FLAGS "-std=c++0x")
 set_target_properties(elliptics_module_backend_cpp PROPERTIES VERSION ${ELLIPTICS_VERSION} SOVERSION ${ELLIPTICS_VERSION_ABI})
 install(TARGETS elliptics_module_backend_cpp LIBRARY DESTINATION lib${LIB_SUFFIX})
