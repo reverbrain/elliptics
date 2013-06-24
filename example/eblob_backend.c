@@ -164,14 +164,13 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	data += sizeof(struct dnet_io_attr);
 
 	flags |= BLOB_DISK_CTL_USR1;
-	if (io->flags & DNET_IO_FLAGS_COMPRESS)
-		flags |= BLOB_DISK_CTL_COMPRESS;
+	if (io->flags & DNET_IO_FLAGS_COMPRESS) {
+		err = -ENOTSUP;
+		goto err_out_exit;
+	}
 
 	if (io->flags & DNET_IO_FLAGS_APPEND)
 		flags |= BLOB_DISK_CTL_APPEND;
-
-	if (io->flags & DNET_IO_FLAGS_OVERWRITE)
-		flags |= BLOB_DISK_CTL_OVERWRITE;
 
 	if (io->flags & DNET_IO_FLAGS_NOCSUM)
 		flags |= BLOB_DISK_CTL_NOCSUM;
@@ -181,7 +180,7 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	/*
 	 * Use extended format for new writes and keys already in new format.
 	 */
-	err = eblob_read_return(c->eblob, &key, EBLOB_TYPE_DATA, EBLOB_READ_NOCSUM, &wc2);
+	err = eblob_read_return(c->eblob, &key, EBLOB_READ_NOCSUM, &wc2);
 	if (err == 0 && (wc2.flags & BLOB_DISK_CTL_USR1)) {
 		/* Update of new format record */
 		struct dnet_ext_list_hdr ehdr;
@@ -218,12 +217,7 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 		io->num += ehdr_size; /* increase prepared space by the size of external headers */
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
-		wc.offset = 0;
-		wc.size = io->num;
-		wc.flags = flags;
-		wc.type = EBLOB_TYPE_DATA;
-
-		err = eblob_write_prepare(c->eblob, &key, &wc);
+		err = eblob_write_prepare(c->eblob, &key, io->num, flags);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_prepare: size: %llu: %s %d\n",
 				dnet_dump_id_str(io->id), (unsigned long long)io->num, strerror(-err), err);
@@ -236,9 +230,9 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 
 	if (io->size) {
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
-			err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, EBLOB_TYPE_DATA);
+			err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, flags);
 		} else {
-			err = eblob_write_return(c->eblob, &key, data, io->offset, io->size, flags, EBLOB_TYPE_DATA, &wc);
+			err = eblob_write_return(c->eblob, &key, data, io->offset, io->size, flags, &wc);
 		}
 
 		if (err) {
@@ -252,15 +246,8 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	}
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
-		if ((io->flags & DNET_IO_FLAGS_PLAIN_WRITE) ||
-				(io->offset + io->size != io->num) ||
-				!(c->data.blob_flags & EBLOB_OVERWRITE_COMMITS)) {
-			wc.offset = 0;
-			wc.size = io->num;
-			wc.flags = flags;
-			wc.type = EBLOB_TYPE_DATA;
-
-			err = eblob_write_commit(c->eblob, &key, NULL, 0, &wc);
+		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
+			err = eblob_write_commit(c->eblob, &key, io->num, flags);
 			if (err) {
 				dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: %s %d\n",
 					dnet_dump_id_str(io->id), (unsigned long long)io->num, strerror(-err), err);
@@ -273,17 +260,12 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	}
 
 	if (!err && wc.data_fd == -1) {
-		err = eblob_read_nocsum(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size, EBLOB_TYPE_DATA);
+		err = eblob_read_nocsum(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size);
 		if (err < 0) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: "
 					"size: %llu: %s %d\n",
 				dnet_dump_id_str(io->id), (unsigned long long)io->num, strerror(-err), err);
 			goto err_out_exit;
-		}
-
-		/* data is compressed, but we only care about header */
-		if (err == 1) {
-			err = 0;
 		}
 	}
 
@@ -331,7 +313,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	if (io->flags & DNET_IO_FLAGS_NOCSUM)
 		csum = EBLOB_READ_NOCSUM;
 
-	err = eblob_read_return(b, &key, EBLOB_TYPE_DATA, csum, &wc);
+	err = eblob_read_return(b, &key, csum, &wc);
 	if (err == 0) {
 		/* Existing entry */
 		offset = wc.data_offset;
@@ -354,7 +336,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 		}
 	} else if (err > 0) {
 		/* Compressed entry */
-		err = eblob_read_data_nocsum(b, &key, io->offset, &read_data, &size, EBLOB_TYPE_DATA);
+		err = eblob_read_data_nocsum(b, &key, io->offset, &read_data, &size);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-data: READ: %d: %s\n",
 				dnet_dump_id_str(io->id), err, strerror(-err));
@@ -490,7 +472,7 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 		io.offset = req->requested_offset;
 
 		/* FIXME: This is slow! */
-		err = eblob_read_return(req->back, (struct eblob_key *)req->record_key, EBLOB_TYPE_DATA,
+		err = eblob_read_return(req->back, (struct eblob_key *)req->record_key,
 				EBLOB_READ_NOCSUM, &wc);
 		if (err)
 			goto err_out_exit;
@@ -533,7 +515,7 @@ static int blob_del_range_callback(struct eblob_backend_config *c, struct dnet_i
 
 	dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: DEL\n",dnet_dump_id_str(req->record_key));
 	memcpy(key.id, req->record_key, EBLOB_ID_SIZE);
-	err = eblob_remove(c->eblob, &key, EBLOB_TYPE_DATA);
+	err = eblob_remove(c->eblob, &key);
 	if (err) {
 		dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: DEL: err: %d\n",dnet_dump_id_str(req->record_key), err);
 	}
@@ -553,14 +535,13 @@ static int blob_range_callback(struct eblob_range_request *req)
 	dnet_dump_id_len_raw(req->record_key, len, cur_id);
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-range: limit: %llu [%llu, %llu]: "
-			"start: %s, end: %s: io record/requested: offset: %llu/%llu, size: %llu/%llu, type: %d\n",
+			"start: %s, end: %s: io record/requested: offset: %llu/%llu, size: %llu/%llu\n",
 			cur_id,
 			(unsigned long long)req->current_pos,
 			(unsigned long long)req->requested_limit_start, (unsigned long long)req->requested_limit_num,
 			start_id, end_id,
 			(unsigned long long)req->record_offset, (unsigned long long)req->requested_offset,
-			(unsigned long long)req->record_size, (unsigned long long)req->requested_size,
-			req->requested_type);
+			(unsigned long long)req->record_size, (unsigned long long)req->requested_size);
 
 	if (req->requested_offset > req->record_size) {
 		err = 0;
@@ -618,7 +599,6 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 	req.requested_size = io->size;
 	req.requested_limit_start = 0;
 	req.requested_limit_num = ~0ULL;
-	req.requested_type = EBLOB_TYPE_DATA;
 
 	req.callback = blob_range_callback;
 	req.back = b;
@@ -684,8 +664,7 @@ static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
 
-	err = eblob_remove_all(c->eblob, &key);
-
+	err = eblob_remove(c->eblob, &key);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-del: REMOVE: %d: %s\n",
 			dnet_dump_id_str(cmd->id.id), err, strerror(-err));
@@ -707,7 +686,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	dnet_ext_list_init(&elist);
 
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
-	err = eblob_read_return(b, &key, EBLOB_TYPE_DATA, EBLOB_READ_NOCSUM, &wc);
+	err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-file-info: info-read: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, strerror(-err));
@@ -782,7 +761,7 @@ static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 	int err;
 
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-	err = eblob_read_return(b, &key, EBLOB_TYPE_DATA, EBLOB_READ_NOCSUM, &wc);
+	err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-checksum: read: %d: %s.\n",
 							dnet_dump_id_str(id->id), err, strerror(-err));
@@ -927,14 +906,6 @@ static int dnet_blob_set_data(struct dnet_config_backend *b, char *key __unused,
 	if (!c->data.file)
 		return -ENOMEM;
 
-	return 0;
-}
-
-static int dnet_blob_set_block_size(struct dnet_config_backend *b, char *key __unused, char *value)
-{
-	struct eblob_backend_config *c = b->data;
-
-	c->data.bsize = strtoul(value, NULL, 0);
 	return 0;
 }
 
@@ -1122,7 +1093,6 @@ static void dnet_blob_config_cleanup(struct dnet_config_backend *b)
 static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"sync", dnet_blob_set_sync},
 	{"data", dnet_blob_set_data},
-	{"data_block_size", dnet_blob_set_block_size},
 	{"blob_flags", dnet_blob_set_blob_flags},
 	{"iterate_thread_num", dnet_blob_set_iterate_thread_num},
 	{"blob_size", dnet_blob_set_blob_size},

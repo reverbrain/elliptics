@@ -16,7 +16,7 @@ BuildRequires:	gcc44 gcc44-c++
 BuildRequires:  python-devel
 %endif
 BuildRequires:	boost-python, boost-devel, boost-iostreams, boost-thread, boost-python, boost-system
-BuildRequires:	eblob-devel >= 0.19.0
+BuildRequires:	eblob-devel >= 0.20.0
 BuildRequires:  leveldb-devel snappy-devel
 BuildRequires:	cmake msgpack-devel
 

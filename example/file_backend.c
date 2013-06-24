@@ -200,7 +200,7 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	/* Copy data from elist to ehdr */
 	dnet_ext_list_to_hdr(&elist, &ehdr);
 
-	err = eblob_write(r->meta, &key, &ehdr, 0, ehdr_size, BLOB_DISK_CTL_OVERWRITE, 0);
+	err = eblob_write(r->meta, &key, &ehdr, 0, ehdr_size, 0);
 
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: META WRITE: %d: %s.\n",
@@ -300,7 +300,7 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 		dir, dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id));
 	remove(file);
 
-	eblob_remove(r->meta, &key, 0);
+	eblob_remove(r->meta, &key);
 
 	return 0;
 }
@@ -334,7 +334,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	}
 	fd = err;
 
-	err = eblob_read_return(r->meta, &key, 0, EBLOB_READ_NOCSUM, &wc);
+	err = eblob_read_return(r->meta, &key, EBLOB_READ_NOCSUM, &wc);
 
 	if (!err && wc.total_data_size != ehdr_size) {
 		err = -ERANGE;
@@ -556,7 +556,7 @@ static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c,
 	memset(&ecfg, 0, sizeof(ecfg));
 	ecfg.file = meta_path;
 	ecfg.sync = r->sync;
-	ecfg.blob_flags = EBLOB_TRY_OVERWRITE | EBLOB_OVERWRITE_COMMITS | EBLOB_NO_FREE_SPACE_CHECK;
+	ecfg.blob_flags = EBLOB_NO_FREE_SPACE_CHECK;
 	ecfg.records_in_blob = r->records_in_blob;
 	ecfg.blob_size = r->blob_size;
 	ecfg.defrag_percentage = r->defrag_percentage;
