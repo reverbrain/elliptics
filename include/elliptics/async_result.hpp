@@ -114,6 +114,11 @@ class async_result
 		 bool ready() const;
 
 		/*!
+		 * Returns time elapsed on execution
+		 */
+		 dnet_time elapsed_time() const;
+
+		/*!
 		 * Blocks current thread until all entries are received, then
 		 * returns all of them as list.
 		 *

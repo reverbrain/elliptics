@@ -10,7 +10,10 @@ template <typename T>
 class async_result<T>::data
 {
 	public:
-		data() : total(0), finished(false) {}
+		data() : total(0), finished(false)
+		{
+			dnet_current_time(&start);
+		}
 
 		std::mutex lock;
 		std::condition_variable condition;
@@ -29,6 +32,8 @@ class async_result<T>::data
 		size_t total;
 
 		bool finished;
+		dnet_time start;
+		dnet_time end;
 };
 
 template <typename T>
@@ -101,6 +106,26 @@ bool async_result<T>::ready() const
 {
 	return m_data->finished;
 }
+
+template <typename T>
+dnet_time async_result<T>::elapsed_time() const
+{
+	dnet_time end;
+	if (ready())
+		end = m_data->end;
+	else
+		dnet_current_time(&end);
+
+	end.tsec -= m_data->start.tsec;
+	if (end.tnsec < m_data->start.tnsec) {
+		static const uint64_t sec = 1000 * 1000 * 1000;
+		end.tnsec = end.tnsec + sec - m_data->start.tnsec;
+		end.tsec -= 1;
+	}
+
+	return end;
+}
+
 
 template <typename T>
 std::vector<T> async_result<T>::get()
@@ -424,6 +449,7 @@ void async_result_handler<T>::complete(const error_info &error)
 {
 	std::unique_lock<std::mutex> locker(m_data->lock);
 	m_data->finished = true;
+	dnet_current_time(&m_data->end);
 	m_data->error = error;
 	if (!error)
 		check(&m_data->error);
