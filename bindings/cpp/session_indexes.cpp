@@ -78,7 +78,7 @@ async_update_indexes_result session::update_indexes(const key &request_id, const
 
 	request.id = request_id.id();
 
-	dnet_indexes_transform_id(get_native(), &request_id.id(), &indexes_id);
+	dnet_indexes_transform_object_id(get_node().get_native(), &request_id.id(), &indexes_id);
 	request.entries_count = indexes.size();
 
 	buffer.write(request);
@@ -155,9 +155,12 @@ async_update_indexes_result session::update_indexes(const key &id, const std::ve
 	return update_indexes(id, raw_indexes);
 }
 
+typedef std::map<dnet_raw_id, dnet_raw_id, dnet_raw_id_less_than<> > dnet_raw_id_map;
+
 struct find_all_indexes_handler
 {
 	session sess;
+	dnet_raw_id_map map;
 	async_result_handler<find_indexes_result_entry> handler;
 	size_t ios_size;
 
@@ -188,7 +191,7 @@ struct find_all_indexes_handler
 				find_indexes_result_entry &entry = result[i];
 				entry.id = tmp.indexes[i].index;
 				entry.indexes.push_back(std::make_pair(
-					reinterpret_cast<dnet_raw_id&>(bulk_result[0].command()->id),
+					map[reinterpret_cast<dnet_raw_id&>(bulk_result[0].command()->id)],
 					tmp.indexes[i].data));
 			}
 
@@ -213,7 +216,7 @@ struct find_all_indexes_handler
 				// As lists contain othe same objects - it's possible to add index data by one cycle
 				auto jt = tmp.indexes.begin();
 				for (auto kt = result.begin(); kt != result.end(); ++kt, ++jt) {
-					kt->indexes.push_back(std::make_pair(raw, jt->data));
+					kt->indexes.push_back(std::make_pair(map[raw], jt->data));
 				}
 			}
 		} catch (std::exception &e) {
@@ -230,6 +233,7 @@ struct find_all_indexes_handler
 struct find_any_indexes_handler
 {
 	session sess;
+	dnet_raw_id_map map;
 	async_result_handler<find_indexes_result_entry> handler;
 	size_t ios_size;
 
@@ -254,7 +258,7 @@ struct find_any_indexes_handler
 				for (size_t j = 0; j < tmp.indexes.size(); ++j) {
 					const index_entry &entry = tmp.indexes[j];
 
-					result[entry.index].push_back(std::make_pair(raw, entry.data));
+					result[entry.index].push_back(std::make_pair(map[raw], entry.data));
 				}
 			}
 		} catch (std::exception &e) {
@@ -296,13 +300,18 @@ async_find_indexes_result session::find_all_indexes(const std::vector<dnet_raw_i
 	struct dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
 
+	dnet_raw_id_map map;
+
 	io.flags = get_ioflags();
+	dnet_raw_id index_id;
 	for (size_t i = 0; i < indexes.size(); ++i) {
-		memcpy(io.id, indexes[i].id, sizeof(dnet_raw_id));
+		index_id = transform_index_id(*this, indexes[i]);
+		map[index_id] = indexes[i];
+		memcpy(io.id, index_id.id, sizeof(dnet_raw_id));
 		ios.push_back(io);
 	}
 
-	find_all_indexes_handler functor = { *this, handler, ios.size() };
+	find_all_indexes_handler functor = { *this, map, handler, ios.size() };
 	bulk_read(ios).connect(functor);
 
 	return result;
@@ -327,13 +336,18 @@ async_find_indexes_result session::find_any_indexes(const std::vector<dnet_raw_i
 	struct dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
 
+	dnet_raw_id_map map;
+
 	io.flags = get_ioflags();
+	dnet_raw_id index_id;
 	for (size_t i = 0; i < indexes.size(); ++i) {
-		memcpy(io.id, indexes[i].id, sizeof(dnet_raw_id));
+		index_id = transform_index_id(*this, indexes[i]);
+		map[index_id] = indexes[i];
+		memcpy(io.id, index_id.id, sizeof(dnet_raw_id));
 		ios.push_back(io);
 	}
 
-	find_any_indexes_handler functor = { *this, handler, ios.size() };
+	find_any_indexes_handler functor = { *this, map, handler, ios.size() };
 	bulk_read(ios).connect(functor);
 
 	return result;
@@ -373,8 +387,13 @@ struct check_indexes_handler
 
 async_check_indexes_result session::check_indexes(const key &request_id)
 {
+	transform(request_id);
+
 	async_check_indexes_result result(*this);
-	dnet_id id = indexes_generate_id(*this, request_id.id());
+
+	dnet_id id;
+	memset(&id, 0, sizeof(id));
+	dnet_indexes_transform_object_id(get_node().get_native(), &request_id.id(), &id);
 
 	check_indexes_handler functor = { *this, request_id, result };
 	read_latest(id, 0, 0).connect(functor);

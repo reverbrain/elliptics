@@ -608,6 +608,31 @@ void test_read_recovery(session &s)
 	print_read_recovery_availability(s, id);
 }
 
+void test_indexes(session &s)
+{
+	std::vector<std::string> indexes = {
+		"fast",
+		"elliptics",
+		"distributive",
+		"reliable",
+		"falt-tolerante"
+	};
+
+	std::vector<data_pointer> data(indexes.size());
+
+	std::string key = "elliptics";
+
+	s.update_indexes(key, std::vector<std::string>(), std::vector<data_pointer>()).wait();
+	s.update_indexes(key, indexes, data).wait();
+	sync_find_indexes_result all_result = s.find_all_indexes(indexes);
+	sync_find_indexes_result any_result = s.find_any_indexes(indexes);
+
+	assert(all_result.size() == any_result.size());
+	assert(all_result.size() == 1);
+	assert(all_result[0].indexes.size() == any_result[0].indexes.size());
+	assert(all_result[0].indexes.size() == indexes.size());
+}
+
 static void memory_test(session &s)
 {
 	struct rusage start, end;
@@ -755,6 +780,8 @@ int main(int argc, char *argv[])
 		test_cache_write(s, 1000);
 		test_cache_read(s, 1000);
 		test_cache_delete(s, 1000);
+
+		test_indexes(s);
 
 //	} catch (const std::exception &e) {
 //		std::cerr << "Error occurred : " << e.what() << std::endl;
