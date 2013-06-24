@@ -273,6 +273,11 @@ struct python_async_result
 	{
 		return scope->ready();
 	}
+
+	dnet_time elapsed_time()
+	{
+		return scope->elapsed_time();
+	}
 };
 
 template <typename T>
@@ -296,6 +301,7 @@ struct def_async_result<T>
 			.def("wait", &python_async_result<T>::wait)
 			.def("successful", &python_async_result<T>::successful)
 			.def("ready", &python_async_result<T>::ready)
+			.def("elapsed_time", &python_async_result<T>::elapsed_time)
 		;
 	}
 };
@@ -468,7 +474,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		std::string lookup_addr_by_id(const struct elliptics_id &id) {
 			struct dnet_id raw = id.to_dnet();
-
 			return lookup_address(raw, raw.group_id);
 		}
 
@@ -488,7 +493,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		bp::tuple lookup_by_id(const struct elliptics_id &id) {
 			struct dnet_id raw = id.to_dnet();
-
 			return parse_lookup(lookup(raw).get()[0]);
 		}
 
@@ -545,7 +549,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 							const elliptics_time& time_begin = elliptics_time(0, 0),
 							const elliptics_time& time_end = elliptics_time(-1, -1)) {
 			std::vector<dnet_iterator_range> std_ranges = convert_to_vector<dnet_iterator_range>(ranges);
-
 			return create_result(std::move(session::start_iterator(id.to_dnet(), std_ranges, type, flags,
 							time_begin.to_dnet_time(), time_end.to_dnet_time())));
 		}
@@ -1006,39 +1009,6 @@ void iterator_container_merge(const bp::list& /*results*/, bp::dict& /*splitted_
 {
 }
 
-bp::list python_read_result_get(python_read_result &result)
-{
-	auto get_result = result.scope->get();
-
-	bp::list res;
-
-	for (auto it = get_result.begin(), end = get_result.end(); it != end; ++it) {
-		res.append(*it);
-	}
-
-	return res;
-}
-
-void python_read_result_wait(python_read_result &result)
-{
-	result.scope->wait();
-}
-
-bool python_read_result_successful(python_read_result &result)
-{
-	if (!result.scope->ready()) {
-		PyErr_SetString(PyExc_ValueError, "Async write operation hasn't yet been completed");
-		bp::throw_error_already_set();
-	}
-
-	return !result.scope->error();
-}
-
-bool python_read_result_ready(python_read_result &result)
-{
-	return result.scope->ready();
-}
-
 std::string read_result_get_data(read_result_entry &result)
 {
 	return result.file().to_string();
@@ -1057,39 +1027,6 @@ elliptics_time read_result_get_timestamp(read_result_entry &result)
 uint64_t read_result_get_user_flags(read_result_entry &result)
 {
 	return result.io_attribute()->user_flags;
-}
-
-std::string python_write_result_get(const python_write_result &result)
-{
-	sync_write_result res = result.scope->get();
-
-	std::string str;
-
-	for (auto it = res.begin(), end = res.end(); it != end; ++it) {
-		str += it->raw_data().to_string();
-	}
-
-	return str;
-}
-
-bool python_write_result_successful(const python_write_result &result)
-{
-	if (!result.scope->ready()) {
-		PyErr_SetString(PyExc_ValueError, "Async write operation hasn't yet been completed");
-		bp::throw_error_already_set();
-	}
-
-	return !result.scope->error();
-}
-
-void python_write_result_wait(python_write_result &result)
-{
-	result.scope->wait();
-}
-
-bool python_write_result_ready(python_write_result &result)
-{
-	return result.scope->ready();
 }
 
 struct id_pickle : bp::pickle_suite
