@@ -157,6 +157,7 @@ async_update_indexes_result session::update_indexes(const key &id, const std::ve
 
 struct find_all_indexes_handler
 {
+	session sess;
 	async_result_handler<find_indexes_result_entry> handler;
 	size_t ios_size;
 
@@ -181,7 +182,7 @@ struct find_all_indexes_handler
 		try {
 			// Fill entire list by first result. All other iterations will only remove elements from it
 			dnet_indexes tmp;
-			indexes_unpack(bulk_result[0].file(), &tmp, "find_indexes_handler1");
+			indexes_unpack(sess.get_node().get_native(), &bulk_result[0].command()->id, bulk_result[0].file(), &tmp, "find_indexes_handler1");
 			result.resize(tmp.indexes.size());
 			for (size_t i = 0; i < tmp.indexes.size(); ++i) {
 				find_indexes_result_entry &entry = result[i];
@@ -194,7 +195,7 @@ struct find_all_indexes_handler
 			for (size_t i = 1; i < bulk_result.size() && !result.empty(); ++i) {
 				auto raw = reinterpret_cast<dnet_raw_id&>(bulk_result[i].command()->id);
 				tmp.indexes.resize(0);
-				indexes_unpack(bulk_result[i].file(), &tmp, "find_indexes_handler2");
+				indexes_unpack(sess.get_node().get_native(), &bulk_result[i].command()->id, bulk_result[i].file(), &tmp, "find_indexes_handler2");
 
 				// Remove all objects from result, which are not presented for this index
 				auto it = std::set_intersection(result.begin(), result.end(),
@@ -228,6 +229,7 @@ struct find_all_indexes_handler
 
 struct find_any_indexes_handler
 {
+	session sess;
 	async_result_handler<find_indexes_result_entry> handler;
 	size_t ios_size;
 
@@ -247,7 +249,7 @@ struct find_any_indexes_handler
 			dnet_indexes tmp;
 			for (size_t i = 0; i < bulk_result.size(); ++i) {
 				auto raw = reinterpret_cast<dnet_raw_id&>(bulk_result[i].command()->id);
-				indexes_unpack(bulk_result[i].file(), &tmp, "find_indexes_handler3");
+				indexes_unpack(sess.get_node().get_native(), &bulk_result[i].command()->id, bulk_result[i].file(), &tmp, "find_indexes_handler3");
 
 				for (size_t j = 0; j < tmp.indexes.size(); ++j) {
 					const index_entry &entry = tmp.indexes[j];
@@ -300,7 +302,7 @@ async_find_indexes_result session::find_all_indexes(const std::vector<dnet_raw_i
 		ios.push_back(io);
 	}
 
-	find_all_indexes_handler functor = { handler, ios.size() };
+	find_all_indexes_handler functor = { *this, handler, ios.size() };
 	bulk_read(ios).connect(functor);
 
 	return result;
@@ -331,7 +333,7 @@ async_find_indexes_result session::find_any_indexes(const std::vector<dnet_raw_i
 		ios.push_back(io);
 	}
 
-	find_any_indexes_handler functor = { handler, ios.size() };
+	find_any_indexes_handler functor = { *this, handler, ios.size() };
 	bulk_read(ios).connect(functor);
 
 	return result;
@@ -344,6 +346,7 @@ async_find_indexes_result session::find_any_indexes(const std::vector<std::strin
 
 struct check_indexes_handler
 {
+	session sess;
 	key request_id;
 	async_result_handler<index_entry> handler;
 
@@ -356,7 +359,7 @@ struct check_indexes_handler
 
 		dnet_indexes result;
 		try {
-			indexes_unpack(read_result[0].file(), &result, "check_indexes_handler");
+			indexes_unpack(sess.get_node().get_native(), &read_result[0].command()->id, read_result[0].file(), &result, "check_indexes_handler");
 		} catch (std::exception &e) {
 			handler.complete(create_error(-EINVAL, request_id, "%s", e.what()));
 			return;
@@ -373,7 +376,7 @@ async_check_indexes_result session::check_indexes(const key &request_id)
 	async_check_indexes_result result(*this);
 	dnet_id id = indexes_generate_id(*this, request_id.id());
 
-	check_indexes_handler functor = { request_id, result };
+	check_indexes_handler functor = { *this, request_id, result };
 	read_latest(id, 0, 0).connect(functor);
 
 	return result;

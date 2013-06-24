@@ -355,12 +355,12 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	 * Replace object's index cache (list of indexes given object is present in) by new table.
 	 * Store them into @remote_indexes
 	 */
-	data_pointer convert_object_indexes(const data_pointer &data)
+	data_pointer convert_object_indexes(dnet_id *id, const data_pointer &data)
 	{
 		if (data.empty()) {
 			remote_indexes.indexes.clear();
 		} else {
-			indexes_unpack(data, &remote_indexes, "convert_object_indexes");
+			indexes_unpack(state->n, id, data, &remote_indexes, "convert_object_indexes");
 		}
 
 		return data_pointer::from_raw(const_cast<char *>(buffer.data()), buffer.size());
@@ -389,7 +389,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		int err = 0;
 		data_pointer data = sess.read(cmd.id, &err);
 
-		data_pointer new_data = convert_object_indexes(data);
+		data_pointer new_data = convert_object_indexes(&cmd.id, data);
 
 		if (data == new_data) {
 			dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_UPDATE: data is the same");
@@ -642,11 +642,11 @@ err_out_complete:
  * @index_data is what client provided
  * @data is what was downloaded from the storage
  */
-data_pointer convert_index_table(const dnet_id &request_id, const data_pointer &index_data, const data_pointer &data, update_index_action action)
+data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_id &request_id, const data_pointer &index_data, const data_pointer &data, update_index_action action)
 {
 	dnet_indexes indexes;
 	if (!data.empty())
-		indexes_unpack(data, &indexes, "convert_index_table");
+		indexes_unpack(node, cmd_id, data, &indexes, "convert_index_table");
 
 	// Construct index entry
 	index_entry request_index;
@@ -719,7 +719,7 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 
 	int err = 0;
 	data_pointer data = sess.read(cmd->id, &err);
-	data_pointer new_data = convert_index_table(request->id, entry_data, data, action);
+	data_pointer new_data = convert_index_table(state->n, &cmd->id, request->id, entry_data, data, action);
 
 	if (data == new_data) {
 		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is the same");
