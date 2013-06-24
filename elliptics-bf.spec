@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.9.3
+Version:	2.24.10.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jun 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.0
+- backends: fixed compatibility with new blob APIs
+- Fixed compatibility with cocaine
+- Depend on 0.10.5-5+ cocaine
+
 * Fri Jun 21 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.9.4
 - Added json format to monitor
 - Added generic AsyncResult to python binding
