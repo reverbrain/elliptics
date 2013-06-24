@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.10.1
+Version:	2.24.10.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jun 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.2
+- Fixed data corruption due to indexes workflow
+
 * Mon Jun 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.1
 - Uncomment module backend in rhel builds
 - Fixed error handling in case of invalid indexes internal data
