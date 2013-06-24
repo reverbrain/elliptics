@@ -39,15 +39,18 @@ struct update_index_request
 	bool remove;
 };
 
-static inline void indexes_unpack(const data_pointer &file, dnet_indexes *data, const char *scope)
+static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_pointer &file, dnet_indexes *data, const char *scope)
 {
 	try {
 		msgpack::unpacked msg;
 		msgpack::unpack(&msg, file.data<char>(), file.size());
 		msg.get().convert(data);
 	} catch (const std::exception &e) {
-		std::cerr << scope << ": unpack exception: " << e.what() << ", file-size: " << file.size() << std::endl;
-		exit(-1);
+		DNET_DUMP_ID(id_str, id);
+		dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s: unpack exception: %s, file-size: %zu\n",
+			id_str, scope, e.what(), file.size());
+		data->friends.clear();
+		data->indexes.clear();
 	}
 }
 

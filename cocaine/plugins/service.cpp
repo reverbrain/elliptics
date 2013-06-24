@@ -123,7 +123,7 @@ void elliptics_service_t::on_read_completed(deferred<std::string> promise,
 	const ioremap::elliptics::error_info &error)
 {
 	if (error) {
-		promise.abort(cocaine::invocation_error, error.message());
+		promise.abort(-error.code(), error.message());
 	} else {
 		promise.write(result[0].file().to_string());
 	}
@@ -134,7 +134,7 @@ void elliptics_service_t::on_write_completed(deferred<void> promise,
 	const ioremap::elliptics::error_info &error)
 {
 	if (error) {
-		promise.abort(cocaine::invocation_error, error.message());
+		promise.abort(-error.code(), error.message());
 	} else {
 		promise.close();
 	}
@@ -145,7 +145,7 @@ void elliptics_service_t::on_find_completed(deferred<std::vector<std::string> > 
 	const ioremap::elliptics::error_info &error)
 {
 	if (error) {
-		promise.abort(cocaine::invocation_error, error.message());
+		promise.abort(-error.code(), error.message());
 	} else {
 		promise.write(storage::elliptics_storage_t::convert_list_result(result));
 	}
@@ -156,7 +156,7 @@ void elliptics_service_t::on_remove_completed(deferred<void> promise,
 	const ioremap::elliptics::error_info &error)
 {
 	if (error) {
-		promise.abort(cocaine::invocation_error, error.message());
+		promise.abort(-error.code(), error.message());
 	} else {
 		promise.close();
 	}
@@ -168,7 +168,7 @@ void elliptics_service_t::on_bulk_read_completed(deferred<std::map<std::string, 
 	const ioremap::elliptics::error_info &error)
 {
 	if (error) {
-		promise.abort(cocaine::invocation_error, error.message());
+		promise.abort(-error.code(), error.message());
 	} else {
 		std::map<std::string, std::string> read_result;
 

@@ -548,6 +548,14 @@ struct dnet_net_state *dnet_state_get_first(struct dnet_node *n, struct dnet_id 
 void dnet_state_put(struct dnet_net_state *st);
 
 #define DNET_DUMP_NUM	6
+#define DNET_DUMP_ID_LEN(name, id_struct, data_length) \
+	char name[2 * DNET_ID_SIZE + 16 + 3]; \
+	do { \
+		char tmp[2 * DNET_ID_SIZE + 1]; \
+		snprintf(name, sizeof(name), "%d:%s", (id_struct)->group_id, \
+			dnet_dump_id_len_raw((id_struct)->id, (data_length), tmp)); \
+	} while (0)
+#define DNET_DUMP_ID(name, id_struct) DNET_DUMP_ID_LEN(name, id_struct, DNET_DUMP_NUM)
 /*
  * Logging helper used to print ID (DNET_ID_SIZE bytes) as a hex string.
  */
