@@ -54,20 +54,10 @@ static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_point
 	}
 }
 
-static inline dnet_id indexes_generate_id(session &sess, const dnet_id &data_id)
+static inline dnet_raw_id transform_index_id(session &sess, const dnet_raw_id &data_id)
 {
-	// TODO: Better id for storing the tree?
-	std::string key;
-	key.reserve(sizeof(data_id.id) + 5);
-	key.resize(sizeof(data_id.id));
-	memcpy(&key[0], data_id.id, sizeof(data_id.id));
-	key += "index";
-
-	dnet_id id;
-	memset(&id, 0, sizeof(id));
-
-	sess.transform(key, id);
-
+	dnet_raw_id id;
+	dnet_indexes_transform_index_id(sess.get_node().get_native(), &data_id, &id);
 	return id;
 }
 

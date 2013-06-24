@@ -57,15 +57,30 @@ int dnet_transform(struct dnet_session *s, const void *src, uint64_t size, struc
 	return dnet_transform_raw(s, src, size, (char *)id->id, sizeof(id->id));
 }
 
-void dnet_indexes_transform_id(struct dnet_session *sess, const struct dnet_id *src, struct dnet_id *id)
+static void dnet_indexes_transform_id(struct dnet_node *node, const uint8_t *src, uint8_t *id,
+				      const char *suffix, int suffix_len)
 {
-	const size_t buffer_size = sizeof(src->id) + 5;
+	const size_t buffer_size = DNET_ID_SIZE + 32;
 	char buffer[buffer_size];
 
-	memcpy(buffer, src->id, sizeof(src->id));
-	memcpy(buffer + sizeof(src->id), "index", 5);
+	memcpy(buffer, src, DNET_ID_SIZE);
+	memcpy(buffer + DNET_ID_SIZE, suffix, suffix_len);
 
-	dnet_transform(sess, buffer, buffer_size, id);
+	dnet_transform_node(node, buffer, DNET_ID_SIZE + suffix_len, id, DNET_ID_SIZE);
+}
+
+void dnet_indexes_transform_object_id(struct dnet_node *node, const struct dnet_id *src, struct dnet_id *id)
+{
+	char suffix[] = "\0object_table";
+
+	dnet_indexes_transform_id(node, src->id, id->id, suffix, sizeof(suffix));
+}
+
+void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_raw_id *src, struct dnet_raw_id *id)
+{
+	char suffix[] = "\0index_table";
+
+	dnet_indexes_transform_id(node, src->id, id->id, suffix, sizeof(suffix));
 }
 
 static char *dnet_cmd_strings[] = {

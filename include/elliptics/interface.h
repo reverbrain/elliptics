@@ -778,9 +778,13 @@ int __attribute__((weak)) dnet_transform_node(struct dnet_node *n, const void *s
 int dnet_transform_raw(struct dnet_session *s, const void *src, uint64_t size, char *csum, unsigned int csize);
 
 /*
- * Transform source id to id where to store it's secondary indexes table
+ * Transform object id to id where to store object's secondary indexes table
  */
-void dnet_indexes_transform_id(struct dnet_session *sess, const struct dnet_id *src, struct dnet_id *id);
+void dnet_indexes_transform_object_id(struct dnet_node *node, const struct dnet_id *src, struct dnet_id *id);
+/*
+ * Transform index id to id where to store secondary index's objects table
+ */
+void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_raw_id *src, struct dnet_raw_id *id);
 
 int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen);
 
