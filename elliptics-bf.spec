@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.10.0
+Version:	2.24.10.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jun 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.1
+- Uncomment module backend in rhel builds
+- Fixed error handling in case of invalid indexes internal data
+- Changed error codes to errno in elliptics service
+- Added elapsed time to async_result. Cleaned up code.
+
 * Mon Jun 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.0
 - backends: fixed compatibility with new blob APIs
 - Fixed compatibility with cocaine

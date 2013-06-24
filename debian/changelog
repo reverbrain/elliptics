@@ -1,3 +1,12 @@
+elliptics (2.24.10.1) unstable; urgency=low
+
+  * Uncomment module backend in rhel builds
+  * Fixed error handling in case of invalid indexes internal data
+  * Changed error codes to errno in elliptics service
+  * Added elapsed time to async_result. Cleaned up code.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 24 Jun 2013 23:07:20 +0400
+
 elliptics (2.24.10.0) unstable; urgency=low
 
   * backends: fixed compatibility with new blob APIs
