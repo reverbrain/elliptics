@@ -248,4 +248,6 @@ if __name__ == '__main__':
     if options.no_exit:
         raw_input("Press Enter to exit!")
 
-    exit(not result)
+    rc = int(not result)
+    log.info("Finished with rc: {0}".format(rc))
+    exit(rc)
