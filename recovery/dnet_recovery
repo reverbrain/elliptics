@@ -33,6 +33,16 @@ STAT_NONE = 'none'
 STAT_TEXT = 'text'
 ALLOWED_STATS = (STAT_NONE, STAT_TEXT)
 
+TMP_FILE_PREFIXES = ['iterator_', 'diff_', 'merge_']
+
+def cleanup(path):
+    for file_name in os.listdir(path):
+        if not os.path.isfile(file_name):
+            continue
+        for prefix in TMP_FILE_PREFIXES:
+            if file_name.startswith(prefix):
+                log.warning("Cleanup: removing stale file: {0}".format(file_name))
+                os.unlink(file_name)
 
 if __name__ == '__main__':
     from elliptics_recovery.ctx import Ctx
@@ -143,8 +153,8 @@ if __name__ == '__main__':
         try:
             os.mkdir(ctx.tmp_dir, 0755)
             log.warning("Created tmp directory: {0}".format(ctx.tmp_dir))
-        except Exception:
-            raise ValueError("Directory: {0} does not exist and could not be created".format(ctx.tmp_dir))
+        except Exception as e:
+            raise ValueError("Directory: {0} does not exist and could not be created: {1}".format(ctx.tmp_dir, e))
     os.chdir(ctx.tmp_dir)
     log.info("Using tmp directory: {0}".format(ctx.tmp_dir))
 
@@ -178,6 +188,12 @@ if __name__ == '__main__':
             ctx.monitor = EmptyMonitor()
     except Exception as e:
         raise ValueError("Can't parse monitor_port: '{0}' : {1}".format(options.monitor_port, repr(e)))
+
+    try:
+        log.info("Starting cleanup...")
+        cleanup(ctx.tmp_dir)
+    except Exception as e:
+        log.error("Cleanup failed: {0}".format(e))
 
     log.debug("Using following context:\n{0}".format(ctx))
 
