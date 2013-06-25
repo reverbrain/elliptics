@@ -141,6 +141,7 @@ if __name__ == '__main__':
     ctx.tmp_dir = options.tmp_dir
     if not os.access(ctx.tmp_dir, os.W_OK):
         raise ValueError("Don't have write access to: {0}".format(options.tmp_dir))
+    os.chdir(ctx.tmp_dir)
     log.info("Using tmp directory: {0}".format(ctx.tmp_dir))
 
     try:
