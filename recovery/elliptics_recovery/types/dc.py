@@ -3,7 +3,7 @@ XXX:
 """
 
 import sys
-import logging as log
+import logging
 
 from itertools import groupby
 from multiprocessing import Pool
@@ -16,8 +16,7 @@ from ..utils.misc import elliptics_create_node, elliptics_create_session, worker
 sys.path.insert(0, "bindings/python/")
 import elliptics
 
-log.getLogger()
-
+log = logging.getLogger(__name__)
 
 def run_iterators(ctx, range, stats):
     """

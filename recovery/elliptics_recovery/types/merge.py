@@ -10,7 +10,7 @@ by placing them to the node where they belong.
 """
 
 import sys
-import logging as log
+import logging
 
 from itertools import groupby
 from multiprocessing import Pool
@@ -24,6 +24,8 @@ from ..utils.misc import format_id, elliptics_create_node, elliptics_create_sess
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
 import elliptics
+
+log = logging.getLogger(__name__)
 
 def get_ranges(ctx, routes, group_id):
     """

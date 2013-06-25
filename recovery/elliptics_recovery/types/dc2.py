@@ -4,7 +4,7 @@ XXX:
 
 import sys
 import os
-import logging as log
+import logging
 
 from itertools import groupby
 from multiprocessing import Pool
@@ -17,8 +17,7 @@ from ..utils.misc import mk_container_name, elliptics_create_node, elliptics_cre
 sys.path.insert(0, "bindings/python/")
 import elliptics
 
-log.getLogger()
-
+log = logging.getLogger(__name__)
 
 def run_iterator(ctx, address, eid, ranges, stats):
     """
