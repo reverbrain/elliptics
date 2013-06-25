@@ -179,7 +179,7 @@ def recover((id_range, eid, address)):
         log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(successes + failures, len(diff), successes, failures))
         result &= (failures == 0)
     stats.timer('recover', 'finished')
-    return result, stats
+    return result
 
 
 def recover_keys(ctx, address, group_id, keys, local_session, remote_session, stats):
