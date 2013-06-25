@@ -63,7 +63,7 @@ if __name__ == '__main__':
                       help="Number of keys in read_bulk/write_bulk batch [default: %default]")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
                       help="Enable debug output [default: %default]")
-    parser.add_option("-D", "--dir", dest="tmp_dir", default='/var/tmp/%TYPE%', metavar="DIR",
+    parser.add_option("-D", "--dir", dest="tmp_dir", default='/var/tmp/dnet_recovery_%TYPE%', metavar="DIR",
                       help="Temporary directory for iterators' results [default: %default]")
     parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default=None,
                       help="Comma separated list of groups [default: all]")
