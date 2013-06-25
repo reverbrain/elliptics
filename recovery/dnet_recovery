@@ -45,7 +45,7 @@ if __name__ == '__main__':
                       help="Number of keys in read_bulk/write_bulk batch [default: %default]")
     parser.add_option("-d", "--debug", action="store_true", dest="debug", default=False,
                       help="Enable debug output [default: %default]")
-    parser.add_option("-D", "--dir", dest="tmp_dir", default='/var/tmp/', metavar="DIR",
+    parser.add_option("-D", "--dir", dest="tmp_dir", default='/var/tmp/%TYPE%', metavar="DIR",
                       help="Temporary directory for iterators' results [default: %default]")
     parser.add_option("-g", "--groups", action="store", dest="elliptics_groups", default=None,
                       help="Comma separated list of groups [default: all]")
@@ -138,9 +138,13 @@ if __name__ == '__main__':
             options.elliptics_log_level, repr(e)))
     log.info("Using elliptics client log level: {0}".format(ctx.log_level))
 
-    ctx.tmp_dir = options.tmp_dir
+    ctx.tmp_dir = options.tmp_dir.replace('%TYPE%', recovery_type)
     if not os.access(ctx.tmp_dir, os.W_OK):
-        raise ValueError("Don't have write access to: {0}".format(options.tmp_dir))
+        try:
+            os.mkdir(ctx.tmp_dir, 0755)
+            log.warning("Created tmp directory: {0}".format(ctx.tmp_dir))
+        except Exception:
+            raise ValueError("Directory: {0} does not exist and could not be created".format(ctx.tmp_dir))
     os.chdir(ctx.tmp_dir)
     log.info("Using tmp directory: {0}".format(ctx.tmp_dir))
 
