@@ -108,7 +108,7 @@ if __name__ == '__main__':
     ctx.tmp_dir = options.tmp_dir.replace('%TYPE%', recovery_type)
     if not os.access(ctx.tmp_dir, os.W_OK):
         try:
-            os.mkdir(ctx.tmp_dir, 0755)
+            os.makedirs(ctx.tmp_dir, 0755)
             log.warning("Created tmp directory: {0}".format(ctx.tmp_dir))
         except Exception as e:
             raise ValueError("Directory: {0} does not exist and could not be created: {1}".format(ctx.tmp_dir, e))
