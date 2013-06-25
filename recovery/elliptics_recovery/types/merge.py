@@ -159,40 +159,55 @@ def recover(ctx, diff, group, stats):
     local_session.set_direct_id(*g_ctx.address)
 
     # Here we cleverly splitting responses into ctx.batch_size batches
+    total_size, total_records = (0, 0)
     for batch_id, batch in groupby(enumerate(diff),
                                     key=lambda x: x[0] / ctx.batch_size):
         keys = [elliptics.Id(r.key, group) for _, r in batch]
-        successes, failures, size, skipped = recover_keys(ctx, diff.address, group, keys, local_session, remote_session)
+        results = recover_keys(ctx, diff.address, group, keys, local_session, remote_session, stats)
+        if results is None:
+            stats.counter('recovered_keys', -len(keys))
+            continue
+
+        successes, failures, successes_size, failures_size = (0, 0, 0, 0)
+        for r, size in results:
+            r.wait()
+            if r.successful():
+                successes_size += size
+                successes += 1
+            else:
+                failures_size += size
+                failures += 1
+            total_records += 1
+            total_size += size
+
+        stats.counter('recovered_bytes', successes_size)
+        stats.counter('recovered_bytes', -failures_size)
         stats.counter('recovered_keys', successes)
         stats.counter('recovered_keys', -failures)
-        stats.counter('recovered_bytes', size)
-        stats.counter('skipped', skipped)
+        log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(total_records, len(diff),
+                                                                     failures_size + successes_size, total_size))
         result &= (failures == 0)
-        log.debug("Recovered batch: {0}/{1}".format(batch_id * ctx.batch_size + len(keys), len(diff)))
     return result
 
-def recover_keys(ctx, address, group, keys, local_session, remote_session):
+def recover_keys(ctx, address, group, keys, local_session, remote_session, stats):
     """
     Bulk recovery of keys.
     """
-    key_len = len(keys)
+    keys_len = len(keys)
+    async_write_results = []
 
-    log.debug("Reading {0} keys".format(key_len))
     try:
-        batch = remote_session.bulk_read(keys)
-        batch_len = len(batch)
-        size = sum(len(v[1]) for v in batch)
+        batch = remote_session.bulk_read_async(keys)
+        for b in batch:
+            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data)))
+        read_len = len(async_write_results)
+        stats.counter('read_keys', read_len)
+        stats.counter('skipped_keys', keys_len - read_len)
+        return async_write_results
     except Exception as e:
-        log.debug("Bulk read failed: {0} keys: {1}".format(key_len, e))
-        return 0, key_len, 0, 0
-
-    log.debug("Writing {0} keys: {1} bytes".format(batch_len, size))
-    try:
-        local_session.bulk_write(batch)
-    except Exception as e:
-        log.debug("Bulk write failed: {0} keys: {1}".format(batch_len, e))
-        return 0, len(batch), 0, key_len - batch_len
-    return len(batch), 0, size, key_len - batch_len
+        log.debug("Bulk read failed: {0} keys: {1}".format(keys_len, e))
+        stats.counter('skipped_keys', keys_len)
+        return None
 
 def process_address(address, group, ranges):
     """
