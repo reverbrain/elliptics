@@ -10,7 +10,7 @@ by placing them to the node where they belong.
 """
 
 import sys
-import logging as log
+import logging
 
 from itertools import groupby
 from multiprocessing import Pool
@@ -19,12 +19,13 @@ from ..range import IdRange, RecoveryRange
 from ..route import RouteList
 from ..iterator import Iterator
 from ..time import Time
-from ..stat import Stats
 from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
 import elliptics
+
+log = logging.getLogger(__name__)
 
 def get_ranges(ctx, routes, group_id):
     """
@@ -77,12 +78,12 @@ def run_iterator(ctx, group=None, address=None, routes=None, ranges=None, stats=
         if result is None:
             raise RuntimeError("Iterator result is None")
         log.debug("Iterator {0} obtained: {1} record(s)".format(result.id_range, len(result)))
-        stats.counter.iterated_keys += len(result)
-        stats.counter.iterations += 1
+        stats.counter('iterated_keys', len(result))
+        stats.counter('iterations', 1)
         return result
     except Exception as e:
         log.error("Iteration failed for: {0}: {1}".format(address, repr(e)))
-        stats.counter.iterations -= 1
+        stats.counter('iterations', -1)
         return None
 
 def sort(ctx, result, stats):
@@ -95,11 +96,11 @@ def sort(ctx, result, stats):
     try:
         log.info("Processing sorting range: {0}".format(result.id_range))
         result.container.sort()
-        stats.counter.sort += 1
+        stats.counter('sort', 1)
         return result
     except Exception as e:
         log.error("Sort of {0} failed: {1}".format(result.id_range, e))
-        stats.counter.sort -= 1
+        stats.counter('sort', -1)
     return None
 
 
@@ -123,11 +124,11 @@ def diff(ctx, local, remote, stats):
         if len(result) == 0:
             log.info("Resulting diff is empty, skipping: {0}".format(remote.address))
             return None
-        stats.counter.diff += 1
+        stats.counter('diff', 1)
         return result
     except Exception as e:
         log.error("Diff for {0} failed: {1}".format(remote.address, e))
-        stats.counter.diff -= 1
+        stats.counter('diff', -1)
         return None
 
 def recover(ctx, diff, group, stats):
@@ -159,10 +160,10 @@ def recover(ctx, diff, group, stats):
                                     key=lambda x: x[0] / ctx.batch_size):
         keys = [elliptics.Id(r.key, group) for _, r in batch]
         successes, failures, size, skipped = recover_keys(ctx, diff.address, group, keys, local_session, remote_session)
-        stats.counter.recovered_keys += successes
-        stats.counter.recovered_keys -= failures
-        stats.counter.recovered_bytes += size
-        stats.counter.skipped += skipped
+        stats.counter('recovered_keys', successes)
+        stats.counter('recovered_keys', -failures)
+        stats.counter('recovered_bytes', size)
+        stats.counter('skipped', skipped)
         result &= (failures == 0)
         log.debug("Recovered batch: {0}/{1}".format(batch_id * ctx.batch_size + len(keys), len(diff)))
     return result
@@ -195,16 +196,15 @@ def process_address(address, group, ranges):
     Recover all ranges for an address.
 
     For each range we iterate, sort, diff with corresponding
-    local iterator result, recover diff, return stats.
+    local iterator result, recover diff.
     """
     remote_stats_name = 'remote_{0}'.format(address)
-    remote_stats = Stats(remote_stats_name)
-    remote_stats.timer.remote('started')
+    remote_stats = g_ctx.monitor.stats[remote_stats_name]
     result = False
 
     try:
         log.warning("Running remote iterators")
-        remote_stats.timer.remote('iterator')
+        remote_stats.timer('remote', 'iterator')
         # In merge mode we only using ranges that were stolen from `address`
         remote_ranges = [r for r in ranges if r.address == address]
         remote_result = run_iterator(
@@ -217,35 +217,35 @@ def process_address(address, group, ranges):
         )
         if remote_result is None or len(remote_result) == 0:
             log.warning("Remote iterator results are empty, skipping")
-            return True, remote_stats
+            return True
 
         log.warning("Sorting remote iterator results")
-        remote_stats.timer.remote('sort')
+        remote_stats.timer('remote', 'sort')
         sorted_remote_result = sort(g_ctx, remote_result, remote_stats)
         assert len(remote_result) >= len(sorted_remote_result)
         log.warning("Sorted successfully: {0} remote result(s)".format(len(sorted_remote_result)))
 
         log.warning("Computing diff local vs remote")
-        remote_stats.timer.remote('diff')
+        remote_stats.timer('remote', 'diff')
         diff_result = diff(g_ctx, g_sorted_local_results, sorted_remote_result, remote_stats)
         if diff_result is None or len(diff_result) == 0:
             log.warning("Diff results are empty, skipping")
-            return True, remote_stats
+            return True
         assert len(sorted_remote_result) >= len(diff_result)
         log.warning("Computed differences: {0} diff(s)".format(len(diff_result)))
 
         log.warning("Recovering diffs")
-        remote_stats.timer.remote('recover')
+        remote_stats.timer('remote', 'recover')
         if not g_ctx.dry_run:
             result = recover(g_ctx, diff_result, group, remote_stats)
         else:
             result = True
             log.warning("Recovery skipped due to `dry-run`")
         log.warning("Recovery finished, setting result to: {0}".format(result))
-        remote_stats.timer.remote('finished')
+        remote_stats.timer('remote', 'finished')
     except Exception as e:
         log.error("Recovery failed with exception: {0}".format(e))
-    return result, remote_stats
+    return result
 
 def main(ctx):
     """
@@ -256,36 +256,37 @@ def main(ctx):
     global g_sorted_local_results
     result = True
     g_ctx = ctx
-    g_ctx.stats.timer.main('started')
+    g_ctx.monitor.stats.timer('main', 'started')
 
     for group in g_ctx.groups:
         log.warning("Processing group: {0}".format(group))
-        group_stats = g_ctx.stats['group_{0}'.format(group)]
-        group_stats.timer.group('started')
+        group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
+        group_stats.timer('group', 'started')
+        local_stats = group_stats['local']
 
         routes = RouteList(g_ctx.routes.filter_by_group_id(group))
         ranges = get_ranges(g_ctx, routes, group)
         log.debug("Recovery ranges: {0}".format(len(ranges)))
         if not ranges:
             log.warning("No ranges to recover in group: {0}".format(group))
-            group_stats.timer.group('finished')
+            group_stats.timer('group', 'finished')
             continue
         assert all(address != g_ctx.address for _, address in ranges)
 
         log.warning("Running local iterators against: {0} range(s)".format(len(ranges)))
-        group_stats.timer.group('iterator_local')
+        group_stats.timer('group', 'iterator_local')
         local_result = run_iterator(
             g_ctx,
             group=group,
             address=g_ctx.address,
             routes=g_ctx.routes,
             ranges=ranges,
-            stats=group_stats,
+            stats=local_stats,
         )
         log.warning("Finished local iteration of: {0} range(s)".format(len(ranges)))
 
         log.warning("Sorting local iterator results")
-        group_stats.timer.group('sort_local')
+        group_stats.timer('group', 'sort_local')
         g_sorted_local_results = sort(g_ctx, local_result, group_stats)
         if g_sorted_local_results is not None:
             assert len(local_result) == len(g_sorted_local_results)
@@ -294,7 +295,7 @@ def main(ctx):
             log.warning("Local results are empty")
 
         # For each address in computed recovery ranges run iterator in subprocess
-        group_stats.timer.group('remote')
+        group_stats.timer('group', 'remote')
         async_results = []
         addresses = set([r.address for r in ranges])
         processes = min(g_ctx.nprocess, len(addresses))
@@ -308,9 +309,8 @@ def main(ctx):
             log.info("Fetching results")
             # Use INT_MAX as timeout, so we can catch Ctrl+C
             timeout = 2147483647
-            for result, stats in (r.get(timeout) for r in async_results):
+            for result in (r.get(timeout) for r in async_results):
                 results.append(result)
-                group_stats[stats.name] = stats
         except KeyboardInterrupt:
             log.error("Caught Ctrl+C. Terminating.")
             pool.terminate()
@@ -321,6 +321,6 @@ def main(ctx):
             pool.join()
 
         result = all(results)
-        group_stats.timer.group('finished')
-    g_ctx.stats.timer.main('finished')
+        group_stats.timer('group', 'finished')
+    g_ctx.monitor.stats.timer('main', 'finished')
     return result
