@@ -78,8 +78,10 @@ class DurationTimer(object):
         self.name = name
         self.times = []
 
-    def __call__(self, name=None):
-        self.times.append((name, datetime.now()))
+    def __call__(self, name=None, ts=None):
+        if ts is None:
+            ts = datetime.now()
+        self.times.append((name, ts))
 
     def __str__(self):
         if not self.times:

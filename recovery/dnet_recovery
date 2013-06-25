@@ -13,10 +13,9 @@ import sys
 import logging as log
 
 from elliptics_recovery.route import RouteList, Address
-from elliptics_recovery.stat import Stats
 from elliptics_recovery.time import Time
 from elliptics_recovery.utils.misc import elliptics_create_node, elliptics_create_session
-from elliptics_recovery.monitor import Monitor, EmptyMonitor
+from elliptics_recovery.monitor import Monitor
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -79,8 +78,8 @@ if __name__ == '__main__':
                            "e.g.: `1368940603`, `12h`, `1d`, or `4w` [default: %default]")
     parser.add_option("-e", "--no-exit", action="store_true", dest="no_exit", default=False,
                       help="Will be waiting for user input at the finish.")
-    parser.add_option("-m", "--monitor-port", action="store", dest="monitor_port", default=None,
-                      help="Enable monitoring and set monitor port [default: disabled]")
+    parser.add_option("-m", "--monitor-port", action="store", dest="monitor_port", default=0,
+                      help="Enable remote monitoring on provided port [default: disabled]")
 
     (options, args) = parser.parse_args()
 
@@ -98,10 +97,6 @@ if __name__ == '__main__':
 
     log.info("Initializing context")
     ctx = Ctx()
-
-    log.info("Initializing stats")
-    ctx.stats = Stats(name='global')
-
     ctx.dry_run = options.dry_run
 
     try:
@@ -182,12 +177,12 @@ if __name__ == '__main__':
             options.stat, ALLOWED_STATS))
 
     try:
-        if options.monitor_port:
-            ctx.monitor = Monitor(int(options.monitor_port), recovery_type, ctx)
-        else:
-            ctx.monitor = EmptyMonitor()
+        ctx.monitor_port = int(options.monitor_port)
     except Exception as e:
-        raise ValueError("Can't parse monitor_port: '{0}' : {1}".format(options.monitor_port, repr(e)))
+        raise ValueError("Can't parse monitor_port: '{0}': {1}".format(options.monitor_port, repr(e)))
+
+    log.info("Initializing monitor")
+    ctx.monitor = Monitor(ctx, ctx.monitor_port)
 
     try:
         log.info("Starting cleanup...")
@@ -227,10 +222,11 @@ if __name__ == '__main__':
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
     result = main(ctx)
 
-    ctx.monitor.set_finished()
-
+    ctx.monitor.update()
     if options.stat == STAT_TEXT:
-        print ctx.stats
+        with open(ctx.monitor.stats_file + '.txt') as lines:
+            for line in lines:
+                print line,
 
     if options.no_exit:
         raw_input("Press Enter to exit!")

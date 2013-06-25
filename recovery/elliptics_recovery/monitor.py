@@ -2,214 +2,132 @@
 Wrapper for monitoring data and working with it in user code
 """
 
-from threading import Thread
-from multiprocessing import Queue
+import os
+
 from datetime import datetime
+from threading import Thread
+from multiprocessing import Manager
 
 from .utils.misc import logged_class
-from elliptics_recovery.stat import format_kv
+from .stat import Stats
+
+from BaseHTTPServer import HTTPServer
+from SimpleHTTPServer import SimpleHTTPRequestHandler
 
 
-@logged_class
-class EmptyMonitor(object):
-    __doc__ = \
-        """
-        Empty Monitor implements interface of Monitor class but do nothing.
-        """
+class StatsProxy(object):
+    """
+    Very simple wrapper that forwards counter and timer methods to queue.
+    Also it provides access to sub-stats via []
+    """
+    COUNTER = 1
+    TIMER = 2
 
-    def __init__(self):
-        pass
+    def __init__(self, queue, prefix=''):
+        self.queue = queue
+        self.prefix = prefix
 
-    def __str__(self):
-        return ""
+    def counter(self, name, value):
+        self.queue.put_nowait((self.prefix, self.COUNTER, name, value))
 
-    def add_counter(self, name, value):
-        pass
+    def timer(self, name, milestone):
+        self.queue.put_nowait((self.prefix, self.TIMER, name, milestone, datetime.now()))
 
-    def set_finished(self):
-        pass
-
-
-class Counters:
-    EndTime,\
-        Iterations,\
-        TotalIterations,\
-        IteratedKeys,\
-        Diffs,\
-        MergedDiffs,\
-        ReadKeys,\
-        SkippedReadKeys,\
-        RecoveredKeys,\
-        RecoveredBytes,\
-        FailedIterations,\
-        FailedKeys,\
-        FailedBytes = range(13)
-
+    def __getitem__(self, item):
+        prefix = item
+        if self.prefix:
+            '\\'.join([self.prefix, prefix])
+        return StatsProxy(self.queue, prefix=prefix)
 
 @logged_class
 class Monitor(object):
-    __doc__ = \
-        """
-        Contains monitoring data and provides interface for munipulating it from detached threads/processes
-        """
-
-    def __init__(self, port, recovery_type, ctx):
+    """
+    Contains monitoring data and provides interface for manipulating it from detached threads/processes
+    """
+    def __init__(self, ctx, port):
+        self.manager = Manager()
         self.port = port
-        self.recovery_type = recovery_type
         self.ctx = ctx
-        self.queue = Queue()
-        self.d_thread = Thread(target=self.data_thread, args=(), name="MonitorDataThread")
+        self.queue = self.manager.Queue()
+        self.stats = StatsProxy(self.queue)
+        self.__stats = Stats('monitor')
+        self.stats_file = 'stats'
+
+        self.d_thread = Thread(target=self.data_thread, name="MonitorDataThread")
         self.d_thread.daemon = True
 
-        self.l_thread = Thread(target=self.listen_thread, args=(), name="MonitorListenThread")
-        self.l_thread.daemon = True
+        if port:
+            server_address = ('0.0.0.0', port)
+            self.httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
+            self.l_thread = Thread(target=self.listen_thread, name="MonitorListenThread")
+            self.l_thread.daemon = True
+
+        self.e_thread = Thread(target=self.export_thread, name="MonitorExportThread")
+        self.e_thread.daemon = True
 
         self.d_thread.start()
         self.l_thread.start()
+        self.e_thread.start()
 
-        self.start_time = datetime.now()
-        self.end_time = None
-        self.iterations = 0
-        self.total_iterations = 0
-        self.iterated_keys = 0
-        self.diffs = 0
-        self.merged_diffs = None
-        self.recovered_keys = 0
-        self.recovered_bytes = 0
-        self.read_keys = 0
-        self.skipped_read_keys = 0
-
-        self.failed_iterations = 0
-        self.failed_keys = 0
-        self.failed_bytes = 0
+    def update(self):
+        """
+        Writes to file current stats
+        """
+        stats_file_tmp = os.path.join(self.ctx.tmp_dir, self.stats_file + '.tmp')
+        with open(stats_file_tmp, 'w') as f:
+            f.write(str(self.__stats))
+            f.write('\n')
+        os.rename(stats_file_tmp, self.stats_file + '.txt')
 
     def data_thread(self):
+        """
+        TODO: Not very pythonish interface, but OK for now.
+        """
         while True:
-
             try:
-                type, value = self.queue.get(block=True)
+                data = self.queue.get(block=True)
             except EOFError:
                 return
             except ValueError:
                 continue
 
-            if type == Counters.EndTime:
-                self.end_time = value
-            elif type == Counters.TotalIterations:
-                self.total_iterations = value
-            elif type == Counters.Iterations:
-                self.iterations += value
-            elif type == Counters.IteratedKeys:
-                self.iterated_keys += value
-            elif type == Counters.Diffs:
-                self.diffs += value
-            elif type == Counters.MergedDiffs:
-                if not self.merged_diffs:
-                    self.merged_diffs = 0
-                self.merged_diffs += value
-            elif type == Counters.ReadKeys:
-                self.read_keys += value
-            elif type == Counters.SkippedReadKeys:
-                self.skipped_read_keys += value
-            elif type == Counters.RecoveredKeys:
-                self.recovered_keys += value
-            elif type == Counters.RecoveredBytes:
-                self.recovered_bytes += value
-            elif type == Counters.FailedKeys:
-                self.failed_keys += value
-            elif type == Counters.FailedBytes:
-                self.failed_bytes += value
+            try:
+                prefix = data[0]
+                stats = self.__stats
+
+                # If prefix was set then use sub stat
+                if prefix:
+                    for sub in prefix.split('\\'):
+                        stats = stats[sub]
+
+                # Use different handling for different stat flavours
+                flavour = data[1]
+                if flavour == StatsProxy.COUNTER:
+                    _, _, name, value = data
+                    counter = getattr(stats.counter, name)
+                    if value > 0:
+                        counter += value
+                    else:
+                        counter -= value
+                elif flavour == StatsProxy.TIMER:
+                    _, _, name, milestone, ts = data
+                    timer = getattr(stats.timer, name, ts)
+                    timer(milestone)
+                else:
+                    RuntimeError("Unknown flavour: {0}".format(data))
+            except Exception as e:
+                self.log.error("Failed to process: {0}: {1}".format(data, e))
 
     def listen_thread(self):
-        import socket
-        backlog = 5
-        size = 1
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.bind(('', self.port))
-        s.listen(backlog)
+        sa = self.httpd.socket.getsockname()
+        self.log.debug("Serving HTTP on {0}:{1} port...".format(sa[0], sa[1]))
+        self.httpd.serve_forever()
+
+    def export_thread(self, period=1):
+        """
+        Periodically saves stats to file
+        """
+        from select import select
         while True:
-            client, address = s.accept()
-            request = client.recv(size)
-            response = None
-            if request == 'i':
-                response = str(self)
-            elif request == "j":
-                response = self.to_json()
-            #elif request == 'p':
-            #    response = "Recover is paused\n"
-            #elif request == 'c':
-            #    response = "Recover is restored\n"
-            #elif request == 's':
-            #    response = "Recover is stopped\n"
-            else:
-                response = ""
-                if request != 'h':
-                    response += "Unkown requst: {0}\n".format(request)
-                #response += "Request chars:\ni - info\np - pause\nc - continue\ns - stop\nh - this info\n"
-                response += "Request chars:\ni - info\nh - this info\n"
-
-            if response:
-                client.send(response)
-            client.close()
-
-    def set_finished(self):
-        self.queue.put_nowait((Counters.EndTime, datetime.now()))
-
-    def add_counter(self, type, value):
-        self.queue.put_nowait((type, value))
-
-    def __str__(self):
-        ret = "{0:=^100}".format(self.recovery_type + " Monitor Statistics")
-        ret += "\ncontext{0}".format(self.ctx)
-        ret += "\n{0}".format(format_kv("Started", self.start_time))
-        if self.end_time:
-            ret += "\n{0}".format(format_kv("Started", self.end_time - self.start_time))
-            ret += "\n{0}".format(format_kv("Finished", self.end_time))
-
-        ret += "\n{0}".format(format_kv("Iterations succ/fail/all", "{0}/{1}/{2}".format(self.iterations, self.failed_iterations, self.total_iterations)))
-        ret += "\n{0}".format(format_kv("Iterated keys", self.iterated_keys))
-        ret += "\n{0}".format(format_kv("Diffs", self.diffs))
-        if self.merged_diffs:
-            ret += "\n{0}".format(format_kv("Merged diffs", self.merged_diffs))
-
-        total_keys = self.diffs
-        if self.merged_diffs:
-            total_keys = self.merged_diffs
-
-        if total_keys:
-            ret += "\n{0}".format(format_kv("Read keys succ/skipped", "{0}/{1}".format(self.read_keys, self.skipped_read_keys)))
-            read_part = (self.read_keys + self.skipped_read_keys) * 100 / total_keys
-            ret += "\n{0}[{1}%]".format("="*read_part + "-"*(100 - read_part), read_part)
-
-        total_keys -= self.skipped_read_keys
-
-        if self.read_keys:
-            ret += "\n{0}".format(format_kv("Recovered keys succ/fail", "{0}/{1}".format(self.recovered_keys, self.failed_keys)))
-            recovered_part = self.recovered_keys * 100 / self.read_keys
-            failed_part = self.failed_keys * 100 / self.read_keys
-            rest = 100 - recovered_part - failed_part
-            if rest < 0:
-                rest = 0
-            ret += "\n{0}[{1}%]".format("="*recovered_part + "!"*failed_part + "-"*rest, recovered_part + failed_part)
-            ret += "\n{0}".format(format_kv("Recovered bytes succ/fail", "{0}/{1}".format(self.recovered_bytes, self.failed_bytes)))
-        return ret
-
-    def to_json(self):
-        import json
-        return json.dumps({"recovery_type": str(self.recovery_type),
-                           "context": str(self.ctx),
-                           "Started": str(self.start_time),
-                           "Finished": str(self.end_time),
-                           "IterationsSucc": self.iterations,
-                           "IterationsFail": self.failed_iterations,
-                           "IterationsTotal": self.total_iterations,
-                           "IteratedKeys": self.iterated_keys,
-                           "Diffs": self.diffs,
-                           "Merged diffs": self.merged_diffs,
-                           "ReadKeys": self.read_keys,
-                           "SkippedReadKeys": self.skipped_read_keys,
-                           "RecoveredKeysSucc": self.recovered_keys,
-                           "RecoveredKeysFail": self.failed_keys,
-                           "RecoveredBytesSucc": self.recovered_bytes,
-                           "RecoveredBytesFail": self.failed_bytes
-                           })
+            self.update()
+            select([], [], [], period)
