@@ -100,6 +100,17 @@ if __name__ == '__main__':
     ctx.dry_run = options.dry_run
 
     try:
+        if options.lock:
+            import fcntl
+            ctx.lockfd = os.open(options.lock, os.O_TRUNC | os.O_CREAT | os.O_RDWR)
+            fcntl.flock(ctx.lockfd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            log.info("Using lock file: {0}".format(options.lock))
+        else:
+            log.info("Not using lock file")
+    except Exception as e:
+        raise RuntimeError("Can't grab lock on: '{0}': {1}".format(options.lock, e))
+
+    try:
         ctx.address = Address.from_host_port_family(options.elliptics_remote)
     except Exception as e:
         raise ValueError("Can't parse host:port:family: '{0}': {1}".format(
@@ -160,17 +171,6 @@ if __name__ == '__main__':
     except Exception as e:
         raise ValueError("Can't parse nprocess: '{0}': {1}".format(
             options.nprocess, repr(e)))
-
-    try:
-        if options.lock:
-            import fcntl
-            ctx.lockfd = os.open(options.lock, os.O_TRUNC | os.O_CREAT | os.O_RDWR)
-            fcntl.flock(ctx.lockfd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            log.info("Using lock file: {0}".format(options.lock))
-        else:
-            log.info("Not using lock file")
-    except Exception as e:
-        raise RuntimeError("Can't grab lock on: '{0}': {1}".format(options.lock, e))
 
     if options.stat not in ALLOWED_STATS:
         raise ValueError("Unknown output format: '{0}'. Available formats are: {1}".format(
