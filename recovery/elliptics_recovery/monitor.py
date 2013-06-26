@@ -52,9 +52,9 @@ class Monitor(object):
     Contains monitoring data and provides interface for manipulating it from detached threads/processes
     """
     def __init__(self, ctx, port):
-        self.manager = Manager()
-        self.port = port
         self.ctx = ctx
+        self.port = port
+        self.manager = Manager()
         self.queue = self.manager.Queue()
         self.stats = StatsProxy(self.queue)
         self.__stats = Stats('monitor')
@@ -69,12 +69,12 @@ class Monitor(object):
             self.l_thread = Thread(target=self.listen_thread, name="MonitorListenThread")
             self.l_thread.daemon = True
 
-        self.e_thread = Thread(target=self.export_thread, name="MonitorExportThread")
-        self.e_thread.daemon = True
+        self.u_thread = Thread(target=self.update_thread, name="MonitorUpdateThread")
+        self.u_thread.daemon = True
 
         self.d_thread.start()
         self.l_thread.start()
-        self.e_thread.start()
+        self.u_thread.start()
 
     def update(self):
         """
@@ -131,7 +131,7 @@ class Monitor(object):
         self.log.debug("Serving HTTP on {0}:{1} port...".format(sa[0], sa[1]))
         self.httpd.serve_forever()
 
-    def export_thread(self, period=1):
+    def update_thread(self, period=1):
         """
         Periodically saves stats to file
         """
