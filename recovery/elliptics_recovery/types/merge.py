@@ -281,6 +281,7 @@ def main(ctx):
         group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
         group_stats.timer('group', 'started')
         local_stats = group_stats['local']
+        local_stats.timer('local', 'started')
 
         routes = RouteList(g_ctx.routes.filter_by_group_id(group))
         ranges = get_ranges(g_ctx, routes, group)
@@ -292,7 +293,7 @@ def main(ctx):
         assert all(address != g_ctx.address for _, address in ranges)
 
         log.warning("Running local iterators against: {0} range(s)".format(len(ranges)))
-        group_stats.timer('group', 'iterator_local')
+        local_stats.timer('local', 'iterator')
         local_result = run_iterator(
             g_ctx,
             group=group,
@@ -304,13 +305,14 @@ def main(ctx):
         log.warning("Finished local iteration of: {0} range(s)".format(len(ranges)))
 
         log.warning("Sorting local iterator results")
-        group_stats.timer('group', 'sort_local')
-        g_sorted_local_results = sort(g_ctx, local_result, group_stats)
+        local_stats.timer('local', 'sort')
+        g_sorted_local_results = sort(g_ctx, local_result, local_stats)
         if g_sorted_local_results is not None:
             assert len(local_result) == len(g_sorted_local_results)
             log.warning("Sorted successfully: {0} local record(s)".format(len(g_sorted_local_results)))
         else:
             log.warning("Local results are empty")
+        local_stats.timer('local', 'finished')
 
         # For each address in computed recovery ranges run iterator in subprocess
         group_stats.timer('group', 'remote')
