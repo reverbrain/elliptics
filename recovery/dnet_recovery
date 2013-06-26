@@ -14,7 +14,7 @@ import logging
 import logging.handlers
 
 from elliptics_recovery.route import RouteList, Address
-from elliptics_recovery.time import Time
+from elliptics_recovery.etime import Time
 from elliptics_recovery.utils.misc import elliptics_create_node, elliptics_create_session
 from elliptics_recovery.monitor import Monitor
 

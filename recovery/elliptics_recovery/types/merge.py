@@ -18,7 +18,7 @@ from multiprocessing import Pool
 from ..range import IdRange, RecoveryRange
 from ..route import RouteList
 from ..iterator import Iterator
-from ..time import Time
+from ..etime import Time
 from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA

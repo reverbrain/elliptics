@@ -9,7 +9,7 @@ from itertools import groupby
 from multiprocessing import Pool
 
 from ..iterator import Iterator, IteratorResult
-from ..time import Time
+from ..etime import Time
 from ..utils.misc import elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA
