@@ -19,6 +19,7 @@ import elliptics
 
 log = logging.getLogger(__name__)
 
+
 def run_iterator(ctx, address, eid, ranges, stats):
     """
     Runs iterator for all ranges on node specified by address
@@ -29,18 +30,20 @@ def run_iterator(ctx, address, eid, ranges, stats):
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
 
         log.debug("Running iterator on node: {0}".format(address))
-        result = Iterator(node, eid.group_id).start(eid=eid,
-                                                    timestamp_range=timestamp_range,
-                                                    key_ranges=ranges,
-                                                    tmp_dir=ctx.tmp_dir,
-                                                    address=address,
-                                                    leave_file=True)
+        result, result_len = Iterator.iterate_with_stats(node=node,
+                                                         eid=eid,
+                                                         timestamp_range=timestamp_range,
+                                                         key_ranges=ranges,
+                                                         tmp_dir=ctx.tmp_dir,
+                                                         address=address,
+                                                         batch_size=ctx.batch_size,
+                                                         stats=stats,
+                                                         counters=['iterated_keys']
+                                                         )
 
         if result is None:
             raise RuntimeError("Iterator result is None")
-        log.debug("Iterator {0} obtained: {1} record(s)".format(result.id_range, len(result)))
-        result_len = len(result)
-        stats.counter('iterated_keys', result_len)
+        log.debug("Iterator {0} obtained: {1} record(s)".format(result.id_range, result_len))
         stats.counter('iterations', 1)
         return result
 
@@ -82,7 +85,7 @@ def diff(ctx, local, remote, stats):
         else:
             log.info("Computing differences for: {0}".format(remote.address))
             result = local.diff(remote)
-            result.leave_file = True
+        result.leave_file = True
         diff_len = len(result)
         stats.counter('diff', diff_len)
         log.info("Found {0} differences".format(diff_len))
@@ -155,11 +158,16 @@ def recover((id_range, eid, address)):
     for batch_id, batch in groupby(enumerate(async_write_results), key=lambda x: x[0] / ctx.batch_size):
         successes, failures = (0, 0)
         for _, (r, bsize) in batch:
-            r.wait()
-            if r.successful():
-                successes_size += bsize
-                successes += 1
-            else:
+            try:
+                r.wait()
+                if r.successful():
+                    successes_size += bsize
+                    successes += 1
+                else:
+                    failures_size += bsize
+                    failures += 1
+            except Exception as e:
+                log.debug("Write failed: {0}".format(e))
                 failures_size += bsize
                 failures += 1
 
@@ -180,19 +188,36 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
     keys_len = len(keys)
 
     log.debug("Copying {0} keys".format(keys_len))
+
     async_write_results = []
+    batch = None
+
     try:
         batch = remote_session.bulk_read_async(keys)
-        for b in batch:
-            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data)))
-        read_len = len(async_write_results)
-        stats.counter('read_keys', read_len)
-        stats.counter('skipped_keys', keys_len - read_len)
-        return async_write_results
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(keys_len, e))
-        stats.counter('skipped_keys', keys_len)
+        stats.counter('recovered_keys', -keys_len)
         return None
+
+    it = iter(batch)
+    failed = 0
+
+    while True:
+        try:
+            b = next(it)
+            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data)))
+        except StopIteration:
+            break
+        except Exception as e:
+            failed += 1
+            log.debug("Write failed: {0}".format(e))
+
+    read_len = len(async_write_results)
+    stats.counter('read_keys', read_len)
+    stats.counter('read_keys', -failed)
+    stats.counter('recovered_keys', -failed)
+    stats.counter('skipped_keys', keys_len - read_len - failed)
+    return async_write_results
 
 
 def iterate_node(address_ranges):
@@ -263,8 +288,7 @@ def process_diff((local, remote)):
                                                      id_range=remote[0],
                                                      eid=remote[1],
                                                      is_sorted=True,
-                                                     tmp_dir=ctx.tmp_dir,
-                                                     leave_file=True
+                                                     tmp_dir=ctx.tmp_dir
                                                      )
 
     stats.timer('process', 'diff')
@@ -328,7 +352,7 @@ def main(ctx):
                                             eid=eid,
                                             is_sorted=True,
                                             id_range=id_range,
-                                            tmp_dir=g_ctx.tmp_dir,
+                                            tmp_dir=g_ctx.tmp_dir
                                             )
         return dres
 

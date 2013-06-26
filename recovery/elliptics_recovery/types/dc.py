@@ -18,6 +18,7 @@ import elliptics
 
 log = logging.getLogger(__name__)
 
+
 def run_iterators(ctx, range, stats):
     """
     Runs local and remote iterators for each range.
@@ -32,19 +33,20 @@ def run_iterators(ctx, range, stats):
         local_eid = range.address[ctx.group_id][0]
 
         log.debug("Running local iterator on: {0} on node: {1}".format(range.id_range, range.address[ctx.group_id][1]))
-        local_result = Iterator(node, ctx.group_id).start(eid=local_eid,
-                                                          timestamp_range=timestamp_range,
-                                                          key_ranges=[range.id_range],
-                                                          tmp_dir=ctx.tmp_dir,
-                                                          address=ctx.address
-                                                          )
+        local_result, local_result_len = Iterator.iterate_with_stats(node=node,
+                                                                     eid=local_eid,
+                                                                     timestamp_range=timestamp_range,
+                                                                     key_ranges=[range.id_range],
+                                                                     tmp_dir=ctx.tmp_dir,
+                                                                     address=ctx.address,
+                                                                     batch_size=ctx.batch_size,
+                                                                     stats=stats,
+                                                                     counters=['iterated_keys']
+                                                                     )
 
-        local_result_len = len(local_result)
-        stats.counter('local_records', local_result_len)
-        stats.counter('iterated_keys', local_result_len)
         stats.counter('iterations', 1)
         log.debug("Local iterator obtained: {0} record(s)".format(local_result_len))
-        remote_result = []
+        remote_results = []
 
         for i in range.address:
             if i == ctx.group_id:
@@ -53,28 +55,30 @@ def run_iterators(ctx, range, stats):
 
             log.debug("Running remote iterator on:{0} on node: {1}".format(range.id_range, range.address[i][1]))
 
-            it_result = Iterator(node, i).start(eid=remote_eid,
-                                                timestamp_range=timestamp_range,
-                                                key_ranges=[range.id_range],
-                                                tmp_dir=ctx.tmp_dir,
-                                                address=range.address[i][1]
-                                                )
+            remote_result, remote_result_len = Iterator.iterate_with_stats(node=node,
+                                                                           eid=remote_eid,
+                                                                           timestamp_range=timestamp_range,
+                                                                           key_ranges=[range.id_range],
+                                                                           tmp_dir=ctx.tmp_dir,
+                                                                           address=range.address[i][1],
+                                                                           batch_size=ctx.batch_size,
+                                                                           stats=stats,
+                                                                           counters=['remote_records', 'iterated_keys']
+                                                                           )
 
-            if it_result is None or len(it_result) == 0:
+            stats.counter('iterations', 1)
+
+            if remote_result is None or remote_result_len == 0:
                 log.warning("Remote iterator result is empty, skipping")
                 continue
 
-            remote_result.append(it_result)
+            remote_results.append(remote_result)
 
-            remote_result[-1].address = range.address[i][1]
-            remote_result[-1].group_id = i
-            remote_result_len = len(remote_result[-1])
+            remote_results[-1].address = range.address[i][1]
+            remote_results[-1].group_id = i
             log.debug("Remote obtained: {0} record(s)".format(remote_result_len))
-            stats.counter('remote_records', remote_result_len)
-            stats.counter('iterated_keys', remote_result_len)
-            stats.counter('iterations', 1)
 
-        return local_result, remote_result
+        return local_result, remote_results
 
     except Exception as e:
         log.error("Iteration failed for: {0}@{1}: {2}".format(range.id_range, range.address, repr(e)))
@@ -216,19 +220,36 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
     keys_len = len(keys)
 
     log.debug("Copying {0} keys".format(keys_len))
+
     async_write_results = []
+    batch = None
+
     try:
         batch = remote_session.bulk_read_async(keys)
-        for b in batch:
-            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data)))
-        read_len = len(async_write_results)
-        stats.counter('read_keys', read_len)
-        stats.counter('skipped_keys', keys_len - read_len)
-        return async_write_results
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(keys_len, e))
-        stats.counter('skipped_keys', keys_len)
+        stats.counter('recovered_keys', -keys_len)
         return None
+
+    it = iter(batch)
+    failed = 0
+
+    while True:
+        try:
+            b = next(it)
+            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data)))
+        except StopIteration:
+            break
+        except Exception as e:
+            failed += 1
+            log.debug("Write failed: {0}".format(e))
+
+    read_len = len(async_write_results)
+    stats.counter('read_keys', read_len)
+    stats.counter('read_keys', -failed)
+    stats.counter('recovered_keys', -failed)
+    stats.counter('skipped_keys', keys_len - read_len - failed)
+    return async_write_results
 
 
 def process_range((range, dry_run)):
