@@ -115,6 +115,13 @@ struct elliptics_id {
 		group_id = 0;
 	}
 
+	elliptics_id(const std::string& sid)
+	{
+		key k(sid);
+		id = convert_to_list(k.id().id, sizeof(k.id().id));
+		group_id = k.id().group_id;
+	}
+
 	struct dnet_id to_dnet() const {
 		struct dnet_id dnet;
 		memset(&dnet, 0, sizeof(struct dnet_id));
@@ -448,6 +455,11 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		std::string read_latest_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size)
 		{
 			return read_latest(key(remote), offset, size).get()[0].file().to_string();
+		}
+
+		python_read_result read_latest_async(const elliptics_id &id, uint64_t offset, uint64_t size)
+		{
+			return create_result(std::move(session::read_latest(id.to_dnet(), offset, size)));
 		}
 
 		std::string convert_to_string(const sync_write_result &result)
@@ -845,20 +857,20 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return convert_to_string(session::bulk_write(ios, std_data));
 		}
 
-		python_async_update_indexes_result update_indexes(const std::string& id, const bp::api::object &indexes, const bp::api::object &datas)
+		python_async_update_indexes_result update_indexes(const elliptics_id &id, const bp::api::object &indexes, const bp::api::object &datas)
 		{
 			auto std_indexes = convert_to_vector<std::string>(indexes);
 			auto string_datas = convert_to_vector<std::string>(datas);
 			std::vector<data_pointer> std_datas(string_datas.begin(), string_datas.end());
 
-			return create_result(std::move(session::update_indexes(id, std_indexes, std_datas)));
+			return create_result(std::move(session::update_indexes(id.to_dnet(), std_indexes, std_datas)));
 		}
 
-		python_async_update_indexes_result update_indexes_raw(const std::string& id, const bp::api::object &indexes)
+		python_async_update_indexes_result update_indexes_raw(const elliptics_id &id, const bp::api::object &indexes)
 		{
 			auto std_indexes = convert_to_vector<index_entry>(indexes);
 
-			return create_result(std::move(session::update_indexes(id, std_indexes)));
+			return create_result(std::move(session::update_indexes(id.to_dnet(), std_indexes)));
 		}
 
 		python_find_indexes_result find_all_indexes(const bp::api::object &indexes)
@@ -905,9 +917,9 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return create_result(std::move(session::find_any_indexes(std_indexes)));
 		}
 
-		python_check_indexes_result check_indexes(const std::string &id)
+		python_check_indexes_result check_indexes(const elliptics_id &id)
 		{
-			return create_result(std::move(session::check_indexes(id)));
+			return create_result(std::move(session::check_indexes(id.to_dnet())));
 		}
 
 		bp::list stat_log_count()
@@ -1259,6 +1271,7 @@ BOOST_PYTHON_MODULE(elliptics)
 
 	bp::class_<elliptics_id>("Id")
 		.def(bp::init<bp::list, int>(bp::args("key", "group_id")))
+		.def(bp::init<std::string>(bp::args("key")))
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_pickle(id_pickle())
@@ -1433,6 +1446,8 @@ BOOST_PYTHON_MODULE(elliptics)
 			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("read_latest", &elliptics_session::read_latest_by_data_transform,
 			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0, bp::arg("column") = 0))
+		.def("read_latest_async", &elliptics_session::read_latest_async,
+		     (bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 
 		.def("write_data", &elliptics_session::write_data_by_id,
 			(bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0))
@@ -1487,7 +1502,7 @@ BOOST_PYTHON_MODULE(elliptics)
 
 		.def("update_indexes", &elliptics_session::update_indexes,
 		     (bp::arg("id"), bp::arg("indexes"), bp::arg("datas")))
-		.def("update_indexes", &elliptics_session::update_indexes_raw,
+		.def("update_indexes_raw", &elliptics_session::update_indexes_raw,
 		     (bp::arg("id"), bp::arg("indexes")))
 		.def("find_all_indexes", &elliptics_session::find_all_indexes,
 		     (bp::arg("indexes")))
