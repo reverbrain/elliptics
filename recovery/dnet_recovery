@@ -240,6 +240,7 @@ if __name__ == '__main__':
     result = main(ctx)
 
     ctx.monitor.update()
+    ctx.monitor.shutdown()
     if options.stat == STAT_TEXT:
         with open(ctx.monitor.stats_file + '.txt') as lines:
             for line in lines:

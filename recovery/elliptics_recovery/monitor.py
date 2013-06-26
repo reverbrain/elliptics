@@ -57,6 +57,7 @@ class Monitor(object):
         self.manager = Manager()
         self.queue = self.manager.Queue()
         self.stats = StatsProxy(self.queue)
+        self.__shutdown_request = False
         self.__stats = Stats('monitor')
         self.stats_file = 'stats'
 
@@ -90,7 +91,7 @@ class Monitor(object):
         """
         TODO: Not very pythonish interface, but OK for now.
         """
-        while True:
+        while not self.__shutdown_request:
             try:
                 data = self.queue.get(block=True)
             except EOFError:
@@ -136,9 +137,16 @@ class Monitor(object):
         Periodically saves stats to file
         """
         from time import sleep
-        while True:
+        while not self.__shutdown_request:
             try:
                 self.update()
             except Exception as e:
                 self.log.error("Got an error during stats update: {0}".format(e))
             sleep(seconds)
+
+    def shutdown(self):
+        """
+        FIXME: We also need a condition variable per thread to really check that thread is finished
+        """
+        self.__shutdown_request = True
+        self.httpd.shutdown()
