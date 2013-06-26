@@ -247,13 +247,14 @@ class Iterator(object):
             yield None
 
     @classmethod
-    def iterate_with_stats(cls, node, eid, timestamp_range, key_ranges, tmp_dir, address, batch_size, stats, counters):
+    def iterate_with_stats(cls, node, eid, timestamp_range, key_ranges, tmp_dir, address, batch_size, stats, counters, leave_file=False):
         result = cls(node, eid.group_id).start(eid=eid,
                                                timestamp_range=timestamp_range,
                                                key_ranges=key_ranges,
                                                tmp_dir=tmp_dir,
                                                address=address,
-                                               batch_size=batch_size
+                                               batch_size=batch_size,
+                                               leave_file=leave_file
                                                )
         result_len = 0
         for it in result:

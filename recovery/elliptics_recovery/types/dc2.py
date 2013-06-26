@@ -38,7 +38,8 @@ def run_iterator(ctx, address, eid, ranges, stats):
                                                          address=address,
                                                          batch_size=ctx.batch_size,
                                                          stats=stats,
-                                                         counters=['iterated_keys']
+                                                         counters=['iterated_keys'],
+                                                         leave_file=True
                                                          )
 
         if result is None:
