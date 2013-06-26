@@ -14,7 +14,7 @@ import logging
 import logging.handlers
 
 from elliptics_recovery.route import RouteList, Address
-from elliptics_recovery.time import Time
+from elliptics_recovery.etime import Time
 from elliptics_recovery.utils.misc import elliptics_create_node, elliptics_create_session
 from elliptics_recovery.monitor import Monitor
 
@@ -240,6 +240,7 @@ if __name__ == '__main__':
     result = main(ctx)
 
     ctx.monitor.update()
+    ctx.monitor.shutdown()
     if options.stat == STAT_TEXT:
         with open(ctx.monitor.stats_file + '.txt') as lines:
             for line in lines:
@@ -248,4 +249,6 @@ if __name__ == '__main__':
     if options.no_exit:
         raw_input("Press Enter to exit!")
 
-    exit(not result)
+    rc = int(not result)
+    log.info("Finished with rc: {0}".format(rc))
+    exit(rc)

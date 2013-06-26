@@ -10,7 +10,7 @@ from itertools import groupby
 from multiprocessing import Pool
 
 from ..iterator import Iterator, IteratorResult
-from ..time import Time
+from ..etime import Time
 from ..utils.misc import mk_container_name, elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA
@@ -179,7 +179,7 @@ def recover((id_range, eid, address)):
         log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(successes + failures, len(diff), successes, failures))
         result &= (failures == 0)
     stats.timer('recover', 'finished')
-    return result, stats
+    return result
 
 
 def recover_keys(ctx, address, group_id, keys, local_session, remote_session, stats):

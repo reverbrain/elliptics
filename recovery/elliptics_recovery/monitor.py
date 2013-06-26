@@ -15,6 +15,7 @@ from BaseHTTPServer import HTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 
 
+@logged_class
 class StatsProxy(object):
     """
     Very simple wrapper that forwards counter and timer methods to queue.
@@ -28,15 +29,21 @@ class StatsProxy(object):
         self.prefix = prefix
 
     def counter(self, name, value):
-        self.queue.put_nowait((self.prefix, self.COUNTER, name, value))
+        try:
+            self.queue.put_nowait((self.prefix, self.COUNTER, name, value))
+        except Exception as e:
+            self.log.error("Got an error during counter update: {0}".format(e))
 
     def timer(self, name, milestone):
-        self.queue.put_nowait((self.prefix, self.TIMER, name, milestone, datetime.now()))
+        try:
+            self.queue.put_nowait((self.prefix, self.TIMER, name, milestone, datetime.now()))
+        except Exception as e:
+            self.log.error("Got an error during timer update: {0}".format(e))
 
     def __getitem__(self, item):
         prefix = item
         if self.prefix:
-            '\\'.join([self.prefix, prefix])
+            prefix = '\\'.join([self.prefix, prefix])
         return StatsProxy(self.queue, prefix=prefix)
 
 @logged_class
@@ -45,11 +52,12 @@ class Monitor(object):
     Contains monitoring data and provides interface for manipulating it from detached threads/processes
     """
     def __init__(self, ctx, port):
-        self.manager = Manager()
-        self.port = port
         self.ctx = ctx
+        self.port = port
+        self.manager = Manager()
         self.queue = self.manager.Queue()
         self.stats = StatsProxy(self.queue)
+        self.__shutdown_request = False
         self.__stats = Stats('monitor')
         self.stats_file = 'stats'
 
@@ -62,12 +70,12 @@ class Monitor(object):
             self.l_thread = Thread(target=self.listen_thread, name="MonitorListenThread")
             self.l_thread.daemon = True
 
-        self.e_thread = Thread(target=self.export_thread, name="MonitorExportThread")
-        self.e_thread.daemon = True
+        self.u_thread = Thread(target=self.update_thread, name="MonitorUpdateThread")
+        self.u_thread.daemon = True
 
         self.d_thread.start()
         self.l_thread.start()
-        self.e_thread.start()
+        self.u_thread.start()
 
     def update(self):
         """
@@ -83,12 +91,13 @@ class Monitor(object):
         """
         TODO: Not very pythonish interface, but OK for now.
         """
-        while True:
+        while not self.__shutdown_request:
             try:
                 data = self.queue.get(block=True)
             except EOFError:
-                return
-            except ValueError:
+                break
+            except Exception as e:
+                self.log.error("Failed to wait on queue: {0}".format(e))
                 continue
 
             try:
@@ -108,7 +117,7 @@ class Monitor(object):
                     if value > 0:
                         counter += value
                     else:
-                        counter -= value
+                        counter -= -value
                 elif flavour == StatsProxy.TIMER:
                     _, _, name, milestone, ts = data
                     timer = getattr(stats.timer, name, ts)
@@ -123,11 +132,21 @@ class Monitor(object):
         self.log.debug("Serving HTTP on {0}:{1} port...".format(sa[0], sa[1]))
         self.httpd.serve_forever()
 
-    def export_thread(self, period=1):
+    def update_thread(self, seconds=1):
         """
         Periodically saves stats to file
         """
-        from select import select
-        while True:
-            self.update()
-            select([], [], [], period)
+        from time import sleep
+        while not self.__shutdown_request:
+            try:
+                self.update()
+            except Exception as e:
+                self.log.error("Got an error during stats update: {0}".format(e))
+            sleep(seconds)
+
+    def shutdown(self):
+        """
+        FIXME: We also need a condition variable per thread to really check that thread is finished
+        """
+        self.__shutdown_request = True
+        self.httpd.shutdown()

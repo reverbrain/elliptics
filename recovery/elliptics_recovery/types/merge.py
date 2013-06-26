@@ -18,7 +18,7 @@ from multiprocessing import Pool
 from ..range import IdRange, RecoveryRange
 from ..route import RouteList
 from ..iterator import Iterator
-from ..time import Time
+from ..etime import Time
 from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA
@@ -159,40 +159,55 @@ def recover(ctx, diff, group, stats):
     local_session.set_direct_id(*g_ctx.address)
 
     # Here we cleverly splitting responses into ctx.batch_size batches
+    total_size, total_records = (0, 0)
     for batch_id, batch in groupby(enumerate(diff),
                                     key=lambda x: x[0] / ctx.batch_size):
         keys = [elliptics.Id(r.key, group) for _, r in batch]
-        successes, failures, size, skipped = recover_keys(ctx, diff.address, group, keys, local_session, remote_session)
+        results = recover_keys(ctx, diff.address, group, keys, local_session, remote_session, stats)
+        if results is None:
+            stats.counter('recovered_keys', -len(keys))
+            continue
+
+        successes, failures, successes_size, failures_size = (0, 0, 0, 0)
+        for r, size in results:
+            r.wait()
+            if r.successful():
+                successes_size += size
+                successes += 1
+            else:
+                failures_size += size
+                failures += 1
+            total_records += 1
+            total_size += size
+
+        stats.counter('recovered_bytes', successes_size)
+        stats.counter('recovered_bytes', -failures_size)
         stats.counter('recovered_keys', successes)
         stats.counter('recovered_keys', -failures)
-        stats.counter('recovered_bytes', size)
-        stats.counter('skipped', skipped)
+        log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(total_records, len(diff),
+                                                                     failures_size + successes_size, total_size))
         result &= (failures == 0)
-        log.debug("Recovered batch: {0}/{1}".format(batch_id * ctx.batch_size + len(keys), len(diff)))
     return result
 
-def recover_keys(ctx, address, group, keys, local_session, remote_session):
+def recover_keys(ctx, address, group, keys, local_session, remote_session, stats):
     """
     Bulk recovery of keys.
     """
-    key_len = len(keys)
+    keys_len = len(keys)
+    async_write_results = []
 
-    log.debug("Reading {0} keys".format(key_len))
     try:
-        batch = remote_session.bulk_read(keys)
-        batch_len = len(batch)
-        size = sum(len(v[1]) for v in batch)
+        batch = remote_session.bulk_read_async(keys)
+        for b in batch:
+            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data)))
+        read_len = len(async_write_results)
+        stats.counter('read_keys', read_len)
+        stats.counter('skipped_keys', keys_len - read_len)
+        return async_write_results
     except Exception as e:
-        log.debug("Bulk read failed: {0} keys: {1}".format(key_len, e))
-        return 0, key_len, 0, 0
-
-    log.debug("Writing {0} keys: {1} bytes".format(batch_len, size))
-    try:
-        local_session.bulk_write(batch)
-    except Exception as e:
-        log.debug("Bulk write failed: {0} keys: {1}".format(batch_len, e))
-        return 0, len(batch), 0, key_len - batch_len
-    return len(batch), 0, size, key_len - batch_len
+        log.debug("Bulk read failed: {0} keys: {1}".format(keys_len, e))
+        stats.counter('skipped_keys', keys_len)
+        return None
 
 def process_address(address, group, ranges):
     """
@@ -266,6 +281,7 @@ def main(ctx):
         group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
         group_stats.timer('group', 'started')
         local_stats = group_stats['local']
+        local_stats.timer('local', 'started')
 
         routes = RouteList(g_ctx.routes.filter_by_group_id(group))
         ranges = get_ranges(g_ctx, routes, group)
@@ -277,7 +293,7 @@ def main(ctx):
         assert all(address != g_ctx.address for _, address in ranges)
 
         log.warning("Running local iterators against: {0} range(s)".format(len(ranges)))
-        group_stats.timer('group', 'iterator_local')
+        local_stats.timer('local', 'iterator')
         local_result = run_iterator(
             g_ctx,
             group=group,
@@ -289,13 +305,14 @@ def main(ctx):
         log.warning("Finished local iteration of: {0} range(s)".format(len(ranges)))
 
         log.warning("Sorting local iterator results")
-        group_stats.timer('group', 'sort_local')
-        g_sorted_local_results = sort(g_ctx, local_result, group_stats)
+        local_stats.timer('local', 'sort')
+        g_sorted_local_results = sort(g_ctx, local_result, local_stats)
         if g_sorted_local_results is not None:
             assert len(local_result) == len(g_sorted_local_results)
             log.warning("Sorted successfully: {0} local record(s)".format(len(g_sorted_local_results)))
         else:
             log.warning("Local results are empty")
+        local_stats.timer('local', 'finished')
 
         # For each address in computed recovery ranges run iterator in subprocess
         group_stats.timer('group', 'remote')

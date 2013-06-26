@@ -6,7 +6,7 @@ import sys
 import os
 
 from .utils.misc import logged_class, mk_container_name, format_id
-from .time import Time
+from .etime import Time
 from .range import IdRange
 
 sys.path.insert(0, "bindings/python/")  # XXX
