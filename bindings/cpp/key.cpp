@@ -32,8 +32,14 @@ key::key(const std::string &remote) : m_by_id(false), m_remote(remote), m_reserv
 	memset(&m_id, 0, sizeof(m_id));
 }
 
-key::key(const struct dnet_id &id) : m_by_id(true), m_reserved(0), m_id(id)
+key::key(const dnet_id &id) : m_by_id(true), m_reserved(0), m_id(id)
 {
+}
+
+key::key(const dnet_raw_id &id) : m_by_id(true), m_reserved(0)
+{
+	memset(&m_id, 0, sizeof(m_id));
+	memcpy(m_id.id, id.id, sizeof(id.id));
 }
 
 key::key(const key &other)

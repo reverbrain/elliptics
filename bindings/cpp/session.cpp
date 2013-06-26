@@ -1888,6 +1888,26 @@ async_read_result session::bulk_read(const std::vector<std::string> &keys)
 	return bulk_read(ios);
 }
 
+async_read_result session::bulk_read(const std::vector<key> &keys)
+{
+	std::vector<struct dnet_io_attr> ios;
+	struct dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+
+	io.flags = get_ioflags();
+
+	ios.reserve(keys.size());
+
+	for (size_t i = 0; i < keys.size(); ++i) {
+		transform(keys[i]);
+
+		memcpy(io.id, keys[i].id().id, sizeof(io.id));
+		ios.push_back(io);
+	}
+
+	return bulk_read(ios);
+}
+
 async_write_result session::bulk_write(const std::vector<dnet_io_attr> &ios, const std::vector<data_pointer> &data)
 {
 	if (ios.size() != data.size()) {

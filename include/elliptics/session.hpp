@@ -152,7 +152,8 @@ class key
 	public:
 		key();
 		key(const std::string &remote);
-		key(const struct dnet_id &id);
+		key(const dnet_id &id);
+		key(const dnet_raw_id &id);
 		key(const key &other);
 		key &operator = (const key &other);
 		~key();
@@ -297,7 +298,7 @@ class session
 		 */
 		void			set_user_flags(uint64_t user_flags);
 
-        	/*!
+		/*!
 		 * Sets timestamp for given session.
 		 * All write operations will use this timestamp, instead of system time.
 		 * If set to zero (default), system time will be used.
@@ -639,6 +640,12 @@ class session
 		 * Allows to specify the list of string \a keys.
 		 */
 		async_read_result bulk_read(const std::vector<std::string> &keys);
+		/*!
+		 * \overload bulk_read()
+		 *
+		 * Allows to specify the list of key \a keys.
+		 */
+		async_read_result bulk_read(const std::vector<key> &keys);
 
 		/*!
 		 * Writes all data \a data to server nodes by the list \a ios.
