@@ -131,14 +131,14 @@ class Monitor(object):
         self.log.debug("Serving HTTP on {0}:{1} port...".format(sa[0], sa[1]))
         self.httpd.serve_forever()
 
-    def update_thread(self, period=1):
+    def update_thread(self, seconds=1):
         """
         Periodically saves stats to file
         """
-        from select import select
+        from time import sleep
         while True:
             try:
                 self.update()
             except Exception as e:
                 self.log.error("Got an error during stats update: {0}".format(e))
-            select([], [], [], period)
+            sleep(seconds)
