@@ -206,6 +206,7 @@ class Iterator(object):
               tmp_dir='/var/tmp',
               address=None,
               leave_file=False,
+              batch_size=1024
               ):
         assert itype == elliptics.iterator_types.network, "Only network iterator is supported for now"
         assert flags & elliptics.iterator_flags.data == 0, "Only metadata iterator is supported for now"
@@ -226,12 +227,46 @@ class Iterator(object):
 
             ranges = [IdRange.elliptics_range(start, stop) for start, stop in key_ranges]
             records = self.session.start_iterator(eid, ranges, itype, flags, timestamp_range[0], timestamp_range[1])
-            for record in records:
+            last = 0
+
+            for num, record in enumerate(records):
                 # TODO: Here we can add throttling
                 if record.status != 0:
                     raise RuntimeError("Iteration status check failed: {0}".format(record.status))
                 result.append(record)
-            return result
+                last = num
+                if last % batch_size == 0:
+                    yield batch_size
+
+            elapsed_time = records.elapsed_time()
+            print (elapsed_time.tsec, elapsed_time.tnsec)
+            yield last % batch_size
+            yield result
         except Exception as e:
             self.log.error("Iteration failed: {0}".format(repr(e)))
-            return None
+            yield None
+
+    @classmethod
+    def iterate_with_stats(cls, node, eid, timestamp_range, key_ranges, tmp_dir, address, batch_size, stats, counters, leave_file=False):
+        result = cls(node, eid.group_id).start(eid=eid,
+                                               timestamp_range=timestamp_range,
+                                               key_ranges=key_ranges,
+                                               tmp_dir=tmp_dir,
+                                               address=address,
+                                               batch_size=batch_size,
+                                               leave_file=leave_file
+                                               )
+        result_len = 0
+        for it in result:
+            if it is None:
+                result = None
+                break
+            elif type(it) is IteratorResult:
+                result = it
+                break
+
+            result_len += it
+            for c in counters:
+                stats.counter(c, it)
+
+        return result, result_len

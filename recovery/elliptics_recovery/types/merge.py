@@ -68,17 +68,20 @@ def run_iterator(ctx, group=None, address=None, routes=None, ranges=None, stats=
         eid = routes.filter_by_address(address)[0].key
         key_ranges = [r.id_range for r in ranges]
         log.debug("Running iterator on node: {0}".format(address))
-        result = Iterator(node, group).start(
+        result, result_len = Iterator.iterate_with_stats(
+            node=node,
             eid=eid,
             timestamp_range=timestamp_range,
             key_ranges=key_ranges,
             tmp_dir=ctx.tmp_dir,
             address=address,
+            batch_size=ctx.batch_size,
+            stats=stats,
+            counters=['iterated_keys']
         )
         if result is None:
             raise RuntimeError("Iterator result is None")
         log.debug("Iterator {0} obtained: {1} record(s)".format(result.id_range, len(result)))
-        stats.counter('iterated_keys', len(result))
         stats.counter('iterations', 1)
         return result
     except Exception as e:
