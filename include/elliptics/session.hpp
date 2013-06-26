@@ -31,6 +31,7 @@ class callback_result_entry;
 
 typedef std::function<bool (const callback_result_entry &)> result_filter;
 typedef std::function<bool (const std::vector<dnet_cmd> &, size_t)> result_checker;
+typedef std::function<void (const error_info &, const std::vector<dnet_cmd> &)> result_error_handler;
 
 namespace filters
 {
@@ -46,6 +47,11 @@ bool no_check(const std::vector<dnet_cmd> &statuses, size_t total);
 bool at_least_one(const std::vector<dnet_cmd> &statuses, size_t total);
 bool all(const std::vector<dnet_cmd> &statuses, size_t total);
 bool quorum(const std::vector<dnet_cmd> &statuses, size_t total);
+}
+
+namespace error_handlers
+{
+void none(const error_info &error, const std::vector<dnet_cmd> &statuses);
 }
 
 class transport_control
@@ -244,6 +250,9 @@ class session
 		 * Returns checker.
 		 */
 		result_checker		get_checker() const;
+
+		void            set_error_handler(const result_error_handler &error_handler);
+		result_error_handler	get_error_handler() const;
 
 		/*!
 		 * Set exception policy \a policies.

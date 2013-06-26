@@ -21,6 +21,7 @@ class async_result<T>::data
 		result_filter filter;
 		result_checker checker;
 		uint32_t policy;
+		result_error_handler error_handler;
 
 		std::vector<T> results;
 		error_info error;
@@ -37,6 +38,7 @@ async_result<T>::async_result(const session &sess) : m_data(std::make_shared<dat
 	m_data->filter = sess.get_filter();
 	m_data->checker = sess.get_checker();
 	m_data->policy = sess.get_exceptions_policy();
+	m_data->error_handler = sess.get_error_handler();
 }
 
 template <typename T>
@@ -425,8 +427,10 @@ void async_result_handler<T>::complete(const error_info &error)
 	std::unique_lock<std::mutex> locker(m_data->lock);
 	m_data->finished = true;
 	m_data->error = error;
-	if (!error)
-		check(&m_data->error);
+	if (!error) {
+		if (!check(&m_data->error))
+			m_data->error_handler(m_data->error, m_data->statuses);
+	}
 	if (m_data->final_handler) {
 		m_data->final_handler(m_data->error);
 	}

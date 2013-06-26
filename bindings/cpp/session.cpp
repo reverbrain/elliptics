@@ -267,7 +267,7 @@ bool all_with_ack(const callback_result_entry &entry)
 	(void) entry;
 	return true;
 }
-}
+} // namespace filters
 
 namespace checkers
 {
@@ -309,7 +309,14 @@ bool quorum(const std::vector<dnet_cmd> &statuses, size_t total)
 
 	return (success > total / 2);
 }
+} // namespace checkers
+
+namespace error_handlers
+{
+void none(const error_info &, const std::vector<dnet_cmd> &)
+{
 }
+} // namespace error_handlers
 
 class session_data
 {
@@ -321,6 +328,7 @@ class session_data
 				throw std::bad_alloc();
 			filter = filters::positive;
 			checker = checkers::at_least_one;
+			error_handler = error_handlers::none;
 			policy = session::default_exceptions;
 		}
 
@@ -328,6 +336,7 @@ class session_data
 			: node_guard(other.node_guard),
 			filter(other.filter),
 			checker(other.checker),
+			error_handler(other.error_handler),
 			policy(other.policy)
 		{
 			session_ptr = dnet_session_copy(other.session_ptr);
@@ -346,6 +355,7 @@ class session_data
 		node			node_guard;
 		result_filter		filter;
 		result_checker		checker;
+		result_error_handler	error_handler;
 		uint32_t		policy;
 };
 
@@ -407,6 +417,16 @@ void session::set_checker(const result_checker &checker)
 result_checker session::get_checker() const
 {
 	return m_data->checker;
+}
+
+void session::set_error_handler(const result_error_handler &error_handler)
+{
+	m_data->error_handler = error_handler;
+}
+
+result_error_handler session::get_error_handler() const
+{
+	return m_data->error_handler;
 }
 
 void session::set_exceptions_policy(uint32_t policy)
