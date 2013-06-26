@@ -1,6 +1,7 @@
 /*
  * 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
  * 2012+ Copyright (c) Ruslan Nigmatullin <euroelessar@yandex.ru>
+ * 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
