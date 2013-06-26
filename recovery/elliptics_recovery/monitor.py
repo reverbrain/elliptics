@@ -15,6 +15,7 @@ from BaseHTTPServer import HTTPServer
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 
 
+@logged_class
 class StatsProxy(object):
     """
     Very simple wrapper that forwards counter and timer methods to queue.
@@ -28,10 +29,16 @@ class StatsProxy(object):
         self.prefix = prefix
 
     def counter(self, name, value):
-        self.queue.put_nowait((self.prefix, self.COUNTER, name, value))
+        try:
+            self.queue.put_nowait((self.prefix, self.COUNTER, name, value))
+        except Exception as e:
+            self.log.error("Got an error during counter update: {0}".format(e))
 
     def timer(self, name, milestone):
-        self.queue.put_nowait((self.prefix, self.TIMER, name, milestone, datetime.now()))
+        try:
+            self.queue.put_nowait((self.prefix, self.TIMER, name, milestone, datetime.now()))
+        except Exception as e:
+            self.log.error("Got an error during timer update: {0}".format(e))
 
     def __getitem__(self, item):
         prefix = item
@@ -87,8 +94,9 @@ class Monitor(object):
             try:
                 data = self.queue.get(block=True)
             except EOFError:
-                return
-            except ValueError:
+                break
+            except Exception as e:
+                self.log.error("Failed to wait on queue: {0}".format(e))
                 continue
 
             try:
@@ -129,5 +137,8 @@ class Monitor(object):
         """
         from select import select
         while True:
-            self.update()
+            try:
+                self.update()
+            except Exception as e:
+                self.log.error("Got an error during stats update: {0}".format(e))
             select([], [], [], period)
