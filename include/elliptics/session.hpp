@@ -32,6 +32,7 @@ class callback_result_entry;
 
 typedef std::function<bool (const callback_result_entry &)> result_filter;
 typedef std::function<bool (const std::vector<dnet_cmd> &, size_t)> result_checker;
+typedef std::function<void (const error_info &, const std::vector<dnet_cmd> &)> result_error_handler;
 
 namespace filters
 {
@@ -47,6 +48,11 @@ bool no_check(const std::vector<dnet_cmd> &statuses, size_t total);
 bool at_least_one(const std::vector<dnet_cmd> &statuses, size_t total);
 bool all(const std::vector<dnet_cmd> &statuses, size_t total);
 bool quorum(const std::vector<dnet_cmd> &statuses, size_t total);
+}
+
+namespace error_handlers
+{
+void none(const error_info &error, const std::vector<dnet_cmd> &statuses);
 }
 
 class transport_control
@@ -153,7 +159,8 @@ class key
 	public:
 		key();
 		key(const std::string &remote);
-		key(const struct dnet_id &id);
+		key(const dnet_id &id);
+		key(const dnet_raw_id &id);
 		key(const key &other);
 		key &operator = (const key &other);
 		~key();
@@ -245,6 +252,9 @@ class session
 		 */
 		result_checker		get_checker() const;
 
+		void            set_error_handler(const result_error_handler &error_handler);
+		result_error_handler	get_error_handler() const;
+
 		/*!
 		 * Set exception policy \a policies.
 		 *
@@ -298,7 +308,7 @@ class session
 		 */
 		void			set_user_flags(uint64_t user_flags);
 
-        	/*!
+		/*!
 		 * Sets timestamp for given session.
 		 * All write operations will use this timestamp, instead of system time.
 		 * If set to zero (default), system time will be used.
@@ -640,6 +650,12 @@ class session
 		 * Allows to specify the list of string \a keys.
 		 */
 		async_read_result bulk_read(const std::vector<std::string> &keys);
+		/*!
+		 * \overload bulk_read()
+		 *
+		 * Allows to specify the list of key \a keys.
+		 */
+		async_read_result bulk_read(const std::vector<key> &keys);
 
 		/*!
 		 * Writes all data \a data to server nodes by the list \a ios.

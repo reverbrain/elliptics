@@ -144,6 +144,11 @@ class data_pointer
 			return copy(other.data(), other.size());
 		}
 
+		static data_pointer copy(const std::string &other)
+		{
+			return copy(other.c_str(), other.size());
+		}
+
 		static data_pointer allocate(size_t size)
 		{
 			void *data = malloc(size);
