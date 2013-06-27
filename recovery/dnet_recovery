@@ -229,7 +229,7 @@ if __name__ == '__main__':
     log.debug("Creating session for: {0}".format(ctx.address))
     session = elliptics_create_session(node=node, group=0)
 
-    log.warning("Parsing routing table")
+    log.info("Parsing routing table")
     ctx.routes = RouteList.from_session(session)
     log.debug("Parsed routing table:\n{0}".format(ctx.routes))
     log.debug("Total routes: {0}".format(len(ctx.routes)))
