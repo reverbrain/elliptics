@@ -23,9 +23,9 @@ class ResultCounter(object):
     >>> rc += 10
     >>> rc -= 2
     >>> print rc
-    Counter_failures:                                                              2
-    Counter_total:                                                                12
-    Counter_success:                                                              10
+    Counter_failures:                                                                                  2
+    Counter_total:                                                                                    12
+    Counter_success:                                                                                  10
 
     Empty counter prints as an empty string
     >>> str(ResultCounter('Counter')) == ""
