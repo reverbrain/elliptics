@@ -195,6 +195,15 @@ if __name__ == '__main__':
 
     try:
         ctx.monitor_port = int(options.monitor_port)
+        if ctx.monitor_port:
+            try:
+                from socket import getfqdn
+
+                base_url = 'http://{0}:{1}'.format(getfqdn(), ctx.monitor_port)
+                log.warning("Stats can be monitored via: {0}/{1}".format(base_url, "stats.txt"))
+                log.warning("Log can be viewed via: {0}/{1}".format(base_url, options.elliptics_log))
+            except Exception:
+                pass
     except Exception as e:
         raise ValueError("Can't parse monitor_port: '{0}': {1}".format(options.monitor_port, repr(e)))
 
