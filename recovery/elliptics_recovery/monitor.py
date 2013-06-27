@@ -64,8 +64,8 @@ class Monitor(object):
         self.d_thread = Thread(target=self.data_thread, name="MonitorDataThread")
         self.d_thread.daemon = True
 
-        if port:
-            server_address = ('0.0.0.0', port)
+        if self.port:
+            server_address = ('0.0.0.0', self.port)
             self.httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
             self.l_thread = Thread(target=self.listen_thread, name="MonitorListenThread")
             self.l_thread.daemon = True
@@ -74,7 +74,8 @@ class Monitor(object):
         self.u_thread.daemon = True
 
         self.d_thread.start()
-        self.l_thread.start()
+        if self.port:
+            self.l_thread.start()
         self.u_thread.start()
 
     def update(self):
@@ -149,4 +150,5 @@ class Monitor(object):
         FIXME: We also need a condition variable per thread to really check that thread is finished
         """
         self.__shutdown_request = True
-        self.httpd.shutdown()
+        if self.port:
+            self.httpd.shutdown()
