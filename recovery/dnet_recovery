@@ -195,6 +195,15 @@ if __name__ == '__main__':
 
     try:
         ctx.monitor_port = int(options.monitor_port)
+        if ctx.monitor_port:
+            try:
+                from socket import getfqdn
+
+                base_url = 'http://{0}:{1}'.format(getfqdn(), ctx.monitor_port)
+                log.warning("Stats can be monitored via: {0}/{1}".format(base_url, "stats.txt"))
+                log.warning("Log can be viewed via: {0}/{1}".format(base_url, options.elliptics_log))
+            except Exception:
+                pass
     except Exception as e:
         raise ValueError("Can't parse monitor_port: '{0}': {1}".format(options.monitor_port, repr(e)))
 
@@ -220,7 +229,7 @@ if __name__ == '__main__':
     log.debug("Creating session for: {0}".format(ctx.address))
     session = elliptics_create_session(node=node, group=0)
 
-    log.warning("Parsing routing table")
+    log.info("Parsing routing table")
     ctx.routes = RouteList.from_session(session)
     log.debug("Parsed routing table:\n{0}".format(ctx.routes))
     log.debug("Total routes: {0}".format(len(ctx.routes)))
@@ -239,8 +248,8 @@ if __name__ == '__main__':
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
     result = main(ctx)
 
-    ctx.monitor.update()
     ctx.monitor.shutdown()
+    ctx.monitor.update()
     if options.stat == STAT_TEXT:
         with open(ctx.monitor.stats_file + '.txt') as lines:
             for line in lines:

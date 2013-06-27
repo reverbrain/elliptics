@@ -93,7 +93,7 @@ def sort(ctx, result, stats):
     """
     Runs sort routine for all iterator results
     """
-    if len(result) == 0:
+    if result is None or len(result) == 0:
         log.debug("Sort skipped iterator results are empty")
         return None
     try:
