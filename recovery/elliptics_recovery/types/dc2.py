@@ -380,7 +380,12 @@ def main(ctx):
     g_ctx.monitor.stats.timer('main', 'merge_and_split')
     splitted_results = IteratorResult.merge(diff_results, g_ctx.tmp_dir)
 
-    merged_diff_length = sum([len(spl) for spl in splitted_results])
+    merged_diff_length = 0
+    for spl in splitted_results:
+        spl_len = len(spl)
+        merged_diff_length += spl_len
+        g_ctx.monitor.stats.counter('merged_diffs_{0}'.format(spl.address), spl_len)
+
     assert diff_length >= merged_diff_length
     g_ctx.monitor.stats.counter('merged_diffs', merged_diff_length)
 
