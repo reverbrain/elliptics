@@ -37,9 +37,8 @@ assert r.successful()
 assert len(r.get()) >= 1
 assert r.get()[0].data == "test_data"
 
-raw_id = s.transform("test_ind")
-print raw_id.id
-z = s.find_any_indexes_raw([raw_id])
+
+z = s.find_any_indexes_raw([s.transform("test_ind")])
 z.wait()
 assert z.successful()
 assert len(z.get()) >= 1
