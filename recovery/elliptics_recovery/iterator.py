@@ -90,58 +90,64 @@ class IteratorResult(object):
         """
         Merges diffs and split result by node owner
         """
-        splitted_results = dict()
+        ret = []
 
         if len(results) == 1:
             import shutil
             diff = results[0]
             filename = os.path.join(tmp_dir, "merge_" + mk_container_name(diff.id_range, diff.eid))
             shutil.copyfile(diff.filename, filename)
-            splitted_results[diff.address] = IteratorResult.load_filename(filename,
-                                                                          address=diff.address,
-                                                                          id_range=diff.id_range,
-                                                                          eid=diff.eid,
-                                                                          is_sorted=True,
-                                                                          tmp_dir=tmp_dir,
-                                                                          leave_file=True
-                                                                          )
+            ret.append(IteratorResult.load_filename(filename,
+                                                    address=diff.address,
+                                                    id_range=diff.id_range,
+                                                    eid=diff.eid,
+                                                    is_sorted=True,
+                                                    tmp_dir=tmp_dir,
+                                                    leave_file=True
+                                                    ))
         elif len(results) != 0:
-            its = []
+            vals = []
             for d in results:
-                its.append(iter(d))
+                if d is None or len(d) == 0:
+                    continue
                 filename = os.path.join(tmp_dir, "merge_" + mk_container_name(d.id_range, d.eid))
-                splitted_results[d.address] = IteratorResult.from_filename(filename,
-                                                                           address=d.address,
-                                                                           id_range=d.id_range,
-                                                                           eid=d.eid,
-                                                                           tmp_dir=tmp_dir,
-                                                                           leave_file=True
-                                                                           )
-
-            elliptics.IteratorResultContainer.merge(results, splitted_results)
-
-            vals = [i.next() for i in its]
+                it = iter(d)
+                vals.append((it.next(), it, IteratorResult.from_filename(filename,
+                                                                         address=d.address,
+                                                                         id_range=d.id_range,
+                                                                         eid=d.eid,
+                                                                         tmp_dir=tmp_dir,
+                                                                         leave_file=True
+                                                                         )))
             while len(vals):
-                i_min = 0
-                k_min = IdRange.ID_MAX
-                t_min = Time.time_max().to_etime()
-                for i, v in enumerate(vals):
-                    key = v.key
-                    time = v.timestamp
-                    if key < k_min or (key == k_min and time > t_min):
-                        k_min = key
-                        t_min = time
-                        i_min = i
-                splitted_results[results[i_min].address].append_rr(vals[i])
-                for i, v in enumerate(vals):
-                    if v.key == k_min:
+                v_min = None
+                for v, it, r in vals:
+                    print "A"
+                    if not v_min:
+                        v_min = (v, it, r)
+                        continue
+                    if v.key < v_min[0].key or (v.key == v_min[0].key and v.timestamp > v_min[0].timestamp):
+                        v_min = (v, it, r)
+
+                v_min[2].append_rr(v_min[0])
+
+                del_list = []
+                for n, (v, it, r) in enumerate(vals):
+                    print "B"
+                    while v.key == v_min[0].key:
+                        print "C"
                         try:
-                            vals[i] = its[i].next()
+                            v = it.next()
+                            vals[n] = (v, it, r)
                         except:
-                            del(vals[i])
-                            del(its[i])
-                            del(results[i])
-        return splitted_results.values()
+                            ret.append(r)
+                            del_list.append(n)
+                            break
+
+                for d in del_list:
+                    print "D"
+                    del vals[d]
+        return ret
 
     @classmethod
     def from_filename(cls, filename, tmp_dir="", **kwargs):

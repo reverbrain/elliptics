@@ -286,9 +286,15 @@ def process_range((range, dry_run)):
 
     stats.timer('process', 'merge_and_split')
     splitted_results = IteratorResult.merge(diff_results, ctx.tmp_dir)
-    merged_diff_length = sum([len(spl) for spl in splitted_results])
-    stats.counter('merged_diffs', merged_diff_length)
+
+    merged_diff_length = 0
+    for spl in splitted_results:
+        spl_len = len(spl)
+        merged_diff_length += spl_len
+        stats.counter('merged_diffs_{0}'.format(spl.address), spl_len)
+
     assert diff_length >= merged_diff_length
+    stats.counter('merged_diffs', merged_diff_length)
 
     result = True
     stats.timer('process', 'recover')
