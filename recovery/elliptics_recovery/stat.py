@@ -7,6 +7,7 @@ Currently we support counters and time measurements.
 from datetime import datetime
 from itertools import chain
 
+
 def format_kv(k, v):
     """Formats one line of test output"""
     return '{0:<50}{1:>50}'.format(k + ':', str(v))
@@ -35,17 +36,14 @@ class ResultCounter(object):
     def __init__(self, name, success=0, failures=0):
         self.name = name
         self.success = success
-        self.failures = failures
-        self.total = success + failures
 
     def __iadd__(self, other):
         self.success += other
-        self.total += other
         return self
 
     def __isub__(self, other):
-        self.total += other
         self.failures += other
+        self.total = self.success + self.failures
         return self
 
     def __str__(self):
