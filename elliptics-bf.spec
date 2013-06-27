@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.10.2
+Version:	2.24.10.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jun 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.3
+- Major recovery update: cleanups, performance, fixes
+- Minor API extensions
+- Python API extensions
+
 * Tue Jun 25 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.2
 - Fixed data corruption due to indexes workflow
 

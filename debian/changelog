@@ -1,3 +1,11 @@
+elliptics (2.24.10.3) unstable; urgency=low
+
+  * Major recovery update: cleanups, performance, fixes
+  * Minor API extensions
+  * Python API extensions
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 27 Jun 2013 23:47:47 +0400
+
 elliptics (2.24.10.2) unstable; urgency=low
 
   * Fixed data corruption due to indexes workflow
