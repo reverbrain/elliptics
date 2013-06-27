@@ -103,20 +103,14 @@ struct elliptics_id {
 	elliptics_id() : group_id(0) {}
 	elliptics_id(bp::list id_, int group_) : id(id_), group_id(group_) {}
 
-	elliptics_id(struct dnet_id &dnet) {
+	elliptics_id(const dnet_id &dnet) {
 		id = convert_to_list(dnet.id, sizeof(dnet.id));
 		group_id = dnet.group_id;
 	}
 
-	elliptics_id(struct dnet_raw_id &dnet) {
+	elliptics_id(const dnet_raw_id &dnet) {
 		id = convert_to_list(dnet.id, sizeof(dnet.id));
 		group_id = 0;
-	}
-
-	elliptics_id(const std::string& sid) {
-		key k(sid);
-		id = convert_to_list(k.id().id, sizeof(k.id().id));
-		group_id = k.id().group_id;
 	}
 
 	struct dnet_id to_dnet() const {
@@ -588,7 +582,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		std::string exec_name_by_name(const std::string &remote, const std::string &event, const std::string &data) {
 			struct dnet_id raw;
 			memset(&raw, 0, sizeof(struct dnet_id));
-			transform(remote, raw);
+			session::transform(remote, raw);
 
 			return exec_name(raw, event, data);
 		}
@@ -632,7 +626,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 				std::map<struct dnet_id, std::string, dnet_id_comparator> keys_map;
 				for (size_t i = 0; i < std_keys.size(); ++i) {
 					key k(std_keys[i]);
-					transform(k);
+					session::transform(k);
 					keys_map.insert(std::make_pair(k.id(), std_keys[i]));
 				}
 
@@ -782,7 +776,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 			for (size_t i = 0; i < std_keys.size(); ++i) {
 				key id = std_keys[i];
-				transform(id);
+				session::transform(id);
 
 				memcpy(io.id, id.id().id, sizeof(io.id));
 				io.size = std_data[i].size();
@@ -896,6 +890,12 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			}
 
 			return statistics;
+		}
+
+		elliptics_id transform(const std::string& k) {
+			key id(k);
+			session::transform(id);
+			return elliptics_id(id.id());
 		}
 };
 
@@ -1185,7 +1185,6 @@ BOOST_PYTHON_MODULE(elliptics)
 
 	bp::class_<elliptics_id>("Id")
 		.def(bp::init<bp::list, int>(bp::args("key", "group_id")))
-		.def(bp::init<std::string>(bp::args("key")))
 		.def_readwrite("id", &elliptics_id::id)
 		.def_readwrite("group_id", &elliptics_id::group_id)
 		.def_pickle(id_pickle())
@@ -1428,6 +1427,9 @@ BOOST_PYTHON_MODULE(elliptics)
 		     (bp::arg("indexes")))
 		.def("check_indexes", &elliptics_session::check_indexes,
 		     (bp::arg("id")))
+
+		.def("transform", &elliptics_session::transform,
+		     (bp::arg("key")))
 	;
 
 	bp::enum_<elliptics_iterator_actions>("iterator_actions")
