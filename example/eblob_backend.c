@@ -194,9 +194,9 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 		/* Move offset past extended header */
 		if (!(io->flags & DNET_IO_FLAGS_APPEND))
 			io->offset += ehdr_size;
-	} else if (err > 0 || err == -ENOENT ||
+	} else if (err == -ENOENT ||
 			(err == 0 && !(wc2.flags & BLOB_DISK_CTL_USR1))) {
-		/* Compressed, new record or old format record */
+		/* New record or old format record */
 		if (io->offset != 0) {
 			/* TODO: Think of something sophisticated */
 			err = -ERANGE;
@@ -301,9 +301,8 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	struct eblob_key key;
 	struct eblob_write_control wc;
 	uint64_t offset = 0, size = 0;
-	char *read_data = NULL;
 	enum eblob_read_flavour csum = EBLOB_READ_CSUM;
-	int err, fd = -1, free_data = 1, on_close = 0;
+	int err, fd = -1, on_close = 0;
 
 	dnet_ext_list_init(&elist);
 	dnet_convert_io_attr(io);
@@ -326,33 +325,13 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 			err = dnet_ext_hdr_read(&ehdr, fd, offset);
 			if (err != 0)
-				goto err_out_free;
+				goto err_out_exit;
 			dnet_ext_hdr_to_list(&ehdr, &elist);
 			dnet_ext_list_to_io(&elist, io);
 
 			/* Take into an account extended header */
 			size -= sizeof(struct dnet_ext_list_hdr);
 			offset += sizeof(struct dnet_ext_list_hdr);
-		}
-	} else if (err > 0) {
-		/* Compressed entry */
-		err = eblob_read_data_nocsum(b, &key, io->offset, &read_data, &size);
-		if (err) {
-			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-data: READ: %d: %s\n",
-				dnet_dump_id_str(io->id), err, strerror(-err));
-			goto err_out_exit;
-		}
-
-		/* Compressed entry new format */
-		if ((wc.flags & BLOB_DISK_CTL_USR1) != 0) {
-			err = dnet_ext_list_extract((void *)&read_data, (uint64_t *)&size,
-					&elist, DNET_EXT_FREE_ON_DESTROY);
-			if (err != 0)
-				goto err_out_free;
-			dnet_ext_list_to_io(&elist, io);
-
-			/* It will be done by dnet_ext_list_destroy */
-			free_data = 0;
 		}
 	} else {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-read-fd: READ: %d: %s\n",
@@ -429,11 +408,9 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 
 	if (c->random_access)
 		on_close = DNET_IO_REQ_FLAGS_CACHE_FORGET;
-	err = dnet_send_read_data(state, cmd, io, read_data, fd, offset, on_close);
 
-err_out_free:
-	if (free_data)
-		free(read_data);
+	err = dnet_send_read_data(state, cmd, io, NULL, fd, offset, on_close);
+
 err_out_exit:
 	dnet_ext_list_destroy(&elist);
 	return err;
