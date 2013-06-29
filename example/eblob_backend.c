@@ -339,7 +339,20 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 		goto err_out_exit;
 	}
 
-	io->size = size;
+	if (io->offset) {
+		if (io->offset >= size) {
+			err = -E2BIG;
+			goto err_out_exit;
+		}
+		offset += io->offset;
+		size -= io->offset;
+	}
+
+	if (io->size != 0 && size > io->size)
+		size = io->size;
+	else
+		io->size = size;
+
 	if (size && last)
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 
