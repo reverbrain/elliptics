@@ -226,8 +226,8 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	}
 
 	if (!err && wc.data_fd == -1) {
-		err = eblob_read_nocsum(c->eblob, &key, &wc.data_fd, &wc.offset, &wc.size);
-		if (err < 0) {
+		err = eblob_read_return(c->eblob, &key, EBLOB_READ_NOCSUM, &wc);
+		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: "
 					"size: %llu: %s %d\n",
 				dnet_dump_id_str(io->id), (unsigned long long)io->num, strerror(-err), err);
