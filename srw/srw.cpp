@@ -252,6 +252,10 @@ class dnet_app_t : public cocaine::app_t {
 		atomic_set(&m_sph_index, 1);
 		}
 
+		~dnet_app_t() {
+			stop();
+		}
+
 		Json::Value counters(void) {
 			Json::Value info(Json::objectValue);
 
