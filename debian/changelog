@@ -1,3 +1,11 @@
+elliptics (2.24.10.4) unstable; urgency=low
+
+  * Explicitly stop engine upon dnet_app_t destruction
+  * Expose fine-tuning knobs in Cocaine extensions
+  * Use generic cocain::error_t instead of removed cocaine::configuration_error_t
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 30 Jun 2013 18:42:48 +0400
+
 elliptics (2.24.10.3) unstable; urgency=low
 
   * Major recovery update: cleanups, performance, fixes

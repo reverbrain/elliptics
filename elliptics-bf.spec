@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.10.3
+Version:	2.24.10.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -126,6 +126,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Jun 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.4
+- Explicitly stop engine upon dnet_app_t destruction
+- Expose fine-tuning knobs in Cocaine extensions
+- Use generic cocain::error_t instead of removed cocaine::configuration_error_t
+
 * Thu Jun 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.3
 - Major recovery update: cleanups, performance, fixes
 - Minor API extensions
