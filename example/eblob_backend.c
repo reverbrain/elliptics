@@ -147,6 +147,7 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 {
 	struct dnet_ext_list elist;
 	struct dnet_io_attr *io = data;
+	struct eblob_backend *b = c->eblob;
 	struct eblob_write_control wc = { .data_fd = -1 };
 	struct eblob_key key;
 	struct dnet_ext_list_hdr ehdr;
@@ -179,7 +180,7 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
-		err = eblob_write_prepare(c->eblob, &key, io->num + ehdr_size, flags);
+		err = eblob_write_prepare(b, &key, io->num + ehdr_size, flags);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_prepare: size: %llu: %s %d\n",
 				dnet_dump_id_str(io->id), (unsigned long long)io->num, strerror(-err), err);
@@ -197,9 +198,9 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 		};
 
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
-			err = eblob_plain_writev(c->eblob, &key, iov, 2, flags);
+			err = eblob_plain_writev(b, &key, iov, 2, flags);
 		} else {
-			err = eblob_writev_return(c->eblob, &key, iov, 2, flags, &wc);
+			err = eblob_writev_return(b, &key, iov, 2, flags, &wc);
 		}
 
 		if (err) {
@@ -214,7 +215,7 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
-			err = eblob_write_commit(c->eblob, &key, io->num + ehdr_size, flags);
+			err = eblob_write_commit(b, &key, io->num + ehdr_size, flags);
 			if (err) {
 				dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: %s %d\n",
 					dnet_dump_id_str(io->id), (unsigned long long)io->num, strerror(-err), err);
@@ -227,7 +228,7 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	}
 
 	if (!err && wc.data_fd == -1) {
-		err = eblob_read_return(c->eblob, &key, EBLOB_READ_NOCSUM, &wc);
+		err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: "
 					"size: %llu: %s %d\n",
