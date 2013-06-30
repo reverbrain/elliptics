@@ -142,9 +142,9 @@ static int blob_iterate(struct eblob_backend_config *c, struct dnet_iterator_ctl
 	return eblob_iterate(b, &eictl);
 }
 
-static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data)
+static int blob_write(struct eblob_backend_config *c, void *state,
+		struct dnet_cmd *cmd, void *data)
 {
-	int err;
 	struct dnet_ext_list elist;
 	struct dnet_io_attr *io = data;
 	struct eblob_write_control wc = { .data_fd = -1 };
@@ -152,6 +152,7 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	struct dnet_ext_list_hdr ehdr;
 	uint64_t flags = BLOB_DISK_CTL_EXTHDR;
 	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
+	int err;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: %x.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags);
