@@ -105,7 +105,7 @@ static int blob_iterate_callback(struct eblob_disk_control *dc,
 	dnet_ext_list_init(&elist);
 
 	/* If it's an extended record - extract header, move data pointer */
-	if (dc->flags & BLOB_DISK_CTL_USR1) {
+	if (dc->flags & BLOB_DISK_CTL_EXTHDR) {
 		err = dnet_ext_list_extract((void *)&data, &size, &elist,
 				DNET_EXT_DONT_FREE_ON_DESTROY);
 		if (err != 0)
@@ -147,11 +147,11 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	int err;
 	struct dnet_ext_list elist;
 	struct dnet_io_attr *io = data;
-	struct eblob_write_control wc = { .data_fd = -1 }, wc2;
+	struct eblob_write_control wc = { .data_fd = -1 };
 	struct eblob_key key;
-	uint64_t flags = 0;
+	struct dnet_ext_list_hdr ehdr;
+	uint64_t flags = BLOB_DISK_CTL_EXTHDR;
 	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
-	int combined = 0;
 
 	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: %x.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags);
@@ -160,10 +160,10 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 
 	dnet_ext_list_init(&elist);
 	dnet_ext_io_to_list(io, &elist);
+	dnet_ext_list_to_hdr(&elist, &ehdr);
 
 	data += sizeof(struct dnet_io_attr);
 
-	flags |= BLOB_DISK_CTL_USR1;
 	if (io->flags & DNET_IO_FLAGS_COMPRESS) {
 		err = -ENOTSUP;
 		goto err_out_exit;
@@ -177,47 +177,8 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
-	/*
-	 * Use extended format for new writes and keys already in new format.
-	 */
-	err = eblob_read_return(c->eblob, &key, EBLOB_READ_NOCSUM, &wc2);
-	if (err == 0 && (wc2.flags & BLOB_DISK_CTL_USR1)) {
-		/* Update of new format record */
-		struct dnet_ext_list_hdr ehdr;
-
-		/* Copy data from elist to ehdr */
-		dnet_ext_list_to_hdr(&elist, &ehdr);
-		/* Update extended header */
-		if ((err = dnet_ext_hdr_write(&ehdr, wc2.data_fd, wc2.data_offset)) != 0)
-			goto err_out_exit;
-
-		/* Move offset past extended header */
-		if (!(io->flags & DNET_IO_FLAGS_APPEND))
-			io->offset += ehdr_size;
-	} else if (err == -ENOENT ||
-			(err == 0 && !(wc2.flags & BLOB_DISK_CTL_USR1))) {
-		/* New record or old format record */
-		if (io->offset != 0) {
-			/* TODO: Think of something sophisticated */
-			err = -ERANGE;
-			goto err_out_exit;
-		}
-		err = dnet_ext_list_combine(&data, &io->size, &elist);
-		if (err) {
-			goto err_out_exit;
-		}
-		combined = 1;
-	} else {
-		/* Error */
-		err = err ? err : -EIO;
-		goto err_out_exit;
-	}
-
-	if ((io->flags & DNET_IO_FLAGS_COMMIT) || (io->flags & DNET_IO_FLAGS_PREPARE))
-		io->num += ehdr_size; /* increase prepared space by the size of external headers */
-
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
-		err = eblob_write_prepare(c->eblob, &key, io->num, flags);
+		err = eblob_write_prepare(c->eblob, &key, io->num + ehdr_size, flags);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_prepare: size: %llu: %s %d\n",
 				dnet_dump_id_str(io->id), (unsigned long long)io->num, strerror(-err), err);
@@ -229,10 +190,15 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	}
 
 	if (io->size) {
+		const struct eblob_iovec iov[2] = {
+			{ .offset = 0, .size = ehdr_size, .base = &ehdr },
+			{ .offset = ehdr_size + io->offset, .size = io->size, .base = data },
+		};
+
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
-			err = eblob_plain_write(c->eblob, &key, data, io->offset, io->size, flags);
+			err = eblob_plain_writev(c->eblob, &key, iov, 2, flags);
 		} else {
-			err = eblob_write_return(c->eblob, &key, data, io->offset, io->size, flags, &wc);
+			err = eblob_writev_return(c->eblob, &key, iov, 2, flags, &wc);
 		}
 
 		if (err) {
@@ -247,7 +213,7 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
-			err = eblob_write_commit(c->eblob, &key, io->num, flags);
+			err = eblob_write_commit(c->eblob, &key, io->num + ehdr_size, flags);
 			if (err) {
 				dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: %s %d\n",
 					dnet_dump_id_str(io->id), (unsigned long long)io->num, strerror(-err), err);
@@ -285,9 +251,6 @@ static int blob_write(struct eblob_backend_config *c, void *state, struct dnet_c
 	}
 
 err_out_exit:
-	if (combined != 0)
-		free(data);
-
 	dnet_ext_list_destroy(&elist);
 	return err;
 }
@@ -320,7 +283,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 		fd = wc.data_fd;
 
 		/* Existing new-format entry */
-		if ((wc.flags & BLOB_DISK_CTL_USR1) != 0) {
+		if ((wc.flags & BLOB_DISK_CTL_EXTHDR) != 0) {
 			struct dnet_ext_list_hdr ehdr;
 
 			err = dnet_ext_hdr_read(&ehdr, fd, offset);
@@ -467,7 +430,7 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 		if (err)
 			goto err_out_exit;
 
-		if (wc.flags & BLOB_DISK_CTL_USR1) {
+		if (wc.flags & BLOB_DISK_CTL_EXTHDR) {
 			struct dnet_ext_list_hdr ehdr;
 			struct dnet_ext_list elist;
 
@@ -687,7 +650,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	size = wc.total_data_size;
 	fd = wc.data_fd;
 
-	if ((wc.flags & BLOB_DISK_CTL_USR1) != 0) {
+	if ((wc.flags & BLOB_DISK_CTL_EXTHDR) != 0) {
 		struct dnet_ext_list_hdr ehdr;
 
 		/* Sanity */
@@ -759,7 +722,7 @@ static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 	}
 	err = 0;
 
-	if (wc.flags & BLOB_DISK_CTL_USR1) {
+	if (wc.flags & BLOB_DISK_CTL_EXTHDR) {
 		/* Sanity */
 		if (wc.total_data_size < ehdr_size) {
 			err = -EINVAL;
