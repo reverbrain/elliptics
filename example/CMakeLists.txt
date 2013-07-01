@@ -14,11 +14,6 @@ if (HAVE_MODULE_BACKEND_SUPPORT)
     list(APPEND DNET_IOSERV_LIBRARIES dl)
 endif()
 
-if(HAVE_LEVELDB_SUPPORT)
-    list(APPEND DNET_IOSERV_SRCS leveldb_backend.c)
-    list(APPEND DNET_IOSERV_LIBRARIES ${LEVELDB_LIBRARIES})
-endif()
-
 add_executable(dnet_ioserv ${DNET_IOSERV_SRCS})
 target_link_libraries(dnet_ioserv ${DNET_IOSERV_LIBRARIES})
 set_target_properties(dnet_ioserv

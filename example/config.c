@@ -38,12 +38,6 @@
 
 #include "common.h"
 
-#ifdef HAVE_LEVELDB_SUPPORT
-int dnet_leveldb_backend_init(void);
-void dnet_leveldb_backend_exit(void);
-#endif
-
-
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
@@ -452,9 +446,6 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	if (err)
 		goto err_out_module_exit;
 
-#ifdef HAVE_LEVELDB_SUPPORT
-	err = dnet_leveldb_backend_init();
-#endif
 	if (err)
 		goto err_out_eblob_exit;
 
@@ -587,9 +578,6 @@ err_out_node_destroy:
 err_out_free:
 	free(dnet_cfg_remotes);
 
-#ifdef HAVE_LEVELDB_SUPPORT
-	dnet_leveldb_backend_exit();
-#endif
 err_out_eblob_exit:
 	dnet_eblob_backend_exit();
 err_out_module_exit:
