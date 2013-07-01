@@ -55,6 +55,21 @@ class session;
 namespace error_handlers
 {
 void none(const error_info &error, const std::vector<dnet_cmd> &statuses);
+
+/*!
+ * This handler allows to remove couple of replicas in case of bad writing
+ *
+ * If you write to 3 groups and at least 2 succesfull writings are mandotary and
+ * in case of fail all succesffully written entries must be removed the
+ * following code may be used:
+ *
+ * ```cpp
+ * session sess(...);
+ * session.set_checker(ioremap::elliptics::checkers::quorum);
+ * session.set_error_handler(ioremap::elliptics::error_handlers::remove_on_fail(session));
+ * ...
+ * ```
+ */
 result_error_handler remove_on_fail(const session &sess);
 }
 

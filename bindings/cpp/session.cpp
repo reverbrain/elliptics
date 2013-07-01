@@ -318,7 +318,22 @@ void none(const error_info &, const std::vector<dnet_cmd> &)
 }
 
 void remove_on_fail_impl(session &sess, const error_info &error, const std::vector<dnet_cmd> &statuses) {
-	(void)error;
+	logger log = sess.get_node().get_log();
+
+	if (statuses.size() == 0) {
+		log.log(DNET_LOG_ERROR, "Unexpected empty statuses list at remove_on_fail_impl");
+		return;
+	}
+
+	if (log.get_log_level() >= DNET_LOG_DEBUG) {
+		// TODO: Add printf-like stile to elliptics::logger interface
+		char buffer[1024];
+		DNET_DUMP_ID(id, &statuses.front().id);
+		snprintf(buffer, sizeof(buffer), "%s: failed to exec %s: %s, going to remove data",
+			id, dnet_cmd_string(statuses.front().cmd), error.message().c_str());
+		buffer[sizeof(buffer) - 1] = '\0';
+		log.log(DNET_LOG_DEBUG, buffer);
+	}
 
 	std::vector<int> rm_groups;
 	for (auto it = statuses.begin(); it != statuses.end(); ++it) {
