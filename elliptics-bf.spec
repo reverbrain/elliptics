@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.10.4
+Version:	2.24.10.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -130,6 +130,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jul 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.5
+- Temporarily disable module backend build on rhel6
+- Added `remove_on_fail` error handler
+- Removed debug print from IteratorResult.merge
+
 * Sun Jun 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.4
 - Explicitly stop engine upon dnet_app_t destruction
 - Expose fine-tuning knobs in Cocaine extensions
