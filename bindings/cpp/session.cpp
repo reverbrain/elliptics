@@ -332,7 +332,7 @@ void remove_on_fail_impl(session &sess, const error_info &error, const std::vect
 	sess.remove(key(statuses.front().id));
 }
 
-std::function<void (const error_info &, const std::vector<dnet_cmd> &)> remove_on_fail(const session &sess)
+result_error_handler remove_on_fail(const session &sess)
 {
 	return std::bind(remove_on_fail_impl, sess.clone(), std::placeholders::_1, std::placeholders::_2);
 }
