@@ -102,13 +102,17 @@ rm -rf %{buildroot}
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
 %{_libdir}/libelliptics_cocaine.so.*
+%if 0%{?rhel} < 6
 %{_libdir}/libelliptics_module_backend_cpp.so.*
+%endif
 
 %files devel
 %defattr(-,root,root,-)
 %{_libdir}/libelliptics.so
 %{_libdir}/libelliptics_cocaine.so
+%if 0%{?rhel} < 6
 %{_libdir}/libelliptics_module_backend_cpp.so
+%endif
 
 
 %files client
