@@ -122,7 +122,6 @@ class IteratorResult(object):
             while len(vals):
                 v_min = None
                 for v, it, r in vals:
-                    print "A"
                     if not v_min:
                         v_min = (v, it, r)
                         continue
@@ -133,9 +132,7 @@ class IteratorResult(object):
 
                 del_list = []
                 for n, (v, it, r) in enumerate(vals):
-                    print "B"
                     while v.key == v_min[0].key:
-                        print "C"
                         try:
                             v = it.next()
                             vals[n] = (v, it, r)
@@ -145,7 +142,6 @@ class IteratorResult(object):
                             break
 
                 for d in del_list:
-                    print "D"
                     del vals[d]
         return ret
 
