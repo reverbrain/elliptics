@@ -76,7 +76,7 @@ export CC=gcc44
 export CXX=g++44
 CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %{cmake} -DBoost_DIR=/usr/lib64/boost141 -DBOOST_INCLUDEDIR=/usr/include/boost141 -DWITH_COCAINE=NO -DCMAKE_CXX_COMPILER=g++44 -DCMAKE_C_COMPILER=gcc44 .
 %else
-%{cmake} -DWITH_COCAINE=NO .
+%{cmake} -DWITH_COCAINE=NO -DHAVE_MODULE_BACKEND_SUPPORT=no .
 %endif
 
 make %{?_smp_mflags}
