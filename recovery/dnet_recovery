@@ -233,6 +233,8 @@ if __name__ == '__main__':
     log.info("Parsing routing table")
     ctx.routes = RouteList.from_session(session)
     log.debug("Parsed routing table:\n{0}".format(ctx.routes))
+    if not ctx.routes:
+        raise RuntimeError("No routes was parsed from session")
     log.debug("Total routes: {0}".format(len(ctx.routes)))
 
     if len(ctx.groups) == 0:
