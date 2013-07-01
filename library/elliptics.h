@@ -755,6 +755,39 @@ struct dnet_iterator_file_private {
 	int				fd;		/* Append mode file descriptor */
 };
 
+#ifndef CONFIG_ELLIPTICS_VERSION_0
+#error "Elliptics version macros is not defined"
+#endif
+#ifndef CONFIG_ELLIPTICS_VERSION_1
+#error "Elliptics version macros is not defined"
+#endif
+#ifndef CONFIG_ELLIPTICS_VERSION_2
+#error "Elliptics version macros is not defined"
+#endif
+#ifndef CONFIG_ELLIPTICS_VERSION_3
+#error "Elliptics version macros is not defined"
+#endif
+
+static inline void dnet_version_encode(struct dnet_id *id)
+{
+	int *ids = (int *)(id->id);
+
+	ids[0] = dnet_bswap32(CONFIG_ELLIPTICS_VERSION_0);
+	ids[1] = dnet_bswap32(CONFIG_ELLIPTICS_VERSION_1);
+	ids[2] = dnet_bswap32(CONFIG_ELLIPTICS_VERSION_2);
+	ids[3] = dnet_bswap32(CONFIG_ELLIPTICS_VERSION_3);
+}
+
+static inline void dnet_version_decode(struct dnet_id *id, int version[4])
+{
+	int *ids = (int *)(id->id);
+	unsigned int i;
+
+	for (i = 0; i < 4; ++i)
+		version[i] = dnet_bswap32(ids[i]);
+}
+
+
 #ifdef __cplusplus
 }
 #endif

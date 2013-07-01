@@ -427,6 +427,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	cmd->flags = DNET_FLAGS_DIRECT | DNET_FLAGS_NOLOCK;
 	cmd->cmd = DNET_CMD_REVERSE_LOOKUP;
 
+	dnet_version_encode(&cmd->id);
 	dnet_convert_cmd(cmd);
 
 	st = &dummy;
@@ -453,6 +454,14 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	cmd = (struct dnet_cmd *)buf;
 	dnet_convert_cmd(cmd);
+
+	if (cmd->status != 0) {
+		err = cmd->status;
+
+		dnet_log(n, DNET_LOG_ERROR, "Reverse lookup command to %s failed: %s [%d]\n",
+				dnet_server_convert_dnet_addr(addr), strerror(-err), err);
+		goto err_out_exit;
+	}
 
 	data = malloc(cmd->size);
 	if (!data) {

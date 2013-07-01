@@ -209,6 +209,25 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 	struct dnet_node *n = st->n;
 	struct dnet_net_state *base;
 	int err = -ENXIO;
+	int version[4] = {0, 0, 0, 0};
+
+	dnet_version_decode(&cmd->id, version);
+
+	if ((version[0] == CONFIG_ELLIPTICS_VERSION_0) && (version[1] == CONFIG_ELLIPTICS_VERSION_1)) {
+		dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: client version: %d.%d.%d.%d, server version: %d.%d.%d.%d\n",
+				dnet_state_dump_addr(st),
+				version[0], version[1], version[2], version[3],
+				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
+				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3);
+	} else {
+		dnet_log(n, DNET_LOG_ERROR, "%s: reverse lookup command: VERSION MISMATCH: "
+				"client version: %d.%d.%d.%d, server version: %d.%d.%d.%d\n",
+				dnet_state_dump_addr(st),
+				version[0], version[1], version[2], version[3],
+				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
+				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3);
+		return -EPROTO;
+	}
 
 	cmd->id.group_id = n->id.group_id;
 	base = dnet_node_state(n);
