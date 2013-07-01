@@ -143,9 +143,10 @@ static int leveldb_backend_write(struct leveldb_backend *s, void *state, struct 
 	struct dnet_io_attr *io = data;
 	void *read_data = NULL;
 
-	dnet_ext_list_init(&elist);
-
 	dnet_convert_io_attr(io);
+
+	dnet_ext_list_init(&elist);
+	dnet_ext_io_to_list(io, &elist);
 
 	data += sizeof(struct dnet_io_attr);
 
