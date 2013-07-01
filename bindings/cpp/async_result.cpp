@@ -486,6 +486,10 @@ bool async_result_handler<T>::check(error_info *error)
 							"%zu of %zu (%zu)",
 						success, m_data->total, m_data->statuses.size());
 				}
+			} else {
+				*error = create_error(-ENXIO, "insufficiant results count due to checker: "
+						"%zu of %zu (%zu)",
+					success, m_data->total, m_data->statuses.size());
 			}
 		}
 		return false;

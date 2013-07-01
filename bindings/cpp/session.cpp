@@ -316,6 +316,29 @@ namespace error_handlers
 void none(const error_info &, const std::vector<dnet_cmd> &)
 {
 }
+
+void remove_on_fail_impl(session &sess, const error_info &error, const std::vector<dnet_cmd> &statuses) {
+	(void)error;
+
+	std::cout << error.message() << std::endl;
+
+	std::vector<int> rm_groups;
+	for (auto it = statuses.begin(); it != statuses.end(); ++it) {
+		const dnet_cmd &cmd = *it;
+		if (cmd.status == 0) {
+			rm_groups.push_back(cmd.id.group_id);
+		}
+	}
+
+	sess.set_groups(rm_groups);
+	sess.remove(key(statuses.front().id));
+}
+
+std::function<void (const error_info &, const std::vector<dnet_cmd> &)> remove_on_fail(const session &sess)
+{
+	return std::bind(remove_on_fail_impl, sess.clone(), std::placeholders::_1, std::placeholders::_2);
+}
+
 } // namespace error_handlers
 
 class session_data

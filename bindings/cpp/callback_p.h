@@ -838,6 +838,8 @@ class write_callback
 			ctl.complete = func;
 			ctl.priv = priv;
 
+			cb.set_total(sess.get_groups().size());
+
 			if ((ctl.io.timestamp.tsec == 0) && (ctl.io.timestamp.tnsec == 0)) {
 				sess.get_timestamp(&ctl.io.timestamp);
 

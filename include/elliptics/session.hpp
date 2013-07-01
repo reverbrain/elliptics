@@ -50,9 +50,12 @@ bool all(const std::vector<dnet_cmd> &statuses, size_t total);
 bool quorum(const std::vector<dnet_cmd> &statuses, size_t total);
 }
 
+class session;
+
 namespace error_handlers
 {
 void none(const error_info &error, const std::vector<dnet_cmd> &statuses);
+std::function<void (const error_info &, const std::vector<dnet_cmd> &)> remove_on_fail(const session &sess);
 }
 
 class transport_control
@@ -151,8 +154,6 @@ class node
 		friend class session;
 		friend class session_data;
 };
-
-class session;
 
 class key
 {
