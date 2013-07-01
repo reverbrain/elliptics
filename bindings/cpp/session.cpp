@@ -320,8 +320,6 @@ void none(const error_info &, const std::vector<dnet_cmd> &)
 void remove_on_fail_impl(session &sess, const error_info &error, const std::vector<dnet_cmd> &statuses) {
 	(void)error;
 
-	std::cout << error.message() << std::endl;
-
 	std::vector<int> rm_groups;
 	for (auto it = statuses.begin(); it != statuses.end(); ++it) {
 		const dnet_cmd &cmd = *it;
