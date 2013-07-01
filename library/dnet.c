@@ -238,6 +238,8 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 	}
 
 err_out_exit:
+	if (err)
+		cmd->flags |= DNET_FLAGS_NEED_ACK;
 	dnet_version_encode(&cmd->id);
 	return err;
 }
