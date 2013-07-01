@@ -226,7 +226,8 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 				version[0], version[1], version[2], version[3],
 				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
 				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3);
-		return -EPROTO;
+		err = -EPROTO;
+		goto err_out_exit;
 	}
 
 	cmd->id.group_id = n->id.group_id;
@@ -236,6 +237,8 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 		dnet_state_put(base);
 	}
 
+err_out_exit:
+	dnet_version_encode(&cmd->id);
 	return err;
 }
 

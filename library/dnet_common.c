@@ -419,6 +419,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	int err, num, i, size, idx;
 	struct dnet_raw_id *ids;
 	void *data;
+	int version[4] = {0, 0, 0, 0};
 
 	memset(buf, 0, sizeof(buf));
 
@@ -454,12 +455,18 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	cmd = (struct dnet_cmd *)buf;
 	dnet_convert_cmd(cmd);
+	dnet_version_decode(&cmd->id, version);
 
 	if (cmd->status != 0) {
 		err = cmd->status;
 
-		dnet_log(n, DNET_LOG_ERROR, "Reverse lookup command to %s failed: %s [%d]\n",
-				dnet_server_convert_dnet_addr(addr), strerror(-err), err);
+		dnet_log(n, DNET_LOG_ERROR, "Reverse lookup command to %s failed: local version: %d.%d.%d.%d, "
+				"remote version: %d.%d.%d.%d, error: %s [%d]\n",
+				dnet_server_convert_dnet_addr(addr),
+				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
+				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3,
+				version[0], version[1], version[2], version[3],
+				strerror(-err), err);
 		goto err_out_exit;
 	}
 
