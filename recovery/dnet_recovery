@@ -76,7 +76,7 @@ if __name__ == '__main__':
                       help="Number of subprocesses [default: %default]")
     parser.add_option("-N", "--dry-run", action="store_true", dest="dry_run", default=False,
                       help="Enable test mode: only count diffs without recovering [default: %default]")
-    parser.add_option("-r", "--remote", action="store", dest="elliptics_remote", default="127.0.0.1:1025:2",
+    parser.add_option("-r", "--remote", action="store", dest="elliptics_remote", default=None,
                       help="Elliptics node address [default: %default]")
     parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
                       help="Statistics output format: {0} [default: %default]".format("/".join(ALLOWED_STATS)))
@@ -144,6 +144,8 @@ if __name__ == '__main__':
     except Exception as e:
         raise RuntimeError("Can't grab lock on: '{0}': {1}".format(options.lock, e))
 
+    if options.elliptics_remote is None:
+        raise ValueError("Recovery address should be given (-r option).")
     try:
         ctx.address = Address.from_host_port_family(options.elliptics_remote)
     except Exception as e:
