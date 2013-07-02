@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.10.5
+Version:	2.24.11.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -130,6 +130,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jul 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.11.0
+- Added percentage dump, help and other params to route table stats script
+- Fixed bytes in recovery statistics. Removed old 'dc' script and renamed 'dc2' to 'dc'.
+- Fixed merge
+- Added time finished to stats after merge
+- Encode server's version in reverse lookup command. Print it if server returned error.
+- Introduced elliptics version in the initial handshake. If major versions mismatch (like 2.24 vs 2.23), then connection fails.
+
 * Mon Jul 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.5
 - Temporarily disable module backend build on rhel6
 - Added `remove_on_fail` error handler
