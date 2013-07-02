@@ -130,7 +130,7 @@ class IteratorResult(object):
 
                 v_min[2].append_rr(v_min[0])
 
-                del_list = []
+                remove_list = []
                 for n, (v, it, r) in enumerate(vals):
                     while v.key == v_min[0].key:
                         try:
@@ -138,11 +138,10 @@ class IteratorResult(object):
                             vals[n] = (v, it, r)
                         except:
                             ret.append(r)
-                            del_list.append(n)
+                            remove_list.append(n)
                             break
 
-                for d in del_list:
-                    del vals[d]
+                vals = [v for i, v in enumerate(vals) if i not in remove_list]
         return ret
 
     @classmethod
