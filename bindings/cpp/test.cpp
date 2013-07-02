@@ -269,6 +269,47 @@ static void test_append(session &s)
 	}
 }
 
+static void test_read_write_offsets(session &s)
+{
+	try {
+		std::string key = "read-write-test";
+		std::string data = "55555", result;
+		std::string test1 = "43210", cmp1 = "543210", cmp2 = "210", cmp3 = "3";
+
+		// Cleanup previous test reincarnation
+		try {
+			s.remove(key).wait();
+		} catch (const std::exception &e) {}
+
+		// Write data
+		s.write_data(key, data, 0).wait();
+
+		// Overwrite partially
+		s.write_data(key, test1, 1).wait();
+
+		// Read whole & Check
+		result = s.read_data(key, 0, 0).get()[0].file().to_string();
+		std::cerr << key << ": " << result << std::endl;
+		if (result != cmp1)
+			throw std::runtime_error(result + " != " + cmp1);
+
+		// Read with offset & Check
+		result = s.read_data(key, 3, 0).get()[0].file().to_string();
+		std::cerr << key << ": " << result << std::endl;
+		if (result != cmp2)
+			throw std::runtime_error(result + " != " + cmp2);
+
+		// Read with offset/size & Check
+		result = s.read_data(key, 2, 1).get()[0].file().to_string();
+		std::cerr << key << ": " << result << std::endl;
+		if (result != cmp3)
+			throw std::runtime_error(result + " != " + cmp3);
+	} catch (const std::exception &e) {
+		std::cerr << "READ/WRITE test failed: " << e.what() << std::endl;
+		throw std::runtime_error("READ/WRITE test failed");
+	}
+}
+
 // Test manual write with commit flag
 static void test_commit(session &s)
 {
@@ -766,6 +807,7 @@ int main(int argc, char *argv[])
 		s.set_cflags(cflags);
 
 		test_append(s);
+		test_read_write_offsets(s);
 		test_cas(s);
 
 		test_bulk_write(s);
