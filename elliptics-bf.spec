@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.10.4
+Version:	2.24.10.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -76,7 +76,7 @@ export CC=gcc44
 export CXX=g++44
 CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %{cmake} -DBoost_DIR=/usr/lib64/boost141 -DBOOST_INCLUDEDIR=/usr/include/boost141 -DWITH_COCAINE=NO -DCMAKE_CXX_COMPILER=g++44 -DCMAKE_C_COMPILER=gcc44 .
 %else
-%{cmake} -DWITH_COCAINE=NO .
+%{cmake} -DWITH_COCAINE=NO -DHAVE_MODULE_BACKEND_SUPPORT=no .
 %endif
 
 make %{?_smp_mflags}
@@ -102,13 +102,17 @@ rm -rf %{buildroot}
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
 %{_libdir}/libelliptics_cocaine.so.*
+%if 0%{?rhel} < 6
 %{_libdir}/libelliptics_module_backend_cpp.so.*
+%endif
 
 %files devel
 %defattr(-,root,root,-)
 %{_libdir}/libelliptics.so
 %{_libdir}/libelliptics_cocaine.so
+%if 0%{?rhel} < 6
 %{_libdir}/libelliptics_module_backend_cpp.so
+%endif
 
 
 %files client
@@ -126,6 +130,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jul 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.5
+- Temporarily disable module backend build on rhel6
+- Added `remove_on_fail` error handler
+- Removed debug print from IteratorResult.merge
+
 * Sun Jun 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.10.4
 - Explicitly stop engine upon dnet_app_t destruction
 - Expose fine-tuning knobs in Cocaine extensions

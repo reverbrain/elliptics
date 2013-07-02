@@ -1,3 +1,11 @@
+elliptics (2.24.10.5) unstable; urgency=low
+
+  * Temporarily disable module backend build on rhel6
+  * Added `remove_on_fail` error handler
+  * Removed debug print from IteratorResult.merge
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 01 Jul 2013 20:22:41 +0400
+
 elliptics (2.24.10.4) unstable; urgency=low
 
   * Explicitly stop engine upon dnet_app_t destruction
