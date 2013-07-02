@@ -379,6 +379,7 @@ def main(ctx):
     log.warning('Computing merge and splitting by node all remote results')
     g_ctx.monitor.stats.timer('main', 'merge_and_split')
     splitted_results = IteratorResult.merge(diff_results, g_ctx.tmp_dir)
+    g_ctx.monitor.stats.timer('main', 'finished')
 
     merged_diff_length = 0
     for spl in splitted_results:
