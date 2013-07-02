@@ -88,7 +88,22 @@ class IteratorResult(object):
     @classmethod
     def merge(cls, results, tmp_dir):
         """
-        Merges diffs and split result by node owner
+        Merges diffs and split result by node owner:
+            results contains diffs from all remote nodes
+            Removes from results empty diffs
+            If results is empty - skipping merge stage
+            If results contains diffs only for 1 node - nothing to merge just copy this diffs
+            Otherwise:
+                for each node creates tuple (value, iterator, result) and combines it in the list:
+                    Value - record from the top of node diffs.
+                    Iterator - iterator of node diffs.
+                    results - resulting container of merged diffs.
+                1.  Goes through tuples and find tuple with minimum key and maximum timestamp in value
+                2.  Value from the tuple appends in corresponding result container.
+                3.  Goes through tuples again and for tuple with a key equal to minimum key, gets new record from iterator while it key == minimum or end of node diffs is reached.
+                4.  If for some tuple all node diffs are processed - adds number of the tuple into remove list
+                5.  After that removes from tuple list all tuples from remove list
+                6.  Repeates step 1-6 while tuple list isn't empty
         """
         ret = []
 
@@ -130,7 +145,7 @@ class IteratorResult(object):
 
                 v_min[2].append_rr(v_min[0])
 
-                del_list = []
+                remove_list = []
                 for n, (v, it, r) in enumerate(vals):
                     while v.key == v_min[0].key:
                         try:
@@ -138,11 +153,10 @@ class IteratorResult(object):
                             vals[n] = (v, it, r)
                         except:
                             ret.append(r)
-                            del_list.append(n)
+                            remove_list.append(n)
                             break
 
-                for d in del_list:
-                    del vals[d]
+                vals = [v for i, v in enumerate(vals) if i not in remove_list]
         return ret
 
     @classmethod

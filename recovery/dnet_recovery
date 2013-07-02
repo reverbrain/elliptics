@@ -3,8 +3,8 @@
 """
 New recovery mechanism for elliptics that utilizes iterators and metadata.
 
-For now it supports three recovery methods: `merge`, `dc` and `dc2`: `merge` is
-used for recovery within hash ring (aka group) and `dc*` are used for recovery
+For now it supports three recovery methods: `merge`, `dc`: `merge` is
+used for recovery within hash ring (aka group) and `dc` are used for recovery
 between different hash rings.
 """
 
@@ -34,8 +34,7 @@ log.addHandler(ch)
 
 TYPE_MERGE = 'merge'
 TYPE_DC = 'dc'
-TYPE_DC2 = 'dc2'
-ALLOWED_TYPES = (TYPE_MERGE, TYPE_DC, TYPE_DC2)
+ALLOWED_TYPES = (TYPE_MERGE, TYPE_DC)
 
 STAT_NONE = 'none'
 STAT_TEXT = 'text'
@@ -242,8 +241,6 @@ if __name__ == '__main__':
         from elliptics_recovery.types.merge import main
     elif recovery_type == TYPE_DC:
         from elliptics_recovery.types.dc import main
-    elif recovery_type == TYPE_DC2:
-        from elliptics_recovery.types.dc2 import main
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
     result = main(ctx)
