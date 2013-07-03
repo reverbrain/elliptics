@@ -327,7 +327,6 @@ def main(ctx):
 
     local_ranges = next((r for r in all_ranges if r.address == g_ctx.address), None)
     assert local_ranges, 'Local ranges is absent in route table'
-    ctx.monitor.stats.counter('iterations', len(all_ranges))
 
     local_iter_result = pool.apply_async(iterate_node, (local_ranges, ))
     iter_result = pool.imap_unordered(iterate_node, (range for range in all_ranges if range.address != g_ctx.address))
