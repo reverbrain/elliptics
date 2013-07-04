@@ -23,39 +23,37 @@ class ResultCounter(object):
     >>> rc += 10
     >>> rc -= 2
     >>> print rc
-    Counter_failures:                                                              2
-    Counter_total:                                                                12
-    Counter_success:                                                              10
-
-    Empty counter prints as an empty string
-    >>> str(ResultCounter('Counter')) == ""
-    True
+    Counter_failures:                                                                                  2
+    Counter_total:                                                                                    12
+    Counter_success:                                                                                  10
     """
 
     def __init__(self, name, success=0, failures=0):
         self.name = name
         self.success = success
         self.failures = failures
-        self.total = success + failures
 
     def __iadd__(self, other):
         self.success += other
-        self.total += other
         return self
 
     def __isub__(self, other):
-        self.total += other
         self.failures += other
         return self
 
+    @property
+    def total(self):
+        return self.failures + self.success
+
     def __str__(self):
         result = []
-        for k, v in self.__dict__.iteritems():
-            if k != 'name' and v != 0:
-                result.append(format_kv(self.name + '_' + k, v))
-        if result:
-            return "\n".join(result)
-        return ""
+        if self.failures:
+            result.append(format_kv(self.name + '_success', self.success))
+            result.append(format_kv(self.name + '_failures', self.failures))
+            result.append(format_kv(self.name + '_total', self.total))
+        else:
+            result.append(format_kv(self.name, self.success))
+        return "\n".join(result)
 
 
 class DurationTimer(object):

@@ -5,7 +5,7 @@ Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
 Build-Depends:	cdbs,
 		cmake (>= 2.6),
 		debhelper (>= 7.0.50~),
-		eblob (>= 0.20.0),
+		eblob (>= 0.21.0),
 		libboost-dev,
 		libboost-iostreams-dev,
 		libboost-program-options-dev,
@@ -14,10 +14,8 @@ Build-Depends:	cdbs,
 		libboost-thread-dev,
 		libcocaine-core2,
 		libcocaine-dev (>= 0.10.5-5),
-		libleveldb-dev,
 		libltdl-dev,
 		libmsgpack-dev,
-		libsnappy-dev,
 		python-central,
 		python-dev (>= 2.6),
 Standards-Version: 3.8.0
@@ -26,7 +24,7 @@ XS-Python-Version: >= 2.6
 
 Package: elliptics
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.20.0), elliptics-client (= ${Source-Version}), libcocaine-core2
+Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.21.0), elliptics-client (= ${Source-Version}), libcocaine-core2
 Replaces: elliptics-2.10, srw
 Provides: elliptics-2.10
 XB-Python-Version: >= 2.6
@@ -59,7 +57,7 @@ Description: Distributed hash table storage (debug files)
 
 Package: elliptics-dev
 Architecture: any
-Depends: elliptics-client (= ${Source-Version}), eblob (>= 0.20.0)
+Depends: elliptics-client (= ${Source-Version}), eblob (>= 0.21.0)
 XB-Python-Version: >= 2.6
 Description: Distributed hash table storage (includes)
  Elliptics network is a fault tolerant distributed hash table object storage.
