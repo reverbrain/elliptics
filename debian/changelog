@@ -1,3 +1,19 @@
+elliptics (2.24.12.0) unstable; urgency=low
+
+  * elliptics: Use eblob's new BLOB_DISK_CTL_EXTHDR flag and writev()-like API.
+  *   This moves most of metadata complexity from elliptics backend to libeblob
+  *   NB! This is very complex change - needs excessive testing;
+  * elliptics: Removed leveldb backend along with snappy dependency;
+  * elliptics: Fixed read with offset/size specified;
+  * elliptics: Cleaned up leftovers from compression removal;
+  * elliptics: Added tests for reads/writes with offset and size specified;
+  * recovery: Simplified output for most counters;
+  * recovery: Fixed python 2.6 compatibility;
+  * recovery: Usability improvements;
+  * recovery: Added computation of hash ring % in merge mode;
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 04 Jul 2013 22:50:39 +0400
+
 elliptics (2.24.11.0) unstable; urgency=low
 
   * Added percentage dump, help and other params to route table stats script

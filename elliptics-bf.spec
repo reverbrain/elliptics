@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.11.0
+Version:	2.24.12.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,19 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jul 04 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.12.0
+- elliptics: Use eblob's new BLOB_DISK_CTL_EXTHDR flag and writev()-like API.
+-   This moves most of metadata complexity from elliptics backend to libeblob
+-   NB! This is very complex change - needs excessive testing;
+- elliptics: Removed leveldb backend along with snappy dependency;
+- elliptics: Fixed read with offset/size specified;
+- elliptics: Cleaned up leftovers from compression removal;
+- elliptics: Added tests for reads/writes with offset and size specified;
+- recovery: Simplified output for most counters;
+- recovery: Fixed python 2.6 compatibility;
+- recovery: Usability improvements;
+- recovery: Added computation of hash ring % in merge mode;
+
 * Wed Jul 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.11.0
 - Added percentage dump, help and other params to route table stats script
 - Fixed bytes in recovery statistics. Removed old 'dc' script and renamed 'dc2' to 'dc'.
