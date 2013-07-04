@@ -22,6 +22,11 @@ def format_id(key_id, count=6):
     """
     return ''.join('%02x' % b for b in key_id[:count])
 
+def id_to_int(key_id):
+    """Returns numerical equivalent of key"""
+    return int(format_id(key_id, count=64), 16)
+
+
 def mk_container_name(id_range, eid, prefix="iterator_"):
     """
     Makes filename for iterators' results
