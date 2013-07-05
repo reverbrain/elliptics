@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.12.0
+Version:	2.24.13.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jul 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.0
+- New shared secondary indexes
+
 * Thu Jul 04 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.12.0
 - elliptics: Use eblob's new BLOB_DISK_CTL_EXTHDR flag and writev()-like API.
 -   This moves most of metadata complexity from elliptics backend to libeblob
