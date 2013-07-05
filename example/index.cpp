@@ -216,7 +216,7 @@ int main(int argc, char *argv[])
 			int result = 0;
 			try {
 				datas.resize(indexes.size());
-				s.update_indexes(create_id(id, update), indexes, datas).wait();
+				s.set_indexes(create_id(id, update), indexes, datas).wait();
 			} catch (error &e) {
 				result = e.error_code();
 			} catch (std::bad_alloc &e) {

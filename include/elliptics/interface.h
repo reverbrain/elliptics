@@ -381,7 +381,8 @@ struct dnet_config
 	int			server_prio;
 	int			client_prio;
 
-	int			__unused;
+	/* Number of shards to store indexes data */
+	int			indexes_shard_count;
 
 	struct srw_init_ctl	srw;
 
@@ -784,7 +785,9 @@ void dnet_indexes_transform_object_id(struct dnet_node *node, const struct dnet_
 /*
  * Transform index id to id where to store secondary index's objects table
  */
-void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_raw_id *src, struct dnet_raw_id *id);
+void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_raw_id *src, struct dnet_raw_id *id, int shard_id);
+int dnet_indexes_get_shard_id(struct dnet_node *node, const struct dnet_raw_id *object_id);
+int dnet_node_get_indexes_shard_count(struct dnet_node *node);
 
 int dnet_lookup_addr(struct dnet_session *s, const void *remote, int len, struct dnet_id *id, int group_id, char *dst, int dlen);
 

@@ -1130,6 +1130,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			break;
 		case DNET_CMD_INDEXES_UPDATE:
 		case DNET_CMD_INDEXES_INTERNAL:
+		case DNET_CMD_INDEXES_FIND:
 			err = dnet_process_indexes(st, cmd, data);
 			break;
 		case DNET_CMD_STAT_COUNT:

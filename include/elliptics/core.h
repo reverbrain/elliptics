@@ -65,6 +65,8 @@
 
 #define DNET_DEFAULT_STALL_TRANSACTIONS 5
 
+#define DNET_DEFAULT_INDEXES_SHARD_COUNT 16
+
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #undef offsetof

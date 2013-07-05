@@ -663,9 +663,15 @@ void test_indexes(session &s)
 
 	std::string key = "elliptics";
 
-	s.update_indexes(key, std::vector<std::string>(), std::vector<data_pointer>()).wait();
-	s.update_indexes(key, indexes, data).wait();
+	s.set_indexes(key, std::vector<std::string>(), std::vector<data_pointer>()).wait();
+	s.set_indexes(key, indexes, data).wait();
+
+	sleep(1);
+
 	sync_find_indexes_result all_result = s.find_all_indexes(indexes);
+
+	sleep(1);
+
 	sync_find_indexes_result any_result = s.find_any_indexes(indexes);
 
 	assert(all_result.size() == any_result.size());
@@ -751,6 +757,9 @@ int main(int argc, char *argv[])
 		} catch (...) {
 			throw std::runtime_error("Could not add remote nodes, exiting");
 		}
+
+		test_indexes(s);
+		return 0;
 
 //		test_read_recovery(s);
 

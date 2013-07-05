@@ -76,11 +76,44 @@ void dnet_indexes_transform_object_id(struct dnet_node *node, const struct dnet_
 	dnet_indexes_transform_id(node, src->id, id->id, suffix, sizeof(suffix));
 }
 
-void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_raw_id *src, struct dnet_raw_id *id)
+#ifdef WORDS_BIGENDIAN
+#define dnet_swap32_to_be(x)
+#else
+#define dnet_swap32_to_be(x) \
+     ((((x) & 0xff000000) >> 24) | (((x) & 0x00ff0000) >>  8) |		      \
+      (((x) & 0x0000ff00) <<  8) | (((x) & 0x000000ff) << 24))
+#endif
+
+void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_raw_id *src, struct dnet_raw_id *id, int shard_id)
 {
 	char suffix[] = "\0index_table";
 
 	dnet_indexes_transform_id(node, src->id, id->id, suffix, sizeof(suffix));
+
+	memset(id->id, 0, DNET_ID_SIZE / 2);
+
+	unsigned shard_int = UINT_MAX * 1ull * shard_id / node->indexes_shard_count;
+
+	// Convert to Big-Endian to set less-significant bytes to the begin
+	*(unsigned *)id->id = dnet_swap32_to_be(shard_int);
+}
+
+int dnet_indexes_get_shard_id(struct dnet_node *node, const struct dnet_raw_id *object_id)
+{
+	int indexes_shard_count = node->indexes_shard_count;
+	int i;
+	int result = 0;
+
+	for (i = 0; i < DNET_ID_SIZE; ++i) {
+		result = (result * 256 + object_id->id[i]) % indexes_shard_count;
+	}
+
+	return result;
+}
+
+int dnet_node_get_indexes_shard_count(struct dnet_node *node)
+{
+	return node->indexes_shard_count;
 }
 
 static char *dnet_cmd_strings[] = {
@@ -105,6 +138,7 @@ static char *dnet_cmd_strings[] = {
 	[DNET_CMD_ITERATOR] = "ITERATOR",
 	[DNET_CMD_INDEXES_UPDATE] = "INDEXES_UPDATE",
 	[DNET_CMD_INDEXES_INTERNAL] = "INDEXES_INTERNAL",
+	[DNET_CMD_INDEXES_FIND] = "INDEXES_FIND",
 	[DNET_CMD_UNKNOWN] = "UNKNOWN",
 };
 
