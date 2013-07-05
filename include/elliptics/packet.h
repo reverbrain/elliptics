@@ -60,6 +60,7 @@ enum dnet_commands {
 	DNET_CMD_ITERATOR,			/* Start/stop/pause/status for server-side iterator */
 	DNET_CMD_INDEXES_UPDATE,		/* Update secondary indexes for id */
 	DNET_CMD_INDEXES_INTERNAL,		/* Update identificators table for certain secondary index. Internal usage only */
+	DNET_CMD_INDEXES_FIND,		/* Find all objects by indexes */
 	DNET_CMD_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown commands */
 	__DNET_CMD_MAX,
 };
@@ -334,6 +335,9 @@ static inline void dnet_convert_list(struct dnet_list *l)
  * both flags can not be set in one command (either read or write)
  */
 #define DNET_IO_FLAGS_WRITE_NO_FILE_INFO	(1<<14)
+
+#define DNET_INDEXES_FLAGS_INTERSECT		(1<<0)
+#define DNET_INDEXES_FLAGS_UNITE		(1<<1)
 
 
 struct dnet_time {
@@ -790,6 +794,7 @@ struct dnet_indexes_request_entry
 struct dnet_indexes_request
 {
 	struct dnet_id			id;		/* Index ID with properly set group_id */
+	uint32_t			flags;
 	uint64_t			reserved[5];
 	uint64_t			entries_count;	/* Count of indexes */
 	struct dnet_indexes_request_entry	entries[0];	/* List of indexes to set */

@@ -54,10 +54,24 @@ static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_point
 	}
 }
 
-static inline dnet_raw_id transform_index_id(session &sess, const dnet_raw_id &data_id)
+static inline void find_result_unpack(dnet_node *node, dnet_id *id, const data_pointer &file, sync_find_indexes_result *data, const char *scope)
+{
+	try {
+		msgpack::unpacked msg;
+		msgpack::unpack(&msg, file.data<char>(), file.size());
+		msg.get().convert(data);
+	} catch (const std::exception &e) {
+		DNET_DUMP_ID(id_str, id);
+		dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s: unpack exception: %s, file-size: %zu\n",
+			id_str, scope, e.what(), file.size());
+		data->clear();
+	}
+}
+
+static inline dnet_raw_id transform_index_id(session &sess, const dnet_raw_id &data_id, int shard_id)
 {
 	dnet_raw_id id;
-	dnet_indexes_transform_index_id(sess.get_node().get_native(), &data_id, &id);
+	dnet_indexes_transform_index_id(sess.get_node().get_native(), &data_id, &id, shard_id);
 	return id;
 }
 
@@ -290,6 +304,42 @@ inline update_result &operator >>(msgpack::object obj, update_result &result)
 			throw msgpack::type_error();
 
 		array[1].convert(&result.indexes);
+		break;
+	}
+	default:
+		throw msgpack::type_error();
+	}
+
+	return result;
+}
+
+template <typename Stream>
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const find_indexes_result_entry &result)
+{
+	o.pack_array(3);
+	o.pack(1); // version
+	o.pack(result.id);
+	o.pack(result.indexes);
+	return o;
+}
+
+inline find_indexes_result_entry &operator >>(msgpack::object obj, find_indexes_result_entry &result)
+{
+	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
+		throw msgpack::type_error();
+
+	object *array = obj.via.array.ptr;
+	const uint32_t size = obj.via.array.size;
+
+	uint16_t version = 0;
+	array[0].convert(&version);
+	switch (version) {
+	case 1: {
+		if (size != 3)
+			throw msgpack::type_error();
+
+		array[1].convert(&result.id);
+		array[2].convert(&result.indexes);
 		break;
 	}
 	default:

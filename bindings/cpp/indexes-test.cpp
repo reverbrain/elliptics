@@ -384,7 +384,7 @@ int main(int argc, char *argv[])
 	n.add_remote("localhost", 1025);
 
 	session sess(n);
-	std::vector<int> groups = { 2 };
+	std::vector<int> groups = { 1, 2, 3 };
 	sess.set_groups(groups);
 
 	for (size_t i = 0; i < OBJECT_COUNT; ++i)
