@@ -7,6 +7,9 @@
 
 #include <iostream>
 
+#define DNET_INDEX_TABLE_MAGIC 0x5DA38CFBE7734027ull
+#define DNET_INDEX_TABLE_MAGIC_SIZE 8
+
 namespace ioremap { namespace elliptics {
 
 struct dnet_indexes
@@ -41,9 +44,16 @@ struct update_index_request
 
 static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_pointer &file, dnet_indexes *data, const char *scope)
 {
+	static const unsigned long long magic = dnet_bswap64(DNET_INDEX_TABLE_MAGIC);
+
 	try {
+		if (file.size() < DNET_INDEX_TABLE_MAGIC_SIZE
+			|| memcmp(file.data(), &magic, DNET_INDEX_TABLE_MAGIC_SIZE) != 0) {
+			throw std::runtime_error("Invalid magic");
+		}
+
 		msgpack::unpacked msg;
-		msgpack::unpack(&msg, file.data<char>(), file.size());
+		msgpack::unpack(&msg, file.data<char>() + DNET_INDEX_TABLE_MAGIC_SIZE, file.size() - DNET_INDEX_TABLE_MAGIC_SIZE);
 		msg.get().convert(data);
 	} catch (const std::exception &e) {
 		DNET_DUMP_ID(id_str, id);

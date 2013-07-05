@@ -363,7 +363,11 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			indexes_unpack(state->n, id, data, &remote_indexes, "convert_object_indexes");
 		}
 
-		return data_pointer::from_raw(const_cast<char *>(buffer.data()), buffer.size());
+		data_buffer tmp_buffer(DNET_INDEX_TABLE_MAGIC_SIZE + buffer.size());
+		tmp_buffer.write(dnet_bswap64(DNET_INDEX_TABLE_MAGIC));
+		tmp_buffer.write(buffer.data(), buffer.size());
+
+		return std::move(tmp_buffer);
 	}
 
 	int process(bool *finished)
@@ -694,7 +698,11 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_id
 	msgpack::sbuffer buffer;
 	msgpack::pack(&buffer, indexes);
 
-	return data_pointer::copy(buffer.data(), buffer.size());
+	data_buffer new_buffer(DNET_INDEX_TABLE_MAGIC_SIZE + buffer.size());
+	new_buffer.write(dnet_bswap64(DNET_INDEX_TABLE_MAGIC));
+	new_buffer.write(buffer.data(), buffer.size());
+
+	return std::move(new_buffer);
 }
 
 int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
