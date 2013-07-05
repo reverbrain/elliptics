@@ -795,6 +795,8 @@ struct dnet_indexes_request
 {
 	struct dnet_id			id;		/* Index ID with properly set group_id */
 	uint32_t			flags;
+	uint32_t			shard_id;
+	uint32_t			shard_count;
 	uint64_t			reserved[5];
 	uint64_t			entries_count;	/* Count of indexes */
 	struct dnet_indexes_request_entry	entries[0];	/* List of indexes to set */

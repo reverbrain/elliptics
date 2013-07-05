@@ -14,8 +14,9 @@ namespace ioremap { namespace elliptics {
 
 struct dnet_indexes
 {
+	int shard_id;
+	int shard_count;
 	std::vector<index_entry> indexes;
-	std::vector<dnet_raw_id> friends;
 };
 
 struct update_request
@@ -59,7 +60,8 @@ static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_point
 		DNET_DUMP_ID(id_str, id);
 		dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s: unpack exception: %s, file-size: %zu\n",
 			id_str, scope, e.what(), file.size());
-		data->friends.clear();
+		data->shard_id = 0;
+		data->shard_count = 0;
 		data->indexes.clear();
 	}
 }
@@ -190,12 +192,13 @@ inline dnet_indexes &operator >>(msgpack::object o, dnet_indexes &v)
 	uint16_t version = 0;
 	p[0].convert(&version);
 	switch (version) {
-	case 1: {
-		if (size != 3)
+	case 2: {
+		if (size != 4)
 			throw msgpack::type_error();
 
 		p[1].convert(&v.indexes);
-		p[2].convert(&v.friends);
+		p[2].convert(&v.shard_id);
+		p[3].convert(&v.shard_count);
 		break;
 	}
 	default:
@@ -208,10 +211,11 @@ inline dnet_indexes &operator >>(msgpack::object o, dnet_indexes &v)
 template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const dnet_indexes &v)
 {
-	o.pack_array(3);
-	o.pack(1);
+	o.pack_array(4);
+	o.pack(2);
 	o.pack(v.indexes);
-	o.pack(v.friends);
+	o.pack(v.shard_id);
+	o.pack(v.shard_count);
 	return o;
 }
 

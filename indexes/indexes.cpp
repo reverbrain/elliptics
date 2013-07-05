@@ -320,6 +320,8 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		}
 
 		std::sort(indexes.indexes.begin(), indexes.indexes.end(), dnet_raw_id_less_than<>());
+		indexes.shard_id = dnet_indexes_get_shard_id(state->n, reinterpret_cast<dnet_raw_id*>(&cmd->id));
+		indexes.shard_count = state->n->indexes_shard_count;
 		msgpack::pack(buffer, indexes);
 	}
 
@@ -401,7 +403,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		}
 		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_UPDATE: data is different\n");
 
-		const int shard_id = dnet_indexes_get_shard_id(state->n, reinterpret_cast<dnet_raw_id*>(&cmd.id));
+		const int shard_id = indexes.shard_id;
 
 		err = sess.write(cmd.id, new_data);
 		if (err)
@@ -554,6 +556,8 @@ err_out_complete:
 
 		request.id = request_id;
 		request.entries_count = 1;
+		request.shard_id = indexes.shard_id;
+		request.shard_count = indexes.shard_count;
 
 		buffer.write(request);
 
@@ -657,7 +661,8 @@ err_out_complete:
  * @index_data is what client provided
  * @data is what was downloaded from the storage
  */
-data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_id &request_id, const data_pointer &index_data, const data_pointer &data, update_index_action action)
+data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, dnet_indexes_request *request,
+	const data_pointer &index_data, const data_pointer &data, update_index_action action)
 {
 	dnet_indexes indexes;
 	if (!data.empty())
@@ -665,7 +670,7 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_id
 
 	// Construct index entry
 	index_entry request_index;
-	memcpy(request_index.index.id, request_id.id, sizeof(request_index.index.id));
+	memcpy(request_index.index.id, request->id.id, sizeof(request_index.index.id));
 	request_index.data = index_data;
 
 	auto it = std::lower_bound(indexes.indexes.begin(), indexes.indexes.end(),
@@ -694,6 +699,9 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_id
 			return data;
 		}
 	}
+
+	indexes.shard_id = request->shard_id;
+	indexes.shard_count = request->shard_count;
 
 	msgpack::sbuffer buffer;
 	msgpack::pack(&buffer, indexes);
@@ -738,7 +746,7 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 
 	int err = 0;
 	data_pointer data = sess.read(cmd->id, &err);
-	data_pointer new_data = convert_index_table(state->n, &cmd->id, request->id, entry_data, data, action);
+	data_pointer new_data = convert_index_table(state->n, &cmd->id, request, entry_data, data, action);
 
 	if (data == new_data) {
 		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is the same\n");
