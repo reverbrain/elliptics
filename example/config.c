@@ -110,6 +110,8 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_cfg_state.server_prio = value;
 	else if (!strcmp(key, "client_net_prio"))
 		dnet_cfg_state.client_prio = value;
+	else if (!strcmp(key, "indexes_shard_count"))
+		dnet_cfg_state.indexes_shard_count = value;
 	else
 		return -1;
 
@@ -352,6 +354,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"client_net_prio", dnet_simple_set},
 	{"srw_config", dnet_set_srw},
 	{"cache_size", dnet_set_cache_size},
+	{"indexes_shard_count", dnet_simple_set},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;
