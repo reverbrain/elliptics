@@ -157,123 +157,6 @@ async_update_indexes_result session::set_indexes(const key &id, const std::vecto
 
 typedef std::map<dnet_raw_id, dnet_raw_id, dnet_raw_id_less_than<> > dnet_raw_id_map;
 
-struct find_all_indexes_handler
-{
-	session sess;
-	dnet_raw_id_map map;
-	async_result_handler<find_indexes_result_entry> handler;
-	size_t ios_size;
-
-	void operator() (const sync_read_result &bulk_result, const error_info &err)
-	{
-		std::vector<find_indexes_result_entry> result;
-
-		if (err.code() == -ENOENT) {
-			handler.complete(error_info());
-			return;
-		} else if (err) {
-			handler.complete(err);
-			return;
-		}
-
-		// If any of indexes is not found - result is empty anyway, so return now
-		if (bulk_result.size() != ios_size) {
-			handler.complete(error_info());
-			return;
-		}
-
-		try {
-			// Fill entire list by first result. All other iterations will only remove elements from it
-			dnet_indexes tmp;
-			indexes_unpack(sess.get_node().get_native(), &bulk_result[0].command()->id, bulk_result[0].file(), &tmp, "find_indexes_handler1");
-			result.resize(tmp.indexes.size());
-			for (size_t i = 0; i < tmp.indexes.size(); ++i) {
-				find_indexes_result_entry &entry = result[i];
-				entry.id = tmp.indexes[i].index;
-				entry.indexes.emplace_back(
-					map[reinterpret_cast<dnet_raw_id&>(bulk_result[0].command()->id)],
-					tmp.indexes[i].data);
-			}
-
-			for (size_t i = 1; i < bulk_result.size() && !result.empty(); ++i) {
-				auto raw = reinterpret_cast<dnet_raw_id&>(bulk_result[i].command()->id);
-				tmp.indexes.resize(0);
-				indexes_unpack(sess.get_node().get_native(), &bulk_result[i].command()->id, bulk_result[i].file(), &tmp, "find_indexes_handler2");
-
-				// Remove all objects from result, which are not presented for this index
-				auto it = std::set_intersection(result.begin(), result.end(),
-					tmp.indexes.begin(), tmp.indexes.end(),
-					result.begin(),
-					dnet_raw_id_less_than<skip_data>());
-				result.resize(it - result.begin());
-
-				// Remove all objects from this index, which are not presented in result
-				std::set_intersection(tmp.indexes.begin(), tmp.indexes.end(),
-					result.begin(), result.end(),
-					tmp.indexes.begin(),
-					dnet_raw_id_less_than<skip_data>());
-
-				// As lists contain othe same objects - it's possible to add index data by one cycle
-				auto jt = tmp.indexes.begin();
-				for (auto kt = result.begin(); kt != result.end(); ++kt, ++jt) {
-					kt->indexes.emplace_back(map[raw], jt->data);
-				}
-			}
-		} catch (std::exception &e) {
-			handler.complete(create_error(-EINVAL, "%s", e.what()));
-			return;
-		}
-
-		for (auto it = result.begin(); it != result.end(); ++it)
-			handler.process(*it);
-		handler.complete(error_info());
-	}
-};
-
-struct find_any_indexes_handler
-{
-	session sess;
-	dnet_raw_id_map map;
-	async_result_handler<find_indexes_result_entry> handler;
-	size_t ios_size;
-
-	void operator() (const sync_read_result &bulk_result, const error_info &err)
-	{
-		if (err.code() == -ENOENT) {
-			handler.complete(error_info());
-			return;
-		} else if (err) {
-			handler.complete(err);
-			return;
-		}
-
-		std::map<dnet_raw_id, std::vector<index_entry>, dnet_raw_id_less_than<> > result;
-
-		try {
-			dnet_indexes tmp;
-			for (size_t i = 0; i < bulk_result.size(); ++i) {
-				auto raw = reinterpret_cast<dnet_raw_id&>(bulk_result[i].command()->id);
-				indexes_unpack(sess.get_node().get_native(), &bulk_result[i].command()->id, bulk_result[i].file(), &tmp, "find_indexes_handler3");
-
-				for (size_t j = 0; j < tmp.indexes.size(); ++j) {
-					const index_entry &entry = tmp.indexes[j];
-
-					result[entry.index].emplace_back(map[raw], entry.data);
-				}
-			}
-		} catch (std::exception &e) {
-			handler.complete(create_error(-EINVAL, "%s", e.what()));
-			return;
-		}
-
-		for (auto it = result.begin(); it != result.end(); ++it) {
-			find_indexes_result_entry entry = { it->first, it->second };
-			handler.process(entry);
-		}
-		handler.complete(error_info());
-	}
-};
-
 struct find_indexes_functor : public std::enable_shared_from_this<find_indexes_functor>
 {
 	find_indexes_functor(session &original_sess, const std::vector<dnet_raw_id> &indexes, bool intersect,
@@ -434,7 +317,7 @@ struct find_indexes_functor : public std::enable_shared_from_this<find_indexes_f
 	transport_control control;
 	data_pointer data;
 	async_result_handler<find_indexes_result_entry> handler;
-	std::map<dnet_raw_id, dnet_raw_id, dnet_raw_id_less_than<> > convert_map;
+	dnet_raw_id_map convert_map;
 	std::atomic_int unprocessed_count;
 	std::vector<int> known_groups;
 	std::vector<dnet_raw_id> id_precalc;
@@ -472,34 +355,6 @@ static std::vector<dnet_raw_id> convert(session &sess, const std::vector<std::st
 async_find_indexes_result session::find_all_indexes(const std::vector<dnet_raw_id> &indexes)
 {
 	return do_find_indexes(*this, indexes, true);
-
-	async_find_indexes_result result(*this);
-	async_result_handler<find_indexes_result_entry> handler(result);
-
-	if (indexes.size() == 0) {
-		handler.complete(error_info());
-		return result;
-	}
-
-	std::vector<dnet_io_attr> ios;
-	struct dnet_io_attr io;
-	memset(&io, 0, sizeof(io));
-
-	dnet_raw_id_map map;
-
-	io.flags = get_ioflags();
-	dnet_raw_id index_id;
-	for (size_t i = 0; i < indexes.size(); ++i) {
-		index_id = transform_index_id(*this, indexes[i], 0);
-		map[index_id] = indexes[i];
-		memcpy(io.id, index_id.id, sizeof(dnet_raw_id));
-		ios.push_back(io);
-	}
-
-	find_all_indexes_handler functor = { *this, map, handler, ios.size() };
-	bulk_read(ios).connect(functor);
-
-	return result;
 }
 
 async_find_indexes_result session::find_all_indexes(const std::vector<std::string> &indexes)
@@ -510,34 +365,6 @@ async_find_indexes_result session::find_all_indexes(const std::vector<std::strin
 async_find_indexes_result session::find_any_indexes(const std::vector<dnet_raw_id> &indexes)
 {
 	return do_find_indexes(*this, indexes, false);
-
-	async_find_indexes_result result(*this);
-	async_result_handler<find_indexes_result_entry> handler(result);
-
-	if (indexes.size() == 0) {
-		handler.complete(error_info());
-		return result;
-	}
-
-	std::vector<dnet_io_attr> ios;
-	struct dnet_io_attr io;
-	memset(&io, 0, sizeof(io));
-
-	dnet_raw_id_map map;
-
-	io.flags = get_ioflags();
-	dnet_raw_id index_id;
-	for (size_t i = 0; i < indexes.size(); ++i) {
-		index_id = transform_index_id(*this, indexes[i], 0);
-		map[index_id] = indexes[i];
-		memcpy(io.id, index_id.id, sizeof(dnet_raw_id));
-		ios.push_back(io);
-	}
-
-	find_any_indexes_handler functor = { *this, map, handler, ios.size() };
-	bulk_read(ios).connect(functor);
-
-	return result;
 }
 
 async_find_indexes_result session::find_any_indexes(const std::vector<std::string> &indexes)
