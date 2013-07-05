@@ -803,16 +803,16 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 					result.back().id = entry.index;
 				}
 
-				result[it->second].indexes.push_back(std::make_pair(request_entry.id, entry.data));
+				result[it->second].indexes.emplace_back(request_entry.id, entry.data);
 			}
 		} else if (intersection && i == 0) {
 			result.resize(tmp.indexes.size());
 			for (size_t j = 0; j < tmp.indexes.size(); ++j) {
 				find_indexes_result_entry &entry = result[j];
 				entry.id = tmp.indexes[j].index;
-				entry.indexes.push_back(std::make_pair(
+				entry.indexes.emplace_back(
 					request_entry.id,
-					tmp.indexes[j].data));
+					tmp.indexes[j].data);
 			}
 		} else if (intersection) {
 			// Remove all objects from result, which are not presented for this index
@@ -831,7 +831,7 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 			// As lists contain othe same objects - it's possible to add index data by one cycle
 			auto jt = tmp.indexes.begin();
 			for (auto kt = result.begin(); kt != result.end(); ++kt, ++jt) {
-				kt->indexes.push_back(std::make_pair(request_entry.id, jt->data));
+				kt->indexes.emplace_back(request_entry.id, jt->data);
 			}
 		}
 	}

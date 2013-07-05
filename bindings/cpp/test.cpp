@@ -663,8 +663,8 @@ void test_indexes(session &s)
 
 	std::string key = "elliptics";
 
-	s.update_indexes(key, std::vector<std::string>(), std::vector<data_pointer>()).wait();
-	s.update_indexes(key, indexes, data).wait();
+	s.set_indexes(key, std::vector<std::string>(), std::vector<data_pointer>()).wait();
+	s.set_indexes(key, indexes, data).wait();
 
 	sleep(1);
 

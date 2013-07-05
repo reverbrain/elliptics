@@ -99,6 +99,12 @@ std::string sorted<std::string>(const std::string &c)
 }
 
 template <>
+index_entry sorted<index_entry>(const index_entry &c)
+{
+	return c;
+}
+
+template <>
 find_indexes_result_entry sorted<find_indexes_result_entry>(const find_indexes_result_entry &c)
 {
 	find_indexes_result_entry copy = { c.id, sorted(c.indexes) };
@@ -162,6 +168,12 @@ std::ostream &operator <<(std::ostream &out, const dnet_raw_id &v)
 std::ostream &operator <<(std::ostream &out, const index_entry &v)
 {
 	out << "(" << v.index << ",\"" << v.data.to_string() << "\")";
+	return out;
+}
+
+std::ostream &operator <<(std::ostream &out, const std::pair<std::string, std::string> &v)
+{
+	out << "(" << v.first << ",\"" << v.second << "\")";
 	return out;
 }
 
@@ -244,7 +256,7 @@ void test_1_update(session &sess, int iteration, data_cache &cache)
 
 	int result = 0;
 	try {
-		sess.update_indexes(object, object_tags, object_datas).get();
+		sess.set_indexes(object, object_tags, object_datas).get();
 	} catch (error &e) {
 		std::cerr << e.what() << std::endl;
 		result = e.error_code();

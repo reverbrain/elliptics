@@ -787,18 +787,18 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return convert_to_string(session::bulk_write(ios, std_data));
 		}
 
-		python_async_update_indexes_result update_indexes(const elliptics_id &id, const bp::api::object &indexes, const bp::api::object &datas) {
+		python_async_update_indexes_result set_indexes(const elliptics_id &id, const bp::api::object &indexes, const bp::api::object &datas) {
 			auto std_indexes = convert_to_vector<std::string>(indexes);
 			auto string_datas = convert_to_vector<std::string>(datas);
 			std::vector<data_pointer> std_datas(string_datas.begin(), string_datas.end());
 
-			return create_result(std::move(session::update_indexes(id.to_dnet(), std_indexes, std_datas)));
+			return create_result(std::move(session::set_indexes(id.to_dnet(), std_indexes, std_datas)));
 		}
 
 		python_async_update_indexes_result update_indexes_raw(const elliptics_id &id, const bp::api::object &indexes) {
 			auto std_indexes = convert_to_vector<index_entry>(indexes);
 
-			return create_result(std::move(session::update_indexes(id.to_dnet(), std_indexes)));
+			return create_result(std::move(session::set_indexes(id.to_dnet(), std_indexes)));
 		}
 
 		python_find_indexes_result find_all_indexes(const bp::api::object &indexes) {
@@ -841,8 +841,8 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return create_result(std::move(session::find_any_indexes(std_indexes)));
 		}
 
-		python_check_indexes_result check_indexes(const elliptics_id &id) {
-			return create_result(std::move(session::check_indexes(id.to_dnet())));
+		python_check_indexes_result list_indexes(const elliptics_id &id) {
+			return create_result(std::move(session::list_indexes(id.to_dnet())));
 		}
 
 		bp::list stat_log_count() {
@@ -1113,8 +1113,8 @@ bp::list find_indexes_result_get_indexes(find_indexes_result_entry &result)
 	bp::list ret;
 
 	for (auto it = result.indexes.begin(), end = result.indexes.end(); it != end; ++it) {
-		ret.append(bp::make_tuple(elliptics_id(convert_to_list(it->first.id, sizeof(it->first.id)), 0),
-		           it->second.to_string()));
+		ret.append(bp::make_tuple(elliptics_id(convert_to_list(it->index.id, sizeof(it->index.id)), 0),
+			   it->data.to_string()));
 	}
 
 	return ret;
@@ -1413,7 +1413,7 @@ BOOST_PYTHON_MODULE(elliptics)
 		.def("bulk_write_by_name", &elliptics_session::bulk_write_by_name,
 			(bp::arg("keys"), bp::arg("data")))
 
-		.def("update_indexes", &elliptics_session::update_indexes,
+		.def("update_indexes", &elliptics_session::set_indexes,
 		     (bp::arg("id"), bp::arg("indexes"), bp::arg("datas")))
 		.def("update_indexes_raw", &elliptics_session::update_indexes_raw,
 		     (bp::arg("id"), bp::arg("indexes")))
@@ -1425,7 +1425,7 @@ BOOST_PYTHON_MODULE(elliptics)
 		     (bp::arg("indexes")))
 		.def("find_any_indexes_raw", &elliptics_session::find_any_indexes_raw,
 		     (bp::arg("indexes")))
-		.def("check_indexes", &elliptics_session::check_indexes,
+		.def("check_indexes", &elliptics_session::list_indexes,
 		     (bp::arg("id")))
 
 		.def("transform", &elliptics_session::transform,

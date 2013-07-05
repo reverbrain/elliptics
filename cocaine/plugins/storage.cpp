@@ -246,7 +246,7 @@ static void on_write_finished(const elliptics_storage_t::log_ptr &log,
 	std::vector<ell::data_pointer> index_data(index_names.size(),
 		ell::data_pointer::copy(key.c_str(), key.size()));
 
-	session.update_indexes(key, index_names, index_data)
+	session.set_indexes(key, index_names, index_data)
 		.connect(std::bind(on_adding_index_finished, log, handler, _2));
 }
 
@@ -330,7 +330,7 @@ ell::async_remove_result elliptics_storage_t::async_remove(const std::string &co
 	session.set_checker(ell::checkers::no_check);
 	session.set_filter(ell::filters::all_with_ack);
 
-	session.update_indexes(key, std::vector<std::string>(), std::vector<ell::data_pointer>())
+	session.set_indexes(key, std::vector<std::string>(), std::vector<ell::data_pointer>())
 		.connect(std::bind(on_removing_index_finished, handler, session, key, _1, _2));
 
 	return result;
@@ -431,7 +431,7 @@ std::vector<std::string> elliptics_storage_t::convert_list_result(const ioremap:
 
 	for (auto it = result.begin(); it != result.end(); ++it) {
 		for (auto jt = it->indexes.begin(); jt != it->indexes.end(); ++jt) {
-			promise_result.push_back(jt->second.to_string());
+			promise_result.push_back(jt->data.to_string());
 		}
 	}
 
