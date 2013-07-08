@@ -210,8 +210,10 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 	struct dnet_net_state *base;
 	int err = -ENXIO;
 	int version[4] = {0, 0, 0, 0};
+	int indexes_shard_count = 0;
 
 	dnet_version_decode(&cmd->id, version);
+	dnet_indexes_shard_count_decode(&cmd->id, &indexes_shard_count);
 
 	if ((version[0] == CONFIG_ELLIPTICS_VERSION_0) && (version[1] == CONFIG_ELLIPTICS_VERSION_1)) {
 		dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: client version: %d.%d.%d.%d, server version: %d.%d.%d.%d\n",
@@ -230,6 +232,11 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 		goto err_out_exit;
 	}
 
+	dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: client indexes shard count: %d, server indexes shard count: %d\n",
+			dnet_state_dump_addr(st),
+			indexes_shard_count,
+			n->indexes_shard_count);
+
 	cmd->id.group_id = n->id.group_id;
 	base = dnet_node_state(n);
 	if (base) {
@@ -241,6 +248,7 @@ err_out_exit:
 	if (err)
 		cmd->flags |= DNET_FLAGS_NEED_ACK;
 	dnet_version_encode(&cmd->id);
+	dnet_indexes_shard_count_encode(&cmd->id, n->indexes_shard_count);
 	return err;
 }
 
