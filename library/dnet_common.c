@@ -92,7 +92,7 @@ void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_r
 
 	memset(id->id, 0, DNET_ID_SIZE / 2);
 
-	unsigned shard_int = UINT_MAX * 1ull * shard_id / node->indexes_shard_count;
+	unsigned shard_int = (1ull << 32) * shard_id / node->indexes_shard_count;
 
 	// Convert to Big-Endian to set less-significant bytes to the begin
 	*(unsigned *)id->id = dnet_swap32_to_be(shard_int);
