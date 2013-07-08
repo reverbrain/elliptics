@@ -648,6 +648,10 @@ err_out_complete:
 
 			bool more = *finished && !err;
 
+			if (!more) {
+				cmd.flags &= (DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
+			}
+
 			dnet_send_reply(state, &cmd, data.data(), data.size(), more);
 		}
 

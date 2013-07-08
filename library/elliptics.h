@@ -788,6 +788,20 @@ static inline void dnet_version_decode(struct dnet_id *id, int version[4])
 		version[i] = dnet_bswap32(ids[i]);
 }
 
+static inline void dnet_indexes_shard_count_encode(struct dnet_id *id, int count)
+{
+    int *data = (int *)(id->id);
+
+    data[5] = dnet_bswap32(count);
+}
+
+static inline void dnet_indexes_shard_count_decode(struct dnet_id *id, int *count)
+{
+    int *data = (int *)(id->id);
+
+    *count = dnet_bswap32(data[5]);
+}
+
 
 #ifdef __cplusplus
 }

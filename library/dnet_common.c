@@ -92,7 +92,7 @@ void dnet_indexes_transform_index_id(struct dnet_node *node, const struct dnet_r
 
 	memset(id->id, 0, DNET_ID_SIZE / 2);
 
-	unsigned shard_int = UINT_MAX * 1ull * shard_id / node->indexes_shard_count;
+	unsigned shard_int = (1ull << 32) * shard_id / node->indexes_shard_count;
 
 	// Convert to Big-Endian to set less-significant bytes to the begin
 	*(unsigned *)id->id = dnet_swap32_to_be(shard_int);
@@ -454,6 +454,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	struct dnet_raw_id *ids;
 	void *data;
 	int version[4] = {0, 0, 0, 0};
+	int indexes_shard_count = 0;
 
 	memset(buf, 0, sizeof(buf));
 
@@ -463,6 +464,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	cmd->cmd = DNET_CMD_REVERSE_LOOKUP;
 
 	dnet_version_encode(&cmd->id);
+	dnet_indexes_shard_count_encode(&cmd->id, n->indexes_shard_count);
 	dnet_convert_cmd(cmd);
 
 	st = &dummy;
@@ -490,6 +492,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 	cmd = (struct dnet_cmd *)buf;
 	dnet_convert_cmd(cmd);
 	dnet_version_decode(&cmd->id, version);
+	dnet_indexes_shard_count_decode(&cmd->id, &indexes_shard_count);
 
 	if (cmd->status != 0) {
 		err = cmd->status;
@@ -502,6 +505,14 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 				version[0], version[1], version[2], version[3],
 				strerror(-err), err);
 		goto err_out_exit;
+	}
+
+	if (indexes_shard_count != n->indexes_shard_count && indexes_shard_count != 0) {
+		dnet_log(n, DNET_LOG_INFO, "Local and remote indexes shard count are different: local: %d, remote: %d, using server one",
+				n->indexes_shard_count,
+				indexes_shard_count);
+
+		n->indexes_shard_count = indexes_shard_count;
 	}
 
 	data = malloc(cmd->size);
