@@ -49,7 +49,7 @@ static void on_update_index_finished(async_update_indexes_handler handler, const
 
 // Update \a indexes for \a request_id
 // Result is pushed to \a handler
-async_update_indexes_result session::set_indexes(const key &request_id, const std::vector<index_entry> &indexes)
+async_set_indexes_result session::set_indexes(const key &request_id, const std::vector<index_entry> &indexes)
 {
 	transform(request_id);
 
@@ -137,7 +137,7 @@ async_update_indexes_result session::set_indexes(const key &request_id, const st
 	return final_result;
 }
 
-async_update_indexes_result session::set_indexes(const key &id, const std::vector<std::string> &indexes, const std::vector<data_pointer> &datas)
+async_set_indexes_result session::set_indexes(const key &id, const std::vector<std::string> &indexes, const std::vector<data_pointer> &datas)
 {
 	if (datas.size() != indexes.size())
 		throw_error(-EINVAL, id, "session::update_indexes: indexes and datas sizes mismtach");
@@ -404,11 +404,11 @@ struct check_indexes_handler
 	}
 };
 
-async_check_indexes_result session::list_indexes(const key &request_id)
+async_list_indexes_result session::list_indexes(const key &request_id)
 {
 	transform(request_id);
 
-	async_check_indexes_result result(*this);
+	async_list_indexes_result result(*this);
 
 	dnet_id id;
 	memset(&id, 0, sizeof(id));

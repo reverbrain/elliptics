@@ -15,7 +15,7 @@ node.add_remote("localhost", 1025)
 s = elliptics.Session(node)
 s.set_groups([1])
 
-r = s.update_indexes(s.transform("test_id"), ["test_ind"], ["test_data"])
+r = s.set_indexes(s.transform("test_id"), ["test_ind"], ["test_data"])
 r.wait()
 assert r.successful()
 
@@ -31,7 +31,7 @@ assert r.successful()
 assert len(r.get()) >= 1
 assert r.get()[0].indexes[0][1] == "test_data"
 
-r = s.check_indexes(s.transform("test_id"))
+r = s.list_indexes(s.transform("test_id"))
 r.wait()
 assert r.successful()
 assert len(r.get()) >= 1
