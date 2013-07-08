@@ -507,8 +507,12 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		goto err_out_exit;
 	}
 
+	dnet_log(n, DNET_LOG_NOTICE, "Received indexes shard count: local: %d, remote: %d, using server one\n",
+			n->indexes_shard_count,
+			indexes_shard_count);
+
 	if (indexes_shard_count != n->indexes_shard_count && indexes_shard_count != 0) {
-		dnet_log(n, DNET_LOG_INFO, "Local and remote indexes shard count are different: local: %d, remote: %d, using server one",
+		dnet_log(n, DNET_LOG_INFO, "Local and remote indexes shard count are different: local: %d, remote: %d, using server one\n",
 				n->indexes_shard_count,
 				indexes_shard_count);
 
