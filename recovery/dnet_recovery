@@ -3,9 +3,9 @@
 """
 New recovery mechanism for elliptics that utilizes iterators and metadata.
 
-For now it supports three recovery methods: `merge`, `dc`: `merge` is
-used for recovery within hash ring (aka group) and `dc` are used for recovery
-between different hash rings.
+For now it supports two recovery methods: `merge` and `dc`:
+ * `merge` is used for recovery within hash ring (aka group)
+ * `dc` are used for recovery across different hash rings thus maintaining replica counts.
 """
 
 import os
