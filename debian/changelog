@@ -1,3 +1,11 @@
+elliptics (2.24.13.2) unstable; urgency=low
+
+  * Changed algorithm for generating indexes id
+  * Added receiving of indexes shard count from server
+  * Fixed timeout on error during indexes processing
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 08 Jul 2013 18:55:06 +0400
+
 elliptics (2.24.13.1) unstable; urgency=low
 
   * Added shard count into config file
