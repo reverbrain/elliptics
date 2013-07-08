@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.1
+Version:	2.24.13.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jul 08 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.2
+- Changed algorithm for generating indexes id
+- Added receiving of indexes shard count from server
+- Fixed timeout on error during indexes processing
+
 * Sat Jul 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.1
 - Added shard count into config file
 
