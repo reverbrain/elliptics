@@ -223,6 +223,14 @@ typedef lookup_result_entry write_result_entry;
 
 struct index_entry
 {
+    index_entry()
+    {
+    }
+
+    index_entry(const dnet_raw_id &index, const data_pointer &data) : index(index), data(data)
+    {
+    }
+
 	dnet_raw_id index;
 	data_pointer data;
 };
@@ -230,7 +238,7 @@ struct index_entry
 struct find_indexes_result_entry
 {
 	dnet_raw_id id;
-	std::vector<std::pair<dnet_raw_id, data_pointer> > indexes;
+	std::vector<index_entry> indexes;
 };
 
 typedef async_result<callback_result_entry> async_generic_result;

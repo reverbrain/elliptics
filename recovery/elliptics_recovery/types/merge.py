@@ -19,13 +19,23 @@ from ..range import IdRange, RecoveryRange
 from ..route import RouteList
 from ..iterator import Iterator
 from ..etime import Time
-from ..utils.misc import format_id, elliptics_create_node, elliptics_create_session, worker_init
+from ..utils.misc import format_id, elliptics_create_node,\
+    elliptics_create_session, worker_init, id_to_int
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
 import elliptics
 
 log = logging.getLogger(__name__)
+
+def get_percentage(ranges):
+    """Returns percentage of route table occupied by all ranges"""
+    diff_sum = 0.0
+    max_id = id_to_int(IdRange.ID_MAX)
+    for recovery_range in ranges:
+        diff_sum += id_to_int(recovery_range.id_range.stop) - \
+            id_to_int(recovery_range.id_range.start)
+    return (diff_sum / max_id) * 100.0
 
 def get_ranges(ctx, routes, group_id):
     """
@@ -291,6 +301,12 @@ def main(ctx):
             group_stats.timer('group', 'finished')
             continue
         assert all(address != g_ctx.address for _, address in ranges)
+
+        try:
+            log.warning("Node {0} responsible for {1}% of hash table".format(ctx.address,
+                                                                             get_percentage(ranges)))
+        except Exception as e:
+            log.error("Computation of hashring size failed: {0}".format(e))
 
         log.warning("Running local iterators against: {0} range(s)".format(len(ranges)))
         local_stats.timer('local', 'iterator')

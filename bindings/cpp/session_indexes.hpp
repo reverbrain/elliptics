@@ -7,12 +7,16 @@
 
 #include <iostream>
 
+#define DNET_INDEX_TABLE_MAGIC 0x5DA38CFBE7734027ull
+#define DNET_INDEX_TABLE_MAGIC_SIZE 8
+
 namespace ioremap { namespace elliptics {
 
 struct dnet_indexes
 {
+	int shard_id;
+	int shard_count;
 	std::vector<index_entry> indexes;
-	std::vector<dnet_raw_id> friends;
 };
 
 struct update_request
@@ -41,6 +45,29 @@ struct update_index_request
 
 static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_pointer &file, dnet_indexes *data, const char *scope)
 {
+	static const unsigned long long magic = dnet_bswap64(DNET_INDEX_TABLE_MAGIC);
+
+	try {
+		if (file.size() < DNET_INDEX_TABLE_MAGIC_SIZE
+			|| memcmp(file.data(), &magic, DNET_INDEX_TABLE_MAGIC_SIZE) != 0) {
+			throw std::runtime_error("Invalid magic");
+		}
+
+		msgpack::unpacked msg;
+		msgpack::unpack(&msg, file.data<char>() + DNET_INDEX_TABLE_MAGIC_SIZE, file.size() - DNET_INDEX_TABLE_MAGIC_SIZE);
+		msg.get().convert(data);
+	} catch (const std::exception &e) {
+		DNET_DUMP_ID(id_str, id);
+		dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s: unpack exception: %s, file-size: %zu\n",
+			id_str, scope, e.what(), file.size());
+		data->shard_id = 0;
+		data->shard_count = 0;
+		data->indexes.clear();
+	}
+}
+
+static inline void find_result_unpack(dnet_node *node, dnet_id *id, const data_pointer &file, sync_find_indexes_result *data, const char *scope)
+{
 	try {
 		msgpack::unpacked msg;
 		msgpack::unpack(&msg, file.data<char>(), file.size());
@@ -49,15 +76,14 @@ static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_point
 		DNET_DUMP_ID(id_str, id);
 		dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s: unpack exception: %s, file-size: %zu\n",
 			id_str, scope, e.what(), file.size());
-		data->friends.clear();
-		data->indexes.clear();
+		data->clear();
 	}
 }
 
-static inline dnet_raw_id transform_index_id(session &sess, const dnet_raw_id &data_id)
+static inline dnet_raw_id transform_index_id(session &sess, const dnet_raw_id &data_id, int shard_id)
 {
 	dnet_raw_id id;
-	dnet_indexes_transform_index_id(sess.get_node().get_native(), &data_id, &id);
+	dnet_indexes_transform_index_id(sess.get_node().get_native(), &data_id, &id, shard_id);
 	return id;
 }
 
@@ -166,12 +192,13 @@ inline dnet_indexes &operator >>(msgpack::object o, dnet_indexes &v)
 	uint16_t version = 0;
 	p[0].convert(&version);
 	switch (version) {
-	case 1: {
-		if (size != 3)
+	case 2: {
+		if (size != 4)
 			throw msgpack::type_error();
 
 		p[1].convert(&v.indexes);
-		p[2].convert(&v.friends);
+		p[2].convert(&v.shard_id);
+		p[3].convert(&v.shard_count);
 		break;
 	}
 	default:
@@ -184,10 +211,11 @@ inline dnet_indexes &operator >>(msgpack::object o, dnet_indexes &v)
 template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const dnet_indexes &v)
 {
-	o.pack_array(3);
-	o.pack(1);
+	o.pack_array(4);
+	o.pack(2);
 	o.pack(v.indexes);
-	o.pack(v.friends);
+	o.pack(v.shard_id);
+	o.pack(v.shard_count);
 	return o;
 }
 
@@ -290,6 +318,42 @@ inline update_result &operator >>(msgpack::object obj, update_result &result)
 			throw msgpack::type_error();
 
 		array[1].convert(&result.indexes);
+		break;
+	}
+	default:
+		throw msgpack::type_error();
+	}
+
+	return result;
+}
+
+template <typename Stream>
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const find_indexes_result_entry &result)
+{
+	o.pack_array(3);
+	o.pack(1); // version
+	o.pack(result.id);
+	o.pack(result.indexes);
+	return o;
+}
+
+inline find_indexes_result_entry &operator >>(msgpack::object obj, find_indexes_result_entry &result)
+{
+	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
+		throw msgpack::type_error();
+
+	object *array = obj.via.array.ptr;
+	const uint32_t size = obj.via.array.size;
+
+	uint16_t version = 0;
+	array[0].convert(&version);
+	switch (version) {
+	case 1: {
+		if (size != 3)
+			throw msgpack::type_error();
+
+		array[1].convert(&result.id);
+		array[2].convert(&result.indexes);
 		break;
 	}
 	default:

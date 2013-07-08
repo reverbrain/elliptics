@@ -47,8 +47,8 @@ class Time(object):
 
     @classmethod
     def from_datetime(cls, dt):
-        epoch = (dt - datetime(1970, 1, 1)).total_seconds()
-        return cls.from_epoch(epoch)
+        diff = dt - datetime(1970, 1, 1)
+        return cls.from_epoch(diff.days * 86400 + diff.seconds)
 
     @classmethod
     def from_string(cls, string):

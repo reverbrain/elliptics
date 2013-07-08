@@ -26,7 +26,6 @@ add_definitions(-DCONFIG_ELLIPTICS_VERSION_3=${ELLIPTICS_VERSION_3})
 option(WITH_PYTHON "Build python bindings" ON)
 option(WITH_COCAINE "Build with cocaine support" ON)
 option(WITH_EXAMPLES "Build example applications" ON)
-option(WITH_LEVELDB "Build ioserv with LevelDB backend" ON)
 option(HAVE_MODULE_BACKEND_SUPPORT "Build ioserv with shared library backend support" ON)
 
 set(ELLIPTICS_VERSION "${ELLIPTICS_VERSION_ABI}.${ELLIPTICS_VERSION_MINOR}")
@@ -90,12 +89,6 @@ endif()
 # Find eblob
 find_package(Eblob REQUIRED)
 include_directories(${EBLOB_INCLUDE_DIRS})
-
-if(WITH_LEVELDB)
-    # Find LevelDB
-    find_package(LevelDB REQUIRED)
-    include_directories(${LEVELDB_INCLUDE_DIRS})
-endif()
 
 if (HAVE_MODULE_BACKEND_SUPPORT)
     add_definitions(-DHAVE_MODULE_BACKEND_SUPPORT=1) 

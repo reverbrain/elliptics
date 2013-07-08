@@ -38,12 +38,6 @@
 
 #include "common.h"
 
-#ifdef HAVE_LEVELDB_SUPPORT
-int dnet_leveldb_backend_init(void);
-void dnet_leveldb_backend_exit(void);
-#endif
-
-
 #ifndef __unused
 #define __unused	__attribute__ ((unused))
 #endif
@@ -116,6 +110,8 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_cfg_state.server_prio = value;
 	else if (!strcmp(key, "client_net_prio"))
 		dnet_cfg_state.client_prio = value;
+	else if (!strcmp(key, "indexes_shard_count"))
+		dnet_cfg_state.indexes_shard_count = value;
 	else
 		return -1;
 
@@ -358,6 +354,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"client_net_prio", dnet_simple_set},
 	{"srw_config", dnet_set_srw},
 	{"cache_size", dnet_set_cache_size},
+	{"indexes_shard_count", dnet_simple_set},
 };
 
 static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;
@@ -452,9 +449,6 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	if (err)
 		goto err_out_module_exit;
 
-#ifdef HAVE_LEVELDB_SUPPORT
-	err = dnet_leveldb_backend_init();
-#endif
 	if (err)
 		goto err_out_eblob_exit;
 
@@ -587,9 +581,6 @@ err_out_node_destroy:
 err_out_free:
 	free(dnet_cfg_remotes);
 
-#ifdef HAVE_LEVELDB_SUPPORT
-	dnet_leveldb_backend_exit();
-#endif
 err_out_eblob_exit:
 	dnet_eblob_backend_exit();
 err_out_module_exit:

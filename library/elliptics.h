@@ -453,6 +453,7 @@ struct dnet_node
 
 	void			*srw;
 	void			*indexes;
+	int			indexes_shard_count;
 
 	int			server_prio;
 	int			client_prio;
