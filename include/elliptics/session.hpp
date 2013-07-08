@@ -121,7 +121,7 @@ class logger
 		logger &operator =(const logger &other);
 
 		void 		log(const int level, const char *msg);
-//        void        log(int level, const char *format, ...) __attribute__ ((format(printf, 2, 3)));
+		void 		print(int level, const char *format, ...) __attribute__ ((format(printf, 3, 4)));
 		int			get_log_level();
 		struct dnet_log		*get_native();
 
