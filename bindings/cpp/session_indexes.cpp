@@ -49,7 +49,7 @@ static void on_update_index_finished(async_update_indexes_handler handler, const
 
 // Update \a indexes for \a request_id
 // Result is pushed to \a handler
-async_update_indexes_result session::set_indexes(const key &request_id, const std::vector<index_entry> &indexes)
+async_set_indexes_result session::set_indexes(const key &request_id, const std::vector<index_entry> &indexes)
 {
 	transform(request_id);
 
@@ -137,7 +137,7 @@ async_update_indexes_result session::set_indexes(const key &request_id, const st
 	return final_result;
 }
 
-async_update_indexes_result session::set_indexes(const key &id, const std::vector<std::string> &indexes, const std::vector<data_pointer> &datas)
+async_set_indexes_result session::set_indexes(const key &id, const std::vector<std::string> &indexes, const std::vector<data_pointer> &datas)
 {
 	if (datas.size() != indexes.size())
 		throw_error(-EINVAL, id, "session::update_indexes: indexes and datas sizes mismtach");
@@ -161,7 +161,7 @@ struct find_indexes_functor : public std::enable_shared_from_this<find_indexes_f
 {
 	find_indexes_functor(session &original_sess, const std::vector<dnet_raw_id> &indexes, bool intersect,
 		const async_result_handler<find_indexes_result_entry> &handler)
-		: sess(original_sess.clone()), indexes(indexes),
+		: sess(original_sess.clone()), log(sess.get_node().get_log()), indexes(indexes),
 		handler(handler)
 	{
 		data = data_pointer::allocate(sizeof(dnet_indexes_request)
@@ -261,6 +261,10 @@ struct find_indexes_functor : public std::enable_shared_from_this<find_indexes_f
 
 	void on_result(size_t group_index, int shard_id, const sync_generic_result &result, const error_info &error)
 	{
+		log.print(DNET_LOG_NOTICE, "find_indexes, group: %d (%zu of %zu), shard_id: %d, result_size: %zu, err: [%d] %s",
+			known_groups[group_index], group_index + 1, known_groups.size(),
+			shard_id, result.size(), error.code(), error.message().c_str());
+
 		if (error) {
 			std::unique_ptr<async_generic_result> result_ptr;
 			{
@@ -313,6 +317,7 @@ struct find_indexes_functor : public std::enable_shared_from_this<find_indexes_f
 	}
 
 	session sess;
+	logger log;
 	std::vector<dnet_raw_id> indexes;
 	transport_control control;
 	data_pointer data;
@@ -399,11 +404,11 @@ struct check_indexes_handler
 	}
 };
 
-async_check_indexes_result session::list_indexes(const key &request_id)
+async_list_indexes_result session::list_indexes(const key &request_id)
 {
 	transform(request_id);
 
-	async_check_indexes_result result(*this);
+	async_list_indexes_result result(*this);
 
 	dnet_id id;
 	memset(&id, 0, sizeof(id));
