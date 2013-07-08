@@ -145,36 +145,15 @@ def recover((id_range, eid, address)):
                                               )
     remote_session.set_direct_id(*diff.address)
 
-    async_write_results = []
-
     for batch_id, batch in groupby(enumerate(diff), key=lambda x: x[0] / ctx.batch_size):
-        keys = [elliptics.Id(r.key, diff.eid.group_id) for _, r in batch]
-        aresult = recover_keys(ctx, diff.address, diff.eid.group_id, keys, local_session, remote_session, stats)
-        if aresult:
-            async_write_results.extend(aresult)
+        result &= recover_keys(ctx=ctx,
+                               address=diff.address,
+                               group_id=diff.eid.group_id,
+                               keys=[elliptics.Id(r.key, diff.eid.group_id) for _, r in batch],
+                               local_session=local_session,
+                               remote_session=remote_session,
+                               stats=stats)
 
-    for batch_id, batch in groupby(enumerate(async_write_results), key=lambda x: x[0] / ctx.batch_size):
-        successes, failures, successes_size, failures_size = (0, 0, 0, 0)
-        for _, (r, bsize) in batch:
-            try:
-                r.wait()
-                if r.successful():
-                    successes_size += bsize
-                    successes += 1
-                else:
-                    failures_size += bsize
-                    failures += 1
-            except Exception as e:
-                log.debug("Write failed: {0}".format(e))
-                failures_size += bsize
-                failures += 1
-
-        stats.counter('recovered_bytes', successes_size)
-        stats.counter('recovered_bytes', -failures_size)
-        stats.counter('recovered_keys', successes)
-        stats.counter('recovered_keys', -failures)
-        log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(successes + failures, len(diff), successes, failures))
-        result &= (failures == 0)
     stats.timer('recover', 'finished')
     return result
 
@@ -196,7 +175,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
         log.debug("Bulk read failed: {0} keys: {1}".format(keys_len, e))
         stats.counter('read_keys', -keys_len)
         stats.counter('recovered_keys', -keys_len)
-        return None
+        return False
 
     it = iter(batch)
     failed = 0
@@ -214,9 +193,31 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
     read_len = len(async_write_results)
     stats.counter('read_keys', read_len)
     stats.counter('read_keys', -failed)
-    stats.counter('recovered_keys', -failed)
     stats.counter('skipped_keys', keys_len - read_len - failed)
-    return async_write_results
+
+    successes, successes_size, failures_size = (0, 0, 0)
+    for r, bsize in async_write_results:
+        try:
+            r.wait()
+            if r.successful():
+                successes_size += bsize
+                successes += 1
+            else:
+                failures_size += bsize
+                failed += 1
+        except Exception as e:
+            log.debug("Write failed: {0}".format(e))
+            failures_size += bsize
+            failed += 1
+
+    log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(successes + failed, keys_len, successes_size, failures_size))
+
+    stats.counter('recovered_keys', successes)
+    stats.counter('recovered_keys', -failed)
+    stats.counter('recovered_bytes', successes_size)
+    stats.counter('recovered_bytes', -failures_size)
+
+    return failed == 0
 
 
 def iterate_node(address_ranges):

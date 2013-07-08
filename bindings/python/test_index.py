@@ -13,7 +13,7 @@ test_data = "test_data_" + str(rnd)
 sys.path.insert(0, "bindings/python/")
 import elliptics
 
-elog = elliptics.Logger("/dev/stderr", 0)
+elog = elliptics.Logger("/dev/stderr", 3)
 cfg = elliptics.Config()
 
 node = elliptics.Node(elog, cfg)
