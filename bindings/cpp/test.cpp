@@ -619,7 +619,8 @@ static void test_cache_delete(session &s, int num)
 	std::cerr << "Cache entries deleted: " << count << std::endl;
 }
 
-void check_read_recovery_availability(std::stringstream &log, session &s, const std::string &key, int group)
+void check_read_recovery_availability(std::stringstream &log, session &s,
+		const std::string &key, int group)
 {
 	auto sess = s.clone();
 	sess.set_groups({ group });
@@ -650,17 +651,13 @@ void test_read_recovery(session &s)
 	auto sess = s.clone();
 
 	sess.set_groups({ 1, 2 });
-
 	sess.write_data(id, data, 0).wait();
 
 	print_read_recovery_availability(s, id);
-
 	s.remove(id).wait();
-
 	print_read_recovery_availability(s, id);
 
 	sess.read_data(id, 0, 0).wait();
-
 	print_read_recovery_availability(s, id);
 }
 
@@ -746,8 +743,6 @@ int main(int argc, char *argv[])
 
 		test_indexes(s);
 
-//		test_read_recovery(s);
-
 		test_range_request_2(s, 0, 255, group_id);
 		test_range_request_2(s, 3, 14, group_id);
 		test_range_request_2(s, 7, 3, group_id);
@@ -782,6 +777,8 @@ int main(int argc, char *argv[])
 		memory_test_io(s, 1000);
 
 		test_indexes(s);
+
+		test_read_recovery(s);
 
 		s.stat_log();
 	} catch (int err) {
