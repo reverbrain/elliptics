@@ -88,13 +88,8 @@ static void test_range_request(session &s, int limit_start, int limit_num, uint6
 
 	memset(&io, 0, sizeof(io));
 
-#if 0
-	dnet_parse_numeric_id("76a046fcd25ebeaaa65a0fa692faf8b8701695c6ba67008b5922ae9f134fc1da7ffffed191edf767000000000000000000000000000000000000000000000000", &io.id);
-	dnet_parse_numeric_id("76a046fcd25ebeaaa65a0fa692faf8b8701695c6ba67008b5922ae9f134fc1da7ffffed22220037fffffffffffffffffffffffffffffffffffffffffffffffff", &io.parent);
-#else
 	memset(io.id, 0x00, sizeof(io.id));
 	memset(io.parent, 0xff, sizeof(io.id));
-#endif
 	io.start = limit_start;
 	io.num = limit_num;
 
@@ -102,18 +97,6 @@ static void test_range_request(session &s, int limit_start, int limit_num, uint6
 	ret = s.read_data_range_raw(io, group_id);
 
 	std::cerr << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
-#if 0
-	for (size_t i = 0; i < ret.size(); ++i) {
-		char id_str[DNET_ID_SIZE * 2 + 1];
-		const char *data = ret[i].data();
-		const unsigned char *id = (const unsigned char *)data;
-		uint64_t size = dnet_bswap64(*(uint64_t *)(data + DNET_ID_SIZE));
-		char *str = (char *)(data + DNET_ID_SIZE + 8);
-
-		std::cerr << "range [LIMIT(" << limit_start << ", " << limit_num << "): " <<
-			dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str) << ": size: " << size << ": " << str << std::endl;
-	}
-#endif
 }
 
 static void test_range_request_2(session &s, int limit_start, int limit_num, int group_id)
