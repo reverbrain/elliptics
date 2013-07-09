@@ -260,6 +260,29 @@ static void test_append(session &s)
 	}
 }
 
+static void test_trivial_write(session &s)
+{
+	try {
+		key key1("123");
+		std::string data1;
+
+		// Write
+		data1.assign(300, 'c');
+		s.write_data(key1, data1, 0).wait();
+
+		// Read
+		std::string result;
+		result = s.read_data(key1, 0, 0).get()[0].file().to_string();
+
+		// Check
+		if (data1 != result)
+			throw std::runtime_error(data1 + " != " + result);
+	} catch (const std::exception &e) {
+		std::cerr << "Trivial write tests failed: " << e.what() << std::endl;
+		throw;
+	}
+}
+
 static void test_read_write_offsets(session &s)
 {
 	try {
@@ -719,13 +742,11 @@ int main(int argc, char *argv[])
 			throw std::runtime_error("Could not add remote nodes, exiting");
 		}
 
+		test_trivial_write(s);
+
 		test_indexes(s);
 
 //		test_read_recovery(s);
-
-		std::string str;
-		str.assign(300, 'c');
-		s.write_data(key("123"), str, 0).wait();
 
 		test_range_request_2(s, 0, 255, group_id);
 		test_range_request_2(s, 3, 14, group_id);
