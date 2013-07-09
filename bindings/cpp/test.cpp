@@ -667,6 +667,14 @@ void test_indexes(session &s)
 	assert(all_result[0].indexes.size() == indexes.size());
 }
 
+static void test_stat_log(session &s)
+{
+	auto result = s.stat_log();
+	for (auto it = result.begin(); it != result.end(); ++it) {
+		/* TODO: print stats */
+	}
+}
+
 void usage(char *p)
 {
 	fprintf(stderr, "Usage: %s <options>\n"
@@ -746,7 +754,7 @@ int main(int argc, char *argv[])
 
 		test_read_recovery(s);
 
-		s.stat_log();
+		test_stat_log(s);
 	} catch (int err) {
 		std::cerr << "Error : " << err << std::endl;
 		return 1;
