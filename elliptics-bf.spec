@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.3
+Version:	2.24.13.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jul 09 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.4
+- Fixed permanent "connection refused" server coma condition
+- Use 153 boost in spec. Depend on 0.21.1 eblob.
+- Fixed handling of errors in multigroup callback
+
 * Mon Jul 08 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.3
 - Fixed sending server's shard count to client
 - Added "inline" attribute to debug ostream methods

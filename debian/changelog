@@ -1,3 +1,11 @@
+elliptics (2.24.13.4) unstable; urgency=low
+
+  * Fixed permanent "connection refused" server coma condition
+  * Use 153 boost in spec. Depend on 0.21.1 eblob.
+  * Fixed handling of errors in multigroup callback
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 09 Jul 2013 23:44:37 +0400
+
 elliptics (2.24.13.3) unstable; urgency=low
 
   * Fixed sending server's shard count to client
