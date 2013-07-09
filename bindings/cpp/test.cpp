@@ -121,18 +121,19 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 	const size_t item_count = 16;
 	const size_t number_index = 5; // DNET_ID_SIZE - 1
 
-	struct dnet_id begin;
+	dnet_id begin;
 	memset(&begin, 0x13, sizeof(begin));
 	begin.group_id = group_id;
 	begin.id[number_index] = 0;
 
-	struct dnet_id end = begin;
+	dnet_id end = begin;
 	end.id[number_index] = item_count;
 
-	struct dnet_id id = begin;
+	dnet_id id = begin;
 
 	std::vector<std::string> data(item_count);
 
+	// Write data
 	for (size_t i = 0; i < data.size(); ++i) {
 		std::string &str = data[i];
 		str.resize(5 + (rand() % 95));
@@ -145,19 +146,18 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 			throw_error(-EIO, id, "read_data_range_2: Write failed");
 	}
 
-	struct dnet_io_attr io;
+	dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
 	memcpy(io.id, begin.id, sizeof(io.id));
 	memcpy(io.parent, end.id, sizeof(io.id));
 	io.start = limit_start;
 	io.num = limit_num;
 
+	// Test read range
 	sync_read_result result = s.read_data_range(io, group_id);
-
-	if (int(result.size()) != std::min(limit_num, int(item_count) - limit_start)) {
+	if (int(result.size()) != std::min(limit_num, int(item_count) - limit_start))
 		throw_error(-ENOENT, begin, "read_data_range_2: Received size: %d, expected: %d",
 			int(result.size()), std::min(limit_num, int(item_count) - limit_start));
-	}
 
 	for (int i = 0; i < std::min(int(item_count) - limit_start, limit_num); ++i) {
 		int index = i + limit_start;
@@ -166,27 +166,28 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 				i, limit_num);
 		}
 	}
-
-	sync_read_result remove_result = s.remove_data_range(io, group_id);
 	int removed = 0;
+
+	// Test range remove
+	sync_read_result remove_result = s.remove_data_range(io, group_id);
 	for (size_t i = 0; i < remove_result.size(); ++i)
 		removed += remove_result[i].io_attribute()->num;
-
-	if (removed != int(item_count)) {
-		throw_error(-EIO, begin, "read_data_range_2: Failed to remove data, expected items: %d, found: %d",
-			int(result.size()), removed);
-	}
+	if (removed != int(item_count))
+		throw_error(-EIO, begin, "read_data_range_2: Failed to remove data"
+				", expected items: %d, found: %d", int(result.size()), removed);
 	removed = 0;
+
+	// Test remove range again
 	try {
 		remove_result = s.remove_data_range(io, group_id);
 		for (size_t i = 0; i < remove_result.size(); ++i)
 			removed += remove_result[i].io_attribute()->num;
-	} catch (...) {
-	}
-	if (removed != 0) {
-		throw_error(-EIO, begin, "read_data_range_2: Failed to remove no data, expected items: 0, found: %d",
-			 removed);
-	}
+	} catch (...) {}
+	if (removed != 0)
+		throw_error(-EIO, begin,
+				"read_data_range_2: Failed to remove no data, expected items: 0"
+				", found: %d", removed);
+	removed = 0;
 }
 
 static void test_lookup_parse(const std::string &key,
