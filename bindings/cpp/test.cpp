@@ -146,9 +146,8 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 			removed += remove_result[i].io_attribute()->num;
 	} catch (...) {}
 	if (removed != 0)
-		throw_error(-EIO, begin,
-				"read_data_range_2: Failed to remove no data, expected items: 0"
-				", found: %d", removed);
+		throw_error(-EIO, begin, "read_data_range_2: Failed to remove no data, "
+				"expected items: 0, found: %d", removed);
 	removed = 0;
 
 	// Test remove range again
