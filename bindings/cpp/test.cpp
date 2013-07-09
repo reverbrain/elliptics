@@ -188,6 +188,17 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 				"read_data_range_2: Failed to remove no data, expected items: 0"
 				", found: %d", removed);
 	removed = 0;
+
+	// Test remove range again
+	for (int i = 0; i < std::min(int(item_count) - limit_start, limit_num); ++i) {
+		id.id[number_index] = i + limit_start;
+		try {
+			sync_read_result entry = s.read_data(id, std::vector<int>(1, group_id), 0, 0);
+		} catch (not_found_error) { removed++; }
+	}
+	if (removed != std::min(int(item_count) - limit_start, limit_num))
+		throw_error(-EEXIST, begin, "read_data_range_2: removed data is read back: "
+				"%d vs %d", removed, std::min(limit_num, int(item_count) - limit_start));
 }
 
 static void test_lookup_parse(const std::string &key,
