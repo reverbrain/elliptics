@@ -35,44 +35,39 @@ using namespace ioremap::elliptics;
 static void test_prepare_commit(session &s, int psize, int csize)
 {
 	std::string written, ret;
-//	try {
-		std::string remote = "prepare-commit-test";
+	std::string remote = "prepare-commit-test";
 
-		std::string prepare_data = "prepare data|";
-		std::string commit_data = "commit data";
-		std::string plain_data[3] = {"plain data0|", "plain data1|", "plain data2|"};
+	std::string prepare_data = "prepare data|";
+	std::string commit_data = "commit data";
+	std::string plain_data[3] = {"plain data0|", "plain data1|", "plain data2|"};
 
-		if (psize)
-			prepare_data.clear();
-		if (csize)
-			commit_data.clear();
+	if (psize)
+		prepare_data.clear();
+	if (csize)
+		commit_data.clear();
 
-		uint64_t offset = 0;
-		uint64_t total_size_to_reserve = 1024;
+	uint64_t offset = 0;
+	uint64_t total_size_to_reserve = 1024;
 
-		s.write_prepare(key(remote), prepare_data, offset, total_size_to_reserve).wait();
-		offset += prepare_data.size();
+	s.write_prepare(key(remote), prepare_data, offset, total_size_to_reserve).wait();
+	offset += prepare_data.size();
 
-		written += prepare_data;
+	written += prepare_data;
 
-		for (int i = 0; i < 3; ++i) {
-			s.write_plain(key(remote), plain_data[i], offset).wait();
-			offset += plain_data[i].size();
+	for (int i = 0; i < 3; ++i) {
+		s.write_plain(key(remote), plain_data[i], offset).wait();
+		offset += plain_data[i].size();
 
-			written += plain_data[i];
-		}
+		written += plain_data[i];
+	}
 
-		/* append data first so that subsequent written.size() call returned real size of the written data */
-		written += commit_data;
+	/* append data first so that subsequent written.size() call returned real size of the written data */
+	written += commit_data;
 
-		s.write_commit(key(remote), commit_data, offset, written.size()).wait();
+	s.write_commit(key(remote), commit_data, offset, written.size()).wait();
 
-		ret = s.read_data(key(remote), 0, 0).get()[0].file().to_string();
-		std::cerr << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
-//	} catch (const std::exception &e) {
-//		std::cerr << "PREPARE/COMMIT test failed: " << e.what() << std::endl;
-//		throw;
-//	}
+	ret = s.read_data(key(remote), 0, 0).get()[0].file().to_string();
+	std::cerr << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
 
 	if (ret != written) {
 		std::cerr << "PREPARE/COMMIT test failed: read mismatch" << std::endl;
@@ -739,15 +734,6 @@ int main(int argc, char *argv[])
 		session s(n);
 		s.set_groups(groups);
 
-
-//		s.set_filter(all());
-//		s.set_policy(session::at_least(5));
-
-////		s.write_data(id, data, 0).connect(handler);
-//		for (auto entry : s.write_data(id, data, 0)) {
-//			...
-//		}
-
 		try {
 			n.add_remote(host, port, AF_INET);
 		} catch (...) {
@@ -762,37 +748,11 @@ int main(int argc, char *argv[])
 		str.assign(300, 'c');
 		s.write_data(key("123"), str, 0).wait();
 
-//		{
-//			s.set_cflags(DNET_FLAGS_NOLOCK);
-//			auto result = s.exec(NULL, "queue@test", data_pointer());
-//			for (auto it = result.begin(); it != result.end(); ++it) {
-//				auto result = *it;
-//				if (result.error()) {
-//					error_info error = result.error();
-//					std::cout << dnet_server_convert_dnet_addr(result.address())
-//						<< ": failed to process: \"" << error.message() << "\": " << error.code() << std::endl;
-//				} else {
-//					exec_context context = result.context();
-//					if (context.is_null()) {
-//						std::cout << dnet_server_convert_dnet_addr(result.address())
-//							<< ": acknowledge" << std::endl;
-//					} else {
-//						std::cout << dnet_server_convert_dnet_addr(context.address())
-//							<< ": " << context.event()
-//							<< " \"" << context.data().to_string() << "\"" << std::endl;
-//					}
-//				}
-//			}
-//		}
-//		return 0;
-
 		test_range_request_2(s, 0, 255, group_id);
 		test_range_request_2(s, 3, 14, group_id);
 		test_range_request_2(s, 7, 3, group_id);
 
 		test_lookup(s, groups);
-
-		s.stat_log();
 
 		s.set_ioflags(0);
 
@@ -829,9 +789,7 @@ int main(int argc, char *argv[])
 
 		test_indexes(s);
 
-//	} catch (const std::exception &e) {
-//		std::cerr << "Error occurred : " << e.what() << std::endl;
-//		return 1;
+		s.stat_log();
 	} catch (int err) {
 		std::cerr << "Error : " << err << std::endl;
 		return 1;
