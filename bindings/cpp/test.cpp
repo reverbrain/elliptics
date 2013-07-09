@@ -677,7 +677,6 @@ void usage(char *p)
 			"  -r host              - remote host name\n"
 			"  -p port              - remote port\n"
 			"  -g group_id          - group_id for range request and bulk write\n"
-			"  -w                   - write cache before read\n"
 			, p);
 	exit(-1);
 }
@@ -687,11 +686,9 @@ int main(int argc, char *argv[])
 	int g[] = { 2 };
 	std::vector<int> groups(g, g+ARRAY_SIZE(g));
 	const char *host = "localhost";
-	int port = 1025;
-	int ch, write_cache = 0;
-	int group_id = 2;
+	int ch, group_id = 2, port = 1025;
 
-	while ((ch = getopt(argc, argv, "r:p:g:wh")) != -1) {
+	while ((ch = getopt(argc, argv, "r:p:g:h")) != -1) {
 		switch (ch) {
 			case 'r':
 				host = optarg;
@@ -701,9 +698,6 @@ int main(int argc, char *argv[])
 				break;
 			case 'g':
 				group_id = atoi(optarg);
-				break;
-			case 'w':
-				write_cache = 1;
 				break;
 			default:
 				usage(argv[0]);
@@ -760,10 +754,6 @@ int main(int argc, char *argv[])
 
 		test_bulk_write(s);
 		test_bulk_read(s);
-
-
-		if (write_cache)
-			test_cache_write(s, 1000);
 
 		test_cache_write(s, 1000);
 		test_cache_read(s, 1000);
