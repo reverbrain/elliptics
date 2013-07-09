@@ -769,8 +769,6 @@ int main(int argc, char *argv[])
 
 		memory_test_io(s, 1000);
 
-		test_indexes(s);
-
 		test_read_recovery(s);
 
 		s.stat_log();
