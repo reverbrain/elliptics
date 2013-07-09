@@ -760,7 +760,6 @@ int main(int argc, char *argv[])
 		}
 
 		test_indexes(s);
-		return 0;
 
 //		test_read_recovery(s);
 
