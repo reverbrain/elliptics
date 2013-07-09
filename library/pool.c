@@ -357,9 +357,22 @@ int dnet_state_accept_process(struct dnet_net_state *orig, struct epoll_event *e
 	cs = accept(orig->read_s, (struct sockaddr *)&addr.addr, &salen);
 	if (cs <= 0) {
 		err = -errno;
-		if (err != -EAGAIN)
-			dnet_log_err(n, "failed to accept new client at %s", dnet_state_dump_addr(orig));
-		goto err_out_exit;
+
+		/* EAGAIN (or EWOULDBLOCK) is totally good here */
+		if (err == -EAGAIN || err == -EWOULDBLOCK) {
+			goto err_out_exit;
+		}
+
+		/* Some error conditions considered "recoverable" and treated the same way as EAGAIN */
+		dnet_log_err(n, "Failed to accept new client at %s", dnet_state_dump_addr(orig));
+		if (err == -ECONNABORTED || err == -EMFILE || err == -ENOBUFS || err == -ENOMEM) {
+			err = -EAGAIN;
+			goto err_out_exit;
+		}
+
+		/* Others are too bad to live with */
+		dnet_log_err(n, "FATAL: Can't recover from this error, exiting...");
+		exit(err);
 	}
 	addr.family = orig->addr.family;
 	addr.addr_len = salen;

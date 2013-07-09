@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.3
+Version:	2.24.13.4
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,9 +15,16 @@ BuildRequires:	gcc44 gcc44-c++
 %else
 BuildRequires:  python-devel
 %endif
-BuildRequires:	boost-python, boost-devel, boost-iostreams, boost-thread, boost-python, boost-system
-BuildRequires:	eblob-devel >= 0.21.0
+BuildRequires:	eblob-devel >= 0.21.1
 BuildRequires:	cmake msgpack-devel
+
+%if %{defined rhel} && 0%{?rhel} < 6
+%define boost_ver 153
+%else
+%define boost_ver %{nil}
+%endif
+
+BuildRequires:	boost%{boost_ver}-devel, boost%{boost_ver}-iostreams, boost%{boost_ver}-python, boost%{boost_ver}-system, boost%{boost_ver}-thread
 
 Obsoletes: srw
 
@@ -73,7 +80,7 @@ export DESTDIR="%{buildroot}"
 export PYTHON=/usr/bin/python26
 export CC=gcc44
 export CXX=g++44
-CXXFLAGS="-pthread -I/usr/include/boost141" LDFLAGS="-L/usr/lib64/boost141" %{cmake} -DBoost_DIR=/usr/lib64/boost141 -DBOOST_INCLUDEDIR=/usr/include/boost141 -DWITH_COCAINE=NO -DCMAKE_CXX_COMPILER=g++44 -DCMAKE_C_COMPILER=gcc44 .
+CXXFLAGS="-pthread -I/usr/include/boost%{boost_ver}" LDFLAGS="-L/usr/lib64/boost%{boost_ver}" %{cmake} -DBoost_LIB_DIR=/usr/lib64/boost%{boost_ver} -DBoost_INCLUDE_DIR=/usr/include/boost%{boost_ver} -DBoost_LIBRARYDIR=/usr/lib64/boost%{boost_ver} -DBOOST_LIBRARYDIR=/usr/lib64/boost%{boost_ver} .
 %else
 %{cmake} -DWITH_COCAINE=NO -DHAVE_MODULE_BACKEND_SUPPORT=no .
 %endif
@@ -129,6 +136,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jul 09 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.4
+- Fixed permanent "connection refused" server coma condition
+- Use 153 boost in spec. Depend on 0.21.1 eblob.
+- Fixed handling of errors in multigroup callback
+
 * Mon Jul 08 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.3
 - Fixed sending server's shard count to client
 - Added "inline" attribute to debug ostream methods
