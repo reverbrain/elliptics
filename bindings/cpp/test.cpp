@@ -594,7 +594,7 @@ static void test_cache_delete(session &s, int num)
 	std::cerr << "Cache entries deleted: " << std::endl;
 }
 
-void check_read_recovery_availability(std::stringstream &log, session &s,
+static void check_read_recovery_availability(std::stringstream &log, session &s,
 		const std::string &key, int group)
 {
 	auto sess = s.clone();
@@ -607,7 +607,7 @@ void check_read_recovery_availability(std::stringstream &log, session &s,
 	log << group << ": " << result.error().code() << ", ";
 }
 
-void print_read_recovery_availability(session &s, const std::string &key)
+static void print_read_recovery_availability(session &s, const std::string &key)
 {
 	std::stringstream log;
 	log << "Data availability: ";
@@ -618,7 +618,7 @@ void print_read_recovery_availability(session &s, const std::string &key)
 	std::cerr << log.str() << std::endl;
 }
 
-void test_read_recovery(session &s)
+static void test_read_recovery(session &s)
 {
 	std::string id = "test-id";
 	std::string data = "test-data";
@@ -636,7 +636,7 @@ void test_read_recovery(session &s)
 	print_read_recovery_availability(s, id);
 }
 
-void test_indexes(session &s)
+static void test_indexes(session &s)
 {
 	std::vector<std::string> indexes = {
 		"fast",
@@ -675,7 +675,7 @@ static void test_stat_log(session &s)
 	}
 }
 
-void usage(char *p)
+static void usage(char *p)
 {
 	fprintf(stderr, "Usage: %s <options>\n"
 			"  -R                   - read recovery test\n"
