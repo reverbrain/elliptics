@@ -17,6 +17,8 @@
 #include <fstream>
 #include <iostream>
 
+#include <stdarg.h>
+
 using namespace ioremap::elliptics;
 
 class ioremap::elliptics::logger_data {
@@ -36,10 +38,10 @@ class ioremap::elliptics::logger_data {
 				log->push_log(level, msg);
 		}
 
-        bool check_level(int level)
-        {
-            return (level <= log.log_level && impl);
-        }
+		bool check_level(int level)
+		{
+			return (level <= log.log_level && impl);
+		}
 
 		void push_log(const int level, const char *msg)
 		{
@@ -74,23 +76,23 @@ void logger::log(const int level, const char *msg)
     m_data->push_log(level, msg);
 }
 
-//void logger::log(int level, const char *format, ...)
-//{
-//    if (!m_data->check_level(level))
-//        return;
+void logger::print(int level, const char *format, ...)
+{
+	if (!m_data->check_level(level))
+		return;
 
-//    va_list args;
-//	char buffer[1024];
-//	const size_t buffer_size = sizeof(buffer);
+	va_list args;
+	char buffer[1024];
+	const size_t buffer_size = sizeof(buffer);
 
-//	va_start(args, format);
+	va_start(args, format);
 
-//	vsnprintf(buffer, buffer_size, format, args);
-//	buffer[buffer_size - 1] = '\0';
-//    m_data->impl->log(level, buffer);
+	vsnprintf(buffer, buffer_size, format, args);
+	buffer[buffer_size - 1] = '\0';
+	m_data->impl->log(level, buffer);
 
-//	va_end(args);
-//}
+	va_end(args);
+}
 
 int logger::get_log_level()
 {

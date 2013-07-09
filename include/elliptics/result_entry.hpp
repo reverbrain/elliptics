@@ -270,10 +270,12 @@ typedef std::vector<exec_result_entry> sync_reply_result;
 
 typedef async_result<callback_result_entry> async_update_indexes_result;
 typedef std::vector<callback_result_entry> sync_update_indexes_result;
+typedef async_result<callback_result_entry> async_set_indexes_result;
+typedef std::vector<callback_result_entry> sync_set_indexes_result;
 typedef async_result<find_indexes_result_entry> async_find_indexes_result;
 typedef std::vector<find_indexes_result_entry> sync_find_indexes_result;
-typedef async_result<index_entry> async_check_indexes_result;
-typedef std::vector<index_entry> sync_check_indexes_result;
+typedef async_result<index_entry> async_list_indexes_result;
+typedef std::vector<index_entry> sync_list_indexes_result;
 
 static inline bool operator <(const dnet_raw_id &a, const dnet_raw_id &b)
 {

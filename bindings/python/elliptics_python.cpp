@@ -1413,9 +1413,9 @@ BOOST_PYTHON_MODULE(elliptics)
 		.def("bulk_write_by_name", &elliptics_session::bulk_write_by_name,
 			(bp::arg("keys"), bp::arg("data")))
 
-		.def("update_indexes", &elliptics_session::set_indexes,
+		.def("set_indexes", &elliptics_session::set_indexes,
 		     (bp::arg("id"), bp::arg("indexes"), bp::arg("datas")))
-		.def("update_indexes_raw", &elliptics_session::update_indexes_raw,
+		.def("set_indexes_raw", &elliptics_session::update_indexes_raw,
 		     (bp::arg("id"), bp::arg("indexes")))
 		.def("find_all_indexes", &elliptics_session::find_all_indexes,
 		     (bp::arg("indexes")))
@@ -1425,7 +1425,7 @@ BOOST_PYTHON_MODULE(elliptics)
 		     (bp::arg("indexes")))
 		.def("find_any_indexes_raw", &elliptics_session::find_any_indexes_raw,
 		     (bp::arg("indexes")))
-		.def("check_indexes", &elliptics_session::list_indexes,
+		.def("list_indexes", &elliptics_session::list_indexes,
 		     (bp::arg("id")))
 
 		.def("transform", &elliptics_session::transform,

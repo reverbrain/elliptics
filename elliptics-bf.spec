@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.2
+Version:	2.24.13.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jul 08 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.3
+- Fixed sending server's shard count to client
+- Added "inline" attribute to debug ostream methods
+- Renamed async_update_* to async_set_*. Renamed python methods
+- Added more logs in find_indexes_functor
+- Added logger::print method for printf-like logging
+- Changed algorithm for generating indexes id
+
 * Mon Jul 08 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.2
 - Changed algorithm for generating indexes id
 - Added receiving of indexes shard count from server

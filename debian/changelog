@@ -1,3 +1,14 @@
+elliptics (2.24.13.3) unstable; urgency=low
+
+  * Fixed sending server's shard count to client
+  * Added "inline" attribute to debug ostream methods
+  * Renamed async_update_* to async_set_*. Renamed python methods
+  * Added more logs in find_indexes_functor
+  * Added logger::print method for printf-like logging
+  * Changed algorithm for generating indexes id
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 08 Jul 2013 23:44:30 +0400
+
 elliptics (2.24.13.2) unstable; urgency=low
 
   * Changed algorithm for generating indexes id
