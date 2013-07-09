@@ -81,6 +81,8 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 	static const int item_max = 0x0f;
 	const int item_count = std::min(limit_num, item_max - limit_start);
 
+	assert(item_max > limit_start);
+
 	dnet_id begin;
 	memset(&begin, 0x13, sizeof(begin));
 	begin.group_id = group_id;
