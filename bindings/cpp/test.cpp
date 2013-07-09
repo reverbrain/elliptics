@@ -434,6 +434,7 @@ static void test_bulk_write(session &s)
 		}
 	} catch (const std::exception &e) {
 		std::cerr << "BULK WRITE test failed: " << e.what() << std::endl;
+		s.set_ioflags(0);
 		throw;
 	}
 	s.set_ioflags(0);
@@ -731,8 +732,6 @@ int main(int argc, char *argv[])
 		test_range_request_2(s, 7, 3, group_id);
 
 		test_lookup(s, groups);
-
-		s.set_ioflags(0);
 
 		test_commit(s);
 
