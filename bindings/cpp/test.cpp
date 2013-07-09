@@ -75,25 +75,6 @@ static void test_prepare_commit(session &s, int psize, int csize)
 	}
 }
 
-static void test_range_request(session &s, int limit_start, int limit_num, uint64_t cflags, int group_id)
-{
-	s.set_cflags(cflags);
-
-	struct dnet_io_attr io;
-
-	memset(&io, 0, sizeof(io));
-
-	memset(io.id, 0x00, sizeof(io.id));
-	memset(io.parent, 0xff, sizeof(io.id));
-	io.start = limit_start;
-	io.num = limit_num;
-
-	std::vector<std::string> ret;
-	ret = s.read_data_range_raw(io, group_id);
-
-	std::cerr << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
-}
-
 static void test_range_request_2(session &s, int limit_start, int limit_num, int group_id)
 {
 	static const int number_index = 5; // DNET_ID_SIZE - 1
@@ -748,13 +729,6 @@ int main(int argc, char *argv[])
 		test_prepare_commit(s, 1, 0);
 		test_prepare_commit(s, 0, 1);
 		test_prepare_commit(s, 1, 1);
-
-		const uint64_t cflags = s.get_cflags();
-		test_range_request(s, 0, 0, 0, group_id);
-		test_range_request(s, 0, 0, DNET_ATTR_SORT, group_id);
-		test_range_request(s, 1, 0, 0, group_id);
-		test_range_request(s, 0, 1, 0, group_id);
-		s.set_cflags(cflags);
 
 		test_append(s);
 		test_read_write_offsets(s);
