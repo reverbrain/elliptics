@@ -174,15 +174,15 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 	removed = 0;
 
 	// Test remove range again
-	for (int i = 0; i < item_count; ++i) {
+	for (int i = 0; i < item_max; ++i) {
 		id.id[number_index] = i + limit_start;
 		try {
 			sync_read_result entry = s.read_data(id, std::vector<int>(1, group_id), 0, 0);
 		} catch (not_found_error) { removed++; }
 	}
-	if (removed != item_count)
+	if (removed != item_max)
 		throw_error(-EEXIST, begin, "read_data_range_2: removed data is read back: "
-				"%d vs %d", removed, item_count);
+				"%d vs %d", removed, item_max);
 }
 
 static void test_lookup_parse(const std::string &key,
