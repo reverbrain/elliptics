@@ -678,6 +678,7 @@ static void test_stat_log(session &s)
 void usage(char *p)
 {
 	fprintf(stderr, "Usage: %s <options>\n"
+			"  -R                   - read recovery test\n"
 			"  -r host              - remote host name\n"
 			"  -p port              - remote port\n"
 			"  -g group_id          - group_id for range request and bulk write\n"
@@ -690,10 +691,13 @@ int main(int argc, char *argv[])
 	int g[] = { 2 };
 	std::vector<int> groups(g, g+ARRAY_SIZE(g));
 	const char *host = "localhost";
-	int ch, group_id = 2, port = 1025;
+	int ch, read_recovery = 0, group_id = 2, port = 1025;
 
-	while ((ch = getopt(argc, argv, "r:p:g:h")) != -1) {
+	while ((ch = getopt(argc, argv, "Rr:p:g:h")) != -1) {
 		switch (ch) {
+			case 'R':
+				read_recovery = 1;
+				break;
 			case 'r':
 				host = optarg;
 				break;
@@ -752,7 +756,8 @@ int main(int argc, char *argv[])
 
 		memory_test_io(s, 1000);
 
-		test_read_recovery(s);
+		if (read_recovery != 0)
+			test_read_recovery(s);
 
 		test_stat_log(s);
 	} catch (int err) {
