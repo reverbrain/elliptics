@@ -595,13 +595,7 @@ static void test_cache_read(session &s, int num)
 
 static void test_cache_delete(session &s, int num)
 {
-	int count = 0;
-
-	/* Read random 20% of records written by test_cache_write() */
 	for (int i = 0; i < num; ++i) {
-		if ((rand() % 100) > 20)
-			continue;
-
 		std::ostringstream os;
 
 		os << "test_cache" << i;
@@ -614,9 +608,8 @@ static void test_cache_delete(session &s, int num)
 			std::cerr << "could not perform remove: " << e.what() << std::endl;
 			throw;
 		}
-		count++;
 	}
-	std::cerr << "Cache entries deleted: " << count << std::endl;
+	std::cerr << "Cache entries deleted: " << std::endl;
 }
 
 void check_read_recovery_availability(std::stringstream &log, session &s,
