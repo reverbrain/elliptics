@@ -101,8 +101,9 @@ static void test_range_request(session &s, int limit_start, int limit_num, uint6
 
 static void test_range_request_2(session &s, int limit_start, int limit_num, int group_id)
 {
-	const size_t item_count = 16;
-	const size_t number_index = 5; // DNET_ID_SIZE - 1
+	static const int number_index = 5; // DNET_ID_SIZE - 1
+	static const int item_max = 0x0f;
+	const int item_count = std::min(limit_num, item_max - limit_start);
 
 	dnet_id begin;
 	memset(&begin, 0x13, sizeof(begin));
@@ -110,11 +111,11 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 	begin.id[number_index] = 0;
 
 	dnet_id end = begin;
-	end.id[number_index] = item_count;
+	end.id[number_index] = item_max;
 
 	dnet_id id = begin;
 
-	std::vector<std::string> data(item_count);
+	std::vector<std::string> data(item_max);
 
 	// Write data
 	for (size_t i = 0; i < data.size(); ++i) {
@@ -138,26 +139,26 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 
 	// Test read range
 	sync_read_result result = s.read_data_range(io, group_id);
-	if (int(result.size()) != std::min(limit_num, int(item_count) - limit_start))
+	if (int(result.size()) != item_count)
 		throw_error(-ENOENT, begin, "read_data_range_2: Received size: %d, expected: %d",
-			int(result.size()), std::min(limit_num, int(item_count) - limit_start));
+			int(result.size()), item_count);
 
-	for (int i = 0; i < std::min(int(item_count) - limit_start, limit_num); ++i) {
+	for (int i = 0; i < item_count; ++i) {
 		int index = i + limit_start;
 		if (data[index] != result[i].file().to_string()) {
 			throw_error(-ENOENT, begin, "read_data_range_2: Invalid data at %d of %d",
 				i, limit_num);
 		}
 	}
-	int removed = 0;
 
 	// Test range remove
+	int removed = 0;
 	sync_read_result remove_result = s.remove_data_range(io, group_id);
 	for (size_t i = 0; i < remove_result.size(); ++i)
 		removed += remove_result[i].io_attribute()->num;
-	if (removed != int(item_count))
+	if (removed != item_max)
 		throw_error(-EIO, begin, "read_data_range_2: Failed to remove data"
-				", expected items: %d, found: %d", int(result.size()), removed);
+				", expected items: %d, found: %d", item_max, removed);
 	removed = 0;
 
 	// Test remove range again
@@ -173,15 +174,15 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 	removed = 0;
 
 	// Test remove range again
-	for (int i = 0; i < std::min(int(item_count) - limit_start, limit_num); ++i) {
+	for (int i = 0; i < item_count; ++i) {
 		id.id[number_index] = i + limit_start;
 		try {
 			sync_read_result entry = s.read_data(id, std::vector<int>(1, group_id), 0, 0);
 		} catch (not_found_error) { removed++; }
 	}
-	if (removed != std::min(int(item_count) - limit_start, limit_num))
+	if (removed != item_count)
 		throw_error(-EEXIST, begin, "read_data_range_2: removed data is read back: "
-				"%d vs %d", removed, std::min(limit_num, int(item_count) - limit_start));
+				"%d vs %d", removed, item_count);
 }
 
 static void test_lookup_parse(const std::string &key,
