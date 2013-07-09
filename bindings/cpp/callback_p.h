@@ -407,7 +407,9 @@ class multigroup_callback
 				return false;
 			}
 			// there is no success :(
-			*error = prepare_error();
+			if (cb.statuses().empty()) {
+				*error = prepare_error();
+			}
 			return true;
 		}
 
