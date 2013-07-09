@@ -71,7 +71,7 @@ static void test_prepare_commit(session &s, int psize, int csize)
 
 	if (ret != written) {
 		std::cerr << "PREPARE/COMMIT test failed: read mismatch" << std::endl;
-		throw std::runtime_error("PREPARE/COMMIT test failed: read mismatch");
+		throw;
 	}
 }
 
@@ -256,7 +256,7 @@ static void test_append(session &s)
 			throw std::runtime_error(data1 + data2 + " != " + result);
 	} catch (const std::exception &e) {
 		std::cerr << "APPEND test failed: " << e.what() << std::endl;
-		throw std::runtime_error("APPEND test failed");
+		throw;
 	}
 }
 
@@ -297,7 +297,7 @@ static void test_read_write_offsets(session &s)
 			throw std::runtime_error(result + " != " + cmp3);
 	} catch (const std::exception &e) {
 		std::cerr << "READ/WRITE test failed: " << e.what() << std::endl;
-		throw std::runtime_error("READ/WRITE test failed");
+		throw;
 	}
 }
 
@@ -343,7 +343,7 @@ static void test_commit(session &s)
 			throw std::runtime_error(result + " != " + data);
 	} catch (const std::exception &e) {
 		std::cerr << "COMMIT test failed: " << e.what() << std::endl;
-		throw std::runtime_error("COMMIT test failed");
+		throw;
 	}
 }
 
@@ -383,7 +383,7 @@ static void test_cas(session &s)
 			throw std::runtime_error(data2 + " != " + result);
 	} catch (const std::exception &e) {
 		std::cerr << "CAS test failed: " << e.what() << std::endl;
-		throw std::runtime_error("CAS test failed");
+		throw;
 	}
 }
 
