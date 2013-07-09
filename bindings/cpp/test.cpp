@@ -671,16 +671,6 @@ void test_indexes(session &s)
 	assert(all_result[0].indexes.size() == indexes.size());
 }
 
-static void memory_test(session &s)
-{
-	struct rusage start, end;
-
-	getrusage(RUSAGE_SELF, &start);
-	memory_test_io(s, 1000);
-	getrusage(RUSAGE_SELF, &end);
-	std::cerr << "IO leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
-}
-
 void usage(char *p)
 {
 	fprintf(stderr, "Usage: %s <options>\n"
@@ -688,7 +678,6 @@ void usage(char *p)
 			"  -p port              - remote port\n"
 			"  -g group_id          - group_id for range request and bulk write\n"
 			"  -w                   - write cache before read\n"
-			"  -m                   - start client's memory leak test (rather long - several minutes, and space consuming)\n"
 			, p);
 	exit(-1);
 }
@@ -700,10 +689,9 @@ int main(int argc, char *argv[])
 	const char *host = "localhost";
 	int port = 1025;
 	int ch, write_cache = 0;
-	int mem_check = 0;
 	int group_id = 2;
 
-	while ((ch = getopt(argc, argv, "mr:p:g:wh")) != -1) {
+	while ((ch = getopt(argc, argv, "r:p:g:wh")) != -1) {
 		switch (ch) {
 			case 'r':
 				host = optarg;
@@ -717,10 +705,6 @@ int main(int argc, char *argv[])
 			case 'w':
 				write_cache = 1;
 				break;
-			case 'm':
-				mem_check = 1;
-				break;
-			case 'h':
 			default:
 				usage(argv[0]);
 		}
@@ -777,8 +761,6 @@ int main(int argc, char *argv[])
 		test_bulk_write(s);
 		test_bulk_read(s);
 
-		if (mem_check)
-			memory_test(s);
 
 		if (write_cache)
 			test_cache_write(s, 1000);
@@ -786,6 +768,8 @@ int main(int argc, char *argv[])
 		test_cache_write(s, 1000);
 		test_cache_read(s, 1000);
 		test_cache_delete(s, 1000);
+
+		memory_test_io(s, 1000);
 
 		test_indexes(s);
 
