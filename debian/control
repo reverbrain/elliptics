@@ -5,7 +5,7 @@ Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
 Build-Depends:	cdbs,
 		cmake (>= 2.6),
 		debhelper (>= 7.0.50~),
-		eblob (>= 0.21.0),
+		eblob (>= 0.21.1),
 		libboost-dev,
 		libboost-iostreams-dev,
 		libboost-program-options-dev,
