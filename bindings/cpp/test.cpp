@@ -594,7 +594,7 @@ static void test_cache_delete(session &s, int num)
 	std::cerr << "Cache entries deleted: " << std::endl;
 }
 
-static void check_read_recovery_availability(std::stringstream &log, session &s,
+static int check_read_recovery_availability(session &s,
 		const std::string &key, int group)
 {
 	auto sess = s.clone();
@@ -604,36 +604,50 @@ static void check_read_recovery_availability(std::stringstream &log, session &s,
 	auto result = sess.read_data(key, 0, 0);
 	result.wait();
 
-	log << group << ": " << result.error().code() << ", ";
+	return result.error().code();
 }
 
-static void print_read_recovery_availability(session &s, const std::string &key)
+static bool compare_read_recovery_availability(session &s, const std::string &key,
+		std::vector<int> groups, std::vector<int> comp)
 {
-	std::stringstream log;
-	log << "Data availability: ";
+	std::vector<int> result;
 
-	check_read_recovery_availability(log, s, key, 1);
-	check_read_recovery_availability(log, s, key, 2);
+	for (auto it = groups.begin(); it != groups.end(); ++it)
+		result.push_back(check_read_recovery_availability(s, key, *it));
 
-	std::cerr << log.str() << std::endl;
+	return comp == result;
 }
 
+/* Check self-recovery aka read repair aka read recovery */
 static void test_read_recovery(session &s)
 {
+	std::vector<int> groups = { 1, 2 };
 	std::string id = "test-id";
 	std::string data = "test-data";
 
-	auto sess = s.clone();
+	auto s_one = s.clone();
+	auto s_all = s.clone();
 
-	sess.set_groups({ 1, 2 });
-	sess.write_data(id, data, 0).wait();
+	s_all.set_groups(groups);
+	s_one.set_groups({groups[0]});
 
-	print_read_recovery_availability(s, id);
-	s.remove(id).wait();
-	print_read_recovery_availability(s, id);
+	/* Cleanup previous reincarnation of test */
+	try {
+		s_all.remove(id).wait();
+	} catch (...) {}
 
-	sess.read_data(id, 0, 0).wait();
-	print_read_recovery_availability(s, id);
+	/* Write data */
+	s_all.write_data(id, data, 0).wait();
+	assert(compare_read_recovery_availability(s, id, groups, { 0, 0 }));
+
+	/* Remove from one group */
+	s_one.remove(id).wait();
+	assert(compare_read_recovery_availability(s, id, groups, { -2, 0 }));
+
+	/* Read it, wait for self-recover, re-read it */
+	s_all.read_data(id, 0, 0).wait();
+	sleep(5); /* XXX: */
+	assert(compare_read_recovery_availability(s, id, groups, { 0, 0 }));
 }
 
 static void test_indexes(session &s)
