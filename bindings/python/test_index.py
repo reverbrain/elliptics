@@ -17,7 +17,7 @@ elog = elliptics.Logger("/dev/stderr", 3)
 cfg = elliptics.Config()
 
 node = elliptics.Node(elog, cfg)
-node.add_remote("s16h.xxx.yandex.net", 1025)
+node.add_remote("localhost", 1025)
 
 s = elliptics.Session(node)
 s.set_groups([1])
