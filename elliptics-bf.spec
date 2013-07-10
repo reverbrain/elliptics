@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.4
+Version:	2.24.13.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,21 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jul 10 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.5
+- Depend on 0.21.2 eblob.
+- Use 141 boost.
+- Big tests update
+- misc: column cleanups
+- fs: use PATH_MAX for path size
+- fs: use EBLOB_AUTO_DATASORT for metadata blob
+- Input io queue stats collection and periodic logging
+- Restored localhost in test_index.py
+- eblob: reformatted range requests
+- recovery: added doc link
+- recovery: fixed recovery script description
+- dnet: simplified dnet_iterator_start()
+- recovery: Added waiting writes in after each batch
+
 * Tue Jul 09 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.4
 - Fixed permanent "connection refused" server coma condition
 - Use 153 boost in spec. Depend on 0.21.1 eblob.

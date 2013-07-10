@@ -1,3 +1,21 @@
+elliptics (2.24.13.5) unstable; urgency=low
+
+  * Depend on 0.21.2 eblob.
+  * Use 141 boost.
+  * Big tests update
+  * misc: column cleanups
+  * fs: use PATH_MAX for path size
+  * fs: use EBLOB_AUTO_DATASORT for metadata blob
+  * Input io queue stats collection and periodic logging
+  * Restored localhost in test_index.py
+  * eblob: reformatted range requests
+  * recovery: added doc link
+  * recovery: fixed recovery script description
+  * dnet: simplified dnet_iterator_start()
+  * recovery: Added waiting writes in after each batch
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 10 Jul 2013 20:18:38 +0400
+
 elliptics (2.24.13.4) unstable; urgency=low
 
   * Fixed permanent "connection refused" server coma condition
