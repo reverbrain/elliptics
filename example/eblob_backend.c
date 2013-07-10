@@ -463,16 +463,19 @@ err_out_exit:
 	return err;
 }
 
-static int blob_del_range_callback(struct eblob_backend_config *c, struct dnet_io_attr *io __unused, struct eblob_range_request *req)
+static int blob_del_range_callback(struct eblob_range_request *req)
 {
 	struct eblob_key key;
 	int err;
 
-	dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: DEL\n",dnet_dump_id_str(req->record_key));
+	dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: DEL\n",
+			dnet_dump_id_str(req->record_key));
+
 	memcpy(key.id, req->record_key, EBLOB_ID_SIZE);
-	err = eblob_remove(c->eblob, &key);
+	err = eblob_remove(req->back, &key);
 	if (err) {
-		dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: DEL: err: %d\n",dnet_dump_id_str(req->record_key), err);
+		dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: DEL: err: %d\n",
+				dnet_dump_id_str(req->record_key), err);
 	}
 
 	return err;
@@ -580,17 +583,20 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 			case DNET_CMD_READ_RANGE:
 				if ((io->num > 0) && (i >= (io->num + start_from)))
 					break;
-				dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: READ\n",dnet_dump_id_str(p.keys[i].record_key));
+				dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: READ\n",
+						dnet_dump_id_str(p.keys[i].record_key));
 				err = blob_read_range_callback(&p.keys[i]);
 				break;
 			case DNET_CMD_DEL_RANGE:
-				dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: DEL\n",dnet_dump_id_str(p.keys[i].record_key));
-				err = blob_del_range_callback(c, io, &p.keys[i]);
+				dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: DEL\n",
+						dnet_dump_id_str(p.keys[i].record_key));
+				err = blob_del_range_callback(&p.keys[i]);
 				break;
 		}
 
 		if (err) {
-			dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: err: %d\n",dnet_dump_id_str(p.keys[i].record_key), err);
+			dnet_backend_log(DNET_LOG_DEBUG, "%s: EBLOB: blob-read-range: err: %d\n",
+					dnet_dump_id_str(p.keys[i].record_key), err);
 			goto err_out_exit;
 		}
 	}
