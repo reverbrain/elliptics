@@ -987,10 +987,6 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	 * stale iterators on connection abort.
 	 */
 	err = st->n->cb->iterator(&ictl);
-	if (err != 0) {
-		dnet_iterator_destroy(st->n, cpriv.it);
-		goto err_out_exit;
-	}
 
 	/* Remove iterator */
 	dnet_iterator_destroy(st->n, cpriv.it);

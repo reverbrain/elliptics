@@ -35,104 +35,67 @@ using namespace ioremap::elliptics;
 static void test_prepare_commit(session &s, int psize, int csize)
 {
 	std::string written, ret;
-//	try {
-		std::string remote = "prepare-commit-test";
+	std::string remote = "prepare-commit-test";
 
-		std::string prepare_data = "prepare data|";
-		std::string commit_data = "commit data";
-		std::string plain_data[3] = {"plain data0|", "plain data1|", "plain data2|"};
+	std::string prepare_data = "prepare data|";
+	std::string commit_data = "commit data";
+	std::string plain_data[3] = {"plain data0|", "plain data1|", "plain data2|"};
 
-		if (psize)
-			prepare_data.clear();
-		if (csize)
-			commit_data.clear();
+	if (psize)
+		prepare_data.clear();
+	if (csize)
+		commit_data.clear();
 
-		uint64_t offset = 0;
-		uint64_t total_size_to_reserve = 1024;
+	uint64_t offset = 0;
+	uint64_t total_size_to_reserve = 1024;
 
-		s.write_prepare(key(remote), prepare_data, offset, total_size_to_reserve).wait();
-		offset += prepare_data.size();
+	s.write_prepare(key(remote), prepare_data, offset, total_size_to_reserve).wait();
+	offset += prepare_data.size();
 
-		written += prepare_data;
+	written += prepare_data;
 
-		for (int i = 0; i < 3; ++i) {
-			s.write_plain(key(remote), plain_data[i], offset).wait();
-			offset += plain_data[i].size();
+	for (int i = 0; i < 3; ++i) {
+		s.write_plain(key(remote), plain_data[i], offset).wait();
+		offset += plain_data[i].size();
 
-			written += plain_data[i];
-		}
+		written += plain_data[i];
+	}
 
-		/* append data first so that subsequent written.size() call returned real size of the written data */
-		written += commit_data;
+	/* append data first so that subsequent written.size() call returned real size of the written data */
+	written += commit_data;
 
-		s.write_commit(key(remote), commit_data, offset, written.size()).wait();
+	s.write_commit(key(remote), commit_data, offset, written.size()).wait();
 
-		ret = s.read_data(key(remote), 0, 0).get()[0].file().to_string();
-		std::cerr << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
-//	} catch (const std::exception &e) {
-//		std::cerr << "PREPARE/COMMIT test failed: " << e.what() << std::endl;
-//		throw;
-//	}
+	ret = s.read_data(key(remote), 0, 0).get()[0].file().to_string();
+	std::cerr << "prepare/commit write: '" << written << "', read: '" << ret << "'" << std::endl;
 
 	if (ret != written) {
 		std::cerr << "PREPARE/COMMIT test failed: read mismatch" << std::endl;
-		throw std::runtime_error("PREPARE/COMMIT test failed: read mismatch");
+		throw;
 	}
-}
-
-static void test_range_request(session &s, int limit_start, int limit_num, uint64_t cflags, int group_id)
-{
-	s.set_cflags(cflags);
-
-	struct dnet_io_attr io;
-
-	memset(&io, 0, sizeof(io));
-
-#if 0
-	dnet_parse_numeric_id("76a046fcd25ebeaaa65a0fa692faf8b8701695c6ba67008b5922ae9f134fc1da7ffffed191edf767000000000000000000000000000000000000000000000000", &io.id);
-	dnet_parse_numeric_id("76a046fcd25ebeaaa65a0fa692faf8b8701695c6ba67008b5922ae9f134fc1da7ffffed22220037fffffffffffffffffffffffffffffffffffffffffffffffff", &io.parent);
-#else
-	memset(io.id, 0x00, sizeof(io.id));
-	memset(io.parent, 0xff, sizeof(io.id));
-#endif
-	io.start = limit_start;
-	io.num = limit_num;
-
-	std::vector<std::string> ret;
-	ret = s.read_data_range_raw(io, group_id);
-
-	std::cerr << "range [LIMIT(" << limit_start << ", " << limit_num << "): " << ret.size() << " elements" << std::endl;
-#if 0
-	for (size_t i = 0; i < ret.size(); ++i) {
-		char id_str[DNET_ID_SIZE * 2 + 1];
-		const char *data = ret[i].data();
-		const unsigned char *id = (const unsigned char *)data;
-		uint64_t size = dnet_bswap64(*(uint64_t *)(data + DNET_ID_SIZE));
-		char *str = (char *)(data + DNET_ID_SIZE + 8);
-
-		std::cerr << "range [LIMIT(" << limit_start << ", " << limit_num << "): " <<
-			dnet_dump_id_len_raw(id, DNET_ID_SIZE, id_str) << ": size: " << size << ": " << str << std::endl;
-	}
-#endif
 }
 
 static void test_range_request_2(session &s, int limit_start, int limit_num, int group_id)
 {
-	const size_t item_count = 16;
-	const size_t number_index = 5; // DNET_ID_SIZE - 1
+	static const int number_index = 5; // DNET_ID_SIZE - 1
+	static const int item_max = 0x0f;
+	const int item_count = std::min(limit_num, item_max - limit_start);
 
-	struct dnet_id begin;
+	assert(item_max > limit_start);
+
+	dnet_id begin;
 	memset(&begin, 0x13, sizeof(begin));
 	begin.group_id = group_id;
 	begin.id[number_index] = 0;
 
-	struct dnet_id end = begin;
-	end.id[number_index] = item_count;
+	dnet_id end = begin;
+	end.id[number_index] = item_max;
 
-	struct dnet_id id = begin;
+	dnet_id id = begin;
 
-	std::vector<std::string> data(item_count);
+	std::vector<std::string> data(item_max);
 
+	// Write data
 	for (size_t i = 0; i < data.size(); ++i) {
 		std::string &str = data[i];
 		str.resize(5 + (rand() % 95));
@@ -145,21 +108,20 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 			throw_error(-EIO, id, "read_data_range_2: Write failed");
 	}
 
-	struct dnet_io_attr io;
+	dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
 	memcpy(io.id, begin.id, sizeof(io.id));
 	memcpy(io.parent, end.id, sizeof(io.id));
 	io.start = limit_start;
 	io.num = limit_num;
 
+	// Test read range
 	sync_read_result result = s.read_data_range(io, group_id);
-
-	if (int(result.size()) != std::min(limit_num, int(item_count) - limit_start)) {
+	if (int(result.size()) != item_count)
 		throw_error(-ENOENT, begin, "read_data_range_2: Received size: %d, expected: %d",
-			int(result.size()), std::min(limit_num, int(item_count) - limit_start));
-	}
+			int(result.size()), item_count);
 
-	for (int i = 0; i < std::min(int(item_count) - limit_start, limit_num); ++i) {
+	for (int i = 0; i < item_count; ++i) {
 		int index = i + limit_start;
 		if (data[index] != result[i].file().to_string()) {
 			throw_error(-ENOENT, begin, "read_data_range_2: Invalid data at %d of %d",
@@ -167,26 +129,37 @@ static void test_range_request_2(session &s, int limit_start, int limit_num, int
 		}
 	}
 
-	sync_read_result remove_result = s.remove_data_range(io, group_id);
+	// Test range remove
 	int removed = 0;
+	sync_read_result remove_result = s.remove_data_range(io, group_id);
 	for (size_t i = 0; i < remove_result.size(); ++i)
 		removed += remove_result[i].io_attribute()->num;
-
-	if (removed != int(item_count)) {
-		throw_error(-EIO, begin, "read_data_range_2: Failed to remove data, expected items: %d, found: %d",
-			int(result.size()), removed);
-	}
+	if (removed != item_max)
+		throw_error(-EIO, begin, "read_data_range_2: Failed to remove data"
+				", expected items: %d, found: %d", item_max, removed);
 	removed = 0;
+
+	// Test remove range again
 	try {
 		remove_result = s.remove_data_range(io, group_id);
 		for (size_t i = 0; i < remove_result.size(); ++i)
 			removed += remove_result[i].io_attribute()->num;
-	} catch (...) {
+	} catch (...) {}
+	if (removed != 0)
+		throw_error(-EIO, begin, "read_data_range_2: Failed to remove no data, "
+				"expected items: 0, found: %d", removed);
+	removed = 0;
+
+	// Test remove range again
+	for (int i = 0; i < item_max; ++i) {
+		id.id[number_index] = i + limit_start;
+		try {
+			sync_read_result entry = s.read_data(id, std::vector<int>(1, group_id), 0, 0);
+		} catch (not_found_error) { removed++; }
 	}
-	if (removed != 0) {
-		throw_error(-EIO, begin, "read_data_range_2: Failed to remove no data, expected items: 0, found: %d",
-			 removed);
-	}
+	if (removed != item_max)
+		throw_error(-EEXIST, begin, "read_data_range_2: removed data is read back: "
+				"%d vs %d", removed, item_max);
 }
 
 static void test_lookup_parse(const std::string &key,
@@ -265,7 +238,30 @@ static void test_append(session &s)
 			throw std::runtime_error(data1 + data2 + " != " + result);
 	} catch (const std::exception &e) {
 		std::cerr << "APPEND test failed: " << e.what() << std::endl;
-		throw std::runtime_error("APPEND test failed");
+		throw;
+	}
+}
+
+static void test_trivial_write(session &s)
+{
+	try {
+		key key1("123");
+		std::string data1;
+
+		// Write
+		data1.assign(300, 'c');
+		s.write_data(key1, data1, 0).wait();
+
+		// Read
+		std::string result;
+		result = s.read_data(key1, 0, 0).get()[0].file().to_string();
+
+		// Check
+		if (data1 != result)
+			throw std::runtime_error(data1 + " != " + result);
+	} catch (const std::exception &e) {
+		std::cerr << "Trivial write tests failed: " << e.what() << std::endl;
+		throw;
 	}
 }
 
@@ -306,7 +302,7 @@ static void test_read_write_offsets(session &s)
 			throw std::runtime_error(result + " != " + cmp3);
 	} catch (const std::exception &e) {
 		std::cerr << "READ/WRITE test failed: " << e.what() << std::endl;
-		throw std::runtime_error("READ/WRITE test failed");
+		throw;
 	}
 }
 
@@ -352,7 +348,7 @@ static void test_commit(session &s)
 			throw std::runtime_error(result + " != " + data);
 	} catch (const std::exception &e) {
 		std::cerr << "COMMIT test failed: " << e.what() << std::endl;
-		throw std::runtime_error("COMMIT test failed");
+		throw;
 	}
 }
 
@@ -392,7 +388,7 @@ static void test_cas(session &s)
 			throw std::runtime_error(data2 + " != " + result);
 	} catch (const std::exception &e) {
 		std::cerr << "CAS test failed: " << e.what() << std::endl;
-		throw std::runtime_error("CAS test failed");
+		throw;
 	}
 }
 
@@ -443,6 +439,7 @@ static void test_bulk_write(session &s)
 		}
 	} catch (const std::exception &e) {
 		std::cerr << "BULK WRITE test failed: " << e.what() << std::endl;
+		s.set_ioflags(0);
 		throw;
 	}
 	s.set_ioflags(0);
@@ -580,13 +577,7 @@ static void test_cache_read(session &s, int num)
 
 static void test_cache_delete(session &s, int num)
 {
-	int count = 0;
-
-	/* Read random 20% of records written by test_cache_write() */
 	for (int i = 0; i < num; ++i) {
-		if ((rand() % 100) > 20)
-			continue;
-
 		std::ostringstream os;
 
 		os << "test_cache" << i;
@@ -599,12 +590,12 @@ static void test_cache_delete(session &s, int num)
 			std::cerr << "could not perform remove: " << e.what() << std::endl;
 			throw;
 		}
-		count++;
 	}
-	std::cerr << "Cache entries deleted: " << count << std::endl;
+	std::cerr << "Cache entries deleted: " << std::endl;
 }
 
-void check_read_recovery_availability(std::stringstream &log, session &s, const std::string &key, int group)
+static int check_read_recovery_availability(session &s,
+		const std::string &key, int group)
 {
 	auto sess = s.clone();
 	sess.set_groups({ group });
@@ -613,43 +604,53 @@ void check_read_recovery_availability(std::stringstream &log, session &s, const 
 	auto result = sess.read_data(key, 0, 0);
 	result.wait();
 
-	log << group << ": " << result.error().code() << ", ";
+	return result.error().code();
 }
 
-void print_read_recovery_availability(session &s, const std::string &key)
+static bool compare_read_recovery_availability(session &s, const std::string &key,
+		std::vector<int> groups, std::vector<int> comp)
 {
-	std::stringstream log;
-	log << "Data availability: ";
+	std::vector<int> result;
 
-	check_read_recovery_availability(log, s, key, 1);
-	check_read_recovery_availability(log, s, key, 2);
+	for (auto it = groups.begin(); it != groups.end(); ++it)
+		result.push_back(check_read_recovery_availability(s, key, *it));
 
-	std::cerr << log.str() << std::endl;
+	return comp == result;
 }
 
-void test_read_recovery(session &s)
+/* Check self-recovery aka read repair aka read recovery */
+static void test_read_recovery(session &s)
 {
+	std::vector<int> groups = { 1, 2 };
 	std::string id = "test-id";
 	std::string data = "test-data";
 
-	auto sess = s.clone();
+	auto s_one = s.clone();
+	auto s_all = s.clone();
 
-	sess.set_groups({ 1, 2 });
+	s_all.set_groups(groups);
+	s_one.set_groups({groups[0]});
 
-	sess.write_data(id, data, 0).wait();
+	/* Cleanup previous reincarnation of test */
+	try {
+		s_all.remove(id).wait();
+	} catch (...) {}
 
-	print_read_recovery_availability(s, id);
+	/* Write data */
+	s_all.write_data(id, data, 0).wait();
+	assert(compare_read_recovery_availability(s, id, groups, { 0, 0 }));
 
-	s.remove(id).wait();
+	/* Remove from one group */
+	s_one.remove(id).wait();
+	assert(compare_read_recovery_availability(s, id, groups, { -2, 0 }));
 
-	print_read_recovery_availability(s, id);
-
-	sess.read_data(id, 0, 0).wait();
-
-	print_read_recovery_availability(s, id);
+	/* Read it, wait for self-recover, re-read it */
+	s_all.read_data(id, 0, 0).wait();
+	sleep(5); /* XXX: */
+	assert(compare_read_recovery_availability(s, id, groups, { 0, 0 }));
 }
 
-void test_indexes(session &s)
+static void test_indexes(session &s)
 {
 	std::vector<std::string> indexes = {
 		"fast",
@@ -680,24 +681,21 @@ void test_indexes(session &s)
 	assert(all_result[0].indexes.size() == indexes.size());
 }
 
-static void memory_test(session &s)
+static void test_stat_log(session &s)
 {
-	struct rusage start, end;
-
-	getrusage(RUSAGE_SELF, &start);
-	memory_test_io(s, 1000);
-	getrusage(RUSAGE_SELF, &end);
-	std::cerr << "IO leaked: " << end.ru_maxrss - start.ru_maxrss << " Kb\n";
+	auto result = s.stat_log();
+	for (auto it = result.begin(); it != result.end(); ++it) {
+		/* TODO: print stats */
+	}
 }
 
-void usage(char *p)
+static void usage(char *p)
 {
 	fprintf(stderr, "Usage: %s <options>\n"
+			"  -R                   - read recovery test\n"
 			"  -r host              - remote host name\n"
 			"  -p port              - remote port\n"
 			"  -g group_id          - group_id for range request and bulk write\n"
-			"  -w                   - write cache before read\n"
-			"  -m                   - start client's memory leak test (rather long - several minutes, and space consuming)\n"
 			, p);
 	exit(-1);
 }
@@ -707,13 +705,13 @@ int main(int argc, char *argv[])
 	int g[] = { 2 };
 	std::vector<int> groups(g, g+ARRAY_SIZE(g));
 	const char *host = "localhost";
-	int port = 1025;
-	int ch, write_cache = 0;
-	int mem_check = 0;
-	int group_id = 2;
+	int ch, read_recovery = 0, group_id = 2, port = 1025;
 
-	while ((ch = getopt(argc, argv, "mr:p:g:wh")) != -1) {
+	while ((ch = getopt(argc, argv, "Rr:p:g:h")) != -1) {
 		switch (ch) {
+			case 'R':
+				read_recovery = 1;
+				break;
 			case 'r':
 				host = optarg;
 				break;
@@ -723,13 +721,6 @@ int main(int argc, char *argv[])
 			case 'g':
 				group_id = atoi(optarg);
 				break;
-			case 'w':
-				write_cache = 1;
-				break;
-			case 'm':
-				mem_check = 1;
-				break;
-			case 'h':
 			default:
 				usage(argv[0]);
 		}
@@ -743,63 +734,21 @@ int main(int argc, char *argv[])
 		session s(n);
 		s.set_groups(groups);
 
-
-//		s.set_filter(all());
-//		s.set_policy(session::at_least(5));
-
-////		s.write_data(id, data, 0).connect(handler);
-//		for (auto entry : s.write_data(id, data, 0)) {
-//			...
-//		}
-
 		try {
 			n.add_remote(host, port, AF_INET);
 		} catch (...) {
 			throw std::runtime_error("Could not add remote nodes, exiting");
 		}
 
+		test_trivial_write(s);
+
 		test_indexes(s);
-		return 0;
-
-//		test_read_recovery(s);
-
-		std::string str;
-		str.assign(300, 'c');
-		s.write_data(key("123"), str, 0).wait();
-
-//		{
-//			s.set_cflags(DNET_FLAGS_NOLOCK);
-//			auto result = s.exec(NULL, "queue@test", data_pointer());
-//			for (auto it = result.begin(); it != result.end(); ++it) {
-//				auto result = *it;
-//				if (result.error()) {
-//					error_info error = result.error();
-//					std::cout << dnet_server_convert_dnet_addr(result.address())
-//						<< ": failed to process: \"" << error.message() << "\": " << error.code() << std::endl;
-//				} else {
-//					exec_context context = result.context();
-//					if (context.is_null()) {
-//						std::cout << dnet_server_convert_dnet_addr(result.address())
-//							<< ": acknowledge" << std::endl;
-//					} else {
-//						std::cout << dnet_server_convert_dnet_addr(context.address())
-//							<< ": " << context.event()
-//							<< " \"" << context.data().to_string() << "\"" << std::endl;
-//					}
-//				}
-//			}
-//		}
-//		return 0;
 
 		test_range_request_2(s, 0, 255, group_id);
 		test_range_request_2(s, 3, 14, group_id);
 		test_range_request_2(s, 7, 3, group_id);
 
 		test_lookup(s, groups);
-
-		s.stat_log();
-
-		s.set_ioflags(0);
 
 		test_commit(s);
 
@@ -808,13 +757,6 @@ int main(int argc, char *argv[])
 		test_prepare_commit(s, 0, 1);
 		test_prepare_commit(s, 1, 1);
 
-		const uint64_t cflags = s.get_cflags();
-		test_range_request(s, 0, 0, 0, group_id);
-		test_range_request(s, 0, 0, DNET_ATTR_SORT, group_id);
-		test_range_request(s, 1, 0, 0, group_id);
-		test_range_request(s, 0, 1, 0, group_id);
-		s.set_cflags(cflags);
-
 		test_append(s);
 		test_read_write_offsets(s);
 		test_cas(s);
@@ -822,21 +764,16 @@ int main(int argc, char *argv[])
 		test_bulk_write(s);
 		test_bulk_read(s);
 
-		if (mem_check)
-			memory_test(s);
-
-		if (write_cache)
-			test_cache_write(s, 1000);
-
 		test_cache_write(s, 1000);
 		test_cache_read(s, 1000);
 		test_cache_delete(s, 1000);
 
-		test_indexes(s);
+		memory_test_io(s, 1000);
 
-//	} catch (const std::exception &e) {
-//		std::cerr << "Error occurred : " << e.what() << std::endl;
-//		return 1;
+		if (read_recovery != 0)
+			test_read_recovery(s);
+
+		test_stat_log(s);
 	} catch (int err) {
 		std::cerr << "Error : " << err << std::endl;
 		return 1;
