@@ -164,8 +164,6 @@ int __attribute__((weak)) dnet_send_read_data(void *state, struct dnet_cmd *cmd,
  * If @id is set, it is used as a main object ID, otherwise @file transformation
  * is used as object ID.
  *
- * @type is column type, only meaningful with eblob backend, otherwise it is unused
- *
  * Returns negative error value in case of error.
  *
  * dnet_read_file_direct() works the same way except it sets DNET_FLAGS_DIRECT flag,

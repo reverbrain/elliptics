@@ -1358,14 +1358,14 @@ BOOST_PYTHON_MODULE(elliptics)
 		.def("read_latest", &elliptics_session::read_latest_by_id,
 			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("read_latest", &elliptics_session::read_latest_by_data_transform,
-			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0, bp::arg("column") = 0))
+			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("read_latest_async", &elliptics_session::read_latest_async,
 		     (bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 
 		.def("write_data", &elliptics_session::write_data_by_id,
 			(bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0))
 		.def("write_data", &elliptics_session::write_data_by_data_transform,
-			(bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0, bp::arg("column") = 0))
+			(bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0))
 		.def("write_data_async", &elliptics_session::write_data_async,
 			(bp::arg("io_attr"), bp::arg("data")))
 
