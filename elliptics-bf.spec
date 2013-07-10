@@ -15,11 +15,11 @@ BuildRequires:	gcc44 gcc44-c++
 %else
 BuildRequires:  python-devel
 %endif
-BuildRequires:	eblob-devel >= 0.21.1
+BuildRequires:	eblob-devel >= 0.21.2
 BuildRequires:	cmake msgpack-devel
 
 %if %{defined rhel} && 0%{?rhel} < 6
-%define boost_ver 153
+%define boost_ver 141
 %else
 %define boost_ver %{nil}
 %endif
