@@ -102,9 +102,6 @@ if __name__ == '__main__':
 	# Then on remote node you should rename this file to needed name
 	# (if you have data.3 file in elliptics blob dir, this may be data.4)
 	# and then restart ioserv, it will catch up new blobs and start serving requests
-	# Be careful with different columns - blobs with names like 'data-1'
-	# This tool does not know what column this data has, it will create output
-	# files with this prefix only and described above suffix
 	outdir='/srv/data/new'
 
 	# please note that after merge process completed you should remove sorted index
