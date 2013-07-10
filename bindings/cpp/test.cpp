@@ -214,11 +214,16 @@ static void test_append(session &s)
 		std::string key = "append-test";
 		std::string data1 = "first part of the message";
 		std::string data2 = " | second part of the message";
+		std::string non_existent_key = "append-non-e";
+		std::string non_existent_value = "APPEND";
 
 		// Cleanup previous test reincarnation
 		try {
 			s.remove(key).wait();
-		} catch (const std::exception &e) {}
+		} catch (...) {}
+		try {
+			s.remove(non_existent_key).wait();
+		} catch (...) {}
 
 		// Write data
 		s.write_data(key, data1, 0).wait();
@@ -226,16 +231,19 @@ static void test_append(session &s)
 		// Append
 		s.set_ioflags(DNET_IO_FLAGS_APPEND);
 		s.write_data(key, data2, 0).wait();
+		s.write_data(non_existent_key, non_existent_value, 0).wait();
 		s.set_ioflags(0);
 
 		// Read
-		std::string result;
-		result = s.read_data(key, 0, 0).get()[0].file().to_string();
-		std::cerr << key << ": " << result << std::endl;
+		std::string result1, result2;
+		result1 = s.read_data(key, 0, 0).get()[0].file().to_string();
+		result2 = s.read_data(non_existent_key, 0, 0).get()[0].file().to_string();
 
 		// Check
-		if (result != (data1 + data2))
-			throw std::runtime_error(data1 + data2 + " != " + result);
+		if (result1 != (data1 + data2))
+			throw std::runtime_error(data1 + data2 + " != " + result1);
+		if (result2 != non_existent_value)
+			throw std::runtime_error(non_existent_value + " != " + result2);
 	} catch (const std::exception &e) {
 		std::cerr << "APPEND test failed: " << e.what() << std::endl;
 		throw;
