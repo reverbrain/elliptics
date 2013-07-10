@@ -129,6 +129,7 @@ static struct dnet_work_pool *dnet_work_pool_alloc(struct dnet_node *n, int num,
 	pool->mode = mode;
 	pool->n = n;
 	INIT_LIST_HEAD(&pool->list);
+	list_stat_init(&pool->list_stats);
 	INIT_LIST_HEAD(&pool->wio_list);
 
 	err = pthread_mutex_init(&pool->lock, NULL);
@@ -159,6 +160,22 @@ err_out_exit:
 	return NULL;
 }
 
+/* As an example (with hardcoded loglevel and one second interval) */
+static inline void list_stat_log(struct list_stat *st, struct dnet_node *node, const char *list_name) {
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+
+	if ((tv.tv_sec - st->time_base.tv_sec) >= 1) {
+		double elapsed_seconds = (double)(tv.tv_sec - st->time_base.tv_sec) * 1000000 + (tv.tv_usec - st->time_base.tv_usec);
+		elapsed_seconds /= 1000000;
+		dnet_log(node, DNET_LOG_INFO, "%s report: elapsed: %.3f s, current size: %ld, min: %ld, max: %ld, volume: %ld\n",
+			list_name, elapsed_seconds, st->list_size, st->min_list_size, st->max_list_size, st->volume);
+
+		list_stat_reset(st, &tv);
+	}
+}
+
+
 static void *dnet_io_process(void *data_);
 static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 {
@@ -187,6 +204,8 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 
 	pthread_mutex_lock(&pool->lock);
 	list_add_tail(&r->req_entry, &pool->list);
+	list_stat_size_increase(&pool->list_stats, 1);
+	list_stat_log(&pool->list_stats, r->st->n, "input io queue");	
 	pthread_cond_signal(&pool->wait);
 	pthread_mutex_unlock(&pool->lock);
 }
@@ -712,6 +731,7 @@ static void *dnet_io_process(void *data_)
 
 		if (r) {
 			list_del_init(&r->req_entry);
+			list_stat_size_decrease(&pool->list_stats, 1);
 		}
 		pthread_mutex_unlock(&pool->lock);
 
