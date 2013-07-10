@@ -220,10 +220,10 @@ static void test_append(session &s)
 		// Cleanup previous test reincarnation
 		try {
 			s.remove(key).wait();
-		} catch (...) {}
+		} catch (not_found_error) {}
 		try {
 			s.remove(non_existent_key).wait();
-		} catch (...) {}
+		} catch (not_found_error) {}
 
 		// Write data
 		s.write_data(key, data1, 0).wait();
@@ -642,7 +642,7 @@ static void test_read_recovery(session &s)
 	/* Cleanup previous reincarnation of test */
 	try {
 		s_all.remove(id).wait();
-	} catch (...) {}
+	} catch (not_found_error) {}
 
 	/* Write data */
 	s_all.write_data(id, data, 0).wait();
