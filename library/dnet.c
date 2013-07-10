@@ -1532,7 +1532,7 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
 			(unsigned long long)io->offset,	(unsigned long long)io->size);
 
-	/* only populate data which has zero offset and from column 0 */
+	/* only populate data which has zero offset and cache flag */
 	if ((io->flags & DNET_IO_FLAGS_CACHE) && !io->offset) {
 		err = dnet_populate_cache(st->n, c, rio, data, fd, offset, io->size);
 	}
