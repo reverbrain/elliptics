@@ -65,7 +65,7 @@ class exec_context
 		//NOTE: dangerous, use with care
 		dnet_raw_id *src_id() const;
 
-		// access to "sub id" supplement to src_id 
+		// access to "sub id" supplement to src_id
 		// also allows to change it on the fly
 		//NOTE: dangerous, use with care
 		int src_key() const;
@@ -223,13 +223,11 @@ typedef lookup_result_entry write_result_entry;
 
 struct index_entry
 {
-    index_entry()
-    {
-    }
+	index_entry()
+	{}
 
-    index_entry(const dnet_raw_id &index, const data_pointer &data) : index(index), data(data)
-    {
-    }
+	index_entry(const dnet_raw_id &index, const data_pointer &data) : index(index), data(data)
+	{}
 
 	dnet_raw_id index;
 	data_pointer data;

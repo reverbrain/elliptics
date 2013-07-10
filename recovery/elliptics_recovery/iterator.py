@@ -259,7 +259,7 @@ class Iterator(object):
             yield last % batch_size
             yield result
         except Exception as e:
-            self.log.error("Iteration failed: {0}".format(repr(e)))
+            self.log.error("Iteration failed: {0}".format(e))
             yield None
 
     @classmethod
