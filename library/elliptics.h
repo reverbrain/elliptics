@@ -25,6 +25,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <time.h>
+#include <limits.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -333,11 +334,51 @@ struct dnet_work_io {
 	struct dnet_work_pool	*pool;
 };
 
+struct list_stat {
+	uint64_t		list_size;
+	uint64_t		volume;
+	uint64_t		min_list_size;
+	uint64_t		max_list_size;
+	struct timeval	time_base;
+};
+
+static inline void list_stat_init(struct list_stat *st) {
+	st->list_size = 0ULL;
+	st->volume = 0ULL;
+	st->min_list_size = ULLONG_MAX;
+	st->max_list_size = 0ULL;
+	memset(&st->time_base, 0, sizeof(struct timeval));
+}
+
+static inline void list_stat_size_increase(struct list_stat *st, int num) {
+	st->list_size += num;
+
+	st->volume += num;
+	if (st->list_size > st->max_list_size)
+		st->max_list_size = st->list_size;
+}
+
+static inline void list_stat_size_decrease(struct list_stat *st, int num) {
+	st->list_size -= num;
+
+	if (st->list_size < st->min_list_size)
+		st->min_list_size = st->list_size;
+}
+
+static inline void list_stat_reset(struct list_stat *st, struct timeval *time) {
+	st->volume = 0ULL;
+	st->min_list_size = ULLONG_MAX;
+	st->max_list_size = 0ULL;
+	st->time_base.tv_sec = time->tv_sec;
+	st->time_base.tv_usec = time->tv_usec;
+}
+
 struct dnet_work_pool {
 	struct dnet_node	*n;
 	int			mode;
 	int			num;
 	struct list_head	list;
+	struct list_stat	list_stats;
 	pthread_mutex_t		lock;
 	pthread_cond_t		wait;
 	struct list_head	wio_list;
