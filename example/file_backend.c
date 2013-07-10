@@ -556,7 +556,7 @@ static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c,
 	memset(&ecfg, 0, sizeof(ecfg));
 	ecfg.file = meta_path;
 	ecfg.sync = r->sync;
-	ecfg.blob_flags = EBLOB_NO_FREE_SPACE_CHECK;
+	ecfg.blob_flags = EBLOB_NO_FREE_SPACE_CHECK | EBLOB_AUTO_DATASORT;
 	ecfg.records_in_blob = r->records_in_blob;
 	ecfg.blob_size = r->blob_size;
 	ecfg.defrag_percentage = r->defrag_percentage;
