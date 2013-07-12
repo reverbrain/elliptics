@@ -1113,8 +1113,7 @@ bp::list find_indexes_result_get_indexes(find_indexes_result_entry &result)
 	bp::list ret;
 
 	for (auto it = result.indexes.begin(), end = result.indexes.end(); it != end; ++it) {
-		ret.append(bp::make_tuple(elliptics_id(convert_to_list(it->index.id, sizeof(it->index.id)), 0),
-			   it->data.to_string()));
+		ret.append(*it);
 	}
 
 	return ret;

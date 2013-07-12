@@ -30,13 +30,13 @@ r = s.find_any_indexes([test_ind])
 r.wait()
 assert r.successful()
 assert len(r.get()) >= 1
-assert r.get()[0].indexes[0][1] == test_data
+assert r.get()[0].indexes[0].data == test_data
 
 r = s.find_all_indexes([test_ind])
 r.wait()
 assert r.successful()
 assert len(r.get()) >= 1
-assert r.get()[0].indexes[0][1] == test_data
+assert r.get()[0].indexes[0].data == test_data
 
 r = s.list_indexes(s.transform(test_id))
 r.wait()
@@ -49,10 +49,10 @@ z = s.find_any_indexes_raw([s.transform(test_ind)])
 z.wait()
 assert z.successful()
 assert len(z.get()) >= 1
-assert z.get()[0].indexes[0][1] == test_data
+assert z.get()[0].indexes[0].data == test_data
 
 z = s.find_all_indexes_raw([s.transform(test_ind)])
 z.wait()
 assert z.successful()
 assert len(z.get()) >= 1
-assert z.get()[0].indexes[0][1] == test_data
+assert z.get()[0].indexes[0].data == test_data
