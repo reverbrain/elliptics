@@ -80,13 +80,11 @@ static void ioserv_destroy_handler(int sig __unused, siginfo_t *si __unused, voi
 	dnet_set_need_exit(global_n);
 }
 
-extern char *dnet_logger_value;
-struct dnet_config_backend;
-extern int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value);
+extern int dnet_node_reset_log(struct dnet_node *n);
 
 static void ioserv_reload_handler(int sig __unused, siginfo_t *si __unused, void *uc __unused)
 {
-	dnet_set_log(NULL, NULL, dnet_logger_value);
+	dnet_node_reset_log(global_n);
 }
 
 static void ioserv_sigchild_handler(int sig __unused, siginfo_t *si __unused, void *uc __unused)

@@ -36,6 +36,8 @@
 #include "elliptics/interface.h"
 #include "elliptics/backends.h"
 
+#include "../library/elliptics.h"
+
 #include "common.h"
 
 #ifndef __unused
@@ -66,52 +68,44 @@ static char *dnet_skip_line(char *line)
 	return NULL;
 }
 
-static struct dnet_log dnet_backend_logger;
-char *dnet_logger_value;
-
-static int dnet_cfg_addr_num;
-static struct dnet_addr *dnet_cfg_addrs;
-
-static struct dnet_config dnet_cfg_state;
-static char *dnet_cfg_remotes;
-static int dnet_daemon_mode;
+static struct dnet_config_data *dnet_cur_cfg_data;
 
 static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, char *str)
 {
 	unsigned long value = strtoul(str, NULL, 0);
 
 	if (!strcmp(key, "log_level"))
-		dnet_backend_logger.log_level = value;
+		dnet_cur_cfg_data->backend_logger.log_level = value;
 	else if (!strcmp(key, "wait_timeout"))
-		dnet_cfg_state.wait_timeout = value;
+		dnet_cur_cfg_data->cfg_state.wait_timeout = value;
 	else if (!strcmp(key, "check_timeout"))
-		dnet_cfg_state.check_timeout = value;
+		dnet_cur_cfg_data->cfg_state.check_timeout = value;
 	else if (!strcmp(key, "stall_count"))
-		dnet_cfg_state.stall_count = value;
+		dnet_cur_cfg_data->cfg_state.stall_count = value;
 	else if (!strcmp(key, "join"))
-		dnet_cfg_state.flags |= value ? DNET_CFG_JOIN_NETWORK : 0;
+		dnet_cur_cfg_data->cfg_state.flags |= value ? DNET_CFG_JOIN_NETWORK : 0;
 	else if (!strcmp(key, "flags"))
-		dnet_cfg_state.flags |= (value & ~DNET_CFG_JOIN_NETWORK);
+		dnet_cur_cfg_data->cfg_state.flags |= (value & ~DNET_CFG_JOIN_NETWORK);
 	else if (!strcmp(key, "daemon"))
-		dnet_daemon_mode = value;
+		dnet_cur_cfg_data->daemon_mode = value;
 	else if (!strcmp(key, "io_thread_num"))
-		dnet_cfg_state.io_thread_num = value;
+		dnet_cur_cfg_data->cfg_state.io_thread_num = value;
 	else if (!strcmp(key, "nonblocking_io_thread_num"))
-		dnet_cfg_state.nonblocking_io_thread_num = value;
+		dnet_cur_cfg_data->cfg_state.nonblocking_io_thread_num = value;
 	else if (!strcmp(key, "net_thread_num"))
-		dnet_cfg_state.net_thread_num = value;
+		dnet_cur_cfg_data->cfg_state.net_thread_num = value;
 	else if (!strcmp(key, "bg_ionice_class"))
-		dnet_cfg_state.bg_ionice_class = value;
+		dnet_cur_cfg_data->cfg_state.bg_ionice_class = value;
 	else if (!strcmp(key, "bg_ionice_prio"))
-		dnet_cfg_state.bg_ionice_prio = value;
+		dnet_cur_cfg_data->cfg_state.bg_ionice_prio = value;
 	else if (!strcmp(key, "removal_delay"))
-		dnet_cfg_state.removal_delay = value;
+		dnet_cur_cfg_data->cfg_state.removal_delay = value;
 	else if (!strcmp(key, "server_net_prio"))
-		dnet_cfg_state.server_prio = value;
+		dnet_cur_cfg_data->cfg_state.server_prio = value;
 	else if (!strcmp(key, "client_net_prio"))
-		dnet_cfg_state.client_prio = value;
+		dnet_cur_cfg_data->cfg_state.client_prio = value;
 	else if (!strcmp(key, "indexes_shard_count"))
-		dnet_cfg_state.indexes_shard_count = value;
+		dnet_cur_cfg_data->cfg_state.indexes_shard_count = value;
 	else
 		return -1;
 
@@ -120,7 +114,7 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 
 static int dnet_set_group(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
-	dnet_cfg_state.group_id = strtoul(value, NULL, 0);
+	dnet_cur_cfg_data->cfg_state.group_id = strtoul(value, NULL, 0);
 	return 0;
 }
 
@@ -173,11 +167,11 @@ static int dnet_set_addr(struct dnet_config_backend *b __unused, char *key __unu
 			addr_group = atoi(addr_group_ptr);
 		}
 
-		err = dnet_parse_addr(value, &dnet_cfg_state.port, &dnet_cfg_state.family);
+		err = dnet_parse_addr(value, &dnet_cur_cfg_data->cfg_state.port, &dnet_cur_cfg_data->cfg_state.family);
 		if (!err) {
 			addr.addr_len = sizeof(addr.addr);
-			addr.family = dnet_cfg_state.family;
-			err = dnet_fill_addr(&addr, value, dnet_cfg_state.port, SOCK_STREAM, IPPROTO_TCP);
+			addr.family = dnet_cur_cfg_data->cfg_state.family;
+			err = dnet_fill_addr(&addr, value, dnet_cur_cfg_data->cfg_state.port, SOCK_STREAM, IPPROTO_TCP);
 			if (err) {
 				dnet_backend_log(DNET_LOG_ERROR, "backend: %s: could not parse addr: %s [%d]\n", value, strerror(-err), err);
 			} else {
@@ -205,15 +199,15 @@ static int dnet_set_addr(struct dnet_config_backend *b __unused, char *key __unu
 	if (wrap_num) {
 		qsort(wrap, wrap_num, sizeof(struct dnet_addr_wrap), dnet_addr_wrap_compare);
 
-		dnet_cfg_addrs = malloc(sizeof(struct dnet_addr) * wrap_num);
-		if (!dnet_cfg_addrs) {
+		dnet_cur_cfg_data->cfg_addrs = malloc(sizeof(struct dnet_addr) * wrap_num);
+		if (!dnet_cur_cfg_data->cfg_addrs) {
 			err = -ENOMEM;
 			goto err_out_free;
 		}
 
 		for (i = 0; i < wrap_num; ++i)
-			dnet_cfg_addrs[i] = wrap[i].addr;
-		dnet_cfg_addr_num = wrap_num;
+			dnet_cur_cfg_data->cfg_addrs[i] = wrap[i].addr;
+		dnet_cur_cfg_data->cfg_addr_num = wrap_num;
 
 		err = 0;
 	}
@@ -226,8 +220,8 @@ err_out_exit:
 
 static int dnet_set_remote_addrs(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
-	dnet_cfg_remotes = strdup(value);
-	if (!dnet_cfg_remotes)
+	dnet_cur_cfg_data->cfg_remotes = strdup(value);
+	if (!dnet_cur_cfg_data->cfg_remotes)
 		return -ENOMEM;
 
 	return 0;
@@ -238,7 +232,7 @@ static int dnet_set_srw(struct dnet_config_backend *b __unused, char *key, char 
 	char **ptr = NULL;
 
 	if (!strcmp(key, "srw_config"))
-		ptr = &dnet_cfg_state.srw.config;
+		ptr = &dnet_cur_cfg_data->cfg_state.srw.config;
 
 	if (ptr) {
 		free(*ptr);
@@ -266,13 +260,13 @@ static int dnet_set_malloc_options(struct dnet_config_backend *b __unused, char 
 
 static int dnet_set_auth_cookie(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
-	snprintf(dnet_cfg_state.cookie, DNET_AUTH_COOKIE_SIZE, "%s", value);
+	snprintf(dnet_cur_cfg_data->cfg_state.cookie, DNET_AUTH_COOKIE_SIZE, "%s", value);
 	return 0;
 }
 
 static int dnet_set_backend(struct dnet_config_backend *b, char *key __unused, char *value);
-	
-int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+
+static int dnet_node_set_log_impl(struct dnet_config_data *data, char *value)
 {
 	char *tmp;
 
@@ -280,29 +274,29 @@ int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, cha
 	if (!tmp)
 		return -ENOMEM;
 
-	if (dnet_logger_value)
-		free(dnet_logger_value);
+	if (data->logger_value)
+		free(data->logger_value);
 
-	dnet_logger_value = tmp;
+	data->logger_value = tmp;
 
-	if (!strcmp(dnet_logger_value, "syslog")) {
+	if (!strcmp(data->logger_value, "syslog")) {
 		openlog("elliptics", 0, LOG_USER);
 
-		dnet_backend_logger.log_private = NULL;
-		dnet_backend_logger.log = dnet_syslog;
+		data->backend_logger.log_private = NULL;
+		data->backend_logger.log = dnet_syslog;
 	} else {
-		FILE *log, *old = dnet_backend_logger.log_private;
+		FILE *log, *old = data->backend_logger.log_private;
 		int err;
 
-		log = fopen(dnet_logger_value, "a");
+		log = fopen(data->logger_value, "a");
 		if (!log) {
 			err = -errno;
-			fprintf(stderr, "cnf: failed to open log file '%s': %s\n", dnet_logger_value, strerror(errno));
+			fprintf(stderr, "cnf: failed to open log file '%s': %s\n", data->logger_value, strerror(errno));
 			return err;
 		}
 
-		dnet_backend_logger.log_private = log;
-		dnet_backend_logger.log = dnet_common_log;
+		data->backend_logger.log_private = log;
+		data->backend_logger.log = dnet_common_log;
 
 		dnet_common_log(log, 0xff, "Reopened log file\n");
 
@@ -312,19 +306,29 @@ int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, cha
 		}
 	}
 
-	dnet_cfg_state.log = &dnet_backend_logger;
+	data->cfg_state.log = &data->backend_logger;
 	return 0;
+}
+
+int dnet_node_reset_log(struct dnet_node *n)
+{
+	return dnet_node_set_log_impl(n->config_data, n->config_data->logger_value);
+}
+	
+static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	return dnet_node_set_log_impl(dnet_cur_cfg_data, value);
 }
 
 static int dnet_set_history_env(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
-	snprintf(dnet_cfg_state.history_env, sizeof(dnet_cfg_state.history_env), "%s", value);
+	snprintf(dnet_cur_cfg_data->cfg_state.history_env, sizeof(dnet_cur_cfg_data->cfg_state.history_env), "%s", value);
 	return 0;
 }
 
 static int dnet_set_cache_size(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
-	dnet_cfg_state.cache_size = strtoull(value, NULL, 0);
+	dnet_cur_cfg_data->cfg_state.cache_size = strtoull(value, NULL, 0);
 	return 0;
 }
 
@@ -357,19 +361,13 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"indexes_shard_count", dnet_simple_set},
 };
 
-static struct dnet_config_entry *dnet_cur_cfg_entries = dnet_cfg_entries;
-static int dnet_cur_cfg_size = ARRAY_SIZE(dnet_cfg_entries);
-
-static struct dnet_config_backend *dnet_cfg_backend, *dnet_cfg_current_backend;
-static int dnet_cfg_backend_num;
-
 static int dnet_set_backend(struct dnet_config_backend *current_backend __unused, char *key __unused, char *value)
 {
 	struct dnet_config_backend *b;
 	int i;
 
-	for (i=0; i<dnet_cfg_backend_num; ++i) {
-		b = &dnet_cfg_backend[i];
+	for (i=0; i<dnet_cur_cfg_data->cfg_backend_num; ++i) {
+		b = &dnet_cur_cfg_data->cfg_backend[i];
 
 		if (!strcmp(value, b->name)) {
 			if (b->size) {
@@ -379,11 +377,11 @@ static int dnet_set_backend(struct dnet_config_backend *current_backend __unused
 				memset(b->data, 0, b->size);
 			}
 
-			b->log = dnet_cfg_state.log;
+			b->log = dnet_cur_cfg_data->cfg_state.log;
 
-			dnet_cur_cfg_entries = b->ent;
-			dnet_cur_cfg_size = b->num;
-			dnet_cfg_current_backend = b;
+			dnet_cur_cfg_data->cfg_entries = b->ent;
+			dnet_cur_cfg_data->cfg_size = b->num;
+			dnet_cur_cfg_data->cfg_current_backend = b;
 
 			return 0;
 		}
@@ -394,17 +392,17 @@ static int dnet_set_backend(struct dnet_config_backend *current_backend __unused
 
 int dnet_backend_register(struct dnet_config_backend *b)
 {
-	dnet_cfg_backend = realloc(dnet_cfg_backend, (dnet_cfg_backend_num + 1) * sizeof(struct dnet_config_backend));
-	if (!dnet_cfg_backend)
+	dnet_cur_cfg_data->cfg_backend = realloc(dnet_cur_cfg_data->cfg_backend, (dnet_cur_cfg_data->cfg_backend_num + 1) * sizeof(struct dnet_config_backend));
+	if (!dnet_cur_cfg_data->cfg_backend)
 		return -ENOMEM;
 
-	memcpy(&dnet_cfg_backend[dnet_cfg_backend_num], b, sizeof(struct dnet_config_backend));
-	dnet_cfg_backend_num++;
+	memcpy(&dnet_cur_cfg_data->cfg_backend[dnet_cur_cfg_data->cfg_backend_num], b, sizeof(struct dnet_config_backend));
+	dnet_cur_cfg_data->cfg_backend_num++;
 
 	return 0;
 }
 
-struct dnet_node *dnet_parse_config(char *file, int mon)
+struct dnet_node *dnet_parse_config(const char *file, int mon)
 {
 	FILE *f;
 	int buf_size = 1024 * 1024;
@@ -418,11 +416,21 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 	pthread_sigmask(SIG_BLOCK, &sig, NULL);
 	sigprocmask(SIG_BLOCK, &sig, NULL);
 
+	dnet_cur_cfg_data = malloc(sizeof(struct dnet_config_data));
+	if (!dnet_cur_cfg_data) {
+		err = -ENOMEM;
+		goto err_out_exit;
+	}
+
+	memset(dnet_cur_cfg_data, 0, sizeof(struct dnet_config_data));
+	dnet_cur_cfg_data->cfg_entries = dnet_cfg_entries;
+	dnet_cur_cfg_data->cfg_size = ARRAY_SIZE(dnet_cfg_entries);
+
 	f = fopen(file, "r");
 	if (!f) {
 		err = -errno;
 		fprintf(stderr, "cnf: failed to open config file '%s': %s.\n", file, strerror(errno));
-		goto err_out_exit;
+		goto err_out_free_data;
 	}
 
 	buf = malloc(buf_size);
@@ -431,9 +439,9 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 		goto err_out_close;
 	}
 
-	dnet_backend_logger.log_level = DNET_LOG_DEBUG;
-	dnet_backend_logger.log = dnet_common_log;
-	dnet_cfg_state.log = &dnet_backend_logger;
+	dnet_cur_cfg_data->backend_logger.log_level = DNET_LOG_DEBUG;
+	dnet_cur_cfg_data->backend_logger.log = dnet_common_log;
+	dnet_cur_cfg_data->cfg_state.log = &dnet_cur_cfg_data->backend_logger;
 
 	err = dnet_file_backend_init();
 	if (err)
@@ -528,11 +536,11 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 		if (!key || !value)
 			continue;
 
-		for (i=0; i<dnet_cur_cfg_size; ++i) {
-			if (!strcmp(key, dnet_cur_cfg_entries[i].key)) {
-				err = dnet_cur_cfg_entries[i].callback(dnet_cfg_current_backend, key, value);
+		for (i=0; i<dnet_cur_cfg_data->cfg_size; ++i) {
+			if (!strcmp(key, dnet_cur_cfg_data->cfg_entries[i].key)) {
+				err = dnet_cur_cfg_data->cfg_entries[i].callback(dnet_cur_cfg_data->cfg_current_backend, key, value);
 				dnet_backend_log(DNET_LOG_INFO, "backend: %s, key: %s, value: %s, err: %d\n",
-						(dnet_cfg_current_backend) ? dnet_cfg_current_backend->name : "root level",
+						(dnet_cur_cfg_data->cfg_current_backend) ? dnet_cur_cfg_data->cfg_current_backend->name : "root level",
 						ptr, value, err);
 				if (err)
 					goto err_out_free;
@@ -542,33 +550,33 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 		}
 	}
 
-	if (!dnet_cfg_current_backend) {
+	if (!dnet_cur_cfg_data->cfg_current_backend) {
 		err = -EINVAL;
 		goto err_out_free;
 	}
 
-	if (dnet_daemon_mode && !mon)
+	if (dnet_cur_cfg_data->daemon_mode && !mon)
 		dnet_background();
 
-	err = dnet_cfg_current_backend->init(dnet_cfg_current_backend, &dnet_cfg_state);
+	err = dnet_cur_cfg_data->cfg_current_backend->init(dnet_cur_cfg_data->cfg_current_backend, &dnet_cur_cfg_data->cfg_state);
 	if (err)
 		goto err_out_free;
 
 	fclose(f);
 	f = NULL;
 
-	if (!dnet_cfg_addr_num) {
+	if (!dnet_cur_cfg_data->cfg_addr_num) {
 		dnet_backend_log(DNET_LOG_ERROR, "No local address specified, exiting.\n");
 		goto err_out_free;
 	}
 
-	n = dnet_server_node_create(&dnet_cfg_state, dnet_cfg_addrs, dnet_cfg_addr_num);
+	n = dnet_server_node_create(dnet_cur_cfg_data, &dnet_cur_cfg_data->cfg_state, dnet_cur_cfg_data->cfg_addrs, dnet_cur_cfg_data->cfg_addr_num);
 	if (!n) {
 		/* backend cleanup is already called */
 		goto err_out_free;
 	}
 
-	err = dnet_common_add_remote_addr(n, dnet_cfg_remotes);
+	err = dnet_common_add_remote_addr(n, dnet_cur_cfg_data->cfg_remotes);
 	if (err)
 		goto err_out_node_destroy;
 
@@ -579,7 +587,7 @@ struct dnet_node *dnet_parse_config(char *file, int mon)
 err_out_node_destroy:
 	dnet_server_node_destroy(n);
 err_out_free:
-	free(dnet_cfg_remotes);
+	free(dnet_cur_cfg_data->cfg_remotes);
 
 err_out_eblob_exit:
 	dnet_eblob_backend_exit();
@@ -594,13 +602,16 @@ err_out_free_buf:
 err_out_close:
 	if (f)
 		fclose(f);
+err_out_free_data:
+	free(dnet_cur_cfg_data);
 err_out_exit:
+	dnet_cur_cfg_data = NULL;
 	return NULL;
 }
 
 int dnet_backend_check_log_level(int level)
 {
-	struct dnet_log *l = dnet_cfg_state.log;
+	struct dnet_log *l = dnet_cur_cfg_data->cfg_state.log;
 
 	return (l->log && (l->log_level >= level));
 }
@@ -609,7 +620,7 @@ void dnet_backend_log_raw(int level, const char *format, ...)
 {
 	va_list args;
 	char buf[1024];
-	struct dnet_log *l = dnet_cfg_state.log;
+	struct dnet_log *l = dnet_cur_cfg_data->cfg_state.log;
 	int buflen = sizeof(buf);
 
 	if (!dnet_backend_check_log_level(level))

@@ -383,6 +383,26 @@ void dnet_oplock(struct dnet_node *n, struct dnet_id *key);
 void dnet_opunlock(struct dnet_node *n, struct dnet_id *key);
 int dnet_optrylock(struct dnet_node *n, struct dnet_id *key);
 
+struct dnet_config_data
+{
+	struct dnet_log backend_logger;
+	char *logger_value;
+
+	int cfg_addr_num;
+	struct dnet_addr *cfg_addrs;
+
+	struct dnet_config cfg_state;
+	char *cfg_remotes;
+	int daemon_mode;
+
+	struct dnet_config_entry *cfg_entries;
+	int cfg_size;
+	struct dnet_config_backend *cfg_current_backend;
+
+	struct dnet_config_backend *cfg_backend;
+	int cfg_backend_num;
+};
+
 struct dnet_node
 {
 	struct list_head	check_entry;
@@ -471,6 +491,8 @@ struct dnet_node
 
 	size_t			cache_size;
 	void			*cache;
+
+	struct dnet_config_data *config_data;
 };
 
 

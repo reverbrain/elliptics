@@ -192,7 +192,7 @@ err_out_exit:
 	return err;
 }
 
-struct dnet_node *dnet_server_node_create(struct dnet_config *cfg, struct dnet_addr *addrs, int addr_num)
+struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, struct dnet_config *cfg, struct dnet_addr *addrs, int addr_num)
 {
 	struct dnet_node *n;
 	struct dnet_raw_id *ids = NULL;
@@ -211,6 +211,8 @@ struct dnet_node *dnet_server_node_create(struct dnet_config *cfg, struct dnet_a
 	n = dnet_node_create(cfg);
 	if (!n)
 		goto err_out_exit;
+
+	n->config_data = cfg_data;
 
 	err = dnet_node_check_stack(n);
 	if (err)
@@ -319,6 +321,8 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_local_addr_cleanup(n);
 	dnet_cache_cleanup(n);
 	dnet_notify_exit(n);
+
+	free(n->config_data);
 
 	free(n);
 }
