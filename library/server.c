@@ -322,7 +322,13 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_cache_cleanup(n);
 	dnet_notify_exit(n);
 
-	free(n->config_data);
+	if (n->config_data) {
+		free(n->config_data->logger_value);
+		free(n->config_data->cfg_addrs);
+		free(n->config_data->cfg_remotes);
+		free(n->config_data->cfg_backend);
+		free(n->config_data);
+	}
 
 	free(n);
 }

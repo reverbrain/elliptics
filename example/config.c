@@ -585,9 +585,12 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 	return n;
 
 err_out_node_destroy:
+	// dnet_cur_cfg_data will be destroyed by dnet_server_node_destroy
+	dnet_cur_cfg_data = NULL;
 	dnet_server_node_destroy(n);
 err_out_free:
-	free(dnet_cur_cfg_data->cfg_remotes);
+	if (dnet_cur_cfg_data)
+		free(dnet_cur_cfg_data->cfg_remotes);
 
 err_out_eblob_exit:
 	dnet_eblob_backend_exit();
