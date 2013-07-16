@@ -475,7 +475,7 @@ class lookup_callback : public multigroup_callback<lookup_result_entry>
 
 		error_info prepare_error()
 		{
-			return create_error(-ENOENT, kid, "Failed to lookup ID");
+			return create_error(-ENXIO, kid, "Failed to lookup ID");
 		}
 };
 
@@ -577,7 +577,7 @@ class read_callback : public multigroup_callback<read_result_entry>
 
 		error_info prepare_error()
 		{
-			return create_error(-ENOENT, ctl.id, "READ: size: %llu",
+			return create_error(-ENXIO, ctl.id, "READ: size: %llu",
 				static_cast<unsigned long long>(ctl.io.size));
 		}
 
@@ -734,7 +734,7 @@ class read_bulk_callback : public read_callback
 
 		error_info prepare_error()
 		{
-			return create_error(-ENOENT, "bulk_read: can't read data");
+			return create_error(-ENXIO, "bulk_read: can't read data");
 		}
 
 		std::mutex ios_set_mutex;
