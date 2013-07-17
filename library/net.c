@@ -214,7 +214,7 @@ int dnet_socket_create(struct dnet_node *n, char *addr_str, int port, struct dne
 			goto err_out_exit;
 		}
 	} else {
-		if (addr->family == AF_INET6) {
+		if (addr->family != AF_INET6) {
 			struct sockaddr_in *in = (struct sockaddr_in *)(addr->addr);
 			in->sin_port = htons(port);
 		} else {
