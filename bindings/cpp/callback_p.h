@@ -141,7 +141,9 @@ class default_callback
 	public:
 		typedef std::function<void (const T &)> entry_processor_func;
 
-		default_callback(const async_result<T> &result) : m_count(1), m_complete(0), m_result(result)
+		default_callback(const session &sess, const async_result<T> &result)
+			: m_logger(sess.get_node().get_log()),
+			  m_count(1), m_complete(0), m_result(result), m_proto_error(false)
 		{
 		}
 
@@ -179,8 +181,14 @@ class default_callback
 			if (is_trans_destroyed(state, cmd)) {
 				++m_complete;
 			} else {
-				if (!(cmd->flags & DNET_FLAGS_MORE))
-					m_statuses.push_back(cmd->status);
+				if (!(cmd->flags & DNET_FLAGS_MORE)) {
+					if (m_proto_error && cmd->status == 0) {
+						m_statuses.push_back(-EPROTO);
+						m_proto_error = 0;
+					} else {
+						m_statuses.push_back(cmd->status);
+					}
+				}
 				auto data = std::make_shared<callback_result_data>(dnet_state_addr(state), cmd);
 				process(cmd, data, data.get());
 			}
@@ -193,8 +201,32 @@ class default_callback
 			if (cmd->status) {
 				data->error = create_error(*cmd);
 			}
-			if (!entry.data().empty())
-				entry_converter::convert(entry, data);
+			if (!entry.data().empty()) {
+				try {
+					entry_converter::convert(entry, data);
+				} catch (...) {
+					m_logger.print(DNET_LOG_ERROR, "%s: received invalid data from server, tid: %llu, cmd: %s, status: %d, size: %llu\n",
+						       dnet_dump_id(&cmd->id),
+						       static_cast<unsigned long long>(cmd->trans),
+						       dnet_cmd_string(cmd->cmd),
+						       cmd->status,
+						       static_cast<unsigned long long>(cmd->size));
+
+					dnet_cmd *cmd_copy = default_entry.command();
+					if (cmd_copy->status == 0)
+						cmd_copy->status = -EPROTO;
+					if (cmd_copy->flags & DNET_FLAGS_MORE) {
+						m_proto_error = true;
+					} else {
+						m_statuses.back() = cmd_copy->status;
+					}
+
+					cmd_copy->flags &= ~DNET_FLAGS_MORE;
+					cmd_copy->size = 0;
+
+					data->data = data->data.slice(0, sizeof(dnet_addr) + sizeof(dnet_cmd));
+				}
+			}
 			process(entry);
 		}
 
@@ -235,6 +267,7 @@ class default_callback
 		{
 			m_complete = 0;
 			m_statuses.clear();
+			m_proto_error = false;
 		}
 
 		void complete(std::exception_ptr exc)
@@ -258,12 +291,14 @@ class default_callback
 		}
 
 	protected:
+		logger m_logger;
 		size_t m_count;
 		size_t m_complete;
 		std::vector<int> m_statuses;
 		std::mutex m_mutex;
 		entry_processor_func m_process_entry;
 		typename async_result<T>::handler m_result;
+		bool m_proto_error;
 };
 
 template <typename Result, dnet_commands Command>
@@ -271,7 +306,7 @@ class base_stat_callback
 {
 	public:
 		base_stat_callback(const session &sess, const async_result<Result> &result)
-			: sess(sess), cb(result), has_id(false)
+			: sess(sess), cb(sess, result), has_id(false)
 		{
 		}
 
@@ -342,7 +377,7 @@ class multigroup_callback
 {
 	public:
 		multigroup_callback(const session &sess, const async_result<T> &result)
-			: sess(sess), cb(result), m_group_index(0)
+			: sess(sess), cb(sess, result), m_group_index(0)
 		{
 		}
 
@@ -749,7 +784,7 @@ class cmd_callback
 		typedef std::shared_ptr<cmd_callback> ptr;
 
 		cmd_callback(const session &sess, const async_generic_result &result, const transport_control &ctl)
-			: sess(sess), ctl(ctl.get_native()), cb(result)
+			: sess(sess), ctl(ctl.get_native()), cb(sess, result)
 		{
 		}
 
@@ -790,7 +825,7 @@ class single_cmd_callback
 		typedef std::shared_ptr<single_cmd_callback> ptr;
 
 		single_cmd_callback(const session &sess, const async_generic_result &result, const transport_control &ctl)
-			: sess(sess), ctl(ctl.get_native()), cb(result)
+			: sess(sess), ctl(ctl.get_native()), cb(sess, result)
 		{
 		}
 
@@ -831,7 +866,7 @@ class write_callback
 		typedef std::shared_ptr<write_callback> ptr;
 
 		write_callback(const session &sess, const async_write_result &result, const dnet_io_control &ctl):
-		sess(sess), cb(result), ctl(ctl)
+		sess(sess), cb(sess, result), ctl(ctl)
 		{
 		}
 
@@ -884,7 +919,7 @@ class remove_callback
 		typedef std::shared_ptr<remove_callback> ptr;
 
 		remove_callback(const session &sess, const async_generic_result &result, const dnet_id &id)
-			: sess(sess), cb(result), id(id)
+			: sess(sess), cb(sess, result), id(id)
 		{
 		}
 
@@ -927,7 +962,7 @@ class exec_callback
 		typedef std::shared_ptr<exec_callback> ptr;
 
 		exec_callback(const session &sess, const async_exec_result &result)
-			: sess(sess), id(NULL), sph(NULL), cb(result)
+			: sess(sess), id(NULL), sph(NULL), cb(sess, result)
 		{
 		}
 
@@ -967,7 +1002,7 @@ class iterator_callback
 	public:
 		typedef std::shared_ptr<iterator_callback> ptr;
 
-		iterator_callback(const session &sess, const async_iterator_result &result) : sess(sess), cb(result)
+		iterator_callback(const session &sess, const async_iterator_result &result) : sess(sess), cb(sess, result)
 		{
 		}
 
