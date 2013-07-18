@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.6
+Version:	2.24.13.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,7 +136,7 @@ rm -rf %{buildroot}
 
 
 %changelog
-* Thu Jul 18 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.6
+* Thu Jul 18 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.7
 - Fixed compilation error
 
 * Thu Jul 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.6
