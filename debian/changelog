@@ -1,5 +1,11 @@
 elliptics (2.24.13.6) unstable; urgency=low
 
+  * Fixed compilation error
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Thu, 18 Jul 2013 21:06:53 +0400
+
+elliptics (2.24.13.6) unstable; urgency=low
+
   * Fixed aborting in case of receiving garbage from server
   * Fixed typo at port assignment in dnet_socket_create()
   * New automatic tests
