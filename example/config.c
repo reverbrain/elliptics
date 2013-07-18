@@ -457,9 +457,6 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 	if (err)
 		goto err_out_module_exit;
 
-	if (err)
-		goto err_out_eblob_exit;
-
 	while (1) {
 		ptr = fgets(buf, buf_size, f);
 		if (!ptr) {
@@ -592,7 +589,7 @@ err_out_free:
 	if (dnet_cur_cfg_data)
 		free(dnet_cur_cfg_data->cfg_remotes);
 
-err_out_eblob_exit:
+//err_out_eblob_exit:
 	dnet_eblob_backend_exit();
 err_out_module_exit:
 #ifdef HAVE_MODULE_BACKEND_SUPPORT

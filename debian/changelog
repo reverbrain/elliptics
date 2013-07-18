@@ -1,3 +1,15 @@
+elliptics (2.24.13.6) unstable; urgency=low
+
+  * Fixed aborting in case of receiving garbage from server
+  * Fixed typo at port assignment in dnet_socket_create()
+  * New automatic tests
+  * Fixed error code in multigroups requests
+  * Fixed memory free for dnet_config_data
+  * Added ability to run several servers in one process
+  * Used IndexEntry in python bindings for find indexes
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 18 Jul 2013 19:18:19 +0400
+
 elliptics (2.24.13.5) unstable; urgency=low
 
   * Depend on 0.21.2 eblob.

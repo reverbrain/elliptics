@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.5
+Version:	2.24.13.6
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Jul 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.6
+- Fixed aborting in case of receiving garbage from server
+- Fixed typo at port assignment in dnet_socket_create()
+- New automatic tests
+- Fixed error code in multigroups requests
+- Fixed memory free for dnet_config_data
+- Added ability to run several servers in one process
+- Used IndexEntry in python bindings for find indexes
+
 * Wed Jul 10 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.5
 - Depend on 0.21.2 eblob.
 - Use 141 boost.
