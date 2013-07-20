@@ -168,8 +168,8 @@ def recover(ctx, diff, group, stats):
                                             )
     local_session.set_direct_id(*g_ctx.address)
 
-    # Here we cleverly splitting responses into ctx.batch_size batches
     total_size, total_records = (0, 0)
+    # Split responses into ctx.batch_size batches
     for batch_id, batch in groupby(enumerate(diff),
                                     key=lambda x: x[0] / ctx.batch_size):
         keys = [elliptics.Id(r.key, group) for _, r in batch]
@@ -178,10 +178,13 @@ def recover(ctx, diff, group, stats):
             stats.counter('recovered_keys', -len(keys))
             continue
 
+        async_remove_results = []
         successes, failures, successes_size, failures_size = (0, 0, 0, 0)
-        for r, size in results:
+        for r, size, key in results:
             r.wait()
             if r.successful():
+                # If data was successfully moved to local node - remove it from remote.
+                async_remove_results.append(remote_session.remove_async(key))
                 successes_size += size
                 successes += 1
             else:
@@ -190,10 +193,20 @@ def recover(ctx, diff, group, stats):
             total_records += 1
             total_size += size
 
+        remove_successes, remove_failures = (0, 0)
+        for r in async_remove_results:
+            r.wait()
+            if r.successful():
+                remove_successes += 1
+            else:
+                remove_failures += 1
+
         stats.counter('recovered_bytes', successes_size)
         stats.counter('recovered_bytes', -failures_size)
         stats.counter('recovered_keys', successes)
         stats.counter('recovered_keys', -failures)
+        stats.counter('removed_keys', remove_successes)
+        stats.counter('removed_keys', -remove_failures)
         log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(total_records, len(diff),
                                                                      failures_size + successes_size, total_size))
         result &= (failures == 0)
@@ -209,7 +222,8 @@ def recover_keys(ctx, address, group, keys, local_session, remote_session, stats
     try:
         batch = remote_session.bulk_read_async(keys)
         for b in batch:
-            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data)))
+            async_write_results.append(
+                (local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data), b.id))
         read_len = len(async_write_results)
         stats.counter('read_keys', read_len)
         stats.counter('skipped_keys', keys_len - read_len)
