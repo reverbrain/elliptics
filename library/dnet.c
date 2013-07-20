@@ -218,22 +218,9 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 	dnet_version_encode(&cmd->id);
 	dnet_indexes_shard_count_encode(&cmd->id, n->indexes_shard_count);
 
-	if ((version[0] == CONFIG_ELLIPTICS_VERSION_0) && (version[1] == CONFIG_ELLIPTICS_VERSION_1)) {
-		dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: client version: %d.%d.%d.%d, server version: %d.%d.%d.%d\n",
-				dnet_state_dump_addr(st),
-				version[0], version[1], version[2], version[3],
-				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
-				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3);
-	} else {
-		dnet_log(n, DNET_LOG_ERROR, "%s: reverse lookup command: VERSION MISMATCH: "
-				"client version: %d.%d.%d.%d, server version: %d.%d.%d.%d\n",
-				dnet_state_dump_addr(st),
-				version[0], version[1], version[2], version[3],
-				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
-				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3);
-		err = -EPROTO;
+	err = dnet_version_compare(st, version);
+	if (err)
 		goto err_out_exit;
-	}
 
 	dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: client indexes shard count: %d, server indexes shard count: %d\n",
 			dnet_state_dump_addr(st),
