@@ -1830,6 +1830,7 @@ void dnet_iterator_free(struct dnet_iterator *it)
 		return;
 	pthread_cond_destroy(&it->wait);
 	pthread_mutex_destroy(&it->lock);
+	free(it);
 }
 
 /* Adds iterator to the list of running iterators if it's not already there */
