@@ -3,6 +3,7 @@ Wrapper for monitoring data and working with it in user code
 """
 
 import os
+import socket
 
 from datetime import datetime
 from threading import Thread
@@ -65,7 +66,13 @@ class Monitor(object):
         self.d_thread.daemon = True
 
         if self.port:
-            server_address = ('0.0.0.0', self.port)
+            if socket.has_ipv6:
+                HTTPServer.address_family = socket.AF_INET6
+                address = '::'
+            else:
+                HTTPServer.address_family = socket.AF_INET
+                address = '0.0.0.0'
+            server_address = (address, self.port)
             self.httpd = HTTPServer(server_address, SimpleHTTPRequestHandler)
             self.l_thread = Thread(target=self.listen_thread, name="MonitorListenThread")
             self.l_thread.daemon = True

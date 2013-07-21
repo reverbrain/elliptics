@@ -674,6 +674,8 @@ static inline int dnet_id_cmp(const struct dnet_id *id1, const struct dnet_id *i
  * reply will be generated. So effectively difference is in DNET_TRANS_REPLY bit presence.
  */
 int __attribute__((weak)) dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more);
+int __attribute__((weak)) dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more);
+
 
 /*
  * Request statistics from the node corresponding to given ID.

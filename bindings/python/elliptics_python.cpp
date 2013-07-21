@@ -320,6 +320,7 @@ struct def_async_result<T, Args...>
 typedef python_async_result<iterator_result_entry>		python_iterator_result;
 typedef python_async_result<read_result_entry> 			python_read_result;
 typedef python_async_result<write_result_entry>			python_write_result;
+typedef python_async_result<remove_result_entry>		python_remove_result;
 
 typedef python_async_result<callback_result_entry>		python_async_update_indexes_result;
 typedef python_async_result<find_indexes_result_entry>	python_find_indexes_result;
@@ -593,6 +594,12 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		void remove_by_name(const std::string &remote) {
 			remove(key(remote)).wait();
+		}
+
+		python_remove_result remove_async(const struct elliptics_id &id) {
+			const key &e_id = id.to_dnet();
+
+			return create_result(std::move(session::remove(e_id)));
 		}
 
 		struct dnet_id_comparator {
@@ -1252,6 +1259,9 @@ BOOST_PYTHON_MODULE(elliptics)
 	bp::class_<write_result_entry>("WriteResultEntry")
 	;
 
+	bp::class_<remove_result_entry>("RemoveResultEntry")
+	;
+
 	bp::class_<index_entry>("IndexEntry")
 		.add_property("index",
 		              index_entry_get_index,
@@ -1395,6 +1405,7 @@ BOOST_PYTHON_MODULE(elliptics)
 
 		.def("remove", &elliptics_session::remove_by_id)
 		.def("remove", &elliptics_session::remove_by_name)
+		.def("remove_async", &elliptics_session::remove_async)
 
 		.def("bulk_read", &elliptics_session::bulk_read,
 			(bp::arg("keys")))

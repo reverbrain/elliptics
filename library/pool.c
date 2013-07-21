@@ -474,6 +474,15 @@ static int dnet_process_send_single(struct dnet_net_state *st)
 			list_del(&r->req_entry);
 			pthread_mutex_unlock(&st->send_lock);
 
+			if (atomic_read(&st->send_queue_size) > 0)
+				if (atomic_dec(&st->send_queue_size) == DNET_SEND_WATERMARK_LOW) {
+					dnet_log(st->n, DNET_LOG_DEBUG,
+							"State low_watermark reached: %s: %d, waking up\n",
+							dnet_server_convert_dnet_addr(&st->addr),
+							atomic_read(&st->send_queue_size));
+					pthread_cond_broadcast(&st->send_wait);
+				}
+
 			dnet_io_req_free(r);
 			st->send_offset = 0;
 		}

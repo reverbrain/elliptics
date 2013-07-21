@@ -93,6 +93,10 @@ struct dnet_io_req {
 
 #define DNET_STATE_MAX_WEIGHT		(1024 * 10)
 
+/* Iterator watermarks for sending data and sleeping */
+#define DNET_SEND_WATERMARK_HIGH	(1024 * 100)
+#define DNET_SEND_WATERMARK_LOW		(512 * 100)
+
 struct dnet_net_state
 {
 	struct list_head	state_entry;
@@ -131,6 +135,13 @@ struct dnet_net_state
 	size_t			send_offset;
 	pthread_mutex_t		send_lock;
 	struct list_head	send_list;
+	/*
+	 * Condition variable to wait when send_queue_size reaches high
+	 * watermark
+	 */
+	pthread_cond_t		send_wait;
+	/* Number of queued requests in send queue from iterator */
+	atomic_t		send_queue_size;
 
 	pthread_mutex_t		trans_lock;
 	struct rb_root		trans_root;
@@ -775,6 +786,9 @@ struct dnet_iterator {
  */
 struct dnet_iterator *dnet_iterator_create(struct dnet_node *n);
 void dnet_iterator_destroy(struct dnet_node *n, struct dnet_iterator *it);
+int dnet_iterator_set_state(struct dnet_node *n,
+		enum dnet_iterator_action action, uint64_t id);
+void dnet_iterator_cancel_all(struct dnet_node *n);
 
 /*
  * Low level iterator API

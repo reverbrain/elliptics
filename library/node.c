@@ -635,6 +635,7 @@ void dnet_node_cleanup_common_resources(struct dnet_node *n)
 	struct dnet_addr_storage *it, *atmp;
 
 	n->need_exit = 1;
+	dnet_iterator_cancel_all(n);
 	dnet_check_thread_stop(n);
 
 	dnet_io_exit(n);

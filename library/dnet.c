@@ -627,20 +627,23 @@ static int dnet_iterator_callback_file(void *priv, void *data, uint64_t dsize)
 
 /*!
  * Internal callback that sends result to state \a st
- * TODO: Send data in chunks.
  */
 static int dnet_iterator_callback_send(void *priv, void *data, uint64_t dsize)
 {
 	struct dnet_iterator_send_private *send = priv;
 
-	/*if need_exit is set - skips sending reply and return -1 to interrupt execution of current iterator*/
+	/*
+	 * If need_exit is set - skips sending reply and return -EINTR to
+	 * interrupt execution of current iterator
+	 */
 	if (send->st->need_exit) {
-		dnet_log(send->st->n, DNET_LOG_ERROR, "%s: Interrupting iterator because peer has been disconnected\n",
+		dnet_log(send->st->n, DNET_LOG_ERROR,
+				"%s: Interrupting iterator because peer has been disconnected\n",
 				dnet_dump_id(&send->cmd->id));
-		return -1;
+		return -EINTR;
 	}
 
-	return dnet_send_reply(send->st, send->cmd, data, dsize, 1);
+	return dnet_send_reply_threshold(send->st, send->cmd, data, dsize, 1);
 }
 
 /*!
@@ -751,77 +754,6 @@ err_out_exit:
 	return err;
 }
 
-/* Verify that this state transition is valid */
-static int dnet_iterator_verify_state(enum dnet_iterator_action from,
-		enum dnet_iterator_action to)
-{
-	/*
-	 * Allowed transitions:
-	 *	started	-> paused
-	 *	started -> canceled
-	 *	paused	-> started
-	 *	paused	-> canceled
-	 */
-	if (from == DNET_ITERATOR_ACTION_START &&
-			to == DNET_ITERATOR_ACTION_PAUSE)
-		return 0;
-	if (from == DNET_ITERATOR_ACTION_START &&
-			to == DNET_ITERATOR_ACTION_CANCEL)
-		return 0;
-	if (from == DNET_ITERATOR_ACTION_PAUSE &&
-			to == DNET_ITERATOR_ACTION_START)
-		return 0;
-	if (from == DNET_ITERATOR_ACTION_PAUSE &&
-			to == DNET_ITERATOR_ACTION_CANCEL)
-		return 0;
-	return 1;
-}
-
-/* Sets state of iterator given it's id */
-static int dnet_iterator_set_state(struct dnet_node *n,
-		enum dnet_iterator_action action, uint64_t id)
-{
-	struct dnet_iterator *it;
-	int err;
-
-	pthread_mutex_lock(&n->iterator_lock);
-
-	it = dnet_iterator_list_lookup_nolock(n, id);
-	if (it == NULL) {
-		err = -ENOENT;
-		goto err_out_unlock;
-	}
-
-	pthread_mutex_lock(&it->lock);
-
-	/* We don't want to have two different names for the same thing */
-	if (action == DNET_ITERATOR_ACTION_CONT)
-		action = DNET_ITERATOR_ACTION_START;
-
-	/* Check that transition is valid */
-	if ((err = dnet_iterator_verify_state(it->state, action)) != 0)
-		goto err_out_unlock_it;
-
-	/* Wake up iterator thread */
-	if (it->state == DNET_ITERATOR_ACTION_PAUSE)
-		if ((err = pthread_cond_broadcast(&it->wait)) != 0)
-			goto err_out_unlock_it;
-
-	/* Set iterator desired state */
-	it->state = action;
-
-	pthread_mutex_unlock(&it->lock);
-	pthread_mutex_unlock(&n->iterator_lock);
-
-	return 0;
-
-err_out_unlock_it:
-	pthread_mutex_unlock(&it->lock);
-err_out_unlock:
-	pthread_mutex_unlock(&n->iterator_lock);
-	return err;
-}
-
 static int dnet_iterator_check_key_range(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		struct dnet_iterator_request *ireq,
 		struct dnet_iterator_range *irange)
@@ -911,9 +843,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	};
 	struct dnet_iterator_send_private spriv;
 	struct dnet_iterator_file_private fpriv;
-	static const int mode = O_WRONLY|O_APPEND|O_CLOEXEC|O_CREAT|O_TRUNC;
 	int err;
-	char iter_path[PATH_MAX];
 
 	/* Check flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
@@ -942,19 +872,11 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		break;
 	case DNET_ITYPE_DISK:
 		memset(&fpriv, 0, sizeof(struct dnet_iterator_file_private));
-
-		/* XXX: Use mkstemps(3) and proper dir */
-		snprintf(iter_path, PATH_MAX, "iter/%s", dnet_dump_id(&cmd->id));
-		if ((fpriv.fd = open(iter_path, mode, 0644)) == -1) {
-			dnet_log(st->n, DNET_LOG_INFO, "%s: cmd: %u, can't open: %s: err: %d\n",
-				dnet_dump_id(&cmd->id), cmd->cmd, iter_path, err);
-			err = -errno;
-			goto err_out_exit;
-		}
-
 		cpriv.next_callback = dnet_iterator_callback_file;
 		cpriv.next_private = &fpriv;
-		break;
+		/* TODO: Implement local file-based iterators */
+		err = -ENOTSUP;
+		goto err_out_exit;
 	default:
 		err = -EINVAL;
 		goto err_out_exit;
@@ -967,12 +889,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_exit;
 	}
 
-	/*
-	 * Run iterator
-	 *
-	 * XXX: Now that we have flow control we need some means to cancel
-	 * stale iterators on connection abort.
-	 */
+	/* Run iterator */
 	err = st->n->cb->iterator(&ictl);
 
 	/* Remove iterator */
@@ -1801,136 +1718,4 @@ int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size
 
 err_out_exit:
 	return err;
-}
-
-/* Allocate and init iterator */
-struct dnet_iterator *dnet_iterator_alloc(uint64_t id)
-{
-	struct dnet_iterator *it;
-	int err;
-
-	it = calloc(1, sizeof(struct dnet_iterator));
-	if (it == NULL)
-		goto err_out_exit;
-
-	it->id = id;
-	it->state = DNET_ITERATOR_ACTION_START;
-	INIT_LIST_HEAD(&it->list);
-	err = pthread_cond_init(&it->wait, NULL);
-	if (err != 0)
-		goto err_out_free;
-	err = pthread_mutex_init(&it->lock, NULL);
-	if (err != 0)
-		goto err_out_destroy_cond;
-
-	return it;
-
-err_out_destroy_cond:
-	pthread_cond_destroy(&it->wait);
-err_out_free:
-	free(it);
-err_out_exit:
-	return NULL;
-}
-
-/* Destroy previously allocated iterator */
-void dnet_iterator_free(struct dnet_iterator *it)
-{
-	if (it == NULL)
-		return;
-	pthread_cond_destroy(&it->wait);
-	pthread_mutex_destroy(&it->lock);
-}
-
-/* Adds iterator to the list of running iterators if it's not already there */
-int dnet_iterator_list_insert_nolock(struct dnet_node *n, struct dnet_iterator *it)
-{
-	/* Sanity */
-	if (n == NULL || it == NULL)
-		return -EINVAL;
-
-	/* Check that iterator not already in list */
-	if (dnet_iterator_list_lookup_nolock(n, it->id) != NULL)
-		return -EEXIST;
-
-	/* Add to list */
-	list_add(&it->list, &n->iterator_list);
-
-	return 0;
-}
-
-/* Looks up iterator in list by id */
-struct dnet_iterator *dnet_iterator_list_lookup_nolock(struct dnet_node *n, uint64_t id)
-{
-	struct dnet_iterator *it;
-
-	/* Sanity */
-	if (n == NULL)
-		return NULL;
-
-	/* Lookup iterator by id and return pointer */
-	list_for_each_entry(it, &n->iterator_list, list)
-		if (it->id == id)
-			return it;
-
-	return NULL;
-}
-
-/* Removes iterator from list by id */
-int dnet_iterator_list_remove(struct dnet_node *n, uint64_t id)
-{
-	struct dnet_iterator *it;
-
-	/* Sanity */
-	if (n == NULL)
-		return -EINVAL;
-
-	/* Lookup iterator by id and remove */
-	pthread_mutex_lock(&n->iterator_lock);
-
-	it = dnet_iterator_list_lookup_nolock(n, id);
-	if (it != NULL) {
-		list_del_init(&it->list);
-		pthread_mutex_unlock(&n->iterator_lock);
-		return 0;
-	}
-
-	pthread_mutex_unlock(&n->iterator_lock);
-
-	return -ENOENT;
-}
-
-/* Find next free id */
-uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n)
-{
-	uint64_t next;
-
-	assert(n != NULL);
-	for (next = 0;; ++next)
-		if (dnet_iterator_list_lookup_nolock(n, next) == NULL)
-			return next;
-	assert(0);
-}
-
-/* Creates iterator and adds it to list */
-struct dnet_iterator *dnet_iterator_create(struct dnet_node *n)
-{
-	struct dnet_iterator *it;
-	uint64_t id;
-
-	pthread_mutex_lock(&n->iterator_lock);
-	id = dnet_iterator_list_next_id_nolock(n);
-	it = dnet_iterator_alloc(id);
-	(void)dnet_iterator_list_insert_nolock(n, it);
-	pthread_mutex_unlock(&n->iterator_lock);
-
-	return it;
-}
-
-/* Remove iterator from list and free resources */
-void dnet_iterator_destroy(struct dnet_node *n, struct dnet_iterator *it)
-{
-	if (dnet_iterator_list_remove(n, it->id) != 0)
-		return; /* We leak iterator here! */
-	dnet_iterator_free(it);
 }

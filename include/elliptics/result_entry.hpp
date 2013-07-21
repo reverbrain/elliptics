@@ -220,6 +220,7 @@ class iterator_result_container
 };
 
 typedef lookup_result_entry write_result_entry;
+typedef callback_result_entry remove_result_entry;
 
 struct index_entry
 {
@@ -248,8 +249,8 @@ typedef async_result<lookup_result_entry> async_lookup_result;
 typedef std::vector<lookup_result_entry> sync_lookup_result;
 typedef async_result<read_result_entry> async_read_result;
 typedef std::vector<read_result_entry> sync_read_result;
-typedef async_result<callback_result_entry> async_remove_result;
-typedef std::vector<callback_result_entry> sync_remove_result;
+typedef async_generic_result async_remove_result;
+typedef sync_generic_result sync_remove_result;
 
 typedef async_result<stat_result_entry> async_stat_result;
 typedef std::vector<stat_result_entry> sync_stat_result;
