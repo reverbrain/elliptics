@@ -911,9 +911,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 	};
 	struct dnet_iterator_send_private spriv;
 	struct dnet_iterator_file_private fpriv;
-	static const int mode = O_WRONLY|O_APPEND|O_CLOEXEC|O_CREAT|O_TRUNC;
 	int err;
-	char iter_path[PATH_MAX];
 
 	/* Check flags */
 	if ((ireq->flags & ~DNET_IFLAGS_ALL) != 0) {
@@ -942,19 +940,11 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		break;
 	case DNET_ITYPE_DISK:
 		memset(&fpriv, 0, sizeof(struct dnet_iterator_file_private));
-
-		/* XXX: Use mkstemps(3) and proper dir */
-		snprintf(iter_path, PATH_MAX, "iter/%s", dnet_dump_id(&cmd->id));
-		if ((fpriv.fd = open(iter_path, mode, 0644)) == -1) {
-			dnet_log(st->n, DNET_LOG_INFO, "%s: cmd: %u, can't open: %s: err: %d\n",
-				dnet_dump_id(&cmd->id), cmd->cmd, iter_path, err);
-			err = -errno;
-			goto err_out_exit;
-		}
-
 		cpriv.next_callback = dnet_iterator_callback_file;
 		cpriv.next_private = &fpriv;
-		break;
+		/* TODO: Implement local file-based iterators */
+		err = -ENOTSUP;
+		goto err_out_exit;
 	default:
 		err = -EINVAL;
 		goto err_out_exit;
