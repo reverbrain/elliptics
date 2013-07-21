@@ -932,6 +932,14 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 		goto err_out_trans_destroy;
 	}
 
+	err = pthread_cond_init(&st->send_wait, NULL);
+	if (err) {
+		err = -err;
+		dnet_log_err(n, "Failed to initialize send cond: %d", err);
+		goto err_out_send_destroy;
+	}
+
+	atomic_init(&st->send_queue_size, 0);
 	atomic_init(&st->refcnt, 1);
 
 	memcpy(&st->addr, addr, sizeof(struct dnet_addr));
@@ -941,6 +949,8 @@ int dnet_state_micro_init(struct dnet_net_state *st,
 
 	return 0;
 
+err_out_send_destroy:
+	pthread_mutex_destroy(&st->send_lock);
 err_out_trans_destroy:
 	pthread_mutex_destroy(&st->trans_lock);
 err_out:
@@ -1119,6 +1129,43 @@ void dnet_state_destroy(struct dnet_net_state *st)
 
 	free(st->addrs);
 	free(st);
+}
+
+/*
+ * Queue replies to send queue wrt high and low watermark limits.
+ * This is usefull to avoid memory bloat (and hence OOM) when data gets queued
+ * into send queue faster than it could be send over wire.
+ */
+int dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd,
+		void *odata, unsigned int size, int more)
+{
+	struct dnet_net_state *st = state;
+	int err;
+
+	if (st == st->n->st)
+		return 0;
+
+	/* Send reply */
+	err = dnet_send_reply(state, cmd, odata, size, more);
+	if (err == 0)
+		/* If send succeeded then we should increase queue size */
+		if (atomic_inc(&st->send_queue_size) > DNET_SEND_WATERMARK_HIGH) {
+			/* If high watermark is reached we should sleep */
+			dnet_log(st->n, DNET_LOG_DEBUG,
+					"State high_watermark reached: %s: %d, sleeping\n",
+					dnet_server_convert_dnet_addr(&st->addr),
+					atomic_read(&st->send_queue_size));
+
+			pthread_mutex_lock(&st->send_lock);
+			pthread_cond_wait(&st->send_wait, &st->send_lock);
+			pthread_mutex_unlock(&st->send_lock);
+
+			dnet_log(st->n, DNET_LOG_DEBUG, "State woken up: %s: %d",
+					dnet_server_convert_dnet_addr(&st->addr),
+					atomic_read(&st->send_queue_size));
+		}
+
+	return err;
 }
 
 int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int size, int more)

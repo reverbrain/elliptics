@@ -627,20 +627,23 @@ static int dnet_iterator_callback_file(void *priv, void *data, uint64_t dsize)
 
 /*!
  * Internal callback that sends result to state \a st
- * TODO: Send data in chunks.
  */
 static int dnet_iterator_callback_send(void *priv, void *data, uint64_t dsize)
 {
 	struct dnet_iterator_send_private *send = priv;
 
-	/*if need_exit is set - skips sending reply and return -1 to interrupt execution of current iterator*/
+	/*
+	 * If need_exit is set - skips sending reply and return -EINTR to
+	 * interrupt execution of current iterator
+	 */
 	if (send->st->need_exit) {
-		dnet_log(send->st->n, DNET_LOG_ERROR, "%s: Interrupting iterator because peer has been disconnected\n",
+		dnet_log(send->st->n, DNET_LOG_ERROR,
+				"%s: Interrupting iterator because peer has been disconnected\n",
 				dnet_dump_id(&send->cmd->id));
-		return -1;
+		return -EINTR;
 	}
 
-	return dnet_send_reply(send->st, send->cmd, data, dsize, 1);
+	return dnet_send_reply_threshold(send->st, send->cmd, data, dsize, 1);
 }
 
 /*!
@@ -886,12 +889,7 @@ static int dnet_iterator_start(struct dnet_net_state *st, struct dnet_cmd *cmd,
 		goto err_out_exit;
 	}
 
-	/*
-	 * Run iterator
-	 *
-	 * XXX: Now that we have flow control we need some means to cancel
-	 * stale iterators on connection abort.
-	 */
+	/* Run iterator */
 	err = st->n->cb->iterator(&ictl);
 
 	/* Remove iterator */
