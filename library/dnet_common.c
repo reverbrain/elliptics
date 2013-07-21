@@ -2612,8 +2612,10 @@ err_out_exit:
 /* Destroy previously allocated iterator */
 void dnet_iterator_free(struct dnet_iterator *it)
 {
+	/* Sanity */
 	if (it == NULL)
 		return;
+
 	pthread_cond_destroy(&it->wait);
 	pthread_mutex_destroy(&it->lock);
 	free(it);
@@ -2696,6 +2698,10 @@ struct dnet_iterator *dnet_iterator_create(struct dnet_node *n)
 	uint64_t id;
 	int err;
 
+	/* Sanity */
+	if (n == NULL)
+		goto err;
+
 	pthread_mutex_lock(&n->iterator_lock);
 
 	/* Create new iterator and add it to list */
@@ -2717,14 +2723,18 @@ err_free:
 	dnet_iterator_free(it);
 err_unlock:
 	pthread_mutex_unlock(&n->iterator_lock);
+err:
 	return NULL;
 }
 
 /* Remove iterator from list and free resources */
 void dnet_iterator_destroy(struct dnet_node *n, struct dnet_iterator *it)
 {
-	if (dnet_iterator_list_remove(n, it->id) != 0)
-		return; /* We leak iterator here! */
+	/* Sanity */
+	if (n == NULL || it == NULL)
+		return;
+
+	(void)dnet_iterator_list_remove(n, it->id);
 	dnet_iterator_free(it);
 }
 
