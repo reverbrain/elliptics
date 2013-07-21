@@ -83,6 +83,8 @@ if __name__ == '__main__':
                       help="Elliptics node address [default: %default]")
     parser.add_option("-s", "--stat", action="store", dest="stat", default="text",
                       help="Statistics output format: {0} [default: %default]".format("/".join(ALLOWED_STATS)))
+    parser.add_option("-S", "--safe", action="store_true", dest="safe", default=False,
+                      help="Do not remove recovered keys after merge [default: %default]")
     parser.add_option("-t", "--time", action="store", dest="timestamp", default="0",
                       help="Recover keys modified since `time`. "
                            "Can be specified as timestamp or as time difference"
@@ -106,6 +108,7 @@ if __name__ == '__main__':
     log.info("Initializing context")
     ctx = Ctx()
     ctx.dry_run = options.dry_run
+    ctx.safe = options.safe
 
     ctx.tmp_dir = options.tmp_dir.replace('%TYPE%', recovery_type)
     if not os.path.exists(ctx.tmp_dir):

@@ -183,8 +183,10 @@ def recover(ctx, diff, group, stats):
         for r, size, key in results:
             r.wait()
             if r.successful():
-                # If data was successfully moved to local node - remove it from remote.
-                async_remove_results.append(remote_session.remove_async(key))
+                if ctx.safe != True:
+                    # If data was successfully moved to local node
+                    # and `Safe' mode is not enabled - remove it from remote node.
+                    async_remove_results.append(remote_session.remove_async(key))
                 successes_size += size
                 successes += 1
             else:
