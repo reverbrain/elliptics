@@ -775,6 +775,9 @@ struct dnet_iterator {
  */
 struct dnet_iterator *dnet_iterator_create(struct dnet_node *n);
 void dnet_iterator_destroy(struct dnet_node *n, struct dnet_iterator *it);
+int dnet_iterator_set_state(struct dnet_node *n,
+		enum dnet_iterator_action action, uint64_t id);
+void dnet_iterator_cancel_all(struct dnet_node *n);
 
 /*
  * Low level iterator API
