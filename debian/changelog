@@ -1,3 +1,19 @@
+elliptics (2.24.13.8) unstable; urgency=low
+
+  * recovery: monitor: add IPv6 support
+  * recovery: remove entries after successful recovery
+  * python: added async remove()
+  * it: remove file based implementation
+  * it: more robust dnet_iterator_create()
+  * it: fix leak if destroyed via dnet_iterator_free()
+  * it: cancel all running iterators on exit
+  * it: added even more sanity checks
+  * it: limit number of send replies in queue
+  * recovery: added 'safe' mode for use in cron
+  * Refactor version check into separate function. Check version on client too.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 21 Jul 2013 22:04:42 +0400
+
 elliptics (2.24.13.7) unstable; urgency=low
 
   * Fixed compilation error

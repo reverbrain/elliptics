@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.7
+Version:	2.24.13.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,19 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Jul 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.8
+- recovery: monitor: add IPv6 support
+- recovery: remove entries after successful recovery
+- python: added async remove()
+- it: remove file based implementation
+- it: more robust dnet_iterator_create()
+- it: fix leak if destroyed via dnet_iterator_free()
+- it: cancel all running iterators on exit
+- it: added even more sanity checks
+- it: limit number of send replies in queue
+- recovery: added 'safe' mode for use in cron
+- Refactor version check into separate function. Check version on client too.
+
 * Thu Jul 18 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.7
 - Fixed compilation error
 
