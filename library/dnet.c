@@ -1875,9 +1875,9 @@ int dnet_iterator_list_remove(struct dnet_node *n, uint64_t id)
 	if (n == NULL)
 		return -EINVAL;
 
-	/* Lookup iterator by id and remove */
 	pthread_mutex_lock(&n->iterator_lock);
 
+	/* Lookup iterator by id and remove */
 	it = dnet_iterator_list_lookup_nolock(n, id);
 	if (it != NULL) {
 		list_del_init(&it->list);
@@ -1896,10 +1896,10 @@ uint64_t dnet_iterator_list_next_id_nolock(struct dnet_node *n)
 	uint64_t next;
 
 	assert(n != NULL);
-	for (next = 0;; ++next)
+	for (next = 0; next != -1ULL; ++next)
 		if (dnet_iterator_list_lookup_nolock(n, next) == NULL)
 			return next;
-	assert(0);
+	return -1ULL;
 }
 
 /* Creates iterator and adds it to list */
@@ -1907,14 +1907,30 @@ struct dnet_iterator *dnet_iterator_create(struct dnet_node *n)
 {
 	struct dnet_iterator *it;
 	uint64_t id;
+	int err;
 
 	pthread_mutex_lock(&n->iterator_lock);
+
+	/* Create new iterator and add it to list */
 	id = dnet_iterator_list_next_id_nolock(n);
+	if (id == -1ULL)
+		goto err_unlock;
 	it = dnet_iterator_alloc(id);
-	(void)dnet_iterator_list_insert_nolock(n, it);
+	if (it == NULL)
+		goto err_unlock;
+	err = dnet_iterator_list_insert_nolock(n, it);
+	if (err)
+		goto err_free;
+
 	pthread_mutex_unlock(&n->iterator_lock);
 
 	return it;
+
+err_free:
+	dnet_iterator_free(it);
+err_unlock:
+	pthread_mutex_unlock(&n->iterator_lock);
+	return NULL;
 }
 
 /* Remove iterator from list and free resources */
