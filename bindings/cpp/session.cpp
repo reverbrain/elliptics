@@ -835,6 +835,7 @@ async_write_result session::write_data(const dnet_io_attr &io, const data_pointe
 {
 	struct dnet_io_control ctl;
 	memset(&ctl, 0, sizeof(ctl));
+	dnet_empty_time(&ctl.io.timestamp);
 
 	ctl.cflags = get_cflags();
 	ctl.data = file.data();
@@ -861,6 +862,7 @@ async_write_result session::write_data(const key &id, const data_pointer &file, 
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
+	dnet_empty_time(&ctl.io.timestamp);
 
 	ctl.cflags = get_cflags();
 	ctl.data = file.data();
@@ -1145,6 +1147,7 @@ async_write_result session::write_cas(const key &id, const data_pointer &file, c
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
+	dnet_empty_time(&ctl.io.timestamp);
 
 	ctl.cflags = get_cflags();
 	ctl.data = file.data();
@@ -1170,6 +1173,7 @@ async_write_result session::write_prepare(const key &id, const data_pointer &fil
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
+	dnet_empty_time(&ctl.io.timestamp);
 
 	ctl.cflags = get_cflags();
 	ctl.data = file.data();
@@ -1194,6 +1198,7 @@ async_write_result session::write_plain(const key &id, const data_pointer &file,
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
+	dnet_empty_time(&ctl.io.timestamp);
 
 	ctl.cflags = get_cflags();
 	ctl.data = file.data();
@@ -1219,6 +1224,7 @@ async_write_result session::write_commit(const key &id, const data_pointer &file
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
+	dnet_empty_time(&ctl.io.timestamp);
 
 	ctl.cflags = get_cflags();
 	ctl.data = file.data();
@@ -1243,6 +1249,7 @@ async_write_result session::write_cache(const key &id, const data_pointer &file,
 	struct dnet_io_control ctl;
 
 	memset(&ctl, 0, sizeof(ctl));
+	dnet_empty_time(&ctl.io.timestamp);
 
 	ctl.cflags = get_cflags();
 	ctl.data = file.data();

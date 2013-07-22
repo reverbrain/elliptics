@@ -501,6 +501,8 @@ static void test_cache_write(session &sess, int num)
 		sess.transform(os.str(), id);
 		memcpy(io.id, id.id, DNET_ID_SIZE);
 		io.size = os.str().size();
+		io.timestamp.tsec = -1;
+		io.timestamp.tnsec = -1;
 
 		ios.push_back(io);
 		data.push_back(os.str());
@@ -659,6 +661,8 @@ static void test_commit(session &s)
 	ctl.io.offset = 0;
 	ctl.io.size = data.size();
 	ctl.io.num = data.size();
+	ctl.io.timestamp.tsec = -1;
+	ctl.io.timestamp.tnsec = -1;
 	ctl.fd = -1;
 
 	// Write
@@ -726,6 +730,8 @@ static void test_bulk_write(session &sess, size_t test_count)
 		sess.transform(os.str(), id);
 		memcpy(io.id, id.id, DNET_ID_SIZE);
 		io.size = os.str().size();
+		io.timestamp.tsec = -1;
+		io.timestamp.tnsec = -1;
 
 		ios.push_back(io);
 		data.push_back(os.str());
