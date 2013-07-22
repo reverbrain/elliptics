@@ -173,6 +173,7 @@ class local_session
 		{
 			dnet_io_attr io;
 			memset(&io, 0, sizeof(io));
+			dnet_empty_time(&io.timestamp);
 
 			memcpy(io.id, id.id, DNET_ID_SIZE);
 			memcpy(io.parent, id.id, DNET_ID_SIZE);

@@ -576,6 +576,20 @@ static inline void dnet_current_time(struct dnet_time *t)
 	t->tnsec = tv.tv_usec * 1000;
 }
 
+static inline void dnet_empty_time(struct dnet_time *t)
+{
+	t->tsec = -1;
+	t->tnsec = -1;
+}
+
+static inline int dnet_time_is_empty(struct dnet_time *t)
+{
+	static const uint64_t empty = -1;
+	if (t->tsec == empty && t->tnsec == empty)
+		return 1;
+	return 0;
+}
+
 struct dnet_file_info {
 	int			flen;		/* filename length, which goes after this structure */
 	unsigned char		checksum[DNET_CSUM_SIZE];

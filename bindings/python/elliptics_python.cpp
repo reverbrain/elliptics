@@ -760,6 +760,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			std::vector<dnet_io_attr> ios;
 			dnet_io_attr io;
 			memset(&io, 0, sizeof(io));
+			dnet_empty_time(&io.timestamp);
 
 			for (size_t i = 0; i < std_keys.size(); ++i) {
 				dnet_id id = std_keys[i].to_dnet();
@@ -780,6 +781,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			std::vector<dnet_io_attr> ios;
 			dnet_io_attr io;
 			memset(&io, 0, sizeof(io));
+			dnet_empty_time(&io.timestamp);
 
 			for (size_t i = 0; i < std_keys.size(); ++i) {
 				key id = std_keys[i];

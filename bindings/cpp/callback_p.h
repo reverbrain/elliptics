@@ -877,10 +877,10 @@ class write_callback
 
 			cb.set_total(sess.get_groups().size());
 
-			if ((ctl.io.timestamp.tsec == 0) && (ctl.io.timestamp.tnsec == 0)) {
+			if (dnet_time_is_empty(&ctl.io.timestamp)) {
 				sess.get_timestamp(&ctl.io.timestamp);
 
-				if ((ctl.io.timestamp.tsec == 0) && (ctl.io.timestamp.tnsec == 0))
+				if (dnet_time_is_empty(&ctl.io.timestamp))
 					dnet_current_time(&ctl.io.timestamp);
 			}
 
