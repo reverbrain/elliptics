@@ -675,6 +675,7 @@ struct dnet_session *dnet_session_create(struct dnet_node *n)
 		return NULL;
 
 	memset(s, 0, sizeof(struct dnet_session));
+	dnet_empty_time(&s->ts);
 	s->node = n;
 
 	return s;
@@ -689,6 +690,7 @@ struct dnet_session *dnet_session_copy(struct dnet_session *s)
 	new_s->wait_ts = s->wait_ts;
 	new_s->cflags = s->cflags;
 	new_s->ioflags = s->ioflags;
+	new_s->ts = s->ts;
 	new_s->user_flags = s->user_flags;
 
 	int err = dnet_session_set_groups(new_s, s->groups, s->group_num);

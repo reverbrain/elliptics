@@ -39,18 +39,6 @@
 using namespace ioremap::elliptics;
 using namespace boost::unit_test;
 
-void usage(char *p)
-{
-	fprintf(stderr, "Usage: %s <options>\n"
-			"  -r host              - remote host name\n"
-			"  -p port              - remote port\n"
-			"  -g group_id          - group_id for range request and bulk write\n"
-			"  -w                   - write cache before read\n"
-			"  -m                   - start client's memory leak test (rather long - several minutes, and space consuming)\n"
-			, p);
-	exit(-1);
-}
-
 namespace tests {
 
 #define ELLIPTICS_CHECK_IMPL(R, C, CMD) auto R = (C); \
@@ -595,21 +583,35 @@ static void test_cas(session &sess)
 
 static void test_append(session &sess)
 {
-	const std::string key = "append-test";
-	const std::string data1 = "first part of the message";
-	const std::string data2 = " | second part of the message";
+	const std::string key_a = "append-test";
+	const std::string key_ap = "append-prepare-test";
+	const std::string data = "first part of the message";
+	const std::string data_append = " | second part of the message";
+	read_result_entry read_entry;
+
+	// Clone sessions
+	session sa = sess.clone();
+	session sap = sess.clone();
 
 	// Write data
-	ELLIPTICS_REQUIRE(write_result, sess.write_data(key, data1, 0));
+	ELLIPTICS_REQUIRE(write_result1, sess.write_data(key_a, data, 0));
+	ELLIPTICS_REQUIRE(write_result2, sess.write_data(key_ap, data, 0));
 
 	// Append
-	session append_session = sess.clone();
-	append_session.set_ioflags(append_session.get_ioflags() | DNET_IO_FLAGS_APPEND);
-	ELLIPTICS_REQUIRE(append_result, append_session.write_data(key, data2, 0));
+	sa.set_ioflags(sa.get_ioflags() | DNET_IO_FLAGS_APPEND);
+	ELLIPTICS_REQUIRE(append_result1, sa.write_data(key_a, data_append, 0));
 
-	ELLIPTICS_REQUIRE(read_result, sess.read_data(key, 0, 0));
-	read_result_entry read_entry = read_result.get_one();
-	BOOST_REQUIRE_EQUAL(read_entry.file().to_string(), data1 + data2);
+	ELLIPTICS_REQUIRE(read_result1, sa.read_data(key_a, 0, 0));
+	read_entry = read_result1.get_one();
+	BOOST_REQUIRE_EQUAL(read_entry.file().to_string(), data + data_append);
+
+	// Apend + Prepare
+	sap.set_ioflags(sap.get_ioflags() | DNET_IO_FLAGS_APPEND | DNET_IO_FLAGS_PREPARE);
+	ELLIPTICS_REQUIRE(append_result2, sap.write_data(key_ap, data_append, 0));
+
+	ELLIPTICS_REQUIRE(read_result2, sap.read_data(key_ap, 0, 0));
+	read_entry = read_result2.get_one();
+	BOOST_REQUIRE_EQUAL(read_entry.file().to_string(), data + data_append);
 }
 
 static void test_read_write_offsets(session &sess)

@@ -182,13 +182,14 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
 		err = eblob_write_prepare(b, &key, io->num + ehdr_size, flags);
 		if (err) {
-			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_prepare: size: %llu: %s %d\n",
-				dnet_dump_id_str(io->id), (unsigned long long)io->num, strerror(-err), err);
+			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_prepare: "
+					"size: %" PRIu64 ": %s %d\n", dnet_dump_id_str(io->id),
+					io->num + ehdr_size, strerror(-err), err);
 			goto err_out_exit;
 		}
 
-		dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: eblob_write_prepare: size: %llu: Ok\n",
-			dnet_dump_id_str(io->id), (unsigned long long)io->num);
+		dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: eblob_write_prepare: "
+				"size: %" PRIu64 ": Ok\n", dnet_dump_id_str(io->id), io->num + ehdr_size);
 	}
 
 	if (io->size) {
@@ -209,21 +210,23 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 			goto err_out_exit;
 		}
 
-		dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: Ok: offset: %llu, size: %llu.\n",
-			dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size);
+		dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: Ok: "
+				"offset: %" PRIu64 ", size: %" PRIu64 ".\n",
+				dnet_dump_id_str(io->id), io->offset, io->size);
 	}
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
 			err = eblob_write_commit(b, &key, io->num + ehdr_size, flags);
 			if (err) {
-				dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: %s %d\n",
-					dnet_dump_id_str(io->id), (unsigned long long)io->num, strerror(-err), err);
+				dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_write_commit: "
+						"size: %" PRIu64 ": %s %d\n", dnet_dump_id_str(io->id),
+						io->num, strerror(-err), err);
 				goto err_out_exit;
 			}
 
-			dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: eblob_write_commit: size: %llu: Ok\n",
-				dnet_dump_id_str(io->id), (unsigned long long)io->num);
+			dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: eblob_write_commit: "
+					"size: %" PRIu64 ": Ok\n", dnet_dump_id_str(io->id), io->num);
 		}
 	}
 
@@ -231,8 +234,8 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 		err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: eblob_read: "
-					"size: %llu: %s %d\n",
-				dnet_dump_id_str(io->id), (unsigned long long)io->num, strerror(-err), err);
+					"size: %" PRIu64 ": %s %d\n", dnet_dump_id_str(io->id),
+					io->num, strerror(-err), err);
 			goto err_out_exit;
 		}
 	}
@@ -246,9 +249,9 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	err = dnet_send_file_info_ts(state, cmd, wc.data_fd, wc.offset, wc.size, &elist.timestamp);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: dnet_send_file_info: "
-				"fd: %d, offset: %llu, size: %llu: %s %d\n",
-			dnet_dump_id_str(io->id), wc.data_fd,(unsigned long long)wc.offset,
-			(unsigned long long)wc.size, strerror(-err), err);
+				"fd: %d, offset: %" PRIu64 ", size: %" PRIu64 ": %s %d\n",
+				dnet_dump_id_str(io->id), wc.data_fd, wc.offset,
+				wc.size, strerror(-err), err);
 		goto err_out_exit;
 	}
 
