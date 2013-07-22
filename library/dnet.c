@@ -693,7 +693,7 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 		struct dnet_iterator_range *curr = ipriv->range;
 		struct dnet_iterator_range *end = curr + ipriv->req->range_num;
 		for (; curr < end; ++curr) {
-			if (dnet_id_cmp_str(key->id, curr->key_begin.id) > 0
+			if (dnet_id_cmp_str(key->id, curr->key_begin.id) >= 0
 					&& dnet_id_cmp_str(key->id, curr->key_end.id) < 0)
 				goto key_range_found;
 		}
