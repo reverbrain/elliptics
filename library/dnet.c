@@ -717,10 +717,7 @@ key_range_found:
 	}
 	size = response_size + dsize;
 
-	/*
-	 * Prepare combined buffer.
-	 * XXX: Remove memcpy.
-	 */
+	/* Prepare combined buffer */
 	position = combined = malloc(size);
 	if (combined == NULL) {
 		err = -ENOMEM;
