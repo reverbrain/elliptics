@@ -411,6 +411,7 @@ ioremap::elliptics::async_write_result elliptics_storage_t::async_bulk_write(con
 	dnet_io_attr io;
 	dnet_id id;
 	memset(&io, 0, sizeof(io));
+	dnet_empty_time(&io.timestamp);
 	memset(&id, 0, sizeof(id));
 
 	for (size_t i = 0; i < blobs.size(); ++i) {
