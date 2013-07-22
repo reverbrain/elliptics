@@ -899,6 +899,8 @@ static int dnet_write_file_id_raw(struct dnet_session *s, const char *file, stru
 	ctl.io.flags = dnet_session_get_ioflags(s);
 	ctl.io.size = size;
 	ctl.io.offset = remote_offset;
+	ctl.io.timestamp.tsec = stat.st_mtime;
+	ctl.io.timestamp.tnsec = 0;
 
 	memcpy(&ctl.id, id, sizeof(struct dnet_id));
 
