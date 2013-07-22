@@ -5,7 +5,7 @@ New recovery mechanism for elliptics that utilizes iterators and metadata.
 
 For now it supports two recovery methods: `merge` and `dc`:
  * `merge` is used for recovery within hash ring (aka group)
- * `dc` are used for recovery across different hash rings thus maintaining replica counts.
+ * `dc` is used for recovery across different hash rings thus maintaining replica counts.
 
 More information about recovery process can be found at:
 	http://doc.reverbrain.com/elliptics:replication
