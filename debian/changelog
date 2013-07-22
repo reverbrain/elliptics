@@ -1,3 +1,15 @@
+elliptics (2.24.13.9) unstable; urgency=low
+
+  * Set timestamp to -1/-1 on session creation;
+  * Copy timestamp on session clone;
+  * Get timestamp from mtime when writing via write_file;
+  * Use half-open interval for key range intervals;
+  * Added test for APPEND|PREPARE case;
+  * Improved logging in eblob backend write path;
+  * Comment improvements.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 22 Jul 2013 21:44:27 +0400
+
 elliptics (2.24.13.8) unstable; urgency=low
 
   * recovery: monitor: add IPv6 support

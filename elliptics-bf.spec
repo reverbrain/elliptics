@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.8
+Version:	2.24.13.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jul 22 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.9
+- Set timestamp to -1/-1 on session creation;
+- Copy timestamp on session clone;
+- Get timestamp from mtime when writing via write_file;
+- Use half-open interval for key range intervals;
+- Added test for APPEND|PREPARE case;
+- Improved logging in eblob backend write path;
+- Comment improvements.
+
 * Sun Jul 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.8
 - recovery: monitor: add IPv6 support
 - recovery: remove entries after successful recovery
