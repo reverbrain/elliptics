@@ -39,18 +39,6 @@
 using namespace ioremap::elliptics;
 using namespace boost::unit_test;
 
-void usage(char *p)
-{
-	fprintf(stderr, "Usage: %s <options>\n"
-			"  -r host              - remote host name\n"
-			"  -p port              - remote port\n"
-			"  -g group_id          - group_id for range request and bulk write\n"
-			"  -w                   - write cache before read\n"
-			"  -m                   - start client's memory leak test (rather long - several minutes, and space consuming)\n"
-			, p);
-	exit(-1);
-}
-
 namespace tests {
 
 #define ELLIPTICS_CHECK_IMPL(R, C, CMD) auto R = (C); \
