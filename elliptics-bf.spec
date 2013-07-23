@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.9
+Version:	2.24.13.10
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jul 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.10
+- Inherited elliptics_id from key. Fixed places where elliptics_id is used.
+- Removed boost python class declaration for remove_result_entry.
+
 * Mon Jul 22 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.9
 - Set timestamp to -1/-1 on session creation;
 - Copy timestamp on session clone;
