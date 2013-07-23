@@ -22,7 +22,7 @@ node.add_remote("localhost", 1025)
 s = elliptics.Session(node)
 s.set_groups([1])
 
-r = s.set_indexes(s.transform(test_id), [test_ind], [test_data])
+r = s.set_indexes(elliptics.Id(test_id), [test_ind], [test_data])
 r.wait()
 assert r.successful()
 
@@ -38,20 +38,20 @@ assert r.successful()
 assert len(r.get()) >= 1
 assert r.get()[0].indexes[0].data == test_data
 
-r = s.list_indexes(s.transform(test_id))
+r = s.list_indexes(elliptics.Id(test_id))
 r.wait()
 assert r.successful()
 assert len(r.get()) >= 1
 assert r.get()[0].data == test_data
 
 
-z = s.find_any_indexes_raw([s.transform(test_ind)])
+z = s.find_any_indexes_raw([elliptics.Id(test_ind)])
 z.wait()
 assert z.successful()
 assert len(z.get()) >= 1
 assert z.get()[0].indexes[0].data == test_data
 
-z = s.find_all_indexes_raw([s.transform(test_ind)])
+z = s.find_all_indexes_raw([elliptics.Id(test_ind)])
 z.wait()
 assert z.successful()
 assert len(z.get()) >= 1

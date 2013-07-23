@@ -4,7 +4,7 @@ Key ranges routines
 
 from collections import namedtuple
 
-from .utils.misc import logged_class, format_id
+from .utils.misc import logged_class
 
 import sys
 sys.path.insert(0, "bindings/python/") # XXX
@@ -18,8 +18,8 @@ class IdRange(object):
         """
     __slots__ = ('start', 'stop')
 
-    ID_MIN = [0]*64
-    ID_MAX = [255]*64
+    ID_MIN = elliptics.Id([0]*64, 0)
+    ID_MAX = elliptics.Id([255]*64, 0)
 
     def __init__(self, start, stop):
         assert start <= stop
@@ -33,7 +33,7 @@ class IdRange(object):
         return "IdRange({0}, {1})".format(repr(self.start), repr(self.stop))
 
     def __str__(self):
-        return "{0}:{1}".format(format_id(self.start), format_id(self.stop))
+        return "{0}:{1}".format(self.start, self.stop)
 
     def __eq__(self, other):
         return tuple(self) == tuple(other)

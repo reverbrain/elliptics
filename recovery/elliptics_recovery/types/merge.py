@@ -19,7 +19,7 @@ from ..range import IdRange, RecoveryRange
 from ..route import RouteList
 from ..iterator import Iterator
 from ..etime import Time
-from ..utils.misc import format_id, elliptics_create_node,\
+from ..utils.misc import elliptics_create_node,\
     elliptics_create_session, worker_init, id_to_int
 
 # XXX: change me before BETA
@@ -49,13 +49,13 @@ def get_ranges(ctx, routes, group_id):
         next_ekey = routes[i + 1].key
         # For matching address but only in case where there is no wraparound
         if address == ctx.address and address != prev_address:
-            log.debug("Processing route: {0}, {1}".format(format_id(ekey.id), address))
-            start = ekey.id
-            stop = next_ekey.id
+            log.debug("Processing route: {0}, {1}".format(ekey, address))
+            start = ekey
+            stop = next_ekey
             # If we wrapped around hash ring circle - split route into two distinct ranges
             if (stop < start):
                 log.debug("Splitting range: {0}:{1}".format(
-                    format_id(start), format_id(stop)))
+                    start, stop))
                 ranges.append(RecoveryRange(IdRange(IdRange.ID_MIN, stop), prev_address))
                 ranges.append(RecoveryRange(IdRange(start, IdRange.ID_MAX), prev_address))
                 created = (1, 2)
@@ -172,7 +172,7 @@ def recover(ctx, diff, group, stats):
     # Split responses into ctx.batch_size batches
     for batch_id, batch in groupby(enumerate(diff),
                                     key=lambda x: x[0] / ctx.batch_size):
-        keys = [elliptics.Id(r.key, group) for _, r in batch]
+        keys = [r.key for _, r in batch]
         results = recover_keys(ctx, diff.address, group, keys, local_session, remote_session, stats)
         if results is None:
             stats.counter('recovered_keys', -len(keys))
