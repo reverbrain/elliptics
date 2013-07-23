@@ -16,22 +16,15 @@ def logged_class(klass):
     klass.log = log.getLogger(klass.__name__)
     return klass
 
-def format_id(key_id, count=6):
-    """
-    Pretty format for key_ids
-    """
-    return ''.join('%02x' % b for b in key_id[:count])
-
 def id_to_int(key_id):
     """Returns numerical equivalent of key"""
-    return int(format_id(key_id, count=64), 16)
-
+    return int(''.join('%02x' % b for b in key_id.id[:64]), 16)
 
 def mk_container_name(id_range, eid, prefix="iterator_"):
     """
     Makes filename for iterators' results
     """
-    return "{0}{1}_@{2}".format(prefix, str(id_range), format_id(eid.id))
+    return "{0}{1}_@{2}".format(prefix, str(id_range), eid)
 
 def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_timeout=60, flags=0, io_thread_num=1, net_thread_num=1, nonblocking_io_thread_num=1):
     """

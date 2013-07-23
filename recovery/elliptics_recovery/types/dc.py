@@ -149,7 +149,7 @@ def recover((id_range, eid, address)):
         result &= recover_keys(ctx=ctx,
                                address=diff.address,
                                group_id=diff.eid.group_id,
-                               keys=[elliptics.Id(r.key, diff.eid.group_id) for _, r in batch],
+                               keys=[r.key for _, r in batch],
                                local_session=local_session,
                                remote_session=remote_session,
                                stats=stats)
@@ -171,13 +171,13 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
 
     try:
         batch = remote_session.bulk_read_async(keys)
+        it = iter(batch)
     except Exception as e:
         log.debug("Bulk read failed: {0} keys: {1}".format(keys_len, e))
         stats.counter('read_keys', -keys_len)
         stats.counter('recovered_keys', -keys_len)
         return False
 
-    it = iter(batch)
     failed = 0
 
     while True:

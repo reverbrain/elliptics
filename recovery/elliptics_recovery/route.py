@@ -9,7 +9,7 @@ from socket import getaddrinfo, SOL_TCP, AF_INET6, AF_INET
 from itertools import groupby
 from operator import itemgetter
 
-from .utils.misc import logged_class, format_id
+from .utils.misc import logged_class
 from .range import IdRange, RecoveryRange, AddressRanges
 
 
@@ -96,7 +96,7 @@ class Route(object):
         return 'Route({0}, {1}, {2})'.format(repr(self.key), repr(self.address), self.key.group_id)
 
     def __str__(self):
-        return 'Route({0}, {1}, {2})'.format(format_id(self.key.id), self.address, self.key.group_id)
+        return 'Route({0}, {1}, {2})'.format(self.key, self.address, self.key.group_id)
 
     def __iter__(self):
         return iter((self.key, self.address))
@@ -176,12 +176,12 @@ class RouteList(object):
                 include = route.address == address
 
         if include:
-            ranges.append(RecoveryRange(IdRange(IdRange.ID_MIN, self.routes[0].key.id), keys.copy()))
+            ranges.append(RecoveryRange(IdRange(IdRange.ID_MIN, self.routes[0].key), keys.copy()))
 
         for i, route in enumerate(self.routes):
             keys[route.key.group_id] = (route.key, route.address)
             if i < len(self.routes) - 1:
-                next_route = self.routes[i + 1].key.id
+                next_route = self.routes[i + 1].key
             else:
                 next_route = IdRange.ID_MAX
 
@@ -190,11 +190,11 @@ class RouteList(object):
 
             if route.address == address:
                 include = True
-                ranges.append(RecoveryRange(IdRange(route.key.id, next_route), keys.copy()))
+                ranges.append(RecoveryRange(IdRange(route.key, next_route), keys.copy()))
             elif route.key.group_id == group_id:
                 include = False
             elif include:
-                ranges.append(RecoveryRange(IdRange(route.key.id, next_route), keys.copy()))
+                ranges.append(RecoveryRange(IdRange(route.key, next_route), keys.copy()))
 
         return ranges
 
@@ -218,10 +218,10 @@ class RouteList(object):
             if route.address == address:
                 next_route = routes[(i + 1) % count]
             if i < count - 1:
-                ranges.append(RecoveryRange(IdRange(route.key.id, next_route.key.id), address))
+                ranges.append(RecoveryRange(IdRange(route.key, next_route.key), address))
             else:
-                ranges.append(RecoveryRange(IdRange(route.key.id, IdRange.ID_MAX), address))
-                ranges.insert(0, RecoveryRange(IdRange(IdRange.ID_MIN, next_route.key.id), address))
+                ranges.append(RecoveryRange(IdRange(route.key, IdRange.ID_MAX), address))
+                ranges.insert(0, RecoveryRange(IdRange(IdRange.ID_MIN, next_route.key), address))
             i = 0
             while i < count - 1:
                 current_range = ranges[i]

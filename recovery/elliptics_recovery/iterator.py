@@ -5,7 +5,7 @@ Wrappers for iterator and it's result container
 import sys
 import os
 
-from .utils.misc import logged_class, mk_container_name, format_id
+from .utils.misc import logged_class, mk_container_name
 from .etime import Time
 from .range import IdRange
 
@@ -75,7 +75,7 @@ class IteratorResult(object):
         Computes diff between two sorted results. Returns container that consists of difference.
         """
         filename = 'diff_' + str(self.id_range) + '_' + \
-                   format_id(self.eid.id) + '-' + format_id(other.eid.id)
+                   self.eid + '-' + other.eid
         diff_container = IteratorResult.from_filename(filename,
                                                       eid=other.eid,
                                                       id_range=other.id_range,
@@ -140,7 +140,8 @@ class IteratorResult(object):
                     if not v_min:
                         v_min = (v, it, r)
                         continue
-                    if v.key < v_min[0].key or (v.key == v_min[0].key and v.timestamp > v_min[0].timestamp):
+                    key_cmp = cmp(v.key, v_min[0].key)
+                    if key_cmp < 0 or (key_cmp == 0 and v.timestamp > v_min[0].timestamp):
                         v_min = (v, it, r)
 
                 v_min[2].append_rr(v_min[0])
@@ -214,7 +215,7 @@ class Iterator(object):
         self.session.set_groups([group])
 
     def start(self,
-              eid=elliptics.Id(IdRange.ID_MIN, 0),
+              eid=IdRange.ID_MIN,
               itype=elliptics.iterator_types.network,
               flags=elliptics.iterator_flags.key_range | elliptics.iterator_flags.ts_range,
               key_ranges=(IdRange(IdRange.ID_MIN, IdRange.ID_MAX),),

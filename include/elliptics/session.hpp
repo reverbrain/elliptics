@@ -190,6 +190,10 @@ class key
 		const dnet_raw_id &raw_id() const;
 		std::string to_string() const;
 
+		void set_id(const dnet_id &id);
+		void set_id(const dnet_raw_id &id);
+		void set_group_id(uint32_t group);
+
 		void transform(session &sess);
 
 	private:

@@ -125,4 +125,22 @@ void key::transform(session &sess)
 	sess.transform(m_remote, m_id);
 }
 
+void key::set_id(const dnet_id &id)
+{
+	m_by_id = true;
+	m_id = id;
+}
+
+void key::set_id(const dnet_raw_id &id)
+{
+	m_by_id = true;
+	memset(&m_id, 0, sizeof(m_id));
+	memcpy(m_id.id, id.id, sizeof(id.id));
+}
+
+void key::set_group_id(uint32_t group_id)
+{
+	m_id.group_id = group_id;
+}
+
 } } // namespace ioremap::elliptics
