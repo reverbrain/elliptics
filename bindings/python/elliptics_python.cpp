@@ -1261,9 +1261,6 @@ BOOST_PYTHON_MODULE(elliptics)
 	bp::class_<write_result_entry>("WriteResultEntry")
 	;
 
-	bp::class_<remove_result_entry>("RemoveResultEntry")
-	;
-
 	bp::class_<index_entry>("IndexEntry")
 		.add_property("index",
 		              index_entry_get_index,
