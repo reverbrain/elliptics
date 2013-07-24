@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.10
+Version:	2.24.13.11
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jul 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.11
+- Optimized merge algorithm in dc recovery
+
 * Tue Jul 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.10
 - Inherited elliptics_id from key. Fixed places where elliptics_id is used.
 - Removed boost python class declaration for remove_result_entry.
