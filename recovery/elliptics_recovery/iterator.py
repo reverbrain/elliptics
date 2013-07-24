@@ -105,59 +105,56 @@ class IteratorResult(object):
                 5.  After that removes from tuple list all tuples from remove list
                 6.  Repeates step 1-6 while tuple list isn't empty
         """
-        ret = []
-
+        results = [d for d in results if d and len(d) != 0]
         if len(results) == 1:
             import shutil
             diff = results[0]
             filename = os.path.join(tmp_dir, "merge_" + mk_container_name(diff.id_range, diff.eid))
             shutil.copyfile(diff.filename, filename)
-            ret.append(IteratorResult.load_filename(filename,
-                                                    address=diff.address,
-                                                    id_range=diff.id_range,
-                                                    eid=diff.eid,
-                                                    is_sorted=True,
-                                                    tmp_dir=tmp_dir,
-                                                    leave_file=True
-                                                    ))
+            return [cls.load_filename(filename,
+                                      address=diff.address,
+                                      id_range=diff.id_range,
+                                      eid=diff.eid,
+                                      is_sorted=True,
+                                      tmp_dir=tmp_dir,
+                                      leave_file=True
+                                      )]
         elif len(results) != 0:
-            vals = []
-            for d in results:
-                if d is None or len(d) == 0:
-                    continue
-                filename = os.path.join(tmp_dir, "merge_" + mk_container_name(d.id_range, d.eid))
-                it = iter(d)
-                vals.append((it.next(), it, IteratorResult.from_filename(filename,
-                                                                         address=d.address,
-                                                                         id_range=d.id_range,
-                                                                         eid=d.eid,
-                                                                         tmp_dir=tmp_dir,
-                                                                         leave_file=True
-                                                                         )))
-            while len(vals):
-                v_min = None
-                for v, it, r in vals:
-                    if not v_min:
-                        v_min = (v, it, r)
-                        continue
-                    key_cmp = cmp(v.key, v_min[0].key)
-                    if key_cmp < 0 or (key_cmp == 0 and v.timestamp > v_min[0].timestamp):
-                        v_min = (v, it, r)
+            return cls.__merge__(results, tmp_dir)
+        return None
 
-                v_min[2].append_rr(v_min[0])
+    @classmethod
+    def __merge__(cls, results, tmp_dir):
+        import heapq
+        ret = []
+        heap = []
+        for d in results:
+            try:
+                heapq.heappush(heap,
+                               MergeData(iter(d),
+                                         IteratorResult.from_filename(os.path.join(tmp_dir, "merge_" + mk_container_name(d.id_range, d.eid)),
+                                                                      address=d.address,
+                                                                      id_range=d.id_range,
+                                                                      eid=d.eid,
+                                                                      tmp_dir=tmp_dir,
+                                                                      leave_file=True
+                                                                      )))
+            except StopIteration:
+                pass
 
-                remove_list = []
-                for n, (v, it, r) in enumerate(vals):
-                    while v.key == v_min[0].key:
-                        try:
-                            v = it.next()
-                            vals[n] = (v, it, r)
-                        except:
-                            ret.append(r)
-                            remove_list.append(n)
-                            break
+        while len(heap):
+            min_data = heapq.heappop(heap)
+            min_data.container.append_rr(min_data.value)
+            same_datas = [min_data]
+            while len(heap) and min_data.value.key == heap[0].value.key:
+                same_datas.append(heapq.heappop(heap))
+            for i in same_datas:
+                try:
+                    i.next()
+                    heapq.heappush(heap, i)
+                except StopIteration:
+                    ret.append(i.container)
 
-                vals = [v for i, v in enumerate(vals) if i not in remove_list]
         return ret
 
     @classmethod
@@ -206,9 +203,9 @@ class IteratorResult(object):
 @logged_class
 class Iterator(object):
     __doc__ = \
-    """
-    Wrapper on top of elliptics new iterator and it's result container
-    """
+        """
+        Wrapper on top of elliptics new iterator and it's result container
+        """
 
     def __init__(self, node, group):
         self.session = elliptics.Session(node)
@@ -287,3 +284,48 @@ class Iterator(object):
                 stats.counter(c, it)
 
         return result, result_len
+
+
+class MergeData(object):
+    __doc__ = \
+        """
+        Assist class for IteratorResult.__merge__
+        """
+
+    def __init__(self, iter, container):
+        self.iter = iter
+        self.container = container
+        self.value = None
+        self.next_value = None
+        self.next()
+
+    def __cmp__(self, other):
+        key_cmp = cmp(self.value.key, other.value.key)
+        if key_cmp != 0:
+            return key_cmp
+        return cmp(other.value.timestamp, self.value.timestamp)
+
+    def next(self):
+        if self.iter is None:
+            raise StopIteration
+
+        if self.value is None:
+            self.value = next(self.iter)
+        else:
+            self.value = self.next_value
+
+        try:
+            self.next_value = next(self.iter)
+        except StopIteration:
+            self.next_value = None
+            self.iter = None
+            return
+
+        try:
+            while cmp(self.value.key, self.next_value.key) == 0:
+                if cmp(self.value.timestamp, self.next_value.timestamp) < 0:
+                    self.value = self.next_value
+                self.next_value = next(self.iter)
+        except StopIteration:
+            self.next_value = None
+            self.iter = None
