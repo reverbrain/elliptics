@@ -25,6 +25,7 @@
 #include <boost/intrusive/set.hpp>
 
 #include "../library/elliptics.h"
+#include "../indexes/local_session.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"

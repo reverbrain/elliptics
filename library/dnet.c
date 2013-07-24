@@ -85,24 +85,13 @@ err_out_exit:
 
 int dnet_remove_local(struct dnet_node *n, struct dnet_id *id)
 {
-	int cmd_size;
-	struct dnet_cmd *cmd;
-	struct dnet_io_attr *io;
+	const size_t cmd_size = sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr);
 	int err;
+	char buffer[cmd_size];
+	struct dnet_cmd *cmd = (struct dnet_cmd *)buffer;
+	struct dnet_io_attr *io = (struct dnet_io_attr *)(cmd + 1);
 
-	cmd_size = sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr);
-
-	cmd = malloc(cmd_size);
-	if (!cmd) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate %d bytes for local remove.\n",
-				dnet_dump_id(id), cmd_size);
-		err = -ENOMEM;
-		goto err_out_exit;
-	}
-
-	memset(cmd, 0, cmd_size);
-
-	io = (struct dnet_io_attr *)(cmd + 1);
+	memset(buffer, 0, cmd_size);
 
 	cmd->id = *id;
 	cmd->size = cmd_size - sizeof(struct dnet_cmd);
