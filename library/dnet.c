@@ -1573,6 +1573,10 @@ err_out_exit:
 	return err;
 }
 
+/*
+ * @offset should be set not to offset within given record,
+ * but offset within file descriptor
+ */
 int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
 		uint64_t offset, int64_t size, struct dnet_time *timestamp)
 {
