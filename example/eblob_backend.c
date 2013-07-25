@@ -152,6 +152,7 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	struct eblob_key key;
 	struct dnet_ext_list_hdr ehdr;
 	uint64_t flags = BLOB_DISK_CTL_EXTHDR;
+	uint64_t fd_offset;
 	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
 	int err;
 
@@ -246,14 +247,21 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 		goto err_out_exit;
 	}
 
-	err = dnet_send_file_info_ts(state, cmd, wc.data_fd, wc.offset, wc.size, &elist.timestamp);
+	fd_offset = wc.ctl_data_offset + sizeof(struct eblob_disk_control);
+	if (wc.flags & BLOB_DISK_CTL_EXTHDR)
+		fd_offset += ehdr_size;
+
+	err = dnet_send_file_info_ts(state, cmd, wc.data_fd, fd_offset, wc.size, &elist.timestamp);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, "%s: EBLOB: blob-write: dnet_send_file_info: "
-				"fd: %d, offset: %" PRIu64 ", size: %" PRIu64 ": %s %d\n",
-				dnet_dump_id_str(io->id), wc.data_fd, wc.offset,
-				wc.size, strerror(-err), err);
+				"fd: %d, offset: %" PRIu64 ", offset-within-fd: %" PRIu64 ", size: %" PRIu64 ": %s %d\n",
+				dnet_dump_id_str(io->id), wc.data_fd, wc.offset, fd_offset, wc.size,
+				strerror(-err), err);
 		goto err_out_exit;
 	}
+
+	dnet_backend_log(DNET_LOG_INFO, "%s: EBLOB: blob-write: fd: %d, offset: %" PRIu64 ", offset-within-fd: %" PRIu64 ", size: %" PRIu64 "\n",
+			dnet_dump_id_str(io->id), wc.data_fd, wc.offset, fd_offset, wc.size);
 
 err_out_exit:
 	dnet_ext_list_destroy(&elist);
