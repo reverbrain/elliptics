@@ -41,7 +41,9 @@
 #define DNET_COPY_IO_SIZE	512
 
 #ifndef HAVE_LARGEFILE_SUPPORT
+#ifndef O_LARGEFILE
 #define O_LARGEFILE		0
+#endif
 #endif
 
 #ifdef __GNUC__
