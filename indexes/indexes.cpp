@@ -32,7 +32,6 @@ namespace {
 
 using namespace ioremap::elliptics;
 
-			dnet_empty_time(&io.timestamp);
 struct update_indexes_functor : public std::enable_shared_from_this<update_indexes_functor>
 {
 	ELLIPTICS_DISABLE_COPY(update_indexes_functor)

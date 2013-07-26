@@ -9,13 +9,6 @@ enum update_index_action {
 	remove_data = 2
 };
 
-/* matches above enum, please update synchronously */
-static const char *update_index_action_strings[] = {
-	"empty",
-	"insert",
-	"remove",
-};
-
 class local_session
 {
 	ELLIPTICS_DISABLE_COPY(local_session)

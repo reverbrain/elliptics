@@ -387,8 +387,10 @@ struct dnet_config
 
 	uint64_t		cache_size;
 
+	int			cache_sync_timeout;
+
 	/* so that we do not change major version frequently */
-	int			reserved_for_future_use[12];
+	int			reserved_for_future_use[11];
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);

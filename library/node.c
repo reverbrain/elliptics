@@ -572,6 +572,12 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 				n->check_timeout);
 	}
 
+	if (!n->cache_sync_timeout) {
+		n->cache_sync_timeout = DNET_DEFAULT_CACHE_SYNC_TIMEOUT_SEC;
+		dnet_log(n, DNET_LOG_NOTICE, "Using default check timeout (%d seconds).\n",
+				n->cache_sync_timeout);
+	}
+
 	if (!n->stall_count) {
 		n->stall_count = DNET_DEFAULT_STALL_TRANSACTIONS;
 		dnet_log(n, DNET_LOG_NOTICE, "Using default stall count (%ld transactions).\n",

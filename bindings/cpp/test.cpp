@@ -65,6 +65,7 @@ namespace tests {
 #define ELLIPTICS_WARN(R, C) ELLIPTICS_CHECK_IMPL(R, (C), BOOST_WARN_MESSAGE)
 #define ELLIPTICS_CHECK(R, C) ELLIPTICS_CHECK_IMPL(R, (C), BOOST_CHECK_MESSAGE)
 #define ELLIPTICS_REQUIRE(R, C) ELLIPTICS_CHECK_IMPL(R, (C), BOOST_REQUIRE_MESSAGE)
+
 #define ELLIPTICS_WARN_ERROR(R, C, E) ELLIPTICS_CHECK_ERROR_IMPL(R, (C), (E), BOOST_WARN_MESSAGE)
 #define ELLIPTICS_CHECK_ERROR(R, C, E) ELLIPTICS_CHECK_ERROR_IMPL(R, (C), (E), BOOST_CHECK_MESSAGE)
 #define ELLIPTICS_REQUIRE_ERROR(R, C, E) ELLIPTICS_CHECK_ERROR_IMPL(R, (C), (E), BOOST_REQUIRE_MESSAGE)
@@ -466,9 +467,15 @@ static void test_indexes(session &sess)
 	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), indexes.size());
 }
 
-static void test_enxio(session &s)
+static void test_error(session &s, const std::string &id, int err)
 {
-	ELLIPTICS_REQUIRE_ERROR(read_result, s.read_data(key("non-existen-key"), 0, 0), -ENXIO);
+	ELLIPTICS_REQUIRE_ERROR(read_result, s.read_data(id, 0, 0), err);
+}
+
+static void test_remove(session &s, const std::string &id)
+{
+	ELLIPTICS_REQUIRE(remove_result, s.remove(id));
+	ELLIPTICS_REQUIRE_ERROR(read_result, s.read_data(id, 0, 0), -ENOENT);
 }
 
 static void test_cache_write(session &sess, int num)
@@ -879,6 +886,50 @@ static void test_range_request(session &sess, int limit_start, int limit_num, in
 	BOOST_REQUIRE_EQUAL(removed_fail, 0);
 }
 
+#define ELLIPTICS_COMPARE_REQUIRE(R, C, D) ELLIPTICS_REQUIRE(R, C); \
+	do { \
+		auto R ## _result = (R).get_one(); \
+		BOOST_REQUIRE_EQUAL((R ## _result).file().to_string(), (D)); \
+	} while (0)
+
+static void test_cache_and_no(session &sess, const std::string &id)
+{
+	const std::string first_part = "first part";
+	const std::string second_part = " | second part";
+	const std::string third_path = " | third part";
+
+	session cache_sess = sess.clone();
+	cache_sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_APPEND);
+
+	ELLIPTICS_REQUIRE(first_write_result, sess.write_data(id, first_part, 0));
+	ELLIPTICS_COMPARE_REQUIRE(first_read_result, sess.read_data(id, 0, 0), first_part);
+
+	ELLIPTICS_REQUIRE(second_write_result, cache_sess.write_data(id, second_part, 0));
+	ELLIPTICS_COMPARE_REQUIRE(second_read_result, cache_sess.read_data(id, 0, 0), first_part + second_part);
+
+	sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_APPEND);
+
+	ELLIPTICS_REQUIRE(third_write_result, sess.write_data(id, third_path, 0));
+	ELLIPTICS_COMPARE_REQUIRE(third_read_result, sess.read_data(id, 0, 0), first_part + second_part + third_path);
+	ELLIPTICS_COMPARE_REQUIRE(third_cache_read_result, cache_sess.read_data(id, 0, 0), first_part + second_part + third_path);
+}
+
+static void test_cache_populating(session &sess, const std::string &id, const std::string &data)
+{
+	session cache_sess = sess.clone();
+	cache_sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CACHE);
+
+	session cache_only_sess = sess.clone();
+	cache_only_sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY);
+
+	ELLIPTICS_REQUIRE(write_result, sess.write_data(id, data, 0));
+	ELLIPTICS_COMPARE_REQUIRE(read_result, sess.read_data(id, 0, 0), data);
+
+	ELLIPTICS_REQUIRE_ERROR(read_cache_only_result, cache_only_sess.read_data(id, 0, 0), -ENOENT);
+	ELLIPTICS_COMPARE_REQUIRE(read_cache_result, cache_sess.read_data(id, 0, 0), data);
+	ELLIPTICS_COMPARE_REQUIRE(read_cache_only_populated_result, cache_only_sess.read_data(id, 0, 0), data);
+}
+
 bool register_tests()
 {
 	srand(time(0));
@@ -891,19 +942,20 @@ bool register_tests()
 	node n(log);
 	n.add_remote("localhost", 1025);
 
-	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, 0), "new-id", "new-data");
-	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, 0), "new-id", "new-data-long");
-	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, 0), "new-id", "short");
+	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "new-data");
+	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "new-data-long");
+	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "short");
+	ELLIPTICS_TEST_CASE(test_remove, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id");
 	ELLIPTICS_TEST_CASE(test_recovery, create_session(n, {1, 2}, 0, 0), "recovery-id", "recovered-data");
 	ELLIPTICS_TEST_CASE(test_indexes, create_session(n, {1, 2}, 0, 0));
-	ELLIPTICS_TEST_CASE(test_enxio, create_session(n, {99}, 0, 0));
+	ELLIPTICS_TEST_CASE(test_error, create_session(n, {99}, 0, 0), "non-existen-key", -ENXIO);
 	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
 	ELLIPTICS_TEST_CASE(test_cache_read, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY | DNET_IO_FLAGS_NOCSUM), 1000, 20);
 	ELLIPTICS_TEST_CASE(test_cache_delete, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000, 20);
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, 0), "2.xml", "lookup data");
 	ELLIPTICS_TEST_CASE(test_cas, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CHECKSUM));
-	ELLIPTICS_TEST_CASE(test_append, create_session(n, {1, 2}, 0, 0));
-	ELLIPTICS_TEST_CASE(test_read_write_offsets, create_session(n, {1, 2}, 0, 0));
+	ELLIPTICS_TEST_CASE(test_append, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE));
+	ELLIPTICS_TEST_CASE(test_read_write_offsets, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE));
 	ELLIPTICS_TEST_CASE(test_commit, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_prepare_commit, create_session(n, {1, 2}, 0, 0), "prepare-commit-test-1", 0, 0);
 	ELLIPTICS_TEST_CASE(test_prepare_commit, create_session(n, {1, 2}, 0, 0), "prepare-commit-test-2", 0, 1);
@@ -914,6 +966,8 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_range_request, create_session(n, {2}, 0, 0), 0, 255, 2);
 	ELLIPTICS_TEST_CASE(test_range_request, create_session(n, {2}, 0, 0), 3, 14, 2);
 	ELLIPTICS_TEST_CASE(test_range_request, create_session(n, {2}, 0, 0), 7, 3, 2);
+	ELLIPTICS_TEST_CASE(test_cache_and_no, create_session(n, {1, 2}, 0, 0), "cache-and-no-key");
+	ELLIPTICS_TEST_CASE(test_cache_populating, create_session(n, {1, 2}, 0, 0), "cache-populated-key", "cache-data");
 
 	return true;
 }

@@ -108,9 +108,6 @@ int dnet_remove_local(struct dnet_node *n, struct dnet_id *id)
 	err = n->cb->command_handler(n->st, n->cb->command_private, cmd, io);
 	dnet_log(n, DNET_LOG_NOTICE, "%s: local remove: err: %d.\n", dnet_dump_id(&cmd->id), err);
 
-	free(cmd);
-
-err_out_exit:
 	return err;
 
 }
@@ -982,6 +979,52 @@ static int dnet_cmd_bulk_read(struct dnet_net_state *st, struct dnet_cmd *cmd, v
 	return err;
 }
 
+int dnet_cas_local(struct dnet_node *n, struct dnet_id *id, void *remote_csum, int csize)
+{
+	char csum[DNET_ID_SIZE];
+	int err = 0;
+
+	if (!n->cb->checksum) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation is not supported in backend\n",
+				dnet_dump_id(id));
+		return -ENOTSUP;
+	}
+
+	err = n->cb->checksum(n, n->cb->command_private, id, csum, &csize);
+	if (err != 0 && err != -ENOENT) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation failed\n", dnet_dump_id(id));
+		return err;
+	}
+
+	/*
+	 * If err == -ENOENT then there is no data to checksum, and CAS should succeed
+	 * This is not 'client-safe' since two or more clients with unlocked CAS write
+	 * may find out that there is no data and try to write their data, but we do not
+	 * case about parallel writes being made without locks.
+	 */
+
+	if (err == 0) {
+		if (memcmp(csum, remote_csum, DNET_ID_SIZE)) {
+			char disk_csum[DNET_ID_SIZE * 2 + 1];
+			char recv_csum[DNET_ID_SIZE * 2 + 1];
+
+			dnet_dump_id_len_raw((const unsigned char *)csum, DNET_ID_SIZE, disk_csum);
+			dnet_dump_id_len_raw(remote_csum, DNET_ID_SIZE, recv_csum);
+			dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch: disk-csum: %s, recv-csum: %s\n",
+					dnet_dump_id(id), disk_csum, recv_csum);
+			return -EBADFD;
+		} else if (n->log->log_level >= DNET_LOG_NOTICE) {
+			char recv_csum[DNET_ID_SIZE * 2 + 1];
+
+			dnet_dump_id_len_raw(remote_csum, DNET_ID_SIZE, recv_csum);
+			dnet_log(n, DNET_LOG_NOTICE, "%s: cas: checksum; %s\n",
+					dnet_dump_id(id), recv_csum);
+		}
+	}
+
+	return err;
+}
+
 int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data, int recursive)
 {
 	int err = 0;
@@ -1085,70 +1128,18 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
 
-			/*
-			 * Always check cache when reading!
-			 */
-			if ((io->flags & DNET_IO_FLAGS_CACHE) || (cmd->cmd != DNET_CMD_WRITE)) {
+			if (!(io->flags & DNET_IO_FLAGS_NOCACHE)) {
 				err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
 
-				if (io->flags & DNET_IO_FLAGS_CACHE_ONLY) {
-					if ((cmd->cmd == DNET_CMD_WRITE) && !err) {
-						cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-						err = dnet_send_file_info_without_fd(st, cmd, 0, io->size);
-					}
-					break;
-				}
-
-				/*
-				 * We successfully read data from cache, do not sink to disk for it
-				 */
-				if ((cmd->cmd == DNET_CMD_READ) && !err)
+				if (err != -ENOTSUP)
 					break;
 			}
 
 			if ((io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) && (cmd->cmd == DNET_CMD_WRITE)) {
-				char csum[DNET_ID_SIZE];
-				int csize = DNET_ID_SIZE;
+				err = dnet_cas_local(n, &cmd->id, io->parent, DNET_ID_SIZE);
 
-				if (!n->cb->checksum) {
-					err = -ENOTSUP;
-					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation is not supported in backend\n",
-							dnet_dump_id(&cmd->id));
+				if (err != 0 && err != -ENOENT)
 					break;
-				}
-
-				err = n->cb->checksum(n, n->cb->command_private, &cmd->id, csum, &csize);
-				if (err < 0 && err != -ENOENT) {
-					dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum operation failed\n", dnet_dump_id(&cmd->id));
-					break;
-				}
-
-				/*
-				 * If err == -ENOENT then there is no data to checksum, and CAS should succeed
-				 * This is not 'client-safe' since two or more clients with unlocked CAS write
-				 * may find out that there is no data and try to write their data, but we do not
-				 * case about parallel writes being made without locks.
-				 */
-
-				if (err == 0) {
-					if (memcmp(csum, io->parent, DNET_ID_SIZE)) {
-						char disk_csum[DNET_ID_SIZE * 2 + 1];
-						char recv_csum[DNET_ID_SIZE * 2 + 1];
-
-						dnet_dump_id_len_raw((const unsigned char *)csum, DNET_ID_SIZE, disk_csum);
-						dnet_dump_id_len_raw(io->parent, DNET_ID_SIZE, recv_csum);
-						dnet_log(n, DNET_LOG_ERROR, "%s: cas: checksum mismatch: disk-csum: %s, recv-csum: %s\n",
-								dnet_dump_id(&cmd->id), disk_csum, recv_csum);
-						err = -EBADFD;
-						break;
-					} else if (n->log->log_level >= DNET_LOG_NOTICE) {
-						char recv_csum[DNET_ID_SIZE * 2 + 1];
-
-						dnet_dump_id_len_raw(io->parent, DNET_ID_SIZE, recv_csum);
-						dnet_log(n, DNET_LOG_NOTICE, "%s: cas: checksum; %s\n",
-								dnet_dump_id(&cmd->id), recv_csum);
-					}
-				}
 			}
 
 			dnet_convert_io_attr(io);
@@ -1336,47 +1327,6 @@ err_out_exit:
 }
 */
 
-static int dnet_populate_cache(struct dnet_node *n, struct dnet_cmd *cmd, struct dnet_io_attr *io,
-		void *data, int fd, size_t fd_offset, size_t size)
-{
-	void *orig_data = data;
-	ssize_t err;
-
-	if (!data && fd >= 0) {
-		ssize_t tmp_size = size;
-
-		if (size >= n->cache_size)
-			return -ENOMEM;
-
-		orig_data = data = malloc(size);
-		if (!data)
-			return -ENOMEM;
-
-		while (tmp_size > 0) {
-			err = pread(fd, data, tmp_size, fd_offset);
-			if (err <= 0) {
-				dnet_log_err(n, "%s: failed to populate cache: pread: offset: %zd, size: %zd",
-						dnet_dump_id(&cmd->id), fd_offset, size);
-				goto err_out_free;
-			}
-
-			data += err;
-			tmp_size -= err;
-			fd_offset += err;
-		}
-	}
-
-	cmd->cmd = DNET_CMD_WRITE;
-	err = dnet_cmd_cache_io(n->st, cmd, io, orig_data);
-	cmd->cmd = DNET_CMD_READ;
-
-err_out_free:
-	if (data != orig_data)
-		free(orig_data);
-
-	return err;
-}
-
 int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *io, void *data,
 		int fd, uint64_t offset, int on_exit)
 {
@@ -1421,11 +1371,6 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: %s: reply: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
 			(unsigned long long)io->offset,	(unsigned long long)io->size);
-
-	/* only populate data which has zero offset and cache flag */
-	if ((io->flags & DNET_IO_FLAGS_CACHE) && !io->offset) {
-		err = dnet_populate_cache(st->n, c, rio, data, fd, offset, io->size);
-	}
 
 	dnet_convert_cmd(c);
 	dnet_convert_io_attr(rio);

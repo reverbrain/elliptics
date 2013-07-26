@@ -3,6 +3,13 @@
 
 using namespace ioremap::elliptics;
 
+/* matches above enum, please update synchronously */
+static const char *update_index_action_strings[] = {
+	"empty",
+	"insert",
+	"remove",
+};
+
 static int noop_process(struct dnet_net_state *, struct epoll_event *) { return 0; }
 
 #undef list_entry
@@ -51,6 +58,7 @@ data_pointer local_session::read(const dnet_id &id, int *errp)
 {
 	dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
+	dnet_empty_time(&io.timestamp);
 
 	memcpy(io.id, id.id, DNET_ID_SIZE);
 	memcpy(io.parent, id.id, DNET_ID_SIZE);
@@ -135,6 +143,7 @@ int local_session::write(const dnet_id &id, const char *data, size_t size)
 {
 	dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
+	dnet_empty_time(&io.timestamp);
 
 	memcpy(io.id, id.id, DNET_ID_SIZE);
 	memcpy(io.parent, id.id, DNET_ID_SIZE);
