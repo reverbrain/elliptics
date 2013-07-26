@@ -424,8 +424,8 @@ class multigroup_callback
 						// some exception, log and try next group
 						dnet_log_raw(sess.get_node().get_native(),
 							DNET_LOG_NOTICE,
-							"%s\n",
-							error->message().c_str());
+							"%s: iterate-groups exception: %s\n",
+							dnet_dump_id(&id), error->message().c_str());
 						*error = error_info();
 						continue;
 					}
@@ -705,19 +705,19 @@ class read_bulk_callback : public read_callback
 				}
 				debug("");
 
-				dnet_log_raw(sess.get_node().get_native(),
-					DNET_LOG_NOTICE, "start: %s: end: %s, count: %llu, addr: %s\n",
-					dnet_dump_id(&id),
-					dnet_dump_id(&next_id),
-					(unsigned long long)(i - start),
-					dnet_state_dump_addr(cur));
-
 				ctl.io.size = (i - start + 1) * sizeof(struct dnet_io_attr);
 				ctl.data = ios + start;
 
 				memcpy(&ctl.id, &id, sizeof(id));
 				ctl.complete = func;
 				ctl.priv = priv;
+
+				dnet_log_raw(sess.get_node().get_native(),
+					DNET_LOG_NOTICE, "start: %s: end: %s, count: %llu, addr: %s\n",
+					dnet_dump_id(&id),
+					dnet_dump_id(&next_id),
+					(unsigned long long)ctl.io.suze / sizeof(struct dnet_io_attr),
+					dnet_state_dump_addr(cur));
 
 				++count;
 
@@ -763,7 +763,7 @@ class read_bulk_callback : public read_callback
 
 		void finish(const error_info &exc)
 		{
-			debug("finish");
+			debug("finish: error-code: " << exc.code() << ", error-message: " << exc.message());
 			cb.complete(exc);
 		}
 
