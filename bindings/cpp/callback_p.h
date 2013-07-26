@@ -719,7 +719,7 @@ class read_bulk_callback : public read_callback
 					DNET_LOG_NOTICE, "start: %s: end: %s, count: %llu, addr: %s\n",
 					dnet_dump_id(&id),
 					dnet_dump_id(&next_id),
-					(unsigned long long)ctl.io.suze / sizeof(struct dnet_io_attr),
+					(unsigned long long)ctl.io.size / sizeof(struct dnet_io_attr),
 					dnet_state_dump_addr(cur));
 
 				++count;
