@@ -960,14 +960,11 @@ static int dnet_cmd_bulk_read(struct dnet_net_state *st, struct dnet_cmd *cmd, v
 		dnet_dump_id(&cmd->id), (int) count);
 
 	for (i = 0; i < count; i++) {
-		if (i + 1 == count)
-			read_cmd.flags &= ~DNET_FLAGS_MORE;
-
 		ret = dnet_process_cmd_raw(st, &read_cmd, &ios[i], 1);
 		dnet_log(st->n, DNET_LOG_NOTICE, "%s: processing BULK_READ.READ for %d/%d command, err: %d\n",
 			dnet_dump_id(&cmd->id), (int) i, (int) count, ret);
 
-		if (ret && i + 1 == count)
+		if (i + 1 == count)
 			cmd->flags |= DNET_FLAGS_NEED_ACK;
 
 		if (!ret)

@@ -957,6 +957,22 @@ static void test_metadata(session &sess, const std::string &id, const std::strin
 	BOOST_REQUIRE_EQUAL(read_entry.io_attribute()->user_flags, unique_flags);
 }
 
+static void test_partial_bulk_read(session &sess)
+{
+	const std::string first_key = "first-bulk-partial-key";
+	const std::string second_key = "second-bulk-partial-key";
+	const std::string first_data = "first-data";
+
+	ELLIPTICS_REQUIRE(write_result, sess.write_data(first_key, first_data, 0));
+	ELLIPTICS_COMPARE_REQUIRE(read_firt_result, sess.read_data(first_key, 0, 0), first_data);
+	ELLIPTICS_REQUIRE_ERROR(read_second_result, sess.read_data(second_key, 0, 0), -ENOENT);
+
+	ELLIPTICS_CHECK(bulk_result, sess.bulk_read(std::vector<std::string>({ first_key, second_key })));
+	auto bulk_entries = bulk_result.get();
+	BOOST_REQUIRE_EQUAL(bulk_entries.size(), 1);
+	BOOST_REQUIRE_EQUAL(bulk_entries[0].file().to_string(), first_data);
+}
+
 bool register_tests()
 {
 	srand(time(0));
@@ -996,6 +1012,7 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_cache_and_no, create_session(n, {1, 2}, 0, 0), "cache-and-no-key");
 	ELLIPTICS_TEST_CASE(test_cache_populating, create_session(n, {1, 2}, 0, 0), "cache-populated-key", "cache-data");
 	ELLIPTICS_TEST_CASE(test_metadata, create_session(n, {1, 2}, 0, 0), "metadata-key", "meta-data");
+	ELLIPTICS_TEST_CASE(test_partial_bulk_read, create_session(n, {1, 2, 3}, 0, 0));
 
 	return true;
 }
