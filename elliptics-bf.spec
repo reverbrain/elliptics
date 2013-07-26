@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.12
+Version:	2.24.13.13
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Jul 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.13
+- Fixed error codes for bulk_read and read commands
+
 * Fri Jul 26 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.12
 - Added metadata support to cache
 - Refactored cache support, added offset/append support
