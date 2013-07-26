@@ -97,6 +97,9 @@ struct dnet_io_req {
 #define DNET_SEND_WATERMARK_HIGH	(1024 * 100)
 #define DNET_SEND_WATERMARK_LOW		(512 * 100)
 
+/* Internal flag to ignore cache */
+#define DNET_IO_FLAGS_NOCACHE		(1<<28)
+
 struct dnet_net_state
 {
 	struct list_head	state_entry;
@@ -500,6 +503,8 @@ struct dnet_node
 
 	int			check_in_progress;
 	long			check_timeout;
+	int			cache_sync_timeout;
+
 	pthread_t		check_tid;
 	long			stall_count;
 
@@ -767,6 +772,7 @@ void dnet_indexes_cleanup(struct dnet_node *);
 int dnet_process_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
 
 int __attribute__((weak)) dnet_remove_local(struct dnet_node *n, struct dnet_id *id);
+int __attribute__((weak)) dnet_cas_local(struct dnet_node *n, struct dnet_id *id, void *csum, int csize);
 
 int dnet_discovery(struct dnet_node *n);
 
