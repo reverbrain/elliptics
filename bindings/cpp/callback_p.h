@@ -377,7 +377,7 @@ class multigroup_callback
 {
 	public:
 		multigroup_callback(const session &sess, const async_result<T> &result)
-			: sess(sess), cb(sess, result), m_group_index(0)
+			: sess(sess), cb(sess, result), m_has_finished(false), m_group_index(0)
 		{
 		}
 
@@ -395,6 +395,7 @@ class multigroup_callback
 		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
 		{
 			if (cb.handle(state, cmd, func, priv)) {
+				m_has_finished |= !cb.statuses().empty();
 				// cb has ended it's work
 				if (check_answer()) {
 					// correct answer is found
@@ -429,6 +430,7 @@ class multigroup_callback
 						*error = error_info();
 						continue;
 					}
+					m_has_finished |= !cb.statuses().empty();
 					// all replies are received
 					if (check_answer()) {
 						// and there is error or information is ready
@@ -442,7 +444,7 @@ class multigroup_callback
 				return false;
 			}
 			// there is no success :(
-			if (cb.statuses().empty()) {
+			if (!m_has_finished) {
 				*error = prepare_error();
 			}
 			return true;
@@ -478,6 +480,7 @@ class multigroup_callback
 		std::vector<int> groups;
 
 	protected:
+		bool m_has_finished;
 		std::mutex m_mutex;
 		size_t m_group_index;
 };
