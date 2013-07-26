@@ -56,6 +56,11 @@ void local_session::set_ioflags(uint32_t flags)
 
 data_pointer local_session::read(const dnet_id &id, int *errp)
 {
+	return read(id, NULL, NULL, errp);
+}
+
+data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_time *timestamp, int *errp)
+{
 	dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
 	dnet_empty_time(&io.timestamp);
@@ -100,6 +105,11 @@ data_pointer local_session::read(const dnet_id &id, int *errp)
 		} else if (req_cmd->size) {
 			dnet_io_attr *req_io = reinterpret_cast<dnet_io_attr *>(req_cmd + 1);
 
+			if (user_flags)
+				*user_flags = req_io->user_flags;
+			if (timestamp)
+				*timestamp = req_io->timestamp;
+
 			data_pointer &data = data_map[req_io->offset];
 
 			total_size -= data.size();
@@ -141,6 +151,13 @@ int local_session::write(const dnet_id &id, const data_pointer &data)
 
 int local_session::write(const dnet_id &id, const char *data, size_t size)
 {
+	dnet_time null_time;
+	dnet_empty_time(&null_time);
+	return write(id, data, size, 0, null_time);
+}
+
+int local_session::write(const dnet_id &id, const char *data, size_t size, uint64_t user_flags, const dnet_time &timestamp)
+{
 	dnet_io_attr io;
 	memset(&io, 0, sizeof(io));
 	dnet_empty_time(&io.timestamp);
@@ -150,6 +167,8 @@ int local_session::write(const dnet_id &id, const char *data, size_t size)
 	io.flags |= DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_NOCSUM | m_flags;
 	io.size = size;
 	io.num = size;
+	io.user_flags = user_flags;
+	io.timestamp = timestamp;
 
 	dnet_current_time(&io.timestamp);
 

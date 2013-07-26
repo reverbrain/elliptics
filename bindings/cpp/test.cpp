@@ -930,6 +930,33 @@ static void test_cache_populating(session &sess, const std::string &id, const st
 	ELLIPTICS_COMPARE_REQUIRE(read_cache_only_populated_result, cache_only_sess.read_data(id, 0, 0), data);
 }
 
+static void test_metadata(session &sess, const std::string &id, const std::string &data)
+{
+	const uint64_t unique_flags = rand();
+
+	session cache_sess = sess.clone();
+	cache_sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CACHE);
+
+	session cache_only_sess = sess.clone();
+	cache_only_sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY);
+
+	sess.set_user_flags(unique_flags);
+
+	ELLIPTICS_REQUIRE(write_result, sess.write_data(id, data, 0));
+
+	ELLIPTICS_COMPARE_REQUIRE(read_result, sess.read_data(id, 0, 0), data);
+	read_result_entry read_entry = read_result.get_one();
+	BOOST_REQUIRE_EQUAL(read_entry.io_attribute()->user_flags, unique_flags);
+
+	ELLIPTICS_COMPARE_REQUIRE(read_cache_result, cache_sess.read_data(id, 0, 0), data);
+	read_entry = read_cache_result.get_one();
+	BOOST_REQUIRE_EQUAL(read_entry.io_attribute()->user_flags, unique_flags);
+
+	ELLIPTICS_COMPARE_REQUIRE(read_cache_only_result, cache_only_sess.read_data(id, 0, 0), data);
+	read_entry = read_cache_only_result.get_one();
+	BOOST_REQUIRE_EQUAL(read_entry.io_attribute()->user_flags, unique_flags);
+}
+
 bool register_tests()
 {
 	srand(time(0));
@@ -968,6 +995,7 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_range_request, create_session(n, {2}, 0, 0), 7, 3, 2);
 	ELLIPTICS_TEST_CASE(test_cache_and_no, create_session(n, {1, 2}, 0, 0), "cache-and-no-key");
 	ELLIPTICS_TEST_CASE(test_cache_populating, create_session(n, {1, 2}, 0, 0), "cache-populated-key", "cache-data");
+	ELLIPTICS_TEST_CASE(test_metadata, create_session(n, {1, 2}, 0, 0), "metadata-key", "meta-data");
 
 	return true;
 }

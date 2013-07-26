@@ -19,8 +19,10 @@ class local_session
 		void set_ioflags(uint32_t flags);
 
 		ioremap::elliptics::data_pointer read(const dnet_id &id, int *errp);
+		ioremap::elliptics::data_pointer read(const dnet_id &id, uint64_t *user_flags, dnet_time *timestamp, int *errp);
 		int write(const dnet_id &id, const ioremap::elliptics::data_pointer &data);
 		int write(const dnet_id &id, const char *data, size_t size);
+		int write(const dnet_id &id, const char *data, size_t size, uint64_t user_flags, const dnet_time &timestamp);
 
 		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::data_pointer &data, update_index_action action);
 

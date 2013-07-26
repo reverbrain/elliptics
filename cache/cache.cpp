@@ -72,13 +72,14 @@ typedef boost::intrusive::set_base_hook<boost::intrusive::tag<sync_set_tag_t>,
 
 class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_set_base_hook_t, public sync_set_base_hook_t {
 	public:
-		data_t(const unsigned char *id) : m_lifetime(0), m_synctime(0), m_remove_from_disk(false) {
+		data_t(const unsigned char *id) {
 			memcpy(m_id.id, id, DNET_ID_SIZE);
 		}
 
 		data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
-			m_lifetime(0), m_synctime(0), m_remove_from_disk(remove_from_disk) {
+			m_lifetime(0), m_synctime(0), m_user_flags(0), m_remove_from_disk(remove_from_disk) {
 			memcpy(m_id.id, id, DNET_ID_SIZE);
+			dnet_empty_time(&m_timestamp);
 
 			if (lifetime)
 				m_lifetime = lifetime + time(NULL);
@@ -120,6 +121,22 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 			m_synctime = 0;
 		}
 
+		const dnet_time &timestamp() const {
+			return m_timestamp;
+		}
+
+		void set_timestamp(const dnet_time &timestamp) {
+			m_timestamp = timestamp;
+		}
+
+		uint64_t user_flags() const {
+			return m_user_flags;
+		}
+
+		void set_user_flags(uint64_t user_flags) {
+			m_user_flags = user_flags;
+		}
+
 		bool remove_from_disk() const {
 			return m_remove_from_disk;
 		}
@@ -143,6 +160,8 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 	private:
 		size_t m_lifetime;
 		size_t m_synctime;
+		dnet_time m_timestamp;
+		uint64_t m_user_flags;
 		bool m_remove_from_disk;
 		struct dnet_raw_id m_id;
 		std::shared_ptr<raw_data_t> m_data;
@@ -229,7 +248,6 @@ class cache_t {
 
 			raw_data_t &raw = *it->data();
 
-
 			if (io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) {
 				// Data is already in memory, so it's free to use it
 				// raw.size() is zero only if there is no such file on the server
@@ -283,12 +301,16 @@ class cache_t {
 				m_lifeset.insert(*it);
 			}
 
+			it->set_timestamp(io->timestamp);
+			it->set_user_flags(io->user_flags);
+
 			return 0;
 		}
 
-		std::shared_ptr<raw_data_t> read(const unsigned char *id, dnet_io_attr *io) {
+		std::shared_ptr<raw_data_t> read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
 			const bool cache = (io->flags & DNET_IO_FLAGS_CACHE);
 			const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
+			(void) cmd;
 
 			std::lock_guard<std::mutex> guard(m_lock);
 
@@ -301,6 +323,9 @@ class cache_t {
 			if (it != m_set.end()) {
 				m_lru.erase(m_lru.iterator_to(*it));
 				m_lru.push_back(*it);
+
+				io->timestamp = it->timestamp();
+				io->user_flags = it->user_flags();
 				return it->data();
 			}
 
@@ -375,10 +400,18 @@ class cache_t {
 			memset(&raw_id, 0, sizeof(raw_id));
 			memcpy(raw_id.id, id, DNET_ID_SIZE);
 
-			ioremap::elliptics::data_pointer data = sess.read(raw_id, err);
+			uint64_t user_flags = 0;
+			dnet_time timestamp;
+			dnet_empty_time(&timestamp);
 
-			if (*err == 0)
-				return create_data(id, reinterpret_cast<char *>(data.data()), data.size(), remove_from_disk);
+			ioremap::elliptics::data_pointer data = sess.read(raw_id, &user_flags, &timestamp, err);
+
+			if (*err == 0) {
+				auto it = create_data(id, reinterpret_cast<char *>(data.data()), data.size(), remove_from_disk);
+				it->set_user_flags(user_flags);
+				it->set_timestamp(timestamp);
+				return it;
+			}
 
 			return m_set.end();
 		}
@@ -503,8 +536,8 @@ class cache_manager {
 			return m_caches[idx(id)]->write(id, cmd, io, data);
 		}
 
-		std::shared_ptr<raw_data_t> read(const unsigned char *id, dnet_io_attr *io) {
-			return m_caches[idx(id)]->read(id, io);
+		std::shared_ptr<raw_data_t> read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
+			return m_caches[idx(id)]->read(id, cmd, io);
 		}
 
 		int remove(const unsigned char *id, dnet_io_attr *io) {
@@ -543,7 +576,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 				err = cache->write(io->id, cmd, io, data);
 				break;
 			case DNET_CMD_READ:
-				d = cache->read(io->id, io);
+				d = cache->read(io->id, cmd, io);
 				if (!d) {
 					if (!(io->flags & DNET_IO_FLAGS_CACHE)) {
 						return -ENOTSUP;
