@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.11
+Version:	2.24.13.12
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,17 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Jul 26 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.12
+- Added metadata support to cache
+- Refactored cache support, added offset/append support
+- Return offset within fd in write reply structure
+- Do not try to redefine O_LARGEFILE
+- libcocaine-plugin-elliptics should depend on elliptics client's source version
+- Do not turn on cocaine support in RHEL builds
+- Use ~0ULL instead of ULLONG_MAX, otherwise it is broken on rhle5
+- Moved local_session to separate file
+- Do not use randomized states by default, use sequential groups order
+
 * Wed Jul 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.11
 - Optimized merge algorithm in dc recovery
 

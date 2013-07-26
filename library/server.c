@@ -311,6 +311,7 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node.\n");
 
 	dnet_srw_cleanup(n);
+	dnet_cache_cleanup(n);
 
 	dnet_node_cleanup_common_resources(n);
 
@@ -319,7 +320,6 @@ void dnet_server_node_destroy(struct dnet_node *n)
 
 	dnet_locks_destroy(n);
 	dnet_local_addr_cleanup(n);
-	dnet_cache_cleanup(n);
 	dnet_notify_exit(n);
 
 	if (n->config_data) {

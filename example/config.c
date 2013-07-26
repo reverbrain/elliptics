@@ -80,6 +80,8 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 		dnet_cur_cfg_data->cfg_state.wait_timeout = value;
 	else if (!strcmp(key, "check_timeout"))
 		dnet_cur_cfg_data->cfg_state.check_timeout = value;
+	else if (!strcmp(key, "cache_sync_timeout"))
+		dnet_cur_cfg_data->cfg_state.cache_sync_timeout = value;
 	else if (!strcmp(key, "stall_count"))
 		dnet_cur_cfg_data->cfg_state.stall_count = value;
 	else if (!strcmp(key, "join"))
@@ -337,6 +339,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"log_level", dnet_simple_set},
 	{"wait_timeout", dnet_simple_set},
 	{"check_timeout", dnet_simple_set},
+	{"cache_sync_timeout", dnet_simple_set},
 	{"stall_count", dnet_simple_set},
 	{"group", dnet_set_group},
 	{"addr", dnet_set_addr},
