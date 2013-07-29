@@ -1,3 +1,9 @@
+elliptics (2.24.13.17) unstable; urgency=low
+
+  * Fixed endless syncing to disk the same file
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 30 Jul 2013 02:10:43 +0400
+
 elliptics (2.24.13.16) unstable; urgency=low
 
   * Run low-level backend commands without cache lock
