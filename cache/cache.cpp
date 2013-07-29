@@ -475,7 +475,7 @@ class cache_t {
 				data_t *raw = &*it;
 				++it;
 
-				if (raw->synctime()) {
+				if (raw->synctime() || raw->remove_from_cache()) {
 					if (raw->remove_from_cache()) {
 						removed_size += raw->size();
 					} else {
@@ -569,34 +569,37 @@ class cache_t {
 				while (!m_need_exit && !m_syncset.empty()) {
 					size_t time = ::time(NULL);
 
-					{
-						std::lock_guard<std::mutex> guard(m_lock);
+					std::unique_lock<std::mutex> guard(m_lock);
 
-						if (m_syncset.empty())
-							break;
+					if (m_syncset.empty())
+						break;
 
-						sync_set_t::iterator it = m_syncset.begin();
-						if (it->synctime() > time)
-							break;
+					sync_set_t::iterator it = m_syncset.begin();
 
-						memcpy(id.id, it->id().id, DNET_ID_SIZE);
-						data = it->data()->data();
-						user_flags = it->user_flags();
-						timestamp = it->timestamp();
-					}
+					data_t *obj = &*it;
+					if (obj->synctime() > time)
+						break;
+
+					memcpy(id.id, obj->id().id, DNET_ID_SIZE);
+					data = it->data()->data();
+					user_flags = obj->user_flags();
+					timestamp = obj->timestamp();
+
+					m_syncset.erase(it);
+					obj->clear_synctime();
+
+					guard.unlock();
 
 					sync_element(id, data, user_flags, timestamp);
 
-					{
-						std::lock_guard<std::mutex> guard(m_lock);
+					guard.lock();
 
-						auto it = m_set.find(id.id);
-						if (it != m_set.end() && it->remove_from_cache()) {
-							it->clear_synctime();
-							erase_element(&*it);
+					auto jt = m_set.find(id.id);
+					if (jt != m_set.end()) {
+						if (jt->remove_from_cache()) {
+							erase_element(&*jt);
 						}
 					}
-
 				}
 
 				for (std::deque<struct dnet_id>::iterator it = remove.begin(); it != remove.end(); ++it) {
