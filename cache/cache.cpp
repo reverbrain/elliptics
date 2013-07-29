@@ -216,7 +216,7 @@ class cache_t {
 			m_need_exit = true;
 		}
 
-		int write(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
+		int write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
 			const size_t lifetime = io->start;
 			const size_t size = io->size;
 			const bool remove_from_disk = (io->flags & DNET_IO_FLAGS_CACHE_REMOVE_FROM_DISK);
@@ -304,7 +304,8 @@ class cache_t {
 			it->set_timestamp(io->timestamp);
 			it->set_user_flags(io->user_flags);
 
-			return 0;
+			cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+			return dnet_send_file_info_ts_without_fd(st, cmd, raw.data().data() + io->offset, io->size, &io->timestamp);
 		}
 
 		std::shared_ptr<raw_data_t> read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
@@ -532,8 +533,8 @@ class cache_manager {
 			}
 		}
 
-		int write(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
-			return m_caches[idx(id)]->write(id, cmd, io, data);
+		int write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
+			return m_caches[idx(id)]->write(id, st, cmd, io, data);
 		}
 
 		std::shared_ptr<raw_data_t> read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
@@ -573,7 +574,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 	try {
 		switch (cmd->cmd) {
 			case DNET_CMD_WRITE:
-				err = cache->write(io->id, cmd, io, data);
+				err = cache->write(io->id, st, cmd, io, data);
 				break;
 			case DNET_CMD_READ:
 				d = cache->read(io->id, cmd, io);
@@ -610,11 +611,6 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
 		err = -ENOENT;
-	}
-
-	if ((cmd->cmd == DNET_CMD_WRITE) && !err) {
-		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-		err = dnet_send_file_info_without_fd(st, cmd, 0, io->size);
 	}
 
 	return err;
