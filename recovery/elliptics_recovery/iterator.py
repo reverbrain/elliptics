@@ -75,7 +75,7 @@ class IteratorResult(object):
         Computes diff between two sorted results. Returns container that consists of difference.
         """
         filename = 'diff_' + str(self.id_range) + '_' + \
-                   self.eid + '-' + other.eid
+                   str(self.eid) + '-' + str(other.eid)
         diff_container = IteratorResult.from_filename(filename,
                                                       eid=other.eid,
                                                       id_range=other.id_range,
