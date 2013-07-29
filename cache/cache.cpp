@@ -612,11 +612,9 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		err = -ENOENT;
 	}
 
-	if (io->flags & DNET_IO_FLAGS_CACHE_ONLY) {
-		if ((cmd->cmd == DNET_CMD_WRITE) && !err) {
-			cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-			err = dnet_send_file_info_without_fd(st, cmd, 0, io->size);
-		}
+	if ((cmd->cmd == DNET_CMD_WRITE) && !err) {
+		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+		err = dnet_send_file_info_without_fd(st, cmd, 0, io->size);
 	}
 
 	return err;
