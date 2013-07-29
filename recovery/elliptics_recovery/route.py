@@ -127,6 +127,9 @@ class RouteList(object):
     def from_session(cls, session):
         """
         Create RouteList from elliptics session.
+
+        It slightly mangles route list by explicitly inserting start and end of
+        hash-ring and also merging adj. routes for the same into one.
         """
         routes = session.get_routes()
         sorted_routes = []

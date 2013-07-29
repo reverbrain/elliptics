@@ -39,7 +39,7 @@ def get_percentage(ranges):
 
 def get_ranges(ctx, routes, group_id):
     """
-    For each record in RouteList create 1 or 2 RecoveryRange(s)
+    For each record in RouteList create recovery ranges for iterators
     Returns list of RecoveryRange`s
     """
     ranges = []
@@ -62,7 +62,6 @@ def get_ranges(ctx, routes, group_id):
 def run_iterator(ctx, group=None, address=None, routes=None, ranges=None, stats=None):
     """
     Runs iterator for all ranges on node specified by address
-    TODO: We can group iterators by address and run them in parallel
     """
     node = elliptics_create_node(address=address, elog=ctx.elog)
     try:
@@ -112,7 +111,6 @@ def sort(ctx, result, stats):
 def diff(ctx, local, remote, stats):
     """
     Compute differences between local and remote results.
-    TODO: We can compute up to CPU_NUM diffs at max in parallel
     """
     try:
         if remote is None or len(remote) == 0:
