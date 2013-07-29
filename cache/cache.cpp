@@ -234,14 +234,19 @@ class cache_t {
 			const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
 			const bool append = (io->flags & DNET_IO_FLAGS_APPEND);
 
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: before guard\n", dnet_dump_id_str(id));
 			std::lock_guard<std::mutex> guard(m_lock);
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: after guard\n", dnet_dump_id_str(id));
 
 			iset_t::iterator it = m_set.find(id);
 
 			if (it == m_set.end()) {
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not exist\n", dnet_dump_id_str(id));
 				// If file not found and CACHE flag is not set - fallback to backend request
-				if (!cache)
+				if (!cache) {
+					dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not a cache call\n", dnet_dump_id_str(id));
 					return -ENOTSUP;
+				}
 
 				if (!cache_only) {
 					int err = 0;
@@ -254,7 +259,10 @@ class cache_t {
 				// Create empty data for code simplifing
 				if (it == m_set.end())
 					it = create_data(id, 0, 0, remove_from_disk);
+			} else {
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: exists\n", dnet_dump_id_str(id));
 			}
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: data ensured\n", dnet_dump_id_str(id));
 
 			raw_data_t &raw = *it->data();
 
@@ -272,6 +280,8 @@ class cache_t {
 				}
 			}
 
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: CAS checked\n", dnet_dump_id_str(id));
+
 			size_t new_size = 0;
 
 			if (append) {
@@ -284,8 +294,11 @@ class cache_t {
 			m_cache_size -= raw.size();
 			m_lru.erase(m_lru.iterator_to(*it));
 
-			if (m_cache_size + new_size > m_max_cache_size)
+			if (m_cache_size + new_size > m_max_cache_size) {
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called\n", dnet_dump_id_str(id));
 				resize(new_size * 2);
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished\n", dnet_dump_id_str(id));
+			}
 
 			m_lru.push_back(*it);
 			it->set_remove_from_cache(false);
@@ -297,6 +310,8 @@ class cache_t {
 				raw.data().resize(new_size);
 				memcpy(raw.data().data() + io->offset, data, size);
 			}
+
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: data modified\n", dnet_dump_id_str(id));
 
 			// Mark data as dirty one, so it will be synced to the disk
 			if (!it->synctime() && !(io->flags & DNET_IO_FLAGS_CACHE_ONLY)) {
@@ -315,6 +330,8 @@ class cache_t {
 			it->set_timestamp(io->timestamp);
 			it->set_user_flags(io->user_flags);
 
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: finished write\n", dnet_dump_id_str(id));
+
 			cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			return dnet_send_file_info_ts_without_fd(st, cmd, raw.data().data() + io->offset, io->size, &io->timestamp);
 		}
@@ -324,13 +341,20 @@ class cache_t {
 			const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
 			(void) cmd;
 
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: before guard\n", dnet_dump_id_str(id));
 			std::lock_guard<std::mutex> guard(m_lock);
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: after guard\n", dnet_dump_id_str(id));
 
 			iset_t::iterator it = m_set.find(id);
 			if (it == m_set.end() && cache && !cache_only) {
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: not exist\n", dnet_dump_id_str(id));
 				int err = 0;
 				it = populate_from_disk(id, false, &err);
+			} else {
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: exists\n", dnet_dump_id_str(id));
 			}
+
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: data ensured\n", dnet_dump_id_str(id));
 
 			if (it != m_set.end()) {
 				m_lru.erase(m_lru.iterator_to(*it));
@@ -339,6 +363,7 @@ class cache_t {
 
 				io->timestamp = it->timestamp();
 				io->user_flags = it->user_flags();
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: returned\n", dnet_dump_id_str(id));
 				return it->data();
 			}
 
@@ -394,8 +419,11 @@ class cache_t {
 		cache_t(const cache_t &) = delete;
 
 		iset_t::iterator create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk) {
-			if (m_cache_size + size > m_max_cache_size)
+			if (m_cache_size + size > m_max_cache_size) {
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called from create_data\n", dnet_dump_id_str(id));
 				resize(size);
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished from create_data\n", dnet_dump_id_str(id));
+			}
 
 			data_t *raw = new data_t(id, 0, data, size, remove_from_disk);
 
@@ -417,7 +445,11 @@ class cache_t {
 			dnet_time timestamp;
 			dnet_empty_time(&timestamp);
 
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: populating from disk started\n", dnet_dump_id_str(id));
+
 			ioremap::elliptics::data_pointer data = sess.read(raw_id, &user_flags, &timestamp, err);
+
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: populating from disk finished: %d\n", dnet_dump_id_str(id), *err);
 
 			if (*err == 0) {
 				auto it = create_data(id, reinterpret_cast<char *>(data.data()), data.size(), remove_from_disk);
@@ -480,6 +512,8 @@ class cache_t {
 			int err = sess.write(raw, data.data(), data.size(), user_flags, timestamp);
 			if (err) {
 				dnet_log(m_node, DNET_LOG_ERROR, "%s: forced to sync to disk, err: %d\n", dnet_dump_id_str(raw.id), err);
+			} else {
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: forced to sync to disk, err: %d\n", dnet_dump_id_str(raw.id), err);
 			}
 		}
 
