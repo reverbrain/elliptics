@@ -45,25 +45,17 @@ def get_ranges(ctx, routes, group_id):
     ranges = []
     for i, route in enumerate(routes):
         ekey, address = routes[i]
-        prev_address = routes[i - 1].address
         next_ekey = routes[i + 1].key
-        # For matching address but only in case where there is no wraparound
-        if address == ctx.address and address != prev_address:
-            log.debug("Processing route: {0}, {1}".format(ekey, address))
-            start = ekey
-            stop = next_ekey
-            # If we wrapped around hash ring circle - split route into two distinct ranges
-            if (stop < start):
-                log.debug("Splitting range: {0}:{1}".format(
-                    start, stop))
-                ranges.append(RecoveryRange(IdRange(IdRange.ID_MIN, stop), prev_address))
-                ranges.append(RecoveryRange(IdRange(start, IdRange.ID_MAX), prev_address))
-                created = (1, 2)
-            else:
-                ranges.append(RecoveryRange(IdRange(start, stop), prev_address))
-                created = (1,)
-            for i in created:
-                log.debug("Created range: {0}, {1}".format(*ranges[-i]))
+        prev_address = routes[i - 1].address
+        if i == 0 and address == ctx.address:
+            # For first route check for hash ring wrap-around
+            ranges.append(RecoveryRange(IdRange(ekey, next_ekey), routes[-3].address))
+        elif address == ctx.address and prev_address != ctx.address:
+            # For all but first - just create route
+            ranges.append(RecoveryRange(IdRange(ekey, next_ekey), prev_address))
+    # Log computed routes
+    for r in ranges:
+            log.debug("Created range: {0}, {1}".format(r.id_range, r.address))
     return ranges
 
 

@@ -6,12 +6,15 @@ We need better abstractions.
 """
 
 from socket import getaddrinfo, SOL_TCP, AF_INET6, AF_INET
-from itertools import groupby
-from operator import itemgetter
+from itertools import groupby, izip
+from operator import attrgetter, itemgetter
 
 from .utils.misc import logged_class
 from .range import IdRange, RecoveryRange, AddressRanges
 
+import sys
+sys.path.insert(0, "bindings/python/") # XXX
+import elliptics
 
 @logged_class
 class Address(object):
@@ -128,21 +131,35 @@ class RouteList(object):
         routes = session.get_routes()
         sorted_routes = []
 
-        # First pass - sort keys and construct addresses text routes
+        # First pass - sort keys and construct addresses from text routes
         for key, str_address in sorted(routes, key=lambda route: route[0].id):
             address = Address.from_host_port(str_address)
             sorted_routes.append(Route(key, address))
 
-        # Second pass - merge adj. keys for same address
+        # Merge adj. keys for same address
         merged_routes = []
-        for k, g in groupby(sorted_routes, itemgetter(1)):
-            merged_routes.append(list(g)[0])
-        assert len(merged_routes) <= len(sorted_routes)
+        for group in cls(sorted_routes).groups():
+            group_routes = cls(sorted_routes).filter_by_group_id(group)
+            last_address = group_routes[-1].address
+            merged_group = []
 
-        # Remove first route if it equals the last one
-        if len(merged_routes) > 1:
-            if merged_routes[-1].address == merged_routes[0].address:
-                merged_routes.pop(0)
+            # Insert implicit first route
+            group_routes.insert(0, Route(elliptics.Id([0]*64, group), last_address))
+
+            # For each Route in list left only first one for each route
+            for _, g in groupby(group_routes, attrgetter('address')):
+                merged_group.append(list(g)[0])
+            assert(all(r1.address != r2.address for r1, r2 in izip(merged_group, merged_group[1:])))
+            assert(all(r1.key < r2.key for r1, r2 in izip(merged_group, merged_group[1:])))
+
+            # Insert implicit last route
+            merged_group.append(Route(elliptics.Id([255]*64, group), last_address))
+
+            # Extend route list
+            merged_routes.extend(merged_group)
+
+        # Sort results by key
+        merged_routes.sort(key=itemgetter(0))
 
         # Return RouteList from sorted and merged routes
         return cls(merged_routes)
@@ -175,15 +192,10 @@ class RouteList(object):
             if route.key.group_id == group_id:
                 include = route.address == address
 
-        if include:
-            ranges.append(RecoveryRange(IdRange(IdRange.ID_MIN, self.routes[0].key), keys.copy()))
-
         for i, route in enumerate(self.routes):
             keys[route.key.group_id] = (route.key, route.address)
             if i < len(self.routes) - 1:
                 next_route = self.routes[i + 1].key
-            else:
-                next_route = IdRange.ID_MAX
 
             if route.key.group_id != group_id and not include:
                 continue
