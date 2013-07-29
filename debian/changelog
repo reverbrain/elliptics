@@ -1,3 +1,10 @@
+elliptics (2.24.13.14) unstable; urgency=low
+
+  * Added checksum and timestamp to write result for cache
+  * Fixed returning of lookups on IO_CACHE requests
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 29 Jul 2013 18:43:51 +0400
+
 elliptics (2.24.13.13) unstable; urgency=low
 
   * Fixed error codes for bulk_read and read commands
