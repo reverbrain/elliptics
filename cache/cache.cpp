@@ -77,7 +77,8 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 		}
 
 		data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
-			m_lifetime(0), m_synctime(0), m_user_flags(0), m_remove_from_disk(remove_from_disk) {
+			m_lifetime(0), m_synctime(0), m_user_flags(0),
+			m_remove_from_disk(remove_from_disk), m_remove_from_cache(false) {
 			memcpy(m_id.id, id, DNET_ID_SIZE);
 			dnet_empty_time(&m_timestamp);
 
@@ -141,6 +142,14 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 			return m_remove_from_disk;
 		}
 
+		bool remove_from_cache() const {
+			return m_remove_from_cache;
+		}
+
+		void set_remove_from_cache(bool remove_from_cache) {
+			m_remove_from_cache = remove_from_cache;
+		}
+
 		size_t size(void) const {
 			return m_data->size();
 		}
@@ -163,6 +172,7 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 		dnet_time m_timestamp;
 		uint64_t m_user_flags;
 		bool m_remove_from_disk;
+		bool m_remove_from_cache;
 		struct dnet_raw_id m_id;
 		std::shared_ptr<raw_data_t> m_data;
 };
@@ -278,6 +288,7 @@ class cache_t {
 				resize(new_size * 2);
 
 			m_lru.push_back(*it);
+			it->set_remove_from_cache(false);
 			m_cache_size += new_size;
 
 			if (append) {
@@ -323,6 +334,7 @@ class cache_t {
 
 			if (it != m_set.end()) {
 				m_lru.erase(m_lru.iterator_to(*it));
+				it->set_remove_from_cache(false);
 				m_lru.push_back(*it);
 
 				io->timestamp = it->timestamp();
@@ -418,15 +430,28 @@ class cache_t {
 		}
 
 		void resize(size_t reserve) {
-			while (!m_lru.empty()) {
-				data_t *raw = &m_lru.front();
+			size_t removed_size = 0;
 
-				erase_element(raw);
-
-
-				/* break early if free space in cache more than requested reserve */
-				if (m_max_cache_size > reserve + m_cache_size)
+			for (auto it = m_lru.begin(); it != m_lru.end();) {
+				if (m_max_cache_size > m_cache_size + reserve + removed_size)
 					break;
+
+				data_t *raw = &*it;
+				++it;
+
+				if (raw->synctime()) {
+					if (raw->remove_from_cache()) {
+						removed_size += raw->size();
+					} else {
+						raw->set_remove_from_cache(true);
+
+						m_syncset.erase(m_syncset.iterator_to(*raw));
+						raw->set_synctime(1);
+						m_syncset.insert(*raw);
+					}
+				} else {
+					erase_element(raw);
+				}
 			}
 		}
 
@@ -438,6 +463,9 @@ class cache_t {
 
 			if (obj->synctime()) {
 				sync_element(obj);
+
+				m_syncset.erase(m_syncset.iterator_to(*obj));
+				obj->clear_synctime();
 			}
 
 			m_cache_size -= obj->size();
@@ -445,22 +473,24 @@ class cache_t {
 			delete obj;
 		}
 
-		void sync_element(data_t *obj) {
+		void sync_element(const dnet_id &raw, const std::vector<char> &data, uint64_t user_flags, const dnet_time &timestamp) {
 			local_session sess(m_node);
 			sess.set_ioflags(DNET_IO_FLAGS_NOCACHE);
 
+			int err = sess.write(raw, data.data(), data.size(), user_flags, timestamp);
+			if (err) {
+				dnet_log(m_node, DNET_LOG_ERROR, "%s: forced to sync to disk, err: %d\n", dnet_dump_id_str(raw.id), err);
+			}
+		}
+
+		void sync_element(data_t *obj) {
 			struct dnet_id raw;
 			memset(&raw, 0, sizeof(struct dnet_id));
 			memcpy(raw.id, obj->id().id, DNET_ID_SIZE);
 
 			auto &data = obj->data()->data();
-			int err = sess.write(raw, data.data(), data.size());
-			if (err) {
-				dnet_log(m_node, DNET_LOG_ERROR, "%s: forced to sync to disk, err: %d\n", dnet_dump_id_str(raw.id), err);
-			}
 
-			m_syncset.erase(m_syncset.iterator_to(*obj));
-			obj->clear_synctime();
+			sync_element(raw, data, obj->user_flags(), obj->timestamp());
 		}
 
 		void life_check(void) {
@@ -494,19 +524,43 @@ class cache_t {
 					erase_element(&(*it));
 				}
 
+				dnet_id id;
+				std::vector<char> data;
+				uint64_t user_flags;
+				dnet_time timestamp;
+
+				memset(&id, 0, sizeof(id));
+
 				while (!m_need_exit && !m_syncset.empty()) {
 					size_t time = ::time(NULL);
 
-					std::lock_guard<std::mutex> guard(m_lock);
+					{
+						std::lock_guard<std::mutex> guard(m_lock);
 
-					if (m_syncset.empty())
-						break;
+						if (m_syncset.empty())
+							break;
 
-					sync_set_t::iterator it = m_syncset.begin();
-					if (it->synctime() > time)
-						break;
+						sync_set_t::iterator it = m_syncset.begin();
+						if (it->synctime() > time)
+							break;
 
-					sync_element(&*it);
+						memcpy(id.id, it->id().id, DNET_ID_SIZE);
+						data = it->data()->data();
+						user_flags = it->user_flags();
+						timestamp = it->timestamp();
+					}
+
+					sync_element(id, data, user_flags, timestamp);
+
+					{
+						std::lock_guard<std::mutex> guard(m_lock);
+
+						auto it = m_set.find(id.id);
+						if (it != m_set.end() && it->remove_from_cache()) {
+							it->clear_synctime();
+							erase_element(&*it);
+						}
+					}
 
 				}
 
