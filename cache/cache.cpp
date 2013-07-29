@@ -372,7 +372,7 @@ class cache_t {
 
 		int remove(const unsigned char *id, dnet_io_attr *io) {
 			const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
-			bool remove_from_disk = false;
+			bool remove_from_disk = !cache_only;
 			int err = -ENOENT;
 
 			std::unique_lock<std::mutex> guard(m_lock);
@@ -380,7 +380,7 @@ class cache_t {
 			if (it != m_set.end()) {
 				// If cache_only is not set the data also should be remove from the disk
 				// If data is marked and cache_only is not set - data must be synced to the disk
-				remove_from_disk = (it->remove_from_disk() || !cache_only);
+				remove_from_disk |= it->remove_from_disk();
 				if (it->synctime() && !cache_only) {
 					m_syncset.erase(m_syncset.iterator_to(*it));
 					it->clear_synctime();
@@ -511,9 +511,9 @@ class cache_t {
 
 			int err = sess.write(raw, data.data(), data.size(), user_flags, timestamp);
 			if (err) {
-				dnet_log(m_node, DNET_LOG_ERROR, "%s: forced to sync to disk, err: %d\n", dnet_dump_id_str(raw.id), err);
+				dnet_log(m_node, DNET_LOG_ERROR, "%s: CACHE: forced to sync to disk, err: %d\n", dnet_dump_id_str(raw.id), err);
 			} else {
-				dnet_log(m_node, DNET_LOG_DEBUG, "%s: forced to sync to disk, err: %d\n", dnet_dump_id_str(raw.id), err);
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: forced to sync to disk, err: %d\n", dnet_dump_id_str(raw.id), err);
 			}
 		}
 
@@ -528,9 +528,6 @@ class cache_t {
 		}
 
 		void life_check(void) {
-			local_session sess(m_node);
-			sess.set_ioflags(DNET_IO_FLAGS_NOCACHE);
-
 			while (!m_need_exit) {
 				std::deque<struct dnet_id> remove;
 
