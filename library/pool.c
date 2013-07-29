@@ -202,6 +202,9 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 
 #define cmd_is_exec_match(__cmd) (((__cmd)->cmd == DNET_CMD_EXEC) && ((__cmd)->size >= sizeof(struct sph)) && !((__cmd)->trans & DNET_TRANS_REPLY))
 
+	if (nonblocking)
+		pool = io->recv_pool_nb;
+
 	pthread_mutex_lock(&pool->lock);
 	list_add_tail(&r->req_entry, &pool->list);
 	list_stat_size_increase(&pool->list_stats, 1);
