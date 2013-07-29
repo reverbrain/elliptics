@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.14
+Version:	2.24.13.15
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Jul 29 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.15
+- Fixed removing from disk if cache is empty
+- Added more debug info to cache
+- Added delayed sync to disk in cache
+- Use nonblocking pool for the appropriate commands
+
 * Mon Jul 29 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.14
 - Added checksum and timestamp to write result for cache
 - Fixed returning of lookups on IO_CACHE requests
