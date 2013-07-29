@@ -1,3 +1,9 @@
+elliptics (2.24.13.16) unstable; urgency=low
+
+  * Run low-level backend commands without cache lock
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 30 Jul 2013 00:30:09 +0400
+
 elliptics (2.24.13.15) unstable; urgency=low
 
   * Fixed removing from disk if cache is empty
