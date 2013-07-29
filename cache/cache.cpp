@@ -235,7 +235,7 @@ class cache_t {
 			const bool append = (io->flags & DNET_IO_FLAGS_APPEND);
 
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: before guard\n", dnet_dump_id_str(id));
-			std::lock_guard<std::mutex> guard(m_lock);
+			std::unique_lock<std::mutex> guard(m_lock);
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: after guard\n", dnet_dump_id_str(id));
 
 			iset_t::iterator it = m_set.find(id);
@@ -250,7 +250,7 @@ class cache_t {
 
 				if (!cache_only) {
 					int err = 0;
-					it = populate_from_disk(id, remove_from_disk, &err);
+					it = populate_from_disk(guard, id, remove_from_disk, &err);
 
 					if (err != 0 && err != -ENOENT)
 						return err;
@@ -342,14 +342,14 @@ class cache_t {
 			(void) cmd;
 
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: before guard\n", dnet_dump_id_str(id));
-			std::lock_guard<std::mutex> guard(m_lock);
+			std::unique_lock<std::mutex> guard(m_lock);
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: after guard\n", dnet_dump_id_str(id));
 
 			iset_t::iterator it = m_set.find(id);
 			if (it == m_set.end() && cache && !cache_only) {
 				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: not exist\n", dnet_dump_id_str(id));
 				int err = 0;
-				it = populate_from_disk(id, false, &err);
+				it = populate_from_disk(guard, id, false, &err);
 			} else {
 				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: exists\n", dnet_dump_id_str(id));
 			}
@@ -433,7 +433,9 @@ class cache_t {
 			return m_set.insert(*raw).first;
 		}
 
-		iset_t::iterator populate_from_disk(const unsigned char *id, bool remove_from_disk, int *err) {
+		iset_t::iterator populate_from_disk(std::unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err) {
+			guard.unlock();
+
 			local_session sess(m_node);
 			sess.set_ioflags(DNET_IO_FLAGS_NOCACHE);
 
@@ -450,6 +452,8 @@ class cache_t {
 			ioremap::elliptics::data_pointer data = sess.read(raw_id, &user_flags, &timestamp, err);
 
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: populating from disk finished: %d\n", dnet_dump_id_str(id), *err);
+
+			guard.lock();
 
 			if (*err == 0) {
 				auto it = create_data(id, reinterpret_cast<char *>(data.data()), data.size(), remove_from_disk);
