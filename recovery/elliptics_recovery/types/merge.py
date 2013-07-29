@@ -147,7 +147,8 @@ def diff(ctx, local, remote, stats):
 def recover(ctx, diff, group, stats):
     """
     Recovers difference between remote and local data.
-    TODO: Group by diffs by address and process each group in parallel
+
+    We are ignoring errors here because other applications may race with us
     """
     result = True
     log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.address))
@@ -181,26 +182,34 @@ def recover(ctx, diff, group, stats):
         async_remove_results = []
         successes, failures, successes_size, failures_size = (0, 0, 0, 0)
         for r, size, key in results:
-            r.wait()
-            if r.successful():
-                if ctx.safe != True:
-                    # If data was successfully moved to local node
-                    # and `Safe' mode is not enabled - remove it from remote node.
-                    async_remove_results.append(remote_session.remove_async(key))
-                successes_size += size
-                successes += 1
-            else:
-                failures_size += size
+            try:
+                r.wait()
+                if r.successful():
+                    if ctx.safe != True:
+                        # If data was successfully moved to local node
+                        # and `Safe' mode is not enabled - remove it from remote node.
+                        async_remove_results.append((remote_session.remove_async(key), key))
+                    successes_size += size
+                    successes += 1
+                else:
+                    failures_size += size
+                    failures += 1
+                total_records += 1
+                total_size += size
+            except Exception as e:
+                log.info("Can't recover key: {0}: {1}".format(key, e))
                 failures += 1
-            total_records += 1
-            total_size += size
 
         remove_successes, remove_failures = (0, 0)
-        for r in async_remove_results:
-            r.wait()
-            if r.successful():
-                remove_successes += 1
-            else:
+        for r, key in async_remove_results:
+            try:
+                r.wait()
+                if r.successful():
+                    remove_successes += 1
+                else:
+                    remove_failures += 1
+            except Exception as e:
+                log.info("Can't remove key: {0}: {1}".format(key, e))
                 remove_failures += 1
 
         stats.counter('recovered_bytes', successes_size)
