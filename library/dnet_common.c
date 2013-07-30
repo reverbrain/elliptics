@@ -2293,6 +2293,11 @@ int dnet_mix_states(struct dnet_session *s, struct dnet_id *id, int **groupsp)
 		}
 	}
 
+	if (num == 0) {
+		free(groups);
+		return -ENXIO;
+	}
+
 	group_num = num;
 	if (group_num) {
 		qsort(weights, group_num, sizeof(struct dnet_weight), dnet_weight_compare);
