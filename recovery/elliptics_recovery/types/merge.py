@@ -39,38 +39,29 @@ def get_percentage(ranges):
 
 def get_ranges(ctx, routes, group_id):
     """
-    For each record in RouteList create 1 or 2 RecoveryRange(s)
+    For each record in RouteList create recovery ranges for iterators
     Returns list of RecoveryRange`s
     """
     ranges = []
     for i, route in enumerate(routes):
         ekey, address = routes[i]
-        prev_address = routes[i - 1].address
         next_ekey = routes[i + 1].key
-        # For matching address but only in case where there is no wraparound
-        if address == ctx.address and address != prev_address:
-            log.debug("Processing route: {0}, {1}".format(ekey, address))
-            start = ekey
-            stop = next_ekey
-            # If we wrapped around hash ring circle - split route into two distinct ranges
-            if (stop < start):
-                log.debug("Splitting range: {0}:{1}".format(
-                    start, stop))
-                ranges.append(RecoveryRange(IdRange(IdRange.ID_MIN, stop), prev_address))
-                ranges.append(RecoveryRange(IdRange(start, IdRange.ID_MAX), prev_address))
-                created = (1, 2)
-            else:
-                ranges.append(RecoveryRange(IdRange(start, stop), prev_address))
-                created = (1,)
-            for i in created:
-                log.debug("Created range: {0}, {1}".format(*ranges[-i]))
+        prev_address = routes[i - 1].address
+        if i == 0 and address == ctx.address:
+            # For first route check for hash ring wrap-around
+            ranges.append(RecoveryRange(IdRange(ekey, next_ekey), routes[-3].address))
+        elif address == ctx.address and prev_address != ctx.address:
+            # For all but first - just create route
+            ranges.append(RecoveryRange(IdRange(ekey, next_ekey), prev_address))
+    # Log computed routes
+    for r in ranges:
+            log.debug("Created range: {0}, {1}".format(r.id_range, r.address))
     return ranges
 
 
 def run_iterator(ctx, group=None, address=None, routes=None, ranges=None, stats=None):
     """
     Runs iterator for all ranges on node specified by address
-    TODO: We can group iterators by address and run them in parallel
     """
     node = elliptics_create_node(address=address, elog=ctx.elog)
     try:
@@ -120,7 +111,6 @@ def sort(ctx, result, stats):
 def diff(ctx, local, remote, stats):
     """
     Compute differences between local and remote results.
-    TODO: We can compute up to CPU_NUM diffs at max in parallel
     """
     try:
         if remote is None or len(remote) == 0:
@@ -147,7 +137,8 @@ def diff(ctx, local, remote, stats):
 def recover(ctx, diff, group, stats):
     """
     Recovers difference between remote and local data.
-    TODO: Group by diffs by address and process each group in parallel
+
+    We are ignoring errors here because other applications may race with us
     """
     result = True
     log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.address))
@@ -181,26 +172,34 @@ def recover(ctx, diff, group, stats):
         async_remove_results = []
         successes, failures, successes_size, failures_size = (0, 0, 0, 0)
         for r, size, key in results:
-            r.wait()
-            if r.successful():
-                if ctx.safe != True:
-                    # If data was successfully moved to local node
-                    # and `Safe' mode is not enabled - remove it from remote node.
-                    async_remove_results.append(remote_session.remove_async(key))
-                successes_size += size
-                successes += 1
-            else:
-                failures_size += size
+            try:
+                r.wait()
+                if r.successful():
+                    if ctx.safe != True:
+                        # If data was successfully moved to local node
+                        # and `Safe' mode is not enabled - remove it from remote node.
+                        async_remove_results.append((remote_session.remove_async(key), key))
+                    successes_size += size
+                    successes += 1
+                else:
+                    failures_size += size
+                    failures += 1
+                total_records += 1
+                total_size += size
+            except Exception as e:
+                log.info("Can't recover key: {0}: {1}".format(key, e))
                 failures += 1
-            total_records += 1
-            total_size += size
 
         remove_successes, remove_failures = (0, 0)
-        for r in async_remove_results:
-            r.wait()
-            if r.successful():
-                remove_successes += 1
-            else:
+        for r, key in async_remove_results:
+            try:
+                r.wait()
+                if r.successful():
+                    remove_successes += 1
+                else:
+                    remove_failures += 1
+            except Exception as e:
+                log.info("Can't remove key: {0}: {1}".format(key, e))
                 remove_failures += 1
 
         stats.counter('recovered_bytes', successes_size)
