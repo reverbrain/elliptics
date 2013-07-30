@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.6.9
+Version:	2.20.6.10
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jul 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.10
+- Added reconnection logic debug
+- Fixed invalid error for read in case if there is no state
+
 * Fri Jun 14 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.20.6.9
 - Fixed deadlock in callback.cpp
 
