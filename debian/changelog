@@ -1,3 +1,13 @@
+elliptics (2.24.13.19) unstable; urgency=low
+
+  * recovery: fix container creation in merge
+  * recovery: removed unused get_address_ranges()
+  * recovery: merge: do not fail on single error
+  * recovery: fixed computation of recovery ranges
+  * recovery: actualize comments
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 30 Jul 2013 12:46:51 +0400
+
 elliptics (2.24.13.18) unstable; urgency=low
 
   * Optimization for append to cache
