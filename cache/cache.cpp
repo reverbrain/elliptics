@@ -307,7 +307,7 @@ class cache_t {
 			if (it == m_set.end()) {
 				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not exist\n", dnet_dump_id_str(id));
 				// If file not found and CACHE flag is not set - fallback to backend request
-				if (!cache_only) {
+				if (!cache_only && io->offset != 0) {
 					int err = 0;
 					it = populate_from_disk(guard, id, remove_from_disk, &err);
 
