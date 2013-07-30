@@ -886,10 +886,10 @@ int dnet_checksum_fd(struct dnet_node *n, int fd, uint64_t offset, uint64_t size
 int dnet_checksum_data(struct dnet_node *n, const void *data, uint64_t size, unsigned char *csum, int csize);
 
 int dnet_send_file_info(void *state, struct dnet_cmd *cmd, int fd, uint64_t offset, int64_t size);
-int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd,void *data, int64_t size);
+int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, const void *data, int64_t size);
 int dnet_send_file_info_ts(void *state, struct dnet_cmd *cmd, int fd,
 		uint64_t offset, int64_t size, struct dnet_time *timestamp);
-int dnet_send_file_info_ts_without_fd(void *state, struct dnet_cmd *cmd, void *data, int64_t size, struct dnet_time *timestamp);
+int dnet_send_file_info_ts_without_fd(void *state, struct dnet_cmd *cmd, const void *data, int64_t size, struct dnet_time *timestamp);
 
 int dnet_get_routes(struct dnet_session *s, struct dnet_id **ids, struct dnet_addr **addrs);
 /*
