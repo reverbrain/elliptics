@@ -1148,18 +1148,29 @@ int dnet_try_reconnect(struct dnet_node *n)
 	list_for_each_entry_safe(ast, tmp, &list, reconnect_entry) {
 		s = dnet_socket_create_addr(n, n->sock_type, n->proto, n->family,
 				(struct sockaddr *)ast->addr.addr, ast->addr.addr_len, 0);
-		if (s < 0)
+		dnet_log(n, DNET_LOG_NOTICE, "Tried to create socket during reconnection to %s: %d\n",
+				dnet_server_convert_dnet_addr(&ast->addr), s);
+		if (s < 0) {
+			dnet_log(n, DNET_LOG_ERROR, "Failed to create socket during reconnection to %s: %d\n",
+					dnet_server_convert_dnet_addr(&ast->addr), s);
 			goto out_add;
+		}
 
 		join = DNET_WANT_RECONNECT;
 		if (ast->__join_state == DNET_JOIN)
 			join = DNET_JOIN;
 
 		st = dnet_add_state_socket(n, &ast->addr, s, &err, join);
-		if (st)
+		if (st) {
+			dnet_log(n, DNET_LOG_INFO, "Successfully reconnected to %s, possible error: %d\n",
+				dnet_server_convert_dnet_addr(&ast->addr), err);
 			goto out_remove;
+		}
 
 		dnet_sock_close(s);
+
+		dnet_log(n, DNET_LOG_ERROR, "Failed to add state during reconnection to %s, can remove state from reconnection list due to error: %d\n",
+				dnet_server_convert_dnet_addr(&ast->addr), err);
 
 		if (err == -EEXIST || err == -EINVAL)
 			goto out_remove;
