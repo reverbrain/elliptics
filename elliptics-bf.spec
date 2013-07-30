@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.17
+Version:	2.24.13.18
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jul 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.18
+- Optimization for append to cache
+
 * Tue Jul 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.17
 - Fixed endless syncing to disk the same file
 

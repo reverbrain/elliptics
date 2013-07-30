@@ -1,3 +1,9 @@
+elliptics (2.24.13.18) unstable; urgency=low
+
+  * Optimization for append to cache
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 30 Jul 2013 05:12:34 +0400
+
 elliptics (2.24.13.17) unstable; urgency=low
 
   * Fixed endless syncing to disk the same file
