@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.19
+Version:	2.24.13.20
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Jul 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.20
+- Added reconnection logic debug
+- Fixed invalid error for read in case if there is no state
+- Do not mess with command flags, instead unlock/lock key
+- Added little optimization for cache
+
 * Tue Jul 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.19
 - recovery: fix container creation in merge
 - recovery: removed unused get_address_ranges()

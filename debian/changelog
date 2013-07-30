@@ -1,3 +1,12 @@
+elliptics (2.24.13.20) unstable; urgency=low
+
+  * Added reconnection logic debug
+  * Fixed invalid error for read in case if there is no state
+  * Do not mess with command flags, instead unlock/lock key
+  * Added little optimization for cache
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 30 Jul 2013 21:24:31 +0400
+
 elliptics (2.24.13.19) unstable; urgency=low
 
   * recovery: fix container creation in merge
