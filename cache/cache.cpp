@@ -78,7 +78,7 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 
 		data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
 			m_lifetime(0), m_synctime(0), m_user_flags(0),
-			m_remove_from_disk(remove_from_disk), m_remove_from_cache(false) {
+			m_remove_from_disk(remove_from_disk), m_remove_from_cache(false), m_only_append(false) {
 			memcpy(m_id.id, id, DNET_ID_SIZE);
 			dnet_empty_time(&m_timestamp);
 
@@ -150,6 +150,14 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 			m_remove_from_cache = remove_from_cache;
 		}
 
+		bool only_append() const {
+			return m_only_append;
+		}
+
+		void set_only_append(bool only_append) {
+			m_only_append = only_append;
+		}
+
 		size_t size(void) const {
 			return m_data->size();
 		}
@@ -173,6 +181,7 @@ class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_
 		uint64_t m_user_flags;
 		bool m_remove_from_disk;
 		bool m_remove_from_cache;
+		bool m_only_append;
 		struct dnet_raw_id m_id;
 		std::shared_ptr<raw_data_t> m_data;
 };
@@ -240,14 +249,64 @@ class cache_t {
 
 			iset_t::iterator it = m_set.find(id);
 
+			if (it == m_set.end() && !cache) {
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not a cache call\n", dnet_dump_id_str(id));
+				return -ENOTSUP;
+			}
+
+			// Optimization for append-only commands
+			if (!cache_only) {
+				if (append && (it == m_set.end() || it->only_append())) {
+					if (it == m_set.end()) {
+						it = create_data(id, 0, 0, false);
+						it->set_only_append(true);
+						it->set_synctime(time(NULL) + m_node->cache_sync_timeout);
+						m_syncset.insert(*it);
+					}
+
+					auto &raw = it->data()->data();
+
+					m_cache_size -= raw.size();
+					m_lru.erase(m_lru.iterator_to(*it));
+
+					const size_t new_size = raw.size() + io->size;
+
+					if (m_cache_size + new_size > m_max_cache_size) {
+						dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called\n", dnet_dump_id_str(id));
+						resize(new_size * 2);
+						dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished\n", dnet_dump_id_str(id));
+					}
+
+					m_lru.push_back(*it);
+					m_cache_size += new_size;
+
+					raw.insert(raw.end(), data, data + io->size);
+
+					it->set_timestamp(io->timestamp);
+					it->set_user_flags(io->user_flags);
+
+					cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+					return dnet_send_file_info_ts_without_fd(st, cmd, data, io->size, &io->timestamp);
+				} else if (it != m_set.end() && it->only_append()) {
+					sync_after_append(guard, false, &*it);
+
+					local_session sess(m_node);
+					sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | DNET_IO_FLAGS_APPEND);
+
+					int err = m_node->cb->command_handler(st, m_node->cb->command_private, cmd, io);
+					dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: second write result, err: %d", dnet_dump_id_str(id), err);
+
+					it = populate_from_disk(guard, id, false, &err);
+
+					dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: read result, err: %d", dnet_dump_id_str(id), err);
+					cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+					return err;
+				}
+			}
+
 			if (it == m_set.end()) {
 				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not exist\n", dnet_dump_id_str(id));
 				// If file not found and CACHE flag is not set - fallback to backend request
-				if (!cache) {
-					dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not a cache call\n", dnet_dump_id_str(id));
-					return -ENOTSUP;
-				}
-
 				if (!cache_only) {
 					int err = 0;
 					it = populate_from_disk(guard, id, remove_from_disk, &err);
@@ -346,6 +405,13 @@ class cache_t {
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: after guard\n", dnet_dump_id_str(id));
 
 			iset_t::iterator it = m_set.find(id);
+			if (it != m_set.end() && it->only_append()) {
+				sync_after_append(guard, true, &*it);
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: synced append-only data\n", dnet_dump_id_str(id));
+
+				it = m_set.end();
+			}
+
 			if (it == m_set.end() && cache && !cache_only) {
 				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: not exist\n", dnet_dump_id_str(id));
 				int err = 0;
@@ -434,7 +500,9 @@ class cache_t {
 		}
 
 		iset_t::iterator populate_from_disk(std::unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err) {
-			guard.unlock();
+			if (guard.owns_lock()) {
+				guard.unlock();
+			}
 
 			local_session sess(m_node);
 			sess.set_ioflags(DNET_IO_FLAGS_NOCACHE);
@@ -509,9 +577,9 @@ class cache_t {
 			delete obj;
 		}
 
-		void sync_element(const dnet_id &raw, const std::vector<char> &data, uint64_t user_flags, const dnet_time &timestamp) {
+		void sync_element(const dnet_id &raw, bool after_append, const std::vector<char> &data, uint64_t user_flags, const dnet_time &timestamp) {
 			local_session sess(m_node);
-			sess.set_ioflags(DNET_IO_FLAGS_NOCACHE);
+			sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | (after_append ? DNET_IO_FLAGS_APPEND : 0));
 
 			int err = sess.write(raw, data.data(), data.size(), user_flags, timestamp);
 			if (err) {
@@ -528,7 +596,35 @@ class cache_t {
 
 			auto &data = obj->data()->data();
 
-			sync_element(raw, data, obj->user_flags(), obj->timestamp());
+			sync_element(raw, obj->only_append(), data, obj->user_flags(), obj->timestamp());
+		}
+
+		void sync_after_append(std::unique_lock<std::mutex> &guard, bool lock_guard, data_t *obj) {
+			std::shared_ptr<raw_data_t> raw_data = obj->data();
+			m_syncset.erase(m_syncset.iterator_to(*obj));
+			obj->set_synctime(0);
+
+			dnet_id id;
+			memset(&id, 0, sizeof(id));
+			memcpy(id.id, obj->id().id, DNET_ID_SIZE);
+
+			uint64_t user_flags = obj->user_flags();
+			dnet_time timestamp = obj->timestamp();
+
+			erase_element(&*obj);
+
+			guard.unlock();
+
+			local_session sess(m_node);
+			sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | DNET_IO_FLAGS_APPEND);
+
+			auto &raw = raw_data->data();
+
+			int err = sess.write(id, raw.data(), raw.size(), user_flags, timestamp);
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: sync after append, err: %d", dnet_dump_id_str(id.id), err);
+
+			if (lock_guard)
+				guard.lock();
 		}
 
 		void life_check(void) {
@@ -580,6 +676,11 @@ class cache_t {
 					if (obj->synctime() > time)
 						break;
 
+					if (obj->only_append()) {
+						sync_after_append(guard, false, obj);
+						continue;
+					}
+
 					memcpy(id.id, obj->id().id, DNET_ID_SIZE);
 					data = it->data()->data();
 					user_flags = obj->user_flags();
@@ -590,7 +691,7 @@ class cache_t {
 
 					guard.unlock();
 
-					sync_element(id, data, user_flags, timestamp);
+					sync_element(id, false, data, user_flags, timestamp);
 
 					guard.lock();
 

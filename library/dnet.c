@@ -1562,12 +1562,12 @@ err_out_exit:
 	return err;
 }
 
-int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, void *data, int64_t size)
+int dnet_send_file_info_without_fd(void *state, struct dnet_cmd *cmd, const void *data, int64_t size)
 {
 	return dnet_send_file_info_ts_without_fd(state, cmd, data, size, NULL);
 }
 
-int dnet_send_file_info_ts_without_fd(void *state, struct dnet_cmd *cmd, void *data, int64_t size, struct dnet_time *timestamp)
+int dnet_send_file_info_ts_without_fd(void *state, struct dnet_cmd *cmd, const void *data, int64_t size, struct dnet_time *timestamp)
 {
 	struct dnet_net_state *st = state;
 	struct dnet_file_info *info;
