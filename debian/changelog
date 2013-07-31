@@ -1,3 +1,11 @@
+elliptics (2.24.13.23) unstable; urgency=low
+
+  * Use pointer logic in indexes. Only drop lock (and do not unlock at the end of dnet_process_cmd_raw()) if we are not going to send ack right now.
+  * Use 0xHEX string instead of just HEX
+  * Use dnet_time structure in dnet_time_before/after functions
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 01 Aug 2013 03:49:53 +0400
+
 elliptics (2.24.13.22) unstable; urgency=low
 
   * Moved dnet_time_before/after into public header

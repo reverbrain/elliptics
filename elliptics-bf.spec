@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.22
+Version:	2.24.13.23
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.23
+- Use pointer logic in indexes. Only drop lock (and do not unlock at the end of dnet_process_cmd_raw()) if we are not going to send ack right now.
+- Use 0xHEX string instead of just HEX
+- Use dnet_time structure in dnet_time_before/after functions
+
 * Thu Aug 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.22
 - Moved dnet_time_before/after into public header
 
