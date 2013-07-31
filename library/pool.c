@@ -195,7 +195,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 		unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 		int reply = !!(cmd->trans & DNET_TRANS_REPLY);
 
-		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV: %s: nonblocking: %d, cmd-size: %llu, cflags: %llx, trans: %lld, reply: %d\n",
+		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV: %s: nonblocking: %d, cmd-size: %llu, cflags: 0x%llx, trans: %lld, reply: %d\n",
 			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd), nonblocking,
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags, tid, reply);
 	}
@@ -286,8 +286,8 @@ again:
 
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
-		dnet_log(n, DNET_LOG_DEBUG, "%s: received trans: %llu / %llx, "
-				"reply: %d, size: %llu, flags: %llx, status: %d.\n",
+		dnet_log(n, DNET_LOG_DEBUG, "%s: received trans: %llu / 0x%llx, "
+				"reply: %d, size: %llu, flags: 0x%llx, status: %d.\n",
 				dnet_dump_id(&c->id), tid, (unsigned long long)c->trans,
 				!!(c->trans & DNET_TRANS_REPLY),
 				(unsigned long long)c->size, (unsigned long long)c->flags, c->status);
@@ -552,7 +552,7 @@ int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev)
 	}
 
 	if (ev->events & (EPOLLHUP | EPOLLERR)) {
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask %x\n", dnet_state_dump_addr(st), ev->events);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask 0x%x\n", dnet_state_dump_addr(st), ev->events);
 		err = -ECONNRESET;
 	}
 err_out_exit:

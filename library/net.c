@@ -365,7 +365,7 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 	}
 
 	if (pfd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
-		dnet_log(st->n, DNET_LOG_ERROR, "Connection reset by peer: sock: %d, revents: %x.\n",
+		dnet_log(st->n, DNET_LOG_ERROR, "Connection reset by peer: sock: %d, revents: 0x%x.\n",
 			st->read_s, pfd.revents);
 		err = -ECONNRESET;
 		goto out_exit;
@@ -376,7 +376,7 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 		goto out_exit;
 	}
 
-	dnet_log(st->n, DNET_LOG_ERROR, "Socket reported error: sock: %d, revents: %x.\n",
+	dnet_log(st->n, DNET_LOG_ERROR, "Socket reported error: sock: %d, revents: 0x%x.\n",
 			st->read_s, pfd.revents);
 	err = -EINVAL;
 out_exit:
@@ -583,7 +583,7 @@ int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsign
 
 	if (!join_state || n->need_exit) {
 		if (!join_state)
-			dnet_log(n, DNET_LOG_INFO, "Do not add reconnection addr: %s, join state: %x.\n",
+			dnet_log(n, DNET_LOG_INFO, "Do not add reconnection addr: %s, join state: 0x%x.\n",
 				dnet_server_convert_dnet_addr(addr), join_state);
 		goto out_exit;
 	}
@@ -601,7 +601,7 @@ int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsign
 	pthread_mutex_lock(&n->reconnect_lock);
 	list_for_each_entry(it, &n->reconnect_list, reconnect_entry) {
 		if (!memcmp(&it->addr, &a->addr, sizeof(struct dnet_addr))) {
-			dnet_log(n, DNET_LOG_INFO, "Address already exists in reconnection array: addr: %s, join state: %x.\n",
+			dnet_log(n, DNET_LOG_INFO, "Address already exists in reconnection array: addr: %s, join state: 0x%x.\n",
 				dnet_server_convert_dnet_addr(&a->addr), join_state);
 			err = -EEXIST;
 			break;
@@ -609,7 +609,7 @@ int dnet_add_reconnect_state(struct dnet_node *n, struct dnet_addr *addr, unsign
 	}
 
 	if (!err) {
-		dnet_log(n, DNET_LOG_INFO, "Added reconnection addr: %s, join state: %x.\n",
+		dnet_log(n, DNET_LOG_INFO, "Added reconnection addr: %s, join state: 0x%x.\n",
 			dnet_server_convert_dnet_addr(&a->addr), join_state);
 		list_add_tail(&a->reconnect_entry, &n->reconnect_list);
 	}
@@ -1196,7 +1196,7 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int
 	if (size)
 		memcpy(data, odata, size);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply -> %s: trans: %lld, size: %u, cflags: %llx.\n",
+	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply -> %s: trans: %lld, size: %u, cflags: 0x%llx.\n",
 		dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 		(unsigned long long)(c->trans &~ DNET_TRANS_REPLY),
 		size, (unsigned long long)c->flags);
@@ -1226,7 +1226,7 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 		struct dnet_cmd *cmd = r->header;
 		if (!cmd)
 			cmd = r->data;
-		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: %llx, start-sent: %zd/%zd.\n",
+		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: 0x%llx, start-sent: %zd/%zd.\n",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 			(unsigned long long)(cmd->trans &~ DNET_TRANS_REPLY),
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags,
@@ -1270,7 +1270,7 @@ err_out_exit:
 		struct dnet_cmd *cmd = r->header;
 		if (!cmd)
 			cmd = r->data;
-		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: %llx, finish-sent: %zd/%zd.\n",
+		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: 0x%llx, finish-sent: %zd/%zd.\n",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 			(unsigned long long)(cmd->trans &~ DNET_TRANS_REPLY),
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags,

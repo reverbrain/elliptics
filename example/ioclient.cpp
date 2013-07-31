@@ -405,7 +405,7 @@ int main(int argc, char *argv[])
 						(unsigned long long)st->vm_free,
 						(unsigned long long)st->vm_cached);
 				dnet_log_raw(n.get_native(), DNET_LOG_DATA, "%s: %s: fs: "
-						"total: %llu mB, avail: %llu mB, files: %llu, fsid: %llx.\n",
+						"total: %llu mB, avail: %llu mB, files: %llu, fsid: 0x%llx.\n",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr_only(addr),
 						(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
 						(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),

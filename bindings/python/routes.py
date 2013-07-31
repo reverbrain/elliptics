@@ -61,7 +61,7 @@ def percentage(routes):
             else:
                 groups_percent[g][host] += end-start
 
-            #print 'groups_percent[%d][%s] = %x' % (g, host, groups_percent[g][host])
+            #print 'groups_percent[%d][%s] = 0x%x' % (g, host, groups_percent[g][host])
             host = r[1]
             start = end
 
@@ -72,7 +72,7 @@ def percentage(routes):
         else:
             groups_percent[g][host] += end-start
 
-        #print 'groups_percent[%d][%s] = %x' % (g, host, groups_percent[g][host])
+        #print 'groups_percent[%d][%s] = 0x%x' % (g, host, groups_percent[g][host])
 
     for g in groups_percent:
         print 'Group: %d' % (g)

@@ -505,7 +505,7 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 
 	dnet_convert_node_status(st);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: status-change: nflags: %x->%x, log_level: %d->%d, "
+	dnet_log(n, DNET_LOG_INFO, "%s: status-change: nflags: 0x%x->0x%x, log_level: %d->%d, "
 			"status_flags: EXIT: %d, RO: %d\n",
 			dnet_dump_id(&cmd->id), n->flags, st->nflags, n->log->log_level, st->log_level,
 			!!(st->status_flags & DNET_STATUS_EXIT), !!(st->status_flags & DNET_STATUS_RO));
@@ -584,7 +584,7 @@ int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int 
 			ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
 		ack.status = err;
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: %s: ack -> %s: trans: %llu, flags: %llx, status: %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: %s: ack -> %s: trans: %llu, flags: 0x%llx, status: %d.\n",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 				tid, (unsigned long long)ack.flags, err);
 
@@ -1188,7 +1188,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	gettimeofday(&end, NULL);
 
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
-	dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, cflags: %llx, time: %ld usecs, err: %d.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, cflags: 0x%llx, time: %ld usecs, err: %d.\n",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), tid,
 			(unsigned long long)cmd->flags, diff, err);
 
