@@ -347,15 +347,15 @@ struct dnet_time {
 /*
  * Returns true if t1 is before than t2.
  */
-static inline int dnet_time_before(struct timespec *t1, struct timespec *t2)
+static inline int dnet_time_before(struct dnet_time *t1, struct dnet_time *t2)
 {
-	if ((long)(t1->tv_sec - t2->tv_sec) < 0)
+	if ((long)(t1->tsec - t2->tsec) < 0)
 		return 1;
 
-	if ((long)(t2->tv_sec - t1->tv_sec) < 0)
+	if ((long)(t2->tsec - t1->tsec) < 0)
 		return 0;
 
-	return ((long)(t1->tv_nsec - t2->tv_nsec) < 0);
+	return ((long)(t1->tnsec - t2->tnsec) < 0);
 }
 #define dnet_time_after(t2, t1) 	dnet_time_before(t1, t2)
 
