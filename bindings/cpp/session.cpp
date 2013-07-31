@@ -674,7 +674,7 @@ async_read_result session::read_data(const key &id, uint64_t offset, uint64_t si
 {
 	transform(id);
 
-	return read_data(id, mix_states(), offset, size);
+	return read_data(id, mix_states(id), offset, size);
 }
 
 struct prepare_latest_functor
@@ -811,7 +811,7 @@ async_read_result session::read_latest(const key &id, uint64_t offset, uint64_t 
 		set_filter(filters::positive);
 		set_checker(checkers::no_check);
 
-		read_latest_callback callback = { *this, id, offset, size, result, mix_states() };
+		read_latest_callback callback = { *this, id, offset, size, result, mix_states(id) };
 		prepare_latest(id, callback.groups).connect(callback);
 	}
 	return result;
@@ -1133,7 +1133,7 @@ async_write_result session::write_cas(const key &id, const std::function<data_po
 
 	async_write_result result(*this);
 
-	auto functor = std::make_shared<cas_functor>(*this, result, converter, id, remote_offset, count, mix_states());
+	auto functor = std::make_shared<cas_functor>(*this, result, converter, id, remote_offset, count, mix_states(id));
 	functor->next_iteration();
 
 	return result;
@@ -1913,9 +1913,12 @@ async_read_result session::bulk_read(const std::vector<struct dnet_io_attr> &ios
 	memset(&control.io, 0, sizeof(struct dnet_io_attr));
 	control.io.flags = get_ioflags();
 
+	dnet_raw_id tmp_id;
+	memcpy(tmp_id.id, ios_vector[0].id, DNET_ID_SIZE);
+
 	async_read_result result(*this);
 	auto cb = createCallback<read_bulk_callback>(*this, result, ios, control);
-	cb->groups = mix_states();
+	cb->groups = mix_states(key(tmp_id));
 
 	startCallback(cb);
 	return result;
