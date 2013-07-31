@@ -1721,15 +1721,11 @@ void session::mix_states(const key &id, std::vector<int> &groups)
 	transform(id);
 	cstyle_scoped_pointer<int> groups_ptr;
 
-	if (id.by_id()) {
-		groups.push_back(id.id().group_id);
-	} else {
-		dnet_id raw = id.id();
-		int num = dnet_mix_states(m_data->session_ptr, &raw, &groups_ptr.data());
-		if (num < 0)
-			throw_error(num, "could not fetch groups");
-		groups.assign(groups_ptr.data(), groups_ptr.data() + num);
-	}
+	dnet_id raw = id.id();
+	int num = dnet_mix_states(m_data->session_ptr, &raw, &groups_ptr.data());
+	if (num < 0)
+		throw_error(num, "could not fetch groups");
+	groups.assign(groups_ptr.data(), groups_ptr.data() + num);
 }
 void session::mix_states(std::vector<int> &groups)
 {
