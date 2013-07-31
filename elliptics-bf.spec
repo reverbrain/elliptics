@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.20
+Version:	2.24.13.21
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Jul 31 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.21
+- Fixed using of mix_states for DNET_CFG_MIX_STATES
+
 * Tue Jul 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.20
 - Added reconnection logic debug
 - Fixed invalid error for read in case if there is no state

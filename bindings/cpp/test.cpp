@@ -360,7 +360,7 @@ static void configure_server_nodes()
 			("bg_ionice_prio", 0)
 			("server_net_prio", 1)
 			("client_net_prio", 6)
-			("cache_size", 1024 * 1024 * 256)
+			("cache_size", 1) //1024 * 1024 * 256)
 			("backend", "blob")
 			("sync", 5)
 			("data", DUMMY_VALUE)
@@ -514,6 +514,9 @@ static void test_cache_write(session &sess, int num)
 	}
 
 	BOOST_REQUIRE_EQUAL(count, num * 2);
+
+	// Wait for sync
+	sleep(2);
 }
 
 static void test_cache_read(session &sess, int num, int percentage)

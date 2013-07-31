@@ -544,15 +544,14 @@ class cache_t {
 				++it;
 
 				if (raw->synctime() || raw->remove_from_cache()) {
-					if (raw->remove_from_cache()) {
-						removed_size += raw->size();
-					} else {
+					if (!raw->remove_from_cache()) {
 						raw->set_remove_from_cache(true);
 
 						m_syncset.erase(m_syncset.iterator_to(*raw));
 						raw->set_synctime(1);
 						m_syncset.insert(*raw);
 					}
+					removed_size += raw->size();
 				} else {
 					erase_element(raw);
 				}
@@ -738,6 +737,10 @@ class cache_manager {
 			return m_caches[idx(id)]->remove(id, io);
 		}
 
+		int indexes_find(dnet_cmd *cmd, dnet_indexes_request *request) {
+			return 0;
+		}
+
 	private:
 		std::vector<std::shared_ptr<cache_t>> m_caches;
 
@@ -804,6 +807,30 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
 		err = -ENOENT;
+	}
+
+	return err;
+}
+
+int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_indexes_request *request)
+{
+	struct dnet_node *n = st->n;
+	int err = -ENOTSUP;
+
+	if (!n->cache) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
+		return -ENOTSUP;
+	}
+
+	cache_manager *cache = (cache_manager *)n->cache;
+
+	switch (cmd->cmd) {
+		case DNET_CMD_INDEXES_FIND:
+			break;
+		case DNET_CMD_INDEXES_UPDATE:
+			break;
+		case DNET_CMD_INDEXES_INTERNAL:
+			break;
 	}
 
 	return err;

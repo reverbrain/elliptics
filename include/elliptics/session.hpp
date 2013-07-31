@@ -694,6 +694,9 @@ class session
 		async_set_indexes_result set_indexes(const key &id, const std::vector<index_entry> &indexes);
 		async_set_indexes_result set_indexes(const key &id, const std::vector<std::string> &indexes,
 				const std::vector<data_pointer> &data);
+		async_set_indexes_result update_indexes(const key &id, const std::vector<index_entry> &indexes);
+		async_set_indexes_result update_indexes(const key &id, const std::vector<std::string> &indexes,
+				const std::vector<data_pointer> &data);
 
 		async_find_indexes_result find_all_indexes(const std::vector<dnet_raw_id> &indexes);
 		async_find_indexes_result find_all_indexes(const std::vector<std::string> &indexes);

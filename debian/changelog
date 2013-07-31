@@ -1,3 +1,9 @@
+elliptics (2.24.13.21) unstable; urgency=low
+
+  * Fixed using of mix_states for DNET_CFG_MIX_STATES
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Wed, 31 Jul 2013 17:33:22 +0400
+
 elliptics (2.24.13.20) unstable; urgency=low
 
   * Added reconnection logic debug

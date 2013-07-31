@@ -155,6 +155,29 @@ async_set_indexes_result session::set_indexes(const key &id, const std::vector<s
 	return set_indexes(id, raw_indexes);
 }
 
+async_set_indexes_result session::update_indexes(const key &id, const std::vector<std::string> &indexes, const std::vector<data_pointer> &datas)
+{
+	if (datas.size() != indexes.size())
+		throw_error(-EINVAL, id, "session::update_indexes: indexes and datas sizes mismtach");
+
+	dnet_id tmp;
+	std::vector<index_entry> raw_indexes;
+	raw_indexes.resize(indexes.size());
+
+	for (size_t i = 0; i < indexes.size(); ++i) {
+		transform(indexes[i], tmp);
+		memcpy(raw_indexes[i].index.id, tmp.id, sizeof(tmp.id));
+		raw_indexes[i].data = datas[i];
+	}
+
+	return update_indexes(id, raw_indexes);
+}
+
+async_set_indexes_result session::update_indexes(const key &id, const std::vector<ioremap::elliptics::index_entry> &indexes)
+{
+	return set_indexes(id, indexes);
+}
+
 typedef std::map<dnet_raw_id, dnet_raw_id, dnet_raw_id_less_than<> > dnet_raw_id_map;
 
 struct find_indexes_functor : public std::enable_shared_from_this<find_indexes_functor>
