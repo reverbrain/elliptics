@@ -717,21 +717,6 @@ struct dnet_addr_storage
 	unsigned int			__join_state;
 };
 
-/*
- * Returns true if t1 is before than t2.
- */
-static inline int dnet_time_before(struct timespec *t1, struct timespec *t2)
-{
-	if ((long)(t1->tv_sec - t2->tv_sec) < 0)
-		return 1;
-
-	if ((long)(t2->tv_sec - t1->tv_sec) < 0)
-		return 0;
-
-	return ((long)(t1->tv_nsec - t2->tv_nsec) < 0);
-}
-#define dnet_time_after(t2, t1) 	dnet_time_before(t1, t2)
-
 int dnet_check_thread_start(struct dnet_node *n);
 void dnet_check_thread_stop(struct dnet_node *n);
 int dnet_try_reconnect(struct dnet_node *n);
