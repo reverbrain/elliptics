@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.21
+Version:	2.24.13.22
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.22
+- Moved dnet_time_before/after into public header
+
 * Wed Jul 31 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.21
 - Fixed using of mix_states for DNET_CFG_MIX_STATES
 
