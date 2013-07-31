@@ -38,7 +38,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 	typedef std::shared_ptr<update_indexes_functor> ptr;
 
-	update_indexes_functor(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
+	update_indexes_functor(dnet_net_state *state, const dnet_cmd *cmd, const dnet_indexes_request *request)
 		: sess(state->n), state(dnet_state_get(state)), cmd(*cmd), requests_in_progress(1)
 	{
 		this->cmd.flags |= DNET_FLAGS_MORE;
@@ -46,21 +46,21 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		request_id = request->id;
 
 		size_t data_offset = 0;
-		char *data_start = reinterpret_cast<char *>(request->entries);
+		const char *data_start = reinterpret_cast<const char *>(request->entries);
 		for (uint64_t i = 0; i < request->entries_count; ++i) {
-			dnet_indexes_request_entry &request_entry = *reinterpret_cast<dnet_indexes_request_entry *>(data_start + data_offset);
+			const dnet_indexes_request_entry *request_entry = reinterpret_cast<const dnet_indexes_request_entry *>(data_start + data_offset);
 
 			index_entry entry;
-			entry.index = request_entry.id;
-			entry.data = data_pointer::copy(request_entry.data, request_entry.size);
+			entry.index = request_entry->id;
+			entry.data = data_pointer::copy(request_entry->data, request_entry->size);
 
 			indexes.indexes.push_back(entry);
 
-			data_offset += sizeof(dnet_indexes_request_entry) + request_entry.size;
+			data_offset += sizeof(dnet_indexes_request_entry) + request_entry->size;
 		}
 
 		std::sort(indexes.indexes.begin(), indexes.indexes.end(), dnet_raw_id_less_than<>());
-		indexes.shard_id = dnet_indexes_get_shard_id(state->n, reinterpret_cast<dnet_raw_id*>(&cmd->id));
+		indexes.shard_id = dnet_indexes_get_shard_id(state->n, reinterpret_cast<const dnet_raw_id*>(&cmd->id));
 		indexes.shard_count = state->n->indexes_shard_count;
 		msgpack::pack(buffer, indexes);
 	}
@@ -625,6 +625,7 @@ void dnet_indexes_cleanup(struct dnet_node *)
 int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 {
 	dnet_indexes_request *request = static_cast<dnet_indexes_request*>(data);
+	int err = -ENOTSUP;
 
 	switch (cmd->cmd) {
 		case DNET_CMD_INDEXES_UPDATE: {
@@ -632,25 +633,29 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 
 			bool finished = false;
 
-			int err = functor->process(&finished);
-
-			// Mark command as no-lock, so that lock will not be released in dnet_process_cmd_raw()
-			// Lock will be releaseed when indexes are fully updated
-			cmd->flags |= DNET_FLAGS_NOLOCK;
+			err = functor->process(&finished);
 
 			if (!(finished && !err)) {
 				// Do not send final ACK, it will be sent when all indexes are fully updated
+
+				// Mark command as no-lock, so that lock will not be released in dnet_process_cmd_raw()
+				// Lock will be releaseed when indexes are fully updated
+				cmd->flags |= DNET_FLAGS_NOLOCK;
+
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
-			return err;
 		}
-		case DNET_CMD_INDEXES_INTERNAL: {
-			return process_internal_indexes(st, cmd, request);
-		}
-		case DNET_CMD_INDEXES_FIND: {
-			return process_find_indexes(st, cmd, request);
-		}
+			break;
+		case DNET_CMD_INDEXES_INTERNAL:
+			err = process_internal_indexes(st, cmd, request);
+			break;
+		case DNET_CMD_INDEXES_FIND:
+			err = process_find_indexes(st, cmd, request);
+			break;
 		default:
-			return -ENOTSUP;
+			break;
 	}
+
+
+	return err;
 }
