@@ -1,3 +1,9 @@
+elliptics (2.24.13.25) unstable; urgency=low
+
+  * Added dnet_indexes_reply for internal commands
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Thu, 01 Aug 2013 18:03:02 +0400
+
 elliptics (2.24.13.24) unstable; urgency=low
 
   * Added session::update_indexes method
