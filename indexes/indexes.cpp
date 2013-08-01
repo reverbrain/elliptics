@@ -539,7 +539,32 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 	}
 	dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is different\n");
 
-	return sess.write(cmd->id, new_data);
+	err = sess.write(cmd->id, new_data);
+
+	data_buffer buffer(sizeof(dnet_indexes_reply) + sizeof(dnet_indexes_reply_entry));
+
+	dnet_indexes_reply reply;
+	dnet_indexes_reply_entry reply_entry;
+	memset(&reply, 0, sizeof(reply));
+	memset(&reply_entry, 0, sizeof(reply_entry));
+
+	reply.entries_count = 1;
+
+	reply_entry.id = entry.id;
+	reply_entry.status = err;
+
+	buffer.write(reply);
+	buffer.write(reply_entry);
+
+	data_pointer reply_data = std::move(buffer);
+
+	if (!err) {
+		cmd->flags &= (DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
+	}
+
+	dnet_send_reply(state, cmd, reply_data.data(), reply_data.size(), err ? 1 : 0);
+
+	return err;
 }
 
 int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
