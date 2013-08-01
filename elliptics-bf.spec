@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.23
+Version:	2.24.13.24
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 01 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.24
+- Added session::update_indexes method
+- Fixed groups mix in case of key generated from id
+
 * Thu Aug 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.23
 - Use pointer logic in indexes. Only drop lock (and do not unlock at the end of dnet_process_cmd_raw()) if we are not going to send ack right now.
 - Use 0xHEX string instead of just HEX

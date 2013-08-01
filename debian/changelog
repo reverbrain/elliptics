@@ -1,3 +1,10 @@
+elliptics (2.24.13.24) unstable; urgency=low
+
+  * Added session::update_indexes method
+  * Fixed groups mix in case of key generated from id
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Thu, 01 Aug 2013 16:24:10 +0400
+
 elliptics (2.24.13.23) unstable; urgency=low
 
   * Use pointer logic in indexes. Only drop lock (and do not unlock at the end of dnet_process_cmd_raw()) if we are not going to send ack right now.
