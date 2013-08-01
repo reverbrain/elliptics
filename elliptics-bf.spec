@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.25
+Version:	2.24.13.26
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Aug 01 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.26
+- Fixed zero data for indexes_internal in case of no changes
+
 * Thu Aug 01 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.25
 - Added dnet_indexes_reply for internal commands
 

@@ -1,3 +1,9 @@
+elliptics (2.24.13.26) unstable; urgency=low
+
+  * Fixed zero data for indexes_internal in case of no changes
+
+ -- Ruslan Nigmatullin <euroelessar@yandex.ru>  Thu, 01 Aug 2013 19:10:02 +0400
+
 elliptics (2.24.13.25) unstable; urgency=low
 
   * Added dnet_indexes_reply for internal commands
