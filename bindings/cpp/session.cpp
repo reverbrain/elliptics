@@ -62,7 +62,7 @@ transport_control::transport_control(const struct dnet_id &id, unsigned int cmd,
 
 void transport_control::set_key(const struct dnet_id &id)
 {
-	memcpy(&m_data.id, &id, sizeof(id));
+	m_data.id = id;
 }
 
 void transport_control::set_command(unsigned int cmd)

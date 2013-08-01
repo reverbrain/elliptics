@@ -360,7 +360,7 @@ static void configure_server_nodes()
 			("bg_ionice_prio", 0)
 			("server_net_prio", 1)
 			("client_net_prio", 6)
-			("cache_size", 1) //1024 * 1024 * 256)
+			("cache_size", 1024 * 1024 * 256)
 			("backend", "blob")
 			("sync", 5)
 			("data", DUMMY_VALUE)
@@ -514,9 +514,6 @@ static void test_cache_write(session &sess, int num)
 	}
 
 	BOOST_REQUIRE_EQUAL(count, num * 2);
-
-	// Wait for sync
-	sleep(2);
 }
 
 static void test_cache_read(session &sess, int num, int percentage)
@@ -976,6 +973,80 @@ static void test_partial_bulk_read(session &sess)
 	BOOST_REQUIRE_EQUAL(bulk_entries[0].file().to_string(), first_data);
 }
 
+static void test_indexes_update(session &sess)
+{
+	data_pointer first_data = data_pointer::copy("1", 1);
+	data_pointer second_data = data_pointer::copy("22", 2);
+//	data_pointer third_data = data_pointer::copy("333", 3);
+
+	std::map<key, std::string> mapper;
+
+	std::vector<std::string> first_indexes = {
+		"index_1",
+		"index_2",
+		"index_3"
+	};
+
+	std::vector<std::string> second_indexes = {
+		"index_3",
+		"index_4",
+		"index_5"
+	};
+
+	std::vector<std::string> all_indexes = {
+		"index_1",
+		"index_2",
+		"index_3",
+		"index_4",
+		"index_5"
+	};
+
+	for (auto it = all_indexes.begin(); it != all_indexes.end(); ++it) {
+		key tmp_key(*it);
+		tmp_key.transform(sess);
+		mapper[tmp_key.id()] = *it;
+	}
+
+	std::vector<data_pointer> data(first_indexes.size(), first_data);
+
+	std::string first_key = "indexes_update";
+
+	ELLIPTICS_REQUIRE(set_indexes_result, sess.set_indexes(first_key, first_indexes, data));
+	ELLIPTICS_REQUIRE(first_find_result, sess.find_any_indexes(all_indexes));
+
+	sync_find_indexes_result first_sync_find_result = first_find_result.get();
+
+	BOOST_REQUIRE_EQUAL(first_sync_find_result.size(), 1);
+	BOOST_REQUIRE_EQUAL(first_sync_find_result[0].indexes.size(), 3);
+
+	data.assign(second_indexes.size(), second_data);
+
+	ELLIPTICS_REQUIRE(update_indexes_result, sess.update_indexes_internal(first_key, second_indexes, data));
+	ELLIPTICS_REQUIRE(second_find_result, sess.find_any_indexes(all_indexes));
+
+	sync_find_indexes_result second_sync_find_result = second_find_result.get();
+
+	BOOST_REQUIRE_EQUAL(second_sync_find_result.size(), 1);
+	BOOST_REQUIRE_EQUAL(second_sync_find_result[0].indexes.size(), 5);
+
+	for (auto it = second_sync_find_result[0].indexes.begin();
+		it != second_sync_find_result[0].indexes.end();
+		++it) {
+		const index_entry &entry = *it;
+
+		std::string id = mapper[entry.index];
+		auto first_it = std::find(first_indexes.begin(), first_indexes.end(), id);
+		auto second_it = std::find(second_indexes.begin(), second_indexes.end(), id);
+
+		BOOST_REQUIRE((first_it != first_indexes.end()) || (second_it != second_indexes.end()));
+
+		if (second_it != second_indexes.end())
+			BOOST_REQUIRE_EQUAL(entry.data.to_string(), second_data.to_string());
+		else
+			BOOST_REQUIRE_EQUAL(entry.data.to_string(), first_data.to_string());
+	}
+}
+
 bool register_tests()
 {
 	srand(time(0));
@@ -1016,6 +1087,7 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_cache_populating, create_session(n, {1, 2}, 0, 0), "cache-populated-key", "cache-data");
 	ELLIPTICS_TEST_CASE(test_metadata, create_session(n, {1, 2}, 0, 0), "metadata-key", "meta-data");
 	ELLIPTICS_TEST_CASE(test_partial_bulk_read, create_session(n, {1, 2, 3}, 0, 0));
+	ELLIPTICS_TEST_CASE(test_indexes_update, create_session(n, {2}, 0, 0));
 
 	return true;
 }

@@ -738,7 +738,21 @@ class cache_manager {
 		}
 
 		int indexes_find(dnet_cmd *cmd, dnet_indexes_request *request) {
-			return 0;
+			(void) cmd;
+			(void) request;
+			return -ENOTSUP;
+		}
+
+		int indexes_update(dnet_cmd *cmd, dnet_indexes_request *request) {
+			(void) cmd;
+			(void) request;
+			return -ENOTSUP;
+		}
+
+		int indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request) {
+			(void) cmd;
+			(void) request;
+			return -ENOTSUP;
 		}
 
 	private:
@@ -824,13 +838,22 @@ int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, stru
 
 	cache_manager *cache = (cache_manager *)n->cache;
 
-	switch (cmd->cmd) {
-		case DNET_CMD_INDEXES_FIND:
-			break;
-		case DNET_CMD_INDEXES_UPDATE:
-			break;
-		case DNET_CMD_INDEXES_INTERNAL:
-			break;
+	try {
+		switch (cmd->cmd) {
+			case DNET_CMD_INDEXES_FIND:
+				err = cache->indexes_find(cmd, request);
+				break;
+			case DNET_CMD_INDEXES_UPDATE:
+				err = cache->indexes_update(cmd, request);
+				break;
+			case DNET_CMD_INDEXES_INTERNAL:
+				err = cache->indexes_internal(cmd, request);
+				break;
+		}
+	} catch (const std::exception &e) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
+				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
+		err = -ENOENT;
 	}
 
 	return err;

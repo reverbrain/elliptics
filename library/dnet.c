@@ -1036,7 +1036,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	struct dnet_node *n = st->n;
 	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 	struct dnet_io_attr *io;
+#if 0
 	struct dnet_indexes_request *indexes_request;
+#endif
 	struct timeval start, end;
 	char time_str[64];
 	struct tm io_tm;
@@ -1074,14 +1076,15 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		case DNET_CMD_INDEXES_UPDATE:
 		case DNET_CMD_INDEXES_INTERNAL:
 		case DNET_CMD_INDEXES_FIND:
+#if 0 // We don't wont to specially process this commands yet
 			indexes_request = (struct dnet_indexes_request*)data;
-
 			if (!(indexes_request->flags & DNET_IO_FLAGS_NOCACHE)) {
 				err = dnet_cmd_cache_indexes(st, cmd, indexes_request);
 
 				if (err != -ENOTSUP)
 					return err;
 			}
+#endif
 
 			err = dnet_process_indexes(st, cmd, data);
 			break;
