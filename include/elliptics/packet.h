@@ -732,7 +732,7 @@ enum dnet_iterator_action {
 	DNET_ITERATOR_ACTION_FIRST,	/* Sanity */
 	DNET_ITERATOR_ACTION_START,	/* Start iterator */
 	DNET_ITERATOR_ACTION_PAUSE,	/* Pause iterator */
-	DNET_ITERATOR_ACTION_CONT,	/* Continue previously paused iterator */
+	DNET_ITERATOR_ACTION_CONTINUE,	/* Continue previously paused iterator */
 	DNET_ITERATOR_ACTION_CANCEL,	/* Cancel running or paused iterator */
 	DNET_ITERATOR_ACTION_LAST,	/* Sanity */
 };

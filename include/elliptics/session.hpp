@@ -272,7 +272,7 @@ class session
 		 */
 		result_checker		get_checker() const;
 
-		void            set_error_handler(const result_error_handler &error_handler);
+		void			set_error_handler(const result_error_handler &error_handler);
 		result_error_handler	get_error_handler() const;
 
 		/*!

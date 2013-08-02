@@ -915,7 +915,7 @@ static int dnet_cmd_iterator(struct dnet_net_state *st, struct dnet_cmd *cmd, vo
 		err = dnet_iterator_start(st, cmd, ireq, irange);
 		break;
 	case DNET_ITERATOR_ACTION_PAUSE:
-	case DNET_ITERATOR_ACTION_CONT:
+	case DNET_ITERATOR_ACTION_CONTINUE:
 	case DNET_ITERATOR_ACTION_CANCEL:
 		err = dnet_iterator_set_state(st->n, ireq->action, ireq->id);
 		break;

@@ -1794,7 +1794,7 @@ async_iterator_result session::continue_iterator(const key &id, uint64_t iterato
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request));
 	auto request = data.data<dnet_iterator_request>();
 	memset(request, 0, sizeof(dnet_iterator_request));
-	request->action = DNET_ITERATOR_ACTION_CONT;
+	request->action = DNET_ITERATOR_ACTION_CONTINUE;
 	request->id = iterator_id;
 
 	return iterator(id, data);

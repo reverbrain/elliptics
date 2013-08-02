@@ -31,14 +31,6 @@
 namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics {
-
-enum elliptics_iterator_actions {
-	action_start = DNET_ITERATOR_ACTION_START,
-	action_pause = DNET_ITERATOR_ACTION_PAUSE,
-	action_cont = DNET_ITERATOR_ACTION_CONT,
-	action_cancel = DNET_ITERATOR_ACTION_CANCEL,
-};
-
 enum elliptics_iterator_types {
 	itype_disk = DNET_ITYPE_DISK,
 	itype_network = DNET_ITYPE_NETWORK,
@@ -81,14 +73,12 @@ enum elliptics_log_level {
 
 static void convert_from_list(const bp::list &l, unsigned char *dst, int dlen)
 {
-	int length = bp::len(l);
-
-	if (length > dlen)
-		length = dlen;
-
 	memset(dst, 0, dlen);
-	for (int i = 0; i < length; ++i)
-		dst[i] = bp::extract<unsigned char>(l[i]);
+	int i = 0;
+	for (bp::stl_input_iterator<unsigned char> it(l), end; (it != end) && (i < dlen); ++it) {
+		dst[i] = *it;
+		++i;
+	}
 }
 
 static bp::list convert_to_list(const unsigned char *src, unsigned int size)
@@ -134,6 +124,22 @@ public:
 	int cmp(const elliptics_id &other) const {
 		return dnet_id_cmp_str(id().id, other.id().id);
 	}
+
+	static elliptics_id convert(const bp::api::object &id) {
+		bp::extract<elliptics_id> get_id(id);
+		if (get_id.check())
+			return get_id();
+
+		bp::extract<std::string> get_string(id);
+		if (get_string.check())
+			return elliptics_id(get_string());
+
+		PyErr_SetString(PyExc_ValueError, "Coudn't convert id to elliptics id");
+		bp::throw_error_already_set();
+
+		return elliptics_id();
+	}
+private:
 };
 
 struct elliptics_time : public dnet_time {
@@ -336,6 +342,8 @@ typedef python_async_result<callback_result_entry>		python_async_update_indexes_
 typedef python_async_result<find_indexes_result_entry>	python_find_indexes_result;
 typedef python_async_result<index_entry>				python_check_indexes_result;
 
+typedef python_async_result<stat_count_result_entry>	python_stat_count_result;
+
 class elliptics_session: public session, public bp::wrapper<session> {
 	public:
 		elliptics_session(const node &n) : session(n) {}
@@ -363,31 +371,52 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return res;
 		}
 
-		void read_file_by_id(struct elliptics_id &id, const std::string &file, uint64_t offset, uint64_t size) {
-			read_file(id, file, offset, size);
+		void read_file(const bp::api::object &id, const std::string &file, uint64_t offset, uint64_t size) {
+			return session::read_file(elliptics_id::convert(id), file, offset, size);
 		}
 
-		void read_file_by_data_transform(const std::string &remote, const std::string &file,
-		                                 uint64_t offset, uint64_t size) {
-			read_file(key(remote), file, offset, size);
+		void write_file(const bp::api::object &id, const std::string &file, uint64_t local_offset, uint64_t offset, uint64_t size) {
+			return session::write_file(elliptics_id::convert(id), file, local_offset, offset, size);
 		}
 
-		void write_file_by_id(struct elliptics_id &id, const std::string &file,
-						    uint64_t local_offset, uint64_t offset, uint64_t size) {
-			write_file(id, file, local_offset, offset, size);
+		python_read_result read_data(const bp::api::object &id, uint64_t offset, uint64_t size) {
+			return create_result(std::move(session::read_data(elliptics_id::convert(id), offset, size)));
 		}
 
-		void write_file_by_data_transform(const std::string &remote, const std::string &file,
-		                                  uint64_t local_offset, uint64_t offset, uint64_t size) {
-			write_file(key(remote), file, local_offset, offset, size);
+		python_read_result read_latest(const bp::api::object &id, uint64_t offset, uint64_t size) {
+			return create_result(std::move(session:read_latest(elliptics_id::convert(id), offset, size)));
 		}
 
-		std::string read_data_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size) {
-			return read_data(id, offset, size).get()[0].file().to_string();
+		python_write_result write_data(const bp::api::object &id, uint64_t offset, uint64_t chunk_size) {
+			return create_result(std::move(session::write_data(elliptics_id::convert(id), offset, chunk_size)));
 		}
 
-		std::string read_data_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size) {
-			return read_data(key(remote), offset, size).get()[0].file().to_string();
+		python_write_result write_data_by_io(const bp::tuple &io, const std::string &data) {
+			dnet_io_attr attr;
+			memset(&attr, 0, sizeof(attr));
+
+			auto e_id = elliptics_id::convert(io[0]);
+			transform(e_id);
+			memcpy(attr.id, e_id.id(), sizeof(attr.id));
+
+			elliptics_time& timestamp = bp::extract<elliptics_time&> (io[1]);
+			attr.timestamp = timestamp;
+
+			attr.user_flags = bp::extract<uint64_t>(io[2]);
+
+			return create_result(std::move(session::write_data(attr, data)));
+		}
+
+		python_write_result write_cache(const bp::api::object &id, const std::string &data, long timeout) {
+			return create_result(std::move(session::write_cache(elliptics_id::convert(id), datam timeout)));
+		}
+
+		std::string lookup_address(const bp::api::object &id, const int group_id) {
+			return session::lookup_address(elliptics_id::convert(id), group_id));
+		}
+
+		python_lookup_result lookup(const bp::api::object &id) {
+			return create_result(std::move(session::lookup(elliptics_id::convert(id))));
 		}
 
 		bp::list prepare_latest_by_id(const struct elliptics_id &id, const bp::api::object &gl) {
@@ -413,18 +442,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return ret;
 		}
 
-		std::string read_latest_by_id(const struct elliptics_id &id, uint64_t offset, uint64_t size) {
-			return read_latest(id, offset, size).get()[0].file().to_string();
-		}
-
-		std::string read_latest_by_data_transform(const std::string &remote, uint64_t offset, uint64_t size) {
-			return read_latest(key(remote), offset, size).get()[0].file().to_string();
-		}
-
-		python_read_result read_latest_async(const elliptics_id &id, uint64_t offset, uint64_t size) {
-			return create_result(std::move(session::read_latest(id, offset, size)));
-		}
-
 		std::string convert_to_string(const sync_write_result &result) {
 			std::string str;
 
@@ -436,50 +453,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return str;
 		}
 
-		std::string write_data_by_id(const struct elliptics_id &id, const std::string &data, uint64_t remote_offset) {
-			return convert_to_string(write_data(id, data, remote_offset));
-		}
-
-		std::string write_data_by_data_transform(const std::string &remote, const std::string &data, uint64_t remote_offset) {
-			return convert_to_string(write_data(key(remote), data, remote_offset));
-		}
-
-		python_write_result write_data_async(const bp::tuple &attr, const std::string &data) {
-
-			dnet_io_attr io;
-			memset(&io, 0, sizeof(io));
-
-			elliptics_id& e_id = bp::extract<elliptics_id&>(attr[0]);
-			transform(e_id);
-			dnet_id id = e_id.id();
-			memcpy(io.id, id.id, sizeof(io.id));
-
-			elliptics_time& timestamp = bp::extract<elliptics_time&>(attr[1]);
-			io.timestamp = timestamp;
-
-			io.user_flags = bp::extract<uint64_t>(attr[2]);
-
-			return create_result(std::move(session::write_data(io, data)));
-		}
-
-		std::string write_cache_by_id(const struct elliptics_id &id, const std::string &data,
-		                              long timeout) {
-			return convert_to_string(write_cache(id, data, timeout));
-		}
-
-		std::string write_cache_by_data_transform(const std::string &remote, const std::string &data,
-		                                          long timeout) {
-			return convert_to_string(write_cache(remote, data, timeout));
-		}
-
-		std::string lookup_addr_by_data_transform(const std::string &remote, const int group_id) {
-			return lookup_address(remote, group_id);
-		}
-
-		std::string lookup_addr_by_id(const struct elliptics_id &id) {
-			return lookup_address(id, id.id().group_id);
-		}
-
 		bp::tuple parse_lookup(const lookup_result_entry &lookup) {
 			struct dnet_addr *addr = lookup.address();
 			struct dnet_file_info *info = lookup.file_info();
@@ -488,18 +461,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			int port = dnet_server_convert_port((struct sockaddr *)addr->addr, addr->addr_len);
 
 			return bp::make_tuple(address, port, info->size);
-		}
-
-		bp::tuple lookup_by_data_transform(const std::string &remote) {
-			return parse_lookup(lookup(remote).get()[0]);
-		}
-
-		python_lookup_result lookup_async(const struct elliptics_id& id) {
-			return create_result(std::move(session::lookup(id)));
-		}
-
-		bp::tuple lookup_by_id(const struct elliptics_id &id) {
-			return parse_lookup(lookup(id).get()[0]);
 		}
 
 		elliptics_status update_status_by_id(const struct elliptics_id &id, elliptics_status &status) {
@@ -513,36 +474,23 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return status;
 		}
 
-		bp::list read_data_range(const struct elliptics_range &r) {
-			struct dnet_io_attr io;
+		python_read_result read_data_range(const struct elliptics_range &r) {
+			dnet_io_attr io;
 			elliptics_extract_range(r, io);
-
-			std::vector<std::string> ret;
-			ret = session::read_data_range_raw(io, r.group_id);
-
-			bp::list l;
-
-			for (size_t i = 0; i < ret.size(); ++i) {
-				l.append(ret[i]);
-			}
-
-			return l;
+			return create_result(std::move(session::read_data_range(io, r.group_id)));
 		}
 
 		bp::list get_routes() {
-
-			std::vector<std::pair<struct dnet_id, struct dnet_addr> > routes;
-			std::vector<std::pair<struct dnet_id, struct dnet_addr> >::iterator it;
-
 			bp::list res;
 
-			routes = session::get_routes();
+			auto routes = session::get_routes();
 
-			for (it = routes.begin(); it != routes.end(); it++) {
-				struct elliptics_id id(it->first);
-				std::string address(dnet_server_convert_dnet_addr(&(it->second)));
+			for (auto it = routes.begin(), end = routes.end(); it != end; ++it) {
+				std::string(dnet_server_convert_dnet_addr(&(it->second)));
 
-				res.append(bp::make_tuple(id, address));
+				res.append(bp::make_tuple(elliptics_id(it->first),
+				                          std::string(dnet_server_convert_dnet_addr(&(it->second)))
+				                          ));
 			}
 
 			return res;
@@ -569,36 +517,14 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return create_result(std::move(session::cancel_iterator(id, iterator_id)));
 		}
 
-		std::string exec_name(const struct elliptics_id &id, const std::string &event, const std::string &data) {
-			dnet_id raw = id.id();
-
-			std::string result;
-			sync_exec_result results = exec(&raw, event, data);
-			for (size_t i = 0; i < results.size(); ++i)
-				result += results[i].context().data().to_string();
-
-			return result;
-
+		std::string exec(const bp::api::object &id, const std::string &event, const std::string &data) {
+			auto eid = elliptics_id::convert(id);
+			transform(eid);
+			return exec(eid.id(), event, data);
 		}
 
-		std::string exec_name_by_name(const std::string &remote, const std::string &event, const std::string &data) {
-			struct dnet_id raw;
-			memset(&raw, 0, sizeof(struct dnet_id));
-			session::transform(remote, raw);
-
-			return exec_name(raw, event, data);
-		}
-
-		void remove_by_id(const struct elliptics_id &id) {
-			remove(id).wait();
-		}
-
-		void remove_by_name(const std::string &remote) {
-			remove(key(remote)).wait();
-		}
-
-		python_remove_result remove_async(const struct elliptics_id &id) {
-			return create_result(std::move(session::remove(id)));
+		python_remove_result remove(const bp::api::object &id) {
+			return create_result(std::move(session::remove(elliptics_id::convert(id))));
 		}
 
 		struct dnet_id_comparator {
@@ -608,246 +534,102 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			}
 		};
 
-		bp::api::object bulk_read_by_name(const bp::api::object &keys, bool raw) {
-			std::vector<std::string> std_keys = convert_to_vector<std::string>(keys);
-
-			const sync_read_result ret =  session::bulk_read(std_keys);
-
-			if (raw) {
-				bp::list result;
-				for (size_t i = 0; i < ret.size(); ++i) {
-					const read_result_entry entry = ret[i];
-					const uint64_t size = entry.file().size();
-					std::string line;
-					line.append(reinterpret_cast<char*>(entry.io_attribute()->id), DNET_ID_SIZE);
-					line.append(reinterpret_cast<const char*>(&size), sizeof(uint64_t));
-					line.append(reinterpret_cast<char*>(entry.file().data()), size);
-					result.append(line);
-				}
-
-				return result;
-			} else {
-				bp::dict result;
-
-				std::map<struct dnet_id, std::string, dnet_id_comparator> keys_map;
-				for (size_t i = 0; i < std_keys.size(); ++i) {
-					key k(std_keys[i]);
-					session::transform(k);
-					keys_map.insert(std::make_pair(k.id(), std_keys[i]));
-				}
-
-				for (size_t i = 0; i < ret.size(); ++i) {
-					const read_result_entry entry = ret[i];
-					const dnet_id &id = entry.command()->id;
-					result[keys_map[id]] = entry.file().to_string();
-				}
-
-				return result;
-			}
-		}
-
-		bp::api::object bulk_read_by_id(const bp::api::object &keys) {
-			std::vector<elliptics_id> std_keys = convert_to_vector<elliptics_id>(keys);
+		python_read_result bulk_read(const bp::list &keys) {
 			std::vector<dnet_io_attr> ios;
 			dnet_io_attr io;
 			memset(&io, 0, sizeof(io));
+			ios.reserve(bp::len(keys));
 
-			ios.reserve(std_keys.size());
-			for (size_t i = 0; i < std_keys.size(); ++i) {
-				transform(std_keys[i]);
-				dnet_id id = std_keys[i].id();
-
-				memcpy(io.id, id.id, sizeof(io.id));
-				ios.push_back(io);
-			}
-
-			const sync_read_result ret =  session::bulk_read(ios);
-
-			std::map<struct dnet_id, elliptics_id, dnet_id_comparator> keys_map;
-			for (size_t i = 0; i < std_keys.size(); ++i) {
-				const dnet_id id = std_keys[i].id();
-				keys_map.insert(std::make_pair(id, std_keys[i]));
-			}
-
-			bp::dict result;
-			for (size_t i = 0; i < ret.size(); ++i) {
-				const read_result_entry entry = ret[i];
-				const dnet_id &id = entry.command()->id;
-				result[keys_map[id]] = entry.file().to_string();
-			}
-
-			return result;
-		}
-
-		bp::api::object bulk_read(const bp::api::object &keys) {
-			std::vector<elliptics_id> std_keys = convert_to_vector<elliptics_id>(keys);
-			std::vector<dnet_io_attr> ios;
-			dnet_io_attr io;
-			memset(&io, 0, sizeof(io));
-
-			ios.reserve(std_keys.size());
-			std::map<struct dnet_id, elliptics_id, dnet_id_comparator> keys_map;
-			for (auto it = std_keys.begin(), end = std_keys.end(); it != end; ++it) {
-				transform(*it);
-				dnet_id id = it->id();
-				keys_map.insert(std::make_pair(id, *it));
-
-				memcpy(io.id, id.id, sizeof(io.id));
-				ios.push_back(io);
-			}
-
-			const sync_read_result res = session::bulk_read(ios);
-
-			bp::list result;
-			for (auto it = res.begin(), end = res.end(); it != end; ++it) {
-				const dnet_id &id = it->command()->id;
-				result.append(bp::make_tuple(keys_map[id], it->file().to_string(), it->io_attribute()->timestamp, it->io_attribute()->user_flags));
-			}
-
-			return result;
-		}
-
-		python_read_result bulk_read_async(const bp::api::object &keys) {
-			std::vector<elliptics_id> std_keys = convert_to_vector<elliptics_id>(keys);
-			std::vector<dnet_io_attr> ios;
-			ios.reserve(std_keys.size());
-
-			dnet_io_attr io;
-			memset(&io, 0, sizeof(io));
-
-			for (auto it = std_keys.begin(), end = std_keys.end(); it != end; ++it) {
-				transform(*it);
-				dnet_id id = it->id();
-
-				memcpy(io.id, id.id, sizeof(io.id));
+			for (bp::stl_input_iterator<bp::api::object> it(keys), end; it != end; ++it) {
+				auto e_id = elliptics_id::convert(*it);
+				transform(e_id);
+				memcpy(io.id, e_id.id().id, sizeof(io.id));
 				ios.push_back(io);
 			}
 
 			return create_result(std::move(session::bulk_read(ios)));
 		}
 
-		std::string bulk_write(const bp::api::object &data) {
-			std::vector<bp::tuple> std_data = convert_to_vector<bp::tuple>(data);
-
+		python_write_result bulk_write(const bp::list &datas) {
 			std::vector<dnet_io_attr> ios;
-			std::vector<std::string> data_to_write;
-			data_to_write.reserve(std_data.size());
-			dnet_io_attr io;
-			memset(&io, 0, sizeof(io));
+			std::vector<std::string> wdatas;
 
-			for (auto it = std_data.begin(), end = std_data.end(); it != end; ++it) {
-				elliptics_id& e_id = bp::extract<elliptics_id&>((*it)[0]);
+			auto datas_len = bp::len(datas);
+			ios.reserve(datas_len);
+			wdatas.resize(datas_len);
+
+			for (bp::stl_input_iterator<bp::api::tuple> it(keys), end; it != end; ++it) {
+				auto &e_id = elliptics_id::convert((*it)[0]);
 				transform(e_id);
-				dnet_id id = e_id.id();
 
-				std::string data = bp::extract<std::string>((*it)[1]);
+				std::string &data = bp::extract<std::string&>((*it)[1]);
 
-				io.timestamp = bp::extract<dnet_time>((*it)[2]);
-				io.user_flags = bp::extract<uint64_t>((*it)[3]);
+				auto it_len = bp::len(*it);
+				if (it_len > 2)
+					io.timestamp = bp::extract<dnet_time>((*it)[2]);
+				else
+					dnet_empty_time(&io.timestamp);
+				if(it_len > 3)
+					io.user_flags = bp::extract<uint64_t>((*it)[3]);
+				else
+					io.user_flags = 0;
 
-				memcpy(io.id, id.id, sizeof(io.id));
+				memcpy(io.id, e_id.id().id, sizeof(io.id));
 				io.size = data.size();
-				data_to_write.push_back(data);
-
+				wdatas.push_back(data);
 				ios.push_back(io);
 			}
 
-			return convert_to_string(session::bulk_write(ios, data_to_write));
+			return create_result(std::move(session::bulk_write(ios, wdatas)));
 		}
 
-		std::string bulk_write_by_id(const bp::api::object &keys, const bp::api::object &data) {
-			std::vector<elliptics_id> std_keys = convert_to_vector<elliptics_id>(keys);
-			std::vector<std::string> std_data = convert_to_vector<std::string>(data);
-
-			std::vector<dnet_io_attr> ios;
-			dnet_io_attr io;
-			memset(&io, 0, sizeof(io));
-			dnet_empty_time(&io.timestamp);
-
-			for (size_t i = 0; i < std_keys.size(); ++i) {
-				transform(std_keys[i]);
-				dnet_id id = std_keys[i].id();
-
-				memcpy(io.id, id.id, sizeof(io.id));
-				io.size = std_data[i].size();
-
-				ios.push_back(io);
-			}
-
-			return convert_to_string(session::bulk_write(ios, std_data));
-		}
-
-		std::string bulk_write_by_name(const bp::api::object &keys, const bp::api::object &data) {
-			std::vector<std::string> std_keys = convert_to_vector<std::string>(keys);
-			std::vector<std::string> std_data = convert_to_vector<std::string>(data);
-
-			std::vector<dnet_io_attr> ios;
-			dnet_io_attr io;
-			memset(&io, 0, sizeof(io));
-			dnet_empty_time(&io.timestamp);
-
-			for (size_t i = 0; i < std_keys.size(); ++i) {
-				key id = std_keys[i];
-				session::transform(id);
-
-				memcpy(io.id, id.id().id, sizeof(io.id));
-				io.size = std_data[i].size();
-
-				ios.push_back(io);
-			}
-
-			return convert_to_string(session::bulk_write(ios, std_data));
-		}
-
-		python_async_update_indexes_result set_indexes(const elliptics_id &id, const bp::api::object &indexes, const bp::api::object &datas) {
+		python_async_update_indexes_result set_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
 			auto std_indexes = convert_to_vector<std::string>(indexes);
 			auto string_datas = convert_to_vector<std::string>(datas);
 			std::vector<data_pointer> std_datas(string_datas.begin(), string_datas.end());
 
-			return create_result(std::move(session::set_indexes(id, std_indexes, std_datas)));
+			return create_result(std::move(session::set_indexes(elliptics_id::convert(id), std_indexes, std_datas)));
 		}
 
-		python_async_update_indexes_result update_indexes_raw(const elliptics_id &id, const bp::api::object &indexes) {
+		python_async_update_indexes_result update_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
 			auto std_indexes = convert_to_vector<index_entry>(indexes);
 
-			return create_result(std::move(session::set_indexes(id, std_indexes)));
+			return create_result(std::move(session::set_indexes(elliptics_id::convert(id), std_indexes)));
 		}
 
-		python_find_indexes_result find_all_indexes(const bp::api::object &indexes) {
+		python_find_indexes_result find_all_indexes(const bp::api::list &indexes) {
 			auto std_indexes = convert_to_vector<std::string>(indexes);
 
 			return create_result(std::move(session::find_all_indexes(std_indexes)));
 		}
 
-		python_find_indexes_result find_all_indexes_raw(const bp::api::object &indexes) {
-			auto std_ids = convert_to_vector<elliptics_id>(indexes);
+		python_find_indexes_result find_all_indexes_raw(const bp::api::list &indexes) {
 			std::vector<dnet_raw_id> std_indexes;
-			std_indexes.resize(std_ids.size());
-			auto s_it = std_indexes.begin();
+			std_indexes.reserve(bp::len(indexes));
 
-			for (auto it = std_ids.begin(), end = std_ids.end(); it != end; ++it) {
-				transform(*it);
-				*s_it = it->raw_id();
+			for (bp::stl_input_iterator<bp::api::object> it(indexes), end; it != end; ++it) {
+				auto e_id = elliptics_id::convert(*it);
+				transform(e_id);
+				std_indexes.push_back(e_id.raw_id());
 			}
 
 			return create_result(std::move(session::find_all_indexes(std_indexes)));
 		}
 
-		python_find_indexes_result find_any_indexes(const bp::api::object &indexes) {
+		python_find_indexes_result find_any_indexes(const bp::api::list &indexes) {
 			auto std_indexes = convert_to_vector<std::string>(indexes);
 
 			return create_result(std::move(session::find_any_indexes(std_indexes)));
 		}
 
-		python_find_indexes_result find_any_indexes_raw(const bp::api::object &indexes) {
-			auto std_ids = convert_to_vector<elliptics_id>(indexes);
+		python_find_indexes_result find_any_indexes_raw(const bp::api::list &indexes) {
 			std::vector<dnet_raw_id> std_indexes;
-			std_indexes.resize(std_ids.size());
-			auto s_it = std_indexes.begin();
+			std_indexes.reserve(bp::len(indexes));
 
-			for (auto it = std_ids.begin(), end = std_ids.end(); it != end; ++it) {
-				transform(*it);
-				*s_it = it->raw_id();
+			for (bp::stl_input_iterator<bp::api::object> it(indexes), end; it != end; ++it) {
+				auto e_id = elliptics_id::convert(*it);
+				transform(e_id);
+				std_indexes.push_back(e_id.raw_id());
 			}
 
 			return create_result(std::move(session::find_any_indexes(std_indexes)));
@@ -855,6 +637,10 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		python_check_indexes_result list_indexes(const elliptics_id &id) {
 			return create_result(std::move(session::list_indexes(id)));
+		}
+
+		python_stat_count_result stat_log_count() {
+			return create_result(std::move(session::stat_log_count()));
 		}
 
 		bp::list stat_log_count() {
@@ -1282,6 +1068,9 @@ BOOST_PYTHON_MODULE(elliptics)
 	bp::class_<callback_result_entry>("CallbackResultEntry")
 	;
 
+	bp::class_<stat_count_result_entry>("StatCountResultEntry")
+	;
+
 	bp::class_<elliptics_range>("Range")
 		.def_readwrite("start", &elliptics_range::start)
 		.def_readwrite("end", &elliptics_range::end)
@@ -1407,9 +1196,7 @@ BOOST_PYTHON_MODULE(elliptics)
 		.def("exec_event", &elliptics_session::exec_name)
 		.def("exec_event", &elliptics_session::exec_name_by_name)
 
-		.def("remove", &elliptics_session::remove_by_id)
-		.def("remove", &elliptics_session::remove_by_name)
-		.def("remove_async", &elliptics_session::remove_async)
+		.def("remove", &elliptics_session::remove)
 
 		.def("bulk_read", &elliptics_session::bulk_read,
 			(bp::arg("keys")))
@@ -1441,13 +1228,6 @@ BOOST_PYTHON_MODULE(elliptics)
 		     (bp::arg("indexes")))
 		.def("list_indexes", &elliptics_session::list_indexes,
 		     (bp::arg("id")))
-	;
-
-	bp::enum_<elliptics_iterator_actions>("iterator_actions")
-		.value("start", action_start)
-		.value("pause", action_pause)
-		.value("cont", action_cont)
-		.value("cancel", action_cancel)
 	;
 
 	bp::enum_<elliptics_iterator_flags>("iterator_flags")
