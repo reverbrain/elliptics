@@ -590,21 +590,16 @@ static void test_cas(session &sess)
 
 static void test_append(session &sess)
 {
-	const std::string key_a = "append-test";
-	const std::string key_ap = "append-prepare-test";
 	const std::string data = "first part of the message";
 	const std::string data_append = " | second part of the message";
+	const std::string data_append_more = " | third part of the message";
 	read_result_entry read_entry;
 
-	// Clone sessions
-	session sa = sess.clone();
-	session sap = sess.clone();
-
-	// Write data
-	ELLIPTICS_REQUIRE(write_result1, sess.write_data(key_a, data, 0));
-	ELLIPTICS_REQUIRE(write_result2, sess.write_data(key_ap, data, 0));
-
 	// Append
+	const std::string key_a = "append-test";
+	ELLIPTICS_REQUIRE(write_result1, sess.write_data(key_a, data, 0));
+
+	session sa = sess.clone();
 	sa.set_ioflags(sa.get_ioflags() | DNET_IO_FLAGS_APPEND);
 	ELLIPTICS_REQUIRE(append_result1, sa.write_data(key_a, data_append, 0));
 
@@ -612,13 +607,41 @@ static void test_append(session &sess)
 	read_entry = read_result1.get_one();
 	BOOST_REQUIRE_EQUAL(read_entry.file().to_string(), data + data_append);
 
+	// Append only
+	const std::string key_ao = "append-only-test";
+	ELLIPTICS_REQUIRE(write_result_ao1, sa.write_data(key_ao, data, 0));
+	ELLIPTICS_REQUIRE(write_result_ao2, sa.write_data(key_ao, data_append, 0));
+	ELLIPTICS_REQUIRE(write_result_ao3, sa.write_data(key_ao, data_append_more, 0));
+	ELLIPTICS_REQUIRE(read_result_ao, sa.read_data(key_ao, 0, 0));
+	read_entry = read_result_ao.get_one();
+	BOOST_REQUIRE_EQUAL(read_entry.file().to_string(),
+			data + data_append + data_append_more);
+
 	// Apend + Prepare
+	const std::string key_ap = "append-prepare-test";
+	ELLIPTICS_REQUIRE(write_result2, sess.write_data(key_ap, data, 0));
+
+	session sap = sess.clone();
 	sap.set_ioflags(sap.get_ioflags() | DNET_IO_FLAGS_APPEND | DNET_IO_FLAGS_PREPARE);
 	ELLIPTICS_REQUIRE(append_result2, sap.write_data(key_ap, data_append, 0));
 
 	ELLIPTICS_REQUIRE(read_result2, sap.read_data(key_ap, 0, 0));
 	read_entry = read_result2.get_one();
 	BOOST_REQUIRE_EQUAL(read_entry.file().to_string(), data + data_append);
+
+	// Multi-Append
+	const std::string key_ma = "multi-append-test";
+	std::string full;
+	for (int i = 0; i < 1000; ++i) {
+		std::ostringstream str;
+		str << "test_" << i << ", ";
+		ELLIPTICS_REQUIRE(append_result_ma, sa.write_data(key_ma, str.str(), 0));
+
+		ELLIPTICS_REQUIRE(read_result_ma, sa.read_data(key_ma, 0, 0));
+		full.append(str.str());
+		read_entry = read_result_ma.get_one();
+		BOOST_REQUIRE_EQUAL(read_entry.file().to_string(), full);
+	}
 }
 
 static void test_read_write_offsets(session &sess)
