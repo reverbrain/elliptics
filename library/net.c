@@ -771,13 +771,13 @@ static void dnet_state_remove(struct dnet_net_state *st)
 	pthread_mutex_unlock(&n->state_lock);
 }
 
-void dnet_state_reset(struct dnet_net_state *st)
+void dnet_state_reset(struct dnet_net_state *st, int error)
 {
 	dnet_state_remove(st);
 
 	pthread_mutex_lock(&st->send_lock);
 	if (!st->need_exit)
-		st->need_exit = -ECONNRESET;
+		st->need_exit = error;
 	dnet_unschedule_send(st);
 	pthread_mutex_unlock(&st->send_lock);
 
@@ -866,7 +866,7 @@ static int dnet_auth_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		dnet_log(n, DNET_LOG_ERROR, "%s: authentication request failed: %d\n", dnet_state_dump_addr(state), cmd->status);
 
 		state->__join_state = 0;
-		dnet_state_reset(state);
+		dnet_state_reset(state, -ECONNRESET);
 	}
 
 	return cmd->status;

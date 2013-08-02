@@ -190,7 +190,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_addr *addr, int s, int *errp, int join, int idx,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
-void dnet_state_reset(struct dnet_net_state *st);
+void dnet_state_reset(struct dnet_net_state *st, int error);
 void dnet_state_remove_nolock(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);

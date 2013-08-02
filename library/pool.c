@@ -601,7 +601,7 @@ static void *dnet_io_process_network(void *data_)
 				break;
 
 			if (err < 0 || st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
-				dnet_state_reset(st);
+				dnet_state_reset(st, -ETIMEDOUT);
 				check = 0;
 				break;
 			}
@@ -649,7 +649,7 @@ static void dnet_io_cleanup_states(struct dnet_node *n)
 	struct dnet_net_state *st, *tmp;
 
 	list_for_each_entry_safe(st, tmp, &n->storage_state_list, storage_state_entry) {
-		dnet_state_reset(st);
+		dnet_state_reset(st, -EUCLEAN);
 	}
 }
 
