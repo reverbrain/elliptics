@@ -180,12 +180,15 @@ class RouteList(object):
     def addresses(self):
         return list(set(route.address for route in self.routes))
 
+    def get_address_group_id(self, address):
+        return self.filter_by_address(address)[0].key.group_id
+
     def get_address_eid(self, address):
         return self.filter_by_address(address)[0].key
 
     def get_ranges_by_address(self, address):
         ranges = []
-        group_id = address.group_id
+        group_id = self.get_address_eid(address).group_id
         keys = dict()
         include = False
         for route in self.routes:
