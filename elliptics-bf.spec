@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.26
+Version:	2.24.13.27
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Aug 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.27
+- tests: added more append tests
+- Send srw reply on upstream::close() to client.
+- Reset connection on server's side if versions mismatch
+- Provide error into dnet_state_reset()
+
 * Thu Aug 01 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.26
 - Fixed zero data for indexes_internal in case of no changes
 

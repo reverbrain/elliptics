@@ -1,3 +1,12 @@
+elliptics (2.24.13.27) unstable; urgency=low
+
+  * tests: added more append tests
+  * Send srw reply on upstream::close() to client.
+  * Reset connection on server's side if versions mismatch
+  * Provide error into dnet_state_reset()
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 06 Aug 2013 12:12:05 +0400
+
 elliptics (2.24.13.26) unstable; urgency=low
 
   * Fixed zero data for indexes_internal in case of no changes
