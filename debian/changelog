@@ -1,3 +1,10 @@
+elliptics (2.24.13.28) unstable; urgency=low
+
+  * Restored get_address_group_id
+  * Removed eid and id_range from IteraterResult. Used sha256 from address instead of id_range@eid.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 06 Aug 2013 18:14:57 +0400
+
 elliptics (2.24.13.27) unstable; urgency=low
 
   * tests: added more append tests
