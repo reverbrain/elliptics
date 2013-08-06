@@ -11,7 +11,7 @@ from multiprocessing import Pool
 
 from ..iterator import Iterator, IteratorResult
 from ..etime import Time
-from ..utils.misc import mk_container_name, elliptics_create_node, elliptics_create_session, worker_init
+from ..utils.misc import elliptics_create_node, elliptics_create_session, worker_init
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -44,7 +44,7 @@ def run_iterator(ctx, address, eid, ranges, stats):
 
         if result is None:
             raise RuntimeError("Iterator result is None")
-        log.debug("Iterator {0} obtained: {1} record(s)".format(result.id_range, result_len))
+        log.debug("Iterator {0} obtained: {1} record(s)".format(result.address, result_len))
         stats.counter('iterations', 1)
         return result
 
@@ -62,12 +62,12 @@ def sort(ctx, result, stats):
         log.debug("Sort skipped iterator results are empty")
         return None
     try:
-        log.info("Processing sorting range: {0}".format(result.id_range))
+        log.info("Processing sorting ranges for: {0}".format(result.address))
         result.container.sort()
         stats.counter('sort', 1)
         return result
     except Exception as e:
-        log.error("Sort of {0} failed: {1}".format(result.id_range, e))
+        log.error("Sort of {0} failed: {1}".format(result.address, e))
         stats.counter('sort', -1)
     return None
 
@@ -97,7 +97,7 @@ def diff(ctx, local, remote, stats):
         return None
 
 
-def recover((id_range, eid, address)):
+def recover((address, )):
     """
     Recovers difference between remote and local data.
     """
@@ -107,14 +107,12 @@ def recover((id_range, eid, address)):
     result = True
     stats_name = 'recover_{0}'.format(address)
     stats = ctx.monitor.stats[stats_name]
-    log.info("Recovering range: {0} for: {1}".format(id_range, address))
+    log.info("Recovering ranges for: {0}".format(address))
     stats.timer('recover', 'started')
 
-    filename = os.path.join(ctx.tmp_dir, "merge_" + mk_container_name(id_range, eid))
+    filename = os.path.join(ctx.tmp_dir, mk_container_name(address, "merge_"))
     diff = IteratorResult.load_filename(filename,
                                         address=address,
-                                        id_range=id_range,
-                                        eid=eid,
                                         is_sorted=True,
                                         tmp_dir=ctx.tmp_dir,
                                         leave_file=False
@@ -141,14 +139,14 @@ def recover((id_range, eid, address)):
                                         )
     log.debug("Creating direct session: {0}".format(diff.address))
     remote_session = elliptics_create_session(node=remote_node,
-                                              group=diff.eid.group_id,
+                                              group=diff.address.group_id,
                                               )
     remote_session.set_direct_id(*diff.address)
 
     for batch_id, batch in groupby(enumerate(diff), key=lambda x: x[0] / ctx.batch_size):
         result &= recover_keys(ctx=ctx,
                                address=diff.address,
-                               group_id=diff.eid.group_id,
+                               group_id=diff.address.group_id,
                                keys=[r.key for _, r in batch],
                                local_session=local_session,
                                remote_session=remote_session,
@@ -258,23 +256,23 @@ def iterate_node(address_ranges):
         return None
 
     stats.timer('process', 'finished')
-    return (sorted_result.id_range, sorted_result.eid, sorted_result.address, sorted_result.filename)
+    return (sorted_result.address, sorted_result.filename)
 
 
 def process_diff((local, remote)):
     ctx = g_ctx
+    local_address, local_filename = local
+    remote_address, remote_filename = remote
 
-    stats_name = 'diff_remote_{0}'.format(remote[2])
+    stats_name = 'diff_remote_{0}'.format(remote_address)
     stats = ctx.monitor.stats[stats_name]
 
     log.debug("Loading local result")
     stats.timer('process', 'start')
     local_result = None
     if local:
-        local_result = IteratorResult.load_filename(local[3],
+        local_result = IteratorResult.load_filename(local_filename,
                                                     address=ctx.address,
-                                                    id_range=local[0],
-                                                    eid=local[1],
                                                     is_sorted=True,
                                                     tmp_dir=ctx.tmp_dir,
                                                     leave_file=True
@@ -283,10 +281,8 @@ def process_diff((local, remote)):
     log.debug("Loading remote result")
     remote_result = None
     if remote:
-        remote_result = IteratorResult.load_filename(remote[3],
-                                                     address=remote[2],
-                                                     id_range=remote[0],
-                                                     eid=remote[1],
+        remote_result = IteratorResult.load_filename(remote_filename,
+                                                     address=remote_address,
                                                      is_sorted=True,
                                                      tmp_dir=ctx.tmp_dir
                                                      )
@@ -302,14 +298,14 @@ def process_diff((local, remote)):
     log.info("Computed differences: {0} diff(s)".format(len(diff_result)))
 
     stats.timer('process', 'finished')
-    return (diff_result.id_range, diff_result.eid, diff_result.address, diff_result.filename)
+    return (diff_result.address, diff_result.filename)
 
 
 def main(ctx):
     global g_ctx
     g_ctx = ctx
     g_ctx.monitor.stats.timer('main', 'started')
-    g_ctx.group_id = g_ctx.routes.get_address_group_id(g_ctx.address)
+    g_ctx.group_id = g_ctx.address.group_id
     result = True
 
     log.warning("Searching for ranges that %s store" % g_ctx.address)
@@ -346,12 +342,10 @@ def main(ctx):
         return False
 
     def unpack_diff_result(result):
-        id_range, eid, address, filename = result
+        address, filename = result
         dres = IteratorResult.load_filename(filename,
                                             address=address,
-                                            eid=eid,
                                             is_sorted=True,
-                                            id_range=id_range,
                                             tmp_dir=g_ctx.tmp_dir
                                             )
         return dres
@@ -391,7 +385,7 @@ def main(ctx):
 
     if not g_ctx.dry_run:
         try:
-            results = pool.map(recover, ((r.id_range, r.eid, r.address) for r in splitted_results if r))
+            results = pool.map(recover, ((r.address, ) for r in splitted_results if r))
         except KeyboardInterrupt:
             log.error("Caught Ctrl+C. Terminating.")
             pool.terminate()
