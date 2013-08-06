@@ -4,6 +4,7 @@ Misc. routines
 
 import logging as log
 import sys
+import hashlib
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -20,11 +21,11 @@ def id_to_int(key_id):
     """Returns numerical equivalent of key"""
     return int(''.join('%02x' % b for b in key_id.id[:64]), 16)
 
-def mk_container_name(id_range, eid, prefix="iterator_"):
+def mk_container_name(address, prefix="iterator_"):
     """
     Makes filename for iterators' results
     """
-    return "{0}{1}_@{2}".format(prefix, str(id_range), eid)
+    return "{0}{1}".format(prefix, hashlib.sha256(str(address)).hexdigest())
 
 def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_timeout=60, flags=0, io_thread_num=1, net_thread_num=1, nonblocking_io_thread_num=1):
     """
