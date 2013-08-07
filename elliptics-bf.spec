@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.28
+Version:	2.24.13.29
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 07 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.29
+- Updated dependencies
+
 * Tue Aug 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.28
 - Restored get_address_group_id
 - Removed eid and id_range from IteraterResult. Used sha256 from address instead of id_range@eid.

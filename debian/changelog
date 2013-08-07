@@ -1,3 +1,9 @@
+elliptics (2.24.13.29) unstable; urgency=low
+
+  * Updated dependencies
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 07 Aug 2013 17:32:48 +0400
+
 elliptics (2.24.13.28) unstable; urgency=low
 
   * Restored get_address_group_id
