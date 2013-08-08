@@ -55,7 +55,9 @@ static void dnet_usage(char *p)
 			" -R file              - read given file from the network into the local storage\n"
 			" -I id                - transaction id (used to read data)\n"
 			" -g groups            - group IDs to connect\n"
-			" -c cmd-event         - execute command with given event on the remote node\n"
+			" -c cmd-event         - execute event on a remote node\n"
+			" -k src-key           - use this src_key with exec\n"
+			" -q                   - do not output comments, only actual data (works for exec only)\n"
 			" -L file              - lookup a storage which hosts given file\n"
 			" -l log               - log file. Default: disabled\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
@@ -113,6 +115,8 @@ int main(int argc, char *argv[])
 	char *ns = NULL;
 	int nsize = 0;
 	std::string as_is_key;
+	int exec_src_key = -1;
+	bool verbose = true;
 
 	memset(&node_status, 0, sizeof(struct dnet_node_status));
 	memset(&cfg, 0, sizeof(struct dnet_config));
@@ -126,7 +130,7 @@ int main(int argc, char *argv[])
 	cfg.wait_timeout = 60;
 	int log_level = DNET_LOG_ERROR;
 
-	while ((ch = getopt(argc, argv, "i:d:C:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:I:r:W:R:D:hH")) != -1) {
+	while ((ch = getopt(argc, argv, "i:d:C:A:F:M:N:g:u:O:S:m:zsU:aL:w:l:c:k:I:r:W:R:D:hHq")) != -1) {
 		switch (ch) {
 			case 'i':
 				ioflags = strtoull(optarg, NULL, 0);
@@ -185,6 +189,12 @@ int main(int argc, char *argv[])
 				break;
 			case 'c':
 				cmd = optarg;
+				break;
+			case 'k':
+				exec_src_key = atoi(optarg);
+				break;
+			case 'q':
+				verbose = false;
 				break;
 			case 'I':
 				err = dnet_parse_numeric_id(optarg, trans_id);
@@ -344,22 +354,28 @@ int main(int argc, char *argv[])
 			}
 
 			s.set_cflags(cflags | DNET_FLAGS_NOLOCK);
-			auto result = s.exec(did, event, data);
+			auto result = s.exec(did, exec_src_key, event, data);
 			s.set_cflags(cflags);
 			for (auto it = result.begin(); it != result.end(); ++it) {
 				if (it->error()) {
 					error_info error = it->error();
-					std::cout << dnet_server_convert_dnet_addr(it->address())
+					std::cerr << dnet_server_convert_dnet_addr(it->address())
 						<< ": failed to process: \"" << error.message() << "\": " << error.code() << std::endl;
 				} else {
 					exec_context context = it->context();
-					if (context.is_null()) {
-						std::cout << dnet_server_convert_dnet_addr(it->address())
-							<< ": acknowledge" << std::endl;
+					if (verbose) {
+						if (context.is_null()) {
+							std::cout << dnet_server_convert_dnet_addr(it->address())
+								<< ": acknowledge" << std::endl;
+						} else {
+							std::cout << dnet_server_convert_dnet_addr(context.address())
+								<< ": " << context.event()
+								<< " \"" << context.data().to_string() << "\"" << std::endl;
+						}
 					} else {
-						std::cout << dnet_server_convert_dnet_addr(context.address())
-							<< ": " << context.event()
-							<< " \"" << context.data().to_string() << "\"" << std::endl;
+						if (!context.is_null()) {
+							std::cout << context.data().to_string() << std::endl;
+						}
 					}
 				}
 			}
