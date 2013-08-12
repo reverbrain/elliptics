@@ -147,7 +147,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	int process(bool *finished)
 	{
 		struct timeval start, end, convert_time, send_remote_time, insert_time, remove_time;
-		long convert_usecs;
+		long convert_usecs = -1;
 
 		gettimeofday(&start, NULL);
 
@@ -184,7 +184,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 		gettimeofday(&convert_time, NULL);
 
-#define DIFF(s, e) (e.tv_sec - s.tv_sec) * 1000000 + (e.tv_usec - s.tv_usec)
+#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
 
 		convert_usecs = DIFF(start, convert_time);
 
