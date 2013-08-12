@@ -17,7 +17,7 @@ int dnet_module_db_write(void */*priv*/, dnet_raw_id */*id*/, void */*data*/, si
 
 int dnet_module_db_remove(void */*priv*/, dnet_raw_id */*id*/, int /*real_remove*/)
 {
-       return 0;
+	return 0;
 }
 
 ell::honest_command_handler * unwrap_private(module_backend_api_t *module_backend_api)
@@ -101,6 +101,7 @@ module_backend_api_t* ell::setup_handler(std::unique_ptr<honest_command_handler>
 	std::unique_ptr<module_backend_api_t> module_backend_api(new module_backend_api_t);
 	module_backend_api->destroy_handler = destroy_module_backend;
 	module_backend_api->command_handler = command_handler;
+	module_backend_api->iterator = NULL;
 	module_backend_api->private_data = honest_command_handler.release();
 	return module_backend_api.release();
 }
