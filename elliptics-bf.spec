@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.29
+Version:	2.24.13.30
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Aug 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.30
+- Fixed unexpected exit after iteration stage if local node is empty
+- Proper support for session::exec in python binding
+- src_key and quiet options for exec (-c) command
+- Use log-level DNET_LOG_DATA instead of special 'quiet' log output mode
+- Initialize convert_usecs to prevent unintialized usage
+
 * Wed Aug 07 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.29
 - Updated dependencies
 
