@@ -260,15 +260,26 @@ def iterate_node(address_ranges):
 
 
 def process_diff((local, remote)):
+    log.debug('Looking for differences between local and remote nodes')
+    if remote is None:
+        log.debug('Remote container is empty, skipping')
+        return None
+
     ctx = g_ctx
-    local_address, local_filename = local
     remote_address, remote_filename = remote
 
     stats_name = 'diff_remote_{0}'.format(remote_address)
     stats = ctx.monitor.stats[stats_name]
+    stats.timer('process', 'start')
+
+    if local is None:
+        log.info("Local container is empty, recovering full range")
+        stats.timer('process', 'finished')
+        return remote
+
+    local_address, local_filename = local
 
     log.debug("Loading local result")
-    stats.timer('process', 'start')
     local_result = None
     if local:
         local_result = IteratorResult.load_filename(local_filename,
