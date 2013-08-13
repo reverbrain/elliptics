@@ -11,7 +11,7 @@ from multiprocessing import Pool
 
 from ..iterator import Iterator, IteratorResult
 from ..etime import Time
-from ..utils.misc import elliptics_create_node, elliptics_create_session, worker_init
+from ..utils.misc import elliptics_create_node, elliptics_create_session, worker_init, mk_container_name
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
