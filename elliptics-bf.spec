@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.30
+Version:	2.24.13.31
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Aug 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.31
+- Fixed getting recovering node group id from routes when groups is specified. Added ability to specify groups for recovering.
+- Restored lost mk_container_name import
+
 * Mon Aug 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.30
 - Fixed unexpected exit after iteration stage if local node is empty
 - Proper support for session::exec in python binding
