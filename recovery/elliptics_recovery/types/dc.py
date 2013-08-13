@@ -338,7 +338,10 @@ def main(ctx):
     ctx.monitor.stats.counter('iterations', len(all_ranges))
 
     local_iter_result = pool.apply_async(iterate_node, (local_ranges, ))
-    iter_result = pool.imap_unordered(iterate_node, (range for range in all_ranges if range.address != g_ctx.address))
+    remote_ranges = (range for range in all_ranges
+                     if range.address != g_ctx.address and
+                        range.address.group_id in g_ctx.groups)
+    iter_result = pool.imap_unordered(iterate_node, remote_ranges)
 
     try:
         timeout = 2147483647

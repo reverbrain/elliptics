@@ -245,8 +245,9 @@ if __name__ == '__main__':
 
     if len(ctx.groups) == 0:
         ctx.groups = ctx.routes.groups()
-        ctx.address.group_id = ctx.routes.get_address_eid(ctx.address).group_id
         log.info("No groups specified: using all available groups: {0}".format(ctx.groups))
+
+    ctx.address.group_id = ctx.routes.get_address_eid(ctx.address).group_id
 
     if recovery_type == TYPE_MERGE:
         from elliptics_recovery.types.merge import main
