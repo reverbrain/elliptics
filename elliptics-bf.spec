@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.31
+Version:	2.24.13.32
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 14 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.32
+- Do not use already removed 'id_range' in debug messages
+
 * Tue Aug 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.31
 - Fixed getting recovering node group id from routes when groups is specified. Added ability to specify groups for recovering.
 - Restored lost mk_container_name import

@@ -1,3 +1,9 @@
+elliptics (2.24.13.32) unstable; urgency=low
+
+  * Do not use already removed 'id_range' in debug messages
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 14 Aug 2013 20:21:10 +0400
+
 elliptics (2.24.13.31) unstable; urgency=low
 
   * Fixed getting recovering node group id from routes when groups is specified. Added ability to specify groups for recovering.
