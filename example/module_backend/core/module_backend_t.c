@@ -34,6 +34,7 @@ static int dnet_module_config_init(struct dnet_config_backend *b, struct dnet_co
 	c->cb = &b->cb;
 	b->cb.command_private = module_backend;
 	b->cb.command_handler = module_backend->api->command_handler;
+	b->cb.iterator        = module_backend->api->iterator;
 	b->cb.backend_cleanup = module_backend_cleanup;
 	dnet_backend_log(DNET_LOG_NOTICE, "module_backend: load successful\n");
 	return 0;

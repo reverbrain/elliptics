@@ -24,6 +24,7 @@ struct module_backend_api_t;
 
 typedef void (destroy_handler_t)(struct module_backend_api_t*);
 typedef int (command_handler_t)(void *, void *, struct dnet_cmd *, void *);
+typedef int (iterator_t)(struct dnet_iterator_ctl *);
 
 /**
  * You should provide this structure via @a module_constructor from module.
@@ -33,6 +34,7 @@ typedef int (command_handler_t)(void *, void *, struct dnet_cmd *, void *);
 struct module_backend_api_t {
 	destroy_handler_t *destroy_handler; ///< destructor for this structure
 	command_handler_t *command_handler;
+	iterator_t *iterator;
 	void *private_data; ///< your own data
 };
 
