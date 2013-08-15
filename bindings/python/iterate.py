@@ -61,11 +61,11 @@ if __name__ == '__main__':
                                      Time.time_min().to_etime(),
                                      Time.time_max().to_etime())
 
-    fair_records = 0
+    legal_records = 0
 
     for record in records:
         if record.status != 0:
             raise RuntimeError("Iteration status check failed: {0}".format(record.status))
-        fair_records += 1
+        legal_records += 1
 
-    print "Node {0} has {1} fair records and {2} hidden records. Total records: {3}".format(address, fair_records, total_records - fair_records, total_records)
+    print "Node {0} has {1} legal records and {2} hidden records. Total records: {3}".format(address, legal_records, total_records - legal_records, total_records)
