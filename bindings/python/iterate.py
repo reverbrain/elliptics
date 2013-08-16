@@ -34,10 +34,11 @@ if __name__ == '__main__':
     node.add_remote(addr=address.host, port=address.port, family=address.family)
     session = elliptics.Session(node)
     routes = RouteList.from_session(session)
-    session.groups = [1]
+    eid = routes.get_address_eid(address)
+    session.groups = [eid.group_id]
 
     ranges = [IdRange.elliptics_range(start, stop) for start, stop in (IdRange(IdRange.ID_MIN, IdRange.ID_MAX),)]
-    records = session.start_iterator(routes.get_address_eid(address),
+    records = session.start_iterator(eid,
                                      ranges,
                                      elliptics.iterator_types.network,
                                      elliptics.iterator_flags.key_range,
