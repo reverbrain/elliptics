@@ -53,5 +53,6 @@ int ell::honest_command_handler_adaptee::file_del(module_backend_t */*r*/, void 
 int ell::honest_command_handler_adaptee::file_iterator(dnet_iterator_ctl */*ictl*/)
 {
 	ell::throw_error(-EINVAL, "Iterator is not implemented here");
+	return -ENOTSUP;
 }
 
