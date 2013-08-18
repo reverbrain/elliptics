@@ -22,9 +22,13 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
-#include <netinet/in.h>
+#include <time.h>
+
 #include <sys/socket.h>
+#include <sys/time.h>
+
 #include <arpa/inet.h>
+#include <netinet/in.h>
 
 #include <elliptics/packet.h>
 #include <elliptics/srw.h>
@@ -511,6 +515,20 @@ static inline char *dnet_state_dump_addr(struct dnet_net_state *st)
 static inline char *dnet_state_dump_addr_only(struct dnet_addr *a)
 {
 	return dnet_server_convert_addr((struct sockaddr *)a->addr, a->addr_len);
+}
+
+static inline char *dnet_print_time(struct dnet_time *t)
+{
+	char str[64];
+	struct tm tm;
+
+	static char __dnet_print_time[128];
+
+	localtime_r((time_t *)&t->tsec, &tm);
+	strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+	snprintf(__dnet_print_time, sizeof(__dnet_print_time), "%s.%06lu", str, t->tnsec / 1000);
+	return __dnet_print_time;
 }
 
 /*
