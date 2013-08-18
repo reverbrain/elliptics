@@ -1,3 +1,12 @@
+elliptics (2.24.13.33) unstable; urgency=low
+
+  * Added new map typedefs
+  * Added iterate.py. Script for counting legal/hidden records on elliptics node by iterator
+  * Added iterator support for module backend
+  * auth_cookie documentation update
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sun, 18 Aug 2013 05:27:44 +0400
+
 elliptics (2.24.13.32) unstable; urgency=low
 
   * Do not use already removed 'id_range' in debug messages

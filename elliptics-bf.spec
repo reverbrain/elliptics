@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.32
+Version:	2.24.13.33
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,12 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sun Aug 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.33
+- Added new map typedefs
+- Added iterate.py. Script for counting legal/hidden records on elliptics node by iterator
+- Added iterator support for module backend
+- auth_cookie documentation update
+
 * Wed Aug 14 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.32
 - Do not use already removed 'id_range' in debug messages
 
