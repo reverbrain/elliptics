@@ -333,7 +333,7 @@ class cache_t {
 					dnet_transform_node(m_node, raw.data().data(), raw.size(), csum.id, sizeof(csum.id));
 
 					if (memcmp(csum.id, io->parent, DNET_ID_SIZE)) {
-						dnet_log(m_node, DNET_LOG_ERROR, "%s: cas: cache checksum mismatch\n", dnet_dump_id(&cmd->id));
+						dnet_trace(m_node, DNET_LOG_ERROR, cmd->id.trace_id, "%s: cas: cache checksum mismatch\n", dnet_dump_id(&cmd->id));
 						return -EBADFD;
 					}
 				}
@@ -774,7 +774,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 	int err = -ENOTSUP;
 
 	if (!n->cache) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
+		dnet_trace(n, DNET_LOG_ERROR, cmd->id.trace_id, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
 		return -ENOTSUP;
 	}
 
@@ -798,11 +798,11 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 				}
 
 				if (io->offset + io->size > d->size()) {
-					dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache: invalid offset/size: "
-							"offset: %llu, size: %llu, cached-size: %zd\n",
-							dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd),
-							(unsigned long long)io->offset, (unsigned long long)io->size,
-							d->size());
+					dnet_trace_raw(n, DNET_LOG_ERROR, cmd->id.trace_id, "%s: %s cache: invalid offset/size: "
+					               "offset: %llu, size: %llu, cached-size: %zd\n",
+					               dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd),
+					               (unsigned long long)io->offset, (unsigned long long)io->size,
+					               d->size());
 					err = -EINVAL;
 					break;
 				}
@@ -818,8 +818,8 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 				break;
 		}
 	} catch (const std::exception &e) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
-				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
+		dnet_trace_raw(n, DNET_LOG_ERROR, cmd->id.trace_id, "%s: %s cache operation failed: %s\n",
+		               dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
 		err = -ENOENT;
 	}
 
@@ -832,7 +832,7 @@ int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, stru
 	int err = -ENOTSUP;
 
 	if (!n->cache) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
+		dnet_trace(n, DNET_LOG_ERROR, cmd->id.trace_id, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
 		return -ENOTSUP;
 	}
 
@@ -851,8 +851,8 @@ int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, stru
 				break;
 		}
 	} catch (const std::exception &e) {
-		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
-				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
+		dnet_trace_raw(n, DNET_LOG_ERROR, cmd->id.trace_id, "%s: %s cache operation failed: %s\n",
+		               dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
 		err = -ENOENT;
 	}
 

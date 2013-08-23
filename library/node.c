@@ -497,8 +497,8 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	if ((cfg->flags & DNET_CFG_JOIN_NETWORK) && (!cfg->cb)) {
 		err = -EINVAL;
 		if (cfg->log && cfg->log->log)
-			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Joining node has to register "
-					"a command handler.\n");
+			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, 0, "Joining node has to register "
+			              "a command handler.\n");
 		goto err_out_exit;
 	}
 
@@ -619,7 +619,7 @@ err_out_exit:
 	pthread_sigmask(SIG_SETMASK, &previous_sigset, NULL);
 
 	if (cfg->log && cfg->log->log)
-		cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Error during node creation.\n");
+		cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, 0, "Error during node creation.\n");
 
 	if (cfg->cb && cfg->cb->backend_cleanup)
 		cfg->cb->backend_cleanup(cfg->cb->command_private);

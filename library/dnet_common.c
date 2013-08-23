@@ -418,7 +418,7 @@ int dnet_recv_route_list(struct dnet_net_state *st)
 
 	dnet_convert_cmd(cmd);
 
-	dnet_log(n, DNET_LOG_DEBUG, "%s: list route request to %s.\n", dnet_dump_id(&cmd->id),
+	dnet_trace(n, DNET_LOG_DEBUG, cmd->id.trace_id, "%s: list route request to %s.\n", dnet_dump_id(&cmd->id),
 		dnet_server_convert_dnet_addr(&st->addr));
 
 	memset(&req, 0, sizeof(req));
@@ -757,7 +757,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: 0x%llx, size: %llu, offset: %llu, "
+	dnet_trace(n, DNET_LOG_INFO, ctl->id.trace_id, "%s: created trans: %llu, cmd: %s, cflags: 0x%llx, size: %llu, offset: %llu, "
 			"fd: %d, local_offset: %llu -> %s weight: %f, mrt: %ld, wait-ts: %ld.\n",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
@@ -995,7 +995,7 @@ static int dnet_read_file_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	}
 
 	if (cmd->size <= sizeof(struct dnet_io_attr)) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: read completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
+		dnet_trace(n, DNET_LOG_ERROR, cmd->id.trace_id, "%s: read completion error: wrong size: cmd_size: %llu, must be more than %zu.\n",
 				dnet_dump_id(&cmd->id), (unsigned long long)cmd->size,
 				sizeof(struct dnet_io_attr));
 		err = -EINVAL;
@@ -1010,19 +1010,19 @@ static int dnet_read_file_complete(struct dnet_net_state *st, struct dnet_cmd *c
 	fd = open(c->file, O_RDWR | O_CREAT | O_CLOEXEC, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_log_err(n, "%s: failed to open read completion file '%s'", dnet_dump_id(&cmd->id), c->file);
+		dnet_trace_err(n, cmd->id.trace_id, "%s: failed to open read completion file '%s'", dnet_dump_id(&cmd->id), c->file);
 		goto err_out_exit;
 	}
 
 	err = pwrite(fd, data, io->size, c->offset);
 	if (err <= 0) {
 		err = -errno;
-		dnet_log_err(n, "%s: failed to write data into completion file '%s'", dnet_dump_id(&cmd->id), c->file);
+		dnet_trace_err(n, cmd->id.trace_id, "%s: failed to write data into completion file '%s'", dnet_dump_id(&cmd->id), c->file);
 		goto err_out_close;
 	}
 
 	close(fd);
-	dnet_log(n, DNET_LOG_NOTICE, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d.\n",
+	dnet_trace(n, DNET_LOG_NOTICE, cmd->id.trace_id, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d.\n",
 			dnet_dump_id(&cmd->id), c->file, (unsigned long long)c->offset,
 			(unsigned long long)io->size, cmd->status);
 
@@ -1031,7 +1031,7 @@ static int dnet_read_file_complete(struct dnet_net_state *st, struct dnet_cmd *c
 err_out_close:
 	close(fd);
 err_out_exit:
-	dnet_log(n, DNET_LOG_ERROR, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d, err: %d.\n",
+	dnet_trace(n, DNET_LOG_ERROR, cmd->id.trace_id, "%s: read completed: file: '%s', offset: %llu, size: %llu, status: %d, err: %d.\n",
 			dnet_dump_id(&cmd->id), c->file, (unsigned long long)io->offset,
 			(unsigned long long)io->size, cmd->status, err);
 err_out_exit_no_log:
@@ -1075,7 +1075,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 
 	c = malloc(sizeof(struct dnet_io_completion) + len + 1 + sizeof(DNET_HISTORY_SUFFIX));
 	if (!c) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: failed to allocate IO completion structure "
+		dnet_trace(n, DNET_LOG_ERROR, ctl.id.trace_id, "%s: failed to allocate IO completion structure "
 				"for '%s' file reading.\n",
 				dnet_dump_id(&ctl.id), file);
 		err = -ENOMEM;
@@ -1102,7 +1102,7 @@ static int dnet_read_file_raw_exec(struct dnet_session *s, const char *file, uns
 		char id_str[2*DNET_ID_SIZE + 1];
 		if (!err)
 			err = w->cond;
-		dnet_log(n, DNET_LOG_ERROR, "%d:%s '%s' : failed to read data: %d\n",
+		dnet_trace(n, DNET_LOG_ERROR, ctl.id.trace_id, "%d:%s '%s' : failed to read data: %d\n",
 			ctl.id.group_id, dnet_dump_id_len_raw(ctl.id.id, DNET_ID_SIZE, id_str),
 			file, err);
 		goto err_out_exit;
@@ -1408,7 +1408,7 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 	dnet_convert_cmd(cmd);
 
-	dnet_log(n, DNET_LOG_NOTICE, "%s: lookup to %s.\n", dnet_dump_id(id), dnet_server_convert_dnet_addr(&t->st->addr));
+	dnet_trace(n, DNET_LOG_NOTICE, id->trace_id, "%s: lookup to %s.\n", dnet_dump_id(id), dnet_server_convert_dnet_addr(&t->st->addr));
 
 	memset(&req, 0, sizeof(req));
 	req.st = t->st;
@@ -1468,16 +1468,16 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		la[1] = (float)st->la[1] / 100.0;
 		la[2] = (float)st->la[2] / 100.0;
 
-		dnet_log(state->n, DNET_LOG_DATA, "%s: %s: la: %.2f %.2f %.2f.\n",
+		dnet_trace(state->n, DNET_LOG_DATA, cmd->id.trace_id, "%s: %s: la: %.2f %.2f %.2f.\n",
 				dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
 				la[0], la[1], la[2]);
-		dnet_log(state->n, DNET_LOG_DATA, "%s: %s: mem: "
+		dnet_trace(state->n, DNET_LOG_DATA, cmd->id.trace_id, "%s: %s: mem: "
 				"total: %llu kB, free: %llu kB, cache: %llu kB.\n",
 				dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
 				(unsigned long long)st->vm_total,
 				(unsigned long long)st->vm_free,
 				(unsigned long long)st->vm_cached);
-		dnet_log(state->n, DNET_LOG_DATA, "%s: %s: fs: "
+		dnet_trace(state->n, DNET_LOG_DATA, cmd->id.trace_id, "%s: %s: fs: "
 				"total: %llu mB, avail: %llu mB, files: %llu, fsid: 0x%llx.\n",
 				dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
 				(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
@@ -1493,16 +1493,16 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		for (i=0; i<as->num; ++i) {
 			if (as->num > as->cmd_num) {
 				if (i == 0)
-					dnet_log(state->n, DNET_LOG_DATA, "%s: %s: Storage commands\n",
+					dnet_trace(state->n, DNET_LOG_DATA, cmd->id.trace_id, "%s: %s: Storage commands\n",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 				if (i == as->cmd_num)
-					dnet_log(state->n, DNET_LOG_DATA, "%s: %s: Proxy commands\n",
+					dnet_trace(state->n, DNET_LOG_DATA, cmd->id.trace_id, "%s: %s: Proxy commands\n",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 				if (i == as->cmd_num * 2)
-					dnet_log(state->n, DNET_LOG_DATA, "%s: %s: Counters\n",
+					dnet_trace(state->n, DNET_LOG_DATA, cmd->id.trace_id, "%s: %s: Counters\n",
 						dnet_dump_id(&cmd->id), dnet_state_dump_addr(state));
 			}
-			dnet_log(state->n, DNET_LOG_DATA, "%s: %s:    cmd: %s, count: %llu, err: %llu\n",
+			dnet_trace(state->n, DNET_LOG_DATA, cmd->id.trace_id, "%s: %s:    cmd: %s, count: %llu, err: %llu\n",
 					dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
 					dnet_counter_string(i, as->cmd_num),
 					(unsigned long long)as->count[i].count, (unsigned long long)as->count[i].err);

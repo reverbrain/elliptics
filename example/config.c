@@ -300,10 +300,10 @@ static int dnet_node_set_log_impl(struct dnet_config_data *data, char *value)
 		data->backend_logger.log_private = log;
 		data->backend_logger.log = dnet_common_log;
 
-		dnet_common_log(log, 0xff, "Reopened log file\n");
+		dnet_common_log(log, 0xff, 0, "Reopened log file\n");
 
 		if (old) {
-			dnet_common_log(old, 0xff, "Reopened log file\n");
+			dnet_common_log(old, 0xff, 0, "Reopened log file\n");
 			fclose(old);
 		}
 	}
@@ -316,7 +316,7 @@ int dnet_node_reset_log(struct dnet_node *n)
 {
 	return dnet_node_set_log_impl(n->config_data, n->config_data->logger_value);
 }
-	
+
 static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
 	return dnet_node_set_log_impl(dnet_cur_cfg_data, value);
@@ -455,7 +455,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 #endif
 	if (err)
 		goto err_out_file_exit;
- 
+
 	err = dnet_eblob_backend_init();
 	if (err)
 		goto err_out_module_exit;
@@ -513,7 +513,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 					ptr[i] = '\0';
 					continue;
 				}
-				
+
 				if (ptr[i] ==  DNET_CONF_COMMENT) {
 					key = value = NULL;
 					break;
@@ -619,19 +619,21 @@ int dnet_backend_check_log_level(int level)
 	return (l->log && (l->log_level >= level));
 }
 
-void dnet_backend_log_raw(int level, const char *format, ...)
+void dnet_backend_log_raw(int level, uint32_t trace_id, const char *format, ...)
 {
+	level = trace_id ? DNET_LOG_ERROR : level;
+
+	if (!dnet_backend_check_log_level(level))
+		return;
+
 	va_list args;
 	char buf[1024];
 	struct dnet_log *l = dnet_cur_cfg_data->cfg_state.log;
 	int buflen = sizeof(buf);
 
-	if (!dnet_backend_check_log_level(level))
-		return;
-
 	va_start(args, format);
 	vsnprintf(buf, buflen, format, args);
 	buf[buflen-1] = '\0';
-	l->log(l->log_private, level, buf);
+	l->log(l->log_private, trace_id, level, buf);
 	va_end(args);
 }

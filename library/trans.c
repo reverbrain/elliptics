@@ -77,7 +77,7 @@ int dnet_trans_insert_nolock(struct rb_root *root, struct dnet_trans *a)
 	}
 
 	if (a->st && a->st->n)
-		dnet_log(a->st->n, DNET_LOG_NOTICE, "%s: added transaction: %llu -> %s.\n",
+		dnet_trace(a->st->n, DNET_LOG_NOTICE, a->cmd.id.trace_id, "%s: added transaction: %llu -> %s.\n",
 			dnet_dump_id(&a->cmd.id), (unsigned long long)a->trans,
 			dnet_server_convert_dnet_addr(&a->st->addr));
 
@@ -90,7 +90,7 @@ void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t)
 {
 	if (!t->trans_entry.rb_parent_color) {
 		if (t->st && t->st->n)
-			dnet_log(t->st->n, DNET_LOG_ERROR, "%s: trying to remove standalone transaction %llu.\n",
+			dnet_trace(t->st->n, DNET_LOG_ERROR, t->cmd.id.trace_id, "%s: trying to remove standalone transaction %llu.\n",
 				dnet_dump_id(&t->cmd.id), (unsigned long long)t->trans);
 		return;
 	}
@@ -180,7 +180,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		dnet_log(st->n, DNET_LOG_INFO, "%s: destruction %s trans: %llu, reply: %d, st: %s, "
+		dnet_trace(st->n, DNET_LOG_INFO, t->cmd.id.trace_id, "%s: destruction %s trans: %llu, reply: %d, st: %s, "
 				"weight: %f, mrt: %ld, time: %ld, started: %s.%06lu, cached status: %d.\n",
 			dnet_dump_id(&t->cmd.id),
 			dnet_cmd_string(t->command),
@@ -227,7 +227,7 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 
 	memcpy(&cmd->id, &ctl->id, sizeof(struct dnet_id));
 	cmd->flags = ctl->cflags;
-	cmd->size = ctl->size;	
+	cmd->size = ctl->size;
 	cmd->cmd = t->command = ctl->cmd;
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
@@ -245,7 +245,7 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	req.header = cmd;
 	req.hsize = sizeof(struct dnet_cmd) + ctl->size;
 
-	dnet_log(n, DNET_LOG_INFO, "%s: alloc/send %s trans: %llu -> %s %f.\n",
+	dnet_trace(n, DNET_LOG_INFO, cmd->id.trace_id, "%s: alloc/send %s trans: %llu -> %s %f.\n",
 			dnet_dump_id(&cmd->id),
 			dnet_cmd_string(ctl->cmd),
 			(unsigned long long)t->trans,

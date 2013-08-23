@@ -666,7 +666,7 @@ static int dnet_trans_forward(struct dnet_trans *t, struct dnet_io_req *r,
 		char saddr[128];
 		char daddr[128];
 
-		dnet_log(orig->n, DNET_LOG_INFO, "%s: forwarding %s trans: %s -> %s, trans: %llu -> %llu\n",
+		dnet_trace(orig->n, DNET_LOG_INFO, t->cmd.id.trace_id, "%s: forwarding %s trans: %s -> %s, trans: %llu -> %llu\n",
 				dnet_dump_id(&t->cmd.id), dnet_cmd_string(t->command),
 				dnet_server_convert_dnet_addr_raw(&orig->addr, saddr, sizeof(saddr)),
 				dnet_server_convert_dnet_addr_raw(&forward->addr, daddr, sizeof(daddr)),
@@ -700,7 +700,7 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 		pthread_mutex_unlock(&st->trans_lock);
 
 		if (!t) {
-			dnet_log(n, DNET_LOG_ERROR, "%s: could not find transaction for reply: trans %llu.\n",
+			dnet_trace(n, DNET_LOG_ERROR, cmd->id.trace_id, "%s: could not find transaction for reply: trans %llu.\n",
 				dnet_dump_id(&cmd->id), (unsigned long long)tid);
 			err = 0;
 			goto err_out_exit;
@@ -749,7 +749,7 @@ err_out_put_forward:
 	dnet_state_put(forward_state);
 err_out_exit:
 	if (t)
-		dnet_log(n, DNET_LOG_ERROR, "%s: error during received transaction processing: trans %llu, reply: %d, error: %d.\n",
+		dnet_trace(n, DNET_LOG_ERROR, t->cmd.id.trace_id, "%s: error during received transaction processing: trans %llu, reply: %d, error: %d.\n",
 			dnet_dump_id(&t->cmd.id), (t->cmd.trans & ~DNET_TRANS_REPLY),
 			!!(t->cmd.trans & DNET_TRANS_REPLY), err);
 	return err;
@@ -1196,7 +1196,7 @@ int dnet_send_reply(void *state, struct dnet_cmd *cmd, void *odata, unsigned int
 	if (size)
 		memcpy(data, odata, size);
 
-	dnet_log(st->n, DNET_LOG_NOTICE, "%s: %s: reply -> %s: trans: %lld, size: %u, cflags: 0x%llx.\n",
+	dnet_trace(st->n, DNET_LOG_NOTICE, cmd->id.trace_id, "%s: %s: reply -> %s: trans: %lld, size: %u, cflags: 0x%llx.\n",
 		dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 		(unsigned long long)(c->trans &~ DNET_TRANS_REPLY),
 		size, (unsigned long long)c->flags);
@@ -1226,7 +1226,7 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 		struct dnet_cmd *cmd = r->header;
 		if (!cmd)
 			cmd = r->data;
-		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: 0x%llx, start-sent: %zd/%zd.\n",
+		dnet_trace(st->n, DNET_LOG_DEBUG, cmd->id.trace_id, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: 0x%llx, start-sent: %zd/%zd.\n",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 			(unsigned long long)(cmd->trans &~ DNET_TRANS_REPLY),
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags,
@@ -1257,7 +1257,7 @@ int dnet_send_request(struct dnet_net_state *st, struct dnet_io_req *r)
 		struct dnet_cmd *cmd = r->header;
 		int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
 
-		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: SENT %s cmd: %s: cmd-size: %llu, nonblocking: %d\n",
+		dnet_trace(st->n, DNET_LOG_DEBUG, cmd->id.trace_id, "%s: %s: SENT %s cmd: %s: cmd-size: %llu, nonblocking: %d\n",
 			dnet_state_dump_addr(st), dnet_dump_id(r->header),
 			nonblocking ? "nonblocking" : "blocking",
 			dnet_cmd_string(cmd->cmd),
@@ -1270,7 +1270,7 @@ err_out_exit:
 		struct dnet_cmd *cmd = r->header;
 		if (!cmd)
 			cmd = r->data;
-		dnet_log(st->n, DNET_LOG_DEBUG, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: 0x%llx, finish-sent: %zd/%zd.\n",
+		dnet_trace(st->n, DNET_LOG_DEBUG, cmd->id.trace_id, "%s: %s: sending -> %s: trans: %lld, size: %llu, cflags: 0x%llx, finish-sent: %zd/%zd.\n",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 			(unsigned long long)(cmd->trans &~ DNET_TRANS_REPLY),
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags,

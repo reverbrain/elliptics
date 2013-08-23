@@ -195,7 +195,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 	result.connect(std::bind(on_update_index_entry, handler, std::placeholders::_1),
 		std::bind(on_update_index_finished, handler, std::placeholders::_1));
 
-	dnet_log(orig_sess.get_node().get_native(), DNET_LOG_INFO, "%s: key: %s, indexes: %zd\n",
+	dnet_trace(orig_sess.get_node().get_native(), DNET_LOG_INFO, request_id.id().trace_id, "%s: key: %s, indexes: %zd\n",
 			dnet_dump_id(&request_id.id()), request_id.to_string().c_str(), indexes.size());
 
 	return final_result;

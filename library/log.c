@@ -42,8 +42,10 @@ int dnet_log_init(struct dnet_node *n, struct dnet_log *l)
 	return 0;
 }
 
-void dnet_log_raw(struct dnet_node *n, int level, const char *format, ...)
+void dnet_trace_raw(struct dnet_node *n, int level, uint32_t trace_id, const char *format, ...)
 {
+	level = trace_id != 0 ? DNET_LOG_ERROR : level;
+
 	va_list args;
 	char buf[1024];
 	struct dnet_log *l = n->log;
@@ -55,6 +57,13 @@ void dnet_log_raw(struct dnet_node *n, int level, const char *format, ...)
 	va_start(args, format);
 	vsnprintf(buf, buflen, format, args);
 	buf[buflen-1] = '\0';
-	l->log(l->log_private, level, buf);
+	l->log(l->log_private, level, trace_id, buf);
+	va_end(args);
+}
+
+void dnet_log_raw(struct dnet_node *n, int level, const char *format, ...)
+{
+	va_list args;
+	dnet_trace_raw(n, level, 0, format, args);
 	va_end(args);
 }

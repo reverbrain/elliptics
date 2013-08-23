@@ -96,7 +96,7 @@ int dnet_parse_groups(char *value, int **groupsp)
 	return pos;
 }
 
-void dnet_common_log(void *priv, int level, const char *msg)
+void dnet_common_log(void *priv, int level, uint32_t trace_id, const char *msg)
 {
 	char str[64];
 	struct tm tm;
@@ -106,6 +106,8 @@ void dnet_common_log(void *priv, int level, const char *msg)
 	if (!stream)
 		stream = stdout;
 
+	level = trace_id ? DNET_LOG_ERROR : level;
+
 	gettimeofday(&tv, NULL);
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
@@ -114,12 +116,14 @@ void dnet_common_log(void *priv, int level, const char *msg)
 	fflush(stream);
 }
 
-void dnet_syslog(void *priv __attribute__ ((unused)), int level, const char *msg)
+void dnet_syslog(void *priv __attribute__ ((unused)), int level, uint32_t trace_id, const char *msg)
 {
 	int prio = LOG_DEBUG;
 	char str[64];
 	struct tm tm;
 	struct timeval tv;
+
+	level = trace_id ? DNET_LOG_ERROR : level;
 
 	if (level == DNET_LOG_ERROR)
 		prio = LOG_ERR;
@@ -239,7 +243,7 @@ int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int 
 	return 0;
 }
 
-#define dnet_map_log(n, level, fmt, a...) do { if ((n)) dnet_log_raw((n), level, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
+#define dnet_map_log(n, level, fmt, a...) do { if ((n)) dnet_trace_raw((n), level, 0, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
 
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map)
 {

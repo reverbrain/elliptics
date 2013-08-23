@@ -140,12 +140,13 @@ void dnet_eblob_backend_exit(void);
 int backend_storage_size(struct dnet_config_backend *b, const char *root);
 
 int dnet_backend_check_log_level(int level);
-void dnet_backend_log_raw(int level, const char *fmt, ...) __attribute__ ((format(printf, 2, 3)));
-#define dnet_backend_log(level, format, a...)				\
+void dnet_backend_log_raw(int level, uint32_t trace_id, const char *fmt, ...) __attribute__ ((format(printf, 3, 4)));
+#define dnet_backend_trace(level, trace_id, format, a...)				\
 	do {								\
-		if (dnet_backend_check_log_level(level))		\
-			dnet_backend_log_raw(level, format, ##a); 	\
+		dnet_backend_log_raw(level, trace_id, format, ##a); 	\
 	} while (0)
+
+#define dnet_backend_log(level, format, a...) dnet_backend_trace(level, 0, format, ##a)
 
 #ifdef __cplusplus
 }

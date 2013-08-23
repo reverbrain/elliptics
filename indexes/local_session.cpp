@@ -243,7 +243,7 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 
 		dnet_dump_id_len_raw(index.id, 8, index_str);
 
-		dnet_log(m_state->n, DNET_LOG_INFO, "%s: updating internal index: %s, data-size: %zd, action: %s, "
+		dnet_trace(m_state->n, DNET_LOG_INFO, id.trace_id, "%s: updating internal index: %s, data-size: %zd, action: %s, "
 				"time: %ld usecs\n",
 				dnet_dump_id(&id), index_str, data.size(), update_index_action_strings[action], diff);
 	}

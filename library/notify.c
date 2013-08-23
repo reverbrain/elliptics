@@ -70,7 +70,7 @@ int dnet_update_notify(struct dnet_net_state *st, struct dnet_cmd *cmd, void *da
 
 		memcpy(&notif.addr, &st->addr, sizeof(struct dnet_addr));
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: sending notification.\n", dnet_dump_id(&cmd->id));
+		dnet_trace(n, DNET_LOG_NOTICE, cmd->id.trace_id, "%s: sending notification.\n", dnet_dump_id(&cmd->id));
 		dnet_send_reply(nt->state, &nt->cmd, &notif, sizeof(struct dnet_io_notification), 1);
 	}
 	pthread_rwlock_unlock(&b->notify_lock);
@@ -102,7 +102,7 @@ int dnet_notify_add(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	list_add_tail(&e->notify_entry, &b->notify_list);
 	pthread_rwlock_unlock(&b->notify_lock);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: added notification, hash: 0x%x.\n", dnet_dump_id(&cmd->id), hash);
+	dnet_trace(n, DNET_LOG_INFO, cmd->id.trace_id, "%s: added notification, hash: 0x%x.\n", dnet_dump_id(&cmd->id), hash);
 
 	return 0;
 }
@@ -125,8 +125,8 @@ int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd)
 
 		list_del(&e->notify_entry);
 		dnet_notify_entry_destroy(e);
-		
-		dnet_log(n, DNET_LOG_INFO, "%s: removed notification.\n", dnet_dump_id(&cmd->id));
+
+		dnet_trace(n, DNET_LOG_INFO, cmd->id.trace_id, "%s: removed notification.\n", dnet_dump_id(&cmd->id));
 		break;
 	}
 	pthread_rwlock_unlock(&b->notify_lock);

@@ -184,7 +184,7 @@ static struct dnet_locks_entry *dnet_oplock_ensure(struct dnet_node *n, struct d
 
 		dnet_oplock_insert_nolock(n, entry);
 	} else {
-		dnet_log(n, DNET_LOG_ERROR, "%s: oplock list is empty.\n", dnet_dump_id(id));
+		dnet_trace(n, DNET_LOG_ERROR, id->trace_id, "%s: oplock list is empty.\n", dnet_dump_id(id));
 	}
 
 	pthread_mutex_unlock(&n->locks->lock);
@@ -201,7 +201,7 @@ static struct dnet_locks_entry *dnet_oplock_take(struct dnet_node *n, struct dne
 	entry = dnet_oplock_search_nolock(n, id);
 
 	if (!entry) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: lock not found.\n", dnet_dump_id(id));
+		dnet_trace(n, DNET_LOG_ERROR, id->trace_id, "%s: lock not found.\n", dnet_dump_id(id));
 		goto err_out_complete;
 	}
 

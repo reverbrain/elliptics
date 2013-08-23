@@ -185,17 +185,17 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	struct dnet_work_pool *pool = io->recv_pool;
 
 	if (cmd->size > 0) {
-		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d\n",
+		dnet_trace(r->st->n, DNET_LOG_DEBUG, cmd->id.trace_id, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d\n",
 			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd),
 			(unsigned long long)cmd->size, nonblocking);
 	} else if ((cmd->size == 0) && !(cmd->flags & DNET_FLAGS_MORE) && (cmd->trans & DNET_TRANS_REPLY)) {
-		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV ACK: %s: nonblocking: %d\n",
+		dnet_trace(r->st->n, DNET_LOG_DEBUG, cmd->id.trace_id, "%s: %s: RECV ACK: %s: nonblocking: %d\n",
 			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd), nonblocking);
 	} else {
 		unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 		int reply = !!(cmd->trans & DNET_TRANS_REPLY);
 
-		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV: %s: nonblocking: %d, cmd-size: %llu, cflags: 0x%llx, trans: %lld, reply: %d\n",
+		dnet_trace(r->st->n, DNET_LOG_DEBUG, cmd->id.trace_id, "%s: %s: RECV: %s: nonblocking: %d, cmd-size: %llu, cflags: 0x%llx, trans: %lld, reply: %d\n",
 			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd), nonblocking,
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags, tid, reply);
 	}
@@ -208,7 +208,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	pthread_mutex_lock(&pool->lock);
 	list_add_tail(&r->req_entry, &pool->list);
 	list_stat_size_increase(&pool->list_stats, 1);
-	list_stat_log(&pool->list_stats, r->st->n, "input io queue");	
+	list_stat_log(&pool->list_stats, r->st->n, "input io queue");
 	pthread_cond_signal(&pool->wait);
 	pthread_mutex_unlock(&pool->lock);
 }
@@ -286,7 +286,7 @@ again:
 
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
-		dnet_log(n, DNET_LOG_DEBUG, "%s: received trans: %llu / 0x%llx, "
+		dnet_trace(n, DNET_LOG_DEBUG, c->id.trace_id, "%s: received trans: %llu / 0x%llx, "
 				"reply: %d, size: %llu, flags: 0x%llx, status: %d.\n",
 				dnet_dump_id(&c->id), tid, (unsigned long long)c->trans,
 				!!(c->trans & DNET_TRANS_REPLY),
@@ -720,6 +720,7 @@ static void *dnet_io_process(void *data_)
 	struct timeval tv;
 	struct dnet_io_req *r;
 	int err;
+	struct dnet_cmd *cmd;
 
 	dnet_set_name("io_pool");
 
@@ -752,7 +753,9 @@ static void *dnet_io_process(void *data_)
 
 		st = r->st;
 
-		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: got IO event: %p: hsize: %zu, dsize: %zu, mode: %s\n",
+		cmd = r->header;
+
+		dnet_trace(n, DNET_LOG_DEBUG, cmd->id.trace_id, "%s: %s: got IO event: %p: hsize: %zu, dsize: %zu, mode: %s\n",
 			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, r->hsize, r->dsize, dnet_work_io_mode_str(pool->mode));
 
 		err = dnet_process_recv(st, r);

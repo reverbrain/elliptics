@@ -98,8 +98,9 @@ void finder::parse_lookup(const sync_generic_result &ret)
 			}
 
 			if (!info) {
-				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND object: %s: should live at: %s\n",
-					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
+				dnet_trace_raw(get_node().get_native(),
+				               DNET_LOG_DATA, cmd->id.trace_id, "%s: FIND object: %s: should live at: %s\n",
+				               dnet_dump_id(&cmd->id), addr_str, route_addr.c_str());
 			} else {
 				char tstr[64];
 				struct tm tm;
@@ -107,16 +108,18 @@ void finder::parse_lookup(const sync_generic_result &ret)
 				localtime_r((time_t *)&info->mtime.tsec, &tm);
 				strftime(tstr, sizeof(tstr), "%F %R:%S %Z", &tm);
 
-				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND-OK object: %s: should live at: %s, "
-						"offset: %llu, size: %llu, mtime: %s, path: %s\n",
-					dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
-					(unsigned long long)info->offset, (unsigned long long)info->size,
-					tstr, (char *)(info + 1));
+				dnet_trace_raw(get_node().get_native(),
+				               DNET_LOG_DATA, cmd->id.trace_id, "%s: FIND-OK object: %s: should live at: %s, "
+				               "offset: %llu, size: %llu, mtime: %s, path: %s\n",
+				               dnet_dump_id(&cmd->id), addr_str, route_addr.c_str(),
+				               (unsigned long long)info->offset, (unsigned long long)info->size,
+				               tstr, (char *)(info + 1));
 			}
 		} else {
 			if (cmd->status != 0)
-				dnet_log_raw(get_node().get_native(), DNET_LOG_DATA, "%s: FIND object: status: %d\n",
-						dnet_dump_id(&cmd->id), cmd->status);
+				dnet_trace_raw(get_node().get_native(),
+				               DNET_LOG_DATA, cmd->id.trace_id, "%s: FIND object: status: %d\n",
+				               dnet_dump_id(&cmd->id), cmd->status);
 		}
 	}
 }

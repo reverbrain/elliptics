@@ -205,12 +205,12 @@ class default_callback
 				try {
 					entry_converter::convert(entry, data);
 				} catch (...) {
-					m_logger.print(DNET_LOG_ERROR, "%s: received invalid data from server, tid: %llu, cmd: %s, status: %d, size: %llu\n",
-						       dnet_dump_id(&cmd->id),
-						       static_cast<unsigned long long>(cmd->trans),
-						       dnet_cmd_string(cmd->cmd),
-						       cmd->status,
-						       static_cast<unsigned long long>(cmd->size));
+					m_logger.tprint(DNET_LOG_ERROR, cmd->id.trace_id, "%s: received invalid data from server, tid: %llu, cmd: %s, status: %d, size: %llu\n",
+					               dnet_dump_id(&cmd->id),
+					               static_cast<unsigned long long>(cmd->trans),
+					               dnet_cmd_string(cmd->cmd),
+					               cmd->status,
+					               static_cast<unsigned long long>(cmd->size));
 
 					dnet_cmd *cmd_copy = default_entry.command();
 					if (cmd_copy->status == 0)
@@ -423,10 +423,11 @@ class multigroup_callback
 				if (next_group(error, id, func, priv)) {
 					if (error->code()) {
 						// some exception, log and try next group
-						dnet_log_raw(sess.get_node().get_native(),
-							DNET_LOG_NOTICE,
-							"%s: iterate-groups exception: %s\n",
-							dnet_dump_id(&id), error->message().c_str());
+						dnet_trace_raw(sess.get_node().get_native(),
+						             DNET_LOG_NOTICE,
+						             id.trace_id,
+						             "%s: iterate-groups exception: %s\n",
+						             dnet_dump_id(&id), error->message().c_str());
 						*error = error_info();
 						continue;
 					}
@@ -715,12 +716,14 @@ class read_bulk_callback : public read_callback
 				ctl.complete = func;
 				ctl.priv = priv;
 
-				dnet_log_raw(sess.get_node().get_native(),
-					DNET_LOG_NOTICE, "start: %s: end: %s, count: %llu, addr: %s\n",
-					dnet_dump_id(&id),
-					dnet_dump_id(&next_id),
-					(unsigned long long)ctl.io.size / sizeof(struct dnet_io_attr),
-					dnet_state_dump_addr(cur));
+				dnet_trace_raw(sess.get_node().get_native(),
+				             DNET_LOG_NOTICE,
+				             id.trace_id,
+				             "start: %s: end: %s, count: %llu, addr: %s\n",
+				             dnet_dump_id(&id),
+				             dnet_dump_id(&next_id),
+				             (unsigned long long)ctl.io.size / sizeof(struct dnet_io_attr),
+				             dnet_state_dump_addr(cur));
 
 				++count;
 
