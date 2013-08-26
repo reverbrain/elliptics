@@ -387,20 +387,23 @@ static int dnet_check_route_table(struct dnet_node *n)
 	return 0;
 }
 
-static void *dnet_check_process(void *data)
+static void *dnet_reconnect_process(void *data)
 {
 	struct dnet_node *n = data;
-	long i, timeout, wait_for_stall;
+	long i, timeout;
 	struct timeval tv1, tv2;
 	int checks = 0, route_table_checks = 3;
 
-	dnet_set_name("check");
+	dnet_set_name("reconnect");
 
 	if (!n->check_timeout)
 		n->check_timeout = 10;
 
-	dnet_log(n, DNET_LOG_INFO, "Started checking thread. Timeout: %lu seconds.\n",
-			n->check_timeout);
+	if (n->check_timeout > 30)
+		route_table_checks = 1;
+
+	dnet_log(n, DNET_LOG_INFO, "Started reconnection thread. Timeout: %lu seconds. Route table update every %lu seconds.\n",
+			n->check_timeout, n->check_timeout * route_table_checks);
 
 	dnet_discovery(n);
 
@@ -416,18 +419,34 @@ static void *dnet_check_process(void *data)
 		gettimeofday(&tv2, NULL);
 
 		timeout = n->check_timeout - (tv2.tv_sec - tv1.tv_sec);
-		wait_for_stall = n->wait_ts.tv_sec;
 
 		for (i=0; i<timeout; ++i) {
 			if (n->need_exit)
 				break;
 
-			if (--wait_for_stall == 0) {
-				wait_for_stall = n->wait_ts.tv_sec;
-				dnet_check_all_states(n);
-			}
 			sleep(1);
 		}
+	}
+
+	return NULL;
+}
+
+
+static void *dnet_check_process(void *data)
+{
+	struct dnet_node *n = data;
+
+	dnet_set_name("stall-check");
+
+	if (!n->check_timeout)
+		n->check_timeout = 10;
+
+	dnet_log(n, DNET_LOG_INFO, "Started checking thread. Timeout: %lu seconds.\n",
+			n->check_timeout);
+
+	while (!n->need_exit) {
+		dnet_check_all_states(n);
+		sleep(1);
 	}
 
 	return NULL;
@@ -439,16 +458,32 @@ int dnet_check_thread_start(struct dnet_node *n)
 
 	err = pthread_create(&n->check_tid, NULL, dnet_check_process, n);
 	if (err) {
+		err = -err;
 		dnet_log(n, DNET_LOG_ERROR, "Failed to start tree checking thread: err: %d.\n",
 				err);
-		return -err;
+		goto err_out_exit;
+	}
+
+	err = pthread_create(&n->reconnect_tid, NULL, dnet_reconnect_process, n);
+	if (err) {
+		err = -err;
+		dnet_log(n, DNET_LOG_ERROR, "Failed to start reconnection thread: err: %d.\n",
+				err);
+		goto err_out_stop_check_thread;
 	}
 
 	return 0;
+
+err_out_stop_check_thread:
+	n->need_exit = 1;
+	pthread_join(n->check_tid, NULL);
+err_out_exit:
+	return err;
 }
 
 void dnet_check_thread_stop(struct dnet_node *n)
 {
+	pthread_join(n->reconnect_tid, NULL);
 	pthread_join(n->check_tid, NULL);
 	dnet_log(n, DNET_LOG_NOTICE, "Checking thread stopped.\n");
 }

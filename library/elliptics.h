@@ -506,6 +506,7 @@ struct dnet_node
 	int			cache_sync_timeout;
 
 	pthread_t		check_tid;
+	pthread_t		reconnect_tid;
 	long			stall_count;
 
 	pthread_t		monitor_tid;
