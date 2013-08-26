@@ -223,7 +223,17 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 err_out_exit:
 	if (err) {
 		cmd->flags |= DNET_FLAGS_NEED_ACK;
-		dnet_state_reset(st, err);
+
+		pthread_mutex_lock(&st->send_lock);
+		if (!st->need_exit)
+			st->need_exit = -EPROTO;
+
+		shutdown(st->read_s, 2);
+		shutdown(st->write_s, 2);
+
+		st->read_s = st->write_s = -1;
+
+		pthread_mutex_unlock(&st->send_lock);
 	}
 
 	return err;
