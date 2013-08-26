@@ -438,12 +438,6 @@ static void *dnet_check_process(void *data)
 
 	dnet_set_name("stall-check");
 
-	if (!n->check_timeout)
-		n->check_timeout = 10;
-
-	dnet_log(n, DNET_LOG_INFO, "Started checking thread. Timeout: %lu seconds.\n",
-			n->check_timeout);
-
 	while (!n->need_exit) {
 		dnet_check_all_states(n);
 		sleep(1);
