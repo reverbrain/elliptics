@@ -383,6 +383,14 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return res;
 		}
 
+		void set_trace_id(uint32_t trace_id) {
+			session::set_trace_id(trace_id);
+		}
+
+		uint32_t get_trace_id() {
+			return session::get_trace_id();
+		}
+
 		void read_file_by_id(struct elliptics_id &id, const std::string &file, uint64_t offset, uint64_t size) {
 			read_file(id, file, offset, size);
 		}
@@ -1400,6 +1408,11 @@ BOOST_PYTHON_MODULE(elliptics)
 		.def("add_groups", &elliptics_session::set_groups)
 		.def("set_groups", &elliptics_session::set_groups)
 		.def("get_groups", &elliptics_session::get_groups)
+
+		.add_property("trace_id", &elliptics_session::get_trace_id, &elliptics_session::set_trace_id)
+		.def("add_trace_id", &elliptics_session::set_trace_id)
+		.def("set_trace_id", &elliptics_session::set_trace_id)
+		.def("get_trace_id", &elliptics_session::get_trace_id)
 
 		.add_property("cflags", &elliptics_session::get_cflags, &elliptics_session::set_cflags)
 		.def("set_cflags", &elliptics_session::set_cflags)

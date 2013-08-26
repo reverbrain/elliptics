@@ -45,7 +45,7 @@ class ioremap::elliptics::logger_data {
 
 		void push_log(const int level, uint32_t trace_id, const char *msg)
 		{
-			if (check_level(level))
+			if (check_level(level) || trace_id)
 				impl->log(level, trace_id, msg);
 		}
 
@@ -78,10 +78,7 @@ void logger::trace(const int level, uint32_t trace_id, const char *msg)
 
 void logger::tprint(int level, uint32_t trace_id, const char *format, ...)
 {
-	if (trace_id)
-		level = DNET_LOG_ERROR;
-
-	if (!m_data->check_level(level))
+	if (!m_data->check_level(level) || !trace_id)
 		return;
 
 	va_list args;
@@ -136,9 +133,10 @@ class file_logger_interface : public logger_interface {
 
 		void log(const int level, uint32_t trace_id, const char *msg)
 		{
-			const int l = trace_id ? DNET_LOG_ERROR : level;
+			const int l = trace_id ? DNET_LOG_DATA : level;
 			(void) l;
 			char str[64];
+			char trace[64] = "";
 			struct tm tm;
 			struct timeval tv;
 			char usecs_and_id[64];
@@ -147,13 +145,16 @@ class file_logger_interface : public logger_interface {
 			localtime_r((time_t *)&tv.tv_sec, &tm);
 			strftime(str, sizeof(str), "%F %R:%S", &tm);
 
+			if (trace_id)
+				snprintf(trace, sizeof(trace), "%d > ", trace_id);
+
 			snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %ld/%d : ", tv.tv_usec, dnet_get_id(), getpid());
 
 			if (m_stream) {
-				m_stream << str << usecs_and_id << msg;
+				m_stream << trace << str << usecs_and_id << msg;
 				m_stream.flush();
 			} else {
-				std::cerr << str << usecs_and_id << ": could not write log in elliptics file logger" << std::endl;
+				std::cerr << trace << str << usecs_and_id << ": could not write log in elliptics file logger" << std::endl;
 			}
 		}
 

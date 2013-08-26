@@ -621,10 +621,10 @@ int dnet_backend_check_log_level(int level)
 
 void dnet_backend_log_raw(int level, uint32_t trace_id, const char *format, ...)
 {
-	level = trace_id ? DNET_LOG_ERROR : level;
-
-	if (!dnet_backend_check_log_level(level))
+	if (!dnet_backend_check_log_level(level) && !trace_id)
 		return;
+
+	level = trace_id ? DNET_LOG_DATA : level;
 
 	va_list args;
 	char buf[1024];
