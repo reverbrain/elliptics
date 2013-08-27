@@ -1,3 +1,16 @@
+elliptics (2.24.13.34) unstable; urgency=low
+
+  * Instead of resetting network state just close its sockets
+  * Get rid of unneeded code in stall transaction check thread
+  * Split check/reconnect logic into two separate threads
+  * Added update_indexes and update_indexes_internal to python binding
+  * Do not spam logs if cache is not turned on
+  * group description update
+  * Added basic dnet_print_time() helper (not thread-safe)
+  * Long line/whitespace cleanups
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 27 Aug 2013 17:05:57 +0400
+
 elliptics (2.24.13.33) unstable; urgency=low
 
   * Added new map typedefs
