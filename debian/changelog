@@ -1,3 +1,13 @@
+elliptics (2.24.13.35) unstable; urgency=low
+
+  * Added tests for lookup and prepare_latest
+  * Fixed prepare_latest command
+  * Added support for cache lookup command
+  * Added local_session::lookup
+  * Fixed session::clone in case of empty groups
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 27 Aug 2013 20:36:06 +0400
+
 elliptics (2.24.13.34) unstable; urgency=low
 
   * Instead of resetting network state just close its sockets
