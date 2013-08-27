@@ -195,6 +195,38 @@ int local_session::write(const dnet_id &id, const char *data, size_t size, uint6
 	return err;
 }
 
+data_pointer local_session::lookup(const dnet_cmd &tmp_cmd, int *errp)
+{
+	dnet_cmd cmd = tmp_cmd;
+	cmd.flags |= DNET_FLAGS_NOLOCK;
+	cmd.size = 0;
+
+	*errp = dnet_process_cmd_raw(m_state, &cmd, NULL, 0);
+
+	if (*errp)
+		return data_pointer();
+
+	struct dnet_io_req *r, *tmp;
+
+	list_for_each_entry_safe(r, tmp, &m_state->send_list, req_entry) {
+		dnet_cmd *req_cmd = reinterpret_cast<dnet_cmd *>(r->header ? r->header : r->data);
+
+		if (req_cmd->status) {
+			*errp = req_cmd->status;
+			clear_queue();
+			return data_pointer();
+		} else if (req_cmd->size) {
+			data_pointer result = data_pointer::copy(req_cmd + 1, req_cmd->size);
+			clear_queue();
+			return result;
+		}
+	}
+
+	*errp = -ENOENT;
+	clear_queue();
+	return data_pointer();
+}
+
 int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const data_pointer &data, update_index_action action)
 {
 	struct timeval start, end;
