@@ -1174,6 +1174,13 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 			dnet_convert_io_attr(io);
 		default:
+			if (cmd->cmd == DNET_CMD_LOOKUP && !(cmd->flags & DNET_FLAGS_NOCACHE)) {
+				err = dnet_cmd_cache_lookup(st, cmd);
+
+				if (err != -ENOTSUP)
+					break;
+			}
+
 			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command
 			   to eliminate double reply packets
 			   (the first one with dnet_file_info structure,
