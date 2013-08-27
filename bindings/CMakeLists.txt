@@ -11,3 +11,5 @@ add_subdirectory(cpp)
 if(WITH_PYTHON)
     add_subdirectory(python)
 endif()
+
+enable_testing()
