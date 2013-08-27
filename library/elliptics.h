@@ -753,6 +753,7 @@ int dnet_cache_init(struct dnet_node *n);
 void dnet_cache_cleanup(struct dnet_node *n);
 int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data);
 int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_indexes_request *request);
+int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd);
 
 int dnet_indexes_init(struct dnet_node *, struct dnet_config *);
 void dnet_indexes_cleanup(struct dnet_node *);

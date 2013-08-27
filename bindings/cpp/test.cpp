@@ -551,13 +551,6 @@ static void test_cache_delete(session &sess, int num, int percentage)
 	}
 }
 
-static void test_lookup(session &sess, const std::string &id, const std::string &data)
-{
-	ELLIPTICS_REQUIRE(write_result, sess.write_data(id, data, 0));
-
-	ELLIPTICS_REQUIRE(lookup_result, sess.lookup(id));
-}
-
 static void test_cas(session &sess)
 {
 	const std::string key = "cas-test";
@@ -1070,6 +1063,55 @@ static void test_indexes_update(session &sess)
 	}
 }
 
+static void test_lookup(session &sess, const std::string &id, const std::string &data)
+{
+	dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	dnet_current_time(&io.timestamp);
+
+	key kid(id);
+	kid.transform(sess);
+	memcpy(io.id, kid.raw_id().id, DNET_ID_SIZE);
+
+	ELLIPTICS_REQUIRE(write_result, sess.write_data(io, data));
+	ELLIPTICS_REQUIRE(read_result, sess.read_data(kid, 0, 0));
+	ELLIPTICS_REQUIRE(lookup_result, sess.lookup(kid));
+	dnet_time new_time = lookup_result.get_one().file_info()->mtime;
+	BOOST_REQUIRE_EQUAL(new_time.tsec, io.timestamp.tsec);
+	BOOST_REQUIRE_EQUAL(new_time.tnsec, io.timestamp.tnsec);
+}
+
+static void test_prepare_latest(session &sess, const std::string &id)
+{
+	const std::string first_data = "first-data";
+	const std::string second_data = "second-data";
+
+	dnet_raw_id raw_id;
+	sess.transform(id, raw_id);
+
+	session first_sess = sess.clone();
+	first_sess.set_groups(std::vector<int>(1, 1));
+	session second_sess = sess.clone();
+	second_sess.set_groups(std::vector<int>(1, 2));
+
+	dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	dnet_current_time(&io.timestamp);
+	memcpy(io.id, raw_id.id, DNET_ID_SIZE);
+
+	ELLIPTICS_REQUIRE(first_write_result, first_sess.write_data(io, first_data));
+
+	io.timestamp.tsec += 5;
+
+	ELLIPTICS_REQUIRE(second_write_result, second_sess.write_data(io, second_data));
+
+	ELLIPTICS_REQUIRE(prepare_result, sess.prepare_latest(id, std::vector<int>({ 1, 2 })));
+
+	auto lookup_result = prepare_result.get();
+
+	BOOST_REQUIRE_EQUAL(lookup_result.size(), 2);
+}
+
 bool register_tests()
 {
 	srand(time(0));
@@ -1086,6 +1128,10 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "new-data-long");
 	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "short");
 	ELLIPTICS_TEST_CASE(test_remove, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id");
+	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, 0), "new-id-real", "new-data");
+	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, 0), "new-id-real", "new-data-long");
+	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, 0), "new-id-real", "short");
+	ELLIPTICS_TEST_CASE(test_remove, create_session(n, {1, 2}, 0, 0), "new-id-real");
 	ELLIPTICS_TEST_CASE(test_recovery, create_session(n, {1, 2}, 0, 0), "recovery-id", "recovered-data");
 	ELLIPTICS_TEST_CASE(test_indexes, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {99}, 0, 0), "non-existen-key", -ENXIO);
@@ -1093,6 +1139,7 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_cache_read, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY | DNET_IO_FLAGS_NOCSUM), 1000, 20);
 	ELLIPTICS_TEST_CASE(test_cache_delete, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000, 20);
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, 0), "2.xml", "lookup data");
+	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "cache-2.xml", "lookup data");
 	ELLIPTICS_TEST_CASE(test_cas, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CHECKSUM));
 	ELLIPTICS_TEST_CASE(test_append, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE));
 	ELLIPTICS_TEST_CASE(test_read_write_offsets, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE));
@@ -1111,6 +1158,7 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_metadata, create_session(n, {1, 2}, 0, 0), "metadata-key", "meta-data");
 	ELLIPTICS_TEST_CASE(test_partial_bulk_read, create_session(n, {1, 2, 3}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_indexes_update, create_session(n, {2}, 0, 0));
+	ELLIPTICS_TEST_CASE(test_prepare_latest, create_session(n, {1, 2}, 0, 0), "prepare-latest-key");
 
 	return true;
 }

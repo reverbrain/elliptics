@@ -760,19 +760,22 @@ async_lookup_result session::prepare_latest(const key &id, const std::vector<int
 		session_scope scope(*this);
 
 		// Ensure checkers and policy will work only for aggregated request
+		set_filter(filters::all_with_ack);
 		set_checker(checkers::no_check);
 		set_exceptions_policy(no_exceptions);
 
 		dnet_id raw = id.id();
 		for(size_t i = 0; i < groups.size(); ++i) {
-			raw.group_id = groups[i];
-			results.emplace_back(std::move(lookup(raw)));
-		}
-	}
+			session session_copy = clone();
 
-	auto tmp_result = aggregated(*this, results.begin(), results.end());
-	prepare_latest_functor functor = { result_handler, id.id().group_id };
-	tmp_result.connect(functor);
+			session_copy.set_groups(std::vector<int>(1, groups[i]));
+			results.emplace_back(std::move(session_copy.lookup(raw)));
+		}
+
+		auto tmp_result = aggregated(*this, results.begin(), results.end());
+		prepare_latest_functor functor = { result_handler, id.id().group_id };
+		tmp_result.connect(functor);
+	}
 	return result;
 }
 

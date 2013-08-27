@@ -128,6 +128,9 @@ enum dnet_counters {
 /* Only valid flag for LOOKUP command - when set, return checksum in file_info structure */
 #define DNET_FLAGS_CHECKSUM		(1<<5)
 
+/* Currently only valid flag for LOOKUP command - when set, don't check fileinfo in cache */
+#define DNET_FLAGS_NOCACHE		(1<<6)
+
 struct dnet_id {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		group_id;
