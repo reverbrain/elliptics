@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.35
+Version:	2.24.14.0
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Aug 28 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.0
+- LTS release
+
 * Tue Aug 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.35
 - Added tests for lookup and prepare_latest
 - Fixed prepare_latest command
