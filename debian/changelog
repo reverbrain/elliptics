@@ -1,3 +1,9 @@
+elliptics (2.24.14.0) unstable; urgency=low
+
+  * LTS release
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 28 Aug 2013 21:58:50 +0400
+
 elliptics (2.24.13.35) unstable; urgency=low
 
   * Added tests for lookup and prepare_latest
