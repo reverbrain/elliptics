@@ -39,6 +39,9 @@ target_link_libraries(test_common dl)
 add_executable(dnet_cpp_test test.cpp)
 target_link_libraries(dnet_cpp_test elliptics elliptics_cocaine elliptics_cpp dl ${Boost_FILESYSTEM_LIBRARY} test_common)
 
+enable_testing()
+add_test(NAME test COMMAND dnet_cpp_test)
+
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)
 
