@@ -227,11 +227,21 @@ class cache_t {
 			stop();
 			m_lifecheck.join();
 
-			m_max_cache_size = 0;
+			m_max_cache_size = 0; //sets max_size to 0 for erasing lru set
 			resize(0);
+
+			std::lock_guard<std::mutex> guard(m_lock);
+
+			while(!m_syncset.empty()) { //removes datas from syncset
+				erase_element(&*m_syncset.begin());
+			}
+
+			while(!m_lifeset.empty()) { //removes datas from lifeset
+				erase_element(&*m_lifeset.begin());
+			}
 		}
 
-		void stop(void) {
+		void stop() {
 			m_need_exit = true;
 		}
 
@@ -753,8 +763,9 @@ class cache_manager {
 		}
 
 		~cache_manager() {
-			for (auto it = m_caches.begin(); it != m_caches.end(); ++it) {
-				(*it)->stop();
+			//Stops all caches in parallel. Avoids sleeping in all cache distructors
+			for (auto it(m_caches.begin()), end(m_caches.end()); it != end; ++it) {
+				(*it)->stop(); //Sets cache as stopped
 			}
 		}
 
