@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.0
+Version:	2.24.14.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Aug 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.1
+- Forced rpath option for dnet_cpp_test
+- Do not set read/write sockets to -1 until they are closed
+- Added clearing syncset and lifeset in cache_t destructor
+
 * Wed Aug 28 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.0
 - LTS release
 
