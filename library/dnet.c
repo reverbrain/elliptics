@@ -231,8 +231,6 @@ err_out_exit:
 		shutdown(st->read_s, 2);
 		shutdown(st->write_s, 2);
 
-		st->read_s = st->write_s = -1;
-
 		pthread_mutex_unlock(&st->send_lock);
 	}
 
