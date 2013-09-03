@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.1
+Version:	2.24.14.2
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.2
+- Cleanup dnet_state_reset() calls - generally it is not allowed to 'put' state's refcnt from arbitrary place
+- Use char * in open() call
+
 * Fri Aug 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.1
 - Forced rpath option for dnet_cpp_test
 - Do not set read/write sockets to -1 until they are closed
