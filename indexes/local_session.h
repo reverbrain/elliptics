@@ -23,6 +23,7 @@ class local_session
 		int write(const dnet_id &id, const ioremap::elliptics::data_pointer &data);
 		int write(const dnet_id &id, const char *data, size_t size);
 		int write(const dnet_id &id, const char *data, size_t size, uint64_t user_flags, const dnet_time &timestamp);
+		ioremap::elliptics::data_pointer lookup(const dnet_cmd &cmd, int *errp);
 
 		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::data_pointer &data, update_index_action action);
 

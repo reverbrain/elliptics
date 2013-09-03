@@ -1,3 +1,40 @@
+elliptics (2.24.14.1) unstable; urgency=low
+
+  * Forced rpath option for dnet_cpp_test
+  * Do not set read/write sockets to -1 until they are closed
+  * Added clearing syncset and lifeset in cache_t destructor
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 30 Aug 2013 18:29:38 +0400
+
+elliptics (2.24.14.0) unstable; urgency=low
+
+  * LTS release
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 28 Aug 2013 21:58:50 +0400
+
+elliptics (2.24.13.35) unstable; urgency=low
+
+  * Added tests for lookup and prepare_latest
+  * Fixed prepare_latest command
+  * Added support for cache lookup command
+  * Added local_session::lookup
+  * Fixed session::clone in case of empty groups
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 27 Aug 2013 20:36:06 +0400
+
+elliptics (2.24.13.34) unstable; urgency=low
+
+  * Instead of resetting network state just close its sockets
+  * Get rid of unneeded code in stall transaction check thread
+  * Split check/reconnect logic into two separate threads
+  * Added update_indexes and update_indexes_internal to python binding
+  * Do not spam logs if cache is not turned on
+  * group description update
+  * Added basic dnet_print_time() helper (not thread-safe)
+  * Long line/whitespace cleanups
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 27 Aug 2013 17:05:57 +0400
+
 elliptics (2.24.13.33) unstable; urgency=low
 
   * Added new map typedefs

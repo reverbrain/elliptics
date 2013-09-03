@@ -690,6 +690,7 @@ struct dnet_session *dnet_session_create(struct dnet_node *n)
 struct dnet_session *dnet_session_copy(struct dnet_session *s)
 {
 	struct dnet_session *new_s = dnet_session_create(s->node);
+	int err = 0;
 	if (!new_s)
 		goto err_out_exit;
 
@@ -699,9 +700,12 @@ struct dnet_session *dnet_session_copy(struct dnet_session *s)
 	new_s->ts = s->ts;
 	new_s->user_flags = s->user_flags;
 
-	int err = dnet_session_set_groups(new_s, s->groups, s->group_num);
-	if (err)
-		goto err_out_free;
+	if (s->group_num > 0) {
+		err = dnet_session_set_groups(new_s, s->groups, s->group_num);
+
+		if (err)
+			goto err_out_free;
+	}
 
 	if (s->ns && s->nsize) {
 		err = dnet_session_set_ns(new_s, s->ns, s->nsize);

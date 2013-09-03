@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.33
+Version:	2.24.14.1
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,31 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Aug 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.1
+- Forced rpath option for dnet_cpp_test
+- Do not set read/write sockets to -1 until they are closed
+- Added clearing syncset and lifeset in cache_t destructor
+
+* Wed Aug 28 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.0
+- LTS release
+
+* Tue Aug 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.35
+- Added tests for lookup and prepare_latest
+- Fixed prepare_latest command
+- Added support for cache lookup command
+- Added local_session::lookup
+- Fixed session::clone in case of empty groups
+
+* Tue Aug 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.34
+- Instead of resetting network state just close its sockets
+- Get rid of unneeded code in stall transaction check thread
+- Split check/reconnect logic into two separate threads
+- Added update_indexes and update_indexes_internal to python binding
+- Do not spam logs if cache is not turned on
+- group description update
+- Added basic dnet_print_time() helper (not thread-safe)
+- Long line/whitespace cleanups
+
 * Sun Aug 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.33
 - Added new map typedefs
 - Added iterate.py. Script for counting legal/hidden records on elliptics node by iterator

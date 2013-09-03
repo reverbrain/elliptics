@@ -709,7 +709,7 @@ class session
 		async_set_indexes_result update_indexes(const key &id, const std::vector<index_entry> &indexes);
 		async_set_indexes_result update_indexes(const key &id, const std::vector<std::string> &indexes,
 				const std::vector<data_pointer> &data);
-        async_set_indexes_result update_indexes_internal(const key &id, const std::vector<index_entry> &indexes);
+		async_set_indexes_result update_indexes_internal(const key &id, const std::vector<index_entry> &indexes);
 		async_set_indexes_result update_indexes_internal(const key &id, const std::vector<std::string> &indexes,
 				const std::vector<data_pointer> &data);
 

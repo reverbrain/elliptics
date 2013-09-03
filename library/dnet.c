@@ -223,7 +223,15 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 err_out_exit:
 	if (err) {
 		cmd->flags |= DNET_FLAGS_NEED_ACK;
-		dnet_state_reset(st, err);
+
+		pthread_mutex_lock(&st->send_lock);
+		if (!st->need_exit)
+			st->need_exit = -EPROTO;
+
+		shutdown(st->read_s, 2);
+		shutdown(st->write_s, 2);
+
+		pthread_mutex_unlock(&st->send_lock);
 	}
 
 	return err;
@@ -1164,6 +1172,13 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 			dnet_convert_io_attr(io);
 		default:
+			if (cmd->cmd == DNET_CMD_LOOKUP && !(cmd->flags & DNET_FLAGS_NOCACHE)) {
+				err = dnet_cmd_cache_lookup(st, cmd);
+
+				if (err != -ENOTSUP)
+					break;
+			}
+
 			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command
 			   to eliminate double reply packets
 			   (the first one with dnet_file_info structure,

@@ -352,7 +352,7 @@ typedef python_async_result<write_result_entry>			python_write_result;
 typedef python_async_result<remove_result_entry>		python_remove_result;
 typedef python_async_result<exec_result_entry>			python_exec_result;
 
-typedef python_async_result<callback_result_entry>		python_async_update_indexes_result;
+typedef python_async_result<callback_result_entry>		python_async_set_indexes_result;
 typedef python_async_result<find_indexes_result_entry>	python_find_indexes_result;
 typedef python_async_result<index_entry>				python_check_indexes_result;
 
@@ -833,7 +833,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return convert_to_string(session::bulk_write(ios, std_data));
 		}
 
-		python_async_update_indexes_result set_indexes(const elliptics_id &id, const bp::api::object &indexes, const bp::api::object &datas) {
+		python_async_set_indexes_result set_indexes(const elliptics_id &id, const bp::api::object &indexes, const bp::api::object &datas) {
 			auto std_indexes = convert_to_vector<std::string>(indexes);
 			auto string_datas = convert_to_vector<std::string>(datas);
 			std::vector<data_pointer> std_datas(string_datas.begin(), string_datas.end());
@@ -841,10 +841,38 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return create_result(std::move(session::set_indexes(id, std_indexes, std_datas)));
 		}
 
-		python_async_update_indexes_result update_indexes_raw(const elliptics_id &id, const bp::api::object &indexes) {
+		python_async_set_indexes_result set_indexes_raw(const elliptics_id &id, const bp::api::object &indexes) {
 			auto std_indexes = convert_to_vector<index_entry>(indexes);
 
 			return create_result(std::move(session::set_indexes(id, std_indexes)));
+		}
+
+		python_async_set_indexes_result update_indexes(const elliptics_id &id, const bp::api::object &indexes, const bp::api::object &datas) {
+			auto std_indexes = convert_to_vector<std::string>(indexes);
+			auto string_datas = convert_to_vector<std::string>(datas);
+			std::vector<data_pointer> std_datas(string_datas.begin(), string_datas.end());
+
+			return create_result(std::move(session::update_indexes(id, std_indexes, std_datas)));
+		}
+
+		python_async_set_indexes_result update_indexes_raw(const elliptics_id &id, const bp::api::object &indexes) {
+			auto std_indexes = convert_to_vector<index_entry>(indexes);
+
+			return create_result(std::move(session::update_indexes(id, std_indexes)));
+		}
+
+		python_async_set_indexes_result update_indexes_internal(const elliptics_id &id, const bp::api::object &indexes, const bp::api::object &datas) {
+			auto std_indexes = convert_to_vector<std::string>(indexes);
+			auto string_datas = convert_to_vector<std::string>(datas);
+			std::vector<data_pointer> std_datas(string_datas.begin(), string_datas.end());
+
+			return create_result(std::move(session::update_indexes_internal(id, std_indexes, std_datas)));
+		}
+
+		python_async_set_indexes_result update_indexes_internal_raw(const elliptics_id &id, const bp::api::object &indexes) {
+			auto std_indexes = convert_to_vector<index_entry>(indexes);
+
+			return create_result(std::move(session::update_indexes_internal(id, std_indexes)));
 		}
 
 		python_find_indexes_result find_all_indexes(const bp::api::object &indexes) {
@@ -1518,16 +1546,29 @@ BOOST_PYTHON_MODULE(elliptics)
 
 		.def("set_indexes", &elliptics_session::set_indexes,
 		     (bp::arg("id"), bp::arg("indexes"), bp::arg("datas")))
-		.def("set_indexes_raw", &elliptics_session::update_indexes_raw,
+		.def("set_indexes_raw", &elliptics_session::set_indexes_raw,
 		     (bp::arg("id"), bp::arg("indexes")))
+
+		.def("update_indexes", &elliptics_session::update_indexes,
+		     (bp::arg("id"), bp::arg("indexes"), bp::arg("datas")))
+		.def("update_indexes_raw", &elliptics_session::update_indexes_raw,
+		     (bp::arg("id"), bp::arg("indexes")))
+
+		.def("update_indexes_internal", &elliptics_session::update_indexes_internal,
+		     (bp::arg("id"), bp::arg("indexes"), bp::arg("datas")))
+		.def("update_indexes_internal_raw", &elliptics_session::update_indexes_internal_raw,
+		     (bp::arg("id"), bp::arg("indexes")))
+
 		.def("find_all_indexes", &elliptics_session::find_all_indexes,
 		     (bp::arg("indexes")))
 		.def("find_all_indexes_raw", &elliptics_session::find_all_indexes_raw,
 		     (bp::arg("indexes")))
+
 		.def("find_any_indexes", &elliptics_session::find_any_indexes,
 		     (bp::arg("indexes")))
 		.def("find_any_indexes_raw", &elliptics_session::find_any_indexes_raw,
 		     (bp::arg("indexes")))
+
 		.def("list_indexes", &elliptics_session::list_indexes,
 		     (bp::arg("id")))
 	;
