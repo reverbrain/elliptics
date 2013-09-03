@@ -649,7 +649,13 @@ static void dnet_io_cleanup_states(struct dnet_node *n)
 	struct dnet_net_state *st, *tmp;
 
 	list_for_each_entry_safe(st, tmp, &n->storage_state_list, storage_state_entry) {
+		dnet_unschedule_send(st);
+		dnet_unschedule_recv(st);
+
 		dnet_state_reset(st, -EUCLEAN);
+
+		dnet_state_clean(st);
+		dnet_state_put(st);
 	}
 }
 
