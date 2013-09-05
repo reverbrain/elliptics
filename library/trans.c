@@ -286,11 +286,14 @@ err_out_exit:
 
 static void dnet_trans_check_stall(struct dnet_net_state *st)
 {
-	struct dnet_trans *t;
+	struct dnet_trans *t, *tmp;
 	struct timeval tv;
 	int trans_timeout = 0;
 	char str[64];
 	struct tm tm;
+	struct list_head head;
+
+	INIT_LIST_HEAD(&head);
 
 	gettimeofday(&tv, NULL);
 
@@ -308,8 +311,24 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
 		trans_timeout++;
+
+		dnet_trans_remove_nolock(&st->trans_root, t);
+		list_move(&t->trans_list_entry, &head);
 	}
 	pthread_mutex_unlock(&st->trans_lock);
+
+	list_for_each_entry_safe(t, tmp, &head, trans_list_entry) {
+		list_del_init(&t->trans_list_entry);
+
+		t->cmd.flags = 0;
+		t->cmd.size = 0;
+		t->cmd.status = -ETIMEDOUT;
+
+		if (t->complete)
+			t->complete(st, &t->cmd, t->priv);
+
+		dnet_trans_put(t);
+	}
 
 	if (trans_timeout) {
 		st->stall++;
