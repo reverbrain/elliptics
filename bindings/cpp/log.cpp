@@ -78,7 +78,7 @@ void logger::trace(const int level, uint32_t trace_id, const char *msg)
 
 void logger::tprint(int level, uint32_t trace_id, const char *format, ...)
 {
-	if (!m_data->check_level(level) || !trace_id)
+	if (!m_data->check_level(level) && !trace_id)
 		return;
 
 	va_list args;
@@ -133,8 +133,7 @@ class file_logger_interface : public logger_interface {
 
 		void log(const int level, uint32_t trace_id, const char *msg)
 		{
-			const int l = trace_id ? DNET_LOG_DATA : level;
-			(void) l;
+			(void) level;
 			char str[64];
 			char trace[64] = "";
 			struct tm tm;
@@ -146,7 +145,7 @@ class file_logger_interface : public logger_interface {
 			strftime(str, sizeof(str), "%F %R:%S", &tm);
 
 			if (trace_id)
-				snprintf(trace, sizeof(trace), "%d > ", trace_id);
+				snprintf(trace, sizeof(trace), "[%u] ", trace_id);
 
 			snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %ld/%d : ", tv.tv_usec, dnet_get_id(), getpid());
 

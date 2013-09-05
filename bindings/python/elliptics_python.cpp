@@ -897,7 +897,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		python_find_indexes_result find_any_indexes(const bp::api::object &indexes) {
 			auto std_indexes = convert_to_vector<std::string>(indexes);
-
 			return create_result(std::move(session::find_any_indexes(std_indexes)));
 		}
 

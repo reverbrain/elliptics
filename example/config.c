@@ -624,8 +624,6 @@ void dnet_backend_log_raw(int level, uint32_t trace_id, const char *format, ...)
 	if (!dnet_backend_check_log_level(level) && !trace_id)
 		return;
 
-	level = trace_id ? DNET_LOG_DATA : level;
-
 	va_list args;
 	char buf[1024];
 	struct dnet_log *l = dnet_cur_cfg_data->cfg_state.log;
@@ -634,6 +632,6 @@ void dnet_backend_log_raw(int level, uint32_t trace_id, const char *format, ...)
 	va_start(args, format);
 	vsnprintf(buf, buflen, format, args);
 	buf[buflen-1] = '\0';
-	l->log(l->log_private, trace_id, level, buf);
+	l->log(l->log_private, level, trace_id, buf);
 	va_end(args);
 }

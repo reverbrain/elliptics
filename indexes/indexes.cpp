@@ -45,6 +45,8 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 		request_id = request->id;
 
+		sess.set_trace_id(request_id.trace_id);
+
 		size_t data_offset = 0;
 		const char *data_start = reinterpret_cast<const char *>(request->entries);
 		for (uint64_t i = 0; i < request->entries_count; ++i) {
@@ -577,7 +579,7 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 	const bool intersection = request->flags & DNET_INDEXES_FLAGS_INTERSECT;
 	const bool unite = request->flags & DNET_INDEXES_FLAGS_UNITE;
 
-	dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_FIND: indexes count: %u, flags: %llu\n",
+	dnet_trace(state->n, DNET_LOG_DEBUG, cmd->id.trace_id, "INDEXES_FIND: indexes count: %u, flags: %llu\n",
 		 (unsigned) request->entries_count, (unsigned long long) request->flags);
 
 	if (intersection && unite) {
@@ -602,6 +604,7 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 		memcpy(id.id, request_entry.id.id, sizeof(id.id));
 
 		int ret = 0;
+		sess.set_trace_id(id.trace_id);
 		data_pointer data = sess.read(id, &ret);
 
 		if (ret) {
