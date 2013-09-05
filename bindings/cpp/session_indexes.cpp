@@ -117,7 +117,9 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 
 		for (size_t i = 0; i < known_groups.size(); ++i) {
 			id.group_id = known_groups[i];
+			id.trace_id = sess.get_trace_id();
 			indexes_id.group_id = id.group_id;
+			indexes_id.trace_id = id.trace_id;
 
 			groups[0] = id.group_id;
 			sess.set_groups(groups);
@@ -170,6 +172,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 
 			for (size_t j = 0; j < known_groups.size(); ++j) {
 				id.group_id = known_groups[j];
+				id.trace_id = sess.get_trace_id();
 
 				groups[0] = id.group_id;
 				sess.set_groups(groups);
@@ -361,6 +364,7 @@ struct find_indexes_functor : public std::enable_shared_from_this<find_indexes_f
 		}
 
 		memcpy(indexes_id.id, request->entries[0].id.id, sizeof(indexes_id.id));
+		indexes_id.trace_id = sess.get_trace_id();
 		control.set_key(indexes_id);
 
 		async_generic_result result(sess);
