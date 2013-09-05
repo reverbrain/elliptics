@@ -506,6 +506,7 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, dnet_indexes_
 int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
 {
 	local_session sess(state->n);
+	sess.set_trace_id(cmd->id.trace_id);
 
 	if (request->entries_count != 1) {
 		return -EINVAL;
@@ -575,6 +576,7 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
 {
 	local_session sess(state->n);
+	sess.set_trace_id(cmd->id.trace_id);
 
 	const bool intersection = request->flags & DNET_INDEXES_FLAGS_INTERSECT;
 	const bool unite = request->flags & DNET_INDEXES_FLAGS_UNITE;

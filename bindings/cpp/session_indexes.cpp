@@ -384,7 +384,7 @@ struct find_indexes_functor : public std::enable_shared_from_this<find_indexes_f
 
 	void on_result(size_t group_index, int shard_id, const sync_generic_result &result,
 			const error_info &error) {
-		log.print(DNET_LOG_NOTICE, "find_indexes, group: %d (%zu of %zu), shard_id: %d, "
+		log.tprint(DNET_LOG_NOTICE, sess.get_trace_id(), "find_indexes, group: %d (%zu of %zu), shard_id: %d, "
 				"result_size: %zu, err: [%d] %s\n",
 			known_groups[group_index], group_index + 1, known_groups.size(), shard_id,
 			result.size(), error.code(), error.message().c_str());

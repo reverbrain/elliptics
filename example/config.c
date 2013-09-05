@@ -300,10 +300,10 @@ static int dnet_node_set_log_impl(struct dnet_config_data *data, char *value)
 		data->backend_logger.log_private = log;
 		data->backend_logger.log = dnet_common_log;
 
-		dnet_common_log(log, 0xff, 0, "Reopened log file\n");
+		dnet_common_log(log, -1, 0, "Reopened log file\n");
 
 		if (old) {
-			dnet_common_log(old, 0xff, 0, "Reopened log file\n");
+			dnet_common_log(old, -1, 0, "Reopened log file\n");
 			fclose(old);
 		}
 	}

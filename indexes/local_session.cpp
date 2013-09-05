@@ -100,11 +100,11 @@ data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_t
 	size_t total_size = 0;
 
 	list_for_each_entry_safe(r, tmp, &m_state->send_list, req_entry) {
-		dnet_log(m_state->n, DNET_LOG_DEBUG, "hsize: %zu, dsize: %zu\n", r->hsize, r->dsize);
+		dnet_trace(m_state->n, DNET_LOG_DEBUG, m_trace_id, "hsize: %zu, dsize: %zu\n", r->hsize, r->dsize);
 
 		dnet_cmd *req_cmd = reinterpret_cast<dnet_cmd *>(r->header ? r->header : r->data);
 
-		dnet_log(m_state->n, DNET_LOG_DEBUG, "entry in list, status: %d\n", req_cmd->status);
+		dnet_trace(m_state->n, DNET_LOG_DEBUG, m_trace_id, "entry in list, status: %d\n", req_cmd->status);
 
 		if (req_cmd->status) {
 			*errp = req_cmd->status;
@@ -136,7 +136,7 @@ data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_t
 
 			total_size += data.size();
 
-			dnet_log(m_state->n, DNET_LOG_DEBUG, "entry in list, size: %llu\n",
+			dnet_trace(m_state->n, DNET_LOG_DEBUG, m_trace_id, "entry in list, size: %llu\n",
 				static_cast<unsigned long long>(req_io->size));
 		}
 	}
@@ -184,7 +184,7 @@ int local_session::write(const dnet_id &id, const char *data, size_t size, uint6
 	buffer.write(io);
 	buffer.write(data, size);
 
-	dnet_log(m_state->n, DNET_LOG_DEBUG, "going to write size: %zu\n", size);
+	dnet_trace(m_state->n, DNET_LOG_DEBUG, m_trace_id, "going to write size: %zu\n", size);
 
 	data_pointer datap = std::move(buffer);
 
@@ -192,6 +192,7 @@ int local_session::write(const dnet_id &id, const char *data, size_t size, uint6
 	memset(&cmd, 0, sizeof(cmd));
 
 	cmd.id = id;
+	cmd.id.trace_id = m_trace_id;
 	cmd.cmd = DNET_CMD_WRITE;
 	cmd.flags |= DNET_FLAGS_NOLOCK;
 	cmd.size = datap.size();
@@ -208,6 +209,7 @@ data_pointer local_session::lookup(const dnet_cmd &tmp_cmd, int *errp)
 	dnet_cmd cmd = tmp_cmd;
 	cmd.flags |= DNET_FLAGS_NOLOCK;
 	cmd.size = 0;
+	cmd.id.trace_id = m_trace_id;
 
 	*errp = dnet_process_cmd_raw(m_state, &cmd, NULL, 0);
 
@@ -249,6 +251,7 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 	memset(&entry, 0, sizeof(entry));
 
 	request.id = id;
+	request.id.trace_id = m_trace_id;
 	request.entries_count = 1;
 
 	buffer.write(request);
@@ -270,6 +273,7 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 
 	cmd.cmd = DNET_CMD_INDEXES_INTERNAL;
 	cmd.size = datap.size();
+	cmd.id.trace_id = m_trace_id;
 
 	int err = dnet_process_cmd_raw(m_state, &cmd, datap.data(), 0);
 
@@ -283,7 +287,7 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 
 		dnet_dump_id_len_raw(index.id, 8, index_str);
 
-		dnet_trace(m_state->n, DNET_LOG_INFO, id.trace_id, "%s: updating internal index: %s, data-size: %zd, action: %s, "
+		dnet_trace(m_state->n, DNET_LOG_INFO, m_trace_id, "%s: updating internal index: %s, data-size: %zd, action: %s, "
 				"time: %ld usecs\n",
 				dnet_dump_id(&id), index_str, data.size(), update_index_action_strings[action], diff);
 	}
