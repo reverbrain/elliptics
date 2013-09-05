@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.2
+Version:	2.24.14.3
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -136,6 +136,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Sep 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.3
+- Destroy timed out transactions in checking thread.
+- Correctly kill state with errors in it.
+
 * Tue Sep 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.2
 - Cleanup dnet_state_reset() calls - generally it is not allowed to 'put' state's refcnt from arbitrary place
 - Use char * in open() call

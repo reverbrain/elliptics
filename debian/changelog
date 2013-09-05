@@ -1,3 +1,10 @@
+elliptics (2.24.14.3) unstable; urgency=low
+
+  * Destroy timed out transactions in checking thread.
+  * Correctly kill state with errors in it.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 06 Sep 2013 02:20:45 +0400
+
 elliptics (2.24.14.2) unstable; urgency=low
 
   * Cleanup dnet_state_reset() calls - generally it is not allowed to 'put' state's refcnt from arbitrary place
