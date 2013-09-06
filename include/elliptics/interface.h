@@ -210,6 +210,8 @@ enum dnet_log_level {
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
 
+#define DNET_TRACE_BIT		(1<<31)		/*is used in trace_id for ignoring current log level*/
+
 /* cfg->flags */
 #define DNET_CFG_JOIN_NETWORK		(1<<0)		/* given node joins network and becomes part of the storage */
 #define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */

@@ -44,14 +44,12 @@ int dnet_log_init(struct dnet_node *n, struct dnet_log *l)
 
 void dnet_log_raw(struct dnet_node *n, int level, uint32_t trace_id, const char *format, ...)
 {
-	level = trace_id != 0 ? DNET_LOG_ERROR : level;
-
 	va_list args;
 	char buf[1024];
 	struct dnet_log *l = n->log;
 	int buflen = sizeof(buf);
 
-	if (!l->log || (l->log_level < level))
+	if (!l->log || ((l->log_level < level) && !(trace_id & DNET_TRACE_BIT)))
 		return;
 
 	va_start(args, format);

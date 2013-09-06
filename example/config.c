@@ -175,9 +175,9 @@ static int dnet_set_addr(struct dnet_config_backend *b __unused, char *key __unu
 			addr.family = dnet_cur_cfg_data->cfg_state.family;
 			err = dnet_fill_addr(&addr, value, dnet_cur_cfg_data->cfg_state.port, SOCK_STREAM, IPPROTO_TCP);
 			if (err) {
-				dnet_backend_log(DNET_LOG_ERROR, "backend: %s: could not parse addr: %s [%d]\n", value, strerror(-err), err);
+				dnet_backend_log(DNET_LOG_ERROR, 0, "backend: %s: could not parse addr: %s [%d]\n", value, strerror(-err), err);
 			} else {
-				dnet_backend_log(DNET_LOG_INFO, "backend: parsed addr: %s, addr-group: %d\n",
+				dnet_backend_log(DNET_LOG_INFO, 0, "backend: parsed addr: %s, addr-group: %d\n",
 						dnet_server_convert_dnet_addr(&addr), addr_group);
 
 				wrap = realloc(wrap, (wrap_num + 1) * sizeof(struct dnet_addr_wrap));
@@ -252,11 +252,11 @@ static int dnet_set_malloc_options(struct dnet_config_backend *b __unused, char 
 
 	err = mallopt(M_MMAP_THRESHOLD, thr);
 	if (err < 0) {
-		dnet_backend_log(DNET_LOG_ERROR, "Failed to set mmap threshold to %d: %s\n", thr, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, 0, "Failed to set mmap threshold to %d: %s\n", thr, strerror(errno));
 		return err;
 	}
 
-	dnet_backend_log(DNET_LOG_INFO, "Set mmap threshold to %d.\n", thr);
+	dnet_backend_log(DNET_LOG_INFO, 0, "Set mmap threshold to %d.\n", thr);
 	return 0;
 }
 
@@ -467,7 +467,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 				break;
 
 			err = -errno;
-			dnet_backend_log(DNET_LOG_ERROR, "cnf: failed to read config file '%s': %s.\n", file, strerror(errno));
+			dnet_backend_log(DNET_LOG_ERROR, 0, "cnf: failed to read config file '%s': %s.\n", file, strerror(errno));
 			goto err_out_free;
 		}
 
@@ -539,7 +539,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 		for (i=0; i<dnet_cur_cfg_data->cfg_size; ++i) {
 			if (!strcmp(key, dnet_cur_cfg_data->cfg_entries[i].key)) {
 				err = dnet_cur_cfg_data->cfg_entries[i].callback(dnet_cur_cfg_data->cfg_current_backend, key, value);
-				dnet_backend_log(DNET_LOG_INFO, "backend: %s, key: %s, value: %s, err: %d\n",
+				dnet_backend_log(DNET_LOG_INFO, 0, "backend: %s, key: %s, value: %s, err: %d\n",
 						(dnet_cur_cfg_data->cfg_current_backend) ? dnet_cur_cfg_data->cfg_current_backend->name : "root level",
 						ptr, value, err);
 				if (err)
@@ -566,7 +566,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 	f = NULL;
 
 	if (!dnet_cur_cfg_data->cfg_addr_num) {
-		dnet_backend_log(DNET_LOG_ERROR, "No local address specified, exiting.\n");
+		dnet_backend_log(DNET_LOG_ERROR, 0, "No local address specified, exiting.\n");
 		goto err_out_free;
 	}
 
@@ -621,7 +621,7 @@ int dnet_backend_check_log_level(int level)
 
 void dnet_backend_log_raw(int level, uint32_t trace_id, const char *format, ...)
 {
-	if (!dnet_backend_check_log_level(level) && !trace_id)
+	if (!dnet_backend_check_log_level(level) && !(trace_id & DNET_TRACE_BIT))
 		return;
 
 	va_list args;

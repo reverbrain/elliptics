@@ -112,7 +112,7 @@ void dnet_common_log(void *priv, int level, uint32_t trace_id, const char *msg)
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
 	if (trace_id) {
-		snprintf(trace_str, sizeof(trace_str), "[%u] ", trace_id);
+		snprintf(trace_str, sizeof(trace_str), "[%u] ", trace_id&~DNET_TRACE_BIT);
 	}
 
 	fprintf(stream, "%s%s.%06lu %ld/%4d %1d: %s", trace_str, str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
@@ -137,7 +137,7 @@ void dnet_syslog(void *priv __attribute__ ((unused)), int level, uint32_t trace_
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
 	if (trace_id)
-		snprintf(trace_str, sizeof(trace_str), "[%u] ", trace_id);
+		snprintf(trace_str, sizeof(trace_str), "[%u] ", trace_id&~DNET_TRACE_BIT);
 
 	syslog(prio, "%s%s.%06lu %ld/%4d %1x: %s", trace_str, str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
 }

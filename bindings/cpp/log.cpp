@@ -45,7 +45,7 @@ class ioremap::elliptics::logger_data {
 
 		void push_log(const int level, uint32_t trace_id, const char *msg)
 		{
-			if (check_level(level) || trace_id)
+			if (check_level(level) || (trace_id & DNET_TRACE_BIT))
 				impl->log(level, trace_id, msg);
 		}
 
@@ -78,7 +78,7 @@ void logger::log(const int level, uint32_t trace_id, const char *msg)
 
 void logger::print(int level, uint32_t trace_id, const char *format, ...)
 {
-	if (!m_data->check_level(level) && !trace_id)
+	if (!m_data->check_level(level) && !(trace_id & DNET_TRACE_BIT))
 		return;
 
 	va_list args;
@@ -133,7 +133,7 @@ class file_logger_interface : public logger_interface {
 			strftime(str, sizeof(str), "%F %R:%S", &tm);
 
 			if (trace_id)
-				snprintf(trace, sizeof(trace), "[%u] ", trace_id);
+				snprintf(trace, sizeof(trace), "[%u] ", trace_id&~DNET_TRACE_BIT);
 
 			snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %ld/%d : ", tv.tv_usec, dnet_get_id(), getpid());
 

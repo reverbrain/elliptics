@@ -270,7 +270,7 @@ static void dnet_state_clean(struct dnet_net_state *st)
 		num++;
 	}
 
-	dnet_log(st->n, 0, DNET_LOG_NOTICE, "Cleaned state %s, transactions freed: %d\n", dnet_state_dump_addr(st), num);
+	dnet_log(st->n, DNET_LOG_NOTICE, 0, "Cleaned state %s, transactions freed: %d\n", dnet_state_dump_addr(st), num);
 }
 
 /*
@@ -353,7 +353,7 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 			goto out_exit;
 		}
 
-		dnet_log(st->n, 0, DNET_LOG_ERROR, "Failed to wait for descriptor: err: %d, socket: %d.\n",
+		dnet_log(st->n, DNET_LOG_ERROR, 0, "Failed to wait for descriptor: err: %d, socket: %d.\n",
 				err, st->read_s);
 		err = -errno;
 		goto out_exit;
@@ -365,7 +365,7 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 	}
 
 	if (pfd.revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL)) {
-		dnet_log(st->n, 0, DNET_LOG_ERROR, "Connection reset by peer: sock: %d, revents: 0x%x.\n",
+		dnet_log(st->n, DNET_LOG_ERROR, 0, "Connection reset by peer: sock: %d, revents: 0x%x.\n",
 			st->read_s, pfd.revents);
 		err = -ECONNRESET;
 		goto out_exit;
@@ -376,12 +376,12 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 		goto out_exit;
 	}
 
-	dnet_log(st->n, 0, DNET_LOG_ERROR, "Socket reported error: sock: %d, revents: 0x%x.\n",
+	dnet_log(st->n, DNET_LOG_ERROR, 0, "Socket reported error: sock: %d, revents: 0x%x.\n",
 			st->read_s, pfd.revents);
 	err = -EINVAL;
 out_exit:
 	if (st->n->need_exit || st->need_exit) {
-		dnet_log(st->n, 0, DNET_LOG_ERROR, "Need to exit.\n");
+		dnet_log(st->n, DNET_LOG_ERROR, 0, "Need to exit.\n");
 		err = -EIO;
 	}
 
@@ -549,7 +549,7 @@ int dnet_recv(struct dnet_net_state *st, void *data, unsigned int size)
 		}
 
 		if (err == 0) {
-			dnet_log(st->n, 0, DNET_LOG_ERROR, "dnet_recv: peer %s has disconnected.\n",
+			dnet_log(st->n, DNET_LOG_ERROR, 0, "dnet_recv: peer %s has disconnected.\n",
 					dnet_server_convert_dnet_addr(&st->addr));
 			return -ECONNRESET;
 		}
@@ -1124,7 +1124,7 @@ void dnet_state_destroy(struct dnet_net_state *st)
 	pthread_mutex_destroy(&st->send_lock);
 	pthread_mutex_destroy(&st->trans_lock);
 
-	dnet_log(st->n, 0, DNET_LOG_NOTICE, "Freeing state %s, socket: %d/%d, addr-num: %d.\n",
+	dnet_log(st->n, DNET_LOG_NOTICE, 0, "Freeing state %s, socket: %d/%d, addr-num: %d.\n",
 		dnet_server_convert_dnet_addr(&st->addr), st->read_s, st->write_s, st->addr_num);
 
 	free(st->addrs);
@@ -1151,7 +1151,7 @@ int dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd,
 		/* If send succeeded then we should increase queue size */
 		if (atomic_inc(&st->send_queue_size) > DNET_SEND_WATERMARK_HIGH) {
 			/* If high watermark is reached we should sleep */
-			dnet_log(st->n, 0, DNET_LOG_DEBUG,
+			dnet_log(st->n, DNET_LOG_DEBUG, 0,
 					"State high_watermark reached: %s: %d, sleeping\n",
 					dnet_server_convert_dnet_addr(&st->addr),
 					atomic_read(&st->send_queue_size));
@@ -1160,7 +1160,7 @@ int dnet_send_reply_threshold(void *state, struct dnet_cmd *cmd,
 			pthread_cond_wait(&st->send_wait, &st->send_lock);
 			pthread_mutex_unlock(&st->send_lock);
 
-			dnet_log(st->n, 0, DNET_LOG_DEBUG, "State woken up: %s: %d",
+			dnet_log(st->n, DNET_LOG_DEBUG, 0, "State woken up: %s: %d",
 					dnet_server_convert_dnet_addr(&st->addr),
 					atomic_read(&st->send_queue_size));
 		}
@@ -1278,7 +1278,7 @@ err_out_exit:
 	}
 
 	if (err && err != -EAGAIN) {
-		dnet_log(st->n, 0, DNET_LOG_ERROR, "%s: setting send need_exit to %d\n", dnet_state_dump_addr(st), err);
+		dnet_log(st->n, DNET_LOG_ERROR, 0, "%s: setting send need_exit to %d\n", dnet_state_dump_addr(st), err);
 		st->need_exit = err;
 	}
 

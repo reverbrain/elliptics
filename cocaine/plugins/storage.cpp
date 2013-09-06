@@ -34,8 +34,8 @@ log_adapter_impl_t::log_adapter_impl_t(const std::shared_ptr<logging::log_t> &lo
 
 void log_adapter_impl_t::log(const int level, uint32_t trace_id, const char *message)
 {
-	const int l = trace_id ? DNET_LOG_ERROR : level;
-	switch(l) {
+	(void)trace_id;
+	switch(level) {
 		case DNET_LOG_DEBUG:
 			COCAINE_LOG_DEBUG(m_log, "%s", message);
 			break;
