@@ -204,7 +204,7 @@ public:
 	void write()
 	{
 		std::ofstream out;
-		out.open(m_path);
+		out.open(m_path.c_str());
 
 		if (!out) {
 			throw std::runtime_error("Can not open file \"" + m_path + "\" for writing");
