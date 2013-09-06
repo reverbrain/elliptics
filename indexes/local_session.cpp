@@ -100,11 +100,11 @@ data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_t
 	size_t total_size = 0;
 
 	list_for_each_entry_safe(r, tmp, &m_state->send_list, req_entry) {
-		dnet_trace(m_state->n, DNET_LOG_DEBUG, m_trace_id, "hsize: %zu, dsize: %zu\n", r->hsize, r->dsize);
+		dnet_log(m_state->n, DNET_LOG_DEBUG, m_trace_id, "hsize: %zu, dsize: %zu\n", r->hsize, r->dsize);
 
 		dnet_cmd *req_cmd = reinterpret_cast<dnet_cmd *>(r->header ? r->header : r->data);
 
-		dnet_trace(m_state->n, DNET_LOG_DEBUG, m_trace_id, "entry in list, status: %d\n", req_cmd->status);
+		dnet_log(m_state->n, DNET_LOG_DEBUG, m_trace_id, "entry in list, status: %d\n", req_cmd->status);
 
 		if (req_cmd->status) {
 			*errp = req_cmd->status;
@@ -136,7 +136,7 @@ data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_t
 
 			total_size += data.size();
 
-			dnet_trace(m_state->n, DNET_LOG_DEBUG, m_trace_id, "entry in list, size: %llu\n",
+			dnet_log(m_state->n, DNET_LOG_DEBUG, m_trace_id, "entry in list, size: %llu\n",
 				static_cast<unsigned long long>(req_io->size));
 		}
 	}
@@ -184,7 +184,7 @@ int local_session::write(const dnet_id &id, const char *data, size_t size, uint6
 	buffer.write(io);
 	buffer.write(data, size);
 
-	dnet_trace(m_state->n, DNET_LOG_DEBUG, m_trace_id, "going to write size: %zu\n", size);
+	dnet_log(m_state->n, DNET_LOG_DEBUG, m_trace_id, "going to write size: %zu\n", size);
 
 	data_pointer datap = std::move(buffer);
 
@@ -287,7 +287,7 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 
 		dnet_dump_id_len_raw(index.id, 8, index_str);
 
-		dnet_trace(m_state->n, DNET_LOG_INFO, m_trace_id, "%s: updating internal index: %s, data-size: %zd, action: %s, "
+		dnet_log(m_state->n, DNET_LOG_INFO, m_trace_id, "%s: updating internal index: %s, data-size: %zd, action: %s, "
 				"time: %ld usecs\n",
 				dnet_dump_id(&id), index_str, data.size(), update_index_action_strings[action], diff);
 	}

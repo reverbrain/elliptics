@@ -77,7 +77,7 @@ int dnet_trans_insert_nolock(struct rb_root *root, struct dnet_trans *a)
 	}
 
 	if (a->st && a->st->n)
-		dnet_trace(a->st->n, DNET_LOG_NOTICE, a->cmd.id.trace_id, "%s: added transaction: %llu -> %s.\n",
+		dnet_log(a->st->n, DNET_LOG_NOTICE, a->cmd.id.trace_id, "%s: added transaction: %llu -> %s.\n",
 			dnet_dump_id(&a->cmd.id), (unsigned long long)a->trans,
 			dnet_server_convert_dnet_addr(&a->st->addr));
 
@@ -90,7 +90,7 @@ void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t)
 {
 	if (!t->trans_entry.rb_parent_color) {
 		if (t->st && t->st->n)
-			dnet_trace(t->st->n, DNET_LOG_ERROR, t->cmd.id.trace_id, "%s: trying to remove standalone transaction %llu.\n",
+			dnet_log(t->st->n, DNET_LOG_ERROR, t->cmd.id.trace_id, "%s: trying to remove standalone transaction %llu.\n",
 				dnet_dump_id(&t->cmd.id), (unsigned long long)t->trans);
 		return;
 	}
@@ -180,7 +180,7 @@ void dnet_trans_destroy(struct dnet_trans *t)
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		dnet_trace(st->n, DNET_LOG_INFO, t->cmd.id.trace_id, "%s: destruction %s trans: %llu, reply: %d, st: %s, "
+		dnet_log(st->n, DNET_LOG_INFO, t->cmd.id.trace_id, "%s: destruction %s trans: %llu, reply: %d, st: %s, "
 				"weight: %f, mrt: %ld, time: %ld, started: %s.%06lu, cached status: %d.\n",
 			dnet_dump_id(&t->cmd.id),
 			dnet_cmd_string(t->command),
@@ -245,7 +245,7 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 	req.header = cmd;
 	req.hsize = sizeof(struct dnet_cmd) + ctl->size;
 
-	dnet_trace(n, DNET_LOG_INFO, cmd->id.trace_id, "%s: alloc/send %s trans: %llu -> %s %f.\n",
+	dnet_log(n, DNET_LOG_INFO, cmd->id.trace_id, "%s: alloc/send %s trans: %llu -> %s %f.\n",
 			dnet_dump_id(&cmd->id),
 			dnet_cmd_string(ctl->cmd),
 			(unsigned long long)t->trans,
@@ -302,7 +302,7 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT, wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
+		dnet_log(st->n, 0, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT, wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
 				dnet_state_dump_addr(st), (unsigned long long)t->trans,
 				(unsigned long)t->wait_ts.tv_sec,
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
@@ -317,7 +317,7 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 		if (st->weight >= 2)
 			st->weight /= 2;
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d, weight: %f\n",
+		dnet_log(st->n, 0, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d, weight: %f\n",
 				dnet_state_dump_addr(st), trans_timeout, st->stall, st->weight);
 		if (st->stall >= st->n->stall_count) {
 			shutdown(st->read_s, 2);
@@ -335,7 +335,7 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 			st->weight *= 1.2;
 
 		if (st->stall) {
-			dnet_log(st->n, DNET_LOG_INFO, "%s: reseting state stall counter: weight: %f\n",
+			dnet_log(st->n, 0, DNET_LOG_INFO, "%s: reseting state stall counter: weight: %f\n",
 					dnet_state_dump_addr(st), st->weight);
 		}
 	}
@@ -402,7 +402,7 @@ static void *dnet_reconnect_process(void *data)
 	if (n->check_timeout > 30)
 		route_table_checks = 1;
 
-	dnet_log(n, DNET_LOG_INFO, "Started reconnection thread. Timeout: %lu seconds. Route table update every %lu seconds.\n",
+	dnet_log(n, DNET_LOG_INFO, 0, "Started reconnection thread. Timeout: %lu seconds. Route table update every %lu seconds.\n",
 			n->check_timeout, n->check_timeout * route_table_checks);
 
 	dnet_discovery(n);
@@ -453,7 +453,7 @@ int dnet_check_thread_start(struct dnet_node *n)
 	err = pthread_create(&n->check_tid, NULL, dnet_check_process, n);
 	if (err) {
 		err = -err;
-		dnet_log(n, DNET_LOG_ERROR, "Failed to start tree checking thread: err: %d.\n",
+		dnet_log(n, DNET_LOG_ERROR, 0, "Failed to start tree checking thread: err: %d.\n",
 				err);
 		goto err_out_exit;
 	}
@@ -461,7 +461,7 @@ int dnet_check_thread_start(struct dnet_node *n)
 	err = pthread_create(&n->reconnect_tid, NULL, dnet_reconnect_process, n);
 	if (err) {
 		err = -err;
-		dnet_log(n, DNET_LOG_ERROR, "Failed to start reconnection thread: err: %d.\n",
+		dnet_log(n, DNET_LOG_ERROR, 0, "Failed to start reconnection thread: err: %d.\n",
 				err);
 		goto err_out_stop_check_thread;
 	}
@@ -479,5 +479,5 @@ void dnet_check_thread_stop(struct dnet_node *n)
 {
 	pthread_join(n->reconnect_tid, NULL);
 	pthread_join(n->check_tid, NULL);
-	dnet_log(n, DNET_LOG_NOTICE, "Checking thread stopped.\n");
+	dnet_log(n, DNET_LOG_NOTICE, 0, "Checking thread stopped.\n");
 }

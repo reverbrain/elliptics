@@ -47,11 +47,9 @@
 #endif
 
 #ifdef __GNUC__
-#define DNET_LOG_CHECK  __attribute__ ((format(printf, 3, 4)))
-#define DNET_TRACE_CHECK  __attribute__ ((format(printf, 4, 5)))
+#define DNET_LOG_CHECK  __attribute__ ((format(printf, 4, 5)))
 #else
 #define DNET_LOG_CHECK
-#define DNET_TRACE_CHECK
 #endif
 
 #define ALIGN(x,a)		__ALIGN_MASK(x,(typeof(x))(a)-1)

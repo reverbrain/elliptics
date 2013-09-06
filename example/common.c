@@ -177,7 +177,7 @@ int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
 
 		err = dnet_parse_addr(addr, &remote_port, &remote_family);
 		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to parse addr '%s': %d.\n", addr, err);
+			dnet_log_raw(n, DNET_LOG_ERROR, 0, "Failed to parse addr '%s': %d.\n", addr, err);
 			goto next;
 		}
 
@@ -207,7 +207,7 @@ next:
 
 	if (!added) {
 		err = 0;
-		dnet_log_raw(n, DNET_LOG_ERROR, "No remote addresses added. Continue to work though.\n");
+		dnet_log_raw(n, DNET_LOG_ERROR, 0, "No remote addresses added. Continue to work though.\n");
 		goto err_out_exit;
 	}
 
@@ -248,7 +248,7 @@ int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int 
 	return 0;
 }
 
-#define dnet_map_log(n, level, fmt, a...) do { if ((n)) dnet_trace_raw((n), level, 0, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
+#define dnet_map_log(n, level, fmt, a...) do { if ((n)) dnet_log_raw((n), level, 0, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
 
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map)
 {

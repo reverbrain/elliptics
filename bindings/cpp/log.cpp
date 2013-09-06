@@ -71,12 +71,12 @@ logger &logger::operator =(const logger &other) {
 	return *this;
 }
 
-void logger::trace(const int level, uint32_t trace_id, const char *msg)
+void logger::log(const int level, uint32_t trace_id, const char *msg)
 {
 	m_data->push_log(level, trace_id, msg);
 }
 
-void logger::tprint(int level, uint32_t trace_id, const char *format, ...)
+void logger::print(int level, uint32_t trace_id, const char *format, ...)
 {
 	if (!m_data->check_level(level) && !trace_id)
 		return;
@@ -91,18 +91,6 @@ void logger::tprint(int level, uint32_t trace_id, const char *format, ...)
 	buffer[buffer_size - 1] = '\0';
 	m_data->impl->log(level, trace_id, buffer);
 
-	va_end(args);
-}
-
-void logger::log(const int level, const char *msg)
-{
-	m_data->push_log(level, 0, msg);
-}
-
-void logger::print(int level, const char *format, ...)
-{
-	va_list args;
-	tprint(level, 0, format, args);
 	va_end(args);
 }
 

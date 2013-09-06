@@ -321,7 +321,7 @@ void remove_on_fail_impl(session &sess, const error_info &error, const std::vect
 	logger log = sess.get_node().get_log();
 
 	if (statuses.size() == 0) {
-		log.log(DNET_LOG_ERROR, "Unexpected empty statuses list at remove_on_fail_impl");
+		log.log(DNET_LOG_ERROR, sess.get_trace_id(), "Unexpected empty statuses list at remove_on_fail_impl");
 		return;
 	}
 
@@ -332,7 +332,7 @@ void remove_on_fail_impl(session &sess, const error_info &error, const std::vect
 		snprintf(buffer, sizeof(buffer), "%s: failed to exec %s: %s, going to remove data",
 			id, dnet_cmd_string(statuses.front().cmd), error.message().c_str());
 		buffer[sizeof(buffer) - 1] = '\0';
-		log.log(DNET_LOG_DEBUG, buffer);
+		log.log(DNET_LOG_DEBUG, sess.get_trace_id(), buffer);
 	}
 
 	std::vector<int> rm_groups;
@@ -1513,7 +1513,7 @@ class read_data_range_callback
 				char end_id[2*len + 1];
 				char id_str[2*len + 1];
 
-				dnet_trace_raw(node, DNET_LOG_NOTICE, d->id.trace_id, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d\n",
+				dnet_log_raw(node, DNET_LOG_NOTICE, d->id.trace_id, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d\n",
 						dnet_dump_id_len_raw(d->id.id, len, id_str),
 						dnet_dump_id_len_raw(d->start.id, len, start_id),
 						dnet_dump_id_len_raw(d->next.id, len, next_id),
@@ -1557,7 +1557,7 @@ class read_data_range_callback
 			} else {
 				struct dnet_io_attr *rep = &d->rep;
 
-				dnet_trace_raw(d->sess.get_node().get_native(),
+				dnet_log_raw(d->sess.get_node().get_native(),
 				               DNET_LOG_NOTICE,
 				               d->id.trace_id,
 				               "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
@@ -1622,7 +1622,7 @@ class remove_data_range_callback : public read_data_range_callback
 				d->last_exception = error;
 			} else {
 				if (d->has_any) {
-					dnet_trace_raw(d->sess.get_node().get_native(),
+					dnet_log_raw(d->sess.get_node().get_native(),
 					             DNET_LOG_NOTICE,
 					             d->id.trace_id,
 					             "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",

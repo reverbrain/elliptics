@@ -1035,7 +1035,7 @@ std::string dnet_node_status_repr(const dnet_node_status &status)
 
 void logger_log(logger &log, const char *msg, int level)
 {
-	log.log(level, msg);
+	log.log(level, 0, msg);
 }
 
 void next_impl(bp::api::object &value, const bp::api::object &next)

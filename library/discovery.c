@@ -40,14 +40,14 @@ static int dnet_discovery_add_v4(struct dnet_node *n, struct dnet_addr *addr, in
 	err = setsockopt(s, IPPROTO_IP, IP_MULTICAST_LOOP, &dnet_discover_loop, sizeof(dnet_discover_loop));
 	if (err < 0) {
 		err = -errno;
-    		dnet_log_err(n, "unable to set loopback option");
+		dnet_log_err(n, 0, "unable to set loopback option");
 		goto err_out_exit;
-  	}
+	}
 
 	err = setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, &dnet_discover_ttl, sizeof(dnet_discover_ttl));
 	if (err < 0) {
 		err = -errno;
-		dnet_log_err(n, "unable to set %d hop limit", dnet_discover_ttl);
+		dnet_log_err(n, 0, "unable to set %d hop limit", dnet_discover_ttl);
 		goto err_out_exit;
 	}
 
@@ -57,7 +57,7 @@ static int dnet_discovery_add_v4(struct dnet_node *n, struct dnet_addr *addr, in
 	err = setsockopt(s, IPPROTO_IP, MCAST_JOIN_GROUP, &command, sizeof(command));
 	if (err < 0) {
 		err = -errno;
-		dnet_log_err(n, "can not add multicast membership: %s", dnet_server_convert_dnet_addr(addr));
+		dnet_log_err(n, 0, "can not add multicast membership: %s", dnet_server_convert_dnet_addr(addr));
 		goto err_out_exit;
 	}
 
@@ -73,14 +73,14 @@ static int dnet_discovery_add_v6(struct dnet_node *n, struct dnet_addr *addr, in
 	err = setsockopt(s, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &dnet_discover_loop, sizeof(dnet_discover_loop));
 	if (err < 0) {
 		err = -errno;
-    		dnet_log_err(n, "unable to set loopback option");
+    		dnet_log_err(n, 0, "unable to set loopback option");
 		goto err_out_exit;
   	}
 
 	err = setsockopt(s, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &dnet_discover_ttl, sizeof(dnet_discover_ttl));
 	if (err < 0) {
 		err = -errno;
-		dnet_log_err(n, "unable to set %d hop limit", dnet_discover_ttl);
+		dnet_log_err(n, 0, "unable to set %d hop limit", dnet_discover_ttl);
 		goto err_out_exit;
 	}
 
@@ -90,7 +90,7 @@ static int dnet_discovery_add_v6(struct dnet_node *n, struct dnet_addr *addr, in
 	err = setsockopt(s, IPPROTO_IPV6, MCAST_JOIN_GROUP, &command, sizeof(command));
 	if (err < 0) {
 		err = -errno;
-		dnet_log_err(n, "can not add multicast membership: %s", dnet_server_convert_dnet_addr(addr));
+		dnet_log_err(n, 0, "can not add multicast membership: %s", dnet_server_convert_dnet_addr(addr));
 		goto err_out_exit;
 	}
 
@@ -120,7 +120,7 @@ int dnet_discovery_add(struct dnet_node *n, char *remote_addr, int remote_port, 
 
 	err = dnet_fill_addr(&addr, remote_addr, remote_port, sock_type, proto);
 	if (err) {
-		dnet_log(n, DNET_LOG_ERROR, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
+		dnet_log(n, DNET_LOG_ERROR, 0, "Failed to get address info for %s:%d, family: %d, err: %d: %s.\n",
 				remote_addr, remote_port, remote_family, err, strerror(-err));
 		goto err_out_exit;
 	}
@@ -128,7 +128,7 @@ int dnet_discovery_add(struct dnet_node *n, char *remote_addr, int remote_port, 
 	s = socket(remote_family, sock_type, 0);
 	if (s < 0) {
 		err = -errno;
-		dnet_log_err(n, "failed to create multicast socket");
+		dnet_log_err(n, 0, "failed to create multicast socket");
 		goto err_out_exit;
 	}
 
@@ -138,7 +138,7 @@ int dnet_discovery_add(struct dnet_node *n, char *remote_addr, int remote_port, 
 	err = bind(s, (struct sockaddr *)addr.addr, addr.addr_len);
 	if (err) {
 		err = -errno;
-		dnet_log_err(n, "Failed to bind to %s",
+		dnet_log_err(n, 0, "Failed to bind to %s",
 				dnet_server_convert_dnet_addr(&addr));
 		goto err_out_close;
 	}
@@ -188,10 +188,10 @@ static int dnet_discovery_send(struct dnet_node *n)
 	err = sendto(n->autodiscovery_socket, buf, sizeof(buf), 0, (void *)&n->autodiscovery_addr, n->autodiscovery_addr.addr_len);
 	if (err < 0) {
 		err = -errno;
-		dnet_log_err(n, "autodiscovery sent: %s - %.*s", dnet_server_convert_dnet_addr(addr),
+		dnet_log_err(n, 0, "autodiscovery sent: %s - %.*s", dnet_server_convert_dnet_addr(addr),
 			(int)sizeof(auth->cookie), auth->cookie);
 	} else {
-		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery sent: %s - %.*s\n", dnet_server_convert_dnet_addr(addr),
+		dnet_log(n, DNET_LOG_NOTICE, 0, "autodiscovery sent: %s - %.*s\n", dnet_server_convert_dnet_addr(addr),
 			(int)sizeof(auth->cookie), auth->cookie);
 	}
 
@@ -235,18 +235,18 @@ static int dnet_discovery_recv(struct dnet_node *n)
 		err = poll(&pfd, 1, 100);
 		if (err < 0) {
 			err = -errno;
-			dnet_log(n, DNET_LOG_ERROR, "autodiscovery-recv: poll: %s [%d]\n", strerror(-err), err);
+			dnet_log(n, DNET_LOG_ERROR, 0, "autodiscovery-recv: poll: %s [%d]\n", strerror(-err), err);
 		}
 
 		if (err == 0) {
-			dnet_log(n, DNET_LOG_DEBUG, "autodiscovery-recv: poll: no data\n");
+			dnet_log(n, DNET_LOG_DEBUG, 0, "autodiscovery-recv: poll: no data\n");
 			return -EAGAIN;
 		}
 
 		err = recvfrom(n->autodiscovery_socket, buf, sizeof(buf), 0, (void *)&remote, &len);
 		if (err == -1) {
 			err = -errno;
-			dnet_log(n, DNET_LOG_ERROR, "audodiscovery recv: %d, want: %zd: %s [%d]\n", err, sizeof(buf), strerror(-err), err);
+			dnet_log(n, DNET_LOG_ERROR, 0, "audodiscovery recv: %d, want: %zd: %s [%d]\n", err, sizeof(buf), strerror(-err), err);
 		}
 
 		if (err != sizeof(buf))
@@ -256,7 +256,7 @@ static int dnet_discovery_recv(struct dnet_node *n)
 		dnet_convert_addr(addr);
 		dnet_convert_auth(auth);
 
-		dnet_log(n, DNET_LOG_NOTICE, "autodiscovery recv: %s - %.*s\n", dnet_server_convert_dnet_addr(addr),
+		dnet_log(n, DNET_LOG_NOTICE, 0, "autodiscovery recv: %s - %.*s\n", dnet_server_convert_dnet_addr(addr),
 				(int)sizeof(auth->cookie), auth->cookie);
 
 		if (!memcmp(n->cookie, auth->cookie, DNET_AUTH_COOKIE_SIZE)) {

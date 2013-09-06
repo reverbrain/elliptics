@@ -75,7 +75,7 @@ namespace {
 class srw_log {
 	public:
 		srw_log(struct dnet_session *session, int level, const std::string &app, const std::string &message) : m_s(session) {
-			dnet_log(session->node, level, "srw: %s : %s\n", app.c_str(), message.c_str());
+			dnet_log(session->node, 0, level, "srw: %s : %s\n", app.c_str(), message.c_str());
 
 #if 0
 			if (!strncmp(app.data(), "app/", 4) || (level > m_s->node->log->log_level))
@@ -407,7 +407,7 @@ class srw {
 
 			char *ptr = strchr((char *)event.c_str(), '@');
 			if (!ptr) {
-				dnet_trace(m_s->node, DNET_LOG_ERROR, cmd->id.trace_id, "%s: sph: %s: %s: invalid event name: "
+				dnet_log(m_s->node, DNET_LOG_ERROR, cmd->id.trace_id, "%s: sph: %s: %s: invalid event name: "
 						"must be application@event or application@start-task\n",
 						id_str, sph_str, event.c_str());
 				return -EINVAL;
@@ -431,12 +431,12 @@ class srw {
 						int pool_limit = profile["pool-limit"].asInt();
 						const int idle_min = 60 * 60 * 24 * 30;
 
-						dnet_trace(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: multiple start: "
+						dnet_log(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: multiple start: "
 								"idle: %d/%d, workers: %d\n",
 								id_str, sph_str, event.c_str(), idle, idle_min, pool_limit);
 
 						if (idle && idle < idle_min) {
-							dnet_trace(m_s->node, DNET_LOG_ERROR, cmd->id.trace_id, "%s: sph: %s: %s: multiple start: "
+							dnet_log(m_s->node, DNET_LOG_ERROR, cmd->id.trace_id, "%s: sph: %s: %s: multiple start: "
 								"idle must be big enough, we check it to be larger than 30 days (%d seconds), "
 								"current profile value is %d\n",
 								id_str, sph_str, event.c_str(), idle_min, idle);
@@ -453,9 +453,9 @@ class srw {
 					}
 
 					m_map.insert(std::make_pair(app, eng));
-					dnet_trace(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: started\n", id_str, sph_str, event.c_str());
+					dnet_log(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: started\n", id_str, sph_str, event.c_str());
 				} else {
-					dnet_trace(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: was already started\n",
+					dnet_log(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: was already started\n",
 							id_str, sph_str, event.c_str());
 				}
 			} else if (ev == "stop-task") {
@@ -466,12 +466,12 @@ class srw {
 					m_map.erase(it);
 				guard.unlock();
 
-				dnet_trace(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: stopped\n", id_str, sph_str, event.c_str());
+				dnet_log(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: stopped\n", id_str, sph_str, event.c_str());
 			} else if (ev == "info") {
 				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
-					dnet_trace(m_s->node, DNET_LOG_ERROR, cmd->id.trace_id, "%s: sph: %s: %s: no task\n", id_str, sph_str, event.c_str());
+					dnet_log(m_s->node, DNET_LOG_ERROR, cmd->id.trace_id, "%s: sph: %s: %s: no task\n", id_str, sph_str, event.c_str());
 					return -ENOENT;
 				}
 
@@ -494,7 +494,7 @@ class srw {
 				tmp += event;
 				tmp += s;
 
-				dnet_trace(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: info: %s\n", id_str, sph_str, event.c_str(), s.c_str());
+				dnet_log(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: info: %s\n", id_str, sph_str, event.c_str(), s.c_str());
 				err = dnet_send_reply(st, cmd, (void *)tmp.data(), tmp.size(), 0);
 			} else if (sph->flags & (DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH)) {
 				bool final = !!(sph->flags & DNET_SPH_FLAGS_FINISH);
@@ -503,7 +503,7 @@ class srw {
 
 				jobs_map_t::iterator it = m_jobs.find(sph->src_key);
 				if (it == m_jobs.end()) {
-					dnet_trace(m_s->node, DNET_LOG_ERROR, cmd->id.trace_id, "%s: sph: %s: %s: no job: %d to complete\n",
+					dnet_log(m_s->node, DNET_LOG_ERROR, cmd->id.trace_id, "%s: sph: %s: %s: no job: %d to complete\n",
 						id_str, sph_str, event.c_str(), sph->src_key);
 					return -ENOENT;
 				}
@@ -520,7 +520,7 @@ class srw {
 
 				upstream->reply(final, (char *)sph, sizeof(struct sph) + sph->event_size + sph->data_size);
 
-				dnet_trace(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: completed: job: %d, total-size: %zd, finish: %d\n",
+				dnet_log(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: completed: job: %d, total-size: %zd, finish: %d\n",
 						id_str, sph_str, event.c_str(), sph->src_key, total_size(sph), final);
 
 			} else {
@@ -541,7 +541,7 @@ class srw {
 				std::unique_lock<std::mutex> guard(m_lock);
 				eng_map_t::iterator it = m_map.find(app);
 				if (it == m_map.end()) {
-					dnet_trace(m_s->node, DNET_LOG_ERROR, cmd->id.trace_id, "%s: sph: %s: %s: no task\n", id_str, sph_str, event.c_str());
+					dnet_log(m_s->node, DNET_LOG_ERROR, cmd->id.trace_id, "%s: sph: %s: %s: no task\n", id_str, sph_str, event.c_str());
 					return -ENOENT;
 				}
 
@@ -568,7 +568,7 @@ class srw {
 
 				stream->write((const char *)sph, total_size(sph) + sizeof(struct sph));
 
-				dnet_trace(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: started: queue: %s, src-key-orig: %d, "
+				dnet_log(m_s->node, DNET_LOG_INFO, cmd->id.trace_id, "%s: sph: %s: %s: started: queue: %s, src-key-orig: %d, "
 						"job: %d, total-size: %zd, block: %d\n",
 						id_str, sph_str, event.c_str(),
 						app.c_str(),
@@ -611,11 +611,11 @@ int dnet_srw_init(struct dnet_node *n, struct dnet_config *cfg)
 	try {
 		dnet_session_set_groups(s, (int *)&n->id.group_id, 1);
 		n->srw = (void *)new srw(s, cfg->srw.config);
-		dnet_log(n, DNET_LOG_INFO, "srw: initialized: config: %s\n", cfg->srw.config);
+		dnet_log(n, DNET_LOG_INFO, 0, "srw: initialized: config: %s\n", cfg->srw.config);
 		return 0;
 	} catch (const std::exception &e) {
 		dnet_session_destroy(s);
-		dnet_log(n, DNET_LOG_ERROR, "srw: init failed: config: %s, exception: %s\n", cfg->srw.config, e.what());
+		dnet_log(n, DNET_LOG_ERROR, 0, "srw: init failed: config: %s, exception: %s\n", cfg->srw.config, e.what());
 		err = -ENOMEM;
 	}
 
@@ -648,7 +648,7 @@ int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sp
 	try {
 		return s->process(st, cmd, header);
 	} catch (const std::exception &e) {
-		dnet_trace(n, DNET_LOG_ERROR, cmd->id.trace_id, "%s: srw-processing: event: %.*s, data-size: %lld, exception: %s\n",
+		dnet_log(n, DNET_LOG_ERROR, cmd->id.trace_id, "%s: srw-processing: event: %.*s, data-size: %lld, exception: %s\n",
 				dnet_dump_id(&cmd->id), header->event_size, (const char *)data,
 				(unsigned long long)header->data_size,
 				e.what());
