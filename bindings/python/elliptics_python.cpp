@@ -138,7 +138,7 @@ public:
 	// Implements __str__ method.
 	// Always returns printable hex representation of all id bytes
 	std::string to_str() const {
-		char buffer[2*DNET_ID_SIZE + 1] = {0};
+		char buffer[DNET_ID_STR_SIZE] = {0};
 		return std::string(dnet_dump_id_len_raw(id().id, DNET_ID_SIZE, buffer));
 	}
 

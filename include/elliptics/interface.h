@@ -602,9 +602,21 @@ static inline char *dnet_dump_id_len(const struct dnet_id *id, unsigned int len)
 {
 	static char __dnet_dump_str[2 * DNET_ID_SIZE + 16 + 3];
 	char tmp[2*DNET_ID_SIZE + 1];
+	char tmp2[2*DNET_ID_SIZE + 1];
 
-	snprintf(__dnet_dump_str, sizeof(__dnet_dump_str), "%d:%s", id->group_id,
-			dnet_dump_id_len_raw(id->id, len, tmp));
+	unsigned int len2 = (DNET_ID_SIZE - len) < len ? (DNET_ID_SIZE - len) : len;
+
+	if (len < DNET_ID_SIZE)
+		snprintf(__dnet_dump_str, sizeof(__dnet_dump_str),
+		         "%d:%s...%s",
+		         id->group_id,
+		         dnet_dump_id_len_raw(id->id, len, tmp),
+		         dnet_dump_id_len_raw(id->id + DNET_ID_SIZE - len2, len2, tmp2));
+	else
+		snprintf(__dnet_dump_str, sizeof(__dnet_dump_str),
+		         "%d:%s",
+		         id->group_id,
+		         dnet_dump_id_len_raw(id->id, len, tmp));
 	return __dnet_dump_str;
 }
 
