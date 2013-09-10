@@ -83,6 +83,10 @@ struct dnet_config_backend {
 	unsigned long long		storage_free;
 
 	struct dnet_log			*log;
+	/*log_raw is used for binary compatibility
+	with old eblob version which doesn't support trace_id in API yet
+	When eblob starts support trace_id log will be used instead of log_raw
+	and log_raw should be removed*/
 	struct eblob_log		*log_raw;
 
 	int				(* init)(struct dnet_config_backend *b, struct dnet_config *cfg);

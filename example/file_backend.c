@@ -562,6 +562,8 @@ static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c,
 	ecfg.blob_size = r->blob_size;
 	ecfg.defrag_percentage = r->defrag_percentage;
 	ecfg.defrag_timeout = r->defrag_timeout;
+	/*compatibility solution. When eblob supports trace_id
+	c->log should be used instead of c->log_raw*/
 	ecfg.log = (struct eblob_log *)c->log_raw;
 
 	r->meta = eblob_init(&ecfg);
