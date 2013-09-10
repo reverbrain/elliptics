@@ -565,10 +565,7 @@ static void *dnet_io_process_network(void *data_)
 	struct dnet_node *n = nio->n;
 	struct dnet_net_state *st;
 	struct epoll_event ev;
-	int err = 0, check;
-	struct dnet_trans *t, *tmp;
-	struct timeval tv;
-	struct list_head head;
+	int err = 0;
 
 	dnet_set_name("net_pool");
 
@@ -590,7 +587,6 @@ static void *dnet_io_process_network(void *data_)
 
 		st = ev.data.ptr;
 		st->epoll_fd = nio->epoll_fd;
-		check = st->stall;
 
 		while (1) {
 			err = st->process(st, &ev);
@@ -601,43 +597,19 @@ static void *dnet_io_process_network(void *data_)
 				break;
 
 			if (err < 0 || st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
-				dnet_state_reset(st, -ETIMEDOUT);
-				check = 0;
+				if (!err)
+					err = -ETIMEDOUT;
+
+				dnet_state_reset(st, err);
+
+				pthread_mutex_lock(&st->send_lock);
+				dnet_unschedule_send(st);
+				dnet_unschedule_recv(st);
+				pthread_mutex_unlock(&st->send_lock);
+
+				dnet_state_put(st);
 				break;
 			}
-		}
-
-		if (!check)
-			continue;
-
-		gettimeofday(&tv, NULL);
-
-		INIT_LIST_HEAD(&head);
-
-		pthread_mutex_lock(&st->trans_lock);
-		list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
-			if (t->time.tv_sec >= tv.tv_sec)
-				break;
-
-			dnet_trans_remove_nolock(&st->trans_root, t);
-			list_move(&t->trans_list_entry, &head);
-		}
-		pthread_mutex_unlock(&st->trans_lock);
-
-		list_for_each_entry_safe(t, tmp, &head, trans_list_entry) {
-			list_del_init(&t->trans_list_entry);
-
-			t->cmd.flags = 0;
-			t->cmd.size = 0;
-			t->cmd.status = -ETIMEDOUT;
-
-			dnet_log(st->n, 0, DNET_LOG_ERROR, "%s: destructing trans: %llu on TIMEOUT\n",
-					dnet_state_dump_addr(st), (unsigned long long)t->trans);
-
-			if (t->complete)
-				t->complete(st, &t->cmd, t->priv);
-
-			dnet_trans_put(t);
 		}
 	}
 
@@ -649,7 +621,13 @@ static void dnet_io_cleanup_states(struct dnet_node *n)
 	struct dnet_net_state *st, *tmp;
 
 	list_for_each_entry_safe(st, tmp, &n->storage_state_list, storage_state_entry) {
+		dnet_unschedule_send(st);
+		dnet_unschedule_recv(st);
+
 		dnet_state_reset(st, -EUCLEAN);
+
+		dnet_state_clean(st);
+		dnet_state_put(st);
 	}
 }
 

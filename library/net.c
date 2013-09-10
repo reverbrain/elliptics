@@ -243,7 +243,7 @@ err_out_exit:
 	return err;
 }
 
-static void dnet_state_clean(struct dnet_net_state *st)
+void dnet_state_clean(struct dnet_net_state *st)
 {
 	struct rb_node *rb_node;
 	struct dnet_trans *t;
@@ -778,15 +778,10 @@ void dnet_state_reset(struct dnet_net_state *st, int error)
 	pthread_mutex_lock(&st->send_lock);
 	if (!st->need_exit)
 		st->need_exit = error;
-	dnet_unschedule_send(st);
+
+	shutdown(st->read_s, 2);
+	shutdown(st->write_s, 2);
 	pthread_mutex_unlock(&st->send_lock);
-
-	dnet_unschedule_recv(st);
-
-	dnet_add_reconnect_state(st->n, &st->addr, st->__join_state);
-
-	dnet_state_clean(st);
-	dnet_state_put(st);
 }
 
 void dnet_sock_close(int s)
