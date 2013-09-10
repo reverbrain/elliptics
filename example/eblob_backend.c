@@ -181,7 +181,7 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
 
 	if (io->flags & DNET_IO_FLAGS_PREPARE) {
-		err = eblob_write_prepare(b, &key, io->num + ehdr_size, flags);
+		err = eblob_write_prepare(b, &key, io->num + ehdr_size, flags, cmd->id.trace_id);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: EBLOB: blob-write: eblob_write_prepare: "
 					"size: %" PRIu64 ": %s %d\n", dnet_dump_id_str(io->id),
@@ -200,9 +200,9 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 		};
 
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
-			err = eblob_plain_writev(b, &key, iov, 2, flags);
+			err = eblob_plain_writev(b, &key, iov, 2, flags, cmd->id.trace_id);
 		} else {
-			err = eblob_writev_return(b, &key, iov, 2, flags, &wc);
+			err = eblob_writev_return(b, &key, iov, 2, flags, &wc, cmd->id.trace_id);
 		}
 
 		if (err) {
@@ -218,7 +218,7 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 
 	if (io->flags & DNET_IO_FLAGS_COMMIT) {
 		if (io->flags & DNET_IO_FLAGS_PLAIN_WRITE) {
-			err = eblob_write_commit(b, &key, io->num + ehdr_size, flags);
+			err = eblob_write_commit(b, &key, io->num + ehdr_size, flags, cmd->id.trace_id);
 			if (err) {
 				dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: EBLOB: blob-write: eblob_write_commit: "
 						"size: %" PRIu64 ": %s %d\n", dnet_dump_id_str(io->id),
@@ -232,7 +232,7 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	}
 
 	if (!err && wc.data_fd == -1) {
-		err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc);
+		err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc, cmd->id.trace_id);
 		if (err) {
 			dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: EBLOB: blob-write: eblob_read: "
 					"size: %" PRIu64 ": %s %d\n", dnet_dump_id_str(io->id),
@@ -288,7 +288,7 @@ static int blob_read(struct eblob_backend_config *c, void *state, struct dnet_cm
 	if (io->flags & DNET_IO_FLAGS_NOCSUM)
 		csum = EBLOB_READ_NOCSUM;
 
-	err = eblob_read_return(b, &key, csum, &wc);
+	err = eblob_read_return(b, &key, csum, &wc, cmd->id.trace_id);
 	if (err == 0) {
 		/* Existing entry */
 		offset = wc.data_offset;
@@ -419,7 +419,7 @@ static int blob_cmp_range_request(const void *req1, const void *req2)
 	return memcmp(((struct eblob_range_request *)(req1))->record_key, ((struct eblob_range_request *)(req2))->record_key, EBLOB_ID_SIZE);
 }
 
-static int blob_read_range_callback(struct eblob_range_request *req)
+static int blob_read_range_callback(struct eblob_range_request *req, uint32_t trace_id)
 {
 	struct eblob_read_range_priv *p = req->priv;
 	struct dnet_io_attr io;
@@ -439,7 +439,7 @@ static int blob_read_range_callback(struct eblob_range_request *req)
 
 		/* FIXME: This is slow! */
 		err = eblob_read_return(req->back, (struct eblob_key *)req->record_key,
-				EBLOB_READ_NOCSUM, &wc);
+				EBLOB_READ_NOCSUM, &wc, trace_id);
 		if (err)
 			goto err_out_exit;
 
@@ -474,7 +474,7 @@ err_out_exit:
 	return err;
 }
 
-static int blob_del_range_callback(struct eblob_range_request *req)
+static int blob_del_range_callback(struct eblob_range_request *req, uint32_t trace_id)
 {
 	struct eblob_key key;
 	int err;
@@ -483,7 +483,7 @@ static int blob_del_range_callback(struct eblob_range_request *req)
 			dnet_dump_id_str(req->record_key));
 
 	memcpy(key.id, req->record_key, EBLOB_ID_SIZE);
-	err = eblob_remove(req->back, &key);
+	err = eblob_remove(req->back, &key, trace_id);
 	if (err) {
 		dnet_backend_log(DNET_LOG_DEBUG, 0, "%s: EBLOB: blob-read-range: DEL: err: %d\n",
 				dnet_dump_id_str(req->record_key), err);
@@ -596,12 +596,12 @@ static int blob_read_range(struct eblob_backend_config *c, void *state, struct d
 					break;
 				dnet_backend_log(DNET_LOG_DEBUG, cmd->id.trace_id, "%s: EBLOB: blob-read-range: READ\n",
 						dnet_dump_id_str(p.keys[i].record_key));
-				err = blob_read_range_callback(&p.keys[i]);
+				err = blob_read_range_callback(&p.keys[i], cmd->id.trace_id);
 				break;
 			case DNET_CMD_DEL_RANGE:
 				dnet_backend_log(DNET_LOG_DEBUG, cmd->id.trace_id, "%s: EBLOB: blob-read-range: DEL\n",
 						dnet_dump_id_str(p.keys[i].record_key));
-				err = blob_del_range_callback(&p.keys[i]);
+				err = blob_del_range_callback(&p.keys[i], cmd->id.trace_id);
 				break;
 		}
 
@@ -636,7 +636,7 @@ static int blob_del(struct eblob_backend_config *c, struct dnet_cmd *cmd)
 
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
 
-	err = eblob_remove(c->eblob, &key);
+	err = eblob_remove(c->eblob, &key, cmd->id.trace_id);
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: EBLOB: blob-del: REMOVE: %d: %s\n",
 			dnet_dump_id_str(cmd->id.id), err, strerror(-err));
@@ -658,7 +658,7 @@ static int blob_file_info(struct eblob_backend_config *c, void *state, struct dn
 	dnet_ext_list_init(&elist);
 
 	memcpy(key.id, cmd->id.id, EBLOB_ID_SIZE);
-	err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc);
+	err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc, cmd->id.trace_id);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: EBLOB: blob-file-info: info-read: %d: %s.\n",
 				dnet_dump_id(&cmd->id), err, strerror(-err));
@@ -733,7 +733,7 @@ static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_i
 	int err;
 
 	memcpy(key.id, id->id, EBLOB_ID_SIZE);
-	err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc);
+	err = eblob_read_return(b, &key, EBLOB_READ_NOCSUM, &wc, id->trace_id);
 	if (err < 0) {
 		dnet_backend_log(DNET_LOG_ERROR, id->trace_id, "%s: EBLOB: blob-checksum: read: %d: %s.\n",
 							dnet_dump_id_str(id->id), err, strerror(-err));
@@ -1015,7 +1015,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 
 	/*compatibility solution. When eblob supports trace_id
 	b->log should be used instead of b->log_raw*/
-	c->data.log = (struct eblob_log *)b->log_raw;
+	c->data.log = (struct eblob_log *)b->log;
 
 	err = pthread_mutex_init(&c->last_read_lock, NULL);
 	if (err) {

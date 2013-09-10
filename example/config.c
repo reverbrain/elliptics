@@ -74,10 +74,8 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 {
 	unsigned long value = strtoul(str, NULL, 0);
 
-	if (!strcmp(key, "log_level")) {
+	if (!strcmp(key, "log_level"))
 		dnet_cur_cfg_data->backend_logger.log_level = value;
-		dnet_cur_cfg_data->backend_logger_raw.log_level = value;
-	}
 	else if (!strcmp(key, "wait_timeout"))
 		dnet_cur_cfg_data->cfg_state.wait_timeout = value;
 	else if (!strcmp(key, "check_timeout"))
@@ -288,8 +286,6 @@ static int dnet_node_set_log_impl(struct dnet_config_data *data, char *value)
 
 		data->backend_logger.log_private = NULL;
 		data->backend_logger.log = dnet_syslog;
-		data->backend_logger_raw.log_private = NULL;
-		data->backend_logger_raw.log = dnet_syslog_raw;
 	} else {
 		FILE *log, *old = data->backend_logger.log_private;
 		int err;
@@ -303,8 +299,6 @@ static int dnet_node_set_log_impl(struct dnet_config_data *data, char *value)
 
 		data->backend_logger.log_private = log;
 		data->backend_logger.log = dnet_common_log;
-		data->backend_logger_raw.log_private = log;
-		data->backend_logger_raw.log = dnet_common_log_raw;
 
 		dnet_common_log(log, -1, 0, "Reopened log file\n");
 
@@ -387,7 +381,6 @@ static int dnet_set_backend(struct dnet_config_backend *current_backend __unused
 			}
 
 			b->log = dnet_cur_cfg_data->cfg_state.log;
-			b->log_raw = dnet_cur_cfg_data->cfg_state.log_raw;
 
 			dnet_cur_cfg_data->cfg_entries = b->ent;
 			dnet_cur_cfg_data->cfg_size = b->num;
@@ -451,10 +444,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 
 	dnet_cur_cfg_data->backend_logger.log_level = DNET_LOG_DEBUG;
 	dnet_cur_cfg_data->backend_logger.log = dnet_common_log;
-	dnet_cur_cfg_data->backend_logger_raw.log_level = DNET_LOG_DEBUG;
-	dnet_cur_cfg_data->backend_logger_raw.log = dnet_common_log_raw;
 	dnet_cur_cfg_data->cfg_state.log = &dnet_cur_cfg_data->backend_logger;
-	dnet_cur_cfg_data->cfg_state.log_raw = &dnet_cur_cfg_data->backend_logger_raw;
 
 	err = dnet_file_backend_init();
 	if (err)

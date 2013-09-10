@@ -324,11 +324,6 @@ struct dnet_config
 	/* Private logger */
 	struct dnet_log		*log;
 
-	/* Private raw logger for compatibility with old eblob.
-	Should be removed when eblob will support trace_id and
-	log should be used instead of*/
-	struct eblob_log	*log_raw;
-
 	/*
 	 * Network command handler.
 	 * Returns negative error value or zero in case of success.

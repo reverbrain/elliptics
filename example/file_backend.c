@@ -201,7 +201,7 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	/* Copy data from elist to ehdr */
 	dnet_ext_list_to_hdr(&elist, &ehdr);
 
-	err = eblob_write(r->meta, &key, &ehdr, 0, ehdr_size, 0);
+	err = eblob_write(r->meta, &key, &ehdr, 0, ehdr_size, 0, cmd->id.trace_id);
 
 	if (err) {
 		dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: FILE: %s: META WRITE: %d: %s.\n",
@@ -301,7 +301,7 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 		dir, dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id));
 	remove(file);
 
-	eblob_remove(r->meta, &key);
+	eblob_remove(r->meta, &key, cmd->id.trace_id);
 
 	return 0;
 }
@@ -335,7 +335,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	}
 	fd = err;
 
-	err = eblob_read_return(r->meta, &key, EBLOB_READ_NOCSUM, &wc);
+	err = eblob_read_return(r->meta, &key, EBLOB_READ_NOCSUM, &wc, cmd->id.trace_id);
 
 	if (!err && wc.total_data_size != ehdr_size) {
 		err = -ERANGE;
@@ -564,7 +564,7 @@ static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c,
 	ecfg.defrag_timeout = r->defrag_timeout;
 	/*compatibility solution. When eblob supports trace_id
 	c->log should be used instead of c->log_raw*/
-	ecfg.log = (struct eblob_log *)c->log_raw;
+	ecfg.log = (struct eblob_log *)c->log;
 
 	r->meta = eblob_init(&ecfg);
 	if (!r->meta) {

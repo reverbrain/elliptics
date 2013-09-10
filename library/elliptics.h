@@ -195,7 +195,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
 void dnet_state_reset(struct dnet_net_state *st, int error);
-void dnet_state_clean(struct dnet_net_state *st);
 void dnet_state_remove_nolock(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
@@ -446,11 +445,6 @@ int dnet_optrylock(struct dnet_node *n, struct dnet_id *key);
 struct dnet_config_data
 {
 	struct dnet_log backend_logger;
-	/*backend_logger_raw is used for binary compatibility
-	with old eblob version which doesn't support trace_id in API yet
-	When eblob starts support trace_id backend_logger will be used instead of backend_logger_raw
-	and backend_logger_raw should be removed*/
-	struct eblob_log backend_logger_raw;
 	char *logger_value;
 
 	int cfg_addr_num;
