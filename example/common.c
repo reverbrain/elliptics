@@ -119,6 +119,11 @@ void dnet_common_log(void *priv, int level, uint32_t trace_id, const char *msg)
 	fflush(stream);
 }
 
+void dnet_common_log_raw(void *priv, int level, const char *msg)
+{
+	dnet_common_log(priv, level, 0, msg);
+}
+
 void dnet_syslog(void *priv __attribute__ ((unused)), int level, uint32_t trace_id, const char *msg)
 {
 	int prio = LOG_DEBUG;
@@ -140,6 +145,11 @@ void dnet_syslog(void *priv __attribute__ ((unused)), int level, uint32_t trace_
 		snprintf(trace_str, sizeof(trace_str), "[%u] ", trace_id&~DNET_TRACE_BIT);
 
 	syslog(prio, "%s%s.%06lu %ld/%4d %1x: %s", trace_str, str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
+}
+
+void dnet_syslog_raw(void *priv, int level, const char *msg)
+{
+	dnet_syslog(priv, level, 0, msg);
 }
 
 int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)

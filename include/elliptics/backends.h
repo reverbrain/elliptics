@@ -83,6 +83,7 @@ struct dnet_config_backend {
 	unsigned long long		storage_free;
 
 	struct dnet_log			*log;
+	struct eblob_log		*log_raw;
 
 	int				(* init)(struct dnet_config_backend *b, struct dnet_config *cfg);
 	void				(* cleanup)(struct dnet_config_backend *b);

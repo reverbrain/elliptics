@@ -324,6 +324,9 @@ struct dnet_config
 	/* Private logger */
 	struct dnet_log		*log;
 
+	/* Private raw logger */
+	struct eblob_log	*log_raw;
+
 	/*
 	 * Network command handler.
 	 * Returns negative error value or zero in case of success.

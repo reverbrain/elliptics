@@ -1013,7 +1013,7 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 		goto err_out_exit;
 	}
 
-	c->data.log = (struct eblob_log *)b->log;
+	c->data.log = (struct eblob_log *)b->log_raw;
 
 	err = pthread_mutex_init(&c->last_read_lock, NULL);
 	if (err) {

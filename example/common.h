@@ -26,7 +26,9 @@ extern "C" {
 #endif
 
 void dnet_common_log(void *priv, int level, uint32_t trace_id, const char *msg);
+void dnet_common_log_raw(void *priv, int level, const char *msg);
 void dnet_syslog(void *priv, int level, uint32_t trace_id, const char *msg);
+void dnet_syslog_raw(void *priv, int level, const char *msg);
 
 int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr);
 

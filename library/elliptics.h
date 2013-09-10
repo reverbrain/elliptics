@@ -445,6 +445,7 @@ int dnet_optrylock(struct dnet_node *n, struct dnet_id *key);
 struct dnet_config_data
 {
 	struct dnet_log backend_logger;
+	struct eblob_log backend_logger_raw;
 	char *logger_value;
 
 	int cfg_addr_num;
