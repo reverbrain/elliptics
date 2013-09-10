@@ -45,6 +45,8 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 		request_id = request->id;
 
+		sess.set_trace_id(cmd->id.trace_id);
+
 		size_t data_offset = 0;
 		const char *data_start = reinterpret_cast<const char *>(request->entries);
 		for (uint64_t i = 0; i < request->entries_count; ++i) {
@@ -171,10 +173,10 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		data_pointer new_data = convert_object_indexes(&cmd.id, data);
 
 		if (data == new_data) {
-			dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_UPDATE: data is the same\n");
+			dnet_log(state->n, DNET_LOG_DEBUG, cmd.id.trace_id, "INDEXES_UPDATE: data is the same\n");
 			return complete(0, finished);
 		}
-		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_UPDATE: data is different\n");
+		dnet_log(state->n, DNET_LOG_DEBUG, cmd.id.trace_id, "INDEXES_UPDATE: data is different\n");
 
 		const int shard_id = indexes.shard_id;
 
@@ -189,7 +191,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		convert_usecs = DIFF(start, convert_time);
 
 		if (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) {
-			dnet_log(state->n, DNET_LOG_INFO, "%s: update only finished:, "
+			dnet_log(state->n, DNET_LOG_INFO, request_id.trace_id, "%s: update only finished:, "
 					"convert-time: %ld usecs, err: %d\n",
 					dnet_dump_id(&request_id), convert_usecs, err);
 			return complete(0, finished);
@@ -307,12 +309,15 @@ err_out_complete:
 		long insert_usecs = DIFF(send_remote_time, insert_time);
 		long remove_usecs = DIFF(insert_time, remove_time);
 
-		dnet_log(state->n, DNET_LOG_INFO, "%s: updated indexes: local-inserted: %zd, local-removed: %zd, "
-				"remote-inserted: %zd, remote-removed: %zd, "
-				"convert-time: %ld, send-remote-time: %ld, insert-time: %ld, remove-time: %ld, total-time: %ld usecs, err: %d\n",
-				dnet_dump_id(&request_id), local_inserted_ids.size(), local_removed_ids.size(),
-				remote_inserted, remote_removed,
-				convert_usecs, send_remote_usecs, insert_usecs, remove_usecs, total_usecs, err);
+		dnet_log(state->n, DNET_LOG_INFO, request_id.trace_id,
+		           "%s: updated indexes: local-inserted: %zd, local-removed: %zd, "
+		           "remote-inserted: %zd, remote-removed: %zd, "
+		           "convert-time: %ld, send-remote-time: %ld, insert-time: %ld, "
+		           "remove-time: %ld, total-time: %ld usecs, err: %d\n",
+		           dnet_dump_id(&request_id), local_inserted_ids.size(), local_removed_ids.size(),
+		           remote_inserted, remote_removed,
+		           convert_usecs, send_remote_usecs, insert_usecs,
+		           remove_usecs, total_usecs, err);
 
 		return err;
 	}
@@ -501,6 +506,7 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, dnet_indexes_
 int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
 {
 	local_session sess(state->n);
+	sess.set_trace_id(cmd->id.trace_id);
 
 	if (request->entries_count != 1) {
 		return -EINVAL;
@@ -513,7 +519,7 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 		char index_buffer[DNET_DUMP_NUM * 2 + 1];
 		char object_buffer[DNET_DUMP_NUM * 2 + 1];
 
-		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: index: %s, object: %s\n",
+		dnet_log(state->n, DNET_LOG_DEBUG, request->id.trace_id, "INDEXES_INTERNAL: index: %s, object: %s\n",
 			dnet_dump_id_len_raw(entry.id.id, DNET_DUMP_NUM, index_buffer),
 			dnet_dump_id_len_raw(request->id.id, DNET_DUMP_NUM, object_buffer));
 	}
@@ -524,7 +530,7 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 	} else if (entry.flags & remove_data) {
 		action = remove_data;
 	} else {
-		dnet_log(state->n, DNET_LOG_ERROR, "INDEXES_INTERNAL: invalid flags: 0x%llx\n",
+		dnet_log(state->n, DNET_LOG_ERROR, cmd->id.trace_id, "INDEXES_INTERNAL: invalid flags: 0x%llx\n",
 			static_cast<unsigned long long>(entry.flags));
 		return -EINVAL;
 	}
@@ -534,10 +540,10 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 	data_pointer new_data = convert_index_table(state->n, &cmd->id, request, entry_data, data, action);
 
 	if (data == new_data) {
-		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is the same\n");
+		dnet_log(state->n, DNET_LOG_DEBUG, cmd->id.trace_id, "INDEXES_INTERNAL: data is the same\n");
 		err = 0;
 	} else {
-		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is different\n");
+		dnet_log(state->n, DNET_LOG_DEBUG, cmd->id.trace_id, "INDEXES_INTERNAL: data is different\n");
 		err = sess.write(cmd->id, new_data);
 	}
 
@@ -570,11 +576,12 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
 {
 	local_session sess(state->n);
+	sess.set_trace_id(cmd->id.trace_id);
 
 	const bool intersection = request->flags & DNET_INDEXES_FLAGS_INTERSECT;
 	const bool unite = request->flags & DNET_INDEXES_FLAGS_UNITE;
 
-	dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_FIND: indexes count: %u, flags: %llu\n",
+	dnet_log(state->n, DNET_LOG_DEBUG, cmd->id.trace_id, "INDEXES_FIND: indexes count: %u, flags: %llu\n",
 		 (unsigned) request->entries_count, (unsigned long long) request->flags);
 
 	if (intersection && unite) {
@@ -599,10 +606,11 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 		memcpy(id.id, request_entry.id.id, sizeof(id.id));
 
 		int ret = 0;
+		sess.set_trace_id(id.trace_id);
 		data_pointer data = sess.read(id, &ret);
 
 		if (ret) {
-			dnet_log(state->n, DNET_LOG_DEBUG, "%s: INDEXES_FIND, err: %d\n",
+			dnet_log(state->n, DNET_LOG_DEBUG, id.trace_id, "%s: INDEXES_FIND, err: %d\n",
 				 dnet_dump_id(&id), ret);
 		}
 
@@ -665,7 +673,7 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 //	if (err != 0)
 //		return err;
 
-	dnet_log(state->n, DNET_LOG_DEBUG, "%s: INDEXES_FIND: result of find: %zu objects\n",
+	dnet_log(state->n, DNET_LOG_DEBUG, id.trace_id, "%s: INDEXES_FIND: result of find: %zu objects\n",
 		dnet_dump_id(&id), result.size());
 
 	msgpack::sbuffer buffer;

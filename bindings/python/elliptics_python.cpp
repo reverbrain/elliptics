@@ -138,7 +138,7 @@ public:
 	// Implements __str__ method.
 	// Always returns printable hex representation of all id bytes
 	std::string to_str() const {
-		char buffer[2*DNET_ID_SIZE + 1] = {0};
+		char buffer[DNET_ID_STR_SIZE] = {0};
 		return std::string(dnet_dump_id_len_raw(id().id, DNET_ID_SIZE, buffer));
 	}
 
@@ -381,6 +381,14 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			}
 
 			return res;
+		}
+
+		void set_trace_id(uint32_t trace_id) {
+			session::set_trace_id(trace_id);
+		}
+
+		uint32_t get_trace_id() {
+			return session::get_trace_id();
 		}
 
 		void read_file_by_id(struct elliptics_id &id, const std::string &file, uint64_t offset, uint64_t size) {
@@ -889,7 +897,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		python_find_indexes_result find_any_indexes(const bp::api::object &indexes) {
 			auto std_indexes = convert_to_vector<std::string>(indexes);
-
 			return create_result(std::move(session::find_any_indexes(std_indexes)));
 		}
 
@@ -1028,7 +1035,7 @@ std::string dnet_node_status_repr(const dnet_node_status &status)
 
 void logger_log(logger &log, const char *msg, int level)
 {
-	log.log(level, msg);
+	log.log(level, 0, msg);
 }
 
 void next_impl(bp::api::object &value, const bp::api::object &next)
@@ -1265,6 +1272,8 @@ BOOST_PYTHON_MODULE(elliptics)
 	elliptics_error_translator error_translator;
 	error_translator.initialize();
 
+	bp::scope().attr("trace_bit") = uint32_t(DNET_TRACE_BIT);
+
 
 	bp::register_exception_translator<timeout_error>(error_translator);
 	bp::register_exception_translator<not_found_error>(error_translator);
@@ -1428,6 +1437,11 @@ BOOST_PYTHON_MODULE(elliptics)
 		.def("add_groups", &elliptics_session::set_groups)
 		.def("set_groups", &elliptics_session::set_groups)
 		.def("get_groups", &elliptics_session::get_groups)
+
+		.add_property("trace_id", &elliptics_session::get_trace_id, &elliptics_session::set_trace_id)
+		.def("add_trace_id", &elliptics_session::set_trace_id)
+		.def("set_trace_id", &elliptics_session::set_trace_id)
+		.def("get_trace_id", &elliptics_session::get_trace_id)
 
 		.add_property("cflags", &elliptics_session::get_cflags, &elliptics_session::set_cflags)
 		.def("set_cflags", &elliptics_session::set_cflags)

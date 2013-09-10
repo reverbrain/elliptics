@@ -96,9 +96,10 @@ int dnet_parse_groups(char *value, int **groupsp)
 	return pos;
 }
 
-void dnet_common_log(void *priv, int level, const char *msg)
+void dnet_common_log(void *priv, int level, uint32_t trace_id, const char *msg)
 {
 	char str[64];
+	char trace_str[64] = "";
 	struct tm tm;
 	struct timeval tv;
 	FILE *stream = priv;
@@ -110,14 +111,26 @@ void dnet_common_log(void *priv, int level, const char *msg)
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	fprintf(stream, "%s.%06lu %ld/%4d %1d: %s", str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
+	if (trace_id) {
+		snprintf(trace_str, sizeof(trace_str), "[%u] ", trace_id&~DNET_TRACE_BIT);
+	}
+
+	fprintf(stream, "%s%s.%06lu %ld/%4d %1d: %s", trace_str, str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
 	fflush(stream);
 }
 
-void dnet_syslog(void *priv __attribute__ ((unused)), int level, const char *msg)
+/*dnet_common_log wrapper which ignores trace_id
+for binary compatibility with old eblob version*/
+void dnet_common_log_raw(void *priv, int level, const char *msg)
+{
+	dnet_common_log(priv, level, 0, msg);
+}
+
+void dnet_syslog(void *priv __attribute__ ((unused)), int level, uint32_t trace_id, const char *msg)
 {
 	int prio = LOG_DEBUG;
 	char str[64];
+	char trace_str[64] = "";
 	struct tm tm;
 	struct timeval tv;
 
@@ -130,7 +143,17 @@ void dnet_syslog(void *priv __attribute__ ((unused)), int level, const char *msg
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	syslog(prio, "%s.%06lu %ld/%4d %1x: %s", str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
+	if (trace_id)
+		snprintf(trace_str, sizeof(trace_str), "[%u] ", trace_id&~DNET_TRACE_BIT);
+
+	syslog(prio, "%s%s.%06lu %ld/%4d %1x: %s", trace_str, str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
+}
+
+/*dnet_syslog wrapper which ignores trace_id
+for binary compatibility with old eblob version*/
+void dnet_syslog_raw(void *priv, int level, const char *msg)
+{
+	dnet_syslog(priv, level, 0, msg);
 }
 
 int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
@@ -168,7 +191,7 @@ int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
 
 		err = dnet_parse_addr(addr, &remote_port, &remote_family);
 		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to parse addr '%s': %d.\n", addr, err);
+			dnet_log_raw(n, DNET_LOG_ERROR, 0, "Failed to parse addr '%s': %d.\n", addr, err);
 			goto next;
 		}
 
@@ -198,7 +221,7 @@ next:
 
 	if (!added) {
 		err = 0;
-		dnet_log_raw(n, DNET_LOG_ERROR, "No remote addresses added. Continue to work though.\n");
+		dnet_log_raw(n, DNET_LOG_ERROR, 0, "No remote addresses added. Continue to work though.\n");
 		goto err_out_exit;
 	}
 
@@ -239,7 +262,7 @@ int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int 
 	return 0;
 }
 
-#define dnet_map_log(n, level, fmt, a...) do { if ((n)) dnet_log_raw((n), level, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
+#define dnet_map_log(n, level, fmt, a...) do { if ((n)) dnet_log_raw((n), level, 0, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
 
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map)
 {

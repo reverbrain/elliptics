@@ -117,7 +117,9 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 
 		for (size_t i = 0; i < known_groups.size(); ++i) {
 			id.group_id = known_groups[i];
+			id.trace_id = sess.get_trace_id();
 			indexes_id.group_id = id.group_id;
+			indexes_id.trace_id = id.trace_id;
 
 			groups[0] = id.group_id;
 			sess.set_groups(groups);
@@ -170,6 +172,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 
 			for (size_t j = 0; j < known_groups.size(); ++j) {
 				id.group_id = known_groups[j];
+				id.trace_id = sess.get_trace_id();
 
 				groups[0] = id.group_id;
 				sess.set_groups(groups);
@@ -195,7 +198,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 	result.connect(std::bind(on_update_index_entry, handler, std::placeholders::_1),
 		std::bind(on_update_index_finished, handler, std::placeholders::_1));
 
-	dnet_log(orig_sess.get_node().get_native(), DNET_LOG_INFO, "%s: key: %s, indexes: %zd\n",
+	dnet_log(orig_sess.get_node().get_native(), DNET_LOG_INFO, request_id.id().trace_id, "%s: key: %s, indexes: %zd\n",
 			dnet_dump_id(&request_id.id()), request_id.to_string().c_str(), indexes.size());
 
 	return final_result;
@@ -361,6 +364,7 @@ struct find_indexes_functor : public std::enable_shared_from_this<find_indexes_f
 		}
 
 		memcpy(indexes_id.id, request->entries[0].id.id, sizeof(indexes_id.id));
+		indexes_id.trace_id = sess.get_trace_id();
 		control.set_key(indexes_id);
 
 		async_generic_result result(sess);
@@ -380,7 +384,7 @@ struct find_indexes_functor : public std::enable_shared_from_this<find_indexes_f
 
 	void on_result(size_t group_index, int shard_id, const sync_generic_result &result,
 			const error_info &error) {
-		log.print(DNET_LOG_NOTICE, "find_indexes, group: %d (%zu of %zu), shard_id: %d, "
+		log.print(DNET_LOG_NOTICE, sess.get_trace_id(), "find_indexes, group: %d (%zu of %zu), shard_id: %d, "
 				"result_size: %zu, err: [%d] %s\n",
 			known_groups[group_index], group_index + 1, known_groups.size(), shard_id,
 			result.size(), error.code(), error.message().c_str());

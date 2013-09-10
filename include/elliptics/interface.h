@@ -210,11 +210,13 @@ enum dnet_log_level {
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
 
+#define DNET_TRACE_BIT		(1<<31)		/*is used in trace_id for ignoring current log level*/
+
 /* cfg->flags */
 #define DNET_CFG_JOIN_NETWORK		(1<<0)		/* given node joins network and becomes part of the storage */
 #define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */
-#define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
-#define DNET_CFG_NO_CSUM		(1<<3)		/* globally disable checksum verification and update */
+#define DNET_CFG_MIX_STATES			(1<<2)		/* mix states according to their weights before reading data */
+#define DNET_CFG_NO_CSUM			(1<<3)		/* globally disable checksum verification and update */
 #define DNET_CFG_RANDOMIZE_STATES	(1<<5)		/* randomize states for read requests */
 
 struct dnet_log {
@@ -224,9 +226,9 @@ struct dnet_log {
 	 * Private data is used in the log function to get access to whatever
 	 * user pointed to.
 	 */
-	int			log_level;
-	void			*log_private;
-	void 			(* log)(void *priv, int level, const char *msg);
+	int		log_level;
+	void	*log_private;
+	void	(* log)(void *priv, int level, uint32_t trace_id, const char *msg);
 };
 
 /*
@@ -321,6 +323,11 @@ struct dnet_config
 
 	/* Private logger */
 	struct dnet_log		*log;
+
+	/* Private raw logger for compatibility with old eblob.
+	Should be removed when eblob will support trace_id and
+	log should be used instead of*/
+	struct eblob_log	*log_raw;
 
 	/*
 	 * Network command handler.
@@ -432,7 +439,7 @@ struct dnet_node *dnet_session_get_node(struct dnet_session *s);
  * Initialize private logging system.
  */
 int dnet_log_init(struct dnet_node *s, struct dnet_log *l);
-void __attribute__((weak)) dnet_log_raw(struct dnet_node *n, int level, const char *format, ...) DNET_LOG_CHECK;
+void __attribute__((weak)) dnet_log_raw(struct dnet_node *n, int level, uint32_t trace_id, const char *format, ...) DNET_LOG_CHECK;
 
 #define NIP6(addr) \
 	(addr).s6_addr[0], \
@@ -600,9 +607,21 @@ static inline char *dnet_dump_id_len(const struct dnet_id *id, unsigned int len)
 {
 	static char __dnet_dump_str[2 * DNET_ID_SIZE + 16 + 3];
 	char tmp[2*DNET_ID_SIZE + 1];
-	
-	snprintf(__dnet_dump_str, sizeof(__dnet_dump_str), "%d:%s", id->group_id,
-			dnet_dump_id_len_raw(id->id, len, tmp));
+	char tmp2[2*DNET_ID_SIZE + 1];
+
+	unsigned int len2 = (DNET_ID_SIZE - len) < len ? (DNET_ID_SIZE - len) : len;
+
+	if (len < DNET_ID_SIZE)
+		snprintf(__dnet_dump_str, sizeof(__dnet_dump_str),
+		         "%d:%s...%s",
+		         id->group_id,
+		         dnet_dump_id_len_raw(id->id, len, tmp),
+		         dnet_dump_id_len_raw(id->id + DNET_ID_SIZE - len2, len2, tmp2));
+	else
+		snprintf(__dnet_dump_str, sizeof(__dnet_dump_str),
+		         "%d:%s",
+		         id->group_id,
+		         dnet_dump_id_len_raw(id->id, len, tmp));
 	return __dnet_dump_str;
 }
 
@@ -706,7 +725,7 @@ int __attribute__((weak)) dnet_send_reply_threshold(void *state, struct dnet_cmd
  * statistics if no @complete function is provided, otherwise it returns
  * after queueing all transactions and appropriate callback will be
  * invoked asynchronously.
- * 
+ *
  * Function returns number of nodes statistics request was sent to
  * or negative error code. In case of error callback completion can
  * still be called.

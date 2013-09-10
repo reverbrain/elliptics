@@ -60,8 +60,12 @@ struct dnet_node;
 struct dnet_group;
 struct dnet_net_state;
 
-#define dnet_log(n, level, format, a...) do { if (n->log && (n->log->log_level >= level)) dnet_log_raw(n, level, format, ##a); } while (0)
-#define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
+#define dnet_log(n, level, trace_id, format, a...)										\
+	do {																				\
+		if (n->log && ((n->log->log_level >= level) || (trace_id & DNET_TRACE_BIT)))	\
+			dnet_log_raw(n, level, trace_id, format, ##a);								\
+		} while (0)
+#define dnet_log_err(n, trace_id, f, a...) dnet_log(n, DNET_LOG_ERROR, trace_id, f ": %s [%d].\n", ##a, strerror(errno), errno)
 
 struct dnet_io_req {
 	struct list_head	req_entry;
@@ -442,6 +446,11 @@ int dnet_optrylock(struct dnet_node *n, struct dnet_id *key);
 struct dnet_config_data
 {
 	struct dnet_log backend_logger;
+	/*backend_logger_raw is used for binary compatibility
+	with old eblob version which doesn't support trace_id in API yet
+	When eblob starts support trace_id backend_logger will be used instead of backend_logger_raw
+	and backend_logger_raw should be removed*/
+	struct eblob_log backend_logger_raw;
 	char *logger_value;
 
 	int cfg_addr_num;
@@ -604,7 +613,7 @@ static inline void dnet_counter_inc(struct dnet_node *n, int counter, int err)
 		n->counters[counter].err++;
 	dnet_lock_unlock(&n->counters_lock);
 
-	dnet_log(n, DNET_LOG_DEBUG, "Incrementing counter: %d, err: %d, value is: %llu %llu.\n",
+	dnet_log(n, DNET_LOG_DEBUG, 0, "Incrementing counter: %d, err: %d, value is: %llu %llu.\n",
 				counter, err,
 				(unsigned long long)n->counters[counter].count,
 				(unsigned long long)n->counters[counter].err);
@@ -866,13 +875,13 @@ static inline int dnet_version_compare(struct dnet_net_state *st, int *version)
 	int err = 0;
 
 	if ((version[0] == CONFIG_ELLIPTICS_VERSION_0) && (version[1] == CONFIG_ELLIPTICS_VERSION_1)) {
-		dnet_log(n, DNET_LOG_INFO, "%s: reverse lookup command: network version: %d.%d.%d.%d, local version: %d.%d.%d.%d\n",
+		dnet_log(n, DNET_LOG_INFO, 0, "%s: reverse lookup command: network version: %d.%d.%d.%d, local version: %d.%d.%d.%d\n",
 				dnet_state_dump_addr(st),
 				version[0], version[1], version[2], version[3],
 				CONFIG_ELLIPTICS_VERSION_0, CONFIG_ELLIPTICS_VERSION_1,
 				CONFIG_ELLIPTICS_VERSION_2, CONFIG_ELLIPTICS_VERSION_3);
 	} else {
-		dnet_log(n, DNET_LOG_ERROR, "%s: reverse lookup command: VERSION MISMATCH: "
+		dnet_log(n, DNET_LOG_ERROR, 0, "%s: reverse lookup command: VERSION MISMATCH: "
 				"network version: %d.%d.%d.%d, local version: %d.%d.%d.%d\n",
 				dnet_state_dump_addr(st),
 				version[0], version[1], version[2], version[3],
