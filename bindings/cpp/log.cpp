@@ -32,10 +32,10 @@ class ioremap::elliptics::logger_data {
 			delete impl;
 		}
 
-		static void real_logger(void *priv, const int level, uint32_t trace_id, const char *msg)
+		static void real_logger(void *priv, const int level, const char *msg)
 		{
 			if (logger_data *log = reinterpret_cast<logger_data *>(priv))
-				log->push_log(level, trace_id, msg);
+				log->push_log(level, msg);
 		}
 
 		bool check_level(int level)
@@ -43,10 +43,10 @@ class ioremap::elliptics::logger_data {
 			return (level <= log.log_level && impl);
 		}
 
-		void push_log(const int level, uint32_t trace_id, const char *msg)
+		void push_log(const int level, const char *msg)
 		{
-			if (check_level(level) || (trace_id & DNET_TRACE_BIT))
-				impl->log(level, trace_id, msg);
+			if (check_level(level))
+				impl->log(level, msg);
 		}
 
 		dnet_log log;
@@ -71,14 +71,14 @@ logger &logger::operator =(const logger &other) {
 	return *this;
 }
 
-void logger::log(const int level, uint32_t trace_id, const char *msg)
+void logger::log(const int level, const char *msg)
 {
-	m_data->push_log(level, trace_id, msg);
+    m_data->push_log(level, msg);
 }
 
-void logger::print(int level, uint32_t trace_id, const char *format, ...)
+void logger::print(int level, const char *format, ...)
 {
-	if (!m_data->check_level(level) && !(trace_id & DNET_TRACE_BIT))
+	if (!m_data->check_level(level))
 		return;
 
 	va_list args;
@@ -89,7 +89,7 @@ void logger::print(int level, uint32_t trace_id, const char *format, ...)
 
 	vsnprintf(buffer, buffer_size, format, args);
 	buffer[buffer_size - 1] = '\0';
-	m_data->impl->log(level, trace_id, buffer);
+	m_data->impl->log(level, buffer);
 
 	va_end(args);
 }
@@ -119,11 +119,10 @@ class file_logger_interface : public logger_interface {
 		~file_logger_interface() {
 		}
 
-		void log(const int level, uint32_t trace_id, const char *msg)
+		void log(int level, const char *msg)
 		{
 			(void) level;
 			char str[64];
-			char trace[64] = "";
 			struct tm tm;
 			struct timeval tv;
 			char usecs_and_id[64];
@@ -132,16 +131,13 @@ class file_logger_interface : public logger_interface {
 			localtime_r((time_t *)&tv.tv_sec, &tm);
 			strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-			if (trace_id)
-				snprintf(trace, sizeof(trace), "[%u] ", trace_id&~DNET_TRACE_BIT);
-
 			snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %ld/%d : ", tv.tv_usec, dnet_get_id(), getpid());
 
 			if (m_stream) {
-				m_stream << trace << str << usecs_and_id << msg;
+				m_stream << str << usecs_and_id << msg;
 				m_stream.flush();
 			} else {
-				std::cerr << trace << str << usecs_and_id << ": could not write log in elliptics file logger" << std::endl;
+				std::cerr << str << usecs_and_id << ": could not write log in elliptics file logger" << std::endl;
 			}
 		}
 

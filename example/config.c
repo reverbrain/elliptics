@@ -74,10 +74,8 @@ static int dnet_simple_set(struct dnet_config_backend *b __unused, char *key, ch
 {
 	unsigned long value = strtoul(str, NULL, 0);
 
-	if (!strcmp(key, "log_level")) {
+	if (!strcmp(key, "log_level"))
 		dnet_cur_cfg_data->backend_logger.log_level = value;
-		dnet_cur_cfg_data->backend_logger_raw.log_level = value;
-	}
 	else if (!strcmp(key, "wait_timeout"))
 		dnet_cur_cfg_data->cfg_state.wait_timeout = value;
 	else if (!strcmp(key, "check_timeout"))
@@ -177,9 +175,9 @@ static int dnet_set_addr(struct dnet_config_backend *b __unused, char *key __unu
 			addr.family = dnet_cur_cfg_data->cfg_state.family;
 			err = dnet_fill_addr(&addr, value, dnet_cur_cfg_data->cfg_state.port, SOCK_STREAM, IPPROTO_TCP);
 			if (err) {
-				dnet_backend_log(DNET_LOG_ERROR, 0, "backend: %s: could not parse addr: %s [%d]\n", value, strerror(-err), err);
+				dnet_backend_log(DNET_LOG_ERROR, "backend: %s: could not parse addr: %s [%d]\n", value, strerror(-err), err);
 			} else {
-				dnet_backend_log(DNET_LOG_INFO, 0, "backend: parsed addr: %s, addr-group: %d\n",
+				dnet_backend_log(DNET_LOG_INFO, "backend: parsed addr: %s, addr-group: %d\n",
 						dnet_server_convert_dnet_addr(&addr), addr_group);
 
 				wrap = realloc(wrap, (wrap_num + 1) * sizeof(struct dnet_addr_wrap));
@@ -254,11 +252,11 @@ static int dnet_set_malloc_options(struct dnet_config_backend *b __unused, char 
 
 	err = mallopt(M_MMAP_THRESHOLD, thr);
 	if (err < 0) {
-		dnet_backend_log(DNET_LOG_ERROR, 0, "Failed to set mmap threshold to %d: %s\n", thr, strerror(errno));
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to set mmap threshold to %d: %s\n", thr, strerror(errno));
 		return err;
 	}
 
-	dnet_backend_log(DNET_LOG_INFO, 0, "Set mmap threshold to %d.\n", thr);
+	dnet_backend_log(DNET_LOG_INFO, "Set mmap threshold to %d.\n", thr);
 	return 0;
 }
 
@@ -288,8 +286,6 @@ static int dnet_node_set_log_impl(struct dnet_config_data *data, char *value)
 
 		data->backend_logger.log_private = NULL;
 		data->backend_logger.log = dnet_syslog;
-		data->backend_logger_raw.log_private = NULL;
-		data->backend_logger_raw.log = dnet_syslog_raw;
 	} else {
 		FILE *log, *old = data->backend_logger.log_private;
 		int err;
@@ -303,13 +299,11 @@ static int dnet_node_set_log_impl(struct dnet_config_data *data, char *value)
 
 		data->backend_logger.log_private = log;
 		data->backend_logger.log = dnet_common_log;
-		data->backend_logger_raw.log_private = log;
-		data->backend_logger_raw.log = dnet_common_log_raw;
 
-		dnet_common_log(log, -1, 0, "Reopened log file\n");
+		dnet_common_log(log, 0xff, "Reopened log file\n");
 
 		if (old) {
-			dnet_common_log(old, -1, 0, "Reopened log file\n");
+			dnet_common_log(old, 0xff, "Reopened log file\n");
 			fclose(old);
 		}
 	}
@@ -322,7 +316,7 @@ int dnet_node_reset_log(struct dnet_node *n)
 {
 	return dnet_node_set_log_impl(n->config_data, n->config_data->logger_value);
 }
-
+	
 static int dnet_set_log(struct dnet_config_backend *b __unused, char *key __unused, char *value)
 {
 	return dnet_node_set_log_impl(dnet_cur_cfg_data, value);
@@ -387,7 +381,6 @@ static int dnet_set_backend(struct dnet_config_backend *current_backend __unused
 			}
 
 			b->log = dnet_cur_cfg_data->cfg_state.log;
-			b->log_raw = dnet_cur_cfg_data->cfg_state.log_raw;
 
 			dnet_cur_cfg_data->cfg_entries = b->ent;
 			dnet_cur_cfg_data->cfg_size = b->num;
@@ -451,10 +444,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 
 	dnet_cur_cfg_data->backend_logger.log_level = DNET_LOG_DEBUG;
 	dnet_cur_cfg_data->backend_logger.log = dnet_common_log;
-	dnet_cur_cfg_data->backend_logger_raw.log_level = DNET_LOG_DEBUG;
-	dnet_cur_cfg_data->backend_logger_raw.log = dnet_common_log_raw;
 	dnet_cur_cfg_data->cfg_state.log = &dnet_cur_cfg_data->backend_logger;
-	dnet_cur_cfg_data->cfg_state.log_raw = &dnet_cur_cfg_data->backend_logger_raw;
 
 	err = dnet_file_backend_init();
 	if (err)
@@ -465,7 +455,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 #endif
 	if (err)
 		goto err_out_file_exit;
-
+ 
 	err = dnet_eblob_backend_init();
 	if (err)
 		goto err_out_module_exit;
@@ -477,7 +467,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 				break;
 
 			err = -errno;
-			dnet_backend_log(DNET_LOG_ERROR, 0, "cnf: failed to read config file '%s': %s.\n", file, strerror(errno));
+			dnet_backend_log(DNET_LOG_ERROR, "cnf: failed to read config file '%s': %s.\n", file, strerror(errno));
 			goto err_out_free;
 		}
 
@@ -523,7 +513,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 					ptr[i] = '\0';
 					continue;
 				}
-
+				
 				if (ptr[i] ==  DNET_CONF_COMMENT) {
 					key = value = NULL;
 					break;
@@ -549,7 +539,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 		for (i=0; i<dnet_cur_cfg_data->cfg_size; ++i) {
 			if (!strcmp(key, dnet_cur_cfg_data->cfg_entries[i].key)) {
 				err = dnet_cur_cfg_data->cfg_entries[i].callback(dnet_cur_cfg_data->cfg_current_backend, key, value);
-				dnet_backend_log(DNET_LOG_INFO, 0, "backend: %s, key: %s, value: %s, err: %d\n",
+				dnet_backend_log(DNET_LOG_INFO, "backend: %s, key: %s, value: %s, err: %d\n",
 						(dnet_cur_cfg_data->cfg_current_backend) ? dnet_cur_cfg_data->cfg_current_backend->name : "root level",
 						ptr, value, err);
 				if (err)
@@ -576,7 +566,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 	f = NULL;
 
 	if (!dnet_cur_cfg_data->cfg_addr_num) {
-		dnet_backend_log(DNET_LOG_ERROR, 0, "No local address specified, exiting.\n");
+		dnet_backend_log(DNET_LOG_ERROR, "No local address specified, exiting.\n");
 		goto err_out_free;
 	}
 
@@ -629,19 +619,19 @@ int dnet_backend_check_log_level(int level)
 	return (l->log && (l->log_level >= level));
 }
 
-void dnet_backend_log_raw(int level, uint32_t trace_id, const char *format, ...)
+void dnet_backend_log_raw(int level, const char *format, ...)
 {
-	if (!dnet_backend_check_log_level(level) && !(trace_id & DNET_TRACE_BIT))
-		return;
-
 	va_list args;
 	char buf[1024];
 	struct dnet_log *l = dnet_cur_cfg_data->cfg_state.log;
 	int buflen = sizeof(buf);
 
+	if (!dnet_backend_check_log_level(level))
+		return;
+
 	va_start(args, format);
 	vsnprintf(buf, buflen, format, args);
 	buf[buflen-1] = '\0';
-	l->log(l->log_private, level, trace_id, buf);
+	l->log(l->log_private, level, buf);
 	va_end(args);
 }

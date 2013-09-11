@@ -38,7 +38,7 @@ class log_adapter_impl_t : public ioremap::elliptics::logger_interface
 	public:
 		log_adapter_impl_t(const std::shared_ptr<logging::log_t> &log);
 
-		virtual void log(const int level, uint32_t trace_id, const char *msg);
+		virtual void log(const int level, const char *msg);
 
 	private:
 		std::shared_ptr<logging::log_t> m_log;

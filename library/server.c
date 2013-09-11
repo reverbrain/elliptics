@@ -37,7 +37,7 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 	fd = open(file, O_RDWR | O_CREAT | O_TRUNC | O_APPEND | O_CLOEXEC, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_log_err(n, 0, "failed to open/create ids file '%s'", file);
+		dnet_log_err(n, "failed to open/create ids file '%s'", file);
 		goto err_out_exit;
 	}
 
@@ -57,7 +57,7 @@ static int dnet_ids_generate(struct dnet_node *n, const char *file, unsigned lon
 
 		err = write(fd, &raw, sizeof(struct dnet_raw_id));
 		if (err != sizeof(struct dnet_raw_id)) {
-			dnet_log_err(n, 0, "failed to write id into ids file '%s'", file);
+			dnet_log_err(n, "failed to write id into ids file '%s'", file);
 			goto err_out_unlink;
 		}
 	}
@@ -97,7 +97,7 @@ again:
 			goto again;
 		}
 
-		dnet_log_err(n, 0, "failed to open ids file '%s'", path);
+		dnet_log_err(n, "failed to open ids file '%s'", path);
 		goto err_out_exit;
 	}
 
@@ -106,14 +106,14 @@ again:
 		goto err_out_close;
 
 	if (st.st_size % sizeof(struct dnet_raw_id)) {
-		dnet_log(n, DNET_LOG_ERROR, 0, "Ids file size (%lu) is wrong, must be modulo of raw ID size (%zu).\n",
+		dnet_log(n, DNET_LOG_ERROR, "Ids file size (%lu) is wrong, must be modulo of raw ID size (%zu).\n",
 				(unsigned long)st.st_size, sizeof(struct dnet_raw_id));
 		goto err_out_close;
 	}
 
 	num = st.st_size / sizeof(struct dnet_raw_id);
 	if (!num) {
-		dnet_log(n, DNET_LOG_ERROR, 0, "No ids read, exiting.\n");
+		dnet_log(n, DNET_LOG_ERROR, "No ids read, exiting.\n");
 		err = -EINVAL;
 		goto err_out_close;
 	}
@@ -127,7 +127,7 @@ again:
 	err = read(fd, ids, st.st_size);
 	if (err != st.st_size) {
 		err = -errno;
-		dnet_log_err(n, 0, "Failed to read ids file '%s'", path);
+		dnet_log_err(n, "Failed to read ids file '%s'", path);
 		goto err_out_free;
 	}
 
@@ -152,17 +152,17 @@ static int dnet_node_check_stack(struct dnet_node *n)
 	err = pthread_attr_getstacksize(&n->attr, &stack_size);
 	if (err) {
 		err = -err;
-		dnet_log_err(n, 0, "Failed to get stack size: %d", err);
+		dnet_log_err(n, "Failed to get stack size: %d", err);
 		goto err_out_exit;
 	}
 
 	if (stack_size <= 1024 * 1024) {
-		dnet_log(n, DNET_LOG_ERROR, 0, "Stack size (%zd bytes) is too small, exiting\n", stack_size);
+		dnet_log(n, DNET_LOG_ERROR, "Stack size (%zd bytes) is too small, exiting\n", stack_size);
 		err = -ENOMEM;
 		goto err_out_exit;
 	}
 
-	dnet_log(n, DNET_LOG_NOTICE, 0, "Stack size: %zd bytes\n", stack_size);
+	dnet_log(n, DNET_LOG_NOTICE, "Stack size: %zd bytes\n", stack_size);
 
 err_out_exit:
 	return err;
@@ -225,7 +225,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, str
 		if (err)
 			goto err_out_node_destroy;
 
-		dnet_log(n, DNET_LOG_NOTICE, 0, "No notify hash size provided, using default %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "No notify hash size provided, using default %d.\n",
 				n->notify_hash_size);
 	}
 
@@ -270,18 +270,18 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, str
 		ids = NULL;
 
 		if (!cfg->srw.config) {
-			dnet_log(n, DNET_LOG_INFO, 0, "srw: no config\n");
+			dnet_log(n, DNET_LOG_INFO, "srw: no config\n");
 			n->srw = NULL;
 		} else {
 			err = dnet_srw_init(n, cfg);
 			if (err) {
-				dnet_log(n, DNET_LOG_ERROR, 0, "srw: initialization failure: %s %d\n", strerror(-err), err);
+				dnet_log(n, DNET_LOG_ERROR, "srw: initialization failure: %s %d\n", strerror(-err), err);
 				goto err_out_state_destroy;
 			}
 		}
 	}
 
-	dnet_log(n, DNET_LOG_DEBUG, 0, "New server node has been created at port %d, ids: %d.\n", cfg->port, id_num);
+	dnet_log(n, DNET_LOG_DEBUG, "New server node has been created at port %d, ids: %d.\n", cfg->port, id_num);
 
 	pthread_sigmask(SIG_SETMASK, &previous_sigset, NULL);
 	return n;
@@ -308,7 +308,7 @@ err_out_exit:
 
 void dnet_server_node_destroy(struct dnet_node *n)
 {
-	dnet_log(n, DNET_LOG_DEBUG, 0, "Destroying server node.\n");
+	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node.\n");
 
 	dnet_srw_cleanup(n);
 	dnet_cache_cleanup(n);

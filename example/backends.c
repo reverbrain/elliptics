@@ -48,7 +48,7 @@ static int backend_vm_stat(struct dnet_stat *st)
 	f = fopen("/proc/loadavg", "r");
 	if (!f) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, 0, "Failed to open '/proc/loadavg': %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to open '/proc/loadavg': %s [%d].\n",
 				strerror(errno), errno);
 		goto err_out_exit;
 	}
@@ -59,7 +59,7 @@ static int backend_vm_stat(struct dnet_stat *st)
 		if (!err)
 			err = -EINVAL;
 
-		dnet_backend_log(DNET_LOG_ERROR, 0, "Failed to read load average data: %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to read load average data: %s [%d].\n",
 				strerror(errno), errno);
 		goto err_out_close;
 	}
@@ -73,7 +73,7 @@ static int backend_vm_stat(struct dnet_stat *st)
 	f = fopen("/proc/meminfo", "r");
 	if (!f) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, 0, "Failed to open '/proc/meminfo': %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to open '/proc/meminfo': %s [%d].\n",
 				strerror(errno), errno);
 		goto err_out_exit;
 	}
@@ -108,7 +108,7 @@ static int backend_vm_stat(struct dnet_stat *st)
 	err = sysctlbyname("vm.loadavg", &la, &sz, NULL, 0);
 	if (err) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, 0, "Failed to get load average data: %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to get load average data: %s [%d].\n",
 				strerror(errno), errno);
 		return err;
 	}
@@ -159,7 +159,7 @@ int backend_stat_low_level(const char *path, struct dnet_stat *st)
 	err = statvfs(path, &s);
 	if (err) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, 0, "Failed to get VFS statistics of '%s': %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to get VFS statistics of '%s': %s [%d].\n",
 				path, strerror(errno), errno);
 		return err;
 	}
@@ -184,7 +184,7 @@ int backend_stat_low_level(const char *path, struct dnet_stat *st)
 	la[1] = (float)st->la[1] / 100.0;
 	la[2] = (float)st->la[2] / 100.0;
 
-	dnet_backend_log(DNET_LOG_DEBUG, 0, "Stat: la: %f %f %f, mem: total: %llu, free: %llu, cache: %llu.\n",
+	dnet_backend_log(DNET_LOG_DEBUG, "Stat: la: %f %f %f, mem: total: %llu, free: %llu, cache: %llu.\n",
 		la[0], la[1], la[2],
 		(unsigned long long)st->vm_total, (unsigned long long)st->vm_free, (unsigned long long)st->vm_cached);
 
@@ -218,7 +218,7 @@ int backend_storage_size(struct dnet_config_backend *b, const char *root)
 	err = statvfs(root, &s);
 	if (err) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, 0, "Failed to get VFS statistics of '%s': %s [%d].\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to get VFS statistics of '%s': %s [%d].\n",
 				root, strerror(errno), errno);
 		return err;
 	}
