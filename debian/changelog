@@ -1,3 +1,11 @@
+elliptics (2.24.14.5) unstable; urgency=low
+
+  * Put/complete stalled/timedout transactions on error not under state_lock
+  * Revert "Merge pull request #217 from shaitan/trace"
+  * Get rid of libelliptics_module_backend_cpp.so in elliptics spec
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 11 Sep 2013 20:22:09 +0400
+
 elliptics (2.24.14.4) unstable; urgency=low
 
   * Added trace_id to dnet_backend_log. Added DNET_TRACE_BIT for ignoring current log level for traced request.

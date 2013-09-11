@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.4
+Version:	2.24.14.5
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Sep 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.5
+- Put/complete stalled/timedout transactions on error not under state_lock
+- Revert "Merge pull request #217 from shaitan/trace"
+- Get rid of libelliptics_module_backend_cpp.so in elliptics spec
+
 * Tue Sep 10 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.4
 - Added trace_id to dnet_backend_log. Added DNET_TRACE_BIT for ignoring current log level for traced request.
 - Added printing begin and end of id in dnet_dump_id_len
