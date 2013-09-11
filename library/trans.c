@@ -286,7 +286,7 @@ err_out_exit:
 
 static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *head)
 {
-	struct dnet_trans *t;
+	struct dnet_trans *t, *tmp;
 	struct timeval tv;
 	int trans_timeout = 0;
 	char str[64];
@@ -295,7 +295,7 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 	gettimeofday(&tv, NULL);
 
 	pthread_mutex_lock(&st->trans_lock);
-	list_for_each_entry(t, &st->trans_list, trans_list_entry) {
+	list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
 		if (t->time.tv_sec >= tv.tv_sec)
 			break;
 
