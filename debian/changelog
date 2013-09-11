@@ -1,3 +1,9 @@
+elliptics (2.24.14.6) unstable; urgency=low
+
+  * We have to use list_for_each_entry_safe() when moving object from list being iterated.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 11 Sep 2013 21:42:19 +0400
+
 elliptics (2.24.14.5) unstable; urgency=low
 
   * Put/complete stalled/timedout transactions on error not under state_lock
