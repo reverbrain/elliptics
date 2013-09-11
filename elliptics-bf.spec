@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.6
+Version:	2.24.14.7
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.7
+- Do not reset state in auth/reverse lookup commands
+
 * Wed Sep 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.6
 - We have to use list_for_each_entry_safe() when moving object from list being iterated.
 
