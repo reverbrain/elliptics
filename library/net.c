@@ -861,7 +861,7 @@ static int dnet_auth_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 		dnet_log(n, DNET_LOG_ERROR, "%s: authentication request failed: %d\n", dnet_state_dump_addr(state), cmd->status);
 
 		state->__join_state = 0;
-		dnet_state_reset(state, -ECONNRESET);
+		//dnet_state_reset(state, -ECONNRESET);
 	}
 
 	return cmd->status;
