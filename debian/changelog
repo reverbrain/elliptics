@@ -1,3 +1,9 @@
+elliptics (2.24.14.9) unstable; urgency=low
+
+  * Moved stall transaction processing into dnet_io_process(), where it can be done without races.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 12 Sep 2013 04:32:25 +0400
+
 elliptics (2.24.14.8) unstable; urgency=low
 
   * Fixed incorrect state used in timed out transactions cleanup

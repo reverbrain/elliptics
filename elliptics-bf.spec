@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.8
+Version:	2.24.14.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.9
+- Moved stall transaction processing into dnet_io_process(), where it can be done without races.
+
 * Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.8
 - Fixed incorrect state used in timed out transactions cleanup
 - Returned back state reset in auth/reverse lookup
