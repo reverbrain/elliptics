@@ -1345,6 +1345,7 @@ int dnet_try_reconnect(struct dnet_node *n)
 		if (ast->__join_state == DNET_JOIN)
 			join = DNET_JOIN;
 
+		err = 0;
 		st = dnet_add_state_socket(n, &ast->addr, s, &err, join);
 		if (st) {
 			dnet_log(n, DNET_LOG_INFO, "Successfully reconnected to %s, possible error: %d\n",
