@@ -284,9 +284,9 @@ err_out_exit:
 	return err;
 }
 
-static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *head)
+static void dnet_trans_check_stall(struct dnet_net_state *st)
 {
-	struct dnet_trans *t, *tmp;
+	struct dnet_trans *t;
 	struct timeval tv;
 	int trans_timeout = 0;
 	char str[64];
@@ -295,22 +295,20 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 	gettimeofday(&tv, NULL);
 
 	pthread_mutex_lock(&st->trans_lock);
-	list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
+	list_for_each_entry(t, &st->trans_list, trans_list_entry) {
 		if (t->time.tv_sec >= tv.tv_sec)
 			break;
 
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT, wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT: stall-check wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
 				dnet_state_dump_addr(st), (unsigned long long)t->trans,
 				(unsigned long)t->wait_ts.tv_sec,
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
 		trans_timeout++;
-
-		dnet_trans_remove_nolock(&st->trans_root, t);
-		list_move(&t->trans_list_entry, head);
+		break;
 	}
 	pthread_mutex_unlock(&st->trans_lock);
 
@@ -348,33 +346,14 @@ static void dnet_check_all_states(struct dnet_node *n)
 {
 	struct dnet_net_state *st, *tmp;
 	struct dnet_group *g, *gtmp;
-	struct list_head head;
-	struct dnet_trans *t, *ttmp;
-
-	INIT_LIST_HEAD(&head);
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry_safe(g, gtmp, &n->group_list, group_entry) {
 		list_for_each_entry_safe(st, tmp, &g->state_list, state_entry) {
-			dnet_trans_check_stall(st, &head);
+			dnet_trans_check_stall(st);
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
-
-	list_for_each_entry_safe(t, ttmp, &head, trans_list_entry) {
-		st = t->st;
-
-		list_del_init(&t->trans_list_entry);
-
-		t->cmd.flags = 0;
-		t->cmd.size = 0;
-		t->cmd.status = -ETIMEDOUT;
-
-		if (t->complete)
-			t->complete(st, &t->cmd, t->priv);
-
-		dnet_trans_put(t);
-	}
 }
 
 static int dnet_check_route_table(struct dnet_node *n)
