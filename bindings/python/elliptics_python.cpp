@@ -1035,7 +1035,7 @@ std::string dnet_node_status_repr(const dnet_node_status &status)
 
 void logger_log(logger &log, const char *msg, int level)
 {
-	log.log(level, 0, msg);
+	log.log(level, msg);
 }
 
 void next_impl(bp::api::object &value, const bp::api::object &next)
@@ -1439,7 +1439,6 @@ BOOST_PYTHON_MODULE(elliptics)
 		.def("get_groups", &elliptics_session::get_groups)
 
 		.add_property("trace_id", &elliptics_session::get_trace_id, &elliptics_session::set_trace_id)
-		.def("add_trace_id", &elliptics_session::set_trace_id)
 		.def("set_trace_id", &elliptics_session::set_trace_id)
 		.def("get_trace_id", &elliptics_session::get_trace_id)
 

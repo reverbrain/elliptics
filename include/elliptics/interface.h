@@ -228,7 +228,7 @@ struct dnet_log {
 	 */
 	int		log_level;
 	void	*log_private;
-	void	(* log)(void *priv, int level, uint32_t trace_id, const char *msg);
+	void	(* log)(void *priv, int level, const char *msg);
 };
 
 /*
@@ -434,7 +434,7 @@ struct dnet_node *dnet_session_get_node(struct dnet_session *s);
  * Initialize private logging system.
  */
 int dnet_log_init(struct dnet_node *s, struct dnet_log *l);
-void __attribute__((weak)) dnet_log_raw(struct dnet_node *n, int level, uint32_t trace_id, const char *format, ...) DNET_LOG_CHECK;
+void __attribute__((weak)) dnet_log_raw(struct dnet_node *n, int level, const char *format, ...) DNET_LOG_CHECK;
 
 #define NIP6(addr) \
 	(addr).s6_addr[0], \

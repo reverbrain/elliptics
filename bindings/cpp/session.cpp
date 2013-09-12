@@ -21,6 +21,8 @@
 #include <sstream>
 #include <functional>
 
+extern __thread uint32_t trace_id;
+
 namespace ioremap { namespace elliptics {
 
 template <typename T>
@@ -321,7 +323,7 @@ void remove_on_fail_impl(session &sess, const error_info &error, const std::vect
 	logger log = sess.get_node().get_log();
 
 	if (statuses.size() == 0) {
-		log.log(DNET_LOG_ERROR, sess.get_trace_id(), "Unexpected empty statuses list at remove_on_fail_impl");
+		log.log(DNET_LOG_ERROR, "Unexpected empty statuses list at remove_on_fail_impl");
 		return;
 	}
 
@@ -332,7 +334,7 @@ void remove_on_fail_impl(session &sess, const error_info &error, const std::vect
 		snprintf(buffer, sizeof(buffer), "%s: failed to exec %s: %s, going to remove data",
 			id, dnet_cmd_string(statuses.front().cmd), error.message().c_str());
 		buffer[sizeof(buffer) - 1] = '\0';
-		log.log(DNET_LOG_DEBUG, sess.get_trace_id(), buffer);
+		log.log(DNET_LOG_DEBUG, buffer);
 	}
 
 	std::vector<int> rm_groups;
@@ -367,6 +369,7 @@ class session_data
 			error_handler = error_handlers::none;
 			policy = session::default_exceptions;
 			trace_id = 0;
+			::trace_id = 0;
 		}
 
 		session_data(const session_data &other)
@@ -380,6 +383,7 @@ class session_data
 			session_ptr = dnet_session_copy(other.session_ptr);
 			if (!session_ptr)
 				throw std::bad_alloc();
+			::trace_id = other.trace_id;
 		}
 
 		~session_data()
@@ -585,6 +589,7 @@ long session::get_timeout(void) const
 void session::set_trace_id(uint32_t trace_id)
 {
 	m_data->trace_id = trace_id;
+	::trace_id = trace_id;
 }
 
 uint32_t session::get_trace_id()
@@ -1307,6 +1312,7 @@ void session::transform(const std::string &data, struct dnet_id &id)
 {
 	dnet_transform(m_data->session_ptr, (void *)data.data(), data.size(), &id);
 	id.trace_id = m_data->trace_id;
+	trace_id = m_data->trace_id;
 }
 
 void session::transform(const std::string &data, struct dnet_raw_id &id)
@@ -1318,6 +1324,7 @@ void session::transform(const data_pointer &data, dnet_id &id)
 {
 	dnet_transform(m_data->session_ptr, data.data(), data.size(), &id);
 	id.trace_id = m_data->trace_id;
+	trace_id = m_data->trace_id;
 }
 
 void session::transform(const key &id)
@@ -1513,7 +1520,7 @@ class read_data_range_callback
 				char end_id[2*len + 1];
 				char id_str[2*len + 1];
 
-				dnet_log_raw(node, DNET_LOG_NOTICE, d->id.trace_id, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d\n",
+				dnet_log_raw(node, DNET_LOG_NOTICE, "id: %s, start: %s: next: %s, end: %s, size: %llu, cmp: %d\n",
 						dnet_dump_id_len_raw(d->id.id, len, id_str),
 						dnet_dump_id_len_raw(d->start.id, len, start_id),
 						dnet_dump_id_len_raw(d->next.id, len, next_id),
@@ -1559,7 +1566,6 @@ class read_data_range_callback
 
 				dnet_log_raw(d->sess.get_node().get_native(),
 				               DNET_LOG_NOTICE,
-				               d->id.trace_id,
 				               "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
 				               dnet_dump_id(&d->id), (unsigned long long)rep->num, (unsigned long long)d->io.start,
 				               (unsigned long long)d->io.num, (unsigned long long)d->io.size);
@@ -1624,7 +1630,6 @@ class remove_data_range_callback : public read_data_range_callback
 				if (d->has_any) {
 					dnet_log_raw(d->sess.get_node().get_native(),
 					             DNET_LOG_NOTICE,
-					             d->id.trace_id,
 					             "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
 					             dnet_dump_id(&d->id), (unsigned long long)d->rep.num, (unsigned long long)d->io.start,
 					             (unsigned long long)d->io.num, (unsigned long long)d->io.size);

@@ -205,7 +205,7 @@ class default_callback
 				try {
 					entry_converter::convert(entry, data);
 				} catch (...) {
-					m_logger.print(DNET_LOG_ERROR, cmd->id.trace_id, "%s: received invalid data from server, tid: %llu, cmd: %s, status: %d, size: %llu\n",
+					m_logger.print(DNET_LOG_ERROR, "%s: received invalid data from server, tid: %llu, cmd: %s, status: %d, size: %llu\n",
 					               dnet_dump_id(&cmd->id),
 					               static_cast<unsigned long long>(cmd->trans),
 					               dnet_cmd_string(cmd->cmd),
@@ -425,7 +425,6 @@ class multigroup_callback
 						// some exception, log and try next group
 						dnet_log_raw(sess.get_node().get_native(),
 						             DNET_LOG_NOTICE,
-						             id.trace_id,
 						             "%s: iterate-groups exception: %s\n",
 						             dnet_dump_id(&id), error->message().c_str());
 						*error = error_info();
@@ -718,7 +717,6 @@ class read_bulk_callback : public read_callback
 
 				dnet_log_raw(sess.get_node().get_native(),
 				             DNET_LOG_NOTICE,
-				             id.trace_id,
 				             "start: %s: end: %s, count: %llu, addr: %s\n",
 				             dnet_dump_id(&id),
 				             dnet_dump_id(&next_id),

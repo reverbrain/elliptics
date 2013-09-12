@@ -48,7 +48,7 @@
 #endif
 
 #ifdef __GNUC__
-#define DNET_LOG_CHECK  __attribute__ ((format(printf, 4, 5)))
+#define DNET_LOG_CHECK  __attribute__ ((format(printf, 3, 4)))
 #else
 #define DNET_LOG_CHECK
 #endif

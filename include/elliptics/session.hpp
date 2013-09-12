@@ -105,7 +105,7 @@ class logger_interface
 	public:
 		virtual ~logger_interface() {}
 
-		virtual void log(const int level, uint32_t trace_id, const char *msg) = 0;
+		virtual void log(const int level, const char *msg) = 0;
 };
 
 class logger_data;
@@ -120,8 +120,8 @@ class logger
 
 		logger &operator =(const logger &other);
 
-		void		log(const int level, uint32_t trace_id, const char *msg);
-		void		print(int level, uint32_t trace_id, const char *format, ...) __attribute__ ((format(printf, 4, 5)));
+		void		log(const int level, const char *msg);
+		void		print(int level, const char *format, ...) __attribute__ ((format(printf, 3, 4)));
 		int			get_log_level();
 		struct dnet_log		*get_native();
 

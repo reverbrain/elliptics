@@ -134,7 +134,7 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 	fd = open(file, oflags, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, 0, "%s: FILE: %s: OPEN: %zd: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: OPEN: %zd: %s.\n",
 				dnet_dump_id_str(io->id), file, err, strerror(-err));
 		goto err_out_exit;
 	}
@@ -142,7 +142,7 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 	err = pwrite(fd, data, io->size, io->offset);
 	if (err != (ssize_t)io->size) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, 0, "%s: FILE: %s: WRITE: %zd: offset: %llu, size: %llu: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: WRITE: %zd: offset: %llu, size: %llu: %s.\n",
 			dnet_dump_id_str(io->id), file, err,
 			(unsigned long long)io->offset, (unsigned long long)io->size,
 			strerror(-err));
@@ -186,7 +186,7 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	if (err < 0) {
 		if (errno != EEXIST) {
 			err = -errno;
-			dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: FILE: %s: dir-create: %d: %s.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: dir-create: %d: %s.\n",
 					dnet_dump_id(&cmd->id), dir, err, strerror(-err));
 			goto err_out_exit;
 		}
@@ -201,15 +201,15 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	/* Copy data from elist to ehdr */
 	dnet_ext_list_to_hdr(&elist, &ehdr);
 
-	err = eblob_write(r->meta, &key, &ehdr, 0, ehdr_size, 0, cmd->id.trace_id);
+	err = eblob_write(r->meta, &key, &ehdr, 0, ehdr_size, 0);
 
 	if (err) {
-		dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: FILE: %s: META WRITE: %d: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: META WRITE: %d: %s.\n",
 				dnet_dump_id(&cmd->id), dir, err, strerror(-err));
 		goto err_out_remove;
 	}
 
-	dnet_backend_log(DNET_LOG_INFO, cmd->id.trace_id, "%s: FILE: %s: WRITE: Ok: offset: %llu, size: %llu.\n",
+	dnet_backend_log(DNET_LOG_INFO, "%s: FILE: %s: WRITE: Ok: offset: %llu, size: %llu.\n",
 			dnet_dump_id(&cmd->id), dir, (unsigned long long)io->offset, (unsigned long long)io->size);
 
 	if (io->flags & DNET_IO_FLAGS_WRITE_NO_FILE_INFO) {
@@ -254,7 +254,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	fd = open(file, O_RDONLY | O_CLOEXEC, 0644);
 	if (fd < 0) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: FILE: %s: READ: %d: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: READ: %d: %s.\n",
 				dnet_dump_id(&cmd->id), file, err, strerror(-err));
 		goto err_out_exit;
 	}
@@ -264,7 +264,7 @@ static int file_read(struct file_backend_root *r, void *state, struct dnet_cmd *
 	err = fstat(fd, &st);
 	if (err) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: FILE: %s: read-stat: %d: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: read-stat: %d: %s.\n",
 				dnet_dump_id(&cmd->id), file, err, strerror(-err));
 		goto err_out_close_fd;
 	}
@@ -301,7 +301,7 @@ static int file_del(struct file_backend_root *r, void *state __unused, struct dn
 		dir, dnet_dump_id_len_raw(cmd->id.id, DNET_ID_SIZE, id));
 	remove(file);
 
-	eblob_remove(r->meta, &key, cmd->id.trace_id);
+	eblob_remove(r->meta, &key);
 
 	return 0;
 }
@@ -329,20 +329,20 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	err = open(file, O_RDONLY | O_CLOEXEC);
 	if (err < 0) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: FILE: %s: info-stat-open-csum: %d: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: info-stat-open-csum: %d: %s.\n",
 			dnet_dump_id(&cmd->id), file, err, strerror(-err));
 		goto err_out_exit;
 	}
 	fd = err;
 
-	err = eblob_read_return(r->meta, &key, EBLOB_READ_NOCSUM, &wc, cmd->id.trace_id);
+	err = eblob_read_return(r->meta, &key, EBLOB_READ_NOCSUM, &wc);
 
 	if (!err && wc.total_data_size != ehdr_size) {
 		err = -ERANGE;
 	}
 
 	if (err) {
-		dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: FILE: %s: meta-read-return: %d: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: meta-read-return: %d: %s.\n",
 			dnet_dump_id(&cmd->id), file, err, strerror(-err));
 	} else {
 		struct dnet_ext_list_hdr ehdr;
@@ -350,7 +350,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 		err = dnet_ext_hdr_read(&ehdr, wc.data_fd, wc.offset);
 
 		if (err) {
-			dnet_backend_log(DNET_LOG_ERROR, cmd->id.trace_id, "%s: FILE: %s: meta-read-hdr: %d: %s.\n",
+			dnet_backend_log(DNET_LOG_ERROR, "%s: FILE: %s: meta-read-hdr: %d: %s.\n",
 				dnet_dump_id(&cmd->id), file, err, strerror(-err));
 		} else {
 			dnet_ext_hdr_to_list(&ehdr, &elist);
@@ -502,7 +502,7 @@ static int dnet_file_set_root(struct dnet_config_backend *b, char *key __unused,
 	r->rootfd = open(r->root, O_RDONLY | O_CLOEXEC);
 	if (r->rootfd < 0) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, 0, "Failed to open root '%s': %s.\n", root, strerror(-err));
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to open root '%s': %s.\n", root, strerror(-err));
 		goto err_out_free;
 	}
 	r->root_len = strlen(r->root);
@@ -510,7 +510,7 @@ static int dnet_file_set_root(struct dnet_config_backend *b, char *key __unused,
 	err = fchdir(r->rootfd);
 	if (err) {
 		err = -errno;
-		dnet_backend_log(DNET_LOG_ERROR, 0, "Failed to change current dir to root '%s' directory: %s.\n",
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to change current dir to root '%s' directory: %s.\n",
 				root, strerror(-err));
 		goto err_out_close;
 	}
@@ -562,14 +562,12 @@ static int dnet_file_db_init(struct file_backend_root *r, struct dnet_config *c,
 	ecfg.blob_size = r->blob_size;
 	ecfg.defrag_percentage = r->defrag_percentage;
 	ecfg.defrag_timeout = r->defrag_timeout;
-	/*compatibility solution. When eblob supports trace_id
-	c->log should be used instead of c->log_raw*/
 	ecfg.log = (struct eblob_log *)c->log;
 
 	r->meta = eblob_init(&ecfg);
 	if (!r->meta) {
 		err = -EINVAL;
-		dnet_backend_log(DNET_LOG_ERROR, 0, "Failed to initialize metadata eblob\n");
+		dnet_backend_log(DNET_LOG_ERROR, "Failed to initialize metadata eblob\n");
 	}
 
 	return err;

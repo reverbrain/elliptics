@@ -17,7 +17,6 @@ class local_session
 		~local_session();
 
 		void set_ioflags(uint32_t flags);
-		void set_trace_id(uint32_t trace_id);
 
 		ioremap::elliptics::data_pointer read(const dnet_id &id, int *errp);
 		ioremap::elliptics::data_pointer read(const dnet_id &id, uint64_t *user_flags, dnet_time *timestamp, int *errp);
@@ -32,7 +31,6 @@ class local_session
 		void clear_queue(int *errp = NULL);
 
 		uint32_t m_flags;
-		uint32_t m_trace_id;
 		dnet_net_state *m_state;
 };
 

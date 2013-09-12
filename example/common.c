@@ -41,6 +41,8 @@
 #define DNET_CONF_DELIM		'='
 #define DNET_CONF_TIME_DELIM	'.'
 
+extern __thread uint32_t trace_id;
+
 int dnet_parse_groups(char *value, int **groupsp)
 {
 	int len = strlen(value), i, num = 0, start = 0, pos = 0;
@@ -96,8 +98,9 @@ int dnet_parse_groups(char *value, int **groupsp)
 	return pos;
 }
 
-void dnet_common_log(void *priv, int level, uint32_t trace_id, const char *msg)
+void dnet_common_log(void *priv, int level, const char *msg)
 {
+	printf("dnet_common_log: %u\n", trace_id);
 	char str[64];
 	char trace_str[64] = "";
 	struct tm tm;
@@ -119,8 +122,9 @@ void dnet_common_log(void *priv, int level, uint32_t trace_id, const char *msg)
 	fflush(stream);
 }
 
-void dnet_syslog(void *priv __attribute__ ((unused)), int level, uint32_t trace_id, const char *msg)
+void dnet_syslog(void *priv __attribute__ ((unused)), int level, const char *msg)
 {
+	printf("dnet_syslog: %u\n", trace_id);
 	int prio = LOG_DEBUG;
 	char str[64];
 	char trace_str[64] = "";
@@ -177,7 +181,7 @@ int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
 
 		err = dnet_parse_addr(addr, &remote_port, &remote_family);
 		if (err) {
-			dnet_log_raw(n, DNET_LOG_ERROR, 0, "Failed to parse addr '%s': %d.\n", addr, err);
+			dnet_log_raw(n, DNET_LOG_ERROR, "Failed to parse addr '%s': %d.\n", addr, err);
 			goto next;
 		}
 
@@ -207,7 +211,7 @@ next:
 
 	if (!added) {
 		err = 0;
-		dnet_log_raw(n, DNET_LOG_ERROR, 0, "No remote addresses added. Continue to work though.\n");
+		dnet_log_raw(n, DNET_LOG_ERROR, "No remote addresses added. Continue to work though.\n");
 		goto err_out_exit;
 	}
 
@@ -248,7 +252,7 @@ int dnet_common_prepend_data(struct timespec *ts, uint64_t size, void *buf, int 
 	return 0;
 }
 
-#define dnet_map_log(n, level, fmt, a...) do { if ((n)) dnet_log_raw((n), level, 0, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
+#define dnet_map_log(n, level, fmt, a...) do { if ((n)) dnet_log_raw((n), level, fmt, ##a); else fprintf(stderr, fmt, ##a); } while (0)
 
 int dnet_map_history(struct dnet_node *n, char *file, struct dnet_history_map *map)
 {
