@@ -123,7 +123,6 @@ class file_logger_interface : public logger_interface {
 
 		void log(const int level, const char *msg)
 		{
-			printf("fl: %u\n", trace_id);
 			(void) level;
 			char str[64];
 			char trace[64] = "";

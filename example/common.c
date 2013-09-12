@@ -100,7 +100,6 @@ int dnet_parse_groups(char *value, int **groupsp)
 
 void dnet_common_log(void *priv, int level, const char *msg)
 {
-	printf("dnet_common_log: %u\n", trace_id);
 	char str[64];
 	char trace_str[64] = "";
 	struct tm tm;
@@ -124,7 +123,6 @@ void dnet_common_log(void *priv, int level, const char *msg)
 
 void dnet_syslog(void *priv __attribute__ ((unused)), int level, const char *msg)
 {
-	printf("dnet_syslog: %u\n", trace_id);
 	int prio = LOG_DEBUG;
 	char str[64];
 	char trace_str[64] = "";
