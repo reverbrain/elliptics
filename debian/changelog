@@ -1,3 +1,10 @@
+elliptics (2.24.14.8) unstable; urgency=low
+
+  * Fixed incorrect state used in timed out transactions cleanup
+  * Returned back state reset in auth/reverse lookup
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 12 Sep 2013 04:01:36 +0400
+
 elliptics (2.24.14.7) unstable; urgency=low
 
   * Do not reset state in auth/reverse lookup commands

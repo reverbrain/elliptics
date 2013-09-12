@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.7
+Version:	2.24.14.8
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.8
+- Fixed incorrect state used in timed out transactions cleanup
+- Returned back state reset in auth/reverse lookup
+
 * Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.7
 - Do not reset state in auth/reverse lookup commands
 
