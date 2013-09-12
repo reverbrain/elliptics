@@ -1088,6 +1088,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 					return err;
 			}
 #endif
+
 			err = dnet_process_indexes(st, cmd, data);
 			break;
 		case DNET_CMD_STAT_COUNT:
@@ -1395,8 +1396,8 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	memcpy(rio, io, sizeof(struct dnet_io_attr));
 
 	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: %s: reply: offset: %llu, size: %llu.\n",
-	               dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
-	               (unsigned long long)io->offset,	(unsigned long long)io->size);
+			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
+			(unsigned long long)io->offset,	(unsigned long long)io->size);
 
 	dnet_convert_cmd(c);
 	dnet_convert_io_attr(rio);

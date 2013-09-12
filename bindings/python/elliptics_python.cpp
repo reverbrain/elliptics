@@ -138,7 +138,7 @@ public:
 	// Implements __str__ method.
 	// Always returns printable hex representation of all id bytes
 	std::string to_str() const {
-		char buffer[DNET_ID_STR_SIZE] = {0};
+		char buffer[2*DNET_ID_SIZE + 1] = {0};
 		return std::string(dnet_dump_id_len_raw(id().id, DNET_ID_SIZE, buffer));
 	}
 
@@ -897,6 +897,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		python_find_indexes_result find_any_indexes(const bp::api::object &indexes) {
 			auto std_indexes = convert_to_vector<std::string>(indexes);
+
 			return create_result(std::move(session::find_any_indexes(std_indexes)));
 		}
 

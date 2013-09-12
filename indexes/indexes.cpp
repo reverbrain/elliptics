@@ -307,15 +307,12 @@ err_out_complete:
 		long insert_usecs = DIFF(send_remote_time, insert_time);
 		long remove_usecs = DIFF(insert_time, remove_time);
 
-		dnet_log(state->n, DNET_LOG_INFO,
-		           "%s: updated indexes: local-inserted: %zd, local-removed: %zd, "
-		           "remote-inserted: %zd, remote-removed: %zd, "
-		           "convert-time: %ld, send-remote-time: %ld, insert-time: %ld, "
-		           "remove-time: %ld, total-time: %ld usecs, err: %d\n",
-		           dnet_dump_id(&request_id), local_inserted_ids.size(), local_removed_ids.size(),
-		           remote_inserted, remote_removed,
-		           convert_usecs, send_remote_usecs, insert_usecs,
-		           remove_usecs, total_usecs, err);
+		dnet_log(state->n, DNET_LOG_INFO, "%s: updated indexes: local-inserted: %zd, local-removed: %zd, "
+				"remote-inserted: %zd, remote-removed: %zd, "
+				"convert-time: %ld, send-remote-time: %ld, insert-time: %ld, remove-time: %ld, total-time: %ld usecs, err: %d\n",
+				dnet_dump_id(&request_id), local_inserted_ids.size(), local_removed_ids.size(),
+				remote_inserted, remote_removed,
+				convert_usecs, send_remote_usecs, insert_usecs, remove_usecs, total_usecs, err);
 
 		return err;
 	}

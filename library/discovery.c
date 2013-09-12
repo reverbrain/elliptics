@@ -40,9 +40,9 @@ static int dnet_discovery_add_v4(struct dnet_node *n, struct dnet_addr *addr, in
 	err = setsockopt(s, IPPROTO_IP, IP_MULTICAST_LOOP, &dnet_discover_loop, sizeof(dnet_discover_loop));
 	if (err < 0) {
 		err = -errno;
-		dnet_log_err(n, "unable to set loopback option");
+    		dnet_log_err(n, "unable to set loopback option");
 		goto err_out_exit;
-	}
+  	}
 
 	err = setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, &dnet_discover_ttl, sizeof(dnet_discover_ttl));
 	if (err < 0) {

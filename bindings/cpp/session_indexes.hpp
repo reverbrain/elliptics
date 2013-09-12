@@ -59,7 +59,7 @@ static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_point
 	} catch (const std::exception &e) {
 		DNET_DUMP_ID(id_str, id);
 		dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s: unpack exception: %s, file-size: %zu\n",
-		             id_str, scope, e.what(), file.size());
+			id_str, scope, e.what(), file.size());
 		data->shard_id = 0;
 		data->shard_count = 0;
 		data->indexes.clear();
@@ -75,7 +75,7 @@ static inline void find_result_unpack(dnet_node *node, dnet_id *id, const data_p
 	} catch (const std::exception &e) {
 		DNET_DUMP_ID(id_str, id);
 		dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s: unpack exception: %s, file-size: %zu\n",
-		             id_str, scope, e.what(), file.size());
+			id_str, scope, e.what(), file.size());
 		data->clear();
 	}
 }

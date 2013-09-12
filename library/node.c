@@ -498,7 +498,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 		err = -EINVAL;
 		if (cfg->log && cfg->log->log)
 			cfg->log->log(cfg->log->log_private, DNET_LOG_ERROR, "Joining node has to register "
-			              "a command handler.\n");
+					"a command handler.\n");
 		goto err_out_exit;
 	}
 

@@ -130,7 +130,7 @@ static int file_write_raw(struct file_backend_root *r, struct dnet_io_attr *io)
 		oflags |= O_APPEND;
 	else if (!io->offset)
 		oflags |= O_TRUNC;
-
+	
 	fd = open(file, oflags, 0644);
 	if (fd < 0) {
 		err = -errno;
@@ -177,7 +177,7 @@ static int file_write(struct file_backend_root *r, void *state __unused, struct 
 	dnet_ext_io_to_list(io, &elist);
 
 	memcpy(key.id, io->id, EBLOB_ID_SIZE);
-
+	
 	data += sizeof(struct dnet_io_attr);
 
 	file_backend_get_dir(io->id, r->bit_num, dir);
@@ -360,7 +360,7 @@ static int file_info(struct file_backend_root *r, void *state, struct dnet_cmd *
 	err = dnet_send_file_info_ts(state, cmd, fd, 0, -1, &elist.timestamp);
 	if (err)
 		goto err_out_close;
-
+	
 	err = 0;
 
 err_out_close:

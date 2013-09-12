@@ -25,7 +25,7 @@
 #define DNET_ID_SIZE		64
 #endif
 #define DNET_MAX_NAME_LEN	64
-#define DNET_ID_STR_SIZE	2 * DNET_ID_SIZE + 4
+#define DNET_ID_STR_SIZE       2 * DNET_ID_SIZE + 4
 
 /*
  * Each read transaction reply is being split into

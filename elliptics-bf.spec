@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.3
+Version:	2.24.14.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -108,18 +108,11 @@ rm -rf %{buildroot}
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
 %{_libdir}/libelliptics_cocaine.so.*
-%if 0%{?rhel} < 6
-%{_libdir}/libelliptics_module_backend_cpp.so.*
-%endif
 
 %files devel
 %defattr(-,root,root,-)
 %{_libdir}/libelliptics.so
 %{_libdir}/libelliptics_cocaine.so
-%if 0%{?rhel} < 6
-%{_libdir}/libelliptics_module_backend_cpp.so
-%endif
-
 
 %files client
 %defattr(-,root,root,-)
@@ -136,6 +129,31 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.9
+- Moved stall transaction processing into dnet_io_process(), where it can be done without races.
+
+* Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.8
+- Fixed incorrect state used in timed out transactions cleanup
+- Returned back state reset in auth/reverse lookup
+
+* Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.7
+- Do not reset state in auth/reverse lookup commands
+
+* Wed Sep 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.6
+- We have to use list_for_each_entry_safe() when moving object from list being iterated.
+
+* Wed Sep 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.5
+- Put/complete stalled/timedout transactions on error not under state_lock
+- Revert "Merge pull request #217 from shaitan/trace"
+- Get rid of libelliptics_module_backend_cpp.so in elliptics spec
+
+* Tue Sep 10 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.4
+- Added trace_id to dnet_backend_log. Added DNET_TRACE_BIT for ignoring current log level for traced request.
+- Added printing begin and end of id in dnet_dump_id_len
+- Made elliptics compatible with current eblob version.
+- Added comments to eblob compatibility solution.
+- Renamed back dnet_trace* to dnet_log.
+
 * Fri Sep 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.3
 - Destroy timed out transactions in checking thread.
 - Correctly kill state with errors in it.

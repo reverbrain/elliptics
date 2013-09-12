@@ -210,13 +210,13 @@ enum dnet_log_level {
 #define DNET_MAX_ADDRLEN		256
 #define DNET_MAX_PORTLEN		8
 
-#define DNET_TRACE_BIT		(1<<31)		/*is used in trace_id for ignoring current log level*/
+#define DNET_TRACE_BIT         (1<<31)         /*is used in trace_id for ignoring current log level*/
 
 /* cfg->flags */
 #define DNET_CFG_JOIN_NETWORK		(1<<0)		/* given node joins network and becomes part of the storage */
 #define DNET_CFG_NO_ROUTE_LIST		(1<<1)		/* do not request route table from remote nodes */
-#define DNET_CFG_MIX_STATES			(1<<2)		/* mix states according to their weights before reading data */
-#define DNET_CFG_NO_CSUM			(1<<3)		/* globally disable checksum verification and update */
+#define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
+#define DNET_CFG_NO_CSUM		(1<<3)		/* globally disable checksum verification and update */
 #define DNET_CFG_RANDOMIZE_STATES	(1<<5)		/* randomize states for read requests */
 
 struct dnet_log {
@@ -226,9 +226,9 @@ struct dnet_log {
 	 * Private data is used in the log function to get access to whatever
 	 * user pointed to.
 	 */
-	int		log_level;
-	void	*log_private;
-	void	(* log)(void *priv, int level, const char *msg);
+	int			log_level;
+	void			*log_private;
+	void 			(* log)(void *priv, int level, const char *msg);
 };
 
 /*

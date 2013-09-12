@@ -625,7 +625,6 @@ void dnet_backend_log_raw(int level, const char *format, ...)
 {
 	if (!dnet_backend_check_log_level(level) && !(trace_id & DNET_TRACE_BIT))
 		return;
-
 	va_list args;
 	char buf[1024];
 	struct dnet_log *l = dnet_cur_cfg_data->cfg_state.log;

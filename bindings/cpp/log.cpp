@@ -75,7 +75,7 @@ logger &logger::operator =(const logger &other) {
 
 void logger::log(const int level, const char *msg)
 {
-	m_data->push_log(level, msg);
+    m_data->push_log(level, msg);
 }
 
 void logger::print(int level, const char *format, ...)
@@ -121,7 +121,7 @@ class file_logger_interface : public logger_interface {
 		~file_logger_interface() {
 		}
 
-		void log(const int level, const char *msg)
+		void log(int level, const char *msg)
 		{
 			(void) level;
 			char str[64];
@@ -143,7 +143,7 @@ class file_logger_interface : public logger_interface {
 				m_stream << trace << str << usecs_and_id << msg;
 				m_stream.flush();
 			} else {
-				std::cerr << trace << str << usecs_and_id << ": could not write log in elliptics file logger" << std::endl;
+				std::cerr << trace  << str << usecs_and_id << ": could not write log in elliptics file logger" << std::endl;
 			}
 		}
 

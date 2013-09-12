@@ -113,9 +113,8 @@ void dnet_common_log(void *priv, int level, const char *msg)
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	if (trace_id) {
+	if (trace_id)
 		snprintf(trace_str, sizeof(trace_str), "[%u] ", trace_id&~DNET_TRACE_BIT);
-	}
 
 	fprintf(stream, "%s%s.%06lu %ld/%4d %1d: %s", trace_str, str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
 	fflush(stream);

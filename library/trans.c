@@ -227,7 +227,7 @@ int dnet_trans_alloc_send_state(struct dnet_session *s, struct dnet_net_state *s
 
 	memcpy(&cmd->id, &ctl->id, sizeof(struct dnet_id));
 	cmd->flags = ctl->cflags;
-	cmd->size = ctl->size;
+	cmd->size = ctl->size;	
 	cmd->cmd = t->command = ctl->cmd;
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
@@ -286,14 +286,11 @@ err_out_exit:
 
 static void dnet_trans_check_stall(struct dnet_net_state *st)
 {
-	struct dnet_trans *t, *tmp;
+	struct dnet_trans *t;
 	struct timeval tv;
 	int trans_timeout = 0;
 	char str[64];
 	struct tm tm;
-	struct list_head head;
-
-	INIT_LIST_HEAD(&head);
 
 	gettimeofday(&tv, NULL);
 
@@ -305,30 +302,15 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT, wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT: stall-check wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
 				dnet_state_dump_addr(st), (unsigned long long)t->trans,
 				(unsigned long)t->wait_ts.tv_sec,
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
 		trans_timeout++;
-
-		dnet_trans_remove_nolock(&st->trans_root, t);
-		list_move(&t->trans_list_entry, &head);
+		break;
 	}
 	pthread_mutex_unlock(&st->trans_lock);
-
-	list_for_each_entry_safe(t, tmp, &head, trans_list_entry) {
-		list_del_init(&t->trans_list_entry);
-
-		t->cmd.flags = 0;
-		t->cmd.size = 0;
-		t->cmd.status = -ETIMEDOUT;
-
-		if (t->complete)
-			t->complete(st, &t->cmd, t->priv);
-
-		dnet_trans_put(t);
-	}
 
 	if (trans_timeout) {
 		st->stall++;

@@ -24,8 +24,7 @@ static int noop_process(struct dnet_net_state *, struct epoll_event *) { return 
 	     &pos->member != (head); 					\
 	     pos = n, n = list_entry(n->member.next, decltype(*n), member))
 
-local_session::local_session(dnet_node *node)
-: m_flags(DNET_IO_FLAGS_CACHE)
+local_session::local_session(dnet_node *node) : m_flags(DNET_IO_FLAGS_CACHE)
 {
 	m_state = reinterpret_cast<dnet_net_state *>(malloc(sizeof(dnet_net_state)));
 	if (!m_state)

@@ -172,7 +172,6 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 
 			for (size_t j = 0; j < known_groups.size(); ++j) {
 				id.group_id = known_groups[j];
-				id.trace_id = sess.get_trace_id();
 
 				groups[0] = id.group_id;
 				sess.set_groups(groups);

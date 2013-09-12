@@ -125,7 +125,7 @@ int dnet_notify_remove(struct dnet_net_state *st, struct dnet_cmd *cmd)
 
 		list_del(&e->notify_entry);
 		dnet_notify_entry_destroy(e);
-
+		
 		dnet_log(n, DNET_LOG_INFO, "%s: removed notification.\n", dnet_dump_id(&cmd->id));
 		break;
 	}

@@ -72,15 +72,13 @@ typedef boost::intrusive::set_base_hook<boost::intrusive::tag<sync_set_tag_t>,
 
 class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_set_base_hook_t, public sync_set_base_hook_t {
 	public:
-		data_t(const unsigned char *id)
-		{
+		data_t(const unsigned char *id) {
 			memcpy(m_id.id, id, DNET_ID_SIZE);
 		}
 
 		data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
 			m_lifetime(0), m_synctime(0), m_user_flags(0),
-			m_remove_from_disk(remove_from_disk), m_remove_from_cache(false), m_only_append(false)
-			{
+			m_remove_from_disk(remove_from_disk), m_remove_from_cache(false), m_only_append(false) {
 			memcpy(m_id.id, id, DNET_ID_SIZE);
 			dnet_empty_time(&m_timestamp);
 
@@ -410,6 +408,7 @@ class cache_t {
 		std::shared_ptr<raw_data_t> read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
 			const bool cache = (io->flags & DNET_IO_FLAGS_CACHE);
 			const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
+			(void) cmd;
 
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: before guard\n", dnet_dump_id_str(id));
 			std::unique_lock<std::mutex> guard(m_lock);
@@ -848,10 +847,10 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 
 				if (io->offset + io->size > d->size()) {
 					dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache: invalid offset/size: "
-					               "offset: %llu, size: %llu, cached-size: %zd\n",
-					               dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd),
-					               (unsigned long long)io->offset, (unsigned long long)io->size,
-					               d->size());
+							"offset: %llu, size: %llu, cached-size: %zd\n",
+							dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd),
+							(unsigned long long)io->offset, (unsigned long long)io->size,
+							d->size());
 					err = -EINVAL;
 					break;
 				}
@@ -868,7 +867,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 		}
 	} catch (const std::exception &e) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
-		               dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
+				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
 		err = -ENOENT;
 	}
 
@@ -901,7 +900,7 @@ int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, stru
 		}
 	} catch (const std::exception &e) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
-		               dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
+				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
 		err = -ENOENT;
 	}
 

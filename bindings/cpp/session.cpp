@@ -1565,10 +1565,9 @@ class read_data_range_callback
 				struct dnet_io_attr *rep = &d->rep;
 
 				dnet_log_raw(d->sess.get_node().get_native(),
-				               DNET_LOG_NOTICE,
-				               "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
-				               dnet_dump_id(&d->id), (unsigned long long)rep->num, (unsigned long long)d->io.start,
-				               (unsigned long long)d->io.num, (unsigned long long)d->io.size);
+					DNET_LOG_NOTICE, "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
+					dnet_dump_id(&d->id), (unsigned long long)rep->num, (unsigned long long)d->io.start,
+					(unsigned long long)d->io.num, (unsigned long long)d->io.size);
 
 				if (d->io.start < rep->num) {
 					rep->num -= d->io.start;
@@ -1628,11 +1627,10 @@ class remove_data_range_callback : public read_data_range_callback
 				d->last_exception = error;
 			} else {
 				if (d->has_any) {
-					dnet_log_raw(d->sess.get_node().get_native(),
-					             DNET_LOG_NOTICE,
-					             "%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
-					             dnet_dump_id(&d->id), (unsigned long long)d->rep.num, (unsigned long long)d->io.start,
-					             (unsigned long long)d->io.num, (unsigned long long)d->io.size);
+					dnet_log_raw(d->sess.get_node().get_native(), DNET_LOG_NOTICE,
+							"%s: rep_num: %llu, io_start: %llu, io_num: %llu, io_size: %llu\n",
+							dnet_dump_id(&d->id), (unsigned long long)d->rep.num, (unsigned long long)d->io.start,
+							(unsigned long long)d->io.num, (unsigned long long)d->io.size);
 				} else {
 					d->handler.complete(create_error(-ENOENT, d->io.id, "Failed to remove range data object: group: %d, size: %llu",
 						d->group_id, static_cast<unsigned long long>(d->io.size)));

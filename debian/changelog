@@ -1,3 +1,46 @@
+elliptics (2.24.14.9) unstable; urgency=low
+
+  * Moved stall transaction processing into dnet_io_process(), where it can be done without races.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 12 Sep 2013 04:32:25 +0400
+
+elliptics (2.24.14.8) unstable; urgency=low
+
+  * Fixed incorrect state used in timed out transactions cleanup
+  * Returned back state reset in auth/reverse lookup
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 12 Sep 2013 04:01:36 +0400
+
+elliptics (2.24.14.7) unstable; urgency=low
+
+  * Do not reset state in auth/reverse lookup commands
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 12 Sep 2013 03:36:37 +0400
+
+elliptics (2.24.14.6) unstable; urgency=low
+
+  * We have to use list_for_each_entry_safe() when moving object from list being iterated.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 11 Sep 2013 21:42:19 +0400
+
+elliptics (2.24.14.5) unstable; urgency=low
+
+  * Put/complete stalled/timedout transactions on error not under state_lock
+  * Revert "Merge pull request #217 from shaitan/trace"
+  * Get rid of libelliptics_module_backend_cpp.so in elliptics spec
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 11 Sep 2013 20:22:09 +0400
+
+elliptics (2.24.14.4) unstable; urgency=low
+
+  * Added trace_id to dnet_backend_log. Added DNET_TRACE_BIT for ignoring current log level for traced request.
+  * Added printing begin and end of id in dnet_dump_id_len
+  * Made elliptics compatible with current eblob version.
+  * Added comments to eblob compatibility solution.
+  * Renamed back dnet_trace* to dnet_log.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 10 Sep 2013 22:18:04 +0400
+
 elliptics (2.24.14.3) unstable; urgency=low
 
   * Destroy timed out transactions in checking thread.
