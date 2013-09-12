@@ -362,6 +362,8 @@ static void dnet_check_all_states(struct dnet_node *n)
 	pthread_mutex_unlock(&n->state_lock);
 
 	list_for_each_entry_safe(t, ttmp, &head, trans_list_entry) {
+		st = t->st;
+
 		list_del_init(&t->trans_list_entry);
 
 		t->cmd.flags = 0;
