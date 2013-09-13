@@ -618,17 +618,18 @@ int dnet_backend_check_log_level(int level)
 {
 	struct dnet_log *l = dnet_cur_cfg_data->cfg_state.log;
 
-	return (l->log && (l->log_level >= level));
+	return (l->log && ((l->log_level >= level) || (trace_id & DNET_TRACE_BIT)));
 }
 
 void dnet_backend_log_raw(int level, const char *format, ...)
 {
-	if (!dnet_backend_check_log_level(level) && !(trace_id & DNET_TRACE_BIT))
-		return;
 	va_list args;
 	char buf[1024];
 	struct dnet_log *l = dnet_cur_cfg_data->cfg_state.log;
 	int buflen = sizeof(buf);
+
+	if (!dnet_backend_check_log_level(level))
+		return;
 
 	va_start(args, format);
 	vsnprintf(buf, buflen, format, args);
