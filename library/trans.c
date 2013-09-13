@@ -284,9 +284,27 @@ err_out_exit:
 	return err;
 }
 
-static void dnet_trans_check_stall(struct dnet_net_state *st)
+static void dnet_trans_clean_list(struct list_head *head)
 {
-	struct dnet_trans *t;
+	struct dnet_trans *t, *tmp;
+
+	list_for_each_entry_safe(t, tmp, head, trans_list_entry) {
+		list_del_init(&t->trans_list_entry);
+
+		t->cmd.size = 0;
+		t->cmd.flags = 0;
+		t->cmd.status = -ETIMEDOUT;
+
+		if (t->complete)
+			t->complete(t->st, &t->cmd, t->priv);
+
+		dnet_trans_put(t);
+	}
+}
+
+static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *head)
+{
+	struct dnet_trans *t, *tmp;
 	struct timeval tv;
 	int trans_timeout = 0;
 	char str[64];
@@ -295,7 +313,7 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 	gettimeofday(&tv, NULL);
 
 	pthread_mutex_lock(&st->trans_lock);
-	list_for_each_entry(t, &st->trans_list, trans_list_entry) {
+	list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
 		if (t->time.tv_sec >= tv.tv_sec)
 			break;
 
@@ -308,6 +326,9 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
 		trans_timeout++;
+
+		dnet_trans_remove_nolock(&st->trans_root, t);
+		list_move(&t->trans_list_entry, head);
 	}
 	pthread_mutex_unlock(&st->trans_lock);
 
@@ -317,16 +338,11 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 		if (st->weight >= 2)
 			st->weight /= 2;
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d, weight: %f\n",
-				dnet_state_dump_addr(st), trans_timeout, st->stall, st->weight);
-		if (st->stall >= st->n->stall_count) {
-			shutdown(st->read_s, 2);
-			shutdown(st->write_s, 2);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d/%u, weight: %f\n",
+				dnet_state_dump_addr(st), trans_timeout, st->stall, DNET_DEFAULT_STALL_TRANSACTIONS, st->weight);
 
-			dnet_state_remove_nolock(st);
-		} else {
-			dnet_schedule_recv(st);
-			dnet_schedule_send(st);
+		if (st->stall >= st->n->stall_count) {
+			dnet_state_reset(st, -ETIMEDOUT);
 		}
 	} else {
 		st->stall = 0;
@@ -345,14 +361,17 @@ static void dnet_check_all_states(struct dnet_node *n)
 {
 	struct dnet_net_state *st, *tmp;
 	struct dnet_group *g, *gtmp;
+	LIST_HEAD(head);
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry_safe(g, gtmp, &n->group_list, group_entry) {
 		list_for_each_entry_safe(st, tmp, &g->state_list, state_entry) {
-			dnet_trans_check_stall(st);
+			dnet_trans_check_stall(st, &head);
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
+
+	dnet_trans_clean_list(&head);
 }
 
 static int dnet_check_route_table(struct dnet_node *n)

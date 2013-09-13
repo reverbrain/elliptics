@@ -692,10 +692,16 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 		if (t) {
 			if (!(cmd->flags & DNET_FLAGS_MORE)) {
 				dnet_trans_remove_nolock(&st->trans_root, t);
-				list_del_init(&t->trans_list_entry);
 			} else {
 				dnet_trans_timestamp(st, t);
 			}
+
+			/*
+			 * Always remove transaction from 'timeout' list,
+			 * thus it will not be found by checker thread and
+			 * its callback will not be called under us
+			 */
+			list_del_init(&t->trans_list_entry);
 		}
 		pthread_mutex_unlock(&st->trans_lock);
 
@@ -713,7 +719,16 @@ int dnet_process_recv(struct dnet_net_state *st, struct dnet_io_req *r)
 		if (!(cmd->flags & DNET_FLAGS_MORE)) {
 			memcpy(&t->cmd, cmd, sizeof(struct dnet_cmd));
 			dnet_trans_put(t);
+		} else {
+			/*
+			 * Put transaction back into the end of 'timeout' list with updated timestamp
+			 */
+
+			pthread_mutex_lock(&st->trans_lock);
+			dnet_trans_timestamp(st, t);
+			pthread_mutex_unlock(&st->trans_lock);
 		}
+
 		goto out;
 	}
 #if 1
@@ -773,14 +788,19 @@ static void dnet_state_remove(struct dnet_net_state *st)
 
 void dnet_state_reset(struct dnet_net_state *st, int error)
 {
-	dnet_state_remove(st);
+	dnet_log(st->n, DNET_LOG_ERROR, "%s: resetting state: %s [%d]\n",
+			dnet_state_dump_addr(st), strerror(-error), error);
 
 	pthread_mutex_lock(&st->send_lock);
+
+	dnet_state_remove_nolock(st);
+
 	if (!st->need_exit)
 		st->need_exit = error;
 
 	shutdown(st->read_s, 2);
 	shutdown(st->write_s, 2);
+
 	pthread_mutex_unlock(&st->send_lock);
 }
 
