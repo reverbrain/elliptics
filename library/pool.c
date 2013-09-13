@@ -29,6 +29,8 @@ static char *dnet_work_io_mode_string[] = {
 	[DNET_WORK_IO_MODE_NONBLOCKING] = "NONBLOCKING",
 };
 
+__thread uint32_t trace_id = 0;
+
 static char *dnet_work_io_mode_str(int mode)
 {
 	if (mode < 0 || mode >= (int)ARRAY_SIZE(dnet_work_io_mode_string))
@@ -208,7 +210,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 	pthread_mutex_lock(&pool->lock);
 	list_add_tail(&r->req_entry, &pool->list);
 	list_stat_size_increase(&pool->list_stats, 1);
-	list_stat_log(&pool->list_stats, r->st->n, "input io queue");	
+	list_stat_log(&pool->list_stats, r->st->n, "input io queue");
 	pthread_cond_signal(&pool->wait);
 	pthread_mutex_unlock(&pool->lock);
 }
@@ -702,6 +704,7 @@ static void *dnet_io_process(void *data_)
 	char str[64];
 	struct tm tm;
 	int err;
+	struct dnet_cmd *cmd;
 
 	dnet_set_name("io_pool");
 
@@ -733,6 +736,10 @@ static void *dnet_io_process(void *data_)
 			continue;
 
 		st = r->st;
+
+		cmd = r->header;
+
+		trace_id = cmd->id.trace_id;
 
 		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: got IO event: %p: hsize: %zu, dsize: %zu, mode: %s\n",
 			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, r->hsize, r->dsize, dnet_work_io_mode_str(pool->mode));

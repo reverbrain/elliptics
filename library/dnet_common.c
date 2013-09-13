@@ -74,6 +74,7 @@ void dnet_indexes_transform_object_id(struct dnet_node *node, const struct dnet_
 	char suffix[] = "\0object_table";
 
 	dnet_indexes_transform_id(node, src->id, id->id, suffix, sizeof(suffix));
+	id->trace_id = src->trace_id;
 }
 
 #ifdef WORDS_BIGENDIAN

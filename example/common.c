@@ -41,6 +41,8 @@
 #define DNET_CONF_DELIM		'='
 #define DNET_CONF_TIME_DELIM	'.'
 
+extern __thread uint32_t trace_id;
+
 int dnet_parse_groups(char *value, int **groupsp)
 {
 	int len = strlen(value), i, num = 0, start = 0, pos = 0;
@@ -99,6 +101,7 @@ int dnet_parse_groups(char *value, int **groupsp)
 void dnet_common_log(void *priv, int level, const char *msg)
 {
 	char str[64];
+	char trace_str[64] = "";
 	struct tm tm;
 	struct timeval tv;
 	FILE *stream = priv;
@@ -110,7 +113,10 @@ void dnet_common_log(void *priv, int level, const char *msg)
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	fprintf(stream, "%s.%06lu %ld/%4d %1d: %s", str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
+	if (trace_id)
+		snprintf(trace_str, sizeof(trace_str), "[%u] ", trace_id&~DNET_TRACE_BIT);
+
+	fprintf(stream, "%s%s.%06lu %ld/%4d %1d: %s", trace_str, str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
 	fflush(stream);
 }
 
@@ -118,6 +124,7 @@ void dnet_syslog(void *priv __attribute__ ((unused)), int level, const char *msg
 {
 	int prio = LOG_DEBUG;
 	char str[64];
+	char trace_str[64] = "";
 	struct tm tm;
 	struct timeval tv;
 
@@ -130,7 +137,10 @@ void dnet_syslog(void *priv __attribute__ ((unused)), int level, const char *msg
 	localtime_r((time_t *)&tv.tv_sec, &tm);
 	strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-	syslog(prio, "%s.%06lu %ld/%4d %1x: %s", str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
+	if (trace_id)
+		snprintf(trace_str, sizeof(trace_str), "[%u] ", trace_id&~DNET_TRACE_BIT);
+
+	syslog(prio, "%s%s.%06lu %ld/%4d %1x: %s", trace_str, str, tv.tv_usec, dnet_get_id(), getpid(), level, msg);
 }
 
 int dnet_common_add_remote_addr(struct dnet_node *n, char *orig_addr)
