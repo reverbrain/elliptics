@@ -308,7 +308,6 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
 		trans_timeout++;
-		break;
 	}
 	pthread_mutex_unlock(&st->trans_lock);
 
