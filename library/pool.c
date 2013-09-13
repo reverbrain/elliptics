@@ -755,6 +755,8 @@ static void *dnet_io_process(void *data_)
 
 		dnet_io_req_free(r);
 
+		trace_id = 0;
+
 		INIT_LIST_HEAD(&head);
 
 		pthread_mutex_lock(&st->trans_lock);
