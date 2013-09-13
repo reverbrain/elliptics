@@ -190,7 +190,8 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 		struct dnet_addr *addr, int s, int *errp, int join, int idx,
 		int (* process)(struct dnet_net_state *st, struct epoll_event *ev));
 
-void dnet_state_reset(struct dnet_net_state *st);
+void dnet_state_reset(struct dnet_net_state *st, int error);
+void dnet_state_clean(struct dnet_net_state *st);
 void dnet_state_remove_nolock(struct dnet_net_state *st);
 
 struct dnet_net_state *dnet_state_search_by_addr(struct dnet_node *n, struct dnet_addr *addr);
@@ -506,6 +507,7 @@ struct dnet_node
 	int			cache_sync_timeout;
 
 	pthread_t		check_tid;
+	pthread_t		reconnect_tid;
 	long			stall_count;
 
 	pthread_t		monitor_tid;
@@ -717,21 +719,6 @@ struct dnet_addr_storage
 	unsigned int			__join_state;
 };
 
-/*
- * Returns true if t1 is before than t2.
- */
-static inline int dnet_time_before(struct timespec *t1, struct timespec *t2)
-{
-	if ((long)(t1->tv_sec - t2->tv_sec) < 0)
-		return 1;
-
-	if ((long)(t2->tv_sec - t1->tv_sec) < 0)
-		return 0;
-
-	return ((long)(t1->tv_nsec - t2->tv_nsec) < 0);
-}
-#define dnet_time_after(t2, t1) 	dnet_time_before(t1, t2)
-
 int dnet_check_thread_start(struct dnet_node *n);
 void dnet_check_thread_stop(struct dnet_node *n);
 int dnet_try_reconnect(struct dnet_node *n);
@@ -766,6 +753,8 @@ int dnet_cmd_exec_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, struct sp
 int dnet_cache_init(struct dnet_node *n);
 void dnet_cache_cleanup(struct dnet_node *n);
 int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_io_attr *io, char *data);
+int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_indexes_request *request);
+int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd);
 
 int dnet_indexes_init(struct dnet_node *, struct dnet_config *);
 void dnet_indexes_cleanup(struct dnet_node *);

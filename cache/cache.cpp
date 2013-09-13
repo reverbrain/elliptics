@@ -227,11 +227,21 @@ class cache_t {
 			stop();
 			m_lifecheck.join();
 
-			m_max_cache_size = 0;
+			m_max_cache_size = 0; //sets max_size to 0 for erasing lru set
 			resize(0);
+
+			std::lock_guard<std::mutex> guard(m_lock);
+
+			while(!m_syncset.empty()) { //removes datas from syncset
+				erase_element(&*m_syncset.begin());
+			}
+
+			while(!m_lifeset.empty()) { //removes datas from lifeset
+				erase_element(&*m_lifeset.begin());
+			}
 		}
 
-		void stop(void) {
+		void stop() {
 			m_need_exit = true;
 		}
 
@@ -471,6 +481,39 @@ class cache_t {
 			return err;
 		}
 
+		int lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd) {
+			int err = 0;
+
+			std::unique_lock<std::mutex> guard(m_lock);
+			iset_t::iterator it = m_set.find(id);
+			if (it == m_set.end()) {
+				return -ENOTSUP;
+			}
+
+			dnet_time timestamp = it->timestamp();
+
+			guard.unlock();
+
+			local_session sess(m_node);
+
+			cmd->flags |= DNET_FLAGS_NOCACHE;
+
+			ioremap::elliptics::data_pointer data = sess.lookup(*cmd, &err);
+
+			cmd->flags &= ~DNET_FLAGS_NOCACHE;
+
+			if (err) {
+				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+				return dnet_send_file_info_ts_without_fd(st, cmd, NULL, 0, &timestamp);
+			}
+
+			dnet_file_info *info = data.skip<dnet_addr>().data<dnet_file_info>();
+			info->mtime = timestamp;
+
+			cmd->flags &= (DNET_FLAGS_MORE | DNET_FLAGS_NEED_ACK);
+			return dnet_send_reply(st, cmd, data.data(), data.size(), 0);
+		}
+
 	private:
 		bool m_need_exit;
 		struct dnet_node *m_node;
@@ -544,15 +587,14 @@ class cache_t {
 				++it;
 
 				if (raw->synctime() || raw->remove_from_cache()) {
-					if (raw->remove_from_cache()) {
-						removed_size += raw->size();
-					} else {
+					if (!raw->remove_from_cache()) {
 						raw->set_remove_from_cache(true);
 
 						m_syncset.erase(m_syncset.iterator_to(*raw));
 						raw->set_synctime(1);
 						m_syncset.insert(*raw);
 					}
+					removed_size += raw->size();
 				} else {
 					erase_element(raw);
 				}
@@ -721,8 +763,9 @@ class cache_manager {
 		}
 
 		~cache_manager() {
-			for (auto it = m_caches.begin(); it != m_caches.end(); ++it) {
-				(*it)->stop();
+			//Stops all caches in parallel. Avoids sleeping in all cache distructors
+			for (auto it(m_caches.begin()), end(m_caches.end()); it != end; ++it) {
+				(*it)->stop(); //Sets cache as stopped
 			}
 		}
 
@@ -738,11 +781,33 @@ class cache_manager {
 			return m_caches[idx(id)]->remove(id, io);
 		}
 
+		int lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd) {
+			return m_caches[idx(id)]->lookup(id, st, cmd);
+		}
+
+		int indexes_find(dnet_cmd *cmd, dnet_indexes_request *request) {
+			(void) cmd;
+			(void) request;
+			return -ENOTSUP;
+		}
+
+		int indexes_update(dnet_cmd *cmd, dnet_indexes_request *request) {
+			(void) cmd;
+			(void) request;
+			return -ENOTSUP;
+		}
+
+		int indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request) {
+			(void) cmd;
+			(void) request;
+			return -ENOTSUP;
+		}
+
 	private:
 		std::vector<std::shared_ptr<cache_t>> m_caches;
 
-		int idx(const unsigned char *id) {
-			int i = *(int *)id;
+		size_t idx(const unsigned char *id) {
+			unsigned i = *(unsigned *)id;
 			return i % m_caches.size();
 		}
 };
@@ -757,7 +822,7 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 	int err = -ENOTSUP;
 
 	if (!n->cache) {
-		dnet_log(n, DNET_LOG_ERROR, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
+		dnet_log(n, DNET_LOG_NOTICE, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
 		return -ENOTSUP;
 	}
 
@@ -800,6 +865,62 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 				err = cache->remove(cmd->id.id, io);
 				break;
 		}
+	} catch (const std::exception &e) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
+				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
+		err = -ENOENT;
+	}
+
+	return err;
+}
+
+int dnet_cmd_cache_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dnet_indexes_request *request)
+{
+	struct dnet_node *n = st->n;
+	int err = -ENOTSUP;
+
+	if (!n->cache) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
+		return -ENOTSUP;
+	}
+
+	cache_manager *cache = (cache_manager *)n->cache;
+
+	try {
+		switch (cmd->cmd) {
+			case DNET_CMD_INDEXES_FIND:
+				err = cache->indexes_find(cmd, request);
+				break;
+			case DNET_CMD_INDEXES_UPDATE:
+				err = cache->indexes_update(cmd, request);
+				break;
+			case DNET_CMD_INDEXES_INTERNAL:
+				err = cache->indexes_internal(cmd, request);
+				break;
+		}
+	} catch (const std::exception &e) {
+		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
+				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());
+		err = -ENOENT;
+	}
+
+	return err;
+}
+
+int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd)
+{
+	struct dnet_node *n = st->n;
+	int err = -ENOTSUP;
+
+	if (!n->cache) {
+		dnet_log(n, DNET_LOG_ERROR, "%s: cache is not supported\n", dnet_dump_id(&cmd->id));
+		return -ENOTSUP;
+	}
+
+	cache_manager *cache = (cache_manager *)n->cache;
+
+	try {
+		cache->lookup(cmd->id.id, st, cmd);
 	} catch (const std::exception &e) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "%s: %s cache operation failed: %s\n",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), e.what());

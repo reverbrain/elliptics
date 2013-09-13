@@ -188,6 +188,7 @@ class dnet_upstream_t: public cocaine::api::stream_t
 
 		virtual void close(void) {
 			srw_log log(m_s, DNET_LOG_NOTICE, "app/" + m_name, "job completed");
+			reply(true, NULL, 0);
 		}
 
 		virtual void error(int code, const std::string &message) {

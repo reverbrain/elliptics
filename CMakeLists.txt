@@ -143,3 +143,5 @@ install(FILES
         include/elliptics/module_backend.hpp
         DESTINATION include/elliptics/
         )
+
+enable_testing()

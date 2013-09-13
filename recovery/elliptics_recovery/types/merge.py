@@ -82,7 +82,7 @@ def run_iterator(ctx, group=None, address=None, routes=None, ranges=None, stats=
         )
         if result is None:
             raise RuntimeError("Iterator result is None")
-        log.debug("Iterator {0} obtained: {1} record(s)".format(result.id_range, len(result)))
+        log.debug("Iterator obtained: {0} record(s)".format(len(result)))
         stats.counter('iterations', 1)
         return result
     except Exception as e:
@@ -98,12 +98,12 @@ def sort(ctx, result, stats):
         log.debug("Sort skipped iterator results are empty")
         return None
     try:
-        log.info("Processing sorting range: {0}".format(result.id_range))
+        log.info("Processing sorting range for: {0}".format(result.address))
         result.container.sort()
         stats.counter('sort', 1)
         return result
     except Exception as e:
-        log.error("Sort of {0} failed: {1}".format(result.id_range, e))
+        log.error("Sort of {0} failed: {1}".format(result.address, e))
         stats.counter('sort', -1)
     return None
 
@@ -141,7 +141,7 @@ def recover(ctx, diff, group, stats):
     We are ignoring errors here because other applications may race with us
     """
     result = True
-    log.info("Recovering range: {0} for: {1}".format(diff.id_range, diff.address))
+    log.info("Recovering range for: {0}".format(diff.address))
 
     log.debug("Creating remote node for: {0}".format(diff.address))
     remote_node = elliptics_create_node(address=diff.address, elog=g_ctx.elog)

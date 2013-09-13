@@ -128,6 +128,9 @@ enum dnet_counters {
 /* Only valid flag for LOOKUP command - when set, return checksum in file_info structure */
 #define DNET_FLAGS_CHECKSUM		(1<<5)
 
+/* Currently only valid flag for LOOKUP command - when set, don't check fileinfo in cache */
+#define DNET_FLAGS_NOCACHE		(1<<6)
+
 struct dnet_id {
 	uint8_t			id[DNET_ID_SIZE];
 	uint32_t		group_id;
@@ -338,11 +341,27 @@ static inline void dnet_convert_list(struct dnet_list *l)
 
 #define DNET_INDEXES_FLAGS_INTERSECT		(1<<0)
 #define DNET_INDEXES_FLAGS_UNITE		(1<<1)
+#define DNET_INDEXES_FLAGS_UPDATE_ONLY	(1<<2)
 
 
 struct dnet_time {
 	uint64_t		tsec, tnsec;
 };
+
+/*
+ * Returns true if t1 is before than t2.
+ */
+static inline int dnet_time_before(struct dnet_time *t1, struct dnet_time *t2)
+{
+	if ((long)(t1->tsec - t2->tsec) < 0)
+		return 1;
+
+	if ((long)(t2->tsec - t1->tsec) < 0)
+		return 0;
+
+	return ((long)(t1->tnsec - t2->tnsec) < 0);
+}
+#define dnet_time_after(t2, t1) 	dnet_time_before(t1, t2)
 
 struct dnet_io_attr
 {

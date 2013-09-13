@@ -195,7 +195,7 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 		unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 		int reply = !!(cmd->trans & DNET_TRANS_REPLY);
 
-		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV: %s: nonblocking: %d, cmd-size: %llu, cflags: %llx, trans: %lld, reply: %d\n",
+		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV: %s: nonblocking: %d, cmd-size: %llu, cflags: 0x%llx, trans: %lld, reply: %d\n",
 			dnet_state_dump_addr(r->st), dnet_dump_id(r->header), dnet_cmd_string(cmd->cmd), nonblocking,
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags, tid, reply);
 	}
@@ -286,8 +286,8 @@ again:
 
 		tid = c->trans & ~DNET_TRANS_REPLY;
 
-		dnet_log(n, DNET_LOG_DEBUG, "%s: received trans: %llu / %llx, "
-				"reply: %d, size: %llu, flags: %llx, status: %d.\n",
+		dnet_log(n, DNET_LOG_DEBUG, "%s: received trans: %llu / 0x%llx, "
+				"reply: %d, size: %llu, flags: 0x%llx, status: %d.\n",
 				dnet_dump_id(&c->id), tid, (unsigned long long)c->trans,
 				!!(c->trans & DNET_TRANS_REPLY),
 				(unsigned long long)c->size, (unsigned long long)c->flags, c->status);
@@ -552,7 +552,7 @@ int dnet_state_net_process(struct dnet_net_state *st, struct epoll_event *ev)
 	}
 
 	if (ev->events & (EPOLLHUP | EPOLLERR)) {
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask %x\n", dnet_state_dump_addr(st), ev->events);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: received error event mask 0x%x\n", dnet_state_dump_addr(st), ev->events);
 		err = -ECONNRESET;
 	}
 err_out_exit:
@@ -565,10 +565,7 @@ static void *dnet_io_process_network(void *data_)
 	struct dnet_node *n = nio->n;
 	struct dnet_net_state *st;
 	struct epoll_event ev;
-	int err = 0, check;
-	struct dnet_trans *t, *tmp;
-	struct timeval tv;
-	struct list_head head;
+	int err = 0;
 
 	dnet_set_name("net_pool");
 
@@ -590,7 +587,6 @@ static void *dnet_io_process_network(void *data_)
 
 		st = ev.data.ptr;
 		st->epoll_fd = nio->epoll_fd;
-		check = st->stall;
 
 		while (1) {
 			err = st->process(st, &ev);
@@ -601,43 +597,19 @@ static void *dnet_io_process_network(void *data_)
 				break;
 
 			if (err < 0 || st->stall >= DNET_DEFAULT_STALL_TRANSACTIONS) {
-				dnet_state_reset(st);
-				check = 0;
+				if (!err)
+					err = -ETIMEDOUT;
+
+				dnet_state_reset(st, err);
+
+				pthread_mutex_lock(&st->send_lock);
+				dnet_unschedule_send(st);
+				dnet_unschedule_recv(st);
+				pthread_mutex_unlock(&st->send_lock);
+
+				dnet_state_put(st);
 				break;
 			}
-		}
-
-		if (!check)
-			continue;
-
-		gettimeofday(&tv, NULL);
-
-		INIT_LIST_HEAD(&head);
-
-		pthread_mutex_lock(&st->trans_lock);
-		list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
-			if (t->time.tv_sec >= tv.tv_sec)
-				break;
-
-			dnet_trans_remove_nolock(&st->trans_root, t);
-			list_move(&t->trans_list_entry, &head);
-		}
-		pthread_mutex_unlock(&st->trans_lock);
-
-		list_for_each_entry_safe(t, tmp, &head, trans_list_entry) {
-			list_del_init(&t->trans_list_entry);
-
-			t->cmd.flags = 0;
-			t->cmd.size = 0;
-			t->cmd.status = -ETIMEDOUT;
-
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: destructing trans: %llu on TIMEOUT\n",
-					dnet_state_dump_addr(st), (unsigned long long)t->trans);
-
-			if (t->complete)
-				t->complete(st, &t->cmd, t->priv);
-
-			dnet_trans_put(t);
 		}
 	}
 
@@ -649,7 +621,13 @@ static void dnet_io_cleanup_states(struct dnet_node *n)
 	struct dnet_net_state *st, *tmp;
 
 	list_for_each_entry_safe(st, tmp, &n->storage_state_list, storage_state_entry) {
-		dnet_state_reset(st);
+		dnet_unschedule_send(st);
+		dnet_unschedule_recv(st);
+
+		dnet_state_reset(st, -EUCLEAN);
+
+		dnet_state_clean(st);
+		dnet_state_put(st);
 	}
 }
 
@@ -715,10 +693,14 @@ static void *dnet_io_process(void *data_)
 	struct dnet_work_io *wio = data_;
 	struct dnet_work_pool *pool = wio->pool;
 	struct dnet_node *n = pool->n;
+	struct dnet_trans *t, *tmp;
 	struct dnet_net_state *st;
+	struct list_head head;
 	struct timespec ts;
 	struct timeval tv;
 	struct dnet_io_req *r;
+	char str[64];
+	struct tm tm;
 	int err;
 
 	dnet_set_name("io_pool");
@@ -758,6 +740,44 @@ static void *dnet_io_process(void *data_)
 		err = dnet_process_recv(st, r);
 
 		dnet_io_req_free(r);
+
+		INIT_LIST_HEAD(&head);
+
+		pthread_mutex_lock(&st->trans_lock);
+		list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
+			if (t->time.tv_sec >= tv.tv_sec)
+				break;
+
+			localtime_r((time_t *)&t->start.tv_sec, &tm);
+			strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+			dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT: process: wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
+					dnet_state_dump_addr(st), (unsigned long long)t->trans,
+					(unsigned long)t->wait_ts.tv_sec,
+					dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
+					str, t->start.tv_usec);
+
+			dnet_trans_remove_nolock(&st->trans_root, t);
+			list_move(&t->trans_list_entry, &head);
+		}
+		pthread_mutex_unlock(&st->trans_lock);
+
+
+		list_for_each_entry_safe(t, tmp, &head, trans_list_entry) {
+			st = t->st;
+
+			list_del_init(&t->trans_list_entry);
+
+			t->cmd.flags = 0;
+			t->cmd.size = 0;
+			t->cmd.status = -ETIMEDOUT;
+
+			if (t->complete)
+				t->complete(st, &t->cmd, t->priv);
+
+			dnet_trans_put(t);
+		}
+
 		dnet_state_put(st);
 	}
 

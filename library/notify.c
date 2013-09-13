@@ -102,7 +102,7 @@ int dnet_notify_add(struct dnet_net_state *st, struct dnet_cmd *cmd)
 	list_add_tail(&e->notify_entry, &b->notify_list);
 	pthread_rwlock_unlock(&b->notify_lock);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: added notification, hash: %x.\n", dnet_dump_id(&cmd->id), hash);
+	dnet_log(n, DNET_LOG_INFO, "%s: added notification, hash: 0x%x.\n", dnet_dump_id(&cmd->id), hash);
 
 	return 0;
 }

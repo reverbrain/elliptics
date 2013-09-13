@@ -29,7 +29,7 @@ class remover:
 					eid = elliptics_id(list(bytearray(id)), g, -1)
 					self.n.remove(eid, 0)
 
-				print "%s: flags: %x, position: %d, data_size: %d" % \
+				print "%s: flags: 0x%x, position: %d, data_size: %d" % \
 					(b.sid(count=64), b.flags, b.position, b.data_size)
 
 

@@ -204,7 +204,7 @@ public:
 	void write()
 	{
 		std::ofstream out;
-		out.open(m_path);
+		out.open(m_path.c_str());
 
 		if (!out) {
 			throw std::runtime_error("Can not open file \"" + m_path + "\" for writing");
@@ -551,13 +551,6 @@ static void test_cache_delete(session &sess, int num, int percentage)
 	}
 }
 
-static void test_lookup(session &sess, const std::string &id, const std::string &data)
-{
-	ELLIPTICS_REQUIRE(write_result, sess.write_data(id, data, 0));
-
-	ELLIPTICS_REQUIRE(lookup_result, sess.lookup(id));
-}
-
 static void test_cas(session &sess)
 {
 	const std::string key = "cas-test";
@@ -590,21 +583,16 @@ static void test_cas(session &sess)
 
 static void test_append(session &sess)
 {
-	const std::string key_a = "append-test";
-	const std::string key_ap = "append-prepare-test";
 	const std::string data = "first part of the message";
 	const std::string data_append = " | second part of the message";
+	const std::string data_append_more = " | third part of the message";
 	read_result_entry read_entry;
 
-	// Clone sessions
-	session sa = sess.clone();
-	session sap = sess.clone();
-
-	// Write data
-	ELLIPTICS_REQUIRE(write_result1, sess.write_data(key_a, data, 0));
-	ELLIPTICS_REQUIRE(write_result2, sess.write_data(key_ap, data, 0));
-
 	// Append
+	const std::string key_a = "append-test";
+	ELLIPTICS_REQUIRE(write_result1, sess.write_data(key_a, data, 0));
+
+	session sa = sess.clone();
 	sa.set_ioflags(sa.get_ioflags() | DNET_IO_FLAGS_APPEND);
 	ELLIPTICS_REQUIRE(append_result1, sa.write_data(key_a, data_append, 0));
 
@@ -612,13 +600,41 @@ static void test_append(session &sess)
 	read_entry = read_result1.get_one();
 	BOOST_REQUIRE_EQUAL(read_entry.file().to_string(), data + data_append);
 
+	// Append only
+	const std::string key_ao = "append-only-test";
+	ELLIPTICS_REQUIRE(write_result_ao1, sa.write_data(key_ao, data, 0));
+	ELLIPTICS_REQUIRE(write_result_ao2, sa.write_data(key_ao, data_append, 0));
+	ELLIPTICS_REQUIRE(write_result_ao3, sa.write_data(key_ao, data_append_more, 0));
+	ELLIPTICS_REQUIRE(read_result_ao, sa.read_data(key_ao, 0, 0));
+	read_entry = read_result_ao.get_one();
+	BOOST_REQUIRE_EQUAL(read_entry.file().to_string(),
+			data + data_append + data_append_more);
+
 	// Apend + Prepare
+	const std::string key_ap = "append-prepare-test";
+	ELLIPTICS_REQUIRE(write_result2, sess.write_data(key_ap, data, 0));
+
+	session sap = sess.clone();
 	sap.set_ioflags(sap.get_ioflags() | DNET_IO_FLAGS_APPEND | DNET_IO_FLAGS_PREPARE);
 	ELLIPTICS_REQUIRE(append_result2, sap.write_data(key_ap, data_append, 0));
 
 	ELLIPTICS_REQUIRE(read_result2, sap.read_data(key_ap, 0, 0));
 	read_entry = read_result2.get_one();
 	BOOST_REQUIRE_EQUAL(read_entry.file().to_string(), data + data_append);
+
+	// Multi-Append
+	const std::string key_ma = "multi-append-test";
+	std::string full;
+	for (int i = 0; i < 1000; ++i) {
+		std::ostringstream str;
+		str << "test_" << i << ", ";
+		ELLIPTICS_REQUIRE(append_result_ma, sa.write_data(key_ma, str.str(), 0));
+
+		ELLIPTICS_REQUIRE(read_result_ma, sa.read_data(key_ma, 0, 0));
+		full.append(str.str());
+		read_entry = read_result_ma.get_one();
+		BOOST_REQUIRE_EQUAL(read_entry.file().to_string(), full);
+	}
 }
 
 static void test_read_write_offsets(session &sess)
@@ -973,6 +989,129 @@ static void test_partial_bulk_read(session &sess)
 	BOOST_REQUIRE_EQUAL(bulk_entries[0].file().to_string(), first_data);
 }
 
+static void test_indexes_update(session &sess)
+{
+	data_pointer first_data = data_pointer::copy("1", 1);
+	data_pointer second_data = data_pointer::copy("22", 2);
+//	data_pointer third_data = data_pointer::copy("333", 3);
+
+	std::map<key, std::string> mapper;
+
+	std::vector<std::string> first_indexes = {
+		"index_1",
+		"index_2",
+		"index_3"
+	};
+
+	std::vector<std::string> second_indexes = {
+		"index_3",
+		"index_4",
+		"index_5"
+	};
+
+	std::vector<std::string> all_indexes = {
+		"index_1",
+		"index_2",
+		"index_3",
+		"index_4",
+		"index_5"
+	};
+
+	for (auto it = all_indexes.begin(); it != all_indexes.end(); ++it) {
+		key tmp_key(*it);
+		tmp_key.transform(sess);
+		mapper[tmp_key.id()] = *it;
+	}
+
+	std::vector<data_pointer> data(first_indexes.size(), first_data);
+
+	std::string first_key = "indexes_update";
+
+	ELLIPTICS_REQUIRE(set_indexes_result, sess.set_indexes(first_key, first_indexes, data));
+	ELLIPTICS_REQUIRE(first_find_result, sess.find_any_indexes(all_indexes));
+
+	sync_find_indexes_result first_sync_find_result = first_find_result.get();
+
+	BOOST_REQUIRE_EQUAL(first_sync_find_result.size(), 1);
+	BOOST_REQUIRE_EQUAL(first_sync_find_result[0].indexes.size(), 3);
+
+	data.assign(second_indexes.size(), second_data);
+
+	ELLIPTICS_REQUIRE(update_indexes_result, sess.update_indexes_internal(first_key, second_indexes, data));
+	ELLIPTICS_REQUIRE(second_find_result, sess.find_any_indexes(all_indexes));
+
+	sync_find_indexes_result second_sync_find_result = second_find_result.get();
+
+	BOOST_REQUIRE_EQUAL(second_sync_find_result.size(), 1);
+	BOOST_REQUIRE_EQUAL(second_sync_find_result[0].indexes.size(), 5);
+
+	for (auto it = second_sync_find_result[0].indexes.begin();
+		it != second_sync_find_result[0].indexes.end();
+		++it) {
+		const index_entry &entry = *it;
+
+		std::string id = mapper[entry.index];
+		auto first_it = std::find(first_indexes.begin(), first_indexes.end(), id);
+		auto second_it = std::find(second_indexes.begin(), second_indexes.end(), id);
+
+		BOOST_REQUIRE((first_it != first_indexes.end()) || (second_it != second_indexes.end()));
+
+		if (second_it != second_indexes.end())
+			BOOST_REQUIRE_EQUAL(entry.data.to_string(), second_data.to_string());
+		else
+			BOOST_REQUIRE_EQUAL(entry.data.to_string(), first_data.to_string());
+	}
+}
+
+static void test_lookup(session &sess, const std::string &id, const std::string &data)
+{
+	dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	dnet_current_time(&io.timestamp);
+
+	key kid(id);
+	kid.transform(sess);
+	memcpy(io.id, kid.raw_id().id, DNET_ID_SIZE);
+
+	ELLIPTICS_REQUIRE(write_result, sess.write_data(io, data));
+	ELLIPTICS_REQUIRE(read_result, sess.read_data(kid, 0, 0));
+	ELLIPTICS_REQUIRE(lookup_result, sess.lookup(kid));
+	dnet_time new_time = lookup_result.get_one().file_info()->mtime;
+	BOOST_REQUIRE_EQUAL(new_time.tsec, io.timestamp.tsec);
+	BOOST_REQUIRE_EQUAL(new_time.tnsec, io.timestamp.tnsec);
+}
+
+static void test_prepare_latest(session &sess, const std::string &id)
+{
+	const std::string first_data = "first-data";
+	const std::string second_data = "second-data";
+
+	dnet_raw_id raw_id;
+	sess.transform(id, raw_id);
+
+	session first_sess = sess.clone();
+	first_sess.set_groups(std::vector<int>(1, 1));
+	session second_sess = sess.clone();
+	second_sess.set_groups(std::vector<int>(1, 2));
+
+	dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	dnet_current_time(&io.timestamp);
+	memcpy(io.id, raw_id.id, DNET_ID_SIZE);
+
+	ELLIPTICS_REQUIRE(first_write_result, first_sess.write_data(io, first_data));
+
+	io.timestamp.tsec += 5;
+
+	ELLIPTICS_REQUIRE(second_write_result, second_sess.write_data(io, second_data));
+
+	ELLIPTICS_REQUIRE(prepare_result, sess.prepare_latest(id, std::vector<int>({ 1, 2 })));
+
+	auto lookup_result = prepare_result.get();
+
+	BOOST_REQUIRE_EQUAL(lookup_result.size(), 2);
+}
+
 bool register_tests()
 {
 	srand(time(0));
@@ -989,6 +1128,10 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "new-data-long");
 	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "short");
 	ELLIPTICS_TEST_CASE(test_remove, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id");
+	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, 0), "new-id-real", "new-data");
+	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, 0), "new-id-real", "new-data-long");
+	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, 0), "new-id-real", "short");
+	ELLIPTICS_TEST_CASE(test_remove, create_session(n, {1, 2}, 0, 0), "new-id-real");
 	ELLIPTICS_TEST_CASE(test_recovery, create_session(n, {1, 2}, 0, 0), "recovery-id", "recovered-data");
 	ELLIPTICS_TEST_CASE(test_indexes, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {99}, 0, 0), "non-existen-key", -ENXIO);
@@ -996,6 +1139,7 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_cache_read, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY | DNET_IO_FLAGS_NOCSUM), 1000, 20);
 	ELLIPTICS_TEST_CASE(test_cache_delete, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000, 20);
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, 0), "2.xml", "lookup data");
+	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "cache-2.xml", "lookup data");
 	ELLIPTICS_TEST_CASE(test_cas, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CHECKSUM));
 	ELLIPTICS_TEST_CASE(test_append, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE));
 	ELLIPTICS_TEST_CASE(test_read_write_offsets, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE));
@@ -1013,6 +1157,8 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_cache_populating, create_session(n, {1, 2}, 0, 0), "cache-populated-key", "cache-data");
 	ELLIPTICS_TEST_CASE(test_metadata, create_session(n, {1, 2}, 0, 0), "metadata-key", "meta-data");
 	ELLIPTICS_TEST_CASE(test_partial_bulk_read, create_session(n, {1, 2, 3}, 0, 0));
+	ELLIPTICS_TEST_CASE(test_indexes_update, create_session(n, {2}, 0, 0));
+	ELLIPTICS_TEST_CASE(test_prepare_latest, create_session(n, {1, 2}, 0, 0), "prepare-latest-key");
 
 	return true;
 }

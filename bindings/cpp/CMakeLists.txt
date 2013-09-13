@@ -37,7 +37,12 @@ add_library(test_common STATIC
 target_link_libraries(test_common dl)
 
 add_executable(dnet_cpp_test test.cpp)
+set_target_properties(dnet_cpp_test PROPERTIES
+    LINK_FLAGS "-Wl,-rpath,${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_CURRENT_BINARY_DIR}/../:${CMAKE_CURRENT_BINARY_DIR}/../../library:${CMAKE_CURRENT_BINARY_DIR}/../../srw")
 target_link_libraries(dnet_cpp_test elliptics elliptics_cocaine elliptics_cpp dl ${Boost_FILESYSTEM_LIBRARY} test_common)
+
+enable_testing()
+add_test(NAME test COMMAND dnet_cpp_test)
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)

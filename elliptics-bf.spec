@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.13.20
+Version:	2.24.14.9
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -15,7 +15,7 @@ BuildRequires:	gcc44 gcc44-c++
 %else
 BuildRequires:  python-devel
 %endif
-BuildRequires:	eblob-devel >= 0.21.2
+BuildRequires:	eblob-devel >= 0.21.7
 BuildRequires:	cmake msgpack-devel
 
 %if %{defined rhel} && 0%{?rhel} < 6
@@ -108,18 +108,11 @@ rm -rf %{buildroot}
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
 %{_libdir}/libelliptics_cocaine.so.*
-%if 0%{?rhel} < 6
-%{_libdir}/libelliptics_module_backend_cpp.so.*
-%endif
 
 %files devel
 %defattr(-,root,root,-)
 %{_libdir}/libelliptics.so
 %{_libdir}/libelliptics_cocaine.so
-%if 0%{?rhel} < 6
-%{_libdir}/libelliptics_module_backend_cpp.so
-%endif
-
 
 %files client
 %defattr(-,root,root,-)
@@ -136,6 +129,118 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.9
+- Moved stall transaction processing into dnet_io_process(), where it can be done without races.
+
+* Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.8
+- Fixed incorrect state used in timed out transactions cleanup
+- Returned back state reset in auth/reverse lookup
+
+* Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.7
+- Do not reset state in auth/reverse lookup commands
+
+* Wed Sep 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.6
+- We have to use list_for_each_entry_safe() when moving object from list being iterated.
+
+* Wed Sep 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.5
+- Put/complete stalled/timedout transactions on error not under state_lock
+- Revert "Merge pull request #217 from shaitan/trace"
+- Get rid of libelliptics_module_backend_cpp.so in elliptics spec
+
+* Tue Sep 10 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.4
+- Added trace_id to dnet_backend_log. Added DNET_TRACE_BIT for ignoring current log level for traced request.
+- Added printing begin and end of id in dnet_dump_id_len
+- Made elliptics compatible with current eblob version.
+- Added comments to eblob compatibility solution.
+- Renamed back dnet_trace* to dnet_log.
+
+* Fri Sep 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.3
+- Destroy timed out transactions in checking thread.
+- Correctly kill state with errors in it.
+
+* Tue Sep 03 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.2
+- Cleanup dnet_state_reset() calls - generally it is not allowed to 'put' state's refcnt from arbitrary place
+- Use char * in open() call
+
+* Fri Aug 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.1
+- Forced rpath option for dnet_cpp_test
+- Do not set read/write sockets to -1 until they are closed
+- Added clearing syncset and lifeset in cache_t destructor
+
+* Wed Aug 28 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.0
+- LTS release
+
+* Tue Aug 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.35
+- Added tests for lookup and prepare_latest
+- Fixed prepare_latest command
+- Added support for cache lookup command
+- Added local_session::lookup
+- Fixed session::clone in case of empty groups
+
+* Tue Aug 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.34
+- Instead of resetting network state just close its sockets
+- Get rid of unneeded code in stall transaction check thread
+- Split check/reconnect logic into two separate threads
+- Added update_indexes and update_indexes_internal to python binding
+- Do not spam logs if cache is not turned on
+- group description update
+- Added basic dnet_print_time() helper (not thread-safe)
+- Long line/whitespace cleanups
+
+* Sun Aug 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.33
+- Added new map typedefs
+- Added iterate.py. Script for counting legal/hidden records on elliptics node by iterator
+- Added iterator support for module backend
+- auth_cookie documentation update
+
+* Wed Aug 14 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.32
+- Do not use already removed 'id_range' in debug messages
+
+* Tue Aug 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.31
+- Fixed getting recovering node group id from routes when groups is specified. Added ability to specify groups for recovering.
+- Restored lost mk_container_name import
+
+* Mon Aug 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.30
+- Fixed unexpected exit after iteration stage if local node is empty
+- Proper support for session::exec in python binding
+- src_key and quiet options for exec (-c) command
+- Use log-level DNET_LOG_DATA instead of special 'quiet' log output mode
+- Initialize convert_usecs to prevent unintialized usage
+
+* Wed Aug 07 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.29
+- Updated dependencies
+
+* Tue Aug 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.28
+- Restored get_address_group_id
+- Removed eid and id_range from IteraterResult. Used sha256 from address instead of id_range@eid.
+
+* Tue Aug 06 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.27
+- tests: added more append tests
+- Send srw reply on upstream::close() to client.
+- Reset connection on server's side if versions mismatch
+- Provide error into dnet_state_reset()
+
+* Thu Aug 01 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.26
+- Fixed zero data for indexes_internal in case of no changes
+
+* Thu Aug 01 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.25
+- Added dnet_indexes_reply for internal commands
+
+* Thu Aug 01 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.24
+- Added session::update_indexes method
+- Fixed groups mix in case of key generated from id
+
+* Thu Aug 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.23
+- Use pointer logic in indexes. Only drop lock (and do not unlock at the end of dnet_process_cmd_raw()) if we are not going to send ack right now.
+- Use 0xHEX string instead of just HEX
+- Use dnet_time structure in dnet_time_before/after functions
+
+* Thu Aug 01 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.22
+- Moved dnet_time_before/after into public header
+
+* Wed Jul 31 2013 Ruslan Nigmatullin <euroelessar@yandex.ru> - 2.24.13.21
+- Fixed using of mix_states for DNET_CFG_MIX_STATES
+
 * Tue Jul 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.13.20
 - Added reconnection logic debug
 - Fixed invalid error for read in case if there is no state

@@ -22,16 +22,12 @@ class IteratorResult(object):
         """
 
     def __init__(self,
-                 eid=None,
-                 id_range=IdRange(None, None),
                  address=None,
                  container=None,
                  tmp_dir="",
                  leave_file=False,
                  filename=""
                  ):
-        self.eid = eid
-        self.id_range = id_range
         self.address = address
         self.container = container
         self.tmp_dir = tmp_dir
@@ -74,11 +70,9 @@ class IteratorResult(object):
         """
         Computes diff between two sorted results. Returns container that consists of difference.
         """
-        filename = 'diff_' + str(self.id_range) + '_' + \
-                   str(self.eid) + '-' + str(other.eid)
+        import hashlib
+        filename = 'diff_' + hashlib.sha256(str(self.address)).hexdigest() + '-' + hashlib.sha256(str(other.address)).hexdigest()
         diff_container = IteratorResult.from_filename(filename,
-                                                      eid=other.eid,
-                                                      id_range=other.id_range,
                                                       address=other.address,
                                                       tmp_dir=self.tmp_dir
                                                       )
@@ -109,12 +103,10 @@ class IteratorResult(object):
         if len(results) == 1:
             import shutil
             diff = results[0]
-            filename = os.path.join(tmp_dir, "merge_" + mk_container_name(diff.id_range, diff.eid))
+            filename = os.path.join(tmp_dir, mk_container_name(diff.address, "merge_"))
             shutil.copyfile(diff.filename, filename)
             return [cls.load_filename(filename,
                                       address=diff.address,
-                                      id_range=diff.id_range,
-                                      eid=diff.eid,
                                       is_sorted=True,
                                       tmp_dir=tmp_dir,
                                       leave_file=True
@@ -132,10 +124,8 @@ class IteratorResult(object):
             try:
                 heapq.heappush(heap,
                                MergeData(iter(d),
-                                         IteratorResult.from_filename(os.path.join(tmp_dir, "merge_" + mk_container_name(d.id_range, d.eid)),
+                                         IteratorResult.from_filename(os.path.join(tmp_dir, mk_container_name(d.address, "merge_")),
                                                                       address=d.address,
-                                                                      id_range=d.id_range,
-                                                                      eid=d.eid,
                                                                       tmp_dir=tmp_dir,
                                                                       leave_file=True
                                                                       )))
@@ -227,14 +217,8 @@ class Iterator(object):
         assert len(key_ranges) > 0, "There should be at least one iteration range."
 
         try:
-            id_start = min(r.start for r in key_ranges)
-            id_stop = max(r.stop for r in key_ranges)
-            id_range = IdRange(id_start, id_stop)
-            filename = os.path.join(tmp_dir, mk_container_name(id_range, eid))
-            result = IteratorResult.from_filename(filename,
+            result = IteratorResult.from_filename(os.path.join(tmp_dir, mk_container_name(address)),
                                                   address=address,
-                                                  id_range=id_range,
-                                                  eid=eid,
                                                   tmp_dir=tmp_dir,
                                                   leave_file=leave_file,
                                                   )
@@ -262,14 +246,14 @@ class Iterator(object):
 
     @classmethod
     def iterate_with_stats(cls, node, eid, timestamp_range, key_ranges, tmp_dir, address, batch_size, stats, counters, leave_file=False):
-        result = cls(node, eid.group_id).start(eid=eid,
-                                               timestamp_range=timestamp_range,
-                                               key_ranges=key_ranges,
-                                               tmp_dir=tmp_dir,
-                                               address=address,
-                                               batch_size=batch_size,
-                                               leave_file=leave_file
-                                               )
+        result = cls(node, address.group_id).start(eid=eid,
+                                                   timestamp_range=timestamp_range,
+                                                   key_ranges=key_ranges,
+                                                   tmp_dir=tmp_dir,
+                                                   address=address,
+                                                   batch_size=batch_size,
+                                                   leave_file=leave_file
+                                                   )
         result_len = 0
         for it in result:
             if it is None:

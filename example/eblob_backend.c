@@ -156,7 +156,7 @@ static int blob_write(struct eblob_backend_config *c, void *state,
 	static const size_t ehdr_size = sizeof(struct dnet_ext_list_hdr);
 	int err;
 
-	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: %x.\n",
+	dnet_backend_log(DNET_LOG_NOTICE, "%s: EBLOB: blob-write: WRITE: start: offset: %llu, size: %llu, ioflags: 0x%x.\n",
 		dnet_dump_id_str(io->id), (unsigned long long)io->offset, (unsigned long long)io->size, io->flags);
 
 	dnet_convert_io_attr(io);
@@ -781,7 +781,7 @@ static int blob_start_defrag(struct eblob_backend_config *c, struct dnet_cmd *cm
 		ctl->status = eblob_start_defrag(c->eblob);
 	}
 
-	dnet_backend_log(DNET_LOG_INFO, "DEFRAG: defragmetation request: flags: %llx, status: %d\n",
+	dnet_backend_log(DNET_LOG_INFO, "DEFRAG: defragmetation request: flags: 0x%llx, status: %d\n",
 			(unsigned long long)ctl->flags, ctl->status);
 
 	err = ctl->status;

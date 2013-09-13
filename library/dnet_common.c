@@ -757,7 +757,7 @@ static struct dnet_trans *dnet_io_trans_create(struct dnet_session *s, struct dn
 
 	cmd->trans = t->rcv_trans = t->trans = atomic_inc(&n->trans);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: %llx, size: %llu, offset: %llu, "
+	dnet_log(n, DNET_LOG_INFO, "%s: created trans: %llu, cmd: %s, cflags: 0x%llx, size: %llu, offset: %llu, "
 			"fd: %d, local_offset: %llu -> %s weight: %f, mrt: %ld, wait-ts: %ld.\n",
 			dnet_dump_id(&ctl->id),
 			(unsigned long long)t->trans,
@@ -1478,7 +1478,7 @@ static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd
 				(unsigned long long)st->vm_free,
 				(unsigned long long)st->vm_cached);
 		dnet_log(state->n, DNET_LOG_DATA, "%s: %s: fs: "
-				"total: %llu mB, avail: %llu mB, files: %llu, fsid: %llx.\n",
+				"total: %llu mB, avail: %llu mB, files: %llu, fsid: 0x%llx.\n",
 				dnet_dump_id(&cmd->id), dnet_state_dump_addr(state),
 				(unsigned long long)(st->frsize * st->blocks / 1024 / 1024),
 				(unsigned long long)(st->bavail * st->bsize / 1024 / 1024),

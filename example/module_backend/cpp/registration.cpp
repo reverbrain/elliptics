@@ -17,7 +17,7 @@ int dnet_module_db_write(void */*priv*/, dnet_raw_id */*id*/, void */*data*/, si
 
 int dnet_module_db_remove(void */*priv*/, dnet_raw_id */*id*/, int /*real_remove*/)
 {
-       return 0;
+	return 0;
 }
 
 ell::honest_command_handler * unwrap_private(module_backend_api_t *module_backend_api)
@@ -62,6 +62,12 @@ int command_handler_throw(void *state, void *priv, struct dnet_cmd *cmd, void *d
 	return err;
 }
 
+int iterator_throw(dnet_iterator_ctl *ictl)
+{
+	ell::honest_command_handler *backend = unwrap_private(ictl->iterate_private);
+	return backend->file_iterator(ictl);
+}
+
 int decorate_elliptics_exception(std::function<int()> function)
 {
 	try {
@@ -74,6 +80,13 @@ int decorate_elliptics_exception(std::function<int()> function)
 int command_handler(void *state, void *priv, struct dnet_cmd *cmd, void *data)
 {
 	std::function<int()> handler = std::bind(command_handler_throw, state, priv, cmd, data);
+	std::function<int()> decorated_handler = std::bind(decorate_elliptics_exception, handler);
+	return ell::decorate_exception<int>(decorated_handler, -EINVAL);
+}
+
+int iterator(dnet_iterator_ctl *ictl)
+{
+	std::function<int()> handler = std::bind(iterator_throw, ictl);
 	std::function<int()> decorated_handler = std::bind(decorate_elliptics_exception, handler);
 	return ell::decorate_exception<int>(decorated_handler, -EINVAL);
 }
@@ -101,6 +114,7 @@ module_backend_api_t* ell::setup_handler(std::unique_ptr<honest_command_handler>
 	std::unique_ptr<module_backend_api_t> module_backend_api(new module_backend_api_t);
 	module_backend_api->destroy_handler = destroy_module_backend;
 	module_backend_api->command_handler = command_handler;
+	module_backend_api->iterator = iterator;
 	module_backend_api->private_data = honest_command_handler.release();
 	return module_backend_api.release();
 }

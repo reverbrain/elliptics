@@ -20,6 +20,7 @@
 #include "elliptics/utils.hpp"
 #include "elliptics/async_result.hpp"
 
+#include <map>
 #include <vector>
 
 namespace ioremap { namespace elliptics {
@@ -345,6 +346,9 @@ struct dnet_raw_id_less_than
 		return operator() (a.id, b.index);
 	}
 };
+
+typedef std::map<dnet_raw_id, std::string, dnet_raw_id_less_than<>> id_to_name_map_t;
+typedef std::map<std::string, dnet_raw_id> name_to_id_map_t;
 
 }} /* namespace ioremap::elliptics */
 

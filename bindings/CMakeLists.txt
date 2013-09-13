@@ -5,9 +5,11 @@ find_package(Boost REQUIRED COMPONENTS iostreams thread regex program_options sy
 
 include_directories(${Boost_INCLUDE_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-add_definitions(-Wall -Wextra -Werror)
+add_definitions(-Wall -Wextra)
 
 add_subdirectory(cpp)
 if(WITH_PYTHON)
     add_subdirectory(python)
 endif()
+
+enable_testing()

@@ -38,31 +38,33 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 	typedef std::shared_ptr<update_indexes_functor> ptr;
 
-	update_indexes_functor(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
-		: sess(state->n), state(dnet_state_get(state)), cmd(*cmd), requests_in_progress(1)
+	update_indexes_functor(dnet_net_state *state, const dnet_cmd *cmd, const dnet_indexes_request *request)
+		: sess(state->n), state(dnet_state_get(state)), cmd(*cmd), requests_in_progress(1), flags(request->flags)
 	{
 		this->cmd.flags |= DNET_FLAGS_MORE;
 
 		request_id = request->id;
 
 		size_t data_offset = 0;
-		char *data_start = reinterpret_cast<char *>(request->entries);
+		const char *data_start = reinterpret_cast<const char *>(request->entries);
 		for (uint64_t i = 0; i < request->entries_count; ++i) {
-			dnet_indexes_request_entry &request_entry = *reinterpret_cast<dnet_indexes_request_entry *>(data_start + data_offset);
+			const dnet_indexes_request_entry *request_entry = reinterpret_cast<const dnet_indexes_request_entry *>(data_start + data_offset);
 
 			index_entry entry;
-			entry.index = request_entry.id;
-			entry.data = data_pointer::copy(request_entry.data, request_entry.size);
+			entry.index = request_entry->id;
+			entry.data = data_pointer::copy(request_entry->data, request_entry->size);
 
 			indexes.indexes.push_back(entry);
 
-			data_offset += sizeof(dnet_indexes_request_entry) + request_entry.size;
+			data_offset += sizeof(dnet_indexes_request_entry) + request_entry->size;
 		}
 
 		std::sort(indexes.indexes.begin(), indexes.indexes.end(), dnet_raw_id_less_than<>());
-		indexes.shard_id = dnet_indexes_get_shard_id(state->n, reinterpret_cast<dnet_raw_id*>(&cmd->id));
+		indexes.shard_id = dnet_indexes_get_shard_id(state->n, reinterpret_cast<const dnet_raw_id*>(&cmd->id));
 		indexes.shard_count = state->n->indexes_shard_count;
-		msgpack::pack(buffer, indexes);
+		if (!(flags & DNET_INDEXES_FLAGS_UPDATE_ONLY)) {
+			msgpack::pack(buffer, indexes);
+		}
 	}
 
 	~update_indexes_functor()
@@ -91,7 +93,18 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	std::vector<dnet_indexes_reply_entry> result;
 
 	std::atomic_int requests_in_progress;
+	uint32_t flags;
 	std::mutex requests_order_guard;
+
+	static bool index_entry_less_than(const index_entry &first, const index_entry &second)
+	{
+		return memcmp(first.index.id, second.index.id, DNET_ID_SIZE) < 0;
+	}
+
+	static bool index_entry_equal(const index_entry &first, const index_entry &second)
+	{
+		return memcmp(first.index.id, second.index.id, DNET_ID_SIZE) == 0;
+	}
 
 	/*!
 	 * Replace object's index cache (list of indexes given object is present in) by new table.
@@ -105,6 +118,25 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			indexes_unpack(state->n, id, data, &remote_indexes, "convert_object_indexes");
 		}
 
+		if (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) {
+			// Merge both lists of object to one array,
+			// remove object from remote_indexes.indexes that exists in indexes.indexes
+			// and give it to the storage
+
+			dnet_indexes result;
+			result.shard_count = indexes.shard_count;
+			result.shard_id = indexes.shard_id;
+			result.indexes.reserve(indexes.indexes.size() + remote_indexes.indexes.size());
+			result.indexes.insert(result.indexes.end(), indexes.indexes.begin(), indexes.indexes.end());
+			result.indexes.insert(result.indexes.end(), remote_indexes.indexes.begin(), remote_indexes.indexes.end());
+
+			std::inplace_merge(result.indexes.begin(), result.indexes.begin() + indexes.indexes.size(), result.indexes.end(), dnet_raw_id_less_than<skip_data>());
+			auto it = std::unique(result.indexes.begin(), result.indexes.end(), index_entry_equal);
+			result.indexes.erase(it, result.indexes.end());
+
+			msgpack::pack(buffer, result);
+		}
+
 		data_buffer tmp_buffer(DNET_INDEX_TABLE_MAGIC_SIZE + buffer.size());
 		tmp_buffer.write(dnet_bswap64(DNET_INDEX_TABLE_MAGIC));
 		tmp_buffer.write(buffer.data(), buffer.size());
@@ -115,6 +147,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	int process(bool *finished)
 	{
 		struct timeval start, end, convert_time, send_remote_time, insert_time, remove_time;
+		long convert_usecs = -1;
 
 		gettimeofday(&start, NULL);
 
@@ -150,6 +183,17 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			goto err_out_complete;
 
 		gettimeofday(&convert_time, NULL);
+
+#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
+
+		convert_usecs = DIFF(start, convert_time);
+
+		if (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) {
+			dnet_log(state->n, DNET_LOG_INFO, "%s: update only finished:, "
+					"convert-time: %ld usecs, err: %d\n",
+					dnet_dump_id(&request_id), convert_usecs, err);
+			return complete(0, finished);
+		}
 
 		// We "insert" items also to update their data
 		std::set_difference(indexes.indexes.begin(), indexes.indexes.end(),
@@ -258,10 +302,7 @@ err_out_complete:
 
 		gettimeofday(&end, NULL);
 
-#define DIFF(s, e) (e.tv_sec - s.tv_sec) * 1000000 + (e.tv_usec - s.tv_usec)
-
 		long total_usecs = DIFF(start, end);
-		long convert_usecs = DIFF(start, convert_time);
 		long send_remote_usecs = DIFF(convert_time, send_remote_time);
 		long insert_usecs = DIFF(send_remote_time, insert_time);
 		long remove_usecs = DIFF(insert_time, remove_time);
@@ -494,11 +535,36 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 
 	if (data == new_data) {
 		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is the same\n");
-		return 0;
+		err = 0;
+	} else {
+		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is different\n");
+		err = sess.write(cmd->id, new_data);
 	}
-	dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is different\n");
 
-	return sess.write(cmd->id, new_data);
+	data_buffer buffer(sizeof(dnet_indexes_reply) + sizeof(dnet_indexes_reply_entry));
+
+	dnet_indexes_reply reply;
+	dnet_indexes_reply_entry reply_entry;
+	memset(&reply, 0, sizeof(reply));
+	memset(&reply_entry, 0, sizeof(reply_entry));
+
+	reply.entries_count = 1;
+
+	reply_entry.id = entry.id;
+	reply_entry.status = err;
+
+	buffer.write(reply);
+	buffer.write(reply_entry);
+
+	data_pointer reply_data = std::move(buffer);
+
+	if (!err) {
+		cmd->flags &= (DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
+	}
+
+	dnet_send_reply(state, cmd, reply_data.data(), reply_data.size(), err ? 1 : 0);
+
+	return err;
 }
 
 int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
@@ -625,6 +691,7 @@ void dnet_indexes_cleanup(struct dnet_node *)
 int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 {
 	dnet_indexes_request *request = static_cast<dnet_indexes_request*>(data);
+	int err = -ENOTSUP;
 
 	switch (cmd->cmd) {
 		case DNET_CMD_INDEXES_UPDATE: {
@@ -632,25 +699,29 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 
 			bool finished = false;
 
-			int err = functor->process(&finished);
-
-			// Mark command as no-lock, so that lock will not be released in dnet_process_cmd_raw()
-			// Lock will be releaseed when indexes are fully updated
-			cmd->flags |= DNET_FLAGS_NOLOCK;
+			err = functor->process(&finished);
 
 			if (!(finished && !err)) {
 				// Do not send final ACK, it will be sent when all indexes are fully updated
+
+				// Mark command as no-lock, so that lock will not be released in dnet_process_cmd_raw()
+				// Lock will be releaseed when indexes are fully updated
+				cmd->flags |= DNET_FLAGS_NOLOCK;
+
 				cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			}
-			return err;
 		}
-		case DNET_CMD_INDEXES_INTERNAL: {
-			return process_internal_indexes(st, cmd, request);
-		}
-		case DNET_CMD_INDEXES_FIND: {
-			return process_find_indexes(st, cmd, request);
-		}
+			break;
+		case DNET_CMD_INDEXES_INTERNAL:
+			err = process_internal_indexes(st, cmd, request);
+			break;
+		case DNET_CMD_INDEXES_FIND:
+			err = process_find_indexes(st, cmd, request);
+			break;
 		default:
-			return -ENOTSUP;
+			break;
 	}
+
+
+	return err;
 }

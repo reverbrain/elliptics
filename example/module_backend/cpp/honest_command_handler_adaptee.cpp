@@ -1,6 +1,7 @@
 #include "honest_command_handler_adaptee.hpp"
 #include "../core/module_backend_t.h"
 #include <elliptics/interface.h>
+#include <elliptics/error.hpp>
 #include <iostream>
 
 namespace ell = ioremap::elliptics;
@@ -48,3 +49,10 @@ int ell::honest_command_handler_adaptee::file_del(module_backend_t */*r*/, void 
 {
 	return dnet_send_file_info_without_fd(state, cmd, 0, -1);
 }
+
+int ell::honest_command_handler_adaptee::file_iterator(dnet_iterator_ctl */*ictl*/)
+{
+	ell::throw_error(-EINVAL, "Iterator is not implemented here");
+	return -ENOTSUP;
+}
+

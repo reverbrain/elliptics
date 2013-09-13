@@ -221,8 +221,11 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 	}
 
 err_out_exit:
-	if (err)
+	if (err) {
 		cmd->flags |= DNET_FLAGS_NEED_ACK;
+		dnet_state_reset(st, err);
+	}
+
 	return err;
 }
 
@@ -505,7 +508,7 @@ static int dnet_cmd_status(struct dnet_net_state *orig, struct dnet_cmd *cmd __u
 
 	dnet_convert_node_status(st);
 
-	dnet_log(n, DNET_LOG_INFO, "%s: status-change: nflags: %x->%x, log_level: %d->%d, "
+	dnet_log(n, DNET_LOG_INFO, "%s: status-change: nflags: 0x%x->0x%x, log_level: %d->%d, "
 			"status_flags: EXIT: %d, RO: %d\n",
 			dnet_dump_id(&cmd->id), n->flags, st->nflags, n->log->log_level, st->log_level,
 			!!(st->status_flags & DNET_STATUS_EXIT), !!(st->status_flags & DNET_STATUS_RO));
@@ -584,7 +587,7 @@ int dnet_send_ack(struct dnet_net_state *st, struct dnet_cmd *cmd, int err, int 
 			ack.flags = cmd->flags & ~(DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
 		ack.status = err;
 
-		dnet_log(n, DNET_LOG_NOTICE, "%s: %s: ack -> %s: trans: %llu, flags: %llx, status: %d.\n",
+		dnet_log(n, DNET_LOG_NOTICE, "%s: %s: ack -> %s: trans: %llu, flags: 0x%llx, status: %d.\n",
 				dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), dnet_server_convert_dnet_addr(&st->addr),
 				tid, (unsigned long long)ack.flags, err);
 
@@ -1036,6 +1039,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	struct dnet_node *n = st->n;
 	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
 	struct dnet_io_attr *io;
+#if 0
+	struct dnet_indexes_request *indexes_request;
+#endif
 	struct timeval start, end;
 	char time_str[64];
 	struct tm io_tm;
@@ -1073,6 +1079,16 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		case DNET_CMD_INDEXES_UPDATE:
 		case DNET_CMD_INDEXES_INTERNAL:
 		case DNET_CMD_INDEXES_FIND:
+#if 0 // We don't wont to specially process this commands yet
+			indexes_request = (struct dnet_indexes_request*)data;
+			if (!(indexes_request->flags & DNET_IO_FLAGS_NOCACHE)) {
+				err = dnet_cmd_cache_indexes(st, cmd, indexes_request);
+
+				if (err != -ENOTSUP)
+					return err;
+			}
+#endif
+
 			err = dnet_process_indexes(st, cmd, data);
 			break;
 		case DNET_CMD_STAT_COUNT:
@@ -1148,6 +1164,13 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 			dnet_convert_io_attr(io);
 		default:
+			if (cmd->cmd == DNET_CMD_LOOKUP && !(cmd->flags & DNET_FLAGS_NOCACHE)) {
+				err = dnet_cmd_cache_lookup(st, cmd);
+
+				if (err != -ENOTSUP)
+					break;
+			}
+
 			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command
 			   to eliminate double reply packets
 			   (the first one with dnet_file_info structure,
@@ -1178,7 +1201,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	gettimeofday(&end, NULL);
 
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
-	dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, cflags: %llx, time: %ld usecs, err: %d.\n",
+	dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, cflags: 0x%llx, time: %ld usecs, err: %d.\n",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), tid,
 			(unsigned long long)cmd->flags, diff, err);
 
