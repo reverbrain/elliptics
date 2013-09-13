@@ -772,7 +772,7 @@ async_lookup_result session::prepare_latest(const key &id, const std::vector<int
 	}
 	transform(id);
 
-	std::list<async_write_result> results;
+	std::list<async_lookup_result> lookup_results;
 
 	{
 		session_scope scope(*this);
@@ -787,10 +787,10 @@ async_lookup_result session::prepare_latest(const key &id, const std::vector<int
 			session session_copy = clone();
 
 			session_copy.set_groups(std::vector<int>(1, groups[i]));
-			results.emplace_back(std::move(session_copy.lookup(raw)));
+			lookup_results.emplace_back(std::move(session_copy.lookup(raw)));
 		}
 
-		auto tmp_result = aggregated(*this, results.begin(), results.end());
+		auto tmp_result = aggregated(*this, lookup_results.begin(), lookup_results.end());
 		prepare_latest_functor functor = { result_handler, id.id().group_id };
 		tmp_result.connect(functor);
 	}
