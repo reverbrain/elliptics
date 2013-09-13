@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.9
+Version:	2.24.14.10
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Sep 14 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.10
+- Added stall/timed out transctions check
+- Added callback machinery debug
+- Print trace id as part of thread-id/pid chunk
+- Moved trace_id into TLS
+- dnet_usage() text cleanup
+- Initialize err before dnet_add_state_socket() call
+
 * Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.9
 - Moved stall transaction processing into dnet_io_process(), where it can be done without races.
 
