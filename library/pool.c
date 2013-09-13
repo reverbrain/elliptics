@@ -607,6 +607,13 @@ static void *dnet_io_process_network(void *data_)
 				dnet_unschedule_recv(st);
 				pthread_mutex_unlock(&st->send_lock);
 
+				// state still contains a fair number of transactions in its queue
+				// they will not be cleaned up here - dnet_state_put() will only drop refctn by 1,
+				// although every transaction holds a reference
+				//
+				// IO thread could remove transaction, it is the only place allowed to do so.
+				// transactions may live in the tree and be accessed without locks in IO thread,
+				// IO thread is kind of 'owner' of the transaction processing
 				dnet_state_put(st);
 				break;
 			}
