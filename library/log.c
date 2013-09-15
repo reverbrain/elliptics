@@ -32,6 +32,8 @@
 
 #include "elliptics.h"
 
+extern __thread uint32_t trace_id;
+
 int dnet_log_init(struct dnet_node *n, struct dnet_log *l)
 {
 	if (!n)
@@ -49,7 +51,7 @@ void dnet_log_raw(struct dnet_node *n, int level, const char *format, ...)
 	struct dnet_log *l = n->log;
 	int buflen = sizeof(buf);
 
-	if (!l->log || (l->log_level < level))
+	if (!l->log || ((l->log_level < level) && !(trace_id & DNET_TRACE_BIT)))
 		return;
 
 	va_start(args, format);

@@ -394,6 +394,11 @@ class multigroup_callback
 		 */
 		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
 		{
+			dnet_log_raw(sess.get_node().get_native(),
+				DNET_LOG_DEBUG, "%s: multigroup_callback::handle: cmd: %s, trans: %lx, status: %d, flags: %lx, group: %d: %zd/%zd, priv: %p\n",
+					dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), cmd->trans, cmd->status, cmd->flags,
+					groups[m_group_index], m_group_index, groups.size(), priv);
+
 			if (cb.handle(state, cmd, func, priv)) {
 				m_has_finished |= !cb.statuses().empty();
 				// cb has ended it's work
@@ -414,12 +419,17 @@ class multigroup_callback
 		bool iterate_groups(error_info *error, complete_func func, void *priv)
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
+
+			dnet_log_raw(sess.get_node().get_native(),
+				DNET_LOG_DEBUG, "multigroup_callback::iterate_groups: group: %d: %zd/%zd, error: %d, priv: %p\n",
+					groups[m_group_index], m_group_index, groups.size(), error->code(), priv);
 			// try next group
 			while (m_group_index < groups.size()) {
 				struct dnet_id id = kid.id();
 				id.group_id = groups[m_group_index];
 
 				++m_group_index;
+
 				if (next_group(error, id, func, priv)) {
 					if (error->code()) {
 						// some exception, log and try next group
@@ -501,6 +511,9 @@ class lookup_callback : public multigroup_callback<lookup_result_entry>
 			cb.clear();
 			cb.set_count(unlimited);
 
+			dnet_log_raw(sess.get_node().get_native(), DNET_LOG_DEBUG, "lookup_callback::next_group: %s: error: %d, priv: %p\n",
+					dnet_dump_id(&id), error->code(), priv);
+
 			int err = dnet_lookup_object(sess.get_native(), &id, func, priv);
 			if (err) {
 				*error = create_error(err, kid, "Failed to lookup ID");
@@ -538,6 +551,10 @@ class read_callback : public multigroup_callback<read_result_entry>
 			ctl.priv = priv;
 
 			int err = dnet_read_object(sess.get_native(), &ctl);
+
+			dnet_log_raw(sess.get_node().get_native(), DNET_LOG_DEBUG, "read_callback::next_group: %s: error: %d, priv: %p, err: %d\n",
+					dnet_dump_id(&id), error->code(), priv, err);
+
 			if (err) {
 				*error = create_error(err, ctl.id, "READ: size: %llu",
 					static_cast<unsigned long long>(ctl.io.size));

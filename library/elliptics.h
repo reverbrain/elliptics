@@ -60,7 +60,13 @@ struct dnet_node;
 struct dnet_group;
 struct dnet_net_state;
 
-#define dnet_log(n, level, format, a...) do { if (n->log && (n->log->log_level >= level)) dnet_log_raw(n, level, format, ##a); } while (0)
+extern __thread uint32_t trace_id;
+
+#define dnet_log(n, level, format, a...)							\
+	do {											\
+		if (n->log && ((n->log->log_level >= level) || (trace_id & DNET_TRACE_BIT)))	\
+			dnet_log_raw(n, level, format, ##a);					\
+		} while (0)
 #define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
 
 struct dnet_io_req {

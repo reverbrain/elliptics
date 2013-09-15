@@ -60,8 +60,6 @@ static void dnet_usage(char *p)
 			" -L file              - lookup a storage which hosts given file\n"
 			" -l log               - log file. Default: disabled\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
-			" ...                  - parameters can be repeated multiple times\n"
-			"                        each time they correspond to the last added node\n"
 			" -m level             - log level\n"
 			" -M level             - set new log level\n"
 			" -F flags             - change node flags (see @cfg->flags comments in include/elliptics/interface.h)\n"
@@ -74,6 +72,8 @@ static void dnet_usage(char *p)
 			" -d request_string    - defragmentation request: 'start' - start defragmentation, 'status' - request current status\n"
 			" -i flags             - IO flags (see DNET_IO_FLAGS_* in include/elliptics/packet.h\n"
 			" -H                   - do not hash id, use it as is\n"
+			" -h                   - this help\n"
+			" ...                  - every parameter can be repeated multiple times, in this case the last one will be used\n"
 			, p);
 }
 

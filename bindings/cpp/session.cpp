@@ -21,6 +21,8 @@
 #include <sstream>
 #include <functional>
 
+extern __thread uint32_t trace_id;
+
 namespace ioremap { namespace elliptics {
 
 template <typename T>
@@ -366,6 +368,8 @@ class session_data
 			checker = checkers::at_least_one;
 			error_handler = error_handlers::none;
 			policy = session::default_exceptions;
+			trace_id = 0;
+			::trace_id = 0;
 		}
 
 		session_data(const session_data &other)
@@ -373,11 +377,13 @@ class session_data
 			filter(other.filter),
 			checker(other.checker),
 			error_handler(other.error_handler),
-			policy(other.policy)
+			policy(other.policy),
+			trace_id(other.trace_id)
 		{
 			session_ptr = dnet_session_copy(other.session_ptr);
 			if (!session_ptr)
 				throw std::bad_alloc();
+			::trace_id = other.trace_id;
 		}
 
 		~session_data()
@@ -393,6 +399,7 @@ class session_data
 		result_checker		checker;
 		result_error_handler	error_handler;
 		uint32_t		policy;
+		uint32_t		trace_id;
 };
 
 session::session(const node &n) : m_data(std::make_shared<session_data>(n))
@@ -579,6 +586,17 @@ long session::get_timeout(void) const
 	return tm->tv_sec;
 }
 
+void session::set_trace_id(uint32_t trace_id)
+{
+	m_data->trace_id = trace_id;
+	::trace_id = trace_id;
+}
+
+uint32_t session::get_trace_id()
+{
+	return m_data->trace_id;
+}
+
 void session::read_file(const key &id, const std::string &file, uint64_t offset, uint64_t size)
 {
 	int err;
@@ -754,7 +772,7 @@ async_lookup_result session::prepare_latest(const key &id, const std::vector<int
 	}
 	transform(id);
 
-	std::list<async_write_result> results;
+	std::list<async_lookup_result> lookup_results;
 
 	{
 		session_scope scope(*this);
@@ -769,10 +787,10 @@ async_lookup_result session::prepare_latest(const key &id, const std::vector<int
 			session session_copy = clone();
 
 			session_copy.set_groups(std::vector<int>(1, groups[i]));
-			results.emplace_back(std::move(session_copy.lookup(raw)));
+			lookup_results.emplace_back(std::move(session_copy.lookup(raw)));
 		}
 
-		auto tmp_result = aggregated(*this, results.begin(), results.end());
+		auto tmp_result = aggregated(*this, lookup_results.begin(), lookup_results.end());
 		prepare_latest_functor functor = { result_handler, id.id().group_id };
 		tmp_result.connect(functor);
 	}
@@ -1293,6 +1311,8 @@ std::string session::lookup_address(const key &id, int group_id)
 void session::transform(const std::string &data, struct dnet_id &id)
 {
 	dnet_transform(m_data->session_ptr, (void *)data.data(), data.size(), &id);
+	id.trace_id = m_data->trace_id;
+	trace_id = m_data->trace_id;
 }
 
 void session::transform(const std::string &data, struct dnet_raw_id &id)
@@ -1303,6 +1323,8 @@ void session::transform(const std::string &data, struct dnet_raw_id &id)
 void session::transform(const data_pointer &data, dnet_id &id)
 {
 	dnet_transform(m_data->session_ptr, data.data(), data.size(), &id);
+	id.trace_id = m_data->trace_id;
+	trace_id = m_data->trace_id;
 }
 
 void session::transform(const key &id)
