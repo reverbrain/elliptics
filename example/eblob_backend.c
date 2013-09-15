@@ -936,6 +936,22 @@ static int dnet_blob_set_defrag_timeout(struct dnet_config_backend *b, char *key
 	return 0;
 }
 
+static int dnet_blob_set_defrag_time(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct eblob_backend_config *c = b->data;
+
+	c->data.defrag_time = strtoul(value, NULL, 0);
+	return 0;
+}
+
+static int dnet_blob_set_defrag_splay(struct dnet_config_backend *b, char *key __unused, char *value)
+{
+	struct eblob_backend_config *c = b->data;
+
+	c->data.defrag_splay = strtoul(value, NULL, 0);
+	return 0;
+}
+
 static int dnet_blob_set_defrag_percentage(struct dnet_config_backend *b, char *key __unused, char *value)
 {
 	struct eblob_backend_config *c = b->data;
@@ -1070,6 +1086,8 @@ static struct dnet_config_entry dnet_cfg_entries_blobsystem[] = {
 	{"blob_size", dnet_blob_set_blob_size},
 	{"records_in_blob", dnet_blob_set_records_in_blob},
 	{"defrag_timeout", dnet_blob_set_defrag_timeout},
+	{"defrag_time", dnet_blob_set_defrag_time},
+	{"defrag_splay", dnet_blob_set_defrag_splay},
 	{"defrag_percentage", dnet_blob_set_defrag_percentage},
 	{"blob_size_limit", dnet_blob_set_blob_size},
 	{"index_block_size", dnet_blob_set_index_block_size},
