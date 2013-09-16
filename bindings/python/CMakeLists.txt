@@ -6,7 +6,13 @@ message(STATUS "Python includes are situated in (${PYTHON_INCLUDE_PATH}, ${PYTHO
 
 include_directories(${PYTHON_INCLUDE_PATH})
 include_directories(${PYTHON_INCLUDE_DIRS})
-add_library(elliptics_python SHARED elliptics_python.cpp)
+
+set(ELLIPTICS_PYTHON_SRCS
+    elliptics_python.cpp
+    elliptics_id.cpp
+    )
+
+add_library(elliptics_python SHARED ${ELLIPTICS_PYTHON_SRCS} elliptics_python.cpp)
 target_link_libraries(elliptics_python ${Boost_LIBRARIES} ${PYTHON_LIBRARIES} elliptics_cpp)
 set_target_properties(elliptics_python PROPERTIES
     PREFIX ""

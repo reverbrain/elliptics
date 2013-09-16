@@ -28,9 +28,11 @@
 #include <mutex>
 #include <condition_variable>
 
+#include "elliptics_id.h"
+
 namespace bp = boost::python;
 
-namespace ioremap { namespace elliptics {
+namespace ioremap { namespace elliptics { namespace python {
 enum elliptics_iterator_types {
 	itype_disk = DNET_ITYPE_DISK,
 	itype_network = DNET_ITYPE_NETWORK,
@@ -69,94 +71,6 @@ enum elliptics_log_level {
 	log_level_info = DNET_LOG_INFO,
 	log_level_notice = DNET_LOG_NOTICE,
 	log_level_debug = DNET_LOG_DEBUG,
-};
-
-static void convert_from_list(const bp::list &l, unsigned char *dst, int dlen)
-{
-	memset(dst, 0, dlen);
-	int i = 0;
-	for (bp::stl_input_iterator<unsigned char> it(l), end; (it != end) && (i < dlen); ++it) {
-		dst[i] = *it;
-		++i;
-	}
-}
-
-static bp::list convert_to_list(const unsigned char *src, unsigned int size)
-{
-	bp::list result;
-	for (unsigned int i = 0; i < size; ++i)
-		result.append(src[i]);
-	return result;
-}
-
-class elliptics_id : public key {
-public:
-	elliptics_id() : key() {}
-	elliptics_id(const std::string &remote) : key(remote) {}
-	elliptics_id(const dnet_id &id) : key(id) {}
-	elliptics_id(const dnet_raw_id &id) : key(id) {}
-	elliptics_id(const key &other) : key(other) {}
-	elliptics_id(const elliptics_id &other) : key(other) {}
-
-	elliptics_id(const bp::list &id, const uint32_t &group_id) : key() {
-		set_id(id);
-		set_group_id(group_id);
-	}
-
-	bp::list get_id() const {
-		return convert_to_list(id().id, sizeof(id().id));
-	}
-
-	void set_id(const bp::list &id) {
-		dnet_id _id;
-		convert_from_list(id, _id.id, sizeof(_id.id));
-		key::set_id(_id);
-	}
-
-	uint32_t group_id() const {
-		return id().group_id;
-	}
-
-	void set_group_id(const uint32_t &group_id) {
-		key::set_group_id(group_id);
-	}
-
-	int cmp(const elliptics_id &other) const {
-		return dnet_id_cmp_str(id().id, other.id().id);
-	}
-
-	static elliptics_id convert(const bp::api::object &id) {
-		bp::extract<elliptics_id> get_id(id);
-		if (get_id.check())
-			return get_id();
-
-		bp::extract<std::string> get_string(id);
-		if (get_string.check())
-			return elliptics_id(get_string());
-
-		PyErr_SetString(PyExc_ValueError, "Coudn't convert id to elliptics id");
-		bp::throw_error_already_set();
-
-		return elliptics_id();
-	}
-	// Implements __str__ method.
-	// Always returns printable hex representation of all id bytes
-	std::string to_str() const {
-		char buffer[2*DNET_ID_SIZE + 1] = {0};
-		return std::string(dnet_dump_id_len_raw(id().id, DNET_ID_SIZE, buffer));
-	}
-
-	// Implements __repr__ method.
-	// Returns group, hex id prefix, and original key string
-	// (depending on key's previous history, any of those could be zero or empty).
-	std::string to_repr() const {
-		std::string result("<id: ");
-		result += dnet_dump_id_len(&id(), DNET_DUMP_NUM);
-		result += ", '";
-		result += remote();
-		result += "'>";
-		return result;
-	}
 };
 
 struct elliptics_time : public dnet_time {
@@ -859,7 +773,7 @@ int exec_result_get_src_key(exec_result_entry &result)
 elliptics_id exec_result_get_src_id(exec_result_entry &result)
 {
 	const dnet_raw_id *raw = result.context().src_id();
-	return elliptics_id(convert_to_list(raw->id, sizeof(raw->id)), 0);
+	return elliptics_id(*raw);
 }
 
 std::string exec_result_get_address(exec_result_entry &result)
@@ -904,30 +818,6 @@ bp::list find_indexes_result_get_indexes(find_indexes_result_entry &result)
 	return ret;
 }
 
-struct id_pickle : bp::pickle_suite
-{
-	static bp::tuple getinitargs(const elliptics_id& id) {
-		return getstate(id);
-	}
-
-	static bp::tuple getstate(const elliptics_id& id) {
-		return bp::make_tuple(id.get_id(), id.group_id());
-	}
-
-	static void setstate(elliptics_id& id, bp::tuple state) {
-		if (len(state) != 2) {
-			PyErr_SetObject(PyExc_ValueError,
-				("expected 2-item tuple in call to __setstate__; got %s"
-					% state).ptr()
-				);
-			bp::throw_error_already_set();
-		}
-
-		id.set_id(bp::extract<bp::list>(state[0]));
-		id.set_group_id(bp::extract<uint32_t>(state[1]));
-	}
-};
-
 struct time_pickle : bp::pickle_suite
 {
 	static bp::tuple getinitargs(const elliptics_time& time) {
@@ -966,17 +856,6 @@ BOOST_PYTHON_MODULE(elliptics)
 	bp::register_exception_translator<not_found_error>(error_translator);
 	bp::register_exception_translator<error>(error_translator);
 	bp::register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
-
-	bp::class_<elliptics_id>("Id", bp::no_init)
-		.def(bp::init<bp::list, uint32_t>(bp::args("key", "group_id")))
-		.def(bp::init<std::string>(bp::args("remote")))
-		.add_property("id", &elliptics_id::get_id, &elliptics_id::set_id)
-		.add_property("group_id", &elliptics_id::group_id, &elliptics_id::set_group_id)
-		.def("__cmp__", &elliptics_id::cmp)
-		.def("__str__", &elliptics_id::to_str)
-		.def_pickle(id_pickle())
-		.def("__repr__", &elliptics_id::to_repr)
-	;
 
 	bp::class_<elliptics_time>("Time",
 			bp::init<uint64_t, uint64_t>(bp::args("tsec", "tnsec")))
@@ -1266,6 +1145,8 @@ BOOST_PYTHON_MODULE(elliptics)
 		.value("notice", log_level_notice)
 		.value("debug", log_level_debug)
 	;
+
+	init_elliptcs_id();
 };
 
-} } // namespace ioremap::elliptics
+} } } // namespace ioremap::elliptics::python
