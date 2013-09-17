@@ -55,6 +55,9 @@ int command_handler_throw(void *state, void *priv, struct dnet_cmd *cmd, void *d
 		case DNET_CMD_DEL:
 			err = backend->file_del(r, state, cmd);
 			break;
+		case DNET_CMD_BULK_READ:
+			err = backend->file_bulk_read(r, state, cmd, data);
+			break;
 		default:
 			ell::throw_error(-EINVAL, "No such command");
 			break;
