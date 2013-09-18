@@ -1878,6 +1878,7 @@ async_push_result session::push(dnet_id *id, const exec_context &tmp_context, co
 
 	sph *s = context.m_data->sph.data<sph>();
 	s->flags &= ~DNET_SPH_FLAGS_SRC_BLOCK;
+	s->flags &= ~(DNET_SPH_FLAGS_REPLY | DNET_SPH_FLAGS_FINISH);
 
 	return request(id, context);
 }

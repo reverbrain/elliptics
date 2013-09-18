@@ -50,6 +50,11 @@ int ell::honest_command_handler_adaptee::file_del(module_backend_t */*r*/, void 
 	return dnet_send_file_info_without_fd(state, cmd, 0, -1);
 }
 
+int ell::honest_command_handler_adaptee::file_bulk_read(module_backend_t */*r*/, void *state, dnet_cmd *cmd, void */*data*/)
+{
+	return -ENOTSUP;
+}
+
 int ell::honest_command_handler_adaptee::file_iterator(dnet_iterator_ctl */*ictl*/)
 {
 	ell::throw_error(-EINVAL, "Iterator is not implemented here");
