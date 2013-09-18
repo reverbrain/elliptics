@@ -29,6 +29,9 @@
 #include <condition_variable>
 
 #include "elliptics_id.h"
+#include "async_result.h"
+#include "result_entry.h"
+#include "elliptics_time.h"
 
 namespace bp = boost::python;
 
@@ -73,35 +76,15 @@ enum elliptics_log_level {
 	log_level_debug = DNET_LOG_DEBUG,
 };
 
-struct elliptics_time : public dnet_time {
-	elliptics_time(uint64_t tsec = 0, uint64_t tnsec = 0) {
-		this->tsec = tsec;
-		this->tnsec = tnsec;
-	}
-
-	elliptics_time(const dnet_time &timestamp) {
-		tsec = timestamp.tsec;
-		tnsec = timestamp.tnsec;
-	}
-
-	int cmp_raw(const dnet_time &other) const {
-		return dnet_time_cmp(this, &other);
-	}
-
-	int cmp(const elliptics_time &other) const {
-		return dnet_time_cmp(this, &other);
-	}
-};
-
 struct elliptics_range {
 	elliptics_range() : offset(0), size(0),
 		limit_start(0), limit_num(0), ioflags(0), group_id(0) {}
 
 	elliptics_id	start, end;
-	uint64_t	offset, size;
-	uint64_t	limit_start, limit_num;
-	uint32_t	ioflags;
-	int		group_id;
+	uint64_t		offset, size;
+	uint64_t		limit_start, limit_num;
+	uint32_t		ioflags;
+	int				group_id;
 };
 
 static void elliptics_extract_range(const struct elliptics_range &r, struct dnet_io_attr &io)
@@ -175,107 +158,6 @@ static std::vector<T> convert_to_vector(const bp::api::object &list)
 	return std::vector<T>(begin, end);
 }
 
-template <typename T>
-struct python_async_result
-{
-	typedef typename async_result<T>::iterator iterator;
-
-	std::shared_ptr<async_result<T>> scope;
-
-	iterator begin() {
-		return scope->begin();
-	}
-
-	iterator end() {
-		return scope->end();
-	}
-
-	bp::list get() {
-		bp::list ret;
-
-		auto res = scope->get();
-		for (auto it = res.begin(), end = res.end(); it != end; ++it) {
-			ret.append(*it);
-		}
-
-		return ret;
-	}
-
-	void wait() {
-		scope->wait();
-	}
-
-	bool successful() {
-		if (!scope->ready()) {
-			PyErr_SetString(PyExc_ValueError, "Async write operation hasn't yet been completed");
-			bp::throw_error_already_set();
-		}
-
-		return !scope->error();
-	}
-
-	bool ready() {
-		return scope->ready();
-	}
-
-	dnet_time elapsed_time() {
-		return scope->elapsed_time();
-	}
-};
-
-template <typename T>
-python_async_result<T> create_result(async_result<T> &&result)
-{
-	python_async_result<T> pyresult = { std::make_shared<async_result<T>>(std::move(result)) };
-	return pyresult;
-}
-
-template <typename... Args>
-struct def_async_result;
-
-template <typename T>
-struct def_async_result<T>
-{
-	static void init() {
-		bp::class_<python_async_result<T>>("AsyncResult", bp::no_init)
-			.def("__iter__", bp::iterator<python_async_result<T>>())
-			.def("get", &python_async_result<T>::get)
-			.def("wait", &python_async_result<T>::wait)
-			.def("successful", &python_async_result<T>::successful)
-			.def("ready", &python_async_result<T>::ready)
-			.def("elapsed_time", &python_async_result<T>::elapsed_time)
-		;
-	}
-};
-
-template <>
-struct def_async_result<>
-{
-	static void init() {}
-};
-
-template <typename T, typename... Args>
-struct def_async_result<T, Args...>
-{
-	static void init() {
-		def_async_result<T>::init();
-		def_async_result<Args...>::init();
-	}
-};
-
-typedef python_async_result<iterator_result_entry>		python_iterator_result;
-typedef python_async_result<read_result_entry> 			python_read_result;
-typedef python_async_result<lookup_result_entry>		python_lookup_result;
-typedef python_async_result<write_result_entry>			python_write_result;
-typedef python_async_result<remove_result_entry>		python_remove_result;
-typedef python_async_result<exec_result_entry>			python_exec_result;
-
-typedef python_async_result<callback_result_entry>		python_async_set_indexes_result;
-typedef python_async_result<find_indexes_result_entry>	python_find_indexes_result;
-typedef python_async_result<index_entry>				python_check_indexes_result;
-
-typedef python_async_result<stat_count_result_entry>	python_stat_count_result;
-
 class elliptics_session: public session, public bp::wrapper<session> {
 	public:
 		elliptics_session(const node &n) : session(n) {}
@@ -341,16 +223,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return create_result(std::move(session::prepare_latest(elliptics_id::convert(id), groups)));
 		}
 
-		bp::tuple parse_lookup(const lookup_result_entry &lookup) {
-			struct dnet_addr *addr = lookup.address();
-			struct dnet_file_info *info = lookup.file_info();
-
-			std::string address(dnet_server_convert_dnet_addr(addr));
-			int port = dnet_server_convert_port((struct sockaddr *)addr->addr, addr->addr_len);
-
-			return bp::make_tuple(address, port, info->size);
-		}
-
 		elliptics_status update_status(const bp::api::object &id, elliptics_status &status) {
 			session::update_status(elliptics_id::convert(id), &status);
 			return status;
@@ -389,8 +261,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		                                      const elliptics_time& time_begin = elliptics_time(0, 0),
 		                                      const elliptics_time& time_end = elliptics_time(-1, -1)) {
 			std::vector<dnet_iterator_range> std_ranges = convert_to_vector<dnet_iterator_range>(ranges);
-			return create_result(std::move(session::start_iterator(elliptics_id::convert(id), std_ranges, type, flags,
-							time_begin, time_end)));
+			return create_result(std::move(session::start_iterator(elliptics_id::convert(id), std_ranges, type, flags, time_begin.m_time, time_end.m_time)));
 		}
 
 		python_iterator_result pause_iterator(const bp::api::object &id, const uint64_t &iterator_id) {
@@ -462,8 +333,10 @@ class elliptics_session: public session, public bp::wrapper<session> {
 				std::string &data = bp::extract<std::string&>((*it)[1]);
 
 				auto it_len = bp::len(*it);
-				if (it_len > 2)
-					io.timestamp = bp::extract<dnet_time>((*it)[2]);
+				if (it_len > 2) {
+					elliptics_time e_time = bp::extract<elliptics_time>((*it)[2]);
+					io.timestamp = e_time.m_time;
+				}
 				else
 					dnet_empty_time(&io.timestamp);
 				if(it_len > 3)
@@ -666,31 +539,6 @@ void dnet_iterator_range_set_key_end(dnet_iterator_range *range, const elliptics
 	range->key_end = id.raw_id();
 }
 
-dnet_iterator_response iterator_result_response(iterator_result_entry result)
-{
-	return *result.reply();
-}
-
-std::string iterator_result_response_data(iterator_result_entry result)
-{
-	return result.reply_data().to_string();
-}
-
-elliptics_id iterator_response_get_key(dnet_iterator_response *response)
-{
-	return elliptics_id(response->key);
-}
-
-elliptics_time iterator_response_get_timestamp(dnet_iterator_response *response)
-{
-	return elliptics_time(response->timestamp);
-}
-
-uint64_t iterator_response_get_user_flags(dnet_iterator_response *response)
-{
-	return response->user_flags;
-}
-
 void iterator_container_append_rr(iterator_result_container &container,
 		dnet_iterator_response &response)
 {
@@ -733,55 +581,6 @@ void iterator_container_diff(iterator_result_container &left,
 void iterator_container_merge(const bp::list& /*results*/, bp::dict& /*splitted_dict*/)
 {}
 
-std::string read_result_get_data(read_result_entry &result)
-{
-	return result.file().to_string();
-}
-
-elliptics_id read_result_get_id(read_result_entry &result)
-{
-	dnet_raw_id id;
-	memcpy(id.id, result.io_attribute()->id, sizeof(id.id));
-	return elliptics_id(id);
-}
-
-elliptics_time read_result_get_timestamp(read_result_entry &result)
-{
-	return elliptics_time(result.io_attribute()->timestamp);
-}
-
-uint64_t read_result_get_user_flags(read_result_entry &result)
-{
-	return result.io_attribute()->user_flags;
-}
-
-std::string exec_result_get_event(exec_result_entry &result)
-{
-	return result.context().event();
-}
-
-std::string exec_result_get_data(exec_result_entry &result)
-{
-	return result.context().data().to_string();
-}
-
-int exec_result_get_src_key(exec_result_entry &result)
-{
-	return result.context().src_key();
-}
-
-elliptics_id exec_result_get_src_id(exec_result_entry &result)
-{
-	const dnet_raw_id *raw = result.context().src_id();
-	return elliptics_id(*raw);
-}
-
-std::string exec_result_get_address(exec_result_entry &result)
-{
-	struct dnet_addr *addr = result.context().address();
-	return dnet_server_convert_dnet_addr(addr);
-}
-
 elliptics_id index_entry_get_index(index_entry &result)
 {
 	return elliptics_id(result.index);
@@ -802,46 +601,6 @@ void index_entry_set_data(index_entry &result, const std::string& data)
 	result.data = data_pointer(data);
 }
 
-elliptics_id find_indexes_result_get_id(find_indexes_result_entry &result)
-{
-	return elliptics_id(result.id);
-}
-
-bp::list find_indexes_result_get_indexes(find_indexes_result_entry &result)
-{
-	bp::list ret;
-
-	for (auto it = result.indexes.begin(), end = result.indexes.end(); it != end; ++it) {
-		ret.append(*it);
-	}
-
-	return ret;
-}
-
-struct time_pickle : bp::pickle_suite
-{
-	static bp::tuple getinitargs(const elliptics_time& time) {
-		return getstate(time);
-	}
-
-	static bp::tuple getstate(const elliptics_time& time) {
-		return bp::make_tuple(time.tsec, time.tnsec);
-	}
-
-	static void setstate(elliptics_time& time, bp::tuple state) {
-		if (len(state) != 2) {
-			PyErr_SetObject(PyExc_ValueError,
-				("expected 2-item tuple in call to __setstate__; got %s"
-					% state).ptr()
-				);
-			bp::throw_error_already_set();
-		}
-
-		time.tsec = bp::extract<uint64_t>(state[0]);
-		time.tnsec = bp::extract<uint64_t>(state[1]);
-	}
-};
-
 BOOST_PYTHON_MODULE(elliptics)
 {
 	bp::class_<error> error_class("ErrorInfo", bp::init<int, std::string>());
@@ -851,51 +610,16 @@ BOOST_PYTHON_MODULE(elliptics)
 	elliptics_error_translator error_translator;
 	error_translator.initialize();
 
-
 	bp::register_exception_translator<timeout_error>(error_translator);
 	bp::register_exception_translator<not_found_error>(error_translator);
 	bp::register_exception_translator<error>(error_translator);
 	bp::register_exception_translator<std::ios_base::failure>(ios_base_failure_translator);
-
-	bp::class_<elliptics_time>("Time",
-			bp::init<uint64_t, uint64_t>(bp::args("tsec", "tnsec")))
-		.def_readwrite("tsec", &elliptics_time::tsec)
-		.def_readwrite("tnsec", &elliptics_time::tnsec)
-		.def("__cmp__", &elliptics_time::cmp_raw)
-		.def("__cmp__", &elliptics_time::cmp)
-		.def_pickle(time_pickle())
-	;
 
 	bp::class_<dnet_iterator_range>("IteratorRange")
 		.add_property("key_begin", dnet_iterator_range_get_key_begin,
 				dnet_iterator_range_set_key_begin)
 		.add_property("key_end", dnet_iterator_range_get_key_end,
 				dnet_iterator_range_set_key_end)
-	;
-
-	def_async_result<	callback_result_entry,
-						lookup_result_entry,
-						read_result_entry,
-						stat_result_entry,
-						stat_count_result_entry,
-						iterator_result_entry,
-						exec_result_entry,
-						find_indexes_result_entry,
-						index_entry
-					>::init();
-
-	bp::class_<iterator_result_entry>("IteratorResultEntry")
-		.add_property("id", &iterator_result_entry::id)
-		.add_property("status", &iterator_result_entry::status)
-		.add_property("response", iterator_result_response)
-		.add_property("response_data", iterator_result_response_data)
-	;
-
-	bp::class_<dnet_iterator_response>("IteratorResultResponse",
-			bp::no_init)
-		.add_property("key", iterator_response_get_key)
-		.add_property("timestamp", iterator_response_get_timestamp)
-		.add_property("user_flags", iterator_response_get_user_flags)
 	;
 
 	bp::class_<iterator_result_container>("IteratorResultContainer",
@@ -912,24 +636,6 @@ BOOST_PYTHON_MODULE(elliptics)
 		.staticmethod("merge")
 	;
 
-	bp::class_<read_result_entry>("ReadResultEntry")
-		.add_property("data", read_result_get_data)
-		.add_property("id", read_result_get_id)
-		.add_property("timestamp", read_result_get_timestamp)
-		.add_property("user_flags", read_result_get_user_flags)
-	;
-
-	bp::class_<lookup_result_entry>("LookupResultEntry")
-	;
-
-	bp::class_<exec_result_entry>("ExecResultEntry")
-		.add_property("event", exec_result_get_event)
-		.add_property("data", exec_result_get_data)
-		.add_property("src_key", exec_result_get_src_key)
-		.add_property("src_id", exec_result_get_src_id)
-		.add_property("address", exec_result_get_address)
-	;
-
 	bp::class_<index_entry>("IndexEntry")
 		.add_property("index",
 		              index_entry_get_index,
@@ -937,17 +643,6 @@ BOOST_PYTHON_MODULE(elliptics)
 		.add_property("data",
 		              index_entry_get_data,
 		              index_entry_set_data)
-	;
-
-	bp::class_<find_indexes_result_entry>("FindIndexesResultEntry")
-		.add_property("id", find_indexes_result_get_id)
-		.add_property("indexes", find_indexes_result_get_indexes)
-	;
-
-	bp::class_<callback_result_entry>("CallbackResultEntry")
-	;
-
-	bp::class_<stat_count_result_entry>("StatCountResultEntry")
 	;
 
 	bp::class_<elliptics_range>("Range")
@@ -983,11 +678,6 @@ BOOST_PYTHON_MODULE(elliptics)
 		.def_readwrite("nonblocking_io_thread_num", &dnet_config::nonblocking_io_thread_num)
 		.def_readwrite("net_thread_num", &dnet_config::net_thread_num)
 		.def_readwrite("client_prio", &dnet_config::client_prio)
-	;
-
-	bp::class_<dnet_time>("dnet_time", bp::no_init)
-		.def_readwrite("tsec", &dnet_time::tsec)
-		.def_readwrite("tnsec", &dnet_time::tnsec)
 	;
 
 	bp::class_<elliptics_config>("Config", bp::init<>())
@@ -1147,6 +837,9 @@ BOOST_PYTHON_MODULE(elliptics)
 	;
 
 	init_elliptcs_id();
+	init_async_results();
+	init_result_entry();
+	init_elliptcs_time();
 };
 
 } } } // namespace ioremap::elliptics::python

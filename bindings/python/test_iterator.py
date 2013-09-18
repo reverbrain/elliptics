@@ -8,8 +8,8 @@ import elliptics
 
 def range(key_begin, key_end):
     ret = elliptics.IteratorRange()
-    ret.key_begin = key_begin
-    ret.key_end = key_end
+    ret.key_begin = elliptics.Id(key_begin, 0)
+    ret.key_end = elltiptics.Id(key_end, 0)
     return ret
 
 if __name__ == '__main__':

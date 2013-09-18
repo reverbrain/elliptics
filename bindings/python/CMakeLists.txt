@@ -10,6 +10,8 @@ include_directories(${PYTHON_INCLUDE_DIRS})
 set(ELLIPTICS_PYTHON_SRCS
     elliptics_python.cpp
     elliptics_id.cpp
+    async_result.cpp
+    elliptics_time.cpp
     )
 
 add_library(elliptics_python SHARED ${ELLIPTICS_PYTHON_SRCS} elliptics_python.cpp)

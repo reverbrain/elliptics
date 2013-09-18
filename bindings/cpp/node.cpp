@@ -35,7 +35,7 @@ class node_data {
 		}
 
 		struct dnet_node	*node_ptr;
-		logger              log;
+		logger				log;
 };
 
 node::node(const logger &l) : m_data(new node_data)
