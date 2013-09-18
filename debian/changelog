@@ -1,3 +1,16 @@
+elliptics (2.24.14.11) unstable; urgency=low
+
+  * Add reconnection address if connection has been reset
+  * session::push must clear reply flags
+  * Added bulk read support for module backend
+  * Fixed test_iterator.py: fixed error with IteratorRange initialization
+  * config: improved documentation
+  * config: added new knobs and their description
+  * eblob: added defrag_time and defrag_splay knobs
+  * debian: bump eblob dependency
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 18 Sep 2013 18:30:33 +0400
+
 elliptics (2.24.14.10) unstable; urgency=low
 
   * Added stall/timed out transctions check

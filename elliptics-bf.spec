@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.10
+Version:	2.24.14.11
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Sep 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.11
+- Add reconnection address if connection has been reset
+- session::push must clear reply flags
+- Added bulk read support for module backend
+- Fixed test_iterator.py: fixed error with IteratorRange initialization
+- config: improved documentation
+- config: added new knobs and their description
+- eblob: added defrag_time and defrag_splay knobs
+- debian: bump eblob dependency
+
 * Sat Sep 14 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.10
 - Added stall/timed out transctions check
 - Added callback machinery debug
