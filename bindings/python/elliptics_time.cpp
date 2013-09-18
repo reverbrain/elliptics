@@ -2,6 +2,10 @@
 
 #include <boost/python.hpp>
 
+#include <elliptics/interface.h>
+
+namespace bp = boost::python;
+
 namespace ioremap { namespace elliptics { namespace python {
 
 elliptics_time::elliptics_time(uint64_t tsec, uint64_t tnsec) {

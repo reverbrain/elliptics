@@ -1,5 +1,16 @@
 #include "result_entry.h"
 
+#include <boost/python.hpp>
+#include <boost/python/list.hpp>
+
+#include <elliptics/result_entry.hpp>
+#include <elliptics/interface.h>
+
+#include "elliptics_id.h"
+#include "elliptics_time.h"
+
+namespace bp = boost::python;
+
 namespace ioremap { namespace elliptics { namespace python {
 
 dnet_iterator_response iterator_result_response(iterator_result_entry result)

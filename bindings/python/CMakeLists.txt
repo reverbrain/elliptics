@@ -11,7 +11,9 @@ set(ELLIPTICS_PYTHON_SRCS
     elliptics_python.cpp
     elliptics_id.cpp
     async_result.cpp
+    result_entry.cpp
     elliptics_time.cpp
+    elliptics_session.cpp
     )
 
 add_library(elliptics_python SHARED ${ELLIPTICS_PYTHON_SRCS} elliptics_python.cpp)

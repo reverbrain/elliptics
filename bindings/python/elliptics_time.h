@@ -1,11 +1,7 @@
 #ifndef ELLIPTICS_PYTHON_ELLIPTICS_TIME_HPP
 #define ELLIPTICS_PYTHON_ELLIPTICS_TIME_HPP
 
-#include <boost/python/list.hpp>
-
-#include <elliptics/session.hpp>
-
-namespace bp = boost::python;
+#include <elliptics/packet.h>
 
 namespace ioremap { namespace elliptics { namespace python {
 
