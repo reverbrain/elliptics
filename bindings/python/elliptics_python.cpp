@@ -259,7 +259,7 @@ void index_entry_set_data(index_entry &result, const std::string& data)
 	result.data = data_pointer(data);
 }
 
-BOOST_PYTHON_MODULE(elliptics)
+BOOST_PYTHON_MODULE(core)
 {
 	bp::class_<error>("ErrorInfo", bp::init<int, std::string>())
 		.def("__str__", &error::error_message)
