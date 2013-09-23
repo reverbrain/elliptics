@@ -75,6 +75,38 @@ uint64_t read_result_get_size(read_result_entry &result)
 	return result.io_attribute()->size;
 }
 
+std::string lookup_result_get_storage_address(const lookup_result_entry &result)
+{
+	return std::string(dnet_server_convert_dnet_addr(result.storage_address()));
+}
+
+uint64_t lookup_result_get_size(const lookup_result_entry &result)
+{
+	return result.file_info()->size;
+}
+
+uint64_t lookup_result_get_offset(const lookup_result_entry &result)
+{
+	return result.file_info()->offset;
+}
+
+elliptics_time lookup_result_get_timestamp(const lookup_result_entry &result)
+{
+	return elliptics_time(result.file_info()->mtime);
+}
+
+elliptics_id lookup_result_get_checksum(const lookup_result_entry &result)
+{
+	dnet_raw_id id;
+	memcpy(id.id, result.file_info()->checksum, DNET_CSUM_SIZE);
+	return elliptics_id(id);
+}
+
+std::string lookup_result_get_filepath(const lookup_result_entry &result)
+{
+	return std::string(result.file_path());
+}
+
 std::string exec_result_get_event(exec_result_entry &result)
 {
 	return result.context().event();
@@ -145,6 +177,12 @@ void init_result_entry() {
 	;
 
 	bp::class_<lookup_result_entry>("LookupResultEntry")
+		.add_property("storage_address", lookup_result_get_storage_address)
+		.add_property("size", lookup_result_get_size)
+		.add_property("offset", lookup_result_get_offset)
+		.add_property("timestamp", lookup_result_get_timestamp)
+		.add_property("checksum", lookup_result_get_checksum)
+		.add_property("filepath", lookup_result_get_filepath)
 	;
 
 	bp::class_<exec_result_entry>("ExecResultEntry")
