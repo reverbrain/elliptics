@@ -82,6 +82,12 @@ class elliptics_session: public session, public bp::wrapper<session> {
 	public:
 		elliptics_session(const node &n) : session(n) {}
 
+		elliptics_id transform(const std::string &data) {
+			dnet_id id;
+			session::transform(data, id);
+			return elliptics_id(id);
+		}
+
 		void set_groups(const bp::api::object &groups) {
 			session::set_groups(convert_to_vector<int>(groups));
 		}
@@ -103,6 +109,14 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			}
 
 			return res;
+		}
+
+		void set_exceptions_policy(uint32_t policy) {
+			session::set_exceptions_policy(policy);
+		}
+
+		uint32_t get_exceptions_policy() const {
+			return session::get_exceptions_policy();
 		}
 
 		void read_file(const bp::api::object &id, const std::string &file, uint64_t offset, uint64_t size) {
@@ -196,13 +210,13 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		python_exec_result exec(const bp::api::object &id, const int src_key, const std::string &event, const std::string &data) {
 			auto eid = elliptics_id::convert(id);
-			transform(eid);
+			session::transform(eid);
 			return create_result(std::move(session::exec(const_cast<dnet_id*>(&eid.id()), src_key, event, data)));
 		}
 
 		python_exec_result exec(const bp::api::object &id, const std::string &event, const std::string &data) {
 			auto eid = elliptics_id::convert(id);
-			transform(eid);
+			session::transform(eid);
 			return create_result(std::move(session::exec(const_cast<dnet_id*>(&eid.id()), event, data)));
 		}
 
@@ -225,7 +239,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 			for (bp::stl_input_iterator<bp::api::object> it(keys), end; it != end; ++it) {
 				auto e_id = elliptics_id::convert(*it);
-				transform(e_id);
+				session::transform(e_id);
 				memcpy(io.id, e_id.id().id, sizeof(io.id));
 				ios.push_back(io);
 			}
@@ -246,7 +260,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 			for (bp::stl_input_iterator<bp::tuple> it(datas), end; it != end; ++it) {
 				auto e_id = elliptics_id::convert((*it)[0]);
-				transform(e_id);
+				session::transform(e_id);
 
 				std::string &data = bp::extract<std::string&>((*it)[1]);
 
@@ -325,7 +339,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 			for (bp::stl_input_iterator<bp::api::object> it(indexes), end; it != end; ++it) {
 				auto e_id = elliptics_id::convert(*it);
-				transform(e_id);
+				session::transform(e_id);
 				std_indexes.push_back(e_id.raw_id());
 			}
 
@@ -344,7 +358,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 			for (bp::stl_input_iterator<bp::api::object> it(indexes), end; it != end; ++it) {
 				auto e_id = elliptics_id::convert(*it);
-				transform(e_id);
+				session::transform(e_id);
 				std_indexes.push_back(e_id.raw_id());
 			}
 
@@ -381,21 +395,31 @@ void init_elliptcs_session() {
 	;
 
 	bp::class_<elliptics_session, boost::noncopyable>("Session", bp::init<node &>())
-		.add_property("groups", &elliptics_session::get_groups, &elliptics_session::set_groups)
+		.def("transform", &elliptics_session::transform, (bp::args("data")))
+
+		.add_property("groups", &elliptics_session::get_groups,
+		                        &elliptics_session::set_groups)
 		.def("add_groups", &elliptics_session::set_groups)
 		.def("set_groups", &elliptics_session::set_groups)
 		.def("get_groups", &elliptics_session::get_groups)
 
-		.add_property("cflags", &elliptics_session::get_cflags, &elliptics_session::set_cflags)
+		.add_property("cflags", &elliptics_session::get_cflags,
+		                        &elliptics_session::set_cflags)
 		.def("set_cflags", &elliptics_session::set_cflags)
 		.def("get_cflags", &elliptics_session::get_cflags)
 
-		.add_property("ioflags", &elliptics_session::get_ioflags, &elliptics_session::set_ioflags)
+		.add_property("ioflags", &elliptics_session::get_ioflags,
+		                         &elliptics_session::set_ioflags)
 		.def("set_ioflags", &elliptics_session::set_ioflags)
 		.def("get_ioflags", &elliptics_session::get_ioflags)
 
 		.def("set_direct_id", &elliptics_session::set_direct_id)
 		.def("get_direct_id", &elliptics_session::get_direct_id)
+
+		.add_property("exceptions_policy", &elliptics_session::get_exceptions_policy,
+		                                   &elliptics_session::set_exceptions_policy)
+		.def("set_exceptions_policy", &elliptics_session::set_exceptions_policy)
+		.def("get_exceptions_policy", &elliptics_session::get_exceptions_policy)
 
 		.def("read_file", &elliptics_session::read_file,
 			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0))

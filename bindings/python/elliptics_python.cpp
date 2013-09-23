@@ -77,6 +77,17 @@ enum elliptics_log_level {
 	log_level_debug = DNET_LOG_DEBUG,
 };
 
+enum elliptics_exceptions_policy {
+	policy_no_exceptions			= ioremap::elliptics::session::no_exceptions,
+	policy_throw_at_start			= ioremap::elliptics::session::throw_at_start,
+	policy_throw_at_wait			= ioremap::elliptics::session::throw_at_wait,
+	policy_throw_at_get				= ioremap::elliptics::session::throw_at_get,
+	policy_throw_at_iterator_end	= ioremap::elliptics::session::throw_at_iterator_end,
+	policy_default_exceptions		= ioremap::elliptics::session::throw_at_wait |
+									  ioremap::elliptics::session::throw_at_get |
+									  ioremap::elliptics::session::throw_at_iterator_end
+};
+
 class elliptics_config {
 	public:
 		elliptics_config() {
@@ -332,6 +343,8 @@ BOOST_PYTHON_MODULE(core)
 		     (bp::arg("addr"), bp::arg("port"), bp::arg("family") = AF_INET))
 		.def("add_remote", static_cast<void (node::*)(const char*)>(&node::add_remote),
 		     (bp::arg("addr")))
+		.def("set_timeouts", static_cast<void (node::*)(const int, const int)>(&node::set_timeouts),
+		     (bp::arg("wait_timeout"), bp::arg("check_timeout")))
 	;
 
 	bp::enum_<elliptics_iterator_flags>("iterator_flags")
@@ -373,6 +386,15 @@ BOOST_PYTHON_MODULE(core)
 		.value("info", log_level_info)
 		.value("notice", log_level_notice)
 		.value("debug", log_level_debug)
+	;
+
+	bp::enum_<elliptics_exceptions_policy>("exceptions_policy")
+		.value("no_exceptions", policy_no_exceptions)
+		.value("throw_at_start", policy_throw_at_start)
+		.value("throw_at_wait", policy_throw_at_wait)
+		.value("throw_at_get", policy_throw_at_get)
+		.value("throw_at_iterator_end", policy_throw_at_iterator_end)
+		.value("default_exceptions", policy_default_exceptions)
 	;
 
 	init_elliptcs_id();
