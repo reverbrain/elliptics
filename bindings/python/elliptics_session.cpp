@@ -111,14 +111,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return res;
 		}
 
-		void set_exceptions_policy(uint32_t policy) {
-			session::set_exceptions_policy(policy);
-		}
-
-		uint32_t get_exceptions_policy() const {
-			return session::get_exceptions_policy();
-		}
-
 		void set_namespace(const std::string& ns) {
 			session::set_namespace(ns.c_str(), ns.size());
 		}
@@ -455,6 +447,11 @@ void init_elliptcs_session() {
 		                                   &elliptics_session::set_timestamp)
 		.def("set_timestamp", &elliptics_session::set_timestamp)
 		.def("get_timestamp", &elliptics_session::get_timestamp)
+
+		.add_property("timeout", &elliptics_session::get_timeout,
+		                                   &elliptics_session::set_timeout)
+		.def("set_timeout", &elliptics_session::set_timeout)
+		.def("get_timeout", &elliptics_session::get_timeout)
 
 		.def("read_file", &elliptics_session::read_file,
 			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0))
