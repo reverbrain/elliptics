@@ -60,6 +60,21 @@ uint64_t read_result_get_user_flags(read_result_entry &result)
 	return result.io_attribute()->user_flags;
 }
 
+uint32_t read_result_get_flags(read_result_entry &result)
+{
+	return result.io_attribute()->flags;
+}
+
+uint64_t read_result_get_offset(read_result_entry &result)
+{
+	return result.io_attribute()->offset;
+}
+
+uint64_t read_result_get_size(read_result_entry &result)
+{
+	return result.io_attribute()->size;
+}
+
 std::string exec_result_get_event(exec_result_entry &result)
 {
 	return result.context().event();
@@ -124,6 +139,9 @@ void init_result_entry() {
 		.add_property("id", read_result_get_id)
 		.add_property("timestamp", read_result_get_timestamp)
 		.add_property("user_flags", read_result_get_user_flags)
+		.add_property("flags", read_result_get_flags)
+		.add_property("offset", read_result_get_offset)
+		.add_property("size", read_result_get_size)
 	;
 
 	bp::class_<lookup_result_entry>("LookupResultEntry")
