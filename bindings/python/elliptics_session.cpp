@@ -427,6 +427,11 @@ void init_elliptcs_session() {
 
 		.def("set_namespace", &elliptics_session::set_namespace)
 
+		.add_property("user_flags", &elliptics_session::get_user_flags,
+		                                   &elliptics_session::set_user_flags)
+		.def("set_user_flags", &elliptics_session::set_user_flags)
+		.def("get_user_flags", &elliptics_session::get_user_flags)
+
 		.def("read_file", &elliptics_session::read_file,
 			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("write_file", &elliptics_session::write_file,
