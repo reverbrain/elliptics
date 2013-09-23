@@ -3,6 +3,8 @@
 
 #include <elliptics/packet.h>
 
+#include <string>
+
 namespace ioremap { namespace elliptics { namespace python {
 
 struct elliptics_time {
@@ -19,6 +21,12 @@ struct elliptics_time {
 
 	void set_tnsec(uint64_t tnsec);
 	uint64_t get_tnsec();
+
+	std::string to_str() const;
+
+	std::string to_repr() const;
+
+	static elliptics_time now();
 
 	dnet_time m_time;
 };

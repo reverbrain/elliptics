@@ -40,6 +40,25 @@ uint64_t elliptics_time::get_tnsec() {
 	return m_time.tnsec;
 }
 
+std::string elliptics_time::to_str() const {
+	std::string ret;
+	ret += dnet_print_time(&m_time);
+	return ret;
+}
+
+std::string elliptics_time::to_repr() const {
+	std::string ret = "elliptics.Time(";
+	ret += dnet_print_time(&m_time);
+	ret += ")";
+	return ret;
+}
+
+elliptics_time elliptics_time::now() {
+	elliptics_time ret;
+	dnet_current_time(&ret.m_time);
+	return ret;
+}
+
 struct time_pickle : bp::pickle_suite
 {
 	static bp::tuple getinitargs(const elliptics_time& time) {
@@ -66,8 +85,6 @@ struct time_pickle : bp::pickle_suite
 
 void init_elliptcs_time() {
 
-
-
 	bp::class_<elliptics_time>("Time",
 			bp::init<uint64_t, uint64_t>(bp::args("tsec", "tnsec")))
 		.add_property("tsec", &elliptics_time::get_tsec,
@@ -76,7 +93,11 @@ void init_elliptcs_time() {
 		                       &elliptics_time::set_tnsec)
 		.def("__cmp__", &elliptics_time::cmp_raw)
 		.def("__cmp__", &elliptics_time::cmp)
+		.def("__str__", &elliptics_time::to_str)
+		.def("__repr__", &elliptics_time::to_repr)
 		.def_pickle(time_pickle())
+		.def("now", &elliptics_time::now)
+		.staticmethod("now")
 	;
 }
 

@@ -123,6 +123,25 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			session::set_namespace(ns.c_str(), ns.size());
 		}
 
+		void set_timestamp(const bp::api::object &time_obj) {
+			if (time_obj.is_none()) {
+				dnet_time ts;
+				ts.tsec = 0;
+				ts.tnsec = 0;
+				session::set_timestamp(&ts);
+			}
+			else {
+				elliptics_time &ts = bp::extract<elliptics_time&>(time_obj);
+				session::set_timestamp(&ts.m_time);
+			}
+		}
+
+		elliptics_time get_timestamp() {
+			dnet_time ts;
+			session::get_timestamp(&ts);
+			return elliptics_time(ts);
+		}
+
 		void read_file(const bp::api::object &id, const std::string &file, uint64_t offset, uint64_t size) {
 			return session::read_file(elliptics_id::convert(id), file, offset, size);
 		}
@@ -431,6 +450,11 @@ void init_elliptcs_session() {
 		                                   &elliptics_session::set_user_flags)
 		.def("set_user_flags", &elliptics_session::set_user_flags)
 		.def("get_user_flags", &elliptics_session::get_user_flags)
+
+		.add_property("timestamp", &elliptics_session::get_timestamp,
+		                                   &elliptics_session::set_timestamp)
+		.def("set_timestamp", &elliptics_session::set_timestamp)
+		.def("get_timestamp", &elliptics_session::get_timestamp)
 
 		.def("read_file", &elliptics_session::read_file,
 			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0))

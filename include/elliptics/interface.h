@@ -517,7 +517,7 @@ static inline char *dnet_state_dump_addr_only(struct dnet_addr *a)
 	return dnet_server_convert_addr((struct sockaddr *)a->addr, a->addr_len);
 }
 
-static inline char *dnet_print_time(struct dnet_time *t)
+static inline char *dnet_print_time(const struct dnet_time *t)
 {
 	char str[64];
 	struct tm tm;
@@ -600,7 +600,7 @@ static inline char *dnet_dump_id_len(const struct dnet_id *id, unsigned int len)
 {
 	static char __dnet_dump_str[2 * DNET_ID_SIZE + 16 + 3];
 	char tmp[2*DNET_ID_SIZE + 1];
-	
+
 	snprintf(__dnet_dump_str, sizeof(__dnet_dump_str), "%d:%s", id->group_id,
 			dnet_dump_id_len_raw(id->id, len, tmp));
 	return __dnet_dump_str;
@@ -706,7 +706,7 @@ int __attribute__((weak)) dnet_send_reply_threshold(void *state, struct dnet_cmd
  * statistics if no @complete function is provided, otherwise it returns
  * after queueing all transactions and appropriate callback will be
  * invoked asynchronously.
- * 
+ *
  * Function returns number of nodes statistics request was sent to
  * or negative error code. In case of error callback completion can
  * still be called.
