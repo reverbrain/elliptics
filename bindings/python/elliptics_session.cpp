@@ -119,6 +119,10 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return session::get_exceptions_policy();
 		}
 
+		void set_namespace(const std::string& ns) {
+			session::set_namespace(ns.c_str(), ns.size());
+		}
+
 		void read_file(const bp::api::object &id, const std::string &file, uint64_t offset, uint64_t size) {
 			return session::read_file(elliptics_id::convert(id), file, offset, size);
 		}
@@ -420,6 +424,8 @@ void init_elliptcs_session() {
 		                                   &elliptics_session::set_exceptions_policy)
 		.def("set_exceptions_policy", &elliptics_session::set_exceptions_policy)
 		.def("get_exceptions_policy", &elliptics_session::get_exceptions_policy)
+
+		.def("set_namespace", &elliptics_session::set_namespace)
 
 		.def("read_file", &elliptics_session::read_file,
 			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0))
