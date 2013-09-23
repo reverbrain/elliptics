@@ -1,5 +1,5 @@
-from elliptics.core import *
-from elliptics.route import *
+from elliptics.core import Session
+from elliptics.route import RouteList
 
 class Session(Session):
 

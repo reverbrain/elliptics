@@ -329,7 +329,9 @@ BOOST_PYTHON_MODULE(core)
 	bp::class_<elliptics_node_python>("Node", bp::init<logger>())
 		.def(bp::init<logger, elliptics_config &>())
 		.def("add_remote", static_cast<void (node::*)(const char*, int, int)>(&node::add_remote),
-			(bp::arg("addr"), bp::arg("port"), bp::arg("family") = AF_INET))
+		     (bp::arg("addr"), bp::arg("port"), bp::arg("family") = AF_INET))
+		.def("add_remote", static_cast<void (node::*)(const char*)>(&node::add_remote),
+		     (bp::arg("addr")))
 	;
 
 	bp::enum_<elliptics_iterator_flags>("iterator_flags")
