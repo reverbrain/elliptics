@@ -146,6 +146,11 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return create_result(std::move(session::read_data(elliptics_id::convert(id), offset, size)));
 		}
 
+		python_read_result read_data_from_groups(const bp::api::object &id, const bp::list &groups, uint64_t offset, uint64_t size) {
+			auto std_groups = convert_to_vector<int>(groups);
+			return create_result(std::move(session::read_data(elliptics_id::convert(id), std_groups, offset, size)));
+		}
+
 		python_read_result read_latest(const bp::api::object &id, uint64_t offset, uint64_t size) {
 			return create_result(std::move(session::read_latest(elliptics_id::convert(id), offset, size)));
 		}
@@ -154,7 +159,7 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return create_result(std::move(session::write_data(elliptics_id::convert(id), data, offset)));
 		}
 
-		python_write_result write_data(const bp::api::object &id, const std::string &data, uint64_t offset, uint64_t chunk_size) {
+		python_write_result write_data_by_chunks(const bp::api::object &id, const std::string &data, uint64_t offset, uint64_t chunk_size) {
 			return create_result(std::move(session::write_data(elliptics_id::convert(id), data, offset, chunk_size)));
 		}
 
@@ -464,15 +469,17 @@ void init_elliptcs_session() {
 
 		.def("read_data", &elliptics_session::read_data,
 			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
+		.def("read_data", &elliptics_session::read_data_from_groups,
+			(bp::arg("key"), bp::arg("groups"), bp::arg("offset") = 0, bp::arg("size") = 0))
 
 		.def("prepare_latest", &elliptics_session::prepare_latest)
 
 		.def("read_latest", &elliptics_session::read_latest,
 			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 
-		.def("write_data", (python_write_result (elliptics_session::*)(const bp::api::object&, const std::string&, uint64_t))&elliptics_session::write_data,
+		.def("write_data", &elliptics_session::write_data,
 			(bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0))
-		.def("write_data", (python_write_result (elliptics_session::*)(const bp::api::object&, const std::string&, uint64_t, uint64_t))&elliptics_session::write_data,
+		.def("write_data", &elliptics_session::write_data_by_chunks,
 			(bp::arg("key"), bp::arg("data"), bp::arg("offset"), bp::arg("chunk_size")))
 
 		.def("write_cache", &elliptics_session::write_cache)
