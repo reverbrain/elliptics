@@ -87,10 +87,9 @@ static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_point
 		msgpack::unpack(&msg, file.data<char>() + DNET_INDEX_TABLE_MAGIC_SIZE, file.size() - DNET_INDEX_TABLE_MAGIC_SIZE);
 		msg.get().convert(data);
 	} catch (const std::exception &e) {
-		DNET_DUMP_ID(id_str, id);
+		DNET_DUMP_ID_LEN(id_str, id, DNET_ID_SIZE);
 		dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s: unpack exception: %s, file-size: %zu\n",
 			id_str, scope, e.what(), file.size());
-
 		data->shard_id = 0;
 		data->shard_count = 0;
 		data->indexes.clear();

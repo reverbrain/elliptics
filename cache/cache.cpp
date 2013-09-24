@@ -732,9 +732,11 @@ class cache_t {
 					obj->clear_synctime();
 
 					guard.unlock();
+					dnet_oplock(m_node, &id);
 
 					sync_element(id, false, data, user_flags, timestamp);
 
+					dnet_opunlock(m_node, &id);
 					guard.lock();
 
 					auto jt = m_set.find(id.id);
