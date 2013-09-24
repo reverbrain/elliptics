@@ -1,6 +1,7 @@
 from elliptics.core import Session
 from elliptics.route import RouteList
 
+
 class Session(Session):
 
     @property

@@ -3,6 +3,7 @@ from itertools import groupby, izip
 from operator import attrgetter, itemgetter
 from elliptics.core import Id
 
+
 class Address(object):
     __doc__ = \
         """
@@ -13,11 +14,14 @@ class Address(object):
 
     def __init__(self, host=None, port=None, family=0, group_id=0):
         if family not in self.ALLOWED_FAMILIES:
-            raise ValueError("Family '{0}' is not in {1}".format(family, self.ALLOWED_FAMILIES))
+            raise ValueError("Family '{0}' is not in {1}"
+                             .format(family, self.ALLOWED_FAMILIES))
 
         gai = getaddrinfo(host, port, family, 0, SOL_TCP)
         if len(gai) > 1:
-            self.log.warning("More than one IP found for: {0}. Using first: {1}.".format(host, gai[0]))
+            self.log.warning("More than one IP found"
+                             "for: {0}. Using first: {1}."
+                             .format(host, gai[0]))
 
         family, _, _, _, hostport = gai[0]
         if family == AF_INET:
@@ -46,28 +50,33 @@ class Address(object):
         Creates address from string "host:port:family".
         """
         host, port, family = addr_str.rsplit(':', 2)
-        return cls(host=host, port=int(port), family=int(family), group_id=group_id)
+        return cls(host=host, port=int(port),
+                   family=int(family), group_id=group_id)
 
     def __hash__(self):
         return hash(tuple(self))
 
     def __repr__(self):
-        return "Address({0}, {1}, {2}, {3})".format(self.host, self.port, self.family, self.group_id)
+        return "Address({0}, {1}, {2}, {3})".format(self.host, self.port,
+                                                    self.family, self.group_id)
 
     def __str__(self):
-        return "{0}:{1}:{2} {3}".format(self.host, self.port, self.family, self.group_id)
+        return "{0}:{1}:{2} {3}".format(self.host, self.port,
+                                        self.family, self.group_id)
 
     def __iter__(self):
         return iter((self.host, self.port, self.family))
 
     def __eq__(self, other):
-        return (self.host, self.port, self.family) == (other.host, other.port, other.family)
+        return (self.host, self.port, self.family) == \
+               (other.host, other.port, other.family)
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
     def __getitem__(self, item):
         return tuple(self)[item]
+
 
 class Route(object):
     __doc__ = \
@@ -76,6 +85,7 @@ class Route(object):
         Route consists of key and address to which this key belongs
         """
     __slots__ = ('key', 'address')
+
     def __init__(self, key, address):
         self.key = key
         self.address = address
@@ -101,12 +111,14 @@ class Route(object):
     def __getitem__(self, item):
         return tuple(self)[item]
 
+
 class RouteList(object):
     __doc__ = \
         """
         Route list that sorts entries by key and also merges
         adj. keys that belongs to the same node.
         """
+
     def __init__(self, routes):
         self.routes = routes
 
@@ -138,8 +150,10 @@ class RouteList(object):
             # For each Route in list left only first one for each route
             for _, g in groupby(group_routes, attrgetter('address')):
                 merged_group.append(list(g)[0])
-            assert(all(r1.address != r2.address for r1, r2 in izip(merged_group, merged_group[1:])))
-            assert(all(r1.key < r2.key for r1, r2 in izip(merged_group, merged_group[1:])))
+            assert(all(r1.address != r2.address
+                       for r1, r2 in izip(merged_group, merged_group[1:])))
+            assert(all(r1.key < r2.key
+                       for r1, r2 in izip(merged_group, merged_group[1:])))
 
             # Insert implicit last route
             merged_group.append(Route(Id([255]*64, group), last_address))
@@ -157,13 +171,14 @@ class RouteList(object):
         """
         Filters routes for specified address
         """
-        return [ route for route in self.routes if route.address == address ]
+        return [route for route in self.routes if route.address == address]
 
     def filter_by_group_id(self, group_id):
         """
         Filters routes for specified group_id
         """
-        return [ route for route in self.routes if route.address.group_id == group_id ]
+        return [route for route in self.routes
+                if route.address.group_id == group_id]
 
     def groups(self):
         """
@@ -198,13 +213,13 @@ class RouteList(object):
         key = None
         for route in self.filter_by_group_id(group_id):
             if route.address == address:
-                if key == None:
+                if not key is None:
                     key = route.key
-            elif key != None:
+            elif key:
                 ranges.append((key, route.key))
                 key = None
 
-        if key != None:
+        if key:
             ranges.append((key, Id([255]*64, group_id)))
 
         return ranges
