@@ -603,7 +603,6 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 	const int64_t timer_compare = timer.restart();
 
 	int64_t timer_write = timer_compare;
-	int64_t timer_read_check = timer_compare;
 
 	if (data_equal) {
 		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is the same\n");
@@ -612,16 +611,6 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is different\n");
 		err = sess.write(cmd->id, new_data);
 		timer_write = timer.restart();
-
-		int new_err = 0;
-		data_pointer just_written_data = sess.read(cmd->id, &new_err);
-		DNET_DUMP_ID_LEN(id_str, &cmd->id, DNET_ID_SIZE);
-		if (new_err) {
-			dnet_log(state->n, DNET_LOG_ERROR, "INDEXES_INTERNAL: read written data, id: %s, error: %d\n", id_str, new_err);
-		} else if (!(just_written_data == new_data)) {
-			dnet_log(state->n, DNET_LOG_ERROR, "INDEXES_INTERNAL: written data not equal to read: %s\n", id_str);
-		}
-		timer_read_check = timer.restart();
 	}
 
 	data_buffer buffer(sizeof(dnet_indexes_reply) + sizeof(dnet_indexes_reply_entry));
@@ -652,9 +641,9 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 	DNET_DUMP_ID_LEN(id_str, &cmd->id, DNET_DUMP_NUM);
 	typedef long long int lld;
 	dnet_log(state->n, DNET_LOG_INFO, "INDEXES_INTERNAL: id: %s, data size: %zu, new data size: %zu, checks: %lld ms,"
-		 "read: %lld ms, convert: %lld ms, write: %lld ms, read_check: %lld ms, send: %lld md\n",
+		 "read: %lld ms, convert: %lld ms, write: %lld ms, send: %lld md\n",
 		 id_str, data.size(), new_data.size(), lld(timer_checks), lld(timer_read),
-		 lld(timer_convert), lld(timer_write), lld(timer_read_check), lld(timer_send));
+		 lld(timer_convert), lld(timer_write), lld(timer_send));
 
 	return err;
 }
