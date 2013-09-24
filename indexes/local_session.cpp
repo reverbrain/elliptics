@@ -87,10 +87,6 @@ data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_t
 
 	struct dnet_io_req *r, *tmp;
 
-	std::map<uint64_t, data_pointer> data_map;
-
-	size_t total_size = 0;
-
 	list_for_each_entry_safe(r, tmp, &m_state->send_list, req_entry) {
 		dnet_log(m_state->n, DNET_LOG_DEBUG, "hsize: %zu, dsize: %zu\n", r->hsize, r->dsize);
 
@@ -110,15 +106,16 @@ data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_t
 			if (timestamp)
 				*timestamp = req_io->timestamp;
 
-			data_pointer &data = data_map[req_io->offset];
+			dnet_log(m_state->n, DNET_LOG_DEBUG, "entry in list, size: %llu\n",
+				static_cast<unsigned long long>(req_io->size));
 
-			total_size -= data.size();
+			data_pointer result;
 
 			if (r->data) {
-				data = data_pointer::copy(r->data, r->dsize);
+				result = data_pointer::copy(r->data, r->dsize);
 			} else {
-				data = data_pointer::allocate(req_io->size);
-				ssize_t read_res = pread(r->fd, data.data(), data.size(), r->local_offset);
+				result = data_pointer::allocate(req_io->size);
+				ssize_t read_res = pread(r->fd, result.data(), result.size(), r->local_offset);
 				if (read_res == -1) {
 					*errp = errno;
 					clear_queue();
@@ -126,22 +123,15 @@ data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_t
 				}
 			}
 
-			total_size += data.size();
 
-			dnet_log(m_state->n, DNET_LOG_DEBUG, "entry in list, size: %llu\n",
-				static_cast<unsigned long long>(req_io->size));
+			clear_queue();
+			return result;
 		}
 	}
 
+	*errp = -ENOENT;
 	clear_queue();
-
-	data_buffer buffer(total_size);
-
-	for (auto it = data_map.begin(); it != data_map.end(); ++it) {
-		buffer.write(it->second.data<char>(), it->second.size());
-	}
-
-	return std::move(buffer);
+	return data_pointer();
 }
 
 int local_session::write(const dnet_id &id, const data_pointer &data)

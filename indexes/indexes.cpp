@@ -440,6 +440,30 @@ err_out_complete:
 	}
 };
 
+class elliptics_timer
+{
+	typedef std::chrono::high_resolution_clock clock;
+public:
+	elliptics_timer() : m_last_time(clock::now())
+	{
+	}
+
+	int64_t elapsed() const
+	{
+		return std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - m_last_time).count();
+	}
+
+	int64_t restart()
+	{
+		clock::time_point time = clock::now();
+		std::swap(m_last_time, time);
+		return std::chrono::duration_cast<std::chrono::milliseconds>(m_last_time - time).count();
+	}
+
+private:
+	clock::time_point m_last_time;
+};
+
 /*!
  * Update data-object table for certain secondary index.
  *
@@ -449,21 +473,35 @@ err_out_complete:
 data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, dnet_indexes_request *request,
 	const data_pointer &index_data, const data_pointer &data, update_index_action action)
 {
-	dnet_indexes indexes;
+	elliptics_timer timer;
+
+	raw_dnet_indexes indexes;
 	if (!data.empty())
 		indexes_unpack(node, cmd_id, data, &indexes, "convert_index_table");
 
-	// Construct index entry
-	index_entry request_index;
-	memcpy(request_index.index.id, request->id.id, sizeof(request_index.index.id));
-	request_index.data = index_data;
+	const int64_t timer_unpack = timer.restart();
 
-	auto it = std::lower_bound(indexes.indexes.begin(), indexes.indexes.end(),
-		request_index, dnet_raw_id_less_than<skip_data>());
+	// Construct index entry
+	raw_index_entry request_index;
+	memcpy(request_index.index.id, request->id.id, sizeof(request_index.index.id));
+	request_index.data.data = index_data.data();
+	request_index.data.size = index_data.size();
+
+	auto it = std::lower_bound(indexes.indexes.begin(), indexes.indexes.end(), request_index);
+
+	const int64_t timer_lower_bound = timer.restart();
+
 	if (it != indexes.indexes.end() && it->index == request_index.index) {
 		// It's already there
 		if (action == insert_data) {
 			if (it->data == request_index.data) {
+				const int64_t timer_compare = timer.restart();
+				DNET_DUMP_ID_LEN(id_str, cmd_id, DNET_DUMP_NUM);
+				typedef long long int lld;
+				dnet_log(node, DNET_LOG_INFO, "INDEXES_INTERNAL: convert: id: %s, data size: %zu, new data size: %zu,"
+					 "unpack: %lld ms, lower_bound: %lld ms, compare: %lld ms\n",
+					 id_str, data.size(), data.size(), lld(timer_unpack), lld(timer_lower_bound),
+					 lld(timer_compare));
 				// All's ok, keep it untouched
 				return data;
 			} else {
@@ -480,10 +518,19 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, dnet_indexes_
 			// Just insert it
 			indexes.indexes.insert(it, 1, request_index);
 		} else {
+			const int64_t timer_compare = timer.restart();
+			DNET_DUMP_ID_LEN(id_str, cmd_id, DNET_DUMP_NUM);
+			typedef long long int lld;
+			dnet_log(node, DNET_LOG_INFO, "INDEXES_INTERNAL: convert: id: %s, data size: %zu, new data size: %zu,"
+				 "unpack: %lld ms, lower_bound: %lld ms, compare: %lld ms\n",
+				 id_str, data.size(), data.size(), lld(timer_unpack), lld(timer_lower_bound),
+				 lld(timer_compare));
 			// All's ok, keep it untouched
 			return data;
 		}
 	}
+
+	const int64_t timer_update = timer.restart();
 
 	indexes.shard_id = request->shard_id;
 	indexes.shard_count = request->shard_count;
@@ -491,15 +538,28 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, dnet_indexes_
 	msgpack::sbuffer buffer;
 	msgpack::pack(&buffer, indexes);
 
+	const int64_t timer_pack = timer.restart();
+
 	data_buffer new_buffer(DNET_INDEX_TABLE_MAGIC_SIZE + buffer.size());
 	new_buffer.write(dnet_bswap64(DNET_INDEX_TABLE_MAGIC));
 	new_buffer.write(buffer.data(), buffer.size());
+
+	const int64_t timer_write = timer.restart();
+
+	DNET_DUMP_ID_LEN(id_str, cmd_id, DNET_DUMP_NUM);
+	typedef long long int lld;
+	dnet_log(node, DNET_LOG_INFO, "INDEXES_INTERNAL: convert: id: %s, data size: %zu, new data size: %zu,"
+		 "unpack: %lld ms, lower_bound: %lld ms, update: %lld ms, pack: %lld ms, write: %lld ms\n",
+		 id_str, data.size(), new_buffer.size(), lld(timer_unpack), lld(timer_lower_bound),
+		 lld(timer_update), lld(timer_pack), lld(timer_write));
 
 	return std::move(new_buffer);
 }
 
 int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
 {
+	elliptics_timer timer;
+
 	local_session sess(state->n);
 
 	if (request->entries_count != 1) {
@@ -529,16 +589,39 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 		return -EINVAL;
 	}
 
+	const int64_t timer_checks = timer.restart();
+
 	int err = 0;
 	data_pointer data = sess.read(cmd->id, &err);
-	data_pointer new_data = convert_index_table(state->n, &cmd->id, request, entry_data, data, action);
+	const int64_t timer_read = timer.restart();
 
-	if (data == new_data) {
+	data_pointer new_data = convert_index_table(state->n, &cmd->id, request, entry_data, data, action);
+	const int64_t timer_convert = timer.restart();
+
+	const bool data_equal = data == new_data;
+
+	const int64_t timer_compare = timer.restart();
+
+	int64_t timer_write = timer_compare;
+	int64_t timer_read_check = timer_compare;
+
+	if (data_equal) {
 		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is the same\n");
 		err = 0;
 	} else {
 		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is different\n");
 		err = sess.write(cmd->id, new_data);
+		timer_write = timer.restart();
+
+		int new_err = 0;
+		data_pointer just_written_data = sess.read(cmd->id, &new_err);
+		DNET_DUMP_ID_LEN(id_str, &cmd->id, DNET_ID_SIZE);
+		if (new_err) {
+			dnet_log(state->n, DNET_LOG_ERROR, "INDEXES_INTERNAL: read written data, id: %s, error: %d\n", id_str, new_err);
+		} else if (!(just_written_data == new_data)) {
+			dnet_log(state->n, DNET_LOG_ERROR, "INDEXES_INTERNAL: written data not equal to read: %s\n", id_str);
+		}
+		timer_read_check = timer.restart();
 	}
 
 	data_buffer buffer(sizeof(dnet_indexes_reply) + sizeof(dnet_indexes_reply_entry));
@@ -563,6 +646,15 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 	}
 
 	dnet_send_reply(state, cmd, reply_data.data(), reply_data.size(), err ? 1 : 0);
+
+	const int64_t timer_send = timer.restart();
+
+	DNET_DUMP_ID_LEN(id_str, &cmd->id, DNET_DUMP_NUM);
+	typedef long long int lld;
+	dnet_log(state->n, DNET_LOG_INFO, "INDEXES_INTERNAL: id: %s, data size: %zu, new data size: %zu, checks: %lld ms,"
+		 "read: %lld ms, convert: %lld ms, write: %lld ms, read_check: %lld ms, send: %lld md\n",
+		 id_str, data.size(), new_data.size(), lld(timer_checks), lld(timer_read),
+		 lld(timer_convert), lld(timer_write), lld(timer_read_check), lld(timer_send));
 
 	return err;
 }

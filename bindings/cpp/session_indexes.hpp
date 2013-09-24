@@ -19,6 +19,35 @@ struct dnet_indexes
 	std::vector<index_entry> indexes;
 };
 
+struct raw_data_pointer
+{
+	const void *data;
+	uint32_t size;
+
+	bool operator ==(const raw_data_pointer &o) const
+	{
+		return size == o.size && (size == 0 || memcmp(data, o.data, size) == 0);
+	}
+};
+
+struct raw_index_entry
+{
+	dnet_raw_id index;
+	raw_data_pointer data;
+
+	bool operator <(const raw_index_entry &o) const
+	{
+		return memcmp(index.id, o.index.id, sizeof(index.id)) < 0;
+	}
+};
+
+struct raw_dnet_indexes
+{
+	int shard_id;
+	int shard_count;
+	std::vector<raw_index_entry> indexes;
+};
+
 struct update_request
 {
 	dnet_id id;
@@ -43,7 +72,8 @@ struct update_index_request
 	bool remove;
 };
 
-static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_pointer &file, dnet_indexes *data, const char *scope)
+template <typename T>
+static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_pointer &file, T *data, const char *scope)
 {
 	static const unsigned long long magic = dnet_bswap64(DNET_INDEX_TABLE_MAGIC);
 
@@ -60,6 +90,7 @@ static inline void indexes_unpack(dnet_node *node, dnet_id *id, const data_point
 		DNET_DUMP_ID(id_str, id);
 		dnet_log_raw(node, DNET_LOG_ERROR, "%s: %s: unpack exception: %s, file-size: %zu\n",
 			id_str, scope, e.what(), file.size());
+
 		data->shard_id = 0;
 		data->shard_count = 0;
 		data->indexes.clear();
@@ -144,6 +175,28 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const da
 	return o;
 }
 
+inline raw_data_pointer &operator >>(msgpack::object o, raw_data_pointer &v)
+{
+	if (o.type != msgpack::type::RAW)
+		throw msgpack::type_error();
+	if (o.via.raw.size) {
+		v.data = o.via.raw.ptr;
+		v.size = o.via.raw.size;
+	} else {
+		v.data = NULL;
+		v.size = 0;
+	}
+	return v;
+}
+
+template <typename Stream>
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const raw_data_pointer &v)
+{
+	o.pack_raw(v.size);
+	o.pack_raw_body(reinterpret_cast<const char *>(v.data), v.size);
+	return o;
+}
+
 inline index_entry &operator >>(msgpack::object o, index_entry &v)
 {
 	if (o.type != msgpack::type::ARRAY || o.via.array.size != 2)
@@ -156,6 +209,25 @@ inline index_entry &operator >>(msgpack::object o, index_entry &v)
 
 template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const index_entry &v)
+{
+	o.pack_array(2);
+	o.pack(v.index);
+	o.pack(v.data);
+	return o;
+}
+
+inline raw_index_entry &operator >>(msgpack::object o, raw_index_entry &v)
+{
+	if (o.type != msgpack::type::ARRAY || o.via.array.size != 2)
+		throw msgpack::type_error();
+	object *p = o.via.array.ptr;
+	p[0].convert(&v.index);
+	p[1].convert(&v.data);
+	return v;
+}
+
+template <typename Stream>
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const raw_index_entry &v)
 {
 	o.pack_array(2);
 	o.pack(v.index);
@@ -182,6 +254,7 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const up
 	return o;
 }
 
+// Keep it in sink with raw_dnet_indexes
 inline dnet_indexes &operator >>(msgpack::object o, dnet_indexes &v)
 {
 	if (o.type != msgpack::type::ARRAY || o.via.array.size < 1)
@@ -210,6 +283,44 @@ inline dnet_indexes &operator >>(msgpack::object o, dnet_indexes &v)
 
 template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const dnet_indexes &v)
+{
+	o.pack_array(4);
+	o.pack(2);
+	o.pack(v.indexes);
+	o.pack(v.shard_id);
+	o.pack(v.shard_count);
+	return o;
+}
+
+// Keep it in sink with dnet_indexes
+inline raw_dnet_indexes &operator >>(msgpack::object o, raw_dnet_indexes &v)
+{
+	if (o.type != msgpack::type::ARRAY || o.via.array.size < 1)
+		throw msgpack::type_error();
+
+	object *p = o.via.array.ptr;
+	const uint32_t size = o.via.array.size;
+	uint16_t version = 0;
+	p[0].convert(&version);
+	switch (version) {
+	case 2: {
+		if (size != 4)
+			throw msgpack::type_error();
+
+		p[1].convert(&v.indexes);
+		p[2].convert(&v.shard_id);
+		p[3].convert(&v.shard_count);
+		break;
+	}
+	default:
+		throw msgpack::type_error();
+	}
+
+	return v;
+}
+
+template <typename Stream>
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const raw_dnet_indexes &v)
 {
 	o.pack_array(4);
 	o.pack(2);
