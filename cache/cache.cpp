@@ -734,6 +734,7 @@ class cache_t {
 					guard.unlock();
 					dnet_oplock(m_node, &id);
 
+					// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
 					sync_element(id, false, data, user_flags, timestamp);
 
 					dnet_opunlock(m_node, &id);

@@ -253,7 +253,7 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const up
 	return o;
 }
 
-// Keep it in sink with raw_dnet_indexes
+// Keep it in sync with raw_dnet_indexes
 inline dnet_indexes &operator >>(msgpack::object o, dnet_indexes &v)
 {
 	if (o.type != msgpack::type::ARRAY || o.via.array.size < 1)
@@ -291,7 +291,7 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const dn
 	return o;
 }
 
-// Keep it in sink with dnet_indexes
+// Keep it in sync with dnet_indexes
 inline raw_dnet_indexes &operator >>(msgpack::object o, raw_dnet_indexes &v)
 {
 	if (o.type != msgpack::type::ARRAY || o.via.array.size < 1)
