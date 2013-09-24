@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.11
+Version:	2.24.14.12
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Sep 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.12
+- Added commentary about sync_element usage in life thread
+- Added locks around sync block in life check thread
+- Improved update_indexes_internal perfomance
+- Comment out unused method parameters.
+- Made dnet_state_reset() log high enough not to spam in default cleanup path
+
 * Wed Sep 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.11
 - Add reconnection address if connection has been reset
 - session::push must clear reply flags

@@ -1,3 +1,13 @@
+elliptics (2.24.14.12) unstable; urgency=low
+
+  * Added commentary about sync_element usage in life thread
+  * Added locks around sync block in life check thread
+  * Improved update_indexes_internal perfomance
+  * Comment out unused method parameters.
+  * Made dnet_state_reset() log high enough not to spam in default cleanup path
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 24 Sep 2013 18:16:05 +0400
+
 elliptics (2.24.14.11) unstable; urgency=low
 
   * Add reconnection address if connection has been reset
