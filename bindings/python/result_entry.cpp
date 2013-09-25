@@ -150,6 +150,11 @@ bp::list find_indexes_result_get_indexes(find_indexes_result_entry &result)
 	return ret;
 }
 
+dnet_stat stat_result_get_statistics(stat_result_entry &result)
+{
+	return *(result.statistics());
+}
+
 void init_result_entry() {
 
 	bp::class_<iterator_result_entry>("IteratorResultEntry")
@@ -201,7 +206,27 @@ void init_result_entry() {
 	bp::class_<callback_result_entry>("CallbackResultEntry")
 	;
 
+	bp::class_<dnet_stat>("Statisitics", bp::no_init)
+		.add_property("bsize", &dnet_stat::bsize)
+		.add_property("frsize", &dnet_stat::frsize)
+		.add_property("blocks", &dnet_stat::blocks)
+		.add_property("bfree", &dnet_stat::bfree)
+		.add_property("bavail", &dnet_stat::bavail)
+		.add_property("files", &dnet_stat::files)
+		.add_property("ffree", &dnet_stat::ffree)
+		.add_property("favail", &dnet_stat::favail)
+		.add_property("fsid", &dnet_stat::fsid)
+		.add_property("flag", &dnet_stat::flag)
+		.add_property("vm_active", &dnet_stat::vm_active)
+		.add_property("vm_inactive", &dnet_stat::vm_inactive)
+		.add_property("vm_total", &dnet_stat::vm_total)
+		.add_property("vm_free", &dnet_stat::vm_free)
+		.add_property("vm_cached", &dnet_stat::vm_cached)
+		.add_property("vm_buffers", &dnet_stat::vm_buffers)
+	;
+
 	bp::class_<stat_result_entry>("StatResultEntry")
+		.add_property("statistics", stat_result_get_statistics)
 	;
 
 	bp::class_<stat_count_result_entry>("StatCountResultEntry")
