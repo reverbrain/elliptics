@@ -191,6 +191,18 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			                     count)));
 		}
 
+		python_write_result write_prepare(const bp::api::object &id, const data_pointer &data, uint64_t remote_offset, uint64_t psize) {
+			return create_result(std::move(session::write_prepare(elliptics_id::convert(id), data, remote_offset, psize)));
+		}
+
+		python_write_result write_plain(const bp::api::object &id, const data_pointer &data, uint64_t remote_offset) {
+			return create_result(std::move(session::write_plain(elliptics_id::convert(id), data, remote_offset)));
+		}
+
+		python_write_result write_commit(const bp::api::object &id, const data_pointer &data, uint64_t remote_offset, uint64_t csize) {
+			return create_result(std::move(session::write_commit(elliptics_id::convert(id), data, remote_offset, csize)));
+		}
+
 		python_write_result write_cache(const bp::api::object &id, const std::string &data, long timeout) {
 			return create_result(std::move(session::write_cache(elliptics_id::convert(id), data, timeout)));
 		}
@@ -508,6 +520,13 @@ void init_elliptcs_session() {
 		     (bp::arg("key"), bp::arg("data"), bp::arg("old_csum"), bp::arg("remote_offset") = 0))
 		.def("write_cas", &elliptics_session::write_cas_callback,
 		     (bp::arg("key"), bp::arg("converter"), bp::arg("remote_offset") = 0, bp::arg("count") = 10))
+
+		.def("write_prepare", &elliptics_session::write_prepare,
+		     (bp::arg("key"), bp::arg("data"), bp::arg("remote_offset"), bp::arg("psize")))
+		.def("write_plain", &elliptics_session::write_plain,
+		     (bp::arg("key"), bp::arg("data"), bp::arg("remote_offset")))
+		.def("write_commit", &elliptics_session::write_commit,
+		     (bp::arg("key"), bp::arg("data"), bp::arg("remote_offset"), bp::arg("csize")))
 
 		.def("write_cache", &elliptics_session::write_cache)
 
