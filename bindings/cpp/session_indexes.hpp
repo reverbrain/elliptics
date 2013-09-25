@@ -26,7 +26,7 @@ struct raw_data_pointer
 
 	bool operator ==(const raw_data_pointer &o) const
 	{
-		return size == o.size && (size == 0 || memcmp(data, o.data, size) == 0);
+		return size == o.size && (size == 0 || data == o.data || memcmp(data, o.data, size) == 0);
 	}
 };
 
