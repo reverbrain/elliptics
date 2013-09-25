@@ -155,6 +155,16 @@ dnet_stat stat_result_get_statistics(stat_result_entry &result)
 	return *(result.statistics());
 }
 
+dnet_addr_stat stat_count_result_get_statistics(stat_count_result_entry &result)
+{
+	return *(result.statistics());
+}
+
+std::string addr_stat_get_address(dnet_addr_stat &stat)
+{
+	return std::string(dnet_server_convert_dnet_addr(&stat.addr));
+}
+
 void init_result_entry() {
 
 	bp::class_<iterator_result_entry>("IteratorResultEntry")
@@ -229,7 +239,14 @@ void init_result_entry() {
 		.add_property("statistics", stat_result_get_statistics)
 	;
 
+	bp::class_<dnet_addr_stat>("AddressStatistics", bp::no_init)
+		.add_property("address", addr_stat_get_address)
+		.add_property("num", &dnet_addr_stat::num)
+		.add_property("cmd_num", &dnet_addr_stat::cmd_num)
+	;
+
 	bp::class_<stat_count_result_entry>("StatCountResultEntry")
+		.add_property("statistics", stat_count_result_get_statistics)
 	;
 
 }
