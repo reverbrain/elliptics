@@ -119,6 +119,7 @@ typedef python_async_result<callback_result_entry>		python_async_set_indexes_res
 typedef python_async_result<find_indexes_result_entry>	python_find_indexes_result;
 typedef python_async_result<index_entry>				python_check_indexes_result;
 
+typedef python_async_result<stat_result_entry>			python_stat_result;
 typedef python_async_result<stat_count_result_entry>	python_stat_count_result;
 
 void init_async_results();

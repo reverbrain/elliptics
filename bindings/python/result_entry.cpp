@@ -201,6 +201,9 @@ void init_result_entry() {
 	bp::class_<callback_result_entry>("CallbackResultEntry")
 	;
 
+	bp::class_<stat_result_entry>("StatResultEntry")
+	;
+
 	bp::class_<stat_count_result_entry>("StatCountResultEntry")
 	;
 

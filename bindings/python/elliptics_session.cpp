@@ -427,6 +427,14 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return create_result(std::move(session::list_indexes(elliptics_id::convert(id))));
 		}
 
+		python_stat_result stat_log() {
+			return create_result(std::move(session::stat_log()));
+		}
+
+		python_stat_result stat_log(const bp::api::object &id) {
+			return create_result(std::move(session::stat_log(elliptics_id::convert(id))));
+		}
+
 		python_stat_count_result stat_log_count() {
 			return create_result(std::move(session::stat_log_count()));
 		}
@@ -542,7 +550,11 @@ void init_elliptcs_session() {
 		.def("read_data_range", &elliptics_session::read_data_range)
 
 		.def("get_routes", &elliptics_session::get_routes)
-		.def("stat_log", &elliptics_session::stat_log_count)
+
+		.def("stat_log_count", &elliptics_session::stat_log_count)
+		.def("stat_log", (python_stat_result (elliptics_session::*)())&elliptics_session::stat_log)
+		.def("stat_log", (python_stat_result (elliptics_session::*)(const bp::api::object&))&elliptics_session::stat_log,
+		     (bp::arg("key")))
 
 		.def("start_iterator", &elliptics_session::start_iterator)
 		.def("pause_iterator", &elliptics_session::pause_iterator)
