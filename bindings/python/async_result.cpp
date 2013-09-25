@@ -18,6 +18,10 @@ struct def_async_result<T>
 			.def("successful", &python_async_result<T>::successful)
 			.def("ready", &python_async_result<T>::ready)
 			.def("elapsed_time", &python_async_result<T>::elapsed_time)
+			.def("connect", &python_async_result<T>::connect,
+			     (bp::arg("result_handler"), bp::arg("final_handler")))
+			.def("connect", &python_async_result<T>::connect_all,
+			     (bp::arg("handler")))
 		;
 	}
 };

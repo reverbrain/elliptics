@@ -6,16 +6,33 @@
 #include <boost/python/dict.hpp>
 #include <boost/python/stl_iterator.hpp>
 
+#include <boost/make_shared.hpp>
+
 #include <elliptics/session.hpp>
 
 #include "elliptics_id.h"
 #include "async_result.h"
 #include "result_entry.h"
 #include "elliptics_time.h"
+#include "gil_guard.h"
+#include "py_converters.h"
 
 namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics { namespace python {
+
+struct write_cas_converter {
+	write_cas_converter(PyObject *converter): py_converter(converter) {}
+
+	data_pointer convert(const data_pointer &data) {
+		gil_guard gstate;
+		std::string ret = bp::call<std::string>(py_converter, data.to_string());
+
+		return ret;
+	}
+
+	PyObject *py_converter;
+};
 
 class elliptics_status : public dnet_node_status
 {
@@ -44,13 +61,6 @@ class elliptics_status : public dnet_node_status
 		return buffer;
 	}
 };
-
-template <typename T>
-static std::vector<T> convert_to_vector(const bp::api::object &list)
-{
-	bp::stl_input_iterator<T> begin(list), end;
-	return std::vector<T>(begin, end);
-}
 
 struct elliptics_range {
 	elliptics_range() : offset(0), size(0),
@@ -151,6 +161,12 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return create_result(std::move(session::read_data(elliptics_id::convert(id), std_groups, offset, size)));
 		}
 
+		python_lookup_result prepare_latest(const bp::api::object &id, const bp::api::object &gl) {
+			std::vector<int> groups = convert_to_vector<int>(gl);
+
+			return create_result(std::move(session::prepare_latest(elliptics_id::convert(id), groups)));
+		}
+
 		python_read_result read_latest(const bp::api::object &id, uint64_t offset, uint64_t size) {
 			return create_result(std::move(session::read_latest(elliptics_id::convert(id), offset, size)));
 		}
@@ -163,6 +179,18 @@ class elliptics_session: public session, public bp::wrapper<session> {
 			return create_result(std::move(session::write_data(elliptics_id::convert(id), data, offset, chunk_size)));
 		}
 
+		python_write_result write_cas(const bp::api::object &id, const std::string &data, const elliptics_id &old_csum, uint64_t remote_offset) {
+			return create_result(std::move(session::write_cas(elliptics_id::convert(id), data, old_csum.id(), remote_offset)));
+		}
+
+		python_write_result write_cas_callback(const bp::api::object &id, bp::api::object &converter, uint64_t remote_offset, int count) {
+			auto wc_converter = boost::make_shared<write_cas_converter>(converter.ptr());
+			return create_result(std::move(session::write_cas(elliptics_id::convert(id),
+			                     boost::bind(&write_cas_converter::convert, wc_converter, _1),
+			                     remote_offset,
+			                     count)));
+		}
+
 		python_write_result write_cache(const bp::api::object &id, const std::string &data, long timeout) {
 			return create_result(std::move(session::write_cache(elliptics_id::convert(id), data, timeout)));
 		}
@@ -173,12 +201,6 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		python_lookup_result lookup(const bp::api::object &id) {
 			return create_result(std::move(session::lookup(elliptics_id::convert(id))));
-		}
-
-		python_lookup_result prepare_latest(const bp::api::object &id, const bp::api::object &gl) {
-			std::vector<int> groups = convert_to_vector<int>(gl);
-
-			return create_result(std::move(session::prepare_latest(elliptics_id::convert(id), groups)));
 		}
 
 		elliptics_status update_status(const bp::api::object &id, elliptics_status &status) {
@@ -463,24 +485,29 @@ void init_elliptcs_session() {
 		.def("get_timeout", &elliptics_session::get_timeout)
 
 		.def("read_file", &elliptics_session::read_file,
-			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0))
+		     (bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("write_file", &elliptics_session::write_file,
-			(bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("local_offset") = 0, bp::arg("size") = 0))
+		     (bp::arg("key"), bp::arg("filename"), bp::arg("offset") = 0, bp::arg("local_offset") = 0, bp::arg("size") = 0))
 
 		.def("read_data", &elliptics_session::read_data,
-			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
+		     (bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 		.def("read_data", &elliptics_session::read_data_from_groups,
-			(bp::arg("key"), bp::arg("groups"), bp::arg("offset") = 0, bp::arg("size") = 0))
+		     (bp::arg("key"), bp::arg("groups"), bp::arg("offset") = 0, bp::arg("size") = 0))
 
 		.def("prepare_latest", &elliptics_session::prepare_latest)
 
 		.def("read_latest", &elliptics_session::read_latest,
-			(bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
+		     (bp::arg("key"), bp::arg("offset") = 0, bp::arg("size") = 0))
 
 		.def("write_data", &elliptics_session::write_data,
-			(bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0))
+		     (bp::arg("key"), bp::arg("data"), bp::arg("offset") = 0))
 		.def("write_data", &elliptics_session::write_data_by_chunks,
-			(bp::arg("key"), bp::arg("data"), bp::arg("offset"), bp::arg("chunk_size")))
+		     (bp::arg("key"), bp::arg("data"), bp::arg("offset"), bp::arg("chunk_size")))
+
+		.def("write_cas", &elliptics_session::write_cas,
+		     (bp::arg("key"), bp::arg("data"), bp::arg("old_csum"), bp::arg("remote_offset") = 0))
+		.def("write_cas", &elliptics_session::write_cas_callback,
+		     (bp::arg("key"), bp::arg("converter"), bp::arg("remote_offset") = 0, bp::arg("count") = 10))
 
 		.def("write_cache", &elliptics_session::write_cache)
 
@@ -509,20 +536,20 @@ void init_elliptcs_session() {
 		     (const bp::api::object&,
 		      const int, const std::string&,
 		      const std::string&))&elliptics_session::exec,
-			(bp::arg("id"), bp::arg("event"), bp::arg("data") = ""))
+		      (bp::arg("id"), bp::arg("event"), bp::arg("data") = ""))
 		.def("exec_event", (python_exec_result (elliptics_session::*)
 		     (const bp::api::object&,
 		      const std::string&,
 		      const std::string&))&elliptics_session::exec,
-			(bp::arg("id"), bp::arg("src_key"), bp::arg("event"), bp::arg("data") = ""))
+		      (bp::arg("id"), bp::arg("src_key"), bp::arg("event"), bp::arg("data") = ""))
 
 		.def("remove", &elliptics_session::remove)
 
 		.def("bulk_read", &elliptics_session::bulk_read,
-			(bp::arg("keys")))
+		     (bp::arg("keys")))
 
 		.def("bulk_write", &elliptics_session::bulk_write,
-			(bp::arg("datas")))
+		     (bp::arg("datas")))
 
 		.def("set_indexes", &elliptics_session::set_indexes,
 		     (bp::arg("id"), bp::arg("indexes"), bp::arg("datas")))

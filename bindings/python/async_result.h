@@ -2,14 +2,52 @@
 #define ELLIPTICS_PYTHON_ASYNC_RESULTS_HPP
 
 #include <boost/python/list.hpp>
+#include <boost/bind.hpp>
+#include <boost/make_shared.hpp>
+#include <boost/python/str.hpp>
+#include <boost/python/errors.hpp>
 
 #include <elliptics/result_entry.hpp>
 
 #include "elliptics_time.h"
+#include "gil_guard.h"
+#include "py_converters.h"
 
 namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics { namespace python {
+
+template <typename T>
+struct callback_handlers {
+	callback_handlers(PyObject *result, PyObject *final = NULL)
+	: result_handler(result)
+	, final_handler(final)
+	{}
+
+	void on_result(const T &result) {
+		gil_guard gstate;
+		try {
+			bp::call<void>(result_handler, result);
+		} catch (const bp::error_already_set& e) {}
+	}
+
+	void on_results(const std::vector<T> &results, const error_info &err) {
+		gil_guard gstate;
+		try {
+			bp::call<void>(result_handler, convert_to_list(results), error(err.code(), err.message()));
+		} catch (const bp::error_already_set& e) {}
+	}
+
+	void on_final(const error_info &err) {
+		gil_guard gstate;
+		try {
+			bp::call<void>(final_handler, error(err.code(), err.message()));
+		} catch (const bp::error_already_set& e) {}
+	}
+
+	PyObject *result_handler;
+	PyObject *final_handler;
+};
 
 template <typename T>
 struct python_async_result
@@ -27,14 +65,7 @@ struct python_async_result
 	}
 
 	bp::list get() {
-		bp::list ret;
-
-		auto res = scope->get();
-		for (auto it = res.begin(), end = res.end(); it != end; ++it) {
-			ret.append(*it);
-		}
-
-		return ret;
+		return convert_to_list(scope->get());
 	}
 
 	void wait() {
@@ -56,6 +87,17 @@ struct python_async_result
 
 	elliptics_time elapsed_time() {
 		return elliptics_time(scope->elapsed_time());
+	}
+
+	void connect(bp::api::object &result_handler, bp::api::object &final_handler) {
+		auto callback = boost::make_shared<callback_handlers<T>>(result_handler.ptr(), final_handler.ptr());
+		scope->connect(boost::bind(&callback_handlers<T>::on_result, callback, _1),
+		               boost::bind(&callback_handlers<T>::on_final, callback, _1));
+	}
+
+	void connect_all(bp::api::object &handler) {
+		auto callback = boost::make_shared<callback_handlers<T>>(handler.ptr());
+		scope->connect(boost::bind(&callback_handlers<T>::on_results, callback, _1, _2));
 	}
 };
 
