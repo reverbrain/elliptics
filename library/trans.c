@@ -311,20 +311,31 @@ static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *
 	struct tm tm;
 
 	gettimeofday(&tv, NULL);
+	dnet_log(st->n, DNET_LOG_DEBUG, "stall check: state: %s, st: %p\n", dnet_state_dump_addr(st), st);
 
 	pthread_mutex_lock(&st->trans_lock);
 	list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
-		if (t->time.tv_sec >= tv.tv_sec)
-			break;
 
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
+
+		dnet_log(st->n, DNET_LOG_DEBUG, "%s: trans: %llu simple check: stall-check wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
+				dnet_state_dump_addr(st), (unsigned long long)t->trans,
+				(unsigned long)t->wait_ts.tv_sec,
+				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
+				str, t->start.tv_usec);
+
+
+		if (t->time.tv_sec >= tv.tv_sec)
+			break;
 
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT: stall-check wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
 				dnet_state_dump_addr(st), (unsigned long long)t->trans,
 				(unsigned long)t->wait_ts.tv_sec,
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
+
+
 		trans_timeout++;
 
 		dnet_trans_remove_nolock(&st->trans_root, t);
@@ -363,8 +374,10 @@ static void dnet_check_all_states(struct dnet_node *n)
 	struct dnet_group *g, *gtmp;
 	LIST_HEAD(head);
 
+	dnet_log(n, DNET_LOG_DEBUG, "stall check: group-list-empty: %d, n: %p\n", list_empty(&n->group_list), n);
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry_safe(g, gtmp, &n->group_list, group_entry) {
+		dnet_log(n, DNET_LOG_DEBUG, "stall check: group: %d: state-list-empty: %d\n", g->group_id, list_empty(&g->state_list));
 		list_for_each_entry_safe(st, tmp, &g->state_list, state_entry) {
 			dnet_trans_check_stall(st, &head);
 		}
