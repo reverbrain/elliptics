@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.13
+Version:	2.24.14.14
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 26 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.14
+- ioclient must return non zero on exec (and other commands) error
+- Stall check debug code
+
 * Thu Sep 26 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.13
 - Added cocaine-elliptics service stub
 - Little optimization for raw_data_pointer comprasion

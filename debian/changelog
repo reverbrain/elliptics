@@ -1,3 +1,10 @@
+elliptics (2.24.14.14) unstable; urgency=low
+
+  * ioclient must return non zero on exec (and other commands) error
+  * Stall check debug code
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 26 Sep 2013 19:35:06 +0400
+
 elliptics (2.24.14.13) unstable; urgency=low
 
   * Added cocaine-elliptics service stub
