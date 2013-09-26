@@ -1,3 +1,11 @@
+elliptics (2.24.14.13) unstable; urgency=low
+
+  * Added cocaine-elliptics service stub
+  * Little optimization for raw_data_pointer comprasion
+  * Removed debug check read in update_indexes_internal
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 26 Sep 2013 16:06:42 +0400
+
 elliptics (2.24.14.12) unstable; urgency=low
 
   * Added commentary about sync_element usage in life thread

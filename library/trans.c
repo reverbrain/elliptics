@@ -411,7 +411,7 @@ static void *dnet_reconnect_process(void *data)
 	struct dnet_node *n = data;
 	long i, timeout;
 	struct timeval tv1, tv2;
-	int checks = 0, route_table_checks = 3;
+	int checks = 0, route_table_checks = 1;
 
 	dnet_set_name("reconnect");
 

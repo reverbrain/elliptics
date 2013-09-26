@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.12
+Version:	2.24.14.13
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Sep 26 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.13
+- Added cocaine-elliptics service stub
+- Little optimization for raw_data_pointer comprasion
+- Removed debug check read in update_indexes_internal
+
 * Tue Sep 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.12
 - Added commentary about sync_element usage in life thread
 - Added locks around sync block in life check thread
