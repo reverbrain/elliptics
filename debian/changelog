@@ -1,3 +1,11 @@
+elliptics (2.24.14.15) unstable; urgency=low
+
+  * Return EXFULL from srw->process() if srw/cocaine enqueue/write throws an exception.
+  * State reset should cleanup all transactions.
+  * Added elliptics tool man pages. Removed obsoleted documentation.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 27 Sep 2013 22:28:11 +0400
+
 elliptics (2.24.14.14) unstable; urgency=low
 
   * ioclient must return non zero on exec (and other commands) error
