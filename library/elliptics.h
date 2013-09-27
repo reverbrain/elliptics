@@ -700,6 +700,10 @@ void dnet_trans_remove(struct dnet_trans *t);
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
 struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
 
+void dnet_trans_clean_list(struct list_head *head);
+int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_head *head);
+int dnet_state_reset_nolock_noclean(struct dnet_net_state *st, int error, struct list_head *head);
+
 int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req);
 
 int dnet_recv_list(struct dnet_node *n, struct dnet_net_state *st);

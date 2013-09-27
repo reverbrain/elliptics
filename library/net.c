@@ -786,9 +786,10 @@ static void dnet_state_remove(struct dnet_net_state *st)
 	pthread_mutex_unlock(&n->state_lock);
 }
 
-void dnet_state_reset(struct dnet_net_state *st, int error)
+static void dnet_state_remove_and_shutdown(struct dnet_net_state *st, int error)
 {
 	int level = DNET_LOG_NOTICE;
+
 	if (error && (error != -EUCLEAN))
 		level = DNET_LOG_ERROR;
 
@@ -806,7 +807,30 @@ void dnet_state_reset(struct dnet_net_state *st, int error)
 	shutdown(st->write_s, 2);
 
 	pthread_mutex_unlock(&st->send_lock);
+
 }
+
+int dnet_state_reset_nolock_noclean(struct dnet_net_state *st, int error, struct list_head *head)
+{
+	dnet_state_remove_and_shutdown(st, error);
+
+	return dnet_trans_iterate_move_transaction(st, head);
+}
+
+void dnet_state_reset(struct dnet_net_state *st, int error)
+{
+	LIST_HEAD(head);
+
+	/*
+	 * Prevent route table access and update, check given state, move and then drop all its transactions
+	 */
+	pthread_mutex_lock(&st->n->state_lock);
+	dnet_state_reset_nolock_noclean(st, error, &head);
+	pthread_mutex_unlock(&st->n->state_lock);
+
+	dnet_trans_clean_list(&head);
+}
+
 
 void dnet_sock_close(int s)
 {
