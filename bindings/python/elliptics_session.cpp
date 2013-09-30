@@ -561,6 +561,8 @@ void init_elliptcs_session() {
 		.def("continue_iterator", &elliptics_session::continue_iterator)
 		.def("cancel_iterator", &elliptics_session::cancel_iterator)
 
+		.def("state_num", &session::state_num)
+
 		// Couldn't use "exec" as a method name because it's a reserved keyword in python
 
 		.def("exec_event", (python_exec_result (elliptics_session::*)

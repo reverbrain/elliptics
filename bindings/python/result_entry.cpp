@@ -130,8 +130,7 @@ elliptics_id exec_result_get_src_id(exec_result_entry &result)
 
 std::string exec_result_get_address(exec_result_entry &result)
 {
-	struct dnet_addr *addr = result.context().address();
-	return dnet_server_convert_dnet_addr(addr);
+	return dnet_server_convert_dnet_addr(result.context().address());
 }
 
 elliptics_id find_indexes_result_get_id(find_indexes_result_entry &result)
@@ -148,6 +147,41 @@ bp::list find_indexes_result_get_indexes(find_indexes_result_entry &result)
 	}
 
 	return ret;
+}
+
+bool callback_result_is_valid(callback_result_entry &result)
+{
+	return result.is_valid();
+}
+
+bool callback_result_is_ack(callback_result_entry &result)
+{
+	return result.is_ack();
+}
+
+int callback_result_status(callback_result_entry &result)
+{
+	return result.status();
+}
+
+error callback_result_error(callback_result_entry &result)
+{
+	return error(result.error().code(), result.error().message());
+}
+
+std::string callback_result_data(callback_result_entry &result)
+{
+	return result.data().to_string();
+}
+
+std::string callback_result_address(callback_result_entry &result)
+{
+	return dnet_server_convert_dnet_addr(result.address());
+}
+
+uint64_t callback_result_size(callback_result_entry &result)
+{
+	return result.size();
 }
 
 dnet_stat stat_result_get_statistics(stat_result_entry &result)
@@ -214,6 +248,13 @@ void init_result_entry() {
 	;
 
 	bp::class_<callback_result_entry>("CallbackResultEntry")
+		.add_property("is_valid", callback_result_is_valid)
+		.add_property("is_ask", callback_result_is_ack)
+		.add_property("status", callback_result_status)
+		.add_property("error", callback_result_error)
+		.add_property("data", callback_result_data)
+		.add_property("address", callback_result_address)
+		.add_property("size", callback_result_size)
 	;
 
 	bp::class_<dnet_stat>("Statisitics", bp::no_init)
