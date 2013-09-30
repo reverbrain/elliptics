@@ -93,6 +93,8 @@ if __name__ == '__main__':
                       help="Will be waiting for user input at the finish.")
     parser.add_option("-m", "--monitor-port", action="store", dest="monitor_port", default=0,
                       help="Enable remote monitoring on provided port [default: disabled]")
+    parser.add_option("-w", "--wait-timeout", action="store", dest="wait_timeout", default="3600",
+                      help="[Wait timeout for elliptics operations default: %default]")
 
     (options, args) = parser.parse_args()
 
@@ -214,6 +216,11 @@ if __name__ == '__main__':
     except Exception as e:
         raise ValueError("Can't parse monitor_port: '{0}': {1}".format(options.monitor_port, repr(e)))
 
+    try:
+        ctx.wait_timeout = int(options.wait_timeout)
+    except Exception as e:
+        raise ValueError("Can't parse wait_timeout: '{0}': {1}".format(options.wait_timeout, repr(e)))
+
     log.info("Initializing monitor")
     ctx.monitor = Monitor(ctx, ctx.monitor_port)
 
@@ -231,7 +238,9 @@ if __name__ == '__main__':
     ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
 
     log.debug("Creating node")
-    node = elliptics_create_node(address=ctx.address, elog=ctx.elog)
+    node = elliptics_create_node(address=ctx.address,
+                                 elog=ctx.elog,
+                                 wait_timeout=ctx.wait_timeout)
 
     log.debug("Creating session for: {0}".format(ctx.address))
     session = elliptics_create_session(node=node, group=0)
