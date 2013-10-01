@@ -6,6 +6,16 @@ namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics { namespace python {
 
+elliptics_io_attr::elliptics_io_attr()
+{
+	start		= 0;
+	num			= 0;
+	user_flags	= 0;
+	flags		= 0;
+	offset		= 0;
+	size		= 0;
+}
+
 void init_elliptcs_io_attr() {
 	bp::class_<elliptics_io_attr>("IoAttr")
 		.def_readwrite("parent", &elliptics_io_attr::parent)

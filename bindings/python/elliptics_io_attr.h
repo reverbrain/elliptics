@@ -7,6 +7,7 @@
 namespace ioremap { namespace elliptics { namespace python {
 
 struct elliptics_io_attr: public dnet_io_attr {
+	elliptics_io_attr();
 	elliptics_id parent;
 	elliptics_id id;
 	elliptics_time time;

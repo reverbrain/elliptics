@@ -1660,7 +1660,7 @@ std::vector<std::string> session::read_data_range_raw(dnet_io_attr &io, int grou
 	return result;
 }
 
-async_read_result session::remove_data_range(dnet_io_attr &io, int group_id)
+async_read_result session::remove_data_range(const dnet_io_attr &io, int group_id)
 {
 	async_read_result result(*this);
 	async_result_handler<read_result_entry> handler(result);

@@ -583,7 +583,7 @@ class session
 		 *
 		 * Returns async_read_result.
 		 */
-		async_read_result remove_data_range(struct dnet_io_attr &io, int group_id);
+		async_read_result remove_data_range(const struct dnet_io_attr &io, int group_id);
 
 		/*!
 		 * Returns the list of network routes.

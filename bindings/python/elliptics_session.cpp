@@ -236,8 +236,12 @@ public:
 		return status;
 	}
 
-	python_read_result read_data_range(const struct elliptics_range &r) {
+	python_read_result read_data_range(const elliptics_range &r) {
 		return create_result(std::move(session::read_data_range(r.io_attr(), r.group_id)));
+	}
+
+	python_read_result remove_data_range(const elliptics_range &r) {
+		return create_result(std::move(session::remove_data_range(r.io_attr(), r.group_id)));
 	}
 
 	bp::list get_routes() {
@@ -304,15 +308,12 @@ public:
 
 	python_read_result bulk_read(const bp::list &keys) {
 		std::vector<dnet_io_attr> ios;
-		dnet_io_attr io;
-		memset(&io, 0, sizeof(io));
 		ios.reserve(bp::len(keys));
 
 		for (bp::stl_input_iterator<bp::api::object> it(keys), end; it != end; ++it) {
-			auto e_id = elliptics_id::convert(*it);
-			session::transform(e_id);
-			memcpy(io.id, e_id.id().id, sizeof(io.id));
-			ios.push_back(io);
+			elliptics_io_attr io_attr = convert_io_attr(*it);
+			transform_io_attr(io_attr);
+			ios.push_back(io_attr);
 		}
 
 		return create_result(std::move(session::bulk_read(ios)));
@@ -326,31 +327,14 @@ public:
 		ios.reserve(datas_len);
 		wdatas.resize(datas_len);
 
-		dnet_io_attr io;
-		memset(&io, 0, sizeof(io));
-
 		for (bp::stl_input_iterator<bp::tuple> it(datas), end; it != end; ++it) {
-			auto e_id = elliptics_id::convert((*it)[0]);
-			session::transform(e_id);
+			elliptics_io_attr io_attr = convert_io_attr((*it)[0]);
+			transform_io_attr(io_attr);
 
 			std::string &data = bp::extract<std::string&>((*it)[1]);
 
-			auto it_len = bp::len(*it);
-			if (it_len > 2) {
-				elliptics_time e_time = bp::extract<elliptics_time>((*it)[2]);
-				io.timestamp = e_time.m_time;
-			}
-			else
-				dnet_empty_time(&io.timestamp);
-			if (it_len > 3)
-				io.user_flags = bp::extract<uint64_t>((*it)[3]);
-			else
-				io.user_flags = 0;
-
-			memcpy(io.id, e_id.id().id, sizeof(io.id));
-			io.size = data.size();
 			wdatas.push_back(data);
-			ios.push_back(io);
+			ios.push_back(io_attr);
 		}
 
 		return create_result(std::move(session::bulk_write(ios, wdatas)));
@@ -461,6 +445,19 @@ private:
 
 		memcpy(io.parent, io_attr.parent.id().id, sizeof(io.parent));
 		memcpy(io.id, io_attr.id.id().id, sizeof(io.id));
+	}
+
+	elliptics_io_attr convert_io_attr(const bp::api::object &obj) {
+		bp::extract<elliptics_io_attr&> get_io_attr(obj);
+		if (get_io_attr.check()) {
+			elliptics_io_attr &io_attr = get_io_attr;
+			return io_attr;
+		}
+		else {
+			elliptics_io_attr io_attr;
+			io_attr.id = elliptics_id::convert(obj);
+			return io_attr;
+		}
 	}
 };
 
@@ -588,6 +585,7 @@ void init_elliptcs_session() {
 		      bp::arg("family"), bp::arg("status")))
 
 		.def("read_data_range", &elliptics_session::read_data_range)
+		.def("remove_data_range", &elliptics_session::remove_data_range)
 
 		.def("get_routes", &elliptics_session::get_routes)
 
