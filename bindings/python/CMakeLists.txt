@@ -13,6 +13,7 @@ set(ELLIPTICS_PYTHON_SRCS
     async_result.cpp
     result_entry.cpp
     elliptics_time.cpp
+    elliptics_io_attr.cpp
     elliptics_session.cpp
     )
 

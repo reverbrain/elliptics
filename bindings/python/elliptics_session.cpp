@@ -16,6 +16,7 @@
 #include "elliptics_time.h"
 #include "gil_guard.h"
 #include "py_converters.h"
+#include "elliptics_io_attr.h"
 
 namespace bp = boost::python;
 
@@ -172,7 +173,15 @@ class elliptics_session: public session, public bp::wrapper<session> {
 		}
 
 		python_write_result write_data(const bp::api::object &id, const std::string &data, uint64_t offset) {
-			return create_result(std::move(session::write_data(elliptics_id::convert(id), data, offset)));
+			bp::extract<elliptics_io_attr&> get_io_attr(id);
+			if (!get_io_attr.check()){
+				return create_result(std::move(session::write_data(elliptics_id::convert(id), data, offset)));
+			}
+
+			elliptics_io_attr &io_attr = get_io_attr;
+			transform_io_attr(io_attr);
+
+			return create_result(std::move(session::write_data(io_attr, data)));
 		}
 
 		python_write_result write_data_by_chunks(const bp::api::object &id, const std::string &data, uint64_t offset, uint64_t chunk_size) {
@@ -437,6 +446,17 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 		python_stat_count_result stat_log_count() {
 			return create_result(std::move(session::stat_log_count()));
+		}
+
+	private:
+		void transform_io_attr(elliptics_io_attr &io_attr) {
+			session::transform(io_attr.parent);
+			session::transform(io_attr.id);
+
+			auto& io = static_cast<dnet_io_attr&>(io_attr);
+
+			memcpy(io.parent, io_attr.parent.id().id, sizeof(io.parent));
+			memcpy(io.id, io_attr.id.id().id, sizeof(io.id));
 		}
 };
 

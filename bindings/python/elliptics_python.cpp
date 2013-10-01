@@ -32,6 +32,7 @@
 #include "async_result.h"
 #include "result_entry.h"
 #include "elliptics_time.h"
+#include "elliptics_io_attr.h"
 #include "elliptics_session.h"
 
 namespace bp = boost::python;
@@ -401,6 +402,7 @@ BOOST_PYTHON_MODULE(core)
 	init_async_results();
 	init_result_entry();
 	init_elliptcs_time();
+	init_elliptcs_io_attr();
 	init_elliptcs_session();
 };
 
