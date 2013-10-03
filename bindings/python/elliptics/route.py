@@ -224,6 +224,39 @@ class RouteList(object):
 
         return ranges
 
+    def percentages(self):
+        """
+        Returns parts of DHT ring each node occupies (in percents)
+        """
+        perc = {}
+        for g in self.groups():
+            routes = self.filter_by_group_id(g)
+            prev = None
+            perc[g] = {}
+            for r in routes:
+                if prev:
+                    amount = int(str(r.key), 16) - int(str(prev.key), 16)
+                    if prev.address not in perc[g]:
+                        perc[g][prev.address] = amount
+                    else:
+                        perc[g][prev.address] += amount
+
+                prev = r
+
+        max = int(str(Id([255] * 64, 0)), 16)
+
+        for g in perc:
+            sum = 0
+            for p in perc[g]:
+                sum += perc[g][p]
+                perc[g][p] = perc[g][p] * 100.0 / max
+            assert(sum == max)
+
+        return perc
+
+    def spread(self):
+        return self.percentages()
+
     def __iter__(self):
         return iter(self.routes)
 
