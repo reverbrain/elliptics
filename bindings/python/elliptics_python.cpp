@@ -965,6 +965,10 @@ class elliptics_session: public session, public bp::wrapper<session> {
 
 			return statistics;
 		}
+
+		void transform(const elliptics_id &id) {
+			session::transform(id);
+		}
 };
 
 class elliptics_error_translator
@@ -1571,6 +1575,9 @@ BOOST_PYTHON_MODULE(elliptics)
 		     (bp::arg("indexes")))
 
 		.def("list_indexes", &elliptics_session::list_indexes,
+		     (bp::arg("id")))
+
+		.def("transform", &elliptics_session::transform,
 		     (bp::arg("id")))
 	;
 
