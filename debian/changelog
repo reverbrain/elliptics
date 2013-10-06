@@ -1,3 +1,60 @@
+elliptics (2.24.14.15) unstable; urgency=low
+
+  * Return EXFULL from srw->process() if srw/cocaine enqueue/write throws an exception.
+  * State reset should cleanup all transactions.
+  * Added elliptics tool man pages. Removed obsoleted documentation.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 27 Sep 2013 22:28:11 +0400
+
+elliptics (2.24.14.14) unstable; urgency=low
+
+  * ioclient must return non zero on exec (and other commands) error
+  * Stall check debug code
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 26 Sep 2013 19:35:06 +0400
+
+elliptics (2.24.14.13) unstable; urgency=low
+
+  * Added cocaine-elliptics service stub
+  * Little optimization for raw_data_pointer comprasion
+  * Removed debug check read in update_indexes_internal
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 26 Sep 2013 16:06:42 +0400
+
+elliptics (2.24.14.12) unstable; urgency=low
+
+  * Added commentary about sync_element usage in life thread
+  * Added locks around sync block in life check thread
+  * Improved update_indexes_internal perfomance
+  * Comment out unused method parameters.
+  * Made dnet_state_reset() log high enough not to spam in default cleanup path
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 24 Sep 2013 18:16:05 +0400
+
+elliptics (2.24.14.11) unstable; urgency=low
+
+  * Add reconnection address if connection has been reset
+  * session::push must clear reply flags
+  * Added bulk read support for module backend
+  * Fixed test_iterator.py: fixed error with IteratorRange initialization
+  * config: improved documentation
+  * config: added new knobs and their description
+  * eblob: added defrag_time and defrag_splay knobs
+  * debian: bump eblob dependency
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 18 Sep 2013 18:30:33 +0400
+
+elliptics (2.24.14.10) unstable; urgency=low
+
+  * Added stall/timed out transctions check
+  * Added callback machinery debug
+  * Print trace id as part of thread-id/pid chunk
+  * Moved trace_id into TLS
+  * dnet_usage() text cleanup
+  * Initialize err before dnet_add_state_socket() call
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 14 Sep 2013 02:57:49 +0400
+
 elliptics (2.24.14.9) unstable; urgency=low
 
   * Moved stall transaction processing into dnet_io_process(), where it can be done without races.

@@ -60,7 +60,13 @@ struct dnet_node;
 struct dnet_group;
 struct dnet_net_state;
 
-#define dnet_log(n, level, format, a...) do { if (n->log && (n->log->log_level >= level)) dnet_log_raw(n, level, format, ##a); } while (0)
+extern __thread uint32_t trace_id;
+
+#define dnet_log(n, level, format, a...)							\
+	do {											\
+		if (n->log && ((n->log->log_level >= level) || (trace_id & DNET_TRACE_BIT)))	\
+			dnet_log_raw(n, level, format, ##a);					\
+		} while (0)
 #define dnet_log_err(n, f, a...) dnet_log(n, DNET_LOG_ERROR, f ": %s [%d].\n", ##a, strerror(errno), errno)
 
 struct dnet_io_req {
@@ -693,6 +699,10 @@ int dnet_trans_insert_nolock(struct rb_root *root, struct dnet_trans *a);
 void dnet_trans_remove(struct dnet_trans *t);
 void dnet_trans_remove_nolock(struct rb_root *root, struct dnet_trans *t);
 struct dnet_trans *dnet_trans_search(struct rb_root *root, uint64_t trans);
+
+void dnet_trans_clean_list(struct list_head *head);
+int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_head *head);
+int dnet_state_reset_nolock_noclean(struct dnet_net_state *st, int error, struct list_head *head);
 
 int dnet_trans_send(struct dnet_trans *t, struct dnet_io_req *req);
 

@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.9
+Version:	2.24.14.15
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,45 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Sep 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.15
+- Return EXFULL from srw->process() if srw/cocaine enqueue/write throws an exception.
+- State reset should cleanup all transactions.
+- Added elliptics tool man pages. Removed obsoleted documentation.
+
+* Thu Sep 26 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.14
+- ioclient must return non zero on exec (and other commands) error
+- Stall check debug code
+
+* Thu Sep 26 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.13
+- Added cocaine-elliptics service stub
+- Little optimization for raw_data_pointer comprasion
+- Removed debug check read in update_indexes_internal
+
+* Tue Sep 24 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.12
+- Added commentary about sync_element usage in life thread
+- Added locks around sync block in life check thread
+- Improved update_indexes_internal perfomance
+- Comment out unused method parameters.
+- Made dnet_state_reset() log high enough not to spam in default cleanup path
+
+* Wed Sep 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.11
+- Add reconnection address if connection has been reset
+- session::push must clear reply flags
+- Added bulk read support for module backend
+- Fixed test_iterator.py: fixed error with IteratorRange initialization
+- config: improved documentation
+- config: added new knobs and their description
+- eblob: added defrag_time and defrag_splay knobs
+- debian: bump eblob dependency
+
+* Sat Sep 14 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.10
+- Added stall/timed out transctions check
+- Added callback machinery debug
+- Print trace id as part of thread-id/pid chunk
+- Moved trace_id into TLS
+- dnet_usage() text cleanup
+- Initialize err before dnet_add_state_socket() call
+
 * Thu Sep 12 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.9
 - Moved stall transaction processing into dnet_io_process(), where it can be done without races.
 

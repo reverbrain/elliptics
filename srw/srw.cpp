@@ -559,14 +559,25 @@ class srw {
 				int index = eng->get_index(src_key);
 				std::shared_ptr<cocaine::api::stream_t> stream;
 
-				if (index == -1) {
-					stream = eng->enqueue(cevent, upstream);
-				} else {
-					app = eng->get_task_id() + "-" + app + "-" + lexical_cast(index);
-					stream = eng->enqueue(cevent, upstream, app);
-				}
+				try {
+					if (index == -1) {
+						stream = eng->enqueue(cevent, upstream);
+					} else {
+						app = eng->get_task_id() + "-" + app + "-" + lexical_cast(index);
+						stream = eng->enqueue(cevent, upstream, app);
+					}
 
-				stream->write((const char *)sph, total_size(sph) + sizeof(struct sph));
+					stream->write((const char *)sph, total_size(sph) + sizeof(struct sph));
+				} catch (const std::exception &e) {
+					dnet_log(m_s->node, DNET_LOG_ERROR, "%s: sph: %s: %s: enqueue/write-exception: queue: %s, src-key-orig: %d, "
+							"job: %d, total-size: %zd, block: %d: %s\n",
+							id_str, sph_str, event.c_str(),
+							app.c_str(),
+							src_key, sph->src_key, total_size(sph),
+							!!(sph->flags & DNET_SPH_FLAGS_SRC_BLOCK),
+							e.what());
+					return -EXFULL;
+				}
 
 				dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: started: queue: %s, src-key-orig: %d, "
 						"job: %d, total-size: %zd, block: %d\n",

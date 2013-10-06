@@ -21,6 +21,8 @@
 
 using namespace ioremap::elliptics;
 
+extern __thread uint32_t trace_id;
+
 class ioremap::elliptics::logger_data {
 	public:
 		logger_data(logger_interface *interface, int level) : impl(interface) {
@@ -45,7 +47,7 @@ class ioremap::elliptics::logger_data {
 
 		void push_log(const int level, const char *msg)
 		{
-			if (check_level(level))
+			if (check_level(level) || (trace_id & DNET_TRACE_BIT))
 				impl->log(level, msg);
 		}
 
@@ -78,7 +80,7 @@ void logger::log(const int level, const char *msg)
 
 void logger::print(int level, const char *format, ...)
 {
-	if (!m_data->check_level(level))
+	if (!m_data->check_level(level) && !(trace_id & DNET_TRACE_BIT))
 		return;
 
 	va_list args;
@@ -131,7 +133,7 @@ class file_logger_interface : public logger_interface {
 			localtime_r((time_t *)&tv.tv_sec, &tm);
 			strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-			snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %ld/%d : ", tv.tv_usec, dnet_get_id(), getpid());
+			snprintf(usecs_and_id, sizeof(usecs_and_id), ".%06lu %u/%ld/%d : ", tv.tv_usec, (trace_id & ~DNET_TRACE_BIT), dnet_get_id(), getpid());
 
 			if (m_stream) {
 				m_stream << str << usecs_and_id << msg;

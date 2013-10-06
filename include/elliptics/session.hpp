@@ -196,11 +196,15 @@ class key
 
 		void transform(session &sess);
 
+		void set_trace_id(uint32_t trace_id) { m_trace_id = trace_id; }
+		uint32_t get_trace_id() { return m_trace_id; }
+
 	private:
 		bool m_by_id;
 		std::string m_remote;
 		int m_reserved;
 		struct dnet_id m_id;
+		uint32_t m_trace_id;
 };
 
 class session
@@ -346,6 +350,12 @@ class session
 		 */
 		void			set_timeout(unsigned int timeout);
 		long			get_timeout() const;
+
+		/*!
+		 * Sets/gets trace_id for all elliptics commands
+		 */
+		void			set_trace_id(uint32_t trace_id);
+		uint32_t		get_trace_id();
 
 		/*!
 		 * Read file by key \a id to \a file by \a offset and \a size.

@@ -123,6 +123,7 @@ class elliptics_node_python : public node, public bp::wrapper<node> {
 		elliptics_node_python(const node &n): node(n) {}
 };
 
+
 class elliptics_error_translator
 {
 	public:
@@ -280,6 +281,8 @@ BOOST_PYTHON_MODULE(core)
 	;
 	elliptics_error_translator error_translator;
 	error_translator.initialize();
+
+	bp::scope().attr("trace_bit") = uint32_t(DNET_TRACE_BIT);
 
 	bp::register_exception_translator<timeout_error>(error_translator);
 	bp::register_exception_translator<not_found_error>(error_translator);

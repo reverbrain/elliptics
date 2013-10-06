@@ -29,6 +29,8 @@ static char *dnet_work_io_mode_string[] = {
 	[DNET_WORK_IO_MODE_NONBLOCKING] = "NONBLOCKING",
 };
 
+__thread uint32_t trace_id = 0;
+
 static char *dnet_work_io_mode_str(int mode)
 {
 	if (mode < 0 || mode >= (int)ARRAY_SIZE(dnet_work_io_mode_string))
@@ -180,9 +182,9 @@ static void *dnet_io_process(void *data_);
 static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 {
 	struct dnet_io *io = n->io;
+	struct dnet_work_pool *pool = io->recv_pool;
 	struct dnet_cmd *cmd = r->header;
 	int nonblocking = !!(cmd->flags & DNET_FLAGS_NOLOCK);
-	struct dnet_work_pool *pool = io->recv_pool;
 
 	if (cmd->size > 0) {
 		dnet_log(r->st->n, DNET_LOG_DEBUG, "%s: %s: RECV cmd: %s: cmd-size: %llu, nonblocking: %d\n",
@@ -200,15 +202,13 @@ static void dnet_schedule_io(struct dnet_node *n, struct dnet_io_req *r)
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags, tid, reply);
 	}
 
-#define cmd_is_exec_match(__cmd) (((__cmd)->cmd == DNET_CMD_EXEC) && ((__cmd)->size >= sizeof(struct sph)) && !((__cmd)->trans & DNET_TRANS_REPLY))
-
 	if (nonblocking)
 		pool = io->recv_pool_nb;
 
 	pthread_mutex_lock(&pool->lock);
 	list_add_tail(&r->req_entry, &pool->list);
 	list_stat_size_increase(&pool->list_stats, 1);
-	list_stat_log(&pool->list_stats, r->st->n, "input io queue");	
+	list_stat_log(&pool->list_stats, r->st->n, "input io queue");
 	pthread_cond_signal(&pool->wait);
 	pthread_mutex_unlock(&pool->lock);
 }
@@ -607,6 +607,15 @@ static void *dnet_io_process_network(void *data_)
 				dnet_unschedule_recv(st);
 				pthread_mutex_unlock(&st->send_lock);
 
+				dnet_add_reconnect_state(st->n, &st->addr, st->__join_state);
+
+				// state still contains a fair number of transactions in its queue
+				// they will not be cleaned up here - dnet_state_put() will only drop refctn by 1,
+				// while every transaction holds a reference
+				//
+				// IO thread could remove transaction, it is the only place allowed to do it.
+				// transactions may live in the tree and be accessed without locks in IO thread,
+				// IO thread is kind of 'owner' of the transaction processing
 				dnet_state_put(st);
 				break;
 			}
@@ -693,15 +702,12 @@ static void *dnet_io_process(void *data_)
 	struct dnet_work_io *wio = data_;
 	struct dnet_work_pool *pool = wio->pool;
 	struct dnet_node *n = pool->n;
-	struct dnet_trans *t, *tmp;
 	struct dnet_net_state *st;
-	struct list_head head;
 	struct timespec ts;
 	struct timeval tv;
 	struct dnet_io_req *r;
-	char str[64];
-	struct tm tm;
 	int err;
+	struct dnet_cmd *cmd;
 
 	dnet_set_name("io_pool");
 
@@ -733,51 +739,16 @@ static void *dnet_io_process(void *data_)
 			continue;
 
 		st = r->st;
+		cmd = r->header;
+		trace_id = cmd->id.trace_id;
 
 		dnet_log(n, DNET_LOG_DEBUG, "%s: %s: got IO event: %p: hsize: %zu, dsize: %zu, mode: %s\n",
 			dnet_state_dump_addr(st), dnet_dump_id(r->header), r, r->hsize, r->dsize, dnet_work_io_mode_str(pool->mode));
 
 		err = dnet_process_recv(st, r);
+		trace_id = 0;
 
 		dnet_io_req_free(r);
-
-		INIT_LIST_HEAD(&head);
-
-		pthread_mutex_lock(&st->trans_lock);
-		list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
-			if (t->time.tv_sec >= tv.tv_sec)
-				break;
-
-			localtime_r((time_t *)&t->start.tv_sec, &tm);
-			strftime(str, sizeof(str), "%F %R:%S", &tm);
-
-			dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT: process: wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
-					dnet_state_dump_addr(st), (unsigned long long)t->trans,
-					(unsigned long)t->wait_ts.tv_sec,
-					dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
-					str, t->start.tv_usec);
-
-			dnet_trans_remove_nolock(&st->trans_root, t);
-			list_move(&t->trans_list_entry, &head);
-		}
-		pthread_mutex_unlock(&st->trans_lock);
-
-
-		list_for_each_entry_safe(t, tmp, &head, trans_list_entry) {
-			st = t->st;
-
-			list_del_init(&t->trans_list_entry);
-
-			t->cmd.flags = 0;
-			t->cmd.size = 0;
-			t->cmd.status = -ETIMEDOUT;
-
-			if (t->complete)
-				t->complete(st, &t->cmd, t->priv);
-
-			dnet_trans_put(t);
-		}
-
 		dnet_state_put(st);
 	}
 

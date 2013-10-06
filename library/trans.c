@@ -284,33 +284,71 @@ err_out_exit:
 	return err;
 }
 
-static void dnet_trans_check_stall(struct dnet_net_state *st)
+void dnet_trans_clean_list(struct list_head *head)
 {
-	struct dnet_trans *t;
+	struct dnet_trans *t, *tmp;
+
+	list_for_each_entry_safe(t, tmp, head, trans_list_entry) {
+		list_del_init(&t->trans_list_entry);
+
+		t->cmd.size = 0;
+		t->cmd.flags = 0;
+		t->cmd.status = -ETIMEDOUT;
+
+		if (t->complete)
+			t->complete(t->st, &t->cmd, t->priv);
+
+		dnet_trans_put(t);
+	}
+}
+
+int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_head *head)
+{
+	struct dnet_trans *t, *tmp;
 	struct timeval tv;
-	int trans_timeout = 0;
+	int trans_moved = 0;
 	char str[64];
 	struct tm tm;
 
 	gettimeofday(&tv, NULL);
 
 	pthread_mutex_lock(&st->trans_lock);
-	list_for_each_entry(t, &st->trans_list, trans_list_entry) {
-		if (t->time.tv_sec >= tv.tv_sec)
+	list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
+		if ((t->time.tv_sec >= tv.tv_sec) && !st->need_exit)
 			break;
 
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
 		strftime(str, sizeof(str), "%F %R:%S", &tm);
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT: stall-check wait-ts: %ld, cmd: %s [%d], started: %s.%06lu\n",
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT/need-exit: stall-check wait-ts: %ld, need-exit: %d, cmd: %s [%d], started: %s.%06lu\n",
 				dnet_state_dump_addr(st), (unsigned long long)t->trans,
 				(unsigned long)t->wait_ts.tv_sec,
+				st->need_exit,
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
-		trans_timeout++;
-		break;
+
+		trans_moved++;
+
+		/*
+		 * Remove transaction from every tree/list, so it could not be accessed and found while we deal with it.
+		 * In particular, we will call ->complete() callback, which must ensure that no other thread calls it.
+		 *
+		 * Memory allocation for every transaction is handled by reference counters, but callbacks must ensure,
+		 * that no calls are made after 'final' callback has been invoked. 'Final' means is_trans_destroyed() returns true.
+		 */
+		dnet_trans_remove_nolock(&st->trans_root, t);
+		list_move(&t->trans_list_entry, head);
 	}
 	pthread_mutex_unlock(&st->trans_lock);
+
+	dnet_log(st->n, DNET_LOG_DEBUG, "stall check: state: %s, st: %p, transactions-moved: %d\n", dnet_state_dump_addr(st), st, trans_moved);
+
+	return trans_moved;
+}
+
+static void dnet_trans_check_stall(struct dnet_net_state *st, struct list_head *head)
+{
+	int trans_timeout = dnet_trans_iterate_move_transaction(st, head);
 
 	if (trans_timeout) {
 		st->stall++;
@@ -318,16 +356,11 @@ static void dnet_trans_check_stall(struct dnet_net_state *st)
 		if (st->weight >= 2)
 			st->weight /= 2;
 
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d, weight: %f\n",
-				dnet_state_dump_addr(st), trans_timeout, st->stall, st->weight);
-		if (st->stall >= st->n->stall_count) {
-			shutdown(st->read_s, 2);
-			shutdown(st->write_s, 2);
+		dnet_log(st->n, DNET_LOG_ERROR, "%s: TIMEOUT: transactions: %d, stall counter: %d/%u, weight: %f\n",
+				dnet_state_dump_addr(st), trans_timeout, st->stall, DNET_DEFAULT_STALL_TRANSACTIONS, st->weight);
 
-			dnet_state_remove_nolock(st);
-		} else {
-			dnet_schedule_recv(st);
-			dnet_schedule_send(st);
+		if (st->stall >= st->n->stall_count) {
+			dnet_state_reset_nolock_noclean(st, -ETIMEDOUT, head);
 		}
 	} else {
 		st->stall = 0;
@@ -346,14 +379,17 @@ static void dnet_check_all_states(struct dnet_node *n)
 {
 	struct dnet_net_state *st, *tmp;
 	struct dnet_group *g, *gtmp;
+	LIST_HEAD(head);
 
 	pthread_mutex_lock(&n->state_lock);
 	list_for_each_entry_safe(g, gtmp, &n->group_list, group_entry) {
 		list_for_each_entry_safe(st, tmp, &g->state_list, state_entry) {
-			dnet_trans_check_stall(st);
+			dnet_trans_check_stall(st, &head);
 		}
 	}
 	pthread_mutex_unlock(&n->state_lock);
+
+	dnet_trans_clean_list(&head);
 }
 
 static int dnet_check_route_table(struct dnet_node *n)
@@ -393,7 +429,7 @@ static void *dnet_reconnect_process(void *data)
 	struct dnet_node *n = data;
 	long i, timeout;
 	struct timeval tv1, tv2;
-	int checks = 0, route_table_checks = 3;
+	int checks = 0, route_table_checks = 1;
 
 	dnet_set_name("reconnect");
 

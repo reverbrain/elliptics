@@ -132,6 +132,14 @@ public:
 		return res;
 	}
 
+	void set_trace_id(uint32_t trace_id) {
+		session::set_trace_id(trace_id);
+	}
+
+	uint32_t get_trace_id() {
+		return session::get_trace_id();
+	}
+
 	void set_namespace(const std::string& ns) {
 		session::set_namespace(ns.c_str(), ns.size());
 	}
@@ -499,6 +507,10 @@ void init_elliptcs_session() {
 		.def("add_groups", &elliptics_session::set_groups)
 		.def("set_groups", &elliptics_session::set_groups)
 		.def("get_groups", &elliptics_session::get_groups)
+
+		.add_property("trace_id", &elliptics_session::get_trace_id, &elliptics_session::set_trace_id)
+		.def("set_trace_id", &elliptics_session::set_trace_id)
+		.def("get_trace_id", &elliptics_session::get_trace_id)
 
 		.add_property("cflags",
 		              &elliptics_session::get_cflags,

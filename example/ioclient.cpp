@@ -60,8 +60,6 @@ static void dnet_usage(char *p)
 			" -L file              - lookup a storage which hosts given file\n"
 			" -l log               - log file. Default: disabled\n"
 			" -w timeout           - wait timeout in seconds used to wait for content sync.\n"
-			" ...                  - parameters can be repeated multiple times\n"
-			"                        each time they correspond to the last added node\n"
 			" -m level             - log level\n"
 			" -M level             - set new log level\n"
 			" -F flags             - change node flags (see @cfg->flags comments in include/elliptics/interface.h)\n"
@@ -74,6 +72,8 @@ static void dnet_usage(char *p)
 			" -d request_string    - defragmentation request: 'start' - start defragmentation, 'status' - request current status\n"
 			" -i flags             - IO flags (see DNET_IO_FLAGS_* in include/elliptics/packet.h\n"
 			" -H                   - do not hash id, use it as is\n"
+			" -h                   - this help\n"
+			" ...                  - every parameter can be repeated multiple times, in this case the last one will be used\n"
 			, p);
 }
 
@@ -327,11 +327,14 @@ int main(int argc, char *argv[])
 			s.remove(create_id(id, removef));
 
 		if (cmd) {
+			session exec_session = s.clone();
+			exec_session.set_filter(filters::all_with_ack);
+			exec_session.set_cflags(cflags | DNET_FLAGS_NOLOCK);
+
 			dnet_id did_tmp, *did = NULL;
 			std::string event, data;
 
 			memset(&did_tmp, 0, sizeof(struct dnet_id));
-			s.set_filter(filters::all_with_ack);
 
 			if (const char *tmp = strchr(cmd, ' ')) {
 				event.assign(cmd, tmp);
@@ -346,18 +349,18 @@ int main(int argc, char *argv[])
 				if (id) {
 					dnet_setup_id(did, 0, id);
 				} else {
-					s.transform(data, did_tmp);
+					exec_session.transform(data, did_tmp);
 				}
 			}
 
-			s.set_cflags(cflags | DNET_FLAGS_NOLOCK);
-			auto result = s.exec(did, exec_src_key, event, data);
-			s.set_cflags(cflags);
+			bool failed = false;
+			auto result = exec_session.exec(did, exec_src_key, event, data);
 			for (auto it = result.begin(); it != result.end(); ++it) {
 				if (it->error()) {
 					error_info error = it->error();
 					std::cerr << dnet_server_convert_dnet_addr(it->address())
 						<< ": failed to process: \"" << error.message() << "\": " << error.code() << std::endl;
+					failed = true;
 				} else {
 					exec_context context = it->context();
 					if (log_level > DNET_LOG_DATA) {
@@ -376,7 +379,8 @@ int main(int argc, char *argv[])
 					}
 				}
 			}
-			s.set_filter(filters::positive);
+			if (failed)
+				return -1;
 		}
 
 		if (lookup) {
@@ -454,8 +458,10 @@ int main(int argc, char *argv[])
 		if (update_status) {
 			s.update_status(remote_addr, port, family, &node_status);
 		}
+
 	} catch (const std::exception &e) {
 		std::cerr << e.what() << std::endl;
+		return -1;
 	}
 
 	return 0;

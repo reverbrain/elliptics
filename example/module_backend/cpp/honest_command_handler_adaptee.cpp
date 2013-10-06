@@ -25,12 +25,12 @@ ell::honest_command_handler_adaptee::honest_command_handler_adaptee(std::unique_
 {
 }
 
-int ell::honest_command_handler_adaptee::file_write(module_backend_t */*r*/, void *state, dnet_cmd *cmd, void */*data*/)
+int ell::honest_command_handler_adaptee::file_write(module_backend_t * /*r*/, void *state, dnet_cmd *cmd, void * /*data*/)
 {
 	return dnet_send_file_info_without_fd(state, cmd, 0, -1);
 }
 
-int ell::honest_command_handler_adaptee::file_read(module_backend_t */*r*/, void *state, dnet_cmd *cmd, void *data)
+int ell::honest_command_handler_adaptee::file_read(module_backend_t * /*r*/, void *state, dnet_cmd *cmd, void *data)
 {
 	const std::string key(dnet_cmd2string(cmd->id));
 	const std::string result = m_uncomplicated_handler->read(key);
@@ -40,17 +40,22 @@ int ell::honest_command_handler_adaptee::file_read(module_backend_t */*r*/, void
 	return dnet_send_read_data(state, cmd, io, (void *)result.data(), -1, io->offset, 0);
 }
 
-int ell::honest_command_handler_adaptee::file_info(module_backend_t */*r*/, void *state, dnet_cmd *cmd)
+int ell::honest_command_handler_adaptee::file_info(module_backend_t * /*r*/, void *state, dnet_cmd *cmd)
 {
 	return dnet_send_file_info_without_fd(state, cmd, 0, -1);
 }
 
-int ell::honest_command_handler_adaptee::file_del(module_backend_t */*r*/, void *state, dnet_cmd *cmd)
+int ell::honest_command_handler_adaptee::file_del(module_backend_t * /*r*/, void *state, dnet_cmd *cmd)
 {
 	return dnet_send_file_info_without_fd(state, cmd, 0, -1);
 }
 
-int ell::honest_command_handler_adaptee::file_iterator(dnet_iterator_ctl */*ictl*/)
+int ell::honest_command_handler_adaptee::file_bulk_read(module_backend_t * /*r*/, void * /*state*/, dnet_cmd * /*cmd*/, void * /*data*/)
+{
+	return -ENOTSUP;
+}
+
+int ell::honest_command_handler_adaptee::file_iterator(dnet_iterator_ctl * /*ictl*/)
 {
 	ell::throw_error(-EINVAL, "Iterator is not implemented here");
 	return -ENOTSUP;

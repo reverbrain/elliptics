@@ -1,0 +1,214 @@
+./" 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
+./" All rights reserved.
+
+.TH MAN 1 2013-07-10 "Linux" "Elliptics admin's guide"
+.SH NAME
+dnet_ioclient \- client to elliptics.
+.SH SYNOPSIS
+.B dnet_ioclient \-r 
+.I host:port:family 
+.B [-WszaURIgcLlwmMFOSuNDCdiH]
+.P
+.SH DESCRIPTION
+.I dnet_ioclient 
+is a multitool, that can perform a plenty of operations on the storage, it can read and write data into the storage, execute server-side scripts, change configuration parameters of the node on the fly and get some statistics.
+.SH OPTIONS
+.TP
+.B \-r host:port:family
+Address of a storage node, where 
+.I family 
+is either 2 (AF_INET) or 10 (AF_INET6). Example, 
+.I host:1025:2.
+.TP
+.B \-W file
+Write given file to the network storage. Example,
+
+    dnet_ioclient -r host:1025:2 -g 1:2:3 -W "file"
+    
+You can use 
+.B \-I 
+option to set a hashed key instead of a 
+.B file.
+When
+.B \-I 
+option used 
+.B file
+is applied as an input filename, not as a key string.
+.TP
+.B \-s
+Request IO counter statistics from node.
+.TP
+.B \-z
+Request VFS IO statistics from node.
+.TP
+.B \-a
+Request statistics from all connected nodes.
+.TP
+.B \-U status
+Change internal status of node. '1' - exit mode, '2' - read-only state. 
+
+If you call
+
+    dnet_ioclient -r host:1025:2 -U 1
+
+elliptics node will try to stop itself.
+.TP
+.B \-R file
+Read the specified file from the storage. If 
+.B \-I 
+is not used, then 
+.B file 
+will be used as a key string and as a result file name.
+If 
+.B \-I 
+is used then
+.B file
+applied only for output.
+
+For example,
+
+    dnet_ioclient -r host:1025:2 -g 1:2:3 -R file_name
+    
+In this case 
+.B file_name 
+will be used both as a key string and as an output filename.
+
+    dnet_ioclient -r host:1025:2 -g 1:2:3 -R file_name -I "6b8.."
+    
+In this case 
+.B file_name
+will be used only for output file. Value of 
+.B \-I
+option will be used as a hashed key.
+
+.TP
+.B \-I id
+Hashed key. This option can be used with all of the options that need a key (like 
+.B \-R 
+or 
+.B \-W
+options) to identificate required data in the storage.
+
+Hash value can be obtained from arbitrary string with the next call:
+
+    echo -n "key-string" | sha512sum | awk '{print $1}' 
+.TP
+.B \-g groups
+Group IDs to connect. If you need to perform operation for some groups (read/write operations, for example), you should provide colon-separated list of groups. For example, 
+.B 1:2:3.
+.TP
+.B \-c cmd-event
+Execute command with the specified event on the remote node. For example,
+
+    dnet_ioclient -r host:1025:2 -g 2 -c 'app@start-task'
+
+.I dnet_ioclient 
+with this option is performed in blocking mode. This means that, if server-side program does not response, our client will wait it for a long time before exit.
+.TP
+.B \-L file
+Get file location in the storage. Example,
+
+    dnet_ioclient -r host:1025:2 -g 2 -L 'file_name'
+    
+.TP
+.B \-l log
+Log file,
+.B stdout 
+by default.
+.TP
+.B \-w timeout
+Timeout (in seconds) is used to wait for operation completion. Read operations from multiply groups are made one by one, and this timeout is used for each operation. For example in case of
+.B dnet_ioclient -r host:1025:2 -g 1:2:3 -R file_name 
+call real timeout will be
+.B timeout 
+multiplied by 3.
+
+That is not right for the write operations which are performed simultaneously.
+.TP
+.B \-m level
+Log level of the client. You should pass numbers from 0 to 4. 4 is the highest level.
+.TP
+.B \-M level
+Log level of the specified node. You should pass numbers from 0 to 4. 4 is the highest level.
+.TP
+.B \-F flags
+Change node flags (see @cfg->flags comments in include/elliptics/interface.h). Nowdays only change of DNET_CFG_NO_CSUM does matter.
+.TP
+.B \-O offset
+Read/write offset in the file.
+.TP
+.B \-S size
+Read/write transaction size.
+.TP
+.B \-u file
+Tell the node to delete the
+.B file 
+from the storage.
+Can be used whith the 
+.B \-I
+option.
+.TP
+.B \-N namespace
+Use this namespace for operations. Namespace is a prefix that added to the filename.
+
+Assume that you have 2 different projects with the same filenames, and you need to save them in the storage. Just set the prefixes of projects (p1. and p2. for example) to this field for read/write/delete/ operations to have a different keys for the same filenames (p1.cfg.xml, p2.cfg.xml for example).
+.TP
+.B \-D file_name
+Read latest data for the given 
+.B file_name. 
+When used with the 
+.B \-I 
+option
+.B file_name 
+is ignored.
+
+"Latest" means that if we read data from more then one groups, client will fetch data with the latest modification time.
+
+With this option 
+.I dnet_ioclient
+puts received data into 
+.I stdout.
+
+Example,
+
+    dnet_ioclient -r host:1025:2 -g 2 -D file_in_storage >local_file
+.TP
+.B \-C flags
+Command flags (see DNET_FLAGS* in include/elliptics/packet.h). Client can set DNET_FLAGS_DIRECT, DNET_FLAGS_NOLOCK, DNET_FLAGS_CHECKSUM.
+.TP
+.B \-d request_string
+Defragmentation and sorting request: 'start' - start defragmentation, 'status' - request current status. Elliptics node that gets this request checks through all the database files and defragment files that need it by storage settings.
+.TP
+.B \-i flags
+IO flags (see DNET_IO_FLAGS_* in include/elliptics/packet.h).
+.TP
+.B \-H 
+Do not hash key string, use it as is.
+
+Elliptics key is of 64 bytes long. If your strings which you want to use as a keys less or equal this size you can pass it to elliptics as is with this option. As 
+.B \-I 
+option you can use it with the 
+.B \-W, \-D, \-R, \-u 
+options.
+.TP
+.B \-h
+Show help message and exit.
+.SH EXAMPLES
+.P 
+Read/write file to the storage
+.P
+.B dnet_ioclient -r host:1025:2 -g 2 -W file_to_put
+.P
+.B dnet_ioclient -r host:1025:2 -g 2 -D file_to_put >some_file_to_save
+.SH AUTHOR
+Evgeniy Polyakov (zbr@ioremap.net)
+.SH SEE ALSO
+.P
+.BR dnet_find (1),
+.BR dnet_ioserv (1),
+.BR dnet_recovery (1),
+.BR eblob_index_info (1),
+.BR eblob_merge (1),
+.BR eblob_regex_iter (1).
+.P
+Complete documentation on project you can find at http://doc.reverbrain.com.

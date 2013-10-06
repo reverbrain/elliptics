@@ -5,7 +5,7 @@ Maintainer: Evgeniy Polyakov <zbr@ioremap.net>
 Build-Depends:	cdbs,
 		cmake (>= 2.6),
 		debhelper (>= 7.0.50~),
-		eblob (>= 0.21.7),
+		eblob (>= 0.21.18),
 		libboost-dev,
 		libboost-iostreams-dev,
 		libboost-program-options-dev,
@@ -25,7 +25,7 @@ XS-Python-Version: >= 2.6
 
 Package: elliptics
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.21.7), elliptics-client (= ${Source-Version}), libcocaine-core2
+Depends: ${shlibs:Depends}, ${misc:Depends}, eblob (>= 0.21.18), elliptics-client (= ${Source-Version}), libcocaine-core2
 Replaces: elliptics-2.10, srw
 Provides: elliptics-2.10
 XB-Python-Version: >= 2.6
@@ -45,6 +45,13 @@ Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, elliptics-client (= ${Source-Version})
 XB-Python-Version: >= 2.6
 Description: Distributed hash table storage (cocaine plugin)
+ Elliptics network is a fault tolerant distributed hash table object storage.
+ 
+Package: libcocaine-plugin-elliptics-dev
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, cocaine-framework-native-dev (>= 0.10.6.0)
+XB-Python-Version: >= 2.6
+Description: Distributed hash table storage (cocaine plugin includes)
  Elliptics network is a fault tolerant distributed hash table object storage.
 
 Package: elliptics-dbg
