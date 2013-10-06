@@ -94,10 +94,19 @@ class elliptics_session: public session, public bp::wrapper<session> {
 public:
 	elliptics_session(const node &n) : session(n) {}
 
-	elliptics_id transform(const std::string &data) {
-		dnet_id id;
-		session::transform(data, id);
-		return elliptics_id(id);
+	elliptics_id transform(const bp::api::object &data) {
+		bp::extract<std::string> get_string(data);
+		if (get_string.check()) {
+			dnet_id id;
+			session::transform(get_string(), id);
+			return elliptics_id(id);
+
+		}
+		else {
+			elliptics_id id = elliptics_id::convert(data);
+			session::transform(id);
+			return id;
+		}
 	}
 
 	void set_groups(const bp::api::object &groups) {
