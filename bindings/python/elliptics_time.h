@@ -8,7 +8,7 @@
 namespace ioremap { namespace elliptics { namespace python {
 
 struct elliptics_time {
-	elliptics_time(uint64_t tsec = 0, uint64_t tnsec = 0);
+	elliptics_time(uint64_t tsec = -1, uint64_t tnsec = -1);
 
 	elliptics_time(const dnet_time &timestamp);
 

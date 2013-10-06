@@ -462,6 +462,7 @@ private:
 
 		memcpy(io.parent, io_attr.parent.id().id, sizeof(io.parent));
 		memcpy(io.id, io_attr.id.id().id, sizeof(io.id));
+		io.timestamp = io_attr.time.m_time;
 	}
 
 	elliptics_io_attr convert_io_attr(const bp::api::object &obj) {

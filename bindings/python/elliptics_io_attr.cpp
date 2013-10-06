@@ -20,7 +20,7 @@ void init_elliptcs_io_attr() {
 	bp::class_<elliptics_io_attr>("IoAttr")
 		.def_readwrite("parent", &elliptics_io_attr::parent)
 		.def_readwrite("id", &elliptics_io_attr::id)
-		.def_readwrite("time", &elliptics_io_attr::time)
+		.def_readwrite("timestamp", &elliptics_io_attr::time)
 		.def_readwrite("start", &dnet_io_attr::start)
 		.def_readwrite("num", &dnet_io_attr::num)
 		.def_readwrite("user_flags", &dnet_io_attr::user_flags)

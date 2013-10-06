@@ -221,16 +221,20 @@ def recover_keys(ctx, address, group, keys, local_session, remote_session, stats
     async_write_results = []
 
     try:
-        batch = remote_session.bulk_read_async(keys)
+        batch = remote_session.bulk_read(keys)
         for b in batch:
+            io = elliptics.IoAttr()
+            io.id = b.id
+            io.timestamp = b.timestamp
+            io.user_flags = b.user_flags
             async_write_results.append(
-                (local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data), b.id))
+                (local_session.write_data(io, b.data), len(b.data), b.id))
         read_len = len(async_write_results)
         stats.counter('read_keys', read_len)
         stats.counter('skipped_keys', keys_len - read_len)
         return async_write_results
     except Exception as e:
-        log.debug("Bulk read failed: {0} keys: {1}".format(keys_len, e))
+        log.error("Bulk read failed: {0} keys: {1}".format(keys_len, e))
         stats.counter('skipped_keys', keys_len)
         return None
 
