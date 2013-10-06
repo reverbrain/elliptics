@@ -107,30 +107,35 @@ std::string lookup_result_get_filepath(const lookup_result_entry &result)
 	return std::string(result.file_path());
 }
 
-std::string exec_result_get_event(exec_result_entry &result)
+std::string exec_context_get_event(exec_context &context)
 {
-	return result.context().event();
+	return context.event();
 }
 
-std::string exec_result_get_data(exec_result_entry &result)
+std::string exec_context_get_data(exec_context &context)
 {
-	return result.context().data().to_string();
+	return context.data().to_string();
 }
 
-int exec_result_get_src_key(exec_result_entry &result)
+int exec_context_get_src_key(exec_context &context)
 {
-	return result.context().src_key();
+	return context.src_key();
 }
 
-elliptics_id exec_result_get_src_id(exec_result_entry &result)
+elliptics_id exec_context_get_src_id(exec_context &context)
 {
-	const dnet_raw_id *raw = result.context().src_id();
+	const dnet_raw_id *raw = context.src_id();
 	return elliptics_id(*raw);
 }
 
-std::string exec_result_get_address(exec_result_entry &result)
+std::string exec_context_get_address(exec_context &context)
 {
-	return dnet_server_convert_dnet_addr(result.context().address());
+	return dnet_server_convert_dnet_addr(context.address());
+}
+
+exec_context exec_result_get_context(exec_result_entry &result)
+{
+	return result.context();
 }
 
 elliptics_id find_indexes_result_get_id(find_indexes_result_entry &result)
@@ -164,7 +169,8 @@ int callback_result_status(callback_result_entry &result)
 	return result.status();
 }
 
-error callback_result_error(callback_result_entry &result)
+template <typename T>
+error result_entry_error(T &result)
 {
 	return error(result.error().code(), result.error().message());
 }
@@ -174,7 +180,8 @@ std::string callback_result_data(callback_result_entry &result)
 	return result.data().to_string();
 }
 
-std::string callback_result_address(callback_result_entry &result)
+template <typename T>
+std::string result_entry_address(const T &result)
 {
 	return dnet_server_convert_dnet_addr(result.address());
 }
@@ -199,6 +206,51 @@ std::string addr_stat_get_address(dnet_addr_stat &stat)
 	return std::string(dnet_server_convert_dnet_addr(&stat.addr));
 }
 
+bp::list dnet_stat_get_la(const dnet_stat &stat)
+{
+	bp::list ret;
+	for (uint8_t i = 0; i < 3; ++i) {
+		ret.append(stat.la[i]);
+	}
+	return ret;
+}
+
+std::string dnet_stat_to_str(const dnet_stat &stat)
+{
+	char output[1024];
+
+	float la[3];
+
+	for (uint8_t i = 0; i < 3; ++i) {
+		la[i] = (float)stat.la[i] / 100.0;
+	}
+
+
+	auto nchar = sprintf(output, "la: %3.2f %3.2f %3.2f\n"
+	                     "mem: total: %8llu kB, free: %8llu kB, "
+	                     "cache: %8llu kB, buffers: %8llu, "
+	                     "active: %8llu, inactive: %8llu\n"
+	                     "fs: total: %8llu mB, avail: %8llu/%8llu mB",
+	                     la[0], la[1], la[2],
+	                     (unsigned long long)stat.vm_total, (unsigned long long)stat.vm_free,
+	                     (unsigned long long)stat.vm_cached, (unsigned long long)stat.vm_buffers,
+	                     (unsigned long long)stat.vm_active, (unsigned long long)stat.vm_inactive,
+	                     (unsigned long long)(stat.frsize * stat.blocks / 1024 / 1024),
+	                     (unsigned long long)(stat.bavail * stat.bsize / 1024 / 1024),
+	                     (unsigned long long)(stat.bfree * stat.bsize / 1024 / 1024));
+	return std::string(output, nchar);
+}
+
+std::string dnet_stat_to_repr(const dnet_stat &stat)
+{
+	std::string ret = "< Statistics:\n";
+
+	ret += dnet_stat_to_str(stat);
+	ret += "\n>";
+
+	return ret;
+}
+
 void init_result_entry() {
 
 	bp::class_<iterator_result_entry>("IteratorResultEntry")
@@ -206,6 +258,8 @@ void init_result_entry() {
 		.add_property("status", &iterator_result_entry::status)
 		.add_property("response", iterator_result_response)
 		.add_property("response_data", iterator_result_response_data)
+		.add_property("address", result_entry_address<iterator_result_entry>)
+		.add_property("error", result_entry_error<iterator_result_entry>)
 	;
 
 	bp::class_<dnet_iterator_response>("IteratorResultResponse",
@@ -223,6 +277,8 @@ void init_result_entry() {
 		.add_property("flags", read_result_get_flags)
 		.add_property("offset", read_result_get_offset)
 		.add_property("size", read_result_get_size)
+		.add_property("address", result_entry_address<read_result_entry>)
+		.add_property("error", result_entry_error<read_result_entry>)
 	;
 
 	bp::class_<lookup_result_entry>("LookupResultEntry")
@@ -232,14 +288,21 @@ void init_result_entry() {
 		.add_property("timestamp", lookup_result_get_timestamp)
 		.add_property("checksum", lookup_result_get_checksum)
 		.add_property("filepath", lookup_result_get_filepath)
+		.add_property("address", result_entry_address<lookup_result_entry>)
+		.add_property("error", result_entry_error<lookup_result_entry>)
+	;
+
+	bp::class_<exec_context>("ExecContext")
+		.add_property("event", exec_context_get_event)
+		.add_property("data", exec_context_get_data)
+		.add_property("src_key", exec_context_get_src_key)
+		.add_property("src_id", exec_context_get_src_id)
+		.add_property("address", exec_context_get_address)
 	;
 
 	bp::class_<exec_result_entry>("ExecResultEntry")
-		.add_property("event", exec_result_get_event)
-		.add_property("data", exec_result_get_data)
-		.add_property("src_key", exec_result_get_src_key)
-		.add_property("src_id", exec_result_get_src_id)
-		.add_property("address", exec_result_get_address)
+		.add_property("context", exec_result_get_context)
+		.add_property("address", result_entry_address<exec_result_entry>)
 	;
 
 	bp::class_<find_indexes_result_entry>("FindIndexesResultEntry")
@@ -251,13 +314,14 @@ void init_result_entry() {
 		.add_property("is_valid", callback_result_is_valid)
 		.add_property("is_ask", callback_result_is_ack)
 		.add_property("status", callback_result_status)
-		.add_property("error", callback_result_error)
 		.add_property("data", callback_result_data)
-		.add_property("address", callback_result_address)
 		.add_property("size", callback_result_size)
+		.add_property("error", result_entry_error<callback_result_entry>)
+		.add_property("address", result_entry_address<callback_result_entry>)
 	;
 
 	bp::class_<dnet_stat>("Statisitics", bp::no_init)
+		.add_property("la", dnet_stat_get_la)
 		.add_property("bsize", &dnet_stat::bsize)
 		.add_property("frsize", &dnet_stat::frsize)
 		.add_property("blocks", &dnet_stat::blocks)
@@ -274,10 +338,14 @@ void init_result_entry() {
 		.add_property("vm_free", &dnet_stat::vm_free)
 		.add_property("vm_cached", &dnet_stat::vm_cached)
 		.add_property("vm_buffers", &dnet_stat::vm_buffers)
+		.def("__str__", dnet_stat_to_str)
+		.def("__repr__", dnet_stat_to_repr)
 	;
 
 	bp::class_<stat_result_entry>("StatResultEntry")
 		.add_property("statistics", stat_result_get_statistics)
+		.add_property("address", result_entry_address<stat_result_entry>)
+		.add_property("error", result_entry_error<stat_result_entry>)
 	;
 
 	bp::class_<dnet_addr_stat>("AddressStatistics", bp::no_init)
@@ -288,6 +356,8 @@ void init_result_entry() {
 
 	bp::class_<stat_count_result_entry>("StatCountResultEntry")
 		.add_property("statistics", stat_count_result_get_statistics)
+		.add_property("address", result_entry_address<stat_count_result_entry>)
+		.add_property("error", result_entry_error<stat_count_result_entry>)
 	;
 
 }

@@ -583,7 +583,7 @@ void init_elliptcs_session() {
 
 		.def("write_cache", &elliptics_session::write_cache)
 
-		.def("lookup_addr", &elliptics_session::lookup_address)
+		.def("lookup_address", &elliptics_session::lookup_address)
 
 		.def("lookup", &elliptics_session::lookup)
 
