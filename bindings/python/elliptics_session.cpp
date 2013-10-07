@@ -160,10 +160,9 @@ public:
 	}
 
 	void set_timestamp(const bp::api::object &time_obj) {
-		if (time_obj.is_none()) {
+		if (time_obj.ptr() == Py_None) {
 			dnet_time ts;
-			ts.tsec = 0;
-			ts.tnsec = 0;
+			dnet_empty_time(&ts);
 			session::set_timestamp(&ts);
 		}
 		else {
