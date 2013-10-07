@@ -1,3 +1,9 @@
+elliptics (2.24.14.18) unstable; urgency=low
+
+  * Minor python binding cleanups
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 08 Oct 2013 00:17:12 +0400
+
 elliptics (2.24.14.17) unstable; urgency=low
 
   * Added size to dnet_iterator_response
