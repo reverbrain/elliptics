@@ -118,14 +118,14 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cpp.so.*
-%{python_sitelib}/elliptics.so.*
+%{python_sitelib}/elliptics/core.so.*
 
 %files client-devel
 %defattr(-,root,root,-)
 %{_includedir}/*
 %{_libdir}/libelliptics_client.so
 %{_libdir}/libelliptics_cpp.so
-%{python_sitelib}/elliptics.so
+%{python_sitelib}/elliptics/core.so
 
 
 %changelog
