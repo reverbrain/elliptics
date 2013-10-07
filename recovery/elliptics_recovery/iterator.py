@@ -232,7 +232,7 @@ class Iterator(object):
                 if record.status != 0:
                     raise RuntimeError("Iteration status check failed: {0}".format(record.status))
                 result.append(record)
-                last = num
+                last = num + 1
                 if last % batch_size == 0:
                     yield batch_size
 

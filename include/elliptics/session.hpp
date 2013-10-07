@@ -276,7 +276,7 @@ class session
 		 */
 		result_checker		get_checker() const;
 
-		void            set_error_handler(const result_error_handler &error_handler);
+		void			set_error_handler(const result_error_handler &error_handler);
 		result_error_handler	get_error_handler() const;
 
 		/*!
@@ -593,7 +593,7 @@ class session
 		 *
 		 * Returns async_read_result.
 		 */
-		async_read_result remove_data_range(struct dnet_io_attr &io, int group_id);
+		async_read_result remove_data_range(const struct dnet_io_attr &io, int group_id);
 
 		/*!
 		 * Returns the list of network routes.

@@ -2552,7 +2552,7 @@ static int dnet_iterator_set_state_nolock(struct dnet_node *n,
 	pthread_mutex_lock(&it->lock);
 
 	/* We don't want to have two different names for the same thing */
-	if (action == DNET_ITERATOR_ACTION_CONT)
+	if (action == DNET_ITERATOR_ACTION_CONTINUE)
 		action = DNET_ITERATOR_ACTION_START;
 
 	/* Check that transition is valid */

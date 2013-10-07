@@ -168,10 +168,10 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
     batch = None
 
     try:
-        batch = remote_session.bulk_read_async(keys)
+        batch = remote_session.bulk_read(keys)
         it = iter(batch)
     except Exception as e:
-        log.debug("Bulk read failed: {0} keys: {1}".format(keys_len, e))
+        log.error("Bulk read failed: {0} keys: {1}".format(keys_len, e))
         stats.counter('read_keys', -keys_len)
         stats.counter('recovered_keys', -keys_len)
         return False
@@ -181,12 +181,17 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
     while True:
         try:
             b = next(it)
-            async_write_results.append((local_session.write_data_async((b.id, b.timestamp, b.user_flags), b.data), len(b.data)))
+            io = elliptics.IoAttr()
+            io.id = b.id
+            io.timestamp = b.timestamp
+            io.user_flags = b.user_flags
+            async_write_results.append((local_session.write_data(io, b.data),
+                                        len(b.data)))
         except StopIteration:
             break
         except Exception as e:
             failed += 1
-            log.debug("Write failed: {0}".format(e))
+            log.error("Write failed: {0}".format(e))
 
     read_len = len(async_write_results)
     stats.counter('read_keys', read_len)
@@ -204,7 +209,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
                 failures_size += bsize
                 failed += 1
         except Exception as e:
-            log.debug("Write failed: {0}".format(e))
+            log.error("Write failed: {0}".format(e))
             failures_size += bsize
             failed += 1
 

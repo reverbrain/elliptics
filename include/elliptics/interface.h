@@ -519,7 +519,7 @@ static inline char *dnet_state_dump_addr_only(struct dnet_addr *a)
 	return dnet_server_convert_addr((struct sockaddr *)a->addr, a->addr_len);
 }
 
-static inline char *dnet_print_time(struct dnet_time *t)
+static inline char *dnet_print_time(const struct dnet_time *t)
 {
 	char str[64];
 	struct tm tm;

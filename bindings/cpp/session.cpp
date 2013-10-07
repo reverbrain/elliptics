@@ -1682,7 +1682,7 @@ std::vector<std::string> session::read_data_range_raw(dnet_io_attr &io, int grou
 	return result;
 }
 
-async_read_result session::remove_data_range(dnet_io_attr &io, int group_id)
+async_read_result session::remove_data_range(const dnet_io_attr &io, int group_id)
 {
 	async_read_result result(*this);
 	async_result_handler<read_result_entry> handler(result);
@@ -1815,7 +1815,7 @@ async_iterator_result session::continue_iterator(const key &id, uint64_t iterato
 	data_pointer data = data_pointer::allocate(sizeof(dnet_iterator_request));
 	auto request = data.data<dnet_iterator_request>();
 	memset(request, 0, sizeof(dnet_iterator_request));
-	request->action = DNET_ITERATOR_ACTION_CONT;
+	request->action = DNET_ITERATOR_ACTION_CONTINUE;
 	request->id = iterator_id;
 
 	return iterator(id, data);
