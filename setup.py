@@ -19,7 +19,6 @@ setup(name = 'elliptics',
       url = 'http://www.ioremap.net/projects/elliptics',
       package_dir = {'elliptics': 'bindings/python/src'},
       packages = ['elliptics'],
-      py_modules = ['elliptics'],
       license = 'GPLv2',
      )
 
