@@ -1,3 +1,9 @@
+elliptics (2.24.14.16) unstable; urgency=low
+
+  * Python binding rewrite
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 07 Oct 2013 16:50:17 +0400
+
 elliptics (2.24.14.15) unstable; urgency=low
 
   * Return EXFULL from srw->process() if srw/cocaine enqueue/write throws an exception.

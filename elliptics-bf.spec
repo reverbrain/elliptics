@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.15
+Version:	2.24.14.16
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Oct 07 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.16
+- Python binding rewrite
+
 * Fri Sep 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.15
 - Return EXFULL from srw->process() if srw/cocaine enqueue/write throws an exception.
 - State reset should cleanup all transactions.
