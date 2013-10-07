@@ -1,3 +1,11 @@
+elliptics (2.24.14.17) unstable; urgency=low
+
+  * Added size to dnet_iterator_response
+  * Python: if both key and timestamp is equal then size will be checked and larger object will be restored.
+  * Python: fixed is_none() for boost v1.40 compatibility.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 07 Oct 2013 20:37:52 +0400
+
 elliptics (2.24.14.16) unstable; urgency=low
 
   * Python binding rewrite

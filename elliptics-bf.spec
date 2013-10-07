@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.16
+Version:	2.24.14.17
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Oct 07 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.17
+- Added size to dnet_iterator_response
+- Python: if both key and timestamp is equal then size will be checked and larger object will be restored.
+- Python: fixed is_none() for boost v1.40 compatibility.
+
 * Mon Oct 07 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.16
 - Python binding rewrite
 
