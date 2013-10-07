@@ -34,5 +34,5 @@ install(TARGETS core_python
 
 install(CODE "EXECUTE_PROCESS(
 	COMMAND ${PYTHON_EXECUTABLE} setup.py install --prefix=${CMAKE_INSTALL_PREFIX}
-	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/bindings/python/
+	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/
 )")
