@@ -284,10 +284,15 @@ class MergeData(object):
         self.next()
 
     def __cmp__(self, other):
-        key_cmp = cmp(self.value.key, other.value.key)
-        if key_cmp != 0:
-            return key_cmp
-        return cmp(other.value.timestamp, self.value.timestamp)
+        cmp_res = cmp(self.value.key, other.value.key)
+
+        if cmp_res == 0:
+            cmp_res = cmp(other.value.timestamp, self.value.timestamp)
+
+            if cmp_res == 0:
+                cmp_res = cmp(self.value.size, other.value.size)
+
+        return cmp_res
 
     def next(self):
         if self.iter is None:

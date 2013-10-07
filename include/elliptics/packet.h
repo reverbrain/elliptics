@@ -799,7 +799,8 @@ struct dnet_iterator_response
 	int				status;		/* Response status */
 	struct dnet_time		timestamp;	/* Timestamp from extended header */
 	uint64_t			user_flags;	/* User flags set in extended header */
-	uint64_t			reserved[5];
+	uint64_t			size;
+	uint64_t			reserved[4];
 } __attribute__ ((packed));
 
 static inline void dnet_convert_iterator_response(struct dnet_iterator_response *r)

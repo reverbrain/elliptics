@@ -53,6 +53,11 @@ uint64_t iterator_response_get_user_flags(dnet_iterator_response *response)
 	return response->user_flags;
 }
 
+uint64_t iterator_response_get_size(dnet_iterator_response *response)
+{
+	return response->size;
+}
+
 std::string read_result_get_data(read_result_entry &result)
 {
 	return result.file().to_string();
@@ -282,6 +287,7 @@ void init_result_entry() {
 		.add_property("key", iterator_response_get_key)
 		.add_property("timestamp", iterator_response_get_timestamp)
 		.add_property("user_flags", iterator_response_get_user_flags)
+		.add_property("size", iterator_response_get_size)
 	;
 
 	bp::class_<read_result_entry>("ReadResultEntry")

@@ -669,6 +669,7 @@ static int dnet_iterator_callback_common(void *priv, struct dnet_raw_id *key,
 	struct dnet_iterator_response *response;
 	static const uint64_t response_size = sizeof(struct dnet_iterator_response);
 	uint64_t size;
+	const uint64_t fsize = dsize;
 	unsigned char *combined = NULL, *position;
 	int err = 0;
 
@@ -719,6 +720,7 @@ key_range_found:
 	response->key = *key;
 	response->timestamp = elist->timestamp;
 	response->user_flags = elist->flags;
+	response->size = fsize;
 	dnet_convert_iterator_response(response);
 
 	/* Data */
