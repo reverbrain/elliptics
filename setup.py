@@ -33,6 +33,6 @@ setup(name = 'elliptics_recovery',
           'elliptics_recovery/utils': 'recovery/elliptics_recovery/utils',
           },
       packages = ['elliptics_recovery', 'elliptics_recovery/types', 'elliptics_recovery/utils'],
-      data_files = [('/usr/bin', ['recovery/dnet_recovery'])],
+      data_files = [('bin', ['recovery/dnet_recovery'])],
       license = 'GPLv2',
       )
