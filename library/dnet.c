@@ -1365,6 +1365,8 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	struct dnet_io_attr *rio;
 	int hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr);
 	int err;
+	long csum_time, send_time, total_time;
+	struct timeval start_tv, csum_tv, send_tv;
 
 	/*
 	 * A simple hack to forbid read reply sending.
@@ -1374,6 +1376,8 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	 */
 	if (io->flags & DNET_IO_FLAGS_SKIP_SENDING)
 		return 0;
+
+	gettimeofday(&start_tv, NULL);
 
 	c = malloc(hsize);
 	if (!c) {
@@ -1397,10 +1401,6 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 
 	memcpy(rio, io, sizeof(struct dnet_io_attr));
 
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: %s: reply: offset: %llu, size: %llu.\n",
-			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
-			(unsigned long long)io->offset,	(unsigned long long)io->size);
-
 	dnet_convert_cmd(c);
 	dnet_convert_io_attr(rio);
 
@@ -1415,10 +1415,27 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 			goto err_out_free;
 	}
 
+	gettimeofday(&csum_tv, NULL);
+
 	if (data)
 		err = dnet_send_data(st, c, hsize, data, rio->size);
 	else
 		err = dnet_send_fd(st, c, hsize, fd, offset, rio->size, on_exit);
+
+	gettimeofday(&send_tv, NULL);
+
+#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
+
+	csum_time = DIFF(start_tv, csum_tv);
+	send_time = DIFF(csum_tv, send_tv);
+	total_time = DIFF(start_tv, send_tv);
+
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: %s: reply: cflags: 0x%llx, ioflags: 0x%llx, offset: %llu, size: %llu, csum-time: %ld, send-time: %ld, total-time: %ld usecs.\n",
+			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
+			(unsigned long long)cmd->flags, (unsigned long long)io->flags,
+			(unsigned long long)io->offset,	(unsigned long long)io->size,
+			csum_time, send_time, total_time);
+
 
 err_out_free:
 	free(c);
