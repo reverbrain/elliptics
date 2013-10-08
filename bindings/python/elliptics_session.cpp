@@ -178,10 +178,12 @@ public:
 	}
 
 	void read_file(const bp::api::object &id, const std::string &file, uint64_t offset, uint64_t size) {
+		py_allow_threads_scoped pythr;
 		return session::read_file(elliptics_id::convert(id), file, offset, size);
 	}
 
 	void write_file(const bp::api::object &id, const std::string &file, uint64_t local_offset, uint64_t offset, uint64_t size) {
+		py_allow_threads_scoped pythr;
 		return session::write_file(elliptics_id::convert(id), file, local_offset, offset, size);
 	}
 
@@ -263,6 +265,7 @@ public:
 
 	elliptics_status update_status_addr(const std::string &saddr, const int port,
 	                               const int family, elliptics_status &status) {
+		py_allow_threads_scoped pythr;
 		session::update_status(saddr.c_str(), port, family, &status);
 		return status;
 	}
@@ -371,7 +374,7 @@ public:
 		return create_result(std::move(session::bulk_write(ios, wdatas)));
 	}
 
-	python_async_set_indexes_result set_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
+	python_set_indexes_result set_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 		auto string_datas = convert_to_vector<std::string>(datas);
 		std::vector<data_pointer> std_datas(string_datas.begin(), string_datas.end());
@@ -379,13 +382,13 @@ public:
 		return create_result(std::move(session::set_indexes(elliptics_id::convert(id), std_indexes, std_datas)));
 	}
 
-	python_async_set_indexes_result set_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
+	python_set_indexes_result set_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<index_entry>(indexes);
 
 		return create_result(std::move(session::set_indexes(elliptics_id::convert(id), std_indexes)));
 	}
 
-	python_async_set_indexes_result update_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
+	python_set_indexes_result update_indexes(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 		auto string_datas = convert_to_vector<std::string>(datas);
 		std::vector<data_pointer> std_datas(string_datas.begin(), string_datas.end());
@@ -393,13 +396,13 @@ public:
 		return create_result(std::move(session::update_indexes(elliptics_id::convert(id), std_indexes, std_datas)));
 	}
 
-	python_async_set_indexes_result update_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
+	python_set_indexes_result update_indexes_raw(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<index_entry>(indexes);
 
 		return create_result(std::move(session::update_indexes(elliptics_id::convert(id), std_indexes)));
 	}
 
-	python_async_set_indexes_result update_indexes_internal(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
+	python_set_indexes_result update_indexes_internal(const bp::api::object &id, const bp::api::object &indexes, const bp::api::object &datas) {
 		auto std_indexes = convert_to_vector<std::string>(indexes);
 		auto string_datas = convert_to_vector<std::string>(datas);
 		std::vector<data_pointer> std_datas(string_datas.begin(), string_datas.end());
@@ -407,7 +410,7 @@ public:
 		return create_result(std::move(session::update_indexes_internal(elliptics_id::convert(id), std_indexes, std_datas)));
 	}
 
-	python_async_set_indexes_result update_indexes_internal_raw(const bp::api::object &id, const bp::api::object &indexes) {
+	python_set_indexes_result update_indexes_internal_raw(const bp::api::object &id, const bp::api::object &indexes) {
 		auto std_indexes = convert_to_vector<index_entry>(indexes);
 
 		return create_result(std::move(session::update_indexes_internal(elliptics_id::convert(id), std_indexes)));
