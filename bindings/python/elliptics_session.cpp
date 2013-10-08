@@ -356,15 +356,15 @@ public:
 
 		auto datas_len = bp::len(datas);
 		ios.reserve(datas_len);
-		wdatas.resize(datas_len);
+		wdatas.reserve(datas_len);
 
 		for (bp::stl_input_iterator<bp::tuple> it(datas), end; it != end; ++it) {
 			elliptics_io_attr io_attr = convert_io_attr((*it)[0]);
 			transform_io_attr(io_attr);
 
-			std::string &data = bp::extract<std::string&>((*it)[1]);
+			bp::extract<std::string> get_data((*it)[1]);
 
-			wdatas.push_back(data);
+			wdatas.push_back(get_data());
 			ios.push_back(io_attr);
 		}
 
