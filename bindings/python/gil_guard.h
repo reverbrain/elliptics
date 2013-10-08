@@ -34,6 +34,28 @@ struct gil_guard {
 	PyGILState_STATE gstate;
 };
 
+class py_allow_threads_scoped
+{
+public:
+	py_allow_threads_scoped()
+	: save(PyEval_SaveThread())
+	{}
+
+	void disallow()
+	{
+		PyEval_RestoreThread(save);
+		save = NULL;
+	}
+
+	~py_allow_threads_scoped()
+	{
+		if (save)
+			PyEval_RestoreThread(save);
+	}
+private:
+	PyThreadState* save;
+};
+
 } } } // namespace ioremap::elliptics::python
 
 #endif // ELLIPTICS_PYTHON_GIL_GUARD_HPP
