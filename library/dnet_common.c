@@ -2449,7 +2449,7 @@ int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t
 		const int cmp_id = dnet_id_cmp_str(left->key.id, right->key.id);
 		const int cmp = dnet_iterator_response_cmp(left, right);
 
-		if (left_offset < left_size && cmp < 0) {
+		if (left_offset < left_size && cmp <= 0) {
 			/*
 			 * If we can move left pointer and left key is less or
 			 * same but with lesser timestamp we skip record.
