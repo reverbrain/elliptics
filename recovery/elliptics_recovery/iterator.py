@@ -237,7 +237,7 @@ class Iterator(object):
                     yield batch_size
 
             elapsed_time = records.elapsed_time()
-            print (elapsed_time.tsec, elapsed_time.tnsec)
+            self.log.debug("Time spended for iterator: {0}/{1}".format(elapsed_time.tsec, elapsed_time.tnsec))
             yield last % batch_size
             yield result
         except Exception as e:
