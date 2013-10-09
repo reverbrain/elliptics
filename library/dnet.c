@@ -1137,15 +1137,24 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			io_tv.tv_sec = io->timestamp.tsec;
 			io_tv.tv_usec = io->timestamp.tnsec / 1000;
 
-			localtime_r((time_t *)&io_tv.tv_sec, &io_tm);
-			strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
+			if (cmd->cmd == DNET_CMD_READ) {
+				dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
+						"node-flags: 0x%x\n",
+						dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
+						(unsigned long long)io->offset, (unsigned long long)io->size,
+						io->flags, (unsigned long long)cmd->flags,
+						n->flags);
+			} else {
+				localtime_r((time_t *)&io_tv.tv_sec, &io_tm);
+				strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
 
-			dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
-					"node-flags: 0x%x, ts: %ld.%06ld '%s'\n",
-					dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
-					(unsigned long long)io->offset, (unsigned long long)io->size,
-					io->flags, (unsigned long long)cmd->flags,
-					n->flags, io_tv.tv_sec, io_tv.tv_usec, time_str);
+				dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
+						"node-flags: 0x%x, ts: %ld.%06ld '%s'\n",
+						dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
+						(unsigned long long)io->offset, (unsigned long long)io->size,
+						io->flags, (unsigned long long)cmd->flags,
+						n->flags, io_tv.tv_sec, io_tv.tv_usec, time_str);
+			}
 
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
