@@ -93,6 +93,8 @@ class elliptics_config {
 	public:
 		elliptics_config() {
 			memset(&config, 0, sizeof(struct dnet_config));
+			config.wait_timeout = 5;
+			config.check_timeout = 20;
 		}
 
 		std::string cookie_get(void) const {

@@ -2284,7 +2284,7 @@ static int dnet_iterator_response_cmp(const void *r1, const void *r2)
 	int diff = dnet_id_cmp_str(a->key.id, b->key.id);
 
 	if (diff == 0) {
-		diff = dnet_time_cmp(&a->timestamp, &b->timestamp);
+		diff = dnet_time_cmp(&b->timestamp, &a->timestamp);
 		if (diff == 0) {
 			if (a->size > b->size)
 				diff = -1;
@@ -2447,10 +2447,9 @@ int64_t dnet_iterator_response_container_diff(int diff_fd, int left_fd, uint64_t
 		const struct dnet_iterator_response *right =
 			(struct dnet_iterator_response *)right_map.data + right_pos;
 		const int cmp_id = dnet_id_cmp_str(left->key.id, right->key.id);
-		const int cmp_ts = dnet_time_cmp(&left->timestamp, &right->timestamp);
+		const int cmp = dnet_iterator_response_cmp(left, right);
 
-		if (left_offset < left_size &&
-				(cmp_id < 0 || (cmp_id == 0 && cmp_ts >= 0))) {
+		if (left_offset < left_size && cmp <= 0) {
 			/*
 			 * If we can move left pointer and left key is less or
 			 * same but with lesser timestamp we skip record.

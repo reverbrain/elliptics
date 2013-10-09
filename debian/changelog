@@ -1,3 +1,11 @@
+elliptics (2.24.14.19) unstable; urgency=low
+
+  * Recovery: fixed skipping equals objects in diff
+  * Recovery: Fixed sorting and diffing objects.
+  * Python: fixed bulk_write
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 08 Oct 2013 16:57:37 +0400
+
 elliptics (2.24.14.18) unstable; urgency=low
 
   * Minor python binding cleanups
