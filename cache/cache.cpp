@@ -642,6 +642,8 @@ class cache_t {
 		}
 
 		void sync_after_append(std::unique_lock<std::mutex> &guard, bool lock_guard, data_t *obj) {
+			elliptics_timer timer;
+
 			std::shared_ptr<raw_data_t> raw_data = obj->data();
 			m_syncset.erase(m_syncset.iterator_to(*obj));
 			obj->set_synctime(0);
@@ -653,7 +655,11 @@ class cache_t {
 			uint64_t user_flags = obj->user_flags();
 			dnet_time timestamp = obj->timestamp();
 
+			const auto timer_prepare = timer.restart();
+
 			erase_element(&*obj);
+
+			const auto timer_erase = timer.restart();
 
 			guard.unlock();
 
@@ -662,11 +668,20 @@ class cache_t {
 
 			auto &raw = raw_data->data();
 
+			const auto timer_before_write = timer.restart();
+
 			int err = sess.write(id, raw.data(), raw.size(), user_flags, timestamp);
-			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: sync after append, err: %d", dnet_dump_id_str(id.id), err);
+
+			const auto timer_after_write = timer.restart();
 
 			if (lock_guard)
 				guard.lock();
+
+			const auto timer_lock = timer.restart();
+
+			dnet_log(m_node, DNET_LOG_INFO, "%s: CACHE: sync after append,"
+				"prepare: %lld ms, erase: %lld ms, before_write: %lld ms, after_write: %lld ms, lock: %lld ms, err: %d",
+				 dnet_dump_id_str(id.id), timer_prepare, timer_erase, timer_before_write, timer_after_write, timer_lock, err);
 		}
 
 		void life_check(void) {
