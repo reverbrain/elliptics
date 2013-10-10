@@ -3,7 +3,6 @@
 
 #include "../library/elliptics.h"
 #include "../include/elliptics/session.hpp"
-#include <chrono>
 
 enum update_index_action {
 	insert_data = 1,
@@ -39,26 +38,36 @@ class local_session
 
 class elliptics_timer
 {
-	typedef std::chrono::high_resolution_clock clock;
 public:
-	elliptics_timer() : m_last_time(clock::now())
+	elliptics_timer()
 	{
+		dnet_current_time(&m_last_time);
 	}
 
 	long long int elapsed() const
 	{
-		return std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - m_last_time).count();
+		dnet_time time;
+		dnet_current_time(&time);
+
+		return delta(m_last_time, time);
 	}
 
 	long long int restart()
 	{
-		clock::time_point time = clock::now();
+		dnet_time time;
+		dnet_current_time(&time);
 		std::swap(m_last_time, time);
-		return std::chrono::duration_cast<std::chrono::milliseconds>(m_last_time - time).count();
+
+		return delta(time, m_last_time);
 	}
 
 private:
-	clock::time_point m_last_time;
+	long long int delta(const dnet_time &first, const dnet_time &last) const
+	{
+		return (first.tsec - last.tsec) * 1000 + (first.tnsec - last.tnsec) / 1000000;
+	}
+
+	dnet_time m_last_time;
 };
 
 #endif // LOCAL_SESSION_H

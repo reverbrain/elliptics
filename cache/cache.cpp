@@ -570,6 +570,8 @@ class cache_t {
 				guard.unlock();
 			}
 
+			elliptics_timer timer;
+
 			local_session sess(m_node);
 			sess.set_ioflags(DNET_IO_FLAGS_NOCACHE);
 
@@ -581,18 +583,21 @@ class cache_t {
 			dnet_time timestamp;
 			dnet_empty_time(&timestamp);
 
-			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: populating from disk started\n", dnet_dump_id_str(id));
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: populating from disk started: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			ioremap::elliptics::data_pointer data = sess.read(raw_id, &user_flags, &timestamp, err);
 
-			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: populating from disk finished: %d\n", dnet_dump_id_str(id), *err);
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: populating from disk finished: %lld ms, err: %d\n", dnet_dump_id_str(id), timer.restart(), *err);
 
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: populating from disk, before lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 			guard.lock();
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: populating from disk, after lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			if (*err == 0) {
 				auto it = create_data(id, reinterpret_cast<char *>(data.data()), data.size(), remove_from_disk);
 				it->set_user_flags(user_flags);
 				it->set_timestamp(timestamp);
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: populating from disk, data created: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 				return it;
 			}
 
