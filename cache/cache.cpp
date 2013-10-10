@@ -253,9 +253,11 @@ class cache_t {
 			const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
 			const bool append = (io->flags & DNET_IO_FLAGS_APPEND);
 
+			elliptics_timer timer;
+
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: before guard\n", dnet_dump_id_str(id));
 			std::unique_lock<std::mutex> guard(m_lock);
-			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: after guard\n", dnet_dump_id_str(id));
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			iset_t::iterator it = m_set.find(id);
 
@@ -281,10 +283,12 @@ class cache_t {
 
 					const size_t new_size = raw.size() + io->size;
 
+					timer.restart();
+
 					if (m_cache_size + new_size > m_max_cache_size) {
 						dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called\n", dnet_dump_id_str(id));
 						resize(new_size * 2);
-						dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished\n", dnet_dump_id_str(id));
+						dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 					}
 
 					m_lru.push_back(*it);
@@ -300,15 +304,17 @@ class cache_t {
 				} else if (it != m_set.end() && it->only_append()) {
 					sync_after_append(guard, false, &*it);
 
+					dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: synced after append: %lld", dnet_dump_id_str(id), timer.restart());
+
 					local_session sess(m_node);
 					sess.set_ioflags(DNET_IO_FLAGS_NOCACHE | DNET_IO_FLAGS_APPEND);
 
 					int err = m_node->cb->command_handler(st, m_node->cb->command_private, cmd, io);
-					dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: second write result, err: %d", dnet_dump_id_str(id), err);
+					dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: second write result, cmd: %lld ms, err: %d", dnet_dump_id_str(id), timer.restart(), err);
 
 					it = populate_from_disk(guard, id, false, &err);
 
-					dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: read result, err: %d", dnet_dump_id_str(id), err);
+					dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: read result, populate: %lld ms, err: %d", dnet_dump_id_str(id), timer.restart(), err);
 					cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 					return err;
 				}
@@ -331,7 +337,7 @@ class cache_t {
 			} else {
 				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: exists\n", dnet_dump_id_str(id));
 			}
-			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: data ensured\n", dnet_dump_id_str(id));
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: data ensured: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			raw_data_t &raw = *it->data();
 
@@ -349,7 +355,7 @@ class cache_t {
 				}
 			}
 
-			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: CAS checked\n", dnet_dump_id_str(id));
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: CAS checked: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			size_t new_size = 0;
 
@@ -364,9 +370,9 @@ class cache_t {
 			m_lru.erase(m_lru.iterator_to(*it));
 
 			if (m_cache_size + new_size > m_max_cache_size) {
-				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called\n", dnet_dump_id_str(id));
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 				resize(new_size * 2);
-				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished\n", dnet_dump_id_str(id));
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 			}
 
 			m_lru.push_back(*it);
@@ -380,7 +386,7 @@ class cache_t {
 				memcpy(raw.data().data() + io->offset, data, size);
 			}
 
-			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: data modified\n", dnet_dump_id_str(id));
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: data modified: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			// Mark data as dirty one, so it will be synced to the disk
 			if (!it->synctime() && !(io->flags & DNET_IO_FLAGS_CACHE_ONLY)) {
@@ -399,7 +405,7 @@ class cache_t {
 			it->set_timestamp(io->timestamp);
 			it->set_user_flags(io->user_flags);
 
-			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: finished write\n", dnet_dump_id_str(id));
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: finished write: %lld ,s\n", dnet_dump_id_str(id), timer.restart());
 
 			cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			return dnet_send_file_info_ts_without_fd(st, cmd, raw.data().data() + io->offset, io->size, &io->timestamp);
@@ -410,17 +416,20 @@ class cache_t {
 			const bool cache_only = (io->flags & DNET_IO_FLAGS_CACHE_ONLY);
 			(void) cmd;
 
+			elliptics_timer timer;
+
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: before guard\n", dnet_dump_id_str(id));
 			std::unique_lock<std::mutex> guard(m_lock);
-			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: after guard\n", dnet_dump_id_str(id));
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			iset_t::iterator it = m_set.find(id);
 			if (it != m_set.end() && it->only_append()) {
 				sync_after_append(guard, true, &*it);
-				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: synced append-only data\n", dnet_dump_id_str(id));
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: synced append-only data, find+sync: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 				it = m_set.end();
 			}
+			timer.restart();
 
 			if (it == m_set.end() && cache && !cache_only) {
 				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: not exist\n", dnet_dump_id_str(id));
@@ -430,7 +439,7 @@ class cache_t {
 				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: exists\n", dnet_dump_id_str(id));
 			}
 
-			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: data ensured\n", dnet_dump_id_str(id));
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: data ensured: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			if (it != m_set.end()) {
 				m_lru.erase(m_lru.iterator_to(*it));
@@ -439,7 +448,7 @@ class cache_t {
 
 				io->timestamp = it->timestamp();
 				io->user_flags = it->user_flags();
-				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: returned\n", dnet_dump_id_str(id));
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: returned: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 				return it->data();
 			}
 
@@ -451,7 +460,12 @@ class cache_t {
 			bool remove_from_disk = !cache_only;
 			int err = -ENOENT;
 
+			elliptics_timer timer;
+
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE REMOVE: before guard\n", dnet_dump_id_str(id));
 			std::unique_lock<std::mutex> guard(m_lock);
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE REMOVE: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
+
 			iset_t::iterator it = m_set.find(id);
 			if (it != m_set.end()) {
 				// If cache_only is not set the data also should be remove from the disk
@@ -463,6 +477,7 @@ class cache_t {
 				}
 				erase_element(&(*it));
 				err = 0;
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE REMOVE: erased: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 			}
 
 			guard.unlock();
@@ -473,9 +488,12 @@ class cache_t {
 
 				dnet_setup_id(&raw, 0, (unsigned char *)id);
 
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE REMOVE: before removing from disk\n", dnet_dump_id_str(id));
+				timer.restart();
 				int local_err = dnet_remove_local(m_node, &raw);
 				if (local_err != -ENOENT)
 					err = local_err;
+				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE REMOVE: after removing from disk: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 			}
 
 			return err;
@@ -484,7 +502,12 @@ class cache_t {
 		int lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd) {
 			int err = 0;
 
+			elliptics_timer timer;
+
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE LOOKUP: before guard\n", dnet_dump_id_str(id));
 			std::unique_lock<std::mutex> guard(m_lock);
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE LOOKUP: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
+
 			iset_t::iterator it = m_set.find(id);
 			if (it == m_set.end()) {
 				return -ENOTSUP;
@@ -602,6 +625,8 @@ class cache_t {
 		}
 
 		void erase_element(data_t *obj) {
+			elliptics_timer timer;
+
 			m_lru.erase(m_lru.iterator_to(*obj));
 			m_set.erase(m_set.iterator_to(*obj));
 			if (obj->lifetime())
@@ -615,6 +640,8 @@ class cache_t {
 			}
 
 			m_cache_size -= obj->size();
+
+			dnet_log(m_node, DNET_LOG_ERROR, "%s: CACHE: erased element: %lld ms\n", dnet_dump_id_str(obj->id().id), timer.restart());
 
 			delete obj;
 		}
@@ -679,7 +706,7 @@ class cache_t {
 
 			const auto timer_lock = timer.restart();
 
-			dnet_log(m_node, DNET_LOG_INFO, "%s: CACHE: sync after append,"
+			dnet_log(m_node, DNET_LOG_INFO, "%s: CACHE: sync after append, "
 				"prepare: %lld ms, erase: %lld ms, before_write: %lld ms, after_write: %lld ms, lock: %lld ms, err: %d",
 				 dnet_dump_id_str(id.id), timer_prepare, timer_erase, timer_before_write, timer_after_write, timer_lock, err);
 		}
