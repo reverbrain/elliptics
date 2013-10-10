@@ -64,7 +64,8 @@ public:
 private:
 	long long int delta(const dnet_time &first, const dnet_time &last) const
 	{
-		return (last.tsec - first.tsec) * 1000 + (last.tnsec - first.tnsec) / 1000000;
+		typedef long long int lld;
+		return (lld(last.tsec) - lld(first.tsec)) * 1000 + (lld(last.tnsec) - lld(first.tnsec)) / 1000000;
 	}
 
 	dnet_time m_last_time;
