@@ -24,7 +24,7 @@ static int noop_process(struct dnet_net_state *, struct epoll_event *) { return 
 	     &pos->member != (head); 					\
 	     pos = n, n = list_entry(n->member.next, decltype(*n), member))
 
-local_session::local_session(dnet_node *node) : m_flags(DNET_IO_FLAGS_CACHE)
+local_session::local_session(dnet_node *node) : m_ioflags(DNET_IO_FLAGS_CACHE), m_cflags(DNET_FLAGS_NOLOCK)
 {
 	m_state = reinterpret_cast<dnet_net_state *>(malloc(sizeof(dnet_net_state)));
 	if (!m_state)
@@ -51,7 +51,12 @@ local_session::~local_session()
 
 void local_session::set_ioflags(uint32_t flags)
 {
-	m_flags = flags;
+	m_ioflags = flags;
+}
+
+void local_session::set_cflags(uint64_t flags)
+{
+	m_cflags = flags;
 }
 
 data_pointer local_session::read(const dnet_id &id, int *errp)
@@ -68,14 +73,14 @@ data_pointer local_session::read(const dnet_id &id, uint64_t *user_flags, dnet_t
 	memcpy(io.id, id.id, DNET_ID_SIZE);
 	memcpy(io.parent, id.id, DNET_ID_SIZE);
 
-	io.flags = DNET_IO_FLAGS_NOCSUM | m_flags;
+	io.flags = DNET_IO_FLAGS_NOCSUM | m_ioflags;
 
 	dnet_cmd cmd;
 	memset(&cmd, 0, sizeof(cmd));
 
 	cmd.id = id;
 	cmd.cmd = DNET_CMD_READ;
-	cmd.flags |= DNET_FLAGS_NOLOCK;
+	cmd.flags |= m_cflags;
 	cmd.size = sizeof(io);
 
 	int err = dnet_process_cmd_raw(m_state, &cmd, &io, 0);
@@ -154,7 +159,7 @@ int local_session::write(const dnet_id &id, const char *data, size_t size, uint6
 
 	memcpy(io.id, id.id, DNET_ID_SIZE);
 	memcpy(io.parent, id.id, DNET_ID_SIZE);
-	io.flags |= DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_NOCSUM | m_flags;
+	io.flags |= DNET_IO_FLAGS_COMMIT | DNET_IO_FLAGS_NOCSUM | m_ioflags;
 	io.size = size;
 	io.num = size;
 	io.user_flags = user_flags;
@@ -175,7 +180,7 @@ int local_session::write(const dnet_id &id, const char *data, size_t size, uint6
 
 	cmd.id = id;
 	cmd.cmd = DNET_CMD_WRITE;
-	cmd.flags |= DNET_FLAGS_NOLOCK;
+	cmd.flags |= m_cflags;
 	cmd.size = datap.size();
 
 	int err = dnet_process_cmd_raw(m_state, &cmd, datap.data(), 0);
@@ -188,7 +193,7 @@ int local_session::write(const dnet_id &id, const char *data, size_t size, uint6
 data_pointer local_session::lookup(const dnet_cmd &tmp_cmd, int *errp)
 {
 	dnet_cmd cmd = tmp_cmd;
-	cmd.flags |= DNET_FLAGS_NOLOCK;
+	cmd.flags |= m_cflags;
 	cmd.size = 0;
 
 	*errp = dnet_process_cmd_raw(m_state, &cmd, NULL, 0);
