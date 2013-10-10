@@ -455,10 +455,47 @@ struct find_indexes_functor : public std::enable_shared_from_this<find_indexes_f
 	error_info error;
 };
 
-static async_find_indexes_result do_find_indexes(session &sess,
-		const std::vector<dnet_raw_id> &indexes, bool intersect)
+#undef debug
+#define debug(DATA) if (1) {} else std::cout << __PRETTY_FUNCTION__ << ":" << __LINE__ << " " << DATA << std::endl
+
+static void on_find_indexes_process(node n, std::shared_ptr<find_indexes_callback::id_map> convert_map,
+	async_result_handler<find_indexes_result_entry> handler, const callback_result_entry &entry)
 {
-	async_find_indexes_result result(sess);
+	debug("on index");
+	dnet_node *node = n.get_native();
+	data_pointer data = entry.data();
+
+	sync_find_indexes_result tmp;
+	find_result_unpack(node, &entry.command()->id, data, &tmp, "find_indexes_functor::on_result");
+
+	for (auto it = tmp.begin(); it != tmp.end(); ++it) {
+		find_indexes_result_entry &entry = *it;
+
+		for (auto jt = entry.indexes.begin(); jt != entry.indexes.end(); ++jt) {
+			dnet_raw_id &id = jt->index;
+
+			auto converted = convert_map->find(id);
+			if (converted == convert_map->end()) {
+				n.get_log().print(DNET_LOG_ERROR, "%s: on_find_indexes_process, unknown id", dnet_dump_id_str(id.id));
+				continue;
+			}
+
+			id = converted->second;
+		}
+
+		handler.process(entry);
+	}
+}
+
+static void on_find_indexes_complete(async_result_handler<find_indexes_result_entry> handler, const error_info &error)
+{
+	debug("Complete");
+	handler.complete(error);
+}
+
+async_find_indexes_result session::find_indexes_internal(const std::vector<dnet_raw_id> &indexes, bool intersect)
+{
+	async_find_indexes_result result(*this);
 	async_result_handler<find_indexes_result_entry> handler(result);
 
 	if (indexes.size() == 0) {
@@ -466,7 +503,22 @@ static async_find_indexes_result do_find_indexes(session &sess,
 		return result;
 	}
 
-	std::make_shared<find_indexes_functor>(sess, indexes, intersect, handler)->run();
+	session sess = clone();
+	sess.set_filter(filters::positive);
+	sess.set_checker(checkers::no_check);
+	sess.set_exceptions_policy(session::no_exceptions);
+
+	async_generic_result raw_result(sess);
+
+	auto cb = createCallback<find_indexes_callback>(sess, indexes, intersect, raw_result);
+	auto convert_map = std::make_shared<find_indexes_callback::id_map>(/*std::move(*/cb->convert_map/*)*/);
+	mix_states(indexes[0], cb->groups);
+	startCallback(cb);
+
+	using namespace std::placeholders;
+
+	raw_result.connect(std::bind(on_find_indexes_process, sess.get_node(), convert_map, handler, _1),
+		std::bind(on_find_indexes_complete, handler, _1));
 
 	return result;
 }
@@ -485,7 +537,7 @@ static std::vector<dnet_raw_id> convert(session &sess, const std::vector<std::st
 
 async_find_indexes_result session::find_all_indexes(const std::vector<dnet_raw_id> &indexes)
 {
-	return do_find_indexes(*this, indexes, true);
+	return find_indexes_internal(indexes, true);
 }
 
 async_find_indexes_result session::find_all_indexes(const std::vector<std::string> &indexes)
@@ -495,7 +547,7 @@ async_find_indexes_result session::find_all_indexes(const std::vector<std::strin
 
 async_find_indexes_result session::find_any_indexes(const std::vector<dnet_raw_id> &indexes)
 {
-	return do_find_indexes(*this, indexes, false);
+	return find_indexes_internal(indexes, false);
 }
 
 async_find_indexes_result session::find_any_indexes(const std::vector<std::string> &indexes)

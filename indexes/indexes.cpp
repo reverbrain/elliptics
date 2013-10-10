@@ -624,7 +624,7 @@ int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_
 	return err;
 }
 
-int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
+int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, const dnet_id &request_id, dnet_indexes_request *request, bool more)
 {
 	local_session sess(state->n);
 
@@ -634,8 +634,8 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 	dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_FIND: indexes count: %u, flags: %llu\n",
 		 (unsigned) request->entries_count, (unsigned long long) request->flags);
 
-	if (intersection && unite) {
-		return -ENOTSUP;
+	if ((intersection && unite) || !(intersection || unite)) {
+		return -EINVAL;
 	}
 
 	std::vector<find_indexes_result_entry> result;
@@ -645,7 +645,7 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 	dnet_indexes tmp;
 
 	int err = -1;
-	dnet_id id = cmd->id;
+	dnet_id id = request_id;
 
 	size_t data_offset = 0;
 	char *data_start = reinterpret_cast<char *>(request->entries);
@@ -664,7 +664,7 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 		}
 
 		if (ret && unite) {
-			if (err != -1)
+			if (err == -1)
 				err = ret;
 			continue;
 		} else if (ret && intersection) {
@@ -719,8 +719,8 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 		}
 	}
 
-//	if (err != 0)
-//		return err;
+	if (err != 0)
+		return err;
 
 	dnet_log(state->n, DNET_LOG_DEBUG, "%s: INDEXES_FIND: result of find: %zu objects\n",
 		dnet_dump_id(&id), result.size());
@@ -728,8 +728,12 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 	msgpack::sbuffer buffer;
 	msgpack::pack(&buffer, result);
 
-	cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-	dnet_send_reply(state, cmd, buffer.data(), buffer.size(), 0);
+	if (!more) {
+		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+	}
+	dnet_cmd cmd_copy = *cmd;
+	dnet_setup_id(&cmd_copy.id, cmd->id.group_id, request_id.id);
+	dnet_send_reply(state, &cmd_copy, buffer.data(), buffer.size(), more);
 
 	return err;
 }
@@ -772,9 +776,34 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 		case DNET_CMD_INDEXES_INTERNAL:
 			err = process_internal_indexes(st, cmd, request);
 			break;
-		case DNET_CMD_INDEXES_FIND:
-			err = process_find_indexes(st, cmd, request);
+		case DNET_CMD_INDEXES_FIND: {
+			bool first = true;
+
+			err = -1;
+
+			while (request) {
+				bool more = (request->flags & DNET_INDEXES_FLAGS_MORE);
+				int ret = process_find_indexes(st, cmd, first ? cmd->id : request->id, request, more);
+				first = false;
+
+				if (err == -1)
+					err = ret;
+				else if (!ret)
+					err = ret;
+
+				if (!more) {
+					break;
+				}
+
+				char *raw_data = reinterpret_cast<char *>(request + 1);
+				for (size_t i = 0; i < request->entries_count; ++i) {
+					auto entry = reinterpret_cast<dnet_indexes_request_entry *>(raw_data);
+					raw_data += sizeof(*entry) + entry->size;
+				}
+				request = reinterpret_cast<dnet_indexes_request *>(raw_data);
+			}
 			break;
+		}
 		default:
 			break;
 	}

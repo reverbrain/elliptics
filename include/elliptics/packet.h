@@ -145,7 +145,7 @@ static inline void dnet_convert_raw_id(struct dnet_raw_id *id __attribute__ ((un
 {
 }
 
-static inline void dnet_setup_id(struct dnet_id *id, unsigned int group_id, unsigned char *raw)
+static inline void dnet_setup_id(struct dnet_id *id, unsigned int group_id, const unsigned char *raw)
 {
 	memcpy(id->id, raw, DNET_ID_SIZE);
 	id->group_id = group_id;
@@ -341,7 +341,8 @@ static inline void dnet_convert_list(struct dnet_list *l)
 
 #define DNET_INDEXES_FLAGS_INTERSECT		(1<<0)
 #define DNET_INDEXES_FLAGS_UNITE		(1<<1)
-#define DNET_INDEXES_FLAGS_UPDATE_ONLY	(1<<2)
+#define DNET_INDEXES_FLAGS_UPDATE_ONLY		(1<<2)
+#define DNET_INDEXES_FLAGS_MORE			(1<<3)
 
 
 struct dnet_time {

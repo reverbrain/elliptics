@@ -342,7 +342,7 @@ static void configure_server_nodes()
 	config_data ioserv_config;
 
 	ioserv_config("log", "/dev/stderr")
-			("log_level", DNET_LOG_INFO)
+			("log_level", DNET_LOG_DEBUG)
 			("join", 1)
 			("flags", 4)
 			("group", DUMMY_VALUE)
@@ -463,6 +463,38 @@ static void test_indexes(session &sess)
 
 	BOOST_CHECK_EQUAL(all_result.size(), any_result.size());
 	BOOST_CHECK_EQUAL(all_result.size(), 1);
+	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), any_result[0].indexes.size());
+	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), indexes.size());
+}
+
+static void test_more_indexes(session &sess)
+{
+	std::vector<std::string> indexes;
+	for (size_t i = 0; i < 16; ++i) {
+		indexes.push_back("index-" + boost::lexical_cast<std::string>(i));
+	}
+
+	std::vector<data_pointer> data(indexes.size());
+
+	std::vector<std::string> keys;
+	for (size_t i = 0; i < 256; ++i) {
+		keys.push_back("key-" + boost::lexical_cast<std::string>(i));
+	}
+
+	for (auto it = keys.begin(); it != keys.end(); ++it) {
+		std::string key = *it;
+		ELLIPTICS_REQUIRE(clear_indexes_result, sess.set_indexes(key, std::vector<std::string>(), std::vector<data_pointer>()));
+		ELLIPTICS_REQUIRE(set_indexes_result, sess.set_indexes(key, indexes, data));
+	}
+
+	ELLIPTICS_REQUIRE(all_indexes_result, sess.find_all_indexes(indexes));
+	sync_find_indexes_result all_result = all_indexes_result.get();
+
+	ELLIPTICS_REQUIRE(any_indexes_result, sess.find_any_indexes(indexes));
+	sync_find_indexes_result any_result = any_indexes_result.get();
+
+	BOOST_CHECK_EQUAL(all_result.size(), any_result.size());
+	BOOST_CHECK_EQUAL(all_result.size(), 256);
 	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), any_result[0].indexes.size());
 	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), indexes.size());
 }
@@ -1134,6 +1166,7 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_remove, create_session(n, {1, 2}, 0, 0), "new-id-real");
 	ELLIPTICS_TEST_CASE(test_recovery, create_session(n, {1, 2}, 0, 0), "recovery-id", "recovered-data");
 	ELLIPTICS_TEST_CASE(test_indexes, create_session(n, {1, 2}, 0, 0));
+	ELLIPTICS_TEST_CASE(test_more_indexes, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {99}, 0, 0), "non-existen-key", -ENXIO);
 	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
 	ELLIPTICS_TEST_CASE(test_cache_read, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY | DNET_IO_FLAGS_NOCSUM), 1000, 20);
