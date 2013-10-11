@@ -19,6 +19,7 @@
 #include <deque>
 #include <mutex>
 #include <thread>
+#include <cstdio>
 
 #include <boost/unordered_map.hpp>
 #include <boost/intrusive/list.hpp>
@@ -213,6 +214,56 @@ typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<sync_set_base_
 					  boost::intrusive::compare<synctime_less>
 			     > sync_set_t;
 
+template <typename T>
+class elliptics_unique_lock
+{
+public:
+	elliptics_unique_lock(T &mutex, dnet_node *node, const char *format, ...) __attribute__ ((format(printf, 4, 5)))
+		: m_node(node)
+	{
+		va_list args;
+		va_start(args, format);
+
+		vsnprintf(m_name, sizeof(m_name), format, args);
+
+		va_end(args);
+
+		m_guard = std::move(std::unique_lock<T>(mutex));
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s, lock: %lld ms\n", m_name, m_timer.elapsed());
+		m_timer.restart();
+	}
+
+	~elliptics_unique_lock()
+	{
+		if (owns_lock())
+			unlock();
+	}
+
+	bool owns_lock() const
+	{
+		return m_guard.owns_lock();
+	}
+
+	void lock()
+	{
+		m_guard.lock();
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s, lock: %lld ms\n", m_name, m_timer.elapsed());
+		m_timer.restart();
+	}
+
+	void unlock()
+	{
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s, unlock: %lld ms\n", m_name, m_timer.elapsed());
+		m_guard.unlock();
+	}
+
+private:
+	std::unique_lock<T> m_guard;
+	dnet_node *m_node;
+	char m_name[256];
+	elliptics_timer m_timer;
+};
+
 class cache_t {
 	public:
 		cache_t(struct dnet_node *n, size_t max_size) :
@@ -230,7 +281,7 @@ class cache_t {
 			m_max_cache_size = 0; //sets max_size to 0 for erasing lru set
 			resize(0);
 
-			std::lock_guard<std::mutex> guard(m_lock);
+			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "~cache_t: %p", this);
 
 			while(!m_syncset.empty()) { //removes datas from syncset
 				erase_element(&*m_syncset.begin());
@@ -256,7 +307,7 @@ class cache_t {
 			elliptics_timer timer;
 
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: before guard\n", dnet_dump_id_str(id));
-			std::unique_lock<std::mutex> guard(m_lock);
+			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE WRITE: %p", dnet_dump_id_str(id), this);
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			iset_t::iterator it = m_set.find(id);
@@ -419,7 +470,7 @@ class cache_t {
 			elliptics_timer timer;
 
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: before guard\n", dnet_dump_id_str(id));
-			std::unique_lock<std::mutex> guard(m_lock);
+			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE READ: %p", dnet_dump_id_str(id), this);
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			iset_t::iterator it = m_set.find(id);
@@ -463,7 +514,7 @@ class cache_t {
 			elliptics_timer timer;
 
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE REMOVE: before guard\n", dnet_dump_id_str(id));
-			std::unique_lock<std::mutex> guard(m_lock);
+			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE REMOVE: %p", dnet_dump_id_str(id), this);
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE REMOVE: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			iset_t::iterator it = m_set.find(id);
@@ -505,7 +556,7 @@ class cache_t {
 			elliptics_timer timer;
 
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE LOOKUP: before guard\n", dnet_dump_id_str(id));
-			std::unique_lock<std::mutex> guard(m_lock);
+			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE LOOKUP: %p", dnet_dump_id_str(id), this);
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE LOOKUP: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 			iset_t::iterator it = m_set.find(id);
@@ -565,7 +616,7 @@ class cache_t {
 			return m_set.insert(*raw).first;
 		}
 
-		iset_t::iterator populate_from_disk(std::unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err) {
+		iset_t::iterator populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err) {
 			if (guard.owns_lock()) {
 				guard.unlock();
 			}
@@ -673,7 +724,7 @@ class cache_t {
 			sync_element(raw, obj->only_append(), data, obj->user_flags(), obj->timestamp());
 		}
 
-		void sync_after_append(std::unique_lock<std::mutex> &guard, bool lock_guard, data_t *obj) {
+		void sync_after_append(elliptics_unique_lock<std::mutex> &guard, bool lock_guard, data_t *obj) {
 			elliptics_timer timer;
 
 			std::shared_ptr<raw_data_t> raw_data = obj->data();
@@ -723,7 +774,7 @@ class cache_t {
 				while (!m_need_exit && !m_lifeset.empty()) {
 					size_t time = ::time(NULL);
 
-					std::lock_guard<std::mutex> guard(m_lock);
+					elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE LIFE: %p", this);
 
 					if (m_lifeset.empty())
 						break;
@@ -754,7 +805,7 @@ class cache_t {
 				while (!m_need_exit && !m_syncset.empty()) {
 					size_t time = ::time(NULL);
 
-					std::unique_lock<std::mutex> guard(m_lock);
+					elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE SYNC: %p", this);
 
 					if (m_syncset.empty())
 						break;
