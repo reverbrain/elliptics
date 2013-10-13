@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <set>
+#include <sstream>
 
 #include "elliptics.h"
 #include "elliptics/interface.h"
@@ -19,25 +20,14 @@ int dnet_ids_update(int update_local, struct dnet_node *n, int group_id, const c
 
 	session.set_exceptions_policy(ioremap::elliptics::session::no_exceptions);
 
-	char *a = strdup(remotes);
-	char *addr = a;
-	char *p = strchr(addr, ' ');
-
-	while(addr != NULL) {
+	std::stringstream remotes_stream;
+	remotes_stream << remotes;
+	std::string addr;
+	while (std::getline(remotes_stream, addr, ' ')) {
 		try {
-			if (p)
-				*p++ = '\0';
-			node.add_remote(addr);
+			node.add_remote(addr.c_str());
 		} catch(...) {}
-
-		if (p) {
-			addr = p;
-			p = strchr(addr, ' ');
-		} else
-			addr = NULL;
 	}
-
-	free(a);
 
 	auto routes = session.get_routes();
 	std::set<int> groups_set;
