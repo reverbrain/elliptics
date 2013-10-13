@@ -1137,15 +1137,24 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			io_tv.tv_sec = io->timestamp.tsec;
 			io_tv.tv_usec = io->timestamp.tnsec / 1000;
 
-			localtime_r((time_t *)&io_tv.tv_sec, &io_tm);
-			strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
+			if (cmd->cmd == DNET_CMD_READ) {
+				dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
+						"node-flags: 0x%x\n",
+						dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
+						(unsigned long long)io->offset, (unsigned long long)io->size,
+						io->flags, (unsigned long long)cmd->flags,
+						n->flags);
+			} else {
+				localtime_r((time_t *)&io_tv.tv_sec, &io_tm);
+				strftime(time_str, sizeof(time_str), "%F %R:%S", &io_tm);
 
-			dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
-					"node-flags: 0x%x, ts: %ld.%06ld '%s'\n",
-					dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
-					(unsigned long long)io->offset, (unsigned long long)io->size,
-					io->flags, (unsigned long long)cmd->flags,
-					n->flags, io_tv.tv_sec, io_tv.tv_usec, time_str);
+				dnet_log(n, DNET_LOG_INFO, "%s: %s io command, offset: %llu, size: %llu, ioflags: 0x%x, cflags: 0x%llx, "
+						"node-flags: 0x%x, ts: %ld.%06ld '%s'\n",
+						dnet_dump_id_str(io->id), dnet_cmd_string(cmd->cmd),
+						(unsigned long long)io->offset, (unsigned long long)io->size,
+						io->flags, (unsigned long long)cmd->flags,
+						n->flags, io_tv.tv_sec, io_tv.tv_usec, time_str);
+			}
 
 			if (n->flags & DNET_CFG_NO_CSUM)
 				io->flags |= DNET_IO_FLAGS_NOCSUM;
@@ -1365,6 +1374,8 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	struct dnet_io_attr *rio;
 	int hsize = sizeof(struct dnet_cmd) + sizeof(struct dnet_io_attr);
 	int err;
+	long csum_time, send_time, total_time;
+	struct timeval start_tv, csum_tv, send_tv;
 
 	/*
 	 * A simple hack to forbid read reply sending.
@@ -1374,6 +1385,8 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 	 */
 	if (io->flags & DNET_IO_FLAGS_SKIP_SENDING)
 		return 0;
+
+	gettimeofday(&start_tv, NULL);
 
 	c = malloc(hsize);
 	if (!c) {
@@ -1397,10 +1410,6 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 
 	memcpy(rio, io, sizeof(struct dnet_io_attr));
 
-	dnet_log_raw(n, DNET_LOG_NOTICE, "%s: %s: reply: offset: %llu, size: %llu.\n",
-			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
-			(unsigned long long)io->offset,	(unsigned long long)io->size);
-
 	dnet_convert_cmd(c);
 	dnet_convert_io_attr(rio);
 
@@ -1415,10 +1424,27 @@ int dnet_send_read_data(void *state, struct dnet_cmd *cmd, struct dnet_io_attr *
 			goto err_out_free;
 	}
 
+	gettimeofday(&csum_tv, NULL);
+
 	if (data)
 		err = dnet_send_data(st, c, hsize, data, rio->size);
 	else
 		err = dnet_send_fd(st, c, hsize, fd, offset, rio->size, on_exit);
+
+	gettimeofday(&send_tv, NULL);
+
+#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
+
+	csum_time = DIFF(start_tv, csum_tv);
+	send_time = DIFF(csum_tv, send_tv);
+	total_time = DIFF(start_tv, send_tv);
+
+	dnet_log_raw(n, DNET_LOG_INFO, "%s: %s: reply: cflags: 0x%llx, ioflags: 0x%llx, offset: %llu, size: %llu, csum-time: %ld, send-time: %ld, total-time: %ld usecs.\n",
+			dnet_dump_id(&c->id), dnet_cmd_string(c->cmd),
+			(unsigned long long)cmd->flags, (unsigned long long)io->flags,
+			(unsigned long long)io->offset,	(unsigned long long)io->size,
+			csum_time, send_time, total_time);
+
 
 err_out_free:
 	free(c);

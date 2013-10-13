@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.18
+Version:	2.24.14.19
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -129,6 +129,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Oct 08 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.19
+- Recovery: fixed skipping equals objects in diff
+- Recovery: Fixed sorting and diffing objects.
+- Python: fixed bulk_write
+
 * Tue Oct 08 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.18
 - Minor python binding cleanups
 
