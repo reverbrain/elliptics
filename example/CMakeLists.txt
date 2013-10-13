@@ -21,29 +21,24 @@ set_target_properties(dnet_ioserv
 	LINKER_LANGUAGE CXX)
 
 add_executable(dnet_find find.cpp)
-set_target_properties(dnet_find PROPERTIES COMPILE_FLAGS "-std=c++0x")
 target_link_libraries(dnet_find ${ECOMMON_LIBRARIES} elliptics_cpp)
 
 add_executable(dnet_ioclient ioclient.cpp)
-set_target_properties(dnet_ioclient PROPERTIES COMPILE_FLAGS "-std=c++0x")
 target_link_libraries(dnet_ioclient ${ECOMMON_LIBRARIES} elliptics_cpp)
 
 add_executable(dnet_index index.cpp)
-set_target_properties(dnet_index PROPERTIES COMPILE_FLAGS "-std=c++0x")
 target_link_libraries(dnet_index ${ECOMMON_LIBRARIES} elliptics_cpp)
 
 add_executable(dnet_stat stat.cpp)
-set_target_properties(dnet_stat PROPERTIES COMPILE_FLAGS "-std=c++0x")
 target_link_libraries(dnet_stat ${ECOMMON_LIBRARIES} elliptics_cpp)
 
 add_executable(dnet_notify notify.cpp)
-set_target_properties(dnet_notify PROPERTIES COMPILE_FLAGS "-std=c++0x")
 target_link_libraries(dnet_notify ${ECOMMON_LIBRARIES} elliptics_cpp)
 
 add_executable(dnet_ids ids.c)
 target_link_libraries(dnet_ids "")
 
-install(TARGETS 
+install(TARGETS
         dnet_ioserv
         dnet_find
 	dnet_ioclient

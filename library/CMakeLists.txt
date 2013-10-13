@@ -23,7 +23,7 @@ set(ELLIPTICS_SRCS
 
 add_library(elliptics_ids STATIC ids.cpp)
 if(UNIX OR MINGW)
-    set_target_properties(elliptics_ids PROPERTIES COMPILE_FLAGS "-fPIC -std=c++0x")
+    set_target_properties(elliptics_ids PROPERTIES COMPILE_FLAGS "-fPIC")
 endif()
 
 

@@ -1,7 +1,5 @@
 include_directories(../library)
 
-add_definitions("-std=c++0x")
-
 add_library(elliptics_cocaine SHARED srw.cpp)
 set_target_properties(elliptics_cocaine PROPERTIES
     VERSION ${ELLIPTICS_VERSION}
