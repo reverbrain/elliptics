@@ -234,15 +234,15 @@ public:
 		                     count)));
 	}
 
-	python_write_result write_prepare(const bp::api::object &id, const data_pointer &data, uint64_t remote_offset, uint64_t psize) {
+	python_write_result write_prepare(const bp::api::object &id, const std::string &data, uint64_t remote_offset, uint64_t psize) {
 		return create_result(std::move(session::write_prepare(elliptics_id::convert(id), data, remote_offset, psize)));
 	}
 
-	python_write_result write_plain(const bp::api::object &id, const data_pointer &data, uint64_t remote_offset) {
+	python_write_result write_plain(const bp::api::object &id, const std::string &data, uint64_t remote_offset) {
 		return create_result(std::move(session::write_plain(elliptics_id::convert(id), data, remote_offset)));
 	}
 
-	python_write_result write_commit(const bp::api::object &id, const data_pointer &data, uint64_t remote_offset, uint64_t csize) {
+	python_write_result write_commit(const bp::api::object &id, const std::string &data, uint64_t remote_offset, uint64_t csize) {
 		return create_result(std::move(session::write_commit(elliptics_id::convert(id), data, remote_offset, csize)));
 	}
 
