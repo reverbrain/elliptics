@@ -43,17 +43,10 @@ int dnet_ids_update(int update_local, struct dnet_node *n, int group_id, const c
 	std::set<int> groups_set;
 
 	for(auto it = routes.begin(), end = routes.end(); it != end; ++it) {
-		if (group_id != (int)it->first.group_id) {
-			groups_set.insert(it->first.group_id);
-		}
+		groups_set.insert(it->first.group_id);
 	}
 
-	std::vector<int> groups;
-	groups.reserve(groups_set.size() + 1);
-	groups.push_back(group_id);
-	groups.insert(groups.end(), groups_set.begin(), groups_set.end());
-
-	session.set_groups(groups);
+	session.set_groups(std::vector<int>(groups_set.begin(), groups_set.end()));
 
 	try {
 		if (update_local)
