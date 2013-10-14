@@ -697,7 +697,7 @@ class cache_t {
 
 			m_cache_size -= obj->size();
 
-			dnet_log(m_node, DNET_LOG_ERROR, "%s: CACHE: erased element: %lld ms\n", dnet_dump_id_str(obj->id().id), timer.restart());
+			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: erased element: %lld ms\n", dnet_dump_id_str(obj->id().id), timer.restart());
 
 			delete obj;
 		}
