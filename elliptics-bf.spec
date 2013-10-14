@@ -108,6 +108,7 @@ rm -rf %{buildroot}
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
 %{_libdir}/libelliptics_cocaine.so.*
+%{_mandir}/man1/*
 
 %files devel
 %defattr(-,root,root,-)

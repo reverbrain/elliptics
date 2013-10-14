@@ -2,3 +2,4 @@ usr/lib/libelliptics_client.so.*
 usr/lib/libelliptics_cpp.so.*
 usr/bin/*
 usr/lib/python*/dist-packages/*
+usr/share/man/man1/*
