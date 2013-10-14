@@ -1,3 +1,16 @@
+elliptics (2.24.14.20) unstable; urgency=low
+
+  * Put man pages into packages
+  * Do not schedule network IO if state is in need-exit state
+  * Use correct session::remove() method
+  * Build: Fixed prefix in executing setup.py
+  * Do not write timestamp for read requests, it is meaningless in request.
+  * Added dnet_send_read_data() timings
+  * Python: Set default timeouts in elliptics.Config
+  * Python: Unlock GIL inside synchronous calls
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 15 Oct 2013 03:56:39 +0400
+
 elliptics (2.24.14.19) unstable; urgency=low
 
   * Recovery: fixed skipping equals objects in diff
