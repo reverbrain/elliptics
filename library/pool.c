@@ -512,6 +512,9 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 	}
 	ev.data.ptr = st;
 
+	if (st->need_exit)
+		return -ENOEXEC;
+
 	err = epoll_ctl(st->epoll_fd, EPOLL_CTL_ADD, fd, &ev);
 	if (err < 0) {
 		err = -errno;

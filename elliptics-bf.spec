@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.19
+Version:	2.24.14.20
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -108,6 +108,7 @@ rm -rf %{buildroot}
 %{_bindir}/*
 %{_libdir}/libelliptics.so.*
 %{_libdir}/libelliptics_cocaine.so.*
+%{_mandir}/man1/*
 
 %files devel
 %defattr(-,root,root,-)
@@ -129,6 +130,16 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Oct 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.20
+- Put man pages into packages
+- Do not schedule network IO if state is in need-exit state
+- Use correct session::remove() method
+- Build: Fixed prefix in executing setup.py
+- Do not write timestamp for read requests, it is meaningless in request.
+- Added dnet_send_read_data() timings
+- Python: Set default timeouts in elliptics.Config
+- Python: Unlock GIL inside synchronous calls
+
 * Tue Oct 08 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.19
 - Recovery: fixed skipping equals objects in diff
 - Recovery: Fixed sorting and diffing objects.
