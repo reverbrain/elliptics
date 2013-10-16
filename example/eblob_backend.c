@@ -702,28 +702,6 @@ err_out_exit:
 	return err;
 }
 
-static int blob_bulk_read(struct eblob_backend_config *c, void *state, struct dnet_cmd *cmd, void *data)
-{
-	int err = -1, ret;
-	struct dnet_io_attr *io = data;
-	struct dnet_io_attr *ios = io+1;
-	uint64_t count = 0;
-	uint64_t i;
-
-	dnet_convert_io_attr(io);
-	count = io->size / sizeof(struct dnet_io_attr);
-
-	for (i = 0; i < count; i++) {
-		ret = blob_read(c, state, cmd, &ios[i], i + 1 == count);
-		if (!ret)
-			err = 0;
-		else if (err == -1)
-			err = ret;
-	}
-
-	return err;
-}
-
 static int eblob_backend_checksum(struct dnet_node *n, void *priv, struct dnet_id *id, void *csum, int *csize) {
 	struct eblob_backend_config *c = priv;
 	struct eblob_backend *b = c->eblob;
@@ -830,9 +808,6 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 			break;
 		case DNET_CMD_DEL:
 			err = blob_del(c, cmd);
-			break;
-		case DNET_CMD_BULK_READ:
-			err = blob_bulk_read(c, state, cmd, data);
 			break;
 		case DNET_CMD_DEFRAG:
 			err = blob_start_defrag(c, cmd, data);

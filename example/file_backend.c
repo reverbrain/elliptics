@@ -370,27 +370,6 @@ err_out_exit:
 	return err;
 }
 
-static int file_bulk_read(struct file_backend_root *r, void *state, struct dnet_cmd *cmd, void *data)
-{
-	int err = -1, ret;
-	struct dnet_io_attr *io = data;
-	struct dnet_io_attr *ios = io+1;
-	uint64_t count = 0;
-	uint64_t i;
-
-	dnet_convert_io_attr(io);
-	count = io->size / sizeof(struct dnet_io_attr);
-
-	for (i = 0; i < count; i++) {
-		ret = file_read(r, state, cmd, &ios[i]);
-		if (!ret)
-			err = 0;
-		else if (err == -1)
-			err = ret;
-	}
-
-	return err;
-}
 static int file_backend_command_handler(void *state, void *priv, struct dnet_cmd *cmd,void *data)
 {
 	int err;
@@ -411,9 +390,6 @@ static int file_backend_command_handler(void *state, void *priv, struct dnet_cmd
 			break;
 		case DNET_CMD_DEL:
 			err = file_del(r, state, cmd, data);
-			break;
-		case DNET_CMD_BULK_READ:
-			err = file_bulk_read(r, state, cmd, data);
 			break;
 		case DNET_CMD_READ_RANGE:
 			err = -ENOTSUP;
