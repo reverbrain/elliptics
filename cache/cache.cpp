@@ -659,7 +659,7 @@ class cache_t {
 			size_t removed_size = 0;
 
 			for (auto it = m_lru.begin(); it != m_lru.end();) {
-				if (m_max_cache_size > m_cache_size + reserve + removed_size)
+				if (m_max_cache_size + removed_size > m_cache_size + reserve)
 					break;
 
 				data_t *raw = &*it;
