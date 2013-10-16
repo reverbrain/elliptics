@@ -1114,7 +1114,11 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				err = dnet_notify_remove(st, cmd);
 			break;
 		case DNET_CMD_BULK_READ:
-			err = dnet_cmd_bulk_read(st, cmd, data);
+			err = n->cb->command_handler(st, n->cb->command_private, cmd, data);
+
+			if (err == -ENOTSUP) {
+				err = dnet_cmd_bulk_read(st, cmd, data);
+			}
 			break;
 		case DNET_CMD_READ:
 		case DNET_CMD_WRITE:
