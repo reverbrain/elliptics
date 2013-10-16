@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Example script for showing how to iterate certain node or all nodes in groups
+    Example script for showing how to iterate specified nodes or all nodes in specified groups
 """
 
 import sys
@@ -12,8 +12,8 @@ sys.path.insert(0, "bindings/python/")
 import elliptics
 
 MODE_GROUP = "groups"
-MODE_NODE = "node"
-ALLOWED_MODES = (MODE_GROUP, MODE_NODE)
+MODE_NODES = "nodes"
+ALLOWED_MODES = (MODE_GROUP, MODE_NODES)
 
 
 class Ctx(object):
@@ -54,6 +54,8 @@ def iterate_node(ctx, node):
         print repr(r.key_begin), repr(r.key_end)
 
     print bin(iflags)
+
+    ctx.session.groups = [ctx.session.routes.get_address_group_id(node)]
 
     iterator = ctx.session.start_iterator(eid,
                                           ranges,
@@ -224,8 +226,9 @@ if __name__ == '__main__':
         ctx.session.groups = ctx.session.routes.groups()
     print ctx.session.get_routes()
 
-    if ctx.iterate_mode == MODE_NODE:
-        iterate_node(ctx, ctx.remotes[0])
+    if ctx.iterate_mode == MODE_NODES:
+        for r in ctx.remotes:
+            iterate_node(ctx, r)
     elif ctx.iterate_mode == MODE_GROUP:
         iterate_groups(ctx)
     else:
