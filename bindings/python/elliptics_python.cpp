@@ -264,14 +264,14 @@ void index_entry_set_index(index_entry &result, const elliptics_id &id)
 	result.index = id.raw_id();
 }
 
-std::string index_entry_get_data(index_entry &result)
+data_wrapper index_entry_get_data(index_entry &result)
 {
-	return result.data.to_string();
+	return data_wrapper(result.data);
 }
 
-void index_entry_set_data(index_entry &result, const std::string& data)
+void index_entry_set_data(index_entry &result, const bp::api::object& obj)
 {
-	result.data = data_pointer(data);
+	result.data = data_wrapper::convert(obj).pointer();
 }
 
 BOOST_PYTHON_MODULE(core)
@@ -408,6 +408,7 @@ BOOST_PYTHON_MODULE(core)
 	init_result_entry();
 	init_elliptcs_time();
 	init_elliptcs_io_attr();
+	init_elliptcs_data();
 	init_elliptcs_session();
 };
 
