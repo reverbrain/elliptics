@@ -144,16 +144,10 @@ class node
 	public:
 		explicit node(const logger &l);
 		node(const logger &l, struct dnet_config &cfg);
-		node(const logger &l, const std::string &config_path);
 		node(const node &other);
 		~node();
 
 		node &operator =(const node &other);
-
-		void			parse_config(const std::string &path, struct dnet_config &cfg,
-							std::list<address> &remotes,
-							std::vector<int> &groups,
-							int &log_level);
 
 		void			add_remote(const char *addr, const int port, const int family = AF_INET);
 		void			add_remote(const char *addr);
