@@ -21,13 +21,19 @@ set(ELLIPTICS_SRCS
     )
 
 
+add_library(elliptics_ids STATIC ids.cpp)
+if(UNIX OR MINGW)
+    set_target_properties(elliptics_ids PROPERTIES COMPILE_FLAGS "-fPIC")
+endif()
+
+
 add_library(elliptics SHARED ${ELLIPTICS_SRCS})
 set_target_properties(elliptics PROPERTIES
     VERSION ${ELLIPTICS_VERSION}
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     LINKER_LANGUAGE CXX
 )
-target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} elliptics_cocaine elliptics_cache elliptics_indexes)
+target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} elliptics_cocaine elliptics_cache elliptics_indexes elliptics_ids)
 
 
 add_library(elliptics_client SHARED ${ELLIPTICS_CLIENT_SRCS})
