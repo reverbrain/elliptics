@@ -813,7 +813,7 @@ static int eblob_backend_command_handler(void *state, void *priv, struct dnet_cm
 			err = blob_start_defrag(c, cmd, data);
 			break;
 		default:
-			err = -EINVAL;
+			err = -ENOTSUP;
 			break;
 	}
 

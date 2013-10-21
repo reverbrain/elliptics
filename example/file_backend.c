@@ -395,7 +395,7 @@ static int file_backend_command_handler(void *state, void *priv, struct dnet_cmd
 			err = -ENOTSUP;
 			break;
 		default:
-			err = -EINVAL;
+			err = -ENOTSUP;
 			break;
 	}
 

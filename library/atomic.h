@@ -26,10 +26,10 @@ extern "C" {
 #define atomic_init(a, v) atomic_set(a, v)
 #elif defined HAVE_SYNC_ATOMIC_SUPPORT
 typedef struct {
-	volatile int		val;
+	volatile long		val;
 } atomic_t;
 
-static inline void atomic_set(atomic_t *a, int val)
+static inline void atomic_set(atomic_t *a, long val)
 {
 	a->val = val;
 }
@@ -41,22 +41,22 @@ static inline int atomic_read(atomic_t *a)
 	return a->val;
 }
 
-static inline void atomic_add(atomic_t *a, int v)
+static inline void atomic_add(atomic_t *a, long v)
 {
 	(void)__sync_add_and_fetch(&a->val, v);
 }
 
-static inline void atomic_sub(atomic_t *a, int v)
+static inline void atomic_sub(atomic_t *a, long v)
 {
 	(void)__sync_sub_and_fetch(&a->val, v);
 }
 
-static inline int atomic_inc(atomic_t *a)
+static inline long atomic_inc(atomic_t *a)
 {
 	return __sync_add_and_fetch(&a->val, 1);
 }
 
-static inline int atomic_dec(atomic_t *a)
+static inline long atomic_dec(atomic_t *a)
 {
 	return __sync_sub_and_fetch(&a->val, 1);
 }
@@ -68,7 +68,7 @@ static inline int atomic_dec(atomic_t *a)
 #include "lock.h"
 
 typedef struct {
-	volatile int		val;
+	volatile long		val;
 	struct dnet_lock	lock;
 } atomic_t;
 
