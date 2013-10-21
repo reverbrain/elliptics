@@ -9,7 +9,7 @@
 
 #include "../include/elliptics/session.hpp"
 
-int dnet_ids_update(int update_local, struct dnet_node *n, int group_id, const char *file, struct dnet_addr *cfg_addrs, char *remotes)
+int dnet_ids_update(int update_local, const char *file, struct dnet_addr *cfg_addrs, char *remotes)
 {
 	char remote_id[1024];
 	sprintf(remote_id, "elliptics_node_ids_%s", dnet_server_convert_dnet_addr(cfg_addrs));

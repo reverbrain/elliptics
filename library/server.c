@@ -90,7 +90,7 @@ again:
 	if (fd < 0) {
 		err = -errno;
 		if (err == -ENOENT) {
-			err = dnet_ids_update(1, n, group_id, path, cfg_addrs, remotes);
+			err = dnet_ids_update(1, path, cfg_addrs, remotes);
 			if (err)
 				err = dnet_ids_generate(n, path, storage_free);
 
@@ -121,7 +121,7 @@ again:
 		goto err_out_close;
 	}
 
-	dnet_ids_update(0, n, group_id, path, cfg_addrs, remotes);
+	dnet_ids_update(0, path, cfg_addrs, remotes);
 
 	ids = malloc(st.st_size);
 	if (!ids) {

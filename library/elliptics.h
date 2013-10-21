@@ -770,7 +770,7 @@ int dnet_indexes_init(struct dnet_node *, struct dnet_config *);
 void dnet_indexes_cleanup(struct dnet_node *);
 int dnet_process_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
 
-int dnet_ids_update(int update_local, struct dnet_node *n, int group_id, const char *file, struct dnet_addr *cfg_addrs, char *remotes);
+int dnet_ids_update(int update_local, const char *file, struct dnet_addr *cfg_addrs, char *remotes);
 
 int __attribute__((weak)) dnet_remove_local(struct dnet_node *n, struct dnet_id *id);
 int __attribute__((weak)) dnet_cas_local(struct dnet_node *n, struct dnet_id *id, void *csum, int csize);
