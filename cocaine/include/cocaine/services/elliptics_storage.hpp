@@ -31,6 +31,10 @@ struct cache_read
 {
 	typedef elliptics_tag tag;
 
+	static const char* alias() {
+		return "cache_read";
+	}
+
 	typedef boost::mpl::list<
 	/* Key namespace. Currently no ACL checks are performed, so in theory any app can read
 	   any other app data without restrictions. */
@@ -50,6 +54,10 @@ struct cache_write
 {
 	typedef elliptics_tag tag;
 
+	static const char* alias() {
+		return "cache_write";
+	}
+
 	typedef boost::mpl::list<
 	/* Key namespace. */
 		std::string,
@@ -65,6 +73,10 @@ struct cache_write
 
 struct bulk_read {
 	typedef elliptics_tag tag;
+
+	static const char* alias() {
+		return "bulk_read";
+	}
 
 	typedef boost::mpl::list<
 	/* Key namespace. Currently no ACL checks are performed, so in theory any app can read
@@ -83,6 +95,10 @@ struct bulk_read {
 
 struct bulk_write {
 	typedef elliptics_tag tag;
+
+	static const char* alias() {
+	return "bulk_write";
+	}
 
 	typedef boost::mpl::list<
 	/* Key namespace. */

@@ -19,13 +19,13 @@ elliptics_service_t::elliptics_service_t(context_t &context, io::reactor_t &reac
 		throw error_t("To use elliptics service storage must be also elliptics");
 	}
 
-	on<io::storage::read  >("read",   std::bind(&elliptics_service_t::read,   this, _1, _2));
-	on<io::storage::write >("write",  std::bind(&elliptics_service_t::write,  this, _1, _2, _3, _4));
-	on<io::storage::remove>("remove", std::bind(&elliptics_service_t::remove, this, _1, _2));
-	on<io::storage::find  >("find",   std::bind(&elliptics_service_t::find,   this, _1, _2));
-	on<io::elliptics::cache_read >("cache_read",  std::bind(&elliptics_service_t::cache_read,  this, _1, _2));
-	on<io::elliptics::cache_write>("cache_write", std::bind(&elliptics_service_t::cache_write, this, _1, _2, _3, _4));
-	on<io::elliptics::bulk_read  >("bulk_read",   std::bind(&elliptics_service_t::bulk_read,   this, _1, _2));
+	on<io::storage::read  >(std::bind(&elliptics_service_t::read,   this, _1, _2));
+	on<io::storage::write >(std::bind(&elliptics_service_t::write,  this, _1, _2, _3, _4));
+	on<io::storage::remove>(std::bind(&elliptics_service_t::remove, this, _1, _2));
+	on<io::storage::find  >(std::bind(&elliptics_service_t::find,   this, _1, _2));
+	on<io::elliptics::cache_read >(std::bind(&elliptics_service_t::cache_read,  this, _1, _2));
+	on<io::elliptics::cache_write>(std::bind(&elliptics_service_t::cache_write, this, _1, _2, _3, _4));
+	on<io::elliptics::bulk_read  >(std::bind(&elliptics_service_t::bulk_read,   this, _1, _2));
 }
 
 deferred<std::string> elliptics_service_t::read(const std::string &collection, const std::string &key)
