@@ -16,8 +16,8 @@
 #ifndef ELLIPTICS_PYTHON_ELLIPTICS_DATA_HPP
 #define ELLIPTICS_PYTHON_ELLIPTICS_DATA_HPP
 
-#include <elliptics/utils.hpp>
 #include <boost/python/object.hpp>
+#include <elliptics/utils.hpp>
 
 namespace bp = boost::python;
 
