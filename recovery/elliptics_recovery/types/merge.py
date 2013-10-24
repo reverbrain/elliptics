@@ -63,7 +63,7 @@ def run_iterator(ctx, group=None, address=None, routes=None, ranges=None, stats=
     """
     Runs iterator for all ranges on node specified by address
     """
-    node = elliptics_create_node(address=address, elog=ctx.elog)
+    node = elliptics_create_node(address=address, elog=ctx.elog, wait_timeout=ctx.wait_timeout)
     try:
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
         eid = routes.filter_by_address(address)[0].key
@@ -144,7 +144,7 @@ def recover(ctx, diff, group, stats):
     log.info("Recovering range for: {0}".format(diff.address))
 
     log.debug("Creating remote node for: {0}".format(diff.address))
-    remote_node = elliptics_create_node(address=diff.address, elog=g_ctx.elog)
+    remote_node = elliptics_create_node(address=diff.address, elog=g_ctx.elog, wait_timeout=ctx.wait_timeout)
     log.debug("Creating direct remote session: {0}".format(diff.address))
     remote_session = elliptics_create_session(node=remote_node,
                                               group=group,
@@ -152,7 +152,7 @@ def recover(ctx, diff, group, stats):
     remote_session.set_direct_id(*diff.address)
 
     log.debug("Creating local node for: {0}".format(g_ctx.address))
-    local_node = elliptics_create_node(address=g_ctx.address, elog=g_ctx.elog)
+    local_node = elliptics_create_node(address=g_ctx.address, elog=g_ctx.elog, wait_timeout=ctx.wait_timeout)
     log.debug("Creating direct local session: {0}".format(g_ctx.address))
     local_session = elliptics_create_session(node=local_node,
                                              group=group,

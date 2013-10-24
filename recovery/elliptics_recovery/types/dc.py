@@ -24,7 +24,7 @@ def run_iterator(ctx, address, eid, ranges, stats):
     """
     Runs iterator for all ranges on node specified by address
     """
-    node = elliptics_create_node(address=address, elog=ctx.elog)
+    node = elliptics_create_node(address=address, elog=ctx.elog, wait_timeout=ctx.wait_timeout)
 
     try:
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
@@ -123,7 +123,8 @@ def recover((address, )):
                                        elog=ctx.elog,
                                        io_thread_num=10,
                                        net_thread_num=10,
-                                       nonblocking_io_thread_num=10
+                                       nonblocking_io_thread_num=10,
+                                       wait_timeout=ctx.wait_timeout
                                        )
     log.debug("Creating direct session: {0}".format(ctx.address))
     local_session = elliptics_create_session(node=local_node,
@@ -135,7 +136,8 @@ def recover((address, )):
                                         elog=ctx.elog,
                                         io_thread_num=10,
                                         net_thread_num=10,
-                                        nonblocking_io_thread_num=10
+                                        nonblocking_io_thread_num=10,
+                                        wait_timeout=ctx.wait_timeout
                                         )
     log.debug("Creating direct session: {0}".format(diff.address))
     remote_session = elliptics_create_session(node=remote_node,
