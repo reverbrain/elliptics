@@ -15,7 +15,7 @@ static int noop_process(struct dnet_net_state *, struct epoll_event *) { return 
 #undef list_entry
 #define list_entry(ptr, type, member) ({			\
 	const list_head *__mptr = (ptr);	\
-	(dnet_io_req *)( (char *)__mptr - offsetof(dnet_io_req, member) );})
+	(dnet_io_req *)( (char *)__mptr - dnet_offsetof(dnet_io_req, member) );})
 
 #undef list_for_each_entry_safe
 #define list_for_each_entry_safe(pos, n, head, member)			\
