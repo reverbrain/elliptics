@@ -10,6 +10,7 @@ using namespace std::placeholders;
 
 elliptics_service_t::elliptics_service_t(context_t &context, io::reactor_t &reactor, const std::string &name, const Json::Value &args) :
 	api::service_t(context, reactor, name, args),
+	implementation<io::elliptics_tag>(context, name),
 	m_storage(api::storage(context, args.get("source", "core").asString())),
 	m_elliptics(dynamic_cast<storage::elliptics_storage_t*>(m_storage.get()))
 {

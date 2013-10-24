@@ -4,19 +4,22 @@
 #include <cocaine/services/elliptics_storage.hpp>
 #include <cocaine/api/storage.hpp>
 #include <cocaine/api/service.hpp>
+#include <cocaine/dispatch.hpp>
 #include <cocaine/messages.hpp>
 #include <cocaine/rpc/slots/deferred.hpp>
 #include "storage.hpp"
 
 namespace cocaine {
 
-class elliptics_service_t : public api::service_t
+class elliptics_service_t : public api::service_t, public implementation<io::elliptics_tag>
 {
 	public:
 		elliptics_service_t(context_t &context,
 			io::reactor_t &reactor,
 			const std::string &name,
 			const Json::Value &args);
+
+		virtual dispatch_t& prototype() { return *this; }
 
 		deferred<std::string> read(const std::string &collection, const std::string &key);
 		deferred<void> write(const std::string &collection, const std::string &key, const std::string &blob, const std::vector<std::string> &tags);

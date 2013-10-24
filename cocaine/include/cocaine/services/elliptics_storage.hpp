@@ -16,8 +16,8 @@
 #ifndef COCAINE_SERVICE_ELLIPTICS_STORAGE_HPP
 #define COCAINE_SERVICE_ELLIPTICS_STORAGE_HPP
 
-#include <cocaine/api/storage.hpp>
 #include <cocaine/api/service.hpp>
+#include <cocaine/api/storage.hpp>
 #include <cocaine/messages.hpp>
 #include <cocaine/rpc/slots/deferred.hpp>
 
