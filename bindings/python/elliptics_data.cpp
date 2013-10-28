@@ -38,6 +38,7 @@ void init_elliptcs_data() {
 		.def("__str__", &data_wrapper::to_string)
 		.def("empty", &data_wrapper::empty)
 		.def("size", &data_wrapper::size)
+		.def("__len__", &data_wrapper::size)
 	;
 }
 
