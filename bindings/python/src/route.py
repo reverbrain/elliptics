@@ -18,10 +18,6 @@ class Address(object):
                              .format(family, self.ALLOWED_FAMILIES))
 
         gai = getaddrinfo(host, port, family, 0, SOL_TCP)
-        if len(gai) > 1:
-            self.log.warning("More than one IP found"
-                             "for: {0}. Using first: {1}."
-                             .format(host, gai[0]))
 
         family, _, _, _, hostport = gai[0]
         if family == AF_INET:
