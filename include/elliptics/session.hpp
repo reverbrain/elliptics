@@ -471,6 +471,8 @@ class session
 		 * remote offset \a remote_offset.
 		 *
 		 * Returns async_write_result.
+		 *
+		 * \note Data is written but is not accessible for reading.
 		 */
 		async_write_result write_prepare(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t psize);
 
@@ -479,7 +481,7 @@ class session
 		 *
 		 * Returns async_write_result.
 		 *
-		 * \note Indexes are not updated. Data is not accessible for reading.
+		 * \note Data is written but is not accessible for reading.
 		 */
 		async_write_result write_plain(const key &id, const data_pointer &file, uint64_t remote_offset);
 
@@ -488,7 +490,7 @@ class session
 		 *
 		 * Returns async_write_result.
 		 *
-		 * \note Indexes are updated. Data becomes accessible for reading.
+		 * \note Data is written and becames accessible for reading.
 		 */
 		async_write_result write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize);
 
