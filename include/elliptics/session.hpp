@@ -471,8 +471,6 @@ class session
 		 * remote offset \a remote_offset.
 		 *
 		 * Returns async_write_result.
-		 *
-		 * \note No data is really written.
 		 */
 		async_write_result write_prepare(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t psize);
 
