@@ -16,8 +16,10 @@
 from elliptics.core import Node
 from socket import AF_INET
 from elliptics.route import Address
+from elliptics.log import logged_class
 
 
+@logged_class
 class Node(Node):
     def add_remote(self, addr, port=None, family=AF_INET):
         if type(addr) is Address:
