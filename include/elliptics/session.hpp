@@ -467,30 +467,37 @@ class session
 		async_write_result write_cas(const key &id, const data_pointer &file, const struct dnet_id &old_csum, uint64_t remote_offset);
 
 		/*!
-		 * Prepares place to write data \a file by the key \a id and
-		 * remote offset \a remote_offset.
+		 * Prepares \a psize bytes place to write data by \a id and writes data by \a file and by \a remote_offset
 		 *
 		 * Returns async_write_result.
 		 *
-		 * \note Data is written but is not accessible for reading.
+		 * \note Server marks the object by \a id as incomplete and inaccessible until write_commit is called.
+		 *       psize is amount of bytes which server should prepare for future object.
+		 *       If you about to write data by offset, then psize should defines final size of full object
+		 *       rather then expecting that server reserves psize bytes after remote_offset of current object.
 		 */
 		async_write_result write_prepare(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t psize);
 
 		/*!
-		 * Writes data \a file by the key \a id and remote offset \a remote_offset.
+		 * Writes data \a file by the key \a id and remote offset \a remote_offset in prepared place.
 		 *
 		 * Returns async_write_result.
 		 *
-		 * \note Data is written but is not accessible for reading.
+		 * \note Server writes data by offset in prepared place and
+		 *       remains \a id as incomplete and inaccessible until write_commit is called.
+		 *       While write_plain data shouldn't go out of prepared place.
 		 */
 		async_write_result write_plain(const key &id, const data_pointer &file, uint64_t remote_offset);
 
 		/*!
-		 * Commites data \a file by the key \a id and remote offset \a remote_offset.
+		 * Writes data \a file by the key \a id and remote offset \a remote_offset and commit key \a id data by \a csize.
 		 *
 		 * Returns async_write_result.
 		 *
-		 * \note Data is written and becames accessible for reading.
+		 * \note Server last writes data by offset in prepared place, commits all data and truncates it by csize.
+		 *       After commit server marks the object by \a id as complete and it becomes accessible.
+		 *       csize could be less then prepared place size. In this case object will be truncated by csize.
+		 *       But csize shouldn't be more then size of prepared place.
 		 */
 		async_write_result write_commit(const key &id, const data_pointer &file, uint64_t remote_offset, uint64_t csize);
 
