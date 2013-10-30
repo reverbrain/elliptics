@@ -46,7 +46,7 @@ def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_time
     """
     Connects to elliptics cloud
     """
-    log.info("Creating node using: {0}".format(address))
+    log.info("Creating node using: {0}, wait_timeout: {1}".format(address, wait_timeout))
     cfg = elliptics.Config()
     cfg.config.wait_timeout = wait_timeout
     cfg.config.check_timeout = check_timeout

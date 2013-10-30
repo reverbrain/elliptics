@@ -16,7 +16,7 @@
 from __future__ import absolute_import
 
 from elliptics.core import *
-from elliptics.route import Address
+from elliptics.route import Address, RouteList
 from elliptics.session import Session
 from elliptics.node import Node
 from elliptics.log import log, init_logger
