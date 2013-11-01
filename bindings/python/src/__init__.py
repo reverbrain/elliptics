@@ -75,7 +75,7 @@ def create_node(elog=None, log_file='/dev/stderr', log_level=1,
     if not elog:
         elog = Logger(log_file, log_level)
     if not cfg:
-        cfg = elliptics.Config()
+        cfg = Config()
         cfg.config.wait_timeout = wait_timeout
         cfg.config.check_timeout = check_timeout
         cfg.config.flags = flags
