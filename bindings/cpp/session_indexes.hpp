@@ -22,11 +22,17 @@ struct dnet_indexes
 struct raw_data_pointer
 {
 	const void *data;
-	uint32_t size;
+	size_t size;
 
 	bool operator ==(const raw_data_pointer &o) const
 	{
 		return size == o.size && (size == 0 || data == o.data || memcmp(data, o.data, size) == 0);
+	}
+
+	static raw_data_pointer copy(const void *data, size_t size)
+	{
+		raw_data_pointer tmp = { data, size };
+		return tmp;
 	}
 };
 
@@ -46,6 +52,46 @@ struct raw_dnet_indexes
 	int shard_id;
 	int shard_count;
 	std::vector<raw_index_entry> indexes;
+};
+
+struct raw_find_indexes_result_entry
+{
+	dnet_raw_id id;
+	std::vector<raw_index_entry> indexes;
+};
+
+template <int CompareData = compare_data>
+struct raw_dnet_raw_id_less_than : public dnet_raw_id_less_than<CompareData>
+{
+	using dnet_raw_id_less_than<CompareData>::operator ();
+
+	inline bool operator() (const raw_index_entry &a, const dnet_raw_id &b) const
+	{
+		return operator() (a.index, b);
+	}
+	inline bool operator() (const dnet_raw_id &a, const raw_index_entry &b) const
+	{
+		return operator() (a, b.index);
+	}
+	inline bool operator() (const raw_index_entry &a, const raw_index_entry &b) const
+	{
+		ssize_t cmp = memcmp(a.index.id, b.index.id, sizeof(b.index.id));
+		if (CompareData && cmp == 0) {
+			cmp = a.data.size - b.data.size;
+			if (cmp == 0) {
+				cmp = memcmp(a.data.data, b.data.data, a.data.size);
+			}
+		}
+		return cmp < 0;
+	}
+	inline bool operator() (const raw_index_entry &a, const raw_find_indexes_result_entry &b) const
+	{
+		return operator() (a.index, b.id);
+	}
+	inline bool operator() (const raw_find_indexes_result_entry &a, const raw_index_entry &b) const
+	{
+		return operator() (a.id, b.index);
+	}
 };
 
 struct update_request
@@ -448,6 +494,42 @@ inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const fi
 }
 
 inline find_indexes_result_entry &operator >>(msgpack::object obj, find_indexes_result_entry &result)
+{
+	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
+		throw msgpack::type_error();
+
+	object *array = obj.via.array.ptr;
+	const uint32_t size = obj.via.array.size;
+
+	uint16_t version = 0;
+	array[0].convert(&version);
+	switch (version) {
+	case 1: {
+		if (size != 3)
+			throw msgpack::type_error();
+
+		array[1].convert(&result.id);
+		array[2].convert(&result.indexes);
+		break;
+	}
+	default:
+		throw msgpack::type_error();
+	}
+
+	return result;
+}
+
+template <typename Stream>
+inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const raw_find_indexes_result_entry &result)
+{
+	o.pack_array(3);
+	o.pack(1); // version
+	o.pack(result.id);
+	o.pack(result.indexes);
+	return o;
+}
+
+inline raw_find_indexes_result_entry &operator >>(msgpack::object obj, raw_find_indexes_result_entry &result)
 {
 	if (obj.type != msgpack::type::ARRAY || obj.via.array.size < 1)
 		throw msgpack::type_error();
