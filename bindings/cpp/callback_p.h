@@ -78,10 +78,7 @@ class callback_result_data
 		callback_result_data(dnet_addr *addr, dnet_cmd *cmd)
 		{
 			const size_t size = sizeof(struct dnet_addr) + sizeof(struct dnet_cmd) + cmd->size;
-			void *allocated = malloc(size);
-			if (!allocated)
-				throw std::bad_alloc();
-			data = data_pointer(allocated, size);
+			data = data_pointer::allocate(size);
 			memcpy(data.data(), addr, sizeof(struct dnet_addr));
 			memcpy(data.data<char>() + sizeof(struct dnet_addr), cmd, sizeof(struct dnet_cmd) + cmd->size);
 		}
