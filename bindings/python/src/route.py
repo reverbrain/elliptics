@@ -229,7 +229,7 @@ class RouteList(object):
         key = None
         for route in self.filter_by_group_id(group_id):
             if route.address == address:
-                if not key is None:
+                if key is None:
                     key = route.key
             elif key:
                 ranges.append((key, route.key))
