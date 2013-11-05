@@ -200,11 +200,12 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 
 	dnet_version_decode(&cmd->id, version);
 	dnet_indexes_shard_count_decode(&cmd->id, &indexes_shard_count);
+	memcpy(st->version, version, sizeof(st->version));
 
 	dnet_version_encode(&cmd->id);
 	dnet_indexes_shard_count_encode(&cmd->id, n->indexes_shard_count);
 
-	err = dnet_version_compare(st, version);
+	err = dnet_version_check(st, version);
 	if (err)
 		goto err_out_exit;
 

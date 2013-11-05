@@ -508,7 +508,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		goto err_out_exit;
 	}
 
-	err = dnet_version_compare(st, version);
+	err = dnet_version_check(st, version);
 	if (err)
 		goto err_out_exit;
 
@@ -583,6 +583,7 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		s = -1;
 		goto err_out_free;
 	}
+	memcpy(st->version, version, sizeof(st->version));
 	dnet_log(n, DNET_LOG_NOTICE, "%s: connected: id-num: %d, addr-num: %d, idx: %d.\n",
 			dnet_server_convert_dnet_addr(addr), num, cnt->addr_num, idx);
 	free(data);
@@ -1446,6 +1447,19 @@ err_out_destroy:
 struct dnet_addr *dnet_state_addr(struct dnet_net_state *st)
 {
 	return &st->addr;
+}
+
+int dnet_version_compare(struct dnet_net_state *st, int *version)
+{
+	size_t i;
+
+	for (i = 0; i < 4; ++i) {
+		if (st->version[i] != version[i]) {
+			return st->version[i] - version[i];
+		}
+	}
+
+	return 0;
 }
 
 static int dnet_stat_complete(struct dnet_net_state *state, struct dnet_cmd *cmd, void *priv)

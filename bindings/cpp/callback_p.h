@@ -915,6 +915,9 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 
 			std::vector<index_id> index_requests(index_requests_set.begin(), index_requests_set.end());
 
+			// Version when bulk indexes find were introduced
+			int version[] = { 2, 24, 14, 22 };
+
 			for (auto it = index_requests.begin(); it != index_requests.end(); ++it) {
 				debug("i = " << std::distance(index_requests.begin(), it));
 
@@ -933,7 +936,8 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 					}
 
 					/* Send command only if state changes or it's a last id */
-					more = (cur == next);
+					int cmp = dnet_version_compare(cur.get(), version);
+					more = (cmp >= 0) && (cur == next);
 				}
 
 				if (more) {
@@ -968,7 +972,7 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 				control.priv = priv;
 
 				dnet_log_raw(node,
-					DNET_LOG_NOTICE, "start: %s: end: %s, count: %llu, addr: %s\n",
+					DNET_LOG_NOTICE, "FIND_INDEXES: start: %s: end: %s, count: %llu, addr: %s\n",
 					dnet_dump_id(&id),
 					dnet_dump_id(&next_id),
 					index_requests_count,
@@ -986,6 +990,8 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 				std::swap(next, cur);
 				memcpy(&id, &next_id, sizeof(struct dnet_id));
 			}
+
+			dnet_log_raw(node, DNET_LOG_NOTICE, "FIND_INDEXES: sent %d requests\n", count);
 
 			debug("count: " << count);
 			return cb.set_count(count);

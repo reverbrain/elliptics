@@ -648,6 +648,8 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id);
 
+int dnet_version_compare(struct dnet_net_state *st, int *version);
+
 /*!
  * Compares two dnet_time structs
  * Returns
