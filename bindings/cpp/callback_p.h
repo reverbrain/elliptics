@@ -847,6 +847,12 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 
 			id_precalc.resize(shard_count * indexes.size());
 
+			/*
+			 * index_requests_set contains all requests we have to send for this bulk-request.
+			 * All indexes a splitted for shards, so we have to send separate logical request
+			 * to certain shard for all indexes. This logical requests may be joined to one
+			 * transaction if some of shards are situated on one elliptics node.
+			 */
 			for (int shard_id = 0; shard_id < shard_count; ++shard_id) {
 				for (size_t j = 0; j < indexes.size(); ++j) {
 					dnet_raw_id &id = id_precalc[shard_id * indexes.size() + j];
@@ -860,6 +866,15 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 			}
 		}
 
+		/*
+		 * This method is called on every reply packet received from the server nodes.
+		 * If reply for some shard is positive - remove it from the index_requests_set,
+		 * so this request won't be send to the next group.
+		 * If cmd->size is zero it is just acknowledge and it's not a reply for any certain
+		 * shard.
+		 *
+		 * This method returnes true if all requests are processed and we have nothing to do more.
+		 */
 		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
 		{
 			debug("cmd.id: " << dnet_dump_id(&cmd->id) << ", size: " << cmd->size << ", error: " << error->code());
@@ -872,6 +887,13 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 			return multigroup_callback::handle(error, state, cmd, func, priv);
 		}
 
+		/*
+		 * This method is called for every group by the order until all of them a processed
+		 * or received replies for every request.
+		 *
+		 * Method is called for the next group only after last reply for previous one is
+		 * received. This logic is implemented in multigroup_callback.
+		 */
 		bool next_group(error_info *error, dnet_id &id, complete_func func, void *priv)
 		{
 			cb.clear();
@@ -915,13 +937,24 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 
 			std::vector<index_id> index_requests(index_requests_set.begin(), index_requests_set.end());
 
-			// Version when bulk indexes find were introduced
-			int version[] = { 2, 24, 14, 22 };
+			/*
+			 * We have to keep API/ABI compatibility for all 2.24 life but bulk find indexes requests
+			 * is a new functionality which replaces already existen one. So we have to simulate old-style
+			 * separate requests to hosts which don't know anything about bulk find yet.
+			 */
+			const int version[] = { 2, 24, 14, 22 };
 
+			/*
+			 * Iterate through all requests uniting to single transaction all for the same host.
+			 */
 			for (auto it = index_requests.begin(); it != index_requests.end(); ++it) {
 				debug("i = " << std::distance(index_requests.begin(), it));
 
 				bool more = false;
+				/*
+				 * Check for the state of the next request if current is not the last one.
+				 * If next state is the same we should unite requests to single one.
+				 */
 				auto jt = it;
 				if (++jt != index_requests.end()) {
 					dnet_setup_id(&next_id, group_id, jt->id.id);
@@ -982,7 +1015,14 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 				index_requests_count = 0;
 
 				int err = dnet_trans_alloc_send(sess.get_native(), &control);
-				// ingore the error, we must continue :)
+				/*
+				 * Ingore the error, we must continue :)
+				 * If transaction is failed on this stage it still calls handler method
+				 * so it's counted as finished one. That is why we have to increment the counter.
+				 *
+				 * Also the exact error code doesn't really matter as we should give user -ENXIO
+				 * error in such case.
+				 */
 				(void) err;
 				debug("err = " << err);
 

@@ -733,6 +733,11 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, const dnet_id &re
 	msgpack::pack(&buffer, result);
 
 	if (!more) {
+		/*
+		 * Unset NEED_ACK flag if and only if it is the last reply.
+		 * We have to send positive reply in such case, also we don't want to send
+		 * useless acknowledge packet.
+		 */
 		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	}
 	dnet_cmd cmd_copy = *cmd;
