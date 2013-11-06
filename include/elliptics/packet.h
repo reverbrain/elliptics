@@ -343,6 +343,7 @@ static inline void dnet_convert_list(struct dnet_list *l)
 #define DNET_INDEXES_FLAGS_UNITE		(1<<1)
 #define DNET_INDEXES_FLAGS_UPDATE_ONLY		(1<<2)
 #define DNET_INDEXES_FLAGS_MORE			(1<<3)
+#define DNET_INDEXES_FLAGS_REMOVE_ONLY		(1<<4)
 
 
 struct dnet_time {

@@ -942,7 +942,7 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 			 * is a new functionality which replaces already existen one. So we have to simulate old-style
 			 * separate requests to hosts which don't know anything about bulk find yet.
 			 */
-			const int version[] = { 2, 24, 14, 22 };
+			int version[] = { 2, 24, 14, 22 };
 
 			/*
 			 * Iterate through all requests uniting to single transaction all for the same host.

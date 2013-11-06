@@ -62,7 +62,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		std::sort(indexes.indexes.begin(), indexes.indexes.end(), raw_dnet_raw_id_less_than<>());
 		indexes.shard_id = dnet_indexes_get_shard_id(state->n, reinterpret_cast<const dnet_raw_id*>(&cmd->id));
 		indexes.shard_count = state->n->indexes_shard_count;
-		if (!(flags & DNET_INDEXES_FLAGS_UPDATE_ONLY)) {
+		if (!(flags & (DNET_INDEXES_FLAGS_UPDATE_ONLY | DNET_INDEXES_FLAGS_REMOVE_ONLY))) {
 			msgpack::pack(buffer, indexes);
 		}
 	}
@@ -118,7 +118,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			indexes_unpack(state->n, id, data, &remote_indexes, "convert_object_indexes");
 		}
 
-		if (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) {
+		if (flags & (DNET_INDEXES_FLAGS_UPDATE_ONLY | DNET_INDEXES_FLAGS_REMOVE_ONLY)) {
 			// Merge both lists of object to one array,
 			// remove object from remote_indexes.indexes that exists in indexes.indexes
 			// and give it to the storage
@@ -126,14 +126,22 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			raw_dnet_indexes result;
 			result.shard_count = indexes.shard_count;
 			result.shard_id = indexes.shard_id;
-			result.indexes.reserve(indexes.indexes.size() + remote_indexes.indexes.size());
-			result.indexes.insert(result.indexes.end(), indexes.indexes.begin(), indexes.indexes.end());
-			result.indexes.insert(result.indexes.end(), remote_indexes.indexes.begin(), remote_indexes.indexes.end());
 
-			std::inplace_merge(result.indexes.begin(), result.indexes.begin() + indexes.indexes.size(),
-				result.indexes.end(), raw_dnet_raw_id_less_than<skip_data>());
-			auto it = std::unique(result.indexes.begin(), result.indexes.end(), index_entry_equal);
-			result.indexes.erase(it, result.indexes.end());
+			if (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) {
+				result.indexes.reserve(indexes.indexes.size() + remote_indexes.indexes.size());
+				result.indexes.insert(result.indexes.end(), indexes.indexes.begin(), indexes.indexes.end());
+				result.indexes.insert(result.indexes.end(), remote_indexes.indexes.begin(), remote_indexes.indexes.end());
+
+				std::inplace_merge(result.indexes.begin(), result.indexes.begin() + indexes.indexes.size(),
+					result.indexes.end(), raw_dnet_raw_id_less_than<skip_data>());
+				auto it = std::unique(result.indexes.begin(), result.indexes.end(), index_entry_equal);
+				result.indexes.erase(it, result.indexes.end());
+			} else if (flags & DNET_INDEXES_FLAGS_REMOVE_ONLY) {
+				result.indexes.reserve(remote_indexes.indexes.size());
+				std::set_difference(remote_indexes.indexes.begin(), remote_indexes.indexes.end(),
+					indexes.indexes.begin(), indexes.indexes.end(),
+					std::back_inserter(result.indexes), raw_dnet_raw_id_less_than<skip_data>());
+			}
 
 			msgpack::pack(buffer, result);
 		}
@@ -189,10 +197,11 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 		convert_usecs = DIFF(start, convert_time);
 
-		if (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) {
-			dnet_log(state->n, DNET_LOG_INFO, "%s: update only finished:, "
-					"convert-time: %ld usecs, err: %d\n",
-					dnet_dump_id(&request_id), convert_usecs, err);
+		if (flags & (DNET_INDEXES_FLAGS_UPDATE_ONLY | DNET_INDEXES_FLAGS_REMOVE_ONLY)) {
+			dnet_log(state->n, DNET_LOG_INFO, "%s: %s only finished:, convert-time: %ld usecs, err: %d\n",
+				dnet_dump_id(&request_id),
+				(flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) ? "update" : "remove",
+				convert_usecs, err);
 			return complete(0, finished);
 		}
 
@@ -765,6 +774,12 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 
 	switch (cmd->cmd) {
 		case DNET_CMD_INDEXES_UPDATE: {
+			// We are able only update, set or remove in one shot
+			if ((request->flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) && (request->flags & DNET_INDEXES_FLAGS_REMOVE_ONLY)) {
+				err = -EINVAL;
+				break;
+			}
+
 			auto functor = std::make_shared<update_indexes_functor>(st, cmd, request);
 
 			bool finished = false;
