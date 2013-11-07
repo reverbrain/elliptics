@@ -22,6 +22,8 @@
 
 #include "sha512.h"
 
+#include <elliptics/core.h>
+
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -383,7 +385,7 @@ sha512_process_bytes (const void *buffer, size_t len, struct sha512_ctx *ctx)
   if (len >= 128)
     {
 #if !_STRING_ARCH_unaligned
-# define alignof(type) offsetof (struct { char c; type x; }, x)
+# define alignof(type) dnet_offsetof (struct { char c; type x; }, x)
 # define UNALIGNED_P(p) (((size_t) p) % alignof (u64) != 0)
       if (UNALIGNED_P (buffer))
         while (len > 128)
