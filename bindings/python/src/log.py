@@ -13,17 +13,24 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-from elliptics.core import Session
-from elliptics.route import RouteList
-from elliptics.log import logged_class
+import logging
+
+log = logging.getLogger("elliptics")
 
 
-@logged_class
-class Session(Session):
+def logged_class(klass):
+    """
+    This decorator adds 'log' method to passed class
+    """
+    klass.log = logging.getLogger("elliptics")
+    return klass
 
-    @property
-    def routes(self):
-        return self.get_routes()
 
-    def get_routes(self):
-        return RouteList.from_routes(super(Session, self).get_routes())
+def init_logger():
+    import sys
+    log.setLevel(logging.ERROR)
+    ch = logging.StreamHandler(sys.stderr)
+    ch.setFormatter(logging.Formatter(fmt='%(asctime)-15s %(processName)s %(levelname)s %(message)s',
+                                      datefmt='%d %b %y %H:%M:%S'))
+    ch.setLevel(logging.ERROR)
+    log.addHandler(ch)

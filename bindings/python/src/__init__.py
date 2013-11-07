@@ -16,11 +16,10 @@
 from __future__ import absolute_import
 
 from elliptics.core import *
-import elliptics.route
-import elliptics.session
-from elliptics.route import *
-from elliptics.session import *
-from elliptics.node import *
+from elliptics.route import Address, RouteList
+from elliptics.session import Session
+from elliptics.node import Node
+from elliptics.log import log, init_logger
 
 __author__ = "Kirill Smorodinnikov, Evgeniy Polyakov, Ruslan Nigmatullin, Alexey Ivanov"
 __copyright__ = """2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
@@ -76,7 +75,7 @@ def create_node(elog=None, log_file='/dev/stderr', log_level=1,
     if not elog:
         elog = Logger(log_file, log_level)
     if not cfg:
-        cfg = elliptics.Config()
+        cfg = Config()
         cfg.config.wait_timeout = wait_timeout
         cfg.config.check_timeout = check_timeout
         cfg.config.flags = flags
@@ -91,5 +90,5 @@ def create_node(elog=None, log_file='/dev/stderr', log_level=1,
             pass
     return n
 
-del elliptics.route
-del elliptics.session
+
+del init_logger

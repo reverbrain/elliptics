@@ -18,8 +18,10 @@ from socket import getaddrinfo, SOL_TCP, AF_INET6, AF_INET
 from itertools import groupby, izip
 from operator import attrgetter, itemgetter
 from elliptics.core import Id
+from elliptics.log import logged_class
 
 
+@logged_class
 class Address(object):
     __doc__ = \
         """
@@ -36,8 +38,8 @@ class Address(object):
         gai = getaddrinfo(host, port, family, 0, SOL_TCP)
         if len(gai) > 1:
             self.log.warning("More than one IP found"
-                             "for: {0}. Using first: {1}."
-                             .format(host, gai[0]))
+                        "for: {0}. Using first: {1}."
+                        .format(host, gai[0]))
 
         family, _, _, _, hostport = gai[0]
         if family == AF_INET:
