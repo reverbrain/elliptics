@@ -222,13 +222,36 @@ data_pointer local_session::lookup(const dnet_cmd &tmp_cmd, int *errp)
 	return data_pointer();
 }
 
-int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const data_pointer &data, update_index_action action)
+int local_session::remove(const dnet_id &id)
+{
+	dnet_cmd cmd;
+	memset(&cmd, 0, sizeof(cmd));
+
+	cmd.id = id;
+	cmd.cmd = DNET_CMD_DEL;
+	cmd.flags |= m_cflags;
+	cmd.size = sizeof(dnet_io_attr);
+
+	dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	memcpy(io.id, id.id, DNET_ID_SIZE);
+	memcpy(io.parent, id.id, DNET_ID_SIZE);
+	io.flags |= m_ioflags;
+
+	int err = dnet_process_cmd_raw(m_state, &cmd, &io, 0);
+
+	clear_queue(&err);
+
+	return err;
+}
+
+int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const data_pointer &data, uint32_t action)
 {
 	raw_data_pointer tmp = { data.data(), data.size() };
 	return update_index_internal(id, index, tmp, action);
 }
 
-int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const raw_data_pointer &data, update_index_action action)
+int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const raw_data_pointer &data, uint32_t action)
 {
 	struct timeval start, end;
 

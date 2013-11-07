@@ -1149,6 +1149,144 @@ class single_cmd_callback
 		default_callback<callback_result_entry> cb;
 };
 
+class remove_index_callback
+{
+	public:
+		typedef std::shared_ptr<remove_index_callback> ptr;
+
+		remove_index_callback(const session &sess, const async_generic_result &result, const dnet_raw_id &index)
+			: sess(sess), cb(sess, result), index(index)
+		{
+		}
+
+		struct state_container
+		{
+			state_container() : entries_count(0), failed(false)
+			{
+			}
+
+			net_state_ptr cur;
+			net_state_ptr next;
+			data_buffer buffer;
+			size_t entries_count;
+			bool failed;
+		};
+
+		bool start(error_info *error, complete_func func, void *priv)
+		{
+			(void) error;
+
+			cb.set_count(unlimited);
+			size_t count = 0;
+
+			dnet_node *node = sess.get_node().get_native();
+			const int shard_count = dnet_node_get_indexes_shard_count(node);
+
+			dnet_trans_control control;
+			memset(&control, 0, sizeof(control));
+
+			control.cmd = DNET_CMD_INDEXES_INTERNAL;
+			control.cflags |= DNET_FLAGS_NEED_ACK;
+			control.complete = func;
+			control.priv = priv;
+
+			dnet_indexes_request request;
+			memset(&request, 0, sizeof(request));
+
+			dnet_indexes_request_entry entry;
+			memset(&entry, 0, sizeof(entry));
+
+			entry.flags |= DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL;
+
+			std::vector<state_container> states(groups.size());
+
+			std::vector<int> single_group(1, 0);
+
+			dnet_id id;
+			memset(&id, 0, DNET_ID_SIZE);
+
+			for (int shard_id = 0; shard_id <= shard_count; ++shard_id) {
+				const bool after_last_entry = (shard_id == shard_count);
+
+				if (!after_last_entry) {
+					dnet_indexes_transform_index_id(node, &index, &entry.id, shard_id);
+					memcpy(id.id, entry.id.id, DNET_ID_SIZE);
+				}
+
+				for (size_t group_index = 0; group_index < groups.size(); ++group_index) {
+					state_container &state = states[group_index];
+
+					if (state.failed) {
+						continue;
+					}
+
+					id.group_id = groups[group_index];
+					net_state_ptr next;
+
+					if (shard_id == 0) {
+						state.cur.reset(dnet_state_get_first(node, &id));
+					}
+
+					if (!after_last_entry) {
+						next.reset(dnet_state_get_first(node, &id));
+					}
+
+					if (state.entries_count == 0) {
+						if (after_last_entry) {
+							continue;
+						}
+						request.id = id;
+						state.buffer.write(request);
+					}
+
+					if (!after_last_entry) {
+						state.buffer.write(entry);
+						state.entries_count++;
+					}
+
+					if (state.cur == next) {
+						continue;
+					}
+
+					data_pointer data = std::move(state.buffer);
+					dnet_indexes_request *request = data.data<dnet_indexes_request>();
+					request->entries_count = state.entries_count;
+					state.entries_count = 0;
+
+					control.id = request->id;
+					control.data = data.data();
+					control.size = data.size();
+
+					single_group[0] = groups[group_index];
+					sess.set_groups(single_group);
+
+					int err = dnet_trans_alloc_send(sess.get_native(), &control);
+					(void) err;
+
+					++count;
+				}
+			}
+
+			return cb.set_count(count);
+		}
+
+		bool handle(error_info *error, struct dnet_net_state *state, struct dnet_cmd *cmd, complete_func func, void *priv)
+		{
+			(void) error;
+			return cb.handle(state, cmd, func, priv);
+		}
+
+		void finish(const error_info &exc)
+		{
+			cb.complete(exc);
+		}
+
+		session sess;
+		default_callback<callback_result_entry> cb;
+		dnet_raw_id index;
+		std::vector<int> groups;
+};
+
 class write_callback
 {
 	public:

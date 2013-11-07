@@ -1054,6 +1054,19 @@ static void test_indexes_update(session &sess)
 		"index_5"
 	};
 
+	std::vector<std::string> fourth_indexes = {
+		"index_4"
+	};
+
+	std::vector<std::string> anti_fourth_indexes = {
+		"index_1",
+		"index_2",
+		"index_3",
+		"index_5"
+	};
+
+	std::string fifth_index = "index_5";
+
 	for (auto it = all_indexes.begin(); it != all_indexes.end(); ++it) {
 		key tmp_key(*it);
 		tmp_key.transform(sess);
@@ -1119,6 +1132,27 @@ static void test_indexes_update(session &sess)
 		BOOST_REQUIRE((first_it == first_indexes.end()) || (third_it != third_indexes.end()));
 		BOOST_REQUIRE_EQUAL(entry.data.to_string(), second_data.to_string());
 	}
+
+	ELLIPTICS_REQUIRE(remove_index_result, sess.remove_index_internal(fifth_index));
+	ELLIPTICS_REQUIRE(fourth_find_result, sess.find_any_indexes(all_indexes));
+
+	sync_find_indexes_result fourth_sync_find_result = fourth_find_result.get();
+
+	BOOST_REQUIRE_EQUAL(fourth_sync_find_result.size(), 1);
+	BOOST_REQUIRE_EQUAL(fourth_sync_find_result[0].indexes.size(), 1);
+
+	for (auto it = fourth_sync_find_result[0].indexes.begin();
+		it != fourth_sync_find_result[0].indexes.end();
+		++it) {
+		const index_entry &entry = *it;
+
+		std::string id = mapper[entry.index];
+		auto fourth_it = std::find(fourth_indexes.begin(), fourth_indexes.end(), id);
+		auto anti_fourth_it = std::find(anti_fourth_indexes.begin(), anti_fourth_indexes.end(), id);
+
+		BOOST_REQUIRE((fourth_it != first_indexes.end()) || (anti_fourth_it != anti_fourth_indexes.end()));
+		BOOST_REQUIRE_EQUAL(entry.data.to_string(), second_data.to_string());
+	}
 }
 
 static void test_lookup(session &sess, const std::string &id, const std::string &data)
@@ -1179,6 +1213,7 @@ bool register_tests()
 	memset(&config, 0, sizeof(config));
 
 	logger log(NULL);
+//	file_logger log("/dev/stderr", 4);
 	node n(log);
 	n.add_remote("localhost", 1025);
 

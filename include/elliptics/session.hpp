@@ -715,6 +715,8 @@ class session
 				const std::vector<data_pointer> &data);
 		async_set_indexes_result remove_indexes_internal(const key &id, const std::vector<dnet_raw_id> &indexes);
 		async_set_indexes_result remove_indexes_internal(const key &id, const std::vector<std::string> &indexes);
+		async_generic_result remove_index_internal(const dnet_raw_id &id);
+		async_generic_result remove_index_internal(const std::string &id);
 
 		async_find_indexes_result find_all_indexes(const std::vector<dnet_raw_id> &indexes);
 		async_find_indexes_result find_all_indexes(const std::vector<std::string> &indexes);

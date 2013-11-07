@@ -165,7 +165,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 			memcpy(id.id, tmp_entry_id.id, DNET_ID_SIZE);
 
 			entry->size = index.data.size();
-			entry->flags = (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) ? insert_data : remove_data;
+			entry->flags = (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) ? DNET_INDEXES_FLAGS_INTERNAL_INSERT : DNET_INDEXES_FLAGS_INTERNAL_REMOVE;
 			control.set_data(data.data(), sizeof(dnet_indexes_request) +
 					sizeof(dnet_indexes_request_entry) + index.data.size());
 			memcpy(entry_data, index.data.data(), index.data.size());
@@ -264,6 +264,23 @@ async_set_indexes_result session::update_indexes_internal(const key &id,
 	session_convert_indexes(*this, raw_indexes, indexes, datas);
 
 	return update_indexes_internal(id, raw_indexes);
+}
+
+async_generic_result session::remove_index_internal(const dnet_raw_id &id)
+{
+	async_generic_result result(*this);
+	auto cb = createCallback<remove_index_callback>(*this, result, id);
+	mix_states(cb->groups);
+
+	startCallback(cb);
+	return result;
+}
+
+async_generic_result session::remove_index_internal(const std::string &id)
+{
+	key kid(id);
+	kid.transform(*this);
+	return remove_index_internal(kid.raw_id());
 }
 
 async_set_indexes_result session::remove_indexes_internal(const key &id, const std::vector<dnet_raw_id> &indexes)

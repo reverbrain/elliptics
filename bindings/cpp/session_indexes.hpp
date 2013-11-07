@@ -12,11 +12,6 @@
 
 namespace ioremap { namespace elliptics {
 
-enum update_index_action {
-	insert_data = 1,
-	remove_data = 2
-};
-
 struct dnet_indexes
 {
 	int shard_id;

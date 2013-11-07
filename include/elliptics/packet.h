@@ -345,6 +345,10 @@ static inline void dnet_convert_list(struct dnet_list *l)
 #define DNET_INDEXES_FLAGS_MORE			(1<<3)
 #define DNET_INDEXES_FLAGS_REMOVE_ONLY		(1<<4)
 
+#define DNET_INDEXES_FLAGS_INTERNAL_INSERT	(1<<0)
+#define DNET_INDEXES_FLAGS_INTERNAL_REMOVE	(1<<1)
+#define DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL	(1<<2)
+
 
 struct dnet_time {
 	uint64_t		tsec, tnsec;
