@@ -1,6 +1,7 @@
 /*
  * 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
  * 2012+ Copyright (c) Ruslan Nigmatullin <euroelessar@yandex.ru>
+ * 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -962,7 +963,7 @@ async_write_result session::write_data(const key &id, const data_pointer &file, 
 		return write_data(id, file, remote_offset);
 
 	data_pointer write_content = file.slice(0, chunk_size);
-	auto awr = write_prepare(id, write_content, remote_offset, file.size());
+	auto awr = write_prepare(id, write_content, remote_offset, remote_offset + file.size());
 
 	async_write_result res(*this);
 	async_write_result::handler handler(res);

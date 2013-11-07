@@ -43,7 +43,6 @@ typedef unsigned short u_short;
 
 #include "list.h"
 
-#undef offsetof
 #include "rbtree.h"
 
 #include "atomic.h"

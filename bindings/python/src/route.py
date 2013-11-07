@@ -1,9 +1,27 @@
+# =============================================================================
+# 2013+ Copyright (c) Alexey Ivanov <rbtz@ph34r.me>
+# 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
+# All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# =============================================================================
+
 from socket import getaddrinfo, SOL_TCP, AF_INET6, AF_INET
 from itertools import groupby, izip
 from operator import attrgetter, itemgetter
 from elliptics.core import Id
+from elliptics.log import logged_class
 
 
+@logged_class
 class Address(object):
     __doc__ = \
         """
@@ -20,8 +38,8 @@ class Address(object):
         gai = getaddrinfo(host, port, family, 0, SOL_TCP)
         if len(gai) > 1:
             self.log.warning("More than one IP found"
-                             "for: {0}. Using first: {1}."
-                             .format(host, gai[0]))
+                        "for: {0}. Using first: {1}."
+                        .format(host, gai[0]))
 
         family, _, _, _, hostport = gai[0]
         if family == AF_INET:
@@ -213,7 +231,7 @@ class RouteList(object):
         key = None
         for route in self.filter_by_group_id(group_id):
             if route.address == address:
-                if not key is None:
+                if key is None:
                     key = route.key
             elif key:
                 ranges.append((key, route.key))

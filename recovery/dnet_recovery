@@ -1,10 +1,27 @@
 #!/usr/bin/env python
 
+# =============================================================================
+# 2013+ Copyright (c) Alexey Ivanov <rbtz@ph34r.me>
+# 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
+# All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# =============================================================================
+
 """
 New recovery mechanism for elliptics that utilizes iterators and metadata.
 
-For now it supports two recovery methods: `merge` and `dc`:
- * `merge` is used for recovery within hash ring (aka group)
+For now it supports three recovery methods: `merge`, 'deep_merge' and `dc`:
+ * `merge` is used for recovery within hash ring (aka group) but uses only neighboring nodes.
+ * 'deep_merge' is used for recovery within hash ring (aka group) and uses all nodes from the same hash ring.
  * `dc` is used for recovery across different hash rings thus maintaining replica counts.
 
 More information about recovery process can be found at:
@@ -38,13 +55,15 @@ log.addHandler(ch)
 
 TYPE_MERGE = 'merge'
 TYPE_DC = 'dc'
-ALLOWED_TYPES = (TYPE_MERGE, TYPE_DC)
+TYPE_DEEP_MERGE = 'deep_merge'
+ALLOWED_TYPES = (TYPE_MERGE, TYPE_DC, TYPE_DEEP_MERGE)
 
 STAT_NONE = 'none'
 STAT_TEXT = 'text'
 ALLOWED_STATS = (STAT_NONE, STAT_TEXT)
 
 TMP_FILE_PREFIXES = ['iterator_', 'diff_', 'merge_']
+
 
 def cleanup(path):
     for file_name in os.listdir(path):
@@ -263,6 +282,8 @@ if __name__ == '__main__':
         from elliptics_recovery.types.merge import main
     elif recovery_type == TYPE_DC:
         from elliptics_recovery.types.dc import main
+    elif recovery_type == TYPE_DEEP_MERGE:
+        from elliptics_recovery.types.deep_merge import main
     else:
         raise RuntimeError("Type '{0}' is not supported for now".format(recovery_type))
     result = main(ctx)
