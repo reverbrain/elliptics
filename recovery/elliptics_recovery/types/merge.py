@@ -19,10 +19,11 @@ Merge recovery type - recovers keys in one hash ring (aka group)
 by placing them to the node where they belong.
 
  * Find ranges that host stole from neighbours in routing table.
- * Start metadata-only iterator fo each range on local and remote hosts.
+ * Start metadata-only iterator for each range on local and remote hosts.
  * Sort iterators' outputs.
  * Computes diff between local and remote iterator.
  * Recover keys provided by diff using bulk APIs.
+ * If necessary removes recovered keys from remote hosts.
 """
 
 import sys
