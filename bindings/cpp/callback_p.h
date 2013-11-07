@@ -1166,7 +1166,6 @@ class remove_index_callback
 			}
 
 			net_state_ptr cur;
-			net_state_ptr next;
 			data_buffer buffer;
 			size_t entries_count;
 			bool failed;
@@ -1205,6 +1204,15 @@ class remove_index_callback
 			dnet_id id;
 			memset(&id, 0, DNET_ID_SIZE);
 
+			/*
+			 * To totally remove the index we have to send remove request to every shard and to every group.
+			 * Sending 4k different requests is not optimatl, so requests to the single elliptics node
+			 * are joined to the single request.
+			 *
+			 * To do this we have to iterate through all shards. It's needed for every (shard, group) pair
+			 * to compare dnet_net_state with (shard - 1, group) one if it exists.
+			 */
+
 			for (int shard_id = 0; shard_id <= shard_count; ++shard_id) {
 				const bool after_last_entry = (shard_id == shard_count);
 
@@ -1213,9 +1221,14 @@ class remove_index_callback
 					memcpy(id.id, entry.id.id, DNET_ID_SIZE);
 				}
 
+				/*
+				 * Iterate for all groups, each group stores it's state it states[group_index] field.
+				 * It's needed to decrease number of index transformations above.
+				 */
 				for (size_t group_index = 0; group_index < groups.size(); ++group_index) {
 					state_container &state = states[group_index];
 
+					// We failed to get this group's network state sometime ago so skip it
 					if (state.failed) {
 						continue;
 					}
@@ -1225,30 +1238,44 @@ class remove_index_callback
 
 					if (shard_id == 0) {
 						state.cur.reset(dnet_state_get_first(node, &id));
+						// Error during state getting, don't touch this group more
+						if (!state.cur) {
+							state.failed = true;
+							continue;
+						}
 					}
 
 					if (!after_last_entry) {
 						next.reset(dnet_state_get_first(node, &id));
+						// Error during state getting, don't touch this group more
+						if (!next) {
+							state.failed = true;
+							continue;
+						}
 					}
 
+					// This is a first entry, prepend the request to the buffer
 					if (state.entries_count == 0) {
 						if (after_last_entry) {
+							// Oh, this was not the first entry, but we already finished this group
 							continue;
 						}
 						request.id = id;
 						state.buffer.write(request);
 					}
 
-					if (!after_last_entry) {
+					if (state.cur == next) {
+						// Append entry to the request list as they are to the same node
 						state.buffer.write(entry);
 						state.entries_count++;
-					}
-
-					if (state.cur == next) {
 						continue;
+					} else {
+						state.cur = std::move(next);
 					}
 
 					data_pointer data = std::move(state.buffer);
+
+					// Set the actual entries_count value as it is unknown at the beginning
 					dnet_indexes_request *request = data.data<dnet_indexes_request>();
 					request->entries_count = state.entries_count;
 					state.entries_count = 0;
@@ -1260,10 +1287,16 @@ class remove_index_callback
 					single_group[0] = groups[group_index];
 					sess.set_groups(single_group);
 
+					// Send exactly one request to exactly one elliptics node
 					int err = dnet_trans_alloc_send(sess.get_native(), &control);
 					(void) err;
 
 					++count;
+
+					if (!after_last_entry) {
+						state.buffer.write(entry);
+						state.entries_count++;
+					}
 				}
 			}
 
