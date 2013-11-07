@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "elliptics/core.h"
+
 #if USE_UNLOCKED_IO
 # include "unlocked-io.h"
 #endif
