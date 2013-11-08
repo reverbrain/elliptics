@@ -431,8 +431,8 @@ std::vector<std::string> elliptics_storage_t::convert_list_result(const ioremap:
 	std::vector<std::string> promise_result;
 
 	for (auto it = result.begin(); it != result.end(); ++it) {
-		for (auto jt = it->indexes.begin(); jt != it->indexes.end(); ++jt) {
-			promise_result.push_back(jt->data.to_string());
+		if (!it->indexes.empty()) {
+			promise_result.push_back(it->indexes.front().data.to_string());
 		}
 	}
 
