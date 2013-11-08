@@ -232,7 +232,7 @@ if __name__ == '__main__':
         try:
             ctx.node.add_remote(r)
         except Exception as e:
-            print("Coudn't connect to remote: {0} got: {1}"
+            print("Couldn't connect to remote: {0} got: {1}"
                   .format(r, e))
     ctx.session = elliptics.Session(ctx.node)
     if ctx.groups:
