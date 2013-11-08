@@ -169,6 +169,26 @@ namespace msgpack
 {
 using namespace ioremap::elliptics;
 
+enum dnet_indexes_version : uint16_t {
+	dnet_indexes_version_second = 2
+};
+
+enum update_request_version : uint16_t {
+	update_request_version_first = 1
+};
+
+enum update_index_request_version : uint16_t {
+	update_index_request_version_first = 1
+};
+
+enum update_result_version : uint16_t {
+	update_result_version_first = 1
+};
+
+enum find_indexes_result_entry_version : uint16_t {
+	find_indexes_result_entry_version_first = 1
+};
+
 inline dnet_id &operator >>(msgpack::object o, dnet_id &v)
 {
 	if (o.type != msgpack::type::RAW || o.via.raw.size != sizeof(dnet_id))
@@ -310,7 +330,7 @@ inline dnet_indexes &operator >>(msgpack::object o, dnet_indexes &v)
 	uint16_t version = 0;
 	p[0].convert(&version);
 	switch (version) {
-	case 2: {
+	case dnet_indexes_version_second: {
 		if (size != 4)
 			throw msgpack::type_error();
 
@@ -330,7 +350,7 @@ template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const dnet_indexes &v)
 {
 	o.pack_array(4);
-	o.pack(2);
+	o.pack(uint16_t(dnet_indexes_version_second));
 	o.pack(v.indexes);
 	o.pack(v.shard_id);
 	o.pack(v.shard_count);
@@ -348,7 +368,7 @@ inline raw_dnet_indexes &operator >>(msgpack::object o, raw_dnet_indexes &v)
 	uint16_t version = 0;
 	p[0].convert(&version);
 	switch (version) {
-	case 2: {
+	case dnet_indexes_version_second: {
 		if (size != 4)
 			throw msgpack::type_error();
 
@@ -368,7 +388,7 @@ template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const raw_dnet_indexes &v)
 {
 	o.pack_array(4);
-	o.pack(2);
+	o.pack(uint16_t(dnet_indexes_version_second));
 	o.pack(v.indexes);
 	o.pack(v.shard_id);
 	o.pack(v.shard_count);
@@ -379,7 +399,7 @@ template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const update_request &request)
 {
 	o.pack_array(3);
-	o.pack(1); // version
+	o.pack(uint16_t(update_request_version_first));
 	o.pack(request.id);
 	o.pack(request.indexes);
 	return o;
@@ -396,7 +416,7 @@ inline update_request &operator >>(msgpack::object obj, update_request &request)
 	uint16_t version = 0;
 	array[0].convert(&version);
 	switch (version) {
-	case 1: {
+	case update_request_version_first: {
 		if (size != 3)
 			throw msgpack::type_error();
 
@@ -415,7 +435,7 @@ template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const update_index_request &request)
 {
 	o.pack_array(4);
-	o.pack(1); // version
+	o.pack(uint16_t(update_index_request_version_first)); // version
 	o.pack(request.id);
 	o.pack(request.index);
 	o.pack(request.remove);
@@ -433,7 +453,7 @@ inline update_index_request &operator >>(msgpack::object obj, update_index_reque
 	uint16_t version = 0;
 	array[0].convert(&version);
 	switch (version) {
-	case 1: {
+	case update_index_request_version_first: {
 		if (size != 4)
 			throw msgpack::type_error();
 
@@ -453,7 +473,7 @@ template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const update_result &result)
 {
 	o.pack_array(2);
-	o.pack(1); // version
+	o.pack(uint16_t(update_result_version_first));
 	o.pack(result.indexes);
 	return o;
 }
@@ -469,7 +489,7 @@ inline update_result &operator >>(msgpack::object obj, update_result &result)
 	uint16_t version = 0;
 	array[0].convert(&version);
 	switch (version) {
-	case 1: {
+	case update_result_version_first: {
 		if (size != 2)
 			throw msgpack::type_error();
 
@@ -487,7 +507,7 @@ template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const find_indexes_result_entry &result)
 {
 	o.pack_array(3);
-	o.pack(1); // version
+	o.pack(uint16_t(find_indexes_result_entry_version_first));
 	o.pack(result.id);
 	o.pack(result.indexes);
 	return o;
@@ -504,7 +524,7 @@ inline find_indexes_result_entry &operator >>(msgpack::object obj, find_indexes_
 	uint16_t version = 0;
 	array[0].convert(&version);
 	switch (version) {
-	case 1: {
+	case find_indexes_result_entry_version_first: {
 		if (size != 3)
 			throw msgpack::type_error();
 
@@ -523,7 +543,7 @@ template <typename Stream>
 inline msgpack::packer<Stream> &operator <<(msgpack::packer<Stream> &o, const raw_find_indexes_result_entry &result)
 {
 	o.pack_array(3);
-	o.pack(1); // version
+	o.pack(uint16_t(find_indexes_result_entry_version_first));
 	o.pack(result.id);
 	o.pack(result.indexes);
 	return o;
@@ -540,7 +560,7 @@ inline raw_find_indexes_result_entry &operator >>(msgpack::object obj, raw_find_
 	uint16_t version = 0;
 	array[0].convert(&version);
 	switch (version) {
-	case 1: {
+	case find_indexes_result_entry_version_first: {
 		if (size != 3)
 			throw msgpack::type_error();
 
