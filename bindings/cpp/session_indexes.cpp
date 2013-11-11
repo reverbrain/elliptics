@@ -11,15 +11,10 @@ namespace ioremap { namespace elliptics {
 
 typedef async_result_handler<callback_result_entry> async_update_indexes_handler;
 
-#undef debug
-#define debug(DATA) if (1) {} else std::cerr << __PRETTY_FUNCTION__ << ":" << __LINE__ << " " << DATA << std::endl
-
 #define DNET_INDEXES_FLAGS_NOUPDATE (1 << 30)
 
 static void on_update_index_entry(async_update_indexes_handler handler, const callback_result_entry &entry)
 {
-	debug("on_update_index_entry: status: " << entry.command()->status << ", size: " << entry.command()->size);
-
 	handler.process(entry);
 
 	if (!entry.data().empty()) {
@@ -34,9 +29,6 @@ static void on_update_index_entry(async_update_indexes_handler handler, const ca
 			cmd.status = index_entry.status;
 			cmd.size = 0;
 
-			debug("generated: index: " << index_entry.id <<
-					", status: " << cmd.status << ", size: " << cmd.size);
-
 			auto data = std::make_shared<callback_result_data>(&addr, &cmd);
 			handler.process(callback_result_entry(data));
 		}
@@ -45,8 +37,6 @@ static void on_update_index_entry(async_update_indexes_handler handler, const ca
 
 static void on_update_index_finished(async_update_indexes_handler handler, const error_info &error)
 {
-	debug("on_update_index_finished: status: " << error.code());
-
 	handler.complete(error);
 }
 
@@ -334,13 +324,9 @@ async_set_indexes_result session::remove_indexes(const key &id, const std::vecto
 	return remove_indexes(id, session_convert_indexes(*this, indexes));
 }
 
-#undef debug
-#define debug(DATA) if (1) {} else std::cout << __PRETTY_FUNCTION__ << ":" << __LINE__ << " " << DATA << std::endl
-
 static void on_find_indexes_process(node n, std::shared_ptr<find_indexes_callback::id_map> convert_map,
 	async_result_handler<find_indexes_result_entry> handler, const callback_result_entry &entry)
 {
-	debug("on index");
 	dnet_node *node = n.get_native();
 	data_pointer data = entry.data();
 
@@ -368,7 +354,6 @@ static void on_find_indexes_process(node n, std::shared_ptr<find_indexes_callbac
 
 static void on_find_indexes_complete(async_result_handler<find_indexes_result_entry> handler, const error_info &error)
 {
-	debug("Complete");
 	handler.complete(error);
 }
 
