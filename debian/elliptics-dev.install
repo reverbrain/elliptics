@@ -1,4 +1,5 @@
 usr/include/elliptics/*
+usr/share/elliptics/cmake/*
 usr/lib/libelliptics.so
 usr/lib/libelliptics_client.so
 usr/lib/libelliptics_cpp.so
