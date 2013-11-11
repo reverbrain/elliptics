@@ -17,6 +17,7 @@ class local_session
 		~local_session();
 
 		void set_ioflags(uint32_t flags);
+		void set_cflags(uint64_t flags);
 
 		ioremap::elliptics::data_pointer read(const dnet_id &id, int *errp);
 		ioremap::elliptics::data_pointer read(const dnet_id &id, uint64_t *user_flags, dnet_time *timestamp, int *errp);
@@ -30,8 +31,44 @@ class local_session
 	private:
 		void clear_queue(int *errp = NULL);
 
-		uint32_t m_flags;
+		uint32_t m_ioflags;
+		uint64_t m_cflags;
 		dnet_net_state *m_state;
+};
+
+class elliptics_timer
+{
+public:
+	elliptics_timer()
+	{
+		dnet_current_time(&m_last_time);
+	}
+
+	long long int elapsed() const
+	{
+		dnet_time time;
+		dnet_current_time(&time);
+
+		return delta(m_last_time, time);
+	}
+
+	long long int restart()
+	{
+		dnet_time time;
+		dnet_current_time(&time);
+		std::swap(m_last_time, time);
+
+		return delta(time, m_last_time);
+	}
+
+private:
+	long long int delta(const dnet_time &first, const dnet_time &last) const
+	{
+		typedef long long int lld;
+		return (lld(last.tsec) - lld(first.tsec)) * 1000 + (lld(last.tnsec) - lld(first.tnsec)) / 1000000;
+	}
+
+	dnet_time m_last_time;
 };
 
 #endif // LOCAL_SESSION_H

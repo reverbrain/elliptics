@@ -1,12 +1,29 @@
+# =============================================================================
+# 2013+ Copyright (c) Alexey Ivanov <rbtz@ph34r.me>
+# 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
+# All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# =============================================================================
+
 """
 Merge recovery type - recovers keys in one hash ring (aka group)
 by placing them to the node where they belong.
 
  * Find ranges that host stole from neighbours in routing table.
- * Start metadata-only iterator fo each range on local and remote hosts.
+ * Start metadata-only iterator for each range on local and remote hosts.
  * Sort iterators' outputs.
  * Computes diff between local and remote iterator.
  * Recover keys provided by diff using bulk APIs.
+ * If necessary removes recovered keys from remote hosts.
 """
 
 import sys
@@ -63,7 +80,7 @@ def run_iterator(ctx, group=None, address=None, routes=None, ranges=None, stats=
     """
     Runs iterator for all ranges on node specified by address
     """
-    node = elliptics_create_node(address=address, elog=ctx.elog)
+    node = elliptics_create_node(address=address, elog=ctx.elog, wait_timeout=ctx.wait_timeout)
     try:
         timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
         eid = routes.filter_by_address(address)[0].key
@@ -144,7 +161,7 @@ def recover(ctx, diff, group, stats):
     log.info("Recovering range for: {0}".format(diff.address))
 
     log.debug("Creating remote node for: {0}".format(diff.address))
-    remote_node = elliptics_create_node(address=diff.address, elog=g_ctx.elog)
+    remote_node = elliptics_create_node(address=diff.address, elog=g_ctx.elog, wait_timeout=ctx.wait_timeout)
     log.debug("Creating direct remote session: {0}".format(diff.address))
     remote_session = elliptics_create_session(node=remote_node,
                                               group=group,
@@ -152,7 +169,7 @@ def recover(ctx, diff, group, stats):
     remote_session.set_direct_id(*diff.address)
 
     log.debug("Creating local node for: {0}".format(g_ctx.address))
-    local_node = elliptics_create_node(address=g_ctx.address, elog=g_ctx.elog)
+    local_node = elliptics_create_node(address=g_ctx.address, elog=g_ctx.elog, wait_timeout=ctx.wait_timeout)
     log.debug("Creating direct local session: {0}".format(g_ctx.address))
     local_session = elliptics_create_session(node=local_node,
                                              group=group,

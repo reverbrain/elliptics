@@ -1,16 +1,20 @@
 /*
- * 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
- * All rights reserved.
+ * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * This file is part of Elliptics.
+ * 
+ * Elliptics is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
+ * 
+ * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * GNU Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef __DNET_ATOMIC_H
@@ -26,10 +30,10 @@ extern "C" {
 #define atomic_init(a, v) atomic_set(a, v)
 #elif defined HAVE_SYNC_ATOMIC_SUPPORT
 typedef struct {
-	volatile int		val;
+	volatile long		val;
 } atomic_t;
 
-static inline void atomic_set(atomic_t *a, int val)
+static inline void atomic_set(atomic_t *a, long val)
 {
 	a->val = val;
 }
@@ -41,22 +45,22 @@ static inline int atomic_read(atomic_t *a)
 	return a->val;
 }
 
-static inline void atomic_add(atomic_t *a, int v)
+static inline void atomic_add(atomic_t *a, long v)
 {
 	(void)__sync_add_and_fetch(&a->val, v);
 }
 
-static inline void atomic_sub(atomic_t *a, int v)
+static inline void atomic_sub(atomic_t *a, long v)
 {
 	(void)__sync_sub_and_fetch(&a->val, v);
 }
 
-static inline int atomic_inc(atomic_t *a)
+static inline long atomic_inc(atomic_t *a)
 {
 	return __sync_add_and_fetch(&a->val, 1);
 }
 
-static inline int atomic_dec(atomic_t *a)
+static inline long atomic_dec(atomic_t *a)
 {
 	return __sync_sub_and_fetch(&a->val, 1);
 }
@@ -68,7 +72,7 @@ static inline int atomic_dec(atomic_t *a)
 #include "lock.h"
 
 typedef struct {
-	volatile int		val;
+	volatile long		val;
 	struct dnet_lock	lock;
 } atomic_t;
 

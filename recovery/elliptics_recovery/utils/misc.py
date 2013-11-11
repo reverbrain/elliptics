@@ -1,3 +1,18 @@
+# =============================================================================
+# 2013+ Copyright (c) Alexey Ivanov <rbtz@ph34r.me>
+# All rights reserved.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# =============================================================================
+
 """
 Misc. routines
 """
@@ -31,7 +46,7 @@ def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_time
     """
     Connects to elliptics cloud
     """
-    log.info("Creating node using: {0}".format(address))
+    log.info("Creating node using: {0}, wait_timeout: {1}".format(address, wait_timeout))
     cfg = elliptics.Config()
     cfg.config.wait_timeout = wait_timeout
     cfg.config.check_timeout = check_timeout

@@ -1,16 +1,20 @@
 /*
- * 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
- * All rights reserved.
+ * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * This file is part of Elliptics.
+ * 
+ * Elliptics is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
+ * 
+ * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * GNU Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <sys/stat.h>
@@ -75,7 +79,7 @@ err_out_exit:
 	return err;
 }
 
-static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, int *id_num, unsigned long long storage_free)
+static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, int *id_num, unsigned long long storage_free, struct dnet_addr *cfg_addrs, char* remotes)
 {
 	int fd, err, num;
 	const char *file = "ids";
@@ -90,7 +94,10 @@ again:
 	if (fd < 0) {
 		err = -errno;
 		if (err == -ENOENT) {
-			err = dnet_ids_generate(n, path, storage_free);
+			err = dnet_ids_update(1, path, cfg_addrs, remotes);
+			if (err)
+				err = dnet_ids_generate(n, path, storage_free);
+
 			if (err)
 				goto err_out_exit;
 
@@ -117,6 +124,8 @@ again:
 		err = -EINVAL;
 		goto err_out_close;
 	}
+
+	dnet_ids_update(0, path, cfg_addrs, remotes);
 
 	ids = malloc(st.st_size);
 	if (!ids) {
@@ -245,7 +254,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, str
 		if (err)
 			goto err_out_addr_cleanup;
 
-		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free);
+		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free, cfg_data->cfg_addrs, cfg_data->cfg_remotes);
 		if (!ids)
 			goto err_out_locks_destroy;
 

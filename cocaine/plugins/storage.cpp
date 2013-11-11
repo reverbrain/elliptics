@@ -91,7 +91,7 @@ elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &
 	Json::Value nodes(args["nodes"]);
 
 	if(nodes.empty() || !nodes.isObject()) {
-		throw error_t("no nodes has been specified");
+		throw storage_error_t("no nodes has been specified");
 	}
 
 	Json::Value::Members node_names(nodes.getMemberNames());
@@ -111,13 +111,13 @@ elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &
 	}
 
 	if (!have_remotes) {
-		throw error_t("can not connect to any remote node");
+		throw storage_error_t("can not connect to any remote node");
 	}
 
 	Json::Value groups(args["groups"]);
 
 	if (groups.empty() || !groups.isArray()) {
-		throw error_t("no groups has been specified");
+		throw storage_error_t("no groups has been specified");
 	}
 
 	std::transform(groups.begin(), groups.end(), std::back_inserter(m_groups), std::mem_fn(&Json::Value::asInt));

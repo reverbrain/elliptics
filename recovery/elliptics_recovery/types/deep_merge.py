@@ -15,13 +15,15 @@
 # =============================================================================
 
 """
-Data Center recovery type - recovers keys at the expense of keys from other group.
+Deep Merge recovery type - recovers keys in one hash ring (aka group)
+by placing them to the node where they belong.
 
  * Find ranges that host is responsible for now.
- * Start metadata-only iterator for the found ranges on local and remote hosts (from non-local groups).
+ * Start metadata-only iterator for the found ranges on local and remote hosts.
  * Sort iterators' outputs.
  * Computes diff between local and remote iterator.
  * Recover keys provided by diff using bulk APIs.
+ * If necessary removes recovered keys from remote hosts.
 """
 
 import sys
@@ -33,6 +35,7 @@ from multiprocessing import Pool
 
 from ..iterator import Iterator, IteratorResult
 from ..etime import Time
+from ..range import IdRange, AddressRanges
 from ..utils.misc import elliptics_create_node, elliptics_create_session, worker_init, mk_container_name
 
 # XXX: change me before BETA
@@ -189,6 +192,7 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
     log.debug("Copying {0} keys".format(keys_len))
 
     async_write_results = []
+    async_remove_results = []
     batch = None
 
     try:
@@ -210,7 +214,8 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
             io.timestamp = b.timestamp
             io.user_flags = b.user_flags
             async_write_results.append((local_session.write_data(io, b.data),
-                                        len(b.data)))
+                                        len(b.data),
+                                        b.id))
         except StopIteration:
             break
         except Exception as e:
@@ -223,26 +228,48 @@ def recover_keys(ctx, address, group_id, keys, local_session, remote_session, st
     stats.counter('skipped_keys', keys_len - read_len - failed)
 
     successes, successes_size, failures_size = (0, 0, 0)
-    for r, bsize in async_write_results:
+    for r, bsize, key in async_write_results:
         try:
             r.wait()
             if r.successful():
-                successes_size += bsize
-                successes += 1
+                if ctx.safe is not True:
+                    # If data was successfully moved to local node
+                    # and `Safe' mode is not enabled - remove it from remote node.
+                    async_remove_results.append((remote_session.remove(key), key))
+                    successes_size += bsize
+                    successes += 1
             else:
                 failures_size += bsize
                 failed += 1
         except Exception as e:
-            log.error("Write failed: {0}".format(e))
+            log.info("Can't recover key: {0}: {1}".format(key, e))
             failures_size += bsize
             failed += 1
 
-    log.debug("Recovered batch: {0}/{1} of size: {2}/{3}".format(successes + failed, keys_len, successes_size, failures_size))
+    remove_successes, remove_failures = (0, 0)
+    for r, key in async_remove_results:
+        try:
+            r.wait()
+            if r.successful():
+                remove_successes += 1
+            else:
+                remove_failures += 1
+        except Exception as e:
+            log.info("Can't remove key: {0}: {1}".format(key, e))
+            remove_failures += 1
+
+    log.debug("Recovered batch: {0}/{1} of size: {2}/{3}"
+              .format(successes + failed,
+                      keys_len,
+                      successes_size,
+                      failures_size))
 
     stats.counter('recovered_keys', successes)
     stats.counter('recovered_keys', -failed)
     stats.counter('recovered_bytes', successes_size)
     stats.counter('recovered_bytes', -failures_size)
+    stats.counter('removed_keys', remove_successes)
+    stats.counter('removed_keys', -remove_failures)
 
     return failed == 0
 
@@ -349,32 +376,39 @@ def main(ctx):
     result = True
 
     log.warning("Searching for ranges that %s store" % g_ctx.address)
-    all_ranges = g_ctx.routes.get_local_ranges_by_address(g_ctx.address)
-    log.debug("Recovery nodes: {0}".format(len(all_ranges)))
+
+    g_ctx.routes = elliptics.RouteList(g_ctx.routes.filter_by_group_id(g_ctx.group_id))
+
+    all_ranges = g_ctx.routes.get_address_ranges(g_ctx.address)
+    log.debug("Recovery nodes: {0}".format(len(g_ctx.routes.addresses())))
     if len(all_ranges) <= 1:
         log.warning("No ranges to recover for address %s" % g_ctx.address)
         g_ctx.monitor.stats.timer('main', 'finished')
         return result
 
-    log.debug("Processing nodes: {0}".format([str(r.address) for r in all_ranges]))
+    all_ranges = [IdRange(s, e) for s, e in all_ranges]
 
-    processes = min(g_ctx.nprocess, len(all_ranges))
+    log.debug("Processing nodes: {0}".format(map(str, g_ctx.routes.addresses())))
+
+    processes = min(g_ctx.nprocess, len(g_ctx.routes.addresses()))
     log.info("Creating pool of processes: {0}".format(processes))
     pool = Pool(processes=processes, initializer=worker_init)
 
-    local_ranges = next((r for r in all_ranges if r.address == g_ctx.address), None)
-    assert local_ranges, 'Local ranges is absent in route table'
     ctx.monitor.stats.counter('iterations', len(all_ranges))
 
-    local_iter_result = pool.apply_async(iterate_node, (local_ranges, ))
-    remote_ranges = (range for range in all_ranges
-                     if range.address != g_ctx.address and
-                        range.address.group_id in g_ctx.groups)
+    local_iter_result = pool.apply_async(iterate_node, (
+                                         AddressRanges(g_ctx.address,
+                                                       g_ctx.routes.get_address_eid(g_ctx.address),
+                                                       all_ranges), ))
+    remote_ranges = (AddressRanges(addr, g_ctx.routes.get_address_eid(addr), all_ranges)
+                     for addr in g_ctx.routes.addresses()
+                     if addr != g_ctx.address)
     iter_result = pool.imap_unordered(iterate_node, remote_ranges)
 
     try:
         timeout = 2147483647
         local_it_result = local_iter_result.get(timeout)
+
         diff_async_results = pool.imap_unordered(process_diff, ((local_it_result, result) for result in iter_result if result))
 
     except KeyboardInterrupt:

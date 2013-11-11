@@ -81,7 +81,7 @@ elliptics_id elliptics_id::convert(const bp::api::object &id) {
 	if (get_string.check())
 		return elliptics_id(get_string());
 
-	PyErr_SetString(PyExc_ValueError, "Coudn't convert id to elliptics id");
+	PyErr_SetString(PyExc_ValueError, "Couldn't convert id to elliptics id");
 	bp::throw_error_already_set();
 
 	return elliptics_id();

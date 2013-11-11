@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.20
+Version:	2.24.14.21
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -130,6 +130,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Oct 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.21
+- Added more debug info for cache requests.
+- Fixed bulk_read request.
+- Fixed bug on cache overflow.
+- Client: fixed write_data by chunks.
+- Python: got data_pointer inside python binding as elliptics.Data. Removed restrict of using bp::list - now you can use any iterable object for those purpose.
+- Added example script and c++ code for iterating specified nodes or all nodes in specified groups
+- Removed useless code.
+
 * Tue Oct 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.20
 - Put man pages into packages
 - Do not schedule network IO if state is in need-exit state

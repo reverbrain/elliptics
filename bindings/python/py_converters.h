@@ -22,6 +22,8 @@
 
 #include <vector>
 
+#include "elliptics_data.h"
+
 namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics { namespace python {
@@ -31,6 +33,17 @@ static std::vector<T> convert_to_vector(const bp::api::object &list)
 {
 	bp::stl_input_iterator<T> begin(list), end;
 	return std::vector<T>(begin, end);
+}
+
+template<>
+std::vector<data_pointer> convert_to_vector<data_pointer>(const bp::api::object &list) {
+	auto wdatas = convert_to_vector<bp::api::object>(list);
+	std::vector<data_pointer> ret;
+	ret.reserve(wdatas.size());
+	for (auto it = wdatas.begin(), end = wdatas.end(); it != end; ++it) {
+		ret.push_back(data_wrapper::convert(*it).pointer());
+	}
+	return ret;
 }
 
 template <typename T>

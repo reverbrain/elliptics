@@ -23,6 +23,7 @@
 
 #include "elliptics_id.h"
 #include "elliptics_time.h"
+#include "elliptics_data.h"
 
 namespace bp = boost::python;
 
@@ -33,9 +34,9 @@ dnet_iterator_response iterator_result_response(iterator_result_entry result)
 	return *result.reply();
 }
 
-std::string iterator_result_response_data(iterator_result_entry result)
+data_wrapper iterator_result_response_data(iterator_result_entry result)
 {
-	return result.reply_data().to_string();
+	return data_wrapper(result.reply_data());
 }
 
 elliptics_id iterator_response_get_key(dnet_iterator_response *response)
@@ -58,9 +59,9 @@ uint64_t iterator_response_get_size(dnet_iterator_response *response)
 	return response->size;
 }
 
-std::string read_result_get_data(read_result_entry &result)
+data_wrapper read_result_get_data(read_result_entry &result)
 {
-	return result.file().to_string();
+	return data_wrapper(result.file());
 }
 
 elliptics_id read_result_get_id(read_result_entry &result)
@@ -132,9 +133,9 @@ std::string exec_context_get_event(exec_context &context)
 	return context.event();
 }
 
-std::string exec_context_get_data(exec_context &context)
+data_wrapper exec_context_get_data(exec_context &context)
 {
-	return context.data().to_string();
+	return data_wrapper(context.data());
 }
 
 int exec_context_get_src_key(exec_context &context)
@@ -195,9 +196,9 @@ error result_entry_error(T &result)
 	return error(result.error().code(), result.error().message());
 }
 
-std::string callback_result_data(callback_result_entry &result)
+data_wrapper callback_result_data(callback_result_entry &result)
 {
-	return result.data().to_string();
+	return data_wrapper(result.data());
 }
 
 template <typename T>

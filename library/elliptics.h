@@ -1,16 +1,20 @@
 /*
- * 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
- * All rights reserved.
+ * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * This file is part of Elliptics.
+ * 
+ * Elliptics is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
+ * 
+ * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * GNU Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef __DNET_ELLIPTICS_H
@@ -39,7 +43,6 @@ typedef unsigned short u_short;
 
 #include "list.h"
 
-#undef offsetof
 #include "rbtree.h"
 
 #include "atomic.h"
@@ -769,6 +772,8 @@ int dnet_cmd_cache_lookup(struct dnet_net_state *st, struct dnet_cmd *cmd);
 int dnet_indexes_init(struct dnet_node *, struct dnet_config *);
 void dnet_indexes_cleanup(struct dnet_node *);
 int dnet_process_indexes(struct dnet_net_state *st, struct dnet_cmd *cmd, void *data);
+
+int dnet_ids_update(int update_local, const char *file, struct dnet_addr *cfg_addrs, char *remotes);
 
 int __attribute__((weak)) dnet_remove_local(struct dnet_node *n, struct dnet_id *id);
 int __attribute__((weak)) dnet_cas_local(struct dnet_node *n, struct dnet_id *id, void *csum, int csize);

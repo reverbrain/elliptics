@@ -1,3 +1,15 @@
+elliptics (2.24.14.21) unstable; urgency=low
+
+  * Added more debug info for cache requests.
+  * Fixed bulk_read request.
+  * Fixed bug on cache overflow.
+  * Client: fixed write_data by chunks.
+  * Python: got data_pointer inside python binding as elliptics.Data. Removed restrict of using bp::list - now you can use any iterable object for those purpose.
+  * Added example script and c++ code for iterating specified nodes or all nodes in specified groups
+  * Removed useless code.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 21 Oct 2013 22:09:19 +0400
+
 elliptics (2.24.14.20) unstable; urgency=low
 
   * Put man pages into packages

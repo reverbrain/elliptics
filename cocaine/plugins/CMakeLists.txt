@@ -7,14 +7,13 @@ INCLUDE_DIRECTORIES(../include)
 TARGET_LINK_LIBRARIES(elliptics-extensions ${ELLIPTICS_LIBRARIES} elliptics_cpp)
 
 SET_TARGET_PROPERTIES(elliptics-extensions PROPERTIES
-	PREFIX ""
-	SUFFIX ".cocaine-plugin"
-        COMPILE_FLAGS "-std=c++0x"
+        PREFIX ""
+        SUFFIX ".cocaine-plugin"
 )
 
 INSTALL(TARGETS elliptics-extensions
-	LIBRARY DESTINATION lib/cocaine
-	COMPONENT runtime)
+        LIBRARY DESTINATION lib/cocaine
+        COMPONENT runtime)
 INSTALL(
         DIRECTORY
         ../include/
