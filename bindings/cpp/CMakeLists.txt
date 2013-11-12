@@ -48,6 +48,7 @@ add_executable(dnet_cpp_indexes_test indexes-test.cpp)
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)
 
 install(TARGETS elliptics_cpp
+    EXPORT EllipticsTargets
     LIBRARY DESTINATION lib${LIB_SUFFIX}
     ARCHIVE DESTINATION lib${LIB_SUFFIX}
     BUNDLE DESTINATION library

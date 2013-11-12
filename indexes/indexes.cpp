@@ -50,19 +50,19 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		for (uint64_t i = 0; i < request->entries_count; ++i) {
 			const dnet_indexes_request_entry *request_entry = reinterpret_cast<const dnet_indexes_request_entry *>(data_start + data_offset);
 
-			index_entry entry;
+			raw_index_entry entry;
 			entry.index = request_entry->id;
-			entry.data = data_pointer::copy(request_entry->data, request_entry->size);
+			entry.data = raw_data_pointer::copy(request_entry->data, request_entry->size);
 
 			indexes.indexes.push_back(entry);
 
 			data_offset += sizeof(dnet_indexes_request_entry) + request_entry->size;
 		}
 
-		std::sort(indexes.indexes.begin(), indexes.indexes.end(), dnet_raw_id_less_than<>());
+		std::sort(indexes.indexes.begin(), indexes.indexes.end(), raw_dnet_raw_id_less_than<>());
 		indexes.shard_id = dnet_indexes_get_shard_id(state->n, reinterpret_cast<const dnet_raw_id*>(&cmd->id));
 		indexes.shard_count = state->n->indexes_shard_count;
-		if (!(flags & DNET_INDEXES_FLAGS_UPDATE_ONLY)) {
+		if (!(flags & (DNET_INDEXES_FLAGS_UPDATE_ONLY | DNET_INDEXES_FLAGS_REMOVE_ONLY))) {
 			msgpack::pack(buffer, indexes);
 		}
 	}
@@ -83,25 +83,25 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 	dnet_cmd cmd;
 	dnet_id request_id;
 	// indexes to update
-	dnet_indexes indexes;
+	raw_dnet_indexes indexes;
 
 	msgpack::sbuffer buffer;
 	// already updated indexes - they are read from storage and changed
-	dnet_indexes remote_indexes;
-	std::vector<index_entry> inserted_ids;
-	std::vector<index_entry> removed_ids;
+	raw_dnet_indexes remote_indexes;
+	std::vector<raw_index_entry> inserted_ids;
+	std::vector<raw_index_entry> removed_ids;
 	std::vector<dnet_indexes_reply_entry> result;
 
 	std::atomic_int requests_in_progress;
 	uint32_t flags;
 	std::mutex requests_order_guard;
 
-	static bool index_entry_less_than(const index_entry &first, const index_entry &second)
+	static bool index_entry_less_than(const raw_index_entry &first, const raw_index_entry &second)
 	{
 		return memcmp(first.index.id, second.index.id, DNET_ID_SIZE) < 0;
 	}
 
-	static bool index_entry_equal(const index_entry &first, const index_entry &second)
+	static bool index_entry_equal(const raw_index_entry &first, const raw_index_entry &second)
 	{
 		return memcmp(first.index.id, second.index.id, DNET_ID_SIZE) == 0;
 	}
@@ -118,21 +118,30 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 			indexes_unpack(state->n, id, data, &remote_indexes, "convert_object_indexes");
 		}
 
-		if (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) {
+		if (flags & (DNET_INDEXES_FLAGS_UPDATE_ONLY | DNET_INDEXES_FLAGS_REMOVE_ONLY)) {
 			// Merge both lists of object to one array,
 			// remove object from remote_indexes.indexes that exists in indexes.indexes
 			// and give it to the storage
 
-			dnet_indexes result;
+			raw_dnet_indexes result;
 			result.shard_count = indexes.shard_count;
 			result.shard_id = indexes.shard_id;
-			result.indexes.reserve(indexes.indexes.size() + remote_indexes.indexes.size());
-			result.indexes.insert(result.indexes.end(), indexes.indexes.begin(), indexes.indexes.end());
-			result.indexes.insert(result.indexes.end(), remote_indexes.indexes.begin(), remote_indexes.indexes.end());
 
-			std::inplace_merge(result.indexes.begin(), result.indexes.begin() + indexes.indexes.size(), result.indexes.end(), dnet_raw_id_less_than<skip_data>());
-			auto it = std::unique(result.indexes.begin(), result.indexes.end(), index_entry_equal);
-			result.indexes.erase(it, result.indexes.end());
+			if (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) {
+				result.indexes.reserve(indexes.indexes.size() + remote_indexes.indexes.size());
+				result.indexes.insert(result.indexes.end(), indexes.indexes.begin(), indexes.indexes.end());
+				result.indexes.insert(result.indexes.end(), remote_indexes.indexes.begin(), remote_indexes.indexes.end());
+
+				std::inplace_merge(result.indexes.begin(), result.indexes.begin() + indexes.indexes.size(),
+					result.indexes.end(), raw_dnet_raw_id_less_than<skip_data>());
+				auto it = std::unique(result.indexes.begin(), result.indexes.end(), index_entry_equal);
+				result.indexes.erase(it, result.indexes.end());
+			} else if (flags & DNET_INDEXES_FLAGS_REMOVE_ONLY) {
+				result.indexes.reserve(remote_indexes.indexes.size());
+				std::set_difference(remote_indexes.indexes.begin(), remote_indexes.indexes.end(),
+					indexes.indexes.begin(), indexes.indexes.end(),
+					std::back_inserter(result.indexes), raw_dnet_raw_id_less_than<skip_data>());
+			}
 
 			msgpack::pack(buffer, result);
 		}
@@ -188,21 +197,22 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 		convert_usecs = DIFF(start, convert_time);
 
-		if (flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) {
-			dnet_log(state->n, DNET_LOG_INFO, "%s: update only finished:, "
-					"convert-time: %ld usecs, err: %d\n",
-					dnet_dump_id(&request_id), convert_usecs, err);
+		if (flags & (DNET_INDEXES_FLAGS_UPDATE_ONLY | DNET_INDEXES_FLAGS_REMOVE_ONLY)) {
+			dnet_log(state->n, DNET_LOG_INFO, "%s: %s only finished:, convert-time: %ld usecs, err: %d\n",
+				dnet_dump_id(&request_id),
+				(flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) ? "update" : "remove",
+				convert_usecs, err);
 			return complete(0, finished);
 		}
 
 		// We "insert" items also to update their data
 		std::set_difference(indexes.indexes.begin(), indexes.indexes.end(),
 			remote_indexes.indexes.begin(), remote_indexes.indexes.end(),
-			std::back_inserter(inserted_ids), dnet_raw_id_less_than<>());
+			std::back_inserter(inserted_ids), raw_dnet_raw_id_less_than<>());
 		// Remove index entries which are not present in the new list of indexes
 		std::set_difference(remote_indexes.indexes.begin(), remote_indexes.indexes.end(),
 			indexes.indexes.begin(), indexes.indexes.end(),
-			std::back_inserter(removed_ids), dnet_raw_id_less_than<skip_data>());
+			std::back_inserter(removed_ids), raw_dnet_raw_id_less_than<skip_data>());
 
 		if (inserted_ids.empty() && removed_ids.empty()) {
 			return complete(0, finished);
@@ -220,7 +230,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		 */
 		dnet_raw_id tmp_entry_id;
 		for (size_t i = 0; i < inserted_ids.size(); ++i) {
-			const index_entry &entry = inserted_ids[i];
+			const auto &entry = inserted_ids[i];
 
 			dnet_indexes_transform_index_id(state->n, &entry.index, &tmp_entry_id, shard_id);
 
@@ -230,7 +240,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 			if (index_state) {
 				remote_inserted++;
-				int err = send_remote(new_sess, tmp_entry_id, entry.data, insert_data);
+				int err = send_remote(new_sess, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_INSERT);
 				if (err)
 					goto err_out_complete;
 			} else {
@@ -239,7 +249,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		}
 
 		for (size_t i = 0; i < removed_ids.size(); ++i) {
-			const index_entry &entry = removed_ids[i];
+			const auto &entry = removed_ids[i];
 
 			dnet_indexes_transform_index_id(state->n, &entry.index, &tmp_entry_id, shard_id);
 
@@ -249,7 +259,7 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 
 			if (index_state) {
 				remote_removed++;
-				int err = send_remote(new_sess, tmp_entry_id, entry.data, remove_data);
+				int err = send_remote(new_sess, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_REMOVE);
 				if (err)
 					goto err_out_complete;
 			} else {
@@ -266,11 +276,11 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		 * update_indexes_functor::request_id to/from given index
 		 */
 		for (size_t i = 0; i < local_inserted_ids.size(); ++i) {
-			const index_entry &entry = inserted_ids[local_inserted_ids[i]];
+			const auto &entry = inserted_ids[local_inserted_ids[i]];
 
 			dnet_indexes_transform_index_id(state->n, &entry.index, &tmp_entry_id, shard_id);
 
-			err = sess.update_index_internal(request_id, tmp_entry_id, entry.data, insert_data);
+			err = sess.update_index_internal(request_id, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_INSERT);
 
 			result_entry.status = err;
 			result_entry.id = tmp_entry_id;
@@ -282,11 +292,11 @@ struct update_indexes_functor : public std::enable_shared_from_this<update_index
 		gettimeofday(&insert_time, NULL);
 
 		for (size_t i = 0; i < local_removed_ids.size(); ++i) {
-			const index_entry &entry = removed_ids[local_removed_ids[i]];
+			const auto &entry = removed_ids[local_removed_ids[i]];
 
 			dnet_indexes_transform_index_id(state->n, &entry.index, &tmp_entry_id, shard_id);
 
-			err = sess.update_index_internal(request_id, tmp_entry_id, entry.data, remove_data);
+			err = sess.update_index_internal(request_id, tmp_entry_id, entry.data, DNET_INDEXES_FLAGS_INTERNAL_REMOVE);
 
 			result_entry.status = err;
 			result_entry.id = tmp_entry_id;
@@ -328,9 +338,9 @@ err_out_complete:
 		ptr functor;
 	};
 
-	int send_remote(dnet_session *sess, const dnet_raw_id &index, const data_pointer &data, update_index_action action)
+	int send_remote(dnet_session *sess, const dnet_raw_id &index, const raw_data_pointer &data, uint32_t action)
 	{
-		data_buffer buffer(sizeof(dnet_indexes_request) + sizeof(dnet_indexes_request_entry) + data.size());
+		data_buffer buffer(sizeof(dnet_indexes_request) + sizeof(dnet_indexes_request_entry) + data.size);
 
 		dnet_indexes_request request;
 		memset(&request, 0, sizeof(request));
@@ -346,13 +356,13 @@ err_out_complete:
 		memset(&entry, 0, sizeof(entry));
 
 		entry.id = index;
-		entry.size = data.size();
+		entry.size = data.size;
 		entry.flags = action;
 
 		buffer.write(entry);
 
-		if (!data.empty()) {
-			buffer.write(data.data<char>(), data.size());
+		if (data.size > 0) {
+			buffer.write(static_cast<const char *>(data.data), data.size);
 		}
 
 		data_pointer datap = std::move(buffer);
@@ -446,8 +456,8 @@ err_out_complete:
  * @index_data is what client provided
  * @data is what was downloaded from the storage
  */
-data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, dnet_indexes_request *request,
-	const data_pointer &index_data, const data_pointer &data, update_index_action action)
+data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, const dnet_indexes_request *request,
+	const data_pointer &index_data, const data_pointer &data, uint32_t action)
 {
 	elliptics_timer timer;
 
@@ -469,7 +479,7 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, dnet_indexes_
 
 	if (it != indexes.indexes.end() && it->index == request_index.index) {
 		// It's already there
-		if (action == insert_data) {
+		if (action == DNET_INDEXES_FLAGS_INTERNAL_INSERT) {
 			if (it->data == request_index.data) {
 				const int64_t timer_compare = timer.restart();
 				DNET_DUMP_ID_LEN(id_str, cmd_id, DNET_DUMP_NUM);
@@ -490,7 +500,7 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, dnet_indexes_
 		}
 	} else {
 		// Index is not created yet
-		if (action == insert_data) {
+		if (action == DNET_INDEXES_FLAGS_INTERNAL_INSERT) {
 			// Just insert it
 			indexes.indexes.insert(it, 1, request_index);
 		} else {
@@ -532,99 +542,137 @@ data_pointer convert_index_table(dnet_node *node, dnet_id *cmd_id, dnet_indexes_
 	return std::move(new_buffer);
 }
 
-int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
+int process_internal_indexes_entry(dnet_node *node, const dnet_indexes_request &request, dnet_indexes_request_entry &entry)
 {
 	elliptics_timer timer;
 
-	local_session sess(state->n);
+	local_session sess(node);
 
-	if (request->entries_count != 1) {
-		return -EINVAL;
-	}
+	dnet_id id;
+	memset(&id, 0, sizeof(id));
+	memcpy(id.id, entry.id.id, DNET_ID_SIZE);
 
-	dnet_indexes_request_entry &entry = request->entries[0];
 	const data_pointer entry_data = data_pointer::from_raw(entry.data, entry.size);
 
-	if (state->n->log->log_level >= DNET_LOG_DEBUG) {
+	if (node->log->log_level >= DNET_LOG_DEBUG) {
 		char index_buffer[DNET_DUMP_NUM * 2 + 1];
 		char object_buffer[DNET_DUMP_NUM * 2 + 1];
 
-		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: index: %s, object: %s\n",
+		dnet_log(node, DNET_LOG_DEBUG, "INDEXES_INTERNAL: index: %s, object: %s, flags: %u\n",
 			dnet_dump_id_len_raw(entry.id.id, DNET_DUMP_NUM, index_buffer),
-			dnet_dump_id_len_raw(request->id.id, DNET_DUMP_NUM, object_buffer));
+			dnet_dump_id_len_raw(request.id.id, DNET_DUMP_NUM, object_buffer),
+			request.flags);
 	}
 
-	update_index_action action;
-	if (entry.flags & insert_data) {
-		action = insert_data;
-	} else if (entry.flags & remove_data) {
-		action = remove_data;
-	} else {
-		dnet_log(state->n, DNET_LOG_ERROR, "INDEXES_INTERNAL: invalid flags: 0x%llx\n",
-			static_cast<unsigned long long>(entry.flags));
-		return -EINVAL;
+	uint32_t action = entry.flags & (DNET_INDEXES_FLAGS_INTERNAL_INSERT
+		| DNET_INDEXES_FLAGS_INTERNAL_REMOVE | DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL);
+
+	switch (action) {
+		case DNET_INDEXES_FLAGS_INTERNAL_INSERT:
+		case DNET_INDEXES_FLAGS_INTERNAL_REMOVE:
+			break;
+		case DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL: {
+			const int64_t timer_checks = timer.restart();
+			int err = sess.remove(id);
+			const int64_t timer_remove = timer.restart();
+
+			DNET_DUMP_ID_LEN(id_str, &id, DNET_DUMP_NUM);
+			typedef long long int lld;
+			dnet_log(node, DNET_LOG_INFO, "INDEXES_INTERNAL: id: %s, checks: %lld ms, remove: %lld ms\n",
+				 id_str, lld(timer_checks), lld(timer_remove));
+
+			return err;
+		}
+		default: {
+			dnet_log(node, DNET_LOG_ERROR, "INDEXES_INTERNAL: invalid flags: 0x%llx\n",
+				static_cast<unsigned long long>(entry.flags));
+			return -EINVAL;
+		}
 	}
 
 	const int64_t timer_checks = timer.restart();
 
 	int err = 0;
-	data_pointer data = sess.read(cmd->id, &err);
+	data_pointer data = sess.read(id, &err);
 	const int64_t timer_read = timer.restart();
 
-	data_pointer new_data = convert_index_table(state->n, &cmd->id, request, entry_data, data, action);
+	data_pointer new_data = convert_index_table(node, &id, &request, entry_data, data, action);
 	const int64_t timer_convert = timer.restart();
 
 	const bool data_equal = data == new_data;
 
 	const int64_t timer_compare = timer.restart();
 
-	int64_t timer_write = timer_compare;
+	int64_t timer_write = 0;
 
 	if (data_equal) {
-		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is the same\n");
+		dnet_log(node, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is the same\n");
 		err = 0;
 	} else {
-		dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is different\n");
-		err = sess.write(cmd->id, new_data);
+		dnet_log(node, DNET_LOG_DEBUG, "INDEXES_INTERNAL: data is different\n");
+		err = sess.write(id, new_data);
 		timer_write = timer.restart();
 	}
 
-	data_buffer buffer(sizeof(dnet_indexes_reply) + sizeof(dnet_indexes_reply_entry));
-
-	dnet_indexes_reply reply;
-	dnet_indexes_reply_entry reply_entry;
-	memset(&reply, 0, sizeof(reply));
-	memset(&reply_entry, 0, sizeof(reply_entry));
-
-	reply.entries_count = 1;
-
-	reply_entry.id = entry.id;
-	reply_entry.status = err;
-
-	buffer.write(reply);
-	buffer.write(reply_entry);
-
-	data_pointer reply_data = std::move(buffer);
-
-	if (!err) {
-		cmd->flags &= (DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
-	}
-
-	dnet_send_reply(state, cmd, reply_data.data(), reply_data.size(), err ? 1 : 0);
-
-	const int64_t timer_send = timer.restart();
-
-	DNET_DUMP_ID_LEN(id_str, &cmd->id, DNET_DUMP_NUM);
+	DNET_DUMP_ID_LEN(id_str, &id, DNET_DUMP_NUM);
 	typedef long long int lld;
-	dnet_log(state->n, DNET_LOG_INFO, "INDEXES_INTERNAL: id: %s, data size: %zu, new data size: %zu, checks: %lld ms,"
-		 "read: %lld ms, convert: %lld ms, write: %lld ms, send: %lld md\n",
+	dnet_log(node, DNET_LOG_INFO, "INDEXES_INTERNAL: id: %s, data size: %zu, new data size: %zu, checks: %lld ms, "
+		 "read: %lld ms, convert: %lld ms, compare: %lld ms, write: %lld ms\n",
 		 id_str, data.size(), new_data.size(), lld(timer_checks), lld(timer_read),
-		 lld(timer_convert), lld(timer_write), lld(timer_send));
+		 lld(timer_convert), lld(timer_compare), lld(timer_write));
 
 	return err;
 }
 
-int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
+int process_internal_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_request *request)
+{
+	if (request->entries_count == 0) {
+		return -EINVAL;
+	}
+
+	data_buffer buffer(sizeof(dnet_indexes_reply) + request->entries_count * sizeof(dnet_indexes_reply_entry));
+
+	dnet_indexes_reply reply;
+	memset(&reply, 0, sizeof(reply));
+
+	reply.entries_count = request->entries_count;
+
+	buffer.write(reply);
+
+	dnet_indexes_reply_entry reply_entry;
+	memset(&reply_entry, 0, sizeof(reply_entry));
+
+	int err = -1;
+
+	for (uint64_t i = 0; i < request->entries_count; ++i) {
+		dnet_indexes_request_entry &entry = request->entries[i];
+		int ret = process_internal_indexes_entry(state->n, *request, entry);
+
+		reply_entry.id = entry.id;
+		reply_entry.status = ret;
+
+		buffer.write(reply_entry);
+
+		if (!ret) {
+			err = 0;
+		} else if (err == -1) {
+			err = ret;
+		}
+	}
+
+	if (!err) {
+		data_pointer reply_data = std::move(buffer);
+
+		cmd->flags &= (DNET_FLAGS_NEED_ACK | DNET_FLAGS_MORE);
+
+		dnet_send_reply(state, cmd, reply_data.data(), reply_data.size(), 0);
+		return 0;
+	}
+
+	return err;
+}
+
+int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, const dnet_id &request_id, dnet_indexes_request *request, bool more)
 {
 	local_session sess(state->n);
 
@@ -634,18 +682,19 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 	dnet_log(state->n, DNET_LOG_DEBUG, "INDEXES_FIND: indexes count: %u, flags: %llu\n",
 		 (unsigned) request->entries_count, (unsigned long long) request->flags);
 
-	if (intersection && unite) {
-		return -ENOTSUP;
+	if ((intersection && unite) || !(intersection || unite)) {
+		return -EINVAL;
 	}
 
-	std::vector<find_indexes_result_entry> result;
+	std::vector<raw_find_indexes_result_entry> result;
+	std::vector<data_pointer> data_cache;
 
-	std::map<dnet_raw_id, size_t, dnet_raw_id_less_than<> > result_map;
+	std::map<dnet_raw_id, size_t, raw_dnet_raw_id_less_than<> > result_map;
 
-	dnet_indexes tmp;
+	raw_dnet_indexes tmp;
 
 	int err = -1;
-	dnet_id id = cmd->id;
+	dnet_id id = request_id;
 
 	size_t data_offset = 0;
 	char *data_start = reinterpret_cast<char *>(request->entries);
@@ -657,6 +706,7 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 
 		int ret = 0;
 		data_pointer data = sess.read(id, &ret);
+		data_cache.push_back(data);
 
 		if (ret) {
 			dnet_log(state->n, DNET_LOG_DEBUG, "%s: INDEXES_FIND, err: %d\n",
@@ -664,7 +714,7 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 		}
 
 		if (ret && unite) {
-			if (err != -1)
+			if (err == -1)
 				err = ret;
 			continue;
 		} else if (ret && intersection) {
@@ -677,7 +727,7 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 
 		if (unite) {
 			for (size_t j = 0; j < tmp.indexes.size(); ++j) {
-				const index_entry &entry = tmp.indexes[j];
+				const auto &entry = tmp.indexes[j];
 
 				auto it = result_map.find(entry.index);
 				if (it == result_map.end()) {
@@ -686,41 +736,42 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 					result.back().id = entry.index;
 				}
 
-				result[it->second].indexes.emplace_back(request_entry.id, entry.data);
+				raw_index_entry result_entry = { request_entry.id, entry.data };
+				result[it->second].indexes.push_back(result_entry);
 			}
 		} else if (intersection && i == 0) {
 			result.resize(tmp.indexes.size());
 			for (size_t j = 0; j < tmp.indexes.size(); ++j) {
-				find_indexes_result_entry &entry = result[j];
+				auto &entry = result[j];
 				entry.id = tmp.indexes[j].index;
-				entry.indexes.emplace_back(
-					request_entry.id,
-					tmp.indexes[j].data);
+				raw_index_entry result_entry = { request_entry.id, tmp.indexes[j].data };
+				entry.indexes.push_back(result_entry);
 			}
 		} else if (intersection) {
 			// Remove all objects from result, which are not presented for this index
 			auto it = std::set_intersection(result.begin(), result.end(),
 				tmp.indexes.begin(), tmp.indexes.end(),
 				result.begin(),
-				dnet_raw_id_less_than<skip_data>());
+				raw_dnet_raw_id_less_than<skip_data>());
 			result.resize(it - result.begin());
 
 			// Remove all objects from this index, which are not presented in result
 			std::set_intersection(tmp.indexes.begin(), tmp.indexes.end(),
 				result.begin(), result.end(),
 				tmp.indexes.begin(),
-				dnet_raw_id_less_than<skip_data>());
+				raw_dnet_raw_id_less_than<skip_data>());
 
 			// As lists contain othe same objects - it's possible to add index data by one cycle
 			auto jt = tmp.indexes.begin();
 			for (auto kt = result.begin(); kt != result.end(); ++kt, ++jt) {
-				kt->indexes.emplace_back(request_entry.id, jt->data);
+				raw_index_entry result_entry = { request_entry.id, jt->data };
+				kt->indexes.push_back(result_entry);
 			}
 		}
 	}
 
-//	if (err != 0)
-//		return err;
+	if (err != 0)
+		return err;
 
 	dnet_log(state->n, DNET_LOG_DEBUG, "%s: INDEXES_FIND: result of find: %zu objects\n",
 		dnet_dump_id(&id), result.size());
@@ -728,8 +779,17 @@ int process_find_indexes(dnet_net_state *state, dnet_cmd *cmd, dnet_indexes_requ
 	msgpack::sbuffer buffer;
 	msgpack::pack(&buffer, result);
 
-	cmd->flags &= ~DNET_FLAGS_NEED_ACK;
-	dnet_send_reply(state, cmd, buffer.data(), buffer.size(), 0);
+	if (!more) {
+		/*
+		 * Unset NEED_ACK flag if and only if it is the last reply.
+		 * We have to send positive reply in such case, also we don't want to send
+		 * useless acknowledge packet.
+		 */
+		cmd->flags &= ~DNET_FLAGS_NEED_ACK;
+	}
+	dnet_cmd cmd_copy = *cmd;
+	dnet_setup_id(&cmd_copy.id, cmd->id.group_id, request_id.id);
+	dnet_send_reply(state, &cmd_copy, buffer.data(), buffer.size(), more);
 
 	return err;
 }
@@ -752,6 +812,12 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 
 	switch (cmd->cmd) {
 		case DNET_CMD_INDEXES_UPDATE: {
+			// We are able only update, set or remove in one shot
+			if ((request->flags & DNET_INDEXES_FLAGS_UPDATE_ONLY) && (request->flags & DNET_INDEXES_FLAGS_REMOVE_ONLY)) {
+				err = -EINVAL;
+				break;
+			}
+
 			auto functor = std::make_shared<update_indexes_functor>(st, cmd, request);
 
 			bool finished = false;
@@ -772,9 +838,34 @@ int dnet_process_indexes(dnet_net_state *st, dnet_cmd *cmd, void *data)
 		case DNET_CMD_INDEXES_INTERNAL:
 			err = process_internal_indexes(st, cmd, request);
 			break;
-		case DNET_CMD_INDEXES_FIND:
-			err = process_find_indexes(st, cmd, request);
+		case DNET_CMD_INDEXES_FIND: {
+			bool first = true;
+
+			err = -1;
+
+			while (request) {
+				bool more = (request->flags & DNET_INDEXES_FLAGS_MORE);
+				int ret = process_find_indexes(st, cmd, first ? cmd->id : request->id, request, more);
+				first = false;
+
+				if (err == -1)
+					err = ret;
+				else if (!ret)
+					err = ret;
+
+				if (!more) {
+					break;
+				}
+
+				char *raw_data = reinterpret_cast<char *>(request + 1);
+				for (size_t i = 0; i < request->entries_count; ++i) {
+					auto entry = reinterpret_cast<dnet_indexes_request_entry *>(raw_data);
+					raw_data += sizeof(*entry) + entry->size;
+				}
+				request = reinterpret_cast<dnet_indexes_request *>(raw_data);
+			}
 			break;
+		}
 		default:
 			break;
 	}

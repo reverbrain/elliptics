@@ -22,6 +22,8 @@
 
 #include "sha512.h"
 
+#include <elliptics/core.h>
+
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>

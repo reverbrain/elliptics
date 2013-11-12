@@ -222,13 +222,42 @@ data_pointer local_session::lookup(const dnet_cmd &tmp_cmd, int *errp)
 	return data_pointer();
 }
 
-int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const data_pointer &data, update_index_action action)
+int local_session::remove(const dnet_id &id)
+{
+	dnet_cmd cmd;
+	memset(&cmd, 0, sizeof(cmd));
+
+	cmd.id = id;
+	cmd.cmd = DNET_CMD_DEL;
+	cmd.flags |= m_cflags;
+	cmd.size = sizeof(dnet_io_attr);
+
+	dnet_io_attr io;
+	memset(&io, 0, sizeof(io));
+	memcpy(io.id, id.id, DNET_ID_SIZE);
+	memcpy(io.parent, id.id, DNET_ID_SIZE);
+	io.flags |= m_ioflags;
+
+	int err = dnet_process_cmd_raw(m_state, &cmd, &io, 0);
+
+	clear_queue(&err);
+
+	return err;
+}
+
+int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const data_pointer &data, uint32_t action)
+{
+	raw_data_pointer tmp = { data.data(), data.size() };
+	return update_index_internal(id, index, tmp, action);
+}
+
+int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &index, const raw_data_pointer &data, uint32_t action)
 {
 	struct timeval start, end;
 
 	gettimeofday(&start, NULL);
 
-	data_buffer buffer(sizeof(dnet_indexes_request) + sizeof(dnet_indexes_request_entry) + data.size());
+	data_buffer buffer(sizeof(dnet_indexes_request) + sizeof(dnet_indexes_request_entry) + data.size);
 
 	dnet_indexes_request request;
 	dnet_indexes_request_entry entry;
@@ -241,12 +270,12 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 	buffer.write(request);
 
 	entry.id = index;
-	entry.size = data.size();
+	entry.size = data.size;
 	entry.flags |= action;
 
 	buffer.write(entry);
-	if (!data.empty()) {
-		buffer.write(data.data<char>(), data.size());
+	if (data.size > 0) {
+		buffer.write(static_cast<const char *>(data.data), data.size);
 	}
 
 	data_pointer datap = std::move(buffer);
@@ -272,7 +301,7 @@ int local_session::update_index_internal(const dnet_id &id, const dnet_raw_id &i
 
 		dnet_log(m_state->n, DNET_LOG_INFO, "%s: updating internal index: %s, data-size: %zd, action: %s, "
 				"time: %ld usecs\n",
-				dnet_dump_id(&id), index_str, data.size(), update_index_action_strings[action], diff);
+				dnet_dump_id(&id), index_str, data.size, update_index_action_strings[action], diff);
 	}
 
 	return err;

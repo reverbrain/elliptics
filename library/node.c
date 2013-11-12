@@ -659,7 +659,6 @@ void dnet_node_cleanup_common_resources(struct dnet_node *n)
 		list_del(&it->reconnect_entry);
 		free(it);
 	}
-	dnet_counter_destroy(n);
 	pthread_mutex_destroy(&n->reconnect_lock);
 
 	dnet_wait_put(n->wait);
@@ -672,6 +671,7 @@ void dnet_node_destroy(struct dnet_node *n)
 	dnet_log(n, DNET_LOG_DEBUG, "Destroying node.\n");
 
 	dnet_node_cleanup_common_resources(n);
+	dnet_counter_destroy(n);
 
 	free(n);
 }

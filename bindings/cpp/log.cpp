@@ -137,6 +137,9 @@ class file_logger_interface : public logger_interface {
 
 			if (m_stream) {
 				m_stream << str << usecs_and_id << msg;
+				size_t msg_len = strlen(msg);
+				if (msg[msg_len - 1] != '\n')
+					m_stream << '\n';
 				m_stream.flush();
 			} else {
 				std::cerr << str << usecs_and_id << ": could not write log in elliptics file logger" << std::endl;

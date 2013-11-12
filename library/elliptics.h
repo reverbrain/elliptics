@@ -168,6 +168,9 @@ struct dnet_net_state
 	struct dnet_idc		*idc;
 
 	struct dnet_stat_count	stat[__DNET_CMD_MAX];
+
+	/* Remote protocol version */
+	int version[4];
 };
 
 int dnet_socket_local_addr(int s, struct dnet_addr *addr);
@@ -875,7 +878,7 @@ static inline void dnet_version_decode(struct dnet_id *id, int version[4])
 		version[i] = dnet_bswap32(ids[i]);
 }
 
-static inline int dnet_version_compare(struct dnet_net_state *st, int *version)
+static inline int dnet_version_check(struct dnet_net_state *st, int *version)
 {
 	struct dnet_node *n = st->n;
 	int err = 0;

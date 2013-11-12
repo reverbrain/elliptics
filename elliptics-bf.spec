@@ -126,6 +126,7 @@ rm -rf %{buildroot}
 %{_includedir}/*
 %{_libdir}/libelliptics_client.so
 %{_libdir}/libelliptics_cpp.so
+%{_datadir}/elliptics/cmake/*
 %{python_sitelib}/elliptics/core.so
 
 

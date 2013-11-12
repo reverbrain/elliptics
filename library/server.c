@@ -319,14 +319,22 @@ void dnet_server_node_destroy(struct dnet_node *n)
 {
 	dnet_log(n, DNET_LOG_DEBUG, "Destroying server node.\n");
 
+	/*
+	 * Cache can be accessed from the io threads, so firstly stop them.
+	 * Cache uses backend to dump all ansynced data to the disk, so
+	 * backend must be destroyed the last.
+	 *
+	 * After all of them finish destroying the node, all it's counters and so on.
+	 */
+	dnet_node_cleanup_common_resources(n);
+
 	dnet_srw_cleanup(n);
 	dnet_cache_cleanup(n);
-
-	dnet_node_cleanup_common_resources(n);
 
 	if (n->cb && n->cb->backend_cleanup)
 		n->cb->backend_cleanup(n->cb->command_private);
 
+	dnet_counter_destroy(n);
 	dnet_locks_destroy(n);
 	dnet_local_addr_cleanup(n);
 	dnet_notify_exit(n);

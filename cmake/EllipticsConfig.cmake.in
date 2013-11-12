@@ -1,2 +1,7 @@
-set(Elliptics_INCLUDE_DIRS ${PREFIX}/include)
-set(Elliptics_LIBRARIES ${PREFIX}/lib/libelliptics_client.so.@ELLIPTICS_VERSION_ABI@)
+# - Config file for the Elliptics package
+# It defines the following variables
+#  ELLIPTICS_INCLUDE_DIRS - include directories for Elliptics
+#  ELLIPTICS_LIBRARIES    - libraries to link against
+
+set(ELLIPTICS_INCLUDE_DIRS @INSTALL_INCLUDE_DIR@)
+set(ELLIPTICS_LIBRARIES elliptics_cpp elliptics_client)

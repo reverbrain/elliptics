@@ -3,11 +3,7 @@
 
 #include "../library/elliptics.h"
 #include "../include/elliptics/session.hpp"
-
-enum update_index_action {
-	insert_data = 1,
-	remove_data = 2
-};
+#include "../bindings/cpp/session_indexes.hpp"
 
 class local_session
 {
@@ -25,8 +21,10 @@ class local_session
 		int write(const dnet_id &id, const char *data, size_t size);
 		int write(const dnet_id &id, const char *data, size_t size, uint64_t user_flags, const dnet_time &timestamp);
 		ioremap::elliptics::data_pointer lookup(const dnet_cmd &cmd, int *errp);
+		int remove(const dnet_id &id);
 
-		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::data_pointer &data, update_index_action action);
+		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::data_pointer &data, uint32_t action);
+		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::raw_data_pointer &data, uint32_t action);
 
 	private:
 		void clear_queue(int *errp = NULL);

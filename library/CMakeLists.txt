@@ -44,7 +44,14 @@ set_target_properties(elliptics_client PROPERTIES
 #target_link_libraries(elliptics_client ${ELLIPTICS_LIBRARIES})
 target_link_libraries(elliptics_client ${CMAKE_THREAD_LIBS_INIT})
 
-install(TARGETS elliptics elliptics_client
+install(TARGETS elliptics
+    LIBRARY DESTINATION lib${LIB_SUFFIX}
+    ARCHIVE DESTINATION lib${LIB_SUFFIX}
+    BUNDLE DESTINATION library
+    )
+
+install(TARGETS elliptics_client
+    EXPORT EllipticsTargets
     LIBRARY DESTINATION lib${LIB_SUFFIX}
     ARCHIVE DESTINATION lib${LIB_SUFFIX}
     BUNDLE DESTINATION library

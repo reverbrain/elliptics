@@ -708,9 +708,15 @@ class session
 		async_set_indexes_result update_indexes(const key &id, const std::vector<index_entry> &indexes);
 		async_set_indexes_result update_indexes(const key &id, const std::vector<std::string> &indexes,
 				const std::vector<data_pointer> &data);
+		async_set_indexes_result remove_indexes(const key &id, const std::vector<dnet_raw_id> &indexes);
+		async_set_indexes_result remove_indexes(const key &id, const std::vector<std::string> &indexes);
 		async_set_indexes_result update_indexes_internal(const key &id, const std::vector<index_entry> &indexes);
 		async_set_indexes_result update_indexes_internal(const key &id, const std::vector<std::string> &indexes,
 				const std::vector<data_pointer> &data);
+		async_set_indexes_result remove_indexes_internal(const key &id, const std::vector<dnet_raw_id> &indexes);
+		async_set_indexes_result remove_indexes_internal(const key &id, const std::vector<std::string> &indexes);
+		async_generic_result remove_index_internal(const dnet_raw_id &id);
+		async_generic_result remove_index_internal(const std::string &id);
 
 		async_find_indexes_result find_all_indexes(const std::vector<dnet_raw_id> &indexes);
 		async_find_indexes_result find_all_indexes(const std::vector<std::string> &indexes);
@@ -737,6 +743,7 @@ class session
 
 		async_exec_result request(dnet_id *id, const exec_context &context);
 		async_iterator_result iterator(const key &id, const data_pointer& request);
+		async_find_indexes_result find_indexes_internal(const std::vector<dnet_raw_id> &indexes, bool intersect);
 
 		void			mix_states(const key &id, std::vector<int> &groups);
 		void			mix_states(std::vector<int> &groups);

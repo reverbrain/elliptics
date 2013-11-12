@@ -342,7 +342,7 @@ static void configure_server_nodes()
 	config_data ioserv_config;
 
 	ioserv_config("log", "/dev/stderr")
-			("log_level", DNET_LOG_INFO)
+			("log_level", DNET_LOG_DEBUG)
 			("join", 1)
 			("flags", 4)
 			("group", DUMMY_VALUE)
@@ -463,6 +463,38 @@ static void test_indexes(session &sess)
 
 	BOOST_CHECK_EQUAL(all_result.size(), any_result.size());
 	BOOST_CHECK_EQUAL(all_result.size(), 1);
+	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), any_result[0].indexes.size());
+	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), indexes.size());
+}
+
+static void test_more_indexes(session &sess)
+{
+	std::vector<std::string> indexes;
+	for (size_t i = 0; i < 16; ++i) {
+		indexes.push_back("index-" + boost::lexical_cast<std::string>(i));
+	}
+
+	std::vector<data_pointer> data(indexes.size());
+
+	std::vector<std::string> keys;
+	for (size_t i = 0; i < 256; ++i) {
+		keys.push_back("key-" + boost::lexical_cast<std::string>(i));
+	}
+
+	for (auto it = keys.begin(); it != keys.end(); ++it) {
+		std::string key = *it;
+		ELLIPTICS_REQUIRE(clear_indexes_result, sess.set_indexes(key, std::vector<std::string>(), std::vector<data_pointer>()));
+		ELLIPTICS_REQUIRE(set_indexes_result, sess.set_indexes(key, indexes, data));
+	}
+
+	ELLIPTICS_REQUIRE(all_indexes_result, sess.find_all_indexes(indexes));
+	sync_find_indexes_result all_result = all_indexes_result.get();
+
+	ELLIPTICS_REQUIRE(any_indexes_result, sess.find_any_indexes(indexes));
+	sync_find_indexes_result any_result = any_indexes_result.get();
+
+	BOOST_CHECK_EQUAL(all_result.size(), any_result.size());
+	BOOST_CHECK_EQUAL(all_result.size(), 256);
 	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), any_result[0].indexes.size());
 	BOOST_CHECK_EQUAL(all_result[0].indexes.size(), indexes.size());
 }
@@ -1017,6 +1049,24 @@ static void test_indexes_update(session &sess)
 		"index_5"
 	};
 
+	std::vector<std::string> third_indexes = {
+		"index_4",
+		"index_5"
+	};
+
+	std::vector<std::string> fourth_indexes = {
+		"index_4"
+	};
+
+	std::vector<std::string> anti_fourth_indexes = {
+		"index_1",
+		"index_2",
+		"index_3",
+		"index_5"
+	};
+
+	std::string fifth_index = "index_5";
+
 	for (auto it = all_indexes.begin(); it != all_indexes.end(); ++it) {
 		key tmp_key(*it);
 		tmp_key.transform(sess);
@@ -1037,7 +1087,7 @@ static void test_indexes_update(session &sess)
 
 	data.assign(second_indexes.size(), second_data);
 
-	ELLIPTICS_REQUIRE(update_indexes_result, sess.update_indexes_internal(first_key, second_indexes, data));
+	ELLIPTICS_REQUIRE(update_indexes_result, sess.update_indexes(first_key, second_indexes, data));
 	ELLIPTICS_REQUIRE(second_find_result, sess.find_any_indexes(all_indexes));
 
 	sync_find_indexes_result second_sync_find_result = second_find_result.get();
@@ -1060,6 +1110,48 @@ static void test_indexes_update(session &sess)
 			BOOST_REQUIRE_EQUAL(entry.data.to_string(), second_data.to_string());
 		else
 			BOOST_REQUIRE_EQUAL(entry.data.to_string(), first_data.to_string());
+	}
+
+	ELLIPTICS_REQUIRE(remove_indexes_result, sess.remove_indexes(first_key, first_indexes));
+	ELLIPTICS_REQUIRE(third_find_result, sess.find_any_indexes(all_indexes));
+
+	sync_find_indexes_result third_sync_find_result = third_find_result.get();
+
+	BOOST_REQUIRE_EQUAL(third_sync_find_result.size(), 1);
+	BOOST_REQUIRE_EQUAL(third_sync_find_result[0].indexes.size(), 2);
+
+	for (auto it = third_sync_find_result[0].indexes.begin();
+		it != third_sync_find_result[0].indexes.end();
+		++it) {
+		const index_entry &entry = *it;
+
+		std::string id = mapper[entry.index];
+		auto first_it = std::find(first_indexes.begin(), first_indexes.end(), id);
+		auto third_it = std::find(third_indexes.begin(), third_indexes.end(), id);
+
+		BOOST_REQUIRE((first_it == first_indexes.end()) || (third_it != third_indexes.end()));
+		BOOST_REQUIRE_EQUAL(entry.data.to_string(), second_data.to_string());
+	}
+
+	ELLIPTICS_REQUIRE(remove_index_result, sess.remove_index_internal(fifth_index));
+	ELLIPTICS_REQUIRE(fourth_find_result, sess.find_any_indexes(all_indexes));
+
+	sync_find_indexes_result fourth_sync_find_result = fourth_find_result.get();
+
+	BOOST_REQUIRE_EQUAL(fourth_sync_find_result.size(), 1);
+	BOOST_REQUIRE_EQUAL(fourth_sync_find_result[0].indexes.size(), 1);
+
+	for (auto it = fourth_sync_find_result[0].indexes.begin();
+		it != fourth_sync_find_result[0].indexes.end();
+		++it) {
+		const index_entry &entry = *it;
+
+		std::string id = mapper[entry.index];
+		auto fourth_it = std::find(fourth_indexes.begin(), fourth_indexes.end(), id);
+		auto anti_fourth_it = std::find(anti_fourth_indexes.begin(), anti_fourth_indexes.end(), id);
+
+		BOOST_REQUIRE((fourth_it != first_indexes.end()) || (anti_fourth_it != anti_fourth_indexes.end()));
+		BOOST_REQUIRE_EQUAL(entry.data.to_string(), second_data.to_string());
 	}
 }
 
@@ -1121,6 +1213,7 @@ bool register_tests()
 	memset(&config, 0, sizeof(config));
 
 	logger log(NULL);
+//	file_logger log("/dev/stderr", 4);
 	node n(log);
 	n.add_remote("localhost", 1025);
 
@@ -1134,6 +1227,7 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_remove, create_session(n, {1, 2}, 0, 0), "new-id-real");
 	ELLIPTICS_TEST_CASE(test_recovery, create_session(n, {1, 2}, 0, 0), "recovery-id", "recovered-data");
 	ELLIPTICS_TEST_CASE(test_indexes, create_session(n, {1, 2}, 0, 0));
+	ELLIPTICS_TEST_CASE(test_more_indexes, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {99}, 0, 0), "non-existen-key", -ENXIO);
 	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
 	ELLIPTICS_TEST_CASE(test_cache_read, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY | DNET_IO_FLAGS_NOCSUM), 1000, 20);
