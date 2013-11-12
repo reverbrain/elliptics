@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.21
+Version:	2.24.14.22
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -131,6 +131,32 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Nov 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.22
+- net: copy all addresses into joining state
+- Cocaine: Don't link with eblob
+- CMake: Added EllipticsConfig.cmake
+- Client: Add valid logging to bulk callbacks
+- Indexes: Use enum for versions instead of raw ints
+- Cocaine: Fixed duplication of files' in find result
+- Server: Fixed segfault at exit
+- crypto: fixed undefined dnet_offsetof macros usage
+- Recovery: Added deep_merge recovery type. Updated docs for recovery.
+- Build: Fixed missing python wrapper around elliptics.core.
+- Indexes: Added comments to flags
+- Indexes: Comments for remove_index_callback
+- Indexes: Added session::remove_index_internal
+- Indexes: Added ability to remove objects from indexes
+- Indexes: Send bulk request only if server knows it
+- Use data_pointer::allocate in callback_p.h
+- Core: Add \n to end of message at logger
+- indexes: Added bulk-behavior to find_indexes
+- Python: Fixed get_address_ranges
+- Python: Fixed __init__.py
+- Python: provided python level log based on logging.
+- Cpp: Extended comments and notes about write_prepare, write_plain and write_commit.
+- Cpp: fixed write_data by chunks.
+- Relicense Elliptics under LGPL 
+
 * Mon Oct 21 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.21
 - Added more debug info for cache requests.
 - Fixed bulk_read request.
