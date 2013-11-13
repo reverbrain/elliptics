@@ -324,7 +324,7 @@ int main(int argc, char *argv[])
 		}
 
 		if (removef)
-			s.remove(create_id(id, removef));
+			s.remove(create_id(id, removef)).wait();
 
 		if (cmd) {
 			session exec_session = s.clone();
