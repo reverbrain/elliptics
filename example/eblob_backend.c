@@ -977,6 +977,8 @@ int eblob_backend_storage_stat(void *priv, struct dnet_stat *st)
 			return err;
 	}
 
+	st->node_files = eblob_total_elements(r->eblob);
+
 	return 0;
 }
 
@@ -1017,18 +1019,18 @@ static int dnet_blob_config_init(struct dnet_config_backend *b, struct dnet_conf
 		goto err_out_exit;
 	}
 
+	c->eblob = eblob_init(&c->data);
+	if (!c->eblob) {
+		err = -EINVAL;
+		goto err_out_last_read_lock_destroy;
+	}
+
 	memset(&st, 0, sizeof(struct dnet_stat));
 	err = eblob_backend_storage_stat(c, &st);
 	if (err)
 		goto err_out_last_read_lock_destroy;
 
 	c->vm_total = st.vm_total * st.vm_total * 1024 * 1024;
-
-	c->eblob = eblob_init(&c->data);
-	if (!c->eblob) {
-		err = -EINVAL;
-		goto err_out_last_read_lock_destroy;
-	}
 
 	cfg->cb = &b->cb;
 	cfg->storage_size = b->storage_size;

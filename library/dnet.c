@@ -462,6 +462,7 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 		as->count[DNET_CNTR_VM_FREE].count = st.vm_free;
 		as->count[DNET_CNTR_VM_CACHED].count = st.vm_cached;
 		as->count[DNET_CNTR_VM_BUFFERS].count = st.vm_buffers;
+		as->count[DNET_CNTR_NODE_FILES].count = st.node_files;
 	}
 
 	dnet_convert_addr_stat(as, as->num);
