@@ -874,7 +874,7 @@ class find_indexes_callback : public multigroup_callback<callback_result_entry>
 				auto &id = reinterpret_cast<dnet_raw_id&>(cmd->id);
 				index_requests_set.erase(index_id(id, 0));
 			}
-			return multigroup_callback::handle(error, state, cmd, func, priv);
+			return multigroup_callback<callback_result_entry>::handle(error, state, cmd, func, priv);
 		}
 
 		/*
@@ -1152,6 +1152,12 @@ class remove_index_callback
 			{
 			}
 
+			state_container(const state_container &other) = delete;
+			state_container(state_container &&other) = delete;
+
+			state_container &operator =(const state_container &other) = delete;
+			state_container &operator =(state_container &&other) = delete;
+
 			net_state_ptr cur;
 			data_buffer buffer;
 			size_t entries_count;
@@ -1184,7 +1190,7 @@ class remove_index_callback
 
 			entry.flags |= DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL;
 
-			std::vector<state_container> states(groups.size());
+			std::unique_ptr<state_container[]> states(new state_container[groups.size()]);
 
 			std::vector<int> single_group(1, 0);
 
