@@ -387,7 +387,7 @@ static void test_commit(session &s)
 	memcpy(&ctl.id, &raw, sizeof(struct dnet_id));
 
 	ctl.cflags = s.get_cflags();
-	ctl.data = data_pointer(data).data();
+	ctl.data = data.c_str();
 	ctl.io.flags = DNET_IO_FLAGS_COMMIT;
 	ctl.io.user_flags = 0;
 	ctl.io.offset = 0;
