@@ -567,7 +567,8 @@ struct dnet_stat
 	 * Per node IO statistics will live here.
 	 * Reserved for future use.
 	 */
-	uint64_t		reserved[32];
+	uint64_t		node_files;
+	uint64_t		reserved[31];
 };
 
 static inline void dnet_convert_stat(struct dnet_stat *st)
