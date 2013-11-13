@@ -36,15 +36,38 @@ class data_buffer
 		{
 		}
 
-		data_buffer(const char *buf, size_t len)
-			: m_data(0)
-			, m_size(len)
-			, m_capacity(len)
+		data_buffer(const char *buf, size_t len) :
+			m_data(0),
+			m_size(len),
+			m_capacity(len)
 		{
 			m_data = (char *)::malloc(len);
 			if (!m_data)
 				throw std::bad_alloc();
 			::memcpy(m_data, buf, len);
+		}
+
+		data_buffer(data_buffer &&other) :
+			m_data(other.m_data),
+			m_size(other.m_size),
+			m_capacity(other.m_capacity)
+		{
+			other.m_data = NULL;
+			other.m_size = 0;
+		}
+
+		~data_buffer()
+		{
+			::free(m_data);
+		}
+
+		data_buffer &operator =(data_buffer &&other)
+		{
+			std::swap(m_data, other.m_data);
+			std::swap(m_size, other.m_size);
+			std::swap(m_capacity, other.m_capacity);
+
+			return *this;
 		}
 
 		template<typename T>
@@ -72,14 +95,9 @@ class data_buffer
 			return m_size;
 		}
 
-		~data_buffer()
-		{
-			::free(m_data);
-		}
-
 	private:
-		data_buffer(const data_buffer &);
-		data_buffer &operator = (const data_buffer &);
+		data_buffer(const data_buffer &) = delete;
+		data_buffer &operator = (const data_buffer &) = delete;
 
 		void check(size_t len)
 		{
