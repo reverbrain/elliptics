@@ -1,5 +1,4 @@
 #include "service.hpp"
-#include <cocaine/messages.hpp>
 
 #define debug() if (1) {} else std::cerr
 //#define debug() std::cerr << __PRETTY_FUNCTION__ << ": " << __LINE__ << " "

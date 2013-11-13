@@ -5,7 +5,6 @@
 #include <cocaine/api/storage.hpp>
 #include <cocaine/api/service.hpp>
 #include <cocaine/dispatch.hpp>
-#include <cocaine/messages.hpp>
 #include <cocaine/rpc/slots/deferred.hpp>
 #include "storage.hpp"
 

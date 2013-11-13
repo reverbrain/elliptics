@@ -16,7 +16,6 @@
 #ifndef COCAINE_FRAMEWORK_SERVICE_ELLIPTICS_STORAGE_HPP
 #define COCAINE_FRAMEWORK_SERVICE_ELLIPTICS_STORAGE_HPP
 
-#include <cocaine/messages.hpp>
 #include <cocaine/framework/service.hpp>
 #include <cocaine/framework/services/storage.hpp>
 #include <cocaine/services/elliptics_storage.hpp>

@@ -18,8 +18,8 @@
 
 #include <cocaine/api/service.hpp>
 #include <cocaine/api/storage.hpp>
-#include <cocaine/messages.hpp>
 #include <cocaine/rpc/slots/deferred.hpp>
+#include <cocaine/services/storage.hpp>
 
 namespace cocaine { namespace io {
 
