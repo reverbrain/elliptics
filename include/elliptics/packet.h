@@ -2,17 +2,17 @@
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
  * This file is part of Elliptics.
- * 
+ *
  * Elliptics is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -88,14 +88,14 @@ enum dnet_counters {
 	DNET_CNTR_VM_FREE,			/* Free memory */
 	DNET_CNTR_VM_CACHED,			/* Used for cache */
 	DNET_CNTR_VM_BUFFERS,			/* Used for buffers */
-	DNET_CNTR_NODE_FILES,			/* # files in meta */
-	DNET_CNTR_NODE_LAST_MERGE,		/* Result of the last merge */
-	DNET_CNTR_NODE_CHECK_COPY,		/* Result of the last check copies */
-	DNET_CNTR_DBR_NOREC,			/* Kyoto Cabinet DB read error KCENOREC */
-	DNET_CNTR_DBR_SYSTEM,			/* Kyoto Cabinet DB read error KCESYSTEM */
-	DNET_CNTR_DBR_ERROR,			/* Kyoto Cabinet DB read error */
-	DNET_CNTR_DBW_SYSTEM,			/* Kyoto Cabinet DB write error KCESYSTEM */
-	DNET_CNTR_DBW_ERROR,			/* Kyoto Cabinet DB write error */
+	DNET_CNTR_NODE_FILES,			/* # Number of available objects in the backend */
+	DNET_CNTR_RESERVED1,			/* Reserved for future statistics */
+	DNET_CNTR_RESERVED2,			/* Reserved for future statistics */
+	DNET_CNTR_RESERVED3,			/* Reserved for future statistics */
+	DNET_CNTR_RESERVED4,			/* Reserved for future statistics */
+	DNET_CNTR_RESERVED5,			/* Reserved for future statistics */
+	DNET_CNTR_RESERVED6,			/* Reserved for future statistics */
+	DNET_CNTR_RESERVED7,			/* Reserved for future statistics */
 	DNET_CNTR_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown counters */
 	__DNET_CNTR_MAX,
 };
