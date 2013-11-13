@@ -1,3 +1,11 @@
+elliptics (2.24.14.23) unstable; urgency=low
+
+  * io_client: Call wait() to async_remove_result
+  * Stat: In eblob statistics used DNET_CNTR_NODE_FILES for number of available records in eblob.
+  * Client: Some fixes connected with move semantic
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Nov 2013 22:35:35 +0400
+
 elliptics (2.24.14.22) unstable; urgency=low
 
   * net: copy all addresses into joining state
