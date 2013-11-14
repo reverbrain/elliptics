@@ -42,7 +42,8 @@ public:
 	{}
 
 	void start() {
-		async_read();
+		//async_read();
+		async_write();
 	}
 
 	boost::asio::ip::tcp::socket &socket() {
@@ -50,13 +51,13 @@ public:
 	}
 
 private:
-	void async_read() {
+	/*void async_read() {
 		auto self(shared_from_this());
 		m_socket.async_read_some(boost::asio::buffer(m_buffer),
 		                         std::bind(&handler::handle_read, self,
 		                                   std::placeholders::_1,
 		                                   std::placeholders::_2));
-	}
+	}*/
 
 	void async_write(std::string data) {
 		auto self(shared_from_this());
@@ -67,7 +68,9 @@ private:
 		                                   std::placeholders::_2));
 	}
 
-	void handle_read(const boost::system::error_code &err, size_t bytes_transferred);
+	//void handle_read(const boost::system::error_code &err, size_t bytes_transferred);
+
+	void async_write();
 
 	void handle_write(const boost::system::error_code &, size_t) {
 		close();
@@ -82,6 +85,17 @@ private:
 	boost::asio::ip::tcp::socket	m_socket;
 	boost::array<char, 64>			m_buffer;
 	std::string						m_report;
+};
+
+struct cmd_stat {
+	std::atomic_uint_fast32_t	cache_successes;
+	std::atomic_uint_fast32_t	cache_failures;
+	std::atomic_uint_fast32_t	cache_internal_successes;
+	std::atomic_uint_fast32_t	cache_internal_failures;
+	std::atomic_uint_fast32_t	disk_successes;
+	std::atomic_uint_fast32_t	disk_failures;
+	std::atomic_uint_fast32_t	disk_internal_successes;
+	std::atomic_uint_fast32_t	disk_internal_failures;
 };
 
 class monitor {
@@ -105,8 +119,7 @@ public:
 	std::string report() const {
 		std::ostringstream out;
 		out << "{\n\t\"cache_memory\": " << m_cache_memory;
-		stat_report(m_cache_stat, "cache_stat", out);
-		stat_report(m_disk_stat, "disk_stat", out);
+		stat_report(out);
 		out << "\n}\n";
 		return std::move(out.str());
 	}
@@ -123,12 +136,38 @@ public:
 		m_cache_memory -= size;
 	}
 
-	void cache_stat(int cmd, const int err) {
-		m_cache_stat[cmd_index(cmd, err)]++;
+	void cache_stat(int cmd, const int trans, const int err) {
+		if (cmd >= __DNET_CMD_MAX || cmd <= 0)
+			cmd = DNET_CMD_UNKNOWN;
+
+		if (trans) {
+			if(!err)
+				m_cmd_stats[cmd].cache_successes++;
+			else
+				m_cmd_stats[cmd].cache_failures++;
+		} else {
+			if(!err)
+				m_cmd_stats[cmd].cache_internal_successes++;
+			else
+				m_cmd_stats[cmd].cache_internal_failures++;
+		}
 	}
 
-	void disk_stat(int cmd, const int err) {
-		m_disk_stat[cmd_index(cmd, err)]++;
+	void disk_stat(int cmd, const int trans, const int err) {
+		if (cmd >= __DNET_CMD_MAX || cmd <= 0)
+			cmd = DNET_CMD_UNKNOWN;
+
+		if (trans) {
+			if(!err)
+				m_cmd_stats[cmd].disk_successes++;
+			else
+				m_cmd_stats[cmd].disk_failures++;
+		} else {
+			if(!err)
+				m_cmd_stats[cmd].disk_internal_successes++;
+			else
+				m_cmd_stats[cmd].disk_internal_failures++;
+		}
 	}
 
 private:
@@ -167,22 +206,28 @@ private:
 		async_accept();
 	}
 
-	static void stat_report(const std::atomic_uint_fast32_t *stat, const char *stat_name, std::ostringstream &stream) {
-		stream << ",\n\t\"" << stat_name << "\": {";
+	void stat_report(std::ostringstream &stream) const {
+		stream << ",\n\t\"command_stat\": {";
 		for (int i = 1; i < __DNET_CMD_MAX; ++i) {
-			stream << "\n\t\t\"" << dnet_cmd_string(i)
-			<< "\": {\"successes\": " << stat[2 * i]
-			<< ", \"failures\": " << stat[2 * i + 1]
-			<< "}";
+			stream << "\n\t\t\"" << dnet_cmd_string(i) << "\": {"
+			<< "\n\t\t\t\"cache\": { \"successes\": " << m_cmd_stats[i].cache_successes
+			<< ", \"failures\": " << m_cmd_stats[i].cache_failures << " },"
+			<< "\n\t\t\t\"cache_internal\": { \"successes\": " << m_cmd_stats[i].cache_internal_successes
+			<< ", \"failures\": " << m_cmd_stats[i].cache_internal_failures << " },"
+			<< "\n\t\t\t\"disk\": { \"successes\": " << m_cmd_stats[i].disk_successes
+			<< ", \"failures\": " << m_cmd_stats[i].disk_failures << " },"
+			<< "\n\t\t\t\"disk_internal\": { \"successes\": " << m_cmd_stats[i].disk_internal_successes
+			<< ", \"failures\": " << m_cmd_stats[i].disk_internal_failures << " }"
+			<< "\n\t\t}";
 			if (i < __DNET_CMD_MAX - 1)
 				stream << ",";
 		}
 		stream << "\n\t}";
 	}
 
+
 	std::atomic_uint_fast32_t	m_cache_memory;
-	std::atomic_uint_fast32_t	m_cache_stat[__DNET_CMD_MAX * 2];
-	std::atomic_uint_fast32_t	m_disk_stat[__DNET_CMD_MAX * 2];
+	boost::array<cmd_stat, __DNET_CMD_MAX> m_cmd_stats;
 
 	dnet_node						*m_node;
 	std::thread						m_listen;
@@ -190,14 +235,18 @@ private:
 	boost::asio::ip::tcp::acceptor	m_acceptor;
 };
 
-void handler::handle_read(const boost::system::error_code &err, size_t bytes_transferred) {
+void handler::async_write() {
+	async_write(std::move(m_monitor.report()));
+}
+
+/*void handler::handle_read(const boost::system::error_code &err, size_t bytes_transferred) {
 	if (err || bytes_transferred < 1) {
 		close();
 		return;
 	}
 
 	async_write(std::move(m_monitor.report()));
-}
+}*/
 
 }} /* namespace ioremap::monitor */
 
@@ -238,12 +287,12 @@ void monitor_decrease_cache(void *monitor, const size_t size) {
 		static_cast<ioremap::monitor::monitor*>(monitor)->decrease_cache(size);
 }
 
-void monitor_cache_stat(void *monitor, const int cmd, const int err) {
+void monitor_cache_stat(void *monitor, const int cmd, const int trans, const int err) {
 	if (monitor)
-		static_cast<ioremap::monitor::monitor*>(monitor)->cache_stat(cmd, err);
+		static_cast<ioremap::monitor::monitor*>(monitor)->cache_stat(cmd, trans, err);
 }
 
-void monitor_disk_stat(void *monitor, const int cmd, const int err) {
+void monitor_disk_stat(void *monitor, const int cmd, const int trans, const int err) {
 	if (monitor)
-		static_cast<ioremap::monitor::monitor*>(monitor)->disk_stat(cmd, err);
+		static_cast<ioremap::monitor::monitor*>(monitor)->disk_stat(cmd, trans, err);
 }

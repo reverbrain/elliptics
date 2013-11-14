@@ -36,8 +36,8 @@ void dnet_monitor_exit(struct dnet_node *n);
 
 void monitor_increase_cache(void *monitor, const size_t size);
 void monitor_decrease_cache(void *monitor, const size_t size);
-void monitor_cache_stat(void *monitor, const int cmd, const int err);
-void monitor_disk_stat(void *monitor, const int cmd, const int err);
+void monitor_cache_stat(void *monitor, const int cmd, const int trans, const int err);
+void monitor_disk_stat(void *monitor, const int cmd, const int trans, const int err);
 
 #ifdef __cplusplus
 }

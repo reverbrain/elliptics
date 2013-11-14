@@ -1175,7 +1175,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
 
 				if (err != -ENOTSUP) {
-					monitor_cache_stat(n->monitor, cmd->cmd, err);
+					monitor_cache_stat(n->monitor, cmd->cmd, tid, err);
 					updated_monitor = 1;
 					break;
 				}
@@ -1194,7 +1194,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				err = dnet_cmd_cache_lookup(st, cmd);
 
 				if (err != -ENOTSUP) {
-					monitor_cache_stat(n->monitor, cmd->cmd, err);
+					monitor_cache_stat(n->monitor, cmd->cmd, tid, err);
 					updated_monitor = 1;
 					break;
 				}
@@ -1222,7 +1222,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	}
 
 	if (!updated_monitor)
-		monitor_disk_stat(n->monitor, cmd->cmd, err);
+		monitor_disk_stat(n->monitor, cmd->cmd, tid, err);
 
 	dnet_stat_inc(st->stat, cmd->cmd, err);
 	if (st->__join_state == DNET_JOIN)
