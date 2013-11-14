@@ -26,6 +26,7 @@
 #include <boost/intrusive/set.hpp>
 
 #include "../library/elliptics.h"
+#include "../library/monitor.h"
 #include "../indexes/local_session.h"
 
 #include "elliptics/packet.h"
@@ -330,6 +331,7 @@ class cache_t {
 					auto &raw = it->data()->data();
 
 					m_cache_size -= raw.size();
+					monitor_decrease_cache(m_node->monitor, raw.size());
 					m_lru.erase(m_lru.iterator_to(*it));
 
 					const size_t new_size = raw.size() + io->size;
@@ -344,6 +346,7 @@ class cache_t {
 
 					m_lru.push_back(*it);
 					m_cache_size += new_size;
+					monitor_increase_cache(m_node->monitor, new_size);
 
 					raw.insert(raw.end(), data, data + io->size);
 
@@ -418,6 +421,7 @@ class cache_t {
 
 			// Recalc used space, free enough space for new data, move object to the end of the queue
 			m_cache_size -= raw.size();
+			monitor_decrease_cache(m_node->monitor, raw.size());
 			m_lru.erase(m_lru.iterator_to(*it));
 
 			if (m_cache_size + new_size > m_max_cache_size) {
@@ -429,6 +433,7 @@ class cache_t {
 			m_lru.push_back(*it);
 			it->set_remove_from_cache(false);
 			m_cache_size += new_size;
+			monitor_increase_cache(m_node->monitor, new_size);
 
 			if (append) {
 				raw.data().insert(raw.data().end(), data, data + size);
@@ -611,6 +616,7 @@ class cache_t {
 			data_t *raw = new data_t(id, 0, data, size, remove_from_disk);
 
 			m_cache_size += size;
+			monitor_increase_cache(m_node->monitor, size);
 
 			m_lru.push_back(*raw);
 			return m_set.insert(*raw).first;
@@ -696,6 +702,7 @@ class cache_t {
 			}
 
 			m_cache_size -= obj->size();
+			monitor_decrease_cache(m_node->monitor, obj->size());
 
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: erased element: %lld ms\n", dnet_dump_id_str(obj->id().id), timer.restart());
 

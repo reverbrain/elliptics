@@ -2,17 +2,17 @@
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
  * This file is part of Elliptics.
- * 
+ *
  * Elliptics is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -36,6 +36,7 @@
 #include <unistd.h>
 
 #include "elliptics.h"
+#include "monitor.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
@@ -1055,6 +1056,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	struct tm io_tm;
 	struct timeval io_tv;
 	long diff;
+	int updated_monitor = 0;
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
 		dnet_oplock(n, &cmd->id);
@@ -1172,8 +1174,11 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if (!(io->flags & DNET_IO_FLAGS_NOCACHE)) {
 				err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
 
-				if (err != -ENOTSUP)
+				if (err != -ENOTSUP) {
+					monitor_cache_stat(n->monitor, cmd->cmd, err);
+					updated_monitor = 1;
 					break;
+				}
 			}
 
 			if ((io->flags & DNET_IO_FLAGS_COMPARE_AND_SWAP) && (cmd->cmd == DNET_CMD_WRITE)) {
@@ -1188,8 +1193,11 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			if (cmd->cmd == DNET_CMD_LOOKUP && !(cmd->flags & DNET_FLAGS_NOCACHE)) {
 				err = dnet_cmd_cache_lookup(st, cmd);
 
-				if (err != -ENOTSUP)
+				if (err != -ENOTSUP) {
+					monitor_cache_stat(n->monitor, cmd->cmd, err);
+					updated_monitor = 1;
 					break;
+				}
 			}
 
 			/* Remove DNET_FLAGS_NEED_ACK flags for WRITE command
@@ -1212,6 +1220,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			}
 			break;
 	}
+
+	if (!updated_monitor)
+		monitor_disk_stat(n->monitor, cmd->cmd, err);
 
 	dnet_stat_inc(st->stat, cmd->cmd, err);
 	if (st->__join_state == DNET_JOIN)

@@ -26,6 +26,11 @@ if(UNIX OR MINGW)
     set_target_properties(elliptics_ids PROPERTIES COMPILE_FLAGS "-fPIC")
 endif()
 
+add_library(elliptics_monitor STATIC monitor.cpp)
+if(UNIX OR MINGW)
+    set_target_properties(elliptics_monitor PROPERTIES COMPILE_FLAGS "-fPIC")
+endif()
+
 
 add_library(elliptics SHARED ${ELLIPTICS_SRCS})
 set_target_properties(elliptics PROPERTIES
@@ -33,7 +38,7 @@ set_target_properties(elliptics PROPERTIES
     SOVERSION ${ELLIPTICS_VERSION_ABI}
     LINKER_LANGUAGE CXX
 )
-target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} elliptics_cocaine elliptics_cache elliptics_indexes elliptics_ids)
+target_link_libraries(elliptics ${ELLIPTICS_LIBRARIES} elliptics_cocaine elliptics_cache elliptics_indexes elliptics_ids elliptics_monitor)
 
 
 add_library(elliptics_client SHARED ${ELLIPTICS_CLIENT_SRCS})
