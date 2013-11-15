@@ -1,3 +1,10 @@
+elliptics (2.24.14.24) unstable; urgency=low
+
+  * core: added route/address debug
+  * Python: Use ${PYTHON_EXECUTABLE} in cmake scripts
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Nov 2013 05:39:29 +0400
+
 elliptics (2.24.14.23) unstable; urgency=low
 
   * io_client: Call wait() to async_remove_result

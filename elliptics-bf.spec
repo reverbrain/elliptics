@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.23
+Version:	2.24.14.24
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -131,6 +131,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Fri Nov 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.24
+- core: added route/address debug
+- Python: Use ${PYTHON_EXECUTABLE} in cmake scripts
+
 * Wed Nov 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.23
 - io_client: Call wait() to async_remove_result
 - Stat: In eblob statistics used DNET_CNTR_NODE_FILES for number of available records in eblob.
