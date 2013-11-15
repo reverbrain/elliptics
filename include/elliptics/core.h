@@ -66,6 +66,11 @@
 #define DNET_DEFAULT_NOTIFY_HASH_SIZE	256
 
 /*
+ * Default wait timeout in seconds.
+ */
+#define DNET_DEFAULT_WAIT_TIMEOUT_SEC	5
+
+/*
  * Default check timeout in seconds.
  */
 #define DNET_DEFAULT_CHECK_TIMEOUT_SEC	60

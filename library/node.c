@@ -565,7 +565,7 @@ struct dnet_node *dnet_node_create(struct dnet_config *cfg)
 	dnet_log(n, DNET_LOG_INFO, "Elliptics starts\n");
 
 	if (!n->wait_ts.tv_sec) {
-		n->wait_ts.tv_sec = 5;
+		n->wait_ts.tv_sec = DNET_DEFAULT_WAIT_TIMEOUT_SEC;
 		dnet_log(n, DNET_LOG_NOTICE, "Using default wait timeout (%ld seconds).\n",
 				n->wait_ts.tv_sec);
 	}
