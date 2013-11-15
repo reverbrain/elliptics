@@ -309,7 +309,10 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 	struct dnet_node *n = st->n;
 	struct dnet_raw_id *ids;
 	char server_addr[128], rem_addr[128];
+	struct dnet_addr empty;
 	int i, err;
+
+	memset(&empty, 0, sizeof(empty));
 
 	dnet_server_convert_dnet_addr_raw(&st->addr, server_addr, sizeof(server_addr));
 	dnet_server_convert_dnet_addr_raw(&cnt->addrs[0], rem_addr, sizeof(rem_addr));
@@ -331,13 +334,24 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 		}
 	}
 
+	err = 0;
 	for (i = 0; i < cnt->addr_num; ++i) {
+		struct dnet_addr *ta = &cnt->addrs[i];
 		char tmp[128];
-		dnet_log(n, DNET_LOG_NOTICE, "%s: route reply: %s, ids-num: %d\n",
-				server_addr, dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], tmp, sizeof(tmp)), ids_num);
+
+		if (!memcmp(ta, &empty, ta->addr_len)) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: received zero address route reply: %s, ids-num: %d, aborting route update\n",
+					server_addr, dnet_server_convert_dnet_addr_raw(ta, tmp, sizeof(tmp)), ids_num);
+			err = -ENOTTY;
+		} else {
+			dnet_log(n, DNET_LOG_NOTICE, "%s: route reply: %s, ids-num: %d\n",
+					server_addr, dnet_server_convert_dnet_addr_raw(ta, tmp, sizeof(tmp)), ids_num);
+		}
 	}
 
-	err = dnet_add_received_state(st, cnt, group_id, ids, ids_num);
+	if (!err) {
+		err = dnet_add_received_state(st, cnt, group_id, ids, ids_num);
+	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: route reply: recv-addr-num: %d, local-addr-num: %d, idx: %d, err: %d\n",
 			server_addr, cnt->addr_num, n->addr_num, st->idx, err);
