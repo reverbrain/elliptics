@@ -122,6 +122,8 @@ static void dnet_send_idc_fill(struct dnet_net_state *st, struct dnet_addr_cmd *
 	struct dnet_node *n = st->n;
 	struct dnet_cmd *cmd = &acmd->cmd;
 	struct dnet_raw_id *sid;
+	char parsed_addr_str[128];
+	char state_addr_str[128];
 	int i;
 
 	acmd->cnt.addr_num = n->addr_num;
@@ -129,6 +131,13 @@ static void dnet_send_idc_fill(struct dnet_net_state *st, struct dnet_addr_cmd *
 		memcpy(acmd->cnt.addrs, n->addrs, n->addr_num * sizeof(struct dnet_addr));
 	else
 		memcpy(acmd->cnt.addrs, st->addrs, n->addr_num * sizeof(struct dnet_addr));
+
+	dnet_server_convert_dnet_addr_raw(&st->addr, state_addr_str, sizeof(state_addr_str));
+	for (i = 0; i < acmd->cnt.addr_num; ++i) {
+		dnet_log(n, DNET_LOG_NOTICE, "%s: filling route table: addr-to-be-sent: %s, st->addrs: %p\n", state_addr_str,
+			dnet_server_convert_dnet_addr_raw(&acmd->cnt.addrs[i], parsed_addr_str, sizeof(parsed_addr_str)),
+			st->addrs);
+	}
 
 	sid = (struct dnet_raw_id *)(acmd->cnt.addrs + n->addr_num);
 
