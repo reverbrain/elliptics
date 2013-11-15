@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.24
+Version:	2.24.14.25
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -131,6 +131,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Nov 16 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.25
+- core: forbid route table update with 0.0.0.0 addresses
+
 * Fri Nov 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.24
 - core: added route/address debug
 - Python: Use ${PYTHON_EXECUTABLE} in cmake scripts
