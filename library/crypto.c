@@ -1,5 +1,6 @@
 /*
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
+ * Copyright 2013+ Ruslan Nigmatullin <euroelessar@yandex.ru>
  *
  * This file is part of Elliptics.
  * 
@@ -62,6 +63,70 @@ static int dnet_local_digest_transform(void *priv __unused, struct dnet_session 
 	sha512_buffer(src, size, hash);
 #endif
 	dnet_transform_final(dst, hash, dsize, rs);
+	return 0;
+}
+
+int dnet_digest_transform(const void *src, uint64_t size, struct dnet_id *id)
+{
+	return dnet_digest_transform_raw(src, size, id->id, DNET_ID_SIZE);
+}
+
+int dnet_digest_transform_raw(const void *src, uint64_t size, void *csum, int csum_size)
+{
+	unsigned int id_size = csum_size;
+	return dnet_local_digest_transform(NULL, NULL, src, size, csum, &id_size, 0);
+}
+
+int dnet_digest_auth_transform(const void *src, uint64_t size, const void *key, uint64_t key_size, struct dnet_id *id)
+{
+	return dnet_digest_auth_transform_raw(src, size, key, key_size, id->id, DNET_ID_SIZE);
+}
+
+#define SHA512_BLOCK_SIZE 128
+
+int dnet_digest_auth_transform_raw(const void *src, uint64_t size, const void *key, uint64_t key_size, void *csum, int csum_size)
+{
+	/*
+	 * Calculate HMAC-SHA512 according to http://tools.ietf.org/html/rfc2104
+	 */
+	char hashed_message[DNET_ID_SIZE];
+	char hashed_key[SHA512_BLOCK_SIZE];
+	char ikeypad[SHA512_BLOCK_SIZE];
+	char okeypad[SHA512_BLOCK_SIZE];
+	char result[DNET_ID_SIZE];
+	size_t i;
+	unsigned int rs = csum_size;
+	struct sha512_ctx ctx;
+
+	if (key_size > SHA512_BLOCK_SIZE) {
+		dnet_digest_transform_raw(key, key_size, hashed_key, SHA512_BLOCK_SIZE);
+		key_size = DNET_ID_SIZE;
+	} else {
+		memcpy(hashed_key, key, key_size);
+	}
+	if (key_size < SHA512_BLOCK_SIZE) {
+		memset(hashed_key + key_size, 0, SHA512_BLOCK_SIZE - key_size);
+	}
+
+	for (i = 0; i < SHA512_BLOCK_SIZE; ++i) {
+		ikeypad[i] = hashed_key[i] ^ 0x36;
+		okeypad[i] = hashed_key[i] ^ 0x5c;
+	}
+
+	sha512_init_ctx(&ctx);
+	sha512_process_bytes(ikeypad, SHA512_BLOCK_SIZE, &ctx);
+	sha512_process_bytes(src, size, &ctx);
+	sha512_finish_ctx(&ctx, hashed_message);
+
+	sha512_init_ctx(&ctx);
+	sha512_process_bytes(okeypad, SHA512_BLOCK_SIZE, &ctx);
+	sha512_process_bytes(hashed_message, DNET_ID_SIZE, &ctx);
+	sha512_finish_ctx(&ctx, result);
+
+	/*
+	 * Write to csum most of csum_size bytes from result
+	 */
+	dnet_transform_final(csum, result, &rs, csum_size);
 	return 0;
 }
 
