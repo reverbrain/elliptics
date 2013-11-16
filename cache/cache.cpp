@@ -319,7 +319,7 @@ class cache_t {
 
 			// Optimization for append-only commands
 			if (!cache_only) {
-				if (append && (it == m_set.end() || it->only_append())) {
+                if (append && (it == m_set.end() || it->only_append())) {
 					if (it == m_set.end()) {
 						it = create_data(id, 0, 0, false);
 						it->set_only_append(true);
@@ -363,7 +363,7 @@ class cache_t {
 					int err = m_node->cb->command_handler(st, m_node->cb->command_private, cmd, io);
 					dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: second write result, cmd: %lld ms, err: %d", dnet_dump_id_str(id), timer.restart(), err);
 
-					it = populate_from_disk(guard, id, false, &err);
+                    it = populate_from_disk(guard, id, false, &err);
 
 					dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: read result, populate: %lld ms, err: %d", dnet_dump_id_str(id), timer.restart(), err);
 					cmd->flags &= ~DNET_FLAGS_NEED_ACK;
@@ -382,9 +382,10 @@ class cache_t {
 						return err;
 				}
 
-				// Create empty data for code simplifing
-				if (it == m_set.end())
-					it = create_data(id, 0, 0, remove_from_disk);
+                // Create empty data for code simplifyng
+                if (it == m_set.end()) {
+                    it = create_data(id, 0, 0, remove_from_disk);
+                }
 			} else {
 				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: exists\n", dnet_dump_id_str(id));
 			}
@@ -519,8 +520,8 @@ class cache_t {
 
 			iset_t::iterator it = m_set.find(id);
 			if (it != m_set.end()) {
-				// If cache_only is not set the data also should be remove from the disk
-				// If data is marked and cache_only is not set - data must be synced to the disk
+                // If cache_only is not set the data also should be remove from the disk
+                // If data is marked and cache_only is not set - data must be synced to the disk
 				remove_from_disk |= it->remove_from_disk();
 				if (it->synctime() && !cache_only) {
 					m_syncset.erase(m_syncset.iterator_to(*it));
