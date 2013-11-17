@@ -1,7 +1,9 @@
 # - Config file for the Elliptics package
 # It defines the following variables
 #  ELLIPTICS_INCLUDE_DIRS - include directories for Elliptics
+#  ELLIPTICS_LIBRARY_DIRS - library directories
 #  ELLIPTICS_LIBRARIES    - libraries to link against
 
 set(ELLIPTICS_INCLUDE_DIRS @INSTALL_INCLUDE_DIR@)
+set(ELLIPTICS_LIBRARY_DIRS @INSTALL_LIBRARY_DIR@)
 set(ELLIPTICS_LIBRARIES elliptics_cpp elliptics_client)
