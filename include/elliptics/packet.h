@@ -89,7 +89,7 @@ enum dnet_counters {
 	DNET_CNTR_VM_CACHED,			/* Used for cache */
 	DNET_CNTR_VM_BUFFERS,			/* Used for buffers */
 	DNET_CNTR_NODE_FILES,			/* # Number of available objects in the backend */
-	DNET_CNTR_RESERVED1,			/* Reserved for future statistics */
+	DNET_CNTR_NODE_FILES_REMOVED,		/* Number of removed objects, but yet not cleaned, like marked as removed in eblob backend */
 	DNET_CNTR_RESERVED2,			/* Reserved for future statistics */
 	DNET_CNTR_RESERVED3,			/* Reserved for future statistics */
 	DNET_CNTR_RESERVED4,			/* Reserved for future statistics */
@@ -568,7 +568,8 @@ struct dnet_stat
 	 * Reserved for future use.
 	 */
 	uint64_t		node_files;
-	uint64_t		reserved[31];
+	uint64_t		node_files_removed;
+	uint64_t		reserved[30];
 };
 
 static inline void dnet_convert_stat(struct dnet_stat *st)

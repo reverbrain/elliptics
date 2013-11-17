@@ -978,6 +978,7 @@ int eblob_backend_storage_stat(void *priv, struct dnet_stat *st)
 	}
 
 	st->node_files = eblob_total_elements(r->eblob);
+	st->node_files_removed = eblob_stat_get_summary(r->eblob, EBLOB_LST_RECORDS_REMOVED);
 
 	return 0;
 }
