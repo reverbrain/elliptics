@@ -439,6 +439,7 @@ void slru_cache_t::resize_page(size_t page_number, size_t reserve) {
 	size_t removed_size = 0;
 	size_t &cache_size = m_cache_pages_sizes[page_number];
 	size_t &max_cache_size = m_cache_pages_max_sizes[page_number];
+	size_t previous_page = previous_page_number(page_number);
 
 	for (auto it = m_cache_pages_lru[page_number].begin(); it != m_cache_pages_lru[page_number].end();) {
 		if (max_cache_size + removed_size > cache_size + reserve)
@@ -447,17 +448,32 @@ void slru_cache_t::resize_page(size_t page_number, size_t reserve) {
 		data_t *raw = &*it;
 		++it;
 
-		if (raw->synctime() || raw->remove_from_cache()) {
-			if (!raw->remove_from_cache()) {
-				raw->set_remove_from_cache(true);
+		// If page is not last move object to previous page
+		if (previous_page < m_cache_pages_number) {
+			size_t size = raw->data()->data().size();
+			m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*raw));
+			m_cache_pages_sizes[page_number] -= size;
 
-				m_syncset.erase(m_syncset.iterator_to(*raw));
-				raw->set_synctime(1);
-				m_syncset.insert(*raw);
+			if (m_cache_pages_sizes[previous_page] + size > m_cache_pages_max_sizes[previous_page]) {
+				resize_page(previous_page, size * 2);
 			}
-			removed_size += raw->size();
+
+			raw->set_cache_page_number(previous_page);
+			m_cache_pages_sizes[previous_page] += size;
+			m_cache_pages_lru[previous_page].push_back(*raw);
 		} else {
-			erase_element(raw);
+			if (raw->synctime() || raw->remove_from_cache()) {
+				if (!raw->remove_from_cache()) {
+					raw->set_remove_from_cache(true);
+
+					m_syncset.erase(m_syncset.iterator_to(*raw));
+					raw->set_synctime(1);
+					m_syncset.insert(*raw);
+				}
+				removed_size += raw->size();
+			} else {
+				erase_element(raw);
+			}
 		}
 	}
 }

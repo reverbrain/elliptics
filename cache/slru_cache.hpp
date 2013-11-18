@@ -44,6 +44,10 @@ private:
 		return page_number - 1;
 	}
 
+	size_t previous_page_number(size_t page_number) const {
+		return page_number + 1;
+	}
+
 	iset_t::iterator create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk);
 
 	iset_t::iterator populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err);
