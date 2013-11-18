@@ -20,8 +20,10 @@
 
 #include <sstream>
 #include <stdexcept>
+#include <limits>
 
 #include <boost/thread.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
 
 namespace ioremap { namespace elliptics {
 
@@ -77,10 +79,18 @@ int callback::handler(struct dnet_net_state *state, struct dnet_cmd *cmd, void *
 
 std::string callback::wait(int completed)
 {
+	return wait(completed, std::numeric_limits<int>::max());
+}
+
+std::string callback::wait(int completed, long timeout)
+{
 	boost::mutex::scoped_lock locker(m_data->lock);
 
-	while (m_data->complete != completed)
-		m_data->wait_cond.wait(locker);
+	boost::posix_time::seconds period(timeout);
+	while (m_data->complete != completed) {
+		if (!m_data->wait_cond.timed_wait(locker, period))
+			throw_error(-ETIMEDOUT, "timeout");
+	}
 
 	if (!check_states(m_data->statuses))
 		throw_error(-ENOENT, "failed to request");

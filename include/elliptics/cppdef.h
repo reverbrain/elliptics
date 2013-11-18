@@ -140,6 +140,7 @@ class callback
 		virtual bool check_states(const std::vector<int> &statuses) = 0;
 
 		std::string wait(int completed = 1);
+		std::string wait(int completed, long timeout);
 
 		void *data() const;
 
