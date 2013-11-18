@@ -90,7 +90,8 @@ make %{?_smp_mflags}
 %install
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
-cp -r build/lib/* %{buildroot}/%{python_sitelib}/
+cp -r build/lib/elliptics %{buildroot}/%{python_sitelib}/
+cp -r build/lib/elliptics_recovery %{buildroot}/%{python_sitelib}/
 rm -f %{buildroot}%{_libdir}/*.a
 rm -f %{buildroot}%{_libdir}/*.la
 
