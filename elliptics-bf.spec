@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.25
+Version:	2.24.14.26
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,15 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Nov 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.26
+- spec: depend on 0.21.26+ eblob for statistics
+- Build: Moved redifining of __python at the top of spec file for rhel < 6.
+- Build: Fixed build on RHEL5 and restored recovery and python bindings scripts in rpms.
+- stat: added DNET_CNTR_NODE_FILES_REMOVED counter. It is only filled in eblob backend.
+- cmake: export ELLIPTICS_LIBRARY_DIRS
+- License: Change license from GPL to LGPL
+- Core: Added public dnet_digest_*transform methods
+
 * Sat Nov 16 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.25
 - core: forbid route table update with 0.0.0.0 addresses
 
