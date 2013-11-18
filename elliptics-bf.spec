@@ -1,3 +1,9 @@
+%if %{defined rhel} && 0%{?rhel} < 6
+%define __python /usr/bin/python2.6
+%endif
+%{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
+%{!?python_sitearch: %global python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
+
 Summary:	Distributed hash table storage
 Name:		elliptics
 Version:	2.24.14.25
@@ -9,7 +15,7 @@ URL:		http://www.ioremap.net/projects/elliptics
 Source0:	%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-%if 0%{?rhel} < 6
+%if %{defined rhel} && 0%{?rhel} < 6
 BuildRequires:	python26-devel
 BuildRequires:	gcc44 gcc44-c++
 %else
@@ -31,12 +37,6 @@ Obsoletes: srw
 %description
 Elliptics network is a fault tolerant distributed hash table
 object storage.
-
-
-%if %{defined rhel} && 0%{?rhel} < 6
-%{!?python_sitelib: %global python_sitelib %(/usr/bin/python2.6 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
-%{!?python_sitearch: %global python_sitearch %(/usr/bin/python2.6 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
-%endif
 
 
 %package devel
@@ -76,7 +76,7 @@ Elliptics client library (C++/Python bindings), devel files
 %build
 export LDFLAGS="-Wl,-z,defs"
 export DESTDIR="%{buildroot}"
-%if 0%{?rhel} < 6
+%if %{defined rhel} && 0%{?rhel} < 6
 export PYTHON=/usr/bin/python26
 export CC=gcc44
 export CXX=g++44
