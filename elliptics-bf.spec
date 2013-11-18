@@ -1,6 +1,6 @@
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.20.6.10
+Version:	2.20.6.11
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -150,6 +150,9 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Nov 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.11
+- callback: added timed wait
+
 * Tue Jul 30 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.20.6.10
 - Added reconnection logic debug
 - Fixed invalid error for read in case if there is no state
