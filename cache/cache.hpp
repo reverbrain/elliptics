@@ -5,8 +5,8 @@
 #include <mutex>
 #include <thread>
 #include <cstdio>
+#include <unordered_map>
 
-#include <boost/unordered_map.hpp>
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/set.hpp>
 
@@ -19,234 +19,247 @@
 namespace ioremap { namespace cache {
 
 class raw_data_t {
-    public:
-        raw_data_t(const char *data, size_t size) {
-            m_data.reserve(size);
-            m_data.insert(m_data.begin(), data, data + size);
-        }
+public:
+	raw_data_t(const char *data, size_t size) {
+		m_data.reserve(size);
+		m_data.insert(m_data.begin(), data, data + size);
+	}
 
-        std::vector<char> &data(void) {
-            return m_data;
-        }
+	std::vector<char> &data(void) {
+		return m_data;
+	}
 
-        size_t size(void) {
-            return m_data.size();
-        }
+	size_t size(void) {
+		return m_data.size();
+	}
 
-    private:
-        std::vector<char> m_data;
+private:
+	std::vector<char> m_data;
 };
 
 struct data_lru_tag_t;
 typedef boost::intrusive::list_base_hook<boost::intrusive::tag<data_lru_tag_t>,
-                     boost::intrusive::link_mode<boost::intrusive::safe_link>
-                    > lru_list_base_hook_t;
+boost::intrusive::link_mode<boost::intrusive::safe_link>
+> lru_list_base_hook_t;
+
 struct data_set_tag_t;
 typedef boost::intrusive::set_base_hook<boost::intrusive::tag<data_set_tag_t>,
-                     boost::intrusive::link_mode<boost::intrusive::safe_link>
-                    > set_base_hook_t;
+boost::intrusive::link_mode<boost::intrusive::safe_link>
+> set_base_hook_t;
 
 struct time_set_tag_t;
 typedef boost::intrusive::set_base_hook<boost::intrusive::tag<time_set_tag_t>,
-                     boost::intrusive::link_mode<boost::intrusive::safe_link>
-                    > time_set_base_hook_t;
+boost::intrusive::link_mode<boost::intrusive::safe_link>
+> time_set_base_hook_t;
 
 struct sync_set_tag_t;
 typedef boost::intrusive::set_base_hook<boost::intrusive::tag<sync_set_tag_t>,
-                     boost::intrusive::link_mode<boost::intrusive::safe_link>
-                    > sync_set_base_hook_t;
+boost::intrusive::link_mode<boost::intrusive::safe_link>
+> sync_set_base_hook_t;
 
 class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_set_base_hook_t, public sync_set_base_hook_t {
-    public:
-        data_t(const unsigned char *id) {
-            memcpy(m_id.id, id, DNET_ID_SIZE);
-        }
+public:
+	data_t(const unsigned char *id) {
+		memcpy(m_id.id, id, DNET_ID_SIZE);
+	}
 
-        data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
-            m_lifetime(0), m_synctime(0), m_user_flags(0),
-            m_remove_from_disk(remove_from_disk), m_remove_from_cache(false), m_only_append(false) {
-            memcpy(m_id.id, id, DNET_ID_SIZE);
-            dnet_empty_time(&m_timestamp);
+	data_t(const unsigned char *id, size_t lifetime, const char *data, size_t size, bool remove_from_disk) :
+		m_lifetime(0), m_synctime(0), m_user_flags(0),
+		m_remove_from_disk(remove_from_disk), m_remove_from_cache(false), m_only_append(false) {
+		memcpy(m_id.id, id, DNET_ID_SIZE);
+		dnet_empty_time(&m_timestamp);
 
-            if (lifetime)
-                m_lifetime = lifetime + time(NULL);
+		if (lifetime)
+			m_lifetime = lifetime + time(NULL);
 
-            m_data.reset(new raw_data_t(data, size));
-        }
+		m_data.reset(new raw_data_t(data, size));
+	}
 
-        data_t(const data_t &other) = delete;
-        data_t &operator =(const data_t &other) = delete;
+	data_t(const data_t &other) = delete;
+	data_t &operator =(const data_t &other) = delete;
 
-        ~data_t() {
-        }
+	~data_t() {
+	}
 
-        const struct dnet_raw_id &id(void) const {
-            return m_id;
-        }
+	const struct dnet_raw_id &id(void) const {
+		return m_id;
+	}
 
-        std::shared_ptr<raw_data_t> data(void) const {
-            return m_data;
-        }
+	std::shared_ptr<raw_data_t> data(void) const {
+		return m_data;
+	}
 
-        size_t lifetime(void) const {
-            return m_lifetime;
-        }
+	size_t lifetime(void) const {
+		return m_lifetime;
+	}
 
-        void set_lifetime(size_t lifetime) {
-            m_lifetime = lifetime;
-        }
+	void set_lifetime(size_t lifetime) {
+		m_lifetime = lifetime;
+	}
 
-        size_t synctime() const {
-            return m_synctime;
-        }
+	size_t synctime() const {
+		return m_synctime;
+	}
 
-        void set_synctime(size_t synctime) {
-            m_synctime = synctime;
-        }
+	void set_synctime(size_t synctime) {
+		m_synctime = synctime;
+	}
 
-        void clear_synctime() {
-            m_synctime = 0;
-        }
+	size_t cache_page_number() const {
+		return m_cache_page_number;
+	}
 
-        const dnet_time &timestamp() const {
-            return m_timestamp;
-        }
+	void set_cache_page_number(size_t cache_page_number) {
+		m_cache_page_number = cache_page_number;
+	}
 
-        void set_timestamp(const dnet_time &timestamp) {
-            m_timestamp = timestamp;
-        }
+	void clear_synctime() {
+		m_synctime = 0;
+	}
 
-        uint64_t user_flags() const {
-            return m_user_flags;
-        }
+	const dnet_time &timestamp() const {
+		return m_timestamp;
+	}
 
-        void set_user_flags(uint64_t user_flags) {
-            m_user_flags = user_flags;
-        }
+	void set_timestamp(const dnet_time &timestamp) {
+		m_timestamp = timestamp;
+	}
 
-        bool remove_from_disk() const {
-            return m_remove_from_disk;
-        }
+	uint64_t user_flags() const {
+		return m_user_flags;
+	}
 
-        bool remove_from_cache() const {
-            return m_remove_from_cache;
-        }
+	void set_user_flags(uint64_t user_flags) {
+		m_user_flags = user_flags;
+	}
 
-        void set_remove_from_cache(bool remove_from_cache) {
-            m_remove_from_cache = remove_from_cache;
-        }
+	bool remove_from_disk() const {
+		return m_remove_from_disk;
+	}
 
-        bool only_append() const {
-            return m_only_append;
-        }
+	bool remove_from_cache() const {
+		return m_remove_from_cache;
+	}
 
-        void set_only_append(bool only_append) {
-            m_only_append = only_append;
-        }
+	void set_remove_from_cache(bool remove_from_cache) {
+		m_remove_from_cache = remove_from_cache;
+	}
 
-        size_t size(void) const {
-            return m_data->size();
-        }
+	bool only_append() const {
+		return m_only_append;
+	}
 
-        friend bool operator< (const data_t &a, const data_t &b) {
-            return dnet_id_cmp_str(a.id().id, b.id().id) < 0;
-        }
+	void set_only_append(bool only_append) {
+		m_only_append = only_append;
+	}
 
-        friend bool operator> (const data_t &a, const data_t &b) {
-            return dnet_id_cmp_str(a.id().id, b.id().id) > 0;
-        }
+	size_t size(void) const {
+		return m_data->size();
+		// + sizeof_data_t + sizeof raw_data_t + capacity
+	}
 
-        friend bool operator== (const data_t &a, const data_t &b) {
-            return dnet_id_cmp_str(a.id().id, b.id().id) == 0;
-        }
+	// capacity() return m_data.capacity
 
-    private:
-        size_t m_lifetime;
-        size_t m_synctime;
-        dnet_time m_timestamp;
-        uint64_t m_user_flags;
-        bool m_remove_from_disk;
-        bool m_remove_from_cache;
-        bool m_only_append;
-        struct dnet_raw_id m_id;
-        std::shared_ptr<raw_data_t> m_data;
+	friend bool operator< (const data_t &a, const data_t &b) {
+		return dnet_id_cmp_str(a.id().id, b.id().id) < 0;
+	}
+
+	friend bool operator> (const data_t &a, const data_t &b) {
+		return dnet_id_cmp_str(a.id().id, b.id().id) > 0;
+	}
+
+	friend bool operator== (const data_t &a, const data_t &b) {
+		return dnet_id_cmp_str(a.id().id, b.id().id) == 0;
+	}
+
+private:
+	size_t m_lifetime;
+	size_t m_synctime;
+	size_t m_cache_page_number;
+	dnet_time m_timestamp;
+	uint64_t m_user_flags;
+	bool m_remove_from_disk;
+	bool m_remove_from_cache;
+	bool m_only_append;
+	struct dnet_raw_id m_id;
+	std::shared_ptr<raw_data_t> m_data;
 };
 
 typedef boost::intrusive::list<data_t, boost::intrusive::base_hook<lru_list_base_hook_t> > lru_list_t;
 typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<set_base_hook_t>,
-                      boost::intrusive::compare<std::less<data_t> >
-                 > iset_t;
+boost::intrusive::compare<std::less<data_t> >
+> iset_t;
 
 struct lifetime_less {
-    bool operator() (const data_t &x, const data_t &y) const {
-        return x.lifetime() < y.lifetime()
-            || (x.lifetime() == y.lifetime() && ((&x) < (&y)));
-    }
+	bool operator() (const data_t &x, const data_t &y) const {
+		return x.lifetime() < y.lifetime()
+				|| (x.lifetime() == y.lifetime() && ((&x) < (&y)));
+	}
 };
 
 typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<time_set_base_hook_t>,
-                      boost::intrusive::compare<lifetime_less>
-                 > life_set_t;
+boost::intrusive::compare<lifetime_less>
+> life_set_t;
 
 struct synctime_less {
-    bool operator() (const data_t &x, const data_t &y) const {
-        return x.synctime() < y.synctime()
-            || (x.synctime() == y.synctime() && ((&x) < (&y)));
-    }
+	bool operator() (const data_t &x, const data_t &y) const {
+		return x.synctime() < y.synctime()
+				|| (x.synctime() == y.synctime() && ((&x) < (&y)));
+	}
 };
 
 typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<sync_set_base_hook_t>,
-                      boost::intrusive::compare<synctime_less>
-                 > sync_set_t;
+boost::intrusive::compare<synctime_less>
+> sync_set_t;
 
 template <typename T>
 class elliptics_unique_lock
 {
 public:
-    elliptics_unique_lock(T &mutex, dnet_node *node, const char *format, ...) __attribute__ ((format(printf, 4, 5)))
-        : m_node(node)
-    {
-        va_list args;
-        va_start(args, format);
+	elliptics_unique_lock(T &mutex, dnet_node *node, const char *format, ...) __attribute__ ((format(printf, 4, 5)))
+		: m_node(node)
+	{
+		va_list args;
+		va_start(args, format);
 
-        vsnprintf(m_name, sizeof(m_name), format, args);
+		vsnprintf(m_name, sizeof(m_name), format, args);
 
-        va_end(args);
+		va_end(args);
 
-        m_guard = std::move(std::unique_lock<T>(mutex));
-        dnet_log(m_node, DNET_LOG_DEBUG, "%s, lock: %lld ms\n", m_name, m_timer.elapsed());
-        m_timer.restart();
-    }
+		m_guard = std::move(std::unique_lock<T>(mutex));
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s, lock: %lld ms\n", m_name, m_timer.elapsed());
+		m_timer.restart();
+	}
 
-    ~elliptics_unique_lock()
-    {
-        if (owns_lock())
-            unlock();
-    }
+	~elliptics_unique_lock()
+	{
+		if (owns_lock())
+			unlock();
+	}
 
-    bool owns_lock() const
-    {
-        return m_guard.owns_lock();
-    }
+	bool owns_lock() const
+	{
+		return m_guard.owns_lock();
+	}
 
-    void lock()
-    {
-        m_guard.lock();
-        dnet_log(m_node, DNET_LOG_DEBUG, "%s, lock: %lld ms\n", m_name, m_timer.elapsed());
-        m_timer.restart();
-    }
+	void lock()
+	{
+		m_guard.lock();
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s, lock: %lld ms\n", m_name, m_timer.elapsed());
+		m_timer.restart();
+	}
 
-    void unlock()
-    {
-        dnet_log(m_node, DNET_LOG_DEBUG, "%s, unlock: %lld ms\n", m_name, m_timer.elapsed());
-        m_guard.unlock();
-    }
+	void unlock()
+	{
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s, unlock: %lld ms\n", m_name, m_timer.elapsed());
+		m_guard.unlock();
+	}
 
 private:
-    std::unique_lock<T> m_guard;
-    dnet_node *m_node;
-    char m_name[256];
-    elliptics_timer m_timer;
+	std::unique_lock<T> m_guard;
+	dnet_node *m_node;
+	char m_name[256];
+	elliptics_timer m_timer;
 };
 
 }}

@@ -14,8 +14,8 @@
  */
 
 #include "cache.hpp"
-#include "slru_cache.hpp"
 #include "lru_cache.hpp"
+#include "slru_cache.hpp"
 
 namespace ioremap { namespace cache {
 
