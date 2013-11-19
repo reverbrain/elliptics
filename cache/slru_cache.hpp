@@ -21,6 +21,8 @@ public:
 
 	int lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd);
 
+	cache_stats get_cache_stats() const;
+
 private:
 	bool m_need_exit;
 	struct dnet_node *m_node;
@@ -34,6 +36,7 @@ private:
 	life_set_t m_lifeset;
 	sync_set_t m_syncset;
 	std::thread m_lifecheck;
+	cache_stats m_cache_stats;
 
 	slru_cache_t(const slru_cache_t &) = delete;
 
@@ -48,11 +51,15 @@ private:
 		return page_number + 1;
 	}
 
+	void insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data, size_t size);
+
+	void remove_data_from_page(const unsigned char *id, size_t page_number, data_t *data);
+
 	iset_t::iterator create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk);
 
 	iset_t::iterator populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err);
 
-	void resize_page(size_t page_number, size_t reserve);
+	void resize_page(const unsigned char *id, size_t page_number, size_t reserve);
 
 	void erase_element(data_t *obj);
 

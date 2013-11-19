@@ -1,4 +1,4 @@
-#include "slru_cache.hpp"
+﻿#include "slru_cache.hpp"
 
 namespace ioremap { namespace cache {
 
@@ -18,11 +18,9 @@ slru_cache_t::~slru_cache_t() {
 	stop();
 	m_lifecheck.join();
 
-//	m_max_cache_size = 0; //sets max_size to 0 for erasing lru set
-//	resize(0);
 	for (size_t page_number = 0; page_number < m_cache_pages_number; ++page_number) {
 		m_cache_pages_max_sizes[page_number] = 0;
-		resize_page(page_number, 0);
+		resize_page(0, page_number, 0);
 	}
 
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "~cache_t: %p", this);
@@ -76,31 +74,15 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 			auto &raw = it->data()->data();
 			size_t page_number = it->cache_page_number();
 
-//			m_cache_size -= raw.size();
-			m_cache_pages_sizes[page_number] -= raw.size();
-//			m_lru.erase(m_lru.iterator_to(*it));
-			m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*it));
-
-			const size_t new_size = raw.size() + io->size;
+			remove_data_from_page(id, page_number, &*it);
 
 			// Moving item to hotter page
 			if (!new_page) {
 				page_number = next_page_number(page_number);
 			}
 
-			timer.restart();
-
-			if (m_cache_pages_sizes[page_number] + new_size > m_cache_pages_max_sizes[page_number]) {
-				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called\n", dnet_dump_id_str(id));
-				resize_page(page_number, new_size * 2);
-				dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished: %lld ms\n", dnet_dump_id_str(id), timer.restart());
-			}
-
-//			m_lru.push_back(*it);
-			it->set_cache_page_number(page_number);
-			m_cache_pages_lru[page_number].push_back(*it);
-//			m_cache_size += new_size;
-			m_cache_pages_sizes[page_number] += new_size;
+			const size_t new_size = raw.size() + io->size;
+			insert_data_into_page(id, page_number, &*it, new_size * 2);
 
 			raw.insert(raw.end(), data, data + io->size);
 
@@ -180,30 +162,17 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 
 	size_t page_number = it->cache_page_number();
 
-	// Recalc used space, free enough space for new data, move object to the end of the queue
-//	m_cache_size -= raw.size();
-	m_cache_pages_sizes[page_number] -= raw.size();
-//	m_lru.erase(m_lru.iterator_to(*it));
-	m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*it));
+	remove_data_from_page(id, page_number, &*it);
 
 	if (!new_page) {
 		page_number = next_page_number(page_number);
 	}
 
-	if (m_cache_pages_sizes[page_number] + new_size > m_cache_pages_max_sizes[page_number]) {
-		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called: %lld ms\n", dnet_dump_id_str(id), timer.restart());
-		resize_page(page_number, new_size * 2);
-		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished: %lld ms\n", dnet_dump_id_str(id), timer.restart());
-	}
-
-//	m_lru.push_back(*it);
-	it->set_cache_page_number(page_number);
-	m_cache_pages_lru[page_number].push_back(*it);
 	it->set_remove_from_cache(false);
-//	m_cache_size += new_size;
-	m_cache_pages_sizes[page_number] += new_size;
+	insert_data_into_page(id, page_number, &*it, new_size * 2);
 
 	if (append) {
+		// TODO: Recalculate m_cache_stats here
 		raw.data().insert(raw.data().end(), data, data + size);
 	} else {
 		raw.data().resize(new_size);
@@ -229,7 +198,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	it->set_timestamp(io->timestamp);
 	it->set_user_flags(io->user_flags);
 
-	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: finished write: %lld ,s\n", dnet_dump_id_str(id), timer.restart());
+	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: finished write: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 	cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 	return dnet_send_file_info_ts_without_fd(st, cmd, raw.data().data() + io->offset, io->size, &io->timestamp);
@@ -272,17 +241,14 @@ std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd
 
 		size_t page_number = it->cache_page_number();
 
-//		m_lru.erase(m_lru.iterator_to(*it));
-		m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*it));
 		it->set_remove_from_cache(false);
+		remove_data_from_page(id, page_number, &*it);
 
 		if (!new_page) {
 			page_number = next_page_number(page_number);
 		}
 
-//		m_lru.push_back(*it);
-		it->set_cache_page_number(page_number);
-		m_cache_pages_lru[page_number].push_back(*it);
+		insert_data_into_page(id, page_number, &*it, it->data()->data().size());
 
 		io->timestamp = it->timestamp();
 		io->user_flags = it->user_flags();
@@ -375,24 +341,45 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	return dnet_send_reply(st, cmd, data.data(), data.size(), 0);
 }
 
+cache_stats slru_cache_t::get_cache_stats() const
+{
+	return m_cache_stats;
+}
+
 // private:
+
+void slru_cache_t::insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data, size_t size)
+{
+	elliptics_timer timer;
+
+	// Recalc used space, free enough space for new data, move object to the end of the queue
+	if (m_cache_pages_sizes[page_number] + size > m_cache_pages_max_sizes[page_number]) {
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called: %lld ms\n", dnet_dump_id_str(id), timer.restart());
+		resize_page(id, page_number, size);
+		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished: %lld ms\n", dnet_dump_id_str(id), timer.restart());
+	}
+
+	data->set_cache_page_number(page_number);
+	m_cache_pages_lru[page_number].push_back(*data);
+	m_cache_pages_sizes[page_number] += size;
+}
+
+void slru_cache_t::remove_data_from_page(const unsigned char *id, size_t page_number, data_t *data)
+{
+	(void) id;
+	m_cache_pages_sizes[page_number] -= data->data()->size();
+	m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*data));
+}
 
 iset_t::iterator slru_cache_t::create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk) {
 	size_t last_page_number = m_cache_pages_number - 1;
-	if (m_cache_pages_sizes[last_page_number] + size > m_cache_pages_max_sizes[last_page_number]) {
-		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize called from create_data\n", dnet_dump_id_str(id));
-		resize_page(last_page_number, size);
-		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: resize finished from create_data\n", dnet_dump_id_str(id));
-	}
 
 	data_t *raw = new data_t(id, 0, data, size, remove_from_disk);
 
-//	m_cache_size += size;
-	m_cache_pages_sizes[last_page_number] += size;
+	insert_data_into_page(id, last_page_number, raw, size);
 
-//	m_lru.push_back(*raw);
-	raw->set_cache_page_number(last_page_number);
-	m_cache_pages_lru[last_page_number].push_back(*raw);
+	m_cache_stats.number_of_objects++;
+	m_cache_stats.size_of_objects += size;
 	return m_set.insert(*raw).first;
 }
 
@@ -435,7 +422,7 @@ iset_t::iterator slru_cache_t::populate_from_disk(elliptics_unique_lock<std::mut
 	return m_set.end();
 }
 
-void slru_cache_t::resize_page(size_t page_number, size_t reserve) {
+void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size_t reserve) {
 	size_t removed_size = 0;
 	size_t &cache_size = m_cache_pages_sizes[page_number];
 	size_t &max_cache_size = m_cache_pages_max_sizes[page_number];
@@ -450,22 +437,13 @@ void slru_cache_t::resize_page(size_t page_number, size_t reserve) {
 
 		// If page is not last move object to previous page
 		if (previous_page < m_cache_pages_number) {
-			size_t size = raw->data()->data().size();
-			m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*raw));
-			m_cache_pages_sizes[page_number] -= size;
-
-			if (m_cache_pages_sizes[previous_page] + size > m_cache_pages_max_sizes[previous_page]) {
-				resize_page(previous_page, size * 2);
-			}
-
-			raw->set_cache_page_number(previous_page);
-			m_cache_pages_sizes[previous_page] += size;
-			m_cache_pages_lru[previous_page].push_back(*raw);
+			size_t size = raw->data()->size();
+			remove_data_from_page(id, page_number, raw);
+			insert_data_into_page(id, previous_page, raw, size);
 		} else {
 			if (raw->synctime() || raw->remove_from_cache()) {
 				if (!raw->remove_from_cache()) {
 					raw->set_remove_from_cache(true);
-
 					m_syncset.erase(m_syncset.iterator_to(*raw));
 					raw->set_synctime(1);
 					m_syncset.insert(*raw);
@@ -497,6 +475,9 @@ void slru_cache_t::erase_element(data_t *obj) {
 
 //	m_cache_size -= obj->size();
 	m_cache_pages_sizes[page_number] -= obj->size();
+
+	m_cache_stats.number_of_objects--;
+	m_cache_stats.size_of_objects -= obj->size();
 
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: erased element: %lld ms\n", dnet_dump_id_str(obj->id().id), timer.restart());
 

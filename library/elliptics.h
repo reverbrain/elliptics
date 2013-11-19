@@ -451,8 +451,7 @@ void dnet_oplock(struct dnet_node *n, struct dnet_id *key);
 void dnet_opunlock(struct dnet_node *n, struct dnet_id *key);
 int dnet_optrylock(struct dnet_node *n, struct dnet_id *key);
 
-struct dnet_config_data
-{
+struct dnet_config_data {
 	struct dnet_log backend_logger;
 	char *logger_value;
 

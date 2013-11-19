@@ -23,9 +23,9 @@ class cache_manager {
 	public:
 		cache_manager(struct dnet_node *n, int num = 16) {
 			size_t max_size = (n->cache_size) / num;
-			std::vector<size_t> pages_max_sizes = {max_size / 2, max_size / 2};
-			for (int i  = 0; i < num; ++i) {
-//				m_caches.emplace_back(std::make_shared<lru_cache_t>(n, n->cache_size / num));
+			size_t cache_pages_number = 1;
+			std::vector<size_t> pages_max_sizes(cache_pages_number, max_size / cache_pages_number);
+			for (int i = 0; i < num; ++i) {
 				m_caches.emplace_back(std::make_shared<slru_cache_t>(n, pages_max_sizes));
 			}
 		}
@@ -71,6 +71,18 @@ class cache_manager {
 			return -ENOTSUP;
 		}
 
+		cache_stats get_cache_stats() const {
+			cache_stats stats;
+			for (size_t i = 0; i < m_caches.size(); ++i) {
+				const cache_stats &page_stats = m_caches[i]->get_cache_stats();
+				stats.number_of_objects += page_stats.number_of_objects;
+				stats.number_of_objects_marked_for_deletion += page_stats.number_of_objects_marked_for_deletion;
+				stats.size_of_objects_marked_for_deletion += page_stats.size_of_objects_marked_for_deletion;
+				stats.size_of_objects += page_stats.size_of_objects;
+			}
+			return stats;
+		}
+
 	private:
 		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
 
@@ -96,6 +108,9 @@ int dnet_cmd_cache_io(struct dnet_net_state *st, struct dnet_cmd *cmd, struct dn
 
 	cache_manager *cache = (cache_manager *)n->cache;
 	std::shared_ptr<raw_data_t> d;
+
+//	cache_stats stats = cache->get_cache_stats();
+//	dnet_log(n, DNET_LOG_INFO, "CACHE_INFO: objects: %zd\n", stats.number_of_objects);
 
 	try {
 		switch (cmd->cmd) {

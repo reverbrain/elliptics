@@ -154,11 +154,13 @@ public:
 	}
 
 	size_t size(void) const {
-		return m_data->size();
+		return capacity() + sizeof(*this);
 		// + sizeof_data_t + sizeof raw_data_t + capacity
 	}
 
-	// capacity() return m_data.capacity
+	size_t capacity(void) const {
+		return m_data->data().capacity();
+	}
 
 	friend bool operator< (const data_t &a, const data_t &b) {
 		return dnet_id_cmp_str(a.id().id, b.id().id) < 0;
@@ -263,5 +265,14 @@ private:
 };
 
 }}
+
+struct cache_stats {
+	cache_stats(): size_of_objects(0), number_of_objects(0), number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0) {}
+
+	size_t size_of_objects;
+	size_t number_of_objects;
+	size_t number_of_objects_marked_for_deletion;
+	size_t size_of_objects_marked_for_deletion;
+};
 
 #endif // CACHE_HPP
