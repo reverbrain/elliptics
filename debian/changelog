@@ -1,3 +1,11 @@
+elliptics (2.24.14.27) unstable; urgency=low
+
+  * debian: do not depend in runtime on source-version
+  * CMake: Include Targets file from Config.cmake
+  * Build: fixed copying python scriptcs on RHEL5/6
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Tue, 19 Nov 2013 23:56:38 +0400
+
 elliptics (2.24.14.26) unstable; urgency=low
 
   * spec: depend on 0.21.26+ eblob for statistics

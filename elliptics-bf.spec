@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.26
+Version:	2.24.14.27
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -135,6 +135,11 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Tue Nov 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.27
+- debian: do not depend in runtime on source-version
+- CMake: Include Targets file from Config.cmake
+- Build: fixed copying python scriptcs on RHEL5/6
+
 * Mon Nov 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.26
 - spec: depend on 0.21.26+ eblob for statistics
 - Build: Moved redifining of __python at the top of spec file for rhel < 6.
