@@ -13,7 +13,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  * 
- * You should have received a copy of the GNU General Public License
+ * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -122,6 +122,8 @@ static void dnet_send_idc_fill(struct dnet_net_state *st, struct dnet_addr_cmd *
 	struct dnet_node *n = st->n;
 	struct dnet_cmd *cmd = &acmd->cmd;
 	struct dnet_raw_id *sid;
+	char parsed_addr_str[128];
+	char state_addr_str[128];
 	int i;
 
 	acmd->cnt.addr_num = n->addr_num;
@@ -129,6 +131,13 @@ static void dnet_send_idc_fill(struct dnet_net_state *st, struct dnet_addr_cmd *
 		memcpy(acmd->cnt.addrs, n->addrs, n->addr_num * sizeof(struct dnet_addr));
 	else
 		memcpy(acmd->cnt.addrs, st->addrs, n->addr_num * sizeof(struct dnet_addr));
+
+	dnet_server_convert_dnet_addr_raw(&st->addr, state_addr_str, sizeof(state_addr_str));
+	for (i = 0; i < acmd->cnt.addr_num; ++i) {
+		dnet_log(n, DNET_LOG_NOTICE, "%s: filling route table: addr-to-be-sent: %s, st->addrs: %p\n", state_addr_str,
+			dnet_server_convert_dnet_addr_raw(&acmd->cnt.addrs[i], parsed_addr_str, sizeof(parsed_addr_str)),
+			st->addrs);
+	}
 
 	sid = (struct dnet_raw_id *)(acmd->cnt.addrs + n->addr_num);
 
@@ -204,11 +213,12 @@ static int dnet_cmd_reverse_lookup(struct dnet_net_state *st, struct dnet_cmd *c
 
 	dnet_version_decode(&cmd->id, version);
 	dnet_indexes_shard_count_decode(&cmd->id, &indexes_shard_count);
+	memcpy(st->version, version, sizeof(st->version));
 
 	dnet_version_encode(&cmd->id);
 	dnet_indexes_shard_count_encode(&cmd->id, n->indexes_shard_count);
 
-	err = dnet_version_compare(st, version);
+	err = dnet_version_check(st, version);
 	if (err)
 		goto err_out_exit;
 
@@ -461,6 +471,8 @@ static int dnet_cmd_stat_count_global(struct dnet_net_state *orig, struct dnet_c
 		as->count[DNET_CNTR_VM_FREE].count = st.vm_free;
 		as->count[DNET_CNTR_VM_CACHED].count = st.vm_cached;
 		as->count[DNET_CNTR_VM_BUFFERS].count = st.vm_buffers;
+		as->count[DNET_CNTR_NODE_FILES].count = st.node_files;
+		as->count[DNET_CNTR_NODE_FILES_REMOVED].count = st.node_files_removed;
 	}
 
 	dnet_convert_addr_stat(as, as->num);

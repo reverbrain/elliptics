@@ -41,13 +41,6 @@ include(CheckProcStats)
 include(CreateStdint)
 include(FixRpath)
 
-configure_file(cmake/EllipticsConfig.cmake.in
-                "${PROJECT_BINARY_DIR}/cmake/EllipticsConfig.cmake"
-                @ONLY)
-configure_file(cmake/EllipticsConfigVersion.cmake.in
-                "${PROJECT_BINARY_DIR}/cmake/EllipticsConfigVersion.cmake"
-                @ONLY)
-
 create_stdint(${CMAKE_CURRENT_SOURCE_DIR}/include/elliptics/typedefs.h)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 
@@ -144,6 +137,27 @@ install(FILES
         include/elliptics/module_backend.hpp
         DESTINATION include/elliptics/
         )
+
+set(INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
+set(INSTALL_LIBRARY_DIR "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}")
+
+export(TARGETS elliptics_client elliptics_cpp
+    FILE "${PROJECT_BINARY_DIR}/EllipticsTargets.cmake")
+
+export(PACKAGE Elliptics)
+
+configure_file(cmake/EllipticsConfig.cmake.in
+                "${PROJECT_BINARY_DIR}/cmake/EllipticsConfig.cmake"
+                @ONLY)
+configure_file(cmake/EllipticsConfigVersion.cmake.in
+                "${PROJECT_BINARY_DIR}/cmake/EllipticsConfigVersion.cmake"
+                @ONLY)
+
+install(FILES
+    "${PROJECT_BINARY_DIR}/cmake/EllipticsConfig.cmake"
+    "${PROJECT_BINARY_DIR}/cmake/EllipticsConfigVersion.cmake"
+    DESTINATION share/elliptics/cmake)
+install(EXPORT EllipticsTargets DESTINATION share/elliptics/cmake)
 
 FILE(GLOB man_pages "man/*")
 install(FILES ${man_pages} DESTINATION share/man/man1)

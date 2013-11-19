@@ -2,18 +2,18 @@
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
  * This file is part of Elliptics.
- * 
+ *
  * Elliptics is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
+ *
+ * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -88,14 +88,14 @@ enum dnet_counters {
 	DNET_CNTR_VM_FREE,			/* Free memory */
 	DNET_CNTR_VM_CACHED,			/* Used for cache */
 	DNET_CNTR_VM_BUFFERS,			/* Used for buffers */
-	DNET_CNTR_NODE_FILES,			/* # files in meta */
-	DNET_CNTR_NODE_LAST_MERGE,		/* Result of the last merge */
-	DNET_CNTR_NODE_CHECK_COPY,		/* Result of the last check copies */
-	DNET_CNTR_DBR_NOREC,			/* Kyoto Cabinet DB read error KCENOREC */
-	DNET_CNTR_DBR_SYSTEM,			/* Kyoto Cabinet DB read error KCESYSTEM */
-	DNET_CNTR_DBR_ERROR,			/* Kyoto Cabinet DB read error */
-	DNET_CNTR_DBW_SYSTEM,			/* Kyoto Cabinet DB write error KCESYSTEM */
-	DNET_CNTR_DBW_ERROR,			/* Kyoto Cabinet DB write error */
+	DNET_CNTR_NODE_FILES,			/* # Number of available objects in the backend */
+	DNET_CNTR_NODE_FILES_REMOVED,		/* Number of removed objects, but yet not cleaned, like marked as removed in eblob backend */
+	DNET_CNTR_RESERVED2,			/* Reserved for future statistics */
+	DNET_CNTR_RESERVED3,			/* Reserved for future statistics */
+	DNET_CNTR_RESERVED4,			/* Reserved for future statistics */
+	DNET_CNTR_RESERVED5,			/* Reserved for future statistics */
+	DNET_CNTR_RESERVED6,			/* Reserved for future statistics */
+	DNET_CNTR_RESERVED7,			/* Reserved for future statistics */
 	DNET_CNTR_UNKNOWN,			/* This slot is allocated for statistics gathered for unknown counters */
 	__DNET_CNTR_MAX,
 };
@@ -149,7 +149,7 @@ static inline void dnet_convert_raw_id(struct dnet_raw_id *id __attribute__ ((un
 {
 }
 
-static inline void dnet_setup_id(struct dnet_id *id, unsigned int group_id, unsigned char *raw)
+static inline void dnet_setup_id(struct dnet_id *id, unsigned int group_id, const unsigned char *raw)
 {
 	memcpy(id->id, raw, DNET_ID_SIZE);
 	id->group_id = group_id;
@@ -343,9 +343,80 @@ static inline void dnet_convert_list(struct dnet_list *l)
  */
 #define DNET_IO_FLAGS_WRITE_NO_FILE_INFO	(1<<14)
 
+/*
+ * DNET_INDEXES_FLAGS_INTERSECT
+ *
+ * Return only objects which have all of the indexes.
+ *
+ * This flag is for DNET_CMD_INDEXES_FIND request only.
+ */
 #define DNET_INDEXES_FLAGS_INTERSECT		(1<<0)
+
+/*
+ * DNET_INDEXES_FLAGS_UNITE
+ *
+ * Return all objects which have at least one of the indexes.
+ *
+ * This flag is for DNET_CMD_INDEXES_FIND request only.
+ */
 #define DNET_INDEXES_FLAGS_UNITE		(1<<1)
-#define DNET_INDEXES_FLAGS_UPDATE_ONLY	(1<<2)
+
+/*
+ * DNET_INDEXES_FLAGS_UPDATE_ONLY
+ *
+ * Not replace list of the indexes by new one. Add indexes which
+ * don't exist and add not present one.
+ *
+ * This flag is for DNET_CMD_INDEXES_UPDATE request only.
+ */
+#define DNET_INDEXES_FLAGS_UPDATE_ONLY		(1<<2)
+
+/*
+ * DNET_INDEXES_FLAGS_MORE
+ *
+ * Used for bulk find requests. If this flag is set this request is
+ * not the last. Next request is placed right after it in this cmd.
+ *
+ * This flag is for DNET_CMD_INDEXES_FIND request only.
+ */
+#define DNET_INDEXES_FLAGS_MORE			(1<<3)
+
+/*
+ * DNET_INDEXES_FLAGS_REMOVE_ONLY
+ *
+ * Remove all requested indexes from the object list.
+ *
+ * This flag is for DNET_CMD_INDEXES_UPDATE request only.
+ */
+#define DNET_INDEXES_FLAGS_REMOVE_ONLY		(1<<4)
+
+
+/*
+ * DNET_INDEXES_FLAGS_INTERNAL_INSERT
+ *
+ * Add object to the index's list.
+ *
+ * This flag is for DNET_CMD_INDEXES_INTERNAL request only.
+ */
+#define DNET_INDEXES_FLAGS_INTERNAL_INSERT	(1<<0)
+
+/*
+ * DNET_INDEXES_FLAGS_INTERNAL_REMOVE
+ *
+ * Remove object from the index's list.
+ *
+ * This flag is for DNET_CMD_INDEXES_INTERNAL request only.
+ */
+#define DNET_INDEXES_FLAGS_INTERNAL_REMOVE	(1<<1)
+
+/*
+ * DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL
+ *
+ * Remove index from the storage.
+ *
+ * This flag is for DNET_CMD_INDEXES_INTERNAL request only.
+ */
+#define DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL	(1<<2)
 
 
 struct dnet_time {
@@ -496,7 +567,9 @@ struct dnet_stat
 	 * Per node IO statistics will live here.
 	 * Reserved for future use.
 	 */
-	uint64_t		reserved[32];
+	uint64_t		node_files;
+	uint64_t		node_files_removed;
+	uint64_t		reserved[30];
 };
 
 static inline void dnet_convert_stat(struct dnet_stat *st)

@@ -13,7 +13,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  * 
- * You should have received a copy of the GNU General Public License
+ * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -1074,6 +1074,10 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 			goto err_out_send_destroy;
 
 		if ((st->__join_state == DNET_JOIN) && (process != dnet_state_accept_process)) {
+			err = dnet_copy_addrs(st, n->addrs, n->addr_num);
+			if (err)
+				goto err_out_send_destroy;
+
 			pthread_mutex_lock(&n->state_lock);
 			err = dnet_state_join_nolock(st);
 			pthread_mutex_unlock(&n->state_lock);

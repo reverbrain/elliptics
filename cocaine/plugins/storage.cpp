@@ -1,22 +1,22 @@
 /*
-    Copyright (c) 2011-2012 Andrey Sibiryov <me@kobology.ru>
-    Copyright (c) 2011-2012 Other contributors as noted in the AUTHORS file.
-
-    This file is part of Cocaine.
-
-    Cocaine is free software; you can redistribute it and/or modify
-    it under the terms of the GNU Lesser General Public License as published by
-    the Free Software Foundation; either version 3 of the License, or
-    (at your option) any later version.
-
-    Cocaine is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-    GNU Lesser General Public License for more details.
-
-    You should have received a copy of the GNU Lesser General Public License
-    along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright 2013+ Ruslan Nigmatullin <euroelessar@yandex.ru>
+ * Copyright 2011-2012 Andrey Sibiryov <me@kobology.ru>
+ *
+ * This file is part of Elliptics.
+ *
+ * Elliptics is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Elliptics is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "storage.hpp"
 
@@ -427,8 +427,8 @@ std::vector<std::string> elliptics_storage_t::convert_list_result(const ioremap:
 	std::vector<std::string> promise_result;
 
 	for (auto it = result.begin(); it != result.end(); ++it) {
-		for (auto jt = it->indexes.begin(); jt != it->indexes.end(); ++jt) {
-			promise_result.push_back(jt->data.to_string());
+		if (!it->indexes.empty()) {
+			promise_result.push_back(it->indexes.front().data.to_string());
 		}
 	}
 

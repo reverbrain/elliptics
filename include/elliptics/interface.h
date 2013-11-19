@@ -13,7 +13,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  * 
- * You should have received a copy of the GNU General Public License
+ * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -652,6 +652,8 @@ int dnet_lookup_object(struct dnet_session *s, struct dnet_id *id,
 
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id);
 
+int dnet_version_compare(struct dnet_net_state *st, int *version);
+
 /*!
  * Compares two dnet_time structs
  * Returns
@@ -816,6 +818,28 @@ int dnet_transform(struct dnet_session *s, const void *src, uint64_t size, struc
 int __attribute__((weak)) dnet_transform_node(struct dnet_node *n, const void *src, uint64_t size,
 		unsigned char *csum, int csize);
 int dnet_transform_raw(struct dnet_session *s, const void *src, uint64_t size, char *csum, unsigned int csize);
+
+/*
+ * Transformation implementation, currently it's sha512 hash.
+ * It calculates checksum for @src of @size and writes it to @id.
+ */
+int dnet_digest_transform(const void *src, uint64_t size, struct dnet_id *id);
+/*
+ * @dnet_digest_transform overload.
+ * Writes most of @csum_size bytes to @csum.
+ */
+int dnet_digest_transform_raw(const void *src, uint64_t size, void *csum, int csum_size);
+
+/*
+ * Calculates message autherization code based on digest_transformation.
+ * Uses data from @src of @size and @key of size @key_size. Result is written to @id.
+ */
+int dnet_digest_auth_transform(const void *src, uint64_t size, const void *key, uint64_t key_size, struct dnet_id *id);
+/*
+ * @dnet_digest_auth_transform overload.
+ * Writes most of @csum_size bytes to @csum.
+ */
+int dnet_digest_auth_transform_raw(const void *src, uint64_t size, const void *key, uint64_t key_size, void *csum, int csum_size);
 
 /*
  * Transform object id to id where to store object's secondary indexes table

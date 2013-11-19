@@ -1,2 +1,14 @@
-set(Elliptics_INCLUDE_DIRS ${PREFIX}/include)
-set(Elliptics_LIBRARIES ${PREFIX}/lib/libelliptics_client.so.@ELLIPTICS_VERSION_ABI@)
+# - Config file for the Elliptics package
+# It defines the following variables
+#  ELLIPTICS_INCLUDE_DIRS - include directories for Elliptics
+#  ELLIPTICS_LIBRARY_DIRS - library directories
+#  ELLIPTICS_LIBRARIES    - libraries to link against
+
+get_filename_component(ELLIPTICS_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+
+if (NOT TARGET elliptics_cpp AND NOT TARGET elliptics_client)
+  include("${ELLIPTICS_CMAKE_DIR}/EllipticsTargets.cmake")
+endif()
+
+set(ELLIPTICS_INCLUDE_DIRS @INSTALL_INCLUDE_DIR@)
+set(ELLIPTICS_LIBRARIES elliptics_cpp elliptics_client)

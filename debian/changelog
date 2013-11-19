@@ -1,3 +1,65 @@
+elliptics (2.24.14.26) unstable; urgency=low
+
+  * spec: depend on 0.21.26+ eblob for statistics
+  * Build: Moved redifining of __python at the top of spec file for rhel < 6.
+  * Build: Fixed build on RHEL5 and restored recovery and python bindings scripts in rpms.
+  * stat: added DNET_CNTR_NODE_FILES_REMOVED counter. It is only filled in eblob backend.
+  * cmake: export ELLIPTICS_LIBRARY_DIRS
+  * License: Change license from GPL to LGPL
+  * Core: Added public dnet_digest_*transform methods
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 18 Nov 2013 18:44:22 +0400
+
+elliptics (2.24.14.25) unstable; urgency=low
+
+  * core: forbid route table update with 0.0.0.0 addresses
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 16 Nov 2013 02:16:24 +0400
+
+elliptics (2.24.14.24) unstable; urgency=low
+
+  * core: added route/address debug
+  * Python: Use ${PYTHON_EXECUTABLE} in cmake scripts
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Fri, 15 Nov 2013 05:39:29 +0400
+
+elliptics (2.24.14.23) unstable; urgency=low
+
+  * io_client: Call wait() to async_remove_result
+  * Stat: In eblob statistics used DNET_CNTR_NODE_FILES for number of available records in eblob.
+  * Client: Some fixes connected with move semantic
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Nov 2013 22:35:35 +0400
+
+elliptics (2.24.14.22) unstable; urgency=low
+
+  * net: copy all addresses into joining state
+  * Cocaine: Don't link with eblob
+  * CMake: Added EllipticsConfig.cmake
+  * Client: Add valid logging to bulk callbacks
+  * Indexes: Use enum for versions instead of raw ints
+  * Cocaine: Fixed duplication of files' in find result
+  * Server: Fixed segfault at exit
+  * crypto: fixed undefined dnet_offsetof macros usage
+  * Recovery: Added deep_merge recovery type. Updated docs for recovery.
+  * Build: Fixed missing python wrapper around elliptics.core.
+  * Indexes: Added comments to flags
+  * Indexes: Comments for remove_index_callback
+  * Indexes: Added session::remove_index_internal
+  * Indexes: Added ability to remove objects from indexes
+  * Indexes: Send bulk request only if server knows it
+  * Use data_pointer::allocate in callback_p.h
+  * Core: Add \n to end of message at logger
+  * indexes: Added bulk-behavior to find_indexes
+  * Python: Fixed get_address_ranges
+  * Python: Fixed __init__.py
+  * Python: provided python level log based on logging.
+  * Cpp: Extended comments and notes about write_prepare, write_plain and write_commit.
+  * Cpp: fixed write_data by chunks.
+  * Relicense Elliptics under LGPL 
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 13 Nov 2013 00:39:05 +0400
+
 elliptics (2.24.14.21) unstable; urgency=low
 
   * Added more debug info for cache requests.

@@ -1,13 +1,28 @@
+/*
+ * Copyright 2013+ Ruslan Nigmatullin <euroelessar@yandex.ru>
+ *
+ * This file is part of Elliptics.
+ *
+ * Elliptics is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Elliptics is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #ifndef LOCAL_SESSION_H
 #define LOCAL_SESSION_H
 
 #include "../library/elliptics.h"
 #include "../include/elliptics/session.hpp"
-
-enum update_index_action {
-	insert_data = 1,
-	remove_data = 2
-};
+#include "../bindings/cpp/session_indexes.hpp"
 
 class local_session
 {
@@ -25,8 +40,10 @@ class local_session
 		int write(const dnet_id &id, const char *data, size_t size);
 		int write(const dnet_id &id, const char *data, size_t size, uint64_t user_flags, const dnet_time &timestamp);
 		ioremap::elliptics::data_pointer lookup(const dnet_cmd &cmd, int *errp);
+		int remove(const dnet_id &id);
 
-		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::data_pointer &data, update_index_action action);
+		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::data_pointer &data, uint32_t action);
+		int update_index_internal(const dnet_id &id, const dnet_raw_id &index, const ioremap::elliptics::raw_data_pointer &data, uint32_t action);
 
 	private:
 		void clear_queue(int *errp = NULL);

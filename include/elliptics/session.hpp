@@ -5,14 +5,14 @@
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
+ * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
+ * GNU Lesser General Public License for more details.
  */
 
 #ifndef ELLIPTICS_SESSION_HPP
@@ -708,9 +708,15 @@ class session
 		async_set_indexes_result update_indexes(const key &id, const std::vector<index_entry> &indexes);
 		async_set_indexes_result update_indexes(const key &id, const std::vector<std::string> &indexes,
 				const std::vector<data_pointer> &data);
+		async_set_indexes_result remove_indexes(const key &id, const std::vector<dnet_raw_id> &indexes);
+		async_set_indexes_result remove_indexes(const key &id, const std::vector<std::string> &indexes);
 		async_set_indexes_result update_indexes_internal(const key &id, const std::vector<index_entry> &indexes);
 		async_set_indexes_result update_indexes_internal(const key &id, const std::vector<std::string> &indexes,
 				const std::vector<data_pointer> &data);
+		async_set_indexes_result remove_indexes_internal(const key &id, const std::vector<dnet_raw_id> &indexes);
+		async_set_indexes_result remove_indexes_internal(const key &id, const std::vector<std::string> &indexes);
+		async_generic_result remove_index_internal(const dnet_raw_id &id);
+		async_generic_result remove_index_internal(const std::string &id);
 
 		async_find_indexes_result find_all_indexes(const std::vector<dnet_raw_id> &indexes);
 		async_find_indexes_result find_all_indexes(const std::vector<std::string> &indexes);
@@ -737,6 +743,7 @@ class session
 
 		async_exec_result request(dnet_id *id, const exec_context &context);
 		async_iterator_result iterator(const key &id, const data_pointer& request);
+		async_find_indexes_result find_indexes_internal(const std::vector<dnet_raw_id> &indexes, bool intersect);
 
 		void			mix_states(const key &id, std::vector<int> &groups);
 		void			mix_states(std::vector<int> &groups);
