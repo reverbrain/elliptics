@@ -1,7 +1,7 @@
 ADD_LIBRARY(elliptics-extensions MODULE
         storage service module
-        ../include/cocaine/framework/services/elliptics_storage.hpp
-        ../include/cocaine/services/elliptics_storage.hpp)
+        ../include/cocaine/framework/services/elliptics.hpp
+        ../include/cocaine/idl/elliptics.hpp)
 
 INCLUDE_DIRECTORIES(../include)
 TARGET_LINK_LIBRARIES(elliptics-extensions ${ELLIPTICS_LIBRARIES} elliptics_cpp)

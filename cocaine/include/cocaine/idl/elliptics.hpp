@@ -13,19 +13,16 @@
 * GNU General Public License for more details.
 */
 
-#ifndef COCAINE_SERVICE_ELLIPTICS_STORAGE_HPP
-#define COCAINE_SERVICE_ELLIPTICS_STORAGE_HPP
+#ifndef COCAINE_ELLIPTICS_SERVICE_INTERFACE_HPP
+#define COCAINE_ELLIPTICS_SERVICE_INTERFACE_HPP
 
-#include <cocaine/api/service.hpp>
-#include <cocaine/api/storage.hpp>
-#include <cocaine/rpc/slots/deferred.hpp>
-#include <cocaine/services/storage.hpp>
+#include <cocaine/idl/storage.hpp>
 
 namespace cocaine { namespace io {
 
 struct elliptics_tag;
 
-namespace elliptics {
+struct elliptics {
 
 struct cache_read
 {
@@ -43,11 +40,11 @@ struct cache_read
 		std::string
 	> tuple_type;
 
-	typedef
+	typedef stream_of<
 	/* The stored value. Typically it will be serialized with msgpack, but it's not a strict
 	   requirement. But as there's no way to know the format, try to unpack it anyway. */
 		std::string
-	result_type;
+	>::tag drain_type;
 };
 
 struct cache_write
@@ -86,11 +83,11 @@ struct bulk_read {
 		std::vector<std::string>
 	> tuple_type;
 
-	typedef
+	typedef stream_of<
 	/* The stored values. Typically it will be serialized with msgpack, but it's not a strict
 	   requirement. But as there's no way to know the format, try to unpack it anyway. */
 		std::map<std::string, std::string>
-	result_type;
+	>::tag drain_type;
 };
 
 struct bulk_write {
@@ -110,12 +107,13 @@ struct bulk_write {
 		std::vector<std::string>
 	> tuple_type;
 
-	typedef
+	typedef stream_of<
 	/* Write results. If write for some key fails errno can be accessed by the key. */
 		std::map<std::string, int>
-	result_type;
+	>::tag drain_type;
 };
-} // namespace cocaine::elliptics
+
+}; // struct elliptics
 
 template<>
 struct protocol<elliptics_tag> : public extends<storage_tag>
@@ -129,9 +127,11 @@ struct protocol<elliptics_tag> : public extends<storage_tag>
 		elliptics::cache_write,
 		elliptics::bulk_read
 //		elliptics::bulk_write
-	> type;
+	> messages;
+
+	typedef elliptics type;
 };
 
 }} // namespace cocaine::io
 
-#endif /* COCAINE_SERVICE_ELLIPTICS_STORAGE_HPP */
+#endif /* COCAINE_ELLIPTICS_SERVICE_INTERFACE_HPP */

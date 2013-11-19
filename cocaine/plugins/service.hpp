@@ -1,22 +1,22 @@
 #ifndef COCAINE_ELLIPTICS_SERVICE_HPP
 #define COCAINE_ELLIPTICS_SERVICE_HPP
 
-#include <cocaine/services/elliptics_storage.hpp>
-#include <cocaine/api/storage.hpp>
 #include <cocaine/api/service.hpp>
 #include <cocaine/dispatch.hpp>
-#include <cocaine/rpc/slots/deferred.hpp>
+
 #include "storage.hpp"
+
+#include "cocaine/idl/elliptics.hpp"
 
 namespace cocaine {
 
-class elliptics_service_t : public api::service_t, public implementation<io::elliptics_tag>
+class elliptics_service_t : public api::service_t, public implements<io::elliptics_tag>
 {
 	public:
 		elliptics_service_t(context_t &context,
 			io::reactor_t &reactor,
 			const std::string &name,
-			const Json::Value &args);
+			const dynamic_t &args);
 
 		virtual dispatch_t& prototype() { return *this; }
 
@@ -59,6 +59,7 @@ class elliptics_service_t : public api::service_t, public implementation<io::ell
 		// the storage object is destroyed after the node service finishes its initialization.
 		api::category_traits<api::storage_t>::ptr_type m_storage;
 		storage::elliptics_storage_t *m_elliptics;
+		const std::unique_ptr<logging::log_t> m_log;
 };
 
 } // namespace cocaine

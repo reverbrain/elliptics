@@ -23,7 +23,6 @@
 
 #include <cocaine/api/storage.hpp>
 #include <cocaine/api/service.hpp>
-#include <cocaine/rpc/slots/deferred.hpp>
 
 #include "elliptics/cppdef.h"
 
@@ -60,7 +59,7 @@ class elliptics_storage_t : public api::storage_t
 
 		elliptics_storage_t(context_t &context,
 			const std::string &name,
-			const Json::Value &args);
+			const dynamic_t &args);
 
 		std::string read(const std::string &collection, const std::string &key);
 		void write(const std::string &collection, const std::string &key, const std::string &blob, const std::vector<std::string> &tags);

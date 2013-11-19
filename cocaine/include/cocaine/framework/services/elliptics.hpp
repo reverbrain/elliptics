@@ -13,12 +13,13 @@
 * GNU General Public License for more details.
 */
 
-#ifndef COCAINE_FRAMEWORK_SERVICE_ELLIPTICS_STORAGE_HPP
-#define COCAINE_FRAMEWORK_SERVICE_ELLIPTICS_STORAGE_HPP
+#ifndef COCAINE_FRAMEWORK_ELLIPTICS_SERVICE_HPP
+#define COCAINE_FRAMEWORK_ELLIPTICS_SERVICE_HPP
 
 #include <cocaine/framework/service.hpp>
 #include <cocaine/framework/services/storage.hpp>
-#include <cocaine/services/elliptics_storage.hpp>
+
+#include <cocaine/idl/elliptics.hpp>
 
 namespace cocaine { namespace framework {
 
@@ -27,9 +28,7 @@ class elliptics_service_t : public storage_service_t
 public:
 	elliptics_service_t(std::shared_ptr<service_connection_t> connection) :
 		storage_service_t(connection)
-	{
-		// pass
-	}
+	{ }
 
 	service_traits<io::elliptics::cache_read>::future_type
 	cache_read(const std::string &collection, const std::string &key) {
@@ -54,4 +53,4 @@ public:
 
 }} // namespace cocaine::framework
 
-#endif /* COCAINE_FRAMEWORK_SERVICE_ELLIPTICS_STORAGE_HPP */
+#endif /* COCAINE_FRAMEWORK_ELLIPTICS_SERVICE_HPP */

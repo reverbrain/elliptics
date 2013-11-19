@@ -63,47 +63,43 @@ log_adapter_t::log_adapter_t(const std::shared_ptr<logging::log_t> &log, const i
 
 namespace {
 
-dnet_config parse_json_config(const Json::Value& args) {
+dnet_config parse_json_config(const dynamic_t& args) {
 	dnet_config cfg;
 
 	std::memset(&cfg, 0, sizeof(cfg));
 
-	cfg.wait_timeout   = args.get("wait-timeout", 5).asInt();
-	cfg.check_timeout  = args.get("check-timeout", 20).asInt();
-	cfg.io_thread_num  = args.get("io-thread-num", 0).asUInt();
-	cfg.net_thread_num = args.get("net-thread-num", 0).asUInt();
-	cfg.flags          = args.get("flags", 0).asInt();
+	cfg.wait_timeout   = args.as_object().at("wait-timeout", 5).to<int>();
+	cfg.check_timeout  = args.as_object().at("check-timeout", 20).to<int>();
+	cfg.io_thread_num  = args.as_object().at("io-thread-num", 0).to<int>();
+	cfg.net_thread_num = args.as_object().at("net-thread-num", 0).to<int>();
+	cfg.flags          = args.as_object().at("flags", 0).to<int>();
 
 	return cfg;
 }
 
 }
 
-elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &name, const Json::Value &args) :
+elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &name, const dynamic_t &args) :
 	category_type(context, name, args),
 	m_context(context),
 	m_log(new log_t(context, name)),
-	m_log_adapter(m_log, args.get("verbosity", DNET_LOG_ERROR).asUInt()),
+	m_log_adapter(m_log, args.as_object().at("verbosity", DNET_LOG_ERROR).to<int>()),
 	m_config(parse_json_config(args)),
 	m_node(m_log_adapter, m_config),
 	m_session(m_node)
 {
-	Json::Value nodes(args["nodes"]);
+	dynamic_t nodes(args.as_object()["nodes"]);
 
-	if(nodes.empty() || !nodes.isObject()) {
+	if(!nodes.is_object() || nodes.as_object().empty()) {
 		throw storage_error_t("no nodes has been specified");
 	}
 
-	Json::Value::Members node_names(nodes.getMemberNames());
-
+	auto pairs = nodes.to<std::map<std::string, uint16_t>>();
 	bool have_remotes = false;
 
-	for(Json::Value::Members::const_iterator it = node_names.begin();
-		it != node_names.end();
-		++it)
-	{
+	for(auto it = pairs.begin(); it != pairs.end(); ++it) {
 		try {
-			m_node.add_remote(it->c_str(), nodes[*it].asInt());
+			m_node.add_remote(it->first.c_str(), it->second);
 			have_remotes = true;
 		} catch(const ell::error &) {
 			// Do nothing. Yes. Really. We only care if no remote nodes were added at all.
@@ -114,13 +110,13 @@ elliptics_storage_t::elliptics_storage_t(context_t &context, const std::string &
 		throw storage_error_t("can not connect to any remote node");
 	}
 
-	Json::Value groups(args["groups"]);
+	dynamic_t groups(args.as_object()["groups"]);
 
-	if (groups.empty() || !groups.isArray()) {
+	if (!groups.is_array() || groups.as_array().empty()) {
 		throw storage_error_t("no groups has been specified");
 	}
 
-	std::transform(groups.begin(), groups.end(), std::back_inserter(m_groups), std::mem_fn(&Json::Value::asInt));
+	m_groups = groups.to<std::vector<int>>();
 
 	m_session.set_groups(m_groups);
 	m_session.set_exceptions_policy(ell::session::no_exceptions);

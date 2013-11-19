@@ -32,14 +32,15 @@
 #include <vector>
 #include <sstream>
 
-#include <cocaine/context.hpp>
-#include <cocaine/logging.hpp>
-#include <cocaine/app.hpp>
-#include <cocaine/exceptions.hpp>
-#include <cocaine/api/event.hpp>
-#include <cocaine/api/stream.hpp>
 #include <cocaine/api/service.hpp>
 #include <cocaine/api/storage.hpp>
+#include <cocaine/app.hpp>
+#include <cocaine/context.hpp>
+#include <cocaine/detail/services/node/event.hpp>
+#include <cocaine/detail/services/node/stream.hpp>
+#include <cocaine/exceptions.hpp>
+#include <cocaine/logging.hpp>
+#include <cocaine/traits/dynamic.hpp>
 
 #include <elliptics/interface.h>
 #include <elliptics/srw.h>
@@ -257,15 +258,15 @@ class dnet_app_t : public cocaine::app_t {
 			stop();
 		}
 
-		Json::Value counters(void) {
-			Json::Value info(Json::objectValue);
+		cocaine::dynamic_t counters(void) {
+			cocaine::dynamic_t::object_t info;
 
 			for (auto it = m_counters.begin(); it != m_counters.end(); ++it) {
-				Json::Value obj(Json::objectValue);
+				cocaine::dynamic_t::object_t obj;
 
-				obj["blocked"] = static_cast<Json::Value::Int64>(it->second.blocked);
-				obj["nonblocked"] = static_cast<Json::Value::Int64>(it->second.nonblocked);
-				obj["reply"] = static_cast<Json::Value::Int64>(it->second.reply);
+				obj["blocked"] = it->second.blocked;
+				obj["nonblocked"] = it->second.nonblocked;
+				obj["reply"] = it->second.reply;
 
 				info[it->first] = obj;
 			}
@@ -425,10 +426,10 @@ class srw {
 
 					if (ev == "start-multiple-task") {
 						auto storage = cocaine::api::storage(m_ctx, "core");
-						Json::Value profile = storage->get<Json::Value>("profiles", app);
+						cocaine::dynamic_t profile = storage->get<cocaine::dynamic_t>("profiles", app);
 
-						int idle = profile["idle-timeout"].asInt();
-						int pool_limit = profile["pool-limit"].asInt();
+						int idle = profile.as_object()["idle-timeout"].to<int>();
+						int pool_limit = profile.as_object()["pool-limit"].to<int>();
 						const int idle_min = 60 * 60 * 24 * 30;
 
 						dnet_log(m_s->node, DNET_LOG_INFO, "%s: sph: %s: %s: multiple start: "
@@ -475,12 +476,12 @@ class srw {
 					return -ENOENT;
 				}
 
-				Json::Value info = it->second->info();
-				info["counters"] = it->second->counters();
+				cocaine::dynamic_t info = it->second->info();
+				info.as_object()["counters"] = it->second->counters();
 
 				guard.unlock();
 
-				std::string s = Json::StyledWriter().write(info);
+				std::string s = boost::lexical_cast<std::string>(info);
 
 				struct sph *reply;
 				std::string tmp;
