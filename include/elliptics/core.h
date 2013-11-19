@@ -13,7 +13,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  * 
- * You should have received a copy of the GNU General Public License
+ * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -64,6 +64,11 @@
  * Default notify hash table size.
  */
 #define DNET_DEFAULT_NOTIFY_HASH_SIZE	256
+
+/*
+ * Default wait timeout in seconds.
+ */
+#define DNET_DEFAULT_WAIT_TIMEOUT_SEC	5
 
 /*
  * Default check timeout in seconds.

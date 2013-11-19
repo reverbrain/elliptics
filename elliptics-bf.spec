@@ -1,6 +1,12 @@
+%if %{defined rhel} && 0%{?rhel} < 6
+%define __python /usr/bin/python2.6
+%endif
+%{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
+%{!?python_sitearch: %global python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
+
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.22
+Version:	2.24.14.26
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -9,13 +15,13 @@ URL:		http://www.ioremap.net/projects/elliptics
 Source0:	%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-%if 0%{?rhel} < 6
+%if %{defined rhel} && 0%{?rhel} < 6
 BuildRequires:	python26-devel
 BuildRequires:	gcc44 gcc44-c++
 %else
 BuildRequires:  python-devel
 %endif
-BuildRequires:	eblob-devel >= 0.21.7
+BuildRequires:	eblob-devel >= 0.21.26
 BuildRequires:	cmake msgpack-devel
 
 %if %{defined rhel} && 0%{?rhel} < 6
@@ -31,12 +37,6 @@ Obsoletes: srw
 %description
 Elliptics network is a fault tolerant distributed hash table
 object storage.
-
-
-%if 0%{?rhel} && 0%{?rhel} <= 5
-%{!?python_sitelib: %global python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
-%{!?python_sitearch: %global python_sitearch %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(1))")}
-%endif
 
 
 %package devel
@@ -76,7 +76,7 @@ Elliptics client library (C++/Python bindings), devel files
 %build
 export LDFLAGS="-Wl,-z,defs"
 export DESTDIR="%{buildroot}"
-%if 0%{?rhel} < 6
+%if %{defined rhel} && 0%{?rhel} < 6
 export PYTHON=/usr/bin/python26
 export CC=gcc44
 export CXX=g++44
@@ -90,6 +90,8 @@ make %{?_smp_mflags}
 %install
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
+cp -r build/lib/elliptics %{buildroot}/%{python_sitelib}/
+cp -r build/lib/elliptics_recovery %{buildroot}/%{python_sitelib}/
 rm -f %{buildroot}%{_libdir}/*.a
 rm -f %{buildroot}%{_libdir}/*.la
 
@@ -120,6 +122,8 @@ rm -rf %{buildroot}
 %{_libdir}/libelliptics_client.so.*
 %{_libdir}/libelliptics_cpp.so.*
 %{python_sitelib}/elliptics/core.so.*
+%{python_sitelib}/elliptics_recovery/*
+%{python_sitelib}/elliptics/*.py*
 
 %files client-devel
 %defattr(-,root,root,-)
@@ -131,6 +135,27 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Mon Nov 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.26
+- spec: depend on 0.21.26+ eblob for statistics
+- Build: Moved redifining of __python at the top of spec file for rhel < 6.
+- Build: Fixed build on RHEL5 and restored recovery and python bindings scripts in rpms.
+- stat: added DNET_CNTR_NODE_FILES_REMOVED counter. It is only filled in eblob backend.
+- cmake: export ELLIPTICS_LIBRARY_DIRS
+- License: Change license from GPL to LGPL
+- Core: Added public dnet_digest_*transform methods
+
+* Sat Nov 16 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.25
+- core: forbid route table update with 0.0.0.0 addresses
+
+* Fri Nov 15 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.24
+- core: added route/address debug
+- Python: Use ${PYTHON_EXECUTABLE} in cmake scripts
+
+* Wed Nov 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.23
+- io_client: Call wait() to async_remove_result
+- Stat: In eblob statistics used DNET_CNTR_NODE_FILES for number of available records in eblob.
+- Client: Some fixes connected with move semantic
+
 * Wed Nov 13 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.22
 - net: copy all addresses into joining state
 - Cocaine: Don't link with eblob

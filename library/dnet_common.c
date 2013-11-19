@@ -13,7 +13,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
  * 
- * You should have received a copy of the GNU General Public License
+ * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -167,7 +167,7 @@ static char *dnet_counter_strings[] = {
 	[DNET_CNTR_VM_CACHED] = "DNET_CNTR_VM_CACHED",
 	[DNET_CNTR_VM_BUFFERS] = "DNET_CNTR_VM_BUFFERS",
 	[DNET_CNTR_NODE_FILES] = "DNET_CNTR_NODE_FILES",
-	[DNET_CNTR_RESERVED1] = "DNET_CNTR_RESERVED1",
+	[DNET_CNTR_NODE_FILES_REMOVED] = "DNET_CNTR_NODE_FILES_REMOVED",
 	[DNET_CNTR_RESERVED2] = "DNET_CNTR_RESERVED2",
 	[DNET_CNTR_RESERVED3] = "DNET_CNTR_RESERVED3",
 	[DNET_CNTR_RESERVED4] = "DNET_CNTR_RESERVED4",
@@ -207,6 +207,7 @@ int dnet_copy_addrs(struct dnet_net_state *nst, struct dnet_addr *addrs, int add
 	int err = 0, i;
 
 	if (nst->addrs) {
+		// idx = -1 for just created server node, which can not have ->addrs yet
 		dnet_log(n, DNET_LOG_NOTICE, "%s: do not copy %d addrs, already have %d, idx: %d\n",
 				dnet_server_convert_dnet_addr(&nst->addrs[nst->idx]),
 				addr_num, nst->addr_num, nst->idx);
@@ -248,7 +249,16 @@ static int dnet_add_received_state(struct dnet_net_state *connected_state,
 	struct dnet_addr *addr = &cnt->addrs[connected_state->idx];
 	struct dnet_net_state *nst;
 	struct dnet_id raw;
-	int join;
+	char conn_addr_str[128];
+	char recv_addr_str[128];
+	int join, i;
+
+	for (i = 0; i < cnt->addr_num; ++i) {
+		dnet_log(n, DNET_LOG_NOTICE, "%s: %d/%d: idx: %d, received addr: %s.\n",
+				dnet_server_convert_dnet_addr_raw(&connected_state->addr, conn_addr_str, sizeof(conn_addr_str)),
+				i, cnt->addr_num, connected_state->idx,
+				dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], recv_addr_str, sizeof(recv_addr_str)));
+	}
 
 	dnet_setup_id(&raw, group_id, ids[0].id);
 
@@ -299,7 +309,10 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 	struct dnet_node *n = st->n;
 	struct dnet_raw_id *ids;
 	char server_addr[128], rem_addr[128];
+	struct dnet_addr empty;
 	int i, err;
+
+	memset(&empty, 0, sizeof(empty));
 
 	dnet_server_convert_dnet_addr_raw(&st->addr, server_addr, sizeof(server_addr));
 	dnet_server_convert_dnet_addr_raw(&cnt->addrs[0], rem_addr, sizeof(rem_addr));
@@ -321,13 +334,24 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 		}
 	}
 
+	err = 0;
 	for (i = 0; i < cnt->addr_num; ++i) {
+		struct dnet_addr *ta = &cnt->addrs[i];
 		char tmp[128];
-		dnet_log(n, DNET_LOG_NOTICE, "%s: route reply: %s, ids-num: %d\n",
-				server_addr, dnet_server_convert_dnet_addr_raw(&cnt->addrs[i], tmp, sizeof(tmp)), ids_num);
+
+		if (!memcmp(ta, &empty, ta->addr_len)) {
+			dnet_log(n, DNET_LOG_ERROR, "%s: received zero address route reply: %s, ids-num: %d, aborting route update\n",
+					server_addr, dnet_server_convert_dnet_addr_raw(ta, tmp, sizeof(tmp)), ids_num);
+			err = -ENOTTY;
+		} else {
+			dnet_log(n, DNET_LOG_NOTICE, "%s: route reply: %s, ids-num: %d\n",
+					server_addr, dnet_server_convert_dnet_addr_raw(ta, tmp, sizeof(tmp)), ids_num);
+		}
 	}
 
-	err = dnet_add_received_state(st, cnt, group_id, ids, ids_num);
+	if (!err) {
+		err = dnet_add_received_state(st, cnt, group_id, ids, ids_num);
+	}
 
 	dnet_log(n, DNET_LOG_NOTICE, "%s: route reply: recv-addr-num: %d, local-addr-num: %d, idx: %d, err: %d\n",
 			server_addr, cnt->addr_num, n->addr_num, st->idx, err);
@@ -608,6 +632,8 @@ int dnet_add_state(struct dnet_node *n, char *addr_str, int port, int family, in
 	int s, err, join = DNET_WANT_RECONNECT;
 	struct dnet_addr addr;
 	struct dnet_net_state *st;
+	char parsed_addr_str[128];
+	char state_addr_str[128];
 
 	memset(&addr, 0, sizeof(addr));
 
@@ -630,9 +656,19 @@ int dnet_add_state(struct dnet_node *n, char *addr_str, int port, int family, in
 	if (!((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST))
 		dnet_recv_route_list(st);
 
+	dnet_log(n, DNET_LOG_NOTICE, "%s: added new state %s:%d:%d, addr: %s, flags: 0x%x, route-request: %d\n",
+			dnet_server_convert_dnet_addr_raw(&st->addr, state_addr_str, sizeof(state_addr_str)),
+			addr_str, port, family,
+			dnet_server_convert_dnet_addr_raw(&addr, parsed_addr_str, sizeof(parsed_addr_str)),
+			flags, !((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST));
+
 	return 0;
 
 err_out_reconnect:
+	dnet_log(n, DNET_LOG_NOTICE, "%s: failed to add new state %s:%d:%d, flags: 0x%x, route-request: %d, err: %d\n",
+			dnet_server_convert_dnet_addr_raw(&addr, parsed_addr_str, sizeof(parsed_addr_str)),
+			addr_str, port, family, flags, !((n->flags | flags) & DNET_CFG_NO_ROUTE_LIST), err);
+
 	/* if state is already exist, it should not be an error */
 	if (err == -EEXIST)
 		err = 0;
