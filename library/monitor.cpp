@@ -87,15 +87,31 @@ private:
 	std::string						m_report;
 };
 
-struct cmd_stat {
-	std::atomic_uint_fast32_t	cache_successes;
-	std::atomic_uint_fast32_t	cache_failures;
-	std::atomic_uint_fast32_t	cache_internal_successes;
-	std::atomic_uint_fast32_t	cache_internal_failures;
-	std::atomic_uint_fast32_t	disk_successes;
-	std::atomic_uint_fast32_t	disk_failures;
-	std::atomic_uint_fast32_t	disk_internal_successes;
-	std::atomic_uint_fast32_t	disk_internal_failures;
+struct command_counters {
+	uint_fast64_t	cache_successes;
+	uint_fast64_t	cache_failures;
+	uint_fast64_t	cache_internal_successes;
+	uint_fast64_t	cache_internal_failures;
+	uint_fast64_t	disk_successes;
+	uint_fast64_t	disk_failures;
+	uint_fast64_t	disk_internal_successes;
+	uint_fast64_t	disk_internal_failures;
+
+	uint_fast64_t	cache_size;
+	uint_fast64_t	cache_internal_size;
+	uint_fast64_t	disk_size;
+	uint_fast64_t	disk_internal_size;
+	uint_fast64_t	cache_time;
+	uint_fast64_t	disk_time;
+	uint_fast64_t	cache_internal_time;
+	uint_fast64_t	disk_internal_time;
+};
+
+struct command_stat_info {
+	int				cmd;
+	size_t			size;
+	unsigned long	time;
+	bool			internal;
 };
 
 class monitor {
@@ -105,6 +121,8 @@ public:
 	, m_acceptor(m_io_service, boost::asio::ip::tcp::tcp::endpoint(boost::asio::ip::tcp::v4(), cfg->monitor_port))
 	{
 		m_listen = std::thread(std::bind(&monitor::listen, this));
+		memset(m_cmd_stats.c_array(), 0, sizeof(command_counters) * m_cmd_stats.size());
+		gettimeofday(&m_start_time, NULL);
 	}
 
 	~monitor() {
@@ -116,15 +134,21 @@ public:
 		m_io_service.stop();
 	}
 
-	std::string report() const {
+	std::string report() {
 		std::ostringstream out;
-		out << "{\n\t\"cache_memory\": " << m_cache_memory;
+		out << "{\"cache_memory\":" << m_cache_memory;
+		struct timeval end_time;
+		gettimeofday(&end_time, NULL);
+		long diff = (end_time.tv_sec - m_start_time.tv_sec) * 1000000 + (end_time.tv_usec - m_start_time.tv_usec);
+		m_start_time = end_time;
 		stat_report(out);
-		out << "\n}\n";
+		cmd_report(out);
+		out << ",\"time\":" << diff;
+		out << "}";
 		return std::move(out.str());
 	}
 
-	void log() const {
+	void log() {
 		dnet_log(m_node, DNET_LOG_ERROR, "%s", report().c_str());
 	}
 
@@ -136,38 +160,63 @@ public:
 		m_cache_memory -= size;
 	}
 
-	void cache_stat(int cmd, const int trans, const int err) {
+	void command_counter(int cmd, const int trans, const int err, const int cache,
+	                     const uint32_t size, const unsigned long time) {
 		if (cmd >= __DNET_CMD_MAX || cmd <= 0)
 			cmd = DNET_CMD_UNKNOWN;
 
-		if (trans) {
-			if(!err)
-				m_cmd_stats[cmd].cache_successes++;
-			else
-				m_cmd_stats[cmd].cache_failures++;
+		std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
+		if (cache) {
+			if (trans) {
+				if(!err)
+					m_cmd_stats[cmd].cache_successes++;
+				else
+					m_cmd_stats[cmd].cache_failures++;
+				m_cmd_stats[cmd].cache_size += size;
+				m_cmd_stats[cmd].cache_time += time;
+			} else {
+				if(!err)
+					m_cmd_stats[cmd].cache_internal_successes++;
+				else
+					m_cmd_stats[cmd].cache_internal_failures++;
+				m_cmd_stats[cmd].cache_internal_size += size;
+				m_cmd_stats[cmd].cache_internal_time += time;
+			}
 		} else {
-			if(!err)
-				m_cmd_stats[cmd].cache_internal_successes++;
-			else
-				m_cmd_stats[cmd].cache_internal_failures++;
+			if (trans) {
+				if(!err)
+					m_cmd_stats[cmd].disk_successes++;
+				else
+					m_cmd_stats[cmd].disk_failures++;
+				m_cmd_stats[cmd].disk_size += size;
+				m_cmd_stats[cmd].disk_time += time;
+			} else {
+				if(!err)
+					m_cmd_stats[cmd].disk_internal_successes++;
+				else
+					m_cmd_stats[cmd].disk_internal_failures++;
+				m_cmd_stats[cmd].disk_internal_size += size;
+				m_cmd_stats[cmd].disk_internal_time += time;
+			}
+		}
+
+		m_cmd_info_current.emplace_back(command_stat_info{cmd, size, time, trans == 0});
+
+		if (m_cmd_info_current.size() >= 1000) {
+			std::unique_lock<std::mutex> swap_guard(m_cmd_info_previous_mutex);
+			m_cmd_info_previous.clear();
+			m_cmd_info_current.swap(m_cmd_info_previous);
 		}
 	}
 
-	void disk_stat(int cmd, const int trans, const int err) {
-		if (cmd >= __DNET_CMD_MAX || cmd <= 0)
-			cmd = DNET_CMD_UNKNOWN;
-
-		if (trans) {
-			if(!err)
-				m_cmd_stats[cmd].disk_successes++;
-			else
-				m_cmd_stats[cmd].disk_failures++;
-		} else {
-			if(!err)
-				m_cmd_stats[cmd].disk_internal_successes++;
-			else
-				m_cmd_stats[cmd].disk_internal_failures++;
-		}
+	void io_queue_stat(const uint64_t current_size,
+	                   const uint64_t min_size, const uint64_t max_size,
+	                   const uint64_t volume, const uint64_t time) {
+		m_io_queue_size = current_size;
+		m_io_queue_volume = volume;
+		m_io_queue_max = max_size;
+		m_io_queue_min = min_size;
+		m_io_queue_time = time;
 	}
 
 private:
@@ -206,33 +255,88 @@ private:
 		async_accept();
 	}
 
-	void stat_report(std::ostringstream &stream) const {
-		stream << ",\n\t\"command_stat\": {";
+	void stat_report(std::ostringstream &stream) {
+		stream << ",\"command_stat\":{";
+		std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
 		for (int i = 1; i < __DNET_CMD_MAX; ++i) {
-			stream << "\n\t\t\"" << dnet_cmd_string(i) << "\": {"
-			<< "\n\t\t\t\"cache\": { \"successes\": " << m_cmd_stats[i].cache_successes
-			<< ", \"failures\": " << m_cmd_stats[i].cache_failures << " },"
-			<< "\n\t\t\t\"cache_internal\": { \"successes\": " << m_cmd_stats[i].cache_internal_successes
-			<< ", \"failures\": " << m_cmd_stats[i].cache_internal_failures << " },"
-			<< "\n\t\t\t\"disk\": { \"successes\": " << m_cmd_stats[i].disk_successes
-			<< ", \"failures\": " << m_cmd_stats[i].disk_failures << " },"
-			<< "\n\t\t\t\"disk_internal\": { \"successes\": " << m_cmd_stats[i].disk_internal_successes
-			<< ", \"failures\": " << m_cmd_stats[i].disk_internal_failures << " }"
-			<< "\n\t\t}";
+			stream << "\"" << dnet_cmd_string(i) << "\":{"
+			<< "\"cache\":{\"successes\":" << m_cmd_stats[i].cache_successes
+			<< ",\"failures\":" << m_cmd_stats[i].cache_failures << "},"
+			<< "\"cache_internal\":{\"successes\":" << m_cmd_stats[i].cache_internal_successes
+			<< ",\"failures\": " << m_cmd_stats[i].cache_internal_failures << "},"
+			<< "\"disk\":{\"successes\":" << m_cmd_stats[i].disk_successes
+			<< ",\"failures\":" << m_cmd_stats[i].disk_failures << "},"
+			<< "\"disk_internal\":{\"successes\":" << m_cmd_stats[i].disk_internal_successes
+			<< ",\"failures\":" << m_cmd_stats[i].disk_internal_failures << "},"
+			<< "\"cache_size\":" << m_cmd_stats[i].cache_size << ","
+			<< "\"cache_intenal_size\":" << m_cmd_stats[i].cache_internal_size << ","
+			<< "\"disk_size\": " << m_cmd_stats[i].disk_size << ","
+			<< "\"disk_internal_size\":" << m_cmd_stats[i].disk_internal_size << ","
+			<< "\"cache_time\":" << m_cmd_stats[i].cache_time << ","
+			<< "\"cache_internal_time\":" << m_cmd_stats[i].cache_internal_time << ","
+			<< "\"disk_time\":" << m_cmd_stats[i].disk_time << ","
+			<< "\"disk_internal_time\":" << m_cmd_stats[i].disk_internal_time << "}";
 			if (i < __DNET_CMD_MAX - 1)
 				stream << ",";
 		}
-		stream << "\n\t}";
+		stream << "}";
+		memset(m_cmd_stats.c_array(), 0, sizeof(command_counters) * m_cmd_stats.size());
+	}
+
+	void cmd_report(std::ostringstream &stream) {
+		if(m_cmd_info_previous.empty() && m_cmd_info_current.empty())
+			return;
+
+		stream << ",\"command_stat\":{";
+		{
+			std::unique_lock<std::mutex> guard(m_cmd_info_previous_mutex);
+			const auto begin = m_cmd_info_previous.begin(), end = m_cmd_info_previous.end();
+			for (auto it = begin; it != end; ++it) {
+				if (it != begin)
+					stream << ",";
+				stream << "\"" << dnet_cmd_string(it->cmd) << "\":{"
+				<< "\"internal\":" << (it->internal ? "true" : "false") << ","
+				<< "\"size\":" << it->size << ","
+				<< "\"time\":" << it->time << "},";
+			}
+			m_cmd_info_previous.clear();
+		} {
+			std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
+			const auto begin = m_cmd_info_current.begin(), end = m_cmd_info_current.end();
+			for (auto it = begin; it != end; ++it) {
+				if (it != begin)
+					stream << ",";
+				stream << "\"" << dnet_cmd_string(it->cmd) << "\": {"
+				<< "\"internal\":" << (it->internal ? "true" : "false") << ","
+				<< "\"size\":" << it->size << ","
+				<< "\"time\":" << it->time << "}";
+			}
+			m_cmd_info_current.clear();
+		}
+		stream << "}";
 	}
 
 
-	std::atomic_uint_fast32_t	m_cache_memory;
-	boost::array<cmd_stat, __DNET_CMD_MAX> m_cmd_stats;
+	std::atomic_uint_fast64_t	m_cache_memory;
+	std::atomic_uint_fast64_t	m_io_queue_size;
+	std::atomic_uint_fast64_t	m_io_queue_volume;
+	std::atomic_uint_fast64_t	m_io_queue_max;
+	std::atomic_uint_fast64_t	m_io_queue_min;
+	std::atomic_uint_fast64_t	m_io_queue_time;
+
+	mutable std::mutex				m_cmd_info_mutex;
+	boost::array<command_counters, __DNET_CMD_MAX> m_cmd_stats;
 
 	dnet_node						*m_node;
 	std::thread						m_listen;
 	boost::asio::io_service			m_io_service;
 	boost::asio::ip::tcp::acceptor	m_acceptor;
+
+	struct timeval					m_start_time;
+
+	std::vector<command_stat_info>	m_cmd_info_current;
+	mutable std::mutex				m_cmd_info_previous_mutex;
+	std::vector<command_stat_info>	m_cmd_info_previous;
 };
 
 void handler::async_write() {
@@ -272,9 +376,9 @@ void dnet_monitor_exit(struct dnet_node *n) {
 		delete (ioremap::monitor::monitor*)n->monitor;
 }
 
-void dnet_monitor_log(const void *monitor) {
+void dnet_monitor_log(void *monitor) {
 	if (monitor)
-		static_cast<const ioremap::monitor::monitor*>(monitor)->log();
+		static_cast<ioremap::monitor::monitor*>(monitor)->log();
 }
 
 void monitor_increase_cache(void *monitor, const size_t size) {
@@ -287,12 +391,16 @@ void monitor_decrease_cache(void *monitor, const size_t size) {
 		static_cast<ioremap::monitor::monitor*>(monitor)->decrease_cache(size);
 }
 
-void monitor_cache_stat(void *monitor, const int cmd, const int trans, const int err) {
+void monitor_command_counter(void *monitor, const int cmd, const int trans,
+                             const int err, const int cache,
+                             const uint32_t size, const unsigned long time) {
 	if (monitor)
-		static_cast<ioremap::monitor::monitor*>(monitor)->cache_stat(cmd, trans, err);
+		static_cast<ioremap::monitor::monitor*>(monitor)->command_counter(cmd, trans, err, cache, size, time);
 }
 
-void monitor_disk_stat(void *monitor, const int cmd, const int trans, const int err) {
+void monitor_io_queue_stat(void *monitor, const uint64_t current_size,
+                           const uint64_t min_size, const uint64_t max_size,
+                           const uint64_t volume, const uint64_t time) {
 	if (monitor)
-		static_cast<ioremap::monitor::monitor*>(monitor)->disk_stat(cmd, trans, err);
+		static_cast<ioremap::monitor::monitor*>(monitor)->io_queue_stat(current_size, min_size, max_size, volume, time);
 }

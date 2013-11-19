@@ -30,7 +30,7 @@ class Address(object):
     # Allowed families, 0 means any
     ALLOWED_FAMILIES = (0, AF_INET, AF_INET6)
 
-    def __init__(self, host=None, port=None, family=0, group_id=0):
+    def __init__(self, host, port=None, family=0, group_id=0):
         if family not in self.ALLOWED_FAMILIES:
             raise ValueError("Family '{0}' is not in {1}"
                              .format(family, self.ALLOWED_FAMILIES))

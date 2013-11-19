@@ -21,6 +21,7 @@
 #define __DNET_MONITOR_H
 
 #include <string.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,15 +30,19 @@ extern "C" {
 struct dnet_node;
 struct dnet_config;
 
-void dnet_monitor_log(const void *monitor);
+void dnet_monitor_log(void *monitor);
 
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_monitor_exit(struct dnet_node *n);
 
 void monitor_increase_cache(void *monitor, const size_t size);
 void monitor_decrease_cache(void *monitor, const size_t size);
-void monitor_cache_stat(void *monitor, const int cmd, const int trans, const int err);
-void monitor_disk_stat(void *monitor, const int cmd, const int trans, const int err);
+void monitor_command_counter(void *monitor, const int cmd, const int trans,
+                             const int err, const int cache,
+                             const uint32_t size, const unsigned long time);
+void monitor_io_queue_stat(void *monitor, const uint64_t current_size,
+                           const uint64_t min_size, const uint64_t max_size,
+                           const uint64_t volume, const unsigned long time);
 
 #ifdef __cplusplus
 }

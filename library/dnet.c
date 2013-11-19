@@ -1055,9 +1055,10 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 {
 	int err = 0;
 	unsigned long long size = cmd->size;
+	unsigned long long data_size = 0;
 	struct dnet_node *n = st->n;
 	unsigned long long tid = cmd->trans & ~DNET_TRANS_REPLY;
-	struct dnet_io_attr *io;
+	struct dnet_io_attr *io = NULL;
 #if 0
 	struct dnet_indexes_request *indexes_request;
 #endif
@@ -1066,7 +1067,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	struct tm io_tm;
 	struct timeval io_tv;
 	long diff;
-	int updated_monitor = 0;
+	int handled_in_cache = 0;
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
 		dnet_oplock(n, &cmd->id);
@@ -1185,8 +1186,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				err = dnet_cmd_cache_io(st, cmd, io, data + sizeof(struct dnet_io_attr));
 
 				if (err != -ENOTSUP) {
-					monitor_cache_stat(n->monitor, cmd->cmd, tid, err);
-					updated_monitor = 1;
+					handled_in_cache = 1;
 					break;
 				}
 			}
@@ -1204,8 +1204,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 				err = dnet_cmd_cache_lookup(st, cmd);
 
 				if (err != -ENOTSUP) {
-					monitor_cache_stat(n->monitor, cmd->cmd, tid, err);
-					updated_monitor = 1;
+					handled_in_cache = 1;
 					break;
 				}
 			}
@@ -1231,9 +1230,6 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 			break;
 	}
 
-	if (!updated_monitor)
-		monitor_disk_stat(n->monitor, cmd->cmd, tid, err);
-
 	dnet_stat_inc(st->stat, cmd->cmd, err);
 	if (st->__join_state == DNET_JOIN)
 		dnet_counter_inc(n, cmd->cmd, err);
@@ -1243,6 +1239,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	gettimeofday(&end, NULL);
 
 	diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
+	monitor_command_counter(n->monitor, cmd->cmd, tid, err, handled_in_cache, io ? io->size : 0, diff);
 	dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, cflags: 0x%llx, time: %ld usecs, err: %d.\n",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), tid,
 			(unsigned long long)cmd->flags, diff, err);
