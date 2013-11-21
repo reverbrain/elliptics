@@ -210,7 +210,7 @@ std::string result_entry_address(const T &result)
 template <typename T>
 int result_entry_group_id(const T &result)
 {
-	return dnet_server_convert_dnet_addr(result.command()->id.group_id);
+	return result.command()->id.group_id;
 }
 
 uint64_t callback_result_size(callback_result_entry &result)
@@ -223,14 +223,30 @@ dnet_stat stat_result_get_statistics(stat_result_entry &result)
 	return *(result.statistics());
 }
 
-dnet_addr_stat stat_count_result_get_statistics(stat_count_result_entry &result)
+struct address_statistics : public dnet_addr_stat {
+	address_statistics(const dnet_addr_stat &stat, int group_id)
+	: dnet_addr_stat(stat)
+	, group_id(group_id)
+	{}
+
+	int group_id;
+};
+
+address_statistics stat_count_result_get_statistics(stat_count_result_entry &result)
 {
-	return *(result.statistics());
+	return address_statistics(*result.statistics(), result.command()->id.group_id);
 }
 
-std::string addr_stat_get_address(dnet_addr_stat &stat)
-{
+std::string addr_stat_get_address(address_statistics &stat) {
 	return std::string(dnet_server_convert_dnet_addr(&stat.addr));
+}
+
+bp::tuple addr_stat_get_counters(address_statistics &stat) {
+	bp::list ret;
+	for (int i = 0; i < stat.num; ++i) {
+		ret.append(stat.count[i]);
+	}
+	return bp::tuple(ret);
 }
 
 bp::list dnet_stat_get_la(const dnet_stat &stat)
@@ -382,10 +398,17 @@ void init_result_entry() {
 		.add_property("error", result_entry_error<stat_result_entry>)
 	;
 
-	bp::class_<dnet_addr_stat>("AddressStatistics", bp::no_init)
+	bp::class_<address_statistics>("AddressStatistics", bp::no_init)
 		.add_property("address", addr_stat_get_address)
+		.add_property("group_id", &address_statistics::group_id)
 		.add_property("num", &dnet_addr_stat::num)
 		.add_property("cmd_num", &dnet_addr_stat::cmd_num)
+		.add_property("counters", addr_stat_get_counters)
+	;
+
+	bp::class_<dnet_stat_count>("StatisticCounters")
+		.add_property("successes", &dnet_stat_count::count)
+		.add_property("errors", &dnet_stat_count::err)
 	;
 
 	bp::class_<stat_count_result_entry>("StatCountResultEntry")

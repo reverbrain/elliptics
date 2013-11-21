@@ -53,6 +53,7 @@ def wrap_address(classes):
     for cls in classes:
         cls.__address__ = cls.address
         cls.__group_id__ = cls.group_id
+        del cls.group_id
         cls.address = address
 
 LookupResultEntry.__storage_address__ = LookupResultEntry.storage_address
