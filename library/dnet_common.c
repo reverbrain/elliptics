@@ -602,8 +602,12 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 
 	ids = data + sizeof(struct dnet_addr) * cnt->addr_num + sizeof(struct dnet_addr_container);
 
-	for (i=0; i<num; ++i)
+	for (i=0; i<num; ++i) {
 		dnet_convert_raw_id(&ids[i]);
+		dnet_log(n, DNET_LOG_NOTICE, "connected-to-addr: %s: received ids: %d/%d, addr-num: %d, idx: %d, id: %s.\n",
+				dnet_server_convert_dnet_addr(addr), i, num, cnt->addr_num, idx,
+				dnet_dump_id_str(ids[i].id));
+	}
 
 	st = dnet_state_create(n, cmd->id.group_id, ids, num, addr, s, &err, join, idx, dnet_state_net_process);
 	if (!st) {
