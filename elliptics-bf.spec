@@ -122,6 +122,7 @@ rm -rf %{buildroot}
 %{python_sitelib}/elliptics/core.so.*
 %{python_sitelib}/elliptics_recovery/*
 %{python_sitelib}/elliptics/*.py*
+%{python_sitelib}/elliptics*.egg-info
 
 %files client-devel
 %defattr(-,root,root,-)
