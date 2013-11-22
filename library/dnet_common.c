@@ -309,10 +309,7 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 	struct dnet_node *n = st->n;
 	struct dnet_raw_id *ids;
 	char server_addr[128], rem_addr[128];
-	struct dnet_addr empty;
 	int i, err;
-
-	memset(&empty, 0, sizeof(empty));
 
 	dnet_server_convert_dnet_addr_raw(&st->addr, server_addr, sizeof(server_addr));
 	dnet_server_convert_dnet_addr_raw(&cnt->addrs[0], rem_addr, sizeof(rem_addr));
@@ -339,7 +336,7 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 		struct dnet_addr *ta = &cnt->addrs[i];
 		char tmp[128];
 
-		if (!memcmp(ta, &empty, ta->addr_len)) {
+		if (dnet_empty_addr(ta)) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: received zero address route reply: %s, ids-num: %d, aborting route update\n",
 					server_addr, dnet_server_convert_dnet_addr_raw(ta, tmp, sizeof(tmp)), ids_num);
 			err = -ENOTTY;

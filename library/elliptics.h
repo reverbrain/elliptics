@@ -916,6 +916,12 @@ static inline void dnet_indexes_shard_count_decode(struct dnet_id *id, int *coun
     *count = dnet_bswap32(data[5]);
 }
 
+static inline int dnet_empty_addr(struct dnet_addr *addr)
+{
+	static struct dnet_addr __empty;
+
+	return memcmp(addr, &__empty, addr->addr_len) == 0;
+}
 
 #ifdef __cplusplus
 }
