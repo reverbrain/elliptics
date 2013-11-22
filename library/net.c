@@ -881,7 +881,9 @@ int dnet_setup_control_nolock(struct dnet_net_state *st)
 			io->net_thread_pos = 0;
 		st->epoll_fd = io->net[pos].epoll_fd;
 
+		pthread_mutex_lock(&st->send_lock);
 		err = dnet_schedule_recv(st);
+		pthread_mutex_unlock(&st->send_lock);
 		if (err)
 			goto err_out_unschedule;
 	}
