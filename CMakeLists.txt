@@ -144,7 +144,7 @@ set(INSTALL_LIBRARY_DIR "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}")
 export(TARGETS elliptics_client elliptics_cpp
     FILE "${PROJECT_BINARY_DIR}/EllipticsTargets.cmake")
 
-export(PACKAGE Elliptics)
+#export(PACKAGE Elliptics)
 
 configure_file(cmake/EllipticsConfig.cmake.in
                 "${PROJECT_BINARY_DIR}/cmake/EllipticsConfig.cmake"

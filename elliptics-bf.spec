@@ -90,8 +90,6 @@ make %{?_smp_mflags}
 %install
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
-cp -r build/lib/elliptics %{buildroot}/%{python_sitelib}/
-cp -r build/lib/elliptics_recovery %{buildroot}/%{python_sitelib}/
 rm -f %{buildroot}%{_libdir}/*.a
 rm -f %{buildroot}%{_libdir}/*.la
 
@@ -124,6 +122,7 @@ rm -rf %{buildroot}
 %{python_sitelib}/elliptics/core.so.*
 %{python_sitelib}/elliptics_recovery/*
 %{python_sitelib}/elliptics/*.py*
+%{python_sitelib}/elliptics*.egg-info
 
 %files client-devel
 %defattr(-,root,root,-)
