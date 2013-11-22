@@ -34,6 +34,6 @@ install(TARGETS core_python
     )
 
 install(CODE "EXECUTE_PROCESS(
-	COMMAND ${PYTHON_EXECUTABLE} setup.py install --prefix=$ENV{DESTDIR}
+	COMMAND ${PYTHON_EXECUTABLE} setup.py install --prefix=$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}
 	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/
 )")
