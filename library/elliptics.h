@@ -119,7 +119,7 @@ struct dnet_net_state
 	atomic_t		refcnt;
 	int			read_s, write_s;
 
-	int			need_exit;
+	int			__need_exit;
 
 	int			stall;
 
