@@ -1180,6 +1180,8 @@ void dnet_state_destroy(struct dnet_net_state *st)
 		dnet_server_convert_dnet_addr(&st->addr), st->read_s, st->write_s, st->addr_num);
 
 	free(st->addrs);
+
+	memset(st, 0xff, sizeof(struct dnet_net_state));
 	free(st);
 }
 
