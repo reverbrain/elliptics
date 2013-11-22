@@ -578,11 +578,23 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		goto err_out_free;
 	}
 
-	// This anyway doesn't work
+	// This anyway doesn't work - there are issues with BE/LE conversion
 	dnet_convert_addr_container(cnt);
+
+	size = cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container);
+	num = size / sizeof(struct dnet_raw_id);
+
+	ids = data + sizeof(struct dnet_addr) * cnt->addr_num + sizeof(struct dnet_addr_container);
 
 	idx = -1;
 	for (i = 0; i < cnt->addr_num; ++i) {
+		if (dnet_empty_addr(&cnt->addrs[i])) {
+			dnet_log(n, DNET_LOG_ERROR, "connected-to-addr: %s: received wildcard (like 0.0.0.0) addr: ids: %d, addr-num: %d, idx: %d.\n",
+					dnet_server_convert_dnet_addr(addr), num, cnt->addr_num, idx);
+			err = -EPROTO;
+			goto err_out_free;
+		}
+
 		if (dnet_addr_equal(addr, &cnt->addrs[i])) {
 			idx = i;
 			break;
@@ -593,11 +605,6 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 				dnet_server_convert_dnet_addr(addr));
 		goto err_out_free;
 	}
-
-	size = cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container);
-	num = size / sizeof(struct dnet_raw_id);
-
-	ids = data + sizeof(struct dnet_addr) * cnt->addr_num + sizeof(struct dnet_addr_container);
 
 	for (i=0; i<num; ++i) {
 		dnet_convert_raw_id(&ids[i]);
