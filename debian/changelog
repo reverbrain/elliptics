@@ -1,3 +1,19 @@
+elliptics (2.24.14.28) unstable; urgency=low
+
+  * state: fill state with 0xff prior its freeing for debug
+  * state: guard dnet_schedule_recv() with st->send_lock. dnet_schedule_send() is already guarded.
+  * state: s/need_exit/__need_exit. Prevent socket shutdown if __need_exit is set.
+  * state: when adding new state check reverse-lookup data, fail to add new state if wildcard address (like 0.0.0.0) has been received
+  * state: added more debug into just-connected-to address and its route table
+  * state: do not copy n->addrs -> st->addrs for joining but not listening states
+  * Python: added method for getting name of command.
+  * Build: Added egg-info files to rpm spec.
+  * Build: Fixed build on RHEL5/6.
+  * Python: provided group_id in address returned by some result entries. Restored counters in AddressStatistics.
+  * CMake: Don't export Elliptics package
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Sat, 23 Nov 2013 03:22:20 +0400
+
 elliptics (2.24.14.27) unstable; urgency=low
 
   * debian: do not depend in runtime on source-version
