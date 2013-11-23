@@ -39,23 +39,26 @@ private:
 
 struct data_lru_tag_t;
 typedef boost::intrusive::list_base_hook<boost::intrusive::tag<data_lru_tag_t>,
-boost::intrusive::link_mode<boost::intrusive::safe_link>
+boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::optimize_size<true>
 > lru_list_base_hook_t;
 
 struct data_set_tag_t;
 typedef boost::intrusive::set_base_hook<boost::intrusive::tag<data_set_tag_t>,
-boost::intrusive::link_mode<boost::intrusive::safe_link>
+boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::optimize_size<true>
 > set_base_hook_t;
 
 struct time_set_tag_t;
 typedef boost::intrusive::set_base_hook<boost::intrusive::tag<time_set_tag_t>,
-boost::intrusive::link_mode<boost::intrusive::safe_link>
+boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::optimize_size<true>
 > time_set_base_hook_t;
 
 struct sync_set_tag_t;
 typedef boost::intrusive::set_base_hook<boost::intrusive::tag<sync_set_tag_t>,
-boost::intrusive::link_mode<boost::intrusive::safe_link>
+boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::optimize_size<true>
 > sync_set_base_hook_t;
+
+#include <iostream>
+#define DB(x) std::cerr << #x << ": " << x << std::endl;
 
 class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_set_base_hook_t, public sync_set_base_hook_t {
 public:
@@ -154,8 +157,11 @@ public:
 	}
 
 	size_t size(void) const {
-		return capacity() + sizeof(*this);
-		// + sizeof_data_t + sizeof raw_data_t + capacity
+		return capacity() + overhead_size();
+	}
+
+	size_t overhead_size(void) const {
+		return sizeof(*this) + sizeof(*m_data);
 	}
 
 	size_t capacity(void) const {
@@ -177,12 +183,12 @@ public:
 private:
 	size_t m_lifetime;
 	size_t m_synctime;
-	size_t m_cache_page_number;
 	dnet_time m_timestamp;
 	uint64_t m_user_flags;
 	bool m_remove_from_disk;
 	bool m_remove_from_cache;
 	bool m_only_append;
+	char m_cache_page_number;
 	struct dnet_raw_id m_id;
 	std::shared_ptr<raw_data_t> m_data;
 };
@@ -213,6 +219,51 @@ struct synctime_less {
 typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<sync_set_base_hook_t>,
 boost::intrusive::compare<synctime_less>
 > sync_set_t;
+
+struct cache_stats {
+	cache_stats(): size_of_objects(0), number_of_objects(0), number_of_objects_marked_for_deletion(0),
+		size_of_objects_marked_for_deletion(0) {}
+
+	size_t size_of_objects;
+	size_t number_of_objects;
+	size_t number_of_objects_marked_for_deletion;
+	size_t size_of_objects_marked_for_deletion;
+};
+
+class slru_cache_t;
+
+class cache_manager {
+	public:
+		cache_manager(struct dnet_node *n);
+
+		~cache_manager();
+
+		int write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data);
+
+		std::shared_ptr<raw_data_t> read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io);
+
+		int remove(const unsigned char *id, dnet_io_attr *io);
+
+		int lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd);
+
+		int indexes_find(dnet_cmd *cmd, dnet_indexes_request *request);
+
+		int indexes_update(dnet_cmd *cmd, dnet_indexes_request *request);
+
+		int indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request);
+
+		size_t cache_size() const;
+
+		cache_stats get_total_cache_stats() const;
+
+		std::vector<cache_stats> get_caches_stats() const;
+
+	private:
+		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
+		size_t m_max_cache_size;
+
+		size_t idx(const unsigned char *id);
+};
 
 template <typename T>
 class elliptics_unique_lock
@@ -265,14 +316,5 @@ private:
 };
 
 }}
-
-struct cache_stats {
-	cache_stats(): size_of_objects(0), number_of_objects(0), number_of_objects_marked_for_deletion(0), size_of_objects_marked_for_deletion(0) {}
-
-	size_t size_of_objects;
-	size_t number_of_objects;
-	size_t number_of_objects_marked_for_deletion;
-	size_t size_of_objects_marked_for_deletion;
-};
 
 #endif // CACHE_HPP

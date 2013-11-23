@@ -1,4 +1,5 @@
 ﻿#include "slru_cache.hpp"
+#include <cassert>
 
 namespace ioremap { namespace cache {
 
@@ -20,7 +21,7 @@ slru_cache_t::~slru_cache_t() {
 
 	for (size_t page_number = 0; page_number < m_cache_pages_number; ++page_number) {
 		m_cache_pages_max_sizes[page_number] = 0;
-		resize_page(0, page_number, 0);
+		resize_page((unsigned char *) "", page_number, 0);
 	}
 
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "~cache_t: %p", this);
@@ -81,10 +82,11 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 				page_number = next_page_number(page_number);
 			}
 
-			const size_t new_size = raw.size() + io->size;
-			insert_data_into_page(id, page_number, &*it, new_size * 2);
-
+			m_cache_stats.size_of_objects -= it->size();
 			raw.insert(raw.end(), data, data + io->size);
+			m_cache_stats.size_of_objects += it->size();
+
+			insert_data_into_page(id, page_number, &*it);
 
 			it->set_timestamp(io->timestamp);
 			it->set_user_flags(io->user_flags);
@@ -168,16 +170,19 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 		page_number = next_page_number(page_number);
 	}
 
-	it->set_remove_from_cache(false);
-	insert_data_into_page(id, page_number, &*it, new_size * 2);
-
 	if (append) {
-		// TODO: Recalculate m_cache_stats here
+		m_cache_stats.size_of_objects -= it->size();
 		raw.data().insert(raw.data().end(), data, data + size);
+		m_cache_stats.size_of_objects += it->size();
 	} else {
+		m_cache_stats.size_of_objects -= it->size();
 		raw.data().resize(new_size);
 		memcpy(raw.data().data() + io->offset, data, size);
+		m_cache_stats.size_of_objects += it->size();
 	}
+
+	it->set_remove_from_cache(false);
+	insert_data_into_page(id, page_number, &*it);
 
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: data modified: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
@@ -248,7 +253,7 @@ std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd
 			page_number = next_page_number(page_number);
 		}
 
-		insert_data_into_page(id, page_number, &*it, it->data()->data().size());
+		insert_data_into_page(id, page_number, &*it);
 
 		io->timestamp = it->timestamp();
 		io->user_flags = it->user_flags();
@@ -348,9 +353,10 @@ cache_stats slru_cache_t::get_cache_stats() const
 
 // private:
 
-void slru_cache_t::insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data, size_t size)
+void slru_cache_t::insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data)
 {
 	elliptics_timer timer;
+	size_t size = data->size();
 
 	// Recalc used space, free enough space for new data, move object to the end of the queue
 	if (m_cache_pages_sizes[page_number] + size > m_cache_pages_max_sizes[page_number]) {
@@ -367,7 +373,7 @@ void slru_cache_t::insert_data_into_page(const unsigned char *id, size_t page_nu
 void slru_cache_t::remove_data_from_page(const unsigned char *id, size_t page_number, data_t *data)
 {
 	(void) id;
-	m_cache_pages_sizes[page_number] -= data->data()->size();
+	m_cache_pages_sizes[page_number] -= data->size();
 	m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*data));
 }
 
@@ -376,10 +382,10 @@ iset_t::iterator slru_cache_t::create_data(const unsigned char *id, const char *
 
 	data_t *raw = new data_t(id, 0, data, size, remove_from_disk);
 
-	insert_data_into_page(id, last_page_number, raw, size);
+	insert_data_into_page(id, last_page_number, raw);
 
 	m_cache_stats.number_of_objects++;
-	m_cache_stats.size_of_objects += size;
+	m_cache_stats.size_of_objects += raw->size();
 	return m_set.insert(*raw).first;
 }
 
@@ -429,7 +435,7 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 	size_t previous_page = previous_page_number(page_number);
 
 	for (auto it = m_cache_pages_lru[page_number].begin(); it != m_cache_pages_lru[page_number].end();) {
-		if (max_cache_size + removed_size > cache_size + reserve)
+		if (max_cache_size + removed_size >= cache_size + reserve)
 			break;
 
 		data_t *raw = &*it;
@@ -437,9 +443,8 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 
 		// If page is not last move object to previous page
 		if (previous_page < m_cache_pages_number) {
-			size_t size = raw->data()->size();
 			remove_data_from_page(id, page_number, raw);
-			insert_data_into_page(id, previous_page, raw, size);
+			insert_data_into_page(id, previous_page, raw);
 		} else {
 			if (raw->synctime() || raw->remove_from_cache()) {
 				if (!raw->remove_from_cache()) {
@@ -460,7 +465,6 @@ void slru_cache_t::erase_element(data_t *obj) {
 	elliptics_timer timer;
 
 	size_t page_number = obj->cache_page_number();
-//	m_lru.erase(m_lru.iterator_to(*obj));
 	m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*obj));
 	m_set.erase(m_set.iterator_to(*obj));
 	if (obj->lifetime())
@@ -473,9 +477,7 @@ void slru_cache_t::erase_element(data_t *obj) {
 		obj->clear_synctime();
 	}
 
-//	m_cache_size -= obj->size();
 	m_cache_pages_sizes[page_number] -= obj->size();
-
 	m_cache_stats.number_of_objects--;
 	m_cache_stats.size_of_objects -= obj->size();
 

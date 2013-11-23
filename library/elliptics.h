@@ -560,7 +560,8 @@ struct dnet_node
 	pthread_mutex_t		iterator_lock;
 
 	size_t			cache_size;
-	void			*cache;
+    size_t			caches_number;
+    void			*cache;
 
 	struct dnet_config_data *config_data;
 };

@@ -51,7 +51,7 @@ private:
 		return page_number + 1;
 	}
 
-	void insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data, size_t size);
+	void insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data);
 
 	void remove_data_from_page(const unsigned char *id, size_t page_number, data_t *data);
 

@@ -76,6 +76,8 @@
 
 #define DNET_DEFAULT_INDEXES_SHARD_COUNT 16
 
+#define DNET_DEFAULT_CACHES_NUMBER 16
+
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #ifndef dnet_offsetof

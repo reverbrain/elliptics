@@ -340,6 +340,12 @@ static int dnet_set_cache_size(struct dnet_config_backend *b __unused, char *key
 	return 0;
 }
 
+static int dnet_set_caches_number(struct dnet_config_backend *b __unused, char *key __unused, char *value)
+{
+	dnet_cur_cfg_data->cfg_state.caches_number = strtoull(value, NULL, 0);
+	return 0;
+}
+
 static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"mallopt_mmap_threshold", dnet_set_malloc_options},
 	{"log_level", dnet_simple_set},
@@ -367,6 +373,7 @@ static struct dnet_config_entry dnet_cfg_entries[] = {
 	{"client_net_prio", dnet_simple_set},
 	{"srw_config", dnet_set_srw},
 	{"cache_size", dnet_set_cache_size},
+	{"caches_number", dnet_set_caches_number},
 	{"indexes_shard_count", dnet_simple_set},
 };
 
@@ -451,6 +458,7 @@ struct dnet_node *dnet_parse_config(const char *file, int mon)
 	dnet_cur_cfg_data->backend_logger.log_level = DNET_LOG_DEBUG;
 	dnet_cur_cfg_data->backend_logger.log = dnet_common_log;
 	dnet_cur_cfg_data->cfg_state.log = &dnet_cur_cfg_data->backend_logger;
+	dnet_cur_cfg_data->cfg_state.caches_number = DNET_DEFAULT_CACHES_NUMBER;
 
 	err = dnet_file_backend_init();
 	if (err)

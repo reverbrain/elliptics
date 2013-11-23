@@ -395,7 +395,11 @@ struct dnet_config
 
 	struct srw_init_ctl	srw;
 
+	/* Total cache size */
 	uint64_t		cache_size;
+
+	/* Caches number */
+	unsigned int	caches_number;
 
 	int			cache_sync_timeout;
 

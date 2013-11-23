@@ -19,78 +19,88 @@
 
 namespace ioremap { namespace cache {
 
-class cache_manager {
-	public:
-		cache_manager(struct dnet_node *n, int num = 16) {
-			size_t max_size = (n->cache_size) / num;
-			size_t cache_pages_number = 1;
-			std::vector<size_t> pages_max_sizes(cache_pages_number, max_size / cache_pages_number);
-			for (int i = 0; i < num; ++i) {
-				m_caches.emplace_back(std::make_shared<slru_cache_t>(n, pages_max_sizes));
-			}
-		}
+cache_manager::cache_manager(struct dnet_node *n) {
+	size_t caches_number = n->caches_number;
+	m_max_cache_size = n->cache_size;
+	size_t max_size = m_max_cache_size / caches_number;
+	size_t cache_pages_number = 2;
+	std::vector<size_t> pages_max_sizes(cache_pages_number, max_size / cache_pages_number);
+	for (size_t i = 0; i < caches_number; ++i) {
+		m_caches.emplace_back(std::make_shared<slru_cache_t>(n, pages_max_sizes));
+	}
+}
 
-		~cache_manager() {
-			//Stops all caches in parallel. Avoids sleeping in all cache distructors
-			for (auto it(m_caches.begin()), end(m_caches.end()); it != end; ++it) {
-				(*it)->stop(); //Sets cache as stopped
-			}
-		}
+cache_manager::~cache_manager() {
+	//Stops all caches in parallel. Avoids sleeping in all cache distructors
+	for (auto it(m_caches.begin()), end(m_caches.end()); it != end; ++it) {
+		(*it)->stop(); //Sets cache as stopped
+	}
+}
 
-		int write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
-			return m_caches[idx(id)]->write(id, st, cmd, io, data);
-		}
+int cache_manager::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd, dnet_io_attr *io, const char *data) {
+	return m_caches[idx(id)]->write(id, st, cmd, io, data);
+}
 
-		std::shared_ptr<raw_data_t> read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
-			return m_caches[idx(id)]->read(id, cmd, io);
-		}
+std::shared_ptr<raw_data_t> cache_manager::read(const unsigned char *id, dnet_cmd *cmd, dnet_io_attr *io) {
+	return m_caches[idx(id)]->read(id, cmd, io);
+}
 
-		int remove(const unsigned char *id, dnet_io_attr *io) {
-			return m_caches[idx(id)]->remove(id, io);
-		}
+int cache_manager::remove(const unsigned char *id, dnet_io_attr *io) {
+	return m_caches[idx(id)]->remove(id, io);
+}
 
-		int lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd) {
-			return m_caches[idx(id)]->lookup(id, st, cmd);
-		}
+int cache_manager::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *cmd) {
+	return m_caches[idx(id)]->lookup(id, st, cmd);
+}
 
-		int indexes_find(dnet_cmd *cmd, dnet_indexes_request *request) {
-			(void) cmd;
-			(void) request;
-			return -ENOTSUP;
-		}
+int cache_manager::indexes_find(dnet_cmd *cmd, dnet_indexes_request *request) {
+	(void) cmd;
+	(void) request;
+	return -ENOTSUP;
+}
 
-		int indexes_update(dnet_cmd *cmd, dnet_indexes_request *request) {
-			(void) cmd;
-			(void) request;
-			return -ENOTSUP;
-		}
+int cache_manager::indexes_update(dnet_cmd *cmd, dnet_indexes_request *request) {
+	(void) cmd;
+	(void) request;
+	return -ENOTSUP;
+}
 
-		int indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request) {
-			(void) cmd;
-			(void) request;
-			return -ENOTSUP;
-		}
+int cache_manager::indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request) {
+	(void) cmd;
+	(void) request;
+	return -ENOTSUP;
+}
 
-		cache_stats get_cache_stats() const {
-			cache_stats stats;
-			for (size_t i = 0; i < m_caches.size(); ++i) {
-				const cache_stats &page_stats = m_caches[i]->get_cache_stats();
-				stats.number_of_objects += page_stats.number_of_objects;
-				stats.number_of_objects_marked_for_deletion += page_stats.number_of_objects_marked_for_deletion;
-				stats.size_of_objects_marked_for_deletion += page_stats.size_of_objects_marked_for_deletion;
-				stats.size_of_objects += page_stats.size_of_objects;
-			}
-			return stats;
-		}
+size_t cache_manager::cache_size() const
+{
+	return m_max_cache_size;
+}
 
-	private:
-		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
+cache_stats cache_manager::get_total_cache_stats() const {
+	cache_stats stats;
+	for (size_t i = 0; i < m_caches.size(); ++i) {
+		const cache_stats &page_stats = m_caches[i]->get_cache_stats();
+		stats.number_of_objects += page_stats.number_of_objects;
+		stats.number_of_objects_marked_for_deletion += page_stats.number_of_objects_marked_for_deletion;
+		stats.size_of_objects_marked_for_deletion += page_stats.size_of_objects_marked_for_deletion;
+		stats.size_of_objects += page_stats.size_of_objects;
+	}
+	return stats;
+}
 
-		size_t idx(const unsigned char *id) {
-			unsigned i = *(unsigned *)id;
-			return i % m_caches.size();
-		}
-};
+std::vector<cache_stats> cache_manager::get_caches_stats() const
+{
+	std::vector<cache_stats> caches_stats;
+	for (size_t i = 0; i < m_caches.size(); ++i) {
+		caches_stats.push_back(m_caches[i]->get_cache_stats());
+	}
+	return caches_stats;
+}
+
+size_t cache_manager::idx(const unsigned char *id) {
+	unsigned i = *(unsigned *)id;
+	return i % m_caches.size();
+}
 
 }}
 
@@ -219,7 +229,7 @@ int dnet_cache_init(struct dnet_node *n)
 		return 0;
 
 	try {
-		n->cache = (void *)(new cache_manager(n, 16));
+		n->cache = (void *)(new cache_manager(n));
 	} catch (const std::exception &e) {
 		dnet_log_raw(n, DNET_LOG_ERROR, "Could not create cache: %s\n", e.what());
 		return -ENOMEM;

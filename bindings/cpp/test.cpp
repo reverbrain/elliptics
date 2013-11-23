@@ -36,6 +36,8 @@
 
 #include <algorithm>
 
+#include "../../cache/cache.hpp"
+
 using namespace ioremap::elliptics;
 using namespace boost::unit_test;
 
@@ -282,6 +284,11 @@ public:
 		m_node = NULL;
 	}
 
+	dnet_node *get_native()
+	{
+		return m_node;
+	}
+
 private:
 	dnet_node *m_node;
 	std::string m_path;
@@ -331,6 +338,7 @@ static void configure_server_nodes()
 
 	const std::string first_server_path = base_path + "/server-1";
 	const std::string second_server_path = base_path + "/server-2";
+	const std::string third_server_path = base_path + "/server-3";
 
 	create_directory(first_server_path);
 	create_directory(first_server_path + "/blob");
@@ -338,6 +346,9 @@ static void configure_server_nodes()
 	create_directory(second_server_path);
 	create_directory(second_server_path + "/blob");
 	create_directory(second_server_path + "/history");
+	create_directory(third_server_path);
+	create_directory(third_server_path + "/blob");
+	create_directory(third_server_path + "/history");
 
 	config_data ioserv_config;
 
@@ -361,6 +372,7 @@ static void configure_server_nodes()
 			("server_net_prio", 1)
 			("client_net_prio", 6)
 			("cache_size", 1024 * 1024 * 256)
+			("caches_number", 16)
 			("backend", "blob")
 			("sync", 5)
 			("data", DUMMY_VALUE)
@@ -401,11 +413,28 @@ static void configure_server_nodes()
 	second_server.start();
 	results_reporter::get_stream() << "Second server started" << std::endl;
 
+	create_config(ioserv_config, third_server_path + "/ioserv.conf")
+			("log", third_server_path + "/log.log")
+			("group", 5)
+			("addr", "localhost:1027:2")
+			("remote", "localhost:1025:2 localhost:1026:2")
+			("history", third_server_path + "/history")
+			("data", third_server_path + "/blob/data")
+			("cache_size", 100000)
+			("caches_number", 1)
+			;
+
+	server_node third_server(third_server_path + "/ioserv.conf");
+
+	third_server.start();
+	results_reporter::get_stream() << "Third server started" << std::endl;
+
 	global_data = std::make_shared<tests_data>();
 
 	global_data->directory = std::move(guard);
 	global_data->nodes.emplace_back(std::move(first_server));
 	global_data->nodes.emplace_back(std::move(second_server));
+	global_data->nodes.emplace_back(std::move(third_server));
 }
 
 static void test_write(session &sess, const std::string &id, const std::string &data)
@@ -580,6 +609,29 @@ static void test_cache_delete(session &sess, int num, int percentage)
 
 		ELLIPTICS_REQUIRE(remove_result, sess.remove(id));
 		ELLIPTICS_REQUIRE_ERROR(read_result, sess.read_data(id, 0, 0), -ENOENT);
+	}
+}
+
+static void test_cache_records_sizes(session &sess)
+{
+	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[2].get_native()->cache;
+	const size_t cache_size = cache->cache_size();
+	const size_t lru_pages = 2;
+	data_pointer data("0");
+
+	size_t record_size = 0;
+	{
+		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::to_string(0)), data, 3000));
+		const auto& stats = cache->get_total_cache_stats();
+		record_size = stats.size_of_objects;
+	}
+
+	for (size_t id = 1; id < cache_size / lru_pages / record_size; ++id)
+	{
+		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::to_string(id)), data, 3000));
+		const auto& stats = cache->get_total_cache_stats();
+		BOOST_REQUIRE_EQUAL(stats.number_of_objects * record_size, stats.size_of_objects);
+		BOOST_REQUIRE_EQUAL(stats.number_of_objects, id + 1);
 	}
 }
 
@@ -1232,6 +1284,7 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
 	ELLIPTICS_TEST_CASE(test_cache_read, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY | DNET_IO_FLAGS_NOCSUM), 1000, 20);
 	ELLIPTICS_TEST_CASE(test_cache_delete, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000, 20);
+	ELLIPTICS_TEST_CASE(test_cache_records_sizes, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, 0), "2.xml", "lookup data");
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "cache-2.xml", "lookup data");
 	ELLIPTICS_TEST_CASE(test_cas, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CHECKSUM));
