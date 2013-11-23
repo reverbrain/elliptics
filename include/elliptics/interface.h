@@ -401,6 +401,9 @@ struct dnet_config
 	/* Caches number */
 	unsigned int	caches_number;
 
+	/* Cache pages number */
+	unsigned int	cache_pages_number;
+
 	int			cache_sync_timeout;
 
 	/* so that we do not change major version frequently */

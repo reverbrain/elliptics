@@ -14,17 +14,18 @@
  */
 
 #include "cache.hpp"
-#include "lru_cache.hpp"
 #include "slru_cache.hpp"
 
 namespace ioremap { namespace cache {
 
 cache_manager::cache_manager(struct dnet_node *n) {
 	size_t caches_number = n->caches_number;
+	m_cache_pages_number = n->cache_pages_number;
 	m_max_cache_size = n->cache_size;
 	size_t max_size = m_max_cache_size / caches_number;
-	size_t cache_pages_number = 2;
-	std::vector<size_t> pages_max_sizes(cache_pages_number, max_size / cache_pages_number);
+
+	std::vector<size_t> pages_max_sizes(m_cache_pages_number, max_size / m_cache_pages_number);
+
 	for (size_t i = 0; i < caches_number; ++i) {
 		m_caches.emplace_back(std::make_shared<slru_cache_t>(n, pages_max_sizes));
 	}
@@ -74,6 +75,11 @@ int cache_manager::indexes_internal(dnet_cmd *cmd, dnet_indexes_request *request
 size_t cache_manager::cache_size() const
 {
 	return m_max_cache_size;
+}
+
+size_t cache_manager::cache_pages_number() const
+{
+	return m_cache_pages_number;
 }
 
 cache_stats cache_manager::get_total_cache_stats() const {

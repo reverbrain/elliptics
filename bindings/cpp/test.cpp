@@ -616,7 +616,7 @@ static void test_cache_records_sizes(session &sess)
 {
 	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[2].get_native()->cache;
 	const size_t cache_size = cache->cache_size();
-	const size_t lru_pages = 2;
+	const size_t cache_pages_number = cache->cache_pages_number();
 	data_pointer data("0");
 
 	size_t record_size = 0;
@@ -626,7 +626,7 @@ static void test_cache_records_sizes(session &sess)
 		record_size = stats.size_of_objects;
 	}
 
-	for (size_t id = 1; id < cache_size / lru_pages / record_size; ++id)
+	for (size_t id = 1; id < cache_size / cache_pages_number / record_size; ++id)
 	{
 		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::to_string(id)), data, 3000));
 		const auto& stats = cache->get_total_cache_stats();

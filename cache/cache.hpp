@@ -254,6 +254,8 @@ class cache_manager {
 
 		size_t cache_size() const;
 
+		size_t cache_pages_number() const;
+
 		cache_stats get_total_cache_stats() const;
 
 		std::vector<cache_stats> get_caches_stats() const;
@@ -261,6 +263,7 @@ class cache_manager {
 	private:
 		std::vector<std::shared_ptr<slru_cache_t>> m_caches;
 		size_t m_max_cache_size;
+		size_t m_cache_pages_number;
 
 		size_t idx(const unsigned char *id);
 };

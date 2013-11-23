@@ -78,6 +78,8 @@
 
 #define DNET_DEFAULT_CACHES_NUMBER 16
 
+#define DNET_DEFAULT_CACHE_PAGES_NUMBER 1
+
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 #ifndef dnet_offsetof
