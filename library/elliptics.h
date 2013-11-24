@@ -451,8 +451,7 @@ void dnet_oplock(struct dnet_node *n, struct dnet_id *key);
 void dnet_opunlock(struct dnet_node *n, struct dnet_id *key);
 int dnet_optrylock(struct dnet_node *n, struct dnet_id *key);
 
-struct dnet_config_data
-{
+struct dnet_config_data {
 	struct dnet_log backend_logger;
 	char *logger_value;
 
@@ -561,7 +560,9 @@ struct dnet_node
 	pthread_mutex_t		iterator_lock;
 
 	size_t			cache_size;
-	void			*cache;
+    size_t			caches_number;
+    size_t			cache_pages_number;
+    void			*cache;
 
 	struct dnet_config_data *config_data;
 };

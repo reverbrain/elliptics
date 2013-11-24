@@ -40,7 +40,6 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
-
 int dnet_stat_local(struct dnet_net_state *st, struct dnet_id *id)
 {
 	struct dnet_node *n = st->n;
@@ -1064,6 +1063,9 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 	char time_str[64];
 	struct tm io_tm;
 	struct timeval io_tv;
+
+#define DIFF(s, e) ((e).tv_sec - (s).tv_sec) * 1000000 + ((e).tv_usec - (s).tv_usec)
+
 	long diff;
 
 	if (!(cmd->flags & DNET_FLAGS_NOLOCK)) {
@@ -1097,7 +1099,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 		case DNET_CMD_INDEXES_UPDATE:
 		case DNET_CMD_INDEXES_INTERNAL:
 		case DNET_CMD_INDEXES_FIND:
-#if 0 // We don't wont to specially process this commands yet
+#if 0 // We don't want specially process this commands yet
 			indexes_request = (struct dnet_indexes_request*)data;
 			if (!(indexes_request->flags & DNET_IO_FLAGS_NOCACHE)) {
 				err = dnet_cmd_cache_indexes(st, cmd, indexes_request);
@@ -1231,7 +1233,7 @@ int dnet_process_cmd_raw(struct dnet_net_state *st, struct dnet_cmd *cmd, void *
 
 	gettimeofday(&end, NULL);
 
-	diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
+	diff = DIFF(start, end);
 	dnet_log(n, DNET_LOG_INFO, "%s: %s: trans: %llu, cflags: 0x%llx, time: %ld usecs, err: %d.\n",
 			dnet_dump_id(&cmd->id), dnet_cmd_string(cmd->cmd), tid,
 			(unsigned long long)cmd->flags, diff, err);
