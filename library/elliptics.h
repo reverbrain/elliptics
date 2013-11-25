@@ -119,7 +119,7 @@ struct dnet_net_state
 	atomic_t		refcnt;
 	int			read_s, write_s;
 
-	int			need_exit;
+	int			__need_exit;
 
 	int			stall;
 
@@ -451,8 +451,7 @@ void dnet_oplock(struct dnet_node *n, struct dnet_id *key);
 void dnet_opunlock(struct dnet_node *n, struct dnet_id *key);
 int dnet_optrylock(struct dnet_node *n, struct dnet_id *key);
 
-struct dnet_config_data
-{
+struct dnet_config_data {
 	struct dnet_log backend_logger;
 	char *logger_value;
 
@@ -559,7 +558,9 @@ struct dnet_node
 	pthread_mutex_t		iterator_lock;
 
 	size_t			cache_size;
-	void			*cache;
+    size_t			caches_number;
+    size_t			cache_pages_number;
+    void			*cache;
 
 	void			*monitor;
 
@@ -916,6 +917,12 @@ static inline void dnet_indexes_shard_count_decode(struct dnet_id *id, int *coun
     *count = dnet_bswap32(data[5]);
 }
 
+static inline int dnet_empty_addr(struct dnet_addr *addr)
+{
+	static struct dnet_addr __empty;
+
+	return memcmp(addr, &__empty, addr->addr_len) == 0;
+}
 
 #ifdef __cplusplus
 }

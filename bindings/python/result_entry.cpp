@@ -207,6 +207,12 @@ std::string result_entry_address(const T &result)
 	return dnet_server_convert_dnet_addr(result.address());
 }
 
+template <typename T>
+int result_entry_group_id(const T &result)
+{
+	return result.command()->id.group_id;
+}
+
 uint64_t callback_result_size(callback_result_entry &result)
 {
 	return result.size();
@@ -217,14 +223,30 @@ dnet_stat stat_result_get_statistics(stat_result_entry &result)
 	return *(result.statistics());
 }
 
-dnet_addr_stat stat_count_result_get_statistics(stat_count_result_entry &result)
+struct address_statistics : public dnet_addr_stat {
+	address_statistics(const dnet_addr_stat &stat, int group_id)
+	: dnet_addr_stat(stat)
+	, group_id(group_id)
+	{}
+
+	int group_id;
+};
+
+address_statistics stat_count_result_get_statistics(stat_count_result_entry &result)
 {
-	return *(result.statistics());
+	return address_statistics(*result.statistics(), result.command()->id.group_id);
 }
 
-std::string addr_stat_get_address(dnet_addr_stat &stat)
-{
+std::string addr_stat_get_address(address_statistics &stat) {
 	return std::string(dnet_server_convert_dnet_addr(&stat.addr));
+}
+
+bp::tuple addr_stat_get_counters(address_statistics &stat) {
+	bp::list ret;
+	for (int i = 0; i < stat.num; ++i) {
+		ret.append(stat.count[i]);
+	}
+	return bp::tuple(ret);
 }
 
 bp::list dnet_stat_get_la(const dnet_stat &stat)
@@ -280,6 +302,7 @@ void init_result_entry() {
 		.add_property("response", iterator_result_response)
 		.add_property("response_data", iterator_result_response_data)
 		.add_property("address", result_entry_address<iterator_result_entry>)
+		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
 		.add_property("error", result_entry_error<iterator_result_entry>)
 	;
 
@@ -300,6 +323,7 @@ void init_result_entry() {
 		.add_property("offset", read_result_get_offset)
 		.add_property("size", read_result_get_size)
 		.add_property("address", result_entry_address<read_result_entry>)
+		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
 		.add_property("error", result_entry_error<read_result_entry>)
 	;
 
@@ -311,6 +335,7 @@ void init_result_entry() {
 		.add_property("checksum", lookup_result_get_checksum)
 		.add_property("filepath", lookup_result_get_filepath)
 		.add_property("address", result_entry_address<lookup_result_entry>)
+		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
 		.add_property("error", result_entry_error<lookup_result_entry>)
 	;
 
@@ -325,6 +350,7 @@ void init_result_entry() {
 	bp::class_<exec_result_entry>("ExecResultEntry")
 		.add_property("context", exec_result_get_context)
 		.add_property("address", result_entry_address<exec_result_entry>)
+		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
 	;
 
 	bp::class_<find_indexes_result_entry>("FindIndexesResultEntry")
@@ -340,6 +366,7 @@ void init_result_entry() {
 		.add_property("size", callback_result_size)
 		.add_property("error", result_entry_error<callback_result_entry>)
 		.add_property("address", result_entry_address<callback_result_entry>)
+		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
 	;
 
 	bp::class_<dnet_stat>("Statisitics", bp::no_init)
@@ -367,18 +394,27 @@ void init_result_entry() {
 	bp::class_<stat_result_entry>("StatResultEntry")
 		.add_property("statistics", stat_result_get_statistics)
 		.add_property("address", result_entry_address<stat_result_entry>)
+		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
 		.add_property("error", result_entry_error<stat_result_entry>)
 	;
 
-	bp::class_<dnet_addr_stat>("AddressStatistics", bp::no_init)
+	bp::class_<address_statistics>("AddressStatistics", bp::no_init)
 		.add_property("address", addr_stat_get_address)
+		.add_property("group_id", &address_statistics::group_id)
 		.add_property("num", &dnet_addr_stat::num)
 		.add_property("cmd_num", &dnet_addr_stat::cmd_num)
+		.add_property("counters", addr_stat_get_counters)
+	;
+
+	bp::class_<dnet_stat_count>("StatisticCounters")
+		.add_property("successes", &dnet_stat_count::count)
+		.add_property("errors", &dnet_stat_count::err)
 	;
 
 	bp::class_<stat_count_result_entry>("StatCountResultEntry")
 		.add_property("statistics", stat_count_result_get_statistics)
 		.add_property("address", result_entry_address<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
 		.add_property("error", result_entry_error<stat_count_result_entry>)
 	;
 

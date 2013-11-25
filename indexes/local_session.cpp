@@ -54,7 +54,7 @@ local_session::local_session(dnet_node *node) : m_ioflags(DNET_IO_FLAGS_CACHE), 
 
 	memset(m_state, 0, sizeof(dnet_net_state));
 
-	m_state->need_exit = 1;
+	m_state->__need_exit = -1;
 	m_state->write_s = -1;
 	m_state->read_s = -1;
 

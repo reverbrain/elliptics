@@ -1,4 +1,7 @@
-add_library(elliptics_cache STATIC cache.cpp)
+ADD_LIBRARY(elliptics_cache STATIC
+			slru_cache
+			cache.cpp)
+
 if(UNIX OR MINGW)
     set_target_properties(elliptics_cache PROPERTIES COMPILE_FLAGS "-fPIC")
 endif()

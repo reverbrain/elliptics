@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.26
+Version:	2.24.14.28
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -90,8 +90,6 @@ make %{?_smp_mflags}
 %install
 rm -rf %{buildroot}
 make install DESTDIR=%{buildroot}
-cp -r build/lib/elliptics %{buildroot}/%{python_sitelib}/
-cp -r build/lib/elliptics_recovery %{buildroot}/%{python_sitelib}/
 rm -f %{buildroot}%{_libdir}/*.a
 rm -f %{buildroot}%{_libdir}/*.la
 
@@ -124,6 +122,7 @@ rm -rf %{buildroot}
 %{python_sitelib}/elliptics/core.so.*
 %{python_sitelib}/elliptics_recovery/*
 %{python_sitelib}/elliptics/*.py*
+%{python_sitelib}/elliptics*.egg-info
 
 %files client-devel
 %defattr(-,root,root,-)
@@ -135,6 +134,24 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Sat Nov 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.28
+- state: fill state with 0xff prior its freeing for debug
+- state: guard dnet_schedule_recv() with st->send_lock. dnet_schedule_send() is already guarded.
+- state: s/need_exit/__need_exit. Prevent socket shutdown if __need_exit is set.
+- state: when adding new state check reverse-lookup data, fail to add new state if wildcard address (like 0.0.0.0) has been received
+- state: added more debug into just-connected-to address and its route table
+- state: do not copy n->addrs -> st->addrs for joining but not listening states
+- Python: added method for getting name of command.
+- Build: Added egg-info files to rpm spec.
+- Build: Fixed build on RHEL5/6.
+- Python: provided group_id in address returned by some result entries. Restored counters in AddressStatistics.
+- CMake: Don't export Elliptics package
+
+* Tue Nov 19 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.27
+- debian: do not depend in runtime on source-version
+- CMake: Include Targets file from Config.cmake
+- Build: fixed copying python scriptcs on RHEL5/6
+
 * Mon Nov 18 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.26
 - spec: depend on 0.21.26+ eblob for statistics
 - Build: Moved redifining of __python at the top of spec file for rhel < 6.

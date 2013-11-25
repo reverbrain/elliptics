@@ -507,6 +507,12 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 	struct epoll_event ev;
 	int err, fd;
 
+	if (st->__need_exit) {
+		dnet_log_err(st->n, "%s: scheduling %s event on reset state: need-exit: %d\n",
+				dnet_state_dump_addr(st), send ? "SEND" : "RECV", st->__need_exit);
+		return st->__need_exit;
+	}
+
 	if (send) {
 		ev.events = EPOLLOUT;
 		fd = st->write_s;
@@ -515,9 +521,6 @@ static int dnet_schedule_network_io(struct dnet_net_state *st, int send)
 		fd = st->read_s;
 	}
 	ev.data.ptr = st;
-
-	if (st->need_exit)
-		return -ENOEXEC;
 
 	err = epoll_ctl(st->epoll_fd, EPOLL_CTL_ADD, fd, &ev);
 	if (err < 0) {

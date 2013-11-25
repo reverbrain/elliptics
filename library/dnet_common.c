@@ -309,10 +309,7 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 	struct dnet_node *n = st->n;
 	struct dnet_raw_id *ids;
 	char server_addr[128], rem_addr[128];
-	struct dnet_addr empty;
 	int i, err;
-
-	memset(&empty, 0, sizeof(empty));
 
 	dnet_server_convert_dnet_addr_raw(&st->addr, server_addr, sizeof(server_addr));
 	dnet_server_convert_dnet_addr_raw(&cnt->addrs[0], rem_addr, sizeof(rem_addr));
@@ -339,7 +336,7 @@ static int dnet_process_route_reply(struct dnet_net_state *st, struct dnet_addr_
 		struct dnet_addr *ta = &cnt->addrs[i];
 		char tmp[128];
 
-		if (!memcmp(ta, &empty, ta->addr_len)) {
+		if (dnet_empty_addr(ta)) {
 			dnet_log(n, DNET_LOG_ERROR, "%s: received zero address route reply: %s, ids-num: %d, aborting route update\n",
 					server_addr, dnet_server_convert_dnet_addr_raw(ta, tmp, sizeof(tmp)), ids_num);
 			err = -ENOTTY;
@@ -581,11 +578,23 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		goto err_out_free;
 	}
 
-	// This anyway doesn't work
+	// This anyway doesn't work - there are issues with BE/LE conversion
 	dnet_convert_addr_container(cnt);
+
+	size = cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container);
+	num = size / sizeof(struct dnet_raw_id);
+
+	ids = data + sizeof(struct dnet_addr) * cnt->addr_num + sizeof(struct dnet_addr_container);
 
 	idx = -1;
 	for (i = 0; i < cnt->addr_num; ++i) {
+		if (dnet_empty_addr(&cnt->addrs[i])) {
+			dnet_log(n, DNET_LOG_ERROR, "connected-to-addr: %s: received wildcard (like 0.0.0.0) addr: ids: %d, addr-num: %d, idx: %d.\n",
+					dnet_server_convert_dnet_addr(addr), num, cnt->addr_num, idx);
+			err = -EPROTO;
+			goto err_out_free;
+		}
+
 		if (dnet_addr_equal(addr, &cnt->addrs[i])) {
 			idx = i;
 			break;
@@ -597,13 +606,12 @@ static struct dnet_net_state *dnet_add_state_socket(struct dnet_node *n, struct 
 		goto err_out_free;
 	}
 
-	size = cmd->size - sizeof(struct dnet_addr) * cnt->addr_num - sizeof(struct dnet_addr_container);
-	num = size / sizeof(struct dnet_raw_id);
-
-	ids = data + sizeof(struct dnet_addr) * cnt->addr_num + sizeof(struct dnet_addr_container);
-
-	for (i=0; i<num; ++i)
+	for (i=0; i<num; ++i) {
 		dnet_convert_raw_id(&ids[i]);
+		dnet_log(n, DNET_LOG_NOTICE, "connected-to-addr: %s: received ids: %d/%d, addr-num: %d, idx: %d, id: %s.\n",
+				dnet_server_convert_dnet_addr(addr), i, num, cnt->addr_num, idx,
+				dnet_dump_id_str(ids[i].id));
+	}
 
 	st = dnet_state_create(n, cmd->id.group_id, ids, num, addr, s, &err, join, idx, dnet_state_net_process);
 	if (!st) {

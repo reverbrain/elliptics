@@ -4,6 +4,11 @@
 #  ELLIPTICS_LIBRARY_DIRS - library directories
 #  ELLIPTICS_LIBRARIES    - libraries to link against
 
+get_filename_component(ELLIPTICS_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+
+if (NOT TARGET elliptics_cpp AND NOT TARGET elliptics_client)
+  include("${ELLIPTICS_CMAKE_DIR}/EllipticsTargets.cmake")
+endif()
+
 set(ELLIPTICS_INCLUDE_DIRS @INSTALL_INCLUDE_DIR@)
-set(ELLIPTICS_LIBRARY_DIRS @INSTALL_LIBRARY_DIR@)
 set(ELLIPTICS_LIBRARIES elliptics_cpp elliptics_client)

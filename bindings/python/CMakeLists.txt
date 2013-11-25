@@ -18,7 +18,7 @@ set(ELLIPTICS_PYTHON_SRCS
     elliptics_session.cpp
     )
 
-add_library(core_python SHARED ${ELLIPTICS_PYTHON_SRCS} elliptics_python.cpp)
+add_library(core_python SHARED ${ELLIPTICS_PYTHON_SRCS})
 target_link_libraries(core_python ${Boost_LIBRARIES} ${PYTHON_LIBRARIES} elliptics_cpp)
 set_target_properties(core_python PROPERTIES
     PREFIX ""
@@ -34,6 +34,6 @@ install(TARGETS core_python
     )
 
 install(CODE "EXECUTE_PROCESS(
-	COMMAND ${PYTHON_EXECUTABLE} setup.py install --prefix=${DESTDIR}${CMAKE_INSTALL_PREFIX}
+	COMMAND ${PYTHON_EXECUTABLE} setup.py install --prefix=$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}
 	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/
 )")

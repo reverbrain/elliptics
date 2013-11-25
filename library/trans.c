@@ -318,7 +318,7 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 
 	pthread_mutex_lock(&st->trans_lock);
 	list_for_each_entry_safe(t, tmp, &st->trans_list, trans_list_entry) {
-		if ((t->time.tv_sec >= tv.tv_sec) && !st->need_exit)
+		if ((t->time.tv_sec >= tv.tv_sec) && !st->__need_exit)
 			break;
 
 		localtime_r((time_t *)&t->start.tv_sec, &tm);
@@ -327,7 +327,7 @@ int dnet_trans_iterate_move_transaction(struct dnet_net_state *st, struct list_h
 		dnet_log(st->n, DNET_LOG_ERROR, "%s: trans: %llu TIMEOUT/need-exit: stall-check wait-ts: %ld, need-exit: %d, cmd: %s [%d], started: %s.%06lu\n",
 				dnet_state_dump_addr(st), (unsigned long long)t->trans,
 				(unsigned long)t->wait_ts.tv_sec,
-				st->need_exit,
+				st->__need_exit,
 				dnet_cmd_string(t->cmd.cmd), t->cmd.cmd,
 				str, t->start.tv_usec);
 

@@ -322,7 +322,7 @@ static int dnet_io_req_queue(struct dnet_net_state *st, struct dnet_io_req *orig
 	pthread_mutex_lock(&st->send_lock);
 	list_add_tail(&r->req_entry, &st->send_list);
 
-	if (!st->need_exit)
+	if (!st->__need_exit)
 		dnet_schedule_send(st);
 	pthread_mutex_unlock(&st->send_lock);
 
@@ -384,8 +384,8 @@ static int dnet_wait(struct dnet_net_state *st, unsigned int events, long timeou
 			st->read_s, pfd.revents);
 	err = -EINVAL;
 out_exit:
-	if (st->n->need_exit || st->need_exit) {
-		dnet_log(st->n, DNET_LOG_ERROR, "Need to exit.\n");
+	if (st->n->need_exit || st->__need_exit) {
+		dnet_log(st->n, DNET_LOG_ERROR, "Need to exit: node: %d, state: %d.\n", st->n->need_exit, st->__need_exit);
 		err = -EIO;
 	}
 
@@ -804,14 +804,17 @@ static void dnet_state_remove_and_shutdown(struct dnet_net_state *st, int error)
 
 	dnet_state_remove_nolock(st);
 
-	if (!st->need_exit)
-		st->need_exit = error;
+	if (!st->__need_exit) {
+		if (!error)
+			error = -123;
 
-	shutdown(st->read_s, 2);
-	shutdown(st->write_s, 2);
+		st->__need_exit = error;
+
+		shutdown(st->read_s, 2);
+		shutdown(st->write_s, 2);
+	}
 
 	pthread_mutex_unlock(&st->send_lock);
-
 }
 
 int dnet_state_reset_nolock_noclean(struct dnet_net_state *st, int error, struct list_head *head)
@@ -878,7 +881,9 @@ int dnet_setup_control_nolock(struct dnet_net_state *st)
 			io->net_thread_pos = 0;
 		st->epoll_fd = io->net[pos].epoll_fd;
 
+		pthread_mutex_lock(&st->send_lock);
 		err = dnet_schedule_recv(st);
+		pthread_mutex_unlock(&st->send_lock);
 		if (err)
 			goto err_out_unschedule;
 	}
@@ -1074,10 +1079,6 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 			goto err_out_send_destroy;
 
 		if ((st->__join_state == DNET_JOIN) && (process != dnet_state_accept_process)) {
-			err = dnet_copy_addrs(st, n->addrs, n->addr_num);
-			if (err)
-				goto err_out_send_destroy;
-
 			pthread_mutex_lock(&n->state_lock);
 			err = dnet_state_join_nolock(st);
 			pthread_mutex_unlock(&n->state_lock);
@@ -1100,7 +1101,7 @@ struct dnet_net_state *dnet_state_create(struct dnet_node *n,
 	}
 
 	if (atomic_read(&st->refcnt) == 1) {
-		err = st->need_exit;
+		err = st->__need_exit;
 		if (!err)
 			err = -ECONNRESET;
 	}
@@ -1179,6 +1180,8 @@ void dnet_state_destroy(struct dnet_net_state *st)
 		dnet_server_convert_dnet_addr(&st->addr), st->read_s, st->write_s, st->addr_num);
 
 	free(st->addrs);
+
+	memset(st, 0xff, sizeof(struct dnet_net_state));
 	free(st);
 }
 
@@ -1326,11 +1329,6 @@ err_out_exit:
 			(unsigned long long)(cmd->trans &~ DNET_TRANS_REPLY),
 			(unsigned long long)cmd->size, (unsigned long long)cmd->flags,
 			st->send_offset, r->dsize + r->hsize + r->fsize);
-	}
-
-	if (err && err != -EAGAIN) {
-		dnet_log(st->n, DNET_LOG_ERROR, "%s: setting send need_exit to %d\n", dnet_state_dump_addr(st), err);
-		st->need_exit = err;
 	}
 
 	if (total_size > sizeof(struct dnet_cmd)) {
