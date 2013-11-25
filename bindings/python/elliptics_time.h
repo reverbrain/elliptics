@@ -46,7 +46,7 @@ struct elliptics_time {
 	dnet_time m_time;
 };
 
-void init_elliptcs_time();
+void init_elliptics_time();
 
 } } } // namespace ioremap::elliptics::python
 

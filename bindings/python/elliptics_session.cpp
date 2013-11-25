@@ -490,7 +490,7 @@ private:
 	}
 };
 
-void init_elliptcs_session() {
+void init_elliptics_session() {
 
 	bp::class_<elliptics_status>("SessionStatus", bp::init<>())
 		.def_readwrite("nflags", &dnet_node_status::nflags)

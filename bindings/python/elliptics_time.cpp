@@ -98,7 +98,7 @@ struct time_pickle : bp::pickle_suite
 	}
 };
 
-void init_elliptcs_time() {
+void init_elliptics_time() {
 
 	bp::class_<elliptics_time>("Time",
 			bp::init<uint64_t, uint64_t>(bp::args("tsec", "tnsec")))
