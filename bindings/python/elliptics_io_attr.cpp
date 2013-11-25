@@ -31,7 +31,7 @@ elliptics_io_attr::elliptics_io_attr()
 	size		= 0;
 }
 
-void init_elliptcs_io_attr() {
+void init_elliptics_io_attr() {
 	bp::class_<elliptics_io_attr>("IoAttr")
 		.def_readwrite("parent", &elliptics_io_attr::parent)
 		.def_readwrite("id", &elliptics_io_attr::id)

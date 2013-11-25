@@ -46,7 +46,7 @@ data_wrapper data_wrapper::convert(const bp::api::object &obj) {
 }
 
 
-void init_elliptcs_data() {
+void init_elliptics_data() {
 	bp::class_<data_wrapper>("Data", bp::init<std::string>())
 		.def(bp::init<data_pointer>())
 		.def(bp::init<data_wrapper>())

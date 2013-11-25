@@ -18,7 +18,7 @@
 
 namespace ioremap { namespace elliptics { namespace python {
 
-void init_elliptcs_session();
+void init_elliptics_session();
 
 } } } // namespace ioremap::elliptics::python
 
