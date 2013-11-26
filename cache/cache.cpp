@@ -14,7 +14,7 @@
  */
 
 #include "cache.hpp"
-#include "../library/monitor.h"
+#include "../monitor/monitor.h"
 #include "slru_cache.hpp"
 
 namespace ioremap { namespace cache {

@@ -36,7 +36,7 @@
 #include <unistd.h>
 
 #include "elliptics.h"
-#include "monitor.h"
+#include "../monitor/monitor.h"
 
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"

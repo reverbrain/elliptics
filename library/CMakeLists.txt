@@ -26,11 +26,6 @@ if(UNIX OR MINGW)
     set_target_properties(elliptics_ids PROPERTIES COMPILE_FLAGS "-fPIC")
 endif()
 
-add_library(elliptics_monitor STATIC monitor.cpp)
-if(UNIX OR MINGW)
-    set_target_properties(elliptics_monitor PROPERTIES COMPILE_FLAGS "-fPIC")
-endif()
-
 
 add_library(elliptics SHARED ${ELLIPTICS_SRCS})
 set_target_properties(elliptics PROPERTIES

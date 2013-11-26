@@ -17,8 +17,8 @@
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __DNET_MONITOR_H
-#define __DNET_MONITOR_H
+#ifndef __DNET_MONITOR_MONITOR_H
+#define __DNET_MONITOR_MONITOR_H
 
 #include <string.h>
 #include <stdint.h>
@@ -46,4 +46,4 @@ void monitor_io_queue_stat(void *monitor, const uint64_t current_size,
 }
 #endif
 
-#endif /* __DNET_MONITOR_H */
+#endif /* __DNET_MONITOR_MONITOR_H */

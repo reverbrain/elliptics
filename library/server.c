@@ -12,7 +12,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -26,7 +26,7 @@
 #include <signal.h>
 
 #include "elliptics.h"
-#include "monitor.h"
+#include "../monitor/monitor.h"
 
 #include "elliptics/interface.h"
 
