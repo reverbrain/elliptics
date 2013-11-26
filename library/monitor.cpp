@@ -30,6 +30,8 @@
 
 #include "elliptics.h"
 
+#include "../cache/cache.hpp"
+
 namespace ioremap { namespace monitor {
 
 class monitor;
@@ -42,7 +44,6 @@ public:
 	{}
 
 	void start() {
-		//async_read();
 		async_write();
 	}
 
@@ -51,13 +52,6 @@ public:
 	}
 
 private:
-	/*void async_read() {
-		auto self(shared_from_this());
-		m_socket.async_read_some(boost::asio::buffer(m_buffer),
-		                         std::bind(&handler::handle_read, self,
-		                                   std::placeholders::_1,
-		                                   std::placeholders::_2));
-	}*/
 
 	void async_write(std::string data) {
 		auto self(shared_from_this());
@@ -67,8 +61,6 @@ private:
 		                                   std::placeholders::_1,
 		                                   std::placeholders::_2));
 	}
-
-	//void handle_read(const boost::system::error_code &err, size_t bytes_transferred);
 
 	void async_write();
 
@@ -112,6 +104,81 @@ struct command_stat_info {
 	size_t			size;
 	unsigned long	time;
 	bool			internal;
+	bool			cache;
+};
+
+struct hist_counter {
+	uint_fast64_t	cache;
+	uint_fast64_t	cache_internal;
+	uint_fast64_t	disk;
+	uint_fast64_t	disk_internal;
+};
+
+struct histograms {
+	histograms() {
+		clear();
+	}
+	void clear() {
+		memset(read_counters.c_array(), 0, sizeof(hist_counter) * read_counters.size());
+		memset(write_counters.c_array(), 0, sizeof(hist_counter) * write_counters.size());
+		memset(indx_update_counters.c_array(), 0, sizeof(hist_counter) * indx_update_counters.size());
+		memset(indx_internal_counters.c_array(), 0, sizeof(hist_counter) * indx_internal_counters.size());
+	}
+	boost::array<hist_counter, 16>	read_counters;
+	boost::array<hist_counter, 16>	write_counters;
+	boost::array<hist_counter, 16>	indx_update_counters;
+	boost::array<hist_counter, 16>	indx_internal_counters;
+	struct timeval					start;
+
+	int get_indx(const uint32_t size, const unsigned long time) {
+		uint32_t sz_ind = 0;
+		uint32_t tm_ind = 0;
+		if (size > 10000)
+			sz_ind = 3;
+		else if (size > 1000)
+			sz_ind = 2;
+		else if (size > 500)
+			sz_ind = 1;
+
+		if (time > 1000000)
+			tm_ind = 3;
+		else if (time > 100000)
+			tm_ind = 2;
+		else if (time > 5000)
+			tm_ind = 1;
+
+		return 4 * sz_ind + tm_ind;
+	}
+
+	void command_counter(int cmd, const int trans, const int cache,
+	                     const uint32_t size, const unsigned long time) {
+		boost::array<hist_counter, 16> *counters = NULL;
+		switch(cmd) {
+			case DNET_CMD_READ:				counters = &read_counters;			break;
+			case DNET_CMD_WRITE:			counters = &write_counters;			break;
+			case DNET_CMD_INDEXES_UPDATE:	counters = &indx_update_counters;	break;
+			case DNET_CMD_INDEXES_INTERNAL:	counters = &indx_internal_counters;	break;
+		}
+
+		if (counters == NULL)
+			return;
+
+		hist_counter &counter = (*counters)[get_indx(size, time)];
+
+		if (cache) {
+			if (trans) {
+				++counter.cache;
+			} else {
+				++counter.cache_internal;
+			}
+		} else {
+			if (trans) {
+				++counter.disk;
+			} else {
+				++counter.disk_internal;
+			}
+		}
+	}
 };
 
 class monitor {
@@ -136,28 +203,36 @@ public:
 
 	std::string report() {
 		std::ostringstream out;
-		out << "{\"cache_memory\":" << m_cache_memory;
+		out << "{";
+		cache_stat(out);
 		struct timeval end_time;
 		gettimeofday(&end_time, NULL);
 		long diff = (end_time.tv_sec - m_start_time.tv_sec) * 1000000 + (end_time.tv_usec - m_start_time.tv_usec);
 		m_start_time = end_time;
-		stat_report(out);
-		cmd_report(out);
+		//stat_report(out);
+		//cmd_report(out);
+		hist_report(out);
 		out << ",\"time\":" << diff;
 		out << "}";
 		return std::move(out.str());
 	}
 
+	void cache_stat(std::ostringstream &stream) {
+		if (!m_node->cache)
+			return;
+
+		auto cache = static_cast<ioremap::cache::cache_manager*>(m_node->cache);
+		auto stat = cache->get_total_cache_stats();
+		stream << "\"cache_stat\":{"
+		       << "\"size\":" << stat.size_of_objects << ","
+		       << "\"removing size\":" << stat.size_of_objects_marked_for_deletion << ","
+		       << "\"objects\":" << stat.number_of_objects << ","
+		       << "\"removing objects\":" << stat.number_of_objects_marked_for_deletion
+		       << "}";
+	}
+
 	void log() {
 		dnet_log(m_node, DNET_LOG_ERROR, "%s", report().c_str());
-	}
-
-	void increase_cache(const size_t &size) {
-		m_cache_memory += size;
-	}
-
-	void decrease_cache(const size_t &size) {
-		m_cache_memory -= size;
 	}
 
 	void command_counter(int cmd, const int trans, const int err, const int cache,
@@ -165,7 +240,7 @@ public:
 		if (cmd >= __DNET_CMD_MAX || cmd <= 0)
 			cmd = DNET_CMD_UNKNOWN;
 
-		std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
+		/*std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
 		if (cache) {
 			if (trans) {
 				if(!err)
@@ -200,13 +275,38 @@ public:
 			}
 		}
 
-		m_cmd_info_current.emplace_back(command_stat_info{cmd, size, time, trans == 0});
+		m_cmd_info_current.emplace_back(command_stat_info{cmd, size, time, trans == 0, cache != 0});
 
-		if (m_cmd_info_current.size() >= 1000) {
+		if (m_cmd_info_current.size() >= 50000) {
 			std::unique_lock<std::mutex> swap_guard(m_cmd_info_previous_mutex);
 			m_cmd_info_previous.clear();
 			m_cmd_info_current.swap(m_cmd_info_previous);
+		}*/
+
+		struct timeval current;
+		gettimeofday(&current, NULL);
+
+		histograms *hist = NULL;
+
+		std::unique_lock<std::mutex> guard(m_histograms_mutex);
+		if (m_histograms.empty()) {
+			m_histograms.emplace_back(histograms());
+			hist = &m_histograms.back();
+		} else {
+			if (current.tv_sec - m_histograms.back().start.tv_sec < 1) {
+				hist = &m_histograms.back();
+			} else {
+				if (m_histograms.size() == 5) {
+					m_histograms_previous.clear();
+					m_histograms_previous.swap(m_histograms);
+				}
+				m_histograms.emplace_back(histograms());
+				hist = &m_histograms.back();
+			}
 		}
+
+		hist->command_counter(cmd, trans, cache, size, time);
+		m_last_histograms.command_counter(cmd, trans, cache, size, time);
 	}
 
 	void io_queue_stat(const uint64_t current_size,
@@ -283,41 +383,263 @@ private:
 		memset(m_cmd_stats.c_array(), 0, sizeof(command_counters) * m_cmd_stats.size());
 	}
 
+	void print(std::ostringstream &stream, const command_stat_info &info, bool comma) {
+		if (comma)
+			stream << ",";
+		stream << "{\"" << dnet_cmd_string(info.cmd) << "\":{"
+		<< "\"internal\":" << (info.internal ? "true" : "false") << ","
+		<< "\"cache\":" << (info.cache ? "true" : "false") << ","
+		<< "\"size\":" << info.size << ","
+		<< "\"time\":" << info.time << "}}";
+	}
+
 	void cmd_report(std::ostringstream &stream) {
 		if(m_cmd_info_previous.empty() && m_cmd_info_current.empty())
 			return;
 
-		stream << ",\"command_stat\":{";
+		stream << ",\"history\":[";
+		bool first_comma = false;
 		{
 			std::unique_lock<std::mutex> guard(m_cmd_info_previous_mutex);
 			const auto begin = m_cmd_info_previous.begin(), end = m_cmd_info_previous.end();
 			for (auto it = begin; it != end; ++it) {
-				if (it != begin)
-					stream << ",";
-				stream << "\"" << dnet_cmd_string(it->cmd) << "\":{"
-				<< "\"internal\":" << (it->internal ? "true" : "false") << ","
-				<< "\"size\":" << it->size << ","
-				<< "\"time\":" << it->time << "},";
+				print(stream, *it, it != begin);
 			}
+			first_comma = !m_cmd_info_previous.empty();
 			m_cmd_info_previous.clear();
 		} {
 			std::unique_lock<std::mutex> guard(m_cmd_info_mutex);
 			const auto begin = m_cmd_info_current.begin(), end = m_cmd_info_current.end();
 			for (auto it = begin; it != end; ++it) {
-				if (it != begin)
-					stream << ",";
-				stream << "\"" << dnet_cmd_string(it->cmd) << "\": {"
-				<< "\"internal\":" << (it->internal ? "true" : "false") << ","
-				<< "\"size\":" << it->size << ","
-				<< "\"time\":" << it->time << "}";
+				print(stream, *it, it != begin || first_comma);
 			}
 			m_cmd_info_current.clear();
 		}
-		stream << "}";
+		stream << "]";
+	}
+
+	histograms prepare_fivesec_histogram() {
+		histograms ret;
+		if (!m_histograms.empty()) {
+			ret.start = m_histograms.front().start;
+			for (auto it = m_histograms.begin(), itEnd = m_histograms.end(); it != itEnd; ++it) {
+				auto begin = it->read_counters.begin(), end = it->read_counters.end();
+				for (auto i = begin; i != end; ++i) {
+					ret.read_counters[i-begin].cache += i->cache;
+					ret.read_counters[i-begin].disk += i->disk;
+					ret.read_counters[i-begin].cache_internal += i->cache_internal;
+					ret.read_counters[i-begin].disk_internal += i->disk_internal;
+				}
+				begin = it->write_counters.begin();
+				end = it->write_counters.end();
+				for (auto i = begin; i != end; ++i) {
+					ret.write_counters[i-begin].cache += i->cache;
+					ret.write_counters[i-begin].disk += i->disk;
+					ret.write_counters[i-begin].cache_internal += i->cache_internal;
+					ret.write_counters[i-begin].disk_internal += i->disk_internal;
+				}
+				begin = it->indx_update_counters.begin();
+				end = it->indx_update_counters.end();
+				for (auto i = begin; i != end; ++i) {
+					ret.indx_update_counters[i-begin].cache += i->cache;
+					ret.indx_update_counters[i-begin].disk += i->disk;
+					ret.indx_update_counters[i-begin].cache_internal += i->cache_internal;
+					ret.indx_update_counters[i-begin].disk_internal += i->disk_internal;
+				}
+				begin = it->indx_internal_counters.begin();
+				end = it->indx_internal_counters.end();
+				for (auto i = begin; i != end; ++i) {
+					ret.indx_internal_counters[i-begin].cache += i->cache;
+					ret.indx_internal_counters[i-begin].disk += i->disk;
+					ret.indx_internal_counters[i-begin].cache_internal += i->cache_internal;
+					ret.indx_internal_counters[i-begin].disk_internal += i->disk_internal;
+				}
+			}
+		}
+		auto left = 5 - m_histograms.size();
+		if (!m_histograms_previous.empty() && left > 0) {
+			for (auto it = m_histograms_previous.rbegin(),
+			     itEnd = m_histograms_previous.rbegin() + left;
+			     it != itEnd; ++it) {
+				auto begin = it->read_counters.begin(), end = it->read_counters.end();
+				for (auto i = begin; i != end; ++i) {
+					ret.read_counters[i-begin].cache += i->cache;
+					ret.read_counters[i-begin].disk += i->disk;
+					ret.read_counters[i-begin].cache_internal += i->cache_internal;
+					ret.read_counters[i-begin].disk_internal += i->disk_internal;
+				}
+				begin = it->write_counters.begin();
+				end = it->write_counters.end();
+				for (auto i = begin; i != end; ++i) {
+					ret.write_counters[i-begin].cache += i->cache;
+					ret.write_counters[i-begin].disk += i->disk;
+					ret.write_counters[i-begin].cache_internal += i->cache_internal;
+					ret.write_counters[i-begin].disk_internal += i->disk_internal;
+				}
+				begin = it->indx_update_counters.begin();
+				end = it->indx_update_counters.end();
+				for (auto i = begin; i != end; ++i) {
+					ret.indx_update_counters[i-begin].cache += i->cache;
+					ret.indx_update_counters[i-begin].disk += i->disk;
+					ret.indx_update_counters[i-begin].cache_internal += i->cache_internal;
+					ret.indx_update_counters[i-begin].disk_internal += i->disk_internal;
+				}
+				begin = it->indx_internal_counters.begin();
+				end = it->indx_internal_counters.end();
+				for (auto i = begin; i != end; ++i) {
+					ret.indx_internal_counters[i-begin].cache += i->cache;
+					ret.indx_internal_counters[i-begin].disk += i->disk;
+					ret.indx_internal_counters[i-begin].cache_internal += i->cache_internal;
+					ret.indx_internal_counters[i-begin].disk_internal += i->disk_internal;
+				}
+			}
+		}
+		return ret;
+	}
+
+	void print_hist(std::ostringstream &stream, const boost::array<hist_counter, 16> &hist, const char *name) {
+		auto cache = false, disk = false, cache_internal = false, disk_internal = false, comma = false;
+		for (int i = 0; i < 16; ++i) {
+			if(hist[i].cache)
+				cache = true;
+			if(hist[i].disk)
+				disk = true;
+			if(hist[i].cache_internal)
+				cache_internal = true;
+			if(hist[i].disk_internal)
+				disk_internal = true;
+
+			if(cache && disk && cache_internal && disk_internal)
+				break;
+		}
+
+		if (cache || disk || cache_internal || disk_internal)
+			stream << ",";
+
+		if (cache) {
+			stream << "\n\"" << name << "_cache\":{";
+			stream << "\n\"0-500 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[0].cache << ","
+			       << "\"5001-100000 usecs\":" << hist[1].cache << ","
+			       << "\"100001-1000000 usecs\":" << hist[2].cache << ","
+			       << "\">1000001 usecs\":" << hist[3].cache
+			       << "},\n\"501-1000 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[4].cache << ","
+			       << "\"5001-100000 usecs\":" << hist[5].cache << ","
+			       << "\"100001-1000000 usecs\":" << hist[6].cache << ","
+			       << "\">1000001 usecs\":" << hist[7].cache
+			       << "},\n\"1001-10000 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[8].cache << ","
+			       << "\"5001-100000 usecs\":" << hist[9].cache << ","
+			       << "\"100001-1000000 usecs\":" << hist[10].cache << ","
+			       << "\">1000001 usecs\":" << hist[11].cache
+			       << "},\n\">10001 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[12].cache << ","
+			       << "\"5001-100000 usecs\":" << hist[13].cache << ","
+			       << "\"100001-1000000 usecs\":" << hist[14].cache << ","
+			       << "\">1000001 usecs\":" << hist[15].cache << "}}";
+			comma = true;
+		}
+
+		if (disk) {
+			if(comma)
+				stream << ",";
+			stream << "\n\"" << name << "_disk\":{"
+			       << "\n\"0-500 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[0].disk << ","
+			       << "\"5001-100000 usecs\":" << hist[1].disk << ","
+			       << "\"100001-1000000 usecs\":" << hist[2].disk << ","
+			       << "\">1000001 usecs\":" << hist[3].disk
+			       << "},\n\"501-1000 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[4].disk << ","
+			       << "\"5001-100000 usecs\":" << hist[5].disk << ","
+			       << "\"100001-1000000 usecs\":" << hist[6].disk << ","
+			       << "\">1000001 usecs\":" << hist[7].disk
+			       << "},\n\"1001-10000 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[8].disk << ","
+			       << "\"5001-100000 usecs\":" << hist[9].disk << ","
+			       << "\"100001-1000000 usecs\":" << hist[10].disk << ","
+			       << "\">1000001 usecs\":" << hist[11].disk
+			       << "},\n\">10001 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[12].disk << ","
+			       << "\"5001-100000 usecs\":" << hist[13].disk << ","
+			       << "\"100001-1000000 usecs\":" << hist[14].disk << ","
+			       << "\">1000001 usecs\":" << hist[15].disk << "}}";
+			comma = true;
+		}
+
+		if(cache_internal) {
+			if (comma)
+				stream << ",";
+			stream << "\n\"" << name << "_cache_internal\":{"
+			       << "\n\"0-500 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[0].cache_internal << ","
+			       << "\"5001-100000 usecs\":" << hist[1].cache_internal << ","
+			       << "\"100001-1000000 usecs\":" << hist[2].cache_internal << ","
+			       << "\">1000001 usecs\":" << hist[3].cache_internal
+			       << "},\n\"501-1000 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[4].cache_internal << ","
+			       << "\"5001-100000 usecs\":" << hist[5].cache_internal << ","
+			       << "\"100001-1000000 usecs\":" << hist[6].cache_internal << ","
+			       << "\">1000001 usecs\":" << hist[7].cache_internal
+			       << "},\n\"1001-10000 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[8].cache_internal << ","
+			       << "\"5001-100000 usecs\":" << hist[9].cache_internal << ","
+			       << "\"100001-1000000 usecs\":" << hist[10].cache_internal << ","
+			       << "\">1000001 usecs\":" << hist[11].cache_internal
+			       << "},\n\">10001 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[12].cache_internal << ","
+			       << "\"5001-100000 usecs\":" << hist[13].cache_internal << ","
+			       << "\"100001-1000000 usecs\":" << hist[14].cache_internal << ","
+			       << "\">1000001 usecs\":" << hist[15].cache_internal << "}}";
+			comma = true;
+		}
+
+
+		if (disk_internal) {
+			if (comma)
+				stream << ",";
+			stream << "\n\"" << name << "_disk_internal\":{"
+			       << "\n\"0-500 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[0].disk_internal << ","
+			       << "\"5001-100000 usecs\":" << hist[1].disk_internal << ","
+			       << "\"100001-1000000 usecs\":" << hist[2].disk_internal << ","
+			       << "\">1000001 usecs\":" << hist[3].disk_internal
+			       << "},\n\"501-1000 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[4].disk_internal << ","
+			       << "\"5001-100000 usecs\":" << hist[5].disk_internal << ","
+			       << "\"100001-1000000 usecs\":" << hist[6].disk_internal << ","
+			       << "\">1000001 usecs\":" << hist[7].disk_internal
+			       << "},\n\"1001-10000 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[8].disk_internal << ","
+			       << "\"5001-100000 usecs\":" << hist[9].disk_internal << ","
+			       << "\"100001-1000000 usecs\":" << hist[10].disk_internal << ","
+			       << "\">1000001 usecs\":" << hist[11].disk_internal
+			       << "},\n\">10001 bytes\":{"
+			       << "\"0-5000 usecs\":" << hist[12].disk_internal << ","
+			       << "\"5001-100000 usecs\":" << hist[13].disk_internal << ","
+			       << "\"100001-1000000 usecs\":" << hist[14].disk_internal << ","
+			       << "\">1000001 usecs\":" << hist[15].disk_internal
+			       << "}}";
+		}
+	}
+
+	void hist_report(std::ostringstream &stream) {
+		std::unique_lock<std::mutex> guard(m_histograms_mutex);
+		auto fivesec_hist = prepare_fivesec_histogram();
+		print_hist(stream, m_last_histograms.read_counters, "last_reads");
+		print_hist(stream, m_last_histograms.write_counters, "last_writes");
+		print_hist(stream, m_last_histograms.indx_update_counters, "last_indx_updates");
+		print_hist(stream, m_last_histograms.indx_internal_counters, "last_indx_internals");
+		print_hist(stream, fivesec_hist.read_counters, "5sec_reads");
+		print_hist(stream, fivesec_hist.write_counters, "5sec_writes");
+		print_hist(stream, fivesec_hist.indx_update_counters, "5sec_indx_updates");
+		print_hist(stream, fivesec_hist.indx_internal_counters, "5sec_indx_internals");
+
+		m_last_histograms.clear();
 	}
 
 
-	std::atomic_uint_fast64_t	m_cache_memory;
 	std::atomic_uint_fast64_t	m_io_queue_size;
 	std::atomic_uint_fast64_t	m_io_queue_volume;
 	std::atomic_uint_fast64_t	m_io_queue_max;
@@ -337,20 +659,16 @@ private:
 	std::vector<command_stat_info>	m_cmd_info_current;
 	mutable std::mutex				m_cmd_info_previous_mutex;
 	std::vector<command_stat_info>	m_cmd_info_previous;
+
+	mutable std::mutex				m_histograms_mutex;
+	std::vector<histograms>			m_histograms;
+	std::vector<histograms>			m_histograms_previous;
+	histograms						m_last_histograms;
 };
 
 void handler::async_write() {
 	async_write(std::move(m_monitor.report()));
 }
-
-/*void handler::handle_read(const boost::system::error_code &err, size_t bytes_transferred) {
-	if (err || bytes_transferred < 1) {
-		close();
-		return;
-	}
-
-	async_write(std::move(m_monitor.report()));
-}*/
 
 }} /* namespace ioremap::monitor */
 
@@ -379,16 +697,6 @@ void dnet_monitor_exit(struct dnet_node *n) {
 void dnet_monitor_log(void *monitor) {
 	if (monitor)
 		static_cast<ioremap::monitor::monitor*>(monitor)->log();
-}
-
-void monitor_increase_cache(void *monitor, const size_t size) {
-	if (monitor)
-		static_cast<ioremap::monitor::monitor*>(monitor)->increase_cache(size);
-}
-
-void monitor_decrease_cache(void *monitor, const size_t size) {
-	if (monitor)
-		static_cast<ioremap::monitor::monitor*>(monitor)->decrease_cache(size);
 }
 
 void monitor_command_counter(void *monitor, const int cmd, const int trans,

@@ -384,7 +384,7 @@ iset_t::iterator slru_cache_t::create_data(const unsigned char *id, const char *
 
 	insert_data_into_page(id, last_page_number, raw);
 
-	m_cache_stats.number_of_objects++;
+	++m_cache_stats.number_of_objects;
 	m_cache_stats.size_of_objects += raw->size();
 	return m_set.insert(*raw).first;
 }
@@ -478,7 +478,7 @@ void slru_cache_t::erase_element(data_t *obj) {
 	}
 
 	m_cache_pages_sizes[page_number] -= obj->size();
-	m_cache_stats.number_of_objects--;
+	--m_cache_stats.number_of_objects;
 	m_cache_stats.size_of_objects -= obj->size();
 
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: erased element: %lld ms\n", dnet_dump_id_str(obj->id().id), timer.restart());

@@ -35,8 +35,6 @@ void dnet_monitor_log(void *monitor);
 int dnet_monitor_init(struct dnet_node *n, struct dnet_config *cfg);
 void dnet_monitor_exit(struct dnet_node *n);
 
-void monitor_increase_cache(void *monitor, const size_t size);
-void monitor_decrease_cache(void *monitor, const size_t size);
 void monitor_command_counter(void *monitor, const int cmd, const int trans,
                              const int err, const int cache,
                              const uint32_t size, const unsigned long time);
