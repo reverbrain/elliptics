@@ -642,14 +642,14 @@ static void test_cache_records_sizes(session &sess)
 
 	size_t record_size = 0;
 	{
-		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::to_string(0)), data, 3000));
+		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::string("0")), data, 3000));
 		const auto& stats = cache->get_total_cache_stats();
 		record_size = stats.size_of_objects;
 	}
 
 	for (size_t id = 1; id < cache_size / cache_pages_number / record_size; ++id)
 	{
-		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::to_string(id)), data, 3000));
+		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(id)), data, 3000));
 		const auto& stats = cache->get_total_cache_stats();
 		BOOST_REQUIRE_EQUAL(stats.number_of_objects * record_size, stats.size_of_objects);
 		BOOST_REQUIRE_EQUAL(stats.number_of_objects, id + 1);

@@ -11,7 +11,7 @@ slru_cache_t::slru_cache_t(struct dnet_node *n, const std::vector<size_t> &cache
 	m_cache_pages_number(cache_pages_max_sizes.size()),
 	m_cache_pages_max_sizes(cache_pages_max_sizes),
 	m_cache_pages_sizes(m_cache_pages_number, 0),
-	m_cache_pages_lru(m_cache_pages_number) {
+	m_cache_pages_lru(new lru_list_t[m_cache_pages_number]) {
 	m_lifecheck = std::thread(std::bind(&slru_cache_t::life_check, this));
 }
 
