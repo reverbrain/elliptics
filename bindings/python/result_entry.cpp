@@ -223,28 +223,33 @@ dnet_stat stat_result_get_statistics(stat_result_entry &result)
 	return *(result.statistics());
 }
 
-struct address_statistics : public dnet_addr_stat {
-	address_statistics(const dnet_addr_stat &stat, int group_id)
-	: dnet_addr_stat(stat)
+struct address_statistics {
+	address_statistics(const dnet_addr_stat *stat, int group_id)
+	: stat(stat)
 	, group_id(group_id)
 	{}
+
+	int num() { return stat->num; }
+	int cmd_num() { return stat->cmd_num; }
+
+	const dnet_addr_stat* stat;
 
 	int group_id;
 };
 
 address_statistics stat_count_result_get_statistics(stat_count_result_entry &result)
 {
-	return address_statistics(*result.statistics(), result.command()->id.group_id);
+	return address_statistics(result.statistics(), result.command()->id.group_id);
 }
 
 std::string addr_stat_get_address(address_statistics &stat) {
-	return std::string(dnet_server_convert_dnet_addr(&stat.addr));
+	return std::string(dnet_server_convert_dnet_addr(&stat.stat->addr));
 }
 
 bp::tuple addr_stat_get_counters(address_statistics &stat) {
 	bp::list ret;
-	for (int i = 0; i < stat.num; ++i) {
-		ret.append(stat.count[i]);
+	for (int i = 0; i < stat.stat->num; ++i) {
+		ret.append(stat.stat->count[i]);
 	}
 	return bp::tuple(ret);
 }
@@ -401,13 +406,13 @@ void init_result_entry() {
 	bp::class_<address_statistics>("AddressStatistics", bp::no_init)
 		.add_property("address", addr_stat_get_address)
 		.add_property("group_id", &address_statistics::group_id)
-		.add_property("num", &dnet_addr_stat::num)
-		.add_property("cmd_num", &dnet_addr_stat::cmd_num)
+		.add_property("num", &address_statistics::num)
+		.add_property("cmd_num", &address_statistics::cmd_num)
 		.add_property("counters", addr_stat_get_counters)
 	;
 
 	bp::class_<dnet_stat_count>("StatisticCounters")
-		.add_property("successes", &dnet_stat_count::count)
+		.add_property("counter", &dnet_stat_count::count)
 		.add_property("errors", &dnet_stat_count::err)
 	;
 
