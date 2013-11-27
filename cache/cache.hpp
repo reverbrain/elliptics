@@ -283,7 +283,12 @@ public:
 		va_end(args);
 
 		m_guard = std::move(std::unique_lock<T>(mutex));
-		dnet_log(m_node, DNET_LOG_DEBUG, "%s, lock: %lld ms\n", m_name, m_timer.elapsed());
+		int level = DNET_LOG_DEBUG;
+
+		if (m_timer.elapsed() > 100)
+			level = DNET_LOG_ERROR;
+
+		dnet_log(m_node, level, "%s: cache lock: constructor: %lld ms\n", m_name, m_timer.elapsed());
 		m_timer.restart();
 	}
 
@@ -301,14 +306,24 @@ public:
 	void lock()
 	{
 		m_guard.lock();
-		dnet_log(m_node, DNET_LOG_DEBUG, "%s, lock: %lld ms\n", m_name, m_timer.elapsed());
+		int level = DNET_LOG_DEBUG;
+
+		if (m_timer.elapsed() > 100)
+			level = DNET_LOG_ERROR;
+		dnet_log(m_node, level, "%s: cache lock: lock: %lld ms\n", m_name, m_timer.elapsed());
 		m_timer.restart();
 	}
 
 	void unlock()
 	{
-		dnet_log(m_node, DNET_LOG_DEBUG, "%s, unlock: %lld ms\n", m_name, m_timer.elapsed());
 		m_guard.unlock();
+
+		int level = DNET_LOG_DEBUG;
+
+		if (m_timer.elapsed() > 100)
+			level = DNET_LOG_ERROR;
+		dnet_log(m_node, level, "%s: cache lock: unlock: %lld ms\n", m_name, m_timer.elapsed());
+		m_timer.restart();
 	}
 
 private:
