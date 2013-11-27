@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.28
+Version:	2.24.14.29
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,17 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Nov 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.29
+- Python: fixed counters in stat_log_counter. Core: Added const to input parameter in dnet_server_convert_dnet_addr
+- Python: Fixed crash on requesting address/group_id from result entries.
+- session: transform() should accept const session, since it doesn't modify it
+- cache: scream loudly if cache operations with lock taks more than 100 ms
+- Test: Use random ports for servers
+- Python: fixed typo.
+- cache_pages_number param added
+- slru_cache refactored
+- Caches_number configuration param added.
+
 * Sat Nov 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.28
 - state: fill state with 0xff prior its freeing for debug
 - state: guard dnet_schedule_recv() with st->send_lock. dnet_schedule_send() is already guarded.
