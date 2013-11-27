@@ -26,12 +26,8 @@ slru_cache_t::~slru_cache_t() {
 
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "~cache_t: %p", this);
 
-	while(!m_syncset.empty()) { //removes datas from syncset
-		erase_element(&*m_syncset.begin());
-	}
-
-	while(!m_lifeset.empty()) { //removes datas from lifeset
-		erase_element(&*m_lifeset.begin());
+	while (!m_eventset.empty()) { // remove datas from eventset
+		erase_element(&*m_eventset.begin());
 	}
 }
 
@@ -69,7 +65,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 				new_page = true;
 				it->set_only_append(true);
 				it->set_synctime(time(NULL) + m_node->cache_sync_timeout);
-				m_syncset.insert(*it);
+				m_eventset.insert(*it);
 			}
 
 			auto &raw = it->data()->data();
@@ -187,17 +183,21 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: data modified: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 	// Mark data as dirty one, so it will be synced to the disk
-	if (!it->synctime() && !(io->flags & DNET_IO_FLAGS_CACHE_ONLY)) {
-		it->set_synctime(time(NULL) + m_node->cache_sync_timeout);
-		m_syncset.insert(*it);
+
+	if (it->eventtime()) {
+		m_eventset.erase(m_eventset.iterator_to(*it));
 	}
 
-	if (it->lifetime())
-		m_lifeset.erase(m_lifeset.iterator_to(*it));
+	if (!it->synctime() && !(io->flags & DNET_IO_FLAGS_CACHE_ONLY)) {
+		it->set_synctime(time(NULL) + m_node->cache_sync_timeout);
+	}
 
 	if (lifetime) {
 		it->set_lifetime(lifetime + time(NULL));
-		m_lifeset.insert(*it);
+	}
+
+	if (it->eventtime()) {
+		m_eventset.insert(*it);
 	}
 
 	it->set_timestamp(io->timestamp);
@@ -281,8 +281,11 @@ int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
 		// If data is marked and cache_only is not set - data must be synced to the disk
 		remove_from_disk |= it->remove_from_disk();
 		if (it->synctime() && !cache_only) {
-			m_syncset.erase(m_syncset.iterator_to(*it));
+			m_eventset.erase(m_eventset.iterator_to(*it));
 			it->clear_synctime();
+			if (it->eventtime()) {
+				m_eventset.insert(*it);
+			}
 		}
 		erase_element(&(*it));
 		err = 0;
@@ -449,9 +452,9 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 			if (raw->synctime() || raw->remove_from_cache()) {
 				if (!raw->remove_from_cache()) {
 					raw->set_remove_from_cache(true);
-					m_syncset.erase(m_syncset.iterator_to(*raw));
+					m_eventset.erase(m_eventset.iterator_to(*raw));
 					raw->set_synctime(1);
-					m_syncset.insert(*raw);
+					m_eventset.insert(*raw);
 				}
 				removed_size += raw->size();
 			} else {
@@ -467,14 +470,14 @@ void slru_cache_t::erase_element(data_t *obj) {
 	size_t page_number = obj->cache_page_number();
 	m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*obj));
 	m_set.erase(m_set.iterator_to(*obj));
-	if (obj->lifetime())
-		m_lifeset.erase(m_lifeset.iterator_to(*obj));
 
-	if (obj->synctime()) {
-		sync_element(obj);
+	if (obj->eventtime()) {
+		m_eventset.erase(m_eventset.iterator_to(*obj));
 
-		m_syncset.erase(m_syncset.iterator_to(*obj));
-		obj->clear_synctime();
+		if (obj->synctime()) {
+			sync_element(obj);
+			obj->clear_synctime();
+		}
 	}
 
 	m_cache_pages_sizes[page_number] -= obj->size();
@@ -512,8 +515,11 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 	elliptics_timer timer;
 
 	std::shared_ptr<raw_data_t> raw_data = obj->data();
-	m_syncset.erase(m_syncset.iterator_to(*obj));
+	m_eventset.erase(m_eventset.iterator_to(*obj));
 	obj->set_synctime(0);
+	if (obj->eventtime()) {
+		m_eventset.insert(*obj);
+	}
 
 	dnet_id id;
 	memset(&id, 0, sizeof(id));
@@ -555,30 +561,6 @@ void slru_cache_t::life_check(void) {
 	while (!m_need_exit) {
 		std::deque<struct dnet_id> remove;
 
-		while (!m_need_exit && !m_lifeset.empty()) {
-			size_t time = ::time(NULL);
-
-			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE LIFE: %p", this);
-
-			if (m_lifeset.empty())
-				break;
-
-			life_set_t::iterator it = m_lifeset.begin();
-			if (it->lifetime() > time)
-				break;
-
-			if (it->remove_from_disk()) {
-				struct dnet_id id;
-				memset(&id, 0, sizeof(struct dnet_id));
-
-				dnet_setup_id(&id, 0, (unsigned char *)it->id().id);
-
-				remove.push_back(id);
-			}
-
-			erase_element(&(*it));
-		}
-
 		dnet_id id;
 		std::vector<char> data;
 		uint64_t user_flags;
@@ -586,46 +568,69 @@ void slru_cache_t::life_check(void) {
 
 		memset(&id, 0, sizeof(id));
 
-		while (!m_need_exit && !m_syncset.empty()) {
+		while (!m_need_exit && !m_eventset.empty()) {
 			size_t time = ::time(NULL);
 
-			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE SYNC: %p", this);
+			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE LIFE: %p", this);
 
-			if (m_syncset.empty())
+			if (m_eventset.empty())
 				break;
 
-			sync_set_t::iterator it = m_syncset.begin();
-
-			data_t *obj = &*it;
-			if (obj->synctime() > time)
+			event_set_t::iterator it = m_eventset.begin();
+			if (it->eventtime() > time)
 				break;
 
-			if (obj->only_append()) {
-				sync_after_append(guard, false, obj);
-				continue;
+			if (it->eventtime() == it->lifetime())
+			{
+				if (it->remove_from_disk()) {
+					struct dnet_id id;
+					memset(&id, 0, sizeof(struct dnet_id));
+
+					dnet_setup_id(&id, 0, (unsigned char *)it->id().id);
+
+					remove.push_back(id);
+				}
+
+				erase_element(&(*it));
 			}
+			else
+			if (it->eventtime() == it->synctime())
+			{
+				data_t *obj = &*it;
+				if (obj->synctime() > time)
+					break;
 
-			memcpy(id.id, obj->id().id, DNET_ID_SIZE);
-			data = it->data()->data();
-			user_flags = obj->user_flags();
-			timestamp = obj->timestamp();
+				if (obj->only_append()) {
+					sync_after_append(guard, false, obj);
+					continue;
+				}
 
-			m_syncset.erase(it);
-			obj->clear_synctime();
+				memcpy(id.id, obj->id().id, DNET_ID_SIZE);
+				data = it->data()->data();
+				user_flags = obj->user_flags();
+				timestamp = obj->timestamp();
 
-			guard.unlock();
-			dnet_oplock(m_node, &id);
+				m_eventset.erase(it);
+				obj->clear_synctime();
+				if (obj->eventtime())
+				{
+					m_eventset.insert(*obj);
+				}
 
-			// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
-			sync_element(id, false, data, user_flags, timestamp);
+				guard.unlock();
+				dnet_oplock(m_node, &id);
 
-			dnet_opunlock(m_node, &id);
-			guard.lock();
+				// sync_element uses local_session which always uses DNET_FLAGS_NOLOCK
+				sync_element(id, false, data, user_flags, timestamp);
 
-			auto jt = m_set.find(id.id);
-			if (jt != m_set.end()) {
-				if (jt->remove_from_cache()) {
-					erase_element(&*jt);
+				dnet_opunlock(m_node, &id);
+				guard.lock();
+
+				auto jt = m_set.find(id.id);
+				if (jt != m_set.end()) {
+					if (jt->remove_from_cache()) {
+						erase_element(&*jt);
+					}
 				}
 			}
 		}

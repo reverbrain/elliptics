@@ -33,8 +33,7 @@ private:
 	std::vector<size_t> m_cache_pages_max_sizes;
 	std::vector<size_t> m_cache_pages_sizes;
 	std::vector<lru_list_t> m_cache_pages_lru;
-	life_set_t m_lifeset;
-	sync_set_t m_syncset;
+	event_set_t m_eventset;
 	std::thread m_lifecheck;
 	cache_stats m_cache_stats;
 

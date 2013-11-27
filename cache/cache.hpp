@@ -47,20 +47,12 @@ typedef boost::intrusive::set_base_hook<boost::intrusive::tag<data_set_tag_t>,
 boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::optimize_size<true>
 > set_base_hook_t;
 
-struct time_set_tag_t;
-typedef boost::intrusive::set_base_hook<boost::intrusive::tag<time_set_tag_t>,
+struct event_set_tag_t;
+typedef boost::intrusive::set_base_hook<boost::intrusive::tag<event_set_tag_t>,
 boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::optimize_size<true>
-> time_set_base_hook_t;
+> event_set_base_hook_t;
 
-struct sync_set_tag_t;
-typedef boost::intrusive::set_base_hook<boost::intrusive::tag<sync_set_tag_t>,
-boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::optimize_size<true>
-> sync_set_base_hook_t;
-
-#include <iostream>
-#define DB(x) std::cerr << #x << ": " << x << std::endl;
-
-class data_t : public lru_list_base_hook_t, public set_base_hook_t, public time_set_base_hook_t, public sync_set_base_hook_t {
+class data_t : public lru_list_base_hook_t, public set_base_hook_t, public event_set_base_hook_t {
 public:
 	data_t(const unsigned char *id) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
@@ -106,6 +98,19 @@ public:
 
 	void set_synctime(size_t synctime) {
 		m_synctime = synctime;
+	}
+
+	size_t eventtime() const {
+		size_t time = 0;
+		if (!time || (lifetime() && time > lifetime()))
+		{
+			time = lifetime();
+		}
+		if (!time || (synctime() && time > synctime()))
+		{
+			time = synctime();
+		}
+		return time;
 	}
 
 	size_t cache_page_number() const {
@@ -198,27 +203,16 @@ typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<set_base_hook_
 boost::intrusive::compare<std::less<data_t> >
 > iset_t;
 
-struct lifetime_less {
+struct eventtime_less {
 	bool operator() (const data_t &x, const data_t &y) const {
-		return x.lifetime() < y.lifetime()
-				|| (x.lifetime() == y.lifetime() && ((&x) < (&y)));
+		return x.eventtime() < y.eventtime()
+				|| (x.eventtime() == y.eventtime() && ((&x) < (&y)));
 	}
 };
 
-typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<time_set_base_hook_t>,
-boost::intrusive::compare<lifetime_less>
-> life_set_t;
-
-struct synctime_less {
-	bool operator() (const data_t &x, const data_t &y) const {
-		return x.synctime() < y.synctime()
-				|| (x.synctime() == y.synctime() && ((&x) < (&y)));
-	}
-};
-
-typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<sync_set_base_hook_t>,
-boost::intrusive::compare<synctime_less>
-> sync_set_t;
+typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<event_set_base_hook_t>,
+boost::intrusive::compare<eventtime_less>
+> event_set_t;
 
 struct cache_stats {
 	cache_stats(): size_of_objects(0), number_of_objects(0), number_of_objects_marked_for_deletion(0),
