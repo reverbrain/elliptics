@@ -116,7 +116,7 @@ std::string key::to_string() const
 	}
 }
 
-void key::transform(session &sess)
+void key::transform(const session &sess)
 {
 	if (m_by_id)
 		return;

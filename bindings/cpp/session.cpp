@@ -1311,26 +1311,26 @@ std::string session::lookup_address(const key &id, int group_id)
 	return std::string(buf, strlen(buf));
 }
 
-void session::transform(const std::string &data, struct dnet_id &id)
+void session::transform(const std::string &data, struct dnet_id &id) const
 {
 	dnet_transform(m_data->session_ptr, (void *)data.data(), data.size(), &id);
 	id.trace_id = m_data->trace_id;
 	trace_id = m_data->trace_id;
 }
 
-void session::transform(const std::string &data, struct dnet_raw_id &id)
+void session::transform(const std::string &data, struct dnet_raw_id &id) const
 {
 	dnet_transform_raw(m_data->session_ptr, (void *)data.data(), data.size(), (char *)id.id, sizeof(id.id));
 }
 
-void session::transform(const data_pointer &data, dnet_id &id)
+void session::transform(const data_pointer &data, dnet_id &id) const
 {
 	dnet_transform(m_data->session_ptr, data.data(), data.size(), &id);
 	id.trace_id = m_data->trace_id;
 	trace_id = m_data->trace_id;
 }
 
-void session::transform(const key &id)
+void session::transform(const key &id) const
 {
 	const_cast<key&>(id).transform(*this);
 }
