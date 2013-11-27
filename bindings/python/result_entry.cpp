@@ -302,7 +302,7 @@ void init_result_entry() {
 		.add_property("response", iterator_result_response)
 		.add_property("response_data", iterator_result_response_data)
 		.add_property("address", result_entry_address<iterator_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<iterator_result_entry>)
 		.add_property("error", result_entry_error<iterator_result_entry>)
 	;
 
@@ -323,7 +323,7 @@ void init_result_entry() {
 		.add_property("offset", read_result_get_offset)
 		.add_property("size", read_result_get_size)
 		.add_property("address", result_entry_address<read_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<read_result_entry>)
 		.add_property("error", result_entry_error<read_result_entry>)
 	;
 
@@ -335,7 +335,7 @@ void init_result_entry() {
 		.add_property("checksum", lookup_result_get_checksum)
 		.add_property("filepath", lookup_result_get_filepath)
 		.add_property("address", result_entry_address<lookup_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<lookup_result_entry>)
 		.add_property("error", result_entry_error<lookup_result_entry>)
 	;
 
@@ -350,7 +350,7 @@ void init_result_entry() {
 	bp::class_<exec_result_entry>("ExecResultEntry")
 		.add_property("context", exec_result_get_context)
 		.add_property("address", result_entry_address<exec_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<exec_result_entry>)
 	;
 
 	bp::class_<find_indexes_result_entry>("FindIndexesResultEntry")
@@ -366,7 +366,7 @@ void init_result_entry() {
 		.add_property("size", callback_result_size)
 		.add_property("error", result_entry_error<callback_result_entry>)
 		.add_property("address", result_entry_address<callback_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<callback_result_entry>)
 	;
 
 	bp::class_<dnet_stat>("Statisitics", bp::no_init)
@@ -394,7 +394,7 @@ void init_result_entry() {
 	bp::class_<stat_result_entry>("StatResultEntry")
 		.add_property("statistics", stat_result_get_statistics)
 		.add_property("address", result_entry_address<stat_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<stat_result_entry>)
 		.add_property("error", result_entry_error<stat_result_entry>)
 	;
 
