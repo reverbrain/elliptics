@@ -647,7 +647,8 @@ static void test_cache_records_sizes(session &sess)
 		record_size = stats.size_of_objects;
 	}
 
-	for (size_t id = 1; id < cache_size / cache_pages_number / record_size; ++id)
+    size_t records_number = cache_size / cache_pages_number / record_size;
+	for (size_t id = 1; id < records_number; ++id)
 	{
 		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::to_string(id)), data, 3000));
 		const auto& stats = cache->get_total_cache_stats();
