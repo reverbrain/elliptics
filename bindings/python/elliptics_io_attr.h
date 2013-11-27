@@ -28,7 +28,7 @@ struct elliptics_io_attr: public dnet_io_attr {
 	elliptics_time time;
 };
 
-void init_elliptcs_io_attr();
+void init_elliptics_io_attr();
 
 } } } // namespace ioremap::elliptics::python
 

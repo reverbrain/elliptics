@@ -41,7 +41,7 @@ private:
 	data_pointer m_pointer;
 };
 
-void init_elliptcs_data();
+void init_elliptics_data();
 
 } } } // namespace ioremap::elliptics::python
 

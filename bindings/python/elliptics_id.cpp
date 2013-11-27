@@ -130,7 +130,7 @@ struct id_pickle : bp::pickle_suite
 	}
 };
 
-void init_elliptcs_id() {
+void init_elliptics_id() {
 	bp::class_<elliptics_id>("Id", bp::no_init)
 		.def(bp::init<bp::list, uint32_t>(bp::args("key", "group_id")))
 		.def(bp::init<std::string>(bp::args("remote")))

@@ -188,7 +188,7 @@ class key
 		void set_id(const dnet_raw_id &id);
 		void set_group_id(uint32_t group);
 
-		void transform(session &sess);
+		void transform(const session &sess);
 
 		void set_trace_id(uint32_t trace_id) { m_trace_id = trace_id; }
 		uint32_t get_trace_id() { return m_trace_id; }
@@ -225,19 +225,19 @@ class session
 		/*!
 		 * Converts string \a data to dnet_id \a id.
 		 */
-		void			transform(const std::string &data, struct dnet_id &id);
+		void			transform(const std::string &data, struct dnet_id &id) const;
 		/*!
 		 * Converts string \a data to dnet_raw_id \a id.
 		 */
-		void			transform(const std::string &data, struct dnet_raw_id &id);
+		void			transform(const std::string &data, struct dnet_raw_id &id) const;
 		/*!
 		 * \overload transform()
 		 */
-		void			transform(const data_pointer &data, struct dnet_id &id);
+		void			transform(const data_pointer &data, struct dnet_id &id) const;
 		/*!
 		 * Makes dnet_id be accessible by key::id() in the key \a id.
 		 */
-		void			transform(const key &id);
+		void			transform(const key &id) const;
 
 		/*!
 		 * Sets \a groups to the session.

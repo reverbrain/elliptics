@@ -55,7 +55,7 @@ public:
 	std::string to_repr() const;
 };
 
-void init_elliptcs_id();
+void init_elliptics_id();
 
 } } } // namespace ioremap::elliptics::python
 

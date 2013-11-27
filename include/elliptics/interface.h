@@ -12,7 +12,7 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -505,20 +505,20 @@ static inline int dnet_server_convert_port(struct sockaddr *sa, unsigned int len
 	return 0;
 }
 
-static inline char *dnet_server_convert_dnet_addr_raw(struct dnet_addr *addr, char *inet_addr, int inet_size)
+static inline char *dnet_server_convert_dnet_addr_raw(const struct dnet_addr *addr, char *inet_addr, int inet_size)
 {
 	memset(inet_addr, 0, inet_size);
 	if (addr->family == AF_INET) {
-		struct sockaddr_in *in = (struct sockaddr_in *)addr->addr;
+		const struct sockaddr_in *in = (const struct sockaddr_in *)addr->addr;
 		snprintf(inet_addr, inet_size, "%s:%d", inet_ntoa(in->sin_addr), ntohs(in->sin_port));
 	} else if (addr->family == AF_INET6) {
-		struct sockaddr_in6 *in = (struct sockaddr_in6 *)addr->addr;
+		const struct sockaddr_in6 *in = (const struct sockaddr_in6 *)addr->addr;
 		snprintf(inet_addr, inet_size, NIP6_FMT":%d", NIP6(in->sin6_addr), ntohs(in->sin6_port));
 	}
 	return inet_addr;
 }
 
-static inline char *dnet_server_convert_dnet_addr(struct dnet_addr *sa)
+static inline char *dnet_server_convert_dnet_addr(const struct dnet_addr *sa)
 {
 	static char ___inet_addr[128];
 	return dnet_server_convert_dnet_addr_raw(sa, ___inet_addr, sizeof(___inet_addr));

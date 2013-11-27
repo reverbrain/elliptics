@@ -409,13 +409,13 @@ BOOST_PYTHON_MODULE(core)
 		.value("default_exceptions", policy_default_exceptions)
 	;
 
-	init_elliptcs_id();
+	init_elliptics_id();
 	init_async_results();
 	init_result_entry();
-	init_elliptcs_time();
-	init_elliptcs_io_attr();
-	init_elliptcs_data();
-	init_elliptcs_session();
+	init_elliptics_time();
+	init_elliptics_io_attr();
+	init_elliptics_data();
+	init_elliptics_session();
 };
 
 } } } // namespace ioremap::elliptics::python

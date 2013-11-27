@@ -234,20 +234,21 @@ public:
 	{
 	}
 
-	server_node(const std::string &path) : m_node(NULL), m_path(path)
+	server_node(const std::string &path, const std::string &port) : m_node(NULL), m_path(path), m_port(port)
 	{
 	}
 
-	server_node(server_node &&other) : m_node(other.m_node), m_path(other.m_path)
+	server_node(server_node &&other) :
+		m_node(other.m_node), m_path(std::move(other.m_path)), m_port(std::move(other.m_port))
 	{
 		other.m_node = NULL;
-		other.m_path.clear();
 	}
 
 	server_node &operator =(server_node &&other)
 	{
 		std::swap(m_node, other.m_node);
 		std::swap(m_path, other.m_path);
+		std::swap(m_port, other.m_port);
 
 		return *this;
 	}
@@ -284,6 +285,11 @@ public:
 		m_node = NULL;
 	}
 
+	std::string port() const
+	{
+		return m_port;
+	}
+
 	dnet_node *get_native()
 	{
 		return m_node;
@@ -292,6 +298,7 @@ public:
 private:
 	dnet_node *m_node;
 	std::string m_path;
+	std::string m_port;
 };
 
 struct tests_data
@@ -310,6 +317,18 @@ static std::shared_ptr<tests_data> global_data;
 static config_data_writer create_config(config_data base_config, const std::string &path)
 {
 	return config_data_writer(base_config, path);
+}
+
+std::vector<std::string> generate_ports(size_t count)
+{
+	std::set<std::string> ports;
+	while (ports.size() < count) {
+		// Random port from 10000 to 60000
+		int port = 10000 + (rand() % 50000);
+		ports.insert(boost::lexical_cast<std::string>(port));
+	}
+
+	return std::vector<std::string>(ports.begin(), ports.end());
 }
 
 static void configure_server_nodes()
@@ -385,16 +404,18 @@ static void configure_server_nodes()
 			("defrag_percentage", 25)
 			;
 
+	const auto ports = generate_ports(3);
+
 	create_config(ioserv_config, first_server_path + "/ioserv.conf")
 			("log", first_server_path + "/log.log")
 			("group", 1)
-			("addr", "localhost:1025:2")
-			("remote", "localhost:1026:2")
+			("addr", "localhost:" + ports[0] + ":2")
+			("remote", "localhost:" + ports[1] + ":2 localhost:" + ports[2] + ":2")
 			("history", first_server_path + "/history")
 			("data", first_server_path + "/blob/data")
 			;
 
-	server_node first_server(first_server_path + "/ioserv.conf");
+	server_node first_server(first_server_path + "/ioserv.conf", ports[0]);
 
 	first_server.start();
 	results_reporter::get_stream() << "First server started" << std::endl;
@@ -402,13 +423,13 @@ static void configure_server_nodes()
 	create_config(ioserv_config, second_server_path + "/ioserv.conf")
 			("log", second_server_path + "/log.log")
 			("group", 2)
-			("addr", "localhost:1026:2")
-			("remote", "localhost:1025:2")
+			("addr", "localhost:" + ports[1] + ":2")
+			("remote", "localhost:" + ports[0] + ":2 localhost:" + ports[2] + ":2")
 			("history", second_server_path + "/history")
 			("data", second_server_path + "/blob/data")
 			;
 
-	server_node second_server(second_server_path + "/ioserv.conf");
+	server_node second_server(second_server_path + "/ioserv.conf", ports[1]);
 
 	second_server.start();
 	results_reporter::get_stream() << "Second server started" << std::endl;
@@ -416,15 +437,15 @@ static void configure_server_nodes()
 	create_config(ioserv_config, third_server_path + "/ioserv.conf")
 			("log", third_server_path + "/log.log")
 			("group", 5)
-			("addr", "localhost:1027:2")
-			("remote", "localhost:1025:2 localhost:1026:2")
+			("addr", "localhost:" + ports[2] + ":2")
+			("remote", "localhost:" + ports[0] + ":2 localhost:" + ports[1] + ":2")
 			("history", third_server_path + "/history")
 			("data", third_server_path + "/blob/data")
 			("cache_size", 100000)
 			("caches_number", 1)
 			;
 
-	server_node third_server(third_server_path + "/ioserv.conf");
+	server_node third_server(third_server_path + "/ioserv.conf", ports[2]);
 
 	third_server.start();
 	results_reporter::get_stream() << "Third server started" << std::endl;
@@ -621,14 +642,14 @@ static void test_cache_records_sizes(session &sess)
 
 	size_t record_size = 0;
 	{
-		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::to_string(0)), data, 3000));
+		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::string("0")), data, 3000));
 		const auto& stats = cache->get_total_cache_stats();
 		record_size = stats.size_of_objects;
 	}
 
 	for (size_t id = 1; id < cache_size / cache_pages_number / record_size; ++id)
 	{
-		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::to_string(id)), data, 3000));
+		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(id)), data, 3000));
 		const auto& stats = cache->get_total_cache_stats();
 		BOOST_REQUIRE_EQUAL(stats.number_of_objects * record_size, stats.size_of_objects);
 		BOOST_REQUIRE_EQUAL(stats.number_of_objects, id + 1);
@@ -1267,7 +1288,9 @@ bool register_tests()
 	logger log(NULL);
 //	file_logger log("/dev/stderr", 4);
 	node n(log);
-	n.add_remote("localhost", 1025);
+	for (size_t i = 0; i < global_data->nodes.size(); ++i) {
+		n.add_remote(("localhost:" + global_data->nodes[i].port() + ":2").c_str());
+	}
 
 	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "new-data");
 	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "new-data-long");
