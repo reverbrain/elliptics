@@ -280,8 +280,6 @@ std::string get_cmd_string(int cmd) {
 
 BOOST_PYTHON_MODULE(core)
 {
-	bp::def("get_cmd_string", get_cmd_string);
-
 	bp::class_<error>("ErrorInfo", bp::init<int, std::string>())
 		.def("__str__", &error::error_message)
 		.add_property("message", &error::error_message)
