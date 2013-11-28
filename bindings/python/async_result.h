@@ -124,7 +124,6 @@ struct python_async_result
 	}
 
 	void connect_all(bp::api::object &handler) {
-		handler(std::string("AAA"), std::string("BBB"));
 		auto callback = boost::make_shared<callback_all_handler<T>>(handler);
 		scope->connect(boost::bind(&callback_all_handler<T>::on_results, callback, _1, _2));
 	}
