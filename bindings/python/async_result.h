@@ -32,9 +32,25 @@ namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics { namespace python {
 
+template<typename T>
+struct callback_all_handler {
+	callback_all_handler(bp::api::object &result)
+	: result_handler(result)
+	{}
+
+	void on_results(const std::vector<T> &results, const error_info &err) {
+		gil_guard gstate;
+		try {
+			result_handler(convert_to_list(results), error(err.code(), err.message()));
+		} catch (const bp::error_already_set& e) {}
+	}
+
+	bp::api::object result_handler;
+};
+
 template <typename T>
-struct callback_handlers {
-	callback_handlers(PyObject *result, PyObject *final = NULL)
+struct callback_one_handlers {
+	callback_one_handlers(bp::api::object &result, bp::api::object &final)
 	: result_handler(result)
 	, final_handler(final)
 	{}
@@ -42,26 +58,19 @@ struct callback_handlers {
 	void on_result(const T &result) {
 		gil_guard gstate;
 		try {
-			bp::call<void>(result_handler, result);
-		} catch (const bp::error_already_set& e) {}
-	}
-
-	void on_results(const std::vector<T> &results, const error_info &err) {
-		gil_guard gstate;
-		try {
-			bp::call<void>(result_handler, convert_to_list(results), error(err.code(), err.message()));
+			result_handler(result);
 		} catch (const bp::error_already_set& e) {}
 	}
 
 	void on_final(const error_info &err) {
 		gil_guard gstate;
 		try {
-			bp::call<void>(final_handler, error(err.code(), err.message()));
+			final_handler(final_handler, error(err.code(), err.message()));
 		} catch (const bp::error_already_set& e) {}
 	}
 
-	PyObject *result_handler;
-	PyObject *final_handler;
+	bp::api::object result_handler;
+	bp::api::object final_handler;
 };
 
 template <typename T>
@@ -109,14 +118,15 @@ struct python_async_result
 	}
 
 	void connect(bp::api::object &result_handler, bp::api::object &final_handler) {
-		auto callback = boost::make_shared<callback_handlers<T>>(result_handler.ptr(), final_handler.ptr());
-		scope->connect(boost::bind(&callback_handlers<T>::on_result, callback, _1),
-		               boost::bind(&callback_handlers<T>::on_final, callback, _1));
+		auto callback = boost::make_shared<callback_one_handlers<T>>(result_handler, final_handler);
+		scope->connect(boost::bind(&callback_one_handlers<T>::on_result, callback, _1),
+		               boost::bind(&callback_one_handlers<T>::on_final, callback, _1));
 	}
 
 	void connect_all(bp::api::object &handler) {
-		auto callback = boost::make_shared<callback_handlers<T>>(handler.ptr());
-		scope->connect(boost::bind(&callback_handlers<T>::on_results, callback, _1, _2));
+		handler(std::string("AAA"), std::string("BBB"));
+		auto callback = boost::make_shared<callback_all_handler<T>>(handler);
+		scope->connect(boost::bind(&callback_all_handler<T>::on_results, callback, _1, _2));
 	}
 };
 
