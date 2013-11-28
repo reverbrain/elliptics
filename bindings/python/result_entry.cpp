@@ -246,12 +246,31 @@ std::string addr_stat_get_address(address_statistics &stat) {
 	return std::string(dnet_server_convert_dnet_addr(&stat.stat->addr));
 }
 
-bp::tuple addr_stat_get_counters(address_statistics &stat) {
-	bp::list ret;
-	for (int i = 0; i < stat.stat->num; ++i) {
-		ret.append(stat.stat->count[i]);
+bp::dict addr_stat_get_counters(address_statistics &stat) {
+	bp::dict node_stat, storage_commands, proxy_commands, counters;
+	auto as = stat.stat;
+
+	for (int i = 0; i < as->num; ++i) {
+		if (i < as->cmd_num) {
+			storage_commands[std::string(dnet_counter_string(i, as->cmd_num))] =
+			    bp::make_tuple((unsigned long long)as->count[i].count,
+			                   (unsigned long long)as->count[i].err);
+		} else if (i < (as->cmd_num * 2)) {
+			proxy_commands[std::string(dnet_counter_string(i, as->cmd_num))] =
+			    bp::make_tuple((unsigned long long)as->count[i].count,
+			                   (unsigned long long)as->count[i].err);
+		} else {
+			counters[std::string(dnet_counter_string(i, as->cmd_num))] =
+			    bp::make_tuple((unsigned long long)as->count[i].count,
+			                   (unsigned long long)as->count[i].err);
+		}
 	}
-	return bp::tuple(ret);
+
+	node_stat["storage_commands"] = storage_commands;
+	node_stat["proxy_commands"] = proxy_commands;
+	node_stat["counters"] = counters;
+
+	return node_stat;
 }
 
 bp::list dnet_stat_get_la(const dnet_stat &stat)
@@ -406,8 +425,6 @@ void init_result_entry() {
 	bp::class_<address_statistics>("AddressStatistics", bp::no_init)
 		.add_property("address", addr_stat_get_address)
 		.add_property("group_id", &address_statistics::group_id)
-		.add_property("num", &address_statistics::num)
-		.add_property("cmd_num", &address_statistics::cmd_num)
 		.add_property("counters", addr_stat_get_counters)
 	;
 
