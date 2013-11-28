@@ -14,7 +14,6 @@ set(ELLIPTICS_PYTHON_SRCS
     result_entry.cpp
     elliptics_time.cpp
     elliptics_io_attr.cpp
-    elliptics_data.cpp
     elliptics_session.cpp
     )
 

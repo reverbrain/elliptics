@@ -42,8 +42,8 @@ struct write_cas_converter {
 
 	data_pointer convert(const data_pointer &data) {
 		gil_guard gstate;
-		auto obj = bp::call<bp::api::object>(py_converter, data_wrapper(data));
-		return data_wrapper::convert(obj).pointer();
+		std::string ret = bp::call<std::string>(py_converter, data.to_string());
+		return data_pointer::copy(ret);
 	}
 
 	PyObject *py_converter;
@@ -110,14 +110,14 @@ public:
 
 	elliptics_id transform(const bp::api::object &data) {
 		bp::extract<std::string> get_string(data);
-		bp::extract<data_wrapper> get_data_ptr(data);
+		bp::extract<std::string> get_data(data);
 		if (get_string.check()) {
 			dnet_id id;
 			session::transform(get_string(), id);
 			return elliptics_id(id);
-		} else if (get_data_ptr.check()) {
+		} else if (get_data.check()) {
 			dnet_id id;
-			session::transform(get_data_ptr().pointer(), id);
+			session::transform(get_data(), id);
 			return elliptics_id(id);
 		} else {
 			elliptics_id id = elliptics_id::convert(data);
@@ -202,25 +202,24 @@ public:
 		return create_result(std::move(session::read_latest(elliptics_id::convert(id), offset, size)));
 	}
 
-	python_write_result write_data(const bp::api::object &id, const bp::api::object &data, uint64_t offset) {
+	python_write_result write_data(const bp::api::object &id, const std::string &data, uint64_t offset) {
 		bp::extract<elliptics_io_attr&> get_io_attr(id);
-		auto wdata = data_wrapper::convert(data);
 		if (!get_io_attr.check()){
-			return create_result(std::move(session::write_data(elliptics_id::convert(id), wdata.pointer(), offset)));
+			return create_result(std::move(session::write_data(elliptics_id::convert(id), data_pointer::copy(data), offset)));
 		}
 
 		elliptics_io_attr &io_attr = get_io_attr;
 		transform_io_attr(io_attr);
 
-		return create_result(std::move(session::write_data(io_attr, wdata.pointer())));
+		return create_result(std::move(session::write_data(io_attr, data_pointer::copy(data))));
 	}
 
-	python_write_result write_data_by_chunks(const bp::api::object &id, const bp::api::object &data, uint64_t offset, uint64_t chunk_size) {
-		return create_result(std::move(session::write_data(elliptics_id::convert(id), data_wrapper::convert(data).pointer(), offset, chunk_size)));
+	python_write_result write_data_by_chunks(const bp::api::object &id, const std::string &data, uint64_t offset, uint64_t chunk_size) {
+		return create_result(std::move(session::write_data(elliptics_id::convert(id), data_pointer::copy(data), offset, chunk_size)));
 	}
 
-	python_write_result write_cas(const bp::api::object &id, const bp::api::object &data, const elliptics_id &old_csum, uint64_t remote_offset) {
-		return create_result(std::move(session::write_cas(elliptics_id::convert(id), data_wrapper::convert(data).pointer(), old_csum.id(), remote_offset)));
+	python_write_result write_cas(const bp::api::object &id, const std::string &data, const elliptics_id &old_csum, uint64_t remote_offset) {
+		return create_result(std::move(session::write_cas(elliptics_id::convert(id), data_pointer::copy(data), old_csum.id(), remote_offset)));
 	}
 
 	python_write_result write_cas_callback(const bp::api::object &id, bp::api::object &converter, uint64_t remote_offset, int count) {
@@ -231,20 +230,20 @@ public:
 		                     count)));
 	}
 
-	python_write_result write_prepare(const bp::api::object &id, const bp::api::object &data, uint64_t remote_offset, uint64_t psize) {
-		return create_result(std::move(session::write_prepare(elliptics_id::convert(id), data_wrapper::convert(data).pointer(), remote_offset, psize)));
+	python_write_result write_prepare(const bp::api::object &id, const std::string &data, uint64_t remote_offset, uint64_t psize) {
+		return create_result(std::move(session::write_prepare(elliptics_id::convert(id), data_pointer::copy(data), remote_offset, psize)));
 	}
 
-	python_write_result write_plain(const bp::api::object &id, const bp::api::object &data, uint64_t remote_offset) {
-		return create_result(std::move(session::write_plain(elliptics_id::convert(id), data_wrapper::convert(data).pointer(), remote_offset)));
+	python_write_result write_plain(const bp::api::object &id, const std::string &data, uint64_t remote_offset) {
+		return create_result(std::move(session::write_plain(elliptics_id::convert(id), data_pointer::copy(data), remote_offset)));
 	}
 
-	python_write_result write_commit(const bp::api::object &id, const bp::api::object &data, uint64_t remote_offset, uint64_t csize) {
-		return create_result(std::move(session::write_commit(elliptics_id::convert(id), data_wrapper::convert(data).pointer(), remote_offset, csize)));
+	python_write_result write_commit(const bp::api::object &id, const std::string &data, uint64_t remote_offset, uint64_t csize) {
+		return create_result(std::move(session::write_commit(elliptics_id::convert(id), data_pointer::copy(data), remote_offset, csize)));
 	}
 
-	python_write_result write_cache(const bp::api::object &id, const bp::api::object &data, long timeout) {
-		return create_result(std::move(session::write_cache(elliptics_id::convert(id), data_wrapper::convert(data).pointer(), timeout)));
+	python_write_result write_cache(const bp::api::object &id, const std::string &data, long timeout) {
+		return create_result(std::move(session::write_cache(elliptics_id::convert(id), data_pointer::copy(data), timeout)));
 	}
 
 	std::string lookup_address(const bp::api::object &id, const int group_id) {
@@ -312,18 +311,18 @@ public:
 		return create_result(std::move(session::cancel_iterator(elliptics_id::convert(id), iterator_id)));
 	}
 
-	python_exec_result exec_src(const bp::api::object &id, const int src_key, const std::string &event, const bp::api::object &data) {
+	python_exec_result exec_src(const bp::api::object &id, const int src_key, const std::string &event, const std::string &data) {
 		auto eid = elliptics_id::convert(id);
 		session::transform(eid);
 
-		return create_result(std::move(session::exec(const_cast<dnet_id*>(&eid.id()), src_key, event, data_wrapper::convert(data).pointer())));
+		return create_result(std::move(session::exec(const_cast<dnet_id*>(&eid.id()), src_key, event, data_pointer::copy(data))));
 	}
 
-	python_exec_result exec(const bp::api::object &id, const std::string &event, const bp::api::object &data) {
+	python_exec_result exec(const bp::api::object &id, const std::string &event, const std::string &data) {
 		auto eid = elliptics_id::convert(id);
 		session::transform(eid);
 
-		return create_result(std::move(session::exec(const_cast<dnet_id*>(&eid.id()), event, data_wrapper::convert(data).pointer())));
+		return create_result(std::move(session::exec(const_cast<dnet_id*>(&eid.id()), event, data_pointer::copy(data))));
 	}
 
 	python_remove_result remove(const bp::api::object &id) {
