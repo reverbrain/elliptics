@@ -51,9 +51,11 @@ void init_elliptics_data() {
 		.def(bp::init<data_pointer>())
 		.def(bp::init<data_wrapper>())
 		.def("__str__", &data_wrapper::to_string)
+		.def("__repr__", &data_wrapper::to_string)
+		.def("__len__", &data_wrapper::size)
 		.def("empty", &data_wrapper::empty)
 		.def("size", &data_wrapper::size)
-		.def("__len__", &data_wrapper::size)
+		.def("to_string", &data_wrapper::to_string)
 	;
 }
 
