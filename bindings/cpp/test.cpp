@@ -654,7 +654,7 @@ static void test_cache_records_sizes(session &sess)
 		const auto& stats = cache->get_total_cache_stats();
 		BOOST_REQUIRE_EQUAL(stats.number_of_objects * record_size, stats.size_of_objects);
 		BOOST_REQUIRE_EQUAL(stats.number_of_objects, id + 1);
-	}
+    }
 }
 
 static void test_cas(session &sess)

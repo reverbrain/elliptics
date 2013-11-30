@@ -29,6 +29,10 @@ slru_cache_t::~slru_cache_t() {
 	while (!m_eventset.empty()) { // remove datas from eventset
 		erase_element(&*m_eventset.begin());
 	}
+
+    while (!m_treap.empty()) {
+        erase_element(m_treap.top());
+    }
 }
 
 void slru_cache_t::stop() {
@@ -65,7 +69,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 				new_page = true;
 				it->set_only_append(true);
 				it->set_synctime(time(NULL) + m_node->cache_sync_timeout);
-				m_eventset.insert(*it);
+                m_eventset.insert(*it);
 			}
 
 			auto &raw = it->data()->data();
@@ -275,7 +279,7 @@ int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE REMOVE: %p", dnet_dump_id_str(id), this);
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE REMOVE: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
-	iset_t::iterator it = m_set.find(id);
+    iset_t::iterator it = m_set.find(id);
 	if (it != m_set.end()) {
 		// If cache_only is not set the data also should be remove from the disk
 		// If data is marked and cache_only is not set - data must be synced to the disk
@@ -451,6 +455,8 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 		} else {
 			if (raw->synctime() || raw->remove_from_cache()) {
 				if (!raw->remove_from_cache()) {
+                    m_cache_stats.number_of_objects_marked_for_deletion++;
+                    m_cache_stats.size_of_objects_marked_for_deletion += raw->size();
 					raw->set_remove_from_cache(true);
 					m_eventset.erase(m_eventset.iterator_to(*raw));
 					raw->set_synctime(1);
@@ -483,6 +489,12 @@ void slru_cache_t::erase_element(data_t *obj) {
 	m_cache_pages_sizes[page_number] -= obj->size();
 	m_cache_stats.number_of_objects--;
 	m_cache_stats.size_of_objects -= obj->size();
+
+    if (obj->remove_from_cache())
+    {
+        m_cache_stats.number_of_objects_marked_for_deletion--;
+        m_cache_stats.size_of_objects_marked_for_deletion -= obj->size();
+    }
 
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: erased element: %lld ms\n", dnet_dump_id_str(obj->id().id), timer.restart());
 
@@ -629,7 +641,7 @@ void slru_cache_t::life_check(void) {
 				auto jt = m_set.find(id.id);
 				if (jt != m_set.end()) {
 					if (jt->remove_from_cache()) {
-						erase_element(&*jt);
+                        erase_element(&*jt);
 					}
 				}
 			}

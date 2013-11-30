@@ -16,6 +16,8 @@
 #include "elliptics/packet.h"
 #include "elliptics/interface.h"
 
+#include "treap.hpp"
+
 namespace ioremap { namespace cache {
 
 class raw_data_t {
@@ -52,7 +54,7 @@ typedef boost::intrusive::set_base_hook<boost::intrusive::tag<event_set_tag_t>,
 boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::optimize_size<true>
 > event_set_base_hook_t;
 
-class data_t : public lru_list_base_hook_t, public set_base_hook_t, public event_set_base_hook_t {
+class data_t : public lru_list_base_hook_t, public set_base_hook_t, public event_set_base_hook_t, public treap_node_t<data_t> {
 public:
 	data_t(const unsigned char *id) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
@@ -213,6 +215,8 @@ struct eventtime_less {
 typedef boost::intrusive::set<data_t, boost::intrusive::base_hook<event_set_base_hook_t>,
 boost::intrusive::compare<eventtime_less>
 > event_set_t;
+
+typedef Treap<data_t> treap_t;
 
 struct cache_stats {
 	cache_stats(): size_of_objects(0), number_of_objects(0), number_of_objects_marked_for_deletion(0),
