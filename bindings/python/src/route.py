@@ -86,6 +86,9 @@ class Address(object):
         return iter((self.host, self.port, self.family))
 
     def __eq__(self, other):
+        if other is None:
+            return False
+
         return (self.host, self.port, self.family) == \
                (other.host, other.port, other.family)
 
