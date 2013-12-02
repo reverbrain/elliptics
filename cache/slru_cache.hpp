@@ -28,14 +28,12 @@ private:
 	struct dnet_node *m_node;
 	size_t m_cache_size, m_max_cache_size;
 	std::mutex m_lock;
-	iset_t m_set;
 	size_t m_cache_pages_number;
 	std::vector<size_t> m_cache_pages_max_sizes;
 	std::vector<size_t> m_cache_pages_sizes;
 	std::vector<lru_list_t> m_cache_pages_lru;
-	event_set_t m_eventset;
 	std::thread m_lifecheck;
-    treap_t m_treap;
+	treap_t m_treap;
 	cache_stats m_cache_stats;
 
 	slru_cache_t(const slru_cache_t &) = delete;
@@ -55,9 +53,9 @@ private:
 
 	void remove_data_from_page(const unsigned char *id, size_t page_number, data_t *data);
 
-	iset_t::iterator create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk);
+	data_t* create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk);
 
-	iset_t::iterator populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err);
+	data_t* populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err);
 
 	void resize_page(const unsigned char *id, size_t page_number, size_t reserve);
 

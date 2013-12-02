@@ -26,13 +26,9 @@ slru_cache_t::~slru_cache_t() {
 
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "~cache_t: %p", this);
 
-	while (!m_eventset.empty()) { // remove datas from eventset
-		erase_element(&*m_eventset.begin());
+	while (!m_treap.empty()) {
+		erase_element(m_treap.top());
 	}
-
-    while (!m_treap.empty()) {
-        erase_element(m_treap.top());
-    }
 }
 
 void slru_cache_t::stop() {
@@ -53,23 +49,24 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE WRITE: %p", dnet_dump_id_str(id), this);
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
-	iset_t::iterator it = m_set.find(id);
+	data_t* it = m_treap.find(id);
 
-	if (it == m_set.end() && !cache) {
+	if (!it && !cache) {
 		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not a cache call\n", dnet_dump_id_str(id));
 		return -ENOTSUP;
 	}
 
 	// Optimization for append-only commands
 	if (!cache_only) {
-		if (append && (it == m_set.end() || it->only_append())) {
+		if (append && (!it || it->only_append())) {
 			bool new_page = false;
-			if (it == m_set.end()) {
+			if (!it) {
 				it = create_data(id, 0, 0, false);
 				new_page = true;
 				it->set_only_append(true);
+				m_treap.erase(it);
 				it->set_synctime(time(NULL) + m_node->cache_sync_timeout);
-                m_eventset.insert(*it);
+				m_treap.insert(it);
 			}
 
 			auto &raw = it->data()->data();
@@ -93,7 +90,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 
 			cmd->flags &= ~DNET_FLAGS_NEED_ACK;
 			return dnet_send_file_info_ts_without_fd(st, cmd, data, io->size, &io->timestamp);
-		} else if (it != m_set.end() && it->only_append()) {
+		} else if (it && it->only_append()) {
 			sync_after_append(guard, false, &*it);
 
 			dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: synced after append: %lld", dnet_dump_id_str(id), timer.restart());
@@ -114,7 +111,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 
 	bool new_page = false;
 
-	if (it == m_set.end()) {
+	if (!it) {
 		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: not exist\n", dnet_dump_id_str(id));
 		// If file not found and CACHE flag is not set - fallback to backend request
 		if (!cache_only && io->offset != 0) {
@@ -127,7 +124,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 		}
 
 		// Create empty data for code simplifyng
-		if (it == m_set.end()) {
+		if (!it) {
 			it = create_data(id, 0, 0, remove_from_disk);
 			new_page = true;
 		}
@@ -188,9 +185,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 
 	// Mark data as dirty one, so it will be synced to the disk
 
-	if (it->eventtime()) {
-		m_eventset.erase(m_eventset.iterator_to(*it));
-	}
+	m_treap.erase(it);
 
 	if (!it->synctime() && !(io->flags & DNET_IO_FLAGS_CACHE_ONLY)) {
 		it->set_synctime(time(NULL) + m_node->cache_sync_timeout);
@@ -200,9 +195,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 		it->set_lifetime(lifetime + time(NULL));
 	}
 
-	if (it->eventtime()) {
-		m_eventset.insert(*it);
-	}
+	m_treap.insert(it);
 
 	it->set_timestamp(io->timestamp);
 	it->set_user_flags(io->user_flags);
@@ -226,16 +219,16 @@ std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd
 
 	bool new_page = false;
 
-	iset_t::iterator it = m_set.find(id);
-	if (it != m_set.end() && it->only_append()) {
+	data_t* it = m_treap.find(id);
+	if (it && it->only_append()) {
 		sync_after_append(guard, true, &*it);
 		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: synced append-only data, find+sync: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
-		it = m_set.end();
+		it = NULL;
 	}
 	timer.restart();
 
-	if (it == m_set.end() && cache && !cache_only) {
+	if (!it && cache && !cache_only) {
 		dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: not exist\n", dnet_dump_id_str(id));
 		int err = 0;
 		it = populate_from_disk(guard, id, false, &err);
@@ -246,7 +239,7 @@ std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd
 
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE READ: data ensured: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
-	if (it != m_set.end()) {
+	if (it) {
 
 		size_t page_number = it->cache_page_number();
 
@@ -279,17 +272,15 @@ int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE REMOVE: %p", dnet_dump_id_str(id), this);
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE REMOVE: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
-    iset_t::iterator it = m_set.find(id);
-	if (it != m_set.end()) {
+	data_t* it = m_treap.find(id);
+	if (it) {
 		// If cache_only is not set the data also should be remove from the disk
 		// If data is marked and cache_only is not set - data must be synced to the disk
 		remove_from_disk |= it->remove_from_disk();
 		if (it->synctime() && !cache_only) {
-			m_eventset.erase(m_eventset.iterator_to(*it));
+			m_treap.erase(it);
 			it->clear_synctime();
-			if (it->eventtime()) {
-				m_eventset.insert(*it);
-			}
+			m_treap.insert(it);
 		}
 		erase_element(&(*it));
 		err = 0;
@@ -324,8 +315,8 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 	elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "%s: CACHE LOOKUP: %p", dnet_dump_id_str(id), this);
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE LOOKUP: after guard, lock: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
-	iset_t::iterator it = m_set.find(id);
-	if (it == m_set.end()) {
+	data_t* it = m_treap.find(id);
+	if (!it) {
 		return -ENOTSUP;
 	}
 
@@ -384,7 +375,7 @@ void slru_cache_t::remove_data_from_page(const unsigned char *id, size_t page_nu
 	m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*data));
 }
 
-iset_t::iterator slru_cache_t::create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk) {
+data_t* slru_cache_t::create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk) {
 	size_t last_page_number = m_cache_pages_number - 1;
 
 	data_t *raw = new data_t(id, 0, data, size, remove_from_disk);
@@ -393,10 +384,11 @@ iset_t::iterator slru_cache_t::create_data(const unsigned char *id, const char *
 
 	m_cache_stats.number_of_objects++;
 	m_cache_stats.size_of_objects += raw->size();
-	return m_set.insert(*raw).first;
+	m_treap.insert(raw);
+	return raw;
 }
 
-iset_t::iterator slru_cache_t::populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err) {
+data_t* slru_cache_t::populate_from_disk(elliptics_unique_lock<std::mutex> &guard, const unsigned char *id, bool remove_from_disk, int *err) {
 	if (guard.owns_lock()) {
 		guard.unlock();
 	}
@@ -432,7 +424,7 @@ iset_t::iterator slru_cache_t::populate_from_disk(elliptics_unique_lock<std::mut
 		return it;
 	}
 
-	return m_set.end();
+	return NULL;
 }
 
 void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size_t reserve) {
@@ -455,12 +447,12 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 		} else {
 			if (raw->synctime() || raw->remove_from_cache()) {
 				if (!raw->remove_from_cache()) {
-                    m_cache_stats.number_of_objects_marked_for_deletion++;
-                    m_cache_stats.size_of_objects_marked_for_deletion += raw->size();
+					m_cache_stats.number_of_objects_marked_for_deletion++;
+					m_cache_stats.size_of_objects_marked_for_deletion += raw->size();
 					raw->set_remove_from_cache(true);
-					m_eventset.erase(m_eventset.iterator_to(*raw));
+					m_treap.erase(raw);
 					raw->set_synctime(1);
-					m_eventset.insert(*raw);
+					m_treap.insert(raw);
 				}
 				removed_size += raw->size();
 			} else {
@@ -475,11 +467,9 @@ void slru_cache_t::erase_element(data_t *obj) {
 
 	size_t page_number = obj->cache_page_number();
 	m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*obj));
-	m_set.erase(m_set.iterator_to(*obj));
+	m_treap.erase(obj);
 
 	if (obj->eventtime()) {
-		m_eventset.erase(m_eventset.iterator_to(*obj));
-
 		if (obj->synctime()) {
 			sync_element(obj);
 			obj->clear_synctime();
@@ -490,11 +480,11 @@ void slru_cache_t::erase_element(data_t *obj) {
 	m_cache_stats.number_of_objects--;
 	m_cache_stats.size_of_objects -= obj->size();
 
-    if (obj->remove_from_cache())
-    {
-        m_cache_stats.number_of_objects_marked_for_deletion--;
-        m_cache_stats.size_of_objects_marked_for_deletion -= obj->size();
-    }
+	if (obj->remove_from_cache())
+	{
+		m_cache_stats.number_of_objects_marked_for_deletion--;
+		m_cache_stats.size_of_objects_marked_for_deletion -= obj->size();
+	}
 
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: erased element: %lld ms\n", dnet_dump_id_str(obj->id().id), timer.restart());
 
@@ -527,11 +517,9 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 	elliptics_timer timer;
 
 	std::shared_ptr<raw_data_t> raw_data = obj->data();
-	m_eventset.erase(m_eventset.iterator_to(*obj));
+	m_treap.erase(obj);
 	obj->set_synctime(0);
-	if (obj->eventtime()) {
-		m_eventset.insert(*obj);
-	}
+	m_treap.insert(obj);
 
 	dnet_id id;
 	memset(&id, 0, sizeof(id));
@@ -565,8 +553,8 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 	const auto timer_lock = timer.restart();
 
 	dnet_log(m_node, DNET_LOG_INFO, "%s: CACHE: sync after append, "
-		 "prepare: %lld ms, erase: %lld ms, before_write: %lld ms, after_write: %lld ms, lock: %lld ms, err: %d",
-		 dnet_dump_id_str(id.id), timer_prepare, timer_erase, timer_before_write, timer_after_write, timer_lock, err);
+			 "prepare: %lld ms, erase: %lld ms, before_write: %lld ms, after_write: %lld ms, lock: %lld ms, err: %d",
+			 dnet_dump_id_str(id.id), timer_prepare, timer_erase, timer_before_write, timer_after_write, timer_lock, err);
 }
 
 void slru_cache_t::life_check(void) {
@@ -580,15 +568,15 @@ void slru_cache_t::life_check(void) {
 
 		memset(&id, 0, sizeof(id));
 
-		while (!m_need_exit && !m_eventset.empty()) {
+		while (!m_need_exit && !m_treap.empty()) {
 			size_t time = ::time(NULL);
 
 			elliptics_unique_lock<std::mutex> guard(m_lock, m_node, "CACHE LIFE: %p", this);
 
-			if (m_eventset.empty())
+			if (m_treap.empty())
 				break;
 
-			event_set_t::iterator it = m_eventset.begin();
+			data_t* it = m_treap.top();
 			if (it->eventtime() > time)
 				break;
 
@@ -605,8 +593,7 @@ void slru_cache_t::life_check(void) {
 
 				erase_element(&(*it));
 			}
-			else
-			if (it->eventtime() == it->synctime())
+			else if (it->eventtime() == it->synctime())
 			{
 				data_t *obj = &*it;
 				if (obj->synctime() > time)
@@ -622,12 +609,9 @@ void slru_cache_t::life_check(void) {
 				user_flags = obj->user_flags();
 				timestamp = obj->timestamp();
 
-				m_eventset.erase(it);
+				m_treap.erase(it);
 				obj->clear_synctime();
-				if (obj->eventtime())
-				{
-					m_eventset.insert(*obj);
-				}
+				m_treap.insert(obj);
 
 				guard.unlock();
 				dnet_oplock(m_node, &id);
@@ -638,10 +622,10 @@ void slru_cache_t::life_check(void) {
 				dnet_opunlock(m_node, &id);
 				guard.lock();
 
-				auto jt = m_set.find(id.id);
-				if (jt != m_set.end()) {
+				data_t* jt = m_treap.find(id.id);
+				if (jt) {
 					if (jt->remove_from_cache()) {
-                        erase_element(&*jt);
+						erase_element(&*jt);
 					}
 				}
 			}

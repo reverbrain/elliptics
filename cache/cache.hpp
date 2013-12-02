@@ -54,7 +54,10 @@ typedef boost::intrusive::set_base_hook<boost::intrusive::tag<event_set_tag_t>,
 boost::intrusive::link_mode<boost::intrusive::safe_link>, boost::intrusive::optimize_size<true>
 > event_set_base_hook_t;
 
-class data_t : public lru_list_base_hook_t, public set_base_hook_t, public event_set_base_hook_t, public treap_node_t<data_t> {
+#include <iostream>
+#define DB(x) std::cerr << #x << ": " << x << std::endl;
+
+class data_t : public lru_list_base_hook_t, public treap_node_t<data_t> {
 public:
 	data_t(const unsigned char *id) {
 		memcpy(m_id.id, id, DNET_ID_SIZE);
@@ -103,10 +106,10 @@ public:
 	}
 
 	size_t eventtime() const {
-		size_t time = 0;
+        size_t time = 0;
 		if (!time || (lifetime() && time > lifetime()))
 		{
-			time = lifetime();
+            time = lifetime();
 		}
 		if (!time || (synctime() && time > synctime()))
 		{
