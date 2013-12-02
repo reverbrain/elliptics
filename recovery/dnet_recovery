@@ -115,6 +115,8 @@ if __name__ == '__main__':
                       help="Enable remote monitoring on provided port [default: disabled]")
     parser.add_option("-w", "--wait-timeout", action="store", dest="wait_timeout", default="3600",
                       help="[Wait timeout for elliptics operations default: %default]")
+    parser.add_option("-a", "--attemps", action="store", dest="attempts", default=1,
+                      help="Number of attempts to recover one key")
 
     (options, args) = parser.parse_args()
 
@@ -217,6 +219,14 @@ if __name__ == '__main__':
     except Exception as e:
         raise ValueError("Can't parse nprocess: '{0}': {1}".format(
             options.nprocess, repr(e)))
+
+    try:
+        ctx.attempts = int(options.attempts)
+        if ctx.attempts <= 0:
+            raise ValueError("Number of attempts should be positive: {0}".format(ctx.attempts))
+    except Exception as e:
+        raise ValueError("Can't parse attempts: '{0}': {1}"
+                         .format(options.attempts, repr(e)))
 
     if options.stat not in ALLOWED_STATS:
         raise ValueError("Unknown output format: '{0}'. Available formats are: {1}".format(

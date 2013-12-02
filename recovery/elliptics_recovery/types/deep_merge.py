@@ -1,6 +1,5 @@
 # =============================================================================
 # 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
-# 2013+ Copyright (c) Alexey Ivanov <rbtz@ph34r.me>
 # All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -18,25 +17,27 @@
 Deep Merge recovery type - recovers keys in one hash ring (aka group)
 by placing them to the node where they belong.
 
- * Find ranges that host is responsible for now.
- * Start metadata-only iterator for the found ranges on local and remote hosts.
- * Sort iterators' outputs.
- * Computes diff between local and remote iterator.
- * Recover keys provided by diff using bulk APIs.
- * If necessary removes recovered keys from remote hosts.
+ * Iterate all node in the group for ranges which are not belong to it.
+ * Get all keys which shouldn't be on the node:
+ * Looks up keys meta info on the proper node
+ * If the key on the proper node is missed or older
+ * then moved it form the node to ther proper node
+ * If the key is valid then just remove it from the node.
 """
 
 import sys
-import os
 import logging
 
 from itertools import groupby
 from multiprocessing import Pool
 
-from ..iterator import Iterator, IteratorResult
 from ..etime import Time
-from ..range import IdRange, AddressRanges
-from ..utils.misc import elliptics_create_node, elliptics_create_session, worker_init, mk_container_name
+from ..utils.misc import elliptics_create_node, worker_init
+from ..route import RouteList
+from ..iterator import Iterator
+from ..range import IdRange
+
+import errno
 
 # XXX: change me before BETA
 sys.path.insert(0, "bindings/python/")
@@ -45,437 +46,382 @@ import elliptics
 log = logging.getLogger(__name__)
 
 
-def run_iterator(ctx, address, eid, ranges, stats):
-    """
-    Runs iterator for all ranges on node specified by address
-    """
-    node = elliptics_create_node(address=address, elog=ctx.elog, wait_timeout=ctx.wait_timeout)
+class Recovery(object):
+    def __init__(self, ctx, it_response, address, group, node, stats):
+        self.it_response = it_response
+        self.address = address
+        self.group = group
+        self.node = node
+        self.direct_session = elliptics.Session(node)
+        self.direct_session.set_direct_id(*self.address)
+        self.direct_session.groups = [group]
+        self.session = elliptics.Session(node)
+        self.session.groups = [group]
+        self.ctx = ctx
+        self.stats = stats
+        self.result = True
+        self.attempt = 0
+        log.debug("Created Recovery object for key: {0}, node: {2}, group: {1}"
+                  .format(it_response.key, address, group))
 
+    def run(self):
+        log.debug("Recovering key: {0}, node: {2}, group: {1}"
+                  .format(repr(self.it_response.key), self.address, self.group))
+        log.debug("Looking up address for key: {0} in group: {1}"
+                  .format(repr(self.it_response.key), self.group))
+        address = self.session.lookup_address(self.it_response.key, self.group)
+        if address == self.address:
+            log.warning("Key: {0} already on the right node: {1} in group: {2}"
+                        .format(repr(self.it_response.key), self.address, self.group))
+            self.stats.counter('skipped_keys', 1)
+            return
+        log.debug("Lookup key: {0} in group: {1}"
+                  .format(repr(self.it_response.key), self.group))
+        self.lookup_result = self.session.lookup(self.it_response.key)
+        self.lookup_result.connect(self.onlookup)
+
+    def onlookup(self, results, error):
+        try:
+            if error.code == -errno.ETIMEDOUT:
+                self.stats.counter('lookup', -1)
+                log.debug("Lookup key: {0} has been timed out: {1}"
+                          .format(repr(self.it_response.key), error))
+                if self.attempt < self.ctx.attempts:
+                    old_timeout = self.session.timeout
+                    self.session.timeout *= 2
+                    self.attempt += 1
+                    log.debug("Retry to lookup key: {0} attempt: {1}/{2}"
+                              "increased timeout: {3}/{4}"
+                              .format(repr(self.it_response.key),
+                                      self.attempt, self.ctx.attempts,
+                                      self.session.timeout, old_timeout))
+                    self.stats.counter('lookup_retries', 1)
+                    self.lookup_result = self.session.lookup(self.it_response.key)
+                    self.lookup_result.connect(self.onlookup)
+                    return
+
+            if error.code == 0 and self.it_response.timestamp < results[0].timestamp:
+                self.stats.counter('lookup', 1)
+                log.warning("Key: {0} in group: {1} is newer. "
+                            "Just removing it from node: {2}."
+                            .format(repr(self.it_response.key),
+                                    self.group,
+                                    self.address))
+                if self.ctx.dry_run:
+                    log.debug("Dry-run mode is turned on. Skipping removing stage.")
+                    return
+                self.attempt = 0
+                if not self.ctx.safe:
+                    self.remove_result = self.direct_session.remove(self.it_response.key)
+                    self.remove_result.connect(self.onremove)
+                return
+            self.stats.counter('lookup', 1)
+
+            log.debug("Key: {0} in group: {1} is older or miss. "
+                      "Reading it from node: {2}"
+                      .format(repr(self.it_response.key),
+                              self.group,
+                              self.address))
+            if self.ctx.dry_run:
+                log.debug("Dry-run mode is turned on. "
+                          "Skipping reading, writing and removing stages.")
+                return
+            self.attempt = 0
+            self.read_result = self.direct_session.read_data(self.it_response.key)
+            self.read_result.connect(self.onread)
+        except Exception as e:
+            log.debug("Onlookup exception: {0}".format(e))
+            self.result = False
+
+    def onread(self, results, error):
+        try:
+            if error.code == -errno.ETIMEDOUT:
+                self.stats.counter('read_keys', -1)
+                log.debug("Read key: {0} on node: {1} has been timed out: {2}"
+                          .format(repr(self.it_response.key), self.address, error))
+                if self.attempt < self.ctx.attempts:
+                    old_timeout = self.session.timeout
+                    self.session.timeout *= 2
+                    self.attempt += 1
+                    log.debug("Retry to read key: {0} attempt: {1}/{2}"
+                              "increased timeout: {3}/{4}"
+                              .format(self.it_response.key, self.attempt,
+                                      self.ctx.attempts,
+                                      self.direct_session.timeout, old_timeout))
+                    self.stats.counter('read_retries', 1)
+                    self.read_result = self.direct_session.read_data(self.it_response.key)
+                    self.read_result.connect(self.onread)
+                    return
+
+            if error.code != 0 or len(results) < 1:
+                log.error("Reading key: {0} on the node: {1} failed. "
+                          "Skipping it: {2}"
+                          .format(repr(self.it_response.key),
+                                  self.address, error))
+                self.stats.counter('read_keys', -1)
+                self.result = False
+                return
+
+            self.stats.counter('read_keys', 1)
+            self.write_io = elliptics.IoAttr()
+            self.write_io.id = results[0].id
+            self.write_io.timestamp = results[0].timestamp
+            self.write_io.user_flags = results[0].user_flags
+            self.write_data = results[0].data
+            log.debug("Writing read key: {0} to group: {1}"
+                      .format(self.it_response.key, self.group))
+            self.data_size = len(self.write_data)
+            self.stats.counter('read_bytes', self.data_size)
+            self.attempt = 0
+            self.write_result = self.session.write_data(self.write_io,
+                                                        self.write_data)
+            self.write_result.connect(self.onwrite)
+        except Exception as e:
+            log.debug("Onread exception: {0}".format(e))
+            self.result = False
+
+    def onwrite(self, results, error):
+        try:
+            if error.code == -errno.ETIMEDOUT:
+                self.stats.counter('write_keys', -1)
+                log.debug("Write key: {0} on node: {1} has been timed out: {2}"
+                          .format(repr(self.it_response.key),
+                                  self.address, error))
+                if self.attempt < self.ctx.attempts:
+                    old_timeout = self.session.timeout
+                    self.session.timeout *= 2
+                    self.attempt += 1
+                    log.debug("Retry to write key: {0} attempt: {1}/{2}"
+                              "increased timeout: {3}/{4}"
+                              .format(self.it_response.key,
+                                      self.attempt, self.ctx.attempts,
+                                      self.direct_session.timeout, old_timeout))
+                    self.stats.counter('write_retries', 1)
+                    self.write_result = self.session.write_data(self.write_io,
+                                                                self.write_data)
+                    self.write_result.connect(self.onwrite)
+                    return
+
+            if error.code != 0 or len(results) < 1:
+                log.error("Writing key: {0} to group: {1} failed."
+                          "Skipping it: {2}"
+                          .format(repr(self.it_response.key),
+                                  self.group,
+                                  error))
+                self.stats.counter('written_key', -1)
+                self.stats.counter('written_bytes', -self.data_size)
+                self.result = False
+                return
+
+            self.stats.counter('written_key', 1)
+            self.stats.counter('written_bytes', self.data_size)
+
+            log.debug("Key: {0} has been successfully copied to the right node"
+                      "in group: {1}. So we can delete it from node: {2}"
+                      .format(repr(self.it_response.key),
+                              self.group,
+                              self.address))
+            self.attempt = 0
+            if not self.ctx.safe:
+                self.remove_result = self.direct_session.remove(self.it_response.key)
+                self.remove_result.connect(self.onremove)
+        except Exception as e:
+            log.debug("Onwrite exception: {0}".format(e))
+            self.result = False
+
+    def onremove(self, results, error):
+        try:
+            if error.code == -errno.ETIMEDOUT:
+                self.stats.counter('remove_keys', -1)
+                log.debug("Remove key: {0} on node: {1} has been timed out: {2}"
+                          .format(repr(self.it_response.key),
+                                  self.address, error))
+                if self.attempt < self.ctx.attempts:
+                    old_timeout = self.direct_session.timeout
+                    self.direct_session.timeout *= 2
+                    self.attempt += 1
+                    log.debug("Retry to remove key: {0} attempt: {1}/{2}"
+                              "increased timeout: {3}/{4}"
+                              .format(self.it_response.key,
+                                      self.attempt, self.ctx.attempts,
+                                      self.direct_session.timeout, old_timeout))
+                    self.stats.counter('remove_retries', 1)
+                    self.remove_result = self.direct_session.remove(self.it_response.key)
+                    self.remove_result.connect(self.onremove)
+                    return
+
+            if error.code != 0:
+                log.debug("Key: {0} hasn't been removed from node: {1}: {2}"
+                          .format(repr(self.it_response.key),
+                                  self.address,
+                                  error))
+                self.stats.counter('removed_keys', -1)
+                self.result = False
+                return
+            self.stats.counter('removed_keys', 1)
+        except Exception as e:
+            log.debug("Onremove exception: {0}".format(e))
+            self.result = False
+
+    def wait(self):
+        log.debug("Waiting lookup complete")
+        while hasattr(self, 'lookup_result'):
+            lookup_result = self.lookup_result
+            try:
+                lookup_result.wait()
+            except Exception as e:
+                log.debug("Got exception while waiting lookup: {0}"
+                          .format(e))
+            if lookup_result == self.lookup_result:
+                break
+
+        log.debug("Waiting read complete")
+        while hasattr(self, 'read_result'):
+            read_result = self.read_result
+            try:
+                read_result.wait()
+            except Exception as e:
+                log.debug("Got exception  while waiting read: {0}"
+                          .format(e))
+            if read_result == self.read_result:
+                break
+
+        log.debug("Waiting write complete")
+        while hasattr(self, 'write_result'):
+            write_result = self.write_result
+            try:
+                write_result.wait()
+            except Exception as e:
+                log.debug("Got exception  while waiting write: {0}"
+                          .format(e))
+            if write_result == self.write_result:
+                break
+
+        log.debug("Waiting remove complete")
+        while hasattr(self, 'remove_result'):
+            remove_result = self.remove_result
+            try:
+                remove_result.wait()
+            except Exception as e:
+                log.debug("Got exception  while waiting remove: {0}"
+                          .format(e))
+            if remove_result == self.remove_result:
+                break
+
+    def succeeded(self):
+        self.wait()
+        return self.result
+
+
+def iterate_node(ctx, node, address, ranges, eid, stats):
     try:
-        timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
-
         log.debug("Running iterator on node: {0}".format(address))
+        timestamp_range = ctx.timestamp.to_etime(), Time.time_max().to_etime()
         result, result_len = Iterator.iterate_with_stats(node=node,
                                                          eid=eid,
                                                          timestamp_range=timestamp_range,
-                                                         key_ranges=ranges,
+                                                         key_ranges=[IdRange(r[0], r[1]) for r in ranges],
                                                          tmp_dir=ctx.tmp_dir,
                                                          address=address,
                                                          batch_size=ctx.batch_size,
                                                          stats=stats,
                                                          counters=['iterated_keys'],
-                                                         leave_file=True
-                                                         )
-
+                                                         leave_file=False)
         if result is None:
-            raise RuntimeError("Iterator result is None")
-        log.debug("Iterator {0} obtained: {1} record(s)".format(result.address, result_len))
+            return None
+        log.info("Iterator {0} obtained: {1} record(s)"
+                 .format(result.address, result_len))
         stats.counter('iterations', 1)
         return result
-
     except Exception as e:
-        log.error("Iteration failed for: {0}: {1}".format(address, repr(e)))
+        log.error("Iteration failed for: {0}: {1}"
+                  .format(address, e))
         stats.counter('iterations', -1)
         return None
 
 
-def sort(ctx, result, stats):
-    """
-    Runs sort routine for all iterator result
-    """
-    if len(result) == 0:
-        log.debug("Sort skipped iterator results are empty")
-        return None
-    try:
-        log.info("Processing sorting ranges for: {0}".format(result.address))
-        result.container.sort()
-        stats.counter('sort', 1)
-        return result
-    except Exception as e:
-        log.error("Sort of {0} failed: {1}".format(result.address, e))
-        stats.counter('sort', -1)
-    return None
+def recover(ctx, address, group, node, results, stats):
+    if results is None or len(results) < 1:
+        log.warning("Recover skipped iterator results are empty for node: {0}"
+                    .format(address))
+        return True
+
+    ret = True
+    for batch_id, batch in groupby(enumerate(results), key=lambda x: x[0] / ctx.batch_size):
+        recovers = []
+        for _, response in batch:
+            rec = Recovery(ctx, response, address, group, node, stats)
+            rec.run()
+            recovers.append(rec)
+        for r in recovers:
+            ret &= r.succeeded()
+    return ret
 
 
-def diff(ctx, local, remote, stats):
-    """
-    Compute differences between local and remote results.
-    """
-    try:
-        if remote is None or len(remote) == 0:
-            log.info("Remote container is empty, skipping")
-            return None
-        elif local is None or len(local) == 0:
-            log.info("Local container is empty, recovering full range")
-            result = remote
-        else:
-            log.info("Computing differences for: {0}".format(remote.address))
-            result = local.diff(remote)
-        result.leave_file = True
-        diff_len = len(result)
-        stats.counter('diff', diff_len)
-        log.info("Found {0} differences".format(diff_len))
-        return result
-    except Exception as e:
-        log.error("Diff for {0} failed: {1}".format(remote.address, e))
-        stats.counter('diff', -1)
-        return None
-
-
-def recover((address, )):
-    """
-    Recovers difference between remote and local data.
-    """
-
+def process_node(address, group, ranges):
+    log.debug("Processing node: {0} from group: {1} for ranges: {2}"
+              .format(address, group, ranges))
     ctx = g_ctx
-
-    result = True
-    stats_name = 'recover_{0}'.format(address)
-    stats = ctx.monitor.stats[stats_name]
-    log.info("Recovering ranges for: {0}".format(address))
-    stats.timer('recover', 'started')
-
-    filename = os.path.join(ctx.tmp_dir, mk_container_name(address, "merge_"))
-    diff = IteratorResult.load_filename(filename,
-                                        address=address,
-                                        is_sorted=True,
-                                        tmp_dir=ctx.tmp_dir,
-                                        leave_file=False
-                                        )
-    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
-
-    local_node = elliptics_create_node(address=ctx.address,
-                                       elog=ctx.elog,
-                                       io_thread_num=10,
-                                       net_thread_num=10,
-                                       nonblocking_io_thread_num=10,
-                                       wait_timeout=ctx.wait_timeout
-                                       )
-    log.debug("Creating direct session: {0}".format(ctx.address))
-    local_session = elliptics_create_session(node=local_node,
-                                             group=ctx.group_id,
-                                             )
-    local_session.set_direct_id(*ctx.address)
-
-    remote_node = elliptics_create_node(address=diff.address,
-                                        elog=ctx.elog,
-                                        io_thread_num=10,
-                                        net_thread_num=10,
-                                        nonblocking_io_thread_num=10,
-                                        wait_timeout=ctx.wait_timeout
-                                        )
-    log.debug("Creating direct session: {0}".format(diff.address))
-    remote_session = elliptics_create_session(node=remote_node,
-                                              group=diff.address.group_id,
-                                              )
-    remote_session.set_direct_id(*diff.address)
-
-    for batch_id, batch in groupby(enumerate(diff), key=lambda x: x[0] / ctx.batch_size):
-        result &= recover_keys(ctx=ctx,
-                               address=diff.address,
-                               group_id=diff.address.group_id,
-                               keys=[r.key for _, r in batch],
-                               local_session=local_session,
-                               remote_session=remote_session,
-                               stats=stats)
-
-    stats.timer('recover', 'finished')
-    return result
-
-
-def recover_keys(ctx, address, group_id, keys, local_session, remote_session, stats):
-    """
-    Bulk recovery of keys.
-    """
-    keys_len = len(keys)
-
-    log.debug("Copying {0} keys".format(keys_len))
-
-    async_write_results = []
-    async_remove_results = []
-    batch = None
-
-    try:
-        batch = remote_session.bulk_read(keys)
-        it = iter(batch)
-    except Exception as e:
-        log.error("Bulk read failed: {0} keys: {1}".format(keys_len, e))
-        stats.counter('read_keys', -keys_len)
-        stats.counter('recovered_keys', -keys_len)
-        return False
-
-    failed = 0
-
-    while True:
-        try:
-            b = next(it)
-            io = elliptics.IoAttr()
-            io.id = b.id
-            io.timestamp = b.timestamp
-            io.user_flags = b.user_flags
-            async_write_results.append((local_session.write_data(io, b.data),
-                                        len(b.data),
-                                        b.id))
-        except StopIteration:
-            break
-        except Exception as e:
-            failed += 1
-            log.error("Write failed: {0}".format(e))
-
-    read_len = len(async_write_results)
-    stats.counter('read_keys', read_len)
-    stats.counter('read_keys', -failed)
-    stats.counter('skipped_keys', keys_len - read_len - failed)
-
-    successes, successes_size, failures_size = (0, 0, 0)
-    for r, bsize, key in async_write_results:
-        try:
-            r.wait()
-            if r.successful():
-                if ctx.safe is not True:
-                    # If data was successfully moved to local node
-                    # and `Safe' mode is not enabled - remove it from remote node.
-                    async_remove_results.append((remote_session.remove(key), key))
-                    successes_size += bsize
-                    successes += 1
-            else:
-                failures_size += bsize
-                failed += 1
-        except Exception as e:
-            log.info("Can't recover key: {0}: {1}".format(key, e))
-            failures_size += bsize
-            failed += 1
-
-    remove_successes, remove_failures = (0, 0)
-    for r, key in async_remove_results:
-        try:
-            r.wait()
-            if r.successful():
-                remove_successes += 1
-            else:
-                remove_failures += 1
-        except Exception as e:
-            log.info("Can't remove key: {0}: {1}".format(key, e))
-            remove_failures += 1
-
-    log.debug("Recovered batch: {0}/{1} of size: {2}/{3}"
-              .format(successes + failed,
-                      keys_len,
-                      successes_size,
-                      failures_size))
-
-    stats.counter('recovered_keys', successes)
-    stats.counter('recovered_keys', -failed)
-    stats.counter('recovered_bytes', successes_size)
-    stats.counter('recovered_bytes', -failures_size)
-    stats.counter('removed_keys', remove_successes)
-    stats.counter('removed_keys', -remove_failures)
-
-    return failed == 0
-
-
-def iterate_node(address_ranges):
-    """Iterates node range, sorts it and returns"""
-    ctx = g_ctx
-    ctx.elog = elliptics.Logger(ctx.log_file, int(ctx.log_level))
-
-    stats_name = 'iterate_{0}'.format(address_ranges.address)
-    if address_ranges.address == ctx.address:
-        stats_name = 'iterate_local'
-    stats = ctx.monitor.stats[stats_name]
+    stats = ctx.monitor.stats['node_{0}'.format(address)]
     stats.timer('process', 'started')
 
-    log.info("Running iterator")
+    node = elliptics_create_node(address=ctx.address,
+                                 elog=ctx.elog,
+                                 wait_timeout=ctx.wait_timeout)
+    s = elliptics.Session(node)
+
     stats.timer('process', 'iterate')
-    result = run_iterator(ctx=ctx,
-                          address=address_ranges.address,
-                          eid=address_ranges.eid,
-                          ranges=address_ranges.id_ranges,
-                          stats=stats
-                          )
-    if result is None or len(result) == 0:
-        log.warning("Iterator result is empty, skipping")
-        stats.timer('process', 'finished')
-        return None
+    results = iterate_node(ctx=ctx,
+                           node=node,
+                           address=address,
+                           ranges=ranges,
+                           eid=s.routes.get_address_eid(address),
+                           stats=stats)
+    if results is None or len(results) == 0:
+        log.warning('Iterator result is empty, skipping')
+        return True
 
-    stats.timer('process', 'sort')
-    sorted_result = sort(ctx=ctx,
-                         result=result,
-                         stats=stats)
-    assert len(result) >= len(sorted_result)
-
-    log.info("Sorted successfully: {0} result(s)".format(len(sorted_result)))
-
-    if sorted_result is None or len(sorted_result) == 0:
-        log.warning("Sorted results are empty, skipping")
-        stats.timer('process', 'finished')
-        return None
-
+    stats.timer('process', 'recover')
+    ret = recover(ctx, address, group, node, results, stats)
     stats.timer('process', 'finished')
-    return (sorted_result.address, sorted_result.filename)
 
-
-def process_diff((local, remote)):
-    log.debug('Looking for differences between local and remote nodes')
-    if remote is None:
-        log.debug('Remote container is empty, skipping')
-        return None
-
-    ctx = g_ctx
-    remote_address, remote_filename = remote
-
-    stats_name = 'diff_remote_{0}'.format(remote_address)
-    stats = ctx.monitor.stats[stats_name]
-    stats.timer('process', 'start')
-
-    if local is None:
-        log.info("Local container is empty, recovering full range")
-        stats.timer('process', 'finished')
-        return remote
-
-    local_address, local_filename = local
-
-    log.debug("Loading local result")
-    local_result = None
-    if local:
-        local_result = IteratorResult.load_filename(local_filename,
-                                                    address=ctx.address,
-                                                    is_sorted=True,
-                                                    tmp_dir=ctx.tmp_dir,
-                                                    leave_file=True
-                                                    )
-
-    log.debug("Loading remote result")
-    remote_result = None
-    if remote:
-        remote_result = IteratorResult.load_filename(remote_filename,
-                                                     address=remote_address,
-                                                     is_sorted=True,
-                                                     tmp_dir=ctx.tmp_dir
-                                                     )
-
-    stats.timer('process', 'diff')
-    diff_result = diff(ctx, local_result, remote_result, stats)
-
-    if diff_result is None or len(diff_result) == 0:
-        log.warning("Diff result is empty, skipping")
-        stats.timer('process', 'finished')
-        return None
-    assert len(remote_result) >= len(diff_result)
-    log.info("Computed differences: {0} diff(s)".format(len(diff_result)))
-
-    stats.timer('process', 'finished')
-    return (diff_result.address, diff_result.filename)
+    return ret
 
 
 def main(ctx):
     global g_ctx
     g_ctx = ctx
     g_ctx.monitor.stats.timer('main', 'started')
-    g_ctx.group_id = g_ctx.address.group_id
-    result = True
-
-    log.warning("Searching for ranges that %s store" % g_ctx.address)
-
-    g_ctx.routes = elliptics.RouteList(g_ctx.routes.filter_by_group_id(g_ctx.group_id))
-
-    all_ranges = g_ctx.routes.get_address_ranges(g_ctx.address)
-    log.debug("Recovery nodes: {0}".format(len(g_ctx.routes.addresses())))
-    if len(all_ranges) <= 1:
-        log.warning("No ranges to recover for address %s" % g_ctx.address)
-        g_ctx.monitor.stats.timer('main', 'finished')
-        return result
-
-    all_ranges = [IdRange(s, e) for s, e in all_ranges]
-
-    log.debug("Processing nodes: {0}".format(map(str, g_ctx.routes.addresses())))
-
     processes = min(g_ctx.nprocess, len(g_ctx.routes.addresses()))
     log.info("Creating pool of processes: {0}".format(processes))
     pool = Pool(processes=processes, initializer=worker_init)
+    ret = True
+    for group in g_ctx.groups:
+        log.warning("Processing group: {0}".format(group))
+        group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
+        group_stats.timer('group', 'started')
 
-    ctx.monitor.stats.counter('iterations', len(all_ranges))
+        routes = RouteList(g_ctx.routes.filter_by_group_id(group))
 
-    local_iter_result = pool.apply_async(iterate_node, (
-                                         AddressRanges(g_ctx.address,
-                                                       g_ctx.routes.get_address_eid(g_ctx.address),
-                                                       all_ranges), ))
-    remote_ranges = (AddressRanges(addr, g_ctx.routes.get_address_eid(addr), all_ranges)
-                     for addr in g_ctx.routes.addresses()
-                     if addr != g_ctx.address)
-    iter_result = pool.imap_unordered(iterate_node, remote_ranges)
+        ranges = dict()
 
-    try:
-        timeout = 2147483647
-        local_it_result = local_iter_result.get(timeout)
+        prev = elliptics.Route(elliptics.Id([0] * 64, group), None)
+        for route in routes:
+            if route.address != prev.address and prev.key < route.key:
+                if route.address in ranges:
+                    ranges[route.address].append((prev.key, route.key))
+                else:
+                    ranges[route.address] = [(prev.key, route.key)]
+            prev = route
 
-        diff_async_results = pool.imap_unordered(process_diff, ((local_it_result, result) for result in iter_result if result))
+        pool_results = []
 
-    except KeyboardInterrupt:
-        log.error("Caught Ctrl+C. Terminating")
-        pool.terminate()
-        pool.join()
-        g_ctx.monitor.stats.timer('main', 'finished')
-        return False
+        log.debug("Processing nodes ranges: {0}".format(ranges))
 
-    def unpack_diff_result(result):
-        address, filename = result
-        dres = IteratorResult.load_filename(filename,
-                                            address=address,
-                                            is_sorted=True,
-                                            tmp_dir=g_ctx.tmp_dir
-                                            )
-        return dres
+        for range in ranges:
+            pool_results.append(pool.apply_async(process_node, (range, group, ranges[range])))
 
-    try:
-        diff_results = [unpack_diff_result(diff_r) for diff_r in diff_async_results if diff_r]
-        diff_results = [diff_r for diff_r in diff_results if diff_r]
-    except KeyboardInterrupt:
-        log.error("Caught Ctrl+C. Terminating")
-        pool.terminate()
-        pool.join()
-        g_ctx.monitor.stats.timer('main', 'finished')
-        return False
+        for p in pool_results:
+            ret &= p.get()
 
-    if len(diff_results) == 0:
-        log.warning("Local node has up-to-date data")
-        pool.terminate()
-        pool.join()
-        g_ctx.monitor.stats.timer('main', 'finished')
-        return True
-
-    diff_length = sum([len(diff) for diff in diff_results])
-
-    log.warning('Computing merge and splitting by node all remote results')
-    g_ctx.monitor.stats.timer('main', 'merge_and_split')
-    splitted_results = IteratorResult.merge(diff_results, g_ctx.tmp_dir)
-    g_ctx.monitor.stats.timer('main', 'finished')
-
-    merged_diff_length = 0
-    for spl in splitted_results:
-        spl_len = len(spl)
-        merged_diff_length += spl_len
-        g_ctx.monitor.stats.counter('merged_diffs_{0}'.format(spl.address), spl_len)
-
-    assert diff_length >= merged_diff_length
-    g_ctx.monitor.stats.counter('merged_diffs', merged_diff_length)
-
-    if not g_ctx.dry_run:
-        try:
-            results = pool.map(recover, ((r.address, ) for r in splitted_results if r))
-        except KeyboardInterrupt:
-            log.error("Caught Ctrl+C. Terminating.")
-            pool.terminate()
-            pool.join()
-            g_ctx.monitor.stats.timer('main', 'merge_and_split')
-            return False
-        else:
-            log.info("Closing pool, joining threads")
-            pool.close()
-            pool.join()
-        result &= all(results)
-
-    g_ctx.monitor.stats.timer('main', 'finished')
-    log.debug("Result: %s" % result)
-
-    return result
+    return ret
