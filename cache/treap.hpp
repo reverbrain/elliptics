@@ -186,7 +186,6 @@ private:
 	}
 
 	PNodeType root;
-	int cnt = 0;
 };
 
 }}

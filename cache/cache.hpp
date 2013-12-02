@@ -6,6 +6,7 @@
 #include <thread>
 #include <cstdio>
 #include <unordered_map>
+#include <limits>
 
 #include <boost/intrusive/list.hpp>
 #include <boost/intrusive/set.hpp>
@@ -114,6 +115,10 @@ public:
 		if (!time || (synctime() && time > synctime()))
 		{
 			time = synctime();
+		}
+		if (!time)
+		{
+			time = std::numeric_limits<size_t>::max();
 		}
 		return time;
 	}
