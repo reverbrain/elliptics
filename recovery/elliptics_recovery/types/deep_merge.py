@@ -17,12 +17,12 @@
 Deep Merge recovery type - recovers keys in one hash ring (aka group)
 by placing them to the node where they belong.
 
- * Find ranges that host is responsible for now.
- * Start metadata-only iterator for the found ranges on local and remote hosts.
- * Sort iterators' outputs.
- * Computes diff between local and remote iterator.
- * Recover keys provided by diff using bulk APIs.
- * If necessary removes recovered keys from remote hosts.
+ * Iterate all node in the group for ranges which are not belong to it.
+ * Get all keys which shouldn't be on the node:
+ * Looks up keys meta info on the proper node
+ * If the key on the proper node is missed or older
+ * then moved it form the node to ther proper node
+ * If the key is valid then just remove it from the node.
 """
 
 import sys
@@ -111,8 +111,9 @@ class Recovery(object):
                     log.debug("Dry-run mode is turned on. Skipping removing stage.")
                     return
                 self.attempt = 0
-                self.remove_result = self.direct_session.remove(self.it_response.key)
-                self.remove_result.connect(self.onremove)
+                if not self.ctx.safe:
+                    self.remove_result = self.direct_session.remove(self.it_response.key)
+                    self.remove_result.connect(self.onremove)
                 return
             self.stats.counter('lookup', 1)
 
@@ -221,8 +222,9 @@ class Recovery(object):
                               self.group,
                               self.address))
             self.attempt = 0
-            self.remove_result = self.direct_session.remove(self.it_response.key)
-            self.remove_result.connect(self.onremove)
+            if not self.ctx.safe:
+                self.remove_result = self.direct_session.remove(self.it_response.key)
+                self.remove_result.connect(self.onremove)
         except Exception as e:
             log.debug("Onwrite exception: {0}".format(e))
             self.result = False
