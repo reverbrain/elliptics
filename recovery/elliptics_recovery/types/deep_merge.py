@@ -377,10 +377,13 @@ def process_node(address, group, ranges):
                            stats=stats)
     if results is None or len(results) == 0:
         log.warning('Iterator result is empty, skipping')
+        return True
 
     stats.timer('process', 'recover')
-    recover(ctx, address, group, node, results, stats)
+    ret = recover(ctx, address, group, node, results, stats)
     stats.timer('process', 'finished')
+
+    return ret
 
 
 def main(ctx):
@@ -390,6 +393,7 @@ def main(ctx):
     processes = min(g_ctx.nprocess, len(g_ctx.routes.addresses()))
     log.info("Creating pool of processes: {0}".format(processes))
     pool = Pool(processes=processes, initializer=worker_init)
+    ret = True
     for group in g_ctx.groups:
         log.warning("Processing group: {0}".format(group))
         group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
@@ -416,4 +420,6 @@ def main(ctx):
             pool_results.append(pool.apply_async(process_node, (range, group, ranges[range])))
 
         for p in pool_results:
-            print p.get()
+            ret &= p.get()
+
+    return ret
