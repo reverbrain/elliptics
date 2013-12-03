@@ -61,24 +61,24 @@ class Recovery(object):
         self.stats = stats
         self.result = True
         self.attempt = 0
-        log.debug("Created Recovery object for key: {0}, node: {1}, group: {2}"
-                  .format(it_response.key, address, group))
+        log.debug("Created Recovery object for key: {0}, node: {1}"
+                  .format(repr(it_response.key), address))
 
     def run(self):
-        log.debug("Recovering key: {0}, node: {1}, group: {2}"
-                  .format(repr(self.it_response.key), self.address, self.group))
+        log.debug("Recovering key: {0}, node: {1}"
+                  .format(repr(self.it_response.key), self.address))
         address = self.session.lookup_address(self.it_response.key, self.group)
         if address == self.address:
-            log.warning("Key: {0} already on the right node: {1} in group: {2}"
-                        .format(repr(self.it_response.key), self.address, self.group))
+            log.warning("Key: {0} already on the right node: {1}"
+                        .format(repr(self.it_response.key), self.address))
             self.stats.counter('skipped_keys', 1)
             return
         else:
-            log.debug("Key: {0} should be on node: {1} in group: {2}"
-                      .format(repr(self.it_response.key), address, self.group))
+            log.debug("Key: {0} should be on node: {1}"
+                      .format(repr(self.it_response.key), address))
         self.dest_address = address
-        log.debug("Lookup key: {0} on node: {1} in group: {2}"
-                  .format(repr(self.it_response.key), self.dest_address, self.group))
+        log.debug("Lookup key: {0} on node: {1}"
+                  .format(repr(self.it_response.key), self.dest_address))
         self.lookup_result = self.session.lookup(self.it_response.key)
         self.lookup_result.connect(self.onlookup)
 
@@ -104,11 +104,10 @@ class Recovery(object):
 
             if error.code == 0 and self.it_response.timestamp < results[0].timestamp:
                 self.stats.counter('lookup', 1)
-                log.warning("Key: {0} on node: {1} in group: {2} is newer. "
-                            "Just removing it from node: {3}."
+                log.warning("Key: {0} on node: {1} is newer. "
+                            "Just removing it from node: {2}."
                             .format(repr(self.it_response.key),
-                                    self.dest_address,
-                                    self.group, self.address))
+                                    self.dest_address, self.address))
                 if self.ctx.dry_run:
                     log.debug("Dry-run mode is turned on. Skipping removing stage.")
                     return
@@ -119,11 +118,10 @@ class Recovery(object):
                 return
             self.stats.counter('lookup', 1)
 
-            log.debug("Key: {0} on node: {1} in group: {2} is older or miss. "
-                      "Reading it from node: {3}"
+            log.debug("Key: {0} on node: {1} is older or miss. "
+                      "Reading it from node: {2}"
                       .format(repr(self.it_response.key),
-                              self.dest_address,
-                              self.group, self.address))
+                              self.dest_address, self.address))
             if self.ctx.dry_run:
                 log.debug("Dry-run mode is turned on. "
                           "Skipping reading, writing and removing stages.")
@@ -150,7 +148,7 @@ class Recovery(object):
                     self.attempt += 1
                     log.debug("Retry to read key: {0} attempt: {1}/{2}"
                               "increased timeout: {3}/{4}"
-                              .format(self.it_response.key, self.attempt,
+                              .format(repr(self.it_response.key), self.attempt,
                                       self.ctx.attempts,
                                       self.direct_session.timeout, old_timeout))
                     self.stats.counter('read_retries', 1)
@@ -173,9 +171,9 @@ class Recovery(object):
             self.write_io.timestamp = results[0].timestamp
             self.write_io.user_flags = results[0].user_flags
             self.write_data = results[0].data
-            log.debug("Writing key: {0} to node: {1} in group: {2}"
-                      .format(self.it_response.key,
-                              self.dest_address, self.group))
+            log.debug("Writing key: {0} to node: {1}"
+                      .format(repr(self.it_response.key),
+                              self.dest_address))
             self.data_size = len(self.write_data)
             self.stats.counter('read_bytes', self.data_size)
             self.attempt = 0
@@ -199,7 +197,7 @@ class Recovery(object):
                     self.attempt += 1
                     log.debug("Retry to write key: {0} attempt: {1}/{2}"
                               "increased timeout: {3}/{4}"
-                              .format(self.it_response.key,
+                              .format(repr(self.it_response.key),
                                       self.attempt, self.ctx.attempts,
                                       self.direct_session.timeout, old_timeout))
                     self.stats.counter('write_retries', 1)
@@ -209,11 +207,10 @@ class Recovery(object):
                     return
 
             if error.code != 0 or len(results) < 1:
-                log.error("Writing key: {0} to node: {1} in group: {2} failed."
-                          "Skipping it: {3}"
+                log.error("Writing key: {0} to node: {1} failed."
+                          "Skipping it: {2}"
                           .format(repr(self.it_response.key),
-                                  self.dest_address,
-                                  self.group, error))
+                                  self.dest_address, error))
                 self.stats.counter('written_key', -1)
                 self.stats.counter('written_bytes', -self.data_size)
                 self.result = False
@@ -222,11 +219,10 @@ class Recovery(object):
             self.stats.counter('written_key', 1)
             self.stats.counter('written_bytes', self.data_size)
 
-            log.debug("Key: {0} has been copied to node: {1}"
-                      " in group: {2}. So we can delete it from node: {3}"
+            log.debug("Key: {0} has been copied to node: {1}. "
+                      "So we can delete it from node: {2}"
                       .format(repr(self.it_response.key),
-                              self.dest_address,
-                              self.group, self.address))
+                              self.dest_address, self.address))
             self.attempt = 0
             if not self.ctx.safe:
                 log.debug("Removing key: {0} from node: {1}"
@@ -250,7 +246,7 @@ class Recovery(object):
                     self.attempt += 1
                     log.debug("Retry to remove key: {0} attempt: {1}/{2}"
                               "increased timeout: {3}/{4}"
-                              .format(self.it_response.key,
+                              .format(repr(self.it_response.key),
                                       self.attempt, self.ctx.attempts,
                                       self.direct_session.timeout, old_timeout))
                     self.stats.counter('remove_retries', 1)
@@ -271,7 +267,7 @@ class Recovery(object):
             self.result = False
 
     def wait(self):
-        log.debug("Waiting lookup for key: {0}".format(self.it_response.key))
+        log.debug("Waiting lookup for key: {0}".format(repr(self.it_response.key)))
         while hasattr(self, 'lookup_result'):
             lookup_result = self.lookup_result
             try:
@@ -280,10 +276,10 @@ class Recovery(object):
                 log.debug("Got exception while waiting lookup: {0}".format(e))
             if lookup_result == self.lookup_result:
                 break
-            log.debug("Lookup retry detected for key: {0}".format(self.it_response.key))
-        log.debug("Lookup complete for key: {0}".format(self.it_response.key))
+            log.debug("Lookup retry detected for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Lookup complete for key: {0}".format(repr(self.it_response.key)))
 
-        log.debug("Waiting read for key: {0}".format(self.it_response.key))
+        log.debug("Waiting read for key: {0}".format(repr(self.it_response.key)))
         while hasattr(self, 'read_result'):
             read_result = self.read_result
             try:
@@ -292,10 +288,10 @@ class Recovery(object):
                 log.debug("Got exception while waiting read: {0}".format(e))
             if read_result == self.read_result:
                 break
-            log.debug("Read retry detected for key: {0}".format(self.it_response.key))
-        log.debug("Read complete for key: {0}".format(self.it_response.key))
+            log.debug("Read retry detected for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Read complete for key: {0}".format(repr(self.it_response.key)))
 
-        log.debug("Waiting write for key: {0}".format(self.it_response.key))
+        log.debug("Waiting write for key: {0}".format(repr(self.it_response.key)))
         while hasattr(self, 'write_result'):
             write_result = self.write_result
             try:
@@ -304,10 +300,10 @@ class Recovery(object):
                 log.debug("Got exception while waiting write: {0}".format(e))
             if write_result == self.write_result:
                 break
-            log.debug("Write retry detected for key: {0}".format(self.it_response.key))
-        log.debug("Write complete for key: {0}".format(self.it_response.key))
+            log.debug("Write retry detected for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Write complete for key: {0}".format(repr(self.it_response.key)))
 
-        log.debug("Waiting remove for key: {0}".format(self.it_response.key))
+        log.debug("Waiting remove for key: {0}".format(repr(self.it_response.key)))
         while hasattr(self, 'remove_result'):
             remove_result = self.remove_result
             try:
@@ -316,8 +312,8 @@ class Recovery(object):
                 log.debug("Got exception while waiting remove: {0}".format(e))
             if remove_result == self.remove_result:
                 break
-            log.debug("Remove retry detected for key: {0}".format(self.it_response.key))
-        log.debug("Remove complete for key: {0}".format(self.it_response.key))
+            log.debug("Remove retry detected for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Remove complete for key: {0}".format(repr(self.it_response.key)))
 
     def succeeded(self):
         self.wait()
