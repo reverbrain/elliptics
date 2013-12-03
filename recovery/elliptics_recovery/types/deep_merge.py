@@ -61,22 +61,24 @@ class Recovery(object):
         self.stats = stats
         self.result = True
         self.attempt = 0
-        log.debug("Created Recovery object for key: {0}, node: {2}, group: {1}"
+        log.debug("Created Recovery object for key: {0}, node: {1}, group: {2}"
                   .format(it_response.key, address, group))
 
     def run(self):
-        log.debug("Recovering key: {0}, node: {2}, group: {1}"
+        log.debug("Recovering key: {0}, node: {1}, group: {2}"
                   .format(repr(self.it_response.key), self.address, self.group))
-        log.debug("Looking up address for key: {0} in group: {1}"
-                  .format(repr(self.it_response.key), self.group))
         address = self.session.lookup_address(self.it_response.key, self.group)
         if address == self.address:
             log.warning("Key: {0} already on the right node: {1} in group: {2}"
                         .format(repr(self.it_response.key), self.address, self.group))
             self.stats.counter('skipped_keys', 1)
             return
-        log.debug("Lookup key: {0} in group: {1}"
-                  .format(repr(self.it_response.key), self.group))
+        else:
+            log.debug("Key: {0} should be on node: {1} in group: {2}"
+                      .format(repr(self.it_response.key), address, self.group))
+        self.dest_address = address
+        log.debug("Lookup key: {0} on node: {1} in group: {2}"
+                  .format(repr(self.it_response.key), self.dest_address, self.group))
         self.lookup_result = self.session.lookup(self.it_response.key)
         self.lookup_result.connect(self.onlookup)
 
@@ -102,11 +104,11 @@ class Recovery(object):
 
             if error.code == 0 and self.it_response.timestamp < results[0].timestamp:
                 self.stats.counter('lookup', 1)
-                log.warning("Key: {0} in group: {1} is newer. "
-                            "Just removing it from node: {2}."
+                log.warning("Key: {0} on node: {1} in group: {2} is newer. "
+                            "Just removing it from node: {3}."
                             .format(repr(self.it_response.key),
-                                    self.group,
-                                    self.address))
+                                    self.dest_address,
+                                    self.group, self.address))
                 if self.ctx.dry_run:
                     log.debug("Dry-run mode is turned on. Skipping removing stage.")
                     return
@@ -117,16 +119,19 @@ class Recovery(object):
                 return
             self.stats.counter('lookup', 1)
 
-            log.debug("Key: {0} in group: {1} is older or miss. "
-                      "Reading it from node: {2}"
+            log.debug("Key: {0} on node: {1} in group: {2} is older or miss. "
+                      "Reading it from node: {3}"
                       .format(repr(self.it_response.key),
-                              self.group,
-                              self.address))
+                              self.dest_address,
+                              self.group, self.address))
             if self.ctx.dry_run:
                 log.debug("Dry-run mode is turned on. "
                           "Skipping reading, writing and removing stages.")
                 return
             self.attempt = 0
+            log.debug("Reading key: {0} from node: {1}"
+                      .format(repr(self.it_response.key),
+                              self.address))
             self.read_result = self.direct_session.read_data(self.it_response.key)
             self.read_result.connect(self.onread)
         except Exception as e:
@@ -168,8 +173,9 @@ class Recovery(object):
             self.write_io.timestamp = results[0].timestamp
             self.write_io.user_flags = results[0].user_flags
             self.write_data = results[0].data
-            log.debug("Writing read key: {0} to group: {1}"
-                      .format(self.it_response.key, self.group))
+            log.debug("Writing key: {0} to node: {1} in group: {2}"
+                      .format(self.it_response.key,
+                              self.dest_address, self.group))
             self.data_size = len(self.write_data)
             self.stats.counter('read_bytes', self.data_size)
             self.attempt = 0
@@ -186,7 +192,7 @@ class Recovery(object):
                 self.stats.counter('write_keys', -1)
                 log.debug("Write key: {0} on node: {1} has been timed out: {2}"
                           .format(repr(self.it_response.key),
-                                  self.address, error))
+                                  self.dest_address, error))
                 if self.attempt < self.ctx.attempts:
                     old_timeout = self.session.timeout
                     self.session.timeout *= 2
@@ -203,11 +209,11 @@ class Recovery(object):
                     return
 
             if error.code != 0 or len(results) < 1:
-                log.error("Writing key: {0} to group: {1} failed."
-                          "Skipping it: {2}"
+                log.error("Writing key: {0} to node: {1} in group: {2} failed."
+                          "Skipping it: {3}"
                           .format(repr(self.it_response.key),
-                                  self.group,
-                                  error))
+                                  self.dest_address,
+                                  self.group, error))
                 self.stats.counter('written_key', -1)
                 self.stats.counter('written_bytes', -self.data_size)
                 self.result = False
@@ -216,13 +222,15 @@ class Recovery(object):
             self.stats.counter('written_key', 1)
             self.stats.counter('written_bytes', self.data_size)
 
-            log.debug("Key: {0} has been successfully copied to the right node"
-                      "in group: {1}. So we can delete it from node: {2}"
+            log.debug("Key: {0} has been copied to node: {1}"
+                      " in group: {2}. So we can delete it from node: {3}"
                       .format(repr(self.it_response.key),
-                              self.group,
-                              self.address))
+                              self.dest_address,
+                              self.group, self.address))
             self.attempt = 0
             if not self.ctx.safe:
+                log.debug("Removing key: {0} from node: {1}"
+                          .format(repr(self.it_response.key), self.address))
                 self.remove_result = self.direct_session.remove(self.it_response.key)
                 self.remove_result.connect(self.onremove)
         except Exception as e:
@@ -253,8 +261,7 @@ class Recovery(object):
             if error.code != 0:
                 log.debug("Key: {0} hasn't been removed from node: {1}: {2}"
                           .format(repr(self.it_response.key),
-                                  self.address,
-                                  error))
+                                  self.address, error))
                 self.stats.counter('removed_keys', -1)
                 self.result = False
                 return
@@ -264,49 +271,53 @@ class Recovery(object):
             self.result = False
 
     def wait(self):
-        log.debug("Waiting lookup complete")
+        log.debug("Waiting lookup for key: {0}".format(self.it_response.key))
         while hasattr(self, 'lookup_result'):
             lookup_result = self.lookup_result
             try:
                 lookup_result.wait()
             except Exception as e:
-                log.debug("Got exception while waiting lookup: {0}"
-                          .format(e))
+                log.debug("Got exception while waiting lookup: {0}".format(e))
             if lookup_result == self.lookup_result:
                 break
+            log.debug("Lookup retry detected for key: {0}".format(self.it_response.key))
+        log.debug("Lookup complete for key: {0}".format(self.it_response.key))
 
-        log.debug("Waiting read complete")
+        log.debug("Waiting read for key: {0}".format(self.it_response.key))
         while hasattr(self, 'read_result'):
             read_result = self.read_result
             try:
                 read_result.wait()
             except Exception as e:
-                log.debug("Got exception  while waiting read: {0}"
-                          .format(e))
+                log.debug("Got exception while waiting read: {0}".format(e))
             if read_result == self.read_result:
                 break
+            log.debug("Read retry detected for key: {0}".format(self.it_response.key))
+        log.debug("Read complete for key: {0}".format(self.it_response.key))
 
-        log.debug("Waiting write complete")
+        log.debug("Waiting write for key: {0}".format(self.it_response.key))
         while hasattr(self, 'write_result'):
             write_result = self.write_result
             try:
                 write_result.wait()
             except Exception as e:
-                log.debug("Got exception  while waiting write: {0}"
-                          .format(e))
+                log.debug("Got exception while waiting write: {0}".format(e))
             if write_result == self.write_result:
                 break
+            log.debug("Write retry detected for key: {0}".format(self.it_response.key))
+        log.debug("Write complete for key: {0}".format(self.it_response.key))
 
-        log.debug("Waiting remove complete")
+        log.debug("Waiting remove for key: {0}".format(self.it_response.key))
         while hasattr(self, 'remove_result'):
             remove_result = self.remove_result
             try:
                 remove_result.wait()
             except Exception as e:
-                log.debug("Got exception  while waiting remove: {0}"
-                          .format(e))
+                log.debug("Got exception while waiting remove: {0}".format(e))
             if remove_result == self.remove_result:
                 break
+            log.debug("Remove retry detected for key: {0}".format(self.it_response.key))
+        log.debug("Remove complete for key: {0}".format(self.it_response.key))
 
     def succeeded(self):
         self.wait()
@@ -421,7 +432,19 @@ def main(ctx):
         for range in ranges:
             pool_results.append(pool.apply_async(process_node, (range, group, ranges[range])))
 
-        for p in pool_results:
-            ret &= p.get()
+        try:
+            log.info("Fetching results")
+            # Use INT_MAX as timeout, so we can catch Ctrl+C
+            timeout = 2147483647
+            for p in pool_results:
+                ret &= p.get(timeout)
+        except KeyboardInterrupt:
+            log.error("Caught Ctrl+C. Terminating.")
+            pool.terminate()
+            pool.join()
+        else:
+            log.info("Closing pool, joining threads.")
+            pool.close()
+            pool.join()
 
     return ret
