@@ -206,6 +206,9 @@ class Recovery(object):
                     self.write_result.connect(self.onwrite)
                     return
 
+            del self.write_data
+            del self.write_io
+
             if error.code != 0 or len(results) < 1:
                 log.error("Writing key: {0} to node: {1} failed."
                           "Skipping it: {2}"
