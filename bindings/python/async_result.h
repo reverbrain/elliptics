@@ -34,43 +34,58 @@ namespace ioremap { namespace elliptics { namespace python {
 
 template<typename T>
 struct callback_all_handler {
-	callback_all_handler(bp::api::object &result)
-	: result_handler(result)
-	{}
+	ELLIPTICS_DISABLE_COPY(callback_all_handler)
+
+	callback_all_handler(bp::api::object &result) {
+		result_handler.reset(new bp::api::object(result));
+	}
+
+	~callback_all_handler() {
+		gil_guard gstate;
+		result_handler.reset();
+	}
 
 	void on_results(const std::vector<T> &results, const error_info &err) {
 		gil_guard gstate;
 		try {
-			result_handler(convert_to_list(results), error(err.code(), err.message()));
+			(*result_handler)(convert_to_list(results), error(err.code(), err.message()));
 		} catch (const bp::error_already_set& e) {}
 	}
 
-	bp::api::object result_handler;
+	std::unique_ptr<bp::api::object> result_handler;
 };
 
 template <typename T>
 struct callback_one_handlers {
-	callback_one_handlers(bp::api::object &result, bp::api::object &final)
-	: result_handler(result)
-	, final_handler(final)
-	{}
+	ELLIPTICS_DISABLE_COPY(callback_one_handlers)
+
+	callback_one_handlers(bp::api::object &result, bp::api::object &final) {
+		result_handler.reset(new bp::api::object(result));
+		final_handler.reset(new bp::api::object(final));
+	}
+
+	~callback_one_handlers() {
+		gil_guard gstate;
+		result_handler.reset();
+		final_handler.reset();
+	}
 
 	void on_result(const T &result) {
 		gil_guard gstate;
 		try {
-			result_handler(result);
+			(*result_handler)(result);
 		} catch (const bp::error_already_set& e) {}
 	}
 
 	void on_final(const error_info &err) {
 		gil_guard gstate;
 		try {
-			final_handler(final_handler, error(err.code(), err.message()));
+			(*final_handler)(final_handler, error(err.code(), err.message()));
 		} catch (const bp::error_already_set& e) {}
 	}
 
-	bp::api::object result_handler;
-	bp::api::object final_handler;
+	std::unique_ptr<bp::api::object> result_handler;
+	std::unique_ptr<bp::api::object> final_handler;
 };
 
 template <typename T>

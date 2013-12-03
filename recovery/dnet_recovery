@@ -95,6 +95,8 @@ if __name__ == '__main__':
                       help="Output log messages from library to file [default: %default]")
     parser.add_option("-L", "--log-level", action="store", dest="elliptics_log_level", default="1",
                       help="Elliptics client verbosity [default: %default]")
+    parser.add_option("-z", "--log-size", action="store", dest="log_size", default=1024*1024,
+                      help="Set size of one log file [default: %default]")
     parser.add_option("-n", "--nprocess", action="store", dest="nprocess", default="1",
                       help="Number of subprocesses [default: %default]")
     parser.add_option("-N", "--dry-run", action="store_true", dest="dry_run", default=False,
@@ -147,6 +149,7 @@ if __name__ == '__main__':
     try:
         ctx.log_file = os.path.join(ctx.tmp_dir, options.elliptics_log)
         ctx.log_level = int(options.elliptics_log_level)
+        ctx.log_size = int(options.log_size)
 
         ch.setLevel(logging.WARNING)
         if options.debug:
@@ -154,13 +157,14 @@ if __name__ == '__main__':
 
         # FIXME: It may be inappropriate to use one log for both
         # elliptics library and python app, esp. in presence of auto-rotation
-        fh = logging.handlers.RotatingFileHandler(ctx.log_file, maxBytes=1024*1024, backupCount=5)
+        fh = logging.handlers.RotatingFileHandler(ctx.log_file, maxBytes=ctx.log_size, backupCount=5)
         fh.setFormatter(formatter)
         fh.setLevel(logging.DEBUG)
         log.addHandler(fh)
     except Exception as e:
-        raise ValueError("Can't parse log_level: '{0}': {1}".format(
-            options.elliptics_log_level, repr(e)))
+        raise ValueError("Can't parse log_level: '{0}' or log_size: '{1}': {2}"
+                         .format(options.elliptics_log_level,
+                                 options.log_size, repr(e)))
     log.info("Using elliptics client log level: {0}".format(ctx.log_level))
 
     try:
