@@ -395,6 +395,31 @@ def process_node(address, group, ranges):
     return ret
 
 
+def get_ranges(ctx, group):
+    ranges = dict()
+    routes = RouteList(ctx.routes.filter_by_group_id(group))
+
+    ID_MIN = elliptics.Id([0] * 64, group)
+    ID_MAX = elliptics.Id([255] * 64, group)
+
+    for addr in routes.addresses():
+        addr_ranges = routes.get_address_ranges(addr)
+        if len(addr_ranges) == 0:
+            continue
+
+        ranges[addr] = []
+        if addr_ranges[0][0] != ID_MIN:
+            ranges[addr].append((ID_MIN, addr_ranges[0][0]))
+
+        for i in xrange(1, len(addr_ranges)):
+            ranges[addr].append((addr_ranges[i - 1][1], addr_ranges[i][0]))
+
+        if addr_ranges[-1][1] != ID_MAX:
+            ranges[addr].append((addr_ranges[-1][1], ID_MAX))
+
+    return ranges
+
+
 def main(ctx):
     global g_ctx
     g_ctx = ctx
@@ -408,18 +433,7 @@ def main(ctx):
         group_stats = g_ctx.monitor.stats['group_{0}'.format(group)]
         group_stats.timer('group', 'started')
 
-        routes = RouteList(g_ctx.routes.filter_by_group_id(group))
-
-        ranges = dict()
-
-        prev = elliptics.Route(elliptics.Id([0] * 64, group), None)
-        for route in routes:
-            if route.address != prev.address and prev.key < route.key:
-                if route.address in ranges:
-                    ranges[route.address].append((prev.key, route.key))
-                else:
-                    ranges[route.address] = [(prev.key, route.key)]
-            prev = route
+        ranges = get_ranges(ctx, group)
 
         pool_results = []
 
