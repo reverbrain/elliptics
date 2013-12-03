@@ -46,8 +46,70 @@ import elliptics
 log = logging.getLogger(__name__)
 
 
+class RecoverStat(object):
+    def __init__(self):
+        self.skipped = 0
+        self.lookup = 0
+        self.lookup_failed = 0
+        self.lookup_retries = 0
+        self.read = 0
+        self.read_failed = 0
+        self.read_retries = 0
+        self.read_bytes = 0
+        self.write = 0
+        self.write_failed = 0
+        self.write_retries = 0
+        self.written_bytes = 0
+        self.remove = 0
+        self.remove_failed = 0
+        self.remove_retries = 0
+        self.removed_bytes = 0
+
+    def apply(self, stats):
+        stats.counter("skipped_keys", self.skipped)
+        stats.counter("lookup_keys", self.lookup)
+        stats.counter("lookup_keys", -self.lookup_failed)
+        if self.lookup_retries:
+            stats.counter("lookup_retries", self.lookup_retries)
+        stats.counter("read_keys", self.read)
+        stats.counter("read_keys", -self.read_failed)
+        if self.read_retries:
+            stats.counter("read_retries", self.read_retries)
+        stats.counter("read_bytes", self.read_bytes)
+        stats.counter("written_keys", self.write)
+        stats.counter("written_keys", -self.write_failed)
+        if self.write_retries:
+            stats.counter("write_retries", self.write_retries)
+        stats.counter("written_bytes", self.written_bytes)
+        stats.counter("removed_keys", self.remove)
+        stats.counter("removed_keys", -self.remove_failed)
+        if self.remove_retries:
+            stats.counter("remove_retries", self.remove_retries)
+        stats.counter("removed_bytes", self.removed_bytes)
+
+    def __add__(a, b):
+        ret = RecoverStat()
+        ret.skipped = a.skipped + b.skipped
+        ret.lookup = a.lookup + b.lookup
+        ret.lookup_failed = a.lookup_failed + b.lookup_failed
+        ret.lookup_retries = a.lookup_retries + b.lookup_retries
+        ret.read = a.read + b.read
+        ret.read_failed = a.read_failed + b.read_failed
+        ret.read_retries = a.read_retries + b.read_retries
+        ret.read_bytes = a.read_bytes + b.read_bytes
+        ret.write = a.write + b.write
+        ret.write_failed = a.write_failed + b.write_failed
+        ret.write_retries = a.write_retries + b.write_retries
+        ret.written_bytes = a.written_bytes + b.written_bytes
+        ret.remove = a.remove + b.remove
+        ret.remove_failed = a.remove_failed + b.remove_failed
+        ret.remove_retries = a.remove_retries + b.remove_retries
+        ret.removed_bytes = a.removed_bytes + b.removed_bytes
+        return ret
+
+
 class Recovery(object):
-    def __init__(self, ctx, it_response, address, group, node, stats):
+    def __init__(self, ctx, it_response, address, group, node):
         self.it_response = it_response
         self.address = address
         self.group = group
@@ -58,7 +120,7 @@ class Recovery(object):
         self.session = elliptics.Session(node)
         self.session.groups = [group]
         self.ctx = ctx
-        self.stats = stats
+        self.stats = RecoverStat()
         self.result = True
         self.attempt = 0
         log.debug("Created Recovery object for key: {0}, node: {1}"
@@ -71,7 +133,7 @@ class Recovery(object):
         if address == self.address:
             log.warning("Key: {0} already on the right node: {1}"
                         .format(repr(self.it_response.key), self.address))
-            self.stats.counter('skipped_keys', 1)
+            self.stats.skipped += 1
             return
         else:
             log.debug("Key: {0} should be on node: {1}"
@@ -83,27 +145,29 @@ class Recovery(object):
         self.lookup_result.connect(self.onlookup)
 
     def onlookup(self, results, error):
+        self.lookup_result = None
         try:
             if error.code == -errno.ETIMEDOUT:
-                self.stats.counter('lookup', -1)
+                self.stats.lookup_failed += 1
                 log.debug("Lookup key: {0} has been timed out: {1}"
                           .format(repr(self.it_response.key), error))
                 if self.attempt < self.ctx.attempts:
                     old_timeout = self.session.timeout
                     self.session.timeout *= 2
                     self.attempt += 1
-                    log.debug("Retry to lookup key: {0} attempt: {1}/{2}"
+                    log.debug("Retry to lookup key: {0} attempt: {1}/{2} "
                               "increased timeout: {3}/{4}"
                               .format(repr(self.it_response.key),
                                       self.attempt, self.ctx.attempts,
                                       self.session.timeout, old_timeout))
-                    self.stats.counter('lookup_retries', 1)
+                    self.stats.lookup_retries += 1
                     self.lookup_result = self.session.lookup(self.it_response.key)
                     self.lookup_result.connect(self.onlookup)
                     return
 
+            self.stats.lookup += 1
+
             if error.code == 0 and self.it_response.timestamp < results[0].timestamp:
-                self.stats.counter('lookup', 1)
                 log.warning("Key: {0} on node: {1} is newer. "
                             "Just removing it from node: {2}."
                             .format(repr(self.it_response.key),
@@ -116,7 +180,6 @@ class Recovery(object):
                     self.remove_result = self.direct_session.remove(self.it_response.key)
                     self.remove_result.connect(self.onremove)
                 return
-            self.stats.counter('lookup', 1)
 
             log.debug("Key: {0} on node: {1} is older or miss. "
                       "Reading it from node: {2}"
@@ -137,35 +200,33 @@ class Recovery(object):
             self.result = False
 
     def onread(self, results, error):
+        self.read_result = None
         try:
-            if error.code == -errno.ETIMEDOUT:
-                self.stats.counter('read_keys', -1)
+            if error.code or len(results) < 1:
+                self.stats.read_failed += 1
                 log.debug("Read key: {0} on node: {1} has been timed out: {2}"
                           .format(repr(self.it_response.key), self.address, error))
                 if self.attempt < self.ctx.attempts:
                     old_timeout = self.session.timeout
                     self.session.timeout *= 2
                     self.attempt += 1
-                    log.debug("Retry to read key: {0} attempt: {1}/{2}"
+                    log.debug("Retry to read key: {0} attempt: {1}/{2} "
                               "increased timeout: {3}/{4}"
                               .format(repr(self.it_response.key), self.attempt,
                                       self.ctx.attempts,
                                       self.direct_session.timeout, old_timeout))
-                    self.stats.counter('read_retries', 1)
+                    self.stats.read_retries += 1
                     self.read_result = self.direct_session.read_data(self.it_response.key)
                     self.read_result.connect(self.onread)
                     return
-
-            if error.code != 0 or len(results) < 1:
                 log.error("Reading key: {0} on the node: {1} failed. "
                           "Skipping it: {2}"
                           .format(repr(self.it_response.key),
                                   self.address, error))
-                self.stats.counter('read_keys', -1)
                 self.result = False
                 return
 
-            self.stats.counter('read_keys', 1)
+            self.stats.read += 1
             self.write_io = elliptics.IoAttr()
             self.write_io.id = results[0].id
             self.write_io.timestamp = results[0].timestamp
@@ -175,7 +236,7 @@ class Recovery(object):
                       .format(repr(self.it_response.key),
                               self.dest_address))
             self.data_size = len(self.write_data)
-            self.stats.counter('read_bytes', self.data_size)
+            self.stats.read_bytes += self.data_size
             self.attempt = 0
             self.write_result = self.session.write_data(self.write_io,
                                                         self.write_data)
@@ -185,9 +246,10 @@ class Recovery(object):
             self.result = False
 
     def onwrite(self, results, error):
+        self.write_result = None
         try:
-            if error.code == -errno.ETIMEDOUT:
-                self.stats.counter('write_keys', -1)
+            if error.code or len(results) < 1:
+                self.stats.write_failed += 1
                 log.debug("Write key: {0} on node: {1} has been timed out: {2}"
                           .format(repr(self.it_response.key),
                                   self.dest_address, error))
@@ -195,32 +257,25 @@ class Recovery(object):
                     old_timeout = self.session.timeout
                     self.session.timeout *= 2
                     self.attempt += 1
-                    log.debug("Retry to write key: {0} attempt: {1}/{2}"
+                    log.debug("Retry to write key: {0} attempt: {1}/{2} "
                               "increased timeout: {3}/{4}"
                               .format(repr(self.it_response.key),
                                       self.attempt, self.ctx.attempts,
                                       self.direct_session.timeout, old_timeout))
-                    self.stats.counter('write_retries', 1)
+                    self.stats.write_retries += 1
                     self.write_result = self.session.write_data(self.write_io,
                                                                 self.write_data)
                     self.write_result.connect(self.onwrite)
                     return
-
-            del self.write_data
-            del self.write_io
-
-            if error.code != 0 or len(results) < 1:
-                log.error("Writing key: {0} to node: {1} failed."
+                log.error("Writing key: {0} to node: {1} failed. "
                           "Skipping it: {2}"
                           .format(repr(self.it_response.key),
                                   self.dest_address, error))
-                self.stats.counter('written_key', -1)
-                self.stats.counter('written_bytes', -self.data_size)
                 self.result = False
                 return
 
-            self.stats.counter('written_key', 1)
-            self.stats.counter('written_bytes', self.data_size)
+            self.stats.write += 1
+            self.stats.written_bytes += self.data_size
 
             log.debug("Key: {0} has been copied to node: {1}. "
                       "So we can delete it from node: {2}"
@@ -237,9 +292,10 @@ class Recovery(object):
             self.result = False
 
     def onremove(self, results, error):
+        self.remove_result = None
         try:
-            if error.code == -errno.ETIMEDOUT:
-                self.stats.counter('remove_keys', -1)
+            if error.code:
+                self.stats.remove_failed += 1
                 log.debug("Remove key: {0} on node: {1} has been timed out: {2}"
                           .format(repr(self.it_response.key),
                                   self.address, error))
@@ -247,76 +303,59 @@ class Recovery(object):
                     old_timeout = self.direct_session.timeout
                     self.direct_session.timeout *= 2
                     self.attempt += 1
-                    log.debug("Retry to remove key: {0} attempt: {1}/{2}"
+                    log.debug("Retry to remove key: {0} attempt: {1}/{2} "
                               "increased timeout: {3}/{4}"
                               .format(repr(self.it_response.key),
                                       self.attempt, self.ctx.attempts,
                                       self.direct_session.timeout, old_timeout))
-                    self.stats.counter('remove_retries', 1)
+                    self.stats.remove_retries += 1
                     self.remove_result = self.direct_session.remove(self.it_response.key)
                     self.remove_result.connect(self.onremove)
                     return
-
-            if error.code != 0:
                 log.debug("Key: {0} hasn't been removed from node: {1}: {2}"
                           .format(repr(self.it_response.key),
                                   self.address, error))
-                self.stats.counter('removed_keys', -1)
                 self.result = False
                 return
-            self.stats.counter('removed_keys', 1)
+
+            self.stats.remove += 1
+            self.stats.removed_bytes += self.data_size
         except Exception as e:
             log.debug("Onremove exception: {0}".format(e))
             self.result = False
 
     def wait(self):
         log.debug("Waiting lookup for key: {0}".format(repr(self.it_response.key)))
-        while hasattr(self, 'lookup_result'):
-            lookup_result = self.lookup_result
+        while hasattr(self, 'lookup_result') and self.lookup_result is not None:
             try:
-                lookup_result.wait()
+                self.lookup_result.wait()
             except Exception as e:
                 log.debug("Got exception while waiting lookup: {0}".format(e))
-            if lookup_result == self.lookup_result:
-                break
-            log.debug("Lookup retry detected for key: {0}".format(repr(self.it_response.key)))
-        log.debug("Lookup complete for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Lookup completed for key: {0}".format(repr(self.it_response.key)))
 
         log.debug("Waiting read for key: {0}".format(repr(self.it_response.key)))
-        while hasattr(self, 'read_result'):
-            read_result = self.read_result
+        while hasattr(self, 'read_result') and self.read_result is not None:
             try:
-                read_result.wait()
+                self.read_result.wait()
             except Exception as e:
                 log.debug("Got exception while waiting read: {0}".format(e))
-            if read_result == self.read_result:
-                break
-            log.debug("Read retry detected for key: {0}".format(repr(self.it_response.key)))
-        log.debug("Read complete for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Read completed for key: {0}".format(repr(self.it_response.key)))
 
         log.debug("Waiting write for key: {0}".format(repr(self.it_response.key)))
-        while hasattr(self, 'write_result'):
-            write_result = self.write_result
+        while hasattr(self, 'write_result') and self.write_result is not None:
             try:
-                write_result.wait()
+                self.write_result.wait()
             except Exception as e:
                 log.debug("Got exception while waiting write: {0}".format(e))
-            if write_result == self.write_result:
-                break
-            log.debug("Write retry detected for key: {0}".format(repr(self.it_response.key)))
-        log.debug("Write complete for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Write completed for key: {0}".format(repr(self.it_response.key)))
 
         log.debug("Waiting remove for key: {0}".format(repr(self.it_response.key)))
-        while hasattr(self, 'remove_result'):
-            remove_result = self.remove_result
+        while hasattr(self, 'remove_result') and self.remove_result is not None:
             try:
-                remove_result.wait()
+                self.remove_result.wait()
             except Exception as e:
                 log.debug("Got exception while waiting remove: {0}".format(e))
-            if remove_result == self.remove_result:
-                break
-            log.debug("Remove retry detected for key: {0}".format(repr(self.it_response.key)))
-        log.debug("Remove complete for key: {0}".format(repr(self.it_response.key)))
+        log.debug("Remove completed for key: {0}".format(repr(self.it_response.key)))
 
     def succeeded(self):
         self.wait()
@@ -359,12 +398,15 @@ def recover(ctx, address, group, node, results, stats):
     ret = True
     for batch_id, batch in groupby(enumerate(results), key=lambda x: x[0] / ctx.batch_size):
         recovers = []
+        rs = RecoverStat()
         for _, response in batch:
-            rec = Recovery(ctx, response, address, group, node, stats)
+            rec = Recovery(ctx, response, address, group, node)
             rec.run()
             recovers.append(rec)
         for r in recovers:
             ret &= r.succeeded()
+            rs += r.stats
+        rs.apply(stats)
     return ret
 
 
