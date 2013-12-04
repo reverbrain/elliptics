@@ -262,7 +262,7 @@ bool negative(const callback_result_entry &entry)
 
 bool all(const callback_result_entry &entry)
 {
-	return !entry.data().empty();
+	return entry.status() != 0 || !entry.data().empty();
 }
 
 bool all_with_ack(const callback_result_entry &entry)
@@ -829,11 +829,11 @@ async_read_result session::read_latest(const key &id, uint64_t offset, uint64_t 
 {
 	async_read_result result(*this);
 	{
-		session_scope scope(*this);
-		set_filter(filters::positive);
-		set_checker(checkers::no_check);
+		session sess = clone();
+		sess.set_filter(filters::positive);
+		sess.set_checker(checkers::no_check);
 
-		read_latest_callback callback = { *this, id, offset, size, result, mix_states(id) };
+		read_latest_callback callback = { sess, id, offset, size, result, mix_states(id) };
 		prepare_latest(id, callback.groups).connect(callback);
 	}
 	return result;

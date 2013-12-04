@@ -1277,6 +1277,12 @@ static void test_prepare_latest(session &sess, const std::string &id)
 	BOOST_REQUIRE_EQUAL(lookup_result.size(), 2);
 }
 
+static void test_indexes_remove(session &sess)
+{
+	const std::string index_name_base = "test_indexes_remove_index_";
+	const std::string object_name_base = "text_indexes_remove_obj_";
+}
+
 bool register_tests()
 {
 	srand(time(0));

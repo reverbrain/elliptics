@@ -79,6 +79,14 @@ struct raw_find_indexes_result_entry
 	std::vector<raw_index_entry> indexes;
 };
 
+inline std::ostream &operator <<(std::ostream &out, const raw_index_entry &v)
+{
+	out << "index{" << dnet_dump_id_str(v.index.id) << ",\"";
+	out.write(reinterpret_cast<const char *>(v.data.data), v.data.size);
+	out << "\"}";
+	return out;
+}
+
 template <int CompareData = compare_data>
 struct raw_dnet_raw_id_less_than : public dnet_raw_id_less_than<CompareData>
 {

@@ -1142,7 +1142,7 @@ class remove_index_callback
 		typedef std::shared_ptr<remove_index_callback> ptr;
 
 		remove_index_callback(const session &sess, const async_generic_result &result, const dnet_raw_id &index)
-			: sess(sess), cb(sess, result), index(index)
+			: sess(sess), flags(0), cb(sess, result), index(index)
 		{
 		}
 
@@ -1188,7 +1188,7 @@ class remove_index_callback
 			dnet_indexes_request_entry entry;
 			memset(&entry, 0, sizeof(entry));
 
-			entry.flags |= DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL;
+			entry.flags |= DNET_INDEXES_FLAGS_INTERNAL_REMOVE_ALL | flags;
 
 			std::unique_ptr<state_container[]> states(new state_container[groups.size()]);
 
@@ -1308,6 +1308,7 @@ class remove_index_callback
 		}
 
 		session sess;
+		uint64_t flags;
 		default_callback<callback_result_entry> cb;
 		dnet_raw_id index;
 		std::vector<int> groups;
