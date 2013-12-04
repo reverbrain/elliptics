@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.31
+Version:	2.24.14.32
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.32
+- Filters: Fixed filters::all filter
+- IDS: Added config flag which turns on saving and recovering ids from elliptics cluster.
+
 * Wed Dec 04 2013 Kirill Smorodinnikov <shaitan@yandex-team.ru> - 2.24.14.31
 - Recovery: Added clearing AsyncResults in handlers to prevent cross-links to objects. Minimized sending statistics.
 - Python: fixed memory leak and GC problem with using connect to AsyncResult.
