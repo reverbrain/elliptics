@@ -1,3 +1,10 @@
+elliptics (2.24.14.32) unstable; urgency=low
+
+  * Filters: Fixed filters::all filter
+  * IDS: Added config flag which turns on saving and recovering ids from elliptics cluster.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Thu, 05 Dec 2013 02:50:18 +0400
+
 elliptics (2.24.14.31) unstable; urgency=low
 
   * Recovery: Added clearing AsyncResults in handlers to prevent cross-links to objects. Minimized sending statistics.
