@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.30
+Version:	2.24.14.31
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,13 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Dec 04 2013 Kirill Smorodinnikov <shaitan@yandex-team.ru> - 2.24.14.31
+- Recovery: Added clearing AsyncResults in handlers to prevent cross-links to objects. Minimized sending statistics.
+- Python: fixed memory leak and GC problem with using connect to AsyncResult.
+- Recovery: fixed inverting node ranges in deep_merge.
+- Recovery: Updated logs for deep_merge. Added parameter '-z' for setting one log file size which would be rotated.
+- Recovery: Extended logs for deep_merge.
+
 * Mon Dec 02 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.30
 - Recovery: added handling safe flag which turns off removing key from unproper node.
 - Recovery: added returning result from deep_merge.

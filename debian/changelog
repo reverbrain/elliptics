@@ -1,3 +1,13 @@
+elliptics (2.24.14.31) unstable; urgency=low
+
+  * Recovery: Added clearing AsyncResults in handlers to prevent cross-links to objects. Minimized sending statistics.
+  * Python: fixed memory leak and GC problem with using connect to AsyncResult.
+  * Recovery: fixed inverting node ranges in deep_merge.
+  * Recovery: Updated logs for deep_merge. Added parameter '-z' for setting one log file size which would be rotated.
+  * Recovery: Extended logs for deep_merge.
+
+ -- Kirill Smorodinnikov <shaitan@yandex-team.ru>  Wed, 04 Dec 2013 15:13:01 +0400
+
 elliptics (2.24.14.30) unstable; urgency=low
 
   * Recovery: added handling safe flag which turns off removing key from unproper node.
