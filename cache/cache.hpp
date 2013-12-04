@@ -234,6 +234,8 @@ struct cache_stats {
 	size_t number_of_objects;
 	size_t number_of_objects_marked_for_deletion;
 	size_t size_of_objects_marked_for_deletion;
+	std::vector<size_t> pages_sizes;
+	std::vector<size_t> pages_max_sizes;
 };
 
 class slru_cache_t;

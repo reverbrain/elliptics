@@ -24,7 +24,15 @@ cache_manager::cache_manager(struct dnet_node *n) {
 	m_max_cache_size = n->cache_size;
 	size_t max_size = m_max_cache_size / caches_number;
 
-	std::vector<size_t> pages_max_sizes(m_cache_pages_number, max_size / m_cache_pages_number);
+	size_t proportionsSum = 0;
+	for (size_t i = 0; i < m_cache_pages_number; ++i) {
+		proportionsSum += n->cache_pages_proportions[i];
+	}
+
+	std::vector<size_t> pages_max_sizes(m_cache_pages_number);
+	for (size_t i = 0; i < m_cache_pages_number; ++i) {
+		pages_max_sizes.push_back(max_size * (n->cache_pages_proportions[i] * 1.0 / proportionsSum));
+	}
 
 	for (size_t i = 0; i < caches_number; ++i) {
 		m_caches.emplace_back(std::make_shared<slru_cache_t>(n, pages_max_sizes));
@@ -84,12 +92,19 @@ size_t cache_manager::cache_pages_number() const
 
 cache_stats cache_manager::get_total_cache_stats() const {
 	cache_stats stats;
+	stats.pages_sizes.resize(m_cache_pages_number);
+	stats.pages_max_sizes.resize(m_cache_pages_number);
 	for (size_t i = 0; i < m_caches.size(); ++i) {
 		const cache_stats &page_stats = m_caches[i]->get_cache_stats();
 		stats.number_of_objects += page_stats.number_of_objects;
 		stats.number_of_objects_marked_for_deletion += page_stats.number_of_objects_marked_for_deletion;
 		stats.size_of_objects_marked_for_deletion += page_stats.size_of_objects_marked_for_deletion;
 		stats.size_of_objects += page_stats.size_of_objects;
+
+		for (size_t j = 0; j < m_cache_pages_number; ++j) {
+			stats.pages_sizes[j] += page_stats.pages_sizes[j];
+			stats.pages_max_sizes[j] += page_stats.pages_max_sizes[j];
+		}
 	}
 	return stats;
 }
@@ -248,4 +263,7 @@ void dnet_cache_cleanup(struct dnet_node *n)
 {
 	if (n->cache)
 		delete (cache_manager *)n->cache;
+
+	if (n->cache_pages_proportions)
+		delete[] n->cache_pages_proportions;
 }

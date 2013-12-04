@@ -352,6 +352,8 @@ int slru_cache_t::lookup(const unsigned char *id, dnet_net_state *st, dnet_cmd *
 
 cache_stats slru_cache_t::get_cache_stats() const
 {
+	m_cache_stats.pages_sizes = m_cache_pages_sizes;
+	m_cache_stats.pages_max_sizes = m_cache_pages_max_sizes;
 	return m_cache_stats;
 }
 
