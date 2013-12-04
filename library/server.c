@@ -79,7 +79,7 @@ err_out_exit:
 	return err;
 }
 
-static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, int *id_num, unsigned long long storage_free, struct dnet_addr *cfg_addrs, char* remotes)
+static struct dnet_raw_id *dnet_ids_init(struct dnet_node *n, const char *hdir, int *id_num, unsigned long long storage_free, struct dnet_addr *cfg_addrs, char* remotes, int keep_ids_in_custer)
 {
 	int fd, err, num;
 	const char *file = "ids";
@@ -94,7 +94,8 @@ again:
 	if (fd < 0) {
 		err = -errno;
 		if (err == -ENOENT) {
-			err = dnet_ids_update(1, path, cfg_addrs, remotes);
+			if (keep_ids_in_custer)
+				err = dnet_ids_update(1, path, cfg_addrs, remotes);
 			if (err)
 				err = dnet_ids_generate(n, path, storage_free);
 
@@ -125,7 +126,8 @@ again:
 		goto err_out_close;
 	}
 
-	dnet_ids_update(0, path, cfg_addrs, remotes);
+	if (keep_ids_in_custer)
+		dnet_ids_update(0, path, cfg_addrs, remotes);
 
 	ids = malloc(st.st_size);
 	if (!ids) {
@@ -254,7 +256,7 @@ struct dnet_node *dnet_server_node_create(struct dnet_config_data *cfg_data, str
 		if (err)
 			goto err_out_addr_cleanup;
 
-		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free, cfg_data->cfg_addrs, cfg_data->cfg_remotes);
+		ids = dnet_ids_init(n, cfg->history_env, &id_num, cfg->storage_free, cfg_data->cfg_addrs, cfg_data->cfg_remotes, cfg->flags & DNET_CFG_KEEPS_IDS_IN_CLUSTER);
 		if (!ids)
 			goto err_out_locks_destroy;
 
