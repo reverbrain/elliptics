@@ -30,6 +30,7 @@ namespace ioremap { namespace elliptics {
 
 typedef async_result_handler<callback_result_entry> async_update_indexes_handler;
 
+#define DNET_INDEXES_FLAGS_NOINTERNAL (1 << 29)
 #define DNET_INDEXES_FLAGS_NOUPDATE (1 << 30)
 
 static void on_update_index_entry(async_update_indexes_handler handler, const callback_result_entry &entry)
@@ -59,6 +60,14 @@ static void on_update_index_finished(async_update_indexes_handler handler, const
 	handler.complete(error);
 }
 
+/*
+ * There are several modifying index methods with similiar behaviour.
+ * Some of them send requests to 'object's list of indexes', other to
+ * 'index's list of objects', some to both of them.
+ *
+ * This method should suit all of them and it's behaviour depends on
+ * flags passed as an argument.
+ */
 static async_set_indexes_result session_set_indexes(session &orig_sess, const key &request_id,
 		const std::vector<index_entry> &indexes, uint32_t flags)
 {
@@ -87,7 +96,11 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 	memset(&indexes_id, 0, sizeof(indexes_id));
 	dnet_indexes_transform_object_id(node, &request_id.id(), &indexes_id);
 
-	if (!(flags & DNET_INDEXES_FLAGS_NOUPDATE)) {
+	const bool noupdate = (flags & DNET_INDEXES_FLAGS_NOUPDATE);
+	const bool nointernal = (flags & DNET_INDEXES_FLAGS_NOINTERNAL);
+	flags &= ~(DNET_INDEXES_FLAGS_NOUPDATE | DNET_INDEXES_FLAGS_NOINTERNAL);
+
+	if (!noupdate) {
 		data_buffer buffer(sizeof(dnet_indexes_request) +
 				indexes.size() * sizeof(dnet_indexes_request_entry) + data_size);
 
@@ -97,7 +110,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 		memset(&request, 0, sizeof(request));
 		memset(&entry, 0, sizeof(entry));
 
-		request.flags = flags & ~DNET_INDEXES_FLAGS_NOUPDATE;
+		request.flags = flags;
 		request.id = request_id.id();
 
 		request.entries_count = indexes.size();
@@ -144,7 +157,7 @@ static async_set_indexes_result session_set_indexes(session &orig_sess, const ke
 		}
 	}
 
-	if (flags & (DNET_INDEXES_FLAGS_UPDATE_ONLY | DNET_INDEXES_FLAGS_REMOVE_ONLY)) {
+	if (!nointernal && (flags & (DNET_INDEXES_FLAGS_UPDATE_ONLY | DNET_INDEXES_FLAGS_REMOVE_ONLY))) {
 		transport_control control;
 		control.set_command(DNET_CMD_INDEXES_INTERNAL);
 		control.set_cflags(DNET_FLAGS_NEED_ACK);
@@ -290,6 +303,109 @@ async_generic_result session::remove_index_internal(const std::string &id)
 	key kid(id);
 	kid.transform(*this);
 	return remove_index_internal(kid.raw_id());
+}
+
+struct on_remove_index : std::enable_shared_from_this<on_remove_index>
+{
+	typedef std::shared_ptr<on_remove_index> ptr;
+
+	on_remove_index(session &sess, async_generic_result &result) : sess(sess), handler(result), counter(1)
+	{
+	}
+
+	void on_find_entry(const find_indexes_result_entry &entry)
+	{
+		using namespace std::placeholders;
+		++counter;
+		session remove_sess = sess.clone();
+		session_set_indexes(remove_sess, entry.id, index_entry_list,
+			DNET_INDEXES_FLAGS_NOINTERNAL | DNET_INDEXES_FLAGS_REMOVE_ONLY).connect(
+			std::bind(&on_remove_index::on_remove_index_entry, shared_from_this(), _1),
+			std::bind(&on_remove_index::on_request_finished, shared_from_this(), _1));
+
+		logger log = sess.get_node().get_log();
+		if (log.get_log_level() >= DNET_LOG_DEBUG) {
+			char index_name[2 * DNET_ID_SIZE + 1];
+			char object_name[2 * DNET_ID_SIZE + 1];
+			dnet_dump_id_len_raw(index_id.id, DNET_DUMP_NUM, index_name);
+			dnet_dump_id_len_raw(entry.id.id, DNET_DUMP_NUM, object_name);
+
+			sess.get_node().get_log().print(DNET_LOG_DEBUG, "on_remove_index: Removed index %s from object %s", index_name, object_name);
+		}
+
+		if (remove_data) {
+			++counter;
+			sess.clone().remove(entry.id).connect(
+				std::bind(&on_remove_index::on_remove_entry, shared_from_this(), _1),
+				std::bind(&on_remove_index::on_request_finished, shared_from_this(), _1));
+		}
+	}
+
+	void on_find_finished(const error_info &error)
+	{
+		(void) error;
+		using namespace std::placeholders;
+		sess.clone().remove_index_internal(index_id).connect(
+			std::bind(&async_result_handler<callback_result_entry>::process, &handler, _1),
+			std::bind(&on_remove_index::on_request_finished, shared_from_this(), _1));
+	}
+
+	void on_remove_entry(const remove_result_entry &)
+	{
+	}
+
+	void on_remove_index_entry(const callback_result_entry &)
+	{
+	}
+
+	void on_request_finished(const error_info &)
+	{
+		if (--counter == 0)
+			handler.complete(error);
+	}
+
+	void on_remove_index_internal_finished(const error_info &error)
+	{
+		this->error = error;
+		on_request_finished(error);
+	}
+
+	session sess;
+	async_result_handler<callback_result_entry> handler;
+	dnet_raw_id index_id;
+	std::vector<dnet_raw_id> index_id_list;
+	std::vector<index_entry> index_entry_list;
+	bool remove_data;
+	std::atomic_size_t counter;
+	error_info error;
+};
+
+async_generic_result session::remove_index(const dnet_raw_id &id, bool remove_data)
+{
+	using namespace std::placeholders;
+	async_generic_result result(*this);
+
+	session sess = clone();
+	sess.set_exceptions_policy(no_exceptions);
+	sess.set_filter(filters::all_with_ack);
+
+	auto functor = std::make_shared<on_remove_index>(sess, result);
+	functor->index_id = id;
+	functor->index_id_list.assign(1, id);
+	functor->index_entry_list.assign(1, index_entry(id, data_pointer()));
+	functor->remove_data = remove_data;
+	find_all_indexes(functor->index_id_list).connect(
+		std::bind(&on_remove_index::on_find_entry, functor, _1),
+		std::bind(&on_remove_index::on_find_finished, functor, _1));
+
+	return result;
+}
+
+async_generic_result session::remove_index(const std::string &id, bool remove_data)
+{
+	key kid(id);
+	kid.transform(*this);
+	return remove_index(kid.raw_id(), remove_data);
 }
 
 async_set_indexes_result session::remove_indexes_internal(const key &id, const std::vector<dnet_raw_id> &indexes)
