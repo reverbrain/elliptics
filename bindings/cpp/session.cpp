@@ -262,7 +262,7 @@ bool negative(const callback_result_entry &entry)
 
 bool all(const callback_result_entry &entry)
 {
-	return !entry.data().empty();
+	return entry.status() != 0 || !entry.data().empty();
 }
 
 bool all_with_ack(const callback_result_entry &entry)
