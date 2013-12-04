@@ -148,7 +148,6 @@ class Recovery(object):
         self.lookup_result = None
         try:
             if error.code == -errno.ETIMEDOUT:
-                self.stats.lookup_failed += 1
                 log.debug("Lookup key: {0} has been timed out: {1}"
                           .format(repr(self.it_response.key), error))
                 if self.attempt < self.ctx.attempts:
@@ -165,6 +164,8 @@ class Recovery(object):
                     self.lookup_result.connect(self.onlookup)
                     return
 
+            if error.code:
+                self.stats.lookup_failed += 1
             self.stats.lookup += 1
 
             if error.code == 0 and self.it_response.timestamp < results[0].timestamp:
@@ -203,7 +204,6 @@ class Recovery(object):
         self.read_result = None
         try:
             if error.code or len(results) < 1:
-                self.stats.read_failed += 1
                 log.debug("Read key: {0} on node: {1} has been timed out: {2}"
                           .format(repr(self.it_response.key), self.address, error))
                 if self.attempt < self.ctx.attempts:
@@ -224,6 +224,7 @@ class Recovery(object):
                           .format(repr(self.it_response.key),
                                   self.address, error))
                 self.result = False
+                self.stats.read_failed += 1
                 return
 
             self.stats.read += 1
@@ -249,7 +250,6 @@ class Recovery(object):
         self.write_result = None
         try:
             if error.code or len(results) < 1:
-                self.stats.write_failed += 1
                 log.debug("Write key: {0} on node: {1} has been timed out: {2}"
                           .format(repr(self.it_response.key),
                                   self.dest_address, error))
@@ -272,6 +272,7 @@ class Recovery(object):
                           .format(repr(self.it_response.key),
                                   self.dest_address, error))
                 self.result = False
+                self.stats.write_failed += 1
                 return
 
             self.stats.write += 1
@@ -295,7 +296,6 @@ class Recovery(object):
         self.remove_result = None
         try:
             if error.code:
-                self.stats.remove_failed += 1
                 log.debug("Remove key: {0} on node: {1} has been timed out: {2}"
                           .format(repr(self.it_response.key),
                                   self.address, error))
@@ -316,6 +316,7 @@ class Recovery(object):
                           .format(repr(self.it_response.key),
                                   self.address, error))
                 self.result = False
+                self.stats.remove_failed += 1
                 return
 
             self.stats.remove += 1
