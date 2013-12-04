@@ -38,20 +38,25 @@ private:
 
 	slru_cache_t(const slru_cache_t &) = delete;
 
-	size_t next_page_number(size_t page_number) const {
+	size_t get_next_page_number(size_t page_number) const {
 		if (page_number == 0) {
 			return 0;
 		}
 		return page_number - 1;
 	}
 
-	size_t previous_page_number(size_t page_number) const {
+	size_t get_previous_page_number(size_t page_number) const {
 		return page_number + 1;
 	}
 
 	void insert_data_into_page(const unsigned char *id, size_t page_number, data_t *data);
 
 	void remove_data_from_page(const unsigned char *id, size_t page_number, data_t *data);
+
+	void move_data_between_pages(const unsigned char *id,
+								 size_t source_page_number,
+								 size_t destination_page_number,
+								 data_t *data);
 
 	data_t* create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk);
 

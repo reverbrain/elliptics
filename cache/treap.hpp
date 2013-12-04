@@ -65,6 +65,11 @@ public:
 		erase(getKey(node));
 	}
 
+	void decrease_key(PNodeType node) {
+		erase(node);
+		insert(node);
+	}
+
 	PNodeType top() const {
 		return root;
 	}

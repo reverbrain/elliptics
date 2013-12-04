@@ -64,26 +64,28 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 				it = create_data(id, 0, 0, false);
 				new_page = true;
 				it->set_only_append(true);
-				m_treap.erase(it);
+				size_t previous_eventtime = it->eventtime();
 				it->set_synctime(time(NULL) + m_node->cache_sync_timeout);
-				m_treap.insert(it);
+
+				if (previous_eventtime != it->eventtime()) {
+					m_treap.decrease_key(it);
+				}
 			}
 
 			auto &raw = it->data()->data();
 			size_t page_number = it->cache_page_number();
-
-			remove_data_from_page(id, page_number, &*it);
+			size_t new_page_number = page_number;
 
 			// Moving item to hotter page
 			if (!new_page) {
-				page_number = next_page_number(page_number);
+				new_page_number = get_next_page_number(page_number);
 			}
 
 			m_cache_stats.size_of_objects -= it->size();
 			raw.insert(raw.end(), data, data + io->size);
 			m_cache_stats.size_of_objects += it->size();
 
-			insert_data_into_page(id, page_number, &*it);
+			move_data_between_pages(id, page_number, new_page_number, &*it);
 
 			it->set_timestamp(io->timestamp);
 			it->set_user_flags(io->user_flags);
@@ -160,12 +162,7 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 	}
 
 	size_t page_number = it->cache_page_number();
-
-	remove_data_from_page(id, page_number, &*it);
-
-	if (!new_page) {
-		page_number = next_page_number(page_number);
-	}
+	size_t new_page_number = page_number;
 
 	if (append) {
 		m_cache_stats.size_of_objects -= it->size();
@@ -178,14 +175,18 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 		m_cache_stats.size_of_objects += it->size();
 	}
 
+	if (!new_page) {
+		new_page_number = get_next_page_number(page_number);
+	}
+
 	it->set_remove_from_cache(false);
-	insert_data_into_page(id, page_number, &*it);
+	move_data_between_pages(id, page_number, new_page_number, &*it);
 
 	dnet_log(m_node, DNET_LOG_DEBUG, "%s: CACHE: data modified: %lld ms\n", dnet_dump_id_str(id), timer.restart());
 
 	// Mark data as dirty one, so it will be synced to the disk
 
-	m_treap.erase(it);
+	size_t previous_eventtime = it->eventtime();
 
 	if (!it->synctime() && !(io->flags & DNET_IO_FLAGS_CACHE_ONLY)) {
 		it->set_synctime(time(NULL) + m_node->cache_sync_timeout);
@@ -195,7 +196,9 @@ int slru_cache_t::write(const unsigned char *id, dnet_net_state *st, dnet_cmd *c
 		it->set_lifetime(lifetime + time(NULL));
 	}
 
-	m_treap.insert(it);
+	if (previous_eventtime != it->eventtime()) {
+		m_treap.decrease_key(it);
+	}
 
 	it->set_timestamp(io->timestamp);
 	it->set_user_flags(io->user_flags);
@@ -242,15 +245,15 @@ std::shared_ptr<raw_data_t> slru_cache_t::read(const unsigned char *id, dnet_cmd
 	if (it) {
 
 		size_t page_number = it->cache_page_number();
+		size_t new_page_number = page_number;
 
 		it->set_remove_from_cache(false);
-		remove_data_from_page(id, page_number, &*it);
 
 		if (!new_page) {
-			page_number = next_page_number(page_number);
+			new_page_number = get_next_page_number(page_number);
 		}
 
-		insert_data_into_page(id, page_number, &*it);
+		move_data_between_pages(id, page_number, new_page_number, &*it);
 
 		io->timestamp = it->timestamp();
 		io->user_flags = it->user_flags();
@@ -278,9 +281,12 @@ int slru_cache_t::remove(const unsigned char *id, dnet_io_attr *io) {
 		// If data is marked and cache_only is not set - data must be synced to the disk
 		remove_from_disk |= it->remove_from_disk();
 		if (it->synctime() && !cache_only) {
-			m_treap.erase(it);
+			size_t previous_eventtime = it->eventtime();
 			it->clear_synctime();
-			m_treap.insert(it);
+
+			if (previous_eventtime != it->eventtime()) {
+				m_treap.decrease_key(it);
+			}
 		}
 		erase_element(&(*it));
 		err = 0;
@@ -375,6 +381,14 @@ void slru_cache_t::remove_data_from_page(const unsigned char *id, size_t page_nu
 	m_cache_pages_lru[page_number].erase(m_cache_pages_lru[page_number].iterator_to(*data));
 }
 
+void slru_cache_t::move_data_between_pages(const unsigned char *id, size_t source_page_number, size_t destination_page_number, data_t *data)
+{
+	if (source_page_number != destination_page_number) {
+		remove_data_from_page(id, source_page_number, data);
+		insert_data_into_page(id, destination_page_number, data);
+	}
+}
+
 data_t* slru_cache_t::create_data(const unsigned char *id, const char *data, size_t size, bool remove_from_disk) {
 	size_t last_page_number = m_cache_pages_number - 1;
 
@@ -431,7 +445,7 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 	size_t removed_size = 0;
 	size_t &cache_size = m_cache_pages_sizes[page_number];
 	size_t &max_cache_size = m_cache_pages_max_sizes[page_number];
-	size_t previous_page = previous_page_number(page_number);
+	size_t previous_page_number = get_previous_page_number(page_number);
 
 	for (auto it = m_cache_pages_lru[page_number].begin(); it != m_cache_pages_lru[page_number].end();) {
 		if (max_cache_size + removed_size >= cache_size + reserve)
@@ -441,18 +455,20 @@ void slru_cache_t::resize_page(const unsigned char *id, size_t page_number, size
 		++it;
 
 		// If page is not last move object to previous page
-		if (previous_page < m_cache_pages_number) {
-			remove_data_from_page(id, page_number, raw);
-			insert_data_into_page(id, previous_page, raw);
+		if (previous_page_number < m_cache_pages_number) {
+			move_data_between_pages(id, page_number, previous_page_number, raw);
 		} else {
 			if (raw->synctime() || raw->remove_from_cache()) {
 				if (!raw->remove_from_cache()) {
 					m_cache_stats.number_of_objects_marked_for_deletion++;
 					m_cache_stats.size_of_objects_marked_for_deletion += raw->size();
 					raw->set_remove_from_cache(true);
-					m_treap.erase(raw);
+
+					size_t previous_eventtime = raw->eventtime();
 					raw->set_synctime(1);
-					m_treap.insert(raw);
+					if (previous_eventtime != raw->eventtime()) {
+						m_treap.decrease_key(raw);
+					}
 				}
 				removed_size += raw->size();
 			} else {
@@ -517,9 +533,12 @@ void slru_cache_t::sync_after_append(elliptics_unique_lock<std::mutex> &guard, b
 	elliptics_timer timer;
 
 	std::shared_ptr<raw_data_t> raw_data = obj->data();
-	m_treap.erase(obj);
+
+	size_t previous_eventtime = obj->eventtime();
 	obj->set_synctime(0);
-	m_treap.insert(obj);
+	if (previous_eventtime != obj->eventtime()) {
+		m_treap.decrease_key(obj);
+	}
 
 	dnet_id id;
 	memset(&id, 0, sizeof(id));
@@ -609,9 +628,11 @@ void slru_cache_t::life_check(void) {
 				user_flags = obj->user_flags();
 				timestamp = obj->timestamp();
 
-				m_treap.erase(it);
+				size_t previous_eventtime = it->eventtime();
 				obj->clear_synctime();
-				m_treap.insert(obj);
+				if (previous_eventtime != obj->eventtime()) {
+					m_treap.decrease_key(it);
+				}
 
 				guard.unlock();
 				dnet_oplock(m_node, &id);
