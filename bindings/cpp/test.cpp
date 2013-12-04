@@ -642,7 +642,7 @@ static void test_cache_records_sizes(session &sess)
 
 	size_t record_size = 0;
 	{
-		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::to_string(0)), data, 3000));
+		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::string("0")), data, 3000));
 		const auto& stats = cache->get_total_cache_stats();
 		record_size = stats.size_of_objects;
 	}
@@ -650,7 +650,7 @@ static void test_cache_records_sizes(session &sess)
     size_t records_number = cache_size / cache_pages_number / record_size;
 	for (size_t id = 1; id < records_number; ++id)
 	{
-		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::to_string(id)), data, 3000));
+		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(id)), data, 3000));
 		const auto& stats = cache->get_total_cache_stats();
 		BOOST_REQUIRE_EQUAL(stats.number_of_objects * record_size, stats.size_of_objects);
 		BOOST_REQUIRE_EQUAL(stats.number_of_objects, id + 1);
@@ -1276,6 +1276,12 @@ static void test_prepare_latest(session &sess, const std::string &id)
 	auto lookup_result = prepare_result.get();
 
 	BOOST_REQUIRE_EQUAL(lookup_result.size(), 2);
+}
+
+static void test_indexes_remove(session &sess)
+{
+	const std::string index_name_base = "test_indexes_remove_index_";
+	const std::string object_name_base = "text_indexes_remove_obj_";
 }
 
 bool register_tests()

@@ -1,3 +1,41 @@
+elliptics (2.24.14.31) unstable; urgency=low
+
+  * Recovery: Added clearing AsyncResults in handlers to prevent cross-links to objects. Minimized sending statistics.
+  * Python: fixed memory leak and GC problem with using connect to AsyncResult.
+  * Recovery: fixed inverting node ranges in deep_merge.
+  * Recovery: Updated logs for deep_merge. Added parameter '-z' for setting one log file size which would be rotated.
+  * Recovery: Extended logs for deep_merge.
+
+ -- Kirill Smorodinnikov <shaitan@yandex-team.ru>  Wed, 04 Dec 2013 15:13:01 +0400
+
+elliptics (2.24.14.30) unstable; urgency=low
+
+  * Recovery: added handling safe flag which turns off removing key from unproper node.
+  * Recovery: added returning result from deep_merge.
+  * Recovery: added attempts to lookup/read/write/remove.
+  * Recovery: Rewrited deep_merge. Now deep_merge is synchronization keys within group all nodes at once. More details: http://doc.reverbrain.com/elliptics:replication.
+  * Python: Removed debug code.
+  * Python: Removed elliptics.Data and uses python string instead of. Fixed specifying object method as callback for elliptics.AsyncResult.connect.
+  * Python: elliptics.Data added to_string and __repr__ methods which returns string representation of internal data
+  * Python: changed counters output to dict.
+  * Build: Fixed compilation errors on Lucid
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Mon, 02 Dec 2013 19:12:29 +0400
+
+elliptics (2.24.14.29) unstable; urgency=low
+
+  * Python: fixed counters in stat_log_counter. Core: Added const to input parameter in dnet_server_convert_dnet_addr
+  * Python: Fixed crash on requesting address/group_id from result entries.
+  * session: transform() should accept const session, since it doesn't modify it
+  * cache: scream loudly if cache operations with lock taks more than 100 ms
+  * Test: Use random ports for servers
+  * Python: fixed typo.
+  * cache_pages_number param added
+  * slru_cache refactored
+  * Caches_number configuration param added.
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 27 Nov 2013 18:59:00 +0400
+
 elliptics (2.24.14.28) unstable; urgency=low
 
   * state: fill state with 0xff prior its freeing for debug

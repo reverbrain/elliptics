@@ -23,7 +23,6 @@
 
 #include "elliptics_id.h"
 #include "elliptics_time.h"
-#include "elliptics_data.h"
 
 namespace bp = boost::python;
 
@@ -34,9 +33,9 @@ dnet_iterator_response iterator_result_response(iterator_result_entry result)
 	return *result.reply();
 }
 
-data_wrapper iterator_result_response_data(iterator_result_entry result)
+std::string iterator_result_response_data(iterator_result_entry result)
 {
-	return data_wrapper(result.reply_data());
+	return result.reply_data().to_string();
 }
 
 elliptics_id iterator_response_get_key(dnet_iterator_response *response)
@@ -59,9 +58,9 @@ uint64_t iterator_response_get_size(dnet_iterator_response *response)
 	return response->size;
 }
 
-data_wrapper read_result_get_data(read_result_entry &result)
+std::string read_result_get_data(read_result_entry &result)
 {
-	return data_wrapper(result.file());
+	return result.file().to_string();
 }
 
 elliptics_id read_result_get_id(read_result_entry &result)
@@ -133,9 +132,9 @@ std::string exec_context_get_event(exec_context &context)
 	return context.event();
 }
 
-data_wrapper exec_context_get_data(exec_context &context)
+std::string exec_context_get_data(exec_context &context)
 {
-	return data_wrapper(context.data());
+	return context.data().to_string();
 }
 
 int exec_context_get_src_key(exec_context &context)
@@ -196,9 +195,9 @@ error result_entry_error(T &result)
 	return error(result.error().code(), result.error().message());
 }
 
-data_wrapper callback_result_data(callback_result_entry &result)
+std::string callback_result_data(callback_result_entry &result)
 {
-	return data_wrapper(result.data());
+	return result.data().to_string();
 }
 
 template <typename T>
@@ -223,30 +222,54 @@ dnet_stat stat_result_get_statistics(stat_result_entry &result)
 	return *(result.statistics());
 }
 
-struct address_statistics : public dnet_addr_stat {
-	address_statistics(const dnet_addr_stat &stat, int group_id)
-	: dnet_addr_stat(stat)
+struct address_statistics {
+	address_statistics(const dnet_addr_stat *stat, int group_id)
+	: stat(stat)
 	, group_id(group_id)
 	{}
+
+	int num() { return stat->num; }
+	int cmd_num() { return stat->cmd_num; }
+
+	const dnet_addr_stat* stat;
 
 	int group_id;
 };
 
 address_statistics stat_count_result_get_statistics(stat_count_result_entry &result)
 {
-	return address_statistics(*result.statistics(), result.command()->id.group_id);
+	return address_statistics(result.statistics(), result.command()->id.group_id);
 }
 
 std::string addr_stat_get_address(address_statistics &stat) {
-	return std::string(dnet_server_convert_dnet_addr(&stat.addr));
+	return std::string(dnet_server_convert_dnet_addr(&stat.stat->addr));
 }
 
-bp::tuple addr_stat_get_counters(address_statistics &stat) {
-	bp::list ret;
-	for (int i = 0; i < stat.num; ++i) {
-		ret.append(stat.count[i]);
+bp::dict addr_stat_get_counters(address_statistics &stat) {
+	bp::dict node_stat, storage_commands, proxy_commands, counters;
+	auto as = stat.stat;
+
+	for (int i = 0; i < as->num; ++i) {
+		if (i < as->cmd_num) {
+			storage_commands[std::string(dnet_counter_string(i, as->cmd_num))] =
+			    bp::make_tuple((unsigned long long)as->count[i].count,
+			                   (unsigned long long)as->count[i].err);
+		} else if (i < (as->cmd_num * 2)) {
+			proxy_commands[std::string(dnet_counter_string(i, as->cmd_num))] =
+			    bp::make_tuple((unsigned long long)as->count[i].count,
+			                   (unsigned long long)as->count[i].err);
+		} else {
+			counters[std::string(dnet_counter_string(i, as->cmd_num))] =
+			    bp::make_tuple((unsigned long long)as->count[i].count,
+			                   (unsigned long long)as->count[i].err);
+		}
 	}
-	return bp::tuple(ret);
+
+	node_stat["storage_commands"] = storage_commands;
+	node_stat["proxy_commands"] = proxy_commands;
+	node_stat["counters"] = counters;
+
+	return node_stat;
 }
 
 bp::list dnet_stat_get_la(const dnet_stat &stat)
@@ -302,7 +325,7 @@ void init_result_entry() {
 		.add_property("response", iterator_result_response)
 		.add_property("response_data", iterator_result_response_data)
 		.add_property("address", result_entry_address<iterator_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<iterator_result_entry>)
 		.add_property("error", result_entry_error<iterator_result_entry>)
 	;
 
@@ -323,7 +346,7 @@ void init_result_entry() {
 		.add_property("offset", read_result_get_offset)
 		.add_property("size", read_result_get_size)
 		.add_property("address", result_entry_address<read_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<read_result_entry>)
 		.add_property("error", result_entry_error<read_result_entry>)
 	;
 
@@ -335,7 +358,7 @@ void init_result_entry() {
 		.add_property("checksum", lookup_result_get_checksum)
 		.add_property("filepath", lookup_result_get_filepath)
 		.add_property("address", result_entry_address<lookup_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<lookup_result_entry>)
 		.add_property("error", result_entry_error<lookup_result_entry>)
 	;
 
@@ -350,7 +373,7 @@ void init_result_entry() {
 	bp::class_<exec_result_entry>("ExecResultEntry")
 		.add_property("context", exec_result_get_context)
 		.add_property("address", result_entry_address<exec_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<exec_result_entry>)
 	;
 
 	bp::class_<find_indexes_result_entry>("FindIndexesResultEntry")
@@ -366,7 +389,7 @@ void init_result_entry() {
 		.add_property("size", callback_result_size)
 		.add_property("error", result_entry_error<callback_result_entry>)
 		.add_property("address", result_entry_address<callback_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<callback_result_entry>)
 	;
 
 	bp::class_<dnet_stat>("Statisitics", bp::no_init)
@@ -394,20 +417,18 @@ void init_result_entry() {
 	bp::class_<stat_result_entry>("StatResultEntry")
 		.add_property("statistics", stat_result_get_statistics)
 		.add_property("address", result_entry_address<stat_result_entry>)
-		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
+		.add_property("group_id", result_entry_group_id<stat_result_entry>)
 		.add_property("error", result_entry_error<stat_result_entry>)
 	;
 
 	bp::class_<address_statistics>("AddressStatistics", bp::no_init)
 		.add_property("address", addr_stat_get_address)
 		.add_property("group_id", &address_statistics::group_id)
-		.add_property("num", &dnet_addr_stat::num)
-		.add_property("cmd_num", &dnet_addr_stat::cmd_num)
 		.add_property("counters", addr_stat_get_counters)
 	;
 
 	bp::class_<dnet_stat_count>("StatisticCounters")
-		.add_property("successes", &dnet_stat_count::count)
+		.add_property("counter", &dnet_stat_count::count)
 		.add_property("errors", &dnet_stat_count::err)
 	;
 

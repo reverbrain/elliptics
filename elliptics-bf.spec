@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.28
+Version:	2.24.14.31
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,35 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Dec 04 2013 Kirill Smorodinnikov <shaitan@yandex-team.ru> - 2.24.14.31
+- Recovery: Added clearing AsyncResults in handlers to prevent cross-links to objects. Minimized sending statistics.
+- Python: fixed memory leak and GC problem with using connect to AsyncResult.
+- Recovery: fixed inverting node ranges in deep_merge.
+- Recovery: Updated logs for deep_merge. Added parameter '-z' for setting one log file size which would be rotated.
+- Recovery: Extended logs for deep_merge.
+
+* Mon Dec 02 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.30
+- Recovery: added handling safe flag which turns off removing key from unproper node.
+- Recovery: added returning result from deep_merge.
+- Recovery: added attempts to lookup/read/write/remove.
+- Recovery: Rewrited deep_merge. Now deep_merge is synchronization keys within group all nodes at once. More details: http://doc.reverbrain.com/elliptics:replication.
+- Python: Removed debug code.
+- Python: Removed elliptics.Data and uses python string instead of. Fixed specifying object method as callback for elliptics.AsyncResult.connect.
+- Python: elliptics.Data added to_string and __repr__ methods which returns string representation of internal data
+- Python: changed counters output to dict.
+- Build: Fixed compilation errors on Lucid
+
+* Wed Nov 27 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.29
+- Python: fixed counters in stat_log_counter. Core: Added const to input parameter in dnet_server_convert_dnet_addr
+- Python: Fixed crash on requesting address/group_id from result entries.
+- session: transform() should accept const session, since it doesn't modify it
+- cache: scream loudly if cache operations with lock taks more than 100 ms
+- Test: Use random ports for servers
+- Python: fixed typo.
+- cache_pages_number param added
+- slru_cache refactored
+- Caches_number configuration param added.
+
 * Sat Nov 23 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.28
 - state: fill state with 0xff prior its freeing for debug
 - state: guard dnet_schedule_recv() with st->send_lock. dnet_schedule_send() is already guarded.

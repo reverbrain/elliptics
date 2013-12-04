@@ -14,7 +14,7 @@
 # =============================================================================
 
 from elliptics.core import Session
-from elliptics.route import RouteList
+from elliptics.route import RouteList, Address
 from elliptics.log import logged_class
 
 
@@ -27,3 +27,7 @@ class Session(Session):
 
     def get_routes(self):
         return RouteList.from_routes(super(Session, self).get_routes())
+
+    def lookup_address(self, key, group_id):
+        return Address.from_host_port(super(Session, self)
+                                      .lookup_address(key, group_id), group_id)

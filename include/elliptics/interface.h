@@ -2,17 +2,17 @@
  * Copyright 2008+ Evgeniy Polyakov <zbr@ioremap.net>
  *
  * This file is part of Elliptics.
- * 
+ *
  * Elliptics is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Lesser General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * Elliptics is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Lesser General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Lesser General Public License
  * along with Elliptics.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -222,6 +222,7 @@ enum dnet_log_level {
 #define DNET_CFG_MIX_STATES		(1<<2)		/* mix states according to their weights before reading data */
 #define DNET_CFG_NO_CSUM		(1<<3)		/* globally disable checksum verification and update */
 #define DNET_CFG_RANDOMIZE_STATES	(1<<5)		/* randomize states for read requests */
+#define DNET_CFG_KEEPS_IDS_IN_CLUSTER	(1<<6)		/* keeps ids in elliptics cluster */
 
 struct dnet_log {
 	/*
@@ -503,20 +504,20 @@ static inline int dnet_server_convert_port(struct sockaddr *sa, unsigned int len
 	return 0;
 }
 
-static inline char *dnet_server_convert_dnet_addr_raw(struct dnet_addr *addr, char *inet_addr, int inet_size)
+static inline char *dnet_server_convert_dnet_addr_raw(const struct dnet_addr *addr, char *inet_addr, int inet_size)
 {
 	memset(inet_addr, 0, inet_size);
 	if (addr->family == AF_INET) {
-		struct sockaddr_in *in = (struct sockaddr_in *)addr->addr;
+		const struct sockaddr_in *in = (const struct sockaddr_in *)addr->addr;
 		snprintf(inet_addr, inet_size, "%s:%d", inet_ntoa(in->sin_addr), ntohs(in->sin_port));
 	} else if (addr->family == AF_INET6) {
-		struct sockaddr_in6 *in = (struct sockaddr_in6 *)addr->addr;
+		const struct sockaddr_in6 *in = (const struct sockaddr_in6 *)addr->addr;
 		snprintf(inet_addr, inet_size, NIP6_FMT":%d", NIP6(in->sin6_addr), ntohs(in->sin6_port));
 	}
 	return inet_addr;
 }
 
-static inline char *dnet_server_convert_dnet_addr(struct dnet_addr *sa)
+static inline char *dnet_server_convert_dnet_addr(const struct dnet_addr *sa)
 {
 	static char ___inet_addr[128];
 	return dnet_server_convert_dnet_addr_raw(sa, ___inet_addr, sizeof(___inet_addr));

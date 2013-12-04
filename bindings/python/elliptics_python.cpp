@@ -264,14 +264,14 @@ void index_entry_set_index(index_entry &result, const elliptics_id &id)
 	result.index = id.raw_id();
 }
 
-data_wrapper index_entry_get_data(index_entry &result)
+std::string index_entry_get_data(index_entry &result)
 {
-	return data_wrapper(result.data);
+	return result.data.to_string();
 }
 
-void index_entry_set_data(index_entry &result, const bp::api::object& obj)
+void index_entry_set_data(index_entry &result, const std::string& data)
 {
-	result.data = data_wrapper::convert(obj).pointer();
+	result.data = data_pointer::copy(data);
 }
 
 std::string get_cmd_string(int cmd) {
@@ -280,8 +280,6 @@ std::string get_cmd_string(int cmd) {
 
 BOOST_PYTHON_MODULE(core)
 {
-	bp::def("get_cmd_string", get_cmd_string);
-
 	bp::class_<error>("ErrorInfo", bp::init<int, std::string>())
 		.def("__str__", &error::error_message)
 		.add_property("message", &error::error_message)
@@ -414,7 +412,6 @@ BOOST_PYTHON_MODULE(core)
 	init_result_entry();
 	init_elliptics_time();
 	init_elliptics_io_attr();
-	init_elliptics_data();
 	init_elliptics_session();
 };
 

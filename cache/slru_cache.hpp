@@ -31,7 +31,7 @@ private:
 	size_t m_cache_pages_number;
 	std::vector<size_t> m_cache_pages_max_sizes;
 	std::vector<size_t> m_cache_pages_sizes;
-	std::vector<lru_list_t> m_cache_pages_lru;
+	std::unique_ptr<lru_list_t[]> m_cache_pages_lru;
 	std::thread m_lifecheck;
 	treap_t m_treap;
 	mutable cache_stats m_cache_stats;
