@@ -115,6 +115,8 @@ if __name__ == '__main__':
                       help="[Wait timeout for elliptics operations default: %default]")
     parser.add_option("-a", "--attemps", action="store", dest="attempts", default=1,
                       help="Number of attempts to recover one key")
+    parser.add_option("-o", "--one-node", action="store_true", dest="one_node", default=False,
+                      help="Iterate only one node provided by -r/--remote [default: %default]")
 
     (options, args) = parser.parse_args()
 
@@ -131,6 +133,7 @@ if __name__ == '__main__':
     ctx = Ctx()
     ctx.dry_run = options.dry_run
     ctx.safe = options.safe
+    ctx.one_node = options.one_node
 
     ctx.tmp_dir = options.tmp_dir.replace('%TYPE%', recovery_type)
     if not os.path.exists(ctx.tmp_dir):
