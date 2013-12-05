@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.32
+Version:	2.24.14.33
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,10 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Thu Dec 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.33
+- Recovery: Added -o option to merge which limits it to one node.
+- Recovery: Replaced merge by deep_merge with removing of the last. Used FileHandler without rotation for dnet_recovery logs.
+
 * Thu Dec 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.32
 - Filters: Fixed filters::all filter
 - IDS: Added config flag which turns on saving and recovering ids from elliptics cluster.
