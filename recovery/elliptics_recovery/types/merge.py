@@ -135,6 +135,7 @@ class Recovery(object):
         self.stats = RecoverStat()
         self.result = True
         self.attempt = 0
+        self.data_size = it_response.size
         log.debug("Created Recovery object for key: {0}, node: {1}"
                   .format(repr(it_response.key), address))
 
