@@ -343,7 +343,7 @@ class Recovery(object):
         while hasattr(self, 'lookup_result') and self.lookup_result is not None:
             try:
                 self.lookup_result.wait()
-            except Exception as e:
+            except:
                 pass
         log.debug("Lookup completed for key: {0}".format(repr(self.it_response.key)))
 
@@ -351,7 +351,7 @@ class Recovery(object):
         while hasattr(self, 'read_result') and self.read_result is not None:
             try:
                 self.read_result.wait()
-            except Exception as e:
+            except:
                 pass
         log.debug("Read completed for key: {0}".format(repr(self.it_response.key)))
 
@@ -359,7 +359,7 @@ class Recovery(object):
         while hasattr(self, 'write_result') and self.write_result is not None:
             try:
                 self.write_result.wait()
-            except Exception as e:
+            except:
                 pass
         log.debug("Write completed for key: {0}".format(repr(self.it_response.key)))
 
@@ -367,7 +367,7 @@ class Recovery(object):
         while hasattr(self, 'remove_result') and self.remove_result is not None:
             try:
                 self.remove_result.wait()
-            except Exception as e:
+            except:
                 pass
         log.debug("Remove completed for key: {0}".format(repr(self.it_response.key)))
 
@@ -461,7 +461,15 @@ def get_ranges(ctx, group):
     ID_MIN = elliptics.Id([0] * 64, group)
     ID_MAX = elliptics.Id([255] * 64, group)
 
-    for addr in routes.addresses():
+    addresses = None
+    if ctx.one_node:
+        if ctx.address not in routes.addresses():
+            return None
+        addresses = [ctx.address]
+    else:
+        addresses = routes.addresses()
+
+    for addr in addresses:
         addr_ranges = routes.get_address_ranges(addr)
         if len(addr_ranges) == 0:
             continue
@@ -493,6 +501,9 @@ def main(ctx):
         group_stats.timer('group', 'started')
 
         ranges = get_ranges(ctx, group)
+
+        if ranges is None:
+            continue
 
         pool_results = []
 
