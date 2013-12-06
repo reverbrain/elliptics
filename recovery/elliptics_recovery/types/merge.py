@@ -69,35 +69,35 @@ class RecoverStat(object):
         if self.skipped:
             stats.counter("skipped_keys", self.skipped)
         if self.lookup:
-            stats.counter("lookup_keys", self.lookup)
+            stats.counter("remote_lookups", self.lookup)
         if self.lookup_failed:
-            stats.counter("lookup_keys", -self.lookup_failed)
+            stats.counter("remote_lookups", -self.lookup_failed)
         if self.lookup_retries:
-            stats.counter("lookup_retries", self.lookup_retries)
+            stats.counter("remote_lookup_retries", self.lookup_retries)
         if self.read:
-            stats.counter("read_keys", self.read)
+            stats.counter("local_reads", self.read)
         if self.read_failed:
-            stats.counter("read_keys", -self.read_failed)
+            stats.counter("local_reads", -self.read_failed)
         if self.read_retries:
-            stats.counter("read_retries", self.read_retries)
+            stats.counter("local_read_retries", self.read_retries)
         if self.read_bytes:
-            stats.counter("read_bytes", self.read_bytes)
+            stats.counter("local_read_bytes", self.read_bytes)
         if self.write:
-            stats.counter("written_keys", self.write)
+            stats.counter("remote_writes", self.write)
         if self.write_failed:
-            stats.counter("written_keys", -self.write_failed)
+            stats.counter("remote_writes", -self.write_failed)
         if self.write_retries:
-            stats.counter("write_retries", self.write_retries)
+            stats.counter("remote_write_retries", self.write_retries)
         if self.written_bytes:
-            stats.counter("written_bytes", self.written_bytes)
+            stats.counter("remote_written_bytes", self.written_bytes)
         if self.remove:
-            stats.counter("removed_keys", self.remove)
+            stats.counter("local_removes", self.remove)
         if self.remove_failed:
-            stats.counter("removed_keys", -self.remove_failed)
+            stats.counter("local_removes", -self.remove_failed)
         if self.remove_retries:
-            stats.counter("remove_retries", self.remove_retries)
+            stats.counter("local_remove_retries", self.remove_retries)
         if self.removed_bytes:
-            stats.counter("removed_bytes", self.removed_bytes)
+            stats.counter("local_removed_bytes", self.removed_bytes)
 
     def __add__(a, b):
         ret = RecoverStat()
@@ -523,9 +523,18 @@ def main(ctx):
             log.error("Caught Ctrl+C. Terminating.")
             pool.terminate()
             pool.join()
+            group_stats.timer('group', 'finished')
+            g_ctx.monitor.stats.timer('main', 'finished')
+            return False
         else:
             log.info("Closing pool, joining threads.")
             pool.close()
             pool.join()
+            group_stats.timer('group', 'finished')
+            g_ctx.monitor.stats.timer('main', 'finished')
+            return False
 
+        group_stats.timer('group', 'finished')
+
+    g_ctx.monitor.stats.timer('main', 'finished')
     return ret
