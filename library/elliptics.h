@@ -562,7 +562,8 @@ struct dnet_node
 	size_t			cache_size;
     size_t			caches_number;
     size_t			cache_pages_number;
-    void			*cache;
+    unsigned int		*cache_pages_proportions;
+    void				*cache;
 
 	struct dnet_config_data *config_data;
 };

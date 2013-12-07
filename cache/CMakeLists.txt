@@ -1,5 +1,5 @@
 ADD_LIBRARY(elliptics_cache STATIC
-			slru_cache
+			treap.hpp slru_cache
 			cache.cpp)
 
 if(UNIX OR MINGW)
