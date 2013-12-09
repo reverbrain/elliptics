@@ -1,5 +1,6 @@
 /*
  * 2008+ Copyright (c) Evgeniy Polyakov <zbr@ioremap.net>
+ * 2013+ Copyright (c) Ruslan Nigmatullin <euroelessar@yandex.ru>
  * All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -13,449 +14,141 @@
  * GNU Lesser General Public License for more details.
  */
 
-#include <sys/time.h>
-#include <sys/resource.h>
-
-#include <cerrno>
-#include <cstdarg>
-#include <cstring>
-#include <cassert>
-
-#include <sstream>
-#include <fstream>
-#include <set>
-#include <iostream>
-
-#include <boost/filesystem.hpp>
-
-#define BOOST_TEST_DYN_LINK
-#include <boost/test/included/unit_test.hpp>
-
-#include "../../include/elliptics/cppdef.h"
-#include "../../example/common.h"
-
+#include "test_base.hpp"
 #include <algorithm>
 
-#include "../../cache/cache.hpp"
+#define BOOST_TEST_NO_MAIN
+#include <boost/test/included/unit_test.hpp>
+
+#include <boost/program_options.hpp>
 
 using namespace ioremap::elliptics;
 using namespace boost::unit_test;
 
 namespace tests {
 
-#define ELLIPTICS_CHECK_IMPL(R, C, CMD) auto R = (C); \
-	R.wait(); \
-	{ \
-		auto base_message = BOOST_TEST_STRINGIZE(C); \
-		std::string message(base_message.begin(), base_message.end()); \
-		message += ", err: \""; \
-		message += R.error().message(); \
-		message += "\""; \
-		CMD(!R.error(), message); \
-	}
-
-#define ELLIPTICS_CHECK_ERROR_IMPL(R, C, E, CMD) auto R = (C); \
-	R.wait(); \
-	if (R.error().code() != (E)) { \
-		auto base_message = BOOST_TEST_STRINGIZE(C); \
-		std::stringstream out; \
-		out << std::string(base_message.begin(), base_message.end()) \
-			<< ", expected error: " << (E) << ", received: \"" << R.error().message() << "\""; \
-		CMD(false, out.str()); \
-	}
-
-#define ELLIPTICS_WARN(R, C) ELLIPTICS_CHECK_IMPL(R, (C), BOOST_WARN_MESSAGE)
-#define ELLIPTICS_CHECK(R, C) ELLIPTICS_CHECK_IMPL(R, (C), BOOST_CHECK_MESSAGE)
-#define ELLIPTICS_REQUIRE(R, C) ELLIPTICS_CHECK_IMPL(R, (C), BOOST_REQUIRE_MESSAGE)
-
-#define ELLIPTICS_WARN_ERROR(R, C, E) ELLIPTICS_CHECK_ERROR_IMPL(R, (C), (E), BOOST_WARN_MESSAGE)
-#define ELLIPTICS_CHECK_ERROR(R, C, E) ELLIPTICS_CHECK_ERROR_IMPL(R, (C), (E), BOOST_CHECK_MESSAGE)
-#define ELLIPTICS_REQUIRE_ERROR(R, C, E) ELLIPTICS_CHECK_ERROR_IMPL(R, (C), (E), BOOST_REQUIRE_MESSAGE)
-
-#define ELLIPTICS_TEST_CASE(M, C...) do { framework::master_test_suite().add(BOOST_TEST_CASE(std::bind( M, ##C ))); } while (false)
-
-session create_session(node n, std::initializer_list<int> groups, uint64_t cflags, uint32_t ioflags)
-{
-	session sess(n);
-
-	sess.set_groups(std::vector<int>(groups));
-	sess.set_cflags(cflags);
-	sess.set_ioflags(ioflags);
-
-	sess.set_exceptions_policy(session::no_exceptions);
-
-	return sess;
-}
-
-class directory_handler
-{
-public:
-	directory_handler()
-	{
-	}
-
-	directory_handler(const std::string &path) : m_path(path)
-	{
-	}
-
-	directory_handler(directory_handler &&other) : m_path(other.m_path)
-	{
-		other.m_path.clear();
-	}
-
-	directory_handler &operator= (directory_handler &&other)
-	{
-		std::swap(m_path, other.m_path);
-
-		return *this;
-	}
-
-	~directory_handler()
-	{
-		if (!m_path.empty())
-			boost::filesystem::remove_all(m_path);
-	}
-
-	directory_handler(const directory_handler &) = delete;
-	directory_handler &operator =(const directory_handler &) = delete;
-
-private:
-	std::string m_path;
-};
-
-void create_directory(const std::string &path)
-{
-	// Boost throws exception on fail
-	boost::filesystem::create_directory(path);
-}
-
-enum dummy_value_type { DUMMY_VALUE };
-
-class config_data
-{
-public:
-	config_data()
-	{
-	}
-
-	config_data &operator() (const std::string &name, const std::string &value)
-	{
-		for (auto it = m_data.begin(); it != m_data.end(); ++it) {
-			if (it->first == name) {
-				it->second = value;
-				return *this;
-			}
-		}
-
-		m_data.emplace_back(name, value);
-
-		return *this;
-	}
-
-	config_data &operator() (const std::string &name, int value)
-	{
-		return (*this)(name, boost::lexical_cast<std::string>(value));
-	}
-
-	config_data &operator() (const std::string &name, dummy_value_type)
-	{
-		return (*this)(name, "dummy-value");
-	}
-
-protected:
-	std::vector<std::pair<std::string, std::string> >  m_data;
-};
-
-class config_data_writer : public config_data
-{
-public:
-	config_data_writer() = delete;
-	config_data_writer &operator =(const config_data_writer &other) = delete;
-
-	config_data_writer(const config_data_writer &other)
-		: config_data(other), m_path(other.m_path)
-	{
-	}
-	config_data_writer(const config_data &other, const std::string &path)
-		: config_data(other), m_path(path)
-	{
-	}
-
-	~config_data_writer()
-	{
-		write();
-	}
-
-	template <typename T>
-	config_data_writer &operator() (const std::string &name, const T &value)
-	{
-		config_data::operator ()(name, value);
-
-		return *this;
-	}
-
-	dnet_node *run()
-	{
-		dnet_node *node = dnet_parse_config(m_path.c_str(), 0);
-		if (!node)
-			throw std::runtime_error("Can not start server with config file: \"" + m_path + "\"");
-
-		return node;
-	}
-
-	void write()
-	{
-		std::ofstream out;
-		out.open(m_path.c_str());
-
-		if (!out) {
-			throw std::runtime_error("Can not open file \"" + m_path + "\" for writing");
-		}
-
-		for (auto it = m_data.begin(); it != m_data.end(); ++it) {
-			if (it->second == "dummy-value")
-				throw std::runtime_error("Unset value for key \"" + it->first + "\", file: \"" + m_path + "\"");
-
-			out << it->first << " = " << it->second << std::endl;
-		}
-
-		out.flush();
-		out.close();
-	}
-private:
-
-	std::string m_path;
-};
-
-class server_node
-{
-public:
-	server_node() : m_node(NULL)
-	{
-	}
-
-	server_node(const std::string &path, const std::string &port) : m_node(NULL), m_path(path), m_port(port)
-	{
-	}
-
-	server_node(server_node &&other) :
-		m_node(other.m_node), m_path(std::move(other.m_path)), m_port(std::move(other.m_port))
-	{
-		other.m_node = NULL;
-	}
-
-	server_node &operator =(server_node &&other)
-	{
-		std::swap(m_node, other.m_node);
-		std::swap(m_path, other.m_path);
-		std::swap(m_port, other.m_port);
-
-		return *this;
-	}
-
-	server_node(const server_node &other) = delete;
-	server_node &operator =(const server_node &other) = delete;
-
-	~server_node()
-	{
-		if (m_node)
-			stop();
-	}
-
-	void start()
-	{
-		if (m_node)
-			throw std::runtime_error("Server node \"" + m_path + "\" is already started");
-
-		m_node = dnet_parse_config(m_path.c_str(), 0);
-		if (!m_node)
-			throw std::runtime_error("Can not start server with config file: \"" + m_path + "\"");
-	}
-
-	void stop()
-	{
-		if (!m_node)
-			throw std::runtime_error("Server node \"" + m_path + "\" is already stoped");
-
-		dnet_set_need_exit(m_node);
-		while (!dnet_need_exit(m_node))
-			sleep(1);
-
-		dnet_server_node_destroy(m_node);
-		m_node = NULL;
-	}
-
-	std::string port() const
-	{
-		return m_port;
-	}
-
-	dnet_node *get_native()
-	{
-		return m_node;
-	}
-
-private:
-	dnet_node *m_node;
-	std::string m_path;
-	std::string m_port;
-};
-
-struct tests_data
-{
-	~tests_data()
-	{
-		nodes.clear();
-	}
-
-	std::vector<server_node> nodes;
-	directory_handler directory;
-};
-
-static std::shared_ptr<tests_data> global_data;
-
-static config_data_writer create_config(config_data base_config, const std::string &path)
-{
-	return config_data_writer(base_config, path);
-}
-
-std::vector<std::string> generate_ports(size_t count)
-{
-	std::set<std::string> ports;
-	while (ports.size() < count) {
-		// Random port from 10000 to 60000
-		int port = 10000 + (rand() % 50000);
-		ports.insert(boost::lexical_cast<std::string>(port));
-	}
-
-	return std::vector<std::string>(ports.begin(), ports.end());
-}
+static std::shared_ptr<nodes_data> global_data;
 
 static void configure_server_nodes()
 {
-	std::string base_path;
-	std::string auth_cookie;
+	global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
+		config_data::default_value()
+			("group", 1),
 
-	{
-		char buffer[1024];
+		config_data::default_value()
+			("group", 2)
+	}));
+}
 
-		snprintf(buffer, sizeof(buffer), "/tmp/elliptics-test-%04x/", rand());
-		buffer[sizeof(buffer) - 1] = 0;
-		base_path = buffer;
+static void test_cache_write(session &sess, int num)
+{
+	std::vector<struct dnet_io_attr> ios;
+	std::vector<std::string> data;
 
-		snprintf(buffer, sizeof(buffer), "%04x%04x", rand(), rand());
-		buffer[sizeof(buffer) - 1] = 0;
-		auth_cookie = buffer;
+	for (int i = 0; i < num; ++i) {
+		std::ostringstream os;
+		struct dnet_io_attr io;
+		struct dnet_id id;
+
+		os << "test_cache" << i;
+
+		memset(&io, 0, sizeof(io));
+		memset(&id, 0, sizeof(id));
+
+		sess.transform(os.str(), id);
+		memcpy(io.id, id.id, DNET_ID_SIZE);
+		io.size = os.str().size();
+		io.timestamp.tsec = -1;
+		io.timestamp.tnsec = -1;
+
+		ios.push_back(io);
+		data.push_back(os.str());
 	}
 
-	create_directory(base_path);
+	ELLIPTICS_REQUIRE(write_result, sess.bulk_write(ios, data));
 
-	directory_handler guard(base_path);
+	sync_write_result result = write_result.get();
 
-	results_reporter::get_stream() << "Set base directory: \"" << base_path << "\"" << std::endl;
-	results_reporter::get_stream() << "Starting up servers" << std::endl;
+	int count = 0;
 
-	const std::string first_server_path = base_path + "/server-1";
-	const std::string second_server_path = base_path + "/server-2";
-	const std::string third_server_path = base_path + "/server-3";
+	for (auto it = result.begin(); it != result.end(); ++it) {
+		count += (it->status() == 0) && (!it->is_ack());
+	}
 
-	create_directory(first_server_path);
-	create_directory(first_server_path + "/blob");
-	create_directory(first_server_path + "/history");
-	create_directory(second_server_path);
-	create_directory(second_server_path + "/blob");
-	create_directory(second_server_path + "/history");
-	create_directory(third_server_path);
-	create_directory(third_server_path + "/blob");
-	create_directory(third_server_path + "/history");
+	BOOST_REQUIRE_EQUAL(count, num * 2);
+}
 
-	config_data ioserv_config;
+static void test_cache_read(session &sess, int num, int percentage)
+{
+	/* Read random percentage % of records written by test_cache_write() */
+	for (int i = 0; i < num; ++i) {
+		if ((rand() % 100) > percentage)
+			continue;
 
-	ioserv_config("log", "/dev/stderr")
-			("log_level", DNET_LOG_DEBUG)
-			("join", 1)
-			("flags", 4)
-			("group", DUMMY_VALUE)
-			("addr", DUMMY_VALUE)
-			("remote", DUMMY_VALUE)
-			("wait_timeout", 60)
-			("check_timeout", 60)
-			("io_thread_num", 50)
-			("nonblocking_io_thread_num", 16)
-			("net_thread_num", 16)
-			("history", DUMMY_VALUE)
-			("daemon", 0)
-			("auth_cookie", auth_cookie)
-			("bg_ionice_class", 3)
-			("bg_ionice_prio", 0)
-			("server_net_prio", 1)
-			("client_net_prio", 6)
-			("cache_size", 1024 * 1024 * 256)
-			("caches_number", 16)
-			("backend", "blob")
-			("sync", 5)
-			("data", DUMMY_VALUE)
-			("data_block_size", 1024)
-			("blob_flags", 6)
-			("iterate_thread_num", 1)
-			("blob_size", "10M")
-			("records_in_blob", 10000000)
-			("defrag_timeout", 3600)
-			("defrag_percentage", 25)
-			;
+		std::ostringstream os;
+		os << "test_cache" << i;
 
-	const auto ports = generate_ports(3);
+		key id(os.str());
+		id.transform(sess);
 
-	create_config(ioserv_config, first_server_path + "/ioserv.conf")
-			("log", first_server_path + "/log.log")
-			("group", 1)
-			("addr", "localhost:" + ports[0] + ":2")
-			("remote", "localhost:" + ports[1] + ":2 localhost:" + ports[2] + ":2")
-			("history", first_server_path + "/history")
-			("data", first_server_path + "/blob/data")
-			;
+		ELLIPTICS_REQUIRE(read_result, sess.read_data(os.str(), 0, 0));
+	}
+}
 
-	server_node first_server(first_server_path + "/ioserv.conf", ports[0]);
+static void test_cache_delete(session &sess, int num, int percentage)
+{
+	/* Remove random percentage % of records written by test_cache_write() */
+	for (int i = 0; i < num; ++i) {
+		if ((rand() % 100) > percentage)
+			continue;
 
-	first_server.start();
-	results_reporter::get_stream() << "First server started" << std::endl;
+		std::ostringstream os;
 
-	create_config(ioserv_config, second_server_path + "/ioserv.conf")
-			("log", second_server_path + "/log.log")
-			("group", 2)
-			("addr", "localhost:" + ports[1] + ":2")
-			("remote", "localhost:" + ports[0] + ":2 localhost:" + ports[2] + ":2")
-			("history", second_server_path + "/history")
-			("data", second_server_path + "/blob/data")
-			;
+		os << "test_cache" << i;
 
-	server_node second_server(second_server_path + "/ioserv.conf", ports[1]);
+		std::string id(os.str());
 
-	second_server.start();
-	results_reporter::get_stream() << "Second server started" << std::endl;
+		ELLIPTICS_REQUIRE(remove_result, sess.remove(id));
+		ELLIPTICS_REQUIRE_ERROR(read_result, sess.read_data(id, 0, 0), -ENOENT);
+	}
+}
 
-	create_config(ioserv_config, third_server_path + "/ioserv.conf")
-			("log", third_server_path + "/log.log")
-			("group", 5)
-			("addr", "localhost:" + ports[2] + ":2")
-			("remote", "localhost:" + ports[0] + ":2 localhost:" + ports[1] + ":2")
-			("history", third_server_path + "/history")
-			("data", third_server_path + "/blob/data")
-			("cache_size", 100000)
-			("caches_number", 1)
-			;
+static void test_cache_and_no(session &sess, const std::string &id)
+{
+	const std::string first_part = "first part";
+	const std::string second_part = " | second part";
+	const std::string third_path = " | third part";
 
-	server_node third_server(third_server_path + "/ioserv.conf", ports[2]);
+	session cache_sess = sess.clone();
+	cache_sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_APPEND);
 
-	third_server.start();
-	results_reporter::get_stream() << "Third server started" << std::endl;
+	ELLIPTICS_REQUIRE(first_write_result, sess.write_data(id, first_part, 0));
+	ELLIPTICS_COMPARE_REQUIRE(first_read_result, sess.read_data(id, 0, 0), first_part);
 
-	global_data = std::make_shared<tests_data>();
+	ELLIPTICS_REQUIRE(second_write_result, cache_sess.write_data(id, second_part, 0));
+	ELLIPTICS_COMPARE_REQUIRE(second_read_result, cache_sess.read_data(id, 0, 0), first_part + second_part);
 
-	global_data->directory = std::move(guard);
-	global_data->nodes.emplace_back(std::move(first_server));
-	global_data->nodes.emplace_back(std::move(second_server));
-	global_data->nodes.emplace_back(std::move(third_server));
+	sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_APPEND);
+
+	ELLIPTICS_REQUIRE(third_write_result, sess.write_data(id, third_path, 0));
+	ELLIPTICS_COMPARE_REQUIRE(third_read_result, sess.read_data(id, 0, 0), first_part + second_part + third_path);
+	ELLIPTICS_COMPARE_REQUIRE(third_cache_read_result, cache_sess.read_data(id, 0, 0), first_part + second_part + third_path);
+}
+
+static void test_cache_populating(session &sess, const std::string &id, const std::string &data)
+{
+	session cache_sess = sess.clone();
+	cache_sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CACHE);
+
+	session cache_only_sess = sess.clone();
+	cache_only_sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY);
+
+	ELLIPTICS_REQUIRE(write_result, sess.write_data(id, data, 0));
+	ELLIPTICS_COMPARE_REQUIRE(read_result, sess.read_data(id, 0, 0), data);
+
+	ELLIPTICS_REQUIRE_ERROR(read_cache_only_result, cache_only_sess.read_data(id, 0, 0), -ENOENT);
+	ELLIPTICS_COMPARE_REQUIRE(read_cache_result, cache_sess.read_data(id, 0, 0), data);
+	ELLIPTICS_COMPARE_REQUIRE(read_cache_only_populated_result, cache_only_sess.read_data(id, 0, 0), data);
 }
 
 static void test_write(session &sess, const std::string &id, const std::string &data)
@@ -558,103 +251,6 @@ static void test_remove(session &s, const std::string &id)
 {
 	ELLIPTICS_REQUIRE(remove_result, s.remove(id));
 	ELLIPTICS_REQUIRE_ERROR(read_result, s.read_data(id, 0, 0), -ENOENT);
-}
-
-static void test_cache_write(session &sess, int num)
-{
-	std::vector<struct dnet_io_attr> ios;
-	std::vector<std::string> data;
-
-	for (int i = 0; i < num; ++i) {
-		std::ostringstream os;
-		struct dnet_io_attr io;
-		struct dnet_id id;
-
-		os << "test_cache" << i;
-
-		memset(&io, 0, sizeof(io));
-		memset(&id, 0, sizeof(id));
-
-		sess.transform(os.str(), id);
-		memcpy(io.id, id.id, DNET_ID_SIZE);
-		io.size = os.str().size();
-		io.timestamp.tsec = -1;
-		io.timestamp.tnsec = -1;
-
-		ios.push_back(io);
-		data.push_back(os.str());
-	}
-
-	ELLIPTICS_REQUIRE(write_result, sess.bulk_write(ios, data));
-
-	sync_write_result result = write_result.get();
-
-	int count = 0;
-
-	for (auto it = result.begin(); it != result.end(); ++it) {
-		count += (it->status() == 0) && (!it->is_ack());
-	}
-
-	BOOST_REQUIRE_EQUAL(count, num * 2);
-}
-
-static void test_cache_read(session &sess, int num, int percentage)
-{
-	/* Read random percentage % of records written by test_cache_write() */
-	for (int i = 0; i < num; ++i) {
-		if ((rand() % 100) > percentage)
-			continue;
-
-		std::ostringstream os;
-		os << "test_cache" << i;
-
-		key id(os.str());
-		id.transform(sess);
-
-		ELLIPTICS_REQUIRE(read_result, sess.read_data(os.str(), 0, 0));
-	}
-}
-
-static void test_cache_delete(session &sess, int num, int percentage)
-{
-	/* Remove random percentage % of records written by test_cache_write() */
-	for (int i = 0; i < num; ++i) {
-		if ((rand() % 100) > percentage)
-			continue;
-
-		std::ostringstream os;
-
-		os << "test_cache" << i;
-
-		std::string id(os.str());
-
-		ELLIPTICS_REQUIRE(remove_result, sess.remove(id));
-		ELLIPTICS_REQUIRE_ERROR(read_result, sess.read_data(id, 0, 0), -ENOENT);
-	}
-}
-
-static void test_cache_records_sizes(session &sess)
-{
-	ioremap::cache::cache_manager *cache = (ioremap::cache::cache_manager*) global_data->nodes[2].get_native()->cache;
-	const size_t cache_size = cache->cache_size();
-	const size_t cache_pages_number = cache->cache_pages_number();
-	data_pointer data("0");
-
-	size_t record_size = 0;
-	{
-		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(std::string("0")), data, 3000));
-		const auto& stats = cache->get_total_cache_stats();
-		record_size = stats.size_of_objects;
-	}
-
-    size_t records_number = cache_size / cache_pages_number / record_size;
-	for (size_t id = 1; id < records_number; ++id)
-	{
-		ELLIPTICS_REQUIRE(write_result, sess.write_cache(key(boost::lexical_cast<std::string>(id)), data, 3000));
-		const auto& stats = cache->get_total_cache_stats();
-		BOOST_REQUIRE_EQUAL(stats.number_of_objects * record_size, stats.size_of_objects);
-		BOOST_REQUIRE_EQUAL(stats.number_of_objects, id + 1);
-    }
 }
 
 static void test_cas(session &sess)
@@ -1008,50 +604,6 @@ static void test_range_request(session &sess, int limit_start, int limit_num, in
 	BOOST_REQUIRE_EQUAL(removed_fail, 0);
 }
 
-#define ELLIPTICS_COMPARE_REQUIRE(R, C, D) ELLIPTICS_REQUIRE(R, C); \
-	do { \
-		auto R ## _result = (R).get_one(); \
-		BOOST_REQUIRE_EQUAL((R ## _result).file().to_string(), (D)); \
-	} while (0)
-
-static void test_cache_and_no(session &sess, const std::string &id)
-{
-	const std::string first_part = "first part";
-	const std::string second_part = " | second part";
-	const std::string third_path = " | third part";
-
-	session cache_sess = sess.clone();
-	cache_sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_APPEND);
-
-	ELLIPTICS_REQUIRE(first_write_result, sess.write_data(id, first_part, 0));
-	ELLIPTICS_COMPARE_REQUIRE(first_read_result, sess.read_data(id, 0, 0), first_part);
-
-	ELLIPTICS_REQUIRE(second_write_result, cache_sess.write_data(id, second_part, 0));
-	ELLIPTICS_COMPARE_REQUIRE(second_read_result, cache_sess.read_data(id, 0, 0), first_part + second_part);
-
-	sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_APPEND);
-
-	ELLIPTICS_REQUIRE(third_write_result, sess.write_data(id, third_path, 0));
-	ELLIPTICS_COMPARE_REQUIRE(third_read_result, sess.read_data(id, 0, 0), first_part + second_part + third_path);
-	ELLIPTICS_COMPARE_REQUIRE(third_cache_read_result, cache_sess.read_data(id, 0, 0), first_part + second_part + third_path);
-}
-
-static void test_cache_populating(session &sess, const std::string &id, const std::string &data)
-{
-	session cache_sess = sess.clone();
-	cache_sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CACHE);
-
-	session cache_only_sess = sess.clone();
-	cache_only_sess.set_ioflags(sess.get_ioflags() | DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY);
-
-	ELLIPTICS_REQUIRE(write_result, sess.write_data(id, data, 0));
-	ELLIPTICS_COMPARE_REQUIRE(read_result, sess.read_data(id, 0, 0), data);
-
-	ELLIPTICS_REQUIRE_ERROR(read_cache_only_result, cache_only_sess.read_data(id, 0, 0), -ENOENT);
-	ELLIPTICS_COMPARE_REQUIRE(read_cache_result, cache_sess.read_data(id, 0, 0), data);
-	ELLIPTICS_COMPARE_REQUIRE(read_cache_only_populated_result, cache_only_sess.read_data(id, 0, 0), data);
-}
-
 static void test_metadata(session &sess, const std::string &id, const std::string &data)
 {
 	const uint64_t unique_flags = rand();
@@ -1278,27 +830,15 @@ static void test_prepare_latest(session &sess, const std::string &id)
 	BOOST_REQUIRE_EQUAL(lookup_result.size(), 2);
 }
 
-static void test_indexes_remove(session &sess)
-{
-	const std::string index_name_base = "test_indexes_remove_index_";
-	const std::string object_name_base = "text_indexes_remove_obj_";
-}
-
-bool register_tests()
+bool register_tests(test_suite *suite, node n)
 {
 	srand(time(0));
-	configure_server_nodes();
 
-	dnet_config config;
-	memset(&config, 0, sizeof(config));
-
-	logger log(NULL);
-//	file_logger log("/dev/stderr", 4);
-	node n(log);
-	for (size_t i = 0; i < global_data->nodes.size(); ++i) {
-		n.add_remote(("localhost:" + global_data->nodes[i].port() + ":2").c_str());
-	}
-
+	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
+	ELLIPTICS_TEST_CASE(test_cache_read, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY | DNET_IO_FLAGS_NOCSUM), 1000, 20);
+	ELLIPTICS_TEST_CASE(test_cache_delete, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000, 20);
+	ELLIPTICS_TEST_CASE(test_cache_and_no, create_session(n, {1, 2}, 0, 0), "cache-and-no-key");
+	ELLIPTICS_TEST_CASE(test_cache_populating, create_session(n, {1, 2}, 0, 0), "cache-populated-key", "cache-data");
 	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "new-data");
 	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "new-data-long");
 	ELLIPTICS_TEST_CASE(test_write, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "new-id", "short");
@@ -1311,10 +851,6 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_indexes, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_more_indexes, create_session(n, {1, 2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_error, create_session(n, {99}, 0, 0), "non-existen-key", -ENXIO);
-	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
-	ELLIPTICS_TEST_CASE(test_cache_read, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY | DNET_IO_FLAGS_NOCSUM), 1000, 20);
-	ELLIPTICS_TEST_CASE(test_cache_delete, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000, 20);
-	ELLIPTICS_TEST_CASE(test_cache_records_sizes, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, 0), "2.xml", "lookup data");
 	ELLIPTICS_TEST_CASE(test_lookup, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CACHE), "cache-2.xml", "lookup data");
 	ELLIPTICS_TEST_CASE(test_cas, create_session(n, {1, 2}, 0, DNET_IO_FLAGS_CHECKSUM));
@@ -1330,14 +866,55 @@ bool register_tests()
 	ELLIPTICS_TEST_CASE(test_range_request, create_session(n, {2}, 0, 0), 0, 255, 2);
 	ELLIPTICS_TEST_CASE(test_range_request, create_session(n, {2}, 0, 0), 3, 14, 2);
 	ELLIPTICS_TEST_CASE(test_range_request, create_session(n, {2}, 0, 0), 7, 3, 2);
-	ELLIPTICS_TEST_CASE(test_cache_and_no, create_session(n, {1, 2}, 0, 0), "cache-and-no-key");
-	ELLIPTICS_TEST_CASE(test_cache_populating, create_session(n, {1, 2}, 0, 0), "cache-populated-key", "cache-data");
 	ELLIPTICS_TEST_CASE(test_metadata, create_session(n, {1, 2}, 0, 0), "metadata-key", "meta-data");
 	ELLIPTICS_TEST_CASE(test_partial_bulk_read, create_session(n, {1, 2, 3}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_indexes_update, create_session(n, {2}, 0, 0));
 	ELLIPTICS_TEST_CASE(test_prepare_latest, create_session(n, {1, 2}, 0, 0), "prepare-latest-key");
 
 	return true;
+}
+
+boost::unit_test::test_suite *register_tests(int argc, char *argv[])
+{
+	namespace bpo = boost::program_options;
+
+	bpo::variables_map vm;
+	bpo::options_description generic("Test options");
+
+	std::vector<std::string> remote;
+
+	generic.add_options()
+		("help", "This help message")
+		("remote", bpo::value<std::vector<std::string>>(&remote), "Remote elliptics server address")
+		 ;
+
+	bpo::store(bpo::parse_command_line(argc, argv, generic), vm);
+	bpo::notify(vm);
+
+	if (vm.count("help")) {
+		std::cerr << generic;
+		return NULL;
+	}
+
+	test_suite *suite = new test_suite("Local Test Suite");
+
+	if (remote.empty()) {
+		configure_server_nodes();
+		register_tests(suite, global_data->create_client());
+	} else {
+		dnet_config config;
+		memset(&config, 0, sizeof(config));
+
+		logger log(NULL);
+
+		node n(log, config);
+		for (auto it = remote.begin(); it != remote.end(); ++it)
+			n.add_remote(it->c_str());
+
+		register_tests(suite, n);
+	}
+
+	return suite;
 }
 
 }
