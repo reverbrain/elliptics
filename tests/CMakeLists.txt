@@ -26,8 +26,9 @@ set_target_properties(dnet_cpp_cache_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_cache_test ${TEST_LIBRARIES})
 
 enable_testing()
-add_test(NAME test COMMAND dnet_cpp_test)
-add_test(NAME cache_test COMMAND dnet_cpp_cache_test)
+set(TEST_ARGUMENTS --report_level=detailed --report_sink=stdout --log_level=warning  --log_sink=stdout)
+add_test(NAME test COMMAND dnet_cpp_test ${TEST_ARGUMENTS})
+add_test(NAME cache_test COMMAND dnet_cpp_cache_test ${TEST_ARGUMENTS})
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)
