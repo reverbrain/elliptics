@@ -43,6 +43,11 @@ directory_handler &directory_handler::operator=(directory_handler &&other)
 	return *this;
 }
 
+std::string directory_handler::path() const
+{
+	return m_path;
+}
+
 directory_handler::~directory_handler()
 {
 	if (!m_path.empty())
@@ -90,7 +95,7 @@ config_data &config_data::operator()(const std::string &name, dummy_value_type t
 	return (*this)(name, "dummy-value");
 }
 
-config_data config_data::default_value()
+config_data config_data::default_srw_value()
 {
 	return config_data()
 			("log", "/dev/stderr")
@@ -114,6 +119,7 @@ config_data config_data::default_value()
 			("client_net_prio", 6)
 			("cache_size", 1024 * 1024 * 256)
 			("caches_number", 16)
+			("srw_config", DUMMY_VALUE)
 			("backend", "blob")
 			("sync", 5)
 			("data", DUMMY_VALUE)
@@ -124,6 +130,22 @@ config_data config_data::default_value()
 			("records_in_blob", 10000000)
 			("defrag_timeout", 3600)
 			("defrag_percentage", 25);
+}
+
+config_data config_data::default_value()
+{
+	return default_srw_value()("srw_config", NULL_VALUE);
+}
+
+bool config_data::has_value(const std::string &name) const
+{
+	for (auto it = m_data.begin(); it != m_data.end(); ++it) {
+		if (it->first == name) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 config_data_writer::config_data_writer(const config_data_writer &other)
@@ -245,12 +267,33 @@ static std::string create_remote(const std::string &port)
 	return "localhost:" + port + ":2";
 }
 
+static std::string read_file(const char *file_path)
+{
+	char buffer[1024];
+	std::string result;
+
+	std::ifstream config_in(file_path);
+	if (!config_in)
+		throw std::runtime_error(std::string("can not open for read: ") + file_path);
+
+	while (config_in) {
+		std::streamsize read = config_in.readsome(buffer, sizeof(buffer));
+		if (read > 0)
+			result.append(buffer, buffer + read);
+		else
+			break;
+	}
+
+	return result;
+}
+
 nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs)
 {
 	nodes_data::ptr data = std::make_shared<nodes_data>();
 
 	std::string base_path;
 	std::string auth_cookie;
+	std::string cocaine_config = read_file(COCAINE_CONFIG_PATH);
 
 	{
 		char buffer[1024];
@@ -271,6 +314,40 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 	data->directory = directory_handler(base_path);
 
 	debug_stream << "Set base directory: \"" << base_path << "\"" << std::endl;
+
+	std::string cocaine_remotes;
+	for (size_t j = 0; j < configs.size(); ++j) {
+		if (j > 0)
+			cocaine_remotes += ", ";
+		cocaine_remotes += "\"localhost\": " + ports[j];
+	}
+
+	const std::map<std::string, std::string> cocaine_variables = {
+		{ "COCAINE_PLUGINS_PATH", COCAINE_PLUGINS_PATH },
+		{ "ELLIPTICS_REMOTES", cocaine_remotes },
+		{ "ELLIPTICS_GROUPS", "1" },
+		{ "COCAINE_LOG_PATH", base_path + "/log.txt" }
+	};
+
+	for (auto it = cocaine_variables.begin(); it != cocaine_variables.end(); ++it) {
+		auto position = cocaine_config.find(it->first);
+		if (position != std::string::npos)
+			cocaine_config.replace(position, it->first.size(), it->second);
+	}
+
+	std::string cocaine_config_path = base_path + "/cocaine.conf";
+
+	{
+		std::ofstream out;
+		out.open(cocaine_config_path.c_str());
+
+		if (!out) {
+			throw std::runtime_error("Can not open file \"" + cocaine_config_path + "\" for writing");
+		}
+
+		out.write(cocaine_config.c_str(), cocaine_config.size());
+	}
+
 	debug_stream << "Starting " << configs.size() << " servers" << std::endl;
 
 	for (size_t i = 0; i < configs.size(); ++i) {
@@ -295,6 +372,9 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 			config("remote", NULL_VALUE);
 		else
 			config("remote", remotes);
+
+		if (config.has_value("srw_config"))
+			config("srw_config", cocaine_config_path);
 
 		create_config(config, server_path + "/ioserv.conf")
 				("auth_cookie", auth_cookie)

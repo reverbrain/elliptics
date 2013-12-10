@@ -66,8 +66,6 @@ static void test_cache_records_sizes(session &sess)
 
 bool register_tests()
 {
-	srand(time(0));
-
 	configure_server_nodes();
 	node n = global_data->create_client();
 
@@ -80,6 +78,7 @@ bool register_tests()
 
 int main(int argc, char *argv[])
 {
+	srand(time(0));
 	int result = unit_test_main(tests::register_tests, argc, argv);
 	tests::global_data.reset();
 	return result;

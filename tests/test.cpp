@@ -832,8 +832,6 @@ static void test_prepare_latest(session &sess, const std::string &id)
 
 bool register_tests(test_suite *suite, node n)
 {
-	srand(time(0));
-
 	ELLIPTICS_TEST_CASE(test_cache_write, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000);
 	ELLIPTICS_TEST_CASE(test_cache_read, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY | DNET_IO_FLAGS_NOCSUM), 1000, 20);
 	ELLIPTICS_TEST_CASE(test_cache_delete, create_session(n, { 1, 2 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY), 1000, 20);
@@ -921,6 +919,7 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+	srand(time(0));
 	int result = unit_test_main(tests::register_tests, argc, argv);
 	tests::global_data.reset();
 	return result;

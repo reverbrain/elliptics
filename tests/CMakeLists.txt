@@ -4,6 +4,11 @@ set(TEST_LINK_FLAGS "-Wl,-rpath,${CMAKE_CURRENT_BINARY_DIR}:${CMAKE_CURRENT_BINA
 set(TEST_PROPERTIES PROPERTIES LINK_FLAGS "${TEST_LINK_FLAGS}")
 set(TEST_LIBRARIES elliptics_cpp test_common ${Boost_LIBRARIES})
 
+add_definitions(
+    -DCOCAINE_CONFIG_PATH="${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf"
+    -DCOCAINE_PLUGINS_PATH="${CMAKE_CURRENT_BINARY_DIR}/../cocaine/plugins"
+)
+
 add_library(test_common SHARED
     ../example/common.c
     ../example/config.c
@@ -25,10 +30,21 @@ add_executable(dnet_cpp_cache_test cache_test.cpp)
 set_target_properties(dnet_cpp_cache_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_cache_test ${TEST_LIBRARIES})
 
+find_package(CocaineNative REQUIRED)
+include_directories(${CocaineNative_INCLUDE_DIRS})
+
+add_executable(dnet_cpp_srw_test srw_test.cpp)
+set_target_properties(dnet_cpp_srw_test ${TEST_PROPERTIES})
+target_link_libraries(dnet_cpp_srw_test -lev ${TEST_LIBRARIES} ${CocaineNative_LIBRARIES})
+
+add_executable(dnet_cpp_srw_test_app srw_test_app.cpp)
+target_link_libraries(dnet_cpp_srw_test_app -lev elliptics_cpp ${CocaineNative_LIBRARIES} ${Boost_LIBRARIES})
+
 enable_testing()
 set(TEST_ARGUMENTS --report_level=detailed --report_sink=stdout --log_level=warning  --log_sink=stdout)
 add_test(NAME test COMMAND dnet_cpp_test ${TEST_ARGUMENTS})
 add_test(NAME cache_test COMMAND dnet_cpp_cache_test ${TEST_ARGUMENTS})
+add_test(NAME srw_test COMMAND dnet_cpp_srw_test ${TEST_ARGUMENTS})
 
 add_executable(dnet_cpp_indexes_test indexes-test.cpp)
 target_link_libraries(dnet_cpp_indexes_test elliptics_cpp)

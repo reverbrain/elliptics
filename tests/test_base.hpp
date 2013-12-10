@@ -63,6 +63,8 @@ public:
 	directory_handler(const directory_handler &) = delete;
 	directory_handler &operator =(const directory_handler &) = delete;
 
+	std::string path() const;
+
 private:
 	std::string m_path;
 };
@@ -78,7 +80,10 @@ public:
 	config_data &operator() (const std::string &name, int value);
 	config_data &operator() (const std::string &name, dummy_value_type);
 
+	static config_data default_srw_value();
 	static config_data default_value();
+
+	bool has_value(const std::string &name) const;
 
 protected:
 	std::vector<std::pair<std::string, std::string> >  m_data;
