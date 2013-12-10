@@ -33,6 +33,7 @@ public:
 	elliptics_id(const key &other);
 	elliptics_id(const elliptics_id &other);
 	elliptics_id(const bp::list &id, const uint32_t &group_id);
+	elliptics_id(const uint8_t *raw_id);
 
 	bp::list get_id() const;
 

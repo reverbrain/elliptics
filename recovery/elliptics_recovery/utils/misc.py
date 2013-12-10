@@ -62,8 +62,8 @@ def elliptics_create_node(address=None, elog=None, wait_timeout=3600, check_time
 def elliptics_create_session(node=None, group=None, cflags=elliptics.command_flags.default):
     log.debug("Creating session: {0}@{1}.{2}".format(node, group, cflags))
     session = elliptics.Session(node)
-    session.set_groups([group])
-    session.set_cflags(cflags)
+    session.groups = [group]
+    session.cflags = cflags
     return session
 
 def worker_init():

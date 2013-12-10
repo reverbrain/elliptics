@@ -23,10 +23,31 @@
 
 #include "elliptics_id.h"
 #include "elliptics_time.h"
+#include "elliptics_io_attr.h"
 
 namespace bp = boost::python;
 
 namespace ioremap { namespace elliptics { namespace python {
+
+elliptics_id index_entry_get_index(index_entry &result)
+{
+	return elliptics_id(result.index);
+}
+
+void index_entry_set_index(index_entry &result, const elliptics_id &id)
+{
+	result.index = id.raw_id();
+}
+
+std::string index_entry_get_data(index_entry &result)
+{
+	return result.data.to_string();
+}
+
+void index_entry_set_data(index_entry &result, const std::string& data)
+{
+	result.data = data_pointer::copy(data);
+}
 
 dnet_iterator_response iterator_result_response(iterator_result_entry result)
 {
@@ -93,6 +114,10 @@ uint64_t read_result_get_offset(read_result_entry &result)
 uint64_t read_result_get_size(read_result_entry &result)
 {
 	return result.io_attribute()->size;
+}
+
+elliptics_io_attr read_result_get_io(read_result_entry &result) {
+	return elliptics_io_attr(*result.io_attribute());
 }
 
 std::string lookup_result_get_storage_address(const lookup_result_entry &result)
@@ -319,47 +344,85 @@ std::string dnet_stat_to_repr(const dnet_stat &stat)
 
 void init_result_entry() {
 
+	bp::class_<index_entry>("IndexEntry")
+		.add_property("index",
+		              index_entry_get_index,
+		              index_entry_set_index,
+		              "index as elliptics.Id")
+		.add_property("data",
+		              index_entry_get_data,
+		              index_entry_set_data,
+		              "data associated with the index")
+	;
+
 	bp::class_<iterator_result_entry>("IteratorResultEntry")
-		.add_property("id", &iterator_result_entry::id)
-		.add_property("status", &iterator_result_entry::status)
-		.add_property("response", iterator_result_response)
-		.add_property("response_data", iterator_result_response_data)
-		.add_property("address", result_entry_address<iterator_result_entry>)
+		.add_property("id", &iterator_result_entry::id,
+		              "Iterator integer ID. Which can be used for pausing, continuing and cancelling iterator")
+		.add_property("status", &iterator_result_entry::status,
+		              "Status of iterated key")
+		.add_property("response", iterator_result_response,
+		              "elliptics.IteratorResultResponse which provides meta information about iterated key")
+		.add_property("response_data", iterator_result_response_data,
+		              "Data of iterated key. May be empty if elliptics.iterator_flags.data hasn't been specified for iteration.")
+		.add_property("address", result_entry_address<iterator_result_entry>,
+		              "Address of node")
 		.add_property("group_id", result_entry_group_id<iterator_result_entry>)
 		.add_property("error", result_entry_error<iterator_result_entry>)
 	;
 
 	bp::class_<dnet_iterator_response>("IteratorResultResponse",
 			bp::no_init)
-		.add_property("key", iterator_response_get_key)
-		.add_property("timestamp", iterator_response_get_timestamp)
-		.add_property("user_flags", iterator_response_get_user_flags)
-		.add_property("size", iterator_response_get_size)
+		.add_property("key", iterator_response_get_key,
+		              "elliptics.Id of iterated key")
+		.add_property("timestamp", iterator_response_get_timestamp,
+		              "elliptics.Time timestamp of iterated key")
+		.add_property("user_flags", iterator_response_get_user_flags,
+		              "Custom user-defined flags of iterated key")
+		.add_property("size", iterator_response_get_size,
+		              "Size of iterated key data")
 	;
 
 	bp::class_<read_result_entry>("ReadResultEntry")
-		.add_property("data", read_result_get_data)
-		.add_property("id", read_result_get_id)
-		.add_property("timestamp", read_result_get_timestamp)
-		.add_property("user_flags", read_result_get_user_flags)
-		.add_property("flags", read_result_get_flags)
-		.add_property("offset", read_result_get_offset)
-		.add_property("size", read_result_get_size)
-		.add_property("address", result_entry_address<read_result_entry>)
+		.add_property("data", read_result_get_data,
+		              "Read data")
+		.add_property("id", read_result_get_id,
+		              "elliptics.Id of read object")
+		.add_property("timestamp", read_result_get_timestamp,
+		              "elliptics.Time timestamp of read object")
+		.add_property("user_flags", read_result_get_user_flags,
+		              "Custom user-defined flags of read object")
+		.add_property("flags", read_result_get_flags,
+		              "Internal flags of read object")
+		.add_property("offset", read_result_get_offset,
+		              "Offset with which object has been read")
+		.add_property("size", read_result_get_size,
+		              "Size of read object data")
+		.add_property("address", result_entry_address<read_result_entry>,
+		              "Node address which provides the object")
 		.add_property("group_id", result_entry_group_id<read_result_entry>)
-		.add_property("error", result_entry_error<read_result_entry>)
+		.add_property("io_attribute", read_result_get_io,
+		              "elliptics.IoAttr of read operation")
+		.add_property("error", result_entry_error<read_result_entry>,
+		              "elliptics.Error of operation execution")
 	;
 
 	bp::class_<lookup_result_entry>("LookupResultEntry")
 		.add_property("storage_address", lookup_result_get_storage_address)
-		.add_property("size", lookup_result_get_size)
-		.add_property("offset", lookup_result_get_offset)
-		.add_property("timestamp", lookup_result_get_timestamp)
-		.add_property("checksum", lookup_result_get_checksum)
-		.add_property("filepath", lookup_result_get_filepath)
-		.add_property("address", result_entry_address<lookup_result_entry>)
+		.add_property("size", lookup_result_get_size,
+		              "Size of data")
+		.add_property("offset", lookup_result_get_offset,
+		              "Offset of operation")
+		.add_property("timestamp", lookup_result_get_timestamp,
+		              "elliptics.Time timestamp of object")
+		.add_property("checksum", lookup_result_get_checksum,
+		              "elliptics.Id checksum of object")
+		.add_property("filepath", lookup_result_get_filepath,
+		              "path to object in the backend")
+		.add_property("address", result_entry_address<lookup_result_entry>,
+		              "Address of node where the object lives")
 		.add_property("group_id", result_entry_group_id<lookup_result_entry>)
-		.add_property("error", result_entry_error<lookup_result_entry>)
+		.add_property("error", result_entry_error<lookup_result_entry>,
+		              "elliptics.Error of operation execution")
 	;
 
 	bp::class_<exec_context>("ExecContext")
@@ -377,8 +440,10 @@ void init_result_entry() {
 	;
 
 	bp::class_<find_indexes_result_entry>("FindIndexesResultEntry")
-		.add_property("id", find_indexes_result_get_id)
-		.add_property("indexes", find_indexes_result_get_indexes)
+		.add_property("id", find_indexes_result_get_id,
+		              "elliptics.Id of id which has been found")
+		.add_property("indexes", find_indexes_result_get_indexes,
+		              "list of elliptics.IndexEntry which associated with the id")
 	;
 
 	bp::class_<callback_result_entry>("CallbackResultEntry")
@@ -393,50 +458,55 @@ void init_result_entry() {
 	;
 
 	bp::class_<dnet_stat>("Statisitics", bp::no_init)
-		.add_property("la", dnet_stat_get_la)
-		.add_property("bsize", &dnet_stat::bsize)
-		.add_property("frsize", &dnet_stat::frsize)
-		.add_property("blocks", &dnet_stat::blocks)
-		.add_property("bfree", &dnet_stat::bfree)
-		.add_property("bavail", &dnet_stat::bavail)
-		.add_property("files", &dnet_stat::files)
-		.add_property("ffree", &dnet_stat::ffree)
-		.add_property("favail", &dnet_stat::favail)
-		.add_property("fsid", &dnet_stat::fsid)
-		.add_property("flag", &dnet_stat::flag)
-		.add_property("vm_active", &dnet_stat::vm_active)
-		.add_property("vm_inactive", &dnet_stat::vm_inactive)
-		.add_property("vm_total", &dnet_stat::vm_total)
-		.add_property("vm_free", &dnet_stat::vm_free)
-		.add_property("vm_cached", &dnet_stat::vm_cached)
-		.add_property("vm_buffers", &dnet_stat::vm_buffers)
+		.add_property("la", dnet_stat_get_la, "Load average on the node")
+		.add_property("bsize", &dnet_stat::bsize, "Block size")
+		.add_property("frsize", &dnet_stat::frsize, "Fragment size")
+		.add_property("blocks", &dnet_stat::blocks, "Filesystem size in frsize units")
+		.add_property("bfree", &dnet_stat::bfree, "Free blocks")
+		.add_property("bavail", &dnet_stat::bavail, "Free blocks for non-root")
+		.add_property("files", &dnet_stat::files, "Inodes")
+		.add_property("ffree", &dnet_stat::ffree, "Free inodes")
+		.add_property("favail", &dnet_stat::favail, "Free inodes for non-root")
+		.add_property("fsid", &dnet_stat::fsid, "File system ID")
+		.add_property("flag", &dnet_stat::flag, "Mount flags")
+		.add_property("vm_active", &dnet_stat::vm_active, "Virtual memory which is active")
+		.add_property("vm_inactive", &dnet_stat::vm_inactive, "Virtual memory which is inactive")
+		.add_property("vm_total", &dnet_stat::vm_total, "Total size of virtual memory")
+		.add_property("vm_free", &dnet_stat::vm_free, "Size of free virtual memory")
+		.add_property("vm_cached", &dnet_stat::vm_cached, "Virtual memory which is cached")
+		.add_property("vm_buffers", &dnet_stat::vm_buffers, "Virtual memory which is buffered")
+		.add_property("node_files", &dnet_stat::node_files, "Objects on the node")
+		.add_property("node_files_removed", &dnet_stat::node_files_removed, "Objects on the node which marked as deleted")
 		.def("__str__", dnet_stat_to_str)
 		.def("__repr__", dnet_stat_to_repr)
 	;
 
 	bp::class_<stat_result_entry>("StatResultEntry")
-		.add_property("statistics", stat_result_get_statistics)
-		.add_property("address", result_entry_address<stat_result_entry>)
+		.add_property("statistics", stat_result_get_statistics,
+		              "virtual memory and file system utilization statistics as elliptics.Statisitics")
+		.add_property("address", result_entry_address<stat_result_entry>,
+		              "elliptics.Address of the node which the statistics are belong")
 		.add_property("group_id", result_entry_group_id<stat_result_entry>)
-		.add_property("error", result_entry_error<stat_result_entry>)
+		.add_property("error", result_entry_error<stat_result_entry>,
+		              "information about error")
 	;
 
 	bp::class_<address_statistics>("AddressStatistics", bp::no_init)
-		.add_property("address", addr_stat_get_address)
+		.add_property("address", addr_stat_get_address,
+		              "elliptics.Address of the client node from which the statistics was requested")
 		.add_property("group_id", &address_statistics::group_id)
-		.add_property("counters", addr_stat_get_counters)
-	;
-
-	bp::class_<dnet_stat_count>("StatisticCounters")
-		.add_property("counter", &dnet_stat_count::count)
-		.add_property("errors", &dnet_stat_count::err)
+		.add_property("counters", addr_stat_get_counters,
+		              "Python dict of operations counters statistics")
 	;
 
 	bp::class_<stat_count_result_entry>("StatCountResultEntry")
-		.add_property("statistics", stat_count_result_get_statistics)
-		.add_property("address", result_entry_address<stat_count_result_entry>)
+		.add_property("statistics", stat_count_result_get_statistics,
+		              "Operations statistics as elliptics.AddressStatistics")
+		.add_property("address", result_entry_address<stat_count_result_entry>,
+		              "elliptics.Address of the node which the statistics are belonged")
 		.add_property("group_id", result_entry_group_id<stat_count_result_entry>)
-		.add_property("error", result_entry_error<stat_count_result_entry>)
+		.add_property("error", result_entry_error<stat_count_result_entry>,
+		              "elliptics.Error information")
 	;
 
 }

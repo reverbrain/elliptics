@@ -31,14 +31,14 @@ from .range import IdRange, RecoveryRange, AddressRanges
 import sys
 sys.path.insert(0, "bindings/python/") # XXX
 import elliptics
+from elliptics.route import RouteList
 
 @logged_class
-class RouteList(elliptics.RouteList):
-    __doc__ = \
-        """
-        Route list that sorts entries by key and also merges
-        adj. keys that belongs to the same node.
-        """
+class RouteList(RouteList):
+    """
+    Route list that sorts entries by key and also merges
+    keys that belongs to the same node.
+    """
     @classmethod
     def from_session(cls, session):
         """
