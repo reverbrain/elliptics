@@ -26,10 +26,9 @@ import elliptics
 
 
 class Time(object):
-    __doc__ = \
-        """
-        Wrapper on top of dnet_time
-        """
+    """
+    Wrapper on top of dnet_time
+    """
     __slots__ = ('time')
 
     def __init__(self, tsec, tnsec):

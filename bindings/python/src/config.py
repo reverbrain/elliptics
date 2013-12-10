@@ -1,5 +1,5 @@
 # =============================================================================
-# 2013+ Copyright (c) Alexey Ivanov <rbtz@ph34r.me>
+# 2013+ Copyright (c) Kirill Smorodinnikov <shaitkir@gmail.com>
 # All rights reserved.
 #
 # This program is free software; you can redistribute it and/or modify
@@ -13,20 +13,13 @@
 # GNU General Public License for more details.
 # =============================================================================
 
-"""
-Recovery context is just a configuration of recovery process
-"""
-
-from pprint import pformat
+from elliptics.core import Config
 
 
-class Ctx(object):
+class Config(Config):
     """
-    Tiny wrapper for dict with better interface:
-    Now you can use ctx.test = 'test', instead of ctx['test'] = 'test'
+    Config allows override default configuration for client node
     """
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
-    def __repr__(self):
-        return pformat(self.__dict__, indent=4)
+    @property
+    def config(self):
+        return self

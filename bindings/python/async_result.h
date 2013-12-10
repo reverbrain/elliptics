@@ -107,7 +107,9 @@ struct python_async_result
 
 	bp::list get() {
 		py_allow_threads_scoped pythr;
-		return convert_to_list(scope->get());
+		auto res = scope->get();
+		pythr.disallow();
+		return convert_to_list(res);
 	}
 
 	void wait() {

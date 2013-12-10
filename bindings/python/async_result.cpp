@@ -23,20 +23,100 @@ template <typename... Args>
 struct def_async_result;
 
 template <typename T>
+error get_async_result_error(const python_async_result<T> &async) {
+	if (!async.scope->ready()) {
+		PyErr_SetString(PyExc_ValueError, "Async write operation hasn't yet been completed");
+		bp::throw_error_already_set();
+	}
+	auto err = async.scope->error();
+	return error(err.code(), err.message());
+}
+
+template <typename T>
 struct def_async_result<T>
 {
 	static void init() {
-		bp::class_<python_async_result<T>>("AsyncResult", bp::no_init)
-			.def("__iter__", bp::iterator<python_async_result<T>>())
-			.def("get", &python_async_result<T>::get)
-			.def("wait", &python_async_result<T>::wait)
-			.def("successful", &python_async_result<T>::successful)
-			.def("ready", &python_async_result<T>::ready)
-			.def("elapsed_time", &python_async_result<T>::elapsed_time)
+		bp::class_<python_async_result<T>>(
+		        "AsyncResult", "Future for waiting/getting results from asynchronous execution of operation")
+			.def("__iter__", bp::iterator<python_async_result<T>>(),
+			     "x.__iter__() <==> iter(x)\n"
+			     "    Allows iterates though the operation results.\n"
+			     "    Iterating will be performed as data becomes available\n\n"
+			     "    for result in async_result:\n"
+			     "        print 'The operation result: {0}'\n"
+			     "              .format(result)")
+			.def("get", &python_async_result<T>::get,
+			     "get()\n"
+			     "    Performs waiting all operation results and returns it by list\n\n"
+			     "    results = async_result.get()\n"
+			     "    first_result = results[0]")
+			.def("wait", &python_async_result<T>::wait,
+			     "wait()\n"
+			     "    Performs waiting all operation result\n\n"
+			     "    async_result.wait()\n"
+			     "    results = async_result.get()")
+			.def("successful", &python_async_result<T>::successful,
+			     "successful()\n"
+			     "    Returns status - is the operation successful.\n"
+			     "    Throws exception if the operation hasn't been completed.\n\n"
+			     "    try:\n"
+			     "        print 'Operation successes:', async_result.successful\n"
+			     "    except:\n"
+			     "        print 'Operation hasn't been completed'\n"
+			     "        async_result.wait()\n"
+			     "        print 'Operation successes:', async_result.successful")
+			.def("ready", &python_async_result<T>::ready,
+			     "ready()\n"
+			     "    Returns status - is all operation results received\n\n"
+			     "    if async_result.read():\n"
+			     "        print 'The operation has been completed'\n"
+			     "    else:\n"
+			     "        print 'The operation hasn't been completed'")
+			.def("elapsed_time", &python_async_result<T>::elapsed_time,
+			     "elapsed_time()\n"
+			     "    Returns elliptics.Time - time spended for operation execution\n\n"
+			     "    async_result.wait()\n"
+			     "    time = async_result.elapsed_time()\n"
+			     "    print 'The operation tooks {0} seconds and {1} nanoseconds'\n"
+			     "          .format(time.tsec, time.tnsec)")
 			.def("connect", &python_async_result<T>::connect,
-			     (bp::arg("result_handler"), bp::arg("final_handler")))
+			     (bp::arg("result_handler"), bp::arg("final_handler")),
+			     "connect(result_handler, final_handler)\n"
+			     "    Sets callbacks:\n"
+			     "        result_handler will be called on each result\n"
+			     "        final_handler will be called once after all results\n\n"
+			     "    def rhandler(result):\n"
+			     "         print 'The operation result:', result\n"
+			     "    def fhandler(error):\n"
+			     "        if error.code == 0:\n"
+			     "            print 'The operation successfully completed'\n"
+			     "        else:\n"
+			     "            print 'The operation failed: {0}'\n"
+			     "                  .format(error)\n"
+			     "    async_result.connect(rhandler, fhandler)")
 			.def("connect", &python_async_result<T>::connect_all,
-			     (bp::arg("handler")))
+			     (bp::arg("handler")),
+			     "connect(result_handler)\n"
+			     "    Sets callback for all operation results\n\n"
+			     "    def handler(results, error):\n"
+			     "        if error.code != 0:\n"
+			     "            print 'The operation failed: {0}'\n"
+			     "                  .format(error)\n"
+			     "        else:\n"
+			     "            print 'The operation results: {0}'\n"
+			     "                  .format(results)\n"
+			     "    async_result.connect(handler)")
+			.def("error", get_async_result_error<T>,
+			     "error()\n"
+			     "     Returns error information about operation failure\n"
+			     "     Throws exception if the operation hasn't been completed\n\n"
+			     "     error = async_result.error()\n"
+			     "     if error.code != 0:\n"
+			     "         print 'The operation failed: {0}'\n"
+			     "               .format(error)\n"
+			     "     else:\n"
+			     "         print 'The operation results: {0}'\n"
+			     "               .format(results)\n")
 		;
 	}
 };
