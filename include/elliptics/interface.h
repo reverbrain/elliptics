@@ -399,16 +399,16 @@ struct dnet_config
 	/* Total cache size */
 	uint64_t		cache_size;
 
-	/* Caches number */
-	unsigned int	caches_number;
-
-	/* Cache pages number */
-	unsigned int	cache_pages_number;
-
 	int			cache_sync_timeout;
 
+	/* Caches number */
+	unsigned int		caches_number;
+
+	/* Cache pages number */
+	unsigned int		cache_pages_number;
+
 	/* so that we do not change major version frequently */
-	int			reserved_for_future_use[11];
+	int			reserved_for_future_use[9];
 };
 
 struct dnet_node *dnet_get_node_from_state(void *state);
