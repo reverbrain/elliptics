@@ -31,6 +31,11 @@ namespace tests {
 
 static std::shared_ptr<nodes_data> global_data;
 
+static void destroy_global_data()
+{
+	global_data.reset();
+}
+
 static void configure_server_nodes()
 {
 	global_data = start_nodes(results_reporter::get_stream(), std::vector<config_data>({
@@ -78,8 +83,7 @@ bool register_tests()
 
 int main(int argc, char *argv[])
 {
+	atexit(tests::destroy_global_data);
 	srand(time(0));
-	int result = unit_test_main(tests::register_tests, argc, argv);
-	tests::global_data.reset();
-	return result;
+	return unit_test_main(tests::register_tests, argc, argv);
 }

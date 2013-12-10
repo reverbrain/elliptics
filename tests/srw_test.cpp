@@ -22,6 +22,8 @@
 
 #include <boost/program_options.hpp>
 
+#include "srw_test.hpp"
+
 using namespace ioremap::elliptics;
 using namespace boost::unit_test;
 
@@ -58,38 +60,93 @@ static void upload_application(const std::string &app_name)
 	{
 		msgpack::packer<msgpack::sbuffer> packer(buffer);
 		packer.pack_map(1);
-		packer.pack(std::string("isolate"));
+		packer << std::string("isolate");
 		packer.pack_map(2);
-		packer.pack(std::string("type"));
-		packer.pack(std::string("process"));
-		packer.pack(std::string("args"));
+		packer << std::string("type");
+		packer << std::string("process");
+		packer << std::string("args");
 		packer.pack_map(1);
-		packer.pack(std::string("spool"));
-		packer.pack(std::string("/tmp"));
+		packer << std::string("spool");
+		packer << global_data->directory.path();
 	}
 	std::string profile(buffer.data(), buffer.size());
 	{
+		buffer.clear();
 		msgpack::packer<msgpack::sbuffer> packer(buffer);
 		packer.pack_map(2);
-		packer.pack(std::string("type"));
-		packer.pack(std::string("binary"));
-		packer.pack(std::string("slave"));
-		packer.pack(app_name);
+		packer << std::string("type");
+		packer << std::string("binary");
+		packer << std::string("slave");
+		packer << app_name;
 	}
 	std::string manifest(buffer.data(), buffer.size());
-
-	std::string app;
+	{
+		buffer.clear();
+		msgpack::packer<msgpack::sbuffer> packer(buffer);
+		packer << read_file(COCAINE_TEST_APP);
+	}
+	std::string app(buffer.data(), buffer.size());
 
 	storage->write("manifests", app_name, manifest, app_tags).next();
 	storage->write("profiles", app_name, profile, profile_tags).next();
 	storage->write("apps", app_name, app, profile_tags).next();
 }
 
+static void start_application(session &sess, const std::string &app_name)
+{
+	key key_id = app_name;
+	key_id.transform(sess);
+	dnet_id id = key_id.id();
+
+	ELLIPTICS_REQUIRE(result, sess.exec(&id, app_name + "@start-task", data_pointer()));
+}
+
+static void init_application(session &sess, const std::string &app_name)
+{
+	key key_id = app_name;
+	key_id.transform(sess);
+	dnet_id id = key_id.id();
+
+	node_info info;
+	info.groups = { 1 };
+
+	for (auto it = global_data->nodes.begin(); it != global_data->nodes.end(); ++it)
+		info.remotes.push_back(it->remote());
+
+	ELLIPTICS_REQUIRE(exec_result, sess.exec(&id, app_name + "@init", info.pack()));
+
+	sync_exec_result result = exec_result;
+	BOOST_REQUIRE_EQUAL(result.size(), 1);
+	BOOST_REQUIRE_EQUAL(result[0].context().data().to_string(), "inited");
+}
+
+static void send_echo(session &sess, const std::string &app_name, const std::string &data)
+{
+	key key_id = app_name;
+	key_id.transform(sess);
+	dnet_id id = key_id.id();
+
+	ELLIPTICS_REQUIRE(exec_result, sess.exec(&id, app_name + "@echo", data));
+
+	sync_exec_result result = exec_result;
+	BOOST_REQUIRE_EQUAL(result.size(), 1);
+	BOOST_REQUIRE_EQUAL(result[0].context().data().to_string(), data);
+}
+
 bool register_tests(test_suite *suite, node n)
 {
 	ELLIPTICS_TEST_CASE(upload_application, "dnet_cpp_srw_test_app");
+	ELLIPTICS_TEST_CASE(start_application, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app");
+	ELLIPTICS_TEST_CASE(init_application, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app");
+	ELLIPTICS_TEST_CASE(send_echo, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app", "some-data");
+	ELLIPTICS_TEST_CASE(send_echo, create_session(n, { 1 }, 0, 0), "dnet_cpp_srw_test_app", "some-data and long-data.. like this");
 
 	return true;
+}
+
+static void destroy_global_data()
+{
+	global_data.reset();
 }
 
 boost::unit_test::test_suite *register_tests(int argc, char *argv[])
@@ -118,19 +175,19 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 
 	if (remote.empty()) {
 		configure_server_nodes();
-		register_tests(suite, global_data->node);
 	} else {
 		dnet_config config;
 		memset(&config, 0, sizeof(config));
 
 		logger log(NULL);
 
-		node n(log, config);
+		global_data = std::make_shared<nodes_data>();
+		global_data->node = node(log, config);
 		for (auto it = remote.begin(); it != remote.end(); ++it)
-			n.add_remote(it->c_str());
-
-		register_tests(suite, n);
+			global_data->node.add_remote(it->c_str());
 	}
+
+	register_tests(suite, global_data->node);
 
 	return suite;
 }
@@ -139,6 +196,8 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+	atexit(tests::destroy_global_data);
+
 	srand(time(0));
 	int result = unit_test_main(tests::register_tests, argc, argv);
 	tests::global_data.reset();

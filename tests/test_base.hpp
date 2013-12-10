@@ -149,6 +149,7 @@ struct nodes_data
 	ioremap::elliptics::node node;
 };
 
+std::string read_file(const char *file_path);
 nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs);
 
 } // namespace tests

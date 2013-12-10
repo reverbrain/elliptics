@@ -7,6 +7,7 @@ set(TEST_LIBRARIES elliptics_cpp test_common ${Boost_LIBRARIES})
 add_definitions(
     -DCOCAINE_CONFIG_PATH="${CMAKE_CURRENT_SOURCE_DIR}/cocaine.conf"
     -DCOCAINE_PLUGINS_PATH="${CMAKE_CURRENT_BINARY_DIR}/../cocaine/plugins"
+    -DCOCAINE_TEST_APP="${CMAKE_CURRENT_BINARY_DIR}/dnet_cpp_srw_test_app.tar"
 )
 
 add_library(test_common SHARED
@@ -33,12 +34,17 @@ target_link_libraries(dnet_cpp_cache_test ${TEST_LIBRARIES})
 find_package(CocaineNative REQUIRED)
 include_directories(${CocaineNative_INCLUDE_DIRS})
 
-add_executable(dnet_cpp_srw_test srw_test.cpp)
+add_executable(dnet_cpp_srw_test srw_test.cpp srw_test.hpp)
 set_target_properties(dnet_cpp_srw_test ${TEST_PROPERTIES})
 target_link_libraries(dnet_cpp_srw_test -lev ${TEST_LIBRARIES} ${CocaineNative_LIBRARIES})
 
 add_executable(dnet_cpp_srw_test_app srw_test_app.cpp)
 target_link_libraries(dnet_cpp_srw_test_app -lev elliptics_cpp ${CocaineNative_LIBRARIES} ${Boost_LIBRARIES})
+
+add_custom_command(TARGET dnet_cpp_srw_test_app
+    POST_BUILD
+    COMMAND tar -cf dnet_cpp_srw_test_app.tar dnet_cpp_srw_test_app
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 
 enable_testing()
 set(TEST_ARGUMENTS --report_level=detailed --report_sink=stdout --log_level=warning  --log_sink=stdout)

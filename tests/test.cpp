@@ -872,6 +872,11 @@ bool register_tests(test_suite *suite, node n)
 	return true;
 }
 
+static void destroy_global_data()
+{
+	global_data.reset();
+}
+
 boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 {
 	namespace bpo = boost::program_options;
@@ -898,19 +903,19 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 
 	if (remote.empty()) {
 		configure_server_nodes();
-		register_tests(suite, global_data->node);
 	} else {
 		dnet_config config;
 		memset(&config, 0, sizeof(config));
 
 		logger log(NULL);
 
-		node n(log, config);
+		global_data = std::make_shared<nodes_data>();
+		global_data->node = node(log, config);
 		for (auto it = remote.begin(); it != remote.end(); ++it)
-			n.add_remote(it->c_str());
-
-		register_tests(suite, n);
+			global_data->node.add_remote(it->c_str());
 	}
+
+	register_tests(suite, global_data->node);
 
 	return suite;
 }
@@ -920,7 +925,6 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
 	srand(time(0));
-	int result = unit_test_main(tests::register_tests, argc, argv);
-	tests::global_data.reset();
-	return result;
+	atexit(tests::destroy_global_data);
+	return unit_test_main(tests::register_tests, argc, argv);
 }

@@ -267,7 +267,7 @@ static std::string create_remote(const std::string &port)
 	return "localhost:" + port + ":2";
 }
 
-static std::string read_file(const char *file_path)
+std::string read_file(const char *file_path)
 {
 	char buffer[1024];
 	std::string result;
@@ -322,11 +322,14 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		cocaine_remotes += "\"localhost\": " + ports[j];
 	}
 
+	create_directory(base_path + "/run");
+
 	const std::map<std::string, std::string> cocaine_variables = {
 		{ "COCAINE_PLUGINS_PATH", COCAINE_PLUGINS_PATH },
 		{ "ELLIPTICS_REMOTES", cocaine_remotes },
 		{ "ELLIPTICS_GROUPS", "1" },
-		{ "COCAINE_LOG_PATH", base_path + "/log.txt" }
+		{ "COCAINE_LOG_PATH", base_path + "/log.txt" },
+		{ "COCAINE_RUN_PATH", base_path + "/run" }
 	};
 
 	for (auto it = cocaine_variables.begin(); it != cocaine_variables.end(); ++it) {
