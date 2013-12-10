@@ -23,6 +23,7 @@
 #include "session_indexes.hpp"
 #include "callback_p.h"
 #include "functional_p.h"
+#include "node_p.hpp"
 
 #include "../../library/elliptics.h"
 
@@ -254,12 +255,14 @@ static std::vector<dnet_raw_id> session_convert_indexes(session &sess, const std
 // Result is pushed to \a handler
 async_set_indexes_result session::set_indexes(const key &request_id, const std::vector<index_entry> &indexes)
 {
+	DNET_SESSION_NODE_CHECK(async_set_indexes_result);
 	return session_set_indexes(*this, request_id, indexes, 0);
 }
 
 async_set_indexes_result session::set_indexes(const key &id, const std::vector<std::string> &indexes,
 		const std::vector<data_pointer> &datas)
 {
+	DNET_SESSION_NODE_CHECK(async_set_indexes_result);
 	if (datas.size() != indexes.size())
 		throw_error(-EINVAL, id, "session::set_indexes: indexes and datas sizes mismtach");
 
@@ -272,6 +275,7 @@ async_set_indexes_result session::set_indexes(const key &id, const std::vector<s
 async_set_indexes_result session::update_indexes_internal(const key &request_id,
 		const std::vector<ioremap::elliptics::index_entry> &indexes)
 {
+	DNET_SESSION_NODE_CHECK(async_set_indexes_result);
 	return session_set_indexes(*this, request_id, indexes,
 			DNET_INDEXES_FLAGS_NOUPDATE | DNET_INDEXES_FLAGS_UPDATE_ONLY);
 }
@@ -279,6 +283,7 @@ async_set_indexes_result session::update_indexes_internal(const key &request_id,
 async_set_indexes_result session::update_indexes_internal(const key &id,
 		const std::vector<std::string> &indexes, const std::vector<data_pointer> &datas)
 {
+	DNET_SESSION_NODE_CHECK(async_set_indexes_result);
 	if (datas.size() != indexes.size())
 		throw_error(-EINVAL, id, "session::update_indexes_internal: indexes and datas sizes mismtach");
 
@@ -290,6 +295,7 @@ async_set_indexes_result session::update_indexes_internal(const key &id,
 
 async_generic_result session::remove_index_internal(const dnet_raw_id &id)
 {
+	DNET_SESSION_NODE_CHECK(async_generic_result);
 	async_generic_result result(*this);
 	auto cb = createCallback<remove_index_callback>(*this, result, id);
 	mix_states(cb->groups);
@@ -300,6 +306,7 @@ async_generic_result session::remove_index_internal(const dnet_raw_id &id)
 
 async_generic_result session::remove_index_internal(const std::string &id)
 {
+	DNET_SESSION_NODE_CHECK(async_generic_result);
 	key kid(id);
 	kid.transform(*this);
 	return remove_index_internal(kid.raw_id());
@@ -382,6 +389,7 @@ struct on_remove_index : std::enable_shared_from_this<on_remove_index>
 
 async_generic_result session::remove_index(const dnet_raw_id &id, bool remove_data)
 {
+	DNET_SESSION_NODE_CHECK(async_generic_result);
 	using namespace std::placeholders;
 	async_generic_result result(*this);
 
@@ -403,6 +411,7 @@ async_generic_result session::remove_index(const dnet_raw_id &id, bool remove_da
 
 async_generic_result session::remove_index(const std::string &id, bool remove_data)
 {
+	DNET_SESSION_NODE_CHECK(async_generic_result);
 	key kid(id);
 	kid.transform(*this);
 	return remove_index(kid.raw_id(), remove_data);
@@ -410,6 +419,7 @@ async_generic_result session::remove_index(const std::string &id, bool remove_da
 
 async_set_indexes_result session::remove_indexes_internal(const key &id, const std::vector<dnet_raw_id> &indexes)
 {
+	DNET_SESSION_NODE_CHECK(async_set_indexes_result);
 	std::vector<index_entry> index_entries;
 	index_entries.reserve(indexes.size());
 	for (auto it = indexes.begin(); it != indexes.end(); ++it) {
@@ -422,18 +432,21 @@ async_set_indexes_result session::remove_indexes_internal(const key &id, const s
 
 async_set_indexes_result session::remove_indexes_internal(const key &id, const std::vector<std::string> &indexes)
 {
+	DNET_SESSION_NODE_CHECK(async_set_indexes_result);
 	return remove_indexes_internal(id, session_convert_indexes(*this, indexes));
 }
 
 async_set_indexes_result session::update_indexes(const key &request_id,
 		const std::vector<ioremap::elliptics::index_entry> &indexes)
 {
+	DNET_SESSION_NODE_CHECK(async_set_indexes_result);
 	return session_set_indexes(*this, request_id, indexes, DNET_INDEXES_FLAGS_UPDATE_ONLY);
 }
 
 async_set_indexes_result session::update_indexes(const key &id,
 		const std::vector<std::string> &indexes, const std::vector<data_pointer> &datas)
 {
+	DNET_SESSION_NODE_CHECK(async_set_indexes_result);
 	if (datas.size() != indexes.size())
 		throw_error(-EINVAL, id, "session::update_indexes: indexes and datas sizes mismtach");
 
@@ -445,6 +458,7 @@ async_set_indexes_result session::update_indexes(const key &id,
 
 async_set_indexes_result session::remove_indexes(const key &id, const std::vector<dnet_raw_id> &indexes)
 {
+	DNET_SESSION_NODE_CHECK(async_set_indexes_result);
 	std::vector<index_entry> index_entries;
 	index_entries.reserve(indexes.size());
 	for (auto it = indexes.begin(); it != indexes.end(); ++it) {
@@ -456,6 +470,7 @@ async_set_indexes_result session::remove_indexes(const key &id, const std::vecto
 
 async_set_indexes_result session::remove_indexes(const key &id, const std::vector<std::string> &indexes)
 {
+	DNET_SESSION_NODE_CHECK(async_set_indexes_result);
 	return remove_indexes(id, session_convert_indexes(*this, indexes));
 }
 
@@ -494,6 +509,7 @@ static void on_find_indexes_complete(async_result_handler<find_indexes_result_en
 
 async_find_indexes_result session::find_indexes_internal(const std::vector<dnet_raw_id> &indexes, bool intersect)
 {
+	DNET_SESSION_NODE_CHECK(async_find_indexes_result);
 	async_find_indexes_result result(*this);
 	async_result_handler<find_indexes_result_entry> handler(result);
 
@@ -524,21 +540,25 @@ async_find_indexes_result session::find_indexes_internal(const std::vector<dnet_
 
 async_find_indexes_result session::find_all_indexes(const std::vector<dnet_raw_id> &indexes)
 {
+	DNET_SESSION_NODE_CHECK(async_find_indexes_result);
 	return find_indexes_internal(indexes, true);
 }
 
 async_find_indexes_result session::find_all_indexes(const std::vector<std::string> &indexes)
 {
+	DNET_SESSION_NODE_CHECK(async_find_indexes_result);
 	return find_all_indexes(session_convert_indexes(*this, indexes));
 }
 
 async_find_indexes_result session::find_any_indexes(const std::vector<dnet_raw_id> &indexes)
 {
+	DNET_SESSION_NODE_CHECK(async_find_indexes_result);
 	return find_indexes_internal(indexes, false);
 }
 
 async_find_indexes_result session::find_any_indexes(const std::vector<std::string> &indexes)
 {
+	DNET_SESSION_NODE_CHECK(async_find_indexes_result);
 	return find_any_indexes(session_convert_indexes(*this, indexes));
 }
 
@@ -572,6 +592,7 @@ struct check_indexes_handler
 
 async_list_indexes_result session::list_indexes(const key &request_id)
 {
+	DNET_SESSION_NODE_CHECK(async_list_indexes_result);
 	transform(request_id);
 
 	async_list_indexes_result result(*this);

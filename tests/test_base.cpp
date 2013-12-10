@@ -392,22 +392,18 @@ nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config
 		data->nodes.emplace_back(std::move(server));
 	}
 
-	return data;
-}
+	{
+		dnet_config config;
+		memset(&config, 0, sizeof(config));
 
-node nodes_data::create_client()
-{
-	dnet_config config;
-	memset(&config, 0, sizeof(config));
-
-	logger log(NULL);
-//	file_logger log("/dev/stderr", 4);
-	node n(log);
-	for (size_t i = 0; i < nodes.size(); ++i) {
-		n.add_remote(nodes[i].remote().c_str());
+		logger log(NULL);
+		data->node = node(log);
+		for (size_t i = 0; i < data->nodes.size(); ++i) {
+			data->node.add_remote(data->nodes[i].remote().c_str());
+		}
 	}
 
-	return n;
+	return data;
 }
 
 } // namespace tests

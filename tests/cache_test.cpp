@@ -67,7 +67,7 @@ static void test_cache_records_sizes(session &sess)
 bool register_tests()
 {
 	configure_server_nodes();
-	node n = global_data->create_client();
+	node n = global_data->node;
 
 	ELLIPTICS_TEST_CASE(test_cache_records_sizes, create_session(n, { 5 }, 0, DNET_IO_FLAGS_CACHE | DNET_IO_FLAGS_CACHE_ONLY));
 

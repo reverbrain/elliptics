@@ -146,8 +146,7 @@ struct nodes_data
 
 	std::vector<server_node> nodes;
 	directory_handler directory;
-
-	node create_client();
+	ioremap::elliptics::node node;
 };
 
 nodes_data::ptr start_nodes(std::ostream &debug_stream, const std::vector<config_data> &configs);

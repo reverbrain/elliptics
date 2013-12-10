@@ -118,7 +118,7 @@ boost::unit_test::test_suite *register_tests(int argc, char *argv[])
 
 	if (remote.empty()) {
 		configure_server_nodes();
-		register_tests(suite, global_data->create_client());
+		register_tests(suite, global_data->node);
 	} else {
 		dnet_config config;
 		memset(&config, 0, sizeof(config));
