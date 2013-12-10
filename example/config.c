@@ -377,6 +377,10 @@ static int dnet_set_cache_pages_proportions(struct dnet_config_backend *b __unus
 	}
 
 	dnet_cur_cfg_data->cfg_state.cache_pages_number = cache_pages_number;
+
+	if (dnet_cur_cfg_data->cfg_state.cache_pages_proportions) {
+		free(dnet_cur_cfg_data->cfg_state.cache_pages_proportions);
+	}
 	dnet_cur_cfg_data->cfg_state.cache_pages_proportions = proportions;
 	return 0;
 }
@@ -662,7 +666,8 @@ err_out_module_exit:
 err_out_file_exit:
 	dnet_file_backend_exit();
 err_out_free_proportions:
-	free(dnet_cur_cfg_data->cfg_state.cache_pages_proportions);
+	if (dnet_cur_cfg_data)
+		free(dnet_cur_cfg_data->cfg_state.cache_pages_proportions);
 err_out_free_buf:
 	free(buf);
 err_out_close:

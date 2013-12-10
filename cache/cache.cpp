@@ -263,7 +263,4 @@ void dnet_cache_cleanup(struct dnet_node *n)
 {
 	if (n->cache)
 		delete (cache_manager *)n->cache;
-
-	if (n->cache_pages_proportions)
-		delete[] n->cache_pages_proportions;
 }

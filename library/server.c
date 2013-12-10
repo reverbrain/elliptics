@@ -333,6 +333,9 @@ void dnet_server_node_destroy(struct dnet_node *n)
 	dnet_srw_cleanup(n);
 	dnet_cache_cleanup(n);
 
+	if (n->cache_pages_proportions)
+		free(n->cache_pages_proportions);
+
 	if (n->cb && n->cb->backend_cleanup)
 		n->cb->backend_cleanup(n->cb->command_private);
 
