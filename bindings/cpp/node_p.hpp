@@ -47,7 +47,9 @@ class session_data
 		uint32_t		trace_id;
 };
 
-#define DNET_SESSION_NODE_CHECK(TYPE)  \
+#define DNET_SESSION_NODE_CHECK(TYPE)
+
+/*
 	auto node_guard = m_data->node_guard.lock(); \
 	if (!node_guard) { \
 		TYPE result(*this); \
@@ -55,6 +57,7 @@ class session_data
 		handler.complete(create_error(-ENXIO, "Node is already destroyed")); \
 		return result; \
 	}
+*/
 
 }} // namespace ioremap::elliptics
 
