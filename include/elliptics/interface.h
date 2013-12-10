@@ -402,7 +402,7 @@ struct dnet_config
 	int			cache_sync_timeout;
 
 	/* Caches number */
-	unsigned int	caches_number;
+	unsigned int		caches_number;
 
 	/* Cache pages number */
 	unsigned int	cache_pages_number;
