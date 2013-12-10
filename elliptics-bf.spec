@@ -6,7 +6,7 @@
 
 Summary:	Distributed hash table storage
 Name:		elliptics
-Version:	2.24.14.33
+Version:	2.24.14.34
 Release:	1%{?dist}
 
 License:	GPLv2+
@@ -134,6 +134,14 @@ rm -rf %{buildroot}
 
 
 %changelog
+* Wed Dec 11 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.34
+- python: Acquire GIL in python binding in async_result::get()
+- config: update reserved fields to maintain proper ABI structure size
+- Python: Updated docstrings for binding
+- Merge recovery: changed statistics name to clearly separate remote and local request counters
+- Recovery: fixed removed_bytes in statistics for keys which hasn't been copied because proper node already has newer keys datas
+- Recovery: fixed removed_bytes in statistics for key which hasn't been copied because proper node already has newer key data
+
 * Thu Dec 05 2013 Evgeniy Polyakov <zbr@ioremap.net> - 2.24.14.33
 - Recovery: Added -o option to merge which limits it to one node.
 - Recovery: Replaced merge by deep_merge with removing of the last. Used FileHandler without rotation for dnet_recovery logs.
