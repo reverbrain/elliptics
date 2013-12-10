@@ -1,3 +1,14 @@
+elliptics (2.24.14.34) unstable; urgency=low
+
+  * python: Acquire GIL in python binding in async_result::get()
+  * config: update reserved fields to maintain proper ABI structure size
+  * Python: Updated docstrings for binding
+  * Merge recovery: changed statistics name to clearly separate remote and local request counters
+  * Recovery: fixed removed_bytes in statistics for keys which hasn't been copied because proper node already has newer keys datas
+  * Recovery: fixed removed_bytes in statistics for key which hasn't been copied because proper node already has newer key data
+
+ -- Evgeniy Polyakov <zbr@ioremap.net>  Wed, 11 Dec 2013 01:54:38 +0400
+
 elliptics (2.24.14.33) unstable; urgency=low
 
   * Recovery: Added -o option to merge which limits it to one node.
