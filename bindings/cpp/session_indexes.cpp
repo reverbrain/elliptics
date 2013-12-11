@@ -23,6 +23,7 @@
 #include "session_indexes.hpp"
 #include "callback_p.h"
 #include "functional_p.h"
+#include "node_p.hpp"
 
 #include "../../library/elliptics.h"
 
