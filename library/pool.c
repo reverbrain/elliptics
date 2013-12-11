@@ -262,7 +262,8 @@ again:
 			err = -EAGAIN;
 			if (errno != EAGAIN && errno != EINTR) {
 				err = -errno;
-				dnet_log_err(n, "failed to receive data, socket: %d", st->read_s);
+				dnet_log_err(n, "%s: failed to receive data, socket: %d/%d",
+						dnet_state_dump_addr(st), st->read_s, st->write_s);
 				goto out;
 			}
 
@@ -270,8 +271,8 @@ again:
 		}
 
 		if (err == 0) {
-			dnet_log(n, DNET_LOG_ERROR, "Peer %s has disconnected.\n",
-				dnet_server_convert_dnet_addr(&st->addr));
+			dnet_log(n, DNET_LOG_ERROR, "%s: peer has disconnected, socket: %d/%d.\n",
+				dnet_state_dump_addr(st), st->read_s, st->write_s);
 			err = -ECONNRESET;
 			goto out;
 		}
@@ -436,22 +437,12 @@ err_out_exit:
 
 void dnet_unschedule_send(struct dnet_net_state *st)
 {
-	struct epoll_event ev;
-
-	ev.events = EPOLLOUT;
-	ev.data.ptr = st;
-
-	epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->write_s, &ev);
+	epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->write_s, NULL);
 }
 
 void dnet_unschedule_recv(struct dnet_net_state *st)
 {
-	struct epoll_event ev;
-
-	ev.events = EPOLLIN;
-	ev.data.ptr = st;
-
-	epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->read_s, &ev);
+	epoll_ctl(st->epoll_fd, EPOLL_CTL_DEL, st->read_s, NULL);
 }
 
 static int dnet_process_send_single(struct dnet_net_state *st)
