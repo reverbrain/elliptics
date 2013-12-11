@@ -891,8 +891,10 @@ int dnet_setup_control_nolock(struct dnet_net_state *st)
 	return 0;
 
 err_out_unschedule:
+	pthread_mutex_lock(&st->send_lock);
 	dnet_unschedule_send(st);
 	dnet_unschedule_recv(st);
+	pthread_mutex_unlock(&st->send_lock);
 
 	st->epoll_fd = -1;
 	list_del_init(&st->storage_state_entry);
